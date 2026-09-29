@@ -89,6 +89,15 @@ class BuildTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             build.merge_spec(base, {"remove": ["zzz"]})
 
+    def test_pixline_has_no_gaps(self):
+        # 斜めの細い剣: どの行にも中身のドットがあり、途切れない
+        sp = spec([{"name": "blade", "material": "metal",
+                    "shapes": [{"type": "pixline", "points": [[8, 1], [5, 10]]}]}])
+        out, _ = build.build(sp)
+        pal, ramp = out["palette"], set(MATS["metal"]["ramp"])
+        for y in range(1, 11):
+            self.assertTrue(any(pal.get(c) in ramp for c in out["rows"][y]), f"行 {y} が途切れた")
+
     def test_strands_add_bands(self):
         # 房の縞: 同じ形でも、流れに直交する向きに明暗の段が増える
         base = {"name": "hair", "material": "metal", "shapes": [{"type": "rect", "at": [1, 1, 11, 11]}]}
