@@ -30,3 +30,4 @@
   move に書いた部品は body_dy で動かないので、上下動させたい腕は offset に自分で足す。持ち物（剣、弓）は手と同じ量を書く。
   `frames` は継承で丸ごと置き換わるので、子で歩きを書くときは `idle-2` も書き直す
 - `tools/anim.py --anim walk` で `sprite.walk-*.json` だけを並べる
+- `mirror_frames: true` で右向きのコマを自動で作る。`reduce_colors` は styles の `max_colors` を超えたコマだけ、最少の色を最も近い色へ寄せる

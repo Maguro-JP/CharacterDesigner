@@ -4,7 +4,8 @@ GIF は動きを見る人のため、静止画はコマの差を1ドット単位
 
 使い方: python3 tools/anim.py [--anim idle|walk] out.gif characters/a/sprite.json ...
   idle（既定）: sprite.json と sprite.idle-*.json を続けて読む
-  それ以外: sprite.<anim>-*.json だけを名前の順に読む
+  right-idle: sprite.right.json と sprite.right-idle-*.json
+  それ以外（walk、right-walk など）: sprite.<anim>-*.json だけを名前の順に読む
 """
 import sys
 from pathlib import Path
@@ -24,6 +25,8 @@ def frames_of(path, anim="idle"):
     paths = sorted(path.parent.glob(f"sprite.{anim}-*.json"))
     if anim == "idle":
         paths = [path] + paths
+    elif anim == "right-idle":
+        paths = [path.with_name("sprite.right.json")] + paths
     out = []
     for p in paths:
         _, rows, width, palette = sprite.load(p)

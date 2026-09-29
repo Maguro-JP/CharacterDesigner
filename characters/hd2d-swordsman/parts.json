@@ -214,5 +214,6 @@
    "body_dy": -1
   },
   {"name": "right", "mirror": true}
- ]
+ ],
+ "mirror_frames": true
 }

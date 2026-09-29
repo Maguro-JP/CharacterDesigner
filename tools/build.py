@@ -370,6 +370,43 @@ def _luma_dist(a, b):
                - (0.2126 * rb[0] + 0.7152 * rb[1] + 0.0722 * rb[2]))
 
 
+def style_max_colors(spec):
+    """作風の色数の上限。spec の max_colors、無ければ styles/<style>.json の palette.max_colors。"""
+    if "max_colors" in spec:
+        return spec["max_colors"]
+    path = Path(__file__).resolve().parent.parent / "styles" / f"{spec.get('style', '')}.json"
+    if path.exists():
+        return json.loads(path.read_text(encoding="utf-8")).get("palette", {}).get("max_colors")
+    return None
+
+
+def reduce_colors(colors, limit, protect=()):
+    """色数が上限を超えたら、使うドットが最も少ない色から、いちばん近い色に寄せる。
+
+    コマによって明るさの段が1つだけ余分に出ることがある（右向きの呼吸で、外套の明るい段が2ドットだけ出た）。
+    素材の段を手で削るとほかのコマの陰影まで減るので、そのコマで数ドットの色だけを寄せる。
+    """
+    merged = 0
+    while True:
+        count = {}
+        for y, row in enumerate(colors):
+            for x, c in enumerate(row):
+                if c is not None and (x, y) not in protect:
+                    count[c] = count.get(c, 0) + 1
+        used = {c for row in colors for c in row if c is not None}
+        if not limit or len(used) <= limit or len(count) < 2:
+            return merged
+        rare = min(count, key=lambda c: (count[c], c))
+        ra = hex_to_rgb(rare)
+        near = min((c for c in used if c != rare),
+                   key=lambda c: sum((a - b) ** 2 for a, b in zip(hex_to_rgb(c), ra)))
+        for row in colors:
+            for x, c in enumerate(row):
+                if c == rare:
+                    row[x] = near
+        merged += 1
+
+
 def apply_touchups(spec, colors):
     """最後の1ドット単位の仕上げ。色は '#hex' か '素材名:段'（段は ramp の番号か outline）。"""
     mats = spec["materials"]
@@ -439,6 +476,7 @@ def build(spec):
     protect = {tuple(p) for t in spec.get("touchups", []) for p in t["at"]}
     clean_orphans(colors, protect)
     apply_touchups(spec, colors)
+    reduce_colors(colors, style_max_colors(spec), protect)
     return to_sprite(spec, colors, owner), (top, light, size)
 
 
@@ -446,7 +484,8 @@ def frame_spec(spec, frame):
     """動きの1コマ分の spec を作る。
 
     dy: 呼吸。部品ごとの breathe（0〜1）に掛けた量だけ下げる。頭と肩は 1、胴は 0.5、脚は 0
-    mirror: 右向き。形だけを左右反転し、光は左上のまま描き直す
+    mirror: 右向き。形だけを左右反転し、光は左上のまま描き直す。move の横の動きも逆にする
+    （spec に mirror_frames: true があれば、左向きの全コマから right-<名前> のコマを作る）
     move: {部品名: {offset: [dx, dy], points: [[dx, dy], ...]}}。脚の前後のように、
           部品ごとに動かす。points は最初の形の点を1つずつずらす。無い部品は飛ばす
           （職業によって脚が法衣に隠れているため）
@@ -455,11 +494,16 @@ def frame_spec(spec, frame):
     touchups（目や鼻）は頭と一緒に動く。動かさないものは touchup に breathe: 0 を書く。
     """
     out = copy.deepcopy(spec)
-    if frame.get("mirror"):
+    mirror = frame.get("mirror")
+    if mirror:
         _mirror(out)
     dy = frame.get("dy", 0)
     body = frame.get("body_dy", 0)
     move = frame.get("move", {})
+    if mirror:
+        # 左向きで書いた動きを右向きに使う。横の動きだけ向きを逆にする
+        move = {n: {k: ([-v[0], v[1]] if k == "offset" else [[-x, y] for x, y in v]) for k, v in m.items()}
+                for n, m in move.items()}
     for part in out["parts"]:
         ox, oy = part.get("offset", (0, 0))
         oy += part.get("breathe", 0) * dy
@@ -514,8 +558,12 @@ def _mirror(spec):
 
 def build_frames(spec):
     """基本のコマと、frames に書いたコマをすべて描く。{名前: sprite}。基本は名前 ''。"""
+    frames = list(spec.get("frames", []))
+    if spec.get("mirror_frames"):
+        # 左向きの各コマから右向きのコマを作る（right-idle-2、right-walk-1 など）
+        frames += [dict(f, name=f"right-{f['name']}", mirror=True) for f in frames if not f.get("mirror")]
     out = {"": build(spec)[0]}
-    for frame in spec.get("frames", []):
+    for frame in frames:
         out[frame["name"]] = build(frame_spec(spec, frame))[0]
     return out
 
