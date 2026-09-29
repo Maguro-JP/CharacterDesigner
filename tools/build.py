@@ -517,6 +517,8 @@ def build(spec):
     protect = {tuple(p) for t in spec.get("touchups", []) for p in t["at"]}
     clean_orphans(colors, protect)
     apply_touchups(spec, colors)
+    # 仕上げのドットを置くと、隣の地のドットが孤立することがある（眼鏡の横で起きた）。もう一度掃除する
+    clean_orphans(colors, protect)
     reduce_colors(colors, style_max_colors(spec), protect)
     return to_sprite(spec, colors, owner), (top, light, size)
 
