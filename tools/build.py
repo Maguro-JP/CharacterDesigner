@@ -461,6 +461,7 @@ def to_sprite(spec, colors, owner=None):
         "style": spec["style"],
         "brief": spec.get("brief", ""),
         "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
+        **({"frame": spec["frame"]} if spec.get("frame") else {}),
         "head_height": head,
         "body_box": box,
         "palette": {sym[c]: c for c in used},
@@ -468,7 +469,46 @@ def to_sprite(spec, colors, owner=None):
     }
 
 
+def apply_transforms(spec):
+    """部品を拡大縮小する。体格の枠（子供など）を、既存の職業から作るため。
+
+    transforms: [{parts: "*" か名前の並び, scale: [sx, sy], origin: [x, y], touchups: true/false}]
+    上から順にかける。子供は全体を縮めてから、頭だけを少し戻す（頭の比率が大きくなる）。
+    touchups: true の規則は、目や鼻の仕上げのドットも同じ位置へ動かす。
+    """
+    rules = spec.get("transforms")
+    if not rules:
+        return spec
+    spec = copy.deepcopy(spec)
+    for rule in rules:
+        sx, sy = rule["scale"]
+        ox, oy = rule["origin"]
+        pick = rule.get("parts", "*")
+        tx = lambda x: ox + (x - ox) * sx  # noqa: E731
+        ty = lambda y: oy + (y - oy) * sy  # noqa: E731
+        for part in spec["parts"]:
+            if pick != "*" and part["name"] not in pick:
+                continue
+            for key in ("shapes", "cut"):
+                for sh in part.get(key, []):
+                    if "points" in sh:
+                        sh["points"] = [[tx(x), ty(y)] for x, y in sh["points"]]
+                    if "r" in sh:
+                        sh["r"] = sh["r"] * (sx + sy) / 2
+                    if sh["type"] == "ellipse":
+                        cx, cy, rx, ry = sh["at"]
+                        sh["at"] = [tx(cx), ty(cy), rx * sx, ry * sy]
+                    elif sh["type"] == "rect":
+                        x0, y0, x1, y1 = sh["at"]
+                        sh["at"] = [tx(x0), ty(y0), tx(x1), ty(y1)]
+        if rule.get("touchups"):
+            for t in spec.get("touchups", []):
+                t["at"] = [[int(tx(x + 0.5)), int(ty(y + 0.5))] for x, y in t["at"]]
+    return spec
+
+
 def build(spec):
+    spec = apply_transforms(spec)
     top, light, size = render_hi(spec)
     cells = downscale(spec, top, light, size)
     grid = quantize(spec, cells)
@@ -561,6 +601,8 @@ def _mirror(spec):
             part["strands"] = dict(part["strands"], angle=180 - part["strands"].get("angle", 0))
     for t in spec.get("touchups", []):
         t["at"] = [[W - 1 - x, y] for x, y in t["at"]]
+    for rule in spec.get("transforms", []):
+        rule["origin"] = [W - rule["origin"][0], rule["origin"][1]]
 
 
 def build_frames(spec):

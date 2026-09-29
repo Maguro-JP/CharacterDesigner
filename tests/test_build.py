@@ -167,6 +167,17 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(f["parts"][0]["shapes"][0]["at"], [2, 1, 4, 4])
         self.assertEqual(sp["parts"][0]["shapes"][0]["at"], [2, 8, 4, 11])
 
+    def test_transforms_scale_about_origin(self):
+        sp = spec([{"name": "body", "material": "metal", "shapes": [{"type": "rect", "at": [4, 2, 8, 12]}]},
+                   {"name": "head", "material": "skin", "shapes": [{"type": "ellipse", "at": [6, 2, 2, 2]}]}],
+                  touchups=[{"at": [[6, 2]], "c": "#000000"}],
+                  transforms=[{"parts": "*", "scale": [0.5, 0.5], "origin": [6, 12], "touchups": True}])
+        out = build.apply_transforms(sp)
+        self.assertEqual(out["parts"][0]["shapes"][0]["at"], [5.0, 7.0, 7.0, 12.0])
+        self.assertEqual(out["parts"][1]["shapes"][0]["at"], [6.0, 7.0, 1.0, 1.0])
+        self.assertEqual(out["touchups"][0]["at"], [[6, 7]])
+        self.assertEqual(sp["parts"][0]["shapes"][0]["at"], [4, 2, 8, 12])  # 元は変わらない
+
     def test_strands_add_bands(self):
         # 房の縞: 同じ形でも、流れに直交する向きに明暗の段が増える
         base = {"name": "hair", "material": "metal", "shapes": [{"type": "rect", "at": [1, 1, 11, 11]}]}
