@@ -163,15 +163,19 @@ def shade_part(part, mask, material):
     # 反射の向き: 視線 (0,0,1) と光の中間
     Hv = _norm((L[0], L[1], L[2] + 1.0))
     out = [0.0] * (w * h)
-    for y in range(h):
+    # 部品の範囲だけを走る。全画面を走ると、小さな部品でも 7 万画素を見ることになる
+    for y in range(bbox[1], bbox[3]):
         row = y * w
-        for x in range(w):
+        for x in range(bbox[0], bbox[2]):
             i = row + x
             if mdata[i] < 128:
                 continue
             hx = (height[i + 1] if x + 1 < w else 0) - (height[i - 1] if x > 0 else 0)
             hy = (height[i + w] if y + 1 < h else 0) - (height[i - w] if y > 0 else 0)
-            n = _norm((-hx * relief, -hy * relief, 1.0))
+            # _norm を画素ごとに呼ぶと遅いので、同じ計算をその場で行う（足す順も同じにして結果を変えない）
+            nx, ny = -hx * relief, -hy * relief
+            nn = math.sqrt(nx * nx + ny * ny + 1.0) or 1.0
+            n = (nx / nn, ny / nn, 1.0 / nn)
             diff = max(0.0, n[0] * L[0] + n[1] * L[1] + n[2] * L[2])
             v = ambient + (1 - ambient) * diff
             if spec_power:
@@ -197,12 +201,17 @@ def render_hi(spec):
         sx0, sy0 = spec.get("shift", (0, 0))
         ox, oy = part.get("offset", (0, 0))
         mask = part_mask(part, size, (sx0 + ox, sy0 + oy))
+        box = mask.getbbox()
+        if not box:
+            continue
         sh = shade_part(part, mask, mats[part["material"]])
         md = _data(mask)
-        for i, m in enumerate(md):
-            if m >= 128:
-                top[i] = idx
-                light[i] = sh[i]
+        w0 = size[0]
+        for y in range(box[1], box[3]):
+            for i in range(y * w0 + box[0], y * w0 + box[2]):
+                if md[i] >= 128:
+                    top[i] = idx
+                    light[i] = sh[i]
     # 落ち影: 光の来る側（左上）に手前の部品があれば暗くする。部品の重なりに奥行きを出す
     ox, oy = spec.get("cast_shadow", {}).get("offset", [0.6, 0.9])
     dim = spec.get("cast_shadow", {}).get("strength", 0.28)
