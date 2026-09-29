@@ -1,0 +1,63 @@
+{
+ "name": "盗賊（男）",
+ "style": "dq",
+ "brief": "HD-2D のドット絵の盗賊の男。男性の枠。銀の髪に赤い鉢巻き、灰紫の上着、口元まで覆う深緑の襟巻き、短剣を逆手に持つ。左向きの 3/4",
+ "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
+ "head_height": 8,
+ "body_box": [
+  3,
+  0,
+  14,
+  16
+ ],
+ "palette": {
+  "a": "#10201a",
+  "b": "#1a1420",
+  "c": "#1a1a28",
+  "d": "#2a1c1c",
+  "e": "#2c2f3c",
+  "f": "#4a4058",
+  "g": "#6e3a2c",
+  "h": "#8a5a34",
+  "i": "#a2664a",
+  "j": "#a2a8b8",
+  "k": "#d49a70",
+  "l": "#dce0ea"
+ },
+ "rows": [
+  ".....eeljjjle...",
+  "....eljljjjlle..",
+  "....eljjjjjlfe..",
+  "...ejekeiijjfe..",
+  "...gjkkkijejje..",
+  "...gkbiiiiejje..",
+  "...gkiiiiiejje..",
+  "....giiiiaeee...",
+  "....bgbfffaaa...",
+  ".....bfbddaada..",
+  "....bbfbhggda...",
+  "....clcfchd.....",
+  "....clccbbdb....",
+  ".....cllccb.....",
+  ".....dccccd.....",
+  "....dhhhhhdd...."
+ ],
+ "intended": [
+  [
+   3,
+   5
+  ],
+  [
+   5,
+   3
+  ],
+  [
+   5,
+   5
+  ],
+  [
+   7,
+   3
+  ]
+ ]
+}

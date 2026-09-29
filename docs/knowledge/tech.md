@@ -35,3 +35,5 @@
 - 筒（capsule）の直線上に点を足しても、縮小後に1ドット変わることがある（点ごとの円の塗りと多角形の塗りの端の差）
 - `line_same`: 同じ素材の部品どうしでも境目の線を引く（手前の部品に書く）。素肌の腕と胴に使った
 - `transforms`: 部品の拡大縮小。上から順にかける。右向きでは origin も折り返す。`frame: "child"` を書くと check.py は styles の `canvas.frames.child` の範囲で数える
+- `intended`: sprite.json に、仕上げで置いた1ドットの座標を書く。check.py は孤立ドットの数から除く
+- 作風の追加は styles/<id>.json の `render` を書くだけで、全職業に効く。頭の大きさは `parts: "head"` の transforms で決める

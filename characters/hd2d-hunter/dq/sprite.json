@@ -1,0 +1,63 @@
+{
+ "name": "狩人（男）",
+ "style": "dq",
+ "brief": "HD-2D のドット絵の狩人の男。男性の枠。緑の頭巾と肩掛け、革の胴着、背に矢筒。弓を前に下げて持つ。左向きの 3/4",
+ "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
+ "head_height": 9,
+ "body_box": [
+  3,
+  0,
+  14,
+  16
+ ],
+ "palette": {
+  "a": "#16241a",
+  "b": "#1a1a28",
+  "c": "#2a1c1c",
+  "d": "#3e3e58",
+  "e": "#4a7040",
+  "f": "#5a3a22",
+  "g": "#6e3a2c",
+  "h": "#8a5a34",
+  "i": "#8a7a5a",
+  "j": "#a2664a",
+  "k": "#d49a70",
+  "l": "#d8d0b8"
+ },
+ "rows": [
+  ".....aeeeeeea...",
+  "....aeeeeeeeea..",
+  "...aeecceeeeea..",
+  "...aeckjjeeeea..",
+  "...gekkkjeeccc..",
+  "...gjckjkjccec..",
+  "...gkkjjjkeecc..",
+  "..ccgkjjjeefcc..",
+  ".chhlciaiifcc...",
+  ".chclciaeeecfc..",
+  "chhclccccccffc..",
+  "chhclccdccccc...",
+  ".chclbddcccc....",
+  ".chhlbddbbc.....",
+  "..cclcbbbbc.....",
+  "....chhhhhcc...."
+ ],
+ "intended": [
+  [
+   3,
+   5
+  ],
+  [
+   4,
+   5
+  ],
+  [
+   5,
+   3
+  ],
+  [
+   5,
+   5
+  ]
+ ]
+}

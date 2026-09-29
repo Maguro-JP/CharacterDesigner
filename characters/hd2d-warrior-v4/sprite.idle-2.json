@@ -72,5 +72,27 @@
   "....bmhbakkkfffakkfffa......",
   "....bhhbakkffffafffffa......",
   ".....bb..aaaaaa.aaaaa......."
+ ],
+ "intended": [
+  [
+   8,
+   9
+  ],
+  [
+   9,
+   9
+  ],
+  [
+   11,
+   11
+  ],
+  [
+   12,
+   8
+  ],
+  [
+   12,
+   9
+  ]
  ]
 }

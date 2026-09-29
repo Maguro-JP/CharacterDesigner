@@ -72,5 +72,27 @@
   "......ajeeeeajjjjeeablgb....",
   "......aeeeeeajjeeeeabggb....",
   ".......aaaaa.aaaaaa..bb....."
+ ],
+ "intended": [
+  [
+   15,
+   7
+  ],
+  [
+   15,
+   8
+  ],
+  [
+   16,
+   10
+  ],
+  [
+   18,
+   8
+  ],
+  [
+   19,
+   8
+  ]
  ]
 }

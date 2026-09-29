@@ -418,6 +418,9 @@ def apply_touchups(spec, colors):
             name, k = c.split(":")
             c = mats[name]["outline"] if k == "outline" else mats[name]["ramp"][int(k)]
         for x, y in t["at"]:
+            # 作風の変換で絵の外へ出た仕上げは置かない（負の添字で反対側に描かれるのも防ぐ）
+            if not (0 <= y < len(colors) and 0 <= x < len(colors[0])):
+                continue
             colors[y][x] = c
             done.add((x, y))
     return done
@@ -466,6 +469,9 @@ def to_sprite(spec, colors, owner=None):
         "body_box": box,
         "palette": {sym[c]: c for c in used},
         "rows": rows,
+        # 仕上げで意図して置いた1ドット（目、鼻、口）。check.py の孤立ドットの数から除く
+        "intended": [list(p) for p in sorted({(x, y) for t in spec.get("touchups", []) for x, y in t["at"]
+                                              if 0 <= y < len(colors) and 0 <= x < len(colors[0]) and colors[y][x]})],
     }
 
 

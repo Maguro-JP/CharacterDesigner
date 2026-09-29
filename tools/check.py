@@ -71,10 +71,12 @@ def main():
 
     # 孤立ドット: 上下左右斜めに同じ色が無い
     orphans = []
+    # 目や口のように意図して置いた1ドットは、ノイズではないので数えない（build.py が intended に書く）
+    intended = {tuple(p) for p in data.get("intended", [])}
     for y in range(h):
         for x in range(width):
             c = at(x, y)
-            if c == ".":
+            if c == "." or (x, y) in intended:
                 continue
             if not any(at(x + dx, y + dy) == c for dx in (-1, 0, 1) for dy in (-1, 0, 1) if dx or dy):
                 orphans.append((x, y))

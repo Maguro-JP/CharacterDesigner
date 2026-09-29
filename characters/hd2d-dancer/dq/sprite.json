@@ -1,0 +1,63 @@
+{
+ "name": "踊子（女）",
+ "style": "dq",
+ "brief": "HD-2D のドット絵の踊子の女。女性の枠。赤い長い巻き布の下衣に金の胸当て、腰の金の飾り帯が後ろへ流れる。腕と腹は素肌、金の腕輪。紫がかった黒髪。片腕を胸の高さへ上げる。左向きの 3/4",
+ "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
+ "head_height": 8,
+ "body_box": [
+  2,
+  0,
+  14,
+  16
+ ],
+ "palette": {
+  "a": "#1e1020",
+  "b": "#2a1c1c",
+  "c": "#4a1c20",
+  "d": "#5a2e48",
+  "e": "#5a3a22",
+  "f": "#6e3a2c",
+  "g": "#804068",
+  "h": "#8a5a34",
+  "i": "#a2664a",
+  "j": "#b8443a",
+  "k": "#d49a70",
+  "l": "#e2b454"
+ },
+ "rows": [
+  ".....aagddaa....",
+  "....agdgdddga...",
+  "....agdddddga...",
+  "...aaakkkddgda..",
+  "...fkkkkkaddda..",
+  "...fiakkkiadda..",
+  "....fkkkiaddda..",
+  ".....fkifagdda..",
+  ".....fiiiegdda..",
+  "...feillllddda..",
+  "..ffeeiiiiddda..",
+  "...fecjjjjedda..",
+  ".....cjjjjceda..",
+  ".....cjjffcea...",
+  "....cccjjjjc....",
+  "....chhbbbc....."
+ ],
+ "intended": [
+  [
+   4,
+   3
+  ],
+  [
+   4,
+   5
+  ],
+  [
+   5,
+   3
+  ],
+  [
+   5,
+   5
+  ]
+ ]
+}
