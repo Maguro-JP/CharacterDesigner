@@ -277,7 +277,8 @@ def outline(spec, grid):
     純黒の一律の線ではなく素材ごとの最暗色で縁取る（FF6 系の決まり、styles/hd2d.json）。
     外周のドットを塗り替えるのではなく外に足すのは、剣のような2ドット幅の部品が
     輪郭だけになって中身が消えるのを防ぐため。
-    境目の線は、手前の部品を浮かせるために奥の部品にだけ引く。
+    境目の線は、手前の部品を浮かせるために奥の部品にだけ引く。同じ素材どうしには引かないが、
+    手前の部品に line_same があれば引く（素肌の腕が素肌の胴に溶けるのを防ぐ）。
     """
     parts = spec["parts"]
     mats = spec["materials"]
@@ -308,7 +309,7 @@ def outline(spec, grid):
                     if n is None:
                         continue
                     q = n[0]
-                    if q > p and groups[q] != groups[p] and parts[q]["material"] != parts[p]["material"] \
+                    if q > p and groups[q] != groups[p] and (parts[q]["material"] != parts[p]["material"] or parts[q].get("line_same")) \
                             and not parts[q].get("no_line_behind"):
                         color = m.get("line", m["outline"])
                         break
