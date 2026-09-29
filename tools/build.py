@@ -484,6 +484,7 @@ def frame_spec(spec, frame):
     """動きの1コマ分の spec を作る。
 
     dy: 呼吸。部品ごとの breathe（0〜1）に掛けた量だけ下げる。頭と肩は 1、胴は 0.5、脚は 0
+    override: {部品名: {変える項目}}。そのコマだけ部品を差し替える（構えの違い）
     mirror: 右向き。形だけを左右反転し、光は左上のまま描き直す。move の横の動きも逆にする
     （spec に mirror_frames: true があれば、左向きの全コマから right-<名前> のコマを作る）
     move: {部品名: {offset: [dx, dy], points: [[dx, dy], ...]}}。脚の前後のように、
@@ -494,6 +495,11 @@ def frame_spec(spec, frame):
     touchups（目や鼻）は頭と一緒に動く。動かさないものは touchup に breathe: 0 を書く。
     """
     out = copy.deepcopy(spec)
+    for name, fields in frame.get("override", {}).items():
+        # コマだけの構えの差し替え（歩くときは剣を立てて持つ、など）。左向きの座標で書く
+        for part in out["parts"]:
+            if part["name"] == name:
+                part.update(copy.deepcopy(fields))
     mirror = frame.get("mirror")
     if mirror:
         _mirror(out)
