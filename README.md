@@ -33,6 +33,9 @@ python3 tools/check.py characters/hd2d-warrior-v4/sprite.json styles/hd2d.json
 # 拡大図と舞台の図
 python3 tools/render.py characters/hd2d-warrior-v4/sprite.json out/
 
+# parts.json を読みやすい幅に整える（試験で整っているかを見る）
+python3 tools/fmt.py characters/*/parts.json
+
 # 版を並べる
 python3 tools/compare.py out/cmp.png v3=characters/hd2d-warrior/sprite.json v4=characters/hd2d-warrior-v4/sprite.json
 ```

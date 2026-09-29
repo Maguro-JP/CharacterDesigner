@@ -107,6 +107,13 @@ class BuildTest(unittest.TestCase):
         changes = lambda r: sum(a != b for a, b in zip(r, r[1:]))  # noqa: E731
         self.assertGreater(changes(row(banded)), changes(row(flat)))
 
+    def test_parts_files_are_formatted(self):
+        # parts.json は tools/fmt.py の形にそろえる。手で書いた崩れを差分に混ぜないため
+        files = [str(p) for p in ROOT.glob("characters/*/parts.json")]
+        r = subprocess.run([sys.executable, "tools/fmt.py", "--check", *files], cwd=ROOT,
+                           capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout + "\n→ python3 tools/fmt.py characters/*/parts.json で直る")
+
     def test_warrior_v4_passes_style_check(self):
         r = subprocess.run([sys.executable, "tools/check.py", "characters/hd2d-warrior-v4/sprite.json",
                             "styles/hd2d.json"], cwd=ROOT, capture_output=True, text=True)
