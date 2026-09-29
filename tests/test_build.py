@@ -126,6 +126,22 @@ class BuildTest(unittest.TestCase):
         edge = [[None, a], [a, a]]  # 外周の透明は形の外なので埋めない
         self.assertEqual(build.fill_pinholes(edge), 0)
 
+    def test_mirror_flips_shape_but_keeps_light(self):
+        # 左右対称な円: 反転しても光は左上なので、描き上がりは元と同じになる（絵を反転すると左右が逆になる）
+        sp = spec([{"name": "ball", "material": "metal", "shapes": [{"type": "ellipse", "at": [6, 6, 4, 4]}]}],
+                  frames=[{"name": "right", "mirror": True}])
+        f = build.build_frames(sp)
+        self.assertEqual(f[""]["rows"], f["right"]["rows"])
+        flipped = [r[::-1] for r in f[""]["rows"]]
+        self.assertNotEqual(f[""]["rows"], flipped)
+        # 左に寄った形は右に寄る
+        sp2 = spec([{"name": "bar", "material": "metal", "shapes": [{"type": "rect", "at": [1, 2, 3, 10]}]}],
+                   touchups=[{"at": [[1, 2]], "c": "#000000"}], frames=[{"name": "right", "mirror": True}])
+        r = build.build_frames(sp2)["right"]
+        self.assertTrue({r["palette"][c] for c in r["rows"][5][9:11]} <= set(MATS["metal"]["ramp"]))
+        self.assertEqual(r["rows"][5][:8], "." * 8)
+        self.assertEqual(r["palette"][r["rows"][2][10]], "#000000")
+
     def test_strands_add_bands(self):
         # 房の縞: 同じ形でも、流れに直交する向きに明暗の段が増える
         base = {"name": "hair", "material": "metal", "shapes": [{"type": "rect", "at": [1, 1, 11, 11]}]}
