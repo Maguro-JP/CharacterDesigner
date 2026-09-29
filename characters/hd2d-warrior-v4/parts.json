@@ -81,7 +81,7 @@
    "outline": "#5a3a22",
    "line": "#5a3a22",
    "ramp": [
-    "#a0742c",
+    "#8a5a34",
     "#e2b454"
    ],
    "steps": [
@@ -457,7 +457,12 @@
      ]
     }
    ],
-   "head": true
+   "head": true,
+   "strands": {
+    "angle": 10,
+    "period": 2.2,
+    "amp": 0.24
+   }
   },
   {
    "name": "face",
@@ -586,7 +591,12 @@
      ]
     }
    ],
-   "head": true
+   "head": true,
+   "strands": {
+    "angle": -20,
+    "period": 2.0,
+    "amp": 0.14
+   }
   },
   {
    "name": "near_pauldron",

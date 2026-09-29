@@ -71,6 +71,15 @@ class BuildTest(unittest.TestCase):
         out, _ = build.build(sp)
         self.assertEqual(out["palette"][out["rows"][4][4]], "#301010")
 
+    def test_strands_add_bands(self):
+        # 房の縞: 同じ形でも、流れに直交する向きに明暗の段が増える
+        base = {"name": "hair", "material": "metal", "shapes": [{"type": "rect", "at": [1, 1, 11, 11]}]}
+        flat, _ = build.build(spec([base]))
+        banded, _ = build.build(spec([dict(base, strands={"angle": 0, "period": 2.0, "amp": 0.3})]))
+        row = lambda o: [o["palette"][c] for c in o["rows"][6][2:10]]  # noqa: E731
+        changes = lambda r: sum(a != b for a, b in zip(r, r[1:]))  # noqa: E731
+        self.assertGreater(changes(row(banded)), changes(row(flat)))
+
     def test_warrior_v4_passes_style_check(self):
         r = subprocess.run([sys.executable, "tools/check.py", "characters/hd2d-warrior-v4/sprite.json",
                             "styles/hd2d.json"], cwd=ROOT, capture_output=True, text=True)

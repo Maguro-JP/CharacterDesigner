@@ -128,6 +128,13 @@ def shade_part(part, mask, material):
     spec_gain = material.get("spec_gain", 0.0)
     ambient = material.get("ambient", 0.32)
     bias = part.get("bias", 0.0)
+    # 房（strands）: 流れに直交する向きに明暗の縞を足す。髪や毛皮を面ではなく束に見せる
+    strands = part.get("strands")
+    if strands:
+        a = math.radians(strands.get("angle", 0))
+        ca, sa = math.cos(a), math.sin(a)
+        k = 2 * math.pi / (strands.get("period", 2.5) * SS)
+        amp = strands.get("amp", 0.15)
     # 反射の向き: 視線 (0,0,1) と光の中間
     Hv = _norm((L[0], L[1], L[2] + 1.0))
     out = [0.0] * (w * h)
@@ -145,6 +152,8 @@ def shade_part(part, mask, material):
             if spec_power:
                 sp = max(0.0, n[0] * Hv[0] + n[1] * Hv[1] + n[2] * Hv[2]) ** spec_power
                 v += spec_gain * sp
+            if strands:
+                v += amp * math.sin((x * ca + y * sa) * k)
             out[i] = v + bias
     return out
 
