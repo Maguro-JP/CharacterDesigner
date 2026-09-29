@@ -108,6 +108,16 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(base["rows"][0:5], moved["rows"][1:6])  # 頭は1ドット下がる（輪郭ごと）
         self.assertEqual(moved["palette"][moved["rows"][3][4]], "#000000")  # 目も一緒に動く
 
+    def test_move_shifts_named_parts_and_bobs_the_rest(self):
+        sp = spec([{"name": "leg", "material": "metal", "shapes": [{"type": "capsule", "points": [[4, 6], [4, 10]], "r": 1}]},
+                   {"name": "body", "material": "skin", "shapes": [{"type": "rect", "at": [3, 2, 6, 5]}]}])
+        f = build.frame_spec(sp, {"move": {"leg": {"points": [[0, 0], [-2, 0]]}, "gone": {"offset": [1, 0]}},
+                                  "body_dy": -1})
+        self.assertEqual(f["parts"][0]["shapes"][0]["points"], [[4, 6], [2, 10]])
+        self.assertEqual(f["parts"][0]["offset"], [0, 0])
+        self.assertEqual(f["parts"][1]["offset"], [0, -1])
+        self.assertEqual(sp["parts"][0]["shapes"][0]["points"], [[4, 6], [4, 10]])  # 元は変わらない
+
     def test_strands_add_bands(self):
         # 房の縞: 同じ形でも、流れに直交する向きに明暗の段が増える
         base = {"name": "hair", "material": "metal", "shapes": [{"type": "rect", "at": [1, 1, 11, 11]}]}

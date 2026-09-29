@@ -426,20 +426,34 @@ def build(spec):
 def frame_spec(spec, frame):
     """動きの1コマ分の spec を作る。
 
-    待機の呼吸は、部品ごとの breathe（0〜1）に frame の dy を掛けた量だけ下げる。
-    頭と肩は 1、胴は 0.5、脚は 0（書かない）。高い解像度で動かしてから縮小するので、
-    0.5 ドットの動きも胴の陰影の変化として出る。
+    dy: 呼吸。部品ごとの breathe（0〜1）に掛けた量だけ下げる。頭と肩は 1、胴は 0.5、脚は 0
+    move: {部品名: {offset: [dx, dy], points: [[dx, dy], ...]}}。脚の前後のように、
+          部品ごとに動かす。points は最初の形の点を1つずつずらす。無い部品は飛ばす
+          （職業によって脚が法衣に隠れているため）
+    body_dy: move に書いていない部品を丸ごと上下させる。歩きの上下動
+    高い解像度で動かしてから縮小するので、0.5 ドットの動きも陰影の変化として出る。
     touchups（目や鼻）は頭と一緒に動く。動かさないものは touchup に breathe: 0 を書く。
     """
     out = copy.deepcopy(spec)
     dy = frame.get("dy", 0)
+    body = frame.get("body_dy", 0)
+    move = frame.get("move", {})
     for part in out["parts"]:
-        b = part.get("breathe", 0)
-        if b:
-            ox, oy = part.get("offset", (0, 0))
-            part["offset"] = [ox, oy + b * dy]
+        ox, oy = part.get("offset", (0, 0))
+        oy += part.get("breathe", 0) * dy
+        m = move.get(part["name"])
+        if m is None:
+            oy += body
+        else:
+            mx, my = m.get("offset", (0, 0))
+            ox, oy = ox + mx, oy + my
+            if "points" in m:
+                pts = part["shapes"][0]["points"]
+                for i, (px, py) in enumerate(m["points"][:len(pts)]):
+                    pts[i] = [pts[i][0] + px, pts[i][1] + py]
+        part["offset"] = [ox, oy]
     for t in out.get("touchups", []):
-        k = round(t.get("breathe", 1) * dy)
+        k = round(t.get("breathe", 1) * dy + body)
         t["at"] = [[x, y + k] for x, y in t["at"]]
     return out
 
