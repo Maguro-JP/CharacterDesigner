@@ -26,3 +26,7 @@
 - `touchups` も継承される。親の顔を変えると子の顔も変わるので、顔を固定したい子は `touchups` を自分で持つ（狩人で起きた）
 - 動きのコマ: parts.json の `frames`（例 `{"name": "idle-2", "dy": 1}`）と部品の `breathe`。書き出しは `sprite.<名前>.json`。
   touchups は既定で頭と一緒に動く（`breathe: 0` で止める）。並べ図と GIF は `tools/anim.py`
+- 歩き: `frames` の `move`（部品ごとの `offset` と `points` のずらし）と `body_dy`（move に無い部品の上下動）。
+  move に書いた部品は body_dy で動かないので、上下動させたい腕は offset に自分で足す。持ち物（剣、弓）は手と同じ量を書く。
+  `frames` は継承で丸ごと置き換わるので、子で歩きを書くときは `idle-2` も書き直す
+- `tools/anim.py --anim walk` で `sprite.walk-*.json` だけを並べる

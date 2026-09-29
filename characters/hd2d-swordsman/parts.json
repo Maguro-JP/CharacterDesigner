@@ -155,5 +155,60 @@
   {"note": "鼻: 戦士より小さく。突き出しを消し、先だけ暗く", "at": [[8, 8]], "c": null},
   {"note": "鼻の先", "at": [[9, 8]], "c": "skin:0"},
   {"note": "口", "at": [[11, 10]], "c": "skin:0"}
+ ],
+ "frames": [
+  {"name": "idle-2", "dy": 1},
+  {
+   "name": "walk-1",
+   "move": {
+    "near_leg": {"points": [[0, 0], [-2, -0.2]]},
+    "near_boot": {"offset": [-2, -0.2]},
+    "far_leg": {"points": [[0, 0], [2, -0.5]]},
+    "far_boot": {"offset": [2, -0.8]},
+    "near_arm": {"points": [[0, 0], [0.5, 0], [1, 0]]},
+    "hand": {"offset": [1, 0]},
+    "blade": {"offset": [1, 0]},
+    "guard": {"offset": [1, 0]},
+    "grip": {"offset": [1, 0]},
+    "far_arm": {"offset": [-0.5, 0]},
+    "far_hand": {"offset": [-0.5, 0]}
+   }
+  },
+  {
+   "name": "walk-2",
+   "move": {
+    "near_leg": {"points": [[0, 0], [0, 0]]},
+    "near_boot": {"offset": [0, 0]},
+    "far_leg": {"points": [[0, 0], [0.5, -1.6]]},
+    "far_boot": {"offset": [0.5, -1.6]}
+   },
+   "body_dy": -1
+  },
+  {
+   "name": "walk-3",
+   "move": {
+    "near_leg": {"points": [[0, 0], [2, -0.5]]},
+    "near_boot": {"offset": [2, -0.8]},
+    "far_leg": {"points": [[0, 0], [-2, -0.2]]},
+    "far_boot": {"offset": [-2, -0.2]},
+    "near_arm": {"points": [[0, 0], [-0.5, 0], [-1, 0]]},
+    "hand": {"offset": [-1, 0]},
+    "blade": {"offset": [-1, 0]},
+    "guard": {"offset": [-1, 0]},
+    "grip": {"offset": [-1, 0]},
+    "far_arm": {"offset": [0.5, 0]},
+    "far_hand": {"offset": [0.5, 0]}
+   }
+  },
+  {
+   "name": "walk-4",
+   "move": {
+    "near_leg": {"points": [[0, 0], [0.5, -1.6]]},
+    "near_boot": {"offset": [0.5, -1.6]},
+    "far_leg": {"points": [[0, 0], [0, 0]]},
+    "far_boot": {"offset": [0, 0]}
+   },
+   "body_dy": -1
+  }
  ]
 }

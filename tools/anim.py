@@ -2,8 +2,9 @@
 
 GIF は動きを見る人のため、静止画はコマの差を1ドット単位で見比べるため（GIF は差分が追いにくい）。
 
-使い方: python3 tools/anim.py out.gif characters/a/sprite.json characters/b/sprite.json ...
-  各 sprite.json の隣にある sprite.<コマ名>.json を、名前の順に続くコマとして読む
+使い方: python3 tools/anim.py [--anim idle|walk] out.gif characters/a/sprite.json ...
+  idle（既定）: sprite.json と sprite.idle-*.json を続けて読む
+  それ以外: sprite.<anim>-*.json だけを名前の順に読む
 """
 import sys
 from pathlib import Path
@@ -18,9 +19,11 @@ GAP = 4
 BG = (150, 156, 166, 255)
 
 
-def frames_of(path):
+def frames_of(path, anim="idle"):
     path = Path(path)
-    paths = [path] + sorted(path.parent.glob("sprite.*.json"))
+    paths = sorted(path.parent.glob(f"sprite.{anim}-*.json"))
+    if anim == "idle":
+        paths = [path] + paths
     out = []
     for p in paths:
         _, rows, width, palette = sprite.load(p)
@@ -29,8 +32,13 @@ def frames_of(path):
 
 
 def main():
-    out = Path(sys.argv[1])
-    chars = [frames_of(p) for p in sys.argv[2:]]
+    args = sys.argv[1:]
+    anim = "idle"
+    if args[0] == "--anim":
+        anim, args = args[1], args[2:]
+    out = Path(args[0])
+    chars = [frames_of(p, anim) for p in args[1:]]
+    chars = [c for c in chars if c]
     n = max(len(c) for c in chars)
     W = sum(c[0].width for c in chars) + GAP * (len(chars) + 1)
     H = max(c[0].height for c in chars) + GAP * 2
