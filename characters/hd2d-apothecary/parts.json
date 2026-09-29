@@ -5,7 +5,7 @@
  "materials": {
   "hair": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#4a2a1c", "#7a4a2a", "#a86a3a"], "steps": [0.42, 0.72]},
   "tunic": {"outline": "#10201a", "line": "#10201a", "ramp": ["#2a2a3c", "#2e5a44", "#4a8060"], "steps": [0.42, 0.76]},
-  "apron": {"outline": "#5a4a3a", "line": "#8a7a5a", "ramp": ["#b0a078", "#d8ceb0"], "steps": [0.38]},
+  "apron": {"outline": "#5a3a22", "line": "#8a7a5a", "ramp": ["#b0a078", "#d8ceb0"], "steps": [0.38]},
   "glass": {
    "outline": "#10201a",
    "line": "#10201a",
@@ -40,9 +40,9 @@
   {
    "name": "apron",
    "material": "apron",
-   "after": "coat_tail",
+   "after": "near_leg",
    "breathe": 0.5,
-   "shapes": [{"type": "poly", "points": [[11.8, 15.6], [15.8, 15.6], [16.4, 29.4], [11, 29.4]]}]
+   "shapes": [{"type": "poly", "points": [[11.2, 19.6], [16.2, 19.6], [16.8, 29], [10.4, 29]]}]
   },
   {
    "name": "bag",
@@ -50,7 +50,7 @@
    "after": "apron",
    "weight": 1.5,
    "breathe": 0.5,
-   "shapes": [{"type": "poly", "points": [[16.4, 20.4], [20.4, 20], [20.8, 24.6], [16.6, 25]]}]
+   "shapes": [{"type": "poly", "points": [[17.4, 20.4], [20.8, 20], [21.2, 24.2], [17.6, 24.6]]}]
   },
   {
    "name": "strap",
@@ -58,7 +58,7 @@
    "after": "bag",
    "weight": 2.5,
    "breathe": 0.5,
-   "shapes": [{"type": "pixline", "points": [[12, 14], [18, 21]]}]
+   "shapes": [{"type": "pixline", "points": [[13, 13], [18, 20]]}]
   },
   {
    "name": "flask",
