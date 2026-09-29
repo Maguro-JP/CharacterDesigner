@@ -22,7 +22,8 @@
    "before": "far_arm",
    "prop": true,
    "bias": -0.1,
-   "shapes": [{"type": "poly", "points": [[19.4, 10.8], [21.6, 10.2], [23.8, 19.6], [21.8, 20.4]]}]
+   "shapes": [{"type": "poly", "points": [[19.4, 10.8], [21.6, 10.2], [23.8, 19.6], [21.8, 20.4]]}],
+   "breathe": 0.5
   },
   {
    "name": "fletching",
@@ -30,7 +31,8 @@
    "before": "quiver",
    "prop": true,
    "weight": 1.5,
-   "shapes": [{"type": "poly", "points": [[19.6, 9.2], [20.6, 7.4], [22.8, 7.6], [22.6, 10.2], [20.2, 11]]}]
+   "shapes": [{"type": "poly", "points": [[19.6, 9.2], [20.6, 7.4], [22.8, 7.6], [22.6, 10.2], [20.2, 11]]}],
+   "breathe": 0.5
   },
   {
    "name": "hood_drape",
@@ -42,7 +44,8 @@
      "type": "poly",
      "points": [[16.6, 5], [20, 2], [21.4, 5.6], [21.2, 10], [19.8, 12.6], [17.2, 12.4], [16.6, 8]]
     }
-   ]
+   ],
+   "breathe": 1
   },
   {
    "name": "hood",
@@ -57,13 +60,15 @@
       [16.6, 8], [15.8, 4.4], [13.6, 3.6], [11.6, 4.8]
      ]
     }
-   ]
+   ],
+   "breathe": 1
   },
   {
    "name": "capelet",
    "material": "hood",
    "after": "hood",
-   "shapes": [{"type": "poly", "points": [[11, 12.2], [19, 12.2], [20.2, 15.8], [16, 17], [10.6, 15.2]]}]
+   "shapes": [{"type": "poly", "points": [[11, 12.2], [19, 12.2], [20.2, 15.8], [16, 17], [10.6, 15.2]]}],
+   "breathe": 1
   },
   {
    "name": "bow",
@@ -73,7 +78,8 @@
    "weight": 2.5,
    "group": "bow",
    "shapes": [{"type": "ellipse", "at": [7, 20.4, 2.6, 9.2]}],
-   "cut": [{"type": "ellipse", "at": [8.2, 20.4, 2.4, 8.6]}]
+   "cut": [{"type": "ellipse", "at": [8.2, 20.4, 2.4, 8.6]}],
+   "breathe": 0.5
   },
   {
    "name": "bowstring",
@@ -84,14 +90,16 @@
    "group": "bow",
    "no_outline": true,
    "inner_line": false,
-   "shapes": [{"type": "pixline", "points": [[8, 12], [8, 29]]}]
+   "shapes": [{"type": "pixline", "points": [[8, 12], [8, 29]]}],
+   "breathe": 0.5
   },
   {
    "name": "hand",
    "material": "skin",
    "after": "bowstring",
    "weight": 1.5,
-   "shapes": [{"type": "ellipse", "at": [7.6, 20.2, 1.1, 1.1]}]
+   "shapes": [{"type": "ellipse", "at": [7.6, 20.2, 1.1, 1.1]}],
+   "breathe": 0.5
   }
  ],
  "touchups": [

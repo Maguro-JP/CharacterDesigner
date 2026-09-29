@@ -24,3 +24,5 @@
 - `add` は書いた順に足すので、`before` と `after` に書けるのは元にある部品か、それより前に足した部品だけ
 - `touchups` の色に `null` を書くと透明にする。輪郭から突き出した鼻を消すのに使った
 - `touchups` も継承される。親の顔を変えると子の顔も変わるので、顔を固定したい子は `touchups` を自分で持つ（狩人で起きた）
+- 動きのコマ: parts.json の `frames`（例 `{"name": "idle-2", "dy": 1}`）と部品の `breathe`。書き出しは `sprite.<名前>.json`。
+  touchups は既定で頭と一緒に動く（`breathe: 0` で止める）。並べ図と GIF は `tools/anim.py`

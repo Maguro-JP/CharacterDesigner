@@ -30,9 +30,9 @@ class BuildTest(unittest.TestCase):
         for parts in ROOT.glob("characters/*/parts.json"):
             with self.subTest(parts=parts.parent.name):
                 sp = build.load_spec(parts)
-                got, _ = build.build(sp)
-                want = json.loads(parts.with_name("sprite.json").read_text(encoding="utf-8"))
-                self.assertEqual(got, want)
+                for name, got in build.build_frames(sp).items():
+                    want = json.loads(build.sprite_path(parts, name).read_text(encoding="utf-8"))
+                    self.assertEqual(got, want, name or "基本")
 
     def test_thin_part_keeps_its_inside(self):
         # 2ドット幅の剣: 輪郭を外に足すので、中身の色が残る
@@ -97,6 +97,16 @@ class BuildTest(unittest.TestCase):
         pal, ramp = out["palette"], set(MATS["metal"]["ramp"])
         for y in range(1, 11):
             self.assertTrue(any(pal.get(c) in ramp for c in out["rows"][y]), f"行 {y} が途切れた")
+
+    def test_breathe_moves_only_tagged_parts(self):
+        sp = spec([{"name": "leg", "material": "metal", "shapes": [{"type": "rect", "at": [3, 7, 6, 11]}]},
+                   {"name": "head", "material": "skin", "breathe": 1, "shapes": [{"type": "rect", "at": [3, 1, 6, 4]}]}],
+                  touchups=[{"at": [[4, 2]], "c": "#000000"}], frames=[{"name": "idle-2", "dy": 1}])
+        f = build.build_frames(sp)
+        base, moved = f[""], f["idle-2"]
+        self.assertEqual(base["rows"][7:], moved["rows"][7:])  # 脚は動かない
+        self.assertEqual(base["rows"][0:5], moved["rows"][1:6])  # 頭は1ドット下がる（輪郭ごと）
+        self.assertEqual(moved["palette"][moved["rows"][3][4]], "#000000")  # 目も一緒に動く
 
     def test_strands_add_bands(self):
         # 房の縞: 同じ形でも、流れに直交する向きに明暗の段が増える
