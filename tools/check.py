@@ -35,7 +35,11 @@ def main():
     bx = data.get("body_box", [0, 0, width, h])
     bw, bh = bx[2] - bx[0], bx[3] - bx[1]
     wr, hr = style["canvas"]["width_range"], style["canvas"]["height_range"]
-    judge("体の大きさ", wr[0] <= bw <= wr[1] and hr[0] <= bh <= hr[1],
+    # 体格の枠（子供など）は作風の決まりに別の範囲がある
+    frame = style["canvas"].get("frames", {}).get(data.get("frame", ""))
+    if frame:
+        wr, hr = frame["width_range"], frame["height_range"]
+    judge("体の大きさ" + (f"（{data['frame']}）" if frame else ""), wr[0] <= bw <= wr[1] and hr[0] <= bh <= hr[1],
           f"{bw}x{bh}（幅 {wr}、高さ {hr}）")
 
     # 頭身
