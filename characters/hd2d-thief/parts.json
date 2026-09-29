@@ -3,7 +3,7 @@
  "name": "盗賊（男）",
  "brief": "HD-2D のドット絵の盗賊の男。男性の枠。銀の髪に赤い鉢巻き、灰紫の上着、口元まで覆う深緑の襟巻き、短剣を逆手に持つ。左向きの 3/4",
  "materials": {
-  "hair": {"outline": "#2c2f3c", "line": "#2c2f3c", "ramp": ["#6a6e80", "#a2a8b8", "#dce0ea"], "steps": [0.42, 0.72]},
+  "hair": {"outline": "#2c2f3c", "line": "#2c2f3c", "ramp": ["#6a6e80", "#a2a8b8", "#dce0ea"], "steps": [0.48, 0.84]},
   "tunic": {"outline": "#1a1420", "line": "#1a1420", "ramp": ["#2a2a3c", "#4a4058", "#6a5e7e"], "steps": [0.45, 0.78]},
   "cloth": {"outline": "#10201a", "line": "#10201a", "ramp": ["#1e3a2e", "#2e5a44"], "steps": [0.5]},
   "band": {"outline": "#4a1c20", "line": "#4a1c20", "ramp": ["#7c2a2a", "#b8443a"], "steps": [0.55]}
@@ -12,7 +12,9 @@
   "scarf": {"shapes": [{"type": "capsule", "points": [[11.4, 11.6], [16.8, 12.4]], "r": 1.5}]},
   "blade": {"shapes": [{"type": "pixline", "points": [[10, 22], [14, 30]], "width": 1}], "bias": 0.35},
   "guard": {"shapes": [{"type": "capsule", "points": [[9, 21.4], [11.2, 20.8]], "r": 0.5}]},
-  "grip": {"shapes": [{"type": "capsule", "points": [[9.8, 19.2], [10.2, 20.8]], "r": 0.5}]}
+  "grip": {"shapes": [{"type": "capsule", "points": [[9.8, 19.2], [10.2, 20.8]], "r": 0.5}]},
+  "hair_back": {"strands": {"angle": 5, "period": 2.0, "amp": 0.24}},
+  "bangs": {"strands": {"angle": -25, "period": 2.0, "amp": 0.22}}
  },
  "add": [
   {
