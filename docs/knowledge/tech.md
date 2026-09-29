@@ -37,3 +37,5 @@
 - `transforms`: 部品の拡大縮小。上から順にかける。右向きでは origin も折り返す。`frame: "child"` を書くと check.py は styles の `canvas.frames.child` の範囲で数える
 - `intended`: sprite.json に、仕上げで置いた1ドットの座標を書く。check.py は孤立ドットの数から除く
 - 作風の追加は styles/<id>.json の `render` を書くだけで、全職業に効く。頭の大きさは `parts: "head"` の transforms で決める
+- 速さ（2026-09-29）: 部品の陰影と重ねを部品の範囲（getbbox）だけで走らせ、法線の正規化をその場で計算した。
+  試験 28.4 → 16.3 秒、9人 × 3作風の書き出し 35.9 → 18.0 秒。書き出しは1ドットも変わらない（再現性の試験で確認）
