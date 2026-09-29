@@ -159,6 +159,7 @@
     "far_boot": {"offset": [0, 0]}
    },
    "body_dy": -1
-  }
+  },
+  {"name": "right", "mirror": true}
  ]
 }

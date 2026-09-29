@@ -446,6 +446,7 @@ def frame_spec(spec, frame):
     """動きの1コマ分の spec を作る。
 
     dy: 呼吸。部品ごとの breathe（0〜1）に掛けた量だけ下げる。頭と肩は 1、胴は 0.5、脚は 0
+    mirror: 右向き。形だけを左右反転し、光は左上のまま描き直す
     move: {部品名: {offset: [dx, dy], points: [[dx, dy], ...]}}。脚の前後のように、
           部品ごとに動かす。points は最初の形の点を1つずつずらす。無い部品は飛ばす
           （職業によって脚が法衣に隠れているため）
@@ -454,6 +455,8 @@ def frame_spec(spec, frame):
     touchups（目や鼻）は頭と一緒に動く。動かさないものは touchup に breathe: 0 を書く。
     """
     out = copy.deepcopy(spec)
+    if frame.get("mirror"):
+        _mirror(out)
     dy = frame.get("dy", 0)
     body = frame.get("body_dy", 0)
     move = frame.get("move", {})
@@ -475,6 +478,38 @@ def frame_spec(spec, frame):
         k = round(t.get("breathe", 1) * dy + body)
         t["at"] = [[x, y + k] for x, y in t["at"]]
     return out
+
+
+def _mirror(spec):
+    """形を左右反転する。光（左上）はそのまま。
+
+    絵を反転すると光まで右上から当たることになり、同じ場面で向きによって陰影が逆になる。
+    形だけを反転して描き直せば、どちら向きでも光は左上から当たる。
+    """
+    W = spec["canvas"][0]
+    sx, sy = spec.get("shift", (0, 0))
+    spec["shift"] = [-sx, sy]
+    for part in spec["parts"]:
+        for key in ("shapes", "cut"):
+            for sh in part.get(key, []):
+                if "points" in sh:
+                    if sh["type"] == "pixline":
+                        # ドット単位の線は、ドットの中心で折り返す
+                        sh["points"] = [[W - 1 - x, y] for x, y in sh["points"]]
+                    else:
+                        sh["points"] = [[W - x, y] for x, y in sh["points"]]
+                if sh["type"] == "ellipse":
+                    cx, cy, rx, ry = sh["at"]
+                    sh["at"] = [W - cx, cy, rx, ry]
+                elif sh["type"] == "rect":
+                    x0, y0, x1, y1 = sh["at"]
+                    sh["at"] = [W - x1, y0, W - x0, y1]
+        if "offset" in part:
+            part["offset"] = [-part["offset"][0], part["offset"][1]]
+        if "strands" in part:
+            part["strands"] = dict(part["strands"], angle=180 - part["strands"].get("angle", 0))
+    for t in spec.get("touchups", []):
+        t["at"] = [[W - 1 - x, y] for x, y in t["at"]]
 
 
 def build_frames(spec):
