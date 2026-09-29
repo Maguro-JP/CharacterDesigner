@@ -10,3 +10,10 @@
 ## 2026-09-29 参考サイトに届かない
 
 - `www.spriters-resource.com` `www.cgworld.jp` 公式サイトがプロキシで 403。`docs/reports/pending.md` の1
+
+## 2026-09-29 膝を曲げたコマで1ドットの穴
+
+- 起きたこと: 剣士の歩き4コマ目で、両脚の間の膝の高さに背景が1ドットだけ覗いた
+- 原因: 3点の筒を曲げると、2本の脚の間に縮小の閾値すれすれの隙間ができる
+- 解決: 上下左右が塞がれた透明の1ドットを、周りで最も暗い色で埋める `fill_pinholes`
+- 再発防止: `test_pinhole_is_filled_with_darkest_neighbor`
