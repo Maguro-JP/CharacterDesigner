@@ -31,3 +31,5 @@
   `frames` は継承で丸ごと置き換わるので、子で歩きを書くときは `idle-2` も書き直す
 - `tools/anim.py --anim walk` で `sprite.walk-*.json` だけを並べる
 - `mirror_frames: true` で右向きのコマを自動で作る。`reduce_colors` は styles の `max_colors` を超えたコマだけ、最少の色を最も近い色へ寄せる
+- コマの `override`: そのコマだけ部品を差し替える。構えが変わる動き（歩くときの持ち方）に使う。適用は反転と move の前
+- 筒（capsule）の直線上に点を足しても、縮小後に1ドット変わることがある（点ごとの円の塗りと多角形の塗りの端の差）

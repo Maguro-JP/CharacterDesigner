@@ -160,6 +160,13 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(g[1][1], "#ffffff")
         self.assertEqual(build.reduce_colors(g, 2), 0)
 
+    def test_frame_override_changes_only_that_frame(self):
+        sw = {"name": "sword", "material": "metal", "shapes": [{"type": "rect", "at": [2, 8, 4, 11]}]}
+        sp = spec([sw], frames=[{"name": "walk-1", "override": {"sword": {"shapes": [{"type": "rect", "at": [2, 1, 4, 4]}]}}}])
+        f = build.frame_spec(sp, sp["frames"][0])
+        self.assertEqual(f["parts"][0]["shapes"][0]["at"], [2, 1, 4, 4])
+        self.assertEqual(sp["parts"][0]["shapes"][0]["at"], [2, 8, 4, 11])
+
     def test_strands_add_bands(self):
         # 房の縞: 同じ形でも、流れに直交する向きに明暗の段が増える
         base = {"name": "hair", "material": "metal", "shapes": [{"type": "rect", "at": [1, 1, 11, 11]}]}
