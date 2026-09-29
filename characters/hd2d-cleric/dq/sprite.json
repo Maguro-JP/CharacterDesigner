@@ -1,0 +1,63 @@
+{
+ "name": "神官（女）",
+ "style": "dq",
+ "brief": "HD-2D のドット絵の神官の女。女性の枠（肩が狭く、頭が少し小さい）。白い法衣に青い肩掛け、金の縁。長い金髪。杖を立てて持つ。左向きの 3/4",
+ "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
+ "head_height": 8,
+ "body_box": [
+  3,
+  0,
+  14,
+  16
+ ],
+ "palette": {
+  "a": "#1a2240",
+  "b": "#2a1c1c",
+  "c": "#3a3e58",
+  "d": "#4a3418",
+  "e": "#5a3a22",
+  "f": "#8a5a34",
+  "g": "#8a92a8",
+  "h": "#a2664a",
+  "i": "#c8a04a",
+  "j": "#c8d0e0",
+  "k": "#d49a70",
+  "l": "#eed27a"
+ },
+ "rows": [
+  ".....ddliidd....",
+  "....dliliiild...",
+  "....dliiiiild...",
+  "...dddkkhfilid..",
+  "...eikkkkdiiid..",
+  "..eihdkkkhdiid..",
+  ".eiiekkkhdiiid..",
+  "..efbekhddliid..",
+  "..bfbehhaaliid..",
+  "..bfbjjaagliid..",
+  "..bffjgaggiiid..",
+  "..bfbcgcgjdiid..",
+  "..bfbcgcgjcdd...",
+  "..bfbcgcgjc.....",
+  "..bfbggbgjjc....",
+  "..bfbffbbbc....."
+ ],
+ "intended": [
+  [
+   4,
+   3
+  ],
+  [
+   4,
+   5
+  ],
+  [
+   5,
+   3
+  ],
+  [
+   5,
+   5
+  ]
+ ]
+}

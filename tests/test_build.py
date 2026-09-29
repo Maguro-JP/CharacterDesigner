@@ -192,6 +192,11 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(out["touchups"][0]["at"], [[6, 7]])
         self.assertEqual(sp["parts"][0]["shapes"][0]["at"], [4, 2, 8, 12])  # 元は変わらない
 
+    def test_touchups_are_written_as_intended(self):
+        sp = spec([{"name": "b", "material": "skin", "shapes": [{"type": "rect", "at": [2, 2, 8, 8]}]}],
+                  touchups=[{"at": [[4, 4], [40, 40]], "c": "#000000"}])
+        self.assertEqual(build.build(sp)[0]["intended"], [[4, 4]])  # 絵の外の座標は書かない
+
     def test_strands_add_bands(self):
         # 房の縞: 同じ形でも、流れに直交する向きに明暗の段が増える
         base = {"name": "hair", "material": "metal", "shapes": [{"type": "rect", "at": [1, 1, 11, 11]}]}

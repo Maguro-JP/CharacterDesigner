@@ -52,5 +52,19 @@
   "..bhbiifiif.....",
   "..bhbffnnnnf....",
   "..bhbhhbbbf....."
+ ],
+ "intended": [
+  [
+   6,
+   5
+  ],
+  [
+   6,
+   6
+  ],
+  [
+   6,
+   7
+  ]
  ]
 }

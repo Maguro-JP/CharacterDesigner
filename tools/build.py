@@ -466,6 +466,9 @@ def to_sprite(spec, colors, owner=None):
         "body_box": box,
         "palette": {sym[c]: c for c in used},
         "rows": rows,
+        # 仕上げで意図して置いた1ドット（目、鼻、口）。check.py の孤立ドットの数から除く
+        "intended": [list(p) for p in sorted({(x, y) for t in spec.get("touchups", []) for x, y in t["at"]
+                                              if 0 <= y < len(colors) and 0 <= x < len(colors[0]) and colors[y][x]})],
     }
 
 

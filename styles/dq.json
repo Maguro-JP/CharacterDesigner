@@ -1,0 +1,71 @@
+{
+  "id": "dq",
+  "name": "ドラクエ（SFC）風 16x16",
+  "sources": [
+    "以下の数字は実物を見ないまま記憶で置いた。参考サイトに届かないため（docs/reports/pending.md の1）。見られるようになったら実物で数え直す"
+  ],
+  "unverified": true,
+  "canvas": {
+    "base": [16, 16],
+    "width_range": [10, 16],
+    "height_range": [14, 16],
+    "note": "フィールドの歩き絵。1枚 16x16。頭と体がほぼ同じ大きさ",
+    "frames": {
+      "child": {"width_range": [8, 14], "height_range": [12, 16], "note": "子供の枠（未確認）"}
+    }
+  },
+  "proportion": {
+    "heads_tall": [1.4, 2.0],
+    "head_height_px": [7, 9],
+    "note": "2頭身弱。頭が体の半分以上"
+  },
+  "palette": {
+    "max_colors": 12,
+    "note": "SFC でも 16x16 の歩き絵は色を絞る。段は2段が中心"
+  },
+  "outline": {
+    "pure_black_allowed": true,
+    "max_outline_luma": 0.28,
+    "note": "黒に近い暗い輪郭で形をはっきりさせる"
+  },
+  "light": {"direction": "top-left", "note": "段は1〜2段。陰影より形と色で見せる"},
+  "cleanup": {"max_orphan_pixels": 3, "note": "16x16 では1ドットの傷がそのまま顔つきに出る"},
+  "render": {
+    "note": "HD-2D 用の parts.json から描き分けるときの変換。全体を縮めてから頭を大きく戻し、16x16 に収める",
+    "canvas": [
+      16,
+      16
+    ],
+    "shift": [
+      -7,
+      -21
+    ],
+    "transforms": [
+      {
+        "parts": "*",
+        "scale": [
+          0.58,
+          0.3
+        ],
+        "origin": [
+          15,
+          37
+        ],
+        "touchups": true
+      },
+      {
+        "parts": "head",
+        "scale": [
+          1.45,
+          2.4
+        ],
+        "origin": [
+          14.7,
+          29.65
+        ],
+        "touchups": true
+      }
+    ]
+  },
+  "presentation": {"scale": 8, "stage": "平らな地面。影なし"}
+}

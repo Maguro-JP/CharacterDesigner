@@ -1,0 +1,67 @@
+{
+ "name": "剣士（男）",
+ "style": "dq",
+ "brief": "HD-2D のドット絵の剣士の男。男性の枠（戦士より細い）。青い上着に革の胴着、赤い襟巻き。片手剣を下げて持つ。左向きの 3/4",
+ "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
+ "head_height": 9,
+ "body_box": [
+  3,
+  0,
+  14,
+  16
+ ],
+ "palette": {
+  "a": "#1a1a28",
+  "b": "#1a2240",
+  "c": "#2a1c1c",
+  "d": "#3e3e58",
+  "e": "#4a1c20",
+  "f": "#5a3a22",
+  "g": "#5c5c80",
+  "h": "#8a5a34",
+  "i": "#a2664a",
+  "j": "#b8443a",
+  "k": "#d49a70",
+  "l": "#f6f8fa"
+ },
+ "rows": [
+  ".....aagdgdga...",
+  "....agggdgdgba..",
+  "....agdddddgba..",
+  "...afbkbiaddba..",
+  "...dkkkkikadda..",
+  "...iiakkkiadda..",
+  "...fkkkkiddada..",
+  "....fkiiieaaa...",
+  ".....eejjjeee...",
+  ".....bgbccceee..",
+  "...ffbgbhffce...",
+  "..fkkgbdbhc.....",
+  "..allggdbbbb....",
+  "..allagdaab.....",
+  ".allaaaaaac.....",
+  ".allahhhhhcc...."
+ ],
+ "intended": [
+  [
+   3,
+   5
+  ],
+  [
+   4,
+   5
+  ],
+  [
+   5,
+   3
+  ],
+  [
+   5,
+   5
+  ],
+  [
+   7,
+   3
+  ]
+ ]
+}
