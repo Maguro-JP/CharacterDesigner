@@ -43,6 +43,9 @@ python3 tools/fmt.py characters/*/parts.json
 python3 tools/anim.py out/idle.gif characters/hd2d-warrior-v4/sprite.json
 python3 tools/anim.py --anim walk out/walk.gif characters/hd2d-swordsman/sprite.json
 
+# 設定資料の色指定（色見本、全コマ、作風の描き分けを1枚に）
+python3 tools/sheet.py characters/hd2d-cleric/parts.json docs/sheets/hd2d-cleric.png
+
 # 版を並べる
 python3 tools/compare.py out/cmp.png v3=characters/hd2d-warrior/sprite.json v4=characters/hd2d-warrior-v4/sprite.json
 ```
@@ -55,6 +58,7 @@ python3 tools/compare.py out/cmp.png v3=characters/hd2d-warrior/sprite.json v4=c
 | `styles/` | 作風の決まり（数字と出典） |
 | `characters/` | キャラクター。`parts.json` が元、`sprite.json` は書き出し（手打ちの v3 だけは `sprite.json` が元） |
 | `docs/progress/` | 周ごとの比較画像と判定 |
+| `docs/sheets/` | キャラクターごとの設定資料（色指定） |
 | `docs/knowledge/` | 技術・問題・見た目の精度・設計判断の記録 |
 | `docs/ROADMAP.md` | 道のり |
 
