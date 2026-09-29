@@ -113,9 +113,9 @@
   {
    "name": "walk-1",
    "move": {
-    "near_leg": {"points": [[0, 0], [-2, -0.2]]},
+    "near_leg": {"points": [[0, 0], [-1.2, 0], [-2, -0.2]]},
     "near_boot": {"offset": [-2, -0.2]},
-    "far_leg": {"points": [[0, 0], [2, -0.5]]},
+    "far_leg": {"points": [[0, 0], [0.6, -0.2], [2, -0.5]]},
     "far_boot": {"offset": [2, -0.8]},
     "near_arm": {"points": [[0, 0], [0.5, 0], [1, 0]]},
     "hand": {"offset": [1, 0]},
@@ -128,19 +128,19 @@
   {
    "name": "walk-2",
    "move": {
-    "near_leg": {"points": [[0, 0], [0, 0]]},
+    "near_leg": {"points": [[0, 0], [0, 0], [0, 0]]},
     "near_boot": {"offset": [0, 0]},
-    "far_leg": {"points": [[0, 0], [0.5, -1.6]]},
-    "far_boot": {"offset": [0.5, -1.6]}
+    "far_leg": {"points": [[0, 0], [-1.6, -1.2], [0, -2.4]]},
+    "far_boot": {"offset": [0, -2.4]}
    },
    "body_dy": -1
   },
   {
    "name": "walk-3",
    "move": {
-    "near_leg": {"points": [[0, 0], [2, -0.5]]},
+    "near_leg": {"points": [[0, 0], [0.6, -0.2], [2, -0.5]]},
     "near_boot": {"offset": [2, -0.8]},
-    "far_leg": {"points": [[0, 0], [-2, -0.2]]},
+    "far_leg": {"points": [[0, 0], [-1.2, 0], [-2, -0.2]]},
     "far_boot": {"offset": [-2, -0.2]},
     "near_arm": {"points": [[0, 0], [-0.5, 0], [-1, 0]]},
     "hand": {"offset": [-1, 0]},
@@ -153,9 +153,9 @@
   {
    "name": "walk-4",
    "move": {
-    "near_leg": {"points": [[0, 0], [0.5, -1.6]]},
-    "near_boot": {"offset": [0.5, -1.6]},
-    "far_leg": {"points": [[0, 0], [0, 0]]},
+    "near_leg": {"points": [[0, 0], [-1.6, -1.2], [0, -2.4]]},
+    "near_boot": {"offset": [0, -2.4]},
+    "far_leg": {"points": [[0, 0], [0, 0], [0, 0]]},
     "far_boot": {"offset": [0, 0]}
    },
    "body_dy": -1

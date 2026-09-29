@@ -118,6 +118,14 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(f["parts"][1]["offset"], [0, -1])
         self.assertEqual(sp["parts"][0]["shapes"][0]["points"], [[4, 6], [4, 10]])  # 元は変わらない
 
+    def test_pinhole_is_filled_with_darkest_neighbor(self):
+        a, b = "#808080", "#202020"
+        g = [[a, a, a], [b, None, a], [a, a, a]]
+        self.assertEqual(build.fill_pinholes(g), 1)
+        self.assertEqual(g[1][1], b)
+        edge = [[None, a], [a, a]]  # 外周の透明は形の外なので埋めない
+        self.assertEqual(build.fill_pinholes(edge), 0)
+
     def test_strands_add_bands(self):
         # 房の縞: 同じ形でも、流れに直交する向きに明暗の段が増える
         base = {"name": "hair", "material": "metal", "shapes": [{"type": "rect", "at": [1, 1, 11, 11]}]}

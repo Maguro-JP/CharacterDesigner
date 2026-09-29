@@ -317,6 +317,24 @@ def outline(spec, grid):
     return colors, owner
 
 
+def fill_pinholes(colors):
+    """上下左右を塞がれた1ドットの透明の穴を、周りで最も暗い色で埋める。
+
+    脚を曲げたコマで、膝の間に背景が1ドットだけ覗いた。形の穴ではなく傷に見えるので埋める。
+    """
+    H, W = len(colors), len(colors[0])
+    filled = 0
+    for y in range(1, H - 1):
+        for x in range(1, W - 1):
+            if colors[y][x] is not None:
+                continue
+            nb = [colors[y - 1][x], colors[y + 1][x], colors[y][x - 1], colors[y][x + 1]]
+            if all(n is not None for n in nb):
+                colors[y][x] = min(nb, key=lambda c: sum(hex_to_rgb(c)))
+                filled += 1
+    return filled
+
+
 def clean_orphans(colors, protect=()):
     """周り8方向に同じ色が無いドットを、周りで最も多い色に替える。ノイズに見えるため。"""
     H, W = len(colors), len(colors[0])
@@ -417,6 +435,7 @@ def build(spec):
     cells = downscale(spec, top, light, size)
     grid = quantize(spec, cells)
     colors, owner = outline(spec, grid)
+    fill_pinholes(colors)
     protect = {tuple(p) for t in spec.get("touchups", []) for p in t["at"]}
     clean_orphans(colors, protect)
     apply_touchups(spec, colors)
