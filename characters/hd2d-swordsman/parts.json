@@ -1,0 +1,557 @@
+{
+ "base": "../hd2d-warrior-v4/parts.json",
+ "name": "剣士（男）",
+ "brief": "HD-2D のドット絵の剣士の男。男性の枠（戦士より細い）。青い上着に革の胴着、赤い襟巻き。片手剣を下げて持つ。左向きの 3/4",
+ "canvas": [
+  26,
+  39
+ ],
+ "materials": {
+  "hair": {
+   "outline": "#1a1a28",
+   "line": "#1a1a28",
+   "ramp": [
+    "#2a2a3c",
+    "#3e3e58",
+    "#5c5c80"
+   ],
+   "steps": [
+    0.42,
+    0.7
+   ]
+  },
+  "tunic": {
+   "outline": "#1a2240",
+   "line": "#1a2240",
+   "ramp": [
+    "#2a2a3c",
+    "#3e5a9a",
+    "#6a8ac8"
+   ],
+   "steps": [
+    0.45,
+    0.78
+   ]
+  },
+  "pants": {
+   "outline": "#1a1a28",
+   "line": "#1a1a28",
+   "ramp": [
+    "#2a2a3c",
+    "#3e3e58",
+    "#5c5c80"
+   ],
+   "steps": [
+    0.42,
+    0.72
+   ]
+  },
+  "metal": {
+   "outline": "#1a1a28",
+   "line": "#3e4454",
+   "ramp": [
+    "#3e4454",
+    "#5e687a",
+    "#96a2b2",
+    "#d4dce6",
+    "#f6f8fa"
+   ],
+   "steps": [
+    0.36,
+    0.55,
+    0.78,
+    1.02
+   ],
+   "spec_power": 24,
+   "spec_gain": 0.55,
+   "ambient": 0.28
+  },
+  "cloth": {
+   "outline": "#4a1c20",
+   "line": "#4a1c20",
+   "ramp": [
+    "#7c2a2a",
+    "#b8443a"
+   ],
+   "steps": [
+    0.5
+   ]
+  }
+ },
+ "remove": [
+  "cape",
+  "far_pauldron",
+  "near_pauldron",
+  "skirt",
+  "blade",
+  "grip",
+  "pommel",
+  "guard",
+  "hands"
+ ],
+ "override": {
+  "far_leg": {
+   "material": "pants",
+   "bias": -0.15,
+   "shapes": [
+    {
+     "type": "capsule",
+     "points": [
+      [
+       17.2,
+       24.5
+      ],
+      [
+       17.8,
+       33.4
+      ]
+     ],
+     "r": 1.5
+    }
+   ]
+  },
+  "far_boot": {
+   "shapes": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       15.8,
+       33
+      ],
+      [
+       19.4,
+       33
+      ],
+      [
+       19.6,
+       37
+      ],
+      [
+       15.4,
+       37
+      ],
+      [
+       15.4,
+       35.6
+      ]
+     ]
+    }
+   ]
+  },
+  "torso": {
+   "material": "tunic",
+   "shapes": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       11.4,
+       12.6
+      ],
+      [
+       18.6,
+       12.6
+      ],
+      [
+       19.4,
+       16.5
+      ],
+      [
+       18.8,
+       22
+      ],
+      [
+       11.8,
+       22
+      ],
+      [
+       10.8,
+       16.5
+      ]
+     ]
+    }
+   ]
+  },
+  "belt": {
+   "shapes": [
+    {
+     "type": "rect",
+     "at": [
+      11.4,
+      20.6,
+      19,
+      22
+     ]
+    }
+   ]
+  },
+  "buckle": {
+   "shapes": [
+    {
+     "type": "rect",
+     "at": [
+      13.4,
+      20.4,
+      15,
+      22.2
+     ]
+    }
+   ]
+  },
+  "near_leg": {
+   "material": "pants",
+   "shapes": [
+    {
+     "type": "capsule",
+     "points": [
+      [
+       13.2,
+       24.5
+      ],
+      [
+       12.8,
+       33.4
+      ]
+     ],
+     "r": 1.6
+    }
+   ]
+  },
+  "near_boot": {
+   "bias": 0.08,
+   "shapes": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       10.8,
+       33
+      ],
+      [
+       14.6,
+       33
+      ],
+      [
+       14.8,
+       37
+      ],
+      [
+       9.6,
+       37
+      ],
+      [
+       9.8,
+       35.6
+      ]
+     ]
+    }
+   ]
+  },
+  "neck": {
+   "shapes": [
+    {
+     "type": "rect",
+     "at": [
+      12.8,
+      10.5,
+      15.8,
+      13
+     ]
+    }
+   ]
+  },
+  "near_arm": {
+   "material": "tunic",
+   "shapes": [
+    {
+     "type": "capsule",
+     "points": [
+      [
+       12.2,
+       14.2
+      ],
+      [
+       11.6,
+       17.4
+      ],
+      [
+       10.6,
+       19.8
+      ]
+     ],
+     "r": 1.4
+    }
+   ]
+  }
+ },
+ "add": [
+  {
+   "name": "scarf_tail",
+   "material": "cloth",
+   "before": "far_leg",
+   "prop": true,
+   "bias": -0.1,
+   "shapes": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       16,
+       12.2
+      ],
+      [
+       19.5,
+       12.6
+      ],
+      [
+       23.8,
+       15.4
+      ],
+      [
+       23.2,
+       18.4
+      ],
+      [
+       21.4,
+       16.6
+      ],
+      [
+       19.4,
+       16.4
+      ],
+      [
+       17,
+       15
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "name": "far_arm",
+   "material": "tunic",
+   "before": "torso",
+   "bias": -0.12,
+   "shapes": [
+    {
+     "type": "capsule",
+     "points": [
+      [
+       18.6,
+       14.2
+      ],
+      [
+       19.8,
+       18.6
+      ]
+     ],
+     "r": 1.3
+    }
+   ]
+  },
+  {
+   "name": "far_hand",
+   "material": "skin",
+   "before": "torso",
+   "bias": -0.2,
+   "shapes": [
+    {
+     "type": "ellipse",
+     "at": [
+      20,
+      19.8,
+      1.0,
+      1.0
+     ]
+    }
+   ]
+  },
+  {
+   "name": "vest",
+   "material": "leather",
+   "after": "torso",
+   "shapes": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       14.2,
+       12.8
+      ],
+      [
+       18.6,
+       12.8
+      ],
+      [
+       19.2,
+       16.6
+      ],
+      [
+       18.6,
+       21
+      ],
+      [
+       15.4,
+       21
+      ],
+      [
+       14.6,
+       17
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "name": "coat_tail",
+   "material": "tunic",
+   "after": "vest",
+   "shapes": [
+    {
+     "type": "poly",
+     "points": [
+      [
+       11.4,
+       21.6
+      ],
+      [
+       18.8,
+       21.6
+      ],
+      [
+       19.8,
+       26.4
+      ],
+      [
+       16.6,
+       25.2
+      ],
+      [
+       14.8,
+       26
+      ],
+      [
+       11,
+       26.2
+      ]
+     ]
+    }
+   ]
+  },
+  {
+   "name": "scarf",
+   "material": "cloth",
+   "after": "bangs",
+   "weight": 1.5,
+   "shapes": [
+    {
+     "type": "capsule",
+     "points": [
+      [
+       12,
+       12.4
+      ],
+      [
+       17.4,
+       13
+      ]
+     ],
+     "r": 1.2
+    }
+   ]
+  },
+  {
+   "name": "blade",
+   "material": "metal",
+   "after": "near_arm",
+   "weight": 3,
+   "group": "sword",
+   "prop": true,
+   "shapes": [
+    {
+     "type": "pixline",
+     "points": [
+      [
+       7,
+       23
+      ],
+      [
+       5,
+       34
+      ]
+     ],
+     "width": 2
+    }
+   ],
+   "round": 0.6,
+   "bias": 0.3
+  },
+  {
+   "name": "guard",
+   "material": "gold",
+   "after": "blade",
+   "weight": 2.5,
+   "group": "sword",
+   "prop": true,
+   "shapes": [
+    {
+     "type": "capsule",
+     "points": [
+      [
+       7.4,
+       21.4
+      ],
+      [
+       10.6,
+       22.6
+      ]
+     ],
+     "r": 0.55
+    }
+   ]
+  },
+  {
+   "name": "grip",
+   "material": "leather",
+   "after": "guard",
+   "weight": 2,
+   "group": "sword",
+   "prop": true,
+   "bias": -0.3,
+   "shapes": [
+    {
+     "type": "capsule",
+     "points": [
+      [
+       9.4,
+       21.2
+      ],
+      [
+       10.2,
+       19
+      ]
+     ],
+     "r": 0.5
+    }
+   ]
+  },
+  {
+   "name": "hand",
+   "material": "skin",
+   "after": "grip",
+   "weight": 1.5,
+   "shapes": [
+    {
+     "type": "ellipse",
+     "at": [
+      9.9,
+      20.4,
+      1.2,
+      1.1
+     ]
+    }
+   ]
+  }
+ ]
+}

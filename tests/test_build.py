@@ -29,7 +29,7 @@ class BuildTest(unittest.TestCase):
         # sprite.json は parts.json から書き出したもの。手で直すと次の書き出しで消えるので、一致を見る
         for parts in ROOT.glob("characters/*/parts.json"):
             with self.subTest(parts=parts.parent.name):
-                sp = json.loads(parts.read_text(encoding="utf-8"))
+                sp = build.load_spec(parts)
                 got, _ = build.build(sp)
                 want = json.loads(parts.with_name("sprite.json").read_text(encoding="utf-8"))
                 self.assertEqual(got, want)
@@ -70,6 +70,24 @@ class BuildTest(unittest.TestCase):
                   touchups=[{"at": [[4, 4]], "c": "skin:outline"}])
         out, _ = build.build(sp)
         self.assertEqual(out["palette"][out["rows"][4][4]], "#301010")
+
+    def test_merge_spec_remove_override_add(self):
+        base = spec([{"name": "a", "material": "metal", "shapes": []},
+                     {"name": "b", "material": "metal", "shapes": []}])
+        child = {"name": "c", "remove": ["a"], "override": {"b": {"material": "skin"}},
+                 "add": [{"name": "x", "before": "b", "material": "skin", "shapes": []},
+                         {"name": "y", "material": "skin", "shapes": []}],
+                 "materials": {"skin": {"outline": "#000001", "ramp": ["#111111"]}}}
+        out = build.merge_spec(base, child)
+        self.assertEqual([p["name"] for p in out["parts"]], ["x", "b", "y"])
+        self.assertEqual(out["parts"][1]["material"], "skin")
+        self.assertEqual(out["materials"]["skin"]["outline"], "#000001")
+        self.assertEqual(out["materials"]["metal"], MATS["metal"])
+        self.assertEqual(out["name"], "c")
+        # 元は変わらない
+        self.assertEqual([p["name"] for p in base["parts"]], ["a", "b"])
+        with self.assertRaises(ValueError):
+            build.merge_spec(base, {"remove": ["zzz"]})
 
     def test_strands_add_bands(self):
         # 房の縞: 同じ形でも、流れに直交する向きに明暗の段が増える

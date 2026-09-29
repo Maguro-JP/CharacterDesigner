@@ -12,6 +12,7 @@
 出力: 同じフォルダの sprite.json（tools/check.py と tools/render.py がそのまま読める形）
 """
 import argparse
+import copy
 import json
 import math
 import sys
@@ -72,8 +73,32 @@ def draw_shape(draw, shape, shift=(0, 0)):
                           ((x1 - ox) * s, (y1 - oy) * s), ((x0 - ox) * s, (y0 - oy) * s)], fill=255)
         for x, y in pts:
             draw.ellipse([(x - r) * s, (y - r) * s, (x + r) * s, (y + r) * s], fill=255)
+    elif kind == "pixline":
+        # ドット単位の線。細い斜めの剣や槍は、縮小に任せると段がそろわず鎖のように途切れる。
+        # 仕上がりの格子で Bresenham の線を引き、そのドットを丸ごと塗る
+        (x0, y0), (x1, y1) = [(int(round(x)), int(round(y))) for x, y in shape["points"]]
+        for x, y in _bresenham(x0, y0, x1, y1):
+            for k in range(shape.get("width", 1)):
+                draw.rectangle([(x + k) * s, y * s, (x + k + 1) * s - 1, (y + 1) * s - 1], fill=255)
     else:
         raise ValueError(f"知らない形: {kind}")
+
+
+def _bresenham(x0, y0, x1, y1):
+    dx, dy = abs(x1 - x0), -abs(y1 - y0)
+    sx, sy = (1 if x0 < x1 else -1), (1 if y0 < y1 else -1)
+    err = dx + dy
+    while True:
+        yield x0, y0
+        if x0 == x1 and y0 == y1:
+            return
+        e2 = 2 * err
+        if e2 >= dy:
+            err += dy
+            x0 += sx
+        if e2 <= dx:
+            err += dx
+            y0 += sy
 
 
 def _shifted(shape, shift):
@@ -413,13 +438,62 @@ def preview_hi(spec, top, light, size):
     return img
 
 
+def load_spec(path):
+    """parts.json を読む。base があれば、その上に差し替えを重ねる。
+
+    職業ごとに頭や体格を一から書き直さずに済むようにするため。差し替えの書き方:
+      base: 元にする parts.json（このファイルからの相対パス）
+      remove: 取り除く部品の名前
+      override: {名前: {変える項目}}  項目ごとに置き換える
+      add: [部品]  部品に after か before（名前）があればその隣、無ければ一番手前
+      materials: 素材ごとに置き換える
+    それ以外の項目（name、canvas、touchups など）は丸ごと置き換える。
+    """
+    path = Path(path)
+    spec = json.loads(path.read_text(encoding="utf-8"))
+    base = spec.pop("base", None)
+    if not base:
+        return spec
+    return merge_spec(load_spec(path.parent / base), spec)
+
+
+def merge_spec(base, child):
+    out = copy.deepcopy(base)
+    parts = out["parts"]
+    names = lambda: [p["name"] for p in parts]  # noqa: E731
+    for name in child.get("remove", []):
+        if name not in names():
+            raise ValueError(f"remove: 無い部品 {name}")
+        parts.pop(names().index(name))
+    for name, fields in child.get("override", {}).items():
+        if name not in names():
+            raise ValueError(f"override: 無い部品 {name}")
+        parts[names().index(name)].update(copy.deepcopy(fields))
+    for part in child.get("add", []):
+        part = copy.deepcopy(part)
+        after, before = part.pop("after", None), part.pop("before", None)
+        if part["name"] in names():
+            raise ValueError(f"add: 同じ名前の部品が既にある {part['name']}")
+        if after:
+            parts.insert(names().index(after) + 1, part)
+        elif before:
+            parts.insert(names().index(before), part)
+        else:
+            parts.append(part)
+    out["materials"].update(copy.deepcopy(child.get("materials", {})))
+    for k, v in child.items():
+        if k not in ("remove", "override", "add", "materials"):
+            out[k] = copy.deepcopy(v)
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("parts")
     ap.add_argument("--preview", help="高解像度の途中の絵を置くフォルダ")
     args = ap.parse_args()
     src = Path(args.parts)
-    spec = json.loads(src.read_text(encoding="utf-8"))
+    spec = load_spec(src)
     sprite, (top, light, size) = build(spec)
     dst = src.with_name("sprite.json")
     dst.write_text(json.dumps(sprite, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
