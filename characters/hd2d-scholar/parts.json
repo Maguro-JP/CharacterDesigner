@@ -1,0 +1,63 @@
+{
+ "base": "../hd2d-swordsman/parts.json",
+ "name": "学者（男）",
+ "brief": "HD-2D のドット絵の学者の男。男性の枠。金の短髪に丸眼鏡、臙脂の長い上着に白い襟、青い表紙の本を片手に抱える。左向きの 3/4",
+ "materials": {
+  "hair": {"outline": "#4a3418", "line": "#4a3418", "ramp": ["#8a6a2c", "#c8a04a", "#eed27a"], "steps": [0.42, 0.72]},
+  "tunic": {"outline": "#2a0e14", "line": "#2a0e14", "ramp": ["#2a2a3c", "#6a2232", "#943446"], "steps": [0.42, 0.76]},
+  "collar": {"outline": "#3e3e58", "line": "#c8d0e0", "ramp": ["#c8d0e0", "#f4f6fa"], "steps": [0.55]},
+  "book": {"outline": "#1a1a28", "line": "#1a1a28", "ramp": ["#2c3e6a", "#3e5a9a"], "steps": [0.55]}
+ },
+ "remove": ["scarf_tail", "scarf", "blade", "guard", "grip", "vest"],
+ "override": {
+  "coat_tail": {
+   "shapes": [
+    {
+     "type": "poly",
+     "points": [[11.4, 21.6], [18.8, 21.6], [20.4, 31.4], [16.4, 30.6], [14.8, 31.4], [9.2, 31.4]]
+    }
+   ]
+  },
+  "near_arm": {"shapes": [{"type": "capsule", "points": [[12.2, 14.2], [11.4, 17.6], [13, 19.6]], "r": 1.4}]},
+  "hand": {"shapes": [{"type": "ellipse", "at": [13.6, 19.4, 1.0, 1.0]}]},
+  "torso": {
+   "shapes": [
+    {"type": "poly", "points": [[11.2, 12.6], [19, 12.6], [19.8, 16.5], [19.2, 22], [11.6, 22], [10.6, 16.5]]}
+   ]
+  }
+ },
+ "add": [
+  {
+   "name": "collar",
+   "material": "collar",
+   "after": "coat_tail",
+   "breathe": 1,
+   "shapes": [{"type": "poly", "points": [[11.8, 12.2], [16.8, 12.2], [16.4, 14], [14.2, 15.2], [12.2, 14]]}]
+  },
+  {
+   "name": "book",
+   "material": "book",
+   "before": "hand",
+   "weight": 2,
+   "breathe": 0.5,
+   "shapes": [{"type": "poly", "points": [[10.6, 17], [15.2, 17.8], [15, 21.4], [10.4, 20.6]]}]
+  },
+  {
+   "name": "book_pages",
+   "material": "collar",
+   "after": "book",
+   "weight": 1.5,
+   "breathe": 0.5,
+   "no_line_behind": true,
+   "shapes": [{"type": "poly", "points": [[10.4, 20.2], [15, 21], [15, 21.6], [10.4, 20.8]]}]
+  }
+ ],
+ "touchups": [
+  {"note": "眼鏡の玉: 目の前の明るい1ドット", "at": [[11, 7]], "c": "#f4f6fa"},
+  {"note": "眼鏡の縁とつる", "at": [[12, 7], [13, 7], [14, 7], [15, 7]], "c": "#1a1a28"},
+  {"note": "目", "at": [[12, 8]], "c": "#1a1a28"},
+  {"note": "鼻: 剣士と同じ小さな鼻", "at": [[8, 8]], "c": null},
+  {"note": "鼻の先", "at": [[9, 8]], "c": "skin:0"},
+  {"note": "口", "at": [[11, 10]], "c": "skin:0"}
+ ]
+}
