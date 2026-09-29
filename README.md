@@ -27,6 +27,9 @@
 # parts.json からドット絵（sprite.json）を書き出す。--preview で縮小前の絵も出す
 python3 tools/build.py characters/hd2d-warrior-v4/parts.json --preview out/
 
+# 別の作風で描く（styles/ff6.json の render）。characters/<名前>/ff6/sprite.json に出る
+python3 tools/build.py characters/hd2d-warrior-v4/parts.json --style ff6
+
 # 作風の決まりで検品する（外れがあれば終了コード 1）
 python3 tools/check.py characters/hd2d-warrior-v4/sprite.json styles/hd2d.json
 

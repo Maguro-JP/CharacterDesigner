@@ -484,6 +484,9 @@ def apply_transforms(spec):
         sx, sy = rule["scale"]
         ox, oy = rule["origin"]
         pick = rule.get("parts", "*")
+        if pick == "head":
+            # 頭の部品（head: true）と、頭と一緒に動く髪。作風ごとの変換で名前を並べずに済むように
+            pick = [p["name"] for p in spec["parts"] if p.get("head") or p["name"] in ("hair_back", "neck")]
         tx = lambda x: ox + (x - ox) * sx  # noqa: E731
         ty = lambda y: oy + (y - oy) * sy  # noqa: E731
         for part in spec["parts"]:
@@ -502,8 +505,10 @@ def apply_transforms(spec):
                         x0, y0, x1, y1 = sh["at"]
                         sh["at"] = [tx(x0), ty(y0), tx(x1), ty(y1)]
         if rule.get("touchups"):
+            # 仕上げのドットは描き上がりの格子の座標（shift 込み）なので、形の座標に戻してから動かす
+            hx, hy = spec.get("shift", (0, 0))
             for t in spec.get("touchups", []):
-                t["at"] = [[int(tx(x + 0.5)), int(ty(y + 0.5))] for x, y in t["at"]]
+                t["at"] = [[int(tx(x + 0.5 - hx) + hx), int(ty(y + 0.5 - hy) + hy)] for x, y in t["at"]]
     return spec
 
 
@@ -691,13 +696,47 @@ def merge_spec(base, child):
     return out
 
 
+def restyle(spec, style_id):
+    """HD-2D 用の spec を、別の作風（styles/<id>.json の render）で描く spec にする。
+
+    同じ部品を作風ごとに描き分けるため。キャラクターの transforms の後に作風の transforms をかける。
+    動きのコマは持ち越さない（作風ごとに動きの決まりが違うため、要るときに作風側で書く）。
+    """
+    style = json.loads((Path(__file__).resolve().parent.parent / "styles" / f"{style_id}.json").read_text(encoding="utf-8"))
+    render = style["render"]
+    out = copy.deepcopy(spec)
+    out["style"] = style_id
+    out["canvas"] = render["canvas"]
+    ox, oy = spec.get("shift", (0, 0))
+    out["shift"] = render["shift"]
+    dx, dy = render["shift"][0] - ox, render["shift"][1] - oy
+    for t in out.get("touchups", []):
+        t["at"] = [[x + dx, y + dy] for x, y in t["at"]]
+    out["transforms"] = spec.get("transforms", []) + copy.deepcopy(render["transforms"])
+    out["frames"] = []
+    out["mirror_frames"] = False
+    return out
+
+
+def style_path(parts_path, style_id):
+    return Path(parts_path).parent / style_id / "sprite.json"
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("parts")
     ap.add_argument("--preview", help="高解像度の途中の絵を置くフォルダ")
+    ap.add_argument("--style", help="別の作風で描く（styles/<id>.json の render）。書き出しは <キャラ>/<id>/sprite.json")
     args = ap.parse_args()
     src = Path(args.parts)
     spec = load_spec(src)
+    if args.style:
+        sprite = build(restyle(spec, args.style))[0]
+        dst = style_path(src, args.style)
+        dst.parent.mkdir(exist_ok=True)
+        dst.write_text(json.dumps(sprite, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        print(f"{dst}: {len(sprite['rows'][0])}x{len(sprite['rows'])}, {len(sprite['palette'])} 色")
+        return
     _, (top, light, size) = build(spec)
     for name, sprite in build_frames(spec).items():
         dst = sprite_path(src, name)

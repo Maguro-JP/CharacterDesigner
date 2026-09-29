@@ -34,6 +34,20 @@ class BuildTest(unittest.TestCase):
                     want = json.loads(build.sprite_path(parts, name).read_text(encoding="utf-8"))
                     self.assertEqual(got, want, name or "基本")
 
+    def test_committed_restyled_sprites_are_reproducible(self):
+        # 別の作風の書き出し（<キャラ>/<作風>/sprite.json）も parts.json から同じものが出る
+        for out in ROOT.glob("characters/*/*/sprite.json"):
+            with self.subTest(sprite=str(out.relative_to(ROOT))):
+                sp = build.restyle(build.load_spec(out.parent.parent / "parts.json"), out.parent.name)
+                self.assertEqual(build.build(sp)[0], json.loads(out.read_text(encoding="utf-8")))
+
+    def test_restyled_sprites_pass_their_style_check(self):
+        for out in ROOT.glob("characters/*/*/sprite.json"):
+            with self.subTest(sprite=str(out.relative_to(ROOT))):
+                r = subprocess.run([sys.executable, "tools/check.py", str(out), f"styles/{out.parent.name}.json"],
+                                   cwd=ROOT, capture_output=True, text=True)
+                self.assertEqual(r.returncode, 0, r.stdout)
+
     def test_thin_part_keeps_its_inside(self):
         # 2ドット幅の剣: 輪郭を外に足すので、中身の色が残る
         sp = spec([{"name": "blade", "material": "metal",
