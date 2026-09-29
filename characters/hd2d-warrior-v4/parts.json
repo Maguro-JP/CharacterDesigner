@@ -221,5 +221,6 @@
   {"note": "口", "at": [[11, 10]], "c": "skin:0"}
  ],
  "shift": [0, 1],
- "frames": [{"name": "idle-2", "dy": 1}, {"name": "right", "mirror": true}]
+ "frames": [{"name": "idle-2", "dy": 1}, {"name": "right", "mirror": true}],
+ "mirror_frames": true
 }

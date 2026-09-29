@@ -142,6 +142,24 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(r["rows"][5][:8], "." * 8)
         self.assertEqual(r["palette"][r["rows"][2][10]], "#000000")
 
+    def test_mirror_frames_reverse_sideways_moves(self):
+        leg = {"name": "leg", "material": "metal", "shapes": [{"type": "rect", "at": [5, 2, 7, 10]}]}
+        sp = spec([leg], frames=[{"name": "walk-1", "move": {"leg": {"offset": [-2, 0]}}}], mirror_frames=True)
+        f = build.build_frames(sp)
+        self.assertEqual(set(f), {"", "walk-1", "right-walk-1"})
+        row = lambda o: o["rows"][5]  # noqa: E731
+        lx0, lx1 = row(f["walk-1"]).index(row(f["walk-1"]).strip(".")[0]), len(row(f["walk-1"]).rstrip(".")) - 1
+        rx0 = row(f["right-walk-1"]).index(row(f["right-walk-1"]).strip(".")[0])
+        # 左向きで左へ 2 動いた脚（輪郭込み 2〜5）は、右向きでは折り返した位置（6〜9）に来る
+        self.assertEqual((lx0, lx1), (2, 5))
+        self.assertEqual(rx0, 12 - 1 - lx1)
+
+    def test_reduce_colors_merges_rarest_into_nearest(self):
+        g = [["#000000", "#000000", "#ffffff"], ["#ffffff", "#f0f0f0", None]]
+        self.assertEqual(build.reduce_colors(g, 2), 1)
+        self.assertEqual(g[1][1], "#ffffff")
+        self.assertEqual(build.reduce_colors(g, 2), 0)
+
     def test_strands_add_bands(self):
         # 房の縞: 同じ形でも、流れに直交する向きに明暗の段が増える
         base = {"name": "hair", "material": "metal", "shapes": [{"type": "rect", "at": [1, 1, 11, 11]}]}
