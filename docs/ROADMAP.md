@@ -25,7 +25,7 @@
 
 - [x] FF6（SNES）風 16x24（`styles/ff6.json`、数字は未確認）
 - [x] ドラクエ（SFC）風 16x16（`styles/dq.json`、数字は未確認）
-- [ ] 作風を調べて `styles/` に書く手順をスキルにする（`.claude/skills/character-design/`）
+- [x] 作風を調べて `styles/` に書く手順をスキルにする（`.claude/skills/character-design/`）
 
 ## 3. 等身の高いイラスト
 
