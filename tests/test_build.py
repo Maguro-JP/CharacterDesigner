@@ -1,0 +1,81 @@
+"""tools/build.py の試験。
+
+見た目の良し悪しは画像で判定する（docs/progress/）。ここで固定するのは、
+壊れたら気付きにくい所: 書き出しの再現性、細い部品が縮小で消えないこと、
+孤立ドットの掃除、頭と体の実測。
+"""
+import json
+import subprocess
+import sys
+import unittest
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "tools"))
+import build  # noqa: E402
+
+MATS = {"metal": {"outline": "#101010", "ramp": ["#404040", "#808080", "#c0c0c0"]},
+        "skin": {"outline": "#301010", "ramp": ["#a06050", "#f0c0a0"]}}
+
+
+def spec(parts, canvas=(12, 12), **kw):
+    s = {"name": "t", "style": "hd2d", "canvas": list(canvas), "materials": MATS, "parts": parts}
+    s.update(kw)
+    return s
+
+
+class BuildTest(unittest.TestCase):
+    def test_committed_sprites_are_reproducible(self):
+        # sprite.json は parts.json から書き出したもの。手で直すと次の書き出しで消えるので、一致を見る
+        for parts in ROOT.glob("characters/*/parts.json"):
+            with self.subTest(parts=parts.parent.name):
+                sp = json.loads(parts.read_text(encoding="utf-8"))
+                got, _ = build.build(sp)
+                want = json.loads(parts.with_name("sprite.json").read_text(encoding="utf-8"))
+                self.assertEqual(got, want)
+
+    def test_thin_part_keeps_its_inside(self):
+        # 2ドット幅の剣: 輪郭を外に足すので、中身の色が残る
+        sp = spec([{"name": "blade", "material": "metal",
+                    "shapes": [{"type": "rect", "at": [5, 2, 7, 10]}]}])
+        out, _ = build.build(sp)
+        pal = out["palette"]
+        inside = {pal[c] for row in out["rows"][2:10] for c in row[5:7]}
+        self.assertTrue(inside <= set(MATS["metal"]["ramp"]), inside)
+        self.assertEqual({pal[r[4]] for r in out["rows"][2:10]}, {"#101010"})
+
+    def test_orphan_is_replaced_but_protected_is_kept(self):
+        a, b = "#808080", "#ffffff"
+        grid = [[a] * 3 for _ in range(3)]
+        grid[1][1] = b
+        self.assertEqual(build.clean_orphans([r[:] for r in grid], protect={(1, 1)}), 0)
+        g = [r[:] for r in grid]
+        self.assertEqual(build.clean_orphans(g), 1)
+        self.assertEqual(g[1][1], a)
+
+    def test_measure_counts_head_and_body_with_outline(self):
+        sp = spec([
+            {"name": "body", "material": "metal", "shapes": [{"type": "rect", "at": [3, 5, 8, 11]}]},
+            {"name": "head", "material": "skin", "head": True, "shapes": [{"type": "rect", "at": [4, 1, 7, 5]}]},
+            {"name": "sword", "material": "metal", "prop": True, "shapes": [{"type": "rect", "at": [9, 2, 10, 11]}]},
+        ])
+        out, _ = build.build(sp)
+        # 頭は 4 行 + 上の輪郭 1 行（下は胴に接していて輪郭が付かない）
+        self.assertEqual(out["head_height"], 5)
+        # 体の芯は胴と頭（輪郭込み）。剣は数えない
+        self.assertEqual(out["body_box"], [2, 0, 9, 12])
+
+    def test_touchup_uses_material_color(self):
+        sp = spec([{"name": "b", "material": "skin", "shapes": [{"type": "rect", "at": [2, 2, 8, 8]}]}],
+                  touchups=[{"at": [[4, 4]], "c": "skin:outline"}])
+        out, _ = build.build(sp)
+        self.assertEqual(out["palette"][out["rows"][4][4]], "#301010")
+
+    def test_warrior_v4_passes_style_check(self):
+        r = subprocess.run([sys.executable, "tools/check.py", "characters/hd2d-warrior-v4/sprite.json",
+                            "styles/hd2d.json"], cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout)
+
+
+if __name__ == "__main__":
+    unittest.main()
