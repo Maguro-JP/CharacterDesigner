@@ -77,7 +77,8 @@
    "name": "stole",
    "material": "tunic",
    "after": "robe_skirt",
-   "shapes": [{"type": "poly", "points": [[13, 12.8], [14.8, 12.8], [15.2, 33.8], [13, 33.8]]}]
+   "shapes": [{"type": "poly", "points": [[13, 12.8], [14.8, 12.8], [15.2, 33.8], [13, 33.8]]}],
+   "breathe": 0.5
   },
   {
    "name": "hem",
@@ -90,7 +91,8 @@
    "name": "mantle",
    "material": "tunic",
    "after": "hem",
-   "shapes": [{"type": "poly", "points": [[11.4, 12.4], [18.6, 12.4], [19, 14.6], [15, 15.8], [11, 14.6]]}]
+   "shapes": [{"type": "poly", "points": [[11.4, 12.4], [18.6, 12.4], [19, 14.6], [15, 15.8], [11, 14.6]]}],
+   "breathe": 1
   },
   {
    "name": "staff",
@@ -116,7 +118,8 @@
    "material": "skin",
    "after": "staff_head",
    "weight": 1.5,
-   "shapes": [{"type": "ellipse", "at": [7, 18.4, 1.0, 1.0]}]
+   "shapes": [{"type": "ellipse", "at": [7, 18.4, 1.0, 1.0]}],
+   "breathe": 0
   }
  ],
  "touchups": [

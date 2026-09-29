@@ -38,7 +38,8 @@
      "points": [[17, 12.5], [22.5, 12.8], [25, 21], [25.8, 32], [22.5, 31.5], [20, 27], [18, 20]]
     }
    ],
-   "prop": true
+   "prop": true,
+   "breathe": 0.5
   },
   {
    "name": "far_leg",
@@ -56,12 +57,14 @@
    "name": "far_pauldron",
    "material": "metal",
    "bias": -0.1,
-   "shapes": [{"type": "ellipse", "at": [20.2, 14.2, 3.0, 2.6]}]
+   "shapes": [{"type": "ellipse", "at": [20.2, 14.2, 3.0, 2.6]}],
+   "breathe": 1
   },
   {
    "name": "torso",
    "material": "metal",
-   "shapes": [{"type": "poly", "points": [[10.5, 12.5], [20, 12.5], [21, 16.5], [19.8, 21], [11.2, 21], [9.8, 16.5]]}]
+   "shapes": [{"type": "poly", "points": [[10.5, 12.5], [20, 12.5], [21, 16.5], [19.8, 21], [11.2, 21], [9.8, 16.5]]}],
+   "breathe": 0.5
   },
   {
    "name": "skirt",
@@ -90,7 +93,13 @@
    "material": "leather",
    "shapes": [{"type": "poly", "points": [[10, 33], [14.4, 33], [14.6, 37], [8.6, 37], [8.8, 35.2]]}]
   },
-  {"name": "neck", "material": "skin", "bias": -0.3, "shapes": [{"type": "rect", "at": [12.6, 10.5, 16, 13]}]},
+  {
+   "name": "neck",
+   "material": "skin",
+   "bias": -0.3,
+   "shapes": [{"type": "rect", "at": [12.6, 10.5, 16, 13]}],
+   "breathe": 1
+  },
   {
    "name": "hair_back",
    "material": "hair",
@@ -105,7 +114,8 @@
     }
    ],
    "head": true,
-   "strands": {"angle": 10, "period": 2.2, "amp": 0.24}
+   "strands": {"angle": 10, "period": 2.2, "amp": 0.24},
+   "breathe": 1
   },
   {
    "name": "face",
@@ -120,7 +130,8 @@
     }
    ],
    "head": true,
-   "relief": 1.8
+   "relief": 1.8,
+   "breathe": 1
   },
   {
    "name": "ear",
@@ -128,7 +139,8 @@
    "weight": 1.5,
    "shapes": [{"type": "ellipse", "at": [16.4, 7.8, 0.9, 1.3]}],
    "head": true,
-   "bias": -0.25
+   "bias": -0.25,
+   "breathe": 1
   },
   {
    "name": "bangs",
@@ -145,12 +157,14 @@
     }
    ],
    "head": true,
-   "strands": {"angle": -20, "period": 2.0, "amp": 0.14}
+   "strands": {"angle": -20, "period": 2.0, "amp": 0.14},
+   "breathe": 1
   },
   {
    "name": "near_pauldron",
    "material": "metal",
-   "shapes": [{"type": "ellipse", "at": [10.4, 13.8, 3.6, 2.8]}]
+   "shapes": [{"type": "ellipse", "at": [10.4, 13.8, 3.6, 2.8]}],
+   "breathe": 1
   },
   {
    "name": "blade",
@@ -189,7 +203,8 @@
   {
    "name": "near_arm",
    "material": "metal",
-   "shapes": [{"type": "capsule", "points": [[10.6, 14.8], [9.6, 17.0], [7.6, 16.6]], "r": 1.6}]
+   "shapes": [{"type": "capsule", "points": [[10.6, 14.8], [9.6, 17.0], [7.6, 16.6]], "r": 1.6}],
+   "breathe": 0.5
   },
   {
    "name": "hands",
@@ -205,5 +220,6 @@
   {"note": "鼻の輪郭", "at": [[8, 8]], "c": "skin:outline"},
   {"note": "口", "at": [[11, 10]], "c": "skin:0"}
  ],
- "shift": [0, 1]
+ "shift": [0, 1],
+ "frames": [{"name": "idle-2", "dy": 1}]
 }

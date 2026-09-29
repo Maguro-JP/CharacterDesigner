@@ -194,7 +194,9 @@ def render_hi(spec):
     top = [-1] * (size[0] * size[1])
     light = [0.0] * (size[0] * size[1])
     for idx, part in enumerate(parts):
-        mask = part_mask(part, size, spec.get("shift", (0, 0)))
+        sx0, sy0 = spec.get("shift", (0, 0))
+        ox, oy = part.get("offset", (0, 0))
+        mask = part_mask(part, size, (sx0 + ox, sy0 + oy))
         sh = shade_part(part, mask, mats[part["material"]])
         md = _data(mask)
         for i, m in enumerate(md):
@@ -421,6 +423,41 @@ def build(spec):
     return to_sprite(spec, colors, owner), (top, light, size)
 
 
+def frame_spec(spec, frame):
+    """動きの1コマ分の spec を作る。
+
+    待機の呼吸は、部品ごとの breathe（0〜1）に frame の dy を掛けた量だけ下げる。
+    頭と肩は 1、胴は 0.5、脚は 0（書かない）。高い解像度で動かしてから縮小するので、
+    0.5 ドットの動きも胴の陰影の変化として出る。
+    touchups（目や鼻）は頭と一緒に動く。動かさないものは touchup に breathe: 0 を書く。
+    """
+    out = copy.deepcopy(spec)
+    dy = frame.get("dy", 0)
+    for part in out["parts"]:
+        b = part.get("breathe", 0)
+        if b:
+            ox, oy = part.get("offset", (0, 0))
+            part["offset"] = [ox, oy + b * dy]
+    for t in out.get("touchups", []):
+        k = round(t.get("breathe", 1) * dy)
+        t["at"] = [[x, y + k] for x, y in t["at"]]
+    return out
+
+
+def build_frames(spec):
+    """基本のコマと、frames に書いたコマをすべて描く。{名前: sprite}。基本は名前 ''。"""
+    out = {"": build(spec)[0]}
+    for frame in spec.get("frames", []):
+        out[frame["name"]] = build(frame_spec(spec, frame))[0]
+    return out
+
+
+def sprite_path(parts_path, name):
+    """基本は sprite.json、ほかのコマは sprite.<名前>.json。check.py と render.py はどれも読める。"""
+    parts_path = Path(parts_path)
+    return parts_path.with_name(f"sprite.{name}.json" if name else "sprite.json")
+
+
 def preview_hi(spec, top, light, size):
     """縮小前の高解像度の絵。光の当たり方を縮小の前に確かめるため。"""
     parts, mats = spec["parts"], spec["materials"]
@@ -494,10 +531,11 @@ def main():
     args = ap.parse_args()
     src = Path(args.parts)
     spec = load_spec(src)
-    sprite, (top, light, size) = build(spec)
-    dst = src.with_name("sprite.json")
-    dst.write_text(json.dumps(sprite, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-    print(f"{dst}: {len(sprite['rows'][0])}x{len(sprite['rows'])}, {len(sprite['palette'])} 色")
+    _, (top, light, size) = build(spec)
+    for name, sprite in build_frames(spec).items():
+        dst = sprite_path(src, name)
+        dst.write_text(json.dumps(sprite, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        print(f"{dst}: {len(sprite['rows'][0])}x{len(sprite['rows'])}, {len(sprite['palette'])} 色")
     if args.preview:
         out = Path(args.preview)
         out.mkdir(parents=True, exist_ok=True)

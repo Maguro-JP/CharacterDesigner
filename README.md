@@ -36,6 +36,9 @@ python3 tools/render.py characters/hd2d-warrior-v4/sprite.json out/
 # parts.json を読みやすい幅に整える（試験で整っているかを見る）
 python3 tools/fmt.py characters/*/parts.json
 
+# 動きのコマを GIF と並べ図にする（sprite.<コマ名>.json を続けて読む）
+python3 tools/anim.py out/idle.gif characters/hd2d-warrior-v4/sprite.json
+
 # 版を並べる
 python3 tools/compare.py out/cmp.png v3=characters/hd2d-warrior/sprite.json v4=characters/hd2d-warrior-v4/sprite.json
 ```
