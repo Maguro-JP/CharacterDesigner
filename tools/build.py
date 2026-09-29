@@ -418,6 +418,9 @@ def apply_touchups(spec, colors):
             name, k = c.split(":")
             c = mats[name]["outline"] if k == "outline" else mats[name]["ramp"][int(k)]
         for x, y in t["at"]:
+            # 作風の変換で絵の外へ出た仕上げは置かない（負の添字で反対側に描かれるのも防ぐ）
+            if not (0 <= y < len(colors) and 0 <= x < len(colors[0])):
+                continue
             colors[y][x] = c
             done.add((x, y))
     return done
