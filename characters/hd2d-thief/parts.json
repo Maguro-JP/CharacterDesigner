@@ -10,7 +10,7 @@
  },
  "override": {
   "scarf": {"shapes": [{"type": "capsule", "points": [[11.4, 11.6], [16.8, 12.4]], "r": 1.5}]},
-  "blade": {"shapes": [{"type": "pixline", "points": [[10, 22], [13, 28]], "width": 1}]},
+  "blade": {"shapes": [{"type": "pixline", "points": [[10, 22], [14, 30]], "width": 1}], "bias": 0.35},
   "guard": {"shapes": [{"type": "capsule", "points": [[9, 21.4], [11.2, 20.8]], "r": 0.5}]},
   "grip": {"shapes": [{"type": "capsule", "points": [[9.8, 19.2], [10.2, 20.8]], "r": 0.5}]}
  },
