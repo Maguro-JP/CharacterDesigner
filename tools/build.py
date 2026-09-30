@@ -73,6 +73,19 @@ def draw_shape(draw, shape, shift=(0, 0)):
                           ((x1 - ox) * s, (y1 - oy) * s), ((x0 - ox) * s, (y0 - oy) * s)], fill=255)
         for x, y in pts:
             draw.ellipse([(x - r) * s, (y - r) * s, (x + r) * s, (y + r) * s], fill=255)
+    elif kind == "limb":
+        # 関節ごとに太さの変わる手足。筒（capsule）では太腿も足首も同じ太さになり、棒に見えた。
+        # 点は関節だけにし、太さは radii に分けて持つ。歩きのずらし・反転・変形が関節の点にそのまま効く
+        pts = shape["points"]
+        radii = shape["radii"]
+        for (x0, y0), (x1, y1), r0, r1 in zip(pts, pts[1:], radii, radii[1:]):
+            dx, dy = x1 - x0, y1 - y0
+            n = math.hypot(dx, dy) or 1.0
+            nx, ny = -dy / n, dx / n
+            draw.polygon([((x0 + nx * r0) * s, (y0 + ny * r0) * s), ((x1 + nx * r1) * s, (y1 + ny * r1) * s),
+                          ((x1 - nx * r1) * s, (y1 - ny * r1) * s), ((x0 - nx * r0) * s, (y0 - ny * r0) * s)], fill=255)
+        for (x, y), r in zip(pts, radii):
+            draw.ellipse([(x - r) * s, (y - r) * s, (x + r) * s, (y + r) * s], fill=255)
     elif kind == "pixline":
         # ドット単位の線。細い斜めの剣や槍は、縮小に任せると段がそろわず鎖のように途切れる。
         # 仕上がりの格子で Bresenham の線を引き、そのドットを丸ごと塗る
@@ -608,6 +621,8 @@ def apply_transforms(spec):
                         sh["points"] = [[tx(x), ty(y)] for x, y in sh["points"]]
                     if "r" in sh:
                         sh["r"] = sh["r"] * (sx + sy) / 2
+                    if "radii" in sh:
+                        sh["radii"] = [r * (sx + sy) / 2 for r in sh["radii"]]
                     if sh["type"] == "ellipse":
                         cx, cy, rx, ry = sh["at"]
                         ky = sy if below is None or cy > below else 1.0

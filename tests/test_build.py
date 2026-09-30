@@ -48,6 +48,15 @@ class BuildTest(unittest.TestCase):
                 committed = json.loads(path.read_text(encoding="utf-8"))
                 self.assertEqual(json.loads(json.dumps(body.spec_for(kind))), committed)
 
+    def test_limb_tapers_from_first_joint_to_last(self):
+        # 関節ごとの太さで描く手足。上（太腿）が下（足首）より太い
+        from PIL import Image, ImageDraw
+        im = Image.new("L", (20 * build.SS, 20 * build.SS), 0)
+        build.draw_shape(ImageDraw.Draw(im), {"type": "limb", "points": [[10, 3], [10, 10], [10, 17]], "radii": [3, 2, 1]})
+        width = lambda y: sum(1 for x in range(im.width) if im.getpixel((x, y * build.SS)) > 0)  # noqa: E731
+        self.assertGreater(width(4), width(10))
+        self.assertGreater(width(10), width(16))
+
     def test_flatten_crown_lowers_narrow_top(self):
         # 3ドット幅のこぶは1段下がり、広い頭頂や杖の先のような形はそのまま
         a = "#101010"
