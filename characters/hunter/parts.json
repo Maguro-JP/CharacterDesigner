@@ -11,7 +11,13 @@
    "steps": [0.42, 0.76],
    "folds": {"angle": 0, "period": 2, "amp": 0.3}
   },
-  "hair": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#5a2a1c", "#8a4a2a", "#b06a3a"], "steps": [0.42, 0.7]},
+  "hair": {
+   "outline": "#2a1c1c",
+   "line": "#2a1c1c",
+   "ramp": ["#5a2a1c", "#8a4a2a", "#b06a3a"],
+   "steps": [0.55, 0.86],
+   "texture": 0.45
+  },
   "wood": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#5a3a22", "#8a5a34"], "steps": [0.55]},
   "string": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#d8d0b8"]},
   "hood": {"outline": "#16241a", "line": "#16241a", "ramp": ["#2e4a2a", "#4a7040", "#7aa060"], "steps": [0.42, 0.76]}

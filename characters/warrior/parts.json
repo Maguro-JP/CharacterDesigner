@@ -12,7 +12,13 @@
    "contrast": 1.0,
    "texture": 0.06
   },
-  "hair": {"outline": "#181818", "line": "#181818", "ramp": ["#2a1c14", "#5c3e2a", "#9a7a58"], "steps": [0.42, 0.7]},
+  "hair": {
+   "outline": "#181818",
+   "line": "#181818",
+   "ramp": ["#2a1c14", "#5c3e2a", "#9a7a58"],
+   "steps": [0.55, 0.86],
+   "texture": 0.45
+  },
   "metal": {
    "outline": "#2c2f3c",
    "line": "#3e4454",
