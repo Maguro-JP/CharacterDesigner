@@ -86,8 +86,15 @@ def head_parts(cx, top, H, names=None, bangs=False):
                 "shapes": [{"type": "ellipse", "at": [cx + 0.2 * H, top + 0.6 * H, 0.07 * H, 0.12 * H]}]})
     # 髪: 生え際は頭の高さの 0.2。手本は髪4行・額2行・眉・目・目の下3行で、額を見せないと髪が顔より大きく見える
     rx, ry = skull_r[0] + 0.05 * H, skull_r[1] + 0.05 * H
-    hair = [[skull_c[0] + rx * math.cos(math.radians(d)), skull_c[1] + ry * math.sin(math.radians(d))]
-            for d in range(200, 381, 12)]
+    # 外周は滑らかな弧にしない。手本の髪は輪郭から1〜2ドットの房が飛び出してギザギザになっている。
+    # 12度ごとの点の間に、外へ 0.2 H 出て後ろ（+角度）へ流れる房の先を挟む。
+    # 頭頂より前には付けない。頭が1行高くなり、頭身が手本の範囲から外れた
+    hair = []
+    for d in range(200, 381, 12):
+        hair.append([skull_c[0] + rx * math.cos(math.radians(d)), skull_c[1] + ry * math.sin(math.radians(d))])
+        if 310 <= d + 9 <= 380:
+            t = math.radians(d + 9)
+            hair.append([skull_c[0] + (rx + 0.2 * H) * math.cos(t), skull_c[1] + (ry + 0.2 * H) * math.sin(t)])
     # 後ろの下端は耳の上の高さまで。下げると後頭部が暗い塊になり、髪が顔より大きく見える
     hair += [[skull_c[0] + rx * 0.9, top + 0.66 * H], [cx + 0.24 * H, top + 0.6 * H],
              [cx + 0.14 * H, top + 0.34 * H], [cx - 0.1 * H, top + 0.2 * H], [cx - 0.36 * H, top + 0.24 * H]]

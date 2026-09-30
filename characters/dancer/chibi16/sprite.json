@@ -7,7 +7,7 @@
  "body_box": [
   2,
   0,
-  13,
+  14,
   16
  ],
  "palette": {
@@ -25,13 +25,13 @@
   "l": "#e0d8b8"
  },
  "rows": [
-  ".....aaiiaa.....",
-  "....aiiiifia....",
-  "...aiiiiifiia...",
-  "...ekkkkhiiia...",
-  "...ekkkkhifia...",
-  "...edkklkhffa...",
-  "...ekkkkkhha....",
+  ".....aaiiaaa....",
+  "....aiiiififa...",
+  "...aiiiiififia..",
+  "...ekkkkhiiifa..",
+  "...ekkkkhififa..",
+  "...edkklkhfffa..",
+  "...ekkkkkhhaa...",
   "....ekkkkaafa...",
   ".....ehhhaffa...",
   "...ebhkkkkafa...",

@@ -8,7 +8,7 @@
  "body_box": [
   4,
   5,
-  12,
+  13,
   24
  ],
  "palette": {
@@ -35,11 +35,11 @@
   "................",
   "................",
   ".......iii......",
-  "......ioooi.....",
-  ".....ioooooi....",
-  "....eiffofoi....",
-  "....emmhfkff....",
-  "....cmmnhkkf....",
+  "......ioooii....",
+  ".....ioooooli...",
+  "....eiffoflff...",
+  "....emmhfkfkf...",
+  "....cmmnhkkkf...",
   "....emmmmhkii...",
   "....emhmmhiki...",
   ".....adhggbbb...",

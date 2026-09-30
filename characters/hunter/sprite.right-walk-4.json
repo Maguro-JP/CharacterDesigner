@@ -5,7 +5,7 @@
  "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
  "head_height": 12,
  "body_box": [
-  4,
+  3,
   0,
   20,
   34
@@ -53,13 +53,13 @@
   "N": "#e2c27f"
  },
  "rows": [
-  ".......bbbbbbb............",
-  "......bDAtAttlb...........",
+  "......bbbbbbbb............",
+  ".....bDDAtAttlb...........",
   ".....bDDDttqtlqb..........",
   "....bAAAtttqlqleb.........",
   "....bDAtqqfvvfnff.........",
-  "....bDtqqnvHJJvqb.........",
-  "...rbAltqlvaaJHjm.........",
+  "...btDtqqnvHJJvqb.........",
+  "...bAAltqlvaaJHjm.........",
   "..rGrttleevMjJHHm.........",
   "..rGrtqnevHKJHHHm.........",
   "..ryrtqlevHJHHHHm.........",
