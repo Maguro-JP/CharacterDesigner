@@ -40,7 +40,7 @@
   "A": "#676780",
   "B": "#68686e",
   "C": "#6a3843",
-  "D": "#725640",
+  "D": "#7a4c28",
   "E": "#7f4450",
   "F": "#8a684e",
   "G": "#8a8e9c",
@@ -73,8 +73,8 @@
   ".........czzzcgmEmCmg.....",
   ".........czzcKcgCmCmgg....",
   ".........czzcKIggggmxo....",
-  ".........tNLcIciFFFxro....",
-  "..........tqihhiyqqio.....",
+  ".........tNLcIciFyFxro....",
+  "..........tqihhiFqFio.....",
   "..........gggggggggg......",
   "..........gCggHuHmHg......",
   ".........gHgAjgnHmHmg.....",
@@ -82,11 +82,11 @@
   ".........ggtAfgmCmCmg.....",
   ".........cAccgnmCmumg.....",
   "........gmgFFFgmumumg.....",
-  ".........iFFFFyigcgg......",
-  ".........iFvDqviicci......",
-  "..........iiiiiiFDvqi.....",
-  "..............iDqqqqi.....",
-  "...............iqqqi......"
+  ".........iFFFyFigcgg......",
+  ".........iFqFqFiicci......",
+  "..........iiiiiiFqvqi.....",
+  "..............iqFqvqi.....",
+  "...............iyqqi......"
  ],
  "intended": [
   [
