@@ -2,7 +2,7 @@
  "base": "../swordsman/parts.json",
  "name": "狩人（男）",
  "brief": "箱庭ドット のドット絵の狩人の男。男性の枠。緑の頭巾と肩掛け、革の胴着、背に矢筒。弓を前に下げて持つ。左向きの 3/4",
- "canvas": [26, 39],
+ "canvas": [26, 34],
  "materials": {
   "tunic": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#2a2a3c", "#8a7a5a", "#b0a078"], "steps": [0.42, 0.76]},
   "hair": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#5a2a1c", "#8a4a2a", "#b06a3a"], "steps": [0.42, 0.7]},

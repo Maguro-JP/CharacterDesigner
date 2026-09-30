@@ -578,6 +578,8 @@ def apply_transforms(spec):
     transforms: [{parts: "*" か名前の並び, scale: [sx, sy], origin: [x, y], touchups: true/false}]
     上から順にかける。子供は全体を縮めてから、頭だけを少し戻す（頭の比率が大きくなる）。
     touchups: true の規則は、目や鼻の仕上げのドットも同じ位置へ動かす。
+    below: y を渡すと、その高さより下の点だけを縮める（上はそのまま）。脚の長さだけを変えるため。
+    手本の作風は脚が短く（全身31行のうち脚5行）、全体を縮めると頭まで小さくなる。
     """
     rules = spec.get("transforms")
     if not rules:
@@ -590,8 +592,12 @@ def apply_transforms(spec):
         if pick == "head":
             # 頭の部品（head: true）と、頭と一緒に動く髪。作風ごとの変換で名前を並べずに済むように
             pick = [p["name"] for p in spec["parts"] if p.get("head") or p["name"] in ("hair_back", "neck")]
+        below = rule.get("below")
         tx = lambda x: ox + (x - ox) * sx  # noqa: E731
-        ty = lambda y: oy + (y - oy) * sy  # noqa: E731
+        if below is None:
+            ty = lambda y: oy + (y - oy) * sy  # noqa: E731
+        else:
+            ty = lambda y: y if y <= below else below + (y - below) * sy  # noqa: E731
         for part in spec["parts"]:
             if pick != "*" and part["name"] not in pick:
                 continue
@@ -603,7 +609,8 @@ def apply_transforms(spec):
                         sh["r"] = sh["r"] * (sx + sy) / 2
                     if sh["type"] == "ellipse":
                         cx, cy, rx, ry = sh["at"]
-                        sh["at"] = [tx(cx), ty(cy), rx * sx, ry * sy]
+                        ky = sy if below is None or cy > below else 1.0
+                        sh["at"] = [tx(cx), ty(cy), rx * sx, ry * ky]
                     elif sh["type"] == "rect":
                         x0, y0, x1, y1 = sh["at"]
                         sh["at"] = [tx(x0), ty(y0), tx(x1), ty(y1)]

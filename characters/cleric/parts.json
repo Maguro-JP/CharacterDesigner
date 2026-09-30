@@ -2,7 +2,7 @@
  "base": "../swordsman/parts.json",
  "name": "神官（女）",
  "brief": "箱庭ドット のドット絵の神官の女。女性の枠（肩が狭く、頭が少し小さい）。白い法衣に青い肩掛け、金の縁。長い金髪。杖を立てて持つ。左向きの 3/4",
- "canvas": [24, 39],
+ "canvas": [24, 34],
  "materials": {
   "hair": {"outline": "#4a3418", "line": "#4a3418", "ramp": ["#8a6a2c", "#c8a04a", "#eed27a"], "steps": [0.42, 0.72]},
   "robe": {"outline": "#3a3e58", "line": "#8a92a8", "ramp": ["#8a92a8", "#c8d0e0", "#f4f6fa"], "steps": [0.42, 0.72]},

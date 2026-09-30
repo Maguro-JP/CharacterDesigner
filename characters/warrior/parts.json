@@ -2,7 +2,7 @@
  "name": "戦士（男）v4 部品組み",
  "style": "diorama",
  "brief": "箱庭ドット のドット絵の戦士の男。大柄男性の枠。重い鎧、広い肩、両手剣を地に立てて構える。左向きの 3/4",
- "canvas": [28, 39],
+ "canvas": [28, 34],
  "materials": {
   "skin": {
    "outline": "#301810",
@@ -313,5 +313,6 @@
   "contrast": 2.0,
   "deep": 0.7,
   "pivot": 0.75
- }
+ },
+ "transforms": [{"parts": "*", "scale": [1, 0.62], "origin": [14, 25], "below": 25, "touchups": true}]
 }

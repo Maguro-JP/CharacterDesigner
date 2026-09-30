@@ -2,7 +2,7 @@
  "base": "../warrior/parts.json",
  "name": "剣士（男）",
  "brief": "箱庭ドット のドット絵の剣士の男。男性の枠（戦士より細い）。青い上着に革の胴着、赤い襟巻き。片手剣を下げて持つ。左向きの 3/4",
- "canvas": [26, 39],
+ "canvas": [26, 34],
  "materials": {
   "hair": {"outline": "#1a1a28", "line": "#1a1a28", "ramp": ["#2a2a3c", "#3e3e58", "#5c5c80"], "steps": [0.42, 0.7]},
   "tunic": {"outline": "#1a2240", "line": "#1a2240", "ramp": ["#2a2a3c", "#3e5a9a", "#6a8ac8"], "steps": [0.45, 0.78]},

@@ -8,7 +8,7 @@
   1,
   0,
   14,
-  24
+  23
  ],
  "palette": {
   "a": "#181818",
@@ -34,33 +34,29 @@
   "....allhlhhha...",
   "...alhlhhbhha...",
   "...alhhhhbhha...",
-  "...bdnnahgaba...",
-  "....bnnongba....",
-  "....bgnnnb......",
+  "...annnnhgaba...",
+  "....dnnongba....",
+  "....cgnnnb......",
   "...ccmgggbcc....",
-  "..ggmmkggekkc...",
-  ".gggmkeeekkeec..",
+  "..gemmkggekkc...",
+  ".gggekeeekkeec..",
   ".gjjeekkkkeeff..",
   ".gggeeeeeeefif..",
-  "gnnngcbebjjfif..",
-  ".gmkgcbfbggfiif.",
-  ".cmkcmmefffiiif.",
-  ".cmkcmmefiiiiif.",
-  ".cmkcmkeceefiif.",
-  ".cmkcmkeckefiif.",
-  ".cmkcmkeckefiif.",
-  ".cmkceeeceebff..",
-  ".ckecjjjbjjgb...",
-  ".ckecjjbbjggb..."
+  "gnnnggbebjjfif..",
+  ".gmkgbbfbggfiif.",
+  ".cmkcfmffffiiif.",
+  ".cmkcfmefiiiiif.",
+  ".cmkcceeceebiif.",
+  ".cmkcccbceebiif.",
+  ".ckccjjjbjjgbf..",
+  "..ccbggbbggb....",
+  ".....bb..bb.....",
+  "................"
  ],
  "intended": [
   [
    4,
-   6
-  ],
-  [
-   7,
-   6
+   7
   ],
   [
    7,
