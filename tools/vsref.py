@@ -16,7 +16,7 @@ from PIL import Image
 sys.path.insert(0, str(Path(__file__).parent))
 import sprite  # noqa: E402
 
-SCALE = 16
+SCALE = int(__import__("os").environ.get("VSREF_SCALE", 16))
 
 
 def load(kind, path, box):
