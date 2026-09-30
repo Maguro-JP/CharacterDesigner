@@ -79,30 +79,30 @@ def head_parts(cx, top, H, names=None, bangs=False):
     front = cx - 0.37 * H
     out.append({"name": n["face"], "material": "skin", "head": True, "breathe": 1, "relief": 1.0, "bias": 0.1,
                 "shapes": [{"type": "poly", "points": [
-                    [cx - 0.34 * H, top + 0.35 * H], [front, top + 0.6 * H], [cx - 0.33 * H, top + 0.78 * H],
+                    [cx - 0.34 * H, top + 0.24 * H], [front, top + 0.52 * H], [cx - 0.34 * H, top + 0.74 * H],
                     [cx - 0.22 * H, top + 0.95 * H], [cx - 0.05 * H, chin], [cx + 0.18 * H, top + 0.86 * H],
-                    [cx + 0.22 * H, top + 0.55 * H], [cx, top + 0.3 * H]]}]})
+                    [cx + 0.22 * H, top + 0.5 * H], [cx, top + 0.2 * H]]}]})
     out.append({"name": n["ear"], "material": "skin", "head": True, "breathe": 1, "bias": -0.2,
                 "shapes": [{"type": "ellipse", "at": [cx + 0.2 * H, top + 0.6 * H, 0.07 * H, 0.12 * H]}]})
-    # 髪: 生え際は額の上（頭の高さの 0.3）、後ろは耳の下まで
+    # 髪: 生え際は頭の高さの 0.2。手本は髪4行・額2行・眉・目・目の下3行で、額を見せないと髪が顔より大きく見える
     rx, ry = skull_r[0] + 0.05 * H, skull_r[1] + 0.05 * H
     hair = [[skull_c[0] + rx * math.cos(math.radians(d)), skull_c[1] + ry * math.sin(math.radians(d))]
             for d in range(200, 381, 12)]
     # 後ろの下端は耳の上の高さまで。下げると後頭部が暗い塊になり、髪が顔より大きく見える
     hair += [[skull_c[0] + rx * 0.9, top + 0.66 * H], [cx + 0.24 * H, top + 0.6 * H],
-             [cx + 0.14 * H, top + 0.42 * H], [cx - 0.1 * H, top + 0.3 * H], [cx - 0.36 * H, top + 0.34 * H]]
+             [cx + 0.14 * H, top + 0.34 * H], [cx - 0.1 * H, top + 0.2 * H], [cx - 0.36 * H, top + 0.24 * H]]
     out.append({"name": n["hair"], "material": "hair", "head": True, "breathe": 1,
                 "strands": {"angle": 15, "period": 2.0, "amp": 0.2}, "shapes": [{"type": "poly", "points": hair}]})
     if bangs:
-        # 前髪: 額に少しだけ下ろす房。目にはかけない
+        # 前髪: 額に少しだけ下ろす房。眉の上に額の肌を2行残す
         out.append({"name": n["bangs"], "material": "hair", "group": n["hair"], "head": True, "breathe": 1,
                     "no_line_behind": True, "strands": {"angle": -20, "period": 2.0, "amp": 0.2},
                     "shapes": [{"type": "poly", "points": [
-                        [cx - 0.39 * H, top + 0.30 * H], [cx - 0.1 * H, top + 0.16 * H], [cx + 0.14 * H, top + 0.24 * H],
-                        [cx + 0.06 * H, top + 0.4 * H], [cx - 0.06 * H, top + 0.32 * H], [cx - 0.18 * H, top + 0.42 * H],
-                        [cx - 0.3 * H, top + 0.35 * H], [cx - 0.37 * H, top + 0.44 * H]]}]})
+                        [cx - 0.39 * H, top + 0.20 * H], [cx - 0.1 * H, top + 0.08 * H], [cx + 0.14 * H, top + 0.14 * H],
+                        [cx + 0.06 * H, top + 0.28 * H], [cx - 0.06 * H, top + 0.22 * H], [cx - 0.18 * H, top + 0.3 * H],
+                        [cx - 0.3 * H, top + 0.24 * H], [cx - 0.37 * H, top + 0.32 * H]]}]})
     far = int(front + 0.5)
-    eye = round(top + 0.58 * H)
+    eye = round(top + 0.5 * H)
     touchups = [
         {"note": "眉: 手前の黒目と白目の真上に2ドット", "at": [[far + 3, eye - 1], [far + 4, eye - 1]], "c": "#181818"},
         {"note": "手前の黒目", "at": [[far + 3, eye]], "c": "#3a2a48"},

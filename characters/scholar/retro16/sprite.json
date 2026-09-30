@@ -15,9 +15,9 @@
   "b": "#1a1a28",
   "c": "#2a0e14",
   "d": "#2a1c1c",
-  "e": "#2a2a2e",
-  "f": "#2a2a3a",
-  "g": "#2a2a3c",
+  "e": "#2a2a3a",
+  "f": "#2a2a3c",
+  "g": "#301810",
   "h": "#44444c",
   "i": "#583018",
   "j": "#5a3a22",
@@ -31,22 +31,22 @@
   "................",
   "......aaaa......",
   ".....akkkaa.....",
-  "....ahhhhkha....",
-  "....ahheeheha...",
-  "....cnnihheea...",
-  "....cnnniheea...",
-  "....fnboniea....",
-  "....cnnnnia.....",
-  "....cninna......",
+  "....ahhehkha....",
+  "....gnnieheha...",
+  "....gnnniheea...",
+  "....enbbihhha...",
+  "....gnnoniia....",
+  "....gnnnnia.....",
+  "....gninna......",
   ".....cmincc.....",
-  ".....cmncglc....",
-  "....ccccgglc....",
-  "....bkkbcglc....",
-  "....bkbkcclc....",
-  ".....bbbblc.....",
-  ".....bkgccc.....",
-  "....cckgcglc....",
-  "....cckgcglc....",
+  ".....cmncflc....",
+  "....ccccfflc....",
+  "....bkkbcflc....",
+  "....bkbkccld....",
+  ".....bbbblg.....",
+  ".....bkfccc.....",
+  "....cckfcflc....",
+  "....cckfcflc....",
   "....ccccccc.....",
   "....dmmjjjjd....",
   ".....dmjdjd.....",
@@ -56,11 +56,15 @@
  "intended": [
   [
    4,
-   7
+   6
   ],
   [
    6,
-   7
+   6
+  ],
+  [
+   7,
+   6
   ],
   [
    7,

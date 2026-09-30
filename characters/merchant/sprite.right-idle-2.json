@@ -65,12 +65,12 @@
   ".....sMMMMMs............",
   "....sMMJMMHFs...........",
   "...sMJHCCCCCCs..........",
-  "...iiiiiiiiiii..........",
-  "...iIIADqKKAqwi.........",
-  "...iwDqxrKKKEi..........",
-  ".ssiqDwrKiiKKd..........",
-  "sMMMsrrnGLdKKf..........",
-  "sMJMJsGGKKKKKf..........",
+  "...iiiiiiiiiiqi.........",
+  "...iIIxArKKKGi..........",
+  "...iwDqwriiKKd..........",
+  ".ssiqDwrKLdKKf..........",
+  "sMMMsrrnGKKKKf..........",
+  "sMJMJsGGGKKKKf..........",
   ".sFCCCssKKrrf...........",
   ".cccccyvmryya...........",
   ".cBBceyoymyeya..........",
@@ -91,23 +91,23 @@
  "intended": [
   [
    9,
-   15
+   14
   ],
   [
    9,
-   16
-  ],
-  [
-   10,
    15
   ],
   [
    10,
-   16
+   14
+  ],
+  [
+   10,
+   15
   ],
   [
    13,
-   15
+   14
   ]
  ]
 }
