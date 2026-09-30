@@ -8,7 +8,7 @@
   2,
   1,
   14,
-  24
+  23
  ],
  "palette": {
   "a": "#1a2240",
@@ -34,8 +34,8 @@
   "....foojjjjf....",
   "..gggjjjjhoof...",
   ".gnnngllhfjjf...",
-  ".gnncllflhfjf...",
-  "..ghbllmhfjjf...",
+  ".gnngllllhfjf...",
+  "..ghcllmhfjjf...",
   "..bhblllbhojf...",
   "..bhbbggbaojf...",
   "..bhbdkgaaojf...",
@@ -47,20 +47,16 @@
   "..bhbdieikd.....",
   "..bhbdieikd.....",
   "..bhbdieikd.....",
-  "..bhbdieikd.....",
-  "..bhbdieikd.....",
-  "..bhbiigiig.....",
-  "..bhbggnnnng....",
-  "..bhbhhbbbg....."
+  "..bhbiieiid.....",
+  "..bhbbhbnng.....",
+  "..bhbbhbbg......",
+  "...b..b.b.......",
+  "................"
  ],
  "intended": [
   [
    4,
-   6
-  ],
-  [
-   7,
-   6
+   7
   ],
   [
    7,

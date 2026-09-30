@@ -6,10 +6,10 @@
  "frame": "child",
  "head_height": 11,
  "body_box": [
-  8,
+  9,
   7,
   21,
-  39
+  34
  ],
  "palette": {
   "a": "#10302e",
@@ -86,12 +86,7 @@
   ".........aayymabbba.....",
   "..........fyqfaafff.....",
   "..........fyjf.fkjf.....",
-  ".........fffkf..ffff....",
-  ".........fCCf...fCCnf...",
-  "........fCCCf...fCsnf...",
-  "........fCCsf...fxnnf...",
-  "........fCxnf....fff....",
-  ".........fff............"
+  ".........fyqkf..fjjf...."
  ],
  "intended": [
   [
