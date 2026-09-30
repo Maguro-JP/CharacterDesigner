@@ -58,13 +58,13 @@
    "name": "far_leg",
    "material": "metal",
    "bias": -0.12,
-   "shapes": [{"type": "capsule", "points": [[18.6, 24.5], [18.9, 28.85], [19.2, 33.2]], "r": 1.9}]
+   "shapes": [{"type": "capsule", "points": [[18.6, 24.5], [19.5, 28.85], [20.4, 33.2]], "r": 1.9}]
   },
   {
    "name": "far_boot",
    "material": "leather",
    "bias": -0.1,
-   "shapes": [{"type": "poly", "points": [[16.6, 33], [21.2, 33], [21.4, 37], [16.2, 37], [16.2, 35.2]]}]
+   "shapes": [{"type": "poly", "points": [[17.8, 33], [22.4, 33], [22.599999999999998, 37], [17.4, 37], [17.4, 35.2]]}]
   },
   {
    "name": "far_pauldron",
@@ -99,12 +99,12 @@
   {
    "name": "near_leg",
    "material": "metal",
-   "shapes": [{"type": "capsule", "points": [[12.6, 24.5], [12.4, 28.85], [12.2, 33.2]], "r": 2.0}]
+   "shapes": [{"type": "capsule", "points": [[12.6, 24.5], [11.8, 28.85], [10.9, 33.2]], "r": 2.0}]
   },
   {
    "name": "near_boot",
    "material": "leather",
-   "shapes": [{"type": "poly", "points": [[10, 33], [14.4, 33], [14.6, 37], [8.6, 37], [8.8, 35.2]]}]
+   "shapes": [{"type": "poly", "points": [[8.6, 33], [13.0, 33], [13.2, 37], [7.199999999999999, 37], [7.4, 35.2]]}]
   },
   {
    "name": "neck",
@@ -224,7 +224,7 @@
    "name": "hands",
    "material": "leather",
    "weight": 1.5,
-   "shapes": [{"type": "ellipse", "at": [6.4, 16.4, 1.8, 1.4]}],
+   "shapes": [{"type": "ellipse", "at": [6.4, 16.4, 2.2, 1.8]}],
    "bias": 0.1
   }
  ],
