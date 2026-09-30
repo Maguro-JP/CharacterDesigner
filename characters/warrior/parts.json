@@ -64,7 +64,7 @@
    "name": "far_leg",
    "material": "metal",
    "bias": -0.12,
-   "shapes": [{"type": "capsule", "points": [[18.6, 24.5], [19.5, 28.85], [20.4, 33.2]], "r": 1.9}]
+   "shapes": [{"type": "limb", "points": [[18.6, 24.5], [19.5, 28.85], [20.4, 33.2]], "radii": [2.18, 1.37, 1.1]}]
   },
   {
    "name": "far_boot",
@@ -105,7 +105,7 @@
   {
    "name": "near_leg",
    "material": "metal",
-   "shapes": [{"type": "capsule", "points": [[12.6, 24.5], [11.8, 28.85], [10.9, 33.2]], "r": 2.0}]
+   "shapes": [{"type": "limb", "points": [[12.6, 24.5], [11.8, 28.85], [10.9, 33.2]], "radii": [2.3, 1.44, 1.16]}]
   },
   {
    "name": "near_boot",
