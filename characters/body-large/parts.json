@@ -114,6 +114,20 @@
    "line_same": true
   },
   {
+   "name": "chest",
+   "material": "skin",
+   "shapes": [{"type": "ellipse", "at": [16.300625, 16.295, 4.0321875, 3.22]}],
+   "breathe": 0.5,
+   "relief": 1.6
+  },
+  {
+   "name": "abdomen",
+   "material": "skin",
+   "shapes": [{"type": "ellipse", "at": [17.73021875, 22.562500000000004, 3.079125, 2.846250000000001]}],
+   "breathe": 0.5,
+   "relief": 1.2
+  },
+  {
    "name": "briefs",
    "material": "cloth",
    "shapes": [
@@ -144,6 +158,18 @@
     }
    ],
    "line_same": true
+  },
+  {
+   "name": "near_knee",
+   "material": "skin",
+   "shapes": [{"type": "ellipse", "at": [15.251249999999999, 31.442142857142855, 1.449, 1.6905]}],
+   "relief": 1.4
+  },
+  {
+   "name": "near_calf",
+   "material": "skin",
+   "shapes": [{"type": "ellipse", "at": [15.136249999999999, 32.43295, 1.7388, 0.8033571428571428]}],
+   "relief": 1.2
   },
   {
    "name": "near_foot",
@@ -239,6 +265,14 @@
     }
    ],
    "breathe": 0.5,
+   "line_same": true
+  },
+  {
+   "name": "near_deltoid",
+   "material": "skin",
+   "shapes": [{"type": "ellipse", "at": [11.7653125, 16.50775, 2.5875, 3.1049999999999995]}],
+   "breathe": 0.5,
+   "relief": 1.5,
    "line_same": true
   },
   {
