@@ -238,7 +238,7 @@
   {
    "name": "near_arm",
    "material": "metal",
-   "shapes": [{"type": "capsule", "points": [[10.6, 14.8], [9.6, 17.0], [7.6, 16.6]], "r": 1.6}],
+   "shapes": [{"type": "limb", "points": [[10.6, 14.8], [9.6, 17.0], [7.6, 16.6]], "radii": [1.76, 1.44, 1.12]}],
    "breathe": 0.5
   },
   {
@@ -266,7 +266,9 @@
     "grip": {"shapes": [{"type": "rect", "at": [5.4, 16.1, 6.6, 19.6]}]},
     "pommel": {"shapes": [{"type": "ellipse", "at": [6, 20.1, 1.1, 1.0]}]},
     "hands": {"shapes": [{"type": "ellipse", "at": [6.3, 17.8, 1.8, 1.6]}]},
-    "near_arm": {"shapes": [{"type": "capsule", "points": [[10.6, 14.8], [9.6, 18.4], [7.6, 17.8]], "r": 1.6}]}
+    "near_arm": {
+     "shapes": [{"type": "limb", "points": [[10.6, 14.8], [9.6, 18.4], [7.6, 17.8]], "radii": [1.76, 1.44, 1.12]}]
+    }
    },
    "move": {
     "near_leg": {"points": [[0, 0], [-1.2, 0], [-2, -0.2]]},
@@ -283,7 +285,9 @@
     "grip": {"shapes": [{"type": "rect", "at": [5.4, 16.1, 6.6, 19.6]}]},
     "pommel": {"shapes": [{"type": "ellipse", "at": [6, 20.1, 1.1, 1.0]}]},
     "hands": {"shapes": [{"type": "ellipse", "at": [6.3, 17.8, 1.8, 1.6]}]},
-    "near_arm": {"shapes": [{"type": "capsule", "points": [[10.6, 14.8], [9.6, 18.4], [7.6, 17.8]], "r": 1.6}]}
+    "near_arm": {
+     "shapes": [{"type": "limb", "points": [[10.6, 14.8], [9.6, 18.4], [7.6, 17.8]], "radii": [1.76, 1.44, 1.12]}]
+    }
    },
    "move": {
     "near_leg": {"points": [[0, 0], [0, 0], [0, 0]]},
@@ -301,7 +305,9 @@
     "grip": {"shapes": [{"type": "rect", "at": [5.4, 16.1, 6.6, 19.6]}]},
     "pommel": {"shapes": [{"type": "ellipse", "at": [6, 20.1, 1.1, 1.0]}]},
     "hands": {"shapes": [{"type": "ellipse", "at": [6.3, 17.8, 1.8, 1.6]}]},
-    "near_arm": {"shapes": [{"type": "capsule", "points": [[10.6, 14.8], [9.6, 18.4], [7.6, 17.8]], "r": 1.6}]}
+    "near_arm": {
+     "shapes": [{"type": "limb", "points": [[10.6, 14.8], [9.6, 18.4], [7.6, 17.8]], "radii": [1.76, 1.44, 1.12]}]
+    }
    },
    "move": {
     "near_leg": {"points": [[0, 0], [0.6, -0.2], [2, -0.5]]},
@@ -318,7 +324,9 @@
     "grip": {"shapes": [{"type": "rect", "at": [5.4, 16.1, 6.6, 19.6]}]},
     "pommel": {"shapes": [{"type": "ellipse", "at": [6, 20.1, 1.1, 1.0]}]},
     "hands": {"shapes": [{"type": "ellipse", "at": [6.3, 17.8, 1.8, 1.6]}]},
-    "near_arm": {"shapes": [{"type": "capsule", "points": [[10.6, 14.8], [9.6, 18.4], [7.6, 17.8]], "r": 1.6}]}
+    "near_arm": {
+     "shapes": [{"type": "limb", "points": [[10.6, 14.8], [9.6, 18.4], [7.6, 17.8]], "radii": [1.76, 1.44, 1.12]}]
+    }
    },
    "move": {
     "near_leg": {"points": [[0, 0], [-1.6, -1.2], [0, -2.4]]},

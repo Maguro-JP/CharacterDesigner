@@ -47,7 +47,7 @@
   "far_leg": {
    "material": "pants",
    "bias": -0.15,
-   "shapes": [{"type": "capsule", "points": [[17.2, 24.5], [17.5, 29], [17.8, 33.4]], "r": 1.5}]
+   "shapes": [{"type": "limb", "points": [[17.2, 24.5], [17.5, 29], [17.8, 33.4]], "radii": [1.72, 1.08, 0.87]}]
   },
   "far_boot": {"shapes": [{"type": "poly", "points": [[15.8, 33], [19.4, 33], [19.6, 37], [15.4, 37], [15.4, 35.6]]}]},
   "torso": {
@@ -63,7 +63,7 @@
   "buckle": {"shapes": [{"type": "rect", "at": [13.4, 20.4, 15, 22.2]}]},
   "near_leg": {
    "material": "pants",
-   "shapes": [{"type": "capsule", "points": [[13.2, 24.5], [13.0, 29], [12.8, 33.4]], "r": 1.6}]
+   "shapes": [{"type": "limb", "points": [[13.2, 24.5], [13.0, 29], [12.8, 33.4]], "radii": [1.84, 1.15, 0.93]}]
   },
   "near_boot": {
    "bias": 0.08,
@@ -72,7 +72,7 @@
   "neck": {"shapes": [{"type": "rect", "at": [12.8, 10.5, 15.8, 13]}]},
   "near_arm": {
    "material": "tunic",
-   "shapes": [{"type": "capsule", "points": [[12.2, 14.2], [11.6, 17.4], [10.6, 19.8]], "r": 1.4}]
+   "shapes": [{"type": "limb", "points": [[12.2, 14.2], [11.6, 17.4], [10.6, 19.8]], "radii": [1.54, 1.26, 0.98]}]
   }
  },
  "add": [
@@ -112,7 +112,7 @@
    "material": "tunic",
    "before": "torso",
    "bias": -0.12,
-   "shapes": [{"type": "capsule", "points": [[18.6, 14.2], [19.8, 18.6]], "r": 1.3}],
+   "shapes": [{"type": "limb", "points": [[18.6, 14.2], [19.8, 18.6]], "radii": [1.43, 0.91]}],
    "breathe": 0.5
   },
   {

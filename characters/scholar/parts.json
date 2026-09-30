@@ -30,7 +30,9 @@
     }
    ]
   },
-  "near_arm": {"shapes": [{"type": "capsule", "points": [[12.2, 14.2], [11.4, 17.6], [13, 19.6]], "r": 1.4}]},
+  "near_arm": {
+   "shapes": [{"type": "limb", "points": [[12.2, 14.2], [11.4, 17.6], [13, 19.6]], "radii": [1.54, 1.26, 0.98]}]
+  },
   "hand": {"shapes": [{"type": "ellipse", "at": [13.6, 19.4, 1.0, 1.0]}]},
   "torso": {
    "shapes": [
