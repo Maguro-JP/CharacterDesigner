@@ -59,23 +59,23 @@
   "......ayyyyrrya...........",
   ".....ayvyyfrrfna..........",
   ".....ayvynclfcfa..........",
-  ".....ayynaMNMLEla.........",
-  ".....ayvnaNNMLJHA.........",
-  "......avaNNNbbbEA.........",
-  "......araEEMLoKEA.........",
-  ".......aAEEJLHEEA.........",
-  ".........AEJHEEEA.........",
-  ".........AJJEEEA..........",
-  ".......hhAJEEhh...........",
-  "......hGhKEEIGGh..........",
+  ".....ayynaMMMLJla.........",
+  ".....ayvnaNNMLLLA.........",
+  "......avaLNNMLLLA.........",
+  "......araLIMbbbbA.........",
+  ".......aAHELKbJbA.........",
+  ".........AJLLJIHA.........",
+  ".........ALLJJJA..........",
+  ".......hhALHEhh...........",
+  "......hGhKJEIGGh..........",
   ".....hGGhKKKGGGh..........",
   ".....hGGGhKKGCCh..........",
   ".....hGGGChhjCzkh.........",
   "....hzGGGCzhhhhhh.........",
-  "....hsCGCChpbppob.........",
-  "....hhzhhhhbHbeeb.........",
-  "....IIIFFFibHbeeb.........",
-  ".....hhFwqipDDDo..........",
+  "....hsCGCChpbppeb.........",
+  "....hhzhhhhbMbeeb.........",
+  "....hIIFFFibLbeeb.........",
+  ".....hhFwqiiLDDo..........",
   "......hhhhhhhhjh..........",
   "......hGGGGhxohh..........",
   "......hGGGhxxohh..........",
@@ -96,23 +96,31 @@
  "intended": [
   [
    12,
-   8
+   9
   ],
   [
-   13,
-   8
+   12,
+   10
   ],
   [
    13,
    9
   ],
   [
-   14,
-   8
+   13,
+   10
   ],
   [
    14,
    9
+  ],
+  [
+   15,
+   9
+  ],
+  [
+   15,
+   10
   ]
  ]
 }

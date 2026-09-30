@@ -13,47 +13,39 @@
  "palette": {
   "a": "#1a1a1a",
   "b": "#2a0e14",
-  "c": "#3a3a5a",
-  "d": "#3e3e58",
-  "e": "#3e5a9a",
-  "f": "#44444c",
-  "g": "#66666e",
-  "h": "#6a2232",
-  "i": "#6e3a2c",
-  "j": "#8a5a34",
-  "k": "#a2664a",
-  "l": "#d49a70"
+  "c": "#3e3e58",
+  "d": "#3e5a9a",
+  "e": "#44444c",
+  "f": "#66666e",
+  "g": "#6a2232",
+  "h": "#6e3a2c",
+  "i": "#8a5a34",
+  "j": "#a2664a",
+  "k": "#d49a70",
+  "l": "#f0c8a0"
  },
  "rows": [
-  ".....aaggffa....",
-  "....afffffffa...",
-  "...affllffffa...",
-  "...iaalalaffa...",
-  "...illllllafa...",
-  "...ilclllkaa....",
-  "...illlkkia.....",
-  "....illkki......",
-  ".....bkkkib.....",
-  "....bbbbbhhb....",
-  "....beeebbbb....",
-  ".....ellddbb....",
-  "....bbgdbbbb....",
-  "....bbgdbhhb....",
-  "....bbaaaahb....",
-  "....bjjjjhbb...."
+  ".....aaffeea....",
+  "....aeeeeeeea...",
+  "...aeekkkeeea...",
+  "...hlkkkkaeea...",
+  "...hllkkkkaea...",
+  "...haaklkjaa....",
+  "...hkkkkjha.....",
+  "....hkkjjh......",
+  ".....bjjjhb.....",
+  "....bbbbbggb....",
+  "....bdddbbbb....",
+  ".....dllccbb....",
+  "....bbfcbbbb....",
+  "....bbfcbggb....",
+  "....bbaaaagb....",
+  "....biiiigbb...."
  ],
  "intended": [
   [
    4,
-   3
-  ],
-  [
-   4,
    5
-  ],
-  [
-   5,
-   3
   ],
   [
    5,
@@ -61,7 +53,7 @@
   ],
   [
    7,
-   3
+   5
   ]
  ]
 }

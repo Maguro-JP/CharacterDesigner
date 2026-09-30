@@ -22,9 +22,9 @@
   "h": "#32252b",
   "i": "#362a32",
   "j": "#3a1a10",
-  "k": "#422b1f",
-  "l": "#439187",
-  "m": "#4a7aa8",
+  "k": "#3a6a98",
+  "l": "#422b1f",
+  "m": "#439187",
   "n": "#4e3220",
   "o": "#522415",
   "p": "#58a89a",
@@ -47,8 +47,8 @@
   "G": "#d49a70",
   "H": "#e2b188",
   "I": "#e8904a",
-  "J": "#f0c8a0",
-  "K": "#f2ede4"
+  "J": "#e8e0d4",
+  "K": "#f0c8a0"
  },
  "rows": [
   "........................",
@@ -62,51 +62,59 @@
   "..........qIIIFCyyECq...",
   "..........qICCyyyyyyq...",
   "..........jjjjjjjjjjj...",
-  "..........jjjjwwjovvj...",
-  ".........tJJGHBDwjAoj...",
-  ".........tJKmzwwwjvoj...",
-  "..........tGzwwwtovojqq.",
-  "..........tDwwwtjoAoqEEq",
+  "..........jjGGDzjovvj...",
+  ".........tKHGGGGGjAoj...",
+  ".........tHHjjDGzjvoj...",
+  "..........jGjJDDtovojqq.",
+  "..........tGkDDtjoAoqEEq",
   "...........tawwtqqqqyyyq",
   "...........apBwaggffffq.",
-  "...........algaggefxxuf.",
-  "..........aplcgggebfuuf.",
-  "..........algceeebbfrkf.",
-  "..........alcbgedbafrnf.",
-  ".........aaacaaaaabfkkf.",
-  ".........tGGaffffffkkkf.",
-  ".........tGzapppggfrnkkf",
-  "..........ttpppggefrkkkf",
-  "...........apppledfnkkf.",
-  "..........alplgdcbbaff..",
-  "..........alaadbbbba....",
+  "...........amgaggefxxuf.",
+  "..........apmcgggebfuuf.",
+  "..........amgceeebbfrlf.",
+  "..........amcbgedbafrnf.",
+  ".........aaacaaaaabfllf.",
+  ".........tGGafffffflllf.",
+  ".........tGGapppggfrnllf",
+  "..........ttpppggefrlllf",
+  "...........apppmedfnllf.",
+  "..........ampmgdcbbaff..",
+  "..........amaadbbbba....",
   "..........aassabbbba....",
   "...........fsifffaa.....",
   "...........fshiiff......",
   "...........fshffuf......",
-  "...........fshfxrkf.....",
-  "...........ffffnkkf.....",
-  "..........fxxxfkkkf.....",
+  "...........fshfxrlf.....",
+  "...........ffffnllf.....",
+  "..........fxxxflllf.....",
   "..........fxxuffff......",
-  "..........funkf.........",
+  "..........funlf.........",
   "...........fff.........."
  ],
  "intended": [
   [
-   11,
+   10,
+   14
+  ],
+  [
+   12,
    13
   ],
   [
    12,
-   11
+   14
   ],
   [
    12,
+   15
+  ],
+  [
+   13,
    13
   ],
   [
    13,
-   11
+   14
   ]
  ]
 }

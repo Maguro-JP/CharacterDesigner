@@ -20,10 +20,10 @@
   "g": "#2a0e14",
   "h": "#2a1c1c",
   "i": "#2a2a2e",
-  "j": "#2c3e6a",
-  "k": "#34344a",
-  "l": "#37373d",
-  "m": "#3a3a5a",
+  "j": "#2a2a3c",
+  "k": "#2c3e6a",
+  "l": "#34344a",
+  "m": "#37373d",
   "n": "#3e3e58",
   "o": "#3e5a9a",
   "p": "#422b1f",
@@ -55,25 +55,25 @@
  "rows": [
   ".......aaaaaaa............",
   "......axxuxxqia...........",
-  ".....axxxqqlllqa..........",
-  ".....axqlqqccqca..........",
-  ".....axxiaMMLICca.........",
-  ".....auulaMMMKIFz.........",
-  "......auaCMMbbbFz.........",
-  "......aqaCCKKmNCz.........",
-  ".......azCCIIFCCz.........",
-  ".........zCICCCCz.........",
-  ".........zFFFCCz..........",
-  ".......ggzFCCzz...........",
-  "......gEgJCCCJgg..........",
+  ".....axxxqqmmmqa..........",
+  ".....axqmqqccqca..........",
+  ".....axxiaLMLKKca.........",
+  ".....auumaMMLKKKz.........",
+  "......auaKMMLKKKz.........",
+  "......aqaKFLbbbbz.........",
+  ".......azFCKNbIbz.........",
+  ".........zIKKIIGz.........",
+  ".........zKKKIIz..........",
+  ".......ggzKFCzz...........",
+  "......gEgJGFCJgg..........",
   ".....gBEgNJJJEBg..........",
   ".....gyEEgJJEEBg..........",
   ".....gEEEEggcEBrg.........",
   "....gyBEEBByggggg.........",
-  "....grEEByygboojb.........",
-  "....ggByBygbLbojb.........",
-  "....zGyggggMKbeeb.........",
-  "....zCGDDDhbFbJHn.........",
+  "....grEEByygbookb.........",
+  "....ggByBygbLbokb.........",
+  "....zGyggggLKbeeb.........",
+  "....zIGDDDhbKbJHn.........",
   ".....zhAvthvvhpn..........",
   "......gggggggggg..........",
   "......gEEEEBggyg..........",
@@ -81,9 +81,9 @@
   ".....gEEBBgwwssgg.........",
   ".....gEEEygwswngg.........",
   ".....gByByygwsnfb.........",
-  ".....gyyyrrrgskfb.........",
-  ".....gyyrrrgwskdb.........",
-  ".....gryfrfgbbbdgg........",
+  ".....gyyyrrrgslfb.........",
+  ".....gyyrrrgwsldb.........",
+  ".....gryjrfgbbbdgg........",
   "......gbbbhDDDDgg.........",
   "......bnfdhDDDDDh.........",
   "......hbbbhDDDAvh.........",
@@ -96,23 +96,31 @@
  "intended": [
   [
    12,
-   6
+   7
   ],
   [
-   13,
-   6
+   12,
+   8
   ],
   [
    13,
    7
   ],
   [
-   14,
-   6
+   13,
+   8
   ],
   [
    14,
    7
+  ],
+  [
+   15,
+   7
+  ],
+  [
+   15,
+   8
   ]
  ]
 }
