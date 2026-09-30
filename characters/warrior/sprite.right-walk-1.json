@@ -5,7 +5,7 @@
  "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
  "head_height": 12,
  "body_box": [
-  4,
+  2,
   0,
   25,
   34
@@ -77,16 +77,16 @@
   "..msIsmyyyyydLLdyee.puup....",
   "..msGsmypkkkdLmdkkd..pp.....",
   "..msGsAmmmmmmmmmmd..........",
-  "..msGsttItIsImNNDmm.........",
-  "..msEsttIsGsEmNNDmm.........",
-  "..msAstsIsEsmmNNzwe.........",
-  ".mEsAsmjjjmm.eHDzne.........",
-  ".mAsAmnnnge...ezwwne........",
-  ".mEssmjjjje...erwnje........",
-  "..mmdyuypld....djjjjd.......",
-  "....dukkkkd...dyyyyupd......",
-  "....dkkkkkd...dylkkkkd......",
-  ".....ddddd.....dddddd......."
+  "..msGsttItIsImNNHmm.........",
+  "..msEsttIsGsEmNNMmm.........",
+  "..msAsmsIsEsmmNNHze.........",
+  ".mEsAmzjjjmm.meDDwre........",
+  ".mAsAmHnige...ezwzrre.......",
+  ".mEmmjjjge.....ezrrie.......",
+  "..dyyyuud.......ejjjjd......",
+  "..dpypkkkd......dyyyyud.....",
+  "...dkkkkd.......dulkkkkd....",
+  "....dddd.........dddddd....."
  ],
  "intended": [
   [
