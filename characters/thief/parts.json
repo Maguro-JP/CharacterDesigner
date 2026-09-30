@@ -27,7 +27,7 @@
   "band": {"outline": "#4a1c20", "line": "#4a1c20", "ramp": ["#7c2a2a", "#b8443a"], "steps": [0.55]}
  },
  "override": {
-  "scarf": {"shapes": [{"type": "capsule", "points": [[11.4, 11.6], [16.8, 12.4]], "r": 1.5}]},
+  "scarf": {"shapes": [{"type": "capsule", "points": [[11.4, 12.2], [16.8, 13.0]], "r": 1.4}]},
   "blade": {"shapes": [{"type": "pixline", "points": [[10, 22], [14, 30]], "width": 1}], "bias": 0.35},
   "guard": {"shapes": [{"type": "capsule", "points": [[9, 21.4], [11.2, 20.8]], "r": 0.5}]},
   "grip": {"shapes": [{"type": "capsule", "points": [[9.8, 19.2], [10.2, 20.8]], "r": 0.5}]},

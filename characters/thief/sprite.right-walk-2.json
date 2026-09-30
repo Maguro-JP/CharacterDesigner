@@ -3,12 +3,12 @@
  "style": "diorama",
  "brief": "箱庭ドット のドット絵の盗賊の男。男性の枠。銀の髪に赤い鉢巻き、灰紫の上着、口元まで覆う深緑の襟巻き、短剣を逆手に持つ。左向きの 3/4",
  "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
- "head_height": 11,
+ "head_height": 12,
  "body_box": [
   4,
   0,
   18,
-  34
+  35
  ],
  "palette": {
   "a": "#15201c",
@@ -24,7 +24,7 @@
   "k": "#2b282e",
   "l": "#2b2e38",
   "m": "#301810",
-  "n": "#304a3e",
+  "n": "#3a3a4a",
   "o": "#3b5a4b",
   "p": "#3e3b4a",
   "q": "#42322a",
@@ -62,12 +62,12 @@
   "..sJsIIEIrxbbLLAm.........",
   "..sHkrIrIxLLALLLm.........",
   "...skrzrxtLLLLLLm.........",
-  "....kIIkrtKLLxxKm.........",
-  "....kIEkaxxxxnoa..........",
-  "....kwraononofofa.........",
-  "....kkkaofofoaafa.........",
-  "....aacDjfojcpCc..........",
-  "..aaoacDGjjqcpCc..........",
+  "....kIIkrtKLLLLKm.........",
+  "....kIEkmLLxxxxa..........",
+  "....kwraaaxoofofa.........",
+  "....kkkaonofoaafa.........",
+  "....aacjofofapCc..........",
+  "..aaoacDjjjjcpCc..........",
   ".aofoacGGqGqcpCc..........",
   ".aofoacDGqGqcgCc..........",
   "..afaccyGqycvgCgc.........",
@@ -77,8 +77,8 @@
   ".....mjqGqjMyjjLGii.......",
   "......ccccccccclmi........",
   "......clCgCgccNd..........",
-  ".....cCgCgvcpeNd..........",
-  ".....cCgeecpeNcc..........",
+  ".....cCgCgvcneNd..........",
+  ".....cCgeecneNcc..........",
   "......cchheeNee...........",
   ".......jjeldNee...........",
   "......jyGqeNehe...........",
@@ -86,7 +86,8 @@
   ".....jGqqqqjeejj..........",
   "......jjjjjGGDGuj.........",
   "..........jDGqGqj.........",
-  "...........jGqGqj........."
+  "...........jGqDqj.........",
+  "............jjjj.........."
  ],
  "intended": [
   [

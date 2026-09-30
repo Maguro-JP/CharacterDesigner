@@ -8,7 +8,7 @@
   4,
   1,
   21,
-  34
+  35
  ],
  "palette": {
   "a": "#15201c",
@@ -84,8 +84,9 @@
   ".......cpvvvccv...........",
   "......gccgggccgg..........",
   ".....gCnCngCCyCtg.........",
-  ".....gCnCnnyCnCng.........",
-  "......gnvnggCnCng........."
+  ".....gCnynnyCnCng.........",
+  "......gntnggCnyng.........",
+  ".......ggg..gggg.........."
  ],
  "intended": [
   [

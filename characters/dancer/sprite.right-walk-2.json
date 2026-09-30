@@ -8,7 +8,7 @@
   1,
   0,
   20,
-  34
+  35
  ],
  "palette": {
   "a": "#1f1520",
@@ -72,12 +72,13 @@
   ".bzzkAAAxAAAAk..........",
   ".bzbkAAAAppppk..........",
   "..b.kAAAAAxppk..........",
-  "....kAxppkpurk..........",
+  "....kAxppkprrk..........",
   "...kAAAAukppppk.........",
-  "...krrpupkxrupk.........",
+  "...krrprpkupupk.........",
   "....kkkkkcccck..........",
   ".........cwwwc..........",
-  "..........ciwc.........."
+  "..........ciwc..........",
+  "...........cc..........."
  ],
  "intended": [
   [

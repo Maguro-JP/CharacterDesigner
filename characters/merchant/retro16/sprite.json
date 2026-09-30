@@ -6,9 +6,9 @@
  "frame": "child",
  "head_height": 9,
  "body_box": [
-  4,
+  3,
   5,
-  13,
+  14,
   24
  ],
  "palette": {
@@ -23,7 +23,7 @@
   "i": "#5a2a10",
   "j": "#5a3a22",
   "k": "#6a2e1a",
-  "l": "#8a5a34",
+  "l": "#c0602a",
   "m": "#d8a860",
   "n": "#e0d8b8",
   "o": "#e8904a"
@@ -34,14 +34,14 @@
   "................",
   "................",
   "................",
-  ".......iii......",
-  "......ioooii....",
-  ".....ioooooli...",
-  "....eiffoflff...",
-  "....emmhfkfkf...",
-  "....cmmnhkkkf...",
-  "....emmmmhkii...",
-  "....emhmmhiki...",
+  "......iiiiii....",
+  ".....iooooooi...",
+  "....ioollllli...",
+  "...fiffhffffkf..",
+  "....fmmmhkkkkf..",
+  "...cemmnhkkkkf..",
+  "....emmmmhhif...",
+  "....emhmmhihi...",
   ".....adhggbbb...",
   ".....adgggbjb...",
   ".....eggggbjb...",
@@ -56,7 +56,7 @@
  ],
  "intended": [
   [
-   4,
+   3,
    10
   ],
   [

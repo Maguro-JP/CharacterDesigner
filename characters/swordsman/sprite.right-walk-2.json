@@ -8,7 +8,7 @@
   4,
   0,
   18,
-  34
+  35
  ],
  "palette": {
   "a": "#181818",
@@ -84,9 +84,10 @@
   "......gwEncczec...bNMb....",
   ".....gEnEngczec....bMNb...",
   ".....gEnnnngccgg...bJMb...",
-  "......gggggEEBEtg..bMJb...",
+  "......gggggEEBEtg..bJJb...",
   "..........gBEnEng...bb....",
-  "...........gEnEng........."
+  "...........gEnBng.........",
+  "............gggg.........."
  ],
  "intended": [
   [
