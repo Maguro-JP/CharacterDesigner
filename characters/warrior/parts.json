@@ -10,7 +10,8 @@
    "ramp": ["#583018", "#9c6838", "#d8a860"],
    "steps": [0.3, 0.55],
    "contrast": 1.0,
-   "texture": 0.06
+   "texture": 0.06,
+   "keep_saturation": true
   },
   "hair": {
    "outline": "#181818",
@@ -347,7 +348,8 @@
   "keep_orphans_within": 40,
   "contrast": 2.0,
   "deep": 0.7,
-  "pivot": 0.75
+  "pivot": 0.75,
+  "saturation": 0.7
  },
  "transforms": [{"parts": "*", "scale": [1, 0.62], "origin": [14, 25], "below": 25, "touchups": true}]
 }
