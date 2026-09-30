@@ -31,12 +31,12 @@
   "................",
   "......aaaa......",
   ".....akkkaa.....",
-  "....aiiiikia....",
-  "....ainddidia...",
-  "....dnnhiidda...",
+  "....aiidikia....",
+  "....dnnhdidia...",
   "....dnnnhidda...",
-  "....fnnonhda....",
-  "....bhnnnha.....",
+  "....fnnahiiia...",
+  "....dnnonhaa....",
+  "....dhnnnha.....",
   "...bbmhhnbbb....",
   "..dcmmlhhcllb...",
   ".ddkclclcccccb..",
@@ -56,7 +56,11 @@
  "intended": [
   [
    4,
-   7
+   6
+  ],
+  [
+   7,
+   6
   ],
   [
    7,

@@ -54,15 +54,15 @@
  },
  "rows": [
   ".......dddd.............",
-  ".....ddIIvFdd....c......",
-  "....dFMFMqFqvd..cKc.....",
-  "....dBMzFBFqvd.cKKKc....",
-  "...dMFIBIBFFFqcKKcDuc...",
-  "...dzIvBqvHzzqdcDDpc....",
-  "..dMvIqFoHHHEHi.cuc.....",
-  "..dMvzqvoddHHgi.eue.....",
-  "..dMqzooHJgHHHi.epe.....",
-  "..dFFdEwEHHHHHi.eue.....",
+  ".....ddFIvFdd....c......",
+  "....dFMFMqFqFd..cKc.....",
+  "....dBIvMIFFqFdcKKKc....",
+  "...dIFFzqqEqEqcKKcDuc...",
+  "...dvIvBoHHHHHicDDpc....",
+  "..dMvIqIoddHHgi.cuc.....",
+  "..dMvzqoHJgHHHi.eue.....",
+  "..dMqzolHHHHHHi.epe.....",
+  "..dFFdEwEHHHEHi.eue.....",
   ".dMMqqdHHHHHHi..eue.....",
   ".dIFFqdiHHHHHi..epe.....",
   ".dMMFdxsblHbbb..eue.....",
@@ -91,23 +91,23 @@
  "intended": [
   [
    9,
-   7
+   6
   ],
   [
    9,
-   8
-  ],
-  [
-   10,
    7
   ],
   [
    10,
-   8
+   6
+  ],
+  [
+   10,
+   7
   ],
   [
    13,
-   7
+   6
   ]
  ]
 }

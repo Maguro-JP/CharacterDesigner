@@ -35,7 +35,7 @@
   "u": "#5a3826",
   "v": "#5a4f5a",
   "w": "#5a918a",
-  "x": "#5e392d",
+  "x": "#6a4032",
   "y": "#70a89e",
   "z": "#725640",
   "A": "#7a4c28",
@@ -64,12 +64,12 @@
   "............uLLLLLu.....",
   "...........uLLLLLIHu....",
   "..........uLLDDDDDDDu...",
-  "..........jjjjjjjjjjj...",
-  ".........jEExGsssxsBj...",
-  "..........jJJJJtsBsBj...",
-  "..........dJJjjJtBsEjuu.",
-  "..........gJJdKJAttuLLIu",
-  "..........gJJJJJnquFLIFu",
+  ".........jxjjjjjjjjjj...",
+  "..........jJJJJtsxsEj...",
+  "..........dJJjjtsBsBj...",
+  "..........gJJdKJtEsEjuu.",
+  "..........gJJJJJAttuLLIu",
+  "..........gJJJJGnquFLIFu",
   "...........gttJJuuDDDDu.",
   "...........aybtmyeccccc.",
   "..........akybmbybbcClc.",
@@ -90,23 +90,23 @@
  "intended": [
   [
    10,
-   15
+   14
+  ],
+  [
+   13,
+   14
   ],
   [
    13,
    15
   ],
   [
-   13,
-   16
+   14,
+   14
   ],
   [
    14,
    15
-  ],
-  [
-   14,
-   16
   ]
  ]
 }

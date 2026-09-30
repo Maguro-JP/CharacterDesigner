@@ -55,16 +55,16 @@
  "rows": [
   "............................",
   ".....bb......aaaa...........",
-  "....bNEb...aanDfDaa.........",
-  "....bNEb..aDyDtdDcta........",
-  "....bMEb..aDttttdtna........",
-  "....bMjb.attntcycycca.......",
-  "....bHAb.anycGcycfcfa.......",
-  "....bHvb.iIIIIIrcdcfa.......",
-  "....bEjb.ikIIaarccffa.......",
-  "....bNEb.iIIIkKIrrcda.......",
+  "....bNEb...aafDfDaa.........",
+  "....bNEb..ayyytdDdta........",
+  "....bMEb.aytycnddtta........",
+  "....bMjb.anIcGcDcycca.......",
+  "....bHAb.iIIIIIrcncfa.......",
+  "....bHvb.ikIIaarcfcna.......",
+  "....bEjb.iIIIkKIrcnna.......",
+  "....bNEb.iIIIIIIBrdda.......",
   "....bJlb.iIIIIIIxraa........",
-  "....bJlbbbbrrIIGIi..........",
+  "....bJlbbbbrrIGGIi..........",
   "....bNvbNNNNHrIGibbbbbb.....",
   "....bJvNNNNEAqrrhEAEEqlb....",
   "...eeqjAMJJljjhhhAqqjjjb....",
@@ -91,23 +91,23 @@
  "intended": [
   [
    10,
-   8
+   7
+  ],
+  [
+   13,
+   7
   ],
   [
    13,
    8
   ],
   [
-   13,
-   9
+   14,
+   7
   ],
   [
    14,
    8
-  ],
-  [
-   14,
-   9
   ]
  ]
 }

@@ -35,45 +35,46 @@
   "v": "#80536f",
   "w": "#8a684e",
   "x": "#9a5552",
-  "y": "#b69566",
-  "z": "#b86760",
-  "A": "#ba884c",
-  "B": "#d8a860",
-  "C": "#e0d8b8",
-  "D": "#e2c27f"
+  "y": "#9c6838",
+  "z": "#b69566",
+  "A": "#b86760",
+  "B": "#ba884c",
+  "C": "#d8a860",
+  "D": "#e0d8b8",
+  "E": "#e2c27f"
  },
  "rows": [
   "........................",
   "........................",
   ".............aaaa.......",
   "...........aavqhvaa.....",
-  "..........avnqqnhnna....",
-  "..........aqhvgvevea....",
-  ".........anvlqenelela...",
-  ".........ahneAelehela...",
-  ".........fBBBBBmeehhqa..",
-  ".........fdBBaamqeeeha..",
-  ".........fBBBdCBmmlena..",
-  ".........fBBBBBBtjagea..",
-  "..........fBBBBABaehgna.",
-  "..........fBBBBAfalngea.",
+  "..........avnnqnhnna....",
+  ".........annhneqevea....",
+  ".........ahCeBevgngla...",
+  ".........fCCCCCmelela...",
+  ".........fdCCaamgelhqa..",
+  ".........fCCCdDCmegeha..",
+  ".........fCCCCCCymlena..",
+  ".........fCCCCCBtjagea..",
+  "..........fCCCCBBaehgna.",
+  "..........fCCCCBfalngea.",
   "...........fmmmmmmanela.",
-  "..........fmDDDDDDaleea.",
-  "..........fmDDDDDoalgha.",
-  "......ffbfBmDDDooooahea.",
-  ".....fBAbmAfmwsoommanha.",
-  ".....fAmAobfwmmmmtmaeea.",
+  "..........fmEEEEEEaleea.",
+  "..........fmEEEEEoalgha.",
+  "......ffbfCmEEEooooahea.",
+  ".....fCBbmBfmwsoommanha.",
+  ".....fBmBobfwmmmmtmaeea.",
   "......ffbb.fmmmmmmmtaea.",
   "...........bbbbbbbmaeea.",
-  "...........kzzzxzzbDba..",
-  "...........kzzzzzzbDb...",
-  "...........kzzzzrrbDDb..",
-  "...........kzxzzzzzbyyb.",
-  "..........kzzzzzxrpkysb.",
-  "..........kzzzxppprkbswb",
-  "..........kzrxxzxzrkbwb.",
-  "..........kzzzkppppkbb..",
-  ".........kzzzpkppurxk...",
+  "...........kAAAxAAbEba..",
+  "...........kAAAAAAbEb...",
+  "...........kAAAArrbEEb..",
+  "...........kAxAAAAAbzzb.",
+  "..........kAAAAAxrpkzsb.",
+  "..........kAAAxppprkbswb",
+  "..........kArxxAxArkbwb.",
+  "..........kAAAkppppkbb..",
+  ".........kAAApkppurxk...",
   ".........krkkkkxxpppk...",
   "..........cwwicccckk....",
   "..........ciwc.ciic....."
@@ -81,23 +82,23 @@
  "intended": [
   [
    10,
-   9
+   8
+  ],
+  [
+   13,
+   8
   ],
   [
    13,
    9
   ],
   [
-   13,
-   10
+   14,
+   8
   ],
   [
    14,
    9
-  ],
-  [
-   14,
-   10
   ]
  ]
 }

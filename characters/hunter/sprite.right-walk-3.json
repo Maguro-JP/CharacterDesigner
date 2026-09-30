@@ -26,9 +26,9 @@
   "m": "#364a34",
   "n": "#3a3a4a",
   "o": "#42322a",
-  "p": "#465d41",
-  "q": "#4a2a2d",
-  "r": "#4e322c",
+  "p": "#464658",
+  "q": "#465d41",
+  "r": "#4a2a2d",
   "s": "#4e3b2e",
   "t": "#55704e",
   "u": "#56566c",
@@ -55,16 +55,16 @@
  "rows": [
   "..........................",
   ".......bbbbbbb............",
-  "......bDDttttpb...........",
-  ".....bDDzDttptkb..........",
-  "....bDDzttmtmkpb..........",
-  "....bDttttmfffepb.........",
-  "....bDttpkfrGofpb.........",
-  "...qbtpppevGJGCvl.........",
-  "..qAqttmekvaaJJjl.........",
-  "..qAqttmevGMjJGGl.........",
-  "..qxqtpeevCJJGGGl.........",
-  "...ffpmeevGJGGGl...ff.....",
+  "......bDDttttqb...........",
+  ".....bDDzDttqtkb..........",
+  "....bDDzttmtmkqkb.........",
+  "....bDttttfvvfeff.........",
+  "....bDttqkvvKJvqb.........",
+  "...rbtqqqevaaJGjl.........",
+  "..rArttmekvMjJGGl.........",
+  "..rArttmevGKJGGGl.........",
+  "..rxrtqeevCJJGGGl.........",
+  "...ffqmeevGJGGGl...ff.....",
   "...fEfeeebvvvvvl..fEEf....",
   "...fEfeDDDDDDbbb..LEEBf...",
   "...fEffDDDDzbiIf..LfBEf...",
@@ -80,7 +80,7 @@
   "......fhIhnfygff..L.fEsf..",
   ".....fIhHhfnydff..L.fEBf..",
   ".....fIhccfnydff..LfEwf...",
-  "......ffndcdydc...LfEwf...",
+  "......ffpdcdydc...LfEwf...",
   "........cdnguc....LfBwf...",
   "........cccccc....fBwwf...",
   "........fEEBEf....fBof....",
@@ -91,23 +91,23 @@
  "intended": [
   [
    11,
-   8
+   7
   ],
   [
    11,
-   9
-  ],
-  [
-   12,
    8
   ],
   [
    12,
-   9
+   7
+  ],
+  [
+   12,
+   8
   ],
   [
    15,
-   8
+   7
   ]
  ]
 }
