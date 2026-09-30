@@ -7,7 +7,7 @@
  "body_box": [
   4,
   2,
-  18,
+  19,
   35
  ],
  "palette": {
@@ -77,17 +77,17 @@
   "....mHvDDBgLLgdIImf.......",
   ".....mgoDogLwggIwfDf......",
   "......dddddddddffwDf......",
-  "......dpxindzhdBBfNNb.....",
-  ".....dCixidnzedffbNNb.....",
-  ".....dCicccnzedd..bNNb....",
-  "......ddqecczec...bNNb....",
-  ".......cuc.czec...bNNb....",
-  ".......cqc.czec...bNNb....",
-  "......gccg.gccgg...bJMb...",
-  ".....gDoDogDDBDtg..bMJb...",
-  ".....gDoBooBDoDog..bMJb...",
-  "......gotoggDoBog...bb....",
-  ".......ggg..gggg.........."
+  "......dpxixdzhdzBfNNb.....",
+  ".....dCixiCdzezffbNNb.....",
+  ".....dCiccddzhzc..bNNb....",
+  "......dclc.czezc..bNNb....",
+  "......ceqc..ceuc..bNNb....",
+  "......cehc..ceuc..bNNb....",
+  ".....ggcg...cccgg..bJMb...",
+  "....gwDotg..gDDBDg.bMJb...",
+  "....goDotg..gBDoDogbMJb...",
+  ".....gtoog..goDowg..bb....",
+  "......ggg....gggg........."
  ],
  "intended": [
   [
