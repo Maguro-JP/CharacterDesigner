@@ -11,44 +11,40 @@
   16
  ],
  "palette": {
-  "a": "#2a1c1c",
-  "b": "#3a3e58",
-  "c": "#3a6a98",
+  "a": "#1a2240",
+  "b": "#2a1c1c",
+  "c": "#3a3e58",
   "d": "#4a3418",
-  "e": "#8a5a34",
-  "f": "#8a92a8",
-  "g": "#a2664a",
+  "e": "#583018",
+  "f": "#8a5a34",
+  "g": "#8a92a8",
   "h": "#c8a04a",
   "i": "#c8d0e0",
-  "j": "#d49a70",
-  "k": "#e8e0d4",
+  "j": "#d8a860",
+  "k": "#e0d8b8",
   "l": "#eed27a"
  },
  "rows": [
   ".....ddlhhdd....",
   "....dlhlhhhld...",
   "....dlhhhhhld...",
-  "...dhhjggghlhd..",
-  "...dhjjjgdhhhd..",
-  "..dhccjkjgdhhd..",
-  ".dhhdjjjgdhhhd..",
-  "..deabjgddlhhd..",
-  "..aeadggaalhhd..",
-  "..aeaiiaaflhhd..",
-  "..aeeifaffhhhd..",
-  "..aeabfbfidhhd..",
-  "..aeabfbfibdd...",
-  "..aeabfbfib.....",
-  "..aeaffafiib....",
-  "..aeaeeaaab....."
+  "...dhhjfffhlhd..",
+  "...ejjjjjdhhhd..",
+  "..ejejjkdddhhd..",
+  ".ejjejjjjdhhhd..",
+  "..efbbjeadlhhd..",
+  "..bfbeeeaalhhd..",
+  "..bfbiiaaglhhd..",
+  "..bffigagghhhd..",
+  "..bfbcgcgidhhd..",
+  "..bfbcgcgicdd...",
+  "..bfbcgcgic.....",
+  "..bfbggbgiic....",
+  "..bfbffbbbc....."
  ],
  "intended": [
   [
    4,
-   5
-  ],
-  [
-   5,
    5
   ],
   [

@@ -35,9 +35,10 @@ python3 tools/check.py characters/<名前>/sprite.json styles/<作風>.json
 python3 tools/compare.py out.png 前=<旧 sprite.json> 後=<新 sprite.json>
 python3 tools/anim.py --anim walk out.gif characters/<名前>/sprite.json
 python3 tools/faces.py out.png   # 全キャラクターの全コマの頭
+python3 tools/vsref.py out.png ref=<手本.png>@x0,y0,x1,y1 me=<sprite.json>@x0,y0,x1,y1   # 手本と同じ倍率で並べる
 ```
 
-比較画像を実際に開いて見る。見るもの:
+比較画像を実際に開いて見る。比べる相手は自分の前の版ではなく手本。部位を直すたびに `tools/vsref.py` で手本の同じ部位と横に並べ、1ドットの置き方は `--dump` で文字に起こして読む。見るもの:
 
 - 職業と体格が輪郭と色で読めるか。並べたほかのキャラクターと見分けられるか
 - 部品が隠れていないか。読めないときは形より先に重ね順を疑う
