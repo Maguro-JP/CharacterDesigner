@@ -20,8 +20,8 @@
    "texture": 0.45
   },
   "metal": {
-   "outline": "#2c2f3c",
-   "line": "#3e4454",
+   "outline": "#181a24",
+   "line": "#262a38",
    "ramp": ["#3e4454", "#5e687a", "#96a2b2", "#d4dce6", "#f6f8fa"],
    "steps": [0.36, 0.55, 0.78, 1.02],
    "spec_power": 24,
@@ -37,8 +37,8 @@
   },
   "leather": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#5a3a22", "#8a5a34"], "steps": [0.58]},
   "gold": {
-   "outline": "#5a3a22",
-   "line": "#5a3a22",
+   "outline": "#2a1a10",
+   "line": "#2a1a10",
    "ramp": ["#8a5a34", "#e2b454"],
    "steps": [0.55],
    "spec_power": 12,

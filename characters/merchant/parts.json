@@ -11,8 +11,8 @@
    "texture": 0.45
   },
   "robe": {
-   "outline": "#10302e",
-   "line": "#10302e",
+   "outline": "#1c1e2c",
+   "line": "#3a3e58",
    "ramp": ["#1e5250", "#2e7a74", "#58a89a"],
    "steps": [0.42, 0.74],
    "folds": {"angle": 0, "period": 2, "amp": 0.3}
