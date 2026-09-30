@@ -8,7 +8,7 @@
   4,
   1,
   18,
-  34
+  35
  ],
  "palette": {
   "a": "#181818",
@@ -45,10 +45,11 @@
   "F": "#b86760",
   "G": "#ba884c",
   "H": "#d8a860",
-  "I": "#e0d8b8",
-  "J": "#e2c27f",
-  "K": "#e8ecf0",
-  "L": "#f7f9fa"
+  "I": "#d9dfe6",
+  "J": "#e0d8b8",
+  "K": "#e2c27f",
+  "L": "#e8ecf0",
+  "M": "#f7f9fa"
  },
  "rows": [
   "..........................",
@@ -59,7 +60,7 @@
   "....cArvnreeHeGec.........",
   "....cAhAerwHHHGHm.........",
   "....crlrhewaaHHjm.........",
-  "....crenewHIjHHHm.........",
+  "....crenewHJjHHHm.........",
   "....clrewpHHHHHHm.........",
   "....cArcGtGHHHHHm.........",
   "....clhcmHHHwwwm..........",
@@ -72,19 +73,20 @@
   "..szsdduDoxdyiCid.........",
   "...sdddxDoudyiCdm.........",
   "....mwwoDoxddddHHm........",
-  "....mwwDDBgJJggHHmf.......",
-  ".....mgoDogJxggGfxxf......",
+  "....mwwDDBgKKggHHmf.......",
+  ".....mgoDogKxggGfxxf......",
   "......dddddddddfxxfb......",
-  "......dqyindAhdfffLLb.....",
-  ".....dCiyidnAedd.bLLb.....",
-  ".....dCicccnAedd..bLLb....",
-  "......ddreccAec...bLLb....",
-  ".......cvc.cAec...bLLb....",
-  ".......crc.cAec...bLLb....",
-  "......gccg.gccgg...bKKb...",
-  ".....gDoDogDDBDug..bKKb...",
-  ".....gDoDooBDoDog..bKKb...",
-  "......goxoggDoDog...bb...."
+  "......dqyindAhdfffMMb.....",
+  ".....dCiyidnAedd.bMMb.....",
+  ".....dCicccnAedd..bMMb....",
+  "......ddreccAec...bMMb....",
+  ".......cvc.cAec...bMMb....",
+  ".......crc.cAec...bMMb....",
+  "......gccg.gccgg...bILb...",
+  ".....gDoDogDDBDug..bLIb...",
+  ".....gDoBooBDoDog..bLIb...",
+  "......gouoggDoBog...bb....",
+  ".......ggg..gggg.........."
  ],
  "intended": [
   [

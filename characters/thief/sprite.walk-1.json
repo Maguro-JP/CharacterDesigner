@@ -3,7 +3,7 @@
  "style": "diorama",
  "brief": "箱庭ドット のドット絵の盗賊の男。男性の枠。銀の髪に赤い鉢巻き、灰紫の上着、口元まで覆う深緑の襟巻き、短剣を逆手に持つ。左向きの 3/4",
  "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
- "head_height": 11,
+ "head_height": 12,
  "body_box": [
   7,
   1,
@@ -63,12 +63,12 @@
   ".........mBKKbbxrwrrrtCt..",
   ".........mKKKBKKxrwzwlCt..",
   ".........mKKKKKKIxrFrlt...",
-  ".........mKxxKKKExlFrl....",
-  "..........aooxxxxalFFl....",
-  ".........aononofofalrl....",
+  ".........mKKKKKKExlFrl....",
+  "..........axxxxJKmlFFl....",
+  ".........aoooooxaaalrl....",
   ".........aoaafofofafll....",
-  "..........cvDcjfnjqaoaa...",
-  "..........cvDcGjjqGaofoa..",
+  "..........cvDaofofjaoaa...",
+  "..........cvDcjjjjEaofoa..",
   "..........cpAcGEGqEanfnfa.",
   "..........ckAcGuGqEcafofa.",
   "..........cpvgcuGqEccana..",
@@ -86,7 +86,8 @@
   "........jjeej..ddjGuuj....",
   ".......jGGGEGj..jqGquqj...",
   ".......jGqGqEj...juqqj....",
-  "........jjjjj.....jjj....."
+  "........jjjjj.....jjj.....",
+  ".........................."
  ],
  "intended": [
   [

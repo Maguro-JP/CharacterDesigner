@@ -4,10 +4,10 @@
  "brief": "箱庭ドット のドット絵の商人の少女。子供の枠（背が低く頭の比率が大きい）。橙の帽子、青緑の上着と膝丈の裾、背に大きな荷。赤茶の髪。左向きの 3/4",
  "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
  "frame": "child",
- "head_height": 9,
+ "head_height": 10,
  "body_box": [
   3,
-  4,
+  3,
   14,
   16
  ],
@@ -20,7 +20,7 @@
   "f": "#583018",
   "g": "#5a2a10",
   "h": "#6a2e1a",
-  "i": "#c0602a",
+  "i": "#9a4a28",
   "j": "#d8a860",
   "k": "#e0d8b8",
   "l": "#e8904a"
@@ -29,14 +29,14 @@
   "................",
   "................",
   "................",
-  "................",
-  ".....ggggggg....",
-  "....glllllllg...",
-  "....glliiiiig...",
-  "...cffffddddhd..",
-  "...cjjjjfiihhd..",
+  "......ggggg.....",
+  ".....glllllgg...",
+  "....glllllllig..",
+  "...cgddddddidd..",
+  "...cjjjjfhhdhd..",
+  "...bjjjdfiihhd..",
   "...cjjfjjfihhd..",
-  "....bfekjffad...",
+  "...cjfekjjfad...",
   "....cfeejeafa...",
   ".....ceeeeafa...",
   ".....aeeeeaa....",
@@ -45,8 +45,12 @@
  ],
  "intended": [
   [
-   4,
-   10
+   3,
+   8
+  ],
+  [
+   7,
+   8
   ],
   [
    7,

@@ -2,7 +2,7 @@
  "base": "../warrior/parts.json",
  "name": "剣士（男）",
  "brief": "箱庭ドット のドット絵の剣士の男。男性の枠（戦士より細い）。青い上着に革の胴着、赤い襟巻き。片手剣を下げて持つ。左向きの 3/4",
- "canvas": [26, 34],
+ "canvas": [26, 35],
  "materials": {
   "hair": {
    "outline": "#1a1a28",

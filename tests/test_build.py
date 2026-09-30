@@ -25,6 +25,16 @@ def spec(parts, canvas=(12, 12), **kw):
 
 
 class BuildTest(unittest.TestCase):
+    def test_feet_are_not_cut_by_canvas_bottom(self):
+        # 輪郭は形の外側に付けるので、靴が画面の最下行を越えると底の輪郭が切れ、足が平らな帯に見える。
+        # 体の高さも短く数えられ、頭身の検査がそれで通ってしまう。最下行に来てよいのは暗い底の輪郭だけ
+        for f in sorted(ROOT.glob("characters/*/sprite*.json")):
+            with self.subTest(sprite=str(f.relative_to(ROOT))):
+                d = json.loads(f.read_text(encoding="utf-8"))
+                bottom = {d["palette"][ch] for ch in d["rows"][-1] if ch != "."}
+                luma = lambda c: sum(int(c[i:i + 2], 16) for i in (1, 3, 5)) / 3  # noqa: E731
+                self.assertEqual({c for c in bottom if luma(c) > 48}, set())
+
     def test_touchup_colors_survive_in_every_frame(self):
         # 目や眼鏡の光は全コマに残る。最初のコマだけ見ていて、右向きの呼吸で光が消えたのを見逃した
         for pp in sorted(ROOT.glob("characters/*/parts.json")):

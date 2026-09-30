@@ -8,7 +8,7 @@
   3,
   1,
   20,
-  34
+  35
  ],
  "palette": {
   "a": "#181818",
@@ -85,8 +85,9 @@
   ".......coc.cxdc..fDurf....",
   "......fccf.fccff.fuuf.....",
   ".....fDnDnfDDADrf.ff......",
-  ".....fDnDnnADnDnf.........",
-  "......fnunffDnDnf........."
+  ".....fDnAnnADnDnf.........",
+  "......fnrnffDnAnf.........",
+  ".......fff..ffff.........."
  ],
  "intended": [
   [
