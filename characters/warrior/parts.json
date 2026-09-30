@@ -296,5 +296,14 @@
   {"name": "right", "mirror": true}
  ],
  "mirror_frames": true,
- "flatten_crown": true
+ "flatten_crown": true,
+ "texture": {
+  "amp": 0.24,
+  "expand": true,
+  "band": 0.05,
+  "keep_orphans_within": 40,
+  "contrast": 2.0,
+  "deep": 0.7,
+  "pivot": 0.75
+ }
 }

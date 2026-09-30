@@ -80,8 +80,28 @@ def main():
                 continue
             if not any(at(x + dx, y + dy) == c for dx in (-1, 0, 1) for dy in (-1, 0, 1) if dx or dy):
                 orphans.append((x, y))
-    mo = style["cleanup"]["max_orphan_pixels"]
-    judge("孤立ドット", len(orphans) <= mo, f"{len(orphans)}（上限 {mo}）{orphans[:8]}")
+    cl = style["cleanup"]
+    if "orphan_ratio" in cl:
+        # 手打ちの立ち絵は面の質感を孤立ドットで出す。少なすぎてものっぺり、多すぎると砂嵐
+        lo, hi = cl["orphan_ratio"]
+        filled = sum(1 for y in range(h) for x in range(width) if at(x, y) != ".")
+        r = len(orphans) / max(1, filled)
+        judge("孤立ドット", lo <= r <= hi, f"{len(orphans)} / {filled}（{r:.0%}、範囲 {lo:.0%}〜{hi:.0%}）")
+    else:
+        mo = cl["max_orphan_pixels"]
+        judge("孤立ドット", len(orphans) <= mo, f"{len(orphans)}（上限 {mo}）{orphans[:8]}")
+
+    detail = style.get("detail", {})
+    if "min_change_rate" in detail:
+        # 情報量: 横に隣り合う不透明なドットのうち、色が変わる割合。平らな面が広いと下がる
+        pairs = [(at(x, y), at(x + 1, y)) for y in range(h) for x in range(width - 1)
+                 if at(x, y) != "." and at(x + 1, y) != "."]
+        rate = sum(1 for a, b in pairs if a != b) / max(1, len(pairs))
+        mc = detail["min_change_rate"]
+        judge("情報量", rate >= mc, f"隣と色が変わる割合 {rate:.2f}（下限 {mc}）")
+    mn = style["palette"].get("min_colors")
+    if mn:
+        judge("色数の下限", len(used) >= mn, f"{len(used)} 色（下限 {mn}）")
 
     for ok, name, detail in results:
         print(f"{'OK ' if ok else 'NG '} {name}: {detail}")
