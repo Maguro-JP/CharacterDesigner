@@ -5,7 +5,13 @@
  "canvas": [24, 34],
  "materials": {
   "hair": {"outline": "#4a3418", "line": "#4a3418", "ramp": ["#8a6a2c", "#c8a04a", "#eed27a"], "steps": [0.42, 0.72]},
-  "robe": {"outline": "#3a3e58", "line": "#8a92a8", "ramp": ["#8a92a8", "#c8d0e0", "#f4f6fa"], "steps": [0.42, 0.72]},
+  "robe": {
+   "outline": "#3a3e58",
+   "line": "#8a92a8",
+   "ramp": ["#8a92a8", "#c8d0e0", "#f4f6fa"],
+   "steps": [0.42, 0.72],
+   "folds": {"angle": 0, "period": 2, "amp": 0.3}
+  },
   "wood": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#5a3a22", "#8a5a34"], "steps": [0.55]}
  },
  "remove": [

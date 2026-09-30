@@ -22,7 +22,13 @@
    "spec_gain": 0.55,
    "ambient": 0.28
   },
-  "cloth": {"outline": "#4a1c20", "line": "#4a1c20", "ramp": ["#7c2a2a", "#b8443a", "#d8685a"], "steps": [0.5, 0.8]},
+  "cloth": {
+   "outline": "#4a1c20",
+   "line": "#4a1c20",
+   "ramp": ["#7c2a2a", "#b8443a", "#d8685a"],
+   "steps": [0.5, 0.8],
+   "folds": {"angle": 0, "period": 2, "amp": 0.3}
+  },
   "leather": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#5a3a22", "#8a5a34"], "steps": [0.58]},
   "gold": {
    "outline": "#5a3a22",

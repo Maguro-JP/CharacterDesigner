@@ -4,7 +4,13 @@
  "brief": "箱庭ドット のドット絵の薬師の男。男性の枠。はねた栗色の髪、深緑の上着に生成りの前掛け、胸を斜めに渡る革の帯と腰の鞄、片手に緑の薬瓶。左向きの 3/4",
  "materials": {
   "hair": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#4a2a1c", "#7a4a2a", "#a86a3a"], "steps": [0.42, 0.72]},
-  "tunic": {"outline": "#10201a", "line": "#10201a", "ramp": ["#2a2a3c", "#2e5a44", "#4a8060"], "steps": [0.42, 0.76]},
+  "tunic": {
+   "outline": "#10201a",
+   "line": "#10201a",
+   "ramp": ["#2a2a3c", "#2e5a44", "#4a8060"],
+   "steps": [0.42, 0.76],
+   "folds": {"angle": 0, "period": 2, "amp": 0.3}
+  },
   "apron": {"outline": "#5a3a22", "line": "#8a7a5a", "ramp": ["#b0a078", "#d8ceb0"], "steps": [0.38]},
   "glass": {
    "outline": "#10201a",
