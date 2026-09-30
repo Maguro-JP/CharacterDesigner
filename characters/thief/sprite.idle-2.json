@@ -37,8 +37,8 @@
   "x": "#6e3a2c",
   "y": "#702628",
   "z": "#724a2b",
-  "A": "#7a3a2a",
-  "B": "#868b9c",
+  "A": "#868b9c",
+  "B": "#88503b",
   "C": "#8a5a34",
   "D": "#9a3732",
   "E": "#a2664a",
@@ -56,15 +56,15 @@
   "..........................",
   "..........................",
   "............jjjjjjj.......",
-  "...........jIKFKBFBj......",
-  "..........jKFKFFwBjrj.....",
+  "...........jIKFKAFAj......",
+  "..........jKFKFFwAjrj.....",
   ".........jjjjjjjjjGjj.....",
   ".........pGGGDyDyyyjpp....",
   ".........jjjjjjjjjjrpDp...",
-  ".........jBJrJrCCjvwjyyp..",
-  ".........xLJjjHJHjrBjpyp..",
+  ".........jAJrJrBBjvwjyyp..",
+  ".........xLJjjHJHjrAjpyp..",
   ".........xcJcJHHCjrFvjp...",
-  ".........xEEAEEExjjFrj....",
+  ".........xEEEEEExjjFrj....",
   ".........akkkkkkaajFrj....",
   ".........akkakkkkbaIrj....",
   ".........akaqakbbbbjrj....",
@@ -105,10 +105,6 @@
   [
    12,
    10
-  ],
-  [
-   12,
-   11
   ],
   [
    13,
