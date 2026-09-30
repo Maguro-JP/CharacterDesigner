@@ -34,13 +34,16 @@ python3 tools/build.py characters/<名前>/parts.json [--style <作風>]
 python3 tools/check.py characters/<名前>/sprite.json styles/<作風>.json
 python3 tools/compare.py out.png 前=<旧 sprite.json> 後=<新 sprite.json>
 python3 tools/anim.py --anim walk out.gif characters/<名前>/sprite.json
+python3 tools/faces.py out.png   # 全キャラクターの全コマの頭
 ```
 
 比較画像を実際に開いて見る。見るもの:
 
 - 職業と体格が輪郭と色で読めるか。並べたほかのキャラクターと見分けられるか
 - 部品が隠れていないか。読めないときは形より先に重ね順を疑う
-- 顔の1ドット（目、鼻、口）が意図どおりの位置にあるか。継承した `touchups` が合っているか
+- 顔の1ドットが意図どおりの位置にあるか。継承した `touchups` が合っているか
+- 顔は `tools/faces.py` で全コマ（呼吸、歩き、右向き）を見る。最初の1コマだけで良しとしない
+- 目の組み方は `docs/knowledge/tech.md` の「顔の足し算と引き算」に従う。奥の目、黒目、白目は同じ行に揃える
 - 舞台の図（`tools/render.py`）で沈んでいないか
 
 色数が上限を超えたら、使うドットの少ない段から素材どうしで色を共有する。

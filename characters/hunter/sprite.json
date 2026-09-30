@@ -62,8 +62,8 @@
   ".........gBgnBngjdjdda....",
   ".........gpInEnGfddddap...",
   ".........yJJggGJGddfdpEp..",
-  ".........ygJgNEIGdjfdpyp..",
-  ".........yJJqEEEarlddpyp..",
+  ".........ygJqNEIGdjfdpyp..",
+  ".........yJJIEEEarlddpyp..",
   "......gg..yJIECCajdddgg...",
   ".....gCCg..aGGGGafddggg...",
   "....gCCzK.aaaAAAxrrdggg...",
@@ -105,10 +105,6 @@
   [
    12,
    9
-  ],
-  [
-   12,
-   10
   ],
   [
    13,

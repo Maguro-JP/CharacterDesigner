@@ -496,9 +496,11 @@ def reduce_colors(colors, limit, protect=()):
         ra = hex_to_rgb(rare)
         near = min((c for c in used if c != rare),
                    key=lambda c: (sum((a - b) ** 2 for a, b in zip(hex_to_rgb(c), ra)), c))
-        for row in colors:
+        # 仕上げのドット（目や眼鏡の光）は、同じ色がほかにあって寄せられても残す。
+        # 襟の白と眼鏡の光が同じ色で、右向きの呼吸のコマで光が消えた
+        for y, row in enumerate(colors):
             for x, c in enumerate(row):
-                if c == rare:
+                if c == rare and (x, y) not in protect:
                     row[x] = near
         merged += 1
 

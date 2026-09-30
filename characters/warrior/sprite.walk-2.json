@@ -59,8 +59,8 @@
   "....bHmb.aooekckckccoca.....",
   "....bHmb.akGcFcAAaocoa......",
   "....bDpb.rGGaaFGAaocoa......",
-  "....bHmb.raGaKFFxauca.......",
-  "....bHpb.rGGgFFCrcoka.......",
+  "....bHmb.raGgKFFxauca.......",
+  "....bHpb.rGGGFFCrcoka.......",
   "....bHmbbbbCCFFxraaa........",
   "....bHpbLLLHBCxxrbbbbbb.....",
   "....bHfLLLJDmvCxhDBvBvfb....",
@@ -103,10 +103,6 @@
   [
    12,
    8
-  ],
-  [
-   12,
-   9
   ],
   [
    13,

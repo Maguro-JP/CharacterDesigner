@@ -62,8 +62,8 @@
   "...jMMtEGGGGtojmKuum....",
   "...jMEEjJJGGDzq.mrm.....",
   "...jEMjGDJjjGGq.dmd.....",
-  "...jEMjDvGLjDjq.drd.....",
-  "..jHtMoqDGGgDq..drd.....",
+  "...jEMjDvGLgDjq.drd.....",
+  "..jHtMoqDGGDDq..drd.....",
   "..jMtHojqGGDDq..dmd.....",
   "..jMBHojqGvqq...drd.....",
   "..jMBEBaazvaf...dmd.....",
@@ -109,10 +109,6 @@
   [
    11,
    9
-  ],
-  [
-   11,
-   10
   ],
   [
    13,

@@ -25,6 +25,17 @@ def spec(parts, canvas=(12, 12), **kw):
 
 
 class BuildTest(unittest.TestCase):
+    def test_touchup_colors_survive_in_every_frame(self):
+        # 目や眼鏡の光は全コマに残る。最初のコマだけ見ていて、右向きの呼吸で光が消えたのを見逃した
+        for pp in sorted(ROOT.glob("characters/*/parts.json")):
+            spec = build.load_spec(pp)
+            want = {t["c"] for t in spec.get("touchups", []) if t["c"] and t["c"].startswith("#")}
+            for f in sorted(pp.parent.glob("sprite*.json")):
+                with self.subTest(sprite=str(f.relative_to(ROOT))):
+                    d = json.loads(f.read_text(encoding="utf-8"))
+                    cols = {d["palette"][ch] for row in d["rows"] for ch in row if ch != "."}
+                    self.assertEqual(want - cols, set())
+
     def test_flatten_crown_lowers_narrow_top(self):
         # 3ドット幅のこぶは1段下がり、広い頭頂や杖の先のような形はそのまま
         a = "#101010"
