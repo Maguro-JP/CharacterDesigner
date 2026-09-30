@@ -262,10 +262,56 @@ def downscale(spec, top, light, size):
     return cells
 
 
+def _noise(x, y):
+    """座標で決まる -0.5〜0.5 の揺らぎ。毎回同じ値なので、描き直しても絵が変わらない。"""
+    n = (x * 374761393 + y * 668265263) & 0xFFFFFFFF
+    n = ((n ^ (n >> 13)) * 1274126177) & 0xFFFFFFFF
+    return ((n ^ (n >> 16)) & 0xFFFF) / 0xFFFF - 0.5
+
+
+def _mix(a, b, t=0.5):
+    ra, rb = hex_to_rgb(a), hex_to_rgb(b)
+    return rgb_to_hex(tuple(round(ra[i] + (rb[i] - ra[i]) * t) for i in range(3)))
+
+
+def levels(spec, m):
+    """素材の (色段, 段の境) を返す。texture の設定で段を足す。
+
+    deep: 最も暗い段の下に、輪郭の色と混ぜた深い影の段を足す。実機の立ち絵は影の奥を
+    輪郭に近い暗さまで落としていて、暗いドットが全体の半分を超える。
+    expand: 隣の段の中間色を挟んで段を増やす。手打ちのドット絵は素材ごとに5〜7段を持ち
+    （実機の立ち絵で1体 28〜40 色）、3〜4段のままだと面が広く平らに残る。
+    """
+    ramp = list(m["ramp"])
+    steps = list(m.get("steps") or [(i + 1) / len(ramp) for i in range(len(ramp) - 1)])
+    tex = spec.get("texture", {})
+    if tex.get("deep"):
+        ramp = [_mix(m["outline"], ramp[0], 0.5)] + ramp
+        steps = [(steps[0] if steps else 0.5) * tex["deep"]] + steps
+    return ramp, steps
+
+
+def ramp_of(spec, m):
+    """描くときに使う色段。expand では段の間に中間色を挟む（番号 2k が元の段、奇数が中間色）。"""
+    ramp, _ = levels(spec, m)
+    if not spec.get("texture", {}).get("expand"):
+        return ramp
+    out = [ramp[0]]
+    for a, b in zip(ramp, ramp[1:]):
+        out += [_mix(a, b), b]
+    return out
+
+
 def quantize(spec, cells):
-    """明るさを素材の色段に落とす。段の境は素材の steps（無ければ等分）。"""
+    """明るさを素材の色段に落とす。段の境は素材の steps（無ければ等分）。
+
+    texture があれば、明暗の幅を contrast 倍に広げ、座標ごとの揺らぎ（amp）を足してから
+    段に落とす。段の境が1ドット単位でほぐれ、面の中に情報量が出る。expand では、境から
+    band 以内のドットを中間色にする。
+    """
     mats = spec["materials"]
     parts = spec["parts"]
+    tex = spec.get("texture", {})
     out = [[None] * len(cells[0]) for _ in cells]
     for y, row in enumerate(cells):
         for x, c in enumerate(row):
@@ -273,9 +319,20 @@ def quantize(spec, cells):
                 continue
             p, v = c
             m = mats[parts[p]["material"]]
-            ramp = m["ramp"]
-            steps = m.get("steps") or [(i + 1) / len(ramp) for i in range(len(ramp) - 1)]
+            _, steps = levels(spec, m)
+            amp = m.get("texture", parts[p].get("texture", tex.get("amp", 0.0)))
+            # contrast: 影の側を深く落とし、光の側を立てて立体に見せる
+            pv = tex.get("pivot", 0.5)
+            v = pv + (v - pv) * tex.get("contrast", 1.0) + amp * _noise(x, y)
             k = sum(1 for t in steps if v >= t)
+            if tex.get("expand"):
+                band = tex.get("band", 0.05)
+                e = 2 * k
+                if k < len(steps) and steps[k] - v < band:
+                    e += 1
+                elif k > 0 and v - steps[k - 1] < band:
+                    e -= 1
+                k = e
             out[y][x] = (p, k)
     return out
 
@@ -312,7 +369,7 @@ def outline(spec, grid):
                 continue
             p, k = c
             m = mats[parts[p]["material"]]
-            color = m["ramp"][k]
+            color = ramp_of(spec, m)[k]
             if parts[p].get("inner_line", True):
                 for n in (at(x + dx, y + dy) for dx, dy in four):
                     if n is None:
@@ -345,8 +402,13 @@ def fill_pinholes(colors):
     return filled
 
 
-def clean_orphans(colors, protect=()):
-    """周り8方向に同じ色が無いドットを、周りで最も多い色に替える。ノイズに見えるため。"""
+def clean_orphans(colors, protect=(), keep_within=None):
+    """周り8方向に同じ色が無いドットを、周りで最も多い色に替える。ノイズに見えるため。
+
+    keep_within を渡すと、周りに明るさの差がその値以下の色があるドットは残す。
+    手打ちのドット絵は孤立ドットが2割ほどあり、面の質感はそこで出ている。
+    消すのは、周りから明るさが大きく外れた傷のようなドットだけにする。
+    """
     H, W = len(colors), len(colors[0])
     changed = 0
     for _ in range(3):
@@ -364,8 +426,11 @@ def clean_orphans(colors, protect=()):
                 opaque = [n for n in nb if n is not None]
                 if not opaque:
                     continue
+                if keep_within is not None and min(_luma_dist(n, c) for n in opaque) <= keep_within:
+                    continue
                 # 周りの色のうち、明るさが最も近いものを選ぶ。形の明暗を崩さないため
-                best = min(set(opaque), key=lambda n: (_luma_dist(n, c), -opaque.count(n)))
+                # 並べてから選ぶ。集合の順番はプロセスごとに変わり、同点のとき描き上がりが揺れる
+                best = min(sorted(set(opaque)), key=lambda n: (_luma_dist(n, c), -opaque.count(n)))
                 colors[y][x] = best
                 n_changed += 1
         changed += n_changed
@@ -429,7 +494,7 @@ def reduce_colors(colors, limit, protect=()):
         rare = min(count, key=lambda c: (count[c], c))
         ra = hex_to_rgb(rare)
         near = min((c for c in used if c != rare),
-                   key=lambda c: sum((a - b) ** 2 for a, b in zip(hex_to_rgb(c), ra)))
+                   key=lambda c: (sum((a - b) ** 2 for a, b in zip(hex_to_rgb(c), ra)), c))
         for row in colors:
             for x, c in enumerate(row):
                 if c == rare:
@@ -555,10 +620,11 @@ def build(spec):
     colors, owner = outline(spec, grid)
     fill_pinholes(colors)
     protect = {tuple(p) for t in spec.get("touchups", []) for p in t["at"]}
-    clean_orphans(colors, protect)
+    keep = spec.get("texture", {}).get("keep_orphans_within")
+    clean_orphans(colors, protect, keep)
     apply_touchups(spec, colors)
     # 仕上げのドットを置くと、隣の地のドットが孤立することがある（眼鏡の横で起きた）。もう一度掃除する
-    clean_orphans(colors, protect)
+    clean_orphans(colors, protect, keep)
     if spec.get("flatten_crown"):
         flatten_crown(colors)
     reduce_colors(colors, style_max_colors(spec), protect)
@@ -752,6 +818,10 @@ def restyle(spec, style_id):
     out["transforms"] = spec.get("transforms", []) + copy.deepcopy(render["transforms"])
     out["frames"] = []
     out["mirror_frames"] = False
+    # 面の質感（texture）は作風のもの。平らな塗りの作風に持ち越さない
+    out.pop("texture", None)
+    if "texture" in render:
+        out["texture"] = copy.deepcopy(render["texture"])
     return out
 
 
