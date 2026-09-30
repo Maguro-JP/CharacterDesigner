@@ -4,7 +4,13 @@
  "brief": "箱庭ドット のドット絵の商人の少女。子供の枠（背が低く頭の比率が大きい）。橙の帽子、青緑の上着と膝丈の裾、背に大きな荷。赤茶の髪。左向きの 3/4",
  "materials": {
   "hair": {"outline": "#3a1a10", "line": "#3a1a10", "ramp": ["#6a2e1a", "#9a4a28", "#c8703a"], "steps": [0.42, 0.72]},
-  "robe": {"outline": "#10302e", "line": "#10302e", "ramp": ["#1e5250", "#2e7a74", "#58a89a"], "steps": [0.42, 0.74]},
+  "robe": {
+   "outline": "#10302e",
+   "line": "#10302e",
+   "ramp": ["#1e5250", "#2e7a74", "#58a89a"],
+   "steps": [0.42, 0.74],
+   "folds": {"angle": 0, "period": 2, "amp": 0.3}
+  },
   "band": {"outline": "#5a2a10", "line": "#5a2a10", "ramp": ["#c0602a", "#e8904a"], "steps": [0.55]},
   "stocking": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#3a2e3a", "#5a4a5a"], "steps": [0.55]}
  },

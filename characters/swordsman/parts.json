@@ -5,8 +5,20 @@
  "canvas": [26, 34],
  "materials": {
   "hair": {"outline": "#1a1a28", "line": "#1a1a28", "ramp": ["#2a2a3c", "#3e3e58", "#5c5c80"], "steps": [0.42, 0.7]},
-  "tunic": {"outline": "#1a2240", "line": "#1a2240", "ramp": ["#2a2a3c", "#3e5a9a", "#6a8ac8"], "steps": [0.45, 0.78]},
-  "pants": {"outline": "#1a1a28", "line": "#1a1a28", "ramp": ["#2a2a3c", "#3e3e58", "#5c5c80"], "steps": [0.42, 0.72]},
+  "tunic": {
+   "outline": "#1a2240",
+   "line": "#1a2240",
+   "ramp": ["#2a2a3c", "#3e5a9a", "#6a8ac8"],
+   "steps": [0.45, 0.78],
+   "folds": {"angle": 0, "period": 2, "amp": 0.3}
+  },
+  "pants": {
+   "outline": "#1a1a28",
+   "line": "#1a1a28",
+   "ramp": ["#2a2a3c", "#3e3e58", "#5c5c80"],
+   "steps": [0.42, 0.72],
+   "folds": {"angle": 0, "period": 2, "amp": 0.3}
+  },
   "metal": {
    "outline": "#1a1a28",
    "line": "#3e4454",
@@ -16,7 +28,13 @@
    "spec_gain": 0.55,
    "ambient": 0.28
   },
-  "cloth": {"outline": "#4a1c20", "line": "#4a1c20", "ramp": ["#7c2a2a", "#b8443a"], "steps": [0.5]}
+  "cloth": {
+   "outline": "#4a1c20",
+   "line": "#4a1c20",
+   "ramp": ["#7c2a2a", "#b8443a"],
+   "steps": [0.5],
+   "folds": {"angle": 0, "period": 2, "amp": 0.3}
+  }
  },
  "remove": ["cape", "far_pauldron", "near_pauldron", "skirt", "blade", "grip", "pommel", "guard", "hands"],
  "override": {

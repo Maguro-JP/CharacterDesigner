@@ -154,7 +154,8 @@ def shade_part(part, mask, material):
     ambient = material.get("ambient", 0.32)
     bias = part.get("bias", 0.0)
     # 房（strands）: 流れに直交する向きに明暗の縞を足す。髪や毛皮を面ではなく束に見せる
-    strands = part.get("strands")
+    # 素材の folds は、strands を持たない部品に同じ縞をかける。布のひだを素材ごとに一度書けば済むように
+    strands = part.get("strands") or material.get("folds")
     if strands:
         a = math.radians(strands.get("angle", 0))
         ca, sa = math.cos(a), math.sin(a)
