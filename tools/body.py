@@ -115,6 +115,12 @@ def build_parts(t):
         [cx + sw * 0.7, shoulder + 0.02 * H], [cx + nk * 1.1, shoulder - 0.12 * H]]
     # 同じ肌どうしでも、手前の部品には境の線を引く（line_same）。引かないと腕も脚も胴に溶けて1つの塊になる
     part("torso", "skin", [{"type": "poly", "points": torso_pts}], breathe=0.5, relief=1.2, line_same=True)
+    # 筋肉の起伏: 同じ肌の部品を境の線なしで重ね、部品ごとの膨らみの陰影で形を浮かせる
+    m = t.get("muscle", 1.0)
+    part("chest", "skin", [{"type": "ellipse", "at": [cx - sw * 0.3, armpit - 0.12 * H, sw * 0.55, 0.28 * H * m]}],
+         breathe=0.5, relief=1.6 * m)
+    part("abdomen", "skin", [{"type": "ellipse", "at": [cx - wa * 0.15, (armpit + navel) / 2 + 0.2 * H, wa * 0.6, (navel - armpit) * 0.55]}],
+         breathe=0.5, relief=1.2 * m)
     # 下着: 腰から股まで。服を着せる前の目印として、股の高さを見せる
     part("briefs", "cloth", [{"type": "poly", "points": [
         [cx - hw * 1.02, crotch - 0.3 * H], [cx + hw * 1.02, crotch - 0.3 * H], [cx + hw * 0.85, crotch + 0.05 * H],
@@ -123,6 +129,9 @@ def build_parts(t):
     part("near_leg", "skin", [{"type": "poly", "points": limb([
         (near_hip[0], near_hip[1], rl * 1.05), (near_hip[0] - 0.07 * H, knee, rl * 0.65), (near_hip[0] - 0.1 * H, calf, rl * 0.75),
         (near_hip[0] - 0.12 * H, ankle, rl * 0.4)])}], line_same=True)
+    part("near_knee", "skin", [{"type": "ellipse", "at": [near_hip[0] - 0.07 * H, knee, rl * 0.6, rl * 0.7]}], relief=1.4)
+    part("near_calf", "skin", [{"type": "ellipse", "at": [near_hip[0] - 0.08 * H, calf + (ankle - calf) * 0.1, rl * 0.72, (ankle - knee) * 0.3]}],
+         relief=1.2)
     na = near_hip[0] - 0.12 * H
     part("near_foot", "skin", [{"type": "poly", "points": [
         [na - 0.12 * H, ankle - 0.05 * H], [na + 0.12 * H, ankle - 0.05 * H],
@@ -160,6 +169,8 @@ def build_parts(t):
     part("near_arm", "skin", [{"type": "poly", "points": limb([
         (near_sh[0], near_sh[1], ra * 1.15), (ne[0], ne[1], ra * 0.8), (ne[0] + 0.01 * H, ne[1] + 0.25 * H * t["torso"] / 3, ra * 0.85),
         (nw[0], nw[1], ra * 0.55)])}], breathe=0.5, line_same=True)
+    part("near_deltoid", "skin", [{"type": "ellipse", "at": [near_sh[0] + 0.02 * H, near_sh[1] + 0.05 * H, ra * 1.25, ra * 1.5]}],
+         breathe=0.5, relief=1.5 * m, line_same=True)
     part("near_hand", "skin", [{"type": "ellipse", "at": [nw[0], crotch + 0.08 * H, ra * 0.75, ra * 1.3]}],
          line_same=True)
 
