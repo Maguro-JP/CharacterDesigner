@@ -1,0 +1,102 @@
+{
+ "name": "人間本体（大柄の男性（肩と胸が厚い））",
+ "style": "diorama",
+ "brief": "服を着せる前の人間本体。tools/body.py が large の比率から書き出す。手で直さず TYPES を直す",
+ "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
+ "head_height": 12,
+ "body_box": [
+  7,
+  0,
+  29,
+  37
+ ],
+ "palette": {
+  "a": "#181818",
+  "b": "#1a1a22",
+  "c": "#211a16",
+  "d": "#261b15",
+  "e": "#2a1c14",
+  "f": "#2a2a35",
+  "g": "#301810",
+  "h": "#32323e",
+  "i": "#3a2a48",
+  "j": "#3a3a48",
+  "k": "#432d1f",
+  "l": "#4a4a5b",
+  "m": "#4e2a16",
+  "n": "#583018",
+  "o": "#5a5a6e",
+  "p": "#5c3e2a",
+  "q": "#6d6d84",
+  "r": "#7a4c28",
+  "s": "#7b5c41",
+  "t": "#80809a",
+  "u": "#9a7a58",
+  "v": "#9c6838",
+  "w": "#ba884c",
+  "x": "#d8a860",
+  "y": "#e0d8b8"
+ },
+ "rows": [
+  "................askpkaa..............",
+  "...............aueppepca.............",
+  "..............adukpepekda............",
+  ".............apdudpcsckca............",
+  ".............apkeppkpckcka...........",
+  ".............gnnnnnecpccpa...........",
+  ".............gxxxxxncscdda...........",
+  ".............gxxxxxnckcpca...........",
+  ".............gixxaaxnccca............",
+  "..............gxxiyxxncda............",
+  "..............gxxxxxxmaa.............",
+  "...............gxxxxmmg..............",
+  "...............gvrrmrrg..............",
+  "...........ggggxxvrvrmvggg...........",
+  ".........ggxxnxxxvrrmmwxnxg..........",
+  "........gxxxxnxxxxwvvvvxxnwg.........",
+  "........gxxxxwnxxxxxxxxxwnwg.........",
+  "........gxxxwwnxxxxxxxxxwnvg.........",
+  "........gxxxwnxxxxxxxxwwwnvvg........",
+  "........gxxwvnxxxxxxxxwwwnvvg........",
+  ".......gxxxwvnxxxxxxwwwwnvvvg........",
+  ".......gxxxvgxxxxxxxwwvvnwvvg........",
+  ".......gxxxwgxxxxxwwwwwwgwvvg........",
+  ".......gxxwwgxnnnnwnnnnwgwvrg........",
+  ".......gxxwvgnbxxxnttqongwvvg........",
+  "........gxnvggbxxbqtooobgnnrg........",
+  "........gnxngxxxxxbqohlbgxwg.........",
+  "........gxxxgxxxxwbjfffbgxwg.........",
+  "........gxxwggxxwwbffffbgxvg.........",
+  "........gxxvggxxwvgfnnnggwrg.........",
+  "........gxvvggxxvg.bvvvggvrg.........",
+  ".........gvggxxwvg.gwvvgggg..........",
+  "..........gggnnnvg.gnnnvg............",
+  "...........ggxxxg..gxxxg.............",
+  "..........gxxxxwg.gxxwvg.............",
+  "..........gxwvvvg.gvvrrg.............",
+  "...........ggggg...gggg..............",
+  "....................................."
+ ],
+ "intended": [
+  [
+   14,
+   8
+  ],
+  [
+   17,
+   8
+  ],
+  [
+   17,
+   9
+  ],
+  [
+   18,
+   8
+  ],
+  [
+   18,
+   9
+  ]
+ ]
+}

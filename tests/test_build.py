@@ -36,6 +36,18 @@ class BuildTest(unittest.TestCase):
                     cols = {d["palette"][ch] for row in d["rows"] for ch in row if ch != "."}
                     self.assertEqual(want - cols, set())
 
+    def test_body_parts_match_generator(self):
+        # characters/body-*/parts.json は tools/body.py の書き出し。手で直した食い違いを残さない
+        sys.path.insert(0, str(ROOT / "tools"))
+        import body
+        for kind in body.TYPES:
+            with self.subTest(kind=kind):
+                path = ROOT / "characters" / f"body-{kind}" / "parts.json"
+                r = subprocess.run([sys.executable, "tools/fmt.py", "--check", str(path)], cwd=ROOT, capture_output=True, text=True)
+                self.assertEqual(r.returncode, 0, r.stdout)
+                committed = json.loads(path.read_text(encoding="utf-8"))
+                self.assertEqual(json.loads(json.dumps(body.spec_for(kind))), committed)
+
     def test_flatten_crown_lowers_narrow_top(self):
         # 3ドット幅のこぶは1段下がり、広い頭頂や杖の先のような形はそのまま
         a = "#101010"
