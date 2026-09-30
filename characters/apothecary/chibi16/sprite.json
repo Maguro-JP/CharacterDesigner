@@ -7,7 +7,7 @@
  "body_box": [
   2,
   0,
-  13,
+  14,
   16
  ],
  "palette": {
@@ -19,27 +19,27 @@
   "f": "#583018",
   "g": "#5a3a22",
   "h": "#7a4a2a",
-  "i": "#8a5a34",
+  "i": "#a86a3a",
   "j": "#d8a860",
   "k": "#d8ceb0",
   "l": "#e0d8b8"
  },
  "rows": [
-  ".....bbbhbb.....",
-  "....bhhhhehb....",
-  "...bhhhhheehb...",
-  "...djjjjfhhhb...",
-  "...djjjjfeehb...",
-  "...dcjjljfeeb...",
-  "...djjjjjffb....",
+  ".....bbbhbbb....",
+  "....bhhhihhhb...",
+  "...bhhhhieehhb..",
+  "...djjjjfhhheb..",
+  "...djjjjfeeheb..",
+  "...dcjjljfeeeb..",
+  "...djjjjjffbb...",
   "....djjjjfd.....",
   ".....ddjfda.....",
   "...aaddaaaga....",
-  "..akdaaaigab....",
-  "..akaakkiggbb...",
+  "..akdaaaggab....",
+  "..akaakkgggbb...",
   "...abkkkkaab....",
   ".....bbbgaa.....",
-  "....biiggggb....",
+  "....bhhggggb....",
   ".....bbbbbb....."
  ],
  "intended": [

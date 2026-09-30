@@ -7,7 +7,7 @@
  "body_box": [
   3,
   1,
-  13,
+  14,
   23
  ],
  "palette": {
@@ -29,13 +29,13 @@
  },
  "rows": [
   "................",
-  "......aaaaa.....",
-  ".....aiiiffa....",
+  "......aaaaaa....",
+  ".....aiiifffa...",
   "....afffffffa...",
   "....afggffffa...",
   "....agkkgfffa...",
-  "....emmbgfaaa...",
-  "....dmmogffaa...",
+  "....emmbgfaadd..",
+  "....dmmogffad...",
   "...ddmkkgffgg...",
   "..djdkgggfgdd...",
   ".djjnaaiiffdd...",
