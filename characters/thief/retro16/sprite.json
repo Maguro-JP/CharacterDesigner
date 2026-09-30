@@ -3,11 +3,11 @@
  "style": "retro16",
  "brief": "箱庭ドット のドット絵の盗賊の男。男性の枠。銀の髪に赤い鉢巻き、灰紫の上着、口元まで覆う深緑の襟巻き、短剣を逆手に持つ。左向きの 3/4",
  "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
- "head_height": 9,
+ "head_height": 10,
  "body_box": [
   3,
   1,
-  13,
+  14,
   24
  ],
  "palette": {
@@ -19,56 +19,56 @@
   "f": "#2e5a44",
   "g": "#4a4058",
   "h": "#5a3a22",
-  "i": "#6e3a2c",
-  "j": "#8a5a34",
-  "k": "#a2664a",
-  "l": "#a2a8b8",
-  "m": "#d49a70",
+  "i": "#6a6e80",
+  "j": "#6e3a2c",
+  "k": "#8a5a34",
+  "l": "#a2664a",
+  "m": "#a2a8b8",
   "n": "#dce0ea",
-  "o": "#f6f8fa"
+  "o": "#f0c8a0"
  },
  "rows": [
   "................",
   "......eeeee.....",
-  ".....enlllle....",
-  "....elnlllgle...",
-  "....eleeeegle...",
-  "....iieekkele...",
-  "...immbkkkele...",
-  "....immmkkele...",
-  "....ikkkkakle...",
-  "....afffffae....",
-  "....afbfffaa....",
+  ".....enmmmme....",
+  "....emnmmmiie...",
+  "....emeeeeiie...",
+  "....jllelleie...",
+  "...joobblledd...",
+  "....jooolleme...",
+  "....jllllaeme...",
+  "....afffffamme..",
+  "....afbfffaee...",
   ".....bgbddbaa...",
-  "....bigbjhbaaa..",
-  "....ibgbjhbba...",
-  "...immbjdhha....",
+  "....bjgbkhbaaa..",
+  "....jbgbkhbba...",
+  "...joobkdhha....",
   "...hhhchdhb.....",
-  "....hocgbbb.....",
-  ".....cocbggb....",
-  ".....cocccb.....",
+  "....hncgbbb.....",
+  ".....cncbggb....",
+  ".....cncccb.....",
   ".....ccncgc.....",
   ".....ccncgc.....",
   ".....dccccd.....",
-  "....djjjjjhd....",
-  "....djjjhhhd...."
+  "....dkkkkkhd....",
+  "....dkkkhhhd...."
  ],
  "intended": [
   [
-   3,
+   6,
    6
   ],
   [
    6,
-   5
-  ],
-  [
-   6,
-   6
+   7
   ],
   [
    7,
    5
+  ],
+  [
+   7,
+   6
   ]
  ]
 }

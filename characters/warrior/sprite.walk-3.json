@@ -6,7 +6,7 @@
  "head_height": 12,
  "body_box": [
   3,
-  1,
+  0,
   24,
   39
  ],
@@ -33,19 +33,19 @@
   "t": "#f6f8fa"
  },
  "rows": [
-  "............................",
-  ".....bb......aaaaaa.........",
-  "....bttb....allllgga........",
-  "....btmb...alllglggga.......",
-  "....bqmb..allgggggggga......",
-  "....bqmb..alggggcgglga......",
-  "....bqmb.ailpppgcgglga......",
-  "....bqmb.ispappppaglca......",
-  "....bqmbipssappppaggca......",
-  "....bqmb.ippppppnaggca......",
-  "....bqmb..inppnniaggca......",
-  "....bqmbbbbnnpnniagaa.......",
-  "....bqmbttqqmnnniaabbbb.....",
+  ".............aaaaa..........",
+  ".....bb.....allllga.........",
+  "....bttb...alllglgga........",
+  "....btmb..allllglggga.......",
+  "....bqmb.alglgggggcga.......",
+  "....bqmb.algggggagcga.......",
+  "....bqmb.isppppgagcgga......",
+  "....bqmb.isssapgpacga.......",
+  "....bqmb.isapapppacga.......",
+  "....bqmb.ippppppnagga.......",
+  "....bqmb.ippnpnniaaa........",
+  "....bqmbbbbnnpnni...........",
+  "....bqmbttqqmnnnibbbbbb.....",
   "....bqhqttqmmmnndmmmmmhb....",
   "...ffmhhqqqmhhddmmmmhhhb....",
   "..frrmhddqqmhhqqqmmmmhdb....",
@@ -75,23 +75,23 @@
  ],
  "intended": [
   [
-   8,
-   8
-  ],
-  [
-   9,
-   8
-  ],
-  [
    11,
+   8
+  ],
+  [
+   12,
+   9
+  ],
+  [
+   12,
    10
   ],
   [
-   12,
+   13,
    7
   ],
   [
-   12,
+   13,
    8
   ]
  ]

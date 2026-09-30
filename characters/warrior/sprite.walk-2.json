@@ -3,7 +3,7 @@
  "style": "diorama",
  "brief": "箱庭ドット のドット絵の戦士の男。大柄男性の枠。重い鎧、広い肩、両手剣を地に立てて構える。左向きの 3/4",
  "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
- "head_height": 12,
+ "head_height": 11,
  "body_box": [
   3,
   0,
@@ -33,18 +33,18 @@
   "t": "#f6f8fa"
  },
  "rows": [
-  ".....bb......aaaaaa.........",
-  "....bttb....alllggga........",
-  "....btmb...alllglggga.......",
-  "....bqmb..aglglgggggga......",
-  "....bqmb..aglgggggcgga......",
-  "....bqmb.aigpppgagcgga......",
-  "....bqmb.ispappppacgca......",
-  "....bqmbipssappppacgca......",
-  "....bqmb.ippppppnaggca......",
-  "....bqmb..inppnniaggca......",
-  "....bqmbbbbnnpnniagaa.......",
-  "....bqmbttqqmnnniaabbbb.....",
+  ".....bb.....allllga.........",
+  "....bttb...allllggga........",
+  "....btmb..allllglggga.......",
+  "....bqmb.alglglggggga.......",
+  "....bqmb.algggggggcga.......",
+  "....bqmb.isppppgagcgga......",
+  "....bqmb.isssapgpacga.......",
+  "....bqmb.isapapppacga.......",
+  "....bqmb.ippppppnacga.......",
+  "....bqmb.ippnpnniaaa........",
+  "....bqmbbbbnnpnni...........",
+  "....bqmbttqqmnnnibbbbbb.....",
   "....bqhqttqmmmnndmmmmmhb....",
   "...ffmhhqqqmhhddmmmmhhhb....",
   "..frrmhddqqmhhqqqmmmmhdb....",
@@ -75,23 +75,23 @@
  ],
  "intended": [
   [
-   8,
-   7
-  ],
-  [
-   9,
-   7
-  ],
-  [
    11,
+   7
+  ],
+  [
+   12,
+   8
+  ],
+  [
+   12,
    9
   ],
   [
-   12,
+   13,
    6
   ],
   [
-   12,
+   13,
    7
   ]
  ]

@@ -32,13 +32,13 @@
   "....adhhhhdda...........",
   "...ahdhdddddda..........",
   "...ahdhdddddda..........",
-  "...ahdddllllda..........",
-  "...ahddannlaaff.........",
-  "...ahdanjllallf.........",
-  "...adhajjllllf..........",
-  "..addhdfjllljf..........",
-  "..ahdhdaflllf...........",
-  "..ahdhdafljf............",
+  "...ahdddlllldda.........",
+  "...ahddanaallff.........",
+  "...ahdanjlalalf.........",
+  "...adhajjllljjf.........",
+  "..addhdfjlljjf..........",
+  "..ahdhdaflljjf..........",
+  "..ahdhdafljff...........",
   "..ahddajjjje............",
   "..ahdammmmmme...........",
   "..ahdammmmmmjf..........",
@@ -69,20 +69,24 @@
  ],
  "intended": [
   [
-   11,
+   9,
    6
   ],
   [
-   11,
+   10,
+   6
+  ],
+  [
+   10,
    7
   ],
   [
-   12,
-   6
+   11,
+   9
   ],
   [
    12,
-   9
+   7
   ]
  ]
 }

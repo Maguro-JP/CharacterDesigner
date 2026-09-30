@@ -3,7 +3,7 @@
  "style": "diorama",
  "brief": "箱庭ドット のドット絵の剣士の男。男性の枠（戦士より細い）。青い上着に革の胴着、赤い襟巻き。片手剣を下げて持つ。左向きの 3/4",
  "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
- "head_height": 12,
+ "head_height": 13,
  "body_box": [
   8,
   2,
@@ -35,21 +35,21 @@
  "rows": [
   "..........................",
   "..........................",
-  ".............aaaaaa.......",
-  "............aiiiieea......",
-  "...........aiiiieeeia.....",
-  "..........aiiieeeeeiea....",
-  "..........aieeeedeeiea....",
-  ".........aeeddpeddeida....",
-  ".........essappppaeeda....",
-  ".........nssappppaeeda....",
-  ".........kppppppnaeeda....",
-  "..........knppnnkaedea....",
-  "..........knnnnnkgeaa.....",
-  "..........gfgooogggg......",
-  "..........ggfgoooooggg....",
-  "..........bjffgoollbgog...",
-  "..........bjffcccccbgolg..",
+  "............aaaaaaa.......",
+  "...........aiiieieea......",
+  "..........aiiiiieeeea.....",
+  ".........aiieieeeeeea.....",
+  ".........akieeeedeeea.....",
+  ".........ksppddeadeea.....",
+  ".........ksssapepaeea.....",
+  ".........ksapapppaeaa.....",
+  ".........kppppppnaeeea....",
+  ".........kppnpnnkaaeea....",
+  "..........knnnnnkaaeea....",
+  "..........gfgooogggeea....",
+  "..........ggfgooooobea....",
+  "..........bjffgoollbglg...",
+  "..........bjffcccccbgllg..",
   ".........bjffbmmmmhbglllg.",
   ".........bjfffbmmhhbgbllg.",
   ".........cbfffbmmhhbbbgg..",
@@ -75,27 +75,31 @@
  ],
  "intended": [
   [
-   9,
+   11,
    9
   ],
   [
-   11,
+   12,
+   10
+  ],
+  [
+   12,
    11
   ],
   [
-   12,
+   13,
    7
   ],
   [
-   12,
+   13,
    8
   ],
   [
-   12,
+   13,
    9
   ],
   [
-   13,
+   14,
    7
   ]
  ]

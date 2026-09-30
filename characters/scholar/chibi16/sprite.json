@@ -7,7 +7,7 @@
  "body_box": [
   3,
   0,
-  14,
+  13,
   16
  ],
  "palette": {
@@ -25,14 +25,14 @@
   "l": "#d49a70"
  },
  "rows": [
-  ".....aagfffga...",
-  "....agfgfffgba..",
-  "....agfffffgba..",
-  "...alblbbaffba..",
-  "...allllklaffa..",
-  "...kkblllkaffa..",
-  "...illllkifafa..",
-  "....illlkiaaa...",
+  ".....aaggffa....",
+  "....afffffffa...",
+  "...affllffffa...",
+  "...ibblbbaffa...",
+  "...illllllafa...",
+  "...ibklblkaa....",
+  "...illlkkia.....",
+  "....illkki......",
   ".....ckkkic.....",
   "....ccccchhc....",
   "....ceeecccc....",
@@ -43,10 +43,6 @@
   "....cjjjjhcc...."
  ],
  "intended": [
-  [
-   3,
-   5
-  ],
   [
    4,
    3
@@ -66,6 +62,10 @@
   [
    7,
    3
+  ],
+  [
+   7,
+   5
   ],
   [
    8,

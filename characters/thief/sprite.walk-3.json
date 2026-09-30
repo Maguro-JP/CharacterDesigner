@@ -3,7 +3,7 @@
  "style": "diorama",
  "brief": "箱庭ドット のドット絵の盗賊の男。男性の枠。銀の髪に赤い鉢巻き、灰紫の上着、口元まで覆う深緑の襟巻き、短剣を逆手に持つ。左向きの 3/4",
  "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
- "head_height": 12,
+ "head_height": 13,
  "body_box": [
   7,
   1,
@@ -30,23 +30,23 @@
   "q": "#a2a8b8",
   "r": "#b8443a",
   "s": "#d49a70",
-  "t": "#d4dce6"
+  "t": "#dce0ea"
  },
  "rows": [
   "..........................",
-  ".............gggggg.......",
-  "............gqtqqqqg......",
-  "...........gqtqtqqgqg.....",
-  "..........jgggggggrgqg....",
-  ".........jrrrrrrrrggqg....",
-  ".........gggggppggggqjj...",
-  ".........nssbssssgqqqjrj..",
-  "........nsssbssssgqqqgrj..",
-  ".........nsssssspgmqqgj...",
-  "..........appppphpmqqg....",
-  ".........ahhhhhhaamgg.....",
-  ".........ahhhhhhhha.......",
-  ".........ahaahhhhhhaa.....",
+  "............ggggggg.......",
+  "...........gtqtqqqqg......",
+  "..........gqqtqtqqgrg.....",
+  ".........gggggggggrgg.....",
+  ".........grrrrrrrrggjj....",
+  ".........npppgggggggjrj...",
+  ".........nsssbsssgqqgrrj..",
+  ".........nsbsbsssgqqgjrj..",
+  ".........nsssssspgqqqgj...",
+  ".........npppppphggqmg....",
+  ".........ahhhhhhaagqmg....",
+  ".........ahhhhhhhhaqmg....",
+  ".........ahaahhhhhhemg....",
   "..........bmkaddddebaaa...",
   "..........bmkkeeeelbkada..",
   ".........bmkkboooolbkadda.",
@@ -75,27 +75,27 @@
  ],
  "intended": [
   [
-   8,
-   8
-  ],
-  [
-   9,
+   11,
    8
   ],
   [
    12,
-   6
-  ],
-  [
-   12,
-   7
-  ],
-  [
-   12,
-   8
+   9
   ],
   [
    13,
+   6
+  ],
+  [
+   13,
+   7
+  ],
+  [
+   13,
+   8
+  ],
+  [
+   14,
    6
   ]
  ]

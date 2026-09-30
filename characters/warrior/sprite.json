@@ -6,7 +6,7 @@
  "head_height": 12,
  "body_box": [
   3,
-  1,
+  0,
   24,
   39
  ],
@@ -33,19 +33,19 @@
   "t": "#f6f8fa"
  },
  "rows": [
-  "............................",
-  ".............aaaaaa.........",
-  "............allllgga........",
-  "...........alllglggga.......",
-  "..........allgggggggga......",
-  "..........alggggcgglga......",
-  ".........ailpppgcgglga......",
-  ".........ispappppaglca......",
-  "........ipssappppaggca......",
-  ".........ippppppnaggca......",
-  "..........inppnniaggca......",
-  "........bbbnnpnniagaa.......",
-  ".......bttqqmnnniaabbbb.....",
+  ".............aaaaa..........",
+  "............allllga.........",
+  "...........alllglgga........",
+  "..........allllglggga.......",
+  ".........alglgggggcga.......",
+  ".........algggggagcga.......",
+  ".........isppppgagcgga......",
+  ".........isssapgpacga.......",
+  ".........isapapppacga.......",
+  ".........ippppppnagga.......",
+  ".........ippnpnniaaa........",
+  "........bbbnnpnni...........",
+  ".......bttqqmnnnibbbbbb.....",
   ".....fftttqmmmnndmmmmmhb....",
   "....frrdqqqmhhddmmmmhhhb....",
   "....fffdqqmmhhqqqmmmmhdb....",
@@ -75,23 +75,23 @@
  ],
  "intended": [
   [
-   8,
-   8
-  ],
-  [
-   9,
-   8
-  ],
-  [
    11,
+   8
+  ],
+  [
+   12,
+   9
+  ],
+  [
+   12,
    10
   ],
   [
-   12,
+   13,
    7
   ],
   [
-   12,
+   13,
    8
   ]
  ]
