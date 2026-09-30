@@ -58,5 +58,6 @@
    "breathe": 0.5,
    "shapes": [{"type": "capsule", "points": [[8.6, 17.2], [8.8, 18.2]], "r": 0.5}]
   }
- ]
+ ],
+ "flatten_crown": false
 }

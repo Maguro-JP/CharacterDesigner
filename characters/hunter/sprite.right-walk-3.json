@@ -29,19 +29,20 @@
   "p": "#b8443a",
   "q": "#d49a70",
   "r": "#d8d0b8",
-  "s": "#e2b454"
+  "s": "#e2b454",
+  "t": "#f2ede4"
  },
  "rows": [
   "..........................",
   ".......aaaaaaa............",
   "......akkkgggga...........",
   ".....akkkgggggga..........",
-  "....akkggggggggga.........",
-  "....akggggccccgga.........",
-  "....akggggcqqnnga.........",
-  "...fagggggnqcqqnj.........",
-  "..fpfgggdnnqcqcnj.........",
-  "..fpfgggdnnqqqnnj.........",
+  "....akkggggggggcc.........",
+  "....akggggccccgcc.........",
+  "....akggggcllcchc.........",
+  "...fagggggnlgcnhc.........",
+  "..fpfgggdnnqqgtnj.........",
+  "..fpfgggdnnqqnnnj.........",
   "..fpfgggdanqnnnnj.........",
   "...ccgggdaqqnnnj...cc.....",
   "...cccgddannnaa...cllc....",
@@ -74,20 +75,12 @@
  ],
  "intended": [
   [
-   12,
+   13,
    7
   ],
   [
-   12,
+   13,
    8
-  ],
-  [
-   13,
-   9
-  ],
-  [
-   13,
-   10
   ],
   [
    14,

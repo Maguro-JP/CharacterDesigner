@@ -12,35 +12,35 @@
  ],
  "palette": {
   "a": "#1e1020",
-  "b": "#2a1c1c",
-  "c": "#4a1c20",
+  "b": "#4a1c20",
+  "c": "#4a7aa8",
   "d": "#5a2e48",
   "e": "#5a3a22",
   "f": "#6e3a2c",
   "g": "#804068",
-  "h": "#8a5a34",
-  "i": "#a2664a",
-  "j": "#b8443a",
-  "k": "#d49a70",
-  "l": "#e2b454"
+  "h": "#a2664a",
+  "i": "#b8443a",
+  "j": "#d49a70",
+  "k": "#e2b454",
+  "l": "#f2ede4"
  },
  "rows": [
   ".....aagddaa....",
   "....agdgdddga...",
   "....agdddddga...",
-  "...addkaiddgda..",
-  "...fkkkkiaddda..",
-  "...faikakiadda..",
-  "...fkkkiiaddda..",
-  "....ffkifagdda..",
-  ".....fiiiegdda..",
-  "...feillllddda..",
-  "..ffeeiiiiddda..",
-  "...fecjjjjedda..",
-  ".....cjjjjceda..",
-  ".....cjjffcea...",
-  "....cccjjjjc....",
-  "....chhbbbc....."
+  "...afajahddgda..",
+  "...fjjjjhaddda..",
+  "...flcjjjhadda..",
+  "...fjjjhhaddda..",
+  "....ffjhfagdda..",
+  ".....fhhhegdda..",
+  "...fehkkkkddda..",
+  "..ffeehhhhddda..",
+  "...febiiiiedda..",
+  ".....biiiibeda..",
+  ".....biiffbea...",
+  "....bbbiiiib....",
+  "....bhhaaab....."
  ],
  "intended": [
   [
@@ -49,15 +49,15 @@
   ],
   [
    5,
+   3
+  ],
+  [
+   5,
    5
   ],
   [
    7,
    3
-  ],
-  [
-   7,
-   5
   ]
  ]
 }

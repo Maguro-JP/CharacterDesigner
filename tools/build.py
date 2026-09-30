@@ -374,6 +374,26 @@ def clean_orphans(colors, protect=()):
     return changed
 
 
+def flatten_crown(colors):
+    """頭頂の3ドット幅のこぶを1段下げて平らにする。
+
+    丸い頭頂を縮小すると、いちばん上の2行が3ドット幅になり、こぶのように飛び出す。
+    手で打つドット絵は頭頂を平らに切るので、上の行の輪郭を1段下へ移す。
+    """
+    rows = [y for y, row in enumerate(colors) if any(c is not None for c in row)]
+    if len(rows) < 3:
+        return 0
+    y0 = rows[0]
+    run = [x for x, c in enumerate(colors[y0]) if c is not None]
+    below = [x for x, c in enumerate(colors[y0 + 1]) if c is not None]
+    if len(run) > 3 or len(below) < len(run) + 3:
+        return 0
+    for x in run:
+        colors[y0 + 1][x] = colors[y0][x]
+        colors[y0][x] = None
+    return len(run)
+
+
 def _luma_dist(a, b):
     ra, rb = hex_to_rgb(a), hex_to_rgb(b)
     return abs((0.2126 * ra[0] + 0.7152 * ra[1] + 0.0722 * ra[2])
@@ -539,6 +559,8 @@ def build(spec):
     apply_touchups(spec, colors)
     # 仕上げのドットを置くと、隣の地のドットが孤立することがある（眼鏡の横で起きた）。もう一度掃除する
     clean_orphans(colors, protect)
+    if spec.get("flatten_crown"):
+        flatten_crown(colors)
     reduce_colors(colors, style_max_colors(spec), protect)
     return to_sprite(spec, colors, owner), (top, light, size)
 
