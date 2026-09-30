@@ -7,7 +7,7 @@
  "body_box": [
   5,
   1,
-  23,
+  24,
   34
  ],
  "palette": {
@@ -80,13 +80,13 @@
   "..........uMMMMKDnCnuf....",
   "..........uMMKMBBaCnf.....",
   "..........uMKKGBBaaaa.....",
-  ".........uMKKGGBBcca......",
-  "..........uMGGBBuejc......",
-  ".........cxcuuuu.cccf.....",
-  "........ffccf....fCssf....",
-  ".......fCCCyCf..fnCnsnf...",
-  ".......fCnCnyf...fsnnf....",
-  "........fffff.....fff.....",
+  ".........uMKKGGBBccda.....",
+  ".........ccMGGBBucdcc.....",
+  "........cexuuuuu..cccf....",
+  ".......ffccc......fuCnf...",
+  "......fCCuCf......fnCnnf..",
+  ".....fCuCnCf......fnnnf...",
+  "......fffff........fff....",
   ".........................."
  ],
  "intended": [
