@@ -60,6 +60,57 @@ def limb(joints):
     return left + cap(xe, ye, re, a_end) + right[::-1] + cap(x0, y0, r0, a_start)
 
 
+def head_parts(cx, top, H, names=None, bangs=False):
+    """頭の部品（頭蓋骨・顔・耳・髪）と目の仕上げのドットを返す。座標は形の座標（shift を含まない）。
+
+    頭は頭蓋骨の楕円と、その前下に付く顔（顎）で組む。髪は頭蓋骨に沿う厚み 0.08 H の帽子で、
+    顔より大きな塊にしない。職業のキャラクターも同じ頭を使えるように、部品名は names で付け替える。
+    目: 奥の目は顔の前の縁の最初の列、黒目はその3列後ろ（輪郭・奥の目・肌・肌・黒目）。
+    """
+    import math
+    n = {"skull": "skull", "face": "face", "ear": "ear", "hair": "hair", "bangs": "bangs"}
+    n.update(names or {})
+    chin = top + H
+    out = []
+    skull_c = (cx + 0.06 * H, top + 0.43 * H)
+    skull_r = (0.4 * H, 0.43 * H)
+    out.append({"name": n["skull"], "material": "skin", "head": True, "breathe": 1,
+                "shapes": [{"type": "ellipse", "at": [skull_c[0], skull_c[1], skull_r[0], skull_r[1]]}]})
+    front = cx - 0.37 * H
+    out.append({"name": n["face"], "material": "skin", "head": True, "breathe": 1, "relief": 1.0, "bias": 0.1,
+                "shapes": [{"type": "poly", "points": [
+                    [cx - 0.34 * H, top + 0.35 * H], [front, top + 0.6 * H], [cx - 0.33 * H, top + 0.78 * H],
+                    [cx - 0.22 * H, top + 0.95 * H], [cx - 0.05 * H, chin], [cx + 0.18 * H, top + 0.86 * H],
+                    [cx + 0.22 * H, top + 0.55 * H], [cx, top + 0.3 * H]]}]})
+    out.append({"name": n["ear"], "material": "skin", "head": True, "breathe": 1, "bias": -0.2,
+                "shapes": [{"type": "ellipse", "at": [cx + 0.2 * H, top + 0.6 * H, 0.07 * H, 0.12 * H]}]})
+    # 髪: 生え際は額の上（頭の高さの 0.3）、後ろは耳の下まで
+    rx, ry = skull_r[0] + 0.08 * H, skull_r[1] + 0.07 * H
+    hair = [[skull_c[0] + rx * math.cos(math.radians(d)), skull_c[1] + ry * math.sin(math.radians(d))]
+            for d in range(200, 381, 12)]
+    hair += [[skull_c[0] + rx * 0.85, top + 0.78 * H], [cx + 0.22 * H, top + 0.72 * H],
+             [cx + 0.14 * H, top + 0.42 * H], [cx - 0.1 * H, top + 0.3 * H], [cx - 0.36 * H, top + 0.34 * H]]
+    out.append({"name": n["hair"], "material": "hair", "head": True, "breathe": 1,
+                "strands": {"angle": 15, "period": 2.0, "amp": 0.2}, "shapes": [{"type": "poly", "points": hair}]})
+    if bangs:
+        # 前髪: 額に少しだけ下ろす房。目にはかけない
+        out.append({"name": n["bangs"], "material": "hair", "group": n["hair"], "head": True, "breathe": 1,
+                    "no_line_behind": True, "strands": {"angle": -20, "period": 2.0, "amp": 0.2},
+                    "shapes": [{"type": "poly", "points": [
+                        [cx - 0.39 * H, top + 0.30 * H], [cx - 0.1 * H, top + 0.16 * H], [cx + 0.14 * H, top + 0.24 * H],
+                        [cx + 0.06 * H, top + 0.4 * H], [cx - 0.06 * H, top + 0.32 * H], [cx - 0.18 * H, top + 0.42 * H],
+                        [cx - 0.3 * H, top + 0.35 * H], [cx - 0.37 * H, top + 0.44 * H]]}]})
+    far = int(front + 0.5)
+    eye = round(top + 0.58 * H)
+    touchups = [
+        {"note": "眉: 手前の黒目と白目の真上に2ドット", "at": [[far + 3, eye - 1], [far + 4, eye - 1]], "c": "#181818"},
+        {"note": "手前の黒目", "at": [[far + 3, eye]], "c": "#3a2a48"},
+        {"note": "白目: 黒目の後ろ側", "at": [[far + 4, eye]], "c": "#e0d8b8"},
+        {"note": "奥の目: 1段上、瞳の色だけ。顔の前の縁の最初の列", "at": [[far, eye - 1]], "c": "#3a2a48"},
+    ]
+    return out, touchups
+
+
 def build_parts(t):
     H = t["H"]
     heads, torso = t["heads"], t["torso"]
@@ -140,27 +191,8 @@ def build_parts(t):
     # 首と頭。頭は頭蓋骨の楕円と、その前下に付く顔（顎）で組む
     part("neck", "skin", [{"type": "rect", "at": [cx - nk * 0.6, chin - 0.2 * H, cx + nk * 1.2, shoulder + 0.1 * H]}],
          breathe=1, bias=-0.2)
-    skull_c = (cx + 0.06 * H, top + 0.43 * H)
-    skull_r = (0.4 * H, 0.43 * H)
-    part("skull", "skin", [{"type": "ellipse", "at": [skull_c[0], skull_c[1], skull_r[0], skull_r[1]]}],
-         head=True, breathe=1)
-    part("face", "skin", [{"type": "poly", "points": [
-        [cx - 0.34 * H, top + 0.35 * H], [cx - 0.37 * H, top + 0.6 * H], [cx - 0.33 * H, top + 0.78 * H],
-        [cx - 0.22 * H, top + 0.95 * H], [cx - 0.05 * H, chin], [cx + 0.18 * H, top + 0.86 * H],
-        [cx + 0.22 * H, top + 0.55 * H], [cx, top + 0.3 * H]]}], head=True, breathe=1, relief=1.0, bias=0.1)
-    part("ear", "skin", [{"type": "ellipse", "at": [cx + 0.2 * H, top + 0.6 * H, 0.07 * H, 0.12 * H]}],
-         head=True, breathe=1, bias=-0.2)
-    # 髪: 頭蓋骨に沿う厚み 0.08 H の帽子。生え際は額の上（頭の高さの 0.3）、後ろは耳の下まで
-    hair = []
-    import math
-    rx, ry = skull_r[0] + 0.08 * H, skull_r[1] + 0.07 * H
-    for deg in range(200, 381, 12):
-        a = math.radians(deg)
-        hair.append([skull_c[0] + rx * math.cos(a), skull_c[1] + ry * math.sin(a)])
-    hair += [[skull_c[0] + rx * 0.85, top + 0.78 * H], [cx + 0.22 * H, top + 0.72 * H],
-             [cx + 0.14 * H, top + 0.42 * H], [cx - 0.1 * H, top + 0.3 * H], [cx - 0.36 * H, top + 0.34 * H]]
-    part("hair", "hair", [{"type": "poly", "points": hair}], head=True, breathe=1,
-         strands={"angle": 15, "period": 2.0, "amp": 0.2})
+    for q in head_parts(cx, top, H)[0]:
+        p.append(q)
 
     # 手前（左）の腕: 肩 → 肘（臍）→ 手首（股）
     near_sh = (cx - sw * 0.95, shoulder + 0.15 * H)
@@ -174,14 +206,7 @@ def build_parts(t):
     part("near_hand", "skin", [{"type": "ellipse", "at": [nw[0], crotch + 0.08 * H, ra * 0.75, ra * 1.3]}],
          line_same=True)
 
-    eye_y = round(top + 0.58 * H) + 1
-    touchups = [
-        {"note": "眉: 手前の黒目と白目の真上に2ドット", "at": [[round(cx - 0.16 * H), eye_y - 1], [round(cx - 0.16 * H) + 1, eye_y - 1]],
-         "c": "#181818"},
-        {"note": "手前の黒目", "at": [[round(cx - 0.16 * H), eye_y]], "c": "#3a2a48"},
-        {"note": "白目: 黒目の後ろ側", "at": [[round(cx - 0.16 * H) + 1, eye_y]], "c": "#e0d8b8"},
-        {"note": "奥の目: 1段上、瞳の色だけ", "at": [[round(cx - 0.16 * H) - 3, eye_y - 1]], "c": "#3a2a48"},
-    ]
+    touchups = head_parts(cx, top, H)[1]
     return p, [W, round(sole) + 2], touchups
 
 
