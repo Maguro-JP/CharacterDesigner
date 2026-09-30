@@ -26,8 +26,8 @@
    "folds": {"angle": 0, "period": 2, "amp": 0.3}
   },
   "metal": {
-   "outline": "#1a1a28",
-   "line": "#3e4454",
+   "outline": "#181a24",
+   "line": "#262a38",
    "ramp": ["#3e4454", "#5e687a", "#96a2b2", "#d4dce6", "#f6f8fa"],
    "steps": [0.36, 0.55, 0.78, 1.02],
    "spec_power": 24,
