@@ -33,10 +33,10 @@
   ".....eelllee....",
   "....ellllllle...",
   "....elljjjjje...",
-  "....ddjjidddd...",
+  "...egejjidddd...",
   "...gkkkkidihhd..",
-  "....gkikkidfhd..",
-  "....idkiaahfd...",
+  "...gkkikkidfhd..",
+  "....dikdaahfd...",
   ".....aiiaahbb...",
   ".....aaaccbab...",
   ".....baaccab....",
@@ -50,6 +50,10 @@
   ],
   [
    5,
+   10
+  ],
+  [
+   7,
    10
   ]
  ]

@@ -3,7 +3,7 @@
  "style": "chibi16",
  "brief": "箱庭ドット のドット絵の盗賊の男。男性の枠。銀の髪に赤い鉢巻き、灰紫の上着、口元まで覆う深緑の襟巻き、短剣を逆手に持つ。左向きの 3/4",
  "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
- "head_height": 8,
+ "head_height": 9,
  "body_box": [
   3,
   0,
@@ -25,16 +25,16 @@
   "l": "#f6f8fa"
  },
  "rows": [
-  ".....eejjjjje...",
-  "....ejjjjjjgje..",
-  "....ejjjjgjgje..",
-  "...ejekeigggje..",
-  "...hjkkkiiegje..",
-  "...hkbiiiiegje..",
-  "...hkiiiiiegje..",
-  "....hiiiiaeee...",
-  "....bhbfffaaa...",
-  ".....bfbddaada..",
+  ".....ejjjjje....",
+  "....ejjjjjjge...",
+  "...ejjjkjgjgge..",
+  "...hkkkejegge...",
+  "...hkkkkkkege...",
+  "...hbkibiiejje..",
+  "...hkiiiiidjje..",
+  "....hiiiiadeje..",
+  "....bhbfffaeje..",
+  ".....bfbddaaaa..",
   "....bbfbihhda...",
   "....clchbid.....",
   "....clcfbbdb....",
@@ -44,12 +44,8 @@
  ],
  "intended": [
   [
-   3,
+   4,
    5
-  ],
-  [
-   5,
-   3
   ],
   [
    5,
@@ -58,6 +54,10 @@
   [
    7,
    3
+  ],
+  [
+   7,
+   5
   ]
  ]
 }

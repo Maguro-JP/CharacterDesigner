@@ -33,13 +33,13 @@
   "...........aiiieieea....",
   "..........aeieieeeeea...",
   "..........aeeeeeeeeea...",
-  "..........aemmkkeeeea...",
-  ".........goaammmaeeea...",
-  ".........gooammmkaeia...",
-  "..........gmmmmkkaeia...",
-  "..........gkmmkkgeeeca..",
-  "...........gmmkgaeeeca..",
-  "............gkkgaeeeea..",
+  ".........agemmkkeeeea...",
+  ".........gommaamaeeea...",
+  ".........goamammkaeia...",
+  ".........gmmmmkkkaeia...",
+  "..........gmkmkkgeeeca..",
+  "..........gmmmkgaeeeca..",
+  "...........ggkkgaeeeea..",
   "............fkkkkaeeea..",
   "...........fnnnnnnaeea..",
   "..........gknnnnnnaeea..",
@@ -71,19 +71,23 @@
  "intended": [
   [
    11,
-   6
+   7
   ],
   [
-   11,
+   12,
    9
   ],
   [
-   12,
+   13,
    6
   ],
   [
-   12,
+   13,
    7
+  ],
+  [
+   14,
+   6
   ]
  ]
 }

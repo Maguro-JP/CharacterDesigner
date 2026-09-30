@@ -6,7 +6,7 @@
  "head_height": 12,
  "body_box": [
   3,
-  2,
+  1,
   24,
   39
  ],
@@ -34,19 +34,19 @@
  },
  "rows": [
   "............................",
-  "............................",
-  ".............aaaaaa.........",
-  "............allllgga........",
-  "...........allllgggla.......",
-  "..........alllggggglga......",
-  "..........alggggcgglga......",
-  ".........aggpppgccglca......",
-  ".........ispappppaggca......",
-  "........ipssappppaggca......",
-  ".........ippppppnaggca......",
-  "..........inppnniagcga......",
-  "........bbbnnpnniagaa.......",
-  ".....ffbttqqmnnniaabbbb.....",
+  ".............aaaaa..........",
+  "............alglgla.........",
+  "...........alllglgga........",
+  "..........alllllgggga.......",
+  ".........allglgggggla.......",
+  ".........ailggggcggla.......",
+  ".........isppppgaccgaa......",
+  ".........isssapgpagga.......",
+  ".........isapapppagga.......",
+  ".........ippppppnagga.......",
+  ".........ippnpnniaaa........",
+  "........bbbnnpnni...........",
+  ".....ffbttqqmnnnibbbbbb.....",
   "....frrdttqmmmnndmmmmmhb....",
   "....fffdqqqmhhddmmmmhhhb....",
   "....akkkdqmmdhqqmmmmmhdb....",
@@ -75,23 +75,23 @@
  ],
  "intended": [
   [
-   8,
-   9
-  ],
-  [
-   9,
-   9
-  ],
-  [
    11,
+   9
+  ],
+  [
+   12,
+   10
+  ],
+  [
+   12,
    11
   ],
   [
-   12,
+   13,
    8
   ],
   [
-   12,
+   13,
    9
   ]
  ]

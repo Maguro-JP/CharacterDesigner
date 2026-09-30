@@ -44,11 +44,11 @@
   "...gqqnnnnnnng..........",
   "...ddddddddddd..........",
   "...dloodppppjd..........",
-  "...dlodppppddjj.........",
-  "...dlldpmppdpj..........",
+  "...dlodppddppjj.........",
+  "...dlldpmpdpdpj.........",
   ".ggdllljmpppmj..........",
-  "gqqglllgjppmm...........",
-  "gqqqggggjmma............",
+  "gqqglllgjppmmj..........",
+  "gqqqggggjmmaj...........",
   ".gbbbbffammfa...........",
   ".bkkkbfffaffa...........",
   ".bkkbcfffcffca..........",
@@ -73,20 +73,24 @@
  ],
  "intended": [
   [
-   11,
+   9,
    13
   ],
   [
-   11,
+   10,
+   13
+  ],
+  [
+   10,
    14
   ],
   [
-   12,
-   13
+   11,
+   16
   ],
   [
    12,
-   16
+   14
   ]
  ]
 }

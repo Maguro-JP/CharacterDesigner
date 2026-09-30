@@ -3,11 +3,11 @@
  "style": "retro16",
  "brief": "箱庭ドット のドット絵の剣士の男。男性の枠（戦士より細い）。青い上着に革の胴着、赤い襟巻き。片手剣を下げて持つ。左向きの 3/4",
  "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
- "head_height": 9,
+ "head_height": 10,
  "body_box": [
   3,
   1,
-  13,
+  14,
   24
  ],
  "palette": {
@@ -31,14 +31,14 @@
   "................",
   "......aaaaa.....",
   ".....aiiieea....",
-  "....aiieieeea...",
-  "....ajieedeea...",
-  "....jnddedeea...",
-  "...lnnannnada...",
-  "....jnlnllada...",
-  "....jnllljeda...",
-  ".....gmmlgaa....",
-  ".....ggmmmgg....",
+  "....aiieeeeea...",
+  "....ajieeaeea...",
+  "....jnndlaeaa...",
+  "...jnnaanlaa....",
+  "....jnlnllaea...",
+  "....jnlllgaea...",
+  ".....gmmlgaeea..",
+  ".....ggmmmgaa...",
   ".....bfbccbgg...",
   "....bffbkhbggg..",
   "....jbfbkhbbg...",
@@ -55,14 +55,6 @@
  ],
  "intended": [
   [
-   3,
-   6
-  ],
-  [
-   6,
-   5
-  ],
-  [
    6,
    6
   ],
@@ -73,6 +65,10 @@
   [
    7,
    5
+  ],
+  [
+   7,
+   6
   ]
  ]
 }

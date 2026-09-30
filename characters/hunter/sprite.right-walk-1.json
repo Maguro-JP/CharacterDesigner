@@ -3,7 +3,7 @@
  "style": "diorama",
  "brief": "箱庭ドット のドット絵の狩人の男。男性の枠。緑の頭巾と肩掛け、革の胴着、背に矢筒。弓を前に下げて持つ。左向きの 3/4",
  "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
- "head_height": 12,
+ "head_height": 13,
  "body_box": [
   3,
   1,
@@ -37,17 +37,17 @@
   ".......aaaaaaa............",
   "......alllhhhha...........",
   ".....alllhhhhhha..........",
-  "....allhhhhhhhha..........",
-  "....alhhhhccccha..........",
-  "....alhhhhoroocha.........",
-  "...gahhhhhorrcook.........",
-  "..gqghhheoorrcoork........",
-  "..gqghhheoorroook.........",
-  "..gqghhheaoroook..........",
-  "...cchhhearroook.cc.......",
-  "...cmcheeaoooaaacmmc......",
-  "...cmchllllllaaasmmmc.....",
-  "...cmicllllhappcscmmc.....",
+  "....allhhhhhhhhha.........",
+  "....alhhhhcccchha.........",
+  "....alhhhhcrrooha.........",
+  "...gahhhhhorcrrok.........",
+  "..gqghhheoorcrcok.........",
+  "..gqghhheoorrrook.........",
+  "..gqghhheaorooook.........",
+  "...cchhhearroookccc.......",
+  "...cccheeaoooaaacmmc......",
+  "...ccchllllllaaasmmmc.....",
+  "...cmccllllhappcscmmc.....",
   "..cmicllhhhhapncscmmc.....",
   "..cmichhhhhhapncs.cmmc....",
   "..cmiccchhhacnncs.cmmc....",
@@ -75,23 +75,23 @@
  ],
  "intended": [
   [
-   13,
+   12,
    7
   ],
   [
-   13,
+   12,
    8
   ],
   [
-   14,
+   13,
+   9
+  ],
+  [
+   13,
    10
   ],
   [
-   16,
-   8
-  ],
-  [
-   17,
+   14,
    8
   ]
  ]

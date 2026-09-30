@@ -3,11 +3,11 @@
  "style": "retro16",
  "brief": "箱庭ドット のドット絵の狩人の男。男性の枠。緑の頭巾と肩掛け、革の胴着、背に矢筒。弓を前に下げて持つ。左向きの 3/4",
  "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
- "head_height": 9,
+ "head_height": 10,
  "body_box": [
   3,
   1,
-  13,
+  14,
   24
  ],
  "palette": {
@@ -33,11 +33,11 @@
   ".....ajjjffa....",
   "....afffffffa...",
   "....afccffffa...",
-  "....ifcmmffcc...",
-  "...inncmmfdda...",
+  "....ifncmfffa...",
+  "...innccmfdda...",
   "....inmmmffda...",
   "...cinmmmffda...",
-  "..ckcimmmfdcc...",
+  "..ckcimmmfdcdc..",
   ".ckkocajjffcc...",
   ".ckkoclafffcc...",
   ".ckkoclaffccc...",
@@ -55,20 +55,20 @@
  ],
  "intended": [
   [
-   3,
-   6
-  ],
-  [
-   6,
-   5
-  ],
-  [
    6,
    6
   ],
   [
    6,
    7
+  ],
+  [
+   7,
+   5
+  ],
+  [
+   7,
+   6
   ]
  ]
 }

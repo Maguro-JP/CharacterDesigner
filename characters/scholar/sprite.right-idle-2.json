@@ -29,26 +29,27 @@
   "p": "#a2664a",
   "q": "#c8d0e0",
   "r": "#d49a70",
-  "s": "#f4f6fa"
+  "s": "#f0c8a0",
+  "t": "#f4f6fa"
  },
  "rows": [
   "..........................",
   "..........................",
-  ".......aaaaaa.............",
-  "......akkkkkhaa...........",
-  ".....akkkkkhkhha..........",
-  "....akkkkhkhhhha..........",
-  "....akhkhhhhhhha..........",
-  "....akhkhhrrrrhha.........",
-  "....akhkapbbbbshh.........",
-  "....akhhapprrbrrp.........",
-  "....akhhapprrrrrm.........",
-  "....akhhhmprrrpm..........",
-  ".....aaaamrrrrpm..........",
-  ".......acmrppcc...........",
+  ".......aaaaaaa............",
+  "......akkkkhkka...........",
+  ".....akkkkhhhhha..........",
+  ".....akkkhhhhhha..........",
+  ".....akkhassrrrha.........",
+  ".....akkhasssrrrm.........",
+  "......aharbbbbbrm.........",
+  "......aharprbrbrm.........",
+  ".......ampprrrrpm.........",
+  ".........mprrpppm.........",
+  ".........mrrrppm..........",
+  ".......ccmrppcc...........",
   "......cocqpppolc..........",
-  ".....coocsqqoolc..........",
-  ".....cooocsqoolc..........",
+  ".....cooctqqoolc..........",
+  ".....coooctqoolc..........",
   ".....coooocccollc.........",
   "....clooollcccccc.........",
   "....clolllclbgggb.........",
@@ -86,23 +87,27 @@
    8
   ],
   [
-   13,
-   8
-  ],
-  [
-   13,
+   12,
    9
   ],
   [
+   13,
+   8
+  ],
+  [
+   13,
+   10
+  ],
+  [
+   13,
+   11
+  ],
+  [
    14,
    8
   ],
   [
    14,
-   11
-  ],
-  [
-   16,
    9
   ]
  ]

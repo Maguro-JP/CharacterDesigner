@@ -3,7 +3,7 @@
  "style": "diorama",
  "brief": "箱庭ドット のドット絵の戦士の男。大柄男性の枠。重い鎧、広い肩、両手剣を地に立てて構える。左向きの 3/4",
  "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
- "head_height": 12,
+ "head_height": 11,
  "body_box": [
   4,
   0,
@@ -29,26 +29,25 @@
   "p": "#d4dce6",
   "q": "#d8685a",
   "r": "#e2b454",
-  "s": "#f0c8a0",
-  "t": "#f6f8fa"
+  "s": "#f6f8fa"
  },
  "rows": [
-  ".........aaaaaa......bb.....",
-  "........aakkkkfaa...bttb....",
-  ".......akkkkfkfffa..btlb....",
-  "......akkkkkfffffa..bplb....",
-  "......akffkffffffa..bplb....",
-  "......akfkffooooffa.bplb....",
-  "......akfkamssoaohh.bplb....",
-  "......akfkasmooaooohbplb....",
-  "......akffammoooooh.bplb....",
-  "......akfffhmooomh..bplb....",
-  ".......aafahooommbbbbplb....",
-  ".....bbbbaahommttpplbplb....",
-  "....bttptttcmmtttplllpgb....",
-  "....bpppttttccpptplgglgee...",
-  "....blllttttpplltppcclgrre..",
-  "....blgttttppllltppeeeerre..",
+  ".........akkkffa.....bb.....",
+  "........akkkkkffa...bssb....",
+  ".......akkkkfkfffa..bslb....",
+  ".......akkkkffffffa.bplb....",
+  ".......affkfffffffa.bplb....",
+  "......affkfafooofoh.bplb....",
+  ".......afkaoooaoooh.bplb....",
+  ".......afkaomoaoaoh.bplb....",
+  ".......aafammoooomh.bplb....",
+  "........aaahmoommmh.bplb....",
+  "...........hooommbbbbplb....",
+  ".....bbbbbbhommsspplbplb....",
+  "....bsspssscmmsssplllpgb....",
+  "....bpppssssccppsplgglgee...",
+  "....blllssssppllsppcclgrre..",
+  "....blgsssspplllsppeeeerre..",
   "...dndgppppplllgpplcjjjae...",
   "...dnndpllllllgglllcjjjja...",
   "...dnndlllllgggggllcjjeea...",
@@ -57,8 +56,8 @@
   "..dnnndjjeeeardaeea..ee.....",
   "..dnnnidddddddddda..........",
   "..dnnniqqnnnnnddddd.........",
-  "..dnniinnnnnndttpdd.........",
-  "..dnniinnniidtttplb.........",
+  "..dnniinnnnnndsspdd.........",
+  "..dnniinnniidsssplb.........",
   "..dniidccicddbppllb.........",
   ".dniiidplccb.bppllgb........",
   ".diiiidplgcb..bplggb........",
@@ -75,23 +74,23 @@
  ],
  "intended": [
   [
-   15,
+   14,
    6
   ],
   [
-   15,
+   14,
    7
   ],
   [
-   16,
+   15,
+   8
+  ],
+  [
+   15,
    9
   ],
   [
-   18,
-   7
-  ],
-  [
-   19,
+   16,
    7
   ]
  ]

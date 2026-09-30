@@ -3,7 +3,7 @@
  "style": "diorama",
  "brief": "箱庭ドット のドット絵の剣士の男。男性の枠（戦士より細い）。青い上着に革の胴着、赤い襟巻き。片手剣を下げて持つ。左向きの 3/4",
  "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
- "head_height": 12,
+ "head_height": 13,
  "body_box": [
   4,
   0,
@@ -28,23 +28,22 @@
   "o": "#d49a70",
   "p": "#d4dce6",
   "q": "#e2b454",
-  "r": "#f0c8a0",
-  "s": "#f6f8fa"
+  "r": "#f6f8fa"
  },
  "rows": [
-  ".......aaaaaa.............",
-  "......aiiiiieaa...........",
+  ".......aaaaaaa............",
+  "......aiiiiieea...........",
   ".....aiiiieieeea..........",
-  "....aeiiiieeeeea..........",
-  "....aeieieeeeeea..........",
-  "....aieieeooddeea.........",
-  "....aieiamrroaokk.........",
-  "....aieiarmooaoom.........",
-  "....aieiammoooook.........",
-  "....aieeekmooomk..........",
-  ".....aaegkmmmmmk..........",
-  ".......gggnnnnng..........",
-  ".....ggnnnnnnggg..........",
+  ".....aieieeeeeeea.........",
+  ".....aieieeeeeeea.........",
+  ".....aieeaeddoeok.........",
+  ".....aieaoooaoook.........",
+  ".....aeeaomoaoaok.........",
+  "....aieeammoooomk.........",
+  "....aieaakmoommmk.........",
+  "....aeiaakmmmmmk..........",
+  "....aeigggnnnnng..........",
+  "....aebnnnnnnggg..........",
   "....ggbnnnnggjfb..........",
   "..ggngbcccccjjfb..........",
   ".gnnngblllhhbfffb.........",
@@ -55,10 +54,10 @@
   "....komlllcqqcbookh.......",
   ".....kblhhcqbccoohkh......",
   "......bbbbbbbbbhhhha......",
-  "......bfffffbbihhhssa.....",
-  "......bffffbiibb.assa.....",
-  ".....bfffabiiiea.assa.....",
-  "......baadaiiiea..aspa....",
+  "......bfffffbbihhhrra.....",
+  "......bffffbiibb.arra.....",
+  ".....bfffabiiiea.arra.....",
+  "......baadaiiiea..arpa....",
   "......aeedaaiieea.appa....",
   "......aeedaaaeeea.appa....",
   "......aeedaaeeeea.appa....",
@@ -74,27 +73,31 @@
  ],
  "intended": [
   [
+   11,
+   5
+  ],
+  [
    12,
    5
   ],
   [
-   13,
-   5
-  ],
-  [
-   13,
+   12,
    6
   ],
   [
-   13,
+   12,
    7
   ],
   [
-   14,
+   13,
+   8
+  ],
+  [
+   13,
    9
   ],
   [
-   16,
+   14,
    7
   ]
  ]

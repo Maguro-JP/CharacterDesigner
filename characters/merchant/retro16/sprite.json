@@ -39,7 +39,7 @@
   "....eooooomme...",
   "....ddddddddd...",
   "....dinnndkhd...",
-  "....indnndkhd...",
+  "....inddndkhd...",
   "....inlnldkhd...",
   ".....illeekhd...",
   ".....allacbbb...",
@@ -62,6 +62,10 @@
   [
    6,
    11
+  ],
+  [
+   7,
+   10
   ]
  ]
 }

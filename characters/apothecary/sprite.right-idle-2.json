@@ -28,23 +28,22 @@
   "o": "#a2664a",
   "p": "#a86a3a",
   "q": "#d49a70",
-  "r": "#d8ceb0",
-  "s": "#f0c8a0"
+  "r": "#d8ceb0"
  },
  "rows": [
   "..........................",
   "..........................",
   "......cccccccc............",
-  ".....cpkppppkpc...........",
-  "....ccpkpppkpkkc..........",
-  "...cpppkpkpkkkkc..........",
-  "....cpppkkkkkkkc..........",
-  "....cppkkkqqffkkc.........",
-  "....ckpkcossqcqkk.........",
-  "....ckkkcsoqqcqqo.........",
-  "....ckkkcooqqqqqj.........",
-  "....ckkkkjoqqqoj..........",
-  ".....ccccjqqqqoj..........",
+  ".....cpkppppkkc...........",
+  "....ccpkpppkkkkc..........",
+  "...cpppkpkpkkkkkc.........",
+  "....cpppkkkkkkkcc.........",
+  "....cppkkccffqkqj.........",
+  "....ckpkcqqqcqqqj.........",
+  "....ckkkcqoqcqcqj.........",
+  "....ckkkcooqqqqoj.........",
+  "....ckkkkjoqqoooj.........",
+  ".....ccccjqqqooj..........",
   ".......aajqooaa...........",
   "......aggaooogga..........",
   ".....adgggaaagga..........",
@@ -74,27 +73,31 @@
  ],
  "intended": [
   [
+   11,
+   7
+  ],
+  [
    12,
    7
   ],
   [
-   13,
-   7
-  ],
-  [
-   13,
+   12,
    8
   ],
   [
-   13,
+   12,
    9
   ],
   [
-   14,
+   13,
+   10
+  ],
+  [
+   13,
    11
   ],
   [
-   16,
+   14,
    9
   ]
  ]

@@ -34,16 +34,16 @@
  "rows": [
   "............cccccccc......",
   "...........cppppllllc.....",
-  "..........cpppplplllcc....",
-  "..........clplplllllllc...",
-  "..........cllllllllllc....",
-  ".........cllggqlcllllc....",
-  ".........lsscqqqqclllc....",
-  ".........osscqqqqclglc....",
+  "..........cpppplllllcc....",
+  ".........cplplplllllllc...",
+  ".........cpllllllllllc....",
+  ".........ksqqgglcllllc....",
+  ".........kssscqlqclllc....",
+  ".........kscqcqqqclglc....",
   ".........kqqqqqqoclglc....",
-  "..........koqqookclglc....",
+  ".........kqqoqookclglc....",
   "..........kqqqookclcc.....",
-  "...........kkoookac.......",
+  "...........kqoookac.......",
   "...........aaoooaeaa......",
   "..........ahecaaeeeea.....",
   "..........aheecaeeeea.....",
@@ -74,27 +74,31 @@
  ],
  "intended": [
   [
-   9,
+   11,
    7
   ],
   [
-   11,
+   12,
+   8
+  ],
+  [
+   12,
    9
   ],
   [
-   12,
+   13,
    5
   ],
   [
-   12,
+   13,
    6
   ],
   [
-   12,
+   13,
    7
   ],
   [
-   13,
+   14,
    5
   ]
  ]

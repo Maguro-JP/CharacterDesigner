@@ -6,7 +6,7 @@
  "head_height": 12,
  "body_box": [
   4,
-  1,
+  0,
   25,
   39
  ],
@@ -29,36 +29,35 @@
   "p": "#d4dce6",
   "q": "#d8685a",
   "r": "#e2b454",
-  "s": "#f0c8a0",
-  "t": "#f6f8fa"
+  "s": "#f6f8fa"
  },
  "rows": [
-  "............................",
-  ".........aaaaaa.............",
-  "........akkkkkfaa...........",
+  "..........aaaaa.............",
+  ".........akkkkfa............",
+  "........akkkkkffa...........",
   ".......akkkkkkfffa..........",
-  "......akkkkfkffffa..........",
-  "......akffkffffffa..........",
-  "......akfkffoooofaa.........",
-  "......akfkamssoaohh.........",
-  "......akffasmooaoooh........",
-  "......akffammoooooh.........",
-  "......affffhmooomh..........",
-  ".......aabahooommbbb........",
-  ".....bbbbabhommttpplb.......",
-  "....bttptttcmmtttplllee.....",
-  "....bpppttttccppttlgcrre....",
-  "....blllttttppllttpgceee....",
-  "....blgttttpplllpppcjjja....",
+  ".......akkkfkfffffa.........",
+  ".......affkfffffffa.........",
+  "......affkfafooofoh.........",
+  ".......afkaoooaoooh.........",
+  ".......affaomoaoaoh.........",
+  ".......affammoooomh.........",
+  "........aaahmoommmh.........",
+  "...........hooommbbb........",
+  ".....bbbbbbhommsspplb.......",
+  "....bsspssscmmsssplllee.....",
+  "....bpppssssccppsslgcrre....",
+  "....blllssssppllsspgceee....",
+  "....blgsssspplllpppcjjja....",
   "...dndgppppplllglllcjjjja...",
   "...dnndpllllllggglgcjjea....",
   "...dnndlllllgggggggbbeeee...",
   "..dnnnndcccccccccbbrrrrrre..",
-  "..dnnndjjjjjarracaeretljje..",
-  "..dnnndjjeeeardaeeaeetlee...",
+  "..dnnndjjjjjarracaeresljje..",
+  "..dnnndjjeeeardaeeaeeslee...",
   "..dnnnidddddddddda..bplb....",
-  "..dnnniqqnnnndtpldd.bplb....",
-  "..dnniinnnnndttpllb.bplb....",
+  "..dnnniqqnnnndspldd.bplb....",
+  "..dnniinnnnndsspllb.bplb....",
   "..dnniinnniidppllgb.bplb....",
   "..dniidccicdbpplggb.bplb....",
   ".dniiidllccbbpplggb.bplb....",
@@ -75,23 +74,23 @@
  ],
  "intended": [
   [
-   15,
+   14,
    7
   ],
   [
-   15,
+   14,
    8
   ],
   [
-   16,
+   15,
+   9
+  ],
+  [
+   15,
    10
   ],
   [
-   18,
-   8
-  ],
-  [
-   19,
+   16,
    8
   ]
  ]

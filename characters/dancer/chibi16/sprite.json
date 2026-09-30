@@ -28,11 +28,11 @@
   ".....aagddaa....",
   "....agdgdddga...",
   "....agdddddga...",
-  "...aaakkkddgda..",
-  "...fkkkkkaddda..",
-  "...fiakkkiadda..",
-  "....fkkkiaddda..",
-  ".....fkifagdda..",
+  "...addkaiddgda..",
+  "...fkkkkiaddda..",
+  "...faikakiadda..",
+  "...fkkkiiaddda..",
+  "....ffkifagdda..",
   ".....fiiiegdda..",
   "...feillllddda..",
   "..ffeeiiiiddda..",
@@ -45,18 +45,18 @@
  "intended": [
   [
    4,
-   3
-  ],
-  [
-   4,
    5
   ],
   [
    5,
+   5
+  ],
+  [
+   7,
    3
   ],
   [
-   5,
+   7,
    5
   ]
  ]
