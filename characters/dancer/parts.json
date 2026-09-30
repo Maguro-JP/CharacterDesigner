@@ -1,0 +1,62 @@
+{
+ "base": "../cleric/parts.json",
+ "name": "踊子（女）",
+ "brief": "箱庭ドット のドット絵の踊子の女。女性の枠。赤い長い巻き布の下衣に金の胸当て、腰の金の飾り帯が後ろへ流れる。腕と腹は素肌、金の腕輪。紫がかった黒髪。片腕を胸の高さへ上げる。左向きの 3/4",
+ "materials": {
+  "hair": {"outline": "#1e1020", "line": "#1e1020", "ramp": ["#3e2030", "#5a2e48", "#804068"], "steps": [0.42, 0.72]}
+ },
+ "remove": ["stole", "hem", "mantle", "staff", "staff_head"],
+ "override": {
+  "torso": {
+   "material": "skin",
+   "shapes": [{"type": "poly", "points": [[12.4, 12.6], [17.4, 12.6], [18, 16.5], [17.4, 21], [12.8, 21], [12, 16.5]]}],
+   "line_same": true
+  },
+  "belt": {"material": "gold", "shapes": [{"type": "rect", "at": [12.4, 20.2, 17.8, 21.4]}]},
+  "robe_skirt": {
+   "material": "cloth",
+   "strands": {"angle": 75, "period": 2.6, "amp": 0.16},
+   "shapes": [
+    {
+     "type": "poly",
+     "points": [[12.4, 21], [17.8, 21], [19.8, 34.8], [15.4, 34.8], [14.6, 28], [13.6, 34.8], [10, 34.8]]
+    }
+   ]
+  },
+  "near_arm": {
+   "material": "skin",
+   "shapes": [{"type": "capsule", "points": [[12.6, 14.2], [10.4, 16.8], [7.4, 17.8]], "r": 1.1}],
+   "line_same": true
+  },
+  "far_arm": {"material": "skin", "shapes": [{"type": "capsule", "points": [[17.2, 14.2], [18.2, 18]], "r": 1.1}]},
+  "hand": {"shapes": [{"type": "ellipse", "at": [6.6, 17.6, 0.9, 0.9]}], "line_same": true},
+  "far_boot": {"shapes": [{"type": "poly", "points": [[15.6, 34.6], [17.8, 34.6], [18, 37], [15.2, 37], [15.2, 36]]}]},
+  "near_boot": {"shapes": [{"type": "poly", "points": [[11.2, 34.6], [13.6, 34.6], [13.8, 37], [10.2, 37], [10.4, 36]]}]}
+ },
+ "add": [
+  {
+   "name": "sash_tail",
+   "material": "gold",
+   "before": "far_boot",
+   "prop": true,
+   "breathe": 0.5,
+   "shapes": [{"type": "poly", "points": [[17, 20.4], [19, 20.2], [22.6, 26], [22, 29.6], [20.4, 26.4], [18, 22.4]]}]
+  },
+  {
+   "name": "top",
+   "material": "gold",
+   "after": "near_arm",
+   "breathe": 0.5,
+   "shapes": [{"type": "poly", "points": [[12, 13.6], [18, 13.6], [18.4, 16.6], [15.2, 17.6], [12.4, 17]]}],
+   "line_same": false
+  },
+  {
+   "name": "bracelet",
+   "material": "gold",
+   "after": "near_arm",
+   "weight": 2,
+   "breathe": 0.5,
+   "shapes": [{"type": "capsule", "points": [[8.6, 17.2], [8.8, 18.2]], "r": 0.5}]
+  }
+ ]
+}

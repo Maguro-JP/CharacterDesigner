@@ -1,0 +1,166 @@
+{
+ "base": "../swordsman/parts.json",
+ "name": "狩人（男）",
+ "brief": "箱庭ドット のドット絵の狩人の男。男性の枠。緑の頭巾と肩掛け、革の胴着、背に矢筒。弓を前に下げて持つ。左向きの 3/4",
+ "canvas": [26, 39],
+ "materials": {
+  "tunic": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#2a2a3c", "#8a7a5a", "#b0a078"], "steps": [0.42, 0.76]},
+  "hair": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#5a2a1c", "#8a4a2a", "#b06a3a"], "steps": [0.42, 0.7]},
+  "wood": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#5a3a22", "#8a5a34"], "steps": [0.55]},
+  "string": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#d8d0b8"]},
+  "hood": {"outline": "#16241a", "line": "#16241a", "ramp": ["#2e4a2a", "#4a7040", "#7aa060"], "steps": [0.42, 0.76]}
+ },
+ "remove": ["scarf_tail", "scarf", "blade", "guard", "grip", "hand"],
+ "override": {
+  "near_arm": {"shapes": [{"type": "capsule", "points": [[12.2, 14.2], [10.6, 17.4], [8.4, 19.6]], "r": 1.3}]},
+  "face": {"bias": -0.12}
+ },
+ "add": [
+  {
+   "name": "quiver",
+   "material": "leather",
+   "before": "far_arm",
+   "prop": true,
+   "bias": -0.1,
+   "shapes": [{"type": "poly", "points": [[19.4, 10.8], [21.6, 10.2], [23.8, 19.6], [21.8, 20.4]]}],
+   "breathe": 0.5
+  },
+  {
+   "name": "fletching",
+   "material": "cloth",
+   "before": "quiver",
+   "prop": true,
+   "weight": 1.5,
+   "shapes": [{"type": "poly", "points": [[19.6, 9.2], [20.6, 7.4], [22.8, 7.6], [22.6, 10.2], [20.2, 11]]}],
+   "breathe": 0.5
+  },
+  {
+   "name": "hood_drape",
+   "material": "hood",
+   "after": "bangs",
+   "bias": -0.08,
+   "shapes": [
+    {
+     "type": "poly",
+     "points": [[16.6, 5], [20, 2], [21.4, 5.6], [21.2, 10], [19.8, 12.6], [17.2, 12.4], [16.6, 8]]
+    }
+   ],
+   "breathe": 1
+  },
+  {
+   "name": "hood",
+   "material": "hood",
+   "after": "hood_drape",
+   "head": true,
+   "shapes": [
+    {
+     "type": "poly",
+     "points": [
+      [10.4, 6], [10.8, 2.6], [13.2, 0.8], [16.4, 0.5], [18.4, 0.9], [20, 2], [20.6, 5.4], [18.4, 6.6],
+      [16.6, 8], [15.8, 4.4], [13.6, 3.6], [11.6, 4.8]
+     ]
+    }
+   ],
+   "breathe": 1
+  },
+  {
+   "name": "capelet",
+   "material": "hood",
+   "after": "hood",
+   "shapes": [{"type": "poly", "points": [[11, 12.2], [19, 12.2], [20.2, 15.8], [16, 17], [10.6, 15.2]]}],
+   "breathe": 1
+  },
+  {
+   "name": "bow",
+   "material": "wood",
+   "after": "near_arm",
+   "prop": true,
+   "weight": 2.5,
+   "group": "bow",
+   "shapes": [{"type": "ellipse", "at": [7, 20.4, 2.6, 9.2]}],
+   "cut": [{"type": "ellipse", "at": [8.2, 20.4, 2.4, 8.6]}],
+   "breathe": 0.5
+  },
+  {
+   "name": "bowstring",
+   "material": "string",
+   "after": "bow",
+   "prop": true,
+   "weight": 3,
+   "group": "bow",
+   "no_outline": true,
+   "inner_line": false,
+   "shapes": [{"type": "pixline", "points": [[8, 12], [8, 29]]}],
+   "breathe": 0.5
+  },
+  {
+   "name": "hand",
+   "material": "skin",
+   "after": "bowstring",
+   "weight": 1.5,
+   "shapes": [{"type": "ellipse", "at": [7.6, 20.2, 1.1, 1.1]}],
+   "breathe": 0.5
+  }
+ ],
+ "touchups": [
+  {"note": "目: 前寄りに縦2ドット", "at": [[12, 7], [12, 8]], "c": "hair:outline"},
+  {"note": "鼻: 輪郭から1ドット出す", "at": [[9, 8]], "c": "skin:1"},
+  {"note": "鼻の輪郭", "at": [[8, 8]], "c": "skin:outline"},
+  {"note": "口", "at": [[11, 10]], "c": "skin:0"}
+ ],
+ "frames": [
+  {"name": "idle-2", "dy": 1},
+  {
+   "name": "walk-1",
+   "move": {
+    "near_leg": {"points": [[0, 0], [-1.2, 0], [-2, -0.2]]},
+    "near_boot": {"offset": [-2, -0.2]},
+    "far_leg": {"points": [[0, 0], [0.6, -0.2], [2, -0.5]]},
+    "far_boot": {"offset": [2, -0.8]},
+    "near_arm": {"points": [[0, 0], [0.5, 0], [1, 0]]},
+    "hand": {"offset": [1, 0]},
+    "bow": {"offset": [1, 0]},
+    "bowstring": {"offset": [1, 0]},
+    "far_arm": {"offset": [-0.5, 0]},
+    "far_hand": {"offset": [-0.5, 0]}
+   }
+  },
+  {
+   "name": "walk-2",
+   "move": {
+    "near_leg": {"points": [[0, 0], [0, 0], [0, 0]]},
+    "near_boot": {"offset": [0, 0]},
+    "far_leg": {"points": [[0, 0], [-1.6, -1.2], [0, -2.4]]},
+    "far_boot": {"offset": [0, -2.4]}
+   },
+   "body_dy": -1
+  },
+  {
+   "name": "walk-3",
+   "move": {
+    "near_leg": {"points": [[0, 0], [0.6, -0.2], [2, -0.5]]},
+    "near_boot": {"offset": [2, -0.8]},
+    "far_leg": {"points": [[0, 0], [-1.2, 0], [-2, -0.2]]},
+    "far_boot": {"offset": [-2, -0.2]},
+    "near_arm": {"points": [[0, 0], [-0.5, 0], [-1, 0]]},
+    "hand": {"offset": [-1, 0]},
+    "bow": {"offset": [-1, 0]},
+    "bowstring": {"offset": [-1, 0]},
+    "far_arm": {"offset": [0.5, 0]},
+    "far_hand": {"offset": [0.5, 0]}
+   }
+  },
+  {
+   "name": "walk-4",
+   "move": {
+    "near_leg": {"points": [[0, 0], [-1.6, -1.2], [0, -2.4]]},
+    "near_boot": {"offset": [0, -2.4]},
+    "far_leg": {"points": [[0, 0], [0, 0], [0, 0]]},
+    "far_boot": {"offset": [0, 0]}
+   },
+   "body_dy": -1
+  },
+  {"name": "right", "mirror": true}
+ ],
+ "mirror_frames": true
+}

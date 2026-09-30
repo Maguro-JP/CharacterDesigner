@@ -1,0 +1,75 @@
+{
+ "name": "学者（男）",
+ "style": "chibi16",
+ "brief": "箱庭ドット のドット絵の学者の男。男性の枠。黒の短髪に丸眼鏡、臙脂の長い上着に白い襟、青い表紙の本を片手に抱える。左向きの 3/4",
+ "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
+ "head_height": 9,
+ "body_box": [
+  3,
+  0,
+  14,
+  16
+ ],
+ "palette": {
+  "a": "#1a1a1a",
+  "b": "#1a1a28",
+  "c": "#2a0e14",
+  "d": "#3e3e58",
+  "e": "#3e5a9a",
+  "f": "#44444c",
+  "g": "#66666e",
+  "h": "#6a2232",
+  "i": "#6e3a2c",
+  "j": "#8a5a34",
+  "k": "#a2664a",
+  "l": "#d49a70"
+ },
+ "rows": [
+  ".....aagfffga...",
+  "....agfgfffgba..",
+  "....agfffffgba..",
+  "...alblbbaffba..",
+  "...allllklaffa..",
+  "...kkblllkaffa..",
+  "...illllkifafa..",
+  "....illlkiaaa...",
+  ".....ckkkic.....",
+  "....ccccchhc....",
+  "....ceeecccc....",
+  ".....ellddcc....",
+  "....ccgdcccc....",
+  "....ccgdchhc....",
+  "....ccbbbbhc....",
+  "....cjjjjhcc...."
+ ],
+ "intended": [
+  [
+   3,
+   5
+  ],
+  [
+   4,
+   3
+  ],
+  [
+   4,
+   5
+  ],
+  [
+   5,
+   3
+  ],
+  [
+   5,
+   5
+  ],
+  [
+   7,
+   3
+  ],
+  [
+   8,
+   3
+  ]
+ ]
+}

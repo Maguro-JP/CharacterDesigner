@@ -1,0 +1,63 @@
+{
+ "name": "戦士（男）v4 部品組み",
+ "style": "chibi16",
+ "brief": "箱庭ドット のドット絵の戦士の男。大柄男性の枠。重い鎧、広い肩、両手剣を地に立てて構える。左向きの 3/4",
+ "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
+ "head_height": 8,
+ "body_box": [
+  1,
+  0,
+  14,
+  16
+ ],
+ "palette": {
+  "a": "#2a1c1c",
+  "b": "#2c2f3c",
+  "c": "#3e4454",
+  "d": "#4a1c20",
+  "e": "#5c3e2a",
+  "f": "#5e687a",
+  "g": "#7c2a2a",
+  "h": "#8a5a34",
+  "i": "#8a6440",
+  "j": "#96a2b2",
+  "k": "#a2664a",
+  "l": "#d49a70"
+ },
+ "rows": [
+  ".....aaieieia...",
+  "....aiiieieida..",
+  "....aieeeeeida..",
+  "...aeallkaeeda..",
+  "...ellllklaeea..",
+  "...ekalllkaeea..",
+  "...ellllkeeaea..",
+  "....akklkeaaa...",
+  "..aajjjkkejjb...",
+  ".ahhejfccjjcbb..",
+  "ejeeffcccccddd..",
+  ".ejjbajcdhhdggd.",
+  ".bjfbdjcdddgggd.",
+  ".bjfbjcbdccdggd.",
+  ".bjfbccabccadd..",
+  ".bjfbhhcahhca..."
+ ],
+ "intended": [
+  [
+   3,
+   5
+  ],
+  [
+   4,
+   5
+  ],
+  [
+   5,
+   3
+  ],
+  [
+   5,
+   5
+  ]
+ ]
+}

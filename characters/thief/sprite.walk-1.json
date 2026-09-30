@@ -1,0 +1,102 @@
+{
+ "name": "盗賊（男）",
+ "style": "diorama",
+ "brief": "箱庭ドット のドット絵の盗賊の男。男性の枠。銀の髪に赤い鉢巻き、灰紫の上着、口元まで覆う深緑の襟巻き、短剣を逆手に持つ。左向きの 3/4",
+ "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
+ "head_height": 12,
+ "body_box": [
+  7,
+  1,
+  23,
+  39
+ ],
+ "palette": {
+  "a": "#10201a",
+  "b": "#1a1420",
+  "c": "#1a1a28",
+  "d": "#1e3a2e",
+  "e": "#2a1c1c",
+  "f": "#2c2f3c",
+  "g": "#2e5a44",
+  "h": "#3e3e58",
+  "i": "#4a1c20",
+  "j": "#4a4058",
+  "k": "#5a3a22",
+  "l": "#5c5c80",
+  "m": "#6e3a2c",
+  "n": "#8a5a34",
+  "o": "#a2664a",
+  "p": "#a2a8b8",
+  "q": "#b8443a",
+  "r": "#d49a70",
+  "s": "#d4dce6",
+  "t": "#f6f8fa"
+ },
+ "rows": [
+  "..........................",
+  ".............ffffff.......",
+  "............fpsppppf......",
+  "...........fpspsppfpf.....",
+  "..........ifffffffqfpf....",
+  ".........iqqqqqqqqffpf....",
+  ".........fffffooffffpii...",
+  ".........mrrbrrrrfpppiqi..",
+  "........mrrrbrrrrfpppfqi..",
+  ".........mrrrrrroflppfi...",
+  "..........aooooogolppf....",
+  ".........aggggggaalff.....",
+  ".........agggggggga.......",
+  ".........agaaggggggaa.....",
+  "..........bljaddddeagaa...",
+  "..........bljjeeeekbagga..",
+  "..........bljjennnkbaddda.",
+  "..........bjjjennnkbaddda.",
+  "..........bjjjbnnkkbbada..",
+  ".........bbbjbbnnkkbbba...",
+  ".........mrrbbbnkkkoom....",
+  ".........mrrbrrennnom.....",
+  "........krkrbreekkkb......",
+  ".........kkkbbbbbbbb......",
+  "..........bbtcbjjjjb......",
+  "..........cctcjbjjjb......",
+  "..........clctcbcffjb.....",
+  "..........clctcbhccb......",
+  "..........clhcschhhc......",
+  ".........cllhcschhhhc.....",
+  ".........clhhccschhhc.....",
+  ".........clhhccschhhc.....",
+  "........clhhhc.c.ccccc....",
+  "........eccccc...ennne....",
+  ".......ennnnne...ennkke...",
+  ".......ennnnne..ennkkke...",
+  ".......ennnkke..ekkkkke...",
+  ".......ennkkke...eeeee....",
+  "........eeeee............."
+ ],
+ "intended": [
+  [
+   8,
+   8
+  ],
+  [
+   9,
+   8
+  ],
+  [
+   12,
+   6
+  ],
+  [
+   12,
+   7
+  ],
+  [
+   12,
+   8
+  ],
+  [
+   13,
+   6
+  ]
+ ]
+}

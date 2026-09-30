@@ -19,7 +19,7 @@ MATS = {"metal": {"outline": "#101010", "ramp": ["#404040", "#808080", "#c0c0c0"
 
 
 def spec(parts, canvas=(12, 12), **kw):
-    s = {"name": "t", "style": "hd2d", "canvas": list(canvas), "materials": MATS, "parts": parts}
+    s = {"name": "t", "style": "diorama", "canvas": list(canvas), "materials": MATS, "parts": parts}
     s.update(kw)
     return s
 
@@ -214,8 +214,8 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout + "\n→ python3 tools/fmt.py characters/*/parts.json で直る")
 
     def test_warrior_v4_passes_style_check(self):
-        r = subprocess.run([sys.executable, "tools/check.py", "characters/hd2d-warrior-v4/sprite.json",
-                            "styles/hd2d.json"], cwd=ROOT, capture_output=True, text=True)
+        r = subprocess.run([sys.executable, "tools/check.py", "characters/warrior/sprite.json",
+                            "styles/diorama.json"], cwd=ROOT, capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout)
 
 
