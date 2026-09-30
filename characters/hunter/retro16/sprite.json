@@ -7,7 +7,7 @@
  "body_box": [
   3,
   1,
-  14,
+  13,
   23
  ],
  "palette": {
@@ -15,7 +15,7 @@
   "b": "#1a1a28",
   "c": "#2a1c1c",
   "d": "#2e4a26",
-  "e": "#2e4a2a",
+  "e": "#4a1c20",
   "f": "#4a7040",
   "g": "#583018",
   "h": "#5a3a22",
@@ -34,10 +34,10 @@
   "....afffffffa...",
   "....afccffffa...",
   "....cakgcfffa...",
-  "....cmkmgfeea...",
-  "....dmmogffea...",
-  "...ccmkkgffea...",
-  "..cjckgggfecec..",
+  "....cmkmgfdda...",
+  "....dmmogffda...",
+  "...ccmkkgffee...",
+  "..cjckgggfecc...",
   ".cjjnaaiiffcc...",
   ".cjjnclafffcc...",
   ".cjcnclaffccc...",

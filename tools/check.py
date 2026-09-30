@@ -46,7 +46,8 @@ def main():
     head = data.get("head_height")
     if head:
         heads = bh / head
-        pr = style["proportion"]["heads_tall"]
+        # 子供の枠は頭の比率が大きいので、枠に heads_tall があればそちらで数える
+        pr = (frame or {}).get("heads_tall") or style["proportion"]["heads_tall"]
         judge("頭身", pr[0] <= heads <= pr[1], f"{heads:.2f}（頭 {head}px、範囲 {pr}）")
 
     # 色数（実際に使っている色）

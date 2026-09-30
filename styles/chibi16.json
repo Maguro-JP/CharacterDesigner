@@ -6,17 +6,46 @@
   ],
   "unverified": true,
   "canvas": {
-    "base": [16, 16],
-    "width_range": [10, 16],
-    "height_range": [14, 16],
+    "base": [
+      16,
+      16
+    ],
+    "width_range": [
+      10,
+      16
+    ],
+    "height_range": [
+      14,
+      16
+    ],
     "note": "フィールドの歩き絵。1枚 16x16。頭と体がほぼ同じ大きさ",
     "frames": {
-      "child": {"width_range": [8, 14], "height_range": [12, 16], "note": "子供の枠（未確認）"}
+      "child": {
+        "width_range": [
+          8,
+          14
+        ],
+        "height_range": [
+          12,
+          16
+        ],
+        "note": "子供の枠（未確認）。頭身は 1.2〜1.8（未確認。大人より頭の比率が大きい）",
+        "heads_tall": [
+          1.2,
+          1.8
+        ]
+      }
     }
   },
   "proportion": {
-    "heads_tall": [1.4, 2.0],
-    "head_height_px": [7, 9],
+    "heads_tall": [
+      1.4,
+      2.0
+    ],
+    "head_height_px": [
+      7,
+      9
+    ],
     "note": "2頭身弱。頭が体の半分以上"
   },
   "palette": {
@@ -28,8 +57,14 @@
     "max_outline_luma": 0.28,
     "note": "黒に近い暗い輪郭で形をはっきりさせる"
   },
-  "light": {"direction": "top-left", "note": "段は1〜2段。陰影より形と色で見せる"},
-  "cleanup": {"max_orphan_pixels": 3, "note": "16x16 では1ドットの傷がそのまま顔つきに出る"},
+  "light": {
+    "direction": "top-left",
+    "note": "段は1〜2段。陰影より形と色で見せる"
+  },
+  "cleanup": {
+    "max_orphan_pixels": 3,
+    "note": "16x16 では1ドットの傷がそのまま顔つきに出る"
+  },
   "render": {
     "note": "箱庭ドット 用の parts.json から描き分けるときの変換。全体を縮めてから頭を大きく戻し、16x16 に収める",
     "canvas": [
@@ -67,5 +102,8 @@
       }
     ]
   },
-  "presentation": {"scale": 8, "stage": "平らな地面。影なし"}
+  "presentation": {
+    "scale": 8,
+    "stage": "平らな地面。影なし"
+  }
 }

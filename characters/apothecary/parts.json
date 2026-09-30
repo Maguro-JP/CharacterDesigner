@@ -27,21 +27,9 @@
    "spec_gain": 0.5
   }
  },
- "remove": ["scarf_tail", "scarf", "blade", "guard", "grip", "vest"],
+ "remove": ["scarf_tail", "scarf", "blade", "guard", "grip", "vest", "hair_tail"],
  "override": {
-  "hair_back": {
-   "strands": {"angle": 0, "period": 2.2, "amp": 0.2},
-   "shapes": [
-    {
-     "type": "poly",
-     "points": [
-      [11.2, 4.2], [11.8, 1.6], [13.4, 1.4], [14.4, 0.6], [15.6, 1.2], [17.2, 0.5], [18.2, 1.4], [20, 0.8],
-      [20.2, 2.6], [21.8, 3.4], [20.8, 5], [21.6, 7], [20.4, 8.2], [20.8, 10.4], [19, 9.8], [18, 11],
-      [17.2, 9.8], [16.4, 7]
-     ]
-    }
-   ]
-  },
+  "hair_back": {"strands": {"angle": 0, "period": 1.6, "amp": 0.35}},
   "coat_tail": {
    "shapes": [{"type": "poly", "points": [[11.4, 21.6], [18.8, 21.6], [19.8, 27.4], [15, 26.6], [10.8, 27.4]]}]
   },
