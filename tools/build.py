@@ -630,7 +630,9 @@ def build(spec):
     clean_orphans(colors, protect, keep)
     if spec.get("flatten_crown"):
         flatten_crown(colors)
-    reduce_colors(colors, style_max_colors(spec), protect)
+    # 色を寄せると、寄せた先の色のドットが新しく孤立することがある。寄せたあとにもう一度掃除する
+    if reduce_colors(colors, style_max_colors(spec), protect):
+        clean_orphans(colors, protect, keep)
     return to_sprite(spec, colors, owner), (top, light, size)
 
 
