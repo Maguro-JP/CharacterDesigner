@@ -123,10 +123,9 @@
   }
  ],
  "touchups": [
-  {"note": "手前の目: 縦2ドット。まつ毛は髪の輪郭の色", "at": [[13, 7], [13, 8]], "c": "hair:outline"},
-  {"note": "まつ毛の先", "at": [[14, 7]], "c": "hair:outline"},
-  {"note": "奥の目", "at": [[11, 8]], "c": "hair:outline"},
-  {"note": "口", "at": [[12, 10]], "c": "skin:0"}
+  {"note": "目: まつ毛は髪の輪郭の色", "at": [[12, 7], [13, 7]], "c": "hair:outline"},
+  {"note": "瞳", "at": [[12, 8]], "c": "#4a7aa8"},
+  {"note": "目の光", "at": [[11, 8]], "c": "#f2ede4"}
  ],
  "frames": [
   {"name": "idle-2", "dy": 1},
@@ -174,5 +173,6 @@
   },
   {"name": "right", "mirror": true}
  ],
- "mirror_frames": true
+ "mirror_frames": true,
+ "flatten_crown": false
 }

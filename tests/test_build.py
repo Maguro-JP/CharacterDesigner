@@ -25,6 +25,21 @@ def spec(parts, canvas=(12, 12), **kw):
 
 
 class BuildTest(unittest.TestCase):
+    def test_flatten_crown_lowers_narrow_top(self):
+        # 3ドット幅のこぶは1段下がり、広い頭頂や杖の先のような形はそのまま
+        a = "#101010"
+        nub = [[None] * 9 for _ in range(4)]
+        for x in (3, 4, 5):
+            nub[0][x] = a
+        for y in (1, 2, 3):
+            for x in range(1, 8):
+                nub[y][x] = "#806040"
+        self.assertEqual(build.flatten_crown(nub), 3)
+        self.assertTrue(all(c is None for c in nub[0]))
+        self.assertEqual(nub[1][4], a)
+        wide = [[a] * 6 + [None] * 3, ["#806040"] * 9, ["#806040"] * 9]
+        self.assertEqual(build.flatten_crown(wide), 0)
+
     def test_committed_sprites_are_reproducible(self):
         # sprite.json は parts.json から書き出したもの。手で直すと次の書き出しで消えるので、一致を見る
         for parts in ROOT.glob("characters/*/parts.json"):

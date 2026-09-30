@@ -19,55 +19,47 @@
   "f": "#4a7040",
   "g": "#5a3a22",
   "h": "#5c5c80",
-  "i": "#6e3a2c",
-  "j": "#7aa060",
-  "k": "#8a5a34",
-  "l": "#8a7a5a",
-  "m": "#a2664a",
-  "n": "#d49a70",
-  "o": "#d8d0b8"
+  "i": "#7aa060",
+  "j": "#8a5a34",
+  "k": "#8a7a5a",
+  "l": "#a2664a",
+  "m": "#d49a70",
+  "n": "#d8d0b8",
+  "o": "#f2ede4"
  },
  "rows": [
   "................",
   "......aaaaa.....",
-  ".....ajjjffa....",
+  ".....aiiiffa....",
   "....afffffffa...",
-  "....afccffffa...",
-  "....ifncmfffa...",
-  "...innccmfdda...",
-  "....inmmmffda...",
-  "...cinmmmffda...",
-  "..ckcimmmfdcdc..",
-  ".ckkocajjffcc...",
-  ".ckkoclafffcc...",
-  ".ckkoclaffccc...",
-  ".ckkoclccccccc..",
-  ".ccoocclcggcc...",
-  ".ckkoccecgcc....",
-  ".ckcobheccc.....",
-  ".ckcobhecllc....",
-  ".ckkobhebbc.....",
-  "..ckobheeeb.....",
-  "...cobhebeb.....",
+  "...ccfccffffa...",
+  "...cfccccfffa...",
+  "...gmmollfdda...",
+  "....gmmllffda...",
+  "...cgmlllffda...",
+  "..cjcglllfdcdc..",
+  ".cjjncaiiffcc...",
+  ".cjjnckafffcc...",
+  ".cjjnckaffccc...",
+  ".cjjnckccccccc..",
+  ".ccnncckcggcc...",
+  ".cjjnccecgcc....",
+  ".cjcnbheccc.....",
+  ".cjcnbheckkc....",
+  ".cjjnbhebbc.....",
+  "..cjnbheeeb.....",
+  "...cnbhebeb.....",
   ".....cbbbbc.....",
-  "....ckkkkkgc....",
-  "....ckkkgggc...."
+  "....cjjjjjgc....",
+  "....cjjjgggc...."
  ],
  "intended": [
   [
    6,
-   6
-  ],
-  [
-   6,
-   7
-  ],
-  [
-   7,
    5
   ],
   [
-   7,
+   6,
    6
   ]
  ]

@@ -13,11 +13,11 @@
  ],
  "palette": {
   "a": "#10302e",
-  "b": "#1e5250",
-  "c": "#2a1c1c",
-  "d": "#2e7a74",
-  "e": "#3a1a10",
-  "f": "#3a2e3a",
+  "b": "#2a1c1c",
+  "c": "#2e7a74",
+  "d": "#3a1a10",
+  "e": "#3a2e3a",
+  "f": "#4a7aa8",
   "g": "#58a89a",
   "h": "#5a2a10",
   "i": "#5a3a22",
@@ -30,7 +30,8 @@
   "p": "#c0602a",
   "q": "#d49a70",
   "r": "#e8904a",
-  "s": "#f0c8a0"
+  "s": "#f0c8a0",
+  "t": "#f2ede4"
  },
  "rows": [
   "........................",
@@ -45,33 +46,33 @@
   "...........hrrrrrrrh....",
   "..........hrrrrrrrrph...",
   "..........hrrppppppph...",
-  "..........eeeeeeeeeee...",
-  "..........eeqqqqennne...",
-  ".........lsqqeeqqenke...",
-  ".........lseqeqqoenkehh.",
-  "..........lqoqoolhnkhrrh",
+  "..........ddddddddddd...",
+  "..........ddqqqqdnnnd...",
+  ".........lsqddqqqdnkd...",
+  ".........lstfqqqodnkdhh.",
+  "..........lqqqoolhnkhrrh",
   "..........lqqqolhnnkhrph",
   "...........laoolhhhhpph.",
-  "...........agdoaddccccc.",
-  "..........aggdadddcmmmc.",
-  "..........agddddddbcmmc.",
-  "..........agddddddbcmic.",
-  "..........ladaaaaaacmic.",
-  ".........lqqacccccdciic.",
-  ".........lqqagggddciiiic",
-  "..........lllgggddciiiic",
-  "...........agggdddciiiic",
-  "..........agaaddddciccc.",
-  "..........aajjadddda....",
-  "..........aajjadddda....",
-  "...........cjfcccca.....",
-  "...........cjfcjffc.....",
-  "...........cjfccjfc.....",
-  "...........cccccccc.....",
-  "..........cmmmcmmic.....",
-  "..........cmmmcmiic.....",
-  "..........cmmcciiic.....",
-  "...........ccc.ccc......"
+  "...........agcoaccbbbbb.",
+  "..........aggcacccbmmmb.",
+  "..........agccccccabmmb.",
+  "..........agccccccabmib.",
+  "..........lacaaaaaabmib.",
+  ".........lqqabbbbbcbiib.",
+  ".........lqqagggccbiiiib",
+  "..........lllgggccbiiiib",
+  "...........agggcccbiiiib",
+  "..........agaaccccbibbb.",
+  "..........aajjacccca....",
+  "..........aajjacccca....",
+  "...........bjebbbba.....",
+  "...........bjebjeeb.....",
+  "...........bjebbjeb.....",
+  "...........bbbbbbbb.....",
+  "..........bmmmbmmib.....",
+  "..........bmmmbmiib.....",
+  "..........bmmbbiiib.....",
+  "...........bbb.bbb......"
  ],
  "intended": [
   [
@@ -80,18 +81,14 @@
   ],
   [
    12,
-   16
-  ],
-  [
-   13,
    14
   ],
   [
-   13,
+   12,
    15
   ],
   [
-   14,
+   13,
    14
   ]
  ]
