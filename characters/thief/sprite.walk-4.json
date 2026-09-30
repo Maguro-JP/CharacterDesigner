@@ -39,9 +39,9 @@
   "z": "#6e3a2c",
   "A": "#702628",
   "B": "#724a2b",
-  "C": "#88503b",
-  "D": "#8a4a3a",
-  "E": "#8a5a34",
+  "C": "#7a3a2a",
+  "D": "#8a5a34",
+  "E": "#955b42",
   "F": "#a2664a",
   "G": "#a2a8b8",
   "H": "#b8443a",
@@ -57,24 +57,24 @@
   "...........kLGLyJssk......",
   "..........kLLGJGGGksk.....",
   ".........kkkkkkkkkHkk.....",
-  ".........qHHHADAADAkqq....",
+  ".........qHHHACAACAkqq....",
   ".........kkkkkkkkkksqHq...",
-  ".........kGIcCwCCkwskDAq..",
-  ".........zKIDCCwCkwskqAq..",
-  ".........zKKKFCCCkwGGkq...",
-  ".........zFFFFFFzkkGwk....",
+  ".........kGKGIwEEkwskCAq..",
+  ".........zKKkkIKEkwskqAq..",
+  ".........zcKcKIIDkwGGkq...",
+  ".........zFFCFFFzkkGwk....",
   ".........allllllaakGsk....",
   ".........allllllleaJsk....",
   ".........alaaeeeebbksk....",
   "..........cyvabbbbjcaaa...",
   "..........cyrnjjjjpcaeba..",
-  ".........cyyncEEEBtcabbea.",
-  ".........cyrhcEEEtpcfabba.",
-  ".........cvnhhcEuppcfcba..",
-  ".........zcnfhcEuppccca...",
-  "........zKKccccttppFCz....",
-  "........zKIujMMjEEEFCz....",
-  ".......uMuCjjMjjuppjz.....",
+  ".........cyyncDDDBtcabbea.",
+  ".........cyrhcDDDtpcfabba.",
+  ".........cvnhhcDuppcfcba..",
+  ".........zcnfhcDuppccca...",
+  "........zKKccccttppFIz....",
+  "........zKKujMMjDDDFEz....",
+  ".......uMuKjjMjjuppjz.....",
   "........uuoccccccccc......",
   "..........dNccvrrkkc......",
   "..........dNdvchffhc......",
@@ -84,22 +84,34 @@
   ".........dxxdNddmkgd......",
   ".........dxoodNdoigd......",
   ".........dodddNdomgd......",
-  "..........jEEEddoigd......",
-  ".........jEEEEBjmigd......",
-  ".........jEEEutjdddj......",
-  ".........jEEutpjEEupj.....",
-  ".........jEBpppjEBppj.....",
+  "..........jDDDddoigd......",
+  ".........jDDDDBjmigd......",
+  ".........jDDDutjdddj......",
+  ".........jDDutpjDDupj.....",
+  ".........jDBpppjDBppj.....",
   "..........jjjjjuutppj.....",
   "..............jtppppj.....",
   "...............jjjjj......"
  ],
  "intended": [
   [
-   12,
-   6
+   10,
+   8
   ],
   [
    12,
+   7
+  ],
+  [
+   12,
+   8
+  ],
+  [
+   12,
+   9
+  ],
+  [
+   13,
    7
   ]
  ]

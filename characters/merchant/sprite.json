@@ -22,10 +22,10 @@
   "h": "#32252b",
   "i": "#362a32",
   "j": "#3a1a10",
-  "k": "#422b1f",
-  "l": "#439187",
-  "m": "#4a3c4a",
-  "n": "#4a7aa8",
+  "k": "#3a6a98",
+  "l": "#422b1f",
+  "m": "#439187",
+  "n": "#4a3c4a",
   "o": "#4e3220",
   "p": "#522415",
   "q": "#58a89a",
@@ -43,15 +43,14 @@
   "C": "#9a4a28",
   "D": "#a2664a",
   "E": "#a65224",
-  "F": "#b15d31",
-  "G": "#bb805d",
-  "H": "#c0602a",
-  "I": "#d4783a",
-  "J": "#d49a70",
-  "K": "#e2b188",
-  "L": "#e8904a",
-  "M": "#f0c8a0",
-  "N": "#f2ede4"
+  "F": "#bb805d",
+  "G": "#c0602a",
+  "H": "#d4783a",
+  "I": "#d49a70",
+  "J": "#e2b188",
+  "K": "#e8904a",
+  "L": "#e8e0d4",
+  "M": "#f0c8a0"
  },
  "rows": [
   "........................",
@@ -62,54 +61,62 @@
   "........................",
   "........................",
   "............rrrrrrr.....",
-  "...........rLLLLLILr....",
-  "..........rLLLHEIEAEr...",
-  "..........rIIEAAAAAAr...",
+  "...........rKKKKKHKr....",
+  "..........rKKKGEHEAEr...",
+  "..........rHHEAAAAAAr...",
   "..........jjjjjjjjjjj...",
-  "..........jFBByyjpCpj...",
-  ".........vMKjjBGyjCuj...",
-  ".........vKNnBByyjxpj...",
-  "..........vJByyyvpCpjrr.",
-  "..........vGyyyvjpCprHHr",
+  "..........jIIIFBjpCpj...",
+  ".........vMJIIIIFjCuj...",
+  ".........vJJjjIIBjxpj...",
+  "..........jIjLFFvpCpjrr.",
+  "..........vIkFFvjpCprGGr",
   "...........vayyvrrrrAAAr",
   "...........aqDyaggffffr.",
-  "...........aqgaelgfzzzf.",
-  "..........aqlggggdbfwof.",
+  "...........aqgaemgfzzzf.",
+  "..........aqmggggdbfwof.",
   "..........aqecgggbbfwsf.",
-  "..........alebeccbafoof.",
-  ".........aaacaaaaabfokf.",
-  ".........vJJaffffffkokf.",
-  ".........vJyalqllgfskkkf",
-  "..........vvlqqqggfokkkf",
-  "...........aqqqggcfkkkf.",
+  "..........amebeccbafoof.",
+  ".........aaacaaaaabfolf.",
+  ".........vJIafffffflolf.",
+  ".........vIIamqmmgfslllf",
+  "..........vvmqqqggfolllf",
+  "...........aqqqggcflllf.",
   "..........aqaageccbaff..",
   "..........aattabcbba....",
   "..........aatiabbbba....",
   "...........fthffffa.....",
-  "...........fthfmhhf.....",
+  "...........fthfnhhf.....",
   "...........fthffhhf.....",
   "...........ffffffff.....",
   "..........fzzzfzzof.....",
-  "..........fzzwfwokf.....",
-  "..........fwokfkkkf.....",
+  "..........fzzwfwolf.....",
+  "..........fwolflllf.....",
   "...........fff.fff......"
  ],
  "intended": [
   [
-   11,
+   10,
+   15
+  ],
+  [
+   12,
    14
   ],
   [
    12,
-   13
+   15
   ],
   [
    12,
+   16
+  ],
+  [
+   13,
    14
   ],
   [
    13,
-   13
+   15
   ]
  ]
 }

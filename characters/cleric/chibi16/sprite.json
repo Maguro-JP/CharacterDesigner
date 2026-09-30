@@ -21,20 +21,20 @@
   "h": "#c8a04a",
   "i": "#c8d0e0",
   "j": "#d49a70",
-  "k": "#eed27a",
-  "l": "#f2ede4"
+  "k": "#e8e0d4",
+  "l": "#eed27a"
  },
  "rows": [
-  ".....cckhhcc....",
-  "....ckhkhhhkc...",
-  "....ckhhhhhkc...",
-  "...cjcjcgghkhc..",
+  ".....cclhhcc....",
+  "....clhlhhhlc...",
+  "....clhhhhhlc...",
+  "...chhjggghlhc..",
   "...dhjjjgchhhc..",
-  "..dhlbjjjgchhc..",
-  ".dhhbjjggchhhc..",
-  "..deadjgcckhhc..",
-  "..aeabggaakhhc..",
-  "..aeaiiaafkhhc..",
+  "..dhcbjkjgchhc..",
+  ".dhhbjjjgchhhc..",
+  "..deadjgcclhhc..",
+  "..aeabggaalhhc..",
+  "..aeaiiaaflhhc..",
   "..aeeifaffhhhc..",
   "..aeabfbfichhc..",
   "..aeabfbfibcc...",
@@ -49,15 +49,11 @@
   ],
   [
    5,
-   3
-  ],
-  [
-   5,
    5
   ],
   [
    7,
-   3
+   5
   ]
  ]
 }

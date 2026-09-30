@@ -22,10 +22,10 @@
   "h": "#362a32",
   "i": "#3a1a10",
   "j": "#3a2e3a",
-  "k": "#422b1f",
-  "l": "#439187",
-  "m": "#4a3c4a",
-  "n": "#4a7aa8",
+  "k": "#3a6a98",
+  "l": "#422b1f",
+  "m": "#439187",
+  "n": "#4a3c4a",
   "o": "#4e3220",
   "p": "#522415",
   "q": "#58a89a",
@@ -50,7 +50,7 @@
   "J": "#d49a70",
   "K": "#e2b188",
   "L": "#e8904a",
-  "M": "#f2ede4"
+  "M": "#e8e0d4"
  },
  "rows": [
   "........................",
@@ -65,50 +65,58 @@
   "...rLLLIEEGEAr..........",
   "...rGGAAAAAAAr..........",
   "...iiiiiiiiiii..........",
-  "...iCHxiJJJBpi..........",
-  "...iCHiByJiiyyv.........",
-  "...ixCiyyJJnMyv.........",
-  ".rriCxCvyBByyv..........",
-  "rLLrupCivyyyyv..........",
-  "rIAGrrrrvyyav...........",
-  ".rffffqqayDqa...........",
+  "...iCHiiJJJJpi..........",
+  "...iCHiJFKKJFDv.........",
+  "...ixCiFBJiiFFv.........",
+  ".rriCxCvDJMiFi..........",
+  "rLLrupCivJJkFv..........",
+  "rIAGrrrrvFyav...........",
+  ".rffffqqaBDqa...........",
   ".fzzzfqqqaqqa...........",
-  ".fzzfgqqlgqgga..........",
+  ".fzzfgqqmgqgga..........",
   ".fzzfgqqqgegea..........",
-  ".fzzfallgccgga..........",
+  ".fzzfammgccgga..........",
   ".fzwfDaaaaagaaa.........",
-  ".fzwsffffffaKFv.........",
-  "fwsskfqqqllaJyv.........",
-  "fowskfqqqgggvv..........",
-  ".fkkkfqlqgeca...........",
-  "..ffallggcaaa...........",
-  "....alggcattf...........",
+  ".fzwsffffffaKJv.........",
+  "fwsslfqqqmmaJFv.........",
+  "fowslfqqqgggvv..........",
+  ".flllfqmqgeca...........",
+  "..ffammggcaaa...........",
+  "....amggcattf...........",
   "....agdebatjaa..........",
   ".....aaffttjf...........",
-  "......fmhtmhf...........",
+  "......fnhtnhf...........",
   ".......fffff............",
   ".......fzzzf............",
   ".......fzzzf............",
-  ".......fzskf............",
-  ".......fkkkf............",
+  ".......fzslf............",
+  ".......flllf............",
   "........fff............."
  ],
  "intended": [
   [
    10,
-   13
+   14
   ],
   [
-   11,
-   13
+   10,
+   15
   ],
   [
    11,
    14
   ],
   [
-   12,
-   14
+   11,
+   15
+  ],
+  [
+   11,
+   16
+  ],
+  [
+   13,
+   15
   ]
  ]
 }

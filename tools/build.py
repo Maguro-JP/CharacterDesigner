@@ -323,7 +323,8 @@ def quantize(spec, cells):
             amp = m.get("texture", parts[p].get("texture", tex.get("amp", 0.0)))
             # contrast: 影の側を深く落とし、光の側を立てて立体に見せる
             pv = tex.get("pivot", 0.5)
-            v = pv + (v - pv) * tex.get("contrast", 1.0) + amp * _noise(x, y)
+            # 肌は顔の目鼻が乗る面なので、素材の contrast で幅を抑えられるようにする
+            v = pv + (v - pv) * m.get("contrast", tex.get("contrast", 1.0)) + amp * _noise(x, y)
             k = sum(1 for t in steps if v >= t)
             if tex.get("expand"):
                 band = tex.get("band", 0.05)

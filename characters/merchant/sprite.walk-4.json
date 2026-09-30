@@ -23,10 +23,10 @@
   "i": "#362a32",
   "j": "#3a1a10",
   "k": "#3a2e3a",
-  "l": "#422b1f",
-  "m": "#439187",
-  "n": "#4a3c4a",
-  "o": "#4a7aa8",
+  "l": "#3a6a98",
+  "m": "#422b1f",
+  "n": "#439187",
+  "o": "#4a3c4a",
   "p": "#4e3220",
   "q": "#522415",
   "r": "#58a89a",
@@ -49,8 +49,8 @@
   "I": "#d49a70",
   "J": "#e2b188",
   "K": "#e8904a",
-  "L": "#f0c8a0",
-  "M": "#f2ede4"
+  "L": "#e8e0d4",
+  "M": "#f0c8a0"
  },
  "rows": [
   "........................",
@@ -64,51 +64,59 @@
   "..........sKKKHEAAGEs...",
   "..........sKEEAAAAAAs...",
   "..........jjjjjjjjjjj...",
-  "..........jjjjyyjqxxj...",
-  ".........vLLIJDFyjCqj...",
-  ".........vLMoByyyjxqj...",
-  "..........vIByyyvqxqjss.",
-  "..........vFyyyvjqCqsGGs",
+  "..........jjIIFBjqxxj...",
+  ".........vMJIIIIIjCqj...",
+  ".........vJJjjFIBjxqj...",
+  "..........jIjLFFvqxqjss.",
+  "..........vIlFFvjqCqsGGs",
   "...........vayyvssssAAAs",
   "...........arDyaggffffs.",
-  "...........amgaggefzzwf.",
-  "..........armcgggebfwwf.",
-  "..........amgceeebbftlf.",
-  "..........amcbgedbaftpf.",
-  ".........aaacaaaaabfllf.",
-  ".........vIIafffffflllf.",
-  ".........vIBarrrggftpllf",
-  "..........vvrrrggeftlllf",
-  "...........arrrmedfpllf.",
-  "..........amrmgdcbbaff..",
-  "..........amaadbbbba....",
+  "...........angaggefzzwf.",
+  "..........arncgggebfwwf.",
+  "..........angceeebbftmf.",
+  "..........ancbgedbaftpf.",
+  ".........aaacaaaaabfmmf.",
+  ".........vIIaffffffmmmf.",
+  ".........vIIarrrggftpmmf",
+  "..........vvrrrggeftmmmf",
+  "...........arrrnedfpmmf.",
+  "..........anrngdcbbaff..",
+  "..........anaadbbbba....",
   "..........aauuabbbba....",
   "..........fuukfffaa.....",
-  ".........fuufffnif......",
-  "..........ffzzfnhhf.....",
+  ".........fuufffoif......",
+  "..........ffzzfohhf.....",
   "..........fzzwffhhf.....",
   "..........fzwpfffff.....",
-  "..........fzplfzzpf.....",
-  "...........ffffwplf.....",
-  "..............flllf.....",
+  "..........fzpmfzzpf.....",
+  "...........ffffwpmf.....",
+  "..............fmmmf.....",
   "...............fff......"
  ],
  "intended": [
   [
-   11,
+   10,
+   14
+  ],
+  [
+   12,
    13
   ],
   [
    12,
-   11
+   14
   ],
   [
    12,
+   15
+  ],
+  [
+   13,
    13
   ],
   [
    13,
-   11
+   14
   ]
  ]
 }

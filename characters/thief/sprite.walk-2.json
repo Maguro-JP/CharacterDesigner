@@ -38,9 +38,9 @@
   "y": "#6e3a2c",
   "z": "#702628",
   "A": "#724a2b",
-  "B": "#88503b",
-  "C": "#8a4a3a",
-  "D": "#8a5a34",
+  "B": "#7a3a2a",
+  "C": "#8a5a34",
+  "D": "#955b42",
   "E": "#9a3732",
   "F": "#a2664a",
   "G": "#a2a8b8",
@@ -59,22 +59,22 @@
   ".........kkkkkkkkkHkk.....",
   ".........oHHHzEzzEzkoo....",
   ".........kkkkkkkkkkqoHo...",
-  ".........kGIcBvBBkvqkEzo..",
-  ".........yKICBBvBkvqkozo..",
-  ".........yKKKFBBBkvGGko...",
-  ".........yFFFFFFykkGvk....",
+  ".........kGKGIvDDkvqkEzo..",
+  ".........yKKkkIKDkvqkozo..",
+  ".........ycKcKIICkvGGko...",
+  ".........yFFBFFFykkGvk....",
   ".........allllllaakGqk....",
   ".........allllllleaJqk....",
   ".........alaaeeeebbkqk....",
   "..........cxuabbbbicaaa...",
   "..........cxpmiiiincaeba..",
-  ".........cxxmcDDDAscabbea.",
-  ".........cxphcDDDsncfabba.",
-  ".........cumhhcDtnncfcba..",
-  ".........ycmfhcDtnnccca...",
-  "........yKKccccssnnFBy....",
-  "........yKItiMMiDDDFBy....",
-  ".......tMtBiiMiitnniy.....",
+  ".........cxxmcCCCAscabbea.",
+  ".........cxphcCCCsncfabba.",
+  ".........cumhhcCtnncfcba..",
+  ".........ycmfhcCtnnccca...",
+  "........yKKccccssnnFIy....",
+  "........yKKtiMMiCCCFDy....",
+  ".......tMtKiiMiitnniy.....",
   "........ttpccccccccc......",
   "..........dNccuppjjc......",
   "..........dNdrchffhc......",
@@ -84,22 +84,34 @@
   "..........dwdNdhhgd.......",
   "..........dwwdNdjgd.......",
   "..........drwdNddddd......",
-  "..........dwrhddDAsi......",
-  "..........dwpjgdDAsni.....",
+  "..........dwrhddCAsi......",
+  "..........dwpjgdCAsni.....",
   "..........dddddiAsnni.....",
-  "..........iDDDDssnnni.....",
-  ".........iDDDDtinnni......",
-  ".........iDDAttiiii.......",
-  ".........iDtsnsi..........",
+  "..........iCCCCssnnni.....",
+  ".........iCCCCtinnni......",
+  ".........iCCAttiiii.......",
+  ".........iCtsnsi..........",
   "..........iiiii..........."
  ],
  "intended": [
   [
-   12,
-   6
+   10,
+   8
   ],
   [
    12,
+   7
+  ],
+  [
+   12,
+   8
+  ],
+  [
+   12,
+   9
+  ],
+  [
+   13,
    7
   ]
  ]

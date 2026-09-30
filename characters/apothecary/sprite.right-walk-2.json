@@ -21,11 +21,11 @@
   "h": "#2e5a44",
   "i": "#34344a",
   "j": "#3a231c",
-  "k": "#3c6d52",
-  "l": "#42261c",
-  "m": "#422b1f",
-  "n": "#4a2a1c",
-  "o": "#4a6e9a",
+  "k": "#3a4e70",
+  "l": "#3c6d52",
+  "m": "#42261c",
+  "n": "#422b1f",
+  "o": "#4a2a1c",
   "p": "#4a8060",
   "q": "#4d4d6c",
   "r": "#4e3220",
@@ -50,34 +50,34 @@
   "K": "#c4b794",
   "L": "#d49a70",
   "M": "#d8ceb0",
-  "N": "#f2ede4"
+  "N": "#e8e0d4"
  },
  "rows": [
   "......fffHHDff............",
   ".....fHHDHHHyyf...........",
-  "....ffHHHHyHyylf..........",
-  "...fyHHyHHDynyjvf.........",
-  "....fDHvDvynvjljf.........",
-  "....fDHyDnyjljjjf.........",
-  "....fDDvfBJjBfBjf.........",
-  "....fvDlfBBLEoNBw.........",
-  "....fyylfBBJJEBBw.........",
-  "....fyylywBJBBBBw.........",
-  ".....ffffwEEEBBw..........",
-  "........awEBBww...........",
-  "......aapaBBBaa...........",
-  ".....akpppaafpka..........",
-  ".....ahpppaxakpa..........",
-  ".....akpppaCappha.........",
-  "....ahgppaCadhkhwwa.......",
+  "....ffHHHHyHyymf..........",
+  "...fyHHyHHDyoyjvf.........",
+  "....fDHvDvyovjmjf.........",
+  "....fDHyDoyjmjjjf.........",
+  "....fDDvfJLjLjEjf.........",
+  "....fvDmfJBLooGEw.........",
+  "....fyymfEBLNfJfw.........",
+  "....fyymywJLLkJGw.........",
+  ".....ffffwLLLJJw..........",
+  "........awLEBww...........",
+  "......aapaGEBaa...........",
+  ".....alpppaafpla..........",
+  ".....ahpppaxalpa..........",
+  ".....alpppaCappha.........",
+  "....ahgppaCadhlhwwa.......",
   "....aggpaxadgehaLGza......",
   "....aaaaCaaaaahaLGza......",
   "....wGGaCaMMMMhaazzsa.....",
-  "....fCCtmfMMMMMtazsca.....",
-  "....fCCrmfMMMMMt.aca......",
-  "....fCCrmaMMMMIt..a.......",
-  "....fxmmmmMMMMKt..........",
-  ".....fmmaMMMMIFt..........",
+  "....fCCtnfMMMMMtazsca.....",
+  "....fCCrnfMMMMMt.aca......",
+  "....fCCrnaMMMMIt..a.......",
+  "....fxnnnnMMMMKt..........",
+  ".....fnnaMMMMIFt..........",
   ".....aaaaMMMMAFt..........",
   ".....ahhaMMMFFFt..........",
   "......aabMMFFAAAt.........",
@@ -85,26 +85,38 @@
   ".......bibbbbbbt..........",
   "......bbbbdquieb..........",
   "......fCCrbuqeeb..........",
-  ".....fCCCmbuqidb..........",
-  ".....fxCtmfbbbbb..........",
-  ".....frrmmmCCCCf..........",
-  "......fmmmfCCCCCf.........",
-  ".......ffffCCCxmf.........",
-  "..........fCxtrmf.........",
+  ".....fCCCnbuqidb..........",
+  ".....fxCtnfbbbbb..........",
+  ".....frrnnnCCCCf..........",
+  "......fnnnfCCCCCf.........",
+  ".......ffffCCCxnf.........",
+  "..........fCxtrnf.........",
   "...........fffff.........."
  ],
  "intended": [
   [
-   13,
-   6
+   12,
+   7
+  ],
+  [
+   12,
+   8
   ],
   [
    13,
    7
   ],
   [
-   14,
-   7
+   13,
+   8
+  ],
+  [
+   13,
+   9
+  ],
+  [
+   15,
+   8
   ]
  ]
 }

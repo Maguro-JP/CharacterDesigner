@@ -22,7 +22,7 @@
   "i": "#a2664a",
   "j": "#d49a70",
   "k": "#d8d0b8",
-  "l": "#f2ede4"
+  "l": "#e8e0d4"
  },
  "rows": [
   ".....aeeeeea....",
@@ -30,10 +30,10 @@
   "...aeecceeeeea..",
   "...cccffceeeea..",
   "...gjjiiieeca...",
-  "...glejijiccec..",
-  "...gjjiiieeecc..",
-  "..ccgjiiieefcc..",
-  ".chhkciaeefcfc..",
+  "...gcejljiccec..",
+  "...gjjiiiieecc..",
+  "..ccgiiiieeecc..",
+  ".chhkciaiiecec..",
   ".chckciaeeeccc..",
   "chhckccccccffc..",
   "chhckccdccccc...",
@@ -49,10 +49,10 @@
   ],
   [
    5,
-   3
+   5
   ],
   [
-   5,
+   7,
    5
   ]
  ]

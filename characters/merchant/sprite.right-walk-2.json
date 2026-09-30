@@ -21,10 +21,10 @@
   "g": "#32252b",
   "h": "#362a32",
   "i": "#3a1a10",
-  "j": "#422b1f",
-  "k": "#439187",
-  "l": "#4a3c4a",
-  "m": "#4a7aa8",
+  "j": "#3a6a98",
+  "k": "#422b1f",
+  "l": "#439187",
+  "m": "#4a3c4a",
   "n": "#4e3220",
   "o": "#58a89a",
   "p": "#5a2a10",
@@ -41,13 +41,14 @@
   "A": "#a2664a",
   "B": "#a65224",
   "C": "#b15d31",
-  "D": "#c0602a",
-  "E": "#c8703a",
-  "F": "#d4783a",
-  "G": "#d49a70",
-  "H": "#e8904a",
-  "I": "#f0c8a0",
-  "J": "#f2ede4"
+  "D": "#bb805d",
+  "E": "#c0602a",
+  "F": "#c8703a",
+  "G": "#d4783a",
+  "H": "#d49a70",
+  "I": "#e2b188",
+  "J": "#e8904a",
+  "K": "#e8e0d4"
  },
  "rows": [
   "........................",
@@ -57,55 +58,63 @@
   "........................",
   "........................",
   ".....ppppppp............",
-  "....pHHHHHHFp...........",
-  "...pHHFFBDBBBp..........",
-  "...pFFBxxxxxxp..........",
+  "....pJJJJJJGp...........",
+  "...pJJGGBEBBBp..........",
+  "...pGGBxxxxxxp..........",
   "...iiiiiiiiiii..........",
-  "...izEuiGGiizi..........",
-  "...izEiyvGGGvvt.........",
-  "...iuCivvGGmJvt.........",
-  ".ppiuustvyyvvt..........",
-  "pHHpsuzityvvvt..........",
-  "pFDBpppptvvat...........",
-  ".peeeeooavAka...........",
+  "...izFiiHHHHDi..........",
+  "...izFiHDIHHDDt.........",
+  "...iuCiDyHiiDDt.........",
+  ".ppiuustDHKiDi..........",
+  "pJJpsuzitHHjAt..........",
+  "pGEBpppptDvat...........",
+  ".peeeeooayAla...........",
   ".ewwweoooaooa...........",
-  ".ewwekoooookfa..........",
-  ".ewwefkkfffffa..........",
-  ".ewweakffdcfda..........",
+  ".ewwelooooolfa..........",
+  ".ewwefllfffffa..........",
+  ".ewwealffdcfda..........",
   ".ewweAaaaaafaaa.........",
-  ".ewqneeeeeeaIGt.........",
-  "ewwqneoookfayvt.........",
-  "eqnnjeoookfdtt..........",
-  ".eqnjeoooffda...........",
-  "..eeaokffdcbca..........",
+  ".ewqneeeeeeaHHt.........",
+  "ewwqneooolfaHDt.........",
+  "eqnnkeooolfdtt..........",
+  ".eqnkeoooffda...........",
+  "..eeaolffdcbca..........",
   "....affffbaaba..........",
   "....affdbarraa..........",
   ".....aaeeerhe...........",
-  "......eeggrle...........",
-  "......eweerle...........",
-  ".....ewwnerle...........",
-  ".....ennjeeee...........",
-  ".....ejjjewwwe..........",
+  "......eeggrme...........",
+  "......eweerme...........",
+  ".....ewwnerme...........",
+  ".....ennkeeee...........",
+  ".....ekkkewwwe..........",
   "......eeeewwqe..........",
-  ".........ewnje..........",
+  ".........ewnke..........",
   "..........eee..........."
  ],
  "intended": [
   [
    10,
-   11
+   13
   ],
   [
-   11,
-   11
+   10,
+   14
   ],
   [
    11,
    13
   ],
   [
-   12,
-   13
+   11,
+   14
+  ],
+  [
+   11,
+   15
+  ],
+  [
+   13,
+   14
   ]
  ]
 }
