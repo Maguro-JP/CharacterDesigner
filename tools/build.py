@@ -638,8 +638,37 @@ def apply_transforms(spec):
     return spec
 
 
+def _desaturate(h, f):
+    import colorsys
+    r, g, b = [v / 255 for v in hex_to_rgb(h)]
+    hh, ss, vv = colorsys.rgb_to_hsv(r, g, b)
+    return rgb_to_hex(tuple(round(v * 255) for v in colorsys.hsv_to_rgb(hh, ss * f, vv)))
+
+
+def apply_saturation(spec):
+    """texture.saturation 倍に素材の色（段・輪郭・境の線）の彩度を下げる。
+
+    手本の立ち絵は色の鮮やかさの平均が 0.19〜0.39 で、自分の絵は 0.42〜0.50 あった。
+    鮮やかすぎると作り物に見える。素材ごとに色を書き換えず、作風の数字1つで揃える。
+    目の直しのような '#hex' の色と、keep_saturation を持つ素材（肌）はそのまま。
+    """
+    f = spec.get("texture", {}).get("saturation")
+    if not f or f == 1:
+        return spec
+    spec = copy.deepcopy(spec)
+    for m in spec["materials"].values():
+        # 肌は手本でも鮮やか（#d8a860、彩度 0.56）。下げると青白く病的に見える
+        if m.get("keep_saturation"):
+            continue
+        m["ramp"] = [_desaturate(c, f) for c in m["ramp"]]
+        for k in ("outline", "line"):
+            if k in m:
+                m[k] = _desaturate(m[k], f)
+    return spec
+
+
 def build(spec):
-    spec = apply_transforms(spec)
+    spec = apply_saturation(apply_transforms(spec))
     top, light, size = render_hi(spec)
     cells = downscale(spec, top, light, size)
     grid = quantize(spec, cells)
