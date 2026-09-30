@@ -18,7 +18,7 @@
   "e": "#222232",
   "f": "#262637",
   "g": "#2a1c1c",
-  "h": "#2c4240",
+  "h": "#2a3a5a",
   "i": "#2e5a44",
   "j": "#301810",
   "k": "#34344a",
@@ -57,12 +57,12 @@
   "......gggggggg............",
   ".....gIIIIFIAFg...........",
   "....ggIFIIIIAFog..........",
-  "...gAIIAIAFAAoyog.........",
+  "...gAIIAIAFAAlyog.........",
   "....gIIAIAAlylolg.........",
-  "....gFIIAAyoolllg.........",
-  "....gAIogHHoJlHlg.........",
-  "....gAAtgHtbbLJbj.........",
-  "....gFAogBtNbLLvj.........",
+  "....gFIIAAylolllg.........",
+  "....gAIogHHoJlHHj.........",
+  "....gAAtgHtbbLJhj.........",
+  "....gFAogBtNhLLLj.........",
   "....gAAlAjJLLLLLj.........",
   ".....ggggjLLLLLj..........",
   "........ajJBqjj...........",
@@ -71,7 +71,7 @@
   ".....amrrraEarra..........",
   ".....airrrazammia.........",
   "....aiirrazaeimijja.......",
-  "....ahfmazaeffiaLvCa......",
+  "....akfmazaeffiaLvCa......",
   "....aaaaEaaaaaiaLvCa......",
   "....jvvawaMMMMiaaCCda.....",
   "....gEEzzgMMMMMwaCida.....",
@@ -80,7 +80,7 @@
   "....gwupppMMMKKw..........",
   ".....gppaMMMMGKw..........",
   ".....aaaaMMMKKGw..........",
-  ".....aihaMMKKDGw..........",
+  ".....aikaMMKKDGw..........",
   "......accMMMDDDDw.........",
   "......ckcMMGGDDDw.........",
   "......cnecwccccw..........",
@@ -113,10 +113,6 @@
   [
    15,
    8
-  ],
-  [
-   15,
-   9
   ]
  ]
 }

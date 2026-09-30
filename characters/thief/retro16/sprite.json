@@ -21,7 +21,7 @@
   "h": "#4a4058",
   "i": "#583018",
   "j": "#5a3a22",
-  "k": "#6a6e80",
+  "k": "#6a2a24",
   "l": "#8a5a34",
   "m": "#a2a8b8",
   "n": "#d8a860",
@@ -31,12 +31,12 @@
   "................",
   "......fffff.....",
   ".....fommmmf....",
-  "....fmommmkkf...",
-  "...fmmffffkkf...",
-  "...fmfllllfkf...",
-  "...bbnfbiifii...",
-  "....innbiifmf...",
-  "....aiiiiafmf...",
+  "....fmommmhhf...",
+  "...fmmffffhhf...",
+  "...fmfllllfhf...",
+  "...eknkbiifii...",
+  "....ennkiifmf...",
+  "....eiiiiafmf...",
   "....agggggammf..",
   "....agcgggaff...",
   ".....chceecaa...",
@@ -57,10 +57,6 @@
   [
    4,
    6
-  ],
-  [
-   4,
-   7
   ],
   [
    7,

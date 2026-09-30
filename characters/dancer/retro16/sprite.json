@@ -12,7 +12,7 @@
  ],
  "palette": {
   "a": "#1e1020",
-  "b": "#2a1c1c",
+  "b": "#2a4a78",
   "c": "#301810",
   "d": "#4a1c20",
   "e": "#583018",
@@ -33,15 +33,15 @@
   ".....aiiiffa....",
   "....aiiffffa....",
   "....afffffiia...",
-  "....cmmmkaffa...",
-  "....cmmamkafa...",
-  "....emmnkaffa...",
+  "....ammmkaffa...",
+  "....bmmamkafa...",
+  "....cmmnkaffa...",
   "....cmmmccifa...",
   ".....ceeccifa...",
   ".....ceeeeifa...",
   "....ggooooafa...",
-  "...coeoojjafa...",
-  "..cmggeeeeeffa..",
+  "...cmeoojjafa...",
+  "..coggeeeeeffa..",
   "...cgddggggaa...",
   ".....dllllgg....",
   ".....dllllgg....",
@@ -51,12 +51,12 @@
   ".....dlllhd.....",
   "....dlldhhhd....",
   "....ddddllld....",
-  "....djjbbbd....."
+  "....djjcccd....."
  ],
  "intended": [
   [
    4,
-   7
+   6
   ],
   [
    7,

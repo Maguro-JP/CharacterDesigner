@@ -17,9 +17,9 @@
   "d": "#222232",
   "e": "#22263e",
   "f": "#262637",
-  "g": "#26283d",
-  "h": "#2a1c1c",
-  "i": "#2a2a3c",
+  "g": "#2a1c1c",
+  "h": "#2a2a3c",
+  "i": "#2a3a5a",
   "j": "#301810",
   "k": "#34344a",
   "l": "#34426b",
@@ -55,27 +55,27 @@
  "rows": [
   "..........................",
   ".......bbbbbbb............",
-  "......bwwwqwmwb...........",
-  ".....bwqwwwwmwfb..........",
-  ".....bwmwmqmmfkfb.........",
+  "......bwwwqwmqb...........",
+  ".....bwqwwwwmqfb..........",
+  ".....bwmwmqmmdkfb.........",
   ".....bwmwmmdkdfdb.........",
-  ".....bwwmmkffdddb.........",
-  ".....bmqbFFfHdFdb.........",
-  ".....bfwbFraaJHaj.........",
-  "....bwkqbBrKaJJuj.........",
+  ".....bwwmmkdfdddb.........",
+  ".....bmqbFFfHdFFj.........",
+  ".....bfwbFraaJHij.........",
+  "....bwkqbBrKiJJJj.........",
   "....bkmbbjHJJJJJj.........",
   "....bdwbjjuuuuuj..........",
-  "....bimpppGGGGGp..........",
+  "....bhmpppGGGGGp..........",
   "....bmbGGGGGGppp..........",
   "....ppcGGCxxpyyc..........",
-  "..ppGpchhhhhyytc..........",
+  "..ppGpcgggggyytc..........",
   ".pGEzpcDDvvoctnlc.........",
-  ".pzEpncDDvooctngc.........",
+  ".pzEpncDDvooctnec.........",
   "..pzclcDDsocetnlc.........",
   "...pcccDAsocenncj.........",
   "....juuvoooccccJJj........",
-  "....juuDDDhLLhcJJjv.......",
-  ".....jhDvohLchhHFvAv......",
+  "....juuDDDgLLgcJJjv.......",
+  ".....jgDvogLcggHFvAv......",
   "......cccccccccvvAvb......",
   "......cyynncwmcvvvNNb.....",
   "......cnllcwwmmb.bNNb.....",
@@ -86,12 +86,12 @@
   "......bmddbqwkfb..bNMb....",
   "......bkddbwqffb..bNMb....",
   "......bmfdbwqkdb..bNNb....",
-  "......hbbbbbbbbb...bNNb...",
-  ".....hDDDshDDDDh...bNMb...",
-  ".....hDDsohDDDDDh..bIIb...",
-  ".....hvvoooDDDAoh...bb....",
-  ".....hssoooDAvsoh.........",
-  "......hhhhhhhhhh.........."
+  "......gbbbbbbbbb...bNNb...",
+  ".....gDDDsgDDDDg...bNMb...",
+  ".....gDDsogDDDDDg..bIIb...",
+  ".....gvvoooDDDAog...bb....",
+  ".....gssoooDAvsog.........",
+  "......gggggggggg.........."
  ],
  "intended": [
   [
@@ -113,10 +113,6 @@
   [
    15,
    8
-  ],
-  [
-   15,
-   9
   ]
  ]
 }
