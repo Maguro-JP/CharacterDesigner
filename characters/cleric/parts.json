@@ -33,11 +33,14 @@
    ]
   },
   "belt": {"material": "gold", "shapes": [{"type": "rect", "at": [12.2, 19.6, 17.8, 20.8]}]},
-  "far_arm": {"material": "robe", "shapes": [{"type": "capsule", "points": [[17.4, 14.2], [18.4, 18]], "r": 1.3}]},
+  "far_arm": {
+   "material": "robe",
+   "shapes": [{"type": "limb", "points": [[17.4, 14.2], [18.4, 18]], "radii": [1.43, 0.91]}]
+  },
   "far_hand": {"shapes": [{"type": "ellipse", "at": [18.6, 19.2, 0.9, 0.9]}]},
   "near_arm": {
    "material": "robe",
-   "shapes": [{"type": "capsule", "points": [[12.4, 14.2], [11.2, 17], [8.4, 18.2]], "r": 1.3}]
+   "shapes": [{"type": "limb", "points": [[12.4, 14.2], [11.2, 17], [8.4, 18.2]], "radii": [1.43, 1.17, 0.91]}]
   },
   "far_boot": {"shapes": [{"type": "poly", "points": [[15.4, 34.2], [18, 34.2], [18.2, 37], [15, 37], [15, 35.8]]}]},
   "near_boot": {"shapes": [{"type": "poly", "points": [[11, 34.2], [13.8, 34.2], [14, 37], [10, 37], [10.2, 35.8]]}]}
