@@ -1,0 +1,72 @@
+{
+ "base": "../swordsman/parts.json",
+ "name": "薬師（男）",
+ "brief": "箱庭ドット のドット絵の薬師の男。男性の枠。はねた栗色の髪、深緑の上着に生成りの前掛け、胸を斜めに渡る革の帯と腰の鞄、片手に緑の薬瓶。左向きの 3/4",
+ "materials": {
+  "hair": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#4a2a1c", "#7a4a2a", "#a86a3a"], "steps": [0.42, 0.72]},
+  "tunic": {"outline": "#10201a", "line": "#10201a", "ramp": ["#2a2a3c", "#2e5a44", "#4a8060"], "steps": [0.42, 0.76]},
+  "apron": {"outline": "#5a3a22", "line": "#8a7a5a", "ramp": ["#b0a078", "#d8ceb0"], "steps": [0.38]},
+  "glass": {
+   "outline": "#10201a",
+   "line": "#10201a",
+   "ramp": ["#2e5a44", "#7ac08a"],
+   "steps": [0.5],
+   "spec_power": 16,
+   "spec_gain": 0.5
+  }
+ },
+ "remove": ["scarf_tail", "scarf", "blade", "guard", "grip", "vest"],
+ "override": {
+  "hair_back": {
+   "strands": {"angle": 0, "period": 2.2, "amp": 0.2},
+   "shapes": [
+    {
+     "type": "poly",
+     "points": [
+      [11.2, 4.2], [11.8, 1.6], [13.4, 1.4], [14.4, 0.6], [15.6, 1.2], [17.2, 0.5], [18.2, 1.4], [20, 0.8],
+      [20.2, 2.6], [21.8, 3.4], [20.8, 5], [21.6, 7], [20.4, 8.2], [20.8, 10.4], [19, 9.8], [18, 11],
+      [17.2, 9.8], [16.4, 7]
+     ]
+    }
+   ]
+  },
+  "coat_tail": {
+   "shapes": [{"type": "poly", "points": [[11.4, 21.6], [18.8, 21.6], [19.8, 27.4], [15, 26.6], [10.8, 27.4]]}]
+  },
+  "near_arm": {"shapes": [{"type": "capsule", "points": [[12.2, 14.2], [11, 17.4], [9.2, 18.4]], "r": 1.3}]},
+  "hand": {"shapes": [{"type": "ellipse", "at": [8.8, 18.2, 1.0, 1.0]}]}
+ },
+ "add": [
+  {
+   "name": "apron",
+   "material": "apron",
+   "after": "near_leg",
+   "breathe": 0.5,
+   "shapes": [{"type": "poly", "points": [[11.2, 19.6], [16.2, 19.6], [16.8, 29], [10.4, 29]]}]
+  },
+  {
+   "name": "bag",
+   "material": "leather",
+   "after": "apron",
+   "weight": 1.5,
+   "breathe": 0.5,
+   "shapes": [{"type": "poly", "points": [[17.4, 20.4], [20.8, 20], [21.2, 24.2], [17.6, 24.6]]}]
+  },
+  {
+   "name": "strap",
+   "material": "leather",
+   "after": "bag",
+   "weight": 2.5,
+   "breathe": 0.5,
+   "shapes": [{"type": "pixline", "points": [[13, 13], [18, 20]]}]
+  },
+  {
+   "name": "flask",
+   "material": "glass",
+   "after": "hand",
+   "weight": 2,
+   "breathe": 0.5,
+   "shapes": [{"type": "ellipse", "at": [7.6, 20, 1.3, 1.4]}, {"type": "rect", "at": [7.2, 17.6, 8.1, 19]}]
+  }
+ ]
+}

@@ -1,6 +1,6 @@
 ---
 name: character-design
-description: 「○○風のキャラクターデザインを作って」「この作風で描いて」「新しい職業を足して」「FF6 風にして」と言われたとき、このリポジトリで作風を調べて決まりに落とし、部品で組んで描き、検品して出すときに使う。styles/<作風>.json と characters/<名前>/parts.json を書き、tools/build.py・check.py・compare.py で描いて確かめる。描画器そのものを直す作業や、ドット絵以外の画像生成には使わない。
+description: 「○○風のキャラクターデザインを作って」「この作風で描いて」「新しい職業を足して」「16ビット機風にして」と言われたとき、このリポジトリで作風を調べて決まりに落とし、部品で組んで描き、検品して出すときに使う。styles/<作風>.json と characters/<名前>/parts.json を書き、tools/build.py・check.py・compare.py で描いて確かめる。描画器そのものを直す作業や、ドット絵以外の画像生成には使わない。
 ---
 
 # キャラクターデザイン
@@ -9,11 +9,11 @@ description: 「○○風のキャラクターデザインを作って」「こ�
 
 ## 1. 作風を決まりに落とす
 
-作風が `styles/` に無ければ、先に作る。`styles/hd2d.json` が見本。
+作風が `styles/` に無ければ、先に作る。`styles/diorama.json` が見本。
 
 - `sources`: 何を見て決めたか。記事、インタビュー、実物の画像のページ
 - 数えられるもの: `canvas`（大きさの範囲、体格の枠 `frames`）、`proportion.heads_tall`、`palette.max_colors`、`outline`、`cleanup.max_orphan_pixels`
-- `render`: HD-2D 用の部品から描き分けるときの変換（キャンバス、`shift`、`transforms`。頭は `parts: "head"`）
+- `render`: 箱庭ドット 用の部品から描き分けるときの変換（キャンバス、`shift`、`transforms`。頭は `parts: "head"`）
 - 実物を見られないまま記憶で置いた数字には `"unverified": true` を付け、`docs/reports/pending.md` に見たいサイトのドメインを書く
 
 画像そのものはリポジトリに置かない。置くのは数字と出典だけ。既存のキャラクターを写さない。

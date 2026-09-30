@@ -85,7 +85,7 @@ def main():
         x += f.width * small + 6
     if styles:
         y += strip_h
-        d.text((24, y - 14), "styles: hd2d " + " ".join(p.parent.name for p in styles), fill=INK)
+        d.text((24, y - 14), "styles: diorama " + " ".join(p.parent.name for p in styles), fill=INK)
         x = 24
         for p in [base] + styles:
             f = load_img(p)

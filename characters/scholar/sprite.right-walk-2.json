@@ -1,0 +1,110 @@
+{
+ "name": "学者（男）",
+ "style": "diorama",
+ "brief": "箱庭ドット のドット絵の学者の男。男性の枠。黒の短髪に丸眼鏡、臙脂の長い上着に白い襟、青い表紙の本を片手に抱える。左向きの 3/4",
+ "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
+ "head_height": 12,
+ "body_box": [
+  4,
+  0,
+  18,
+  39
+ ],
+ "palette": {
+  "a": "#1a1a1a",
+  "b": "#1a1a28",
+  "c": "#2a0e14",
+  "d": "#2a1c1c",
+  "e": "#2c3e6a",
+  "f": "#3e3e58",
+  "g": "#3e5a9a",
+  "h": "#44444c",
+  "i": "#5a3a22",
+  "j": "#5c5c80",
+  "k": "#66666e",
+  "l": "#6a2232",
+  "m": "#6e3a2c",
+  "n": "#8a5a34",
+  "o": "#943446",
+  "p": "#a2664a",
+  "q": "#c8d0e0",
+  "r": "#d49a70",
+  "s": "#f0c8a0",
+  "t": "#f4f6fa"
+ },
+ "rows": [
+  ".......aaaaaa.............",
+  "......ahkkkkhaa...........",
+  ".....akhkkhkhhha..........",
+  "....ahkkkhhhhhha..........",
+  "....ahkhkhhhhhha..........",
+  "....ahhkhhrrrrhha.........",
+  "....akhkapbbbbthh.........",
+  "....akhkapprrbrrp.........",
+  "....akhhapprrrrrm.........",
+  "....akhhhmprrrpm..........",
+  ".....aahamrrrrpm..........",
+  ".......acmrppmm...........",
+  "......cocqpppqcc..........",
+  ".....cloctqqqolc..........",
+  ".....clooctqoolc..........",
+  ".....coooocclollc.........",
+  "....cloooollccccc.........",
+  "....clooollcbgggb.........",
+  "....ccllllcbsbggb.........",
+  "....mplccccsrbeeb.........",
+  "....mppnnnddrbttf.........",
+  ".....mcniidiibff..........",
+  "......cccccccccc..........",
+  "......cooooocccc..........",
+  "......coooocjjcc..........",
+  ".....coooocjjfcfc.........",
+  ".....cooolcjjffcc.........",
+  ".....cllllcjjffcc.........",
+  ".....cllllcjjffcc.........",
+  ".....cllllcjjffcc.........",
+  ".....cllllcjjffccc........",
+  ".....cldddbjjffcc.........",
+  ".....ddnnibjjffb..........",
+  ".....dnnnibbbbbb..........",
+  ".....dniiiinnnnd..........",
+  "......diiidnnnnnd.........",
+  ".......ddddnnnnid.........",
+  "..........dnnniid.........",
+  "...........ddddd.........."
+ ],
+ "intended": [
+  [
+   10,
+   6
+  ],
+  [
+   11,
+   6
+  ],
+  [
+   12,
+   6
+  ],
+  [
+   13,
+   6
+  ],
+  [
+   13,
+   7
+  ],
+  [
+   14,
+   6
+  ],
+  [
+   14,
+   9
+  ],
+  [
+   16,
+   7
+  ]
+ ]
+}

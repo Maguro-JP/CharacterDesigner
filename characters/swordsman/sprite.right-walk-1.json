@@ -1,0 +1,101 @@
+{
+ "name": "剣士（男）",
+ "style": "diorama",
+ "brief": "箱庭ドット のドット絵の剣士の男。男性の枠（戦士より細い）。青い上着に革の胴着、赤い襟巻き。片手剣を下げて持つ。左向きの 3/4",
+ "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
+ "head_height": 12,
+ "body_box": [
+  3,
+  1,
+  19,
+  39
+ ],
+ "palette": {
+  "a": "#1a1a28",
+  "b": "#1a2240",
+  "c": "#2a1c1c",
+  "d": "#2a2a3c",
+  "e": "#3e3e58",
+  "f": "#3e5a9a",
+  "g": "#4a1c20",
+  "h": "#5a3a22",
+  "i": "#5c5c80",
+  "j": "#6a8ac8",
+  "k": "#6e3a2c",
+  "l": "#8a5a34",
+  "m": "#a2664a",
+  "n": "#b8443a",
+  "o": "#d49a70",
+  "p": "#d4dce6",
+  "q": "#e2b454",
+  "r": "#f0c8a0",
+  "s": "#f6f8fa"
+ },
+ "rows": [
+  "..........................",
+  ".......aaaaaa.............",
+  "......aiiiiieaa...........",
+  ".....aiiiiiieeea..........",
+  "....aiiiieieeeea..........",
+  "....aiiiieeeeeea..........",
+  "....aieieeooddeaa.........",
+  "....aieiamrroaokk.........",
+  "....aieiarmooaoom.........",
+  "....aieeammoooook.........",
+  "....aieeekmooomk..........",
+  ".....aaegkmmmmmk..........",
+  ".......gggnnnnng..........",
+  ".....ggnnnnnnggg..........",
+  "....gngnnnnggjfb..........",
+  "..ggngbcccccjjfb..........",
+  ".gnnngblllhcjffb..........",
+  ".gnnngblllhcjffb..........",
+  "..gngbblllhbfffb..........",
+  "...gbkbllhhbffbbb.........",
+  ".....kmllhhbbbook.........",
+  ".....kmlllcqbbookh........",
+  "......blhhcqbboohkh.......",
+  "......bbbbbbbbhhhha.......",
+  "......bffffbiibhhssa......",
+  "......bfffbiiieaassa......",
+  ".....bfffabiiieaassa......",
+  "......baadbaieea.aspa.....",
+  "......aeedaaieea.appa.....",
+  ".....aeeedaaieeeaappa.....",
+  ".....aeeda..aeeeaappa.....",
+  ".....aeeda..aeeeaappa.....",
+  "....aaaaa...aeeeeappa.....",
+  "....clllc...aaaaaaappa....",
+  "...clllhc...clllllappa....",
+  "...cllhhhc..clllllappa....",
+  "...chhhhhc..cllllhcaa.....",
+  "....ccccc...clllhhc.......",
+  ".............ccccc........"
+ ],
+ "intended": [
+  [
+   12,
+   6
+  ],
+  [
+   13,
+   6
+  ],
+  [
+   13,
+   7
+  ],
+  [
+   13,
+   8
+  ],
+  [
+   14,
+   10
+  ],
+  [
+   16,
+   8
+  ]
+ ]
+}

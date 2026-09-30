@@ -1,0 +1,99 @@
+{
+ "name": "薬師（男）",
+ "style": "diorama",
+ "brief": "箱庭ドット のドット絵の薬師の男。男性の枠。はねた栗色の髪、深緑の上着に生成りの前掛け、胸を斜めに渡る革の帯と腰の鞄、片手に緑の薬瓶。左向きの 3/4",
+ "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
+ "head_height": 12,
+ "body_box": [
+  5,
+  1,
+  23,
+  39
+ ],
+ "palette": {
+  "a": "#10201a",
+  "b": "#1a1a28",
+  "c": "#2a1c1c",
+  "d": "#2a2a3c",
+  "e": "#2e5a44",
+  "f": "#3e3e58",
+  "g": "#4a2a1c",
+  "h": "#5a3a22",
+  "i": "#6e3a2c",
+  "j": "#7a4a2a",
+  "k": "#7ac08a",
+  "l": "#8a5a34",
+  "m": "#a2664a",
+  "n": "#a86a3a",
+  "o": "#d49a70",
+  "p": "#d8ceb0",
+  "q": "#f0c8a0"
+ },
+ "rows": [
+  "..........................",
+  "............cccccccc......",
+  "...........cnnnjnjjjc.....",
+  "..........cnnnnjnjjjcc....",
+  "..........cjnjjjjjjjjjc...",
+  "..........cnjjjjgjjjjc....",
+  ".........cinggojgjjjjc....",
+  ".........iqqcoooocjjjc....",
+  ".........mqqcoooocjgjc....",
+  ".........ioooooomcjgjc....",
+  "..........imoommicjgjc....",
+  "..........iooommicjcc.....",
+  "...........iimmmiac.......",
+  "...........aammmaeaa......",
+  "..........aeecaaeeeea.....",
+  ".........aeeeecaeeeeea....",
+  ".........aeeealaeeedea....",
+  ".......aeeeeeealaeedea....",
+  "......akmaeeeeealaedda....",
+  "......akmaeaaaaaalaaaaa...",
+  ".....akkkaapppppalammmc...",
+  ".....akkaahpppppcllllc....",
+  "......aka.hpppppcllhlc....",
+  ".......a..hpppppclllhc....",
+  "..........hppppplllhhc....",
+  "..........hppppppahhc.....",
+  "..........hppppppaaaa.....",
+  "..........hppppppaeea.....",
+  ".........hpppppppbaa......",
+  ".........hpppppppbb.......",
+  "..........hhbbbbbdb.......",
+  "...........bffffddb.......",
+  "............bbbbbdb.......",
+  "............cllllbb.......",
+  "...........clllllhc.......",
+  "...........cllllhhc.......",
+  "...........cllhhhhc.......",
+  "............chhhhhc.......",
+  ".............ccccc........"
+ ],
+ "intended": [
+  [
+   9,
+   8
+  ],
+  [
+   11,
+   10
+  ],
+  [
+   12,
+   6
+  ],
+  [
+   12,
+   7
+  ],
+  [
+   12,
+   8
+  ],
+  [
+   13,
+   6
+  ]
+ ]
+}

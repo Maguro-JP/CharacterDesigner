@@ -1,0 +1,97 @@
+{
+ "name": "狩人（男）",
+ "style": "diorama",
+ "brief": "箱庭ドット のドット絵の狩人の男。男性の枠。緑の頭巾と肩掛け、革の胴着、背に矢筒。弓を前に下げて持つ。左向きの 3/4",
+ "generated_from": "parts.json（tools/build.py が書き出す。手で直さない）",
+ "head_height": 12,
+ "body_box": [
+  4,
+  1,
+  21,
+  39
+ ],
+ "palette": {
+  "a": "#16241a",
+  "b": "#1a1a28",
+  "c": "#2a1c1c",
+  "d": "#2e4a2a",
+  "e": "#3e3e58",
+  "f": "#4a1c20",
+  "g": "#4a7040",
+  "h": "#5a3a22",
+  "i": "#5c5c80",
+  "j": "#6e3a2c",
+  "k": "#7aa060",
+  "l": "#8a5a34",
+  "m": "#8a7a5a",
+  "n": "#a2664a",
+  "o": "#b0a078",
+  "p": "#b8443a",
+  "q": "#d49a70",
+  "r": "#d8d0b8",
+  "s": "#e2b454"
+ },
+ "rows": [
+  "..........................",
+  ".......aaaaaaa............",
+  "......akkkgggga...........",
+  ".....akkkgggggga..........",
+  "....akkgggggggga..........",
+  "....akggggccccga..........",
+  "....akggggnqnncga.........",
+  "...fagggggnqqcnnj.........",
+  "..fpfgggdnnqqcnnqj........",
+  "..fpfgggdnnqqnnnj.........",
+  "..fpfgggdanqnnnj..........",
+  "...ccgggdaqqnnnj...cc.....",
+  "...clcgddannnaa...cllc....",
+  "...clcgkkkkkkaaa..rlllc...",
+  "...clcckkkkgaooc..rcllc...",
+  "..clcckkggggaoomc.rcllc...",
+  "..clccggggggammmc.r.cllc..",
+  "..clcmccgggacammmcr.cllc..",
+  "..cccmclccccmmmmmcr.cllc..",
+  ".chcmccllhhcmmmmmcrjcllc..",
+  ".chhcmnllhhcccccmcrrjllc..",
+  "..ccjnclllcsscccccrqqjlc..",
+  ".....jclhhcscccc..rjjllc..",
+  "......cccccccccc..r.cllc..",
+  "......coommciicc..r.cllc..",
+  "......cmmmciieec..r.cllc..",
+  ".....cmmmbciiecc..rcllc...",
+  "......ccbebieeb...rcllc...",
+  ".......beebieeb...rcllc...",
+  ".......beeeieeb...rlllc...",
+  ".......beeiieeb...rllc....",
+  ".......beeieeeb....cc.....",
+  ".......bebbbbb............",
+  ".......bbllllc............",
+  ".......cllllllc...........",
+  ".......cllllllc...........",
+  ".......cllllhhc...........",
+  ".......chhhhhc............",
+  "........ccccc............."
+ ],
+ "intended": [
+  [
+   13,
+   7
+  ],
+  [
+   13,
+   8
+  ],
+  [
+   14,
+   10
+  ],
+  [
+   16,
+   8
+  ],
+  [
+   17,
+   8
+  ]
+ ]
+}

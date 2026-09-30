@@ -1,7 +1,7 @@
 # CharacterDesigner
 
 「○○風のキャラクターデザイン」を、作風の決まりに落として描き、検品して出す道具。
-最初の到達点は HD-2D（オクトパストラベラー系）のドット絵。
+最初の到達点は 箱庭ドット（高精細なドット絵を立体の背景に置く作風）。
 
 ![手打ちの v3 と部品組みの v4 の戦士](docs/progress/2026-09-29-warrior-v3-vs-v4.png)
 
@@ -9,7 +9,7 @@
 
 - 部品（楕円、多角形、太さのある線）と素材でキャラクターを組み、光を当てて高い解像度で描き、ドット絵に落とす
 - 作風の決まり（`styles/*.json`）と突き合わせ、大きさ・頭身・色数・輪郭・孤立ドットを数える
-- 検品用の拡大図と、HD-2D 風の舞台に置いた図を描き出す
+- 検品用の拡大図と、箱庭ドット風の舞台に置いた図を描き出す
 - 版どうしを1枚に並べた比較画像を作る
 
 ## 動作環境
@@ -25,29 +25,29 @@
 
 ```bash
 # parts.json からドット絵（sprite.json）を書き出す。--preview で縮小前の絵も出す
-python3 tools/build.py characters/hd2d-warrior-v4/parts.json --preview out/
+python3 tools/build.py characters/warrior/parts.json --preview out/
 
-# 別の作風で描く（styles/ff6.json の render）。characters/<名前>/ff6/sprite.json に出る
-python3 tools/build.py characters/hd2d-warrior-v4/parts.json --style ff6
+# 別の作風で描く（styles/retro16.json の render）。characters/<名前>/retro16/sprite.json に出る
+python3 tools/build.py characters/warrior/parts.json --style retro16
 
 # 作風の決まりで検品する（外れがあれば終了コード 1）
-python3 tools/check.py characters/hd2d-warrior-v4/sprite.json styles/hd2d.json
+python3 tools/check.py characters/warrior/sprite.json styles/diorama.json
 
 # 拡大図と舞台の図
-python3 tools/render.py characters/hd2d-warrior-v4/sprite.json out/
+python3 tools/render.py characters/warrior/sprite.json out/
 
 # parts.json を読みやすい幅に整える（試験で整っているかを見る）
 python3 tools/fmt.py characters/*/parts.json
 
 # 動きのコマを GIF と並べ図にする（--anim は idle、walk、right-idle、right-walk）
-python3 tools/anim.py out/idle.gif characters/hd2d-warrior-v4/sprite.json
-python3 tools/anim.py --anim walk out/walk.gif characters/hd2d-swordsman/sprite.json
+python3 tools/anim.py out/idle.gif characters/warrior/sprite.json
+python3 tools/anim.py --anim walk out/walk.gif characters/swordsman/sprite.json
 
 # 設定資料の色指定（色見本、全コマ、作風の描き分けを1枚に）
-python3 tools/sheet.py characters/hd2d-cleric/parts.json docs/sheets/hd2d-cleric.png
+python3 tools/sheet.py characters/cleric/parts.json docs/sheets/cleric.png
 
 # 版を並べる
-python3 tools/compare.py out/cmp.png v3=characters/hd2d-warrior/sprite.json v4=characters/hd2d-warrior-v4/sprite.json
+python3 tools/compare.py out/cmp.png v3=characters/warrior-v3-hand/sprite.json v4=characters/warrior/sprite.json
 ```
 
 ## ディレクトリ構成
