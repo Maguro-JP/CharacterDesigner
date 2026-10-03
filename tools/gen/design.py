@@ -49,6 +49,8 @@ PRESETS = {
     # monster64: 等身を保つ解像度高めのモンスターのドット絵（携帯機以降の育成ゲームの戦闘画面の大きさ）。
     # 数字は手本で数えていない（未確認）
     "monster64": {"height": 64, "colors": 24, "mode": True},
+    # monster96: モンスターのドット絵の標準（利用者の評価: 96 は良い感じ。64 は白い体の顔がつぶれた）
+    "monster96": {"height": 96, "colors": 24, "mode": True},
 }
 # 立ち絵の設定資料として描かせる決まり文句。全身・1人・無地の背景にしておくと、派生（ドット絵）で背景を抜ける
 PREFIX = "masterpiece, best quality, character design, full body, standing, solo, "

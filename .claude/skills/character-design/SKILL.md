@@ -15,6 +15,7 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
 2. 派生は指示を受けてから、選ばれた絵から作る。文章から作り直さない（同じ人物を保つため）
    - リアル風: `design.py restyle in.png out.png --style real`
    - ドット絵（等身を保つ少ない色）: `design.py pixel in.png out.sprite.json --preset survivor`
+   - モンスターのドット絵（解像度高め、標準）: `design.py pixel in.png out.sprite.json --preset monster96`
    - 箱庭ドット: 頭を大きくする変換が要る（未完成）。部品で組む場合は下の 1〜3
    - 3D: `tools/engine/`（Blender＋MakeHuman、試作）
 3. 出したものは画像で見せる。並べた図は `tools/vsref.py`、ドット絵の数字は `tools/check.py` と `tools/learn.py score`
