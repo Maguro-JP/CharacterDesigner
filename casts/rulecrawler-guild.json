@@ -149,7 +149,8 @@
    "name": "水路の主 グルマ",
    "role": "地下水路の主。水色の大スライム",
    "kind": "creature",
-   "prompt": "giant slime, no legs, no arms, one big eye, translucent body with sewer junk inside, main color cyan, secondary teal, accent white, huge, dripping"
+   "prompt": "giant slime, no legs, no arms, one big eye, translucent body with sewer junk inside, main color cyan, secondary teal, accent white, huge, dripping",
+   "negative": "legs, feet"
   },
   {
    "id": "boss-dorgan",
@@ -163,14 +164,16 @@
    "name": "墓所の王 ネクロス",
    "role": "亡者の墓所の主。骨の王",
    "kind": "creature",
-   "prompt": "skeleton lich king, floating, two bony arms, no legs, tattered purple robe, iron crown, bone scepter, main color pale lavender bone, secondary dark purple, accent violet glowing eyes"
+   "prompt": "skeleton lich king, floating, two bony arms, no legs, tattered purple robe, iron crown, bone scepter, main color pale lavender bone, secondary dark purple, accent violet glowing eyes",
+   "negative": "legs, feet"
   },
   {
    "id": "boss-valka",
    "name": "灼熱竜 ヴァルカ",
    "role": "溶岩洞の主。トカゲ型の竜",
    "kind": "creature",
-   "prompt": "lava dragon, quadruped, four legs, two wings, one tail, glowing magma cracks, smoke, main color red orange, secondary black rock, accent yellow eyes, huge"
+   "prompt": "lava dragon, quadruped, on all fours, four legs, two wings, one tail, glowing magma cracks, smoke, main color red orange, secondary black rock, accent yellow eyes, huge",
+   "negative": "arms, hands, humanoid, standing upright"
   },
   {
    "id": "boss-obsis",
@@ -184,7 +187,8 @@
    "name": "深淵の主",
    "role": "深淵の主。巨大な目玉",
    "kind": "creature",
-   "prompt": "giant floating eyeball, one huge eye, many hanging tentacles, no legs, main color crimson pink flesh, secondary dark red, accent yellow iris"
+   "prompt": "giant floating eyeball, one huge eye, many hanging tentacles, no legs, main color crimson pink flesh, secondary dark red, accent yellow iris",
+   "negative": "legs, feet"
   },
   {
    "id": "boss-mikora",
@@ -198,7 +202,8 @@
    "name": "雷神の使い ライゴウ",
    "role": "雷鳴の峡谷の主。雷の獣",
    "kind": "creature",
-   "prompt": "thunder wolf, quadruped, four legs, one tail, body of crackling lightning, drum ring on its back, main color white, secondary pale blue, accent royal blue"
+   "prompt": "thunder wolf, quadruped, on all fours, four legs, one tail, body of crackling lightning, drum ring on its back, main color white, secondary pale blue, accent royal blue",
+   "negative": "arms, hands, humanoid, standing upright"
   },
   {
    "id": "boss-anubir",
@@ -212,28 +217,32 @@
    "name": "塔の心臓 クロノ",
    "role": "機械仕掛けの塔の主。歯車の心臓",
    "kind": "creature",
-   "prompt": "clockwork heart machine, floating, no legs, brass gears and pipes, pendulums, one huge red eye in the center, main color brass, secondary dark bronze, accent red"
+   "prompt": "clockwork heart machine, floating, no legs, brass gears and pipes, pendulums, one huge red eye in the center, main color brass, secondary dark bronze, accent red",
+   "negative": "legs, feet"
   },
   {
    "id": "boss-hedra",
    "name": "腐海の主 ヘドラ",
    "role": "腐海の主。緑の毒スライム",
    "kind": "creature",
-   "prompt": "toxic sludge blob, no legs, two red eyes, bubbling poison, rotten debris, main color toxic green, secondary dark green, accent red"
+   "prompt": "toxic sludge blob, no legs, two red eyes, bubbling poison, rotten debris, main color toxic green, secondary dark green, accent red",
+   "negative": "legs, feet"
   },
   {
    "id": "boss-fabul",
    "name": "古竜 ファブル",
    "role": "竜の巣の主。黄金の古竜",
    "kind": "creature",
-   "prompt": "ancient dragon, quadruped, four legs, two folded wings, one tail, old scars, sitting on treasure, main color gold, secondary bronze, accent red eyes, huge"
+   "prompt": "ancient dragon, quadruped, on all fours, four legs, two folded wings, one tail, old scars, sitting on treasure, main color gold, secondary bronze, accent red eyes, huge",
+   "negative": "arms, hands, humanoid, standing upright"
   },
   {
    "id": "boss-astel",
    "name": "星喰い アステル",
    "role": "星の回廊の主。星を喰う目",
    "kind": "creature",
-   "prompt": "cosmic eye monster, floating, one huge eye, wide mouth swallowing a star, nebula tendrils, starry body, main color dark violet, secondary deep blue, accent yellow"
+   "prompt": "cosmic eye monster, floating, one huge eye, wide mouth swallowing a star, nebula tendrils, starry body, main color dark violet, secondary deep blue, accent yellow",
+   "negative": "legs, feet"
   },
   {
    "id": "boss-judge",
@@ -247,14 +256,16 @@
    "name": "虚無の王",
    "role": "虚無の縁の主。形の無い王",
    "kind": "creature",
-   "prompt": "faceless shadow giant king, bipedal, two arms, floating crown, body dissolving into darkness, main color black, secondary dark indigo, accent violet eyes"
+   "prompt": "faceless shadow giant king, bipedal, two arms, floating crown, body dissolving into darkness, main color black, secondary dark indigo, accent violet eyes",
+   "negative": "legs, feet"
   },
   {
    "id": "boss-core",
    "name": "迷宮の核",
    "role": "迷宮の最奥。生きた核",
    "kind": "creature",
-   "prompt": "living crystal heart, no legs, one white eye, pulsing crystal, roots and veins spreading into the floor, main color crimson pink, secondary dark red, accent white"
+   "prompt": "living crystal heart, no legs, one white eye, pulsing crystal, roots and veins spreading into the floor, main color crimson pink, secondary dark red, accent white",
+   "negative": "legs, feet"
   },
   {
    "id": "boss-seire",
