@@ -64,6 +64,16 @@
    "breathe": 0.5,
    "no_line_behind": true,
    "shapes": [{"type": "poly", "points": [[10.4, 20.2], [15, 21], [15, 21.6], [10.4, 20.8]]}]
+  },
+  {
+   "name": "coat_hem",
+   "material": "gold",
+   "after": "coat_tail",
+   "weight": 2,
+   "bias": 0.3,
+   "strands": {"angle": 0, "period": 2, "amp": 0.35},
+   "shapes": [],
+   "band_of": {"part": "coat_tail", "width": 1.0}
   }
  ],
  "touchups": [

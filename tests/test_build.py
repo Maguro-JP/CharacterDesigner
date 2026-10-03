@@ -127,6 +127,18 @@ class BuildTest(unittest.TestCase):
         self.assertNotEqual(edge(tinted), {"#101010"})
         self.assertTrue(all(luma(c) <= luma(MATS["metal"]["ramp"][1]) for c in edge(tinted)), edge(tinted))
 
+    def test_band_of_follows_the_bottom_of_its_part(self):
+        # 裾の縁取りは元の部品の下端の帯。元の部品が無ければ何も描かない
+        cloth = {"name": "coat", "material": "metal", "shapes": [{"type": "rect", "at": [3, 2, 9, 8]}]}
+        hem = {"name": "hem", "material": "skin", "shapes": [], "band_of": {"part": "coat", "width": 1.0}}
+        out, _ = build.build(spec([cloth, hem]))
+        pal = out["palette"]
+        skin = set(MATS["skin"]["ramp"])
+        rows_with_skin = [y for y, r in enumerate(out["rows"]) if any(c != "." and pal[c] in skin for c in r)]
+        self.assertEqual(rows_with_skin, [7])
+        alone, _ = build.build(spec([hem, {"name": "x", "material": "metal", "shapes": [{"type": "rect", "at": [3, 2, 9, 8]}]}]))
+        self.assertFalse(any(c != "." and alone["palette"][c] in skin for r in alone["rows"] for c in r))
+
     def test_orphan_is_replaced_but_protected_is_kept(self):
         a, b = "#808080", "#ffffff"
         grid = [[a] * 3 for _ in range(3)]
