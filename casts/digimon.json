@@ -2,8 +2,18 @@
  "title": "DigiMon（SIGNAL BEASTS）",
  "source": "Maguro-JP/DigiMon design/signal-beasts の系統表と作風の比較ボード。決まりは docs/designs/digimon.md",
  "creature_common": "original digital monster design, thick uniform black outline, flat cel colors, no gradient, no texture, no shading, sharp angular shapes, fierce eyes, cool rather than cute, three-quarter view",
+ "item_common": "original game item design, thick uniform black outline, flat cel colors, no gradient, no texture, sharp clean shapes, three-quarter view",
  "n": 2,
  "characters": [
+  {
+   "id": "tor-1",
+   "name": "シグナルエッグ",
+   "role": "トルネ系統 卵・風",
+   "kind": "item",
+   "prompt": "single oval egg lying on the ground, a glowing teal diamond gem embedded in the front of the shell, smooth white-green shell, one bold teal swirl stripe winding around the shell like a gust of wind, faint wind lines around it, colors mint white #d9fff1, teal #2ee6b0, dark navy #0d1424",
+   "negative": "hatching, chick, baby animal, nest, multiple eggs, cracked open, broken shell, stand, pedestal, holder, egg cup, base",
+   "n": 4
+  },
   {
    "id": "tor-2",
    "name": "ピィ",
@@ -45,6 +55,15 @@
    "kind": "creature",
    "prompt": "long serpentine sky dragon, snake-like body, tiny vestigial legs, four blade-shaped wings on the back, long golden horns sweeping backward, armor-like scales, wrapped in clouds, glowing diamond-shaped teal core on the chest, ultimate stage, huge, imposing, many parts, colors dark teal #0f5f52, signal green #2ee6b0, silver #e0e6f0",
    "negative": "western dragon, standing, bipedal, quadruped, feathers"
+  },
+  {
+   "id": "hak-1",
+   "name": "白銀の卵",
+   "role": "ハク系統 卵・聖",
+   "kind": "item",
+   "prompt": "single oval egg lying on the ground, a glowing gold diamond gem embedded in the front of the shell, pure white shell glowing softly, one golden ring band around the middle of the shell, soft pale blue light around it, colors white #f4f1ea, gold #d9b45a, pale blue #bcd8ff",
+   "negative": "hatching, chick, baby animal, nest, multiple eggs, cracked open, broken shell, stand, pedestal, holder, egg cup, base",
+   "n": 4
   },
   {
    "id": "hak-2",
@@ -97,6 +116,15 @@
    "negative": "western dragon, standing, bat wings"
   },
   {
+   "id": "emb-1",
+   "name": "火種の卵",
+   "role": "エンボウ系統 卵・火",
+   "kind": "item",
+   "prompt": "single oval egg lying on the ground, a glowing orange diamond gem embedded in the front of the shell, black shell with jagged glowing cracks, red-orange fire light shining from inside the cracks, heat shimmer, colors black #1a0a0a, red orange #ff5a3c, cream #ffe0b0",
+   "negative": "hatching, chick, baby animal, nest, multiple eggs, flames covering the egg, stand, pedestal, holder, egg cup, base",
+   "n": 4
+  },
+  {
    "id": "emb-2",
    "name": "ボッチ",
    "role": "エンボウ系統 幼年期・火",
@@ -138,6 +166,15 @@
    "kind": "creature",
    "prompt": "giant lion king standing on four legs, quadruped, whole mane made of fire, three tails all burning, black paws, glowing diamond-shaped orange core on the chest, ultimate stage, huge, imposing, many parts, colors dark red #8f1d0c, red orange #ff5a3c, gold #ffd166",
    "negative": "bipedal, one tail, detached flames"
+  },
+  {
+   "id": "kam-1",
+   "name": "泡の卵",
+   "role": "カメロ系統 卵・水",
+   "kind": "item",
+   "prompt": "single oval egg lying on the ground, a glowing blue diamond gem embedded in the front of the shell, translucent blue shell like glass, small air bubbles floating inside the egg, colors pale blue #d6ecff, blue #4aa8ff, dark navy #0d1424",
+   "negative": "hatching, chick, baby animal, nest, multiple eggs, cracked open, broken shell, stand, pedestal, holder, egg cup, base",
+   "n": 4
   },
   {
    "id": "kam-2",
@@ -189,6 +226,15 @@
    "negative": "bipedal, standing, legs, arms"
   },
   {
+   "id": "rai-1",
+   "name": "雷雲の卵",
+   "role": "ライトリ系統 卵・雷",
+   "kind": "item",
+   "prompt": "single oval egg lying on the ground, a glowing yellow diamond gem embedded in the front of the shell, yellow shell with a jagged zigzag ridge pattern like lightning around it, tiny electric sparks jumping off the shell, colors pale yellow #fff3c4, yellow #f5c542, dark navy #0d1424",
+   "negative": "hatching, chick, baby animal, nest, multiple eggs, cracked open, broken shell, stand, pedestal, holder, egg cup, base",
+   "n": 4
+  },
+  {
    "id": "rai-2",
    "name": "ビリ",
    "role": "ライトリ系統 幼年期・雷",
@@ -228,6 +274,15 @@
    "kind": "creature",
    "prompt": "giant thunderbird, real bird anatomy, two pairs of wings, four wings in total, no arms, crown of crest feathers, tail feathers made of lightning bolts, lightning emblem on the chest, glowing diamond-shaped yellow core on the chest, ultimate stage, huge, imposing, many parts, colors dark gold #8a6200, yellow #f5c542, white #ffffff",
    "negative": "arms, hands, humanoid, warrior, armor, two wings"
+  },
+  {
+   "id": "gor-1",
+   "name": "石の卵",
+   "role": "ゴロン系統 卵・土",
+   "kind": "item",
+   "prompt": "single egg made of rough stone lying on the ground, a glowing green diamond gem embedded in the front of the shell, lumpy rock texture, cracks spreading across the shell like a map, colors pale tan #e0cdb5, tan #c9a27e, dark navy #0d1424",
+   "negative": "hatching, chick, baby animal, nest, multiple eggs, cracked open, broken shell, stand, pedestal, holder, egg cup, base",
+   "n": 4
   },
   {
    "id": "gor-2",
@@ -274,6 +329,15 @@
    "kind": "creature",
    "prompt": "stone colossus carrying an ancient ruin on its back, pillars and gates as parts of its body, tower-like horns, three glowing green cores, glowing diamond-shaped green core on the chest, ultimate stage, huge, imposing, many parts, colors very dark brown #3f2f22, tan #c9a27e, mint green #2ee6b0",
    "negative": "robot, mecha, human face"
+  },
+  {
+   "id": "yor-1",
+   "name": "黒卵",
+   "role": "ヨル系統 卵・闇",
+   "kind": "item",
+   "prompt": "single oval egg lying on the ground, a glowing violet diamond gem embedded in the front of the shell, black-purple shell, tiny white dots on the surface like stars in the night sky, faint violet glitch noise around it, colors dark indigo #2a1f45, violet #9b6cff, dark navy #0d1424",
+   "negative": "hatching, chick, baby animal, nest, multiple eggs, cracked open, broken shell, stand, pedestal, holder, egg cup, base",
+   "n": 4
   },
   {
    "id": "yor-2",
