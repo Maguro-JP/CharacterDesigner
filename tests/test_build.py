@@ -240,6 +240,27 @@ class BuildTest(unittest.TestCase):
             self.assertEqual(design.base_image(cast, cast["characters"][1], t).getpixel((0, 0)), (10, 200, 10))
             self.assertIsNone(design.base_image(cast, cast["characters"][0], t))
 
+    def test_mode_downscale_keeps_flat_colors_and_gradient_background_is_cut(self):
+        # 灰色のグラデーションの背景は抜け、区画でいちばん多い色で縮めると中間色が生まれない
+        import tempfile
+        from PIL import Image, ImageDraw
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import design
+        im = Image.new("RGB", (120, 200))
+        for y in range(200):
+            ImageDraw.Draw(im).line([(0, y), (119, y)], fill=(150 + y // 4, 150 + y // 4, 150 + y // 4))
+        d = ImageDraw.Draw(im)
+        d.rectangle([30, 20, 89, 189], fill=(20, 20, 20))
+        d.rectangle([32, 22, 59, 187], fill=(220, 60, 40))
+        d.rectangle([60, 22, 87, 187], fill=(40, 90, 220))
+        with tempfile.TemporaryDirectory() as t:
+            im.save(f"{t}/a.png")
+            design.pixel(f"{t}/a.png", f"{t}/a.json", 20, 8, mode=True)
+            sp = json.loads(Path(f"{t}/a.json").read_text(encoding="utf-8"))
+        cols = {sp["palette"][c] for r in sp["rows"] for c in r if c != "."}
+        self.assertEqual(len(sp["rows"]), 22)  # 背景が残ると高さが絵の上下まで伸びる
+        self.assertLessEqual(len(cols), 5)  # 赤・青・縁・外側の輪郭。混ざった中間色が無い
+
     def test_orphan_is_replaced_but_protected_is_kept(self):
         a, b = "#808080", "#ffffff"
         grid = [[a] * 3 for _ in range(3)]

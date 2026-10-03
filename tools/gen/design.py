@@ -46,6 +46,9 @@ PRESETS = {
     "survivor": {"height": 40, "colors": 16},
     "retro16": {"height": 24, "colors": 15},
     "chibi16": {"height": 16, "colors": 12},
+    # monster64: 等身を保つ解像度高めのモンスターのドット絵（携帯機以降の育成ゲームの戦闘画面の大きさ）。
+    # 数字は手本で数えていない（未確認）
+    "monster64": {"height": 64, "colors": 24, "mode": True},
 }
 # 立ち絵の設定資料として描かせる決まり文句。全身・1人・無地の背景にしておくと、派生（ドット絵）で背景を抜ける
 PREFIX = "masterpiece, best quality, character design, full body, standing, solo, "
@@ -353,24 +356,31 @@ def restyle(src, out, style, strength, steps, prompt):
     print(f"{out}: {time.time() - t:.1f} 秒")
 
 
-def cut_background(im, tol=24):
-    """四隅から塗りつぶして、無地の背景を透明にする。人物の中の白（目、服）は四隅とつながらないので残る。"""
+def cut_background(im, tol=24, step=4):
+    """背景を透明にする。四辺から塗り広げ、となりの画素との差が step 以下なら背景として続ける。
+
+    四隅の色と比べるだけでは、灰色のグラデーションと床の影が抜けなかった（SDXL 系の絵）。
+    背景はなだらかに色が変わり、人物は輪郭で急に色が変わるので、となりとの差で止める。
+    彩度の高い画素（tol*2 を超える）には入らない。輪郭の無い白い部分は抜ける恐れがあるので、絵で確かめる。
+    """
     from PIL import Image
     im = im.convert("RGBA")
     W, H = im.size
     px = im.load()
     seen = set()
-    stack = [(0, 0), (W - 1, 0), (0, H - 1), (W - 1, H - 1)]
-    base = [px[x, y][:3] for x, y in stack]
+    stack = [(x, y, None) for x in range(W) for y in (0, H - 1)] + [(x, y, None) for y in range(H) for x in (0, W - 1)]
     while stack:
-        x, y = stack.pop()
+        x, y, prev = stack.pop()
         if (x, y) in seen or not (0 <= x < W and 0 <= y < H):
             continue
         c = px[x, y][:3]
-        if min(sum(abs(a - b) for a, b in zip(c, bc)) for bc in base) > tol * 3:
+        if prev is not None and sum(abs(a - b) for a, b in zip(c, prev)) > step * 3:
+            continue
+        # 背景は彩度が低い（灰色・白）。色の付いた画素に入ったら止める。明るさの変化（後光、影）は許す
+        if max(c) - min(c) > tol * 2:
             continue
         seen.add((x, y))
-        stack += [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
+        stack += [(x + 1, y, c), (x - 1, y, c), (x, y + 1, c), (x, y - 1, c)]
     for x, y in seen:
         px[x, y] = (0, 0, 0, 0)
     return im
@@ -429,9 +439,13 @@ def deform(im, heads, neck=0.155):
     return o
 
 
-def pixel(src, out, height, colors, heads=None):
-    """絵からドット絵を作る。描画器の後半と同じ考え方（縮小 → 減色 → 外側に暗い輪郭 → 孤立ドットの掃除）。"""
-    from PIL import Image
+def pixel(src, out, height, colors, heads=None, smooth=0, mode=False):
+    """絵からドット絵を作る。描画器の後半と同じ考え方（縮小 → 減色 → 外側に暗い輪郭 → 孤立ドットの掃除）。
+
+    smooth: 縮める前に色の面をならす強さ（最頻値フィルタの大きさ、0 でならさない）。SDXL 系の絵は質感の
+    描き込みが多く、そのまま縮めると細かい色の粒になって濁った。
+    """
+    from PIL import Image, ImageFilter
     sys.path.insert(0, str(ROOT / "tools"))
     import build
     im = keep_largest(cut_background(Image.open(src)))
@@ -439,17 +453,39 @@ def pixel(src, out, height, colors, heads=None):
     im = im.crop(bb)
     if heads:
         im = deform(im, heads)
+    if smooth:
+        a = im.getchannel("A")
+        im = im.convert("RGB").filter(ImageFilter.ModeFilter(smooth)).convert("RGBA")
+        im.putalpha(a)
     w = max(1, round(im.width * height / im.height))
-    # 縮小は箱で平均する。最近傍で拾うと1ドットの線が途切れる
-    small = im.resize((w, height), Image.BOX)
-    alpha = small.getchannel("A").point(lambda a: 255 if a >= 128 else 0)
-    rgb = small.convert("RGB").quantize(colors=colors, method=Image.Quantize.MEDIANCUT).convert("RGB")
     W, H = w + 2, height + 2
     grid = [[None] * W for _ in range(H)]
-    for y in range(height):
-        for x in range(w):
-            if alpha.getpixel((x, y)):
-                grid[y + 1][x + 1] = "#%02x%02x%02x" % rgb.getpixel((x, y))
+    if mode:
+        # 先に大きいまま減色し、区画の中でいちばん多い色を取る。平均して縮めると境目に中間色が生まれ、
+        # 細かい色の粒になった（孤立ドット率 0.067 → 0.013、DigiMon の5体、高さ 64）
+        from collections import Counter
+        a = im.getchannel("A").load()
+        q = im.convert("RGB").quantize(colors=colors, method=Image.Quantize.MEDIANCUT).convert("RGB").load()
+        bx, by = im.width / w, im.height / height
+        for y in range(height):
+            for x in range(w):
+                cnt, tot = Counter(), 0
+                for yy in range(int(y * by), max(int(y * by) + 1, int((y + 1) * by))):
+                    for xx in range(int(x * bx), max(int(x * bx) + 1, int((x + 1) * bx))):
+                        tot += 1
+                        if a[xx, yy] >= 128:
+                            cnt[q[xx, yy]] += 1
+                if cnt and sum(cnt.values()) * 2 >= tot:
+                    grid[y + 1][x + 1] = "#%02x%02x%02x" % cnt.most_common(1)[0][0]
+    else:
+        # 縮小は箱で平均する。最近傍で拾うと1ドットの線が途切れる
+        small = im.resize((w, height), Image.BOX)
+        alpha = small.getchannel("A").point(lambda a: 255 if a >= 128 else 0)
+        rgb = small.convert("RGB").quantize(colors=colors, method=Image.Quantize.MEDIANCUT).convert("RGB")
+        for y in range(height):
+            for x in range(w):
+                if alpha.getpixel((x, y)):
+                    grid[y + 1][x + 1] = "#%02x%02x%02x" % rgb.getpixel((x, y))
     # 外側に1ドットの輪郭。色は隣の色をほぼ黒まで落としたもの（手本の輪郭は純黒でなく内側の暗い色）
     out_grid = [row[:] for row in grid]
     for y in range(H):
@@ -495,6 +531,8 @@ def main():
     p.add_argument("--preset", choices=list(PRESETS), default=None)
     p.add_argument("--height", type=int, default=None)
     p.add_argument("--colors", type=int, default=None)
+    p.add_argument("--smooth", type=int, default=None, help="縮める前に色の面をならす強さ（例 9）")
+    p.add_argument("--mode", action="store_true", help="区画の中でいちばん多い色で縮める（色の粒が減る）")
     p.add_argument("--heads", type=float, default=None, help="頭身を下げる（箱庭ドットは 2.8）。省くと元の絵のまま")
     b = sub.add_parser("batch")
     b.add_argument("cast")
@@ -519,8 +557,11 @@ def main():
     elif a.cmd == "restyle":
         restyle(a.src, a.out, a.style, a.strength, a.steps, a.prompt)
     else:
-        pre = PRESETS[a.preset or "diorama"]
-        pixel(a.src, a.out, a.height or pre["height"], a.colors or pre["colors"], a.heads or pre.get("heads"))
+        # 作風を指定しないときは変形しない。既定を箱庭ドットにしていた頃は、高さだけ指定しても
+        # 2.8 頭身への変形が黙ってかかり、モンスターの角や耳が横に寝た
+        pre = PRESETS[a.preset] if a.preset else {"height": 34, "colors": 32}
+        pixel(a.src, a.out, a.height or pre["height"], a.colors or pre["colors"], a.heads or pre.get("heads"),
+              a.smooth if a.smooth is not None else pre.get("smooth", 0), a.mode or pre.get("mode", False))
 
 
 if __name__ == "__main__":
