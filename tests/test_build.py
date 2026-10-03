@@ -188,6 +188,25 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(len(sp["rows"]), 36)  # 34 ドットの本人と上下の輪郭
         self.assertFalse(any(build.hex_to_rgb(c)[0] > 120 and build.hex_to_rgb(c)[2] < 80 for c in cols), cols)
 
+    def test_cast_sheet_lists_drawn_pictures_per_character(self):
+        # 設定集の一覧図: 描いた人だけが1人1行で並び、全員の指示文の頭に共通の世界観が付く
+        import tempfile
+        from PIL import Image
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import design
+        cast = {"common": "dark fantasy", "n": 2,
+                "characters": [{"id": "a", "name": "剣士", "role": "前衛", "prompt": "swordsman"},
+                               {"id": "b", "name": "未描画", "prompt": "mage"}]}
+        with tempfile.TemporaryDirectory() as t:
+            Path(f"{t}/c.json").write_text(json.dumps(cast, ensure_ascii=False), encoding="utf-8")
+            for s in (7, 8):
+                Image.new("RGB", (64, 96), (200, 0, 0)).save(f"{t}/a-{s}.png")
+            design.sheet(f"{t}/c.json", t, f"{t}/s.png", thumb=64)
+            im = Image.open(f"{t}/s.png")
+            self.assertEqual(im.size, (220 + 2 * 64, 96))  # 1行（未描画の人は出ない）、絵は2枚
+            self.assertEqual(design.load_cast(f"{t}/c.json")["characters"][0]["full_prompt"],
+                             "dark fantasy, swordsman")
+
     def test_orphan_is_replaced_but_protected_is_kept(self):
         a, b = "#808080", "#ffffff"
         grid = [[a] * 3 for _ in range(3)]

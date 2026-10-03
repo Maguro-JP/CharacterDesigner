@@ -11,6 +11,11 @@
   PYTHONPATH=.cache/gen/lib python3 tools/gen/design.py draw out.png "young swordsman, blue tunic, red scarf" [--seed 7] [--n 4]
   PYTHONPATH=.cache/gen/lib python3 tools/gen/design.py restyle in.png out.png --style real [--strength 0.55]
   python3 tools/gen/design.py pixel in.png out.sprite.json [--preset diorama|survivor|retro16|chibi16] [--height N] [--colors N]
+  PYTHONPATH=.cache/gen/lib python3 tools/gen/design.py batch casts/<作品>.json <出力フォルダ>
+  python3 tools/gen/design.py sheet casts/<作品>.json <出力フォルダ> <一覧図.png>
+
+batch は設定集（casts/*.json）の全員を、モデルを1回だけ読み込んで描く。描き終えた絵は飛ばすので、
+途中で止まっても同じコマンドで続きから描ける。sheet は描いた絵を名前付きで1枚に並べる。
 """
 import argparse
 import json
@@ -74,6 +79,79 @@ def draw(out, prompt, seed, n, style, steps, width, height):
         paths.append(p)
         print(f"{p}: {time.time() - t:.1f} 秒")
     return paths
+
+
+def load_cast(path):
+    """設定集を読む。common は全員の指示文の頭に付ける（作品の世界観と画風を全員でそろえるため）。"""
+    cast = json.loads(Path(path).read_text(encoding="utf-8"))
+    common = cast.get("common", "")
+    for c in cast["characters"]:
+        c["full_prompt"] = (common + ", " if common else "") + c["prompt"]
+    return cast
+
+
+def cast_paths(cast, outdir):
+    """設定集の1人ごとに、描く絵のパスを seed の数だけ返す。"""
+    for c in cast["characters"]:
+        seed, n = c.get("seed", 7), c.get("n", cast.get("n", 2))
+        yield c, [Path(outdir) / f"{c['id']}-{seed + i}.png" for i in range(n)], seed
+
+
+def batch(cast_path, outdir, style, steps, width, height):
+    import torch
+    cast = load_cast(cast_path)
+    Path(outdir).mkdir(parents=True, exist_ok=True)
+    todo = [(c, p, seed + i) for c, ps, seed in cast_paths(cast, outdir) for i, p in enumerate(ps) if not p.exists()]
+    print(f"{len(todo)} 枚を描く")
+    if not todo:
+        return
+    pipe = _pipe(style)
+    for c, p, seed in todo:
+        t = time.time()
+        im = pipe(PREFIX + c["full_prompt"] + SUFFIX, negative_prompt=NEGATIVE + ", " + c.get("negative", ""),
+                  num_inference_steps=steps, guidance_scale=1.5, width=width, height=height,
+                  generator=torch.Generator().manual_seed(seed)).images[0]
+        im.save(p)
+        meta = {"name": c.get("name", c["id"]), "prompt": c["full_prompt"], "seed": seed, "style": style,
+                "model": STYLES[style], "steps": steps}
+        Path(str(p) + ".json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"{p}: {time.time() - t:.1f} 秒", flush=True)
+
+
+FONT = "/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf"
+
+
+def sheet(cast_path, outdir, out, thumb=256):
+    """描いた絵を、1人1行（名前と役割＋seed ごとの絵）で並べた一覧図にする。"""
+    from PIL import Image, ImageDraw, ImageFont
+    cast = load_cast(cast_path)
+    rows = [(c, [p for p in ps if p.exists()]) for c, ps, _ in cast_paths(cast, outdir)]
+    rows = [(c, ps) for c, ps in rows if ps]
+    cols = max(len(ps) for _, ps in rows)
+    th = thumb * 3 // 2
+    label = 220
+    try:
+        font, small = ImageFont.truetype(FONT, 22), ImageFont.truetype(FONT, 16)
+    except OSError:
+        font = small = ImageFont.load_default()
+    im = Image.new("RGB", (label + cols * thumb, len(rows) * th), "white")
+    d = ImageDraw.Draw(im)
+    for r, (c, ps) in enumerate(rows):
+        y = r * th
+        d.text((10, y + 12), c.get("name", c["id"]), fill="black", font=font)
+        line, yy = "", y + 46
+        # 役割の説明は枠の幅で折り返す
+        for ch in c.get("role", ""):
+            if d.textlength(line + ch, font=small) > label - 20:
+                d.text((10, yy), line, fill=(80, 80, 80), font=small)
+                line, yy = "", yy + 20
+            line += ch
+        d.text((10, yy), line, fill=(80, 80, 80), font=small)
+        for i, p in enumerate(ps):
+            im.paste(Image.open(p).convert("RGB").resize((thumb, th), Image.LANCZOS), (label + i * thumb, y))
+        d.line((0, y + th - 1, im.width, y + th - 1), fill=(200, 200, 200))
+    im.save(out)
+    print(f"{out}: {len(rows)} 人, {im.width}x{im.height}")
 
 
 def restyle(src, out, style, strength, steps, prompt):
@@ -236,8 +314,24 @@ def main():
     p.add_argument("--height", type=int, default=None)
     p.add_argument("--colors", type=int, default=None)
     p.add_argument("--heads", type=float, default=None, help="頭身を下げる（箱庭ドットは 2.8）。省くと元の絵のまま")
+    b = sub.add_parser("batch")
+    b.add_argument("cast")
+    b.add_argument("outdir")
+    b.add_argument("--style", default="anime", choices=list(STYLES))
+    b.add_argument("--steps", type=int, default=6)
+    b.add_argument("--width", type=int, default=512)
+    b.add_argument("--height", type=int, default=768)
+    s = sub.add_parser("sheet")
+    s.add_argument("cast")
+    s.add_argument("outdir")
+    s.add_argument("out")
+    s.add_argument("--thumb", type=int, default=256)
     a = ap.parse_args()
-    if a.cmd == "draw":
+    if a.cmd == "batch":
+        batch(a.cast, a.outdir, a.style, a.steps, a.width, a.height)
+    elif a.cmd == "sheet":
+        sheet(a.cast, a.outdir, a.out, a.thumb)
+    elif a.cmd == "draw":
         draw(a.out, a.prompt, a.seed, a.n, a.style, a.steps, a.width, a.height)
     elif a.cmd == "restyle":
         restyle(a.src, a.out, a.style, a.strength, a.steps, a.prompt)
