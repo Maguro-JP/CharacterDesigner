@@ -1,7 +1,7 @@
 {
  "title": "深層ギルド",
  "source": "Maguro-JP/RuleCrawler src/guild/ui/stage/costumes.ts、figures.ts、engine/data.ts、docs/guild/design.md",
- "common": "western high fantasy adventurer, octopath traveler inspired, slender angular body, slightly long proportions, anime style, exaggerated class silhouette (hat, collar, weapon)",
+ "common": "western high fantasy adventurer, octopath traveler inspired, anime style, exaggerated class silhouette (hat, collar, weapon)",
  "n": 2,
  "characters": [
   {

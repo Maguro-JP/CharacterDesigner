@@ -68,9 +68,11 @@ XL_CREATURE_SUFFIX = (", full body, creature design, 2d anime style illustration
                       "flat colors, white background")
 XL_CREATURE_NEGATIVE = ("human, humanoid, anthro, 1girl, extra heads, extra legs, extra wings, extra tails, "
                         "fused animals, two animals, cropped, text, watermark, nsfw")
-# 性別。指定が無いとアニメの人物向けのモデルは少女を描き、男性の職まで女性になった
-GENDER = {"male": ("1boy, male focus, ", "1girl, female, breasts, skirt"),
-          "female": ("1girl, ", "")}
+# 性別。指定が無いとアニメの人物向けのモデルは少女を描き、男性の職まで女性になった。
+# 「1boy」だけでは中性的な美形に寄った（学んだ絵に多い）ので、男性は体と顔の骨格から書く
+GENDER = {"male": ("1boy, male focus, adult man, broad shoulders, strong jawline, thick neck, short hair, masculine, ",
+                   "1girl, female, breasts, skirt, androgynous, feminine face, long eyelashes, bishounen, makeup"),
+          "female": ("1girl, adult woman, feminine, ", "")}
 
 
 def _pipe(style, img2img=False):
