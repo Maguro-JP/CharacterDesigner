@@ -249,7 +249,9 @@
    "name": "near_arm",
    "material": "metal",
    "shapes": [{"type": "limb", "points": [[10.6, 14.8], [9.6, 17.0], [7.6, 16.6]], "radii": [1.76, 1.44, 1.12]}],
-   "breathe": 0.5
+   "breathe": 0.5,
+   "line_same": true,
+   "bias": 0.2
   },
   {
    "name": "hands",
