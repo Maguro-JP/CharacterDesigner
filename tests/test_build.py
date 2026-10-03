@@ -293,6 +293,34 @@ class BuildTest(unittest.TestCase):
         with self.assertRaises(SystemExit):
             design.full_texts({**c, "traits": ["horns:none"]})
 
+    def test_patterns_expand_to_traits_and_words(self):
+        # 名前付きのパターンは、部品と足す言葉に展開される。知らない名前は止める
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import design
+        saved = dict(design.PATTERNS)
+        try:
+            design.PATTERNS["test-blue"] = {"traits": ["skin:blue"], "prompt": "glossy skin", "negative": "blue clothes"}
+            c = {"id": "x", "gender": "male", "prompt": "knight", "full_prompt": "knight", "patterns": ["test-blue"]}
+            text, neg = design.full_texts(c)
+            self.assertIn("blue skin", text)
+            self.assertIn("glossy skin", text)
+            self.assertIn("blue clothes", neg)
+            with self.assertRaises(SystemExit):
+                design.full_texts({**c, "patterns": ["no-such"]})
+        finally:
+            design.PATTERNS.clear()
+            design.PATTERNS.update(saved)
+
+    def test_body_framing_uses_plain_wear(self):
+        # 素体は簡素な無地の肌着で描き、外套や鎧や背景の物を打ち消す
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import design
+        c = {"id": "x", "gender": "female", "framing": "body", "prompt": "elf", "full_prompt": "elf"}
+        for st in ("anime", "xl"):
+            text, neg = design.full_texts(c, st)
+            self.assertIn("plain grey sports top", text)
+            self.assertIn("cape", neg)
+
     def test_orphan_is_replaced_but_protected_is_kept(self):
         a, b = "#808080", "#ffffff"
         grid = [[a] * 3 for _ in range(3)]

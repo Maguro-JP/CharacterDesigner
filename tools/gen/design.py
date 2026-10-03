@@ -95,6 +95,12 @@ AGE = {"child": ("young child, about 7 years old, small body, big head, short le
        "middle": ("middle-aged, about 45 years old, mature face, slight wrinkles, ", "child, teenager, young face"),
        "elder": ("elderly, about 70 years old, wrinkled face, grey hair, slightly hunched, ",
                  "young, child, smooth skin")}
+# 素体の肌着と打ち消し。服は後から着せ替えるので、素体は体の線が見える簡素な無地のものにそろえる
+BODY_WEAR = {"male": "plain grey tank top, plain grey shorts, barefoot, plain grey background",
+             "female": "plain grey sports top, plain grey shorts, barefoot, plain grey background",
+             "androgynous": "plain grey tank top, plain grey shorts, barefoot, plain grey background"}
+BODY_NEGATIVE = ("cape, coat, jacket, armor, scarf, belt, bag, weapon, props, jewelry, scenery, background objects, "
+                 "creature in background, extra character, nude, nsfw")
 # 中年と老人は SDXL 系で描く。アニメの人物向けのモデルは、言葉を強めても女性の老人を若い顔で描いた
 OLD_AGES = {"middle", "elder"}
 # 年齢の形容は性別の名詞に直接付ける（「elderly woman」）。離して書くと若い顔に戻った
@@ -223,10 +229,23 @@ def load_cast(path):
 TRAITS = json.loads((Path(__file__).parent / "traits.json").read_text(encoding="utf-8"))
 
 
+PATTERNS = json.loads((ROOT / "library" / "patterns.json").read_text(encoding="utf-8"))["patterns"]
+
+
 def trait_texts(c):
-    """設定集の traits（"分類:種類" の並び）を、指示文と打ち消しの言葉にする。知らない種類は止める。"""
+    """設定集の traits（"分類:種類" の並び）と patterns（library/patterns.json の名前）を、指示文と打ち消しの言葉にする。
+    知らない種類や名前は止める（黙って無視すると、効かなかったのか書き間違いなのか分からない）。"""
     ps, ns = [], []
-    for t in c.get("traits", []):
+    traits = list(c.get("traits", []))
+    for name in c.get("patterns", []):
+        if name not in PATTERNS:
+            raise SystemExit(f"{c.get('id')}: patterns の {name} が library/patterns.json に無い")
+        traits += PATTERNS[name].get("traits", [])
+        if PATTERNS[name].get("prompt"):
+            ps.append(PATTERNS[name]["prompt"])
+        if PATTERNS[name].get("negative"):
+            ns.append(PATTERNS[name]["negative"])
+    for t in traits:
         cat, _, key = t.partition(":")
         if cat not in TRAITS or key not in TRAITS[cat]:
             raise SystemExit(f"{c.get('id')}: traits の {t} が tools/gen/traits.json に無い")
@@ -252,6 +271,9 @@ def full_texts(c, style="anime"):
     if style in XL:
         # SDXL 系の人。タグではなく言葉で書く（SDXL 系は 1boy などのタグで学んでいない）
         who = {"male": "man", "female": "woman", "androgynous": "androgynous person"}.get(c.get("gender"), "person")
+        if c.get("framing") == "body":
+            c = {**c, "full_prompt": c["full_prompt"] + ", " + BODY_WEAR.get(c.get("gender"), BODY_WEAR["male"]),
+                 "negative": ", ".join(x for x in (c.get("negative", ""), BODY_NEGATIVE) if x)}
         adj, detail = XL_AGE.get(c.get("age", "adult"), ("", ""))
         if c.get("age") == "elder" and c.get("gender") == "female":
             detail += "grandmother, sagging cheeks, white hair in a bun, "
@@ -269,6 +291,13 @@ def full_texts(c, style="anime"):
         if c.get("age") == "elder" and c.get("gender") == "female":
             gp = "1girl, " + ELDER_FEMALE
         prefix = PREFIX
+        if c.get("framing") == "body":
+            # 素体: 体の部品（肌、鱗、刺青、体型）を服に引っ張られずに見るため、簡素な無地の肌着で描く。
+            # 服を着た姿で試すと、肌の色や質感の言葉が服や背景に移った（青い肌 → 青い服、鱗 → 背後の蛇）
+            prefix = PREFIX.replace("full body, standing, ", "full body, standing straight, arms slightly away from body, body reference, ")
+            wear = BODY_WEAR.get(c.get("gender"), BODY_WEAR["male"])
+            c = {**c, "full_prompt": c["full_prompt"] + ", " + wear,
+                 "negative": ", ".join(x for x in (c.get("negative", ""), BODY_NEGATIVE) if x)}
         if c.get("framing") == "portrait":
             # 顔の部品（輪郭、鼻、耳、目）は全身の絵では小さすぎて描かれない。胸から上で描く
             prefix = PREFIX.replace("full body, standing, ", "upper body, portrait, close-up, ")

@@ -1,0 +1,4 @@
+{
+ "_doc": "名前付きの描き分けのパターン（皮膚、体型、亜人間など）。設定集の人物に \"patterns\": [\"名前\"] と書くと、traits と prompt が入る。verified は描いて確かめた結果（モデルと構図ごと）、sample は見本の絵。効かないパターンはここに置かない（docs/knowledge/traits.md に記録する）",
+ "patterns": {}
+}
