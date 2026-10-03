@@ -73,6 +73,12 @@ XL_CREATURE_SUFFIX = (", full body, creature design, 2d anime style illustration
                       "flat colors, white background")
 XL_CREATURE_NEGATIVE = ("human, humanoid, anthro, 1girl, extra heads, extra legs, extra wings, extra tails, "
                         "fused animals, two animals, cropped, text, watermark, nsfw")
+# 生き物でない物（卵、道具）。モンスターの決まり文句（feral、creature design、作品の「鋭い目」）を付けると、
+# 卵に目と脚が生えて生き物になった（DigiMon の卵、2026-10-03）。kind: "item" は SDXL 系で、物として描く
+XL_ITEM_SUFFIX = (", single object, still life, centered, full view, 2d game item illustration, cel shading, "
+                  "clean lineart, flat colors, white background")
+XL_ITEM_NEGATIVE = ("eyes, face, mouth, creature, animal, character, person, legs, feet, arms, hands, wings, tail, "
+                    "multiple objects, cropped, text, watermark")
 # 性別。指定が無いとアニメの人物向けのモデルは少女を描き、男性の職まで女性になった。
 # 「1boy」だけでは中性的な美形に寄った（学んだ絵に多い）ので、男性は体と顔の骨格から書く
 GENDER = {"male": ("1boy, male focus, adult man, broad shoulders, strong jawline, thick neck, short hair, masculine, ",
@@ -205,6 +211,9 @@ def load_cast(path):
         # モンスターには人向けの世界観（服や頭身の決まり）を付けない。creature_common が別にある
         if c.get("kind") == "creature":
             common = cast.get("creature_common", cast.get("common", ""))
+        elif c.get("kind") == "item":
+            # 物には生き物の決まり（目、顔つき）も人の決まりも付けない。item_common だけ
+            common = cast.get("item_common", "")
         else:
             common = cast.get("common", "")
         c["full_prompt"] = c["prompt"] + (", " + common if common else "")
@@ -234,6 +243,9 @@ def full_texts(c, style="anime"):
         # 描き分けの部品は人物の説明の前に置く（先頭の言葉ほど強く効く）
         c = {**c, "full_prompt": tp + ", " + c["full_prompt"],
              "negative": ", ".join(x for x in (c.get("negative", ""), tn) if x)}
+    if c.get("kind") == "item":
+        neg = ", ".join(x for x in (XL_ITEM_NEGATIVE, c.get("negative", "")) if x)
+        return c["full_prompt"] + XL_ITEM_SUFFIX, neg
     if c.get("kind") == "creature" and style in XL:
         neg = ", ".join(x for x in (XL_CREATURE_NEGATIVE, c.get("negative", "")) if x)
         return c["full_prompt"] + XL_CREATURE_SUFFIX, neg
@@ -277,7 +289,7 @@ def cast_paths(cast, outdir, style=None):
     base = style or cast.get("style", "anime")
     for c in cast["characters"]:
         seed, n = c.get("seed", 7), c.get("n", cast.get("n", 2))
-        styles = c.get("styles") or (CREATURE_STYLES if c.get("kind") == "creature"
+        styles = c.get("styles") or (CREATURE_STYLES if c.get("kind") in ("creature", "item")
                                      else ["xl"] if c.get("age") in OLD_AGES else [base])
         rejected = c.get("rejected", {})
         shots = []

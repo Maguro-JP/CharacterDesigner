@@ -177,3 +177,12 @@ small crystal growing on forehead, main color sand yellow, secondary color white
 次から: 設定との色や細部の不一致は落とす理由にせず、候補に残して「設定と違う点」を添えて見せる。
 落とすのは、体の破綻（部位の数、途切れ、融合）と、人型にしてはいけない者が人型になった場合に絞る。
 デザインとしての良さは利用者が決める。
+
+## 8. 卵（生き物でない物）を描く（DigiMon の7系統の卵、2026-10-03）
+
+- モンスターの決まり文句（feral、creature design、作品の「鋭い目」）を付けて描くと、卵に目・くちばし・脚が生えて生き物になった（2枚とも）。
+  物は `kind: "item"` で描く。決まり文句は `XL_ITEM_SUFFIX` と `XL_ITEM_NEGATIVE`、作品の共通は `item_common`
+- 「standing upright」「still life」で、頼んでいない台座（卵立て）が付いた。「lying on the ground」と書き、打ち消しに `stand, pedestal, holder, egg cup, base` を足すと減ったが、28枚中4枚にまだ台座や台の岩が付いた
+- 小さな菱形のコア（diamond-shaped core）は、殻の正面全体を覆う大きな宝石になるか、出なかった。菱形として読めたのは 28 枚中 2〜3 枚。
+  小さな印は指示文では守られにくい。必要なら描いたあとで重ねる方が確実だと推測している（未確認）
+- 白い殻と金の環（白銀の卵）は、金の枠に宝石をはめたブローチになった。「ring」が装身具に引っ張られた（推測）
