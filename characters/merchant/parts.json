@@ -8,7 +8,8 @@
    "line": "#3a1a10",
    "ramp": ["#6a2e1a", "#9a4a28", "#c8703a"],
    "steps": [0.55, 0.86],
-   "texture": 0.45
+   "texture": 0.45,
+   "shine": {"mix": 0.45, "step": 0.9}
   },
   "robe": {
    "outline": "#1c1e2c",

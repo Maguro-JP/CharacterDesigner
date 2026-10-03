@@ -19,7 +19,8 @@
    "line": "#181818",
    "ramp": ["#2a1c14", "#5c3e2a", "#9a7a58"],
    "steps": [0.55, 0.86],
-   "texture": 0.45
+   "texture": 0.45,
+   "shine": {"mix": 0.45, "step": 0.9}
   },
   "cloth": {"outline": "#1a1a22", "line": "#1a1a22", "ramp": ["#3a3a48", "#5a5a6e", "#80809a"], "steps": [0.42, 0.72]}
  },

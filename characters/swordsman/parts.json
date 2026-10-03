@@ -9,7 +9,8 @@
    "line": "#1a1a28",
    "ramp": ["#2a2a3c", "#3e3e58", "#5c5c80"],
    "steps": [0.55, 0.86],
-   "texture": 0.45
+   "texture": 0.45,
+   "shine": {"mix": 0.45, "step": 0.9}
   },
   "tunic": {
    "outline": "#1a2240",
