@@ -36,7 +36,10 @@ python3 tools/compare.py out.png 前=<旧 sprite.json> 後=<新 sprite.json>
 python3 tools/anim.py --anim walk out.gif characters/<名前>/sprite.json
 python3 tools/faces.py out.png   # 全キャラクターの全コマの頭
 python3 tools/vsref.py out.png ref=<手本.png>@x0,y0,x1,y1 me=<sprite.json>@x0,y0,x1,y1   # 手本と同じ倍率で並べる
+python3 tools/learn.py score styles/diorama.learned.json characters/*/sprite.json   # 手本の全コマの分布からの外れ
 ```
+
+直す順番は `tools/learn.py score` で決める。手本の全コマ（728 コマ）から学んだ平均とばらつきに対して、特徴ごとの外れ（z）を出す。1体の手本だけを見て直すと、その1体の癖まで写す。手本のシートを足したら `tools/learn.py fit` で学び直す。
 
 比較画像を実際に開いて見る。比べる相手は自分の前の版ではなく手本。部位を直すたびに `tools/vsref.py` で手本の同じ部位と横に並べ、1ドットの置き方は `--dump` で文字に起こして読む。見るもの:
 
