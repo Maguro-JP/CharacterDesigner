@@ -63,6 +63,29 @@ def _pipe(style, img2img=False):
     return pipe
 
 
+def encode(pipe, prompt, negative):
+    """77 トークンで切らずに、長い指示文を 75 トークンずつに分けて読ませ、つなげて渡す。
+
+    SD1.5 の文章の読み手（CLIP）は 77 トークンまでしか読まない。世界観の決まりと人物の細部を
+    両方書くと後ろが切れて、角灯や白い背景が絵から落ちた。区切りごとに頭と終わりの印を付けて読み、
+    横につなげる（区切りの数は指示文と打ち消しの文でそろえる）。
+    """
+    import torch
+    tok, enc = pipe.tokenizer, pipe.text_encoder
+    body = [tok(t, add_special_tokens=False).input_ids for t in (prompt, negative)]
+    n = max(1, *[(len(b) + 74) // 75 for b in body])
+    out = []
+    for ids in body:
+        chunks = []
+        for i in range(n):
+            c = ids[i * 75:(i + 1) * 75]
+            c = [tok.bos_token_id] + c + [tok.eos_token_id] * (76 - len(c))
+            with torch.no_grad():
+                chunks.append(enc(torch.tensor([c]))[0])
+        out.append(torch.cat(chunks, dim=1))
+    return out
+
+
 def draw(out, prompt, seed, n, style, steps, width, height):
     import torch
     pipe = _pipe(style)
@@ -70,7 +93,8 @@ def draw(out, prompt, seed, n, style, steps, width, height):
     for i in range(n):
         t = time.time()
         g = torch.Generator().manual_seed(seed + i)
-        im = pipe(PREFIX + prompt + SUFFIX, negative_prompt=NEGATIVE, num_inference_steps=steps,
+        pe, ne = encode(pipe, PREFIX + prompt + SUFFIX, NEGATIVE)
+        im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, num_inference_steps=steps,
                   guidance_scale=1.5, width=width, height=height, generator=g).images[0]
         p = out if n == 1 else str(Path(out).with_suffix("")) + f"-{seed + i}.png"
         im.save(p)
@@ -82,11 +106,14 @@ def draw(out, prompt, seed, n, style, steps, width, height):
 
 
 def load_cast(path):
-    """設定集を読む。common は全員の指示文の頭に付ける（作品の世界観と画風を全員でそろえるため）。"""
+    """設定集を読む。common は全員の指示文の後ろに付ける（作品の世界観と画風を全員でそろえるため）。
+
+    人物の指示文を先に置く。先頭の言葉ほど強く効き、共通の配色が人物の服の色を上書きしたため。
+    """
     cast = json.loads(Path(path).read_text(encoding="utf-8"))
     common = cast.get("common", "")
     for c in cast["characters"]:
-        c["full_prompt"] = (common + ", " if common else "") + c["prompt"]
+        c["full_prompt"] = c["prompt"] + (", " + common if common else "")
     return cast
 
 
@@ -108,8 +135,8 @@ def batch(cast_path, outdir, style, steps, width, height):
     pipe = _pipe(style)
     for c, p, seed in todo:
         t = time.time()
-        im = pipe(PREFIX + c["full_prompt"] + SUFFIX, negative_prompt=NEGATIVE + ", " + c.get("negative", ""),
-                  num_inference_steps=steps, guidance_scale=1.5, width=width, height=height,
+        pe, ne = encode(pipe, PREFIX + c["full_prompt"] + SUFFIX, NEGATIVE + ", " + c.get("negative", ""))
+        im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, num_inference_steps=steps, guidance_scale=1.5, width=width, height=height,
                   generator=torch.Generator().manual_seed(seed)).images[0]
         im.save(p)
         meta = {"name": c.get("name", c["id"]), "prompt": c["full_prompt"], "seed": seed, "style": style,
@@ -164,9 +191,10 @@ def restyle(src, out, style, strength, steps, prompt):
     im = Image.open(src).convert("RGB")
     t = time.time()
     # img2img は strength×段数 しか描かない。strength 0.55 で 6 段なら 3 段だけ描き直し、構図と人物を保つ
-    res = pipe(PREFIX + (prompt or "") + SUFFIX, image=im, strength=strength,
+    pe, ne = encode(pipe, PREFIX + (prompt or "") + SUFFIX, NEGATIVE)
+    res = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, image=im, strength=strength,
                num_inference_steps=max(steps, int(round(2 / strength))), guidance_scale=1.5,
-               negative_prompt=NEGATIVE, generator=torch.Generator().manual_seed(0)).images[0]
+               generator=torch.Generator().manual_seed(0)).images[0]
     res.save(out)
     print(f"{out}: {time.time() - t:.1f} 秒")
 
