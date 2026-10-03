@@ -31,7 +31,8 @@
   "contrast": 2.0,
   "deep": 0.7,
   "pivot": 0.75,
-  "saturation": 0.7
+  "saturation": 0.7,
+  "outline_tint": 0.3
  },
  "flatten_crown": true,
  "parts": [
