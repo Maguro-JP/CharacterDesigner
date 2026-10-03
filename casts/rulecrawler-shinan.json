@@ -10,7 +10,8 @@
    "role": "指南書どおりに潜る旅人。赤茶の髪、青い上着、橙の襟巻き",
    "prompt": "young wandering adventurer, reddish brown hair #e0884a, blue eyes, blue short jacket #3a5aa8, long orange scarf #ff8a2a, brown obi belt, long wide off-white hakama trousers #e8e0d0 covering the legs to the ankles, brown straw sandals, katana at waist, cheerful determined face",
    "n": 4,
-   "negative": "miniskirt, skirt, bare legs, thighs"
+   "negative": "miniskirt, skirt, bare legs, thighs",
+   "note": "9・10 は袴の色が設定（生成り）と違う別案"
   },
   {
    "id": "sunekosuri",
@@ -93,8 +94,12 @@
    "id": "jorougumo",
    "name": "絡新婦",
    "role": "蜘蛛（女郎蜘蛛）。毒",
-   "prompt": "jorogumo spider woman yokai, pink #d86ca0 kimono fully clothed, eight spider legs from her back, venomous elegant smile, web pattern",
-   "gender": "female"
+   "prompt": "jorogumo spider woman yokai, eight large spider legs growing from her back, pink #d86ca0 kimono fully clothed, venomous elegant smile, web pattern",
+   "gender": "female",
+   "rejected": {
+    "jorougumo-7.png": "背中の蜘蛛の脚が無い（指示は eight spider legs）。ただの着物の女性になった",
+    "jorougumo-8.png": "同上。脚の代わりに細い紐が数本"
+   }
   },
   {
    "id": "oomukade",
