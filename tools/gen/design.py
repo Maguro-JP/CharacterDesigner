@@ -256,7 +256,11 @@ def full_texts(c, style="anime"):
             gp = {"male": "1boy, male, ", "female": "1girl, female, "}.get(c.get("gender"), gp)
         if c.get("age") == "elder" and c.get("gender") == "female":
             gp = "1girl, " + ELDER_FEMALE
-        head, tail, neg = PREFIX + gp + a[0], "", ", ".join(x for x in (gn, a[1]) if x)
+        prefix = PREFIX
+        if c.get("framing") == "portrait":
+            # 顔の部品（輪郭、鼻、耳、目）は全身の絵では小さすぎて描かれない。胸から上で描く
+            prefix = PREFIX.replace("full body, standing, ", "upper body, portrait, close-up, ")
+        head, tail, neg = prefix + gp + a[0], "", ", ".join(x for x in (gn, a[1]) if x)
     return head + c["full_prompt"] + tail + SUFFIX, ", ".join(x for x in (NEGATIVE, neg, c.get("negative", "")) if x)
 
 
