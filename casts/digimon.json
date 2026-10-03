@@ -190,43 +190,71 @@
    "id": "rai-3",
    "name": "ライトリ",
    "role": "ライトリ系統 成長期・雷。雷型の冠羽の小鳥",
-   "prompt": "small songbird, two legs, two wings, lightning bolt shaped crest, forked tail, main color yellow, secondary white, accent dark navy, small, energetic",
-   "kind": "creature"
+   "prompt": "small songbird perched on the ground, real bird anatomy, two thin legs, two folded wings, no arms, lightning bolt shaped crest, forked tail, main color yellow, secondary white, accent dark navy, small",
+   "kind": "creature",
+   "rejected": {
+    "rai-3-xl-7.png": "人型: 腕のある鳥人の戦士（指定は小鳥）",
+    "rai-3-xl-8.png": "人型: 腕のある鳥人の戦士"
+   },
+   "negative": "arms, hands, humanoid, warrior, armor, muscular, standing upright"
   },
   {
    "id": "rai-4",
    "name": "サンダーホーク",
    "role": "ライトリ系統 成熟期・雷。冠羽3本の猛禽",
-   "prompt": "hawk, two legs, two spread wings, three crest feathers, main color gold, secondary yellow, accent dark navy wing tips, adult, lightning",
-   "kind": "creature"
+   "prompt": "hawk flying with wings spread, real bird anatomy, two wings, no arms, sharp talons, three crest feathers, main color gold, secondary yellow, accent dark navy wing tips, adult",
+   "kind": "creature",
+   "rejected": {
+    "rai-4-xl-7.png": "人型: 腕のある鷲の戦士",
+    "rai-4-xl-8.png": "人型: 腕のある鷲の戦士"
+   },
+   "negative": "arms, hands, humanoid, warrior, armor, muscular, standing upright"
   },
   {
    "id": "rai-5",
    "name": "ライジンガルダ",
    "role": "ライトリ系統 完全体・雷。翼4枚の神鳥",
-   "prompt": "thunderbird, two legs, four wings, tail of lightning bolts, thunder crest on chest, main color gold, secondary white, accent electric blue, huge, imposing",
-   "kind": "creature"
+   "prompt": "giant thunderbird flying, real bird anatomy, two pairs of wings, four wings, no arms, tail feathers of lightning bolts, main color gold, secondary white, accent electric blue, huge",
+   "kind": "creature",
+   "rejected": {
+    "rai-5-xl-7.png": "人型: 腕のある鳥人",
+    "rai-5-xl-8.png": "人型: 腕のある鳥人"
+   },
+   "negative": "arms, hands, humanoid, warrior, armor, muscular, standing upright"
   },
   {
    "id": "gor-2",
    "name": "コロン",
    "role": "ゴロン系統 幼年期・土。目のある岩",
-   "prompt": "small round rock with two cute eyes, no legs, pebble texture, main color tan, secondary brown, accent green moss, baby, tiny",
-   "kind": "creature"
+   "prompt": "small round boulder with two cute eyes and a small mouth, no legs, no fur, sitting on the ground, smooth stone surface, main color tan, secondary brown, accent green moss spot, baby, tiny",
+   "kind": "creature",
+   "rejected": {
+    "gor-2-xl-7.png": "脚がある、岩でなく毛の生き物",
+    "gor-2-xl-8.png": "脚がある、岩でなく毛の生き物"
+   },
+   "negative": "legs, feet, fur, hair, owl"
   },
   {
    "id": "gor-3",
    "name": "ゴロン",
    "role": "ゴロン系統 成長期・土。背に苔の四角い胴",
    "prompt": "boxy rock creature, quadruped, four stubby legs, square body, moss on back, main color brown, secondary tan, accent green moss, small, gentle face",
-   "kind": "creature"
+   "kind": "creature",
+   "rejected": {
+    "gor-3-xl-7.png": "機械の部品が付き、脚の数が数えられない"
+   }
   },
   {
    "id": "gor-4",
    "name": "ガルドラ",
    "role": "ゴロン系統 成熟期・土。結晶の角と緑の核",
-   "prompt": "rhinoceros-like rock beast, quadruped, four legs, two crystal horns, glowing core in chest, main color dark brown, secondary tan, accent mint green, adult",
-   "kind": "creature"
+   "prompt": "rhinoceros made of rock, quadruped, four legs on the ground like a rhino, two crystal horns, glowing core in its chest, main color dark brown, secondary tan, accent mint green, adult",
+   "kind": "creature",
+   "rejected": {
+    "gor-4-xl-7.png": "姿勢: 二足の筋肉質（指定は四つ足）",
+    "gor-4-xl-8.png": "姿勢: 二足寄り、腕がある"
+   },
+   "negative": "bipedal, standing upright, muscular, arms, hands"
   },
   {
    "id": "gor-5",
@@ -239,15 +267,23 @@
    "id": "yor-2",
    "name": "ムン",
    "role": "ヨル系統 幼年期・闇。光る目の煙",
-   "prompt": "small smoke wisp ghost, no legs, two glowing eyes, mischievous grin, main color dark purple, secondary violet, accent white eyes, baby, tiny",
-   "kind": "creature"
+   "prompt": "small dark purple smoke wisp, ghost tail instead of legs, no arms, two glowing white eyes, mischievous grin, main color dark purple, secondary violet, accent white, baby, tiny",
+   "kind": "creature",
+   "rejected": {
+    "yor-2-xl-7.png": "脚がある、炎が黄色",
+    "yor-2-xl-8.png": "脚がある、主色が白（指定は紫）"
+   },
+   "negative": "legs, feet, arms, white body"
   },
   {
    "id": "yor-3",
    "name": "ヨル",
    "role": "ヨル系統 成長期・闇。トルネのライバルの子鬼",
    "prompt": "little imp, bipedal, two legs, two arms, two small horns, hands and feet fading into smoke, main color purple, secondary dark navy, accent white, small, big head",
-   "kind": "creature"
+   "kind": "creature",
+   "rejected": {
+    "yor-3-xl-7.png": "手足の先が炎（指定は煙）"
+   }
   },
   {
    "id": "yor-4",
@@ -260,8 +296,13 @@
    "id": "yor-5",
    "name": "ヤシャロード",
    "role": "ヨル系統 完全体・闇。角4本・腕4本・金の面",
-   "prompt": "demon lord, bipedal, two legs, four arms, four horns, golden mask, main color dark purple, secondary violet smoke, accent gold, huge, imposing",
-   "kind": "creature"
+   "prompt": "multi-armed demon lord with four arms, two pairs of arms, four horns, golden mask, bipedal, main color dark purple, secondary violet smoke, accent gold, huge",
+   "kind": "creature",
+   "rejected": {
+    "yor-5-xl-7.png": "腕の数: 2本（指定は4本）",
+    "yor-5-xl-8.png": "腕の数: 2本（指定は4本）"
+   },
+   "negative": "two arms"
   }
  ]
 }
