@@ -18,7 +18,14 @@
    "role": "トルネ系統 成長期・風。主人公の相棒",
    "kind": "creature",
    "prompt": "small bipedal dragon, big head, short arms and legs, two small wings, two short golden horns, pale belly, one tail, glowing diamond-shaped teal core on the chest, rookie stage, small, big head, short limbs, colors teal green #3fd6b3, pale mint #d9fff1, gold #f5c542",
-   "negative": "four legs"
+   "negative": "four legs",
+   "base": true,
+   "n": 6,
+   "rejected": {
+    "tor-3-xl-8.png": "腹が橙（指定は明るい色）",
+    "tor-3-xl-9.png": "腹が橙（指定は明るい色）",
+    "tor-3-xl-11.png": "候補から外す（翼が小さく腹が橙）"
+   }
   },
   {
    "id": "tor-4",
@@ -49,7 +56,15 @@
    "name": "ハク",
    "role": "ハク系統 成長期・聖",
    "kind": "creature",
-   "prompt": "tiny chibi white dragon, big head, round eyes, short legs, two small wings, two short golden horns, golden ring around the neck, one tail, glowing diamond-shaped gold core on the chest, rookie stage, small, big head, short limbs, colors white #ffffff, pale blue #bcd8ff, gold #d9b45a"
+   "prompt": "tiny chibi white dragon, big head, round eyes, short legs, two small wings, two short golden horns, golden ring around the neck, one tail, glowing diamond-shaped gold core on the chest, rookie stage, small, big head, short limbs, colors white #ffffff, pale blue #bcd8ff, gold #d9b45a",
+   "base": true,
+   "n": 6,
+   "rejected": {
+    "hak-3-xl-7.png": "主色が青緑（指定は白）",
+    "hak-3-xl-9.png": "主色が灰青（指定は白）",
+    "hak-3-xl-10.png": "主色が灰青（指定は白）",
+    "hak-3-xl-11.png": "主色が灰（指定は白）"
+   }
   },
   {
    "id": "hak-4",
@@ -89,7 +104,15 @@
    "role": "エンボウ系統 成長期・火",
    "kind": "creature",
    "prompt": "puppy standing on four legs, quadruped, big ears, black paws, short fur on the neck, one tail with a flame at the tip, glowing diamond-shaped orange core on the chest, rookie stage, small, big head, short limbs, colors red orange #ff5a3c, cream #ffe0b0, black #1a0a0a",
-   "negative": "bipedal, standing upright, arms"
+   "negative": "bipedal, standing upright, arms",
+   "base": true,
+   "n": 6,
+   "rejected": {
+    "emb-3-xl-7.png": "主色が黒（指定は赤橙）",
+    "emb-3-xl-9.png": "二足寄り、背に翼",
+    "emb-3-xl-10.png": "主色が黒（指定は赤橙）",
+    "emb-3-xl-12.png": "座った姿で脚の数が数えられない"
+   }
   },
   {
    "id": "emb-4",
@@ -120,8 +143,18 @@
    "name": "カメロ",
    "role": "カメロ系統 成長期・水",
    "kind": "creature",
-   "prompt": "small turtle on four short legs, quadruped, smooth blue shell with one mark in the center, slightly long neck, one short tail, glowing diamond-shaped blue core on the chest, rookie stage, small, big head, short limbs, colors blue #4aa8ff, navy #2b6fb5, pale blue #d6ecff",
-   "negative": "bipedal, standing upright, arms, hands"
+   "prompt": "side view of a small turtle crawling low on all fours, quadruped, four short legs, smooth blue shell with one mark in the center, slightly long neck, one short tail, glowing diamond-shaped blue core on the chest, rookie stage, small, colors blue #4aa8ff, navy #2b6fb5, pale blue #d6ecff",
+   "negative": "bipedal, standing upright, arms, hands, humanoid, chubby cheeks",
+   "base": true,
+   "n": 6,
+   "rejected": {
+    "kam-3-xl-7.png": "二足で立ち、既存作品の特定の亀のモンスターに近い",
+    "kam-3-xl-8.png": "二足で立ち、既存作品の特定の亀のモンスターに近い",
+    "kam-3-xl-9.png": "二足で立ち、既存作品の特定の亀のモンスターに近い",
+    "kam-3-xl-10.png": "二足で立ち、既存作品の特定の亀のモンスターに近い",
+    "kam-3-xl-11.png": "二足で立ち、既存作品の特定の亀のモンスターに近い",
+    "kam-3-xl-12.png": "二足で立ち、既存作品の特定の亀のモンスターに近い"
+   }
   },
   {
    "id": "kam-4",
@@ -153,7 +186,15 @@
    "role": "ライトリ系統 成長期・雷",
    "kind": "creature",
    "prompt": "small bird, real bird anatomy, two wings, no arms, one lightning bolt shaped crest feather, forked tail feathers, two thin legs, glowing diamond-shaped yellow core on the chest, rookie stage, small, big head, short limbs, colors yellow #f5c542, white #e8edf5, dark navy #0d1424",
-   "negative": "arms, hands, humanoid, warrior, armor"
+   "negative": "arms, hands, humanoid, warrior, armor",
+   "base": true,
+   "n": 6,
+   "rejected": {
+    "rai-3-xl-8.png": "腕のある鳥人",
+    "rai-3-xl-10.png": "腕のある鳥人",
+    "rai-3-xl-11.png": "腕のある鳥人",
+    "rai-3-xl-12.png": "腕のある鳥人"
+   }
   },
   {
    "id": "rai-4",
@@ -184,8 +225,18 @@
    "name": "ゴロン",
    "role": "ゴロン系統 成長期・土",
    "kind": "creature",
-   "prompt": "square stone body with short arms and short legs, no neck, head and body are one block, moss on the back, glowing diamond-shaped green core on the chest, rookie stage, small, big head, short limbs, colors brown #a8825f, tan #c9a27e, dark brown #4b3a2c",
-   "negative": "long neck, quadruped"
+   "prompt": "small stone golem made of grey and brown stone blocks, cube-shaped body, head and body are one block, short stubby stone arms and legs, a little moss on its back, glowing diamond-shaped green core on the chest, rookie stage, small, colors brown #a8825f, tan #c9a27e, dark brown #4b3a2c",
+   "negative": "green skin, muscles, abs, goblin, orc, flesh, skin, horns",
+   "base": true,
+   "n": 6,
+   "rejected": {
+    "gor-3-xl-7.png": "緑の筋肉質な小鬼（指定は石の箱の体）",
+    "gor-3-xl-8.png": "緑の筋肉質な小鬼（指定は石の箱の体）",
+    "gor-3-xl-9.png": "緑の筋肉質な小鬼（指定は石の箱の体）",
+    "gor-3-xl-10.png": "緑の筋肉質な小鬼（指定は石の箱の体）",
+    "gor-3-xl-11.png": "緑の筋肉質な小鬼（指定は石の箱の体）",
+    "gor-3-xl-12.png": "緑の筋肉質な小鬼（指定は石の箱の体）"
+   }
   },
   {
    "id": "gor-4",
@@ -217,7 +268,15 @@
    "role": "ヨル系統 成長期・闇。トルネのライバル",
    "kind": "creature",
    "prompt": "small bipedal imp, two small horns, long swaying tail, hands and feet fading into smoke, sly grin, glowing diamond-shaped violet core on the chest, rookie stage, small, big head, short limbs, colors violet #9b6cff, dark indigo #2a1f45, white #e8edf5",
-   "negative": "fire, flames"
+   "negative": "fire, flames",
+   "base": true,
+   "n": 6,
+   "rejected": {
+    "yor-3-xl-8.png": "候補から外す（煙の手足が無い）",
+    "yor-3-xl-9.png": "刃物を持つ、煙の手足が無い",
+    "yor-3-xl-10.png": "候補から外す（煙の手足が無い）",
+    "yor-3-xl-12.png": "翼がある（指定に翼は無い）"
+   }
   },
   {
    "id": "yor-4",
