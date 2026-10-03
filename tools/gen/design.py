@@ -348,7 +348,10 @@ def batch(cast_path, outdir, style, steps, width, height, kind=None):
                 init = Path(init_dir) / f"{c['id']}.png" if i2i else None
                 if init and init.exists():
                     from PIL import Image
-                    base = Image.open(init).convert("RGB").resize((1024, 1024))
+                    # 下絵の縦横比を保つ（正方形に引き伸ばすと人物が横に太った）。SDXL 系は 8 の倍数の大きさで描く
+                    base = Image.open(init).convert("RGB")
+                    k = 1024 / max(base.size)
+                    base = base.resize((round(base.width * k / 8) * 8, round(base.height * k / 8) * 8))
                     # img2img は strength×段数しか描かないので、段数を増やして描く段を保つ
                     im = i2i(image=base, strength=c.get("init_strength", strength),
                              num_inference_steps=max(steps, int(round(steps / c.get("init_strength", strength)))),
