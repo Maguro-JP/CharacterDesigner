@@ -1,0 +1,376 @@
+{
+ "title": "人の素体のレパートリー（男女）",
+ "source": "描き分けの部品（tools/gen/traits.json）を素体で確かめ、効いたものを library/patterns.json に保存するための設定集",
+ "common": "anime style",
+ "n": 1,
+ "characters": [
+  {
+   "id": "male-base",
+   "name": "男 基準",
+   "gender": "male",
+   "framing": "body",
+   "prompt": "young adult, short black hair"
+  },
+  {
+   "id": "male-lean",
+   "name": "男 細身",
+   "gender": "male",
+   "framing": "body",
+   "prompt": "young adult, short black hair",
+   "traits": [
+    "muscle:low",
+    "body:average"
+   ]
+  },
+  {
+   "id": "male-muscular",
+   "name": "男 筋肉質",
+   "gender": "male",
+   "framing": "body",
+   "prompt": "young adult, short black hair",
+   "traits": [
+    "muscle:high"
+   ]
+  },
+  {
+   "id": "male-plump",
+   "name": "男 太め",
+   "gender": "male",
+   "framing": "body",
+   "prompt": "young adult, short black hair",
+   "traits": [
+    "fat:high"
+   ]
+  },
+  {
+   "id": "male-tan",
+   "name": "男 日焼け肌",
+   "gender": "male",
+   "framing": "body",
+   "prompt": "young adult, short black hair",
+   "traits": [
+    "skin:tan"
+   ]
+  },
+  {
+   "id": "male-dark",
+   "name": "男 濃い肌",
+   "gender": "male",
+   "framing": "body",
+   "prompt": "young adult, short black hair",
+   "traits": [
+    "skin:dark"
+   ]
+  },
+  {
+   "id": "male-muscular-dark",
+   "name": "男 筋肉質＋濃い肌",
+   "gender": "male",
+   "framing": "body",
+   "prompt": "young adult, short black hair",
+   "traits": [
+    "muscle:high",
+    "skin:dark"
+   ]
+  },
+  {
+   "id": "male-plump-tan",
+   "name": "男 太め＋日焼け肌",
+   "gender": "male",
+   "framing": "body",
+   "prompt": "young adult, short black hair",
+   "traits": [
+    "fat:high",
+    "skin:tan"
+   ]
+  },
+  {
+   "id": "male-elf",
+   "name": "男 エルフ",
+   "gender": "male",
+   "framing": "body",
+   "prompt": "young adult, short black hair",
+   "traits": [
+    "race:elf"
+   ]
+  },
+  {
+   "id": "male-dwarf",
+   "name": "男 ドワーフ",
+   "gender": "male",
+   "framing": "body",
+   "prompt": "young adult, short black hair",
+   "traits": [
+    "race:dwarf"
+   ]
+  },
+  {
+   "id": "male-orc",
+   "name": "男 オーク",
+   "gender": "male",
+   "framing": "body",
+   "prompt": "young adult, short black hair",
+   "traits": [
+    "race:orc"
+   ]
+  },
+  {
+   "id": "male-wolf",
+   "name": "男 狼の獣人",
+   "gender": "male",
+   "framing": "body",
+   "prompt": "young adult, short black hair",
+   "traits": [
+    "race:beast_wolf"
+   ]
+  },
+  {
+   "id": "male-dragonkin",
+   "name": "男 竜人",
+   "gender": "male",
+   "framing": "body",
+   "prompt": "young adult, short black hair",
+   "traits": [
+    "race:dragonkin"
+   ]
+  },
+  {
+   "id": "male-antlers",
+   "name": "男 鹿の角",
+   "gender": "male",
+   "framing": "body",
+   "prompt": "young adult, short black hair",
+   "traits": [
+    "horns:antlers"
+   ]
+  },
+  {
+   "id": "male-cat",
+   "name": "男 猫の耳",
+   "gender": "male",
+   "framing": "body",
+   "prompt": "young adult, short black hair",
+   "traits": [
+    "ears:cat"
+   ]
+  },
+  {
+   "id": "male-wings-bat",
+   "name": "男 蝙蝠の翼",
+   "gender": "male",
+   "framing": "body",
+   "prompt": "young adult, short black hair",
+   "traits": [
+    "extra:wings_bat"
+   ]
+  },
+  {
+   "id": "male-child",
+   "name": "男 子ども",
+   "gender": "male",
+   "framing": "body",
+   "prompt": "short black hair",
+   "age": "child"
+  },
+  {
+   "id": "male-teen",
+   "name": "男 十代",
+   "gender": "male",
+   "framing": "body",
+   "prompt": "short black hair",
+   "age": "teen"
+  },
+  {
+   "id": "male-elder",
+   "name": "男 老人",
+   "gender": "male",
+   "framing": "body",
+   "prompt": "short black hair",
+   "age": "elder"
+  },
+  {
+   "id": "female-base",
+   "name": "女 基準",
+   "gender": "female",
+   "framing": "body",
+   "prompt": "young adult, black bob hair"
+  },
+  {
+   "id": "female-lean",
+   "name": "女 細身",
+   "gender": "female",
+   "framing": "body",
+   "prompt": "young adult, black bob hair",
+   "traits": [
+    "muscle:low",
+    "body:average"
+   ]
+  },
+  {
+   "id": "female-muscular",
+   "name": "女 筋肉質",
+   "gender": "female",
+   "framing": "body",
+   "prompt": "young adult, black bob hair",
+   "traits": [
+    "muscle:high"
+   ]
+  },
+  {
+   "id": "female-plump",
+   "name": "女 太め",
+   "gender": "female",
+   "framing": "body",
+   "prompt": "young adult, black bob hair",
+   "traits": [
+    "fat:high"
+   ]
+  },
+  {
+   "id": "female-tan",
+   "name": "女 日焼け肌",
+   "gender": "female",
+   "framing": "body",
+   "prompt": "young adult, black bob hair",
+   "traits": [
+    "skin:tan"
+   ]
+  },
+  {
+   "id": "female-dark",
+   "name": "女 濃い肌",
+   "gender": "female",
+   "framing": "body",
+   "prompt": "young adult, black bob hair",
+   "traits": [
+    "skin:dark"
+   ]
+  },
+  {
+   "id": "female-muscular-dark",
+   "name": "女 筋肉質＋濃い肌",
+   "gender": "female",
+   "framing": "body",
+   "prompt": "young adult, black bob hair",
+   "traits": [
+    "muscle:high",
+    "skin:dark"
+   ]
+  },
+  {
+   "id": "female-plump-tan",
+   "name": "女 太め＋日焼け肌",
+   "gender": "female",
+   "framing": "body",
+   "prompt": "young adult, black bob hair",
+   "traits": [
+    "fat:high",
+    "skin:tan"
+   ]
+  },
+  {
+   "id": "female-elf",
+   "name": "女 エルフ",
+   "gender": "female",
+   "framing": "body",
+   "prompt": "young adult, black bob hair",
+   "traits": [
+    "race:elf"
+   ]
+  },
+  {
+   "id": "female-dwarf",
+   "name": "女 ドワーフ",
+   "gender": "female",
+   "framing": "body",
+   "prompt": "young adult, black bob hair",
+   "traits": [
+    "race:dwarf"
+   ]
+  },
+  {
+   "id": "female-orc",
+   "name": "女 オーク",
+   "gender": "female",
+   "framing": "body",
+   "prompt": "young adult, black bob hair",
+   "traits": [
+    "race:orc"
+   ]
+  },
+  {
+   "id": "female-wolf",
+   "name": "女 狼の獣人",
+   "gender": "female",
+   "framing": "body",
+   "prompt": "young adult, black bob hair",
+   "traits": [
+    "race:beast_wolf"
+   ]
+  },
+  {
+   "id": "female-dragonkin",
+   "name": "女 竜人",
+   "gender": "female",
+   "framing": "body",
+   "prompt": "young adult, black bob hair",
+   "traits": [
+    "race:dragonkin"
+   ]
+  },
+  {
+   "id": "female-antlers",
+   "name": "女 鹿の角",
+   "gender": "female",
+   "framing": "body",
+   "prompt": "young adult, black bob hair",
+   "traits": [
+    "horns:antlers"
+   ]
+  },
+  {
+   "id": "female-cat",
+   "name": "女 猫の耳",
+   "gender": "female",
+   "framing": "body",
+   "prompt": "young adult, black bob hair",
+   "traits": [
+    "ears:cat"
+   ]
+  },
+  {
+   "id": "female-wings-bat",
+   "name": "女 蝙蝠の翼",
+   "gender": "female",
+   "framing": "body",
+   "prompt": "young adult, black bob hair",
+   "traits": [
+    "extra:wings_bat"
+   ]
+  },
+  {
+   "id": "female-child",
+   "name": "女 子ども",
+   "gender": "female",
+   "framing": "body",
+   "prompt": "black bob hair",
+   "age": "child"
+  },
+  {
+   "id": "female-teen",
+   "name": "女 十代",
+   "gender": "female",
+   "framing": "body",
+   "prompt": "black bob hair",
+   "age": "teen"
+  },
+  {
+   "id": "female-elder",
+   "name": "女 老人",
+   "gender": "female",
+   "framing": "body",
+   "prompt": "black bob hair",
+   "age": "elder"
+  }
+ ]
+}

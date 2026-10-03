@@ -1,4 +1,144 @@
 {
  "_doc": "名前付きの描き分けのパターン（皮膚、体型、亜人間など）。設定集の人物に \"patterns\": [\"名前\"] と書くと、traits と prompt が入る。verified は描いて確かめた結果（モデルと構図ごと）、sample は見本の絵。効かないパターンはここに置かない（docs/knowledge/traits.md に記録する）",
- "patterns": {}
+ "patterns": {
+  "skin-dark": {
+   "ja": "濃い肌",
+   "traits": [
+    "skin:dark"
+   ],
+   "verified": {
+    "male": "出た（余計な変化: 背景に灰色の影）",
+    "female": "出た（余計な変化: シャツが黒）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
+   "samples": {
+    "male": "library/samples/skin-dark-male.png",
+    "female": "library/samples/skin-dark-female.png"
+   }
+  },
+  "body-muscular": {
+   "ja": "筋肉質",
+   "traits": [
+    "muscle:high"
+   ],
+   "verified": {
+    "male": "出た（余計な変化: シャツが短い）",
+    "female": "出た（余計な変化: 肩当て）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
+   "samples": {
+    "male": "library/samples/body-muscular-male.png",
+    "female": "library/samples/body-muscular-female.png"
+   }
+  },
+  "body-plump": {
+   "ja": "太め",
+   "traits": [
+    "fat:high"
+   ],
+   "verified": {
+    "male": "出た（余計な変化: シャツが灰色の半袖）",
+    "female": "出た（余計な変化: シャツが灰色）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
+   "samples": {
+    "male": "library/samples/body-plump-male.png",
+    "female": "library/samples/body-plump-female.png"
+   }
+  },
+  "body-lean": {
+   "ja": "細身",
+   "traits": [
+    "muscle:low"
+   ],
+   "verified": {
+    "male": "弱く出た",
+    "female": "出なかった"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
+   "samples": {
+    "male": "library/samples/body-lean-male.png",
+    "female": "library/samples/body-lean-female.png"
+   }
+  },
+  "horns-ram": {
+   "ja": "巻いた角",
+   "traits": [
+    "horns:ram"
+   ],
+   "verified": {
+    "male": "出た（余計な変化: 髪が少し）",
+    "female": "出た（余計な変化: 長いツインテール）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
+   "samples": {
+    "male": "library/samples/horns-ram-male.png",
+    "female": "library/samples/horns-ram-female.png"
+   }
+  },
+  "ears-elf": {
+   "ja": "エルフの耳",
+   "traits": [
+    "ears:elf"
+   ],
+   "verified": {
+    "male": "全身では見分けられない（胸から上で確かめる）",
+    "female": "出た（余計な変化: シャツが少し）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
+   "samples": {
+    "male": "library/samples/ears-elf-male.png",
+    "female": "library/samples/ears-elf-female.png"
+   }
+  },
+  "tattoo-tribal": {
+   "ja": "部族の刺青",
+   "traits": [
+    "marking:tribal"
+   ],
+   "verified": {
+    "male": "腕に出た（余計な変化: シャツが短い）",
+    "female": "出なかった"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
+   "samples": {
+    "male": "library/samples/tattoo-tribal-male.png",
+    "female": "library/samples/tattoo-tribal-female.png"
+   }
+  },
+  "race-orc": {
+   "ja": "オーク",
+   "traits": [
+    "race:orc"
+   ],
+   "verified": {
+    "male": "出た（余計な変化: 上の肌着が無い）",
+    "female": "出た（余計な変化: 服）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
+   "samples": {
+    "male": "library/samples/race-orc-male.png",
+    "female": "library/samples/race-orc-female.png"
+   }
+  },
+  "race-lizard": {
+   "ja": "トカゲ人",
+   "traits": [
+    "race:lizard"
+   ],
+   "verified": {
+    "male": "出た（余計な変化: 上の肌着が無い）",
+    "female": "出なかった（背後に竜）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
+   "samples": {
+    "male": "library/samples/race-lizard-male.png",
+    "female": "library/samples/race-lizard-female.png"
+   }
+  }
+ },
+ "base_samples": {
+  "male": "library/samples/base-male.png",
+  "female": "library/samples/base-female.png"
+ }
 }
