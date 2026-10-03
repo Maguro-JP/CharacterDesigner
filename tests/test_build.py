@@ -147,6 +147,28 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(set(f), set(stats["features"]))
         self.assertGreater(stats["frames"], 100)
 
+    def test_engine_light_is_matched_to_parts_levels(self):
+        # Blender の光は明るく上が 1.0 に張り付く。部品から描くときの3点（下位10%・中央・上位10%）に写す
+        sys.path.insert(0, str(ROOT / "tools" / "engine"))
+        import topixel
+        lum = [i / 99 * 0.6 + 0.4 for i in range(100)]  # 0.4〜1.0 に寄った明るさ
+        top = [0] * 100
+        out = sorted(topixel.match_levels(top, lum))
+        self.assertAlmostEqual(out[10], topixel.TARGET[0], places=2)
+        self.assertAlmostEqual(out[50], topixel.TARGET[1], places=2)
+        self.assertAlmostEqual(out[90], topixel.TARGET[2], places=2)
+
+    def test_finish_turns_a_hi_res_grid_into_a_sprite(self):
+        # 部品の形を描かずに、(部品番号, 明るさ) の格子だけからドット絵にできる（Blender の絵を通す道）
+        sp = spec([{"name": "body", "material": "metal", "shapes": []}], canvas=(6, 6))
+        W, H = 6 * build.SS, 6 * build.SS
+        top = [0 if build.SS <= x < 5 * build.SS and build.SS <= y < 5 * build.SS else -1
+               for y in range(H) for x in range(W)]
+        light = [0.6] * (W * H)
+        out, _ = build.finish(sp, top, light, (W, H))
+        # 4x4 の中身 16 と、上下左右に付く輪郭 16（角には付かない）
+        self.assertEqual(sum(c != "." for r in out["rows"] for c in r), 32)
+
     def test_orphan_is_replaced_but_protected_is_kept(self):
         a, b = "#808080", "#ffffff"
         grid = [[a] * 3 for _ in range(3)]

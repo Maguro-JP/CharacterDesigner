@@ -700,6 +700,15 @@ def apply_saturation(spec):
 def build(spec):
     spec = apply_saturation(apply_transforms(spec))
     top, light, size = render_hi(spec)
+    return finish(spec, top, light, size)
+
+
+def finish(spec, top, light, size):
+    """高い解像度の (部品番号, 明るさ) からドット絵に落とす。
+
+    部品の形を自前で描いた場合（render_hi）も、Blender で描いた部位の塗り分けと光の絵
+    （tools/engine/topixel.py）も、ここから先は同じ縮小・減色・輪郭・掃除を通す。
+    """
     cells = downscale(spec, top, light, size)
     grid = quantize(spec, cells)
     colors, owner = outline(spec, grid)
