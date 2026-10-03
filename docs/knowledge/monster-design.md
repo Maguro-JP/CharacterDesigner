@@ -149,3 +149,19 @@ small crystal growing on forehead, main color sand yellow, secondary color white
 
 読めなかったもの: Monster Hunter Rise の開発者インタビュー（403）、Anime News Network の進化のデザインの記事（403）。
 天野喜孝のモンスターの描き方は、確かめた資料が無いため原則に入れていない。
+
+## 6. 検品で分かったこと（DigiMon 29体・58枚、SDXL 系、2026-10-03）
+
+1回目の検品で 58 枚中 36 枚を落とした。理由ごとの数と、次から指示文に書くこと:
+
+| 落とした理由 | 枚数 | 次から |
+|---|---|---|
+| 鳥・竜・岩の獣が、腕のある二足の戦士になった | 14 | 鳥は `real bird anatomy, no arms`、獣は `on all fours like a horse/rhino` と書き、打ち消しに `arms, hands, humanoid, warrior, armor, muscular` |
+| 脚なしの指定（羽毛玉、火の玉、煙）に脚が生えた | 8 | `legless, resting on the ground like a ball` や `ghost tail instead of legs`、打ち消しに `legs, feet` |
+| 翼6枚・尾3本・腕4本が2つになった | 6 | `three pairs of wings, six wings in total` のように対で書く。それでも出なければ部品で組む |
+| 蛇形の竜が、四肢の翼竜になった | 4 | `eastern long dragon, snake-like body`、打ち消しに `western dragon` |
+| 既存作品の特定のキャラクターに似た | 2 | 元の動物を替える（陸の子亀 → ひれで這う子ウミガメ） |
+| 二体の融合、浮いた炎、色違い ほか | 2 | 検品表のとおり |
+
+- 「two legs」と書くと、鳥でも人の脚の立ち方になりやすい。鳥は脚の数より「鳥の体」と書く方が効いた（推測。描き直しで確かめる）
+- 幼年期・成長期の丸い形（トルネ、ハク、プクリ、ビリ）は通りやすく、完全体の多部位（6翼、4腕、3尾）は通りにくい
