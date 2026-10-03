@@ -1,11 +1,23 @@
 ---
 name: character-design
-description: 「○○風のキャラクターデザインを作って」「この作風で描いて」「新しい職業を足して」「16ビット機風にして」と言われたとき、このリポジトリで作風を調べて決まりに落とし、部品で組んで描き、検品して出すときに使う。styles/<作風>.json と characters/<名前>/parts.json を書き、tools/build.py・check.py・compare.py で描いて確かめる。描画器そのものを直す作業や、ドット絵以外の画像生成には使わない。
+description: 「○○なキャラクターを作って」「○○風のキャラクターデザインを作って」「この作風で描いて」「新しい職業を足して」「ドット絵にして」「リアル風にして」と言われたとき、このリポジトリでキャラクターデザインを出すときに使う。まずアニメ風のデザインを画像生成で描いて見せ（tools/gen/design.py draw）、派生（リアル風、ドット絵、3D）は指示を受けてからその絵から作る。箱庭ドットの職業を部品で組む作業（styles/*.json、characters/*/parts.json、tools/build.py）もここ。描画器そのものを直す作業には使わない。
 ---
 
 # キャラクターデザイン
 
 「本当にその作風だ」と言える水準で出す。数字が通っただけで良しとしない。
+
+## 0. 頼まれたときの流れ
+
+1. まずアニメ風のデザインを描いて見せる。種を変えて数枚出し、選んでもらう
+   `PYTHONPATH=.cache/gen/lib python3 tools/gen/design.py draw out.png "<人物の説明（英語）>" --n 4`
+   （初めての環境では `sh tools/gen/setup.sh`。CPU で1枚 約1分）
+2. 派生は指示を受けてから、選ばれた絵から作る。文章から作り直さない（同じ人物を保つため）
+   - リアル風: `design.py restyle in.png out.png --style real`
+   - ドット絵（等身を保つ少ない色）: `design.py pixel in.png out.sprite.json --preset survivor`
+   - 箱庭ドット: 頭を大きくする変換が要る（未完成）。部品で組む場合は下の 1〜3
+   - 3D: `tools/engine/`（Blender＋MakeHuman、試作）
+3. 出したものは画像で見せる。並べた図は `tools/vsref.py`、ドット絵の数字は `tools/check.py` と `tools/learn.py score`
 
 ## 1. 作風を決まりに落とす
 
