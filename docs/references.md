@@ -34,3 +34,7 @@ README と PR の説明には作品名を出さない。
 | 少ない段数で描く | latent-consistency/lcm-lora-sdv1-5（Hugging Face） | OpenRAIL++ |
 
 OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じる許諾。モデルの重みはリポジトリに置かず、初回の実行で取る。
+
+## ドット絵の派生の作風（2026-10-03）
+
+- `tools/gen/design.py pixel --preset survivor`: 見下ろしのアクション（Vampire Survivors のような、少ない色で等身を保ったドット絵）。利用者の評価で「顔は潰れていてもこの作風なら使える」。大きさと色数（高さ 40、16 色）は手本で数えていない
