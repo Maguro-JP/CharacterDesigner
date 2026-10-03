@@ -207,6 +207,20 @@ class BuildTest(unittest.TestCase):
             self.assertEqual(design.load_cast(f"{t}/c.json")["characters"][0]["full_prompt"],
                              "swordsman, dark fantasy")
 
+    def test_creatures_are_drawn_in_both_styles_without_human_prefix(self):
+        # モンスターは人の立ち姿の決まり文句を使わず、2つの画風で1枚ずつ。人は性別の指定が頭に付く
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import design
+        cast = {"n": 2, "characters": [{"id": "m", "kind": "creature", "prompt": "a turtle", "full_prompt": "a turtle"},
+                                       {"id": "h", "gender": "male", "prompt": "a knight", "full_prompt": "a knight"}]}
+        shots = {c["id"]: [(p.name, st) for p, _, st in s] for c, s in design.cast_paths(cast, "/x")}
+        self.assertEqual(shots["m"], [("m-7.png", "anime"), ("m-real-7.png", "real")])
+        self.assertEqual(shots["h"], [("h-7.png", "anime"), ("h-8.png", "anime")])
+        text, neg = design.full_texts(cast["characters"][0])
+        self.assertNotIn("standing", text)
+        self.assertIn("1girl", neg)
+        self.assertTrue(design.full_texts(cast["characters"][1])[0].startswith(design.PREFIX + "1boy"))
+
     def test_orphan_is_replaced_but_protected_is_kept(self):
         a, b = "#808080", "#ffffff"
         grid = [[a] * 3 for _ in range(3)]

@@ -50,8 +50,14 @@ NEGATIVE = ("lowres, bad anatomy, bad hands, extra fingers, missing fingers, ext
             "multiple views, text, watermark, signature, blurry, nsfw, nude, naked, nipples, cleavage")
 # 人でない者（魔物、妖怪、モンスター）の決まり文句。アニメの人物向けのモデルは、人の立ち姿の決まり文句と
 # 合わさると動物や玉の形の者まで少女の姿で描いた。人を描かない指定と、人の特徴の打ち消しを足す
-CREATURE_PREFIX = "masterpiece, best quality, creature design, monster concept art, full body, solo, no humans, "
-CREATURE_NEGATIVE = "1girl, 1boy, human, woman, man, breasts, human face, animal ears, kemonomimi"
+# 「creature design, monster concept art」は人型の怪物を呼んだ。人のいない動物の絵を指す言葉（feral、animal focus）に替え、
+# 指示文は動物の名詞から始める（四つ足なら quadruped と書く）
+CREATURE_PREFIX = "masterpiece, best quality, full body, solo, no humans, animal focus, feral, "
+CREATURE_SUFFIX = ", 2d anime style illustration, cel shading, clean lineart"
+CREATURE_NEGATIVE = "1girl, 1boy, human, woman, man, breasts, human face, animal ears, kemonomimi, anthro"
+# モンスターは2つのモデルで描いて並べる。アニメのモデルは塗りが設定画らしいが形が崩れやすく、
+# リアル寄りのモデルは形が正確だが立体の置物のような塗りになった（亀・子犬・ゴーレムで比べた）
+CREATURE_STYLES = ["anime", "real"]
 # 性別。指定が無いとアニメの人物向けのモデルは少女を描き、男性の職まで女性になった
 GENDER = {"male": ("1boy, male focus, ", "1girl, female, breasts, skirt"),
           "female": ("1girl, ", "")}
@@ -127,40 +133,52 @@ def load_cast(path):
 def full_texts(c):
     """1人ぶんの指示文と打ち消しの文。人でない者と性別で、決まり文句を切り替える。"""
     if c.get("kind") == "creature":
-        head, neg = CREATURE_PREFIX, CREATURE_NEGATIVE
+        head, tail, neg = CREATURE_PREFIX, CREATURE_SUFFIX, CREATURE_NEGATIVE
     else:
         g = GENDER.get(c.get("gender"), ("", ""))
-        head, neg = PREFIX + g[0], g[1]
-    return head + c["full_prompt"] + SUFFIX, ", ".join(x for x in (NEGATIVE, neg, c.get("negative", "")) if x)
+        head, tail, neg = PREFIX + g[0], "", g[1]
+    return head + c["full_prompt"] + tail + SUFFIX, ", ".join(x for x in (NEGATIVE, neg, c.get("negative", "")) if x)
 
 
-def cast_paths(cast, outdir):
-    """設定集の1人ごとに、描く絵のパスを seed の数だけ返す。"""
+def cast_paths(cast, outdir, style=None):
+    """設定集の1人ごとに、描く絵（パス, seed, 画風）を返す。
+
+    人は style（設定集の style、無ければ anime）だけで、モンスターは CREATURE_STYLES の全部で描く。
+    anime 以外の画風の絵は名前に画風を入れる（id-real-7.png）。
+    """
+    base = style or cast.get("style", "anime")
     for c in cast["characters"]:
         seed, n = c.get("seed", 7), c.get("n", cast.get("n", 2))
-        yield c, [Path(outdir) / f"{c['id']}-{seed + i}.png" for i in range(n)], seed
+        styles = c.get("styles") or (CREATURE_STYLES if c.get("kind") == "creature" else [base])
+        if c.get("kind") == "creature":
+            n = c.get("n", 1)
+        shots = []
+        for st in styles:
+            tag = "" if st == "anime" else f"{st}-"
+            shots += [(Path(outdir) / f"{c['id']}-{tag}{seed + i}.png", seed + i, st) for i in range(n)]
+        yield c, shots
 
 
 def batch(cast_path, outdir, style, steps, width, height):
     import torch
     cast = load_cast(cast_path)
-    style = style or cast.get("style", "anime")
     Path(outdir).mkdir(parents=True, exist_ok=True)
-    todo = [(c, p, seed + i) for c, ps, seed in cast_paths(cast, outdir) for i, p in enumerate(ps) if not p.exists()]
+    todo = [(c, p, seed, st) for c, shots in cast_paths(cast, outdir, style) for p, seed, st in shots if not p.exists()]
     print(f"{len(todo)} 枚を描く")
-    if not todo:
-        return
-    pipe = _pipe(style)
-    for c, p, seed in todo:
-        t = time.time()
-        pe, ne = encode(pipe, *full_texts(c))
-        im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, num_inference_steps=steps, guidance_scale=1.5, width=width, height=height,
-                  generator=torch.Generator().manual_seed(seed)).images[0]
-        im.save(p)
-        meta = {"name": c.get("name", c["id"]), "prompt": c["full_prompt"], "seed": seed, "style": style,
-                "model": STYLES[style], "steps": steps}
-        Path(str(p) + ".json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
-        print(f"{p}: {time.time() - t:.1f} 秒", flush=True)
+    # モデルの読み込みは画風ごとに1回にする
+    for st in dict.fromkeys(t[3] for t in todo):
+        pipe = _pipe(st)
+        for c, p, seed, _ in [t for t in todo if t[3] == st]:
+            t = time.time()
+            pe, ne = encode(pipe, *full_texts(c))
+            im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, num_inference_steps=steps, guidance_scale=1.5,
+                      width=width, height=height, generator=torch.Generator().manual_seed(seed)).images[0]
+            im.save(p)
+            meta = {"name": c.get("name", c["id"]), "prompt": full_texts(c)[0], "seed": seed, "style": st,
+                    "model": STYLES[st], "steps": steps}
+            Path(str(p) + ".json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
+            print(f"{p}: {time.time() - t:.1f} 秒", flush=True)
+        del pipe
 
 
 FONT = "/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf"
@@ -170,7 +188,7 @@ def sheet(cast_path, outdir, out, thumb=256):
     """描いた絵を、1人1行（名前と役割＋seed ごとの絵）で並べた一覧図にする。"""
     from PIL import Image, ImageDraw, ImageFont
     cast = load_cast(cast_path)
-    rows = [(c, [p for p in ps if p.exists()]) for c, ps, _ in cast_paths(cast, outdir)]
+    rows = [(c, [p for p, _, _ in shots if p.exists()]) for c, shots in cast_paths(cast, outdir)]
     rows = [(c, ps) for c, ps in rows if ps]
     cols = max(len(ps) for _, ps in rows)
     th = thumb * 3 // 2
