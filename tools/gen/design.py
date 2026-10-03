@@ -211,8 +211,29 @@ def load_cast(path):
     return cast
 
 
+TRAITS = json.loads((Path(__file__).parent / "traits.json").read_text(encoding="utf-8"))
+
+
+def trait_texts(c):
+    """設定集の traits（"分類:種類" の並び）を、指示文と打ち消しの言葉にする。知らない種類は止める。"""
+    ps, ns = [], []
+    for t in c.get("traits", []):
+        cat, _, key = t.partition(":")
+        if cat not in TRAITS or key not in TRAITS[cat]:
+            raise SystemExit(f"{c.get('id')}: traits の {t} が tools/gen/traits.json に無い")
+        ps.append(TRAITS[cat][key]["p"])
+        if TRAITS[cat][key].get("neg"):
+            ns.append(TRAITS[cat][key]["neg"])
+    return ", ".join(ps), ", ".join(ns)
+
+
 def full_texts(c, style="anime"):
     """1人ぶんの指示文と打ち消しの文。人でない者と性別で、決まり文句を切り替える。"""
+    tp, tn = trait_texts(c)
+    if tp:
+        # 描き分けの部品は人物の説明の前に置く（先頭の言葉ほど強く効く）
+        c = {**c, "full_prompt": tp + ", " + c["full_prompt"],
+             "negative": ", ".join(x for x in (c.get("negative", ""), tn) if x)}
     if c.get("kind") == "creature" and style in XL:
         neg = ", ".join(x for x in (XL_CREATURE_NEGATIVE, c.get("negative", "")) if x)
         return c["full_prompt"] + XL_CREATURE_SUFFIX, neg

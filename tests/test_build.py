@@ -281,6 +281,18 @@ class BuildTest(unittest.TestCase):
         self.assertIn("grandmother", text)
         self.assertNotIn("1girl", text)
 
+    def test_traits_are_put_before_the_description(self):
+        # 描き分けの部品は人物の説明の前に入り、打ち消しも足される。知らない部品は止める
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import design
+        c = {"id": "x", "gender": "male", "prompt": "knight", "full_prompt": "knight",
+             "traits": ["horns:ram", "fat:high"]}
+        text, neg = design.full_texts(c)
+        self.assertLess(text.index("curled ram horns"), text.index("knight"))
+        self.assertIn("slim", neg)
+        with self.assertRaises(SystemExit):
+            design.full_texts({**c, "traits": ["horns:none"]})
+
     def test_orphan_is_replaced_but_protected_is_kept(self):
         a, b = "#808080", "#ffffff"
         grid = [[a] * 3 for _ in range(3)]

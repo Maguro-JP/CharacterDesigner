@@ -33,6 +33,10 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
 4. `design.py batch casts/<作品>.json <出力>` → 1枚ずつ検品表で見る → 落とした絵は `rejected` に理由を書く → もう一度 batch（足りない分だけ描く）
    → `design.py sheet` の一覧図で見せる
 5. 同じ破綻が続いたら指示文の書き方を直し、`docs/knowledge/monster-design.md` の6節に足す
+6. 依頼先のリポジトリ（作品のリポジトリ）に送る。その作品のセッションが自分で続きを作れるようにするため:
+   - `templates/character-design-client/SKILL.md` の `{{DESIGN_DIR}}` と `{{CAST}}` を埋めて、依頼先の `.claude/skills/character-design/SKILL.md` に置く
+   - 決定稿の絵・ドット絵・候補の一覧と、状態の表（README.md）を依頼先の決めた置き場に置く（DigiMon は `design/beasts/`、RuleCrawler は `docs/designs/`）
+   - push の仕方は依頼先の決まりに従う（どちらも main へ直接、1回にまとめる）。決定稿が増えたら、その都度送り直す
 
 やらないこと: 自前の図形（SVG の部品）でキャラクターを組む・下絵にする（利用者の評価: Claude の図形デザインは嫌い）。
 2つのモデルを同時に動かす（メモリが足りず強制終了される）。
