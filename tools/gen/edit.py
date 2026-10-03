@@ -147,7 +147,10 @@ def inpaint(src, out, region, prompt, negative="", grow=4, steps=20, guidance=7.
     inp.scheduler = EulerAncestralDiscreteScheduler.from_config(inp.scheduler.config)
     pe, ne, pp, np_ = design.encode_xl(inp, prompt + ", 2d anime style illustration, cel shading",
                                        ", ".join(x for x in ("text, watermark, nsfw", negative) if x))
-    w, h = (im.width // 8) * 8, (im.height // 8) * 8
+    # SDXL 系は 1024 前後で描く。512x768 のまま描き直すと、細い腕や手がくすんだり半透明の影になったりした。
+    # 長い辺が 1024 未満なら拡大して描き、元の大きさに戻す
+    k = max(1.0, 1024 / max(im.size))
+    w, h = (round(im.width * k) // 8) * 8, (round(im.height * k) // 8) * 8
     gen = inp(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
               image=im.resize((w, h)), mask_image=m.resize((w, h)), strength=strength, num_inference_steps=steps,
               guidance_scale=guidance, width=w, height=h, generator=torch.Generator().manual_seed(seed)).images[0]
