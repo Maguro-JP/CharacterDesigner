@@ -1,5 +1,5 @@
 {
- "_doc": "名前付きの描き分けのパターン（皮膚、体型、亜人間など）。設定集の人物に \"patterns\": [\"名前\"] と書くと、traits と prompt が入る。verified は描いて確かめた結果（モデルと構図ごと）、sample は見本の絵。効かないパターンはここに置かない（docs/knowledge/traits.md に記録する）",
+ "_doc": "名前付きの描き分けのパターン（皮膚、体型、亜人間など）。設定集の人物に \"patterns\": [\"名前\"] と書くと、traits と prompt が入る。verified は描いて確かめた結果（モデルと構図ごと）、sample は見本の絵。効かないパターンはここに置かない（docs/knowledge/traits.md に記録する）。method が edit.py のものは、描いた絵のあとで tools/gen/edit.py で入れる（command のとおり）。服やほかの部位は変わらない",
  "patterns": {
   "skin-dark": {
    "ja": "濃い肌",
@@ -134,6 +134,70 @@
    "samples": {
     "male": "library/samples/race-lizard-male.png",
     "female": "library/samples/race-lizard-female.png"
+   }
+  },
+  "skin-blue": {
+   "ja": "青い肌",
+   "method": "edit.py recolor",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py recolor <絵> <出力> --region skin --color '#4a7ad0'",
+   "verified": {
+    "male": "できた（範囲の外で変わった画素 0）",
+    "female": "できた（範囲の外で変わった画素 0）"
+   },
+   "samples": {
+    "male": "library/samples/skin-blue-male.png",
+    "female": "library/samples/skin-blue-female.png"
+   }
+  },
+  "skin-green": {
+   "ja": "緑の肌",
+   "method": "edit.py recolor",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py recolor <絵> <出力> --region skin --color '#5aa05a'",
+   "verified": {
+    "male": "できた（範囲の外で変わった画素 0）",
+    "female": "できた（範囲の外で変わった画素 0）"
+   },
+   "samples": {
+    "male": "library/samples/skin-green-male.png",
+    "female": "library/samples/skin-green-female.png"
+   }
+  },
+  "skin-grey": {
+   "ja": "灰色の肌",
+   "method": "edit.py recolor",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py recolor <絵> <出力> --region skin --color '#8a8f98'",
+   "verified": {
+    "male": "できた（範囲の外で変わった画素 0）",
+    "female": "できた（範囲の外で変わった画素 0）"
+   },
+   "samples": {
+    "male": "library/samples/skin-grey-male.png",
+    "female": "library/samples/skin-grey-female.png"
+   }
+  },
+  "skin-red": {
+   "ja": "赤い肌",
+   "method": "edit.py recolor",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py recolor <絵> <出力> --region skin --color '#c84a3a'",
+   "verified": {
+    "male": "できた（範囲の外で変わった画素 0）",
+    "female": "できた（範囲の外で変わった画素 0）"
+   },
+   "samples": {
+    "male": "library/samples/skin-red-male.png",
+    "female": "library/samples/skin-red-female.png"
+   }
+  },
+  "tattoo-tribal-arms": {
+   "ja": "両腕の部族の刺青",
+   "method": "edit.py inpaint",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint <絵> <出力> --region skin_arms --strength 0.85 --prompt \"full sleeve black tribal tattoos covering the skin of both arms, bare muscular arms, hands\"",
+   "verified": {
+    "male": "できた（範囲の外で変わった画素 0。腕に下ろした手の縁がわずかに薄い）",
+    "female": "未確認"
+   },
+   "samples": {
+    "male": "library/samples/tattoo-tribal-arms-male.png"
    }
   }
  },
