@@ -261,6 +261,19 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(len(sp["rows"]), 22)  # 背景が残ると高さが絵の上下まで伸びる
         self.assertLessEqual(len(cols), 5)  # 赤・青・縁・外側の輪郭。混ざった中間色が無い
 
+    def test_gender_and_age_change_the_prompt(self):
+        # 男女・中性的・年齢の指定が指示文の頭に入る。子どもに「adult man」を付けない
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import design
+        t = lambda **kw: design.full_texts({"prompt": "knight", "full_prompt": "knight", **kw})  # noqa: E731
+        self.assertIn("adult man", t(gender="male")[0])
+        self.assertIn("androgynous", t(gender="androgynous")[0])
+        self.assertIn("breasts", t(gender="androgynous")[1])
+        child, neg = t(gender="male", age="child")
+        self.assertIn("child", child)
+        self.assertNotIn("adult man", child)
+        self.assertIn("elderly", t(gender="female", age="elder")[0])
+
     def test_orphan_is_replaced_but_protected_is_kept(self):
         a, b = "#808080", "#ffffff"
         grid = [[a] * 3 for _ in range(3)]

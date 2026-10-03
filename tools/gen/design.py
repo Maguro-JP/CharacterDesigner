@@ -77,7 +77,18 @@ XL_CREATURE_NEGATIVE = ("human, humanoid, anthro, 1girl, extra heads, extra legs
 # 「1boy」だけでは中性的な美形に寄った（学んだ絵に多い）ので、男性は体と顔の骨格から書く
 GENDER = {"male": ("1boy, male focus, adult man, broad shoulders, strong jawline, thick neck, short hair, masculine, ",
                    "1girl, female, breasts, skirt, androgynous, feminine face, long eyelashes, bishounen, makeup"),
-          "female": ("1girl, adult woman, feminine, ", "")}
+          "female": ("1girl, adult woman, feminine, ", ""),
+          # 中性的: 男女どちらとも読める顔と体。性別の印（胸、髭、化粧）を打ち消す
+          "androgynous": ("1person, androgynous, gender-neutral face, flat chest, short layered hair, ",
+                          "breasts, beard, makeup, very muscular")}
+# 年齢。頭身と顔の骨格で描き分ける。adult（既定）は GENDER の書き方のまま
+AGE = {"child": ("child, about 10 years old, short stature, 4 heads tall, round face, big eyes, ",
+                 "adult, tall, mature, beard, breasts"),
+       "teen": ("teenager, about 16 years old, slim youthful body, ", "old, wrinkles, beard"),
+       "adult": ("", ""),
+       "middle": ("middle-aged, about 45 years old, mature face, slight wrinkles, ", "child, teenager, young face"),
+       "elder": ("elderly, about 70 years old, wrinkled face, grey hair, slightly hunched, ",
+                 "young, child, smooth skin")}
 
 
 def _pipe(style, img2img=False):
@@ -198,7 +209,12 @@ def full_texts(c, style="anime"):
         head, tail, neg = CREATURE_PREFIX, CREATURE_SUFFIX, CREATURE_NEGATIVE
     else:
         g = GENDER.get(c.get("gender"), ("", ""))
-        head, tail, neg = PREFIX + g[0], "", g[1]
+        a = AGE.get(c.get("age", "adult"), ("", ""))
+        gp, gn = g
+        if c.get("age") in ("child", "teen"):
+            # 子どもと十代に「adult man / adult woman」と骨格の言葉を付けない（年齢の指定と食い違う）
+            gp = {"male": "1boy, male, ", "female": "1girl, female, "}.get(c.get("gender"), gp)
+        head, tail, neg = PREFIX + gp + a[0], "", ", ".join(x for x in (gn, a[1]) if x)
     return head + c["full_prompt"] + tail + SUFFIX, ", ".join(x for x in (NEGATIVE, neg, c.get("negative", "")) if x)
 
 

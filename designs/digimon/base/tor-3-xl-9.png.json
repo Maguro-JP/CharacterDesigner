@@ -1,0 +1,9 @@
+{
+ "name": "トルネ",
+ "prompt": "small bipedal dragon, big head, short arms and legs, two small wings, two short golden horns, pale belly, one tail, glowing diamond-shaped teal core on the chest, rookie stage, small, big head, short limbs, colors teal green #3fd6b3, pale mint #d9fff1, gold #f5c542, original digital monster design, thick uniform black outline, flat cel colors, no gradient, no texture, no shading, sharp angular shapes, fierce eyes, cool rather than cute, three-quarter view, full body, creature design, 2d anime style illustration, cel shading, clean lineart, flat colors, white background",
+ "negative": "human, humanoid, anthro, 1girl, extra heads, extra legs, extra wings, extra tails, fused animals, two animals, cropped, text, watermark, nsfw, four legs",
+ "seed": 9,
+ "style": "xl",
+ "model": "Lykon/dreamshaper-xl-lightning",
+ "steps": 6
+}

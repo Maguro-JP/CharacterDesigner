@@ -1,0 +1,9 @@
+{
+ "name": "エンボウ",
+ "prompt": "puppy standing on four legs, quadruped, big ears, black paws, short fur on the neck, one tail with a flame at the tip, glowing diamond-shaped orange core on the chest, rookie stage, small, big head, short limbs, colors red orange #ff5a3c, cream #ffe0b0, black #1a0a0a, original digital monster design, thick uniform black outline, flat cel colors, no gradient, no texture, no shading, sharp angular shapes, fierce eyes, cool rather than cute, three-quarter view, full body, creature design, 2d anime style illustration, cel shading, clean lineart, flat colors, white background",
+ "negative": "human, humanoid, anthro, 1girl, extra heads, extra legs, extra wings, extra tails, fused animals, two animals, cropped, text, watermark, nsfw, bipedal, standing upright, arms",
+ "seed": 9,
+ "style": "xl",
+ "model": "Lykon/dreamshaper-xl-lightning",
+ "steps": 6
+}
