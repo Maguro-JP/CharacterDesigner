@@ -19,7 +19,16 @@
    "steps": [0.42, 0.72],
    "folds": {"angle": 0, "period": 2, "amp": 0.3}
   },
-  "wood": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#5a3a22", "#8a5a34"], "steps": [0.55]}
+  "wood": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#5a3a22", "#8a5a34"], "steps": [0.55]},
+  "skin": {
+   "outline": "#502414",
+   "line": "#985028",
+   "ramp": ["#985028", "#d88848", "#f8c898"],
+   "steps": [0.38, 0.7],
+   "contrast": 1.0,
+   "texture": 0.06,
+   "keep_saturation": true
+  }
  },
  "remove": [
   "scarf_tail", "far_leg", "near_leg", "vest", "coat_tail", "scarf", "blade", "guard", "grip", "hand",
