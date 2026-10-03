@@ -17,8 +17,8 @@ for (const L of LINES) {
     const fill = s.palette[0];
     // 目は抜かずに白で置く（下絵の目の位置を生成に渡す）
     const svg = s.svg.replaceAll('fill="#0d1222"', 'fill="#ffffff"');
-    const doc = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-20 -20 140 140" width="768" height="768">` +
-      `<rect x="-20" y="-20" width="140" height="140" fill="#ffffff"/><g fill="${fill}" stroke="#111111" stroke-width="1.2">${svg}</g></svg>`;
+    const doc = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="-6 -6 112 112" width="768" height="768">` +
+      `<rect x="-6" y="-6" width="112" height="112" fill="#ffffff"/><g fill="${fill}" stroke="#111111" stroke-width="1.2">${svg}</g></svg>`;
     fs.writeFileSync(path.join(out, `${IDS[L.name]}-${i + 1}.svg`), doc);
   });
 }
