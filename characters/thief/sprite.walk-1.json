@@ -49,14 +49,14 @@
   "J": "#9c6838",
   "K": "#ba884c",
   "L": "#d8a860",
-  "M": "#d8d2bc",
+  "M": "#e3dcc9",
   "N": "#f7f9fa"
  },
  "rows": [
   "..........................",
   ".............rrrr..r......",
   "...........rrBMBMrrxr.....",
-  "..........rMMMMxMxxvp.....",
+  "..........rBBBMxMxxvp.....",
   ".........rnnnnnnnnnvr.....",
   ".........yIIIIDIDIDnGr....",
   ".........szzzzzznnnvGuy...",

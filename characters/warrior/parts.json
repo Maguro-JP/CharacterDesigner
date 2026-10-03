@@ -18,7 +18,8 @@
    "line": "#181818",
    "ramp": ["#2a1c14", "#5c3e2a", "#9a7a58"],
    "steps": [0.55, 0.86],
-   "texture": 0.45
+   "texture": 0.45,
+   "shine": {"mix": 0.45, "step": 0.9}
   },
   "metal": {
    "outline": "#181a24",

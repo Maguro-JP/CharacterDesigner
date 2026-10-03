@@ -16,7 +16,8 @@
    "line": "#2a1c1c",
    "ramp": ["#5a2a1c", "#8a4a2a", "#b06a3a"],
    "steps": [0.55, 0.86],
-   "texture": 0.45
+   "texture": 0.45,
+   "shine": {"mix": 0.45, "step": 0.9}
   },
   "wood": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#5a3a22", "#8a5a34"], "steps": [0.55]},
   "string": {"outline": "#2a1c1c", "line": "#2a1c1c", "ramp": ["#d8d0b8"]},

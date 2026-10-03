@@ -318,6 +318,12 @@ def levels(spec, m):
     if tex.get("deep"):
         ramp = [_mix(m["outline"], ramp[0], 0.5)] + ramp
         steps = [(steps[0] if steps else 0.5) * tex["deep"]] + steps
+    if m.get("shine"):
+        # shine: 最も明るい段の上に、白へ寄せた光の段を足す。手本の黒い髪は明るさ 135〜180 の
+        # 毛筋が1割ほど散るが、3段の色だけでは最も明るくても 110 前後で、髪が1つの塊に見えた
+        sh = m["shine"]
+        ramp = ramp + [_mix(ramp[-1], sh.get("toward", "#f0e8d8"), sh.get("mix", 0.45))]
+        steps = steps + [sh.get("step", 0.9)]
     return ramp, steps
 
 
