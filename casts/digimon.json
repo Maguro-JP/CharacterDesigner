@@ -8,20 +8,21 @@
    "id": "tor-2",
    "name": "ピィ",
    "role": "トルネ系統 幼年期・風。手足の無い羽毛玉",
-   "prompt": "round fluffy ball of feathers, legless, feet hidden under feathers, resting on the ground like a ball, no wings, one small yellow beak, two big eyes, cowlick feather, main color mint white, secondary teal, accent yellow, baby, tiny",
+   "prompt": "fluffy feather ball with sharp narrow eyes, legless, resting on the ground like a ball, wind swirl markings, one long antenna feather, tiny hooked beak, main color mint white, secondary teal, accent yellow, baby",
    "kind": "creature",
    "rejected": {
     "tor-2-xl-7.png": "脚の数: 脚が2本ある（指定は脚なし）",
     "tor-2-xl-8.png": "脚の数: 脚が2本ある（指定は脚なし）"
    },
-   "negative": "legs, feet, standing"
+   "negative": "cute plush, round soft, chubby, legs, feet"
   },
   {
    "id": "tor-3",
    "name": "トルネ",
    "role": "トルネ系統 成長期・風。主人公の相棒の小竜",
    "prompt": "baby dragon, bipedal, two short legs, two small wings, one tail, two short gold horns, big head, main color teal green, secondary pale mint belly, accent gold, small",
-   "kind": "creature"
+   "kind": "creature",
+   "chosen": 7
   },
   {
    "id": "tor-4",
@@ -55,21 +56,24 @@
    "kind": "creature",
    "rejected": {
     "hak-2-xl-8.png": "光輪が無く角が2本出た（指定は金の光輪）"
-   }
+   },
+   "chosen": 7
   },
   {
    "id": "hak-3",
    "name": "ハク",
    "role": "ハク系統 成長期・聖。首に金の環のちび白竜",
    "prompt": "baby white dragon, quadruped, four short legs, two small wings, one tail, gold ring around neck, main color white, secondary pale blue, accent gold, small, big head",
-   "kind": "creature"
+   "kind": "creature",
+   "chosen": 7
   },
   {
    "id": "hak-4",
    "name": "ハクナイト",
    "role": "ハク系統 成熟期・聖。白銀の鎧の竜騎士",
    "prompt": "dragon knight, bipedal dragon, two legs, two wings, one tail, silver white armor, shield and glowing spear, main color white, secondary gold, accent pale blue, adult",
-   "kind": "creature"
+   "kind": "creature",
+   "chosen": 7
   },
   {
    "id": "hak-5",
@@ -112,7 +116,8 @@
    "name": "エンボウ",
    "role": "エンボウ系統 成長期・火。尾の先が炎の子犬",
    "prompt": "puppy, quadruped, four legs, one tail with a flame tip, main color red orange, secondary cream belly, accent black paws, small, big head, happy",
-   "kind": "creature"
+   "kind": "creature",
+   "chosen": 7
   },
   {
    "id": "emb-4",
@@ -122,7 +127,8 @@
    "kind": "creature",
    "rejected": {
     "emb-4-xl-7.png": "浮いた部位: 炎が体から離れて浮いている"
-   }
+   },
+   "chosen": 8
   },
   {
    "id": "emb-5",
@@ -140,32 +146,37 @@
    "id": "kam-2",
    "name": "プクリ",
    "role": "カメロ系統 幼年期・水。しずく型",
-   "prompt": "water droplet blob, no legs, two sleepy eyes, translucent body, little bubbles, main color light blue, secondary white, accent cyan, baby, tiny",
-   "kind": "creature"
+   "prompt": "water droplet slime with a pointed tip, legless, sharp mischievous eyes, glowing circuit lines inside its body, main color light blue, secondary deep blue, accent cyan, baby",
+   "kind": "creature",
+   "rejected": {
+    "kam-2-xl-7.png": "利用者: 作風が DigiMon に合わない（丸く柔らかいぬいぐるみ寄り）",
+    "kam-2-xl-8.png": "利用者: 作風が DigiMon に合わない（丸く柔らかいぬいぐるみ寄り）"
+   },
+   "negative": "cute plush, round soft, chubby, legs, feet"
   },
   {
    "id": "kam-3",
    "name": "カメロ",
    "role": "カメロ系統 成長期・水。小さな亀",
-   "prompt": "baby sea turtle crawling on the ground, four flippers, head low, water drop pattern on its shell, one short tail, main color sky blue, secondary navy shell, accent cream belly, small, big eyes",
+   "prompt": "baby turtle crawling, four flippers, hexagon armor plates on its shell, sharp eyes, one small fang, main color sky blue, secondary navy plates, accent yellow, small",
    "kind": "creature",
    "rejected": {
     "kam-3-xl-7.png": "既存作品の特定の亀のモンスターに似ている",
     "kam-3-xl-8.png": "既存作品の特定の亀のモンスターに似ている"
    },
-   "negative": "bipedal, standing, arms, hands"
+   "negative": "cute plush, chubby, bipedal, standing upright, arms, hands"
   },
   {
    "id": "kam-4",
    "name": "ガンガメ",
    "role": "カメロ系統 成熟期・水。岩の棘3本の大亀",
-   "prompt": "giant tortoise, quadruped, four thick legs, three big rock spikes on top of its shell, main color navy, secondary blue skin, accent grey stone, adult, heavy",
+   "prompt": "armored tortoise beast, quadruped, on all fours, four thick clawed legs, angular plated shell with three big rock spikes, fierce glaring eyes, main color navy, secondary steel blue, accent grey stone, adult",
    "kind": "creature",
    "rejected": {
     "kam-4-xl-7.png": "二体の融合: 亀が2匹重なっている",
     "kam-4-xl-8.png": "岩の棘3本が無い"
    },
-   "negative": "two turtles, stacked, bipedal"
+   "negative": "cute plush, chubby, bipedal, standing upright, arms, hands"
   },
   {
    "id": "kam-5",
@@ -184,7 +195,8 @@
    "name": "ビリ",
    "role": "ライトリ系統 幼年期・雷。羽が逆立った雛",
    "prompt": "round chick, two tiny legs, no visible wings, feathers standing up with static, one small beak, main color pale yellow, secondary white, accent electric blue sparks, baby, tiny",
-   "kind": "creature"
+   "kind": "creature",
+   "chosen": 7
   },
   {
    "id": "rai-3",
@@ -226,23 +238,25 @@
    "id": "gor-2",
    "name": "コロン",
    "role": "ゴロン系統 幼年期・土。目のある岩",
-   "prompt": "small round boulder with two cute eyes and a small mouth, no legs, no fur, sitting on the ground, smooth stone surface, main color tan, secondary brown, accent green moss spot, baby, tiny",
+   "prompt": "small angular rock with one glowing crack for an eye, legless, sitting on the ground, sharp edges, main color tan, secondary dark brown, accent mint green glow, baby",
    "kind": "creature",
    "rejected": {
     "gor-2-xl-7.png": "脚がある、岩でなく毛の生き物",
     "gor-2-xl-8.png": "脚がある、岩でなく毛の生き物"
    },
-   "negative": "legs, feet, fur, hair, owl"
+   "negative": "cute plush, round soft, chubby, legs, feet"
   },
   {
    "id": "gor-3",
    "name": "ゴロン",
    "role": "ゴロン系統 成長期・土。背に苔の四角い胴",
-   "prompt": "boxy rock creature, quadruped, four stubby legs, square body, moss on back, main color brown, secondary tan, accent green moss, small, gentle face",
+   "prompt": "stone block beast, quadruped, on all fours, four short pillar legs, cube body with moss, sharp glowing eyes, small horn, main color brown, secondary grey, accent green moss, small",
    "kind": "creature",
    "rejected": {
-    "gor-3-xl-7.png": "機械の部品が付き、脚の数が数えられない"
-   }
+    "gor-3-xl-7.png": "機械の部品が付き、脚の数が数えられない",
+    "gor-3-xl-8.png": "利用者: 作風が DigiMon に合わない（丸く柔らかいぬいぐるみ寄り）"
+   },
+   "negative": "cute plush, chubby, bipedal, standing upright, arms, hands"
   },
   {
    "id": "gor-4",
@@ -267,13 +281,13 @@
    "id": "yor-2",
    "name": "ムン",
    "role": "ヨル系統 幼年期・闇。光る目の煙",
-   "prompt": "small dark purple smoke wisp, ghost tail instead of legs, no arms, two glowing white eyes, mischievous grin, main color dark purple, secondary violet, accent white, baby, tiny",
+   "prompt": "jagged purple smoke wisp, ghost tail instead of legs, no arms, two sharp glowing white eyes, jagged grin, main color dark purple, secondary violet, accent white, baby",
    "kind": "creature",
    "rejected": {
     "yor-2-xl-7.png": "脚がある、炎が黄色",
     "yor-2-xl-8.png": "脚がある、主色が白（指定は紫）"
    },
-   "negative": "legs, feet, arms, white body"
+   "negative": "cute plush, round soft, chubby, legs, feet"
   },
   {
    "id": "yor-3",
@@ -304,5 +318,6 @@
    },
    "negative": "two arms"
   }
- ]
+ ],
+ "creature_common": "original digital monster, sharp angular shapes, bold black outlines, fierce eyes, cool rather than cute"
 }
