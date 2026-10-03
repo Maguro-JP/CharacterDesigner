@@ -24,3 +24,13 @@ README と PR の説明には作品名を出さない。
 | 斜め上 45° から見下ろすオンライン RPG | テイルズウィーバーなど NEXON 系のドット絵 |
 | 横スクロールの真横 | メイプルストーリー、ラテール など |
 | 広く（日本の作品を優先） | 未定 |
+
+## 画像生成のモデル（2026-10-03 から使用）
+
+| 用途 | モデル | 許諾 |
+|---|---|---|
+| アニメ風のベース | Meina/MeinaMix_V11（Hugging Face） | CreativeML OpenRAIL-M |
+| リアル風の派生 | Lykon/dreamshaper-8（Hugging Face） | CreativeML OpenRAIL-M |
+| 少ない段数で描く | latent-consistency/lcm-lora-sdv1-5（Hugging Face） | OpenRAIL++ |
+
+OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じる許諾。モデルの重みはリポジトリに置かず、初回の実行で取る。

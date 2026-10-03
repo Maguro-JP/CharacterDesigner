@@ -169,6 +169,25 @@ class BuildTest(unittest.TestCase):
         # 4x4 の中身 16 と、上下左右に付く輪郭 16（角には付かない）
         self.assertEqual(sum(c != "." for r in out["rows"] for c in r), 32)
 
+    def test_generated_picture_becomes_a_sprite_without_background(self):
+        # 生成した絵（無地の背景、本人と小さな写り込み）から、本人だけのドット絵を作る
+        import tempfile
+        from PIL import Image, ImageDraw
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import design
+        im = Image.new("RGB", (100, 200), (250, 250, 250))
+        d = ImageDraw.Draw(im)
+        d.rectangle([30, 20, 70, 190], fill=(40, 60, 160))   # 本人
+        d.rectangle([2, 2, 12, 22], fill=(160, 60, 40))      # 隅の小さな写り込み
+        with tempfile.TemporaryDirectory() as t:
+            src, out = f"{t}/a.png", f"{t}/a.sprite.json"
+            im.save(src)
+            design.pixel(src, out, 34, 16)
+            sp = json.loads(Path(out).read_text(encoding="utf-8"))
+        cols = {sp["palette"][c] for r in sp["rows"] for c in r if c != "."}
+        self.assertEqual(len(sp["rows"]), 36)  # 34 ドットの本人と上下の輪郭
+        self.assertFalse(any(build.hex_to_rgb(c)[0] > 120 and build.hex_to_rgb(c)[2] < 80 for c in cols), cols)
+
     def test_orphan_is_replaced_but_protected_is_kept(self):
         a, b = "#808080", "#ffffff"
         grid = [[a] * 3 for _ in range(3)]
