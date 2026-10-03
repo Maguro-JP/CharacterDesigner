@@ -69,6 +69,6 @@
 
 ## 使ってよい道具
 
-Python 3 と Pillow。人体と立体の形には Blender（Python 部品 bpy）と MakeHuman（Blender 用部品 MPFB、基本素材は CC0）を使う。
+Python 3 と Pillow。キャラクターデザインのベースは画像生成（`tools/gen/design.py`、CPU 版 torch と diffusers、`sh tools/gen/setup.sh` で `.cache/gen` に取る）。人体と立体の形には Blender（Python 部品 bpy）と MakeHuman（Blender 用部品 MPFB、基本素材は CC0）を使う。
 どれも数百 MB あるのでリポジトリに入れず、`sh tools/engine/setup.sh` で `.cache/engine` に取る。
 Blender は画面なしで CPU 描画（Cycles）を使う（この環境には GPU 描画の部品 libEGL が無い）。
