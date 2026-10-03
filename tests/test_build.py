@@ -115,6 +115,18 @@ class BuildTest(unittest.TestCase):
         self.assertTrue(inside <= set(MATS["metal"]["ramp"]), inside)
         self.assertEqual({pal[r[4]] for r in out["rows"][2:10]}, {"#101010"})
 
+    def test_outline_tint_varies_but_stays_dark(self):
+        # outline_tint: 外の輪郭を内側の暗い2段へ寄せる。輪郭の色が縁に沿って変わるが、
+        # 内側の2段目より明るくはならない（明るい段まで寄せるとシルエットが緩んだ）
+        part = {"name": "blade", "material": "metal", "shapes": [{"type": "rect", "at": [3, 2, 9, 10]}]}
+        plain, _ = build.build(spec([dict(part)]))
+        tinted, _ = build.build(spec([dict(part)], texture={"outline_tint": 0.5}))
+        edge = lambda o: {o["palette"][r[2]] for r in o["rows"][2:10]}  # noqa: E731
+        luma = lambda c: sum(int(c[i:i + 2], 16) for i in (1, 3, 5)) / 3  # noqa: E731
+        self.assertEqual(edge(plain), {"#101010"})
+        self.assertNotEqual(edge(tinted), {"#101010"})
+        self.assertTrue(all(luma(c) <= luma(MATS["metal"]["ramp"][1]) for c in edge(tinted)), edge(tinted))
+
     def test_orphan_is_replaced_but_protected_is_kept(self):
         a, b = "#808080", "#ffffff"
         grid = [[a] * 3 for _ in range(3)]

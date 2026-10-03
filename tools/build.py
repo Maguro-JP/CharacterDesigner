@@ -369,6 +369,7 @@ def outline(spec, grid):
     at = lambda x, y: grid[y][x] if 0 <= x < W and 0 <= y < H else None  # noqa: E731
     groups = [p.get("group", p["name"]) for p in parts]
     four = ((1, 0), (-1, 0), (0, 1), (0, -1))
+    tint = spec.get("texture", {}).get("outline_tint", 0)
     for y in range(H):
         for x in range(W):
             c = grid[y][x]
@@ -378,7 +379,14 @@ def outline(spec, grid):
                 nb = [n for n in nb if not parts[n[0]].get("no_outline")]
                 if nb:
                     q = max(n[0] for n in nb)
-                    colors[y][x] = mats[parts[q]["material"]]["outline"]
+                    m = mats[parts[q]["material"]]
+                    colors[y][x] = m["outline"]
+                    if tint:
+                        # 手本の輪郭は1色ではなく、内側の明暗に合わせて暗い範囲の中で色が変わる。
+                        # 同じ色の輪郭が縦に長く続くと、縁で隣と色が変わらず平らに見える。
+                        # 寄せる先は内側の暗い2段まで。明るい段に寄せるとシルエットが緩む
+                        k = max(n[1] for n in nb if n[0] == q)
+                        colors[y][x] = _mix(m["outline"], ramp_of(spec, m)[min(k, 1)], tint)
                     # 輪郭は接している部品すべてのもの。頭と体の実測で使う
                     owner[y][x] = frozenset(n[0] for n in nb)
                 continue

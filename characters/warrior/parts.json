@@ -360,7 +360,8 @@
   "contrast": 2.0,
   "deep": 0.7,
   "pivot": 0.75,
-  "saturation": 0.7
+  "saturation": 0.7,
+  "outline_tint": 0.3
  },
  "transforms": [{"parts": "*", "scale": [1, 0.62], "origin": [14, 25], "below": 25, "touchups": true}]
 }
