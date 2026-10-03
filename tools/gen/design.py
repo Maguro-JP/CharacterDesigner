@@ -47,7 +47,14 @@ PRESETS = {
 PREFIX = "masterpiece, best quality, character design, full body, standing, solo, "
 SUFFIX = ", white background, simple background"
 NEGATIVE = ("lowres, bad anatomy, bad hands, extra fingers, missing fingers, extra limbs, cropped, "
-            "multiple views, text, watermark, signature, blurry")
+            "multiple views, text, watermark, signature, blurry, nsfw, nude, naked, nipples, cleavage")
+# 人でない者（魔物、妖怪、モンスター）の決まり文句。アニメの人物向けのモデルは、人の立ち姿の決まり文句と
+# 合わさると動物や玉の形の者まで少女の姿で描いた。人を描かない指定と、人の特徴の打ち消しを足す
+CREATURE_PREFIX = "masterpiece, best quality, creature design, monster concept art, full body, solo, no humans, "
+CREATURE_NEGATIVE = "1girl, 1boy, human, woman, man, breasts, human face, animal ears, kemonomimi"
+# 性別。指定が無いとアニメの人物向けのモデルは少女を描き、男性の職まで女性になった
+GENDER = {"male": ("1boy, male focus, ", "1girl, female, breasts, skirt"),
+          "female": ("1girl, ", "")}
 
 
 def _pipe(style, img2img=False):
@@ -117,6 +124,16 @@ def load_cast(path):
     return cast
 
 
+def full_texts(c):
+    """1人ぶんの指示文と打ち消しの文。人でない者と性別で、決まり文句を切り替える。"""
+    if c.get("kind") == "creature":
+        head, neg = CREATURE_PREFIX, CREATURE_NEGATIVE
+    else:
+        g = GENDER.get(c.get("gender"), ("", ""))
+        head, neg = PREFIX + g[0], g[1]
+    return head + c["full_prompt"] + SUFFIX, ", ".join(x for x in (NEGATIVE, neg, c.get("negative", "")) if x)
+
+
 def cast_paths(cast, outdir):
     """設定集の1人ごとに、描く絵のパスを seed の数だけ返す。"""
     for c in cast["characters"]:
@@ -127,6 +144,7 @@ def cast_paths(cast, outdir):
 def batch(cast_path, outdir, style, steps, width, height):
     import torch
     cast = load_cast(cast_path)
+    style = style or cast.get("style", "anime")
     Path(outdir).mkdir(parents=True, exist_ok=True)
     todo = [(c, p, seed + i) for c, ps, seed in cast_paths(cast, outdir) for i, p in enumerate(ps) if not p.exists()]
     print(f"{len(todo)} 枚を描く")
@@ -135,7 +153,7 @@ def batch(cast_path, outdir, style, steps, width, height):
     pipe = _pipe(style)
     for c, p, seed in todo:
         t = time.time()
-        pe, ne = encode(pipe, PREFIX + c["full_prompt"] + SUFFIX, NEGATIVE + ", " + c.get("negative", ""))
+        pe, ne = encode(pipe, *full_texts(c))
         im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, num_inference_steps=steps, guidance_scale=1.5, width=width, height=height,
                   generator=torch.Generator().manual_seed(seed)).images[0]
         im.save(p)
@@ -345,7 +363,7 @@ def main():
     b = sub.add_parser("batch")
     b.add_argument("cast")
     b.add_argument("outdir")
-    b.add_argument("--style", default="anime", choices=list(STYLES))
+    b.add_argument("--style", default=None, choices=list(STYLES), help="省くと設定集の style（無ければ anime）")
     b.add_argument("--steps", type=int, default=6)
     b.add_argument("--width", type=int, default=512)
     b.add_argument("--height", type=int, default=768)
