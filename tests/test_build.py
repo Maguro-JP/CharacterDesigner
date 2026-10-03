@@ -226,6 +226,20 @@ class BuildTest(unittest.TestCase):
         shots = [p.name for c, s in design.cast_paths(cast, "/x") for p, _, _ in s if c["id"] == "m"]
         self.assertEqual(shots, ["m-xl-8.png", "m-xl-9.png"])
 
+    def test_derived_stage_uses_the_chosen_base_picture(self):
+        # 系統の派生は、ベースの決定稿（chosen）の絵を手本にする。決定稿が無ければ手本なし
+        import tempfile
+        from PIL import Image
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import design
+        cast = {"characters": [{"id": "b", "kind": "creature"}, {"id": "s", "kind": "creature", "from": "b"}]}
+        with tempfile.TemporaryDirectory() as t:
+            Image.new("RGB", (8, 8), (10, 200, 10)).save(f"{t}/b-xl-9.png")
+            self.assertIsNone(design.base_image(cast, cast["characters"][1], t))
+            cast["characters"][0]["chosen"] = 9
+            self.assertEqual(design.base_image(cast, cast["characters"][1], t).getpixel((0, 0)), (10, 200, 10))
+            self.assertIsNone(design.base_image(cast, cast["characters"][0], t))
+
     def test_orphan_is_replaced_but_protected_is_kept(self):
         a, b = "#808080", "#ffffff"
         grid = [[a] * 3 for _ in range(3)]

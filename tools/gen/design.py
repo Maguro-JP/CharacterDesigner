@@ -226,6 +226,19 @@ def cast_paths(cast, outdir, style=None):
         yield c, shots
 
 
+def base_image(cast, c, outdir):
+    """系統のベース（from に書いた人物）の決定稿の絵。決定稿（chosen）が無ければ None。"""
+    if not c.get("from"):
+        return None
+    from PIL import Image
+    b = next((x for x in cast["characters"] if x["id"] == c["from"]), None)
+    if not b or "chosen" not in b:
+        return None
+    tag = "xl-" if b.get("kind") == "creature" else ""
+    p = Path(outdir) / f"{b['id']}-{tag}{b['chosen']}.png"
+    return Image.open(p).convert("RGB") if p.exists() else None
+
+
 def batch(cast_path, outdir, style, steps, width, height, kind=None):
     import torch
     cast = load_cast(cast_path)
@@ -240,6 +253,12 @@ def batch(cast_path, outdir, style, steps, width, height, kind=None):
     # モデルの読み込みは画風ごとに1回にする
     for st in dict.fromkeys(t[3] for t in todo):
         pipe = _pipe(st)
+        # 系統の派生: "from" に書いたベースの決定稿（chosen）を手本として読ませる（IP-Adapter）。
+        # 系統ごとに別々に描くと、同じ系統で違う生き物が生まれたため。手本の強さは from_scale（既定 0.6）
+        if st in XL and any(t[0].get("from") for t in todo if t[3] == st):
+            pipe.load_ip_adapter("h94/IP-Adapter", subfolder="sdxl_models",
+                                 weight_name="ip-adapter_sdxl_vit-h.safetensors",
+                                 image_encoder_folder="models/image_encoder")
         i2i = None
         if init_dir and st in XL:
             from diffusers import StableDiffusionXLImg2ImgPipeline
@@ -252,6 +271,12 @@ def batch(cast_path, outdir, style, steps, width, height, kind=None):
                 pe, ne, pp, np_ = encode_xl(pipe, text, neg)
                 kw = dict(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
                           negative_pooled_prompt_embeds=np_, guidance_scale=2.0, generator=g)
+                ref = base_image(cast, c, outdir)
+                if ref is not None:
+                    pipe.set_ip_adapter_scale(c.get("from_scale", cast.get("from_scale", 0.6)))
+                    kw["ip_adapter_image"] = ref
+                elif c.get("from"):
+                    print(f"  注意: {c['id']} の手本（{c['from']} の決定稿）が無いので、手本なしで描く", flush=True)
                 init = Path(init_dir) / f"{c['id']}.png" if i2i else None
                 if init and init.exists():
                     from PIL import Image
