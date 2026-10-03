@@ -8,8 +8,13 @@
    "id": "tor-2",
    "name": "ピィ",
    "role": "トルネ系統 幼年期・風。手足の無い羽毛玉",
-   "prompt": "fluffy round bird chick, no legs, no wings, one small yellow beak, two big eyes, cowlick feather, main color mint white, secondary teal, accent yellow, baby, tiny",
-   "kind": "creature"
+   "prompt": "round fluffy ball of feathers, legless, feet hidden under feathers, resting on the ground like a ball, no wings, one small yellow beak, two big eyes, cowlick feather, main color mint white, secondary teal, accent yellow, baby, tiny",
+   "kind": "creature",
+   "rejected": {
+    "tor-2-xl-7.png": "脚の数: 脚が2本ある（指定は脚なし）",
+    "tor-2-xl-8.png": "脚の数: 脚が2本ある（指定は脚なし）"
+   },
+   "negative": "legs, feet, standing"
   },
   {
    "id": "tor-3",
@@ -22,22 +27,35 @@
    "id": "tor-4",
    "name": "ガルトルネ",
    "role": "トルネ系統 成熟期・風。人が乗れる四足の大竜",
-   "prompt": "feathered dragon, quadruped, four legs, two large feathered wings, one tail, feather mane on neck, main color dark teal, secondary pale mint, accent violet, adult",
-   "kind": "creature"
+   "prompt": "feathered dragon walking on all fours like a horse, four legs on the ground, two large feathered wings, one tail, feather mane on neck, main color dark teal, secondary pale mint, accent violet, adult",
+   "kind": "creature",
+   "rejected": {
+    "tor-4-xl-7.png": "姿勢: 二足で立つ（指定は四つ足）",
+    "tor-4-xl-8.png": "姿勢: 二足で立つ（指定は四つ足）"
+   },
+   "negative": "bipedal, standing upright, rearing"
   },
   {
    "id": "tor-5",
    "name": "テンペストドラゴン",
    "role": "トルネ系統 完全体・風。雲をまとう蛇体の竜",
-   "prompt": "serpentine sky dragon, long snake body, two short arms, four blade-shaped wings, wrapped in storm clouds, main color deep teal, secondary glowing teal lines, accent silver, huge, imposing",
-   "kind": "creature"
+   "prompt": "eastern long dragon flying through storm clouds, snake-like body, four blade-shaped wings, two small claws, main color deep teal, secondary glowing teal lines, accent silver, huge",
+   "kind": "creature",
+   "rejected": {
+    "tor-5-xl-7.png": "形: 蛇形の胴ではなく四肢の翼竜",
+    "tor-5-xl-8.png": "形: 蛇形の胴ではなく四肢の翼竜"
+   },
+   "negative": "western dragon, standing, bipedal, quadruped"
   },
   {
    "id": "hak-2",
    "name": "シロン",
    "role": "ハク系統 幼年期・聖。もち状の玉",
    "prompt": "round white mochi blob, no legs, no arms, two sleepy eyes, small gold halo above, main color white, secondary ivory, accent gold, baby, tiny",
-   "kind": "creature"
+   "kind": "creature",
+   "rejected": {
+    "hak-2-xl-8.png": "光輪が無く角が2本出た（指定は金の光輪）"
+   }
   },
   {
    "id": "hak-3",
@@ -57,22 +75,37 @@
    "id": "hak-5",
    "name": "ハクセラフ",
    "role": "ハク系統 完全体・聖。浮遊する六翼",
-   "prompt": "holy white dragon, floating, six feathered wings, two arms, one tail, gold halo, main color white, secondary gold, accent pale blue, large, serene",
-   "kind": "creature"
+   "prompt": "white dragon with three pairs of feathered wings, six wings in total, floating, two arms, one tail, gold halo, main color white, secondary gold, accent pale blue, large, serene",
+   "kind": "creature",
+   "rejected": {
+    "hak-5-xl-7.png": "翼の数: 2枚（指定は6枚）",
+    "hak-5-xl-8.png": "翼の数: 2枚（指定は6枚）"
+   },
+   "negative": "two wings, bat wings, standing"
   },
   {
    "id": "hak-6",
    "name": "ハクシンリュウ",
    "role": "ハク系統 究極体・聖。王冠の角と二重の光輪",
-   "prompt": "divine serpentine white dragon, long snake body, six wings, double gold halo, crown shaped horns, main color white, secondary pale gold, accent pale blue, huge, imposing",
-   "kind": "creature"
+   "prompt": "eastern long white dragon, snake-like body, six feathered wings, double gold halo, crown shaped horns, main color white, secondary pale gold, accent pale blue, huge",
+   "kind": "creature",
+   "rejected": {
+    "hak-6-xl-7.png": "翼の数: 2枚、蛇形でない",
+    "hak-6-xl-8.png": "翼の数: 2枚、蛇形でない"
+   },
+   "negative": "western dragon, bat wings, standing, bipedal"
   },
   {
    "id": "emb-2",
    "name": "ボッチ",
    "role": "エンボウ系統 幼年期・火。耳のある火の玉",
-   "prompt": "living fireball with two pointed ears, no legs, two eyes, grinning, main color orange red, secondary cream glow, accent yellow, baby, tiny",
-   "kind": "creature"
+   "prompt": "round ball of fire with two pointed ears, legless, floating flame, two eyes, grinning mouth, main color orange red, secondary cream glow, accent yellow, baby, tiny",
+   "kind": "creature",
+   "rejected": {
+    "emb-2-xl-7.png": "形: 二足の子鬼（指定は脚の無い火の玉）",
+    "emb-2-xl-8.png": "形: 二足の子鬼（指定は脚の無い火の玉）"
+   },
+   "negative": "legs, arms, standing, imp, body"
   },
   {
    "id": "emb-3",
@@ -86,14 +119,22 @@
    "name": "フレアウルフ",
    "role": "エンボウ系統 成熟期・火。炎のたてがみの狼",
    "prompt": "slender wolf, quadruped, four legs, one tail, blazing flame mane, main color crimson, secondary orange flames, accent black legs, adult, sharp eyes",
-   "kind": "creature"
+   "kind": "creature",
+   "rejected": {
+    "emb-4-xl-7.png": "浮いた部位: 炎が体から離れて浮いている"
+   }
   },
   {
    "id": "emb-5",
    "name": "イグナレオン",
    "role": "エンボウ系統 完全体・火。燃える尾3本の獅子王",
-   "prompt": "lion, quadruped, four legs, three flaming tails, huge burning mane, main color dark red, secondary orange fire, accent gold ornaments, huge, regal",
-   "kind": "creature"
+   "prompt": "lion, quadruped, four legs, three long tails each ending in a flame, huge burning mane, main color dark red, secondary orange fire, accent gold ornaments, huge, regal",
+   "kind": "creature",
+   "rejected": {
+    "emb-5-xl-7.png": "尾の数: 3本の炎の尾になっていない、炎が浮いている",
+    "emb-5-xl-8.png": "尾の数: 尾が1本（指定は3本）"
+   },
+   "negative": "one tail, detached flames"
   },
   {
    "id": "kam-2",
@@ -106,22 +147,37 @@
    "id": "kam-3",
    "name": "カメロ",
    "role": "カメロ系統 成長期・水。小さな亀",
-   "prompt": "baby turtle, quadruped, four short legs on the ground, one short tail, rounded shell, main color sky blue, secondary navy shell, accent cream belly, small, big head",
-   "kind": "creature"
+   "prompt": "baby sea turtle crawling on the ground, four flippers, head low, water drop pattern on its shell, one short tail, main color sky blue, secondary navy shell, accent cream belly, small, big eyes",
+   "kind": "creature",
+   "rejected": {
+    "kam-3-xl-7.png": "既存作品の特定の亀のモンスターに似ている",
+    "kam-3-xl-8.png": "既存作品の特定の亀のモンスターに似ている"
+   },
+   "negative": "bipedal, standing, arms, hands"
   },
   {
    "id": "kam-4",
    "name": "ガンガメ",
    "role": "カメロ系統 成熟期・水。岩の棘3本の大亀",
-   "prompt": "giant tortoise, quadruped, four thick legs, three rock spikes on its shell, main color navy, secondary blue skin, accent grey stone, adult, heavy",
-   "kind": "creature"
+   "prompt": "giant tortoise, quadruped, four thick legs, three big rock spikes on top of its shell, main color navy, secondary blue skin, accent grey stone, adult, heavy",
+   "kind": "creature",
+   "rejected": {
+    "kam-4-xl-7.png": "二体の融合: 亀が2匹重なっている",
+    "kam-4-xl-8.png": "岩の棘3本が無い"
+   },
+   "negative": "two turtles, stacked, bipedal"
   },
   {
    "id": "kam-5",
    "name": "リヴァガメオン",
    "role": "カメロ系統 完全体・水。甲羅を背負った海竜",
-   "prompt": "sea serpent turtle, long neck, four flippers, huge spiked shell, dorsal fins, main color deep navy, secondary blue, accent white foam, huge, imposing",
-   "kind": "creature"
+   "prompt": "sea turtle dragon swimming in waves, four flippers, long neck, huge spiked shell, dorsal fins, main color deep navy, secondary blue, accent white foam, huge",
+   "kind": "creature",
+   "rejected": {
+    "kam-5-xl-7.png": "姿勢: 二足で立つ（指定はひれ4枚の海竜）",
+    "kam-5-xl-8.png": "姿勢: 二足で立つ"
+   },
+   "negative": "bipedal, standing, legs, arms"
   },
   {
    "id": "rai-2",
