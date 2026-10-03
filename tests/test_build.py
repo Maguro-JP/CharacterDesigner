@@ -220,6 +220,10 @@ class BuildTest(unittest.TestCase):
         self.assertNotIn("standing", text)
         self.assertIn("1girl", neg)
         self.assertTrue(design.full_texts(cast["characters"][1])[0].startswith(design.PREFIX + "1boy"))
+        # 検品で落とした絵は数に入れず、次の seed で描き足す
+        cast["characters"][0]["rejected"] = {"m-7.png": "くちばしが2つ", "m-real-7.png": "脚が途切れる"}
+        shots = [(p.name, st) for c, s in design.cast_paths(cast, "/x") for p, _, st in s if c["id"] == "m"]
+        self.assertEqual(shots, [("m-8.png", "anime"), ("m-real-8.png", "real")])
 
     def test_orphan_is_replaced_but_protected_is_kept(self):
         a, b = "#808080", "#ffffff"

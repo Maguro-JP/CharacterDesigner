@@ -143,6 +143,10 @@ def full_texts(c):
 def cast_paths(cast, outdir, style=None):
     """設定集の1人ごとに、描く絵（パス, seed, 画風）を返す。
 
+    画像生成のモデルは描いた絵を見直さない（くちばしが2つ、途切れた脚）。描いた絵は目で検品し、
+    落とした絵は設定集の rejected に {"画像の名前": "理由"} で書く。理由は docs/knowledge/monster-design.md
+    の検品表の言葉で書き、同じ破綻が続けば指示文を直す。
+
     人は style（設定集の style、無ければ anime）だけで、モンスターは CREATURE_STYLES の全部で描く。
     anime 以外の画風の絵は名前に画風を入れる（id-real-7.png）。
     """
@@ -152,18 +156,27 @@ def cast_paths(cast, outdir, style=None):
         styles = c.get("styles") or (CREATURE_STYLES if c.get("kind") == "creature" else [base])
         if c.get("kind") == "creature":
             n = c.get("n", 1)
+        rejected = c.get("rejected", {})
         shots = []
         for st in styles:
             tag = "" if st == "anime" else f"{st}-"
-            shots += [(Path(outdir) / f"{c['id']}-{tag}{seed + i}.png", seed + i, st) for i in range(n)]
+            # 検品で落とした絵（rejected のキーは画像の名前）は数に入れず、次の seed で描き足す
+            s, got = seed, 0
+            while got < n:
+                name = f"{c['id']}-{tag}{s}.png"
+                if name not in rejected:
+                    shots.append((Path(outdir) / name, s, st))
+                    got += 1
+                s += 1
         yield c, shots
 
 
-def batch(cast_path, outdir, style, steps, width, height):
+def batch(cast_path, outdir, style, steps, width, height, kind=None):
     import torch
     cast = load_cast(cast_path)
     Path(outdir).mkdir(parents=True, exist_ok=True)
-    todo = [(c, p, seed, st) for c, shots in cast_paths(cast, outdir, style) for p, seed, st in shots if not p.exists()]
+    todo = [(c, p, seed, st) for c, shots in cast_paths(cast, outdir, style) for p, seed, st in shots
+            if not p.exists() and (kind is None or (c.get("kind") == "creature") == (kind == "creature"))]
     print(f"{len(todo)} 枚を描く")
     # モデルの読み込みは画風ごとに1回にする
     for st in dict.fromkeys(t[3] for t in todo):
@@ -385,6 +398,7 @@ def main():
     b.add_argument("--steps", type=int, default=6)
     b.add_argument("--width", type=int, default=512)
     b.add_argument("--height", type=int, default=768)
+    b.add_argument("--kind", choices=["human", "creature"], default=None, help="人だけ、モンスターだけを描く")
     s = sub.add_parser("sheet")
     s.add_argument("cast")
     s.add_argument("outdir")
@@ -392,7 +406,7 @@ def main():
     s.add_argument("--thumb", type=int, default=256)
     a = ap.parse_args()
     if a.cmd == "batch":
-        batch(a.cast, a.outdir, a.style, a.steps, a.width, a.height)
+        batch(a.cast, a.outdir, a.style, a.steps, a.width, a.height, a.kind)
     elif a.cmd == "sheet":
         sheet(a.cast, a.outdir, a.out, a.thumb)
     elif a.cmd == "draw":
