@@ -18,7 +18,7 @@ import math
 import sys
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageChops, ImageDraw, ImageFilter
 
 SS = 8  # 1ドットを何倍で描くか。8 あれば 1px 幅の剣も形が崩れない
 
@@ -143,6 +143,20 @@ def part_mask(part, size, shift=(0, 0)):
     return mask
 
 
+def band_mask(part, parts, size, shift):
+    """band_of: 別の部品の下端の帯（裾の縁取り）。元の部品の形から作るので、職業ごとの裾の形や
+    歩きのコマの揺れにそのまま付いていく。座標で描くと、裾が揺れたときに縁取りだけ残った。"""
+    spec_b = part["band_of"]
+    ref = next((p for p in parts if p["name"] == spec_b["part"]), None)
+    if ref is None:
+        # 継承先で元の部品を外した（法衣の職業は上着の裾が無い）。縁取りも描かない
+        return Image.new("L", size, 0)
+    m = part_mask(ref, size, shift)
+    up = Image.new("L", size, 0)
+    up.paste(m, (0, -round(spec_b.get("width", 1.0) * SS)))
+    return ImageChops.subtract(m, up)
+
+
 # ---------------------------------------------------------------- 光を当てる
 
 def shade_part(part, mask, material):
@@ -215,6 +229,8 @@ def render_hi(spec):
         sx0, sy0 = spec.get("shift", (0, 0))
         ox, oy = part.get("offset", (0, 0))
         mask = part_mask(part, size, (sx0 + ox, sy0 + oy))
+        if "band_of" in part:
+            mask = band_mask(part, parts, size, (sx0 + ox, sy0 + oy))
         box = mask.getbbox()
         if not box:
             continue
