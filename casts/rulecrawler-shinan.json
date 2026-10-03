@@ -1,0 +1,23 @@
+{
+ "title": "迷宮指南",
+ "source": "Maguro-JP/RuleCrawler src/shinan/ui/stage/hero.ts、actors.ts、enemySprites.ts、docs/shinan/design.md",
+ "common": "japanese folklore mystery dungeon roguelike, wafu, soft rounded cute deformed style, 3.5 heads tall, anime style",
+ "n": 2,
+ "characters": [
+  {"id": "hero", "name": "探索者（主人公）", "role": "指南書どおりに潜る旅人。赤茶の髪、青い上着、橙の襟巻き", "prompt": "young wandering adventurer, reddish brown hair #e0884a, blue eyes, blue short jacket #3a5aa8, long orange scarf #ff8a2a, brown obi belt, off-white hakama #e8e0d0, brown straw sandals, katana at waist, cheerful determined face", "n": 4},
+  {"id": "sunekosuri", "name": "すねこすり", "role": "獣。弱ると逃げる", "prompt": "sunekosuri yokai, small fluffy pale beige #d9c7a8 dog-cat creature rubbing against legs, round body, shy eyes, no humans", "negative": "human, girl, boy"},
+  {"id": "oonezumi", "name": "大ネズミ", "role": "獣。寄ってきて殴る", "prompt": "giant rat yokai, grey #8a8078 fur, red eyes, big front teeth, aggressive, no humans", "negative": "human, girl, boy"},
+  {"id": "kamaitachi", "name": "鎌鼬", "role": "鼬。1ターンに2回動く", "prompt": "kamaitachi yokai, pale blue-white #c9d6e3 weasel with sickle blade claws, wind swirls, fast dynamic pose, no humans", "negative": "human, girl, boy"},
+  {"id": "kooni", "name": "小鬼", "role": "鬼。物を盗んで逃げる", "prompt": "small green oni imp yokai, green skin #7fae5a, yellow eyes, one small horn, tiger skin loincloth, carrying a stolen sack, sneaky grin, no humans", "negative": "human, girl, boy"},
+  {"id": "kappa", "name": "河童", "role": "河童。傷がふさがる", "prompt": "kappa yokai, green #4fa37a skin, turtle shell on back, water dish on head, beak, webbed hands, no humans", "negative": "human, girl, boy"},
+  {"id": "tengu-minion", "name": "天狗の手下", "role": "天狗。石を投げる", "prompt": "karasu tengu minion yokai, red #c0392b face, crow beak, small black wings, yamabushi clothes, holding stones to throw", "negative": "girl"},
+  {"id": "tsuchigumo", "name": "土蜘蛛", "role": "蜘蛛。糸で縛る", "prompt": "tsuchigumo giant earth spider yokai, brown #a08664 hairy body, many eyes, web threads, no humans", "negative": "human, girl, boy"},
+  {"id": "onibi", "name": "鬼火", "role": "火の玉。壁を抜ける", "prompt": "onibi yokai, floating blue will-o-wisp flame #6fb2ff with cute ghostly face, ethereal glow, no humans", "negative": "human, girl, boy"},
+  {"id": "akaoni", "name": "赤鬼", "role": "鬼。力を溜めて重い一撃", "prompt": "big red oni yokai, red skin #e0533f, two horns, tiger skin loincloth, iron kanabo club, muscular, no humans", "negative": "girl"},
+  {"id": "aooni", "name": "青鬼", "role": "鬼。吠えて仲間を起こす", "prompt": "blue oni yokai, blue skin #4f7fd6, one horn, roaring with open mouth, tiger skin loincloth, muscular", "negative": "girl"},
+  {"id": "ushioni", "name": "牛鬼", "role": "牛。突進", "prompt": "ushi-oni yokai, ox head with big horns, dark purple #51476a spider-like body, charging pose, no humans", "negative": "human, girl, boy"},
+  {"id": "jorougumo", "name": "絡新婦", "role": "蜘蛛（女郎蜘蛛）。毒", "prompt": "jorogumo spider woman yokai, pink #d86ca0 kimono, spider legs from her back, venomous elegant smile, web pattern"},
+  {"id": "oomukade", "name": "大百足", "role": "百足。2回噛む", "prompt": "giant centipede yokai, red #c8483a armored segments, many legs, big pincers, coiled, no humans", "negative": "human, girl, boy"},
+  {"id": "nue", "name": "鵺", "role": "最大の妖怪。惑わせる", "prompt": "nue chimera yokai, monkey face, tanuki brown #6b5a3a body, tiger legs, snake tail, dark clouds, floating, no humans", "negative": "human, girl, boy"}
+ ]
+}

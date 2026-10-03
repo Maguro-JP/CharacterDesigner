@@ -38,3 +38,10 @@ OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じ
 ## ドット絵の派生の作風（2026-10-03）
 
 - `tools/gen/design.py pixel --preset survivor`: 見下ろしのアクション（Vampire Survivors のような、少ない色で等身を保ったドット絵）。利用者の評価で「顔は潰れていてもこの作風なら使える」。大きさと色数（高さ 40、16 色）は手本で数えていない
+
+## 設定集の出典（`casts/*.json`、2026-10-03）
+
+利用者の作品のキャラクター設定を、元のリポジトリから読んで指示文にした。既存の他社作品のキャラクターは含まない。
+
+- `casts/rulecrawler-joseki.json` / `rulecrawler-guild.json` / `rulecrawler-shinan.json`: Maguro-JP/RuleCrawler の3本（迷宮定石・深層ギルド・迷宮指南）。色と服の形は各ゲームの描画コード、性格と世界観は docs/ から
+- `casts/digimon.json`: Maguro-JP/DigiMon の設定資料「SIGNAL BEASTS」の系統表（名前・配色・形・大きさ・性格）

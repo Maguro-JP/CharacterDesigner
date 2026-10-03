@@ -1,0 +1,24 @@
+{
+ "title": "深層ギルド",
+ "source": "Maguro-JP/RuleCrawler src/guild/ui/stage/costumes.ts、figures.ts、engine/data.ts、docs/guild/design.md",
+ "common": "western high fantasy adventurer, octopath traveler inspired, slender angular body, slightly long proportions, anime style, exaggerated class silhouette (hat, collar, weapon)",
+ "n": 2,
+ "characters": [
+  {"id": "warrior", "name": "戦士", "role": "前衛。肩当てと胸当て、短い陣羽織、金属の草摺。男", "prompt": "male warrior, brown hair, steel pauldrons and breastplate #c8d2e0, short red surcoat #d8403a, metal tassets skirt, open-face helmet, longsword with gold hilt, confident grin"},
+  {"id": "knight", "name": "騎士", "role": "盾役。全身鎧、紋章の陣羽織、マント。女", "prompt": "female knight, blonde hair, full silver-white plate armor #e8ecf4, blue tabard with crest #3a6ad0, long blue cape, round blue shield with gold boss, stern noble face"},
+  {"id": "samurai", "name": "侍", "role": "西洋の街に来た異国の剣士。大袖、帯、幅広の袴。男", "prompt": "male samurai, black hair tied back, navy kimono #3a4a8a with large armored sleeves, white undergarment, red obi belt, wide hakama, straw kasa hat, katana, calm sharp eyes"},
+  {"id": "monk", "name": "武闘家", "role": "素手の前衛。腕を出した道着、帯の結び目。女", "prompt": "female martial artist, black short hair, sleeveless orange gi #f09a30, black belt knot, metal forehead guard, fist wraps and knuckle gauntlets, energetic fighting stance"},
+  {"id": "ninja", "name": "忍者", "role": "速さの職。体に沿った装束、長い襟巻き。男", "prompt": "male ninja, dark navy tight outfit #3a3a4e, long flowing red scarf #c83a3a, hood and face mask, red eyes, short ninjato, crouching ready pose"},
+  {"id": "thief", "name": "盗賊", "role": "罠と鍵。短い上着、なびく襟巻き、腰の小物入れ。男", "prompt": "male thief, messy grey-black hair, red headband, short green jacket #5a7a4a, yellow scarf #e8b030, pouches on belt, dagger, sly smile"},
+  {"id": "hunter", "name": "狩人", "role": "弓の後衛。矢筒、短いマント、革の上着。女", "prompt": "female hunter, auburn hair #c88a4a, green feathered cap with red feather, short green cape #6a9a3a, leather jacket, quiver on back, longbow, keen eyes"},
+  {"id": "mage", "name": "魔法使い", "role": "術の後衛。足元までのローブ、とんがり帽子。女", "prompt": "female mage, silver-white long hair, tall purple pointed hat, floor-length purple robe #6a4ab0 with wide sleeves and gold trim, staff with cyan crystal orb, mysterious calm"},
+  {"id": "priest", "name": "僧侶", "role": "回復。白いローブ、肩から下げた聖帯2本。男", "prompt": "male priest cleric, blonde hair, white robe, hood, two blue holy stoles hanging from shoulders #4a8ad8, holding a mace, gentle kind face"},
+  {"id": "bard", "name": "吟遊詩人", "role": "支援。襟飾り、裾の長い上着、竪琴。男", "prompt": "male bard, pink hair #ffb0c8, magenta feathered hat, ruffled collar, long teal coat #3aa8a0 flaring at the back, cream shirt, holding a lyre, playful smile"},
+  {"id": "boss-gurma", "name": "水路の主 グルマ", "role": "地下水路の主。大きな水色のスライム", "prompt": "giant cyan slime monster boss #6fd0e0, sewer water dripping, glowing eyes, debris floating inside its body, no humans", "negative": "human, girl, boy"},
+  {"id": "boss-dorgan", "name": "坑道の番人 ドルガン", "role": "古い坑道の主。ゴーレム", "prompt": "stone golem guardian boss of an old mine, rusty iron bands, mining lantern embedded, heavy fists, glowing amber eyes, no humans", "negative": "human, girl, boy"},
+  {"id": "boss-necros", "name": "墓所の王 ネクロス", "role": "亡者の墓所の主。骨の王", "prompt": "skeleton king lich boss, pale lavender bones #a898d8, tattered royal robe and crown, glowing purple eyes #c04dff, scepter, no humans", "negative": "girl, boy"},
+  {"id": "boss-valka", "name": "灼熱竜 ヴァルカ", "role": "溶岩洞の主。トカゲ型の竜", "prompt": "lava dragon lizard boss, red orange scales #ff6a3a, magma cracks glowing, smoke, four legs, fierce, no humans", "negative": "human, girl, boy"},
+  {"id": "boss-seire", "name": "深海の巫女 セイレ", "role": "沈んだ神殿の主。亡霊の巫女", "prompt": "ghostly sea priestess spirit boss, translucent pale blue body, long flowing hair like water, coral and pearl ornaments, floating, sorrowful eyes"},
+  {"id": "boss-yumeka", "name": "夢の女王 ユメカ", "role": "夢幻の庭の主。亡霊の女王", "prompt": "ghostly dream queen spirit boss, translucent pastel pink and lavender, butterfly wings, crown of flowers, sleepy smile, floating veil"}
+ ]
+}
