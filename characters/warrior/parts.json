@@ -8,7 +8,7 @@
    "outline": "#301810",
    "line": "#583018",
    "ramp": ["#583018", "#9c6838", "#d8a860"],
-   "steps": [0.3, 0.55],
+   "steps": [0.38, 0.7],
    "contrast": 1.0,
    "texture": 0.06,
    "keep_saturation": true
