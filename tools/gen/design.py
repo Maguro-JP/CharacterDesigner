@@ -63,8 +63,7 @@ CREATURE_NEGATIVE = "1girl, 1boy, human, woman, man, breasts, human face, animal
 # リアル寄りのモデルは形が正確だが立体の置物のような塗りになった（亀・子犬・ゴーレムで比べた）
 # SDXL 系に替えてからは xl だけで描く（亀・羽毛玉で比べ、SD1.5 系の2つより形も塗りも良かった）
 CREATURE_STYLES = ["xl"]
-# SDXL 系に渡すモンスターの決まり文句。SDXL 系は長い指示文を分けて読む処理（encode）を持たないので、
-# 指示文が 77 トークンに収まるよう、決まり文句は短くする
+# SDXL 系に渡すモンスターの決まり文句（長い指示文は encode_xl で分けて読む）
 XL_CREATURE_SUFFIX = (", full body, creature design, 2d anime style illustration, cel shading, clean lineart, "
                       "flat colors, white background")
 XL_CREATURE_NEGATIVE = ("human, humanoid, anthro, 1girl, extra heads, extra legs, extra wings, extra tails, "
@@ -116,6 +115,36 @@ def encode(pipe, prompt, negative):
                 chunks.append(enc(torch.tensor([c]))[0])
         out.append(torch.cat(chunks, dim=1))
     return out
+
+
+def encode_xl(pipe, prompt, negative):
+    """SDXL 系の2つの文章の読み手それぞれで、長い指示文を 75 トークンずつ分けて読み、つなげて渡す。
+
+    SDXL 系も 77 トークンまでしか読まない。DigiMon の作風（鋭い目、角張った輪郭）を共通に足したら
+    41 枚すべてで後ろの「2D アニメの塗り、白い背景」が切れ、背景の入った絵になった。
+    返すのは (指示文, 打ち消し, 指示文の要約, 打ち消しの要約)。要約（pooled）は最初の区切りから取る。
+    """
+    import torch
+    pairs = [(pipe.tokenizer, pipe.text_encoder), (pipe.tokenizer_2, pipe.text_encoder_2)]
+    ids = [[tok(t, add_special_tokens=False).input_ids for t in (prompt, negative)] for tok, _ in pairs]
+    n = max(1, *[(len(b) + 74) // 75 for per in ids for b in per])
+    embeds, pooled = [[], []], [None, None]
+    for (tok, enc), per in zip(pairs, ids):
+        for k, body in enumerate(per):
+            chunks = []
+            for i in range(n):
+                c = body[i * 75:(i + 1) * 75]
+                pad = tok.pad_token_id if tok.pad_token_id is not None else tok.eos_token_id
+                c = [tok.bos_token_id] + c + [tok.eos_token_id] + [pad] * (75 - len(c))
+                with torch.no_grad():
+                    out = enc(torch.tensor([c]), output_hidden_states=True)
+                chunks.append(out.hidden_states[-2])
+                if enc is pipe.text_encoder_2 and i == 0:
+                    pooled[k] = out[0]
+            embeds[k].append(torch.cat(chunks, dim=1))
+    dt = pipe.unet.dtype
+    pe, ne = (torch.cat(e, dim=-1).to(dt) for e in embeds)
+    return pe, ne, pooled[0].to(dt), pooled[1].to(dt)
 
 
 def draw(out, prompt, seed, n, style, steps, width, height):
@@ -210,10 +239,9 @@ def batch(cast_path, outdir, style, steps, width, height, kind=None):
             text, neg = full_texts(c, st)
             g = torch.Generator().manual_seed(seed)
             if st in XL:
-                n_tok = len(pipe.tokenizer(text).input_ids)
-                if n_tok > 77:
-                    print(f"  注意: {c['id']} の指示文が {n_tok} トークンで、77 を超えた後ろは読まれない", flush=True)
-                im = pipe(text, negative_prompt=neg, num_inference_steps=steps, guidance_scale=2.0,
+                pe, ne, pp, np_ = encode_xl(pipe, text, neg)
+                im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
+                          negative_pooled_prompt_embeds=np_, num_inference_steps=steps, guidance_scale=2.0,
                           width=768, height=1024, generator=g).images[0]
             else:
                 pe, ne = encode(pipe, text, neg)
