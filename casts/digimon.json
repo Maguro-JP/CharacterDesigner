@@ -1,210 +1,210 @@
 {
  "title": "DigiMon（SIGNAL BEASTS）",
  "source": "Maguro-JP/DigiMon design/signal-beasts/Beast Design Sheets.dc.html の系統表（名前・配色・形・大きさ）",
- "common": "original digital monster",
+ "common": "original monster",
  "n": 2,
  "characters": [
   {
    "id": "tor-2",
    "name": "ピィ",
    "role": "トルネ系統 幼年期・風。手足の無い羽毛玉",
-   "prompt": "a tiny round fluffy feather ball, no arms no legs, mint white #c7fff0 and teal feathers, cowlick feather on top, big cute eyes, small yellow beak",
+   "prompt": "fluffy round bird chick, no legs, no wings, one small yellow beak, two big eyes, cowlick feather, main color mint white, secondary teal, accent yellow, baby, tiny",
    "kind": "creature"
   },
   {
    "id": "tor-3",
    "name": "トルネ",
    "role": "トルネ系統 成長期・風。主人公の相棒の小竜",
-   "prompt": "a small cute baby dragon standing on two short legs, big head, teal green #3fd6b3 scales, pale mint belly, tiny wings, two short golden horns, curious happy face",
+   "prompt": "baby dragon, bipedal, two short legs, two small wings, one tail, two short gold horns, big head, main color teal green, secondary pale mint belly, accent gold, small",
    "kind": "creature"
   },
   {
    "id": "tor-4",
    "name": "ガルトルネ",
    "role": "トルネ系統 成熟期・風。人が乗れる四足の大竜",
-   "prompt": "a large dragon on four legs, quadruped, dark teal #1f8f7a scales, feathery mane around the neck, big feathered wings, calm guardian eyes, violet #4b2fd1 markings",
+   "prompt": "feathered dragon, quadruped, four legs, two large feathered wings, one tail, feather mane on neck, main color dark teal, secondary pale mint, accent violet, adult",
    "kind": "creature"
   },
   {
    "id": "tor-5",
    "name": "テンペストドラゴン",
    "role": "トルネ系統 完全体・風。雲をまとう蛇体の竜",
-   "prompt": "a long serpentine eastern dragon, deep teal #0f5f52 body with glowing teal lines, four blade-shaped wings, wrapped in storm clouds",
+   "prompt": "serpentine sky dragon, long snake body, two short arms, four blade-shaped wings, wrapped in storm clouds, main color deep teal, secondary glowing teal lines, accent silver, huge, imposing",
    "kind": "creature"
   },
   {
    "id": "hak-2",
    "name": "シロン",
    "role": "ハク系統 幼年期・聖。もち状の玉",
-   "prompt": "a soft white mochi blob, round squishy body, small golden halo floating above, gentle sleepy eyes",
+   "prompt": "round white mochi blob, no legs, no arms, two sleepy eyes, small gold halo above, main color white, secondary ivory, accent gold, baby, tiny",
    "kind": "creature"
   },
   {
    "id": "hak-3",
    "name": "ハク",
    "role": "ハク系統 成長期・聖。首に金の環のちび白竜",
-   "prompt": "a tiny chibi white dragon on four short legs, white scales with pale blue #bcd8ff shading, golden ring around the neck, small wings, friendly smile",
+   "prompt": "baby white dragon, quadruped, four short legs, two small wings, one tail, gold ring around neck, main color white, secondary pale blue, accent gold, small, big head",
    "kind": "creature"
   },
   {
    "id": "hak-4",
    "name": "ハクナイト",
    "role": "ハク系統 成熟期・聖。白銀の鎧の竜騎士",
-   "prompt": "a white dragon knight, dragon head, silver white armor with gold trim, shield in left hand, glowing light spear in right hand, standing on two legs, wings, tail",
+   "prompt": "dragon knight, bipedal dragon, two legs, two wings, one tail, silver white armor, shield and glowing spear, main color white, secondary gold, accent pale blue, adult",
    "kind": "creature"
   },
   {
    "id": "hak-5",
    "name": "ハクセラフ",
    "role": "ハク系統 完全体・聖。浮遊する六翼",
-   "prompt": "a floating holy white dragon with six feathered wings, golden halo, gold and pale blue ornaments, serene",
+   "prompt": "holy white dragon, floating, six feathered wings, two arms, one tail, gold halo, main color white, secondary gold, accent pale blue, large, serene",
    "kind": "creature"
   },
   {
    "id": "hak-6",
    "name": "ハクシンリュウ",
    "role": "ハク系統 究極体・聖。王冠の角と二重の光輪",
-   "prompt": "a divine long serpentine white dragon, six wings, double golden halo, crown shaped horns, pale gold #ffe9a8 glow",
+   "prompt": "divine serpentine white dragon, long snake body, six wings, double gold halo, crown shaped horns, main color white, secondary pale gold, accent pale blue, huge, imposing",
    "kind": "creature"
   },
   {
    "id": "emb-2",
    "name": "ボッチ",
    "role": "エンボウ系統 幼年期・火。耳のある火の玉",
-   "prompt": "a small living fireball with two pointed ears, orange red #ff5a3c flame body, cream glow center, mischievous grin",
+   "prompt": "living fireball with two pointed ears, no legs, two eyes, grinning, main color orange red, secondary cream glow, accent yellow, baby, tiny",
    "kind": "creature"
   },
   {
    "id": "emb-3",
    "name": "エンボウ",
    "role": "エンボウ系統 成長期・火。尾の先が炎の子犬",
-   "prompt": "a cute red orange #ff5a3c puppy on four legs, quadruped, cream belly, black paws, tail tip is a burning flame, loyal happy face",
+   "prompt": "puppy, quadruped, four legs, one tail with a flame tip, main color red orange, secondary cream belly, accent black paws, small, big head, happy",
    "kind": "creature"
   },
   {
    "id": "emb-4",
    "name": "フレアウルフ",
    "role": "エンボウ系統 成熟期・火。炎のたてがみの狼",
-   "prompt": "a slender fire wolf on four legs, quadruped, crimson #c93c22 fur, blazing orange flame mane, black legs, sharp eyes",
+   "prompt": "slender wolf, quadruped, four legs, one tail, blazing flame mane, main color crimson, secondary orange flames, accent black legs, adult, sharp eyes",
    "kind": "creature"
   },
   {
    "id": "emb-5",
    "name": "イグナレオン",
    "role": "エンボウ系統 完全体・火。燃える尾3本の獅子王",
-   "prompt": "a huge lion on four legs, quadruped, dark red #8f1d0c body, huge burning mane, three flaming tails, golden #ffd166 ornaments, regal",
+   "prompt": "lion, quadruped, four legs, three flaming tails, huge burning mane, main color dark red, secondary orange fire, accent gold ornaments, huge, regal",
    "kind": "creature"
   },
   {
    "id": "kam-2",
    "name": "プクリ",
    "role": "カメロ系統 幼年期・水。しずく型",
-   "prompt": "a water droplet shaped blob, light blue #8fd0ff translucent body, little bubbles, relaxed sleepy face",
+   "prompt": "water droplet blob, no legs, two sleepy eyes, translucent body, little bubbles, main color light blue, secondary white, accent cyan, baby, tiny",
    "kind": "creature"
   },
   {
    "id": "kam-3",
    "name": "カメロ",
    "role": "カメロ系統 成長期・水。小さな亀",
-   "prompt": "a small cute blue #4aa8ff turtle on all fours, quadruped, darker blue shell, pale blue belly, shy eyes",
+   "prompt": "baby turtle, quadruped, four short legs on the ground, one short tail, rounded shell, main color sky blue, secondary navy shell, accent cream belly, small, big head",
    "kind": "creature"
   },
   {
    "id": "kam-4",
    "name": "ガンガメ",
    "role": "カメロ系統 成熟期・水。岩の棘3本の大亀",
-   "prompt": "a big armored tortoise on four legs, quadruped, navy #1f4f80 shell with three rock spikes, heavy and sturdy",
+   "prompt": "giant tortoise, quadruped, four thick legs, three rock spikes on its shell, main color navy, secondary blue skin, accent grey stone, adult, heavy",
    "kind": "creature"
   },
   {
    "id": "kam-5",
    "name": "リヴァガメオン",
    "role": "カメロ系統 完全体・水。甲羅を背負った海竜",
-   "prompt": "a sea dragon with a huge turtle shell on its back, deep navy #0f3557 body, spikes turned into dorsal fins, waves",
+   "prompt": "sea serpent turtle, long neck, four flippers, huge spiked shell, dorsal fins, main color deep navy, secondary blue, accent white foam, huge, imposing",
    "kind": "creature"
   },
   {
    "id": "rai-2",
    "name": "ビリ",
    "role": "ライトリ系統 幼年期・雷。羽が逆立った雛",
-   "prompt": "a tiny round yellow #ffe08a chick, fluffy feathers standing up with static, small sparks",
+   "prompt": "round chick, two tiny legs, no visible wings, feathers standing up with static, one small beak, main color pale yellow, secondary white, accent electric blue sparks, baby, tiny",
    "kind": "creature"
   },
   {
    "id": "rai-3",
    "name": "ライトリ",
    "role": "ライトリ系統 成長期・雷。雷型の冠羽の小鳥",
-   "prompt": "a small yellow #f5c542 bird, lightning bolt shaped crest, forked tail feathers, energetic, sparks",
+   "prompt": "small songbird, two legs, two wings, lightning bolt shaped crest, forked tail, main color yellow, secondary white, accent dark navy, small, energetic",
    "kind": "creature"
   },
   {
    "id": "rai-4",
    "name": "サンダーホーク",
    "role": "ライトリ系統 成熟期・雷。冠羽3本の猛禽",
-   "prompt": "a golden #c99a1f hawk with spread wings, three crest feathers, dark navy wing tips, lightning",
+   "prompt": "hawk, two legs, two spread wings, three crest feathers, main color gold, secondary yellow, accent dark navy wing tips, adult, lightning",
    "kind": "creature"
   },
   {
    "id": "rai-5",
    "name": "ライジンガルダ",
    "role": "ライトリ系統 完全体・雷。翼4枚の神鳥",
-   "prompt": "a divine thunder bird with four wings, tail feathers made of lightning bolts, thunder crest on the chest, gold and white",
+   "prompt": "thunderbird, two legs, four wings, tail of lightning bolts, thunder crest on chest, main color gold, secondary white, accent electric blue, huge, imposing",
    "kind": "creature"
   },
   {
    "id": "gor-2",
    "name": "コロン",
    "role": "ゴロン系統 幼年期・土。目のある岩",
-   "prompt": "a small round tan #c9a27e rock with cute eyes, pebble texture, easygoing face",
+   "prompt": "small round rock with two cute eyes, no legs, pebble texture, main color tan, secondary brown, accent green moss, baby, tiny",
    "kind": "creature"
   },
   {
    "id": "gor-3",
    "name": "ゴロン",
    "role": "ゴロン系統 成長期・土。背に苔の四角い胴",
-   "prompt": "a boxy stone creature on four stubby legs, square brown #a8825f rock body, green moss on the back, gentle face",
+   "prompt": "boxy rock creature, quadruped, four stubby legs, square body, moss on back, main color brown, secondary tan, accent green moss, small, gentle face",
    "kind": "creature"
   },
   {
    "id": "gor-4",
    "name": "ガルドラ",
    "role": "ゴロン系統 成熟期・土。結晶の角と緑の核",
-   "prompt": "a big rock beast on four legs, dark brown #6e5238 stone body, two crystal horns, glowing green #2ee6b0 core in the chest",
+   "prompt": "rhinoceros-like rock beast, quadruped, four legs, two crystal horns, glowing core in chest, main color dark brown, secondary tan, accent mint green, adult",
    "kind": "creature"
   },
   {
    "id": "gor-5",
    "name": "メガリスコロッサス",
    "role": "ゴロン系統 完全体・土。遺跡を背負った巨神",
-   "prompt": "a giant stone colossus carrying ancient ruins on its back, dark brown rock, three glowing green cores",
+   "prompt": "stone colossus, bipedal, two legs, two huge arms, ancient ruins on its back, three glowing cores, main color dark brown, secondary tan, accent mint green, huge",
    "kind": "creature"
   },
   {
    "id": "yor-2",
    "name": "ムン",
    "role": "ヨル系統 幼年期・闇。光る目の煙",
-   "prompt": "a small purple #5b3fa0 smoke wisp with glowing eyes, mischievous grin, ghostly",
+   "prompt": "small smoke wisp ghost, no legs, two glowing eyes, mischievous grin, main color dark purple, secondary violet, accent white eyes, baby, tiny",
    "kind": "creature"
   },
   {
    "id": "yor-3",
    "name": "ヨル",
    "role": "ヨル系統 成長期・闇。トルネのライバルの子鬼",
-   "prompt": "a little purple #9b6cff imp with two small horns, hands and feet fading into smoke, cheeky face",
+   "prompt": "little imp, bipedal, two legs, two arms, two small horns, hands and feet fading into smoke, main color purple, secondary dark navy, accent white, small, big head",
    "kind": "creature"
   },
   {
    "id": "yor-4",
    "name": "カゲオニ",
    "role": "ヨル系統 成熟期・闇。煙の翼の大鬼",
-   "prompt": "a big indigo #4b2fd1 oni demon, wings made of dark smoke, golden #f5c542 sash, fearless grin",
+   "prompt": "big oni demon, bipedal, two legs, two arms, two horns, smoke wings, main color indigo, secondary violet, accent gold sash, adult",
    "kind": "creature"
   },
   {
    "id": "yor-5",
    "name": "ヤシャロード",
    "role": "ヨル系統 完全体・闇。角4本・腕4本・金の面",
-   "prompt": "a dark purple #1b1233 demon lord with four horns and four arms, golden mask, violet smoke aura",
+   "prompt": "demon lord, bipedal, two legs, four arms, four horns, golden mask, main color dark purple, secondary violet smoke, accent gold, huge, imposing",
    "kind": "creature"
   }
  ]

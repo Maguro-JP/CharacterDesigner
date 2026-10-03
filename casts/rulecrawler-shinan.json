@@ -1,7 +1,7 @@
 {
  "title": "迷宮指南",
  "source": "Maguro-JP/RuleCrawler src/shinan/ui/stage/hero.ts、actors.ts、enemySprites.ts、docs/shinan/design.md",
- "common": "japanese folklore yokai, mystery dungeon roguelike, soft rounded cute deformed style",
+ "common": "japanese folklore mystery dungeon roguelike, wafu, soft rounded cute deformed style, 3.5 heads tall, anime style",
  "n": 2,
  "characters": [
   {
@@ -16,77 +16,77 @@
    "id": "sunekosuri",
    "name": "すねこすり",
    "role": "獣。弱ると逃げる",
-   "prompt": "a small fluffy pale beige #d9c7a8 dog-like yokai animal on four legs, quadruped, round body, shy eyes, rubbing against something",
+   "prompt": "small fluffy dog, quadruped, four short legs, one bushy tail, round body, shy eyes, main color pale beige, secondary white, accent pink nose",
    "kind": "creature"
   },
   {
    "id": "oonezumi",
    "name": "大ネズミ",
    "role": "獣。寄ってきて殴る",
-   "prompt": "a giant grey #8a8078 rat yokai on four legs, quadruped, red eyes, big front teeth, aggressive",
+   "prompt": "giant rat, quadruped, four legs, one long tail, big front teeth, red eyes, main color grey, secondary dark grey, accent red",
    "kind": "creature"
   },
   {
    "id": "kamaitachi",
    "name": "鎌鼬",
    "role": "鼬。1ターンに2回動く",
-   "prompt": "a pale blue-white #c9d6e3 weasel yokai on four legs, sickle blades for front claws, wind swirls, fast dynamic pose",
+   "prompt": "weasel, quadruped, four legs, one tail, sickle blades on front paws, wind swirls, main color pale blue white, secondary silver, accent cyan",
    "kind": "creature"
   },
   {
    "id": "kooni",
    "name": "小鬼",
    "role": "鬼。物を盗んで逃げる",
-   "prompt": "a small green #7fae5a oni imp goblin, one small horn, yellow eyes, tiger skin loincloth, carrying a stolen sack, sneaky grin, short and hunched",
+   "prompt": "small goblin oni, bipedal, two legs, two arms, one small horn, tiger skin loincloth, stolen sack, main color green, secondary tiger yellow, accent yellow eyes",
    "kind": "creature"
   },
   {
    "id": "kappa",
    "name": "河童",
    "role": "河童。傷がふさがる",
-   "prompt": "a green #4fa37a kappa yokai, turtle shell on back, water dish on head, duck beak, webbed hands, short and squat",
+   "prompt": "kappa, bipedal, two legs, two arms, turtle shell on back, water dish on head, duck beak, webbed hands, main color green, secondary dark green shell, accent yellow beak",
    "kind": "creature"
   },
   {
    "id": "tengu-minion",
    "name": "天狗の手下",
    "role": "天狗。石を投げる",
-   "prompt": "a karasu tengu crow yokai, crow head with beak, red #c0392b face markings, black feathered wings, yamabushi robes, holding stones to throw",
+   "prompt": "crow tengu, bipedal, two legs, two arms, two black wings, crow head with beak, monk robes, holding a stone, main color black, secondary red, accent white",
    "kind": "creature"
   },
   {
    "id": "tsuchigumo",
    "name": "土蜘蛛",
    "role": "蜘蛛。糸で縛る",
-   "prompt": "a giant brown #a08664 hairy earth spider yokai, eight legs, many eyes, web threads",
+   "prompt": "giant spider, eight legs, two fangs, many eyes, hairy body, web threads, main color brown, secondary dark brown, accent red eyes",
    "kind": "creature"
   },
   {
    "id": "onibi",
    "name": "鬼火",
    "role": "火の玉。壁を抜ける",
-   "prompt": "a floating blue #6fb2ff will-o-wisp fireball yokai with a cute spooky face, ethereal flame tail",
+   "prompt": "floating will-o-wisp fireball, no legs, cute spooky face, flame tail, main color blue, secondary pale cyan, accent white",
    "kind": "creature"
   },
   {
    "id": "akaoni",
    "name": "赤鬼",
    "role": "鬼。力を溜めて重い一撃",
-   "prompt": "a big red #e0533f oni ogre, two horns, tiger skin loincloth, iron kanabo club, muscular brute",
+   "prompt": "red ogre, bipedal, two legs, two arms, two horns, tiger skin loincloth, iron club, muscular, main color red, secondary tiger yellow, accent black iron",
    "kind": "creature"
   },
   {
    "id": "aooni",
    "name": "青鬼",
    "role": "鬼。吠えて仲間を起こす",
-   "prompt": "a big blue #4f7fd6 oni ogre, one horn, roaring with open mouth, tiger skin loincloth, muscular brute",
+   "prompt": "blue ogre, bipedal, two legs, two arms, one horn, roaring, tiger skin loincloth, muscular, main color blue, secondary tiger yellow, accent white fangs",
    "kind": "creature"
   },
   {
    "id": "ushioni",
    "name": "牛鬼",
    "role": "牛。突進",
-   "prompt": "an ushi-oni yokai, ox head with big horns on a dark purple #51476a giant spider body, eight legs, charging",
+   "prompt": "ox-headed spider, eight spider legs, ox head with two big horns, main color dark purple, secondary black, accent red eyes",
    "kind": "creature"
   },
   {
@@ -100,15 +100,16 @@
    "id": "oomukade",
    "name": "大百足",
    "role": "百足。2回噛む",
-   "prompt": "a giant red #c8483a centipede yokai, armored segments, many legs, big pincers, coiled body",
+   "prompt": "giant centipede, many legs, armored segments, big pincers, coiled body, main color red, secondary black, accent yellow legs",
    "kind": "creature"
   },
   {
    "id": "nue",
    "name": "鵺",
    "role": "最大の妖怪。惑わせる",
-   "prompt": "a nue chimera yokai on four legs, monkey face, brown #6b5a3a tanuki body, tiger legs, snake for a tail, dark clouds",
+   "prompt": "chimera, quadruped, four tiger legs, monkey face, snake for a tail, dark clouds, main color brown, secondary tiger yellow, accent green snake",
    "kind": "creature"
   }
- ]
+ ],
+ "creature_common": "japanese yokai, soft rounded cute style"
 }

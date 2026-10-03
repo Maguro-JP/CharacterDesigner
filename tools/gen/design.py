@@ -31,7 +31,11 @@ os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))
 STYLES = {
     "anime": "Meina/MeinaMix_V11",
     "real": "Lykon/dreamshaper-8",
+    # SDXL 系（CreativeML OpenRAIL++-M）。モンスターの体の組み立てが SD1.5 系よりはるかに崩れにくい。
+    # CPU で1枚 2〜3 分（768x1024、6 段）
+    "xl": "Lykon/dreamshaper-xl-lightning",
 }
+XL = {"xl"}
 LCM_LORA = "latent-consistency/lcm-lora-sdv1-5"
 # ドット絵の作風ごとの大きさと色数。等身は元の絵のまま縮める（頭を大きくする変換はまだ無い）
 # diorama: 箱庭ドットの人物の高さと色数（styles/diorama.json）
@@ -57,7 +61,14 @@ CREATURE_SUFFIX = ", 2d anime style illustration, cel shading, clean lineart"
 CREATURE_NEGATIVE = "1girl, 1boy, human, woman, man, breasts, human face, animal ears, kemonomimi, anthro"
 # モンスターは2つのモデルで描いて並べる。アニメのモデルは塗りが設定画らしいが形が崩れやすく、
 # リアル寄りのモデルは形が正確だが立体の置物のような塗りになった（亀・子犬・ゴーレムで比べた）
-CREATURE_STYLES = ["anime", "real"]
+# SDXL 系に替えてからは xl だけで描く（亀・羽毛玉で比べ、SD1.5 系の2つより形も塗りも良かった）
+CREATURE_STYLES = ["xl"]
+# SDXL 系に渡すモンスターの決まり文句。SDXL 系は長い指示文を分けて読む処理（encode）を持たないので、
+# 指示文が 77 トークンに収まるよう、決まり文句は短くする
+XL_CREATURE_SUFFIX = (", full body, creature design, 2d anime style illustration, cel shading, clean lineart, "
+                      "flat colors, white background")
+XL_CREATURE_NEGATIVE = ("human, humanoid, anthro, 1girl, extra heads, extra legs, extra wings, extra tails, "
+                        "fused animals, two animals, cropped, text, watermark, nsfw")
 # 性別。指定が無いとアニメの人物向けのモデルは少女を描き、男性の職まで女性になった
 GENDER = {"male": ("1boy, male focus, ", "1girl, female, breasts, skirt"),
           "female": ("1girl, ", "")}
@@ -67,6 +78,14 @@ def _pipe(style, img2img=False):
     import torch
     from diffusers import LCMScheduler, StableDiffusionImg2ImgPipeline, StableDiffusionPipeline
     torch.set_num_threads(os.cpu_count() or 4)
+    if style in XL:
+        from diffusers import DPMSolverMultistepScheduler, StableDiffusionXLPipeline
+        # bfloat16: float32 では 2 つの文章の読み手と合わせてメモリが 15GB に収まらない。この CPU は bf16 の命令を持つ
+        pipe = StableDiffusionXLPipeline.from_pretrained(STYLES[style], variant="fp16", torch_dtype=torch.bfloat16)
+        # 少ない段数で描く版のモデル。作者の推奨（DPM++ SDE Karras、4〜6 段、guidance 2）に合わせる
+        pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config, algorithm_type="sde-dpmsolver++",
+                                                                 use_karras_sigmas=True)
+        return pipe
     cls = StableDiffusionImg2ImgPipeline if img2img else StableDiffusionPipeline
     pipe = cls.from_pretrained(STYLES[style], torch_dtype=torch.float32, safety_checker=None)
     # LCM-LoRA: 25 段かかるところを 6 段で描く。CPU で1枚 約1分（512x768、4 コア）
@@ -124,14 +143,21 @@ def load_cast(path):
     人物の指示文を先に置く。先頭の言葉ほど強く効き、共通の配色が人物の服の色を上書きしたため。
     """
     cast = json.loads(Path(path).read_text(encoding="utf-8"))
-    common = cast.get("common", "")
     for c in cast["characters"]:
+        # モンスターには人向けの世界観（服や頭身の決まり）を付けない。creature_common が別にある
+        if c.get("kind") == "creature":
+            common = cast.get("creature_common", cast.get("common", ""))
+        else:
+            common = cast.get("common", "")
         c["full_prompt"] = c["prompt"] + (", " + common if common else "")
     return cast
 
 
-def full_texts(c):
+def full_texts(c, style="anime"):
     """1人ぶんの指示文と打ち消しの文。人でない者と性別で、決まり文句を切り替える。"""
+    if c.get("kind") == "creature" and style in XL:
+        neg = ", ".join(x for x in (XL_CREATURE_NEGATIVE, c.get("negative", "")) if x)
+        return c["full_prompt"] + XL_CREATURE_SUFFIX, neg
     if c.get("kind") == "creature":
         head, tail, neg = CREATURE_PREFIX, CREATURE_SUFFIX, CREATURE_NEGATIVE
     else:
@@ -154,8 +180,6 @@ def cast_paths(cast, outdir, style=None):
     for c in cast["characters"]:
         seed, n = c.get("seed", 7), c.get("n", cast.get("n", 2))
         styles = c.get("styles") or (CREATURE_STYLES if c.get("kind") == "creature" else [base])
-        if c.get("kind") == "creature":
-            n = c.get("n", 1)
         rejected = c.get("rejected", {})
         shots = []
         for st in styles:
@@ -183,11 +207,20 @@ def batch(cast_path, outdir, style, steps, width, height, kind=None):
         pipe = _pipe(st)
         for c, p, seed, _ in [t for t in todo if t[3] == st]:
             t = time.time()
-            pe, ne = encode(pipe, *full_texts(c))
-            im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, num_inference_steps=steps, guidance_scale=1.5,
-                      width=width, height=height, generator=torch.Generator().manual_seed(seed)).images[0]
+            text, neg = full_texts(c, st)
+            g = torch.Generator().manual_seed(seed)
+            if st in XL:
+                n_tok = len(pipe.tokenizer(text).input_ids)
+                if n_tok > 77:
+                    print(f"  注意: {c['id']} の指示文が {n_tok} トークンで、77 を超えた後ろは読まれない", flush=True)
+                im = pipe(text, negative_prompt=neg, num_inference_steps=steps, guidance_scale=2.0,
+                          width=768, height=1024, generator=g).images[0]
+            else:
+                pe, ne = encode(pipe, text, neg)
+                im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, num_inference_steps=steps, guidance_scale=1.5,
+                          width=width, height=height, generator=g).images[0]
             im.save(p)
-            meta = {"name": c.get("name", c["id"]), "prompt": full_texts(c)[0], "seed": seed, "style": st,
+            meta = {"name": c.get("name", c["id"]), "prompt": text, "negative": neg, "seed": seed, "style": st,
                     "model": STYLES[st], "steps": steps}
             Path(str(p) + ".json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
             print(f"{p}: {time.time() - t:.1f} 秒", flush=True)

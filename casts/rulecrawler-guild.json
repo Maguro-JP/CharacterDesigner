@@ -149,128 +149,112 @@
    "name": "水路の主 グルマ",
    "role": "地下水路の主。水色の大スライム",
    "kind": "creature",
-   "prompt": "a giant translucent cyan slime blob #6fd0e0, one big eye, sewer junk and bones floating inside, dripping water",
-   "negative": "humanoid, arms, legs"
+   "prompt": "giant slime, no legs, no arms, one big eye, translucent body with sewer junk inside, main color cyan, secondary teal, accent white, huge, dripping"
   },
   {
    "id": "boss-dorgan",
    "name": "坑道の番人 ドルガン",
    "role": "古い坑道の主。ゴーレム",
    "kind": "creature",
-   "prompt": "a hulking golem made of brown and grey boulders, rocks for arms, rusty iron mine-cart bands, a lantern wedged in its chest, two glowing amber eyes in a rock face",
-   "negative": "skin, muscles, man, armor"
+   "prompt": "rock golem, bipedal, two short legs, two huge boulder arms, body of stacked brown boulders, lantern in chest, two amber eyes, main color brown, secondary grey, accent rust iron bands"
   },
   {
    "id": "boss-necros",
    "name": "墓所の王 ネクロス",
    "role": "亡者の墓所の主。骨の王",
    "kind": "creature",
-   "prompt": "an undead skeleton king made of pale lavender bones #a898d8, tattered royal purple robe, iron crown, glowing violet eye sockets #c04dff, bone scepter, floating",
-   "negative": "skin, flesh, girl"
+   "prompt": "skeleton lich king, floating, two bony arms, no legs, tattered purple robe, iron crown, bone scepter, main color pale lavender bone, secondary dark purple, accent violet glowing eyes"
   },
   {
    "id": "boss-valka",
    "name": "灼熱竜 ヴァルカ",
    "role": "溶岩洞の主。トカゲ型の竜",
    "kind": "creature",
-   "prompt": "a huge lava dragon on four legs, quadruped lizard body, red orange scales #ff6a3a, glowing magma cracks, smoke from nostrils, yellow eyes",
-   "negative": "bipedal, humanoid, anthro"
+   "prompt": "lava dragon, quadruped, four legs, two wings, one tail, glowing magma cracks, smoke, main color red orange, secondary black rock, accent yellow eyes, huge"
   },
   {
    "id": "boss-obsis",
    "name": "回廊の守護者 オブシス",
    "role": "黒曜の回廊の守護者。中身の無い生きた鎧",
    "kind": "creature",
-   "prompt": "an empty living suit of obsidian plate armor, purple-black #3a2e5a, no face only orange glowing eyes #ff9a3c inside the helmet, giant greatsword, glassy edges",
-   "negative": "face, skin, man"
+   "prompt": "empty living armor, bipedal, two legs, two arms, no face, glowing orange eyes inside helmet, giant greatsword, main color obsidian purple black, secondary violet, accent orange"
   },
   {
    "id": "boss-abyss",
    "name": "深淵の主",
    "role": "深淵の主。巨大な目玉",
    "kind": "creature",
-   "prompt": "a giant floating eyeball monster, pink and crimson #a02a5a flesh, yellow iris #ffe066, many tentacles hanging below, abyss",
-   "negative": "humanoid, arms, legs"
+   "prompt": "giant floating eyeball, one huge eye, many hanging tentacles, no legs, main color crimson pink flesh, secondary dark red, accent yellow iris"
   },
   {
    "id": "boss-mikora",
    "name": "大茸 ミコラ",
    "role": "茸の森の主。大きな茸",
    "kind": "creature",
-   "prompt": "a giant walking mushroom monster, pink cap with white spots #ff9ab8, stubby root legs, sleepy face on the stem, spores floating",
-   "negative": "humanoid, girl"
+   "prompt": "giant mushroom, two stubby root legs, no arms, spotted cap, sleepy face on the stem, spores, main color pink cap, secondary white spots, accent cream stem"
   },
   {
    "id": "boss-raigou",
    "name": "雷神の使い ライゴウ",
    "role": "雷鳴の峡谷の主。雷の獣",
    "kind": "creature",
-   "prompt": "a thunder beast on four legs, white and pale blue wolf-like body #9ad0ff, made of crackling lightning, drum ring on its back, sharp fangs",
-   "negative": "bipedal, humanoid, anthro"
+   "prompt": "thunder wolf, quadruped, four legs, one tail, body of crackling lightning, drum ring on its back, main color white, secondary pale blue, accent royal blue"
   },
   {
    "id": "boss-anubir",
    "name": "砂王 アヌビル",
    "role": "砂の迷宮の主。山犬頭の砂の王",
    "kind": "creature",
-   "prompt": "a giant black jackal-headed desert guardian monster, black body #1a1420, gold armor and collar #ffd35a, glowing gold eyes, sand swirling, holding a crook staff",
-   "negative": "human face"
+   "prompt": "jackal-headed sand guardian, bipedal, two legs, two arms, crook staff, gold collar and armor, swirling sand, main color black, secondary gold, accent glowing gold eyes"
   },
   {
    "id": "boss-chrono",
    "name": "塔の心臓 クロノ",
    "role": "機械仕掛けの塔の主。歯車の心臓",
    "kind": "creature",
-   "prompt": "a giant clockwork heart machine monster, brass gears #c8902a, a huge red glowing eye in the center, pipes and pendulums, floating",
-   "negative": "humanoid, arms, legs"
+   "prompt": "clockwork heart machine, floating, no legs, brass gears and pipes, pendulums, one huge red eye in the center, main color brass, secondary dark bronze, accent red"
   },
   {
    "id": "boss-hedra",
    "name": "腐海の主 ヘドラ",
    "role": "腐海の主。緑の毒スライム",
    "kind": "creature",
-   "prompt": "a giant toxic green sludge monster #8ad06a, bubbling poison, red eyes, rotten debris, dripping",
-   "negative": "humanoid, arms, legs"
+   "prompt": "toxic sludge blob, no legs, two red eyes, bubbling poison, rotten debris, main color toxic green, secondary dark green, accent red"
   },
   {
    "id": "boss-fabul",
    "name": "古竜 ファブル",
    "role": "竜の巣の主。黄金の古竜",
    "kind": "creature",
-   "prompt": "an ancient golden dragon on four legs, gold scales #e0b040, huge wings folded, old scars, red eyes, sitting on treasure",
-   "negative": "bipedal, humanoid, anthro"
+   "prompt": "ancient dragon, quadruped, four legs, two folded wings, one tail, old scars, sitting on treasure, main color gold, secondary bronze, accent red eyes, huge"
   },
   {
    "id": "boss-astel",
    "name": "星喰い アステル",
    "role": "星の回廊の主。星を喰う目",
    "kind": "creature",
-   "prompt": "a cosmic star-eating eye monster, dark violet body #4a2a8a full of stars, one huge yellow eye, mouth swallowing a star, nebula tendrils",
-   "negative": "humanoid, arms, legs"
+   "prompt": "cosmic eye monster, floating, one huge eye, wide mouth swallowing a star, nebula tendrils, starry body, main color dark violet, secondary deep blue, accent yellow"
   },
   {
    "id": "boss-judge",
    "name": "煉獄の裁き手",
    "role": "煉獄の主。業火の巨人",
    "kind": "creature",
-   "prompt": "a giant of purgatory, dark red rock skin #8a3a3a, blazing fire crown, chains, huge sword of judgment, yellow burning eyes",
-   "negative": "girl"
+   "prompt": "fire giant, bipedal, two legs, two arms, blazing fire crown, chains, giant sword, main color dark red rock, secondary black, accent burning yellow eyes, huge"
   },
   {
    "id": "boss-void",
    "name": "虚無の王",
    "role": "虚無の縁の主。形の無い王",
    "kind": "creature",
-   "prompt": "a faceless giant king made of black void #141020, crown floating above, violet glowing eyes #c04dff, body dissolving into darkness",
-   "negative": "girl, face"
+   "prompt": "faceless shadow giant king, bipedal, two arms, floating crown, body dissolving into darkness, main color black, secondary dark indigo, accent violet eyes"
   },
   {
    "id": "boss-core",
    "name": "迷宮の核",
    "role": "迷宮の最奥。生きた核",
    "kind": "creature",
-   "prompt": "a giant living crystal core monster, pink and crimson #c02a6a pulsing heart crystal, one white eye, roots and veins spreading into the dungeon floor",
-   "negative": "humanoid, arms, legs"
+   "prompt": "living crystal heart, no legs, one white eye, pulsing crystal, roots and veins spreading into the floor, main color crimson pink, secondary dark red, accent white"
   },
   {
    "id": "boss-seire",
@@ -300,5 +284,6 @@
    "gender": "male",
    "prompt": "ice emperor, white and pale blue ice crystal armor #9ad0ff, icicle crown, frost cape, frozen sword, cold white eyes"
   }
- ]
+ ],
+ "creature_common": "dark fantasy dungeon boss monster"
 }
