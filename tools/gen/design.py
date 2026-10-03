@@ -10,7 +10,7 @@
 使い方:
   PYTHONPATH=.cache/gen/lib python3 tools/gen/design.py draw out.png "young swordsman, blue tunic, red scarf" [--seed 7] [--n 4]
   PYTHONPATH=.cache/gen/lib python3 tools/gen/design.py restyle in.png out.png --style real [--strength 0.55]
-  python3 tools/gen/design.py pixel in.png out.sprite.json [--height 34] [--colors 32]
+  python3 tools/gen/design.py pixel in.png out.sprite.json [--preset diorama|survivor] [--height N] [--colors N]
 """
 import argparse
 import json
@@ -28,6 +28,13 @@ STYLES = {
     "real": "Lykon/dreamshaper-8",
 }
 LCM_LORA = "latent-consistency/lcm-lora-sdv1-5"
+# ドット絵の作風ごとの大きさと色数。等身は元の絵のまま縮める（頭を大きくする変換はまだ無い）
+# diorama: 箱庭ドットの人物の高さと色数（styles/diorama.json）
+# survivor: 少ない色で等身を保つ見下ろしのアクションの作風。数字は手本で数えていない（未確認）
+PRESETS = {
+    "diorama": {"height": 34, "colors": 32},
+    "survivor": {"height": 40, "colors": 16},
+}
 # 立ち絵の設定資料として描かせる決まり文句。全身・1人・無地の背景にしておくと、派生（ドット絵）で背景を抜ける
 PREFIX = "masterpiece, best quality, character design, full body, standing, solo, "
 SUFFIX = ", white background, simple background"
@@ -198,15 +205,17 @@ def main():
     p = sub.add_parser("pixel")
     p.add_argument("src")
     p.add_argument("out")
-    p.add_argument("--height", type=int, default=34)
-    p.add_argument("--colors", type=int, default=32)
+    p.add_argument("--preset", choices=list(PRESETS), default=None)
+    p.add_argument("--height", type=int, default=None)
+    p.add_argument("--colors", type=int, default=None)
     a = ap.parse_args()
     if a.cmd == "draw":
         draw(a.out, a.prompt, a.seed, a.n, a.style, a.steps, a.width, a.height)
     elif a.cmd == "restyle":
         restyle(a.src, a.out, a.style, a.strength, a.steps, a.prompt)
     else:
-        pixel(a.src, a.out, a.height, a.colors)
+        pre = PRESETS[a.preset or "diorama"]
+        pixel(a.src, a.out, a.height or pre["height"], a.colors or pre["colors"])
 
 
 if __name__ == "__main__":
