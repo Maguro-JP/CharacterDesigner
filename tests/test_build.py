@@ -139,6 +139,14 @@ class BuildTest(unittest.TestCase):
         alone, _ = build.build(spec([hem, {"name": "x", "material": "metal", "shapes": [{"type": "rect", "at": [3, 2, 9, 8]}]}]))
         self.assertFalse(any(c != "." and alone["palette"][c] in skin for r in alone["rows"] for c in r))
 
+    def test_learned_stats_cover_every_feature(self):
+        # 手本から学んだ数字と、自分のスプライトの特徴は同じ項目で数える。片方だけ足すと採点が黙って欠ける
+        import learn
+        stats = json.loads((ROOT / "styles" / "diorama.learned.json").read_text(encoding="utf-8"))
+        f, z = learn.score_sprite(stats, ROOT / "characters" / "warrior" / "sprite.json")
+        self.assertEqual(set(f), set(stats["features"]))
+        self.assertGreater(stats["frames"], 100)
+
     def test_orphan_is_replaced_but_protected_is_kept(self):
         a, b = "#808080", "#ffffff"
         grid = [[a] * 3 for _ in range(3)]
