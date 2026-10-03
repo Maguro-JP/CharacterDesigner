@@ -273,6 +273,13 @@ class BuildTest(unittest.TestCase):
         self.assertIn("child", child)
         self.assertNotIn("adult man", child)
         self.assertIn("elderly", t(gender="female", age="elder")[0])
+        # 中年と老人は SDXL 系で、言葉で書く（女性の老人は祖母の言葉で強める）
+        elder = {"id": "e", "gender": "female", "age": "elder", "prompt": "knight", "full_prompt": "knight"}
+        self.assertEqual([st for c, s in design.cast_paths({"n": 1, "characters": [elder]}, "/x") for _, _, st in s], ["xl"])
+        text = design.full_texts(elder, "xl")[0]
+        self.assertTrue(text.startswith("elderly woman knight"))
+        self.assertIn("grandmother", text)
+        self.assertNotIn("1girl", text)
 
     def test_orphan_is_replaced_but_protected_is_kept(self):
         a, b = "#808080", "#ffffff"

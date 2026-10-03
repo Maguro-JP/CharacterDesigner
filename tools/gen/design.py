@@ -82,13 +82,24 @@ GENDER = {"male": ("1boy, male focus, adult man, broad shoulders, strong jawline
           "androgynous": ("1person, androgynous, gender-neutral face, flat chest, short layered hair, ",
                           "breasts, beard, makeup, very muscular")}
 # 年齢。頭身と顔の骨格で描き分ける。adult（既定）は GENDER の書き方のまま
-AGE = {"child": ("child, about 10 years old, short stature, 4 heads tall, round face, big eyes, ",
-                 "adult, tall, mature, beard, breasts"),
+AGE = {"child": ("young child, about 7 years old, small body, big head, short legs, chubby cheeks, 4 heads tall, ",
+                 "adult, teenager, tall, long legs, mature, beard, breasts, makeup"),
        "teen": ("teenager, about 16 years old, slim youthful body, ", "old, wrinkles, beard"),
        "adult": ("", ""),
        "middle": ("middle-aged, about 45 years old, mature face, slight wrinkles, ", "child, teenager, young face"),
        "elder": ("elderly, about 70 years old, wrinkled face, grey hair, slightly hunched, ",
                  "young, child, smooth skin")}
+# 中年と老人は SDXL 系で描く。アニメの人物向けのモデルは、言葉を強めても女性の老人を若い顔で描いた
+OLD_AGES = {"middle", "elder"}
+# 年齢の形容は性別の名詞に直接付ける（「elderly woman」）。離して書くと若い顔に戻った
+XL_AGE = {"child": ("young", "child about 7 years old, "), "teen": ("teenage", ""), "adult": ("", ""),
+          "middle": ("middle-aged", "about 45 years old, slight wrinkles, "),
+          "elder": ("elderly", "about 70 years old, deep wrinkles, ")}
+XL_HUMAN_SUFFIX = (", full body, standing, character design, 2d anime style illustration, cel shading, clean lineart, "
+                   "white background")
+XL_HUMAN_NEGATIVE = "nsfw, nude, cropped, multiple views, text, watermark, extra fingers, bad anatomy"
+# 女性の老人は、アニメの人物向けのモデルが若い女性に寄せた（白髪の若い女性になった）。祖母の言葉で強める
+ELDER_FEMALE = "old woman, grandmother, deep wrinkles, sagging cheeks, white hair in a bun, "
 
 
 def _pipe(style, img2img=False):
@@ -205,6 +216,14 @@ def full_texts(c, style="anime"):
     if c.get("kind") == "creature" and style in XL:
         neg = ", ".join(x for x in (XL_CREATURE_NEGATIVE, c.get("negative", "")) if x)
         return c["full_prompt"] + XL_CREATURE_SUFFIX, neg
+    if style in XL:
+        # SDXL 系の人。タグではなく言葉で書く（SDXL 系は 1boy などのタグで学んでいない）
+        who = {"male": "man", "female": "woman", "androgynous": "androgynous person"}.get(c.get("gender"), "person")
+        adj, detail = XL_AGE.get(c.get("age", "adult"), ("", ""))
+        if c.get("age") == "elder" and c.get("gender") == "female":
+            detail += "grandmother, sagging cheeks, white hair in a bun, "
+        neg = ", ".join(x for x in (XL_HUMAN_NEGATIVE, AGE.get(c.get("age", "adult"), ("", ""))[1], c.get("negative", "")) if x)
+        return f"{adj} {who} ".lstrip() + c["full_prompt"] + ", " + detail + XL_HUMAN_SUFFIX.lstrip(", "), neg
     if c.get("kind") == "creature":
         head, tail, neg = CREATURE_PREFIX, CREATURE_SUFFIX, CREATURE_NEGATIVE
     else:
@@ -214,6 +233,8 @@ def full_texts(c, style="anime"):
         if c.get("age") in ("child", "teen"):
             # 子どもと十代に「adult man / adult woman」と骨格の言葉を付けない（年齢の指定と食い違う）
             gp = {"male": "1boy, male, ", "female": "1girl, female, "}.get(c.get("gender"), gp)
+        if c.get("age") == "elder" and c.get("gender") == "female":
+            gp = "1girl, " + ELDER_FEMALE
         head, tail, neg = PREFIX + gp + a[0], "", ", ".join(x for x in (gn, a[1]) if x)
     return head + c["full_prompt"] + tail + SUFFIX, ", ".join(x for x in (NEGATIVE, neg, c.get("negative", "")) if x)
 
@@ -231,7 +252,8 @@ def cast_paths(cast, outdir, style=None):
     base = style or cast.get("style", "anime")
     for c in cast["characters"]:
         seed, n = c.get("seed", 7), c.get("n", cast.get("n", 2))
-        styles = c.get("styles") or (CREATURE_STYLES if c.get("kind") == "creature" else [base])
+        styles = c.get("styles") or (CREATURE_STYLES if c.get("kind") == "creature"
+                                     else ["xl"] if c.get("age") in OLD_AGES else [base])
         rejected = c.get("rejected", {})
         shots = []
         for st in styles:
