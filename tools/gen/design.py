@@ -233,18 +233,35 @@ def batch(cast_path, outdir, style, steps, width, height, kind=None):
     todo = [(c, p, seed, st) for c, shots in cast_paths(cast, outdir, style) for p, seed, st in shots
             if not p.exists() and (kind is None or (c.get("kind") == "creature") == (kind == "creature"))]
     print(f"{len(todo)} 枚を描く")
+    # 下絵（init_dir/<id>.png）がある人物は、その形の上に描く（img2img）。文章だけでは手足の数や
+    # 「手足の無い塊」を守らせきれなかった。strength が小さいほど下絵の形が残る
+    init_dir = cast.get("init_dir")
+    strength = cast.get("init_strength", 0.75)
     # モデルの読み込みは画風ごとに1回にする
     for st in dict.fromkeys(t[3] for t in todo):
         pipe = _pipe(st)
+        i2i = None
+        if init_dir and st in XL:
+            from diffusers import StableDiffusionXLImg2ImgPipeline
+            i2i = StableDiffusionXLImg2ImgPipeline(**pipe.components)
         for c, p, seed, _ in [t for t in todo if t[3] == st]:
             t = time.time()
             text, neg = full_texts(c, st)
             g = torch.Generator().manual_seed(seed)
             if st in XL:
                 pe, ne, pp, np_ = encode_xl(pipe, text, neg)
-                im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
-                          negative_pooled_prompt_embeds=np_, num_inference_steps=steps, guidance_scale=2.0,
-                          width=768, height=1024, generator=g).images[0]
+                kw = dict(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
+                          negative_pooled_prompt_embeds=np_, guidance_scale=2.0, generator=g)
+                init = Path(init_dir) / f"{c['id']}.png" if i2i else None
+                if init and init.exists():
+                    from PIL import Image
+                    base = Image.open(init).convert("RGB").resize((1024, 1024))
+                    # img2img は strength×段数しか描かないので、段数を増やして描く段を保つ
+                    im = i2i(image=base, strength=c.get("init_strength", strength),
+                             num_inference_steps=max(steps, int(round(steps / c.get("init_strength", strength)))),
+                             **kw).images[0]
+                else:
+                    im = pipe(num_inference_steps=steps, width=768, height=1024, **kw).images[0]
             else:
                 pe, ne = encode(pipe, text, neg)
                 im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, num_inference_steps=steps, guidance_scale=1.5,

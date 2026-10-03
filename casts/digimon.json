@@ -1,323 +1,239 @@
 {
  "title": "DigiMon（SIGNAL BEASTS）",
- "source": "Maguro-JP/DigiMon design/signal-beasts/Beast Design Sheets.dc.html の系統表（名前・配色・形・大きさ）",
- "common": "original monster",
+ "source": "Maguro-JP/DigiMon design/signal-beasts の系統表と作風の比較ボード。決まりは docs/designs/digimon.md",
+ "creature_common": "original digital monster design, thick uniform black outline, flat cel colors, no gradient, no texture, no shading, sharp angular shapes, fierce eyes, cool rather than cute, three-quarter view",
  "n": 2,
  "characters": [
   {
    "id": "tor-2",
    "name": "ピィ",
-   "role": "トルネ系統 幼年期・風。手足の無い羽毛玉",
-   "prompt": "fluffy feather ball with sharp narrow eyes, legless, resting on the ground like a ball, wind swirl markings, one long antenna feather, tiny hooked beak, main color mint white, secondary teal, accent yellow, baby",
+   "role": "トルネ系統 幼年期・風",
    "kind": "creature",
-   "rejected": {
-    "tor-2-xl-7.png": "脚の数: 脚が2本ある（指定は脚なし）",
-    "tor-2-xl-8.png": "脚の数: 脚が2本ある（指定は脚なし）"
-   },
-   "negative": "cute plush, round soft, chubby, legs, feet"
+   "prompt": "round ball of feathers, no arms, no legs, no wings, one cowlick feather on top of the head, two sharp eyes, tiny beak, glowing diamond-shaped teal core on the chest, baby stage, tiny, simple silhouette, colors mint white #c7fff0, teal #2ee6b0, yellow #f5c542",
+   "negative": "legs, feet, arms, wings"
   },
   {
    "id": "tor-3",
    "name": "トルネ",
-   "role": "トルネ系統 成長期・風。主人公の相棒の小竜",
-   "prompt": "baby dragon, bipedal, two short legs, two small wings, one tail, two short gold horns, big head, main color teal green, secondary pale mint belly, accent gold, small",
+   "role": "トルネ系統 成長期・風。主人公の相棒",
    "kind": "creature",
-   "chosen": 7
+   "prompt": "small bipedal dragon, big head, short arms and legs, two small wings, two short golden horns, pale belly, one tail, glowing diamond-shaped teal core on the chest, rookie stage, small, big head, short limbs, colors teal green #3fd6b3, pale mint #d9fff1, gold #f5c542",
+   "negative": "four legs"
   },
   {
    "id": "tor-4",
    "name": "ガルトルネ",
-   "role": "トルネ系統 成熟期・風。人が乗れる四足の大竜",
-   "prompt": "feathered dragon walking on all fours like a horse, four legs on the ground, two large feathered wings, one tail, feather mane on neck, main color dark teal, secondary pale mint, accent violet, adult",
+   "role": "トルネ系統 成熟期・風",
    "kind": "creature",
-   "rejected": {
-    "tor-4-xl-7.png": "姿勢: 二足で立つ（指定は四つ足）",
-    "tor-4-xl-8.png": "姿勢: 二足で立つ（指定は四つ足）"
-   },
-   "negative": "bipedal, standing upright, rearing"
+   "prompt": "large dragon standing on four legs, quadruped, feathered mane on the neck, two large wings big enough to ride, two golden horns sweeping backward, pale belly, one tail, glowing diamond-shaped teal core on the chest, champion stage, adult, balanced proportions, sharp, colors deep teal #1f8f7a, pale mint #bfe9dd, violet #4b2fd1",
+   "negative": "bipedal, standing upright, arms, hands"
   },
   {
    "id": "tor-5",
    "name": "テンペストドラゴン",
-   "role": "トルネ系統 完全体・風。雲をまとう蛇体の竜",
-   "prompt": "eastern long dragon flying through storm clouds, snake-like body, four blade-shaped wings, two small claws, main color deep teal, secondary glowing teal lines, accent silver, huge",
+   "role": "トルネ系統 完全体・風",
    "kind": "creature",
-   "rejected": {
-    "tor-5-xl-7.png": "形: 蛇形の胴ではなく四肢の翼竜",
-    "tor-5-xl-8.png": "形: 蛇形の胴ではなく四肢の翼竜"
-   },
-   "negative": "western dragon, standing, bipedal, quadruped"
+   "prompt": "long serpentine sky dragon, snake-like body, tiny vestigial legs, four blade-shaped wings on the back, long golden horns sweeping backward, armor-like scales, wrapped in clouds, glowing diamond-shaped teal core on the chest, ultimate stage, huge, imposing, many parts, colors dark teal #0f5f52, signal green #2ee6b0, silver #e0e6f0",
+   "negative": "western dragon, standing, bipedal, quadruped, feathers"
   },
   {
    "id": "hak-2",
    "name": "シロン",
-   "role": "ハク系統 幼年期・聖。もち状の玉",
-   "prompt": "round white mochi blob, no legs, no arms, two sleepy eyes, small gold halo above, main color white, secondary ivory, accent gold, baby, tiny",
+   "role": "ハク系統 幼年期・聖",
    "kind": "creature",
-   "rejected": {
-    "hak-2-xl-8.png": "光輪が無く角が2本出た（指定は金の光輪）"
-   },
-   "chosen": 7
+   "prompt": "round white mochi-like ball, no arms, no legs, small golden halo floating above, two pale gold eyes, glowing diamond-shaped gold core on the chest, baby stage, tiny, simple silhouette, colors white #ffffff, ivory #f4f1ea, gold #d9b45a",
+   "negative": "legs, feet, arms, horns"
   },
   {
    "id": "hak-3",
    "name": "ハク",
-   "role": "ハク系統 成長期・聖。首に金の環のちび白竜",
-   "prompt": "baby white dragon, quadruped, four short legs, two small wings, one tail, gold ring around neck, main color white, secondary pale blue, accent gold, small, big head",
+   "role": "ハク系統 成長期・聖",
    "kind": "creature",
-   "chosen": 7
+   "prompt": "tiny chibi white dragon, big head, round eyes, short legs, two small wings, two short golden horns, golden ring around the neck, one tail, glowing diamond-shaped gold core on the chest, rookie stage, small, big head, short limbs, colors white #ffffff, pale blue #bcd8ff, gold #d9b45a"
   },
   {
    "id": "hak-4",
    "name": "ハクナイト",
-   "role": "ハク系統 成熟期・聖。白銀の鎧の竜騎士",
-   "prompt": "dragon knight, bipedal dragon, two legs, two wings, one tail, silver white armor, shield and glowing spear, main color white, secondary gold, accent pale blue, adult",
+   "role": "ハク系統 成熟期・聖",
    "kind": "creature",
-   "chosen": 7
+   "prompt": "dragon knight, bipedal dragon standing upright, silver white armor covering the body, shield in the left hand, spear of light in the right hand, small wings from the armor back, two golden horns, one tail, glowing diamond-shaped gold core on the chest, champion stage, adult, balanced proportions, sharp, colors silver white #e8e4d8, gold #d9b45a, pale blue #8fb6ff",
+   "negative": "human face"
   },
   {
    "id": "hak-5",
    "name": "ハクセラフ",
-   "role": "ハク系統 完全体・聖。浮遊する六翼",
-   "prompt": "white dragon with three pairs of feathered wings, six wings in total, floating, two arms, one tail, gold halo, main color white, secondary gold, accent pale blue, large, serene",
+   "role": "ハク系統 完全体・聖",
    "kind": "creature",
-   "rejected": {
-    "hak-5-xl-7.png": "翼の数: 2枚（指定は6枚）",
-    "hak-5-xl-8.png": "翼の数: 2枚（指定は6枚）"
-   },
+   "prompt": "celestial white dragon floating in the air, three pairs of feathered wings, six wings in total, thin robe-like armor, long golden horns sweeping backward, golden halo above the head, no feet on the ground, glowing diamond-shaped gold core on the chest, ultimate stage, huge, imposing, many parts, colors white #ffffff, gold #d9b45a, pale blue #bcd8ff",
    "negative": "two wings, bat wings, standing"
   },
   {
    "id": "hak-6",
    "name": "ハクシンリュウ",
-   "role": "ハク系統 究極体・聖。王冠の角と二重の光輪",
-   "prompt": "eastern long white dragon, snake-like body, six feathered wings, double gold halo, crown shaped horns, main color white, secondary pale gold, accent pale blue, huge",
+   "role": "ハク系統 究極体・聖",
    "kind": "creature",
-   "rejected": {
-    "hak-6-xl-7.png": "翼の数: 2枚、蛇形でない",
-    "hak-6-xl-8.png": "翼の数: 2枚、蛇形でない"
-   },
-   "negative": "western dragon, bat wings, standing, bipedal"
+   "prompt": "divine white god dragon, long serpentine body, six wings, double golden halo, crown shaped golden horns, ribbons of light flowing from the body, glowing, no shadow, glowing diamond-shaped gold core on the chest, divine stage, enormous, glowing, colors white #ffffff, pale gold #ffe9a8, pale blue #8fb6ff",
+   "negative": "western dragon, standing, bat wings"
   },
   {
    "id": "emb-2",
    "name": "ボッチ",
-   "role": "エンボウ系統 幼年期・火。耳のある火の玉",
-   "prompt": "round ball of fire with two pointed ears, legless, floating flame, two eyes, grinning mouth, main color orange red, secondary cream glow, accent yellow, baby, tiny",
+   "role": "エンボウ系統 幼年期・火",
    "kind": "creature",
-   "rejected": {
-    "emb-2-xl-7.png": "形: 二足の子鬼（指定は脚の無い火の玉）",
-    "emb-2-xl-8.png": "形: 二足の子鬼（指定は脚の無い火の玉）"
-   },
-   "negative": "legs, arms, standing, imp, body"
+   "prompt": "round ball of fire with two short pointed ears, small flame on top of the head, tiny stub feet, two sharp eyes, grin, glowing diamond-shaped orange core on the chest, baby stage, tiny, simple silhouette, colors orange #ff8a5c, red orange #ff5a3c, cream #ffe0b0",
+   "negative": "arms, long legs, body, imp"
   },
   {
    "id": "emb-3",
    "name": "エンボウ",
-   "role": "エンボウ系統 成長期・火。尾の先が炎の子犬",
-   "prompt": "puppy, quadruped, four legs, one tail with a flame tip, main color red orange, secondary cream belly, accent black paws, small, big head, happy",
+   "role": "エンボウ系統 成長期・火",
    "kind": "creature",
-   "chosen": 7
+   "prompt": "puppy standing on four legs, quadruped, big ears, black paws, short fur on the neck, one tail with a flame at the tip, glowing diamond-shaped orange core on the chest, rookie stage, small, big head, short limbs, colors red orange #ff5a3c, cream #ffe0b0, black #1a0a0a",
+   "negative": "bipedal, standing upright, arms"
   },
   {
    "id": "emb-4",
    "name": "フレアウルフ",
-   "role": "エンボウ系統 成熟期・火。炎のたてがみの狼",
-   "prompt": "slender wolf, quadruped, four legs, one tail, blazing flame mane, main color crimson, secondary orange flames, accent black legs, adult, sharp eyes",
+   "role": "エンボウ系統 成熟期・火",
    "kind": "creature",
-   "rejected": {
-    "emb-4-xl-7.png": "浮いた部位: 炎が体から離れて浮いている"
-   },
-   "chosen": 8
+   "prompt": "slender wolf standing on four legs, quadruped, long legs, mane of fire along the back, long fangs and claws, black paws, one tail, glowing diamond-shaped orange core on the chest, champion stage, adult, balanced proportions, sharp, colors crimson #c93c22, orange #ffb347, black #1a0a0a",
+   "negative": "bipedal, standing upright, arms, detached flames"
   },
   {
    "id": "emb-5",
    "name": "イグナレオン",
-   "role": "エンボウ系統 完全体・火。燃える尾3本の獅子王",
-   "prompt": "lion, quadruped, four legs, three long tails each ending in a flame, huge burning mane, main color dark red, secondary orange fire, accent gold ornaments, huge, regal",
+   "role": "エンボウ系統 完全体・火",
    "kind": "creature",
-   "rejected": {
-    "emb-5-xl-7.png": "尾の数: 3本の炎の尾になっていない、炎が浮いている",
-    "emb-5-xl-8.png": "尾の数: 尾が1本（指定は3本）"
-   },
-   "negative": "one tail, detached flames"
+   "prompt": "giant lion king standing on four legs, quadruped, whole mane made of fire, three tails all burning, black paws, glowing diamond-shaped orange core on the chest, ultimate stage, huge, imposing, many parts, colors dark red #8f1d0c, red orange #ff5a3c, gold #ffd166",
+   "negative": "bipedal, one tail, detached flames"
   },
   {
    "id": "kam-2",
    "name": "プクリ",
-   "role": "カメロ系統 幼年期・水。しずく型",
-   "prompt": "water droplet slime with a pointed tip, legless, sharp mischievous eyes, glowing circuit lines inside its body, main color light blue, secondary deep blue, accent cyan, baby",
+   "role": "カメロ系統 幼年期・水",
    "kind": "creature",
-   "rejected": {
-    "kam-2-xl-7.png": "利用者: 作風が DigiMon に合わない（丸く柔らかいぬいぐるみ寄り）",
-    "kam-2-xl-8.png": "利用者: 作風が DigiMon に合わない（丸く柔らかいぬいぐるみ寄り）"
-   },
-   "negative": "cute plush, round soft, chubby, legs, feet"
+   "prompt": "water droplet shaped body with a pointed swaying tip, no arms, no legs, two sharp eyes, glowing diamond-shaped blue core on the chest, baby stage, tiny, simple silhouette, colors light blue #8fd0ff, blue #4aa8ff, pale blue #d6ecff",
+   "negative": "arms, legs, feet"
   },
   {
    "id": "kam-3",
    "name": "カメロ",
-   "role": "カメロ系統 成長期・水。小さな亀",
-   "prompt": "baby turtle crawling, four flippers, hexagon armor plates on its shell, sharp eyes, one small fang, main color sky blue, secondary navy plates, accent yellow, small",
+   "role": "カメロ系統 成長期・水",
    "kind": "creature",
-   "rejected": {
-    "kam-3-xl-7.png": "既存作品の特定の亀のモンスターに似ている",
-    "kam-3-xl-8.png": "既存作品の特定の亀のモンスターに似ている"
-   },
-   "negative": "cute plush, chubby, bipedal, standing upright, arms, hands"
+   "prompt": "small turtle on four short legs, quadruped, smooth blue shell with one mark in the center, slightly long neck, one short tail, glowing diamond-shaped blue core on the chest, rookie stage, small, big head, short limbs, colors blue #4aa8ff, navy #2b6fb5, pale blue #d6ecff",
+   "negative": "bipedal, standing upright, arms, hands"
   },
   {
    "id": "kam-4",
    "name": "ガンガメ",
-   "role": "カメロ系統 成熟期・水。岩の棘3本の大亀",
-   "prompt": "armored tortoise beast, quadruped, on all fours, four thick clawed legs, angular plated shell with three big rock spikes, fierce glaring eyes, main color navy, secondary steel blue, accent grey stone, adult",
+   "role": "カメロ系統 成熟期・水",
    "kind": "creature",
-   "rejected": {
-    "kam-4-xl-7.png": "二体の融合: 亀が2匹重なっている",
-    "kam-4-xl-8.png": "岩の棘3本が無い"
-   },
-   "negative": "cute plush, chubby, bipedal, standing upright, arms, hands"
+   "prompt": "giant tortoise on four thick legs, quadruped, three rock spikes on the shell, thick neck, water spraying from gaps in the shell, glowing diamond-shaped blue core on the chest, champion stage, adult, balanced proportions, sharp, colors navy #1f4f80, blue #4aa8ff, grey #9fb3c8",
+   "negative": "bipedal, standing upright, two turtles"
   },
   {
    "id": "kam-5",
    "name": "リヴァガメオン",
-   "role": "カメロ系統 完全体・水。甲羅を背負った海竜",
-   "prompt": "sea turtle dragon swimming in waves, four flippers, long neck, huge spiked shell, dorsal fins, main color deep navy, secondary blue, accent white foam, huge",
+   "role": "カメロ系統 完全体・水",
    "kind": "creature",
-   "rejected": {
-    "kam-5-xl-7.png": "姿勢: 二足で立つ（指定はひれ4枚の海竜）",
-    "kam-5-xl-8.png": "姿勢: 二足で立つ"
-   },
+   "prompt": "sea dragon with a long neck and long tail, turtle shell on its back, spikes turned into dorsal fins, four flippers, gliding on the sea surface, glowing diamond-shaped blue core on the chest, ultimate stage, huge, imposing, many parts, colors deep navy #0f3557, blue #4aa8ff, pale blue #e0f4ff",
    "negative": "bipedal, standing, legs, arms"
   },
   {
    "id": "rai-2",
    "name": "ビリ",
-   "role": "ライトリ系統 幼年期・雷。羽が逆立った雛",
-   "prompt": "round chick, two tiny legs, no visible wings, feathers standing up with static, one small beak, main color pale yellow, secondary white, accent electric blue sparks, baby, tiny",
+   "role": "ライトリ系統 幼年期・雷",
    "kind": "creature",
-   "chosen": 7
+   "prompt": "round fluffy chick, feathers standing up with static, tiny beak, no visible feet, two sharp eyes, glowing diamond-shaped yellow core on the chest, baby stage, tiny, simple silhouette, colors pale yellow #ffe08a, yellow #f5c542, white #e8edf5",
+   "negative": "legs, feet, arms"
   },
   {
    "id": "rai-3",
    "name": "ライトリ",
-   "role": "ライトリ系統 成長期・雷。雷型の冠羽の小鳥",
-   "prompt": "small songbird perched on the ground, real bird anatomy, two thin legs, two folded wings, no arms, lightning bolt shaped crest, forked tail, main color yellow, secondary white, accent dark navy, small",
+   "role": "ライトリ系統 成長期・雷",
    "kind": "creature",
-   "rejected": {
-    "rai-3-xl-7.png": "人型: 腕のある鳥人の戦士（指定は小鳥）",
-    "rai-3-xl-8.png": "人型: 腕のある鳥人の戦士"
-   },
-   "negative": "arms, hands, humanoid, warrior, armor, muscular, standing upright"
+   "prompt": "small bird, real bird anatomy, two wings, no arms, one lightning bolt shaped crest feather, forked tail feathers, two thin legs, glowing diamond-shaped yellow core on the chest, rookie stage, small, big head, short limbs, colors yellow #f5c542, white #e8edf5, dark navy #0d1424",
+   "negative": "arms, hands, humanoid, warrior, armor"
   },
   {
    "id": "rai-4",
    "name": "サンダーホーク",
-   "role": "ライトリ系統 成熟期・雷。冠羽3本の猛禽",
-   "prompt": "hawk flying with wings spread, real bird anatomy, two wings, no arms, sharp talons, three crest feathers, main color gold, secondary yellow, accent dark navy wing tips, adult",
+   "role": "ライトリ系統 成熟期・雷",
    "kind": "creature",
-   "rejected": {
-    "rai-4-xl-7.png": "人型: 腕のある鷲の戦士",
-    "rai-4-xl-8.png": "人型: 腕のある鷲の戦士"
-   },
-   "negative": "arms, hands, humanoid, warrior, armor, muscular, standing upright"
+   "prompt": "hawk, real bird anatomy, two large spread wings, no arms, three crest feathers, sharp beak, golden talons, glowing diamond-shaped yellow core on the chest, champion stage, adult, balanced proportions, sharp, colors gold #c99a1f, yellow #f5c542, navy #2a3450",
+   "negative": "arms, hands, humanoid, warrior, armor"
   },
   {
    "id": "rai-5",
    "name": "ライジンガルダ",
-   "role": "ライトリ系統 完全体・雷。翼4枚の神鳥",
-   "prompt": "giant thunderbird flying, real bird anatomy, two pairs of wings, four wings, no arms, tail feathers of lightning bolts, main color gold, secondary white, accent electric blue, huge",
+   "role": "ライトリ系統 完全体・雷",
    "kind": "creature",
-   "rejected": {
-    "rai-5-xl-7.png": "人型: 腕のある鳥人",
-    "rai-5-xl-8.png": "人型: 腕のある鳥人"
-   },
-   "negative": "arms, hands, humanoid, warrior, armor, muscular, standing upright"
+   "prompt": "giant thunderbird, real bird anatomy, two pairs of wings, four wings in total, no arms, crown of crest feathers, tail feathers made of lightning bolts, lightning emblem on the chest, glowing diamond-shaped yellow core on the chest, ultimate stage, huge, imposing, many parts, colors dark gold #8a6200, yellow #f5c542, white #ffffff",
+   "negative": "arms, hands, humanoid, warrior, armor, two wings"
   },
   {
    "id": "gor-2",
    "name": "コロン",
-   "role": "ゴロン系統 幼年期・土。目のある岩",
-   "prompt": "small angular rock with one glowing crack for an eye, legless, sitting on the ground, sharp edges, main color tan, secondary dark brown, accent mint green glow, baby",
+   "role": "ゴロン系統 幼年期・土",
    "kind": "creature",
-   "rejected": {
-    "gor-2-xl-7.png": "脚がある、岩でなく毛の生き物",
-    "gor-2-xl-8.png": "脚がある、岩でなく毛の生き物"
-   },
-   "negative": "cute plush, round soft, chubby, legs, feet"
+   "prompt": "rock with only two eyes open, no arms, no legs, rolling stone body, angular facets, glowing diamond-shaped green core on the chest, baby stage, tiny, simple silhouette, colors tan #c9a27e, brown #8b6a4a, pale tan #e0cdb5",
+   "negative": "arms, legs, feet, fur"
   },
   {
    "id": "gor-3",
    "name": "ゴロン",
-   "role": "ゴロン系統 成長期・土。背に苔の四角い胴",
-   "prompt": "stone block beast, quadruped, on all fours, four short pillar legs, cube body with moss, sharp glowing eyes, small horn, main color brown, secondary grey, accent green moss, small",
+   "role": "ゴロン系統 成長期・土",
    "kind": "creature",
-   "rejected": {
-    "gor-3-xl-7.png": "機械の部品が付き、脚の数が数えられない",
-    "gor-3-xl-8.png": "利用者: 作風が DigiMon に合わない（丸く柔らかいぬいぐるみ寄り）"
-   },
-   "negative": "cute plush, chubby, bipedal, standing upright, arms, hands"
+   "prompt": "square stone body with short arms and short legs, no neck, head and body are one block, moss on the back, glowing diamond-shaped green core on the chest, rookie stage, small, big head, short limbs, colors brown #a8825f, tan #c9a27e, dark brown #4b3a2c",
+   "negative": "long neck, quadruped"
   },
   {
    "id": "gor-4",
    "name": "ガルドラ",
-   "role": "ゴロン系統 成熟期・土。結晶の角と緑の核",
-   "prompt": "rhinoceros made of rock, quadruped, four legs on the ground like a rhino, two crystal horns, glowing core in its chest, main color dark brown, secondary tan, accent mint green, adult",
+   "role": "ゴロン系統 成熟期・土",
    "kind": "creature",
-   "rejected": {
-    "gor-4-xl-7.png": "姿勢: 二足の筋肉質（指定は四つ足）",
-    "gor-4-xl-8.png": "姿勢: 二足寄り、腕がある"
-   },
-   "negative": "bipedal, standing upright, muscular, arms, hands"
+   "prompt": "rock giant, bipedal, arms thicker than the body, two crystal horns on the head, glowing green core in the chest, glowing diamond-shaped green core on the chest, champion stage, adult, balanced proportions, sharp, colors dark brown #6e5238, tan #c9a27e, mint green #2ee6b0",
+   "negative": "muscles, skin, human face"
   },
   {
    "id": "gor-5",
    "name": "メガリスコロッサス",
-   "role": "ゴロン系統 完全体・土。遺跡を背負った巨神",
-   "prompt": "stone colossus, bipedal, two legs, two huge arms, ancient ruins on its back, three glowing cores, main color dark brown, secondary tan, accent mint green, huge",
-   "kind": "creature"
+   "role": "ゴロン系統 完全体・土",
+   "kind": "creature",
+   "prompt": "stone colossus carrying an ancient ruin on its back, pillars and gates as parts of its body, tower-like horns, three glowing green cores, glowing diamond-shaped green core on the chest, ultimate stage, huge, imposing, many parts, colors very dark brown #3f2f22, tan #c9a27e, mint green #2ee6b0",
+   "negative": "robot, mecha, human face"
   },
   {
    "id": "yor-2",
    "name": "ムン",
-   "role": "ヨル系統 幼年期・闇。光る目の煙",
-   "prompt": "jagged purple smoke wisp, ghost tail instead of legs, no arms, two sharp glowing white eyes, jagged grin, main color dark purple, secondary violet, accent white, baby",
+   "role": "ヨル系統 幼年期・闇",
    "kind": "creature",
-   "rejected": {
-    "yor-2-xl-7.png": "脚がある、炎が黄色",
-    "yor-2-xl-8.png": "脚がある、主色が白（指定は紫）"
-   },
-   "negative": "cute plush, round soft, chubby, legs, feet"
+   "prompt": "shapeless lump of smoke, no arms, no legs, only two glowing eyes, glowing diamond-shaped violet core on the chest, baby stage, tiny, simple silhouette, colors dark purple #5b3fa0, violet #9b6cff, white #e8edf5",
+   "negative": "arms, legs, feet, mouth with teeth"
   },
   {
    "id": "yor-3",
    "name": "ヨル",
-   "role": "ヨル系統 成長期・闇。トルネのライバルの子鬼",
-   "prompt": "little imp, bipedal, two legs, two arms, two small horns, hands and feet fading into smoke, main color purple, secondary dark navy, accent white, small, big head",
+   "role": "ヨル系統 成長期・闇。トルネのライバル",
    "kind": "creature",
-   "rejected": {
-    "yor-3-xl-7.png": "手足の先が炎（指定は煙）"
-   }
+   "prompt": "small bipedal imp, two small horns, long swaying tail, hands and feet fading into smoke, sly grin, glowing diamond-shaped violet core on the chest, rookie stage, small, big head, short limbs, colors violet #9b6cff, dark indigo #2a1f45, white #e8edf5",
+   "negative": "fire, flames"
   },
   {
    "id": "yor-4",
    "name": "カゲオニ",
-   "role": "ヨル系統 成熟期・闇。煙の翼の大鬼",
-   "prompt": "big oni demon, bipedal, two legs, two arms, two horns, smoke wings, main color indigo, secondary violet, accent gold sash, adult",
-   "kind": "creature"
+   "role": "ヨル系統 成熟期・闇",
+   "kind": "creature",
+   "prompt": "big oni demon, bipedal, long horns spreading outward, wings of smoke from the shoulders, broad body, golden sash around the waist, glowing diamond-shaped violet core on the chest, champion stage, adult, balanced proportions, sharp, colors indigo #4b2fd1, violet #9b6cff, gold #f5c542",
+   "negative": "bat wings, fire"
   },
   {
    "id": "yor-5",
    "name": "ヤシャロード",
-   "role": "ヨル系統 完全体・闇。角4本・腕4本・金の面",
-   "prompt": "multi-armed demon lord with four arms, two pairs of arms, four horns, golden mask, bipedal, main color dark purple, secondary violet smoke, accent gold, huge",
+   "role": "ヨル系統 完全体・闇",
    "kind": "creature",
-   "rejected": {
-    "yor-5-xl-7.png": "腕の数: 2本（指定は4本）",
-    "yor-5-xl-8.png": "腕の数: 2本（指定は4本）"
-   },
-   "negative": "two arms"
+   "prompt": "yaksha demon king, bipedal, four horns, four arms, two pairs of arms, huge wings of smoke on the back, golden mask on the face, glowing diamond-shaped violet core on the chest, ultimate stage, huge, imposing, many parts, colors very dark purple #1b1233, violet #9b6cff, gold #f5c542",
+   "negative": "two arms, bat wings"
   }
- ],
- "creature_common": "original digital monster, sharp angular shapes, bold black outlines, fierce eyes, cool rather than cute"
+ ]
 }
