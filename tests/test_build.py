@@ -321,6 +321,32 @@ class BuildTest(unittest.TestCase):
             self.assertIn("plain grey sports top", text)
             self.assertIn("cape", neg)
 
+    def test_recolor_changes_only_the_skin_region(self):
+        # 肌の色の置き換え: 範囲の外は1画素も変わらず、肌は目標の色相に寄り、暗い線は残る
+        import colorsys
+        import tempfile
+        from PIL import Image, ImageDraw
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import edit
+        im = Image.new("RGB", (60, 60), (200, 200, 200))
+        d = ImageDraw.Draw(im)
+        d.rectangle([10, 10, 29, 49], fill=(230, 180, 150))   # 肌
+        d.rectangle([18, 20, 20, 22], fill=(20, 20, 20))      # 目の線
+        d.rectangle([30, 10, 49, 49], fill=(60, 60, 160))     # 服
+        lab = Image.new("L", (60, 60), 0)
+        ImageDraw.Draw(lab).rectangle([10, 10, 29, 49], fill=11)  # 顔
+        ImageDraw.Draw(lab).rectangle([30, 10, 49, 49], fill=4)   # 上の服
+        with tempfile.TemporaryDirectory() as t:
+            im.save(f"{t}/a.png")
+            lab.save(f"{t}/a.png.parts.png")
+            n = edit.recolor(f"{t}/a.png", f"{t}/b.png", "skin", "#4a7ad0")
+            out = Image.open(f"{t}/b.png").convert("RGB")
+        self.assertEqual(n, 0)
+        self.assertEqual(out.getpixel((40, 30)), (60, 60, 160))
+        self.assertEqual(out.getpixel((19, 21)), (20, 20, 20))
+        h = colorsys.rgb_to_hsv(*(c / 255 for c in out.getpixel((12, 40))))[0]
+        self.assertAlmostEqual(h, colorsys.rgb_to_hsv(0x4a / 255, 0x7a / 255, 0xd0 / 255)[0], delta=0.02)
+
     def test_orphan_is_replaced_but_protected_is_kept(self):
         a, b = "#808080", "#ffffff"
         grid = [[a] * 3 for _ in range(3)]
