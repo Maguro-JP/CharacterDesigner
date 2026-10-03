@@ -10,7 +10,7 @@
 使い方:
   PYTHONPATH=.cache/gen/lib python3 tools/gen/design.py draw out.png "young swordsman, blue tunic, red scarf" [--seed 7] [--n 4]
   PYTHONPATH=.cache/gen/lib python3 tools/gen/design.py restyle in.png out.png --style real [--strength 0.55]
-  python3 tools/gen/design.py pixel in.png out.sprite.json [--preset diorama|survivor] [--height N] [--colors N]
+  python3 tools/gen/design.py pixel in.png out.sprite.json [--preset diorama|survivor|retro16|chibi16] [--height N] [--colors N]
 """
 import argparse
 import json
@@ -31,9 +31,12 @@ LCM_LORA = "latent-consistency/lcm-lora-sdv1-5"
 # ドット絵の作風ごとの大きさと色数。等身は元の絵のまま縮める（頭を大きくする変換はまだ無い）
 # diorama: 箱庭ドットの人物の高さと色数（styles/diorama.json）
 # survivor: 少ない色で等身を保つ見下ろしのアクションの作風。数字は手本で数えていない（未確認）
+# retro16 / chibi16: styles/retro16.json と styles/chibi16.json の大きさと色数（どちらも未確認の数字）
 PRESETS = {
-    "diorama": {"height": 34, "colors": 32},
+    "diorama": {"height": 34, "colors": 32, "heads": 2.8},
     "survivor": {"height": 40, "colors": 16},
+    "retro16": {"height": 24, "colors": 15},
+    "chibi16": {"height": 16, "colors": 12},
 }
 # 立ち絵の設定資料として描かせる決まり文句。全身・1人・無地の背景にしておくと、派生（ドット絵）で背景を抜ける
 PREFIX = "masterpiece, best quality, character design, full body, standing, solo, "
@@ -144,7 +147,29 @@ def keep_largest(im):
     return im
 
 
-def pixel(src, out, height, colors):
+def deform(im, heads, neck=0.155):
+    """頭を大きく、首から下を縦に縮めて、頭身を下げる（7 頭身の絵 → 箱庭ドットの約 2.8 頭身）。
+
+    画像生成のモデルは「デフォルメ」「大きな頭」と書いても約 7 頭身で描いた（指示の効きが弱い）。
+    絵の上から neck（頭の高さの割合）で切り、頭を拡大して体を縮める。部品の transforms と同じ考え方。
+    """
+    from PIL import Image
+    W, H = im.size
+    n = int(H * neck)
+    # heads = 全体 / 頭。頭を k 倍、体を b 倍にして、(n*k + (H-n)*b) / (n*k) = heads にする
+    k = 1.7
+    b = (heads - 1) * n * k / (H - n)
+    hd = im.crop((0, 0, W, n)).resize((int(W * k), int(n * k)), Image.LANCZOS)
+    bd = im.crop((0, n, W, H)).resize((W, max(1, int((H - n) * b))), Image.LANCZOS)
+    OW = max(hd.width, W)
+    o = Image.new("RGBA", (OW, hd.height + bd.height), (0, 0, 0, 0))
+    # 首の継ぎ目に隙間が出ないよう、体を頭に2ドット重ねる
+    o.alpha_composite(bd, ((OW - W) // 2, hd.height - 2))
+    o.alpha_composite(hd, ((OW - hd.width) // 2, 0))
+    return o
+
+
+def pixel(src, out, height, colors, heads=None):
     """絵からドット絵を作る。描画器の後半と同じ考え方（縮小 → 減色 → 外側に暗い輪郭 → 孤立ドットの掃除）。"""
     from PIL import Image
     sys.path.insert(0, str(ROOT / "tools"))
@@ -152,6 +177,8 @@ def pixel(src, out, height, colors):
     im = keep_largest(cut_background(Image.open(src)))
     bb = im.getchannel("A").getbbox()
     im = im.crop(bb)
+    if heads:
+        im = deform(im, heads)
     w = max(1, round(im.width * height / im.height))
     # 縮小は箱で平均する。最近傍で拾うと1ドットの線が途切れる
     small = im.resize((w, height), Image.BOX)
@@ -208,6 +235,7 @@ def main():
     p.add_argument("--preset", choices=list(PRESETS), default=None)
     p.add_argument("--height", type=int, default=None)
     p.add_argument("--colors", type=int, default=None)
+    p.add_argument("--heads", type=float, default=None, help="頭身を下げる（箱庭ドットは 2.8）。省くと元の絵のまま")
     a = ap.parse_args()
     if a.cmd == "draw":
         draw(a.out, a.prompt, a.seed, a.n, a.style, a.steps, a.width, a.height)
@@ -215,7 +243,7 @@ def main():
         restyle(a.src, a.out, a.style, a.strength, a.steps, a.prompt)
     else:
         pre = PRESETS[a.preset or "diorama"]
-        pixel(a.src, a.out, a.height or pre["height"], a.colors or pre["colors"])
+        pixel(a.src, a.out, a.height or pre["height"], a.colors or pre["colors"], a.heads or pre.get("heads"))
 
 
 if __name__ == "__main__":
