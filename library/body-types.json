@@ -129,7 +129,8 @@
    "negative": "logo, brand logo, emblem, text on clothes, see-through, abs, muscular, six pack, micro bikini, thick thighs",
    "seed": 31,
    "sample": "library/samples/anime-ideal-female.png",
-   "history": "競泳水着（胸が分からない）→黒のスポーツビキニ（腹筋が強すぎ）→白ビキニ（脚が気持ち太い）→thin thighs（細すぎ）→ slender legs のみ（決定）"
+   "history": "競泳水着（胸が分からない）→黒のスポーツビキニ（腹筋が強すぎ）→白ビキニ（脚が気持ち太い）→thin thighs（細すぎ）→ slender legs のみ（決定）",
+   "views": "library/samples/anime-ideal-female-5views.png（正面・斜め前・横・斜め後ろ・背面。people.py --views front,front34,side,back34,back）"
   }
  }
 }
