@@ -55,7 +55,7 @@ def sheet(out, dest):
     groups = list(POSES["groups"])
     rows = [[p for p in POSES["poses"] if p["group"] == g] for g in groups]
     cols = max(len(r) for r in rows)
-    im = Image.new("RGB", (W * cols + 120, (H + T) * len(rows)), "white")
+    im = Image.new("RGB", (W * cols + 170, (H + T) * len(rows)), "white")
     d = ImageDraw.Draw(im)
     f = ImageFont.truetype(people.FONT, 20)
     small = ImageFont.truetype(people.FONT, 13)
@@ -63,7 +63,7 @@ def sheet(out, dest):
         y = r * (H + T)
         d.text((10, y + 10), POSES["groups"][g], fill=(40, 40, 40), font=f)
         for c, pose in enumerate(row):
-            x = 120 + c * W
+            x = 170 + c * W
             src = out / f"{pose['id']}.raw.png"
             if src.exists():
                 im.paste(Image.open(src).convert("RGB").resize((W, H)), (x, y))
