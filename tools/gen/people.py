@@ -98,7 +98,7 @@ def zoom_box(src, where):
         b = lab.point(lambda v: 255 if v == 11 else 0).getbbox()
         if b:
             fh = max(b[3] - b[1], b[2] - b[0])
-            cx, cy, r = (b[0] + b[2]) // 2, b[1] + fh // 4, fh * 2.2
+            cx, cy, r = (b[0] + b[2]) // 2, b[1] + fh // 4, fh * 1.4
         else:
             cx, cy, r = (x0 + x1) // 2, y0 + (y1 - y0) // 10, (y1 - y0) // 7
     elif where == "arms":
