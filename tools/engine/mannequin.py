@@ -62,11 +62,38 @@ def build(spec, gender, arms):
         # 角張りを消す（マネキンの滑らかな面）
         sub = o.modifiers.new("smooth", "SUBSURF")
         sub.levels = sub.render_levels = 1
-    flatten(body)
+    flatten(body, spec.get("breast_scale", 1.0))
     return meshes
 
 
-def flatten(body):
+def enlarge_breasts(mesh, tips, scale):
+    """胸を scale 倍（長さ）に膨らませる。MakeHuman の数字は 1.0 が上限で、超えると形が崩れて平らになった。
+
+    胸の先（区分 nippleTip）から体の内側へ 6cm の点を中心に、半径 17cm の点を中心から遠ざける。
+    中心に近いほど強く、縁で 0 になるようにして、胸の付け根に段を作らない。腕と背中は動かさない。"""
+    from mathutils import Vector
+    for side in (-1, 1):
+        pts = [mesh.vertices[i].co for i in tips if mesh.vertices[i].co.x * side > 0]
+        if not pts:
+            continue
+        tip = sum(pts, Vector()) / len(pts)
+        center = tip + Vector((0, 0.06, 0.015))  # 体の正面は -Y。内側は +Y。中心を先より少し上に置き、垂れた形にしない
+        radius = 0.17
+        for v in mesh.vertices:
+            d = (v.co - center).length
+            if d >= radius or v.co.y > center.y + 0.02 or abs(v.co.x) > abs(center.x) + 0.11 or v.co.x * side <= 0:
+                continue
+            # 縁まで滑らかに弱める。内側を一律に膨らませて縁で急に落とすと、胸の下に段ができた
+            t = 1 - d / radius
+            w = t * t * (3 - 2 * t)
+            if v.co.z > center.z + 0.04:  # 鎖骨の方へは膨らませない
+                w *= max(0.0, 1 - (v.co.z - center.z - 0.04) / 0.05)
+            if v.co.z < center.z - 0.08:  # 下へ伸びすぎると垂れた形になる。急に止めると下側が平らに切れた
+                w *= max(0.0, 1 - (center.z - 0.08 - v.co.z) / 0.08)
+            v.co = center + (v.co - center) * (1 + (scale - 1) * w)
+
+
+def flatten(body, breast_scale=1.0):
     """乳首と股の細かい凹凸を平らにならす（マネキンには無い）。
 
     体型は形の差分（shape key）と骨で後から上乗せされるので、元の形をならしても凹凸が戻った。
@@ -111,6 +138,11 @@ def flatten(body):
         print("ならした", group, "区分", len(idx), "点 / 範囲", len(picked), "点", flush=True)
         bm.to_mesh(mesh)
         bm.free()
+    # 膨らませるのは、乳首の凸をならした後にする。先に膨らませると、ならす範囲を広げないと凸が残り、
+    # 範囲を広げると胸全体が平らになった
+    if breast_scale != 1.0 and "nippleTip" in body.vertex_groups:
+        gi = body.vertex_groups["nippleTip"].index
+        enlarge_breasts(mesh, [v.index for v in mesh.vertices if any(g.group == gi for g in v.groups)], breast_scale)
     mesh.update()
 
 
