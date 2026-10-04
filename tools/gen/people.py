@@ -120,9 +120,15 @@ def card(outdir, name, gender, age, tags, hair, views, zoom, seed, label, limbs=
     for v in views:
         p = outdir / f"{name}-{v}.png"
         text = prompt_of(gender, age, tags, hair, v, body)
-        # 検品を通った絵だけが .raw.png を持つ。途中で止まって落とした絵だけが残っていたら描き直す
-        if not p.with_suffix(".raw.png").exists():
+        # 検品を通った絵だけが .raw.png を持つ。3回とも落ちた向きは .failed.json に理由を残し、
+        # 再開したときに同じ seed で同じ失敗を繰り返さない（九尾は尾が画面からはみ出して6回落ちた）
+        failed = p.with_suffix(".failed.json")
+        if failed.exists():
+            used, reasons = json.loads(failed.read_text(encoding="utf-8"))
+        elif not p.with_suffix(".raw.png").exists():
             used, reasons = draw(p, text, seed, limbs=limbs)
+            if reasons:
+                failed.write_text(json.dumps([used, reasons], ensure_ascii=False), encoding="utf-8")
         else:
             used, reasons = seed, []
         meta["views"][v] = {"prompt": text, "seed": used, "inspect": reasons, "file": p.name}
