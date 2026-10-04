@@ -199,6 +199,158 @@
    "samples": {
     "male": "library/samples/tattoo-tribal-arms-male.png"
    }
+  },
+  "skin-tan": {
+   "ja": "日焼け肌",
+   "traits": [
+    "skin:tan"
+   ],
+   "verified": {
+    "male": "出た（弱い）",
+    "female": "出なかった"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
+   "samples": {
+    "male": "library/samples/skin-tan-male.png",
+    "female": "library/samples/skin-tan-female.png"
+   }
+  },
+  "body-muscular-dark": {
+   "ja": "筋肉質＋濃い肌",
+   "traits": [
+    "muscle:high",
+    "skin:dark"
+   ],
+   "verified": {
+    "male": "出た（シャツが短い）",
+    "female": "出た（背後に黒い尾のような影）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
+   "samples": {
+    "male": "library/samples/body-muscular-dark-male.png",
+    "female": "library/samples/body-muscular-dark-female.png"
+   }
+  },
+  "body-plump-tan": {
+   "ja": "太め＋日焼け肌",
+   "traits": [
+    "fat:high",
+    "skin:tan"
+   ],
+   "verified": {
+    "male": "出た（上の肌着が胸当て）",
+    "female": "太めは出た、日焼けは弱い（ポニーテール）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
+   "samples": {
+    "male": "library/samples/body-plump-tan-male.png",
+    "female": "library/samples/body-plump-tan-female.png"
+   }
+  },
+  "race-elf": {
+   "ja": "エルフ",
+   "traits": [
+    "race:elf"
+   ],
+   "verified": {
+    "male": "出た（細身、耳は小さい。下が腰布）",
+    "female": "出た（髪が銀、服が黒）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
+   "samples": {
+    "male": "library/samples/race-elf-male.png",
+    "female": "library/samples/race-elf-female.png"
+   }
+  },
+  "race-dwarf": {
+   "ja": "ドワーフ",
+   "traits": [
+    "race:dwarf"
+   ],
+   "verified": {
+    "male": "出た（髭、筋肉質）",
+    "female": "出なかった（長い三つ編みの少女）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
+   "samples": {
+    "male": "library/samples/race-dwarf-male.png",
+    "female": "library/samples/race-dwarf-female.png"
+   }
+  },
+  "race-wolfkin": {
+   "ja": "狼の獣人",
+   "traits": [
+    "race:beast_wolf"
+   ],
+   "verified": {
+    "male": "出なかった（背後に狼）",
+    "female": "出た（耳と尾、髪が長い）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
+   "samples": {
+    "male": "library/samples/race-wolfkin-male.png",
+    "female": "library/samples/race-wolfkin-female.png"
+   }
+  },
+  "race-dragonkin": {
+   "ja": "竜人",
+   "traits": [
+    "race:dragonkin"
+   ],
+   "verified": {
+    "male": "出た（角と尾、服が黒）",
+    "female": "出た（角と尾、服が黒）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
+   "samples": {
+    "male": "library/samples/race-dragonkin-male.png",
+    "female": "library/samples/race-dragonkin-female.png"
+   }
+  },
+  "horns-antlers": {
+   "ja": "鹿の角",
+   "traits": [
+    "horns:antlers"
+   ],
+   "verified": {
+    "male": "出た",
+    "female": "出た"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
+   "samples": {
+    "male": "library/samples/horns-antlers-male.png",
+    "female": "library/samples/horns-antlers-female.png"
+   }
+  },
+  "ears-cat": {
+   "ja": "猫の耳",
+   "traits": [
+    "ears:cat"
+   ],
+   "verified": {
+    "male": "出た（背後に黒猫）",
+    "female": "出た（服が黒）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
+   "samples": {
+    "male": "library/samples/ears-cat-male.png",
+    "female": "library/samples/ears-cat-female.png"
+   }
+  },
+  "wings-bat": {
+   "ja": "蝙蝠の翼",
+   "traits": [
+    "extra:wings_bat"
+   ],
+   "verified": {
+    "male": "出た（ズボンの形）",
+    "female": "出た"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
+   "samples": {
+    "male": "library/samples/wings-bat-male.png",
+    "female": "library/samples/wings-bat-female.png"
+   }
   }
  },
  "base_samples": {
@@ -229,6 +381,44 @@
    "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint <絵> <出力> --region lower+legs-feet --grow 10 --prompt \"black jeans, long trousers down to the ankles\"",
    "verified": "男でできた（足先は元のまま）",
    "sample": "library/samples/outfit-black-jeans.png"
+  }
+ },
+ "ages": {
+  "child": {
+   "ja": "子ども",
+   "age": "child",
+   "verified": {
+    "male": "出なかった（十代に見え、背後に物）",
+    "female": "出た（長袖の服に変わった）"
+   },
+   "samples": {
+    "male": "library/samples/age-child-male.png",
+    "female": "library/samples/age-child-female.png"
+   }
+  },
+  "teen": {
+   "ja": "十代",
+   "age": "teen",
+   "verified": {
+    "male": "出た",
+    "female": "出た"
+   },
+   "samples": {
+    "male": "library/samples/age-teen-male.png",
+    "female": "library/samples/age-teen-female.png"
+   }
+  },
+  "elder": {
+   "ja": "老人",
+   "age": "elder",
+   "verified": {
+    "male": "出た（サンダル）",
+    "female": "出た（眼鏡、サンダル）"
+   },
+   "samples": {
+    "male": "library/samples/age-elder-male.png",
+    "female": "library/samples/age-elder-female.png"
+   }
   }
  }
 }
