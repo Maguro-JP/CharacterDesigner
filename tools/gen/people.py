@@ -69,7 +69,11 @@ def draw(out, prompt, seed, steps=24, limbs=True, body=None):
     import edit
     for k in range(3):
         t = time.time()
-        im = pipe()(prompt, negative_prompt=NEGATIVE, num_inference_steps=steps, guidance_scale=6.0,
+        # 指示文は 77 トークンで切れる（ラミアなどは向きの指定まで切れた）。分けて読ませる
+        import design
+        pe, ne, pp, np_ = design.encode_xl(pipe(), prompt, NEGATIVE)
+        im = pipe()(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
+                    negative_pooled_prompt_embeds=np_, num_inference_steps=steps, guidance_scale=6.0,
                     width=832, height=1216, generator=torch.Generator().manual_seed(seed + k * 100)).images[0]
         im.save(out)
         reasons = edit.inspect(out, limbs)
