@@ -184,16 +184,25 @@ def inpaint(src, out, region, prompt, negative="", grow=4, steps=20, guidance=7.
     return n
 
 
+def foreground(src):
+    """人物（翼・尾・角を含む）の範囲。画面の端から無地の背景を塗りつぶして抜く（design.cut_background）。
+
+    部位分けのモデルは人の部位（顔・腕・脚・服）しか知らず、翼や尾や角を背景として消してしまう。
+    背景を抜くのは端からのつながりで決め、体とつながった翼や尾は残す。
+    """
+    sys.path.insert(0, str(Path(__file__).parent))
+    import design
+    return design.keep_largest(design.cut_background(Image.open(src))).getchannel("A").point(lambda v: 255 if v else 0)
+
+
 def clean_background(src, out=None):
-    """背景を無地の白にする。人の部位（部位分けで背景以外）だけを残す。
+    """背景を無地の白にする。人物（翼・尾・角を含む）は残す。
 
     背景に蛇・猫・狼・影などが描かれ、それを体の部品が出たと取り違えた。人を描いたら毎回これを通す。
-    人の部位の縁は 1 画素広げて残す（輪郭線が背景側に乗っているため）。
     """
     im = Image.open(src).convert("RGB")
-    lab = parts(src)
-    person = lab.point(lambda v: 255 if v else 0).filter(ImageFilter.MaxFilter(3))
-    res = Image.composite(im, Image.new("RGB", im.size, (255, 255, 255)), person)
+    fg = foreground(src)
+    res = Image.composite(im, Image.new("RGB", im.size, (255, 255, 255)), fg)
     res.save(out or src)
     return res
 
@@ -201,26 +210,26 @@ def clean_background(src, out=None):
 def inspect(src):
     """生き物として破綻している絵を機械で見つける。当てはまった理由の一覧を返す（空なら通る）。
 
-    - 人の塊が2つ以上（別の人物や生き物が混ざった）
-    - 腕・脚の左右どちらかが無い（数が足りない）
+    - 背景に人物と離れた物がある（端から背景を抜いたあと、大きな塊が2つ以上）
+    - 腕・脚の左右どちらかが無い（部位分けで数える）
     - 体が画面の端で切れている
-    - 背景に大きな物がある（背景の画素の色が無地からずれている割合）
     """
     import numpy as np
-    im = np.asarray(Image.open(src).convert("RGB")).astype(int)
-    lab = np.asarray(parts(src))
+    sys.path.insert(0, str(Path(__file__).parent))
+    import design
+    cut = design.cut_background(Image.open(src))
+    alpha = np.asarray(cut.getchannel("A")) > 0
+    if not alpha.any():
+        return ["人物が写っていない"]
     reasons = []
-    person = lab > 0
-    if person.sum() == 0:
-        return ["人が写っていない"]
-    # 塊の数: 小さな点は数えない（全体の 3% 以上の塊だけ）
+    # 塊の数（全体の 3% 以上）。人物と離れた物（背後の動物、別の人物）が残ると 2 つ以上になる
     from collections import deque
-    seen = np.zeros_like(person)
-    H, W = person.shape
+    H, W = alpha.shape
+    seen = np.zeros_like(alpha)
     sizes = []
     for y0 in range(0, H, 2):
         for x0 in range(0, W, 2):
-            if person[y0, x0] and not seen[y0, x0]:
+            if alpha[y0, x0] and not seen[y0, x0]:
                 n, q = 0, deque([(y0, x0)])
                 seen[y0, x0] = True
                 while q:
@@ -228,30 +237,21 @@ def inspect(src):
                     n += 1
                     for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
                         yy, xx = y + dy, x + dx
-                        if 0 <= yy < H and 0 <= xx < W and person[yy, xx] and not seen[yy, xx]:
+                        if 0 <= yy < H and 0 <= xx < W and alpha[yy, xx] and not seen[yy, xx]:
                             seen[yy, xx] = True
                             q.append((yy, xx))
                 sizes.append(n)
-    big = [n for n in sizes if n > person.sum() * 0.03]
+    big = [n for n in sizes if n > alpha.sum() * 0.03]
     if len(big) >= 2:
-        reasons.append(f"人の塊が {len(big)} つ")
+        reasons.append(f"人物と離れた物がある（塊が {len(big)} つ）")
+    lab = np.asarray(parts(src))
     for name, ids in (("左腕", [14]), ("右腕", [15]), ("左脚", [12]), ("右脚", [13])):
         if not np.isin(lab, ids).any():
             reasons.append(f"{name}が無い")
-    ys, xs = np.nonzero(person)
+    fg = np.asarray(foreground(src)) > 0
+    ys, xs = np.nonzero(fg)
     if ys.min() <= 1 or ys.max() >= H - 2 or xs.min() <= 1 or xs.max() >= W - 2:
         reasons.append("体が画面の端で切れている")
-    # 背景の物: 床や壁のなだらかな明暗は物ではない。人を除いた背景を大きくぼかしたものとの差が大きい画素
-    # （輪郭のある物）だけを数える。人の縁の 6 画素は数えない（輪郭線のにじみ）
-    fill = im.copy()
-    fill[person] = np.median(im[~person], axis=0) if (~person).any() else 255
-    blur = np.asarray(Image.fromarray(fill.astype("uint8")).filter(ImageFilter.GaussianBlur(12))).astype(int)
-    near = np.asarray(Image.fromarray((person * 255).astype("uint8")).filter(ImageFilter.MaxFilter(13))) > 0
-    bgmask = ~near
-    if bgmask.any():
-        off = (np.abs(im - blur).sum(axis=2) > 90)[bgmask].mean()
-        if off > 0.02:
-            reasons.append(f"背景に物がある（背景の {off:.1%} に輪郭のある物）")
     return reasons
 
 
