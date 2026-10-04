@@ -37,7 +37,11 @@ BODY = "full body, standing, arms at sides, white background, simple background,
 # 向き。「from front」は効かず真横を向いたので、正面は見る人の方を向く言葉で書く
 VIEWS = {"front": "facing viewer, looking at viewer, straight-on, front view",
          "back": "from behind, back view, facing away",
-         "side": "from side, profile"}
+         "side": "from side, profile",
+         # 斜めの2方向。多角的な設定資料に使う（正面・斜め前・横・斜め後ろ・背面）
+         "front34": "three-quarter view, body turned slightly to the side, looking at viewer",
+         "back34": "from behind, three-quarter view, looking back over shoulder"}
+VIEW_JA = {"front": "正面", "front34": "斜め前", "side": "横", "back34": "斜め後ろ", "back": "背面"}
 GENDER = {"male": "1boy, male focus", "female": "1girl"}
 AGE = {"child": "child, young", "teen": "teenage", "adult": "adult", "middle": "mature, middle-aged",
        "elder": "old, wrinkled skin, grey hair"}
@@ -144,7 +148,7 @@ def card(outdir, name, gender, age, tags, hair, views, zoom, seed, label, limbs=
     tiles = []
     for v, p, reasons in shots:
         im = Image.open(p).convert("RGB")
-        tiles.append(({"front": "正面", "back": "背面", "side": "横"}[v] + ("（落とした）" if reasons else ""),
+        tiles.append((VIEW_JA[v] + ("（落とした）" if reasons else ""),
                       im.resize((int(im.width * H / im.height), H))))
     if zoom != "none":
         src = shots[0][1] if zoom in ("head", "arms") else next((p for v, p, _ in shots if v == "back"), shots[0][1])
