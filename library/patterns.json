@@ -15,20 +15,6 @@
     "female": "library/samples/skin-dark-female.png"
    }
   },
-  "body-muscular": {
-   "ja": "筋肉質",
-   "traits": [
-    "muscle:high"
-   ],
-   "verified": {
-    "male": "落とした（機械の検品: 体が画面の端で切れている）",
-    "female": "出た（余計な変化: 肩当て）"
-   },
-   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
-   "samples": {
-    "female": "library/samples/body-muscular-female.png"
-   }
-  },
   "body-plump": {
    "ja": "太め",
    "traits": [
