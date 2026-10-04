@@ -127,7 +127,11 @@ def card(outdir, name, gender, age, tags, hair, views, zoom, seed, label):
         src = shots[0][1] if zoom in ("head", "arms") else next((p for v, p, _ in shots if v == "back"), shots[0][1])
         box = zoom_box(str(src), zoom)
         if box:
-            z = Image.open(src).convert("RGB").crop(box).resize((H, H))
+            # 画面の外まで切り取ると黒く埋まるので、白い台紙に貼ってから切り取る
+            base = Image.open(src).convert("RGB")
+            pad = Image.new("RGB", (base.width + 2 * H, base.height + 2 * H), "white")
+            pad.paste(base, (H, H))
+            z = pad.crop((box[0] + H, box[1] + H, box[2] + H, box[3] + H)).resize((H, H))
             tiles.append(({"head": "頭の拡大", "arms": "腕の拡大", "back": "背中の拡大", "tail": "腰の拡大"}[zoom], z))
     W = sum(t.width for _, t in tiles) + 10 * (len(tiles) - 1)
     sheet = Image.new("RGB", (W, H + 70), "white")
