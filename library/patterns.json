@@ -204,5 +204,31 @@
  "base_samples": {
   "male": "library/samples/base-male.png",
   "female": "library/samples/base-female.png"
+ },
+ "outfits": {
+  "outfit-red-leather-jacket": {
+   "ja": "赤い革の上着（長袖）",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint <絵> <出力> --region upper+arms --grow 10 --prompt \"red leather jacket with long sleeves, open front, black t-shirt underneath, hands\"",
+   "verified": "男でできた（片方の肩に白い当て布）",
+   "sample": "library/samples/outfit-red-leather-jacket.png"
+  },
+  "outfit-white-hoodie": {
+   "ja": "白いパーカー（長袖）",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint <絵> <出力> --region upper+arms --grow 10 --prompt \"white hoodie with long sleeves and blue drawstrings, hands\"",
+   "verified": "女でできた",
+   "sample": "library/samples/outfit-white-hoodie.png"
+  },
+  "outfit-plaid-skirt": {
+   "ja": "赤いチェックのスカート",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint <絵> <出力> --region lower+legs --grow 14 --prompt \"red plaid pleated skirt, knee length, bare legs\"",
+   "verified": "女でできた（頼んでいない赤い靴が出た）",
+   "sample": "library/samples/outfit-plaid-skirt.png"
+  },
+  "outfit-black-jeans": {
+   "ja": "黒いジーンズ（長い丈）",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint <絵> <出力> --region lower+legs --grow 10 --prompt \"black jeans, long trousers down to the ankles, bare feet\"",
+   "verified": "男でできた（片足の先がかすれた）",
+   "sample": "library/samples/outfit-black-jeans.png"
+  }
  }
 }
