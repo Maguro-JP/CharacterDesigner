@@ -120,7 +120,8 @@ def card(outdir, name, gender, age, tags, hair, views, zoom, seed, label, limbs=
     for v in views:
         p = outdir / f"{name}-{v}.png"
         text = prompt_of(gender, age, tags, hair, v, body)
-        if not p.exists():
+        # 検品を通った絵だけが .raw.png を持つ。途中で止まって落とした絵だけが残っていたら描き直す
+        if not p.with_suffix(".raw.png").exists():
             used, reasons = draw(p, text, seed, limbs=limbs)
         else:
             used, reasons = seed, []
