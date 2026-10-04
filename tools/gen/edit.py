@@ -12,7 +12,7 @@
   PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py parts in.png
   PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py recolor in.png out.png --region skin --color "#4a7ad0"
   PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint in.png out.png --region skin_arms --prompt "black tribal tattoos"
-部位の名前: skin, face, arms, legs, skin_arms, hair, head_top, upper, lower, shoes, clothes
+部位の名前: skin, face, arms, legs, skin_arms, hair, head_top, upper, lower, shoes, clothes（+ でつなぐと合わせる。例 upper+arms）
 """
 import argparse
 import colorsys
@@ -65,7 +65,9 @@ def region_mask(src, region, grow=0):
         m = Image.new("L", lab.size, 0)
         m.paste(255, (max(0, x0 - h // 3), max(0, y0 - h), min(lab.width, x1 + h // 3), y0 + h // 2))
         return m
-    ids = REGIONS[region]
+    # 「upper+arms」のように + でつなぐと範囲を合わせる。服の形は元の服の輪郭から出られないので、
+    # 長袖なら腕、長い丈なら脚まで範囲に入れる（短パンのまま柄だけ変わったため）
+    ids = [i for r in region.split("+") for i in REGIONS[r]]
     m = lab.point(lambda v: 255 if v in ids else 0)
     if grow:
         m = m.filter(ImageFilter.MaxFilter(grow * 2 + 1))
