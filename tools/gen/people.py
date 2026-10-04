@@ -93,8 +93,14 @@ def zoom_box(src, where):
     fg = edit.foreground(src)
     x0, y0, x1, y1 = fg.getbbox()
     if where == "head":
-        b = lab.point(lambda v: 255 if v in (1, 2, 11) else 0).getbbox() or (x0, y0, x1, y0 + (y1 - y0) // 5)
-        cx, cy, r = (b[0] + b[2]) // 2, (b[1] + b[3]) // 2, max(b[2] - b[0], b[3] - b[1]) * 0.9
+        # 顔を中心に、顔の高さの 2.2 倍を半径にする。髪まで含めると長い髪が腰まであり、全身ほどの範囲になった。
+        # 耳や角は顔より上と横に出るので、中心を少し上にずらす
+        b = lab.point(lambda v: 255 if v == 11 else 0).getbbox()
+        if b:
+            fh = max(b[3] - b[1], b[2] - b[0])
+            cx, cy, r = (b[0] + b[2]) // 2, b[1] + fh // 4, fh * 2.2
+        else:
+            cx, cy, r = (x0 + x1) // 2, y0 + (y1 - y0) // 10, (y1 - y0) // 7
     elif where == "arms":
         b = lab.point(lambda v: 255 if v in (14, 15) else 0).getbbox() or (x0, y0, x1, y1)
         cx, cy, r = (b[0] + b[2]) // 2, (b[1] + b[3]) // 2, max(b[2] - b[0], b[3] - b[1]) * 0.6
