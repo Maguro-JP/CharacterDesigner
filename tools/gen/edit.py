@@ -34,6 +34,9 @@ REGIONS = {
 }
 
 
+_SEG = None
+
+
 def parts(src):
     """部位の塗り分け（1画素1部位の番号を明るさに入れた L の絵）を作り、絵の隣に置く。2回目からは読むだけ。"""
     out = Path(str(src) + ".parts.png")
@@ -43,7 +46,12 @@ def parts(src):
     import torch
     from transformers import AutoModelForSemanticSegmentation
     im = Image.open(src).convert("RGB")
-    model = AutoModelForSemanticSegmentation.from_pretrained(SEG_MODEL)
+    global _SEG
+    if _SEG is None:
+        from transformers.utils import logging as tlog
+        tlog.disable_progress_bar()
+        _SEG = AutoModelForSemanticSegmentation.from_pretrained(SEG_MODEL)
+    model = _SEG
     # 前処理は自前で書く（モデル付属の前処理は torchvision を要求し、この環境に無い）
     a = np.asarray(im.resize((512, 512), Image.BILINEAR), dtype=np.float32) / 255.0
     a = (a - np.array([0.485, 0.456, 0.406])) / np.array([0.229, 0.224, 0.225])
@@ -176,6 +184,77 @@ def inpaint(src, out, region, prompt, negative="", grow=4, steps=20, guidance=7.
     return n
 
 
+def clean_background(src, out=None):
+    """背景を無地の白にする。人の部位（部位分けで背景以外）だけを残す。
+
+    背景に蛇・猫・狼・影などが描かれ、それを体の部品が出たと取り違えた。人を描いたら毎回これを通す。
+    人の部位の縁は 1 画素広げて残す（輪郭線が背景側に乗っているため）。
+    """
+    im = Image.open(src).convert("RGB")
+    lab = parts(src)
+    person = lab.point(lambda v: 255 if v else 0).filter(ImageFilter.MaxFilter(3))
+    res = Image.composite(im, Image.new("RGB", im.size, (255, 255, 255)), person)
+    res.save(out or src)
+    return res
+
+
+def inspect(src):
+    """生き物として破綻している絵を機械で見つける。当てはまった理由の一覧を返す（空なら通る）。
+
+    - 人の塊が2つ以上（別の人物や生き物が混ざった）
+    - 腕・脚の左右どちらかが無い（数が足りない）
+    - 体が画面の端で切れている
+    - 背景に大きな物がある（背景の画素の色が無地からずれている割合）
+    """
+    import numpy as np
+    im = np.asarray(Image.open(src).convert("RGB")).astype(int)
+    lab = np.asarray(parts(src))
+    reasons = []
+    person = lab > 0
+    if person.sum() == 0:
+        return ["人が写っていない"]
+    # 塊の数: 小さな点は数えない（全体の 3% 以上の塊だけ）
+    from collections import deque
+    seen = np.zeros_like(person)
+    H, W = person.shape
+    sizes = []
+    for y0 in range(0, H, 2):
+        for x0 in range(0, W, 2):
+            if person[y0, x0] and not seen[y0, x0]:
+                n, q = 0, deque([(y0, x0)])
+                seen[y0, x0] = True
+                while q:
+                    y, x = q.popleft()
+                    n += 1
+                    for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                        yy, xx = y + dy, x + dx
+                        if 0 <= yy < H and 0 <= xx < W and person[yy, xx] and not seen[yy, xx]:
+                            seen[yy, xx] = True
+                            q.append((yy, xx))
+                sizes.append(n)
+    big = [n for n in sizes if n > person.sum() * 0.03]
+    if len(big) >= 2:
+        reasons.append(f"人の塊が {len(big)} つ")
+    for name, ids in (("左腕", [14]), ("右腕", [15]), ("左脚", [12]), ("右脚", [13])):
+        if not np.isin(lab, ids).any():
+            reasons.append(f"{name}が無い")
+    ys, xs = np.nonzero(person)
+    if ys.min() <= 1 or ys.max() >= H - 2 or xs.min() <= 1 or xs.max() >= W - 2:
+        reasons.append("体が画面の端で切れている")
+    # 背景の物: 床や壁のなだらかな明暗は物ではない。人を除いた背景を大きくぼかしたものとの差が大きい画素
+    # （輪郭のある物）だけを数える。人の縁の 6 画素は数えない（輪郭線のにじみ）
+    fill = im.copy()
+    fill[person] = np.median(im[~person], axis=0) if (~person).any() else 255
+    blur = np.asarray(Image.fromarray(fill.astype("uint8")).filter(ImageFilter.GaussianBlur(12))).astype(int)
+    near = np.asarray(Image.fromarray((person * 255).astype("uint8")).filter(ImageFilter.MaxFilter(13))) > 0
+    bgmask = ~near
+    if bgmask.any():
+        off = (np.abs(im - blur).sum(axis=2) > 90)[bgmask].mean()
+        if off > 0.02:
+            reasons.append(f"背景に物がある（背景の {off:.1%} に輪郭のある物）")
+    return reasons
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -187,6 +266,11 @@ def main():
     r.add_argument("--region", default="skin")
     r.add_argument("--color", required=True)
     r.add_argument("--grow", type=int, default=0)
+    c = sub.add_parser("clean")
+    c.add_argument("src")
+    c.add_argument("--out", default=None)
+    k = sub.add_parser("inspect")
+    k.add_argument("src", nargs="+")
     i = sub.add_parser("inpaint")
     i.add_argument("src")
     i.add_argument("out")
@@ -201,6 +285,15 @@ def main():
     if a.cmd == "parts":
         lab = parts(a.src)
         print(f"{a.src}.parts.png: " + ", ".join(k for k, v in LABELS.items() if lab.histogram()[v]))
+    elif a.cmd == "clean":
+        clean_background(a.src, a.out)
+    elif a.cmd == "inspect":
+        bad = 0
+        for f in a.src:
+            r = inspect(f)
+            bad += bool(r)
+            print(f"{f}: {'通る' if not r else '落とす: ' + '、'.join(r)}")
+        sys.exit(1 if bad else 0)
     elif a.cmd == "recolor":
         sys.exit(1 if recolor(a.src, a.out, a.region, a.color, a.grow) else 0)
     else:

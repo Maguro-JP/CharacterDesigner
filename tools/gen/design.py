@@ -320,7 +320,7 @@ def cast_paths(cast, outdir, style=None):
         seed, n = c.get("seed", 7), c.get("n", cast.get("n", 2))
         styles = c.get("styles") or (CREATURE_STYLES if c.get("kind") in ("creature", "item")
                                      else ["xl"] if c.get("age") in OLD_AGES else [base])
-        rejected = c.get("rejected", {})
+        rejected = {**c.get("rejected", {}), **auto_rejected(outdir)}
         shots = []
         for st in styles:
             tag = "" if st == "anime" else f"{st}-"
@@ -348,7 +348,7 @@ def base_image(cast, c, outdir):
     return Image.open(p).convert("RGB") if p.exists() else None
 
 
-def batch(cast_path, outdir, style, steps, width, height, kind=None):
+def batch(cast_path, outdir, style, steps, width, height, kind=None, retry=3):
     import torch
     cast = load_cast(cast_path)
     Path(outdir).mkdir(parents=True, exist_ok=True)
@@ -406,9 +406,44 @@ def batch(cast_path, outdir, style, steps, width, height, kind=None):
             im.save(p)
             meta = {"name": c.get("name", c["id"]), "prompt": text, "negative": neg, "seed": seed, "style": st,
                     "model": STYLES[st], "steps": steps}
+            note = ""
+            if c.get("kind") not in ("creature", "item"):
+                reasons = check_person(p, outdir)
+                meta["inspect"] = reasons
+                note = "  落とした: " + "、".join(reasons) if reasons else "  通った（背景を白に消した）"
             Path(str(p) + ".json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
-            print(f"{p}: {time.time() - t:.1f} 秒", flush=True)
+            print(f"{p}: {time.time() - t:.1f} 秒{note}", flush=True)
         del pipe
+    # 機械の判定で落ちた分は、次の seed で描き足す（同じ人物で最大 3 回まで）
+    if retry and any(json.loads(Path(str(t[1]) + ".json").read_text(encoding="utf-8")).get("inspect")
+                     for t in todo if Path(str(t[1]) + ".json").exists()):
+        batch(cast_path, outdir, style, steps, width, height, kind, retry - 1)
+
+
+def auto_rejected(outdir):
+    """機械の判定で落とした絵の一覧（画像の名前 → 理由）。cast_paths が数に入れずに描き足す。"""
+    f = Path(outdir) / "auto_rejected.json"
+    return json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+
+
+def check_person(p, outdir):
+    """人の絵を機械で検品する。落としたら理由を auto_rejected.json に書き、通ったら背景を白に消す。
+
+    背景の物（蛇、猫、狼、影）と、欠けた手足・二重の人物・画面で切れた体を、人が見る前に落とす。
+    元の絵は <名前>.raw.png に残す。
+    """
+    sys.path.insert(0, str(Path(__file__).parent))
+    import shutil
+    import edit
+    reasons = edit.inspect(str(p))
+    if reasons:
+        rej = auto_rejected(outdir)
+        rej[Path(p).name] = "、".join(reasons)
+        (Path(outdir) / "auto_rejected.json").write_text(json.dumps(rej, ensure_ascii=False, indent=1), encoding="utf-8")
+    else:
+        shutil.copy(p, str(p).replace(".png", ".raw.png"))
+        edit.clean_background(str(p))
+    return reasons
 
 
 FONT = "/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf"

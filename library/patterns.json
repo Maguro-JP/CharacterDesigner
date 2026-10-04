@@ -1,5 +1,5 @@
 {
- "_doc": "名前付きの描き分けのパターン（皮膚、体型、亜人間など）。設定集の人物に \"patterns\": [\"名前\"] と書くと、traits と prompt が入る。verified は描いて確かめた結果（モデルと構図ごと）、sample は見本の絵。効かないパターンはここに置かない（docs/knowledge/traits.md に記録する）。method が edit.py のものは、描いた絵のあとで tools/gen/edit.py で入れる（command のとおり）。服やほかの部位は変わらない",
+ "_doc": "名前付きの描き分けのパターン（皮膚、体型、亜人間など）。設定集の人物に \"patterns\": [\"名前\"] と書くと、traits と prompt が入る。verified は描いて確かめた結果（モデルと構図ごと）、sample は見本の絵。効かないパターンはここに置かない（docs/knowledge/traits.md に記録する）。method が edit.py のものは、描いた絵のあとで tools/gen/edit.py で入れる（command のとおり）。服やほかの部位は変わらない。人の絵は機械の検品（tools/gen/edit.py inspect: 二重の人物、欠けた手足、画面で切れた体、背景の物）を通ったものだけを見本にし、背景は白に消してある",
  "patterns": {
   "skin-dark": {
    "ja": "濃い肌",
@@ -7,12 +7,11 @@
     "skin:dark"
    ],
    "verified": {
-    "male": "出た（余計な変化: 背景に灰色の影）",
+    "male": "落とした（機械の検品: 背景に物がある（背景の 11.7% に輪郭のある物））",
     "female": "出た（余計な変化: シャツが黒）"
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
    "samples": {
-    "male": "library/samples/skin-dark-male.png",
     "female": "library/samples/skin-dark-female.png"
    }
   },
@@ -22,12 +21,11 @@
     "muscle:high"
    ],
    "verified": {
-    "male": "出た（余計な変化: シャツが短い）",
+    "male": "落とした（機械の検品: 体が画面の端で切れている）",
     "female": "出た（余計な変化: 肩当て）"
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
    "samples": {
-    "male": "library/samples/body-muscular-male.png",
     "female": "library/samples/body-muscular-female.png"
    }
   },
@@ -38,12 +36,11 @@
    ],
    "verified": {
     "male": "出た（余計な変化: シャツが灰色の半袖）",
-    "female": "出た（余計な変化: シャツが灰色）"
+    "female": "落とした（機械の検品: 体が画面の端で切れている）"
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
    "samples": {
-    "male": "library/samples/body-plump-male.png",
-    "female": "library/samples/body-plump-female.png"
+    "male": "library/samples/body-plump-male.png"
    }
   },
   "body-lean": {
@@ -57,23 +54,7 @@
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
    "samples": {
-    "male": "library/samples/body-lean-male.png",
-    "female": "library/samples/body-lean-female.png"
-   }
-  },
-  "horns-ram": {
-   "ja": "巻いた角",
-   "traits": [
-    "horns:ram"
-   ],
-   "verified": {
-    "male": "出た（余計な変化: 髪が少し）",
-    "female": "出た（余計な変化: 長いツインテール）"
-   },
-   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
-   "samples": {
-    "male": "library/samples/horns-ram-male.png",
-    "female": "library/samples/horns-ram-female.png"
+    "male": "library/samples/body-lean-male.png"
    }
   },
   "ears-elf": {
@@ -87,7 +68,6 @@
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
    "samples": {
-    "male": "library/samples/ears-elf-male.png",
     "female": "library/samples/ears-elf-female.png"
    }
   },
@@ -98,12 +78,11 @@
    ],
    "verified": {
     "male": "腕に出た（余計な変化: シャツが短い）",
-    "female": "出なかった"
+    "female": "落とした（機械の検品: 背景に物がある（背景の 8.9% に輪郭のある物））"
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
    "samples": {
-    "male": "library/samples/tattoo-tribal-male.png",
-    "female": "library/samples/tattoo-tribal-female.png"
+    "male": "library/samples/tattoo-tribal-male.png"
    }
   },
   "race-orc": {
@@ -112,28 +91,12 @@
     "race:orc"
    ],
    "verified": {
-    "male": "出た（余計な変化: 上の肌着が無い）",
+    "male": "落とした（機械の検品: 体が画面の端で切れている）",
     "female": "出た（余計な変化: 服）"
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
    "samples": {
-    "male": "library/samples/race-orc-male.png",
     "female": "library/samples/race-orc-female.png"
-   }
-  },
-  "race-lizard": {
-   "ja": "トカゲ人",
-   "traits": [
-    "race:lizard"
-   ],
-   "verified": {
-    "male": "出た（余計な変化: 上の肌着が無い）",
-    "female": "出なかった（背後に竜）"
-   },
-   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
-   "samples": {
-    "male": "library/samples/race-lizard-male.png",
-    "female": "library/samples/race-lizard-female.png"
    }
   },
   "skin-blue": {
@@ -211,24 +174,7 @@
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
    "samples": {
-    "male": "library/samples/skin-tan-male.png",
-    "female": "library/samples/skin-tan-female.png"
-   }
-  },
-  "body-muscular-dark": {
-   "ja": "筋肉質＋濃い肌",
-   "traits": [
-    "muscle:high",
-    "skin:dark"
-   ],
-   "verified": {
-    "male": "出た（シャツが短い）",
-    "female": "出た（背後に黒い尾のような影）"
-   },
-   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
-   "samples": {
-    "male": "library/samples/body-muscular-dark-male.png",
-    "female": "library/samples/body-muscular-dark-female.png"
+    "male": "library/samples/skin-tan-male.png"
    }
   },
   "body-plump-tan": {
@@ -243,8 +189,7 @@
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
    "samples": {
-    "male": "library/samples/body-plump-tan-male.png",
-    "female": "library/samples/body-plump-tan-female.png"
+    "male": "library/samples/body-plump-tan-male.png"
    }
   },
   "race-elf": {
@@ -273,53 +218,7 @@
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
    "samples": {
-    "male": "library/samples/race-dwarf-male.png",
-    "female": "library/samples/race-dwarf-female.png"
-   }
-  },
-  "race-wolfkin": {
-   "ja": "狼の獣人",
-   "traits": [
-    "race:beast_wolf"
-   ],
-   "verified": {
-    "male": "出なかった（背後に狼）",
-    "female": "出た（耳と尾、髪が長い）"
-   },
-   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
-   "samples": {
-    "male": "library/samples/race-wolfkin-male.png",
-    "female": "library/samples/race-wolfkin-female.png"
-   }
-  },
-  "race-dragonkin": {
-   "ja": "竜人",
-   "traits": [
-    "race:dragonkin"
-   ],
-   "verified": {
-    "male": "出た（角と尾、服が黒）",
-    "female": "出た（角と尾、服が黒）"
-   },
-   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
-   "samples": {
-    "male": "library/samples/race-dragonkin-male.png",
-    "female": "library/samples/race-dragonkin-female.png"
-   }
-  },
-  "horns-antlers": {
-   "ja": "鹿の角",
-   "traits": [
-    "horns:antlers"
-   ],
-   "verified": {
-    "male": "出た",
-    "female": "出た"
-   },
-   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
-   "samples": {
-    "male": "library/samples/horns-antlers-male.png",
-    "female": "library/samples/horns-antlers-female.png"
+    "male": "library/samples/race-dwarf-male.png"
    }
   },
   "ears-cat": {
@@ -328,28 +227,12 @@
     "ears:cat"
    ],
    "verified": {
-    "male": "出た（背後に黒猫）",
+    "male": "落とした（機械の検品: 右腕が無い）",
     "female": "出た（服が黒）"
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
    "samples": {
-    "male": "library/samples/ears-cat-male.png",
     "female": "library/samples/ears-cat-female.png"
-   }
-  },
-  "wings-bat": {
-   "ja": "蝙蝠の翼",
-   "traits": [
-    "extra:wings_bat"
-   ],
-   "verified": {
-    "male": "出た（ズボンの形）",
-    "female": "出た"
-   },
-   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
-   "samples": {
-    "male": "library/samples/wings-bat-male.png",
-    "female": "library/samples/wings-bat-female.png"
    }
   }
  },
@@ -384,18 +267,6 @@
   }
  },
  "ages": {
-  "child": {
-   "ja": "子ども",
-   "age": "child",
-   "verified": {
-    "male": "出なかった（十代に見え、背後に物）",
-    "female": "出た（長袖の服に変わった）"
-   },
-   "samples": {
-    "male": "library/samples/age-child-male.png",
-    "female": "library/samples/age-child-female.png"
-   }
-  },
   "teen": {
    "ja": "十代",
    "age": "teen",
