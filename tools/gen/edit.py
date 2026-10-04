@@ -12,7 +12,7 @@
   PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py parts in.png
   PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py recolor in.png out.png --region skin --color "#4a7ad0"
   PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint in.png out.png --region skin_arms --prompt "black tribal tattoos"
-部位の名前: skin, face, arms, legs, skin_arms, hair, head_top, upper, lower, shoes, clothes（+ でつなぐと合わせる。例 upper+arms）
+部位の名前: skin, face, arms, legs, skin_arms, hair, head_top, upper, lower, shoes, clothes（+ でつなぐと合わせる。例 upper+arms。末尾の -feet で足先を外す。例 lower+legs-feet）
 """
 import argparse
 import colorsys
@@ -67,10 +67,19 @@ def region_mask(src, region, grow=0):
         return m
     # 「upper+arms」のように + でつなぐと範囲を合わせる。服の形は元の服の輪郭から出られないので、
     # 長袖なら腕、長い丈なら脚まで範囲に入れる（短パンのまま柄だけ変わったため）
+    # 末尾に「-feet」を付けると足先を範囲から外す。部位分けは素足を脚に含めるので、脚まで描き直すと
+    # 頼んでいない靴が出たり足先がかすれたりした。足先は人物の下端から身長の 6% と決める（素足の高さ）
+    no_feet = region.endswith("-feet")
+    region = region.removesuffix("-feet")
     ids = [i for r in region.split("+") for i in REGIONS[r]]
     m = lab.point(lambda v: 255 if v in ids else 0)
     if grow:
         m = m.filter(ImageFilter.MaxFilter(grow * 2 + 1))
+    if no_feet:
+        body = lab.point(lambda v: 255 if v else 0).getbbox()
+        if body:
+            cut = body[3] - int((body[3] - body[1]) * 0.06)
+            m.paste(0, (0, cut, m.width, m.height))
     return m
 
 
