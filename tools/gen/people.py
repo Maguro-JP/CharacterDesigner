@@ -57,13 +57,13 @@ def pipe():
     return _PIPE
 
 
-def prompt_of(gender, age, tags, hair, view):
+def prompt_of(gender, age, tags, hair, view, body=BODY):
     who = AGE_GENDER.get((age, gender), "")
-    parts = [GENDER[gender], "solo", who, AGE[age], tags, hair, BODY, VIEWS[view], QUALITY]
+    parts = [GENDER[gender], "solo", who, AGE[age], tags, hair, body, VIEWS[view], QUALITY]
     return ", ".join(p for p in parts if p)
 
 
-def draw(out, prompt, seed, steps=24):
+def draw(out, prompt, seed, steps=24, limbs=True, body=None):
     """1枚描いて検品する。落ちたら seed を変えて描き直す（最大 3 回）。通った絵は背景を白に消す。"""
     import torch
     import edit
@@ -72,7 +72,7 @@ def draw(out, prompt, seed, steps=24):
         im = pipe()(prompt, negative_prompt=NEGATIVE, num_inference_steps=steps, guidance_scale=6.0,
                     width=832, height=1216, generator=torch.Generator().manual_seed(seed + k * 100)).images[0]
         im.save(out)
-        reasons = edit.inspect(out)
+        reasons = edit.inspect(out, limbs)
         print(f"{out}: {time.time() - t:.0f} 秒 seed {seed + k * 100} " + ("通った" if not reasons else "落とした: " + "、".join(reasons)),
               flush=True)
         if not reasons:
@@ -103,15 +103,15 @@ def zoom_box(src, where):
     return (int(cx - r), int(cy - r), int(cx + r), int(cy + r))
 
 
-def card(outdir, name, gender, age, tags, hair, views, zoom, seed, label):
+def card(outdir, name, gender, age, tags, hair, views, zoom, seed, label, limbs=True, body=BODY):
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     shots, meta = [], {"name": name, "label": label, "gender": gender, "age": age, "tags": tags, "views": {}}
     for v in views:
         p = outdir / f"{name}-{v}.png"
-        text = prompt_of(gender, age, tags, hair, v)
+        text = prompt_of(gender, age, tags, hair, v, body)
         if not p.exists():
-            used, reasons = draw(p, text, seed)
+            used, reasons = draw(p, text, seed, limbs=limbs)
         else:
             used, reasons = seed, []
         meta["views"][v] = {"prompt": text, "seed": used, "inspect": reasons, "file": p.name}

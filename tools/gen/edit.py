@@ -207,7 +207,7 @@ def clean_background(src, out=None):
     return res
 
 
-def inspect(src):
+def inspect(src, limbs=True):
     """生き物として破綻している絵を機械で見つける。当てはまった理由の一覧を返す（空なら通る）。
 
     - 背景に人物と離れた物がある（端から背景を抜いたあと、大きな塊が2つ以上）
@@ -245,7 +245,8 @@ def inspect(src):
     if len(big) >= 2:
         reasons.append(f"人物と離れた物がある（塊が {len(big)} つ）")
     lab = np.asarray(parts(src))
-    for name, ids in (("左腕", [14]), ("右腕", [15]), ("左脚", [12]), ("右脚", [13])):
+    # 人と違う体（ラミア、人魚、ケンタウロス、ハーピー）は脚や腕の数が人と違うので数えない（limbs=False）
+    for name, ids in ((("左腕", [14]), ("右腕", [15]), ("左脚", [12]), ("右脚", [13])) if limbs else ()):
         if not np.isin(lab, ids).any():
             reasons.append(f"{name}が無い")
     fg = np.asarray(foreground(src)) > 0
