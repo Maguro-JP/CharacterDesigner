@@ -8,7 +8,7 @@
  },
  "poses": [
   {"id": "contrapposto", "group": "stand", "ja": "片足重心の立ち",
-   "tags": "standing, contrapposto, weight on one leg, hand on hip",
+   "tags": "standing, contrapposto, both feet on ground, hand on hip, hip tilt",
    "point": "重心を乗せた脚の側の腰が上がり、肩は逆に下がる。腰と肩の線が逆に傾くと、立っているだけで動きが出る"},
   {"id": "arms_crossed", "group": "stand", "ja": "腕組み",
    "tags": "standing, crossed arms, slight head tilt",
