@@ -86,6 +86,11 @@ python3 tools/learn.py score styles/diorama.learned.json characters/*/sprite.jso
 
 色数が上限を超えたら、使うドットの少ない段から素材どうしで色を共有する。
 
+## 3.5 3D（頼まれたとき）
+
+手順と詰まったところは `docs/knowledge/3d.md`。`tools/engine/model3d.py` で書き出し、`tools/engine/viewer/toon.html` で見る。
+写実の顔は見せない。アニメ調（頭を大きめ、陰2段、輪郭線、大きな瞳）にしてから、正面・顔を自分で撮って確かめてから見せる。
+
 ## 4. 残す
 
 - 比較画像と判定を `docs/progress/` に置く（良くなった所、弱い所を両方書く）

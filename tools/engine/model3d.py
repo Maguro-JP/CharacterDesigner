@@ -24,6 +24,29 @@ import human  # noqa: E402  setup と腕を下ろす処理を使い回す
 DATA = human.MPFB_DATA
 
 
+# アニメ寄りの顔: 目を大きく、鼻・口・あごを小さく。MakeHuman の顔の形の差分（target）の重ね合わせ。
+# 写実の顔は「気持ち悪い」と言われた。顔の形は道具の数字で寄せ、塗り（陰2段と輪郭線）は表示の側で行う
+FACES = {
+    "anime": {"eyes/r-eye-scale-incr": 1.0, "eyes/l-eye-scale-incr": 1.0,
+              "eyes/r-eye-height1-incr": 1.0, "eyes/l-eye-height1-incr": 1.0,
+              "eyes/r-eye-height2-incr": 1.0, "eyes/l-eye-height2-incr": 1.0,
+              "eyes/r-eye-height3-incr": 1.0, "eyes/l-eye-height3-incr": 1.0,
+              "nose/nose-volume-decr": 0.8, "nose/nose-scale-vert-decr": 0.5, "nose/nose-scale-depth-decr": 0.6,
+              "mouth/mouth-scale-horiz-decr": 0.5, "mouth/mouth-scale-vert-decr": 0.3,
+              "chin/chin-width-decr": 0.5, "chin/chin-height-decr": 0.4, "head/head-round": 0.4,
+              # 目の高さを上げると眉との間が詰まり、怒った顔に見えた。眉の内側を上げ（angle-up。angle-down は余計に怒った顔になった）、全体も上げる
+              "eyebrows/eyebrows-angle-up": 0.8, "eyebrows/eyebrows-trans-up": 0.6},
+}
+
+
+def shape_face(body, preset):
+    from bl_ext.user_default.mpfb.services.targetservice import TargetService
+    # 形の差分は、拡張の置き場所（.user の付かない側）に入っている
+    root = Path.home() / ".config/blender/4.2/extensions/user_default/mpfb/data/targets"
+    for name, w in FACES[preset].items():
+        TargetService.load_target(body, str(root / f"{name}.target.gz"), weight=w, name=name.split("/")[1])
+
+
 def asset(kind, name, ext):
     hits = glob.glob(str(DATA / kind / name / f"*.{ext}"))
     if not hits:
@@ -70,6 +93,32 @@ def cut_under_trousers(wear_names, shoe_names, margin=0.02):
         print("靴の裾より上を消した", o.name, len(gone), "点")
 
 
+def split_outfits(body, outfits):
+    """服の組ごとに、体と服を別の形として複製する（名前は「体__組」「服__組」）。
+
+    MakeHuman は服ごとに、服の下に隠れる体の点を消す設定（MASK）を体に付ける。全部の服を付けたまま書き出すと、
+    どの組を着せても、ほかの服の分まで体に穴が開いている。組ごとに、その組の服の MASK だけを残した体を作る。
+    同じ靴を2つの組で使うときも組ごとに複製する（ズボンの裾に合わせて靴を切るため）。"""
+    made = []
+    for key, items in outfits.items():
+        b = body.copy()
+        b.name = f"body__{key}"
+        bpy.context.scene.collection.objects.link(b)
+        for m in list(b.modifiers):
+            if m.type == "MASK" and m.name.startswith("Delete.") and m.name[len("Delete."):] not in items:
+                b.modifiers.remove(m)
+        made.append(b)
+        for item in items:
+            src = next(o for o in bpy.data.objects if o.type == "MESH" and o.name.endswith("." + item))
+            c = src.copy()
+            c.name = f"{item}__{key}"
+            bpy.context.scene.collection.objects.link(c)
+            made.append(c)
+    originals = [body] + [o for o in bpy.data.objects if o.type == "MESH" and any(o.name.endswith("." + i)
+                                                                                  for v in outfits.values() for i in v)]
+    return made, originals
+
+
 def main(argv):
     ap = argparse.ArgumentParser()
     ap.add_argument("out")
@@ -84,8 +133,14 @@ def main(argv):
     ap.add_argument("--eyelashes", default="eyelashes01")
     ap.add_argument("--clothes", default="female_casualsuit01,shoes02")
     ap.add_argument("--arms", type=float, default=60)
+    ap.add_argument("--face", default="", choices=["", *FACES], help="顔の形の組。anime はアニメ寄り")
+    ap.add_argument("--head", type=float, default=1.0, help="頭の大きさの倍率。アニメ調は 1.1〜1.2")
+    ap.add_argument("--outfits", default="", help="着せ替えの組。例: casual=female_casualsuit01,shoes02;sport=female_sportsuit01,shoes05")
     ap.add_argument("--tex", type=int, default=1024, help="画像の長い辺の上限（ドット）")
     a = ap.parse_args(argv)
+    outfits = {k: [i for i in v.split(",") if i] for k, v in (t.split("=") for t in a.outfits.split(";") if t)}
+    if outfits:
+        a.clothes = ",".join(dict.fromkeys(i for v in outfits.values() for i in v))
     human.setup()
     from bl_ext.user_default.mpfb.services.humanservice import HumanService
     from bl_ext.user_default.mpfb.services.targetservice import TargetService
@@ -94,6 +149,13 @@ def main(argv):
     macro = TargetService.get_default_macro_info_dict()
     macro.update(gender=a.gender, age=a.age, muscle=a.muscle, weight=a.weight)
     body = HumanService.create_human(macro_detail_dict=macro)
+    if a.face:
+        shape_face(body, a.face)
+    if a.head != 1.0:
+        human.deform(body.data, a.head, 1.0)  # 髪・目・服は後から体の点に合わせて付くので、先に縮める
+    # 骨は服より先に付ける。後から付けると服に骨の重みが入らず、長袖が腕を下ろしても A の字のまま残った
+    HumanService.add_builtin_rig(body, "default")
+    rig = next(o for o in bpy.data.objects if o.type == "ARMATURE")
     HumanService.set_character_skin(asset("skins", a.skin, "mhmat"), body, skin_type="GAMEENGINE")
     HumanService.add_mhclo_asset(asset("eyes", "high-poly", "mhclo"), body, asset_type="Eyes", subdiv_levels=0,
                                  material_type="GAMEENGINE")
@@ -105,8 +167,6 @@ def main(argv):
     for name in filter(None, a.clothes.split(",")):
         HumanService.add_mhclo_asset(asset("clothes", name, "mhclo"), body, asset_type="Clothes", subdiv_levels=0,
                                      material_type="GAMEENGINE")
-    HumanService.add_builtin_rig(body, "default")
-    rig = next(o for o in bpy.data.objects if o.type == "ARMATURE")
     human.lower_arms(rig, a.arms)
     # 肌や服の画像は 2048〜4096 四方あり、GLB が 19MB になった（公開できる上限 15MB）。
     # スマホで見るには 1024 四方で足りるので縮め、JPEG で書き出す
@@ -119,9 +179,16 @@ def main(argv):
     for o in bpy.data.objects:
         for m in getattr(o, "modifiers", []):
             m.show_viewport = True
+    originals = []
+    if outfits:
+        _, originals = split_outfits(body, outfits)
     bake_pose()
-    names = [n for n in a.clothes.split(",") if n]
-    cut_under_trousers([n for n in names if not n.startswith("shoes")], [n for n in names if n.startswith("shoes")])
+    for o in originals:
+        bpy.data.objects.remove(o)
+    for key, names in (outfits or {"": [n for n in a.clothes.split(",") if n]}).items():
+        tag = f"__{key}" if key else ""
+        cut_under_trousers([n + tag for n in names if not n.startswith("shoes")],
+                           [n + tag for n in names if n.startswith("shoes")])
     # 体・服・靴・目の素材が半透明として書き出され、体の裏が透けた（口の中の歯が唇の外に、背中の髪が胸の前に見えた）。
     # glTF の書き出しは素材の Alpha につながった線で半透明を決めるので、透けてはいけない素材は Alpha の線を外して 1 にする。
     # 髪・眉・まつ毛は透けを残す（毛先の形を透けで出しているため）

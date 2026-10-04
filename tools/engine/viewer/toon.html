@@ -1,0 +1,173 @@
+<title>女性素体 3D</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+/* 一画面の着せ替え台: 上に見出し、真ん中に回せる模型、下に服の組と向きの切り替え */
+:root {
+  --bg: #f6f5f3; --stage: #ffffff; --fg: #171615; --muted: #6d6863; --line: #dedad5;
+  --accent: #d6331f; --accent-2: #e8811c;
+  --f-body: "Zen Kaku Gothic New", "Hiragino Sans", "Noto Sans JP", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141312; --stage: #1d1c1a; --fg: #f1eeea; --muted: #a29c95; --line: #34312e;
+  --accent: #ff5a43; --accent-2: #ffa04a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #141312; --stage: #1d1c1a; --fg: #f1eeea; --muted: #a29c95; --line: #34312e;
+  --accent: #ff5a43; --accent-2: #ffa04a; color-scheme: dark }
+html, body { height: 100% }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); }
+.wrap { box-sizing: border-box; height: 100%; max-width: 960px; margin: 0 auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px }
+h1 { font-size: 1.25rem; margin: 0; text-wrap: balance; letter-spacing: .02em }
+h1 span { color: var(--accent) }
+.spec { font-family: var(--f-mono); font-size: .75rem; color: var(--muted); font-variant-numeric: tabular-nums; display: flex; flex-wrap: wrap; gap: 4px 14px }
+.stage { position: relative; flex: 1; min-height: 320px; background: var(--stage); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; touch-action: none }
+.stage canvas { display: block; width: 100%; height: 100% }
+.load { position: absolute; inset: auto 0 12px 0; text-align: center; font-size: .8rem; color: var(--muted); font-family: var(--f-mono) }
+.row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px }
+.label { font-size: .72rem; letter-spacing: .08em; color: var(--muted); margin: 0 0 -4px }
+.row button { font: inherit; font-size: .9rem; padding: 10px 0; border-radius: 4px; border: 1px solid var(--line); background: var(--stage); color: var(--fg); cursor: pointer }
+.row button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 700 }
+.row button:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px }
+.hint { margin: 0; font-size: .78rem; color: var(--muted); line-height: 1.6 }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>女性素体 <span>3D</span></h1>
+    <div class="spec"><span>服 4 組</span><span>頭 1.12 倍</span><span>陰 2 段＋輪郭線</span></div>
+  </header>
+  <div class="stage" id="stage"><div class="load" id="load">読み込み中</div></div>
+  <p class="label">服</p>
+  <div class="row" role="group" aria-label="服">
+    <button id="o-casual" data-k="casual" aria-pressed="true">普段着</button>
+    <button id="o-tunic" data-k="tunic" aria-pressed="false">チュニック</button>
+    <button id="o-sport" data-k="sport" aria-pressed="false">運動着</button>
+    <button id="o-dress" data-k="dress" aria-pressed="false">スーツ</button>
+  </div>
+  <p class="label">向き</p>
+  <div class="row" role="group" aria-label="向き">
+    <button id="v-front" data-a="0" aria-pressed="true">正面</button>
+    <button id="v-side" data-a="90" aria-pressed="false">横</button>
+    <button id="v-back" data-a="180" aria-pressed="false">背面</button>
+    <button id="v-face" data-a="0" data-face="1" aria-pressed="false">顔</button>
+  </div>
+  <p class="hint">1本指で回す、2本指で寄る・ずらす。体と服は MakeHuman の基本素材（CC0）。服の組ごとに、服の下に隠れる体を消してあるので、着せ替えても肌が突き抜けません。</p>
+</div>
+
+<script>
+const stage = document.getElementById('stage');
+const load = document.getElementById('load');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+stage.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(28, 1, 0.05, 20);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+scene.add(new THREE.AmbientLight(0xffffff, 0.55));
+const sun = new THREE.DirectionalLight(0xffffff, 0.75);
+sun.position.set(-1.2, 2.2, 2.5);
+scene.add(sun);
+
+// アニメ調の塗り: 光の当たり方を2段（陰・日向）に丸める
+const ramp = new THREE.DataTexture(new Uint8Array([150, 150, 150, 255, 255, 255, 255, 255]), 2, 1);
+ramp.minFilter = ramp.magFilter = THREE.NearestFilter;
+ramp.needsUpdate = true;
+const SKIN = 0xf6dccb;
+// 輪郭線: 形を法線の向きに少し膨らませ、裏面だけを暗い色で塗る（アニメ調 3D の定番の描き方）
+function outline(mesh, width) {
+  const mat = new THREE.ShaderMaterial({
+    uniforms: { w: { value: width }, c: { value: new THREE.Color(0x3a2a26) } },
+    vertexShader: 'uniform float w; void main(){ gl_Position = projectionMatrix * modelViewMatrix * vec4(position + normal * w, 1.0); }',
+    fragmentShader: 'uniform vec3 c; void main(){ gl_FragColor = vec4(c, 1.0); }',
+    side: THREE.BackSide });
+  const o = new THREE.Mesh(mesh.geometry, mat);
+  mesh.add(o);
+}
+// アニメ調の目: MakeHuman の目の画像（眼球2つ分。瞳の中心は (0.70, 0.28) と (0.29, 0.70)、半径 0.11）を、
+// 瞳を大きく暗く、ハイライト付きに描き直す。写実の小さな瞳と広い白目は「気持ち悪い」見た目になった
+function animeEye() {
+  const S = 512, c = document.createElement('canvas');
+  c.width = c.height = S;
+  const g = c.getContext('2d');
+  g.fillStyle = '#fbf8f6'; g.fillRect(0, 0, S, S);
+  for (const [x, y] of [[0.70, 0.28], [0.29, 0.70]]) {
+    const cx = x * S, cy = y * S, r = 0.19 * S;
+    const iris = g.createLinearGradient(cx, cy - r, cx, cy + r);
+    iris.addColorStop(0, '#2a1410'); iris.addColorStop(0.55, '#6b2f1e'); iris.addColorStop(1, '#c9773f');
+    g.fillStyle = iris; g.beginPath(); g.arc(cx, cy, r, 0, Math.PI * 2); g.fill();
+    g.lineWidth = r * 0.08; g.strokeStyle = '#1c0d0a'; g.stroke();
+    g.fillStyle = '#140807'; g.beginPath(); g.arc(cx, cy, r * 0.42, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#ffffff'; g.beginPath(); g.arc(cx - r * 0.38, cy - r * 0.38, r * 0.22, 0, Math.PI * 2); g.fill();
+    g.beginPath(); g.arc(cx + r * 0.35, cy + r * 0.35, r * 0.09, 0, Math.PI * 2); g.fill();
+  }
+  // 右下の丸 (0.935, 0.933) は目の表面の膜が使う場所。元の画像では透明なので、ここも透明に抜く
+  g.clearRect(0.86 * S, 0.86 * S, 0.14 * S, 0.14 * S);
+  const t = new THREE.CanvasTexture(c);
+  t.flipY = false; t.encoding = THREE.sRGBEncoding;
+  return t;
+}
+const outfits = {};
+let center = new THREE.Vector3(), height = 1.6;
+
+function resize() {
+  const r = stage.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false);
+  camera.aspect = r.width / r.height;
+  camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+
+function view(deg, face) {
+  const t = face ? new THREE.Vector3(0, height * 0.91, 0) : center.clone();
+  const d = face ? 1.0 : height * 2.3;
+  const a = deg * Math.PI / 180;
+  controls.target.copy(t);
+  camera.position.set(t.x + Math.sin(a) * d, t.y + (face ? 0 : height * 0.05), t.z + Math.cos(a) * d);
+  controls.update();
+}
+
+function wear(k) {
+  for (const [key, list] of Object.entries(outfits)) list.forEach(m => m.visible = key === k);
+}
+
+fetch('outfits-glb.txt').then(r => { if (!r.ok) throw new Error(r.status); return r.text(); }).then(t => {
+  const bin = atob(t.trim());
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  new THREE.GLTFLoader().parse(bytes.buffer, '', gltf => {
+    const meshes = [];
+    gltf.scene.traverse(o => { if (o.isMesh) meshes.push(o); });
+    meshes.forEach(o => {
+      const name = o.name.toLowerCase();
+      const old = o.material;
+      const isBody = name.startsWith('body__');
+      const soft = /eyebrow|eyelash|long01/.test(name);
+      const m = new THREE.MeshToonMaterial({ gradientMap: ramp, color: isBody ? new THREE.Color(SKIN).convertSRGBToLinear() : 0xffffff,
+        map: isBody ? null : /high-poly/.test(name) ? animeEye() : (old.map || null), side: soft ? THREE.DoubleSide : THREE.FrontSide,
+        alphaTest: soft ? 0.5 : (old.alphaTest || 0), transparent: false });
+      o.material = m;
+      if (!soft && !/high-poly/.test(name)) outline(o, isBody ? 0.0016 : 0.002);
+      const k = name.split('__')[1];
+      if (k) (outfits[k] = outfits[k] || []).push(o);
+    });
+    scene.add(gltf.scene);
+    const box = new THREE.Box3().setFromObject(gltf.scene);
+    box.getCenter(center); height = box.max.y - box.min.y;
+    wear('casual'); resize(); view(0, false);
+    load.hidden = true;
+    window.ready = true;
+  }, () => { load.textContent = '模型を読み込めませんでした。ページを開き直してください。'; });
+}).catch(() => { load.textContent = '模型を読み込めませんでした。ページを開き直してください。'; });
+
+function press(group, b) { group.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); }
+document.querySelectorAll('[data-k]').forEach(b => b.addEventListener('click', () => { press(b.parentNode, b); wear(b.dataset.k); }));
+document.querySelectorAll('[data-a]').forEach(b => b.addEventListener('click', () => { press(b.parentNode, b); view(+b.dataset.a, !!b.dataset.face); }));
+(function loop() { controls.update(); renderer.render(scene, camera); requestAnimationFrame(loop); })();
+</script>
