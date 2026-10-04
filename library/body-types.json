@@ -96,6 +96,23 @@
     "torso/measure-hips-circ-incr": 0.4,
     "legs/measure-thigh-circ-incr": 0.4
    }
+  },
+  "ideal": {
+   "ja": "理想のベース（アスリート寄り・胸を大きく）",
+   "note": "利用者のキャラクターデザインの基準の体。アスリートの型から筋肉を控えめにし、胸を大きくした",
+   "macro": {
+    "weight": 0.45,
+    "muscle": 0.6,
+    "cupsize": 0.82,
+    "firmness": 0.8
+   },
+   "targets": {
+    "stomach/stomach-tone-incr": 0.4,
+    "torso/measure-waist-circ-decr": 0.45,
+    "buttocks/buttocks-volume-incr": 0.45,
+    "torso/measure-hips-circ-incr": 0.2
+   },
+   "sample": "library/samples/body-ideal-female.png（左がアスリートの型、右が理想のベース。正面・横・背面）"
   }
  },
  "sample": "library/samples/body-types-female.png（左から定義順。上が正面、下が横）",
