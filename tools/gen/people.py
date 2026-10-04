@@ -40,7 +40,7 @@ VIEWS = {"front": "facing viewer, looking at viewer, straight-on, front view",
          "side": "from side, profile",
          # 斜めの2方向。多角的な設定資料に使う（正面・斜め前・横・斜め後ろ・背面）
          "front34": "three-quarter view, body turned slightly to the side, looking at viewer",
-         "back34": "from behind, three-quarter view, looking back over shoulder"}
+         "back34": "from behind, back view, body turned slightly to the side, back facing viewer, facing away"}
 VIEW_JA = {"front": "正面", "front34": "斜め前", "side": "横", "back34": "斜め後ろ", "back": "背面"}
 GENDER = {"male": "1boy, male focus", "female": "1girl"}
 AGE = {"child": "child, young", "teen": "teenage", "adult": "adult", "middle": "mature, middle-aged",
