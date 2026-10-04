@@ -39,7 +39,12 @@ def draw(out, base_name, only):
         p = out / f"{pose['id']}.png"
         if p.with_suffix(".raw.png").exists() or p.with_suffix(".failed.json").exists():
             continue
-        used, reasons = people.draw(p, prompt(base, pose), base["seed"], negative=base["negative"])
+        # ポーズごとに打ち消しと seed を足せる。ベースの seed では、歩き・走りで両腕を広げる姿が2回続いた
+        negative = ", ".join(x for x in (base["negative"], pose.get("negative", "")) if x)
+        for seed in pose.get("seeds", [base["seed"]]):
+            used, reasons = people.draw(p, prompt(base, pose), seed, negative=negative)
+            if not reasons:
+                break
         if reasons:
             p.with_suffix(".failed.json").write_text(json.dumps([used, reasons], ensure_ascii=False), encoding="utf-8")
 

@@ -33,14 +33,24 @@
    "group": "move",
    "ja": "歩き",
    "tags": "walking, walking forward, mid-stride, one foot in front, arms swinging naturally, upright posture",
-   "point": "前に出した脚と逆の腕が前に出る。体の軸は少し前に倒れ、後ろ足のかかとが上がる"
+   "point": "前に出した脚と逆の腕が前に出る。体の軸は少し前に倒れ、後ろ足のかかとが上がる",
+   "negative": "outstretched arms, spread arms, arms out, dancing, ballet, t-pose",
+   "seeds": [
+    57,
+    89
+   ]
   },
   {
    "id": "run",
    "group": "move",
    "ja": "走り",
    "tags": "running, from side, one foot off ground, knees bent, elbows bent, arms swinging, upright torso",
-   "point": "体の軸を大きく前に倒す。片足が地面から離れた瞬間を選ぶと速さが出る。腕は肘を曲げて大きく振る"
+   "point": "体の軸を大きく前に倒す。片足が地面から離れた瞬間を選ぶと速さが出る。腕は肘を曲げて大きく振る",
+   "negative": "outstretched arms, spread arms, arms out, dancing, ballet, t-pose",
+   "seeds": [
+    57,
+    89
+   ]
   },
   {
    "id": "jump",
