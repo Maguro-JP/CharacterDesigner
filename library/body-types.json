@@ -1,0 +1,103 @@
+{
+ "about": "女性の体型の型。どれも大人（age 0.5）。macro は MakeHuman の全身の数字（0〜1、0.5 が平均）、targets は部位ごとの形の差分（0〜1）。tools/engine/mannequin.py と model3d.py で使う",
+ "female": {
+  "standard": {
+   "ja": "標準",
+   "macro": {
+    "weight": 0.5,
+    "muscle": 0.5,
+    "cupsize": 0.5,
+    "firmness": 0.5
+   },
+   "targets": {}
+  },
+  "hourglass": {
+   "ja": "砂時計（くびれ）",
+   "macro": {
+    "weight": 0.55,
+    "muscle": 0.45,
+    "cupsize": 0.72,
+    "firmness": 0.65
+   },
+   "targets": {
+    "torso/measure-waist-circ-decr": 0.7,
+    "torso/measure-hips-circ-incr": 0.4,
+    "buttocks/buttocks-volume-incr": 0.4
+   }
+  },
+  "model": {
+   "ja": "モデル体型（長身・細身）",
+   "macro": {
+    "height": 0.8,
+    "weight": 0.35,
+    "muscle": 0.5,
+    "cupsize": 0.5,
+    "firmness": 0.6
+   },
+   "targets": {
+    "legs/upperlegs-height-incr": 0.4,
+    "legs/lowerlegs-height-incr": 0.3,
+    "torso/measure-waist-circ-decr": 0.4
+   }
+  },
+  "glamour": {
+   "ja": "グラマー",
+   "macro": {
+    "weight": 0.6,
+    "muscle": 0.45,
+    "cupsize": 0.88,
+    "firmness": 0.7
+   },
+   "targets": {
+    "torso/measure-waist-circ-decr": 0.5,
+    "torso/measure-hips-circ-incr": 0.5,
+    "buttocks/buttocks-volume-incr": 0.5,
+    "legs/measure-thigh-circ-incr": 0.3
+   }
+  },
+  "pear": {
+   "ja": "洋梨（下半身がしっかり）",
+   "macro": {
+    "weight": 0.55,
+    "muscle": 0.45,
+    "cupsize": 0.45,
+    "firmness": 0.55
+   },
+   "targets": {
+    "torso/measure-hips-circ-incr": 0.8,
+    "legs/measure-thigh-circ-incr": 0.5,
+    "buttocks/buttocks-volume-incr": 0.5,
+    "torso/measure-waist-circ-decr": 0.4
+   }
+  },
+  "athletic": {
+   "ja": "アスリート（引き締まった）",
+   "macro": {
+    "weight": 0.4,
+    "muscle": 0.8,
+    "cupsize": 0.45,
+    "firmness": 0.8
+   },
+   "targets": {
+    "stomach/stomach-tone-incr": 0.6,
+    "torso/measure-waist-circ-decr": 0.3,
+    "buttocks/buttocks-volume-incr": 0.4
+   }
+  },
+  "soft": {
+   "ja": "ふくよか（柔らかい）",
+   "macro": {
+    "weight": 0.82,
+    "muscle": 0.35,
+    "cupsize": 0.75,
+    "firmness": 0.45
+   },
+   "targets": {
+    "torso/measure-hips-circ-incr": 0.4,
+    "legs/measure-thigh-circ-incr": 0.4
+   }
+  }
+ },
+ "sample": "library/samples/body-types-female.png（左から定義順。上が正面、下が横）",
+ "make": "PYTHONPATH=.cache/engine/bpy python3 tools/engine/mannequin.py <出力フォルダ> [--only hourglass,glamour]"
+}

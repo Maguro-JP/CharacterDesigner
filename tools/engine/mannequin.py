@@ -1,7 +1,7 @@
 """MakeHuman の体を白い無機質なマネキンにして、体型の描き分けを正面・横・背面から描く。
 
 肌の画像・目の色・眉・髪を付けず、全身を白のつや消し一色で塗る（デッサン人形やお店のマネキンと同じ考え方）。
-体型は MakeHuman の数字（体重・筋肉・胸の大きさ・張り）で振る。立ち姿は腕を下ろした直立だけにする。
+体型は MakeHuman の数字（体重・筋肉・胸の大きさ・張り）と部位ごとの形の差分（ウエスト・腰・お尻・太もも）で振る。立ち姿は腕を下ろした直立だけにする。
 
 前準備: sh tools/engine/setup.sh
 使い方: PYTHONPATH=.cache/engine/bpy python3 tools/engine/mannequin.py <出力フォルダ> [--gender 0.0] [--size 640]
@@ -9,6 +9,7 @@
 """
 import argparse
 import glob
+import json
 import math
 import os
 import sys
@@ -19,14 +20,10 @@ import bpy
 sys.path.insert(0, str(Path(__file__).parent))
 import human  # noqa: E402  setup と腕を下ろす処理を使い回す
 
-# 体型の組。値は MakeHuman の数字（0〜1、0.5 が平均）
-BODIES = {
-    "slim": {"ja": "細身", "weight": 0.2, "muscle": 0.4, "cupsize": 0.4, "firmness": 0.5},
-    "standard": {"ja": "標準", "weight": 0.5, "muscle": 0.5, "cupsize": 0.5, "firmness": 0.5},
-    "curvy": {"ja": "曲線的", "weight": 0.62, "muscle": 0.45, "cupsize": 0.75, "firmness": 0.6},
-    "plump": {"ja": "肉付きが良い", "weight": 0.88, "muscle": 0.4, "cupsize": 0.6, "firmness": 0.4},
-    "athletic": {"ja": "筋肉質", "weight": 0.45, "muscle": 0.9, "cupsize": 0.4, "firmness": 0.7},
-}
+# 体型の型は library/body-types.json に持つ（macro は全身の数字、targets は部位ごとの形の差分）
+TYPES = Path(__file__).resolve().parents[2] / "library" / "body-types.json"
+BODIES = json.loads(TYPES.read_text(encoding="utf-8"))["female"]
+TARGETS = Path.home() / ".config/blender/4.2/extensions/user_default/mpfb/data/targets"
 VIEWS = {"front": 0, "side": 90, "back": 180}
 
 
@@ -45,8 +42,10 @@ def build(spec, gender, arms):
     for o in list(bpy.data.objects):
         bpy.data.objects.remove(o)
     macro = TargetService.get_default_macro_info_dict()
-    macro.update(gender=gender, age=0.5, **{k: v for k, v in spec.items() if k != "ja"})
+    macro.update(gender=gender, age=0.5, **spec["macro"])
     body = HumanService.create_human(macro_detail_dict=macro)
+    for name, w in spec["targets"].items():
+        TargetService.load_target(body, str(TARGETS / f"{name}.target.gz"), weight=w, name=name.split("/")[1])
     HumanService.add_builtin_rig(body, "default")
     # 目が無いと眼窩が空洞に見えるので、眼球だけ付けて体と同じ白で塗る（彫像の目と同じ）
     HumanService.add_mhclo_asset(glob.glob(str(human.MPFB_DATA / "eyes" / "high-poly" / "*.mhclo"))[0], body,
