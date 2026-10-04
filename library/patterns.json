@@ -220,14 +220,14 @@
   },
   "outfit-plaid-skirt": {
    "ja": "赤いチェックのスカート",
-   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint <絵> <出力> --region lower+legs --grow 14 --prompt \"red plaid pleated skirt, knee length, bare legs\"",
-   "verified": "女でできた（頼んでいない赤い靴が出た）",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint <絵> <出力> --region lower+legs-feet --grow 14 --prompt \"red plaid pleated skirt, knee length, bare legs\"",
+   "verified": "女でできた（足先は元のまま、靴は出ない）",
    "sample": "library/samples/outfit-plaid-skirt.png"
   },
   "outfit-black-jeans": {
    "ja": "黒いジーンズ（長い丈）",
-   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint <絵> <出力> --region lower+legs --grow 10 --prompt \"black jeans, long trousers down to the ankles, bare feet\"",
-   "verified": "男でできた（片足の先がかすれた）",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint <絵> <出力> --region lower+legs-feet --grow 10 --prompt \"black jeans, long trousers down to the ankles\"",
+   "verified": "男でできた（足先は元のまま）",
    "sample": "library/samples/outfit-black-jeans.png"
   }
  }
