@@ -2,7 +2,7 @@
 
 これまでのアニメ風（SD1.5 系）は、耳・角・翼・尾・肌を言葉どおりに描けず、背景や服に移した。
 老人だけ別のモデルで描いて画風もそろわなかった（docs/knowledge/traits.md）。
-Animagine XL 3.1（CreativeML OpenRAIL++-M）はアニメ絵のタグ（pointy ears、dragon tail、old woman）を学んでおり、
+Animagine XL 3.1（CreativeML OpenRAIL++-M、2026-10-04 に公開元で確認）はアニメ絵のタグ（pointy ears、dragon tail、old woman）を学んでおり、
 1つのモデルで年齢も種族もそろった画風で描けた。少ない段数で描く仕組みは無く、CPU で1枚 約3分。
 
 描いた絵は毎回 edit.inspect で検品し、落ちたら seed を変えて描き直す（最大 3 回）。通った絵は背景を白に消す。

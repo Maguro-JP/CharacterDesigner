@@ -25,6 +25,21 @@ README と PR の説明には作品名を出さない。
 | 横スクロールの真横 | メイプルストーリー、ラテール など |
 | 広く（日本の作品を優先） | 未定 |
 
+## 今使っている道具と許諾（2026-10-04 に公開元で確認）
+
+| 用途 | 道具 | 許諾 | 守ること |
+|---|---|---|---|
+| 人と亜人のアニメ絵 | cagliostrolab/animagine-xl-3.1 | CreativeML OpenRAIL++-M（以前の FAIPL の表示は公開元が置き換え済み） | 違法・有害な用途に使わない。重みを配るときは許諾を添える（配っていない） |
+| モンスター | Lykon/dreamshaper-xl-lightning | CreativeML OpenRAIL++-M | 同上 |
+| 部位の描き直し | diffusers/stable-diffusion-xl-1.0-inpainting-0.1 | CreativeML OpenRAIL++-M | 同上 |
+| 手本からの派生 | h94/IP-Adapter | Apache-2.0 | 重みを配るなら許諾文を添える（配っていない） |
+| 人体の部位分け | sayeed99/segformer_b3_clothes | MIT（学習データは ATR。データ自体の許諾は公開元に書かれていない） | 部位の範囲を取るだけに使い、データや重みを配らない |
+| 3D の人体 | MakeHuman の基本素材（MPFB 経由） | 素材は CC0。MPFB のコードは GPL | コードはリポジトリに入れず `tools/engine/setup.sh` で取る |
+| 3D の表示 | three.js 0.147.0（CDN から読む） | MIT | 同梱しない |
+
+生成した絵は、どの許諾でも商用を含めて使える。どのモデルも、指示文に既存の作品名・キャラクター名・作家名を入れない。
+下の 2026-10-03 の表のモデル（MeinaMix、dreamshaper-8）は削除済み。それで描いた絵が残っている場合も、許諾（OpenRAIL-M）は生成物の利用を認めている。
+
 ## 画像生成のモデル（2026-10-03 から使用）
 
 | 用途 | モデル | 許諾 |
