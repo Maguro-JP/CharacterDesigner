@@ -32,6 +32,12 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
 - 数字が通っただけで良しとしない。必ず画像を目で見て判定する
 - 分かったことを会話だけに置かない。`docs/knowledge/` と決定の記録に書く
 
+## 女性キャラクターの基準の体
+
+女性を描くときは、利用者が決めた体のベース `ideal` を使う（`library/body-types.json` の anime.ideal、見本 `library/samples/anime-ideal-female.png`）。
+`PYTHONPATH=.cache/gen/lib python3 tools/gen/people.py card <出力> <名前> --gender female --base ideal --tags "<種族や特徴>"`
+体型を変えるよう頼まれたときだけ、ベースの言葉を変える。
+
 ## 0. 頼まれたときの流れ
 
 1. まずアニメ風のデザインを描いて見せる。種を変えて数枚出し、選んでもらう

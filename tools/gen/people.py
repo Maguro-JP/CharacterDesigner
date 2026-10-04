@@ -9,7 +9,8 @@ Animagine XL 3.1（CreativeML OpenRAIL++-M、2026-10-04 に公開元で確認）
 
 使い方:
   PYTHONPATH=.cache/gen/lib python3 tools/gen/people.py card <出力フォルダ> <名前> --gender male --age adult \
-      [--tags "elf, pointy ears"] [--zoom head] [--views front,back]
+      [--tags "elf, pointy ears"] [--zoom head] [--views front,back] [--base ideal]
+--base は library/body-types.json の anime にある体のベース。女性は ideal（利用者が決めた基準の体）を使う
   PYTHONPATH=.cache/gen/lib python3 tools/gen/people.py sheet <出力フォルダ> <一覧図.png>
 --zoom は拡大する部位: head（耳・角・顔）、arms（腕の肌・刺青）、back（背中・翼）、tail（腰から下の後ろ）、none
 """
@@ -63,7 +64,7 @@ def prompt_of(gender, age, tags, hair, view, body=BODY):
     return ", ".join(p for p in parts if p)
 
 
-def draw(out, prompt, seed, steps=24, limbs=True, body=None):
+def draw(out, prompt, seed, steps=24, limbs=True, body=None, negative=""):
     """1枚描いて検品する。落ちたら seed を変えて描き直す（最大 3 回）。通った絵は背景を白に消す。"""
     import torch
     import edit
@@ -71,7 +72,7 @@ def draw(out, prompt, seed, steps=24, limbs=True, body=None):
         t = time.time()
         # 指示文は 77 トークンで切れる（ラミアなどは向きの指定まで切れた）。分けて読ませる
         import design
-        pe, ne, pp, np_ = design.encode_xl(pipe(), prompt, NEGATIVE)
+        pe, ne, pp, np_ = design.encode_xl(pipe(), prompt, NEGATIVE + (", " + negative if negative else ""))
         im = pipe()(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
                     negative_pooled_prompt_embeds=np_, num_inference_steps=steps, guidance_scale=6.0,
                     width=832, height=1216, generator=torch.Generator().manual_seed(seed + k * 100)).images[0]
@@ -113,7 +114,12 @@ def zoom_box(src, where):
     return (int(cx - r), int(cy - r), int(cx + r), int(cy + r))
 
 
-def card(outdir, name, gender, age, tags, hair, views, zoom, seed, label, limbs=True, body=BODY):
+def base(name):
+    """library/body-types.json の anime にある体のベース（tags、body、negative、seed）を返す。"""
+    return json.loads((ROOT / "library" / "body-types.json").read_text(encoding="utf-8"))["anime"][name]
+
+
+def card(outdir, name, gender, age, tags, hair, views, zoom, seed, label, limbs=True, body=BODY, negative=""):
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     shots, meta = [], {"name": name, "label": label, "gender": gender, "age": age, "tags": tags, "views": {}}
@@ -126,7 +132,7 @@ def card(outdir, name, gender, age, tags, hair, views, zoom, seed, label, limbs=
         if failed.exists():
             used, reasons = json.loads(failed.read_text(encoding="utf-8"))
         elif not p.with_suffix(".raw.png").exists():
-            used, reasons = draw(p, text, seed, limbs=limbs)
+            used, reasons = draw(p, text, seed, limbs=limbs, negative=negative)
             if reasons:
                 failed.write_text(json.dumps([used, reasons], ensure_ascii=False), encoding="utf-8")
         else:
@@ -180,8 +186,15 @@ def main():
     c.add_argument("--zoom", default="head", choices=["head", "arms", "back", "tail", "none"])
     c.add_argument("--seed", type=int, default=7)
     c.add_argument("--label", default="")
+    c.add_argument("--base", default="", help="library/body-types.json の anime にある体のベース（例: ideal）")
     a = ap.parse_args()
     hair = a.hair or ("short black hair" if a.gender == "male" else "black hair, bob cut")
+    if a.base:
+        b = base(a.base)
+        tags = ", ".join(t for t in (b["tags"], a.tags) if t)
+        card(a.outdir, a.name, a.gender, a.age, tags, hair, a.views.split(","), a.zoom, a.seed if a.seed != 7 else b["seed"],
+             a.label or a.name, body=b["body"], negative=b["negative"])
+        return
     card(a.outdir, a.name, a.gender, a.age, a.tags, hair, a.views.split(","), a.zoom, a.seed, a.label or a.name)
 
 
