@@ -36,7 +36,8 @@ NEGATIVE = ("nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers,
 BODY = "full body, standing, arms at sides, white background, simple background, barefoot, grey tank top, grey shorts"
 # 向き。「from front」は効かず真横を向いたので、正面は見る人の方を向く言葉で書く
 VIEWS = {"front": "facing viewer, looking at viewer, straight-on, front view",
-         "back": "from behind, back view, facing away",
+         # 「from behind」だけでは横向きや正面向きになることが多かった（羊・鼠・牛）。背中がこちらを向くことを重ねて書く
+         "back": "from behind, back view, facing away, back facing viewer, view from directly behind",
          "side": "from side, profile",
          # 斜めの2方向。多角的な設定資料に使う（正面・斜め前・横・斜め後ろ・背面）
          "front34": "three-quarter view, body turned slightly to the side, looking at viewer",
