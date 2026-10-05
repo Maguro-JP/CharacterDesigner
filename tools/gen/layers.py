@@ -174,15 +174,36 @@ def rim_light(char_layer, light, side="back", width=6):
 _DEPTH = None
 
 
+_DEPTH_CACHE = {}
+
+
 def depth_map(bg):
     """背景の奥行き（大きいほど手前）。Depth Anything V2 Small（Apache-2.0、約 100MB、1枚 約6秒）。"""
     global _DEPTH
+    key = hash(bg.tobytes())
+    if key in _DEPTH_CACHE:
+        return _DEPTH_CACHE[key]
     if _DEPTH is None:
         from transformers import pipeline
         _DEPTH = pipeline("depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf", device="cpu")
     d = _DEPTH(bg)["predicted_depth"]
     d = d.squeeze().numpy() if hasattr(d, "numpy") else np.asarray(d)
-    return np.asarray(Image.fromarray(d.astype("float32")).resize(SIZE, Image.BILINEAR))
+    _DEPTH_CACHE[key] = np.asarray(Image.fromarray(d.astype("float32")).resize(SIZE, Image.BILINEAR))
+    return _DEPTH_CACHE[key]
+
+
+def horizon(bg):
+    """地平線の高さ（画面の上からの割合）。空は奥行きがほぼ 0 なので、最も遠い所（最大の 0.3% 未満）が行の半分を超える一番下の行。
+    見えている水平線と、3枚の背景で画面の 3% 以内で合った。空が見えない背景は None（大きさは --height で決める）"""
+    d = depth_map(bg)
+    rows = np.where((d < d.max() * 0.003).mean(axis=1) > 0.5)[0]
+    return float(rows.max()) / SIZE[1] if len(rows) else None
+
+
+def perspective_height(horizon_y, foot, eye=0.93):
+    """遠近に合う人物の高さ（画面の割合）。目の高さのカメラでは、立っている人の目はどの距離でも地平線に来る。
+    目は足元から身長の eye の高さにあるので、身長 =（足元 − 地平線）/ eye"""
+    return (foot - horizon_y) / eye
 
 
 def foreground(bg, char_layer, margin=1.12):
@@ -203,6 +224,113 @@ def foreground(bg, char_layer, margin=1.12):
     layer = bg.convert("RGBA")
     layer.putalpha(m)
     return layer, float(np.asarray(m).mean() / 255)
+
+
+def submerge(char_layer, depth_frac=0.035):
+    """浅い水の中に立つ人物の足を、水面から下だけ消す（足首まで沈める）。水面の線は少し揺らす。戻り値は人物と水面の高さ。"""
+    a = np.asarray(char_layer.getchannel("A")).astype(float)
+    ys, xs = np.nonzero(a > 128)
+    top, foot = ys.min(), ys.max()
+    wl = foot - (foot - top) * depth_frac
+    H, W = a.shape
+    yy = np.arange(H)[:, None] + 3 * np.sin(np.arange(W)[None, :] / 9.0)
+    fade = np.clip((wl + 6 - yy) / 12, 0, 1)        # 水面の上はそのまま、下は 12px で消える
+    out = char_layer.copy()
+    out.putalpha(Image.fromarray((a * fade).astype("uint8")))
+    return out, int(wl)
+
+
+def ripples(char_layer, waterline):
+    """水面で足のまわりに広がる波紋。脚が水面を横切る所を中心に、白い楕円の輪を重ねる（スクリーン）。"""
+    from PIL import ImageDraw
+    a = np.asarray(char_layer.getchannel("A")) > 128
+    row = a[max(0, waterline - 4):waterline + 1].any(axis=0)
+    xs = np.nonzero(row)[0]
+    m = Image.new("L", SIZE, 0)
+    d = ImageDraw.Draw(m)
+    if len(xs):
+        # 脚ごとの塊に分ける（間が 6px 以上空いたら別の脚）
+        legs, start = [], xs[0]
+        for p, q in zip(xs, xs[1:]):
+            if q - p > 6:
+                legs.append((start, p)); start = q
+        legs.append((start, xs[-1]))
+        for x0, x1 in legs:
+            cx, r = (x0 + x1) / 2, (x1 - x0) / 2 + 6
+            for k, (w, al) in enumerate(((1.0, 170), (1.8, 110), (2.7, 60))):
+                d.ellipse((cx - r * w, waterline - r * w * 0.22, cx + r * w, waterline + r * w * 0.22), outline=al, width=2)
+    m = m.filter(ImageFilter.GaussianBlur(1.2))
+    layer = Image.new("RGBA", SIZE, (255, 255, 255, 0))
+    layer.putalpha(m)
+    return layer
+
+
+def reflection(char_layer, line, ambient, strength=0.35, length=0.45):
+    """水面や濡れた砂への映り込み。人物を line（足元か水面）で上下に返し、下へ行くほど薄く、横に少し揺らす（通常の重ね）。"""
+    a = np.asarray(char_layer.getchannel("A")).astype(float)
+    ys = np.nonzero(a.max(axis=1) > 128)[0]
+    h = ys.max() - ys.min()
+    flipped = char_layer.transpose(Image.FLIP_TOP_BOTTOM)
+    shift = 2 * line - SIZE[1]                        # 返した絵を line で接するように動かす
+    canvas = Image.new("RGBA", SIZE, (0, 0, 0, 0))
+    canvas.paste(flipped, (0, shift), flipped)
+    rgb = np.asarray(canvas.convert("RGB")).astype(float)
+    al = np.asarray(canvas.getchannel("A")).astype(float)
+    tint = np.array(ambient, float)
+    rgb = rgb * 0.6 + tint * 0.4                      # 水の色に寄せる
+    yy = np.arange(SIZE[1])[:, None]
+    fall = np.clip(1 - (yy - line) / (h * length), 0, 1) * (yy > line)
+    out = Image.fromarray(np.clip(rgb, 0, 255).astype("uint8")).convert("RGBA")
+    out.putalpha(Image.fromarray((al * fall * strength).astype("uint8")))
+    # 横に揺らす（水面の細かい波）
+    arr = np.asarray(out).copy()
+    for y in range(line, SIZE[1]):
+        arr[y] = np.roll(arr[y], int(2 * np.sin(y / 3.0)), axis=0)
+    return Image.fromarray(arr).filter(ImageFilter.GaussianBlur(1.5))
+
+
+def cast_shadow(char_layer, ambient, side, opacity=0.42):
+    """光と反対の向きに地面へ落ちる影（乗算）。人物の形を足元で返して縦に潰し、光の向きに合わせて斜めにずらす。
+    left の光 → 右へ、right → 左へ、back（逆光）→ 手前へ長く、front → 後ろへ短く（ほとんど人物に隠れる）"""
+    a = char_layer.getchannel("A")
+    arr = np.asarray(a) > 128
+    ys, xs = np.nonzero(arr)
+    foot = ys.max()
+    squash, shear = {"left": (0.28, 0.9), "right": (0.28, -0.9), "back": (0.45, 0.15), "front": (0.18, 0.3)}[side]
+    flip = a.transpose(Image.FLIP_TOP_BOTTOM)
+    h = SIZE[1]
+    # 足元を軸に、下へ返して縦に潰し、横にずらす（アフィン変換）。front は後ろ（上）へ伸ばす
+    up = side == "front"
+    sy = squash
+    c = 1 / sy
+    if up:
+        m = a.transform(SIZE, Image.AFFINE, (1, shear, -shear * foot, 0, c, foot - c * foot), Image.BILINEAR)
+    else:
+        m = flip.transform(SIZE, Image.AFFINE, (1, -shear, shear * foot, 0, c, (h - foot) - c * foot), Image.BILINEAR)
+    m = m.point(lambda v: int(v * opacity)).filter(ImageFilter.GaussianBlur(5))
+    col = tuple(int(v * 0.3) for v in ambient)
+    layer = Image.new("RGBA", SIZE, col + (0,))
+    layer.putalpha(m)
+    return layer
+
+
+def local_blend(flat, char_layer, effects, prompt, strength, seed):
+    """人物の輪郭の周り・足元・影・映り込みだけを描き直してなじませる。人物の中身と背景の残りは元のまま。
+    全体を描き直すと人物の顔や水着まで変わる（一律 0.3 で試した）"""
+    a = char_layer.getchannel("A").point(lambda v: 255 if v > 128 else 0)
+    band = ImageChops.subtract(a.filter(ImageFilter.MaxFilter(29)), a.filter(ImageFilter.MinFilter(9)))
+    m = band
+    for e in effects:
+        m = ImageChops.lighter(m, e.getchannel("A").point(lambda v: 255 if v > 10 else 0).filter(ImageFilter.MaxFilter(15)))
+    ys = np.nonzero(np.asarray(a).max(axis=1))[0]
+    feet = Image.new("L", SIZE, 0)
+    feet.paste(255, (0, int(ys.max() - (ys.max() - ys.min()) * 0.08), SIZE[0], min(SIZE[1], int(ys.max() + 40))))
+    m = ImageChops.lighter(m, ImageChops.multiply(feet, a.filter(ImageFilter.MaxFilter(61))))
+    m = m.filter(ImageFilter.GaussianBlur(8))
+    redrawn = blend(flat, prompt, strength, seed)
+    k = np.asarray(m).astype(float)[..., None] / 255
+    out = np.asarray(flat).astype(float) * (1 - k) + np.asarray(redrawn).astype(float) * k
+    return Image.fromarray(np.clip(out, 0, 255).astype("uint8")), m
 
 
 # ---- 4. 部位 ----
@@ -286,32 +414,53 @@ def cut_person(src):
     return design.keep_largest(im)
 
 
-def build(design_png, outdir, scene, light_side="front", seed=7, height=0.8, x=0.5, blend_strength=0.0, prompt="", foot=0.93,
-          bg_path=None):
+def build(design_png, outdir, scene, light_side="front", seed=7, height=None, x=0.5, blend_strength=0.0, prompt="", foot=0.93,
+          bg_path=None, ground="ground"):
+    """完成絵を組む。height を渡さなければ、背景の地平線と足元の位置から遠近に合う大きさにする。
+    ground: water（浅い水に立つ: 足首を沈め、波紋と映り込み）、wet（濡れた砂: 映り込みと影）、ground（地面: 影）"""
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     bg = Image.open(bg_path).convert("RGB").resize(SIZE) if bg_path else background(scene, seed)   # 気に入った背景を使い回せる
     bg.save(outdir / "background.png")
+    hz = horizon(bg)
+    if height is None:
+        height = min(0.9, perspective_height(hz, foot)) if hz is not None else 0.8
     char = place(cut_character(design_png), height, x, foot)
-    char.save(outdir / "character.png")
     light, ambient = light_of(bg)
+    effects = []
+    under = []   # 人物より下に重ねる層（影、映り込み）
+    if ground == "water":
+        char, wl = submerge(char)
+        under.append(("水面の映り込み", reflection(char, wl, ambient, 0.3, 0.35), "normal", 1.0))
+        over_fx = [("波紋", ripples(char, wl), "screen", 0.9)]
+    else:
+        over_fx = []
+        if ground == "wet":
+            ys = np.nonzero(np.asarray(char.getchannel("A")).max(axis=1) > 128)[0]
+            under.append(("濡れた砂の映り込み", reflection(char, int(ys.max()), ambient, 0.28, 0.3), "normal", 1.0))
+        under.append(("影（光と反対へ）", cast_shadow(char, ambient, light_side), "multiply", 1.0))
+    under.append(("接地の影", contact_shadow(char, ambient), "multiply", 1.0))
+    char.save(outdir / "character.png")
     parts = part_layers(char)
-    layers = [("背景", bg.convert("RGBA"), "normal", 1.0),
-              ("接地の影", contact_shadow(char, ambient), "multiply", 1.0)]
+    layers = [("背景", bg.convert("RGBA"), "normal", 1.0)] + under
     layers += [(f"人物: {n}", im, "normal", 1.0) for n, im in parts.items()]
     fg, fg_cover = foreground(bg, char)
     grade = grade_strength(ambient) + (0.15 if light_side == "back" else 0.0)   # 逆光は人物の前が暗い
     layers += [("色寄せ（背景の色）", color_grade(char, ambient, grade), "multiply", 1.0),
-               ("縁の光", rim_light(char, light, light_side), "screen", 1.0 if light_side == "back" else 0.85),
-               ("前景（人物より手前の背景）", fg, "normal", 1.0)]
+               ("縁の光", rim_light(char, light, light_side), "screen", 1.0 if light_side == "back" else 0.85)]
+    layers += over_fx
+    layers += [("前景（人物より手前の背景）", fg, "normal", 1.0)]
     flat = flatten(layers)
     flat.save(outdir / "composite.png")
     save_psd(layers, outdir / "layers.psd")
-    info = {"scene": scene, "seed": seed, "light": light, "ambient": ambient, "light_side": light_side,
-            "grade": round(grade, 3), "foreground_cover": round(fg_cover, 4),
-            "layers": [n for n, *_ in layers]}
+    info = {"scene": scene, "seed": seed, "horizon": hz, "height": round(height, 3), "foot": foot, "ground": ground,
+            "light": light, "ambient": ambient, "light_side": light_side,
+            "grade": round(grade, 3), "foreground_cover": round(fg_cover, 4), "layers": [n for n, *_ in layers]}
     if blend_strength > 0:
-        blend(flat, prompt + ", " + scene, blend_strength, seed).save(outdir / "final.png")
+        effects = [im for _, im, *_ in under + over_fx]
+        final, mask = local_blend(flat, char, effects, prompt + ", " + scene, blend_strength, seed)
+        final.save(outdir / "final.png")
+        mask.save(outdir / "blend-mask.png")
         info["blend"] = blend_strength
     (outdir / "layers.json").write_text(json.dumps(info, ensure_ascii=False, indent=1))
     return info
@@ -324,13 +473,15 @@ def main():
     ap.add_argument("--scene", required=True)
     ap.add_argument("--light", default="front", choices=["front", "left", "right", "back"])
     ap.add_argument("--seed", type=int, default=7)
-    ap.add_argument("--height", type=float, default=0.8)
+    ap.add_argument("--height", type=float, default=None, help="人物の高さ（画面の割合）。省くと地平線と足元から遠近に合わせる")
+    ap.add_argument("--ground", default="ground", choices=["ground", "wet", "water"])
+    ap.add_argument("--bg", default=None, help="使い回す背景の絵")
     ap.add_argument("--x", type=float, default=0.5)
     ap.add_argument("--foot", type=float, default=0.93, help="足元の高さ（画面の割合）。小さくすると奥に立ち、手前の物が脚に掛かる")
     ap.add_argument("--blend", type=float, default=0.0)
     ap.add_argument("--prompt", default="")
     a = ap.parse_args()
-    print(json.dumps(build(a.design, a.outdir, a.scene, a.light, a.seed, a.height, a.x, a.blend, a.prompt, a.foot), ensure_ascii=False))
+    print(json.dumps(build(a.design, a.outdir, a.scene, a.light, a.seed, a.height, a.x, a.blend, a.prompt, a.foot, a.bg, a.ground), ensure_ascii=False))
 
 
 if __name__ == "__main__":
