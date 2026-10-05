@@ -50,6 +50,8 @@ SIZE = (1216, 832)
 FIG_H = 790          # 人物の高さの上限（px）。翼が横に広い種は、全向きを同じ倍率で縮める
 FOOT_Y = 818         # 足元の高さ
 PART_COLORS = {"tail": (255, 0, 0), "wing": (255, 0, 255), "head": (255, 255, 0)}
+# 数える最小の大きさ（型の点の数）。これより小さい向きは数えない
+MIN_PX = {"tail": 300, "wing": 300, "head": 100}
 PART_JA = {"tail": "尾", "wing": "翼", "head": "頭の部品（角・獣耳）"}
 VIEW_JA = {"front": "正面", "front34": "斜め前", "back34": "斜め後ろ", "back": "背面"}
 FONT = "/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf"
@@ -216,7 +218,7 @@ def _region(mask, color, erode=5):
     return im.filter(ImageFilter.MinFilter(erode)) if erode else im
 
 
-def check(sheet, mask_path, min_px=150):
+def check(sheet, mask_path):
     """向きと部品ごとに、型の位置の色が背景か肌に置き換わった割合を数える。半分を超えたら「消えた」とする。
 
     肌の色は、型の肌（緑）の位置の色の中央値。水着の白は背景と見分けられないので、肌の見本から外す。
@@ -232,13 +234,14 @@ def check(sheet, mask_path, min_px=150):
     slot = SIZE[0] // len(VIEWS)
     out = []
     for part, color in PART_COLORS.items():
-        region = np.asarray(_region(mask, color)) > 0
+        # 尾と角は細いので縁を削らない（削ると数える点がほとんど残らなかった）。翼は広いので内側だけ数える
+        region = np.asarray(_region(mask, color, erode=5 if part == "wing" else 0)) > 0
         for i, (view, _) in enumerate(VIEWS):
             r = np.zeros_like(region)
             r[:, i * slot:(i + 1) * slot] = region[:, i * slot:(i + 1) * slot]
             n = int(r.sum())
-            if n < min_px:
-                continue   # この向きでは隠れて見えない（正面の尾など）
+            if n < MIN_PX[part]:
+                continue   # この向きでは隠れているか、先が少し見えるだけ（正面の尾。決まりでは見えなくてよい）
             gone = float((bg[r] | is_skin[r]).mean())
             out.append({"view": view, "part": part, "pixels": n, "gone": round(gone, 3), "ok": gone < 0.5})
     return out
