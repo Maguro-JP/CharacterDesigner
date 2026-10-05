@@ -257,8 +257,10 @@ def ripples(char_layer, waterline):
         legs.append((start, xs[-1]))
         for x0, x1 in legs:
             cx, r = (x0 + x1) / 2, (x1 - x0) / 2 + 6
-            for k, (w, al) in enumerate(((1.0, 170), (1.8, 110), (2.7, 60))):
-                d.ellipse((cx - r * w, waterline - r * w * 0.22, cx + r * w, waterline + r * w * 0.22), outline=al, width=2)
+            for k, (w, al) in enumerate(((1.6, 150), (2.6, 100), (3.6, 55))):
+                d.ellipse((cx - r * w, waterline - r * w * 0.12, cx + r * w, waterline + r * w * 0.12), outline=al, width=2)
+    # 脚の上には描かない。脚に重なると足首の輪（アンクレット）に見えた
+    m = ImageChops.subtract(m, Image.fromarray((a * 255).astype("uint8")).filter(ImageFilter.MaxFilter(3)))
     m = m.filter(ImageFilter.GaussianBlur(1.2))
     layer = Image.new("RGBA", SIZE, (255, 255, 255, 0))
     layer.putalpha(m)
@@ -314,12 +316,12 @@ def cast_shadow(char_layer, ambient, side, opacity=0.42):
     return layer
 
 
-def local_blend(flat, char_layer, effects, prompt, strength, seed):
+def local_blend(flat, char_layer, effects, prompt, strength, seed, band=29):
     """人物の輪郭の周り・足元・影・映り込みだけを描き直してなじませる。人物の中身と背景の残りは元のまま。
     全体を描き直すと人物の顔や水着まで変わる（一律 0.3 で試した）"""
     a = char_layer.getchannel("A").point(lambda v: 255 if v > 128 else 0)
-    band = ImageChops.subtract(a.filter(ImageFilter.MaxFilter(29)), a.filter(ImageFilter.MinFilter(9)))
-    m = band
+    # band: 輪郭の外へ描き直す幅（奇数、px）。切り抜きの縁の汚れ（髪の白いもや）が遠くまであるときは広げる
+    m = ImageChops.subtract(a.filter(ImageFilter.MaxFilter(band)), a.filter(ImageFilter.MinFilter(9)))
     for e in effects:
         m = ImageChops.lighter(m, e.getchannel("A").point(lambda v: 255 if v > 10 else 0).filter(ImageFilter.MaxFilter(15)))
     ys = np.nonzero(np.asarray(a).max(axis=1))[0]
@@ -415,7 +417,7 @@ def cut_person(src):
 
 
 def build(design_png, outdir, scene, light_side="front", seed=7, height=None, x=0.5, blend_strength=0.0, prompt="", foot=0.93,
-          bg_path=None, ground="ground"):
+          bg_path=None, ground="ground", band=29):
     """完成絵を組む。height を渡さなければ、背景の地平線と足元の位置から遠近に合う大きさにする。
     ground: water（浅い水に立つ: 足首を沈め、波紋と映り込み）、wet（濡れた砂: 映り込みと影）、ground（地面: 影）"""
     outdir = Path(outdir)
@@ -458,7 +460,7 @@ def build(design_png, outdir, scene, light_side="front", seed=7, height=None, x=
             "grade": round(grade, 3), "foreground_cover": round(fg_cover, 4), "layers": [n for n, *_ in layers]}
     if blend_strength > 0:
         effects = [im for _, im, *_ in under + over_fx]
-        final, mask = local_blend(flat, char, effects, prompt + ", " + scene, blend_strength, seed)
+        final, mask = local_blend(flat, char, effects, prompt + ", " + scene, blend_strength, seed, band)
         final.save(outdir / "final.png")
         mask.save(outdir / "blend-mask.png")
         info["blend"] = blend_strength
