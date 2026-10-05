@@ -328,8 +328,7 @@ def cast_shadow(char_layer, ambient, side, opacity=0.42):
 
 
 def local_blend(flat, char_layer, effects, prompt, strength, seed, band=29, keep=None):
-    """人物の輪郭の周り・足元・影・映り込みだけを描き直してなじませる。人物の中身と背景の残りは元のまま。
-    全体を描き直すと人物の顔や水着まで変わる（一律 0.3 で試した）"""
+    """（使っていない）輪郭の周り・足元を描き直す。境目をぼかすだけで、光の向きや色は合わなかったので relight に替えた"""
     a = char_layer.getchannel("A").point(lambda v: 255 if v > 128 else 0)
     # band: 輪郭の外へ描き直す幅（奇数、px）。切り抜きの縁の汚れ（髪の白いもや）が遠くまであるときは広げる
     m = ImageChops.subtract(a.filter(ImageFilter.MaxFilter(band)), a.filter(ImageFilter.MinFilter(9)))
@@ -454,6 +453,58 @@ def inspect_composite(final, bg, char_layer, reflect=None, hz=None, ground=None)
         if vis > 0.5:
             reasons.append(f"花や草の上に立っている（足の {vis:.0%} が手前の物に隠れていない）")
     return reasons, out
+
+
+# ---- 合わせる（ぼかさない）: 人物を背景の光と色に合わせる ----
+
+LIGHT_WORDS = {
+    "front": "bright sunlight from the front, soft shadows",
+    "left": "sunlight from the left, shadows on the right side of the body, cast shading",
+    "right": "sunlight from the right, shadows on the left side of the body, cast shading",
+    "back": "backlighting, light from behind, rim light on hair and shoulders, face and front of body in soft shadow",
+}
+
+
+def match_colors(char_layer, bg, amount=0.35):
+    """人物の色と明るさの分布（チャンネルごとの平均と幅）を、人物の周りの背景の分布へ amount だけ寄せる。
+    真昼の塗りの人物を夕暮れに置くと、人物だけ色が浮いた。全部寄せると人物の色が背景に溶けるので一部だけ"""
+    a = np.asarray(char_layer.getchannel("A")) > 128
+    if not a.any():
+        return char_layer
+    near = (np.asarray(Image.fromarray(a.astype("uint8") * 255).filter(ImageFilter.MaxFilter(151))) > 0) & ~a
+    c = np.asarray(char_layer.convert("RGB")).astype(float)
+    g = np.asarray(bg.convert("RGB")).astype(float)
+    out = c.copy()
+    for k in range(3):
+        mc, sc = c[..., k][a].mean(), c[..., k][a].std() + 1e-3
+        mb, sb = g[..., k][near].mean(), g[..., k][near].std() + 1e-3
+        tm, ts = mc + (mb - mc) * amount, sc + (sb - sc) * amount * 0.5
+        out[..., k] = (c[..., k] - mc) / sc * ts + tm
+    res = Image.fromarray(np.clip(out, 0, 255).astype("uint8")).convert("RGBA")
+    res.putalpha(char_layer.getchannel("A"))
+    return res
+
+
+def relight(flat, char_layer, prompt, light_side, light, strength=0.4, seed=7, keep=None):
+    """人物の中だけを、背景の光（向きと色）で塗り直す。輪郭の外は描き直さない（ぼかさない）。
+    塗り直した人物の内側を、元の絵の人物の所に戻す。輪郭の 2px は元の切り抜きのまま残し、線を崩さない"""
+    import torch
+    import design
+    import demi
+    warm = "warm golden light" if light[0] > light[2] + 30 else ("cool light" if light[2] > light[0] + 20 else "natural light")
+    words = f"{prompt}, {LIGHT_WORDS[light_side]}, {warm}, consistent lighting, detailed shading"
+    pipe = demi.img2img()
+    pe, ne, pp, np_ = design.encode_xl(pipe, words, BG_NEGATIVE.replace("1girl, ", "").replace("person, people, human, character, figure, silhouette, ", "")
+                                       + ", multiple girls, extra people, extra limbs, bad hands")
+    redrawn = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
+                   image=flat, strength=strength, num_inference_steps=30, guidance_scale=6.0,
+                   generator=torch.Generator().manual_seed(seed)).images[0]
+    m = char_layer.getchannel("A").point(lambda v: 255 if v > 128 else 0).filter(ImageFilter.MinFilter(5)).filter(ImageFilter.GaussianBlur(1.5))
+    if keep is not None:
+        m = ImageChops.subtract(m, keep.getchannel("A"))
+    k = np.asarray(m).astype(float)[..., None] / 255
+    out = np.asarray(flat).astype(float) * (1 - k) + np.asarray(redrawn).astype(float) * k
+    return Image.fromarray(np.clip(out, 0, 255).astype("uint8")), m
 
 
 # ---- 4. 部位 ----
@@ -622,7 +673,9 @@ def build(design_png, outdir, scene, light_side="front", seed=7, height=None, x=
     - 足元: auto は背景から判定する。water（足首を沈め、波紋と映り込み）、wet（濡れた面: 映り込みと影）、
       plants（花や草: 足が手前の物に隠れるまで奥へ下げる）、ground（地面: 影）
     - 映り込みは、映り込める面（水面、空を映す濡れた面）だけに切り抜く
-    - 仕上げたら検品し、落ちたら描き直しの幅と強さを上げてやり直す（retries 回まで）
+    - 人物の色と明るさの幅を周りの背景に寄せ（match_colors）、blend_strength > 0 なら人物の中だけを背景の光で塗り直す（relight）。
+      輪郭の外はぼかさない。影・映り込み・波紋・前景は塗り直しの後に重ねる
+    - 最後に検品し、結果を layers.json に残す
     """
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
@@ -672,6 +725,7 @@ def build(design_png, outdir, scene, light_side="front", seed=7, height=None, x=
     if kind != "water":
         under.append(("影（光と反対へ）", cast_shadow(char, ambient, light_side), "multiply", 1.0))
     under.append(("接地の影", contact_shadow(char, ambient), "multiply", 1.0))
+    char = match_colors(char, bg)   # 人物の色と明るさの幅を、周りの背景に寄せる
     char.save(outdir / "character.png")
     parts = part_layers(char)
     layers = [("背景", bg.convert("RGBA"), "normal", 1.0)] + under
@@ -690,22 +744,15 @@ def build(design_png, outdir, scene, light_side="front", seed=7, height=None, x=
             "grade": round(grade, 3), "foreground_cover": round(fg_cover, 4), "layers": [n for n, *_ in layers]}
     final = flat
     if blend_strength > 0:
-        effects = [im for _, im, *_ in under + over_fx]
-        st, bd = blend_strength, band
-        on_top = [im for name, im, *_ in over_fx] + [fg]
-        for k in range(retries + 1):
-            final, mask = local_blend(flat, char, effects, prompt + ", " + scene, st, seed, bd, keep=fg)
-            # 波紋と前景は描き直しの後に重ね直す。描き直しは手前の物を消したり、波紋を足首の輪に描き替えたりした
-            for (name, im, mode, op) in over_fx + [("前景", fg, "normal", 1.0)]:
-                final = flatten([("下", final.convert("RGBA"), "normal", 1.0), (name, im, mode, op)])
-            reasons, nums = inspect_composite(final, bg, char, reflect, hz, kind)
-            info.setdefault("tries", []).append({"strength": st, "band": bd, "reasons": reasons, **nums})
-            # やり直しで直るのは描き直しで起きた汚れだけ。描き直しを強く広くしすぎると、頭の周りの空がもやになった
-            if not reasons or k == retries:
-                break
-            st, bd = min(0.6, st + 0.05), min(41, bd + 6)
+        # 合わせる: 人物の中だけを背景の光で塗り直す。輪郭の外はぼかさない。
+        # 前は輪郭の周りを描き直していたが、境目をぼかすだけで、光の向きや色は合わなかった（利用者: ぼかすじゃない、合わせる）
+        final, mask = relight(flat, char, prompt, light_side, light, blend_strength, seed, keep=fg)
+        # 波紋と前景は塗り直しの後に重ね直す（塗り直しが手前の物や波紋を描き替えないように）
+        for (name, im, mode, op) in over_fx + [("前景", fg, "normal", 1.0)]:
+            final = flatten([("下", final.convert("RGBA"), "normal", 1.0), (name, im, mode, op)])
         final.save(outdir / "final.png")
-        mask.save(outdir / "blend-mask.png")
+        mask.save(outdir / "relight-mask.png")
+        info["relight"] = blend_strength
     reasons, nums = inspect_composite(final, bg, char, reflect, hz, kind)
     info["inspect"] = {"reasons": reasons, **nums}
     (outdir / "layers.json").write_text(json.dumps(info, ensure_ascii=False, indent=1))
