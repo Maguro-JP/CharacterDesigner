@@ -2,36 +2,210 @@
  "_doc": "擬人化・亜人の全身モデル（tools/gen/people.py card）。女性を先に全種、男性は代表だけ。素体（無地の肌着、素足）で正面・背面と特徴の拡大。tags は Animagine XL のタグ。odd_body は人と違う体（脚や腕の数を機械で数えない）。body を書いたものは素体の言葉を差し替える（下半身が人でない種族）",
  "female_first": true,
  "cases": [
-  {"id": "cat", "ja": "猫", "tags": "cat girl, cat ears, cat tail, animal ear fluff, slit pupils", "zoom": "head"},
-  {"id": "fox", "ja": "狐", "tags": "fox girl, fox ears, fox tail, large fluffy tail", "zoom": "head"},
-  {"id": "kitsune", "ja": "九尾の狐", "tags": "kitsune, fox ears, multiple tails, nine tails, fox tail", "zoom": "tail"},
-  {"id": "wolf", "ja": "狼", "tags": "wolf girl, wolf ears, wolf tail, fangs", "zoom": "head"},
-  {"id": "dog", "ja": "犬", "tags": "dog girl, dog ears, floppy ears, dog tail", "zoom": "head"},
-  {"id": "rabbit", "ja": "兎", "tags": "rabbit girl, rabbit ears, long rabbit ears, rabbit tail", "zoom": "head"},
-  {"id": "tanuki", "ja": "狸", "tags": "tanuki girl, raccoon ears, raccoon tail, striped tail", "zoom": "tail"},
-  {"id": "cow", "ja": "牛", "tags": "cow girl, cow ears, cow horns, cow tail", "zoom": "head"},
-  {"id": "sheep", "ja": "羊", "tags": "sheep girl, sheep ears, curled horns, sheep horns, fluffy hair", "zoom": "head"},
-  {"id": "mouse", "ja": "鼠", "tags": "mouse girl, mouse ears, round ears, mouse tail", "zoom": "head"},
-  {"id": "bear", "ja": "熊", "tags": "bear girl, bear ears, round ears, small tail", "zoom": "head"},
-  {"id": "deer", "ja": "鹿", "tags": "deer girl, deer ears, antlers, deer tail", "zoom": "head"},
-  {"id": "squirrel", "ja": "栗鼠", "tags": "squirrel girl, squirrel ears, squirrel tail, large fluffy tail", "zoom": "tail"},
-  {"id": "dragon", "ja": "竜人", "tags": "dragon girl, dragon horns, dragon tail, dragon wings, scales on cheeks, slit pupils", "zoom": "back"},
-  {"id": "demon", "ja": "悪魔", "tags": "demon girl, demon horns, demon tail, demon wings, red skin, colored skin", "zoom": "head"},
-  {"id": "angel", "ja": "天使", "tags": "angel, white feathered wings, angel wings, halo", "zoom": "back"},
-  {"id": "elf", "ja": "エルフ", "tags": "elf, pointy ears, long pointy ears, blonde hair", "zoom": "head"},
-  {"id": "dark-elf", "ja": "ダークエルフ", "tags": "dark elf, pointy ears, dark skin, dark-skinned female, white hair", "zoom": "head"},
-  {"id": "dwarf", "ja": "ドワーフ", "tags": "dwarf, short stature, stocky, braid, sturdy", "zoom": "none"},
-  {"id": "orc", "ja": "オーク", "tags": "orc, green skin, colored skin, tusks, muscular", "zoom": "head"},
-  {"id": "goblin", "ja": "ゴブリン", "tags": "goblin, green skin, colored skin, pointy ears, short", "zoom": "head"},
-  {"id": "oni", "ja": "鬼", "tags": "oni, oni horns, red skin, colored skin, fangs", "zoom": "head"},
-  {"id": "tengu", "ja": "天狗", "tags": "tengu, black feathered wings, crow wings", "zoom": "back"},
-  {"id": "yuki-onna", "ja": "雪女", "tags": "yuki onna, pale skin, white skin, white hair, ice crystals", "zoom": "head"},
-  {"id": "slime", "ja": "スライム娘", "tags": "slime girl, monster girl, translucent body, blue skin, liquid hair", "zoom": "arms", "odd_body": true},
-  {"id": "lamia", "ja": "ラミア", "tags": "lamia, monster girl, snake tail, scales, snake lower body", "zoom": "tail", "odd_body": true, "body": "full body, white background, simple background, grey tank top"},
-  {"id": "harpy", "ja": "ハーピー", "tags": "harpy, monster girl, feathered wings, winged arms, bird legs, talons", "zoom": "arms", "odd_body": true},
-  {"id": "mermaid", "ja": "人魚", "tags": "mermaid, monster girl, fish tail, scales, head fins", "zoom": "tail", "odd_body": true, "body": "full body, white background, simple background, seashell bra"},
-  {"id": "centaur", "ja": "ケンタウロス", "tags": "centaur, monster girl, horse lower body, horse tail, four legs", "zoom": "none", "odd_body": true, "body": "full body, white background, simple background, grey tank top"},
-  {"id": "arachne", "ja": "アラクネ", "tags": "arachne, monster girl, spider lower body, spider legs, extra eyes", "zoom": "none", "odd_body": true, "body": "full body, white background, simple background, grey tank top"}
+  {
+   "id": "cat",
+   "ja": "猫",
+   "tags": "cat girl, cat ears, cat tail, animal ear fluff, slit pupils",
+   "zoom": "head"
+  },
+  {
+   "id": "fox",
+   "ja": "狐",
+   "tags": "fox girl, fox ears, fox tail, large fluffy tail",
+   "zoom": "head"
+  },
+  {
+   "id": "kitsune",
+   "ja": "九尾の狐",
+   "tags": "kitsune, fox ears, multiple tails, nine tails, fox tail",
+   "zoom": "tail"
+  },
+  {
+   "id": "wolf",
+   "ja": "狼",
+   "tags": "wolf girl, wolf ears, wolf tail, fangs",
+   "zoom": "head"
+  },
+  {
+   "id": "dog",
+   "ja": "犬",
+   "tags": "dog girl, dog ears, floppy ears, dog tail",
+   "zoom": "head"
+  },
+  {
+   "id": "rabbit",
+   "ja": "兎",
+   "tags": "rabbit girl, rabbit ears, long rabbit ears, rabbit tail",
+   "zoom": "head",
+   "negative": "hairband, headband, fake animal ears, animal ear headwear"
+  },
+  {
+   "id": "tanuki",
+   "ja": "狸",
+   "tags": "tanuki girl, raccoon ears, raccoon tail, striped tail",
+   "zoom": "tail"
+  },
+  {
+   "id": "cow",
+   "ja": "牛",
+   "tags": "cow girl, cow ears, cow horns, cow tail",
+   "zoom": "head"
+  },
+  {
+   "id": "sheep",
+   "ja": "羊",
+   "tags": "sheep girl, sheep ears, curled horns, sheep horns, fluffy hair",
+   "zoom": "head"
+  },
+  {
+   "id": "mouse",
+   "ja": "鼠",
+   "tags": "mouse girl, mouse ears, round ears, mouse tail",
+   "zoom": "head",
+   "negative": "elf ears, pointy ears, human ears"
+  },
+  {
+   "id": "bear",
+   "ja": "熊",
+   "tags": "bear girl, bear ears, round ears, small tail",
+   "zoom": "head",
+   "negative": "elf ears, pointy ears, human ears"
+  },
+  {
+   "id": "deer",
+   "ja": "鹿",
+   "tags": "deer girl, deer ears, antlers, deer tail",
+   "zoom": "head"
+  },
+  {
+   "id": "squirrel",
+   "ja": "栗鼠",
+   "tags": "squirrel girl, squirrel ears, squirrel tail, large fluffy tail",
+   "zoom": "tail"
+  },
+  {
+   "id": "dragon",
+   "ja": "竜人",
+   "tags": "dragon girl, dragon horns, dragon tail, dragon wings, scales on cheeks, slit pupils",
+   "zoom": "back"
+  },
+  {
+   "id": "demon",
+   "ja": "悪魔",
+   "tags": "demon girl, demon horns, demon tail, demon wings, red skin, colored skin",
+   "zoom": "head"
+  },
+  {
+   "id": "angel",
+   "ja": "天使",
+   "tags": "angel, white feathered wings, angel wings, halo",
+   "zoom": "back"
+  },
+  {
+   "id": "elf",
+   "ja": "エルフ",
+   "tags": "elf, pointy ears, long pointy ears, blonde hair",
+   "zoom": "head"
+  },
+  {
+   "id": "dark-elf",
+   "ja": "ダークエルフ",
+   "tags": "dark elf, pointy ears, dark skin, dark-skinned female, white hair",
+   "zoom": "head"
+  },
+  {
+   "id": "dwarf",
+   "ja": "ドワーフ",
+   "tags": "dwarf, short stature, stocky, braid, sturdy",
+   "zoom": "none"
+  },
+  {
+   "id": "orc",
+   "ja": "オーク",
+   "tags": "orc, green skin, colored skin, tusks, muscular",
+   "zoom": "head"
+  },
+  {
+   "id": "goblin",
+   "ja": "ゴブリン",
+   "tags": "goblin, green skin, colored skin, pointy ears, short",
+   "zoom": "head"
+  },
+  {
+   "id": "oni",
+   "ja": "鬼",
+   "tags": "oni, oni horns, red skin, colored skin, fangs",
+   "zoom": "head"
+  },
+  {
+   "id": "tengu",
+   "ja": "天狗",
+   "tags": "tengu, black feathered wings, crow wings",
+   "zoom": "back"
+  },
+  {
+   "id": "yuki-onna",
+   "ja": "雪女",
+   "tags": "yuki onna, pale skin, white skin, white hair, ice crystals",
+   "zoom": "head"
+  },
+  {
+   "id": "slime",
+   "ja": "スライム娘",
+   "tags": "slime girl, monster girl, translucent body, blue skin, liquid hair",
+   "zoom": "arms",
+   "odd_body": true
+  },
+  {
+   "id": "lamia",
+   "ja": "ラミア",
+   "tags": "lamia, monster girl, snake tail, scales, snake lower body",
+   "zoom": "tail",
+   "odd_body": true,
+   "body": "full body, white background, simple background, grey tank top"
+  },
+  {
+   "id": "harpy",
+   "ja": "ハーピー",
+   "tags": "harpy, monster girl, feathered wings, winged arms, bird legs, talons",
+   "zoom": "arms",
+   "odd_body": true
+  },
+  {
+   "id": "mermaid",
+   "ja": "人魚",
+   "tags": "mermaid, monster girl, fish tail, scales, head fins",
+   "zoom": "tail",
+   "odd_body": true,
+   "body": "full body, white background, simple background, seashell bra"
+  },
+  {
+   "id": "centaur",
+   "ja": "ケンタウロス",
+   "tags": "centaur, monster girl, horse lower body, horse tail, four legs",
+   "zoom": "none",
+   "odd_body": true,
+   "body": "full body, white background, simple background, grey tank top"
+  },
+  {
+   "id": "arachne",
+   "ja": "アラクネ",
+   "tags": "arachne, monster girl, spider lower body, spider legs, extra eyes",
+   "zoom": "none",
+   "odd_body": true,
+   "body": "full body, white background, simple background, grey tank top"
+  }
  ],
- "male_cases": ["cat", "wolf", "dragon", "demon", "elf", "dark-elf", "dwarf", "orc", "oni", "tengu"]
+ "male_cases": [
+  "cat",
+  "wolf",
+  "dragon",
+  "demon",
+  "elf",
+  "dark-elf",
+  "dwarf",
+  "orc",
+  "oni",
+  "tengu"
+ ]
 }
