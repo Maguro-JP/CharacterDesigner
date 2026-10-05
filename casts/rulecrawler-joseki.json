@@ -1,0 +1,16 @@
+{
+ "title": "迷宮定石",
+ "source": "Maguro-JP/RuleCrawler src/joseki/ui/explorerSprite.ts、docs/joseki/palette.md",
+ "common": "dark fantasy dungeon crawler, wizardry style labyrinth explorer, anime style, 3.5 heads tall, sharp narrow eyes",
+ "n": 4,
+ "characters": [
+  {
+   "id": "explorer",
+   "name": "探索者",
+   "role": "ルールどおりに歩く唯一の人物。画面でいちばん明るい白",
+   "prompt": "lone young explorer in a long pure white hooded cloak, hood up, green sash belt #4a9a7a with small gold clasp, dark grey trousers, holding a glowing brass lantern, calm expressionless face, quiet methodical wanderer",
+   "negative": "colorful, orange",
+   "chosen": 7
+  }
+ ]
+}

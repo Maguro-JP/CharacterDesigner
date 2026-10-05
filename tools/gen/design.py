@@ -11,6 +11,11 @@
   PYTHONPATH=.cache/gen/lib python3 tools/gen/design.py draw out.png "young swordsman, blue tunic, red scarf" [--seed 7] [--n 4]
   PYTHONPATH=.cache/gen/lib python3 tools/gen/design.py restyle in.png out.png --style real [--strength 0.55]
   python3 tools/gen/design.py pixel in.png out.sprite.json [--preset diorama|survivor|retro16|chibi16] [--height N] [--colors N]
+  PYTHONPATH=.cache/gen/lib python3 tools/gen/design.py batch casts/<作品>.json <出力フォルダ>
+  python3 tools/gen/design.py sheet casts/<作品>.json <出力フォルダ> <一覧図.png>
+
+batch は設定集（casts/*.json）の全員を、モデルを1回だけ読み込んで描く。描き終えた絵は飛ばすので、
+途中で止まっても同じコマンドで続きから描ける。sheet は描いた絵を名前付きで1枚に並べる。
 """
 import argparse
 import json
@@ -26,7 +31,11 @@ os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))
 STYLES = {
     "anime": "Meina/MeinaMix_V11",
     "real": "Lykon/dreamshaper-8",
+    # SDXL 系（CreativeML OpenRAIL++-M）。モンスターの体の組み立てが SD1.5 系よりはるかに崩れにくい。
+    # CPU で1枚 2〜3 分（768x1024、6 段）
+    "xl": "Lykon/dreamshaper-xl-lightning",
 }
+XL = {"xl"}
 LCM_LORA = "latent-consistency/lcm-lora-sdv1-5"
 # ドット絵の作風ごとの大きさと色数。等身は元の絵のまま縮める（頭を大きくする変換はまだ無い）
 # diorama: 箱庭ドットの人物の高さと色数（styles/diorama.json）
@@ -37,18 +46,86 @@ PRESETS = {
     "survivor": {"height": 40, "colors": 16},
     "retro16": {"height": 24, "colors": 15},
     "chibi16": {"height": 16, "colors": 12},
+    # monster64: 等身を保つ解像度高めのモンスターのドット絵（携帯機以降の育成ゲームの戦闘画面の大きさ）。
+    # 数字は手本で数えていない（未確認）
+    "monster64": {"height": 64, "colors": 24, "mode": True},
+    # monster96: モンスターのドット絵の標準（利用者の評価: 96 は良い感じ。64 は白い体の顔がつぶれた）
+    "monster96": {"height": 96, "colors": 24, "mode": True},
 }
 # 立ち絵の設定資料として描かせる決まり文句。全身・1人・無地の背景にしておくと、派生（ドット絵）で背景を抜ける
 PREFIX = "masterpiece, best quality, character design, full body, standing, solo, "
 SUFFIX = ", white background, simple background"
 NEGATIVE = ("lowres, bad anatomy, bad hands, extra fingers, missing fingers, extra limbs, cropped, "
-            "multiple views, text, watermark, signature, blurry")
+            "multiple views, text, watermark, signature, blurry, nsfw, nude, naked, nipples, cleavage")
+# 人でない者（魔物、妖怪、モンスター）の決まり文句。アニメの人物向けのモデルは、人の立ち姿の決まり文句と
+# 合わさると動物や玉の形の者まで少女の姿で描いた。人を描かない指定と、人の特徴の打ち消しを足す
+# 「creature design, monster concept art」は人型の怪物を呼んだ。人のいない動物の絵を指す言葉（feral、animal focus）に替え、
+# 指示文は動物の名詞から始める（四つ足なら quadruped と書く）
+CREATURE_PREFIX = "masterpiece, best quality, full body, solo, no humans, animal focus, feral, "
+CREATURE_SUFFIX = ", 2d anime style illustration, cel shading, clean lineart"
+CREATURE_NEGATIVE = "1girl, 1boy, human, woman, man, breasts, human face, animal ears, kemonomimi, anthro"
+# モンスターは2つのモデルで描いて並べる。アニメのモデルは塗りが設定画らしいが形が崩れやすく、
+# リアル寄りのモデルは形が正確だが立体の置物のような塗りになった（亀・子犬・ゴーレムで比べた）
+# SDXL 系に替えてからは xl だけで描く（亀・羽毛玉で比べ、SD1.5 系の2つより形も塗りも良かった）
+CREATURE_STYLES = ["xl"]
+# SDXL 系に渡すモンスターの決まり文句（長い指示文は encode_xl で分けて読む）
+XL_CREATURE_SUFFIX = (", full body, creature design, 2d anime style illustration, cel shading, clean lineart, "
+                      "flat colors, white background")
+XL_CREATURE_NEGATIVE = ("human, humanoid, anthro, 1girl, extra heads, extra legs, extra wings, extra tails, "
+                        "fused animals, two animals, cropped, text, watermark, nsfw")
+# 生き物でない物（卵、道具）。モンスターの決まり文句（feral、creature design、作品の「鋭い目」）を付けると、
+# 卵に目と脚が生えて生き物になった（DigiMon の卵、2026-10-03）。kind: "item" は SDXL 系で、物として描く
+XL_ITEM_SUFFIX = (", single object, still life, centered, full view, 2d game item illustration, cel shading, "
+                  "clean lineart, flat colors, white background")
+XL_ITEM_NEGATIVE = ("eyes, face, mouth, creature, animal, character, person, legs, feet, arms, hands, wings, tail, "
+                    "multiple objects, cropped, text, watermark")
+# 性別。指定が無いとアニメの人物向けのモデルは少女を描き、男性の職まで女性になった。
+# 「1boy」だけでは中性的な美形に寄った（学んだ絵に多い）ので、男性は体と顔の骨格から書く
+GENDER = {"male": ("1boy, male focus, adult man, broad shoulders, strong jawline, thick neck, short hair, masculine, ",
+                   "1girl, female, breasts, skirt, androgynous, feminine face, long eyelashes, bishounen, makeup"),
+          "female": ("1girl, adult woman, feminine, ", ""),
+          # 中性的: 男女どちらとも読める顔と体。性別の印（胸、髭、化粧）を打ち消す
+          "androgynous": ("1person, androgynous, gender-neutral face, flat chest, short layered hair, ",
+                          "breasts, beard, makeup, very muscular")}
+# 年齢。頭身と顔の骨格で描き分ける。adult（既定）は GENDER の書き方のまま
+AGE = {"child": ("young child, about 7 years old, small body, big head, short legs, chubby cheeks, 4 heads tall, ",
+                 "adult, teenager, tall, long legs, mature, beard, breasts, makeup"),
+       "teen": ("teenager, about 16 years old, slim youthful body, ", "old, wrinkles, beard"),
+       "adult": ("", ""),
+       "middle": ("middle-aged, about 45 years old, mature face, slight wrinkles, ", "child, teenager, young face"),
+       "elder": ("elderly, about 70 years old, wrinkled face, grey hair, slightly hunched, ",
+                 "young, child, smooth skin")}
+# 素体の肌着と打ち消し。服は後から着せ替えるので、素体は体の線が見える簡素な無地のものにそろえる
+BODY_WEAR = {"male": "plain grey tank top, plain grey shorts, barefoot, plain grey background",
+             "female": "plain grey sports top, plain grey shorts, barefoot, plain grey background",
+             "androgynous": "plain grey tank top, plain grey shorts, barefoot, plain grey background"}
+BODY_NEGATIVE = ("cape, coat, jacket, armor, scarf, belt, bag, weapon, props, jewelry, scenery, background objects, "
+                 "creature in background, extra character, nude, nsfw")
+# 中年と老人は SDXL 系で描く。アニメの人物向けのモデルは、言葉を強めても女性の老人を若い顔で描いた
+OLD_AGES = {"middle", "elder"}
+# 年齢の形容は性別の名詞に直接付ける（「elderly woman」）。離して書くと若い顔に戻った
+XL_AGE = {"child": ("young", "child about 7 years old, "), "teen": ("teenage", ""), "adult": ("", ""),
+          "middle": ("middle-aged", "about 45 years old, slight wrinkles, "),
+          "elder": ("elderly", "about 70 years old, deep wrinkles, ")}
+XL_HUMAN_SUFFIX = (", full body, standing, character design, 2d anime style illustration, cel shading, clean lineart, "
+                   "white background")
+XL_HUMAN_NEGATIVE = "nsfw, nude, cropped, multiple views, text, watermark, extra fingers, bad anatomy"
+# 女性の老人は、アニメの人物向けのモデルが若い女性に寄せた（白髪の若い女性になった）。祖母の言葉で強める
+ELDER_FEMALE = "old woman, grandmother, deep wrinkles, sagging cheeks, white hair in a bun, "
 
 
 def _pipe(style, img2img=False):
     import torch
     from diffusers import LCMScheduler, StableDiffusionImg2ImgPipeline, StableDiffusionPipeline
     torch.set_num_threads(os.cpu_count() or 4)
+    if style in XL:
+        from diffusers import DPMSolverMultistepScheduler, StableDiffusionXLPipeline
+        # bfloat16: float32 では 2 つの文章の読み手と合わせてメモリが 15GB に収まらない。この CPU は bf16 の命令を持つ
+        pipe = StableDiffusionXLPipeline.from_pretrained(STYLES[style], variant="fp16", torch_dtype=torch.bfloat16)
+        # 少ない段数で描く版のモデル。作者の推奨（DPM++ SDE Karras、4〜6 段、guidance 2）に合わせる
+        pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config, algorithm_type="sde-dpmsolver++",
+                                                                 use_karras_sigmas=True)
+        return pipe
     cls = StableDiffusionImg2ImgPipeline if img2img else StableDiffusionPipeline
     pipe = cls.from_pretrained(STYLES[style], torch_dtype=torch.float32, safety_checker=None)
     # LCM-LoRA: 25 段かかるところを 6 段で描く。CPU で1枚 約1分（512x768、4 コア）
@@ -58,6 +135,59 @@ def _pipe(style, img2img=False):
     return pipe
 
 
+def encode(pipe, prompt, negative):
+    """77 トークンで切らずに、長い指示文を 75 トークンずつに分けて読ませ、つなげて渡す。
+
+    SD1.5 の文章の読み手（CLIP）は 77 トークンまでしか読まない。世界観の決まりと人物の細部を
+    両方書くと後ろが切れて、角灯や白い背景が絵から落ちた。区切りごとに頭と終わりの印を付けて読み、
+    横につなげる（区切りの数は指示文と打ち消しの文でそろえる）。
+    """
+    import torch
+    tok, enc = pipe.tokenizer, pipe.text_encoder
+    body = [tok(t, add_special_tokens=False).input_ids for t in (prompt, negative)]
+    n = max(1, *[(len(b) + 74) // 75 for b in body])
+    out = []
+    for ids in body:
+        chunks = []
+        for i in range(n):
+            c = ids[i * 75:(i + 1) * 75]
+            c = [tok.bos_token_id] + c + [tok.eos_token_id] * (76 - len(c))
+            with torch.no_grad():
+                chunks.append(enc(torch.tensor([c]))[0])
+        out.append(torch.cat(chunks, dim=1))
+    return out
+
+
+def encode_xl(pipe, prompt, negative):
+    """SDXL 系の2つの文章の読み手それぞれで、長い指示文を 75 トークンずつ分けて読み、つなげて渡す。
+
+    SDXL 系も 77 トークンまでしか読まない。DigiMon の作風（鋭い目、角張った輪郭）を共通に足したら
+    41 枚すべてで後ろの「2D アニメの塗り、白い背景」が切れ、背景の入った絵になった。
+    返すのは (指示文, 打ち消し, 指示文の要約, 打ち消しの要約)。要約（pooled）は最初の区切りから取る。
+    """
+    import torch
+    pairs = [(pipe.tokenizer, pipe.text_encoder), (pipe.tokenizer_2, pipe.text_encoder_2)]
+    ids = [[tok(t, add_special_tokens=False).input_ids for t in (prompt, negative)] for tok, _ in pairs]
+    n = max(1, *[(len(b) + 74) // 75 for per in ids for b in per])
+    embeds, pooled = [[], []], [None, None]
+    for (tok, enc), per in zip(pairs, ids):
+        for k, body in enumerate(per):
+            chunks = []
+            for i in range(n):
+                c = body[i * 75:(i + 1) * 75]
+                pad = tok.pad_token_id if tok.pad_token_id is not None else tok.eos_token_id
+                c = [tok.bos_token_id] + c + [tok.eos_token_id] + [pad] * (75 - len(c))
+                with torch.no_grad():
+                    out = enc(torch.tensor([c]), output_hidden_states=True)
+                chunks.append(out.hidden_states[-2])
+                if enc is pipe.text_encoder_2 and i == 0:
+                    pooled[k] = out[0]
+            embeds[k].append(torch.cat(chunks, dim=1))
+    dt = pipe.unet.dtype
+    pe, ne = (torch.cat(e, dim=-1).to(dt) for e in embeds)
+    return pe, ne, pooled[0].to(dt), pooled[1].to(dt)
+
+
 def draw(out, prompt, seed, n, style, steps, width, height):
     import torch
     pipe = _pipe(style)
@@ -65,7 +195,8 @@ def draw(out, prompt, seed, n, style, steps, width, height):
     for i in range(n):
         t = time.time()
         g = torch.Generator().manual_seed(seed + i)
-        im = pipe(PREFIX + prompt + SUFFIX, negative_prompt=NEGATIVE, num_inference_steps=steps,
+        pe, ne = encode(pipe, PREFIX + prompt + SUFFIX, NEGATIVE)
+        im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, num_inference_steps=steps,
                   guidance_scale=1.5, width=width, height=height, generator=g).images[0]
         p = out if n == 1 else str(Path(out).with_suffix("")) + f"-{seed + i}.png"
         im.save(p)
@@ -74,6 +205,281 @@ def draw(out, prompt, seed, n, style, steps, width, height):
         paths.append(p)
         print(f"{p}: {time.time() - t:.1f} 秒")
     return paths
+
+
+def load_cast(path):
+    """設定集を読む。common は全員の指示文の後ろに付ける（作品の世界観と画風を全員でそろえるため）。
+
+    人物の指示文を先に置く。先頭の言葉ほど強く効き、共通の配色が人物の服の色を上書きしたため。
+    """
+    cast = json.loads(Path(path).read_text(encoding="utf-8"))
+    for c in cast["characters"]:
+        # モンスターには人向けの世界観（服や頭身の決まり）を付けない。creature_common が別にある
+        if c.get("kind") == "creature":
+            common = cast.get("creature_common", cast.get("common", ""))
+        elif c.get("kind") == "item":
+            # 物には生き物の決まり（目、顔つき）も人の決まりも付けない。item_common だけ
+            common = cast.get("item_common", "")
+        else:
+            common = cast.get("common", "")
+        c["full_prompt"] = c["prompt"] + (", " + common if common else "")
+    return cast
+
+
+TRAITS = json.loads((Path(__file__).parent / "traits.json").read_text(encoding="utf-8"))
+
+
+PATTERNS = json.loads((ROOT / "library" / "patterns.json").read_text(encoding="utf-8"))["patterns"]
+
+
+def trait_texts(c):
+    """設定集の traits（"分類:種類" の並び）と patterns（library/patterns.json の名前）を、指示文と打ち消しの言葉にする。
+    知らない種類や名前は止める（黙って無視すると、効かなかったのか書き間違いなのか分からない）。"""
+    ps, ns = [], []
+    traits = list(c.get("traits", []))
+    for name in c.get("patterns", []):
+        if name not in PATTERNS:
+            raise SystemExit(f"{c.get('id')}: patterns の {name} が library/patterns.json に無い")
+        traits += PATTERNS[name].get("traits", [])
+        if PATTERNS[name].get("prompt"):
+            ps.append(PATTERNS[name]["prompt"])
+        if PATTERNS[name].get("negative"):
+            ns.append(PATTERNS[name]["negative"])
+    for t in traits:
+        cat, _, key = t.partition(":")
+        if cat not in TRAITS or key not in TRAITS[cat]:
+            raise SystemExit(f"{c.get('id')}: traits の {t} が tools/gen/traits.json に無い")
+        ps.append(TRAITS[cat][key]["p"])
+        if TRAITS[cat][key].get("neg"):
+            ns.append(TRAITS[cat][key]["neg"])
+    return ", ".join(ps), ", ".join(ns)
+
+
+def full_texts(c, style="anime"):
+    """1人ぶんの指示文と打ち消しの文。人でない者と性別で、決まり文句を切り替える。"""
+    tp, tn = trait_texts(c)
+    if tp:
+        # 描き分けの部品は人物の説明の前に置く（先頭の言葉ほど強く効く）
+        c = {**c, "full_prompt": tp + ", " + c["full_prompt"],
+             "negative": ", ".join(x for x in (c.get("negative", ""), tn) if x)}
+    if c.get("kind") == "item":
+        neg = ", ".join(x for x in (XL_ITEM_NEGATIVE, c.get("negative", "")) if x)
+        return c["full_prompt"] + XL_ITEM_SUFFIX, neg
+    if c.get("kind") == "creature" and style in XL:
+        neg = ", ".join(x for x in (XL_CREATURE_NEGATIVE, c.get("negative", "")) if x)
+        return c["full_prompt"] + XL_CREATURE_SUFFIX, neg
+    if style in XL:
+        # SDXL 系の人。タグではなく言葉で書く（SDXL 系は 1boy などのタグで学んでいない）
+        who = {"male": "man", "female": "woman", "androgynous": "androgynous person"}.get(c.get("gender"), "person")
+        if c.get("framing") == "body":
+            c = {**c, "full_prompt": c["full_prompt"] + ", " + BODY_WEAR.get(c.get("gender"), BODY_WEAR["male"]),
+                 "negative": ", ".join(x for x in (c.get("negative", ""), BODY_NEGATIVE) if x)}
+        adj, detail = XL_AGE.get(c.get("age", "adult"), ("", ""))
+        if c.get("age") == "elder" and c.get("gender") == "female":
+            detail += "grandmother, sagging cheeks, white hair in a bun, "
+        neg = ", ".join(x for x in (XL_HUMAN_NEGATIVE, AGE.get(c.get("age", "adult"), ("", ""))[1], c.get("negative", "")) if x)
+        return f"{adj} {who} ".lstrip() + c["full_prompt"] + ", " + detail + XL_HUMAN_SUFFIX.lstrip(", "), neg
+    if c.get("kind") == "creature":
+        head, tail, neg = CREATURE_PREFIX, CREATURE_SUFFIX, CREATURE_NEGATIVE
+    else:
+        g = GENDER.get(c.get("gender"), ("", ""))
+        a = AGE.get(c.get("age", "adult"), ("", ""))
+        gp, gn = g
+        if c.get("age") in ("child", "teen"):
+            # 子どもと十代に「adult man / adult woman」と骨格の言葉を付けない（年齢の指定と食い違う）
+            gp = {"male": "1boy, male, ", "female": "1girl, female, "}.get(c.get("gender"), gp)
+        if c.get("age") == "elder" and c.get("gender") == "female":
+            gp = "1girl, " + ELDER_FEMALE
+        prefix = PREFIX
+        if c.get("framing") == "body":
+            # 素体: 体の部品（肌、鱗、刺青、体型）を服に引っ張られずに見るため、簡素な無地の肌着で描く。
+            # 服を着た姿で試すと、肌の色や質感の言葉が服や背景に移った（青い肌 → 青い服、鱗 → 背後の蛇）
+            prefix = PREFIX.replace("full body, standing, ", "full body, standing straight, arms slightly away from body, body reference, ")
+            wear = BODY_WEAR.get(c.get("gender"), BODY_WEAR["male"])
+            c = {**c, "full_prompt": c["full_prompt"] + ", " + wear,
+                 "negative": ", ".join(x for x in (c.get("negative", ""), BODY_NEGATIVE) if x)}
+        if c.get("framing") == "portrait":
+            # 顔の部品（輪郭、鼻、耳、目）は全身の絵では小さすぎて描かれない。胸から上で描く
+            prefix = PREFIX.replace("full body, standing, ", "upper body, portrait, close-up, ")
+        head, tail, neg = prefix + gp + a[0], "", ", ".join(x for x in (gn, a[1]) if x)
+    return head + c["full_prompt"] + tail + SUFFIX, ", ".join(x for x in (NEGATIVE, neg, c.get("negative", "")) if x)
+
+
+def cast_paths(cast, outdir, style=None):
+    """設定集の1人ごとに、描く絵（パス, seed, 画風）を返す。
+
+    画像生成のモデルは描いた絵を見直さない（くちばしが2つ、途切れた脚）。描いた絵は目で検品し、
+    落とした絵は設定集の rejected に {"画像の名前": "理由"} で書く。理由は docs/knowledge/monster-design.md
+    の検品表の言葉で書き、同じ破綻が続けば指示文を直す。
+
+    人は style（設定集の style、無ければ anime）だけで、モンスターは CREATURE_STYLES の全部で描く。
+    anime 以外の画風の絵は名前に画風を入れる（id-real-7.png）。
+    """
+    base = style or cast.get("style", "anime")
+    for c in cast["characters"]:
+        seed, n = c.get("seed", 7), c.get("n", cast.get("n", 2))
+        styles = c.get("styles") or (CREATURE_STYLES if c.get("kind") in ("creature", "item")
+                                     else ["xl"] if c.get("age") in OLD_AGES else [base])
+        rejected = {**c.get("rejected", {}), **auto_rejected(outdir)}
+        shots = []
+        for st in styles:
+            tag = "" if st == "anime" else f"{st}-"
+            # 検品で落とした絵（rejected のキーは画像の名前）は数に入れず、次の seed で描き足す
+            s, got = seed, 0
+            while got < n:
+                name = f"{c['id']}-{tag}{s}.png"
+                if name not in rejected:
+                    shots.append((Path(outdir) / name, s, st))
+                    got += 1
+                s += 1
+        yield c, shots
+
+
+def base_image(cast, c, outdir):
+    """系統のベース（from に書いた人物）の決定稿の絵。決定稿（chosen）が無ければ None。"""
+    if not c.get("from"):
+        return None
+    from PIL import Image
+    b = next((x for x in cast["characters"] if x["id"] == c["from"]), None)
+    if not b or "chosen" not in b:
+        return None
+    tag = "xl-" if b.get("kind") == "creature" else ""
+    p = Path(outdir) / f"{b['id']}-{tag}{b['chosen']}.png"
+    return Image.open(p).convert("RGB") if p.exists() else None
+
+
+def batch(cast_path, outdir, style, steps, width, height, kind=None, retry=3):
+    import torch
+    cast = load_cast(cast_path)
+    Path(outdir).mkdir(parents=True, exist_ok=True)
+    todo = [(c, p, seed, st) for c, shots in cast_paths(cast, outdir, style) for p, seed, st in shots
+            if not p.exists() and (kind is None or (c.get("kind") == "creature") == (kind == "creature"))]
+    print(f"{len(todo)} 枚を描く")
+    # 下絵（init_dir/<id>.png）がある人物は、その形の上に描く（img2img）。文章だけでは手足の数や
+    # 「手足の無い塊」を守らせきれなかった。strength が小さいほど下絵の形が残る
+    init_dir = cast.get("init_dir")
+    strength = cast.get("init_strength", 0.75)
+    # モデルの読み込みは画風ごとに1回にする
+    for st in dict.fromkeys(t[3] for t in todo):
+        pipe = _pipe(st)
+        # 系統の派生: "from" に書いたベースの決定稿（chosen）を手本として読ませる（IP-Adapter）。
+        # 系統ごとに別々に描くと、同じ系統で違う生き物が生まれたため。手本の強さは from_scale（既定 0.6）
+        if st in XL and any(t[0].get("from") for t in todo if t[3] == st):
+            pipe.load_ip_adapter("h94/IP-Adapter", subfolder="sdxl_models",
+                                 weight_name="ip-adapter_sdxl_vit-h.safetensors",
+                                 image_encoder_folder="models/image_encoder")
+        i2i = None
+        if init_dir and st in XL:
+            from diffusers import StableDiffusionXLImg2ImgPipeline
+            i2i = StableDiffusionXLImg2ImgPipeline(**pipe.components)
+        for c, p, seed, _ in [t for t in todo if t[3] == st]:
+            t = time.time()
+            text, neg = full_texts(c, st)
+            g = torch.Generator().manual_seed(seed)
+            if st in XL:
+                pe, ne, pp, np_ = encode_xl(pipe, text, neg)
+                kw = dict(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
+                          negative_pooled_prompt_embeds=np_, guidance_scale=2.0, generator=g)
+                ref = base_image(cast, c, outdir)
+                if ref is not None:
+                    pipe.set_ip_adapter_scale(c.get("from_scale", cast.get("from_scale", 0.6)))
+                    kw["ip_adapter_image"] = ref
+                elif c.get("from"):
+                    print(f"  注意: {c['id']} の手本（{c['from']} の決定稿）が無いので、手本なしで描く", flush=True)
+                init = Path(init_dir) / f"{c['id']}.png" if i2i else None
+                if init and init.exists():
+                    from PIL import Image
+                    # 下絵の縦横比を保つ（正方形に引き伸ばすと人物が横に太った）。SDXL 系は 8 の倍数の大きさで描く
+                    base = Image.open(init).convert("RGB")
+                    k = 1024 / max(base.size)
+                    base = base.resize((round(base.width * k / 8) * 8, round(base.height * k / 8) * 8))
+                    # img2img は strength×段数しか描かないので、段数を増やして描く段を保つ
+                    im = i2i(image=base, strength=c.get("init_strength", strength),
+                             num_inference_steps=max(steps, int(round(steps / c.get("init_strength", strength)))),
+                             **kw).images[0]
+                else:
+                    im = pipe(num_inference_steps=steps, width=768, height=1024, **kw).images[0]
+            else:
+                pe, ne = encode(pipe, text, neg)
+                im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, num_inference_steps=steps, guidance_scale=1.5,
+                          width=width, height=height, generator=g).images[0]
+            im.save(p)
+            meta = {"name": c.get("name", c["id"]), "prompt": text, "negative": neg, "seed": seed, "style": st,
+                    "model": STYLES[st], "steps": steps}
+            note = ""
+            if c.get("kind") not in ("creature", "item"):
+                reasons = check_person(p, outdir)
+                meta["inspect"] = reasons
+                note = "  落とした: " + "、".join(reasons) if reasons else "  通った（背景を白に消した）"
+            Path(str(p) + ".json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
+            print(f"{p}: {time.time() - t:.1f} 秒{note}", flush=True)
+        del pipe
+    # 機械の判定で落ちた分は、次の seed で描き足す（同じ人物で最大 3 回まで）
+    if retry and any(json.loads(Path(str(t[1]) + ".json").read_text(encoding="utf-8")).get("inspect")
+                     for t in todo if Path(str(t[1]) + ".json").exists()):
+        batch(cast_path, outdir, style, steps, width, height, kind, retry - 1)
+
+
+def auto_rejected(outdir):
+    """機械の判定で落とした絵の一覧（画像の名前 → 理由）。cast_paths が数に入れずに描き足す。"""
+    f = Path(outdir) / "auto_rejected.json"
+    return json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+
+
+def check_person(p, outdir):
+    """人の絵を機械で検品する。落としたら理由を auto_rejected.json に書き、通ったら背景を白に消す。
+
+    背景の物（蛇、猫、狼、影）と、欠けた手足・二重の人物・画面で切れた体を、人が見る前に落とす。
+    元の絵は <名前>.raw.png に残す。
+    """
+    sys.path.insert(0, str(Path(__file__).parent))
+    import shutil
+    import edit
+    reasons = edit.inspect(str(p))
+    if reasons:
+        rej = auto_rejected(outdir)
+        rej[Path(p).name] = "、".join(reasons)
+        (Path(outdir) / "auto_rejected.json").write_text(json.dumps(rej, ensure_ascii=False, indent=1), encoding="utf-8")
+    else:
+        shutil.copy(p, str(p).replace(".png", ".raw.png"))
+        edit.clean_background(str(p))
+    return reasons
+
+
+FONT = "/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf"
+
+
+def sheet(cast_path, outdir, out, thumb=256):
+    """描いた絵を、1人1行（名前と役割＋seed ごとの絵）で並べた一覧図にする。"""
+    from PIL import Image, ImageDraw, ImageFont
+    cast = load_cast(cast_path)
+    rows = [(c, [p for p, _, _ in shots if p.exists()]) for c, shots in cast_paths(cast, outdir)]
+    rows = [(c, ps) for c, ps in rows if ps]
+    cols = max(len(ps) for _, ps in rows)
+    th = thumb * 3 // 2
+    label = 220
+    try:
+        font, small = ImageFont.truetype(FONT, 22), ImageFont.truetype(FONT, 16)
+    except OSError:
+        font = small = ImageFont.load_default()
+    im = Image.new("RGB", (label + cols * thumb, len(rows) * th), "white")
+    d = ImageDraw.Draw(im)
+    for r, (c, ps) in enumerate(rows):
+        y = r * th
+        d.text((10, y + 12), c.get("name", c["id"]), fill="black", font=font)
+        line, yy = "", y + 46
+        # 役割の説明は枠の幅で折り返す
+        for ch in c.get("role", ""):
+            if d.textlength(line + ch, font=small) > label - 20:
+                d.text((10, yy), line, fill=(80, 80, 80), font=small)
+                line, yy = "", yy + 20
+            line += ch
+        d.text((10, yy), line, fill=(80, 80, 80), font=small)
+        for i, p in enumerate(ps):
+            im.paste(Image.open(p).convert("RGB").resize((thumb, th), Image.LANCZOS), (label + i * thumb, y))
+        d.line((0, y + th - 1, im.width, y + th - 1), fill=(200, 200, 200))
+    im.save(out)
+    print(f"{out}: {len(rows)} 人, {im.width}x{im.height}")
 
 
 def restyle(src, out, style, strength, steps, prompt):
@@ -86,31 +492,39 @@ def restyle(src, out, style, strength, steps, prompt):
     im = Image.open(src).convert("RGB")
     t = time.time()
     # img2img は strength×段数 しか描かない。strength 0.55 で 6 段なら 3 段だけ描き直し、構図と人物を保つ
-    res = pipe(PREFIX + (prompt or "") + SUFFIX, image=im, strength=strength,
+    pe, ne = encode(pipe, PREFIX + (prompt or "") + SUFFIX, NEGATIVE)
+    res = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, image=im, strength=strength,
                num_inference_steps=max(steps, int(round(2 / strength))), guidance_scale=1.5,
-               negative_prompt=NEGATIVE, generator=torch.Generator().manual_seed(0)).images[0]
+               generator=torch.Generator().manual_seed(0)).images[0]
     res.save(out)
     print(f"{out}: {time.time() - t:.1f} 秒")
 
 
-def cut_background(im, tol=24):
-    """四隅から塗りつぶして、無地の背景を透明にする。人物の中の白（目、服）は四隅とつながらないので残る。"""
+def cut_background(im, tol=24, step=4):
+    """背景を透明にする。四辺から塗り広げ、となりの画素との差が step 以下なら背景として続ける。
+
+    四隅の色と比べるだけでは、灰色のグラデーションと床の影が抜けなかった（SDXL 系の絵）。
+    背景はなだらかに色が変わり、人物は輪郭で急に色が変わるので、となりとの差で止める。
+    彩度の高い画素（tol*2 を超える）には入らない。輪郭の無い白い部分は抜ける恐れがあるので、絵で確かめる。
+    """
     from PIL import Image
     im = im.convert("RGBA")
     W, H = im.size
     px = im.load()
     seen = set()
-    stack = [(0, 0), (W - 1, 0), (0, H - 1), (W - 1, H - 1)]
-    base = [px[x, y][:3] for x, y in stack]
+    stack = [(x, y, None) for x in range(W) for y in (0, H - 1)] + [(x, y, None) for y in range(H) for x in (0, W - 1)]
     while stack:
-        x, y = stack.pop()
+        x, y, prev = stack.pop()
         if (x, y) in seen or not (0 <= x < W and 0 <= y < H):
             continue
         c = px[x, y][:3]
-        if min(sum(abs(a - b) for a, b in zip(c, bc)) for bc in base) > tol * 3:
+        if prev is not None and sum(abs(a - b) for a, b in zip(c, prev)) > step * 3:
+            continue
+        # 背景は彩度が低い（灰色・白）。色の付いた画素に入ったら止める。明るさの変化（後光、影）は許す
+        if max(c) - min(c) > tol * 2:
             continue
         seen.add((x, y))
-        stack += [(x + 1, y), (x - 1, y), (x, y + 1), (x, y - 1)]
+        stack += [(x + 1, y, c), (x - 1, y, c), (x, y + 1, c), (x, y - 1, c)]
     for x, y in seen:
         px[x, y] = (0, 0, 0, 0)
     return im
@@ -169,9 +583,13 @@ def deform(im, heads, neck=0.155):
     return o
 
 
-def pixel(src, out, height, colors, heads=None):
-    """絵からドット絵を作る。描画器の後半と同じ考え方（縮小 → 減色 → 外側に暗い輪郭 → 孤立ドットの掃除）。"""
-    from PIL import Image
+def pixel(src, out, height, colors, heads=None, smooth=0, mode=False):
+    """絵からドット絵を作る。描画器の後半と同じ考え方（縮小 → 減色 → 外側に暗い輪郭 → 孤立ドットの掃除）。
+
+    smooth: 縮める前に色の面をならす強さ（最頻値フィルタの大きさ、0 でならさない）。SDXL 系の絵は質感の
+    描き込みが多く、そのまま縮めると細かい色の粒になって濁った。
+    """
+    from PIL import Image, ImageFilter
     sys.path.insert(0, str(ROOT / "tools"))
     import build
     im = keep_largest(cut_background(Image.open(src)))
@@ -179,17 +597,39 @@ def pixel(src, out, height, colors, heads=None):
     im = im.crop(bb)
     if heads:
         im = deform(im, heads)
+    if smooth:
+        a = im.getchannel("A")
+        im = im.convert("RGB").filter(ImageFilter.ModeFilter(smooth)).convert("RGBA")
+        im.putalpha(a)
     w = max(1, round(im.width * height / im.height))
-    # 縮小は箱で平均する。最近傍で拾うと1ドットの線が途切れる
-    small = im.resize((w, height), Image.BOX)
-    alpha = small.getchannel("A").point(lambda a: 255 if a >= 128 else 0)
-    rgb = small.convert("RGB").quantize(colors=colors, method=Image.Quantize.MEDIANCUT).convert("RGB")
     W, H = w + 2, height + 2
     grid = [[None] * W for _ in range(H)]
-    for y in range(height):
-        for x in range(w):
-            if alpha.getpixel((x, y)):
-                grid[y + 1][x + 1] = "#%02x%02x%02x" % rgb.getpixel((x, y))
+    if mode:
+        # 先に大きいまま減色し、区画の中でいちばん多い色を取る。平均して縮めると境目に中間色が生まれ、
+        # 細かい色の粒になった（孤立ドット率 0.067 → 0.013、DigiMon の5体、高さ 64）
+        from collections import Counter
+        a = im.getchannel("A").load()
+        q = im.convert("RGB").quantize(colors=colors, method=Image.Quantize.MEDIANCUT).convert("RGB").load()
+        bx, by = im.width / w, im.height / height
+        for y in range(height):
+            for x in range(w):
+                cnt, tot = Counter(), 0
+                for yy in range(int(y * by), max(int(y * by) + 1, int((y + 1) * by))):
+                    for xx in range(int(x * bx), max(int(x * bx) + 1, int((x + 1) * bx))):
+                        tot += 1
+                        if a[xx, yy] >= 128:
+                            cnt[q[xx, yy]] += 1
+                if cnt and sum(cnt.values()) * 2 >= tot:
+                    grid[y + 1][x + 1] = "#%02x%02x%02x" % cnt.most_common(1)[0][0]
+    else:
+        # 縮小は箱で平均する。最近傍で拾うと1ドットの線が途切れる
+        small = im.resize((w, height), Image.BOX)
+        alpha = small.getchannel("A").point(lambda a: 255 if a >= 128 else 0)
+        rgb = small.convert("RGB").quantize(colors=colors, method=Image.Quantize.MEDIANCUT).convert("RGB")
+        for y in range(height):
+            for x in range(w):
+                if alpha.getpixel((x, y)):
+                    grid[y + 1][x + 1] = "#%02x%02x%02x" % rgb.getpixel((x, y))
     # 外側に1ドットの輪郭。色は隣の色をほぼ黒まで落としたもの（手本の輪郭は純黒でなく内側の暗い色）
     out_grid = [row[:] for row in grid]
     for y in range(H):
@@ -235,15 +675,37 @@ def main():
     p.add_argument("--preset", choices=list(PRESETS), default=None)
     p.add_argument("--height", type=int, default=None)
     p.add_argument("--colors", type=int, default=None)
+    p.add_argument("--smooth", type=int, default=None, help="縮める前に色の面をならす強さ（例 9）")
+    p.add_argument("--mode", action="store_true", help="区画の中でいちばん多い色で縮める（色の粒が減る）")
     p.add_argument("--heads", type=float, default=None, help="頭身を下げる（箱庭ドットは 2.8）。省くと元の絵のまま")
+    b = sub.add_parser("batch")
+    b.add_argument("cast")
+    b.add_argument("outdir")
+    b.add_argument("--style", default=None, choices=list(STYLES), help="省くと設定集の style（無ければ anime）")
+    b.add_argument("--steps", type=int, default=6)
+    b.add_argument("--width", type=int, default=512)
+    b.add_argument("--height", type=int, default=768)
+    b.add_argument("--kind", choices=["human", "creature"], default=None, help="人だけ、モンスターだけを描く")
+    s = sub.add_parser("sheet")
+    s.add_argument("cast")
+    s.add_argument("outdir")
+    s.add_argument("out")
+    s.add_argument("--thumb", type=int, default=256)
     a = ap.parse_args()
-    if a.cmd == "draw":
+    if a.cmd == "batch":
+        batch(a.cast, a.outdir, a.style, a.steps, a.width, a.height, a.kind)
+    elif a.cmd == "sheet":
+        sheet(a.cast, a.outdir, a.out, a.thumb)
+    elif a.cmd == "draw":
         draw(a.out, a.prompt, a.seed, a.n, a.style, a.steps, a.width, a.height)
     elif a.cmd == "restyle":
         restyle(a.src, a.out, a.style, a.strength, a.steps, a.prompt)
     else:
-        pre = PRESETS[a.preset or "diorama"]
-        pixel(a.src, a.out, a.height or pre["height"], a.colors or pre["colors"], a.heads or pre.get("heads"))
+        # 作風を指定しないときは変形しない。既定を箱庭ドットにしていた頃は、高さだけ指定しても
+        # 2.8 頭身への変形が黙ってかかり、モンスターの角や耳が横に寝た
+        pre = PRESETS[a.preset] if a.preset else {"height": 34, "colors": 32}
+        pixel(a.src, a.out, a.height or pre["height"], a.colors or pre["colors"], a.heads or pre.get("heads"),
+              a.smooth if a.smooth is not None else pre.get("smooth", 0), a.mode or pre.get("mode", False))
 
 
 if __name__ == "__main__":

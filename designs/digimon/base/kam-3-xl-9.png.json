@@ -1,0 +1,9 @@
+{
+ "name": "カメロ",
+ "prompt": "small turtle on four short legs, quadruped, smooth blue shell with one mark in the center, slightly long neck, one short tail, glowing diamond-shaped blue core on the chest, rookie stage, small, big head, short limbs, colors blue #4aa8ff, navy #2b6fb5, pale blue #d6ecff, original digital monster design, thick uniform black outline, flat cel colors, no gradient, no texture, no shading, sharp angular shapes, fierce eyes, cool rather than cute, three-quarter view, full body, creature design, 2d anime style illustration, cel shading, clean lineart, flat colors, white background",
+ "negative": "human, humanoid, anthro, 1girl, extra heads, extra legs, extra wings, extra tails, fused animals, two animals, cropped, text, watermark, nsfw, bipedal, standing upright, arms, hands",
+ "seed": 9,
+ "style": "xl",
+ "model": "Lykon/dreamshaper-xl-lightning",
+ "steps": 6
+}

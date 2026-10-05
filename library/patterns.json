@@ -1,0 +1,281 @@
+{
+ "_doc": "名前付きの描き分けのパターン（皮膚、体型、亜人間など）。設定集の人物に \"patterns\": [\"名前\"] と書くと、traits と prompt が入る。verified は描いて確かめた結果（モデルと構図ごと）、sample は見本の絵。効かないパターンはここに置かない（docs/knowledge/traits.md に記録する）。method が edit.py のものは、描いた絵のあとで tools/gen/edit.py で入れる（command のとおり）。服やほかの部位は変わらない。人の絵は機械の検品（tools/gen/edit.py inspect: 二重の人物、欠けた手足、画面で切れた体、背景の物）を通ったものだけを見本にし、背景は白に消してある",
+ "patterns": {
+  "skin-dark": {
+   "ja": "濃い肌",
+   "traits": [
+    "skin:dark"
+   ],
+   "verified": {
+    "male": "落とした（機械の検品: 背景に物がある（背景の 11.7% に輪郭のある物））",
+    "female": "出た（余計な変化: シャツが黒）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
+   "samples": {
+    "female": "library/samples/skin-dark-female.png"
+   }
+  },
+  "body-plump": {
+   "ja": "太め",
+   "traits": [
+    "fat:high"
+   ],
+   "verified": {
+    "male": "出た（余計な変化: シャツが灰色の半袖）",
+    "female": "落とした（機械の検品: 体が画面の端で切れている）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
+   "samples": {
+    "male": "library/samples/body-plump-male.png"
+   }
+  },
+  "body-lean": {
+   "ja": "細身",
+   "traits": [
+    "muscle:low"
+   ],
+   "verified": {
+    "male": "弱く出た",
+    "female": "出なかった"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
+   "samples": {
+    "male": "library/samples/body-lean-male.png"
+   }
+  },
+  "ears-elf": {
+   "ja": "エルフの耳",
+   "traits": [
+    "ears:elf"
+   ],
+   "verified": {
+    "male": "全身では見分けられない（胸から上で確かめる）",
+    "female": "出た（余計な変化: シャツが少し）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
+   "samples": {
+    "female": "library/samples/ears-elf-female.png"
+   }
+  },
+  "tattoo-tribal": {
+   "ja": "部族の刺青",
+   "traits": [
+    "marking:tribal"
+   ],
+   "verified": {
+    "male": "腕に出た（余計な変化: シャツが短い）",
+    "female": "落とした（機械の検品: 背景に物がある（背景の 8.9% に輪郭のある物））"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
+   "samples": {
+    "male": "library/samples/tattoo-tribal-male.png"
+   }
+  },
+  "race-orc": {
+   "ja": "オーク",
+   "traits": [
+    "race:orc"
+   ],
+   "verified": {
+    "male": "落とした（機械の検品: 体が画面の端で切れている）",
+    "female": "出た（余計な変化: 服）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
+   "samples": {
+    "female": "library/samples/race-orc-female.png"
+   }
+  },
+  "skin-blue": {
+   "ja": "青い肌",
+   "method": "edit.py recolor",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py recolor <絵> <出力> --region skin --color '#4a7ad0'",
+   "verified": {
+    "male": "できた（範囲の外で変わった画素 0）",
+    "female": "できた（範囲の外で変わった画素 0）"
+   },
+   "samples": {
+    "male": "library/samples/skin-blue-male.png",
+    "female": "library/samples/skin-blue-female.png"
+   }
+  },
+  "skin-green": {
+   "ja": "緑の肌",
+   "method": "edit.py recolor",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py recolor <絵> <出力> --region skin --color '#5aa05a'",
+   "verified": {
+    "male": "できた（範囲の外で変わった画素 0）",
+    "female": "できた（範囲の外で変わった画素 0）"
+   },
+   "samples": {
+    "male": "library/samples/skin-green-male.png",
+    "female": "library/samples/skin-green-female.png"
+   }
+  },
+  "skin-grey": {
+   "ja": "灰色の肌",
+   "method": "edit.py recolor",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py recolor <絵> <出力> --region skin --color '#8a8f98'",
+   "verified": {
+    "male": "できた（範囲の外で変わった画素 0）",
+    "female": "できた（範囲の外で変わった画素 0）"
+   },
+   "samples": {
+    "male": "library/samples/skin-grey-male.png",
+    "female": "library/samples/skin-grey-female.png"
+   }
+  },
+  "skin-red": {
+   "ja": "赤い肌",
+   "method": "edit.py recolor",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py recolor <絵> <出力> --region skin --color '#c84a3a'",
+   "verified": {
+    "male": "できた（範囲の外で変わった画素 0）",
+    "female": "できた（範囲の外で変わった画素 0）"
+   },
+   "samples": {
+    "male": "library/samples/skin-red-male.png",
+    "female": "library/samples/skin-red-female.png"
+   }
+  },
+  "tattoo-tribal-arms": {
+   "ja": "両腕の部族の刺青",
+   "method": "edit.py inpaint",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint <絵> <出力> --region skin_arms --strength 0.85 --prompt \"full sleeve black tribal tattoos covering the skin of both arms, bare muscular arms, hands\"",
+   "verified": {
+    "male": "できた（範囲の外で変わった画素 0。腕に下ろした手の縁がわずかに薄い）",
+    "female": "未確認"
+   },
+   "samples": {
+    "male": "library/samples/tattoo-tribal-arms-male.png"
+   }
+  },
+  "skin-tan": {
+   "ja": "日焼け肌",
+   "traits": [
+    "skin:tan"
+   ],
+   "verified": {
+    "male": "出た（弱い）",
+    "female": "出なかった"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
+   "samples": {
+    "male": "library/samples/skin-tan-male.png"
+   }
+  },
+  "body-plump-tan": {
+   "ja": "太め＋日焼け肌",
+   "traits": [
+    "fat:high",
+    "skin:tan"
+   ],
+   "verified": {
+    "male": "出た（上の肌着が胸当て）",
+    "female": "太めは出た、日焼けは弱い（ポニーテール）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
+   "samples": {
+    "male": "library/samples/body-plump-tan-male.png"
+   }
+  },
+  "race-elf": {
+   "ja": "エルフ",
+   "traits": [
+    "race:elf"
+   ],
+   "verified": {
+    "male": "出た（細身、耳は小さい。下が腰布）",
+    "female": "出た（髪が銀、服が黒）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
+   "samples": {
+    "male": "library/samples/race-elf-male.png",
+    "female": "library/samples/race-elf-female.png"
+   }
+  },
+  "race-dwarf": {
+   "ja": "ドワーフ",
+   "traits": [
+    "race:dwarf"
+   ],
+   "verified": {
+    "male": "出た（髭、筋肉質）",
+    "female": "出なかった（長い三つ編みの少女）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
+   "samples": {
+    "male": "library/samples/race-dwarf-male.png"
+   }
+  },
+  "ears-cat": {
+   "ja": "猫の耳",
+   "traits": [
+    "ears:cat"
+   ],
+   "verified": {
+    "male": "落とした（機械の検品: 右腕が無い）",
+    "female": "出た（服が黒）"
+   },
+   "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
+   "samples": {
+    "female": "library/samples/ears-cat-female.png"
+   }
+  }
+ },
+ "base_samples": {
+  "male": "library/samples/base-male.png",
+  "female": "library/samples/base-female.png"
+ },
+ "outfits": {
+  "outfit-red-leather-jacket": {
+   "ja": "赤い革の上着（長袖）",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint <絵> <出力> --region upper+arms --grow 10 --prompt \"red leather jacket with long sleeves, open front, black t-shirt underneath, hands\"",
+   "verified": "男でできた（片方の肩に白い当て布）",
+   "sample": "library/samples/outfit-red-leather-jacket.png"
+  },
+  "outfit-white-hoodie": {
+   "ja": "白いパーカー（長袖）",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint <絵> <出力> --region upper+arms --grow 10 --prompt \"white hoodie with long sleeves and blue drawstrings, hands\"",
+   "verified": "女でできた",
+   "sample": "library/samples/outfit-white-hoodie.png"
+  },
+  "outfit-plaid-skirt": {
+   "ja": "赤いチェックのスカート",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint <絵> <出力> --region lower+legs-feet --grow 14 --prompt \"red plaid pleated skirt, knee length, bare legs\"",
+   "verified": "女でできた（足先は元のまま、靴は出ない）",
+   "sample": "library/samples/outfit-plaid-skirt.png"
+  },
+  "outfit-black-jeans": {
+   "ja": "黒いジーンズ（長い丈）",
+   "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint <絵> <出力> --region lower+legs-feet --grow 10 --prompt \"black jeans, long trousers down to the ankles\"",
+   "verified": "男でできた（足先は元のまま）",
+   "sample": "library/samples/outfit-black-jeans.png"
+  }
+ },
+ "ages": {
+  "teen": {
+   "ja": "十代",
+   "age": "teen",
+   "verified": {
+    "male": "出た",
+    "female": "出た"
+   },
+   "samples": {
+    "male": "library/samples/age-teen-male.png",
+    "female": "library/samples/age-teen-female.png"
+   }
+  },
+  "elder": {
+   "ja": "老人",
+   "age": "elder",
+   "verified": {
+    "male": "出た（サンダル）",
+    "female": "出た（眼鏡、サンダル）"
+   },
+   "samples": {
+    "male": "library/samples/age-elder-male.png",
+    "female": "library/samples/age-elder-female.png"
+   }
+  }
+ }
+}

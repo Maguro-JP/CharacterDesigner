@@ -1,0 +1,136 @@
+{
+ "about": "女性の体型の型。どれも大人（age 0.5）。macro は MakeHuman の全身の数字（0〜1、0.5 が平均）、targets は部位ごとの形の差分（0〜1）。tools/engine/mannequin.py と model3d.py で使う。breast_scale は MakeHuman の上限を超えて胸を膨らませる倍率（長さ。1.3 で体積は約2倍）",
+ "female": {
+  "standard": {
+   "ja": "標準",
+   "macro": {
+    "weight": 0.5,
+    "muscle": 0.5,
+    "cupsize": 0.5,
+    "firmness": 0.5
+   },
+   "targets": {}
+  },
+  "hourglass": {
+   "ja": "砂時計（くびれ）",
+   "macro": {
+    "weight": 0.55,
+    "muscle": 0.45,
+    "cupsize": 0.72,
+    "firmness": 0.65
+   },
+   "targets": {
+    "torso/measure-waist-circ-decr": 0.7,
+    "torso/measure-hips-circ-incr": 0.4,
+    "buttocks/buttocks-volume-incr": 0.4
+   }
+  },
+  "model": {
+   "ja": "モデル体型（長身・細身）",
+   "macro": {
+    "height": 0.8,
+    "weight": 0.35,
+    "muscle": 0.5,
+    "cupsize": 0.5,
+    "firmness": 0.6
+   },
+   "targets": {
+    "legs/upperlegs-height-incr": 0.4,
+    "legs/lowerlegs-height-incr": 0.3,
+    "torso/measure-waist-circ-decr": 0.4
+   }
+  },
+  "glamour": {
+   "ja": "グラマー",
+   "macro": {
+    "weight": 0.6,
+    "muscle": 0.45,
+    "cupsize": 0.88,
+    "firmness": 0.7
+   },
+   "targets": {
+    "torso/measure-waist-circ-decr": 0.5,
+    "torso/measure-hips-circ-incr": 0.5,
+    "buttocks/buttocks-volume-incr": 0.5,
+    "legs/measure-thigh-circ-incr": 0.3
+   }
+  },
+  "pear": {
+   "ja": "洋梨（下半身がしっかり）",
+   "macro": {
+    "weight": 0.55,
+    "muscle": 0.45,
+    "cupsize": 0.45,
+    "firmness": 0.55
+   },
+   "targets": {
+    "torso/measure-hips-circ-incr": 0.8,
+    "legs/measure-thigh-circ-incr": 0.5,
+    "buttocks/buttocks-volume-incr": 0.5,
+    "torso/measure-waist-circ-decr": 0.4
+   }
+  },
+  "athletic": {
+   "ja": "アスリート（引き締まった）",
+   "macro": {
+    "weight": 0.4,
+    "muscle": 0.8,
+    "cupsize": 0.45,
+    "firmness": 0.8
+   },
+   "targets": {
+    "stomach/stomach-tone-incr": 0.6,
+    "torso/measure-waist-circ-decr": 0.3,
+    "buttocks/buttocks-volume-incr": 0.4
+   }
+  },
+  "soft": {
+   "ja": "ふくよか（柔らかい）",
+   "macro": {
+    "weight": 0.82,
+    "muscle": 0.35,
+    "cupsize": 0.75,
+    "firmness": 0.45
+   },
+   "targets": {
+    "torso/measure-hips-circ-incr": 0.4,
+    "legs/measure-thigh-circ-incr": 0.4
+   }
+  },
+  "ideal": {
+   "ja": "理想のベース（アスリート寄り・胸を大きく）",
+   "note": "利用者のキャラクターデザインの基準の体。アスリートの型から筋肉を控えめにし、胸を大きくした。胸は MakeHuman の上限（cupsize 1.0）では足りず、形を焼き込んだ後に 1.3 倍（長さ）に膨らませる（breast_scale）",
+   "macro": {
+    "weight": 0.45,
+    "muscle": 0.6,
+    "cupsize": 1.0,
+    "firmness": 0.9
+   },
+   "targets": {
+    "stomach/stomach-tone-incr": 0.4,
+    "torso/measure-waist-circ-decr": 0.45,
+    "buttocks/buttocks-volume-incr": 0.45,
+    "torso/measure-hips-circ-incr": 0.2
+   },
+   "sample": "library/samples/body-ideal-female.png（左がアスリートの型、右が理想のベース。正面・横・背面）",
+   "breast_scale": 1.3
+  }
+ },
+ "sample": "library/samples/body-types-female.png（左から定義順。上が正面、下が横）",
+ "make": "PYTHONPATH=.cache/engine/bpy python3 tools/engine/mannequin.py <出力フォルダ> [--only hourglass,glamour]",
+ "anime": {
+  "about": "アニメ絵（tools/gen/people.py、Animagine XL 3.1）で描くときの体のベース。tags は体の言葉、body は服と構図、negative は打ち消しに足す言葉。--base <名前> で使う",
+  "ideal": {
+   "ja": "理想のベース（女性の基準の体）",
+   "note": "利用者が「これくらいを今後のベースに」と決めた体。細身で柔らかく、筋肉は少し、胸は中くらいで谷間が分かる。脚は前の版（wide hips のみ）より少しすっきり、細すぎない",
+   "gender": "female",
+   "tags": "adult woman, slender body, soft body, toned, slim waist, wide hips, slender legs, medium breasts, cleavage, long legs, healthy",
+   "body": "full body, standing, arms at sides, white background, simple background, barefoot, plain white bikini, bikini top, bikini bottom, no logo",
+   "negative": "logo, brand logo, emblem, text on clothes, see-through, abs, muscular, six pack, micro bikini, thick thighs",
+   "seed": 31,
+   "sample": "library/samples/anime-ideal-female.png",
+   "history": "競泳水着（胸が分からない）→黒のスポーツビキニ（腹筋が強すぎ）→白ビキニ（脚が気持ち太い）→thin thighs（細すぎ）→ slender legs のみ（決定）",
+   "views": "library/samples/anime-ideal-female-5views.png（正面・斜め前・横・斜め後ろ・背面。people.py --views front,front34,side,back34,back）"
+  }
+ }
+}

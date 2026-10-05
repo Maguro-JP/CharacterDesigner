@@ -1,0 +1,125 @@
+{
+ "title": "迷宮指南",
+ "source": "Maguro-JP/RuleCrawler src/shinan/ui/stage/hero.ts、actors.ts、enemySprites.ts、docs/shinan/design.md",
+ "common": "japanese folklore mystery dungeon roguelike, wafu, soft rounded cute deformed style, 3.5 heads tall, anime style",
+ "n": 2,
+ "characters": [
+  {
+   "id": "hero",
+   "name": "探索者（主人公）",
+   "role": "指南書どおりに潜る旅人。赤茶の髪、青い上着、橙の襟巻き",
+   "prompt": "young wandering adventurer, reddish brown hair #e0884a, blue eyes, blue short jacket #3a5aa8, long orange scarf #ff8a2a, brown obi belt, long wide off-white hakama trousers #e8e0d0 covering the legs to the ankles, brown straw sandals, katana at waist, cheerful determined face",
+   "n": 4,
+   "negative": "miniskirt, skirt, bare legs, thighs",
+   "note": "9・10 は袴の色が設定（生成り）と違う別案"
+  },
+  {
+   "id": "sunekosuri",
+   "name": "すねこすり",
+   "role": "獣。弱ると逃げる",
+   "prompt": "small fluffy dog, quadruped, on all fours, four short legs, one bushy tail, round body, shy eyes, main color pale beige, secondary white, accent pink nose",
+   "kind": "creature",
+   "negative": "arms, hands, humanoid, standing upright"
+  },
+  {
+   "id": "oonezumi",
+   "name": "大ネズミ",
+   "role": "獣。寄ってきて殴る",
+   "prompt": "giant rat, quadruped, on all fours, four legs, one long tail, big front teeth, red eyes, main color grey, secondary dark grey, accent red",
+   "kind": "creature",
+   "negative": "arms, hands, humanoid, standing upright"
+  },
+  {
+   "id": "kamaitachi",
+   "name": "鎌鼬",
+   "role": "鼬。1ターンに2回動く",
+   "prompt": "weasel, quadruped, on all fours, four legs, one tail, sickle blades on front paws, wind swirls, main color pale blue white, secondary silver, accent cyan",
+   "kind": "creature",
+   "negative": "arms, hands, humanoid, standing upright"
+  },
+  {
+   "id": "kooni",
+   "name": "小鬼",
+   "role": "鬼。物を盗んで逃げる",
+   "prompt": "small goblin oni, bipedal, two legs, two arms, one small horn, tiger skin loincloth, stolen sack, main color green, secondary tiger yellow, accent yellow eyes",
+   "kind": "creature"
+  },
+  {
+   "id": "kappa",
+   "name": "河童",
+   "role": "河童。傷がふさがる",
+   "prompt": "kappa, bipedal, two legs, two arms, turtle shell on back, water dish on head, duck beak, webbed hands, main color green, secondary dark green shell, accent yellow beak",
+   "kind": "creature"
+  },
+  {
+   "id": "tengu-minion",
+   "name": "天狗の手下",
+   "role": "天狗。石を投げる",
+   "prompt": "crow tengu, bipedal, two legs, two arms, two black wings, crow head with beak, monk robes, holding a stone, main color black, secondary red, accent white",
+   "kind": "creature"
+  },
+  {
+   "id": "tsuchigumo",
+   "name": "土蜘蛛",
+   "role": "蜘蛛。糸で縛る",
+   "prompt": "giant spider, eight legs, two fangs, many eyes, hairy body, web threads, main color brown, secondary dark brown, accent red eyes",
+   "kind": "creature"
+  },
+  {
+   "id": "onibi",
+   "name": "鬼火",
+   "role": "火の玉。壁を抜ける",
+   "prompt": "floating will-o-wisp fireball, no legs, cute spooky face, flame tail, main color blue, secondary pale cyan, accent white",
+   "kind": "creature",
+   "negative": "legs, feet"
+  },
+  {
+   "id": "akaoni",
+   "name": "赤鬼",
+   "role": "鬼。力を溜めて重い一撃",
+   "prompt": "red ogre, bipedal, two legs, two arms, two horns, tiger skin loincloth, iron club, muscular, main color red, secondary tiger yellow, accent black iron",
+   "kind": "creature"
+  },
+  {
+   "id": "aooni",
+   "name": "青鬼",
+   "role": "鬼。吠えて仲間を起こす",
+   "prompt": "blue ogre, bipedal, two legs, two arms, one horn, roaring, tiger skin loincloth, muscular, main color blue, secondary tiger yellow, accent white fangs",
+   "kind": "creature"
+  },
+  {
+   "id": "ushioni",
+   "name": "牛鬼",
+   "role": "牛。突進",
+   "prompt": "ox-headed spider, eight spider legs, ox head with two big horns, main color dark purple, secondary black, accent red eyes",
+   "kind": "creature"
+  },
+  {
+   "id": "jorougumo",
+   "name": "絡新婦",
+   "role": "蜘蛛（女郎蜘蛛）。毒",
+   "prompt": "jorogumo spider woman yokai, eight large spider legs growing from her back, pink #d86ca0 kimono fully clothed, venomous elegant smile, web pattern",
+   "gender": "female",
+   "rejected": {
+    "jorougumo-7.png": "背中の蜘蛛の脚が無い（指示は eight spider legs）。ただの着物の女性になった",
+    "jorougumo-8.png": "同上。脚の代わりに細い紐が数本"
+   }
+  },
+  {
+   "id": "oomukade",
+   "name": "大百足",
+   "role": "百足。2回噛む",
+   "prompt": "giant centipede, many legs, armored segments, big pincers, coiled body, main color red, secondary black, accent yellow legs",
+   "kind": "creature"
+  },
+  {
+   "id": "nue",
+   "name": "鵺",
+   "role": "最大の妖怪。惑わせる",
+   "prompt": "chimera, quadruped, on all fours, four tiger legs, monkey face, snake for a tail, dark clouds, main color brown, secondary tiger yellow, accent green snake",
+   "kind": "creature",
+   "negative": "arms, hands, humanoid, standing upright"
+  }
+ ],
+ "creature_common": "japanese yokai, soft rounded cute style"
+}

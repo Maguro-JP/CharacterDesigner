@@ -188,6 +188,165 @@ class BuildTest(unittest.TestCase):
         self.assertEqual(len(sp["rows"]), 36)  # 34 ドットの本人と上下の輪郭
         self.assertFalse(any(build.hex_to_rgb(c)[0] > 120 and build.hex_to_rgb(c)[2] < 80 for c in cols), cols)
 
+    def test_cast_sheet_lists_drawn_pictures_per_character(self):
+        # 設定集の一覧図: 描いた人だけが1人1行で並び、全員の指示文の後ろに共通の世界観が付く
+        import tempfile
+        from PIL import Image
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import design
+        cast = {"common": "dark fantasy", "n": 2,
+                "characters": [{"id": "a", "name": "剣士", "role": "前衛", "prompt": "swordsman"},
+                               {"id": "b", "name": "未描画", "prompt": "mage"}]}
+        with tempfile.TemporaryDirectory() as t:
+            Path(f"{t}/c.json").write_text(json.dumps(cast, ensure_ascii=False), encoding="utf-8")
+            for s in (7, 8):
+                Image.new("RGB", (64, 96), (200, 0, 0)).save(f"{t}/a-{s}.png")
+            design.sheet(f"{t}/c.json", t, f"{t}/s.png", thumb=64)
+            im = Image.open(f"{t}/s.png")
+            self.assertEqual(im.size, (220 + 2 * 64, 96))  # 1行（未描画の人は出ない）、絵は2枚
+            self.assertEqual(design.load_cast(f"{t}/c.json")["characters"][0]["full_prompt"],
+                             "swordsman, dark fantasy")
+
+    def test_creatures_are_drawn_in_both_styles_without_human_prefix(self):
+        # モンスターは人の立ち姿の決まり文句を使わず、SDXL 系で描く。人は性別の指定が頭に付く
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import design
+        cast = {"n": 2, "characters": [{"id": "m", "kind": "creature", "prompt": "a turtle", "full_prompt": "a turtle"},
+                                       {"id": "h", "gender": "male", "prompt": "a knight", "full_prompt": "a knight"}]}
+        shots = {c["id"]: [(p.name, st) for p, _, st in s] for c, s in design.cast_paths(cast, "/x")}
+        self.assertEqual(shots["m"], [("m-xl-7.png", "xl"), ("m-xl-8.png", "xl")])
+        self.assertEqual(shots["h"], [("h-7.png", "anime"), ("h-8.png", "anime")])
+        for st in ("anime", "xl"):
+            text, neg = design.full_texts(cast["characters"][0], st)
+            self.assertNotIn("standing", text)
+            self.assertIn("1girl", neg)
+        self.assertTrue(design.full_texts(cast["characters"][1])[0].startswith(design.PREFIX + "1boy"))
+        # 検品で落とした絵は数に入れず、次の seed で描き足す
+        cast["characters"][0]["rejected"] = {"m-xl-7.png": "くちばしが2つ"}
+        shots = [p.name for c, s in design.cast_paths(cast, "/x") for p, _, _ in s if c["id"] == "m"]
+        self.assertEqual(shots, ["m-xl-8.png", "m-xl-9.png"])
+
+    def test_derived_stage_uses_the_chosen_base_picture(self):
+        # 系統の派生は、ベースの決定稿（chosen）の絵を手本にする。決定稿が無ければ手本なし
+        import tempfile
+        from PIL import Image
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import design
+        cast = {"characters": [{"id": "b", "kind": "creature"}, {"id": "s", "kind": "creature", "from": "b"}]}
+        with tempfile.TemporaryDirectory() as t:
+            Image.new("RGB", (8, 8), (10, 200, 10)).save(f"{t}/b-xl-9.png")
+            self.assertIsNone(design.base_image(cast, cast["characters"][1], t))
+            cast["characters"][0]["chosen"] = 9
+            self.assertEqual(design.base_image(cast, cast["characters"][1], t).getpixel((0, 0)), (10, 200, 10))
+            self.assertIsNone(design.base_image(cast, cast["characters"][0], t))
+
+    def test_mode_downscale_keeps_flat_colors_and_gradient_background_is_cut(self):
+        # 灰色のグラデーションの背景は抜け、区画でいちばん多い色で縮めると中間色が生まれない
+        import tempfile
+        from PIL import Image, ImageDraw
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import design
+        im = Image.new("RGB", (120, 200))
+        for y in range(200):
+            ImageDraw.Draw(im).line([(0, y), (119, y)], fill=(150 + y // 4, 150 + y // 4, 150 + y // 4))
+        d = ImageDraw.Draw(im)
+        d.rectangle([30, 20, 89, 189], fill=(20, 20, 20))
+        d.rectangle([32, 22, 59, 187], fill=(220, 60, 40))
+        d.rectangle([60, 22, 87, 187], fill=(40, 90, 220))
+        with tempfile.TemporaryDirectory() as t:
+            im.save(f"{t}/a.png")
+            design.pixel(f"{t}/a.png", f"{t}/a.json", 20, 8, mode=True)
+            sp = json.loads(Path(f"{t}/a.json").read_text(encoding="utf-8"))
+        cols = {sp["palette"][c] for r in sp["rows"] for c in r if c != "."}
+        self.assertEqual(len(sp["rows"]), 22)  # 背景が残ると高さが絵の上下まで伸びる
+        self.assertLessEqual(len(cols), 5)  # 赤・青・縁・外側の輪郭。混ざった中間色が無い
+
+    def test_gender_and_age_change_the_prompt(self):
+        # 男女・中性的・年齢の指定が指示文の頭に入る。子どもに「adult man」を付けない
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import design
+        t = lambda **kw: design.full_texts({"prompt": "knight", "full_prompt": "knight", **kw})  # noqa: E731
+        self.assertIn("adult man", t(gender="male")[0])
+        self.assertIn("androgynous", t(gender="androgynous")[0])
+        self.assertIn("breasts", t(gender="androgynous")[1])
+        child, neg = t(gender="male", age="child")
+        self.assertIn("child", child)
+        self.assertNotIn("adult man", child)
+        self.assertIn("elderly", t(gender="female", age="elder")[0])
+        # 中年と老人は SDXL 系で、言葉で書く（女性の老人は祖母の言葉で強める）
+        elder = {"id": "e", "gender": "female", "age": "elder", "prompt": "knight", "full_prompt": "knight"}
+        self.assertEqual([st for c, s in design.cast_paths({"n": 1, "characters": [elder]}, "/x") for _, _, st in s], ["xl"])
+        text = design.full_texts(elder, "xl")[0]
+        self.assertTrue(text.startswith("elderly woman knight"))
+        self.assertIn("grandmother", text)
+        self.assertNotIn("1girl", text)
+
+    def test_traits_are_put_before_the_description(self):
+        # 描き分けの部品は人物の説明の前に入り、打ち消しも足される。知らない部品は止める
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import design
+        c = {"id": "x", "gender": "male", "prompt": "knight", "full_prompt": "knight",
+             "traits": ["horns:ram", "fat:high"]}
+        text, neg = design.full_texts(c)
+        self.assertLess(text.index("curled ram horns"), text.index("knight"))
+        self.assertIn("slim", neg)
+        with self.assertRaises(SystemExit):
+            design.full_texts({**c, "traits": ["horns:none"]})
+
+    def test_patterns_expand_to_traits_and_words(self):
+        # 名前付きのパターンは、部品と足す言葉に展開される。知らない名前は止める
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import design
+        saved = dict(design.PATTERNS)
+        try:
+            design.PATTERNS["test-blue"] = {"traits": ["skin:blue"], "prompt": "glossy skin", "negative": "blue clothes"}
+            c = {"id": "x", "gender": "male", "prompt": "knight", "full_prompt": "knight", "patterns": ["test-blue"]}
+            text, neg = design.full_texts(c)
+            self.assertIn("blue skin", text)
+            self.assertIn("glossy skin", text)
+            self.assertIn("blue clothes", neg)
+            with self.assertRaises(SystemExit):
+                design.full_texts({**c, "patterns": ["no-such"]})
+        finally:
+            design.PATTERNS.clear()
+            design.PATTERNS.update(saved)
+
+    def test_body_framing_uses_plain_wear(self):
+        # 素体は簡素な無地の肌着で描き、外套や鎧や背景の物を打ち消す
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import design
+        c = {"id": "x", "gender": "female", "framing": "body", "prompt": "elf", "full_prompt": "elf"}
+        for st in ("anime", "xl"):
+            text, neg = design.full_texts(c, st)
+            self.assertIn("plain grey sports top", text)
+            self.assertIn("cape", neg)
+
+    def test_recolor_changes_only_the_skin_region(self):
+        # 肌の色の置き換え: 範囲の外は1画素も変わらず、肌は目標の色相に寄り、暗い線は残る
+        import colorsys
+        import tempfile
+        from PIL import Image, ImageDraw
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import edit
+        im = Image.new("RGB", (60, 60), (200, 200, 200))
+        d = ImageDraw.Draw(im)
+        d.rectangle([10, 10, 29, 49], fill=(230, 180, 150))   # 肌
+        d.rectangle([18, 20, 20, 22], fill=(20, 20, 20))      # 目の線
+        d.rectangle([30, 10, 49, 49], fill=(60, 60, 160))     # 服
+        lab = Image.new("L", (60, 60), 0)
+        ImageDraw.Draw(lab).rectangle([10, 10, 29, 49], fill=11)  # 顔
+        ImageDraw.Draw(lab).rectangle([30, 10, 49, 49], fill=4)   # 上の服
+        with tempfile.TemporaryDirectory() as t:
+            im.save(f"{t}/a.png")
+            lab.save(f"{t}/a.png.parts.png")
+            n = edit.recolor(f"{t}/a.png", f"{t}/b.png", "skin", "#4a7ad0")
+            out = Image.open(f"{t}/b.png").convert("RGB")
+        self.assertEqual(n, 0)
+        self.assertEqual(out.getpixel((40, 30)), (60, 60, 160))
+        self.assertEqual(out.getpixel((19, 21)), (20, 20, 20))
+        h = colorsys.rgb_to_hsv(*(c / 255 for c in out.getpixel((12, 40))))[0]
+        self.assertAlmostEqual(h, colorsys.rgb_to_hsv(0x4a / 255, 0x7a / 255, 0xd0 / 255)[0], delta=0.02)
+
     def test_orphan_is_replaced_but_protected_is_kept(self):
         a, b = "#808080", "#ffffff"
         grid = [[a] * 3 for _ in range(3)]

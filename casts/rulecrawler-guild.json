@@ -1,0 +1,300 @@
+{
+ "title": "深層ギルド",
+ "source": "Maguro-JP/RuleCrawler src/guild/ui/stage/costumes.ts、figures.ts、engine/data.ts、docs/guild/design.md",
+ "common": "western high fantasy adventurer, octopath traveler inspired, anime style, exaggerated class silhouette (hat, collar, weapon)",
+ "n": 2,
+ "characters": [
+  {
+   "id": "warrior-m",
+   "name": "戦士（男）",
+   "role": "前衛。肩当てと胸当て、短い陣羽織、金属の草摺",
+   "gender": "male",
+   "prompt": "male warrior, brown hair, steel pauldrons and breastplate #c8d2e0, short red surcoat #d8403a, metal tassets skirt, open-face helmet, longsword with gold hilt, confident grin"
+  },
+  {
+   "id": "warrior-f",
+   "name": "戦士（女）",
+   "role": "前衛。肩当てと胸当て、短い陣羽織、金属の草摺",
+   "gender": "female",
+   "prompt": "female warrior, brown hair, steel pauldrons and breastplate #c8d2e0, short red surcoat #d8403a, metal tassets skirt, open-face helmet, longsword with gold hilt, confident grin"
+  },
+  {
+   "id": "knight-m",
+   "name": "騎士（男）",
+   "role": "盾役。全身鎧、紋章の陣羽織、マント",
+   "gender": "male",
+   "prompt": "male knight, blonde hair, full silver-white plate armor #e8ecf4, blue tabard with crest #3a6ad0, long blue cape, round blue shield with gold boss, stern noble face"
+  },
+  {
+   "id": "knight-f",
+   "name": "騎士（女）",
+   "role": "盾役。全身鎧、紋章の陣羽織、マント",
+   "gender": "female",
+   "prompt": "female knight, blonde hair, full silver-white plate armor #e8ecf4, blue tabard with crest #3a6ad0, long blue cape, round blue shield with gold boss, stern noble face"
+  },
+  {
+   "id": "samurai-m",
+   "name": "侍（男）",
+   "role": "西洋の街に来た異国の剣士。大袖、帯、幅広の袴",
+   "gender": "male",
+   "prompt": "male samurai, black hair tied back, navy kimono #3a4a8a with large armored sleeves, white undergarment, red obi belt, wide hakama, straw kasa hat, katana, calm sharp eyes"
+  },
+  {
+   "id": "samurai-f",
+   "name": "侍（女）",
+   "role": "西洋の街に来た異国の剣士。大袖、帯、幅広の袴",
+   "gender": "female",
+   "prompt": "female samurai, black hair tied back, navy kimono #3a4a8a with large armored sleeves, white undergarment, red obi belt, wide hakama, straw kasa hat, katana, calm sharp eyes"
+  },
+  {
+   "id": "monk-m",
+   "name": "武闘家（男）",
+   "role": "素手の前衛。腕を出した道着、帯の結び目",
+   "gender": "male",
+   "prompt": "male martial artist, black short hair, sleeveless orange gi #f09a30, black belt knot, metal forehead guard, fist wraps and knuckle gauntlets, energetic fighting stance"
+  },
+  {
+   "id": "monk-f",
+   "name": "武闘家（女）",
+   "role": "素手の前衛。腕を出した道着、帯の結び目",
+   "gender": "female",
+   "prompt": "female martial artist, black short hair, sleeveless orange gi #f09a30, black belt knot, metal forehead guard, fist wraps and knuckle gauntlets, energetic fighting stance"
+  },
+  {
+   "id": "ninja-m",
+   "name": "忍者（男）",
+   "role": "速さの職。体に沿った装束、長い襟巻き",
+   "gender": "male",
+   "prompt": "male ninja, dark navy tight outfit #3a3a4e, long flowing red scarf #c83a3a, hood and face mask, red eyes, short ninjato, crouching ready pose"
+  },
+  {
+   "id": "ninja-f",
+   "name": "忍者（女）",
+   "role": "速さの職。体に沿った装束、長い襟巻き",
+   "gender": "female",
+   "prompt": "female ninja, dark navy tight outfit #3a3a4e, long flowing red scarf #c83a3a, hood and face mask, red eyes, short ninjato, crouching ready pose"
+  },
+  {
+   "id": "thief-m",
+   "name": "盗賊（男）",
+   "role": "罠と鍵。短い上着、なびく襟巻き、腰の小物入れ",
+   "gender": "male",
+   "prompt": "male thief, messy grey-black hair, red headband, short green jacket #5a7a4a, yellow scarf #e8b030, pouches on belt, dagger, sly smile"
+  },
+  {
+   "id": "thief-f",
+   "name": "盗賊（女）",
+   "role": "罠と鍵。短い上着、なびく襟巻き、腰の小物入れ",
+   "gender": "female",
+   "prompt": "female thief, messy grey-black hair, red headband, short green jacket #5a7a4a, yellow scarf #e8b030, pouches on belt, dagger, sly smile"
+  },
+  {
+   "id": "hunter-m",
+   "name": "狩人（男）",
+   "role": "弓の後衛。矢筒、短いマント、革の上着",
+   "gender": "male",
+   "prompt": "male hunter, auburn hair #c88a4a, green feathered cap with red feather, short green cape #6a9a3a, leather jacket, quiver on back, longbow, keen eyes"
+  },
+  {
+   "id": "hunter-f",
+   "name": "狩人（女）",
+   "role": "弓の後衛。矢筒、短いマント、革の上着",
+   "gender": "female",
+   "prompt": "female hunter, auburn hair #c88a4a, green feathered cap with red feather, short green cape #6a9a3a, leather jacket, quiver on back, longbow, keen eyes"
+  },
+  {
+   "id": "mage-m",
+   "name": "魔法使い（男）",
+   "role": "術の後衛。足元までのローブ、とんがり帽子",
+   "gender": "male",
+   "prompt": "male mage, silver-white long hair, tall purple pointed hat, floor-length purple robe #6a4ab0 with wide sleeves and gold trim, staff with cyan crystal orb, mysterious calm"
+  },
+  {
+   "id": "mage-f",
+   "name": "魔法使い（女）",
+   "role": "術の後衛。足元までのローブ、とんがり帽子",
+   "gender": "female",
+   "prompt": "female mage, silver-white long hair, tall purple pointed hat, floor-length purple robe #6a4ab0 with wide sleeves and gold trim, staff with cyan crystal orb, mysterious calm"
+  },
+  {
+   "id": "priest-m",
+   "name": "僧侶（男）",
+   "role": "回復。白いローブ、肩から下げた聖帯2本",
+   "gender": "male",
+   "prompt": "male priest cleric, blonde hair, white robe, hood, two blue holy stoles hanging from shoulders #4a8ad8, holding a mace, gentle kind face"
+  },
+  {
+   "id": "priest-f",
+   "name": "僧侶（女）",
+   "role": "回復。白いローブ、肩から下げた聖帯2本",
+   "gender": "female",
+   "prompt": "female priest cleric, blonde hair, white robe, hood, two blue holy stoles hanging from shoulders #4a8ad8, holding a mace, gentle kind face"
+  },
+  {
+   "id": "bard-m",
+   "name": "吟遊詩人（男）",
+   "role": "支援。襟飾り、裾の長い上着、竪琴",
+   "gender": "male",
+   "prompt": "male bard, pink hair #ffb0c8, magenta feathered hat, ruffled collar, long teal coat #3aa8a0 flaring at the back, cream shirt, holding a lyre, playful smile"
+  },
+  {
+   "id": "bard-f",
+   "name": "吟遊詩人（女）",
+   "role": "支援。襟飾り、裾の長い上着、竪琴",
+   "gender": "female",
+   "prompt": "female bard, pink hair #ffb0c8, magenta feathered hat, ruffled collar, long teal coat #3aa8a0 flaring at the back, cream shirt, holding a lyre, playful smile"
+  },
+  {
+   "id": "boss-gurma",
+   "name": "水路の主 グルマ",
+   "role": "地下水路の主。水色の大スライム",
+   "kind": "creature",
+   "prompt": "giant slime, no legs, no arms, one big eye, translucent body with sewer junk inside, main color cyan, secondary teal, accent white, huge, dripping",
+   "negative": "legs, feet"
+  },
+  {
+   "id": "boss-dorgan",
+   "name": "坑道の番人 ドルガン",
+   "role": "古い坑道の主。ゴーレム",
+   "kind": "creature",
+   "prompt": "rock golem, bipedal, two short legs, two huge boulder arms, body of stacked brown boulders, lantern in chest, two amber eyes, main color brown, secondary grey, accent rust iron bands"
+  },
+  {
+   "id": "boss-necros",
+   "name": "墓所の王 ネクロス",
+   "role": "亡者の墓所の主。骨の王",
+   "kind": "creature",
+   "prompt": "skeleton lich king, floating, two bony arms, no legs, tattered purple robe, iron crown, bone scepter, main color pale lavender bone, secondary dark purple, accent violet glowing eyes",
+   "negative": "legs, feet"
+  },
+  {
+   "id": "boss-valka",
+   "name": "灼熱竜 ヴァルカ",
+   "role": "溶岩洞の主。トカゲ型の竜",
+   "kind": "creature",
+   "prompt": "lava dragon, quadruped, on all fours, four legs, two wings, one tail, glowing magma cracks, smoke, main color red orange, secondary black rock, accent yellow eyes, huge",
+   "negative": "arms, hands, humanoid, standing upright"
+  },
+  {
+   "id": "boss-obsis",
+   "name": "回廊の守護者 オブシス",
+   "role": "黒曜の回廊の守護者。中身の無い生きた鎧",
+   "kind": "creature",
+   "prompt": "empty living armor, bipedal, two legs, two arms, no face, glowing orange eyes inside helmet, giant greatsword, main color obsidian purple black, secondary violet, accent orange"
+  },
+  {
+   "id": "boss-abyss",
+   "name": "深淵の主",
+   "role": "深淵の主。巨大な目玉",
+   "kind": "creature",
+   "prompt": "giant floating eyeball, one huge eye, many hanging tentacles, no legs, main color crimson pink flesh, secondary dark red, accent yellow iris",
+   "negative": "legs, feet"
+  },
+  {
+   "id": "boss-mikora",
+   "name": "大茸 ミコラ",
+   "role": "茸の森の主。大きな茸",
+   "kind": "creature",
+   "prompt": "giant mushroom, two stubby root legs, no arms, spotted cap, sleepy face on the stem, spores, main color pink cap, secondary white spots, accent cream stem"
+  },
+  {
+   "id": "boss-raigou",
+   "name": "雷神の使い ライゴウ",
+   "role": "雷鳴の峡谷の主。雷の獣",
+   "kind": "creature",
+   "prompt": "thunder wolf, quadruped, on all fours, four legs, one tail, body of crackling lightning, drum ring on its back, main color white, secondary pale blue, accent royal blue",
+   "negative": "arms, hands, humanoid, standing upright"
+  },
+  {
+   "id": "boss-anubir",
+   "name": "砂王 アヌビル",
+   "role": "砂の迷宮の主。山犬頭の砂の王",
+   "kind": "creature",
+   "prompt": "jackal-headed sand guardian, bipedal, two legs, two arms, crook staff, gold collar and armor, swirling sand, main color black, secondary gold, accent glowing gold eyes"
+  },
+  {
+   "id": "boss-chrono",
+   "name": "塔の心臓 クロノ",
+   "role": "機械仕掛けの塔の主。歯車の心臓",
+   "kind": "creature",
+   "prompt": "clockwork heart machine, floating, no legs, brass gears and pipes, pendulums, one huge red eye in the center, main color brass, secondary dark bronze, accent red",
+   "negative": "legs, feet"
+  },
+  {
+   "id": "boss-hedra",
+   "name": "腐海の主 ヘドラ",
+   "role": "腐海の主。緑の毒スライム",
+   "kind": "creature",
+   "prompt": "toxic sludge blob, no legs, two red eyes, bubbling poison, rotten debris, main color toxic green, secondary dark green, accent red",
+   "negative": "legs, feet"
+  },
+  {
+   "id": "boss-fabul",
+   "name": "古竜 ファブル",
+   "role": "竜の巣の主。黄金の古竜",
+   "kind": "creature",
+   "prompt": "ancient dragon, quadruped, on all fours, four legs, two folded wings, one tail, old scars, sitting on treasure, main color gold, secondary bronze, accent red eyes, huge",
+   "negative": "arms, hands, humanoid, standing upright"
+  },
+  {
+   "id": "boss-astel",
+   "name": "星喰い アステル",
+   "role": "星の回廊の主。星を喰う目",
+   "kind": "creature",
+   "prompt": "cosmic eye monster, floating, one huge eye, wide mouth swallowing a star, nebula tendrils, starry body, main color dark violet, secondary deep blue, accent yellow",
+   "negative": "legs, feet"
+  },
+  {
+   "id": "boss-judge",
+   "name": "煉獄の裁き手",
+   "role": "煉獄の主。業火の巨人",
+   "kind": "creature",
+   "prompt": "fire giant, bipedal, two legs, two arms, blazing fire crown, chains, giant sword, main color dark red rock, secondary black, accent burning yellow eyes, huge"
+  },
+  {
+   "id": "boss-void",
+   "name": "虚無の王",
+   "role": "虚無の縁の主。形の無い王",
+   "kind": "creature",
+   "prompt": "faceless shadow giant king, bipedal, two arms, floating crown, body dissolving into darkness, main color black, secondary dark indigo, accent violet eyes",
+   "negative": "legs, feet"
+  },
+  {
+   "id": "boss-core",
+   "name": "迷宮の核",
+   "role": "迷宮の最奥。生きた核",
+   "kind": "creature",
+   "prompt": "living crystal heart, no legs, one white eye, pulsing crystal, roots and veins spreading into the floor, main color crimson pink, secondary dark red, accent white",
+   "negative": "legs, feet"
+  },
+  {
+   "id": "boss-seire",
+   "name": "深海の巫女 セイレ",
+   "role": "沈んだ神殿の主。亡霊の巫女",
+   "gender": "female",
+   "prompt": "ghostly sea priestess spirit, translucent pale blue body, long flowing hair like water, coral and pearl ornaments, floating, sorrowful eyes"
+  },
+  {
+   "id": "boss-yumeka",
+   "name": "夢の女王 ユメカ",
+   "role": "夢幻の庭の主。亡霊の女王",
+   "gender": "female",
+   "prompt": "ghostly dream queen spirit, translucent pastel pink and lavender, butterfly wings, crown of flowers, sleepy smile, floating veil"
+  },
+  {
+   "id": "boss-vlad",
+   "name": "不死の城主 ヴラド",
+   "role": "骸の城の主。不死の城主",
+   "gender": "male",
+   "prompt": "undead vampire lord, pale skin, crimson eyes #ff2e44, black and wine red high-collar cape, bone ornaments, castle lord, cold smile"
+  },
+  {
+   "id": "boss-glacies",
+   "name": "氷帝 グラキエス",
+   "role": "霧氷の洞の主。氷の皇帝",
+   "gender": "male",
+   "prompt": "ice emperor, white and pale blue ice crystal armor #9ad0ff, icicle crown, frost cape, frozen sword, cold white eyes"
+  }
+ ],
+ "creature_common": "dark fantasy dungeon boss monster"
+}

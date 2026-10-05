@@ -1,0 +1,31 @@
+{
+ "_doc": "人の描き分けの設定資料（tools/gen/people.py card）。男女それぞれ、素体で正面・背面と特徴の部位の拡大を描く。tags は Animagine XL のタグ",
+ "cases": [
+  {"id": "base", "ja": "基準", "tags": "", "zoom": "head"},
+  {"id": "child", "ja": "子ども", "age": "child", "tags": "", "zoom": "head"},
+  {"id": "teen", "ja": "十代", "age": "teen", "tags": "", "zoom": "head"},
+  {"id": "middle", "ja": "中年", "age": "middle", "tags": "", "zoom": "head"},
+  {"id": "elder", "ja": "老人", "age": "elder", "tags": "", "zoom": "head"},
+  {"id": "slender", "ja": "細身", "tags": "slender, thin", "zoom": "none"},
+  {"id": "muscular", "ja": "筋肉質", "tags": "muscular, toned body, abs, broad shoulders", "zoom": "arms"},
+  {"id": "plump", "ja": "太め", "tags": "plump, chubby, fat, round belly", "zoom": "none"},
+  {"id": "skin-dark", "ja": "濃い肌", "tags": "dark skin, dark-skinned", "zoom": "arms"},
+  {"id": "skin-tan", "ja": "日焼け肌", "tags": "tan, tanned skin, tanlines", "zoom": "arms"},
+  {"id": "skin-blue", "ja": "青い肌", "tags": "blue skin, colored skin", "zoom": "arms"},
+  {"id": "tattoo", "ja": "部族の刺青", "tags": "tribal tattoo, arm tattoo, full-body tattoo", "zoom": "arms"},
+  {"id": "scales", "ja": "鱗の肌", "tags": "scales, scaly skin, green scales on arms and cheeks", "zoom": "arms"},
+  {"id": "elf", "ja": "エルフ", "tags": "elf, pointy ears, long pointy ears", "zoom": "head"},
+  {"id": "dwarf", "ja": "ドワーフ", "tags": "dwarf, short stature, stocky, braided beard", "zoom": "head"},
+  {"id": "orc", "ja": "オーク", "tags": "orc, green skin, colored skin, tusks, muscular", "zoom": "head"},
+  {"id": "cat", "ja": "猫の獣人", "tags": "cat ears, cat tail, animal ears", "zoom": "head", "views": "front,back"},
+  {"id": "wolf", "ja": "狼の獣人", "tags": "wolf ears, wolf tail, animal ears, fangs", "zoom": "head", "views": "front,back"},
+  {"id": "dragonkin", "ja": "竜人", "tags": "dragon horns, dragon tail, scales on cheeks, slit pupils", "zoom": "head"},
+  {"id": "horns-ram", "ja": "巻いた角", "tags": "curled horns, ram horns", "zoom": "head"},
+  {"id": "horns-antlers", "ja": "鹿の角", "tags": "antlers, deer antlers", "zoom": "head"},
+  {"id": "horn-single", "ja": "一本角", "tags": "single horn, horn on forehead", "zoom": "head"},
+  {"id": "demon", "ja": "悪魔", "tags": "demon, demon horns, demon tail, red skin, colored skin", "zoom": "head"},
+  {"id": "wings-bat", "ja": "蝙蝠の翼", "tags": "bat wings, demon wings, small wings", "zoom": "back"},
+  {"id": "wings-feather", "ja": "羽の翼", "tags": "angel, white feathered wings, angel wings, halo", "zoom": "back"},
+  {"id": "tail-dragon", "ja": "竜の尾", "tags": "dragon tail, thick tail", "zoom": "tail"}
+ ]
+}
