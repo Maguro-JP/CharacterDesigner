@@ -6,100 +6,162 @@
    "id": "cat",
    "ja": "猫",
    "tags": "cat girl, cat ears, cat tail, animal ear fluff, slit pupils",
-   "zoom": "head"
+   "zoom": "head",
+   "anatomy": [
+    "animal_ears",
+    "tail"
+   ]
   },
   {
    "id": "fox",
    "ja": "狐",
    "tags": "fox girl, fox ears, fox tail, large fluffy tail",
-   "zoom": "head"
+   "zoom": "head",
+   "anatomy": [
+    "animal_ears",
+    "tail"
+   ]
   },
   {
    "id": "kitsune",
    "ja": "九尾の狐",
    "tags": "kitsune, fox ears, multiple tails, nine tails, fox tail",
-   "zoom": "tail"
+   "zoom": "tail",
+   "anatomy": [
+    "animal_ears",
+    "tail"
+   ]
   },
   {
    "id": "wolf",
    "ja": "狼",
    "tags": "wolf girl, wolf ears, wolf tail, fangs",
-   "zoom": "head"
+   "zoom": "head",
+   "anatomy": [
+    "animal_ears",
+    "tail"
+   ]
   },
   {
    "id": "dog",
    "ja": "犬",
    "tags": "dog girl, dog ears, floppy ears, dog tail",
-   "zoom": "head"
+   "zoom": "head",
+   "anatomy": [
+    "animal_ears",
+    "tail"
+   ]
   },
   {
    "id": "rabbit",
    "ja": "兎",
    "tags": "rabbit girl, rabbit ears, long rabbit ears, rabbit tail",
    "zoom": "head",
-   "negative": "hairband, headband, fake animal ears, animal ear headwear"
+   "negative": "hairband, headband, fake animal ears, animal ear headwear",
+   "anatomy": [
+    "animal_ears",
+    "tail"
+   ]
   },
   {
    "id": "tanuki",
    "ja": "狸",
    "tags": "tanuki girl, raccoon ears, raccoon tail, striped tail",
-   "zoom": "tail"
+   "zoom": "tail",
+   "anatomy": [
+    "animal_ears",
+    "tail"
+   ]
   },
   {
    "id": "cow",
    "ja": "牛",
    "tags": "cow girl, cow ears, cow horns, cow tail",
-   "zoom": "head"
+   "zoom": "head",
+   "anatomy": [
+    "animal_ears",
+    "tail"
+   ]
   },
   {
    "id": "sheep",
    "ja": "羊",
    "tags": "sheep girl, sheep ears, curled horns, sheep horns, fluffy hair",
-   "zoom": "head"
+   "zoom": "head",
+   "anatomy": [
+    "animal_ears"
+   ]
   },
   {
    "id": "mouse",
    "ja": "鼠",
    "tags": "mouse girl, mouse ears, round ears, mouse tail",
    "zoom": "head",
-   "negative": "elf ears, pointy ears, human ears"
+   "negative": "elf ears, pointy ears, human ears",
+   "anatomy": [
+    "animal_ears",
+    "tail"
+   ]
   },
   {
    "id": "bear",
    "ja": "熊",
    "tags": "bear girl, bear ears, round ears, small tail",
    "zoom": "head",
-   "negative": "elf ears, pointy ears, human ears"
+   "negative": "elf ears, pointy ears, human ears",
+   "anatomy": [
+    "animal_ears",
+    "tail"
+   ]
   },
   {
    "id": "deer",
    "ja": "鹿",
    "tags": "deer girl, deer ears, antlers, deer tail",
-   "zoom": "head"
+   "zoom": "head",
+   "anatomy": [
+    "animal_ears",
+    "tail"
+   ]
   },
   {
    "id": "squirrel",
    "ja": "栗鼠",
    "tags": "squirrel girl, squirrel ears, squirrel tail, large fluffy tail",
-   "zoom": "tail"
+   "zoom": "tail",
+   "anatomy": [
+    "animal_ears",
+    "tail"
+   ]
   },
   {
    "id": "dragon",
    "ja": "竜人",
    "tags": "dragon girl, dragon horns, dragon tail, dragon wings, scales on cheeks, slit pupils",
-   "zoom": "back"
+   "zoom": "back",
+   "anatomy": [
+    "tail",
+    "wings"
+   ]
   },
   {
    "id": "demon",
    "ja": "悪魔",
    "tags": "demon girl, demon horns, demon tail, demon wings, red skin, colored skin",
-   "zoom": "head"
+   "zoom": "head",
+   "anatomy": [
+    "tail",
+    "wings"
+   ]
   },
   {
    "id": "angel",
    "ja": "天使",
    "tags": "angel, white feathered wings, angel wings, halo",
-   "zoom": "back"
+   "zoom": "back",
+   "anatomy": [
+    "wings"
+   ]
   },
   {
    "id": "elf",
@@ -142,7 +204,10 @@
    "id": "tengu",
    "ja": "天狗",
    "tags": "tengu, black feathered wings, crow wings",
-   "zoom": "back"
+   "zoom": "back",
+   "anatomy": [
+    "wings"
+   ]
   },
   {
    "id": "yuki-onna",
@@ -208,5 +273,20 @@
   "orc",
   "oni",
   "tengu"
- ]
+ ],
+ "anatomy": {
+  "about": "亜人の体の決まり。描く指示（tags と negative）に足し、検品の項目（docs/knowledge/demihuman-anatomy.md）でも見る",
+  "animal_ears": {
+   "tags": "animal ears on top of head",
+   "negative": "human ears, extra ears, four ears, elf ears, pointy ears"
+  },
+  "tail": {
+   "tags": "tail growing from tailbone, tail base above buttocks",
+   "negative": "tail from waist, tail from side, floating tail, tail from bikini"
+  },
+  "wings": {
+   "tags": "wings growing from shoulder blades, wings attached to upper back",
+   "negative": "wings from waist, wings from arms, floating wings, detached wings"
+  }
+ }
 }
