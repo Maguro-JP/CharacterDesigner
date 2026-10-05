@@ -100,7 +100,11 @@ def zoom_box(src, where):
     if where == "head":
         # 顔を中心に、顔の高さの 2.2 倍を半径にする。髪まで含めると長い髪が腰まであり、全身ほどの範囲になった。
         # 耳や角は顔より上と横に出るので、中心を少し上にずらす
-        b = lab.point(lambda v: 255 if v == 11 else 0).getbbox()
+        # 顔は人物の上 1/6（頭1つ分）の中でだけ探す。肌の多い服（水着）では、体の肌まで顔として拾われ、拡大が上半身全体になった
+        top = y0 + (y1 - y0) // 6
+        face = lab.point(lambda v: 255 if v == 11 else 0)
+        face.paste(0, (0, top, face.width, face.height))
+        b = face.getbbox()
         if b:
             fh = max(b[3] - b[1], b[2] - b[0])
             cx, cy, r = (b[0] + b[2]) // 2, b[1] + fh // 4, fh * 1.4
