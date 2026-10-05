@@ -52,7 +52,7 @@ FOOT_Y = 818         # 足元の高さ
 PART_COLORS = {"tail": (255, 0, 0), "wing": (255, 0, 255), "head": (255, 255, 0)}
 # 数える最小の大きさ（型の点の数）。これより小さい向きは数えない
 MIN_PX = {"tail": 300, "wing": 300, "head": 100}
-PART_JA = {"tail": "尾", "wing": "翼", "head": "頭の部品（角・獣耳）"}
+PART_JA = {"extra": "下絵に無い部品（余分な尾など）", "tail": "尾", "wing": "翼", "head": "頭の部品（角・獣耳）"}
 VIEW_JA = {"front": "正面", "front34": "斜め前", "back34": "斜め後ろ", "back": "背面"}
 FONT = "/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf"
 
@@ -244,6 +244,30 @@ def check(sheet, mask_path):
                 continue   # この向きでは隠れているか、先が少し見えるだけ（正面の尾。決まりでは見えなくてよい）
             gone = float((bg[r] | is_skin[r]).mean())
             out.append({"view": view, "part": part, "pixels": n, "gone": round(gone, 3), "ok": gone < 0.5})
+    out += extra_parts(img, mask, bg, Path(mask_path).with_name("underlay.png"))
+    return out
+
+
+def extra_parts(img, mask, bg, underlay_path, grow=12, min_px=250):
+    """下絵に無い所に出た暗い部品（尾が2本、手の上に出た尾の先）を数える。
+
+    下絵で明るかった所（肌・水着・背景）に、描いた絵で暗い点（明るさ 90 未満）が固まって出たら「余分」とみなす。
+    髪・角・尾・翼は下絵でも暗いので、下絵の暗い所を少し広げた範囲は数えない。
+    最初は「人物の外」で数えたが、手の上に重なって出た尾の先を見逃した。
+    """
+    import numpy as np
+    if not underlay_path.exists():
+        return []
+    under = np.asarray(Image.open(underlay_path).convert("L"))
+    dark_under = Image.fromarray((under < 120).astype("uint8") * 255).filter(ImageFilter.MaxFilter(grow * 2 + 1))
+    dark = img.mean(axis=2) < 90
+    near = dark & ~(np.asarray(dark_under) > 0)
+    slot = SIZE[0] // len(VIEWS)
+    out = []
+    for i, (view, _) in enumerate(VIEWS):
+        n = int(near[:, i * slot:(i + 1) * slot].sum())
+        if n >= min_px:
+            out.append({"view": view, "part": "extra", "pixels": n, "gone": 0.0, "ok": False})
     return out
 
 
