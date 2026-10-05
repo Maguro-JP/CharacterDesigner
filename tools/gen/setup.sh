@@ -7,4 +7,7 @@ mkdir -p "$D"
 [ -d "$D/lib/torch" ] || pip install --target "$D/lib" torch --index-url https://download.pytorch.org/whl/cpu -q
 [ -d "$D/lib/diffusers" ] || pip install --target "$D/lib" diffusers transformers accelerate safetensors -q
 [ -d "$D/lib/peft" ] || pip install --target "$D/lib" peft --no-deps -q
+# 完成絵の重ね（tools/gen/layers.py）: 人物の切り抜き rembg（isnet-anime の重み 約 176MB は初回に .cache/gen/u2net へ取る）と PSD の書き出し
+[ -d "$D/lib/rembg" ] || pip install --target "$D/lib" "rembg[cpu]" -q
+[ -d "$D/lib/psd_tools" ] || pip install --target "$D/lib" psd-tools -q
 echo "ready: $D"

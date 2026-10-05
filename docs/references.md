@@ -63,3 +63,14 @@ OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じ
 
 - `casts/rulecrawler-joseki.json` / `rulecrawler-guild.json` / `rulecrawler-shinan.json`: Maguro-JP/RuleCrawler の3本（迷宮定石・深層ギルド・迷宮指南）。色と服の形は各ゲームの描画コード、性格と世界観は docs/ から
 - `casts/digimon.json`: Maguro-JP/DigiMon の設定資料「SIGNAL BEASTS」の系統表（名前・配色・形・大きさ・性格）
+
+## 完成絵の重ね（`tools/gen/layers.py`、2026-10-05）
+
+| 用途 | 出典 | 許諾 |
+|---|---|---|
+| 人物の切り抜き | isnet-anime（anime-segmentation の重み、rembg 経由で取る） | Apache-2.0 |
+| 切り抜きの呼び出し | rembg / onnxruntime / pymatting | MIT |
+| 奥行き（地平線と前景の判定） | depth-anything/Depth-Anything-V2-Small-hf（Hugging Face） | Apache-2.0 |
+| PSD の書き出し | psd-tools | MIT |
+
+重みはリポジトリに置かず、初回の実行で `.cache/gen` に取る。

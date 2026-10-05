@@ -40,12 +40,65 @@ PART_IDS = {"髪": [2], "肌": [11, 12, 13, 14, 15], "水着・服": [4, 5, 6, 7
 
 # ---- 1. 人物 ----
 
+_REMBG = None
+
+
+USE_ANIME_CUT = True   # False で、端から抜く・部位分けで補う古い切り抜きに戻す
+
+
+def anime_cut(src):
+    """アニメの人物を切り抜く（isnet-anime。anime-segmentation の切り抜きモデル、Apache-2.0、約 176MB。rembg 経由、MIT）。
+    髪の房まで滑らかな透明度で抜ける。背景のある絵からも直接抜ける。人物と離れた物（手前の花など）は一番大きい塊だけ残して落とす。
+    部位分け（服のモデル）と色のしきい値で抜くと、髪の縁の白いにじみ、片脚の消失、髪の灰のかけらが次々に出た"""
+    global _REMBG
+    import design
+    from rembg import new_session, remove
+    os.environ.setdefault("U2NET_HOME", str(ROOT / ".cache" / "gen" / "u2net"))
+    if _REMBG is None:
+        _REMBG = new_session("isnet-anime")
+    out = remove(Image.open(src).convert("RGB"), session=_REMBG)
+    return design.keep_largest(out)
+
+
 def cut_character(src):
     """デザイン画から人物を切り抜く（背景は透明）。縁は 1px ぼかして、背景に重ねたときのギザギザを抑える。"""
     import design
     im = Image.open(src)
+    lost = 0.0   # 端から抜いたときに、部位分けの人物の範囲から落ちた割合（合わせて戻す前）
     # 透明の部分がある絵（別の方法で切り抜いた人物）は、その切り抜きをそのまま使う
-    cut = im.convert("RGBA") if im.mode == "RGBA" and im.getchannel("A").getextrema()[0] < 255 else design.cut_background(im.convert("RGB"))
+    if im.mode == "RGBA" and im.getchannel("A").getextrema()[0] < 255:
+        cut = im.convert("RGBA")
+    elif USE_ANIME_CUT:
+        cut = anime_cut(src)
+        # 切り抜きモデルの透明度をそのまま使う（縁の名残の取り除きや穴埋めはしない）
+        c = cut.crop(cut.getchannel("A").point(lambda v: 255 if v > 8 else 0).getbbox())
+        c.info["remnant_removed"] = 0.0
+        c.info["cut_lost"] = 0.0
+        return c
+    else:
+        cut = design.cut_background(im.convert("RGB"))
+        # 端から背景を抜くだけだと、背景の色に近い肌（薄い灰の背景と白い肌）まで抜け、片脚が消えた。
+        # 部位分けの人物の範囲と合わせて（どちらかに入っていれば人物）、手足を落とさない
+        import edit
+        seg = Image.fromarray(((np.asarray(edit.parts(src)) != 0) * 255).astype("uint8")).resize(cut.size)
+        alpha0 = cut.getchannel("A")
+        lost = float(((np.asarray(seg) > 0) & (np.asarray(alpha0) == 0)).sum() / max((np.asarray(seg) > 0).sum(), 1))
+        # 色は元の絵から取る（端から抜いた所は色が黒に消されていて、合わせた脚が黒く塗られた）
+        # 合わせるのは、無地の背景の色から 12 より離れた点だけ（背景そのものの灰は 10 未満、白い肌は 23 ほど離れていた）。
+        # 部位分けの範囲は人物の外へ少しはみ出し、そのまま合わせると頭の上や髪の横に灰のかけらが残った
+        src_rgb = np.asarray(im.convert("RGB")).astype(float)
+        edge = np.concatenate([src_rgb[:4].reshape(-1, 3), src_rgb[-4:].reshape(-1, 3), src_rgb[:, :4].reshape(-1, 3), src_rgb[:, -4:].reshape(-1, 3)])
+        far = np.abs(src_rgb - np.median(edge, axis=0)).sum(axis=2) > 12
+        add = Image.fromarray(((np.asarray(seg) > 0) & far).astype("uint8") * 255)
+        # 無地への描き直しで、人物の周りに白い光のにじみが描かれた。背景より明るいので端から抜けずに残る（頭の上や髪の横の灰のかけら）。
+        # 部位分けの人物の外にあり、背景より明るく色みの無い点だけを消す（人物の近くに限ると、脚や髪の縁まで削れた）
+        bgc = np.median(edge, axis=0)
+        lum = src_rgb @ [0.299, 0.587, 0.114]
+        sat = src_rgb.max(axis=2) - src_rgb.min(axis=2)
+        glow = ~(np.asarray(seg.filter(ImageFilter.MaxFilter(3))) > 0) & (lum > bgc @ [0.299, 0.587, 0.114] + 4) & (sat < 25)
+        a0 = np.where(glow, 0, np.asarray(alpha0)).astype("uint8")
+        cut = im.convert("RGB").convert("RGBA")
+        cut.putalpha(ImageChops.lighter(Image.fromarray(a0), add))
     # 縁の色を、内側の色で置き換える。デザイン画の白い背景が縁（特に髪の細い房）に混ざっていて、背景に重ねると白く光った。
     # 縁を削るだけでは髪の房が残り、削りすぎると房が消える
     alpha = cut.getchannel("A")
@@ -58,9 +111,13 @@ def cut_character(src):
     bleed = np.where(den > 0.02, num / np.maximum(den, 1e-3), rgb)
     band = (np.asarray(alpha) > 0) & (np.asarray(inner) == 0)
     rgb[band] = bleed[band]
-    # 背景のある絵から切り抜いた人物（透明つき）だけ、縁の名残を取り除く。無地から抜いた人物は縁がきれいで、
-    # 取り除くと輪郭の白いフリルまで削れるおそれがある。どちらも髪の中の小さな穴は埋める
-    if im.mode == "RGBA":
+    # 縁の名残を取り除く。どちらの場合も、髪の中の小さな穴は埋める
+    border = np.asarray(im.convert("RGB")).astype(float)
+    border = np.concatenate([border[:4].reshape(-1, 3), border[-4:].reshape(-1, 3)])
+    white_bg = np.median(border, axis=0).min() > 240
+    # 白い背景から抜いた人物は取り除かない（白いフリルと見分けられない）。灰の背景（plainify）や背景つきの絵は取り除く。
+    # 灰の背景は白いフリルと 60 ほど離れていて見分けられる
+    if im.mode == "RGBA" or not white_bg:
         clean, ratio = clean_remnant(rgb, np.asarray(alpha) > 128)
     else:
         clean, ratio = np.asarray(alpha) > 128, 0.0
@@ -72,6 +129,7 @@ def cut_character(src):
     cut.info["remnant_removed"] = ratio
     c = cut.crop(a.point(lambda v: 255 if v > 8 else 0).getbbox())
     c.info["remnant_removed"] = ratio
+    c.info["cut_lost"] = lost
     return c
 
 
@@ -437,6 +495,17 @@ def inspect_composite(final, bg, char_layer, reflect=None, hz=None, ground=None)
     # 白い残りと境界線は、色だけでは白い水着と見分けられなかった（綺麗な絵と汚い絵で差が出ない）。
     # 元の絵と比べて切り抜きの段階で取り除き（clean_remnant）、取り除いた割合を info に残す
     out, reasons = {}, []
+    # 手足: 人物を白の上に置いて部位分けし、両脚があるか数える（切り抜きや塗り直しで脚が消えた）
+    import edit
+    tmp = Path("/tmp/_layers_inspect_char.png")
+    w = Image.new("RGB", SIZE, "white")
+    w.paste(char_layer, (0, 0), char_layer)
+    w.save(tmp)
+    lab = np.asarray(edit.parts(tmp))
+    legs = [n for n, i in (("左脚", 12), ("右脚", 13)) if (lab == i).sum() < 200]
+    out["legs_missing"] = legs
+    if legs:
+        reasons.append("脚が無い: " + "、".join(legs))
     if reflect is not None:
         ra = np.asarray(reflect.getchannel("A")) > 12
         if ra.any():
@@ -688,8 +757,8 @@ def build(design_png, outdir, scene, light_side="front", seed=7, height=None, x=
     bg.save(outdir / "background.png")
     hz = horizon(bg)
     src = design_png
-    if not has_plain_background(src) and Image.open(src).mode != "RGBA":
-        src = plainify(src, str(outdir / "plain.png"), prompt or "1girl, solo", seed=seed)
+    if not USE_ANIME_CUT and not has_plain_background(src) and Image.open(src).mode != "RGBA":
+        src = plainify(src, str(outdir / "plain.png"), prompt or "1girl, solo", seed=seed)   # 古い切り抜きのときだけ
     cut = cut_character(src)
     remnant = cut.info.get("remnant_removed", 0.0)
 
