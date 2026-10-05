@@ -465,27 +465,32 @@ LIGHT_WORDS = {
 }
 
 
-def match_colors(char_layer, bg, amount=0.35):
-    """人物の色と明るさの分布（チャンネルごとの平均と幅）を、人物の周りの背景の分布へ amount だけ寄せる。
-    真昼の塗りの人物を夕暮れに置くと、人物だけ色が浮いた。全部寄せると人物の色が背景に溶けるので一部だけ"""
+def match_colors(char_layer, bg, light=None, amount=0.35, tint=0.15):
+    """人物の明るさ（平均と幅）を周りの背景へ amount だけ寄せ、色みは光の色へ tint だけ寄せる。
+    背景の平均の色へ寄せると、浜辺で肌が海の青緑になり、片脚が水に溶けて一本脚に見えた。
+    光は肌に当たるが、肌は背景の色にはならない。色みは光の色（昼は白、夕日は橙）にだけ寄せる"""
     a = np.asarray(char_layer.getchannel("A")) > 128
     if not a.any():
         return char_layer
     near = (np.asarray(Image.fromarray(a.astype("uint8") * 255).filter(ImageFilter.MaxFilter(151))) > 0) & ~a
-    c = np.asarray(char_layer.convert("RGB")).astype(float)
-    g = np.asarray(bg.convert("RGB")).astype(float)
-    out = c.copy()
-    for k in range(3):
-        mc, sc = c[..., k][a].mean(), c[..., k][a].std() + 1e-3
-        mb, sb = g[..., k][near].mean(), g[..., k][near].std() + 1e-3
-        tm, ts = mc + (mb - mc) * amount, sc + (sb - sc) * amount * 0.5
-        out[..., k] = (c[..., k] - mc) / sc * ts + tm
-    res = Image.fromarray(np.clip(out, 0, 255).astype("uint8")).convert("RGBA")
+    ycc = np.asarray(char_layer.convert("RGB").convert("YCbCr")).astype(float)
+    gy = np.asarray(bg.convert("RGB").convert("YCbCr")).astype(float)[..., 0]
+    y = ycc[..., 0]
+    mc, sc = y[a].mean(), y[a].std() + 1e-3
+    mb, sb = gy[near].mean(), gy[near].std() + 1e-3
+    tm, ts = mc + (mb - mc) * amount, sc + (sb - sc) * amount * 0.5
+    ycc[..., 0] = (y - mc) / sc * ts + tm
+    if light is not None:
+        lc = np.asarray(Image.new("RGB", (1, 1), tuple(light)).convert("YCbCr")).astype(float)[0, 0]
+        for k in (1, 2):
+            ycc[..., k] = ycc[..., k] + (lc[k] - 128) * tint
+    rgb = Image.fromarray(np.clip(ycc, 0, 255).astype("uint8"), "YCbCr").convert("RGB")
+    res = rgb.convert("RGBA")
     res.putalpha(char_layer.getchannel("A"))
     return res
 
 
-def relight(flat, char_layer, prompt, light_side, light, strength=0.4, seed=7, keep=None):
+def relight(flat, char_layer, prompt, light_side, light, strength=0.4, seed=7, keep=None, negative=""):
     """人物の中だけを、背景の光（向きと色）で塗り直す。輪郭の外は描き直さない（ぼかさない）。
     塗り直した人物の内側を、元の絵の人物の所に戻す。輪郭の 2px は元の切り抜きのまま残し、線を崩さない"""
     import torch
@@ -495,7 +500,7 @@ def relight(flat, char_layer, prompt, light_side, light, strength=0.4, seed=7, k
     words = f"{prompt}, {LIGHT_WORDS[light_side]}, {warm}, consistent lighting, detailed shading"
     pipe = demi.img2img()
     pe, ne, pp, np_ = design.encode_xl(pipe, words, BG_NEGATIVE.replace("1girl, ", "").replace("person, people, human, character, figure, silhouette, ", "")
-                                       + ", multiple girls, extra people, extra limbs, bad hands")
+                                       + ", multiple girls, extra people, extra limbs, bad hands" + (", " + negative if negative else ""))
     redrawn = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
                    image=flat, strength=strength, num_inference_steps=30, guidance_scale=6.0,
                    generator=torch.Generator().manual_seed(seed)).images[0]
@@ -665,7 +670,7 @@ def cut_person(src):
 
 
 def build(design_png, outdir, scene, light_side="front", seed=7, height=None, x=0.5, blend_strength=0.0, prompt="", foot=0.93,
-          bg_path=None, ground="auto", band=29, retries=2):
+          bg_path=None, ground="auto", band=29, retries=2, negative=""):
     """完成絵を組む。
 
     - 人物の大きさ: height を渡さなければ、背景の地平線と足元の位置から遠近に合わせる
@@ -725,7 +730,7 @@ def build(design_png, outdir, scene, light_side="front", seed=7, height=None, x=
     if kind != "water":
         under.append(("影（光と反対へ）", cast_shadow(char, ambient, light_side), "multiply", 1.0))
     under.append(("接地の影", contact_shadow(char, ambient), "multiply", 1.0))
-    char = match_colors(char, bg)   # 人物の色と明るさの幅を、周りの背景に寄せる
+    char = match_colors(char, bg, light)   # 人物の明るさを周りの背景に、色みを光の色に寄せる
     char.save(outdir / "character.png")
     parts = part_layers(char)
     layers = [("背景", bg.convert("RGBA"), "normal", 1.0)] + under
@@ -746,7 +751,7 @@ def build(design_png, outdir, scene, light_side="front", seed=7, height=None, x=
     if blend_strength > 0:
         # 合わせる: 人物の中だけを背景の光で塗り直す。輪郭の外はぼかさない。
         # 前は輪郭の周りを描き直していたが、境目をぼかすだけで、光の向きや色は合わなかった（利用者: ぼかすじゃない、合わせる）
-        final, mask = relight(flat, char, prompt, light_side, light, blend_strength, seed, keep=fg)
+        final, mask = relight(flat, char, prompt, light_side, light, blend_strength, seed, keep=fg, negative=negative)
         # 波紋と前景は塗り直しの後に重ね直す（塗り直しが手前の物や波紋を描き替えないように）
         for (name, im, mode, op) in over_fx + [("前景", fg, "normal", 1.0)]:
             final = flatten([("下", final.convert("RGBA"), "normal", 1.0), (name, im, mode, op)])
