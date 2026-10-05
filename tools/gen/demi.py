@@ -50,6 +50,7 @@ SIZE = (1216, 832)
 FIG_H = 790          # 人物の高さの上限（px）。翼が横に広い種は、全向きを同じ倍率で縮める
 FOOT_Y = 818         # 足元の高さ
 PART_COLORS = {"tail": (255, 0, 0), "wing": (255, 0, 255), "head": (255, 255, 0)}
+BACKGROUND_TAGS = {"#ffffff": "white background"}   # これ以外の背景の色は "grey background" で描く
 # 数える最小の大きさ（型の点の数）。これより小さい向きは数えない
 MIN_PX = {"tail": 300, "wing": 300, "head": 100}
 PART_JA = {"extra": "下絵に無い部品（余分な尾など）", "tail": "尾", "wing": "翼", "head": "頭の部品（角・獣耳）"}
@@ -118,11 +119,11 @@ def underlay(case, outdir):
         subprocess.run(["node", str(SHOOT), json.dumps(arg)], check=True, env=node_env(), timeout=900)
     finally:
         stop()
-    compose(outdir)
+    compose(outdir, case.get("background", "#ffffff"))
     print(f"下絵: {time.time() - t:.0f} 秒", flush=True)
 
 
-def compose(outdir):
+def compose(outdir, background="#ffffff"):
     """向きごとの絵を1枚に並べる。全向きを同じ倍率にし（大きさが揃わないと描き直しで別人に見える）、足元をそろえる。"""
     shots = []
     for i in range(len(VIEWS)):
@@ -132,7 +133,8 @@ def compose(outdir):
         shots.append((c.crop(box), m.crop(box)))
     slot = SIZE[0] // len(shots)
     k = min(min(FIG_H / c.height, (slot - 6) / c.width) for c, _ in shots)
-    under = Image.new("RGB", SIZE, "white")
+    # 白い部品（兎の耳、天使の羽）は白い背景に溶けて描き直しで消えたので、種ごとに背景の色を変えられるようにする
+    under = Image.new("RGB", SIZE, background)
     mask = Image.new("RGB", SIZE, "black")
     for i, (c, m) in enumerate(shots):
         w, h = round(c.width * k), round(c.height * k)
@@ -171,7 +173,8 @@ def prompt_of(case):
     tags = [rules[a]["tags"] for a in case.get("anatomy", []) if a in rules]
     neg = [rules[a]["negative"] for a in case.get("anatomy", []) if a in rules]
     prompt = ", ".join(["1girl", "solo", "adult woman", case["tags"], *tags, case["hair"], "white bikini, barefoot",
-                        people.SHEET, "white background, simple background", people.QUALITY])
+                        people.SHEET, BACKGROUND_TAGS.get(case.get("background", "#ffffff"), "grey background") + ", simple background",
+                        people.QUALITY])
     negative = ", ".join([people.NEGATIVE.replace("multiple views, ", ""), "different characters, mismatched outfits",
                           *neg, case.get("negative", "")])
     return prompt, negative
@@ -229,8 +232,11 @@ def check(sheet, mask_path):
     import numpy as np
     img = np.asarray(Image.open(sheet).convert("RGB")).astype(int)
     mask = Image.open(mask_path).convert("RGB")
+    # 背景の色は絵の上端の中央値で取る（種ごとに白と灰がある）
+    bgcol = np.median(img[:12].reshape(-1, 3), axis=0)
     lum_min = img.min(axis=2)
-    bg = (lum_min > 225) & ((img.max(axis=2) - lum_min) < 20)
+    # 白に近い点も背景とみなす（角の色との差だけで見ると、消えた白い耳の跡の薄い白を見逃した）
+    bg = (np.abs(img - bgcol).sum(axis=2) < 36) | ((lum_min > 225) & ((img.max(axis=2) - lum_min) < 20))
     skin_area = (np.asarray(_region(mask, (0, 255, 0))) > 0) & ~bg
     skin = np.median(img[skin_area], axis=0) if skin_area.any() else np.array([240, 205, 185])
     is_skin = np.abs(img - skin).sum(axis=2) < 60
