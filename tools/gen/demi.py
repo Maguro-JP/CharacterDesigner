@@ -58,6 +58,42 @@ VIEW_JA = {"front": "正面", "front34": "斜め前", "back34": "斜め後ろ", 
 FONT = "/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf"
 
 
+# 3D の部品の形の名前（tools/engine/viewer/vrm-base.html の PART_LIB と同じ）
+PART_SHAPES = {"ears": {"cat", "fox", "rabbit"}, "tail": {"cat", "fox", "devil", "rabbit"},
+               "wings": {"bat", "feather"}, "horns": {"devil"}}
+KINDS = {"none", "cat", "devil", "fox", "rabbit", "angel"}
+
+
+def validate_case(case):
+    """種の設定の誤りを日本語で返す（無ければ空のリスト）。描き始めてから部品の名前違いで失敗しないよう、先に見る。"""
+    errs = []
+    if not isinstance(case, dict):
+        return ["種の設定が辞書（JSON のオブジェクト）ではない"]
+    for key in ("tags", "hair"):
+        if not isinstance(case.get(key), str) or not case[key].strip():
+            errs.append(f"{key} が空")
+    parts, kind = case.get("parts"), case.get("kind")
+    if parts is None and kind is None:
+        errs.append("parts か kind のどちらかが要る")
+    if kind is not None and kind not in KINDS:
+        errs.append(f"kind「{kind}」は無い（{', '.join(sorted(KINDS))}）")
+    if parts is not None:
+        if not isinstance(parts, dict):
+            errs.append("parts が辞書ではない")
+        else:
+            for slot, shape in parts.items():
+                if slot == "color":
+                    continue
+                if slot not in PART_SHAPES:
+                    errs.append(f"部品の場所「{slot}」は無い（{', '.join(PART_SHAPES)}）")
+                elif shape not in PART_SHAPES[slot]:
+                    errs.append(f"{slot} の形「{shape}」は無い（{', '.join(sorted(PART_SHAPES[slot]))}）")
+    s = case.get("strength")
+    if s is not None and not (isinstance(s, (int, float)) and 0.1 <= s <= 0.95):
+        errs.append("strength は 0.1〜0.95")
+    return errs
+
+
 # ---- 1. 3D の素体を用意して撮る ----
 
 def setup():
@@ -180,8 +216,12 @@ def prompt_of(case):
     return prompt, negative
 
 
-def draw(case, outdir, strength, tries, steps=30):
-    """下絵から描き直す。部品の数え上げで落ちたら seed を変える（最大 tries 回）。通った絵を sheet.png に置く。"""
+def draw(case, outdir, strength, tries, steps=30, on_try=None):
+    """下絵から描き直す。部品の数え上げで落ちたら seed を変える（最大 tries 回）。通った絵を sheet.png に置く。
+
+    on_try(k, stage, result) を渡すと、各回の始め（stage="drawing"）と検品のあと（stage="checked"）に呼ぶ。
+    アプリのサーバーが進み具合を返すのに使う。
+    """
     import torch
     import design
     prompt, negative = prompt_of(case)
@@ -190,6 +230,8 @@ def draw(case, outdir, strength, tries, steps=30):
     for k in range(tries):
         seed = case.get("seed", 1) + k * 100
         t = time.time()
+        if on_try:
+            on_try(k, "drawing", None)
         pipe = img2img()
         pe, ne, pp, np_ = design.encode_xl(pipe, prompt, negative)
         im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
@@ -202,6 +244,8 @@ def draw(case, outdir, strength, tries, steps=30):
         print(f"{out}: {time.time() - t:.0f} 秒 seed {seed} " + ("通った" if not lost else "落とした: " +
               "、".join(f"{VIEW_JA[r['view']]}の{PART_JA[r['part']]}" for r in lost)), flush=True)
         report.append({"try": k, "seed": seed, "strength": strength, "result": result})
+        if on_try:
+            on_try(k, "checked", result)
         inspect_sheet(out, outdir / "mask.png", result, outdir / f"try-{k}-inspect.png")
         if not lost:
             im.save(outdir / "sheet.png")
