@@ -80,7 +80,12 @@ def use_reference():
         _IP = True
 
 
-def draw(out, prompt, seed, steps=24, limbs=True, body=None, negative="", ref=None, ref_scale=0.4):
+# 手本から色と画風だけを受け取る強さ（InstantStyle の層の指定）。全体に 0.4 を掛けると、背面に描くはずの絵が
+# 手本と同じ正面向きになった。形と向きを決める層には効かせず、画風の層（up の block_0 の2番目）にだけ効かせる
+STYLE_ONLY = {"up": {"block_0": [0.0, 1.0, 0.0]}}
+
+
+def draw(out, prompt, seed, steps=24, limbs=True, body=None, negative="", ref=None, ref_scale=STYLE_ONLY):
     """1枚描いて検品する。落ちたら seed を変えて描き直す（最大 3 回）。通った絵は背景を白に消す。"""
     import torch
     import edit
@@ -159,7 +164,7 @@ def card(outdir, name, gender, age, tags, hair, views, zoom, seed, label, limbs=
         if failed.exists():
             used, reasons = json.loads(failed.read_text(encoding="utf-8"))
         elif not p.with_suffix(".raw.png").exists():
-            # 正面以外は、正面の絵を手本にして描く。向きごとに一から描くと、服の色や耳の形が正面と食い違った
+            # 正面以外は、正面の絵を手本にして描く（色と画風だけ）。向きごとに一から描くと、服の色や耳の形が正面と食い違った
             ref = None
             front = outdir / f"{name}-front.raw.png"
             if same_as_front and v != "front" and front.exists():
