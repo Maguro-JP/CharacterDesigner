@@ -53,14 +53,14 @@
         "tail": "rabbit"
       },
       "tags": "rabbit girl, long white rabbit ears, small round white rabbit tail",
-      "hair": "white hair, long hair, red eyes",
+      "hair": "brown hair, long twintails, red eyes",
       "negative": "hairband, headband, fake animal ears, playboy bunny, hair ornament, extra tail",
       "anatomy": [
         "animal_ears",
         "tail"
       ],
       "seed": 41,
-      "hair_color": "#e8e4ea",
+      "hair_color": "#6b4630",
       "background": "#c9ced6"
     },
     "angel": {

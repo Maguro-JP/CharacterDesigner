@@ -226,7 +226,7 @@ def check(sheet, mask_path):
 
     色のある部品: 下絵の部品の色に近い点と、背景でも肌でもない点を「残っている」と数え、半分に満たなければ「消えた」。
       狐の耳は髪と同じ橙で肌の色にも近く、「肌に置き換わった」と誤って落とした。下絵の色と比べることで避ける
-    白い部品（兎の耳、天使の羽）: 白は背景と見分けられないので、輪郭や陰（背景でも肌でもない点）が 12% 以上あれば「残っている」
+    白い部品（兎の耳、天使の羽）: 下絵の部品の色に近く背景でない点が 30% 以上あれば「残っている」。白い背景では見分けられないので、白い部品の種は灰の背景で描く
     肌の色は、型の肌（緑）の位置の色の中央値。水着の白は背景と見分けられないので、肌の見本から外す。
     """
     import numpy as np
@@ -236,7 +236,10 @@ def check(sheet, mask_path):
     bgcol = np.median(img[:12].reshape(-1, 3), axis=0)
     lum_min = img.min(axis=2)
     # 白に近い点も背景とみなす（角の色との差だけで見ると、消えた白い耳の跡の薄い白を見逃した）
-    bg = (np.abs(img - bgcol).sum(axis=2) < 36) | ((lum_min > 225) & ((img.max(axis=2) - lum_min) < 20))
+    # 背景が灰のときは白を背景とみなさない（白い羽を背景と数えて誤って落とした）
+    bg = np.abs(img - bgcol).sum(axis=2) < 36
+    if bgcol.min() > 225:
+        bg |= (lum_min > 225) & ((img.max(axis=2) - lum_min) < 20)
     skin_area = (np.asarray(_region(mask, (0, 255, 0))) > 0) & ~bg
     skin = np.median(img[skin_area], axis=0) if skin_area.any() else np.array([240, 205, 185])
     is_skin = np.abs(img - skin).sum(axis=2) < 60
@@ -256,8 +259,10 @@ def check(sheet, mask_path):
             ref = np.median(under[r], axis=0)
             other = ~bg[r] & ~is_skin[r]
             if ref.min() > 200:   # 白い部品
-                kept = float(other.mean())
-                ok = kept >= 0.12
+                # 下絵の部品の色に近く、背景ではない点を数える。白い背景では見分けられないので必ず落ちる（白い部品の種は灰の背景にする）。
+                # 「背景でも肌でもない点」で数えると、耳が消えた跡に描かれた白い髪を耳と数えて誤って通した
+                kept = float(((np.abs(img[r] - ref).sum(axis=1) < 90) & ~bg[r]).mean())
+                ok = kept >= 0.3
             else:
                 kept = float((other | (np.abs(img[r] - ref).sum(axis=1) < 90)).mean())
                 ok = kept >= 0.5
