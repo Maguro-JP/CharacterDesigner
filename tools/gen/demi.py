@@ -300,7 +300,7 @@ def main():
     ap.add_argument("cmd", choices=["setup", "underlay", "run", "check"])
     ap.add_argument("case", nargs="?")
     ap.add_argument("outdir", nargs="?", type=Path)
-    ap.add_argument("--strength", type=float, default=0.6, help="下絵から離れる強さ。大きいほど画風が強く、部品の位置がずれやすい")
+    ap.add_argument("--strength", type=float, default=None, help="下絵から離れる強さ（既定は亜人ごとの strength、無ければ 0.6）。大きいほど画風が強く、部品の位置がずれやすい")
     ap.add_argument("--tries", type=int, default=3)
     a = ap.parse_args()
     if a.cmd == "setup":
@@ -312,7 +312,7 @@ def main():
     if a.cmd in ("underlay", "run"):
         underlay(case, a.outdir)
     if a.cmd == "run":
-        draw(case, a.outdir, a.strength, a.tries)
+        draw(case, a.outdir, a.strength if a.strength is not None else case.get("strength", 0.6), a.tries)
     if a.cmd == "check":
         sheet = a.outdir / "sheet.png"
         r = check(sheet, a.outdir / "mask.png")

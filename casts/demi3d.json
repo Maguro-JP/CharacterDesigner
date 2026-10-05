@@ -1,5 +1,5 @@
 {
-  "_doc": "3D の素体を下絵にして描く亜人。kind は 3D の部品（cat: 獣耳と尾、devil: 角と翼と尾）。tools/gen/demi.py が読む。髪は下絵（VRoid のサンプル）のツインテールに合わせる",
+  "_doc": "3D の素体を下絵にして描く亜人。kind は 3D の部品（cat: 獣耳と尾、devil: 角と翼と尾）。tools/gen/demi.py が読む。髪は下絵（VRoid のサンプル）のツインテールに合わせる。strength は下絵から離れる強さ（翼のある種は 0.6 だと斜め前を後ろ向きに描き直したので 0.5）",
   "cases": {
     "succubus": {
       "ja": "サキュバス",
@@ -11,7 +11,8 @@
         "wings",
         "tail"
       ],
-      "seed": 41
+      "seed": 41,
+      "strength": 0.5
     },
     "catgirl": {
       "ja": "猫娘",
