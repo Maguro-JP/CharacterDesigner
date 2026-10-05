@@ -44,7 +44,7 @@ input[type=range] { width: 100%; accent-color: var(--accent) }
 <div class="wrap">
   <header>
     <h1>アニメ素体 <span>ポーズと光</span></h1>
-    <div class="spec">VRM 1.0 ・ MToon（陰2段＋輪郭線）</div>
+    <div class="spec">VRoid のサンプル素体 ・ 陰2段</div>
   </header>
   <div class="stage" id="stage"><div class="load" id="load">読み込み中</div></div>
 
@@ -52,6 +52,12 @@ input[type=range] { width: 100%; accent-color: var(--accent) }
   <div class="row" role="group" aria-label="服" id="wear">
     <button id="w-swim" data-w="swim" aria-pressed="true">水着</button>
     <button id="w-casual" data-w="casual" aria-pressed="false">普段着</button>
+  </div>
+  <p class="label">亜人の部品（付け根: 尾は尾骶骨、翼は肩甲骨、角は額の上、獣耳は頭頂。獣耳のときは人の耳を引っ込める）</p>
+  <div class="row" role="group" aria-label="亜人の部品" id="parts">
+    <button id="k-none" data-k="none" aria-pressed="true">人</button>
+    <button id="k-cat" data-k="cat" aria-pressed="false">猫（耳・尾）</button>
+    <button id="k-devil" data-k="devil" aria-pressed="false">悪魔（角・翼・尾）</button>
   </div>
   <p class="label">体型（理想のベースに寄せた値が既定）</p>
   <div class="sliders" id="body">
@@ -403,6 +409,124 @@ document.getElementById('b-copy').addEventListener('click', () => {
   navigator.clipboard?.writeText(t).catch(() => {});
 });
 
+
+// 亜人の部品。付け根の位置を骨に固定するので、どの向き・どのポーズでも同じ所から生える。
+// 位置は肌の点から取る（尾骶骨・肩甲骨は背中の表面、角と耳は頭）。部品の向きは「上 = +y、背中側 = +z」でそろえて作る
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const toonMat = c => new THREE.MeshToonMaterial({ color: c, gradientMap: ramp, side: THREE.DoubleSide });
+// 太さが根元から先へ細くなる管
+function taperTube(pts, r0, r1, seg = 48, rad = 12) {
+  const c = new THREE.CatmullRomCurve3(pts), g = new THREE.TubeGeometry(c, seg, 1, rad, false), P = g.attributes.position, v = V(0, 0, 0);
+  for (let i = 0; i <= seg; i++) {
+    const t = i / seg, ctr = c.getPointAt(t), r = r0 + (r1 - r0) * t;
+    for (let j = 0; j <= rad; j++) { const k = i * (rad + 1) + j; v.fromBufferAttribute(P, k).sub(ctr).multiplyScalar(r).add(ctr); P.setXYZ(k, v.x, v.y, v.z); }
+  }
+  g.computeVertexNormals();
+  return { geo: g, curve: c };
+}
+function catTail() {
+  const o = new THREE.Group(), col = 0x1c1626;
+  const { geo, curve } = taperTube([V(0, 0, -0.015), V(0, -0.02, 0.05), V(0.02, -0.07, 0.14), V(0.06, -0.03, 0.25), V(0.09, 0.09, 0.29), V(0.1, 0.22, 0.27)], 0.02, 0.014);
+  o.add(new THREE.Mesh(geo, toonMat(col)));
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.014, 12, 8), toonMat(col)); tip.position.copy(curve.getPointAt(1)); o.add(tip);
+  return o;
+}
+function devilTail() {
+  const o = new THREE.Group(), col = 0x3a1d2c;
+  const { geo, curve } = taperTube([V(0, 0, -0.015), V(0, -0.04, 0.06), V(0.04, -0.2, 0.14), V(0.1, -0.36, 0.16), V(0.16, -0.46, 0.1)], 0.012, 0.005);
+  o.add(new THREE.Mesh(geo, toonMat(col)));
+  const sh = new THREE.Shape(); sh.moveTo(0, -0.012); sh.lineTo(-0.035, -0.02); sh.quadraticCurveTo(-0.03, 0.03, 0, 0.065); sh.quadraticCurveTo(0.03, 0.03, 0.035, -0.02); sh.lineTo(0, -0.012);
+  const sp = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.006, bevelEnabled: false }), toonMat(col));
+  sp.position.copy(curve.getPointAt(1)); sp.quaternion.setFromUnitVectors(V(0, 1, 0), curve.getTangentAt(1)); o.add(sp);
+  return o;
+}
+function catEar(side) {
+  const o = new THREE.Group();
+  const outer = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.13, 3), toonMat(0x1c1626)); outer.scale.set(1, 1, 0.5); outer.position.y = 0.05;
+  const inner = new THREE.Mesh(new THREE.ConeGeometry(0.036, 0.09, 3), toonMat(0xe8a0a8)); inner.scale.set(1, 1, 0.3); inner.position.set(0, 0.042, -0.011);
+  o.add(outer, inner); o.rotation.z = -side * 0.3;   // 外へ少し開く
+  return o;
+}
+function horn(side) {
+  const { geo } = taperTube([V(0, -0.01, 0), V(side * 0.012, 0.055, 0.012), V(side * 0.04, 0.105, 0.065), V(side * 0.06, 0.125, 0.13)], 0.02, 0.003, 32, 10);
+  return new THREE.Mesh(geo, toonMat(0x2a1a1a));
+}
+function wing(side) {
+  const o = new THREE.Group(), sh = new THREE.Shape();
+  sh.moveTo(0, 0); sh.lineTo(0.12, 0.16); sh.lineTo(0.34, 0.25); sh.lineTo(0.45, 0.14);
+  sh.quadraticCurveTo(0.39, 0.06, 0.37, -0.04); sh.quadraticCurveTo(0.31, 0.02, 0.26, -0.07); sh.quadraticCurveTo(0.2, 0.0, 0.15, -0.08); sh.quadraticCurveTo(0.09, -0.02, 0.0, -0.05); sh.lineTo(0, 0);
+  o.add(new THREE.Mesh(new THREE.ShapeGeometry(sh), toonMat(0x4a2238)));
+  const { geo } = taperTube([V(0, 0, 0), V(0.12, 0.16, 0), V(0.34, 0.25, 0), V(0.45, 0.14, 0)], 0.009, 0.003, 40, 8);
+  o.add(new THREE.Mesh(geo, toonMat(0x2a1420)));
+  o.scale.x = side; o.rotation.y = side * -0.45;   // 先を背中側へ流す
+  return o;
+}
+// 肌の模型の座標の点（at）に、部品（obj）を骨（bone）の子として付ける。部品の上は +y、背中側は +z
+function attach(bone, obj, at) {
+  const b = vrm.humanoid.getRawBoneNode(bone);
+  obj.userData.part = { hips: 'tail', upperChest: 'wing', head: 'head' }[bone] || 'part';
+  vrm.scene.updateMatrixWorld(true);
+  const w = skin.localToWorld(at.clone()); b.worldToLocal(w); obj.position.copy(w);
+  const back = V(0, 0, -bind.F), up = V(0, 1, 0), basis = new THREE.Matrix4().makeBasis(up.clone().cross(back), up, back);
+  const q = new THREE.Quaternion().setFromRotationMatrix(basis);
+  q.premultiply(skin.getWorldQuaternion(new THREE.Quaternion())).premultiply(b.getWorldQuaternion(new THREE.Quaternion()).invert());
+  obj.quaternion.premultiply(q);
+  b.add(obj);
+  return obj;
+}
+// 背中の表面の点。x と y の近くの肌の点のうち、いちばん背中側
+function backPoint(x, y) {
+  const o = skin.userData.orig; let best = null, bz = -9;
+  for (let v = 0; v < o.length / 3; v++) {
+    if (Math.abs(o[v * 3] - x) < 0.012 && Math.abs(o[v * 3 + 1] - y) < 0.012) { const z = -bind.F * o[v * 3 + 2]; if (z > bz) { bz = z; best = v; } }
+  }
+  return V(x, y, -bind.F * bz);
+}
+let kind = 'none', parts = {}, earFold = null;
+function setupParts() {
+  const hy = bind.hips.y, by = bind.bustPos[0].y, F = bind.F;
+  // 尾骶骨: 腰の骨より少し上の背中の中心。水着の後ろの上端（この時は少し下げる）のすぐ上
+  const coccyx = backPoint(0, hy + 0.022);
+  parts.cat = [attach('hips', catTail(), coccyx),
+               attach('head', catEar(1), V(0.062, 1.6, 0.0)), attach('head', catEar(-1), V(-0.062, 1.6, 0.0))];
+  parts.devil = [attach('hips', devilTail(), coccyx),
+                 attach('upperChest', wing(1), backPoint(0.055, by + 0.025)), attach('upperChest', wing(-1), backPoint(-0.055, by + 0.025)),
+                 attach('head', horn(1), V(0.045, 1.585, 0.02 * F)), attach('head', horn(-1), V(-0.045, 1.585, 0.02 * F))];
+  // 人の耳（顔の模型の、高さ 1.43〜1.51 で横幅 0.085 より外の点）を頭の側面まで引っ込める。獣耳のときだけ使う
+  const face = meshes.filter(m => /Face_00_SKIN/.test(matName(m)));
+  if (face.length) {
+    const P = face[0].geometry.attributes.position, orig = P.array.slice(), fold = orig.slice();
+    for (let v = 0; v < P.count; v++) { const x = orig[v * 3], y = orig[v * 3 + 1]; if (y > 1.43 && y < 1.51 && Math.abs(x) > 0.085) fold[v * 3] = Math.sign(x) * 0.082; }
+    earFold = { P, orig, fold };
+  }
+  setKind('none');
+}
+function setKind(k) {
+  kind = k;
+  for (const [name, list] of Object.entries(parts)) list.forEach(o => o.visible = name === k);
+  if (earFold) { earFold.P.array.set(k === 'cat' ? earFold.fold : earFold.orig); earFold.P.needsUpdate = true; }
+  const hy = bind.hips.y;
+  suit.uBot.value.z = hy + (k === 'none' ? 0.03 : 0.008);   // 尾があるときは、水着の後ろの上端を尾の付け根の下に下げる
+}
+document.querySelectorAll('#parts button').forEach(b => b.addEventListener('click', () => { press(b.parentNode, b); if (vrm) setKind(b.dataset.k); }));
+
+// 道具（tools/gen/demi.py）から撮るための入口。部品の型（mask）は、肌を緑・亜人の部品を種類ごとの色・それ以外を黒の単色で描く。
+// 描いた絵の同じ位置に部品が残っているかを、この型で数える
+// 部品は種類ごとに色を分ける（尾は赤、翼は桃、頭の部品は黄）。種類ごとに残っているかを数えるため
+const maskBasic = c => new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide });
+const maskMats = { skin: maskBasic(0x00ff00), other: maskBasic(0x000000), tail: maskBasic(0xff0000), wing: maskBasic(0xff00ff), head: maskBasic(0xffff00), part: maskBasic(0xff0000) };
+function maskMode(on) {
+  vrm.scene.traverse(o => {
+    if (!o.isMesh) return;
+    if (on) {
+      if (!o.userData.mat) o.userData.mat = o.material;
+      let part = null; for (let q = o; q && !part; q = q.parent) part = q.userData.part || null;
+      o.material = part ? maskMats[part] : /_SKIN/.test(o.userData.mat.name || '') ? maskMats.skin : maskMats.other;
+    } else if (o.userData.mat) { o.material = o.userData.mat; delete o.userData.mat; }
+  });
+}
+window.tool = { kind: k => setKind(k), body: n => setBody(n === 'ideal' ? IDEAL : ZERO), pose: id => pose(id), view: a => view(a, false), mask: maskMode };
+
 fetch('base-vrm.txt').then(r => { if (!r.ok) throw new Error(r.status); return r.text(); }).then(t => {
   const bin = atob(t.trim()); const bytes = new Uint8Array(bin.length);
   for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -430,7 +554,7 @@ fetch('base-vrm.txt').then(r => { if (!r.ok) throw new Error(r.status); return r
     scene.add(vrm.scene);
     const box = new THREE.Box3().setFromObject(vrm.scene);
     height = box.max.y - box.min.y; center.set(0, box.min.y + height / 2, 0);
-    setupBody(); hideCatEars(); paintSuit(); wear('swim'); shape(readBody());
+    setupBody(); hideCatEars(); paintSuit(); setupParts(); wear('swim'); shape(readBody());
     pose('stand'); resize(); light(); view(0, false);
     load.hidden = true; window.ready = true;
   }, () => { load.textContent = '模型を読み込めませんでした。ページを開き直してください。'; });

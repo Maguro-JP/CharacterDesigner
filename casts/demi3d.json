@@ -1,0 +1,23 @@
+{
+  "_doc": "3D の素体を下絵にして描く亜人。kind は 3D の部品（cat: 獣耳と尾、devil: 角と翼と尾）。tools/gen/demi.py が読む。髪は下絵（VRoid のサンプル）のツインテールに合わせる",
+  "cases": {
+    "succubus": {
+      "ja": "サキュバス",
+      "kind": "devil",
+      "tags": "succubus, demon girl, small demon horns, black bat wings, demon wings, thin demon tail, spade tip tail",
+      "hair": "black hair, long twintails, red eyes",
+      "negative": "halo, angel wings, feathered wings, large horns, tail from waist",
+      "anatomy": ["wings", "tail"],
+      "seed": 41
+    },
+    "catgirl": {
+      "ja": "猫娘",
+      "kind": "cat",
+      "tags": "cat girl, black cat ears, black cat tail, slit pupils",
+      "hair": "black hair, long twintails, golden eyes",
+      "negative": "hairband, headband, fake animal ears, hair ornament",
+      "anatomy": ["animal_ears", "tail"],
+      "seed": 41
+    }
+  }
+}

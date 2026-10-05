@@ -39,6 +39,17 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
 `PYTHONPATH=.cache/gen/lib python3 tools/gen/people.py card <出力> <名前> --gender female --base ideal --tags "<種族や特徴>"`
 体型を変えるよう頼まれたときだけ、ベースの言葉を変える。
 
+## 亜人（角・獣耳・翼・尾）を描く
+
+言葉だけで描くと、尾の付け根や向きごとの部品の有無が揃わない。3D の素体を下絵にする `tools/gen/demi.py` を使う。
+1. 初回だけ `python3 tools/gen/demi.py setup`（素体と表示の部品を `.cache/engine/vrm` に取る。約 20 秒）
+2. 描く亜人を `casts/demi3d.json` に足す。kind は 3D の部品（cat: 獣耳と尾、devil: 角と翼と尾）
+3. `PYTHONPATH=.cache/gen/lib python3 tools/gen/demi.py run <名前> <出力>`。下絵（約 20 秒）と描き直し（1回 数分、初回はモデルの読み込みに約 10 分）。
+   時間がかかるので裏で走らせる
+4. 機械の検品: 型の位置に部品が残っているかを向きと部品ごとに数える（`report.json`、`try-N-inspect.png` に ○×）
+5. 目の検品: `try-N-inspect.png` を見て、`docs/knowledge/demihuman-anatomy.md` の項目で落とす（人の耳、付け根、色の食い違い）
+新しい部品（角の形、別の尾）は `tools/engine/viewer/vrm-base.html` の部品の関数に足す。付け根は骨に付けるので、どの向きでも同じ所から生える
+
 ## 0. 頼まれたときの流れ
 
 1. まずアニメ風のデザインを描いて見せる。種を変えて数枚出し、選んでもらう
@@ -120,7 +131,8 @@ python3 tools/learn.py score styles/diorama.learned.json characters/*/sprite.jso
 
 ## 3.5 3D（頼まれたとき）
 
-手順と詰まったところは `docs/knowledge/3d.md`。`tools/engine/model3d.py` で書き出し、`tools/engine/viewer/toon.html` で見る。
+手順と詰まったところは `docs/knowledge/3d.md`。専用ベース（アニメ調、体型・水着・亜人の部品・ポーズ・光）は `tools/engine/viewer/vrm-base.html`。
+3D は一区切りにしている。広げるのは亜人の下絵に要る部品だけにする。
 写実の顔は見せない。アニメ調（頭を大きめ、陰2段、輪郭線、大きな瞳）にしてから、正面・顔を自分で撮って確かめてから見せる。
 
 ## 4. 残す
