@@ -43,7 +43,9 @@ PART_IDS = {"髪": [2], "肌": [11, 12, 13, 14, 15], "水着・服": [4, 5, 6, 7
 def cut_character(src):
     """デザイン画から人物を切り抜く（背景は透明）。縁は 1px ぼかして、背景に重ねたときのギザギザを抑える。"""
     import design
-    cut = design.cut_background(Image.open(src).convert("RGB"))
+    im = Image.open(src)
+    # 透明の部分がある絵（別の方法で切り抜いた人物）は、その切り抜きをそのまま使う
+    cut = im.convert("RGBA") if im.mode == "RGBA" and im.getchannel("A").getextrema()[0] < 255 else design.cut_background(im.convert("RGB"))
     # 縁の色を、内側の色で置き換える。デザイン画の白い背景が縁（特に髪の細い房）に混ざっていて、背景に重ねると白く光った。
     # 縁を削るだけでは髪の房が残り、削りすぎると房が消える
     alpha = cut.getchannel("A")
@@ -273,10 +275,22 @@ def blend(flat, prompt, strength, seed):
                 generator=torch.Generator().manual_seed(seed)).images[0]
 
 
-def build(design_png, outdir, scene, light_side="front", seed=7, height=0.8, x=0.5, blend_strength=0.0, prompt="", foot=0.93):
+def cut_person(src):
+    """背景のある絵から人物だけを切り抜く（部位分けで、背景以外の所）。一番大きい塊だけ残し、縁をなめらかにする。"""
+    import edit
+    import design
+    lab = np.asarray(edit.parts(src))
+    m = Image.fromarray(((lab != 0) * 255).astype("uint8")).filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.MinFilter(3))
+    im = Image.open(src).convert("RGBA")
+    im.putalpha(m)
+    return design.keep_largest(im)
+
+
+def build(design_png, outdir, scene, light_side="front", seed=7, height=0.8, x=0.5, blend_strength=0.0, prompt="", foot=0.93,
+          bg_path=None):
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
-    bg = background(scene, seed)
+    bg = Image.open(bg_path).convert("RGB").resize(SIZE) if bg_path else background(scene, seed)   # 気に入った背景を使い回せる
     bg.save(outdir / "background.png")
     char = place(cut_character(design_png), height, x, foot)
     char.save(outdir / "character.png")
