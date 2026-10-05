@@ -49,6 +49,7 @@ AGE_GENDER = {("elder", "male"): "old man", ("elder", "female"): "old woman",
               ("child", "male"): "boy, shota", ("child", "female"): "girl, loli"}
 FONT = "/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf"
 _PIPE = None
+_IP = False  # 手本（IP-Adapter）を読み込んだか
 
 
 def pipe():
@@ -68,7 +69,17 @@ def prompt_of(gender, age, tags, hair, view, body=BODY):
     return ", ".join(p for p in parts if p)
 
 
-def draw(out, prompt, seed, steps=24, limbs=True, body=None, negative=""):
+def use_reference():
+    """手本の絵を読ませる部品（IP-Adapter）を1回だけ読み込む。"""
+    global _IP
+    if not _IP:
+        pipe().load_ip_adapter("h94/IP-Adapter", subfolder="sdxl_models",
+                               weight_name="ip-adapter_sdxl_vit-h.safetensors",
+                               image_encoder_folder="models/image_encoder")
+        _IP = True
+
+
+def draw(out, prompt, seed, steps=24, limbs=True, body=None, negative="", ref=None, ref_scale=0.4):
     """1枚描いて検品する。落ちたら seed を変えて描き直す（最大 3 回）。通った絵は背景を白に消す。"""
     import torch
     import edit
@@ -77,9 +88,15 @@ def draw(out, prompt, seed, steps=24, limbs=True, body=None, negative=""):
         # 指示文は 77 トークンで切れる（ラミアなどは向きの指定まで切れた）。分けて読ませる
         import design
         pe, ne, pp, np_ = design.encode_xl(pipe(), prompt, NEGATIVE + (", " + negative if negative else ""))
+        kw = {}
+        if _IP:
+            # 手本を読み込んだ後は毎回絵を渡す必要がある。手本の無い絵は強さ 0 にして白い絵を渡す
+            from PIL import Image as _I
+            pipe().set_ip_adapter_scale(ref_scale if ref is not None else 0.0)
+            kw["ip_adapter_image"] = ref if ref is not None else _I.new("RGB", (224, 224), "white")
         im = pipe()(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
                     negative_pooled_prompt_embeds=np_, num_inference_steps=steps, guidance_scale=6.0,
-                    width=832, height=1216, generator=torch.Generator().manual_seed(seed + k * 100)).images[0]
+                    width=832, height=1216, generator=torch.Generator().manual_seed(seed + k * 100), **kw).images[0]
         im.save(out)
         reasons = edit.inspect(out, limbs)
         print(f"{out}: {time.time() - t:.0f} 秒 seed {seed + k * 100} " + ("通った" if not reasons else "落とした: " + "、".join(reasons)),
@@ -127,7 +144,8 @@ def base(name):
     return json.loads((ROOT / "library" / "body-types.json").read_text(encoding="utf-8"))["anime"][name]
 
 
-def card(outdir, name, gender, age, tags, hair, views, zoom, seed, label, limbs=True, body=BODY, negative=""):
+def card(outdir, name, gender, age, tags, hair, views, zoom, seed, label, limbs=True, body=BODY, negative="",
+         same_as_front=True):
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     shots, meta = [], {"name": name, "label": label, "gender": gender, "age": age, "tags": tags, "views": {}}
@@ -140,7 +158,13 @@ def card(outdir, name, gender, age, tags, hair, views, zoom, seed, label, limbs=
         if failed.exists():
             used, reasons = json.loads(failed.read_text(encoding="utf-8"))
         elif not p.with_suffix(".raw.png").exists():
-            used, reasons = draw(p, text, seed, limbs=limbs, negative=negative)
+            # 正面以外は、正面の絵を手本にして描く。向きごとに一から描くと、服の色や耳の形が正面と食い違った
+            ref = None
+            front = outdir / f"{name}-front.raw.png"
+            if same_as_front and v != "front" and front.exists():
+                use_reference()
+                ref = Image.open(front).convert("RGB")
+            used, reasons = draw(p, text, seed, limbs=limbs, negative=negative, ref=ref)
             if reasons:
                 failed.write_text(json.dumps([used, reasons], ensure_ascii=False), encoding="utf-8")
         else:
