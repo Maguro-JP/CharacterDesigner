@@ -114,7 +114,7 @@ def underlay(case, outdir):
     t = time.time()
     try:
         arg = {"url": url, "out": str(outdir / "shot"), "kind": case.get("kind", "none"), "parts": case.get("parts"),
-               "hair": case.get("hair_3d", "keep"), "body": "ideal", "pose": case.get("pose", "stand"), "views": [a for _, a in VIEWS]}
+               "hair": case.get("hair_3d", "keep"), "hairColor": case.get("hair_color"), "body": "ideal", "pose": case.get("pose", "stand"), "views": [a for _, a in VIEWS]}
         subprocess.run(["node", str(SHOOT), json.dumps(arg)], check=True, env=node_env(), timeout=900)
     finally:
         stop()
@@ -219,8 +219,11 @@ def _region(mask, color, erode=5):
 
 
 def check(sheet, mask_path):
-    """向きと部品ごとに、型の位置の色が背景か肌に置き換わった割合を数える。半分を超えたら「消えた」とする。
+    """向きと部品ごとに、型の位置に部品が残っているかを数える。
 
+    色のある部品: 下絵の部品の色に近い点と、背景でも肌でもない点を「残っている」と数え、半分に満たなければ「消えた」。
+      狐の耳は髪と同じ橙で肌の色にも近く、「肌に置き換わった」と誤って落とした。下絵の色と比べることで避ける
+    白い部品（兎の耳、天使の羽）: 白は背景と見分けられないので、輪郭や陰（背景でも肌でもない点）が 12% 以上あれば「残っている」
     肌の色は、型の肌（緑）の位置の色の中央値。水着の白は背景と見分けられないので、肌の見本から外す。
     """
     import numpy as np
@@ -231,6 +234,8 @@ def check(sheet, mask_path):
     skin_area = (np.asarray(_region(mask, (0, 255, 0))) > 0) & ~bg
     skin = np.median(img[skin_area], axis=0) if skin_area.any() else np.array([240, 205, 185])
     is_skin = np.abs(img - skin).sum(axis=2) < 60
+    under_path = Path(mask_path).with_name("underlay.png")
+    under = np.asarray(Image.open(under_path).convert("RGB")).astype(int) if under_path.exists() else img
     slot = SIZE[0] // len(VIEWS)
     out = []
     for part, color in PART_COLORS.items():
@@ -242,8 +247,15 @@ def check(sheet, mask_path):
             n = int(r.sum())
             if n < MIN_PX[part]:
                 continue   # この向きでは隠れているか、先が少し見えるだけ（正面の尾。決まりでは見えなくてよい）
-            gone = float((bg[r] | is_skin[r]).mean())
-            out.append({"view": view, "part": part, "pixels": n, "gone": round(gone, 3), "ok": gone < 0.5})
+            ref = np.median(under[r], axis=0)
+            other = ~bg[r] & ~is_skin[r]
+            if ref.min() > 200:   # 白い部品
+                kept = float(other.mean())
+                ok = kept >= 0.12
+            else:
+                kept = float((other | (np.abs(img[r] - ref).sum(axis=1) < 90)).mean())
+                ok = kept >= 0.5
+            out.append({"view": view, "part": part, "pixels": n, "gone": round(1 - kept, 3), "ok": ok})
     out += extra_parts(img, mask, bg, Path(mask_path).with_name("underlay.png"))
     return out
 

@@ -1,5 +1,5 @@
 {
-  "_doc": "3D の素体を下絵にして描く亜人。tools/gen/demi.py が読む。kind は 3D の部品の組（none / cat / devil / fox / rabbit / angel）、parts は耳・尾・翼・角を形の名前で選ぶ（kind より優先。color で部品ごとの色）。hair_3d: \"hide\" で下絵の髪を隠し、髪型を hair の言葉で決める（既定は下絵のツインテールのまま）。strength は下絵から離れる強さ（翼のある種は 0.6 だと斜め前を後ろ向きに描き直したので 0.5）",
+  "_doc": "3D の素体を下絵にして描く亜人。tools/gen/demi.py が読む。kind は 3D の部品の組（none / cat / devil / fox / rabbit / angel）、parts は耳・尾・翼・角を形の名前で選ぶ（kind より優先。color で部品ごとの色）。hair_color で下絵の髪の色を塗り替える（描く髪の色と合わせる。髪型は下絵のツインテールのまま）。hair_3d: \"hide\" で髪を隠せるが、頭が坊主になって短い髪に描かれ、人の耳の残りも見えたので使わない。strength は下絵から離れる強さ（翼のある種は 0.6 だと斜め前を後ろ向きに描き直したので 0.5）",
   "cases": {
     "succubus": {
       "ja": "サキュバス",
@@ -37,14 +37,14 @@
         }
       },
       "tags": "fox girl, orange fox ears, large fluffy orange fox tail, white tail tip",
-      "hair": "orange hair, long hair, amber eyes",
-      "hair_3d": "hide",
-      "negative": "hairband, headband, fake animal ears, hair ornament, multiple tails, two tails, extra tail, twintails",
+      "hair": "orange hair, long twintails, amber eyes",
+      "negative": "hairband, headband, fake animal ears, hair ornament, multiple tails, two tails, extra tail",
       "anatomy": [
         "animal_ears",
         "tail"
       ],
-      "seed": 41
+      "seed": 41,
+      "hair_color": "#e0843a"
     },
     "bunnygirl": {
       "ja": "兎娘",
@@ -59,7 +59,8 @@
         "animal_ears",
         "tail"
       ],
-      "seed": 41
+      "seed": 41,
+      "hair_color": "#e8e4ea"
     },
     "angel": {
       "ja": "天使",
@@ -73,7 +74,8 @@
         "wings"
       ],
       "seed": 41,
-      "strength": 0.5
+      "strength": 0.5,
+      "hair_color": "#e8c870"
     }
   }
 }

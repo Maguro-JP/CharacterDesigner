@@ -495,7 +495,8 @@ function foxTail() {
   return m;
 }
 function rabbitTail() {
-  const m = new THREE.Mesh(new THREE.SphereGeometry(0.04, 16, 12), mainMat(0xf2eee8)); m.position.z = 0.025;
+  // 付け根より少し上に置く（白い水着に重なると、描き直しで布と見分けが付かず消えた）。色は水着の白と分けてクリーム色
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.04, 16, 12), mainMat(0xeadcc4)); m.position.set(0, 0.025, 0.03);
   const o = new THREE.Group(); o.add(m); return o;
 }
 // 天使の羽: 鳥の翼の形。後ろの縁は風切羽の並び（丸い山の連なり）にする
@@ -506,9 +507,10 @@ function featherWing(side) {
   let px = 0.56, py = 0.18;
   for (const [x, y] of tips) { sh.quadraticCurveTo((px + x) / 2 + 0.035, (py + y) / 2 - 0.02, x, y); px = x; py = y; }
   sh.lineTo(0, 0);
-  o.add(new THREE.Mesh(new THREE.ShapeGeometry(sh, 24), mainMat(0xf4f2ee)));
+  // 真っ白だと白い背景に溶けて、正面で羽が消えた。薄い青灰にし、縁を濃くする
+  o.add(new THREE.Mesh(new THREE.ShapeGeometry(sh, 24), mainMat(0xdfe3ee)));
   const { geo } = taperTube([V(0, 0, 0), V(0.12, 0.2, 0), V(0.32, 0.29, 0), V(0.55, 0.18, 0)], 0.012, 0.004, 40, 8);
-  o.add(new THREE.Mesh(geo, toonMat(0xd8d2c8)));
+  o.add(new THREE.Mesh(geo, toonMat(0x9aa2b4)));
   o.scale.x = side; o.rotation.y = side * -0.25;   // 後ろへ流しすぎると、正面から細い線にしか見えず描き直しで消える
   return o;
 }
@@ -609,7 +611,7 @@ function maskMode(on) {
     } else if (o.userData.mat) { o.material = o.userData.mat; delete o.userData.mat; }
   });
 }
-window.tool = { parts: spec => setParts(spec), hair: on => meshes.forEach(m => { if (/HAIR/.test(matName(m)) && !m.userData.earPart) m.visible = on; }), barefoot: on => meshes.forEach(m => { if (/Shoes/.test(matName(m))) m.visible = !on; }), kind: k => setKind(k), body: n => setBody(n === 'ideal' ? IDEAL : ZERO), pose: id => pose(id), view: a => view(a, false), mask: maskMode };
+window.tool = { hairColor: hex => meshes.forEach(m => { if (/HAIR/.test(matName(m)) && !m.userData.earPart) { m.material.map = null; m.material.color.set(hex); m.material.needsUpdate = true; } }), parts: spec => setParts(spec), hair: on => meshes.forEach(m => { if (/HAIR/.test(matName(m)) && !m.userData.earPart) m.visible = on; }), barefoot: on => meshes.forEach(m => { if (/Shoes/.test(matName(m))) m.visible = !on; }), kind: k => setKind(k), body: n => setBody(n === 'ideal' ? IDEAL : ZERO), pose: id => pose(id), view: a => view(a, false), mask: maskMode };
 
 fetch('base-vrm.txt').then(r => { if (!r.ok) throw new Error(r.status); return r.text(); }).then(t => {
   const bin = atob(t.trim()); const bytes = new Uint8Array(bin.length);
