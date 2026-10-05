@@ -257,6 +257,15 @@ def check(sheet, mask_path):
             if n < MIN_PX[part]:
                 continue   # この向きでは隠れているか、先が少し見えるだけ（正面の尾。決まりでは見えなくてよい）
             ref = np.median(under[r], axis=0)
+            if part == "head" and ref.min() > 200:
+                # 白い頭の部品は、描き直しで頭が大きくなると外へずれる（兎の耳が下絵より外・下に描かれ、誤って落とした）。
+                # 型を 15px 広げた範囲で数え、型の大きさで割る。色のある部品に広げると、黒い角の周りの黒い髪を角と数えて誤って通したので白だけ
+                wide = np.asarray(Image.fromarray(r.astype("uint8") * 255).filter(ImageFilter.MaxFilter(31))) > 0
+                near = (np.abs(img[wide] - ref).sum(axis=1) < 90) & ~bg[wide]
+                kept = min(1.0, float(near.sum()) / n)
+                ok = kept >= 0.3
+                out.append({"view": view, "part": part, "pixels": n, "gone": round(1 - kept, 3), "ok": ok})
+                continue
             other = ~bg[r] & ~is_skin[r]
             if ref.min() > 200:   # 白い部品
                 # 下絵の部品の色に近く、背景ではない点を数える。白い背景では見分けられないので必ず落ちる（白い部品の種は灰の背景にする）。
@@ -271,7 +280,7 @@ def check(sheet, mask_path):
     return out
 
 
-def extra_parts(img, mask, bg, underlay_path, grow=12, min_px=250):
+def extra_parts(img, mask, bg, underlay_path, grow=20, min_px=150):
     """下絵に無い所に出た暗い部品（尾が2本、手の上に出た尾の先）を数える。
 
     下絵で明るかった所（肌・水着・背景）に、描いた絵で暗い点（明るさ 90 未満）が固まって出たら「余分」とみなす。
@@ -288,10 +297,33 @@ def extra_parts(img, mask, bg, underlay_path, grow=12, min_px=250):
     slot = SIZE[0] // len(VIEWS)
     out = []
     for i, (view, _) in enumerate(VIEWS):
-        n = int(near[:, i * slot:(i + 1) * slot].sum())
+        # 散らばった暗い点（目、輪郭、陰）を足し合わせると誤って落とした（兎の正面で 281 点）。いちばん大きい塊で見る
+        n = _largest_blob(near[:, i * slot:(i + 1) * slot])
         if n >= min_px:
             out.append({"view": view, "part": "extra", "pixels": n, "gone": 0.0, "ok": False})
     return out
+
+
+def _largest_blob(on):
+    """つながった点の塊のうち、いちばん大きいものの点の数（上下左右と斜めでつながる）。"""
+    import numpy as np
+    seen = np.zeros_like(on, dtype=bool)
+    best = 0
+    h, w = on.shape
+    for y0, x0 in zip(*np.nonzero(on)):
+        if seen[y0, x0]:
+            continue
+        stack, n = [(y0, x0)], 0
+        seen[y0, x0] = True
+        while stack:
+            y, x = stack.pop(); n += 1
+            for dy in (-1, 0, 1):
+                for dx in (-1, 0, 1):
+                    yy, xx = y + dy, x + dx
+                    if 0 <= yy < h and 0 <= xx < w and on[yy, xx] and not seen[yy, xx]:
+                        seen[yy, xx] = True; stack.append((yy, xx))
+        best = max(best, n)
+    return best
 
 
 def inspect_sheet(sheet, mask_path, result, out):
