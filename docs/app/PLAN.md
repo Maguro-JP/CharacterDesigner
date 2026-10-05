@@ -17,11 +17,15 @@
 ## 段階
 
 ### M1. サーバー（描く仕事を受けて返す）
-- [ ] `app/server`: FastAPI。仕事（描く依頼）を受け、順番に1つずつ処理する（同時に2つ描くとメモリが足りない）
-- [ ] 仕事の状態（待ち・下絵・描画中・検品・完了・失敗）と、何回目の試行かを返す
-- [ ] モデルは1度だけ読み、仕事の間で使い回す（読み込みに約10分かかるため）
-- [ ] 種の一覧（`casts/demi3d.json`）の読み書き
+- [x] `app/server`: FastAPI。仕事（描く依頼）を受け、順番に1つずつ処理する（同時に2つ描くとメモリが足りない）
+- [x] 仕事の状態（待ち・下絵・描画中・検品・完了・失敗）と、何回目の試行かを返す
+- [x] モデルは1度だけ読み、仕事の間で使い回す（読み込みに約10分かかるため）
+- [x] 種の一覧（`casts/demi3d.json`）の読み書き
 - 完了条件: `curl` で依頼を出し、`sheet.png` と検品の結果（`report.json`）が返る。テストで確かめる
+- 済（2026-10-06 JST）: 偽の描画で流れの試験 9件（`PYTHONPATH=.cache/app/lib python3 -m pytest app/server/tests`）。
+  本物で猫娘を3回まで描く依頼を curl で出し、3回目で通った `sheet.png` が返った（1回 約180秒、2件目はモデルの読み込み無し）
+- 起動: `PYTHONPATH=.cache/app/lib:.cache/gen/lib python3 -m uvicorn app.server.main:app --port 8000`
+  （部品は `python3 -m pip install --target .cache/app/lib -r app/server/requirements.txt`）
 
 ### M2. 画面
 - [ ] `app/web`: Vite + React + TypeScript + Tailwind
