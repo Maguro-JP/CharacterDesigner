@@ -155,7 +155,8 @@ def card(outdir, name, gender, age, tags, hair, views, zoom, seed, label, limbs=
         tiles.append((VIEW_JA[v] + ("（落とした）" if reasons else ""),
                       im.resize((int(im.width * H / im.height), H))))
     if zoom != "none":
-        src = shots[0][1] if zoom in ("head", "arms") else next((p for v, p, _ in shots if v == "back"), shots[0][1])
+        # 尾の拡大も正面から取る。背面から取ると、水着の体ではお尻への寄りになり、尾の付け根より体が主役になった
+        src = shots[0][1] if zoom in ("head", "arms", "tail") else next((p for v, p, _ in shots if v == "back"), shots[0][1])
         box = zoom_box(str(src), zoom)
         if box:
             # 画面の外まで切り取ると黒く埋まるので、白い台紙に貼ってから切り取る
