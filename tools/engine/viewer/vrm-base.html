@@ -525,7 +525,7 @@ function maskMode(on) {
     } else if (o.userData.mat) { o.material = o.userData.mat; delete o.userData.mat; }
   });
 }
-window.tool = { kind: k => setKind(k), body: n => setBody(n === 'ideal' ? IDEAL : ZERO), pose: id => pose(id), view: a => view(a, false), mask: maskMode };
+window.tool = { barefoot: on => meshes.forEach(m => { if (/Shoes/.test(matName(m))) m.visible = !on; }), kind: k => setKind(k), body: n => setBody(n === 'ideal' ? IDEAL : ZERO), pose: id => pose(id), view: a => view(a, false), mask: maskMode };
 
 fetch('base-vrm.txt').then(r => { if (!r.ok) throw new Error(r.status); return r.text(); }).then(t => {
   const bin = atob(t.trim()); const bytes = new Uint8Array(bin.length);

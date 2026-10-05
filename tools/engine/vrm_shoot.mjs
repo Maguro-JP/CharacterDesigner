@@ -12,7 +12,7 @@ const p = await b.newPage({ viewport: { width: 420, height: 1000 }, deviceScaleF
 const errs = []; p.on('pageerror', e => errs.push(e.message));
 await p.goto(a.url);
 await p.waitForFunction(() => window.ready === true, null, { timeout: 300000 });
-await p.evaluate(a => { tool.body(a.body || 'ideal'); tool.kind(a.kind || 'none'); tool.pose(a.pose || 'stand'); }, a);
+await p.evaluate(a => { tool.barefoot(a.barefoot !== false); tool.body(a.body || 'ideal'); tool.kind(a.kind || 'none'); tool.pose(a.pose || 'stand'); }, a);
 const stage = p.locator('#stage');
 for (const [i, deg] of (a.views || [0, 180]).entries()) {
   await p.evaluate(d => tool.view(d), deg); await p.waitForTimeout(500);
