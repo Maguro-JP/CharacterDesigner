@@ -58,10 +58,21 @@ def cut_character(src):
     bleed = np.where(den > 0.02, num / np.maximum(den, 1e-3), rgb)
     band = (np.asarray(alpha) > 0) & (np.asarray(inner) == 0)
     rgb[band] = bleed[band]
+    # 背景のある絵から切り抜いた人物（透明つき）だけ、縁の名残を取り除く。無地から抜いた人物は縁がきれいで、
+    # 取り除くと輪郭の白いフリルまで削れるおそれがある。どちらも髪の中の小さな穴は埋める
+    if im.mode == "RGBA":
+        clean, ratio = clean_remnant(rgb, np.asarray(alpha) > 128)
+    else:
+        clean, ratio = np.asarray(alpha) > 128, 0.0
+    holes = ~clean & (np.asarray(Image.fromarray(clean.astype("uint8") * 255).filter(ImageFilter.MaxFilter(7)).filter(ImageFilter.MinFilter(7))) > 0)
+    alpha = Image.fromarray(((clean | holes) * 255).astype("uint8"))
     a = alpha.filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(0.8))
     cut = Image.fromarray(np.clip(rgb, 0, 255).astype("uint8")).convert("RGBA")
     cut.putalpha(a)
-    return cut.crop(a.point(lambda v: 255 if v > 8 else 0).getbbox())
+    cut.info["remnant_removed"] = ratio
+    c = cut.crop(a.point(lambda v: 255 if v > 8 else 0).getbbox())
+    c.info["remnant_removed"] = ratio
+    return c
 
 
 def place(char, height=0.8, x=0.5, foot=0.93):
@@ -335,6 +346,113 @@ def local_blend(flat, char_layer, effects, prompt, strength, seed, band=29):
     return Image.fromarray(np.clip(out, 0, 255).astype("uint8")), m
 
 
+def _largest_blob(on):
+    """つながった点の塊のうち、いちばん大きいものの点の数"""
+    from collections import deque
+    seen = np.zeros_like(on, dtype=bool)
+    best = 0
+    H, W = on.shape
+    for y0, x0 in zip(*np.nonzero(on)):
+        if seen[y0, x0]:
+            continue
+        q, n = deque([(y0, x0)]), 0
+        seen[y0, x0] = True
+        while q:
+            y, x = q.popleft(); n += 1
+            for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                yy, xx = y + dy, x + dx
+                if 0 <= yy < H and 0 <= xx < W and on[yy, xx] and not seen[yy, xx]:
+                    seen[yy, xx] = True; q.append((yy, xx))
+        best = max(best, n)
+    return best
+
+
+def sky_color_map(bg, hz):
+    """列ごとの空の色（地平線より上の、下側 30% の行の平均）。濡れた面と水面は空を映すので、この色に近い所が映り込める面"""
+    a = np.asarray(bg.convert("RGB")).astype(float)
+    h = int(hz * SIZE[1]) if hz else int(SIZE[1] * 0.3)
+    band = a[max(0, int(h * 0.7)):max(1, h)]
+    return band.mean(axis=0)   # (W, 3)
+
+
+def reflective_mask(bg, hz):
+    """映り込みが起きる面（水面・濡れた砂）の範囲。地平線より下で、空の色に近いか、水の色（青や青緑が強い）で、
+    きめが細かい（ざらざらした砂や草ではない）所。水が無い所に映り込みを描かないために使う"""
+    a = np.asarray(bg.convert("RGB")).astype(float)
+    sky = sky_color_map(bg, hz)[None, :, :]
+    near_sky = np.abs(a - sky).sum(axis=2) < 110
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    watery = (b > r + 25) & (b + g > 2 * r + 40)
+    lum = a @ [0.299, 0.587, 0.114]
+    blur = np.asarray(Image.fromarray(lum.astype("uint8")).filter(ImageFilter.GaussianBlur(4))).astype(float)
+    smooth = np.abs(lum - blur) < 14
+    below = np.zeros(a.shape[:2], bool)
+    below[int((hz or 0.3) * SIZE[1]) + 2:] = True
+    m = (near_sky | watery) & smooth & below
+    return np.asarray(Image.fromarray((m * 255).astype("uint8")).filter(ImageFilter.MinFilter(3)).filter(ImageFilter.MaxFilter(5))) > 0
+
+
+def feet_region(char_layer, below=40):
+    """足元の範囲（足の下端の少し上から、少し下まで）"""
+    a = np.asarray(char_layer.getchannel("A")) > 128
+    ys, xs = np.nonzero(a)
+    h = ys.max() - ys.min()
+    top, bottom = int(ys.max() - h * 0.04), min(SIZE[1], int(ys.max() + below))
+    fx = xs[ys > ys.max() - h * 0.04]
+    return top, bottom, int(fx.min()) - 20, int(fx.max()) + 20
+
+
+def ground_kind(bg, char_layer, hz):
+    """足元が何か: water（水の色）、wet（空を映す濡れた面）、plants（花や草: 立てない）、ground（地面）"""
+    top, bottom, x0, x1 = feet_region(char_layer)
+    a = np.asarray(bg.convert("RGB")).astype(float)[top:bottom, max(0, x0):x1]
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    if ((b > r + 25) & (b + g > 2 * r + 40)).mean() > 0.4:
+        return "water"
+    # 花や草: 色相が黄緑〜緑で、ある程度鮮やか（ひまわりの葉の足元は平均 (103,113,85) の暗い緑だった）
+    hsv = np.asarray(Image.fromarray(a.astype("uint8")).convert("HSV")).astype(float)
+    hue, sat = hsv[..., 0] * 360 / 255, hsv[..., 1] / 255
+    if (((hue > 55) & (hue < 170) & (sat > 0.2)) | ((hue > 40) & (hue <= 55) & (sat > 0.6))).mean() > 0.35:
+        return "plants"
+    refl = reflective_mask(bg, hz)[top:bottom, max(0, x0):x1]
+    if refl.mean() > 0.4:
+        return "wet"
+    return "ground"
+
+
+# ---- 完成絵の検品（AI が描きがちな、あり得ない所を数える） ----
+
+def inspect_composite(final, bg, char_layer, reflect=None, hz=None, ground=None):
+    """完成絵の矛盾を数える。理由（日本語）と数字の辞書を返す。理由が空なら通る。
+
+    - 水が無い所の映り込み: 映り込みのうち、水・濡れた面の外にある割合
+    - 立てない所に立つ: 足元が花や草なのに、足が見えている割合
+    """
+    f = np.asarray(final.convert("RGB")).astype(float)
+    g = np.asarray(bg.convert("RGB")).astype(float)
+    a = char_layer.getchannel("A").point(lambda v: 255 if v > 128 else 0)
+    am = np.asarray(a) > 0
+    # 白い残りと境界線は、色だけでは白い水着と見分けられなかった（綺麗な絵と汚い絵で差が出ない）。
+    # 元の絵と比べて切り抜きの段階で取り除き（clean_remnant）、取り除いた割合を info に残す
+    out, reasons = {}, []
+    if reflect is not None:
+        ra = np.asarray(reflect.getchannel("A")) > 12
+        if ra.any():
+            off = float((ra & ~reflective_mask(bg, hz)).sum() / ra.sum())
+            out["reflection_off_water"] = round(off, 4)
+            if off > 0.15:
+                reasons.append(f"水が無い所に映り込み（映り込みの {off:.1%} が水・濡れた面の外）")
+    if ground == "plants":
+        top, bottom, x0, x1 = feet_region(char_layer, below=0)
+        shown = float(np.mean(np.abs(f[top:bottom, max(0, x0):x1] - g[top:bottom, max(0, x0):x1]).sum(axis=2) > 40)) if bottom > top else 0
+        feet = am[top:bottom, max(0, x0):x1]
+        vis = float((np.abs(f - g).sum(axis=2) > 40)[top:bottom, max(0, x0):x1][feet].mean()) if feet.any() else 0.0
+        out["feet_visible_on_plants"] = round(vis, 4)
+        if vis > 0.5:
+            reasons.append(f"花や草の上に立っている（足の {vis:.0%} が手前の物に隠れていない）")
+    return reasons, out
+
+
 # ---- 4. 部位 ----
 
 def part_layers(char_layer):
@@ -405,6 +523,79 @@ def blend(flat, prompt, strength, seed):
                 generator=torch.Generator().manual_seed(seed)).images[0]
 
 
+def _local_mean(rgb, weight, sigma):
+    """weight の掛かった所だけの、近所の平均の色（重み付きのぼかし）"""
+    num = np.stack([np.asarray(Image.fromarray(np.clip(rgb[..., c] * weight, 0, 255).astype("uint8")).filter(ImageFilter.GaussianBlur(sigma))).astype(float)
+                    for c in range(3)], axis=-1)
+    den = np.asarray(Image.fromarray((weight * 255).astype("uint8")).filter(ImageFilter.GaussianBlur(sigma))).astype(float)[..., None] / 255
+    return num / np.maximum(den, 1e-3), den[..., 0]
+
+
+def clean_remnant(rgb, mask, sigma=18):
+    """切り抜きの縁に残った元の背景（白い縁、塊、もや）を取り除く。取り除いた後の mask と、取り除いた割合を返す。
+
+    縁の点を、近所の「人物の内側の色」と「外の背景の色」と比べ、背景の色に近い点を背景の名残とみなす。
+    白いフリルのように人物の内側も白い所は、内側の色に近いので残る。白さだけで数えると、白い水着と名残を見分けられなかった
+    """
+    m = mask.astype(bool)
+    mi = Image.fromarray(m.astype("uint8") * 255)
+    deep = np.asarray(mi.filter(ImageFilter.MinFilter(25))) > 0
+    outside = ~(np.asarray(mi.filter(ImageFilter.MaxFilter(9))) > 0)
+    edge = m & ~deep
+    bgc, bgw = _local_mean(rgb, outside.astype(float), sigma)
+    chc, chw = _local_mean(rgb, deep.astype(float), sigma * 1.5)
+    dbg = np.abs(rgb - bgc).sum(axis=2)
+    dch = np.abs(rgb - chc).sum(axis=2)
+    remnant = edge & (bgw > 0.02) & (dbg < 45) & (dbg < dch * 0.6)
+    # 名残は縁から外へつながっている。縁から離れた島（服の模様など）は外さない
+    lab = remnant.copy()
+    keep = np.zeros_like(lab)
+    border = remnant & ~(np.asarray(mi.filter(ImageFilter.MinFilter(5))) > 0)
+    from collections import deque
+    q = deque(zip(*np.nonzero(border)))
+    for y, x in q:
+        keep[y, x] = True
+    while q:
+        y, x = q.popleft()
+        for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            yy, xx = y + dy, x + dx
+            if 0 <= yy < lab.shape[0] and 0 <= xx < lab.shape[1] and lab[yy, xx] and not keep[yy, xx]:
+                keep[yy, xx] = True
+                q.append((yy, xx))
+    ratio = float(keep.sum() / max(edge.sum(), 1))
+    return m & ~keep, ratio
+
+
+def has_plain_background(src, tol=18):
+    """絵の外周が無地（ほぼ一色）か。無地ならそのまま端から抜ける"""
+    a = np.asarray(Image.open(src).convert("RGB")).astype(float)
+    border = np.concatenate([a[:4].reshape(-1, 3), a[-4:].reshape(-1, 3), a[:, :4].reshape(-1, 3), a[:, -4:].reshape(-1, 3)])
+    return float(np.abs(border - np.median(border, axis=0)).sum(axis=1).mean()) < tol
+
+
+def plainify(src, out, prompt, strength=0.35, seed=7):
+    """背景のある絵の人物を、無地の背景の上に描き直す（人物はそのまま、縁だけ描き直す）。
+    背景のある絵から髪を切り抜くと、背景の名残（白い塊、もや）が残り、取り除くと髪がぎざぎざになった。
+    人物の周りを無地で塗ってから軽く描き直すと、縁が無地に対して描かれ、端からきれいに抜ける"""
+    import torch
+    import design
+    import demi
+    import edit
+    lab = np.asarray(edit.parts(src))
+    person = Image.fromarray(((lab != 0) * 255).astype("uint8")).filter(ImageFilter.MaxFilter(21)).filter(ImageFilter.GaussianBlur(6))
+    im = Image.open(src).convert("RGB")
+    flat = Image.new("RGB", im.size, (226, 228, 232))
+    mixed = Image.composite(im, flat, person)
+    pipe = demi.img2img()
+    pe, ne, pp, np_ = design.encode_xl(pipe, prompt + ", simple background, grey background, full body",
+                                       "background objects, scenery, outdoors, text, watermark, lowres, bad anatomy, extra limbs")
+    r = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
+             image=mixed, strength=strength, num_inference_steps=30, guidance_scale=6.0,
+             generator=torch.Generator().manual_seed(seed)).images[0]
+    r.save(out)
+    return out
+
+
 def cut_person(src):
     """背景のある絵から人物だけを切り抜く（部位分けで、背景以外の所）。一番大きい塊だけ残し、縁をなめらかにする。"""
     import edit
@@ -412,34 +603,70 @@ def cut_person(src):
     lab = np.asarray(edit.parts(src))
     m = Image.fromarray(((lab != 0) * 255).astype("uint8")).filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.MinFilter(3))
     im = Image.open(src).convert("RGBA")
-    im.putalpha(m)
-    return design.keep_largest(im)
+    clean, ratio = clean_remnant(np.asarray(im.convert("RGB")).astype(float), np.asarray(m) > 0)
+    im.putalpha(Image.fromarray(clean.astype("uint8") * 255))
+    out = design.keep_largest(im)
+    out.info["remnant_removed"] = ratio
+    return out
 
 
 def build(design_png, outdir, scene, light_side="front", seed=7, height=None, x=0.5, blend_strength=0.0, prompt="", foot=0.93,
-          bg_path=None, ground="ground", band=29):
-    """完成絵を組む。height を渡さなければ、背景の地平線と足元の位置から遠近に合う大きさにする。
-    ground: water（浅い水に立つ: 足首を沈め、波紋と映り込み）、wet（濡れた砂: 映り込みと影）、ground（地面: 影）"""
+          bg_path=None, ground="auto", band=29, retries=2):
+    """完成絵を組む。
+
+    - 人物の大きさ: height を渡さなければ、背景の地平線と足元の位置から遠近に合わせる
+    - 人物の元の絵に背景があれば、無地の上に描き直してから切り抜く（plainify）
+    - 足元: auto は背景から判定する。water（足首を沈め、波紋と映り込み）、wet（濡れた面: 映り込みと影）、
+      plants（花や草: 足が手前の物に隠れるまで奥へ下げる）、ground（地面: 影）
+    - 映り込みは、映り込める面（水面、空を映す濡れた面）だけに切り抜く
+    - 仕上げたら検品し、落ちたら描き直しの幅と強さを上げてやり直す（retries 回まで）
+    """
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     bg = Image.open(bg_path).convert("RGB").resize(SIZE) if bg_path else background(scene, seed)   # 気に入った背景を使い回せる
     bg.save(outdir / "background.png")
     hz = horizon(bg)
-    if height is None:
-        height = min(0.9, perspective_height(hz, foot)) if hz is not None else 0.8
-    char = place(cut_character(design_png), height, x, foot)
+    src = design_png
+    if not has_plain_background(src) and Image.open(src).mode != "RGBA":
+        src = plainify(src, str(outdir / "plain.png"), prompt or "1girl, solo", seed=seed)
+    cut = cut_character(src)
+    remnant = cut.info.get("remnant_removed", 0.0)
+
+    def place_at(f):
+        h = height if height is not None else (min(0.9, perspective_height(hz, f)) if hz is not None else 0.8)
+        return place(cut, h, x, f), h
+
+    char, h_used = place_at(foot)
+    kind = ground_kind(bg, char, hz) if ground == "auto" else ground
+    if kind == "plants":
+        # 花や草の上に立たせない。足が手前の物に半分以上隠れる所まで、足元を奥（上）へ動かす
+        for f in np.arange(foot, 0.6, -0.02):
+            c2, h2 = place_at(float(f))
+            fg2, _ = foreground(bg, c2)
+            top, bottom, x0, x1 = feet_region(c2, below=0)
+            feet = np.asarray(c2.getchannel("A"))[top:bottom, max(0, x0):x1] > 128
+            hidden = float((np.asarray(fg2.getchannel("A"))[top:bottom, max(0, x0):x1] > 128)[feet].mean()) if feet.any() else 0
+            if hidden >= 0.6:
+                char, h_used, foot = c2, h2, float(f)
+                break
     light, ambient = light_of(bg)
-    effects = []
-    under = []   # 人物より下に重ねる層（影、映り込み）
-    if ground == "water":
+    refl_mask = reflective_mask(bg, hz)
+    under, over_fx, reflect = [], [], None
+    if kind == "water":
         char, wl = submerge(char)
-        under.append(("水面の映り込み", reflection(char, wl, ambient, 0.3, 0.35), "normal", 1.0))
+        reflect = reflection(char, wl, ambient, 0.3, 0.35)
         over_fx = [("波紋", ripples(char, wl), "screen", 0.9)]
-    else:
-        over_fx = []
-        if ground == "wet":
-            ys = np.nonzero(np.asarray(char.getchannel("A")).max(axis=1) > 128)[0]
-            under.append(("濡れた砂の映り込み", reflection(char, int(ys.max()), ambient, 0.28, 0.3), "normal", 1.0))
+    elif kind == "wet":
+        ys = np.nonzero(np.asarray(char.getchannel("A")).max(axis=1) > 128)[0]
+        reflect = reflection(char, int(ys.max()), ambient, 0.28, 0.3)
+    if reflect is not None:
+        ra = np.asarray(reflect.getchannel("A")).astype(float) * refl_mask   # 映り込める面の外は消す
+        reflect.putalpha(Image.fromarray(ra.astype("uint8")))
+        if (ra > 12).sum() > 200:
+            under.append(("映り込み（水面・濡れた面だけ）", reflect, "normal", 1.0))
+        else:
+            reflect = None
+    if kind != "water":
         under.append(("影（光と反対へ）", cast_shadow(char, ambient, light_side), "multiply", 1.0))
     under.append(("接地の影", contact_shadow(char, ambient), "multiply", 1.0))
     char.save(outdir / "character.png")
@@ -455,15 +682,24 @@ def build(design_png, outdir, scene, light_side="front", seed=7, height=None, x=
     flat = flatten(layers)
     flat.save(outdir / "composite.png")
     save_psd(layers, outdir / "layers.psd")
-    info = {"scene": scene, "seed": seed, "horizon": hz, "height": round(height, 3), "foot": foot, "ground": ground,
-            "light": light, "ambient": ambient, "light_side": light_side,
+    info = {"scene": scene, "seed": seed, "horizon": hz, "height": round(h_used, 3), "foot": round(foot, 3), "ground": kind,
+            "light": light, "ambient": ambient, "light_side": light_side, "remnant_removed": round(remnant, 4),
             "grade": round(grade, 3), "foreground_cover": round(fg_cover, 4), "layers": [n for n, *_ in layers]}
+    final = flat
     if blend_strength > 0:
         effects = [im for _, im, *_ in under + over_fx]
-        final, mask = local_blend(flat, char, effects, prompt + ", " + scene, blend_strength, seed, band)
+        st, bd = blend_strength, band
+        for k in range(retries + 1):
+            final, mask = local_blend(flat, char, effects, prompt + ", " + scene, st, seed, bd)
+            reasons, nums = inspect_composite(final, bg, char, reflect, hz, kind)
+            info.setdefault("tries", []).append({"strength": st, "band": bd, "reasons": reasons, **nums})
+            if not reasons:
+                break
+            st, bd = min(0.75, st + 0.1), bd + 12
         final.save(outdir / "final.png")
         mask.save(outdir / "blend-mask.png")
-        info["blend"] = blend_strength
+    reasons, nums = inspect_composite(final, bg, char, reflect, hz, kind)
+    info["inspect"] = {"reasons": reasons, **nums}
     (outdir / "layers.json").write_text(json.dumps(info, ensure_ascii=False, indent=1))
     return info
 

@@ -63,6 +63,16 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
 5. 通った絵を、`docs/knowledge/demihuman-anatomy.md` の項目で目で見る（人の耳が残っていないか、頼んでいないとがった耳、付け根、色の食い違い）
 6. 目で通ったものだけを見せる。`library/samples/demi3d-<名前>.png` に置き、分かったことを `docs/knowledge/demihuman-anatomy.md` に足す
 
+## 完成の1枚絵（背景つき）を頼まれたとき
+
+基準は利用者の目: デザインとの一致より、絵として整っていること（矛盾・あり得ない形が無い、背景が作り込まれている）。
+頼まれていない基準を自分で足さない。前の周で良かった要素（ポーズ、構図）は引き継ぐ。決まりと分かったことは `docs/knowledge/illustration.md`。
+
+`PYTHONPATH=.cache/gen/lib python3 tools/gen/layers.py <人物の絵> <出力> --scene "<背景の言葉>" --light front|left|right|back --blend 0.5 --prompt "<人物の言葉>"`
+- 人物と背景を別々に作って重ねる。大きさは地平線から遠近で決まる。足元（水・濡れた面・花や草・地面）は自動で判定する
+- 出力: layers.psd（Photoshop・CLIP STUDIO）、composite.png（重ねただけ）、final.png（輪郭と足元をなじませた1枚）、layers.json（検品の数字）
+- 見せる前に final.png を拡大して目で見る: 人物の周りの白、境界線、水の無い所の映り込み、手前の物より前に出た人物、手足の形
+
 ## 0. 頼まれたときの流れ
 
 1. まずアニメ風のデザインを描いて見せる。種を変えて数枚出し、選んでもらう
