@@ -150,6 +150,14 @@ def base(name):
     return json.loads((ROOT / "library" / "body-types.json").read_text(encoding="utf-8"))["anime"][name]
 
 
+def base_body(b, outfit=""):
+    """ベースの体の言葉。outfit を渡すと、ベースの白いビキニの部分だけを差し替える（体型の言葉は変えない）。"""
+    if not outfit:
+        return b["body"]
+    keep = [t.strip() for t in b["body"].split(",") if "bikini" not in t and t.strip() != "no logo"]
+    return ", ".join(keep + [outfit, "no logo"])
+
+
 def card(outdir, name, gender, age, tags, hair, views, zoom, seed, label, limbs=True, body=BODY, negative="",
          same_as_front=True):
     outdir = Path(outdir)
@@ -328,13 +336,14 @@ def main():
     c.add_argument("--seed", type=int, default=7)
     c.add_argument("--label", default="")
     c.add_argument("--base", default="", help="library/body-types.json の anime にある体のベース（例: ideal）")
+    c.add_argument("--outfit", default="", help="ベースの水着を差し替える服の言葉（例: \"pink frilled bikini\"）。体の言葉はそのまま")
     a = ap.parse_args()
     hair = a.hair or ("short black hair" if a.gender == "male" else "black hair, bob cut")
     if a.base:
         b = base(a.base)
         tags = ", ".join(t for t in (b["tags"], a.tags) if t)
         card(a.outdir, a.name, a.gender, a.age, tags, hair, a.views.split(","), a.zoom, a.seed if a.seed != 7 else b["seed"],
-             a.label or a.name, body=b["body"], negative=b["negative"])
+             a.label or a.name, body=base_body(b, a.outfit), negative=b["negative"])
         return
     card(a.outdir, a.name, a.gender, a.age, a.tags, hair, a.views.split(","), a.zoom, a.seed, a.label or a.name)
 
