@@ -41,14 +41,27 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
 
 ## 亜人（角・獣耳・翼・尾）を描く
 
-言葉だけで描くと、尾の付け根や向きごとの部品の有無が揃わない。3D の素体を下絵にする `tools/gen/demi.py` を使う。
-1. 初回だけ `python3 tools/gen/demi.py setup`（素体と表示の部品を `.cache/engine/vrm` に取る。約 20 秒）
-2. 描く亜人を `casts/demi3d.json` に足す。kind は 3D の部品（cat: 獣耳と尾、devil: 角と翼と尾）
-3. `PYTHONPATH=.cache/gen/lib python3 tools/gen/demi.py run <名前> <出力>`。下絵（約 20 秒）と描き直し（1回 数分、初回はモデルの読み込みに約 10 分）。
-   時間がかかるので裏で走らせる
-4. 機械の検品: 型の位置に部品が残っているかを向きと部品ごとに数える（`report.json`、`try-N-inspect.png` に ○×）
-5. 目の検品: `try-N-inspect.png` を見て、`docs/knowledge/demihuman-anatomy.md` の項目で落とす（人の耳、付け根、色の食い違い）
-新しい部品（角の形、別の尾）は `tools/engine/viewer/vrm-base.html` の部品の関数に足す。付け根は骨に付けるので、どの向きでも同じ所から生える
+「狐娘を作って」「サキュバスを描いて」のように亜人を頼まれたら、この流れで最後まで進める。
+言葉だけで描くと、尾の付け根や向きごとの部品の有無が揃わない（6種中0種）。3D の素体を下絵にする `tools/gen/demi.py` を使う。
+
+1. 種の設定を自分で書く（聞き返さない）。`casts/demi3d.json` の cases に1件足す
+   - parts: 3D の部品を形の名前で選ぶ。ears: cat / fox / rabbit、tail: cat / fox / devil / rabbit、wings: bat / feather、horns: devil
+     - color で部品ごとの色（`{"ears": "#c8682a", "tail": "#c8682a"}`）。描く色と下絵の色を合わせる（下絵の色が絵に効く）
+     - 無い形が要るときは `tools/engine/viewer/vrm-base.html` の PART_LIB に足す。付け根は骨に付くので、形を作るだけでよい
+   - tags: 種と部品を英語のタグで（例: "fox girl, orange fox ears, large fluffy orange fox tail"）
+   - hair: 髪の色と目の色。hair_3d を "hide" にすると下絵の髪を隠し、髪型を hair の言葉で決める（既定は下絵のツインテール）
+   - negative: 頼んでいない部品（作り物の耳、余分な尾、頼んでいないとがった耳）
+   - anatomy: 体の決まりの指示（animal_ears / tail / wings）
+   - strength: 翼のある種は 0.5（0.6 だと斜め前を後ろ向きに描き直した）。他は既定の 0.6
+2. 初回だけ `python3 tools/gen/demi.py setup`（素体と表示の部品を `.cache/engine/vrm` に取る。約 20 秒）
+3. `PYTHONPATH=.cache/gen/lib python3 -u tools/gen/demi.py run <名前> <出力>` を裏で走らせる（run_in_background）
+   - 下絵 約20秒、1回 約3分、初回はモデルの読み込みに約10分。待つ間の報告も日本語で書く
+4. 機械の検品の結果（`report.json`、各回の `try-N-inspect.png` の ○×）を見る。3回とも落ちたら、落ちた理由から直す
+   - 部品が消えた → 下絵の部品を太く・大きく、または strength を下げる
+   - 余分な部品が出た → negative に足す
+   - 向きが変わった → strength を下げる
+5. 通った絵を、`docs/knowledge/demihuman-anatomy.md` の項目で目で見る（人の耳が残っていないか、頼んでいないとがった耳、付け根、色の食い違い）
+6. 目で通ったものだけを見せる。`library/samples/demi3d-<名前>.png` に置き、分かったことを `docs/knowledge/demihuman-anatomy.md` に足す
 
 ## 0. 頼まれたときの流れ
 
