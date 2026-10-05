@@ -114,6 +114,45 @@ def draw(out, prompt, seed, steps=24, limbs=True, body=None, negative="", ref=No
     return seed + 200, reasons
 
 
+# 完成の1枚絵で使う打ち消し。設定資料の打ち消しから、背景を消す言葉（背景の物、景色、動物）と多面図を外す
+SCENE_NEGATIVE = NEGATIVE.replace("multiple views, background objects, scenery, animal, ", "")
+
+
+def scene(out, prompt, seed, negative="", ref=None, ref_scale=STYLE_ONLY, steps=28, tries=3):
+    """背景つきの完成の1枚絵を描く。設定資料の絵（ref）を手本にして、同じ人物の画風と色を保つ。
+
+    設定資料の検品（背景の塊、画面の端）は背景があると必ず落ちるので使わない。
+    手足が揃っているか（部位分け）だけを機械で見て、残りは目で見る。背景は消さない。
+    """
+    import torch
+    import edit
+    import design
+    from PIL import Image as _I
+    if ref is not None:
+        use_reference()
+    for k in range(tries):
+        t = time.time()
+        pe, ne, pp, np_ = design.encode_xl(pipe(), prompt, SCENE_NEGATIVE + (", " + negative if negative else ""))
+        kw = {}
+        if _IP:
+            pipe().set_ip_adapter_scale(ref_scale if ref is not None else 0.0)
+            kw["ip_adapter_image"] = ref if ref is not None else _I.new("RGB", (224, 224), "white")
+        im = pipe()(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
+                    negative_pooled_prompt_embeds=np_, num_inference_steps=steps, guidance_scale=6.0,
+                    width=832, height=1216, generator=torch.Generator().manual_seed(seed + k * 100), **kw).images[0]
+        path = str(out).replace(".png", f"-try{k}.png")
+        im.save(path)
+        import numpy as np
+        lab = np.asarray(edit.parts(path))
+        reasons = [n for n, ids in (("左腕", [14]), ("右腕", [15]), ("左脚", [12]), ("右脚", [13])) if not np.isin(lab, ids).any()]
+        print(f"{path}: {time.time() - t:.0f} 秒 seed {seed + k * 100} " + ("通った" if not reasons else "落とした: " + "、".join(reasons)),
+              flush=True)
+        if not reasons:
+            im.save(out)
+            return seed + k * 100, []
+    return None, reasons
+
+
 def zoom_box(src, where):
     """拡大する範囲。部位分けで頭・腕を探す。背中と尾は人物の範囲の上半分・下半分。"""
     import edit
