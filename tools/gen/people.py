@@ -211,6 +211,108 @@ def card(outdir, name, gender, age, tags, hair, views, zoom, seed, label, limbs=
     return meta
 
 
+# 多面図: 1枚の絵に同じ人物を正面・横・背面で並べて描かせる。向きごとに別々に描くと耳の形・翼の有無・服の色が
+# 食い違った（犬・竜・悪魔・狸）。アニメ絵のモデルは設定資料の多面図を学んでおり、1枚の中なら揃いやすい
+SHEET = ("character reference sheet, multiple views, front view and back view, same character shown several times, "
+         "full body, standing, arms at sides")
+SHEET_SIZE = (1216, 832)
+
+
+def figures(src):
+    """多面図に並んだ人物の左右の範囲を、背景を抜いた絵の列の途切れから求める。"""
+    import numpy as np
+    import design
+    alpha = np.asarray(design.cut_background(Image.open(src)).getchannel("A")) > 0
+    cols = alpha.sum(axis=0) > alpha.shape[0] * 0.02
+    spans, start = [], None
+    for x, on in enumerate(list(cols) + [False]):
+        if on and start is None:
+            start = x
+        elif not on and start is not None:
+            if x - start > alpha.shape[1] * 0.04:
+                spans.append((start, x))
+            start = None
+    return spans
+
+
+def draw_sheet(out, prompt, seed, steps=24, negative=""):
+    """多面図を1枚描いて検品する。人物が3人以上並び、画面の端で切れていなければ通す（最大 3 回）。"""
+    import torch
+    import edit
+    import design
+    neg = NEGATIVE.replace("multiple views, ", "") + ", different characters, mismatched outfits" + (", " + negative if negative else "")
+    for k in range(3):
+        t = time.time()
+        pe, ne, pp, np_ = design.encode_xl(pipe(), prompt, neg)
+        kw = {}
+        if _IP:
+            pipe().set_ip_adapter_scale(0.0)
+            kw["ip_adapter_image"] = Image.new("RGB", (224, 224), "white")
+        im = pipe()(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
+                    negative_pooled_prompt_embeds=np_, num_inference_steps=steps, guidance_scale=6.0,
+                    width=SHEET_SIZE[0], height=SHEET_SIZE[1], generator=torch.Generator().manual_seed(seed + k * 100),
+                    **kw).images[0]
+        im.save(out)
+        n = len(figures(out))
+        reasons = [r for r in edit.inspect(out, limbs=False) if r.startswith("体が画面の端")]
+        if n < 3:
+            reasons.append(f"並んだ人物が {n} 人")
+        print(f"{out}: {time.time() - t:.0f} 秒 seed {seed + k * 100} " + ("通った" if not reasons else "落とした: " + "、".join(reasons)),
+              flush=True)
+        if not reasons:
+            im.save(str(out).replace(".png", ".raw.png"))
+            edit.clean_background(out)
+            return seed + k * 100, []
+    return seed + 200, reasons
+
+
+def sheet_card(outdir, name, gender, age, tags, hair, seed, label, body=BODY, negative="", zoom="head"):
+    """多面図1枚と、いちばん左の人物の頭の拡大を並べた設定資料を作る。"""
+    outdir = Path(outdir)
+    outdir.mkdir(parents=True, exist_ok=True)
+    p = outdir / f"{name}-sheet.png"
+    body = ", ".join(t.strip() for t in body.split(",") if t.strip() not in ("full body", "standing", "arms at sides"))
+    who = AGE_GENDER.get((age, gender), "")
+    text = ", ".join(x for x in [GENDER[gender], "solo", who, AGE[age], SHEET, tags, hair, body, QUALITY] if x)
+    failed = p.with_suffix(".failed.json")
+    if failed.exists():
+        used, reasons = json.loads(failed.read_text(encoding="utf-8"))
+    elif not p.with_suffix(".raw.png").exists():
+        used, reasons = draw_sheet(p, text, seed, negative=negative)
+        if reasons:
+            failed.write_text(json.dumps([used, reasons], ensure_ascii=False), encoding="utf-8")
+    else:
+        used, reasons = seed, []
+    H = 640
+    sheet = Image.open(p).convert("RGB")
+    tiles = [("多面図" + ("（落とした）" if reasons else ""), sheet.resize((int(sheet.width * H / sheet.height), H)))]
+    spans = figures(p)
+    if zoom == "head" and spans:
+        # いちばん左の人物だけを切り出して、頭の範囲を探す
+        x0, x1 = spans[0]
+        one = outdir / f"{name}-first.png"
+        sheet.crop((x0, 0, x1, sheet.height)).save(one)
+        box = zoom_box(str(one), "head")
+        if box:
+            pad = Image.new("RGB", (sheet.width + 2 * H, sheet.height + 2 * H), "white")
+            pad.paste(sheet, (H, H))
+            tiles.append(("頭の拡大", pad.crop((box[0] + x0 + H, box[1] + H, box[2] + x0 + H, box[3] + H)).resize((H, H))))
+    W = sum(t.width for _, t in tiles) + 10 * (len(tiles) - 1)
+    im = Image.new("RGB", (W, H + 70), "white")
+    d = ImageDraw.Draw(im)
+    d.text((10, 6), label, fill="black", font=ImageFont.truetype(FONT, 26))
+    x = 0
+    for cap, t in tiles:
+        im.paste(t, (x, 70))
+        d.text((x + 8, 40), cap, fill=(90, 90, 90), font=ImageFont.truetype(FONT, 20))
+        x += t.width + 10
+    im.save(outdir / f"{name}-card.png")
+    meta = {"name": name, "label": label, "prompt": text, "seed": used, "inspect": reasons, "figures": len(spans)}
+    (outdir / f"{name}.json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(outdir / f"{name}-card.png")
+    return meta
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
