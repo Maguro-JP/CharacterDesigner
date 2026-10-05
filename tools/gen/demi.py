@@ -153,7 +153,13 @@ def img2img():
     if _I2I is None:
         import people
         from diffusers import StableDiffusionXLImg2ImgPipeline
-        _I2I = StableDiffusionXLImg2ImgPipeline.from_pipe(people.pipe())
+        # 文字から描く部品（people.pipe）と同じ重みをそのまま渡して組む。from_pipe は読み込み直後（約 7GB）に
+        # メモリ不足で強制終了された（15GB の環境、終了コード 137）。下絵の変換（VAE）はタイルに分けて山を低くする
+        base = people.pipe()
+        _I2I = StableDiffusionXLImg2ImgPipeline(**{k: v for k, v in base.components.items()
+                                                   if k in StableDiffusionXLImg2ImgPipeline._optional_components + [
+                                                       "vae", "text_encoder", "text_encoder_2", "tokenizer", "tokenizer_2", "unet", "scheduler"]})
+        _I2I.vae.enable_tiling()
     return _I2I
 
 
