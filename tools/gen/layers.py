@@ -327,7 +327,7 @@ def cast_shadow(char_layer, ambient, side, opacity=0.42):
     return layer
 
 
-def local_blend(flat, char_layer, effects, prompt, strength, seed, band=29):
+def local_blend(flat, char_layer, effects, prompt, strength, seed, band=29, keep=None):
     """人物の輪郭の周り・足元・影・映り込みだけを描き直してなじませる。人物の中身と背景の残りは元のまま。
     全体を描き直すと人物の顔や水着まで変わる（一律 0.3 で試した）"""
     a = char_layer.getchannel("A").point(lambda v: 255 if v > 128 else 0)
@@ -340,6 +340,9 @@ def local_blend(flat, char_layer, effects, prompt, strength, seed, band=29):
     feet.paste(255, (0, int(ys.max() - (ys.max() - ys.min()) * 0.08), SIZE[0], min(SIZE[1], int(ys.max() + 40))))
     m = ImageChops.lighter(m, ImageChops.multiply(feet, a.filter(ImageFilter.MaxFilter(61))))
     m = m.filter(ImageFilter.GaussianBlur(8))
+    if keep is not None:
+        # 前景（人物より手前の物）は描き直さない。描き直すと、葉の後ろに隠した足が葉の上に描き戻された
+        m = ImageChops.subtract(m, keep.getchannel("A").filter(ImageFilter.MaxFilter(5)))
     redrawn = blend(flat, prompt, strength, seed)
     k = np.asarray(m).astype(float)[..., None] / 255
     out = np.asarray(flat).astype(float) * (1 - k) + np.asarray(redrawn).astype(float) * k
@@ -689,13 +692,18 @@ def build(design_png, outdir, scene, light_side="front", seed=7, height=None, x=
     if blend_strength > 0:
         effects = [im for _, im, *_ in under + over_fx]
         st, bd = blend_strength, band
+        on_top = [im for name, im, *_ in over_fx] + [fg]
         for k in range(retries + 1):
-            final, mask = local_blend(flat, char, effects, prompt + ", " + scene, st, seed, bd)
+            final, mask = local_blend(flat, char, effects, prompt + ", " + scene, st, seed, bd, keep=fg)
+            # 波紋と前景は描き直しの後に重ね直す。描き直しは手前の物を消したり、波紋を足首の輪に描き替えたりした
+            for (name, im, mode, op) in over_fx + [("前景", fg, "normal", 1.0)]:
+                final = flatten([("下", final.convert("RGBA"), "normal", 1.0), (name, im, mode, op)])
             reasons, nums = inspect_composite(final, bg, char, reflect, hz, kind)
             info.setdefault("tries", []).append({"strength": st, "band": bd, "reasons": reasons, **nums})
-            if not reasons:
+            # やり直しで直るのは描き直しで起きた汚れだけ。描き直しを強く広くしすぎると、頭の周りの空がもやになった
+            if not reasons or k == retries:
                 break
-            st, bd = min(0.75, st + 0.1), bd + 12
+            st, bd = min(0.6, st + 0.05), min(41, bd + 6)
         final.save(outdir / "final.png")
         mask.save(outdir / "blend-mask.png")
     reasons, nums = inspect_composite(final, bg, char, reflect, hz, kind)
