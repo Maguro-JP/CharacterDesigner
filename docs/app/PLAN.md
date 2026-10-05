@@ -28,7 +28,10 @@
   （部品は `python3 -m pip install --target .cache/app/lib -r app/server/requirements.txt`）
 
 ### M2. 画面
-- [ ] `app/web`: Vite + React + TypeScript + Tailwind
+- [x] `app/web`: Vite + React + TypeScript + Tailwind
+  - 済（2026-10-06 JST）: 1枚の画面で、種を選ぶ・描く・進み具合（状態、何回目、経過）・最後の回の検品・通った絵を見る、まで。
+    偽の描き手のサーバーにつなぎ、ブラウザーで猫娘を頼んで、2回目で通った絵が出るまでを通した（画面のエラー 0、375px 幅で横のはみ出し 0）
+  - 起動: `cd app/web && npm install && npm run dev`（http://127.0.0.1:5173、/api は 8000 番のサーバーへ渡す。`CD_API` で変えられる）
 - [ ] 種を選ぶ・新しく足す（部品の形と色、描く言葉、打ち消し）
 - [ ] 3D の素体の確認（`vrm-base.html` を埋め込み、部品の付け根を見る）
 - [ ] 仕事の進み具合（何分経ったか、何回目か）
