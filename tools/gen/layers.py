@@ -57,7 +57,39 @@ def anime_cut(src):
     if _REMBG is None:
         _REMBG = new_session("isnet-anime")
     out = remove(Image.open(src).convert("RGB"), session=_REMBG)
+    out = drop_props(src, out)
+    # 薄い透明度だけの霞（落とした物の名残）は、濃い所から 5 画素より離れていれば消す。髪の縁のやわらかさは残る。
+    # 霞を消してから一番大きい塊を残す（先に残すと、霞でつながった茎のかけらが人物の塊に入った）
+    a = out.getchannel("A")
+    core = a.point(lambda v: 255 if v > 128 else 0).filter(ImageFilter.MaxFilter(11))
+    out.putalpha(ImageChops.multiply(a, core))
     return design.keep_largest(out)
+
+
+def drop_props(src, cut, reach=15, tol=8.0):
+    """切り抜きに付いてきた、人物に触れている物（髪に重なった花や茎など）を落とす。
+    部位分けの人物の範囲（reach 画素広げる）の外にあり、色みが髪と違う所を物とみなす。
+    部位分けは髪の毛先を取りこぼすので、範囲の外を一律には落とさない（色みが髪に近い所は髪として残す）。
+    色みは明るさを除いて比べる（髪は光と影で明るさが大きく変わる）。範囲の外に出た毛先は髪の色みから 3 以内（90%）、ひまわりの中央値は 10.5。5 まで締めると、花の色が映った髪が角ばって切れた"""
+    import edit
+    im = Image.open(src).convert("RGB")
+    lab = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST))
+    if not (lab == 2).any():
+        return cut
+    near = np.asarray(Image.fromarray(((lab != 0) * 255).astype("uint8")).filter(ImageFilter.MaxFilter(reach))) > 0
+    rgb = np.asarray(im).astype(float)
+    ch = rgb / np.maximum(rgb.sum(2, keepdims=True), 1)
+    dist = np.abs(ch - np.median(ch[lab == 2], axis=0)).sum(2) * 100
+    prop = ~near & (dist > tol)
+    # 1画素ずつの判定は斑になるので、塊にならして落とす
+    prop = np.asarray(Image.fromarray((prop * 255).astype("uint8")).filter(ImageFilter.MedianFilter(7))) > 0
+    a = np.asarray(cut.getchannel("A")).copy()
+    a[prop] = 0
+    out = cut.copy()
+    out.putalpha(Image.fromarray(a))
+    solid = np.asarray(cut.getchannel("A")) > 128
+    out.info["props_dropped"] = float((prop & solid).sum() / max(solid.sum(), 1))
+    return out
 
 
 def cut_character(src):
@@ -225,8 +257,10 @@ def color_grade(char_layer, ambient, strength=None):
     return layer
 
 
-def rim_light(char_layer, light, side="back", width=6):
-    """縁の光（スクリーン）。光の来る側の輪郭に沿って、光の色の細い帯を置く。back は両側と上。"""
+def rim_light(char_layer, light, side="back", width=2, bg=None):
+    """縁の光（スクリーン）。光の来る側の輪郭に沿って、光の色の細い帯を置く。back は両側と上。
+    bg を渡すと、輪郭のすぐ後ろの背景が明るいところだけ光らせる（逆光で縁が光るのは、後ろの明るさが回り込むため）。
+    前は幅 6 の帯を一律に置いていて、細い髪の房が丸ごと白く光り、白い縁取りに見えた"""
     a = char_layer.getchannel("A").point(lambda v: 255 if v > 128 else 0)
     inner = a.filter(ImageFilter.MinFilter(width * 2 + 1))
     band = np.asarray(ImageChops.subtract(a, inner)).astype(float)
@@ -234,7 +268,11 @@ def rim_light(char_layer, light, side="back", width=6):
     xs = np.linspace(0, 1, W)[None, :].repeat(H, 0)
     ys = np.linspace(0, 1, H)[:, None].repeat(W, 1)
     weight = {"left": 1 - xs, "right": xs, "front": np.full((H, W), 0.35), "back": np.clip(1.2 - ys, 0.3, 1.0)}[side]
-    m = Image.fromarray(np.clip(band * weight, 0, 255).astype("uint8")).filter(ImageFilter.GaussianBlur(2))
+    if bg is not None:
+        lum = np.asarray(bg.convert("L").filter(ImageFilter.GaussianBlur(8))).astype(float)
+        hi = max(np.percentile(lum, 95), 1.0)
+        weight = weight * np.clip((lum / hi - 0.4) / 0.6, 0, 1)
+    m = Image.fromarray(np.clip(band * weight, 0, 255).astype("uint8")).filter(ImageFilter.GaussianBlur(0.7))
     layer = Image.new("RGBA", SIZE, light + (0,))
     layer.putalpha(m)
     return layer
@@ -807,7 +845,7 @@ def build(design_png, outdir, scene, light_side="front", seed=7, height=None, x=
     fg, fg_cover = foreground(bg, char)
     grade = grade_strength(ambient) + (0.15 if light_side == "back" else 0.0)   # 逆光は人物の前が暗い
     layers += [("色寄せ（背景の色）", color_grade(char, ambient, grade), "multiply", 1.0),
-               ("縁の光", rim_light(char, light, light_side), "screen", 1.0 if light_side == "back" else 0.85)]
+               ("縁の光", rim_light(char, light, light_side, bg=bg), "screen", 0.8 if light_side == "back" else 0.6)]
     layers += over_fx
     layers += [("前景（人物より手前の背景）", fg, "normal", 1.0)]
     flat = flatten(layers)
