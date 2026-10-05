@@ -58,6 +58,9 @@ input[type=range] { width: 100%; accent-color: var(--accent) }
     <button id="k-none" data-k="none" aria-pressed="true">人</button>
     <button id="k-cat" data-k="cat" aria-pressed="false">猫（耳・尾）</button>
     <button id="k-devil" data-k="devil" aria-pressed="false">悪魔（角・翼・尾）</button>
+    <button id="k-fox" data-k="fox" aria-pressed="false">狐（耳・尾）</button>
+    <button id="k-rabbit" data-k="rabbit" aria-pressed="false">兎（耳・尾）</button>
+    <button id="k-angel" data-k="angel" aria-pressed="false">天使（羽）</button>
   </div>
   <p class="label">体型（理想のベースに寄せた値が既定）</p>
   <div class="sliders" id="body">
@@ -355,7 +358,7 @@ function hideCatEars() {
   const ear = new Set(); hair.filter(m => /HAIR_02/.test(matName(m))).forEach(m => joints(m).forEach(n => ear.add(n)));
   if (!ear.size) return 0;
   let n = 0;
-  hair.forEach(m => { const j = joints(m); if (j.size && [...j].every(x => ear.has(x))) { m.visible = false; n++; } });
+  hair.forEach(m => { const j = joints(m); if (j.size && [...j].every(x => ear.has(x))) { m.visible = false; m.userData.earPart = true; n++; } });
   return n;
 }
 function paintSuit() {
@@ -414,21 +417,27 @@ document.getElementById('b-copy').addEventListener('click', () => {
 // 位置は肌の点から取る（尾骶骨・肩甲骨は背中の表面、角と耳は頭）。部品の向きは「上 = +y、背中側 = +z」でそろえて作る
 const V = (x, y, z) => new THREE.Vector3(x, y, z);
 const toonMat = c => new THREE.MeshToonMaterial({ color: c, gradientMap: ramp, side: THREE.DoubleSide });
+// 部品の主な色の素材。種ごとの色（髪や毛の色）に塗り替えるときに、この印の付いた素材だけを変える
+const mainMat = c => { const m = toonMat(c); m.userData.main = true; return m; };
 // 太さが根元から先へ細くなる管
+// r0 に関数を渡すと、根元からの割合 t（0〜1）ごとの太さになる（狐の尾のように途中が太い形）
 function taperTube(pts, r0, r1, seg = 48, rad = 12) {
   const c = new THREE.CatmullRomCurve3(pts), g = new THREE.TubeGeometry(c, seg, 1, rad, false), P = g.attributes.position, v = V(0, 0, 0);
+  const T = new Float32Array(P.count);
   for (let i = 0; i <= seg; i++) {
-    const t = i / seg, ctr = c.getPointAt(t), r = r0 + (r1 - r0) * t;
+    const t = i / seg, ctr = c.getPointAt(t), r = typeof r0 === 'function' ? r0(t) : r0 + (r1 - r0) * t;
+    for (let j = 0; j <= rad; j++) T[i * (rad + 1) + j] = t;
     for (let j = 0; j <= rad; j++) { const k = i * (rad + 1) + j; v.fromBufferAttribute(P, k).sub(ctr).multiplyScalar(r).add(ctr); P.setXYZ(k, v.x, v.y, v.z); }
   }
   g.computeVertexNormals();
+  g.setAttribute('along', new THREE.BufferAttribute(T, 1));
   return { geo: g, curve: c };
 }
 function catTail() {
   const o = new THREE.Group(), col = 0x1c1626;
   const { geo, curve } = taperTube([V(0, 0, -0.015), V(0, -0.02, 0.05), V(0.02, -0.07, 0.14), V(0.06, -0.03, 0.25), V(0.09, 0.09, 0.29), V(0.1, 0.22, 0.27)], 0.02, 0.014);
-  o.add(new THREE.Mesh(geo, toonMat(col)));
-  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.014, 12, 8), toonMat(col)); tip.position.copy(curve.getPointAt(1)); o.add(tip);
+  const mat = mainMat(col); o.add(new THREE.Mesh(geo, mat));
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.014, 12, 8), mat); tip.position.copy(curve.getPointAt(1)); o.add(tip);
   return o;
 }
 function devilTail() {
@@ -442,7 +451,7 @@ function devilTail() {
 }
 function catEar(side) {
   const o = new THREE.Group();
-  const outer = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.13, 3), toonMat(0x1c1626)); outer.scale.set(1, 1, 0.5); outer.position.y = 0.05;
+  const outer = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.13, 3), mainMat(0x1c1626)); outer.scale.set(1, 1, 0.5); outer.position.y = 0.05;
   const inner = new THREE.Mesh(new THREE.ConeGeometry(0.036, 0.09, 3), toonMat(0xe8a0a8)); inner.scale.set(1, 1, 0.3); inner.position.set(0, 0.042, -0.011);
   o.add(outer, inner); o.rotation.z = -side * 0.3;   // 外へ少し開く
   return o;
@@ -461,6 +470,57 @@ function wing(side) {
   o.scale.x = side; o.rotation.y = side * -0.45;   // 先を背中側へ流す
   return o;
 }
+function foxEar(side) {
+  const o = new THREE.Group();
+  const outer = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.15, 3), mainMat(0xc8682a)); outer.scale.set(1, 1, 0.5); outer.position.y = 0.06;
+  const inner = new THREE.Mesh(new THREE.ConeGeometry(0.036, 0.1, 3), toonMat(0xf3ece2)); inner.scale.set(1, 1, 0.3); inner.position.set(0, 0.048, -0.011);
+  o.add(outer, inner); o.rotation.z = -side * 0.25;
+  return o;
+}
+function rabbitEar(side) {
+  const o = new THREE.Group();
+  const outer = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 12), mainMat(0xf2eee8)); outer.scale.set(0.9, 3.6, 0.45); outer.position.y = 0.1;
+  const inner = new THREE.Mesh(new THREE.SphereGeometry(0.02, 12, 10), toonMat(0xe8a0a8)); inner.scale.set(0.8, 3.6, 0.3); inner.position.set(0, 0.1, -0.008);
+  o.add(outer, inner); o.rotation.z = -side * 0.12;
+  return o;
+}
+// 狐の尾: 途中が太く、先の 2 割ほどが白い。白い先は点ごとの色で塗る（主な色を変えても先は白のまま）
+function foxTail() {
+  const { geo } = taperTube([V(0, 0, -0.015), V(0, -0.04, 0.07), V(0.02, -0.12, 0.18), V(0.06, -0.14, 0.3), V(0.1, -0.06, 0.38), V(0.12, 0.05, 0.4)],
+    t => 0.022 + 0.06 * Math.sin(Math.PI * Math.min(1, t * 1.05)) + (t > 0.95 ? -0.02 : 0), 0, 48, 16);
+  const A = geo.attributes.along, col = new Float32Array(A.count * 3);
+  for (let i = 0; i < A.count; i++) { const w = A.getX(i) > 0.8 ? 1 : 0; col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = w; }
+  geo.setAttribute('tip', new THREE.BufferAttribute(col, 3));
+  const m = new THREE.Mesh(geo, mainMat(0xc8682a)); m.userData.tipWhite = true;
+  return m;
+}
+function rabbitTail() {
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.04, 16, 12), mainMat(0xf2eee8)); m.position.z = 0.025;
+  const o = new THREE.Group(); o.add(m); return o;
+}
+// 天使の羽: 鳥の翼の形。後ろの縁は風切羽の並び（丸い山の連なり）にする
+function featherWing(side) {
+  const o = new THREE.Group(), sh = new THREE.Shape();
+  sh.moveTo(0, 0); sh.quadraticCurveTo(0.12, 0.24, 0.32, 0.3); sh.quadraticCurveTo(0.5, 0.32, 0.56, 0.18);
+  const tips = [[0.5, 0.04], [0.43, -0.09], [0.35, -0.19], [0.26, -0.26], [0.17, -0.28], [0.09, -0.22], [0.03, -0.1]];
+  let px = 0.56, py = 0.18;
+  for (const [x, y] of tips) { sh.quadraticCurveTo((px + x) / 2 + 0.035, (py + y) / 2 - 0.02, x, y); px = x; py = y; }
+  sh.lineTo(0, 0);
+  o.add(new THREE.Mesh(new THREE.ShapeGeometry(sh, 24), mainMat(0xf4f2ee)));
+  const { geo } = taperTube([V(0, 0, 0), V(0.12, 0.2, 0), V(0.32, 0.29, 0), V(0.55, 0.18, 0)], 0.012, 0.004, 40, 8);
+  o.add(new THREE.Mesh(geo, toonMat(0xd8d2c8)));
+  o.scale.x = side; o.rotation.y = side * -0.25;   // 後ろへ流しすぎると、正面から細い線にしか見えず描き直しで消える
+  return o;
+}
+// 部品の一覧。種は「耳・尾・翼・角」をこの中の形の名前で選ぶ（casts/demi3d.json の parts）
+const PART_LIB = {
+  ears: { cat: catEar, fox: foxEar, rabbit: rabbitEar },
+  tail: { cat: catTail, fox: foxTail, devil: devilTail, rabbit: rabbitTail },
+  wings: { bat: wing, feather: featherWing },
+  horns: { devil: horn },
+};
+const KINDS = { none: {}, cat: { ears: 'cat', tail: 'cat' }, devil: { tail: 'devil', wings: 'bat', horns: 'devil' },
+                fox: { ears: 'fox', tail: 'fox' }, rabbit: { ears: 'rabbit', tail: 'rabbit' }, angel: { wings: 'feather' } };
 // 肌の模型の座標の点（at）に、部品（obj）を骨（bone）の子として付ける。部品の上は +y、背中側は +z
 function attach(bone, obj, at) {
   const b = vrm.humanoid.getRawBoneNode(bone);
@@ -487,11 +547,16 @@ function setupParts() {
   const hy = bind.hips.y, by = bind.bustPos[0].y, F = bind.F;
   // 尾骶骨: 腰の骨より少し上の背中の中心。水着の後ろの上端（この時は少し下げる）のすぐ上
   const coccyx = backPoint(0, hy + 0.022);
-  parts.cat = [attach('hips', catTail(), coccyx),
-               attach('head', catEar(1), V(0.062, 1.6, 0.0)), attach('head', catEar(-1), V(-0.062, 1.6, 0.0))];
-  parts.devil = [attach('hips', devilTail(), coccyx),
-                 attach('upperChest', wing(1), backPoint(0.055, by + 0.025)), attach('upperChest', wing(-1), backPoint(-0.055, by + 0.025)),
-                 attach('head', horn(1), V(0.045, 1.585, 0.02 * F)), attach('head', horn(-1), V(-0.045, 1.585, 0.02 * F))];
+  for (const [slot, lib] of Object.entries(PART_LIB)) {
+    parts[slot] = {};
+    for (const [shape, make] of Object.entries(lib)) {
+      parts[slot][shape] =
+        slot === 'tail' ? [attach('hips', make(), coccyx)] :
+        slot === 'wings' ? [attach('upperChest', make(1), backPoint(0.055, by + 0.025)), attach('upperChest', make(-1), backPoint(-0.055, by + 0.025))] :
+        slot === 'horns' ? [attach('head', make(1), V(0.045, 1.585, 0.02 * F)), attach('head', make(-1), V(-0.045, 1.585, 0.02 * F))] :
+        [attach('head', make(1), V(0.062, 1.6, 0.0)), attach('head', make(-1), V(-0.062, 1.6, 0.0))];
+    }
+  }
   // 人の耳（顔の模型の、高さ 1.43〜1.51 で横幅 0.085 より外の点）を頭の側面まで引っ込める。獣耳のときだけ使う
   const face = meshes.filter(m => /Face_00_SKIN/.test(matName(m)));
   if (face.length) {
@@ -501,13 +566,32 @@ function setupParts() {
   }
   setKind('none');
 }
-function setKind(k) {
-  kind = k;
-  for (const [name, list] of Object.entries(parts)) list.forEach(o => o.visible = name === k);
-  if (earFold) { earFold.P.array.set(k === 'cat' ? earFold.fold : earFold.orig); earFold.P.needsUpdate = true; }
-  const hy = bind.hips.y;
-  suit.uBot.value.z = hy + (k === 'none' ? 0.03 : 0.008);   // 尾があるときは、水着の後ろの上端を尾の付け根の下に下げる
+// 部品を選ぶ。spec は { ears, tail, wings, horns }（形の名前）と、任意で color（{ ears: '#c8682a', tail: ... }）
+function setParts(spec) {
+  for (const [slot, shapes] of Object.entries(parts))
+    for (const [shape, list] of Object.entries(shapes)) {
+      const on = spec[slot] === shape;
+      list.forEach(o => {
+        o.visible = on;
+        const c = on && spec.color && spec.color[slot];
+        o.traverse(q => { if (q.isMesh && q.material.userData.main) {
+          if (!q.material.userData.base) q.material.userData.base = q.material.color.clone();
+          q.material.color.copy(c ? new THREE.Color(c) : q.material.userData.base);
+          if (q.userData.tipWhite) tintTip(q);
+        } });
+      });
+    }
+  if (earFold) { earFold.P.array.set(spec.ears ? earFold.fold : earFold.orig); earFold.P.needsUpdate = true; }
+  suit.uBot.value.z = bind.hips.y + (spec.tail ? 0.008 : 0.03);   // 尾があるときは、水着の後ろの上端を尾の付け根の下に下げる
 }
+// 狐の尾の白い先: 素材の色は白にして、点ごとの色で根元側を主な色に、先を白にする
+function tintTip(m) {
+  const base = m.material.color.clone(), tip = m.geometry.attributes.tip, n = tip.count, col = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { const w = tip.getX(i); col[i * 3] = base.r + (0.96 - base.r) * w; col[i * 3 + 1] = base.g + (0.94 - base.g) * w; col[i * 3 + 2] = base.b + (0.9 - base.b) * w; }
+  m.geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  m.material.vertexColors = true; m.material.color.set(0xffffff); m.material.needsUpdate = true;
+}
+function setKind(k) { kind = k; setParts(KINDS[k] || {}); }
 document.querySelectorAll('#parts button').forEach(b => b.addEventListener('click', () => { press(b.parentNode, b); if (vrm) setKind(b.dataset.k); }));
 
 // 道具（tools/gen/demi.py）から撮るための入口。部品の型（mask）は、肌を緑・亜人の部品を種類ごとの色・それ以外を黒の単色で描く。
@@ -525,7 +609,7 @@ function maskMode(on) {
     } else if (o.userData.mat) { o.material = o.userData.mat; delete o.userData.mat; }
   });
 }
-window.tool = { barefoot: on => meshes.forEach(m => { if (/Shoes/.test(matName(m))) m.visible = !on; }), kind: k => setKind(k), body: n => setBody(n === 'ideal' ? IDEAL : ZERO), pose: id => pose(id), view: a => view(a, false), mask: maskMode };
+window.tool = { parts: spec => setParts(spec), hair: on => meshes.forEach(m => { if (/HAIR/.test(matName(m)) && !m.userData.earPart) m.visible = on; }), barefoot: on => meshes.forEach(m => { if (/Shoes/.test(matName(m))) m.visible = !on; }), kind: k => setKind(k), body: n => setBody(n === 'ideal' ? IDEAL : ZERO), pose: id => pose(id), view: a => view(a, false), mask: maskMode };
 
 fetch('base-vrm.txt').then(r => { if (!r.ok) throw new Error(r.status); return r.text(); }).then(t => {
   const bin = atob(t.trim()); const bytes = new Uint8Array(bin.length);

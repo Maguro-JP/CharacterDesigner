@@ -113,8 +113,8 @@ def underlay(case, outdir):
     url, stop = serve()
     t = time.time()
     try:
-        arg = {"url": url, "out": str(outdir / "shot"), "kind": case["kind"], "body": "ideal", "pose": case.get("pose", "stand"),
-               "views": [a for _, a in VIEWS]}
+        arg = {"url": url, "out": str(outdir / "shot"), "kind": case.get("kind", "none"), "parts": case.get("parts"),
+               "hair": case.get("hair_3d", "keep"), "body": "ideal", "pose": case.get("pose", "stand"), "views": [a for _, a in VIEWS]}
         subprocess.run(["node", str(SHOOT), json.dumps(arg)], check=True, env=node_env(), timeout=900)
     finally:
         stop()
