@@ -19,15 +19,16 @@
    "name": "ピィ",
    "role": "トルネ系統 幼年期・風",
    "kind": "creature",
-   "prompt": "round ball of feathers, no arms, no legs, no wings, one cowlick feather on top of the head, two sharp eyes, tiny beak, glowing diamond-shaped teal core on the chest, baby stage, tiny, simple silhouette, colors mint white #c7fff0, teal #2ee6b0, yellow #f5c542",
-   "negative": "legs, feet, arms, wings",
-   "from": "tor-3",
+   "prompt": "round ball of fluffy feathers, head and body are one single round blob, no neck, no arms, no legs, no wings, two tiny golden horn buds on top, one cowlick feather on top, two sharp eyes, tiny beak, pale mint belly patch, glowing diamond-shaped teal core on the chest, baby stage, tiny, simple silhouette, colors mint white #c7fff0, teal #2ee6b0, yellow #f5c542",
+   "negative": "legs, feet, arms, hands, wings, neck, tail, standing, bipedal, dragon body",
    "n": 4,
    "rejected": {
     "tor-2-xl-7.png": "二足立ち（指定は手足の無い羽毛の玉）。手本の強さ 0.6 と 0.3 の両方",
     "tor-2-xl-8.png": "二足立ち（指定は手足の無い羽毛の玉）。手本の強さ 0.6 と 0.3 の両方。0.3 は顔の横に黒いにじみ",
     "tor-2-xl-9.png": "二足立ち（指定は手足の無い羽毛の玉）。手本の強さ 0.6 と 0.3 の両方",
-    "tor-2-xl-10.png": "二足立ち（指定は手足の無い羽毛の玉）。手本の強さ 0.6 と 0.3 の両方"
+    "tor-2-xl-10.png": "二足立ち（指定は手足の無い羽毛の玉）。手本の強さ 0.6 と 0.3 の両方",
+    "tor-2-xl-11.png": "手本なし。塊の形は出たが、胸のコアと角の芽が無い、脚に指と爪、写実の毛並み（作風が案Cでない）",
+    "tor-2-xl-12.png": "手本なし。写実の鳥、翼と指のある脚、胸のコアが無い"
    }
   },
   {
