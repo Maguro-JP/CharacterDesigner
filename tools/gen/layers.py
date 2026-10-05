@@ -31,7 +31,8 @@ os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))
 sys.path.insert(0, str(Path(__file__).parent))
 
 SIZE = (832, 1216)   # 縦長。全身の人物が大きく入る
-BG_NEGATIVE = ("1girl, 1boy, person, people, human, character, figure, silhouette, text, watermark, signature, "
+BG_NEGATIVE = ("1girl, 1boy, person, people, human, character, figure, silhouette, aerial view, from above, high angle, "
+               "text, watermark, signature, "
                "lowres, blurry, worst quality, low quality, jpeg artifacts, frame, border")
 # 部位分け（segformer b3 clothes）の番号。水着は上下の服として出る
 PART_IDS = {"髪": [2], "肌": [11, 12, 13, 14, 15], "水着・服": [4, 5, 6, 7, 8, 17], "帽子・小物": [1, 3, 9, 10, 16]}
@@ -43,8 +44,20 @@ def cut_character(src):
     """デザイン画から人物を切り抜く（背景は透明）。縁は 1px ぼかして、背景に重ねたときのギザギザを抑える。"""
     import design
     cut = design.cut_background(Image.open(src).convert("RGB"))
-    # 縁を 1px 削ってからぼかす。削らないと、デザイン画の白い背景が縁に残り、腕や脚の周りが白く光った
-    a = cut.getchannel("A").filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(0.8))
+    # 縁の色を、内側の色で置き換える。デザイン画の白い背景が縁（特に髪の細い房）に混ざっていて、背景に重ねると白く光った。
+    # 縁を削るだけでは髪の房が残り、削りすぎると房が消える
+    alpha = cut.getchannel("A")
+    inner = alpha.filter(ImageFilter.MinFilter(9))
+    rgb = np.asarray(cut.convert("RGB")).astype(float)
+    w = np.asarray(inner).astype(float)[..., None] / 255
+    num = np.stack([np.asarray(Image.fromarray((rgb[..., c] * w[..., 0]).astype("uint8")).filter(ImageFilter.GaussianBlur(5))).astype(float)
+                    for c in range(3)], axis=-1)
+    den = np.asarray(Image.fromarray((w[..., 0] * 255).astype("uint8")).filter(ImageFilter.GaussianBlur(5))).astype(float)[..., None] / 255
+    bleed = np.where(den > 0.02, num / np.maximum(den, 1e-3), rgb)
+    band = (np.asarray(alpha) > 0) & (np.asarray(inner) == 0)
+    rgb[band] = bleed[band]
+    a = alpha.filter(ImageFilter.MinFilter(3)).filter(ImageFilter.GaussianBlur(0.8))
+    cut = Image.fromarray(np.clip(rgb, 0, 255).astype("uint8")).convert("RGBA")
     cut.putalpha(a)
     return cut.crop(a.point(lambda v: 255 if v > 8 else 0).getbbox())
 
@@ -67,7 +80,8 @@ def background(scene, seed, steps=28):
     import design
     import people
     pipe = people.pipe()
-    prompt = "no humans, scenery, detailed background, " + scene + ", " + people.QUALITY
+    # 目の高さで描かせる。指定しないと見下ろしの構図になり、目の高さで描いた人物が巨人のように浮いた
+    prompt = "no humans, scenery, detailed background, eye level, horizon in the middle, " + scene + ", " + people.QUALITY
     for k in range(3):
         t = time.time()
         pe, ne, pp, np_ = design.encode_xl(pipe, prompt, BG_NEGATIVE)
@@ -97,10 +111,13 @@ def has_person(im):
 # ---- 3. 影と光 ----
 
 def light_of(bg):
-    """背景の光の色（明るい上位 3% の平均）と、全体の色（平均）を返す。"""
+    """背景の光の色と、全体の色（平均）を返す。
+
+    光の色は明るさの 85〜96% の帯の平均。最も明るい所（太陽の芯）は白に飛んでいて、夕日でも縁の光が白くなった。
+    """
     a = np.asarray(bg.convert("RGB")).reshape(-1, 3).astype(float)
     lum = a @ [0.299, 0.587, 0.114]
-    top = a[lum >= np.percentile(lum, 97)].mean(axis=0)
+    top = a[(lum >= np.percentile(lum, 85)) & (lum <= np.percentile(lum, 96))].mean(axis=0)
     return tuple(int(v) for v in top), tuple(int(v) for v in a.mean(axis=0))
 
 
@@ -121,8 +138,15 @@ def contact_shadow(char_layer, ambient):
     return layer
 
 
-def color_grade(char_layer, ambient, strength=0.18):
-    """人物を背景の色に寄せる層（乗算）。人物の形で切り抜いた背景の平均の色を、薄く重ねる。"""
+def grade_strength(ambient):
+    """色寄せの強さ。背景が暗いほど強くする（夕暮れで人物だけ昼のように明るく浮いた）。明るい昼は 0.12、暗い夕暮れで 0.45 まで"""
+    lum = 0.299 * ambient[0] + 0.587 * ambient[1] + 0.114 * ambient[2]
+    return float(np.clip(0.12 + (175 - lum) / 255 * 0.9, 0.12, 0.45))
+
+
+def color_grade(char_layer, ambient, strength=None):
+    """人物を背景の色に寄せる層（乗算）。背景の平均の色を、人物の形で重ねる。"""
+    strength = grade_strength(ambient) if strength is None else strength
     a = char_layer.getchannel("A").point(lambda v: int(v * strength))
     tint = tuple(int(255 - (255 - c) * 0.9) for c in ambient)
     layer = Image.new("RGBA", SIZE, tint + (0,))
@@ -143,6 +167,40 @@ def rim_light(char_layer, light, side="back", width=6):
     layer = Image.new("RGBA", SIZE, light + (0,))
     layer.putalpha(m)
     return layer
+
+
+_DEPTH = None
+
+
+def depth_map(bg):
+    """背景の奥行き（大きいほど手前）。Depth Anything V2 Small（Apache-2.0、約 100MB、1枚 約6秒）。"""
+    global _DEPTH
+    if _DEPTH is None:
+        from transformers import pipeline
+        _DEPTH = pipeline("depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf", device="cpu")
+    d = _DEPTH(bg)["predicted_depth"]
+    d = d.squeeze().numpy() if hasattr(d, "numpy") else np.asarray(d)
+    return np.asarray(Image.fromarray(d.astype("float32")).resize(SIZE, Image.BILINEAR))
+
+
+def foreground(bg, char_layer, margin=1.12):
+    """人物の足元より手前にある背景の物（ひまわり、岩、しぶき）を切り出し、人物の前に重ねる層。
+
+    足元の奥行きを基準に、それより margin 倍以上手前の所を前景とする。平らな地面は足元より下にしか無いので人物に掛からない。
+    人物に掛かる所だけを残す（掛からない所は背景と同じなので要らない）。
+    """
+    d = depth_map(bg)
+    a = np.asarray(char_layer.getchannel("A")) > 128
+    ys, xs = np.nonzero(a)
+    fy, fx = ys.max(), int(np.median(xs[ys > ys.max() - 10]))
+    fd = float(np.median(d[max(0, fy - 8):fy + 8, max(0, fx - 30):fx + 30]))
+    near = d > fd * margin
+    grown = np.asarray(Image.fromarray(a.astype("uint8") * 255).filter(ImageFilter.MaxFilter(9))) > 0
+    m = Image.fromarray((near & grown).astype("uint8") * 255)
+    m = m.filter(ImageFilter.MinFilter(3)).filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.GaussianBlur(1.2))   # 小さな点を消し、縁をなめらかに
+    layer = bg.convert("RGBA")
+    layer.putalpha(m)
+    return layer, float(np.asarray(m).mean() / 255)
 
 
 # ---- 4. 部位 ----
@@ -215,24 +273,28 @@ def blend(flat, prompt, strength, seed):
                 generator=torch.Generator().manual_seed(seed)).images[0]
 
 
-def build(design_png, outdir, scene, light_side="front", seed=7, height=0.8, x=0.5, blend_strength=0.0, prompt=""):
+def build(design_png, outdir, scene, light_side="front", seed=7, height=0.8, x=0.5, blend_strength=0.0, prompt="", foot=0.93):
     outdir = Path(outdir)
     outdir.mkdir(parents=True, exist_ok=True)
     bg = background(scene, seed)
     bg.save(outdir / "background.png")
-    char = place(cut_character(design_png), height, x)
+    char = place(cut_character(design_png), height, x, foot)
     char.save(outdir / "character.png")
     light, ambient = light_of(bg)
     parts = part_layers(char)
     layers = [("背景", bg.convert("RGBA"), "normal", 1.0),
               ("接地の影", contact_shadow(char, ambient), "multiply", 1.0)]
     layers += [(f"人物: {n}", im, "normal", 1.0) for n, im in parts.items()]
-    layers += [("色寄せ（背景の色）", color_grade(char, ambient), "multiply", 1.0),
-               ("縁の光", rim_light(char, light, light_side), "screen", 0.85)]
+    fg, fg_cover = foreground(bg, char)
+    grade = grade_strength(ambient) + (0.15 if light_side == "back" else 0.0)   # 逆光は人物の前が暗い
+    layers += [("色寄せ（背景の色）", color_grade(char, ambient, grade), "multiply", 1.0),
+               ("縁の光", rim_light(char, light, light_side), "screen", 1.0 if light_side == "back" else 0.85),
+               ("前景（人物より手前の背景）", fg, "normal", 1.0)]
     flat = flatten(layers)
     flat.save(outdir / "composite.png")
     save_psd(layers, outdir / "layers.psd")
     info = {"scene": scene, "seed": seed, "light": light, "ambient": ambient, "light_side": light_side,
+            "grade": round(grade, 3), "foreground_cover": round(fg_cover, 4),
             "layers": [n for n, *_ in layers]}
     if blend_strength > 0:
         blend(flat, prompt + ", " + scene, blend_strength, seed).save(outdir / "final.png")
@@ -250,10 +312,11 @@ def main():
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--height", type=float, default=0.8)
     ap.add_argument("--x", type=float, default=0.5)
+    ap.add_argument("--foot", type=float, default=0.93, help="足元の高さ（画面の割合）。小さくすると奥に立ち、手前の物が脚に掛かる")
     ap.add_argument("--blend", type=float, default=0.0)
     ap.add_argument("--prompt", default="")
     a = ap.parse_args()
-    print(json.dumps(build(a.design, a.outdir, a.scene, a.light, a.seed, a.height, a.x, a.blend, a.prompt), ensure_ascii=False))
+    print(json.dumps(build(a.design, a.outdir, a.scene, a.light, a.seed, a.height, a.x, a.blend, a.prompt, a.foot), ensure_ascii=False))
 
 
 if __name__ == "__main__":
