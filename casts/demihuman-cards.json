@@ -117,7 +117,8 @@
    "id": "dwarf",
    "ja": "ドワーフ",
    "tags": "dwarf, short stature, stocky, braid, sturdy",
-   "zoom": "none"
+   "zoom": "none",
+   "own_build": true
   },
   {
    "id": "orc",
