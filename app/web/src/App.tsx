@@ -75,7 +75,8 @@ export default function App() {
     api
       .describe(wish)
       .then((r) => {
-        const notes = [...r.notes];
+        // どちらで読んだかを出す（Claude は ANTHROPIC_API_KEY があるときだけ。無ければ辞書）
+        const notes = [r.reader === "claude" ? "Claude で読んだ" : "辞書で読んだ", ...r.notes];
         if (r.unused.length) notes.unshift(`使わなかった言葉: ${r.unused.join("、")}`);
         setWishNotes(notes);
         if (r.case && r.name) {

@@ -61,3 +61,68 @@ def test_describe_endpoint(tmp_path, monkeypatch):
     r = c.post("/api/describe", json={"text": "白い狐の巫女"}).json()
     assert r["name"] == "white-fox" and r["case"]["parts"]["ears"] == "fox"
     assert c.post("/api/describe", json={"text": ""}).status_code == 422
+
+
+# ---- Claude で読む（鍵が無いので、SDK の通信だけを差し替えて、組み立てた要求と答えの扱いを確かめる） ----
+
+import json  # noqa: E402
+
+import anthropic  # noqa: E402
+import httpx2  # noqa: E402
+
+
+def fake_claude(answer, stop_reason="end_turn", status=200):
+    sent = []
+
+    def handler(request):
+        sent.append({"body": json.loads(request.content), "headers": dict(request.headers)})
+        if status != 200:
+            return httpx2.Response(status, json={"type": "error", "error": {"type": "authentication_error", "message": "bad key"}})
+        return httpx2.Response(200, json={
+            "id": "msg_test", "type": "message", "role": "assistant", "model": "claude-opus-5-5",
+            "content": [{"type": "text", "text": json.dumps(answer, ensure_ascii=False)}],
+            "stop_reason": stop_reason, "stop_sequence": None,
+            "usage": {"input_tokens": 10, "output_tokens": 10},
+        })
+
+    client = anthropic.Anthropic(api_key="test-key", http_client=httpx2.Client(transport=httpx2.MockTransport(handler)), max_retries=0)
+    return client, sent
+
+
+def test_claude_reading_is_built_by_the_dictionary():
+    # 辞書に無い言い回し（雪のような、妖狐）も、Claude が選択肢に当てはめれば同じ組み方になる
+    answer = {"species": "fox", "species_color": "白", "hair_color": None, "eye_color": "赤",
+              "hair_styles": ["ponytail"], "used": ["雪のように白い", "妖狐", "赤い瞳", "ポニテ"], "unused": ["巫女装束"]}
+    client, sent = fake_claude(answer)
+    r = demi_text.parse("雪のように白い妖狐、赤い瞳でポニテの巫女装束", client)
+    assert r["reader"] == "claude" and r["name"] == "white-fox"
+    assert {k: v for k, v in r["case"]["parts"].items() if k != "color"} == {"ears": "fox", "tail": "fox"}
+    assert "white hair, ponytail, red eyes" == r["case"]["hair"]
+    assert r["unused"] == ["巫女装束"]
+    body = sent[0]["body"]
+    assert body["model"] == "claude-opus-5-5"
+    # 答えは選択肢からしか選べない形（部品の名前を作り出させない）
+    schema = body["output_config"]["format"]["schema"]
+    assert schema["properties"]["species"]["anyOf"][0]["enum"] == ["fox", "cat", "rabbit", "wolf", "dog", "devil", "angel"]
+    assert "parts" not in schema["properties"]
+    assert body["fallbacks"] == "default" and "server-side-fallback-2026-07-01" in sent[0]["headers"]["anthropic-beta"]
+    assert "thinking" not in body   # Claude Opus 5.5 は thinking を止められない。effort で抑える
+    assert body["output_config"]["effort"] == "low"
+
+
+def test_claude_failure_falls_back_to_words():
+    client, _ = fake_claude({}, status=401)
+    r = demi_text.parse("白い狐の巫女", client)
+    assert r["reader"] == "words" and r["name"] == "white-fox"
+    assert "辞書で読んだ（AuthenticationError）" in r["notes"][0]
+
+
+def test_claude_refusal_falls_back_to_words():
+    client, _ = fake_claude({"species": None}, stop_reason="refusal")
+    r = demi_text.parse("黒猫", client)
+    assert r["reader"] == "words" and r["name"] == "black-cat"
+
+
+def test_no_key_means_no_client(monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_API_KEY", raising=False)
+    assert demi_text.claude_client() is None

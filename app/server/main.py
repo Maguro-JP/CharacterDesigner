@@ -186,8 +186,9 @@ def create_app(runner: Runner | None = None) -> FastAPI:
 
     @app.post("/api/describe")
     def describe(body: DescribeIn):
-        # 日本語の頼みごとを種の設定に組む（辞書だけで組む。保存はしない。画面で見て直してから保存する）
-        return demi_text.parse(body.text)
+        # 日本語の頼みごとを種の設定に組む。ANTHROPIC_API_KEY があれば Claude で読み、無ければ辞書で読む。
+        # 保存はしない。画面で見て直してから保存する
+        return demi_text.parse(body.text, demi_text.claude_client())
 
     preview_lock = threading.Lock()
 

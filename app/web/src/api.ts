@@ -70,7 +70,7 @@ export const api = {
   preview: (c: Case) => call<{ id: string; files: string[] }>("/api/preview", { method: "POST", body: JSON.stringify(c) }),
   previewUrl: (id: string, name: string) => `/api/previews/${id}/${name}`,
   describe: (text: string) =>
-    call<{ name: string | null; case: Case | null; used: string[]; unused: string[]; notes: string[] }>("/api/describe", {
+    call<{ name: string | null; case: Case | null; used: string[]; unused: string[]; notes: string[]; reader: "claude" | "words" }>("/api/describe", {
       method: "POST",
       body: JSON.stringify({ text }),
     }),
