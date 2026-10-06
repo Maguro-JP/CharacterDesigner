@@ -35,6 +35,10 @@ export default function App() {
   // 開いている種の設定の欄。new は新しく足す、それ以外は直す種の名前
   const [editing, setEditing] = useState<string | null>(null);
   const [labels, setLabels] = useState<PartChoices | null>(null);
+  // 言葉で頼んで組んだ設定。種の欄に下書きとして渡す（保存は欄で見てから）
+  const [draft, setDraft] = useState<{ name: string; case: Case } | null>(null);
+  const [wish, setWish] = useState("");
+  const [wishNotes, setWishNotes] = useState<string[]>([]);
 
   const refreshJobs = useCallback(() => {
     api.jobs().then(setJobs).catch((e: Error) => setError(e.message));
@@ -66,6 +70,22 @@ export default function App() {
     return () => clearInterval(t);
   }, [busy, refreshJobs]);
 
+  const describe = () => {
+    setError("");
+    api
+      .describe(wish)
+      .then((r) => {
+        const notes = [...r.notes];
+        if (r.unused.length) notes.unshift(`使わなかった言葉: ${r.unused.join("、")}`);
+        setWishNotes(notes);
+        if (r.case && r.name) {
+          setDraft({ name: cases[r.name] ? `${r.name}-2` : r.name, case: r.case });
+          setEditing("draft");
+        }
+      })
+      .catch((e: Error) => setError(e.message));
+  };
+
   const submit = () => {
     setError("");
     api
@@ -82,6 +102,31 @@ export default function App() {
       {error && <p className="mt-3 rounded border border-signal p-2 text-signal">{error}</p>}
 
       <section className="mt-6">
+        <h2 className="mb-2 font-bold">言葉で頼む</h2>
+        <form
+          className="mb-6 flex flex-wrap gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (wish.trim()) describe();
+          }}
+        >
+          <input
+            className="min-w-0 flex-1 rounded border border-line bg-panel px-3 py-1.5"
+            value={wish}
+            onChange={(e) => setWish(e.target.value)}
+            placeholder="白い狐の巫女、銀髪で青い目の狼娘 など"
+            aria-label="頼みごと"
+          />
+          <button type="submit" disabled={!wish.trim()} className="rounded border border-accent px-4 py-1.5 disabled:opacity-40">
+            設定を組む
+          </button>
+          {wishNotes.length > 0 && (
+            <ul className="w-full list-inside list-disc text-sm text-neutral-300">
+              {wishNotes.map((n) => <li key={n}>{n}</li>)}
+            </ul>
+          )}
+        </form>
+
         <h2 className="mb-2 font-bold">種を選ぶ</h2>
         <CaseList cases={cases} selected={selected} onSelect={setSelected} />
         <div className="mt-3 flex flex-wrap items-center gap-3">
@@ -107,10 +152,12 @@ export default function App() {
         {editing && (
           <div className="mt-4">
             <CaseForm
-              key={editing}
-              name={editing === "new" ? "" : editing}
-              initial={editing === "new" ? { tags: "", hair: "", anatomy: [] } : (cases[editing] ?? {})}
-              isNew={editing === "new"}
+              key={editing === "draft" ? `draft-${draft?.name}` : editing}
+              name={editing === "new" ? "" : editing === "draft" ? (draft?.name ?? "") : editing}
+              initial={
+                editing === "new" ? { tags: "", hair: "", anatomy: [] } : editing === "draft" ? (draft?.case ?? {}) : (cases[editing] ?? {})
+              }
+              isNew={editing === "new" || editing === "draft"}
               onSaved={(name) => {
                 setEditing(null);
                 loadCases(name);

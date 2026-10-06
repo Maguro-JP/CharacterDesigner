@@ -1,0 +1,293 @@
+{
+  "_doc": "日本語の頼みごと（「白い狐の巫女」）を亜人の種の設定に組む辞書。tools/gen/demi_text.py が読む。species の言葉は今の種（casts/demi3d.json）で通ったものを元にし、{c} に色の英語（white など、無ければ空）を入れる。approx は 3D に同じ形が無く近い形で代用する種",
+  "species": [
+    {
+      "id": "fox",
+      "words": [
+        "狐",
+        "きつね",
+        "キツネ",
+        "フォックス"
+      ],
+      "en": "fox",
+      "parts": {
+        "ears": "fox",
+        "tail": "fox"
+      },
+      "color": "#c8682a",
+      "hair": "orange",
+      "tags": "fox girl, {c}fox ears, large fluffy {c}fox tail, white tail tip",
+      "negative": "hairband, headband, fake animal ears, hair ornament, multiple tails, two tails, extra tail",
+      "eyes": "amber",
+      "hair_hex": "#e0843a"
+    },
+    {
+      "id": "cat",
+      "words": [
+        "猫",
+        "ねこ",
+        "ネコ",
+        "キャット"
+      ],
+      "en": "cat",
+      "parts": {
+        "ears": "cat",
+        "tail": "cat"
+      },
+      "color": "#1c1626",
+      "hair": "black",
+      "tags": "cat girl, {c}cat ears, {c}cat tail, slit pupils",
+      "negative": "hairband, headband, fake animal ears, hair ornament, multiple tails, two tails, extra tail",
+      "eyes": "golden",
+      "hair_hex": "#1c1626"
+    },
+    {
+      "id": "rabbit",
+      "words": [
+        "兎",
+        "うさぎ",
+        "ウサギ",
+        "バニー"
+      ],
+      "en": "rabbit",
+      "parts": {
+        "ears": "rabbit",
+        "tail": "rabbit"
+      },
+      "color": "#f2eee8",
+      "hair": "brown",
+      "tags": "rabbit girl, long {c}rabbit ears, small round {c}rabbit tail",
+      "negative": "hairband, headband, fake animal ears, playboy bunny, hair ornament, extra tail",
+      "eyes": "red",
+      "hair_hex": "#7a4e2c"
+    },
+    {
+      "id": "wolf",
+      "words": [
+        "狼",
+        "おおかみ",
+        "オオカミ",
+        "ウルフ"
+      ],
+      "en": "wolf",
+      "approx": "3D に狼の形が無いので、狐の耳と尾で代用する",
+      "parts": {
+        "ears": "fox",
+        "tail": "fox"
+      },
+      "color": "#8a8f99",
+      "hair": "silver",
+      "tags": "wolf girl, {c}wolf ears, large fluffy {c}wolf tail",
+      "negative": "hairband, headband, fake animal ears, hair ornament, multiple tails, two tails, extra tail, white tail tip",
+      "eyes": "blue",
+      "hair_hex": "#b9bec8"
+    },
+    {
+      "id": "dog",
+      "words": [
+        "犬",
+        "いぬ",
+        "イヌ",
+        "ドッグ"
+      ],
+      "en": "dog",
+      "approx": "3D に犬の形が無いので、狐の耳と尾で代用する",
+      "parts": {
+        "ears": "fox",
+        "tail": "fox"
+      },
+      "color": "#a0703c",
+      "hair": "brown",
+      "tags": "dog girl, {c}dog ears, fluffy {c}dog tail",
+      "negative": "hairband, headband, fake animal ears, hair ornament, multiple tails, two tails, extra tail, white tail tip",
+      "eyes": "brown",
+      "hair_hex": "#7a4e2c"
+    },
+    {
+      "id": "devil",
+      "words": [
+        "サキュバス",
+        "小悪魔",
+        "悪魔",
+        "デーモン",
+        "デビル"
+      ],
+      "en": "devil",
+      "parts": {
+        "horns": "devil",
+        "wings": "bat",
+        "tail": "devil"
+      },
+      "color": "#2a1a1a",
+      "hair": "black",
+      "strength": 0.5,
+      "tags": "demon girl, small {c}demon horns, {c}bat wings, demon wings, thin {c}demon tail, spade tip tail",
+      "negative": "halo, angel wings, feathered wings, large horns, tail from waist, multiple tails, two tails, extra tail, pointy ears, elf ears",
+      "eyes": "red",
+      "hair_hex": "#1c1626"
+    },
+    {
+      "id": "angel",
+      "words": [
+        "天使",
+        "エンジェル"
+      ],
+      "en": "angel",
+      "parts": {
+        "wings": "feather"
+      },
+      "color": "#dfe3ee",
+      "hair": "blonde",
+      "strength": 0.5,
+      "tags": "angel, {c}feathered wings, angel wings",
+      "negative": "halo on body, bat wings, demon wings, black wings, extra wings, wings from waist",
+      "eyes": "blue",
+      "hair_hex": "#e6c25a"
+    }
+  ],
+  "colors": {
+    "白": {
+      "en": "white",
+      "hex": "#f2f0ec"
+    },
+    "しろ": {
+      "en": "white",
+      "hex": "#f2f0ec"
+    },
+    "黒": {
+      "en": "black",
+      "hex": "#1c1626"
+    },
+    "くろ": {
+      "en": "black",
+      "hex": "#1c1626"
+    },
+    "銀": {
+      "en": "silver",
+      "hex": "#b9bec8"
+    },
+    "金": {
+      "en": "golden",
+      "hex": "#e6c25a",
+      "hair_en": "blonde"
+    },
+    "赤": {
+      "en": "red",
+      "hex": "#b8323a"
+    },
+    "青": {
+      "en": "blue",
+      "hex": "#3a5fb8"
+    },
+    "茶": {
+      "en": "brown",
+      "hex": "#7a4e2c"
+    },
+    "灰": {
+      "en": "grey",
+      "hex": "#8a8f99"
+    },
+    "紫": {
+      "en": "purple",
+      "hex": "#6a3d8a"
+    },
+    "緑": {
+      "en": "green",
+      "hex": "#3d8a52"
+    },
+    "ピンク": {
+      "en": "pink",
+      "hex": "#e89ab4"
+    },
+    "桃": {
+      "en": "pink",
+      "hex": "#e89ab4"
+    },
+    "橙": {
+      "en": "orange",
+      "hex": "#e0843a"
+    },
+    "オレンジ": {
+      "en": "orange",
+      "hex": "#e0843a"
+    },
+    "水色": {
+      "en": "light blue",
+      "hex": "#8ec8e8"
+    }
+  },
+  "hair_styles": {
+    "ツインテール": "long twintails",
+    "ポニーテール": "ponytail",
+    "ロング": "long hair",
+    "ショート": "short hair",
+    "ボブ": "bob cut",
+    "長い髪": "long hair",
+    "短い髪": "short hair"
+  },
+  "hair_words": [
+    "髪",
+    "毛"
+  ],
+  "eye_words": [
+    "目",
+    "瞳"
+  ],
+  "skip": [
+    "の",
+    "な",
+    "い",
+    "で",
+    "と",
+    "を",
+    "が",
+    "、",
+    "。",
+    " ",
+    "　",
+    "娘",
+    "女の子",
+    "少女",
+    "っ子",
+    "ガール",
+    "色",
+    "っぽい",
+    "風",
+    "描いて",
+    "作って",
+    "して",
+    "ちゃん",
+    "さん",
+    "くん",
+    "耳の",
+    "付き"
+  ],
+  "not_drawn": {
+    "_doc": "設定資料では描かない言葉（素体の水着と立ち姿で描くため）。使わなかったと返す",
+    "words": [
+      "巫女",
+      "メイド",
+      "騎士",
+      "魔法使い",
+      "魔女",
+      "制服",
+      "着物",
+      "ドレス",
+      "鎧",
+      "シスター",
+      "忍者",
+      "笑顔",
+      "泣き顔"
+    ]
+  },
+  "part_words": [
+    "耳",
+    "尻尾",
+    "しっぽ",
+    "尾",
+    "翼",
+    "羽",
+    "角",
+    "ツノ"
+  ]
+}

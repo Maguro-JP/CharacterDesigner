@@ -31,6 +31,7 @@ from pydantic import BaseModel, Field
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools" / "gen"))
 import demi  # noqa: E402  描く処理の本体
+import demi_text  # noqa: E402  日本語の頼みごとを種の設定に組む
 
 DATA = Path(os.environ.get("CD_APP_DATA", ROOT / ".cache" / "app" / "jobs"))
 # 通った設定資料の置き場所。スキルの手順と同じ名前（demi3d-<種の名前>.png）で置く
@@ -127,6 +128,10 @@ def save_cases(data: dict) -> None:
     tmp.replace(demi.CASES)
 
 
+class DescribeIn(BaseModel):
+    text: str = Field(min_length=1, max_length=200)
+
+
 class SaveIn(BaseModel):
     overwrite: bool = False
 
@@ -178,6 +183,11 @@ def create_app(runner: Runner | None = None) -> FastAPI:
             raise HTTPException(422, errs)
         strength = body.strength if body.strength is not None else case.get("strength", 0.6)
         return jobs.submit(body.case, case, strength, body.tries).public()
+
+    @app.post("/api/describe")
+    def describe(body: DescribeIn):
+        # 日本語の頼みごとを種の設定に組む（辞書だけで組む。保存はしない。画面で見て直してから保存する）
+        return demi_text.parse(body.text)
 
     preview_lock = threading.Lock()
 

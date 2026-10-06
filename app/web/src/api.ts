@@ -69,5 +69,10 @@ export const api = {
     call<{ saved: string }>(`/api/jobs/${jobId}/save`, { method: "POST", body: JSON.stringify({ overwrite }) }),
   preview: (c: Case) => call<{ id: string; files: string[] }>("/api/preview", { method: "POST", body: JSON.stringify(c) }),
   previewUrl: (id: string, name: string) => `/api/previews/${id}/${name}`,
+  describe: (text: string) =>
+    call<{ name: string | null; case: Case | null; used: string[]; unused: string[]; notes: string[] }>("/api/describe", {
+      method: "POST",
+      body: JSON.stringify({ text }),
+    }),
   fileUrl: (jobId: string, name: string) => `/api/jobs/${jobId}/files/${name}`,
 };
