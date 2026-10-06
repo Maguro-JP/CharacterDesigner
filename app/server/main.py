@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import queue
@@ -36,6 +37,7 @@ DATA = Path(os.environ.get("CD_APP_DATA", ROOT / ".cache" / "app" / "jobs"))
 SAMPLES = Path(os.environ.get("CD_SAMPLES", ROOT / "library" / "samples"))
 NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
 # 返してよいファイル。仕事のフォルダの中の、この形の名前だけ（../ などで外を読ませない）
+PREVIEW_FILE = re.compile(r"^(underlay|mask)\.png$")
 FILE = re.compile(r"^(sheet|underlay|mask|try-\d+|try-\d+-inspect)\.png$|^report\.json$")
 
 
@@ -176,6 +178,33 @@ def create_app(runner: Runner | None = None) -> FastAPI:
             raise HTTPException(422, errs)
         strength = body.strength if body.strength is not None else case.get("strength", 0.6)
         return jobs.submit(body.case, case, strength, body.tries).public()
+
+    preview_lock = threading.Lock()
+
+    @app.post("/api/preview")
+    def preview(case: dict):
+        # 描く前に 3D の下絵（部品の付け根）を見る。1回 約30秒（Playwright で撮るだけ、画像生成のモデルは使わない）。
+        # 同じ設定は撮り直さない。撮るのは1つずつ（ブラウザーを並べて開くとメモリを食う）
+        errs = demi.validate_case(case)
+        if errs:
+            raise HTTPException(422, errs)
+        used = {k: case.get(k) for k in ("kind", "parts", "hair_3d", "hair_color", "pose", "background")}
+        key = hashlib.sha1(json.dumps(used, sort_keys=True).encode()).hexdigest()[:16]
+        out = DATA / "previews" / key
+        with preview_lock:
+            if not (out / "underlay.png").exists():
+                out.mkdir(parents=True, exist_ok=True)
+                jobs.runner.underlay(case, out)
+        return {"id": key, "files": sorted(p.name for p in out.glob("*.png") if PREVIEW_FILE.match(p.name))}
+
+    @app.get("/api/previews/{key}/{name}")
+    def preview_file(key: str, name: str):
+        if not re.fullmatch(r"[0-9a-f]{16}", key) or not PREVIEW_FILE.match(name):
+            raise HTTPException(404, "そのファイルは無い")
+        p = DATA / "previews" / key / name
+        if not p.exists():
+            raise HTTPException(404, "そのファイルは無い")
+        return FileResponse(p)
 
     @app.get("/api/jobs")
     def list_jobs():

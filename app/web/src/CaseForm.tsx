@@ -19,6 +19,8 @@ export default function CaseForm({ name: initialName, initial, isNew, onSaved, o
   const [c, setC] = useState<Case>(initial);
   const [errors, setErrors] = useState<string[]>([]);
   const [saving, setSaving] = useState(false);
+  const [preview, setPreview] = useState<{ id: string; files: string[] } | null>(null);
+  const [shooting, setShooting] = useState(false);
 
   useEffect(() => {
     api.parts().then(setChoices).catch((e: Error) => setErrors([e.message]));
@@ -48,30 +50,47 @@ export default function CaseForm({ name: initialName, initial, isNew, onSaved, o
       return { ...prev, anatomy: [...a] };
     });
 
+  // 空の値は送らない。parts が空なら付けない（kind だけの種を壊さない）
+  const cleaned = (): Case => {
+    const out: Case = { ...c };
+    if (out.parts && SLOTS.every((s) => !out.parts?.[s])) delete out.parts;
+    if (!out.kind) delete out.kind;
+    for (const k of ["ja", "negative", "background", "hair_color"] as const) if (!out[k]) delete out[k];
+    return out;
+  };
+
+  const showErrors = (e: Error) => {
+    // 設定の誤りは配列で返る（demi.validate_case）
+    try {
+      const parsed: unknown = JSON.parse(e.message);
+      setErrors(Array.isArray(parsed) ? parsed.map(String) : [e.message]);
+    } catch {
+      setErrors([e.message]);
+    }
+  };
+
+  const shoot = () => {
+    setShooting(true);
+    setErrors([]);
+    api
+      .preview(cleaned())
+      .then(setPreview)
+      .catch(showErrors)
+      .finally(() => setShooting(false));
+  };
+
   const save = () => {
     if (!NAME.test(name)) {
       setErrors(["名前は英小文字・数字・- _ で 41 字まで（先頭は英小文字か数字）"]);
       return;
     }
-    // 空の値は送らない。parts が空なら付けない（kind だけの種を壊さない）
-    const out: Case = { ...c };
-    if (out.parts && SLOTS.every((s) => !out.parts?.[s])) delete out.parts;
-    if (!out.kind) delete out.kind;
-    for (const k of ["ja", "negative", "background", "hair_color"] as const) if (!out[k]) delete out[k];
+    const out = cleaned();
     setSaving(true);
     setErrors([]);
     api
       .saveCase(name, out)
       .then(() => onSaved(name))
-      .catch((e: Error) => {
-        // 設定の誤りは配列で返る（demi.validate_case）
-        try {
-          const parsed: unknown = JSON.parse(e.message);
-          setErrors(Array.isArray(parsed) ? parsed.map(String) : [e.message]);
-        } catch {
-          setErrors([e.message]);
-        }
-      })
+      .catch(showErrors)
       .finally(() => setSaving(false));
   };
 
@@ -171,6 +190,26 @@ export default function CaseForm({ name: initialName, initial, isNew, onSaved, o
         </label>
       </div>
       <p className="mt-1 text-xs text-neutral-400">白い部品（兎の耳、天使の羽）は白い背景に溶けて検品で消えたと数えられるので、背景を薄い灰にする</p>
+
+      <div className="mt-4">
+        <button type="button" onClick={shoot} disabled={shooting} className="rounded border border-line px-3 py-1.5 text-sm disabled:opacity-40">
+          {shooting ? "3D の下絵を撮っています（約30秒）" : "3D の下絵を見る"}
+        </button>
+        <span className="ml-2 text-xs text-neutral-400">描く前に、部品の付け根（耳は頭の上、尾は尾てい骨、翼は肩甲骨）を4方向で見る</span>
+        {preview && (
+          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+            {preview.files.includes("underlay.png") && (
+              <img className="w-full rounded bg-white" src={api.previewUrl(preview.id, "underlay.png")} alt="3D の下絵（正面・斜め前・斜め後ろ・背面）" />
+            )}
+            {preview.files.includes("mask.png") && (
+              <figure>
+                <img className="w-full rounded" src={api.previewUrl(preview.id, "mask.png")} alt="部品の型（検品で数える場所）" />
+                <figcaption className="mt-1 text-xs text-neutral-400">検品で数える場所: 緑 肌 / 赤 尾 / 紫 翼 / 黄 頭の部品</figcaption>
+              </figure>
+            )}
+          </div>
+        )}
+      </div>
 
       {errors.length > 0 && (
         <ul className="mt-3 list-inside list-disc text-sm text-signal">

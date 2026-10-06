@@ -169,3 +169,21 @@ def test_save_refuses_failed_job(client):
     assert c.post(f"/api/jobs/{j['id']}/save", json={}).status_code == 409
     assert not (main.SAMPLES / "demi3d-catgirl.png").exists()
     assert c.post("/api/jobs/nope/save", json={}).status_code == 404
+
+
+def test_preview_shoots_once_per_setting(client):
+    runner = FakeRunner()
+    c, _ = client(runner)
+    case = main.load_cases()["cases"]["foxgirl"]
+    r = c.post("/api/preview", json=case).json()
+    assert r["files"] == ["underlay.png"] and runner.calls == ["underlay"]
+    # 描く言葉だけ変えても下絵は同じなので撮り直さない
+    again = c.post("/api/preview", json={**case, "tags": "fox girl, white fox ears"}).json()
+    assert again["id"] == r["id"] and runner.calls == ["underlay"]
+    # 部品を変えたら撮り直す
+    other = c.post("/api/preview", json={**case, "parts": {"ears": "cat"}}).json()
+    assert other["id"] != r["id"] and runner.calls == ["underlay", "underlay"]
+    assert c.get(f"/api/previews/{r['id']}/underlay.png").status_code == 200
+    assert c.get(f"/api/previews/{r['id']}/sheet.png").status_code == 404
+    assert c.get("/api/previews/..%2F..%2Fx/underlay.png").status_code == 404
+    assert c.post("/api/preview", json={"tags": ""}).status_code == 422

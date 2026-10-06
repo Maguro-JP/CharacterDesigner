@@ -67,5 +67,7 @@ export const api = {
     call<Job>("/api/jobs", { method: "POST", body: JSON.stringify({ case: caseName, tries }) }),
   saveSample: (jobId: string, overwrite: boolean) =>
     call<{ saved: string }>(`/api/jobs/${jobId}/save`, { method: "POST", body: JSON.stringify({ overwrite }) }),
+  preview: (c: Case) => call<{ id: string; files: string[] }>("/api/preview", { method: "POST", body: JSON.stringify(c) }),
+  previewUrl: (id: string, name: string) => `/api/previews/${id}/${name}`,
   fileUrl: (jobId: string, name: string) => `/api/jobs/${jobId}/files/${name}`,
 };
