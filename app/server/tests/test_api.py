@@ -44,6 +44,7 @@ def client(tmp_path, monkeypatch):
         shutil.copy(main.demi.CASES, cases)
         monkeypatch.setattr(main.demi, "CASES", cases)
         monkeypatch.setattr(main, "DATA", tmp_path / "jobs")
+        monkeypatch.setattr(main, "SAMPLES", tmp_path / "samples")
         return TestClient(main.create_app(runner)), cases
     return make
 
@@ -146,3 +147,25 @@ def test_parts_lists_choices_from_tool(client):
     assert r["shapes"]["ears"] == sorted(main.demi.PART_SHAPES["ears"])
     assert "devil" in r["kinds"] and "about" not in r["anatomy"]
     assert {"animal_ears", "tail", "wings"} <= set(r["anatomy"])
+
+
+def test_save_passed_sheet_to_samples(client):
+    c, _ = client(FakeRunner(pass_on=0))
+    j = wait(c, c.post("/api/jobs", json={"case": "catgirl", "tries": 2}).json()["id"])
+    r = c.post(f"/api/jobs/{j['id']}/save", json={})
+    assert r.status_code == 200
+    dest = main.SAMPLES / "demi3d-catgirl.png"
+    assert dest.read_bytes() == (main.DATA / j["id"] / "sheet.png").read_bytes()
+    # 2回目は置き換えを選ばない限り断る。前の見本は残る
+    before = dest.stat().st_mtime_ns
+    assert c.post(f"/api/jobs/{j['id']}/save", json={}).status_code == 409
+    assert dest.stat().st_mtime_ns == before
+    assert c.post(f"/api/jobs/{j['id']}/save", json={"overwrite": True}).status_code == 200
+
+
+def test_save_refuses_failed_job(client):
+    c, _ = client(FakeRunner(pass_on=99))
+    j = wait(c, c.post("/api/jobs", json={"case": "catgirl", "tries": 1}).json()["id"])
+    assert c.post(f"/api/jobs/{j['id']}/save", json={}).status_code == 409
+    assert not (main.SAMPLES / "demi3d-catgirl.png").exists()
+    assert c.post("/api/jobs/nope/save", json={}).status_code == 404

@@ -1,23 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Case, type Job } from "./api";
+import { api, type Case, type Job, type PartChoices } from "./api";
 import CaseForm from "./CaseForm";
-
-const STATE_JA: Record<Job["state"], string> = {
-  queued: "待ち",
-  underlay: "下絵",
-  drawing: "描画中",
-  done: "完了",
-  failed: "失敗",
-};
+import JobCard from "./JobCard";
 
 // 描いている間だけ短い間隔で聞く。描き終わったら聞かない（1回 約3分かかるので、それより細かく見ても変わらない）
 const POLL_MS = 5000;
-
-function elapsed(job: Job, now: number): string {
-  if (!job.started) return "-";
-  const sec = Math.round(((job.finished ?? now / 1000) - job.started));
-  return `${Math.floor(sec / 60)}分${sec % 60}秒`;
-}
 
 function CaseList({ cases, selected, onSelect }: { cases: Record<string, Case>; selected: string; onSelect: (name: string) => void }) {
   return (
@@ -38,31 +25,6 @@ function CaseList({ cases, selected, onSelect }: { cases: Record<string, Case>; 
   );
 }
 
-function JobCard({ job, now }: { job: Job; now: number }) {
-  const last = job.results.at(-1);
-  const sheet = job.files.includes("sheet.png");
-  return (
-    <li className="rounded border border-line bg-panel p-3">
-      <div className="flex flex-wrap items-baseline gap-x-3">
-        <span className="font-bold">{job.case_name}</span>
-        <span className={job.state === "failed" ? "text-signal" : job.state === "done" ? "text-accent" : "text-neutral-300"}>
-          {STATE_JA[job.state]}
-        </span>
-        {job.try_index !== null && <span className="text-sm text-neutral-400">{job.try_index + 1} / {job.tries} 回目</span>}
-        <span className="text-sm text-neutral-400">{elapsed(job, now)}</span>
-        {job.state === "done" && <span className={job.passed ? "text-accent" : "text-signal"}>{job.passed ? "検品 通過" : "検品 不通過"}</span>}
-      </div>
-      {job.error && <p className="mt-1 text-sm text-signal">{job.error}</p>}
-      {last && (
-        <p className="mt-1 text-sm text-neutral-300">
-          {last.try + 1} 回目の検品: {last.result.map((r) => `${r.view} ${r.part}${r.ok ? "○" : "×"}`).join("  ")}
-        </p>
-      )}
-      {sheet && <img className="mt-2 w-full rounded bg-white" src={api.fileUrl(job.id, "sheet.png")} alt={`${job.case_name} の設定資料`} />}
-    </li>
-  );
-}
-
 export default function App() {
   const [cases, setCases] = useState<Record<string, Case>>({});
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -72,6 +34,7 @@ export default function App() {
   const [now, setNow] = useState(Date.now());
   // 開いている種の設定の欄。new は新しく足す、それ以外は直す種の名前
   const [editing, setEditing] = useState<string | null>(null);
+  const [labels, setLabels] = useState<PartChoices | null>(null);
 
   const refreshJobs = useCallback(() => {
     api.jobs().then(setJobs).catch((e: Error) => setError(e.message));
@@ -90,6 +53,7 @@ export default function App() {
   useEffect(() => {
     loadCases();
     refreshJobs();
+    api.parts().then(setLabels).catch(() => setLabels(null));   // 向きと部品の日本語名。無くても英語名で出る
   }, [loadCases, refreshJobs]);
 
   const busy = jobs.some((j) => j.state !== "done" && j.state !== "failed");
@@ -160,7 +124,7 @@ export default function App() {
       <section className="mt-8">
         <h2 className="mb-2 font-bold">仕事</h2>
         {jobs.length === 0 ? <p className="text-sm text-neutral-400">まだ無い</p> : (
-          <ul className="space-y-3">{jobs.map((j) => <JobCard key={j.id} job={j} now={now} />)}</ul>
+          <ul className="space-y-3">{jobs.map((j) => <JobCard key={j.id} job={j} now={now} labels={labels} />)}</ul>
         )}
       </section>
     </main>

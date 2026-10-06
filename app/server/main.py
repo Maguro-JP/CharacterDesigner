@@ -15,6 +15,7 @@ import json
 import os
 import queue
 import re
+import shutil
 import sys
 import threading
 import time
@@ -31,6 +32,8 @@ sys.path.insert(0, str(ROOT / "tools" / "gen"))
 import demi  # noqa: E402  描く処理の本体
 
 DATA = Path(os.environ.get("CD_APP_DATA", ROOT / ".cache" / "app" / "jobs"))
+# 通った設定資料の置き場所。スキルの手順と同じ名前（demi3d-<種の名前>.png）で置く
+SAMPLES = Path(os.environ.get("CD_SAMPLES", ROOT / "library" / "samples"))
 NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
 # 返してよいファイル。仕事のフォルダの中の、この形の名前だけ（../ などで外を読ませない）
 FILE = re.compile(r"^(sheet|underlay|mask|try-\d+|try-\d+-inspect)\.png$|^report\.json$")
@@ -122,6 +125,10 @@ def save_cases(data: dict) -> None:
     tmp.replace(demi.CASES)
 
 
+class SaveIn(BaseModel):
+    overwrite: bool = False
+
+
 class JobIn(BaseModel):
     case: str
     strength: float | None = Field(None, ge=0.1, le=0.95)
@@ -143,7 +150,8 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         rules = json.loads((ROOT / "casts" / "demihuman-cards.json").read_text())["anatomy"]
         return {"shapes": {slot: sorted(shapes) for slot, shapes in demi.PART_SHAPES.items()},
                 "kinds": sorted(demi.KINDS),
-                "anatomy": sorted(k for k, v in rules.items() if isinstance(v, dict))}
+                "anatomy": sorted(k for k, v in rules.items() if isinstance(v, dict)),
+                "view_ja": demi.VIEW_JA, "part_ja": demi.PART_JA}
 
     @app.put("/api/cases/{name}")
     def put_case(name: str, case: dict):
@@ -178,6 +186,24 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         if job_id not in jobs.jobs:
             raise HTTPException(404, "その仕事は無い")
         return jobs.jobs[job_id].public()
+
+    @app.post("/api/jobs/{job_id}/save")
+    def save_sample(job_id: str, body: SaveIn):
+        # 通った絵を見本に置く。既にある見本は、利用者が置き換えると選んだときだけ上書きする（前の見本が黙って消えないように）
+        if job_id not in jobs.jobs:
+            raise HTTPException(404, "その仕事は無い")
+        job = jobs.jobs[job_id]
+        sheet = DATA / job_id / "sheet.png"
+        if job.state != "done" or not job.passed or not sheet.exists():
+            raise HTTPException(409, "検品を通った絵が無い")
+        dest = SAMPLES / f"demi3d-{job.case_name}.png"
+        if dest.exists() and not body.overwrite:
+            raise HTTPException(409, f"見本 {dest.name} は既にある。置き換えるなら置き換えを選ぶ（overwrite）")
+        SAMPLES.mkdir(parents=True, exist_ok=True)
+        tmp = dest.with_suffix(".png.tmp")
+        shutil.copyfile(sheet, tmp)
+        tmp.replace(dest)
+        return {"saved": str(dest.relative_to(ROOT)) if dest.is_relative_to(ROOT) else str(dest)}
 
     @app.get("/api/jobs/{job_id}/files/{name}")
     def get_file(job_id: str, name: str):

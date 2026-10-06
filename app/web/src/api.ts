@@ -19,7 +19,13 @@ export type Case = {
 };
 
 // 種の設定で選べるもの。サーバーが描く道具（demi.py）の定義から返す
-export type PartChoices = { shapes: Record<PartSlot, string[]>; kinds: string[]; anatomy: string[] };
+export type PartChoices = {
+  shapes: Record<PartSlot, string[]>;
+  kinds: string[];
+  anatomy: string[];
+  view_ja: Record<string, string>;
+  part_ja: Record<string, string>;
+};
 
 export type PartCheck = { view: string; part: string; pixels: number; gone: number; ok: boolean };
 
@@ -59,5 +65,7 @@ export const api = {
   jobs: () => call<Job[]>("/api/jobs"),
   submit: (caseName: string, tries: number) =>
     call<Job>("/api/jobs", { method: "POST", body: JSON.stringify({ case: caseName, tries }) }),
+  saveSample: (jobId: string, overwrite: boolean) =>
+    call<{ saved: string }>(`/api/jobs/${jobId}/save`, { method: "POST", body: JSON.stringify({ overwrite }) }),
   fileUrl: (jobId: string, name: string) => `/api/jobs/${jobId}/files/${name}`,
 };
