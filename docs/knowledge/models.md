@@ -54,4 +54,8 @@ SDXL の本体を2つ持つ（全体用と描き直し用）ときも同じ。1�
 - モンスター → DreamShaper XL Lightning（`tools/gen/design.py --style xl`）
 - 服や肌の部分を直す → SDXL inpainting（`tools/gen/edit.py inpaint`）
 - 決まったベースから派生を描く → IP-Adapter（`design.py batch` の from）
+  - 体のつくりが手本と違う段階（手足の無い幼年期など）は、手本の形が勝つ。DigiMon の tor-2（羽毛の玉、手足なし）を tor-3（二足の竜）から描くと、
+    from_scale 0.6 で8枚中8枚が手本と同じ二足、0.3 でもくちばしと羽毛が出るだけで脚と腕は残った（2026-10-05、seed 7〜10）
+  - 手本なしで「羽毛の玉」を描くと、形は塊になるが作風が写実の鳥に流れ、胸のコアも出なかった（DigiMon tor-2、seed 11・12）。
+    fluffy feathers の言葉が毛並みの質感を呼んだと見ている（推測）
 - 体の比率が要るもの（ドット絵の下地など）→ MakeHuman ＋ Blender（`tools/engine/`）

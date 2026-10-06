@@ -19,8 +19,17 @@
    "name": "ピィ",
    "role": "トルネ系統 幼年期・風",
    "kind": "creature",
-   "prompt": "round ball of feathers, no arms, no legs, no wings, one cowlick feather on top of the head, two sharp eyes, tiny beak, glowing diamond-shaped teal core on the chest, baby stage, tiny, simple silhouette, colors mint white #c7fff0, teal #2ee6b0, yellow #f5c542",
-   "negative": "legs, feet, arms, wings"
+   "prompt": "round baby dragon hatchling curled into a ball, smooth teal scales, no feathers, head and body are one single round blob, no neck, no arms, no legs, no wings, two tiny golden horn buds on top, two sharp eyes, small snout, pale mint belly patch, glowing diamond-shaped teal core on the chest, baby stage, tiny, simple silhouette, colors mint white #c7fff0, teal #2ee6b0, yellow #f5c542",
+   "negative": "feathers, fur, beak, bird, legs, feet, arms, hands, wings, neck, tail, standing, bipedal",
+   "n": 4,
+   "rejected": {
+    "tor-2-xl-7.png": "二足立ち（指定は手足の無い羽毛の玉）。手本の強さ 0.6 と 0.3 の両方",
+    "tor-2-xl-8.png": "二足立ち（指定は手足の無い羽毛の玉）。手本の強さ 0.6 と 0.3 の両方。0.3 は顔の横に黒いにじみ",
+    "tor-2-xl-9.png": "二足立ち（指定は手足の無い羽毛の玉）。手本の強さ 0.6 と 0.3 の両方",
+    "tor-2-xl-10.png": "二足立ち（指定は手足の無い羽毛の玉）。手本の強さ 0.6 と 0.3 の両方",
+    "tor-2-xl-11.png": "手本なし。塊の形は出たが、胸のコアと角の芽が無い、脚に指と爪、写実の毛並み（作風が案Cでない）",
+    "tor-2-xl-12.png": "手本なし。写実の鳥、翼と指のある脚、胸のコアが無い"
+   }
   },
   {
    "id": "tor-3",
@@ -45,16 +54,16 @@
    "name": "ガルトルネ",
    "role": "トルネ系統 成熟期・風",
    "kind": "creature",
-   "prompt": "large dragon standing on four legs, quadruped, feathered mane on the neck, two large wings big enough to ride, two golden horns sweeping backward, pale belly, one tail, glowing diamond-shaped teal core on the chest, champion stage, adult, balanced proportions, sharp, colors deep teal #1f8f7a, pale mint #bfe9dd, violet #4b2fd1",
-   "negative": "bipedal, standing upright, arms, hands"
+   "prompt": "large dragon walking on four legs, quadruped, front legs are the former arms, crest of scale spikes along the neck like a mane, two large wings big enough to ride, two golden horns sweeping backward, pale belly, one tail, glowing diamond-shaped teal core on the chest, champion stage, adult, balanced proportions, sharp, colors deep teal #1f8f7a, pale mint #bfe9dd, violet #4b2fd1",
+   "negative": "bipedal, standing upright, feathers, fur, beak"
   },
   {
    "id": "tor-5",
    "name": "テンペストドラゴン",
    "role": "トルネ系統 完全体・風",
    "kind": "creature",
-   "prompt": "long serpentine sky dragon, snake-like body, tiny vestigial legs, four blade-shaped wings on the back, long golden horns sweeping backward, armor-like scales, wrapped in clouds, glowing diamond-shaped teal core on the chest, ultimate stage, huge, imposing, many parts, colors dark teal #0f5f52, signal green #2ee6b0, silver #e0e6f0",
-   "negative": "western dragon, standing, bipedal, quadruped, feathers"
+   "prompt": "huge sky dragon, four strong legs, long body and long tail, two huge blade-shaped wings, long golden horns sweeping backward, armor-like scales, wrapped in clouds, glowing diamond-shaped teal core on the chest, ultimate stage, huge, imposing, many parts, colors dark teal #0f5f52, signal green #2ee6b0, silver #e0e6f0",
+   "negative": "snake body, serpent, legless, vestigial legs, feathers, beak, bipedal"
   },
   {
    "id": "hak-1",
@@ -93,27 +102,19 @@
   },
   {
    "id": "hak-4",
-   "name": "ハクナイト",
+   "name": "未定（ハク成熟期）",
    "role": "ハク系統 成熟期・聖",
    "kind": "creature",
-   "prompt": "dragon knight, bipedal dragon standing upright, silver white armor covering the body, shield in the left hand, spear of light in the right hand, small wings from the armor back, two golden horns, one tail, glowing diamond-shaped gold core on the chest, champion stage, adult, balanced proportions, sharp, colors silver white #e8e4d8, gold #d9b45a, pale blue #8fb6ff",
-   "negative": "human face"
+   "prompt": "large white dragon standing on two legs, bipedal, two arms, two wings big enough to wrap its body, short golden horns, glowing golden ring around the neck, white scales, one tail, glowing diamond-shaped gold core on the chest, champion stage, adult, balanced proportions, sharp, colors silver white #e8e4d8, gold #d9b45a, pale blue #8fb6ff",
+   "negative": "human face, armor, shield, spear, weapon, knight, humanoid, feathers, feathered wings"
   },
   {
    "id": "hak-5",
-   "name": "ハクセラフ",
+   "name": "未定（ハク完全体）",
    "role": "ハク系統 完全体・聖",
    "kind": "creature",
-   "prompt": "celestial white dragon floating in the air, three pairs of feathered wings, six wings in total, thin robe-like armor, long golden horns sweeping backward, golden halo above the head, no feet on the ground, glowing diamond-shaped gold core on the chest, ultimate stage, huge, imposing, many parts, colors white #ffffff, gold #d9b45a, pale blue #bcd8ff",
-   "negative": "two wings, bat wings, standing"
-  },
-  {
-   "id": "hak-6",
-   "name": "ハクシンリュウ",
-   "role": "ハク系統 究極体・聖",
-   "kind": "creature",
-   "prompt": "divine white god dragon, long serpentine body, six wings, double golden halo, crown shaped golden horns, ribbons of light flowing from the body, glowing, no shadow, glowing diamond-shaped gold core on the chest, divine stage, enormous, glowing, colors white #ffffff, pale gold #ffe9a8, pale blue #8fb6ff",
-   "negative": "western dragon, standing, bat wings"
+   "prompt": "huge holy white dragon, four limbs, two large membrane wings, golden halo floating above the head, long golden horns sweeping backward, white scales glowing faintly, one long tail, glowing diamond-shaped gold core on the chest, ultimate stage, huge, imposing, many parts, colors white #ffffff, gold #d9b45a, pale blue #bcd8ff",
+   "negative": "six wings, feathers, feathered wings, angel, robe, armor, humanoid"
   },
   {
    "id": "emb-1",
@@ -161,11 +162,11 @@
   },
   {
    "id": "emb-5",
-   "name": "イグナレオン",
+   "name": "未定（エンボウ完全体。旧イグナレオン）",
    "role": "エンボウ系統 完全体・火",
    "kind": "creature",
-   "prompt": "giant lion king standing on four legs, quadruped, whole mane made of fire, three tails all burning, black paws, glowing diamond-shaped orange core on the chest, ultimate stage, huge, imposing, many parts, colors dark red #8f1d0c, red orange #ff5a3c, gold #ffd166",
-   "negative": "bipedal, one tail, detached flames"
+   "prompt": "giant wolf king standing on four legs, quadruped, canine body, thick fur ruff around the neck made of fire, one large burning tail, long fangs, black paws, glowing diamond-shaped orange core on the chest, ultimate stage, huge, imposing, many parts, colors dark red #8f1d0c, red orange #ff5a3c, gold #ffd166",
+   "negative": "lion, feline, cat, bipedal, three tails, detached flames"
   },
   {
    "id": "kam-1",
@@ -222,8 +223,8 @@
    "name": "リヴァガメオン",
    "role": "カメロ系統 完全体・水",
    "kind": "creature",
-   "prompt": "sea dragon with a long neck and long tail, turtle shell on its back, spikes turned into dorsal fins, four flippers, gliding on the sea surface, glowing diamond-shaped blue core on the chest, ultimate stage, huge, imposing, many parts, colors deep navy #0f3557, blue #4aa8ff, pale blue #e0f4ff",
-   "negative": "bipedal, standing, legs, arms"
+   "prompt": "enormous sea turtle, quadruped, four large flippers, huge shell like a rocky island with rock spikes along the ridges, short thick neck, short tail, swimming on the sea surface, glowing diamond-shaped blue core on the chest, ultimate stage, huge, imposing, many parts, colors deep navy #0f3557, blue #4aa8ff, pale blue #e0f4ff",
+   "negative": "sea dragon, sea serpent, long neck, long tail, dorsal fins, bipedal, standing, arms"
   },
   {
    "id": "rai-1",
@@ -272,8 +273,8 @@
    "name": "ライジンガルダ",
    "role": "ライトリ系統 完全体・雷",
    "kind": "creature",
-   "prompt": "giant thunderbird, real bird anatomy, two pairs of wings, four wings in total, no arms, crown of crest feathers, tail feathers made of lightning bolts, lightning emblem on the chest, glowing diamond-shaped yellow core on the chest, ultimate stage, huge, imposing, many parts, colors dark gold #8a6200, yellow #f5c542, white #ffffff",
-   "negative": "arms, hands, humanoid, warrior, armor, two wings"
+   "prompt": "giant thunder eagle, real bird anatomy, two huge wings, no arms, crown of crest feathers, tail feathers made of lightning bolts, golden talons, glowing diamond-shaped yellow core on the chest, ultimate stage, huge, imposing, many parts, colors dark gold #8a6200, yellow #f5c542, white #ffffff",
+   "negative": "arms, hands, humanoid, warrior, armor, four wings, extra wings"
   },
   {
    "id": "gor-1",
@@ -327,8 +328,8 @@
    "name": "メガリスコロッサス",
    "role": "ゴロン系統 完全体・土",
    "kind": "creature",
-   "prompt": "stone colossus carrying an ancient ruin on its back, pillars and gates as parts of its body, tower-like horns, three glowing green cores, glowing diamond-shaped green core on the chest, ultimate stage, huge, imposing, many parts, colors very dark brown #3f2f22, tan #c9a27e, mint green #2ee6b0",
-   "negative": "robot, mecha, human face"
+   "prompt": "huge stone colossus made of stacked megalith boulders, bipedal, no boundary between head and body, arms thicker than the body, tower-like crystal horns, moss on the shoulders, three glowing green cores, glowing diamond-shaped green core on the chest, ultimate stage, huge, imposing, many parts, colors very dark brown #3f2f22, tan #c9a27e, mint green #2ee6b0",
+   "negative": "robot, mecha, human face, ruins, buildings, pillars, gates, city"
   },
   {
    "id": "yor-1",

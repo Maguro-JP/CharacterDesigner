@@ -1,0 +1,83 @@
+{
+  "_doc": "3D の素体を下絵にして描く亜人。tools/gen/demi.py が読む。kind は 3D の部品の組（none / cat / devil / fox / rabbit / angel）、parts は耳・尾・翼・角を形の名前で選ぶ（kind より優先。color で部品ごとの色）。hair_color で下絵の髪の色を塗り替える（描く髪の色と合わせる。髪型は下絵のツインテールのまま）。hair_3d: \"hide\" で髪を隠せるが、頭が坊主になって短い髪に描かれ、人の耳の残りも見えたので使わない。strength は下絵から離れる強さ（翼のある種は 0.6 だと斜め前を後ろ向きに描き直したので 0.5）。background は背景の色（既定は白。白い部品の種は白い背景に溶けて消えたので薄い灰 #c9ced6 にする）",
+  "cases": {
+    "succubus": {
+      "ja": "サキュバス",
+      "kind": "devil",
+      "tags": "succubus, demon girl, small demon horns, black bat wings, demon wings, thin demon tail, spade tip tail",
+      "hair": "black hair, long twintails, red eyes",
+      "negative": "halo, angel wings, feathered wings, large horns, tail from waist, multiple tails, two tails, extra tail, pointy ears, elf ears",
+      "anatomy": [
+        "wings",
+        "tail"
+      ],
+      "seed": 41,
+      "strength": 0.5
+    },
+    "catgirl": {
+      "ja": "猫娘",
+      "kind": "cat",
+      "tags": "cat girl, black cat ears, black cat tail, slit pupils",
+      "hair": "black hair, long twintails, golden eyes",
+      "negative": "hairband, headband, fake animal ears, hair ornament, multiple tails, two tails, extra tail",
+      "anatomy": [
+        "animal_ears",
+        "tail"
+      ],
+      "seed": 41
+    },
+    "foxgirl": {
+      "ja": "狐娘",
+      "parts": {
+        "ears": "fox",
+        "tail": "fox",
+        "color": {
+          "ears": "#c8682a",
+          "tail": "#c8682a"
+        }
+      },
+      "tags": "fox girl, orange fox ears, large fluffy orange fox tail, white tail tip",
+      "hair": "orange hair, long twintails, amber eyes",
+      "negative": "hairband, headband, fake animal ears, hair ornament, multiple tails, two tails, extra tail",
+      "anatomy": [
+        "animal_ears",
+        "tail"
+      ],
+      "seed": 41,
+      "hair_color": "#e0843a"
+    },
+    "bunnygirl": {
+      "ja": "兎娘",
+      "parts": {
+        "ears": "rabbit",
+        "tail": "rabbit"
+      },
+      "tags": "rabbit girl, long white rabbit ears, small round white rabbit tail",
+      "hair": "brown hair, long twintails, red eyes",
+      "negative": "hairband, headband, fake animal ears, playboy bunny, hair ornament, extra tail",
+      "anatomy": [
+        "animal_ears",
+        "tail"
+      ],
+      "seed": 41,
+      "hair_color": "#6b4630",
+      "background": "#c9ced6"
+    },
+    "angel": {
+      "ja": "天使",
+      "parts": {
+        "wings": "feather"
+      },
+      "tags": "angel, white feathered wings, angel wings",
+      "hair": "blonde hair, long twintails, blue eyes",
+      "negative": "halo on body, bat wings, demon wings, black wings, extra wings, wings from waist",
+      "anatomy": [
+        "wings"
+      ],
+      "seed": 41,
+      "strength": 0.5,
+      "hair_color": "#e8c870",
+      "background": "#c9ced6"
+    }
+  }
+}

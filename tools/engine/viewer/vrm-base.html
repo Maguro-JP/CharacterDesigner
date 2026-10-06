@@ -1,0 +1,655 @@
+<title>アニメ素体 ポーズと光</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Zen+Kaku+Gothic+New:wght@400;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/loaders/GLTFLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.147.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@pixiv/three-vrm@1.0.6/lib/three-vrm.min.js"></script>
+<style>
+/* 撮影台: 上に回せる模型、下にポーズ・光・向きの操作盤 */
+:root {
+  --bg: #f6f5f3; --stage: #ffffff; --fg: #171615; --muted: #6d6863; --line: #dedad5;
+  --accent: #d6331f; --accent-2: #e8811c;
+  --f-body: "Zen Kaku Gothic New", "Hiragino Sans", "Noto Sans JP", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #141312; --stage: #1d1c1a; --fg: #f1eeea; --muted: #a29c95; --line: #34312e;
+  --accent: #ff5a43; --accent-2: #ffa04a; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #141312; --stage: #1d1c1a; --fg: #f1eeea; --muted: #a29c95; --line: #34312e;
+  --accent: #ff5a43; --accent-2: #ffa04a; color-scheme: dark }
+html, body { height: 100% }
+body { background: var(--bg); color: var(--fg); font-family: var(--f-body); }
+.wrap { box-sizing: border-box; min-height: 100%; max-width: 960px; margin: 0 auto; padding: 12px 16px; display: flex; flex-direction: column; gap: 10px }
+header { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 16px }
+h1 { font-size: 1.2rem; margin: 0; letter-spacing: .02em }
+h1 span { color: var(--accent) }
+.spec { font-family: var(--f-mono); font-size: .72rem; color: var(--muted) }
+.stage { position: relative; height: 62vh; min-height: 340px; background: var(--stage); border: 1px solid var(--line); border-radius: 6px; overflow: hidden; touch-action: none }
+.stage canvas { display: block; width: 100%; height: 100% }
+.load { position: absolute; inset: auto 0 12px 0; text-align: center; font-size: .8rem; color: var(--muted); font-family: var(--f-mono) }
+.label { font-size: .72rem; letter-spacing: .08em; color: var(--muted); margin: 4px 0 -4px }
+.row { display: grid; grid-template-columns: repeat(auto-fit, minmax(84px, 1fr)); gap: 8px }
+.row button { font: inherit; font-size: .88rem; padding: 9px 0; border-radius: 4px; border: 1px solid var(--line); background: var(--stage); color: var(--fg); cursor: pointer }
+.row button[aria-pressed="true"] { border-color: var(--accent); color: var(--accent); font-weight: 700 }
+.row button:focus-visible, input:focus-visible { outline: 2px solid var(--accent-2); outline-offset: 2px }
+.sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 6px 16px }
+.sliders label { display: grid; grid-template-columns: 5em 1fr 3em; align-items: center; gap: 8px; font-size: .82rem }
+.sliders output { font-family: var(--f-mono); font-size: .75rem; color: var(--muted); text-align: right; font-variant-numeric: tabular-nums }
+input[type=range] { width: 100%; accent-color: var(--accent) }
+.hint { margin: 0; font-size: .76rem; color: var(--muted); line-height: 1.6 }
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>アニメ素体 <span>ポーズと光</span></h1>
+    <div class="spec">VRoid のサンプル素体 ・ 陰2段</div>
+  </header>
+  <div class="stage" id="stage"><div class="load" id="load">読み込み中</div></div>
+
+  <p class="label">服</p>
+  <div class="row" role="group" aria-label="服" id="wear">
+    <button id="w-swim" data-w="swim" aria-pressed="true">水着</button>
+    <button id="w-casual" data-w="casual" aria-pressed="false">普段着</button>
+  </div>
+  <p class="label">亜人の部品（付け根: 尾は尾骶骨、翼は肩甲骨、角は額の上、獣耳は頭頂。獣耳のときは人の耳を引っ込める）</p>
+  <div class="row" role="group" aria-label="亜人の部品" id="parts">
+    <button id="k-none" data-k="none" aria-pressed="true">人</button>
+    <button id="k-cat" data-k="cat" aria-pressed="false">猫（耳・尾）</button>
+    <button id="k-devil" data-k="devil" aria-pressed="false">悪魔（角・翼・尾）</button>
+    <button id="k-fox" data-k="fox" aria-pressed="false">狐（耳・尾）</button>
+    <button id="k-rabbit" data-k="rabbit" aria-pressed="false">兎（耳・尾）</button>
+    <button id="k-angel" data-k="angel" aria-pressed="false">天使（羽）</button>
+  </div>
+  <p class="label">体型（理想のベースに寄せた値が既定）</p>
+  <div class="sliders" id="body">
+    <label for="b-bust">胸<input id="b-bust" type="range" min="0" max="100" value="55"><output id="b-bust-o"></output></label>
+    <label for="b-waist">ウエスト<input id="b-waist" type="range" min="-30" max="20" value="-12"><output id="b-waist-o"></output></label>
+    <label for="b-hip">腰まわり<input id="b-hip" type="range" min="-10" max="30" value="12"><output id="b-hip-o"></output></label>
+    <label for="b-thigh">太もも<input id="b-thigh" type="range" min="-20" max="30" value="4"><output id="b-thigh-o"></output></label>
+    <label for="b-leg">脚の長さ<input id="b-leg" type="range" min="-10" max="20" value="6"><output id="b-leg-o"></output></label>
+    <label for="b-head">頭<input id="b-head" type="range" min="-15" max="15" value="0"><output id="b-head-o"></output></label>
+  </div>
+  <div class="row" role="group" aria-label="体型の操作">
+    <button id="b-reset">サンプルの体</button>
+    <button id="b-ideal">理想のベース</button>
+    <button id="b-copy">数字を写す</button>
+  </div>
+  <p class="hint" id="b-json" hidden></p>
+
+  <p class="label">ポーズ</p>
+  <div class="row" role="group" aria-label="ポーズ" id="poses"></div>
+
+  <p class="label">光の向きと強さ</p>
+  <div class="sliders">
+    <label for="az">横の向き<input id="az" type="range" min="-180" max="180" value="-35"><output id="az-o">-35°</output></label>
+    <label for="el">高さ<input id="el" type="range" min="-30" max="90" value="40"><output id="el-o">40°</output></label>
+    <label for="key">主の光<input id="key" type="range" min="0" max="300" value="70"><output id="key-o">70%</output></label>
+    <label for="amb">回り込み<input id="amb" type="range" min="0" max="200" value="35"><output id="amb-o">35%</output></label>
+  </div>
+  <div class="row" role="group" aria-label="光の色" id="tones">
+    <button id="t-day" data-c="#ffffff" aria-pressed="true">昼</button>
+    <button id="t-sunset" data-c="#ffb070">夕方</button>
+    <button id="t-night" data-c="#8aa8ff">夜</button>
+    <button id="t-back" data-back="1">逆光</button>
+  </div>
+
+  <p class="label">向き</p>
+  <div class="row" role="group" aria-label="向き">
+    <button id="v-front" data-a="0" aria-pressed="true">正面</button>
+    <button id="v-34" data-a="35">斜め</button>
+    <button id="v-side" data-a="90">横</button>
+    <button id="v-back" data-a="180">背面</button>
+    <button id="v-face" data-a="0" data-face="1">顔</button>
+  </div>
+  <p class="hint">1本指で回す、2本指で寄る・ずらす。素体は VRoid の公式サンプル HairSample_Female（CC0）。水着は肌に塗っていて、体型を変えても突き抜けない。普段着はその上に重なる。</p>
+</div>
+
+<script>
+const stage = document.getElementById('stage');
+const load = document.getElementById('load');
+const renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.outputEncoding = THREE.sRGBEncoding;
+stage.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(26, 1, 0.05, 30);
+const controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+const amb = new THREE.AmbientLight(0xffffff, 0.35);
+const key = new THREE.DirectionalLight(0xffffff, 0.7);
+scene.add(amb, key, key.target);
+let vrm = null, height = 1.6, center = new THREE.Vector3(0, 0.85, 0);
+// 陰2段の塗りの段（暗い所と明るい所）。古い形式の素材を置き換えるときに使う
+// 陰の段: 暗い側（少し赤みのある陰）と明るい側の2段。境目だけ少しぼかす。
+// 境目を切り立てると、網目の粗い所（背中、お尻の横）で陰の縁が角張って見えた
+const ramp = (() => {
+  const N = 32, d = new Uint8Array(N * 4), lo = [170, 150, 150];
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1), k = Math.min(1, Math.max(0, (t - 0.44) / 0.14)), e = k * k * (3 - 2 * k);
+    for (let c = 0; c < 3; c++) d[i * 4 + c] = Math.round(lo[c] + (255 - lo[c]) * e);
+    d[i * 4 + 3] = 255;
+  }
+  const r = new THREE.DataTexture(d, N, 1);
+  r.minFilter = r.magFilter = THREE.LinearFilter; r.needsUpdate = true;
+  return r;
+})();
+
+function resize() {
+  const r = stage.getBoundingClientRect();
+  renderer.setSize(r.width, r.height, false);
+  camera.aspect = r.width / r.height; camera.updateProjectionMatrix();
+}
+new ResizeObserver(resize).observe(stage);
+
+// 光: 横の向き（体の周り）と高さの角度から、光の位置を決める
+let backlight = false;
+function light() {
+  const az = +document.getElementById('az').value * Math.PI / 180;
+  const el = +document.getElementById('el').value * Math.PI / 180;
+  const a = backlight ? az + Math.PI : az;
+  key.position.set(Math.sin(a) * Math.cos(el) * 3, center.y + Math.sin(el) * 3, Math.cos(a) * Math.cos(el) * 3);
+  key.target.position.copy(center);
+  key.intensity = +document.getElementById('key').value / 100;
+  amb.intensity = +document.getElementById('amb').value / 100 * (backlight ? 0.5 : 1);
+  for (const id of ['az', 'el', 'key', 'amb']) {
+    const v = document.getElementById(id).value;
+    document.getElementById(id + '-o').textContent = v + (id === 'az' || id === 'el' ? '°' : '%');
+  }
+}
+['az', 'el', 'key', 'amb'].forEach(id => document.getElementById(id).addEventListener('input', light));
+
+function press(group, b) { group.querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b ? 'true' : 'false')); }
+document.querySelectorAll('#tones button').forEach(b => b.addEventListener('click', () => {
+  press(b.parentNode, b);
+  backlight = !!b.dataset.back;
+  key.color.set(b.dataset.c || '#ffe8d0');
+  light();
+}));
+
+function view(deg, face) {
+  const t = face ? new THREE.Vector3(0, height * 0.92, 0) : center.clone();
+  const d = face ? 0.9 : height * 2.4, a = deg * Math.PI / 180;
+  controls.target.copy(t);
+  camera.position.set(Math.sin(a) * d, t.y + (face ? 0 : 0.05), Math.cos(a) * d);
+  controls.update();
+}
+document.querySelectorAll('[data-a]').forEach(b => b.addEventListener('click', () => { press(b.parentNode, b); view(+b.dataset.a, !!b.dataset.face); }));
+
+// ポーズ: 人型の骨（VRM の humanoid）ごとの回転（度、XYZ）。指定の無い骨は直立のまま。
+// VRM 1.0 の模型は +Z を向き、左腕は +X 側にある。腕を下ろすには左腕の Z を負、右腕の Z を正に回す
+const D = Math.PI / 180;
+const POSES = {
+  't': { ja: '直立', bones: {} },
+  'stand': { ja: '気をつけ', bones: { leftUpperArm: [0, 0, -70], rightUpperArm: [0, 0, 70] } },
+  'contra': { ja: '片足重心', bones: {
+    hips: [0, 0, 5], spine: [0, 0, -4], chest: [0, 0, -3],
+    leftUpperArm: [0, 0, -75], rightUpperArm: [0, -10, 48], rightLowerArm: [0, 0, 92],   // 右手を腰に（肘を外へ張り、前腕を腰へ向ける）
+    leftUpperLeg: [0, 0, 4], rightUpperLeg: [-6, 0, -8], rightLowerLeg: [14, 0, 0], neck: [0, 0, 4] } },
+  'arms': { ja: '腕組み', bones: {
+    leftUpperArm: [0, -30, -80], leftLowerArm: [-58.3, -63.6, -84], rightUpperArm: [0, 30, 80], rightLowerArm: [-58.3, 63.6, 84], head: [0, 0, 6] } },
+  // 腕組みの前腕は、胸の下を水平に内へ向く向き（少し下向き）から逆算した値。X だけのひねりでは、オイラー角の順番のため
+  // 腕が背中へ回るか顔の前へ上がるかになった。胸の高さで組むと胸を隠すしぐさに見えるので、胸から離して組む
+  'walk': { ja: '歩き', bones: {
+    leftUpperLeg: [-22, 0, 0], leftLowerLeg: [8, 0, 0], rightUpperLeg: [18, 0, 0], rightLowerLeg: [28, 0, 0],
+    leftUpperArm: [20, 0, -72], rightUpperArm: [-22, 0, 72], spine: [4, 0, 0] } },
+  'wave': { ja: '手を振る', bones: {
+    leftUpperArm: [0, 0, -72], rightUpperArm: [0, 0, -60], rightLowerArm: [0, 30, -70], head: [0, 0, -5] } }
+};
+function pose(id) {
+  const p = POSES[id];
+  const h = vrm.humanoid;
+  for (const name of Object.keys(THREE_VRM.VRMHumanBoneName).map(k => THREE_VRM.VRMHumanBoneName[k])) {
+    const node = h.getNormalizedBoneNode(name);
+    if (!node) continue;
+    const r = p.bones[name] || [0, 0, 0];
+    // VRM 0.x は模型を縦の軸（Y）まわりに 180 度回して表示する。そのため X と Z の回転の向きが逆になり、Y はそのまま
+    const f = vrm.meta.metaVersion === '0' ? -1 : 1;
+    node.rotation.set(r[0] * D * f, r[1] * D, r[2] * D * f);
+  }
+  vrm.scene.position.y = -(p.drop || 0);
+}
+const poseRow = document.getElementById('poses');
+Object.entries(POSES).forEach(([id, p], i) => {
+  const b = document.createElement('button');
+  b.id = 'p-' + id; b.textContent = p.ja; b.setAttribute('aria-pressed', i === 1 ? 'true' : 'false');
+  b.addEventListener('click', () => { press(poseRow, b); if (vrm) pose(id); });
+  poseRow.appendChild(b);
+});
+
+// three 0.147 の属性には getComponent が無いので、4つの成分を名前で読む
+const comp = (a, v, k) => k === 0 ? a.getX(v) : k === 1 ? a.getY(v) : k === 2 ? a.getZ(v) : a.getW(v);
+// 体型: 骨の伸び縮み（脚の長さ・太さ、頭）と、肌と服の点を動かす（胸・ウエスト・腰）の2通りで変える。
+// 点は骨の重み（skin weight）で部位を見分ける。点だけ動かすと関節の回転とずれるので、関節をまたぐ所（脚）は骨で変える
+const IDEAL = { bust: 55, waist: -12, hip: 12, thigh: 4, leg: 6, head: 0 };
+const ZERO = { bust: 0, waist: 0, hip: 0, thigh: 0, leg: 0, head: 0 };
+let meshes = [], bind = null;
+// 骨の番号は模型ごと（顔と体で別の骨組み）に違う。名前から、その模型の中の番号を引く
+function setupBody() {
+  vrm.scene.traverse(o => { if (o.isSkinnedMesh) meshes.push(o); });
+  // 骨の位置は肌の模型の座標で求める。模型ごとに座標の向きが違い、髪の模型で求めると前後が逆になった
+  const any = meshes.find(m => matName(m).includes('Body_00_SKIN'));
+  const at = n => any.skeleton.bones.find(b => b.name === n);
+  // 骨の位置は全体の座標で持たれている。肌の点（模型の中の座標）と比べるため、模型の中の座標に直す。
+  // bindMatrixInverse は毎フレーム今の向きから作り直され、VRM 0.x を前に向ける 180° 回転が混ざるので使わない
+  const pos = n => { const sk = any.skeleton; const i = sk.bones.indexOf(at(n)); return new THREE.Vector3().setFromMatrixPosition(sk.boneInverses[i].clone().invert()).applyMatrix4(any.bindMatrix.clone().invert()); };
+  meshes.forEach(m => {
+    m.userData.orig = m.geometry.attributes.position.array.slice();
+    const ix = n => m.skeleton.bones.findIndex(b => b.name === n);
+    m.userData.B = { spine: ix('J_Bip_C_Spine'), hips: ix('J_Bip_C_Hips'), legs: [ix('J_Bip_L_UpperLeg'), ix('J_Bip_R_UpperLeg')] };
+  });
+  // 胸は専用の骨（揺れ用の J_Sec_*_Bust1）を大きくする。点を動かすより、付け根からの形が崩れない
+  bind = { spine: pos('J_Bip_C_Spine'), hips: pos('J_Bip_C_Hips'), upperChest: pos('J_Bip_C_UpperChest'),
+           neck: pos('J_Bip_C_Neck'), bustPos: [pos('J_Sec_L_Bust1'), pos('J_Sec_L_Bust2')],
+           bust: ['J_Sec_L_Bust1', 'J_Sec_R_Bust1'].map(at).filter(Boolean) };
+  // 前の向き（+1 なら +z が前）。胸の骨の付け根から先へ向かう向きで決める。この素体は −z が前
+  bind.F = Math.sign(bind.bustPos[1].z - bind.bustPos[0].z) || 1;
+}
+function weight(si, sw, v, bones) {
+  let w = 0;
+  for (let k = 0; k < 4; k++) if (bones.includes(comp(si, v, k))) w += comp(sw, v, k);
+  return w;
+}
+// 法線（光の当たる向き）を作り直す。VRoid の書き出しでは1つの模型の部分（Bodybaked と Bodybaked_1 など）が
+// 位置と法線の配列を共有している。部分ごとに computeVertexNormals を呼ぶと、呼ぶたびに共有の配列が 0 に戻され、
+// 最後の部分以外が真っ黒になった。共有する組ごとに全部の三角形を集めて1回で計算する。
+// UV の継ぎ目で分かれた点は同じ位置なら1つにまとめ、継ぎ目に光の割れ目が出ないようにする
+function relight() {
+  const groups = new Map();
+  meshes.forEach(m => { if (!m.userData.moved || !m.geometry.index) return; const n = m.geometry.attributes.normal; if (!groups.has(n)) groups.set(n, []); groups.get(n).push(m); });
+  for (const [n, ms] of groups) {
+    const g0 = ms[0].geometry, p = g0.attributes.position;
+    if (!g0.userData.weld) {
+      const key = new Map(), id = new Int32Array(p.count), o = ms[0].userData.orig;
+      for (let v = 0; v < p.count; v++) {
+        const k = Math.round(o[v * 3] * 1e4) + ',' + Math.round(o[v * 3 + 1] * 1e4) + ',' + Math.round(o[v * 3 + 2] * 1e4);
+        if (!key.has(k)) key.set(k, key.size); id[v] = key.get(k);
+      }
+      g0.userData.weld = { id, size: key.size };
+    }
+    const { id, size } = g0.userData.weld, acc = new Float32Array(size * 3);
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3();
+    for (const m of ms) {
+      const idx = m.geometry.index.array;
+      for (let t = 0; t < idx.length; t += 3) {
+        a.fromBufferAttribute(p, idx[t]); b.fromBufferAttribute(p, idx[t + 1]); c.fromBufferAttribute(p, idx[t + 2]);
+        c.sub(b); b.sub(a); c.cross(b);   // 面の向き（面積で重み付け）
+        for (let k = 0; k < 3; k++) { const w = id[idx[t + k]] * 3; acc[w] += c.x; acc[w + 1] += c.y; acc[w + 2] += c.z; }
+      }
+    }
+    for (let v = 0; v < p.count; v++) {
+      const w = id[v] * 3, x = acc[w], y = acc[w + 1], z = acc[w + 2], l = Math.hypot(x, y, z);
+      if (l > 0) n.setXYZ(v, x / l, y / l, z / l);   // 三角形に使われていない点は元の向きのまま
+    }
+    n.needsUpdate = true;
+  }
+}
+function shape(b) {
+  if (!bind) return;
+  const { spine, hips } = bind;
+  const waist = b.waist / 100, hip = b.hip / 100;
+  meshes.forEach(m => {
+    const B = m.userData.B;
+    if (B.spine < 0) return;   // 顔と髪は動かさない
+    const p = m.geometry.attributes.position, si = m.geometry.attributes.skinIndex, sw = m.geometry.attributes.skinWeight, o = m.userData.orig;
+    for (let v = 0; v < p.count; v++) {
+      let x = o[v * 3], y = o[v * 3 + 1], z = o[v * 3 + 2];
+      // ウエスト: 背骨の重みが強い所を、胴の中心へ寄せる
+      const ws = weight(si, sw, v, [B.spine]);
+      if (waist && ws > 0) { const k = 1 + waist * ws; x = spine.x + (x - spine.x) * k; z = spine.z + (z - spine.z) * k; }
+      // 腰まわり: 腰の骨と太ももの付け根の重みで、横と後ろ（お尻）に広げる
+      const hw = weight(si, sw, v, [B.hips]) + 0.5 * weight(si, sw, v, B.legs) * (y > hips.y - 0.12 ? 1 : 0);
+      if (hip && hw > 0) { x = hips.x + (x - hips.x) * (1 + hip * hw); if ((z - hips.z) * bind.F < 0) z = hips.z + (z - hips.z) * (1 + hip * 1.3 * hw); }
+      p.setXYZ(v, x, y, z);
+    }
+    p.needsUpdate = true;
+  });
+  meshes.forEach(m => { if (m.userData.B.spine >= 0) m.userData.moved = true; });
+  relight();
+  // 胸: 揺れ用の胸の骨（付け根 Bust1）を大きくする。この素体は肌の点がこの骨に結び付いている（408 点）
+  const kb = 1 + b.bust / 100 * 0.8;
+  bind.bust.forEach(n => n.scale.set(kb, kb, kb));
+  // 骨: 太ももの太さと長さ、すね、頭
+  const H = vrm.humanoid, s = 1 + b.thigh / 100, L = 1 + b.leg / 100;
+  for (const side of ['left', 'right']) {
+    const up = H.getRawBoneNode(side + 'UpperLeg'), low = H.getRawBoneNode(side + 'LowerLeg'), foot = H.getRawBoneNode(side + 'Foot');
+    up.scale.set(s, L, s);
+    low.scale.set(1 / s, 1, 1 / s);        // 太ももの太さを、すねに持ち越さない
+    foot.scale.set(1, 1 / L, 1);           // 足の大きさは変えない
+  }
+  H.getRawBoneNode('head').scale.setScalar(1 + b.head / 100);
+}
+// 水着: 肌の材質に塗る。縁の線は、ポーズをとる前の体の位置（bpos）で決める。
+// 肌の三角形を切り出して重ねる作り方は、縁が網目の粗さでギザギザになり、背面で布と肌が割れた。
+// 塗る方式なら体型を変えても布が突き抜けず、縁はなめらかな線になる（VRoid の衣装も肌の絵に塗る作り）。
+// 縁の線は、布の外を負、内を正にした「縁までの距離のような数」で書き、縁に細い陰の線を入れて布の端を見せる
+let casual = [], skin = null;
+const suit = { uOn: { value: 1 }, uSuit: { value: new THREE.Color(0xf6f6f3) },
+  uTop: { value: new THREE.Vector4() }, uBot: { value: new THREE.Vector4() }, uStr: { value: new THREE.Vector4() }, uF: { value: 1 } };
+const matName = m => (Array.isArray(m.material) ? m.material[0] : m.material).name || '';
+const SUIT_GLSL = `
+uniform float uOn; uniform float uF; uniform vec3 uSuit; uniform vec4 uTop; uniform vec4 uBot; uniform vec4 uStr;
+varying vec3 vB; varying float vT;
+float seg(vec2 p, vec2 a, vec2 b) { vec2 pa = p - a, ba = b - a; float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0); return length(pa - ba * h); }
+float suitF(vec3 p) {
+  p.z *= uF;   // 前を +z にそろえる
+  float ax = abs(p.x), body = (vT - 0.5) * 0.05;
+  // 上: 三角の布（底辺 uTop.y、頂点 uTop.z、中心 uTop.x、底辺の半幅 uTop.w）。前の面だけ
+  float t = (uTop.z - p.y) / (uTop.z - uTop.y);
+  float cup = min(min(p.y - uTop.y, uTop.z - p.y), min(uTop.w * t - abs(ax - uTop.x), p.z - 0.03));
+  // 胸の下を一周する紐と、三角の頂点から首の後ろへ上がる紐
+  float band = min(0.006 - abs(p.y - uTop.y - 0.003), body);
+  float str = min(0.0028 - seg(vec2(ax, p.y), vec2(uTop.x, uTop.z - 0.004), uStr.xy), p.z - uStr.z);
+  // 下: 前は細め、後ろは広めの三角。前と後ろは z でなめらかにつなぐ
+  float s = smoothstep(-0.05, 0.03, p.z);
+  float yc = uBot.x, top = mix(uBot.z, uBot.y, s) + 0.10 * ax;
+  float w = mix(uBot.w, 0.018, s) + max(p.y - yc, 0.0) * mix(3.2, 1.45, s);
+  float bot = min(min(top - p.y, p.y - (yc - 0.006)), min(w - ax, body));
+  // 腰の横を通る紐。三角の布の外側だけに出す（布の上に重ねると縁の線が二重になった）
+  float side = min(min(0.004 - abs(p.y - top + 0.004), body), ax - w + 0.004);
+  return max(max(cup, band), max(str, max(bot, side)));
+}`;
+// 髪の飾りの猫耳を外す。素体は人の耳を持つので、猫耳を残すと耳が4つになる（亜人の決まりに反する）。
+// 耳の内側の桃色（HAIR_02）が付く骨を耳の骨とみなし、頭の骨と耳の骨だけに付いた髪の部品を隠す
+function hideCatEars() {
+  const hair = meshes.filter(m => /HAIR/.test(matName(m)));
+  const joints = m => { const s = new Set(), si = m.geometry.attributes.skinIndex; for (const i of m.geometry.index.array) { const n = m.skeleton.bones[si.getX(i)].name; if (n !== 'J_Bip_C_Head') s.add(n); } return s; };
+  const ear = new Set(); hair.filter(m => /HAIR_02/.test(matName(m))).forEach(m => joints(m).forEach(n => ear.add(n)));
+  if (!ear.size) return 0;
+  let n = 0;
+  hair.forEach(m => { const j = joints(m); if (j.size && [...j].every(x => ear.has(x))) { m.visible = false; m.userData.earPart = true; n++; } });
+  return n;
+}
+function paintSuit() {
+  skin = meshes.find(m => matName(m).includes('Body_00_SKIN'));
+  casual = meshes.filter(m => /Tops|Bottoms/.test(matName(m)));
+  const g = skin.geometry, si = g.attributes.skinIndex, sw = g.attributes.skinWeight, n = g.attributes.position.count;
+  const ix = nm => skin.skeleton.bones.findIndex(b => b.name === nm);
+  const torso = ['J_Bip_C_Hips', 'J_Bip_C_Spine', 'J_Bip_C_Chest', 'J_Bip_C_UpperChest', 'J_Bip_L_UpperLeg', 'J_Bip_R_UpperLeg',
+                 'J_Sec_L_Bust1', 'J_Sec_L_Bust2', 'J_Sec_R_Bust1', 'J_Sec_R_Bust2'].map(ix).filter(i => i >= 0);
+  const vt = new Float32Array(n);
+  for (let v = 0; v < n; v++) vt[v] = weight(si, sw, v, torso);   // 胴と脚の付け根の重み。腕と手に水着を塗らないための目印
+  const bpos = new THREE.BufferAttribute(skin.userData.orig.slice(), 3), bT = new THREE.BufferAttribute(vt, 1);
+  // 線の位置は骨の位置から決める（素体を替えても比率が保たれる）。股の高さだけは肌の点から取る
+  const o = skin.userData.orig, hy = bind.hips.y;
+  let yc = hy;
+  for (let v = 0; v < n; v++) { const x = o[v * 3], y = o[v * 3 + 1], z = o[v * 3 + 2]; if (Math.abs(x) < 0.006 && Math.abs(z) < 0.03 && y > hy - 0.15 && y < yc) yc = y; }
+  const b1 = bind.bustPos[0], b2 = bind.bustPos[1];   // 胸の付け根と先
+  const yb = b1.y - 0.042, ya = b2.y + 0.065;
+  suit.uTop.value.set(Math.abs(b2.x), yb, ya, 0.066);
+  suit.uStr.value.set(0.045, bind.neck.y - 0.005, -0.06, 0);
+  suit.uBot.value.set(yc, hy - 0.004, hy + 0.03, 0.028);   // 上端は、肌の絵に描かれた下着のゴムより上。後ろはお尻の割れ目の上端を隠す高さ
+  suit.uF.value = bind.F;
+  meshes.filter(m => matName(m).includes('Body_00_SKIN')).forEach(m => {
+    m.geometry.setAttribute('bpos', bpos); m.geometry.setAttribute('bT', bT);
+    m.material.onBeforeCompile = sh => {
+      Object.assign(sh.uniforms, suit);
+      sh.vertexShader = 'attribute vec3 bpos; attribute float bT; varying vec3 vB; varying float vT;\n' +
+        sh.vertexShader.replace('#include <begin_vertex>', '#include <begin_vertex>\n vB = bpos; vT = bT;');
+      sh.fragmentShader = SUIT_GLSL + '\n' + sh.fragmentShader.replace('#include <map_fragment>', `#include <map_fragment>
+        float f = suitF(vB), aa = fwidth(f) + 1e-5;
+        float m = smoothstep(-aa, aa, f) * uOn;
+        float edge = m - smoothstep(0.0022 - aa, 0.0022 + aa, f) * uOn;
+        diffuseColor.rgb = mix(diffuseColor.rgb, uSuit, m) * (1.0 - 0.22 * edge);`);
+    };
+    m.material.needsUpdate = true;
+  });
+}
+// 普段着は水着の上に重ねる。肌の絵には下だけ下着が描かれていて、水着を消すと胸が出るので、水着は常に塗っておく
+function wear(w) { casual.forEach(m => m.visible = w !== 'swim'); suit.uOn.value = 1; }
+document.querySelectorAll('#wear button').forEach(b => b.addEventListener('click', () => { press(b.parentNode, b); wear(b.dataset.w); }));
+
+const BODY_IDS = ['bust', 'waist', 'hip', 'thigh', 'leg', 'head'];
+function readBody() { const b = {}; BODY_IDS.forEach(k => { b[k] = +document.getElementById('b-' + k).value; document.getElementById('b-' + k + '-o').textContent = b[k] + (k === 'bust' ? '' : '%'); }); return b; }
+function setBody(b) { BODY_IDS.forEach(k => document.getElementById('b-' + k).value = b[k]); shape(readBody()); }
+BODY_IDS.forEach(k => document.getElementById('b-' + k).addEventListener('input', () => shape(readBody())));
+document.getElementById('b-reset').addEventListener('click', () => setBody(ZERO));
+document.getElementById('b-ideal').addEventListener('click', () => setBody(IDEAL));
+document.getElementById('b-copy').addEventListener('click', () => {
+  const t = JSON.stringify(readBody()); const el = document.getElementById('b-json');
+  el.hidden = false; el.textContent = t;
+  navigator.clipboard?.writeText(t).catch(() => {});
+});
+
+
+// 亜人の部品。付け根の位置を骨に固定するので、どの向き・どのポーズでも同じ所から生える。
+// 位置は肌の点から取る（尾骶骨・肩甲骨は背中の表面、角と耳は頭）。部品の向きは「上 = +y、背中側 = +z」でそろえて作る
+const V = (x, y, z) => new THREE.Vector3(x, y, z);
+const toonMat = c => new THREE.MeshToonMaterial({ color: c, gradientMap: ramp, side: THREE.DoubleSide });
+// 部品の主な色の素材。種ごとの色（髪や毛の色）に塗り替えるときに、この印の付いた素材だけを変える
+const mainMat = c => { const m = toonMat(c); m.userData.main = true; return m; };
+// 太さが根元から先へ細くなる管
+// r0 に関数を渡すと、根元からの割合 t（0〜1）ごとの太さになる（狐の尾のように途中が太い形）
+function taperTube(pts, r0, r1, seg = 48, rad = 12) {
+  const c = new THREE.CatmullRomCurve3(pts), g = new THREE.TubeGeometry(c, seg, 1, rad, false), P = g.attributes.position, v = V(0, 0, 0);
+  const T = new Float32Array(P.count);
+  for (let i = 0; i <= seg; i++) {
+    const t = i / seg, ctr = c.getPointAt(t), r = typeof r0 === 'function' ? r0(t) : r0 + (r1 - r0) * t;
+    for (let j = 0; j <= rad; j++) T[i * (rad + 1) + j] = t;
+    for (let j = 0; j <= rad; j++) { const k = i * (rad + 1) + j; v.fromBufferAttribute(P, k).sub(ctr).multiplyScalar(r).add(ctr); P.setXYZ(k, v.x, v.y, v.z); }
+  }
+  g.computeVertexNormals();
+  g.setAttribute('along', new THREE.BufferAttribute(T, 1));
+  return { geo: g, curve: c };
+}
+function catTail() {
+  const o = new THREE.Group(), col = 0x1c1626;
+  const { geo, curve } = taperTube([V(0, 0, -0.015), V(0, -0.02, 0.05), V(0.02, -0.07, 0.14), V(0.06, -0.03, 0.25), V(0.09, 0.09, 0.29), V(0.1, 0.22, 0.27)], 0.02, 0.014);
+  const mat = mainMat(col); o.add(new THREE.Mesh(geo, mat));
+  const tip = new THREE.Mesh(new THREE.SphereGeometry(0.014, 12, 8), mat); tip.position.copy(curve.getPointAt(1)); o.add(tip);
+  return o;
+}
+function devilTail() {
+  const o = new THREE.Group(), col = 0x3a1d2c;
+  const { geo, curve } = taperTube([V(0, 0, -0.015), V(0, -0.04, 0.06), V(0.04, -0.2, 0.14), V(0.1, -0.36, 0.16), V(0.16, -0.46, 0.1)], 0.02, 0.009);   // 細すぎると描き直しで消えた（半径 1.2cm では背面で尾が消えた）
+  o.add(new THREE.Mesh(geo, toonMat(col)));
+  const sh = new THREE.Shape(); sh.moveTo(0, -0.016); sh.lineTo(-0.05, -0.028); sh.quadraticCurveTo(-0.042, 0.04, 0, 0.09); sh.quadraticCurveTo(0.042, 0.04, 0.05, -0.028); sh.lineTo(0, -0.016);
+  const sp = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.01, bevelEnabled: false }), toonMat(col));
+  sp.position.copy(curve.getPointAt(1)); sp.quaternion.setFromUnitVectors(V(0, 1, 0), curve.getTangentAt(1)); o.add(sp);
+  return o;
+}
+function catEar(side) {
+  const o = new THREE.Group();
+  const outer = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.13, 3), mainMat(0x1c1626)); outer.scale.set(1, 1, 0.5); outer.position.y = 0.05;
+  const inner = new THREE.Mesh(new THREE.ConeGeometry(0.036, 0.09, 3), toonMat(0xe8a0a8)); inner.scale.set(1, 1, 0.3); inner.position.set(0, 0.042, -0.011);
+  o.add(outer, inner); o.rotation.z = -side * 0.3;   // 外へ少し開く
+  return o;
+}
+function horn(side) {
+  const { geo } = taperTube([V(0, -0.01, 0), V(side * 0.012, 0.055, 0.012), V(side * 0.04, 0.105, 0.065), V(side * 0.06, 0.125, 0.13)], 0.02, 0.003, 32, 10);
+  return new THREE.Mesh(geo, toonMat(0x2a1a1a));
+}
+function wing(side) {
+  const o = new THREE.Group(), sh = new THREE.Shape();
+  sh.moveTo(0, 0); sh.lineTo(0.12, 0.16); sh.lineTo(0.34, 0.25); sh.lineTo(0.45, 0.14);
+  sh.quadraticCurveTo(0.39, 0.06, 0.37, -0.04); sh.quadraticCurveTo(0.31, 0.02, 0.26, -0.07); sh.quadraticCurveTo(0.2, 0.0, 0.15, -0.08); sh.quadraticCurveTo(0.09, -0.02, 0.0, -0.05); sh.lineTo(0, 0);
+  o.add(new THREE.Mesh(new THREE.ShapeGeometry(sh), toonMat(0x4a2238)));
+  const { geo } = taperTube([V(0, 0, 0), V(0.12, 0.16, 0), V(0.34, 0.25, 0), V(0.45, 0.14, 0)], 0.009, 0.003, 40, 8);
+  o.add(new THREE.Mesh(geo, toonMat(0x2a1420)));
+  o.scale.x = side; o.rotation.y = side * -0.45;   // 先を背中側へ流す
+  return o;
+}
+function foxEar(side) {
+  const o = new THREE.Group();
+  const outer = new THREE.Mesh(new THREE.ConeGeometry(0.055, 0.15, 3), mainMat(0xc8682a)); outer.scale.set(1, 1, 0.5); outer.position.y = 0.06;
+  const inner = new THREE.Mesh(new THREE.ConeGeometry(0.036, 0.1, 3), toonMat(0xf3ece2)); inner.scale.set(1, 1, 0.3); inner.position.set(0, 0.048, -0.011);
+  o.add(outer, inner); o.rotation.z = -side * 0.25;
+  return o;
+}
+function rabbitEar(side) {
+  const o = new THREE.Group();
+  const outer = new THREE.Mesh(new THREE.SphereGeometry(0.03, 16, 12), mainMat(0xf2eee8)); outer.scale.set(0.9, 3.6, 0.45); outer.position.y = 0.1;
+  const inner = new THREE.Mesh(new THREE.SphereGeometry(0.02, 12, 10), toonMat(0xe8a0a8)); inner.scale.set(0.8, 3.6, 0.3); inner.position.set(0, 0.1, -0.008);
+  o.add(outer, inner); o.rotation.z = -side * 0.12;
+  return o;
+}
+// 狐の尾: 途中が太く、先の 2 割ほどが白い。白い先は点ごとの色で塗る（主な色を変えても先は白のまま）
+function foxTail() {
+  const { geo } = taperTube([V(0, 0, -0.015), V(0, -0.04, 0.07), V(0.02, -0.12, 0.18), V(0.06, -0.14, 0.3), V(0.1, -0.06, 0.38), V(0.12, 0.05, 0.4)],
+    t => 0.022 + 0.06 * Math.sin(Math.PI * Math.min(1, t * 1.05)) + (t > 0.95 ? -0.02 : 0), 0, 48, 16);
+  const A = geo.attributes.along, col = new Float32Array(A.count * 3);
+  for (let i = 0; i < A.count; i++) { const w = A.getX(i) > 0.8 ? 1 : 0; col[i * 3] = col[i * 3 + 1] = col[i * 3 + 2] = w; }
+  geo.setAttribute('tip', new THREE.BufferAttribute(col, 3));
+  const m = new THREE.Mesh(geo, mainMat(0xc8682a)); m.userData.tipWhite = true;
+  return m;
+}
+function rabbitTail() {
+  // 付け根より少し上に置く（白い水着に重なると、描き直しで布と見分けが付かず消えた）。色は水着の白と分けてクリーム色
+  const m = new THREE.Mesh(new THREE.SphereGeometry(0.04, 16, 12), mainMat(0xeadcc4)); m.position.set(0, 0.025, 0.03);
+  const o = new THREE.Group(); o.add(m); return o;
+}
+// 天使の羽: 鳥の翼の形。後ろの縁は風切羽の並び（丸い山の連なり）にする
+function featherWing(side) {
+  const o = new THREE.Group(), sh = new THREE.Shape();
+  sh.moveTo(0, 0); sh.quadraticCurveTo(0.12, 0.24, 0.32, 0.3); sh.quadraticCurveTo(0.5, 0.32, 0.56, 0.18);
+  const tips = [[0.5, 0.04], [0.43, -0.09], [0.35, -0.19], [0.26, -0.26], [0.17, -0.28], [0.09, -0.22], [0.03, -0.1]];
+  let px = 0.56, py = 0.18;
+  for (const [x, y] of tips) { sh.quadraticCurveTo((px + x) / 2 + 0.035, (py + y) / 2 - 0.02, x, y); px = x; py = y; }
+  sh.lineTo(0, 0);
+  // 真っ白だと白い背景に溶けて、正面で羽が消えた。薄い青灰にし、縁を濃くする
+  o.add(new THREE.Mesh(new THREE.ShapeGeometry(sh, 24), mainMat(0xdfe3ee)));
+  const { geo } = taperTube([V(0, 0, 0), V(0.12, 0.2, 0), V(0.32, 0.29, 0), V(0.55, 0.18, 0)], 0.012, 0.004, 40, 8);
+  o.add(new THREE.Mesh(geo, toonMat(0x9aa2b4)));
+  o.scale.x = side; o.rotation.y = side * -0.25;   // 後ろへ流しすぎると、正面から細い線にしか見えず描き直しで消える
+  return o;
+}
+// 部品の一覧。種は「耳・尾・翼・角」をこの中の形の名前で選ぶ（casts/demi3d.json の parts）
+const PART_LIB = {
+  ears: { cat: catEar, fox: foxEar, rabbit: rabbitEar },
+  tail: { cat: catTail, fox: foxTail, devil: devilTail, rabbit: rabbitTail },
+  wings: { bat: wing, feather: featherWing },
+  horns: { devil: horn },
+};
+const KINDS = { none: {}, cat: { ears: 'cat', tail: 'cat' }, devil: { tail: 'devil', wings: 'bat', horns: 'devil' },
+                fox: { ears: 'fox', tail: 'fox' }, rabbit: { ears: 'rabbit', tail: 'rabbit' }, angel: { wings: 'feather' } };
+// 肌の模型の座標の点（at）に、部品（obj）を骨（bone）の子として付ける。部品の上は +y、背中側は +z
+function attach(bone, obj, at) {
+  const b = vrm.humanoid.getRawBoneNode(bone);
+  obj.userData.part = { hips: 'tail', upperChest: 'wing', head: 'head' }[bone] || 'part';
+  vrm.scene.updateMatrixWorld(true);
+  const w = skin.localToWorld(at.clone()); b.worldToLocal(w); obj.position.copy(w);
+  const back = V(0, 0, -bind.F), up = V(0, 1, 0), basis = new THREE.Matrix4().makeBasis(up.clone().cross(back), up, back);
+  const q = new THREE.Quaternion().setFromRotationMatrix(basis);
+  q.premultiply(skin.getWorldQuaternion(new THREE.Quaternion())).premultiply(b.getWorldQuaternion(new THREE.Quaternion()).invert());
+  obj.quaternion.premultiply(q);
+  b.add(obj);
+  return obj;
+}
+// 背中の表面の点。x と y の近くの肌の点のうち、いちばん背中側
+function backPoint(x, y) {
+  const o = skin.userData.orig; let best = null, bz = -9;
+  for (let v = 0; v < o.length / 3; v++) {
+    if (Math.abs(o[v * 3] - x) < 0.012 && Math.abs(o[v * 3 + 1] - y) < 0.012) { const z = -bind.F * o[v * 3 + 2]; if (z > bz) { bz = z; best = v; } }
+  }
+  return V(x, y, -bind.F * bz);
+}
+let kind = 'none', parts = {}, earFold = null;
+function setupParts() {
+  const hy = bind.hips.y, by = bind.bustPos[0].y, F = bind.F;
+  // 尾骶骨: 腰の骨より少し上の背中の中心。水着の後ろの上端（この時は少し下げる）のすぐ上
+  const coccyx = backPoint(0, hy + 0.022);
+  for (const [slot, lib] of Object.entries(PART_LIB)) {
+    parts[slot] = {};
+    for (const [shape, make] of Object.entries(lib)) {
+      parts[slot][shape] =
+        slot === 'tail' ? [attach('hips', make(), coccyx)] :
+        slot === 'wings' ? [attach('upperChest', make(1), backPoint(0.055, by + 0.025)), attach('upperChest', make(-1), backPoint(-0.055, by + 0.025))] :
+        slot === 'horns' ? [attach('head', make(1), V(0.045, 1.585, 0.02 * F)), attach('head', make(-1), V(-0.045, 1.585, 0.02 * F))] :
+        [attach('head', make(1), V(0.062, 1.6, 0.0)), attach('head', make(-1), V(-0.062, 1.6, 0.0))];
+    }
+  }
+  // 人の耳（顔の模型の、高さ 1.43〜1.51 で横幅 0.085 より外の点）を頭の側面まで引っ込める。獣耳のときだけ使う
+  const face = meshes.filter(m => /Face_00_SKIN/.test(matName(m)));
+  if (face.length) {
+    const P = face[0].geometry.attributes.position, orig = P.array.slice(), fold = orig.slice();
+    for (let v = 0; v < P.count; v++) { const x = orig[v * 3], y = orig[v * 3 + 1]; if (y > 1.43 && y < 1.51 && Math.abs(x) > 0.085) fold[v * 3] = Math.sign(x) * 0.082; }
+    earFold = { P, orig, fold };
+  }
+  setKind('none');
+}
+// 部品を選ぶ。spec は { ears, tail, wings, horns }（形の名前）と、任意で color（{ ears: '#c8682a', tail: ... }）
+function setParts(spec) {
+  for (const [slot, shapes] of Object.entries(parts))
+    for (const [shape, list] of Object.entries(shapes)) {
+      const on = spec[slot] === shape;
+      list.forEach(o => {
+        o.visible = on;
+        const c = on && spec.color && spec.color[slot];
+        o.traverse(q => { if (q.isMesh && q.material.userData.main) {
+          if (!q.material.userData.base) q.material.userData.base = q.material.color.clone();
+          q.material.color.copy(c ? new THREE.Color(c) : q.material.userData.base);
+          if (q.userData.tipWhite) tintTip(q);
+        } });
+      });
+    }
+  if (earFold) { earFold.P.array.set(spec.ears ? earFold.fold : earFold.orig); earFold.P.needsUpdate = true; }
+  suit.uBot.value.z = bind.hips.y + (spec.tail ? 0.008 : 0.03);   // 尾があるときは、水着の後ろの上端を尾の付け根の下に下げる
+}
+// 狐の尾の白い先: 素材の色は白にして、点ごとの色で根元側を主な色に、先を白にする
+function tintTip(m) {
+  const base = m.material.color.clone(), tip = m.geometry.attributes.tip, n = tip.count, col = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) { const w = tip.getX(i); col[i * 3] = base.r + (0.96 - base.r) * w; col[i * 3 + 1] = base.g + (0.94 - base.g) * w; col[i * 3 + 2] = base.b + (0.9 - base.b) * w; }
+  m.geometry.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  m.material.vertexColors = true; m.material.color.set(0xffffff); m.material.needsUpdate = true;
+}
+function setKind(k) { kind = k; setParts(KINDS[k] || {}); }
+document.querySelectorAll('#parts button').forEach(b => b.addEventListener('click', () => { press(b.parentNode, b); if (vrm) setKind(b.dataset.k); }));
+
+// 道具（tools/gen/demi.py）から撮るための入口。部品の型（mask）は、肌を緑・亜人の部品を種類ごとの色・それ以外を黒の単色で描く。
+// 描いた絵の同じ位置に部品が残っているかを、この型で数える
+// 部品は種類ごとに色を分ける（尾は赤、翼は桃、頭の部品は黄）。種類ごとに残っているかを数えるため
+const maskBasic = c => new THREE.MeshBasicMaterial({ color: c, side: THREE.DoubleSide });
+const maskMats = { skin: maskBasic(0x00ff00), other: maskBasic(0x000000), tail: maskBasic(0xff0000), wing: maskBasic(0xff00ff), head: maskBasic(0xffff00), part: maskBasic(0xff0000) };
+function maskMode(on) {
+  vrm.scene.traverse(o => {
+    if (!o.isMesh) return;
+    if (on) {
+      if (!o.userData.mat) o.userData.mat = o.material;
+      let part = null; for (let q = o; q && !part; q = q.parent) part = q.userData.part || null;
+      o.material = part ? maskMats[part] : /_SKIN/.test(o.userData.mat.name || '') ? maskMats.skin : maskMats.other;
+    } else if (o.userData.mat) { o.material = o.userData.mat; delete o.userData.mat; }
+  });
+}
+window.tool = { hairColor: hex => meshes.forEach(m => { if (/HAIR/.test(matName(m)) && !m.userData.earPart) { m.material.map = null; m.material.color.set(hex); m.material.needsUpdate = true; } }), parts: spec => setParts(spec), hair: on => meshes.forEach(m => { if (/HAIR/.test(matName(m)) && !m.userData.earPart) m.visible = on; }), barefoot: on => meshes.forEach(m => { if (/Shoes/.test(matName(m))) m.visible = !on; }), kind: k => setKind(k), body: n => setBody(n === 'ideal' ? IDEAL : ZERO), pose: id => pose(id), view: a => view(a, false), mask: maskMode };
+
+fetch('base-vrm.txt').then(r => { if (!r.ok) throw new Error(r.status); return r.text(); }).then(t => {
+  const bin = atob(t.trim()); const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  const loader = new THREE.GLTFLoader();
+  loader.register(parser => new THREE_VRM.VRMLoaderPlugin(parser));
+  loader.parse(bytes.buffer, '', gltf => {
+    vrm = gltf.userData.vrm;
+    THREE_VRM.VRMUtils.rotateVRM0(vrm);
+    // VRoid の古い形式（VRM 0.x）の MToon は、この組み合わせ（three 0.147 と three-vrm 1.0.6）では肌と髪が真っ黒に出た。
+    // 古い形式のときだけ、元の絵（map）と色を引き継いだ陰2段の素材（MeshToonMaterial）に置き換える。輪郭線の素材は外す
+    if (vrm.meta.metaVersion === '0') {
+      vrm.scene.traverse(o => {
+        if (!o.isMesh) return;
+        const src = Array.isArray(o.material) ? o.material[0] : o.material;
+        const u = src.uniforms || {};
+        const map = src.map || (u.map && u.map.value) || null;
+        const lit = (u.litFactor && u.litFactor.value) || src.color || new THREE.Color(0xffffff);
+        o.material = new THREE.MeshToonMaterial({ map, color: lit.clone(), gradientMap: ramp,
+          transparent: !!src.transparent, alphaTest: src.alphaTest || (src.transparent ? 0 : 0.5),
+          side: src.side, depthWrite: src.depthWrite });
+        o.material.name = src.name;
+      });
+    }
+    vrm.scene.traverse(o => { o.frustumCulled = false; });
+    scene.add(vrm.scene);
+    const box = new THREE.Box3().setFromObject(vrm.scene);
+    height = box.max.y - box.min.y; center.set(0, box.min.y + height / 2, 0);
+    setupBody(); hideCatEars(); paintSuit(); setupParts(); wear('swim'); shape(readBody());
+    pose('stand'); resize(); light(); view(0, false);
+    load.hidden = true; window.ready = true;
+  }, () => { load.textContent = '模型を読み込めませんでした。ページを開き直してください。'; });
+}).catch(() => { load.textContent = '模型を読み込めませんでした。ページを開き直してください。'; });
+
+const clock = new THREE.Clock();
+(function loop() {
+  const dt = clock.getDelta();
+  if (vrm) vrm.update(dt);
+  controls.update(); renderer.render(scene, camera); requestAnimationFrame(loop);
+})();
+</script>

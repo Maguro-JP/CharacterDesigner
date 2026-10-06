@@ -1,0 +1,186 @@
+"""キャラクターデザインのローカルアプリのサーバー（docs/app/PLAN.md の M1）。
+
+亜人の設定資料を描く仕事を受け、1つずつ順番に処理して、結果（絵と検品の結果）を返す。
+描く処理は tools/gen/demi.py をそのまま使う。
+
+- 仕事は1つずつ。SDXL を2つ同時に動かすと 15GB のメモリを超えて強制終了された（docs/knowledge/models.md）
+- モデルは最初の仕事で1度だけ読み、プロセスが生きている間は使い回す（読み込みに約 10 分かかる）
+- 描く処理は Runner として差し替えられる。試験では本物を使わず、流れだけを確かめる
+
+起動: PYTHONPATH=.cache/app/lib:.cache/gen/lib python3 -m uvicorn app.server.main:app --port 8000
+"""
+from __future__ import annotations
+
+import json
+import os
+import queue
+import re
+import sys
+import threading
+import time
+import uuid
+from dataclasses import dataclass, field
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse
+from pydantic import BaseModel, Field
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "tools" / "gen"))
+import demi  # noqa: E402  描く処理の本体
+
+DATA = Path(os.environ.get("CD_APP_DATA", ROOT / ".cache" / "app" / "jobs"))
+NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
+# 返してよいファイル。仕事のフォルダの中の、この形の名前だけ（../ などで外を読ませない）
+FILE = re.compile(r"^(sheet|underlay|mask|try-\d+|try-\d+-inspect)\.png$|^report\.json$")
+
+
+class Runner:
+    """描く処理。下絵を撮り、描いて検品する。on_try(k, stage, result) で進み具合を知らせる。"""
+
+    def underlay(self, case: dict, outdir: Path) -> None:
+        demi.underlay(case, outdir)
+
+    def draw(self, case: dict, outdir: Path, strength: float, tries: int, on_try) -> list:
+        return demi.draw(case, outdir, strength, tries, on_try=on_try)
+
+
+@dataclass
+class Job:
+    id: str
+    case_name: str
+    case: dict
+    strength: float
+    tries: int
+    state: str = "queued"            # queued → underlay → drawing → done / failed
+    try_index: int | None = None     # 今描いている回（0 から）
+    passed: bool | None = None       # 機械の検品を通ったか
+    error: str | None = None
+    created: float = field(default_factory=time.time)
+    started: float | None = None
+    finished: float | None = None
+    results: list = field(default_factory=list)   # 回ごとの検品の結果
+
+    def public(self) -> dict:
+        d = {k: getattr(self, k) for k in ("id", "case_name", "strength", "tries", "state", "try_index", "passed",
+                                            "error", "created", "started", "finished", "results")}
+        d["files"] = sorted(p.name for p in (DATA / self.id).glob("*") if FILE.match(p.name)) if (DATA / self.id).exists() else []
+        return d
+
+
+class Queue:
+    """仕事を1つずつ処理する。仕事の状態はメモリに持ち、終わったものは DATA/<id>/job.json にも残す。"""
+
+    def __init__(self, runner: Runner):
+        self.runner = runner
+        self.jobs: dict[str, Job] = {}
+        self.q: queue.Queue[str] = queue.Queue()
+        self.lock = threading.Lock()
+        threading.Thread(target=self._loop, daemon=True).start()
+
+    def submit(self, name: str, case: dict, strength: float, tries: int) -> Job:
+        job = Job(uuid.uuid4().hex[:12], name, case, strength, tries)
+        with self.lock:
+            self.jobs[job.id] = job
+        self.q.put(job.id)
+        return job
+
+    def _loop(self):
+        while True:
+            job = self.jobs[self.q.get()]
+            out = DATA / job.id
+            out.mkdir(parents=True, exist_ok=True)
+            job.started = time.time()
+            try:
+                job.state = "underlay"
+                self.runner.underlay(job.case, out)
+                job.state = "drawing"
+
+                def on_try(k, stage, result):
+                    job.try_index = k
+                    if stage == "checked":
+                        job.results.append({"try": k, "result": result})
+                self.runner.draw(job.case, out, job.strength, job.tries, on_try)
+                job.passed = (out / "sheet.png").exists()
+                job.state = "done"
+            except Exception as e:   # 1つの仕事の失敗で、サーバーと次の仕事を止めない
+                job.state, job.error = "failed", f"{type(e).__name__}: {e}"
+            finally:
+                job.finished = time.time()
+                (out / "job.json").write_text(json.dumps(job.public(), ensure_ascii=False, indent=1))
+
+
+def load_cases() -> dict:
+    return json.loads(demi.CASES.read_text())
+
+
+def save_cases(data: dict) -> None:
+    # 書きかけで壊れないよう、別のファイルに書いてから置き換える
+    tmp = demi.CASES.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(data, ensure_ascii=False, indent=2) + "\n")
+    tmp.replace(demi.CASES)
+
+
+class JobIn(BaseModel):
+    case: str
+    strength: float | None = Field(None, ge=0.1, le=0.95)
+    tries: int = Field(3, ge=1, le=6)
+
+
+def create_app(runner: Runner | None = None) -> FastAPI:
+    app = FastAPI(title="CharacterDesigner")
+    jobs = Queue(runner or Runner())
+    app.state.jobs = jobs
+
+    @app.get("/api/cases")
+    def cases():
+        return load_cases()["cases"]
+
+    @app.put("/api/cases/{name}")
+    def put_case(name: str, case: dict):
+        if not NAME.match(name):
+            raise HTTPException(400, "名前は英小文字・数字・- _ で 41 字まで")
+        errs = demi.validate_case(case)
+        if errs:
+            raise HTTPException(422, errs)
+        data = load_cases()
+        data["cases"][name] = case
+        save_cases(data)
+        return case
+
+    @app.post("/api/jobs", status_code=202)
+    def post_job(body: JobIn):
+        cs = load_cases()["cases"]
+        if body.case not in cs:
+            raise HTTPException(404, f"種「{body.case}」は無い")
+        case = cs[body.case]
+        errs = demi.validate_case(case)
+        if errs:
+            raise HTTPException(422, errs)
+        strength = body.strength if body.strength is not None else case.get("strength", 0.6)
+        return jobs.submit(body.case, case, strength, body.tries).public()
+
+    @app.get("/api/jobs")
+    def list_jobs():
+        return [j.public() for j in sorted(jobs.jobs.values(), key=lambda j: -j.created)]
+
+    @app.get("/api/jobs/{job_id}")
+    def get_job(job_id: str):
+        if job_id not in jobs.jobs:
+            raise HTTPException(404, "その仕事は無い")
+        return jobs.jobs[job_id].public()
+
+    @app.get("/api/jobs/{job_id}/files/{name}")
+    def get_file(job_id: str, name: str):
+        if job_id not in jobs.jobs or not FILE.match(name):
+            raise HTTPException(404, "そのファイルは無い")
+        p = DATA / job_id / name
+        if not p.exists():
+            raise HTTPException(404, "そのファイルはまだ無い")
+        return FileResponse(p)
+
+    return app
+
+
+app = create_app()

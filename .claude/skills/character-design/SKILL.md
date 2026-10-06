@@ -18,6 +18,7 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
 - 気持ち悪い絵（写実の顔の 3D、白目だけの目など）は見せない
 - 正面と背面で色や形が食い違うものを1体として出さない
 - 特徴（耳・尾・翼・角・肌）がどこに付いているか分からない絵は通さない
+- 亜人は `docs/knowledge/demihuman-anatomy.md` の決まりで見る（獣耳なら人の耳を描かない、尾は尾骶骨、翼は肩甲骨から）
 
 描き方
 - モンスターを人型にしない（擬人化は頼まれてから）
@@ -37,6 +38,40 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
 女性を描くときは、利用者が決めた体のベース `ideal` を使う（`library/body-types.json` の anime.ideal、見本 `library/samples/anime-ideal-female.png`）。
 `PYTHONPATH=.cache/gen/lib python3 tools/gen/people.py card <出力> <名前> --gender female --base ideal --tags "<種族や特徴>"`
 体型を変えるよう頼まれたときだけ、ベースの言葉を変える。
+
+## 亜人（角・獣耳・翼・尾）を描く
+
+「狐娘を作って」「サキュバスを描いて」のように亜人を頼まれたら、この流れで最後まで進める。
+言葉だけで描くと、尾の付け根や向きごとの部品の有無が揃わない（6種中0種）。3D の素体を下絵にする `tools/gen/demi.py` を使う。
+
+1. 種の設定を自分で書く（聞き返さない）。`casts/demi3d.json` の cases に1件足す
+   - parts: 3D の部品を形の名前で選ぶ。ears: cat / fox / rabbit、tail: cat / fox / devil / rabbit、wings: bat / feather、horns: devil
+     - color で部品ごとの色（`{"ears": "#c8682a", "tail": "#c8682a"}`）。描く色と下絵の色を合わせる（下絵の色が絵に効く）
+     - 無い形が要るときは `tools/engine/viewer/vrm-base.html` の PART_LIB に足す。付け根は骨に付くので、形を作るだけでよい
+   - tags: 種と部品を英語のタグで（例: "fox girl, orange fox ears, large fluffy orange fox tail"）
+   - hair: 髪の色と目の色。hair_3d を "hide" にすると下絵の髪を隠し、髪型を hair の言葉で決める（既定は下絵のツインテール）
+   - negative: 頼んでいない部品（作り物の耳、余分な尾、頼んでいないとがった耳）
+   - anatomy: 体の決まりの指示（animal_ears / tail / wings）
+   - strength: 翼のある種は 0.5（0.6 だと斜め前を後ろ向きに描き直した）。他は既定の 0.6
+2. 初回だけ `python3 tools/gen/demi.py setup`（素体と表示の部品を `.cache/engine/vrm` に取る。約 20 秒）
+3. `PYTHONPATH=.cache/gen/lib python3 -u tools/gen/demi.py run <名前> <出力>` を裏で走らせる（run_in_background）
+   - 下絵 約20秒、1回 約3分、初回はモデルの読み込みに約10分。待つ間の報告も日本語で書く
+4. 機械の検品の結果（`report.json`、各回の `try-N-inspect.png` の ○×）を見る。3回とも落ちたら、落ちた理由から直す
+   - 部品が消えた → 下絵の部品を太く・大きく、または strength を下げる
+   - 余分な部品が出た → negative に足す
+   - 向きが変わった → strength を下げる
+5. 通った絵を、`docs/knowledge/demihuman-anatomy.md` の項目で目で見る（人の耳が残っていないか、頼んでいないとがった耳、付け根、色の食い違い）
+6. 目で通ったものだけを見せる。`library/samples/demi3d-<名前>.png` に置き、分かったことを `docs/knowledge/demihuman-anatomy.md` に足す
+
+## 完成の1枚絵（背景つき）を頼まれたとき
+
+基準は利用者の目: デザインとの一致より、絵として整っていること（矛盾・あり得ない形が無い、背景が作り込まれている）。
+頼まれていない基準を自分で足さない。前の周で良かった要素（ポーズ、構図）は引き継ぐ。決まりと分かったことは `docs/knowledge/illustration.md`。
+
+`PYTHONPATH=.cache/gen/lib python3 tools/gen/layers.py <人物の絵> <出力> --scene "<背景の言葉>" --light front|left|right|back --blend 0.5 --prompt "<人物の言葉>"`
+- 人物と背景を別々に作って重ねる。大きさは地平線から遠近で決まる。足元（水・濡れた面・花や草・地面）は自動で判定する
+- 出力: layers.psd（Photoshop・CLIP STUDIO）、composite.png（重ねただけ）、final.png（輪郭と足元をなじませた1枚）、layers.json（検品の数字）
+- 見せる前に final.png を拡大して目で見る: 人物の周りの白、境界線、水の無い所の映り込み、手前の物より前に出た人物、手足の形
 
 ## 0. 頼まれたときの流れ
 
@@ -119,7 +154,8 @@ python3 tools/learn.py score styles/diorama.learned.json characters/*/sprite.jso
 
 ## 3.5 3D（頼まれたとき）
 
-手順と詰まったところは `docs/knowledge/3d.md`。`tools/engine/model3d.py` で書き出し、`tools/engine/viewer/toon.html` で見る。
+手順と詰まったところは `docs/knowledge/3d.md`。専用ベース（アニメ調、体型・水着・亜人の部品・ポーズ・光）は `tools/engine/viewer/vrm-base.html`。
+3D は一区切りにしている。広げるのは亜人の下絵に要る部品だけにする。
 写実の顔は見せない。アニメ調（頭を大きめ、陰2段、輪郭線、大きな瞳）にしてから、正面・顔を自分で撮って確かめてから見せる。
 
 ## 4. 残す
