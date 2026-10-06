@@ -137,6 +137,14 @@ def create_app(runner: Runner | None = None) -> FastAPI:
     def cases():
         return load_cases()["cases"]
 
+    @app.get("/api/parts")
+    def parts():
+        # 画面の選択肢。種の設定で選べる部品の形・3D の部品の組・体の決まりを、描く道具の定義から返す（画面に写しを持たない）
+        rules = json.loads((ROOT / "casts" / "demihuman-cards.json").read_text())["anatomy"]
+        return {"shapes": {slot: sorted(shapes) for slot, shapes in demi.PART_SHAPES.items()},
+                "kinds": sorted(demi.KINDS),
+                "anatomy": sorted(k for k, v in rules.items() if isinstance(v, dict))}
+
     @app.put("/api/cases/{name}")
     def put_case(name: str, case: dict):
         if not NAME.match(name):

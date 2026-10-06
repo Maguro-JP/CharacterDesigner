@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, type Case, type Job } from "./api";
+import CaseForm from "./CaseForm";
 
 const STATE_JA: Record<Job["state"], string> = {
   queued: "待ち",
@@ -69,21 +70,27 @@ export default function App() {
   const [tries, setTries] = useState(3);
   const [error, setError] = useState("");
   const [now, setNow] = useState(Date.now());
+  // 開いている種の設定の欄。new は新しく足す、それ以外は直す種の名前
+  const [editing, setEditing] = useState<string | null>(null);
 
   const refreshJobs = useCallback(() => {
     api.jobs().then(setJobs).catch((e: Error) => setError(e.message));
   }, []);
 
-  useEffect(() => {
+  const loadCases = useCallback((select?: string) => {
     api
       .cases()
       .then((c) => {
         setCases(c);
-        setSelected((s) => s || Object.keys(c)[0] || "");
+        setSelected((s) => select || s || Object.keys(c)[0] || "");
       })
       .catch((e: Error) => setError(`サーバーに繋がらない: ${e.message}`));
+  }, []);
+
+  useEffect(() => {
+    loadCases();
     refreshJobs();
-  }, [refreshJobs]);
+  }, [loadCases, refreshJobs]);
 
   const busy = jobs.some((j) => j.state !== "done" && j.state !== "failed");
   useEffect(() => {
@@ -113,7 +120,7 @@ export default function App() {
       <section className="mt-6">
         <h2 className="mb-2 font-bold">種を選ぶ</h2>
         <CaseList cases={cases} selected={selected} onSelect={setSelected} />
-        <div className="mt-3 flex items-center gap-3">
+        <div className="mt-3 flex flex-wrap items-center gap-3">
           <label className="text-sm">
             試す回数
             <select className="ml-2 rounded border border-line bg-panel px-2 py-1" value={tries} onChange={(e) => setTries(Number(e.target.value))}>
@@ -125,8 +132,29 @@ export default function App() {
           <button type="button" disabled={!selected} onClick={submit} className="rounded bg-accent px-4 py-1.5 font-bold text-ink disabled:opacity-40">
             描く
           </button>
+          <button type="button" disabled={!selected} onClick={() => setEditing(selected)} className="rounded border border-line px-3 py-1.5 disabled:opacity-40">
+            直す
+          </button>
+          <button type="button" onClick={() => setEditing("new")} className="rounded border border-line px-3 py-1.5">
+            新しく足す
+          </button>
           <span className="text-xs text-neutral-400">CPU では1回 約3分。最初の1件はモデルの読み込みに 約10分</span>
         </div>
+        {editing && (
+          <div className="mt-4">
+            <CaseForm
+              key={editing}
+              name={editing === "new" ? "" : editing}
+              initial={editing === "new" ? { tags: "", hair: "", anatomy: [] } : (cases[editing] ?? {})}
+              isNew={editing === "new"}
+              onSaved={(name) => {
+                setEditing(null);
+                loadCases(name);
+              }}
+              onCancel={() => setEditing(null)}
+            />
+          </div>
+        )}
       </section>
 
       <section className="mt-8">

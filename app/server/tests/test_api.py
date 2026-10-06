@@ -138,3 +138,11 @@ def test_put_case_validates_and_saves(client):
     assert c.put("/api/cases/newcat", json=good).status_code == 200
     assert json.loads(cases.read_text())["cases"]["newcat"] == good
     assert c.put("/api/cases/Bad Name", json=good).status_code == 400
+
+
+def test_parts_lists_choices_from_tool(client):
+    c, _ = client(FakeRunner())
+    r = c.get("/api/parts").json()
+    assert r["shapes"]["ears"] == sorted(main.demi.PART_SHAPES["ears"])
+    assert "devil" in r["kinds"] and "about" not in r["anatomy"]
+    assert {"animal_ears", "tail", "wings"} <= set(r["anatomy"])
