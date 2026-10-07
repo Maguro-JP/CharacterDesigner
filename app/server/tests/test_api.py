@@ -44,6 +44,7 @@ def client(tmp_path, monkeypatch):
         shutil.copy(main.demi.CASES, cases)
         monkeypatch.setattr(main.demi, "CASES", cases)
         monkeypatch.setattr(main, "DATA", tmp_path / "jobs")
+        monkeypatch.setattr(main, "SAMPLES", tmp_path / "samples")
         return TestClient(main.create_app(runner)), cases
     return make
 
@@ -138,3 +139,51 @@ def test_put_case_validates_and_saves(client):
     assert c.put("/api/cases/newcat", json=good).status_code == 200
     assert json.loads(cases.read_text())["cases"]["newcat"] == good
     assert c.put("/api/cases/Bad Name", json=good).status_code == 400
+
+
+def test_parts_lists_choices_from_tool(client):
+    c, _ = client(FakeRunner())
+    r = c.get("/api/parts").json()
+    assert r["shapes"]["ears"] == sorted(main.demi.PART_SHAPES["ears"])
+    assert "devil" in r["kinds"] and "about" not in r["anatomy"]
+    assert {"animal_ears", "tail", "wings"} <= set(r["anatomy"])
+
+
+def test_save_passed_sheet_to_samples(client):
+    c, _ = client(FakeRunner(pass_on=0))
+    j = wait(c, c.post("/api/jobs", json={"case": "catgirl", "tries": 2}).json()["id"])
+    r = c.post(f"/api/jobs/{j['id']}/save", json={})
+    assert r.status_code == 200
+    dest = main.SAMPLES / "demi3d-catgirl.png"
+    assert dest.read_bytes() == (main.DATA / j["id"] / "sheet.png").read_bytes()
+    # 2回目は置き換えを選ばない限り断る。前の見本は残る
+    before = dest.stat().st_mtime_ns
+    assert c.post(f"/api/jobs/{j['id']}/save", json={}).status_code == 409
+    assert dest.stat().st_mtime_ns == before
+    assert c.post(f"/api/jobs/{j['id']}/save", json={"overwrite": True}).status_code == 200
+
+
+def test_save_refuses_failed_job(client):
+    c, _ = client(FakeRunner(pass_on=99))
+    j = wait(c, c.post("/api/jobs", json={"case": "catgirl", "tries": 1}).json()["id"])
+    assert c.post(f"/api/jobs/{j['id']}/save", json={}).status_code == 409
+    assert not (main.SAMPLES / "demi3d-catgirl.png").exists()
+    assert c.post("/api/jobs/nope/save", json={}).status_code == 404
+
+
+def test_preview_shoots_once_per_setting(client):
+    runner = FakeRunner()
+    c, _ = client(runner)
+    case = main.load_cases()["cases"]["foxgirl"]
+    r = c.post("/api/preview", json=case).json()
+    assert r["files"] == ["underlay.png"] and runner.calls == ["underlay"]
+    # 描く言葉だけ変えても下絵は同じなので撮り直さない
+    again = c.post("/api/preview", json={**case, "tags": "fox girl, white fox ears"}).json()
+    assert again["id"] == r["id"] and runner.calls == ["underlay"]
+    # 部品を変えたら撮り直す
+    other = c.post("/api/preview", json={**case, "parts": {"ears": "cat"}}).json()
+    assert other["id"] != r["id"] and runner.calls == ["underlay", "underlay"]
+    assert c.get(f"/api/previews/{r['id']}/underlay.png").status_code == 200
+    assert c.get(f"/api/previews/{r['id']}/sheet.png").status_code == 404
+    assert c.get("/api/previews/..%2F..%2Fx/underlay.png").status_code == 404
+    assert c.post("/api/preview", json={"tags": ""}).status_code == 422

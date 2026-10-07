@@ -69,12 +69,12 @@ def validate_case(case):
     errs = []
     if not isinstance(case, dict):
         return ["種の設定が辞書（JSON のオブジェクト）ではない"]
-    for key in ("tags", "hair"):
+    for key, ja in (("tags", "描く言葉"), ("hair", "髪と目")):
         if not isinstance(case.get(key), str) or not case[key].strip():
-            errs.append(f"{key} が空")
+            errs.append(f"{ja}（{key}）が空")
     parts, kind = case.get("parts"), case.get("kind")
     if parts is None and kind is None:
-        errs.append("parts か kind のどちらかが要る")
+        errs.append("部品（parts）か 3D の部品の組（kind）のどちらかが要る")
     if kind is not None and kind not in KINDS:
         errs.append(f"kind「{kind}」は無い（{', '.join(sorted(KINDS))}）")
     if parts is not None:

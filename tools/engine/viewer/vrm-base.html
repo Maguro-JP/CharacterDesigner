@@ -443,9 +443,9 @@ function catTail() {
 function devilTail() {
   const o = new THREE.Group(), col = 0x3a1d2c;
   const { geo, curve } = taperTube([V(0, 0, -0.015), V(0, -0.04, 0.06), V(0.04, -0.2, 0.14), V(0.1, -0.36, 0.16), V(0.16, -0.46, 0.1)], 0.02, 0.009);   // 細すぎると描き直しで消えた（半径 1.2cm では背面で尾が消えた）
-  o.add(new THREE.Mesh(geo, toonMat(col)));
+  o.add(new THREE.Mesh(geo, mainMat(col)));
   const sh = new THREE.Shape(); sh.moveTo(0, -0.016); sh.lineTo(-0.05, -0.028); sh.quadraticCurveTo(-0.042, 0.04, 0, 0.09); sh.quadraticCurveTo(0.042, 0.04, 0.05, -0.028); sh.lineTo(0, -0.016);
-  const sp = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.01, bevelEnabled: false }), toonMat(col));
+  const sp = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: 0.01, bevelEnabled: false }), mainMat(col));
   sp.position.copy(curve.getPointAt(1)); sp.quaternion.setFromUnitVectors(V(0, 1, 0), curve.getTangentAt(1)); o.add(sp);
   return o;
 }
@@ -458,13 +458,13 @@ function catEar(side) {
 }
 function horn(side) {
   const { geo } = taperTube([V(0, -0.01, 0), V(side * 0.012, 0.055, 0.012), V(side * 0.04, 0.105, 0.065), V(side * 0.06, 0.125, 0.13)], 0.02, 0.003, 32, 10);
-  return new THREE.Mesh(geo, toonMat(0x2a1a1a));
+  return new THREE.Mesh(geo, mainMat(0x2a1a1a));
 }
 function wing(side) {
   const o = new THREE.Group(), sh = new THREE.Shape();
   sh.moveTo(0, 0); sh.lineTo(0.12, 0.16); sh.lineTo(0.34, 0.25); sh.lineTo(0.45, 0.14);
   sh.quadraticCurveTo(0.39, 0.06, 0.37, -0.04); sh.quadraticCurveTo(0.31, 0.02, 0.26, -0.07); sh.quadraticCurveTo(0.2, 0.0, 0.15, -0.08); sh.quadraticCurveTo(0.09, -0.02, 0.0, -0.05); sh.lineTo(0, 0);
-  o.add(new THREE.Mesh(new THREE.ShapeGeometry(sh), toonMat(0x4a2238)));
+  o.add(new THREE.Mesh(new THREE.ShapeGeometry(sh), mainMat(0x4a2238)));
   const { geo } = taperTube([V(0, 0, 0), V(0.12, 0.16, 0), V(0.34, 0.25, 0), V(0.45, 0.14, 0)], 0.009, 0.003, 40, 8);
   o.add(new THREE.Mesh(geo, toonMat(0x2a1420)));
   o.scale.x = side; o.rotation.y = side * -0.45;   // 先を背中側へ流す

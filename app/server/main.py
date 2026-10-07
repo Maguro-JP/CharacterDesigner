@@ -11,10 +11,12 @@
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import queue
 import re
+import shutil
 import sys
 import threading
 import time
@@ -29,10 +31,14 @@ from pydantic import BaseModel, Field
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools" / "gen"))
 import demi  # noqa: E402  描く処理の本体
+import demi_text  # noqa: E402  日本語の頼みごとを種の設定に組む
 
 DATA = Path(os.environ.get("CD_APP_DATA", ROOT / ".cache" / "app" / "jobs"))
+# 通った設定資料の置き場所。スキルの手順と同じ名前（demi3d-<種の名前>.png）で置く
+SAMPLES = Path(os.environ.get("CD_SAMPLES", ROOT / "library" / "samples"))
 NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
 # 返してよいファイル。仕事のフォルダの中の、この形の名前だけ（../ などで外を読ませない）
+PREVIEW_FILE = re.compile(r"^(underlay|mask)\.png$")
 FILE = re.compile(r"^(sheet|underlay|mask|try-\d+|try-\d+-inspect)\.png$|^report\.json$")
 
 
@@ -122,6 +128,14 @@ def save_cases(data: dict) -> None:
     tmp.replace(demi.CASES)
 
 
+class DescribeIn(BaseModel):
+    text: str = Field(min_length=1, max_length=200)
+
+
+class SaveIn(BaseModel):
+    overwrite: bool = False
+
+
 class JobIn(BaseModel):
     case: str
     strength: float | None = Field(None, ge=0.1, le=0.95)
@@ -136,6 +150,15 @@ def create_app(runner: Runner | None = None) -> FastAPI:
     @app.get("/api/cases")
     def cases():
         return load_cases()["cases"]
+
+    @app.get("/api/parts")
+    def parts():
+        # 画面の選択肢。種の設定で選べる部品の形・3D の部品の組・体の決まりを、描く道具の定義から返す（画面に写しを持たない）
+        rules = json.loads((ROOT / "casts" / "demihuman-cards.json").read_text())["anatomy"]
+        return {"shapes": {slot: sorted(shapes) for slot, shapes in demi.PART_SHAPES.items()},
+                "kinds": sorted(demi.KINDS),
+                "anatomy": sorted(k for k, v in rules.items() if isinstance(v, dict)),
+                "view_ja": demi.VIEW_JA, "part_ja": demi.PART_JA}
 
     @app.put("/api/cases/{name}")
     def put_case(name: str, case: dict):
@@ -161,6 +184,39 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         strength = body.strength if body.strength is not None else case.get("strength", 0.6)
         return jobs.submit(body.case, case, strength, body.tries).public()
 
+    @app.post("/api/describe")
+    def describe(body: DescribeIn):
+        # 日本語の頼みごとを種の設定に組む。ANTHROPIC_API_KEY があれば Claude で読み、無ければ辞書で読む。
+        # 保存はしない。画面で見て直してから保存する
+        return demi_text.parse(body.text, demi_text.claude_client())
+
+    preview_lock = threading.Lock()
+
+    @app.post("/api/preview")
+    def preview(case: dict):
+        # 描く前に 3D の下絵（部品の付け根）を見る。1回 約30秒（Playwright で撮るだけ、画像生成のモデルは使わない）。
+        # 同じ設定は撮り直さない。撮るのは1つずつ（ブラウザーを並べて開くとメモリを食う）
+        errs = demi.validate_case(case)
+        if errs:
+            raise HTTPException(422, errs)
+        used = {k: case.get(k) for k in ("kind", "parts", "hair_3d", "hair_color", "pose", "background")}
+        key = hashlib.sha1(json.dumps(used, sort_keys=True).encode()).hexdigest()[:16]
+        out = DATA / "previews" / key
+        with preview_lock:
+            if not (out / "underlay.png").exists():
+                out.mkdir(parents=True, exist_ok=True)
+                jobs.runner.underlay(case, out)
+        return {"id": key, "files": sorted(p.name for p in out.glob("*.png") if PREVIEW_FILE.match(p.name))}
+
+    @app.get("/api/previews/{key}/{name}")
+    def preview_file(key: str, name: str):
+        if not re.fullmatch(r"[0-9a-f]{16}", key) or not PREVIEW_FILE.match(name):
+            raise HTTPException(404, "そのファイルは無い")
+        p = DATA / "previews" / key / name
+        if not p.exists():
+            raise HTTPException(404, "そのファイルは無い")
+        return FileResponse(p)
+
     @app.get("/api/jobs")
     def list_jobs():
         return [j.public() for j in sorted(jobs.jobs.values(), key=lambda j: -j.created)]
@@ -170,6 +226,24 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         if job_id not in jobs.jobs:
             raise HTTPException(404, "その仕事は無い")
         return jobs.jobs[job_id].public()
+
+    @app.post("/api/jobs/{job_id}/save")
+    def save_sample(job_id: str, body: SaveIn):
+        # 通った絵を見本に置く。既にある見本は、利用者が置き換えると選んだときだけ上書きする（前の見本が黙って消えないように）
+        if job_id not in jobs.jobs:
+            raise HTTPException(404, "その仕事は無い")
+        job = jobs.jobs[job_id]
+        sheet = DATA / job_id / "sheet.png"
+        if job.state != "done" or not job.passed or not sheet.exists():
+            raise HTTPException(409, "検品を通った絵が無い")
+        dest = SAMPLES / f"demi3d-{job.case_name}.png"
+        if dest.exists() and not body.overwrite:
+            raise HTTPException(409, f"見本 {dest.name} は既にある。置き換えるなら置き換えを選ぶ（overwrite）")
+        SAMPLES.mkdir(parents=True, exist_ok=True)
+        tmp = dest.with_suffix(".png.tmp")
+        shutil.copyfile(sheet, tmp)
+        tmp.replace(dest)
+        return {"saved": str(dest.relative_to(ROOT)) if dest.is_relative_to(ROOT) else str(dest)}
 
     @app.get("/api/jobs/{job_id}/files/{name}")
     def get_file(job_id: str, name: str):

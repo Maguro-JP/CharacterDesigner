@@ -1,22 +1,10 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Case, type Job } from "./api";
-
-const STATE_JA: Record<Job["state"], string> = {
-  queued: "待ち",
-  underlay: "下絵",
-  drawing: "描画中",
-  done: "完了",
-  failed: "失敗",
-};
+import { api, type Case, type Job, type PartChoices } from "./api";
+import CaseForm from "./CaseForm";
+import JobCard from "./JobCard";
 
 // 描いている間だけ短い間隔で聞く。描き終わったら聞かない（1回 約3分かかるので、それより細かく見ても変わらない）
 const POLL_MS = 5000;
-
-function elapsed(job: Job, now: number): string {
-  if (!job.started) return "-";
-  const sec = Math.round(((job.finished ?? now / 1000) - job.started));
-  return `${Math.floor(sec / 60)}分${sec % 60}秒`;
-}
 
 function CaseList({ cases, selected, onSelect }: { cases: Record<string, Case>; selected: string; onSelect: (name: string) => void }) {
   return (
@@ -37,31 +25,6 @@ function CaseList({ cases, selected, onSelect }: { cases: Record<string, Case>; 
   );
 }
 
-function JobCard({ job, now }: { job: Job; now: number }) {
-  const last = job.results.at(-1);
-  const sheet = job.files.includes("sheet.png");
-  return (
-    <li className="rounded border border-line bg-panel p-3">
-      <div className="flex flex-wrap items-baseline gap-x-3">
-        <span className="font-bold">{job.case_name}</span>
-        <span className={job.state === "failed" ? "text-signal" : job.state === "done" ? "text-accent" : "text-neutral-300"}>
-          {STATE_JA[job.state]}
-        </span>
-        {job.try_index !== null && <span className="text-sm text-neutral-400">{job.try_index + 1} / {job.tries} 回目</span>}
-        <span className="text-sm text-neutral-400">{elapsed(job, now)}</span>
-        {job.state === "done" && <span className={job.passed ? "text-accent" : "text-signal"}>{job.passed ? "検品 通過" : "検品 不通過"}</span>}
-      </div>
-      {job.error && <p className="mt-1 text-sm text-signal">{job.error}</p>}
-      {last && (
-        <p className="mt-1 text-sm text-neutral-300">
-          {last.try + 1} 回目の検品: {last.result.map((r) => `${r.view} ${r.part}${r.ok ? "○" : "×"}`).join("  ")}
-        </p>
-      )}
-      {sheet && <img className="mt-2 w-full rounded bg-white" src={api.fileUrl(job.id, "sheet.png")} alt={`${job.case_name} の設定資料`} />}
-    </li>
-  );
-}
-
 export default function App() {
   const [cases, setCases] = useState<Record<string, Case>>({});
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -69,21 +32,33 @@ export default function App() {
   const [tries, setTries] = useState(3);
   const [error, setError] = useState("");
   const [now, setNow] = useState(Date.now());
+  // 開いている種の設定の欄。new は新しく足す、それ以外は直す種の名前
+  const [editing, setEditing] = useState<string | null>(null);
+  const [labels, setLabels] = useState<PartChoices | null>(null);
+  // 言葉で頼んで組んだ設定。種の欄に下書きとして渡す（保存は欄で見てから）
+  const [draft, setDraft] = useState<{ name: string; case: Case } | null>(null);
+  const [wish, setWish] = useState("");
+  const [wishNotes, setWishNotes] = useState<string[]>([]);
 
   const refreshJobs = useCallback(() => {
     api.jobs().then(setJobs).catch((e: Error) => setError(e.message));
   }, []);
 
-  useEffect(() => {
+  const loadCases = useCallback((select?: string) => {
     api
       .cases()
       .then((c) => {
         setCases(c);
-        setSelected((s) => s || Object.keys(c)[0] || "");
+        setSelected((s) => select || s || Object.keys(c)[0] || "");
       })
       .catch((e: Error) => setError(`サーバーに繋がらない: ${e.message}`));
+  }, []);
+
+  useEffect(() => {
+    loadCases();
     refreshJobs();
-  }, [refreshJobs]);
+    api.parts().then(setLabels).catch(() => setLabels(null));   // 向きと部品の日本語名。無くても英語名で出る
+  }, [loadCases, refreshJobs]);
 
   const busy = jobs.some((j) => j.state !== "done" && j.state !== "failed");
   useEffect(() => {
@@ -94,6 +69,23 @@ export default function App() {
     }, POLL_MS);
     return () => clearInterval(t);
   }, [busy, refreshJobs]);
+
+  const describe = () => {
+    setError("");
+    api
+      .describe(wish)
+      .then((r) => {
+        // どちらで読んだかを出す（Claude は ANTHROPIC_API_KEY があるときだけ。無ければ辞書）
+        const notes = [r.reader === "claude" ? "Claude で読んだ" : "辞書で読んだ", ...r.notes];
+        if (r.unused.length) notes.unshift(`使わなかった言葉: ${r.unused.join("、")}`);
+        setWishNotes(notes);
+        if (r.case && r.name) {
+          setDraft({ name: cases[r.name] ? `${r.name}-2` : r.name, case: r.case });
+          setEditing("draft");
+        }
+      })
+      .catch((e: Error) => setError(e.message));
+  };
 
   const submit = () => {
     setError("");
@@ -111,9 +103,34 @@ export default function App() {
       {error && <p className="mt-3 rounded border border-signal p-2 text-signal">{error}</p>}
 
       <section className="mt-6">
+        <h2 className="mb-2 font-bold">言葉で頼む</h2>
+        <form
+          className="mb-6 flex flex-wrap gap-2"
+          onSubmit={(e) => {
+            e.preventDefault();
+            if (wish.trim()) describe();
+          }}
+        >
+          <input
+            className="min-w-0 flex-1 rounded border border-line bg-panel px-3 py-1.5"
+            value={wish}
+            onChange={(e) => setWish(e.target.value)}
+            placeholder="白い狐の巫女、銀髪で青い目の狼娘 など"
+            aria-label="頼みごと"
+          />
+          <button type="submit" disabled={!wish.trim()} className="rounded border border-accent px-4 py-1.5 disabled:opacity-40">
+            設定を組む
+          </button>
+          {wishNotes.length > 0 && (
+            <ul className="w-full list-inside list-disc text-sm text-neutral-300">
+              {wishNotes.map((n) => <li key={n}>{n}</li>)}
+            </ul>
+          )}
+        </form>
+
         <h2 className="mb-2 font-bold">種を選ぶ</h2>
         <CaseList cases={cases} selected={selected} onSelect={setSelected} />
-        <div className="mt-3 flex items-center gap-3">
+        <div className="mt-3 flex flex-wrap items-center gap-3">
           <label className="text-sm">
             試す回数
             <select className="ml-2 rounded border border-line bg-panel px-2 py-1" value={tries} onChange={(e) => setTries(Number(e.target.value))}>
@@ -125,14 +142,37 @@ export default function App() {
           <button type="button" disabled={!selected} onClick={submit} className="rounded bg-accent px-4 py-1.5 font-bold text-ink disabled:opacity-40">
             描く
           </button>
+          <button type="button" disabled={!selected} onClick={() => setEditing(selected)} className="rounded border border-line px-3 py-1.5 disabled:opacity-40">
+            直す
+          </button>
+          <button type="button" onClick={() => setEditing("new")} className="rounded border border-line px-3 py-1.5">
+            新しく足す
+          </button>
           <span className="text-xs text-neutral-400">CPU では1回 約3分。最初の1件はモデルの読み込みに 約10分</span>
         </div>
+        {editing && (
+          <div className="mt-4">
+            <CaseForm
+              key={editing === "draft" ? `draft-${draft?.name}` : editing}
+              name={editing === "new" ? "" : editing === "draft" ? (draft?.name ?? "") : editing}
+              initial={
+                editing === "new" ? { tags: "", hair: "", anatomy: [] } : editing === "draft" ? (draft?.case ?? {}) : (cases[editing] ?? {})
+              }
+              isNew={editing === "new" || editing === "draft"}
+              onSaved={(name) => {
+                setEditing(null);
+                loadCases(name);
+              }}
+              onCancel={() => setEditing(null)}
+            />
+          </div>
+        )}
       </section>
 
       <section className="mt-8">
         <h2 className="mb-2 font-bold">仕事</h2>
         {jobs.length === 0 ? <p className="text-sm text-neutral-400">まだ無い</p> : (
-          <ul className="space-y-3">{jobs.map((j) => <JobCard key={j.id} job={j} now={now} />)}</ul>
+          <ul className="space-y-3">{jobs.map((j) => <JobCard key={j.id} job={j} now={now} labels={labels} />)}</ul>
         )}
       </section>
     </main>
