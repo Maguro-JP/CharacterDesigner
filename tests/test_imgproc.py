@@ -13,6 +13,12 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools" / "gen"))
 import imgproc  # noqa: E402
 
+try:
+    import skimage  # noqa: F401  輪郭の抽出に使う。描く部品（.cache/gen/lib）に入っている
+    HAS_SKIMAGE = True
+except ImportError:
+    HAS_SKIMAGE = False
+
 
 def figure_on(bg):
     im = Image.new("RGB", (200, 240), bg)
@@ -52,6 +58,7 @@ class Chroma(unittest.TestCase):
             self.assertLessEqual(g, max(r, b))
 
 
+@unittest.skipUnless(HAS_SKIMAGE, "scikit-image が無い（sh tools/gen/setup.sh で入る）")
 class ClippingPath(unittest.TestCase):
     def test_contour_to_svg_path(self):
         # 切り抜きのモデルを使わず、透明度の付いた絵を直接渡して輪郭だけを確かめる
