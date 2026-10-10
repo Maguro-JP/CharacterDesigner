@@ -4,6 +4,8 @@
 #   sh tools/llm/setup.sh             llama-cpp-python（組み済みの配布物）と既定の模型を .cache/llm に取る
 #   CD_LLM_SIZE=small sh tools/llm/setup.sh   小さい模型（約 0.5GB）にする。ディスクやメモリが少ない PC 向け
 #   CD_LLM_GGUF_URL=<GGUF の URL> sh tools/llm/setup.sh   模型を選んで取る
+#   CD_LLM_DEFAULT=1 を付けると、取った模型を既定にする（付けなければ、最初に取った模型が既定のまま）
+# 取った模型は .cache/llm に並び、app/start.sh の窓口がすべてを出す。どれを使うかは画面の「言葉の模型」で選ぶ
 #
 # Ollama や LM Studio を既に使っているなら、これは要らない。CD_LLM_URL と CD_LLM_MODEL で窓口を教える
 #（例: CD_LLM_URL=http://127.0.0.1:11434/v1 CD_LLM_MODEL=qwen2.5:7b sh app/start.sh）。
@@ -34,6 +36,6 @@ if [ ! -f "$DIR/$NAME" ]; then
   curl -fL --retry 3 -o "$DIR/$NAME.part" "$URL"
   mv "$DIR/$NAME.part" "$DIR/$NAME"
 fi
-# app/start.sh はこの名前の模型を起こす（取り替えたら、ここを指し直すだけでよい）
-ln -sf "$NAME" "$DIR/model.gguf"
+# 既定の模型（app/start.sh の窓口の先頭）。前に取った模型は消さずに残し、画面で選べる
+[ -e "$DIR/model.gguf" ] && [ "${CD_LLM_DEFAULT:-}" != "1" ] || ln -sf "$NAME" "$DIR/model.gguf"
 echo "== 入った: $DIR/model.gguf -> $NAME"

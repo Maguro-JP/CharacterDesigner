@@ -76,9 +76,13 @@ export type FreeDescribe = {
   notes: string[];
 };
 
+export type LlmLocal = { ok: boolean; url?: string; model?: string | null; models?: string[]; error?: string };
+
 export type LlmStatus = {
-  local: { ok: boolean; url?: string; model?: string | null; models?: string[]; error?: string };
+  local: LlmLocal;
   claude: boolean;
+  saved?: { url?: string; model?: string };
+  default_url?: string;
 };
 
 export type FreeJobIn = { prompt: string; negative: string; ja: string; seed: number; count: number; size: "portrait" | "landscape" | "square" };
@@ -101,6 +105,8 @@ export const api = {
     }),
   fileUrl: (jobId: string, name: string) => `/api/jobs/${jobId}/files/${name}`,
   llm: () => call<LlmStatus>("/api/llm"),
+  llmProbe: (url: string) => call<LlmLocal>("/api/llm/probe", { method: "POST", body: JSON.stringify({ url, model: "" }) }),
+  llmSave: (url: string, model: string) => call<LlmStatus>("/api/llm", { method: "PUT", body: JSON.stringify({ url, model }) }),
   freeDescribe: (text: string) => call<FreeDescribe>("/api/free/describe", { method: "POST", body: JSON.stringify({ text }) }),
   freeSubmit: (body: FreeJobIn) => call<Job>("/api/free/jobs", { method: "POST", body: JSON.stringify(body) }),
 };

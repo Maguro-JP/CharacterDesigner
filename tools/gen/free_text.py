@@ -78,7 +78,7 @@ SCHEMA = {
 
 
 # 髪と目の色のタグの色が、頼みごとに言われているか見るための対応。模型は言われていない色（手本の blue hair）を足した
-COLOR_JA = {"blue": "青蒼水", "red": "赤紅朱", "pink": "ピンク桃", "white": "白銀雪", "silver": "銀白", "black": "黒",
+COLOR_JA = {"blue": "青蒼水", "red": "赤紅朱", "pink": "ピンク桃", "white": "白銀", "silver": "銀白", "black": "黒",
             "blonde": "金黄", "yellow": "黄金", "brown": "茶栗", "green": "緑翠", "purple": "紫", "grey": "灰グレー銀",
             "gray": "灰グレー銀", "orange": "オレンジ橙", "aqua": "水青", "golden": "金黄"}
 
@@ -128,8 +128,13 @@ def describe(text: str, local=None) -> dict:
             got, reader = {"tags": text.split(","), "negative": [], "summary": "英語のタグとしてそのまま使った",
                            "allowed": True, "reason": ""}, "tags"
         else:
-            return {"allowed": False, "reason": "日本語を描く言葉に直す手元の模型が動いていない。`sh tools/llm/setup.sh` で入れて app/start.sh で起こすか、"
-                                                "英語のタグをカンマ区切りで書く", "prompt": "", "negative": "", "tags": [], "summary": "",
+            if local is not None and notes and "LocalLLMError" in notes[0] and "HTTP Error" not in notes[0] and "urlopen" not in notes[0]:
+                why = f"手元の模型（{local.model or '既定'}）では描く言葉に直せなかった。画面の「言葉の模型」で大きい模型に替えるか、英語のタグをカンマ区切りで書く"
+            elif local is not None and notes:
+                why = "手元の模型の窓口につながらない。`sh app/start.sh` で起こすか、画面の「言葉の模型」で窓口を選ぶ。英語のタグをカンマ区切りで書いてもよい"
+            else:
+                why = "日本語を描く言葉に直す手元の模型が無い。`sh tools/llm/setup.sh` で入れて app/start.sh で起こすか、英語のタグをカンマ区切りで書く"
+            return {"allowed": False, "reason": why, "prompt": "", "negative": "", "tags": [], "summary": "",
                     "reader": None, "notes": notes}
     tags = _unasked_colors(_clean(got.get("tags", [])), text)
     neg = _clean(got.get("negative", []), negative=True)

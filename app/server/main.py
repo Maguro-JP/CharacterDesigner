@@ -154,6 +154,11 @@ class SaveIn(BaseModel):
     overwrite: bool = False
 
 
+class LlmIn(BaseModel):
+    url: str = Field("", max_length=300, pattern=r"^(|https?://[^\s]+)$")
+    model: str = Field("", max_length=200)
+
+
 class FreeJobIn(BaseModel):
     prompt: str = Field(min_length=1, max_length=1500)
     negative: str = Field("", max_length=1000)
@@ -223,10 +228,29 @@ def create_app(runner: Runner | None = None) -> FastAPI:
 
     @app.get("/api/llm")
     def llm_status():
-        # 画面に出す読み手の状態。手元の模型がつながるか、Claude の鍵があるか
+        # 画面に出す読み手の状態。手元の模型がつながるか、どの模型を使うか、Claude の鍵があるか
         client = local_llm.client()
         local = client.status() if client else {"ok": False, "error": "CD_LLM_OFF=1 で切ってある"}
-        return {"local": local, "claude": demi_text.claude_client() is not None}
+        return {"local": local, "claude": demi_text.claude_client() is not None, "saved": local_llm.load_settings(),
+                "default_url": local_llm.DEFAULT_URL}
+
+    @app.post("/api/llm/probe")
+    def llm_probe(body: LlmIn):
+        # 保存する前に、その窓口で使える模型の一覧を見る（Ollama・LM Studio・同梱の窓口のどれでも /models を持つ）
+        return local_llm.LocalLLM(body.url or None, timeout=10).status()
+
+    @app.put("/api/llm")
+    def llm_save(body: LlmIn):
+        # 窓口と模型を入れ替える。つながらない窓口は保存しない（入れ替えた途端に読めなくなるのを防ぐ）。
+        # 空で送ると既定（環境変数か同梱の窓口）に戻す
+        if body.url or body.model:
+            st = local_llm.LocalLLM(body.url or None, body.model or None, timeout=10).status()
+            if not st["ok"]:
+                raise HTTPException(422, f"つながらない: {st.get('error', '模型が無い')}")
+            if body.model and body.model not in st.get("models", []):
+                raise HTTPException(422, f"その窓口に模型 {body.model} が無い（ある模型: {', '.join(st.get('models', []))}）")
+        local_llm.save_settings(body.url, body.model)
+        return llm_status()
 
     @app.post("/api/free/describe")
     def free_describe(body: DescribeIn):

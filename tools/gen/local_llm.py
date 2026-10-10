@@ -7,6 +7,9 @@ Ollama・LM Studio・llama.cpp の server（llama-cpp-python の llama_cpp.serve
 - CD_LLM_MODEL  模型の名前（省略すると窓口の /models の先頭を使う。Ollama なら qwen2.5:7b のように渡す）
 - CD_LLM_OFF=1  手元の模型を使わない（Claude か辞書で読む）
 
+画面で選んだ窓口と模型は設定のファイル（CD_LLM_SETTINGS、既定 .cache/app/llm.json）に残し、環境変数より優先する。
+模型を入れ替えるのにアプリを起こし直さなくてよいように、呼ぶたびに読み直す。
+
 標準の部品（urllib）だけで書く。読み手の部品を足すと、描く処理の環境と画面のサーバーの両方に入れる必要が出るため。
 """
 from __future__ import annotations
@@ -15,8 +18,34 @@ import json
 import os
 import urllib.error
 import urllib.request
+from pathlib import Path
 
 DEFAULT_URL = "http://127.0.0.1:8081/v1"
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def settings_path() -> Path:
+    return Path(os.environ.get("CD_LLM_SETTINGS", ROOT / ".cache" / "app" / "llm.json"))
+
+
+def load_settings() -> dict:
+    """画面で選んだ窓口と模型。無い・読めないときは空（環境変数か既定を使う。壊れた設定で読み手を止めない）"""
+    try:
+        d = json.loads(settings_path().read_text())
+        return {k: d[k] for k in ("url", "model") if isinstance(d.get(k), str) and d[k]}
+    except (OSError, ValueError):
+        return {}
+
+
+def save_settings(url: str | None, model: str | None) -> dict:
+    """空の値は消す（既定に戻す）。書きかけで壊れないよう、別のファイルに書いてから置き換える"""
+    d = {k: v.strip() for k, v in (("url", url), ("model", model)) if v and v.strip()}
+    p = settings_path()
+    p.parent.mkdir(parents=True, exist_ok=True)
+    tmp = p.with_suffix(".tmp")
+    tmp.write_text(json.dumps(d, ensure_ascii=False, indent=1))
+    tmp.replace(p)
+    return d
 
 
 class LocalLLMError(RuntimeError):
@@ -25,8 +54,10 @@ class LocalLLMError(RuntimeError):
 
 class LocalLLM:
     def __init__(self, url: str | None = None, model: str | None = None, timeout: float = 180.0):
-        self.url = (url or os.environ.get("CD_LLM_URL") or DEFAULT_URL).rstrip("/")
-        self.model = model or os.environ.get("CD_LLM_MODEL") or None
+        saved = load_settings()
+        # 優先: 引数 → 画面で選んだもの → 環境変数 → 既定
+        self.url = (url or saved.get("url") or os.environ.get("CD_LLM_URL") or DEFAULT_URL).rstrip("/")
+        self.model = model or saved.get("model") or os.environ.get("CD_LLM_MODEL") or None
         # CPU の小さい模型でも、数百字の答えは 1 分以内に返る。初回は模型の読み込みが重なるので長めに待つ
         self.timeout = timeout
         self._format = None   # 窓口が受け付けた答えの形の指定（json_schema か json_object）。1度通ったら次からそれを使う

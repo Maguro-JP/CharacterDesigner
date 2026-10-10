@@ -3,3 +3,8 @@
 import os
 
 os.environ.setdefault("CD_LLM_OFF", "1")
+
+# 画面で選んだ窓口の設定も、手元の .cache/app/llm.json を読まない（試験ごとの一時フォルダに向ける）
+import tempfile  # noqa: E402
+
+os.environ.setdefault("CD_LLM_SETTINGS", os.path.join(tempfile.mkdtemp(), "llm.json"))

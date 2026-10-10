@@ -72,10 +72,18 @@ say "起動する"
 LLM=""
 if [ -z "${CD_LLM_URL:-}" ] && [ -f .cache/llm/model.gguf ]; then
   # 同梱の言葉の模型を 8081 番で起こす。サーバーは既定でここ（local_llm.DEFAULT_URL）を見る
-  # 模型の名前は取った GGUF の名前にする（画面に「どの模型で読んだか」を出すため）
-  ALIAS="$(basename "$(readlink .cache/llm/model.gguf || echo model.gguf)" .gguf)"
-  PYTHONPATH=.cache/llm/lib python3 -m llama_cpp.server --model .cache/llm/model.gguf --model_alias "$ALIAS" \
-    --host 127.0.0.1 --port 8081 --n_ctx 4096 > .cache/llm/server.log 2>&1 &
+  # .cache/llm にある GGUF をすべて1つの窓口に並べる。画面で模型を選ぶと、窓口がその模型に読み替える
+  # （llama-cpp-python の複数模型の設定。一度に読むのは1つだけなのでメモリは増えない）。先頭は model.gguf の指す既定
+  PYTHONPATH=.cache/llm/lib python3 - <<'PY'
+import json, os, pathlib
+d = pathlib.Path(".cache/llm")
+default = os.path.realpath(d / "model.gguf")
+files = sorted((p for p in d.glob("*.gguf") if not p.is_symlink()), key=lambda p: (os.path.realpath(p) != default, p.name))
+models = [{"model": str(p), "model_alias": p.stem, "n_ctx": 4096} for p in files]
+(d / "server.json").write_text(json.dumps({"host": "127.0.0.1", "port": 8081, "models": models}, indent=1))
+print("言葉の模型:", ", ".join(m["model_alias"] for m in models))
+PY
+  PYTHONPATH=.cache/llm/lib python3 -m llama_cpp.server --config_file .cache/llm/server.json > .cache/llm/server.log 2>&1 &
   LLM=$!
 fi
 PYTHONPATH=.cache/app/lib:.cache/gen/lib HF_HOME="$ROOT/.cache/gen/hf" python3 -m uvicorn app.server.main:app --host 127.0.0.1 --port 8000 &

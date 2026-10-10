@@ -107,7 +107,7 @@ export default function App() {
 
       <section className="mt-6">
         <h2 className="mb-2 font-bold">自由に描く</h2>
-        <FreePanel status={llm} onSubmitted={refreshJobs} onError={setError} />
+        <FreePanel status={llm} onStatus={setLlm} onSubmitted={refreshJobs} onError={setError} />
       </section>
 
       <section className="mt-8">

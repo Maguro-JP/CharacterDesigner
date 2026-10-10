@@ -88,7 +88,7 @@ def test_without_model_english_tags_pass_and_japanese_explains(client, monkeypat
     r = c.post("/api/free/describe", json={"text": "1girl, red scarf, snow"}).json()
     assert r["allowed"] and r["reader"] == "tags" and r["prompt"] == "1girl, red scarf, snow"
     r = c.post("/api/free/describe", json={"text": "雪の中の少女"}).json()
-    assert not r["allowed"] and "tools/llm/setup.sh" in r["reason"]
+    assert not r["allowed"] and "つながらない" in r["reason"]
 
 
 def test_llm_status(client, monkeypatch):
@@ -118,3 +118,26 @@ def test_unasked_hair_color_is_dropped(client, monkeypatch):
     finally:
         srv.close()
     assert r["prompt"] == "1girl, red eyes, goggles"
+
+
+def test_switch_llm(client, monkeypatch, tmp_path):
+    # 画面から窓口と模型を入れ替える。つながらない窓口・無い模型は保存しない。空で既定に戻す
+    monkeypatch.setenv("CD_LLM_SETTINGS", str(tmp_path / "llm.json"))
+    monkeypatch.delenv("CD_LLM_OFF", raising=False)
+    monkeypatch.setenv("CD_LLM_URL", "http://127.0.0.1:9/v1")
+    srv = use_llm(monkeypatch, KNIGHT)
+    monkeypatch.setenv("CD_LLM_URL", "http://127.0.0.1:9/v1")   # 既定はつながらない所にしておく
+    try:
+        c, _ = client(FakeRunner())
+        assert not c.get("/api/llm").json()["local"]["ok"]
+        assert c.post("/api/llm/probe", json={"url": srv.url}).json()["models"] == ["fake-model"]
+        assert c.put("/api/llm", json={"url": "http://127.0.0.1:9/v1"}).status_code == 422
+        assert c.put("/api/llm", json={"url": srv.url, "model": "nope"}).status_code == 422
+        s = c.put("/api/llm", json={"url": srv.url, "model": "fake-model"}).json()
+        assert s["local"]["ok"] and s["saved"] == {"url": srv.url, "model": "fake-model"}
+        r = c.post("/api/free/describe", json={"text": "騎士"}).json()
+        assert r["reader"] == "local" and srv.requests[-1]["model"] == "fake-model"
+        s = c.put("/api/llm", json={"url": "", "model": ""}).json()
+        assert s["saved"] == {} and not s["local"]["ok"]
+    finally:
+        srv.close()

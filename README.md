@@ -72,9 +72,10 @@ python3 tools/compare.py out/cmp.png v3=characters/warrior-v3-hand/sprite.json v
 
 | 環境変数 | 用途 | 必須 |
 |---|---|---|
+| （画面） | 「自由に描く」の「言葉の模型 → 入れ替える」で窓口と模型を選ぶ。選んだものは `.cache/app/llm.json` に残り、下の環境変数より優先する。「既定に戻す」で消える | — |
 | `CD_LLM_URL` | 手元の言葉の模型の窓口（OpenAI 互換。既定は同梱のもの `http://127.0.0.1:8081/v1`）。Ollama なら `http://127.0.0.1:11434/v1` | 任意 |
 | `CD_LLM_MODEL` | 窓口で使う模型の名前（Ollama なら `qwen2.5:7b` など）。省略すると窓口の先頭の模型 | 任意 |
-| `CD_LLM_SIZE` | 同梱の言葉の模型の大きさ。`small`（約 0.5GB、読み違いが多い）・既定（約 1.1GB）・`large`（約 2GB、読み違いが少ない） | 任意 |
+| `CD_LLM_SIZE` | 同梱の言葉の模型の大きさ。取った模型は消さずに並び、画面で選べる（`CD_LLM_DEFAULT=1` で取ったものを既定にする）。`small`（約 0.5GB、読み違いが多い）・既定（約 1.1GB）・`large`（約 2GB、読み違いが少ない） | 任意 |
 | `CD_LLM_SKIP` / `CD_LLM_OFF` | `1` で、同梱の言葉の模型を取らない / 手元の模型を使わない | 任意 |
 | `ANTHROPIC_API_KEY` | 手元の模型が無いとき、言葉の頼みごとを Claude で読む。どちらも無ければ辞書で読む | 任意 |
 | `CD_APP_DATA` | 描いた絵の置き場所（既定は `.cache/app/jobs`） | 任意 |

@@ -13,26 +13,107 @@ export function readerJa(r: Reader): string {
   return r ? (READER_JA[r] ?? r) : "読めなかった";
 }
 
-// 手元の言葉の模型の状態。日本語を描く言葉に直せるかどうかが、ここで分かる
-export function LlmBadge({ status }: { status: LlmStatus | null }) {
+// 手元の言葉の模型の状態と入れ替え。窓口（同梱・Ollama・LM Studio など）と模型を選んで保存する。
+// 保存はサーバーがつながることを確かめてから行う。空で保存すると既定（環境変数か同梱の窓口）に戻る
+export function LlmSettings({ status, onChange }: { status: LlmStatus | null; onChange: (s: LlmStatus) => void }) {
+  const [open, setOpen] = useState(false);
+  const [url, setUrl] = useState("");
+  const [model, setModel] = useState("");
+  const [models, setModels] = useState<string[]>([]);
+  const [msg, setMsg] = useState("");
+
+  useEffect(() => {
+    if (!open || !status) return;
+    setUrl(status.saved?.url ?? "");
+    setModel(status.local.model ?? "");
+    setModels(status.local.models ?? []);
+  }, [open, status]);
+
   if (!status) return null;
   const { local } = status;
+
+  const probe = () => {
+    setMsg("");
+    api
+      .llmProbe(url)
+      .then((r) => {
+        setModels(r.models ?? []);
+        setModel((m) => (r.models?.includes(m) ? m : (r.models?.[0] ?? "")));
+        setMsg(r.ok ? `つながった。模型 ${r.models?.length ?? 0} 個` : `つながらない: ${r.error ?? ""}`);
+      })
+      .catch((e: Error) => setMsg(e.message));
+  };
+
+  const save = (u: string, m: string) => {
+    setMsg("");
+    api
+      .llmSave(u, m)
+      .then((s) => {
+        onChange(s);
+        setMsg("入れ替えた");
+      })
+      .catch((e: Error) => setMsg(e.message));
+  };
+
   return (
-    <p className="text-xs text-neutral-400">
-      言葉の模型:{" "}
-      {local.ok ? (
-        <span className="text-accent">手元の模型（{local.model}）につながっている</span>
-      ) : (
-        <span className="text-signal">手元の模型につながらない（`sh tools/llm/setup.sh` で入れて `sh app/start.sh` で起こす）</span>
+    <div className="text-xs text-neutral-400">
+      <p>
+        言葉の模型:{" "}
+        {local.ok ? (
+          <span className="text-accent">{local.model}（{local.url}）</span>
+        ) : (
+          <span className="text-signal">つながらない（`sh app/start.sh` で起こすか、ここで窓口を選ぶ）</span>
+        )}
+        {status.claude && "・Claude の鍵あり"}
+        <button type="button" className="ml-2 underline" onClick={() => setOpen((o) => !o)}>
+          {open ? "閉じる" : "入れ替える"}
+        </button>
+      </p>
+      {open && (
+        <div className="mt-2 space-y-2 rounded border border-line bg-panel p-2 text-sm text-neutral-200">
+          <label className="block">
+            窓口の URL（空なら既定 {status.default_url}。Ollama は http://127.0.0.1:11434/v1、LM Studio は http://127.0.0.1:1234/v1）
+            <div className="mt-1 flex flex-wrap gap-2">
+              <input
+                className="min-w-0 flex-1 rounded border border-line bg-ink px-2 py-1 font-mono text-xs"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                placeholder={status.default_url}
+                aria-label="言葉の模型の窓口"
+              />
+              <button type="button" className="rounded border border-line px-3 py-1" onClick={probe}>
+                模型を調べる
+              </button>
+            </div>
+          </label>
+          <label className="block">
+            模型
+            <select className="ml-2 rounded border border-line bg-ink px-2 py-1" value={model} onChange={(e) => setModel(e.target.value)} aria-label="言葉の模型">
+              {models.length === 0 && <option value="">（先に模型を調べる）</option>}
+              {models.map((m) => (
+                <option key={m} value={m}>{m}</option>
+              ))}
+            </select>
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <button type="button" disabled={!model} className="rounded bg-accent px-3 py-1 font-bold text-ink disabled:opacity-40" onClick={() => save(url, model)}>
+              この模型にする
+            </button>
+            <button type="button" className="rounded border border-line px-3 py-1" onClick={() => save("", "")}>
+              既定に戻す
+            </button>
+          </div>
+          <p className="text-xs text-neutral-400">同梱の窓口に模型を足すには `CD_LLM_SIZE=large sh tools/llm/setup.sh`（または CD_LLM_GGUF_URL）を流して起動し直す</p>
+          {msg && <p className="text-xs">{msg}</p>}
+        </div>
       )}
-      {status.claude && "・Claude の鍵あり"}
-    </p>
+    </div>
   );
 }
 
-type Props = { status: LlmStatus | null; onSubmitted: () => void; onError: (msg: string) => void };
+type Props = { status: LlmStatus | null; onStatus: (s: LlmStatus) => void; onSubmitted: () => void; onError: (msg: string) => void };
 
-export default function FreePanel({ status, onSubmitted, onError }: Props) {
+export default function FreePanel({ status, onStatus, onSubmitted, onError }: Props) {
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const [got, setGot] = useState<FreeDescribe | null>(null);
@@ -73,7 +154,7 @@ export default function FreePanel({ status, onSubmitted, onError }: Props) {
 
   return (
     <div className="space-y-3">
-      <LlmBadge status={status} />
+      <LlmSettings status={status} onChange={onStatus} />
       <form
         className="flex flex-wrap gap-2"
         onSubmit={(e) => {

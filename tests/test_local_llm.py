@@ -8,6 +8,11 @@ from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+# 手元で画面から選んだ窓口（.cache/app/llm.json）を試験に持ち込まない
+import os  # noqa: E402
+import tempfile  # noqa: E402
+
+os.environ["CD_LLM_SETTINGS"] = os.path.join(tempfile.mkdtemp(), "llm.json")
 sys.path.insert(0, str(ROOT / "tools" / "gen"))
 import demi_text  # noqa: E402
 import local_llm  # noqa: E402
