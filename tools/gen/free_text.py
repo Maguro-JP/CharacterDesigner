@@ -46,12 +46,23 @@ def blocked_tags(tags) -> str | None:
 SYSTEM = (
     "日本語のキャラクターの頼みごとを、アニメ絵の画像生成（Animagine XL、Danbooru のタグ）に渡す英語のタグに直す。\n"
     "- tags: 人数と性別（1girl、1boy など）を最初に置き、髪の色と髪型、目の色、服、持ち物、表情、ポーズ、構図（full body、upper body など）、背景の順に、"
-    "短い英語のタグで並べる。頼みごとに無いことは足さない。ただし構図と背景が無ければ full body と simple background を足す\n"
+    "短い英語のタグで並べる。頼みごとに無いことは足さない（言われていない髪の色・目の色・持ち物を書かない。手本の言葉を写さない）。"
+    "ただし構図と背景が無ければ full body と simple background を足す\n"
     "- negative: 頼みごとで「〜なし」「〜しない」と言われたものを英語のタグで入れる。無ければ空\n"
     "- summary: どう読んだかを日本語の1文で\n"
     "- allowed: 肌を見せる絵・性的な絵・子どもを性的に描く頼みごとなら false、それ以外は true\n"
     "- reason: allowed が false のときの理由（日本語）。true なら空"
 )
+# 手本の受け答え。小さい模型（0.5B）は説明だけだと日本語のタグや「no ○○」の打ち消しを返した
+EXAMPLES = (
+    ("青い髪のメイドの女の子、紅茶を運んでいる", {
+        "tags": ["1girl", "solo", "blue hair", "maid", "maid headdress", "apron", "holding tray", "teacup", "smile", "full body", "simple background"],
+        "negative": [], "summary": "紅茶を運ぶ青い髪のメイドの少女として読んだ", "allowed": True, "reason": ""}),
+    ("黒いコートの探偵の青年、夜の街、帽子なし", {
+        "tags": ["1boy", "solo", "black coat", "detective", "trench coat", "serious", "upper body", "night", "city", "street"],
+        "negative": ["hat"], "summary": "夜の街にいる黒いコートの探偵の青年として読んだ。帽子は描かない", "allowed": True, "reason": ""}),
+)
+
 SCHEMA = {
     "type": "object",
     "properties": {
@@ -66,12 +77,34 @@ SCHEMA = {
 }
 
 
-def _clean(tags) -> list[str]:
-    """タグを整える: 前後の空白、重複、空、長すぎるもの（模型が文章を書いたとき）を落とす。"""
+# 髪と目の色のタグの色が、頼みごとに言われているか見るための対応。模型は言われていない色（手本の blue hair）を足した
+COLOR_JA = {"blue": "青蒼水", "red": "赤紅朱", "pink": "ピンク桃", "white": "白銀雪", "silver": "銀白", "black": "黒",
+            "blonde": "金黄", "yellow": "黄金", "brown": "茶栗", "green": "緑翠", "purple": "紫", "grey": "灰グレー銀",
+            "gray": "灰グレー銀", "orange": "オレンジ橙", "aqua": "水青", "golden": "金黄"}
+
+
+def _unasked_colors(tags, text) -> list[str]:
+    """髪・目の色のタグのうち、頼みごとにその色の言葉が無いものを落とす"""
+    out = []
+    for t in tags:
+        m = re.fullmatch(r"(\w+) (hair|eyes)", t.lower())
+        if m and m.group(1) in COLOR_JA and not any(ch in text for ch in COLOR_JA[m.group(1)]):
+            continue
+        out.append(t)
+    return out
+
+
+def _clean(tags, negative=False) -> list[str]:
+    """タグを整える: 前後の空白、重複、空、長すぎるもの（模型が文章を書いたとき）、英語でないもの
+    （描く模型は日本語のタグを読めない）を落とす。打ち消しでは「no ○○」の no を外し、「なし」だけのものを落とす"""
     out, seen = [], set()
     for t in tags:
         t = re.sub(r"\s+", " ", str(t)).strip().strip(",").strip()
-        if t and len(t) <= 60 and t.lower() not in seen:
+        if negative:
+            t = re.sub(r"^(no|without|not)\s+", "", t, flags=re.I)
+        if not re.fullmatch(r"[\x20-\x7e]+", t or "x"):
+            continue
+        if t and len(t) <= 60 and t.lower() not in seen and t.lower() not in ("no", "none", "nothing"):
             seen.add(t.lower())
             out.append(t)
     return out
@@ -87,7 +120,7 @@ def describe(text: str, local=None) -> dict:
     got, reader = None, None
     if local is not None:
         try:
-            got, reader = local.chat_json(SYSTEM, text, SCHEMA), "local"
+            got, reader = local.chat_json(SYSTEM, text, SCHEMA, examples=EXAMPLES), "local"
         except Exception as e:
             notes.append(f"手元の模型で読めなかった（{type(e).__name__}: {str(e)[:120]}）")
     if got is None:
@@ -98,8 +131,12 @@ def describe(text: str, local=None) -> dict:
             return {"allowed": False, "reason": "日本語を描く言葉に直す手元の模型が動いていない。`sh tools/llm/setup.sh` で入れて app/start.sh で起こすか、"
                                                 "英語のタグをカンマ区切りで書く", "prompt": "", "negative": "", "tags": [], "summary": "",
                     "reader": None, "notes": notes}
-    tags = _clean(got.get("tags", []))
-    neg = _clean(got.get("negative", []))
+    tags = _unasked_colors(_clean(got.get("tags", [])), text)
+    neg = _clean(got.get("negative", []), negative=True)
+    if tags and not any(re.fullmatch(r"\d+(girl|boy|other)s?", t) for t in tags):
+        # 人数と性別が無いと、描く模型は人を描かないことがある。頼みごとの言葉から足す
+        who = "1boy" if re.search(r"少年|男|青年|おじ|お兄|彼|王子|紳士", text) else "1girl"
+        tags = [who, "solo"] + tags
     if not got.get("allowed", True):
         return {"allowed": False, "reason": got.get("reason") or "描かない頼みごと", "prompt": "", "negative": "",
                 "tags": tags, "summary": got.get("summary", ""), "reader": reader, "notes": notes}

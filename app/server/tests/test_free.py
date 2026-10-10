@@ -107,3 +107,14 @@ def test_safe_negative_always_added():
     assert pos.endswith(free_text.QUALITY)
     # 似た綴りの普通の言葉は止めない（braid の中の bra など）
     assert free_text.blocked_tags(["braid", "brass armor", "sextant"]) is None
+
+
+def test_unasked_hair_color_is_dropped(client, monkeypatch):
+    # 模型が手本の blue hair を写した。頼みごとに色の言葉が無ければ落とし、言われた色は残す
+    srv = use_llm(monkeypatch, dict(KNIGHT, tags=["1girl", "blue hair", "red eyes", "goggles"]))
+    try:
+        c, _ = client(FakeRunner())
+        r = c.post("/api/free/describe", json={"text": "赤い目の機械技師の女の子、ゴーグル"}).json()
+    finally:
+        srv.close()
+    assert r["prompt"] == "1girl, red eyes, goggles"

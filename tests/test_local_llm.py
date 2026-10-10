@@ -97,6 +97,43 @@ class LocalLLMTest(unittest.TestCase):
         self.assertEqual(r["reader"], "local")
         self.assertEqual(r["name"], "fox")
 
+    def test_dictionary_corrects_small_model(self):
+        # 0.5B の模型が「ピンクのうさぎ」を猫と読んだ。辞書の言葉に当たった種を使う
+        srv = FakeServer(dict(WHITE_FOX, species="cat", species_color="ピンク"))
+        try:
+            r = demi_text.parse("ピンクのうさぎ、ポニーテール", local=local_llm.LocalLLM(srv.url))
+        finally:
+            srv.close()
+        self.assertEqual(r["reader"], "local")
+        self.assertEqual(r["name"], "pink-rabbit")
+        self.assertIn("ponytail", r["case"]["hair"])
+        self.assertTrue(any("辞書の言葉に当たった rabbit" in n for n in r["notes"]))
+
+    def test_json_object_format_is_tried_next(self):
+        # llama-cpp-python の窓口は json_schema を 500 で断り、json_object + schema なら受ける
+        srv = FakeServer(WHITE_FOX)
+        orig = srv.httpd.RequestHandlerClass.do_POST
+
+        def picky(handler):
+            n = int(handler.headers["Content-Length"])
+            body = json.loads(handler.rfile.read(n))
+            if body["response_format"]["type"] == "json_schema":
+                handler.send_response(500)
+                handler.end_headers()
+                return
+            srv.requests.append(body)
+            handler._send({"choices": [{"message": {"content": json.dumps(WHITE_FOX, ensure_ascii=False)}}]})
+        srv.httpd.RequestHandlerClass.do_POST = picky
+        try:
+            llm = local_llm.LocalLLM(srv.url)
+            r = demi_text.parse("白い狐", local=llm)
+        finally:
+            srv.httpd.RequestHandlerClass.do_POST = orig
+            srv.close()
+        self.assertEqual(r["reader"], "local")
+        self.assertEqual(llm._format, "json_object")
+        self.assertEqual(srv.requests[0]["response_format"]["schema"]["required"][0], "species")
+
     def test_server_down_falls_back_quickly(self):
         r = demi_text.parse("黒猫", local=local_llm.LocalLLM("http://127.0.0.1:9/v1"))
         self.assertEqual(r["reader"], "words")

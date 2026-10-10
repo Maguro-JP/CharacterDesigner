@@ -222,6 +222,23 @@ def read_with_local(text, llm, d=None):
     return got
 
 
+def _cross_check(text, got, d):
+    """手元の小さい模型の読み違いを辞書で正す。辞書の言葉にそのまま当たったもの（種・色）は辞書が確か
+    （0.5B の模型が「ピンクのうさぎ」を猫と読んだ）。辞書が何も見つけなかった所だけ模型の読みを使う"""
+    words = read_words(text, d)
+    notes = list(got.get("notes", []))
+    for key in ("species", "species_color", "hair_color", "eye_color"):
+        if words.get(key) and words[key] != got.get(key):
+            if got.get(key):
+                notes.append(f"手元の模型は {key} を {got[key]} と読んだが、辞書の言葉に当たった {words[key]} を使う")
+            got[key] = words[key]
+    for h in words.get("hair_styles", []):
+        if h not in got.get("hair_styles", []):
+            got.setdefault("hair_styles", []).append(h)
+    got["notes"] = notes
+    return got
+
+
 def parse(text, client=None, local=None):
     """日本語から種の設定を組む。返り値: {name, case, used, unused, notes, reader}。種が分からなければ case は None。
     読み手の順番は 手元の模型（local）→ Claude（client）→ 辞書。読めなかった読み手は notes に理由を残して次へ回す
@@ -232,7 +249,10 @@ def parse(text, client=None, local=None):
         if obj is None:
             continue
         try:
-            r = build(text, reader(text, obj, d), d)
+            got = reader(text, obj, d)
+            if name == "local":
+                got = _cross_check(text, got, d)
+            r = build(text, got, d)
             r["reader"] = name
             r["notes"] = skipped + r["notes"]
             return r

@@ -29,6 +29,7 @@ class LocalLLM:
         self.model = model or os.environ.get("CD_LLM_MODEL") or None
         # CPU の小さい模型でも、数百字の答えは 1 分以内に返る。初回は模型の読み込みが重なるので長めに待つ
         self.timeout = timeout
+        self._format = None   # 窓口が受け付けた答えの形の指定（json_schema か json_object）。1度通ったら次からそれを使う
 
     def _req(self, path: str, body: dict | None = None, timeout: float | None = None) -> dict:
         data = json.dumps(body).encode() if body is not None else None
@@ -51,7 +52,7 @@ class LocalLLM:
             return {"ok": False, "url": self.url, "error": str(e)}
         return {"ok": bool(names), "url": self.url, "model": self.model or (names[0] if names else None), "models": names}
 
-    def chat_json(self, system: str, user: str, schema: dict, max_tokens: int = 800) -> dict:
+    def chat_json(self, system: str, user: str, schema: dict, max_tokens: int = 800, examples=()) -> dict:
         """決めた JSON の形（schema）で答えさせる。形に合わなければ LocalLLMError。
         温度は 0。同じ頼みごとには同じ答えを返させる（描き直しのたびに読み方が変わると、直したい所が追えない）"""
         model = self.model or (self.models() or [None])[0]
@@ -59,12 +60,33 @@ class LocalLLM:
             raise LocalLLMError(f"{self.url}: 模型が1つも読まれていない")
         body = {
             "model": model,
-            "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+            # examples は (頼みごと, 答えの dict) の組。小さい模型は説明より手本の受け答えに従う
+            "messages": [{"role": "system", "content": system},
+                         *[m for q, a in examples for m in ({"role": "user", "content": q},
+                                                             {"role": "assistant", "content": json.dumps(a, ensure_ascii=False)})],
+                         {"role": "user", "content": user}],
             "temperature": 0,
             "max_tokens": max_tokens,
-            "response_format": {"type": "json_schema", "json_schema": {"name": "answer", "schema": schema, "strict": True}},
         }
-        r = self._req("/chat/completions", body)
+        # 答えの形の指定は窓口ごとに違う。OpenAI・Ollama・LM Studio・llama.cpp の server は json_schema、
+        # llama-cpp-python の server は json_object に schema を添える形しか受けない（json_schema は 500 で断られた）
+        formats = {
+            "json_schema": {"type": "json_schema", "json_schema": {"name": "answer", "schema": schema, "strict": True}},
+            "json_object": {"type": "json_object", "schema": schema},
+        }
+        order = [self._format] if self._format else list(formats)
+        last = None
+        for name in order:
+            try:
+                r = self._req("/chat/completions", dict(body, response_format=formats[name]))
+                self._format = name
+                break
+            except LocalLLMError as e:
+                last = e
+                if "HTTP Error" not in str(e):   # つながらない・時間切れは形の問題ではないので、次の形を試さない
+                    raise
+        else:
+            raise last
         try:
             text = r["choices"][0]["message"]["content"]
             got = json.loads(_strip_fence(text))
