@@ -36,6 +36,15 @@ class FakeRunner(main.Runner):
                 break
         return []
 
+    def free(self, spec, outdir, on_image):
+        self.calls.append(("free", spec))
+        if self.fail:
+            raise RuntimeError("描画で落ちた")
+        for k in range(spec["count"]):
+            Image.new("RGB", (8, 8), "blue").save(outdir / f"try-{k}.png")
+            on_image(k, f"try-{k}.png")
+        return []
+
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):

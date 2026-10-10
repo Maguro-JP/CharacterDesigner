@@ -32,6 +32,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools" / "gen"))
 import demi  # noqa: E402  描く処理の本体
 import demi_text  # noqa: E402  日本語の頼みごとを種の設定に組む
+import free_text  # noqa: E402  自由に描く（日本語 → 描く言葉 → 絵）
 import local_llm  # noqa: E402  手元の言葉の模型（OpenAI 互換の窓口）
 
 DATA = Path(os.environ.get("CD_APP_DATA", ROOT / ".cache" / "app" / "jobs"))
@@ -52,6 +53,10 @@ class Runner:
     def draw(self, case: dict, outdir: Path, strength: float, tries: int, on_try) -> list:
         return demi.draw(case, outdir, strength, tries, on_try=on_try)
 
+    def free(self, spec: dict, outdir: Path, on_image) -> list:
+        return free_text.draw(spec["prompt"], spec.get("negative", ""), outdir, spec["seed"], spec["count"],
+                              spec["width"], spec["height"], on_image=on_image)
+
 
 @dataclass
 class Job:
@@ -68,10 +73,12 @@ class Job:
     started: float | None = None
     finished: float | None = None
     results: list = field(default_factory=list)   # 回ごとの検品の結果
+    kind: str = "demi"               # demi（亜人の設定資料）/ free（自由に描く）
+    free: dict | None = None         # 自由に描くときの描く言葉・打ち消し・seed・枚数・大きさ
 
     def public(self) -> dict:
-        d = {k: getattr(self, k) for k in ("id", "case_name", "strength", "tries", "state", "try_index", "passed",
-                                            "error", "created", "started", "finished", "results")}
+        d = {k: getattr(self, k) for k in ("id", "kind", "case_name", "strength", "tries", "state", "try_index", "passed",
+                                            "error", "created", "started", "finished", "results", "free")}
         d["files"] = sorted(p.name for p in (DATA / self.id).glob("*") if FILE.match(p.name)) if (DATA / self.id).exists() else []
         return d
 
@@ -86,8 +93,8 @@ class Queue:
         self.lock = threading.Lock()
         threading.Thread(target=self._loop, daemon=True).start()
 
-    def submit(self, name: str, case: dict, strength: float, tries: int) -> Job:
-        job = Job(uuid.uuid4().hex[:12], name, case, strength, tries)
+    def submit(self, name: str, case: dict, strength: float, tries: int, kind: str = "demi", free: dict | None = None) -> Job:
+        job = Job(uuid.uuid4().hex[:12], name, case, strength, tries, kind=kind, free=free)
         with self.lock:
             self.jobs[job.id] = job
         self.q.put(job.id)
@@ -100,6 +107,16 @@ class Queue:
             out.mkdir(parents=True, exist_ok=True)
             job.started = time.time()
             try:
+                if job.kind == "free":
+                    job.state = "drawing"
+
+                    def on_image(k, name):
+                        job.try_index = k
+                        job.results.append({"try": k, "file": name})
+                    self.runner.free(job.free, out, on_image)
+                    job.passed = bool(job.results)
+                    job.state = "done"
+                    continue
                 job.state = "underlay"
                 self.runner.underlay(job.case, out)
                 job.state = "drawing"
@@ -135,6 +152,19 @@ class DescribeIn(BaseModel):
 
 class SaveIn(BaseModel):
     overwrite: bool = False
+
+
+class FreeJobIn(BaseModel):
+    prompt: str = Field(min_length=1, max_length=1500)
+    negative: str = Field("", max_length=1000)
+    ja: str = Field("", max_length=200)      # 元の頼みごと（記録と一覧の見出し用）
+    seed: int = Field(0, ge=0, le=2**31 - 1)
+    count: int = Field(1, ge=1, le=4)
+    # 縦長・横長・正方形。SDXL が得意な画素数（約 100 万）の組だけにする
+    size: str = Field("portrait", pattern="^(portrait|landscape|square)$")
+
+
+SIZES = {"portrait": (832, 1216), "landscape": (1216, 832), "square": (1024, 1024)}
 
 
 class JobIn(BaseModel):
@@ -190,6 +220,34 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         # 日本語の頼みごとを種の設定に組む。読み手は 手元の模型 → Claude（ANTHROPIC_API_KEY があるとき）→ 辞書。
         # 保存はしない。画面で見て直してから保存する
         return demi_text.parse(body.text, demi_text.claude_client(), local_llm.client())
+
+    @app.get("/api/llm")
+    def llm_status():
+        # 画面に出す読み手の状態。手元の模型がつながるか、Claude の鍵があるか
+        client = local_llm.client()
+        local = client.status() if client else {"ok": False, "error": "CD_LLM_OFF=1 で切ってある"}
+        return {"local": local, "claude": demi_text.claude_client() is not None}
+
+    @app.post("/api/free/describe")
+    def free_describe(body: DescribeIn):
+        # 日本語を描く言葉に直す。描かない頼みごとなら allowed=false と理由を返す（422 にしない。画面で理由を見せる）
+        return free_text.describe(body.text, local_llm.client())
+
+    @app.post("/api/free/jobs", status_code=202)
+    def post_free_job(body: FreeJobIn):
+        # 画面で直した描く言葉も、ここでもう一度検査する（画面を通さずに呼ばれても描かない）
+        try:
+            free_text.full_prompt(body.prompt, body.negative)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+        why = free_text.blocked_text(body.ja) if body.ja else None
+        if why:
+            raise HTTPException(422, why)
+        w, h = SIZES[body.size]
+        spec = {"prompt": body.prompt, "negative": body.negative, "ja": body.ja, "seed": body.seed, "count": body.count,
+                "width": w, "height": h}
+        title = (body.ja or body.prompt)[:20]
+        return jobs.submit(title, {}, 0.0, body.count, kind="free", free=spec).public()
 
     preview_lock = threading.Lock()
 
