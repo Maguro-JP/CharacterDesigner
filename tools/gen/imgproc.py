@@ -7,6 +7,8 @@
   python3 tools/gen/imgproc.py chroma   IN OUT.png [--key #00b140] [--tol 60]   クロマキー（指定の色を消す。色を省くと四隅の色）
   python3 tools/gen/imgproc.py roto     IN.gif|DIR OUT_DIR    ロトスコーピング（コマごとに人物を抜き、透明 PNG と輪郭の動きを書く）
   python3 tools/gen/imgproc.py shade    IN OUT.png [--style cel2|cel3|soft|rim|back] [--light x,y,z]   影の付け方（立体を計算して光を当てる）
+  python3 tools/gen/imgproc.py aitells  IN                    AI っぽさを数える（つや、色数、色むら、線のにじみ、線の均一さ、奥行きの無さ）
+  python3 tools/gen/imgproc.py deai     IN OUT.png [--steps 10]   AI っぽさを消す（塗りを段に、つやを抑え、線を締める）
 
 どれも結果を画像で書き出し、数字（残した画素の割合など）を標準出力に出す。描いた絵の上でも写真の上でも動く。
 重い部品（切り抜きのモデル、部位分けのモデル）は使うときだけ読む。
@@ -332,6 +334,109 @@ def shade(src: str, out: str, style: str = "cel2", light: str = "-1,1,1.2", shad
             "cast_shadow_area": round(float(cs[inside].mean()), 3)}
 
 
+# ---- AI っぽさを測る・消す ----
+
+def _person_alpha(src: str, im: Image.Image) -> np.ndarray:
+    from rembg import new_session, remove
+    import os
+    os.environ.setdefault("U2NET_HOME", str(Path(__file__).resolve().parents[2] / ".cache" / "gen" / "u2net"))
+    return np.asarray(remove(im, session=new_session("isnet-anime"), only_mask=True).convert("L")) / 255.0 > 0.5
+
+
+def _lines(rgb: np.ndarray) -> np.ndarray:
+    """線画の画素: 周り（9px）より十分暗い所"""
+    from scipy import ndimage
+    lum = rgb @ np.array([0.299, 0.587, 0.114])
+    return (ndimage.median_filter(lum, 9) - lum) > 35
+
+
+def ai_tells(src: str) -> dict:
+    """AI の絵と見抜かれやすい所を数える（人物の中だけ）。どれも大きいほど AI っぽい。目安は docs/knowledge/ai-look.md。
+    gloss: つや（小さく孤立した白い点）の数、人物 10 万画素あたり。肌や髪や目が濡れたように光るほど増える
+    colors: 32 段に丸めた色の数 ÷ 100。アニメ塗りは塗りの段が少ない。AI は境目なくなめらかに塗り分けて色数が増える
+    noise: 塗りの中の細かい色むら（色み Cb/Cr の高周波の強さ）
+    line_soft: 線の縁のにじみ（線の画素のうち、まわりとの差が半端な画素の割合）
+    line_uniform: 線の太さのばらつきの少なさ（1 - 変動係数）。手描きは入り抜きで太さが変わる
+    flat_depth: 背景と人物の細かさの比。背景も人物と同じほど描き込まれていると 1 に近い（奥行きが無い）"""
+    from scipy import ndimage
+    im = Image.open(src).convert("RGB")
+    rgb = np.asarray(im).astype(float)
+    person = _person_alpha(src, im)
+    hsv = np.asarray(im.convert("HSV")).astype(float) / 255.0
+    spec = (hsv[..., 2] > 0.96) & (hsv[..., 1] < 0.08) & person
+    lab, n = ndimage.label(spec)
+    sizes = ndimage.sum(spec, lab, range(1, n + 1)) if n else np.array([])
+    # つやは小さく孤立した白い点。広い白（白い服）は数えない。数は人物の大きさ 10 万画素あたり
+    gloss = float(((sizes > 0) & (sizes < 0.0005 * person.sum())).sum() / max(person.sum(), 1) * 1e5)
+    q = (rgb[person] // 8).astype(int)
+    colors = len(np.unique(q[:, 0] * 1024 + q[:, 1] * 32 + q[:, 2])) / 100
+    cb = -0.1687 * rgb[..., 0] - 0.3313 * rgb[..., 1] + 0.5 * rgb[..., 2]
+    cr = 0.5 * rgb[..., 0] - 0.4187 * rgb[..., 1] - 0.0813 * rgb[..., 2]
+    lines = _lines(rgb)
+    flat = person & ~ndimage.binary_dilation(lines, iterations=2)
+    hf = np.abs(cb - ndimage.gaussian_filter(cb, 1.5)) + np.abs(cr - ndimage.gaussian_filter(cr, 1.5))
+    noise = float(hf[flat].mean()) if flat.any() else 0.0
+    lum = rgb @ np.array([0.299, 0.587, 0.114])
+    ring = ndimage.binary_dilation(lines, iterations=1) & ~lines & person
+    contrast = (ndimage.median_filter(lum, 9) - lum)
+    line_soft = float(((contrast > 10) & (contrast <= 35) & ring).sum() / max((lines & person).sum(), 1))
+    skel_w = ndimage.distance_transform_edt(lines & person)
+    widths = skel_w[(skel_w > 0) & (ndimage.maximum_filter(skel_w, 3) == skel_w)]
+    line_uniform = float(1 - widths.std() / max(widths.mean(), 1e-6)) if widths.size else 0.0
+    lap = np.abs(ndimage.laplace(ndimage.gaussian_filter(lum, 0.8)))
+    bg = ~ndimage.binary_dilation(person, iterations=8)
+    flat_depth = float(lap[bg].mean() / max(lap[person].mean(), 1e-6)) if bg.any() else 0.0
+    return {k: round(v, 3) for k, v in dict(gloss=gloss, colors=colors, noise=noise, line_soft=line_soft,
+                                             line_uniform=line_uniform, flat_depth=flat_depth).items()}
+
+
+def de_ai(src: str, out: str, steps: int = 10, line_boost: float = 1.0) -> dict:
+    """AI っぽさを消す（人物の中だけ。背景は手を入れない）。色み（色相と彩度）は変えない。
+    1. 塗りを平らにする: 線を避けて縁を保つならし（中央値）を重ね、細かい色むらを消す。そのあと明るさだけを steps 段に丸め、
+       なめらかな塗り分けをアニメ塗りの段に戻す
+    2. つやを抑える: 小さく孤立した白い点（つや）だけを、まわりの塗りの色で埋める。広く明るい所（白い服、明るい肌）は触らない
+    3. 線を締める: 線の画素を元の濃さより暗くし、縁の半端なにじみを消す。太さは元のまま（入り抜きを壊さない）
+    前の版は、明るい所を全部抑えて肌が灰色になり、色を 28 色に減らして目と水着の色が肌に吸われた"""
+    from scipy import ndimage
+    im = Image.open(src).convert("RGB")
+    rgb = np.asarray(im).astype(float)
+    person = _person_alpha(src, im)
+    lines = _lines(rgb)
+    fill = person & ~ndimage.binary_dilation(lines, iterations=1)
+    # 1. ならし（線をまたがないよう、線の所は元の色のまま毎回戻す）
+    sm = rgb.copy()
+    for _ in range(3):
+        sm = ndimage.median_filter(sm, size=(5, 5, 1))
+        sm = np.where(fill[..., None], sm, rgb)
+    hsv = np.asarray(Image.fromarray(sm.astype("uint8")).convert("HSV")).astype(float)
+    v = hsv[..., 2] / 255.0
+    vq = (np.round(v * steps) / steps).clip(0, 1)
+    hsv[..., 2] = np.where(fill, vq * 255, hsv[..., 2])
+    flat = np.asarray(Image.fromarray(hsv.astype("uint8"), "HSV").convert("RGB")).astype(float)
+    flat = np.where(fill[..., None], flat, rgb)
+    # 2. つや: 白く彩度の低い小さな塊（人物の 0.05% 未満）を、まわりの色の中央値で埋める
+    hsv0 = np.asarray(im.convert("HSV")).astype(float) / 255.0
+    spec = (hsv0[..., 2] > 0.96) & (hsv0[..., 1] < 0.08) & person
+    lab, n = ndimage.label(spec)
+    removed = 0
+    if n:
+        sizes = ndimage.sum(spec, lab, range(1, n + 1))
+        small = np.isin(lab, [i + 1 for i, sz in enumerate(sizes) if sz < 0.0005 * person.sum()])
+        ring = ndimage.binary_dilation(small, iterations=3) & ~small & person
+        fillcol = ndimage.median_filter(np.where(small[..., None], np.nan_to_num(flat), flat), size=(7, 7, 1))
+        flat = np.where(small[..., None], fillcol, flat)
+        removed = int(small.sum())
+    # 3. 線
+    lum = rgb @ np.array([0.299, 0.587, 0.114])
+    darkness = np.clip((ndimage.median_filter(lum, 9) - lum) / 120, 0, 1)
+    ink = np.clip(darkness * (1.4 * line_boost), 0, 1)
+    ink = np.where(ink > 0.35, np.minimum(ink * 1.3, 1), np.where(ink < 0.15, 0, ink)) * person
+    line_col = rgb * 0.35   # 線の色は元の色を暗くしたもの（真っ黒にしない。アニメの色トレス）
+    res = flat * (1 - ink[..., None]) + line_col * ink[..., None]
+    res = np.where(person[..., None], res, rgb)
+    Image.fromarray(np.clip(res, 0, 255).astype("uint8")).save(out)
+    return {"gloss_px_removed": removed, "before": ai_tells(src), "after": ai_tells(out)}
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -347,11 +452,14 @@ def main():
     sh = sub.add_parser("shade")
     sh.add_argument("src"); sh.add_argument("out"); sh.add_argument("--style", default="cel2", choices=SHADE_STYLES)
     sh.add_argument("--light", default="-1,1,1.2"); sh.add_argument("--shadow-color", default="#8a7fb0")
+    t = sub.add_parser("aitells"); t.add_argument("src")
+    de = sub.add_parser("deai"); de.add_argument("src"); de.add_argument("out"); de.add_argument("--steps", type=int, default=10)
     a = ap.parse_args()
     fn = {"segment": lambda: segment(a.src, a.out), "matte": lambda: matte(a.src, a.out), "remove": lambda: remove_bg(a.src, a.out),
           "roto": lambda: roto(a.src, a.out), "cutout": lambda: cutout(a.src, a.out, a.path),
           "chroma": lambda: chroma(a.src, a.out, a.key, a.tol, a.soft),
-          "shade": lambda: shade(a.src, a.out, a.style, a.light, a.shadow_color)}[a.cmd]
+          "shade": lambda: shade(a.src, a.out, a.style, a.light, a.shadow_color),
+          "aitells": lambda: ai_tells(a.src), "deai": lambda: de_ai(a.src, a.out, a.steps)}[a.cmd]
     print(json.dumps(fn(), ensure_ascii=False))
 
 
