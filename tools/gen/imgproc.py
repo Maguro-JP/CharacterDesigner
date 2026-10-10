@@ -462,8 +462,9 @@ def notan(src: str, out: str, size: int = 96) -> dict:
             frag += int(sz[~big].sum())
     edge = (np.abs(np.diff(val, axis=0, prepend=val[:1])) + np.abs(np.diff(val, axis=1, prepend=val[:, :1]))) > 0
     dens = ndimage.uniform_filter(edge.astype(float), size=max(3, size // 8))
-    fy, fx = np.unravel_index(int(dens.argmax()), dens.shape)
     person = np.asarray(Image.fromarray(_person_alpha(src, im).astype("uint8") * 255).resize(small.size)) > 127
+    # 見せ場は人物の中で探す。背景を描いた絵では、床の反射や窓の明暗差が一番強いことがある（人物の外を見せ場と取り違えた）
+    fy, fx = np.unravel_index(int((dens * person if person.any() else dens).argmax()), dens.shape)
     ys, xs = np.nonzero(person) if person.any() else (np.array([0, val.shape[0] - 1]), np.array([0, val.shape[1] - 1]))
     focal_y = (fy - ys.min()) / max(ys.max() - ys.min(), 1)
     shades = np.array([40, 128, 225], dtype="uint8")[val]
