@@ -156,9 +156,11 @@
   - 対応表（`casts/free-words.json`）で落ちた言葉を足すようにして描き直した: 描く言葉に steampunk が入り、真鍮のゴーグル・革の帯・歯車の機械の絵になった（同じ図の右）
   - 気づいたこと: 記憶は「検品を通った」ものを手本にするので、利用者が良いと思っていない描き方（robot mechanic）も次の頼みごとに引き継がれた。
     → 手本にするのは「大きく見る」で「良い」を押した描き方だけにした（検品を通っただけのものは履歴に残すが手本にしない）
-- [ ] T2 素材の棚: 描く模型（SDXL の checkpoint）・LoRA（作風・服・キャラクターの追加、数十〜数百 MB）・手本の絵（IP-Adapter）を
+- [x] T2 素材の棚: 描く模型（SDXL の checkpoint）・LoRA（作風・服・キャラクターの追加、数十〜数百 MB）・手本の絵（IP-Adapter）を
   `.cache/assets/` に置いて画面で選べるようにする。言葉の模型の入れ替えと同じ作り（一覧・選ぶ・既定に戻す）
   - 素材ごとに出典とライセンスを記録する。ライセンスの分からない素材は使わない
+  - 済（2026-10-11 JST）: LoRA だけ。`tools/gen/assets.py`。水彩の LoRA（ostris、Apache-2.0、12MB）で同じ seed を描き比べ、塗りが水彩に変わった
+    （`library/samples/studio-lora-watercolor.jpg`）。描く模型の差し替えと手本の絵（IP-Adapter）はまだ（この環境はディスクが足りない）
 - [ ] T3 姿勢の素材: 下絵のポーズ（ControlNet の OpenPose や深度）を素材として足し、Drawing-mannequin のポーズを読めるようにする
 
 ## やらないこと（今は）
