@@ -35,7 +35,7 @@ export type FreeSpec = { prompt: string; negative: string; ja: string; seed: num
 
 export type StudioEvent = { t: number; role: string; stage: string; msg: string; file?: string; prompt?: string; reasons?: string[] };
 
-export type Outcome = { passed: string | null; files: string[]; prompt: string; negative: string; reason: string; critique: string[] };
+export type Outcome = { passed: string | null; files: string[]; prompt: string; negative: string; reason: string; critique: string[]; hidden?: string[] };
 
 export type Memory = { text: string; prompt: string; negative: string; ok: boolean; seed: number; size: number[]; reason: string; t: number };
 

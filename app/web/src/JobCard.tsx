@@ -61,6 +61,7 @@ function StudioJobCard({ job, now }: { job: Job; now: number }) {
       </div>
       {job.state !== "done" && last && <p className="mt-1 text-xs text-neutral-300">{last.role}: {last.msg}</p>}
       {job.outcome?.reason && <p className="mt-1 text-xs text-signal">{job.outcome.reason}</p>}
+      {!!job.outcome?.hidden?.length && <p className="mt-1 text-xs text-neutral-400">GUARD が見せないと決めた絵 {job.outcome.hidden.length} 枚（描き直した）</p>}
       {job.error && <p className="mt-1 text-xs text-signal">{job.error}</p>}
     </li>
   );
