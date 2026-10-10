@@ -71,6 +71,24 @@ python3 tools/compare.py out/cmp.png v3=characters/warrior-v3-hand/sprite.json v
 | `CD_APP_DATA` | 描いた絵の置き場所（既定は `.cache/app/jobs`） | 任意 |
 | `PLAYWRIGHT_MODULE` / `CHROMIUM_PATH` | 下絵を撮るブラウザーを指す（無ければ `start.sh` が取る） | 任意 |
 
+### Claude から使う（MCP）
+
+アプリを起動したまま（`sh app/start.sh`）、MCP サーバーを登録すると、Claude に「白い狐の巫女を描いて」と頼めるようになる。
+道具は `list_cases`（種の一覧）、`describe`（日本語を種の設定に組む）、`save_case`、`draw`（描く依頼）、`job`（進み具合）、`sheet`（通った絵）。
+
+- Claude Code: リポジトリの場所で
+  `claude mcp add characterdesigner -e PYTHONPATH=.cache/app/lib -- python3 -m app.mcp.server`
+- Claude Desktop: 設定の `mcpServers` に次を足す（`/path/to/CharacterDesigner` は置いた場所に替える）
+  ```json
+  "characterdesigner": {
+    "command": "python3",
+    "args": ["-m", "app.mcp.server"],
+    "cwd": "/path/to/CharacterDesigner",
+    "env": {"PYTHONPATH": "/path/to/CharacterDesigner/.cache/app/lib"}
+  }
+  ```
+
+
 ## ディレクトリ構成
 
 | 場所 | 役割 |
@@ -81,7 +99,7 @@ python3 tools/compare.py out/cmp.png v3=characters/warrior-v3-hand/sprite.json v
 | `docs/progress/` | 周ごとの比較画像と判定 |
 | `docs/sheets/` | キャラクターごとの設定資料（色指定） |
 | `docs/knowledge/` | 技術・問題・見た目の精度・設計判断の記録 |
-| `app/` | 手元のアプリ。`app/server` がサーバー（FastAPI）、`app/web` が画面（Vite + React）、`app/start.sh` が起動 |
+| `app/` | 手元のアプリ。`app/server` がサーバー（FastAPI）、`app/web` が画面（Vite + React）、`app/start.sh` が起動、`app/mcp` が Claude から使う MCP サーバー |
 | `docs/ROADMAP.md` | 道のり |
 
 ## 開発者向け
@@ -89,7 +107,7 @@ python3 tools/compare.py out/cmp.png v3=characters/warrior-v3-hand/sprite.json v
 ```bash
 python3 -m unittest discover -s tests
 # アプリのサーバー（start.sh を一度流したあと）
-PYTHONPATH=.cache/app/lib python3 -m pytest app/server/tests
+PYTHONPATH=.cache/app/lib python3 -m pytest app/server/tests app/mcp/tests
 # アプリの画面（型チェック込み）
 cd app/web && npm run build
 ```
