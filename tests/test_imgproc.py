@@ -142,6 +142,7 @@ class NotanTest(unittest.TestCase):
         self.assertGreater(r["fragment_ratio"], 0.5)
 
 
+@unittest.skipUnless(HAS_SKIMAGE, "scipy と skimage が無い（描く部品 .cache/gen/lib に入っている）")
 class LineWeightTest(unittest.TestCase):
     """外形を太く（6px）、内側を細く（2px）描いた図形は ratio が 1 を十分に超える"""
 
