@@ -112,3 +112,31 @@ class Solid(unittest.TestCase):
         s = imgproc.cast_shadow(h, light, reach=30)
         self.assertEqual(s[30, 45], 1)   # 柱の右（光と反対）は影
         self.assertEqual(s[30, 10], 0)   # 柱の左（光の側）は影にならない
+
+
+@unittest.skipUnless(HAS_SKIMAGE, "skimage が無い")
+class NotanTest(unittest.TestCase):
+    """明暗の塊: 3段の大きな面だけの絵は塊3つ・細切れ無し、砂嵐は細切れだらけになる"""
+
+    def run_notan(self, im):
+        whole = lambda src, img: np.ones((img.height, img.width), bool)  # 人物の切り抜き（モデル）を使わない
+        orig, imgproc._person_alpha = imgproc._person_alpha, whole
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                im.save(f"{d}/a.png")
+                return imgproc.notan(f"{d}/a.png", f"{d}/b.png")
+        finally:
+            imgproc._person_alpha = orig
+
+    def test_three_masses(self):
+        im = Image.new("RGB", (300, 300), (230, 230, 230))
+        d = ImageDraw.Draw(im)
+        d.rectangle([0, 100, 299, 199], fill=(128, 128, 128)); d.rectangle([0, 200, 299, 299], fill=(30, 30, 30))
+        r = self.run_notan(im)
+        self.assertEqual(r["masses"], 3)
+        self.assertEqual(r["fragment_ratio"], 0.0)
+
+    def test_noise_is_fragmented(self):
+        rng = np.random.default_rng(0)
+        r = self.run_notan(Image.fromarray(rng.integers(0, 255, (300, 300, 3), dtype="uint8")))
+        self.assertGreater(r["fragment_ratio"], 0.5)

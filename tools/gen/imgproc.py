@@ -438,6 +438,40 @@ def de_ai(src: str, out: str, steps: int = 10, line_boost: float = 1.0) -> dict:
     Image.fromarray(np.clip(res, 0, 255).astype("uint8")).save(out)
     return {"gloss_px_removed": removed, "before": ai_tells(src), "after": ai_tells(out)}
 
+def notan(src: str, out: str, size: int = 96) -> dict:
+    """明暗の設計を見る（ノタン）。上手い絵は、縮めて白黒にすると明・中・暗の3つの大きな塊で読める。
+    縮小 → 明るさを3段（多段の大津）に分け、塊の数と細切れの割合を数える。細切れが多いほど、明暗が設計されていない。
+    見せ場: 明暗差（3段の境目）が一番集まる場所を、人物の外接枠の中の位置（上からの割合）で返す。顔の周りなら 0.1〜0.3。
+    out には3段の図を元の大きさに拡大して保存する（目で見て判定するため）"""
+    from scipy import ndimage
+    from skimage.filters import threshold_multiotsu
+    im = Image.open(src).convert("RGB")
+    w, h = im.size
+    k = size / max(w, h)
+    small = im.resize((max(1, round(w * k)), max(1, round(h * k))), Image.LANCZOS)
+    lum = np.asarray(small).astype(float) @ np.array([0.299, 0.587, 0.114])
+    t = threshold_multiotsu(lum, classes=3)
+    val = np.digitize(lum, t)
+    blobs, frag = 0, 0
+    for v in range(3):
+        lab, n = ndimage.label(val == v)
+        if n:
+            sz = ndimage.sum(val == v, lab, range(1, n + 1))
+            big = sz >= 0.01 * val.size
+            blobs += int(big.sum())
+            frag += int(sz[~big].sum())
+    edge = (np.abs(np.diff(val, axis=0, prepend=val[:1])) + np.abs(np.diff(val, axis=1, prepend=val[:, :1]))) > 0
+    dens = ndimage.uniform_filter(edge.astype(float), size=max(3, size // 8))
+    fy, fx = np.unravel_index(int(dens.argmax()), dens.shape)
+    person = np.asarray(Image.fromarray(_person_alpha(src, im).astype("uint8") * 255).resize(small.size)) > 127
+    ys, xs = np.nonzero(person) if person.any() else (np.array([0, val.shape[0] - 1]), np.array([0, val.shape[1] - 1]))
+    focal_y = (fy - ys.min()) / max(ys.max() - ys.min(), 1)
+    shades = np.array([40, 128, 225], dtype="uint8")[val]
+    Image.fromarray(shades).resize((w, h), Image.NEAREST).save(out)
+    return {"masses": blobs, "fragment_ratio": round(frag / val.size, 3), "focal_y_in_person": round(float(focal_y), 2),
+            "focal_xy": [round(fx / val.shape[1], 2), round(fy / val.shape[0], 2)]}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -455,12 +489,14 @@ def main():
     sh.add_argument("--light", default="-1,1,1.2"); sh.add_argument("--shadow-color", default="#8a7fb0")
     t = sub.add_parser("aitells"); t.add_argument("src")
     de = sub.add_parser("deai"); de.add_argument("src"); de.add_argument("out"); de.add_argument("--steps", type=int, default=10)
+    nt = sub.add_parser("notan"); nt.add_argument("src"); nt.add_argument("out"); nt.add_argument("--size", type=int, default=96)
     a = ap.parse_args()
     fn = {"segment": lambda: segment(a.src, a.out), "matte": lambda: matte(a.src, a.out), "remove": lambda: remove_bg(a.src, a.out),
           "roto": lambda: roto(a.src, a.out), "cutout": lambda: cutout(a.src, a.out, a.path),
           "chroma": lambda: chroma(a.src, a.out, a.key, a.tol, a.soft),
           "shade": lambda: shade(a.src, a.out, a.style, a.light, a.shadow_color),
-          "aitells": lambda: ai_tells(a.src), "deai": lambda: de_ai(a.src, a.out, a.steps)}[a.cmd]
+          "aitells": lambda: ai_tells(a.src), "deai": lambda: de_ai(a.src, a.out, a.steps),
+          "notan": lambda: notan(a.src, a.out, a.size)}[a.cmd]
     print(json.dumps(fn(), ensure_ascii=False))
 
 
