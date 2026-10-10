@@ -82,3 +82,33 @@ class Cli(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(HAS_SKIMAGE, "描く部品（scipy など）が無い")
+class Solid(unittest.TestCase):
+    """影の付け方の、立体の計算（モデルを使わない所）"""
+
+    def test_dome_of_disk_is_round_and_highest_in_center(self):
+        yy, xx = np.mgrid[0:120, 0:120]
+        disk = (yy - 60) ** 2 + (xx - 60) ** 2 < 50 ** 2
+        h = imgproc.inflate_dome(disk)
+        self.assertEqual(h[~disk].max(), 0)
+        self.assertGreater(h[60, 60], h[60, 30])           # 中心が一番高い
+        self.assertAlmostEqual(h[60, 40], h[40, 60], delta=0.05)   # 向きによらず同じ（円い山）
+
+    def test_normals_face_outward_at_edges(self):
+        yy, xx = np.mgrid[0:120, 0:120]
+        disk = (yy - 60) ** 2 + (xx - 60) ** 2 < 50 ** 2
+        n = imgproc.normals(imgproc.inflate_dome(disk) * 30)
+        self.assertLess(n[60, 15, 0], -0.3)    # 左の縁は左を向く
+        self.assertGreater(n[60, 105, 0], 0.3) # 右の縁は右を向く
+        self.assertGreater(n[15, 60, 1], 0.3)  # 上の縁は上を向く（y は上向き）
+        self.assertGreater(n[60, 60, 2], 0.95) # 中心は手前を向く
+
+    def test_tall_block_casts_shadow_away_from_light(self):
+        h = np.zeros((60, 60)); h[20:40, 25:35] = 30.0   # 高い柱
+        h[:, :] += 1.0
+        light = np.array([-1.0, 0.0, 0.4]); light /= np.linalg.norm(light)   # 左から低い光
+        s = imgproc.cast_shadow(h, light, reach=30)
+        self.assertEqual(s[30, 45], 1)   # 柱の右（光と反対）は影
+        self.assertEqual(s[30, 10], 0)   # 柱の左（光の側）は影にならない

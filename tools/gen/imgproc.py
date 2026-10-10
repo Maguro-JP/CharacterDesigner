@@ -6,6 +6,7 @@
   python3 tools/gen/imgproc.py cutout   IN OUT.png [--path OUT.svg]   切り抜き（輪郭で抜く。--path でクリッピングパスを SVG で書く）
   python3 tools/gen/imgproc.py chroma   IN OUT.png [--key #00b140] [--tol 60]   クロマキー（指定の色を消す。色を省くと四隅の色）
   python3 tools/gen/imgproc.py roto     IN.gif|DIR OUT_DIR    ロトスコーピング（コマごとに人物を抜き、透明 PNG と輪郭の動きを書く）
+  python3 tools/gen/imgproc.py shade    IN OUT.png [--style cel2|cel3|soft|rim|back] [--light x,y,z]   影の付け方（立体を計算して光を当てる）
 
 どれも結果を画像で書き出し、数字（残した画素の割合など）を標準出力に出す。描いた絵の上でも写真の上でも動く。
 重い部品（切り抜きのモデル、部位分けのモデル）は使うときだけ読む。
@@ -205,6 +206,132 @@ def roto(src: str, outdir: str) -> dict:
     return {"frames": len(frames), "kept_mean": round(float(np.mean([(r > 0.5).mean() for r in raw])), 4)}
 
 
+# ---- 影の付け方（立体を計算して光を当てる） ----
+
+SHADE_STYLES = ("cel2", "cel3", "soft", "rim", "back")
+
+
+def height_field(src: str, alpha: np.ndarray, inflate: float = 0.6) -> np.ndarray:
+    """人物の立体を高さの地形（手前ほど高い）として作る。
+    奥行きの推定（Depth Anything V2 Small）は顔や胸の起伏を拾うが、輪郭の際で急に落ちない（板のように平ら）。
+    そこで輪郭から膨らませた丸み（inflate_dome）を足し、縁で面が奥へ回り込む形にする"""
+    from scipy import ndimage
+    from transformers import pipeline
+    im = Image.open(src).convert("RGB")
+    est = pipeline("depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf", device="cpu")(im)["predicted_depth"]
+    d = est.squeeze().numpy() if hasattr(est, "numpy") else np.asarray(est)
+    d = np.asarray(Image.fromarray(d.astype("float32")).resize(im.size, Image.BILINEAR))
+    inside = alpha > 0.5
+    d = (d - d[inside].min()) / max(d[inside].max() - d[inside].min(), 1e-6)
+    bulge = inflate_dome(inside)
+    h = (1 - inflate) * d + inflate * bulge
+    h = ndimage.gaussian_filter(np.where(inside, h, 0.0), 2.0)
+    # 高さの単位を画素にそろえる（人物の幅の 1/4 を最も高い所の高さとみなす。法線の傾きと落ち影の長さが絵の大きさで変わらないように）
+    w = inside.any(0).sum()
+    return h * (w * 0.25)
+
+
+def inflate_dome(inside: np.ndarray) -> np.ndarray:
+    """シルエットを風船のように膨らませた高さ（0〜1）。ポアソン方程式（∇²h = -1、輪郭で h = 0）を解き、平方根をとる。
+    輪郭からの距離をそのまま使うと、体の中心線に折り目（尾根）が出て、顔と胴に斜めの影の線が入った。
+    ポアソンの解は折り目の無いなめらかな山になり、細い所（腕、脚）は低く、太い所（胴）は高くなる（筒の太さに比例した丸み）。
+    平方根で縁の傾きを急にし、断面を円に近づける"""
+    small = Image.fromarray(inside.astype("uint8") * 255)
+    k = 4
+    sw, sh = max(inside.shape[1] // k, 8), max(inside.shape[0] // k, 8)
+    m = np.asarray(small.resize((sw, sh), Image.BILINEAR)) > 127
+    h = np.zeros(m.shape)
+    for _ in range(1500):   # ヤコビ法。1/4 の大きさなので数秒で収まる
+        nb = np.zeros_like(h)
+        nb[1:, :] += h[:-1, :]; nb[:-1, :] += h[1:, :]; nb[:, 1:] += h[:, :-1]; nb[:, :-1] += h[:, 1:]
+        h = np.where(m, (nb + 1.0) / 4.0, 0.0)
+    h = np.sqrt(h / max(h.max(), 1e-6))
+    big = np.asarray(Image.fromarray((h * 65535).astype("uint16")).resize((inside.shape[1], inside.shape[0]), Image.BILINEAR)) / 65535.0
+    return np.where(inside, big, 0.0)
+
+
+def normals(h: np.ndarray) -> np.ndarray:
+    """高さの地形から面の向き（法線、x 右・y 上・z 手前、長さ 1）を出す"""
+    gy, gx = np.gradient(h)
+    n = np.dstack([-gx, gy, np.ones_like(h)])
+    return n / np.linalg.norm(n, axis=-1, keepdims=True)
+
+
+def cast_shadow(h: np.ndarray, light: np.ndarray, reach: float | None = None, steps: int = 24) -> np.ndarray:
+    """光の方向へ地形の上をたどり、途中に光より高い所があれば影（1）にする。髪が顔に落とす影、腕が胴に落とす影のような落ち影"""
+    lx, ly, lz = light
+    plane = np.hypot(lx, ly)
+    if plane < 1e-6:
+        return np.zeros_like(h)
+    dx, dy = lx / plane, -ly / plane          # 画面では y が下向き
+    rise = lz / plane                          # 横に1画素進むごとに光の線が上がる高さ
+    H, W = h.shape
+    # たどる距離は人物の幅の 12% まで。遠くまでたどると、膨らみの山が反対側の太もも全体に影を落とした
+    reach = reach or 0.12 * max((h > 0).any(0).sum(), 1)
+    margin = 0.02 * h.max()
+    yy, xx = np.mgrid[0:H, 0:W].astype(float)
+    shadow = np.zeros_like(h)
+    for k in range(1, steps + 1):
+        t = reach * k / steps
+        sx = np.clip(np.round(xx + dx * t).astype(int), 0, W - 1)
+        sy = np.clip(np.round(yy + dy * t).astype(int), 0, H - 1)
+        shadow = np.maximum(shadow, (h[sy, sx] > h + rise * t + margin).astype(float))
+    return shadow
+
+
+def shade(src: str, out: str, style: str = "cel2", light: str = "-1,1,1.2", shadow_color: str = "#8a7fb0", strength: float = 0.55) -> dict:
+    """絵に、立体を計算した影を付ける。
+    1. 人物を抜く（背景除去） 2. 高さの地形を作る（height_field） 3. 法線を出す 4. 光の向きとの角度で明るさ（ランバート）
+    5. 落ち影をたどる（cast_shadow） 6. 塗りの作風で明るさを段に分け、影の色を掛ける。線画と元の色はそのまま残す
+    style: cel2（アニメ塗り2段）、cel3（2段＋濃い影）、soft（なめらか）、rim（縁の光を足す）、back（逆光: 前が暗く縁が光る）
+    light: 光の向き x,y,z（x 右、y 上、z 手前）。影の色は青みの紫（アニメ塗りの影は黒でなく寒色を掛けると肌が濁らない）"""
+    if style not in SHADE_STYLES:
+        raise SystemExit(f"style は {', '.join(SHADE_STYLES)}")
+    im = Image.open(src).convert("RGB")
+    from rembg import new_session, remove
+    import os
+    os.environ.setdefault("U2NET_HOME", str(Path(__file__).resolve().parents[2] / ".cache" / "gen" / "u2net"))
+    alpha = np.asarray(remove(im, session=new_session("isnet-anime"), only_mask=True).convert("L")) / 255.0
+    L = np.array([float(v) for v in light.split(",")])
+    if style == "back":
+        L = np.array([L[0] * 0.3, 0.3, -1.0])     # 光は人物の後ろから
+    L = L / np.linalg.norm(L)
+    h = height_field(src, alpha)
+    n = normals(h)
+    lam = np.clip((n * L).sum(-1), 0, 1)
+    cs = cast_shadow(h, L) if L[2] > 0 else np.zeros_like(h)
+    lit = lam * (1 - cs)
+    if style == "cel2":
+        dark = (lit < 0.35).astype(float)
+    elif style == "cel3":
+        dark = np.where(lit < 0.12, 1.6, np.where(lit < 0.4, 1.0, 0.0))
+    elif style == "soft":
+        dark = np.clip((0.6 - lit) / 0.6, 0, 1)
+    elif style == "rim":
+        dark = (lit < 0.35).astype(float)
+    else:  # back
+        dark = np.full_like(lit, 0.9)
+    from scipy import ndimage
+    dark = ndimage.gaussian_filter(dark, 0.8) * (alpha > 0.5)     # 段の境目のギザギザだけ消す（ぼかしすぎると塗りの段が消える）
+    rgb = np.asarray(im).astype(float) / 255.0
+    sc = np.array([int(shadow_color[i:i + 2], 16) for i in (1, 3, 5)]) / 255.0
+    shaded = rgb * (1 - np.clip(dark * strength, 0, 1)[..., None] * (1 - sc))
+    if style in ("rim", "back"):
+        # 縁の光: 面が横を向いている所（法線の z が小さい）で、光の側にある所を明るくする
+        side = np.clip(1 - n[..., 2], 0, 1) ** 3
+        toward = np.clip(n[..., 0] * np.sign(L[0] or 1) * 0.5 + 0.5, 0, 1) if style == "rim" else 1.0
+        rim = side * toward * (alpha > 0.5)
+        shaded = shaded + (1 - shaded) * np.clip(rim * 0.9, 0, 1)[..., None]
+    res = Image.fromarray((np.clip(shaded, 0, 1) * 255).astype("uint8"))
+    res = Image.composite(res, im, Image.fromarray((alpha * 255).astype("uint8")))
+    res.save(out)
+    Image.fromarray(((n * 0.5 + 0.5) * 255 * (alpha > 0.5)[..., None]).astype("uint8")).save(str(Path(out).with_suffix("")) + "-normal.png")
+    Image.fromarray((cs * 255).astype("uint8")).save(str(Path(out).with_suffix("")) + "-castshadow.png")
+    inside = alpha > 0.5
+    return {"style": style, "light": [round(v, 2) for v in L], "shadow_area": round(float((dark > 0.5)[inside].mean()), 3),
+            "cast_shadow_area": round(float(cs[inside].mean()), 3)}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -217,10 +344,14 @@ def main():
     k = sub.add_parser("chroma")
     k.add_argument("src"); k.add_argument("out"); k.add_argument("--key", default=None)
     k.add_argument("--tol", type=float, default=35.0); k.add_argument("--soft", type=float, default=25.0)
+    sh = sub.add_parser("shade")
+    sh.add_argument("src"); sh.add_argument("out"); sh.add_argument("--style", default="cel2", choices=SHADE_STYLES)
+    sh.add_argument("--light", default="-1,1,1.2"); sh.add_argument("--shadow-color", default="#8a7fb0")
     a = ap.parse_args()
     fn = {"segment": lambda: segment(a.src, a.out), "matte": lambda: matte(a.src, a.out), "remove": lambda: remove_bg(a.src, a.out),
           "roto": lambda: roto(a.src, a.out), "cutout": lambda: cutout(a.src, a.out, a.path),
-          "chroma": lambda: chroma(a.src, a.out, a.key, a.tol, a.soft)}[a.cmd]
+          "chroma": lambda: chroma(a.src, a.out, a.key, a.tol, a.soft),
+          "shade": lambda: shade(a.src, a.out, a.style, a.light, a.shadow_color)}[a.cmd]
     print(json.dumps(fn(), ensure_ascii=False))
 
 
