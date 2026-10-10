@@ -179,13 +179,36 @@ def inpaint_mask(im, gen_mask, keep_mask, prompt, negative="", steps=20, guidanc
     # 長い辺が 1024 未満なら拡大して描き、元の大きさに戻す
     k = max(1.0, 1024 / max(im.size))
     w, h = (round(im.width * k) // 8) * 8, (round(im.height * k) // 8) * 8
+    # 描き直す範囲を、周りの色をぼかしたものに雑音を混ぜて埋めてから渡す。平らな背景のまま渡すと、
+    # 模型は物を足さず背景を塗り直すだけだった（丸窓を頼んで灰色の四角が出た。docs/knowledge/imgproc.md）
+    import numpy as np
+    base = np.asarray(im).astype(float)
+    blur = np.asarray(im.filter(ImageFilter.GaussianBlur(24))).astype(float)
+    noise = np.random.default_rng(seed).normal(0, 48, base.shape)
+    gm = (np.asarray(gen_mask.convert("L")) > 127)[..., None]
+    seeded = Image.fromarray(np.clip(np.where(gm, blur + noise, base), 0, 255).astype("uint8"))
     gen = inp(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
-              image=im.resize((w, h)), mask_image=gen_mask.resize((w, h)), strength=strength, num_inference_steps=steps,
+              image=seeded.resize((w, h)), mask_image=gen_mask.resize((w, h)), strength=strength, num_inference_steps=steps,
               guidance_scale=guidance, width=w, height=h, generator=torch.Generator().manual_seed(seed)).images[0]
     gen = gen.resize(im.size)
-    # 範囲の外は元の画素を貼り戻す。境目は 2 画素ぼかして継ぎ目を目立たなくする（ぼかしは範囲の内側だけ）
-    soft = ImageChops.multiply(keep_mask.filter(ImageFilter.GaussianBlur(2)), keep_mask)
+    gen = _match_ring(gen, im, keep_mask)
+    # 範囲の外は元の画素を貼り戻す。境目は範囲の内側だけで 6 画素ぼかす（2 画素では明るさの差が筋に見えた）
+    soft = ImageChops.multiply(keep_mask.filter(ImageFilter.GaussianBlur(6)), keep_mask)
     return Image.composite(gen, im, soft)
+
+
+def _match_ring(gen, im, keep_mask, width=8):
+    """描き直した絵の明るさと色みを、範囲のすぐ外の輪で元の絵に合わせる。継ぎ目が明るさの差で見えるのを防ぐ。
+    輪の中の各色の平均の差だけを、描き直した絵の全体から引く（形や模様は変えない）"""
+    import numpy as np
+    k = np.asarray(keep_mask.convert("L")) > 127
+    ring = np.asarray(keep_mask.convert("L").filter(ImageFilter.MaxFilter(width * 2 + 1))) > 127
+    ring &= ~k
+    if ring.sum() < 50:
+        return gen
+    g, o = np.asarray(gen).astype(float), np.asarray(im).astype(float)
+    shift = o[ring].mean(axis=0) - g[ring].mean(axis=0)
+    return Image.fromarray(np.clip(g + shift, 0, 255).astype("uint8"))
 
 
 def foreground(src):

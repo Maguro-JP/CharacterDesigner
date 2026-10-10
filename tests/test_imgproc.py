@@ -163,3 +163,15 @@ class LineWeightTest(unittest.TestCase):
         finally:
             imgproc._person_alpha = orig
         self.assertGreater(r["ratio"], 1.5, r)
+
+
+class MatchRingTest(unittest.TestCase):
+    """描き直した絵の明るさを、範囲のすぐ外の輪で元の絵に合わせる（継ぎ目の明るさの差を消す）"""
+
+    def test_shift_to_surroundings(self):
+        import edit
+        im = Image.new("RGB", (64, 64), (100, 120, 140))
+        gen = Image.new("RGB", (64, 64), (160, 150, 140))
+        mask = Image.new("L", (64, 64), 0)
+        ImageDraw.Draw(mask).rectangle([20, 20, 40, 40], fill=255)
+        self.assertEqual(edit._match_ring(gen, im, mask).getpixel((30, 30)), (100, 120, 140))
