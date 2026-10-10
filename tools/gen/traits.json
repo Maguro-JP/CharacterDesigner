@@ -340,5 +340,40 @@
   "ahoge": {
    "p": "ahoge, single hair strand sticking up on top of head"
   }
+ },
+ "clothes": {
+  "_ja": "服",
+  "uniform": {
+   "p": "school uniform, sailor collar blouse, pleated skirt",
+   "neg": "dress, armor, hoodie"
+  },
+  "kimono": {
+   "p": "japanese kimono with obi sash, wide sleeves",
+   "neg": "dress, school uniform, armor"
+  },
+  "dress": {
+   "p": "elegant long evening dress, frills",
+   "neg": "kimono, school uniform, armor"
+  },
+  "armor": {
+   "p": "plate armor, metal breastplate and pauldrons, knight",
+   "neg": "dress, kimono, hoodie"
+  },
+  "workwear": {
+   "p": "work overalls, mechanic jumpsuit, rolled sleeves",
+   "neg": "dress, armor, kimono"
+  },
+  "hoodie": {
+   "p": "oversized hoodie, hood down, casual",
+   "neg": "dress, armor, kimono"
+  },
+  "military": {
+   "p": "military uniform, officer jacket with epaulettes and medals, peaked cap",
+   "neg": "school uniform, dress, armor"
+  },
+  "robe": {
+   "p": "wizard robe, long hooded mage cloak, magic sigils embroidered",
+   "neg": "dress, armor, school uniform"
+  }
  }
 }
