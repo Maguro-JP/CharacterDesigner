@@ -75,7 +75,8 @@ def draw(case: str, tries: int = 3) -> dict:
 def job(id: str) -> dict:
     """仕事の進み具合と、回ごとの検品で落ちた部品を返す。state が done で passed が true なら sheet で絵を受け取れる。"""
     j = _json("GET", f"/api/jobs/{id}")
-    lost = [{"try": r["try"] + 1, "lost": [f"{x['view']} {x['part']}" for x in r["result"] if not x["ok"]]} for r in j["results"]]
+    lost = [{"try": r["try"] + 1, "lost": [f"{x['view']} {x['part']}" for x in r.get("result") or [] if not x["ok"]]}
+            for r in j["results"] if r.get("result") is not None]
     return {"state": j["state"], "try": None if j["try_index"] is None else j["try_index"] + 1, "tries": j["tries"],
             "passed": j["passed"], "error": j["error"], "checks": lost}
 
@@ -84,6 +85,49 @@ def job(id: str) -> dict:
 def sheet(id: str) -> Image:
     """検品を通った設定資料（4方向の1枚）を画像で返す。"""
     return Image(data=_call("GET", f"/api/jobs/{id}/files/sheet.png"), format="png")
+
+
+@mcp.tool()
+def studio_draw(text: str = "", prompt: str = "", size: str = "portrait", tries: int = 3) -> dict:
+    """スタジオに頼む。日本語の頼みごと（text）か、英語の描く言葉（prompt）のどちらかを渡す。
+    7つの役割（安全・読み手・演出・描き手・検品・意地の悪い目・整理）が順に回し、検品で落ちたら直して描き直す。
+    size は portrait・landscape・square。すぐ仕事の id を返す。進みは studio_job、絵は studio_image で受け取る。"""
+    j = _json("POST", "/api/studio/jobs", {"text": text, "prompt": prompt, "size": size, "tries": tries})
+    return {"id": j["id"], "state": j["state"]}
+
+
+@mcp.tool()
+def studio_job(id: str) -> dict:
+    """スタジオの仕事の進みと決着。events は役割ごとの出来事（誰が・何を）。passed が true なら studio_image で絵を受け取れる。"""
+    j = _json("GET", f"/api/jobs/{id}")
+    oc = j.get("outcome") or {}
+    return {"state": j["state"], "passed": j["passed"], "error": j["error"],
+            "events": [f"{e['role']}: {e['msg']}" for e in j.get("events") or []],
+            "prompt": oc.get("prompt"), "reason": oc.get("reason"), "critique": oc.get("critique"), "files": oc.get("files")}
+
+
+@mcp.tool()
+def studio_image(id: str, file: str = "") -> Image:
+    """スタジオの仕事の絵を返す。file を省くと検品を通った絵（無ければ最後に描いた絵）。"""
+    j = _json("GET", f"/api/jobs/{id}")
+    oc = j.get("outcome") or {}
+    name = file or oc.get("passed") or (oc.get("files") or [None])[-1]
+    if not name:
+        raise ToolError("まだ絵が無い。studio_job で state が done になるまで待つ")
+    return Image(data=_call("GET", f"/api/jobs/{id}/files/{name}"), format="png")
+
+
+@mcp.tool()
+def proposals() -> dict:
+    """待機中にスタジオが拾った提案（描き直し・見本の無い種など）。描くかは do_proposal で決める。"""
+    return _json("GET", "/api/proposals")
+
+
+@mcp.tool()
+def do_proposal(id: str) -> dict:
+    """提案を承認して描く。仕事の id を返す。"""
+    j = _json("POST", f"/api/proposals/{id}/do")
+    return {"id": j["id"], "kind": j.get("kind"), "state": j["state"]}
 
 
 if __name__ == "__main__":

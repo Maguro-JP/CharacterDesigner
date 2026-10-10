@@ -88,6 +88,7 @@ python3 tools/compare.py out/cmp.png v3=characters/warrior-v3-hand/sprite.json v
 
 アプリを起動したまま（`sh app/start.sh`）、MCP サーバーを登録すると、Claude に「白い狐の巫女を描いて」と頼めるようになる。
 道具は `list_cases`（種の一覧）、`describe`（日本語を種の設定に組む）、`save_case`、`draw`（描く依頼）、`job`（進み具合）、`sheet`（通った絵）。
+スタジオは `studio_draw`（日本語か描く言葉で頼む）、`studio_job`（役割ごとの出来事と決着）、`studio_image`（絵）、`proposals`・`do_proposal`（待機中の提案と承認）。
 
 - Claude Code: リポジトリの場所で
   `claude mcp add characterdesigner -e PYTHONPATH=.cache/app/lib -- python3 -m app.mcp.server`

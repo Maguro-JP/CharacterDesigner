@@ -52,7 +52,8 @@ def text(result):
 def test_tools_end_to_end(app_url):
     async def steps(s):
         names = {t.name for t in (await s.list_tools()).tools}
-        assert names == {"list_cases", "describe", "save_case", "draw", "job", "sheet"}
+        assert names == {"list_cases", "describe", "save_case", "draw", "job", "sheet",
+                         "studio_draw", "studio_job", "studio_image", "proposals", "do_proposal"}
         assert "catgirl" in text(await s.call_tool("list_cases", {}))
         d = text(await s.call_tool("describe", {"text": "白い狐の巫女"}))
         assert d["name"] == "white-fox" and d["unused"] == ["巫女"]
@@ -69,6 +70,19 @@ def test_tools_end_to_end(app_url):
         assert img.content[0].type == "image" and img.content[0].mime_type == "image/png"
         bad = await s.call_tool("draw", {"case": "nope"})
         assert bad.is_error and "種「nope」は無い" in bad.content[0].text
+        # スタジオ: 描く言葉で頼み、役割の出来事と絵を受け取る
+        sj = text(await s.call_tool("studio_draw", {"prompt": "1girl, full body, simple background", "tries": 2}))
+        for _ in range(100):
+            st = text(await s.call_tool("studio_job", {"id": sj["id"]}))
+            if st["state"] in ("done", "failed"):
+                break
+            await anyio.sleep(0.05)
+        assert st["passed"] is True and st["events"][0].startswith("GUARD:") and st["events"][-1].startswith("CURATOR:")
+        img = await s.call_tool("studio_image", {"id": sj["id"]})
+        assert img.content[0].type == "image"
+        bad = await s.call_tool("studio_draw", {"text": "ヌード"})
+        assert bad.is_error and "描かない" in bad.content[0].text
+        assert "items" in text(await s.call_tool("proposals", {}))
     run_tools(app_url, steps)
 
 
