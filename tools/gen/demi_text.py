@@ -149,10 +149,8 @@ def build(text, got, d=None):
     return {"name": name, "case": case, "used": got["used"], "unused": got["unused"], "notes": notes}
 
 
-def read_with_claude(text, client, d=None):
-    """Claude に頼みごとを読ませる。答えは辞書の選択肢（種の id、色の言葉、髪型）からしか選べない形にする。
-    設定そのものは書かせない。部品の組は build が辞書から決める（Claude が部品の名前を作り出して取り違えないように）"""
-    d = d or _load()
+def _reader_prompt(d):
+    """読み手（Claude・手元の模型）に渡す指示と答えの形。どちらも辞書の選択肢から選ぶだけにする。"""
     colors = sorted(d["colors"])
     styles = sorted(set(d["hair_styles"].values()))
     nullable = lambda enum: {"anyOf": [{"type": "string", "enum": enum}, {"type": "null"}]}
@@ -177,6 +175,26 @@ def read_with_claude(text, client, d=None):
         "色は、種・髪・目のどれに掛かるかを読み分け、色の言葉の一覧から一番近いものを選ぶ。言われていなければ null。\n"
         "服・職業・表情・持ち物など、選択肢に無いことは unused に原文のまま入れる。当てはめた言葉は used に入れる。推測で埋めない。"
     )
+    return system, schema
+
+
+def _check_choices(got, d):
+    """答えが選択肢の外を指していないかを見る。手元の小さい模型は json_schema の enum を守らないことがある"""
+    colors = set(d["colors"])
+    if got.get("species") is not None and got["species"] not in {s["id"] for s in d["species"]}:
+        raise ValueError(f"種の id が選択肢に無い: {got['species']}")
+    for k in ("species_color", "hair_color", "eye_color"):
+        if got.get(k) is not None and got[k] not in colors:
+            got[k] = None   # 色は外れても描けるので、捨てて既定の色にする
+    got["hair_styles"] = [h for h in got.get("hair_styles", []) if h in set(d["hair_styles"].values())]
+    return got
+
+
+def read_with_claude(text, client, d=None):
+    """Claude に頼みごとを読ませる。答えは辞書の選択肢（種の id、色の言葉、髪型）からしか選べない形にする。
+    設定そのものは書かせない。部品の組は build が辞書から決める（Claude が部品の名前を作り出して取り違えないように）"""
+    d = d or _load()
+    system, schema = _reader_prompt(d)
     response = client.beta.messages.create(
         model="claude-opus-5-5",
         max_tokens=4000,
@@ -193,22 +211,37 @@ def read_with_claude(text, client, d=None):
     return got
 
 
-def parse(text, client=None):
+def read_with_local(text, llm, d=None):
+    """手元の言葉の模型（local_llm.LocalLLM）に読ませる。指示と答えの形は Claude と同じ。"""
+    d = d or _load()
+    system, schema = _reader_prompt(d)
+    got = _check_choices(llm.chat_json(system, text, schema), d)
+    got["notes"] = [f"「{w}」は設定資料では描かない、または辞書の選択肢に無い" for w in got.get("unused", [])]
+    got.setdefault("used", [])
+    got.setdefault("unused", [])
+    return got
+
+
+def parse(text, client=None, local=None):
     """日本語から種の設定を組む。返り値: {name, case, used, unused, notes, reader}。種が分からなければ case は None。
-    client（Anthropic のクライアント）を渡すと Claude に読ませ、失敗したら辞書で読む。"""
+    読み手の順番は 手元の模型（local）→ Claude（client）→ 辞書。読めなかった読み手は notes に理由を残して次へ回す
+    （頼みごとを止めない）。reader は実際に読んだもの（local / claude / words）"""
     d = _load()
-    if client is not None:
+    skipped = []
+    for name, reader, obj in (("local", read_with_local, local), ("claude", read_with_claude, client)):
+        if obj is None:
+            continue
         try:
-            r = build(text, read_with_claude(text, client, d), d)
-            r["reader"] = "claude"
+            r = build(text, reader(text, obj, d), d)
+            r["reader"] = name
+            r["notes"] = skipped + r["notes"]
             return r
-        except Exception as e:   # 鍵の誤り・通信の失敗・拒否でも、辞書で組んで返す（頼みごとを止めない）
-            r = build(text, read_words(text, d), d)
-            r["reader"] = "words"
-            r["notes"].insert(0, f"Claude で読めなかったので辞書で読んだ（{type(e).__name__}）")
-            return r
+        except Exception as e:   # 窓口が無い・鍵の誤り・通信の失敗・拒否・形の誤り
+            label = {"local": "手元の模型", "claude": "Claude"}[name]
+            skipped.append(f"{label}で読めなかったので次の読み手で読んだ（{type(e).__name__}）")
     r = build(text, read_words(text, d), d)
     r["reader"] = "words"
+    r["notes"] = skipped + r["notes"]
     return r
 
 

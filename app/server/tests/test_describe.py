@@ -114,7 +114,7 @@ def test_claude_failure_falls_back_to_words():
     client, _ = fake_claude({}, status=401)
     r = demi_text.parse("白い狐の巫女", client)
     assert r["reader"] == "words" and r["name"] == "white-fox"
-    assert "辞書で読んだ（AuthenticationError）" in r["notes"][0]
+    assert "Claudeで読めなかった" in r["notes"][0] and "AuthenticationError" in r["notes"][0]
 
 
 def test_claude_refusal_falls_back_to_words():

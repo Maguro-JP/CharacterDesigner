@@ -32,6 +32,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools" / "gen"))
 import demi  # noqa: E402  描く処理の本体
 import demi_text  # noqa: E402  日本語の頼みごとを種の設定に組む
+import local_llm  # noqa: E402  手元の言葉の模型（OpenAI 互換の窓口）
 
 DATA = Path(os.environ.get("CD_APP_DATA", ROOT / ".cache" / "app" / "jobs"))
 # 通った設定資料の置き場所。スキルの手順と同じ名前（demi3d-<種の名前>.png）で置く
@@ -186,9 +187,9 @@ def create_app(runner: Runner | None = None) -> FastAPI:
 
     @app.post("/api/describe")
     def describe(body: DescribeIn):
-        # 日本語の頼みごとを種の設定に組む。ANTHROPIC_API_KEY があれば Claude で読み、無ければ辞書で読む。
+        # 日本語の頼みごとを種の設定に組む。読み手は 手元の模型 → Claude（ANTHROPIC_API_KEY があるとき）→ 辞書。
         # 保存はしない。画面で見て直してから保存する
-        return demi_text.parse(body.text, demi_text.claude_client())
+        return demi_text.parse(body.text, demi_text.claude_client(), local_llm.client())
 
     preview_lock = threading.Lock()
 
