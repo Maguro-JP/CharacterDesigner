@@ -140,3 +140,25 @@ class NotanTest(unittest.TestCase):
         rng = np.random.default_rng(0)
         r = self.run_notan(Image.fromarray(rng.integers(0, 255, (300, 300, 3), dtype="uint8")))
         self.assertGreater(r["fragment_ratio"], 0.5)
+
+
+class LineWeightTest(unittest.TestCase):
+    """外形を太く（6px）、内側を細く（2px）描いた図形は ratio が 1 を十分に超える"""
+
+    def test_thick_outline(self):
+        im = Image.new("RGB", (300, 300), (240, 240, 240))
+        d = ImageDraw.Draw(im)
+        d.ellipse([40, 40, 260, 260], fill=(230, 200, 180), outline=(20, 20, 20), width=6)
+        d.line([100, 150, 200, 150], fill=(20, 20, 20), width=2)
+        d.line([150, 100, 150, 200], fill=(20, 20, 20), width=2)
+        mask = np.zeros((300, 300), bool)
+        yy, xx = np.mgrid[:300, :300]
+        mask[(yy - 150) ** 2 + (xx - 150) ** 2 <= 110 ** 2] = True
+        orig, imgproc._person_alpha = imgproc._person_alpha, lambda src, img: mask
+        try:
+            with tempfile.TemporaryDirectory() as t:
+                im.save(f"{t}/a.png")
+                r = imgproc.line_weight(f"{t}/a.png")
+        finally:
+            imgproc._person_alpha = orig
+        self.assertGreater(r["ratio"], 1.5, r)

@@ -472,6 +472,27 @@ def notan(src: str, out: str, size: int = 96) -> dict:
             "focal_xy": [round(fx / val.shape[1], 2), round(fy / val.shape[0], 2)]}
 
 
+def line_weight(src: str) -> dict:
+    """線の強弱の意図を見る。上手い絵は外形の線が太く、内側の線（服のしわ、髪の筋、目鼻）は細い。
+    人物の縁から 4px 以内の線を外形、それより内側の線を内側として、線の中心での太さ（距離変換の2倍）の平均を比べる。
+    ratio が 1 に近いほど、どこも同じ太さ（意図の無い線）。外形を太くした絵では 1 を超える"""
+    from scipy import ndimage
+    im = Image.open(src).convert("RGB")
+    rgb = np.asarray(im).astype(float)
+    person = _person_alpha(src, im)
+    # _lines（周り 9px の中央値との差）は 5px を超える太い線を拾えず、どの絵も 2px と出てしまう。
+    # ここでは 15px の閉じ（暗い所を周りの明るさで埋める）との差で、15px までの太さの線を拾う
+    lum = rgb @ np.array([0.299, 0.587, 0.114])
+    lines = ((ndimage.grey_closing(lum, size=15) - lum) > 35) & ndimage.binary_dilation(person, iterations=3)
+    rim = ndimage.binary_dilation(person, iterations=4) & ~ndimage.binary_erosion(person, iterations=4)
+    dist = ndimage.distance_transform_edt(lines)
+    ridge = (dist > 0) & (ndimage.maximum_filter(dist, 3) == dist)
+    outer, inner = dist[ridge & rim] * 2, dist[ridge & ~rim] * 2
+    med = lambda a: float(a.mean()) if a.size else 0.0   # 太さは 1px 刻みなので、中央値だと差が消える。平均で比べる
+    return {"outer_px": round(med(outer), 2), "inner_px": round(med(inner), 2),
+            "ratio": round(med(outer) / max(med(inner), 1e-6), 2), "samples": [int(outer.size), int(inner.size)]}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -490,13 +511,14 @@ def main():
     t = sub.add_parser("aitells"); t.add_argument("src")
     de = sub.add_parser("deai"); de.add_argument("src"); de.add_argument("out"); de.add_argument("--steps", type=int, default=10)
     nt = sub.add_parser("notan"); nt.add_argument("src"); nt.add_argument("out"); nt.add_argument("--size", type=int, default=96)
+    lw = sub.add_parser("lineweight"); lw.add_argument("src")
     a = ap.parse_args()
     fn = {"segment": lambda: segment(a.src, a.out), "matte": lambda: matte(a.src, a.out), "remove": lambda: remove_bg(a.src, a.out),
           "roto": lambda: roto(a.src, a.out), "cutout": lambda: cutout(a.src, a.out, a.path),
           "chroma": lambda: chroma(a.src, a.out, a.key, a.tol, a.soft),
           "shade": lambda: shade(a.src, a.out, a.style, a.light, a.shadow_color),
           "aitells": lambda: ai_tells(a.src), "deai": lambda: de_ai(a.src, a.out, a.steps),
-          "notan": lambda: notan(a.src, a.out, a.size)}[a.cmd]
+          "notan": lambda: notan(a.src, a.out, a.size), "lineweight": lambda: line_weight(a.src)}[a.cmd]
     print(json.dumps(fn(), ensure_ascii=False))
 
 
