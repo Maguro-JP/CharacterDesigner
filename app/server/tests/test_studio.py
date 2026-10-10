@@ -213,3 +213,15 @@ def test_relight_proposal_changes_drawing_and_is_not_repeated(client, monkeypatc
     # 描き直した絵にも弱さの指摘が出るが、その提案は新しい描き方（seed がさらに進む）だけ
     again = [x for x in c.get("/api/proposals").json()["items"] if x["who"] == "CRITIC"]
     assert all(x["request"]["seed"] != 4 for x in again)
+
+
+def test_missing_elements_move_forward_on_retry(tmp_path):
+    painted, memory, events = [], [], []
+    seen = []
+    verdicts = iter([["描かれていない: goggles、sword"], []])
+    ports = fake_ports([], painted, memory)
+    ports.inspect = lambda path, c: (seen.append(c), next(verdicts))[1]
+    r = Session(ports, events.append).send(Spec(prompt="1girl, solo, steampunk, mechanic, goggles, sword", direct=False), str(tmp_path))
+    assert r.ok
+    assert painted[1]["prompt"].startswith("1girl, solo, goggles, sword, steampunk")
+    assert seen[0]["prompt"].endswith("sword") and "limbs" in seen[0]   # 検品に今の描く言葉を渡す

@@ -68,6 +68,7 @@ class Runner:
         """スタジオの核で描く。外とのやり取りは本物（言葉の模型・Animagine・検品・明暗の測り）をつなぐ。"""
         import edit
         import imgproc
+        import tagger
 
         def paint(prompt, negative, seed, w, h, out):
             name = f"try-{len(list(Path(out).glob('try-*.png')))}.png"
@@ -88,6 +89,17 @@ class Runner:
                 notes.append(f"見せ場が顔の周りに無い（人物の上から {r['focal_y_in_person']}）")
             return notes
 
+        def inspect(path, c):
+            # 形の検品（手足・切れ・離れた物）と、頼んだ要素が描かれたかの突き合わせ（タグを読む模型があるときだけ）
+            c = dict(c)
+            prompt = c.pop("prompt", "")
+            reasons = edit.inspect(path, **c)
+            if prompt and (tagger.DIR / "model.onnx").exists():
+                lost = tagger.missing(prompt, tagger.read(path, threshold=0.05))
+                if lost:
+                    reasons.append("描かれていない: " + "、".join(lost))
+            return reasons
+
         def guard_image(path):
             # 部位分けで、人物の中の服と肌の部位の割合を測る。服を着た絵は服 0.76〜0.83、下着だけの見本は服 0.08・肌 0.83 だった。
             # 肌色の割合では、ベージュの服も肌に数えて見分けられなかった（docs/knowledge/imgproc.md）
@@ -101,7 +113,7 @@ class Runner:
             return None
 
         return Session(Ports(describe=lambda t, rec=(): free_text.describe(t, local_llm.client(), rec), paint=paint, guard_image=guard_image,
-                             inspect=lambda path, c: edit.inspect(path, **c), critique=critique,
+                             inspect=inspect, critique=critique,
                              remember=remember, recall=lambda t: recall_from(memories(), t)), on_event).send(spec, str(outdir))
 
     def free(self, spec: dict, outdir: Path, on_image) -> list:

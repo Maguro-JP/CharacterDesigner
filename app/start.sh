@@ -57,6 +57,12 @@ if [ -z "${CD_LLM_URL:-}" ] && [ "${CD_LLM_SKIP:-}" != "1" ]; then
   sh tools/llm/setup.sh
 fi
 
+say "絵からタグを読む模型（.cache/assets/tagger、約 380MB。頼んだ要素が描かれたかの検品に使う）"
+# CD_TAGGER_SKIP=1 なら取らない（取らなくても描ける。描かれたかの突き合わせだけを飛ばす）
+if [ "${CD_TAGGER_SKIP:-}" != "1" ]; then
+  PYTHONPATH=.cache/gen/lib python3 tools/gen/tagger.py setup >/dev/null
+fi
+
 say "画面（app/web）"
 if [ ! -d app/web/node_modules ]; then
   (cd app/web && npm ci --silent)

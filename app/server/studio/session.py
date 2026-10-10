@@ -114,6 +114,14 @@ def fix_for(reasons: list[str], prompt: str, negative: str) -> tuple[str, str, s
     if any("無い" in r for r in reasons):
         negative = ", ".join(x for x in (negative, "missing limb, amputee, extra limbs") if x)
         notes.append("欠けた手足を打ち消した")
+    lost = [t for r in reasons if r.startswith("描かれていない: ") for t in r.split(": ", 1)[1].split("、")]
+    if lost:
+        # 描く言葉の先頭ほど強く効く。描かれなかった要素を、人数と性別の次へ寄せる
+        tags = [t.strip() for t in prompt.split(",") if t.strip()]
+        head = [t for t in tags if re.fullmatch(r"\d+(girl|boy|other)s?|solo", t)]
+        rest = [t for t in tags if t not in head and t not in lost]
+        prompt = ", ".join(head + lost + rest)
+        notes.append(f"描かれなかった {'、'.join(lost)} を前に寄せた")
     if any("離れた物" in r for r in reasons):
         negative = ", ".join(x for x in (negative, "extra character, background objects") if x)
         notes.append("余計な物を打ち消した")
@@ -164,7 +172,6 @@ class Session:
             return Result(False, prompt=prompt, negative=negative, reason=why)
 
         res = Result(False, prompt=prompt, negative=negative)
-        checks = checks_for(prompt)
         last = None
         for k in range(spec.tries):
             if k and time.time() - t0 > spec.budget_s:
@@ -187,7 +194,7 @@ class Session:
                 res.prompt, res.negative = prompt, negative
                 last = None
                 continue
-            reasons = self.ports.inspect(f"{outdir}/{name}", checks)
+            reasons = self.ports.inspect(f"{outdir}/{name}", {**checks_for(prompt), "prompt": prompt})
             if not reasons:
                 res.ok, res.passed = True, name
                 self._say("INSPECTOR", "done", "数えて通った", file=name)
