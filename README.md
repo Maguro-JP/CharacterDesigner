@@ -50,6 +50,27 @@ python3 tools/sheet.py characters/cleric/parts.json docs/sheets/cleric.png
 python3 tools/compare.py out/cmp.png v3=characters/warrior-v3-hand/sprite.json v4=characters/warrior/sprite.json
 ```
 
+## 手元のアプリ（亜人の設定資料）
+
+「白い狐の巫女」のように言葉で頼むと、耳・尾・翼・角の付いた設定資料（4方向）を描いて検品し、通ったものを見本に保存する。
+自分の PC だけで動かす。
+
+![言葉で頼むと種の設定が組まれ、3D の下絵で部品の付け根を見られる画面](docs/images/app-wish-to-case.png)
+
+必要なもの: Python 3.10 以上、Node.js 20.19 以上、curl。ディスク 約 8GB（描く処理のモデル 約 7GB、部品 約 1GB）。GPU は無くても動く（CPU）。
+
+1. `sh app/start.sh` を流す（初回は部品の取得に数分。2回目からは数秒で起動する）
+2. 表示された `http://127.0.0.1:4173/` を開く
+3. 「言葉で頼む」に頼みごとを書くか、種を選び、「描く」を押す
+   - 最初の1件はモデルの取得と読み込みに 約 10〜20 分（回線による）。そのあとは1回 約 3 分（CPU）
+   - 描き終わったら「回ごとの結果」で落ちた理由を見られる。目で見て良ければ「見本に保存」
+
+| 環境変数 | 用途 | 必須 |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | 言葉の頼みごとを Claude で読む。無ければ辞書で読む | 任意 |
+| `CD_APP_DATA` | 描いた絵の置き場所（既定は `.cache/app/jobs`） | 任意 |
+| `PLAYWRIGHT_MODULE` / `CHROMIUM_PATH` | 下絵を撮るブラウザーを指す（無ければ `start.sh` が取る） | 任意 |
+
 ## ディレクトリ構成
 
 | 場所 | 役割 |
@@ -60,12 +81,17 @@ python3 tools/compare.py out/cmp.png v3=characters/warrior-v3-hand/sprite.json v
 | `docs/progress/` | 周ごとの比較画像と判定 |
 | `docs/sheets/` | キャラクターごとの設定資料（色指定） |
 | `docs/knowledge/` | 技術・問題・見た目の精度・設計判断の記録 |
+| `app/` | 手元のアプリ。`app/server` がサーバー（FastAPI）、`app/web` が画面（Vite + React）、`app/start.sh` が起動 |
 | `docs/ROADMAP.md` | 道のり |
 
 ## 開発者向け
 
 ```bash
 python3 -m unittest discover -s tests
+# アプリのサーバー（start.sh を一度流したあと）
+PYTHONPATH=.cache/app/lib python3 -m pytest app/server/tests
+# アプリの画面（型チェック込み）
+cd app/web && npm run build
 ```
 
 ## ライセンス
