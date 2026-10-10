@@ -21,7 +21,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
-from PIL import Image, ImageFilter
+from PIL import Image, ImageDraw, ImageFilter
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -493,6 +493,52 @@ def line_weight(src: str) -> dict:
             "ratio": round(med(outer) / max(med(inner), 1e-6), 2), "samples": [int(outer.size), int(inner.size)]}
 
 
+def _box_mask(size, box, grow=0):
+    m = Image.new("L", size, 0)
+    x0, y0, x1, y1 = box
+    ImageDraw.Draw(m).rectangle([x0 - grow, y0 - grow, x1 + grow, y1 + grow], fill=255)
+    return m
+
+
+def inpaint(src: str, out: str, prompt: str, box=None, mask=None, grow: int = 8, seed: int = 7) -> dict:
+    """任意の範囲を描き直す（インペインティング）。範囲は --box x0,y0,x1,y1 か、白黒の --mask 画像で渡す。
+    部位で選ぶ描き直しは edit.py inpaint。こちらは部位に当たらない所（背景の物、小物、手の中）を直すためのもの。
+    描くのは範囲を grow 画素広げた所、結果に使うのは範囲の中だけ（つながりを保ち、外は1画素も変えない）"""
+    import edit
+    im = Image.open(src).convert("RGB")
+    if mask:
+        keep = Image.open(mask).convert("L").point(lambda v: 255 if v > 127 else 0).resize(im.size)
+        gen = keep.filter(ImageFilter.MaxFilter(grow * 2 + 1)) if grow else keep
+    else:
+        keep, gen = _box_mask(im.size, box), _box_mask(im.size, box, grow)
+    res = edit.inpaint_mask(im, gen, keep, prompt, seed=seed)
+    res.save(out)
+    return {"region_px": sum(keep.histogram()[1:]), "outside_changed": edit.outside_changed(im, res, keep)}
+
+
+def outpaint(src: str, out: str, prompt: str, pad=(0, 0, 0, 0), seed: int = 7) -> dict:
+    """絵の外側を描き足す（アウトペインティング）。pad は 左,上,右,下 に足す画素数。
+    足した所は、まず元の縁の色を引き伸ばして埋め（灰色や黒から描かせると、境目に帯が出やすい）、
+    足した所に元の縁から 16 画素を重ねた範囲を描き、足した所だけを結果に使う"""
+    import edit
+    im = Image.open(src).convert("RGB")
+    l, t, r, b = pad
+    W, H = im.width + l + r, im.height + t + b
+    canvas = im.resize((W, H)).filter(ImageFilter.GaussianBlur(24))
+    canvas.paste(im, (l, t))
+    keep = Image.new("L", (W, H), 255)
+    ImageDraw.Draw(keep).rectangle([l, t, l + im.width - 1, t + im.height - 1], fill=0)
+    gen = Image.new("L", (W, H), 255)
+    ov = 16
+    ImageDraw.Draw(gen).rectangle([l + (ov if l else 0), t + (ov if t else 0),
+                                   l + im.width - 1 - (ov if r else 0), t + im.height - 1 - (ov if b else 0)], fill=0)
+    res = edit.inpaint_mask(canvas, gen, keep, prompt, seed=seed)
+    res.save(out)
+    inner = res.crop((l, t, l + im.width, t + im.height))
+    changed = int((np.abs(np.asarray(inner).astype(int) - np.asarray(im).astype(int)).max(axis=2) > 0).sum())
+    return {"size": [W, H], "added_px": W * H - im.width * im.height, "original_changed": changed}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -512,13 +558,19 @@ def main():
     de = sub.add_parser("deai"); de.add_argument("src"); de.add_argument("out"); de.add_argument("--steps", type=int, default=10)
     nt = sub.add_parser("notan"); nt.add_argument("src"); nt.add_argument("out"); nt.add_argument("--size", type=int, default=96)
     lw = sub.add_parser("lineweight"); lw.add_argument("src")
+    ip = sub.add_parser("inpaint"); ip.add_argument("src"); ip.add_argument("out"); ip.add_argument("--prompt", required=True)
+    ip.add_argument("--box", default=None); ip.add_argument("--mask", default=None); ip.add_argument("--seed", type=int, default=7)
+    op = sub.add_parser("outpaint"); op.add_argument("src"); op.add_argument("out"); op.add_argument("--prompt", required=True)
+    op.add_argument("--pad", default="0,0,0,0", help="左,上,右,下 に足す画素数"); op.add_argument("--seed", type=int, default=7)
     a = ap.parse_args()
     fn = {"segment": lambda: segment(a.src, a.out), "matte": lambda: matte(a.src, a.out), "remove": lambda: remove_bg(a.src, a.out),
           "roto": lambda: roto(a.src, a.out), "cutout": lambda: cutout(a.src, a.out, a.path),
           "chroma": lambda: chroma(a.src, a.out, a.key, a.tol, a.soft),
           "shade": lambda: shade(a.src, a.out, a.style, a.light, a.shadow_color),
           "aitells": lambda: ai_tells(a.src), "deai": lambda: de_ai(a.src, a.out, a.steps),
-          "notan": lambda: notan(a.src, a.out, a.size), "lineweight": lambda: line_weight(a.src)}[a.cmd]
+          "notan": lambda: notan(a.src, a.out, a.size), "lineweight": lambda: line_weight(a.src),
+          "inpaint": lambda: inpaint(a.src, a.out, a.prompt, tuple(int(v) for v in a.box.split(",")) if a.box else None, a.mask, seed=a.seed),
+          "outpaint": lambda: outpaint(a.src, a.out, a.prompt, tuple(int(v) for v in a.pad.split(",")), seed=a.seed)}[a.cmd]
     print(json.dumps(fn(), ensure_ascii=False))
 
 

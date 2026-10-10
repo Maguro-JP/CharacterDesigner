@@ -146,16 +146,25 @@ INPAINT_UNET = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
 
 def inpaint(src, out, region, prompt, negative="", grow=4, steps=20, guidance=7.0, seed=7, strength=0.99):
     """範囲だけを SDXL inpainting で描き直し、範囲の外は元の画素を貼り戻す。"""
+    im = Image.open(src).convert("RGB")
+    # 描き直しは広げた範囲で行い（つながりのため）、貼り戻すのは元の部位の範囲だけにする。
+    # 広げた範囲まで貼ると、腕の周りの背景が描き直されて明るい縁取りが出た
+    keep_in = region_mask(src, region, 0)
+    res = inpaint_mask(im, region_mask(src, region, grow), keep_in, prompt, negative, steps, guidance, seed, strength)
+    res.save(out)
+    n = outside_changed(im, res, keep_in)
+    print(f"{out}: 範囲 {sum(keep_in.histogram()[1:])} 画素、範囲の外で変わった画素 {n}")
+    return n
+
+
+def inpaint_mask(im, gen_mask, keep_mask, prompt, negative="", steps=20, guidance=7.0, seed=7, strength=0.99):
+    """gen_mask（白）を描き直し、keep_mask（白）の所だけを結果に使う。外は元の画素のまま。
+    部位で選ぶ inpaint と、任意の範囲・外側への描き足し（imgproc.py の inpaint / outpaint）が共有する本体"""
     import gc
     import torch
     sys.path.insert(0, str(Path(__file__).parent))
     import design
     from diffusers import EulerAncestralDiscreteScheduler, StableDiffusionXLInpaintPipeline, UNet2DConditionModel
-    im = Image.open(src).convert("RGB")
-    # 描き直しは広げた範囲で行い（つながりのため）、貼り戻すのは元の部位の範囲だけにする。
-    # 広げた範囲まで貼ると、腕の周りの背景が描き直されて明るい縁取りが出た
-    m = region_mask(src, region, grow)
-    keep_in = region_mask(src, region, 0)
     pipe = design._pipe("xl")
     comp = {k: v for k, v in pipe.components.items() if k != "unet"}
     # 本体を2つ持つとメモリ 15GB を超えて強制終了された。今の本体を捨ててから読む
@@ -171,17 +180,12 @@ def inpaint(src, out, region, prompt, negative="", grow=4, steps=20, guidance=7.
     k = max(1.0, 1024 / max(im.size))
     w, h = (round(im.width * k) // 8) * 8, (round(im.height * k) // 8) * 8
     gen = inp(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
-              image=im.resize((w, h)), mask_image=m.resize((w, h)), strength=strength, num_inference_steps=steps,
+              image=im.resize((w, h)), mask_image=gen_mask.resize((w, h)), strength=strength, num_inference_steps=steps,
               guidance_scale=guidance, width=w, height=h, generator=torch.Generator().manual_seed(seed)).images[0]
     gen = gen.resize(im.size)
     # 範囲の外は元の画素を貼り戻す。境目は 2 画素ぼかして継ぎ目を目立たなくする（ぼかしは範囲の内側だけ）
-    soft = ImageChops.multiply(keep_in.filter(ImageFilter.GaussianBlur(2)), keep_in)
-    res = Image.composite(gen, im, soft)
-    res.save(out)
-    n = outside_changed(im, res, keep_in)
-    m = keep_in
-    print(f"{out}: 範囲 {sum(m.histogram()[1:])} 画素、範囲の外で変わった画素 {n}")
-    return n
+    soft = ImageChops.multiply(keep_mask.filter(ImageFilter.GaussianBlur(2)), keep_mask)
+    return Image.composite(gen, im, soft)
 
 
 def foreground(src):
