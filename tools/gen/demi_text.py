@@ -135,6 +135,11 @@ def build(text, got, d=None):
         case["parts"]["color"] = {slot: part_hex for slot in sp["parts"]}
     if _luma(part_hex or sp["color"]) > 200:
         case["background"] = LIGHT_BG
+        if sp["id"] == "fox":
+            # 白い狐の尾は先の白との差が無く、丸い毛玉に描かれた。長さを言葉で足し、丸い尾を打ち消す
+            # （斜め後ろで先の細い狐の尾になった。docs/knowledge/demihuman-anatomy.md）
+            case["tags"] = case["tags"].replace("large fluffy", "long large fluffy") + ", tail longer than thigh"
+            case["negative"] += ", pom-pom tail, round tail, short tail"
     if "strength" in sp:
         case["strength"] = sp["strength"]
     errs = demi.validate_case(case)
