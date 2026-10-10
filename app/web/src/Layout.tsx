@@ -19,10 +19,10 @@ function Tabs({ nodes, ctx, path, onSizes }: { nodes: LayoutNode[]; ctx: Ctx; pa
   const title = (n: LayoutNode) => (n.type === "panel" ? (PANELS[n.panel]?.title ?? n.panel) : "まとめ");
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="flex gap-1" role="tablist">
+      <div className="flex gap-1 overflow-x-auto" role="tablist">
         {nodes.map((n, k) => (
           <button key={k} type="button" role="tab" aria-selected={k === cur} onClick={() => setCur(k)}
-            className={`rounded-t border border-b-0 px-3 py-1 text-xs ${k === cur ? "border-line bg-panel font-bold" : "border-transparent text-neutral-400"}`}>
+            className={`shrink-0 whitespace-nowrap rounded-t border border-b-0 px-3 py-1 text-xs ${k === cur ? "border-line bg-panel font-bold" : "border-transparent text-neutral-400"}`}>
             {title(n)}
           </button>
         ))}

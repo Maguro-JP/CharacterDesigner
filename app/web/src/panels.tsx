@@ -36,7 +36,8 @@ export function galleryItems(jobs: Job[]): Item[] {
       out.push({ jobId: j.id, file: "sheet.png", label: j.case_name, passed: true, prompt: "", job: j });
     }
   }
-  return out.filter((i) => i.job.files.includes(i.file)).reverse();
+  // 仕事は新しい順に来るので、そのまま新しい絵が先頭（「大きく見る」も既定で一番新しい絵を出す）
+  return out.filter((i) => i.job.files.includes(i.file));
 }
 
 const SIZES: Record<StudioIn["size"], string> = { portrait: "縦長", landscape: "横長", square: "正方形" };
