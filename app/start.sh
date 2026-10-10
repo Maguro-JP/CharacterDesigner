@@ -72,8 +72,10 @@ say "起動する"
 LLM=""
 if [ -z "${CD_LLM_URL:-}" ] && [ -f .cache/llm/model.gguf ]; then
   # 同梱の言葉の模型を 8081 番で起こす。サーバーは既定でここ（local_llm.DEFAULT_URL）を見る
-  PYTHONPATH=.cache/llm/lib python3 -m llama_cpp.server --model .cache/llm/model.gguf --host 127.0.0.1 --port 8081 --n_ctx 4096 \
-    > .cache/llm/server.log 2>&1 &
+  # 模型の名前は取った GGUF の名前にする（画面に「どの模型で読んだか」を出すため）
+  ALIAS="$(basename "$(readlink .cache/llm/model.gguf || echo model.gguf)" .gguf)"
+  PYTHONPATH=.cache/llm/lib python3 -m llama_cpp.server --model .cache/llm/model.gguf --model_alias "$ALIAS" \
+    --host 127.0.0.1 --port 8081 --n_ctx 4096 > .cache/llm/server.log 2>&1 &
   LLM=$!
 fi
 PYTHONPATH=.cache/app/lib:.cache/gen/lib HF_HOME="$ROOT/.cache/gen/hf" python3 -m uvicorn app.server.main:app --host 127.0.0.1 --port 8000 &
@@ -92,6 +94,19 @@ until curl -s -m 2 http://127.0.0.1:4173/api/cases >/dev/null 2>&1; do
   fi
   sleep 1
 done
+# 言葉の模型は読み込みに数秒〜数十秒かかる。上がる前に画面を開くと「つながらない」と出るので待つ
+if [ -n "$LLM" ]; then
+  i=0
+  until curl -s -m 2 http://127.0.0.1:8081/v1/models >/dev/null 2>&1; do
+    i=$((i + 1))
+    if [ $i -gt 120 ] || ! kill -0 $LLM 2>/dev/null; then
+      echo "言葉の模型が起動しない（.cache/llm/server.log を見る）。日本語の頼みごとは辞書で読む" >&2
+      LLM=""
+      break
+    fi
+    sleep 1
+  done
+fi
 echo
 echo "開く: http://127.0.0.1:4173/   （止めるときは Ctrl-C）"
 echo "最初の1件はモデルの読み込みに 約 10 分、そのあと1回 約 3 分（CPU）"
