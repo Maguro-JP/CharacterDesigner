@@ -36,7 +36,7 @@ import free_text  # noqa: E402  自由に描く（日本語 → 描く言葉 →
 import local_llm  # noqa: E402  手元の言葉の模型（OpenAI 互換の窓口）
 from app.server.studio import layout as studio_layout  # noqa: E402
 from app.server.studio import roles as studio_roles  # noqa: E402
-from app.server.studio.session import Ports, Session, Spec  # noqa: E402
+from app.server.studio.session import Ports, Session, Spec, recall_from  # noqa: E402
 
 # 覚えていること（通った描く言葉と seed、落ちた理由）。1行1件で足していく
 MEMORY = Path(os.environ.get("CD_MEMORY", ROOT / ".cache" / "app" / "memory.jsonl"))
@@ -85,9 +85,9 @@ class Runner:
                 notes.append(f"見せ場が顔の周りに無い（人物の上から {r['focal_y_in_person']}）")
             return notes
 
-        return Session(Ports(describe=lambda t: free_text.describe(t, local_llm.client()), paint=paint,
+        return Session(Ports(describe=lambda t, rec=(): free_text.describe(t, local_llm.client(), rec), paint=paint,
                              inspect=lambda path, c: edit.inspect(path, **c), critique=critique,
-                             remember=remember), on_event).send(spec, str(outdir))
+                             remember=remember, recall=lambda t: recall_from(memories(), t)), on_event).send(spec, str(outdir))
 
     def free(self, spec: dict, outdir: Path, on_image) -> list:
         return free_text.draw(spec["prompt"], spec.get("negative", ""), outdir, spec["seed"], spec["count"],
@@ -202,6 +202,19 @@ def remember(rec: dict) -> None:
     MEMORY.parent.mkdir(parents=True, exist_ok=True)
     with MEMORY.open("a") as f:
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+
+def memories() -> list:
+    """覚えていること（新しい順）。壊れた行は飛ばす"""
+    if not MEMORY.exists():
+        return []
+    out = []
+    for line in MEMORY.read_text().splitlines():
+        try:
+            out.append(json.loads(line))
+        except ValueError:
+            continue
+    return out[::-1]
 
 
 def load_cases() -> dict:
@@ -329,6 +342,11 @@ def create_app(runner: Runner | None = None) -> FastAPI:
     def reset_layout():
         LAYOUT.unlink(missing_ok=True)
         return studio_layout.load(LAYOUT)
+
+    @app.get("/api/memory")
+    def get_memory(q: str = ""):
+        # 覚えていること。q があれば、その頼みごとに似た通った記録（読み手に手本として添えるもの）
+        return recall_from(memories(), q) if q else memories()[:100]
 
     @app.get("/api/studio/roles")
     def studio_roster():

@@ -8,3 +8,7 @@ os.environ.setdefault("CD_LLM_OFF", "1")
 import tempfile  # noqa: E402
 
 os.environ.setdefault("CD_LLM_SETTINGS", os.path.join(tempfile.mkdtemp(), "llm.json"))
+# 覚えていること・画面の配置も、手元のもの（.cache/app）に試験から書き込まない
+_tmp = tempfile.mkdtemp()
+os.environ.setdefault("CD_MEMORY", os.path.join(_tmp, "memory.jsonl"))
+os.environ.setdefault("CD_LAYOUT", os.path.join(_tmp, "layout.json"))

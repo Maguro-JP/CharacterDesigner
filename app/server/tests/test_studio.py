@@ -17,7 +17,7 @@ def fake_ports(verdicts, painted, memory, describe=None):
     def paint(prompt, negative, seed, w, h, out):
         painted.append({"prompt": prompt, "negative": negative, "seed": seed})
         return f"try-{len(painted) - 1}.png"
-    return Ports(describe=describe or (lambda t: {"allowed": True, "prompt": "1boy, knight, snow", "negative": "",
+    return Ports(describe=describe or (lambda t, rec=(): {"allowed": True, "prompt": "1boy, knight, snow", "negative": "",
                                                  "summary": "騎士", "reader": "local"}),
                  paint=paint, inspect=lambda path, c: next(it), critique=lambda p: ["見せ場が顔の周りに無い"],
                  remember=memory.append)
@@ -56,7 +56,7 @@ def test_guard_stops_before_drawing(tmp_path):
     r = Session(fake_ports([[]], painted, memory)).send(Spec(text="裸の騎士"), str(tmp_path))
     assert not r.ok and "裸" in r.reason and painted == []
     # 模型が描かない言葉を足しても、描く前に止める
-    bad = lambda t: {"allowed": True, "prompt": "1girl, lingerie", "negative": "", "summary": "", "reader": "local"}
+    bad = lambda t, rec=(): {"allowed": True, "prompt": "1girl, lingerie", "negative": "", "summary": "", "reader": "local"}
     r = Session(fake_ports([[]], painted, memory, describe=bad)).send(Spec(text="寝間着の子"), str(tmp_path))
     assert not r.ok and "lingerie" in r.reason and painted == []
 
@@ -90,3 +90,36 @@ def test_finished_jobs_survive_restart(client):
     got = c2.get(f"/api/jobs/{j['id']}").json()
     assert got["state"] == "done" and got["kind"] == "studio" and got["outcome"]["passed"] == "try-0.png"
     assert "try-0.png" in got["files"]
+
+
+def test_recall_similar_passed_requests():
+    from app.server.studio.session import recall_from
+    recs = [{"text": "赤いマフラーの騎士の少年", "prompt": "1boy, knight, red scarf", "ok": True},
+            {"text": "赤いマフラーの騎士の少年", "prompt": "1boy, knight, red scarf", "ok": True},
+            {"text": "青いドレスの姫", "prompt": "1girl, blue dress", "ok": True},
+            {"text": "赤いマフラーの騎士", "prompt": "1boy, broken", "ok": False}]
+    got = recall_from(recs, "赤いマフラーの騎士の少女")
+    assert [r["prompt"] for r in got] == ["1boy, knight, red scarf"]   # 似ていて通ったものだけ、重複なし
+
+
+def test_session_passes_recalled_examples(tmp_path):
+    seen = {}
+
+    def describe(text, recalled=()):
+        seen["recalled"] = list(recalled)
+        return {"allowed": True, "prompt": "1boy, knight", "negative": "", "summary": "", "reader": "local"}
+    painted, memory, events = [], [], []
+    ports = fake_ports([[]], painted, memory, describe=describe)
+    ports.recall = lambda t: [{"text": "雪の騎士の少年", "prompt": "1boy, knight, snow", "ok": True}]
+    Session(ports, events.append).send(Spec(text="雪の騎士"), str(tmp_path))
+    assert seen["recalled"][0]["prompt"] == "1boy, knight, snow"
+    assert any(e["role"] == "CURATOR" and "前に通った" in e["msg"] for e in events)
+
+
+def test_memory_api(client, monkeypatch, tmp_path):
+    monkeypatch.setattr(main, "MEMORY", tmp_path / "m.jsonl")
+    c, _ = client(FakeRunner())
+    wait(c, c.post("/api/studio/jobs", json={"text": "雪の騎士", "prompt": "1boy, knight, full body, simple background"}).json()["id"])
+    mem = c.get("/api/memory").json()
+    assert mem[0]["ok"] and mem[0]["text"] == "雪の騎士"
+    assert c.get("/api/memory", params={"q": "雪の騎士の少年"}).json()[0]["prompt"].startswith("1boy, knight")

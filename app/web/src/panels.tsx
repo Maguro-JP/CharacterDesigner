@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { api, type Job, type LlmStatus, type PartChoices, type Role, type StudioIn } from "./api";
+import { api, type Job, type LlmStatus, type Memory, type PartChoices, type Role, type StudioIn } from "./api";
 import DemiPanel from "./DemiPanel";
 import { LlmSettings, readerJa } from "./FreePanel";
 import JobCard from "./JobCard";
@@ -222,6 +222,30 @@ function LogPanel({ ctx }: { ctx: Ctx }) {
   );
 }
 
+// 覚えていること。通った描く言葉は、似た頼みごとのときに読み手へ手本として添えられる
+function MemoryPanel({ ctx }: { ctx: Ctx }) {
+  const [mem, setMem] = useState<Memory[]>([]);
+  const done = ctx.jobs.filter((j) => j.state === "done").length;
+  useEffect(() => {
+    api.memory().then(setMem).catch(() => setMem([]));
+  }, [done]);
+  if (!mem.length) return <p className="text-sm text-neutral-400">まだ覚えていることは無い。スタジオで描くと、通った描く言葉と落ちた理由が残る</p>;
+  return (
+    <ul className="space-y-2 text-xs">
+      {mem.map((m, k) => (
+        <li key={k} className="rounded border border-line p-2">
+          <p>
+            <span className={m.ok ? "text-accent" : "text-signal"}>{m.ok ? "通った" : "落ちた"}</span> {m.text || "（描く言葉だけで頼んだ）"}
+            <span className="ml-2 text-neutral-500">seed {m.seed}</span>
+          </p>
+          <p className="break-words font-mono text-neutral-400">{m.prompt}</p>
+          {m.reason && <p className="text-signal">{m.reason}</p>}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function QueuePanel({ ctx }: { ctx: Ctx }) {
   if (!ctx.jobs.length) return <p className="text-sm text-neutral-400">まだ無い</p>;
   return <ul className="space-y-3">{ctx.jobs.map((j) => <JobCard key={j.id} job={j} now={ctx.now} labels={ctx.labels} />)}</ul>;
@@ -235,6 +259,7 @@ export const PANELS: Record<string, { title: string; render: (ctx: Ctx) => React
   queue: { title: "仕事", render: (ctx) => <QueuePanel ctx={ctx} /> },
   roster: { title: "役割", render: (ctx) => <RosterPanel ctx={ctx} /> },
   log: { title: "出来事", render: (ctx) => <LogPanel ctx={ctx} /> },
+  memory: { title: "覚えていること", render: (ctx) => <MemoryPanel ctx={ctx} /> },
   demi: { title: "亜人の設定資料", render: (ctx) => <DemiPanel onSubmitted={ctx.refreshJobs} onError={ctx.setError} /> },
 };
 

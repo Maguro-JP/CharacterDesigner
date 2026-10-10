@@ -30,11 +30,12 @@ NIGHT = re.compile(r"\bnight\b|\bmoon|\bdark\b|夜|月")  # knight の中の nig
 @dataclass
 class Ports:
     """外とのやり取り。本物は main.Runner が組み、試験は偽物を渡す。"""
-    describe: Callable[[str], dict]                    # 日本語 → free_text.describe の形
+    describe: Callable[..., dict]                      # (日本語, 思い出した記録) → free_text.describe の形
     paint: Callable[[str, str, int, int, int, str], str]   # (描く言葉, 打ち消し, seed, 幅, 高さ, 置き場) → 絵のファイル名
     inspect: Callable[[str, dict], list]               # (絵のパス, 見る項目) → 落ちた理由の一覧（空なら通る）
     critique: Callable[[str], list] = lambda path: []   # 絵のパス → 弱い所の指摘（通す・落とすは決めない）
     remember: Callable[[dict], None] = lambda rec: None
+    recall: Callable[[str], list] = lambda text: []     # 頼みごとに似た、前に通った記録（似ている順）
 
 
 @dataclass
@@ -70,6 +71,25 @@ def direct(prompt: str) -> tuple[str, list[str]]:
     if not any(l in low for l in LIGHT):
         added.append("moonlight, rim light" if NIGHT.search(low) else "soft natural lighting, single light source")
     return (", ".join([prompt, *added]) if added else prompt), added
+
+
+def similarity(a: str, b: str) -> float:
+    """頼みごとどうしの近さ。2文字ずつの組の重なり（Jaccard）。日本語は単語に切らなくても近さが取れる"""
+    grams = lambda s: {s[i:i + 2] for i in range(len(s) - 1)} or {s}
+    x, y = grams(a), grams(b)
+    return len(x & y) / len(x | y) if x and y else 0.0
+
+
+def recall_from(records: list, text: str, least: float = 0.3) -> list:
+    """記憶から、通った記録のうち頼みごとが似ているものを似ている順に返す。同じ描く言葉は1つにまとめる"""
+    seen, out = set(), []
+    scored = sorted(((similarity(text, r.get("text", "")), r) for r in records if r.get("ok") and r.get("text")),
+                    key=lambda x: -x[0])
+    for sc, r in scored:
+        if sc >= least and r["prompt"] not in seen:
+            seen.add(r["prompt"])
+            out.append({**r, "score": round(sc, 2)})
+    return out
 
 
 def checks_for(prompt: str) -> dict:
@@ -119,8 +139,11 @@ class Session:
         # INTERPRETER: 描く言葉（画面で直した言葉があれば読み直さない）
         prompt, negative = spec.prompt.strip(), spec.negative.strip()
         if not prompt:
+            recalled = self.ports.recall(spec.text)[:2]
+            if recalled:
+                self._say("CURATOR", "done", "前に通った似た頼みごと: " + " / ".join(r["text"] for r in recalled))
             self._say("INTERPRETER", "start", "頼みごとを描く言葉に直す")
-            got = self.ports.describe(spec.text)
+            got = self.ports.describe(spec.text, recalled)
             if not got.get("allowed"):
                 self._say("INTERPRETER", "stop", got.get("reason", "読めなかった"))
                 return Result(False, reason=got.get("reason", "読めなかった"))

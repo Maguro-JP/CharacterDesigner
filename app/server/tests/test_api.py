@@ -44,8 +44,8 @@ class FakeRunner(main.Runner):
             name = f"try-{len(list(Path(out).glob('try-*.png')))}.png"
             Image.new("RGB", (8, 8), "green").save(Path(out) / name)
             return name
-        return Session(Ports(describe=lambda t: {"allowed": False, "reason": "偽"}, paint=paint,
-                             inspect=lambda p, c: []), on_event).send(spec, str(outdir))
+        return Session(Ports(describe=lambda t, rec=(): {"allowed": False, "reason": "偽"}, paint=paint,
+                             inspect=lambda p, c: [], remember=main.remember), on_event).send(spec, str(outdir))
 
     def free(self, spec, outdir, on_image):
         self.calls.append(("free", spec))
