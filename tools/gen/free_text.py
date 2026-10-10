@@ -110,7 +110,7 @@ def _clean(tags, negative=False) -> list[str]:
     return out
 
 
-def describe(text: str, local=None) -> dict:
+def describe(text: str, local=None, recalled=()) -> dict:
     """頼みごとを描く言葉に直す。返り値: {allowed, reason, prompt, negative, tags, summary, reader, notes}。
     読み手が無いとき: 頼みごとが英語のタグならそのまま使い、日本語なら手元の模型を起こすよう返す。"""
     notes = []
@@ -120,7 +120,10 @@ def describe(text: str, local=None) -> dict:
     got, reader = None, None
     if local is not None:
         try:
-            got, reader = local.chat_json(SYSTEM, text, SCHEMA, examples=EXAMPLES), "local"
+            # 前に通った似た頼みごと（記憶）があれば、手本の受け答えに足す。同じ人の好みに寄せるため
+            mem = tuple((r["text"], {"tags": [t.strip() for t in r["prompt"].split(",") if t.strip()], "negative": [],
+                                     "summary": "前に通った描き方", "allowed": True, "reason": ""}) for r in recalled if r.get("text"))
+            got, reader = local.chat_json(SYSTEM, text, SCHEMA, examples=EXAMPLES + mem), "local"
         except Exception as e:
             notes.append(f"手元の模型で読めなかった（{type(e).__name__}: {str(e)[:120]}）")
     if got is None:
