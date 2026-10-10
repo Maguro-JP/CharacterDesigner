@@ -117,7 +117,7 @@ def test_unasked_hair_color_is_dropped(client, monkeypatch):
         r = c.post("/api/free/describe", json={"text": "赤い目の機械技師の女の子、ゴーグル"}).json()
     finally:
         srv.close()
-    assert r["prompt"] == "1girl, red eyes, goggles"
+    assert r["prompt"] == "1girl, mechanic, red eyes, goggles"   # 機械技師は対応表から足される
 
 
 def test_switch_llm(client, monkeypatch, tmp_path):
@@ -141,3 +141,15 @@ def test_switch_llm(client, monkeypatch, tmp_path):
         assert s["saved"] == {} and not s["local"]["ok"]
     finally:
         srv.close()
+
+
+def test_dropped_words_are_filled_from_table(client, monkeypatch):
+    # 言葉の模型が「スチームパンク」を落とした。対応表の言葉は描く言葉に足す。言い換え（杖 → wand）は重ねない
+    srv = use_llm(monkeypatch, dict(KNIGHT, tags=["1girl", "solo", "robot mechanic", "goggles", "wand"]))
+    try:
+        c, _ = client(FakeRunner())
+        r = c.post("/api/free/describe", json={"text": "スチームパンクの機械技師の女の子、ゴーグル、杖"}).json()
+    finally:
+        srv.close()
+    assert r["prompt"] == "1girl, solo, steampunk, robot mechanic, goggles, wand"   # mechanic は robot mechanic に含まれる
+    assert any("steampunk" in n for n in r["notes"])

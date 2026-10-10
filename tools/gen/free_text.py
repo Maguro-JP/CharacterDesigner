@@ -110,6 +110,31 @@ def _clean(tags, negative=False) -> list[str]:
     return out
 
 
+def _words():
+    import json
+    d = json.loads((Path(__file__).resolve().parents[2] / "casts" / "free-words.json").read_text())["words"]
+    return sorted(d.items(), key=lambda kv: -len(kv[0]))
+
+
+def ensure_words(text: str, tags: list[str]) -> tuple[list[str], list[str]]:
+    """頼みごとに対応表の言葉があるのに描く言葉に入っていなければ足す。足したものも返す（出来事に出すため）。
+    小さい言葉の模型は「スチームパンク」を落として robot mechanic と読んだ。突き合わせ（tagger）は描く言葉と絵の間しか見ないので、
+    頼みごとから描く言葉への落ちはここで止める。長い言葉から当て、当たった所は消してから次へ（「魔法使い」の中の「杖」を拾わないため）"""
+    rest, added = text, []
+    low = {t.lower() for t in tags}
+    for ja, en in _words():
+        if ja in rest:
+            rest = rest.replace(ja, "　")
+            alts = [a.strip().lower() for a in en.split("|")]
+            if not any(a in t for a in alts for t in low):
+                added.append(en.split("|")[0])
+                low.add(alts[0])
+    if not added:
+        return tags, []
+    head = [t for t in tags if re.fullmatch(r"\d+(girl|boy|other)s?|solo", t)]
+    return head + added + [t for t in tags if t not in head], added
+
+
 def describe(text: str, local=None, recalled=()) -> dict:
     """頼みごとを描く言葉に直す。返り値: {allowed, reason, prompt, negative, tags, summary, reader, notes}。
     読み手が無いとき: 頼みごとが英語のタグならそのまま使い、日本語なら手元の模型を起こすよう返す。"""
@@ -140,6 +165,10 @@ def describe(text: str, local=None, recalled=()) -> dict:
             return {"allowed": False, "reason": why, "prompt": "", "negative": "", "tags": [], "summary": "",
                     "reader": None, "notes": notes}
     tags = _unasked_colors(_clean(got.get("tags", [])), text)
+    if reader == "local":
+        tags, filled = ensure_words(text, tags)
+        if filled:
+            notes.append(f"言葉の模型が落とした {', '.join(filled)} を対応表から足した")
     neg = _clean(got.get("negative", []), negative=True)
     if tags and not any(re.fullmatch(r"\d+(girl|boy|other)s?", t) for t in tags):
         # 人数と性別が無いと、描く模型は人を描かないことがある。頼みごとの言葉から足す
