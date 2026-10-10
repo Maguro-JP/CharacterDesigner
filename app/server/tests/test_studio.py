@@ -79,3 +79,14 @@ def test_studio_job_through_api(client):
     j = wait(c, j["id"])
     assert j["kind"] == "studio" and j["state"] == "done" and j["passed"]
     assert j["outcome"]["passed"] == "try-0.png" and j["events"][-1]["role"] == "CURATOR"
+
+
+def test_finished_jobs_survive_restart(client):
+    # 起こし直しても、描いた絵の一覧（終わった仕事）が残る
+    c, _ = client(FakeRunner())
+    j = wait(c, c.post("/api/studio/jobs", json={"prompt": "1girl, full body, simple background"}).json()["id"])
+    from fastapi.testclient import TestClient
+    c2 = TestClient(main.create_app(FakeRunner()))
+    got = c2.get(f"/api/jobs/{j['id']}").json()
+    assert got["state"] == "done" and got["kind"] == "studio" and got["outcome"]["passed"] == "try-0.png"
+    assert "try-0.png" in got["files"]

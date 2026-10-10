@@ -129,7 +129,24 @@ class Queue:
         self.jobs: dict[str, Job] = {}
         self.q: queue.Queue[str] = queue.Queue()
         self.lock = threading.Lock()
+        self._restore()
         threading.Thread(target=self._loop, daemon=True).start()
+
+    def _restore(self):
+        """終わった仕事を DATA/<id>/job.json から読み戻す。起こし直しても描いた絵の一覧が消えないように。
+        描きかけで止まった仕事（state が done/failed でない）は、続きを描けないので失敗として戻す"""
+        if not DATA.exists():
+            return
+        names = set(Job.__dataclass_fields__)
+        for p in sorted(DATA.glob("*/job.json")):
+            try:
+                d = json.loads(p.read_text())
+                job = Job(**{k: v for k, v in d.items() if k in names and k not in ("case",)}, case={})
+            except (OSError, ValueError, TypeError):
+                continue   # 壊れた記録は飛ばす（1件のために起動を止めない）
+            if job.state not in ("done", "failed"):
+                job.state, job.error = "failed", job.error or "サーバーが止まったので描きかけで終わった"
+            self.jobs[job.id] = job
 
     def submit(self, name: str, case: dict, strength: float, tries: int, kind: str = "demi", free: dict | None = None) -> Job:
         job = Job(uuid.uuid4().hex[:12], name, case, strength, tries, kind=kind, free=free)
