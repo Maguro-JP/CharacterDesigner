@@ -123,3 +123,36 @@ def test_memory_api(client, monkeypatch, tmp_path):
     mem = c.get("/api/memory").json()
     assert mem[0]["ok"] and mem[0]["text"] == "雪の騎士"
     assert c.get("/api/memory", params={"q": "雪の騎士の少年"}).json()[0]["prompt"].startswith("1boy, knight")
+
+
+def test_proposals_from_facts(client, monkeypatch, tmp_path):
+    # 手がかり: 見本の無い種 → 設定資料を描く提案。通らなかったスタジオの仕事 → seed を変えて描き直す提案
+    monkeypatch.setattr(main, "PROPOSALS", tmp_path / "p.json")
+
+    class Failing(FakeRunner):
+        def studio(self, spec, outdir, on_event):
+            from app.server.studio.session import Ports, Session
+
+            def paint(prompt, negative, seed, w, h, out):
+                name = f"try-{len(list(Path(out).glob('try-*.png')))}.png"
+                Image.new("RGB", (8, 8), "red").save(Path(out) / name)
+                return name
+            return Session(Ports(describe=lambda t, rec=(): {}, paint=paint, inspect=lambda p, c: ["左腕が無い"]), on_event).send(spec, str(outdir))
+    from PIL import Image
+    c, _ = client(Failing())
+    p = c.get("/api/proposals").json()
+    assert p["idle"] and all(x["kind"] == "demi" for x in p["items"]) and len(p["items"]) <= 5
+    j = wait(c, c.post("/api/studio/jobs", json={"text": "騎士", "prompt": "1boy, full body", "tries": 2, "seed": 3}).json()["id"])
+    assert not j["passed"]
+    items = c.get("/api/proposals").json()["items"]
+    retry = items[0]
+    assert retry["kind"] == "studio" and retry["who"] == "INSPECTOR" and retry["request"]["seed"] == 5
+    # 退けたら二度と出さない。頼んだら仕事になり、並ばなくなる
+    assert c.post(f"/api/proposals/{items[1]['id']}/dismiss").json()["ok"]
+    ids = [x["id"] for x in c.get("/api/proposals").json()["items"]]
+    assert items[1]["id"] not in ids
+    job = c.post(f"/api/proposals/{retry['id']}/do").json()
+    assert job["kind"] == "studio" and job["free"]["seed"] == 5
+    wait(c, job["id"])
+    assert retry["id"] not in [x["id"] for x in c.get("/api/proposals").json()["items"]]
+    assert c.post("/api/proposals/nope/do").status_code == 404

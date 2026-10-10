@@ -18,6 +18,7 @@ PANEL_KINDS = {
     "roster": "役割",            # 役割ごとの今の出来事
     "log": "出来事",             # 役割の出来事を時間順に
     "memory": "覚えていること",  # 通った描く言葉と seed、落ちた理由
+    "proposals": "提案",         # 待機中に拾った提案（承認するまで描かない）
     "demi": "亜人の設定資料",    # 亜人の種を選んで描く（前からの欄）
 }
 
@@ -31,7 +32,7 @@ DEFAULT = {
              "children": [{"type": "panel", "panel": "prompt"}, {"type": "panel", "panel": "queue"}]},
             {"type": "split", "direction": "column", "sizes": [0.72, 0.28],
              "children": [{"type": "panel", "panel": "canvas"}, {"type": "panel", "panel": "gallery"}]},
-            {"type": "tabs", "children": [{"type": "panel", "panel": "roster"}, {"type": "panel", "panel": "log"},
+            {"type": "tabs", "children": [{"type": "panel", "panel": "roster"}, {"type": "panel", "panel": "proposals"}, {"type": "panel", "panel": "log"},
                                           {"type": "panel", "panel": "memory"}, {"type": "panel", "panel": "demi"}]},
         ],
     },

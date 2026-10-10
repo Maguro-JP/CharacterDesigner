@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { api, type Job, type LlmStatus, type Memory, type PartChoices, type Role, type StudioIn } from "./api";
+import { api, type Job, type LlmStatus, type Memory, type PartChoices, type Proposal, type Role, type StudioIn } from "./api";
 import DemiPanel from "./DemiPanel";
 import { LlmSettings, readerJa } from "./FreePanel";
 import JobCard from "./JobCard";
@@ -246,6 +246,38 @@ function MemoryPanel({ ctx }: { ctx: Ctx }) {
   );
 }
 
+// 待機中に拾った提案。描くかは利用者が決める（承認するまで描かない）
+function ProposalsPanel({ ctx }: { ctx: Ctx }) {
+  const [p, setP] = useState<{ idle: boolean; items: Proposal[] }>({ idle: true, items: [] });
+  const done = ctx.jobs.filter((j) => j.state === "done" || j.state === "failed").length;
+  const load = () => api.proposals().then(setP).catch(() => setP({ idle: true, items: [] }));
+  useEffect(() => {
+    load();
+  }, [done]);
+  if (!p.idle) return <p className="text-sm text-neutral-400">描いている間は考えない（CPU を描くのに使う）</p>;
+  if (!p.items.length) return <p className="text-sm text-neutral-400">いま提案は無い（拾える手がかりが無い）</p>;
+  return (
+    <ul className="space-y-2 text-sm">
+      {p.items.map((x) => (
+        <li key={x.id} className="rounded border border-line p-2">
+          <p className="font-bold">{x.title}</p>
+          <p className="text-xs text-neutral-400">{x.who}: {x.why}</p>
+          <div className="mt-1 flex gap-2">
+            <button type="button" className="rounded bg-accent px-3 py-0.5 text-xs font-bold text-ink"
+              onClick={() => api.doProposal(x.id).then(() => { ctx.refreshJobs(); load(); }).catch((e: Error) => ctx.setError(e.message))}>
+              描く
+            </button>
+            <button type="button" className="rounded border border-line px-3 py-0.5 text-xs"
+              onClick={() => api.dismissProposal(x.id).then(load).catch((e: Error) => ctx.setError(e.message))}>
+              退ける
+            </button>
+          </div>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 function QueuePanel({ ctx }: { ctx: Ctx }) {
   if (!ctx.jobs.length) return <p className="text-sm text-neutral-400">まだ無い</p>;
   return <ul className="space-y-3">{ctx.jobs.map((j) => <JobCard key={j.id} job={j} now={ctx.now} labels={ctx.labels} />)}</ul>;
@@ -260,6 +292,7 @@ export const PANELS: Record<string, { title: string; render: (ctx: Ctx) => React
   roster: { title: "役割", render: (ctx) => <RosterPanel ctx={ctx} /> },
   log: { title: "出来事", render: (ctx) => <LogPanel ctx={ctx} /> },
   memory: { title: "覚えていること", render: (ctx) => <MemoryPanel ctx={ctx} /> },
+  proposals: { title: "提案", render: (ctx) => <ProposalsPanel ctx={ctx} /> },
   demi: { title: "亜人の設定資料", render: (ctx) => <DemiPanel onSubmitted={ctx.refreshJobs} onError={ctx.setError} /> },
 };
 

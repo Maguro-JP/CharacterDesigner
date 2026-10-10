@@ -39,6 +39,8 @@ export type Outcome = { passed: string | null; files: string[]; prompt: string; 
 
 export type Memory = { text: string; prompt: string; negative: string; ok: boolean; seed: number; size: number[]; reason: string; t: number };
 
+export type Proposal = { id: string; kind: "studio" | "demi"; title: string; why: string; who: string; request: Record<string, unknown> };
+
 export type Role = { name: string; ja: string; temper: string; does: string; may: string[] };
 
 export type LayoutNode =
@@ -126,6 +128,9 @@ export const api = {
   llm: () => call<LlmStatus>("/api/llm"),
   roles: () => call<Role[]>("/api/studio/roles"),
   memory: () => call<Memory[]>("/api/memory"),
+  proposals: () => call<{ idle: boolean; items: Proposal[] }>("/api/proposals"),
+  doProposal: (id: string) => call<Job>(`/api/proposals/${id}/do`, { method: "POST" }),
+  dismissProposal: (id: string) => call<{ ok: boolean }>(`/api/proposals/${id}/dismiss`, { method: "POST" }),
   studioSubmit: (body: StudioIn) => call<Job>("/api/studio/jobs", { method: "POST", body: JSON.stringify(body) }),
   layout: () => call<Layout>("/api/layout"),
   saveLayout: (l: Layout) => call<Layout>("/api/layout", { method: "PUT", body: JSON.stringify(l) }),

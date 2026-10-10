@@ -12,3 +12,4 @@ os.environ.setdefault("CD_LLM_SETTINGS", os.path.join(tempfile.mkdtemp(), "llm.j
 _tmp = tempfile.mkdtemp()
 os.environ.setdefault("CD_MEMORY", os.path.join(_tmp, "memory.jsonl"))
 os.environ.setdefault("CD_LAYOUT", os.path.join(_tmp, "layout.json"))
+os.environ.setdefault("CD_PROPOSALS", os.path.join(_tmp, "proposals.json"))

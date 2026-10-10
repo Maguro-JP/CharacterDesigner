@@ -35,6 +35,7 @@ import demi_text  # noqa: E402  日本語の頼みごとを種の設定に組む
 import free_text  # noqa: E402  自由に描く（日本語 → 描く言葉 → 絵）
 import local_llm  # noqa: E402  手元の言葉の模型（OpenAI 互換の窓口）
 from app.server.studio import layout as studio_layout  # noqa: E402
+from app.server.studio import proposals as studio_proposals  # noqa: E402
 from app.server.studio import roles as studio_roles  # noqa: E402
 from app.server.studio.session import Ports, Session, Spec, recall_from  # noqa: E402
 
@@ -42,6 +43,8 @@ from app.server.studio.session import Ports, Session, Spec, recall_from  # noqa:
 MEMORY = Path(os.environ.get("CD_MEMORY", ROOT / ".cache" / "app" / "memory.jsonl"))
 # 画面の配置（データで持つ。壊れていても既定に直して返す）
 LAYOUT = Path(os.environ.get("CD_LAYOUT", ROOT / ".cache" / "app" / "layout.json"))
+# 退けた提案（同じ提案を二度出さない）
+PROPOSALS = Path(os.environ.get("CD_PROPOSALS", ROOT / ".cache" / "app" / "proposals.json"))
 
 DATA = Path(os.environ.get("CD_APP_DATA", ROOT / ".cache" / "app" / "jobs"))
 # 通った設定資料の置き場所。スキルの手順と同じ名前（demi3d-<種の名前>.png）で置く
@@ -342,6 +345,31 @@ def create_app(runner: Runner | None = None) -> FastAPI:
     def reset_layout():
         LAYOUT.unlink(missing_ok=True)
         return studio_layout.load(LAYOUT)
+
+    def current_proposals():
+        return studio_proposals.Store(PROPOSALS).visible(
+            studio_proposals.gather(list(jobs.jobs.values()), load_cases()["cases"], SAMPLES))
+
+    @app.get("/api/proposals")
+    def get_proposals():
+        # 描いている間は考えない（CPU を描くのに使う）。待機中だけ手がかりを拾って並べる
+        busy = any(j.state not in ("done", "failed") for j in jobs.jobs.values())
+        return {"idle": not busy, "items": [] if busy else current_proposals()}
+
+    @app.post("/api/proposals/{pid}/do", status_code=202)
+    def do_proposal(pid: str):
+        p = next((x for x in current_proposals() if x["id"] == pid), None)
+        if p is None:
+            raise HTTPException(404, "その提案は無い（もう片付いたか、退けた）")
+        studio_proposals.Store(PROPOSALS).dismiss(pid)   # 1度頼んだら並べない
+        if p["kind"] == "demi":
+            return post_job(JobIn(**p["request"]))
+        return post_studio_job(StudioIn(**p["request"]))
+
+    @app.post("/api/proposals/{pid}/dismiss")
+    def dismiss_proposal(pid: str):
+        studio_proposals.Store(PROPOSALS).dismiss(pid)
+        return {"ok": True}
 
     @app.get("/api/memory")
     def get_memory(q: str = ""):
