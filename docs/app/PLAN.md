@@ -131,7 +131,7 @@
      `queue`（仕事の進み）、`inspect`（検品の図）、`proposals`（提案）、`memory`（覚えていること）、`compare`（並べて見比べる）
    - 配置は `.cache/app/layout.json`。壊れていても既定の配置に直して表示する（真っ白にしない）
 
-- [ ] S1 核（Session の send）と役割の定義。今の free_text と demi を、役ごとの手順として載せ替える
+- [x] S1 核（Session の send）と役割の定義。今の free_text と demi を、役ごとの手順として載せ替える
 - [ ] S2 画面を絵の画面に組み直す（canvas・gallery・prompt・queue・roster）と、配置のデータ化
 - [ ] S3 検品と意地の悪い目による描き直しの輪（打ち切りの3条件）
 - [ ] S4 記憶（良かった描く言葉・seed・失敗の理由）と、次の頼みごとへの添付

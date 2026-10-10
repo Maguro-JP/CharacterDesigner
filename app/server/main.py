@@ -34,6 +34,11 @@ import demi  # noqa: E402  描く処理の本体
 import demi_text  # noqa: E402  日本語の頼みごとを種の設定に組む
 import free_text  # noqa: E402  自由に描く（日本語 → 描く言葉 → 絵）
 import local_llm  # noqa: E402  手元の言葉の模型（OpenAI 互換の窓口）
+from app.server.studio import roles as studio_roles  # noqa: E402
+from app.server.studio.session import Ports, Session, Spec  # noqa: E402
+
+# 覚えていること（通った描く言葉と seed、落ちた理由）。1行1件で足していく
+MEMORY = Path(os.environ.get("CD_MEMORY", ROOT / ".cache" / "app" / "memory.jsonl"))
 
 DATA = Path(os.environ.get("CD_APP_DATA", ROOT / ".cache" / "app" / "jobs"))
 # 通った設定資料の置き場所。スキルの手順と同じ名前（demi3d-<種の名前>.png）で置く
@@ -41,7 +46,7 @@ SAMPLES = Path(os.environ.get("CD_SAMPLES", ROOT / "library" / "samples"))
 NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
 # 返してよいファイル。仕事のフォルダの中の、この形の名前だけ（../ などで外を読ませない）
 PREVIEW_FILE = re.compile(r"^(underlay|mask)\.png$")
-FILE = re.compile(r"^(sheet|underlay|mask|try-\d+|try-\d+-inspect)\.png$|^report\.json$")
+FILE = re.compile(r"^(sheet|underlay|mask|try-\d+|try-\d+-inspect|try-\d+-notan)\.png$|^report\.json$")
 
 
 class Runner:
@@ -52,6 +57,34 @@ class Runner:
 
     def draw(self, case: dict, outdir: Path, strength: float, tries: int, on_try) -> list:
         return demi.draw(case, outdir, strength, tries, on_try=on_try)
+
+    def studio(self, spec: Spec, outdir: Path, on_event):
+        """スタジオの核で描く。外とのやり取りは本物（言葉の模型・Animagine・検品・明暗の測り）をつなぐ。"""
+        import edit
+        import imgproc
+
+        def paint(prompt, negative, seed, w, h, out):
+            name = f"try-{len(list(Path(out).glob('try-*.png')))}.png"
+            import shutil
+            import tempfile
+            with tempfile.TemporaryDirectory() as tmp:
+                free_text.draw(prompt, negative, Path(tmp), seed, 1, w, h)
+                shutil.move(f"{tmp}/try-0.png", f"{out}/{name}")
+            return name
+
+        def critique(path):
+            # 明暗の塊と見せ場（docs/knowledge/ai-look.md の「上手い描き手が意図して決めていること」）
+            r = imgproc.notan(path, path.replace(".png", "-notan.png"))
+            notes = []
+            if r["fragment_ratio"] > 0.08:
+                notes.append(f"明暗が細切れ（{r['fragment_ratio']}）。光を1つに絞ると塊で読める")
+            if not 0.0 <= r["focal_y_in_person"] <= 0.35:
+                notes.append(f"見せ場が顔の周りに無い（人物の上から {r['focal_y_in_person']}）")
+            return notes
+
+        return Session(Ports(describe=lambda t: free_text.describe(t, local_llm.client()), paint=paint,
+                             inspect=lambda path, c: edit.inspect(path, **c), critique=critique,
+                             remember=remember), on_event).send(spec, str(outdir))
 
     def free(self, spec: dict, outdir: Path, on_image) -> list:
         return free_text.draw(spec["prompt"], spec.get("negative", ""), outdir, spec["seed"], spec["count"],
@@ -75,10 +108,12 @@ class Job:
     results: list = field(default_factory=list)   # 回ごとの検品の結果
     kind: str = "demi"               # demi（亜人の設定資料）/ free（自由に描く）
     free: dict | None = None         # 自由に描くときの描く言葉・打ち消し・seed・枚数・大きさ
+    events: list = field(default_factory=list)    # スタジオの役割ごとの出来事（誰が・何を）
+    outcome: dict | None = None      # スタジオの決着（通った絵、理由、弱い所）
 
     def public(self) -> dict:
         d = {k: getattr(self, k) for k in ("id", "kind", "case_name", "strength", "tries", "state", "try_index", "passed",
-                                            "error", "created", "started", "finished", "results", "free")}
+                                            "error", "created", "started", "finished", "results", "free", "events", "outcome")}
         d["files"] = sorted(p.name for p in (DATA / self.id).glob("*") if FILE.match(p.name)) if (DATA / self.id).exists() else []
         return d
 
@@ -107,6 +142,14 @@ class Queue:
             out.mkdir(parents=True, exist_ok=True)
             job.started = time.time()
             try:
+                if job.kind == "studio":
+                    job.state = "drawing"
+                    r = self.runner.studio(Spec(**job.free), out, job.events.append)
+                    job.passed = r.ok
+                    job.outcome = {"passed": r.passed, "files": r.files, "prompt": r.prompt, "negative": r.negative,
+                                   "reason": r.reason, "critique": r.critique}
+                    job.state = "done"
+                    continue
                 if job.kind == "free":
                     job.state = "drawing"
 
@@ -135,6 +178,12 @@ class Queue:
                 (out / "job.json").write_text(json.dumps(job.public(), ensure_ascii=False, indent=1))
 
 
+def remember(rec: dict) -> None:
+    MEMORY.parent.mkdir(parents=True, exist_ok=True)
+    with MEMORY.open("a") as f:
+        f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+
+
 def load_cases() -> dict:
     return json.loads(demi.CASES.read_text())
 
@@ -152,6 +201,16 @@ class DescribeIn(BaseModel):
 
 class SaveIn(BaseModel):
     overwrite: bool = False
+
+
+class StudioIn(BaseModel):
+    text: str = Field("", max_length=200)
+    prompt: str = Field("", max_length=1500)
+    negative: str = Field("", max_length=1000)
+    seed: int = Field(0, ge=0, le=2**31 - 1)
+    size: str = Field("portrait", pattern="^(portrait|landscape|square)$")
+    tries: int = Field(3, ge=1, le=6)
+    direct: bool = True
 
 
 class LlmIn(BaseModel):
@@ -233,6 +292,24 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         local = client.status() if client else {"ok": False, "error": "CD_LLM_OFF=1 で切ってある"}
         return {"local": local, "claude": demi_text.claude_client() is not None, "saved": local_llm.load_settings(),
                 "default_url": local_llm.DEFAULT_URL}
+
+    @app.get("/api/studio/roles")
+    def studio_roster():
+        return studio_roles.roster()
+
+    @app.post("/api/studio/jobs", status_code=202)
+    def post_studio_job(body: StudioIn):
+        # 頼みごとか描く言葉のどちらかが要る。描かない頼みごとは受け付けの時点でも止める（核でももう一度止める）
+        if not body.text.strip() and not body.prompt.strip():
+            raise HTTPException(422, "頼みごとか描く言葉を書く")
+        for t in (body.text, body.prompt):
+            why = free_text.blocked_text(t) if t else None
+            if why:
+                raise HTTPException(422, why)
+        w, h = SIZES[body.size]
+        spec = {"text": body.text, "prompt": body.prompt, "negative": body.negative, "seed": body.seed,
+                "width": w, "height": h, "tries": body.tries, "direct": body.direct}
+        return jobs.submit((body.text or body.prompt)[:20], {}, 0.0, body.tries, kind="studio", free=spec).public()
 
     @app.post("/api/llm/probe")
     def llm_probe(body: LlmIn):

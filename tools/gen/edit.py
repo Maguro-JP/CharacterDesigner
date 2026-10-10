@@ -211,12 +211,14 @@ def clean_background(src, out=None):
     return res
 
 
-def inspect(src, limbs=True):
+def inspect(src, limbs=True, objects=True, edges=True):
     """生き物として破綻している絵を機械で見つける。当てはまった理由の一覧を返す（空なら通る）。
 
     - 背景に人物と離れた物がある（端から背景を抜いたあと、大きな塊が2つ以上）
     - 腕・脚の左右どちらかが無い（部位分けで数える）
     - 体が画面の端で切れている
+    背景を描いた絵（城の前、夜の街）では、背景の物を「離れた物」と、背景が端まであることを「切れている」と
+    取り違えるので、objects と edges を切って腕・脚だけを数える
     """
     import numpy as np
     sys.path.insert(0, str(Path(__file__).parent))
@@ -246,13 +248,15 @@ def inspect(src, limbs=True):
                             q.append((yy, xx))
                 sizes.append(n)
     big = [n for n in sizes if n > alpha.sum() * 0.03]
-    if len(big) >= 2:
+    if objects and len(big) >= 2:
         reasons.append(f"人物と離れた物がある（塊が {len(big)} つ）")
     lab = np.asarray(parts(src))
     # 人と違う体（ラミア、人魚、ケンタウロス、ハーピー）は脚や腕の数が人と違うので数えない（limbs=False）
     for name, ids in ((("左腕", [14]), ("右腕", [15]), ("左脚", [12]), ("右脚", [13])) if limbs else ()):
         if not np.isin(lab, ids).any():
             reasons.append(f"{name}が無い")
+    if not edges:
+        return reasons
     fg = np.asarray(foreground(src)) > 0
     ys, xs = np.nonzero(fg)
     if ys.min() <= 1 or ys.max() >= H - 2 or xs.min() <= 1 or xs.max() >= W - 2:
