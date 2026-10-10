@@ -36,6 +36,7 @@ class Ports:
     critique: Callable[[str], list] = lambda path: []   # 絵のパス → 弱い所の指摘（通す・落とすは決めない）
     remember: Callable[[dict], None] = lambda rec: None
     recall: Callable[[str], list] = lambda text: []     # 頼みごとに似た、前に通った記録（似ている順）
+    guard_image: Callable[[str], str | None] = lambda path: None   # 出来た絵を見せてよいか。だめなら理由
 
 
 @dataclass
@@ -60,6 +61,7 @@ class Result:
     negative: str = ""
     reason: str = ""                                # 描かなかった・通らなかった理由
     critique: list = field(default_factory=list)
+    hidden: list = field(default_factory=list)       # GUARD が見せないと決めた絵（画面にもファイルの窓口にも出さない）
 
 
 def direct(prompt: str) -> tuple[str, list[str]]:
@@ -175,6 +177,16 @@ class Session:
             res.files.append(name)
             self._say("PAINTER", "done", f"{k + 1} 枚目を描いた", file=name, seed=seed)
 
+            # GUARD: 出来た絵（3か所目）。模型が頼みごとと関係なく肌を見せる絵を描くことがある
+            why = self.ports.guard_image(f"{outdir}/{name}")
+            if why:
+                res.hidden.append(name)
+                self._say("GUARD", "fail", f"{k + 1} 枚目は見せない: {why}", file=name)
+                prompt = prompt if "fully clothed" in prompt else prompt + ", fully clothed"
+                negative = ", ".join(x for x in (negative, free_text.SAFE_NEGATIVE) if x and x not in negative) or negative
+                res.prompt, res.negative = prompt, negative
+                last = None
+                continue
             reasons = self.ports.inspect(f"{outdir}/{name}", checks)
             if not reasons:
                 res.ok, res.passed = True, name

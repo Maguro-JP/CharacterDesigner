@@ -156,3 +156,35 @@ def test_proposals_from_facts(client, monkeypatch, tmp_path):
     wait(c, job["id"])
     assert retry["id"] not in [x["id"] for x in c.get("/api/proposals").json()["items"]]
     assert c.post("/api/proposals/nope/do").status_code == 404
+
+
+def test_guard_hides_exposed_image_and_redraws(tmp_path):
+    painted, memory, events = [], [], []
+    ports = fake_ports([[]], painted, memory)
+    flags = iter(["肌の見える所が多い", None])
+    ports.guard_image = lambda path: next(flags)
+    r = Session(ports, events.append).send(Spec(prompt="1girl, beach", tries=3), str(tmp_path))
+    assert r.ok and r.passed == "try-1.png" and r.hidden == ["try-0.png"]
+    assert "fully clothed" in painted[1]["prompt"] and "nsfw" in painted[1]["negative"]
+    assert any(e["role"] == "GUARD" and e["stage"] == "fail" for e in events)
+
+
+def test_hidden_files_are_not_served(client):
+    class Exposed(FakeRunner):
+        def studio(self, spec, outdir, on_event):
+            from app.server.studio.session import Ports, Session
+
+            def paint(prompt, negative, seed, w, h, out):
+                name = f"try-{len(list(Path(out).glob('try-*.png')))}.png"
+                Image.new("RGB", (8, 8), "pink").save(Path(out) / name)
+                return name
+            flags = iter(["肌の見える所が多い", None])
+            return Session(Ports(describe=lambda t, rec=(): {}, paint=paint, inspect=lambda p, c: [],
+                                 guard_image=lambda p: next(flags)), on_event).send(spec, str(outdir))
+    from PIL import Image
+    c, _ = client(Exposed())
+    j = wait(c, c.post("/api/studio/jobs", json={"prompt": "1girl", "tries": 2}).json()["id"])
+    assert j["outcome"]["hidden"] == ["try-0.png"] and "try-0.png" not in j["files"]
+    assert j["outcome"]["files"] == ["try-1.png"]
+    assert c.get(f"/api/jobs/{j['id']}/files/try-0.png").status_code == 404
+    assert c.get(f"/api/jobs/{j['id']}/files/try-1.png").status_code == 200

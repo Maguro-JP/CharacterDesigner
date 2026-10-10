@@ -88,7 +88,19 @@ class Runner:
                 notes.append(f"見せ場が顔の周りに無い（人物の上から {r['focal_y_in_person']}）")
             return notes
 
-        return Session(Ports(describe=lambda t, rec=(): free_text.describe(t, local_llm.client(), rec), paint=paint,
+        def guard_image(path):
+            # 部位分けで、人物の中の服と肌の部位の割合を測る。服を着た絵は服 0.76〜0.83、下着だけの見本は服 0.08・肌 0.83 だった。
+            # 肌色の割合では、ベージュの服も肌に数えて見分けられなかった（docs/knowledge/imgproc.md）
+            import numpy as np
+            lab = np.asarray(edit.parts(path))
+            person = max(int((lab > 0).sum()), 1)
+            clothes = np.isin(lab, [4, 5, 6, 7, 17]).sum() / person
+            skin = np.isin(lab, [11, 12, 13, 14, 15]).sum() / person
+            if skin > 0.6 or clothes < 0.2:
+                return f"肌の見える所が多い（服 {clothes:.2f}、肌 {skin:.2f}）"
+            return None
+
+        return Session(Ports(describe=lambda t, rec=(): free_text.describe(t, local_llm.client(), rec), paint=paint, guard_image=guard_image,
                              inspect=lambda path, c: edit.inspect(path, **c), critique=critique,
                              remember=remember, recall=lambda t: recall_from(memories(), t)), on_event).send(spec, str(outdir))
 
@@ -120,7 +132,10 @@ class Job:
     def public(self) -> dict:
         d = {k: getattr(self, k) for k in ("id", "kind", "case_name", "strength", "tries", "state", "try_index", "passed",
                                             "error", "created", "started", "finished", "results", "free", "events", "outcome")}
-        d["files"] = sorted(p.name for p in (DATA / self.id).glob("*") if FILE.match(p.name)) if (DATA / self.id).exists() else []
+        hidden = set((self.outcome or {}).get("hidden") or [])
+        hidden |= {h.replace(".png", "-notan.png") for h in hidden}
+        d["files"] = sorted(p.name for p in (DATA / self.id).glob("*") if FILE.match(p.name) and p.name not in hidden) \
+            if (DATA / self.id).exists() else []
         return d
 
 
@@ -169,8 +184,8 @@ class Queue:
                     job.state = "drawing"
                     r = self.runner.studio(Spec(**job.free), out, job.events.append)
                     job.passed = r.ok
-                    job.outcome = {"passed": r.passed, "files": r.files, "prompt": r.prompt, "negative": r.negative,
-                                   "reason": r.reason, "critique": r.critique}
+                    job.outcome = {"passed": r.passed, "files": [f for f in r.files if f not in r.hidden], "prompt": r.prompt,
+                                   "negative": r.negative, "reason": r.reason, "critique": r.critique, "hidden": r.hidden}
                     job.state = "done"
                     continue
                 if job.kind == "free":
@@ -492,6 +507,8 @@ def create_app(runner: Runner | None = None) -> FastAPI:
     def get_file(job_id: str, name: str):
         if job_id not in jobs.jobs or not FILE.match(name):
             raise HTTPException(404, "そのファイルは無い")
+        if name not in jobs.jobs[job_id].public()["files"]:
+            raise HTTPException(404, "そのファイルは見せない（GUARD が止めた）か、まだ無い")
         p = DATA / job_id / name
         if not p.exists():
             raise HTTPException(404, "そのファイルはまだ無い")
