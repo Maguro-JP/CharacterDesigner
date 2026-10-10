@@ -157,7 +157,7 @@ def inpaint(src, out, region, prompt, negative="", grow=4, steps=20, guidance=7.
     return n
 
 
-def inpaint_mask(im, gen_mask, keep_mask, prompt, negative="", steps=20, guidance=7.0, seed=7, strength=0.99):
+def inpaint_mask(im, gen_mask, keep_mask, prompt, negative="", steps=20, guidance=7.0, seed=7, strength=0.99, noise=48.0):
     """gen_mask（白）を描き直し、keep_mask（白）の所だけを結果に使う。外は元の画素のまま。
     部位で選ぶ inpaint と、任意の範囲・外側への描き足し（imgproc.py の inpaint / outpaint）が共有する本体"""
     import gc
@@ -184,7 +184,8 @@ def inpaint_mask(im, gen_mask, keep_mask, prompt, negative="", steps=20, guidanc
     import numpy as np
     base = np.asarray(im).astype(float)
     blur = np.asarray(im.filter(ImageFilter.GaussianBlur(24))).astype(float)
-    noise = np.random.default_rng(seed).normal(0, 48, base.shape)
+    # 雑音は物を足させるときだけ効く。広い背景を描き足すとき（outpaint）は残って横縞になったので 0 にする
+    noise = np.random.default_rng(seed).normal(0, noise, base.shape) if noise else 0.0
     gm = (np.asarray(gen_mask.convert("L")) > 127)[..., None]
     seeded = Image.fromarray(np.clip(np.where(gm, blur + noise, base), 0, 255).astype("uint8"))
     gen = inp(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,

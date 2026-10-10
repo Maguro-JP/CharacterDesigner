@@ -533,7 +533,7 @@ def outpaint(src: str, out: str, prompt: str, pad=(0, 0, 0, 0), seed: int = 7) -
     ov = 16
     ImageDraw.Draw(gen).rectangle([l + (ov if l else 0), t + (ov if t else 0),
                                    l + im.width - 1 - (ov if r else 0), t + im.height - 1 - (ov if b else 0)], fill=0)
-    res = edit.inpaint_mask(canvas, gen, keep, prompt, seed=seed)
+    res = edit.inpaint_mask(canvas, gen, keep, prompt, seed=seed, noise=0)
     res.save(out)
     inner = res.crop((l, t, l + im.width, t + im.height))
     changed = int((np.abs(np.asarray(inner).astype(int) - np.asarray(im).astype(int)).max(axis=2) > 0).sum())

@@ -40,9 +40,15 @@ def gather(jobs: list, cases: dict, samples: Path) -> list[dict]:
             prompt = base["prompt"]
             if "single light source" not in prompt:
                 prompt += ", single light source"
-            out.append({"id": _id("relight", j.id), "kind": "studio", "title": f"「{title}」を光を1つに絞って描き直す",
+            if "dramatic lighting" not in prompt:
+                prompt += ", dramatic lighting, strong contrast"
+            # seed も進める。描く言葉も seed も同じだと、まったく同じ絵が出た（提案が役に立たなかった）
+            out.append({"id": _id("relight", j.id), "kind": "studio", "title": f"「{title}」を光を強く絞って描き直す",
                         "why": "、".join(oc["critique"]), "who": "CRITIC",
-                        "request": {**base, "prompt": prompt, "seed": spec.get("seed", 0)}})
+                        "request": {**base, "prompt": prompt, "seed": spec.get("seed", 0) + spec.get("tries", 3)}})
+    # 既に頼んだのと同じ描き方（描く言葉と seed）は提案しない。描き直しの描き直しを延々と積まないため
+    asked = {(j.free.get("prompt", ""), j.free.get("seed")) for j in jobs if j.kind == "studio" and j.free}
+    out = [p for p in out if (p["request"]["prompt"], p["request"]["seed"]) not in asked]
     for name, c in cases.items():
         if not (samples / f"demi3d-{name}.png").exists():
             out.append({"id": _id("sample", name), "kind": "demi", "title": f"{c.get('ja', name)}の設定資料を描いて見本にする",

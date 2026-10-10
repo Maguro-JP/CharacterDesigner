@@ -188,3 +188,28 @@ def test_hidden_files_are_not_served(client):
     assert j["outcome"]["files"] == ["try-1.png"]
     assert c.get(f"/api/jobs/{j['id']}/files/try-0.png").status_code == 404
     assert c.get(f"/api/jobs/{j['id']}/files/try-1.png").status_code == 200
+
+
+def test_relight_proposal_changes_drawing_and_is_not_repeated(client, monkeypatch, tmp_path):
+    # 弱さを指摘された絵の提案は、描く言葉か seed を変える。同じ描き方は二度提案しない
+    monkeypatch.setattr(main, "PROPOSALS", tmp_path / "p.json")
+
+    class Critic(FakeRunner):
+        def studio(self, spec, outdir, on_event):
+            from app.server.studio.session import Ports, Session
+
+            def paint(prompt, negative, seed, w, h, out):
+                name = f"try-{len(list(Path(out).glob('try-*.png')))}.png"
+                Image.new("RGB", (8, 8), "blue").save(Path(out) / name)
+                return name
+            return Session(Ports(describe=lambda t, rec=(): {}, paint=paint, inspect=lambda p, c: [],
+                                 critique=lambda p: ["明暗が細切れ"]), on_event).send(spec, str(outdir))
+    from PIL import Image
+    c, _ = client(Critic())
+    wait(c, c.post("/api/studio/jobs", json={"prompt": "1girl, single light source", "seed": 2, "tries": 2}).json()["id"])
+    p = next(x for x in c.get("/api/proposals").json()["items"] if x["who"] == "CRITIC")
+    assert p["request"]["seed"] == 4 and "dramatic lighting" in p["request"]["prompt"]
+    j = wait(c, c.post(f"/api/proposals/{p['id']}/do").json()["id"])
+    # 描き直した絵にも弱さの指摘が出るが、その提案は新しい描き方（seed がさらに進む）だけ
+    again = [x for x in c.get("/api/proposals").json()["items"] if x["who"] == "CRITIC"]
+    assert all(x["request"]["seed"] != 4 for x in again)
