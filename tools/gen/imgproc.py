@@ -8,7 +8,7 @@
   python3 tools/gen/imgproc.py roto     IN.gif|DIR OUT_DIR    ロトスコーピング（コマごとに人物を抜き、透明 PNG と輪郭の動きを書く）
   python3 tools/gen/imgproc.py shade    IN OUT.png [--style cel2|cel3|soft|rim|back] [--light x,y,z]   影の付け方（立体を計算して光を当てる）
   python3 tools/gen/imgproc.py aitells  IN                    AI っぽさを数える（つや、色数、色むら、線のにじみ、線の均一さ、奥行きの無さ）
-  python3 tools/gen/imgproc.py deai     IN OUT.png [--steps 10]   AI っぽさを消す（塗りを段に、つやを抑え、線を締める）
+  python3 tools/gen/imgproc.py deai     IN OUT.png [--steps 10]   （使わない: 絵を崩すだけだった。docs/knowledge/ai-look.md）
 
 どれも結果を画像で書き出し、数字（残した画素の割合など）を標準出力に出す。描いた絵の上でも写真の上でも動く。
 重い部品（切り抜きのモデル、部位分けのモデル）は使うときだけ読む。
@@ -391,7 +391,8 @@ def ai_tells(src: str) -> dict:
 
 
 def de_ai(src: str, out: str, steps: int = 10, line_boost: float = 1.0) -> dict:
-    """AI っぽさを消す（人物の中だけ。背景は手を入れない）。色み（色相と彩度）は変えない。
+    """使わない（2026-10-10、利用者の指摘）。AI の特徴を消すと、線と塗りを崩した下手な絵になるだけだった。docs/knowledge/ai-look.md
+    AI っぽさを消す（人物の中だけ。背景は手を入れない）。色み（色相と彩度）は変えない。
     1. 塗りを平らにする: 線を避けて縁を保つならし（中央値）を重ね、細かい色むらを消す。そのあと明るさだけを steps 段に丸め、
        なめらかな塗り分けをアニメ塗りの段に戻す
     2. つやを抑える: 小さく孤立した白い点（つや）だけを、まわりの塗りの色で埋める。広く明るい所（白い服、明るい肌）は触らない
