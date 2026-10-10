@@ -34,11 +34,14 @@ import demi  # noqa: E402  描く処理の本体
 import demi_text  # noqa: E402  日本語の頼みごとを種の設定に組む
 import free_text  # noqa: E402  自由に描く（日本語 → 描く言葉 → 絵）
 import local_llm  # noqa: E402  手元の言葉の模型（OpenAI 互換の窓口）
+from app.server.studio import layout as studio_layout  # noqa: E402
 from app.server.studio import roles as studio_roles  # noqa: E402
 from app.server.studio.session import Ports, Session, Spec  # noqa: E402
 
 # 覚えていること（通った描く言葉と seed、落ちた理由）。1行1件で足していく
 MEMORY = Path(os.environ.get("CD_MEMORY", ROOT / ".cache" / "app" / "memory.jsonl"))
+# 画面の配置（データで持つ。壊れていても既定に直して返す）
+LAYOUT = Path(os.environ.get("CD_LAYOUT", ROOT / ".cache" / "app" / "layout.json"))
 
 DATA = Path(os.environ.get("CD_APP_DATA", ROOT / ".cache" / "app" / "jobs"))
 # 通った設定資料の置き場所。スキルの手順と同じ名前（demi3d-<種の名前>.png）で置く
@@ -292,6 +295,23 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         local = client.status() if client else {"ok": False, "error": "CD_LLM_OFF=1 で切ってある"}
         return {"local": local, "claude": demi_text.claude_client() is not None, "saved": local_llm.load_settings(),
                 "default_url": local_llm.DEFAULT_URL}
+
+    @app.get("/api/layout")
+    def get_layout():
+        return studio_layout.load(LAYOUT)
+
+    @app.put("/api/layout")
+    def put_layout(body: dict):
+        # 壊れた配置は保存しない（読むときは既定に直すが、書くときは断って理由を返す）
+        try:
+            return studio_layout.save(LAYOUT, body)
+        except ValueError as e:
+            raise HTTPException(422, str(e))
+
+    @app.delete("/api/layout")
+    def reset_layout():
+        LAYOUT.unlink(missing_ok=True)
+        return studio_layout.load(LAYOUT)
 
     @app.get("/api/studio/roles")
     def studio_roster():

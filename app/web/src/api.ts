@@ -33,9 +33,26 @@ export type JobState = "queued" | "underlay" | "drawing" | "done" | "failed";
 
 export type FreeSpec = { prompt: string; negative: string; ja: string; seed: number; count: number; width: number; height: number };
 
+export type StudioEvent = { t: number; role: string; stage: string; msg: string; file?: string; prompt?: string; reasons?: string[] };
+
+export type Outcome = { passed: string | null; files: string[]; prompt: string; negative: string; reason: string; critique: string[] };
+
+export type Role = { name: string; ja: string; temper: string; does: string; may: string[] };
+
+export type LayoutNode =
+  | { type: "panel"; panel: string }
+  | { type: "split"; direction: "row" | "column"; sizes: number[]; children: LayoutNode[] }
+  | { type: "tabs"; children: LayoutNode[] };
+
+export type Layout = { id: string; name: string; root: LayoutNode; notes?: string[] };
+
+export type StudioIn = { text: string; prompt: string; negative: string; seed: number; size: "portrait" | "landscape" | "square"; tries: number; direct: boolean };
+
 export type Job = {
   id: string;
-  kind?: "demi" | "free";
+  kind?: "demi" | "free" | "studio";
+  events?: StudioEvent[];
+  outcome?: Outcome | null;
   free?: FreeSpec | null;
   case_name: string;
   strength: number;
@@ -105,6 +122,11 @@ export const api = {
     }),
   fileUrl: (jobId: string, name: string) => `/api/jobs/${jobId}/files/${name}`,
   llm: () => call<LlmStatus>("/api/llm"),
+  roles: () => call<Role[]>("/api/studio/roles"),
+  studioSubmit: (body: StudioIn) => call<Job>("/api/studio/jobs", { method: "POST", body: JSON.stringify(body) }),
+  layout: () => call<Layout>("/api/layout"),
+  saveLayout: (l: Layout) => call<Layout>("/api/layout", { method: "PUT", body: JSON.stringify(l) }),
+  resetLayout: () => call<Layout>("/api/layout", { method: "DELETE" }),
   llmProbe: (url: string) => call<LlmLocal>("/api/llm/probe", { method: "POST", body: JSON.stringify({ url, model: "" }) }),
   llmSave: (url: string, model: string) => call<LlmStatus>("/api/llm", { method: "PUT", body: JSON.stringify({ url, model }) }),
   freeDescribe: (text: string) => call<FreeDescribe>("/api/free/describe", { method: "POST", body: JSON.stringify({ text }) }),

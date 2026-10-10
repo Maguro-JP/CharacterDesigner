@@ -46,12 +46,33 @@ function FreeJobCard({ job, now }: { job: Job; now: number }) {
   );
 }
 
+// スタジオの仕事。今どの役割が何をしているかと、決着だけを出す（絵は「描いた絵」と「大きく見る」の板で見る）
+function StudioJobCard({ job, now }: { job: Job; now: number }) {
+  const last = job.events?.[job.events.length - 1];
+  const n = job.outcome?.files.length ?? (job.events ?? []).filter((e) => e.role === "PAINTER" && e.stage === "done").length;
+  return (
+    <li className="rounded border border-line bg-panel p-3 text-sm">
+      <div className="flex flex-wrap items-baseline gap-x-3">
+        <span className="font-bold">{job.case_name}</span>
+        <span className={job.state === "failed" ? "text-signal" : job.state === "done" ? "text-accent" : "text-neutral-300"}>{STATE_JA[job.state]}</span>
+        <span className="text-neutral-400">{n} / {job.tries} 枚</span>
+        <span className="text-neutral-400">{elapsed(job, now)}</span>
+        {job.state === "done" && <span className={job.passed ? "text-accent" : "text-signal"}>{job.passed ? "通過" : "不通過"}</span>}
+      </div>
+      {job.state !== "done" && last && <p className="mt-1 text-xs text-neutral-300">{last.role}: {last.msg}</p>}
+      {job.outcome?.reason && <p className="mt-1 text-xs text-signal">{job.outcome.reason}</p>}
+      {job.error && <p className="mt-1 text-xs text-signal">{job.error}</p>}
+    </li>
+  );
+}
+
 export default function JobCard({ job, now, labels }: Props) {
   const [open, setOpen] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [needOverwrite, setNeedOverwrite] = useState(false);
   const sheet = job.files.includes("sheet.png");
   if (job.kind === "free") return <FreeJobCard job={job} now={now} />;
+  if (job.kind === "studio") return <StudioJobCard job={job} now={now} />;
   const view = (v: string) => labels?.view_ja[v] ?? v;
   const part = (p: string) => labels?.part_ja[p] ?? p;
 
