@@ -85,7 +85,9 @@ def similarity(a: str, b: str) -> float:
 def recall_from(records: list, text: str, least: float = 0.3) -> list:
     """記憶から、通った記録のうち頼みごとが似ているものを似ている順に返す。同じ描く言葉は1つにまとめる"""
     seen, out = set(), []
-    scored = sorted(((similarity(text, r.get("text", "")), r) for r in records if r.get("ok") and r.get("text")),
+    # 手本にするのは利用者が「良い」と選んだものだけ。検品を通っただけの描き方を手本にすると、
+    # 利用者が良いと思っていない読み方（スチームパンクを robot mechanic）まで次の頼みごとに引き継いだ
+    scored = sorted(((similarity(text, r.get("text", "")), r) for r in records if r.get("liked") and r.get("text")),
                     key=lambda x: -x[0])
     for sc, r in scored:
         if sc >= least and r["prompt"] not in seen:

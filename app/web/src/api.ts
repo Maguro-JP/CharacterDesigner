@@ -37,7 +37,7 @@ export type StudioEvent = { t: number; role: string; stage: string; msg: string;
 
 export type Outcome = { passed: string | null; files: string[]; prompt: string; negative: string; reason: string; critique: string[]; hidden?: string[] };
 
-export type Memory = { text: string; prompt: string; negative: string; ok: boolean; seed: number; size: number[]; reason: string; t: number };
+export type Memory = { text: string; prompt: string; negative: string; ok: boolean; liked?: boolean; seed: number; size: number[]; reason: string; t: number };
 
 export type Proposal = { id: string; kind: "studio" | "demi"; title: string; why: string; who: string; request: Record<string, unknown> };
 
@@ -128,6 +128,7 @@ export const api = {
   llm: () => call<LlmStatus>("/api/llm"),
   roles: () => call<Role[]>("/api/studio/roles"),
   memory: () => call<Memory[]>("/api/memory"),
+  like: (jobId: string, file: string) => call<Memory>("/api/memory/like", { method: "POST", body: JSON.stringify({ job_id: jobId, file }) }),
   proposals: () => call<{ idle: boolean; items: Proposal[] }>("/api/proposals"),
   doProposal: (id: string) => call<Job>(`/api/proposals/${id}/do`, { method: "POST" }),
   dismissProposal: (id: string) => call<{ ok: boolean }>(`/api/proposals/${id}/dismiss`, { method: "POST" }),

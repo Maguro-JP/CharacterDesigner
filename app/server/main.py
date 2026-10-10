@@ -276,6 +276,11 @@ class StudioIn(BaseModel):
     direct: bool = True
 
 
+class LikeIn(BaseModel):
+    job_id: str = Field(max_length=40)
+    file: str = Field(max_length=60)
+
+
 class LlmIn(BaseModel):
     url: str = Field("", max_length=300, pattern=r"^(|https?://[^\s]+)$")
     model: str = Field("", max_length=200)
@@ -402,6 +407,20 @@ def create_app(runner: Runner | None = None) -> FastAPI:
     def get_memory(q: str = ""):
         # 覚えていること。q があれば、その頼みごとに似た通った記録（読み手に手本として添えるもの）
         return recall_from(memories(), q) if q else memories()[:100]
+
+    @app.post("/api/memory/like")
+    def like(body: LikeIn):
+        # 利用者が「良い」と選んだ絵の描き方を覚える。似た頼みごとのときに読み手へ手本として添える
+        j = jobs.jobs.get(body.job_id)
+        if j is None or j.kind != "studio" or not j.free or body.file not in j.public()["files"]:
+            raise HTTPException(404, "その絵は無い")
+        oc = j.outcome or {}
+        k = (oc.get("files") or []).index(body.file) if body.file in (oc.get("files") or []) else 0
+        rec = {"text": j.free.get("text", ""), "prompt": oc.get("prompt") or j.free.get("prompt", ""), "negative": oc.get("negative", ""),
+               "ok": True, "liked": True, "seed": j.free.get("seed", 0) + k, "size": [j.free["width"], j.free["height"]],
+               "job": j.id, "file": body.file, "reason": "", "t": time.time()}
+        remember(rec)
+        return rec
 
     @app.get("/api/studio/roles")
     def studio_roster():

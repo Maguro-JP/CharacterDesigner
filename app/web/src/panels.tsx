@@ -137,6 +137,7 @@ function CanvasPanel({ ctx }: { ctx: Ctx }) {
   const items = galleryItems(ctx.jobs);
   const cur = items.find((i) => ctx.selected && i.jobId === ctx.selected.jobId && i.file === ctx.selected.file) ?? items[0];
   const [notan, setNotan] = useState(false);
+  const [liked, setLiked] = useState("");
   if (!cur) return <p className="text-sm text-neutral-400">まだ描いた絵が無い。頼みごとを書いて「スタジオに頼む」</p>;
   const notanFile = cur.file.replace(".png", "-notan.png");
   const hasNotan = cur.job.files.includes(notanFile);
@@ -146,8 +147,14 @@ function CanvasPanel({ ctx }: { ctx: Ctx }) {
       <div className="flex flex-wrap items-baseline gap-2 text-sm">
         <span className="font-bold">{cur.label}</span>
         {cur.job.kind === "studio" && <span className={cur.passed ? "text-accent" : "text-signal"}>{cur.passed ? "検品 通過" : "検品 不通過"}</span>}
+        {cur.job.kind === "studio" && (
+          <button type="button" className="ml-auto rounded border border-accent px-2 py-0.5 text-xs" disabled={liked === cur.jobId + cur.file}
+            onClick={() => api.like(cur.jobId, cur.file).then(() => setLiked(cur.jobId + cur.file)).catch((e: Error) => ctx.setError(e.message))}>
+            {liked === cur.jobId + cur.file ? "覚えた" : "良い（この描き方を覚える）"}
+          </button>
+        )}
         {hasNotan && (
-          <button type="button" className="ml-auto underline" onClick={() => setNotan((n) => !n)}>
+          <button type="button" className="underline" onClick={() => setNotan((n) => !n)}>
             {notan ? "絵に戻す" : "明暗の塊を見る"}
           </button>
         )}
@@ -236,7 +243,7 @@ function MemoryPanel({ ctx }: { ctx: Ctx }) {
       {mem.map((m, k) => (
         <li key={k} className="rounded border border-line p-2">
           <p>
-            <span className={m.ok ? "text-accent" : "text-signal"}>{m.ok ? "通った" : "落ちた"}</span> {m.text || "（描く言葉だけで頼んだ）"}
+            <span className={m.liked ? "text-accent" : m.ok ? "text-neutral-300" : "text-signal"}>{m.liked ? "良い（手本にする）" : m.ok ? "通った" : "落ちた"}</span> {m.text || "（描く言葉だけで頼んだ）"}
             <span className="ml-2 text-neutral-500">seed {m.seed}</span>
           </p>
           <p className="break-words font-mono text-neutral-400">{m.prompt}</p>

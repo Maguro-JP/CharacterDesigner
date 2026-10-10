@@ -94,12 +94,14 @@ def test_finished_jobs_survive_restart(client):
 
 def test_recall_similar_passed_requests():
     from app.server.studio.session import recall_from
-    recs = [{"text": "赤いマフラーの騎士の少年", "prompt": "1boy, knight, red scarf", "ok": True},
-            {"text": "赤いマフラーの騎士の少年", "prompt": "1boy, knight, red scarf", "ok": True},
-            {"text": "青いドレスの姫", "prompt": "1girl, blue dress", "ok": True},
+    recs = [{"text": "赤いマフラーの騎士の少年", "prompt": "1boy, knight, red scarf", "ok": True, "liked": True},
+            {"text": "赤いマフラーの騎士の少年", "prompt": "1boy, knight, red scarf", "ok": True, "liked": True},
+            {"text": "青いドレスの姫", "prompt": "1girl, blue dress", "ok": True, "liked": True},
+            {"text": "赤いマフラーの騎士", "prompt": "1boy, robot", "ok": True},
             {"text": "赤いマフラーの騎士", "prompt": "1boy, broken", "ok": False}]
     got = recall_from(recs, "赤いマフラーの騎士の少女")
-    assert [r["prompt"] for r in got] == ["1boy, knight, red scarf"]   # 似ていて通ったものだけ、重複なし
+    # 似ていて「良い」と選ばれたものだけ、重複なし（検品を通っただけのものは手本にしない）
+    assert [r["prompt"] for r in got] == ["1boy, knight, red scarf"]
 
 
 def test_session_passes_recalled_examples(tmp_path):
@@ -122,6 +124,10 @@ def test_memory_api(client, monkeypatch, tmp_path):
     wait(c, c.post("/api/studio/jobs", json={"text": "雪の騎士", "prompt": "1boy, knight, full body, simple background"}).json()["id"])
     mem = c.get("/api/memory").json()
     assert mem[0]["ok"] and mem[0]["text"] == "雪の騎士"
+    assert c.get("/api/memory", params={"q": "雪の騎士の少年"}).json() == []   # 「良い」を押すまでは手本にしない
+    j = c.get("/api/jobs").json()[0]
+    assert c.post("/api/memory/like", json={"job_id": j["id"], "file": "nope.png"}).status_code == 404
+    assert c.post("/api/memory/like", json={"job_id": j["id"], "file": "try-0.png"}).json()["liked"]
     assert c.get("/api/memory", params={"q": "雪の騎士の少年"}).json()[0]["prompt"].startswith("1boy, knight")
 
 
