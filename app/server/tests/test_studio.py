@@ -231,3 +231,20 @@ def test_missing_elements_move_forward_on_retry(tmp_path):
     assert r.ok
     assert painted[1]["prompt"].startswith("1girl, solo, goggles, sword, steampunk")
     assert seen[0]["prompt"].endswith("sword") and "limbs" in seen[0]   # 検品に今の描く言葉を渡す
+
+
+def test_asset_shelf(client, monkeypatch, tmp_path):
+    # 出典とライセンスのある LoRA だけが使える。無いものは一覧に理由付きで出て、頼むと断られる
+    import assets
+    monkeypatch.setattr(assets, "LORA", tmp_path)
+    (tmp_path / "ok-style.safetensors").write_bytes(b"x")
+    (tmp_path / "ok-style.json").write_text('{"title": "作風", "license": "CC0", "source": "https://example.com", "trigger": "oil"}')
+    (tmp_path / "unknown.safetensors").write_bytes(b"x")
+    c, _ = client(FakeRunner())
+    shelf = {x["name"]: x for x in c.get("/api/assets").json()["lora"]}
+    assert shelf["ok-style"]["usable"] and not shelf["unknown"]["usable"]
+    assert c.post("/api/studio/jobs", json={"prompt": "1girl", "lora": "unknown"}).status_code == 422
+    assert c.post("/api/studio/jobs", json={"prompt": "1girl", "lora": "../x"}).status_code == 422
+    j = c.post("/api/studio/jobs", json={"prompt": "1girl", "lora": "ok-style"}).json()
+    assert j["free"]["lora"] == "ok-style"
+    assert assets.get("../etc") is None

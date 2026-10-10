@@ -41,6 +41,8 @@ export type Memory = { text: string; prompt: string; negative: string; ok: boole
 
 export type Proposal = { id: string; kind: "studio" | "demi"; title: string; why: string; who: string; request: Record<string, unknown> };
 
+export type Lora = { name: string; title: string; source: string; license: string; trigger: string; weight: number; usable: boolean; why: string; mb: number };
+
 export type Role = { name: string; ja: string; temper: string; does: string; may: string[] };
 
 export type LayoutNode =
@@ -50,7 +52,7 @@ export type LayoutNode =
 
 export type Layout = { id: string; name: string; root: LayoutNode; notes?: string[] };
 
-export type StudioIn = { text: string; prompt: string; negative: string; seed: number; size: "portrait" | "landscape" | "square"; tries: number; direct: boolean };
+export type StudioIn = { text: string; prompt: string; negative: string; seed: number; size: "portrait" | "landscape" | "square"; tries: number; direct: boolean; lora: string };
 
 export type Job = {
   id: string;
@@ -127,6 +129,7 @@ export const api = {
   fileUrl: (jobId: string, name: string) => `/api/jobs/${jobId}/files/${name}`,
   llm: () => call<LlmStatus>("/api/llm"),
   roles: () => call<Role[]>("/api/studio/roles"),
+  assets: () => call<{ lora: Lora[]; dir: string }>("/api/assets"),
   memory: () => call<Memory[]>("/api/memory"),
   like: (jobId: string, file: string) => call<Memory>("/api/memory/like", { method: "POST", body: JSON.stringify({ job_id: jobId, file }) }),
   proposals: () => call<{ idle: boolean; items: Proposal[] }>("/api/proposals"),

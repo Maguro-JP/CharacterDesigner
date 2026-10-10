@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { api, type Job, type LlmStatus, type Memory, type PartChoices, type Proposal, type Role, type StudioIn } from "./api";
+import { api, type Job, type LlmStatus, type Lora, type Memory, type PartChoices, type Proposal, type Role, type StudioIn } from "./api";
 import DemiPanel from "./DemiPanel";
 import { LlmSettings, readerJa } from "./FreePanel";
 import JobCard from "./JobCard";
@@ -52,6 +52,11 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
   const [direct, setDirect] = useState(true);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
+  const [lora, setLora] = useState("");
+  const [shelf, setShelf] = useState<{ lora: Lora[]; dir: string }>({ lora: [], dir: "" });
+  useEffect(() => {
+    api.assets().then(setShelf).catch(() => setShelf({ lora: [], dir: "" }));
+  }, []);
 
   // 描く言葉を先に見たいとき。見なくても、頼めば読み手（INTERPRETER）が読む
   const preview = () => {
@@ -73,7 +78,7 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
   const submit = () => {
     ctx.setError("");
     api
-      .studioSubmit({ text, prompt, negative, seed, size, tries, direct })
+      .studioSubmit({ text, prompt, negative, seed, size, tries, direct, lora })
       .then(() => {
         ctx.refreshJobs();
         setSeed((s) => s + tries);   // 次は別の絵になるよう進める（同じ絵を描き直したければ戻せる）
@@ -123,12 +128,26 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
           seed
           <input type="number" min={0} className="ml-1 w-20 rounded border border-line bg-ink px-2 py-1" value={seed} onChange={(e) => setSeed(Math.max(0, Number(e.target.value) || 0))} />
         </label>
+        <label>
+          素材
+          <select className="ml-1 rounded border border-line bg-ink px-2 py-1" value={lora} onChange={(e) => setLora(e.target.value)} aria-label="素材（LoRA）">
+            <option value="">使わない</option>
+            {shelf.lora.map((l) => (
+              <option key={l.name} value={l.name} disabled={!l.usable} title={l.usable ? `${l.license}・${l.source}` : l.why}>
+                {l.title}{l.usable ? "" : "（出典なし）"}
+              </option>
+            ))}
+          </select>
+        </label>
         <label className="flex items-center gap-1">
           <input type="checkbox" checked={direct} onChange={(e) => setDirect(e.target.checked)} />
           演出に構図と光を任せる
         </label>
       </div>
       <p className="text-xs text-neutral-400">CPU では1枚 約2〜3分。最初の1件は描く模型の読み込みに 約10分</p>
+      {shelf.lora.length === 0 && (
+        <p className="text-xs text-neutral-500">素材（LoRA）を足すには `python3 tools/gen/assets.py add URL 名前 --license ライセンス`（置き場 {shelf.dir}）</p>
+      )}
     </div>
   );
 }

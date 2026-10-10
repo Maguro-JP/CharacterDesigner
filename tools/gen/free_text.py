@@ -199,22 +199,36 @@ def full_prompt(prompt: str, negative: str = "") -> tuple[str, str]:
 
 
 def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, width: int = 832, height: int = 1216,
-         steps: int = 24, on_image=None) -> list[str]:
+         steps: int = 24, on_image=None, lora: str = "") -> list[str]:
     """Animagine で count 枚描き、out/try-<k>.png に置く。seed は 1 枚ごとに 1 ずつ進める（同じ設定で描き直せる）。"""
     import torch
     import design
     import people
     pos, neg = full_prompt(prompt, negative)
     pipe = people.pipe()
-    pe, ne, pp, np_ = design.encode_xl(pipe, pos, neg)
-    names = []
-    for k in range(count):
-        im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
-                  num_inference_steps=steps, guidance_scale=6.0, width=width, height=height,
-                  generator=torch.Generator().manual_seed(seed + k)).images[0]
-        name = f"try-{k}.png"
-        im.save(out / name)
-        names.append(name)
-        if on_image:
-            on_image(k, name)
+    # 素材の棚の LoRA（assets.get が使えると言ったものだけ）。描き終わったら外し、次の仕事に持ち越さない
+    import assets
+    item = assets.get(lora) if lora else None
+    if lora and item is None:
+        raise ValueError(f"素材「{lora}」は使えない（無いか、出典とライセンスが書かれていない）")
+    if item:
+        if item["trigger"] and item["trigger"] not in pos:
+            pos = f"{item['trigger']}, {pos}"
+        pipe.load_lora_weights(str(assets.path(lora)), adapter_name=lora)
+        pipe.set_adapters([lora], adapter_weights=[item["weight"]])
+    try:
+        pe, ne, pp, np_ = design.encode_xl(pipe, pos, neg)
+        names = []
+        for k in range(count):
+            im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
+                      num_inference_steps=steps, guidance_scale=6.0, width=width, height=height,
+                      generator=torch.Generator().manual_seed(seed + k)).images[0]
+            name = f"try-{k}.png"
+            im.save(out / name)
+            names.append(name)
+            if on_image:
+                on_image(k, name)
+    finally:
+        if item:
+            pipe.unload_lora_weights()
     return names

@@ -33,6 +33,7 @@ sys.path.insert(0, str(ROOT / "tools" / "gen"))
 import demi  # noqa: E402  描く処理の本体
 import demi_text  # noqa: E402  日本語の頼みごとを種の設定に組む
 import free_text  # noqa: E402  自由に描く（日本語 → 描く言葉 → 絵）
+import assets  # noqa: E402  素材の棚（LoRA）
 import local_llm  # noqa: E402  手元の言葉の模型（OpenAI 互換の窓口）
 from app.server.studio import layout as studio_layout  # noqa: E402
 from app.server.studio import proposals as studio_proposals  # noqa: E402
@@ -75,7 +76,7 @@ class Runner:
             import shutil
             import tempfile
             with tempfile.TemporaryDirectory() as tmp:
-                free_text.draw(prompt, negative, Path(tmp), seed, 1, w, h)
+                free_text.draw(prompt, negative, Path(tmp), seed, 1, w, h, lora=spec.lora)
                 shutil.move(f"{tmp}/try-0.png", f"{out}/{name}")
             return name
 
@@ -274,6 +275,7 @@ class StudioIn(BaseModel):
     size: str = Field("portrait", pattern="^(portrait|landscape|square)$")
     tries: int = Field(3, ge=1, le=6)
     direct: bool = True
+    lora: str = Field("", max_length=48)
 
 
 class LikeIn(BaseModel):
@@ -422,6 +424,11 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         remember(rec)
         return rec
 
+    @app.get("/api/assets")
+    def list_assets():
+        # 素材の棚。使えない素材（出典とライセンスが無い）も理由付きで出す
+        return {"lora": assets.list_loras(), "dir": str(assets.LORA)}
+
     @app.get("/api/studio/roles")
     def studio_roster():
         return studio_roles.roster()
@@ -437,7 +444,9 @@ def create_app(runner: Runner | None = None) -> FastAPI:
                 raise HTTPException(422, why)
         w, h = SIZES[body.size]
         spec = {"text": body.text, "prompt": body.prompt, "negative": body.negative, "seed": body.seed,
-                "width": w, "height": h, "tries": body.tries, "direct": body.direct}
+                "width": w, "height": h, "tries": body.tries, "direct": body.direct, "lora": body.lora}
+        if body.lora and assets.get(body.lora) is None:
+            raise HTTPException(422, f"素材「{body.lora}」は使えない（無いか、出典とライセンスが書かれていない）")
         return jobs.submit((body.text or body.prompt)[:20], {}, 0.0, body.tries, kind="studio", free=spec).public()
 
     @app.post("/api/llm/probe")

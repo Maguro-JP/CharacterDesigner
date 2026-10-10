@@ -50,6 +50,7 @@ class Spec:
     tries: int = 3
     budget_s: float = 1800.0
     direct: bool = True       # 演出に構図と光を足させるか
+    lora: str = ""            # 素材の棚の LoRA の名前（空なら使わない）
 
 
 @dataclass
