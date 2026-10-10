@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, type Case, type Job, type PartChoices } from "./api";
+import { api, type Case, type Job, type LlmStatus, type PartChoices } from "./api";
 import CaseForm from "./CaseForm";
+import FreePanel, { readerJa } from "./FreePanel";
 import JobCard from "./JobCard";
 
 // 描いている間だけ短い間隔で聞く。描き終わったら聞かない（1回 約3分かかるので、それより細かく見ても変わらない）
@@ -39,6 +40,7 @@ export default function App() {
   const [draft, setDraft] = useState<{ name: string; case: Case } | null>(null);
   const [wish, setWish] = useState("");
   const [wishNotes, setWishNotes] = useState<string[]>([]);
+  const [llm, setLlm] = useState<LlmStatus | null>(null);
 
   const refreshJobs = useCallback(() => {
     api.jobs().then(setJobs).catch((e: Error) => setError(e.message));
@@ -58,6 +60,7 @@ export default function App() {
     loadCases();
     refreshJobs();
     api.parts().then(setLabels).catch(() => setLabels(null));   // 向きと部品の日本語名。無くても英語名で出る
+    api.llm().then(setLlm).catch(() => setLlm(null));
   }, [loadCases, refreshJobs]);
 
   const busy = jobs.some((j) => j.state !== "done" && j.state !== "failed");
@@ -75,8 +78,8 @@ export default function App() {
     api
       .describe(wish)
       .then((r) => {
-        // どちらで読んだかを出す（Claude は ANTHROPIC_API_KEY があるときだけ。無ければ辞書）
-        const notes = [r.reader === "claude" ? "Claude で読んだ" : "辞書で読んだ", ...r.notes];
+        // どれで読んだかを出す（手元の模型 → Claude（鍵があるとき）→ 辞書 の順に試す）
+        const notes = [readerJa(r.reader), ...r.notes];
         if (r.unused.length) notes.unshift(`使わなかった言葉: ${r.unused.join("、")}`);
         setWishNotes(notes);
         if (r.case && r.name) {
@@ -103,7 +106,12 @@ export default function App() {
       {error && <p className="mt-3 rounded border border-signal p-2 text-signal">{error}</p>}
 
       <section className="mt-6">
-        <h2 className="mb-2 font-bold">言葉で頼む</h2>
+        <h2 className="mb-2 font-bold">自由に描く</h2>
+        <FreePanel status={llm} onSubmitted={refreshJobs} onError={setError} />
+      </section>
+
+      <section className="mt-8">
+        <h2 className="mb-2 font-bold">亜人の設定資料を言葉で頼む</h2>
         <form
           className="mb-6 flex flex-wrap gap-2"
           onSubmit={(e) => {

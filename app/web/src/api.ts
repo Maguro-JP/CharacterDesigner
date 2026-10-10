@@ -31,8 +31,12 @@ export type PartCheck = { view: string; part: string; pixels: number; gone: numb
 
 export type JobState = "queued" | "underlay" | "drawing" | "done" | "failed";
 
+export type FreeSpec = { prompt: string; negative: string; ja: string; seed: number; count: number; width: number; height: number };
+
 export type Job = {
   id: string;
+  kind?: "demi" | "free";
+  free?: FreeSpec | null;
   case_name: string;
   strength: number;
   tries: number;
@@ -43,7 +47,8 @@ export type Job = {
   created: number;
   started: number | null;
   finished: number | null;
-  results: { try: number; result: PartCheck[] }[];
+  // 亜人は回ごとの検品（result）、自由に描くは描けた絵の名前（file）
+  results: { try: number; result?: PartCheck[]; file?: string }[];
   files: string[];
 };
 
@@ -58,6 +63,26 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
+export type Reader = "local" | "claude" | "words" | "tags" | "check" | null;
+
+export type FreeDescribe = {
+  allowed: boolean;
+  reason: string;
+  prompt: string;
+  negative: string;
+  tags: string[];
+  summary: string;
+  reader: Reader;
+  notes: string[];
+};
+
+export type LlmStatus = {
+  local: { ok: boolean; url?: string; model?: string | null; models?: string[]; error?: string };
+  claude: boolean;
+};
+
+export type FreeJobIn = { prompt: string; negative: string; ja: string; seed: number; count: number; size: "portrait" | "landscape" | "square" };
+
 export const api = {
   cases: () => call<Record<string, Case>>("/api/cases"),
   parts: () => call<PartChoices>("/api/parts"),
@@ -70,9 +95,12 @@ export const api = {
   preview: (c: Case) => call<{ id: string; files: string[] }>("/api/preview", { method: "POST", body: JSON.stringify(c) }),
   previewUrl: (id: string, name: string) => `/api/previews/${id}/${name}`,
   describe: (text: string) =>
-    call<{ name: string | null; case: Case | null; used: string[]; unused: string[]; notes: string[]; reader: "claude" | "words" }>("/api/describe", {
+    call<{ name: string | null; case: Case | null; used: string[]; unused: string[]; notes: string[]; reader: Reader }>("/api/describe", {
       method: "POST",
       body: JSON.stringify({ text }),
     }),
   fileUrl: (jobId: string, name: string) => `/api/jobs/${jobId}/files/${name}`,
+  llm: () => call<LlmStatus>("/api/llm"),
+  freeDescribe: (text: string) => call<FreeDescribe>("/api/free/describe", { method: "POST", body: JSON.stringify({ text }) }),
+  freeSubmit: (body: FreeJobIn) => call<Job>("/api/free/jobs", { method: "POST", body: JSON.stringify(body) }),
 };
