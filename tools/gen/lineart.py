@@ -81,11 +81,11 @@ def flat_fill(line: np.ndarray, reference: np.ndarray, close: int = 1, min_area:
     return (out.astype(float) * lines).astype(np.uint8), int(n)
 
 
-def middle_color(pixels: np.ndarray) -> np.ndarray:
+def middle_color(pixels: np.ndarray, at: float = 0.5) -> np.ndarray:
     """画素の中で、明るさが真ん中の画素の色。赤・緑・青を別々に真ん中を取ると、白と橙が混ざった所で
     どちらでもない灰色になった（技師の作業着）。実際にある色から選ぶ"""
     lum = pixels.astype(float) @ np.array([0.299, 0.587, 0.114])
-    return pixels[np.argsort(lum)[len(lum) // 2]]
+    return pixels[np.argsort(lum)[min(int(len(lum) * at), len(lum) - 1)]]
 
 
 def reference_ok(reference: np.ndarray, ref_parts: np.ndarray) -> list[str]:
@@ -104,12 +104,14 @@ def reference_ok(reference: np.ndarray, ref_parts: np.ndarray) -> list[str]:
 
 
 def color_by_parts(line: np.ndarray, line_parts: np.ndarray, reference: np.ndarray, ref_parts: np.ndarray,
-                   close: int = 1, min_area: int = 30, window: float = 0.06) -> np.ndarray:
+                   close: int = 1, min_area: int = 30, window: float = 0.06, light: float = 0.7) -> np.ndarray:
     """線で閉じた面ごとに、参考の絵の「同じ部位の、同じあたり」の色を塗る。
     参考を線画から描かせると白い地に引っ張られて色が薄く、位置で色を拾うと形のずれで顔に髪の色が乗った。
     参考は線画と別に色付きで描かせ（形は違ってよい）、部位分け（顔・髪・上着・ズボンなど）で対応を取る。
     面の部位は面の中で一番多い部位。部位の外接枠の中での面の位置（0〜1）を、参考の同じ部位の枠に写し、
-    その周り（枠の window 倍）にある同じ部位の色の真ん中を取る。周りに無ければ部位全体の真ん中。人物の外は白"""
+    その周り（枠の window 倍）にある同じ部位の色の真ん中を取る。周りに無ければ部位全体の真ん中。人物の外は白。
+    色は明るさの順で light の位置の画素から取る。真ん中（0.5）だと、陰影のある白い布が灰色になった（剣士の袴）。
+    0.85 では騎士の鎧が桃色がかり肌が白く抜けたので、0.7 にした"""
     from scipy import ndimage as nd
     ink = line < 128
     if close:
@@ -169,7 +171,7 @@ def color_by_parts(line: np.ndarray, line_parts: np.ndarray, reference: np.ndarr
         ys, xs = np.nonzero(line_parts == k)
         ry, rx = np.nonzero(rm)
         boxes[k] = ((ys.min(), ys.max(), xs.min(), xs.max()), (ry.min(), ry.max(), rx.min(), rx.max()))
-        whole[k] = middle_color(reference[rm])
+        whole[k] = middle_color(reference[rm], light)
         refmask[k] = rm
     objs = nd.find_objects(lab)
     painted = np.zeros(n + 1, bool)
@@ -192,7 +194,7 @@ def color_by_parts(line: np.ndarray, line_parts: np.ndarray, reference: np.ndarr
         ry, rx = max(int((Y1 - Y0) * window), 3), max(int((X1 - X0) * window), 3)
         a0, a1, b0, b1 = int(max(ty - ry, 0)), int(min(ty + ry + 1, H)), int(max(tx - rx, 0)), int(min(tx + rx + 1, W))
         pick = refmask[k][a0:a1, b0:b1]
-        col = middle_color(reference[a0:a1, b0:b1][pick]) if pick.sum() >= 5 else whole[k]
+        col = middle_color(reference[a0:a1, b0:b1][pick], light) if pick.sum() >= 5 else whole[k]
         out[sl][m] = col
         painted[r] = True
     # 色を取る先が無い面（参考では脚がスカートとタイツで隠れ、「脚」が無い）は塗らずに残し、隣の面の色で埋める。
