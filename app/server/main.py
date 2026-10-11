@@ -73,7 +73,8 @@ class Runner:
         import tagger
 
         def paint(prompt, negative, seed, w, h, out):
-            name = f"try-{len(list(Path(out).glob('try-*.png')))}.png"
+            # 番号は描いた絵だけで数える（検品が横に置く try-0.png.parts.png などを数えると番号が飛んだ）
+            name = f"try-{len([p for p in Path(out).glob('try-*.png') if FILE.match(p.name) and p.stem[4:].isdigit()])}.png"
             import shutil
             import tempfile
             with tempfile.TemporaryDirectory() as tmp:

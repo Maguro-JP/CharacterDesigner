@@ -122,7 +122,15 @@ def checks_for(prompt: str) -> dict:
     low = prompt.lower()
     plain = "simple background" in low or "white background" in low
     full = "full body" in low
-    return {"limbs": full, "objects": plain, "edges": plain and full}
+    # 人物の他に描く物（動物・乗り物・大きな持ち物）を頼んだときは、離れた塊を数えない（頼んだ猫を「離れた物」で落とした）
+    others = re.search(r"\b(cat|dog|bird|horse|dragon|animal|pet|familiar|umbrella|lantern|vehicle|motorcycle|car)\b", low)
+    return {"limbs": full, "objects": plain and not others, "edges": plain and full}
+
+
+def _add(negative: str, words: str) -> str:
+    """打ち消しに足す。既にある言葉は重ねない（描き直すたびに同じ言葉が積み上がった）"""
+    have = [x.strip() for x in negative.split(",") if x.strip()]
+    return ", ".join(have + [w.strip() for w in words.split(",") if w.strip() and w.strip() not in have])
 
 
 def fix_for(reasons: list[str], prompt: str, negative: str) -> tuple[str, str, str]:
@@ -132,10 +140,10 @@ def fix_for(reasons: list[str], prompt: str, negative: str) -> tuple[str, str, s
         prompt += ", full body"
         notes.append("全身を入れる言葉を足した")
     if any("切れている" in r for r in reasons):
-        negative = ", ".join(x for x in (negative, "cropped, out of frame") if x)
+        negative = _add(negative, "cropped, out of frame")
         notes.append("切れを打ち消した")
     if any("無い" in r for r in reasons):
-        negative = ", ".join(x for x in (negative, "missing limb, amputee, extra limbs") if x)
+        negative = _add(negative, "missing limb, amputee, extra limbs")
         notes.append("欠けた手足を打ち消した")
     lost = [t for r in reasons if r.startswith("描かれていない: ") for t in r.split(": ", 1)[1].split("、")]
     if lost:
@@ -146,7 +154,7 @@ def fix_for(reasons: list[str], prompt: str, negative: str) -> tuple[str, str, s
         prompt = ", ".join(head + lost + rest)
         notes.append(f"描かれなかった {'、'.join(lost)} を前に寄せた")
     if any("離れた物" in r for r in reasons):
-        negative = ", ".join(x for x in (negative, "extra character, background objects") if x)
+        negative = _add(negative, "extra character, background objects")
         notes.append("余計な物を打ち消した")
     return prompt, negative, "、".join(notes) or "seed だけ変えた"
 

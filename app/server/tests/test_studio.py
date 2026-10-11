@@ -260,3 +260,11 @@ def test_paint_and_format(client, tmp_path):
     assert c.post("/api/studio/jobs", json={"prompt": "1girl", "paint": "nope"}).status_code == 422
     j = wait(c, c.post("/api/studio/jobs", json={"prompt": "1girl, full body, simple background", "paint": "oil"}).json()["id"])
     assert "oil painting (medium)" in j["outcome"]["prompt"]
+
+
+def test_retry_does_not_pile_up_negatives_and_allows_pets():
+    from app.server.studio.session import checks_for, fix_for
+    _, n, _ = fix_for(["右脚が無い"], "1girl", "")
+    _, n, _ = fix_for(["右脚が無い"], "1girl", n)
+    assert n.count("missing limb") == 1
+    assert checks_for("1girl, full body, simple background, cat")["objects"] is False
