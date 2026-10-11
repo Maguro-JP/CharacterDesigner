@@ -17,11 +17,63 @@ function elapsed(job: Job, now: number): string {
 
 type Props = { job: Job; now: number; labels: Pick<PartChoices, "view_ja" | "part_ja"> | null };
 
+// 自由に描いた仕事。描けた絵をそのまま並べる（設定資料の検品は無い）
+function FreeJobCard({ job, now }: { job: Job; now: number }) {
+  const images = job.results.map((r) => r.file).filter((f): f is string => !!f && job.files.includes(f));
+  return (
+    <li className="rounded border border-line bg-panel p-3">
+      <div className="flex flex-wrap items-baseline gap-x-3">
+        <span className="font-bold">{job.case_name}</span>
+        <span className="text-xs text-neutral-400">自由に描く</span>
+        <span className={job.state === "failed" ? "text-signal" : job.state === "done" ? "text-accent" : "text-neutral-300"}>
+          {STATE_JA[job.state]}
+        </span>
+        {job.state === "drawing" && <span className="text-sm text-neutral-400">{images.length} / {job.tries} 枚</span>}
+        <span className="text-sm text-neutral-400">{elapsed(job, now)}</span>
+      </div>
+      {job.free && <p className="mt-1 break-words font-mono text-xs text-neutral-400">{job.free.prompt}（seed {job.free.seed}）</p>}
+      {job.error && <p className="mt-1 text-sm text-signal">{job.error}</p>}
+      {images.length > 0 && (
+        <div className="mt-2 grid grid-cols-1 gap-2 sm:grid-cols-2">
+          {images.map((f, k) => (
+            <a key={f} href={api.fileUrl(job.id, f)} target="_blank" rel="noreferrer">
+              <img className="w-full rounded bg-white" src={api.fileUrl(job.id, f)} alt={`${job.case_name} の ${k + 1} 枚目（seed ${(job.free?.seed ?? 0) + k}）`} />
+            </a>
+          ))}
+        </div>
+      )}
+    </li>
+  );
+}
+
+// スタジオの仕事。今どの役割が何をしているかと、決着だけを出す（絵は「描いた絵」と「大きく見る」の板で見る）
+function StudioJobCard({ job, now }: { job: Job; now: number }) {
+  const last = job.events?.[job.events.length - 1];
+  const n = job.outcome?.files.length ?? (job.events ?? []).filter((e) => e.role === "PAINTER" && e.stage === "done").length;
+  return (
+    <li className="rounded border border-line bg-panel p-3 text-sm">
+      <div className="flex flex-wrap items-baseline gap-x-3">
+        <span className="font-bold">{job.case_name}</span>
+        <span className={job.state === "failed" ? "text-signal" : job.state === "done" ? "text-accent" : "text-neutral-300"}>{STATE_JA[job.state]}</span>
+        <span className="text-neutral-400">{n} / {job.tries} 枚</span>
+        <span className="text-neutral-400">{elapsed(job, now)}</span>
+        {job.state === "done" && <span className={job.passed ? "text-accent" : "text-signal"}>{job.passed ? "通過" : "不通過"}</span>}
+      </div>
+      {job.state !== "done" && last && <p className="mt-1 text-xs text-neutral-300">{last.role}: {last.msg}</p>}
+      {job.outcome?.reason && <p className="mt-1 text-xs text-signal">{job.outcome.reason}</p>}
+      {!!job.outcome?.hidden?.length && <p className="mt-1 text-xs text-neutral-400">GUARD が見せないと決めた絵 {job.outcome.hidden.length} 枚（描き直した）</p>}
+      {job.error && <p className="mt-1 text-xs text-signal">{job.error}</p>}
+    </li>
+  );
+}
+
 export default function JobCard({ job, now, labels }: Props) {
   const [open, setOpen] = useState(false);
   const [saveMsg, setSaveMsg] = useState("");
   const [needOverwrite, setNeedOverwrite] = useState(false);
   const sheet = job.files.includes("sheet.png");
+  if (job.kind === "free") return <FreeJobCard job={job} now={now} />;
+  if (job.kind === "studio") return <StudioJobCard job={job} now={now} />;
   const view = (v: string) => labels?.view_ja[v] ?? v;
   const part = (p: string) => labels?.part_ja[p] ?? p;
 
@@ -61,7 +113,7 @@ export default function JobCard({ job, now, labels }: Props) {
       {open && (
         <ol className="mt-2 space-y-3">
           {job.results.map(({ try: k, result }) => {
-            const lost = result.filter((r) => !r.ok);
+            const lost = (result ?? []).filter((r) => !r.ok);
             return (
               <li key={k} className="rounded border border-line p-2">
                 <p className="text-sm">

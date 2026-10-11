@@ -146,16 +146,25 @@ INPAINT_UNET = "diffusers/stable-diffusion-xl-1.0-inpainting-0.1"
 
 def inpaint(src, out, region, prompt, negative="", grow=4, steps=20, guidance=7.0, seed=7, strength=0.99):
     """範囲だけを SDXL inpainting で描き直し、範囲の外は元の画素を貼り戻す。"""
+    im = Image.open(src).convert("RGB")
+    # 描き直しは広げた範囲で行い（つながりのため）、貼り戻すのは元の部位の範囲だけにする。
+    # 広げた範囲まで貼ると、腕の周りの背景が描き直されて明るい縁取りが出た
+    keep_in = region_mask(src, region, 0)
+    res = inpaint_mask(im, region_mask(src, region, grow), keep_in, prompt, negative, steps, guidance, seed, strength)
+    res.save(out)
+    n = outside_changed(im, res, keep_in)
+    print(f"{out}: 範囲 {sum(keep_in.histogram()[1:])} 画素、範囲の外で変わった画素 {n}")
+    return n
+
+
+def inpaint_mask(im, gen_mask, keep_mask, prompt, negative="", steps=20, guidance=7.0, seed=7, strength=0.99, noise=48.0):
+    """gen_mask（白）を描き直し、keep_mask（白）の所だけを結果に使う。外は元の画素のまま。
+    部位で選ぶ inpaint と、任意の範囲・外側への描き足し（imgproc.py の inpaint / outpaint）が共有する本体"""
     import gc
     import torch
     sys.path.insert(0, str(Path(__file__).parent))
     import design
     from diffusers import EulerAncestralDiscreteScheduler, StableDiffusionXLInpaintPipeline, UNet2DConditionModel
-    im = Image.open(src).convert("RGB")
-    # 描き直しは広げた範囲で行い（つながりのため）、貼り戻すのは元の部位の範囲だけにする。
-    # 広げた範囲まで貼ると、腕の周りの背景が描き直されて明るい縁取りが出た
-    m = region_mask(src, region, grow)
-    keep_in = region_mask(src, region, 0)
     pipe = design._pipe("xl")
     comp = {k: v for k, v in pipe.components.items() if k != "unet"}
     # 本体を2つ持つとメモリ 15GB を超えて強制終了された。今の本体を捨ててから読む
@@ -170,18 +179,37 @@ def inpaint(src, out, region, prompt, negative="", grow=4, steps=20, guidance=7.
     # 長い辺が 1024 未満なら拡大して描き、元の大きさに戻す
     k = max(1.0, 1024 / max(im.size))
     w, h = (round(im.width * k) // 8) * 8, (round(im.height * k) // 8) * 8
+    # 描き直す範囲を、周りの色をぼかしたものに雑音を混ぜて埋めてから渡す。平らな背景のまま渡すと、
+    # 模型は物を足さず背景を塗り直すだけだった（丸窓を頼んで灰色の四角が出た。docs/knowledge/imgproc.md）
+    import numpy as np
+    base = np.asarray(im).astype(float)
+    blur = np.asarray(im.filter(ImageFilter.GaussianBlur(24))).astype(float)
+    # 雑音は物を足させるときだけ効く。広い背景を描き足すとき（outpaint）は残って横縞になったので 0 にする
+    noise = np.random.default_rng(seed).normal(0, noise, base.shape) if noise else 0.0
+    gm = (np.asarray(gen_mask.convert("L")) > 127)[..., None]
+    seeded = Image.fromarray(np.clip(np.where(gm, blur + noise, base), 0, 255).astype("uint8"))
     gen = inp(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
-              image=im.resize((w, h)), mask_image=m.resize((w, h)), strength=strength, num_inference_steps=steps,
+              image=seeded.resize((w, h)), mask_image=gen_mask.resize((w, h)), strength=strength, num_inference_steps=steps,
               guidance_scale=guidance, width=w, height=h, generator=torch.Generator().manual_seed(seed)).images[0]
     gen = gen.resize(im.size)
-    # 範囲の外は元の画素を貼り戻す。境目は 2 画素ぼかして継ぎ目を目立たなくする（ぼかしは範囲の内側だけ）
-    soft = ImageChops.multiply(keep_in.filter(ImageFilter.GaussianBlur(2)), keep_in)
-    res = Image.composite(gen, im, soft)
-    res.save(out)
-    n = outside_changed(im, res, keep_in)
-    m = keep_in
-    print(f"{out}: 範囲 {sum(m.histogram()[1:])} 画素、範囲の外で変わった画素 {n}")
-    return n
+    gen = _match_ring(gen, im, keep_mask)
+    # 範囲の外は元の画素を貼り戻す。境目は範囲の内側だけで 6 画素ぼかす（2 画素では明るさの差が筋に見えた）
+    soft = ImageChops.multiply(keep_mask.filter(ImageFilter.GaussianBlur(6)), keep_mask)
+    return Image.composite(gen, im, soft)
+
+
+def _match_ring(gen, im, keep_mask, width=8):
+    """描き直した絵の明るさと色みを、範囲のすぐ外の輪で元の絵に合わせる。継ぎ目が明るさの差で見えるのを防ぐ。
+    輪の中の各色の平均の差だけを、描き直した絵の全体から引く（形や模様は変えない）"""
+    import numpy as np
+    k = np.asarray(keep_mask.convert("L")) > 127
+    ring = np.asarray(keep_mask.convert("L").filter(ImageFilter.MaxFilter(width * 2 + 1))) > 127
+    ring &= ~k
+    if ring.sum() < 50:
+        return gen
+    g, o = np.asarray(gen).astype(float), np.asarray(im).astype(float)
+    shift = o[ring].mean(axis=0) - g[ring].mean(axis=0)
+    return Image.fromarray(np.clip(g + shift, 0, 255).astype("uint8"))
 
 
 def foreground(src):
@@ -207,12 +235,14 @@ def clean_background(src, out=None):
     return res
 
 
-def inspect(src, limbs=True):
+def inspect(src, limbs=True, objects=True, edges=True):
     """生き物として破綻している絵を機械で見つける。当てはまった理由の一覧を返す（空なら通る）。
 
     - 背景に人物と離れた物がある（端から背景を抜いたあと、大きな塊が2つ以上）
     - 腕・脚の左右どちらかが無い（部位分けで数える）
     - 体が画面の端で切れている
+    背景を描いた絵（城の前、夜の街）では、背景の物を「離れた物」と、背景が端まであることを「切れている」と
+    取り違えるので、objects と edges を切って腕・脚だけを数える
     """
     import numpy as np
     sys.path.insert(0, str(Path(__file__).parent))
@@ -242,13 +272,15 @@ def inspect(src, limbs=True):
                             q.append((yy, xx))
                 sizes.append(n)
     big = [n for n in sizes if n > alpha.sum() * 0.03]
-    if len(big) >= 2:
+    if objects and len(big) >= 2:
         reasons.append(f"人物と離れた物がある（塊が {len(big)} つ）")
     lab = np.asarray(parts(src))
     # 人と違う体（ラミア、人魚、ケンタウロス、ハーピー）は脚や腕の数が人と違うので数えない（limbs=False）
     for name, ids in ((("左腕", [14]), ("右腕", [15]), ("左脚", [12]), ("右脚", [13])) if limbs else ()):
         if not np.isin(lab, ids).any():
             reasons.append(f"{name}が無い")
+    if not edges:
+        return reasons
     fg = np.asarray(foreground(src)) > 0
     ys, xs = np.nonzero(fg)
     if ys.min() <= 1 or ys.max() >= H - 2 or xs.min() <= 1 or xs.max() >= W - 2:

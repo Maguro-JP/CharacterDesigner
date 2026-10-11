@@ -36,6 +36,26 @@ class FakeRunner(main.Runner):
                 break
         return []
 
+    def studio(self, spec, outdir, on_event):
+        # 本物の核を、描く・検品を偽物にして回す（核の流れは test_studio.py で細かく見る）
+        from app.server.studio.session import Ports, Session
+
+        def paint(prompt, negative, seed, w, h, out):
+            name = f"try-{len(list(Path(out).glob('try-*.png')))}.png"
+            Image.new("RGB", (8, 8), "green").save(Path(out) / name)
+            return name
+        return Session(Ports(describe=lambda t, rec=(): {"allowed": False, "reason": "偽"}, paint=paint,
+                             inspect=lambda p, c: [], remember=main.remember), on_event).send(spec, str(outdir))
+
+    def free(self, spec, outdir, on_image):
+        self.calls.append(("free", spec))
+        if self.fail:
+            raise RuntimeError("描画で落ちた")
+        for k in range(spec["count"]):
+            Image.new("RGB", (8, 8), "blue").save(outdir / f"try-{k}.png")
+            on_image(k, f"try-{k}.png")
+        return []
+
 
 @pytest.fixture
 def client(tmp_path, monkeypatch):

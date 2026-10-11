@@ -5,6 +5,7 @@
 #   sh app/start.sh --setup    部品を取るだけで起動しない
 #
 # 取ったものは .cache/ に置く（リポジトリには入れない）。取り直すときは .cache/ の該当フォルダを消してから流す。
+# 言葉の模型（約 1.1GB）も取って 8081 番で起こす。手持ちの Ollama などを使うなら CD_LLM_URL と CD_LLM_MODEL を渡す。
 # 描く処理のモデル（約 7GB）は、最初の1件を描くときに .cache/gen/hf へ取る（約 10 分）。
 set -eu
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -50,6 +51,18 @@ fi
 say "3D の素体（.cache/engine/vrm）"
 [ -f .cache/engine/vrm/base-vrm.txt ] || PYTHONPATH=.cache/gen/lib python3 tools/gen/demi.py setup
 
+say "言葉の模型（.cache/llm。日本語の頼みごとを描く言葉に直す）"
+# CD_LLM_URL で Ollama や LM Studio の窓口を渡したときと、CD_LLM_SKIP=1 のときは入れない
+if [ -z "${CD_LLM_URL:-}" ] && [ "${CD_LLM_SKIP:-}" != "1" ]; then
+  sh tools/llm/setup.sh
+fi
+
+say "絵からタグを読む模型（.cache/assets/tagger、約 380MB。頼んだ要素が描かれたかの検品に使う）"
+# CD_TAGGER_SKIP=1 なら取らない（取らなくても描ける。描かれたかの突き合わせだけを飛ばす）
+if [ "${CD_TAGGER_SKIP:-}" != "1" ]; then
+  PYTHONPATH=.cache/gen/lib python3 tools/gen/tagger.py setup >/dev/null
+fi
+
 say "画面（app/web）"
 if [ ! -d app/web/node_modules ]; then
   (cd app/web && npm ci --silent)
@@ -62,24 +75,60 @@ if [ "$SETUP_ONLY" = 1 ]; then
 fi
 
 say "起動する"
+LLM=""
+if [ -z "${CD_LLM_URL:-}" ] && [ -f .cache/llm/model.gguf ]; then
+  # 同梱の言葉の模型を 8081 番で起こす。サーバーは既定でここ（local_llm.DEFAULT_URL）を見る
+  # .cache/llm にある GGUF をすべて1つの窓口に並べる。画面で模型を選ぶと、窓口がその模型に読み替える
+  # （llama-cpp-python の複数模型の設定。一度に読むのは1つだけなのでメモリは増えない）。先頭は model.gguf の指す既定
+  PYTHONPATH=.cache/llm/lib python3 - <<'PY'
+import json, os, pathlib
+d = pathlib.Path(".cache/llm")
+default = os.path.realpath(d / "model.gguf")
+files = sorted((p for p in d.glob("*.gguf") if not p.is_symlink()), key=lambda p: (os.path.realpath(p) != default, p.name))
+models = [{"model": str(p), "model_alias": p.stem, "n_ctx": 4096} for p in files]
+(d / "server.json").write_text(json.dumps({"host": "127.0.0.1", "port": 8081, "models": models}, indent=1))
+print("言葉の模型:", ", ".join(m["model_alias"] for m in models))
+PY
+  PYTHONPATH=.cache/llm/lib python3 -m llama_cpp.server --config_file .cache/llm/server.json > .cache/llm/server.log 2>&1 &
+  LLM=$!
+fi
 PYTHONPATH=.cache/app/lib:.cache/gen/lib HF_HOME="$ROOT/.cache/gen/hf" python3 -m uvicorn app.server.main:app --host 127.0.0.1 --port 8000 &
 SERVER=$!
 (cd app/web && npx vite preview --strictPort) &
 WEB=$!
 # Ctrl-C で両方を止める（片方だけ残ってポートを塞がないように）
-trap 'kill $SERVER $WEB 2>/dev/null; exit 0' INT TERM
+trap 'kill $SERVER $WEB $LLM 2>/dev/null; exit 0' INT TERM
 i=0
 until curl -s -m 2 http://127.0.0.1:4173/api/cases >/dev/null 2>&1; do
   i=$((i + 1))
   if [ $i -gt 120 ] || ! kill -0 $SERVER 2>/dev/null; then
     echo "サーバーが起動しない。上の出力を見る" >&2
-    kill $SERVER $WEB 2>/dev/null
+    kill $SERVER $WEB $LLM 2>/dev/null
     exit 1
   fi
   sleep 1
 done
+# 言葉の模型は読み込みに数秒〜数十秒かかる。上がる前に画面を開くと「つながらない」と出るので待つ
+if [ -n "$LLM" ]; then
+  i=0
+  until curl -s -m 2 http://127.0.0.1:8081/v1/models >/dev/null 2>&1; do
+    i=$((i + 1))
+    if [ $i -gt 120 ] || ! kill -0 $LLM 2>/dev/null; then
+      echo "言葉の模型が起動しない（.cache/llm/server.log を見る）。日本語の頼みごとは辞書で読む" >&2
+      LLM=""
+      break
+    fi
+    sleep 1
+  done
+fi
 echo
 echo "開く: http://127.0.0.1:4173/   （止めるときは Ctrl-C）"
 echo "最初の1件はモデルの読み込みに 約 10 分、そのあと1回 約 3 分（CPU）"
-[ -n "${ANTHROPIC_API_KEY:-}" ] && echo "ANTHROPIC_API_KEY があるので、言葉の頼みごとは Claude で読む" || echo "ANTHROPIC_API_KEY が無いので、言葉の頼みごとは辞書で読む"
+if [ -n "$LLM" ] || [ -n "${CD_LLM_URL:-}" ]; then
+  echo "言葉の頼みごとは手元の模型で読む（${CD_LLM_URL:-http://127.0.0.1:8081/v1}。ログは .cache/llm/server.log）"
+elif [ -n "${ANTHROPIC_API_KEY:-}" ]; then
+  echo "手元の模型が無いので、言葉の頼みごとは Claude で読む"
+else
+  echo "手元の模型も ANTHROPIC_API_KEY も無いので、言葉の頼みごとは辞書で読む（自由に描くは英語のタグだけ）"
+fi
 wait

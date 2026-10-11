@@ -2,3 +2,6 @@ out/
 __pycache__/
 .worklog/
 .cache/
+
+# 部位分け（edit.parts）が絵の横に残す中間ファイル
+*.parts.png

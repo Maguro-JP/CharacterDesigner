@@ -1,0 +1,18 @@
+{
+ "_doc": "自由に描く頼みごとの日本語と、描く言葉（Danbooru のタグ）の対応。言葉の模型が読み落としても、ここに当たった言葉は必ず描く言葉に入れる（tools/gen/free_text.py の ensure_words）。長い言葉から先に当てる。言い換えは | で区切り、どれかが描く言葉にあれば足さない（足すのは先頭）",
+ "words": {
+  "スチームパンク": "steampunk", "サイバーパンク": "cyberpunk", "ファンタジー": "fantasy", "和風": "japanese clothes", "中華風": "chinese clothes",
+  "ゴシック": "gothic", "ロリータ": "lolita fashion", "近未来": "science fiction", "レトロ": "retro artstyle",
+  "騎士": "knight", "魔法使い": "mage|wizard|witch|sorcerer", "魔女": "witch", "忍者": "ninja", "侍": "samurai", "巫女": "miko", "メイド": "maid", "執事": "butler",
+  "海賊": "pirate", "探偵": "detective", "看護師": "nurse", "司書": "librarian", "機械技師": "mechanic|engineer", "整備士": "mechanic", "パイロット": "pilot",
+  "鎧": "armor", "ローブ": "robe", "マント": "cape", "マフラー": "scarf", "着物": "kimono", "浴衣": "yukata", "制服": "school uniform",
+  "セーラー服": "serafuku", "パーカー": "hoodie", "ドレス": "dress", "軍服": "military uniform", "白衣": "labcoat", "エプロン": "apron",
+  "眼鏡": "glasses|eyeglasses|eyewear", "メガネ": "glasses|eyeglasses|eyewear", "ゴーグル": "goggles", "帽子": "hat", "ヘッドホン": "headphones", "手袋": "gloves", "ブーツ": "boots",
+  "剣": "sword|katana", "刀": "katana", "槍": "spear", "弓": "bow (weapon)|archery", "杖": "staff|wand|cane", "銃": "gun", "盾": "shield", "大鎌": "scythe",
+  "レンチ": "wrench", "本": "book", "傘": "umbrella", "花束": "bouquet",
+  "猫耳": "cat ears", "狐耳": "fox ears", "翼": "wings", "角": "horns", "尻尾": "tail",
+  "ポニーテール": "ponytail", "ツインテール": "twintails", "ボブ": "bob cut", "三つ編み": "braid", "お団子": "hair bun",
+  "雪": "snow", "雨": "rain", "桜": "cherry blossoms", "夜": "night", "夕焼け": "sunset", "城": "castle", "森": "forest", "海": "ocean", "街": "city",
+  "図書館": "library", "教室": "classroom", "宇宙": "space", "砂漠": "desert"
+ }
+}
