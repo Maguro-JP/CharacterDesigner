@@ -8,10 +8,11 @@
   {
    "id": "wrench",
    "name": "大スパナ",
-   "tags": "holding giant wrench, single wrench",
+   "tags": "holding giant wrench, single wrench, wrench fully visible",
    "desc": "背丈ほどある大スパナ",
-   "hold": "right hand gripping the handle, wrench resting on his shoulder",
-   "size": "wrench as tall as his body"
+   "hold": "right hand gripping the handle, wrench resting on his right shoulder, handle extends behind his back",
+   "size": "wrench longer than his body",
+   "avoid": "small wrench, wrench on belt, tools in pouch"
   }
  ],
  "images": {

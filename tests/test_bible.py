@@ -15,7 +15,7 @@ class Bible(unittest.TestCase):
         bible.BIBLE = Path(self.tmp.name)
         bible.new_character("k", "騎士", "1girl, brown hair", "silver armor, red scarf")
         bible.add_item("k", "lantern", "ランタン", "holding lantern")
-        bible.add_item("k", "sword", "剣", "sword on hip")
+        bible.add_item("k", "sword", "剣", "sword on hip", avoid="second sword")
         bible.new_world("w", "城塞", "medieval fantasy, snow")
         bible.add_location("w", "gate", "城門", "castle gate, torches")
 
@@ -24,8 +24,9 @@ class Bible(unittest.TestCase):
         self.tmp.cleanup()
 
     def test_look_comes_first_and_scene_is_added(self):
-        pos, _ = bible.prompt("k", scene="walking", world="w", location="gate")
-        self.assertTrue(pos.startswith("1girl, brown hair, silver armor"))
+        pos, neg = bible.prompt("k", scene="walking", world="w", location="gate")
+        self.assertTrue(pos.startswith("1girl, brown hair, holding lantern"))   # 見た目の次に持ち物、そのあと服
+        self.assertLess(pos.index("holding lantern"), pos.index("silver armor"))
         self.assertIn("castle gate, torches", pos)
         self.assertIn("medieval fantasy, snow", pos)
 
@@ -36,6 +37,12 @@ class Bible(unittest.TestCase):
         self.assertIn("holding lantern", pos)
         self.assertNotIn("sword on hip", pos)
         self.assertIn("white background", pos)          # 世界が無ければ白い背景
+
+    def test_avoid_words_go_to_negative(self):
+        _, neg = bible.prompt("k", items=["sword"])
+        self.assertIn("second sword", neg)
+        _, neg = bible.prompt("k", items=["lantern"])
+        self.assertNotIn("second sword", neg)                # 選ばなかった持ち物の分は入れない
 
     def test_item_replaced_by_same_id(self):
         bible.add_item("k", "lantern", "大きいランタン", "holding big lantern")

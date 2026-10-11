@@ -9,14 +9,16 @@
    "name": "城門",
    "tags": "castle gate, snow, torches, stone bridge",
    "desc": "雪の積もる石橋の先の城門。夜は松明と窓の灯り",
-   "image": "bible/worlds/citadel/loc-gate.jpg"
+   "image": "bible/worlds/citadel/loc-gate.jpg",
+   "avoid": ""
   },
   {
    "id": "hall",
    "name": "大広間",
-   "tags": "great hall interior, stone pillars, banners, candles",
+   "tags": "wide great hall interior, hanging banners, stone pillars, candles",
    "desc": "石の柱が並ぶ大広間。燭台のろうそくだけが灯る",
-   "image": "bible/worlds/citadel/loc-hall.jpg"
+   "image": "bible/worlds/citadel/loc-hall.jpg",
+   "avoid": "barrels, crates, narrow corridor"
   }
  ]
 }

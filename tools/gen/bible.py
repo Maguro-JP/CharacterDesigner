@@ -60,11 +60,11 @@ def new_character(ident: str, name: str, look: str, outfit: str, negative: str =
 
 
 def add_item(ident: str, item: str, name: str, tags: str, desc: str = "", image: str | None = None,
-             hold: str = "", size: str = "") -> dict:
+             hold: str = "", size: str = "", avoid: str = "") -> dict:
     """持ち物・装飾を足す。hold は持ち方・付け方（どちらの手で、どこを握るか、どこに提げるか）、size は大きさ。
     名前だけで描かせると、持ち方が不自然になり、大きさも描くたびに変わった（背丈ほどの大スパナがふつうの大きさになった）"""
     data = load("characters", ident)
-    entry = {"id": item, "name": name, "tags": tags, "desc": desc, "hold": hold, "size": size}
+    entry = {"id": item, "name": name, "tags": tags, "desc": desc, "hold": hold, "size": size, "avoid": avoid}
     if image:
         entry["image"] = _copy(image, "characters", ident, f"item-{item}")
     data["items"] = [i for i in data["items"] if i["id"] != item] + [entry]
@@ -115,9 +115,9 @@ def new_world(ident: str, name: str, tags: str, desc: str = "") -> dict:
     return data
 
 
-def add_location(ident: str, loc: str, name: str, tags: str, desc: str = "", image: str | None = None) -> dict:
+def add_location(ident: str, loc: str, name: str, tags: str, desc: str = "", image: str | None = None, avoid: str = "") -> dict:
     data = load("worlds", ident)
-    entry = {"id": loc, "name": name, "tags": tags, "desc": desc}
+    entry = {"id": loc, "name": name, "tags": tags, "desc": desc, "avoid": avoid}
     if image:
         entry["image"] = _copy(image, "worlds", ident, f"loc-{loc}")
     data["locations"] = [x for x in data["locations"] if x["id"] != loc] + [entry]
@@ -127,23 +127,28 @@ def add_location(ident: str, loc: str, name: str, tags: str, desc: str = "", ima
 
 def prompt(ident: str, scene: str = "", pose: str = "", outfit: str | None = None, items: list[str] | None = None,
            world: str | None = None, location: str | None = None, framing: str = "full body") -> tuple[str, str]:
-    """描く言葉を組み立てる。変えない見た目を先頭に置く（後ろほど 77 語の上限で切れやすく、効きも弱い）。
+    """描く言葉を組み立てる。変えない見た目を先頭に置く（後ろの言葉ほど効きが弱い。長い言葉は 75 語ずつ全部読ませている）。
     服は差し替えがあればそれを、無ければいつもの服。持ち物は名前で選ぶ（省くと全部）。場所があれば背景を付ける"""
     c = load("characters", ident)
     chosen = [i for i in c["items"] if items is None or i["id"] in items]
     # 持ち物は、物の言葉に持ち方・付け方と大きさを必ず添える
     item_words = [", ".join(x for x in (i["tags"], i.get("size", ""), i.get("hold", "")) if x) for i in chosen]
-    parts = [c["look"], outfit if outfit is not None else c["outfit"], *item_words, pose, scene, framing]
+    # 持ち物は服より前に置く（後ろに置くと効きが弱く、大スパナが腰袋の小さなスパナになった）
+    parts = [c["look"], *item_words, outfit if outfit is not None else c["outfit"], pose, scene, framing]
+    avoid_loc = ""
     if world:
         w = load("worlds", world)
         loc = next((x for x in w["locations"] if x["id"] == location), None) if location else None
         parts += [loc["tags"] if loc else "", w["tags"]]
+        avoid_loc = loc.get("avoid", "") if loc else ""
     else:
         parts.append("simple background, white background")
     pos = ", ".join(p.strip() for p in parts if p and p.strip())
     # 同じ物が2つ、設定に無い道具や武器、宙に浮いた物が描かれた（床に2本目のスパナ、騎士の手の黒い棒）
     guard = "duplicate items, extra weapons, extra tools, floating objects, holding unrelated object"
-    neg = ", ".join(x for x in (c.get("negative", ""), guard) if x)
+    # 持ち物と場所ごとの描かせないもの（腰袋に差した小さなスパナ、大広間の樽や木箱）
+    avoid = [i.get("avoid", "") for i in chosen] + [avoid_loc]
+    neg = ", ".join(x for x in (c.get("negative", ""), guard, *avoid) if x)
     return pos, neg
 
 
@@ -266,12 +271,14 @@ def main():
     s = sub.add_parser("add-item"); s.add_argument("id"); s.add_argument("item"); s.add_argument("--name", required=True)
     s.add_argument("--tags", required=True); s.add_argument("--desc", default=""); s.add_argument("--image")
     s.add_argument("--hold", default="", help="持ち方・付け方（例: gripping the handle with both hands）"); s.add_argument("--size", default="")
+    s.add_argument("--avoid", default="", help="この持ち物で描かせないもの（例: small wrench, wrench on belt）")
     s = sub.add_parser("add-image"); s.add_argument("id"); s.add_argument("role"); s.add_argument("src")
     s = sub.add_parser("palette"); s.add_argument("id")
     s = sub.add_parser("new-world"); s.add_argument("id"); s.add_argument("--name", required=True)
     s.add_argument("--tags", required=True); s.add_argument("--desc", default="")
     s = sub.add_parser("add-location"); s.add_argument("id"); s.add_argument("loc"); s.add_argument("--name", required=True)
     s.add_argument("--tags", required=True); s.add_argument("--desc", default=""); s.add_argument("--image")
+    s.add_argument("--avoid", default="", help="この場所で描かせないもの（例: barrels, crates）")
     for name in ("prompt", "draw"):
         s = sub.add_parser(name); s.add_argument("id")
         if name == "draw":
@@ -289,11 +296,11 @@ def main():
                   items=a.items.split(",") if a.items else None)
     r = {
         "new-character": lambda: new_character(a.id, a.name, a.look, a.outfit, a.negative, a.notes),
-        "add-item": lambda: add_item(a.id, a.item, a.name, a.tags, a.desc, a.image, a.hold, a.size),
+        "add-item": lambda: add_item(a.id, a.item, a.name, a.tags, a.desc, a.image, a.hold, a.size, a.avoid),
         "add-image": lambda: add_image(a.id, a.role, a.src),
         "palette": lambda: palette(a.id),
         "new-world": lambda: new_world(a.id, a.name, a.tags, a.desc),
-        "add-location": lambda: add_location(a.id, a.loc, a.name, a.tags, a.desc, a.image),
+        "add-location": lambda: add_location(a.id, a.loc, a.name, a.tags, a.desc, a.image, a.avoid),
         "prompt": lambda: dict(zip(("prompt", "negative"), prompt(a.id, **kw))),
         "draw": lambda: draw(a.id, a.out, a.count, a.seed, a.ref_scale, **kw),
         "show": lambda: load("characters", a.id),
