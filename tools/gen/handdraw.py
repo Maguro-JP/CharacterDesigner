@@ -116,7 +116,7 @@ def flats(line: np.ndarray, person: np.ndarray, guide: Image.Image, min_area: in
 
 
 def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", line_style: str = "default",
-        brush: str | None = None) -> dict:
+        brush: str | None = None, grain: float = 6.0) -> dict:
     """line_style は線の作風（casts/brushes.json の styles。chibi はデフォルメで太い線）。brush で筆を指定できる"""
     import imgproc
     out = Path(outdir)
@@ -142,6 +142,16 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", li
     shaded = shaded.clip(0, 255).astype(np.uint8)
     Image.fromarray(shaded).save(out / "4-shade.png")
     # 線: 墨で重ねる。暗い面の上では墨が沈んで見えないので、下の色を明るくした色の線にする（色トレスの考え方）
+    # 紙の目と筆ムラ: 人の絵は面の中に細かいざらつきがある（模型の絵の約4倍。docs/knowledge/painting-workflow.md）。
+    # 細かい雑音と、ゆるく大きな濃淡の揺れ（筆ムラ）を人物の中にだけ掛ける
+    rng = np.random.default_rng(7)
+    H2, W2 = shaded.shape[:2]
+    fine = rng.normal(0, 1, (H2, W2))
+    blotch = np.asarray(Image.fromarray(((rng.normal(0, 1, (H2 // 24 + 1, W2 // 24 + 1)) * 40 + 128).clip(0, 255)).astype("uint8"))
+                        .resize((W2, H2), Image.BICUBIC)).astype(float) - 128
+    tex = (fine * grain + blotch * grain * 0.03)[..., None]
+    shaded = np.where(person[..., None], shaded.astype(float) + tex, shaded.astype(float)).clip(0, 255).astype(np.uint8)
+    Image.fromarray(shaded).save(out / "4-texture.png")
     lum = np.asarray(Image.fromarray(shaded).convert("L")).astype(float)
     # 線は筆跡としてブラシで引き直す（brushes.py）。外形の筆跡は太く。暗い面の上は下の色を明るくした線（色トレス）
     import brushes
@@ -151,8 +161,26 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", li
     weights = [1.5 if np.mean([edge[y, x] for y, x in p]) > 0.5 else 1.0 for p in paths]
     layer = np.asarray(brushes.render(line.shape[::-1], paths, brush or st["brush"], st["line_scale"], weights)).astype(float)
     a = layer[..., 3:] / 255
+    # 筆跡にならなかった短い線（目・口・まつ毛など顔の細い線）は、元の線を細いまま残す（ブラシで引き直すと抜け落ちた）
+    left = strong & (a[..., 0] < 0.2)
+    a = np.maximum(a, (left * 0.85)[..., None])
     ink = np.where((lum < 70)[..., None], (shaded.astype(float) * 1.9 + 50).clip(0, 255), np.array([40, 30, 40], dtype=float))
     shaded = (shaded.astype(float) * (1 - a) + ink * a).clip(0, 255).astype(np.uint8)
+    # 目は人の描き手も最後に別に描く（講座でも「目の線画は後の工程で描く」）。顔の部位の中の目の周りだけ、元の絵の描き込みを戻す
+    try:
+        import edit
+        lab = np.asarray(edit.parts(src).resize(shaded.shape[1::-1], Image.NEAREST))
+        face = _shrink(lab == 11, 4)
+        if face.any():
+            ys, xs = np.nonzero(face)
+            top, bot = ys.min(), ys.max()
+            eyes = face & (np.arange(face.shape[0])[:, None] > top + (bot - top) * 0.30) & \
+                (np.arange(face.shape[0])[:, None] < top + (bot - top) * 0.62)
+            soft = np.asarray(Image.fromarray(eyes.astype("uint8") * 255).filter(ImageFilter.GaussianBlur(3))).astype(float)[..., None] / 255
+            orig = np.asarray(Image.open(src).convert("RGB")).astype(float)
+            shaded = (shaded.astype(float) * (1 - soft) + orig * soft).clip(0, 255).astype(np.uint8)
+    except Exception:
+        pass   # 部位分けが使えないときは戻さない（線だけで描いた目のまま）
     Image.fromarray(shaded).save(out / "5-final.png")
     return {"regions": regions, "line_ratio": round(float(line.mean()), 4), "weighted_ratio": round(float(strong.mean()), 4)}
 
