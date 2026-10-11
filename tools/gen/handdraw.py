@@ -115,7 +115,9 @@ def flats(line: np.ndarray, person: np.ndarray, guide: Image.Image, min_area: in
     return out, n
 
 
-def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2") -> dict:
+def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", line_style: str = "default",
+        brush: str | None = None) -> dict:
+    """line_style は線の作風（casts/brushes.json の styles。chibi はデフォルメで太い線）。brush で筆を指定できる"""
     import imgproc
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
@@ -141,12 +143,16 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2") ->
     Image.fromarray(shaded).save(out / "4-shade.png")
     # 線: 墨で重ねる。暗い面の上では墨が沈んで見えないので、下の色を明るくした色の線にする（色トレスの考え方）
     lum = np.asarray(Image.fromarray(shaded).convert("L")).astype(float)
-    ink = np.array([40, 30, 40], dtype=float)
-    light_ink = (shaded.astype(float) * 1.9 + 50).clip(0, 255)
-    dark_under = lum < 70
-    shaded = shaded.copy()
-    shaded[strong & ~dark_under] = ink.astype(np.uint8)
-    shaded[strong & dark_under] = light_ink[strong & dark_under].astype(np.uint8)
+    # 線は筆跡としてブラシで引き直す（brushes.py）。外形の筆跡は太く。暗い面の上は下の色を明るくした線（色トレス）
+    import brushes
+    st = brushes.table()["styles"].get(line_style, brushes.table()["styles"]["default"])
+    paths = brushes.strokes(strong)
+    edge = _grow(person & ~_shrink(person, 3), 3)
+    weights = [1.5 if np.mean([edge[y, x] for y, x in p]) > 0.5 else 1.0 for p in paths]
+    layer = np.asarray(brushes.render(line.shape[::-1], paths, brush or st["brush"], st["line_scale"], weights)).astype(float)
+    a = layer[..., 3:] / 255
+    ink = np.where((lum < 70)[..., None], (shaded.astype(float) * 1.9 + 50).clip(0, 255), np.array([40, 30, 40], dtype=float))
+    shaded = (shaded.astype(float) * (1 - a) + ink * a).clip(0, 255).astype(np.uint8)
     Image.fromarray(shaded).save(out / "5-final.png")
     return {"regions": regions, "line_ratio": round(float(line.mean()), 4), "weighted_ratio": round(float(strong.mean()), 4)}
 
@@ -156,5 +162,6 @@ if __name__ == "__main__":
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run")
     r.add_argument("src"); r.add_argument("out"); r.add_argument("--guide", default=None); r.add_argument("--style", default="cel2")
+    r.add_argument("--line-style", default="default"); r.add_argument("--brush", default=None)
     a = ap.parse_args()
-    print(json.dumps(run(a.src, a.out, a.guide, a.style), ensure_ascii=False))
+    print(json.dumps(run(a.src, a.out, a.guide, a.style, a.line_style, a.brush), ensure_ascii=False))
