@@ -25,6 +25,7 @@ import human  # noqa: E402
 # 人形の座標: 前は -Y、右手は -X、身長はおよそ 1.7
 HAND = Vector((-0.20, -0.16, 1.36))   # 右手を置く所。右肩の前、鎖骨より少し下
 SHOULDER = Vector((-0.17, 0.0, 1.46))  # 柄が載る所。右肩の上
+SKIN, CLOTH = (240, 200, 170), (235, 120, 40)  # 下絵の色。設定資料の肌とつなぎに合わせる
 CURL = 70  # 指の関節ごとの曲げ（度）
 ELBOW_POLE = Vector((-0.45, -0.10, 1.00))  # 肘を外へ下ろす向き
 
@@ -99,6 +100,12 @@ def wrench(length, grip):
     return parts
 
 
+def tinted(name, rgb):
+    m = human.flat_material(name, rgb, False)
+    m.node_tree.nodes["Diffuse BSDF"].inputs["Color"].default_value = (*[(c / 255) ** 2.2 for c in rgb], 1)
+    return m
+
+
 def look_from(scene, at, frm, height):
     cam = bpy.data.cameras.new("cam")
     cam.type = "ORTHO"
@@ -156,8 +163,9 @@ def main(argv):
     scene.world.color = (0.35, 0.35, 0.35)
     scene.render.film_transparent = True
     scene.render.resolution_x, scene.render.resolution_y = a.width, a.height
-    gray = human.flat_material("body", (200, 200, 200), False)
-    human.assign([h] + clothed, gray)
+    # 下絵は設定の色で塗る。白い人形のまま描き換えを弱めると、白がそのまま服の色として残った
+    human.assign([h], tinted("skin", SKIN))
+    human.assign(clothed, tinted("cloth", CLOTH))
     metal = human.flat_material("metal", (90, 90, 90), False)
     metal.node_tree.nodes["Diffuse BSDF"].inputs["Color"].default_value = (0.15, 0.15, 0.17, 1)
     human.assign(parts, metal)
