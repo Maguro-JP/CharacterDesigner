@@ -116,7 +116,7 @@ def flats(line: np.ndarray, person: np.ndarray, guide: Image.Image, min_area: in
 
 
 def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", line_style: str = "default",
-        brush: str | None = None, grain: float = 6.0) -> dict:
+        brush: str | None = None, grain: float | None = None) -> dict:
     """line_style は線の作風（casts/brushes.json の styles。chibi はデフォルメで太い線）。brush で筆を指定できる"""
     import imgproc
     out = Path(outdir)
@@ -144,6 +144,9 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", li
     # 線: 墨で重ねる。暗い面の上では墨が沈んで見えないので、下の色を明るくした色の線にする（色トレスの考え方）
     # 紙の目と筆ムラ: 人の絵は面の中に細かいざらつきがある（模型の絵の約4倍。docs/knowledge/painting-workflow.md）。
     # 細かい雑音と、ゆるく大きな濃淡の揺れ（筆ムラ）を人物の中にだけ掛ける
+    # 量は線の作風で変える。人の絵でも、すっきりしたアニメ塗りは 2.75、筆の跡を残す塗りは 6 前後だった
+    if grain is None:
+        grain = {"sketch": 6.0, "manga": 3.0}.get(line_style, 3.0)
     rng = np.random.default_rng(7)
     H2, W2 = shaded.shape[:2]
     fine = rng.normal(0, 1, (H2, W2))
