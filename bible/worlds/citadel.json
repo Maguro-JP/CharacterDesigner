@@ -15,7 +15,7 @@
   {
    "id": "hall",
    "name": "大広間",
-   "tags": "wide great hall interior, hanging banners, stone pillars, candles",
+   "tags": "banner, hanging banners, wide great hall interior, stone pillars, candles",
    "desc": "石の柱が並ぶ大広間。燭台のろうそくだけが灯る",
    "image": "bible/worlds/citadel/loc-hall.jpg",
    "avoid": "barrels, crates, narrow corridor"
