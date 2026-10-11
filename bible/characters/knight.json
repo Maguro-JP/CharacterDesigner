@@ -9,15 +9,15 @@
    "id": "lantern",
    "name": "ランタン",
    "tags": "holding lantern",
-   "desc": "右手に提げる鉄枠のランタン"
+   "desc": "右手に提げる鉄枠のランタン",
+   "hold": "right hand holding the lantern by its top ring, arm lowered",
+   "size": "small lantern"
   }
  ],
  "images": {
   "color": "bible/characters/knight/color.jpg",
   "lineart": "bible/characters/knight/lineart.jpg",
-  "colored-lineart": "bible/characters/knight/colored-lineart.jpg",
-  "scene-gate": "bible/characters/knight/scene-gate.jpg",
-  "scene-hall": "bible/characters/knight/scene-hall.jpg"
+  "colored-lineart": "bible/characters/knight/colored-lineart.jpg"
  },
  "palette": [
   "#f8f5f2",

@@ -8,8 +8,10 @@
   {
    "id": "staff",
    "name": "枝杖",
-   "tags": "holding wooden staff, broom",
-   "desc": "上が枝、下がほうきの穂。枝先に星の吊り飾り"
+   "tags": "holding wooden staff with broom bristles at the bottom",
+   "desc": "上が枝、下がほうきの穂。枝先に星の吊り飾り",
+   "hold": "right hand gripping the staff at chest height, bottom end resting on the ground",
+   "size": "staff taller than her"
   }
  ],
  "images": {

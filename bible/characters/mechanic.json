@@ -8,15 +8,16 @@
   {
    "id": "wrench",
    "name": "大スパナ",
-   "tags": "holding big wrench",
-   "desc": "背丈ほどある大スパナ"
+   "tags": "holding giant wrench, single wrench",
+   "desc": "背丈ほどある大スパナ",
+   "hold": "right hand gripping the handle, wrench resting on his shoulder",
+   "size": "wrench as tall as his body"
   }
  ],
  "images": {
   "color": "bible/characters/mechanic/color.jpg",
   "lineart": "bible/characters/mechanic/lineart.jpg",
-  "colored-lineart": "bible/characters/mechanic/colored-lineart.jpg",
-  "scene-hall": "bible/characters/mechanic/scene-hall.jpg"
+  "colored-lineart": "bible/characters/mechanic/colored-lineart.jpg"
  },
  "palette": [
   "#7b8083",

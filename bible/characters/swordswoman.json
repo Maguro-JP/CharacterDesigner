@@ -8,8 +8,10 @@
   {
    "id": "sword",
    "name": "長剣",
-   "tags": "holding sword",
-   "desc": "巻き柄の長剣"
+   "tags": "holding sword, single sword",
+   "desc": "巻き柄の長剣",
+   "hold": "both hands gripping the hilt, blade pointing down diagonally",
+   "size": "long sword"
   }
  ],
  "images": {
