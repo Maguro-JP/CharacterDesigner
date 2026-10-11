@@ -82,6 +82,9 @@ def wrench(length, grip):
     shaft.rotation_mode = "QUATERNION"
     shaft.rotation_quaternion = Vector((0, 0, 1)).rotation_difference(along)
     parts.append(shaft)
+    # 柄尻は丸く止める。端を切りっぱなしにすると、反対の端にも口を描かれ両口スパナになった
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.045, location=butt)
+    parts.append(bpy.context.object)
     tip = butt + along * length
     side = along.cross(Vector((0, -1, 0))).normalized()  # 口が開く向き（画面に向ける）
     parts.append(box("jaw_base", (0.36, 0.05, 0.22), tip, along))

@@ -8,11 +8,11 @@
   {
    "id": "wrench",
    "name": "大スパナ",
-   "tags": "holding wrench, giant open-end wrench, U-shaped jaw, single wrench",
+   "tags": "holding wrench, giant single open-end wrench, U-shaped jaw, plain round handle end",
    "desc": "背丈ほどある大スパナ",
    "hold": "weapon over shoulder, right hand gripping the handle",
    "size": "wrench taller than him",
-   "avoid": "small wrench, wrench on belt, tools in pouch, extra arms, extra hands, blade, sword, spear, axe, hammer, tool belt, pouch"
+   "avoid": "small wrench, wrench on belt, tools in pouch, extra arms, extra hands, blade, sword, spear, axe, hammer, tool belt, pouch, double-ended wrench, box end wrench, ring spanner, combination wrench"
   }
  ],
  "images": {
