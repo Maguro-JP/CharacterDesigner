@@ -10,4 +10,12 @@ mkdir -p "$D"
 # 完成絵の重ね（tools/gen/layers.py）: 人物の切り抜き rembg（isnet-anime の重み 約 176MB は初回に .cache/gen/u2net へ取る）と PSD の書き出し
 [ -d "$D/lib/rembg" ] || pip install --target "$D/lib" "rembg[cpu]" -q
 [ -d "$D/lib/psd_tools" ] || pip install --target "$D/lib" psd-tools -q
+# 関節の位置（tools/gen/joints.py）: RTMPose-m body7 の ONNX（Apache-2.0、OpenMMLab、約 54MB）。zip から .onnx だけを残す
+if [ ! -f "$D/pose/rtmpose-m-body7.onnx" ]; then
+  mkdir -p "$D/pose/tmp"
+  curl -sSL -o "$D/pose/tmp/m.zip" "https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/rtmpose-m_simcc-body7_pt-body7_420e-256x192-e48f03d0_20230504.zip"
+  python3 -m zipfile -e "$D/pose/tmp/m.zip" "$D/pose/tmp"
+  find "$D/pose/tmp" -name "*.onnx" -exec mv {} "$D/pose/rtmpose-m-body7.onnx" \;
+  rm -rf "$D/pose/tmp"
+fi
 echo "ready: $D"
