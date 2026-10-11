@@ -36,6 +36,11 @@ body { font-family: var(--body); font-size: 15px; line-height: 1.85; padding-inl
 .intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; }
 .intro h2, .plate h2, .gallery h2, .colophon h2 { font-family: var(--display); font-weight: 400; font-size: 30px; margin: 0 0 18px; text-wrap: balance; }
 .intro p { margin: 0 0 1em; max-width: 34em; }
+.tries { margin: 0; display: grid; gap: 0; }
+.tries div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 16px; padding: 12px 0; border-top: 1px solid var(--rule); }
+.tries dt { font-weight: 700; }
+.tries dd { margin: 0; color: var(--sub); font-size: 14px; }
+.tries .good dt::before { content: "良"; color: var(--vermilion); font-family: var(--display); margin-right: 8px; }
 .steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; counter-reset: s; }
 .steps li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 12px; align-items: baseline; counter-increment: s; }
 .steps li::before { content: counter(s, decimal-leading-zero); font-family: var(--display); color: var(--vermilion); font-size: 22px; }
@@ -86,29 +91,29 @@ body { font-family: var(--body); font-size: 15px; line-height: 1.85; padding-inl
   <div>
     <div class="folio"><span>CHARACTER DESIGNER</span><span><b>壱</b></span></div>
     <h1>線画集<span class="num">第一集</span></h1>
-    <p class="lead">騎士、魔女、剣士、機械技師。線から先に描いた四つの職業の設定画を、一冊にまとめました。</p>
-    <span class="stamp">線画から描く</span>
+    <p class="lead">騎士、魔女、剣士、機械技師。画像生成の AI に線画として描かせた、四つの職業の設定画です。</p>
+    <span class="stamp">AI 線画</span>
   </div>
   <figure><img src="{{img:knight-line}}" alt="ランタンを提げた騎士の少女の全身の線画。肩当てと胸当て、長いマント"></figure>
 </section>
 
-<section class="page intro" aria-label="はじめに">
+<section class="page intro" aria-label="AI に描かせて分かったこと">
   <div>
     <div class="folio"><span>はじめに</span><span>二</span></div>
-    <h2>線から先に描く</h2>
-    <p>この画集の絵は、どれも最初に線画として描いています。人の描き手と同じく、まず形を線で閉じ、色はそのあとに置きます。</p>
-    <p>塗りの絵から線を取り出す方法も試しました。けれど、影の境目や髪の陰影まで線として拾い、線が二重になったり途切れたりしました。塗りの絵は、もともと線画を持っていないからです。</p>
-    <p>そこで、描く段階から線画として描かせ、灰色の陰影だけを除いて清書しています。細い線は残し、広い影は消す。太い線は中まで埋める。目と瞳の細い線まで残るように整えました。</p>
+    <h2>AI に線画を描かせて分かったこと</h2>
+    <p>この画集の絵は、すべて画像生成の AI に描かせたものです。描かせ方と後の処理を変えながら、どうすると線がきれいに出るかを試しました。右はその記録です。</p>
+    <p>どれも、この道具と、この模型で、手元の CPU で試した結果です。別の模型や描かせ方では、違う結果になるかもしれません。</p>
   </div>
   <div>
-    <div class="folio"><span>描く順番</span><span>&nbsp;</span></div>
-    <ol class="steps">
-      <li><div>設定を言葉にする<span>職業、髪型、服、持ち物、立ち姿</span></div></li>
-      <li><div>線画として描く<span>白い紙に黒い線。陰影は付けない</span></div></li>
-      <li><div>清書する<span>灰色の陰影を除き、黒い線と白い地だけにする</span></div></li>
-      <li><div>拡大して確かめる<span>線が閉じているか、顔と手が崩れていないか、持ち物に矛盾が無いか</span></div></li>
-      <li><div>色を置く<span>線を崩さずに塗る（次の集で扱う）</span></div></li>
-    </ol>
+    <div class="folio"><span>試したことと結果</span><span>&nbsp;</span></div>
+    <dl class="tries">
+      <div><dt>塗った絵から線を取り出す</dt><dd>影の境目や髪の陰影まで線として拾い、線が二重になったり途切れたりした</dd></div>
+      <div><dt>塗った絵を、線画として描き直させる</dt><dd>描き直しを弱くすると塗りが残り、強くすると別の塗った絵になった</dd></div>
+      <div class="good"><dt>最初から線画として描かせる</dt><dd>線が閉じ、目や手まで線で描かれた。ただし灰色の陰影が乗る</dd></div>
+      <div><dt>明るさで白黒に分ける</dt><dd>目や瞳の薄い線が消え、顔の影が黒い塊になった</dd></div>
+      <div class="good"><dt>線の細さで、線と影を見分ける</dt><dd>細い線は残り、広い影は消えた。見る幅が線より狭いと太い線の中が抜けたので、幅を広げた</dd></div>
+      <div><dt>線画を下敷きに色を描かせる</dt><dd>線は残ったが、白い地が勝って色がほとんど乗らなかった</dd></div>
+    </dl>
   </div>
 </section>
 
@@ -211,20 +216,20 @@ body { font-family: var(--body); font-size: 15px; line-height: 1.85; padding-inl
     <figure><img src="{{img:witch-chibi-color}}" alt="紫のマントのデフォルメの魔女の彩色"><figcaption>魔女（デフォルメ）。紫のマントと黒い帽子</figcaption></figure>
     <figure><img src="{{img:sword-color}}" alt="剣士の彩色"><figcaption>剣士。鉛筆のラフから色を置いたもの</figcaption></figure>
   </div>
-  <p class="note">この頁の彩色は、線画集の線画に色を置いたものではありません。同じ職業を別の回に色付きで描いた絵です。線画に色を置く工程は、第二集で扱います。</p>
+  <p class="note">この頁の彩色は、線画集の線画に色を置いたものではありません。同じ職業を別の回に色付きで描かせた絵です。線画に色を置く試しは、第二集で扱います。</p>
 </section>
 
 <section class="page colophon" aria-label="奥付">
   <div>
     <div class="folio"><span>奥付</span><span>九</span></div>
     <h2>線画集 第一集</h2>
-    <p>手元の CPU だけで描いています。一枚の線画に約3分。描いた絵はすべて拡大して、線の閉じ具合、顔と手、持ち物の矛盾を目で確かめました。見つけた矛盾は各頁に書いています。</p>
+    <p>手元の CPU で AI に描かせています。一枚の線画に約3分。描かせた絵はすべて拡大して、線の閉じ具合、顔と手、持ち物の矛盾を目で確かめました。AI が描いた矛盾は各頁に書いています。</p>
   </div>
   <table>
     <tr><td>描いたもの</td><td>線画 6 枚（うち 5 枚を収録）、彩色 3 枚</td></tr>
     <tr><td>収録しなかった絵</td><td>剣士の二枚目。剣の鍔が二か所にあり、剣が二本つながって見えたため</td></tr>
     <tr><td>描く道具</td><td>画像生成の模型（CPU で動かす）と、線画の清書の道具</td></tr>
-    <tr><td>清書</td><td>細い線は残し、広い影は消す。太い線は中まで埋める</td></tr>
+    <tr><td>後の処理</td><td>灰色の陰影を除く清書（細い線は残し、広い影は消す。太い線は中まで埋める）</td></tr>
     <tr><td>版</td><td>2026年10月11日（JST）</td></tr>
   </table>
 </section>

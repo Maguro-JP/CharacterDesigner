@@ -136,8 +136,8 @@ td code { font-family: var(--mono); font-size: 12.5px; }
   <div class="cap">
     <div class="n">2</div>
     <div>
-      <h3>線画から描く</h3>
-      <p>人の描き手と同じく、線画を先に描きます。塗りの絵から線を取り出すと、影の境目まで線になって二重や途切れが出たため、描く段階から線画として描かせ、灰色の陰影だけを除いて清書します。</p>
+      <h3>線画を描かせる</h3>
+      <p>AI に塗った絵を描かせてから線を取り出すと、影の境目まで線になり、二重や途切れが出ました。最初から線画として描かせると線が閉じたので、その線画から灰色の陰影だけを除いて清書します。</p>
       <p class="cmd">python3 tools/gen/lineart.py draw "1girl, witch, ..." out/</p>
     </div>
     <div class="imgs"><img src="{{img:witch-line-2}}" alt="魔女の線画"><img src="{{img:mech-line-1}}" alt="機械技師の線画"><img src="{{img:sword-line}}" alt="剣士の線画"></div>
@@ -246,7 +246,7 @@ td code { font-family: var(--mono); font-size: 12.5px; }
   <div class="book">
     <div>
       <h2 id="book" style="font-family:var(--display);font-weight:400;font-size:30px;margin:6px 0 12px">線画集 第一集</h2>
-      <p>騎士、魔女、剣士、機械技師。線から先に描いた設定画を、設定のメモと一緒に一冊にまとめました。見つけた矛盾も頁ごとに書いています。</p>
+      <p>騎士、魔女、剣士、機械技師を AI に線画として描かせた設定画と、どう描かせると線がきれいに出たかの記録です。AI が描いた矛盾も頁ごとに書いています。</p>
       <a class="cta" href="{{link:book}}" target="_blank" rel="noopener">画集を開く</a>
     </div>
     <div class="imgs">

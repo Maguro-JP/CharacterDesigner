@@ -62,5 +62,20 @@ class FlatFill(unittest.TestCase):
         self.assertEqual(tuple(out[30, 30]), (0, 0, 0))     # 線は黒のまま
 
 
+    def test_color_by_parts_ignores_position(self):
+        line = np.full((60, 60), 255, np.uint8)
+        line[30, :] = 0
+        line_parts = np.zeros((60, 60), np.uint8)
+        line_parts[:30] = 2                              # 上の面は髪
+        line_parts[31:] = 11                             # 下の面は顔
+        ref = np.zeros((60, 60, 3), np.uint8)
+        ref_parts = np.zeros((60, 60), np.uint8)
+        ref[:20] = (250, 220, 200); ref_parts[:20] = 11  # 参考では顔が上
+        ref[20:] = (90, 50, 20); ref_parts[20:] = 2      # 髪が下（位置は線画と逆）
+        out = lineart.color_by_parts(line, line_parts, ref, ref_parts)
+        self.assertEqual(tuple(out[5, 5]), (90, 50, 20))       # 髪の面には髪の色
+        self.assertEqual(tuple(out[50, 50]), (250, 220, 200))  # 顔の面には顔の色
+
+
 if __name__ == "__main__":
     unittest.main()

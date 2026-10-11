@@ -1,4 +1,4 @@
-"""線画を最初に描く（人の描き手と同じ順番: 線画 → 色）。
+"""線画を最初に描かせる（そのあとに色を置く）。
 
 元の絵（塗りの絵）から線を取り出すと、影の境目や髪の陰影まで線に拾い、線が二重になったり途切れたりした
 （XDoG、色の境目、墨の線の拾い出し、模型での描き直し 0.55〜0.88 を騎士で比べた。docs/knowledge/lineart.md）。
@@ -54,7 +54,7 @@ def clean(src: str, out: str, width: int = 8, contrast: float = 0.10, solid: flo
 
 
 def flat_fill(line: np.ndarray, reference: np.ndarray, close: int = 1, min_area: int = 30) -> tuple[np.ndarray, int]:
-    """線で閉じた面ごとに、参考の絵の真ん中の色を1色ずつ塗る（人の描き手の下塗りと同じ単位）。
+    """線で閉じた面ごとに、参考の絵の真ん中の色を1色ずつ塗る。
     線画を下絵に色を描かせると、白い地が勝って色がほとんど乗らなかった（強さ 0.6、0.75）。強く描かせた参考の絵は
     形が線とずれるので、そのまま重ねると色が線をはみ出す。面は線画から取り、色だけを参考から借りる。
     line は 0〜255 の線画（黒が線）、reference は同じ大きさの RGB。線の小さな切れ目は close 画素だけ太らせて閉じる。
@@ -77,6 +77,55 @@ def flat_fill(line: np.ndarray, reference: np.ndarray, close: int = 1, min_area:
     out = out[idx[0], idx[1]]
     lines = (line.astype(float) / 255)[..., None]
     return (out.astype(float) * lines).astype(np.uint8), int(n)
+
+
+def color_by_parts(line: np.ndarray, line_parts: np.ndarray, reference: np.ndarray, ref_parts: np.ndarray,
+                   close: int = 1, min_area: int = 30, window: float = 0.06) -> np.ndarray:
+    """線で閉じた面ごとに、参考の絵の「同じ部位の、同じあたり」の色を塗る。
+    参考を線画から描かせると白い地に引っ張られて色が薄く、位置で色を拾うと形のずれで顔に髪の色が乗った。
+    参考は線画と別に色付きで描かせ（形は違ってよい）、部位分け（顔・髪・上着・ズボンなど）で対応を取る。
+    面の部位は面の中で一番多い部位。部位の外接枠の中での面の位置（0〜1）を、参考の同じ部位の枠に写し、
+    その周り（枠の window 倍）にある同じ部位の色の真ん中を取る。周りに無ければ部位全体の真ん中。人物の外は白"""
+    from scipy import ndimage as nd
+    ink = line < 128
+    if close:
+        ink = nd.binary_dilation(ink, iterations=close)
+    lab, n = nd.label(~ink)
+    size = np.bincount(lab.ravel(), minlength=n + 1)
+    H, W = line.shape
+    yy, xx = np.mgrid[0:H, 0:W]
+    out = np.full((H, W, 3), 255, np.uint8)
+    boxes, whole = {}, {}
+    for k in np.unique(line_parts):
+        if k == 0 or not (ref_parts == k).any():
+            continue
+        ys, xs = np.nonzero(line_parts == k)
+        ry, rx = np.nonzero(ref_parts == k)
+        boxes[k] = ((ys.min(), ys.max(), xs.min(), xs.max()), (ry.min(), ry.max(), rx.min(), rx.max()))
+        whole[k] = np.median(reference[ref_parts == k], 0)
+    objs = nd.find_objects(lab)
+    for r in range(1, n + 1):
+        if size[r] < min_area or objs[r - 1] is None:
+            continue
+        sl = objs[r - 1]
+        m = lab[sl] == r
+        parts_here = line_parts[sl][m]
+        k = int(np.bincount(parts_here).argmax())
+        if k not in boxes:
+            continue
+        (y0, y1, x0, x1), (Y0, Y1, X0, X1) = boxes[k]
+        cy, cx = yy[sl][m].mean(), xx[sl][m].mean()
+        ty = Y0 + (cy - y0) / max(y1 - y0, 1) * (Y1 - Y0)
+        tx = X0 + (cx - x0) / max(x1 - x0, 1) * (X1 - X0)
+        ry, rx = max(int((Y1 - Y0) * window), 3), max(int((X1 - X0) * window), 3)
+        a0, a1, b0, b1 = int(max(ty - ry, 0)), int(min(ty + ry + 1, H)), int(max(tx - rx, 0)), int(min(tx + rx + 1, W))
+        pick = ref_parts[a0:a1, b0:b1] == k
+        col = np.median(reference[a0:a1, b0:b1][pick], 0) if pick.sum() >= 5 else whole[k]
+        out[sl][m] = col
+    filled = (lab > 0) & (size[lab] >= min_area)
+    idx = nd.distance_transform_edt(~filled, return_distances=False, return_indices=True)
+    out = out[idx[0], idx[1]]
+    return (out.astype(float) * (line.astype(float) / 255)[..., None]).astype(np.uint8)
 
 
 def ends(src: str) -> dict:
