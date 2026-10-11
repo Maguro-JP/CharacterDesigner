@@ -51,7 +51,9 @@ def weight(line: np.ndarray, person: np.ndarray, light=(-1.0, -1.0)) -> np.ndarr
     outer = line & _grow(edge, 2)
     inner = line & ~outer
     out = np.zeros_like(line)
-    out |= inner                                   # 内側はそのまま（1画素前後）
+    # 内側の線は細らせる（太いまま重ねると細部が黒く潰れた）。2画素以上の太さの所だけ1画素削る
+    core = _shrink(inner, 1)                               # 3画素以上の太さの所の芯
+    out |= core | (inner & ~_grow(core, 1))                 # 太い線は芯だけ、細い線はそのまま
     out |= _grow(outer, 1)                         # 外側は太く
     # 影の側: 外形の帯のうち、人物の重心から見て光と反対の向きにある所
     ys, xs = np.nonzero(person)
@@ -95,11 +97,21 @@ def flats(line: np.ndarray, person: np.ndarray, guide: Image.Image, min_area: in
                 n += 1
             else:
                 out[ys, xs] = g[ys, xs]   # 小さな隙間は元の色（ベタの点が浮かないように）
-    # 線の下と人物の中の未塗りは、近い色で埋める（線を重ねる前の下地）
+    # 線の下・小さな領域・人物の中の未塗りは、隣の大きな領域の色で埋める（細い領域が白く抜けた）。
+    # 塗った所から外へ1画素ずつ色を広げる（最も近い塗った色で埋めるのと同じ）
     holes = person & (labels < 0)
-    if holes.any():
-        filled = Image.fromarray(out).filter(ImageFilter.MedianFilter(5))
-        out[holes] = np.asarray(filled)[holes]
+    have = labels >= 0
+    for _ in range(40):
+        if not (holes & ~have).any():
+            break
+        grown = have.copy()
+        for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            src = np.roll(np.roll(have, dy, 0), dx, 1)
+            col = np.roll(np.roll(out, dy, 0), dx, 1)
+            take = holes & ~grown & src
+            out[take] = col[take]
+            grown |= take
+        have = grown
     return out, n
 
 
