@@ -84,9 +84,9 @@ def wrench(length, grip):
     parts.append(shaft)
     tip = butt + along * length
     side = along.cross(Vector((0, -1, 0))).normalized()  # 口が開く向き（画面に向ける）
-    parts.append(box("jaw_base", (0.32, 0.08, 0.16), tip, along))
+    parts.append(box("jaw_base", (0.36, 0.05, 0.22), tip, along))
     for s in (1, -1):
-        parts.append(box(f"jaw{s}", (0.10, 0.08, 0.24), tip + side * 0.11 * s + along * 0.16, along))
+        parts.append(box(f"jaw{s}", (0.09, 0.05, 0.30), tip + side * 0.135 * s + along * 0.24, along))
     # 直方体の向きを口の幅に合わせ直す（box は長辺を along に合わせるので、幅は side へ回す）
     for p in parts[1:]:
         p.rotation_quaternion = Vector((0, 0, 1)).rotation_difference(along)
