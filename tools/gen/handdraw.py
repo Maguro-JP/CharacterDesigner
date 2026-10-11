@@ -127,7 +127,19 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", li
     Image.fromarray(np.where(line, 0, 255).astype("uint8")).save(out / "1-lines.png")
     strong = weight(line, person)
     Image.fromarray(np.where(strong, 0, 255).astype("uint8")).save(out / "2-weight.png")
-    flat, regions = flats(line, person, Image.open(guide or src))
+    # 下塗りの境: 線だけでは閉じない所がある（機械技師の絵で体じゅうが1つの領域に繋がり、茶色1色になった）。
+    # 人の描き手が部位ごとにレイヤーを分けるのと同じく、部位分けの境も塗り分けの境にする
+    walls = line.copy()
+    try:
+        import edit
+        lab = np.asarray(edit.parts(src).resize(line.shape[::-1], Image.NEAREST)).astype(int)
+        border = np.zeros_like(line)
+        border[:-1] |= lab[:-1] != lab[1:]
+        border[:, :-1] |= lab[:, :-1] != lab[:, 1:]
+        walls |= border & person
+    except Exception:
+        pass
+    flat, regions = flats(walls, person, Image.open(guide or src))
     Image.fromarray(flat).save(out / "3-flats.png")
     # 影: 立体の計算（imgproc.shade）で暗くなった所だけを「影の面」として取り、下塗りの色ごとに1段暗い影色を平らに置く。
     # 計算の明暗をそのまま掛けると、下塗りとほぼ同じに見えた（段が無い）。人の影は面で置く
@@ -145,7 +157,15 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", li
     # 色を重ねる（オーバーレイ）: 光源の側（左上）を暖かく、反対側を冷たく。人の描き手が最後に掛ける色味の層
     Hh, Ww = shadow.shape
     yy, xx = np.mgrid[0:Hh, 0:Ww]
-    side = ((-(xx - Ww / 2) / Ww) + (-(yy - Hh / 2) / Hh))   # 左上ほど大きい
+    # 光源の向きは元の絵から決める: 人物の中で明るい所の重心から暗い所の重心へ向かう向きの反対が光の来る側
+    g0 = np.asarray(Image.open(src).convert("L").resize((Ww, Hh))).astype(float)
+    pv = g0[person]
+    py, px = yy[person], xx[person]
+    hi, lo = pv >= np.percentile(pv, 75), pv <= np.percentile(pv, 25)
+    ly, lx = py[hi].mean() - py[lo].mean(), px[hi].mean() - px[lo].mean()
+    n = max((ly ** 2 + lx ** 2) ** 0.5, 1e-6)
+    ly, lx = ly / n, lx / n
+    side = (lx * (xx - px.mean()) / Ww + ly * (yy - py.mean()) / Hh) * 2   # 光の側ほど大きい
     warm = np.array([1.0, 0.55, 0.25]) * 255
     cool = np.array([0.25, 0.4, 1.0]) * 255
     tone = np.where(side[..., None] > 0, warm, cool)
