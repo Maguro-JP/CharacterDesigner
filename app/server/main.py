@@ -138,6 +138,10 @@ class Runner:
                 lost = tagger.missing(prompt, tagger.read(path, threshold=0.05))
                 if lost:
                     reasons.append("描かれていない: " + "、".join(lost))
+            # 長い持ち物（ほうき・杖）が柄と先で別々に描かれた矛盾。検出器を取ってあるときだけ（数百 MB を勝手に取らない）
+            import pieces
+            if prompt and pieces.asked(prompt) and pieces.ready():
+                reasons += pieces.split_objects(path, prompt)
             return reasons
 
         def guard_image(path):
