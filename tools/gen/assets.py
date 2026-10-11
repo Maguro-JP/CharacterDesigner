@@ -51,7 +51,7 @@ def list_poses() -> list[dict]:
             meta = {}
         usable = bool(str(meta.get("license", "")).strip())
         out.append({"name": f.stem, "title": meta.get("title", f.stem), "source": meta.get("source", ""),
-                    "license": meta.get("license", ""), "usable": usable,
+                    "license": meta.get("license", ""), "usable": usable, "strength": float(meta.get("strength", 0.93)),
                     "why": "" if usable else "出典とライセンスが書かれていないので使わない"})
     return out
 
@@ -63,7 +63,7 @@ def get_pose(name: str) -> Path | None:
     return POSE / f"{name}.png" if ok else None
 
 
-def add_pose(src: str, name: str, license: str, title: str = "", source: str = "") -> dict:
+def add_pose(src: str, name: str, license: str, title: str = "", source: str = "", strength: float = 0.93) -> dict:
     """手元の絵を姿勢の下絵として置く（自分で描いた・撮った絵なら license は own）"""
     from PIL import Image
     if not NAME.match(name):
@@ -72,7 +72,7 @@ def add_pose(src: str, name: str, license: str, title: str = "", source: str = "
         raise ValueError("ライセンスが分からない絵は置かない")
     POSE.mkdir(parents=True, exist_ok=True)
     Image.open(src).convert("RGB").save(POSE / f"{name}.png")
-    (POSE / f"{name}.json").write_text(json.dumps({"title": title or name, "source": source or Path(src).name, "license": license},
+    (POSE / f"{name}.json").write_text(json.dumps({"title": title or name, "source": source or Path(src).name, "license": license, "strength": strength},
                                                   ensure_ascii=False, indent=1))
     return next(x for x in list_poses() if x["name"] == name)
 
@@ -110,11 +110,13 @@ if __name__ == "__main__":
     a.add_argument("--title", default=""); a.add_argument("--trigger", default=""); a.add_argument("--weight", type=float, default=0.8)
     ps = sub.add_parser("pose")
     ps.add_argument("src"); ps.add_argument("name"); ps.add_argument("--license", required=True); ps.add_argument("--title", default="")
+    # 描き直す強さ。姿勢だけ借りるなら 0.93、線画を守って塗るなら 0.7 前後（0.93 では線画の腕や髪が描き替わった）
+    ps.add_argument("--strength", type=float, default=0.93)
     sub.add_parser("list")
     o = ap.parse_args()
     if o.cmd == "add":
         print(json.dumps(add(o.url, o.name, o.license, o.title, o.trigger, o.weight), ensure_ascii=False))
     elif o.cmd == "pose":
-        print(json.dumps(add_pose(o.src, o.name, o.license, o.title), ensure_ascii=False))
+        print(json.dumps(add_pose(o.src, o.name, o.license, o.title, strength=o.strength), ensure_ascii=False))
     else:
         print(json.dumps({"lora": list_loras(), "pose": list_poses()}, ensure_ascii=False, indent=1))

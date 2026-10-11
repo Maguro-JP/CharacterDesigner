@@ -225,6 +225,7 @@ def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, w
         if path is None:
             raise ValueError(f"姿勢の下絵「{pose}」は使えない（無いか、出典とライセンスが書かれていない）")
         under = Image.open(path).convert("RGB").resize((width, height))
+        pose_strength = next(x["strength"] for x in assets.list_poses() if x["name"] == pose)
         draw_pipe = demi.img2img()
     else:
         draw_pipe = pipe
