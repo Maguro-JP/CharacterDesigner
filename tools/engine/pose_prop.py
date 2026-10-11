@@ -26,6 +26,7 @@ import human  # noqa: E402
 HAND = Vector((-0.20, -0.16, 1.36))   # 右手を置く所。右肩の前、鎖骨より少し下
 SHOULDER = Vector((-0.17, 0.0, 1.46))  # 柄が載る所。右肩の上
 SKIN, CLOTH = (240, 200, 170), (235, 120, 40)  # 下絵の色。設定資料の肌とつなぎに合わせる
+CAMERA = Vector((-3.55, -3.15, 1.45))  # 正面から右手側へ回った目の高さ
 CURL = 70  # 指の関節ごとの曲げ（度）
 ELBOW_POLE = Vector((-0.45, -0.10, 1.00))  # 肘を外へ下ろす向き
 
@@ -87,16 +88,24 @@ def wrench(length, grip):
     bpy.ops.mesh.primitive_uv_sphere_add(radius=0.045, location=butt)
     parts.append(bpy.context.object)
     tip = butt + along * length
-    side = along.cross(Vector((0, -1, 0))).normalized()  # 口が開く向き（画面に向ける）
-    parts.append(box("jaw_base", (0.36, 0.05, 0.22), tip, along))
-    for s in (1, -1):
-        parts.append(box(f"jaw{s}", (0.09, 0.05, 0.30), tip + side * 0.135 * s + along * 0.24, along))
-    # 直方体の向きを口の幅に合わせ直す（box は長辺を along に合わせるので、幅は side へ回す）
-    for p in parts[1:]:
-        p.rotation_quaternion = Vector((0, 0, 1)).rotation_difference(along)
-        q = p.rotation_quaternion
-        local_x = q @ Vector((1, 0, 0))
-        p.rotation_quaternion = local_x.rotation_difference(side) @ q
+    # 頭の面はカメラに向ける。横から見える向きだと頭が細い板に写り、口が読めなかった
+    view = (CAMERA - tip).normalized()
+    side = along.cross(view - along * view.dot(along)).normalized()  # 口の幅の向き
+    # 頭は円盤から口の溝を切り抜いた平らな形にする。箱を組んだ口は刃・フォーク・鉤として描かれた
+    normal = along.cross(side).normalized()
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.2, depth=0.06, location=tip + along * 0.05)
+    head = bpy.context.object
+    head.rotation_mode = "QUATERNION"
+    head.rotation_quaternion = Vector((0, 0, 1)).rotation_difference(normal)
+    slot = box("slot", (0.13, 0.3, 0.3), tip + along * 0.2, along)
+    q = slot.rotation_quaternion
+    slot.rotation_quaternion = (q @ Vector((1, 0, 0))).rotation_difference(side) @ q
+    cut = head.modifiers.new("slot", "BOOLEAN")
+    cut.operation, cut.object = "DIFFERENCE", slot
+    bpy.context.view_layer.objects.active = head
+    bpy.ops.object.modifier_apply(modifier="slot")
+    bpy.data.objects.remove(slot)
+    parts.append(head)
     return parts
 
 
@@ -149,7 +158,7 @@ def main(argv):
 
     scene = bpy.context.scene
     # 正面から右手側へ 35 度回った目の高さ。担いだ柄と口が体に隠れない
-    look_from(scene, Vector((-0.35, 0.45, 1.2)), Vector((-3.55, -3.15, 1.45)), 3.0)
+    look_from(scene, Vector((-0.35, 0.45, 1.2)), CAMERA, 3.0)
     sun = bpy.data.lights.new("sun", "SUN")
     sun.energy = 3.5
     so = bpy.data.objects.new("sun", sun)
