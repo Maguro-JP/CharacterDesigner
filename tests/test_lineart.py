@@ -40,5 +40,27 @@ class Clean(unittest.TestCase):
         self.assertLess(out[46, 20:100].mean(), 30)          # 中が抜けない
 
 
+try:
+    import scipy  # noqa: F401
+except ImportError:
+    scipy = None
+
+
+@unittest.skipIf(scipy is None, "scipy が無い（.cache/gen/lib に入る）")
+class FlatFill(unittest.TestCase):
+    def test_color_stays_inside_lines(self):
+        line = np.full((60, 60), 255, np.uint8)
+        line[30, :] = 0                                  # 上下を分ける線
+        ref = np.zeros((60, 60, 3), np.uint8)
+        ref[:30] = (200, 0, 0)
+        ref[31:] = (0, 0, 200)
+        ref[25:35, :10] = (0, 200, 0)                    # 参考の絵の色が線をまたいでずれている所
+        out, n = lineart.flat_fill(line, ref)
+        self.assertEqual(n, 2)
+        self.assertEqual(tuple(out[5, 5]), (200, 0, 0))     # 面ごとに1色
+        self.assertEqual(tuple(out[27, 3]), (200, 0, 0))    # ずれた色は面の色に揃う
+        self.assertEqual(tuple(out[30, 30]), (0, 0, 0))     # 線は黒のまま
+
+
 if __name__ == "__main__":
     unittest.main()

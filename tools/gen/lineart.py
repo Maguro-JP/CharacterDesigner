@@ -53,6 +53,32 @@ def clean(src: str, out: str, width: int = 8, contrast: float = 0.10, solid: flo
     return {"paper": round(paper, 1), "line_ratio": round(float((ink > 0.5).mean()), 4)}
 
 
+def flat_fill(line: np.ndarray, reference: np.ndarray, close: int = 1, min_area: int = 30) -> tuple[np.ndarray, int]:
+    """線で閉じた面ごとに、参考の絵の真ん中の色を1色ずつ塗る（人の描き手の下塗りと同じ単位）。
+    線画を下絵に色を描かせると、白い地が勝って色がほとんど乗らなかった（強さ 0.6、0.75）。強く描かせた参考の絵は
+    形が線とずれるので、そのまま重ねると色が線をはみ出す。面は線画から取り、色だけを参考から借りる。
+    line は 0〜255 の線画（黒が線）、reference は同じ大きさの RGB。線の小さな切れ目は close 画素だけ太らせて閉じる。
+    min_area より小さい面（線の間の隙間）は隣の色で埋める。戻り値は（塗った絵、面の数）"""
+    from scipy import ndimage as nd
+    ink = line < 128
+    if close:
+        ink = nd.binary_dilation(ink, iterations=close)
+    lab, n = nd.label(~ink)
+    size = np.bincount(lab.ravel(), minlength=n + 1)
+    keep = np.nonzero(size >= min_area)[0]
+    keep = keep[keep > 0]
+    table = np.zeros((n + 1, 3), np.uint8)
+    for c in range(3):
+        table[keep, c] = np.asarray(nd.median(reference[..., c], lab, keep)).round().astype(np.uint8)
+    filled = np.isin(lab, keep)
+    out = table[lab]
+    # 線の下と小さな面は、いちばん近い塗った面の色にする（線を重ねたとき縁に白い隙間を残さない）
+    idx = nd.distance_transform_edt(~filled, return_distances=False, return_indices=True)
+    out = out[idx[0], idx[1]]
+    lines = (line.astype(float) / 255)[..., None]
+    return (out.astype(float) * lines).astype(np.uint8), int(n)
+
+
 def ends(src: str) -> dict:
     """線の切れ端（骨組みにしたときに隣が1つしか無い点）の数。閉じた線画ほど少ない"""
     from skimage.morphology import skeletonize
