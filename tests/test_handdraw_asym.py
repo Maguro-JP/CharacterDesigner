@@ -26,5 +26,17 @@ class Asymmetry(unittest.TestCase):
         self.assertTrue((out[:10] == img[:10]).all() and (out[30:] == img[30:]).all())
 
 
+class Wear(unittest.TestCase):
+    def test_only_cloth_changes_lightly(self):
+        img = np.full((200, 200, 3), 150, np.uint8)
+        cloth = np.zeros((200, 200), bool)
+        cloth[40:180, 50:150] = True
+        out = handdraw.wear(img, cloth, seed=3)
+        diff = np.abs(out.astype(int) - img).sum(2)
+        self.assertEqual(int(diff[~cloth].sum()), 0)      # 服の外は変えない
+        self.assertGreater(int((diff > 0).sum()), 50)     # 服には描き込みが入る
+        self.assertLess(float(diff[cloth].mean()), 15)    # 薄く（染みにしない）
+
+
 if __name__ == "__main__":
     unittest.main()

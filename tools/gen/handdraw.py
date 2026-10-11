@@ -137,6 +137,43 @@ def asymmetry(img: np.ndarray, box: tuple[int, int, int, int], amount: float = 0
     return out
 
 
+def wear(img: np.ndarray, cloth: np.ndarray, seed: int = 0, folds: int = 0, alpha: float = 0.22) -> np.ndarray:
+    """汚しとディテール: 服の範囲にだけ、布のしわの細い線と、縁の小さな擦れを薄く足す。
+    人の描き手は仕上げの近くで描き込みを足す。模型の絵は面がつるつるで、描き込みの粗密が意図と関係ない
+    （docs/knowledge/painting-workflow.md）。しわは重さで下へ垂れるので、縦に近い短い弧にする。
+    濃くすると汚れの染みに見えるので、元の色を少し暗く（乗算）するだけにする"""
+    from PIL import ImageDraw
+    H, W = cloth.shape
+    if cloth.sum() < 400:
+        return img
+    rng = np.random.default_rng(seed)
+    ys, xs = np.nonzero(cloth)
+    n = folds or max(int(cloth.sum() / 12000), 3)
+    m = Image.new("L", (W, H), 0)
+    d = ImageDraw.Draw(m)
+    for i in rng.choice(len(ys), n, replace=False):
+        y, x = int(ys[i]), int(xs[i])
+        length = rng.uniform(0.02, 0.06) * H
+        bend = rng.uniform(-0.25, 0.25) * length
+        # 1本の滑らかな弧（点ごとに揺らすと、ひびや髪の毛に見えた）。入りと抜きを細くするため、中ほどだけ太く重ねる
+        pts = [(x + bend * np.sin(t * np.pi), y + length * t) for t in np.linspace(0, 1, 12)]
+        d.line(pts, fill=150, width=1)
+        d.line(pts[3:9], fill=255, width=2)
+    # 擦れ: 服の縁（外へ出る所）の短い明るい点
+    edge = cloth & ~_shrink(cloth, 2)
+    ey, ex = np.nonzero(edge)
+    lite = Image.new("L", (W, H), 0)
+    dl = ImageDraw.Draw(lite)
+    for i in rng.choice(len(ey), min(n * 2, len(ey)), replace=False):
+        dl.ellipse([ex[i] - 1, ey[i] - 1, ex[i] + 1, ey[i] + 1], fill=255)
+    dark = np.asarray(m.filter(ImageFilter.GaussianBlur(1.2))).astype(float)[..., None] / 255 * cloth[..., None]
+    light = np.asarray(lite.filter(ImageFilter.GaussianBlur(0.8))).astype(float)[..., None] / 255 * cloth[..., None]
+    f = img.astype(float)
+    f = f * (1 - dark * alpha * 1.6)           # しわは乗算で少し暗く
+    f = f + (255 - f) * light * alpha          # 擦れはスクリーンで少し明るく
+    return f.clip(0, 255).astype(np.uint8)
+
+
 def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", line_style: str = "default",
         brush: str | None = None, grain: float | None = None, shadow_cut: float = 0.93, shadow_depth: float = 1.0,
         line_ink: float = 1.0) -> dict:
@@ -237,6 +274,7 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", li
     try:
         import edit
         lab = np.asarray(edit.parts(src).resize(shaded.shape[1::-1], Image.NEAREST))
+        shaded = wear(shaded, np.isin(lab, [4, 5, 6, 7]), seed=int(lab.sum()) % 1000)
         face = _shrink(lab == 11, 4)
         if face.any():
             ys, xs = np.nonzero(face)
