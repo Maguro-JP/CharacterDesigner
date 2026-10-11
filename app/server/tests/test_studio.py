@@ -248,3 +248,15 @@ def test_asset_shelf(client, monkeypatch, tmp_path):
     j = c.post("/api/studio/jobs", json={"prompt": "1girl", "lora": "ok-style"}).json()
     assert j["free"]["lora"] == "ok-style"
     assert assets.get("../etc") is None
+
+
+def test_paint_and_format(client, tmp_path):
+    from app.server.studio.session import apply_style
+    p, n, ja = apply_style("1girl, solo, knight", "", "manga", "cover")
+    assert p.startswith("1girl, solo, monochrome") and "cover page" in p and "color" in n and ja == "漫画塗り、扉絵"
+    c, _ = client(FakeRunner())
+    st = c.get("/api/styles").json()
+    assert {x["id"] for x in st["paint"]} >= {"anime", "manga", "watercolor", "oil", "pastel", "posca"}
+    assert c.post("/api/studio/jobs", json={"prompt": "1girl", "paint": "nope"}).status_code == 422
+    j = wait(c, c.post("/api/studio/jobs", json={"prompt": "1girl, full body, simple background", "paint": "oil"}).json()["id"])
+    assert "oil painting (medium)" in j["outcome"]["prompt"]

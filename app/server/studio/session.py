@@ -51,6 +51,8 @@ class Spec:
     budget_s: float = 1800.0
     direct: bool = True       # 演出に構図と光を足させるか
     lora: str = ""            # 素材の棚の LoRA の名前（空なら使わない）
+    paint: str = ""           # 塗り（casts/paint-styles.json の paint）
+    format: str = ""          # 見せ方（同 format）
 
 
 @dataclass
@@ -74,6 +76,24 @@ def direct(prompt: str) -> tuple[str, list[str]]:
     if not any(l in low for l in LIGHT):
         added.append("moonlight, rim light" if NIGHT.search(low) else "soft natural lighting, single light source")
     return (", ".join([prompt, *added]) if added else prompt), added
+
+
+def styles() -> dict:
+    import json
+    from pathlib import Path
+    return json.loads((Path(__file__).resolve().parents[3] / "casts" / "paint-styles.json").read_text())
+
+
+def apply_style(prompt: str, negative: str, paint: str, fmt: str) -> tuple[str, str, str]:
+    st = styles()
+    parts = [st["paint"].get(paint), st["format"].get(fmt)]
+    tags = [x["tags"] for x in parts if x and x.get("tags")]
+    negs = [x["negative"] for x in parts if x and x.get("negative")]
+    head = [t for t in (x.strip() for x in prompt.split(",")) if re.fullmatch(r"\d+(girl|boy|other)s?|solo", t)]
+    rest = [t for t in (x.strip() for x in prompt.split(",")) if t and t not in head]
+    new = ", ".join(head + tags + rest)
+    neg = ", ".join(x for x in [negative, *negs] if x)
+    return new, neg, "、".join(x["ja"] for x in parts if x)
 
 
 def similarity(a: str, b: str) -> float:
@@ -163,8 +183,12 @@ class Session:
             prompt, negative = got["prompt"], got.get("negative", "")
             self._say("INTERPRETER", "done", got.get("summary") or "読んだ", prompt=prompt, reader=got.get("reader"))
 
+        # DIRECTOR: 塗りと見せ方（決まりの言葉を先頭に置く。先頭ほど強く効く）
+        if spec.paint or spec.format:
+            prompt, negative, added = apply_style(prompt, negative, spec.paint, spec.format)
+            self._say("DIRECTOR", "done", f"塗りと見せ方: {added}", prompt=prompt)
         # DIRECTOR: 構図と光
-        if spec.direct:
+        if spec.direct and not spec.paint:
             prompt, added = direct(prompt)
             self._say("DIRECTOR", "done", f"足した: {', '.join(added)}" if added else "構図と光は頼みごとのとおり", prompt=prompt)
 

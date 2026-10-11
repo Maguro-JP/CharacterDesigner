@@ -53,6 +53,12 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
   const [lora, setLora] = useState("");
+  const [paint, setPaint] = useState("");
+  const [format, setFormat] = useState("");
+  const [styles, setStyles] = useState<Record<"paint" | "format", { id: string; ja: string; refs: string }[]>>({ paint: [], format: [] });
+  useEffect(() => {
+    api.styles().then(setStyles).catch(() => setStyles({ paint: [], format: [] }));
+  }, []);
   const [shelf, setShelf] = useState<{ lora: Lora[]; dir: string }>({ lora: [], dir: "" });
   useEffect(() => {
     api.assets().then(setShelf).catch(() => setShelf({ lora: [], dir: "" }));
@@ -78,7 +84,7 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
   const submit = () => {
     ctx.setError("");
     api
-      .studioSubmit({ text, prompt, negative, seed, size, tries, direct, lora })
+      .studioSubmit({ text, prompt, negative, seed, size, tries, direct, lora, paint, format })
       .then(() => {
         ctx.refreshJobs();
         setSeed((s) => s + tries);   // 次は別の絵になるよう進める（同じ絵を描き直したければ戻せる）
@@ -127,6 +133,20 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
         <label>
           seed
           <input type="number" min={0} className="ml-1 w-20 rounded border border-line bg-ink px-2 py-1" value={seed} onChange={(e) => setSeed(Math.max(0, Number(e.target.value) || 0))} />
+        </label>
+        <label>
+          塗り
+          <select className="ml-1 rounded border border-line bg-ink px-2 py-1" value={paint} onChange={(e) => setPaint(e.target.value)} aria-label="塗り">
+            <option value="">おまかせ</option>
+            {styles.paint.map((x) => <option key={x.id} value={x.id} title={x.refs}>{x.ja}</option>)}
+          </select>
+        </label>
+        <label>
+          見せ方
+          <select className="ml-1 rounded border border-line bg-ink px-2 py-1" value={format} onChange={(e) => setFormat(e.target.value)} aria-label="見せ方">
+            <option value="">おまかせ</option>
+            {styles.format.map((x) => <option key={x.id} value={x.id} title={x.refs}>{x.ja}</option>)}
+          </select>
         </label>
         <label>
           素材

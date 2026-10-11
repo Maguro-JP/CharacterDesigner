@@ -39,6 +39,7 @@ from app.server.studio import layout as studio_layout  # noqa: E402
 from app.server.studio import proposals as studio_proposals  # noqa: E402
 from app.server.studio import roles as studio_roles  # noqa: E402
 from app.server.studio.session import Ports, Session, Spec, recall_from  # noqa: E402
+from app.server.studio.session import styles as studio_session_styles  # noqa: E402
 
 # 覚えていること（通った描く言葉と seed、落ちた理由）。1行1件で足していく
 MEMORY = Path(os.environ.get("CD_MEMORY", ROOT / ".cache" / "app" / "memory.jsonl"))
@@ -276,6 +277,8 @@ class StudioIn(BaseModel):
     tries: int = Field(3, ge=1, le=6)
     direct: bool = True
     lora: str = Field("", max_length=48)
+    paint: str = Field("", max_length=20)
+    format: str = Field("", max_length=20)
 
 
 class LikeIn(BaseModel):
@@ -424,6 +427,11 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         remember(rec)
         return rec
 
+    @app.get("/api/styles")
+    def get_styles():
+        st = studio_session_styles()
+        return {k: [{"id": i, "ja": v["ja"], "refs": v.get("refs", "")} for i, v in st[k].items()] for k in ("paint", "format")}
+
     @app.get("/api/assets")
     def list_assets():
         # 素材の棚。使えない素材（出典とライセンスが無い）も理由付きで出す
@@ -444,7 +452,13 @@ def create_app(runner: Runner | None = None) -> FastAPI:
                 raise HTTPException(422, why)
         w, h = SIZES[body.size]
         spec = {"text": body.text, "prompt": body.prompt, "negative": body.negative, "seed": body.seed,
-                "width": w, "height": h, "tries": body.tries, "direct": body.direct, "lora": body.lora}
+                "width": w, "height": h, "tries": body.tries, "direct": body.direct, "lora": body.lora,
+                "paint": body.paint, "format": body.format}
+        st = studio_session_styles()
+        if body.paint and body.paint not in st["paint"] or body.format and body.format not in st["format"]:
+            raise HTTPException(422, "その塗り・見せ方は無い")
+        if body.paint and not body.lora and st["paint"][body.paint].get("lora") and assets.get(st["paint"][body.paint]["lora"]):
+            spec["lora"] = st["paint"][body.paint]["lora"]   # 棚にあれば塗りの素材を重ねる
         if body.lora and assets.get(body.lora) is None:
             raise HTTPException(422, f"素材「{body.lora}」は使えない（無いか、出典とライセンスが書かれていない）")
         return jobs.submit((body.text or body.prompt)[:20], {}, 0.0, body.tries, kind="studio", free=spec).public()
