@@ -138,7 +138,9 @@ def checks_for(prompt: str) -> dict:
     full = "full body" in low
     # 人物の他に描く物（動物・乗り物・大きな持ち物）を頼んだときは、離れた塊を数えない（頼んだ猫を「離れた物」で落とした）
     others = re.search(r"\b(cat|dog|bird|horse|dragon|animal|pet|familiar|umbrella|lantern|vehicle|motorcycle|car)\b", low)
-    return {"limbs": full, "objects": plain and not others, "edges": plain and full}
+    # マント・ローブ・長い袖は腕を隠す。腕が見えないのは正しい絵なので、腕と脚を数えない（デフォルメの魔女を「腕が無い」で落とした）
+    covers = re.search(r"\b(cape|cloak|robe|poncho|shawl|mantle|long sleeves|sleeves past fingers|hands in pockets)\b", low)
+    return {"limbs": full and not covers, "objects": plain and not others, "edges": plain and full}
 
 
 def _add(negative: str, words: str) -> str:
@@ -225,6 +227,7 @@ class Session:
 
         res = Result(False, prompt=prompt, negative=negative)
         last = None
+        tries_reasons = {}
         for k in range(spec.tries):
             if k and time.time() - t0 > spec.budget_s:
                 res.reason = f"時間の上限（{int(spec.budget_s)} 秒）で打ち切った"
@@ -253,6 +256,7 @@ class Session:
                 break
             self._say("INSPECTOR", "fail", "落ちた: " + "、".join(reasons), file=name, reasons=reasons)
             res.findings += [f"{name}: {r}" for r in reasons]
+            tries_reasons[name] = reasons
             if last is not None and sorted(reasons) == sorted(last):
                 res.reason = "同じ理由で2回続けて落ちたので打ち切った: " + "、".join(reasons)
                 self._say("INSPECTOR", "stop", res.reason)
@@ -266,6 +270,11 @@ class Session:
             if not res.ok:
                 res.reason = f"{spec.tries} 回描いて通らなかった"
 
+        # 通らなかったときも、一番落ちた理由の少ない絵を仕上げに回す（手順を選んだのに何も仕上がらないのを避ける）。
+        # 通っていない印は残す（res.ok は偽のまま、findings に理由がある）
+        if not res.passed and res.files and spec.method != "oneshot" and tries_reasons:
+            res.passed = min(tries_reasons, key=lambda n: len(tries_reasons[n]))
+            self._say("PAINTER", "start", f"通らなかったので、一番ましな {res.passed} を仕上げに回す")
         if res.passed and spec.method != "oneshot":
             self._say("PAINTER", "start", f"生成手順「{METHODS.get(spec.method, spec.method)}」で仕上げる")
             done = self.ports.finish(res.passed, spec.method, res.prompt, res.negative, spec.seed, outdir)

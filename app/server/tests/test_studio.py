@@ -332,3 +332,17 @@ def test_brush_choice(client):
     assert c.post("/api/studio/jobs", json={"prompt": "1girl", "line_style": "nope"}).status_code == 422
     j = c.post("/api/studio/jobs", json={"prompt": "1girl", "method": "handdraw", "brush": "maru", "line_style": "chibi"}).json()
     assert j["free"]["brush"] == "maru" and j["free"]["line_style"] == "chibi"
+
+
+def test_cape_hides_arms_and_best_failed_is_finished(tmp_path):
+    from app.server.studio.session import checks_for
+    assert checks_for("1girl, witch, purple cape, full body")["limbs"] is False
+    painted, called = [], {}
+    ports = fake_ports([["描かれていない: hat", "体が画面の端で切れている"], ["描かれていない: hat"]], painted, [])
+
+    def finish(name, method, prompt, negative, seed, outdir):
+        called["name"] = name
+        return "try-9.png"
+    ports.finish = finish
+    r = Session(ports).send(Spec(prompt="1girl, hat", method="handdraw", tries=2), str(tmp_path))
+    assert called["name"] == "try-1.png" and not r.ok and r.passed == "try-9.png"
