@@ -84,7 +84,7 @@ def main(argv):
     for view, cam in VIEWS.items():
         # 光は毎回カメラの斜め上から当てる。後ろから写すときに前から当てると、背中が真っ黒になった
         so.rotation_euler = (math.radians(50), 0, math.atan2(cam.x, -cam.y) + math.radians(30))
-        look_from(scene, Vector((0, 0, 0.95)), cam, 2.1)
+        look_from(scene, Vector((0, 0, 0.88)), cam, 1.9)
         out = os.path.abspath(f"{a.out}-{view}.png")
         scene.render.filepath = out
         bpy.ops.render.render(write_still=True)
