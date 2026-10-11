@@ -116,7 +116,7 @@ def flats(line: np.ndarray, person: np.ndarray, guide: Image.Image, min_area: in
 
 
 def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", line_style: str = "default",
-        brush: str | None = None, grain: float | None = None) -> dict:
+        brush: str | None = None, grain: float | None = None, shadow_cut: float = 0.93, shadow_depth: float = 1.0) -> dict:
     """line_style は線の作風（casts/brushes.json の styles。chibi はデフォルメで太い線）。brush で筆を指定できる"""
     import imgproc
     out = Path(outdir)
@@ -146,10 +146,10 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", li
     imgproc.shade(str(out / "3-flats.png"), str(out / "4-calc.png"), style=style)
     calc = np.asarray(Image.open(out / "4-calc.png").convert("L")).astype(float)
     base = np.asarray(Image.fromarray(flat).convert("L")).astype(float)
-    shadow = person & (calc < base * 0.93)
+    shadow = person & (calc < base * shadow_cut)
     shadow = _shrink(_grow(shadow, 2), 2)            # 細かい斑を面にまとめる
     shaded = flat.astype(float).copy()
-    tint = np.array([0.62, 0.60, 0.80])              # 影は寒色寄りに落とす（黒を混ぜると濁る）
+    tint = 1 - (1 - np.array([0.62, 0.60, 0.80])) * shadow_depth   # 影は寒色寄りに落とす（黒を混ぜると濁る）
     # 影の境目だけ馴染ませる: 影の面の縁を細くぼかして掛ける（アニメ塗りは境目を残すので 1.5 画素だけ）
     soft = np.asarray(Image.fromarray(shadow.astype("uint8") * 255).filter(ImageFilter.GaussianBlur(1.5))).astype(float)[..., None] / 255
     shaded = shaded * (1 - soft) + shaded * tint * soft
@@ -227,11 +227,41 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", li
     return {"regions": regions, "line_ratio": round(float(line.mean()), 4), "weighted_ratio": round(float(strong.mean()), 4)}
 
 
+def adjust(src: str, outdir: str, tries: int = 3, **kw) -> dict:
+    """調整の往復: 仕上げを縮めて明暗の塊（notan）を測り、細切れなら影の面を広く深くしてやり直す。人の描き手が
+    縮めて全体を見ては影を足し直すのと同じ。上限 tries 回。一番まとまった回を outdir に残す"""
+    import imgproc
+    import shutil
+    import tempfile
+    best = None
+    cut, depth = kw.pop("shadow_cut", 0.93), kw.pop("shadow_depth", 1.0)
+    history = []
+    for k in range(tries):
+        tmp = tempfile.mkdtemp()
+        r = run(src, tmp, shadow_cut=cut, shadow_depth=depth, **kw)
+        m = imgproc.notan(f"{tmp}/5-final.png", f"{tmp}/notan.png")
+        history.append({"try": k, "shadow_cut": cut, "shadow_depth": depth, "fragment_ratio": m["fragment_ratio"]})
+        if best is None or m["fragment_ratio"] < best[0]:
+            if best:
+                shutil.rmtree(best[1], ignore_errors=True)
+            best = (m["fragment_ratio"], tmp, r)
+        else:
+            shutil.rmtree(tmp, ignore_errors=True)
+        if m["fragment_ratio"] <= 0.08:
+            break
+        cut, depth = cut + 0.02, depth * 1.25     # 影の面を広げ、深くする
+    shutil.copytree(best[1], outdir, dirs_exist_ok=True)
+    shutil.rmtree(best[1], ignore_errors=True)
+    return {**best[2], "history": history}
+
+
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)
     r = sub.add_parser("run")
     r.add_argument("src"); r.add_argument("out"); r.add_argument("--guide", default=None); r.add_argument("--style", default="cel2")
     r.add_argument("--line-style", default="default"); r.add_argument("--brush", default=None)
+    r.add_argument("--adjust", type=int, default=0, help="調整の往復の上限回数（0 なら1回だけ描く）")
     a = ap.parse_args()
-    print(json.dumps(run(a.src, a.out, a.guide, a.style, a.line_style, a.brush), ensure_ascii=False))
+    print(json.dumps(adjust(a.src, a.out, a.adjust, guide=a.guide, style=a.style, line_style=a.line_style, brush=a.brush)
+                     if a.adjust else run(a.src, a.out, a.guide, a.style, a.line_style, a.brush), ensure_ascii=False))
