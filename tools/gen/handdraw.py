@@ -137,6 +137,41 @@ def grisaille(value: np.ndarray, flat: np.ndarray, person: np.ndarray) -> np.nda
     return out.clip(0, 255).astype(np.uint8)
 
 
+def regions_from_color(img: np.ndarray, person: np.ndarray, scale: float = 400, min_size: int = 300) -> np.ndarray:
+    """下塗りの面を、元の絵の色の境目から取る。部位分けは鎧もスカートも1つの「ワンピース」にし、胸当てと肩当ての形が消えた。
+    人の描き手は下描きで決めた形ごとに色を置く。明るさの違い（影と光）では分けず、色味の違いで分けたいので、
+    Lab の明るさを 1/3 に弱めてから境目を探す（felzenszwalb。乱数を使わない）。人物の外は 0"""
+    from skimage.color import rgb2lab
+    from skimage.segmentation import felzenszwalb
+    lab = rgb2lab(img)
+    lab[..., 0] /= 3
+    seg = felzenszwalb(lab, scale=scale, sigma=1.0, min_size=min_size) + 1
+    return np.where(person, seg, 0)
+
+
+def cel_from_original(img: np.ndarray, regions: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
+    """面ごとに、元の絵の明るさが面の中ほどより暗い所を影、それ以外を地の色にする（2段のアニメ塗り）。
+    光の当たり方は元の絵が決めたまま残る。明るさの幅が小さい面（平らな面）には影を置かない。
+    戻り値は（塗った絵, 影の所）"""
+    out = img.copy()
+    shadow = np.zeros(regions.shape, bool)
+    lum = img.astype(float) @ np.array([0.299, 0.587, 0.114])
+    for r in np.unique(regions):
+        if r == 0:
+            continue
+        m = regions == r
+        v = lum[m]
+        mid = np.median(v)
+        dark = m & (lum < mid)
+        if np.percentile(v, 90) - np.percentile(v, 10) < 18 or dark.sum() < 20:
+            out[m] = np.median(img[m], 0)
+            continue
+        out[m & ~dark] = np.median(img[m & ~dark], 0)
+        out[dark] = np.median(img[dark], 0)
+        shadow |= dark
+    return out, shadow
+
+
 def keep_folds(shaded: np.ndarray, original: np.ndarray, zone: np.ndarray, sigma: float = 6.0) -> np.ndarray:
     """元の絵に描かれたしわを、しわの場所（folds.zone）の中だけ仕上げに戻す。
     下塗りで面を平らにすると、元の絵のしわ（細かい明暗）が消える。人の描き手は、布が引かれ・寄る所のしわを描き、
@@ -189,6 +224,17 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", li
     # 影の境目だけ馴染ませる: 影の面の縁を細くぼかして掛ける（アニメ塗りは境目を残すので 1.5 画素だけ）
     soft = np.asarray(Image.fromarray(shadow.astype("uint8") * 255).filter(ImageFilter.GaussianBlur(1.5))).astype(float)[..., None] / 255
     shaded = shaded * (1 - soft) + shaded * tint * soft
+    if paint == "cel":
+        # 上の下塗りと影は、部位分けの粗い面と、絵とは別の明暗の計算から作るので、元の絵の形と光を捨てていた
+        # （騎士で胸当てと肩当てが1つの灰色になり、大きな明暗の差 26.1）。元の絵の色の境目で面を取り、
+        # 面の中で元の絵が暗い所を影にすると、形と光が残る（騎士 11.4、魔女 5.3 と 7.4。docs/knowledge/painting-workflow.md）
+        base_img = np.asarray(Image.open(guide or src).convert("RGB").resize(shadow.shape[::-1]))
+        reg = regions_from_color(base_img, person)
+        cel, shadow = cel_from_original(base_img, reg)
+        flat = np.where(person[..., None], cel, 255).astype(np.uint8)
+        regions = int(len(np.unique(reg)) - 1)
+        Image.fromarray(flat).save(out / "3-flats.png")
+        shaded = flat.astype(float)
     if paint == "grisaille":
         g0v = np.asarray(Image.open(src).convert("L").resize(shadow.shape[::-1])).astype(float)
         Image.fromarray(g0v.astype(np.uint8)).save(out / "4-value.png")
