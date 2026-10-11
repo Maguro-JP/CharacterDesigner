@@ -77,5 +77,24 @@ class FlatFill(unittest.TestCase):
         self.assertEqual(tuple(out[50, 50]), (250, 220, 200))  # 顔の面には顔の色
 
 
+    def test_partner_part_when_missing_in_reference(self):
+        line = np.full((60, 60), 255, np.uint8)
+        line[30, :] = 0
+        line_parts = np.zeros((60, 60), np.uint8)
+        line_parts[:30] = 4                              # 線画: 上は上着
+        line_parts[31:] = 6                              # 下はズボン
+        ref = np.zeros((60, 60, 3), np.uint8)
+        ref_parts = np.zeros((60, 60), np.uint8)
+        ref[:30] = (240, 240, 240); ref_parts[:30] = 4   # 参考: 上着は白
+        ref[30:] = (220, 140, 70); ref_parts[30:] = 7    # 作業着は「ワンピース」に分けられ、ズボンが無い
+        ref_parts[59, :3] = 6                            # ズボンが数画素だけある
+        out = lineart.color_by_parts(line, line_parts, ref, ref_parts)
+        self.assertEqual(tuple(out[50, 50]), (220, 140, 70))   # ズボンの面にワンピースの色
+
+    def test_middle_color_is_a_real_color(self):
+        px = np.array([[255, 255, 255]] * 3 + [[220, 140, 70]] * 2, np.uint8)
+        self.assertIn(tuple(lineart.middle_color(px)), {(255, 255, 255), (220, 140, 70)})
+
+
 if __name__ == "__main__":
     unittest.main()

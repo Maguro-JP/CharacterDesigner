@@ -79,6 +79,13 @@ def flat_fill(line: np.ndarray, reference: np.ndarray, close: int = 1, min_area:
     return (out.astype(float) * lines).astype(np.uint8), int(n)
 
 
+def middle_color(pixels: np.ndarray) -> np.ndarray:
+    """画素の中で、明るさが真ん中の画素の色。赤・緑・青を別々に真ん中を取ると、白と橙が混ざった所で
+    どちらでもない灰色になった（技師の作業着）。実際にある色から選ぶ"""
+    lum = pixels.astype(float) @ np.array([0.299, 0.587, 0.114])
+    return pixels[np.argsort(lum)[len(lum) // 2]]
+
+
 def color_by_parts(line: np.ndarray, line_parts: np.ndarray, reference: np.ndarray, ref_parts: np.ndarray,
                    close: int = 1, min_area: int = 30, window: float = 0.06) -> np.ndarray:
     """線で閉じた面ごとに、参考の絵の「同じ部位の、同じあたり」の色を塗る。
@@ -95,14 +102,32 @@ def color_by_parts(line: np.ndarray, line_parts: np.ndarray, reference: np.ndarr
     H, W = line.shape
     yy, xx = np.mgrid[0:H, 0:W]
     out = np.full((H, W, 3), 255, np.uint8)
-    boxes, whole = {}, {}
+    # 同じ物でも、線画と参考で別の部位に分けられることがある（技師の作業着が線画では「ズボン」、参考では「ワンピース」。
+    # 参考では右の靴しか取れない）。同じ部位が参考に無いときは、仲間の部位（服どうし、左右どうし）から色を取る
+    groups = [(4, 5, 6, 7), (9, 10), (12, 13), (14, 15)]
+    boxes, whole, refmask = {}, {}, {}
     for k in np.unique(line_parts):
-        if k == 0 or not (ref_parts == k).any():
+        if k == 0:
+            continue
+        rm = ref_parts == k
+        # 参考に数画素だけある部位も無いと数える（技師の参考に「ズボン」が 204 画素だけあり、その灰色で作業着を塗った）
+        if rm.sum() <= 500:
+            g = next((g for g in groups if k in g), (k,))
+            # 仲間のうち、線画で使われていない部位を優先する（線画の「ズボン」と参考の「ワンピース」を組にする）。
+            # 仲間をまとめて使うと、白いシャツと橙の作業着が混ざった
+            # 線画に数画素だけある部位は使われていないと数える（技師の線画にワンピースが数画素あり、組が作れなかった）
+            spare = [j for j in g if (ref_parts == j).sum() > 500 and (line_parts == j).sum() <= 500]
+            if spare:
+                rm = ref_parts == max(spare, key=lambda j: (ref_parts == j).sum())
+            else:
+                rm = np.isin(ref_parts, g)
+        if not rm.any():
             continue
         ys, xs = np.nonzero(line_parts == k)
-        ry, rx = np.nonzero(ref_parts == k)
+        ry, rx = np.nonzero(rm)
         boxes[k] = ((ys.min(), ys.max(), xs.min(), xs.max()), (ry.min(), ry.max(), rx.min(), rx.max()))
-        whole[k] = np.median(reference[ref_parts == k], 0)
+        whole[k] = middle_color(reference[rm])
+        refmask[k] = rm
     objs = nd.find_objects(lab)
     for r in range(1, n + 1):
         if size[r] < min_area or objs[r - 1] is None:
@@ -119,8 +144,8 @@ def color_by_parts(line: np.ndarray, line_parts: np.ndarray, reference: np.ndarr
         tx = X0 + (cx - x0) / max(x1 - x0, 1) * (X1 - X0)
         ry, rx = max(int((Y1 - Y0) * window), 3), max(int((X1 - X0) * window), 3)
         a0, a1, b0, b1 = int(max(ty - ry, 0)), int(min(ty + ry + 1, H)), int(max(tx - rx, 0)), int(min(tx + rx + 1, W))
-        pick = ref_parts[a0:a1, b0:b1] == k
-        col = np.median(reference[a0:a1, b0:b1][pick], 0) if pick.sum() >= 5 else whole[k]
+        pick = refmask[k][a0:a1, b0:b1]
+        col = middle_color(reference[a0:a1, b0:b1][pick]) if pick.sum() >= 5 else whole[k]
         out[sl][m] = col
     filled = (lab > 0) & (size[lab] >= min_area)
     idx = nd.distance_transform_edt(~filled, return_distances=False, return_indices=True)
