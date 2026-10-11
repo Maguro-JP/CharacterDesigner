@@ -110,5 +110,20 @@ class FlatFill(unittest.TestCase):
         self.assertEqual(tuple(out[50, 30]), (250, 200, 170))  # 顔は髪の色にならない
 
 
+    def test_part_missing_in_reference_takes_neighbor_not_white(self):
+        line = np.full((60, 60), 255, np.uint8)
+        line[30, :] = 0
+        line_parts = np.zeros((60, 60), np.uint8)
+        line_parts[:, :] = 5                             # 上はスカート
+        line_parts[31:] = 12                             # 下は脚（参考では隠れて無い）
+        line_parts[:, :2] = 0                            # 左端は人物の外
+        ref = np.zeros((60, 60, 3), np.uint8)
+        ref_parts = np.zeros((60, 60), np.uint8)
+        ref[10:] = (30, 30, 30); ref_parts[10:] = 5      # 参考はスカートだけ
+        out = lineart.color_by_parts(line, line_parts, ref, ref_parts)
+        self.assertEqual(tuple(out[50, 30]), (30, 30, 30))     # 脚は白でなく隣の色
+        self.assertEqual(tuple(out[50, 0]), (255, 255, 255))   # 人物の外は白
+
+
 if __name__ == "__main__":
     unittest.main()

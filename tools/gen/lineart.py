@@ -105,7 +105,21 @@ def color_by_parts(line: np.ndarray, line_parts: np.ndarray, reference: np.ndarr
     kind[[2]] = 1                     # 髪
     kind[[11]] = 2                    # 顔
     kind[[12, 13, 14, 15]] = 3        # 脚・腕の肌
-    key = lab.astype(np.int64) * 8 + kind[line_parts]
+    k8 = kind[line_parts]
+    # 小さな切れ端（線の面の 15% 未満か 400 画素未満）は分けず、面の多い方にまとめる（襟巻きの上の顔・腕の切れ端が肌色の点になった）
+    base = lab.astype(np.int64) * 8
+    piece = base + k8
+    _, pinv, pcnt = np.unique(piece, return_inverse=True, return_counts=True)
+    psize = pcnt[pinv].reshape(lab.shape)
+    lsize = np.bincount(lab.ravel())[lab]
+    major = np.zeros(lab.max() + 1, np.int64)
+    for kk in range(4):
+        cnt = np.bincount(lab[k8 == kk].ravel(), minlength=lab.max() + 1)
+        better = cnt > np.bincount(lab[k8 == major[lab]].ravel(), minlength=lab.max() + 1) if kk else None
+        major = np.where(better, kk, major) if kk else major
+    small = (psize < np.maximum(400, 0.15 * lsize))
+    k8 = np.where(small, major[lab], k8)
+    key = base + k8
     key[lab == 0] = 0
     _, inv = np.unique(key, return_inverse=True)
     lab = inv.reshape(lab.shape)
@@ -141,6 +155,7 @@ def color_by_parts(line: np.ndarray, line_parts: np.ndarray, reference: np.ndarr
         whole[k] = middle_color(reference[rm])
         refmask[k] = rm
     objs = nd.find_objects(lab)
+    painted = np.zeros(n + 1, bool)
     for r in range(1, n + 1):
         if size[r] < min_area or objs[r - 1] is None:
             continue
@@ -148,6 +163,9 @@ def color_by_parts(line: np.ndarray, line_parts: np.ndarray, reference: np.ndarr
         m = lab[sl] == r
         parts_here = line_parts[sl][m]
         k = int(np.bincount(parts_here).argmax())
+        if k == 0:
+            painted[r] = True            # 人物の外は白で塗り終えたものとする（隣の色で埋めると背景まで色が付いた）
+            continue
         if k not in boxes:
             continue
         (y0, y1, x0, x1), (Y0, Y1, X0, X1) = boxes[k]
@@ -159,7 +177,10 @@ def color_by_parts(line: np.ndarray, line_parts: np.ndarray, reference: np.ndarr
         pick = refmask[k][a0:a1, b0:b1]
         col = middle_color(reference[a0:a1, b0:b1][pick]) if pick.sum() >= 5 else whole[k]
         out[sl][m] = col
-    filled = (lab > 0) & (size[lab] >= min_area)
+        painted[r] = True
+    # 色を取る先が無い面（参考では脚がスカートとタイツで隠れ、「脚」が無い）は塗らずに残し、隣の面の色で埋める。
+    # 白のまま塗り終えたと数えると、スカートの中に白い斑点が残った
+    filled = (lab > 0) & (size[lab] >= min_area) & painted[lab]
     idx = nd.distance_transform_edt(~filled, return_distances=False, return_indices=True)
     out = out[idx[0], idx[1]]
     return (out.astype(float) * (line.astype(float) / 255)[..., None]).astype(np.uint8)
