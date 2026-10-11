@@ -118,7 +118,8 @@ class Runner:
                     redraw(src, "colorful, full color, " + prompt,
                            ", ".join(x for x in (negative, "monochrome, greyscale, sketch, pencil (medium), lineart") if x),
                            seed, 0.93, guide)
-                handdraw.adjust(src, tmp, 3, guide=guide, line_style=spec.line_style, brush=spec.brush or None)
+                handdraw.adjust(src, tmp, 3, guide=guide, line_style=spec.line_style, brush=spec.brush or None,
+                                paint=getattr(spec, "paint_method", "cel"))
                 dst = next_name(out)
                 redraw(f"{tmp}/5-final.png", prompt, negative, seed, 0.6, f"{out}/{dst}")
             return dst
@@ -331,6 +332,7 @@ class StudioIn(BaseModel):
     allow_impossible: bool = False
     brush: str = Field("", pattern="^[a-z]{0,20}$")
     line_style: str = Field("default", pattern="^[a-z]{1,20}$")
+    paint_method: str = Field("cel", pattern="^(cel|grisaille)$")
 
 
 class LikeIn(BaseModel):
@@ -538,7 +540,7 @@ def create_app(runner: Runner | None = None) -> FastAPI:
                 "width": w, "height": h, "tries": body.tries, "direct": body.direct, "lora": body.lora,
                 "paint": body.paint, "format": body.format, "pose": body.pose,
                 "method": body.method, "allow_impossible": body.allow_impossible,
-                "brush": body.brush, "line_style": body.line_style}
+                "brush": body.brush, "line_style": body.line_style, "paint_method": body.paint_method}
         import brushes
         bt = brushes.table()
         if body.brush and body.brush not in bt["brushes"] or body.line_style not in bt["styles"]:

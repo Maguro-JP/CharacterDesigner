@@ -52,7 +52,7 @@ export type LayoutNode =
 
 export type Layout = { id: string; name: string; root: LayoutNode; notes?: string[] };
 
-export type StudioIn = { text: string; prompt: string; negative: string; seed: number; size: "portrait" | "landscape" | "square"; tries: number; direct: boolean; lora: string; paint: string; format: string; pose: string; method: "oneshot" | "handdraw" | "rough"; allow_impossible: boolean; brush: string; line_style: string };
+export type StudioIn = { text: string; prompt: string; negative: string; seed: number; size: "portrait" | "landscape" | "square"; tries: number; direct: boolean; lora: string; paint: string; format: string; pose: string; method: "oneshot" | "handdraw" | "rough"; allow_impossible: boolean; brush: string; line_style: string; paint_method: "cel" | "grisaille" };
 
 export type Job = {
   id: string;

@@ -65,6 +65,7 @@ class Spec:
     method: str = "oneshot"   # 生成手順（docs/knowledge/methods.md）。oneshot（一発）・handdraw（人の順番で仕上げ直す）・rough（ラフから描く）
     allow_impossible: bool = False
     brush: str = ""           # 人の順番で仕上げるときの線のブラシ（casts/brushes.json）。空なら線の作風の既定
+    paint_method: str = "cel"     # 人の順番の塗り方（cel: 影を面で1段、grisaille: 灰色の明暗に色を重ねる）
     line_style: str = "default"   # 線の作風（デフォルメ chibi は太い線など）   # あり得ない形（余分な手足、浮いた物など）を描いてよいか。特別な注文があるときだけ
 
 

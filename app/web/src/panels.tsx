@@ -70,6 +70,7 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
   const [allowImpossible, setAllowImpossible] = useState(false);
   const [brush, setBrush] = useState("");
   const [lineStyle, setLineStyle] = useState("default");
+  const [paintMethod, setPaintMethod] = useState<"cel" | "grisaille">("cel");
   const [brushList, setBrushList] = useState<{ brushes: { id: string; ja: string }[]; styles: string[] }>({ brushes: [], styles: ["default"] });
   useEffect(() => {
     api.brushes().then(setBrushList).catch(() => undefined);
@@ -99,7 +100,7 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
   const submit = () => {
     ctx.setError("");
     api
-      .studioSubmit({ text, prompt, negative, seed, size, tries, direct, lora, paint, format, pose, method, allow_impossible: allowImpossible, brush, line_style: lineStyle })
+      .studioSubmit({ text, prompt, negative, seed, size, tries, direct, lora, paint, format, pose, method, allow_impossible: allowImpossible, brush, line_style: lineStyle, paint_method: paintMethod })
       .then(() => {
         ctx.refreshJobs();
         setSeed((s) => s + tries);   // 次は別の絵になるよう進める（同じ絵を描き直したければ戻せる）
@@ -159,6 +160,13 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
         </label>
         {method !== "oneshot" && (
           <>
+            <label>
+              塗り方
+              <select className="ml-1 rounded border border-line bg-ink px-2 py-1" value={paintMethod} onChange={(e) => setPaintMethod(e.target.value as "cel" | "grisaille")} aria-label="塗り方">
+                <option value="cel">セル塗り（影を面で置く）</option>
+                <option value="grisaille">グリザイユ（灰色の明暗に色を重ねる）</option>
+              </select>
+            </label>
             <label>
               線の作風
               <select className="ml-1 rounded border border-line bg-ink px-2 py-1" value={lineStyle} onChange={(e) => setLineStyle(e.target.value)} aria-label="線の作風">
