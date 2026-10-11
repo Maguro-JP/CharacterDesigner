@@ -63,7 +63,9 @@ class Spec:
     format: str = ""          # 見せ方（同 format）
     pose: str = ""            # 姿勢の下絵の名前（素材の棚の pose）
     method: str = "oneshot"   # 生成手順（docs/knowledge/methods.md）。oneshot（一発）・handdraw（人の順番で仕上げ直す）・rough（ラフから描く）
-    allow_impossible: bool = False   # あり得ない形（余分な手足、浮いた物など）を描いてよいか。特別な注文があるときだけ
+    allow_impossible: bool = False
+    brush: str = ""           # 人の順番で仕上げるときの線のブラシ（casts/brushes.json）。空なら線の作風の既定
+    line_style: str = "default"   # 線の作風（デフォルメ chibi は太い線など）   # あり得ない形（余分な手足、浮いた物など）を描いてよいか。特別な注文があるときだけ
 
 
 @dataclass

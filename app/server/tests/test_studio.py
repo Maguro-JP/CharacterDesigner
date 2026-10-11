@@ -288,7 +288,7 @@ def test_handdraw_endpoint(client, monkeypatch):
     import handdraw
     from PIL import Image
 
-    def fake_run(src, out, guide=None, style="cel2"):
+    def fake_run(src, out, guide=None, style="cel2", line_style="default", brush=None):
         for n in ("1-lines", "2-weight", "3-flats", "4-calc", "4-shade", "5-final"):
             Image.new("RGB", (4, 4)).save(f"{out}/{n}.png")
         Image.new("RGB", (4, 4)).save(f"{out}/4-calc-normal.png")
@@ -322,3 +322,13 @@ def test_methods_and_findings(tmp_path):
     painted3 = []
     r3 = Session(fake_ports([[]], painted3, [])).send(Spec(prompt="1girl"), str(tmp_path))
     assert r3.passed == "try-0.png"                                    # 一発なら仕上げ直さない
+
+
+def test_brush_choice(client):
+    c, _ = client(FakeRunner())
+    b = c.get("/api/brushes").json()
+    assert {x["id"] for x in b["brushes"]} >= {"maru", "gpen", "pencil"} and "chibi" in b["styles"]
+    assert c.post("/api/studio/jobs", json={"prompt": "1girl", "brush": "nope"}).status_code == 422
+    assert c.post("/api/studio/jobs", json={"prompt": "1girl", "line_style": "nope"}).status_code == 422
+    j = c.post("/api/studio/jobs", json={"prompt": "1girl", "method": "handdraw", "brush": "maru", "line_style": "chibi"}).json()
+    assert j["free"]["brush"] == "maru" and j["free"]["line_style"] == "chibi"

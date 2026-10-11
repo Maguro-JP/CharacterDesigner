@@ -43,6 +43,9 @@ export function galleryItems(jobs: Job[]): Item[] {
   return out.filter((i) => i.job.files.includes(i.file));
 }
 
+// 線の作風の日本語名（casts/brushes.json の styles）
+const LINE_JA = {default: "標準", chibi: "デフォルメ（太い線）", cute: "かわいい（丸い線）", cool: "格好いい（鋭い線）", manga: "漫画", sketch: "鉛筆"};
+
 const SIZES: Record<StudioIn["size"], string> = { portrait: "縦長", landscape: "横長", square: "正方形" };
 
 function PromptPanel({ ctx }: { ctx: Ctx }) {
@@ -65,6 +68,12 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
   const [pose, setPose] = useState("");
   const [method, setMethod] = useState<StudioIn["method"]>("oneshot");
   const [allowImpossible, setAllowImpossible] = useState(false);
+  const [brush, setBrush] = useState("");
+  const [lineStyle, setLineStyle] = useState("default");
+  const [brushList, setBrushList] = useState<{ brushes: { id: string; ja: string }[]; styles: string[] }>({ brushes: [], styles: ["default"] });
+  useEffect(() => {
+    api.brushes().then(setBrushList).catch(() => undefined);
+  }, []);
   const [shelf, setShelf] = useState<{ lora: Lora[]; pose: { name: string; title: string; license: string; usable: boolean; why: string }[]; dir: string }>({ lora: [], pose: [], dir: "" });
   useEffect(() => {
     api.assets().then(setShelf).catch(() => setShelf({ lora: [], pose: [], dir: "" }));
@@ -90,7 +99,7 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
   const submit = () => {
     ctx.setError("");
     api
-      .studioSubmit({ text, prompt, negative, seed, size, tries, direct, lora, paint, format, pose, method, allow_impossible: allowImpossible })
+      .studioSubmit({ text, prompt, negative, seed, size, tries, direct, lora, paint, format, pose, method, allow_impossible: allowImpossible, brush, line_style: lineStyle })
       .then(() => {
         ctx.refreshJobs();
         setSeed((s) => s + tries);   // 次は別の絵になるよう進める（同じ絵を描き直したければ戻せる）
@@ -148,6 +157,23 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
             <option value="rough">ラフから人の順番で描く（こだわる）</option>
           </select>
         </label>
+        {method !== "oneshot" && (
+          <>
+            <label>
+              線の作風
+              <select className="ml-1 rounded border border-line bg-ink px-2 py-1" value={lineStyle} onChange={(e) => setLineStyle(e.target.value)} aria-label="線の作風">
+                {brushList.styles.map((x) => <option key={x} value={x}>{(LINE_JA as Record<string, string>)[x] ?? x}</option>)}
+              </select>
+            </label>
+            <label>
+              ブラシ
+              <select className="ml-1 rounded border border-line bg-ink px-2 py-1" value={brush} onChange={(e) => setBrush(e.target.value)} aria-label="線のブラシ">
+                <option value="">作風のまま</option>
+                {brushList.brushes.map((x) => <option key={x.id} value={x.id}>{x.ja}</option>)}
+              </select>
+            </label>
+          </>
+        )}
         <label className="flex items-center gap-1" title="余分な手足・浮いた物など、あり得ない形を描いてよいか。特別な注文のときだけ">
           <input type="checkbox" checked={allowImpossible} onChange={(e) => setAllowImpossible(e.target.checked)} />
           あり得ない形を許す

@@ -52,7 +52,7 @@ export type LayoutNode =
 
 export type Layout = { id: string; name: string; root: LayoutNode; notes?: string[] };
 
-export type StudioIn = { text: string; prompt: string; negative: string; seed: number; size: "portrait" | "landscape" | "square"; tries: number; direct: boolean; lora: string; paint: string; format: string; pose: string; method: "oneshot" | "handdraw" | "rough"; allow_impossible: boolean };
+export type StudioIn = { text: string; prompt: string; negative: string; seed: number; size: "portrait" | "landscape" | "square"; tries: number; direct: boolean; lora: string; paint: string; format: string; pose: string; method: "oneshot" | "handdraw" | "rough"; allow_impossible: boolean; brush: string; line_style: string };
 
 export type Job = {
   id: string;
@@ -130,7 +130,9 @@ export const api = {
   llm: () => call<LlmStatus>("/api/llm"),
   roles: () => call<Role[]>("/api/studio/roles"),
   styles: () => call<Record<"paint" | "format", { id: string; ja: string; refs: string }[]>>("/api/styles"),
-  handdraw: (jobId: string, file: string) => call<{ files: string[]; regions: number }>(`/api/handdraw/${jobId}/${file}`, { method: "POST" }),
+  handdraw: (jobId: string, file: string, brush = "", lineStyle = "default") =>
+    call<{ files: string[]; regions: number }>(`/api/handdraw/${jobId}/${file}?brush=${brush}&line_style=${lineStyle}`, { method: "POST" }),
+  brushes: () => call<{ brushes: { id: string; ja: string }[]; styles: string[] }>("/api/brushes"),
   assets: () => call<{ lora: Lora[]; pose: { name: string; title: string; license: string; usable: boolean; why: string }[]; dir: string }>("/api/assets"),
   memory: () => call<Memory[]>("/api/memory"),
   like: (jobId: string, file: string) => call<Memory>("/api/memory/like", { method: "POST", body: JSON.stringify({ job_id: jobId, file }) }),

@@ -8,8 +8,8 @@
   "pencil": {"ja": "鉛筆（粒のある細線）",     "width": 1.6, "taper": 0.25, "jitter": 0.25, "grain": 0.6, "cap": "round"},
   "marker": {"ja": "マーカー（太く均一）",     "width": 4.5, "taper": 0.0,  "jitter": 0.0,  "grain": 0.0, "cap": "round"}
  },
+ "_styles_doc": "作風ごとの既定。line_scale は線の太さの倍率（デフォルメは太く）",
  "styles": {
-  "_doc": "作風ごとの既定。line_scale は線の太さの倍率（デフォルメは太く）",
   "default": {"brush": "gpen", "line_scale": 1.0},
   "chibi":   {"brush": "maru", "line_scale": 1.6},
   "cute":    {"brush": "maru", "line_scale": 1.2},

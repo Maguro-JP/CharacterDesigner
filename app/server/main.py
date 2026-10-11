@@ -114,7 +114,7 @@ class Runner:
                 if method == "rough":
                     guide = f"{tmp}/guide.png"
                     redraw(src, prompt, negative, seed, 0.8, guide)
-                handdraw.run(src, tmp, guide=guide)
+                handdraw.run(src, tmp, guide=guide, line_style=spec.line_style, brush=spec.brush or None)
                 dst = next_name(out)
                 redraw(f"{tmp}/5-final.png", prompt, negative, seed, 0.6, f"{out}/{dst}")
             return dst
@@ -321,6 +321,8 @@ class StudioIn(BaseModel):
     pose: str = Field("", max_length=48)
     method: str = Field("oneshot", pattern="^(oneshot|handdraw|rough)$")
     allow_impossible: bool = False
+    brush: str = Field("", pattern="^[a-z]{0,20}$")
+    line_style: str = Field("default", pattern="^[a-z]{1,20}$")
 
 
 class LikeIn(BaseModel):
@@ -475,7 +477,7 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         return {k: [{"id": i, "ja": v["ja"], "refs": v.get("refs", "")} for i, v in st[k].items()] for k in ("paint", "format")}
 
     @app.post("/api/handdraw/{job_id}/{name}")
-    def handdraw_job(job_id: str, name: str):
+    def handdraw_job(job_id: str, name: str, brush: str = "", line_style: str = "default"):
         # 描いた絵を、人の描き方の順番（線を閉じる → 強弱 → 下塗り → 影 → 線）で描き直す（docs/knowledge/drawing-process.md）。
         # 段ごとの絵を hd-<元の名前>-<段>-<名前>.png として同じ仕事の置き場に置く。模型を使わないので 30 秒ほど
         import handdraw
@@ -486,13 +488,24 @@ def create_app(runner: Runner | None = None) -> FastAPI:
             raise HTTPException(404, "その絵は無い")
         stem = name[:-4]
         with tempfile.TemporaryDirectory() as tmp:
-            r = handdraw.run(str(DATA / job_id / name), tmp)
+            import brushes
+            bt = brushes.table()
+            if brush and brush not in bt["brushes"] or line_style not in bt["styles"]:
+                raise HTTPException(422, "そのブラシ・線の作風は無い")
+            r = handdraw.run(str(DATA / job_id / name), tmp, line_style=line_style, brush=brush or None)
             out = []
             for f in sorted(p for p in Path(tmp).glob("[1-5]-*.png") if re.fullmatch(r"[1-5]-[a-z]+\.png", p.name)):
                 dst = f"hd-{stem}-{f.name}"
                 shutil.move(str(f), DATA / job_id / dst)
                 out.append(dst)
         return {"files": out, **r}
+
+    @app.get("/api/brushes")
+    def get_brushes():
+        import brushes
+        bt = brushes.table()
+        return {"brushes": [{"id": k, "ja": v["ja"]} for k, v in bt["brushes"].items()],
+                "styles": [k for k in bt["styles"] if not k.startswith("_")]}
 
     @app.get("/api/assets")
     def list_assets():
@@ -516,7 +529,12 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         spec = {"text": body.text, "prompt": body.prompt, "negative": body.negative, "seed": body.seed,
                 "width": w, "height": h, "tries": body.tries, "direct": body.direct, "lora": body.lora,
                 "paint": body.paint, "format": body.format, "pose": body.pose,
-                "method": body.method, "allow_impossible": body.allow_impossible}
+                "method": body.method, "allow_impossible": body.allow_impossible,
+                "brush": body.brush, "line_style": body.line_style}
+        import brushes
+        bt = brushes.table()
+        if body.brush and body.brush not in bt["brushes"] or body.line_style not in bt["styles"]:
+            raise HTTPException(422, "そのブラシ・線の作風は無い")
         if body.pose and assets.get_pose(body.pose) is None:
             raise HTTPException(422, f"姿勢の下絵「{body.pose}」は使えない（無いか、出典とライセンスが書かれていない）")
         st = studio_session_styles()
