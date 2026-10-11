@@ -23,9 +23,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import human  # noqa: E402
 
 # 人形の座標: 前は -Y、右手は -X、身長はおよそ 1.7
-HAND = Vector((-0.20, -0.16, 1.36))   # 右手を置く所。右肩の前、鎖骨より少し下
-SHOULDER = Vector((-0.17, 0.0, 1.46))  # 柄が載る所。右肩の上
-SKIN, CLOTH = (240, 200, 170), (235, 120, 40)  # 下絵の色。設定資料の肌とつなぎに合わせる
+HAND = Vector((-0.22, -0.11, 1.44))   # 右手を置く所。右肩のすぐ前、肩の高さ
+SHOULDER = Vector((-0.18, 0.06, 1.51))  # 柄が載る所。右肩の上の後ろ寄り
+SKIN, CLOTH, SHIRT = (240, 200, 170), (235, 120, 40), (245, 245, 240)  # 下絵の色。設定資料の肌とつなぎに合わせる
 CAMERA = Vector((-3.55, -3.15, 1.45))  # 正面から右手側へ回った目の高さ
 CURL = 70  # 指の関節ごとの曲げ（度）
 ELBOW_POLE = Vector((-0.45, -0.10, 1.00))  # 肘を外へ下ろす向き
@@ -175,6 +175,15 @@ def main(argv):
     # 下絵は設定の色で塗る。白い人形のまま描き換えを弱めると、白がそのまま服の色として残った
     human.assign([h], tinted("skin", SKIN))
     human.assign(clothed, tinted("cloth", CLOTH))
+    # つなぎは袖まで1枚の布なので、腕と肩の部分の面だけを白い T シャツの色にする。
+    # 全部オレンジのままだと、T シャツまでオレンジに描かれた
+    shirt = tinted("shirt", SHIRT)
+    for o in clothed:
+        o.data.materials.append(shirt)
+        for f in o.data.polygons:
+            c = o.matrix_world @ f.center
+            if c.z > 1.2 and abs(c.x) > 0.16:
+                f.material_index = len(o.data.materials) - 1
     metal = human.flat_material("metal", (90, 90, 90), False)
     metal.node_tree.nodes["Diffuse BSDF"].inputs["Color"].default_value = (0.15, 0.15, 0.17, 1)
     human.assign(parts, metal)

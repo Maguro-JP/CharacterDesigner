@@ -2,7 +2,7 @@
  "id": "mechanic",
  "name": "大スパナの技師",
  "look": "1boy, solo, short brown hair, brown eyes",
- "outfit": "goggles on head, orange overalls, white t-shirt, brown leather gloves, brown work boots",
+ "outfit": "goggles on head, white t-shirt under orange bib overalls with shoulder straps, brown leather gloves, brown work boots",
  "negative": "shirtless, tool belt, pouch, holster, holding pliers, holding tools in left hand",
  "items": [
   {
@@ -12,7 +12,7 @@
    "desc": "背丈ほどある大スパナ",
    "hold": "weapon over shoulder, right hand gripping the handle",
    "size": "wrench taller than him",
-   "avoid": "small wrench, wrench on belt, tools in pouch, extra arms, extra hands, blade, sword, spear, axe, hammer, tool belt, pouch, double-ended wrench, box end wrench, ring spanner, combination wrench, ring on handle, washer, disc on handle, second wrench, small wrench in hand"
+   "avoid": "small wrench, wrench on belt, tools in pouch, extra arms, extra hands, blade, sword, spear, axe, hammer, tool belt, pouch, double-ended wrench, box end wrench, ring spanner, combination wrench, ring on handle, washer, disc on handle, second wrench, small wrench in hand, wrench across chest"
   }
  ],
  "images": {
