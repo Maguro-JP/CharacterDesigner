@@ -114,7 +114,7 @@ class Runner:
                 if method == "rough":
                     guide = f"{tmp}/guide.png"
                     redraw(src, prompt, negative, seed, 0.8, guide)
-                handdraw.run(src, tmp, guide=guide, line_style=spec.line_style, brush=spec.brush or None)
+                handdraw.adjust(src, tmp, 3, guide=guide, line_style=spec.line_style, brush=spec.brush or None)
                 dst = next_name(out)
                 redraw(f"{tmp}/5-final.png", prompt, negative, seed, 0.6, f"{out}/{dst}")
             return dst
