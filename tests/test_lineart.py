@@ -1,0 +1,44 @@
+"""線画の清書（tools/gen/lineart.py clean）の試験。"""
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+import numpy as np
+from PIL import Image
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools" / "gen"))
+import lineart  # noqa: E402
+
+try:
+    import skimage  # noqa: F401
+except ImportError:
+    skimage = None
+
+
+@unittest.skipIf(skimage is None, "scikit-image が無い（.cache/gen/lib に入る）")
+class Clean(unittest.TestCase):
+    def run_clean(self, img):
+        with tempfile.TemporaryDirectory() as d:
+            Image.fromarray(img).save(f"{d}/in.png")
+            lineart.clean(f"{d}/in.png", f"{d}/out.png")
+            return np.asarray(Image.open(f"{d}/out.png"))
+
+    def test_thin_faint_line_kept_broad_shadow_removed(self):
+        img = np.full((120, 120), 215, np.uint8)       # 灰色の地
+        img[20:100, 10:50] = 160                       # 広い灰色の影
+        img[60, 60:110] = 150                          # 薄く細い線（目の線のような）
+        out = self.run_clean(img)
+        self.assertTrue((out[40:80, 20:40] > 200).all())   # 影は白くなる
+        self.assertLess(out[60, 70:100].mean(), 80)          # 細い線は残る
+        self.assertTrue((out[:10] == 255).all())             # 地は白
+
+    def test_thick_dark_line_is_filled(self):
+        img = np.full((120, 120), 215, np.uint8)
+        img[40:52, 10:110] = 40                        # 太さ 12 の濃い線
+        out = self.run_clean(img)
+        self.assertLess(out[46, 20:100].mean(), 30)          # 中が抜けない
+
+
+if __name__ == "__main__":
+    unittest.main()
