@@ -134,7 +134,7 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2") ->
     shadow = person & (calc < base * 0.93)
     shadow = _shrink(_grow(shadow, 2), 2)            # 細かい斑を面にまとめる
     shaded = flat.astype(float).copy()
-    tint = np.array([0.72, 0.70, 0.86])              # 影は寒色寄りに落とす（黒を混ぜると濁る）
+    tint = np.array([0.62, 0.60, 0.80])              # 影は寒色寄りに落とす（黒を混ぜると濁る）
     shaded[shadow] = shaded[shadow] * tint
     shaded = shaded.clip(0, 255).astype(np.uint8)
     Image.fromarray(shaded).save(out / "4-shade.png")
