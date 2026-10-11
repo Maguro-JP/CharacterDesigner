@@ -78,7 +78,7 @@ class Runner:
             import shutil
             import tempfile
             with tempfile.TemporaryDirectory() as tmp:
-                free_text.draw(prompt, negative, Path(tmp), seed, 1, w, h, lora=spec.lora)
+                free_text.draw(prompt, negative, Path(tmp), seed, 1, w, h, lora=spec.lora, pose=spec.pose)
                 shutil.move(f"{tmp}/try-0.png", f"{out}/{name}")
             return name
 
@@ -280,6 +280,7 @@ class StudioIn(BaseModel):
     lora: str = Field("", max_length=48)
     paint: str = Field("", max_length=20)
     format: str = Field("", max_length=20)
+    pose: str = Field("", max_length=48)
 
 
 class LikeIn(BaseModel):
@@ -436,7 +437,7 @@ def create_app(runner: Runner | None = None) -> FastAPI:
     @app.get("/api/assets")
     def list_assets():
         # 素材の棚。使えない素材（出典とライセンスが無い）も理由付きで出す
-        return {"lora": assets.list_loras(), "dir": str(assets.LORA)}
+        return {"lora": assets.list_loras(), "pose": assets.list_poses(), "dir": str(assets.LORA)}
 
     @app.get("/api/studio/roles")
     def studio_roster():
@@ -454,7 +455,9 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         w, h = SIZES[body.size]
         spec = {"text": body.text, "prompt": body.prompt, "negative": body.negative, "seed": body.seed,
                 "width": w, "height": h, "tries": body.tries, "direct": body.direct, "lora": body.lora,
-                "paint": body.paint, "format": body.format}
+                "paint": body.paint, "format": body.format, "pose": body.pose}
+        if body.pose and assets.get_pose(body.pose) is None:
+            raise HTTPException(422, f"姿勢の下絵「{body.pose}」は使えない（無いか、出典とライセンスが書かれていない）")
         st = studio_session_styles()
         if body.paint and body.paint not in st["paint"] or body.format and body.format not in st["format"]:
             raise HTTPException(422, "その塗り・見せ方は無い")

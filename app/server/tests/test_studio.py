@@ -268,3 +268,17 @@ def test_retry_does_not_pile_up_negatives_and_allows_pets():
     _, n, _ = fix_for(["右脚が無い"], "1girl", n)
     assert n.count("missing limb") == 1
     assert checks_for("1girl, full body, simple background, cat")["objects"] is False
+
+
+def test_pose_shelf(client, monkeypatch, tmp_path):
+    import assets
+    from PIL import Image
+    monkeypatch.setattr(assets, "POSE", tmp_path)
+    Image.new("RGB", (16, 24), "white").save(tmp_path / "src.png")
+    assets.add_pose(str(tmp_path / "src.png"), "standing", "own", "立ち")
+    Image.new("RGB", (16, 24), "white").save(tmp_path / "nolicense.png")
+    c, _ = client(FakeRunner())
+    poses = {x["name"]: x for x in c.get("/api/assets").json()["pose"]}
+    assert poses["standing"]["usable"] and not poses["nolicense"]["usable"]
+    assert c.post("/api/studio/jobs", json={"prompt": "1girl", "pose": "nolicense"}).status_code == 422
+    assert c.post("/api/studio/jobs", json={"prompt": "1girl", "pose": "standing"}).json()["free"]["pose"] == "standing"

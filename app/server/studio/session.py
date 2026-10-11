@@ -53,6 +53,7 @@ class Spec:
     lora: str = ""            # 素材の棚の LoRA の名前（空なら使わない）
     paint: str = ""           # 塗り（casts/paint-styles.json の paint）
     format: str = ""          # 見せ方（同 format）
+    pose: str = ""            # 姿勢の下絵の名前（素材の棚の pose）
 
 
 @dataclass

@@ -59,9 +59,10 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
   useEffect(() => {
     api.styles().then(setStyles).catch(() => setStyles({ paint: [], format: [] }));
   }, []);
-  const [shelf, setShelf] = useState<{ lora: Lora[]; dir: string }>({ lora: [], dir: "" });
+  const [pose, setPose] = useState("");
+  const [shelf, setShelf] = useState<{ lora: Lora[]; pose: { name: string; title: string; license: string; usable: boolean; why: string }[]; dir: string }>({ lora: [], pose: [], dir: "" });
   useEffect(() => {
-    api.assets().then(setShelf).catch(() => setShelf({ lora: [], dir: "" }));
+    api.assets().then(setShelf).catch(() => setShelf({ lora: [], pose: [], dir: "" }));
   }, []);
 
   // 描く言葉を先に見たいとき。見なくても、頼めば読み手（INTERPRETER）が読む
@@ -84,7 +85,7 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
   const submit = () => {
     ctx.setError("");
     api
-      .studioSubmit({ text, prompt, negative, seed, size, tries, direct, lora, paint, format })
+      .studioSubmit({ text, prompt, negative, seed, size, tries, direct, lora, paint, format, pose })
       .then(() => {
         ctx.refreshJobs();
         setSeed((s) => s + tries);   // 次は別の絵になるよう進める（同じ絵を描き直したければ戻せる）
@@ -156,6 +157,15 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
               <option key={l.name} value={l.name} disabled={!l.usable} title={l.usable ? `${l.license}・${l.source}` : l.why}>
                 {l.title}{l.usable ? "" : "（出典なし）"}
               </option>
+            ))}
+          </select>
+        </label>
+        <label>
+          姿勢
+          <select className="ml-1 rounded border border-line bg-ink px-2 py-1" value={pose} onChange={(e) => setPose(e.target.value)} aria-label="姿勢の下絵">
+            <option value="">おまかせ</option>
+            {shelf.pose.map((x) => (
+              <option key={x.name} value={x.name} disabled={!x.usable} title={x.usable ? x.license : x.why}>{x.title}</option>
             ))}
           </select>
         </label>
