@@ -116,7 +116,8 @@ class FlatFill(unittest.TestCase):
         line_parts = np.zeros((60, 60), np.uint8)
         line_parts[:, :] = 5                             # 上はスカート
         line_parts[31:] = 12                             # 下は脚（参考では隠れて無い）
-        line_parts[:, :2] = 0                            # 左端は人物の外
+        line_parts[:, :6] = 0                            # 左端は人物の外
+        line[:, 6] = 0                                   # 人物の外形の線
         ref = np.zeros((60, 60, 3), np.uint8)
         ref_parts = np.zeros((60, 60), np.uint8)
         ref[10:] = (30, 30, 30); ref_parts[10:] = 5      # 参考はスカートだけ
