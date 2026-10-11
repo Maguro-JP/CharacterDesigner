@@ -43,7 +43,7 @@
 - [x] インペインティング（範囲を描き直す。`edit.py` にあるものを呼べるようにする）とアウトペインティング（絵の外を描き足す）: `imgproc.py inpaint / outpaint`。丸窓を描き足せ、描き足しの横縞も消えた。描き足しの左の境目にうっすら筋が残る。`docs/knowledge/imgproc.md`
 - [ ] 超解像（拡大して細部を足す）
 - [x] 線画の抽出（塗り絵や清書の下地）: `imgproc.py lineart`（XDoG、模型なし、1枚 1秒以内。`library/samples/imgproc-lineart.jpg`）
-- [ ] 線画への着色
+- [ ] 線画への着色: 白い線画から描き直す（img2img）だけでは塗れない。強さ 0.93 は色が付くが形が変わり、0.72・0.82 は形を守るが色がほとんど乗らない（`library/samples/imgproc-colorize-strength.jpg`）。次の手: 人と同じく、先に閉じた領域へ平らな色を置いてから描き直す（`handdraw.py` の下塗りを使う）
 - [ ] 色の置き換え・色調補正・色合わせ（`layers.py` の色寄せを単体で呼べるように）
 - [ ] 姿勢推定（骨格の点を取る。ポーズを付けて描くとき、骨格で崩れを数える）
 - [ ] 奥行き推定（`layers.py` の Depth Anything を単体で）と、法線から光を当て直すリライティング
