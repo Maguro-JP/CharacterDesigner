@@ -15,7 +15,8 @@
  "images": {
   "color": "bible/characters/mechanic/color.jpg",
   "lineart": "bible/characters/mechanic/lineart.jpg",
-  "colored-lineart": "bible/characters/mechanic/colored-lineart.jpg"
+  "colored-lineart": "bible/characters/mechanic/colored-lineart.jpg",
+  "scene-hall": "bible/characters/mechanic/scene-hall.jpg"
  },
  "palette": [
   "#7b8083",

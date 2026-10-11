@@ -333,6 +333,19 @@ class StudioIn(BaseModel):
     brush: str = Field("", pattern="^[a-z]{0,20}$")
     line_style: str = Field("default", pattern="^[a-z]{1,20}$")
     paint_method: str = Field("cel", pattern="^(cel|grisaille)$")
+    # 設定資料集（bible/）から描く: 保存したキャラクターの見た目・服・持ち物と、世界観の場所で描く言葉を組む
+    character: str = Field("", pattern="^[a-z0-9-]{0,40}$")
+    world: str = Field("", pattern="^[a-z0-9-]{0,40}$")
+    location: str = Field("", pattern="^[a-z0-9-]{0,40}$")
+    scene: str = Field("", max_length=200)
+    act: str = Field("", max_length=200)          # ポーズ・しぐさ（素材の棚の pose とは別）
+    outfit: str = Field("", max_length=300)        # 空ならいつもの服
+
+
+class SceneIn(BaseModel):
+    job_id: str = Field(max_length=40)
+    file: str = Field(max_length=60)
+    name: str = Field(pattern="^[a-z0-9-]{1,40}$")
 
 
 class LikeIn(BaseModel):
@@ -481,6 +494,36 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         remember(rec)
         return rec
 
+    @app.get("/api/bible")
+    def bible_list():
+        # 保存したキャラクターと世界観の一覧（画面の選択欄に使う）
+        import bible
+        out = {"characters": [], "worlds": []}
+        for kind in ("characters", "worlds"):
+            d = bible.BIBLE / kind
+            for p in sorted(d.glob("*.json")) if d.exists() else []:
+                x = json.loads(p.read_text(encoding="utf-8"))
+                if kind == "characters":
+                    out[kind].append({"id": x["id"], "name": x["name"], "items": [{"id": i["id"], "name": i["name"]} for i in x["items"]]})
+                else:
+                    out[kind].append({"id": x["id"], "name": x["name"], "locations": [{"id": l["id"], "name": l["name"]} for l in x["locations"]]})
+        return out
+
+    @app.post("/api/bible/{character}/scene")
+    def bible_scene(character: str, body: SceneIn):
+        # 描いた絵を、そのキャラクターの場面として設定資料集に残す
+        import bible
+        if not re.fullmatch(r"[a-z0-9-]{1,40}", character):
+            raise HTTPException(404, "そのキャラクターは無い")
+        j = jobs.jobs.get(body.job_id)
+        if j is None or body.file not in j.public()["files"]:
+            raise HTTPException(404, "その絵は無い")
+        try:
+            path = bible.add_image(character, "scene-" + body.name, str(DATA / j.id / body.file))
+        except SystemExit as e:
+            raise HTTPException(404, str(e))
+        return {"saved": path}
+
     @app.get("/api/styles")
     def get_styles():
         st = studio_session_styles()
@@ -529,6 +572,16 @@ def create_app(runner: Runner | None = None) -> FastAPI:
     @app.post("/api/studio/jobs", status_code=202)
     def post_studio_job(body: StudioIn):
         # 頼みごとか描く言葉のどちらかが要る。描かない頼みごとは受け付けの時点でも止める（核でももう一度止める）
+        if body.character:
+            import bible
+            try:
+                pos, neg = bible.prompt(body.character, scene=body.scene, pose=body.act, outfit=body.outfit or None,
+                                        world=body.world or None, location=body.location or None)
+            except SystemExit as e:
+                raise HTTPException(404, str(e))
+            body.prompt = pos
+            body.negative = ", ".join(x for x in (body.negative, neg) if x)
+            body.direct = True
         if not body.text.strip() and not body.prompt.strip():
             raise HTTPException(422, "頼みごとか描く言葉を書く")
         for t in (body.text, body.prompt):
