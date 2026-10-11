@@ -105,7 +105,7 @@ class Runner:
         def finish(name, method, prompt, negative, seed, out):
             """生成手順の仕上げ。docs/knowledge/drawing-process.md と methods.md の順番で描く。
             handdraw: 通った絵 → 線を閉じる・強弱・下塗り・影・線 → 弱く描き直して整える（0.6）
-            rough:    ラフ → ラフを下絵に色の手本（0.8）→ ラフの線と手本の色で人の順番 → 弱く描き直して整える（0.6）"""
+            rough:    ラフ → ラフを下絵に色の手本（0.93、白黒を打ち消す）→ ラフの線と手本の色で人の順番 → 弱く描き直して整える（0.6）"""
             import handdraw
             import tempfile
             src = f"{out}/{name}"
@@ -113,7 +113,11 @@ class Runner:
                 guide = None
                 if method == "rough":
                     guide = f"{tmp}/guide.png"
-                    redraw(src, prompt, negative, seed, 0.8, guide)
+                    # 白い紙の鉛筆のラフは、0.8 では白黒のまま返った（彩度 17、色の言葉を足しても 19）。
+                    # 0.93 にし、白黒を打ち消すと、構えを残したまま陰影と差し色が入った（25.6）
+                    redraw(src, "colorful, full color, " + prompt,
+                           ", ".join(x for x in (negative, "monochrome, greyscale, sketch, pencil (medium), lineart") if x),
+                           seed, 0.93, guide)
                 handdraw.adjust(src, tmp, 3, guide=guide, line_style=spec.line_style, brush=spec.brush or None)
                 dst = next_name(out)
                 redraw(f"{tmp}/5-final.png", prompt, negative, seed, 0.6, f"{out}/{dst}")
