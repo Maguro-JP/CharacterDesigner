@@ -578,6 +578,44 @@ def lineart(src: str, out: str, sigma: float = 1.4, k: float = 1.6, tau: float =
     return {"line_ratio": round(float(line.mean()), 4), "size": list(line.shape[::-1])}
 
 
+def face_fix(src: str, out: str, prompt: str = "1girl, detailed face, detailed eyes", strength: float = 0.35, seed: int = 7) -> dict:
+    """顔だけを拡大して描き直し、元の大きさに戻して貼る（人の描き手が目と顔を最後に拡大して描き込むのと同じ）。
+    全身の絵では顔が小さく、描く模型の解像度では目が崩れやすい。部位分けの顔（11）と髪（2）の外接枠を 1024 に拡大して
+    弱く（0.35）描き直し、縁をぼかして元へ戻す"""
+    import torch
+    import demi
+    import design
+    sys.path.insert(0, str(Path(__file__).parent))
+    import edit
+    import free_text
+    im = Image.open(src).convert("RGB")
+    lab = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST))
+    face = lab == 11
+    if face.sum() < 200:
+        return {"fixed": False, "why": "顔が見つからない"}
+    ys, xs = np.nonzero(face)
+    cy, cx = (ys.min() + ys.max()) // 2, (xs.min() + xs.max()) // 2
+    half = int(max(ys.max() - ys.min(), xs.max() - xs.min()) * 0.9) + 16
+    box = (max(cx - half, 0), max(cy - half, 0), min(cx + half, im.width), min(cy + half, im.height))
+    crop = im.crop(box)
+    big = crop.resize((1024, 1024), Image.LANCZOS)
+    pipe = demi.img2img()
+    pos, neg = free_text.full_prompt(prompt, "")
+    pe, ne, pp, np_ = design.encode_xl(pipe, pos, neg)
+    redrawn = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
+                   image=big, strength=strength, num_inference_steps=24, guidance_scale=6.0,
+                   generator=torch.Generator().manual_seed(seed)).images[0]
+    small = redrawn.resize(crop.size, Image.LANCZOS)
+    w, h = crop.size
+    m = Image.new("L", (w, h), 0)
+    from PIL import ImageDraw as _D
+    _D.Draw(m).ellipse([w * 0.08, h * 0.08, w * 0.92, h * 0.92], fill=255)
+    m = m.filter(ImageFilter.GaussianBlur(max(w // 16, 2)))
+    im.paste(small, box[:2], m)
+    im.save(out)
+    return {"fixed": True, "box": [int(v) for v in box]}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -597,6 +635,7 @@ def main():
     de = sub.add_parser("deai"); de.add_argument("src"); de.add_argument("out"); de.add_argument("--steps", type=int, default=10)
     nt = sub.add_parser("notan"); nt.add_argument("src"); nt.add_argument("out"); nt.add_argument("--size", type=int, default=96)
     lw = sub.add_parser("lineweight"); lw.add_argument("src")
+    ff = sub.add_parser("facefix"); ff.add_argument("src"); ff.add_argument("out"); ff.add_argument("--prompt", default="1girl, detailed face, detailed eyes")
     la = sub.add_parser("lineart"); la.add_argument("src"); la.add_argument("out"); la.add_argument("--sigma", type=float, default=1.4)
     ip = sub.add_parser("inpaint"); ip.add_argument("src"); ip.add_argument("out"); ip.add_argument("--prompt", required=True)
     ip.add_argument("--box", default=None); ip.add_argument("--mask", default=None); ip.add_argument("--seed", type=int, default=7)
@@ -610,6 +649,7 @@ def main():
           "aitells": lambda: ai_tells(a.src), "deai": lambda: de_ai(a.src, a.out, a.steps),
           "notan": lambda: notan(a.src, a.out, a.size), "lineweight": lambda: line_weight(a.src),
           "lineart": lambda: lineart(a.src, a.out, a.sigma),
+          "facefix": lambda: face_fix(a.src, a.out, a.prompt),
           "inpaint": lambda: inpaint(a.src, a.out, a.prompt, tuple(int(v) for v in a.box.split(",")) if a.box else None, a.mask, seed=a.seed),
           "outpaint": lambda: outpaint(a.src, a.out, a.prompt, tuple(int(v) for v in a.pad.split(",")), seed=a.seed)}[a.cmd]
     print(json.dumps(fn(), ensure_ascii=False))
