@@ -152,9 +152,12 @@ def prompt(ident: str, scene: str = "", pose: str = "", outfit: str | None = Non
     return pos, neg
 
 
-def draw(ident: str, outdir: str, count: int = 1, seed: int = 0, ref_scale: float = 0.6, **kw) -> list[str]:
+def draw(ident: str, outdir: str, count: int = 1, seed: int = 0, ref_scale: float = 0.6, base: str | None = None,
+         strength: float = 0.8, **kw) -> list[str]:
     """組み立てた言葉で描く。色の手本があれば IP-Adapter で読ませる（顔つき・配色を寄せる）。
-    ref_scale を上げるほど手本に似るが、構図やポーズも手本に引っ張られる"""
+    ref_scale を上げるほど手本に似るが、構図やポーズも手本に引っ張られる。
+    base に下絵（人形に持ち物を持たせて描いた絵、tools/engine/pose_prop.py）を渡すと、そこから描き換える。
+    言葉だけでは手と持ち物のつながりが崩れたため、位置だけは下絵で決める。strength が低いほど下絵の形が残る"""
     import torch
     from PIL import Image
     sys.path.insert(0, str(Path(__file__).parent))
@@ -165,6 +168,10 @@ def draw(ident: str, outdir: str, count: int = 1, seed: int = 0, ref_scale: floa
     pos, neg = prompt(ident, **kw)
     pos, neg = free_text.full_prompt(pos, neg)
     pipe = people.pipe()
+    start = None
+    if base:
+        import demi
+        start = Image.open(base).convert("RGB").resize((832, 1216))
     ref = None
     if c["images"].get("color") and ref_scale > 0:
         people.use_reference()
@@ -180,7 +187,14 @@ def draw(ident: str, outdir: str, count: int = 1, seed: int = 0, ref_scale: floa
         if ref is not None:
             pipe.set_ip_adapter_scale(ref_scale)
             args["ip_adapter_image"] = ref
-        im = pipe(**args).images[0]
+        if start is not None:
+            i2i = demi.img2img()
+            del args["width"], args["height"]
+            if ref is not None:
+                i2i.set_ip_adapter_scale(ref_scale)
+            im = i2i(image=start, strength=strength, **args).images[0]
+        else:
+            im = pipe(**args).images[0]
         name = f"{ident}-{seed + k}.png"
         im.save(out / name)
         names.append(name)
@@ -284,6 +298,7 @@ def main():
         if name == "draw":
             s.add_argument("out"); s.add_argument("--count", type=int, default=1); s.add_argument("--seed", type=int, default=0)
             s.add_argument("--ref-scale", type=float, default=0.6)
+            s.add_argument("--base", help="下絵の画像（tools/engine/pose_prop.py の出力）"); s.add_argument("--strength", type=float, default=0.8)
         s.add_argument("--scene", default=""); s.add_argument("--pose", default=""); s.add_argument("--outfit")
         s.add_argument("--items", help="持ち物の id をカンマ区切りで。省くと全部"); s.add_argument("--world"); s.add_argument("--location")
         s.add_argument("--framing", default="full body")
@@ -302,7 +317,7 @@ def main():
         "new-world": lambda: new_world(a.id, a.name, a.tags, a.desc),
         "add-location": lambda: add_location(a.id, a.loc, a.name, a.tags, a.desc, a.image, a.avoid),
         "prompt": lambda: dict(zip(("prompt", "negative"), prompt(a.id, **kw))),
-        "draw": lambda: draw(a.id, a.out, a.count, a.seed, a.ref_scale, **kw),
+        "draw": lambda: draw(a.id, a.out, a.count, a.seed, a.ref_scale, a.base, a.strength, **kw),
         "show": lambda: load("characters", a.id),
         "sheet": lambda: sheet(a.id, a.out),
     }[a.cmd]()
