@@ -35,7 +35,7 @@ export type FreeSpec = { prompt: string; negative: string; ja: string; seed: num
 
 export type StudioEvent = { t: number; role: string; stage: string; msg: string; file?: string; prompt?: string; reasons?: string[] };
 
-export type Outcome = { passed: string | null; files: string[]; prompt: string; negative: string; reason: string; critique: string[]; hidden?: string[] };
+export type Outcome = { passed: string | null; files: string[]; prompt: string; negative: string; reason: string; critique: string[]; hidden?: string[]; findings?: string[] };
 
 export type Memory = { text: string; prompt: string; negative: string; ok: boolean; liked?: boolean; seed: number; size: number[]; reason: string; t: number };
 
@@ -52,7 +52,7 @@ export type LayoutNode =
 
 export type Layout = { id: string; name: string; root: LayoutNode; notes?: string[] };
 
-export type StudioIn = { text: string; prompt: string; negative: string; seed: number; size: "portrait" | "landscape" | "square"; tries: number; direct: boolean; lora: string; paint: string; format: string; pose: string };
+export type StudioIn = { text: string; prompt: string; negative: string; seed: number; size: "portrait" | "landscape" | "square"; tries: number; direct: boolean; lora: string; paint: string; format: string; pose: string; method: "oneshot" | "handdraw" | "rough"; allow_impossible: boolean };
 
 export type Job = {
   id: string;

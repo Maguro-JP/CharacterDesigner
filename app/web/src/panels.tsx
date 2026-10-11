@@ -63,6 +63,8 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
     api.styles().then(setStyles).catch(() => setStyles({ paint: [], format: [] }));
   }, []);
   const [pose, setPose] = useState("");
+  const [method, setMethod] = useState<StudioIn["method"]>("oneshot");
+  const [allowImpossible, setAllowImpossible] = useState(false);
   const [shelf, setShelf] = useState<{ lora: Lora[]; pose: { name: string; title: string; license: string; usable: boolean; why: string }[]; dir: string }>({ lora: [], pose: [], dir: "" });
   useEffect(() => {
     api.assets().then(setShelf).catch(() => setShelf({ lora: [], pose: [], dir: "" }));
@@ -88,7 +90,7 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
   const submit = () => {
     ctx.setError("");
     api
-      .studioSubmit({ text, prompt, negative, seed, size, tries, direct, lora, paint, format, pose })
+      .studioSubmit({ text, prompt, negative, seed, size, tries, direct, lora, paint, format, pose, method, allow_impossible: allowImpossible })
       .then(() => {
         ctx.refreshJobs();
         setSeed((s) => s + tries);   // 次は別の絵になるよう進める（同じ絵を描き直したければ戻せる）
@@ -137,6 +139,18 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
         <label>
           seed
           <input type="number" min={0} className="ml-1 w-20 rounded border border-line bg-ink px-2 py-1" value={seed} onChange={(e) => setSeed(Math.max(0, Number(e.target.value) || 0))} />
+        </label>
+        <label>
+          手順
+          <select className="ml-1 rounded border border-line bg-ink px-2 py-1" value={method} onChange={(e) => setMethod(e.target.value as StudioIn["method"])} aria-label="生成手順">
+            <option value="oneshot">一発で描く（速い）</option>
+            <option value="handdraw">描いてから人の順番で仕上げ直す</option>
+            <option value="rough">ラフから人の順番で描く（こだわる）</option>
+          </select>
+        </label>
+        <label className="flex items-center gap-1" title="余分な手足・浮いた物など、あり得ない形を描いてよいか。特別な注文のときだけ">
+          <input type="checkbox" checked={allowImpossible} onChange={(e) => setAllowImpossible(e.target.checked)} />
+          あり得ない形を許す
         </label>
         <label>
           塗り
@@ -226,6 +240,12 @@ function CanvasPanel({ ctx }: { ctx: Ctx }) {
       </div>
       {cur.prompt && <p className="break-words font-mono text-xs text-neutral-400">{cur.prompt}</p>}
       {critique.map((c) => <p key={c} className="text-xs text-neutral-300">CRITIC: {c}</p>)}
+      {!!cur.job.outcome?.findings?.length && (
+        <details className="text-xs text-neutral-400">
+          <summary>見つけた矛盾・あり得ないこと {cur.job.outcome.findings.length} 件</summary>
+          <ul className="list-inside list-disc">{cur.job.outcome.findings.map((f) => <li key={f}>{f}</li>)}</ul>
+        </details>
+      )}
     </div>
   );
 }

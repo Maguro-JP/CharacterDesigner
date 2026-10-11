@@ -20,6 +20,12 @@ from typing import Callable
 
 import free_text
 
+# 生成手順。一発で描くか、人の描き方の順番を通すか（docs/knowledge/methods.md）
+METHODS = {"oneshot": "一発で描く", "handdraw": "描いてから人の順番で仕上げ直す", "rough": "ラフから人の順番で描く"}
+# あり得ない形の打ち消し。頼みごとに特別な注文（allow_impossible）が無い限り必ず入れる
+IMPOSSIBLE = ("extra fingers, missing fingers, fused fingers, extra arms, extra legs, extra limbs, bad anatomy, "
+              "bad hands, deformed, disfigured, floating objects, duplicate, mutated hands")
+
 # 構図の言葉。どれも無ければ演出が1つ足す
 FRAMING = ("full body", "upper body", "cowboy shot", "portrait", "close-up", "wide shot", "from above", "from below")
 # 光の言葉。どれも無ければ演出が1つ足す（光源は1つに決める）
@@ -37,6 +43,8 @@ class Ports:
     remember: Callable[[dict], None] = lambda rec: None
     recall: Callable[[str], list] = lambda text: []     # 頼みごとに似た、前に通った記録（似ている順）
     guard_image: Callable[[str], str | None] = lambda path: None   # 出来た絵を見せてよいか。だめなら理由
+    # 生成手順の仕上げ（oneshot 以外）。(通った絵の名前, 手順, 描く言葉, 打ち消し, seed, 置き場) → 仕上げた絵の名前
+    finish: Callable[..., str | None] = lambda name, method, prompt, negative, seed, outdir: None
 
 
 @dataclass
@@ -54,6 +62,8 @@ class Spec:
     paint: str = ""           # 塗り（casts/paint-styles.json の paint）
     format: str = ""          # 見せ方（同 format）
     pose: str = ""            # 姿勢の下絵の名前（素材の棚の pose）
+    method: str = "oneshot"   # 生成手順（docs/knowledge/methods.md）。oneshot（一発）・handdraw（人の順番で仕上げ直す）・rough（ラフから描く）
+    allow_impossible: bool = False   # あり得ない形（余分な手足、浮いた物など）を描いてよいか。特別な注文があるときだけ
 
 
 @dataclass
@@ -66,6 +76,7 @@ class Result:
     reason: str = ""                                # 描かなかった・通らなかった理由
     critique: list = field(default_factory=list)
     hidden: list = field(default_factory=list)       # GUARD が見せないと決めた絵（画面にもファイルの窓口にも出さない）
+    findings: list = field(default_factory=list)     # 見つけた矛盾・あり得ないこと（文字で残す。どの絵で何が起きたか）
 
 
 def direct(prompt: str) -> tuple[str, list[str]]:
@@ -201,6 +212,9 @@ class Session:
             prompt, added = direct(prompt)
             self._say("DIRECTOR", "done", f"足した: {', '.join(added)}" if added else "構図と光は頼みごとのとおり", prompt=prompt)
 
+        # あり得ない形は、特別な注文が無い限り描かない（打ち消しに必ず入れる）
+        if not spec.allow_impossible:
+            negative = _add(negative, IMPOSSIBLE)
         # GUARD: 描く言葉（模型の答え・演出の後でもう一度）
         why = free_text.blocked_tags(prompt.split(","))
         if why:
@@ -236,6 +250,7 @@ class Session:
                 self._say("INSPECTOR", "done", "数えて通った", file=name)
                 break
             self._say("INSPECTOR", "fail", "落ちた: " + "、".join(reasons), file=name, reasons=reasons)
+            res.findings += [f"{name}: {r}" for r in reasons]
             if last is not None and sorted(reasons) == sorted(last):
                 res.reason = "同じ理由で2回続けて落ちたので打ち切った: " + "、".join(reasons)
                 self._say("INSPECTOR", "stop", res.reason)
@@ -249,8 +264,16 @@ class Session:
             if not res.ok:
                 res.reason = f"{spec.tries} 回描いて通らなかった"
 
+        if res.passed and spec.method != "oneshot":
+            self._say("PAINTER", "start", f"生成手順「{METHODS.get(spec.method, spec.method)}」で仕上げる")
+            done = self.ports.finish(res.passed, spec.method, res.prompt, res.negative, spec.seed, outdir)
+            if done:
+                res.files.append(done)
+                res.passed = done
+                self._say("PAINTER", "done", "仕上げた", file=done)
         if res.passed:
             res.critique = self.ports.critique(f"{outdir}/{res.passed}")
+            res.findings += [f"{res.passed}: {c}" for c in res.critique]
             self._say("CRITIC", "done", "、".join(res.critique) if res.critique else "目立つ弱さは見つからなかった")
         self.ports.remember({"text": spec.text, "prompt": res.prompt, "negative": res.negative, "ok": res.ok,
                              "seed": spec.seed + len(res.files) - 1 if res.files else spec.seed,

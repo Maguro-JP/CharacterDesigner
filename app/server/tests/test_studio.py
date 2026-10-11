@@ -301,3 +301,24 @@ def test_handdraw_endpoint(client, monkeypatch):
     assert "hd-try-0-5-final.png" in r["files"] and r["regions"] == 3
     assert "hd-try-0-5-final.png" in c.get(f"/api/jobs/{j['id']}").json()["files"]
     assert c.get(f"/api/jobs/{j['id']}/files/hd-try-0-5-final.png").status_code == 200
+
+
+def test_methods_and_findings(tmp_path):
+    painted, memory, events = [], [], []
+    ports = fake_ports([["右脚が無い"], []], painted, memory)
+    called = {}
+
+    def finish(name, method, prompt, negative, seed, outdir):
+        called.update(name=name, method=method)
+        return "try-9.png"
+    ports.finish = finish
+    r = Session(ports, events.append).send(Spec(prompt="1girl, full body", method="handdraw", tries=3), str(tmp_path))
+    assert called == {"name": "try-1.png", "method": "handdraw"} and r.passed == "try-9.png"
+    assert "try-0.png: 右脚が無い" in r.findings                      # 矛盾は文字で残す
+    assert "extra fingers" in painted[0]["negative"]                   # あり得ない形は打ち消す
+    painted2 = []
+    Session(fake_ports([[]], painted2, [])).send(Spec(prompt="1girl, six arms", allow_impossible=True), str(tmp_path))
+    assert "extra arms" not in painted2[0]["negative"]                 # 特別な注文なら打ち消さない
+    painted3 = []
+    r3 = Session(fake_ports([[]], painted3, [])).send(Spec(prompt="1girl"), str(tmp_path))
+    assert r3.passed == "try-0.png"                                    # 一発なら仕上げ直さない

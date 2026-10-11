@@ -78,9 +78,46 @@ class Runner:
             import shutil
             import tempfile
             with tempfile.TemporaryDirectory() as tmp:
-                free_text.draw(prompt, negative, Path(tmp), seed, 1, w, h, lora=spec.lora, pose=spec.pose)
+                # ラフから描く手順では、まず鉛筆のラフを描く（色と仕上げは finish で後から足す）
+                p = f"sketch, pencil (medium), monochrome, rough lines, dynamic pose, {prompt}" if spec.method == "rough" else prompt
+                free_text.draw(p, negative, Path(tmp), seed, 1, w, h, lora=spec.lora, pose=spec.pose)
                 shutil.move(f"{tmp}/try-0.png", f"{out}/{name}")
             return name
+
+        def next_name(out):
+            return f"try-{len([p for p in Path(out).glob('try-*.png') if FILE.match(p.name) and p.stem[4:].isdigit()])}.png"
+
+        def redraw(src, prompt, negative, seed, strength, dst):
+            """絵を下絵にして描き直す（img2img）。構図と面は下絵から、仕上げは描く言葉から来る"""
+            import demi
+            import design
+            import torch
+            from PIL import Image
+            pipe = demi.img2img()
+            pos, neg = free_text.full_prompt(prompt, negative)
+            pe, ne, pp, np_ = design.encode_xl(pipe, pos, neg)
+            under = Image.open(src).convert("RGB")
+            im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
+                      image=under, strength=strength, num_inference_steps=24, guidance_scale=6.0,
+                      generator=torch.Generator().manual_seed(seed)).images[0]
+            im.save(dst)
+
+        def finish(name, method, prompt, negative, seed, out):
+            """生成手順の仕上げ。docs/knowledge/drawing-process.md と methods.md の順番で描く。
+            handdraw: 通った絵 → 線を閉じる・強弱・下塗り・影・線 → 弱く描き直して整える（0.6）
+            rough:    ラフ → ラフを下絵に色の手本（0.8）→ ラフの線と手本の色で人の順番 → 弱く描き直して整える（0.6）"""
+            import handdraw
+            import tempfile
+            src = f"{out}/{name}"
+            with tempfile.TemporaryDirectory() as tmp:
+                guide = None
+                if method == "rough":
+                    guide = f"{tmp}/guide.png"
+                    redraw(src, prompt, negative, seed, 0.8, guide)
+                handdraw.run(src, tmp, guide=guide)
+                dst = next_name(out)
+                redraw(f"{tmp}/5-final.png", prompt, negative, seed, 0.6, f"{out}/{dst}")
+            return dst
 
         def critique(path):
             # 明暗の塊と見せ場（docs/knowledge/ai-look.md の「上手い描き手が意図して決めていること」）
@@ -115,7 +152,7 @@ class Runner:
                 return f"肌の見える所が多い（服 {clothes:.2f}、肌 {skin:.2f}）"
             return None
 
-        return Session(Ports(describe=lambda t, rec=(): free_text.describe(t, local_llm.client(), rec), paint=paint, guard_image=guard_image,
+        return Session(Ports(describe=lambda t, rec=(): free_text.describe(t, local_llm.client(), rec), paint=paint, guard_image=guard_image, finish=finish,
                              inspect=inspect, critique=critique,
                              remember=remember, recall=lambda t: recall_from(memories(), t)), on_event).send(spec, str(outdir))
 
@@ -200,7 +237,8 @@ class Queue:
                     r = self.runner.studio(Spec(**job.free), out, job.events.append)
                     job.passed = r.ok
                     job.outcome = {"passed": r.passed, "files": [f for f in r.files if f not in r.hidden], "prompt": r.prompt,
-                                   "negative": r.negative, "reason": r.reason, "critique": r.critique, "hidden": r.hidden}
+                                   "negative": r.negative, "reason": r.reason, "critique": r.critique, "hidden": r.hidden,
+                                   "findings": r.findings}
                     job.state = "done"
                     continue
                 if job.kind == "free":
@@ -281,6 +319,8 @@ class StudioIn(BaseModel):
     paint: str = Field("", max_length=20)
     format: str = Field("", max_length=20)
     pose: str = Field("", max_length=48)
+    method: str = Field("oneshot", pattern="^(oneshot|handdraw|rough)$")
+    allow_impossible: bool = False
 
 
 class LikeIn(BaseModel):
@@ -475,7 +515,8 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         w, h = SIZES[body.size]
         spec = {"text": body.text, "prompt": body.prompt, "negative": body.negative, "seed": body.seed,
                 "width": w, "height": h, "tries": body.tries, "direct": body.direct, "lora": body.lora,
-                "paint": body.paint, "format": body.format, "pose": body.pose}
+                "paint": body.paint, "format": body.format, "pose": body.pose,
+                "method": body.method, "allow_impossible": body.allow_impossible}
         if body.pose and assets.get_pose(body.pose) is None:
             raise HTTPException(422, f"姿勢の下絵「{body.pose}」は使えない（無いか、出典とライセンスが書かれていない）")
         st = studio_session_styles()
