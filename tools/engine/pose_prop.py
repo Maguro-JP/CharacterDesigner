@@ -77,7 +77,7 @@ def box(name, size, at, along):
 def wrench(length, grip):
     """柄を手から肩の上へ通し、口（開いたあご）を背中側の上に出す。手より下には柄尻を少し残す。"""
     along = (SHOULDER - grip).normalized()
-    butt = grip - along * 0.18
+    butt = grip - along * 0.3
     parts = []
     bpy.ops.mesh.primitive_cylinder_add(radius=0.028, depth=length, location=butt + along * length / 2)
     shaft = bpy.context.object
@@ -85,7 +85,7 @@ def wrench(length, grip):
     shaft.rotation_quaternion = Vector((0, 0, 1)).rotation_difference(along)
     parts.append(shaft)
     # 柄尻は丸く止める。端を切りっぱなしにすると、反対の端にも口を描かれ両口スパナになった
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.045, location=butt)
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.035, location=butt)
     parts.append(bpy.context.object)
     tip = butt + along * length
     # 頭の面はカメラに向ける。横から見える向きだと頭が細い板に写り、口が読めなかった
@@ -158,7 +158,7 @@ def main(argv):
 
     scene = bpy.context.scene
     # 正面から右手側へ 35 度回った目の高さ。担いだ柄と口が体に隠れない
-    look_from(scene, Vector((-0.35, 0.45, 1.2)), CAMERA, 3.0)
+    look_from(scene, Vector((-0.5, 0.6, 1.4)), CAMERA, 3.6)
     sun = bpy.data.lights.new("sun", "SUN")
     sun.energy = 3.5
     so = bpy.data.objects.new("sun", sun)
