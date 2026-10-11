@@ -116,7 +116,8 @@ def flats(line: np.ndarray, person: np.ndarray, guide: Image.Image, min_area: in
 
 
 def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", line_style: str = "default",
-        brush: str | None = None, grain: float | None = None, shadow_cut: float = 0.93, shadow_depth: float = 1.0) -> dict:
+        brush: str | None = None, grain: float | None = None, shadow_cut: float = 0.93, shadow_depth: float = 1.0,
+        line_ink: float = 1.0) -> dict:
     """line_style は線の作風（casts/brushes.json の styles。chibi はデフォルメで太い線）。brush で筆を指定できる"""
     import imgproc
     out = Path(outdir)
@@ -207,6 +208,8 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", li
     left = strong & (a[..., 0] < 0.2)
     a = np.maximum(a, (left * 0.85)[..., None])
     ink = np.where((lum < 70)[..., None], (shaded.astype(float) * 1.9 + 50).clip(0, 255), np.array([40, 30, 40], dtype=float))
+    # 線の濃さ: 1 なら墨、小さいほど下の面の色の濃い色に寄せる（色トレス）。調整の往復で、明暗が細切れなら線を面に馴染ませる
+    ink = ink * line_ink + shaded.astype(float) * 0.55 * (1 - line_ink)
     shaded = (shaded.astype(float) * (1 - a) + ink * a).clip(0, 255).astype(np.uint8)
     # 目は人の描き手も最後に別に描く（講座でも「目の線画は後の工程で描く」）。顔の部位の中の目の周りだけ、元の絵の描き込みを戻す
     try:
@@ -234,13 +237,13 @@ def adjust(src: str, outdir: str, tries: int = 3, **kw) -> dict:
     import shutil
     import tempfile
     best = None
-    cut, depth = kw.pop("shadow_cut", 0.93), kw.pop("shadow_depth", 1.0)
+    cut, depth, ink = kw.pop("shadow_cut", 0.93), kw.pop("shadow_depth", 1.0), kw.pop("line_ink", 1.0)
     history = []
     for k in range(tries):
         tmp = tempfile.mkdtemp()
-        r = run(src, tmp, shadow_cut=cut, shadow_depth=depth, **kw)
+        r = run(src, tmp, shadow_cut=cut, shadow_depth=depth, line_ink=ink, **kw)
         m = imgproc.notan(f"{tmp}/5-final.png", f"{tmp}/notan.png")
-        history.append({"try": k, "shadow_cut": cut, "shadow_depth": depth, "fragment_ratio": m["fragment_ratio"]})
+        history.append({"try": k, "line_ink": round(ink, 2), "fragment_ratio": m["fragment_ratio"]})
         if best is None or m["fragment_ratio"] < best[0]:
             if best:
                 shutil.rmtree(best[1], ignore_errors=True)
@@ -249,7 +252,9 @@ def adjust(src: str, outdir: str, tries: int = 3, **kw) -> dict:
             shutil.rmtree(tmp, ignore_errors=True)
         if m["fragment_ratio"] <= 0.08:
             break
-        cut, depth = cut + 0.02, depth * 1.25     # 影の面を広げ、深くする
+        # 段ごとに測ると、細切れを一番増やすのは線だった（騎士: ざらつきまで 0.087、線を重ねて 0.131）。
+        # 影の広さと深さはほとんど効かなかったので、線を面の色に馴染ませる（色トレスに寄せる）
+        ink = ink * 0.6
     shutil.copytree(best[1], outdir, dirs_exist_ok=True)
     shutil.rmtree(best[1], ignore_errors=True)
     return {**best[2], "history": history}
