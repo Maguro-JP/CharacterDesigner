@@ -199,7 +199,7 @@ def full_prompt(prompt: str, negative: str = "") -> tuple[str, str]:
 
 
 def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, width: int = 832, height: int = 1216,
-         steps: int = 24, on_image=None, lora: str = "", pose: str = "", pose_strength: float = 0.8) -> list[str]:
+         steps: int = 24, on_image=None, lora: str = "", pose: str = "", pose_strength: float = 0.93) -> list[str]:
     """Animagine で count 枚描き、out/try-<k>.png に置く。seed は 1 枚ごとに 1 ずつ進める（同じ設定で描き直せる）。"""
     import torch
     import design
