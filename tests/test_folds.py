@@ -52,5 +52,24 @@ class Sites(unittest.TestCase):
         self.assertNotIn("belt", {s["kind"] for s in folds.sites(body((50, 220)), lab)})
 
 
+class Drop(unittest.TestCase):
+    def test_long_skirt_hangs_from_hip(self):
+        lab = np.zeros((400, 200), int)
+        lab[90:220] = 4                                # 上着
+        lab[220:360, 40:160] = 5                       # 腰から長く垂れるスカート
+        drops = [s for s in folds.sites(body((50, 220)), lab) if s["kind"] == "drop"]
+        self.assertEqual({s["side"] for s in drops}, {"left", "right"})
+        self.assertTrue(all(s["hem"] > 340 for s in drops))
+
+    def test_no_drop_for_trousers_or_short_hem(self):
+        lab = np.zeros((400, 200), int)
+        lab[90:220] = 4
+        lab[220:380, 40:160] = 6                       # ズボンは脚に沿ってつっぱる
+        self.assertFalse([s for s in folds.sites(body((50, 220)), lab) if s["kind"] == "drop"])
+        lab[220:380] = 0
+        lab[220:230, 40:160] = 5                       # 腰のすぐ下で終わる裾
+        self.assertFalse([s for s in folds.sites(body((50, 220)), lab) if s["kind"] == "drop"])
+
+
 if __name__ == "__main__":
     unittest.main()

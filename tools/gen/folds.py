@@ -96,6 +96,28 @@ def sites(points: list[dict], lab: np.ndarray, img: np.ndarray | None = None, le
             if on_cloth(pit) and not hidden:
                 out.append({"kind": "armpit", "side": side, "x": float(pit[0]), "y": float(pit[1]), "dx": float(d[0]), "dy": float(d[1]),
                             "strength": 0.3, "rule": "肩の出っ張りの上は無し。脇から肩筋の終わりへ細かいしわ（151672）"})
+    # 裾の垂れ（drop）: 余った布は支点から下へ引かれて垂れる（151672）。支点は腰。腰より下に服が続く側にだけ、
+    # 腰から、その真下で服が終わる所（裾）へ向かう向きで置く。脚に沿うズボンは「つっぱってしわになりにくい」ので置かない
+    for side in ("left", "right"):
+        if not ok(f"{side}_hip", f"{side}_shoulder"):
+            continue
+        hp = xy(f"{side}_hip")
+        x = int(np.clip(hp[0], 0, W - 1))
+        col = cloth[:, max(x - 3, 0):x + 4].any(1) & ~np.isin(lab[:, max(x - 3, 0):x + 4], (6,)).any(1)
+        rows = np.nonzero(col[int(hp[1]):])[0]
+        if len(rows) == 0:
+            continue
+        # 腰から途切れずに続く服の下端
+        run = np.split(rows, np.nonzero(np.diff(rows) > 4)[0] + 1)[0]
+        if run[0] > 8:
+            continue
+        hem = hp[1] + run[-1]
+        torso = abs(hp[1] - P[f"{side}_shoulder"]["y"])
+        if hem - hp[1] < torso * 0.3:            # 腰のすぐ下で終わる短い裾には垂れが出ない
+            continue
+        out.append({"kind": "drop", "side": side, "x": float(hp[0]), "y": float(hp[1]), "dx": 0.0, "dy": 1.0,
+                    "strength": round(float(min((hem - hp[1]) / (torso * 1.5), 1.0)), 2), "hem": float(hem),
+                    "rule": "支点（腰）から余った布が下へ垂れる（151672）。ゆったりした服ほど多い（159937）"})
     belt = lab == BELT
     # ベルトは肩と腰の間にあるものだけ（首元のマフラーの結び目をベルトと取った）
     if ok("left_shoulder", "right_shoulder", "left_hip", "right_hip"):
@@ -118,9 +140,9 @@ def sites(points: list[dict], lab: np.ndarray, img: np.ndarray | None = None, le
 def draw(src: str, found: list[dict], out: str):
     im = Image.open(src).convert("RGB")
     d = ImageDraw.Draw(im)
-    color = {"elbow": (255, 60, 60), "knee": (255, 160, 0), "armpit": (60, 160, 255), "belt": (60, 220, 90)}
+    color = {"drop": (200, 80, 255), "elbow": (255, 60, 60), "knee": (255, 160, 0), "armpit": (60, 160, 255), "belt": (60, 220, 90)}
     for s in found:
-        L = 18 + 40 * s["strength"]
+        L = (s["hem"] - s["y"]) if s["kind"] == "drop" else 18 + 40 * s["strength"]
         x, y = s["x"], s["y"]
         d.ellipse([x - 6, y - 6, x + 6, y + 6], outline=color[s["kind"]], width=3)
         d.line([(x, y), (x + s["dx"] * L, y + s["dy"] * L)], fill=color[s["kind"]], width=3)
