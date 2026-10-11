@@ -96,5 +96,19 @@ class FlatFill(unittest.TestCase):
         self.assertIn(tuple(lineart.middle_color(px)), {(255, 255, 255), (220, 140, 70)})
 
 
+    def test_open_line_between_face_and_hair(self):
+        line = np.full((60, 60), 255, np.uint8)
+        line[30, 10:] = 0                                # 顔と髪のあいだの線が左で途切れている
+        line_parts = np.zeros((60, 60), np.uint8)
+        line_parts[:30] = 2                              # 上は髪（大きい）
+        line_parts[30:] = 11                             # 下は顔
+        ref = np.zeros((60, 60, 3), np.uint8)
+        ref_parts = np.zeros((60, 60), np.uint8)
+        ref[:30] = (90, 50, 20); ref_parts[:30] = 2
+        ref[30:] = (250, 200, 170); ref_parts[30:] = 11
+        out = lineart.color_by_parts(line, line_parts, ref, ref_parts)
+        self.assertEqual(tuple(out[50, 30]), (250, 200, 170))  # 顔は髪の色にならない
+
+
 if __name__ == "__main__":
     unittest.main()

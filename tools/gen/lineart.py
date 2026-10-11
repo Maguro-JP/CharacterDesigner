@@ -98,6 +98,18 @@ def color_by_parts(line: np.ndarray, line_parts: np.ndarray, reference: np.ndarr
     if close:
         ink = nd.binary_dilation(ink, iterations=close)
     lab, n = nd.label(~ink)
+    # 線が閉じていない所（騎士の顔と髪のあいだ）では、顔と髪が1つの面につながり、多い方の髪の色で顔を塗った。
+    # 線で閉じた面を、さらに部位の境目でも分ける
+    # ただし服の部位どうしの境目は布の上で細かく揺れ、マントがまだらに割れたので、分けるのは髪・顔・肌と、それ以外の境目だけ
+    kind = np.zeros(256, np.int64)
+    kind[[2]] = 1                     # 髪
+    kind[[11]] = 2                    # 顔
+    kind[[12, 13, 14, 15]] = 3        # 脚・腕の肌
+    key = lab.astype(np.int64) * 8 + kind[line_parts]
+    key[lab == 0] = 0
+    _, inv = np.unique(key, return_inverse=True)
+    lab = inv.reshape(lab.shape)
+    n = int(lab.max())
     size = np.bincount(lab.ravel(), minlength=n + 1)
     H, W = line.shape
     yy, xx = np.mgrid[0:H, 0:W]
