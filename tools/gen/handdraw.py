@@ -115,6 +115,28 @@ def flats(line: np.ndarray, person: np.ndarray, guide: Image.Image, min_area: in
     return out, n
 
 
+def asymmetry(img: np.ndarray, box: tuple[int, int, int, int], amount: float = 0.04, seed: int = 0) -> np.ndarray:
+    """左右対称の部位の片側だけを、少しだけ縦に伸ばして下へずらす。
+    人の描き手は両目をコピーせずに描くので、形と高さにわずかな差が出る。模型の絵は両目がほぼ同じ形になり、そこで見分けられる
+    （docs/knowledge/painting-workflow.md）。box は (左, 上, 右, 下)。中央で分け、乱数で選んだ片側だけを変える"""
+    x0, y0, x1, y1 = box
+    mid = (x0 + x1) // 2
+    rng = np.random.default_rng(seed)
+    sx0, sx1 = (x0, mid) if rng.random() < 0.5 else (mid, x1)
+    if sx1 - sx0 < 4 or y1 - y0 < 4:
+        return img
+    part = Image.fromarray(img[y0:y1, sx0:sx1])
+    h = y1 - y0
+    grown = part.resize((sx1 - sx0, max(int(round(h * (1 + amount))), h + 1)), Image.LANCZOS)
+    shift = max(int(round(h * amount / 2)), 1)
+    moved = np.asarray(grown)[:h]
+    out = img.copy()
+    # 帯の上下の縁は動かさず、中ほどだけを置き換える（縁で段が出ないように）
+    w = np.sin(np.linspace(0, np.pi, h))[:, None, None] ** 2
+    out[y0 + shift:y1, sx0:sx1] = (img[y0 + shift:y1, sx0:sx1] * (1 - w[shift:]) + moved[:h - shift] * w[shift:]).astype(img.dtype)
+    return out
+
+
 def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", line_style: str = "default",
         brush: str | None = None, grain: float | None = None, shadow_cut: float = 0.93, shadow_depth: float = 1.0,
         line_ink: float = 1.0) -> dict:
@@ -222,7 +244,10 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", li
             eyes = face & (np.arange(face.shape[0])[:, None] > top + (bot - top) * 0.30) & \
                 (np.arange(face.shape[0])[:, None] < top + (bot - top) * 0.62)
             soft = np.asarray(Image.fromarray(eyes.astype("uint8") * 255).filter(ImageFilter.GaussianBlur(3))).astype(float)[..., None] / 255
-            orig = np.asarray(Image.open(src).convert("RGB")).astype(float)
+            orig = np.asarray(Image.open(src).convert("RGB"))
+            exs = np.nonzero(eyes.any(0))[0]
+            orig = asymmetry(orig, (int(exs.min()), int(top + (bot - top) * 0.30), int(exs.max()) + 1, int(top + (bot - top) * 0.62)),
+                             seed=int(orig.sum()) % 1000).astype(float)
             shaded = (shaded.astype(float) * (1 - soft) + orig * soft).clip(0, 255).astype(np.uint8)
     except Exception:
         pass   # 部位分けが使えないときは戻さない（線だけで描いた目のまま）
