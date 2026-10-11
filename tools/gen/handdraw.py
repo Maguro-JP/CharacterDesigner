@@ -137,6 +137,21 @@ def asymmetry(img: np.ndarray, box: tuple[int, int, int, int], amount: float = 0
     return out
 
 
+def metal_mask(img: np.ndarray, cloth: np.ndarray) -> np.ndarray:
+    """服の部位の中の金属（鎧）。部位分けは鎧も服に数えるので、布のしわが金属に付いた。
+    金属は彩度が低く、つやで明るさが細かく散らばる。散らばりは板の縁の線でも出るので、開きで細い線を除き、
+    閉じと穴埋めで平らな板の内側を埋める。騎士の絵で、胸・腕・腰の鎧が金属、スカート・マフラー・タイツが布に分かれた"""
+    from scipy.ndimage import binary_closing, binary_fill_holes, binary_opening, uniform_filter
+    rgb = img[..., :3].astype(float)
+    mx, mn = rgb.max(2), rgb.min(2)
+    sat = np.where(mx > 0, (mx - mn) / np.maximum(mx, 1) * 255, 0)
+    lum = rgb @ np.array([0.299, 0.587, 0.114])
+    spread = np.sqrt(np.maximum(uniform_filter(lum * lum, 15) - uniform_filter(lum, 15) ** 2, 0))
+    m = cloth & (uniform_filter(sat, 11) < 50) & (uniform_filter(spread, 15) > 12)
+    m = binary_opening(m, np.ones((9, 9)))
+    return binary_fill_holes(binary_closing(m, np.ones((25, 25)))) & cloth
+
+
 def wear(img: np.ndarray, cloth: np.ndarray, seed: int = 0, folds: int = 0, alpha: float = 0.22) -> np.ndarray:
     """汚しとディテール: 服の範囲にだけ、布のしわの細い線と、縁の小さな擦れを薄く足す。
     人の描き手は仕上げの近くで描き込みを足す。模型の絵は面がつるつるで、描き込みの粗密が意図と関係ない
@@ -274,7 +289,9 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", li
     try:
         import edit
         lab = np.asarray(edit.parts(src).resize(shaded.shape[1::-1], Image.NEAREST))
-        shaded = wear(shaded, np.isin(lab, [4, 5, 6, 7]), seed=int(lab.sum()) % 1000)
+        cloth = np.isin(lab, [4, 5, 6, 7])
+        cloth &= ~metal_mask(np.asarray(Image.open(src).convert("RGB").resize(shaded.shape[1::-1])), cloth)
+        shaded = wear(shaded, cloth, seed=int(lab.sum()) % 1000)
         face = _shrink(lab == 11, 4)
         if face.any():
             ys, xs = np.nonzero(face)

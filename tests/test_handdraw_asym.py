@@ -38,5 +38,24 @@ class Wear(unittest.TestCase):
         self.assertLess(float(diff[cloth].mean()), 15)    # 薄く（染みにしない）
 
 
+try:
+    import scipy  # noqa: F401
+except ImportError:
+    scipy = None
+
+
+@unittest.skipIf(scipy is None, "scipy が無い（.cache/gen/lib に入る）")
+class Metal(unittest.TestCase):
+    def test_shiny_grey_is_metal_and_flat_red_is_cloth(self):
+        rng = np.random.default_rng(0)
+        img = np.zeros((120, 200, 3), np.uint8)
+        img[:, :100] = rng.integers(60, 230, (120, 100, 1), dtype=np.uint8)   # 灰色でつやの散らばる板
+        img[:, 100:] = (180, 40, 40)                                         # 平らな赤い布
+        cloth = np.ones((120, 200), bool)
+        m = handdraw.metal_mask(img, cloth)
+        self.assertGreater(m[20:100, 20:80].mean(), 0.9)
+        self.assertLess(m[20:100, 120:180].mean(), 0.1)
+
+
 if __name__ == "__main__":
     unittest.main()
