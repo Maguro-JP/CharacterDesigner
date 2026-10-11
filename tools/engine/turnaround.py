@@ -35,6 +35,8 @@ def main(argv):
     ap.add_argument("--skin", type=rgb, default=(240, 200, 170))
     ap.add_argument("--top", type=rgb, default=(170, 170, 180), help="胴と腕の布の色")
     ap.add_argument("--bottom", type=rgb, default=(40, 40, 45), help="腰から下の布の色")
+    ap.add_argument("--cape", type=rgb, help="背中のマントの色。省くとマントを付けない")
+    ap.add_argument("--boots", type=rgb, help="膝から下の色（鎧靴など）。省くと下の布の色")
     ap.add_argument("--width", type=int, default=832)
     ap.add_argument("--height", type=int, default=1216)
     a = ap.parse_args(argv)
@@ -66,6 +68,21 @@ def main(argv):
         for f in o.data.polygons:
             if (o.matrix_world @ f.center).z < 0.95:
                 f.material_index = len(o.data.materials) - 1
+
+    if a.boots:
+        boots = tinted("boots", a.boots)
+        for o in clothed:
+            o.data.materials.append(boots)
+            for f in o.data.polygons:
+                if (o.matrix_world @ f.center).z < 0.5:
+                    f.material_index = len(o.data.materials) - 1
+    if a.cape:
+        # 下絵に無い物は絵に出なかった（マントの代わりに襟巻きが長く垂れた）ので、背中に板で置く
+        bpy.ops.mesh.primitive_cube_add(location=(0, 0.14, 0.93))
+        cape = bpy.context.object
+        cape.scale = (0.2, 0.012, 0.4)  # 肩の高さから膝の上まで
+        cape.rotation_euler = (math.radians(-5), 0, 0)  # 裾を少し後ろへ
+        human.assign([cape], tinted("cape", a.cape))
 
     scene = bpy.context.scene
     sun = bpy.data.lights.new("sun", "SUN")
