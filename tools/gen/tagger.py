@@ -80,7 +80,9 @@ def missing(prompt: str, got: dict, least: float = 0.2) -> list[str]:
     for t in (x.strip().lower() for x in prompt.split(",")):
         if not t or t not in vocab or any(w in t for w in SKIP):
             continue
-        if got.get(t, 0.0) < least:
+        # 「holding lantern」が読めなくても lantern が読めれば描けている（持ち方の言い方は読み分けにくい）
+        core = t.split(" ", 1)[1] if t.startswith(("holding ", "wearing ", "carrying ")) else t
+        if max(got.get(t, 0.0), got.get(core, 0.0)) < least:
             out.append(t)
     return out
 
