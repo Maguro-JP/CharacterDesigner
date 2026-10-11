@@ -1,0 +1,20 @@
+{
+ "id": "citadel",
+ "name": "灯りの城塞",
+ "tags": "medieval fantasy, stone castle, snowy mountains, night, warm lantern light",
+ "desc": "雪山の上の石造りの城塞。夜は灯りだけが頼り",
+ "locations": [
+  {
+   "id": "gate",
+   "name": "城門",
+   "tags": "castle gate, snow, torches, stone bridge",
+   "desc": ""
+  },
+  {
+   "id": "hall",
+   "name": "大広間",
+   "tags": "great hall interior, stone pillars, banners, candles",
+   "desc": ""
+  }
+ ]
+}
