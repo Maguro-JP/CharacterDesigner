@@ -2,8 +2,8 @@
  "id": "knight",
  "name": "灯りの騎士",
  "look": "1girl, solo, brown hair, medium hair, brown eyes",
- "outfit": "silver plate armor, breastplate, pauldrons, gauntlets, red scarf, dark red cape, black skirt, armored boots",
- "negative": "bare thighs, bare legs, slit skirt, short skirt",
+ "outfit": "silver plate armor, breastplate, pauldrons, gauntlets, red scarf, dark red cape, long black skirt to the knees, black tights, armored boots up to the knees",
+ "negative": "bare thighs, bare legs, slit skirt, short skirt, white tabard, white loincloth, white apron, thighs",
  "items": [
   {
    "id": "lantern",
