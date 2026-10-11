@@ -23,10 +23,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import human  # noqa: E402
 
 # 人形の座標: 前は -Y、右手は -X、身長はおよそ 1.7
-HAND = Vector((-0.22, -0.11, 1.44))   # 右手を置く所。右肩のすぐ前、肩の高さ
-SHOULDER = Vector((-0.18, 0.06, 1.51))  # 柄が載る所。右肩の上の後ろ寄り
+HAND = Vector((-0.14, -0.13, 1.43))   # 右手を置く所。右肩の前、肩の高さ。柄がここから肩の上を通る
+SHOULDER = Vector((-0.30, 0.25, 1.62))  # 柄が向かう所。右肩の上（y=0 で x≈-0.2, z≈1.5）を通り、背中側の外上へ抜ける
 SKIN, CLOTH, SHIRT = (240, 200, 170), (235, 120, 40), (245, 245, 240)  # 下絵の色。設定資料の肌とつなぎに合わせる
-CAMERA = Vector((-3.55, -3.15, 1.45))  # 正面から右手側へ回った目の高さ
+CAMERA = Vector((-1.5, -4.7, 1.5))  # 正面から少し右手側。斜めからだと背中へ抜ける柄が前へ突き出して写った
 CURL = 70  # 指の関節ごとの曲げ（度）
 ELBOW_POLE = Vector((-0.45, -0.10, 1.00))  # 肘を外へ下ろす向き
 
@@ -158,7 +158,7 @@ def main(argv):
 
     scene = bpy.context.scene
     # 正面から右手側へ 35 度回った目の高さ。担いだ柄と口が体に隠れない
-    look_from(scene, Vector((-0.5, 0.6, 1.4)), CAMERA, 3.6)
+    look_from(scene, Vector((-0.4, 0.3, 1.45)), CAMERA, 3.6)
     sun = bpy.data.lights.new("sun", "SUN")
     sun.energy = 3.5
     so = bpy.data.objects.new("sun", sun)
