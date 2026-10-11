@@ -29,5 +29,24 @@ class Grisaille(unittest.TestCase):
 
 
 
+try:
+    import scipy  # noqa: F401
+except ImportError:
+    scipy = None
+
+
+@unittest.skipIf(scipy is None, "scipy が無い（.cache/gen/lib に入る）")
+class KeepFolds(unittest.TestCase):
+    def test_folds_return_only_inside_zone(self):
+        original = np.full((80, 80, 3), 120, np.uint8)
+        original[:, ::8] = 40                                   # 元の絵のしわの線
+        flat = np.full((80, 80, 3), 120, np.uint8)              # 下塗りで平らにした面
+        zone = np.zeros((80, 80), bool)
+        zone[:, :40] = True
+        out = handdraw.keep_folds(flat, original, zone, sigma=3).astype(int)
+        self.assertGreater(out[:, 5:30].std(), 10)              # 範囲の中ではしわが戻る
+        self.assertLess(out[:, 55:80].std(), 1)                 # 範囲の外は平らなまま
+
+
 if __name__ == "__main__":
     unittest.main()

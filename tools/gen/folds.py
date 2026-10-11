@@ -137,6 +137,24 @@ def sites(points: list[dict], lab: np.ndarray, img: np.ndarray | None = None, le
     return out
 
 
+def zone(found: list[dict], points: list[dict], cloth: np.ndarray) -> np.ndarray:
+    """しわの場所の周りの範囲（服の中だけ）。大きさは体の寸法から決める（胴の長さ = 肩と腰の高さの差）。
+    肘・膝・脇は場所を中心に胴の 0.18 倍の円、裾は腰から裾までの、胴の 0.35 倍の幅の帯"""
+    P = {p["name"]: p for p in points}
+    ys = [P[n]["y"] for n in ("left_shoulder", "right_shoulder") if P[n]["score"] >= LEAST]
+    yh = [P[n]["y"] for n in ("left_hip", "right_hip") if P[n]["score"] >= LEAST]
+    torso = (np.mean(yh) - np.mean(ys)) if ys and yh else 0
+    H, W = cloth.shape
+    yy, xx = np.mgrid[0:H, 0:W]
+    m = np.zeros((H, W), bool)
+    for s in found:
+        if s["kind"] == "drop":
+            m |= (np.abs(xx - s["x"]) < torso * 0.35 / 2) & (yy >= s["y"]) & (yy <= s["hem"])
+        else:
+            m |= (xx - s["x"]) ** 2 + (yy - s["y"]) ** 2 < (torso * 0.18) ** 2
+    return m & cloth
+
+
 def draw(src: str, found: list[dict], out: str):
     im = Image.open(src).convert("RGB")
     d = ImageDraw.Draw(im)

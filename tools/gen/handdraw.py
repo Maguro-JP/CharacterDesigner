@@ -137,6 +137,18 @@ def grisaille(value: np.ndarray, flat: np.ndarray, person: np.ndarray) -> np.nda
     return out.clip(0, 255).astype(np.uint8)
 
 
+def keep_folds(shaded: np.ndarray, original: np.ndarray, zone: np.ndarray, sigma: float = 6.0) -> np.ndarray:
+    """元の絵に描かれたしわを、しわの場所（folds.zone）の中だけ仕上げに戻す。
+    下塗りで面を平らにすると、元の絵のしわ（細かい明暗）が消える。人の描き手は、布が引かれ・寄る所のしわを描き、
+    それ以外は省く（docs/knowledge/folds-and-lines.md）。元の明るさから大きな明暗（sigma でぼかしたもの）を引いた
+    細かい明暗だけを、範囲の中で仕上げの明るさに足す。色相は仕上げのまま。範囲の縁はぼかして段を付けない"""
+    from scipy.ndimage import gaussian_filter
+    lum = original.astype(float) @ np.array([0.299, 0.587, 0.114])
+    detail = lum - gaussian_filter(lum, sigma)
+    soft = gaussian_filter(zone.astype(float), sigma)
+    return (shaded.astype(float) + (detail * soft)[..., None]).clip(0, 255).astype(np.uint8)
+
+
 def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", line_style: str = "default",
         brush: str | None = None, shadow_cut: float = 0.93, shadow_depth: float = 1.0,
         line_ink: float = 1.0, paint: str = "cel") -> dict:
@@ -208,6 +220,23 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", li
     shaded = shaded + hl * 70
     shaded = shaded.clip(0, 255).astype(np.uint8)
     Image.fromarray(shaded).save(out / "4-light.png")
+    # しわ: 布が引かれ・寄る場所（曲げた肘・膝、脇、腰からの裾）を関節から決め、そこでだけ元の絵のしわを戻す。
+    # 関節が取れない絵（デフォルメでマントに隠れた体など）では戻さない（デフォルメはしわを減らす）
+    try:
+        import edit
+        import folds
+        import joints
+        lab_f = np.asarray(edit.parts(src).resize(shaded.shape[1::-1], Image.NEAREST))
+        orig_f = np.asarray(Image.open(src).convert("RGB").resize(shaded.shape[1::-1]))
+        pts = joints.find(src)
+        found = folds.sites(pts, lab_f, orig_f)
+        if found:
+            z = folds.zone(found, pts, np.isin(lab_f, folds.CLOTH) & ~folds.metal_mask(orig_f, np.isin(lab_f, folds.CLOTH)))
+            shaded = keep_folds(shaded, orig_f, z)
+            Image.fromarray((z * 255).astype("uint8")).save(out / "4-fold-zone.png")
+    except Exception as e:
+        print(f"しわの場所が決められない: {e}", file=sys.stderr)
+    Image.fromarray(shaded).save(out / "4-folds.png")
     # 線: 墨で重ねる。暗い面の上では墨が沈んで見えないので、下の色を明るくした色の線にする（色トレスの考え方）
     lum = np.asarray(Image.fromarray(shaded).convert("L")).astype(float)
     # 線は筆跡としてブラシで引き直す（brushes.py）。外形の筆跡は太く。暗い面の上は下の色を明るくした線（色トレス）
