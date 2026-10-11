@@ -16,6 +16,7 @@
   python3 tools/gen/bible.py prompt knight --scene "walking" --pose "looking back" --world citadel --location gate --items lantern
   python3 tools/gen/bible.py draw knight OUTDIR --scene ... [--outfit "差し替える服"] [--ref-scale 0.6] [--count 2]
   python3 tools/gen/bible.py show knight
+  python3 tools/gen/bible.py sheet knight OUT.html                         # 設定資料のページ（絵を埋め込んだ1つの HTML）
 """
 import argparse
 import json
@@ -174,6 +175,77 @@ def draw(ident: str, outdir: str, count: int = 1, seed: int = 0, ref_scale: floa
     return names
 
 
+SHEET_CSS = """
+:root { --paper:#fbfaf7; --ink:#141313; --sub:#5d5853; --rule:#d9d4cd; --accent:#d23a26;
+  --display:"Dela Gothic One","Hiragino Sans","Yu Gothic",sans-serif; --body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,Menlo,monospace; color-scheme: light; }
+html,body { background:var(--paper); color:var(--ink); }
+body { font-family:var(--body); font-size:14px; line-height:1.75; padding-inline:16px; padding-block:32px; }
+.sheet { max-width:1100px; margin:0 auto; display:grid; gap:28px; }
+header { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:end; gap:12px; border-bottom:3px solid var(--ink); padding-bottom:10px; }
+h1 { font-family:var(--display); font-weight:400; font-size:clamp(28px,5vw,44px); margin:0; }
+.id { font-family:var(--mono); color:var(--sub); }
+h2 { font-size:13px; letter-spacing:.2em; color:var(--accent); margin:0 0 8px; }
+.cols { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:28px; }
+dl { margin:0; display:grid; gap:8px; } dl div { display:grid; grid-template-columns:7em minmax(0,1fr); gap:8px; border-top:1px solid var(--rule); padding-top:8px; }
+dt { color:var(--sub); } dd { margin:0; } code { font-family:var(--mono); font-size:12.5px; }
+.swatches { display:flex; flex-wrap:wrap; gap:8px; } .sw { width:64px; } .sw i { display:block; height:40px; border:1px solid var(--rule); }
+.sw span { font-family:var(--mono); font-size:11px; color:var(--sub); }
+.imgs { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:14px; }
+figure { margin:0; } figure img { width:100%; height:auto; display:block; border:1px solid var(--rule); background:#fff; }
+figcaption { font-size:12px; color:var(--sub); margin-top:4px; }
+.items { list-style:none; margin:0; padding:0; display:grid; gap:8px; } .items li { border-top:1px solid var(--rule); padding-top:8px; }
+@media (max-width:760px) { .cols { grid-template-columns:minmax(0,1fr); } }
+"""
+
+ROLE_JA = {"color": "色の手本", "lineart": "線画", "colored-lineart": "線画に色を置いたもの", "sheet": "設定画"}
+
+
+def sheet(ident: str, out: str) -> dict:
+    """保存した設定から、キャラクターの設定資料のページを1つの HTML に組む（絵は埋め込む）。
+    文字は絵に焼き込まない（手元の日本語の書体が中国語用で、字形が崩れるため）"""
+    import base64
+    import html
+    c = load("characters", ident)
+
+    def img(rel):
+        return "data:image/jpeg;base64," + base64.b64encode((ROOT / rel).read_bytes()).decode()
+
+    e = html.escape
+    rows = [("変えない見た目", c["look"]), ("いつもの服", c["outfit"]), ("描かせない言葉", c.get("negative") or "（無し）")]
+    # 場面の絵（scene-<場所の id>）の見出しは、世界観に保存した場所の名前にする
+    places = {}
+    for w in sorted((BIBLE / "worlds").glob("*.json")) if (BIBLE / "worlds").exists() else []:
+        wd = json.loads(w.read_text(encoding="utf-8"))
+        places.update({x["id"]: f'{wd["name"]}の{x["name"]}' for x in wd["locations"]})
+
+    def caption(k):
+        if k.startswith("scene-"):
+            return "場面: " + places.get(k[6:], k[6:])
+        return ROLE_JA.get(k, k)
+    figs = "".join(f'<figure><img src="{img(v)}" alt="{e(c["name"])}の{e(caption(k))}"><figcaption>{e(caption(k))}</figcaption></figure>'
+                   for k, v in c["images"].items())
+    items = "".join(f'<li><b>{e(i["name"])}</b> <code>{e(i["tags"])}</code><br>{e(i.get("desc", ""))}'
+                    + (f'<img src="{img(i["image"])}" alt="{e(i["name"])}" style="max-width:160px;display:block;margin-top:6px">' if i.get("image") else "")
+                    + "</li>" for i in c["items"]) or "<li>（まだ無い）</li>"
+    sw = "".join(f'<div class="sw"><i style="background:{e(h)}"></i><span>{e(h)}</span></div>' for h in c.get("palette", []))
+    body = f"""<title>{e(c["name"])}</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;700&family=JetBrains+Mono&display=swap">
+<style>{SHEET_CSS}</style>
+<div class="sheet">
+<header><h1>{e(c["name"])}</h1><span class="id">{e(c["id"])}</span></header>
+<p>{e(c.get("notes", ""))}</p>
+<div class="cols">
+<section><h2>設定</h2><dl>{"".join(f"<div><dt>{e(k)}</dt><dd><code>{e(v)}</code></dd></div>" for k, v in rows)}</dl></section>
+<section><h2>色見本</h2><div class="swatches">{sw or "（まだ無い）"}</div><h2 style="margin-top:20px">装飾・持ち物</h2><ul class="items">{items}</ul></section>
+</div>
+<section><h2>手本と場面</h2><div class="imgs">{figs}</div></section>
+</div>
+"""
+    Path(out).write_text(body, encoding="utf-8")
+    return {"out": out, "images": len(c["images"]), "bytes": len(body.encode())}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -197,6 +269,7 @@ def main():
         s.add_argument("--items", help="持ち物の id をカンマ区切りで。省くと全部"); s.add_argument("--world"); s.add_argument("--location")
         s.add_argument("--framing", default="full body")
     s = sub.add_parser("show"); s.add_argument("id")
+    s = sub.add_parser("sheet"); s.add_argument("id"); s.add_argument("out")
     a = ap.parse_args()
     kw = {}
     if a.cmd in ("prompt", "draw"):
@@ -212,6 +285,7 @@ def main():
         "prompt": lambda: dict(zip(("prompt", "negative"), prompt(a.id, **kw))),
         "draw": lambda: draw(a.id, a.out, a.count, a.seed, a.ref_scale, **kw),
         "show": lambda: load("characters", a.id),
+        "sheet": lambda: sheet(a.id, a.out),
     }[a.cmd]()
     print(json.dumps(r, ensure_ascii=False, indent=1))
 

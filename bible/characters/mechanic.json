@@ -1,0 +1,31 @@
+{
+ "id": "mechanic",
+ "name": "大スパナの技師",
+ "look": "1boy, solo, short brown hair, brown eyes",
+ "outfit": "goggles on head, orange overalls, white t-shirt, brown leather gloves, brown work boots, tool belt",
+ "negative": "shirtless",
+ "items": [
+  {
+   "id": "wrench",
+   "name": "大スパナ",
+   "tags": "holding big wrench",
+   "desc": "背丈ほどある大スパナ"
+  }
+ ],
+ "images": {
+  "color": "bible/characters/mechanic/color.jpg",
+  "lineart": "bible/characters/mechanic/lineart.jpg",
+  "colored-lineart": "bible/characters/mechanic/colored-lineart.jpg"
+ },
+ "palette": [
+  "#7b8083",
+  "#585e61",
+  "#dba876",
+  "#4e423e",
+  "#e8dacd",
+  "#90644f",
+  "#29282a",
+  "#b49179"
+ ],
+ "notes": ""
+}

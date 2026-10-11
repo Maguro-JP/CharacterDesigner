@@ -15,7 +15,9 @@
  "images": {
   "color": "bible/characters/knight/color.jpg",
   "lineart": "bible/characters/knight/lineart.jpg",
-  "colored-lineart": "bible/characters/knight/colored-lineart.jpg"
+  "colored-lineart": "bible/characters/knight/colored-lineart.jpg",
+  "scene-gate": "bible/characters/knight/scene-gate.jpg",
+  "scene-hall": "bible/characters/knight/scene-hall.jpg"
  },
  "palette": [
   "#f8f5f2",

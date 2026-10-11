@@ -1,0 +1,30 @@
+{
+ "id": "witch",
+ "name": "枝杖の魔女",
+ "look": "1girl, solo, long brown hair, brown eyes",
+ "outfit": "black witch hat, purple hat band, long dark brown robe, wide sleeves, purple sash, long skirt",
+ "negative": "bare legs, bare thighs, slit skirt, cleavage",
+ "items": [
+  {
+   "id": "staff",
+   "name": "枝杖",
+   "tags": "holding wooden staff, broom",
+   "desc": "上が枝、下がほうきの穂。枝先に星の吊り飾り"
+  }
+ ],
+ "images": {
+  "color": "bible/characters/witch/color.jpg",
+  "lineart": "bible/characters/witch/lineart.jpg"
+ },
+ "palette": [
+  "#4b4041",
+  "#2f2c33",
+  "#c3b6bf",
+  "#000001",
+  "#141317",
+  "#060205",
+  "#2c2431",
+  "#3e3539"
+ ],
+ "notes": "上が枝、下がほうきの穂の杖を持つ魔女"
+}
