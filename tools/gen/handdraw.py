@@ -138,9 +138,28 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", li
     shadow = _shrink(_grow(shadow, 2), 2)            # 細かい斑を面にまとめる
     shaded = flat.astype(float).copy()
     tint = np.array([0.62, 0.60, 0.80])              # 影は寒色寄りに落とす（黒を混ぜると濁る）
-    shaded[shadow] = shaded[shadow] * tint
+    # 影の境目だけ馴染ませる: 影の面の縁を細くぼかして掛ける（アニメ塗りは境目を残すので 1.5 画素だけ）
+    soft = np.asarray(Image.fromarray(shadow.astype("uint8") * 255).filter(ImageFilter.GaussianBlur(1.5))).astype(float)[..., None] / 255
+    shaded = shaded * (1 - soft) + shaded * tint * soft
+    Image.fromarray(shaded.clip(0, 255).astype(np.uint8)).save(out / "4-shade.png")
+    # 色を重ねる（オーバーレイ）: 光源の側（左上）を暖かく、反対側を冷たく。人の描き手が最後に掛ける色味の層
+    Hh, Ww = shadow.shape
+    yy, xx = np.mgrid[0:Hh, 0:Ww]
+    side = ((-(xx - Ww / 2) / Ww) + (-(yy - Hh / 2) / Hh))   # 左上ほど大きい
+    warm = np.array([1.0, 0.55, 0.25]) * 255
+    cool = np.array([0.25, 0.4, 1.0]) * 255
+    tone = np.where(side[..., None] > 0, warm, cool)
+    k = (np.abs(side)[..., None] * 0.18 * person[..., None])
+    def overlay(a, b):
+        a, b = a / 255, b / 255
+        return np.where(a < 0.5, 2 * a * b, 1 - 2 * (1 - a) * (1 - b)) * 255
+    shaded = shaded * (1 - k) + overlay(shaded, tone) * k
+    # ハイライト（加算）: 影でない所のうち、光源の側の外形の縁に細い光
+    rim = person & ~_shrink(person, 3) & (side > 0.05) & ~shadow
+    hl = np.asarray(Image.fromarray(rim.astype("uint8") * 255).filter(ImageFilter.GaussianBlur(1))).astype(float)[..., None] / 255
+    shaded = shaded + hl * 70
     shaded = shaded.clip(0, 255).astype(np.uint8)
-    Image.fromarray(shaded).save(out / "4-shade.png")
+    Image.fromarray(shaded).save(out / "4-light.png")
     # 線: 墨で重ねる。暗い面の上では墨が沈んで見えないので、下の色を明るくした色の線にする（色トレスの考え方）
     # 紙の目と筆ムラ: 人の絵は面の中に細かいざらつきがある（模型の絵の約4倍。docs/knowledge/painting-workflow.md）。
     # 細かい雑音と、ゆるく大きな濃淡の揺れ（筆ムラ）を人物の中にだけ掛ける
