@@ -1,0 +1,288 @@
+<title>CharacterDesigner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* 版面: 製図台の上の工程表。左に工程の番号、右に結果の絵。差し色は朱（操作できる所）と橙（注意）。 */
+:root {
+  --bg: #f7f6f3;
+  --surface: #ffffff;
+  --fg: #161514;
+  --sub: #5f5a55;
+  --rule: #dcd7d0;
+  --accent: #c9361f;
+  --warn: #d9761a;
+  --code-bg: #1b1a19;
+  --code-fg: #f3efe9;
+  --display: "Dela Gothic One", "Hiragino Sans", "Yu Gothic", sans-serif;
+  --body: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #141312; --surface: #1d1c1b; --fg: #efebe5; --sub: #a59f98; --rule: #34312e;
+    --accent: #f0624a; --warn: #f29a45; --code-bg: #0c0b0b; --code-fg: #f3efe9; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #141312; --surface: #1d1c1b; --fg: #efebe5; --sub: #a59f98; --rule: #34312e;
+  --accent: #f0624a; --warn: #f29a45; --code-bg: #0c0b0b; --code-fg: #f3efe9; color-scheme: dark;
+}
+body { background: var(--bg); color: var(--fg); font-family: var(--body); font-size: 15px; line-height: 1.8; padding-inline: 16px; padding-block: 0 48px; }
+.wrap { max-width: 1120px; margin: 0 auto; }
+a { color: var(--accent); }
+a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h1, h2, h3 { text-wrap: balance; }
+.eyebrow { font-family: var(--mono); font-size: 12px; letter-spacing: .12em; color: var(--sub); text-transform: uppercase; }
+
+/* 冒頭 */
+.hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); gap: 40px; align-items: center; padding-block: 56px 48px; }
+.hero h1 { font-family: var(--display); font-weight: 400; font-size: clamp(34px, 6vw, 60px); line-height: 1.15; margin: 10px 0 0; }
+.hero p { font-size: 17px; max-width: 30em; margin: 18px 0 0; }
+.hero .facts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 22px; }
+.chip { font-family: var(--mono); font-size: 12px; border: 1px solid var(--rule); background: var(--surface); padding: 4px 10px; border-radius: 999px; }
+.hero figure { margin: 0; }
+.hero img { width: 100%; height: auto; display: block; border: 1px solid var(--rule); }
+.hero figcaption, figure figcaption { font-size: 12px; color: var(--sub); margin-top: 6px; }
+.cta { display: inline-flex; gap: 8px; align-items: center; margin-top: 24px; background: var(--accent); color: #fff; text-decoration: none; font-weight: 700; padding: 10px 18px; }
+
+section { border-top: 1px solid var(--rule); padding-block: 48px; }
+section > h2 { font-family: var(--display); font-weight: 400; font-size: 30px; margin: 6px 0 24px; }
+
+/* できること: 工程の番号つきの行。番号は工程の順ではなく、頼んでから絵が出るまでの順 */
+.cap { display: grid; grid-template-columns: 64px minmax(0, 1fr) minmax(0, 1fr); gap: 24px; padding-block: 28px; border-top: 1px dashed var(--rule); }
+.cap:first-of-type { border-top: 0; }
+.cap .n { font-family: var(--display); color: var(--accent); font-size: 30px; line-height: 1; }
+.cap h3 { font-size: 20px; margin: 0 0 8px; }
+.cap p { margin: 0 0 10px; max-width: 34em; }
+.cap ul { margin: 0; padding-left: 1.2em; }
+.cap .imgs { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); gap: 10px; align-content: start; }
+.cap .imgs.one { grid-template-columns: minmax(0, 1fr); max-width: 360px; }
+.cap img { width: 100%; height: auto; display: block; border: 1px solid var(--rule); background: #fff; }
+.cmd { font-family: var(--mono); font-size: 13px; color: var(--sub); }
+
+/* 使い方 */
+.howto { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.step { background: var(--surface); border: 1px solid var(--rule); padding: 20px; min-width: 0; }
+.step .k { font-family: var(--mono); color: var(--accent); font-size: 13px; }
+.step h3 { margin: 4px 0 8px; font-size: 18px; }
+.step p { margin: 0 0 12px; font-size: 14px; }
+.code { position: relative; background: var(--code-bg); color: var(--code-fg); font-family: var(--mono); font-size: 13px; padding: 12px 12px 12px 14px; overflow-x: auto; white-space: pre; }
+.copy { position: absolute; top: 6px; right: 6px; font-family: var(--body); font-size: 12px; background: transparent; color: var(--code-fg); border: 1px solid #555; padding: 2px 8px; cursor: pointer; }
+.say { border-left: 3px solid var(--accent); padding-left: 12px; font-size: 14px; margin: 10px 0 0; }
+
+/* 道具の一覧 */
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; min-width: 560px; font-size: 14px; }
+th, td { text-align: left; border-top: 1px solid var(--rule); padding: 10px 12px 10px 0; vertical-align: top; }
+th { font-family: var(--mono); font-size: 12px; color: var(--sub); font-weight: 400; letter-spacing: .06em; }
+td code { font-family: var(--mono); font-size: 12.5px; }
+
+/* まだできないこと */
+.limits { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.limit { border: 1px solid var(--rule); border-left: 4px solid var(--warn); padding: 14px 16px; background: var(--surface); min-width: 0; }
+.limit h3 { margin: 0 0 4px; font-size: 16px; }
+.limit p { margin: 0; font-size: 14px; color: var(--sub); }
+
+.book { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 32px; align-items: center; }
+.book .imgs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.book img { width: 100%; height: auto; display: block; border: 1px solid var(--rule); background: #fff; }
+
+@media (max-width: 820px) {
+  .hero, .book { grid-template-columns: minmax(0, 1fr); }
+  .cap { grid-template-columns: 44px minmax(0, 1fr); }
+  .cap .imgs { grid-column: 2; }
+  .howto, .limits { grid-template-columns: minmax(0, 1fr); }
+}
+</style>
+
+<div class="wrap">
+
+<header class="hero">
+  <div>
+    <div class="eyebrow">CharacterDesigner</div>
+    <h1>日本語で頼むと、手元の PC がキャラクターを描いて確かめる</h1>
+    <p>「赤い襟巻きの騎士の少女、ランタンを持って」と書くだけで、描く言葉に直し、描き、頼んだ物が描けたか・手足や持ち物に矛盾が無いかを検品し、落ちた絵は理由に合わせて描き直します。外のサービスも API キーも要りません。</p>
+    <div class="facts">
+      <span class="chip">GPU 不要（CPU で 1 枚 約3分）</span>
+      <span class="chip">言葉の模型も手元</span>
+      <span class="chip">Claude から呼べる（MCP）</span>
+    </div>
+    <a class="cta" href="{{link:book}}" target="_blank" rel="noopener">線画集 第一集を見る</a>
+  </div>
+  <figure>
+    <img src="{{img:studio}}" alt="スタジオの画面。左に頼みごとの欄、中央に描いた絵、右に役割ごとの進み">
+    <figcaption>スタジオの画面。左で頼み、中央で大きく見て、右で役割ごとの進みと提案を見る</figcaption>
+  </figure>
+</header>
+
+<section aria-labelledby="can">
+  <div class="eyebrow">What it does</div>
+  <h2 id="can">できること</h2>
+
+  <div class="cap">
+    <div class="n">1</div>
+    <div>
+      <h3>頼みごとを、7つの役割で描いて検品する</h3>
+      <p>安全・読み手・演出・描き手・検品・意地の悪い目・整理の7つの役割が順に回します。落ちた絵は、落ちた理由（描かれていない物、腕が無い、物が2つに分かれている）に合わせて描き方を変えて描き直します。</p>
+      <ul>
+        <li>描く言葉に直す模型は、画面から入れ替えられる（同梱、Ollama などの窓口）</li>
+        <li>通った描く言葉は覚え、似た頼みごとのときに手本として使う</li>
+        <li>あり得ない形（余分な手足、浮いた物）は、特別に頼まない限り描かない</li>
+      </ul>
+    </div>
+    <div class="imgs one"><img src="{{img:knight-color}}" alt="スタジオで描いた、ランタンを持つ騎士の少女"></div>
+  </div>
+
+  <div class="cap">
+    <div class="n">2</div>
+    <div>
+      <h3>線画から描く</h3>
+      <p>人の描き手と同じく、線画を先に描きます。塗りの絵から線を取り出すと、影の境目まで線になって二重や途切れが出たため、描く段階から線画として描かせ、灰色の陰影だけを除いて清書します。</p>
+      <p class="cmd">python3 tools/gen/lineart.py draw "1girl, witch, ..." out/</p>
+    </div>
+    <div class="imgs"><img src="{{img:witch-line-2}}" alt="魔女の線画"><img src="{{img:mech-line-1}}" alt="機械技師の線画"><img src="{{img:sword-line}}" alt="剣士の線画"></div>
+  </div>
+
+  <div class="cap">
+    <div class="n">3</div>
+    <div>
+      <h3>種族・年齢・服を描き分ける</h3>
+      <p>エルフ、ドワーフ、獣の耳や尾を持つ種、子供から老人、服の差し替えまで、同じ作風のまま描き分けます。亜人は耳・尾・翼・角の付いた設定資料（4方向）を描きます。</p>
+    </div>
+    <div class="imgs"><img src="{{img:elf}}" alt="黒いワンピースのエルフの女性"><img src="{{img:dwarf}}" alt="筋肉質で髭のドワーフの男性"><img src="{{img:elder}}" alt="眼鏡の老人の男性"><img src="{{img:jacket}}" alt="赤い革の上着の青年"></div>
+  </div>
+
+  <div class="cap">
+    <div class="n">4</div>
+    <div>
+      <h3>箱庭ドットのドット絵と設定資料</h3>
+      <p>部品（楕円、多角形、太さのある線）と素材で人物を組み、光を当てて高い解像度で描いてから、縮小・減色・輪郭付けでドット絵に落とします。待機と歩きのコマ、右向き、色指定の設定資料まで出します。</p>
+      <p class="cmd">python3 tools/build.py characters/warrior/parts.json --preview out/</p>
+    </div>
+    <div class="imgs"><img src="{{img:sheet-cleric}}" alt="神官のドット絵の設定資料。色見本と全コマ"><img src="{{img:sheet-swordsman}}" alt="剣士のドット絵の設定資料"></div>
+  </div>
+
+  <div class="cap">
+    <div class="n">5</div>
+    <div>
+      <h3>絵の一部を直す</h3>
+      <p>範囲だけ描き直す、絵の外を描き足す、背景を抜く、顔だけ拡大して描き直す。描き直した所と元の絵の継ぎ目が出ないように、縁の色を合わせます。</p>
+      <p class="cmd">python3 tools/gen/imgproc.py inpaint / outpaint / facefix</p>
+    </div>
+    <div class="imgs one"><img src="{{img:inpaint}}" alt="パーカーの少女の絵で、範囲の描き直しと描き足しを並べた図"></div>
+  </div>
+
+  <div class="cap">
+    <div class="n">6</div>
+    <div>
+      <h3>描けたかを数えて確かめる</h3>
+      <p>目で見る前に、機械で数えられることは数えます。</p>
+      <ul>
+        <li>頼んだ物が描かれたか（絵からタグを読んで突き合わせる）</li>
+        <li>腕や脚が無い、体が画面の端で切れている</li>
+        <li>ほうきや杖が柄と先で別々に描かれている（物を探す模型で塊を数える）</li>
+        <li>関節の位置（肩・肘・腰・膝）と顔の向き</li>
+      </ul>
+    </div>
+    <div class="imgs"><img src="{{img:witch-chibi-color}}" alt="紫のマントのデフォルメの魔女。腕がマントで隠れていても、手足が無いとは数えない"></div>
+  </div>
+</section>
+
+<section aria-labelledby="how">
+  <div class="eyebrow">How to use</div>
+  <h2 id="how">使い方</h2>
+  <div class="howto">
+    <div class="step">
+      <div class="k">1 / 起動する</div>
+      <h3>アプリを立ち上げる</h3>
+      <p>リポジトリの場所で1行流します。初回は部品の取得に数分、2回目からは数秒で起動します。</p>
+      <div class="code"><button class="copy" type="button" data-copy="sh app/start.sh">写す</button>sh app/start.sh</div>
+      <p style="margin-top:12px">必要なもの: Python 3.10 以上、Node.js 20.19 以上、curl、ディスク約 9GB。GPU は無くても動きます。</p>
+    </div>
+    <div class="step">
+      <div class="k">2 / 開く</div>
+      <h3>画面を開いて頼む</h3>
+      <p>表示された住所を開き、「自由に描く」の欄に日本語で頼みます。「描く言葉に直す」で英語のタグにし、見て直してから「描く」。</p>
+      <div class="code"><button class="copy" type="button" data-copy="http://127.0.0.1:4173/">写す</button>http://127.0.0.1:4173/</div>
+      <p class="say">例: 赤いマフラーの騎士の少年、雪の城の前</p>
+    </div>
+    <div class="step">
+      <div class="k">3 / 見る</div>
+      <h3>結果を見て選ぶ</h3>
+      <p>最初の1件はモデルの取得と読み込みで 10〜20 分、そのあとは1枚 約3分です。落ちた絵は「回ごとの結果」で理由を見られます。良ければ「良い」を押すと、次から手本になります。</p>
+      <p>描き方は「一発で描く（速い）」「描いてから人の順番で仕上げ直す」「ラフから描く」から選べます。</p>
+    </div>
+  </div>
+
+  <h3 style="margin-top:32px">Claude から頼む</h3>
+  <p>アプリを起動したまま、MCP サーバーを登録すると、Claude に「白い狐の巫女を描いて」と頼めます。</p>
+  <div class="code"><button class="copy" type="button" data-copy="claude mcp add characterdesigner -e PYTHONPATH=.cache/app/lib -- python3 -m app.mcp.server">写す</button>claude mcp add characterdesigner -e PYTHONPATH=.cache/app/lib -- python3 -m app.mcp.server</div>
+</section>
+
+<section aria-labelledby="tools">
+  <div class="eyebrow">Tools</div>
+  <h2 id="tools">道具の一覧</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>道具</th><th>すること</th><th>使い方</th></tr></thead>
+      <tbody>
+        <tr><td>スタジオ</td><td>日本語の頼みごとから、描く・検品・描き直しまで</td><td><code>sh app/start.sh</code></td></tr>
+        <tr><td>線画</td><td>線画として描き、灰色の陰影を除いて清書する</td><td><code>tools/gen/lineart.py draw / clean</code></td></tr>
+        <tr><td>画像処理</td><td>範囲の描き直し、描き足し、背景抜き、顔の描き直し、線の抽出</td><td><code>tools/gen/imgproc.py</code></td></tr>
+        <tr><td>検品</td><td>手足の欠け、離れた物、画面の端で切れる</td><td><code>tools/gen/edit.py</code></td></tr>
+        <tr><td>持ち物の検品</td><td>ほうき・杖・槍・傘が柄と先で分かれていないか</td><td><code>tools/gen/pieces.py check</code></td></tr>
+        <tr><td>関節</td><td>肩・肘・手首・腰・膝・足首・目・耳の位置</td><td><code>tools/gen/joints.py</code></td></tr>
+        <tr><td>素材の棚</td><td>LoRA とポーズを外から足す（出典とライセンスが書かれたものだけ使う）</td><td><code>.cache/assets/lora</code>、<code>pose</code></td></tr>
+        <tr><td>ドット絵</td><td>部品で組んで描き、縮小・減色・輪郭でドットに落とす</td><td><code>tools/build.py</code>、<code>check.py</code>、<code>render.py</code></td></tr>
+        <tr><td>設定資料</td><td>色見本、全コマ、作風の描き分けを1枚に</td><td><code>tools/sheet.py</code></td></tr>
+        <tr><td>画集・この頁</td><td>絵を埋め込んだ1つの HTML にする</td><td><code>tools/showcase.py</code></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section aria-labelledby="book">
+  <div class="eyebrow">Art book</div>
+  <div class="book">
+    <div>
+      <h2 id="book" style="font-family:var(--display);font-weight:400;font-size:30px;margin:6px 0 12px">線画集 第一集</h2>
+      <p>騎士、魔女、剣士、機械技師。線から先に描いた設定画を、設定のメモと一緒に一冊にまとめました。見つけた矛盾も頁ごとに書いています。</p>
+      <a class="cta" href="{{link:book}}" target="_blank" rel="noopener">画集を開く</a>
+    </div>
+    <div class="imgs">
+      <img src="{{img:knight-line}}" alt="騎士の線画">
+      <img src="{{img:witch-line-1}}" alt="魔女の線画">
+      <img src="{{img:mech-line-2}}" alt="機械技師の線画">
+    </div>
+  </div>
+</section>
+
+<section aria-labelledby="limits">
+  <div class="eyebrow">Not yet</div>
+  <h2 id="limits">まだできないこと</h2>
+  <div class="limits">
+    <div class="limit"><h3>線画に色を置く</h3><p>線画を崩さずに塗る工程は作り直し中です。今の彩色の絵は、線画とは別の回に色付きで描いたものです。</p></div>
+    <div class="limit"><h3>人の順番の仕上げ</h3><p>下塗りから仕上げ直す方法は、元の絵より汚くなったので止めています。線画から作り直します。</p></div>
+    <div class="limit"><h3>持ち物の矛盾をすべて見つける</h3><p>剣が2本つながって見える、杖とほうきが混ざる、といった矛盾は、まだ目で見て見つけています。</p></div>
+    <div class="limit"><h3>速さ</h3><p>CPU で描くので1枚 約3分かかります。GPU 描画の部品が無い環境では速くなりません。</p></div>
+  </div>
+</section>
+
+</div>
+
+<script>
+document.querySelectorAll('.copy').forEach(function (b) {
+  b.addEventListener('click', function () {
+    var text = b.getAttribute('data-copy');
+    var done = function () { b.textContent = '写した'; setTimeout(function () { b.textContent = '写す'; }, 1500); };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(done, function () { select(b); });
+    } else { select(b); }
+  });
+});
+function select(b) {
+  var r = document.createRange(); r.selectNodeContents(b.parentNode);
+  var s = window.getSelection(); s.removeAllRanges(); s.addRange(r);
+  b.textContent = '選んだ';
+}
+</script>
