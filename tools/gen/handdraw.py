@@ -126,10 +126,26 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2") ->
     Image.fromarray(np.where(strong, 0, 255).astype("uint8")).save(out / "2-weight.png")
     flat, regions = flats(line, person, Image.open(guide or src))
     Image.fromarray(flat).save(out / "3-flats.png")
-    imgproc.shade(str(out / "3-flats.png"), str(out / "4-shade.png"), style=style)
-    shaded = np.asarray(Image.open(out / "4-shade.png").convert("RGB")).copy()
-    ink = np.array([40, 30, 40], dtype=np.uint8)   # 真っ黒より少し色を帯びた墨
-    shaded[strong] = ink
+    # 影: 立体の計算（imgproc.shade）で暗くなった所だけを「影の面」として取り、下塗りの色ごとに1段暗い影色を平らに置く。
+    # 計算の明暗をそのまま掛けると、下塗りとほぼ同じに見えた（段が無い）。人の影は面で置く
+    imgproc.shade(str(out / "3-flats.png"), str(out / "4-calc.png"), style=style)
+    calc = np.asarray(Image.open(out / "4-calc.png").convert("L")).astype(float)
+    base = np.asarray(Image.fromarray(flat).convert("L")).astype(float)
+    shadow = person & (calc < base * 0.93)
+    shadow = _shrink(_grow(shadow, 2), 2)            # 細かい斑を面にまとめる
+    shaded = flat.astype(float).copy()
+    tint = np.array([0.72, 0.70, 0.86])              # 影は寒色寄りに落とす（黒を混ぜると濁る）
+    shaded[shadow] = shaded[shadow] * tint
+    shaded = shaded.clip(0, 255).astype(np.uint8)
+    Image.fromarray(shaded).save(out / "4-shade.png")
+    # 線: 墨で重ねる。暗い面の上では墨が沈んで見えないので、下の色を明るくした色の線にする（色トレスの考え方）
+    lum = np.asarray(Image.fromarray(shaded).convert("L")).astype(float)
+    ink = np.array([40, 30, 40], dtype=float)
+    light_ink = (shaded.astype(float) * 1.9 + 50).clip(0, 255)
+    dark_under = lum < 70
+    shaded = shaded.copy()
+    shaded[strong & ~dark_under] = ink.astype(np.uint8)
+    shaded[strong & dark_under] = light_ink[strong & dark_under].astype(np.uint8)
     Image.fromarray(shaded).save(out / "5-final.png")
     return {"regions": regions, "line_ratio": round(float(line.mean()), 4), "weighted_ratio": round(float(strong.mean()), 4)}
 
