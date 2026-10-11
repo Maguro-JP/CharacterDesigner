@@ -175,3 +175,22 @@ class MatchRingTest(unittest.TestCase):
         mask = Image.new("L", (64, 64), 0)
         ImageDraw.Draw(mask).rectangle([20, 20, 40, 40], fill=255)
         self.assertEqual(edit._match_ring(gen, im, mask).getpixel((30, 30)), (100, 120, 140))
+
+
+class LineartTest(unittest.TestCase):
+    """線画の抽出: 塗りの面は白に、境目は黒い線になる"""
+
+    def test_edges_become_lines(self):
+        import tempfile
+        import imgproc
+        im = Image.new("RGB", (80, 80), "white")
+        ImageDraw.Draw(im).rectangle([20, 20, 60, 60], fill=(200, 60, 60))
+        with tempfile.TemporaryDirectory() as d:
+            src, out = f"{d}/a.png", f"{d}/b.png"
+            im.save(src)
+            r = imgproc.lineart(src, out)
+            g = Image.open(out)
+            self.assertEqual(g.getpixel((40, 40)), 255)   # 面の中は白
+            self.assertEqual(g.getpixel((5, 5)), 255)
+            self.assertTrue(any(g.getpixel((x, 40)) == 0 for x in range(16, 25)))   # 境目に線
+            self.assertGreater(r["line_ratio"], 0)
