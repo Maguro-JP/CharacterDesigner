@@ -115,80 +115,6 @@ def flats(line: np.ndarray, person: np.ndarray, guide: Image.Image, min_area: in
     return out, n
 
 
-def asymmetry(img: np.ndarray, box: tuple[int, int, int, int], amount: float = 0.04, seed: int = 0) -> np.ndarray:
-    """左右対称の部位の片側だけを、少しだけ縦に伸ばして下へずらす。
-    人の描き手は両目をコピーせずに描くので、形と高さにわずかな差が出る。模型の絵は両目がほぼ同じ形になり、そこで見分けられる
-    （docs/knowledge/painting-workflow.md）。box は (左, 上, 右, 下)。中央で分け、乱数で選んだ片側だけを変える"""
-    x0, y0, x1, y1 = box
-    mid = (x0 + x1) // 2
-    rng = np.random.default_rng(seed)
-    sx0, sx1 = (x0, mid) if rng.random() < 0.5 else (mid, x1)
-    if sx1 - sx0 < 4 or y1 - y0 < 4:
-        return img
-    part = Image.fromarray(img[y0:y1, sx0:sx1])
-    h = y1 - y0
-    grown = part.resize((sx1 - sx0, max(int(round(h * (1 + amount))), h + 1)), Image.LANCZOS)
-    shift = max(int(round(h * amount / 2)), 1)
-    moved = np.asarray(grown)[:h]
-    out = img.copy()
-    # 帯の上下の縁は動かさず、中ほどだけを置き換える（縁で段が出ないように）
-    w = np.sin(np.linspace(0, np.pi, h))[:, None, None] ** 2
-    out[y0 + shift:y1, sx0:sx1] = (img[y0 + shift:y1, sx0:sx1] * (1 - w[shift:]) + moved[:h - shift] * w[shift:]).astype(img.dtype)
-    return out
-
-
-def metal_mask(img: np.ndarray, cloth: np.ndarray) -> np.ndarray:
-    """服の部位の中の金属（鎧）。部位分けは鎧も服に数えるので、布のしわが金属に付いた。
-    金属は彩度が低く、つやで明るさが細かく散らばる。散らばりは板の縁の線でも出るので、開きで細い線を除き、
-    閉じと穴埋めで平らな板の内側を埋める。騎士の絵で、胸・腕・腰の鎧が金属、スカート・マフラー・タイツが布に分かれた"""
-    from scipy.ndimage import binary_closing, binary_fill_holes, binary_opening, uniform_filter
-    rgb = img[..., :3].astype(float)
-    mx, mn = rgb.max(2), rgb.min(2)
-    sat = np.where(mx > 0, (mx - mn) / np.maximum(mx, 1) * 255, 0)
-    lum = rgb @ np.array([0.299, 0.587, 0.114])
-    spread = np.sqrt(np.maximum(uniform_filter(lum * lum, 15) - uniform_filter(lum, 15) ** 2, 0))
-    m = cloth & (uniform_filter(sat, 11) < 50) & (uniform_filter(spread, 15) > 12)
-    m = binary_opening(m, np.ones((9, 9)))
-    return binary_fill_holes(binary_closing(m, np.ones((25, 25)))) & cloth
-
-
-def wear(img: np.ndarray, cloth: np.ndarray, seed: int = 0, folds: int = 0, alpha: float = 0.22) -> np.ndarray:
-    """汚しとディテール: 服の範囲にだけ、布のしわの細い線と、縁の小さな擦れを薄く足す。
-    人の描き手は仕上げの近くで描き込みを足す。模型の絵は面がつるつるで、描き込みの粗密が意図と関係ない
-    （docs/knowledge/painting-workflow.md）。しわは重さで下へ垂れるので、縦に近い短い弧にする。
-    濃くすると汚れの染みに見えるので、元の色を少し暗く（乗算）するだけにする"""
-    from PIL import ImageDraw
-    H, W = cloth.shape
-    if cloth.sum() < 400:
-        return img
-    rng = np.random.default_rng(seed)
-    ys, xs = np.nonzero(cloth)
-    n = folds or max(int(cloth.sum() / 12000), 3)
-    m = Image.new("L", (W, H), 0)
-    d = ImageDraw.Draw(m)
-    for i in rng.choice(len(ys), n, replace=False):
-        y, x = int(ys[i]), int(xs[i])
-        length = rng.uniform(0.02, 0.06) * H
-        bend = rng.uniform(-0.25, 0.25) * length
-        # 1本の滑らかな弧（点ごとに揺らすと、ひびや髪の毛に見えた）。入りと抜きを細くするため、中ほどだけ太く重ねる
-        pts = [(x + bend * np.sin(t * np.pi), y + length * t) for t in np.linspace(0, 1, 12)]
-        d.line(pts, fill=150, width=1)
-        d.line(pts[3:9], fill=255, width=2)
-    # 擦れ: 服の縁（外へ出る所）の短い明るい点
-    edge = cloth & ~_shrink(cloth, 2)
-    ey, ex = np.nonzero(edge)
-    lite = Image.new("L", (W, H), 0)
-    dl = ImageDraw.Draw(lite)
-    for i in rng.choice(len(ey), min(n * 2, len(ey)), replace=False):
-        dl.ellipse([ex[i] - 1, ey[i] - 1, ex[i] + 1, ey[i] + 1], fill=255)
-    dark = np.asarray(m.filter(ImageFilter.GaussianBlur(1.2))).astype(float)[..., None] / 255 * cloth[..., None]
-    light = np.asarray(lite.filter(ImageFilter.GaussianBlur(0.8))).astype(float)[..., None] / 255 * cloth[..., None]
-    f = img.astype(float)
-    f = f * (1 - dark * alpha * 1.6)           # しわは乗算で少し暗く
-    f = f + (255 - f) * light * alpha          # 擦れはスクリーンで少し明るく
-    return f.clip(0, 255).astype(np.uint8)
-
-
 def grisaille(value: np.ndarray, flat: np.ndarray, person: np.ndarray) -> np.ndarray:
     """グリザイユ: 灰色だけで明暗を描き込み、その上に色を重ねる（docs/knowledge/painting-workflow.md）。
     1. 明暗（value、0〜255 の灰色）を人物の中で 5〜95% に引き伸ばす（灰色の段で明暗を決め切る）
@@ -212,7 +138,7 @@ def grisaille(value: np.ndarray, flat: np.ndarray, person: np.ndarray) -> np.nda
 
 
 def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", line_style: str = "default",
-        brush: str | None = None, grain: float | None = None, shadow_cut: float = 0.93, shadow_depth: float = 1.0,
+        brush: str | None = None, shadow_cut: float = 0.93, shadow_depth: float = 1.0,
         line_ink: float = 1.0, paint: str = "cel") -> dict:
     """paint は塗りの手順（cel: 影を面で1段置く、grisaille: 灰色の明暗に色を重ねる）。
     line_style は線の作風（casts/brushes.json の styles。chibi はデフォルメで太い線）。brush で筆を指定できる"""
@@ -283,19 +209,6 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", li
     shaded = shaded.clip(0, 255).astype(np.uint8)
     Image.fromarray(shaded).save(out / "4-light.png")
     # 線: 墨で重ねる。暗い面の上では墨が沈んで見えないので、下の色を明るくした色の線にする（色トレスの考え方）
-    # 紙の目と筆ムラ: 人の絵は面の中に細かいざらつきがある（模型の絵の約4倍。docs/knowledge/painting-workflow.md）。
-    # 細かい雑音と、ゆるく大きな濃淡の揺れ（筆ムラ）を人物の中にだけ掛ける
-    # 量は線の作風で変える。人の絵でも、すっきりしたアニメ塗りは 2.75、筆の跡を残す塗りは 6 前後だった
-    if grain is None:
-        grain = {"sketch": 6.0, "manga": 3.0}.get(line_style, 3.0)
-    rng = np.random.default_rng(7)
-    H2, W2 = shaded.shape[:2]
-    fine = rng.normal(0, 1, (H2, W2))
-    blotch = np.asarray(Image.fromarray(((rng.normal(0, 1, (H2 // 24 + 1, W2 // 24 + 1)) * 40 + 128).clip(0, 255)).astype("uint8"))
-                        .resize((W2, H2), Image.BICUBIC)).astype(float) - 128
-    tex = (fine * grain + blotch * grain * 0.03)[..., None]
-    shaded = np.where(person[..., None], shaded.astype(float) + tex, shaded.astype(float)).clip(0, 255).astype(np.uint8)
-    Image.fromarray(shaded).save(out / "4-texture.png")
     lum = np.asarray(Image.fromarray(shaded).convert("L")).astype(float)
     # 線は筆跡としてブラシで引き直す（brushes.py）。外形の筆跡は太く。暗い面の上は下の色を明るくした線（色トレス）
     import brushes
@@ -316,9 +229,6 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", li
     try:
         import edit
         lab = np.asarray(edit.parts(src).resize(shaded.shape[1::-1], Image.NEAREST))
-        cloth = np.isin(lab, [4, 5, 6, 7])
-        cloth &= ~metal_mask(np.asarray(Image.open(src).convert("RGB").resize(shaded.shape[1::-1])), cloth)
-        shaded = wear(shaded, cloth, seed=int(lab.sum()) % 1000)
         face = _shrink(lab == 11, 4)
         if face.any():
             ys, xs = np.nonzero(face)
@@ -326,10 +236,7 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", li
             eyes = face & (np.arange(face.shape[0])[:, None] > top + (bot - top) * 0.30) & \
                 (np.arange(face.shape[0])[:, None] < top + (bot - top) * 0.62)
             soft = np.asarray(Image.fromarray(eyes.astype("uint8") * 255).filter(ImageFilter.GaussianBlur(3))).astype(float)[..., None] / 255
-            orig = np.asarray(Image.open(src).convert("RGB"))
-            exs = np.nonzero(eyes.any(0))[0]
-            orig = asymmetry(orig, (int(exs.min()), int(top + (bot - top) * 0.30), int(exs.max()) + 1, int(top + (bot - top) * 0.62)),
-                             seed=int(orig.sum()) % 1000).astype(float)
+            orig = np.asarray(Image.open(src).convert("RGB")).astype(float)
             shaded = (shaded.astype(float) * (1 - soft) + orig * soft).clip(0, 255).astype(np.uint8)
     except Exception:
         pass   # 部位分けが使えないときは戻さない（線だけで描いた目のまま）

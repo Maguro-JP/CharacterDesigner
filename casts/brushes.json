@@ -1,12 +1,12 @@
 {
- "_doc": "線のブラシ。handdraw.py が清書の線をこのブラシで引き直す。width は基準の太さ（画素、832x1216 の絵で）、taper は入り抜きの長さ（線の長さに対する割合。0 なら丸い端）、jitter は太さの揺れ、grain は鉛筆の粒（0〜1）。round と sharp は雰囲気で使い分ける（柔らかい・かわいい → round、鋭い・格好いい → sharp）",
+ "_doc": "線のブラシ。handdraw.py が清書の線をこのブラシで引き直す。width は基準の太さ（画素、832x1216 の絵で）、taper は入り抜きの長さ（線の長さに対する割合。0 なら丸い端）。round と sharp は雰囲気で使い分ける（柔らかい・かわいい → round、鋭い・格好いい → sharp）",
  "brushes": {
-  "maru":   {"ja": "丸ペン（丸い・柔らかい）", "width": 2.2, "taper": 0.0,  "jitter": 0.05, "grain": 0.0, "cap": "round"},
-  "gpen":   {"ja": "Gペン（入り抜き・鋭い）", "width": 2.8, "taper": 0.35, "jitter": 0.15, "grain": 0.0, "cap": "sharp"},
-  "kabura": {"ja": "かぶらペン（太めで均一）", "width": 3.5, "taper": 0.15, "jitter": 0.08, "grain": 0.0, "cap": "round"},
-  "fude":   {"ja": "筆（強弱が大きい）",       "width": 4.0, "taper": 0.45, "jitter": 0.35, "grain": 0.0, "cap": "sharp"},
-  "pencil": {"ja": "鉛筆（粒のある細線）",     "width": 1.6, "taper": 0.25, "jitter": 0.25, "grain": 0.6, "cap": "round"},
-  "marker": {"ja": "マーカー（太く均一）",     "width": 4.5, "taper": 0.0,  "jitter": 0.0,  "grain": 0.0, "cap": "round"}
+  "maru":   {"ja": "丸ペン（丸い・柔らかい）", "width": 2.2, "taper": 0.0, "cap": "round"},
+  "gpen":   {"ja": "Gペン（入り抜き・鋭い）", "width": 2.8, "taper": 0.35, "cap": "sharp"},
+  "kabura": {"ja": "かぶらペン（太めで均一）", "width": 3.5, "taper": 0.15, "cap": "round"},
+  "fude":   {"ja": "筆（強弱が大きい）",       "width": 4.0, "taper": 0.45, "cap": "sharp"},
+  "pencil": {"ja": "鉛筆（粒のある細線）",     "width": 1.6, "taper": 0.25, "cap": "round"},
+  "marker": {"ja": "マーカー（太く均一）",     "width": 4.5, "taper": 0.0, "cap": "round"}
  },
  "_styles_doc": "作風ごとの既定。line_scale は線の太さの倍率（デフォルメは太く）",
  "styles": {

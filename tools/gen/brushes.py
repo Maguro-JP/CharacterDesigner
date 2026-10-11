@@ -61,7 +61,6 @@ def _smooth(path, k=3):
 def render(size, paths, brush: str, scale: float = 1.0, weights=None, color=(40, 30, 40), seed: int = 0) -> Image.Image:
     """筆跡をブラシで描いた RGBA の層。weights は筆跡ごとの太さの倍率（外形・影の側を太く）"""
     b = table()["brushes"][brush]
-    rng = np.random.default_rng(seed)
     W, H = size
     s = 2   # 2倍で描いてから縮める（縁をなめらかにする）
     layer = Image.new("L", (W * s, H * s), 0)
@@ -76,16 +75,11 @@ def render(size, paths, brush: str, scale: float = 1.0, weights=None, color=(40,
             L = min(b["taper"] * n, 30)
             idx = np.arange(n)
             prof = np.minimum(1, np.minimum(idx / L, (n - 1 - idx) / L) * 0.85 + 0.15)
-        jit = 1 + b["jitter"] * np.convolve(rng.normal(0, 1, n), np.ones(9) / 9, mode="same")[:n]
-        jit = np.resize(jit, n)
-        w = b["width"] * scale * (weights[i] if weights is not None else 1.0) * prof * jit
+        w = b["width"] * scale * (weights[i] if weights is not None else 1.0) * prof
         for (y, x), r in zip(p, w):
             r = max(r, 0.4) * s / 2
             d.ellipse([x * s - r, y * s - r, x * s + r, y * s + r], fill=255)
     a = np.asarray(layer.resize((W, H), Image.LANCZOS)).astype(float) / 255
-    if b["grain"] > 0:
-        # 鉛筆の粒: 紙の目の雑音で濃さを抜く
-        a *= 1 - b["grain"] * (rng.random(a.shape) > 0.55)
     out = np.zeros((H, W, 4), dtype=np.uint8)
     out[..., :3] = color
     out[..., 3] = (a * 255).clip(0, 255).astype(np.uint8)
