@@ -189,10 +189,33 @@ def wear(img: np.ndarray, cloth: np.ndarray, seed: int = 0, folds: int = 0, alph
     return f.clip(0, 255).astype(np.uint8)
 
 
+def grisaille(value: np.ndarray, flat: np.ndarray, person: np.ndarray) -> np.ndarray:
+    """グリザイユ: 灰色だけで明暗を描き込み、その上に色を重ねる（docs/knowledge/painting-workflow.md）。
+    1. 明暗（value、0〜255 の灰色）を人物の中で 5〜95% に引き伸ばす（灰色の段で明暗を決め切る）
+    2. 下塗りの色をオーバーレイで乗せる（明暗は灰色から、色相は下塗りから来る）
+    3. もう一度、下塗りの色を 35% だけ普通に重ねて灰色っぽさを消す
+    4. 明暗の上位 3% に加算で光を置く
+    セル塗りは影を面で1段置くが、グリザイユは明暗が連続して残るので、立体の量感が出る"""
+    v = value.astype(float)
+    if person.any():
+        lo, hi = np.percentile(v[person], 5), np.percentile(v[person], 95)
+        v = ((v - lo) / max(hi - lo, 1) * 255).clip(0, 255)
+    a, b = v[..., None] / 255, flat.astype(float) / 255
+    over = np.where(a < 0.5, 2 * a * b, 1 - 2 * (1 - a) * (1 - b)) * 255
+    col = over * 0.65 + flat.astype(float) * 0.35
+    if person.any():
+        top = person & (v >= np.percentile(v[person], 97))
+        glow = np.asarray(Image.fromarray(top.astype("uint8") * 255).filter(ImageFilter.GaussianBlur(2))).astype(float)[..., None] / 255
+        col = col + glow * 60
+    out = np.where(person[..., None], col, flat.astype(float))
+    return out.clip(0, 255).astype(np.uint8)
+
+
 def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", line_style: str = "default",
         brush: str | None = None, grain: float | None = None, shadow_cut: float = 0.93, shadow_depth: float = 1.0,
-        line_ink: float = 1.0) -> dict:
-    """line_style は線の作風（casts/brushes.json の styles。chibi はデフォルメで太い線）。brush で筆を指定できる"""
+        line_ink: float = 1.0, paint: str = "cel") -> dict:
+    """paint は塗りの手順（cel: 影を面で1段置く、grisaille: 灰色の明暗に色を重ねる）。
+    line_style は線の作風（casts/brushes.json の styles。chibi はデフォルメで太い線）。brush で筆を指定できる"""
     import imgproc
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
@@ -228,6 +251,10 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2", li
     # 影の境目だけ馴染ませる: 影の面の縁を細くぼかして掛ける（アニメ塗りは境目を残すので 1.5 画素だけ）
     soft = np.asarray(Image.fromarray(shadow.astype("uint8") * 255).filter(ImageFilter.GaussianBlur(1.5))).astype(float)[..., None] / 255
     shaded = shaded * (1 - soft) + shaded * tint * soft
+    if paint == "grisaille":
+        g0v = np.asarray(Image.open(src).convert("L").resize(shadow.shape[::-1])).astype(float)
+        Image.fromarray(g0v.astype(np.uint8)).save(out / "4-value.png")
+        shaded = grisaille(g0v, flat, person).astype(float)
     Image.fromarray(shaded.clip(0, 255).astype(np.uint8)).save(out / "4-shade.png")
     # 色を重ねる（オーバーレイ）: 光源の側（左上）を暖かく、反対側を冷たく。人の描き手が最後に掛ける色味の層
     Hh, Ww = shadow.shape
@@ -346,7 +373,8 @@ if __name__ == "__main__":
     r = sub.add_parser("run")
     r.add_argument("src"); r.add_argument("out"); r.add_argument("--guide", default=None); r.add_argument("--style", default="cel2")
     r.add_argument("--line-style", default="default"); r.add_argument("--brush", default=None)
+    r.add_argument("--paint", default="cel", choices=["cel", "grisaille"])
     r.add_argument("--adjust", type=int, default=0, help="調整の往復の上限回数（0 なら1回だけ描く）")
     a = ap.parse_args()
-    print(json.dumps(adjust(a.src, a.out, a.adjust, guide=a.guide, style=a.style, line_style=a.line_style, brush=a.brush)
-                     if a.adjust else run(a.src, a.out, a.guide, a.style, a.line_style, a.brush), ensure_ascii=False))
+    print(json.dumps(adjust(a.src, a.out, a.adjust, guide=a.guide, style=a.style, line_style=a.line_style, brush=a.brush, paint=a.paint)
+                     if a.adjust else run(a.src, a.out, a.guide, a.style, a.line_style, a.brush, paint=a.paint), ensure_ascii=False))
