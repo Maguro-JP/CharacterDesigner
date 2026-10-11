@@ -126,5 +126,15 @@ class FlatFill(unittest.TestCase):
         self.assertEqual(tuple(out[50, 0]), (255, 255, 255))   # 人物の外は白
 
 
+    def test_reference_with_red_face_is_rejected(self):
+        ref = np.zeros((60, 60, 3), np.uint8)
+        parts = np.zeros((60, 60), np.uint8)
+        parts[10:40, 10:40] = 11
+        ref[10:40, 10:40] = (250, 205, 175)               # 肌の色の顔
+        self.assertEqual(lineart.reference_ok(ref, parts), [])
+        ref[10:40, 10:40] = (172, 41, 38)                 # 赤い襟巻きを顔と取った参考
+        self.assertTrue(lineart.reference_ok(ref, parts))
+
+
 if __name__ == "__main__":
     unittest.main()

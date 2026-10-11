@@ -7,6 +7,8 @@
   python3 tools/gen/lineart.py draw "1girl, knight, plate armor, ..." OUTDIR [--count 2] [--seed 3]
   python3 tools/gen/lineart.py clean IN.png OUT.png        # 灰色の陰影を除き、黒い線と白い地だけにする
   python3 tools/gen/lineart.py ends IN.png                 # 線の切れ端の数（少ないほど線が閉じている）
+  python3 tools/gen/lineart.py color LINE.png REF.png [REF2.png ...] OUT.png
+      # 色付きの参考（形は違ってよい）から部位で色を合わせて置く。部位分けが崩れた参考は飛ばし、通った最初の参考を使う
 """
 import argparse
 import json
@@ -84,6 +86,21 @@ def middle_color(pixels: np.ndarray) -> np.ndarray:
     どちらでもない灰色になった（技師の作業着）。実際にある色から選ぶ"""
     lum = pixels.astype(float) @ np.array([0.299, 0.587, 0.114])
     return pixels[np.argsort(lum)[len(lum) // 2]]
+
+
+def reference_ok(reference: np.ndarray, ref_parts: np.ndarray) -> list[str]:
+    """参考の絵の部位分けが崩れていないかを見る。崩れた参考で色を置くと、別の物の色が乗る
+    （剣士の参考で、大きくなびく赤い襟巻きが「顔」とされ、顔の面が赤や暗い灰色になった）。
+    顔が肌の色に見えること（赤が一番明るく、緑が赤の 0.55 倍以上）を見る。理由の一覧を返す（空なら使える）"""
+    why = []
+    face = ref_parts == 11
+    if face.sum() < 300:
+        why.append("顔が取れない")
+    else:
+        r, g, b = middle_color(reference[face]).astype(float)
+        if not (r >= g >= b * 0.8 and r > 120 and g >= r * 0.55):
+            why.append(f"顔の色が肌に見えない（{int(r)}, {int(g)}, {int(b)}）")
+    return why
 
 
 def color_by_parts(line: np.ndarray, line_parts: np.ndarray, reference: np.ndarray, ref_parts: np.ndarray,
@@ -196,6 +213,24 @@ def ends(src: str) -> dict:
     return {"ends": tips, "length": int(sk.sum()), "ends_per_1000": round(tips / max(sk.sum(), 1) * 1000, 2)}
 
 
+def color(line_path: str, refs: list[str], out: str) -> dict:
+    sys.path.insert(0, str(Path(__file__).parent))
+    import edit
+    line = np.asarray(Image.open(line_path).convert("L"))
+    lp = np.asarray(edit.parts(line_path).resize(line.shape[::-1], Image.NEAREST))
+    skipped = {}
+    for ref in refs:
+        r = np.asarray(Image.open(ref).convert("RGB").resize(line.shape[::-1]))
+        rp = np.asarray(edit.parts(ref).resize(line.shape[::-1], Image.NEAREST))
+        why = reference_ok(r, rp)
+        if why:
+            skipped[ref] = why
+            continue
+        Image.fromarray(color_by_parts(line, lp, r, rp)).save(out)
+        return {"out": out, "reference": ref, "skipped": skipped}
+    return {"out": None, "skipped": skipped}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -203,11 +238,14 @@ def main():
     d.add_argument("prompt"); d.add_argument("out"); d.add_argument("--count", type=int, default=2); d.add_argument("--seed", type=int, default=3)
     c = sub.add_parser("clean")
     c.add_argument("src"); c.add_argument("out")
+    co = sub.add_parser("color")
+    co.add_argument("paths", nargs="+")
     e = sub.add_parser("ends")
     e.add_argument("src")
     a = ap.parse_args()
     r = {"draw": lambda: draw(a.prompt, a.out, a.count, a.seed), "clean": lambda: clean(a.src, a.out),
-         "ends": lambda: ends(a.src)}[a.cmd]()
+         "ends": lambda: ends(a.src),
+         "color": lambda: color(a.paths[0], a.paths[1:-1], a.paths[-1])}[a.cmd]()
     print(json.dumps(r, ensure_ascii=False))
 
 
