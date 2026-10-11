@@ -120,7 +120,8 @@ def run(src: str, outdir: str, guide: str | None = None, style: str = "cel2") ->
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
     person = person_mask(src)
-    line = lines(src)
+    # 人物の外の線（ラフの効果線・背景の当たり線）は清書に入れない。外形の線を残すため、人物を少し太らせた範囲で切る
+    line = lines(src) & _grow(person, 4)
     Image.fromarray(np.where(line, 0, 255).astype("uint8")).save(out / "1-lines.png")
     strong = weight(line, person)
     Image.fromarray(np.where(strong, 0, 255).astype("uint8")).save(out / "2-weight.png")
