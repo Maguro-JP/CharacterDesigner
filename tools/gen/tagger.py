@@ -25,7 +25,11 @@ _TAGS = None
 
 # 確かめないタグ。構図・光・画質・背景の言い方は絵から読みにくく、描けていても読めないことが多い
 SKIP = ("lighting", "light", "shadow", "quality", "masterpiece", "aesthetic", "absurdres", "shot", "view", "body",
-        "background", "solo", "contrast", "source", "focus", "detailed")
+        "background", "solo", "contrast", "source", "focus", "detailed",
+        # 塗りと見せ方の言葉（casts/paint-styles.json）。物ではなく描き方なので、絵から読めなくても描けていないとは言えない
+        "coloring", "flat color", "shading", "lineart", "medium", "traditional", "sketch", "texture", "brushstroke", "painting",
+        "colors", "monochrome", "greyscale", "screentone", "hatching", "ink", "outline", "page", "sheet", "views", "art",
+        "composition", "pose", "angle", "perspective", "palette")
 
 
 def setup():

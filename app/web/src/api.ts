@@ -130,6 +130,7 @@ export const api = {
   llm: () => call<LlmStatus>("/api/llm"),
   roles: () => call<Role[]>("/api/studio/roles"),
   styles: () => call<Record<"paint" | "format", { id: string; ja: string; refs: string }[]>>("/api/styles"),
+  handdraw: (jobId: string, file: string) => call<{ files: string[]; regions: number }>(`/api/handdraw/${jobId}/${file}`, { method: "POST" }),
   assets: () => call<{ lora: Lora[]; pose: { name: string; title: string; license: string; usable: boolean; why: string }[]; dir: string }>("/api/assets"),
   memory: () => call<Memory[]>("/api/memory"),
   like: (jobId: string, file: string) => call<Memory>("/api/memory/like", { method: "POST", body: JSON.stringify({ job_id: jobId, file }) }),

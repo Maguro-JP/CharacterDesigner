@@ -282,3 +282,22 @@ def test_pose_shelf(client, monkeypatch, tmp_path):
     assert poses["standing"]["usable"] and not poses["nolicense"]["usable"]
     assert c.post("/api/studio/jobs", json={"prompt": "1girl", "pose": "nolicense"}).status_code == 422
     assert c.post("/api/studio/jobs", json={"prompt": "1girl", "pose": "standing"}).json()["free"]["pose"] == "standing"
+
+
+def test_handdraw_endpoint(client, monkeypatch):
+    import handdraw
+    from PIL import Image
+
+    def fake_run(src, out, guide=None, style="cel2"):
+        for n in ("1-lines", "2-weight", "3-flats", "4-calc", "4-shade", "5-final"):
+            Image.new("RGB", (4, 4)).save(f"{out}/{n}.png")
+        Image.new("RGB", (4, 4)).save(f"{out}/4-calc-normal.png")
+        return {"regions": 3}
+    monkeypatch.setattr(handdraw, "run", fake_run)
+    c, _ = client(FakeRunner())
+    j = wait(c, c.post("/api/studio/jobs", json={"prompt": "1girl, full body, simple background"}).json()["id"])
+    assert c.post(f"/api/handdraw/{j['id']}/nope.png").status_code == 404
+    r = c.post(f"/api/handdraw/{j['id']}/try-0.png").json()
+    assert "hd-try-0-5-final.png" in r["files"] and r["regions"] == 3
+    assert "hd-try-0-5-final.png" in c.get(f"/api/jobs/{j['id']}").json()["files"]
+    assert c.get(f"/api/jobs/{j['id']}/files/hd-try-0-5-final.png").status_code == 200

@@ -54,7 +54,7 @@ SAMPLES = Path(os.environ.get("CD_SAMPLES", ROOT / "library" / "samples"))
 NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
 # 返してよいファイル。仕事のフォルダの中の、この形の名前だけ（../ などで外を読ませない）
 PREVIEW_FILE = re.compile(r"^(underlay|mask)\.png$")
-FILE = re.compile(r"^(sheet|underlay|mask|try-\d+|try-\d+-inspect|try-\d+-notan)\.png$|^report\.json$")
+FILE = re.compile(r"^(sheet|underlay|mask|try-\d+|try-\d+-inspect|try-\d+-notan|hd-try-\d+-[1-5]-[a-z]+)\.png$|^report\.json$")
 
 
 class Runner:
@@ -433,6 +433,26 @@ def create_app(runner: Runner | None = None) -> FastAPI:
     def get_styles():
         st = studio_session_styles()
         return {k: [{"id": i, "ja": v["ja"], "refs": v.get("refs", "")} for i, v in st[k].items()] for k in ("paint", "format")}
+
+    @app.post("/api/handdraw/{job_id}/{name}")
+    def handdraw_job(job_id: str, name: str):
+        # 描いた絵を、人の描き方の順番（線を閉じる → 強弱 → 下塗り → 影 → 線）で描き直す（docs/knowledge/drawing-process.md）。
+        # 段ごとの絵を hd-<元の名前>-<段>-<名前>.png として同じ仕事の置き場に置く。模型を使わないので 30 秒ほど
+        import handdraw
+        import shutil
+        import tempfile
+        j = jobs.jobs.get(job_id)
+        if j is None or not re.fullmatch(r"try-\d+\.png", name) or name not in j.public()["files"]:
+            raise HTTPException(404, "その絵は無い")
+        stem = name[:-4]
+        with tempfile.TemporaryDirectory() as tmp:
+            r = handdraw.run(str(DATA / job_id / name), tmp)
+            out = []
+            for f in sorted(p for p in Path(tmp).glob("[1-5]-*.png") if re.fullmatch(r"[1-5]-[a-z]+\.png", p.name)):
+                dst = f"hd-{stem}-{f.name}"
+                shutil.move(str(f), DATA / job_id / dst)
+                out.append(dst)
+        return {"files": out, **r}
 
     @app.get("/api/assets")
     def list_assets():

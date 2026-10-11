@@ -30,6 +30,9 @@ export function galleryItems(jobs: Job[]): Item[] {
     if (j.kind === "studio") {
       const files = j.outcome?.files ?? (j.events ?? []).filter((e) => e.role === "PAINTER" && e.file).map((e) => e.file as string);
       files.forEach((f) => out.push({ jobId: j.id, file: f, label: j.case_name, passed: j.outcome?.passed === f, prompt: j.outcome?.prompt ?? "", job: j }));
+      // 人の順番で描き直した仕上げも並べる（段ごとの絵は hd-<元>-<段>.png。並べるのは仕上げだけ）
+      j.files.filter((f) => /^hd-try-\d+-5-final\.png$/.test(f)).forEach((f) =>
+        out.push({ jobId: j.id, file: f, label: `${j.case_name}（人の順番）`, passed: true, prompt: j.outcome?.prompt ?? "", job: j }));
     } else if (j.kind === "free") {
       j.results.forEach((r) => r.file && out.push({ jobId: j.id, file: r.file, label: j.case_name, passed: true, prompt: j.free?.prompt ?? "", job: j }));
     } else if (j.files.includes("sheet.png")) {
@@ -187,6 +190,7 @@ function CanvasPanel({ ctx }: { ctx: Ctx }) {
   const cur = items.find((i) => ctx.selected && i.jobId === ctx.selected.jobId && i.file === ctx.selected.file) ?? items[0];
   const [notan, setNotan] = useState(false);
   const [liked, setLiked] = useState("");
+  const [hd, setHd] = useState("");
   if (!cur) return <p className="text-sm text-neutral-400">まだ描いた絵が無い。頼みごとを書いて「スタジオに頼む」</p>;
   const notanFile = cur.file.replace(".png", "-notan.png");
   const hasNotan = cur.job.files.includes(notanFile);
@@ -200,6 +204,15 @@ function CanvasPanel({ ctx }: { ctx: Ctx }) {
           <button type="button" className="ml-auto rounded border border-accent px-2 py-0.5 text-xs" disabled={liked === cur.jobId + cur.file}
             onClick={() => api.like(cur.jobId, cur.file).then(() => setLiked(cur.jobId + cur.file)).catch((e: Error) => ctx.setError(e.message))}>
             {liked === cur.jobId + cur.file ? "覚えた" : "良い（この描き方を覚える）"}
+          </button>
+        )}
+        {/^try-\d+\.png$/.test(cur.file) && (
+          <button type="button" className="rounded border border-line px-2 py-0.5 text-xs" disabled={hd === "busy"}
+            onClick={() => {
+              setHd("busy");
+              api.handdraw(cur.jobId, cur.file).then(() => { setHd(""); ctx.refreshJobs(); }).catch((e: Error) => { setHd(""); ctx.setError(e.message); });
+            }}>
+            {hd === "busy" ? "人の順番で描いている…" : "人の順番で描き直す"}
           </button>
         )}
         {hasNotan && (
