@@ -261,7 +261,7 @@ class Runner:
         return free_text.draw(spec["prompt"], spec.get("negative", ""), outdir, spec["seed"], spec["count"],
                               spec["width"], spec["height"], on_image=on_image,
                               ref=_ref_path(spec.get("ref", "")), ref_scale=spec.get("ref_scale", 0.5),
-                              hires=spec.get("hires", 1.0))
+                              hires=spec.get("hires", 1.0), long=spec.get("long", 0))
 
 
 @dataclass
@@ -471,6 +471,8 @@ class FreeJobIn(BaseModel):
     ref_scale: float = Field(0.5, ge=0.0, le=1.0)
     # 描いたあとに引き伸ばして描き直す倍率（1 で切る）。既定 1.5 は 1248x1824。線と細部が見えるようにするため
     hires: float = Field(1.5, ge=1.0, le=2.0)
+    # 最後に AI で拡大する長い辺の画素数（0 で切る）。既定は 4K（4096）
+    long: int = Field(4096, ge=0, le=8192)
 
 
 SIZES = {"portrait": (832, 1216), "landscape": (1216, 832), "square": (1024, 1024)}
@@ -896,7 +898,7 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         if body.ref and _ref_path(body.ref) == "":
             raise HTTPException(422, "その参考画像は無い（/api/refs で保存したものを選ぶ）")
         spec = {"prompt": body.prompt, "negative": body.negative, "ja": body.ja, "seed": body.seed, "count": body.count,
-                "width": w, "height": h, "ref": body.ref, "ref_scale": body.ref_scale, "hires": body.hires}
+                "width": w, "height": h, "ref": body.ref, "ref_scale": body.ref_scale, "hires": body.hires, "long": body.long}
         title = (body.ja or body.prompt)[:20]
         return jobs.submit(title, {}, 0.0, body.count, kind="free", free=spec).public()
 
