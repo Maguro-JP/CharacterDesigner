@@ -22,8 +22,8 @@ import human  # noqa: E402
 from pose_prop import empty, look_from  # noqa: E402
 
 # 人形の座標: 前は -Y、右手は -X、身長はおよそ 1.7
-HILT = Vector((0.0, -0.30, 0.98))      # 柄の中ほど。体の正面、腰の高さ
-GUARD_Z = 0.86                          # 鍔の高さ。ここから下が刃で、切っ先は床（z=0）
+HILT = Vector((0.0, -0.28, 0.88))      # 柄の中ほど。体の正面、腰の高さ（0.98 では柄頭が胸まで来て、柄が長く見えた）
+GUARD_Z = 0.76                          # 鍔の高さ。ここから下が刃で、切っ先は床（z=0）
 RIGHT_GRIP = HILT + Vector((0, 0, 0.05))   # 右手は柄の上（鍔から遠い側）
 LEFT_GRIP = HILT + Vector((0, 0, -0.05))   # 左手はその下、鍔の近く
 CURL = 75
