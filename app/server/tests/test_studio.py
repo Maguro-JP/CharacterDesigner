@@ -214,7 +214,7 @@ def test_hidden_files_are_not_served(client):
 
 
 def test_relight_proposal_changes_drawing_and_is_not_repeated(client, monkeypatch, tmp_path):
-    # 弱さを指摘された絵の提案は、描く言葉か seed を変える。同じ描き方は二度提案しない
+    # 検品で弱いと出た絵の提案は、描く言葉か seed を変える。同じ描き方は二度提案しない
     monkeypatch.setattr(main, "PROPOSALS", tmp_path / "p.json")
 
     class Critic(FakeRunner):

@@ -91,7 +91,7 @@ function outline(mesh, width) {
   mesh.add(o);
 }
 // アニメ調の目: MakeHuman の目の画像（眼球2つ分。瞳の中心は (0.70, 0.28) と (0.29, 0.70)、半径 0.11）を、
-// 瞳を大きく暗く、ハイライト付きに描き直す。写実の小さな瞳と広い白目は「気持ち悪い」見た目になった
+// 瞳を大きく暗く、ハイライト付きに描き直す。写実の小さな瞳と広い白目はアニメ調の顔に合わないため
 function animeEye() {
   const S = 512, c = document.createElement('canvas');
   c.width = c.height = S;

@@ -1,4 +1,4 @@
-"""画面の配置。コードではなくデータ（.cache/app/layout.json）で持つ（手本: Maguro-JP/AdaptiveAIStudio の docs/UI.md）。
+"""画面の配置。コードではなくデータ（.cache/app/layout.json）で持つ（手本: AdaptiveAIStudio の docs/UI.md）。
 
 自分でファイルを直しても、画面で仕切りを動かしても、AI に頼んで書き換えさせても配置が変わる。
 AI に触らせる以上、壊れた配置は必ず来る。読めない・形が違う配置は既定に直して返し、画面を真っ白にしない。

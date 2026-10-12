@@ -122,7 +122,7 @@
   "about": "アニメ絵（tools/gen/people.py、Animagine XL 3.1）で描くときの体のベース。tags は体の言葉、body は服と構図、negative は打ち消しに足す言葉。--base <名前> で使う",
   "ideal": {
    "ja": "理想のベース（女性の基準の体）",
-   "note": "利用者が「これくらいを今後のベースに」と決めた体。細身で柔らかく、筋肉は少し、胸は中くらいで谷間が分かる。脚は前の版（wide hips のみ）より少しすっきり、細すぎない",
+   "note": "女性の基準の体として決めたもの。細身で柔らかく、筋肉は少し、胸は中くらいで谷間が分かる。脚は前の版（wide hips のみ）より少しすっきり、細すぎない",
    "gender": "female",
    "tags": "adult woman, slender body, soft body, toned, slim waist, wide hips, slender legs, medium breasts, cleavage, long legs, healthy",
    "body": "full body, standing, arms at sides, white background, simple background, barefoot, plain white bikini, bikini top, bikini bottom, no logo",

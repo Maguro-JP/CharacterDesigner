@@ -1,4 +1,4 @@
-"""待機中の提案（手本: Maguro-JP/AdaptiveAIStudio の docs/INITIATIVE.md・IDLE.md）。
+"""待機中の提案（手本: AdaptiveAIStudio の docs/INITIATIVE.md・IDLE.md）。
 
 手がかりは機械で拾う（模型を使わない。事実の収集は機械の方が速く確かで無料）。拾うのは確かめられる事実だけ:
 - スタジオで通らなかった頼みごと（seed を変えて描き直せば通るかもしれない）
