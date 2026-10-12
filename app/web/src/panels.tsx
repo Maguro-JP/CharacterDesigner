@@ -3,6 +3,7 @@ import { api, type Bible, type Job, type LlmStatus, type Lora, type Memory, type
 import DemiPanel from "./DemiPanel";
 import { LlmSettings, readerJa } from "./FreePanel";
 import JobCard from "./JobCard";
+import PaintPanel from "./PaintPanel";
 
 // 板が共有する状態。App が持ち、配置（Layout）がどこに板を置いても同じものを見る
 export type Ctx = {
@@ -490,6 +491,7 @@ function QueuePanel({ ctx }: { ctx: Ctx }) {
 export const PANELS: Record<string, { title: string; render: (ctx: Ctx) => ReactNode }> = {
   prompt: { title: "頼みごと", render: (ctx) => <PromptPanel ctx={ctx} /> },
   canvas: { title: "大きく見る", render: (ctx) => <CanvasPanel ctx={ctx} /> },
+  paint: { title: "描く", render: (ctx) => <PaintPanel ctx={ctx} /> },
   gallery: { title: "描いた絵", render: (ctx) => <GalleryPanel ctx={ctx} /> },
   queue: { title: "仕事", render: (ctx) => <QueuePanel ctx={ctx} /> },
   roster: { title: "役割", render: (ctx) => <RosterPanel ctx={ctx} /> },

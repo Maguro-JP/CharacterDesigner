@@ -98,7 +98,7 @@ export default function LayoutView({ root, ctx, narrow, onSizes }: { root: Layou
     return (
       <div className="space-y-3">
         {flatPanels(root).map((k) => (
-          <div key={k} className={k === "canvas" ? "h-[70vh]" : ""}>
+          <div key={k} className={k === "canvas" || k === "paint" ? "h-[70vh]" : ""}>
             <Panel kind={k} ctx={ctx} />
           </div>
         ))}
