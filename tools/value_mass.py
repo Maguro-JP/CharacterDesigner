@@ -101,11 +101,11 @@ def fix_grid(grid, palette, intended=()) -> tuple[list[str], int]:
     return ["".join(r) for r in out], changed
 
 
-def _same_luma_variant(rgb, shift):
-    """色相を shift（0〜1）だけ回し、明るさ（luma）を元にそろえた色"""
+def _same_luma_variant(rgb, shift, boost=True):
+    """色相を shift（0〜1）だけ回し、明るさ（luma）を元にそろえた色。boost で彩度を少し足す（灰色を温・寒に振るため）"""
     h, sat, v = colorsys.rgb_to_hsv(*(c / 255 for c in rgb))
     target = _luma(rgb)
-    sat2 = min(1.0, sat * 1.15 + 0.04)
+    sat2 = min(1.0, sat * 1.15 + 0.04) if boost else sat
     best = None
     for k in range(101):          # 明るさがそろう v を探す
         v2 = k / 100
@@ -133,8 +133,9 @@ def texture_grid(grid, palette, rate=0.3, intended=()) -> tuple[list[str], dict]
             if c == "." or (x, y) in keep:
                 continue
             # 彩度の高い色（赤い布など）には置かない。色みをずらした点が質感でなく汚れに見えた（周2）
-            if colorsys.rgb_to_hsv(*(v / 255 for v in palette[c]))[1] > 0.6:   # 赤い布は 0.62〜0.68、髪と肌は 0.33〜0.54
-                continue
+            # 彩度の高い色（赤い布 0.62〜0.68）は、色みのずれを半分にする。0.03 ずらすと汚れに見え（周2）、
+            # 置かないと盾を広げたとき点が足りず検査が落ちた（周5）
+            vivid = colorsys.rgb_to_hsv(*(v / 255 for v in palette[c]))[1] > 0.6
             # 塊の内側: 人物の輪郭ではなく、上下左右が同じ明るさの段。同じ色に限ると、平らな面の少ない手打ちの絵では置き場が足りなかった
             if not all(0 <= y + dy < h and 0 <= x + dx < w and lv[y + dy][x + dx] == lv[y][x] for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
                 continue
@@ -150,7 +151,8 @@ def texture_grid(grid, palette, rate=0.3, intended=()) -> tuple[list[str], dict]
                     continue
                 k = free.pop(0)
                 variant[key] = k
-                pal[k] = _same_luma_variant(palette[c], 0.03 if warm else -0.03)
+                step = 0.015 if vivid else 0.03
+                pal[k] = _same_luma_variant(palette[c], step if warm else -step, boost=not vivid)
             out[y][x] = variant[key]
     return ["".join(r) for r in out], pal
 
