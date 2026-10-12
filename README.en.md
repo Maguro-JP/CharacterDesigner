@@ -71,4 +71,4 @@ cd app/web && npm run build
 
 ## License
 
-Not decided yet.
+Proprietary (internal / personal use). See [LICENSE](LICENSE). Distribution plan: [docs/release-plan.md](docs/release-plan.md).

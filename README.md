@@ -173,4 +173,4 @@ cd app/web && npm run build
 
 ## ライセンス
 
-未定。
+非公開（社内・個人用）。使える人を限り、ソースは公開しない。詳しくは [LICENSE](LICENSE)。配り方の計画は [docs/release-plan.md](docs/release-plan.md)。
