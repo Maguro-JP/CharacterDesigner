@@ -1,0 +1,84 @@
+{
+ "_説明": "config/filters.json にこの形で書く。enabled を true にしたものだけが働く。言葉は足したり消したりしてよい",
+ "filters": [
+  {
+   "name": "グロテスク",
+   "enabled": true,
+   "ja": [
+    "グロ",
+    "流血",
+    "内臓",
+    "切断",
+    "死体",
+    "腐敗"
+   ],
+   "en": [
+    "gore",
+    "guro",
+    "blood",
+    "bloody",
+    "dismemberment",
+    "decapitation",
+    "corpse",
+    "intestines",
+    "severed"
+   ],
+   "negative": "gore, blood, injury, wound"
+  },
+  {
+   "name": "性的な表現",
+   "enabled": false,
+   "ja": [
+    "裸",
+    "ヌード",
+    "エロ",
+    "性的",
+    "下着",
+    "R18",
+    "R-18"
+   ],
+   "en": [
+    "nsfw",
+    "nude",
+    "naked",
+    "nipples",
+    "explicit",
+    "lingerie",
+    "underwear",
+    "erotic",
+    "hentai"
+   ],
+   "negative": "nsfw, nude, explicit"
+  },
+  {
+   "name": "暴力",
+   "enabled": false,
+   "ja": [
+    "暴力",
+    "殴る",
+    "拷問"
+   ],
+   "en": [
+    "violence",
+    "torture",
+    "beating"
+   ],
+   "negative": "violence"
+  },
+  {
+   "name": "ホラー",
+   "enabled": false,
+   "ja": [
+    "ホラー",
+    "恐怖",
+    "怨霊"
+   ],
+   "en": [
+    "horror",
+    "creepy",
+    "scary"
+   ],
+   "negative": "horror"
+  }
+ ]
+}
