@@ -1,5 +1,0 @@
-題材: 大人の女性（探偵）
-模型: Meina/MeinaMix_V11
-プロンプト: adult woman, long silver hair in a low ponytail, dark green trench coat over white blouse and black slacks, brown leather boots, detective, calm confident expression, full body, standing, simple white background, anime character design
-種: 2026101302（4枚中1枚目）
-選んだ理由: 指定の銀髪と長いコートが出ており、手足と顔に崩れが無い（コートの緑とブーツの茶は黒に寄った）
