@@ -1,3 +1,4 @@
+import { withRef } from "./refs";
 // app/server（FastAPI）の返す形。サーバー側の Job.public() と demi.check() に合わせる
 
 export type PartSlot = "ears" | "tail" | "wings" | "horns";
@@ -145,12 +146,12 @@ export const api = {
     call<{ saved: string }>(`/api/bible/${character}/scene`, { method: "POST", body: JSON.stringify({ job_id: jobId, file, name }) }),
   bibleTurnaround: (character: string, count: number, seed: number) =>
     call<Job>(`/api/bible/${character}/turnaround`, { method: "POST", body: JSON.stringify({ count, seed }) }),
-  studioSubmit: (body: StudioIn) => call<Job>("/api/studio/jobs", { method: "POST", body: JSON.stringify(body) }),
+  studioSubmit: (body: StudioIn) => call<Job>("/api/studio/jobs", { method: "POST", body: JSON.stringify(withRef(body)) }),
   layout: () => call<Layout>("/api/layout"),
   saveLayout: (l: Layout) => call<Layout>("/api/layout", { method: "PUT", body: JSON.stringify(l) }),
   resetLayout: () => call<Layout>("/api/layout", { method: "DELETE" }),
   llmProbe: (url: string) => call<LlmLocal>("/api/llm/probe", { method: "POST", body: JSON.stringify({ url, model: "" }) }),
   llmSave: (url: string, model: string) => call<LlmStatus>("/api/llm", { method: "PUT", body: JSON.stringify({ url, model }) }),
   freeDescribe: (text: string) => call<FreeDescribe>("/api/free/describe", { method: "POST", body: JSON.stringify({ text }) }),
-  freeSubmit: (body: FreeJobIn) => call<Job>("/api/free/jobs", { method: "POST", body: JSON.stringify(body) }),
+  freeSubmit: (body: FreeJobIn) => call<Job>("/api/free/jobs", { method: "POST", body: JSON.stringify(withRef(body)) }),
 };

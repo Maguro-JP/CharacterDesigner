@@ -10,3 +10,11 @@
 プロンプト: 1girl, solo, slime girl, monster girl, blue skin, colored skin, translucent skin, cute slime girl, whole body made of translucent light blue slime jelly, normal human hands with five fingers, wearing opaque red one-piece swimsuit, gooey dripping hair, cheerful smile, full body, standing, simple white background, anime character design, masterpiece, best quality, very aesthetic, absurdres
 描かせない言葉: Animagine の既定の否定語, human skin, pale skin, extra slime creature, slime monster, multiple girls
 外した理由: 水着姿で幼く見える絵は出さない。次からは成人の女性として描く言葉（adult woman, 20s, adult proportions）を入れ、幼く見える否定語（child, loli, petite, chibi）を足す必要がある
+
+3回目（21:03 JST の回）: 種 20261212〜20261214（4枚目は時間の上限で止まり、3枚で検品）。選んだのは種 20261212（0枚目）
+  - 選んだ理由: 全身が水色のスライム、大人の体つき、不透明な赤の水着、両手とも人の形の5本指
+  - 落とした 1枚目: 水着が白く透け、服を着ていない体に見える
+  - 落とした 2枚目: 体が人の肌の色でスライムでない。水着が半透明
+  - 弱い所: 髪が水色でなく赤いスライム。指先が少し溶けかけている。足に設定に無い黒い靴
+プロンプト: 1girl, solo, adult woman, mature, tall, slime girl, monster girl, blue skin, colored skin, translucent skin, cute slime girl, whole body made of translucent light blue slime jelly, normal human hands with five fingers, , masterpiece, best quality, very aesthetic, absurdres
+描かせない言葉: Animagine の既定の否定語, human skin, pale skin, extra slime creature, slime monster, multiple girls, child, loli, petite

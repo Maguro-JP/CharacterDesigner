@@ -88,11 +88,15 @@ def sheet(id: str) -> Image:
 
 
 @mcp.tool()
-def studio_draw(text: str = "", prompt: str = "", size: str = "portrait", tries: int = 3) -> dict:
+def studio_draw(text: str = "", prompt: str = "", size: str = "portrait", tries: int = 3, ref: str = "", ref_scale: float = 0.5) -> dict:
     """スタジオに頼む。日本語の頼みごと（text）か、英語の描く言葉（prompt）のどちらかを渡す。
     7つの役割（安全・読み手・演出・描き手・検品・意地の悪い目・整理）が順に回し、検品で落ちたら直して描き直す。
-    size は portrait・landscape・square。すぐ仕事の id を返す。進みは studio_job、絵は studio_image で受け取る。"""
-    j = _json("POST", "/api/studio/jobs", {"text": text, "prompt": prompt, "size": size, "tries": tries})
+    size は portrait・landscape・square。ref は ref_save で手元に置いた参考画像の id で、画風と色の手本にする（強さ ref_scale、0〜1）。
+    すぐ仕事の id を返す。進みは studio_job、絵は studio_image で受け取る。"""
+    body = {"text": text, "prompt": prompt, "size": size, "tries": tries}
+    if ref:
+        body.update(ref=ref, ref_scale=ref_scale)
+    j = _json("POST", "/api/studio/jobs", body)
     return {"id": j["id"], "state": j["state"]}
 
 
@@ -149,6 +153,27 @@ def do_proposal(id: str) -> dict:
     """提案を承認して描く。仕事の id を返す。"""
     j = _json("POST", f"/api/proposals/{id}/do")
     return {"id": j["id"], "kind": j.get("kind"), "state": j["state"]}
+
+
+@mcp.tool()
+def ref_search(query: str, n: int = 12, commercial: bool = False) -> dict:
+    """参考画像を探す（CC ライセンスと public domain の画像、Openverse）。英語の言葉が多く当たる。
+    返す各件に作者・ライセンス・元のページがある。使う条件はそれで確かめる。commercial=True で営利で使えるものだけ。
+    描くときに使うなら、選んだ1件をそのまま ref_save に渡す。"""
+    from urllib.parse import urlencode
+    return _json("GET", "/api/refs/search?" + urlencode({"q": query, "n": n, "commercial": str(commercial).lower()}))
+
+
+@mcp.tool()
+def ref_save(item: dict) -> dict:
+    """ref_search の結果の1件を手元に置く（.cache/app/refs。リポジトリには入れない）。返す id を studio_draw の ref に渡す。"""
+    return _json("POST", "/api/refs", item)
+
+
+@mcp.tool()
+def ref_list() -> dict:
+    """手元に置いた参考画像の一覧（id・作者・ライセンス・元のページ）。"""
+    return _json("GET", "/api/refs")
 
 
 if __name__ == "__main__":

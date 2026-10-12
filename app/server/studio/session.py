@@ -62,6 +62,8 @@ class Spec:
     paint: str = ""           # 塗り（casts/paint-styles.json の paint）
     format: str = ""          # 見せ方（同 format）
     pose: str = ""            # 姿勢の下絵の名前（素材の棚の pose）
+    ref: str = ""             # 参考画像（tools/gen/refsearch.py で保存した id）。画風と色を読ませる
+    ref_scale: float = 0.5    # 参考画像を効かせる強さ（0〜1）
     method: str = "oneshot"   # 生成手順（docs/knowledge/methods.md）。oneshot（一発）・handdraw（人の順番で仕上げ直す）・rough（ラフから描く）
     allow_impossible: bool = False
     brush: str = ""           # 人の順番で仕上げるときの線のブラシ（casts/brushes.json）。空なら線の作風の既定
