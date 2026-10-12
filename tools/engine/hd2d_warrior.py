@@ -33,7 +33,7 @@ human.adduct_arms(rig, 30)
 for s in ("L", "R"):
     pb = rig.pose.bones[f"lowerarm01.{s}"]; pb.rotation_mode = "XYZ"; pb.rotation_euler = (math.radians(40), 0, 0)
 # 剣を持つ右腕は体の脇から少し開き、肘をほぼ伸ばして手を腰の外に置く。手が胴の前にあると、下ろした剣が脚に重なった（周10）
-rig.pose.bones["upperarm01.R"].rotation_euler = (0, 0, math.radians(8))
+rig.pose.bones["upperarm01.R"].rotation_euler = (0, 0, math.radians(14))
 rig.pose.bones["lowerarm01.R"].rotation_euler = (math.radians(10), 0, 0)
 # 頭身は人形の側で作る（頭を大きく、脚を短く）。縮めた後に絵を変形すると、持ち物が手から離れた（周8）
 rig.pose.bones["head"].scale = (2.0, 2.0, 2.0)
@@ -42,7 +42,7 @@ for s in ("L", "R"):
 bpy.context.view_layer.update()
 print("可動域:", rom_check.check_rig(rig) or "外れなし")
 C = {"skin": (240, 196, 160), "hair": (120, 80, 50), "armor": (190, 196, 206), "armor_d": (120, 128, 142), "skirt": (178, 60, 50),
-     "greave": (150, 158, 172), "boot": (110, 70, 45), "blade": (150, 172, 200), "gold": (226, 180, 84), "shield": (184, 68, 58)}
+     "greave": (150, 158, 172), "boot": (110, 70, 45), "blade": (228, 234, 246), "gold": (226, 180, 84), "shield": (184, 68, 58)}
 M = {k: tinted(k, v) for k, v in C.items()}
 for o in [h] + clothed + hair:
     for k in M: o.data.materials.append(M[k])
@@ -69,9 +69,9 @@ def box(name, size, loc, mat, rot=(0, 0, 0)):
     o.scale = (size[0] / 2, size[1] / 2, size[2] / 2); o.rotation_euler = rot
     o.data.materials.append(M[mat]); return o
 r = palm("R")
-# 剣は切っ先を下ろし、体の外（右手の側）へ 15 度開く。斜めに上げると大きな頭に接して一つの塊になった（周9）
+# 剣は切っ先を下ろし、体の外（右手の側）へ 25 度開く。刃はすね当てより明るい色にし、脚と同じ灰色系にしない（周10）。斜めに上げると大きな頭に接して一つの塊になった（周9）
 from mathutils import Euler
-tilt = Euler((0, math.radians(180 + 15), 0))
+tilt = Euler((0, math.radians(180 + 25), 0))
 def along(d): v = Vector((0, 0, d)); v.rotate(tilt); return r + Vector((0, -0.02, 0)) + v
 # 34 ドットに縮めると 1 ドットはおよそ 5cm。細い物は 2 ドット（10cm）以上の太さにしないと、途切れて手から浮いた
 box("blade", (0.11, 0.03, 0.7), along(0.45), "blade", tilt)
