@@ -20,6 +20,12 @@ from typing import Callable
 
 import free_text
 
+# 生成手順。一発で描くか、人の描き方の順番を通すか（docs/knowledge/methods.md）
+METHODS = {"oneshot": "一発で描く", "handdraw": "描いてから人の順番で仕上げ直す", "rough": "ラフから人の順番で描く"}
+# あり得ない形の打ち消し。頼みごとに特別な注文（allow_impossible）が無い限り必ず入れる
+IMPOSSIBLE = ("extra fingers, missing fingers, fused fingers, extra arms, extra legs, extra limbs, bad anatomy, "
+              "bad hands, deformed, disfigured, floating objects, duplicate, mutated hands")
+
 # 構図の言葉。どれも無ければ演出が1つ足す
 FRAMING = ("full body", "upper body", "cowboy shot", "portrait", "close-up", "wide shot", "from above", "from below")
 # 光の言葉。どれも無ければ演出が1つ足す（光源は1つに決める）
@@ -37,6 +43,8 @@ class Ports:
     remember: Callable[[dict], None] = lambda rec: None
     recall: Callable[[str], list] = lambda text: []     # 頼みごとに似た、前に通った記録（似ている順）
     guard_image: Callable[[str], str | None] = lambda path: None   # 出来た絵を見せてよいか。だめなら理由
+    # 生成手順の仕上げ（oneshot 以外）。(通った絵の名前, 手順, 描く言葉, 打ち消し, seed, 置き場) → 仕上げた絵の名前
+    finish: Callable[..., str | None] = lambda name, method, prompt, negative, seed, outdir: None
 
 
 @dataclass
@@ -53,6 +61,12 @@ class Spec:
     lora: str = ""            # 素材の棚の LoRA の名前（空なら使わない）
     paint: str = ""           # 塗り（casts/paint-styles.json の paint）
     format: str = ""          # 見せ方（同 format）
+    pose: str = ""            # 姿勢の下絵の名前（素材の棚の pose）
+    method: str = "oneshot"   # 生成手順（docs/knowledge/methods.md）。oneshot（一発）・handdraw（人の順番で仕上げ直す）・rough（ラフから描く）
+    allow_impossible: bool = False
+    brush: str = ""           # 人の順番で仕上げるときの線のブラシ（casts/brushes.json）。空なら線の作風の既定
+    paint_method: str = "cel"     # 人の順番の塗り方（cel: 影を面で1段、grisaille: 灰色の明暗に色を重ねる）
+    line_style: str = "default"   # 線の作風（デフォルメ chibi は太い線など）   # あり得ない形（余分な手足、浮いた物など）を描いてよいか。特別な注文があるときだけ
 
 
 @dataclass
@@ -65,6 +79,7 @@ class Result:
     reason: str = ""                                # 描かなかった・通らなかった理由
     critique: list = field(default_factory=list)
     hidden: list = field(default_factory=list)       # GUARD が見せないと決めた絵（画面にもファイルの窓口にも出さない）
+    findings: list = field(default_factory=list)     # 見つけた矛盾・あり得ないこと（文字で残す。どの絵で何が起きたか）
 
 
 def direct(prompt: str) -> tuple[str, list[str]]:
@@ -122,7 +137,17 @@ def checks_for(prompt: str) -> dict:
     low = prompt.lower()
     plain = "simple background" in low or "white background" in low
     full = "full body" in low
-    return {"limbs": full, "objects": plain, "edges": plain and full}
+    # 人物の他に描く物（動物・乗り物・大きな持ち物）を頼んだときは、離れた塊を数えない（頼んだ猫を「離れた物」で落とした）
+    others = re.search(r"\b(cat|dog|bird|horse|dragon|animal|pet|familiar|umbrella|lantern|vehicle|motorcycle|car)\b", low)
+    # マント・ローブ・長い袖は腕を隠す。腕が見えないのは正しい絵なので、腕と脚を数えない（デフォルメの魔女を「腕が無い」で落とした）
+    covers = re.search(r"\b(cape|cloak|robe|poncho|shawl|mantle|long sleeves|sleeves past fingers|hands in pockets)\b", low)
+    return {"limbs": full and not covers, "objects": plain and not others, "edges": plain and full}
+
+
+def _add(negative: str, words: str) -> str:
+    """打ち消しに足す。既にある言葉は重ねない（描き直すたびに同じ言葉が積み上がった）"""
+    have = [x.strip() for x in negative.split(",") if x.strip()]
+    return ", ".join(have + [w.strip() for w in words.split(",") if w.strip() and w.strip() not in have])
 
 
 def fix_for(reasons: list[str], prompt: str, negative: str) -> tuple[str, str, str]:
@@ -132,10 +157,10 @@ def fix_for(reasons: list[str], prompt: str, negative: str) -> tuple[str, str, s
         prompt += ", full body"
         notes.append("全身を入れる言葉を足した")
     if any("切れている" in r for r in reasons):
-        negative = ", ".join(x for x in (negative, "cropped, out of frame") if x)
+        negative = _add(negative, "cropped, out of frame")
         notes.append("切れを打ち消した")
     if any("無い" in r for r in reasons):
-        negative = ", ".join(x for x in (negative, "missing limb, amputee, extra limbs") if x)
+        negative = _add(negative, "missing limb, amputee, extra limbs")
         notes.append("欠けた手足を打ち消した")
     lost = [t for r in reasons if r.startswith("描かれていない: ") for t in r.split(": ", 1)[1].split("、")]
     if lost:
@@ -146,7 +171,7 @@ def fix_for(reasons: list[str], prompt: str, negative: str) -> tuple[str, str, s
         prompt = ", ".join(head + lost + rest)
         notes.append(f"描かれなかった {'、'.join(lost)} を前に寄せた")
     if any("離れた物" in r for r in reasons):
-        negative = ", ".join(x for x in (negative, "extra character, background objects") if x)
+        negative = _add(negative, "extra character, background objects")
         notes.append("余計な物を打ち消した")
     return prompt, negative, "、".join(notes) or "seed だけ変えた"
 
@@ -192,6 +217,9 @@ class Session:
             prompt, added = direct(prompt)
             self._say("DIRECTOR", "done", f"足した: {', '.join(added)}" if added else "構図と光は頼みごとのとおり", prompt=prompt)
 
+        # あり得ない形は、特別な注文が無い限り描かない（打ち消しに必ず入れる）
+        if not spec.allow_impossible:
+            negative = _add(negative, IMPOSSIBLE)
         # GUARD: 描く言葉（模型の答え・演出の後でもう一度）
         why = free_text.blocked_tags(prompt.split(","))
         if why:
@@ -200,6 +228,7 @@ class Session:
 
         res = Result(False, prompt=prompt, negative=negative)
         last = None
+        tries_reasons = {}
         for k in range(spec.tries):
             if k and time.time() - t0 > spec.budget_s:
                 res.reason = f"時間の上限（{int(spec.budget_s)} 秒）で打ち切った"
@@ -227,6 +256,8 @@ class Session:
                 self._say("INSPECTOR", "done", "数えて通った", file=name)
                 break
             self._say("INSPECTOR", "fail", "落ちた: " + "、".join(reasons), file=name, reasons=reasons)
+            res.findings += [f"{name}: {r}" for r in reasons]
+            tries_reasons[name] = reasons
             if last is not None and sorted(reasons) == sorted(last):
                 res.reason = "同じ理由で2回続けて落ちたので打ち切った: " + "、".join(reasons)
                 self._say("INSPECTOR", "stop", res.reason)
@@ -240,8 +271,21 @@ class Session:
             if not res.ok:
                 res.reason = f"{spec.tries} 回描いて通らなかった"
 
+        # 通らなかったときも、一番落ちた理由の少ない絵を仕上げに回す（手順を選んだのに何も仕上がらないのを避ける）。
+        # 通っていない印は残す（res.ok は偽のまま、findings に理由がある）
+        if not res.passed and res.files and spec.method != "oneshot" and tries_reasons:
+            res.passed = min(tries_reasons, key=lambda n: len(tries_reasons[n]))
+            self._say("PAINTER", "start", f"通らなかったので、一番ましな {res.passed} を仕上げに回す")
+        if res.passed and spec.method != "oneshot":
+            self._say("PAINTER", "start", f"生成手順「{METHODS.get(spec.method, spec.method)}」で仕上げる")
+            done = self.ports.finish(res.passed, spec.method, res.prompt, res.negative, spec.seed, outdir)
+            if done:
+                res.files.append(done)
+                res.passed = done
+                self._say("PAINTER", "done", "仕上げた", file=done)
         if res.passed:
             res.critique = self.ports.critique(f"{outdir}/{res.passed}")
+            res.findings += [f"{res.passed}: {c}" for c in res.critique]
             self._say("CRITIC", "done", "、".join(res.critique) if res.critique else "目立つ弱さは見つからなかった")
         self.ports.remember({"text": spec.text, "prompt": res.prompt, "negative": res.negative, "ok": res.ok,
                              "seed": spec.seed + len(res.files) - 1 if res.files else spec.seed,

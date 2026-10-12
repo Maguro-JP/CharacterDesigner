@@ -276,7 +276,9 @@ def inspect(src, limbs=True, objects=True, edges=True):
         reasons.append(f"人物と離れた物がある（塊が {len(big)} つ）")
     lab = np.asarray(parts(src))
     # 人と違う体（ラミア、人魚、ケンタウロス、ハーピー）は脚や腕の数が人と違うので数えない（limbs=False）
-    for name, ids in ((("左腕", [14]), ("右腕", [15]), ("左脚", [12]), ("右脚", [13])) if limbs else ()):
+    # 腕・脚は左右の両方が無いときだけ落とす。片方だけでは、長いスカートや持ち物で隠れた脚を「無い」と取った
+    # （ローブの魔女3枚がどれも「右脚が無い」で落ちたが、目で見ると脚は描けていた。2026-10-11）
+    for name, ids in ((("腕", [14, 15]), ("脚", [12, 13])) if limbs else ()):
         if not np.isin(lab, ids).any():
             reasons.append(f"{name}が無い")
     if not edges:

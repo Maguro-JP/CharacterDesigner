@@ -1,0 +1,33 @@
+{
+ "id": "knight",
+ "name": "灯りの騎士",
+ "look": "1girl, solo, brown hair, medium hair, brown eyes",
+ "outfit": "silver plate armor, breastplate, pauldrons, gauntlets, red scarf, dark red cape, long black skirt to the knees, black tights, armored boots up to the knees",
+ "negative": "bare thighs, bare legs, slit skirt, short skirt, white tabard, white loincloth, white apron, thighs, long scarf ends, beige cloth",
+ "items": [
+  {
+   "id": "lantern",
+   "name": "ランタン",
+   "tags": "holding lantern",
+   "desc": "右手に提げる鉄枠のランタン",
+   "hold": "right hand holding the lantern by its top ring, arm lowered",
+   "size": "small lantern"
+  }
+ ],
+ "images": {
+  "color": "bible/characters/knight/color.jpg",
+  "lineart": "bible/characters/knight/lineart.jpg",
+  "colored-lineart": "bible/characters/knight/colored-lineart.jpg"
+ },
+ "palette": [
+  "#f8f5f2",
+  "#5b4f56",
+  "#5c2a2e",
+  "#876164",
+  "#362f35",
+  "#1f1316",
+  "#923030",
+  "#b59c9c"
+ ],
+ "notes": "ランタンを提げた騎士の少女"
+}

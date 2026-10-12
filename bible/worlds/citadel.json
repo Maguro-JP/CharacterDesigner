@@ -1,0 +1,24 @@
+{
+ "id": "citadel",
+ "name": "灯りの城塞",
+ "tags": "medieval fantasy, stone castle, snowy mountains, night, warm lantern light",
+ "desc": "雪山の上の石造りの城塞。夜は灯りだけが頼り",
+ "locations": [
+  {
+   "id": "gate",
+   "name": "城門",
+   "tags": "castle gate, snow, torches, stone bridge",
+   "desc": "雪の積もる石橋の先の城門。夜は松明と窓の灯り",
+   "image": "bible/worlds/citadel/loc-gate.jpg",
+   "avoid": ""
+  },
+  {
+   "id": "hall",
+   "name": "大広間",
+   "tags": "banner, hanging banners, wide great hall interior, stone pillars, candles",
+   "desc": "石の柱が並ぶ大広間。燭台のろうそくだけが灯る",
+   "image": "bible/worlds/citadel/loc-hall.jpg",
+   "avoid": "barrels, crates, narrow corridor"
+  }
+ ]
+}

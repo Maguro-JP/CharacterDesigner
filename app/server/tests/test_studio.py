@@ -260,3 +260,89 @@ def test_paint_and_format(client, tmp_path):
     assert c.post("/api/studio/jobs", json={"prompt": "1girl", "paint": "nope"}).status_code == 422
     j = wait(c, c.post("/api/studio/jobs", json={"prompt": "1girl, full body, simple background", "paint": "oil"}).json()["id"])
     assert "oil painting (medium)" in j["outcome"]["prompt"]
+
+
+def test_retry_does_not_pile_up_negatives_and_allows_pets():
+    from app.server.studio.session import checks_for, fix_for
+    _, n, _ = fix_for(["右脚が無い"], "1girl", "")
+    _, n, _ = fix_for(["右脚が無い"], "1girl", n)
+    assert n.count("missing limb") == 1
+    assert checks_for("1girl, full body, simple background, cat")["objects"] is False
+
+
+def test_pose_shelf(client, monkeypatch, tmp_path):
+    import assets
+    from PIL import Image
+    monkeypatch.setattr(assets, "POSE", tmp_path)
+    Image.new("RGB", (16, 24), "white").save(tmp_path / "src.png")
+    assets.add_pose(str(tmp_path / "src.png"), "standing", "own", "立ち")
+    Image.new("RGB", (16, 24), "white").save(tmp_path / "nolicense.png")
+    c, _ = client(FakeRunner())
+    poses = {x["name"]: x for x in c.get("/api/assets").json()["pose"]}
+    assert poses["standing"]["usable"] and not poses["nolicense"]["usable"]
+    assert c.post("/api/studio/jobs", json={"prompt": "1girl", "pose": "nolicense"}).status_code == 422
+    assert c.post("/api/studio/jobs", json={"prompt": "1girl", "pose": "standing"}).json()["free"]["pose"] == "standing"
+
+
+def test_handdraw_endpoint(client, monkeypatch):
+    import handdraw
+    from PIL import Image
+
+    def fake_run(src, out, guide=None, style="cel2", line_style="default", brush=None):
+        for n in ("1-lines", "2-weight", "3-flats", "4-calc", "4-shade", "5-final"):
+            Image.new("RGB", (4, 4)).save(f"{out}/{n}.png")
+        Image.new("RGB", (4, 4)).save(f"{out}/4-calc-normal.png")
+        return {"regions": 3}
+    monkeypatch.setattr(handdraw, "run", fake_run)
+    c, _ = client(FakeRunner())
+    j = wait(c, c.post("/api/studio/jobs", json={"prompt": "1girl, full body, simple background"}).json()["id"])
+    assert c.post(f"/api/handdraw/{j['id']}/nope.png").status_code == 404
+    r = c.post(f"/api/handdraw/{j['id']}/try-0.png").json()
+    assert "hd-try-0-5-final.png" in r["files"] and r["regions"] == 3
+    assert "hd-try-0-5-final.png" in c.get(f"/api/jobs/{j['id']}").json()["files"]
+    assert c.get(f"/api/jobs/{j['id']}/files/hd-try-0-5-final.png").status_code == 200
+
+
+def test_methods_and_findings(tmp_path):
+    painted, memory, events = [], [], []
+    ports = fake_ports([["右脚が無い"], []], painted, memory)
+    called = {}
+
+    def finish(name, method, prompt, negative, seed, outdir):
+        called.update(name=name, method=method)
+        return "try-9.png"
+    ports.finish = finish
+    r = Session(ports, events.append).send(Spec(prompt="1girl, full body", method="handdraw", tries=3), str(tmp_path))
+    assert called == {"name": "try-1.png", "method": "handdraw"} and r.passed == "try-9.png"
+    assert "try-0.png: 右脚が無い" in r.findings                      # 矛盾は文字で残す
+    assert "extra fingers" in painted[0]["negative"]                   # あり得ない形は打ち消す
+    painted2 = []
+    Session(fake_ports([[]], painted2, [])).send(Spec(prompt="1girl, six arms", allow_impossible=True), str(tmp_path))
+    assert "extra arms" not in painted2[0]["negative"]                 # 特別な注文なら打ち消さない
+    painted3 = []
+    r3 = Session(fake_ports([[]], painted3, [])).send(Spec(prompt="1girl"), str(tmp_path))
+    assert r3.passed == "try-0.png"                                    # 一発なら仕上げ直さない
+
+
+def test_brush_choice(client):
+    c, _ = client(FakeRunner())
+    b = c.get("/api/brushes").json()
+    assert {x["id"] for x in b["brushes"]} >= {"maru", "gpen", "pencil"} and "chibi" in b["styles"]
+    assert c.post("/api/studio/jobs", json={"prompt": "1girl", "brush": "nope"}).status_code == 422
+    assert c.post("/api/studio/jobs", json={"prompt": "1girl", "line_style": "nope"}).status_code == 422
+    j = c.post("/api/studio/jobs", json={"prompt": "1girl", "method": "handdraw", "brush": "maru", "line_style": "chibi"}).json()
+    assert j["free"]["brush"] == "maru" and j["free"]["line_style"] == "chibi"
+
+
+def test_cape_hides_arms_and_best_failed_is_finished(tmp_path):
+    from app.server.studio.session import checks_for
+    assert checks_for("1girl, witch, purple cape, full body")["limbs"] is False
+    painted, called = [], {}
+    ports = fake_ports([["描かれていない: hat", "体が画面の端で切れている"], ["描かれていない: hat"]], painted, [])
+
+    def finish(name, method, prompt, negative, seed, outdir):
+        called["name"] = name
+        return "try-9.png"
+    ports.finish = finish
+    r = Session(ports).send(Spec(prompt="1girl, hat", method="handdraw", tries=2), str(tmp_path))
+    assert called["name"] == "try-1.png" and not r.ok and r.passed == "try-9.png"

@@ -199,7 +199,7 @@ def full_prompt(prompt: str, negative: str = "") -> tuple[str, str]:
 
 
 def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, width: int = 832, height: int = 1216,
-         steps: int = 24, on_image=None, lora: str = "") -> list[str]:
+         steps: int = 24, on_image=None, lora: str = "", pose: str = "", pose_strength: float = 0.93) -> list[str]:
     """Animagine で count 枚描き、out/try-<k>.png に置く。seed は 1 枚ごとに 1 ずつ進める（同じ設定で描き直せる）。"""
     import torch
     import design
@@ -216,13 +216,29 @@ def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, w
             pos = f"{item['trigger']}, {pos}"
         pipe.load_lora_weights(str(assets.path(lora)), adapter_name=lora)
         pipe.set_adapters([lora], adapter_weights=[item["weight"]])
+    # 姿勢の下絵があれば、その絵から描き直す（img2img）。構図と姿勢は下絵から、絵柄と中身は言葉から来る
+    under = None
+    if pose:
+        from PIL import Image
+        import demi
+        path = assets.get_pose(pose)
+        if path is None:
+            raise ValueError(f"姿勢の下絵「{pose}」は使えない（無いか、出典とライセンスが書かれていない）")
+        under = Image.open(path).convert("RGB").resize((width, height))
+        pose_strength = next(x["strength"] for x in assets.list_poses() if x["name"] == pose)
+        draw_pipe = demi.img2img()
+    else:
+        draw_pipe = pipe
     try:
-        pe, ne, pp, np_ = design.encode_xl(pipe, pos, neg)
+        pe, ne, pp, np_ = design.encode_xl(draw_pipe, pos, neg)
         names = []
         for k in range(count):
-            im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
-                      num_inference_steps=steps, guidance_scale=6.0, width=width, height=height,
-                      generator=torch.Generator().manual_seed(seed + k)).images[0]
+            common = dict(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
+                          num_inference_steps=steps, guidance_scale=6.0, generator=torch.Generator().manual_seed(seed + k))
+            if under is not None:
+                im = draw_pipe(image=under, strength=pose_strength, **common).images[0]
+            else:
+                im = draw_pipe(width=width, height=height, **common).images[0]
             name = f"try-{k}.png"
             im.save(out / name)
             names.append(name)

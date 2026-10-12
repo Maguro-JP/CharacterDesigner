@@ -1,0 +1,237 @@
+<title>線画集 第一集</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Dela+Gothic+One&family=Zen+Kaku+Gothic+New:wght@400;700&family=Zen+Old+Mincho:wght@400;700&display=swap">
+<style>
+/* 版面: 紙の本の見開き。白い紙に墨の線、差し色は朱と橙の2色刷り。1枚の絵に1ページを与え、文字は余白に小さく置く */
+:root {
+  --paper: #fbfaf7;
+  --ink: #141313;
+  --sub: #5d5853;
+  --rule: #d9d4cd;
+  --vermilion: #d23a26;
+  --orange: #e9821f;
+  --display: "Dela Gothic One", "Hiragino Sans", "Yu Gothic", sans-serif;
+  --body: "Zen Kaku Gothic New", "Hiragino Sans", "Yu Gothic", sans-serif;
+  --serif: "Zen Old Mincho", "Hiragino Mincho ProN", "Yu Mincho", serif;
+  color-scheme: light;
+}
+html, body { background: var(--paper); color: var(--ink); }
+body { font-family: var(--body); font-size: 15px; line-height: 1.85; padding-inline: 16px; padding-block: 0; }
+.book { max-width: 1080px; margin: 0 auto; }
+.page { padding-block: 64px; border-bottom: 1px solid var(--rule); }
+.page:last-child { border-bottom: 0; }
+.folio { font-family: var(--serif); font-size: 12px; color: var(--sub); letter-spacing: .2em; display: flex; justify-content: space-between; gap: 16px; margin-bottom: 28px; }
+.folio b { color: var(--vermilion); font-weight: 700; }
+
+/* 表紙 */
+.cover { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.1fr); gap: 40px; align-items: center; padding-block: 48px 64px; }
+.cover h1 { font-family: var(--display); font-weight: 400; font-size: clamp(44px, 9vw, 96px); line-height: 1.05; margin: 0; letter-spacing: .02em; text-wrap: balance; }
+.cover h1 .num { display: block; color: var(--vermilion); font-size: .42em; letter-spacing: .3em; margin-top: 18px; }
+.cover .lead { font-family: var(--serif); font-size: 17px; margin-top: 28px; max-width: 30em; }
+.cover .stamp { display: inline-block; margin-top: 28px; border: 2px solid var(--vermilion); color: var(--vermilion); font-family: var(--display); padding: 6px 14px; letter-spacing: .25em; font-size: 14px; transform: rotate(-3deg); }
+.cover figure { margin: 0; }
+.cover img { width: 100%; height: auto; display: block; }
+
+/* はじめに */
+.intro { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 48px; }
+.intro h2, .plate h2, .gallery h2, .colophon h2 { font-family: var(--display); font-weight: 400; font-size: 30px; margin: 0 0 18px; text-wrap: balance; }
+.intro p { margin: 0 0 1em; max-width: 34em; }
+.tries { margin: 0; display: grid; gap: 0; }
+.tries div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.3fr); gap: 16px; padding: 12px 0; border-top: 1px solid var(--rule); }
+.tries dt { font-weight: 700; }
+.tries dd { margin: 0; color: var(--sub); font-size: 14px; }
+.tries .good dt::before { content: "良"; color: var(--vermilion); font-family: var(--display); margin-right: 8px; }
+.steps { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; counter-reset: s; }
+.steps li { display: grid; grid-template-columns: 44px minmax(0, 1fr); gap: 12px; align-items: baseline; counter-increment: s; }
+.steps li::before { content: counter(s, decimal-leading-zero); font-family: var(--display); color: var(--vermilion); font-size: 22px; }
+.steps li span { color: var(--sub); font-size: 13px; display: block; }
+
+/* 図版のページ: 大きな絵と、余白の設定メモ */
+.plate { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 40px; align-items: start; }
+.plate.flip { grid-template-columns: minmax(0, 1fr) minmax(0, 1.5fr); }
+.plate.flip figure { order: 2; }
+.plate figure { margin: 0; }
+.plate img { width: 100%; height: auto; display: block; }
+.plate .no { font-family: var(--display); color: var(--vermilion); font-size: 64px; line-height: 1; }
+.plate .role { font-family: var(--serif); font-size: 13px; letter-spacing: .3em; color: var(--sub); margin: 6px 0 4px; }
+.memo { border-top: 2px solid var(--ink); padding-top: 14px; margin-top: 18px; display: grid; gap: 10px; }
+.memo div { display: grid; grid-template-columns: 6.5em minmax(0, 1fr); gap: 8px; font-size: 14px; }
+.memo dt, .memo .k { color: var(--sub); }
+.note { font-size: 13px; color: var(--sub); margin-top: 18px; }
+.note mark { background: none; color: var(--orange); font-weight: 700; }
+.pair { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; }
+.pair figcaption, .gallery figcaption { font-size: 12px; color: var(--sub); margin-top: 6px; font-family: var(--serif); }
+
+/* 彩色の頁 */
+.gallery .grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.gallery figure { margin: 0; }
+.gallery img { width: 100%; height: auto; display: block; }
+
+/* 奥付 */
+.colophon { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 40px; font-size: 13px; }
+.colophon table { border-collapse: collapse; width: 100%; }
+.colophon td { border-top: 1px solid var(--rule); padding: 8px 0; vertical-align: top; }
+.colophon td:first-child { color: var(--sub); width: 8em; }
+
+@media (max-width: 760px) {
+  .cover, .intro, .plate, .plate.flip, .colophon { grid-template-columns: minmax(0, 1fr); }
+  .plate.flip figure { order: 0; }
+  .gallery .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .page { padding-block: 40px; }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .cover .stamp { transition: transform .3s; }
+  .cover .stamp:hover { transform: rotate(0); }
+}
+</style>
+
+<div class="book">
+
+<section class="page cover" aria-label="表紙">
+  <div>
+    <div class="folio"><span>CHARACTER DESIGNER</span><span><b>壱</b></span></div>
+    <h1>線画集<span class="num">第一集</span></h1>
+    <p class="lead">騎士、魔女、剣士、機械技師。画像生成の AI に線画として描かせた、四つの職業の設定画です。</p>
+    <span class="stamp">AI 線画</span>
+  </div>
+  <figure><img src="{{img:knight-line}}" alt="ランタンを提げた騎士の少女の全身の線画。肩当てと胸当て、長いマント"></figure>
+</section>
+
+<section class="page intro" aria-label="AI に描かせて分かったこと">
+  <div>
+    <div class="folio"><span>はじめに</span><span>二</span></div>
+    <h2>AI に線画を描かせて分かったこと</h2>
+    <p>この画集の絵は、すべて画像生成の AI に描かせたものです。描かせ方と後の処理を変えながら、どうすると線がきれいに出るかを試しました。右はその記録です。</p>
+    <p>どれも、この道具と、この模型で、手元の CPU で試した結果です。別の模型や描かせ方では、違う結果になるかもしれません。</p>
+  </div>
+  <div>
+    <div class="folio"><span>試したことと結果</span><span>&nbsp;</span></div>
+    <dl class="tries">
+      <div><dt>塗った絵から線を取り出す</dt><dd>影の境目や髪の陰影まで線として拾い、線が二重になったり途切れたりした</dd></div>
+      <div><dt>塗った絵を、線画として描き直させる</dt><dd>描き直しを弱くすると塗りが残り、強くすると別の塗った絵になった</dd></div>
+      <div class="good"><dt>最初から線画として描かせる</dt><dd>線が閉じ、目や手まで線で描かれた。ただし灰色の陰影が乗る</dd></div>
+      <div><dt>明るさで白黒に分ける</dt><dd>目や瞳の薄い線が消え、顔の影が黒い塊になった</dd></div>
+      <div class="good"><dt>線の細さで、線と影を見分ける</dt><dd>細い線は残り、広い影は消えた。見る幅が線より狭いと太い線の中が抜けたので、幅を広げた</dd></div>
+      <div><dt>線画を下敷きに色を描かせる</dt><dd>線は残ったが、白い地が勝って色がほとんど乗らなかった</dd></div>
+    </dl>
+  </div>
+</section>
+
+<section class="page plate" aria-label="騎士">
+  <figure><img src="{{img:knight-line}}" alt="騎士の少女の線画"></figure>
+  <div>
+    <div class="folio"><span>図版</span><span>三</span></div>
+    <div class="no">01</div>
+    <h2>灯りの騎士</h2>
+    <div class="role">KNIGHT</div>
+    <dl class="memo">
+      <div><dt>装備</dt><dd>板金の胸当て、段になった肩当て、腰の草摺、膝当て</dd></div>
+      <div><dt>持ち物</dt><dd>右手に提げたランタン</dd></div>
+      <div><dt>布</dt><dd>首元の襟巻きと、背から床まで垂れる長いマント</dd></div>
+      <div><dt>線</dt><dd>金属の縁は太く、布の襞は細く。マントの裾は床で広がる</dd></div>
+    </dl>
+    <figure class="pair" style="margin-top:22px">
+      <div><img src="{{img:knight-color}}" alt="赤い襟巻きの騎士の少女の彩色の絵"><figcaption>彩色の参考。同じ職業を別の回に色付きで描いたもの</figcaption></div>
+    </figure>
+  </div>
+</section>
+
+<section class="page plate flip" aria-label="魔女">
+  <figure><img src="{{img:witch-line-2}}" alt="鍔の広い帽子と長い衣の魔女が、ほうきの付いた杖を持つ線画"></figure>
+  <div>
+    <div class="folio"><span>図版</span><span>四</span></div>
+    <div class="no">02</div>
+    <h2>枝杖の魔女</h2>
+    <div class="role">WITCH</div>
+    <dl class="memo">
+      <div><dt>帽子</dt><dd>鍔の広い三角帽。先に星の飾り</dd></div>
+      <div><dt>衣</dt><dd>帯で締めた長い衣と、袖口の広い羽織。裾は床に溜まる</dd></div>
+      <div><dt>持ち物</dt><dd>上が枝、下がほうきの穂の杖。枝先に吊り飾り</dd></div>
+      <div><dt>線</dt><dd>衣の縦の襞を長い線で通し、帯の下で寄せる</dd></div>
+    </dl>
+    <p class="note">杖とほうきが一本に混ざった持ち物は、頼んだ「ほうき」とは違う形です。<mark>意匠として残しました</mark>が、ほうきとして描き直す候補でもあります。</p>
+  </div>
+</section>
+
+<section class="page plate" aria-label="魔女 二">
+  <figure><img src="{{img:witch-line-1}}" alt="風になびく長い髪の魔女が、ほうきを立てて持つ線画"></figure>
+  <div>
+    <div class="folio"><span>図版</span><span>五</span></div>
+    <div class="no">03</div>
+    <h2>風の魔女</h2>
+    <div class="role">WITCH</div>
+    <dl class="memo">
+      <div><dt>帽子</dt><dd>大きく反った鍔。内側はベタで締める</dd></div>
+      <div><dt>衣</dt><dd>頭巾の付いた上着、帯、前の開いた長い外套</dd></div>
+      <div><dt>持ち物</dt><dd>穂を束ねたほうき</dd></div>
+      <div><dt>線</dt><dd>髪は毛先へ細く抜け、外套の裾は大きな弧で開く</dd></div>
+    </dl>
+    <p class="note">ほうきを持つ手が外套に隠れて見えません。<mark>持ち方は描き直しの候補</mark>です。</p>
+  </div>
+</section>
+
+<section class="page plate flip" aria-label="剣士">
+  <figure><img src="{{img:sword-line}}" alt="高く結った髪の剣士が、長い剣を斜めに構える線画"></figure>
+  <div>
+    <div class="folio"><span>図版</span><span>六</span></div>
+    <div class="no">04</div>
+    <h2>襟巻きの剣士</h2>
+    <div class="role">SWORDSWOMAN</div>
+    <dl class="memo">
+      <div><dt>髪</dt><dd>高い位置で結った長い尾</dd></div>
+      <div><dt>装備</dt><dd>軽い胸当てと籠手、腰の帯、裾の割れた長い腰布</dd></div>
+      <div><dt>持ち物</dt><dd>巻き柄の長剣。両手で斜め下に構える</dd></div>
+      <div><dt>線</dt><dd>刃は定規のように通し、柄の巻きは細かく刻む</dd></div>
+    </dl>
+    <figure class="pair" style="margin-top:22px">
+      <div><img src="{{img:sword-color}}" alt="銀の鎧と赤い襟巻きの剣士が刀を構える彩色の絵"><figcaption>彩色の参考。鉛筆のラフから色を置いて描いたもの</figcaption></div>
+    </figure>
+  </div>
+</section>
+
+<section class="page plate" aria-label="機械技師">
+  <figure><img src="{{img:mech-line-1}}" alt="ゴーグルを額に上げた機械技師の青年が、大きなスパナを立てて持つ線画"></figure>
+  <div>
+    <div class="folio"><span>図版</span><span>七</span></div>
+    <div class="no">05</div>
+    <h2>大スパナの技師</h2>
+    <div class="role">MECHANIC</div>
+    <dl class="memo">
+      <div><dt>頭</dt><dd>額に上げた作業用ゴーグル</dd></div>
+      <div><dt>服</dt><dd>胸当て付きの作業着、半袖の下着、革の手袋、編み上げの安全靴</dd></div>
+      <div><dt>持ち物</dt><dd>背丈ほどある大スパナ。腰に工具袋</dd></div>
+      <div><dt>線</dt><dd>作業着の金具と縫い目を細かく、裾は溜まるしわで緩く</dd></div>
+    </dl>
+    <figure class="pair" style="margin-top:22px">
+      <div><img src="{{img:mech-line-2}}" alt="同じ技師の別の立ち姿。片手を腰に当て、スパナを下げる線画"><figcaption>別案。片手を腰に当て、スパナを下げた立ち姿</figcaption></div>
+    </figure>
+  </div>
+</section>
+
+<section class="page gallery" aria-label="彩色">
+  <div class="folio"><span>彩色</span><span>八</span></div>
+  <h2>色を置いた絵</h2>
+  <div class="grid">
+    <figure><img src="{{img:knight-color}}" alt="騎士の少女の彩色"><figcaption>騎士。銀の板金と赤い襟巻き</figcaption></figure>
+    <figure><img src="{{img:witch-chibi-color}}" alt="紫のマントのデフォルメの魔女の彩色"><figcaption>魔女（デフォルメ）。紫のマントと黒い帽子</figcaption></figure>
+    <figure><img src="{{img:sword-color}}" alt="剣士の彩色"><figcaption>剣士。鉛筆のラフから色を置いたもの</figcaption></figure>
+  </div>
+  <p class="note">この頁の彩色は、線画集の線画に色を置いたものではありません。同じ職業を別の回に色付きで描かせた絵です。線画に色を置く試しは、第二集で扱います。</p>
+</section>
+
+<section class="page colophon" aria-label="奥付">
+  <div>
+    <div class="folio"><span>奥付</span><span>九</span></div>
+    <h2>線画集 第一集</h2>
+    <p>手元の CPU で AI に描かせています。一枚の線画に約3分。描かせた絵はすべて拡大して、線の閉じ具合、顔と手、持ち物の矛盾を目で確かめました。AI が描いた矛盾は各頁に書いています。</p>
+  </div>
+  <table>
+    <tr><td>描いたもの</td><td>線画 6 枚（うち 5 枚を収録）、彩色 3 枚</td></tr>
+    <tr><td>収録しなかった絵</td><td>剣士の二枚目。剣の鍔が二か所にあり、剣が二本つながって見えたため</td></tr>
+    <tr><td>描く道具</td><td>画像生成の模型（CPU で動かす）と、線画の清書の道具</td></tr>
+    <tr><td>後の処理</td><td>灰色の陰影を除く清書（細い線は残し、広い影は消す。太い線は中まで埋める）</td></tr>
+    <tr><td>版</td><td>2026年10月11日（JST）</td></tr>
+  </table>
+</section>
+
+</div>

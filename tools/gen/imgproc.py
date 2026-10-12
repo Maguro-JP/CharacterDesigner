@@ -540,6 +540,82 @@ def outpaint(src: str, out: str, prompt: str, pad=(0, 0, 0, 0), seed: int = 7) -
     return {"size": [W, H], "added_px": W * H - im.width * im.height, "original_changed": changed}
 
 
+def lineart(src: str, out: str, sigma: float = 1.4, k: float = 1.6, tau: float = 0.995, eps: float = -0.005,
+            phi: float = 40.0, clean: int = 12) -> dict:
+    """線画を抜き出す（塗り絵や清書の下地）。XDoG（ぼかし2枚の差を、なめらかな段で白黒にする）。
+    模型を使わないので数秒で済み、塗りの濃淡は消えて輪郭と描き込みの線だけが残る。
+    clean より小さい黒の点（雑音・網点）は消す。返り値の line_ratio は線の画素の割合"""
+    from PIL import ImageFilter
+    g = np.asarray(Image.open(src).convert("L")).astype(float) / 255.0
+    im = Image.fromarray((g * 255).astype("uint8"))
+    a = np.asarray(im.filter(ImageFilter.GaussianBlur(sigma))).astype(float) / 255.0
+    b = np.asarray(im.filter(ImageFilter.GaussianBlur(sigma * k))).astype(float) / 255.0
+    d = a - tau * b
+    e = np.where(d >= eps, 1.0, 1.0 + np.tanh(phi * (d - eps)))
+    line = e < 0.5
+    if clean:
+        # 小さい黒の点を消す（4近傍の塊の大きさで判定）
+        from collections import deque
+        H, W = line.shape
+        seen = np.zeros_like(line)
+        for y0, x0 in zip(*np.nonzero(line)):
+            if seen[y0, x0]:
+                continue
+            comp, q = [], deque([(y0, x0)])
+            seen[y0, x0] = True
+            while q:
+                y, x = q.popleft()
+                comp.append((y, x))
+                for dy, dx in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                    yy, xx = y + dy, x + dx
+                    if 0 <= yy < H and 0 <= xx < W and line[yy, xx] and not seen[yy, xx]:
+                        seen[yy, xx] = True
+                        q.append((yy, xx))
+            if len(comp) < clean:
+                for y, x in comp:
+                    line[y, x] = False
+    Image.fromarray(np.where(line, 0, 255).astype("uint8")).save(out)
+    return {"line_ratio": round(float(line.mean()), 4), "size": list(line.shape[::-1])}
+
+
+def face_fix(src: str, out: str, prompt: str = "1girl, detailed face, detailed eyes", strength: float = 0.35, seed: int = 7) -> dict:
+    """顔だけを拡大して描き直し、元の大きさに戻して貼る（人の描き手が目と顔を最後に拡大して描き込むのと同じ）。
+    全身の絵では顔が小さく、描く模型の解像度では目が崩れやすい。部位分けの顔（11）と髪（2）の外接枠を 1024 に拡大して
+    弱く（0.35）描き直し、縁をぼかして元へ戻す"""
+    import torch
+    import demi
+    import design
+    sys.path.insert(0, str(Path(__file__).parent))
+    import edit
+    import free_text
+    im = Image.open(src).convert("RGB")
+    lab = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST))
+    face = lab == 11
+    if face.sum() < 200:
+        return {"fixed": False, "why": "顔が見つからない"}
+    ys, xs = np.nonzero(face)
+    cy, cx = (ys.min() + ys.max()) // 2, (xs.min() + xs.max()) // 2
+    half = int(max(ys.max() - ys.min(), xs.max() - xs.min()) * 0.9) + 16
+    box = (max(cx - half, 0), max(cy - half, 0), min(cx + half, im.width), min(cy + half, im.height))
+    crop = im.crop(box)
+    big = crop.resize((1024, 1024), Image.LANCZOS)
+    pipe = demi.img2img()
+    pos, neg = free_text.full_prompt(prompt, "")
+    pe, ne, pp, np_ = design.encode_xl(pipe, pos, neg)
+    redrawn = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
+                   image=big, strength=strength, num_inference_steps=24, guidance_scale=6.0,
+                   generator=torch.Generator().manual_seed(seed)).images[0]
+    small = redrawn.resize(crop.size, Image.LANCZOS)
+    w, h = crop.size
+    m = Image.new("L", (w, h), 0)
+    from PIL import ImageDraw as _D
+    _D.Draw(m).ellipse([w * 0.08, h * 0.08, w * 0.92, h * 0.92], fill=255)
+    m = m.filter(ImageFilter.GaussianBlur(max(w // 16, 2)))
+    im.paste(small, box[:2], m)
+    im.save(out)
+    return {"fixed": True, "box": [int(v) for v in box]}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -559,6 +635,8 @@ def main():
     de = sub.add_parser("deai"); de.add_argument("src"); de.add_argument("out"); de.add_argument("--steps", type=int, default=10)
     nt = sub.add_parser("notan"); nt.add_argument("src"); nt.add_argument("out"); nt.add_argument("--size", type=int, default=96)
     lw = sub.add_parser("lineweight"); lw.add_argument("src")
+    ff = sub.add_parser("facefix"); ff.add_argument("src"); ff.add_argument("out"); ff.add_argument("--prompt", default="1girl, detailed face, detailed eyes")
+    la = sub.add_parser("lineart"); la.add_argument("src"); la.add_argument("out"); la.add_argument("--sigma", type=float, default=1.4)
     ip = sub.add_parser("inpaint"); ip.add_argument("src"); ip.add_argument("out"); ip.add_argument("--prompt", required=True)
     ip.add_argument("--box", default=None); ip.add_argument("--mask", default=None); ip.add_argument("--seed", type=int, default=7)
     op = sub.add_parser("outpaint"); op.add_argument("src"); op.add_argument("out"); op.add_argument("--prompt", required=True)
@@ -570,6 +648,8 @@ def main():
           "shade": lambda: shade(a.src, a.out, a.style, a.light, a.shadow_color),
           "aitells": lambda: ai_tells(a.src), "deai": lambda: de_ai(a.src, a.out, a.steps),
           "notan": lambda: notan(a.src, a.out, a.size), "lineweight": lambda: line_weight(a.src),
+          "lineart": lambda: lineart(a.src, a.out, a.sigma),
+          "facefix": lambda: face_fix(a.src, a.out, a.prompt),
           "inpaint": lambda: inpaint(a.src, a.out, a.prompt, tuple(int(v) for v in a.box.split(",")) if a.box else None, a.mask, seed=a.seed),
           "outpaint": lambda: outpaint(a.src, a.out, a.prompt, tuple(int(v) for v in a.pad.split(",")), seed=a.seed)}[a.cmd]
     print(json.dumps(fn(), ensure_ascii=False))

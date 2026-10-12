@@ -25,7 +25,11 @@ _TAGS = None
 
 # 確かめないタグ。構図・光・画質・背景の言い方は絵から読みにくく、描けていても読めないことが多い
 SKIP = ("lighting", "light", "shadow", "quality", "masterpiece", "aesthetic", "absurdres", "shot", "view", "body",
-        "background", "solo", "contrast", "source", "focus", "detailed")
+        "background", "solo", "contrast", "source", "focus", "detailed",
+        # 塗りと見せ方の言葉（casts/paint-styles.json）。物ではなく描き方なので、絵から読めなくても描けていないとは言えない
+        "coloring", "flat color", "shading", "lineart", "medium", "traditional", "sketch", "texture", "brushstroke", "painting",
+        "colors", "monochrome", "greyscale", "screentone", "hatching", "ink", "outline", "page", "sheet", "views", "art",
+        "composition", "pose", "angle", "perspective", "palette")
 
 
 def setup():
@@ -80,7 +84,9 @@ def missing(prompt: str, got: dict, least: float = 0.2) -> list[str]:
     for t in (x.strip().lower() for x in prompt.split(",")):
         if not t or t not in vocab or any(w in t for w in SKIP):
             continue
-        if got.get(t, 0.0) < least:
+        # 「holding lantern」が読めなくても lantern が読めれば描けている（持ち方の言い方は読み分けにくい）
+        core = t.split(" ", 1)[1] if t.startswith(("holding ", "wearing ", "carrying ")) else t
+        if max(got.get(t, 0.0), got.get(core, 0.0)) < least:
             out.append(t)
     return out
 

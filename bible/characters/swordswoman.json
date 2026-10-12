@@ -1,0 +1,33 @@
+{
+ "id": "swordswoman",
+ "name": "襟巻きの剣士",
+ "look": "1girl, solo, black hair, ponytail, brown eyes",
+ "outfit": "silver light armor, breastplate, gauntlets, red scarf, white hakama, armored boots",
+ "negative": "bare legs, bare thighs, cleavage",
+ "items": [
+  {
+   "id": "sword",
+   "name": "長剣",
+   "tags": "holding sword, single sword",
+   "desc": "巻き柄の長剣",
+   "hold": "both hands gripping the hilt, blade pointing down diagonally",
+   "size": "long sword"
+  }
+ ],
+ "images": {
+  "color": "bible/characters/swordswoman/color.jpg",
+  "lineart": "bible/characters/swordswoman/lineart.jpg",
+  "colored-lineart": "bible/characters/swordswoman/colored-lineart.jpg"
+ },
+ "palette": [
+  "#8c8f9a",
+  "#23232b",
+  "#f4f2f1",
+  "#5e5f6b",
+  "#bfbcc1",
+  "#81747f",
+  "#e1dcdd",
+  "#713132"
+ ],
+ "notes": ""
+}

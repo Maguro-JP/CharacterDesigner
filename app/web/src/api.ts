@@ -35,7 +35,7 @@ export type FreeSpec = { prompt: string; negative: string; ja: string; seed: num
 
 export type StudioEvent = { t: number; role: string; stage: string; msg: string; file?: string; prompt?: string; reasons?: string[] };
 
-export type Outcome = { passed: string | null; files: string[]; prompt: string; negative: string; reason: string; critique: string[]; hidden?: string[] };
+export type Outcome = { passed: string | null; files: string[]; prompt: string; negative: string; reason: string; critique: string[]; hidden?: string[]; findings?: string[] };
 
 export type Memory = { text: string; prompt: string; negative: string; ok: boolean; liked?: boolean; seed: number; size: number[]; reason: string; t: number };
 
@@ -52,7 +52,8 @@ export type LayoutNode =
 
 export type Layout = { id: string; name: string; root: LayoutNode; notes?: string[] };
 
-export type StudioIn = { text: string; prompt: string; negative: string; seed: number; size: "portrait" | "landscape" | "square"; tries: number; direct: boolean; lora: string; paint: string; format: string };
+export type StudioIn = { text: string; prompt: string; negative: string; seed: number; size: "portrait" | "landscape" | "square"; tries: number; direct: boolean; lora: string; paint: string; format: string; pose: string; method: "oneshot" | "handdraw" | "rough"; allow_impossible: boolean; brush: string; line_style: string; paint_method: "cel" | "grisaille"; character?: string; world?: string; location?: string; scene?: string; act?: string; outfit?: string };
+export type Bible = { characters: { id: string; name: string; items: { id: string; name: string }[] }[]; worlds: { id: string; name: string; locations: { id: string; name: string }[] }[] };
 
 export type Job = {
   id: string;
@@ -130,12 +131,18 @@ export const api = {
   llm: () => call<LlmStatus>("/api/llm"),
   roles: () => call<Role[]>("/api/studio/roles"),
   styles: () => call<Record<"paint" | "format", { id: string; ja: string; refs: string }[]>>("/api/styles"),
-  assets: () => call<{ lora: Lora[]; dir: string }>("/api/assets"),
+  handdraw: (jobId: string, file: string, brush = "", lineStyle = "default") =>
+    call<{ files: string[]; regions: number }>(`/api/handdraw/${jobId}/${file}?brush=${brush}&line_style=${lineStyle}`, { method: "POST" }),
+  brushes: () => call<{ brushes: { id: string; ja: string }[]; styles: string[] }>("/api/brushes"),
+  assets: () => call<{ lora: Lora[]; pose: { name: string; title: string; license: string; usable: boolean; why: string }[]; dir: string }>("/api/assets"),
   memory: () => call<Memory[]>("/api/memory"),
   like: (jobId: string, file: string) => call<Memory>("/api/memory/like", { method: "POST", body: JSON.stringify({ job_id: jobId, file }) }),
   proposals: () => call<{ idle: boolean; items: Proposal[] }>("/api/proposals"),
   doProposal: (id: string) => call<Job>(`/api/proposals/${id}/do`, { method: "POST" }),
   dismissProposal: (id: string) => call<{ ok: boolean }>(`/api/proposals/${id}/dismiss`, { method: "POST" }),
+  bible: () => call<Bible>("/api/bible"),
+  bibleScene: (character: string, jobId: string, file: string, name: string) =>
+    call<{ saved: string }>(`/api/bible/${character}/scene`, { method: "POST", body: JSON.stringify({ job_id: jobId, file, name }) }),
   studioSubmit: (body: StudioIn) => call<Job>("/api/studio/jobs", { method: "POST", body: JSON.stringify(body) }),
   layout: () => call<Layout>("/api/layout"),
   saveLayout: (l: Layout) => call<Layout>("/api/layout", { method: "PUT", body: JSON.stringify(l) }),

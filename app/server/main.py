@@ -54,7 +54,7 @@ SAMPLES = Path(os.environ.get("CD_SAMPLES", ROOT / "library" / "samples"))
 NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
 # 返してよいファイル。仕事のフォルダの中の、この形の名前だけ（../ などで外を読ませない）
 PREVIEW_FILE = re.compile(r"^(underlay|mask)\.png$")
-FILE = re.compile(r"^(sheet|underlay|mask|try-\d+|try-\d+-inspect|try-\d+-notan)\.png$|^report\.json$")
+FILE = re.compile(r"^(sheet|underlay|mask|try-\d+|try-\d+-inspect|try-\d+-notan|hd-try-\d+-[1-5]-[a-z]+)\.png$|^report\.json$")
 
 
 class Runner:
@@ -73,13 +73,56 @@ class Runner:
         import tagger
 
         def paint(prompt, negative, seed, w, h, out):
-            name = f"try-{len(list(Path(out).glob('try-*.png')))}.png"
+            # 番号は描いた絵だけで数える（検品が横に置く try-0.png.parts.png などを数えると番号が飛んだ）
+            name = f"try-{len([p for p in Path(out).glob('try-*.png') if FILE.match(p.name) and p.stem[4:].isdigit()])}.png"
             import shutil
             import tempfile
             with tempfile.TemporaryDirectory() as tmp:
-                free_text.draw(prompt, negative, Path(tmp), seed, 1, w, h, lora=spec.lora)
+                # ラフから描く手順では、まず鉛筆のラフを描く（色と仕上げは finish で後から足す）
+                p = f"sketch, pencil (medium), monochrome, rough lines, dynamic pose, {prompt}" if spec.method == "rough" else prompt
+                free_text.draw(p, negative, Path(tmp), seed, 1, w, h, lora=spec.lora, pose=spec.pose)
                 shutil.move(f"{tmp}/try-0.png", f"{out}/{name}")
             return name
+
+        def next_name(out):
+            return f"try-{len([p for p in Path(out).glob('try-*.png') if FILE.match(p.name) and p.stem[4:].isdigit()])}.png"
+
+        def redraw(src, prompt, negative, seed, strength, dst):
+            """絵を下絵にして描き直す（img2img）。構図と面は下絵から、仕上げは描く言葉から来る"""
+            import demi
+            import design
+            import torch
+            from PIL import Image
+            pipe = demi.img2img()
+            pos, neg = free_text.full_prompt(prompt, negative)
+            pe, ne, pp, np_ = design.encode_xl(pipe, pos, neg)
+            under = Image.open(src).convert("RGB")
+            im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
+                      image=under, strength=strength, num_inference_steps=24, guidance_scale=6.0,
+                      generator=torch.Generator().manual_seed(seed)).images[0]
+            im.save(dst)
+
+        def finish(name, method, prompt, negative, seed, out):
+            """生成手順の仕上げ。docs/knowledge/drawing-process.md と methods.md の順番で描く。
+            handdraw: 通った絵 → 線を閉じる・強弱・下塗り・影・線 → 弱く描き直して整える（0.6）
+            rough:    ラフ → ラフを下絵に色の手本（0.93、白黒を打ち消す）→ ラフの線と手本の色で人の順番 → 弱く描き直して整える（0.6）"""
+            import handdraw
+            import tempfile
+            src = f"{out}/{name}"
+            with tempfile.TemporaryDirectory() as tmp:
+                guide = None
+                if method == "rough":
+                    guide = f"{tmp}/guide.png"
+                    # 白い紙の鉛筆のラフは、0.8 では白黒のまま返った（彩度 17、色の言葉を足しても 19）。
+                    # 0.93 にし、白黒を打ち消すと、構えを残したまま陰影と差し色が入った（25.6）
+                    redraw(src, "colorful, full color, " + prompt,
+                           ", ".join(x for x in (negative, "monochrome, greyscale, sketch, pencil (medium), lineart") if x),
+                           seed, 0.93, guide)
+                handdraw.adjust(src, tmp, 3, guide=guide, line_style=spec.line_style, brush=spec.brush or None,
+                                paint=getattr(spec, "paint_method", "cel"))
+                dst = next_name(out)
+                redraw(f"{tmp}/5-final.png", prompt, negative, seed, 0.6, f"{out}/{dst}")
+            return dst
 
         def critique(path):
             # 明暗の塊と見せ場（docs/knowledge/ai-look.md の「上手い描き手が意図して決めていること」）
@@ -100,6 +143,10 @@ class Runner:
                 lost = tagger.missing(prompt, tagger.read(path, threshold=0.05))
                 if lost:
                     reasons.append("描かれていない: " + "、".join(lost))
+            # 長い持ち物（ほうき・杖）が柄と先で別々に描かれた矛盾。検出器を取ってあるときだけ（数百 MB を勝手に取らない）
+            import pieces
+            if prompt and pieces.asked(prompt) and pieces.ready():
+                reasons += pieces.split_objects(path, prompt)
             return reasons
 
         def guard_image(path):
@@ -114,7 +161,7 @@ class Runner:
                 return f"肌の見える所が多い（服 {clothes:.2f}、肌 {skin:.2f}）"
             return None
 
-        return Session(Ports(describe=lambda t, rec=(): free_text.describe(t, local_llm.client(), rec), paint=paint, guard_image=guard_image,
+        return Session(Ports(describe=lambda t, rec=(): free_text.describe(t, local_llm.client(), rec), paint=paint, guard_image=guard_image, finish=finish,
                              inspect=inspect, critique=critique,
                              remember=remember, recall=lambda t: recall_from(memories(), t)), on_event).send(spec, str(outdir))
 
@@ -199,7 +246,8 @@ class Queue:
                     r = self.runner.studio(Spec(**job.free), out, job.events.append)
                     job.passed = r.ok
                     job.outcome = {"passed": r.passed, "files": [f for f in r.files if f not in r.hidden], "prompt": r.prompt,
-                                   "negative": r.negative, "reason": r.reason, "critique": r.critique, "hidden": r.hidden}
+                                   "negative": r.negative, "reason": r.reason, "critique": r.critique, "hidden": r.hidden,
+                                   "findings": r.findings}
                     job.state = "done"
                     continue
                 if job.kind == "free":
@@ -279,6 +327,25 @@ class StudioIn(BaseModel):
     lora: str = Field("", max_length=48)
     paint: str = Field("", max_length=20)
     format: str = Field("", max_length=20)
+    pose: str = Field("", max_length=48)
+    method: str = Field("oneshot", pattern="^(oneshot|handdraw|rough)$")
+    allow_impossible: bool = False
+    brush: str = Field("", pattern="^[a-z]{0,20}$")
+    line_style: str = Field("default", pattern="^[a-z]{1,20}$")
+    paint_method: str = Field("cel", pattern="^(cel|grisaille)$")
+    # 設定資料集（bible/）から描く: 保存したキャラクターの見た目・服・持ち物と、世界観の場所で描く言葉を組む
+    character: str = Field("", pattern="^[a-z0-9-]{0,40}$")
+    world: str = Field("", pattern="^[a-z0-9-]{0,40}$")
+    location: str = Field("", pattern="^[a-z0-9-]{0,40}$")
+    scene: str = Field("", max_length=200)
+    act: str = Field("", max_length=200)          # ポーズ・しぐさ（素材の棚の pose とは別）
+    outfit: str = Field("", max_length=300)        # 空ならいつもの服
+
+
+class SceneIn(BaseModel):
+    job_id: str = Field(max_length=40)
+    file: str = Field(max_length=60)
+    name: str = Field(pattern="^[a-z0-9-]{1,40}$")
 
 
 class LikeIn(BaseModel):
@@ -427,15 +494,76 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         remember(rec)
         return rec
 
+    @app.get("/api/bible")
+    def bible_list():
+        # 保存したキャラクターと世界観の一覧（画面の選択欄に使う）
+        import bible
+        out = {"characters": [], "worlds": []}
+        for kind in ("characters", "worlds"):
+            d = bible.BIBLE / kind
+            for p in sorted(d.glob("*.json")) if d.exists() else []:
+                x = json.loads(p.read_text(encoding="utf-8"))
+                if kind == "characters":
+                    out[kind].append({"id": x["id"], "name": x["name"], "items": [{"id": i["id"], "name": i["name"]} for i in x["items"]]})
+                else:
+                    out[kind].append({"id": x["id"], "name": x["name"], "locations": [{"id": l["id"], "name": l["name"]} for l in x["locations"]]})
+        return out
+
+    @app.post("/api/bible/{character}/scene")
+    def bible_scene(character: str, body: SceneIn):
+        # 描いた絵を、そのキャラクターの場面として設定資料集に残す
+        import bible
+        if not re.fullmatch(r"[a-z0-9-]{1,40}", character):
+            raise HTTPException(404, "そのキャラクターは無い")
+        j = jobs.jobs.get(body.job_id)
+        if j is None or body.file not in j.public()["files"]:
+            raise HTTPException(404, "その絵は無い")
+        try:
+            path = bible.add_image(character, "scene-" + body.name, str(DATA / j.id / body.file))
+        except SystemExit as e:
+            raise HTTPException(404, str(e))
+        return {"saved": path}
+
     @app.get("/api/styles")
     def get_styles():
         st = studio_session_styles()
         return {k: [{"id": i, "ja": v["ja"], "refs": v.get("refs", "")} for i, v in st[k].items()] for k in ("paint", "format")}
 
+    @app.post("/api/handdraw/{job_id}/{name}")
+    def handdraw_job(job_id: str, name: str, brush: str = "", line_style: str = "default"):
+        # 描いた絵を、人の描き方の順番（線を閉じる → 強弱 → 下塗り → 影 → 線）で描き直す（docs/knowledge/drawing-process.md）。
+        # 段ごとの絵を hd-<元の名前>-<段>-<名前>.png として同じ仕事の置き場に置く。模型を使わないので 30 秒ほど
+        import handdraw
+        import shutil
+        import tempfile
+        j = jobs.jobs.get(job_id)
+        if j is None or not re.fullmatch(r"try-\d+\.png", name) or name not in j.public()["files"]:
+            raise HTTPException(404, "その絵は無い")
+        stem = name[:-4]
+        with tempfile.TemporaryDirectory() as tmp:
+            import brushes
+            bt = brushes.table()
+            if brush and brush not in bt["brushes"] or line_style not in bt["styles"]:
+                raise HTTPException(422, "そのブラシ・線の作風は無い")
+            r = handdraw.run(str(DATA / job_id / name), tmp, line_style=line_style, brush=brush or None)
+            out = []
+            for f in sorted(p for p in Path(tmp).glob("[1-5]-*.png") if re.fullmatch(r"[1-5]-[a-z]+\.png", p.name)):
+                dst = f"hd-{stem}-{f.name}"
+                shutil.move(str(f), DATA / job_id / dst)
+                out.append(dst)
+        return {"files": out, **r}
+
+    @app.get("/api/brushes")
+    def get_brushes():
+        import brushes
+        bt = brushes.table()
+        return {"brushes": [{"id": k, "ja": v["ja"]} for k, v in bt["brushes"].items()],
+                "styles": [k for k in bt["styles"] if not k.startswith("_")]}
+
     @app.get("/api/assets")
     def list_assets():
         # 素材の棚。使えない素材（出典とライセンスが無い）も理由付きで出す
-        return {"lora": assets.list_loras(), "dir": str(assets.LORA)}
+        return {"lora": assets.list_loras(), "pose": assets.list_poses(), "dir": str(assets.LORA)}
 
     @app.get("/api/studio/roles")
     def studio_roster():
@@ -444,6 +572,16 @@ def create_app(runner: Runner | None = None) -> FastAPI:
     @app.post("/api/studio/jobs", status_code=202)
     def post_studio_job(body: StudioIn):
         # 頼みごとか描く言葉のどちらかが要る。描かない頼みごとは受け付けの時点でも止める（核でももう一度止める）
+        if body.character:
+            import bible
+            try:
+                pos, neg = bible.prompt(body.character, scene=body.scene, pose=body.act, outfit=body.outfit or None,
+                                        world=body.world or None, location=body.location or None)
+            except SystemExit as e:
+                raise HTTPException(404, str(e))
+            body.prompt = pos
+            body.negative = ", ".join(x for x in (body.negative, neg) if x)
+            body.direct = True
         if not body.text.strip() and not body.prompt.strip():
             raise HTTPException(422, "頼みごとか描く言葉を書く")
         for t in (body.text, body.prompt):
@@ -453,7 +591,15 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         w, h = SIZES[body.size]
         spec = {"text": body.text, "prompt": body.prompt, "negative": body.negative, "seed": body.seed,
                 "width": w, "height": h, "tries": body.tries, "direct": body.direct, "lora": body.lora,
-                "paint": body.paint, "format": body.format}
+                "paint": body.paint, "format": body.format, "pose": body.pose,
+                "method": body.method, "allow_impossible": body.allow_impossible,
+                "brush": body.brush, "line_style": body.line_style, "paint_method": body.paint_method}
+        import brushes
+        bt = brushes.table()
+        if body.brush and body.brush not in bt["brushes"] or body.line_style not in bt["styles"]:
+            raise HTTPException(422, "そのブラシ・線の作風は無い")
+        if body.pose and assets.get_pose(body.pose) is None:
+            raise HTTPException(422, f"姿勢の下絵「{body.pose}」は使えない（無いか、出典とライセンスが書かれていない）")
         st = studio_session_styles()
         if body.paint and body.paint not in st["paint"] or body.format and body.format not in st["format"]:
             raise HTTPException(422, "その塗り・見せ方は無い")

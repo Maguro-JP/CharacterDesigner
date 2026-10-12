@@ -1,5 +1,5 @@
 import { useEffect, useState, type ReactNode } from "react";
-import { api, type Job, type LlmStatus, type Lora, type Memory, type PartChoices, type Proposal, type Role, type StudioIn } from "./api";
+import { api, type Bible, type Job, type LlmStatus, type Lora, type Memory, type PartChoices, type Proposal, type Role, type StudioIn } from "./api";
 import DemiPanel from "./DemiPanel";
 import { LlmSettings, readerJa } from "./FreePanel";
 import JobCard from "./JobCard";
@@ -30,6 +30,9 @@ export function galleryItems(jobs: Job[]): Item[] {
     if (j.kind === "studio") {
       const files = j.outcome?.files ?? (j.events ?? []).filter((e) => e.role === "PAINTER" && e.file).map((e) => e.file as string);
       files.forEach((f) => out.push({ jobId: j.id, file: f, label: j.case_name, passed: j.outcome?.passed === f, prompt: j.outcome?.prompt ?? "", job: j }));
+      // 人の順番で描き直した仕上げも並べる（段ごとの絵は hd-<元>-<段>.png。並べるのは仕上げだけ）
+      j.files.filter((f) => /^hd-try-\d+-5-final\.png$/.test(f)).forEach((f) =>
+        out.push({ jobId: j.id, file: f, label: `${j.case_name}（人の順番）`, passed: true, prompt: j.outcome?.prompt ?? "", job: j }));
     } else if (j.kind === "free") {
       j.results.forEach((r) => r.file && out.push({ jobId: j.id, file: r.file, label: j.case_name, passed: true, prompt: j.free?.prompt ?? "", job: j }));
     } else if (j.files.includes("sheet.png")) {
@@ -39,6 +42,9 @@ export function galleryItems(jobs: Job[]): Item[] {
   // 仕事は新しい順に来るので、そのまま新しい絵が先頭（「大きく見る」も既定で一番新しい絵を出す）
   return out.filter((i) => i.job.files.includes(i.file));
 }
+
+// 線の作風の日本語名（casts/brushes.json の styles）
+const LINE_JA = {default: "標準", chibi: "デフォルメ（太い線）", cute: "かわいい（丸い線）", cool: "格好いい（鋭い線）", manga: "漫画", sketch: "鉛筆"};
 
 const SIZES: Record<StudioIn["size"], string> = { portrait: "縦長", landscape: "横長", square: "正方形" };
 
@@ -59,9 +65,30 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
   useEffect(() => {
     api.styles().then(setStyles).catch(() => setStyles({ paint: [], format: [] }));
   }, []);
-  const [shelf, setShelf] = useState<{ lora: Lora[]; dir: string }>({ lora: [], dir: "" });
+  const [pose, setPose] = useState("");
+  const [method, setMethod] = useState<StudioIn["method"]>("oneshot");
+  const [allowImpossible, setAllowImpossible] = useState(false);
+  const [brush, setBrush] = useState("");
+  const [lineStyle, setLineStyle] = useState("default");
+  const [paintMethod, setPaintMethod] = useState<"cel" | "grisaille">("cel");
+  // 設定資料集（保存したキャラクターと世界観）から描く。選ぶと、見た目・服・持ち物・場所の言葉はサーバーが組み立てる
+  const [bible, setBible] = useState<Bible>({ characters: [], worlds: [] });
   useEffect(() => {
-    api.assets().then(setShelf).catch(() => setShelf({ lora: [], dir: "" }));
+    api.bible().then(setBible).catch(() => undefined);
+  }, []);
+  const [character, setCharacter] = useState("");
+  const [world, setWorld] = useState("");
+  const [location, setLocation] = useState("");
+  const [scene, setScene] = useState("");
+  const [act, setAct] = useState("");
+  const [outfit, setOutfit] = useState("");
+  const [brushList, setBrushList] = useState<{ brushes: { id: string; ja: string }[]; styles: string[] }>({ brushes: [], styles: ["default"] });
+  useEffect(() => {
+    api.brushes().then(setBrushList).catch(() => undefined);
+  }, []);
+  const [shelf, setShelf] = useState<{ lora: Lora[]; pose: { name: string; title: string; license: string; usable: boolean; why: string }[]; dir: string }>({ lora: [], pose: [], dir: "" });
+  useEffect(() => {
+    api.assets().then(setShelf).catch(() => setShelf({ lora: [], pose: [], dir: "" }));
   }, []);
 
   // 描く言葉を先に見たいとき。見なくても、頼めば読み手（INTERPRETER）が読む
@@ -84,7 +111,7 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
   const submit = () => {
     ctx.setError("");
     api
-      .studioSubmit({ text, prompt, negative, seed, size, tries, direct, lora, paint, format })
+      .studioSubmit({ text, prompt, negative, seed, size, tries, direct, lora, paint, format, pose, method, allow_impossible: allowImpossible, brush, line_style: lineStyle, paint_method: paintMethod, character, world, location, scene, act, outfit })
       .then(() => {
         ctx.refreshJobs();
         setSeed((s) => s + tries);   // 次は別の絵になるよう進める（同じ絵を描き直したければ戻せる）
@@ -92,8 +119,44 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
       .catch((e: Error) => ctx.setError(e.message));
   };
 
+  const sel = "ml-1 rounded border border-line bg-ink px-2 py-1";
+  const places = bible.worlds.find((w) => w.id === world)?.locations ?? [];
   return (
     <div className="space-y-2 text-sm">
+      {bible.characters.length > 0 && (
+        <fieldset className="space-y-1 rounded border border-line p-2">
+          <legend className="px-1 text-xs text-neutral-400">設定資料集から描く（同じキャラクターとして描く）</legend>
+          <div className="flex flex-wrap gap-2">
+            <label>キャラクター
+              <select className={sel} value={character} onChange={(e) => setCharacter(e.target.value)} aria-label="キャラクター">
+                <option value="">使わない</option>
+                {bible.characters.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </label>
+            <label>世界観
+              <select className={sel} value={world} onChange={(e) => { setWorld(e.target.value); setLocation(""); }} aria-label="世界観">
+                <option value="">白い背景</option>
+                {bible.worlds.map((w) => <option key={w.id} value={w.id}>{w.name}</option>)}
+              </select>
+            </label>
+            {places.length > 0 && (
+              <label>場所
+                <select className={sel} value={location} onChange={(e) => setLocation(e.target.value)} aria-label="場所">
+                  <option value="">世界観だけ</option>
+                  {places.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+              </label>
+            )}
+          </div>
+          {character && (
+            <div className="grid gap-1">
+              <input className="rounded border border-line bg-ink px-2 py-1" value={scene} onChange={(e) => setScene(e.target.value)} placeholder="場面（例: walking in the snow）" aria-label="場面" />
+              <input className="rounded border border-line bg-ink px-2 py-1" value={act} onChange={(e) => setAct(e.target.value)} placeholder="ポーズ・しぐさ（例: looking back）" aria-label="ポーズ" />
+              <input className="rounded border border-line bg-ink px-2 py-1" value={outfit} onChange={(e) => setOutfit(e.target.value)} placeholder="服を変えるときだけ（空ならいつもの服）" aria-label="服" />
+            </div>
+          )}
+        </fieldset>
+      )}
       <LlmSettings status={ctx.llm} onChange={ctx.setLlm} />
       <textarea
         className="h-20 w-full rounded border border-line bg-ink px-2 py-1"
@@ -107,7 +170,7 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
         <button type="button" disabled={!text.trim() || busy} onClick={preview} className="rounded border border-line px-3 py-1 disabled:opacity-40">
           {busy ? "読んでいる…" : "描く言葉を先に見る"}
         </button>
-        <button type="button" disabled={!text.trim() && !prompt.trim()} onClick={submit} className="rounded bg-accent px-4 py-1 font-bold text-ink disabled:opacity-40">
+        <button type="button" disabled={!character && !text.trim() && !prompt.trim()} onClick={submit} className="rounded bg-accent px-4 py-1 font-bold text-ink disabled:opacity-40">
           スタジオに頼む
         </button>
       </div>
@@ -135,6 +198,42 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
           <input type="number" min={0} className="ml-1 w-20 rounded border border-line bg-ink px-2 py-1" value={seed} onChange={(e) => setSeed(Math.max(0, Number(e.target.value) || 0))} />
         </label>
         <label>
+          手順
+          <select className="ml-1 rounded border border-line bg-ink px-2 py-1" value={method} onChange={(e) => setMethod(e.target.value as StudioIn["method"])} aria-label="生成手順">
+            <option value="oneshot">一発で描く（速い）</option>
+            <option value="handdraw">描いてから人の順番で仕上げ直す</option>
+            <option value="rough">ラフから人の順番で描く（こだわる）</option>
+          </select>
+        </label>
+        {method !== "oneshot" && (
+          <>
+            <label>
+              塗り方
+              <select className="ml-1 rounded border border-line bg-ink px-2 py-1" value={paintMethod} onChange={(e) => setPaintMethod(e.target.value as "cel" | "grisaille")} aria-label="塗り方">
+                <option value="cel">セル塗り（影を面で置く）</option>
+                <option value="grisaille">グリザイユ（灰色の明暗に色を重ねる）</option>
+              </select>
+            </label>
+            <label>
+              線の作風
+              <select className="ml-1 rounded border border-line bg-ink px-2 py-1" value={lineStyle} onChange={(e) => setLineStyle(e.target.value)} aria-label="線の作風">
+                {brushList.styles.map((x) => <option key={x} value={x}>{(LINE_JA as Record<string, string>)[x] ?? x}</option>)}
+              </select>
+            </label>
+            <label>
+              ブラシ
+              <select className="ml-1 rounded border border-line bg-ink px-2 py-1" value={brush} onChange={(e) => setBrush(e.target.value)} aria-label="線のブラシ">
+                <option value="">作風のまま</option>
+                {brushList.brushes.map((x) => <option key={x.id} value={x.id}>{x.ja}</option>)}
+              </select>
+            </label>
+          </>
+        )}
+        <label className="flex items-center gap-1" title="余分な手足・浮いた物など、あり得ない形を描いてよいか。特別な注文のときだけ">
+          <input type="checkbox" checked={allowImpossible} onChange={(e) => setAllowImpossible(e.target.checked)} />
+          あり得ない形を許す
+        </label>
+        <label>
           塗り
           <select className="ml-1 rounded border border-line bg-ink px-2 py-1" value={paint} onChange={(e) => setPaint(e.target.value)} aria-label="塗り">
             <option value="">おまかせ</option>
@@ -159,6 +258,15 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
             ))}
           </select>
         </label>
+        <label>
+          姿勢
+          <select className="ml-1 rounded border border-line bg-ink px-2 py-1" value={pose} onChange={(e) => setPose(e.target.value)} aria-label="姿勢の下絵">
+            <option value="">おまかせ</option>
+            {shelf.pose.map((x) => (
+              <option key={x.name} value={x.name} disabled={!x.usable} title={x.usable ? x.license : x.why}>{x.title}</option>
+            ))}
+          </select>
+        </label>
         <label className="flex items-center gap-1">
           <input type="checkbox" checked={direct} onChange={(e) => setDirect(e.target.checked)} />
           演出に構図と光を任せる
@@ -177,6 +285,14 @@ function CanvasPanel({ ctx }: { ctx: Ctx }) {
   const cur = items.find((i) => ctx.selected && i.jobId === ctx.selected.jobId && i.file === ctx.selected.file) ?? items[0];
   const [notan, setNotan] = useState(false);
   const [liked, setLiked] = useState("");
+  const [hd, setHd] = useState("");
+  const [sceneOf, setSceneOf] = useState("");
+  const [sceneName, setSceneName] = useState("");
+  const [sceneSaved, setSceneSaved] = useState("");
+  const [chars, setChars] = useState<Bible["characters"]>([]);
+  useEffect(() => {
+    api.bible().then((b) => setChars(b.characters)).catch(() => undefined);
+  }, []);
   if (!cur) return <p className="text-sm text-neutral-400">まだ描いた絵が無い。頼みごとを書いて「スタジオに頼む」</p>;
   const notanFile = cur.file.replace(".png", "-notan.png");
   const hasNotan = cur.job.files.includes(notanFile);
@@ -192,6 +308,28 @@ function CanvasPanel({ ctx }: { ctx: Ctx }) {
             {liked === cur.jobId + cur.file ? "覚えた" : "良い（この描き方を覚える）"}
           </button>
         )}
+        {cur.job.kind === "studio" && chars.length > 0 && (
+          <span className="flex items-center gap-1 text-xs">
+            <select className="rounded border border-line bg-ink px-1 py-0.5" value={sceneOf} onChange={(e) => setSceneOf(e.target.value)} aria-label="場面として残すキャラクター">
+              <option value="">場面として残す先</option>
+              {chars.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+            <input className="w-28 rounded border border-line bg-ink px-1 py-0.5" value={sceneName} onChange={(e) => setSceneName(e.target.value)} placeholder="名前（英小文字）" aria-label="場面の名前" />
+            <button type="button" className="rounded border border-line px-2 py-0.5" disabled={!sceneOf || !/^[a-z0-9-]{1,40}$/.test(sceneName)}
+              onClick={() => api.bibleScene(sceneOf, cur.jobId, cur.file, sceneName).then(() => setSceneSaved(cur.jobId + cur.file)).catch((e: Error) => ctx.setError(e.message))}>
+              {sceneSaved === cur.jobId + cur.file ? "残した" : "場面として残す"}
+            </button>
+          </span>
+        )}
+        {/^try-\d+\.png$/.test(cur.file) && (
+          <button type="button" className="rounded border border-line px-2 py-0.5 text-xs" disabled={hd === "busy"}
+            onClick={() => {
+              setHd("busy");
+              api.handdraw(cur.jobId, cur.file).then(() => { setHd(""); ctx.refreshJobs(); }).catch((e: Error) => { setHd(""); ctx.setError(e.message); });
+            }}>
+            {hd === "busy" ? "人の順番で描いている…" : "人の順番で描き直す"}
+          </button>
+        )}
         {hasNotan && (
           <button type="button" className="underline" onClick={() => setNotan((n) => !n)}>
             {notan ? "絵に戻す" : "明暗の塊を見る"}
@@ -203,6 +341,12 @@ function CanvasPanel({ ctx }: { ctx: Ctx }) {
       </div>
       {cur.prompt && <p className="break-words font-mono text-xs text-neutral-400">{cur.prompt}</p>}
       {critique.map((c) => <p key={c} className="text-xs text-neutral-300">CRITIC: {c}</p>)}
+      {!!cur.job.outcome?.findings?.length && (
+        <details className="text-xs text-neutral-400">
+          <summary>見つけた矛盾・あり得ないこと {cur.job.outcome.findings.length} 件</summary>
+          <ul className="list-inside list-disc">{cur.job.outcome.findings.map((f) => <li key={f}>{f}</li>)}</ul>
+        </details>
+      )}
     </div>
   );
 }
