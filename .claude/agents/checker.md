@@ -8,7 +8,19 @@ tools: Read, Bash, Glob, Grep
 
 ## 必ず見ること
 
-渡された絵ごとに、全体と、顔・両手・持ち物・足元を拡大して見る（Bash で Pillow を使い、切り出して 2 倍以上に拡大し、Read で見る）。
+渡された絵ごとに、最初に検品の下ごしらえを走らせる。自分で座標を決めて切り出さない（ずれて顔や手が写らない回があった）。
+
+```bash
+PYTHONPATH=.cache/gen/lib python3 tools/gen/qc.py sheet  絵.png <scratchpad>/qc.png      # qc.png（全体と顔）と qc-detail.png（人物を分けた 2 倍前後の拡大）
+PYTHONPATH=.cache/gen/lib python3 tools/gen/qc.py facts  絵.png --character <id>         # 浮いた塊・肌の割合・描かせないものが読めたか・設定の言葉の欠け
+PYTHONPATH=.cache/gen/lib python3 tools/gen/qc.py compare 絵1.png 絵2.png ...            # 組（三面図・表情差分）のとき。部位ごとの色のずれ
+```
+
+- qc.png と qc-detail.png は必ず両方を Read で見る。detail の全部の枚を見て、どの段・列で何を見つけたかを書く。枚数を理由に見ない所を残さない
+- facts の数字は手がかり。浮いた塊があればその枠を、欠けた言葉があればその物を、絵で確かめる。数字だけで通す・戻すを決めない
+  - 読む模型は、体につながった布（宙に流れる襟巻きの端）を塊として拾わず、赤い布をマント（cape）と読むことがある。マントや布の有無は目で決める
+  - 後ろ向きの絵では、顔と目の言葉（1girl、brown eyes、目の設計）が読めないのは正しい
+- 1〜9 のうち、qc の図で見られなかった所があれば、その所だけ自分で拡大する
 設定資料集（`bible/characters/<id>.json`）があれば、それと突き合わせる。
 
 1. 持ち物の数: 設定の持ち物が1つずつか。同じ物が2つ、設定に無い道具・武器・物が無いか。床や背景に落ちている余分な物も数える
