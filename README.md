@@ -121,6 +121,9 @@ python3 tools/compare.py out/cmp.png v3=characters/warrior-v3-hand/sprite.json v
 道具は `list_cases`（種の一覧）、`describe`（日本語を種の設定に組む）、`save_case`、`draw`（描く依頼）、`job`（進み具合）、`sheet`（通った絵）。
 参考画像は `ref_search`（探す）、`ref_save`（手元に置く）、`ref_list`（一覧）。`studio_draw` の `ref` に置いた画像の id を渡すと、画風と色の手本にして描く。
 スタジオは `studio_draw`（日本語か描く言葉で頼む）、`studio_job`（役割ごとの出来事と決着）、`studio_image`（絵）、`proposals`・`do_proposal`（待機中の提案と承認）。
+自由に描くは `free_describe`（描く言葉に組む）、`free_draw`（`ref` と空気感 `mood` を指定できる）、`free_image`。
+仕上げは `ink`（線の清書）、`material`（部位や色で切り出して質感: slime、metal、heavy、gem、inorganic、dirt）、`atmosphere_list`・`atmosphere`（空気感: 神々しい光、ほこり、木漏れ日、地下、宇宙、霞）。
+フィルターは `filters_get`・`filters_set`。全体の流れと各道具の引数は `guide` が返すので、Claude は最初にこれを呼ぶ。
 
 - Claude Code: リポジトリの場所で
   `claude mcp add characterdesigner -e PYTHONPATH=.cache/app/lib -- python3 -m app.mcp.server`

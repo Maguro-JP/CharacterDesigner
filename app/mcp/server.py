@@ -21,9 +21,16 @@ API = os.environ.get("CD_API", "http://127.0.0.1:8000").rstrip("/")
 mcp = MCPServer(
     name="characterdesigner",
     instructions=(
-        "亜人（獣耳・尾・翼・角のあるキャラクター）の設定資料を、手元のアプリで描いて検品する。"
-        "流れ: describe で日本語の頼みごとを種の設定に組む → save_case で保存 → draw で描く依頼 → "
-        "job で進み具合を見る（1回 約3分、最初の1件はモデルの読み込みに 約10分）→ sheet で通った絵を受け取る。"
+        "手元のキャラクターデザインのアプリを使う。迷ったら最初に guide を呼ぶ（道具の一覧と、目的ごとの使う順番を返す）。\n"
+        "描く: studio_draw（日本語か描く言葉で頼む。検品して直す）→ studio_job で進み → studio_image で絵。"
+        "早く1枚ほしいときは free_draw → job → free_image。どちらも ref（参考画像）と mood（空気感）を渡せる。\n"
+        "参考画像: ref_search → ref_save → 返った id を studio_draw / free_draw の ref に渡す。\n"
+        "描いた絵の手直し（どれも仕事の id と絵のファイル名を渡し、手直しした絵を返す。元の絵は変えない）: "
+        "ink（ラフ線を1本にまとめる）、material（一部を切り出して透明感・金属感などの質感を掛ける）、atmosphere（絵全体に空気感）。\n"
+        "亜人の設定資料: describe → save_case → draw → job → sheet。三面図: turnaround → turnaround_job → turnaround_image。\n"
+        "描く内容の制限: 最初から規制しない。描きたくないものは filters_set で利用者のフィルターに入れる。"
+        "子どもを性的に描くことだけは外せない固定の制限で、断られたら理由が返る。\n"
+        "時間: 描く依頼は1枚 約3〜5分（CPU）。最初の1件はモデルの読み込みに 約10分。手直しの道具は数秒。"
     ),
 )
 
@@ -88,11 +95,18 @@ def sheet(id: str) -> Image:
 
 
 @mcp.tool()
-def studio_draw(text: str = "", prompt: str = "", size: str = "portrait", tries: int = 3, ref: str = "", ref_scale: float = 0.5) -> dict:
+def studio_draw(text: str = "", prompt: str = "", size: str = "portrait", tries: int = 3, ref: str = "", ref_scale: float = 0.5,
+                mood: str = "") -> dict:
     """スタジオに頼む。日本語の頼みごと（text）か、英語の描く言葉（prompt）のどちらかを渡す。
     7つの役割（安全・読み手・演出・描き手・検品・意地の悪い目・整理）が順に回し、検品で落ちたら直して描き直す。
     size は portrait・landscape・square。ref は ref_save で手元に置いた参考画像の id で、画風と色の手本にする（強さ ref_scale、0〜1）。
+    mood は空気感（atmosphere_list の id）。描く言葉に空気感の言葉を足す（prompt が空なら足さない）。
     すぐ仕事の id を返す。進みは studio_job、絵は studio_image で受け取る。"""
+    words = _mood_words(mood)
+    if words and prompt:
+        prompt = f"{prompt}, {words}"
+    elif words:
+        text = f"{text}（空気感: {words}）"
     body = {"text": text, "prompt": prompt, "size": size, "tries": tries}
     if ref:
         body.update(ref=ref, ref_scale=ref_scale)
@@ -174,6 +188,150 @@ def ref_save(item: dict) -> dict:
 def ref_list() -> dict:
     """手元に置いた参考画像の一覧（id・作者・ライセンス・元のページ）。"""
     return _json("GET", "/api/refs")
+
+
+# ---------- 案内 ----------
+
+GUIDE = {
+    "描く（検品して直す）": ["studio_draw(text|prompt, size, tries, ref, ref_scale, mood)", "studio_job(id)", "studio_image(id, file)"],
+    "描く（早く1枚）": ["free_describe(text) で日本語を描く言葉に直す（任意）", "free_draw(prompt, negative, size, count, seed, ref, ref_scale, mood)",
+                   "job(id)", "free_image(id, index)"],
+    "参考画像を手本にする": ["ref_search(query, n, commercial)", "ref_save(item)", "ref_list()", "→ 描く道具の ref に id を渡す"],
+    "空気感（光の筋・霞など）": ["atmosphere_list() で空気感と、描く言葉に足す言葉を見る", "描く道具の mood に渡す（描く言葉に足す）",
+                         "atmosphere(job_id, file, mood, strength) で描いた絵に後から掛ける"],
+    "描いた絵の手直し": ["ink(job_id, file, width, merge) ラフ線の清書", "material(job_id, file, kind, strength, select, colors, tol, region) 切り出して質感",
+                   "atmosphere(job_id, file, mood, strength)"],
+    "亜人の設定資料": ["list_cases()", "describe(text)", "save_case(name, case)", "draw(case, tries)", "job(id)", "sheet(id)"],
+    "三面図（設定資料集のキャラクター）": ["turnaround(character, count, seed)", "turnaround_job(id)", "turnaround_image(id, file)"],
+    "提案（待機中にスタジオが拾ったもの）": ["proposals()", "do_proposal(id)"],
+    "描く内容のフィルター": ["filters_get()", "filters_set(filters)"],
+}
+DETAILS = {
+    "size": "portrait（縦長 832x1216）・landscape（横長）・square（正方形）",
+    "mood": "holy（神々しい光）・dust（ほこりっぽい）・komorebi（木漏れ日）・underground（地下）・space（宇宙）・haze（霞）。docs/knowledge/atmosphere.md",
+    "material の kind": "slime（透明感）・metal（金属感）・heavy（重厚感）・gem（宝石感）・inorganic（無機質感）・dirt（汚れ）",
+    "material の select": "person（人物全体）・color（colors の色に近い所。人物の中だけ）・region（部位: skin・hair・clothes・upper・lower・shoes）",
+    "ref_scale": "参考画像を効かせる強さ 0〜1（既定 0.5）。上げると背景まで手本に寄る",
+    "制限": "最初から規制しない。利用者のフィルター（filters_set）で止める。子どもを性的に描くことだけは外せない。docs/filters.md",
+}
+
+
+@mcp.tool()
+def guide() -> dict:
+    """このアプリの道具の一覧と、目的ごとの使う順番、引数の値の意味を返す。何ができるか分からないときに最初に呼ぶ。"""
+    return {"workflows": GUIDE, "values": DETAILS}
+
+
+# ---------- 自由に描く ----------
+
+def _mood_words(mood: str) -> str:
+    if not mood:
+        return ""
+    moods = {m["id"]: m["prompt"] for m in _json("GET", "/api/atmosphere")["moods"]}
+    if mood not in moods:
+        raise ToolError(f"空気感「{mood}」は無い（{', '.join(moods)}）")
+    return moods[mood]
+
+
+@mcp.tool()
+def free_describe(text: str) -> dict:
+    """日本語の頼みごとを、描く言葉（英語のタグ）に直す。返った prompt を見て直してから free_draw に渡す。"""
+    return _json("POST", "/api/free/describe", {"text": text})
+
+
+@mcp.tool()
+def free_draw(prompt: str, negative: str = "", size: str = "portrait", count: int = 1, seed: int = 0,
+              ref: str = "", ref_scale: float = 0.5, mood: str = "") -> dict:
+    """描く言葉（英語のタグ、カンマ区切り）で早く描く（検品と描き直しはしない）。count は 1〜4 枚。
+    ref は ref_save した参考画像の id、mood は空気感（atmosphere_list の id。描く言葉に足す）。仕事の id を返す。"""
+    words = _mood_words(mood)
+    body = {"prompt": ", ".join(x for x in (prompt, words) if x), "negative": negative, "size": size, "count": count, "seed": seed}
+    if ref:
+        body.update(ref=ref, ref_scale=ref_scale)
+    j = _json("POST", "/api/free/jobs", body)
+    return {"id": j["id"], "state": j["state"], "prompt": body["prompt"]}
+
+
+@mcp.tool()
+def free_image(id: str, index: int = 0) -> Image:
+    """free_draw の仕事の絵を返す。index は何枚目か（0 から）。"""
+    j = _json("GET", f"/api/jobs/{id}")
+    files = [r["file"] for r in j.get("results", []) if r.get("file")] or j.get("files", [])
+    if index >= len(files):
+        raise ToolError("まだその絵が無い。job で state が done になるまで待つ")
+    return Image(data=_call("GET", f"/api/jobs/{id}/files/{files[index]}"), format="png")
+
+
+# ---------- 描いた絵の手直し ----------
+
+def _job_png(job_id: str, file: str) -> str:
+    import base64
+    return "data:image/png;base64," + base64.b64encode(_call("GET", f"/api/jobs/{job_id}/files/{file}")).decode()
+
+
+def _png_bytes(data_url: str) -> bytes:
+    import base64
+    return base64.b64decode(data_url.split(",", 1)[1])
+
+
+@mcp.tool()
+def ink(job_id: str, file: str, width: float = 3.0, merge: float = 3.0) -> Image:
+    """絵の線を清書する。重ねて描いたラフ線を1本の線にまとめ、透明な地に黒い線の絵で返す。
+    width は線の太さ、merge は何画素まで近い線をまとめるか。"""
+    return Image(data=_png_bytes(_json("POST", "/api/paint/ink", {"png": _job_png(job_id, file), "width": width, "merge": merge})["png"]), format="png")
+
+
+@mcp.tool()
+def material(job_id: str, file: str, kind: str, strength: float = 0.6, select: str = "person",
+             colors: str = "", tol: float = 80.0, region: str = "skin") -> Image:
+    """絵の一部を切り出して質感を掛け、元の絵に戻して返す（元の絵は変えない）。
+    kind: slime（透明感）・metal・heavy・gem・inorganic・dirt。select: person・color（colors に #rrggbb をカンマ区切り）・region（skin・hair・clothes など）。
+    スライムの体なら select="color"、colors に体の色（光の所と陰の所など複数）、kind="slime"。"""
+    import base64
+    import io
+
+    from PIL import Image as PILImage
+    src = _job_png(job_id, file)
+    cut = _json("POST", "/api/paint/cut", {"png": src, "mode": select, "colors": colors, "tol": tol, "region": region, "person_only": True})
+    if not cut["pixels"]:
+        raise ToolError("選べた所が無い（colors か tol か select を変える）")
+    mat = _json("POST", "/api/paint/material", {"png": cut["layer"], "kind": kind, "strength": strength})
+    rest = PILImage.open(io.BytesIO(_png_bytes(cut["rest"]))).convert("RGBA")
+    top = PILImage.open(io.BytesIO(_png_bytes(mat["png"]))).convert("RGBA")
+    base = PILImage.new("RGBA", rest.size, (255, 255, 255, 255))
+    base.alpha_composite(rest)
+    base.alpha_composite(top)
+    buf = io.BytesIO()
+    base.convert("RGB").save(buf, "PNG")
+    return Image(data=buf.getvalue(), format="png")
+
+
+@mcp.tool()
+def atmosphere_list() -> dict:
+    """空気感の一覧（id と、描く言葉に足す言葉）。id は free_draw / studio_draw の mood と atmosphere に渡す。"""
+    return _json("GET", "/api/atmosphere")
+
+
+@mcp.tool()
+def atmosphere(job_id: str, file: str, mood: str, strength: float = 0.7) -> Image:
+    """描いた絵の全体に空気感（光の筋・霞・粒・光の斑点など）を掛けて返す（元の絵は変えない）。mood は atmosphere_list の id。"""
+    j = _json("POST", "/api/paint/atmosphere", {"png": _job_png(job_id, file), "mood": mood, "strength": strength})
+    return Image(data=_png_bytes(j["png"]), format="png")
+
+
+# ---------- フィルター ----------
+
+@mcp.tool()
+def filters_get() -> dict:
+    """利用者のフィルター（描きたくないものを止める。既定は全部切ってある）と、外せない固定の制限の説明。"""
+    return _json("GET", "/api/filters")
+
+
+@mcp.tool()
+def filters_set(filters: list) -> dict:
+    """利用者のフィルターを保存する。各要素は {name, enabled, words（どの言語でもよい止める言葉の一覧）, negative}。
+    渡したものがそのまま全部になる（消したいものは外して渡す）。先に filters_get で今の中身を取ってから直す。"""
+    return _json("PUT", "/api/filters", {"filters": filters})
 
 
 if __name__ == "__main__":
