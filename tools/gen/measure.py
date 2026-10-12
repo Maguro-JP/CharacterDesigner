@@ -263,6 +263,28 @@ def scene_light(rgb, seg, labels=None):
             "rim": round(float(np.percentile(lum[edge], 90)) / max(inside, 1e-6), 3)}
 
 
+def pairs(rgb, seg, labels):
+    """左右の対（靴、腕）を比べる。片手だけ籠手、左右で形の違う靴などの食い違いを見つけるため。
+    色: 平均の色の差（0〜1 の RGB の距離）。面積: 大きい方 ÷ 小さい方。形: 縦横の比の比。
+    部位分けは左右を取り違えたり一部を落としたりする（左右のそろった素体でも腕の面積の比が 3.8 になった）ので、
+    面積と形は判定に使わない。色の差は、そろった絵で 0.03〜0.06、左右で違う靴の外部の生成で 0.116。
+    手本が 1 枚しか無いので、境は最初は判定しない値に置き、判定と指摘（normlearn）が溜まったら学んで締める"""
+    out = {}
+    for name, (a, b) in {"shoes": ("left_shoe", "right_shoe"), "arms": ("left_arm", "right_arm")}.items():
+        ma, mb = seg == labels[a], seg == labels[b]
+        if ma.sum() < 150 or mb.sum() < 150:
+            continue
+        def shape(m):
+            ys, xs = np.nonzero(m)
+            return (ys.max() - ys.min() + 1) / (xs.max() - xs.min() + 1)
+        ca, cb = rgb[ma][:, :3].mean(0), rgb[mb][:, :3].mean(0)
+        sa, sb = shape(ma), shape(mb)
+        out[name] = {"color": round(float(np.linalg.norm(ca - cb)), 3),
+                     "area": round(float(max(ma.sum(), mb.sum()) / min(ma.sum(), mb.sum())), 2),
+                     "shape": round(float(max(sa, sb) / min(sa, sb)), 2)}
+    return out
+
+
 def temperature(rgb, seg, regions):
     """部位ごとに、明るい半分と暗い半分の色相と彩度の差。暖かい光なら暗い所は青寄り（負）になるのが自然"""
     h, s, v = _hsv(rgb[..., :3])
@@ -330,7 +352,7 @@ def measure(src, hair_color: str = "") -> dict:
     lm = faceform.landmarks(rgb, seg, L)
     face = faceform.fit(lm["points"], json.loads(faceform.TEMPLATE.read_text())["points"]) if "points" in lm and faceform.TEMPLATE.exists() else lm
     return {"size": list(rgb.shape[1::-1]), "eyes": eyes(rgb, seg, L), "face": face, "light": light3d(src, rgb, seg, regions),
-            "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color)}
+            "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "pairs": pairs(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color)}
 
 
 def _get(d, path):
