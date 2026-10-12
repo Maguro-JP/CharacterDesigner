@@ -312,6 +312,7 @@ def expressions(ident: str, outdir: str, base: str | None = None, seed: int = 0,
                 only: list[str] | None = None) -> dict:
     """表情差分を描く。顔の基準の絵（無ければ胸から上を1枚描く）の顔の枠だけを、表情ごとに描き直す。
     髪・服・体は基準の絵のまま残るので、表情を変えても同じ人物に見えやすい。並べた図 expressions.png も書く"""
+    import numpy as np
     from PIL import Image
     sys.path.insert(0, str(Path(__file__).parent))
     import imgproc
@@ -322,9 +323,11 @@ def expressions(ident: str, outdir: str, base: str | None = None, seed: int = 0,
                     pose="looking at viewer, facing viewer, " + DEFAULT_EXPRESSIONS[0]["tags"])[0]
         base = str(out / "base" / name)
     im = Image.open(base).convert("RGB")
-    box = imgproc.face_box(base, im, margin=1.1)
+    # 描き直すのは顔の枠（顔の 0.8 倍の余白）を拡大した絵だが、貼り戻すのは顔の範囲だけ。髪・襟巻き・鎧は基準の絵のまま
+    box = imgproc.face_box(base, im, margin=0.8)
     if box is None:
         raise SystemExit(f"顔が見つからない: {base}")
+    mask = imgproc.face_mask(base, im)
     # 手本の色の絵があれば、顔の描き直しにも読ませる（表情を変えても顔つきを保つ）
     c = load("characters", ident)
     ref = Image.open(ROOT / c["images"]["color"]).convert("RGB") if c["images"].get("color") else None
@@ -333,13 +336,17 @@ def expressions(ident: str, outdir: str, base: str | None = None, seed: int = 0,
         people.use_reference()
     files = {}
     for k, e in enumerate(expressions_plan(ident, only)):
-        res = imgproc.face_redraw(im, box, e["prompt"], e["negative"], strength=strength, seed=seed + k, ref=ref)
+        res = imgproc.face_redraw(im, box, e["prompt"], e["negative"], strength=strength, seed=seed + k, ref=ref, mask=mask)
         p = out / f"expr-{e['id']}.png"
         res.save(p)
         files[e["id"]] = str(p)
-    # 並べた図: 顔の枠を同じ大きさで4列に並べる（見比べるとき、顔の位置がそろっている方が差が分かる）
+    # 並べた図: 顔の範囲の外接枠を同じ大きさで4列に並べる（顔の位置がそろっている方が差が分かる。
+    # 描き直しの枠のまま並べると胸まで入り、顔が小さくて表情の差が見えなかった）
+    fy, fx = np.nonzero(np.asarray(mask) > 128)
+    pad = int((fy.max() - fy.min()) * 0.1)
+    fbox = (max(fx.min() - pad, 0), max(fy.min() - pad, 0), min(fx.max() + pad, im.width), min(fy.max() + pad, im.height))
     side = 256
-    faces = [Image.open(f).crop(box).resize((side, side)) for f in files.values()]
+    faces = [Image.open(f).crop(fbox).resize((side, side)) for f in files.values()]
     cols = 4
     sheet = Image.new("RGB", (side * cols, side * ((len(faces) + cols - 1) // cols)), "white")
     for i, f in enumerate(faces):

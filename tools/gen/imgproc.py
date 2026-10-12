@@ -583,12 +583,23 @@ def lineart(src: str, out: str, sigma: float = 1.4, k: float = 1.6, tau: float =
     return {"line_ratio": round(float(line.mean()), 4), "size": list(line.shape[::-1])}
 
 
-def face_box(src: str, im: Image.Image, margin: float = 0.9):
-    """部位分けの顔（11）の外接枠を正方形に広げた枠。顔が見つからなければ None"""
+def face_region(src: str, im: Image.Image) -> np.ndarray:
+    """部位分けの顔（11）のうち、一番大きな塊だけ。部位分けは腰や肩の小さな切れ端も顔と取ることがあり、
+    全部を使うと外接枠が絵のほぼ全体（騎士で 0,0〜832,908）に広がった"""
     sys.path.insert(0, str(Path(__file__).parent))
     import edit
-    lab = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST))
-    face = lab == 11
+    from scipy import ndimage
+    face = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST)) == 11
+    lab, n = ndimage.label(face)
+    if n == 0:
+        return face
+    sizes = np.bincount(lab.ravel())[1:]
+    return lab == (int(sizes.argmax()) + 1)
+
+
+def face_box(src: str, im: Image.Image, margin: float = 0.9):
+    """部位分けの顔の外接枠を正方形に広げた枠。顔が見つからなければ None"""
+    face = face_region(src, im)
     if face.sum() < 200:
         return None
     ys, xs = np.nonzero(face)
@@ -597,8 +608,20 @@ def face_box(src: str, im: Image.Image, margin: float = 0.9):
     return (max(cx - half, 0), max(cy - half, 0), min(cx + half, im.width), min(cy + half, im.height))
 
 
+def face_mask(src: str, im: Image.Image, grow: float = 0.12) -> Image.Image:
+    """部位分けの顔（11）を、顔の大きさの grow 倍だけ広げた範囲（白）。縁はぼかす。
+    楕円の枠で貼ると胸から上が丸ごと描き直され、表情ごとに鎧や襟巻きの形が変わった。顔だけに絞る"""
+    from scipy import ndimage
+    face = face_region(src, im)
+    ys, xs = np.nonzero(face)
+    r = max(int(max(ys.max() - ys.min(), xs.max() - xs.min()) * grow), 2)
+    grown = ndimage.binary_dilation(face, iterations=r)
+    m = Image.fromarray((grown * 255).astype("uint8"))
+    return m.filter(ImageFilter.GaussianBlur(max(r // 2, 1)))
+
+
 def face_redraw(im: Image.Image, box, prompt: str, negative: str = "", strength: float = 0.35, seed: int = 7,
-                ref: Image.Image | None = None, ref_scale: float = 0.4) -> Image.Image:
+                ref: Image.Image | None = None, ref_scale: float = 0.4, mask: Image.Image | None = None) -> Image.Image:
     """枠の中（顔）を 1024 に拡大して描き直し、元の大きさに戻して、縁をぼかした楕円で貼る。髪・服・体は元のまま残る。
     顔の手直し（弱く）と、表情差分（強めに、表情の言葉で）が共有する。
     ref（手本の顔）を渡すと IP-Adapter で顔つきを寄せる。手本を読ませる部品を付けたまま ref を渡さないと、描く模型が
@@ -624,9 +647,12 @@ def face_redraw(im: Image.Image, box, prompt: str, negative: str = "", strength:
                    generator=torch.Generator().manual_seed(seed), **extra).images[0]
     small = redrawn.resize(crop.size, Image.LANCZOS)
     w, h = crop.size
-    m = Image.new("L", (w, h), 0)
-    ImageDraw.Draw(m).ellipse([w * 0.08, h * 0.08, w * 0.92, h * 0.92], fill=255)
-    m = m.filter(ImageFilter.GaussianBlur(max(w // 16, 2)))
+    if mask is not None:
+        m = mask.crop(box)          # 顔だけを貼る（表情差分）
+    else:
+        m = Image.new("L", (w, h), 0)
+        ImageDraw.Draw(m).ellipse([w * 0.08, h * 0.08, w * 0.92, h * 0.92], fill=255)
+        m = m.filter(ImageFilter.GaussianBlur(max(w // 16, 2)))
     out = im.copy()
     out.paste(small, box[:2], m)
     return out
