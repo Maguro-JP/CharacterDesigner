@@ -1,8 +1,8 @@
 題材: スライム娘（23時、その晩の3回目）
 模型: design.py の既定（アニメ）
-種: 2026101223〜2026101226
+種: 2026101223〜2026101226。選んだのは 2026101226（4枚目）
 プロンプト: slime girl, adult woman, whole body made of translucent light blue slime jelly, normal human hands with five fingers, wearing opaque red one-piece swimsuit, gooey dripping blue slime hair, cheerful smile, full body, standing, simple white background, anime character design
-結果: 4枚とも落とした。通った絵なし
-- 4枚とも水着が描かれず、服を着ていない体に見える（手は4枚とも5本指で人の形、体は透けるスライムで題材は合っていた）
-加工: なし
-次に直すこと: この模型は文だけでは水着を描かない。水着を描いた下絵に重ねて描く（img2img）か、水着の部分を後から塗る手順が要る
+結果: 水着は4枚とも描かれなかった。スライムは服を着ないので、題材としてはこちらが正しい（水着の指定は次の回から外す）
+- 選んだ理由: 全身が透けるスライムで、両手とも人の形の5本指、大人の体つき、垂れる体が裾のように広がっている
+- 1枚目: 幼く見える。2枚目・3枚目: 通るが、4枚目の方が手の形と垂れ方がはっきりしている
+加工: なし（生成の時点で透けている）
