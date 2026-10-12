@@ -327,8 +327,8 @@ def expressions_plan(ident: str, only: list[str] | None = None) -> list[dict]:
     return out
 
 
-def expressions(ident: str, outdir: str, base: str | None = None, seed: int = 0, strength: float = 0.6,
-                only: list[str] | None = None, ref_scale: float = 0.4) -> dict:
+def expressions(ident: str, outdir: str, base: str | None = None, seed: int = 0, strength: float = 0.85,
+                only: list[str] | None = None, ref_scale: float = 0.0) -> dict:
     """表情差分を描く。顔の基準の絵（無ければ胸から上を1枚描く）の顔の枠だけを、表情ごとに描き直す。
     髪・服・体は基準の絵のまま残るので、表情を変えても同じ人物に見えやすい。並べた図 expressions.png も書く"""
     import numpy as np
@@ -483,8 +483,8 @@ def main():
     s.add_argument("--tags", required=True)
     s = sub.add_parser("expressions", help="表情差分: 顔の基準の絵の顔だけを、表情ごとに描き直す")
     s.add_argument("id"); s.add_argument("out"); s.add_argument("--base"); s.add_argument("--seed", type=int, default=0)
-    s.add_argument("--strength", type=float, default=0.6); s.add_argument("--only", help="表情の id をカンマ区切りで")
-    s.add_argument("--ref-scale", type=float, default=0.4, help="手本の顔に寄せる強さ。0 で使わない（手本の開いた目に引っ張られることがある）")
+    s.add_argument("--strength", type=float, default=0.85); s.add_argument("--only", help="表情の id をカンマ区切りで")
+    s.add_argument("--ref-scale", type=float, default=0.0, help="手本の顔に寄せる強さ。既定は 0（使わない）。0.4 では手本の開いた目に引っ張られ、目が表情ごとに動かなかった")
     s = sub.add_parser("turnaround", help="三面図: 人形の下絵を3方向から写し、向きごとに描く")
     s.add_argument("id"); s.add_argument("out"); s.add_argument("--count", type=int, default=2); s.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
