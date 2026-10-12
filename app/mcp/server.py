@@ -193,7 +193,7 @@ def ref_list() -> dict:
 # ---------- 案内 ----------
 
 GUIDE = {
-    "描く（検品して直す）": ["studio_draw(text|prompt, size, tries, ref, ref_scale, mood)", "studio_job(id)", "studio_image(id, file)"],
+    "描く（検品して直す）": ["studio_draw(text|prompt, size, tries, ref, ref_scale, mood, hires, long)。既定で 1.5 倍に描き直してから 4K（長い辺 4096）に拡大する", "studio_job(id)", "studio_image(id, file)"],
     "描く（早く1枚）": ["free_describe(text) で日本語を描く言葉に直す（任意）", "free_draw(prompt, negative, size, count, seed, ref, ref_scale, mood)",
                    "job(id)", "free_image(id, index)"],
     "参考画像を手本にする": ["ref_search(query, n, commercial)", "ref_save(item)", "ref_list()", "→ 描く道具の ref に id を渡す"],
@@ -241,11 +241,11 @@ def free_describe(text: str) -> dict:
 
 @mcp.tool()
 def free_draw(prompt: str, negative: str = "", size: str = "portrait", count: int = 1, seed: int = 0,
-              ref: str = "", ref_scale: float = 0.5, mood: str = "") -> dict:
+              ref: str = "", ref_scale: float = 0.5, mood: str = "", hires: float = 1.5, long: int = 4096) -> dict:
     """描く言葉（英語のタグ、カンマ区切り）で早く描く（検品と描き直しはしない）。count は 1〜4 枚。
-    ref は ref_save した参考画像の id、mood は空気感（atmosphere_list の id。描く言葉に足す）。仕事の id を返す。"""
+    ref は ref_save した参考画像の id、mood は空気感（atmosphere_list の id。描く言葉に足す）。hires は描いたあとに引き伸ばして描き直す倍率（既定 1.5 で 1248x1824、1 枚 約6分増える。1 で切る）。long は最後に AI で拡大する長い辺の画素数（既定 4096、0 で切る。約5分増える）。仕事の id を返す。"""
     words = _mood_words(mood)
-    body = {"prompt": ", ".join(x for x in (prompt, words) if x), "negative": negative, "size": size, "count": count, "seed": seed}
+    body = {"prompt": ", ".join(x for x in (prompt, words) if x), "negative": negative, "size": size, "count": count, "seed": seed, "hires": hires, "long": long}
     if ref:
         body.update(ref=ref, ref_scale=ref_scale)
     j = _json("POST", "/api/free/jobs", body)

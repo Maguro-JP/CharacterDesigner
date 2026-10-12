@@ -10,6 +10,11 @@ mkdir -p "$D"
 # 完成絵の重ね（tools/gen/layers.py）: 人物の切り抜き rembg（isnet-anime の重み 約 176MB は初回に .cache/gen/u2net へ取る）と PSD の書き出し
 [ -d "$D/lib/rembg" ] || pip install --target "$D/lib" "rembg[cpu]" -q
 [ -d "$D/lib/psd_tools" ] || pip install --target "$D/lib" psd-tools -q
+# 高解像度への拡大（tools/gen/upscale.py）: Real-ESRGAN のアニメ絵用の重み（BSD-3-Clause、約 18MB）
+if [ ! -f "$D/upscale/RealESRGAN_x4plus_anime_6B.pth" ]; then
+  mkdir -p "$D/upscale"
+  curl -sSL -o "$D/upscale/RealESRGAN_x4plus_anime_6B.pth" "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth"
+fi
 # 関節の位置（tools/gen/joints.py）: RTMPose-m body7 の ONNX（Apache-2.0、OpenMMLab、約 54MB）。zip から .onnx だけを残す
 if [ ! -f "$D/pose/rtmpose-m-body7.onnx" ]; then
   mkdir -p "$D/pose/tmp"
