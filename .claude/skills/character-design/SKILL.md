@@ -85,6 +85,12 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
    - 箱庭ドット: 頭を大きくする変換が要る（未完成）。部品で組む場合は下の 1〜3
    - 3D: `tools/engine/`（Blender＋MakeHuman、試作）
 3. 出したものは画像で見せる。並べた図は `tools/vsref.py`、ドット絵の数字は `tools/check.py` と `tools/learn.py score`
+4. 三面図・持ち物の持ち方・決まった姿勢は、言葉だけで描かない。人形の下絵から描く
+   （言葉だけでは横が斜め前、後ろが振り返り、手と持ち物のつながりが崩れた。`docs/knowledge/ai-drawing-notes.md`）
+   - 三面図: `PYTHONPATH=.cache/gen/lib python3 tools/gen/bible.py turnaround <キャラクター> OUT_DIR --count 2`
+     （下絵の色は設定資料の `turnaround` に持たせる。下絵に無い物（マント）は絵に出ないので、色を足して下絵に置く）
+   - 持ち物を担ぐ姿勢: `tools/engine/pose_prop.py` の下絵を `bible.py draw --base 下絵 --strength 0.6〜0.8` に渡す
+   - 描いた絵は検品担当に回す。範囲の描き直しは別の物を描き足しやすいので、崩れが多ければ描き直す
 
 ### 作品の登場人物をまとめて頼まれたとき（何人も、系統や進化がある）
 
