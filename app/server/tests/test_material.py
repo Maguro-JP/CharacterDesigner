@@ -86,3 +86,22 @@ def test_atmosphere_every_mood_runs_and_changes_the_picture(client):
     dark = np.asarray(_img(c.post("/api/paint/atmosphere", json={"png": _png(im), "mood": "underground", "strength": 0.9}).json()["png"]).convert("L")).mean()
     assert dark < np.asarray(im.convert("L")).mean()
     assert c.post("/api/paint/atmosphere", json={"png": _png(im), "mood": "nope"}).status_code == 422
+
+
+def test_except_takes_whole_skin_and_leaves_swimsuit():
+    # 肌の色で選ぶと光と陰の片方しか取れない。人物から水着の色を除く選び方なら両方とも入る
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).resolve().parents[3] / "tools" / "gen"))
+    import materials
+    im = Image.new("RGB", (120, 160), "white")
+    d = ImageDraw.Draw(im)
+    d.ellipse((30, 20, 90, 140), fill=(230, 245, 240))   # 光の当たる白っぽい肌
+    d.rectangle((30, 110, 90, 140), fill=(60, 200, 240))  # 陰の濃い水色の肌
+    d.rectangle((40, 60, 80, 100), fill=(180, 30, 50))    # 赤い水着
+    person = np.zeros((160, 120), bool)
+    person[20:141, 30:91] = True
+    m = materials.mask_except(im, person, "#b41e32", tol=60)
+    assert m[30, 60] and m[125, 60]       # 光の肌も陰の肌も入る
+    assert not m[80, 60]                  # 水着は入らない
+    assert not m[5, 5]                    # 人物の外は入らない

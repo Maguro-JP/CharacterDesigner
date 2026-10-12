@@ -1,6 +1,6 @@
 """質感: 絵の一部（身体・服・持ち物）をレイヤーに切り出し、透明感・金属感などの質感を掛ける。
 
-  python3 tools/gen/materials.py cut <絵> <出力.png> (--region skin | --color "#7ab8ff" [--tol 60])
+  python3 tools/gen/materials.py cut <絵> <出力.png> (--region skin | --color "#7ab8ff" [--tol 60] | --except "#0573d7,#1a3fa0")
   python3 tools/gen/materials.py apply <レイヤー.png> <出力.png> --kind slime [--strength 0.6]
 
 描く板（app/web の「描く」）で使う前提で、入力も出力も透明な地のレイヤー（RGBA）。
@@ -85,6 +85,24 @@ def mask_color(img: Image.Image, color: str, tol: float = 60.0, at: tuple[int, i
     sizes[0] = 0
     keep = np.nonzero(sizes >= max(200, sizes.max() * 0.01))[0]
     return np.isin(lab, keep)
+
+
+def mask_except(img: Image.Image, person: np.ndarray, exclude: str, tol: float = 60.0) -> np.ndarray:
+    """人物の範囲から、渡した色（水着・髪・目など）に近い所を除いた残り。
+    肌の色で選ぶと、明るい所と陰の所、顔と脚で色が離れていて半分ほどしか取れなかった（水着のスライム娘で顔と肩が抜けた）。
+    肌は残りの全部、と裏から選べば色の幅を気にせずに済む"""
+    rgb = np.asarray(img.convert("RGB")).astype(float)
+    ex = np.zeros(rgb.shape[:2], bool)
+    for col in [c.strip() for c in exclude.split(",") if c.strip()]:
+        c = np.array([int(col[i:i + 2], 16) for i in (1, 3, 5)], float)
+        d = rgb - c
+        luma = d @ np.array([0.299, 0.587, 0.114])
+        chroma = d - luma[..., None]
+        ex |= np.sqrt((luma * 0.5) ** 2 + (chroma ** 2).sum(-1)) < tol
+    from scipy.ndimage import binary_closing, binary_dilation, binary_opening
+    # 除く所は少し広げる（水着の縁の色の混ざった画素を肌に入れない）
+    ex = binary_dilation(binary_closing(ex, iterations=2), iterations=1)
+    return binary_opening(person & ~ex, iterations=1)
 
 
 def cutout(img: Image.Image, mask: np.ndarray, feather: float = 1.0) -> Image.Image:
@@ -230,6 +248,8 @@ def main():
     c.add_argument("--tol", type=float, default=60.0)
     c.add_argument("--at", default="", help="選ぶ点 x,y（その点とつながった範囲だけ）")
     c.add_argument("--person", action="store_true", help="人物の範囲の中だけで色を選ぶ")
+    c.add_argument("--except", dest="exclude", default="",
+                   help="人物の範囲から除く色（カンマ区切り）。残りを全部選ぶ（肌を裏から選ぶ）")
     a = sub.add_parser("apply")
     a.add_argument("src")
     a.add_argument("out")
@@ -240,7 +260,12 @@ def main():
         img = Image.open(x.src)
         at = tuple(int(v) for v in x.at.split(",")) if x.at else None
         within = mask_person(x.src) if x.person else None
-        m = mask_color(img, x.color, x.tol, at, within) if x.color else mask_parts(x.src, x.region or "skin")
+        if x.exclude:
+            m = mask_except(img, mask_person(x.src, grow=0), x.exclude, x.tol)
+        elif x.color:
+            m = mask_color(img, x.color, x.tol, at, within)
+        else:
+            m = mask_parts(x.src, x.region or "skin")
         cutout(img, m).save(x.out)
         print(json.dumps({"pixels": int(m.sum())}))
     else:
