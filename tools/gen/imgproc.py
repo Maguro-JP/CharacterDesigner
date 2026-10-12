@@ -11,6 +11,8 @@
   python3 tools/gen/imgproc.py recolor IN OUT.png --from #969696 --to #c02020 [--tol 40]   色の置き換え（影の明るさは残す）
   python3 tools/gen/imgproc.py grade   IN OUT.png [--brightness 1.1] [--contrast 1] [--saturation 1] [--warmth 0.2]   色調補正
   python3 tools/gen/imgproc.py match   IN REF OUT.png [--amount 1]   色合わせ（REF の色の平均と幅に寄せる）
+  python3 tools/gen/imgproc.py denoise IN OUT.png [--weight 0.08]   ノイズ除去（平らな面のざらつきを消し、境目は残す）
+  python3 tools/gen/imgproc.py sharpen IN OUT.png [--radius 3] [--amount 1.5]   ぼかし除去（境目を急にする）
   python3 tools/gen/imgproc.py deai     IN OUT.png [--steps 10]   （使わない: 絵を崩すだけだった。docs/knowledge/ai-look.md）
 
 どれも結果を画像で書き出し、数字（残した画素の割合など）を標準出力に出す。描いた絵の上でも写真の上でも動く。
@@ -694,6 +696,44 @@ def match(src: str, ref: str, out: str, amount: float = 1.0) -> dict:
     return {"out": out, "before": dist(im), "after": dist(res)}
 
 
+# ---- ノイズ除去・ぼかし除去 ----
+
+def _noise(a: np.ndarray) -> float:
+    """ざらつきの目安: 隣り合う画素の差のうち、30 未満の小さな差の平均（線や境目の大きな差は数えない）。
+    中央値にすると、平らな面の多いアニメ絵では前後とも 0 になり、目安にならなかった"""
+    d = np.abs(np.diff(a.mean(-1), axis=1))
+    small = d[d < 30]
+    return float(small.mean()) if small.size else 0.0
+
+
+def _edge(a: np.ndarray) -> float:
+    """境目の急さの目安: 隣り合う画素の差の上位 1%"""
+    g = a.mean(-1)
+    return float(np.percentile(np.abs(np.diff(g, axis=1)), 99))
+
+
+def denoise(src: str, out: str, weight: float = 0.08) -> dict:
+    """ノイズ除去: 全変動（TV）で平らな面のざらつきを消し、境目は残す。
+    アニメ絵は平らな面と線でできているので、ぼかして消す方式（ガウス）より境目が崩れにくい。weight を上げるほど強く消す"""
+    from skimage.restoration import denoise_tv_chambolle
+    a = np.asarray(Image.open(src).convert("RGB")).astype(float) / 255
+    res = denoise_tv_chambolle(a, weight=weight, channel_axis=-1)
+    Image.fromarray(np.clip(np.rint(res * 255), 0, 255).astype("uint8")).save(out)
+    return {"out": out, "noise_before": round(_noise(a * 255), 2), "noise_after": round(_noise(res * 255), 2)}
+
+
+def sharpen(src: str, out: str, radius: float = 3.0, amount: float = 1.5) -> dict:
+    """ぼかし除去: アンシャープマスク（ぼかした絵との差を足す）で境目を急にする。平らな所は差が無いので変わらない。
+    拡大した絵や、描き直しでぼやけた範囲に使う。強すぎると境目の両側に白と黒の縁が出る"""
+    # skimage の unsharp_mask は、この環境では 1e289 のような壊れた値を返した。同じ計算を scipy のぼかしで行う
+    from scipy.ndimage import gaussian_filter
+    a = np.asarray(Image.open(src).convert("RGB")).astype(float) / 255
+    blur = gaussian_filter(a, sigma=(radius, radius, 0))
+    res = np.clip(a + amount * (a - blur), 0, 1)
+    Image.fromarray(np.clip(np.rint(res * 255), 0, 255).astype("uint8")).save(out)
+    return {"out": out, "edge_before": round(_edge(a * 255), 1), "edge_after": round(_edge(res * 255), 1)}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -727,8 +767,12 @@ def main():
         gr.add_argument(f"--{k}", type=float, default=1.0)
     gr.add_argument("--warmth", type=float, default=0.0)
     mt = sub.add_parser("match"); mt.add_argument("src"); mt.add_argument("ref"); mt.add_argument("out"); mt.add_argument("--amount", type=float, default=1.0)
+    dn = sub.add_parser("denoise"); dn.add_argument("src"); dn.add_argument("out"); dn.add_argument("--weight", type=float, default=0.08)
+    sp = sub.add_parser("sharpen"); sp.add_argument("src"); sp.add_argument("out")
+    sp.add_argument("--radius", type=float, default=3.0); sp.add_argument("--amount", type=float, default=1.5)
     a = ap.parse_args()
-    fn = {"recolor": lambda: recolor(a.src, a.out, a.from_color, a.to, a.tol,
+    fn = {"denoise": lambda: denoise(a.src, a.out, a.weight), "sharpen": lambda: sharpen(a.src, a.out, a.radius, a.amount),
+          "recolor": lambda: recolor(a.src, a.out, a.from_color, a.to, a.tol,
                                      box=tuple(int(v) for v in a.box.split(",")) if a.box else None),
           "grade": lambda: grade(a.src, a.out, a.brightness, a.contrast, a.saturation, a.warmth),
           "match": lambda: match(a.src, a.ref, a.out, a.amount),"segment": lambda: segment(a.src, a.out), "matte": lambda: matte(a.src, a.out), "remove": lambda: remove_bg(a.src, a.out),
