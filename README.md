@@ -19,7 +19,7 @@
 ## 動作環境
 
 - Python 3.10 以上、Node.js 20.19 以上、curl
-- ディスク 約 9GB（描く処理のモデル 約 7GB、言葉の模型 約 1.1GB、部品 約 1GB）。GPU は無くても動く（CPU。1 枚 約 5 分）
+- ディスク 約 9GB（描く処理のモデル 約 7GB、言葉の模型 約 1.1GB、部品 約 1GB）。GPU（NVIDIA、Apple）があれば自動で使う。無くても CPU で動く（1 枚 約 5 分）
 
 ## セットアップ
 
@@ -121,6 +121,8 @@
 | `CD_LLM_SIZE` | 同梱の言葉の模型の大きさ。取った模型は消さずに並び、画面で選べる（`CD_LLM_DEFAULT=1` で取ったものを既定にする）。`small`（約 0.5GB、読み違いが多い）・既定（約 1.1GB）・`large`（約 2GB、読み違いが少ない） | 任意 |
 | `CD_LLM_SKIP` / `CD_LLM_OFF` | `1` で、同梱の言葉の模型を取らない / 手元の模型を使わない | 任意 |
 | `ANTHROPIC_API_KEY` | 手元の模型が無いとき、言葉の頼みごとを Claude で読む。どちらも無ければ辞書で読む | 任意 |
+| `CD_DEVICE` | 描く場所（`cuda`・`mps`・`cpu`）。省くと NVIDIA の GPU → Apple の GPU → CPU の順に自動で選ぶ。指定した場所が無ければ CPU | 任意 |
+| `CD_TORCH` | 部品を入れるときの torch の種類（`cuda`・`cpu`・`default`）。省くと NVIDIA の GPU がある Linux は CUDA 版、Mac は普通の版、それ以外は CPU 版 | 任意 |
 | `CD_APP_DATA` | 描いた絵の置き場所（既定は `.cache/app/jobs`） | 任意 |
 | `PLAYWRIGHT_MODULE` / `CHROMIUM_PATH` | 下絵を撮るブラウザーを指す（無ければ `start.sh` が取る） | 任意 |
 

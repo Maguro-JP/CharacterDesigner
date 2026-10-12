@@ -292,7 +292,8 @@ def depth_map(bg):
         return _DEPTH_CACHE[key]
     if _DEPTH is None:
         from transformers import pipeline
-        _DEPTH = pipeline("depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf", device="cpu")
+        import device
+        _DEPTH = pipeline("depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf", device=device.name())
     d = _DEPTH(bg)["predicted_depth"]
     d = d.squeeze().numpy() if hasattr(d, "numpy") else np.asarray(d)
     _DEPTH_CACHE[key] = np.asarray(Image.fromarray(d.astype("float32")).resize(SIZE, Image.BILINEAR))
