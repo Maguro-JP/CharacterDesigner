@@ -54,7 +54,12 @@ def test_tools_end_to_end(app_url):
         names = {t.name for t in (await s.list_tools()).tools}
         assert names == {"list_cases", "describe", "save_case", "draw", "job", "sheet",
                          "studio_draw", "studio_job", "studio_image", "proposals", "do_proposal",
-                         "turnaround", "turnaround_job", "turnaround_image", "ref_search", "ref_save", "ref_list"}
+                         "turnaround", "turnaround_job", "turnaround_image", "ref_search", "ref_save", "ref_list",
+                         "guide", "free_describe", "free_draw", "free_image", "ink", "material",
+                         "atmosphere_list", "atmosphere", "filters_get", "filters_set"}
+        assert "atmosphere" in str(await s.call_tool("guide", {}))
+        assert "holy" in str(await s.call_tool("atmosphere_list", {}))
+        await s.call_tool("filters_get", {})
         assert "catgirl" in text(await s.call_tool("list_cases", {}))
         d = text(await s.call_tool("describe", {"text": "白い狐の巫女"}))
         assert d["name"] == "white-fox" and d["unused"] == ["巫女"]
