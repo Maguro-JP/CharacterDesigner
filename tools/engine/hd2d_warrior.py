@@ -19,6 +19,14 @@ for name in ("male_worksuit01", "shoes01"):
         before = set(bpy.data.objects)
         HumanService.add_mhclo_asset(f[0], h, asset_type="Clothes", subdiv_levels=0)
         clothed += [o for o in bpy.data.objects if o not in before and o.type == "MESH"]
+# 髪は MPFB の髪の部品を付ける。肌の面を上の高さで塗り分けると、坊主頭に色が載るだけで髪型にならなかった
+hair = []
+f = glob.glob(str(human.MPFB_DATA / "hair" / "short02" / "*.mhclo"))
+if f:
+    before = set(bpy.data.objects)
+    HumanService.add_mhclo_asset(f[0], h, asset_type="Hair", subdiv_levels=0)
+    hair = [o for o in bpy.data.objects if o not in before and o.type == "MESH"]
+print("髪:", len(hair))
 rig = next(o for o in bpy.data.objects if o.type == "ARMATURE")
 human.adduct_arms(rig, 30)
 # 両肘を少し曲げて、剣と盾を体の前へ（肘 40 度）
@@ -27,9 +35,9 @@ for s in ("L", "R"):
 bpy.context.view_layer.update()
 print("可動域:", rom_check.check_rig(rig) or "外れなし")
 C = {"skin": (240, 196, 160), "hair": (120, 80, 50), "armor": (190, 196, 206), "skirt": (178, 60, 50),
-     "greave": (150, 158, 172), "boot": (110, 70, 45), "blade": (235, 238, 242), "gold": (226, 180, 84), "shield": (184, 68, 58)}
+     "greave": (150, 158, 172), "boot": (110, 70, 45), "blade": (150, 172, 200), "gold": (226, 180, 84), "shield": (184, 68, 58)}
 M = {k: tinted(k, v) for k, v in C.items()}
-for o in [h] + clothed:
+for o in [h] + clothed + hair:
     for k in M: o.data.materials.append(M[k])
 names = list(M)
 def idx(o, k): return len(o.data.materials) - len(names) + names.index(k)
@@ -41,6 +49,8 @@ for o in clothed:
         z = (o.matrix_world @ f.center).z
         k = "boot" if z < 0.12 else "greave" if z < 0.62 else "skirt" if z < 0.98 else "armor"
         f.material_index = idx(o, k)
+for o in hair:
+    for f in o.data.polygons: f.material_index = idx(o, "hair")
 def palm(side):
     m = rig.matrix_world
     return (m @ rig.pose.bones[f"wrist.{side}"].head + m @ rig.pose.bones[f"finger3-1.{side}"].head) / 2
@@ -53,9 +63,10 @@ r = palm("R")
 from mathutils import Euler
 tilt = Euler((0, math.radians(-30), 0))
 def along(d): v = Vector((0, 0, d)); v.rotate(tilt); return r + Vector((0, -0.02, 0)) + v
-box("blade", (0.05, 0.015, 0.7), along(0.42), "blade", tilt)
-box("guard", (0.2, 0.04, 0.04), along(0.06), "gold", tilt)
-box("grip", (0.035, 0.035, 0.14), along(-0.02), "boot", tilt)
+# 34 ドットに縮めると 1 ドットはおよそ 5cm。細い物は 2 ドット（10cm）以上の太さにしないと、途切れて手から浮いた
+box("blade", (0.11, 0.03, 0.7), along(0.45), "blade", tilt)
+box("guard", (0.3, 0.08, 0.08), along(0.07), "gold", tilt)
+box("grip", (0.09, 0.09, 0.16), along(-0.03), "boot", tilt)
 # 盾は左の前腕の外側に付ける（手より前に出さない）
 m = rig.matrix_world
 fa = (m @ rig.pose.bones["lowerarm01.L"].head + m @ rig.pose.bones["wrist.L"].head) / 2
