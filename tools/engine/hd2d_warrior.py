@@ -32,6 +32,10 @@ human.adduct_arms(rig, 30)
 # 両肘を少し曲げて、剣と盾を体の前へ（肘 40 度）
 for s in ("L", "R"):
     pb = rig.pose.bones[f"lowerarm01.{s}"]; pb.rotation_mode = "XYZ"; pb.rotation_euler = (math.radians(40), 0, 0)
+# 頭身は人形の側で作る（頭を大きく、脚を短く）。縮めた後に絵を変形すると、持ち物が手から離れた（周8）
+rig.pose.bones["head"].scale = (2.0, 2.0, 2.0)
+for s in ("L", "R"):
+    rig.pose.bones[f"upperleg01.{s}"].scale = (1.0, 0.6, 1.0)
 bpy.context.view_layer.update()
 print("可動域:", rom_check.check_rig(rig) or "外れなし")
 C = {"skin": (240, 196, 160), "hair": (120, 80, 50), "armor": (190, 196, 206), "skirt": (178, 60, 50),
