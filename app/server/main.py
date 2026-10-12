@@ -119,12 +119,12 @@ class FeedbackIn(BaseModel):
     verdict: str = Field(..., pattern="^(pass|reject)$")
     by: str = Field("user", pattern="^(user|checker)$")
     reason: str = Field("", max_length=500)
-    hair: str = Field("", pattern="^(#[0-9a-fA-F]{6})?$")
+    hair: str = Field("", pattern="^(#[0-9a-fA-F]{6}(,#[0-9a-fA-F]{6}){0,3})?$")
 
 
 class MeasureIn(BaseModel):
     png: str = Field(..., description="測る絵（data:image/png;base64,...）")
-    hair: str = Field("", pattern="^(#[0-9a-fA-F]{6})?$")
+    hair: str = Field("", pattern="^(#[0-9a-fA-F]{6}(,#[0-9a-fA-F]{6}){0,3})?$")
 
 
 class AtmosphereIn(BaseModel):
