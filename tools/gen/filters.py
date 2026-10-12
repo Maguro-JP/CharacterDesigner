@@ -5,6 +5,9 @@
 止める言葉が頼みごとか描く言葉に出たら、描かずに理由を返す。打ち消しの言葉は、入れている間いつも足す。
 
 設定ファイルが無いときは、下の PRESETS（全部切った状態）を使う。書き方の見本は config/filters.example.json。
+
+固定の制限（設定では外せない）は、子どもを性的に描くことだけ。docs/filters.md に利用者向けの説明がある。
+判定はこのファイルの1か所で行い、ほかの所（free_text など）は check() を呼ぶだけにする。
 """
 from __future__ import annotations
 
@@ -30,6 +33,44 @@ PRESETS = [
      "words": ["ホラー", "恐怖", "怨霊", "horror", "creepy", "scary"],
      "negative": "horror"},
 ]
+
+
+# 固定の制限。子どもを性的に描くことだけを止める。子どもを表す語だけ、性的な語だけでは止めない
+SEXUAL = ["裸", "ヌード", "全裸", "半裸", "エロ", "えっち", "エッチ", "性的", "性行為", "セックス", "下着", "ランジェリー",
+          "乳首", "おっぱい", "R-18", "R18", "18禁", "成人向け", "アダルト", "水着", "セクシー",
+          "nsfw", "nude", "naked", "nudity", "nipple", "nipples", "topless", "bottomless", "sex", "sexual", "explicit",
+          "lingerie", "underwear", "panties", "bra", "sexy", "erotic", "porn", "hentai", "genitals", "cleavage",
+          "areola", "uncensored", "r-18", "r18", "swimsuit", "bikini"]
+MINOR = ["子ども", "子供", "こども", "幼女", "幼児", "児童", "小学生", "中学生", "未成年", "幼い", "少女", "少年", "女の子", "男の子",
+         "child", "children", "kid", "kids", "toddler", "teen", "teenage", "underage", "minor", "schoolgirl", "schoolboy",
+         "little girl", "little boy", "young girl", "young boy", "elementary school"]
+# 語そのものが子どもの性的な描写を指すもの。いつでも止める
+ALWAYS = ["ロリ", "ショタ", "loli", "lolicon", "shota", "shotacon"]
+# 性的な語があるとき、打ち消しに足す（模型が幼い顔と体に寄せることがあるため）
+SAFE_NEGATIVE = "loli, shota, child, underage"
+
+
+def _hits(words, text: str) -> list[str]:
+    return [w for w in words if _hit({"words": [w]}, text)]
+
+
+def fixed(text: str) -> str | None:
+    """固定の制限に当たれば理由。設定では外せない"""
+    a = _hits(ALWAYS, text)
+    if a:
+        return f"「{a[0]}」は子どもを性的に描く言葉なので描かない（固定の制限。docs/filters.md）"
+    sexual, minor = _hits(SEXUAL, text), _hits(MINOR, text)
+    if sexual and minor:
+        return f"子どもを表す言葉（{minor[0]}）と性的な言葉（{sexual[0]}）が並んでいるので描かない（固定の制限。docs/filters.md）"
+    return None
+
+
+def has_minor(text: str) -> bool:
+    return bool(_hits(MINOR, text) or _hits(ALWAYS, text))
+
+
+def has_sexual(text: str) -> bool:
+    return bool(_hits(SEXUAL, text))
 
 
 def load(path: Path | None = None) -> list[dict]:
@@ -65,7 +106,10 @@ def _hit(f: dict, text: str) -> str | None:
 
 
 def check(text: str, path: Path | None = None) -> str | None:
-    """入れているフィルターに当たれば、止める理由。当たらなければ None"""
+    """止める理由。先に固定の制限、次に利用者が入れているフィルター。当たらなければ None"""
+    why = fixed(text)
+    if why:
+        return why
     for f in active(path):
         w = _hit(f, text)
         if w:
@@ -73,6 +117,7 @@ def check(text: str, path: Path | None = None) -> str | None:
     return None
 
 
-def negative(path: Path | None = None) -> str:
-    """入れているフィルターの打ち消しの言葉をまとめる"""
-    return ", ".join(f["negative"] for f in active(path) if f.get("negative"))
+def negative(prompt: str = "", path: Path | None = None) -> str:
+    """打ち消しに足す言葉。入れているフィルターの分と、性的な語があるときの子どもの言葉"""
+    parts = [SAFE_NEGATIVE] if has_sexual(prompt) else []
+    return ", ".join(parts + [f["negative"] for f in active(path) if f.get("negative")])

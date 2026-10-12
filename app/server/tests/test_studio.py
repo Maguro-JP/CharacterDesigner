@@ -53,10 +53,11 @@ def test_same_failure_twice_stops(tmp_path):
 
 def test_guard_stops_before_drawing(tmp_path):
     painted, memory = [], []
-    r = Session(fake_ports([[]], painted, memory)).send(Spec(text="裸の騎士"), str(tmp_path))
-    assert not r.ok and "裸" in r.reason and painted == []
-    # 模型が描かない言葉を足しても、描く前に止める
-    bad = lambda t, rec=(): {"allowed": True, "prompt": "1girl, lingerie", "negative": "", "summary": "", "reader": "local"}
+    # 止めるのは子どもを性的に描く頼みごとだけ（固定の制限、docs/filters.md）
+    r = Session(fake_ports([[]], painted, memory)).send(Spec(text="裸の子ども"), str(tmp_path))
+    assert not r.ok and "固定の制限" in r.reason and painted == []
+    # 模型が子どもと性的な言葉を並べても、描く前に止める
+    bad = lambda t, rec=(): {"allowed": True, "prompt": "1girl, child, lingerie", "negative": "", "summary": "", "reader": "local"}
     r = Session(fake_ports([[]], painted, memory, describe=bad)).send(Spec(text="寝間着の子"), str(tmp_path))
     assert not r.ok and "lingerie" in r.reason and painted == []
 
@@ -74,7 +75,7 @@ def test_studio_job_through_api(client):
     c, _ = client(FakeRunner())
     assert [r["name"] for r in c.get("/api/studio/roles").json()][:3] == ["GUARD", "INTERPRETER", "DIRECTOR"]
     assert c.post("/api/studio/jobs", json={}).status_code == 422
-    assert c.post("/api/studio/jobs", json={"text": "ヌード"}).status_code == 422
+    assert c.post("/api/studio/jobs", json={"text": "ロリ"}).status_code == 422
     j = c.post("/api/studio/jobs", json={"prompt": "1girl, full body, simple background", "tries": 2}).json()
     j = wait(c, j["id"])
     assert j["kind"] == "studio" and j["state"] == "done" and j["passed"]
@@ -184,9 +185,10 @@ def test_guard_hides_exposed_image_and_redraws(tmp_path):
     ports = fake_ports([[]], painted, memory)
     flags = iter(["肌の見える所が多い", None])
     ports.guard_image = lambda path: next(flags)
-    r = Session(ports, events.append).send(Spec(prompt="1girl, beach", tries=3), str(tmp_path))
+    # 出来た絵の検査は、子どもを表す言葉のある頼みごとにだけ掛かる
+    r = Session(ports, events.append).send(Spec(prompt="1girl, child, beach", tries=3), str(tmp_path))
     assert r.ok and r.passed == "try-1.png" and r.hidden == ["try-0.png"]
-    assert "fully clothed" in painted[1]["prompt"] and "nsfw" in painted[1]["negative"]
+    assert "fully clothed" in painted[1]["prompt"] and "underage" in painted[1]["negative"]
     assert any(e["role"] == "GUARD" and e["stage"] == "fail" for e in events)
 
 
@@ -204,7 +206,7 @@ def test_hidden_files_are_not_served(client):
                                  guard_image=lambda p: next(flags)), on_event).send(spec, str(outdir))
     from PIL import Image
     c, _ = client(Exposed())
-    j = wait(c, c.post("/api/studio/jobs", json={"prompt": "1girl", "tries": 2}).json()["id"])
+    j = wait(c, c.post("/api/studio/jobs", json={"prompt": "1girl, child", "tries": 2}).json()["id"])
     assert j["outcome"]["hidden"] == ["try-0.png"] and "try-0.png" not in j["files"]
     assert j["outcome"]["files"] == ["try-1.png"]
     assert c.get(f"/api/jobs/{j['id']}/files/try-0.png").status_code == 404

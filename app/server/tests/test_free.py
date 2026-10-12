@@ -50,14 +50,21 @@ def test_free_job_draws_count_images(client):
 
 
 def test_blocked_request_is_not_drawn(client):
+    # 止めるのは子どもを性的に描く頼みごとだけ（固定の制限、docs/filters.md）
     runner = FakeRunner()
     c, _ = client(runner)
-    r = c.post("/api/free/describe", json={"text": "裸の女の子"}).json()
-    assert not r["allowed"] and "裸" in r["reason"] and r["reader"] == "check"
+    r = c.post("/api/free/describe", json={"text": "裸の子ども"}).json()
+    assert not r["allowed"] and "固定の制限" in r["reason"] and r["reader"] == "check"
     # 画面を通さずに描く言葉を直接送っても描かない
-    assert c.post("/api/free/jobs", json={"prompt": "1girl, nude"}).status_code == 422
-    assert c.post("/api/free/jobs", json={"prompt": "1girl", "ja": "ヌード"}).status_code == 422
+    assert c.post("/api/free/jobs", json={"prompt": "1girl, child, nude"}).status_code == 422
+    assert c.post("/api/free/jobs", json={"prompt": "1girl", "ja": "ロリ"}).status_code == 422
     assert runner.calls == []
+
+
+def test_adult_and_child_alone_are_not_blocked():
+    # 大人の露出も、子どものキャラクターも、それだけでは止めない
+    assert free_text.blocked_tags(["1girl", "adult woman", "nude"]) is None
+    assert free_text.blocked_tags(["1boy", "child", "knight", "armor"]) is None
 
 
 def test_model_refusal_is_returned(client, monkeypatch):
@@ -71,8 +78,8 @@ def test_model_refusal_is_returned(client, monkeypatch):
 
 
 def test_model_tags_are_checked_too(client, monkeypatch):
-    # 頼みごとに問題が無くても、模型が描かない言葉を入れたら描かない
-    srv = use_llm(monkeypatch, dict(KNIGHT, tags=["1girl", "lingerie"]))
+    # 頼みごとに問題が無くても、模型が子どもと性的な言葉を並べたら描かない
+    srv = use_llm(monkeypatch, dict(KNIGHT, tags=["1girl", "child", "lingerie"]))
     try:
         c, _ = client(FakeRunner())
         r = c.post("/api/free/describe", json={"text": "パジャマの女の子"}).json()
@@ -101,10 +108,13 @@ def test_llm_status(client, monkeypatch):
     assert s["local"]["ok"] and s["local"]["model"] == "fake-model"
 
 
-def test_safe_negative_always_added():
+def test_safe_negative_only_with_sexual_words():
+    # 性的な語があるときだけ、打ち消しに子どもの言葉を足す（子どものキャラクターの絵まで打ち消さないため）
     pos, neg = free_text.full_prompt("1girl, snow", "helmet")
-    assert neg.startswith(free_text.SAFE_NEGATIVE) and "helmet" in neg
+    assert "child" not in neg and "helmet" in neg
     assert pos.endswith(free_text.QUALITY)
+    _, neg = free_text.full_prompt("1girl, adult woman, bikini", "")
+    assert neg.startswith(free_text.SAFE_NEGATIVE)
     # 似た綴りの普通の言葉は止めない（braid の中の bra など）
     assert free_text.blocked_tags(["braid", "brass armor", "sextant"]) is None
 
