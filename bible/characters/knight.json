@@ -35,5 +35,41 @@
   "bottom": "35,30,35",
   "cape": "110,25,30",
   "boots": "120,120,130"
- }
+ },
+ "eyes": {
+  "tags": "tareme, large round brown eyes, reddish brown iris, gradient eyes, two highlights upper left, medium eyelashes, soft thin eyebrows",
+  "notes": "手本の柔らかい赤みの茶の垂れ目に合わせる。灯りを持つ穏やかな騎士なので、ハイライト2つで温かい潤みを出す"
+ },
+ "expressions": [
+  {
+   "id": "neutral",
+   "name": "ふだん",
+   "tags": "calm expression, closed mouth, relaxed eyebrows, gentle eyes"
+  },
+  {
+   "id": "smile",
+   "name": "笑顔",
+   "tags": "warm smile, closed mouth smile, eyes slightly narrowed, soft eyebrows, light blush"
+  },
+  {
+   "id": "angry",
+   "name": "怒り",
+   "tags": "stern, frowning, furrowed brow, closed mouth, firm gaze, no teeth"
+  },
+  {
+   "id": "sad",
+   "name": "悲しみ",
+   "tags": "sad smile, downturned eyebrows, teary eyes, trembling closed mouth"
+  },
+  {
+   "id": "determined",
+   "name": "決意",
+   "tags": "determined, resolute, straight eyebrows, steady eyes, closed mouth"
+  },
+  {
+   "id": "vigil",
+   "name": "見守り",
+   "tags": "gentle gaze, looking down softly, half-lidded eyes, faint smile, relaxed eyebrows, lantern glow on face"
+  }
+ ]
 }
