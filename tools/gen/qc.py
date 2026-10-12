@@ -7,6 +7,9 @@
   python3 tools/gen/qc.py sheet   絵.png OUT.png               全体と顔の拡大（OUT）、人物を分けた2倍前後の拡大（OUT-detail）の検品図
   python3 tools/gen/qc.py facts   絵.png [--character knight]   浮いた塊・肌の割合・描かせないものが読めたか・設定の言葉の欠け
   python3 tools/gen/qc.py compare 絵1.png 絵2.png ...           組（三面図・表情差分）で、部位ごとの色がずれていないか
+  python3 tools/gen/qc.py expr    基準.png OUT.jpg 表情1.png ...  表情差分の見比べ図（顔・眉と目・口を「ふだん」と並べる）
+
+検品図は JPEG で書く（PNG だと1枚 数 MB になり、ディスクの空きが少ないとき検品担当が図を作れなかった）。
 """
 from __future__ import annotations
 
@@ -82,6 +85,10 @@ def color_gaps(colors: list[dict], limit: float = 40.0) -> list[dict]:
         if worst and worst[0] > limit:
             out.append({"part": ja, "distance": round(worst[0], 1), "between": [worst[1], worst[2]]})
     return out
+
+
+# 顔の外接枠の中での帯（上からの割合）。アニメ絵の顔の部位分けは前髪の下から顎までで、眉と目・口はおおむねこの位置
+BANDS = {"眉と目": (0.10, 0.58), "口": (0.60, 0.92)}
 
 
 def nouns_missing(words: str, got: dict, vocab: set, least: float = 0.2) -> list[str]:
@@ -166,13 +173,13 @@ def sheet(src: str, out: str, zoom: float = 2.0, cell: int = 380) -> dict:
     d.text((4, 4), "全体（青い枠が右の顔）", fill="black", font=font)
     d.text((full.width + 24, 4), f"顔（{full_h / max(face_box[2] - face_box[0], 1):.1f} 倍）", fill="black", font=font)
     a.paste(face_img, (full.width + 20, 30))
-    a.save(out)
+    a.save(out, quality=88)
     # 2枚目: 人物を分けた拡大。1枚の範囲が cell/zoom 以下になる数に分ける
     span = cell / zoom
     cols = max(1, int(np.ceil((fbox[2] - fbox[0]) / span)))
     rows = max(1, int(np.ceil((fbox[3] - fbox[1]) / span)))
     boxes = tiles(fbox, rows, cols)
-    detail = str(Path(out).with_name(Path(out).stem + "-detail.png"))
+    detail = str(Path(out).with_name(Path(out).stem + "-detail.jpg"))
     b = Image.new("RGB", (cols * (cell + 10), rows * (cell + 34)), "white")
     d = ImageDraw.Draw(b)
     for i, bx in enumerate(boxes):
@@ -182,7 +189,7 @@ def sheet(src: str, out: str, zoom: float = 2.0, cell: int = 380) -> dict:
         scale = min(cell / t.width, cell / t.height)
         b.paste(t.resize((max(int(t.width * scale), 1), max(int(t.height * scale), 1)), Image.LANCZOS), (x, y + 26))
         d.text((x, y + 2), f"{r + 1}段{c + 1}列（{scale:.1f} 倍、x{bx[0]}-{bx[2]} y{bx[1]}-{bx[3]}）", fill="black", font=font)
-    b.save(detail)
+    b.save(detail, quality=88)
     return {"out": out, "detail": detail, "figure": [int(v) for v in fbox], "face": [int(v) for v in face_box],
             "grid": [rows, cols], "notes": note}
 
@@ -210,6 +217,47 @@ def facts(src: str, character: str | None = None) -> dict:
     return res
 
 
+def expr(base: str, out: str, srcs: list[str]) -> dict:
+    """表情差分の見比べ図: 1行に1表情、左から顔・眉と目の帯（3倍）・口の帯（3倍）。先頭の行は「ふだん」（無ければ基準の絵）。
+    どの絵も基準の絵の同じ枠で切るので、行ごとに位置がそろい、動いた所が目で追える。
+    動きを数字で出すのはやめた: 画素の差は前髪の毛先の揺れでどの表情も目の帯が 21〜23 動いて見え、
+    暗い画素を数えるやり方は部位分けの顔の広さが絵ごとに 2万7千〜3万5千画素と揺れ、照れの頬の赤みも口と数えた"""
+    bi = Image.open(base).convert("RGB")
+    face = _largest(_parts(base, bi) == FACE)
+    box = _box(face, 0.0, face.shape) if face.sum() >= 200 else None
+    if box is None:
+        raise SystemExit("基準の絵で顔が見つからない")
+    srcs = [s for s in srcs if ".parts." not in s]   # 部位分けの控え（絵の隣に置かれる）は表情の絵ではない
+    ref = next((s for s in srcs if "neutral" in Path(s).stem), None)
+    order = ([ref] if ref else [base]) + [s for s in srcs if s != ref]
+    x0, y0, x1, y1 = box
+    h = y1 - y0
+    font = ImageFont.truetype(FONT, 18) if Path(FONT).exists() else ImageFont.load_default()
+    face_w, zoom = 240, 3
+    strips = {k: (y0 + int(h * t), y0 + int(h * u)) for k, (t, u) in BANDS.items()}
+    widths = [face_w] + [(x1 - x0) * zoom for _ in strips]
+    row_h = max(int(face_w * h / (x1 - x0)), max((b - a) * zoom for a, b in strips.values())) + 26
+    sheet_ = Image.new("RGB", (sum(widths) + 10 * len(widths), row_h * len(order)), "white")
+    d = ImageDraw.Draw(sheet_)
+    for r, s in enumerate(order):
+        im = Image.open(s).convert("RGB")
+        y = r * row_h
+        d.text((4, y + 2), Path(s).stem + ("（比べる相手）" if r == 0 else ""), fill="black", font=font)
+        x = 0
+        f = im.crop(box)
+        sheet_.paste(f.resize((face_w, int(face_w * f.height / f.width))), (x, y + 24))
+        x += face_w + 10
+        for k, (a, b) in strips.items():
+            st = im.crop((x0, a, x1, b))
+            sheet_.paste(st.resize((st.width * zoom, st.height * zoom), Image.LANCZOS), (x, y + 24))
+            if r == 0:
+                d.text((x + 4, y + 2), f"{k}（{zoom}倍）", fill="red", font=font)
+            x += st.width * zoom + 10
+    sheet_.save(out, quality=85)
+    return {"out": out, "face": [int(v) for v in box], "rows": [Path(s).name for s in order],
+            "note": "動いたかは数字で決めない。行を上下に見比べて、眉・目・口のどれが動いたかを目で決める"}
+
+
 def compare(srcs: list[str], limit: float = 40.0) -> dict:
     colors = []
     for s in srcs:
@@ -225,9 +273,10 @@ def main():
     s = sub.add_parser("sheet"); s.add_argument("src"); s.add_argument("out")
     f = sub.add_parser("facts"); f.add_argument("src"); f.add_argument("--character")
     c = sub.add_parser("compare"); c.add_argument("srcs", nargs="+"); c.add_argument("--limit", type=float, default=40.0)
+    e = sub.add_parser("expr"); e.add_argument("base"); e.add_argument("out"); e.add_argument("srcs", nargs="+")
     a = ap.parse_args()
     r = {"sheet": lambda: sheet(a.src, a.out), "facts": lambda: facts(a.src, a.character),
-         "compare": lambda: compare(a.srcs, a.limit)}[a.cmd]()
+         "compare": lambda: compare(a.srcs, a.limit), "expr": lambda: expr(a.base, a.out, a.srcs)}[a.cmd]()
     print(json.dumps(r, ensure_ascii=False, indent=1))
 
 
