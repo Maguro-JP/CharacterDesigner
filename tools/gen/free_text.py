@@ -198,11 +198,14 @@ def full_prompt(prompt: str, negative: str = "") -> tuple[str, str]:
 
 def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, width: int = 832, height: int = 1216,
          steps: int = 24, on_image=None, lora: str = "", pose: str = "", pose_strength: float = 0.93,
-         ref: str = "", ref_scale: float = 0.5, hires: float = 1.0, long: int = 0, face: bool = False) -> list[str]:
+         ref: str = "", ref_scale: float = 0.5, hires: float = 1.0, long: int = 0, face: bool = False,
+         light: str = "", hair_color: str = "", hair_inner: str = "", light_strength: float = 0.78) -> list[str]:
     """Animagine で count 枚描き、out/try-<k>.png に置く。seed は 1 枚ごとに 1 ずつ進める（同じ設定で描き直せる）。
     ref は参考画像のファイル（tools/gen/refsearch.py で保存したもの）。画風と色を読ませる（IP-Adapter、強さ ref_scale）。
     姿勢の下絵（pose）と一緒には使えない（下絵から描き直す経路は手本を読まない）。
     hires が 1 より大きければ、描いた絵をその倍率に引き伸ばして弱く描き直す（tools/gen/hires.py。1.5 倍で1枚 約6分増える）。
+    light（光の設計の名前。tools/gen/lightplan.py の PLANS）を渡すと、その光を当てた 3D の素体を撮って下絵にし、
+    そこから描く（強さ light_strength）。立体に沿った影と縁の光が下絵から来る。hair_color と hair_inner は素体の髪と内側の色。
     face なら、顔と髪の周りを切り出して大きく描き直す（tools/gen/detail.py。下絵と同じ言葉を渡す。約3分増える）。
     順番は 描く → hires → 顔 → 拡大。拡大は最後の仕上げで、形の崩れは直さない。
     long が 0 より大きければ、最後に長い辺がその画素数になるまで AI で拡大する（tools/gen/upscale.py。4096 で1枚 約5分増える）"""
@@ -231,6 +234,14 @@ def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, w
             raise ValueError(f"姿勢の下絵「{pose}」は使えない（無いか、出典とライセンスが書かれていない）")
         under = Image.open(path).convert("RGB").resize((width, height))
         pose_strength = next(x["strength"] for x in assets.list_poses() if x["name"] == pose)
+        draw_pipe = demi.img2img()
+    elif light:
+        from PIL import Image
+        import demi
+        import lightplan
+        lightplan.underlay(light, out / "light-underlay.png", hair_color, hair_inner, size=(width, height))
+        under = Image.open(out / "light-underlay.png").convert("RGB")
+        pose_strength = light_strength
         draw_pipe = demi.img2img()
     else:
         draw_pipe = pipe

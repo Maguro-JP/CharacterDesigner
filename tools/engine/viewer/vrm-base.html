@@ -120,6 +120,9 @@ controls.enableDamping = true;
 const amb = new THREE.AmbientLight(0xffffff, 0.35);
 const key = new THREE.DirectionalLight(0xffffff, 0.7);
 scene.add(amb, key, key.target);
+// 縁の光（リムライト）。主の光の反対の後ろから当て、輪郭の縁だけを明るくする。逆光の絵で立体を見せるのに使う
+const rim = new THREE.DirectionalLight(0xffffff, 0);
+scene.add(rim, rim.target);
 let vrm = null, height = 1.6, center = new THREE.Vector3(0, 0.85, 0);
 // 陰2段の塗りの段（暗い所と明るい所）。古い形式の素材を置き換えるときに使う
 // 陰の段: 暗い側（少し赤みのある陰）と明るい側の2段。境目だけ少しぼかす。
@@ -135,6 +138,16 @@ const ramp = (() => {
   r.minFilter = r.magFilter = THREE.LinearFilter; r.needsUpdate = true;
   return r;
 })();
+
+// 陰の段の暗い側の明るさを変える（既定 170/255）。光の設計で影を深くするときに使う
+function setShadow(v) {
+  const d = ramp.image.data, N = d.length / 4, lo = [v * 255, v * 0.88 * 255, v * 0.88 * 255];
+  for (let i = 0; i < N; i++) {
+    const t = i / (N - 1), k = Math.min(1, Math.max(0, (t - 0.44) / 0.14)), e = k * k * (3 - 2 * k);
+    for (let c = 0; c < 3; c++) d[i * 4 + c] = Math.round(lo[c] + (255 - lo[c]) * e);
+  }
+  ramp.needsUpdate = true;
+}
 
 function resize() {
   const r = stage.getBoundingClientRect();
@@ -611,7 +624,41 @@ function maskMode(on) {
     } else if (o.userData.mat) { o.material = o.userData.mat; delete o.userData.mat; }
   });
 }
-window.tool = { hairColor: hex => meshes.forEach(m => { if (/HAIR/.test(matName(m)) && !m.userData.earPart) { m.material.map = null; m.material.color.set(hex); m.material.needsUpdate = true; } }), parts: spec => setParts(spec), hair: on => meshes.forEach(m => { if (/HAIR/.test(matName(m)) && !m.userData.earPart) m.visible = on; }), barefoot: on => meshes.forEach(m => { if (/Shoes/.test(matName(m))) m.visible = !on; }), kind: k => setKind(k), body: n => setBody(n === 'ideal' ? IDEAL : ZERO), pose: id => pose(id), view: a => view(a, false), mask: maskMode };
+// 光を外から決める（描く前の光の設計）。az は体の周りの向き（度。0 が顔の正面、正が画面の右から）、el は高さ（度）、
+// key と amb は 0〜300、back は逆光、shadow は陰の暗い側の明るさ（0〜1。明るい側を 1 とする）。
+// 画面の部品の az は 180 で顔の正面を照らす向きなので、ここで 180 を足してそろえる（測って確かめた）
+function setLight(o) {
+  if (o.az !== undefined) document.getElementById('az').value = ((o.az + 360) % 360) - 180;
+  for (const k of ['el', 'key', 'amb']) if (o[k] !== undefined) document.getElementById(k).value = o[k];
+  if (o.shadow !== undefined) setShadow(o.shadow);
+  rim.intensity = (o.rim || 0) / 100;
+  if (o.rimColor) rim.color.set(o.rimColor);
+  // 縁の光は後ろから。rimAz を省くと、主光が後ろ（|az| > 90）ならその向き、前なら反対の後ろから当てる。
+  // 向きの数え方は主の光と同じ（0 が顔の正面）。画面の部品の向きに直すため 180 を足す
+  const az0 = o.az || 0, rz = o.rimAz !== undefined ? o.rimAz : (Math.abs(((az0 + 540) % 360) - 180) > 90 ? az0 : az0 + 180);
+  const ra = (rz + 180) * Math.PI / 180;
+  rim.position.set(Math.sin(ra) * 3, center.y + 1.2, Math.cos(ra) * 3);
+  rim.target.position.copy(center);
+  backlight = !!o.back;
+  if (o.color) key.color.set(o.color);
+  if (o.ambColor) amb.color.set(o.ambColor);
+  light();
+}
+// 髪の色。inner を渡すと、髪の内側の面（頭に向いた裏面）だけを別の色にする（インナーカラー）。
+// 髪の房は薄い殻なので、裏面は外から見ると房の下・内側に出る。染めた内側の髪が見える所と同じになる
+function setHairColor(hex, inner) {
+  meshes.forEach(m => {
+    if (!/HAIR/.test(matName(m)) || m.userData.earPart) return;
+    m.material.map = null; m.material.color.set(hex); m.material.side = THREE.FrontSide; m.material.needsUpdate = true;
+    if (m.userData.innerHair) { m.userData.innerHair.parent.remove(m.userData.innerHair); m.userData.innerHair = null; }
+    if (inner) {
+      const c = m.clone();
+      c.material = m.material.clone(); c.material.color.set(inner); c.material.side = THREE.BackSide; c.material.needsUpdate = true;
+      m.parent.add(c); m.userData.innerHair = c;
+    }
+  });
+}
+window.tool = { hairColor: (hex, inner) => setHairColor(hex, inner), light: o => setLight(o), parts: spec => setParts(spec), hair: on => meshes.forEach(m => { if (/HAIR/.test(matName(m)) && !m.userData.earPart) m.visible = on; }), barefoot: on => meshes.forEach(m => { if (/Shoes/.test(matName(m))) m.visible = !on; }), kind: k => setKind(k), body: n => setBody(n === 'ideal' ? IDEAL : ZERO), pose: id => pose(id), view: a => view(a, false), mask: maskMode };
 
 fetch('base-vrm.txt').then(r => { if (!r.ok) throw new Error(r.status); return r.text(); }).then(t => {
   const bin = atob(t.trim()); const bytes = new Uint8Array(bin.length);
