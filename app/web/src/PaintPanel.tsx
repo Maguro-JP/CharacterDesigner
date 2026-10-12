@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { api } from "./api";
-import { drawStroke, follow, PRESET, smooth, taper, type Pt } from "./paint";
+import { ASSIST_DEFAULT, ASSIST_OFF, drawStroke, finishStroke, follow, loadAssist, PRESET, saveAssist, type Assist, type Pt } from "./paint";
 import { galleryItems, type Ctx } from "./panels";
 
 // 描く板。選んだ絵を下絵に敷き、その上の透明な層に描く。下絵には描き込まない（何度でもやり直せるように）
@@ -36,9 +36,8 @@ export default function PaintPanel({ ctx }: { ctx: Ctx }) {
   const [color, setColor] = useState("#000000");
   const [size, setSize] = useState(6);
   const [alpha, setAlpha] = useState(1);
-  const [steady, setSteady] = useState(0.5);
-  const [tidy, setTidy] = useState(true);
-  const [pressure, setPressure] = useState(true);
+  const [assist, setAssistState] = useState<Assist>(loadAssist);
+  const setAssist = (p: Partial<Assist>) => setAssistState((a) => { const n = { ...a, ...p }; saveAssist(n); return n; });
   const [underAlpha, setUnderAlpha] = useState(0.5);
   const [recent, setRecent] = useState<string[]>([]);
   const [, bump] = useState(0);
@@ -137,10 +136,11 @@ export default function PaintPanel({ ctx }: { ctx: Ctx }) {
     for (const ev of evs) {
       const r = e.currentTarget.getBoundingClientRect();
       const raw = { x: ((ev.clientX - r.left) * W) / r.width, y: ((ev.clientY - r.top) * H) / r.height, p: ev.pointerType === "pen" ? ev.pressure : 0.5 };
-      const q = follow(last.current, raw, steady);
+      const prev: Pt = last.current;
+      const q: Pt = assist.steady ? follow(prev, raw, assist.steadyAmount) : raw;
       if (lc) {
         lc.strokeStyle = lc.fillStyle = tool === "eraser" ? "#ff4fd8" : color;
-        drawStroke(lc, [last.current, q], size, pressure);
+        drawStroke(lc, [last.current, q], size, assist.pressure, assist.pressureMin);
       }
       stroke.current.push(q);
       last.current = q;
@@ -156,14 +156,14 @@ export default function PaintPanel({ ctx }: { ctx: Ctx }) {
     const c = g();
     if (!c || !pts.length) return;
     // 線を整える: 角を丸めて、頭と尻を細くする。描いている間は手の動きのまま見せ、離したときに整えた線に置き換える
-    const final = tidy ? taper(smooth(pts, 2), 0.15) : pts;
+    const final = finishStroke(pts, assist);
     const t = document.createElement("canvas");
     t.width = W;
     t.height = H;
     const tg = t.getContext("2d");
     if (!tg) return;
     tg.strokeStyle = tg.fillStyle = color;
-    drawStroke(tg, final, size, pressure);
+    drawStroke(tg, final, size, assist.pressure, assist.pressureMin);
     c.save();
     c.globalAlpha = alpha;
     c.globalCompositeOperation = tool === "eraser" ? "destination-out" : "source-over";
@@ -235,7 +235,7 @@ export default function PaintPanel({ ctx }: { ctx: Ctx }) {
       const r = await fetch("/api/paint/ink", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ png: src.toDataURL("image/png"), width: Math.max(1, Math.min(20, size * 0.6)) }),
+        body: JSON.stringify({ png: src.toDataURL("image/png"), width: Math.max(1, Math.min(20, size * assist.inkWidth)), merge: assist.inkMerge, spur: assist.inkSpur }),
       });
       if (!r.ok) throw new Error(`清書に失敗した（${r.status}）`);
       const j = (await r.json()) as { png: string; strokes: number };
@@ -291,11 +291,27 @@ export default function PaintPanel({ ctx }: { ctx: Ctx }) {
       <div className="flex flex-wrap items-center gap-3 text-xs">
         <label className="flex items-center gap-1">太さ<input type="range" min={1} max={80} value={size} onChange={(e) => setSize(+e.target.value)} />{size}</label>
         <label className="flex items-center gap-1">不透明度<input type="range" min={0.05} max={1} step={0.05} value={alpha} onChange={(e) => setAlpha(+e.target.value)} />{Math.round(alpha * 100)}%</label>
-        <label className="flex items-center gap-1">手ぶれ補正<input type="range" min={0} max={0.9} step={0.05} value={steady} onChange={(e) => setSteady(+e.target.value)} />{Math.round(steady * 100)}</label>
-        <label className="flex items-center gap-1"><input type="checkbox" checked={tidy} onChange={(e) => setTidy(e.target.checked)} />線を整える（角を丸め、入り抜きを付ける）</label>
-        <label className="flex items-center gap-1"><input type="checkbox" checked={pressure} onChange={(e) => setPressure(e.target.checked)} />筆圧</label>
         <label className="flex items-center gap-1">下絵<input type="range" min={0} max={1} step={0.05} value={underAlpha} onChange={(e) => setUnderAlpha(+e.target.value)} />{Math.round(underAlpha * 100)}%</label>
       </div>
+      <details className="rounded border border-line px-2 py-1 text-xs">
+        <summary className="cursor-pointer">補助の設定（入れ切りと強さ。描いたとおりに残したいときは全部切る）</summary>
+        <div className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1">
+          <label className="flex items-center gap-1"><input type="checkbox" checked={assist.steady} onChange={(e) => setAssist({ steady: e.target.checked })} />手ぶれ補正</label>
+          <label className="flex items-center gap-1">強さ<input type="range" min={0.05} max={0.9} step={0.05} value={assist.steadyAmount} disabled={!assist.steady} onChange={(e) => setAssist({ steadyAmount: +e.target.value })} />{Math.round(assist.steadyAmount * 100)}</label>
+          <label className="flex items-center gap-1"><input type="checkbox" checked={assist.round} onChange={(e) => setAssist({ round: e.target.checked })} />角を丸める</label>
+          <label className="flex items-center gap-1">回数<input type="range" min={1} max={4} step={1} value={assist.roundPasses} disabled={!assist.round} onChange={(e) => setAssist({ roundPasses: +e.target.value })} />{assist.roundPasses}</label>
+          <label className="flex items-center gap-1"><input type="checkbox" checked={assist.taper} onChange={(e) => setAssist({ taper: e.target.checked })} />入り抜き</label>
+          <label className="flex items-center gap-1">量<input type="range" min={0.05} max={0.5} step={0.05} value={assist.taperAmount} disabled={!assist.taper} onChange={(e) => setAssist({ taperAmount: +e.target.value })} />{Math.round(assist.taperAmount * 100)}%</label>
+          <label className="flex items-center gap-1"><input type="checkbox" checked={assist.pressure} onChange={(e) => setAssist({ pressure: e.target.checked })} />筆圧</label>
+          <label className="flex items-center gap-1">最小の太さ<input type="range" min={0} max={0.9} step={0.05} value={assist.pressureMin} disabled={!assist.pressure} onChange={(e) => setAssist({ pressureMin: +e.target.value })} />{Math.round(assist.pressureMin * 100)}%</label>
+          <span className="text-neutral-400">線の清書:</span>
+          <label className="flex items-center gap-1">まとめる幅<input type="range" min={0.5} max={12} step={0.5} value={assist.inkMerge} onChange={(e) => setAssist({ inkMerge: +e.target.value })} />{assist.inkMerge}</label>
+          <label className="flex items-center gap-1">落とすはみ出し<input type="range" min={0} max={30} step={1} value={assist.inkSpur} onChange={(e) => setAssist({ inkSpur: +e.target.value })} />{assist.inkSpur}</label>
+          <label className="flex items-center gap-1">太さ<input type="range" min={0.2} max={2} step={0.1} value={assist.inkWidth} onChange={(e) => setAssist({ inkWidth: +e.target.value })} />×{assist.inkWidth}</label>
+          <button type="button" className="rounded border border-line px-2" onClick={() => setAssist(ASSIST_OFF)}>補助を全部切る</button>
+          <button type="button" className="rounded border border-line px-2" onClick={() => setAssist(ASSIST_DEFAULT)}>既定に戻す</button>
+        </div>
+      </details>
       <div className="flex flex-wrap items-center gap-1">
         <input type="color" value={color} onChange={(e) => setColor(e.target.value)} aria-label="色を選ぶ" />
         {PRESET.map((c) => (

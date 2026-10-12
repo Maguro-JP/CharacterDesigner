@@ -62,6 +62,7 @@ class InkIn(BaseModel):
     png: str = Field(..., description="描く板のレイヤー（data:image/png;base64,...）")
     width: float = Field(3.0, ge=0.5, le=20)
     merge: float = Field(3.0, ge=0.5, le=12)
+    spur: int = Field(6, ge=0, le=60, description="落とすはみ出しの長さ（画素）。0 で落とさない")
 
 
 class Runner:
@@ -607,7 +608,7 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         with tempfile.TemporaryDirectory() as tmp:
             src, out = Path(tmp) / "in.png", Path(tmp) / "out.png"
             src.write_bytes(raw)
-            r = inking.ink(str(src), str(out), body.width, body.merge)
+            r = inking.ink(str(src), str(out), body.width, body.merge, body.spur)
             return {"png": "data:image/png;base64," + base64.b64encode(out.read_bytes()).decode(), **r}
 
     @app.get("/api/brushes")
