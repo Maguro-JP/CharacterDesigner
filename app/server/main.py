@@ -113,6 +113,14 @@ def _png_out(im) -> str:
     im.save(buf, "PNG")
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
+class AtmosphereIn(BaseModel):
+    """絵全体に空気感（光の筋・霞・粒など）を掛ける。決まりは docs/knowledge/atmosphere.md"""
+    png: str = Field(..., description="掛ける絵（data:image/png;base64,...）")
+    mood: str = Field(..., pattern="^(holy|dust|komorebi|underground|space|haze)$")
+    strength: float = Field(0.7, ge=0.0, le=1.0)
+    light_x: float | None = Field(None, ge=-1.0, le=2.0)
+    light_y: float | None = Field(None, ge=-1.0, le=2.0)
+
 class FiltersIn(BaseModel):
     """利用者のフィルター。画面の「フィルター」から保存する"""
     filters: list[dict] = Field(default_factory=list)
@@ -716,6 +724,24 @@ def create_app(runner: Runner | None = None) -> FastAPI:
             src = Path(tmp) / "src.png"
             _png_in(body.png, src)
             return {"png": _png_out(materials.apply(Image.open(src), body.kind, body.strength))}
+
+    @app.post("/api/paint/atmosphere")
+    def paint_atmosphere(body: AtmosphereIn):
+        import atmosphere
+        import tempfile
+        from PIL import Image
+        light = (body.light_x, body.light_y) if body.light_x is not None and body.light_y is not None else None
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "src.png"
+            _png_in(body.png, src)
+            return {"png": _png_out(atmosphere.apply(Image.open(src), body.mood, body.strength, light)),
+                    "prompt": atmosphere.PROMPT[body.mood]}
+
+    @app.get("/api/atmosphere")
+    def atmosphere_list():
+        # 空気感ごとの、描く言葉に足す言葉（生成のときに使う）
+        import atmosphere
+        return {"moods": [{"id": m, "prompt": atmosphere.PROMPT[m]} for m in atmosphere.MOODS]}
 
     @app.get("/api/refs/search")
     def refs_search(q: str, n: int = 12, commercial: bool = False):

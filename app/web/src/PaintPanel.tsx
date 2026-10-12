@@ -341,6 +341,46 @@ export default function PaintPanel({ ctx }: { ctx: Ctx }) {
     }
   };
 
+  // 空気感: 下絵と見えているレイヤーを重ねた絵全体に、光の筋・霞・粒などを掛け、一番上の新しいレイヤーに置く。
+  // 隠せば元に戻る（下絵もほかのレイヤーも変えない）。決まりは docs/knowledge/atmosphere.md
+  const [mood, setMood] = useState("holy");
+  const [moodStrength, setMoodStrength] = useState(0.7);
+  const [moodPrompt, setMoodPrompt] = useState("");
+  const applyAtmosphere = async () => {
+    setWorking("空気感を掛けています");
+    try {
+      const t = document.createElement("canvas");
+      t.width = W;
+      t.height = H;
+      const tg = t.getContext("2d");
+      if (!tg) return;
+      tg.fillStyle = "#ffffff";
+      tg.fillRect(0, 0, W, H);
+      if (underImg.current?.complete && underAlpha > 0) {
+        tg.globalAlpha = underAlpha;
+        tg.drawImage(underImg.current, 0, 0, W, H);
+      }
+      for (const l of layers) {
+        const c = canvases.current.get(l.id);
+        if (!c || !l.visible) continue;
+        tg.globalAlpha = l.opacity;
+        tg.drawImage(c, 0, 0);
+      }
+      tg.globalAlpha = 1;
+      const j = await postJson<{ png: string; prompt: string }>("/api/paint/atmosphere", { png: t.toDataURL("image/png"), mood, strength: moodStrength });
+      const id = nextLayer++;
+      const names: Record<string, string> = { holy: "神々しい光", dust: "ほこり", komorebi: "木漏れ日", underground: "地下", space: "宇宙", haze: "霞" };
+      setLayers((ls) => [...ls, { id, name: `空気感（${names[mood] ?? mood}）`, visible: true, opacity: 1 }]);
+      setActiveId(id);
+      setMoodPrompt(j.prompt);
+      await putImage(id, j.png);
+    } catch (e) {
+      ctx.setError((e as Error).message);
+    } finally {
+      setWorking("");
+    }
+  };
+
   const btn = (on: boolean) => `rounded border px-2 py-0.5 text-xs ${on ? "border-accent bg-accent font-bold text-ink" : "border-line"}`;
 
   return (
@@ -427,6 +467,23 @@ export default function PaintPanel({ ctx }: { ctx: Ctx }) {
           <label className="flex items-center gap-1">強さ<input type="range" min={0.05} max={1} step={0.05} value={matStrength} onChange={(e) => setMatStrength(+e.target.value)} />{Math.round(matStrength * 100)}%</label>
           <button type="button" className="rounded border border-line px-2" disabled={!!working} onClick={applyMaterial}>今のレイヤーに掛ける</button>
           {working && <span className="text-neutral-400">{working}…</span>}
+        </div>
+      </details>
+      <details className="rounded border border-line px-2 py-1 text-xs">
+        <summary className="cursor-pointer">空気感（神々しい光・ほこり・木漏れ日・地下・宇宙・霞）</summary>
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <select className="rounded border border-line bg-transparent" value={mood} onChange={(e) => setMood(e.target.value)} aria-label="空気感">
+            <option value="holy">神々しい光（光の筋・にじみ・光の粒）</option>
+            <option value="dust">ほこりっぽい（黄土の霞・鋭い筋・粒）</option>
+            <option value="komorebi">木漏れ日（光の斑点・緑の木陰）</option>
+            <option value="underground">地下（周りを沈め、火の光だけ暖かい）</option>
+            <option value="space">宇宙（暗く冷たく、星と星雲、色の縁取り）</option>
+            <option value="haze">霞（遠くほど空の色）</option>
+          </select>
+          <label className="flex items-center gap-1">強さ<input type="range" min={0.05} max={1} step={0.05} value={moodStrength} onChange={(e) => setMoodStrength(+e.target.value)} />{Math.round(moodStrength * 100)}%</label>
+          <button type="button" className="rounded border border-line px-2" disabled={!!working} onClick={applyAtmosphere}>絵全体に掛ける</button>
+          <span className="text-neutral-400">→ 一番上の新しいレイヤーになる。隠せば元に戻る</span>
+          {moodPrompt && <span className="w-full text-neutral-400">描くときに足す言葉: <code>{moodPrompt}</code></span>}
         </div>
       </details>
       <div className="flex flex-wrap items-center gap-1">
