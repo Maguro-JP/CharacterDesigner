@@ -188,7 +188,36 @@ def light3d(src, rgb, seg, regions):
     sides = [1 if np.cos(np.radians(v["deg"])) > 0 else -1 for v in out.values()
              if v["r2"] >= 0.2 and abs(np.cos(np.radians(v["deg"]))) >= 0.5]
     conflict = min(sides.count(1), sides.count(-1))
-    return {"regions": out, "side_conflict": conflict, "sided_regions": len(sides)}
+    # 影の向きの順序: 絵全体の主な光の左右（当てはまりの良さで重みづけした多数決）を決め、部位ごとに、同じ色の素材の中で
+    # 光に向いた面（法線の横の成分が光の側に 0.25 以上）と背を向けた面（反対側に 0.25 以上）の明るさの中央値を比べる。
+    # 背を向けた面が明るいのは、照り返しなどの別の条件が無い限り自然ではあり得ない（逆の値が order に出る）
+    wsum = sum(np.sign(np.cos(np.radians(v["deg"]))) * max(v["r2"], 0) for v in out.values())
+    order = {}
+    if abs(wsum) >= 0.2:
+        side = 1.0 if wsum > 0 else -1.0
+        h_, s_, v_ = _hsv(rgb[..., :3])
+        for name, ids in regions.items():
+            m = ndimage.binary_erosion(np.isin(seg, ids), iterations=3)
+            if m.sum() < 300:
+                continue
+            nx = n[..., 0] * side
+            # 素材を色相でまとめる（彩度の低い所は 1 つの組）。組ごとに明暗を比べ、画素の多い組の結果を採る
+            hue_bin = np.where(s_ > 0.15, (h_ // 45).astype(int), -1)
+            best = None
+            for hb in np.unique(hue_bin[m]):
+                mm = m & (hue_bin == hb)
+                lit, away = mm & (nx > 0.25), mm & (nx < -0.25)
+                if lit.sum() < 80 or away.sum() < 80:
+                    continue
+                d = float(np.median(lum[lit]) - np.median(lum[away]))
+                if best is None or mm.sum() > best[1]:
+                    best = (d, int(mm.sum()))
+            if best:
+                order[name] = round(best[0], 3)
+    inverted = [k for k, d in order.items() if d < -0.03]
+    return {"regions": out, "side_conflict": conflict, "sided_regions": len(sides),
+            "key_side": None if abs(wsum) < 0.2 else ("right" if wsum > 0 else "left"), "order": order, "inverted": len(inverted),
+            "inverted_regions": inverted}
 
 
 def temperature(rgb, seg, regions):

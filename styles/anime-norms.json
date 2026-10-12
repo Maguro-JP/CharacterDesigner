@@ -32,6 +32,11 @@
    "path": "light.side_conflict",
    "max": 0,
    "means": "光が来る左右が部位ごとに食い違う（顔は右から、服は左から、など）"
+  },
+  {
+   "path": "light.inverted",
+   "max": 0,
+   "means": "光に背を向けた面の方が明るい部位がある（影が光より明るい。照り返しなど別の条件が無ければ不自然。inverted_regions が場所）"
   }
  ]
 }
