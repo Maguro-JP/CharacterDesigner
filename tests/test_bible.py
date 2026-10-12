@@ -44,6 +44,25 @@ class Bible(unittest.TestCase):
         pos, _ = bible.prompt("k", pose=plan["views"]["back"]["pose"], items=[])
         self.assertNotIn("holding lantern", pos)
 
+    def test_body_plan_defaults_to_humanoid_and_can_be_set(self):
+        self.assertEqual(bible.body_plan("k")["counts"]["腕"], 2)
+        bible.set_body("k", "centaur")
+        plan = bible.body_plan("k")
+        self.assertEqual(plan["counts"]["脚（馬）"], 4)
+        self.assertNotIn("脚", plan["counts"])            # ケンタウロスに人の脚は無い
+        with self.assertRaises(SystemExit):
+            bible.set_body("k", "nothing")
+
+    def test_body_plans_keep_the_known_counts(self):
+        import json
+        plans = json.loads((bible.ROOT / "casts" / "body-plans.json").read_text(encoding="utf-8"))["plans"]
+        expect = {"humanoid": ("脚", 2), "insect": ("脚", 6), "spider": ("脚", 8), "octopus": ("腕", 8), "squid": ("触腕", 2),
+                  "fish": ("脚", 0), "dragon": ("翼", 2), "wyvern": ("脚", 2), "ryu": ("翼", 0), "lamia": ("脚", 0)}
+        for k, (part, n) in expect.items():
+            self.assertEqual(plans[k]["counts"][part], n, k)
+        for k, p in plans.items():
+            self.assertTrue(p["ja"] and p["notes"] and p["counts"], k)
+
     def test_eyes_follow_the_look_in_the_prompt(self):
         bible.set_eyes("k", "tareme, large brown eyes, two highlights", "垂れ目")
         pos, _ = bible.prompt("k")

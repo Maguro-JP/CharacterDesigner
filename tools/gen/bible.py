@@ -17,6 +17,8 @@
   python3 tools/gen/bible.py draw knight OUTDIR --scene ... [--outfit "差し替える服"] [--ref-scale 0.6] [--count 2]
   python3 tools/gen/bible.py show knight
   python3 tools/gen/bible.py sheet knight OUT.html                         # 設定資料のページ（絵を埋め込んだ1つの HTML）
+  python3 tools/gen/bible.py body knight                                   # 体の設計図（部位の数。検品で照らす）
+  python3 tools/gen/bible.py set-body nagi ryu                              # 設計図を選ぶ（既定は humanoid。casts/body-plans.json）
   python3 tools/gen/bible.py set-eyes knight --tags "tareme, large brown eyes, ..." --notes "垂れ目。ハイライトは右上に2つ"
   python3 tools/gen/bible.py add-expression knight wry --name 苦笑い --tags "wry smile, sweatdrop, one eye closed"
   python3 tools/gen/bible.py expressions knight OUTDIR [--base 顔の基準の絵] [--only smile,angry]   # 表情差分
@@ -96,6 +98,23 @@ def set_eyes(ident: str, tags: str, notes: str = "") -> dict:
     data["eyes"] = {"tags": tags, "notes": notes}
     save("characters", data)
     return data["eyes"]
+
+
+def body_plan(ident: str) -> dict:
+    """キャラクターの体の設計図（casts/body-plans.json）。body が無ければ人型。検品の棚卸しで部位の数を照らす"""
+    plans = json.loads((ROOT / "casts" / "body-plans.json").read_text(encoding="utf-8"))["plans"]
+    key = load("characters", ident).get("body", "humanoid")
+    if key not in plans:
+        raise SystemExit(f"体の設計図「{key}」は無い。選べるもの: {', '.join(plans)}")
+    return {"id": key, **plans[key]}
+
+
+def set_body(ident: str, plan: str) -> dict:
+    """体の設計図を選ぶ（humanoid、quadruped、dragon、ryu、centaur など）"""
+    data = load("characters", ident)
+    data["body"] = plan
+    save("characters", data)
+    return body_plan(ident)
 
 
 def add_expression(ident: str, expr: str, name: str, tags: str) -> dict:
@@ -457,6 +476,8 @@ def main():
         s.add_argument("--framing", default="full body")
     s = sub.add_parser("show"); s.add_argument("id")
     s = sub.add_parser("sheet"); s.add_argument("id"); s.add_argument("out")
+    s = sub.add_parser("set-body"); s.add_argument("id"); s.add_argument("plan")
+    s = sub.add_parser("body"); s.add_argument("id")
     s = sub.add_parser("set-eyes"); s.add_argument("id"); s.add_argument("--tags", required=True); s.add_argument("--notes", default="")
     s = sub.add_parser("add-expression"); s.add_argument("id"); s.add_argument("expr"); s.add_argument("--name", required=True)
     s.add_argument("--tags", required=True)
@@ -484,6 +505,8 @@ def main():
         "sheet": lambda: sheet(a.id, a.out),
         "turnaround": lambda: turnaround(a.id, a.out, a.count, a.seed),
         "set-eyes": lambda: set_eyes(a.id, a.tags, a.notes),
+        "set-body": lambda: set_body(a.id, a.plan),
+        "body": lambda: body_plan(a.id),
         "add-expression": lambda: add_expression(a.id, a.expr, a.name, a.tags),
         "expressions": lambda: expressions(a.id, a.out, a.base, a.seed, a.strength, a.only.split(",") if a.only else None, a.ref_scale),
     }[a.cmd]()
