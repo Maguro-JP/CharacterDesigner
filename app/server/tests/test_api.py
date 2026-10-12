@@ -47,6 +47,17 @@ class FakeRunner(main.Runner):
         return Session(Ports(describe=lambda t, rec=(): {"allowed": False, "reason": "偽"}, paint=paint,
                              inspect=lambda p, c: [], remember=main.remember), on_event).send(spec, str(outdir))
 
+    def turnaround(self, spec, outdir, on_image):
+        self.calls.append(("turnaround", spec))
+        names = []
+        for view in ("front", "side", "back"):
+            for k in range(spec["count"]):
+                name = f"{view}-{k}.png"
+                Image.new("RGB", (8, 8), "white").save(outdir / name)
+                on_image(len(names), name)
+                names.append(name)
+        return names
+
     def free(self, spec, outdir, on_image):
         self.calls.append(("free", spec))
         if self.fail:
@@ -207,3 +218,26 @@ def test_preview_shoots_once_per_setting(client):
     assert c.get(f"/api/previews/{r['id']}/sheet.png").status_code == 404
     assert c.get("/api/previews/..%2F..%2Fx/underlay.png").status_code == 404
     assert c.post("/api/preview", json={"tags": ""}).status_code == 422
+
+
+def test_turnaround_job_lists_three_views(client):
+    runner = FakeRunner()
+    c, _ = client(runner)
+    r = c.post("/api/bible/knight/turnaround", json={"count": 2, "seed": 3})
+    assert r.status_code == 202
+    job = r.json()["id"]
+    for _ in range(50):
+        d = c.get(f"/api/jobs/{job}").json()
+        if d["state"] in ("done", "failed"):
+            break
+        time.sleep(0.05)
+    assert d["state"] == "done" and d["passed"]
+    assert d["files"] == sorted(f"{v}-{k}.png" for v in ("front", "side", "back") for k in range(2))
+    assert runner.calls == [("turnaround", {"character": "knight", "count": 2, "seed": 3})]
+
+
+def test_turnaround_rejects_unknown_character(client):
+    c, _ = client(FakeRunner())
+    assert c.post("/api/bible/nobody/turnaround", json={}).status_code == 404
+    assert c.post("/api/bible/../turnaround", json={}).status_code == 404
+    assert c.post("/api/bible/knight/turnaround", json={"count": 9}).status_code == 422
