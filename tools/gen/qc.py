@@ -5,7 +5,7 @@
 ここでは、決まった形の検品図を1枚作り、数えられる事実を先に出す。判断（通す・戻す）はしない。
 
   python3 tools/gen/qc.py sheet   絵.png OUT.png               全体と顔の拡大（OUT）、人物を分けた2倍前後の拡大（OUT-detail）の検品図
-  python3 tools/gen/qc.py facts   絵.png [--character knight]   浮いた塊・肌の割合・描かせないものが読めたか・設定の言葉の欠け
+  python3 tools/gen/qc.py facts   絵.png [--character knight]   端で切れていないか・部位の棚卸し・浮いた塊・肌の割合・描かせないもの・設定の言葉の欠け
   python3 tools/gen/qc.py compare 絵1.png 絵2.png ...           組（三面図・表情差分）で、部位ごとの色がずれていないか
   python3 tools/gen/qc.py expr    基準.png OUT.jpg 表情1.png ...  表情差分の見比べ図（顔・眉と目・口を「ふだん」と並べる）
 
@@ -89,6 +89,35 @@ def color_gaps(colors: list[dict], limit: float = 40.0) -> list[dict]:
 
 # 顔の外接枠の中での帯（上からの割合）。アニメ絵の顔の部位分けは前髪の下から顎までで、眉と目・口はおおむねこの位置
 BANDS = {"眉と目": (0.10, 0.58), "口": (0.60, 0.92)}
+
+
+def edge_cut(rgb: np.ndarray, margin: int = 2) -> list[str]:
+    """人物が絵の端で切れているか。地と違う画素が端の帯にあれば、その辺の名前を返す（全身の絵で足先や頭が切れる欠損）"""
+    fig = figure_mask(rgb)
+    out = []
+    for name, band in (("上", fig[:margin]), ("下", fig[-margin:]), ("左", fig[:, :margin]), ("右", fig[:, -margin:])):
+        if band.mean() > 0.02:
+            out.append(name)
+    return out
+
+
+# 欠損の棚卸しで数える部位（部位分けの番号）。服で覆われた腕や脚は部位分けで取れないことがあるので、
+# 「取れない」は欠損の証拠ではなく、目で確かめる所の印として出す
+INVENTORY = {"髪": (HAIR,), "顔": (FACE,), "右腕（素肌）": (RARM,), "左腕（素肌）": (LARM,), "右脚（素肌）": (RLEG,),
+             "左脚（素肌）": (LLEG,), "右の靴": (RSHOE,), "左の靴": (LSHOE,)}
+
+
+def inventory(parts: np.ndarray, least: int = 150) -> dict:
+    """部位ごとに、取れた画素の数と塊の数。塊が2つ以上ある部位は、途中で切れているか、別の物が重なっている印"""
+    from scipy import ndimage
+    out = {}
+    for name, ks in INVENTORY.items():
+        m = np.isin(parts, ks)
+        n = int(m.sum())
+        lab, k = ndimage.label(m)
+        big = int((np.bincount(lab.ravel())[1:] >= least).sum()) if k else 0
+        out[name] = {"pixels": n, "pieces": big, "found": n >= least}
+    return out
 
 
 def nouns_missing(words: str, got: dict, vocab: set, least: float = 0.2) -> list[str]:
@@ -200,7 +229,8 @@ def facts(src: str, character: str | None = None) -> dict:
     rgb = np.asarray(im)
     parts = _parts(src, im)
     person = parts > 0
-    res = {"floating": floating_blobs(rgb),
+    res = {"edge_cut": edge_cut(rgb), "inventory": inventory(parts),
+           "floating": floating_blobs(rgb),
            "skin_ratio": round(float(np.isin(parts, SKIN).sum() / max(person.sum(), 1)), 3)}
     import tagger
     got = tagger.read(src)

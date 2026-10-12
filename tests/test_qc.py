@@ -42,6 +42,25 @@ class Floating(unittest.TestCase):
         self.assertFalse(qc.floating_blobs(a)["plain_background"])
 
 
+@unittest.skipUnless(HAS_SCIPY, "描く部品（scipy）が無い")
+class Missing(unittest.TestCase):
+    def test_figure_cut_by_the_bottom_edge(self):
+        a = canvas()
+        self.assertEqual(qc.edge_cut(a), [])
+        a[150:200, 40:80] = (60, 60, 70)       # 足先が下の端まで届いて切れている
+        self.assertEqual(qc.edge_cut(a), ["下"])
+
+    def test_inventory_counts_parts_and_pieces(self):
+        parts = np.zeros((100, 100), np.uint8)
+        parts[10:30, 40:60] = qc.FACE
+        parts[40:60, 10:20] = qc.RARM
+        parts[70:90, 10:20] = qc.RARM           # 右腕が2つに切れている
+        inv = qc.inventory(parts, least=50)
+        self.assertTrue(inv["顔"]["found"])
+        self.assertEqual(inv["右腕（素肌）"]["pieces"], 2)
+        self.assertFalse(inv["左腕（素肌）"]["found"])
+
+
 class Tiles(unittest.TestCase):
     def test_tiles_cover_the_figure(self):
         box = (10, 20, 210, 420)
