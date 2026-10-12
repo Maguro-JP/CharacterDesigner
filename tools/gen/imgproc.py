@@ -597,9 +597,12 @@ def face_box(src: str, im: Image.Image, margin: float = 0.9):
     return (max(cx - half, 0), max(cy - half, 0), min(cx + half, im.width), min(cy + half, im.height))
 
 
-def face_redraw(im: Image.Image, box, prompt: str, negative: str = "", strength: float = 0.35, seed: int = 7) -> Image.Image:
+def face_redraw(im: Image.Image, box, prompt: str, negative: str = "", strength: float = 0.35, seed: int = 7,
+                ref: Image.Image | None = None, ref_scale: float = 0.4) -> Image.Image:
     """枠の中（顔）を 1024 に拡大して描き直し、元の大きさに戻して、縁をぼかした楕円で貼る。髪・服・体は元のまま残る。
-    顔の手直し（弱く）と、表情差分（強めに、表情の言葉で）が共有する"""
+    顔の手直し（弱く）と、表情差分（強めに、表情の言葉で）が共有する。
+    ref（手本の顔）を渡すと IP-Adapter で顔つきを寄せる。手本を読ませる部品を付けたまま ref を渡さないと、描く模型が
+    image_embeds が無いと言って止まった（設定資料集で手本つきの絵を描いた直後）"""
     import torch
     import demi
     import design
@@ -610,9 +613,15 @@ def face_redraw(im: Image.Image, box, prompt: str, negative: str = "", strength:
     pipe = demi.img2img()
     pos, neg = free_text.full_prompt(prompt, negative)
     pe, ne, pp, np_ = design.encode_xl(pipe, pos, neg)
+    extra = {}
+    if ref is not None:
+        pipe.set_ip_adapter_scale(ref_scale)
+        extra["ip_adapter_image"] = ref
+    elif getattr(pipe.unet, "encoder_hid_proj", None) is not None:
+        pipe.unload_ip_adapter()
     redrawn = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
                    image=big, strength=strength, num_inference_steps=24, guidance_scale=6.0,
-                   generator=torch.Generator().manual_seed(seed)).images[0]
+                   generator=torch.Generator().manual_seed(seed), **extra).images[0]
     small = redrawn.resize(crop.size, Image.LANCZOS)
     w, h = crop.size
     m = Image.new("L", (w, h), 0)

@@ -325,9 +325,15 @@ def expressions(ident: str, outdir: str, base: str | None = None, seed: int = 0,
     box = imgproc.face_box(base, im, margin=1.1)
     if box is None:
         raise SystemExit(f"顔が見つからない: {base}")
+    # 手本の色の絵があれば、顔の描き直しにも読ませる（表情を変えても顔つきを保つ）
+    c = load("characters", ident)
+    ref = Image.open(ROOT / c["images"]["color"]).convert("RGB") if c["images"].get("color") else None
+    if ref is not None:
+        import people
+        people.use_reference()
     files = {}
     for k, e in enumerate(expressions_plan(ident, only)):
-        res = imgproc.face_redraw(im, box, e["prompt"], e["negative"], strength=strength, seed=seed + k)
+        res = imgproc.face_redraw(im, box, e["prompt"], e["negative"], strength=strength, seed=seed + k, ref=ref)
         p = out / f"expr-{e['id']}.png"
         res.save(p)
         files[e["id"]] = str(p)
