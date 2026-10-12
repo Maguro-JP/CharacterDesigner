@@ -48,8 +48,11 @@ tools: Read, Bash, Glob, Grep
 PYTHONPATH=.cache/gen/lib python3 tools/gen/qc.py sheet  絵.png <scratchpad>/qc.png      # qc.png（全体と顔）と qc-detail.jpg（人物を分けた 2 倍前後の拡大）
 PYTHONPATH=.cache/gen/lib python3 tools/gen/qc.py facts  絵.png --character <id>         # 浮いた塊・肌の割合・描かせないものが読めたか・設定の言葉の欠け
 PYTHONPATH=.cache/gen/lib python3 tools/gen/qc.py compare 絵1.png 絵2.png ...            # 組（三面図・表情差分）のとき。部位ごとの色のずれ
+PYTHONPATH=.cache/gen/lib python3 tools/gen/measure.py 絵.png                          # 目・光・影の色・髪を数字で測り、基準（styles/anime-norms.json）から外れた所を挙げる
 ```
 
+- measure.py の「外れ」は1つずつ絵で確かめ、本当に崩れていれば戻す理由に書く。数字の外れを見ずに通さない。
+  外れが無くても通す理由にはしない（数字にしていない崩れがある）。真横からの強い光で片目が影に入ると、目の比を誤って外れにすることがある
 - qc.png と qc-detail.jpg は必ず両方を Read で見る。detail の全部の枚を見て、どの段・列で何を見つけたかを書く。枚数を理由に見ない所を残さない
 - facts の数字は手がかり。浮いた塊があればその枠を、欠けた言葉があればその物を、絵で確かめる。数字だけで通す・戻すを決めない
   - 読む模型は、体につながった布（宙に流れる襟巻きの端）を塊として拾わず、赤い布をマント（cape）と読むことがある。マントや布の有無は目で決める
