@@ -1,0 +1,11 @@
+題材: スライム娘（通し日数 285 を 3 で割った余り 0）
+模型: cagliostrolab/animagine-xl-3.1（手順の既定の MeinaMix は手元に重みが無く、取得に必要な空きが無かった）
+1回目: 種 20261012〜20261015、4枚とも落とした
+  - 体が人の肌の色でスライムでない（4枚とも）
+  - 別のスライムの描き足し（0・3枚目）、水着が黒（0枚目）、両手が塊に溶けて見えない（3枚目）
+2回目: 種 20261112〜20261115。選んだのは種 20261114（2枚目）
+  - 落とした 0枚目: 水着が体と同じ色に透け、服を着ていない体に見える
+  - 落とした 1枚目: 体が白に近く、水着が白でスライムらしさが弱い
+  - 落とした 3枚目: 水着が半透明、手が塊で指が無い
+プロンプト: 1girl, solo, slime girl, monster girl, blue skin, colored skin, translucent skin, cute slime girl, whole body made of translucent light blue slime jelly, normal human hands with five fingers, wearing opaque red one-piece swimsuit, gooey dripping hair, cheerful smile, full body, standing, simple white background, anime character design, masterpiece, best quality, very aesthetic, absurdres
+描かせない言葉: Animagine の既定の否定語, human skin, pale skin, extra slime creature, slime monster, multiple girls
