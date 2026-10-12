@@ -583,29 +583,32 @@ def lineart(src: str, out: str, sigma: float = 1.4, k: float = 1.6, tau: float =
     return {"line_ratio": round(float(line.mean()), 4), "size": list(line.shape[::-1])}
 
 
-def face_fix(src: str, out: str, prompt: str = "1girl, detailed face, detailed eyes", strength: float = 0.35, seed: int = 7) -> dict:
-    """顔だけを拡大して描き直し、元の大きさに戻して貼る（人の描き手が目と顔を最後に拡大して描き込むのと同じ）。
-    全身の絵では顔が小さく、描く模型の解像度では目が崩れやすい。部位分けの顔（11）と髪（2）の外接枠を 1024 に拡大して
-    弱く（0.35）描き直し、縁をぼかして元へ戻す"""
+def face_box(src: str, im: Image.Image, margin: float = 0.9):
+    """部位分けの顔（11）の外接枠を正方形に広げた枠。顔が見つからなければ None"""
+    sys.path.insert(0, str(Path(__file__).parent))
+    import edit
+    lab = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST))
+    face = lab == 11
+    if face.sum() < 200:
+        return None
+    ys, xs = np.nonzero(face)
+    cy, cx = (ys.min() + ys.max()) // 2, (xs.min() + xs.max()) // 2
+    half = int(max(ys.max() - ys.min(), xs.max() - xs.min()) * margin) + 16
+    return (max(cx - half, 0), max(cy - half, 0), min(cx + half, im.width), min(cy + half, im.height))
+
+
+def face_redraw(im: Image.Image, box, prompt: str, negative: str = "", strength: float = 0.35, seed: int = 7) -> Image.Image:
+    """枠の中（顔）を 1024 に拡大して描き直し、元の大きさに戻して、縁をぼかした楕円で貼る。髪・服・体は元のまま残る。
+    顔の手直し（弱く）と、表情差分（強めに、表情の言葉で）が共有する"""
     import torch
     import demi
     import design
     sys.path.insert(0, str(Path(__file__).parent))
-    import edit
     import free_text
-    im = Image.open(src).convert("RGB")
-    lab = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST))
-    face = lab == 11
-    if face.sum() < 200:
-        return {"fixed": False, "why": "顔が見つからない"}
-    ys, xs = np.nonzero(face)
-    cy, cx = (ys.min() + ys.max()) // 2, (xs.min() + xs.max()) // 2
-    half = int(max(ys.max() - ys.min(), xs.max() - xs.min()) * 0.9) + 16
-    box = (max(cx - half, 0), max(cy - half, 0), min(cx + half, im.width), min(cy + half, im.height))
     crop = im.crop(box)
     big = crop.resize((1024, 1024), Image.LANCZOS)
     pipe = demi.img2img()
-    pos, neg = free_text.full_prompt(prompt, "")
+    pos, neg = free_text.full_prompt(prompt, negative)
     pe, ne, pp, np_ = design.encode_xl(pipe, pos, neg)
     redrawn = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
                    image=big, strength=strength, num_inference_steps=24, guidance_scale=6.0,
@@ -613,11 +616,22 @@ def face_fix(src: str, out: str, prompt: str = "1girl, detailed face, detailed e
     small = redrawn.resize(crop.size, Image.LANCZOS)
     w, h = crop.size
     m = Image.new("L", (w, h), 0)
-    from PIL import ImageDraw as _D
-    _D.Draw(m).ellipse([w * 0.08, h * 0.08, w * 0.92, h * 0.92], fill=255)
+    ImageDraw.Draw(m).ellipse([w * 0.08, h * 0.08, w * 0.92, h * 0.92], fill=255)
     m = m.filter(ImageFilter.GaussianBlur(max(w // 16, 2)))
-    im.paste(small, box[:2], m)
-    im.save(out)
+    out = im.copy()
+    out.paste(small, box[:2], m)
+    return out
+
+
+def face_fix(src: str, out: str, prompt: str = "1girl, detailed face, detailed eyes", strength: float = 0.35, seed: int = 7) -> dict:
+    """顔だけを拡大して描き直し、元の大きさに戻して貼る（人の描き手が目と顔を最後に拡大して描き込むのと同じ）。
+    全身の絵では顔が小さく、描く模型の解像度では目が崩れやすい。部位分けの顔（11）の外接枠を 1024 に拡大して
+    弱く（0.35）描き直し、縁をぼかして元へ戻す"""
+    im = Image.open(src).convert("RGB")
+    box = face_box(src, im)
+    if box is None:
+        return {"fixed": False, "why": "顔が見つからない"}
+    face_redraw(im, box, prompt, strength=strength, seed=seed).save(out)
     return {"fixed": True, "box": [int(v) for v in box]}
 
 

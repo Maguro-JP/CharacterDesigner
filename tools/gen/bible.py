@@ -17,6 +17,9 @@
   python3 tools/gen/bible.py draw knight OUTDIR --scene ... [--outfit "差し替える服"] [--ref-scale 0.6] [--count 2]
   python3 tools/gen/bible.py show knight
   python3 tools/gen/bible.py sheet knight OUT.html                         # 設定資料のページ（絵を埋め込んだ1つの HTML）
+  python3 tools/gen/bible.py set-eyes knight --tags "tareme, large brown eyes, ..." --notes "垂れ目。ハイライトは右上に2つ"
+  python3 tools/gen/bible.py add-expression knight wry --name 苦笑い --tags "wry smile, sweatdrop, one eye closed"
+  python3 tools/gen/bible.py expressions knight OUTDIR [--base 顔の基準の絵] [--only smile,angry]   # 表情差分
 """
 import argparse
 import json
@@ -70,6 +73,45 @@ def add_item(ident: str, item: str, name: str, tags: str, desc: str = "", image:
     data["items"] = [i for i in data["items"] if i["id"] != item] + [entry]
     save("characters", data)
     return entry
+
+
+# 表情の既定。キャラクターに expressions が無ければこれを使い、あれば足し合わせる（同じ id は差し替える）。
+# 言葉は口・眉・目の3つを必ず書く。「smile」だけだと口だけ笑って目と眉が無表情のままの絵になりやすいため
+DEFAULT_EXPRESSIONS = [
+    {"id": "neutral", "name": "ふだん", "tags": "neutral expression, closed mouth, relaxed eyebrows"},
+    {"id": "smile", "name": "笑顔", "tags": "gentle smile, closed mouth smile, soft eyes, relaxed eyebrows"},
+    {"id": "laugh", "name": "大笑い", "tags": "laughing, open mouth, closed eyes, happy, raised eyebrows"},
+    {"id": "angry", "name": "怒り", "tags": "angry, furrowed brow, v-shaped eyebrows, clenched teeth, glaring"},
+    {"id": "sad", "name": "悲しみ", "tags": "sad, downturned eyebrows, teary eyes, frown, looking down"},
+    {"id": "surprised", "name": "驚き", "tags": "surprised, wide eyes, small pupils, open mouth, raised eyebrows"},
+    {"id": "blush", "name": "照れ", "tags": "embarrassed, blush, averted eyes, worried eyebrows, wavy mouth"},
+    {"id": "determined", "name": "決意", "tags": "determined, serious, narrowed eyes, closed mouth, furrowed brow"},
+]
+
+
+def set_eyes(ident: str, tags: str, notes: str = "") -> dict:
+    """目の設計を決める。tags は描く言葉（形・瞳の色・ハイライト・まつ毛・眉）、notes は人が読む意図。
+    目は顔の印象の大半を決めるのに、look の「brown eyes」だけでは描くたびに形もハイライトも変わった"""
+    data = load("characters", ident)
+    data["eyes"] = {"tags": tags, "notes": notes}
+    save("characters", data)
+    return data["eyes"]
+
+
+def add_expression(ident: str, expr: str, name: str, tags: str) -> dict:
+    """そのキャラクターらしい表情を足す（既定の表情と同じ id なら差し替える）。性格に合う表情をここに持つ"""
+    data = load("characters", ident)
+    entry = {"id": expr, "name": name, "tags": tags}
+    data["expressions"] = [e for e in data.get("expressions", []) if e["id"] != expr] + [entry]
+    save("characters", data)
+    return entry
+
+
+def expressions_of(ident: str) -> list[dict]:
+    """既定の表情に、キャラクター固有の表情を重ねた一覧（既定の順のあとに固有のもの）"""
+    own = {e["id"]: e for e in load("characters", ident).get("expressions", [])}
+    out = [own.pop(e["id"], e) for e in DEFAULT_EXPRESSIONS]
+    return out + list(own.values())
 
 
 def _copy(src: str, kind: str, ident: str, stem: str) -> str:
@@ -134,7 +176,8 @@ def prompt(ident: str, scene: str = "", pose: str = "", outfit: str | None = Non
     # 持ち物は、物の言葉に持ち方・付け方と大きさを必ず添える
     item_words = [", ".join(x for x in (i["tags"], i.get("size", ""), i.get("hold", "")) if x) for i in chosen]
     # 持ち物は服より前に置く（後ろに置くと効きが弱く、大スパナが腰袋の小さなスパナになった）
-    parts = [c["look"], *item_words, outfit if outfit is not None else c["outfit"], pose, scene, framing]
+    # 目の設計は見た目のすぐ後に置く（先頭ほど強く効く。目は顔の印象を決める）
+    parts = [c["look"], c.get("eyes", {}).get("tags", ""), *item_words, outfit if outfit is not None else c["outfit"], pose, scene, framing]
     avoid_loc = ""
     if world:
         w = load("worlds", world)
@@ -247,6 +290,55 @@ def turnaround(ident: str, outdir: str, count: int = 2, seed: int = 0) -> dict:
     return files
 
 
+def expressions_plan(ident: str, only: list[str] | None = None) -> list[dict]:
+    """表情差分の段取り: 表情ごとの描く言葉。顔だけを描き直すので、言葉は顔に関わるもの（見た目・目・表情）に絞る。
+    服や持ち物の言葉を入れると、顔の枠の中に服の柄や持ち物が描き込まれやすい"""
+    c = load("characters", ident)
+    eyes = c.get("eyes", {}).get("tags", "")
+    out = []
+    for e in expressions_of(ident):
+        if only and e["id"] not in only:
+            continue
+        words = ", ".join(x for x in (c["look"], eyes, e["tags"], "portrait, face focus, detailed eyes") if x)
+        out.append({"id": e["id"], "name": e["name"], "prompt": words,
+                    "negative": ", ".join(x for x in (c.get("negative", ""), "extra eyes, asymmetrical eyes, different eye colors") if x)})
+    return out
+
+
+def expressions(ident: str, outdir: str, base: str | None = None, seed: int = 0, strength: float = 0.6,
+                only: list[str] | None = None) -> dict:
+    """表情差分を描く。顔の基準の絵（無ければ胸から上を1枚描く）の顔の枠だけを、表情ごとに描き直す。
+    髪・服・体は基準の絵のまま残るので、表情を変えても同じ人物に見えやすい。並べた図 expressions.png も書く"""
+    from PIL import Image
+    sys.path.insert(0, str(Path(__file__).parent))
+    import imgproc
+    out = Path(outdir)
+    out.mkdir(parents=True, exist_ok=True)
+    if base is None:
+        name = draw(ident, str(out / "base"), 1, seed, items=[], framing="upper body, portrait",
+                    pose="looking at viewer, facing viewer, " + DEFAULT_EXPRESSIONS[0]["tags"])[0]
+        base = str(out / "base" / name)
+    im = Image.open(base).convert("RGB")
+    box = imgproc.face_box(base, im, margin=1.1)
+    if box is None:
+        raise SystemExit(f"顔が見つからない: {base}")
+    files = {}
+    for k, e in enumerate(expressions_plan(ident, only)):
+        res = imgproc.face_redraw(im, box, e["prompt"], e["negative"], strength=strength, seed=seed + k)
+        p = out / f"expr-{e['id']}.png"
+        res.save(p)
+        files[e["id"]] = str(p)
+    # 並べた図: 顔の枠を同じ大きさで4列に並べる（見比べるとき、顔の位置がそろっている方が差が分かる）
+    side = 256
+    faces = [Image.open(f).crop(box).resize((side, side)) for f in files.values()]
+    cols = 4
+    sheet = Image.new("RGB", (side * cols, side * ((len(faces) + cols - 1) // cols)), "white")
+    for i, f in enumerate(faces):
+        sheet.paste(f, (side * (i % cols), side * (i // cols)))
+    sheet.save(out / "expressions.png")
+    return {"base": base, "box": [int(v) for v in box], "files": files, "sheet": str(out / "expressions.png")}
+
+
 SHEET_CSS = """
 :root { --paper:#fbfaf7; --ink:#141313; --sub:#5d5853; --rule:#d9d4cd; --accent:#d23a26;
   --display:"Dela Gothic One","Hiragino Sans","Yu Gothic",sans-serif; --body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",sans-serif;
@@ -349,6 +441,12 @@ def main():
         s.add_argument("--framing", default="full body")
     s = sub.add_parser("show"); s.add_argument("id")
     s = sub.add_parser("sheet"); s.add_argument("id"); s.add_argument("out")
+    s = sub.add_parser("set-eyes"); s.add_argument("id"); s.add_argument("--tags", required=True); s.add_argument("--notes", default="")
+    s = sub.add_parser("add-expression"); s.add_argument("id"); s.add_argument("expr"); s.add_argument("--name", required=True)
+    s.add_argument("--tags", required=True)
+    s = sub.add_parser("expressions", help="表情差分: 顔の基準の絵の顔だけを、表情ごとに描き直す")
+    s.add_argument("id"); s.add_argument("out"); s.add_argument("--base"); s.add_argument("--seed", type=int, default=0)
+    s.add_argument("--strength", type=float, default=0.6); s.add_argument("--only", help="表情の id をカンマ区切りで")
     s = sub.add_parser("turnaround", help="三面図: 人形の下絵を3方向から写し、向きごとに描く")
     s.add_argument("id"); s.add_argument("out"); s.add_argument("--count", type=int, default=2); s.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
@@ -368,6 +466,9 @@ def main():
         "show": lambda: load("characters", a.id),
         "sheet": lambda: sheet(a.id, a.out),
         "turnaround": lambda: turnaround(a.id, a.out, a.count, a.seed),
+        "set-eyes": lambda: set_eyes(a.id, a.tags, a.notes),
+        "add-expression": lambda: add_expression(a.id, a.expr, a.name, a.tags),
+        "expressions": lambda: expressions(a.id, a.out, a.base, a.seed, a.strength, a.only.split(",") if a.only else None),
     }[a.cmd]()
     print(json.dumps(r, ensure_ascii=False, indent=1))
 

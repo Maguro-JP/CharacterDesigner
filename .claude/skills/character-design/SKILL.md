@@ -91,6 +91,12 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
      （下絵の色は設定資料の `turnaround` に持たせる。下絵に無い物（マント）は絵に出ないので、色を足して下絵に置く）
    - 持ち物を担ぐ姿勢: `tools/engine/pose_prop.py` の下絵を `bible.py draw --base 下絵 --strength 0.6〜0.8` に渡す
    - 描いた絵は検品担当に回す。範囲の描き直しは別の物を描き足しやすいので、崩れが多ければ描き直す
+5. 目と表情は、キャラクターを保存したら最初に決める（表情担当 face-designer）。目は印象の大半を決めるのに、
+   「brown eyes」だけでは描くたびに形もハイライトも変わる
+   - 目: `bible.py set-eyes <キャラクター> --tags "形, 大きさ, 瞳, ハイライト, まつ毛, 眉" --notes "意図"`。描く言葉では見た目のすぐ後に入る
+   - 表情: 既定の8つ（`bible.py` の `DEFAULT_EXPRESSIONS`）を性格に合わせて差し替え・追加する（`add-expression`）。口・眉・目の3つを必ず書く
+   - 表情差分: `PYTHONPATH=.cache/gen/lib python3 tools/gen/bible.py expressions <キャラクター> OUT_DIR [--base 顔の基準の絵]`。
+     基準の絵の顔の枠だけを表情ごとに描き直すので、髪・服・体は変わらない。並べた図 `expressions.png` を検品担当に回す
 
 ### 作品の登場人物をまとめて頼まれたとき（何人も、系統や進化がある）
 
