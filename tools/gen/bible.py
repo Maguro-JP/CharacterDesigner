@@ -309,7 +309,7 @@ def expressions_plan(ident: str, only: list[str] | None = None) -> list[dict]:
 
 
 def expressions(ident: str, outdir: str, base: str | None = None, seed: int = 0, strength: float = 0.6,
-                only: list[str] | None = None) -> dict:
+                only: list[str] | None = None, ref_scale: float = 0.4) -> dict:
     """表情差分を描く。顔の基準の絵（無ければ胸から上を1枚描く）の顔の枠だけを、表情ごとに描き直す。
     髪・服・体は基準の絵のまま残るので、表情を変えても同じ人物に見えやすい。並べた図 expressions.png も書く"""
     import numpy as np
@@ -330,13 +330,13 @@ def expressions(ident: str, outdir: str, base: str | None = None, seed: int = 0,
     mask = imgproc.face_mask(base, im)
     # 手本の色の絵があれば、顔の描き直しにも読ませる（表情を変えても顔つきを保つ）
     c = load("characters", ident)
-    ref = Image.open(ROOT / c["images"]["color"]).convert("RGB") if c["images"].get("color") else None
+    ref = Image.open(ROOT / c["images"]["color"]).convert("RGB") if c["images"].get("color") and ref_scale > 0 else None
     if ref is not None:
         import people
         people.use_reference()
     files = {}
     for k, e in enumerate(expressions_plan(ident, only)):
-        res = imgproc.face_redraw(im, box, e["prompt"], e["negative"], strength=strength, seed=seed + k, ref=ref, mask=mask)
+        res = imgproc.face_redraw(im, box, e["prompt"], e["negative"], strength=strength, seed=seed + k, ref=ref, ref_scale=ref_scale, mask=mask)
         p = out / f"expr-{e['id']}.png"
         res.save(p)
         files[e["id"]] = str(p)
@@ -463,6 +463,7 @@ def main():
     s = sub.add_parser("expressions", help="表情差分: 顔の基準の絵の顔だけを、表情ごとに描き直す")
     s.add_argument("id"); s.add_argument("out"); s.add_argument("--base"); s.add_argument("--seed", type=int, default=0)
     s.add_argument("--strength", type=float, default=0.6); s.add_argument("--only", help="表情の id をカンマ区切りで")
+    s.add_argument("--ref-scale", type=float, default=0.4, help="手本の顔に寄せる強さ。0 で使わない（手本の開いた目に引っ張られることがある）")
     s = sub.add_parser("turnaround", help="三面図: 人形の下絵を3方向から写し、向きごとに描く")
     s.add_argument("id"); s.add_argument("out"); s.add_argument("--count", type=int, default=2); s.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
@@ -484,7 +485,7 @@ def main():
         "turnaround": lambda: turnaround(a.id, a.out, a.count, a.seed),
         "set-eyes": lambda: set_eyes(a.id, a.tags, a.notes),
         "add-expression": lambda: add_expression(a.id, a.expr, a.name, a.tags),
-        "expressions": lambda: expressions(a.id, a.out, a.base, a.seed, a.strength, a.only.split(",") if a.only else None),
+        "expressions": lambda: expressions(a.id, a.out, a.base, a.seed, a.strength, a.only.split(",") if a.only else None, a.ref_scale),
     }[a.cmd]()
     print(json.dumps(r, ensure_ascii=False, indent=1))
 
