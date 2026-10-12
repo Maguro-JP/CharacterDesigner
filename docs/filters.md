@@ -5,7 +5,8 @@
 
 ## 利用者のフィルター
 
-`config/filters.json` に書く。書き方の見本は `config/filters.example.json`。
+アプリの画面の「フィルター」の板で、入れ切り・止める言葉の追加・新しいフィルターの追加をして保存できる。外せない制限の説明もそこに出る。
+保存先は `config/filters.json` で、手で書いてもよい。書き方の見本は `config/filters.example.json`。
 
 ```json
 {

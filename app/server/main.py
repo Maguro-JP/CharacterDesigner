@@ -57,6 +57,10 @@ PREVIEW_FILE = re.compile(r"^(underlay|mask)\.png$")
 FILE = re.compile(r"^((front|side|back)-\d+|sheet|underlay|mask|try-\d+|try-\d+-inspect|try-\d+-notan|hd-try-\d+-[1-5]-[a-z]+)\.png$|^report\.json$")
 
 
+class FiltersIn(BaseModel):
+    """利用者のフィルター。画面の「フィルター」から保存する"""
+    filters: list[dict] = Field(default_factory=list)
+
 class InkIn(BaseModel):
     """線の清書に渡すもの。描く板のレイヤーをそのまま送る"""
     png: str = Field(..., description="描く板のレイヤー（data:image/png;base64,...）")
@@ -610,6 +614,27 @@ def create_app(runner: Runner | None = None) -> FastAPI:
             src.write_bytes(raw)
             r = inking.ink(str(src), str(out), body.width, body.merge, body.spur)
             return {"png": "data:image/png;base64," + base64.b64encode(out.read_bytes()).decode(), **r}
+
+    @app.get("/api/filters")
+    def get_filters():
+        # 利用者のフィルターと、設定で外せない固定の制限の説明（docs/filters.md）
+        import filters
+        return {"filters": filters.load(), "fixed": "子どもを性的に描くこと（loli・shota などの語、子どもを表す語と性的な語の組み合わせ）。設定では外せない",
+                "doc": "docs/filters.md"}
+
+    @app.put("/api/filters")
+    def put_filters(body: FiltersIn):
+        import filters
+        clean = []
+        for f in body.filters:
+            name = str(f.get("name", "")).strip()[:40]
+            if not name:
+                continue
+            words = [str(w).strip()[:60] for w in f.get("words", []) if str(w).strip()][:200]
+            clean.append({"name": name, "enabled": bool(f.get("enabled")), "words": words, "negative": str(f.get("negative", ""))[:200]})
+        filters.CONFIG.parent.mkdir(parents=True, exist_ok=True)
+        filters.CONFIG.write_text(json.dumps({"filters": clean}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        return {"filters": filters.load()}
 
     @app.get("/api/brushes")
     def get_brushes():
