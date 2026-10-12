@@ -118,6 +118,27 @@ def studio_image(id: str, file: str = "") -> Image:
 
 
 @mcp.tool()
+def turnaround(character: str, count: int = 1, seed: int = 0) -> dict:
+    """設定資料集のキャラクターの三面図（正面・横・後ろ）を描く。人形の下絵を3方向から写し、向きごとに count 枚描く。
+    CPU で1枚 数分かかる。すぐ仕事の id を返す。進みは turnaround_job、絵は turnaround_image で受け取る。検品はしない"""
+    j = _json("POST", f"/api/bible/{character}/turnaround", {"count": count, "seed": seed})
+    return {"id": j["id"], "state": j["state"]}
+
+
+@mcp.tool()
+def turnaround_job(id: str) -> dict:
+    """三面図の仕事の進み。files は描けた絵の名前（front-0.png・side-0.png・back-0.png のように向きが頭に付く）"""
+    j = _json("GET", f"/api/jobs/{id}")
+    return {"state": j["state"], "error": j["error"], "files": j.get("files") or []}
+
+
+@mcp.tool()
+def turnaround_image(id: str, file: str) -> Image:
+    """三面図の仕事の絵を1枚返す。file は turnaround_job の files の名前"""
+    return Image(data=_call("GET", f"/api/jobs/{id}/files/{file}"), format="png")
+
+
+@mcp.tool()
 def proposals() -> dict:
     """待機中にスタジオが拾った提案（描き直し・見本の無い種など）。描くかは do_proposal で決める。"""
     return _json("GET", "/api/proposals")

@@ -28,5 +28,41 @@
   "#2c2431",
   "#3e3539"
  ],
- "notes": "上が枝、下がほうきの穂の杖を持つ魔女"
+ "notes": "上が枝、下がほうきの穂の杖を持つ魔女",
+ "eyes": {
+  "tags": "large round eyes, droopy eyelids, half-closed eyes, light brown eyes, hazel iris, gradient eyes, star-shaped highlight, long eyelashes, lower eyelashes, thin arched eyebrows",
+  "notes": "手本の大きく淡い茶の目。眠たげなまぶたで掴みどころの無さを出し、星形のハイライトで杖の星飾りと揃える"
+ },
+ "expressions": [
+  {
+   "id": "neutral",
+   "name": "ふだん",
+   "tags": "sleepy expression, half-closed eyes, closed mouth, relaxed eyebrows"
+  },
+  {
+   "id": "smile",
+   "name": "笑顔",
+   "tags": "mysterious smile, closed mouth smile, half-closed eyes, one eyebrow raised"
+  },
+  {
+   "id": "laugh",
+   "name": "大笑い",
+   "tags": "giggling, hand over mouth, closed eyes, raised eyebrows"
+  },
+  {
+   "id": "angry",
+   "name": "怒り",
+   "tags": "pouting, puffed cheeks, frowning eyebrows, half-closed eyes, annoyed"
+  },
+  {
+   "id": "surprised",
+   "name": "驚き",
+   "tags": "surprised, wide eyes, small pupils, open mouth, raised eyebrows, hat tilted"
+  },
+  {
+   "id": "spell",
+   "name": "詠唱",
+   "tags": "chanting, slightly open mouth, eyes glowing faintly, focused eyebrows, star sparkles in eyes"
+  }
+ ]
 }

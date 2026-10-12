@@ -1,0 +1,99 @@
+{
+ "name": "戦士（男）",
+ "style": "diorama",
+ "brief": "HD-2D のドット絵の戦士の男。大柄男性の枠。重い鎧、広い肩、両手剣を地に立てて構える。左向きの 3/4",
+ "head_height": 11,
+ "body_box": [
+  4,
+  0,
+  24,
+  34
+ ],
+ "palette": {
+  "o": "#2a1c1c",
+  "d": "#3a4252",
+  "e": "#2c2230",
+  "S": "#f0c8a0",
+  "s": "#d49a70",
+  "t": "#a2664a",
+  "h": "#5c3e2a",
+  "H": "#8a6440",
+  "A": "#d4dce6",
+  "a": "#96a2b2",
+  "b": "#5e687a",
+  "W": "#f6f8fa",
+  "R": "#b8443a",
+  "r": "#7c2a2a",
+  "q": "#4a1c20",
+  "L": "#8a5a34",
+  "l": "#5a3a22",
+  "G": "#e2b454",
+  "c": "#733726",
+  "f": "#59401e",
+  "g": "#cf9e56",
+  "i": "#d15946",
+  "j": "#d3dbf2",
+  "k": "#ccdfeb",
+  "m": "#8da5b5",
+  "n": "#732e27",
+  "p": "#7a2931",
+  "u": "#a84935",
+  "v": "#95a0bf",
+  "w": "#915737",
+  "x": "#825c31"
+ },
+ "rows": [
+  "...........oooo.........",
+  "..o.......ohHHhoo.......",
+  ".oWo.....ohHHhhhhho.....",
+  ".oWa....ohHhhhchhhho....",
+  ".oWa....ohhhfhhhchho....",
+  ".oWa...oSShhhhchhho.....",
+  ".oWa...oShsshShhcho.....",
+  ".oWa..oSSesssShhho......",
+  ".oWa..oSSessgShhho......",
+  ".oWa...otSitthhho.......",
+  ".oWa....ottttoo.........",
+  ".oWa.....odttdo.........",
+  ".oWa...oooaAjaboooooo...",
+  ".oWa..oAAAkaaAmbbAAabo..",
+  ".oWa.oAWkAAabbAAkaoaabo.",
+  ".oWa.oaAAAabddaAAbqqqqq.",
+  "oGGGooabbbodAAAAkbqWRRq.",
+  ".oLoabboodaAAAkAAbqRRRq.",
+  "oaAAaao.obdAAAAAAbqRRRq.",
+  "obaaoo..obdGLLGLLbqRGRq.",
+  ".oLo....oadrnrrrrbqRGRq.",
+  ".oGo....obarrrprrbqRRRq.",
+  "..o.....oaaqrrrrrbqRuRq.",
+  "........obaqrrprrbqRRRq.",
+  "........oabbqrrrrbqqqqq.",
+  "........oambborrqoobbao.",
+  "........oaAabo.o.obAvbo.",
+  "........obkabo...obaabo.",
+  "........oaAabo...obavbo.",
+  "........oaAabo...obaabo.",
+  "........oLLLlo...oLLLlo.",
+  ".......oLLwLlo..oLxLLllo",
+  ".......olllllo..ollllllo",
+  ".......oooooo...oooooooo"
+ ],
+ "intended": [
+  [
+   9,
+   7
+  ],
+  [
+   9,
+   8
+  ],
+  [
+   9,
+   6
+  ],
+  [
+   19,
+   16
+  ]
+ ]
+}

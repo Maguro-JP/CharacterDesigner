@@ -29,5 +29,46 @@
   "#e1dcdd",
   "#713132"
  ],
- "notes": ""
+ "notes": "",
+ "eyes": {
+  "tags": "narrow eyes, sharp eyes, dark brown eyes, almost black iris, small single highlight upper left, long upper eyelashes, thin straight eyebrows",
+  "notes": "手本の切れ長で暗い茶の目。寡黙な剣士なのでハイライトは小さく1つ、眉は細く真っ直ぐにして感情を抑える"
+ },
+ "expressions": [
+  {
+   "id": "neutral",
+   "name": "ふだん",
+   "tags": "expressionless, closed mouth, straight eyebrows, cool eyes"
+  },
+  {
+   "id": "smile",
+   "name": "笑顔",
+   "tags": "faint smile, slight upturn of lips, closed mouth, eyes softened, relaxed eyebrows"
+  },
+  {
+   "id": "laugh",
+   "name": "大笑い",
+   "tags": "small laugh, hand covering mouth, closed eyes, raised eyebrows"
+  },
+  {
+   "id": "angry",
+   "name": "怒り",
+   "tags": "cold anger, narrowed eyes, glaring, furrowed brow, closed mouth, shadowed eyes"
+  },
+  {
+   "id": "surprised",
+   "name": "驚き",
+   "tags": "slightly surprised, eyes widened a little, small open mouth, raised eyebrows"
+  },
+  {
+   "id": "determined",
+   "name": "決意",
+   "tags": "determined, sharp glare, narrowed eyes, v-shaped eyebrows, closed mouth, tense jaw"
+  },
+  {
+   "id": "drawing",
+   "name": "抜刀",
+   "tags": "intense, piercing gaze, shrunken pupils, furrowed brow, gritted teeth, scarf over mouth"
+  }
+ ]
 }

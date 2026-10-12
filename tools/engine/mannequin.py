@@ -51,7 +51,7 @@ def build(spec, gender, arms):
     HumanService.add_mhclo_asset(glob.glob(str(human.MPFB_DATA / "eyes" / "high-poly" / "*.mhclo"))[0], body,
                                  asset_type="Eyes", subdiv_levels=0)
     rig = next(o for o in bpy.data.objects if o.type == "ARMATURE")
-    human.lower_arms(rig, arms)
+    human.adduct_arms(rig, arms)   # 体の脇へ寄せる（lower_arms は上腕のねじれで、腕が下りなかった）
     mat = white("mannequin")
     meshes = [o for o in bpy.data.objects if o.type == "MESH"]
     for o in meshes:
@@ -189,7 +189,7 @@ def main(argv):
     ap = argparse.ArgumentParser()
     ap.add_argument("out")
     ap.add_argument("--gender", type=float, default=0.0, help="0 が女性、1 が男性")
-    ap.add_argument("--arms", type=float, default=70)
+    ap.add_argument("--arms", type=float, default=35)
     ap.add_argument("--size", type=int, default=640, help="1枚の高さ（ドット）")
     ap.add_argument("--only", default="", help="描く体型を , で区切って限る")
     a = ap.parse_args(argv)

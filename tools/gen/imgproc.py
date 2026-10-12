@@ -8,6 +8,11 @@
   python3 tools/gen/imgproc.py roto     IN.gif|DIR OUT_DIR    ロトスコーピング（コマごとに人物を抜き、透明 PNG と輪郭の動きを書く）
   python3 tools/gen/imgproc.py shade    IN OUT.png [--style cel2|cel3|soft|rim|back] [--light x,y,z]   影の付け方（立体を計算して光を当てる）
   python3 tools/gen/imgproc.py aitells  IN                    AI っぽさを数える（つや、色数、色むら、線のにじみ、線の均一さ、奥行きの無さ）
+  python3 tools/gen/imgproc.py recolor IN OUT.png --from #969696 --to #c02020 [--tol 40]   色の置き換え（影の明るさは残す）
+  python3 tools/gen/imgproc.py grade   IN OUT.png [--brightness 1.1] [--contrast 1] [--saturation 1] [--warmth 0.2]   色調補正
+  python3 tools/gen/imgproc.py match   IN REF OUT.png [--amount 1]   色合わせ（REF の色の平均と幅に寄せる）
+  python3 tools/gen/imgproc.py denoise IN OUT.png [--weight 0.08]   ノイズ除去（平らな面のざらつきを消し、境目は残す）
+  python3 tools/gen/imgproc.py sharpen IN OUT.png [--radius 3] [--amount 1.5]   ぼかし除去（境目を急にする）
   python3 tools/gen/imgproc.py deai     IN OUT.png [--steps 10]   （使わない: 絵を崩すだけだった。docs/knowledge/ai-look.md）
 
 どれも結果を画像で書き出し、数字（残した画素の割合など）を標準出力に出す。描いた絵の上でも写真の上でも動く。
@@ -578,42 +583,204 @@ def lineart(src: str, out: str, sigma: float = 1.4, k: float = 1.6, tau: float =
     return {"line_ratio": round(float(line.mean()), 4), "size": list(line.shape[::-1])}
 
 
-def face_fix(src: str, out: str, prompt: str = "1girl, detailed face, detailed eyes", strength: float = 0.35, seed: int = 7) -> dict:
-    """顔だけを拡大して描き直し、元の大きさに戻して貼る（人の描き手が目と顔を最後に拡大して描き込むのと同じ）。
-    全身の絵では顔が小さく、描く模型の解像度では目が崩れやすい。部位分けの顔（11）と髪（2）の外接枠を 1024 に拡大して
-    弱く（0.35）描き直し、縁をぼかして元へ戻す"""
+def face_region(src: str, im: Image.Image) -> np.ndarray:
+    """部位分けの顔（11）のうち、一番大きな塊だけ。部位分けは腰や肩の小さな切れ端も顔と取ることがあり、
+    全部を使うと外接枠が絵のほぼ全体（騎士で 0,0〜832,908）に広がった"""
+    sys.path.insert(0, str(Path(__file__).parent))
+    import edit
+    from scipy import ndimage
+    face = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST)) == 11
+    lab, n = ndimage.label(face)
+    if n == 0:
+        return face
+    sizes = np.bincount(lab.ravel())[1:]
+    return lab == (int(sizes.argmax()) + 1)
+
+
+def face_box(src: str, im: Image.Image, margin: float = 0.9):
+    """部位分けの顔の外接枠を正方形に広げた枠。顔が見つからなければ None"""
+    face = face_region(src, im)
+    if face.sum() < 200:
+        return None
+    ys, xs = np.nonzero(face)
+    cy, cx = (ys.min() + ys.max()) // 2, (xs.min() + xs.max()) // 2
+    half = int(max(ys.max() - ys.min(), xs.max() - xs.min()) * margin) + 16
+    return (max(cx - half, 0), max(cy - half, 0), min(cx + half, im.width), min(cy + half, im.height))
+
+
+def face_mask(src: str, im: Image.Image, grow: float = 0.12) -> Image.Image:
+    """部位分けの顔（11）を、顔の大きさの grow 倍だけ広げた範囲（白）。縁はぼかす。
+    楕円の枠で貼ると胸から上が丸ごと描き直され、表情ごとに鎧や襟巻きの形が変わった。顔だけに絞る"""
+    from scipy import ndimage
+    face = face_region(src, im)
+    ys, xs = np.nonzero(face)
+    r = max(int(max(ys.max() - ys.min(), xs.max() - xs.min()) * grow), 2)
+    grown = ndimage.binary_dilation(face, iterations=r)
+    m = Image.fromarray((grown * 255).astype("uint8"))
+    return m.filter(ImageFilter.GaussianBlur(max(r // 2, 1)))
+
+
+def face_redraw(im: Image.Image, box, prompt: str, negative: str = "", strength: float = 0.35, seed: int = 7,
+                ref: Image.Image | None = None, ref_scale: float = 0.4, mask: Image.Image | None = None) -> Image.Image:
+    """枠の中（顔）を 1024 に拡大して描き直し、元の大きさに戻して、縁をぼかした楕円で貼る。髪・服・体は元のまま残る。
+    顔の手直し（弱く）と、表情差分（強めに、表情の言葉で）が共有する。
+    ref（手本の顔）を渡すと IP-Adapter で顔つきを寄せる。手本を読ませる部品を付けたまま ref を渡さないと、描く模型が
+    image_embeds が無いと言って止まった（設定資料集で手本つきの絵を描いた直後）"""
     import torch
     import demi
     import design
     sys.path.insert(0, str(Path(__file__).parent))
-    import edit
     import free_text
-    im = Image.open(src).convert("RGB")
-    lab = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST))
-    face = lab == 11
-    if face.sum() < 200:
-        return {"fixed": False, "why": "顔が見つからない"}
-    ys, xs = np.nonzero(face)
-    cy, cx = (ys.min() + ys.max()) // 2, (xs.min() + xs.max()) // 2
-    half = int(max(ys.max() - ys.min(), xs.max() - xs.min()) * 0.9) + 16
-    box = (max(cx - half, 0), max(cy - half, 0), min(cx + half, im.width), min(cy + half, im.height))
     crop = im.crop(box)
     big = crop.resize((1024, 1024), Image.LANCZOS)
     pipe = demi.img2img()
-    pos, neg = free_text.full_prompt(prompt, "")
+    pos, neg = free_text.full_prompt(prompt, negative)
     pe, ne, pp, np_ = design.encode_xl(pipe, pos, neg)
+    extra = {}
+    if ref is not None:
+        pipe.set_ip_adapter_scale(ref_scale)
+        extra["ip_adapter_image"] = ref
+    elif getattr(pipe.unet, "encoder_hid_proj", None) is not None:
+        pipe.unload_ip_adapter()
     redrawn = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
                    image=big, strength=strength, num_inference_steps=24, guidance_scale=6.0,
-                   generator=torch.Generator().manual_seed(seed)).images[0]
+                   generator=torch.Generator().manual_seed(seed), **extra).images[0]
     small = redrawn.resize(crop.size, Image.LANCZOS)
     w, h = crop.size
-    m = Image.new("L", (w, h), 0)
-    from PIL import ImageDraw as _D
-    _D.Draw(m).ellipse([w * 0.08, h * 0.08, w * 0.92, h * 0.92], fill=255)
-    m = m.filter(ImageFilter.GaussianBlur(max(w // 16, 2)))
-    im.paste(small, box[:2], m)
-    im.save(out)
+    if mask is not None:
+        m = mask.crop(box)          # 顔だけを貼る（表情差分）
+    else:
+        m = Image.new("L", (w, h), 0)
+        ImageDraw.Draw(m).ellipse([w * 0.08, h * 0.08, w * 0.92, h * 0.92], fill=255)
+        m = m.filter(ImageFilter.GaussianBlur(max(w // 16, 2)))
+    out = im.copy()
+    out.paste(small, box[:2], m)
+    return out
+
+
+def face_fix(src: str, out: str, prompt: str = "1girl, detailed face, detailed eyes", strength: float = 0.35, seed: int = 7) -> dict:
+    """顔だけを拡大して描き直し、元の大きさに戻して貼る（人の描き手が目と顔を最後に拡大して描き込むのと同じ）。
+    全身の絵では顔が小さく、描く模型の解像度では目が崩れやすい。部位分けの顔（11）の外接枠を 1024 に拡大して
+    弱く（0.35）描き直し、縁をぼかして元へ戻す"""
+    im = Image.open(src).convert("RGB")
+    box = face_box(src, im)
+    if box is None:
+        return {"fixed": False, "why": "顔が見つからない"}
+    face_redraw(im, box, prompt, strength=strength, seed=seed).save(out)
     return {"fixed": True, "box": [int(v) for v in box]}
+
+
+# ---- 色 ----
+
+def _hex(color: str) -> np.ndarray:
+    c = color.lstrip("#")
+    return np.array([int(c[i:i + 2], 16) for i in (0, 2, 4)], float)
+
+
+def _ycc(rgb: np.ndarray) -> np.ndarray:
+    return np.asarray(Image.fromarray(np.clip(rgb, 0, 255).astype("uint8")).convert("YCbCr")).astype(float)
+
+
+def recolor(src: str, out: str, from_color: str, to_color: str, tol: float = 40.0, soft: float = 15.0, box=None) -> dict:
+    """from_color に近い所の色を to_color に置き換える。明るさの比は残す（布の明るい面と影の面の差を消さない）。
+    近さは色み（Cb・Cr）で測り、明るさは tol の2倍の幅まで許す。明るさまで同じ幅で測ると、灰色の布の影の面が外れた。
+    白地と灰色は色みが同じなので、明るさの幅で白地を外す。色みの幅は tol の 0.4 倍にする（肌は灰色から色みで 31 しか離れず、
+    tol のままだと顔まで赤くなった）。
+    box（左,上,右,下）を渡すとその中だけを変える。同じ灰色の鎧と襟巻きのように、色だけでは分けられない物があるため"""
+    im = Image.open(src).convert("RGB")
+    rgb = np.asarray(im).astype(float)
+    ycc = _ycc(rgb)
+    f, t = _ycc(_hex(from_color)[None, None]), _ycc(_hex(to_color)[None, None])
+    hue = np.hypot(ycc[..., 1] - f[..., 1], ycc[..., 2] - f[..., 2])
+    light = np.abs(ycc[..., 0] - f[..., 0])
+    near = 0.4 * tol
+    w = np.clip((near + soft / 2 - hue) / (soft / 2), 0, 1) * np.clip((2 * tol + soft - light) / soft, 0, 1)
+    # 白地は変えない。明るい灰色（203）を置き換えると、白地（255）も明るさの幅に入り、枠の形に桃色が付いた
+    if f[0, 0, 0] < 240:
+        w = w * (ycc[..., 0] < 245)
+    if box is not None:
+        inside = np.zeros(w.shape)
+        x0, y0, x1, y1 = box
+        inside[max(y0, 0):y1, max(x0, 0):x1] = 1
+        w = w * inside
+    new = ycc.copy()
+    new[..., 0] = ycc[..., 0] * (t[..., 0] / max(f[0, 0, 0], 1.0))
+    new[..., 1:] = t[..., 1:]
+    res = np.asarray(Image.fromarray(np.clip(new, 0, 255).astype("uint8"), "YCbCr").convert("RGB")).astype(float)
+    mixed = rgb * (1 - w[..., None]) + res * w[..., None]
+    Image.fromarray(np.clip(np.rint(mixed), 0, 255).astype("uint8")).save(out)
+    return {"out": out, "changed": round(float((w > 0.5).mean()), 4)}
+
+
+def grade(src: str, out: str, brightness: float = 1.0, contrast: float = 1.0, saturation: float = 1.0, warmth: float = 0.0) -> dict:
+    """色調補正: 明るさ・コントラスト・彩度（1 で元のまま）と色温度（正で暖かく、負で冷たく）"""
+    from PIL import ImageEnhance
+    im = Image.open(src).convert("RGB")
+    for enh, v in ((ImageEnhance.Brightness, brightness), (ImageEnhance.Contrast, contrast), (ImageEnhance.Color, saturation)):
+        if v != 1.0:
+            im = enh(im).enhance(v)
+    if warmth:
+        a = np.asarray(im).astype(float)
+        a[..., 0] += 64 * warmth
+        a[..., 2] -= 64 * warmth
+        im = Image.fromarray(np.clip(a, 0, 255).astype("uint8"))
+    im.save(out)
+    return {"out": out, "mean": [round(float(v), 1) for v in np.asarray(im).reshape(-1, 3).mean(0)]}
+
+
+def match(src: str, ref: str, out: str, amount: float = 1.0) -> dict:
+    """色合わせ: src の色の平均と幅を、ref の色の平均と幅へ amount だけ寄せる（RGB の各成分ごと）。
+    場面ごとの絵の色を、決めた1枚（設定画など）にそろえるのに使う。
+    PIL の Lab 変換を通すと、半分だけ寄せた色が元と手本の間に来なかったので、RGB で合わせる"""
+    im = Image.open(src).convert("RGB")
+    a = np.asarray(im).astype(float)
+    r = np.asarray(Image.open(ref).convert("RGB")).astype(float)
+    ma, sa = a.reshape(-1, 3).mean(0), a.reshape(-1, 3).std(0) + 1e-3
+    mr, sr = r.reshape(-1, 3).mean(0), r.reshape(-1, 3).std(0) + 1e-3
+    tm, ts = ma + (mr - ma) * amount, sa + (sr - sa) * amount
+    res = Image.fromarray(np.clip(np.rint((a - ma) / sa * ts + tm), 0, 255).astype("uint8"))
+    res.save(out)
+    ref_mean = np.asarray(Image.open(ref).convert("RGB")).reshape(-1, 3).mean(0)
+    dist = lambda x: round(float(np.abs(np.asarray(x).reshape(-1, 3).mean(0) - ref_mean).max()), 1)
+    return {"out": out, "before": dist(im), "after": dist(res)}
+
+
+# ---- ノイズ除去・ぼかし除去 ----
+
+def _noise(a: np.ndarray) -> float:
+    """ざらつきの目安: 隣り合う画素の差のうち、30 未満の小さな差の平均（線や境目の大きな差は数えない）。
+    中央値にすると、平らな面の多いアニメ絵では前後とも 0 になり、目安にならなかった"""
+    d = np.abs(np.diff(a.mean(-1), axis=1))
+    small = d[d < 30]
+    return float(small.mean()) if small.size else 0.0
+
+
+def _edge(a: np.ndarray) -> float:
+    """境目の急さの目安: 隣り合う画素の差の上位 1%"""
+    g = a.mean(-1)
+    return float(np.percentile(np.abs(np.diff(g, axis=1)), 99))
+
+
+def denoise(src: str, out: str, weight: float = 0.08) -> dict:
+    """ノイズ除去: 全変動（TV）で平らな面のざらつきを消し、境目は残す。
+    アニメ絵は平らな面と線でできているので、ぼかして消す方式（ガウス）より境目が崩れにくい。weight を上げるほど強く消す"""
+    from skimage.restoration import denoise_tv_chambolle
+    a = np.asarray(Image.open(src).convert("RGB")).astype(float) / 255
+    res = denoise_tv_chambolle(a, weight=weight, channel_axis=-1)
+    Image.fromarray(np.clip(np.rint(res * 255), 0, 255).astype("uint8")).save(out)
+    return {"out": out, "noise_before": round(_noise(a * 255), 2), "noise_after": round(_noise(res * 255), 2)}
+
+
+def sharpen(src: str, out: str, radius: float = 3.0, amount: float = 1.5) -> dict:
+    """ぼかし除去: アンシャープマスク（ぼかした絵との差を足す）で境目を急にする。平らな所は差が無いので変わらない。
+    拡大した絵や、描き直しでぼやけた範囲に使う。強すぎると境目の両側に白と黒の縁が出る"""
+    # skimage の unsharp_mask は、この環境では 1e289 のような壊れた値を返した。同じ計算を scipy のぼかしで行う
+    from scipy.ndimage import gaussian_filter
+    a = np.asarray(Image.open(src).convert("RGB")).astype(float) / 255
+    blur = gaussian_filter(a, sigma=(radius, radius, 0))
+    res = np.clip(a + amount * (a - blur), 0, 1)
+    Image.fromarray(np.clip(np.rint(res * 255), 0, 255).astype("uint8")).save(out)
+    return {"out": out, "edge_before": round(_edge(a * 255), 1), "edge_after": round(_edge(res * 255), 1)}
 
 
 def main():
@@ -641,8 +808,23 @@ def main():
     ip.add_argument("--box", default=None); ip.add_argument("--mask", default=None); ip.add_argument("--seed", type=int, default=7)
     op = sub.add_parser("outpaint"); op.add_argument("src"); op.add_argument("out"); op.add_argument("--prompt", required=True)
     op.add_argument("--pad", default="0,0,0,0", help="左,上,右,下 に足す画素数"); op.add_argument("--seed", type=int, default=7)
+    rc = sub.add_parser("recolor"); rc.add_argument("src"); rc.add_argument("out"); rc.add_argument("--from", dest="from_color", required=True)
+    rc.add_argument("--to", required=True); rc.add_argument("--tol", type=float, default=40.0)
+    rc.add_argument("--box", default=None, help="左,上,右,下。この中だけを変える")
+    gr = sub.add_parser("grade"); gr.add_argument("src"); gr.add_argument("out")
+    for k in ("brightness", "contrast", "saturation"):
+        gr.add_argument(f"--{k}", type=float, default=1.0)
+    gr.add_argument("--warmth", type=float, default=0.0)
+    mt = sub.add_parser("match"); mt.add_argument("src"); mt.add_argument("ref"); mt.add_argument("out"); mt.add_argument("--amount", type=float, default=1.0)
+    dn = sub.add_parser("denoise"); dn.add_argument("src"); dn.add_argument("out"); dn.add_argument("--weight", type=float, default=0.08)
+    sp = sub.add_parser("sharpen"); sp.add_argument("src"); sp.add_argument("out")
+    sp.add_argument("--radius", type=float, default=3.0); sp.add_argument("--amount", type=float, default=1.5)
     a = ap.parse_args()
-    fn = {"segment": lambda: segment(a.src, a.out), "matte": lambda: matte(a.src, a.out), "remove": lambda: remove_bg(a.src, a.out),
+    fn = {"denoise": lambda: denoise(a.src, a.out, a.weight), "sharpen": lambda: sharpen(a.src, a.out, a.radius, a.amount),
+          "recolor": lambda: recolor(a.src, a.out, a.from_color, a.to, a.tol,
+                                     box=tuple(int(v) for v in a.box.split(",")) if a.box else None),
+          "grade": lambda: grade(a.src, a.out, a.brightness, a.contrast, a.saturation, a.warmth),
+          "match": lambda: match(a.src, a.ref, a.out, a.amount),"segment": lambda: segment(a.src, a.out), "matte": lambda: matte(a.src, a.out), "remove": lambda: remove_bg(a.src, a.out),
           "roto": lambda: roto(a.src, a.out), "cutout": lambda: cutout(a.src, a.out, a.path),
           "chroma": lambda: chroma(a.src, a.out, a.key, a.tol, a.soft),
           "shade": lambda: shade(a.src, a.out, a.style, a.light, a.shadow_color),

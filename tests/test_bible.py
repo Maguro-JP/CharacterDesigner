@@ -23,6 +23,74 @@ class Bible(unittest.TestCase):
         bible.BIBLE = self.old
         self.tmp.cleanup()
 
+    def test_turnaround_plan_uses_colors_and_no_items(self):
+        c = bible.load("characters", "k")
+        c["turnaround"] = {"cape": "110,25,30", "words": "cape hanging behind back"}
+        bible.save("characters", c)
+        plan = bible.turnaround_plan("k", "/tmp/out", seed=5)
+        cmd = plan["base_cmd"]
+        self.assertIn("--cape", cmd)
+        self.assertEqual(cmd[cmd.index("--cape") + 1], "110,25,30")
+        self.assertEqual(cmd[cmd.index("--skin") + 1], bible.BASE_COLORS["skin"])   # 設定に無い色は既定
+        self.assertNotIn("--boots", cmd)
+        self.assertEqual(set(plan["views"]), {"front", "side", "back"})
+        for v, kw in plan["views"].items():
+            self.assertEqual(kw["items"], [])                     # 三面図では持ち物を持たせない
+            self.assertEqual(kw["base"], f"/tmp/out/base-{v}.png")
+            self.assertEqual(kw["seed"], 5)
+        self.assertGreater(plan["views"]["front"]["strength"], plan["views"]["side"]["strength"])
+        self.assertIn("from behind", plan["views"]["back"]["pose"])
+        self.assertIn("cape hanging behind back", plan["views"]["front"]["pose"])   # 下絵で隠れる物は言葉で補う
+        pos, _ = bible.prompt("k", pose=plan["views"]["back"]["pose"], items=[])
+        self.assertNotIn("holding lantern", pos)
+
+    def test_body_plan_defaults_to_humanoid_and_can_be_set(self):
+        self.assertEqual(bible.body_plan("k")["counts"]["腕"], 2)
+        bible.set_body("k", "centaur")
+        plan = bible.body_plan("k")
+        self.assertEqual(plan["counts"]["脚（馬）"], 4)
+        self.assertNotIn("脚", plan["counts"])            # ケンタウロスに人の脚は無い
+        with self.assertRaises(SystemExit):
+            bible.set_body("k", "nothing")
+
+    def test_body_plans_keep_the_known_counts(self):
+        import json
+        plans = json.loads((bible.ROOT / "casts" / "body-plans.json").read_text(encoding="utf-8"))["plans"]
+        expect = {"humanoid": ("脚", 2), "insect": ("脚", 6), "spider": ("脚", 8), "octopus": ("腕", 8), "squid": ("触腕", 2),
+                  "fish": ("脚", 0), "dragon": ("翼", 2), "wyvern": ("脚", 2), "ryu": ("翼", 0), "lamia": ("脚", 0)}
+        for k, (part, n) in expect.items():
+            self.assertEqual(plans[k]["counts"][part], n, k)
+        for k, p in plans.items():
+            self.assertTrue(p["ja"] and p["notes"] and p["counts"], k)
+
+    def test_eyes_follow_the_look_in_the_prompt(self):
+        bible.set_eyes("k", "tareme, large brown eyes, two highlights", "垂れ目")
+        pos, _ = bible.prompt("k")
+        self.assertTrue(pos.startswith("1girl, brown hair, tareme, large brown eyes"))
+        self.assertEqual(bible.load("characters", "k")["eyes"]["notes"], "垂れ目")
+
+    def test_expressions_merge_defaults_and_own(self):
+        bible.add_expression("k", "smile", "微笑み", "faint smile")          # 既定と同じ id は差し替える
+        bible.add_expression("k", "wry", "苦笑い", "wry smile, sweatdrop")   # 固有のものは後ろに足す
+        ex = bible.expressions_of("k")
+        ids = [e["id"] for e in ex]
+        self.assertEqual(ids[: len(bible.DEFAULT_EXPRESSIONS)], [e["id"] for e in bible.DEFAULT_EXPRESSIONS])
+        self.assertEqual(ids[-1], "wry")
+        self.assertEqual(next(e for e in ex if e["id"] == "smile")["tags"], "faint smile")
+
+    def test_expression_plan_uses_face_words_only(self):
+        bible.set_eyes("k", "tareme, two highlights")
+        plan = bible.expressions_plan("k", only=["angry", "neutral"])
+        self.assertEqual([p["id"] for p in plan], ["neutral", "angry"])
+        angry = plan[1]["prompt"]
+        self.assertIn("tareme", angry)
+        self.assertIn("furrowed brow", angry)
+        self.assertNotIn("silver armor", angry)       # 服や持ち物は顔の枠に入れない
+        self.assertNotIn("lantern", angry)
+        self.assertIn("asymmetrical eyes", plan[1]["negative"])
+        for e in bible.DEFAULT_EXPRESSIONS:            # 口・眉・目のどれかを必ず書いている
+            self.assertTrue(any(w in e["tags"] for w in ("eye", "brow")), e["id"])
+
     def test_look_comes_first_and_scene_is_added(self):
         pos, neg = bible.prompt("k", scene="walking", world="w", location="gate")
         self.assertTrue(pos.startswith("1girl, brown hair, holding lantern"))   # 見た目の次に持ち物、そのあと服

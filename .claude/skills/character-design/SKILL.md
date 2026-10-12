@@ -85,6 +85,20 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
    - 箱庭ドット: 頭を大きくする変換が要る（未完成）。部品で組む場合は下の 1〜3
    - 3D: `tools/engine/`（Blender＋MakeHuman、試作）
 3. 出したものは画像で見せる。並べた図は `tools/vsref.py`、ドット絵の数字は `tools/check.py` と `tools/learn.py score`
+4. 三面図・持ち物の持ち方・決まった姿勢は、言葉だけで描かない。人形の下絵から描く
+   （言葉だけでは横が斜め前、後ろが振り返り、手と持ち物のつながりが崩れた。`docs/knowledge/ai-drawing-notes.md`）
+   - 三面図: `PYTHONPATH=.cache/gen/lib python3 tools/gen/bible.py turnaround <キャラクター> OUT_DIR --count 2`
+     （下絵の色は設定資料の `turnaround` に持たせる。下絵に無い物（マント）は絵に出ないので、色を足して下絵に置く）
+   - 持ち物を担ぐ姿勢: `tools/engine/pose_prop.py` の下絵を `bible.py draw --base 下絵 --strength 0.6〜0.8` に渡す
+   - 描いた絵は検品担当に回す。範囲の描き直しは別の物を描き足しやすいので、崩れが多ければ描き直す
+5. 人型以外（四足、虫、龍、ケンタウロス、ラミア、スライム、触手など）は、保存したらまず体の設計図を選ぶ（`bible.py set-body <id> <設計図>`）。
+   部位の数は伝承と生物の資料に合わせてある（`casts/body-plans.json`、`docs/knowledge/body-plans.md`）。検品は欠損も余分も同じ重さで戻す
+6. 目と表情は、キャラクターを保存したら最初に決める（表情担当 face-designer）。目は印象の大半を決めるのに、
+   「brown eyes」だけでは描くたびに形もハイライトも変わる
+   - 目: `bible.py set-eyes <キャラクター> --tags "形, 大きさ, 瞳, ハイライト, まつ毛, 眉" --notes "意図"`。描く言葉では見た目のすぐ後に入る
+   - 表情: 既定の8つ（`bible.py` の `DEFAULT_EXPRESSIONS`）を性格に合わせて差し替え・追加する（`add-expression`）。口・眉・目の3つを必ず書く
+   - 表情差分: `PYTHONPATH=.cache/gen/lib python3 tools/gen/bible.py expressions <キャラクター> OUT_DIR [--base 顔の基準の絵]`。
+     基準の絵の顔の枠だけを表情ごとに描き直すので、髪・服・体は変わらない。並べた図 `expressions.png` を検品担当に回す
 
 ### 作品の登場人物をまとめて頼まれたとき（何人も、系統や進化がある）
 

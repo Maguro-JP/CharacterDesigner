@@ -152,8 +152,13 @@ def main(argv):
             HumanService.add_mhclo_asset(found[0], h, asset_type="Clothes", subdiv_levels=0)
             clothed += [o for o in bpy.data.objects if o not in before and o.type == "MESH"]
     rig = next(o for o in bpy.data.objects if o.type == "ARMATURE")
-    human.lower_arms(rig, 60)
+    human.adduct_arms(rig, 35)   # 右腕はこの後 IK で柄へ。左腕は体の脇に下ろしたまま
     grip_right_hand(rig)
+    # 関節が可動域を超えていないかを数える（IK で肘が逆に曲がると、下絵の崩れがそのまま絵に残る）
+    import rom_check
+    bpy.context.view_layer.update()
+    bad = rom_check.check_rig(rig)
+    print("可動域:", "外れなし" if not bad else "; ".join(bad))
     parts = wrench(a.length, palm(rig))
 
     scene = bpy.context.scene
@@ -199,3 +204,7 @@ def main(argv):
 
 if __name__ == "__main__":
     main(sys.argv[1:])
+    # 描き終えた後の後片付けで bpy が落ちる（Segmentation fault）。書き出しは済んでいるので、ここで抜ける
+    # （落ちたまま返すと、呼んだ側が失敗と取って止まった）
+    sys.stdout.flush()
+    os._exit(0)

@@ -17,6 +17,11 @@
   python3 tools/gen/bible.py draw knight OUTDIR --scene ... [--outfit "差し替える服"] [--ref-scale 0.6] [--count 2]
   python3 tools/gen/bible.py show knight
   python3 tools/gen/bible.py sheet knight OUT.html                         # 設定資料のページ（絵を埋め込んだ1つの HTML）
+  python3 tools/gen/bible.py body knight                                   # 体の設計図（部位の数。検品で照らす）
+  python3 tools/gen/bible.py set-body nagi ryu                              # 設計図を選ぶ（既定は humanoid。casts/body-plans.json）
+  python3 tools/gen/bible.py set-eyes knight --tags "tareme, large brown eyes, ..." --notes "垂れ目。ハイライトは右上に2つ"
+  python3 tools/gen/bible.py add-expression knight wry --name 苦笑い --tags "wry smile, sweatdrop, one eye closed"
+  python3 tools/gen/bible.py expressions knight OUTDIR [--base 顔の基準の絵] [--only smile,angry]   # 表情差分
 """
 import argparse
 import json
@@ -70,6 +75,62 @@ def add_item(ident: str, item: str, name: str, tags: str, desc: str = "", image:
     data["items"] = [i for i in data["items"] if i["id"] != item] + [entry]
     save("characters", data)
     return entry
+
+
+# 表情の既定。キャラクターに expressions が無ければこれを使い、あれば足し合わせる（同じ id は差し替える）。
+# 言葉は口・眉・目の3つを必ず書く。「smile」だけだと口だけ笑って目と眉が無表情のままの絵になりやすいため
+DEFAULT_EXPRESSIONS = [
+    {"id": "neutral", "name": "ふだん", "tags": "neutral expression, closed mouth, relaxed eyebrows"},
+    {"id": "smile", "name": "笑顔", "tags": "gentle smile, closed mouth smile, soft eyes, relaxed eyebrows"},
+    {"id": "laugh", "name": "大笑い", "tags": "laughing, open mouth, closed eyes, happy, raised eyebrows"},
+    {"id": "angry", "name": "怒り", "tags": "angry, furrowed brow, v-shaped eyebrows, clenched teeth, glaring"},
+    {"id": "sad", "name": "悲しみ", "tags": "sad, downturned eyebrows, teary eyes, frown, looking down"},
+    {"id": "surprised", "name": "驚き", "tags": "surprised, wide eyes, small pupils, open mouth, raised eyebrows"},
+    {"id": "blush", "name": "照れ", "tags": "embarrassed, blush, averted eyes, worried eyebrows, wavy mouth"},
+    {"id": "determined", "name": "決意", "tags": "determined, serious, narrowed eyes, closed mouth, furrowed brow"},
+]
+
+
+def set_eyes(ident: str, tags: str, notes: str = "") -> dict:
+    """目の設計を決める。tags は描く言葉（形・瞳の色・ハイライト・まつ毛・眉）、notes は人が読む意図。
+    目は顔の印象の大半を決めるのに、look の「brown eyes」だけでは描くたびに形もハイライトも変わった"""
+    data = load("characters", ident)
+    data["eyes"] = {"tags": tags, "notes": notes}
+    save("characters", data)
+    return data["eyes"]
+
+
+def body_plan(ident: str) -> dict:
+    """キャラクターの体の設計図（casts/body-plans.json）。body が無ければ人型。検品の棚卸しで部位の数を照らす"""
+    plans = json.loads((ROOT / "casts" / "body-plans.json").read_text(encoding="utf-8"))["plans"]
+    key = load("characters", ident).get("body", "humanoid")
+    if key not in plans:
+        raise SystemExit(f"体の設計図「{key}」は無い。選べるもの: {', '.join(plans)}")
+    return {"id": key, **plans[key]}
+
+
+def set_body(ident: str, plan: str) -> dict:
+    """体の設計図を選ぶ（humanoid、quadruped、dragon、ryu、centaur など）"""
+    data = load("characters", ident)
+    data["body"] = plan
+    save("characters", data)
+    return body_plan(ident)
+
+
+def add_expression(ident: str, expr: str, name: str, tags: str) -> dict:
+    """そのキャラクターらしい表情を足す（既定の表情と同じ id なら差し替える）。性格に合う表情をここに持つ"""
+    data = load("characters", ident)
+    entry = {"id": expr, "name": name, "tags": tags}
+    data["expressions"] = [e for e in data.get("expressions", []) if e["id"] != expr] + [entry]
+    save("characters", data)
+    return entry
+
+
+def expressions_of(ident: str) -> list[dict]:
+    """既定の表情に、キャラクター固有の表情を重ねた一覧（既定の順のあとに固有のもの）"""
+    own = {e["id"]: e for e in load("characters", ident).get("expressions", [])}
+    out = [own.pop(e["id"], e) for e in DEFAULT_EXPRESSIONS]
+    return out + list(own.values())
 
 
 def _copy(src: str, kind: str, ident: str, stem: str) -> str:
@@ -134,7 +195,8 @@ def prompt(ident: str, scene: str = "", pose: str = "", outfit: str | None = Non
     # 持ち物は、物の言葉に持ち方・付け方と大きさを必ず添える
     item_words = [", ".join(x for x in (i["tags"], i.get("size", ""), i.get("hold", "")) if x) for i in chosen]
     # 持ち物は服より前に置く（後ろに置くと効きが弱く、大スパナが腰袋の小さなスパナになった）
-    parts = [c["look"], *item_words, outfit if outfit is not None else c["outfit"], pose, scene, framing]
+    # 目の設計は見た目のすぐ後に置く（先頭ほど強く効く。目は顔の印象を決める）
+    parts = [c["look"], c.get("eyes", {}).get("tags", ""), *item_words, outfit if outfit is not None else c["outfit"], pose, scene, framing]
     avoid_loc = ""
     if world:
         w = load("worlds", world)
@@ -200,6 +262,116 @@ def draw(ident: str, outdir: str, count: int = 1, seed: int = 0, ref_scale: floa
         names.append(name)
     (out / f"{ident}-prompt.txt").write_text(pos + "\n\nnegative: " + neg + "\n", encoding="utf-8")
     return names
+
+
+# 三面図の向きごとの言葉と描き換えの強さ。向きは下絵で決め、言葉は補うだけ（言葉だけでは横が斜め前、後ろが振り返った）。
+# 正面は 0.8 だと顔が描かれなかった（下絵の顔をそのまま残した）ので、正面だけ強める
+VIEWS = {
+    "front": ("front view, facing viewer, detailed face", 0.85),
+    "side": ("side view, profile, facing left", 0.8),
+    "back": ("back view, from behind, facing away, head facing away", 0.8),
+}
+# 下絵の色の既定。設定に turnaround が無いキャラクターに使う
+BASE_COLORS = {"skin": "240,200,170", "top": "175,175,185", "bottom": "40,40,45"}
+
+
+def turnaround_plan(ident: str, outdir: str, seed: int = 0) -> dict:
+    """三面図の段取り: 下絵を写す命令と、向きごとに描く引数。描かずに中身だけ返す（試験と、描く前の確かめに使う）。
+    下絵に無い物（マント）は絵に出なかったので、色の設定に cape・boots があれば下絵に置く"""
+    c = load("characters", ident)
+    colors = {**BASE_COLORS, **c.get("turnaround", {})}
+    base = str(Path(outdir) / "base")
+    cmd = [sys.executable, str(ROOT / "tools/engine/turnaround.py"), base]
+    for k in ("skin", "top", "bottom", "cape", "boots"):
+        if colors.get(k):
+            cmd += [f"--{k}", colors[k]]
+    views = {}
+    for v, (words, strength) in VIEWS.items():
+        # 三面図では持ち物を持たせない（人形の手は空で、持たせると手と持ち物が崩れた）
+        # 下絵で正面から隠れる物（背中のマント）は言葉で補う。補わないと、正面と横で襟巻きの端がマントの代わりに垂れた
+        extra = colors.get("words", "")
+        views[v] = dict(base=f"{base}-{v}.png", strength=strength, seed=seed, items=[],
+                        pose=", ".join(x for x in ("standing straight, arms at sides, open empty hands, hands visible",
+                                                   extra, words, "character turnaround") if x))
+    return {"base_cmd": cmd, "views": views}
+
+
+def turnaround(ident: str, outdir: str, count: int = 2, seed: int = 0) -> dict:
+    """三面図を描く: 人形の下絵を3方向から写し、向きごとに count 枚描く。検品はしない（検品担当に回す）"""
+    import os
+    import subprocess
+    plan = turnaround_plan(ident, outdir, seed)
+    Path(outdir).mkdir(parents=True, exist_ok=True)
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join(filter(None, (str(ROOT / ".cache/engine/bpy"), os.environ.get("PYTHONPATH"))))}
+    subprocess.run(plan["base_cmd"], check=True, env=env, cwd=ROOT)
+    files = {}
+    for v, kw in plan["views"].items():
+        base, strength, s = kw.pop("base"), kw.pop("strength"), kw.pop("seed")
+        names = draw(ident, str(Path(outdir) / v), count, s, base=base, strength=strength, **kw)
+        files[v] = [str(Path(outdir) / v / n) for n in names]
+    return files
+
+
+def expressions_plan(ident: str, only: list[str] | None = None) -> list[dict]:
+    """表情差分の段取り: 表情ごとの描く言葉。顔だけを描き直すので、言葉は顔に関わるもの（見た目・目・表情）に絞る。
+    服や持ち物の言葉を入れると、顔の枠の中に服の柄や持ち物が描き込まれやすい"""
+    c = load("characters", ident)
+    eyes = c.get("eyes", {}).get("tags", "")
+    out = []
+    for e in expressions_of(ident):
+        if only and e["id"] not in only:
+            continue
+        words = ", ".join(x for x in (c["look"], eyes, e["tags"], "portrait, face focus, detailed eyes") if x)
+        out.append({"id": e["id"], "name": e["name"], "prompt": words,
+                    "negative": ", ".join(x for x in (c.get("negative", ""), "extra eyes, asymmetrical eyes, different eye colors") if x)})
+    return out
+
+
+def expressions(ident: str, outdir: str, base: str | None = None, seed: int = 0, strength: float = 0.85,
+                only: list[str] | None = None, ref_scale: float = 0.0) -> dict:
+    """表情差分を描く。顔の基準の絵（無ければ胸から上を1枚描く）の顔の枠だけを、表情ごとに描き直す。
+    髪・服・体は基準の絵のまま残るので、表情を変えても同じ人物に見えやすい。並べた図 expressions.png も書く"""
+    import numpy as np
+    from PIL import Image
+    sys.path.insert(0, str(Path(__file__).parent))
+    import imgproc
+    out = Path(outdir)
+    out.mkdir(parents=True, exist_ok=True)
+    if base is None:
+        name = draw(ident, str(out / "base"), 1, seed, items=[], framing="upper body, portrait",
+                    pose="looking at viewer, facing viewer, " + DEFAULT_EXPRESSIONS[0]["tags"])[0]
+        base = str(out / "base" / name)
+    im = Image.open(base).convert("RGB")
+    # 描き直すのは顔の枠（顔の 0.8 倍の余白）を拡大した絵だが、貼り戻すのは顔の範囲だけ。髪・襟巻き・鎧は基準の絵のまま
+    box = imgproc.face_box(base, im, margin=0.8)
+    if box is None:
+        raise SystemExit(f"顔が見つからない: {base}")
+    mask = imgproc.face_mask(base, im)
+    # 手本の色の絵があれば、顔の描き直しにも読ませる（表情を変えても顔つきを保つ）
+    c = load("characters", ident)
+    ref = Image.open(ROOT / c["images"]["color"]).convert("RGB") if c["images"].get("color") and ref_scale > 0 else None
+    if ref is not None:
+        import people
+        people.use_reference()
+    files = {}
+    for k, e in enumerate(expressions_plan(ident, only)):
+        res = imgproc.face_redraw(im, box, e["prompt"], e["negative"], strength=strength, seed=seed + k, ref=ref, ref_scale=ref_scale, mask=mask)
+        p = out / f"expr-{e['id']}.png"
+        res.save(p)
+        files[e["id"]] = str(p)
+    # 並べた図: 顔の範囲の外接枠を同じ大きさで4列に並べる（顔の位置がそろっている方が差が分かる。
+    # 描き直しの枠のまま並べると胸まで入り、顔が小さくて表情の差が見えなかった）
+    fy, fx = np.nonzero(np.asarray(mask) > 128)
+    pad = int((fy.max() - fy.min()) * 0.1)
+    fbox = (max(fx.min() - pad, 0), max(fy.min() - pad, 0), min(fx.max() + pad, im.width), min(fy.max() + pad, im.height))
+    side = 256
+    faces = [Image.open(f).crop(fbox).resize((side, side)) for f in files.values()]
+    cols = 4
+    sheet = Image.new("RGB", (side * cols, side * ((len(faces) + cols - 1) // cols)), "white")
+    for i, f in enumerate(faces):
+        sheet.paste(f, (side * (i % cols), side * (i // cols)))
+    sheet.save(out / "expressions.png")
+    return {"base": base, "box": [int(v) for v in box], "files": files, "sheet": str(out / "expressions.png")}
 
 
 SHEET_CSS = """
@@ -304,6 +476,17 @@ def main():
         s.add_argument("--framing", default="full body")
     s = sub.add_parser("show"); s.add_argument("id")
     s = sub.add_parser("sheet"); s.add_argument("id"); s.add_argument("out")
+    s = sub.add_parser("set-body"); s.add_argument("id"); s.add_argument("plan")
+    s = sub.add_parser("body"); s.add_argument("id")
+    s = sub.add_parser("set-eyes"); s.add_argument("id"); s.add_argument("--tags", required=True); s.add_argument("--notes", default="")
+    s = sub.add_parser("add-expression"); s.add_argument("id"); s.add_argument("expr"); s.add_argument("--name", required=True)
+    s.add_argument("--tags", required=True)
+    s = sub.add_parser("expressions", help="表情差分: 顔の基準の絵の顔だけを、表情ごとに描き直す")
+    s.add_argument("id"); s.add_argument("out"); s.add_argument("--base"); s.add_argument("--seed", type=int, default=0)
+    s.add_argument("--strength", type=float, default=0.85); s.add_argument("--only", help="表情の id をカンマ区切りで")
+    s.add_argument("--ref-scale", type=float, default=0.0, help="手本の顔に寄せる強さ。既定は 0（使わない）。0.4 では手本の開いた目に引っ張られ、目が表情ごとに動かなかった")
+    s = sub.add_parser("turnaround", help="三面図: 人形の下絵を3方向から写し、向きごとに描く")
+    s.add_argument("id"); s.add_argument("out"); s.add_argument("--count", type=int, default=2); s.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
     kw = {}
     if a.cmd in ("prompt", "draw"):
@@ -320,6 +503,12 @@ def main():
         "draw": lambda: draw(a.id, a.out, a.count, a.seed, a.ref_scale, a.base, a.strength, **kw),
         "show": lambda: load("characters", a.id),
         "sheet": lambda: sheet(a.id, a.out),
+        "turnaround": lambda: turnaround(a.id, a.out, a.count, a.seed),
+        "set-eyes": lambda: set_eyes(a.id, a.tags, a.notes),
+        "set-body": lambda: set_body(a.id, a.plan),
+        "body": lambda: body_plan(a.id),
+        "add-expression": lambda: add_expression(a.id, a.expr, a.name, a.tags),
+        "expressions": lambda: expressions(a.id, a.out, a.base, a.seed, a.strength, a.only.split(",") if a.only else None, a.ref_scale),
     }[a.cmd]()
     print(json.dumps(r, ensure_ascii=False, indent=1))
 

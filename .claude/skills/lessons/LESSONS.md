@@ -4,6 +4,12 @@
 1件は4行。場面は「次から」を差し込むときの索引になるので、短い名詞で書く。
 新しいものを上に足す。
 
+## 2026-10-12 Blender の台本が落ちているのに、通ったと見ていた
+場面: Blender、bpy、台本を動かした後
+起きたこと: `tools/engine/turnaround.py` と `pose_prop.py` が絵を書き出した後の後片付けで Segmentation fault（終了コード 139）で落ちていた。`bible.py turnaround` が subprocess で呼ぶと失敗と取って止まった
+判定の誤り: 手で動かしたとき `grep -i error` だけを見て、終了コードを見ていなかった。ほかの台本（human.py など）は `os._exit(0)` で避けていたのに、新しい台本に入れていなかった
+次から: bpy の台本は最後に `sys.stdout.flush(); os._exit(0)` を置き、動かしたら `echo "exit=$?"` で終了コードを見る
+
 ## 2026-10-09 手元で済む検証を Actions でも回していた
 場面: CI、自律開発、スキル
 起きたこと: 自律開発が周ごとに PR を出し、手元で通した lint とテストを private の Actions でもう一度回して、月の枠を数日で使い切った。AdaptiveAIStudio の週1の定期 CI は2回続けて落ちていたが、誰も見ていなかった

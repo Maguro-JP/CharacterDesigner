@@ -30,5 +30,41 @@
   "#29282a",
   "#b49179"
  ],
- "notes": ""
+ "notes": "",
+ "eyes": {
+  "tags": "tsurime, sharp eyes, medium eyes, amber brown eyes, orange tint iris, single highlight upper right, short eyelashes, thick eyebrows, angled eyebrows",
+  "notes": "手本の橙がかった茶のつり目。少年技師の勝ち気さを太い眉とつり目、ハイライト1つで出し、女性陣と分ける"
+ },
+ "expressions": [
+  {
+   "id": "neutral",
+   "name": "ふだん",
+   "tags": "neutral expression, closed mouth, slightly raised eyebrow, confident eyes"
+  },
+  {
+   "id": "smile",
+   "name": "笑顔",
+   "tags": "grin, smirk, one corner of mouth raised, confident eyes, raised eyebrows"
+  },
+  {
+   "id": "laugh",
+   "name": "大笑い",
+   "tags": "laughing, wide open mouth, showing teeth, eyes squeezed shut, raised eyebrows, head tilted back"
+  },
+  {
+   "id": "angry",
+   "name": "怒り",
+   "tags": "angry, shouting, open mouth, clenched teeth, v-shaped eyebrows, glaring"
+  },
+  {
+   "id": "blush",
+   "name": "照れ",
+   "tags": "embarrassed, blush, looking away, frowning eyebrows, pouting mouth, scratching cheek"
+  },
+  {
+   "id": "tinkering",
+   "name": "熱中",
+   "tags": "focused, tongue out, sparkling eyes, furrowed eyebrows, soot on cheek, sweat"
+  }
+ ]
 }

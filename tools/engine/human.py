@@ -71,8 +71,20 @@ def deform(me, head, leg):
     me.update()
 
 
+def adduct_arms(rig, degrees=35):
+    """A の字に開いた腕を、体の脇へ寄せる（肩の内転）。上腕の骨を Z 軸で回す（左は負、右は正）。
+    休みの姿勢の上腕は縦から約 48 度開いている。50 度寄せると肘が肩より内側に入り、胴にめり込んだので、既定は 35 度"""
+    for side, sign in (("L", -1), ("R", 1)):
+        b = rig.pose.bones[f"upperarm01.{side}"]
+        b.rotation_mode = "XYZ"
+        b.rotation_euler = (0, 0, math.radians(degrees * sign))
+    bpy.context.view_layer.update()
+
+
 def lower_arms(rig, degrees):
-    """A の字に開いた腕を体の脇へ下ろす。上腕の骨を Y 軸で左右逆向きに回す（試して決めた軸）。"""
+    """上腕の骨を Y 軸（骨の向き）で左右逆向きに回す。名前は「下ろす」だが、実際は上腕のねじれ（肩の内旋・外旋）で、
+    肘の位置は動かない（rom_check で振れ 0・ねじれ = degrees と測れた）。肘から先が回って手が下がって見えるだけ。
+    体の脇へ寄せたいときは adduct_arms を使う。古い呼び出し（model3d、mannequin）の見た目を変えないため残している"""
     for side, sign in (("L", 1), ("R", -1)):
         b = rig.pose.bones[f"upperarm01.{side}"]
         b.rotation_mode = "XYZ"

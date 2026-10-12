@@ -119,6 +119,14 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
       .catch((e: Error) => ctx.setError(e.message));
   };
 
+  const turnaround = () => {
+    ctx.setError("");
+    api
+      .bibleTurnaround(character, 1, seed)
+      .then(() => ctx.refreshJobs())
+      .catch((e: Error) => ctx.setError(e.message));
+  };
+
   const sel = "ml-1 rounded border border-line bg-ink px-2 py-1";
   const places = bible.worlds.find((w) => w.id === world)?.locations ?? [];
   return (
@@ -153,6 +161,10 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
               <input className="rounded border border-line bg-ink px-2 py-1" value={scene} onChange={(e) => setScene(e.target.value)} placeholder="場面（例: walking in the snow）" aria-label="場面" />
               <input className="rounded border border-line bg-ink px-2 py-1" value={act} onChange={(e) => setAct(e.target.value)} placeholder="ポーズ・しぐさ（例: looking back）" aria-label="ポーズ" />
               <input className="rounded border border-line bg-ink px-2 py-1" value={outfit} onChange={(e) => setOutfit(e.target.value)} placeholder="服を変えるときだけ（空ならいつもの服）" aria-label="服" />
+              {/* 三面図は人形の下絵から描く（言葉だけでは横が斜め前、後ろが振り返った）。CPU で1枚 数分 × 3方向 */}
+              <button type="button" onClick={turnaround} className="justify-self-start rounded border border-line px-3 py-1">
+                三面図を描く（正面・横・後ろ、時間がかかる）
+              </button>
             </div>
           )}
         </fieldset>

@@ -54,7 +54,7 @@ SAMPLES = Path(os.environ.get("CD_SAMPLES", ROOT / "library" / "samples"))
 NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
 # 返してよいファイル。仕事のフォルダの中の、この形の名前だけ（../ などで外を読ませない）
 PREVIEW_FILE = re.compile(r"^(underlay|mask)\.png$")
-FILE = re.compile(r"^(sheet|underlay|mask|try-\d+|try-\d+-inspect|try-\d+-notan|hd-try-\d+-[1-5]-[a-z]+)\.png$|^report\.json$")
+FILE = re.compile(r"^((front|side|back)-\d+|sheet|underlay|mask|try-\d+|try-\d+-inspect|try-\d+-notan|hd-try-\d+-[1-5]-[a-z]+)\.png$|^report\.json$")
 
 
 class Runner:
@@ -165,6 +165,21 @@ class Runner:
                              inspect=inspect, critique=critique,
                              remember=remember, recall=lambda t: recall_from(memories(), t)), on_event).send(spec, str(outdir))
 
+    def turnaround(self, spec: dict, outdir: Path, on_image) -> list:
+        """三面図: 設定資料集のキャラクターを、人形の下絵から3方向に描く。絵は <向き>-<番号>.png で並べる"""
+        import bible
+        work = outdir / "_turnaround"
+        files = bible.turnaround(spec["character"], str(work), spec["count"], spec["seed"])
+        names = []
+        for view, paths in files.items():
+            for k, src in enumerate(paths):
+                name = f"{view}-{k}.png"
+                shutil.move(src, outdir / name)
+                on_image(len(names), name)
+                names.append(name)
+        shutil.rmtree(work, ignore_errors=True)
+        return names
+
     def free(self, spec: dict, outdir: Path, on_image) -> list:
         return free_text.draw(spec["prompt"], spec.get("negative", ""), outdir, spec["seed"], spec["count"],
                               spec["width"], spec["height"], on_image=on_image)
@@ -250,13 +265,13 @@ class Queue:
                                    "findings": r.findings}
                     job.state = "done"
                     continue
-                if job.kind == "free":
+                if job.kind in ("free", "turnaround"):
                     job.state = "drawing"
 
                     def on_image(k, name):
                         job.try_index = k
                         job.results.append({"try": k, "file": name})
-                    self.runner.free(job.free, out, on_image)
+                    (self.runner.turnaround if job.kind == "turnaround" else self.runner.free)(job.free, out, on_image)
                     job.passed = bool(job.results)
                     job.state = "done"
                     continue
@@ -346,6 +361,11 @@ class SceneIn(BaseModel):
     job_id: str = Field(max_length=40)
     file: str = Field(max_length=60)
     name: str = Field(pattern="^[a-z0-9-]{1,40}$")
+
+
+class TurnaroundIn(BaseModel):
+    count: int = Field(1, ge=1, le=3)
+    seed: int = Field(0, ge=0, le=2**31 - 1)
 
 
 class LikeIn(BaseModel):
@@ -452,7 +472,7 @@ def create_app(runner: Runner | None = None) -> FastAPI:
 
     def current_proposals():
         return studio_proposals.Store(PROPOSALS).visible(
-            studio_proposals.gather(list(jobs.jobs.values()), load_cases()["cases"], SAMPLES))
+            studio_proposals.gather(list(jobs.jobs.values()), load_cases()["cases"], SAMPLES, bible_list()["characters"]))
 
     @app.get("/api/proposals")
     def get_proposals():
@@ -468,6 +488,9 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         studio_proposals.Store(PROPOSALS).dismiss(pid)   # 1度頼んだら並べない
         if p["kind"] == "demi":
             return post_job(JobIn(**p["request"]))
+        if p["kind"] == "turnaround":
+            r = p["request"]
+            return bible_turnaround(r["character"], TurnaroundIn(count=r["count"], seed=r["seed"]))
         return post_studio_job(StudioIn(**p["request"]))
 
     @app.post("/api/proposals/{pid}/dismiss")
@@ -523,6 +546,15 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         except SystemExit as e:
             raise HTTPException(404, str(e))
         return {"saved": path}
+
+    @app.post("/api/bible/{character}/turnaround", status_code=202)
+    def bible_turnaround(character: str, body: TurnaroundIn):
+        # 三面図: 人形の下絵を3方向から写し、向きごとに描く（CPU で1枚 数分、3方向 × count 枚）。検品は描いた後に見る
+        import bible
+        if not re.fullmatch(r"[a-z0-9-]{1,40}", character) or not (bible.BIBLE / "characters" / f"{character}.json").exists():
+            raise HTTPException(404, "そのキャラクターは無い")
+        spec = {"character": character, "count": body.count, "seed": body.seed}
+        return jobs.submit(f"三面図 {character}", {}, 0.0, 1, kind="turnaround", free=spec).public()
 
     @app.get("/api/styles")
     def get_styles():

@@ -147,7 +147,7 @@ def test_proposals_from_facts(client, monkeypatch, tmp_path):
     from PIL import Image
     c, _ = client(Failing())
     p = c.get("/api/proposals").json()
-    assert p["idle"] and all(x["kind"] == "demi" for x in p["items"]) and len(p["items"]) <= 5
+    assert p["idle"] and all(x["kind"] in ("demi", "turnaround") for x in p["items"]) and len(p["items"]) <= 5
     j = wait(c, c.post("/api/studio/jobs", json={"text": "騎士", "prompt": "1boy, full body", "tries": 2, "seed": 3}).json()["id"])
     assert not j["passed"]
     items = c.get("/api/proposals").json()["items"]
@@ -162,6 +162,21 @@ def test_proposals_from_facts(client, monkeypatch, tmp_path):
     wait(c, job["id"])
     assert retry["id"] not in [x["id"] for x in c.get("/api/proposals").json()["items"]]
     assert c.post("/api/proposals/nope/do").status_code == 404
+
+
+def test_turnaround_proposal_for_characters_without_one(client, monkeypatch, tmp_path):
+    # 設定資料集のキャラクターで三面図をまだ描いていないもの → 三面図の提案。頼んだら並ばなくなる
+    monkeypatch.setattr(main, "PROPOSALS", tmp_path / "p.json")
+    c, _ = client(FakeRunner())
+    items = c.get("/api/proposals").json()["items"]
+    turn = [x for x in items if x["kind"] == "turnaround"]
+    assert turn and turn[0]["request"]["count"] == 1
+    assert items.index(turn[0]) < max(i for i, x in enumerate(items) if x["kind"] == "demi")   # 見本の提案より前
+    job = c.post(f"/api/proposals/{turn[0]['id']}/do").json()
+    assert job["kind"] == "turnaround" and job["free"]["character"] == turn[0]["request"]["character"]
+    wait(c, job["id"])
+    left = [x for x in c.get("/api/proposals").json()["items"] if x["kind"] == "turnaround"]
+    assert turn[0]["request"]["character"] not in [x["request"]["character"] for x in left]
 
 
 def test_guard_hides_exposed_image_and_redraws(tmp_path):
