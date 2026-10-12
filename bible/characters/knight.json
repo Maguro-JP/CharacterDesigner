@@ -50,7 +50,7 @@
   {
    "id": "smile",
    "name": "笑顔",
-   "tags": "squinting happy eyes, raised cheeks, warm smile, closed mouth smile, soft eyebrows, light blush"
+   "tags": "^_^, closed eyes, happy, raised cheeks, warm smile, closed mouth smile, soft eyebrows, light blush"
   },
   {
    "id": "angry",
