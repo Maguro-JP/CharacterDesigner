@@ -13,6 +13,7 @@ from pathlib import Path
 PANEL_KINDS = {
     "prompt": "頼みごと",        # 頼みごと・描く言葉・言葉の模型の入れ替え
     "canvas": "大きく見る",      # 選んだ1枚を大きく
+    "paint": "描く",             # 筆圧・パレット・手ぶれ補正で、選んだ絵を下絵に手で描く
     "gallery": "描いた絵",       # 描いた絵の一覧
     "queue": "仕事",             # 仕事の進み
     "roster": "役割",            # 役割ごとの今の出来事
@@ -31,7 +32,8 @@ DEFAULT = {
             {"type": "split", "direction": "column", "sizes": [0.62, 0.38],
              "children": [{"type": "panel", "panel": "prompt"}, {"type": "panel", "panel": "queue"}]},
             {"type": "split", "direction": "column", "sizes": [0.72, 0.28],
-             "children": [{"type": "panel", "panel": "canvas"}, {"type": "panel", "panel": "gallery"}]},
+             "children": [{"type": "tabs", "children": [{"type": "panel", "panel": "canvas"}, {"type": "panel", "panel": "paint"}]},
+                          {"type": "panel", "panel": "gallery"}]},
             {"type": "tabs", "children": [{"type": "panel", "panel": "roster"}, {"type": "panel", "panel": "proposals"}, {"type": "panel", "panel": "log"},
                                           {"type": "panel", "panel": "memory"}, {"type": "panel", "panel": "demi"}]},
         ],
