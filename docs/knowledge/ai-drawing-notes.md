@@ -99,3 +99,4 @@
 | 手本の絵（IP-Adapter）を外し、強さ 0.85 で4つ描く（ふだん・大笑い・驚き・見守り） | 目が動いた。大笑いは下まぶたが上がって目が細くなり、驚きは目を見開いて白目が見え、見守りはまぶたが少し下がった。手本の開いた目に引っ張られて目が動かなかったと分かった（`docs/progress/2026-10-12-expressions-noref.jpg`） | tools/gen/bible.py expressions --ref-scale |
 | 手本なし・強さ 0.85 で9つ全部を描き、検品担当に見せる | 5つ通り3つ戻った（笑顔・悲しみ・見守り）。眉は全部動いたが、目が表どおりに動いたのは大笑いと決意だけ。悲しみは言葉に sad smile が入っていて口が微笑んだ。目の言葉を先頭に置き（squinting happy eyes、half-closed eyes）、逆の語を抜いて描き直す | bible/characters/knight.json |
 | 戻された3つを言葉だけ直して描き直す（強さ 0.85） | 悲しみ（sad smile を抜く）と見守り（half-closed eyes を先頭へ）は通った。笑顔は目の言葉（squinting happy eyes）を先頭にしても目が動かず、また戻った。強さ 0.92 と closed eyes で試す | bible/characters/knight.json |
+| 笑顔を強さ 0.92、言葉の先頭に ^_^, closed eyes で描き直す | 目は開いたまま（3回目）。顔以外は崩れなかった（qc.py compare のずれ 0、拡大図 35 枚で浮き・切れ無し）。顔の範囲の描き直しでは下絵の開いた目が残る。次は下絵の目を閉じ目の弧に描き替えてから描き直す | tools/gen/bible.py expressions |
