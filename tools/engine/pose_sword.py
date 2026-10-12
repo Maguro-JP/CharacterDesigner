@@ -24,8 +24,9 @@ from pose_prop import empty, look_from  # noqa: E402
 # 人形の座標: 前は -Y、右手は -X、身長はおよそ 1.7
 HILT = Vector((0.0, -0.28, 0.88))      # 柄の中ほど。体の正面、腰の高さ（0.98 では柄頭が胸まで来て、柄が長く見えた）
 GUARD_Z = 0.76                          # 鍔の高さ。ここから下が刃で、切っ先は床（z=0）
-RIGHT_GRIP = HILT + Vector((0, 0, 0.05))   # 右手は柄の上（鍔から遠い側）
-LEFT_GRIP = HILT + Vector((0, 0, -0.05))   # 左手はその下、鍔の近く
+# 両手は鍔のすぐ上に上下に重ねる。手と鍔の間が空くと、絵では柄が長く描かれた
+LEFT_GRIP = Vector((HILT.x, HILT.y, GUARD_Z + 0.05))   # 左手は鍔のすぐ上
+RIGHT_GRIP = Vector((HILT.x, HILT.y, GUARD_Z + 0.13))  # 右手はその上
 CURL = 75
 
 
@@ -47,11 +48,11 @@ def grip(rig, side, at, pole_at, pole_angle=-90):
 
 def sword():
     parts = []
-    # 柄（鍔の上 0.26）
-    bpy.ops.mesh.primitive_cylinder_add(radius=0.022, depth=0.26, location=(HILT.x, HILT.y, GUARD_Z + 0.13))
+    # 柄（鍔の上 0.2。両手の幅だけ）
+    bpy.ops.mesh.primitive_cylinder_add(radius=0.022, depth=0.2, location=(HILT.x, HILT.y, GUARD_Z + 0.1))
     parts.append(bpy.context.object)
     # 柄頭
-    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.035, location=(HILT.x, HILT.y, GUARD_Z + 0.27))
+    bpy.ops.mesh.primitive_uv_sphere_add(radius=0.035, location=(HILT.x, HILT.y, GUARD_Z + 0.21))
     parts.append(bpy.context.object)
     # 鍔: 横に長い板
     bpy.ops.mesh.primitive_cube_add(size=1, location=(HILT.x, HILT.y, GUARD_Z))
