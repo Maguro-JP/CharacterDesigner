@@ -1,18 +1,16 @@
 {
- "_説明": "config/filters.json にこの形で書く。enabled を true にしたものだけが働く。言葉は足したり消したりしてよい",
+ "_説明": "config/filters.json にこの形で書く。enabled を true にしたものだけが働く。words はどの言語で書いてもよく、足したり消したりしてよい。新しいフィルターも名前を付けて足せる",
  "filters": [
   {
    "name": "グロテスク",
    "enabled": true,
-   "ja": [
+   "words": [
     "グロ",
     "流血",
     "内臓",
     "切断",
     "死体",
-    "腐敗"
-   ],
-   "en": [
+    "腐敗",
     "gore",
     "guro",
     "blood",
@@ -28,16 +26,14 @@
   {
    "name": "性的な表現",
    "enabled": false,
-   "ja": [
+   "words": [
     "裸",
     "ヌード",
     "エロ",
     "性的",
     "下着",
     "R18",
-    "R-18"
-   ],
-   "en": [
+    "R-18",
     "nsfw",
     "nude",
     "naked",
@@ -53,12 +49,10 @@
   {
    "name": "暴力",
    "enabled": false,
-   "ja": [
+   "words": [
     "暴力",
     "殴る",
-    "拷問"
-   ],
-   "en": [
+    "拷問",
     "violence",
     "torture",
     "beating"
@@ -68,12 +62,10 @@
   {
    "name": "ホラー",
    "enabled": false,
-   "ja": [
+   "words": [
     "ホラー",
     "恐怖",
-    "怨霊"
-   ],
-   "en": [
+    "怨霊",
     "horror",
     "creepy",
     "scary"

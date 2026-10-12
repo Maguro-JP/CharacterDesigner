@@ -1,7 +1,7 @@
 """利用者のフィルター: 描きたくないものを、利用者が自分で決めて止める。
 
 既定ではどれも切ってある（最初から規制はしない）。使う人が config/filters.json で入れたものだけが働く。
-1つのフィルターは「名前・入れるか・止める言葉（日本語と英語）・打ち消しに足す言葉」。
+1つのフィルターは「名前・入れるか・止める言葉・打ち消しに足す言葉」。言葉はどの言語で書いてもよく、1つの一覧に並べる。
 止める言葉が頼みごとか描く言葉に出たら、描かずに理由を返す。打ち消しの言葉は、入れている間いつも足す。
 
 設定ファイルが無いときは、下の PRESETS（全部切った状態）を使う。書き方の見本は config/filters.example.json。
@@ -18,20 +18,16 @@ CONFIG = ROOT / "config" / "filters.json"
 # 用意しておく型。どれも切ってある。入れるかは利用者が決める
 PRESETS = [
     {"name": "グロテスク", "enabled": False,
-     "ja": ["グロ", "流血", "内臓", "切断", "死体", "腐敗"],
-     "en": ["gore", "guro", "blood", "bloody", "dismemberment", "decapitation", "corpse", "intestines", "severed"],
+     "words": ["グロ", "流血", "内臓", "切断", "死体", "腐敗", "gore", "guro", "blood", "bloody", "dismemberment", "decapitation", "corpse", "intestines", "severed"],
      "negative": "gore, blood, injury, wound"},
     {"name": "性的な表現", "enabled": False,
-     "ja": ["裸", "ヌード", "エロ", "性的", "下着", "R18", "R-18"],
-     "en": ["nsfw", "nude", "naked", "nipples", "explicit", "lingerie", "underwear", "erotic", "hentai"],
+     "words": ["裸", "ヌード", "エロ", "性的", "下着", "R18", "R-18", "nsfw", "nude", "naked", "nipples", "explicit", "lingerie", "underwear", "erotic", "hentai"],
      "negative": "nsfw, nude, explicit"},
     {"name": "暴力", "enabled": False,
-     "ja": ["暴力", "殴る", "拷問"],
-     "en": ["violence", "torture", "beating"],
+     "words": ["暴力", "殴る", "拷問", "violence", "torture", "beating"],
      "negative": "violence"},
     {"name": "ホラー", "enabled": False,
-     "ja": ["ホラー", "恐怖", "怨霊"],
-     "en": ["horror", "creepy", "scary"],
+     "words": ["ホラー", "恐怖", "怨霊", "horror", "creepy", "scary"],
      "negative": "horror"},
 ]
 
@@ -53,13 +49,17 @@ def active(path: Path | None = None) -> list[dict]:
 
 def _hit(f: dict, text: str) -> str | None:
     low = text.lower()
-    words = set(re.findall(r"[a-z0-9\-]+", low))
-    for w in f.get("ja", []):
-        if w and w.lower() in low:
-            return w
-    for w in f.get("en", []):
-        w = str(w).lower()
-        if w and (w in low if " " in w else w in words):
+    tokens = set(re.findall(r"[a-z0-9\-]+", low))
+    # 古い書き方（ja / en に分けた一覧）も読む
+    for w in list(f.get("words", [])) + list(f.get("ja", [])) + list(f.get("en", [])):
+        w = str(w).strip().lower()
+        if not w:
+            continue
+        # 英数字だけの1語は語の単位で比べる（braid の中の bra を拾わない）。それ以外（空白を含む語、英数字以外の文字）は文字列で探す
+        if re.fullmatch(r"[a-z0-9\-]+", w):
+            if w in tokens:
+                return w
+        elif w in low:
             return w
     return None
 
