@@ -78,6 +78,41 @@ class RefIn(BaseModel):
     landing: str = ""
     source: str = ""
 
+class CutIn(BaseModel):
+    """描く板の下絵（か、レイヤー）から一部を切り出す。mode: person（人物）・color（色で選ぶ）・region（部位分けの名前）"""
+    png: str = Field(..., description="切り出す元の絵（data:image/png;base64,...）")
+    mode: str = Field("person", pattern="^(person|color|region)$")
+    colors: str = Field("", max_length=200, description="色で選ぶとき。#rrggbb をカンマで区切る")
+    tol: float = Field(60.0, ge=1, le=255)
+    person_only: bool = Field(True, description="色で選ぶとき、人物の範囲の中だけで選ぶ")
+    region: str = Field("skin", max_length=20)
+
+
+class MaterialIn(BaseModel):
+    """レイヤーに質感を掛ける"""
+    png: str = Field(..., description="質感を掛けるレイヤー（data:image/png;base64,...）")
+    kind: str = Field(..., pattern="^(slime|metal|heavy|gem|inorganic|dirt)$")
+    strength: float = Field(0.6, ge=0.0, le=1.0)
+
+
+def _png_in(data_url: str, path: Path) -> None:
+    import base64
+    head, _, data = data_url.partition(",")
+    if not head.startswith("data:image/png"):
+        raise HTTPException(422, "PNG の data URL を送る")
+    raw = base64.b64decode(data)
+    if len(raw) > 30 * 1024 * 1024:
+        raise HTTPException(413, "大きすぎる（30MB まで）")
+    path.write_bytes(raw)
+
+
+def _png_out(im) -> str:
+    import base64
+    import io
+    buf = io.BytesIO()
+    im.save(buf, "PNG")
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
 class FiltersIn(BaseModel):
     """利用者のフィルター。画面の「フィルター」から保存する"""
     filters: list[dict] = Field(default_factory=list)
@@ -641,6 +676,46 @@ def create_app(runner: Runner | None = None) -> FastAPI:
             src.write_bytes(raw)
             r = inking.ink(str(src), str(out), body.width, body.merge, body.spur)
             return {"png": "data:image/png;base64," + base64.b64encode(out.read_bytes()).decode(), **r}
+
+    @app.post("/api/paint/cut")
+    def paint_cut(body: CutIn):
+        # 一部を切り出して2枚のレイヤーで返す: 切り出した所（layer）と、それを抜いた残り（rest）。
+        # 残りを下に、切り出した所を上に重ねれば元の絵に戻り、切り出した所だけ不透明度や質感を変えられる
+        import materials
+        import tempfile
+        import numpy as np
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "src.png"
+            _png_in(body.png, src)
+            im = Image.open(src).convert("RGBA")
+            try:
+                if body.mode == "color":
+                    if not re.fullmatch(r"(#[0-9a-fA-F]{6})(,\s*#[0-9a-fA-F]{6})*", body.colors.strip()):
+                        raise HTTPException(422, "色は #rrggbb をカンマで区切って渡す")
+                    within = materials.mask_person(str(src)) if body.person_only else None
+                    m = materials.mask_color(im, body.colors, body.tol, None, within)
+                elif body.mode == "region":
+                    m = materials.mask_parts(str(src), body.region)
+                else:
+                    m = materials.mask_parts(str(src), "person")
+            except ValueError as e:
+                raise HTTPException(422, str(e))
+            layer = materials.cutout(im, m)
+            rest = im.copy()
+            a = np.asarray(rest.getchannel("A")).astype(float) * (1 - np.asarray(layer.getchannel("A")).astype(float) / 255)
+            rest.putalpha(Image.fromarray(a.astype("uint8")))
+            return {"layer": _png_out(layer), "rest": _png_out(rest), "pixels": int(m.sum())}
+
+    @app.post("/api/paint/material")
+    def paint_material(body: MaterialIn):
+        import materials
+        import tempfile
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as tmp:
+            src = Path(tmp) / "src.png"
+            _png_in(body.png, src)
+            return {"png": _png_out(materials.apply(Image.open(src), body.kind, body.strength))}
 
     @app.get("/api/refs/search")
     def refs_search(q: str, n: int = 12, commercial: bool = False):
