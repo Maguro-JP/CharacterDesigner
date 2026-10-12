@@ -56,7 +56,8 @@ def test_tools_end_to_end(app_url):
                          "studio_draw", "studio_job", "studio_image", "proposals", "do_proposal",
                          "turnaround", "turnaround_job", "turnaround_image", "ref_search", "ref_save", "ref_list",
                          "guide", "free_describe", "free_draw", "free_image", "ink", "material",
-                         "atmosphere_list", "atmosphere", "filters_get", "filters_set"}
+                         "atmosphere_list", "atmosphere", "filters_get", "filters_set",
+                         "measure", "feedback", "learn"}
         assert "atmosphere" in str(await s.call_tool("guide", {}))
         assert "holy" in str(await s.call_tool("atmosphere_list", {}))
         await s.call_tool("filters_get", {})

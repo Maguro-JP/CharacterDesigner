@@ -102,6 +102,18 @@ python3 tools/compare.py out/cmp.png v3=characters/warrior-v3-hand/sprite.json v
 | `CD_APP_DATA` | 描いた絵の置き場所（既定は `.cache/app/jobs`） | 任意 |
 | `PLAYWRIGHT_MODULE` / `CHROMIUM_PATH` | 下絵を撮るブラウザーを指す（無ければ `start.sh` が取る） | 任意 |
 
+### 作画監督の数字の検品と学習
+
+描いた絵の「当たり前」を数字で測り、基準から外れた所を挙げる（`tools/gen/measure.py`）。
+- 顔の形: 目頭・目尻・目の上下・口の点に頭の型を当てはめ、正面に戻すと歪む量を測る（`tools/gen/faceform.py`）
+- 影の順序: 光に背を向けた面の方が明るい部位を挙げる
+- 髪: 白く飛んだ所と、指定の色から外れた所
+
+基準（`styles/anime-norms.json`）は、答えの分かっている絵（3D の素体）で較正して決めた。描いた絵への判定と指摘を手本に足すと、
+基準を学び直して利用者の基準（`config/norms.user.json`、git に入れない）に書く（`tools/gen/normlearn.py`）。
+利用者の指摘は作画監督の判定の 3 倍の重みで数える。どの数字にも結びつかない指摘は、次に作る検品の候補として残る。
+サーバーは `POST /api/measure`・`POST /api/feedback`・`POST /api/learn`、MCP は `measure`・`feedback`・`learn`。
+
 ### 描く内容の制限とフィルター
 
 このアプリは、描く内容を最初から規制しない。描きたくないものは、使う人が自分のフィルターで止める。
@@ -123,7 +135,7 @@ python3 tools/compare.py out/cmp.png v3=characters/warrior-v3-hand/sprite.json v
 スタジオは `studio_draw`（日本語か描く言葉で頼む）、`studio_job`（役割ごとの出来事と決着）、`studio_image`（絵）、`proposals`・`do_proposal`（待機中の提案と承認）。
 自由に描くは `free_describe`（描く言葉に組む）、`free_draw`（`ref` と空気感 `mood` を指定できる）、`free_image`。
 仕上げは `ink`（線の清書）、`material`（部位や色で切り出して質感: slime、metal、heavy、gem、inorganic、dirt）、`atmosphere_list`・`atmosphere`（空気感: 神々しい光、ほこり、木漏れ日、地下、宇宙、霞）。
-フィルターは `filters_get`・`filters_set`。全体の流れと各道具の引数は `guide` が返すので、Claude は最初にこれを呼ぶ。
+フィルターは `filters_get`・`filters_set`。作画監督の検品と学習は `measure`・`feedback`・`learn`。全体の流れと各道具の引数は `guide` が返すので、Claude は最初にこれを呼ぶ。
 
 - Claude Code: リポジトリの場所で
   `claude mcp add characterdesigner -e PYTHONPATH=.cache/app/lib -- python3 -m app.mcp.server`

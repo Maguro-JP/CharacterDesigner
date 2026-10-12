@@ -76,6 +76,12 @@ PYTHONPATH=.cache/gen/lib python3 tools/gen/measure.py 絵.png                  
 
 ## 育つための決まり
 
+- 判定したら、絵ごとに必ず手本に足す。数字の基準はここから学ぶ（`tools/gen/normlearn.py`）
+  ```bash
+  PYTHONPATH=.cache/gen/lib python3 tools/gen/normlearn.py record 絵.png --verdict pass|reject --by checker --reason "<戻した理由>" [--hair "#rrggbb"]
+  ```
+  返り値の missed（理由に関わる数字が外れを出さなかった）と unmeasured（どの数字にも結びつかない理由）は、報告の最後に書く
+
 - 利用者や後の工程で、自分が通した絵に崩れが見つかったら、それは見落とし。`docs/knowledge/sakkan-cases.md` の「見落とした例」に、
   何の絵で・どこに・何があったか・次にどう見つけるかを足す（検品担当は書けないので、返す報告の最後に「事例集に足すこと」として書く）
 - 戻した絵で、事例集に無い種類の崩れを見つけたら、同じく「事例集に足すこと」に書く
