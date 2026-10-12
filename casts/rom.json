@@ -1,0 +1,23 @@
+{
+ "_doc": "関節の可動域（度）。人形のポーズの検査（tools/engine/rom_check.py）と、絵の検品（.claude/agents/checker.md）で使う。数字は健常な大人の自動運動の目安で、資料により 5〜15 度違う。出典と考え方は docs/knowledge/joints-and-motion.md。tolerance は検査で見逃す余裕（人形の骨と人の関節のずれ、体の柔らかい人の分）",
+ "joints": {
+  "elbow": {"ja": "肘", "kind": "hinge", "flex": [0, 140], "range_seen": "屈曲 140〜150、過伸展 0（女性や柔らかい人で 5〜10）", "tolerance": 10,
+            "bones": {"L": ["upperarm02.L", "lowerarm01.L"], "R": ["upperarm02.R", "lowerarm01.R"]}},
+  "knee": {"ja": "膝", "kind": "hinge", "flex": [0, 150], "range_seen": "屈曲 150、過伸展はほぼ 0（5〜10 で反張膝）", "tolerance": 10,
+           "bones": {"L": ["upperleg02.L", "lowerleg01.L"], "R": ["upperleg02.R", "lowerleg01.R"]}},
+  "wrist": {"ja": "手首", "kind": "hinge", "flex": [-70, 80], "range_seen": "掌屈 60〜80、背屈 60〜70、橈屈 20、尺屈 30", "tolerance": 10,
+            "bones": {"L": ["lowerarm02.L", "wrist.L"], "R": ["lowerarm02.R", "wrist.R"]}},
+  "neck": {"ja": "首（頸椎）", "kind": "ball", "swing": 75, "twist": 80, "range_seen": "前屈 45〜60、後屈 75、側屈 45、回旋 60〜80（左右それぞれ）", "tolerance": 10,
+           "bones": {"C": ["spine01", "head"]}},
+  "trunk": {"ja": "胴（胸腰椎）", "kind": "ball", "swing": 50, "twist": 30, "range_seen": "前屈 45〜50（腰で 80 まで曲がって見える）、後屈 25、側屈 25、回旋 30", "tolerance": 15,
+            "bones": {"C": ["pelvis.L", "spine01"]}},
+  "shoulder": {"ja": "肩", "kind": "ball", "swing": 180, "twist": 90, "range_seen": "屈曲 180、伸展 50〜60、外転 180、内旋 70〜90、外旋 90。90 度より上は肩甲骨と鎖骨も動く", "tolerance": 10,
+               "bones": {"L": ["shoulder01.L", "upperarm01.L"], "R": ["shoulder01.R", "upperarm01.R"]}},
+  "hip": {"ja": "股", "kind": "ball", "swing": 120, "twist": 50, "range_seen": "屈曲 100〜130（膝を曲げると 120 以上）、伸展 30、外転 40〜45、内転 20、内旋 40、外旋 50", "tolerance": 10,
+          "bones": {"L": ["pelvis.L", "upperleg01.L"], "R": ["pelvis.R", "upperleg01.R"]}},
+  "ankle": {"ja": "足首", "kind": "hinge", "flex": [-20, 45], "range_seen": "背屈 20、底屈 40〜50（WikEM の表は逆の向きに読める値で、PMC の表を採った）", "tolerance": 10,
+            "bones": {"L": ["lowerleg02.L", "foot.L"], "R": ["lowerleg02.R", "foot.R"]}},
+  "finger": {"ja": "指（人差し指〜小指）", "kind": "note", "range_seen": "付け根 90（過伸展 20）、中 100、先 80。親指は付け根 50〜60、先 80。どの関節も手のひらの側へだけ曲がる"},
+  "forearm": {"ja": "前腕のひねり", "kind": "note", "range_seen": "回内 80、回外 80。回内では橈骨が尺骨の上を斜めに交差する"}
+ }
+}

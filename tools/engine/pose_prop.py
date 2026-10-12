@@ -154,6 +154,11 @@ def main(argv):
     rig = next(o for o in bpy.data.objects if o.type == "ARMATURE")
     human.lower_arms(rig, 60)
     grip_right_hand(rig)
+    # 関節が可動域を超えていないかを数える（IK で肘が逆に曲がると、下絵の崩れがそのまま絵に残る）
+    import rom_check
+    bpy.context.view_layer.update()
+    bad = rom_check.check_rig(rig)
+    print("可動域:", "外れなし" if not bad else "; ".join(bad))
     parts = wrench(a.length, palm(rig))
 
     scene = bpy.context.scene
