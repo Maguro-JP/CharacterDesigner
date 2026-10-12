@@ -6,6 +6,7 @@
 
   python3 tools/value_mass.py measure SPRITE.json [...]     明・中・暗の3段での塊の数と、3ドット以下の破片の割合
   python3 tools/value_mass.py fix SPRITE.json OUT.json      破片の色を、周りの段の色のうち元の色みに一番近い色へ置き換える
+  python3 tools/value_mass.py texture SPRITE.json OUT.json [--rate 0.3]   塊の内側に、明るさが同じで色みだけ違う点を散らす
 """
 from __future__ import annotations
 
@@ -100,6 +101,56 @@ def fix_grid(grid, palette, intended=()) -> tuple[list[str], int]:
     return ["".join(r) for r in out], changed
 
 
+def _same_luma_variant(rgb, shift):
+    """色相を shift（0〜1）だけ回し、明るさ（luma）を元にそろえた色"""
+    h, sat, v = colorsys.rgb_to_hsv(*(c / 255 for c in rgb))
+    target = _luma(rgb)
+    sat2 = min(1.0, sat * 1.15 + 0.04)
+    best = None
+    for k in range(101):          # 明るさがそろう v を探す
+        v2 = k / 100
+        r, g, b = colorsys.hsv_to_rgb((h + shift) % 1, sat2, v2)
+        d = abs(_luma((r * 255, g * 255, b * 255)) - target)
+        if best is None or d < best[0]:
+            best = (d, (round(r * 255), round(g * 255), round(b * 255)))
+    return best[1]
+
+
+def texture_grid(grid, palette, rate=0.3, intended=()) -> tuple[list[str], dict]:
+    """塊の内側（上下左右が同じ色の画素）に、明るさが同じで色みだけ違う点を、決まった並びで散らす。
+    塊の縁には置かないので形の輪郭は崩れない。明暗の塊も変わらない（同じ明るさの色に替えるため）。
+    灰色（彩度が低い色）は色相を回しても変わらないので、彩度を少し足して温かみと冷たさで振る"""
+    keep = {tuple(p) for p in intended}
+    lv, _, _ = levels(grid, palette)
+    free = [ch for ch in "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789#$%&*+=?@" if ch not in palette and ch != "."]
+    pal = dict(palette)
+    variant = {}
+    h, w = len(grid), len(grid[0])
+    out = [list(r) for r in grid]
+    for y in range(h):
+        for x in range(w):
+            c = grid[y][x]
+            if c == "." or (x, y) in keep:
+                continue
+            # 塊の内側: 人物の輪郭ではなく、上下左右が同じ明るさの段。同じ色に限ると、平らな面の少ない手打ちの絵では置き場が足りなかった
+            if not all(0 <= y + dy < h and 0 <= x + dx < w and lv[y + dy][x + dx] == lv[y][x] for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1))):
+                continue
+            # 選ぶ画素は (x + 2y) を 5 で割った余りが 0 の所。上下左右にも斜めにも隣り合わないので、置いた点は孤立する
+            # （ハッシュで選ぶと斜めに並び、孤立ドットの数が増えなかった）。rate は 0.2 を上限に、間引いて下げる
+            if (x + 2 * y) % 5 or ((x * 7 + y * 13) % 100) >= rate * 500:
+                continue
+            warm = ((x // 5) + y) % 2 == 0          # 暖かい側と冷たい側を交互に置く（1色につき2つの色）
+            key = (c, warm)
+            if key not in variant:
+                if not free:
+                    continue
+                k = free.pop(0)
+                variant[key] = k
+                pal[k] = _same_luma_variant(palette[c], 0.03 if warm else -0.03)
+            out[y][x] = variant[key]
+    return ["".join(r) for r in out], pal
+
+
 def main():
     cmd = sys.argv[1]
     if cmd == "measure":
@@ -120,6 +171,18 @@ def main():
         raw["palette"] = {k: v for k, v in raw["palette"].items() if k in used}
         Path(out).write_text(json.dumps(raw, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
         print(json.dumps({"changed": changed, "before": before, "after": measure_grid(new, palette)}, ensure_ascii=False))
+    elif cmd == "texture":
+        src, out = sys.argv[2], sys.argv[3]
+        rate = float(sys.argv[sys.argv.index("--rate") + 1]) if "--rate" in sys.argv else 0.3
+        data, rows, width, palette = sprite.load(src)
+        grid = [r.ljust(width, ".") for r in rows]
+        new, pal = texture_grid(grid, palette, rate, data.get("intended", []))
+        raw = json.loads(Path(src).read_text(encoding="utf-8"))
+        raw["rows"] = new
+        raw["palette"] = {k: "#%02x%02x%02x" % tuple(v) for k, v in pal.items() if any(k in r for r in new)}
+        Path(out).write_text(json.dumps(raw, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+        print(json.dumps({"before": measure_grid(grid, palette), "after": measure_grid(new, pal),
+                          "colors": len(raw["palette"])}, ensure_ascii=False))
 
 
 if __name__ == "__main__":
