@@ -88,7 +88,9 @@ def eyes(rgb, seg, labels):
     area = face & band
     if area.sum() < 100:
         return {"found": 0, "reason": "目の帯が読めない"}
-    thr = min(0.42, float(np.percentile(lum[area], 12)))
+    # まつ毛と瞳は肌の影より暗い。割合（下から 12%）だけで決めると、横からの光で影の側の肌まで目に入った。
+    # 明るさの絶対値で切ると、逆光で顔全体が暗いときに影の肌まで入る。顔の明るさの中央値に対する割合で切る
+    thr = min(float(np.percentile(lum[area], 8)), 0.45 * float(np.median(lum[area])))
     dark = ndimage.binary_opening(area & (lum < thr), iterations=1)
     lab, n = ndimage.label(dark)
     if n == 0:
@@ -205,7 +207,7 @@ def temperature(rgb, seg, regions):
     return out
 
 
-def hair(rgb, seg, labels):
+def hair(rgb, seg, labels, spec: str = ""):
     from scipy import ndimage
     m = seg == labels["hair"]
     if m.sum() < 300:
@@ -224,11 +226,22 @@ def hair(rgb, seg, labels):
     jxx, jyy, jxy = (ndimage.gaussian_filter(a, 4) for a in (gx * gx, gy * gy, gx * gy))
     coh = np.sqrt((jxx - jyy) ** 2 + 4 * jxy ** 2) / np.maximum(jxx + jyy, 1e-6)
     inner = ndimage.binary_erosion(m, iterations=4)
+    spec_off = None
+    if spec:
+        # 指定の髪の色（例 #1e1a24）と比べる。光が当たれば明るくなるのは当然なので、明るさは 0.45 まで、
+        # 色相は 40° までのずれを許し、それを超えて色のある画素（黒髪が桃色や白に染まるなど）を数える
+        sr, sg, sb = (int(spec[i:i + 2], 16) / 255 for i in (1, 3, 5))
+        hs, ss, vs = (x.item() for x in _hsv(np.array([[sr, sg, sb]], dtype=np.float32)))
+        far_v = v > vs + 0.45
+        far_h = (s > 0.25) & (ss > 0.15) & (np.abs((h - hs + 180) % 360 - 180) > 40)
+        far_h_dark = (s > 0.25) & (ss <= 0.15)   # 色の無い髪（黒・白・灰）に色がついた
+        spec_off = float((m & (far_v | far_h | far_h_dark)).sum() / m.sum())
     return {"found": True, "blown": round(blown, 4), "main_hue": round(main, 1), "off_hue": round(off, 4), "glow": round(glow, 4), "base_v": round(base_v, 3),
+            "spec_off": None if spec_off is None else round(spec_off, 4),
             "coherence": round(float(np.median(coh[inner])) if inner.any() else 0.0, 3)}
 
 
-def measure(src) -> dict:
+def measure(src, hair_color: str = "") -> dict:
     from PIL import Image
     import edit
     rgb = np.asarray(Image.open(src).convert("RGB"), dtype=np.float32) / 255.0
@@ -236,8 +249,11 @@ def measure(src) -> dict:
     L = edit.LABELS
     regions = {"face": [L["face"]], "hair": [L["hair"]], "clothes": [L["upper"], L["dress"], L["skirt"], L["pants"]],
                "arms": [L["left_arm"], L["right_arm"]], "legs": [L["left_leg"], L["right_leg"]]}
-    return {"size": list(rgb.shape[1::-1]), "eyes": eyes(rgb, seg, L), "light": light3d(src, rgb, seg, regions),
-            "temperature": temperature(rgb, seg, regions), "hair": hair(rgb, seg, L)}
+    import faceform
+    lm = faceform.landmarks(rgb, seg, L)
+    face = faceform.fit(lm["points"], json.loads(faceform.TEMPLATE.read_text())["points"]) if "points" in lm and faceform.TEMPLATE.exists() else lm
+    return {"size": list(rgb.shape[1::-1]), "eyes": eyes(rgb, seg, L), "face": face, "light": light3d(src, rgb, seg, regions),
+            "temperature": temperature(rgb, seg, regions), "hair": hair(rgb, seg, L, hair_color)}
 
 
 def _get(d, path):
@@ -272,9 +288,10 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("src", nargs="+")
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--hair", default="", help="指定の髪の色（#rrggbb）。渡すと、髪がその色から外れた割合を判定する")
     a = ap.parse_args()
     for src in a.src:
-        m = measure(src)
+        m = measure(src, a.hair)
         bad = judge(m) if NORMS.exists() else []
         if a.json:
             print(json.dumps({"src": src, "measure": m, "outliers": bad}, ensure_ascii=False))
