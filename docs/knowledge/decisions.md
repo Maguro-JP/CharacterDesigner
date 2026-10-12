@@ -81,3 +81,4 @@
 | 2026-10-12 | 配り方と費用は出来に応じて段で決める（手元 → 問題なければ無料で配る → 金を取れる水準なら有料 → 売れるならパッケージ化） | 出来が分からないうちに配り方を作り込まない | `docs/release-plan.md` の「出来に応じた段」 |
 | 2026-10-12 | 描く場所を tools/gen/device.py で1か所に決める（CUDA → MPS → CPU、CD_DEVICE で手で決める）。GPU は float16、メモリ 12GB 未満の CUDA は使う部品だけを載せる。乱数の種は CPU で作る。部品を入れる台本は GPU に合わせて torch を選ぶ | CPU だけでは 1 枚 約 5 分で、外部の生成（数十秒）に届かない。どの機械でも同じ種で同じ絵にする | `tools/gen/device.py`、`tools/gen/setup.sh` |
 | 2026-10-12 | 高解像度の作り方は今の手順（描いて 1.5 倍に描き直す）のままにする。次は持ち方とポーズを指定どおりにする仕組みに進む | 最初から大きく描く2通り（HiDiffusion、高い解像度で学習した模型）は、作画監督の判定で今の手順を超えなかった。一番大きい崩れは解像度ではなく持ち方とポーズ | `tools/gen/free_text.py` の hires |
+| 2026-10-13 | 持ち方とポーズは、Blender の人形で決めた姿勢を奥行きの下絵にし、ControlNet（xinsir controlnet-union-sdxl-1.0 promax、Apache-2.0）で形だけ縛って描く。既定は強さ 0.5、縛るのは描く途中の 4 割まで。人形の柄は鍔の上 0.2、両手は鍔のすぐ上 | 言葉だけでは「両手で柄・切っ先を床」が 6 枚とも守られなかった。下絵で 2 枚とも守られた。最後まで縛ると人形の裸の輪郭が出た | `tools/gen/free_text.py` の control、`tools/gen/people.py` の control_pipe、`tools/engine/pose_sword.py` |

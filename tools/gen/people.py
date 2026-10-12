@@ -66,6 +66,28 @@ def pipe():
     return _PIPE
 
 
+_CONTROL = None
+CONTROL_MODEL = "xinsir/controlnet-union-sdxl-1.0"   # Apache-2.0。奥行き・線・関節を1つの模型で扱う（promax 版、約 2.5GB）
+
+
+def control_pipe():
+    """姿勢の下絵（奥行き）で形を縛って描く部品。描く本体と文章の読み手は pipe() と同じものを共有する"""
+    global _CONTROL
+    if _CONTROL is None:
+        import torch
+        from diffusers import ControlNetUnionModel, StableDiffusionXLControlNetUnionPipeline
+        import device
+        cn = ControlNetUnionModel.from_pretrained(CONTROL_MODEL, filename="diffusion_pytorch_model_promax.safetensors",
+                                                  config_file_name="config_promax.json", torch_dtype=device.dtype(torch))
+        device.module(cn, torch)
+        base = pipe()
+        _CONTROL = StableDiffusionXLControlNetUnionPipeline(**{k: v for k, v in base.components.items() if k in (
+            "vae", "text_encoder", "text_encoder_2", "tokenizer", "tokenizer_2", "unet", "scheduler",
+            "feature_extractor", "image_encoder")}, controlnet=cn)
+        _CONTROL.vae.enable_tiling()
+    return _CONTROL
+
+
 def prompt_of(gender, age, tags, hair, view, body=BODY):
     who = AGE_GENDER.get((age, gender), "")
     parts = [GENDER[gender], "solo", who, AGE[age], tags, hair, body, VIEWS[view], QUALITY]

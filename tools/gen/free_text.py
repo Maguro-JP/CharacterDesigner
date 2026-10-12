@@ -199,13 +199,17 @@ def full_prompt(prompt: str, negative: str = "") -> tuple[str, str]:
 def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, width: int = 832, height: int = 1216,
          steps: int = 24, on_image=None, lora: str = "", pose: str = "", pose_strength: float = 0.93,
          ref: str = "", ref_scale: float = 0.5, hires: float = 1.0, long: int = 0, face: bool = False,
-         light: str = "", hair_color: str = "", hair_inner: str = "", light_strength: float = 0.78) -> list[str]:
+         light: str = "", hair_color: str = "", hair_inner: str = "", light_strength: float = 0.78,
+         control: str = "", control_scale: float = 0.5, control_end: float = 0.4) -> list[str]:
     """Animagine で count 枚描き、out/try-<k>.png に置く。seed は 1 枚ごとに 1 ずつ進める（同じ設定で描き直せる）。
     ref は参考画像のファイル（tools/gen/refsearch.py で保存したもの）。画風と色を読ませる（IP-Adapter、強さ ref_scale）。
     姿勢の下絵（pose）と一緒には使えない（下絵から描き直す経路は手本を読まない）。
     hires が 1 より大きければ、描いた絵をその倍率に引き伸ばして弱く描き直す（tools/gen/hires.py。1.5 倍で1枚 約6分増える）。
     light（光の設計の名前。tools/gen/lightplan.py の PLANS）を渡すと、その光を当てた 3D の素体を撮って下絵にし、
     そこから描く（強さ light_strength）。立体に沿った影と縁の光が下絵から来る。hair_color と hair_inner は素体の髪と内側の色。
+    control（姿勢の下絵。奥行きの絵、近いほど白）を渡すと、形だけを ControlNet で縛って描く。持ち方とポーズを指定どおりにする
+    （言葉だけでは「両手で柄・切っ先を床」が描き方を変えた6枚とも守られなかった）。縛るのは描く途中まで（control_end）。
+    最後まで縛ると人形の裸の輪郭がそのまま出た。強さ 0.5・前半 4 割が一番よかった（docs/knowledge/ai-drawing-notes.md）。
     face なら、顔と髪の周りを切り出して大きく描き直す（tools/gen/detail.py。下絵と同じ言葉を渡す。約3分増える）。
     順番は 描く → hires → 顔 → 拡大。拡大は最後の仕上げで、形の崩れは直さない。
     long が 0 より大きければ、最後に長い辺がその画素数になるまで AI で拡大する（tools/gen/upscale.py。4096 で1枚 約5分増える）"""
@@ -243,6 +247,8 @@ def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, w
         under = Image.open(out / "light-underlay.png").convert("RGB")
         pose_strength = light_strength
         draw_pipe = demi.img2img()
+    elif control:
+        draw_pipe = people.control_pipe()
     else:
         draw_pipe = pipe
     ref_kw = {}
@@ -256,6 +262,9 @@ def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, w
         from PIL import Image
         pipe.set_ip_adapter_scale(0.0)
         ref_kw["ip_adapter_image"] = Image.new("RGB", (224, 224), "white")
+    if control and ref_kw:
+        # 描く本体を共有しているので、手本を読む部品が載っていれば下絵の経路にも同じ部品を渡す（無いと止まる）
+        draw_pipe.register_modules(image_encoder=pipe.image_encoder, feature_extractor=pipe.feature_extractor)
     try:
         pe, ne, pp, np_ = design.encode_xl(draw_pipe, pos, neg)
         names = []
@@ -264,6 +273,11 @@ def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, w
                           num_inference_steps=steps, guidance_scale=6.0, generator=torch.Generator().manual_seed(seed + k))
             if under is not None:
                 im = draw_pipe(image=under, strength=pose_strength, **common).images[0]
+            elif control:
+                from PIL import Image
+                cimg = Image.open(control).convert("RGB").resize((width, height))
+                im = draw_pipe(control_image=[cimg], control_mode=[1], controlnet_conditioning_scale=control_scale,
+                               control_guidance_end=control_end, width=width, height=height, **common, **ref_kw).images[0]
             else:
                 im = draw_pipe(width=width, height=height, **common, **ref_kw).images[0]
             name = f"try-{k}.png"
