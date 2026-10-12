@@ -143,6 +143,8 @@ export const api = {
   bible: () => call<Bible>("/api/bible"),
   bibleScene: (character: string, jobId: string, file: string, name: string) =>
     call<{ saved: string }>(`/api/bible/${character}/scene`, { method: "POST", body: JSON.stringify({ job_id: jobId, file, name }) }),
+  bibleTurnaround: (character: string, count: number, seed: number) =>
+    call<Job>(`/api/bible/${character}/turnaround`, { method: "POST", body: JSON.stringify({ count, seed }) }),
   studioSubmit: (body: StudioIn) => call<Job>("/api/studio/jobs", { method: "POST", body: JSON.stringify(body) }),
   layout: () => call<Layout>("/api/layout"),
   saveLayout: (l: Layout) => call<Layout>("/api/layout", { method: "PUT", body: JSON.stringify(l) }),
