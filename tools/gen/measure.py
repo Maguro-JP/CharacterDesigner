@@ -220,6 +220,49 @@ def light3d(src, rgb, seg, regions):
             "inverted_regions": inverted}
 
 
+def scene_light(rgb, seg, labels=None):
+    """背景の光と人物の照らされ方を比べる数字。
+    bg_dx: 背景の最も明るい 3% の重心が、人物の中心から横にどれだけずれているか（人物の幅で割る。0 付近なら真後ろ）
+    interior: 人物の内側の明るさの中央値 ÷ 背景の明るい所（97 パーセンタイル）
+    rim: 人物の輪郭の内側の細い帯の明るい側 ÷ 内側の明るさ。逆光なら縁が明るく 1 を大きく超える"""
+    from scipy import ndimage
+    lum = rgb[..., :3].mean(-1)
+    fig = seg != 0
+    if fig.sum() < 1000 or (~fig).sum() < 1000:
+        return {"found": False}
+    ys, xs = np.nonzero(fig)
+    fx0, fx1 = xs.min(), xs.max()
+    fw = fx1 - fx0 + 1
+    bg = ~ndimage.binary_dilation(fig, iterations=6)
+    # 光源（窓・光の筋）は人物の後ろに隠れて見えている所が小さいことがある。上位 3% では窓を取り逃したので、
+    # 位置は上位 3% の重心、明るさは上位 0.5% で取る
+    top = bg & (lum >= float(np.percentile(lum[bg], 97)))
+    hi = float(np.percentile(lum[bg], 99.5))
+    by, bx = np.nonzero(top)
+    # 縁の光は細い。帯を太く取ると中央値に埋もれたので、幅の 1.5% の帯の明るい側（90 パーセンタイル）で測る
+    band = max(2, int(fw * 0.015))
+    inner = ndimage.binary_erosion(fig, iterations=band)
+    edge = fig & ~inner
+    inside = float(np.median(lum[inner])) if inner.any() else float(np.median(lum[fig]))
+    # 顔の明るさ ÷ 人物の明るい所（95 パーセンタイル）。逆光なら顔は影に入り低くなる。人物の内側の平均だけでは、
+    # 金属の鎧の照り返しや真っ白な窓に紛れて、正面から照らされた顔を見逃した
+    face_lit = None
+    if labels is not None:
+        fm = face_mask(seg, labels)
+        if fm.sum() > 100:
+            face_lit = round(float(np.median(lum[fm])) / max(float(np.percentile(lum[fig], 95)), 1e-6), 3)
+    # 逆光の場面なのに顔が正面から照らされている: 背景にはっきりした光源があり（明るい所が背景の中央値の 1.5 倍超）、
+    # それが人物の後ろ（横のずれが人物の幅の半分以内）にあり、顔が人物の明るい所の 0.88 倍を超えて明るい。
+    # 較正: 正面から照らした素体 0.97〜0.98、逆光の素体 0.52〜0.61、検品で戻した外部の生成と手元の騎士 0.967・0.979
+    contrast = hi / max(float(np.median(lum[bg])), 1e-6)
+    dx = float((bx.mean() - (fx0 + fx1) / 2) / fw)
+    backlit_front = int(face_lit is not None and contrast > 1.5 and abs(dx) <= 0.5 and face_lit > 0.88)
+    return {"found": True, "face_lit": face_lit, "bg_contrast": round(contrast, 2), "backlit_front": backlit_front, "bg_dx": round(float((bx.mean() - (fx0 + fx1) / 2) / fw), 3),
+            "bg_dy": round(float((by.mean() - ys.min()) / (ys.max() - ys.min() + 1)), 3),
+            "bg_bright": round(hi, 3), "interior": round(inside / max(hi, 1e-6), 3),
+            "rim": round(float(np.percentile(lum[edge], 90)) / max(inside, 1e-6), 3)}
+
+
 def temperature(rgb, seg, regions):
     """部位ごとに、明るい半分と暗い半分の色相と彩度の差。暖かい光なら暗い所は青寄り（負）になるのが自然"""
     h, s, v = _hsv(rgb[..., :3])
@@ -282,7 +325,7 @@ def measure(src, hair_color: str = "") -> dict:
     lm = faceform.landmarks(rgb, seg, L)
     face = faceform.fit(lm["points"], json.loads(faceform.TEMPLATE.read_text())["points"]) if "points" in lm and faceform.TEMPLATE.exists() else lm
     return {"size": list(rgb.shape[1::-1]), "eyes": eyes(rgb, seg, L), "face": face, "light": light3d(src, rgb, seg, regions),
-            "temperature": temperature(rgb, seg, regions), "hair": hair(rgb, seg, L, hair_color)}
+            "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color)}
 
 
 def _get(d, path):
