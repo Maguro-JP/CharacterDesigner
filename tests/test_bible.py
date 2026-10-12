@@ -25,7 +25,7 @@ class Bible(unittest.TestCase):
 
     def test_turnaround_plan_uses_colors_and_no_items(self):
         c = bible.load("characters", "k")
-        c["turnaround"] = {"cape": "110,25,30"}
+        c["turnaround"] = {"cape": "110,25,30", "words": "cape hanging behind back"}
         bible.save("characters", c)
         plan = bible.turnaround_plan("k", "/tmp/out", seed=5)
         cmd = plan["base_cmd"]
@@ -40,6 +40,7 @@ class Bible(unittest.TestCase):
             self.assertEqual(kw["seed"], 5)
         self.assertGreater(plan["views"]["front"]["strength"], plan["views"]["side"]["strength"])
         self.assertIn("from behind", plan["views"]["back"]["pose"])
+        self.assertIn("cape hanging behind back", plan["views"]["front"]["pose"])   # 下絵で隠れる物は言葉で補う
         pos, _ = bible.prompt("k", pose=plan["views"]["back"]["pose"], items=[])
         self.assertNotIn("holding lantern", pos)
 

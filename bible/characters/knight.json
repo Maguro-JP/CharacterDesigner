@@ -3,7 +3,7 @@
  "name": "灯りの騎士",
  "look": "1girl, solo, brown hair, medium hair, brown eyes",
  "outfit": "silver plate armor, breastplate, pauldrons, gauntlets, red scarf, dark red cape, long black skirt to the knees, black tights, armored boots up to the knees",
- "negative": "bare thighs, bare legs, slit skirt, short skirt, white tabard, white loincloth, white apron, thighs, long scarf ends, beige cloth",
+ "negative": "bare thighs, bare legs, slit skirt, short skirt, white tabard, white loincloth, white apron, thighs, long scarf ends, beige cloth, flowing scarf, floating cloth",
  "items": [
   {
    "id": "lantern",
@@ -34,7 +34,8 @@
   "top": "175,175,185",
   "bottom": "35,30,35",
   "cape": "110,25,30",
-  "boots": "120,120,130"
+  "boots": "120,120,130",
+  "words": "short red scarf wrapped around neck, dark red cape hanging behind back"
  },
  "eyes": {
   "tags": "tareme, large round brown eyes, reddish brown iris, gradient eyes, two highlights upper left, medium eyelashes, soft thin eyebrows",

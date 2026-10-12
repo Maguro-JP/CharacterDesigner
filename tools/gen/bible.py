@@ -269,8 +269,11 @@ def turnaround_plan(ident: str, outdir: str, seed: int = 0) -> dict:
     views = {}
     for v, (words, strength) in VIEWS.items():
         # 三面図では持ち物を持たせない（人形の手は空で、持たせると手と持ち物が崩れた）
+        # 下絵で正面から隠れる物（背中のマント）は言葉で補う。補わないと、正面と横で襟巻きの端がマントの代わりに垂れた
+        extra = colors.get("words", "")
         views[v] = dict(base=f"{base}-{v}.png", strength=strength, seed=seed, items=[],
-                        pose=f"standing straight, arms at sides, open empty hands, {words}, character turnaround")
+                        pose=", ".join(x for x in ("standing straight, arms at sides, open empty hands, hands visible",
+                                                   extra, words, "character turnaround") if x))
     return {"base_cmd": cmd, "views": views}
 
 
