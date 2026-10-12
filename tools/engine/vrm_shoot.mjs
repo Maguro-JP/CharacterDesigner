@@ -16,7 +16,7 @@ await p.waitForFunction(() => window.ready === true, null, { timeout: 300000 });
 await p.evaluate(a => {
   tool.barefoot(a.barefoot !== false); tool.body(a.body || 'ideal');
   if (a.parts) tool.parts(a.parts); else tool.kind(a.kind || 'none');
-  tool.hair(a.hair !== 'hide'); if (a.hairColor) tool.hairColor(a.hairColor); tool.pose(a.pose || 'stand');
+  tool.hair(a.hair !== 'hide'); if (a.hairColor) tool.hairColor(a.hairColor, a.hairInner); if (a.light) tool.light(a.light); tool.pose(a.pose || 'stand');
 }, a);
 const stage = p.locator('#stage');
 for (const [i, deg] of (a.views || [0, 180]).entries()) {

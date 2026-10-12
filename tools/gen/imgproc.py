@@ -225,7 +225,8 @@ def height_field(src: str, alpha: np.ndarray, inflate: float = 0.6) -> np.ndarra
     from scipy import ndimage
     from transformers import pipeline
     im = Image.open(src).convert("RGB")
-    est = pipeline("depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf", device="cpu")(im)["predicted_depth"]
+    import device
+    est = pipeline("depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf", device=device.name())(im)["predicted_depth"]
     d = est.squeeze().numpy() if hasattr(est, "numpy") else np.asarray(est)
     d = np.asarray(Image.fromarray(d.astype("float32")).resize(im.size, Image.BILINEAR))
     inside = alpha > 0.5

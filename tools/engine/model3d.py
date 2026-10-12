@@ -25,7 +25,7 @@ DATA = human.MPFB_DATA
 
 
 # アニメ寄りの顔: 目を大きく、鼻・口・あごを小さく。MakeHuman の顔の形の差分（target）の重ね合わせ。
-# 写実の顔は「気持ち悪い」と言われた。顔の形は道具の数字で寄せ、塗り（陰2段と輪郭線）は表示の側で行う
+# 写実の顔はアニメ調に寄せる。顔の形は道具の数字で寄せ、塗り（陰2段と輪郭線）は表示の側で行う
 FACES = {
     "anime": {"eyes/r-eye-scale-incr": 1.0, "eyes/l-eye-scale-incr": 1.0,
               "eyes/r-eye-height1-incr": 1.0, "eyes/l-eye-height1-incr": 1.0,

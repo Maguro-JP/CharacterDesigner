@@ -113,6 +113,20 @@ def _png_out(im) -> str:
     im.save(buf, "PNG")
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
+class FeedbackIn(BaseModel):
+    """描いた絵への判定と指摘。作画監督の基準が学ぶ手本になる（tools/gen/normlearn.py）"""
+    png: str = Field(..., description="判定した絵（data:image/png;base64,...）")
+    verdict: str = Field(..., pattern="^(pass|reject)$")
+    by: str = Field("user", pattern="^(user|checker)$")
+    reason: str = Field("", max_length=500)
+    hair: str = Field("", pattern="^(#[0-9a-fA-F]{6}(,#[0-9a-fA-F]{6}){0,3})?$")
+
+
+class MeasureIn(BaseModel):
+    png: str = Field(..., description="測る絵（data:image/png;base64,...）")
+    hair: str = Field("", pattern="^(#[0-9a-fA-F]{6}(,#[0-9a-fA-F]{6}){0,3})?$")
+
+
 class AtmosphereIn(BaseModel):
     """絵全体に空気感（光の筋・霞・粒など）を掛ける。決まりは docs/knowledge/atmosphere.md"""
     png: str = Field(..., description="掛ける絵（data:image/png;base64,...）")
@@ -260,7 +274,8 @@ class Runner:
     def free(self, spec: dict, outdir: Path, on_image) -> list:
         return free_text.draw(spec["prompt"], spec.get("negative", ""), outdir, spec["seed"], spec["count"],
                               spec["width"], spec["height"], on_image=on_image,
-                              ref=_ref_path(spec.get("ref", "")), ref_scale=spec.get("ref_scale", 0.5))
+                              ref=_ref_path(spec.get("ref", "")), ref_scale=spec.get("ref_scale", 0.5),
+                              hires=spec.get("hires", 1.0), long=spec.get("long", 0))
 
 
 @dataclass
@@ -468,6 +483,10 @@ class FreeJobIn(BaseModel):
     size: str = Field("portrait", pattern="^(portrait|landscape|square)$")
     ref: str = Field("", max_length=64)      # 参考画像（/api/refs で保存した id）。画風と色を読ませる
     ref_scale: float = Field(0.5, ge=0.0, le=1.0)
+    # 描いたあとに引き伸ばして描き直す倍率（1 で切る）。既定 1.5 は 1248x1824。線と細部が見えるようにするため
+    hires: float = Field(1.5, ge=1.0, le=2.0)
+    # 最後に AI で拡大する長い辺の画素数（0 で切る）。既定は 4K（4096）
+    long: int = Field(4096, ge=0, le=8192)
 
 
 SIZES = {"portrait": (832, 1216), "landscape": (1216, 832), "square": (1024, 1024)}
@@ -737,6 +756,41 @@ def create_app(runner: Runner | None = None) -> FastAPI:
             return {"png": _png_out(atmosphere.apply(Image.open(src), body.mood, body.strength, light)),
                     "prompt": atmosphere.PROMPT[body.mood]}
 
+    @app.post("/api/measure")
+    def measure_png(body: MeasureIn):
+        # 作画監督の数字の検品。絵の当たり前（顔の形、影の順序、髪の色）を測り、基準から外れた所を返す
+        import hashlib
+        import measure
+        d = ROOT / ".cache" / "app" / "learn" / "images"
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / (hashlib.sha1(body.png.encode()).hexdigest()[:16] + ".png")
+        if not path.exists():
+            _png_in(body.png, path)
+        m = measure.measure(str(path), body.hair)
+        return {"measure": m, "outliers": measure.judge(m)}
+
+    @app.post("/api/feedback")
+    def feedback(body: FeedbackIn):
+        # 判定と指摘を学習の手本に足す。絵は .cache/app/learn/images に置く（利用者のデータなのでリポジトリに入れない）
+        import hashlib
+        import normlearn
+        d = ROOT / ".cache" / "app" / "learn" / "images"
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / (hashlib.sha1(body.png.encode()).hexdigest()[:16] + ".png")
+        if not path.exists():
+            _png_in(body.png, path)
+        return normlearn.record(str(path), body.verdict, body.by, body.reason, body.hair)
+
+    @app.post("/api/learn")
+    def learn_norms(dry: bool = False):
+        import normlearn
+        return normlearn.learn(dry)
+
+    @app.get("/api/learn")
+    def learn_status():
+        import normlearn
+        return normlearn.status()
+
     @app.get("/api/atmosphere")
     def atmosphere_list():
         # 空気感ごとの、描く言葉に足す言葉（生成のときに使う）
@@ -893,7 +947,7 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         if body.ref and _ref_path(body.ref) == "":
             raise HTTPException(422, "その参考画像は無い（/api/refs で保存したものを選ぶ）")
         spec = {"prompt": body.prompt, "negative": body.negative, "ja": body.ja, "seed": body.seed, "count": body.count,
-                "width": w, "height": h, "ref": body.ref, "ref_scale": body.ref_scale}
+                "width": w, "height": h, "ref": body.ref, "ref_scale": body.ref_scale, "hires": body.hires, "long": body.long}
         title = (body.ja or body.prompt)[:20]
         return jobs.submit(title, {}, 0.0, body.count, kind="free", free=spec).public()
 

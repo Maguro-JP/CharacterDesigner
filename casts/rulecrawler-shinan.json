@@ -1,6 +1,6 @@
 {
  "title": "迷宮指南",
- "source": "Maguro-JP/RuleCrawler src/shinan/ui/stage/hero.ts、actors.ts、enemySprites.ts、docs/shinan/design.md",
+ "source": "RuleCrawler src/shinan/ui/stage/hero.ts、actors.ts、enemySprites.ts、docs/shinan/design.md",
  "common": "japanese folklore mystery dungeon roguelike, wafu, soft rounded cute deformed style, 3.5 heads tall, anime style",
  "n": 2,
  "characters": [
