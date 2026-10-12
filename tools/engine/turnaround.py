@@ -114,3 +114,7 @@ def main(argv):
 
 if __name__ == "__main__":
     main(sys.argv[1:])
+    # 描き終えた後の後片付けで bpy が落ちる（Segmentation fault）。書き出しは済んでいるので、ここで抜ける
+    # （落ちたまま返すと、呼んだ側が失敗と取って止まった）
+    sys.stdout.flush()
+    os._exit(0)

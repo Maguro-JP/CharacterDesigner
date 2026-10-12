@@ -8,6 +8,9 @@
   python3 tools/gen/imgproc.py roto     IN.gif|DIR OUT_DIR    ロトスコーピング（コマごとに人物を抜き、透明 PNG と輪郭の動きを書く）
   python3 tools/gen/imgproc.py shade    IN OUT.png [--style cel2|cel3|soft|rim|back] [--light x,y,z]   影の付け方（立体を計算して光を当てる）
   python3 tools/gen/imgproc.py aitells  IN                    AI っぽさを数える（つや、色数、色むら、線のにじみ、線の均一さ、奥行きの無さ）
+  python3 tools/gen/imgproc.py recolor IN OUT.png --from #969696 --to #c02020 [--tol 40]   色の置き換え（影の明るさは残す）
+  python3 tools/gen/imgproc.py grade   IN OUT.png [--brightness 1.1] [--contrast 1] [--saturation 1] [--warmth 0.2]   色調補正
+  python3 tools/gen/imgproc.py match   IN REF OUT.png [--amount 1]   色合わせ（REF の色の平均と幅に寄せる）
   python3 tools/gen/imgproc.py deai     IN OUT.png [--steps 10]   （使わない: 絵を崩すだけだった。docs/knowledge/ai-look.md）
 
 どれも結果を画像で書き出し、数字（残した画素の割合など）を標準出力に出す。描いた絵の上でも写真の上でも動く。
@@ -616,6 +619,81 @@ def face_fix(src: str, out: str, prompt: str = "1girl, detailed face, detailed e
     return {"fixed": True, "box": [int(v) for v in box]}
 
 
+# ---- 色 ----
+
+def _hex(color: str) -> np.ndarray:
+    c = color.lstrip("#")
+    return np.array([int(c[i:i + 2], 16) for i in (0, 2, 4)], float)
+
+
+def _ycc(rgb: np.ndarray) -> np.ndarray:
+    return np.asarray(Image.fromarray(np.clip(rgb, 0, 255).astype("uint8")).convert("YCbCr")).astype(float)
+
+
+def recolor(src: str, out: str, from_color: str, to_color: str, tol: float = 40.0, soft: float = 15.0, box=None) -> dict:
+    """from_color に近い所の色を to_color に置き換える。明るさの比は残す（布の明るい面と影の面の差を消さない）。
+    近さは色み（Cb・Cr）で測り、明るさは tol の2倍の幅まで許す。明るさまで同じ幅で測ると、灰色の布の影の面が外れた。
+    白地と灰色は色みが同じなので、明るさの幅で白地を外す。色みの幅は tol の 0.4 倍にする（肌は灰色から色みで 31 しか離れず、
+    tol のままだと顔まで赤くなった）。
+    box（左,上,右,下）を渡すとその中だけを変える。同じ灰色の鎧と襟巻きのように、色だけでは分けられない物があるため"""
+    im = Image.open(src).convert("RGB")
+    rgb = np.asarray(im).astype(float)
+    ycc = _ycc(rgb)
+    f, t = _ycc(_hex(from_color)[None, None]), _ycc(_hex(to_color)[None, None])
+    hue = np.hypot(ycc[..., 1] - f[..., 1], ycc[..., 2] - f[..., 2])
+    light = np.abs(ycc[..., 0] - f[..., 0])
+    near = 0.4 * tol
+    w = np.clip((near + soft / 2 - hue) / (soft / 2), 0, 1) * np.clip((2 * tol + soft - light) / soft, 0, 1)
+    # 白地は変えない。明るい灰色（203）を置き換えると、白地（255）も明るさの幅に入り、枠の形に桃色が付いた
+    if f[0, 0, 0] < 240:
+        w = w * (ycc[..., 0] < 245)
+    if box is not None:
+        inside = np.zeros(w.shape)
+        x0, y0, x1, y1 = box
+        inside[max(y0, 0):y1, max(x0, 0):x1] = 1
+        w = w * inside
+    new = ycc.copy()
+    new[..., 0] = ycc[..., 0] * (t[..., 0] / max(f[0, 0, 0], 1.0))
+    new[..., 1:] = t[..., 1:]
+    res = np.asarray(Image.fromarray(np.clip(new, 0, 255).astype("uint8"), "YCbCr").convert("RGB")).astype(float)
+    mixed = rgb * (1 - w[..., None]) + res * w[..., None]
+    Image.fromarray(np.clip(np.rint(mixed), 0, 255).astype("uint8")).save(out)
+    return {"out": out, "changed": round(float((w > 0.5).mean()), 4)}
+
+
+def grade(src: str, out: str, brightness: float = 1.0, contrast: float = 1.0, saturation: float = 1.0, warmth: float = 0.0) -> dict:
+    """色調補正: 明るさ・コントラスト・彩度（1 で元のまま）と色温度（正で暖かく、負で冷たく）"""
+    from PIL import ImageEnhance
+    im = Image.open(src).convert("RGB")
+    for enh, v in ((ImageEnhance.Brightness, brightness), (ImageEnhance.Contrast, contrast), (ImageEnhance.Color, saturation)):
+        if v != 1.0:
+            im = enh(im).enhance(v)
+    if warmth:
+        a = np.asarray(im).astype(float)
+        a[..., 0] += 64 * warmth
+        a[..., 2] -= 64 * warmth
+        im = Image.fromarray(np.clip(a, 0, 255).astype("uint8"))
+    im.save(out)
+    return {"out": out, "mean": [round(float(v), 1) for v in np.asarray(im).reshape(-1, 3).mean(0)]}
+
+
+def match(src: str, ref: str, out: str, amount: float = 1.0) -> dict:
+    """色合わせ: src の色の平均と幅を、ref の色の平均と幅へ amount だけ寄せる（RGB の各成分ごと）。
+    場面ごとの絵の色を、決めた1枚（設定画など）にそろえるのに使う。
+    PIL の Lab 変換を通すと、半分だけ寄せた色が元と手本の間に来なかったので、RGB で合わせる"""
+    im = Image.open(src).convert("RGB")
+    a = np.asarray(im).astype(float)
+    r = np.asarray(Image.open(ref).convert("RGB")).astype(float)
+    ma, sa = a.reshape(-1, 3).mean(0), a.reshape(-1, 3).std(0) + 1e-3
+    mr, sr = r.reshape(-1, 3).mean(0), r.reshape(-1, 3).std(0) + 1e-3
+    tm, ts = ma + (mr - ma) * amount, sa + (sr - sa) * amount
+    res = Image.fromarray(np.clip(np.rint((a - ma) / sa * ts + tm), 0, 255).astype("uint8"))
+    res.save(out)
+    ref_mean = np.asarray(Image.open(ref).convert("RGB")).reshape(-1, 3).mean(0)
+    dist = lambda x: round(float(np.abs(np.asarray(x).reshape(-1, 3).mean(0) - ref_mean).max()), 1)
+    return {"out": out, "before": dist(im), "after": dist(res)}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -641,8 +719,19 @@ def main():
     ip.add_argument("--box", default=None); ip.add_argument("--mask", default=None); ip.add_argument("--seed", type=int, default=7)
     op = sub.add_parser("outpaint"); op.add_argument("src"); op.add_argument("out"); op.add_argument("--prompt", required=True)
     op.add_argument("--pad", default="0,0,0,0", help="左,上,右,下 に足す画素数"); op.add_argument("--seed", type=int, default=7)
+    rc = sub.add_parser("recolor"); rc.add_argument("src"); rc.add_argument("out"); rc.add_argument("--from", dest="from_color", required=True)
+    rc.add_argument("--to", required=True); rc.add_argument("--tol", type=float, default=40.0)
+    rc.add_argument("--box", default=None, help="左,上,右,下。この中だけを変える")
+    gr = sub.add_parser("grade"); gr.add_argument("src"); gr.add_argument("out")
+    for k in ("brightness", "contrast", "saturation"):
+        gr.add_argument(f"--{k}", type=float, default=1.0)
+    gr.add_argument("--warmth", type=float, default=0.0)
+    mt = sub.add_parser("match"); mt.add_argument("src"); mt.add_argument("ref"); mt.add_argument("out"); mt.add_argument("--amount", type=float, default=1.0)
     a = ap.parse_args()
-    fn = {"segment": lambda: segment(a.src, a.out), "matte": lambda: matte(a.src, a.out), "remove": lambda: remove_bg(a.src, a.out),
+    fn = {"recolor": lambda: recolor(a.src, a.out, a.from_color, a.to, a.tol,
+                                     box=tuple(int(v) for v in a.box.split(",")) if a.box else None),
+          "grade": lambda: grade(a.src, a.out, a.brightness, a.contrast, a.saturation, a.warmth),
+          "match": lambda: match(a.src, a.ref, a.out, a.amount),"segment": lambda: segment(a.src, a.out), "matte": lambda: matte(a.src, a.out), "remove": lambda: remove_bg(a.src, a.out),
           "roto": lambda: roto(a.src, a.out), "cutout": lambda: cutout(a.src, a.out, a.path),
           "chroma": lambda: chroma(a.src, a.out, a.key, a.tol, a.soft),
           "shade": lambda: shade(a.src, a.out, a.style, a.light, a.shadow_color),
