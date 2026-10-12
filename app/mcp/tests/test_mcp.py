@@ -53,7 +53,8 @@ def test_tools_end_to_end(app_url):
     async def steps(s):
         names = {t.name for t in (await s.list_tools()).tools}
         assert names == {"list_cases", "describe", "save_case", "draw", "job", "sheet",
-                         "studio_draw", "studio_job", "studio_image", "proposals", "do_proposal"}
+                         "studio_draw", "studio_job", "studio_image", "proposals", "do_proposal",
+                         "turnaround", "turnaround_job", "turnaround_image"}
         assert "catgirl" in text(await s.call_tool("list_cases", {}))
         d = text(await s.call_tool("describe", {"text": "白い狐の巫女"}))
         assert d["name"] == "white-fox" and d["unused"] == ["巫女"]
@@ -83,6 +84,17 @@ def test_tools_end_to_end(app_url):
         bad = await s.call_tool("studio_draw", {"text": "ヌード"})
         assert bad.is_error and "描かない" in bad.content[0].text
         assert "items" in text(await s.call_tool("proposals", {}))
+        tj = text(await s.call_tool("turnaround", {"character": "knight", "count": 1}))
+        for _ in range(100):
+            st = text(await s.call_tool("turnaround_job", {"id": tj["id"]}))
+            if st["state"] in ("done", "failed"):
+                break
+            await anyio.sleep(0.05)
+        assert st["state"] == "done" and st["files"] == ["back-0.png", "front-0.png", "side-0.png"]
+        img = await s.call_tool("turnaround_image", {"id": tj["id"], "file": "side-0.png"})
+        assert img.content[0].type == "image"
+        bad = await s.call_tool("turnaround", {"character": "nobody"})
+        assert bad.is_error
     run_tools(app_url, steps)
 
 
