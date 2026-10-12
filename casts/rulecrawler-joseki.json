@@ -1,6 +1,6 @@
 {
  "title": "迷宮定石",
- "source": "Maguro-JP/RuleCrawler src/joseki/ui/explorerSprite.ts、docs/joseki/palette.md",
+ "source": "RuleCrawler src/joseki/ui/explorerSprite.ts、docs/joseki/palette.md",
  "common": "dark fantasy dungeon crawler, wizardry style labyrinth explorer, anime style, 3.5 heads tall, sharp narrow eyes",
  "n": 4,
  "characters": [
