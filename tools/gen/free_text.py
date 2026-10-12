@@ -198,11 +198,13 @@ def full_prompt(prompt: str, negative: str = "") -> tuple[str, str]:
 
 def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, width: int = 832, height: int = 1216,
          steps: int = 24, on_image=None, lora: str = "", pose: str = "", pose_strength: float = 0.93,
-         ref: str = "", ref_scale: float = 0.5, hires: float = 1.0, long: int = 0) -> list[str]:
+         ref: str = "", ref_scale: float = 0.5, hires: float = 1.0, long: int = 0, face: bool = False) -> list[str]:
     """Animagine で count 枚描き、out/try-<k>.png に置く。seed は 1 枚ごとに 1 ずつ進める（同じ設定で描き直せる）。
     ref は参考画像のファイル（tools/gen/refsearch.py で保存したもの）。画風と色を読ませる（IP-Adapter、強さ ref_scale）。
     姿勢の下絵（pose）と一緒には使えない（下絵から描き直す経路は手本を読まない）。
     hires が 1 より大きければ、描いた絵をその倍率に引き伸ばして弱く描き直す（tools/gen/hires.py。1.5 倍で1枚 約6分増える）。
+    face なら、顔と髪の周りを切り出して大きく描き直す（tools/gen/detail.py。下絵と同じ言葉を渡す。約3分増える）。
+    順番は 描く → hires → 顔 → 拡大。拡大は最後の仕上げで、形の崩れは直さない。
     long が 0 より大きければ、最後に長い辺がその画素数になるまで AI で拡大する（tools/gen/upscale.py。4096 で1枚 約5分増える）"""
     import torch
     import design
@@ -258,6 +260,9 @@ def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, w
             if hires > 1.0:
                 import hires as hires_mod
                 hires_mod.upscale(out / name, out / name, prompt, negative, scale=hires, seed=seed + k)
+            if face:
+                import detail as detail_mod
+                detail_mod.detail(out / name, out / name, prompt, negative, seed=seed + k)
             if long > 0:
                 import upscale as upscale_mod
                 upscale_mod.upscale(out / name, out / name, long)

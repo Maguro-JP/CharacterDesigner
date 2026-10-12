@@ -20,17 +20,26 @@ FACE_NEGATIVE = "asymmetrical eyes, uneven eyes, mismatched eyes, extra eyelids,
 SIDE = 1024
 
 
-def head_box(src, margin: float = 0.9):
-    """顔の部位から頭の周り（髪を含む）の正方形の枠を返す。顔が読めなければ None"""
+def head_box(src, margin: float = 0.4):
+    """顔と髪の部位から頭の周りの正方形の枠を返す。顔が読めなければ None。
+    描き直しには、下絵と同じ言葉を渡す（言葉が違うと光の色が変わり、枠の縁で食い違う）"""
     import numpy as np
     import edit
+    from scipy import ndimage
     seg = np.asarray(edit.parts(src))
-    ys, xs = np.nonzero(seg == edit.LABELS["face"])
+    face = seg == edit.LABELS["face"]
+    ys, xs = np.nonzero(face)
     if len(xs) < 50:
         return None
+    # 枠は顔と、顔につながった髪の塊を合わせた範囲から決める。顔だけで決めると髪の途中で枠が切れ、
+    # 枠の内と外で髪の描き方と色が食い違った
+    lab, _ = ndimage.label(face | (seg == edit.LABELS["hair"]))
+    ids = np.unique(lab[face])
+    ys, xs = np.nonzero(np.isin(lab, ids[ids > 0]))
     x0, x1, y0, y1 = xs.min(), xs.max(), ys.min(), ys.max()
-    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2 - (y1 - y0) * 0.15  # 髪は顔より上に多いので中心を少し上げる
-    half = max(x1 - x0, y1 - y0) * (0.5 + margin)
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    # 部位分けは光で白く飛んだ髪を拾わないので、合わせた範囲より広く取る
+    half = max(x1 - x0, y1 - y0) / 2 * (1 + margin)
     h, w = seg.shape
     half = min(half, w / 2, h / 2)
     cx, cy = min(max(cx, half), w - half), min(max(cy, half), h - half)
