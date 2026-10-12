@@ -152,7 +152,7 @@ def main(argv):
             HumanService.add_mhclo_asset(found[0], h, asset_type="Clothes", subdiv_levels=0)
             clothed += [o for o in bpy.data.objects if o not in before and o.type == "MESH"]
     rig = next(o for o in bpy.data.objects if o.type == "ARMATURE")
-    human.lower_arms(rig, 60)
+    human.adduct_arms(rig, 35)   # 右腕はこの後 IK で柄へ。左腕は体の脇に下ろしたまま
     grip_right_hand(rig)
     # 関節が可動域を超えていないかを数える（IK で肘が逆に曲がると、下絵の崩れがそのまま絵に残る）
     import rom_check
