@@ -10,19 +10,27 @@ const H = 1216;
 const UNDO = 30;
 
 type Tool = "pen" | "eraser" | "picker";
+// レイヤー。線画と塗りを分けるため。下から順に重ねる
+type Layer = { id: number; name: string; visible: boolean; opacity: number };
+let nextLayer = 3;
 
 export default function PaintPanel({ ctx }: { ctx: Ctx }) {
   const items = galleryItems(ctx.jobs);
   const cur = items.find((i) => ctx.selected && i.jobId === ctx.selected.jobId && i.file === ctx.selected.file) ?? items[0];
   const under = cur ? api.fileUrl(cur.jobId, cur.file) : "";
 
-  const paint = useRef<HTMLCanvasElement>(null);
+  const [layers, setLayers] = useState<Layer[]>([{ id: 1, name: "塗り", visible: true, opacity: 1 }, { id: 2, name: "線画", visible: true, opacity: 1 }]);
+  const [activeId, setActiveId] = useState(2);
+  const canvases = useRef(new Map<number, HTMLCanvasElement>());
+  const active = useRef(2);
+  active.current = activeId;
   const live = useRef<HTMLCanvasElement>(null);
   const underImg = useRef<HTMLImageElement>(null);
   const stroke = useRef<Pt[]>([]);
   const last = useRef<Pt | null>(null);
-  const undo = useRef<ImageData[]>([]);
-  const redo = useRef<ImageData[]>([]);
+  // 戻すは、どのレイヤーの絵だったかも覚える
+  const undo = useRef<{ id: number; data: ImageData }[]>([]);
+  const redo = useRef<{ id: number; data: ImageData }[]>([]);
 
   const [tool, setTool] = useState<Tool>("pen");
   const [color, setColor] = useState("#000000");
@@ -35,7 +43,8 @@ export default function PaintPanel({ ctx }: { ctx: Ctx }) {
   const [recent, setRecent] = useState<string[]>([]);
   const [, bump] = useState(0);
 
-  const g = () => paint.current?.getContext("2d", { willReadFrequently: true }) ?? null;
+  const ctxOf = (id: number) => canvases.current.get(id)?.getContext("2d", { willReadFrequently: true }) ?? null;
+  const g = () => ctxOf(active.current);
 
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
@@ -51,25 +60,25 @@ export default function PaintPanel({ ctx }: { ctx: Ctx }) {
   const snapshot = () => {
     const c = g();
     if (!c) return;
-    undo.current.push(c.getImageData(0, 0, W, H));
+    undo.current.push({ id: active.current, data: c.getImageData(0, 0, W, H) });
     if (undo.current.length > UNDO) undo.current.shift();
     redo.current = [];
     bump((n) => n + 1);
   };
   const doUndo = () => {
-    const c = g();
     const prev = undo.current.pop();
+    const c = prev && ctxOf(prev.id);
     if (!c || !prev) return;
-    redo.current.push(c.getImageData(0, 0, W, H));
-    c.putImageData(prev, 0, 0);
+    redo.current.push({ id: prev.id, data: c.getImageData(0, 0, W, H) });
+    c.putImageData(prev.data, 0, 0);
     bump((n) => n + 1);
   };
   const doRedo = () => {
-    const c = g();
     const next = redo.current.pop();
+    const c = next && ctxOf(next.id);
     if (!c || !next) return;
-    undo.current.push(c.getImageData(0, 0, W, H));
-    c.putImageData(next, 0, 0);
+    undo.current.push({ id: next.id, data: c.getImageData(0, 0, W, H) });
+    c.putImageData(next.data, 0, 0);
     bump((n) => n + 1);
   };
 
@@ -174,14 +183,46 @@ export default function PaintPanel({ ctx }: { ctx: Ctx }) {
     t.width = W;
     t.height = H;
     const tg = t.getContext("2d");
-    if (!tg || !paint.current) return;
+    if (!tg) return;
     if (withUnder && underImg.current?.complete) tg.drawImage(underImg.current, 0, 0, W, H);
-    tg.drawImage(paint.current, 0, 0);
+    // 見えているレイヤーを、下から順に不透明度どおりに重ねる
+    for (const l of layers) {
+      const c = canvases.current.get(l.id);
+      if (!c || !l.visible) continue;
+      tg.globalAlpha = l.opacity;
+      tg.drawImage(c, 0, 0);
+    }
+    tg.globalAlpha = 1;
     const a = document.createElement("a");
     a.href = t.toDataURL("image/png");
     a.download = withUnder ? "paint-merged.png" : "paint-layer.png";
     a.click();
   };
+
+  // レイヤーの操作。描いている先（選んだレイヤー）は、消したら残りの一番上へ移す
+  const addLayer = () => {
+    const id = nextLayer++;
+    setLayers((ls) => [...ls, { id, name: `レイヤー ${id}`, visible: true, opacity: 1 }]);
+    setActiveId(id);
+  };
+  const patch = (id: number, p: Partial<Layer>) => setLayers((ls) => ls.map((l) => (l.id === id ? { ...l, ...p } : l)));
+  const removeLayer = (id: number) => {
+    if (layers.length <= 1) return;
+    const rest = layers.filter((l) => l.id !== id);
+    setLayers(rest);
+    canvases.current.delete(id);
+    undo.current = undo.current.filter((u) => u.id !== id);
+    redo.current = redo.current.filter((u) => u.id !== id);
+    if (activeId === id) setActiveId((rest[rest.length - 1] as Layer).id);
+  };
+  const moveLayer = (id: number, d: -1 | 1) =>
+    setLayers((ls) => {
+      const i = ls.findIndex((l) => l.id === id), j = i + d;
+      if (i < 0 || j < 0 || j >= ls.length) return ls;
+      const out = [...ls];
+      [out[i], out[j]] = [out[j] as Layer, out[i] as Layer];
+      return out;
+    });
 
   const btn = (on: boolean) => `rounded border px-2 py-0.5 text-xs ${on ? "border-accent bg-accent font-bold text-ink" : "border-line"}`;
 
@@ -193,9 +234,9 @@ export default function PaintPanel({ ctx }: { ctx: Ctx }) {
         <button type="button" className={btn(tool === "picker")} onClick={() => setTool("picker")}>スポイト</button>
         <button type="button" className={btn(false)} onClick={doUndo} disabled={!undo.current.length}>戻す</button>
         <button type="button" className={btn(false)} onClick={doRedo} disabled={!redo.current.length}>やり直す</button>
-        <button type="button" className={btn(false)} onClick={clear}>描いた層を消す</button>
+        <button type="button" className={btn(false)} onClick={clear}>このレイヤーを消す</button>
         <button type="button" className={btn(false)} onClick={() => save(true)}>重ねて保存</button>
-        <button type="button" className={btn(false)} onClick={() => save(false)}>描いた層だけ保存</button>
+        <button type="button" className={btn(false)} onClick={() => save(false)}>下絵なしで保存</button>
       </div>
       <div className="flex flex-wrap items-center gap-3 text-xs">
         <label className="flex items-center gap-1">太さ<input type="range" min={1} max={80} value={size} onChange={(e) => setSize(+e.target.value)} />{size}</label>
@@ -217,11 +258,30 @@ export default function PaintPanel({ ctx }: { ctx: Ctx }) {
             className="h-5 w-5 rounded-sm border border-line" style={{ background: c }} />
         ))}
       </div>
+      <div className="flex flex-wrap items-center gap-1 text-xs">
+        <span className="text-neutral-400">レイヤー（上ほど手前）</span>
+        {[...layers].reverse().map((l) => (
+          <span key={l.id} className={`flex items-center gap-1 rounded border px-1 ${l.id === activeId ? "border-accent" : "border-line"}`}>
+            <input type="checkbox" checked={l.visible} aria-label={`${l.name}を見せる`} onChange={(e) => patch(l.id, { visible: e.target.checked })} />
+            <button type="button" className={l.id === activeId ? "font-bold" : ""} onClick={() => setActiveId(l.id)}>{l.name}</button>
+            <input type="range" min={0} max={1} step={0.05} value={l.opacity} aria-label={`${l.name}の不透明度`} className="w-14"
+              onChange={(e) => patch(l.id, { opacity: +e.target.value })} />
+            <button type="button" aria-label="上へ" onClick={() => moveLayer(l.id, 1)}>▲</button>
+            <button type="button" aria-label="下へ" onClick={() => moveLayer(l.id, -1)}>▼</button>
+            <button type="button" aria-label="消す" disabled={layers.length <= 1} onClick={() => removeLayer(l.id)}>×</button>
+          </span>
+        ))}
+        <button type="button" className={btn(false)} onClick={addLayer}>＋ レイヤー</button>
+      </div>
       <div className="relative min-h-0 flex-1">
         <div className="relative mx-auto h-full" style={{ aspectRatio: `${W} / ${H}`, maxWidth: "100%" }}>
           <div className="absolute inset-0 bg-white" />
           {under && <img ref={underImg} src={under} alt="下絵" crossOrigin="anonymous" className="absolute inset-0 h-full w-full" style={{ opacity: underAlpha }} />}
-          <canvas ref={paint} width={W} height={H} className="absolute inset-0 h-full w-full" />
+          {layers.map((l) => (
+            <canvas key={l.id} width={W} height={H} className="absolute inset-0 h-full w-full"
+              ref={(el) => { if (el) canvases.current.set(l.id, el); }}
+              style={{ opacity: l.opacity, visibility: l.visible ? "visible" : "hidden" }} />
+          ))}
           <canvas ref={live} width={W} height={H} className="absolute inset-0 h-full w-full touch-none"
             style={{ opacity: alpha, cursor: tool === "picker" ? "copy" : "crosshair" }}
             onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} />
