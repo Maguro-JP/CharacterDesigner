@@ -3,6 +3,7 @@
 手がかりは機械で拾う（模型を使わない。事実の収集は機械の方が速く確かで無料）。拾うのは確かめられる事実だけ:
 - スタジオで通らなかった頼みごと（seed を変えて描き直せば通るかもしれない）
 - 通ったが、意地の悪い目（CRITIC）が弱さを指摘した絵（光を絞って描き直す）
+- 設定資料集のキャラクターのうち、三面図をまだ描いていないもの（まだ描いていない向き）
 - 亜人の種のうち、見本（library/samples/demi3d-<種>.png）がまだ無いもの
 
 提案は積むだけで、描かない。CPU で1枚 数分かかるので、描くかは利用者が決める。
@@ -21,7 +22,7 @@ def _id(kind: str, key: str) -> str:
     return hashlib.sha1(f"{kind}:{key}".encode()).hexdigest()[:10]
 
 
-def gather(jobs: list, cases: dict, samples: Path) -> list[dict]:
+def gather(jobs: list, cases: dict, samples: Path, characters: list | tuple = ()) -> list[dict]:
     """手がかりから提案を作る。新しいものが先。頼みは /api/studio/jobs か /api/jobs にそのまま渡せる形で持つ"""
     out = []
     for j in sorted(jobs, key=lambda j: -j.created):
@@ -49,6 +50,13 @@ def gather(jobs: list, cases: dict, samples: Path) -> list[dict]:
     # 既に頼んだのと同じ描き方（描く言葉と seed）は提案しない。描き直しの描き直しを延々と積まないため
     asked = {(j.free.get("prompt", ""), j.free.get("seed")) for j in jobs if j.kind == "studio" and j.free}
     out = [p for p in out if (p["request"]["prompt"], p["request"]["seed"]) not in asked]
+    # 三面図は見本の提案より前に置く（見本の提案が上限の数だけあると、後ろに置いた提案は並ばなかった）
+    turned = {j.free.get("character") for j in jobs if j.kind == "turnaround" and j.free}
+    for c in characters:
+        if c["id"] not in turned:
+            out.append({"id": _id("turnaround", c["id"]), "kind": "turnaround", "title": f"{c['name']}の三面図を描く",
+                        "why": "正面・横・後ろをまだ描いていない", "who": "CURATOR",
+                        "request": {"character": c["id"], "count": 1, "seed": 0}})
     for name, c in cases.items():
         if not (samples / f"demi3d-{name}.png").exists():
             out.append({"id": _id("sample", name), "kind": "demi", "title": f"{c.get('ja', name)}の設定資料を描いて見本にする",

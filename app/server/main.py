@@ -472,7 +472,7 @@ def create_app(runner: Runner | None = None) -> FastAPI:
 
     def current_proposals():
         return studio_proposals.Store(PROPOSALS).visible(
-            studio_proposals.gather(list(jobs.jobs.values()), load_cases()["cases"], SAMPLES))
+            studio_proposals.gather(list(jobs.jobs.values()), load_cases()["cases"], SAMPLES, bible_list()["characters"]))
 
     @app.get("/api/proposals")
     def get_proposals():
@@ -488,6 +488,9 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         studio_proposals.Store(PROPOSALS).dismiss(pid)   # 1度頼んだら並べない
         if p["kind"] == "demi":
             return post_job(JobIn(**p["request"]))
+        if p["kind"] == "turnaround":
+            r = p["request"]
+            return bible_turnaround(r["character"], TurnaroundIn(count=r["count"], seed=r["seed"]))
         return post_studio_job(StudioIn(**p["request"]))
 
     @app.post("/api/proposals/{pid}/dismiss")
