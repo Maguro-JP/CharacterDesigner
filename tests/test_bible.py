@@ -23,6 +23,26 @@ class Bible(unittest.TestCase):
         bible.BIBLE = self.old
         self.tmp.cleanup()
 
+    def test_turnaround_plan_uses_colors_and_no_items(self):
+        c = bible.load("characters", "k")
+        c["turnaround"] = {"cape": "110,25,30"}
+        bible.save("characters", c)
+        plan = bible.turnaround_plan("k", "/tmp/out", seed=5)
+        cmd = plan["base_cmd"]
+        self.assertIn("--cape", cmd)
+        self.assertEqual(cmd[cmd.index("--cape") + 1], "110,25,30")
+        self.assertEqual(cmd[cmd.index("--skin") + 1], bible.BASE_COLORS["skin"])   # 設定に無い色は既定
+        self.assertNotIn("--boots", cmd)
+        self.assertEqual(set(plan["views"]), {"front", "side", "back"})
+        for v, kw in plan["views"].items():
+            self.assertEqual(kw["items"], [])                     # 三面図では持ち物を持たせない
+            self.assertEqual(kw["base"], f"/tmp/out/base-{v}.png")
+            self.assertEqual(kw["seed"], 5)
+        self.assertGreater(plan["views"]["front"]["strength"], plan["views"]["side"]["strength"])
+        self.assertIn("from behind", plan["views"]["back"]["pose"])
+        pos, _ = bible.prompt("k", pose=plan["views"]["back"]["pose"], items=[])
+        self.assertNotIn("holding lantern", pos)
+
     def test_look_comes_first_and_scene_is_added(self):
         pos, neg = bible.prompt("k", scene="walking", world="w", location="gate")
         self.assertTrue(pos.startswith("1girl, brown hair, holding lantern"))   # 見た目の次に持ち物、そのあと服

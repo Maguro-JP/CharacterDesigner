@@ -202,6 +202,51 @@ def draw(ident: str, outdir: str, count: int = 1, seed: int = 0, ref_scale: floa
     return names
 
 
+# 三面図の向きごとの言葉と描き換えの強さ。向きは下絵で決め、言葉は補うだけ（言葉だけでは横が斜め前、後ろが振り返った）。
+# 正面は 0.8 だと顔が描かれなかった（下絵の顔をそのまま残した）ので、正面だけ強める
+VIEWS = {
+    "front": ("front view, facing viewer, detailed face", 0.85),
+    "side": ("side view, profile, facing left", 0.8),
+    "back": ("back view, from behind, facing away, head facing away", 0.8),
+}
+# 下絵の色の既定。設定に turnaround が無いキャラクターに使う
+BASE_COLORS = {"skin": "240,200,170", "top": "175,175,185", "bottom": "40,40,45"}
+
+
+def turnaround_plan(ident: str, outdir: str, seed: int = 0) -> dict:
+    """三面図の段取り: 下絵を写す命令と、向きごとに描く引数。描かずに中身だけ返す（試験と、描く前の確かめに使う）。
+    下絵に無い物（マント）は絵に出なかったので、色の設定に cape・boots があれば下絵に置く"""
+    c = load("characters", ident)
+    colors = {**BASE_COLORS, **c.get("turnaround", {})}
+    base = str(Path(outdir) / "base")
+    cmd = [sys.executable, str(ROOT / "tools/engine/turnaround.py"), base]
+    for k in ("skin", "top", "bottom", "cape", "boots"):
+        if colors.get(k):
+            cmd += [f"--{k}", colors[k]]
+    views = {}
+    for v, (words, strength) in VIEWS.items():
+        # 三面図では持ち物を持たせない（人形の手は空で、持たせると手と持ち物が崩れた）
+        views[v] = dict(base=f"{base}-{v}.png", strength=strength, seed=seed, items=[],
+                        pose=f"standing straight, arms at sides, open empty hands, {words}, character turnaround")
+    return {"base_cmd": cmd, "views": views}
+
+
+def turnaround(ident: str, outdir: str, count: int = 2, seed: int = 0) -> dict:
+    """三面図を描く: 人形の下絵を3方向から写し、向きごとに count 枚描く。検品はしない（検品担当に回す）"""
+    import os
+    import subprocess
+    plan = turnaround_plan(ident, outdir, seed)
+    Path(outdir).mkdir(parents=True, exist_ok=True)
+    env = {**os.environ, "PYTHONPATH": os.pathsep.join(filter(None, (str(ROOT / ".cache/engine/bpy"), os.environ.get("PYTHONPATH"))))}
+    subprocess.run(plan["base_cmd"], check=True, env=env, cwd=ROOT)
+    files = {}
+    for v, kw in plan["views"].items():
+        base, strength, s = kw.pop("base"), kw.pop("strength"), kw.pop("seed")
+        names = draw(ident, str(Path(outdir) / v), count, s, base=base, strength=strength, **kw)
+        files[v] = [str(Path(outdir) / v / n) for n in names]
+    return files
+
+
 SHEET_CSS = """
 :root { --paper:#fbfaf7; --ink:#141313; --sub:#5d5853; --rule:#d9d4cd; --accent:#d23a26;
   --display:"Dela Gothic One","Hiragino Sans","Yu Gothic",sans-serif; --body:"Zen Kaku Gothic New","Hiragino Sans","Yu Gothic",sans-serif;
@@ -304,6 +349,8 @@ def main():
         s.add_argument("--framing", default="full body")
     s = sub.add_parser("show"); s.add_argument("id")
     s = sub.add_parser("sheet"); s.add_argument("id"); s.add_argument("out")
+    s = sub.add_parser("turnaround", help="三面図: 人形の下絵を3方向から写し、向きごとに描く")
+    s.add_argument("id"); s.add_argument("out"); s.add_argument("--count", type=int, default=2); s.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
     kw = {}
     if a.cmd in ("prompt", "draw"):
@@ -320,6 +367,7 @@ def main():
         "draw": lambda: draw(a.id, a.out, a.count, a.seed, a.ref_scale, a.base, a.strength, **kw),
         "show": lambda: load("characters", a.id),
         "sheet": lambda: sheet(a.id, a.out),
+        "turnaround": lambda: turnaround(a.id, a.out, a.count, a.seed),
     }[a.cmd]()
     print(json.dumps(r, ensure_ascii=False, indent=1))
 
