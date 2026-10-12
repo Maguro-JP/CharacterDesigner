@@ -68,3 +68,21 @@ def test_every_kind_runs_and_keeps_shape(client):
         assert r.status_code == 200, kind
         assert _img(r.json()["png"]).getpixel((2, 2))[3] == 0, kind
     assert c.post("/api/paint/material", json={"png": _png(layer), "kind": "nope"}).status_code == 422
+
+
+def test_atmosphere_every_mood_runs_and_changes_the_picture(client):
+    c, _ = client(FakeRunner())
+    im = Image.new("RGB", (90, 120), (180, 180, 170))
+    ImageDraw.Draw(im).rectangle((30, 40, 60, 110), fill=(90, 90, 100))
+    base = np.asarray(im).astype(int)
+    moods = [m["id"] for m in c.get("/api/atmosphere").json()["moods"]]
+    assert set(moods) == {"holy", "dust", "komorebi", "underground", "space", "haze"}
+    for mood in moods:
+        j = c.post("/api/paint/atmosphere", json={"png": _png(im), "mood": mood, "strength": 0.8}).json()
+        out = np.asarray(_img(j["png"]).convert("RGB")).astype(int)
+        assert out.shape == base.shape and np.abs(out - base).mean() > 3, mood
+        assert j["prompt"], mood
+    # 地下は暗く、霞は明暗の差が減る
+    dark = np.asarray(_img(c.post("/api/paint/atmosphere", json={"png": _png(im), "mood": "underground", "strength": 0.9}).json()["png"]).convert("L")).mean()
+    assert dark < np.asarray(im.convert("L")).mean()
+    assert c.post("/api/paint/atmosphere", json={"png": _png(im), "mood": "nope"}).status_code == 422

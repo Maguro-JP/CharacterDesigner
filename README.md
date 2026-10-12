@@ -68,6 +68,8 @@ python3 tools/compare.py out/cmp.png v3=characters/warrior-v3-hand/sprite.json v
   「線を清書」は、重ねて描いたラフ線を1本の線にまとめて新しいレイヤーに置く（元のラフは隠すだけで消さない）。
   「切り出しと質感」で、下絵から人物・色で選んだ所・部位を「残り」と「切り出し」の2枚のレイヤーに分け、切り出した方に
   透明感（スライム）・金属感・重厚感・宝石感・無機質感・汚れを強さを決めて掛けられる。スライムの透けは、切り出したレイヤーの不透明度を下げるだけでもよい
+  「空気感」で、絵全体に神々しい光・ほこりっぽさ・木漏れ日・地下・宇宙・霞を掛け、一番上の新しいレイヤーに置く（隠せば元に戻る）。
+  空気感ごとに、描くときに足す言葉も出す。決まりは [docs/knowledge/atmosphere.md](docs/knowledge/atmosphere.md)
 - 参考画像: CC ライセンスと public domain の画像（Openverse）を探して手元に置き、1枚を「描くときに使う」に選ぶと、
   スタジオと自由に描くの依頼に画風と色の手本として添える（強さは 0〜1）。作者・ライセンス・元のページを一緒に見せる。
   使う条件（作者の表示、非営利など）は元のページで確かめる。画像は `.cache/app/refs` に置き、リポジトリには入れない
@@ -76,6 +78,8 @@ python3 tools/compare.py out/cmp.png v3=characters/warrior-v3-hand/sprite.json v
 ![左が元の絵、中が水色の体を色で切り出して透明感を掛けた絵、右は後ろの格子で透け具合を見る図](docs/images/material-slime.jpg)
 
 ![左から元・透明感・金属感・重厚感・宝石感・無機質感・汚れ](docs/images/material-kinds.jpg)
+
+![左から元・神々しい光・ほこりっぽい・木漏れ日・地下・宇宙・霞](docs/images/atmosphere-moods.jpg)
 
 ![言葉で頼むと種の設定が組まれ、3D の下絵で部品の付け根を見られる画面](docs/images/app-wish-to-case.png)
 
