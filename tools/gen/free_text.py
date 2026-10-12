@@ -198,10 +198,11 @@ def full_prompt(prompt: str, negative: str = "") -> tuple[str, str]:
 
 def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, width: int = 832, height: int = 1216,
          steps: int = 24, on_image=None, lora: str = "", pose: str = "", pose_strength: float = 0.93,
-         ref: str = "", ref_scale: float = 0.5) -> list[str]:
+         ref: str = "", ref_scale: float = 0.5, hires: float = 1.0) -> list[str]:
     """Animagine で count 枚描き、out/try-<k>.png に置く。seed は 1 枚ごとに 1 ずつ進める（同じ設定で描き直せる）。
     ref は参考画像のファイル（tools/gen/refsearch.py で保存したもの）。画風と色を読ませる（IP-Adapter、強さ ref_scale）。
-    姿勢の下絵（pose）と一緒には使えない（下絵から描き直す経路は手本を読まない）"""
+    姿勢の下絵（pose）と一緒には使えない（下絵から描き直す経路は手本を読まない）。
+    hires が 1 より大きければ、描いた絵をその倍率に引き伸ばして弱く描き直す（tools/gen/hires.py。1.5 倍で1枚 約6分増える）"""
     import torch
     import design
     import people
@@ -253,6 +254,9 @@ def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, w
                 im = draw_pipe(width=width, height=height, **common, **ref_kw).images[0]
             name = f"try-{k}.png"
             im.save(out / name)
+            if hires > 1.0:
+                import hires as hires_mod
+                hires_mod.upscale(out / name, out / name, prompt, negative, scale=hires, seed=seed + k)
             names.append(name)
             if on_image:
                 on_image(k, name)
