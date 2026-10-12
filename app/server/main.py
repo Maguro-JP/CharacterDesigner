@@ -113,6 +113,20 @@ def _png_out(im) -> str:
     im.save(buf, "PNG")
     return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
 
+class FeedbackIn(BaseModel):
+    """描いた絵への判定と指摘。作画監督の基準が学ぶ手本になる（tools/gen/normlearn.py）"""
+    png: str = Field(..., description="判定した絵（data:image/png;base64,...）")
+    verdict: str = Field(..., pattern="^(pass|reject)$")
+    by: str = Field("user", pattern="^(user|checker)$")
+    reason: str = Field("", max_length=500)
+    hair: str = Field("", pattern="^(#[0-9a-fA-F]{6})?$")
+
+
+class MeasureIn(BaseModel):
+    png: str = Field(..., description="測る絵（data:image/png;base64,...）")
+    hair: str = Field("", pattern="^(#[0-9a-fA-F]{6})?$")
+
+
 class AtmosphereIn(BaseModel):
     """絵全体に空気感（光の筋・霞・粒など）を掛ける。決まりは docs/knowledge/atmosphere.md"""
     png: str = Field(..., description="掛ける絵（data:image/png;base64,...）")
@@ -741,6 +755,41 @@ def create_app(runner: Runner | None = None) -> FastAPI:
             _png_in(body.png, src)
             return {"png": _png_out(atmosphere.apply(Image.open(src), body.mood, body.strength, light)),
                     "prompt": atmosphere.PROMPT[body.mood]}
+
+    @app.post("/api/measure")
+    def measure_png(body: MeasureIn):
+        # 作画監督の数字の検品。絵の当たり前（顔の形、影の順序、髪の色）を測り、基準から外れた所を返す
+        import hashlib
+        import measure
+        d = ROOT / ".cache" / "app" / "learn" / "images"
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / (hashlib.sha1(body.png.encode()).hexdigest()[:16] + ".png")
+        if not path.exists():
+            _png_in(body.png, path)
+        m = measure.measure(str(path), body.hair)
+        return {"measure": m, "outliers": measure.judge(m)}
+
+    @app.post("/api/feedback")
+    def feedback(body: FeedbackIn):
+        # 判定と指摘を学習の手本に足す。絵は .cache/app/learn/images に置く（利用者のデータなのでリポジトリに入れない）
+        import hashlib
+        import normlearn
+        d = ROOT / ".cache" / "app" / "learn" / "images"
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / (hashlib.sha1(body.png.encode()).hexdigest()[:16] + ".png")
+        if not path.exists():
+            _png_in(body.png, path)
+        return normlearn.record(str(path), body.verdict, body.by, body.reason, body.hair)
+
+    @app.post("/api/learn")
+    def learn_norms(dry: bool = False):
+        import normlearn
+        return normlearn.learn(dry)
+
+    @app.get("/api/learn")
+    def learn_status():
+        import normlearn
+        return normlearn.status()
 
     @app.get("/api/atmosphere")
     def atmosphere_list():

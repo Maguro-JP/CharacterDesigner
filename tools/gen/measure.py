@@ -293,9 +293,26 @@ def _get(d, path):
     return d
 
 
+USER_NORMS = ROOT / "config" / "norms.user.json"
+
+
+def load_norms() -> dict:
+    """共通の基準に、利用者の判定から学んだ基準（config/norms.user.json、normlearn.py learn が書く）を重ねる。
+    同じ path（と when）の基準は利用者の方を使う。壊れていれば共通の基準だけで判定する"""
+    base = json.loads(NORMS.read_text(encoding="utf-8"))
+    try:
+        user = json.loads(USER_NORMS.read_text(encoding="utf-8")) if USER_NORMS.exists() else {"checks": []}
+    except ValueError:
+        return base
+    key = lambda c: (c["path"], json.dumps(c.get("when"), sort_keys=True))
+    over = {key(c): c for c in user.get("checks", [])}
+    base["checks"] = [over.get(key(c), c) for c in base["checks"]]
+    return base
+
+
 def judge(m: dict, norms: dict | None = None) -> list[dict]:
     """基準（norms の checks）から外れた数字を挙げる。各行は 何を・値・基準・意味"""
-    norms = norms or json.loads(NORMS.read_text(encoding="utf-8"))
+    norms = norms or load_norms()
     out = []
     for c in norms["checks"]:
         w = c.get("when")

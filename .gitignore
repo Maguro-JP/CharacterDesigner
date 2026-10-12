@@ -6,3 +6,4 @@ __pycache__/
 # 部位分け（edit.parts）が絵の横に残す中間ファイル
 *.parts.png
 config/filters.json
+config/norms.user.json
