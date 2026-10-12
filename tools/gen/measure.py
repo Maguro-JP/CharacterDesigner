@@ -301,13 +301,18 @@ def hair(rgb, seg, labels, spec: str = ""):
     spec_off = None
     if spec:
         # 指定の髪の色（例 #1e1a24）と比べる。光が当たれば明るくなるのは当然なので、明るさは 0.45 まで、
-        # 色相は 40° までのずれを許し、それを超えて色のある画素（黒髪が桃色や白に染まるなど）を数える
-        sr, sg, sb = (int(spec[i:i + 2], 16) / 255 for i in (1, 3, 5))
-        hs, ss, vs = (x.item() for x in _hsv(np.array([[sr, sg, sb]], dtype=np.float32)))
-        far_v = v > vs + 0.45
-        far_h = (s > 0.25) & (ss > 0.15) & (np.abs((h - hs + 180) % 360 - 180) > 40)
-        far_h_dark = (s > 0.25) & (ss <= 0.15)   # 色の無い髪（黒・白・灰）に色がついた
-        spec_off = float((m & (far_v | far_h | far_h_dark)).sum() / m.sum())
+        # 色相は 40° までのずれを許し、それを超えて色のある画素（黒髪が桃色や白に染まるなど）を数える。
+        # 色はカンマで複数渡せる（地の色とインナーカラーなど）。どれか1色に近ければ外れにしない
+        # （1色だけで比べると、頼んだとおりのインナーカラーまで外れに数えた）
+        far = np.ones_like(m)
+        for one in [c.strip() for c in spec.split(",") if c.strip()]:
+            sr, sg, sb = (int(one[i:i + 2], 16) / 255 for i in (1, 3, 5))
+            hs, ss, vs = (x.item() for x in _hsv(np.array([[sr, sg, sb]], dtype=np.float32)))
+            far_v = v > vs + 0.45
+            far_h = (s > 0.25) & (ss > 0.15) & (np.abs((h - hs + 180) % 360 - 180) > 40)
+            far_h_dark = (s > 0.25) & (ss <= 0.15)   # 色の無い髪（黒・白・灰）に色がついた
+            far &= far_v | far_h | far_h_dark
+        spec_off = float((m & far).sum() / m.sum())
     return {"found": True, "blown": round(blown, 4), "main_hue": round(main, 1), "off_hue": round(off, 4), "glow": round(glow, 4), "base_v": round(base_v, 3),
             "spec_off": None if spec_off is None else round(spec_off, 4),
             "coherence": round(float(np.median(coh[inner])) if inner.any() else 0.0, 3)}
@@ -377,7 +382,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("src", nargs="+")
     ap.add_argument("--json", action="store_true")
-    ap.add_argument("--hair", default="", help="指定の髪の色（#rrggbb）。渡すと、髪がその色から外れた割合を判定する")
+    ap.add_argument("--hair", default="", help="指定の髪の色（#rrggbb。インナーカラーなどはカンマで並べる）。渡すと、髪がその色から外れた割合を判定する")
     a = ap.parse_args()
     for src in a.src:
         m = measure(src, a.hair)
