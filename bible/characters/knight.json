@@ -50,7 +50,7 @@
   {
    "id": "smile",
    "name": "笑顔",
-   "tags": "warm smile, closed mouth smile, eyes slightly narrowed, soft eyebrows, light blush"
+   "tags": "squinting happy eyes, raised cheeks, warm smile, closed mouth smile, soft eyebrows, light blush"
   },
   {
    "id": "angry",
@@ -60,7 +60,7 @@
   {
    "id": "sad",
    "name": "悲しみ",
-   "tags": "sad smile, downturned eyebrows, teary eyes, trembling closed mouth"
+   "tags": "sad, frown, downturned mouth, drooping eyelids, teary eyes, upturned inner eyebrows"
   },
   {
    "id": "determined",
@@ -70,7 +70,7 @@
   {
    "id": "vigil",
    "name": "見守り",
-   "tags": "gentle gaze, looking down softly, half-lidded eyes, faint smile, relaxed eyebrows, lantern glow on face"
+   "tags": "half-closed eyes, looking down, gentle gaze, faint smile, relaxed eyebrows, lantern glow on face"
   }
  ]
 }
