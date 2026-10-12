@@ -101,3 +101,4 @@
 | 戻された3つを言葉だけ直して描き直す（強さ 0.85） | 悲しみ（sad smile を抜く）と見守り（half-closed eyes を先頭へ）は通った。笑顔は目の言葉（squinting happy eyes）を先頭にしても目が動かず、また戻った。強さ 0.92 と closed eyes で試す | bible/characters/knight.json |
 | 笑顔を強さ 0.92、言葉の先頭に ^_^, closed eyes で描き直す | 目は開いたまま（3回目）。顔以外は崩れなかった（qc.py compare のずれ 0、拡大図 35 枚で浮き・切れ無し）。顔の範囲の描き直しでは下絵の開いた目が残る。次は下絵の目を閉じ目の弧に描き替えてから描き直す | tools/gen/bible.py expressions |
 | 笑顔: 下絵の両目を肌色で塗り、閉じ目の弧（上に凸、太さ 5px）を引いてから強さ 0.6 で顔を描き直す | 1回で閉じ目の笑顔になり、検品を通った。塗った跡・まつ毛の残りは無く、顔以外のずれも 0。言葉と強さ（0.85〜0.92）では3回とも目が開いたままだったので、目の形を変える表情は下絵から変える方が効く | tools/gen/bible.py expressions --base |
+| 参考画像（実物の甲冑の写真、CC BY-SA）を IP-Adapter で強さ 0.5 で読ませ、「knight, armor, simple background」で描く | 磨いた板金・面頬を閉じた兜が手本に寄った。背景も手本の石壁の色になり、simple background が効かなかった。無地の背景が要るときは強さを下げる | tools/gen/free_text.py draw の ref / ref_scale |
