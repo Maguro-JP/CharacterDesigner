@@ -80,6 +80,8 @@ def _net():
     state = state.get("params_ema", state.get("params", state))
     net = RRDBNet()
     net.load_state_dict(state, strict=True)
+    import device
+    device.module(net, torch)
     _NET = net.eval()
     return _NET
 
@@ -99,7 +101,8 @@ def x4(img, tile: int = 256, pad: int = 16):
             for x in range(0, w, tile):
                 y0, x0 = max(0, y - pad), max(0, x - pad)
                 y1, x1 = min(h, y + tile + pad), min(w, x + tile + pad)
-                r = net(t[:, :, y0:y1, x0:x1])
+                dev = next(net.parameters()).device
+                r = net(t[:, :, y0:y1, x0:x1].to(dev)).float().cpu()
                 ty, tx = (y - y0) * 4, (x - x0) * 4
                 hh, ww = min(tile, h - y) * 4, min(tile, w - x) * 4
                 out[:, :, y * 4:y * 4 + hh, x * 4:x * 4 + ww] = r[:, :, ty:ty + hh, tx:tx + ww]

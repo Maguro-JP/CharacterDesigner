@@ -20,7 +20,7 @@ Ask for "a character like ..." in any language; it draws an illustrated characte
 ## Requirements
 
 - Python 3.10+, Node.js 20.19+, curl
-- About 9 GB of disk (image model ~7 GB, language model ~1.1 GB, packages ~1 GB). Runs on CPU without a GPU (about 5 minutes per image)
+- About 9 GB of disk (image model ~7 GB, language model ~1.1 GB, packages ~1 GB). Uses an NVIDIA or Apple GPU automatically when present; runs on CPU otherwise (about 5 minutes per image)
 
 ## Setup
 
@@ -46,6 +46,8 @@ Register the MCP server with Claude Code from the repository root:
 | `CD_LLM_URL` | Local language model endpoint (OpenAI compatible) | Optional |
 | `CD_LLM_MODEL` | Model name at that endpoint | Optional |
 | `ANTHROPIC_API_KEY` | Read requests with Claude when no local model is available | Optional |
+| `CD_DEVICE` | Where to draw (`cuda`, `mps`, `cpu`). Omitted: NVIDIA GPU, then Apple GPU, then CPU | Optional |
+| `CD_TORCH` | Which torch build setup installs (`cuda`, `cpu`, `default`). Omitted: CUDA on Linux with an NVIDIA GPU, the default build on Mac, CPU elsewhere | Optional |
 | `CD_APP_DATA` | Where drawn images are stored (default `.cache/app/jobs`) | Optional |
 
 User filters live in `config/filters.json` and learned norms in `config/norms.user.json`; neither is committed.

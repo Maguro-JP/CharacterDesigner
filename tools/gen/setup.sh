@@ -4,7 +4,20 @@
 set -eu
 D="$(cd "$(dirname "$0")/../.." && pwd)/.cache/gen"
 mkdir -p "$D"
-[ -d "$D/lib/torch" ] || pip install --target "$D/lib" torch --index-url https://download.pytorch.org/whl/cpu -q
+# torch は GPU に合わせて選ぶ（tools/gen/device.py が使い分ける）。NVIDIA の GPU がある Linux は CUDA 版、Mac は普通の版（Apple の GPU に対応）、
+# それ以外は CPU 版（CUDA 版は数 GB 大きいので、GPU の無い所には入れない）。CD_TORCH=cpu|cuda|default で手で決められる
+if [ ! -d "$D/lib/torch" ]; then
+  want="${CD_TORCH:-}"
+  if [ -z "$want" ]; then
+    if [ "$(uname -s)" = "Darwin" ]; then want=default
+    elif command -v nvidia-smi >/dev/null 2>&1 && nvidia-smi >/dev/null 2>&1; then want=cuda
+    else want=cpu; fi
+  fi
+  case "$want" in
+    cpu) pip install --target "$D/lib" torch --index-url https://download.pytorch.org/whl/cpu -q ;;
+    *) pip install --target "$D/lib" torch -q ;;
+  esac
+fi
 [ -d "$D/lib/diffusers" ] || pip install --target "$D/lib" diffusers transformers accelerate safetensors -q
 [ -d "$D/lib/peft" ] || pip install --target "$D/lib" peft --no-deps -q
 # 完成絵の重ね（tools/gen/layers.py）: 人物の切り抜き rembg（isnet-anime の重み 約 176MB は初回に .cache/gen/u2net へ取る）と PSD の書き出し

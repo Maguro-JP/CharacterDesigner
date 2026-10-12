@@ -58,9 +58,11 @@ def pipe():
     if _PIPE is None:
         import torch
         from diffusers import EulerAncestralDiscreteScheduler, StableDiffusionXLPipeline
-        torch.set_num_threads(os.cpu_count() or 4)
-        _PIPE = StableDiffusionXLPipeline.from_pretrained(MODEL, torch_dtype=torch.bfloat16)
+        import device
+        # GPU があれば使う（tools/gen/device.py）。CPU のときは今までどおり bfloat16 で全部のコアを使う
+        _PIPE = StableDiffusionXLPipeline.from_pretrained(MODEL, torch_dtype=device.dtype(torch))
         _PIPE.scheduler = EulerAncestralDiscreteScheduler.from_config(_PIPE.scheduler.config)
+        device.place(_PIPE, torch)
     return _PIPE
 
 

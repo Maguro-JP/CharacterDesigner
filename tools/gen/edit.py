@@ -51,12 +51,14 @@ def parts(src):
         from transformers.utils import logging as tlog
         tlog.disable_progress_bar()
         _SEG = AutoModelForSemanticSegmentation.from_pretrained(SEG_MODEL)
+        import device
+        device.module(_SEG, torch)
     model = _SEG
     # 前処理は自前で書く（モデル付属の前処理は torchvision を要求し、この環境に無い）
     a = np.asarray(im.resize((512, 512), Image.BILINEAR), dtype=np.float32) / 255.0
     a = (a - np.array([0.485, 0.456, 0.406])) / np.array([0.229, 0.224, 0.225])
     with torch.no_grad():
-        logits = model(pixel_values=torch.tensor(a.transpose(2, 0, 1)[None], dtype=torch.float32)).logits
+        logits = model(pixel_values=torch.tensor(a.transpose(2, 0, 1)[None], dtype=torch.float32).to(model.device)).logits.float().cpu()
     seg = torch.nn.functional.interpolate(logits, size=(im.height, im.width), mode="bilinear").argmax(1)[0]
     lab = Image.fromarray(seg.numpy().astype("uint8"), "L")
     lab.save(out)
@@ -170,8 +172,10 @@ def inpaint_mask(im, gen_mask, keep_mask, prompt, negative="", steps=20, guidanc
     # 本体を2つ持つとメモリ 15GB を超えて強制終了された。今の本体を捨ててから読む
     del pipe
     gc.collect()
-    unet = UNet2DConditionModel.from_pretrained(INPAINT_UNET, subfolder="unet", variant="fp16", torch_dtype=torch.bfloat16)
+    import device
+    unet = UNet2DConditionModel.from_pretrained(INPAINT_UNET, subfolder="unet", variant="fp16", torch_dtype=device.dtype(torch))
     inp = StableDiffusionXLInpaintPipeline(**comp, unet=unet)
+    device.module(unet, torch)
     inp.scheduler = EulerAncestralDiscreteScheduler.from_config(inp.scheduler.config)
     pe, ne, pp, np_ = design.encode_xl(inp, prompt + ", 2d anime style illustration, cel shading",
                                        ", ".join(x for x in ("text, watermark, nsfw", negative) if x))

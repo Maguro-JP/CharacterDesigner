@@ -121,18 +121,20 @@ def _pipe(style, img2img=False):
     if style in XL:
         from diffusers import DPMSolverMultistepScheduler, StableDiffusionXLPipeline
         # bfloat16: float32 では 2 つの文章の読み手と合わせてメモリが 15GB に収まらない。この CPU は bf16 の命令を持つ
-        pipe = StableDiffusionXLPipeline.from_pretrained(STYLES[style], variant="fp16", torch_dtype=torch.bfloat16)
+        import device
+        pipe = StableDiffusionXLPipeline.from_pretrained(STYLES[style], variant="fp16", torch_dtype=device.dtype(torch))
         # 少ない段数で描く版のモデル。作者の推奨（DPM++ SDE Karras、4〜6 段、guidance 2）に合わせる
         pipe.scheduler = DPMSolverMultistepScheduler.from_config(pipe.scheduler.config, algorithm_type="sde-dpmsolver++",
                                                                  use_karras_sigmas=True)
-        return pipe
+        return device.place(pipe, torch)
     cls = StableDiffusionImg2ImgPipeline if img2img else StableDiffusionPipeline
     pipe = cls.from_pretrained(STYLES[style], torch_dtype=torch.float32, safety_checker=None)
     # LCM-LoRA: 25 段かかるところを 6 段で描く。CPU で1枚 約1分（512x768、4 コア）
     pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
     pipe.load_lora_weights(LCM_LORA)
     pipe.fuse_lora()
-    return pipe
+    import device
+    return device.place(pipe, torch)
 
 
 def encode(pipe, prompt, negative):
