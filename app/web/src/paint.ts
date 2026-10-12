@@ -2,11 +2,51 @@
 
 export type Pt = { x: number; y: number; p: number };
 
-// 筆圧から太さを決める。筆圧の無いマウスは 0.5 が来るので、最小でも size の 2 割は残す（かすれて消えないように）
-export function widthOf(size: number, pressure: number, usePressure: boolean): number {
+// 筆圧から太さを決める。min は筆圧 0 のときの太さの割合（既定 0.2: かすれて消えないように最小でも 2 割は残す）
+export function widthOf(size: number, pressure: number, usePressure: boolean, min = 0.2): number {
   if (!usePressure) return size;
   const p = Math.min(1, Math.max(0, pressure || 0.5));
-  return size * (0.2 + 0.8 * p);
+  return size * (min + (1 - min) * p);
+}
+
+// 補助の設定。どれも描く人が入れ切りと強さを決める（補正が効きすぎて表現が消えるのを嫌う人がいるため）
+export type Assist = {
+  steady: boolean; steadyAmount: number;     // 手ぶれ補正（描いている間、ペン先を後追いさせる）
+  round: boolean; roundPasses: number;       // 離したときに角を丸める回数
+  taper: boolean; taperAmount: number;       // 離したときに頭と尻を細くする量
+  pressure: boolean; pressureMin: number;    // 筆圧で太さを変える。min は筆圧 0 のときの太さの割合
+  inkMerge: number; inkSpur: number; inkWidth: number; // 線の清書: まとめる幅、落とすひげの長さ、太さ（ペンの太さに掛ける）
+};
+export const ASSIST_DEFAULT: Assist = {
+  steady: true, steadyAmount: 0.5, round: true, roundPasses: 2, taper: true, taperAmount: 0.15,
+  pressure: true, pressureMin: 0.2, inkMerge: 3, inkSpur: 6, inkWidth: 0.6,
+};
+// 全部切る: 描いたとおりの線をそのまま残す
+export const ASSIST_OFF: Assist = { ...ASSIST_DEFAULT, steady: false, round: false, taper: false, pressure: false };
+
+const KEY = "cd.paint.assist";
+export function loadAssist(): Assist {
+  try {
+    const v = JSON.parse(localStorage.getItem(KEY) ?? "null");
+    return v && typeof v === "object" ? { ...ASSIST_DEFAULT, ...v } : ASSIST_DEFAULT;
+  } catch {
+    return ASSIST_DEFAULT;
+  }
+}
+export function saveAssist(a: Assist) {
+  try {
+    localStorage.setItem(KEY, JSON.stringify(a));
+  } catch {
+    /* 覚えられなくても描ける */
+  }
+}
+
+// 離したときの線に補助を掛ける。切ってあるものは掛けない
+export function finishStroke(pts: Pt[], a: Assist): Pt[] {
+  let out = pts;
+  if (a.round && a.roundPasses > 0) out = smooth(out, a.roundPasses);
+  if (a.taper && a.taperAmount > 0) out = taper(out, a.taperAmount);
+  return out;
 }
 
 // 手ぶれ補正（後追い）。ペン先を紐で引くように、入力の点へ少しずつ寄せる。strength 0 で補正なし、0.9 で強い
@@ -49,19 +89,19 @@ export function taper(pts: Pt[], amount: number): Pt[] {
 }
 
 // 1本の線を、点ごとの太さで描く（隣の点を太さ付きの線分でつなぐ）
-export function drawStroke(g: CanvasRenderingContext2D, pts: Pt[], size: number, usePressure: boolean) {
+export function drawStroke(g: CanvasRenderingContext2D, pts: Pt[], size: number, usePressure: boolean, min = 0.2) {
   g.lineCap = "round";
   g.lineJoin = "round";
   if (pts.length === 1) {
     const q = pts[0] as Pt;
     g.beginPath();
-    g.arc(q.x, q.y, widthOf(size, q.p, usePressure) / 2, 0, Math.PI * 2);
+    g.arc(q.x, q.y, widthOf(size, q.p, usePressure, min) / 2, 0, Math.PI * 2);
     g.fill();
     return;
   }
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1] as Pt, b = pts[i] as Pt;
-    g.lineWidth = widthOf(size, (a.p + b.p) / 2, usePressure);
+    g.lineWidth = widthOf(size, (a.p + b.p) / 2, usePressure, min);
     g.beginPath();
     g.moveTo(a.x, a.y);
     g.lineTo(b.x, b.y);
