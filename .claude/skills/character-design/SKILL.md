@@ -78,12 +78,14 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
 1. まずアニメ風のデザインを描いて見せる。種を変えて数枚出し、選んでもらう
    `PYTHONPATH=.cache/gen/lib python3 tools/gen/design.py draw out.png "<人物の説明（英語）>" --n 4`
    （初めての環境では `sh tools/gen/setup.sh`。CPU で1枚 約1分）
-2. 派生は指示を受けてから、選ばれた絵から作る。文章から作り直さない（同じ人物を保つため）
-   - リアル風: `design.py restyle in.png out.png --style real`
+2. 後の加工は指示を受けてから、選ばれたイラストから作る。文章から作り直さない（同じ人物を保つため）。
+   デザインそのものは常にイラストで決める。加工は出来上がったデザインに掛けるオプションで、リアル風は優先度が最も低い
+   - デフォルメ・ちびキャラ: 未実装（`docs/ROADMAP.md` の 11）
    - ドット絵（等身を保つ少ない色）: `design.py pixel in.png out.sprite.json --preset survivor`
    - モンスターのドット絵（解像度高め、標準）: `design.py pixel in.png out.sprite.json --preset monster96`
    - 箱庭ドット: 頭を大きくする変換が要る（未完成）。部品で組む場合は下の 1〜3
    - 3D: `tools/engine/`（Blender＋MakeHuman、試作）
+   - リアル風（優先度は最低）: `design.py restyle in.png out.png --style real`
 3. 出したものは画像で見せる。並べた図は `tools/vsref.py`、ドット絵の数字は `tools/check.py` と `tools/learn.py score`
 4. 三面図・持ち物の持ち方・決まった姿勢は、言葉だけで描かない。人形の下絵から描く
    （言葉だけでは横が斜め前、後ろが振り返り、手と持ち物のつながりが崩れた。`docs/knowledge/ai-drawing-notes.md`）
