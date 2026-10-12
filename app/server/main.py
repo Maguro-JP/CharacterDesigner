@@ -57,6 +57,13 @@ PREVIEW_FILE = re.compile(r"^(underlay|mask)\.png$")
 FILE = re.compile(r"^((front|side|back)-\d+|sheet|underlay|mask|try-\d+|try-\d+-inspect|try-\d+-notan|hd-try-\d+-[1-5]-[a-z]+)\.png$|^report\.json$")
 
 
+class InkIn(BaseModel):
+    """線の清書に渡すもの。描く板のレイヤーをそのまま送る"""
+    png: str = Field(..., description="描く板のレイヤー（data:image/png;base64,...）")
+    width: float = Field(3.0, ge=0.5, le=20)
+    merge: float = Field(3.0, ge=0.5, le=12)
+
+
 class Runner:
     """描く処理。下絵を撮り、描いて検品する。on_try(k, stage, result) で進み具合を知らせる。"""
 
@@ -584,6 +591,24 @@ def create_app(runner: Runner | None = None) -> FastAPI:
                 shutil.move(str(f), DATA / job_id / dst)
                 out.append(dst)
         return {"files": out, **r}
+
+    @app.post("/api/paint/ink")
+    def paint_ink(body: InkIn):
+        # 線の清書: 重ねて描いたラフ線を1本の線にまとめて返す（tools/gen/inking.py）。模型を使わないので数秒
+        import base64
+        import inking
+        import tempfile
+        head, _, data = body.png.partition(",")
+        if not head.startswith("data:image/png"):
+            raise HTTPException(422, "PNG の data URL を送る")
+        raw = base64.b64decode(data)
+        if len(raw) > 20 * 1024 * 1024:
+            raise HTTPException(413, "大きすぎる（20MB まで）")
+        with tempfile.TemporaryDirectory() as tmp:
+            src, out = Path(tmp) / "in.png", Path(tmp) / "out.png"
+            src.write_bytes(raw)
+            r = inking.ink(str(src), str(out), body.width, body.merge)
+            return {"png": "data:image/png;base64," + base64.b64encode(out.read_bytes()).decode(), **r}
 
     @app.get("/api/brushes")
     def get_brushes():

@@ -224,6 +224,53 @@ export default function PaintPanel({ ctx }: { ctx: Ctx }) {
       return out;
     });
 
+  // 線の清書: 今のレイヤーのラフ線を送り、1本にまとめた線を新しいレイヤーに置く。元のラフは隠すだけで消さない
+  const [inking, setInking] = useState(false);
+  const inkLayer = async () => {
+    const src = canvases.current.get(activeId);
+    const from = layers.find((l) => l.id === activeId);
+    if (!src || !from) return;
+    setInking(true);
+    try {
+      const r = await fetch("/api/paint/ink", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ png: src.toDataURL("image/png"), width: Math.max(1, Math.min(20, size * 0.6)) }),
+      });
+      if (!r.ok) throw new Error(`清書に失敗した（${r.status}）`);
+      const j = (await r.json()) as { png: string; strokes: number };
+      const img = new Image();
+      img.src = j.png;
+      await img.decode();
+      const id = nextLayer++;
+      setLayers((ls) => {
+        const i = ls.findIndex((l) => l.id === from.id);
+        const out = ls.map((l) => (l.id === from.id ? { ...l, visible: false } : l));
+        out.splice(i + 1, 0, { id, name: `${from.name}（清書）`, visible: true, opacity: 1 });
+        return out;
+      });
+      setActiveId(id);
+      // 新しいレイヤーの canvas は次の描画で作られる。作られてから絵を置く
+      requestAnimationFrame(() => {
+        const c = canvases.current.get(id)?.getContext("2d");
+        if (c) {
+          c.globalCompositeOperation = "source-over";
+          c.drawImage(img, 0, 0, W, H);
+          // 線の色は今のペンの色にする
+          c.globalCompositeOperation = "source-in";
+          c.fillStyle = color;
+          c.fillRect(0, 0, W, H);
+          c.globalCompositeOperation = "source-over";
+        }
+        bump((n) => n + 1);
+      });
+    } catch (e) {
+      ctx.setError((e as Error).message);
+    } finally {
+      setInking(false);
+    }
+  };
+
   const btn = (on: boolean) => `rounded border px-2 py-0.5 text-xs ${on ? "border-accent bg-accent font-bold text-ink" : "border-line"}`;
 
   return (
@@ -235,6 +282,9 @@ export default function PaintPanel({ ctx }: { ctx: Ctx }) {
         <button type="button" className={btn(false)} onClick={doUndo} disabled={!undo.current.length}>戻す</button>
         <button type="button" className={btn(false)} onClick={doRedo} disabled={!redo.current.length}>やり直す</button>
         <button type="button" className={btn(false)} onClick={clear}>このレイヤーを消す</button>
+        <button type="button" className={btn(false)} onClick={inkLayer} disabled={inking} title="重ねて描いたラフ線を1本の線にまとめ、新しいレイヤーに置く">
+          {inking ? "清書中…" : "線を清書"}
+        </button>
         <button type="button" className={btn(false)} onClick={() => save(true)}>重ねて保存</button>
         <button type="button" className={btn(false)} onClick={() => save(false)}>下絵なしで保存</button>
       </div>
