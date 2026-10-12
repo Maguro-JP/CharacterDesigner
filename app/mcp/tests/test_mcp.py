@@ -54,7 +54,7 @@ def test_tools_end_to_end(app_url):
         names = {t.name for t in (await s.list_tools()).tools}
         assert names == {"list_cases", "describe", "save_case", "draw", "job", "sheet",
                          "studio_draw", "studio_job", "studio_image", "proposals", "do_proposal",
-                         "turnaround", "turnaround_job", "turnaround_image"}
+                         "turnaround", "turnaround_job", "turnaround_image", "ref_search", "ref_save", "ref_list"}
         assert "catgirl" in text(await s.call_tool("list_cases", {}))
         d = text(await s.call_tool("describe", {"text": "白い狐の巫女"}))
         assert d["name"] == "white-fox" and d["unused"] == ["巫女"]
@@ -81,7 +81,8 @@ def test_tools_end_to_end(app_url):
         assert st["passed"] is True and st["events"][0].startswith("GUARD:") and st["events"][-1].startswith("CURATOR:")
         img = await s.call_tool("studio_image", {"id": sj["id"]})
         assert img.content[0].type == "image"
-        bad = await s.call_tool("studio_draw", {"text": "ヌード"})
+        # 止めるのは子どもを性的に描く頼みごとだけ（固定の制限、docs/filters.md）
+        bad = await s.call_tool("studio_draw", {"text": "ロリ"})
         assert bad.is_error and "描かない" in bad.content[0].text
         assert "items" in text(await s.call_tool("proposals", {}))
         tj = text(await s.call_tool("turnaround", {"character": "knight", "count": 1}))

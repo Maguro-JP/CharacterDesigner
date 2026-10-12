@@ -5,6 +5,7 @@ import { LlmSettings, readerJa } from "./FreePanel";
 import JobCard from "./JobCard";
 import PaintPanel from "./PaintPanel";
 import FiltersPanel from "./FiltersPanel";
+import RefsPanel from "./RefsPanel";
 
 // 板が共有する状態。App が持ち、配置（Layout）がどこに板を置いても同じものを見る
 export type Ctx = {
@@ -501,6 +502,7 @@ export const PANELS: Record<string, { title: string; render: (ctx: Ctx) => React
   proposals: { title: "提案", render: (ctx) => <ProposalsPanel ctx={ctx} /> },
   demi: { title: "亜人の設定資料", render: (ctx) => <DemiPanel onSubmitted={ctx.refreshJobs} onError={ctx.setError} /> },
   filters: { title: "フィルター", render: (ctx) => <FiltersPanel ctx={ctx} /> },
+  refs: { title: "参考画像", render: (ctx) => <RefsPanel ctx={ctx} /> },
 };
 
 // 役割の一覧は一度だけ取る

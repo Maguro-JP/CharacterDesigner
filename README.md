@@ -66,6 +66,9 @@ python3 tools/compare.py out/cmp.png v3=characters/warrior-v3-hand/sprite.json v
 - 描く: 描いた絵を下絵に敷き、レイヤーに手で描き足す。筆圧・パレット・スポイト・戻す/やり直す・レイヤー（塗りと線画を分ける）。
   AI の補助（手ぶれ補正・角を丸める・入り抜き・線の清書）は、1つずつ入れ切りと強さを変えられ、「補助を全部切る」で描いたとおりの線を残せる。
   「線を清書」は、重ねて描いたラフ線を1本の線にまとめて新しいレイヤーに置く（元のラフは隠すだけで消さない）
+- 参考画像: CC ライセンスと public domain の画像（Openverse）を探して手元に置き、1枚を「描くときに使う」に選ぶと、
+  スタジオと自由に描くの依頼に画風と色の手本として添える（強さは 0〜1）。作者・ライセンス・元のページを一緒に見せる。
+  使う条件（作者の表示、非営利など）は元のページで確かめる。画像は `.cache/app/refs` に置き、リポジトリには入れない
 - 亜人の設定資料: 「白い狐の巫女」のように頼むと、耳・尾・翼・角の付いた設定資料（4方向）を描いて検品し、通ったものを見本に保存する
 
 ![言葉で頼むと種の設定が組まれ、3D の下絵で部品の付け根を見られる画面](docs/images/app-wish-to-case.png)
@@ -106,6 +109,7 @@ python3 tools/compare.py out/cmp.png v3=characters/warrior-v3-hand/sprite.json v
 
 アプリを起動したまま（`sh app/start.sh`）、MCP サーバーを登録すると、Claude に「白い狐の巫女を描いて」と頼めるようになる。
 道具は `list_cases`（種の一覧）、`describe`（日本語を種の設定に組む）、`save_case`、`draw`（描く依頼）、`job`（進み具合）、`sheet`（通った絵）。
+参考画像は `ref_search`（探す）、`ref_save`（手元に置く）、`ref_list`（一覧）。`studio_draw` の `ref` に置いた画像の id を渡すと、画風と色の手本にして描く。
 スタジオは `studio_draw`（日本語か描く言葉で頼む）、`studio_job`（役割ごとの出来事と決着）、`studio_image`（絵）、`proposals`・`do_proposal`（待機中の提案と承認）。
 
 - Claude Code: リポジトリの場所で

@@ -197,8 +197,11 @@ def full_prompt(prompt: str, negative: str = "") -> tuple[str, str]:
 
 
 def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, width: int = 832, height: int = 1216,
-         steps: int = 24, on_image=None, lora: str = "", pose: str = "", pose_strength: float = 0.93) -> list[str]:
-    """Animagine で count 枚描き、out/try-<k>.png に置く。seed は 1 枚ごとに 1 ずつ進める（同じ設定で描き直せる）。"""
+         steps: int = 24, on_image=None, lora: str = "", pose: str = "", pose_strength: float = 0.93,
+         ref: str = "", ref_scale: float = 0.5) -> list[str]:
+    """Animagine で count 枚描き、out/try-<k>.png に置く。seed は 1 枚ごとに 1 ずつ進める（同じ設定で描き直せる）。
+    ref は参考画像のファイル（tools/gen/refsearch.py で保存したもの）。画風と色を読ませる（IP-Adapter、強さ ref_scale）。
+    姿勢の下絵（pose）と一緒には使えない（下絵から描き直す経路は手本を読まない）"""
     import torch
     import design
     import people
@@ -227,6 +230,17 @@ def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, w
         draw_pipe = demi.img2img()
     else:
         draw_pipe = pipe
+    ref_kw = {}
+    if ref and under is None:
+        from PIL import Image
+        people.use_reference()
+        pipe.set_ip_adapter_scale(max(0.0, min(1.0, ref_scale)))
+        ref_kw["ip_adapter_image"] = Image.open(ref).convert("RGB")
+    elif people._IP and under is None:
+        # 前の仕事で手本を読み込んだままなら、手本の無い絵は強さ 0 で白い絵を渡す（渡さないと止まる）
+        from PIL import Image
+        pipe.set_ip_adapter_scale(0.0)
+        ref_kw["ip_adapter_image"] = Image.new("RGB", (224, 224), "white")
     try:
         pe, ne, pp, np_ = design.encode_xl(draw_pipe, pos, neg)
         names = []
@@ -236,7 +250,7 @@ def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, w
             if under is not None:
                 im = draw_pipe(image=under, strength=pose_strength, **common).images[0]
             else:
-                im = draw_pipe(width=width, height=height, **common).images[0]
+                im = draw_pipe(width=width, height=height, **common, **ref_kw).images[0]
             name = f"try-{k}.png"
             im.save(out / name)
             names.append(name)

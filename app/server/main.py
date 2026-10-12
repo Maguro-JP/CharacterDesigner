@@ -57,6 +57,27 @@ PREVIEW_FILE = re.compile(r"^(underlay|mask)\.png$")
 FILE = re.compile(r"^((front|side|back)-\d+|sheet|underlay|mask|try-\d+|try-\d+-inspect|try-\d+-notan|hd-try-\d+-[1-5]-[a-z]+)\.png$|^report\.json$")
 
 
+def _ref_path(rid: str) -> str:
+    """保存した参考画像のファイルの場所。無い・空なら空文字"""
+    if not rid:
+        return ""
+    import refsearch
+    p = refsearch.path_of(rid)
+    return str(p) if p else ""
+
+
+class RefIn(BaseModel):
+    """検索結果の1件。そのまま保存に渡す"""
+    id: str = Field(..., max_length=80)
+    url: str = Field(..., max_length=1000)
+    title: str = ""
+    creator: str = ""
+    license: str = ""
+    license_version: str = ""
+    license_url: str = ""
+    landing: str = ""
+    source: str = ""
+
 class FiltersIn(BaseModel):
     """利用者のフィルター。画面の「フィルター」から保存する"""
     filters: list[dict] = Field(default_factory=list)
@@ -92,7 +113,8 @@ class Runner:
             with tempfile.TemporaryDirectory() as tmp:
                 # ラフから描く手順では、まず鉛筆のラフを描く（色と仕上げは finish で後から足す）
                 p = f"sketch, pencil (medium), monochrome, rough lines, dynamic pose, {prompt}" if spec.method == "rough" else prompt
-                free_text.draw(p, negative, Path(tmp), seed, 1, w, h, lora=spec.lora, pose=spec.pose)
+                free_text.draw(p, negative, Path(tmp), seed, 1, w, h, lora=spec.lora, pose=spec.pose,
+                               ref=_ref_path(getattr(spec, "ref", "")), ref_scale=getattr(spec, "ref_scale", 0.5))
                 shutil.move(f"{tmp}/try-0.png", f"{out}/{name}")
             return name
 
@@ -194,7 +216,8 @@ class Runner:
 
     def free(self, spec: dict, outdir: Path, on_image) -> list:
         return free_text.draw(spec["prompt"], spec.get("negative", ""), outdir, spec["seed"], spec["count"],
-                              spec["width"], spec["height"], on_image=on_image)
+                              spec["width"], spec["height"], on_image=on_image,
+                              ref=_ref_path(spec.get("ref", "")), ref_scale=spec.get("ref_scale", 0.5))
 
 
 @dataclass
@@ -358,6 +381,8 @@ class StudioIn(BaseModel):
     method: str = Field("oneshot", pattern="^(oneshot|handdraw|rough)$")
     allow_impossible: bool = False
     brush: str = Field("", pattern="^[a-z]{0,20}$")
+    ref: str = Field("", max_length=64)      # 参考画像（/api/refs で保存した id）
+    ref_scale: float = Field(0.5, ge=0.0, le=1.0)
     line_style: str = Field("default", pattern="^[a-z]{1,20}$")
     paint_method: str = Field("cel", pattern="^(cel|grisaille)$")
     # 設定資料集（bible/）から描く: 保存したキャラクターの見た目・服・持ち物と、世界観の場所で描く言葉を組む
@@ -398,6 +423,8 @@ class FreeJobIn(BaseModel):
     count: int = Field(1, ge=1, le=4)
     # 縦長・横長・正方形。SDXL が得意な画素数（約 100 万）の組だけにする
     size: str = Field("portrait", pattern="^(portrait|landscape|square)$")
+    ref: str = Field("", max_length=64)      # 参考画像（/api/refs で保存した id）。画風と色を読ませる
+    ref_scale: float = Field(0.5, ge=0.0, le=1.0)
 
 
 SIZES = {"portrait": (832, 1216), "landscape": (1216, 832), "square": (1024, 1024)}
@@ -615,6 +642,39 @@ def create_app(runner: Runner | None = None) -> FastAPI:
             r = inking.ink(str(src), str(out), body.width, body.merge, body.spur)
             return {"png": "data:image/png;base64," + base64.b64encode(out.read_bytes()).decode(), **r}
 
+    @app.get("/api/refs/search")
+    def refs_search(q: str, n: int = 12, commercial: bool = False):
+        # 参考画像を探す（Openverse の CC ライセンスと public domain の画像）。作者・ライセンス・元のページを一緒に返す
+        import refsearch
+        if not q.strip():
+            raise HTTPException(422, "探す言葉を入れる")
+        try:
+            return {"results": refsearch.search(q, max(1, min(n, 40)), commercial)}
+        except Exception as e:
+            raise HTTPException(502, f"検索先につながらない（{type(e).__name__}）")
+
+    @app.post("/api/refs")
+    def refs_save(body: RefIn):
+        import refsearch
+        if not body.url.startswith(("https://", "http://")):
+            raise HTTPException(422, "画像の URL が無い")
+        try:
+            return refsearch.save(body.model_dump())
+        except Exception as e:
+            raise HTTPException(502, f"画像を取れなかった（{type(e).__name__}）")
+
+    @app.get("/api/refs")
+    def refs_list():
+        import refsearch
+        return {"refs": refsearch.list_saved()}
+
+    @app.get("/api/refs/file/{rid}")
+    def refs_file(rid: str):
+        p = _ref_path(rid)
+        if not p:
+            raise HTTPException(404, "その参考画像は無い")
+        return FileResponse(p, media_type="image/jpeg")
+
     @app.get("/api/filters")
     def get_filters():
         # 利用者のフィルターと、設定で外せない固定の制限の説明（docs/filters.md）
@@ -676,7 +736,10 @@ def create_app(runner: Runner | None = None) -> FastAPI:
                 "width": w, "height": h, "tries": body.tries, "direct": body.direct, "lora": body.lora,
                 "paint": body.paint, "format": body.format, "pose": body.pose,
                 "method": body.method, "allow_impossible": body.allow_impossible,
-                "brush": body.brush, "line_style": body.line_style, "paint_method": body.paint_method}
+                "brush": body.brush, "line_style": body.line_style, "paint_method": body.paint_method,
+                "ref": body.ref, "ref_scale": body.ref_scale}
+        if body.ref and _ref_path(body.ref) == "":
+            raise HTTPException(422, "その参考画像は無い（/api/refs で保存したものを選ぶ）")
         import brushes
         bt = brushes.table()
         if body.brush and body.brush not in bt["brushes"] or body.line_style not in bt["styles"]:
@@ -726,8 +789,10 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         if why:
             raise HTTPException(422, why)
         w, h = SIZES[body.size]
+        if body.ref and _ref_path(body.ref) == "":
+            raise HTTPException(422, "その参考画像は無い（/api/refs で保存したものを選ぶ）")
         spec = {"prompt": body.prompt, "negative": body.negative, "ja": body.ja, "seed": body.seed, "count": body.count,
-                "width": w, "height": h}
+                "width": w, "height": h, "ref": body.ref, "ref_scale": body.ref_scale}
         title = (body.ja or body.prompt)[:20]
         return jobs.submit(title, {}, 0.0, body.count, kind="free", free=spec).public()
 
