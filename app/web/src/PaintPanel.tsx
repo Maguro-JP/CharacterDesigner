@@ -271,6 +271,76 @@ export default function PaintPanel({ ctx }: { ctx: Ctx }) {
     }
   };
 
+  // 切り出しと質感。下絵から一部（人物・色で選んだ所・部位）を切り出し、「残り」と「切り出し」の2枚のレイヤーにする。
+  // 切り出したレイヤーだけ不透明度を下げればスライムの透け、質感を掛ければ金属・宝石などになる。下絵は隠すだけで消さない
+  const [cutMode, setCutMode] = useState<"person" | "color" | "region">("color");
+  const [cutColors, setCutColors] = useState<string[]>([]);
+  const [cutTol, setCutTol] = useState(80);
+  const [cutRegion, setCutRegion] = useState("skin");
+  const [matKind, setMatKind] = useState("slime");
+  const [matStrength, setMatStrength] = useState(0.6);
+  const [working, setWorking] = useState("");
+
+  const postJson = async <T,>(url: string, body: object): Promise<T> => {
+    const r = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    if (!r.ok) throw new Error(((await r.json().catch(() => ({}))) as { detail?: string }).detail ?? `失敗した（${r.status}）`);
+    return (await r.json()) as T;
+  };
+  const putImage = (id: number, dataUrl: string) =>
+    new Promise<void>((done) => {
+      const img = new Image();
+      img.onload = () => {
+        requestAnimationFrame(() => {
+          const c = canvases.current.get(id)?.getContext("2d");
+          c?.clearRect(0, 0, W, H);
+          c?.drawImage(img, 0, 0, W, H);
+          bump((n) => n + 1);
+          done();
+        });
+      };
+      img.src = dataUrl;
+    });
+
+  const cutFromUnder = async () => {
+    if (!underImg.current?.complete) return ctx.setError("下絵が無い（描いた絵を選んでから）");
+    setWorking("切り出しています");
+    try {
+      const t = document.createElement("canvas");
+      t.width = W;
+      t.height = H;
+      t.getContext("2d")?.drawImage(underImg.current, 0, 0, W, H);
+      const j = await postJson<{ layer: string; rest: string; pixels: number }>("/api/paint/cut", {
+        png: t.toDataURL("image/png"), mode: cutMode, colors: cutColors.join(","), tol: cutTol, region: cutRegion, person_only: true,
+      });
+      if (!j.pixels) throw new Error("選べた所が無い（色か幅を変える）");
+      const restId = nextLayer++, partId = nextLayer++;
+      setLayers((ls) => [{ id: restId, name: "残り", visible: true, opacity: 1 }, ...ls.slice(0, 0), { id: partId, name: "切り出し", visible: true, opacity: 1 }, ...ls]);
+      setActiveId(partId);
+      setUnderAlpha(0);
+      await putImage(restId, j.rest);
+      await putImage(partId, j.layer);
+    } catch (e) {
+      ctx.setError((e as Error).message);
+    } finally {
+      setWorking("");
+    }
+  };
+
+  const applyMaterial = async () => {
+    const src = canvases.current.get(activeId);
+    if (!src) return;
+    setWorking("質感を掛けています");
+    try {
+      const j = await postJson<{ png: string }>("/api/paint/material", { png: src.toDataURL("image/png"), kind: matKind, strength: matStrength });
+      snapshot();
+      await putImage(activeId, j.png);
+    } catch (e) {
+      ctx.setError((e as Error).message);
+    } finally {
+      setWorking("");
+    }
+  };
+
   const btn = (on: boolean) => `rounded border px-2 py-0.5 text-xs ${on ? "border-accent bg-accent font-bold text-ink" : "border-line"}`;
 
   return (
@@ -310,6 +380,53 @@ export default function PaintPanel({ ctx }: { ctx: Ctx }) {
           <label className="flex items-center gap-1">太さ<input type="range" min={0.2} max={2} step={0.1} value={assist.inkWidth} onChange={(e) => setAssist({ inkWidth: +e.target.value })} />×{assist.inkWidth}</label>
           <button type="button" className="rounded border border-line px-2" onClick={() => setAssist(ASSIST_OFF)}>補助を全部切る</button>
           <button type="button" className="rounded border border-line px-2" onClick={() => setAssist(ASSIST_DEFAULT)}>既定に戻す</button>
+        </div>
+      </details>
+      <details className="rounded border border-line px-2 py-1 text-xs">
+        <summary className="cursor-pointer">切り出しと質感（スライムの透け、金属・重厚・宝石・無機質・汚れ）</summary>
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <label className="flex items-center gap-1">選び方
+            <select className="rounded border border-line bg-transparent" value={cutMode} onChange={(e) => setCutMode(e.target.value as "person" | "color" | "region")}>
+              <option value="color">色で選ぶ（人物の中だけ）</option>
+              <option value="person">人物全体</option>
+              <option value="region">部位</option>
+            </select>
+          </label>
+          {cutMode === "color" && (
+            <>
+              <span>色:</span>
+              {cutColors.map((c) => (
+                <button key={c} type="button" title={`${c}（押すと外す）`} className="h-4 w-4 rounded-sm border border-line" style={{ background: c }}
+                  onClick={() => setCutColors((cs) => cs.filter((x) => x !== c))} />
+              ))}
+              <button type="button" className="rounded border border-line px-1" onClick={() => setCutColors((cs) => (cs.includes(color) ? cs : [...cs, color]))}>
+                今の色を足す
+              </button>
+              <span className="text-neutral-400">（スポイトで下絵の色を拾ってから。光の所と陰の所など、色が離れていれば複数足す）</span>
+              <label className="flex items-center gap-1">幅<input type="range" min={10} max={150} step={5} value={cutTol} onChange={(e) => setCutTol(+e.target.value)} />{cutTol}</label>
+            </>
+          )}
+          {cutMode === "region" && (
+            <select className="rounded border border-line bg-transparent" value={cutRegion} onChange={(e) => setCutRegion(e.target.value)}>
+              <option value="skin">肌（顔・腕・脚）</option><option value="hair">髪</option><option value="clothes">服</option>
+              <option value="upper">上の服</option><option value="lower">下の服</option><option value="shoes">靴</option>
+            </select>
+          )}
+          <button type="button" className="rounded bg-accent px-2 font-bold text-ink" disabled={!!working || (cutMode === "color" && !cutColors.length)} onClick={cutFromUnder}>
+            下絵から切り出す
+          </button>
+          <span className="text-neutral-400">→「残り」と「切り出し」のレイヤーになる。スライムの透けは「切り出し」の不透明度を下げる</span>
+        </div>
+        <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+          <label className="flex items-center gap-1">質感
+            <select className="rounded border border-line bg-transparent" value={matKind} onChange={(e) => setMatKind(e.target.value)}>
+              <option value="slime">透明感（スライム）</option><option value="metal">金属感</option><option value="heavy">重厚感</option>
+              <option value="gem">宝石感</option><option value="inorganic">無機質感</option><option value="dirt">汚れ</option>
+            </select>
+          </label>
+          <label className="flex items-center gap-1">強さ<input type="range" min={0.05} max={1} step={0.05} value={matStrength} onChange={(e) => setMatStrength(+e.target.value)} />{Math.round(matStrength * 100)}%</label>
+          <button type="button" className="rounded border border-line px-2" disabled={!!working} onClick={applyMaterial}>今のレイヤーに掛ける</button>
+          {working && <span className="text-neutral-400">{working}…</span>}
         </div>
       </details>
       <div className="flex flex-wrap items-center gap-1">
