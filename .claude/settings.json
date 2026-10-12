@@ -69,6 +69,18 @@
           }
         ]
       }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "SendUserFile",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/send-gate.sh",
+            "timeout": 30
+          }
+        ]
+      }
     ]
   }
 }
