@@ -341,3 +341,22 @@ Animagine XL、832x1216、24 段、seed 11、姿勢の下絵なし。1 枚 240�
 | 小型の飛行機 | riding small airplane, propeller plane, pilot goggles | 崩れた（人物に比べて機体が小さく、翼の上に座る。プロペラが 2 つ） |
 
 - 5 種中 3 種が言葉だけで乗った姿勢になった。機械の脚と飛行機は、大きさの比と乗る位置が守られない。姿勢の下絵（人形を座らせ、乗り物の大きさを決める）が要る
+
+## ペットと動物（2026-10-13）
+
+Animagine XL、24 段、seed 11、1 枚 252〜297 秒（CPU）。打ち消しに extra legs, extra tails。判定は目で見たもの。
+
+| 題材 | 言葉 | 出たか |
+|---|---|---|
+| 肩の小動物 | small animal on shoulder, squirrel on shoulder | 肩に栗鼠は出たが、手にもう 1 匹いて 2 匹になった |
+| 足元の犬と猫 | dog at feet, cat at feet | 犬だけ出た。猫は出ず、靴が獣の足の形になった |
+| 浮かぶ使い魔 | floating familiar, small spirit creature floating beside her | 出た（黒い霊のような生き物が 2 体。足元に黒い渦） |
+| 犬 | no humans, dog, animal focus, character design（横長） | 出た |
+| 猫 | 同上 | 出た |
+| 狐 | 同上 | 出た |
+| 狼 | 同上 | 出た |
+| 鳥 | 同上 | 出た |
+| 竜 | 同上 | 出た（翼・角・尾） |
+
+- 人と並べない動物は 6 種すべてが言葉だけで出た
+- 人と並べるペットは、数（1 匹が 2 匹）と、2 種を同時に頼んだときの片方の消え方・人への混ざり方（猫が靴に移る）が崩れる。人と動物を同時に描くと、言葉が混ざる
