@@ -840,3 +840,29 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def spot_fill(src: str, out: str, min_ratio: float = 0.002) -> dict:
+    """顔の中の、肌に囲まれた白い点（逆光なのに鼻筋に出る照り返し）を、周りの肌の色で埋める。
+    作画監督の scene.backlit_spot と同じ探し方（measure.face_spots）。目のハイライトは触らない。
+    描き直し（detail.py）では点が残った（強さ 0.4・0.5 とも）ので、点だけを画素で直す"""
+    import edit
+    import measure
+    from scipy import ndimage
+    im = Image.open(src).convert("RGB")
+    rgb = np.asarray(im, dtype=np.float32) / 255.0
+    seg = np.asarray(edit.parts(src))
+    fm = measure.face_mask(seg, edit.LABELS)
+    ratio, spots = measure.face_spots(rgb.mean(-1), fm)
+    if ratio < min_ratio:
+        im.save(out)
+        return {"filled": 0, "ratio": ratio}
+    area = ndimage.binary_dilation(spots, iterations=2)
+    ring = ndimage.binary_dilation(area, iterations=3) & ~area & fm
+    skin = np.median(rgb[ring], axis=0) if ring.any() else np.median(rgb[fm], axis=0)
+    # 縁をぼかして混ぜる。べた塗りの円にすると、点の形がそのまま残って見えた
+    a = ndimage.gaussian_filter(area.astype(np.float32), 1.2)[..., None]
+    fixed = rgb * (1 - a) + skin[None, None, :] * a
+    Image.fromarray((np.clip(fixed, 0, 1) * 255).round().astype(np.uint8)).save(out)
+    return {"filled": int(area.sum()), "ratio": ratio}
+

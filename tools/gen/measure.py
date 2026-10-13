@@ -223,13 +223,15 @@ def light3d(src, rgb, seg, regions):
             "inverted_regions": inverted}
 
 
-def _face_spot(lum, fm) -> float:
-    """顔の中の、肌に囲まれた白い点の最大の面積 ÷ 顔の面積。目のハイライトは暗い瞳に囲まれるので数えない
-    （点の周り 3 画素の暗い側が、顔の明るさの中央値の 0.85 倍未満なら目とみなす。目のハイライトは 0.39〜0.75、鼻筋の点は 0.9〜1.11）"""
+def face_spots(lum, fm):
+    """顔の中の、肌に囲まれた白い点を探す。返すのは（最大の点の面積 ÷ 顔の面積、点の全部の範囲）。
+    目のハイライトは暗い瞳に囲まれるので数えない（点の周り 3 画素の暗い側が、顔の明るさの中央値の 0.85 倍未満なら目とみなす。
+    目のハイライトは 0.39〜0.75、鼻筋の点は 0.9〜1.11）"""
     from scipy import ndimage
     f = ndimage.binary_erosion(fm, iterations=2)
+    spots = np.zeros_like(fm, dtype=bool)
     if f.sum() < 100:
-        return 0.0
+        return 0.0, spots
     med = float(np.median(lum[f]))
     b = f & (lum > min(0.97, med * 1.5))
     lab, n = ndimage.label(b)
@@ -239,7 +241,8 @@ def _face_spot(lum, fm) -> float:
         ring = ndimage.binary_dilation(bl, iterations=3) & ~bl
         if np.percentile(lum[ring], 10) >= med * 0.85:
             best = max(best, int(bl.sum()))
-    return round(best / float(f.sum()), 4)
+            spots |= bl
+    return round(best / float(f.sum()), 4), spots
 
 
 def scene_light(rgb, seg, labels=None):
@@ -274,7 +277,7 @@ def scene_light(rgb, seg, labels=None):
         fm = face_mask(seg, labels)
         if fm.sum() > 100:
             face_lit = round(float(np.median(lum[fm])) / max(float(np.percentile(lum[fig], 95)), 1e-6), 3)
-            face_spot = _face_spot(lum, fm)
+            face_spot = face_spots(lum, fm)[0]
     # 逆光の場面なのに顔が正面から照らされている: 背景にはっきりした光源があり（明るい所が背景の中央値の 1.5 倍超）、
     # それが人物の後ろ（横のずれが人物の幅の半分以内）にあり、顔が人物の明るい所の 0.88 倍を超えて明るい。
     # 較正: 正面から照らした素体 0.97〜0.98、逆光の素体 0.52〜0.61、検品で戻した外部の生成と手元の騎士 0.967・0.979
