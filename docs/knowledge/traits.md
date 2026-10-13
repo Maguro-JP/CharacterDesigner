@@ -327,3 +327,17 @@ Animagine XL、832x1216、24 段、seed 11、姿勢の下絵なし。1 枚 240�
 
 - 6 種すべてが言葉だけで出た。魔法陣は置く場所（足元）が守られなかった
 - エフェクトの色が服の柄に移る（炎、氷）。左右で靴が違う絵が 2 枚あった（氷、光の粒）。作画監督の左右の対（pairs）で見る対象
+
+## 乗り物（2026-10-13）
+
+題材: 茶色の髪の冒険者の少女、全身、白の背景、横長 1216x832。Animagine XL、24 段、seed 11、1 枚 252〜282 秒（CPU）。判定は目で見たもの。
+
+| 乗り物 | 言葉 | 出たか |
+|---|---|---|
+| バイク | riding motorcycle, motorcycle | 出た（ハンドルを握ってまたがる） |
+| 馬 | riding horse, horseback riding, horse | 出た（鞍にまたがり手綱を持つ。後ろからの構図） |
+| ほうき | riding broom, flying on broom, witch hat | 出た（ほうきに腰掛けて浮く） |
+| 機械の脚 | riding mecha, mechanical legs, walker robot | 乗っていない（機械の脚の間に立つ） |
+| 小型の飛行機 | riding small airplane, propeller plane, pilot goggles | 崩れた（人物に比べて機体が小さく、翼の上に座る。プロペラが 2 つ） |
+
+- 5 種中 3 種が言葉だけで乗った姿勢になった。機械の脚と飛行機は、大きさの比と乗る位置が守られない。姿勢の下絵（人形を座らせ、乗り物の大きさを決める）が要る
