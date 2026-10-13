@@ -101,8 +101,13 @@ def check_rig(rig) -> list[str]:
         for side, (pa, ch) in j["bones"].items():
             if pa not in rig.pose.bones or ch not in rig.pose.bones:
                 continue
-            rel = relative(_axes(rig.data.bones[pa].matrix_local), _axes(rig.data.bones[ch].matrix_local),
-                           _axes(rig.pose.bones[pa].matrix), _axes(rig.pose.bones[ch].matrix))
+            if j.get("absolute"):
+                # 今の姿勢での曲げそのもの（休みの姿勢からの差ではない）。MPFB の人形は休みの姿勢で肘が 35 度曲がっていて、
+                # 差で測るとまっすぐ伸ばした腕を「逆に 35 度」と出した。足首は休みの姿勢が 0 度（すねと足の甲が直角）なので差で測る
+                rel = _mul(_t(_axes(rig.pose.bones[pa].matrix)), _axes(rig.pose.bones[ch].matrix))
+            else:
+                rel = relative(_axes(rig.data.bones[pa].matrix_local), _axes(rig.data.bones[ch].matrix_local),
+                               _axes(rig.pose.bones[pa].matrix), _axes(rig.pose.bones[ch].matrix))
             out += [f"{side}: {r}" if side != "C" else r for r in judge(name, rel)]
     return out
 
@@ -139,7 +144,8 @@ def _self_test():
         "肘を 90 度曲げる": ({"lowerarm01_L": ("x", 90)}, False),
         "膝を 100 度曲げる": ({"lowerleg01_R": ("x", 100)}, False),
         "首を 45 度ひねる": ({"head": ("y", 45)}, False),
-        "肘の逆曲がり 40 度": ({"lowerarm01_L": ("x", -40)}, True),
+        "腕をまっすぐ伸ばす（休みの姿勢の曲げ 35 度を戻す）": ({"lowerarm01_L": ("x", -35)}, False),
+        "肘の逆曲がり 30 度（休みの姿勢から -65 度）": ({"lowerarm01_L": ("x", -65)}, True),
         "膝が前へ 40 度曲がる": ({"lowerleg01_R": ("x", -40)}, True),
         "首が 170 度ひねる": ({"head": ("y", 170)}, True),
         "手首が甲の側へ 120 度": ({"wrist_R": ("x", -120)}, True),
