@@ -137,3 +137,5 @@
 | 瞳の色を1色に決めて書く（matching <色> eyes） | 書いた後の3回で検品に出した6枚のうち、左右の色違いが2枚、頼んだ色と違う瞳が2枚出た。言葉では止まらない | library/women |
 | 言葉を最小にする（adult woman, short brown hair, white blouse, black skirt, full body, standing） | 検品は4枚とも戻した。左右の瞳の色違い 2枚、脚の交差で1本欠け 2枚、髪の左右で色が分かれる 1枚。瞳の色違いは言葉の長さとは関係なく、全身で顔が小さいときに出る | library/women |
 | 瞳の色違いだけで戻した1枚に、顔だけを拡大して描き直す処理をかける（imgproc.face_fix、強さ 0.35） | 左右の瞳が同じ茶にそろい、形とハイライトの位置もそろった。継ぎ目と色の段差は無く、measure.py の外れも 0。顔の外の崩れ（手の指）は元の絵のまま残り、検品はそれで戻した。CPU で 1枚 21分 | tools/gen/imgproc.py face_fix |
+| 最小構成のまま、顔を描き直した1枚（手足に崩れの見えない絵を選んで、imgproc.face_fix） | 検品は戻した。瞳の色はそろったが、左右の目の大きさが合わず（face.rms 0.09、基準 0.07）、両手の指がぼやけた。顔の描き直しは瞳の色は直すが、目の形と手は直さない | tools/gen/imgproc.py face_fix |
+| 模型を SDXL 系（dreamshaper-xl-lightning、832x1216、6 段）に替え、年齢を数字で書く（28 years old） | 3枚描き、2枚を検品に出して2枚とも戻した。手は2枚とも5本指で崩れが無く、MeinaMix より良い。顔は大人の作りになった。左右の瞳の色違いは2枚とも出た。3枚とも膝や脛で切れ、全身にならなかった。long navy skirt は色も長さも守られなかった。CPU で1枚 14分 | tools/gen/design.py draw --style xl |

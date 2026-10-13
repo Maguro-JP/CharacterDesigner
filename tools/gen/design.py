@@ -197,9 +197,16 @@ def draw(out, prompt, seed, n, style, steps, width, height):
     for i in range(n):
         t = time.time()
         g = torch.Generator().manual_seed(seed + i)
-        pe, ne = encode(pipe, PREFIX + prompt + SUFFIX, NEGATIVE)
-        im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, num_inference_steps=steps,
-                  guidance_scale=1.5, width=width, height=height, generator=g).images[0]
+        if style in XL:
+            # SDXL は要約（pooled）も渡さないと止まる。guidance は batch の XL と同じ 2.0
+            pe, ne, pp, np_ = encode_xl(pipe, PREFIX + prompt + SUFFIX, NEGATIVE)
+            im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
+                      negative_pooled_prompt_embeds=np_, num_inference_steps=steps,
+                      guidance_scale=2.0, width=width, height=height, generator=g).images[0]
+        else:
+            pe, ne = encode(pipe, PREFIX + prompt + SUFFIX, NEGATIVE)
+            im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, num_inference_steps=steps,
+                      guidance_scale=1.5, width=width, height=height, generator=g).images[0]
         p = out if n == 1 else str(Path(out).with_suffix("")) + f"-{seed + i}.png"
         im.save(p)
         meta = {"prompt": prompt, "seed": seed + i, "style": style, "model": STYLES[style], "steps": steps}
