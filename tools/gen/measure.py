@@ -223,6 +223,25 @@ def light3d(src, rgb, seg, regions):
             "inverted_regions": inverted}
 
 
+def _face_spot(lum, fm) -> float:
+    """顔の中の、肌に囲まれた白い点の最大の面積 ÷ 顔の面積。目のハイライトは暗い瞳に囲まれるので数えない
+    （点の周り 3 画素の暗い側が、顔の明るさの中央値の 0.85 倍未満なら目とみなす。目のハイライトは 0.39〜0.75、鼻筋の点は 0.9〜1.11）"""
+    from scipy import ndimage
+    f = ndimage.binary_erosion(fm, iterations=2)
+    if f.sum() < 100:
+        return 0.0
+    med = float(np.median(lum[f]))
+    b = f & (lum > min(0.97, med * 1.5))
+    lab, n = ndimage.label(b)
+    best = 0
+    for i in range(1, n + 1):
+        bl = lab == i
+        ring = ndimage.binary_dilation(bl, iterations=3) & ~bl
+        if np.percentile(lum[ring], 10) >= med * 0.85:
+            best = max(best, int(bl.sum()))
+    return round(best / float(f.sum()), 4)
+
+
 def scene_light(rgb, seg, labels=None):
     """背景の光と人物の照らされ方を比べる数字。
     bg_dx: 背景の最も明るい 3% の重心が、人物の中心から横にどれだけずれているか（人物の幅で割る。0 付近なら真後ろ）
@@ -250,17 +269,23 @@ def scene_light(rgb, seg, labels=None):
     # 顔の明るさ ÷ 人物の明るい所（95 パーセンタイル）。逆光なら顔は影に入り低くなる。人物の内側の平均だけでは、
     # 金属の鎧の照り返しや真っ白な窓に紛れて、正面から照らされた顔を見逃した
     face_lit = None
+    face_spot = 0.0
     if labels is not None:
         fm = face_mask(seg, labels)
         if fm.sum() > 100:
             face_lit = round(float(np.median(lum[fm])) / max(float(np.percentile(lum[fig], 95)), 1e-6), 3)
+            face_spot = _face_spot(lum, fm)
     # 逆光の場面なのに顔が正面から照らされている: 背景にはっきりした光源があり（明るい所が背景の中央値の 1.5 倍超）、
     # それが人物の後ろ（横のずれが人物の幅の半分以内）にあり、顔が人物の明るい所の 0.88 倍を超えて明るい。
     # 較正: 正面から照らした素体 0.97〜0.98、逆光の素体 0.52〜0.61、検品で戻した外部の生成と手元の騎士 0.967・0.979
     contrast = hi / max(float(np.median(lum[bg])), 1e-6)
     dx = float((bx.mean() - (fx0 + fx1) / 2) / fw)
-    backlit_front = int(face_lit is not None and contrast > 1.5 and abs(dx) <= 0.5 and face_lit > 0.88)
-    return {"found": True, "face_lit": face_lit, "bg_contrast": round(contrast, 2), "backlit_front": backlit_front, "bg_dx": round(float((bx.mean() - (fx0 + fx1) / 2) / fw), 3),
+    backlit = contrast > 1.5 and abs(dx) <= 0.5
+    backlit_front = int(face_lit is not None and backlit and face_lit > 0.88)
+    # 逆光なのに顔の真ん中（鼻筋など）に白い光の点がある。顔の 0.2% 以上の点を数える。
+    # 較正: 下絵ありの逆光の騎士 3 枚 0.0069・0.0042・0.003（鼻筋の点）、点の無い逆光の騎士 0、外部の生成の騎士 0.0006
+    backlit_spot = int(backlit and face_spot >= 0.002)
+    return {"found": True, "face_lit": face_lit, "face_spot": face_spot, "backlit_spot": backlit_spot, "bg_contrast": round(contrast, 2), "backlit_front": backlit_front, "bg_dx": round(float((bx.mean() - (fx0 + fx1) / 2) / fw), 3),
             "bg_dy": round(float((by.mean() - ys.min()) / (ys.max() - ys.min() + 1)), 3),
             "bg_bright": round(hi, 3), "interior": round(inside / max(hi, 1e-6), 3),
             "rim": round(float(np.percentile(lum[edge], 90)) / max(inside, 1e-6), 3)}
