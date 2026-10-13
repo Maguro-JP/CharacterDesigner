@@ -163,3 +163,21 @@ def test_dropped_words_are_filled_from_table(client, monkeypatch):
         srv.close()
     assert r["prompt"] == "1girl, solo, steampunk, robot mechanic, goggles, wand"   # mechanic は robot mechanic に含まれる
     assert any("steampunk" in n for n in r["notes"])
+
+
+def test_free_job_takes_pose_control(client, monkeypatch, tmp_path):
+    # 姿勢の下絵（奥行き）は素材の棚の名前で渡す。出典とライセンスの無い絵は使わない
+    import assets
+    from PIL import Image
+    monkeypatch.setattr(assets, "POSE", tmp_path)
+    Image.new("RGB", (16, 24), "black").save(tmp_path / "src.png")
+    assets.add_pose(str(tmp_path / "src.png"), "sword-depth", "own", "両手で柄、切っ先を床")
+    Image.new("RGB", (16, 24), "black").save(tmp_path / "nolicense.png")
+    runner = FakeRunner()
+    c, _ = client(runner)
+    assert c.post("/api/free/jobs", json={"prompt": "1girl", "control": "nolicense"}).status_code == 422
+    assert c.post("/api/free/jobs", json={"prompt": "1girl", "control": "../x"}).status_code == 422
+    j = wait(c, c.post("/api/free/jobs", json={"prompt": "1girl", "control": "sword-depth", "control_scale": 0.4}).json()["id"])
+    assert j["state"] == "done"
+    spec = runner.calls[0][1]
+    assert spec["control"] == str(tmp_path / "sword-depth.png") and spec["control_scale"] == 0.4

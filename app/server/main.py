@@ -275,7 +275,8 @@ class Runner:
         return free_text.draw(spec["prompt"], spec.get("negative", ""), outdir, spec["seed"], spec["count"],
                               spec["width"], spec["height"], on_image=on_image,
                               ref=_ref_path(spec.get("ref", "")), ref_scale=spec.get("ref_scale", 0.5),
-                              hires=spec.get("hires", 1.0), long=spec.get("long", 0))
+                              hires=spec.get("hires", 1.0), long=spec.get("long", 0),
+                              control=spec.get("control", ""), control_scale=spec.get("control_scale", 0.5))
 
 
 @dataclass
@@ -487,6 +488,9 @@ class FreeJobIn(BaseModel):
     hires: float = Field(1.5, ge=1.0, le=2.0)
     # 最後に AI で拡大する長い辺の画素数（0 で切る）。既定は 4K（4096）
     long: int = Field(4096, ge=0, le=8192)
+    # 姿勢の下絵（素材の棚の pose の名前）。奥行きの絵（近いほど白）を置いておくと、形と持ち方を ControlNet で描く途中まで縛る
+    control: str = Field("", max_length=48)
+    control_scale: float = Field(0.5, ge=0.0, le=1.0)
 
 
 SIZES = {"portrait": (832, 1216), "landscape": (1216, 832), "square": (1024, 1024)}
@@ -946,7 +950,13 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         w, h = SIZES[body.size]
         if body.ref and _ref_path(body.ref) == "":
             raise HTTPException(422, "その参考画像は無い（/api/refs で保存したものを選ぶ）")
-        spec = {"prompt": body.prompt, "negative": body.negative, "ja": body.ja, "seed": body.seed, "count": body.count,
+        control = ""
+        if body.control:
+            found = assets.get_pose(body.control)
+            if found is None:
+                raise HTTPException(422, f"姿勢の下絵「{body.control}」は使えない（無いか、出典とライセンスが書かれていない）")
+            control = str(found)
+        spec = {"control": control, "control_scale": body.control_scale, "prompt": body.prompt, "negative": body.negative, "ja": body.ja, "seed": body.seed, "count": body.count,
                 "width": w, "height": h, "ref": body.ref, "ref_scale": body.ref_scale, "hires": body.hires, "long": body.long}
         title = (body.ja or body.prompt)[:20]
         return jobs.submit(title, {}, 0.0, body.count, kind="free", free=spec).public()
