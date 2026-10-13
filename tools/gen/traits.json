@@ -49,11 +49,13 @@
  "proportion": {
   "_ja": "比率（頭身）",
   "chibi": {
-   "p": "chibi, 2 heads tall, big head",
-   "neg": "realistic proportions"
+   "_note": "2 heads tall と big head は頭が縦に 2 つ重なる崩れになった（2026-10-13）。chibi だけにして頭が増える崩れを打ち消すと、頭 1 つの 2〜2.5 頭身になった",
+   "p": "chibi",
+   "neg": "multiple heads, extra heads, stacked heads"
   },
   "deformed": {
-   "p": "3 heads tall, deformed proportions"
+   "p": "3 heads tall, deformed proportions",
+   "neg": "multiple heads, extra heads, stacked heads"
   },
   "realistic": {
    "p": "realistic proportions, 7 heads tall",
