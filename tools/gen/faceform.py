@@ -113,11 +113,47 @@ def fit(points: dict, template: dict) -> dict:
             "rms": round(float(np.sqrt((res ** 2).sum(1).mean())), 3), "worst": worst, "per_point": per, "used": names}
 
 
+SMALL_FACE = 160     # 顔の幅（画素）がこれ未満なら、頭を切り出して拡大してから測る
+HEAD_WIDTH = 170     # 拡大後の顔の幅（切り出しが 1000 画素ほどになり、部位分けの 512 画素で顔が 85 画素ほどになる）
+
+
+def head_view(src, rgb, seg):
+    """顔が小さい絵では、頭の周りを切り出して拡大し、部位分けをやり直した（rgb, seg）を返す。大きければそのまま返す。
+    部位分けは絵全体を 512 画素に縮めて読むので、全身の絵の顔は 40 画素ほどになる。そのままでは目と口の点が数画素ずれ、
+    絵の大きさを 5% 変えるだけで顔のずれが 0.056〜0.211 と揺れた"""
+    import edit
+    import measure
+    from PIL import Image
+    face = measure.face_mask(seg, edit.LABELS)
+    ys, xs = np.nonzero(face)
+    if len(xs) < 50:
+        return rgb, seg
+    fw = xs.max() - xs.min() + 1
+    if fw >= SMALL_FACE:
+        return rgb, seg
+    cx, cy = (xs.min() + xs.max()) / 2, (ys.min() + ys.max()) / 2
+    # 部位分けの模型は全身の絵で学んでいる。頭だけを大写しにすると顔を服と読んだので、肩と胸まで入る広さ（顔の幅の 6 倍）で切る
+    half = fw * 3.0
+    h, w = seg.shape
+    box = (int(max(0, cx - half)), int(max(0, cy - half * 0.8)), int(min(w, cx + half)), int(min(h, cy + half * 1.6)))
+    k = HEAD_WIDTH / fw
+    im = Image.fromarray((rgb * 255).round().astype(np.uint8)).crop(box)
+    im = im.resize((round(im.width * k), round(im.height * k)), Image.LANCZOS)
+    out = Path(str(src) + ".head.png")
+    im.save(out)
+    hrgb, hseg = np.asarray(im, dtype=np.float32) / 255.0, np.asarray(edit.parts(out))
+    # 切り出しでも部位分けが顔を読み損ねることがある（顔が額の一部だけになった）。両目が読めないときは元の絵で測る
+    if measure.eyes(hrgb, hseg, edit.LABELS).get("found") != 2:
+        return rgb, seg
+    return hrgb, hseg
+
+
 def measure_face(src) -> dict:
     from PIL import Image
     import edit
     rgb = np.asarray(Image.open(src).convert("RGB"), dtype=np.float32) / 255.0
     seg = np.asarray(edit.parts(src))
+    rgb, seg = head_view(src, rgb, seg)
     lm = landmarks(rgb, seg, edit.LABELS)
     if "points" not in lm:
         return lm

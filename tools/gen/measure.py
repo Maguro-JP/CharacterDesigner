@@ -51,7 +51,10 @@ def face_mask(seg, labels):
     """顔の部位から顔だけを取る。部位分けの「顔」は首や出ている胴の肌まで含むことがある（水着の素体で頭から腰まで続いた）。
     一番上の塊を取り、上から見て幅が最も細くなる行（首のくびれ）より下を切る"""
     from scipy import ndimage
-    m = ndimage.binary_fill_holes(seg == labels["face"])
+    m = seg == labels["face"]
+    # 顔を横切る前髪の細い束で、顔が2つの塊に割れる（頭を拡大して部位分けすると束まで分かれて出た）。束の太さ程度を閉じてつなぐ
+    k = max(1, int(np.sqrt(m.sum()) * 0.04))
+    m = ndimage.binary_fill_holes(ndimage.binary_closing(np.pad(m, k), iterations=k)[k:-k, k:-k])
     lab, n = ndimage.label(m)
     if n == 0:
         return m
@@ -380,9 +383,10 @@ def measure(src, hair_color: str = "") -> dict:
     regions = {"face": [L["face"]], "hair": [L["hair"]], "clothes": [L["upper"], L["dress"], L["skirt"], L["pants"]],
                "arms": [L["left_arm"], L["right_arm"]], "legs": [L["left_leg"], L["right_leg"]]}
     import faceform
-    lm = faceform.landmarks(rgb, seg, L)
+    hrgb, hseg = faceform.head_view(src, rgb, seg)
+    lm = faceform.landmarks(hrgb, hseg, L)
     face = faceform.fit(lm["points"], json.loads(faceform.TEMPLATE.read_text())["points"]) if "points" in lm and faceform.TEMPLATE.exists() else lm
-    return {"size": list(rgb.shape[1::-1]), "eyes": eyes(rgb, seg, L), "face": face, "light": light3d(src, rgb, seg, regions),
+    return {"size": list(rgb.shape[1::-1]), "eyes": eyes(hrgb, hseg, L), "face": face, "light": light3d(src, rgb, seg, regions),
             "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "pairs": pairs(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color)}
 
 

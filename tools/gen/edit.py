@@ -40,7 +40,8 @@ _SEG = None
 def parts(src):
     """部位の塗り分け（1画素1部位の番号を明るさに入れた L の絵）を作り、絵の隣に置く。2回目からは読むだけ。"""
     out = Path(str(src) + ".parts.png")
-    if out.exists():
+    # 絵を書き換えたあとに古い塗り分けを読むと、大きさが合わずに測る所で落ちた。絵より新しいときだけ使い回す
+    if out.exists() and out.stat().st_mtime >= Path(src).stat().st_mtime:
         return Image.open(out)
     import numpy as np
     import torch
