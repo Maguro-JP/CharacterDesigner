@@ -311,3 +311,19 @@ Animagine XL、832x1216、24 段、seed 11、姿勢の下絵なし。1 枚 240�
 | ブーツ | knee boots, brown boots | 出た（膝下までの茶色） |
 
 - 6 種すべてが言葉だけで出た。靴を指定しないと運動靴になることが多い
+
+## エフェクト（2026-10-13）
+
+題材: 茶色の髪の白いローブの魔法使いの少女、全身、白の背景。Animagine XL、832x1216、24 段、seed 11、1 枚 252〜314 秒（CPU）。判定は目で見たもの。
+
+| エフェクト | 言葉 | 出たか |
+|---|---|---|
+| 炎 | fire magic, flames around hand | 出た（両手の上に炎。ローブの裾にも炎の柄が付いた） |
+| 氷 | ice magic, ice crystals | 出た（周りに氷の結晶。服にも氷の柄） |
+| 雷 | lightning, electricity around body | 出た（背景に稲妻） |
+| 魔法陣 | magic circle under feet, glowing runes | 出たが、足元ではなく両手の横に浮いた |
+| 光の粒 | light particles, sparkles | 出た（背景が暗くなる） |
+| 風 | wind, swirling wind, flowing hair, leaves in wind | 出た（なびく髪と裾、舞う葉） |
+
+- 6 種すべてが言葉だけで出た。魔法陣は置く場所（足元）が守られなかった
+- エフェクトの色が服の柄に移る（炎、氷）。左右で靴が違う絵が 2 枚あった（氷、光の粒）。作画監督の左右の対（pairs）で見る対象
