@@ -65,7 +65,10 @@ def face_mask(seg, labels):
     widths = m.sum(1)
     # 顔の幅が出そろう所（上から 30%）より下で、幅が最大の 60% を切った最初の細い所を首とみなす
     wmax = widths[y0:y0 + max(1, int((y1 - y0) * 0.5))].max()
-    for y in range(y0 + int((y1 - y0) * 0.3), y1):
+    # 首は顔の幅が出そろった行より下にある。前髪が額を覆うと上の方の幅が細く、30% の行から探すと額を首と取って
+    # 顔の上の端だけが残った（顔の高さ 87 行が 26 行になり、目が見つからなかった）
+    full = next(y for y in range(y0, y1 + 1) if widths[y] >= wmax * 0.9)
+    for y in range(max(y0 + int((y1 - y0) * 0.3), full), y1):
         if widths[y] < wmax * 0.6:
             m[y:] = False
             break
