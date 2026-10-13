@@ -1,0 +1,5 @@
+題材: 大人の女性（試し。手順を確かめるために描いた）
+模型: Lykon/dreamshaper-xl-lightning（768x1344、6 段）、顔は imgproc.face_fix（打ち消しつき、強さ 0.35）
+プロンプト: full body shot from head to shoes, adult woman, 28 years old, short brown hair, white blouse, ankle-length navy skirt, black shoes, standing, simple white background, anime character design
+種: 1042（1040〜1043 の4枚から選んだ）
+選んだ理由: 頼んでいない物が無く、手足と服に崩れが無い1枚。顔の描き直しで瞳がそろい、白い点も出なかった

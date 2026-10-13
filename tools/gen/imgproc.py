@@ -659,15 +659,20 @@ def face_redraw(im: Image.Image, box, prompt: str, negative: str = "", strength:
     return out
 
 
-def face_fix(src: str, out: str, prompt: str = "1girl, detailed face, detailed eyes", strength: float = 0.35, seed: int = 7) -> dict:
+FACE_FIX_NEGATIVE = "beauty mark, mole, freckles, white spot, sparkle on cheek, tear, face paint, heterochromia"
+
+
+def face_fix(src: str, out: str, prompt: str = "1girl, detailed face, detailed eyes", strength: float = 0.35, seed: int = 7,
+             negative: str = FACE_FIX_NEGATIVE) -> dict:
     """顔だけを拡大して描き直し、元の大きさに戻して貼る（人の描き手が目と顔を最後に拡大して描き込むのと同じ）。
     全身の絵では顔が小さく、描く模型の解像度では目が崩れやすい。部位分けの顔（11）の外接枠を 1024 に拡大して
-    弱く（0.35）描き直し、縁をぼかして元へ戻す"""
+    弱く（0.35）描き直し、縁をぼかして元へ戻す。
+    打ち消しを渡さないと、SDXL の全身絵で2枚続けて頬や鼻先に白い点が描き足された"""
     im = Image.open(src).convert("RGB")
     box = face_box(src, im)
     if box is None:
         return {"fixed": False, "why": "顔が見つからない"}
-    face_redraw(im, box, prompt, strength=strength, seed=seed).save(out)
+    face_redraw(im, box, prompt, negative=negative, strength=strength, seed=seed).save(out)
     return {"fixed": True, "box": [int(v) for v in box]}
 
 
