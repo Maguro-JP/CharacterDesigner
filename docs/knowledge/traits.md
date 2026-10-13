@@ -360,3 +360,22 @@ Animagine XL、24 段、seed 11、1 枚 252〜297 秒（CPU）。打ち消しに
 
 - 人と並べない動物は 6 種すべてが言葉だけで出た
 - 人と並べるペットは、数（1 匹が 2 匹）と、2 種を同時に頼んだときの片方の消え方・人への混ざり方（猫が靴に移る）が崩れる。人と動物を同時に描くと、言葉が混ざる
+
+## ディテールとデフォルメ（2026-10-13）
+
+題材: 茶色の髪の少女、白いシャツと黒いスカート。Animagine XL、832x1216、24 段、seed 11、1 枚 253〜286 秒（CPU）。判定は目で見たもの。
+
+| 題材 | 言葉 | 出たか |
+|---|---|---|
+| アクセサリー | necklace, earrings, hair ornament, upper body | 出た |
+| 刺繍 | embroidered vest, gold embroidery, upper body | 出た（黒いベストに金の花の刺繍） |
+| 傷 | scar on cheek, scar across eye, upper body | 出なかった |
+| そばかす | freckles, upper body | 出た（薄い） |
+| ピアス | ear piercing, multiple piercings, upper body | 出た（耳に複数） |
+| タトゥー | arm tattoo, tribal tattoo on arm, upper body | 出た（肩から腕） |
+| 2 頭身 | chibi, 2head, super deformed | 崩れた（頭が縦に 2 つ重なった） |
+| 3 頭身 | chibi, 3head | 崩れた（頭が縦に 3 つ重なった） |
+| SD | sd, chibi, big head, small body | 崩れた（頭の上に大きな髪の塊） |
+
+- ディテールは 6 種中 5 種が言葉だけで出た。傷は出なかった
+- 頭身を数で書く言葉（2head、3head）は「頭が 2 つ・3 つ」と読まれた。頭身の指定には使わない
