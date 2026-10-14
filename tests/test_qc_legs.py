@@ -30,3 +30,24 @@ class HumanLegsTest(unittest.TestCase):
         r = qc.human_legs(points(shoulder=100, hip=620), 1216)
         self.assertFalse(r["readable"])
         self.assertIsNone(r["legs"])
+
+
+class AutoCheckTest(unittest.TestCase):
+    def test_check_failure_is_not_a_pass(self):
+        # 検品が落ちても（読めない絵）、通ったことにしない
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            r = qc.auto_check(f"{d}/missing.png", "arachne")
+        self.assertFalse(r["ok"])
+        self.assertTrue(r["unreadable"])
+
+    def test_plain_image_passes_and_writes_report(self):
+        import json
+        import tempfile
+        from PIL import Image
+        with tempfile.TemporaryDirectory() as d:
+            Image.new("RGB", (64, 64), (255, 255, 255)).save(f"{d}/a.png")
+            r = qc.auto_check(f"{d}/a.png", "1girl")
+            saved = json.loads(Path(f"{d}/a.png.qc.json").read_text())
+        self.assertEqual(r["problems"], [])
+        self.assertEqual(saved["ok"], r["ok"])

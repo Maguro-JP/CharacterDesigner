@@ -324,6 +324,43 @@ def sheet(src: str, out: str, zoom: float = 2.0, cell: int = 380) -> dict:
             "grid": [rows, cols], "notes": note}
 
 
+# 下半身が人でない種族の言葉。頼んだ言葉にあれば、人の脚が残っていないかも数える
+NON_HUMAN_LOWER = ("arachne", "drider", "taur", "centaur", "lamia", "naga", "mermaid", "scylla")
+
+
+def auto_check(src: str, prompt: str = "") -> dict:
+    """描いた直後に必ず走らせる検品。崩れが 1 つでも、読めない検品が 1 つでもあれば ok を False にする。
+    Claude は検品を呼ばないと走らせず、描かせた絵を検品なしで次へ回した。描く道具（free_text.draw、fix.py）から毎回呼ぶ。
+    ok が True でも完成ではない。通す・戻すは検品担当（checker）が目で見て決める"""
+    res = {"src": src, "problems": [], "unreadable": []}
+    try:
+        im = Image.open(src).convert("RGB")
+        rgb = np.asarray(im)
+        cut = edge_cut(rgb)
+        if cut:
+            res["problems"].append({"edge_cut": cut})
+        seams = background_seams(rgb)
+        if seams:
+            res["problems"].append({"seams": seams})
+        try:
+            fl = floating_blobs(rgb)
+            if fl.get("blobs"):
+                res["problems"].append({"floating": fl["blobs"]})
+        except ImportError as e:
+            res["unreadable"].append({"floating": str(e)})
+        if any(w in prompt.lower() for w in NON_HUMAN_LOWER):
+            import joints
+            legs = human_legs(joints.find(src), im.height)
+            if not legs["readable"]:
+                res["unreadable"].append({"human_legs": legs})
+            elif legs["legs"]:
+                res["problems"].append({"human_legs": legs})
+    except Exception as e:  # 検品が落ちたことを、検品が通ったことにしない
+        res["unreadable"].append({"error": f"{type(e).__name__}: {e}"})
+    res["ok"] = not res["problems"] and not res["unreadable"]
+    Path(src + ".qc.json").write_text(json.dumps(res, ensure_ascii=False, indent=1, default=str))
+    return res
+
 def facts(src: str, character: str | None = None) -> dict:
     """数えられる事実。判断はしない（検品担当が、この数字を手がかりに目で確かめる）"""
     im = Image.open(src).convert("RGB")

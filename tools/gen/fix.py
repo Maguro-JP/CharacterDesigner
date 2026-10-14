@@ -75,6 +75,10 @@ def fix(src: str, out: str, boxes, prompt: str, negative: str = "", strength: fl
     rep = {"src": src, "out": out, "boxes": [list(b) for b in boxes], "prompt": prompt, "negative": negative,
            "strength": strength, "seed": seed, "seconds": round(time.time() - t)}
     rep.update(scars_report(im, res, mask))
+    import qc
+    auto = qc.auto_check(out, prompt)          # 描き直した絵全体も、描いた絵と同じ検品を必ず通す
+    rep.update(problems=auto["problems"], unreadable=auto["unreadable"])
+    rep["clean"] = rep["clean"] and auto["ok"]
     Path(out + ".qc.json").write_text(json.dumps(rep, ensure_ascii=False, indent=1))
     return rep
 

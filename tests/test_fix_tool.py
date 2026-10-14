@@ -25,7 +25,8 @@ except ImportError:
 def stripes(w=256, h=256):
     a = np.full((h, w), 200, "uint8")
     for x in range(8, w, 24):
-        a[:, x:x + 3] = 20
+        a[16:h - 16, x:x + 3] = 20      # 上下に余白を残す（端で切れた絵と判定されないように）
+    a[16:20, 8:w - 4] = 20              # 縞を横棒でつなぎ、1 つの形にする（離れた縞は宙に浮いた塊と判定される）
     return Image.fromarray(a).convert("RGB")
 
 
