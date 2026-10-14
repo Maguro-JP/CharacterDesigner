@@ -117,9 +117,10 @@
 - 2 枚目（cute girl face, human face を足し、打ち消しに beak, bird head, animal face）: 人の少女の顔のまま、腕が翼、脚が鳥の脚と鉤爪で出た。人の腕と人の手は出なかった。頭に羽飾りのような小さな翼が付いた
 - 下絵の羽は等間隔の板を並べただけだが、描くと羽の重なった翼になった
 
-## アラクネを人形の下絵から描く（2026-10-14、2 回とも崩れた）
+## アラクネを人形の下絵から描く（2026-10-14、3 回目で人の上半身が出た）
 
 人形の脚を隠し、腰の下に蜘蛛の頭胸部と腹部、左右 4 本ずつの脚を付けた奥行き（`tools/engine/pose_demi.py --kind arachne`、斜め前 35 度から撮る）を、強さ 0.5・前半 4 割で縛って描いた（横長、seed 11、486〜523 秒）。
 - 1 枚目（arachne, spider lower body, eight spider legs, human upper body）: 脚 8 本の蜘蛛は出たが、人の上半身が消え、蜘蛛の頭になった
 - 2 枚目（human head, human torso and arms を足し、打ち消しに spider head, insect head, mask）: 人の胴は出ず、蜘蛛の胴の上に逆さの顔が乗った
 - ケンタウロスとハーピーとの違いは、下絵の中で人の上半身が小さく（横長の絵の高さの 3 割ほど）、蜘蛛の胴と脚が絵の大半を占めること。言葉の spider の方が強く効いた。次に試すなら、人の上半身を大きく写す（縦長にする、カメラを寄せる）か、脚を短くして胴の比を下げる
+- 3 枚目（縦長 832x1216、カメラを人の胸に寄せて写す幅 2.4、脚の外への広がりを 0.7 倍、arachne girl, cute girl face, human upper body, lower body is a large black spider with eight legs、打ち消し spider head, insect head, mask, human legs, extra arms、seed 11、435 秒）: 人の顔・胴・腕が出て、蜘蛛の胴の上に座る形になった。残った崩れは 2 つ。蜘蛛の脚が関節の無いまっすぐな棒になった（膝の折れが出ない）。蜘蛛の腹部が服の裾と溶けて、どこまでが服か分からない。この処理で良くなったのは、下絵の中で人の上半身を絵の高さの半分近くまで大きくしたこと
