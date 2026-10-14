@@ -7,6 +7,7 @@
   python3 tools/gen/qc.py sheet   絵.png OUT.png               全体と顔の拡大（OUT）、人物を分けた2倍前後の拡大（OUT-detail）の検品図
   python3 tools/gen/qc.py facts   絵.png [--character knight]   端で切れていないか・部位の棚卸し・浮いた塊・肌の割合・描かせないもの・設定の言葉の欠け
   python3 tools/gen/qc.py compare 絵1.png 絵2.png ...           組（三面図・表情差分）で、部位ごとの色がずれていないか
+  python3 tools/gen/qc.py scars   前.png 後.png 範囲.png         部分を描き直した範囲の縁で、前より輪郭が鈍った所（にじみの跡）
   python3 tools/gen/qc.py expr    基準.png OUT.jpg 表情1.png ...  表情差分の見比べ図（顔・眉と目・口を「ふだん」と並べる）
 
 検品図は JPEG で書く（PNG だと1枚 数 MB になり、ディスクの空きが少ないとき検品担当が図を作れなかった）。
@@ -83,6 +84,43 @@ def background_seams(rgb: np.ndarray, gap: int = 4, band: int = 12, flat: float 
         for g in groups:
             top = max(g, key=lambda r: r[1])
             out.append({"at": name, "pos": top[0], "step": round(top[1], 1), "width": round(top[2], 2)})
+    return out
+
+def repaint_scars(before: Image.Image, after: Image.Image, mask: Image.Image, width: int = 10, cell: int = 32,
+                  drop: float = 0.5, contrast: float = 20.0) -> list[dict]:
+    """部分を描き直した範囲（mask の白）の縁の帯で、描き直す前より輪郭が鈍った所（にじみ・ぼやけの跡）。
+
+    絵全体から鈍い所を探すと、革の柔らかい光やしっぽのなだらかな塗りなど、わざと柔らかく描いた所も拾い、
+    本物のにじみと分けられなかった（8 か所のうち本物 3）。描き直した範囲は分かっているので、その縁だけを前後で比べる。
+    セルごとに「一番鋭い 1 画素の変化 ÷ 明暗の差」を測り、描き直した後が前（0.6 未満なら 0.6）の drop 倍を下回れば拾う。
+    絵の外は範囲の内とみなす（範囲が絵の端に接すると、端の帯を縁と取り違えた）"""
+    from scipy import ndimage
+    m = np.asarray(mask.convert("L")) > 127
+    ring = (ndimage.binary_dilation(m, iterations=width)
+            & ~ndimage.binary_erosion(m, iterations=width, border_value=1))
+
+    def gradient(im):
+        lum = np.asarray(im.convert("RGB")).astype(float) @ np.array([0.299, 0.587, 0.114])
+        return lum, np.hypot(ndimage.sobel(lum, 0), ndimage.sobel(lum, 1)) / 8.0
+
+    lb, gb = gradient(before)
+    la, ga = gradient(after)
+    h, w = m.shape
+    out = []
+    for y in range(0, h - cell + 1, cell // 2):
+        for x in range(0, w - cell + 1, cell // 2):
+            r = ring[y:y + cell, x:x + cell]
+            if r.mean() < 0.2:
+                continue
+            ca = la[y:y + cell, x:x + cell][r]
+            spread = np.percentile(ca, 95) - np.percentile(ca, 5)
+            if spread < contrast:
+                continue
+            sa = ga[y:y + cell, x:x + cell][r].max() / spread
+            cb = lb[y:y + cell, x:x + cell][r]
+            sb = gb[y:y + cell, x:x + cell][r].max() / max(np.percentile(cb, 95) - np.percentile(cb, 5), contrast)
+            if sa < drop * max(sb, 0.6):
+                out.append({"x": x, "y": y, "size": cell, "sharp": round(float(sa), 2), "before": round(float(sb), 2)})
     return out
 
 def floating_blobs(rgb: np.ndarray, least: float = 0.0015) -> dict:
@@ -348,10 +386,12 @@ def main():
     s = sub.add_parser("sheet"); s.add_argument("src"); s.add_argument("out")
     f = sub.add_parser("facts"); f.add_argument("src"); f.add_argument("--character")
     c = sub.add_parser("compare"); c.add_argument("srcs", nargs="+"); c.add_argument("--limit", type=float, default=40.0)
+    sc = sub.add_parser("scars"); sc.add_argument("before"); sc.add_argument("after"); sc.add_argument("mask")
     e = sub.add_parser("expr"); e.add_argument("base"); e.add_argument("out"); e.add_argument("srcs", nargs="+")
     a = ap.parse_args()
     r = {"sheet": lambda: sheet(a.src, a.out), "facts": lambda: facts(a.src, a.character),
-         "compare": lambda: compare(a.srcs, a.limit), "expr": lambda: expr(a.base, a.out, a.srcs)}[a.cmd]()
+         "compare": lambda: compare(a.srcs, a.limit), "expr": lambda: expr(a.base, a.out, a.srcs),
+         "scars": lambda: repaint_scars(*(Image.open(p) for p in (a.before, a.after, a.mask)))}[a.cmd]()
     print(json.dumps(r, ensure_ascii=False, indent=1))
 
 
