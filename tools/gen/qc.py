@@ -370,7 +370,9 @@ def auto_check(src: str, prompt: str = "") -> dict:
         # 面積比だけを見て、measure が出していた瞳の色の差 0.105（基準 0.062）を捨てて通した（目の描き直し、2026-10-14）
         if measure.NORMS.exists():
             for bad in measure.judge(m):
-                res["problems"].append({"measure": bad})
+                # 目が見つからないのは崩れではなく「読めない」（顔の無い絵、小さすぎる顔）。どちらでも落とすが、分けて書く
+                key = "unreadable" if bad["path"] == "eyes.found" else "problems"
+                res[key].append({"measure": bad})
         eye = eye_mismatch(m["eyes"])
         if not eye["readable"]:
             res["unreadable"].append({"eyes": eye})
