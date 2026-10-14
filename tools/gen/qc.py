@@ -8,6 +8,7 @@
   python3 tools/gen/qc.py facts   絵.png [--character knight]   端で切れていないか・部位の棚卸し・浮いた塊・肌の割合・描かせないもの・設定の言葉の欠け
   python3 tools/gen/qc.py compare 絵1.png 絵2.png ...           組（三面図・表情差分）で、部位ごとの色がずれていないか
   python3 tools/gen/qc.py scars   前.png 後.png 範囲.png         部分を描き直した範囲の縁で、前より輪郭が鈍った所（にじみの跡）
+  python3 tools/gen/qc.py legs    絵.png                        人の脚が残っているか（下半身が人でない種族で、腰より下に膝と足首がある）
   python3 tools/gen/qc.py expr    基準.png OUT.jpg 表情1.png ...  表情差分の見比べ図（顔・眉と目・口を「ふだん」と並べる）
 
 検品図は JPEG で書く（PNG だと1枚 数 MB になり、ディスクの空きが少ないとき検品担当が図を作れなかった）。
@@ -123,6 +124,22 @@ def repaint_scars(before: Image.Image, after: Image.Image, mask: Image.Image, wi
             if sa < drop * max(sb, 0.6) and sa < 0.8 * sb:
                 out.append({"x": x, "y": y, "size": cell, "sharp": round(float(sa), 2), "before": round(float(sb), 2)})
     return out
+
+def human_legs(points: list[dict], height: int, least: float = 0.45, torso_max: float = 0.35) -> dict:
+    """人の脚が残っているか（下半身が獣や蜘蛛の種族で、腰より下に人の膝と足首が描かれた崩れ）。
+    骨格の点（tools/gen/joints.py の find）から、腰→足首の長さを胴（肩→腰）の長さで割り、膝と足首の確からしさの小さい方を掛ける。
+    左右の大きい方が least 以上なら「ある」。部位分けの模型は蜘蛛の体をズボンや靴と読み、人の脚が無い絵で 49% をズボンとした。
+    胴が絵の高さの torso_max を超えるときは、骨格の模型が人以外（蜘蛛の体、絵全体）を人と読んでいるので「読めない」と返す。
+    アラクネ 12 枚（検品担当の判定が正解）で、読めた 9 枚のうち 8 枚が合い、ひざまずいた 1 枚（0.42）を見落とした。3 枚は読めない"""
+    p = {q["name"]: q for q in points}
+    hip = (p["left_hip"]["y"] + p["right_hip"]["y"]) / 2
+    shoulder = (p["left_shoulder"]["y"] + p["right_shoulder"]["y"]) / 2
+    torso = hip - shoulder
+    if torso <= 0 or torso > torso_max * height:
+        return {"readable": False, "legs": None, "score": None, "torso": round(torso / height, 2)}
+    score = max(min(p[s + "_knee"]["score"], p[s + "_ankle"]["score"]) * (p[s + "_ankle"]["y"] - hip) / torso
+                for s in ("left", "right"))
+    return {"readable": True, "legs": score >= least, "score": round(float(score), 2), "torso": round(torso / height, 2)}
 
 def floating_blobs(rgb: np.ndarray, least: float = 0.0015) -> dict:
     """人物の塊から離れた塊（宙に浮いた布・煙・物）。地が平らでない絵（背景つき）は数えない。
@@ -388,10 +405,12 @@ def main():
     f = sub.add_parser("facts"); f.add_argument("src"); f.add_argument("--character")
     c = sub.add_parser("compare"); c.add_argument("srcs", nargs="+"); c.add_argument("--limit", type=float, default=40.0)
     sc = sub.add_parser("scars"); sc.add_argument("before"); sc.add_argument("after"); sc.add_argument("mask")
+    lg = sub.add_parser("legs"); lg.add_argument("src")
     e = sub.add_parser("expr"); e.add_argument("base"); e.add_argument("out"); e.add_argument("srcs", nargs="+")
     a = ap.parse_args()
     r = {"sheet": lambda: sheet(a.src, a.out), "facts": lambda: facts(a.src, a.character),
          "compare": lambda: compare(a.srcs, a.limit), "expr": lambda: expr(a.base, a.out, a.srcs),
+         "legs": lambda: human_legs(__import__("joints").find(a.src), Image.open(a.src).height),
          "scars": lambda: repaint_scars(*(Image.open(p) for p in (a.before, a.after, a.mask)))}[a.cmd]()
     print(json.dumps(r, ensure_ascii=False, indent=1))
 
