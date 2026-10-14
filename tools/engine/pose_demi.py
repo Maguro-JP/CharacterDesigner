@@ -47,9 +47,36 @@ def centaur(lift):
     return parts
 
 
+def harpy(rig):
+    """腕を横へ広げ、肩から手の先の外まで翼の板を付ける。板は腕の下へ垂れる（風切り羽）。足先に前 3 本・後ろ 1 本の鉤爪"""
+    parts = []
+    m = rig.matrix_world
+    for side, sx in (("L", 1), ("R", -1)):
+        sh = m @ rig.pose.bones[f"upperarm01.{side}"].head
+        hand = m @ rig.pose.bones[f"wrist.{side}"].tail if f"wrist.{side}" in rig.pose.bones else m @ rig.pose.bones[f"lowerarm02.{side}"].tail
+        tip = hand + (hand - sh).normalized() * 0.45
+        span = tip - sh
+        for k in range(7):                      # 羽を 7 枚並べ、先ほど長く垂らす
+            t = (k + 0.5) / 7
+            root = sh + span * t + Vector((0, 0.04, 0))
+            length = 0.35 + 0.45 * t
+            parts.append(rod(root, root + Vector((sx * 0.06 * t, 0.05, -length)), 0.045 + 0.02 * (1 - t)))
+        parts.append(rod(sh, tip, 0.05))       # 翼の前の縁
+        foot = m @ rig.pose.bones[f"foot.{side}"].tail
+        for dx, dy in ((-0.05, -0.10), (0.0, -0.12), (0.05, -0.10), (0.0, 0.08)):
+            parts.append(rod(foot, foot + Vector((dx, dy, -0.03)), 0.015))     # 鉤爪
+    return parts
+
+
 def main(av):
-    a = args(av, 60, [("--kind", dict(default="centaur", choices=["centaur"], help="種族"))])
+    a = args(av, 60, [("--kind", dict(default="centaur", choices=["centaur", "harpy"], help="種族"))])
     h, rig = mannequin()
+    if a.kind == "harpy":
+        import human
+        human.adduct_arms(rig, -40)            # 休みの姿勢（下へ約 48 度）から上げて、腕を横へ広げる
+        check(rig)
+        # 正面に近い向き（15 度）から撮ると、左右の翼が重ならない
+        shoot(a.out, h, harpy(rig), a.width, a.height, 15 if a.yaw == 60 else a.yaw, Vector((0, 0, 1.0)), 3.6, 0.8)
     lift = 0.55                                          # 馬の脚の分だけ人形を持ち上げる
     rig.location.z += lift
     bpy.context.view_layer.update()
