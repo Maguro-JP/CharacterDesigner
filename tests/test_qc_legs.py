@@ -59,3 +59,17 @@ class UnseenLegsTest(unittest.TestCase):
         r = qc.human_legs(points(shoulder=300, hip=500, knee=600, ankle=650, score=0.13), 1216)
         self.assertFalse(r["readable"])
         self.assertIsNone(r["legs"])
+
+
+class EyeMismatchTest(unittest.TestCase):
+    def test_front_face_with_big_difference_is_flagged(self):
+        r = qc.eye_mismatch({"found": 2, "area_ratio": 2.52, "yaw_offset": -0.065})
+        self.assertTrue(r["mismatch"])
+
+    def test_turned_face_allows_smaller_far_eye(self):
+        # 横を向いた顔（向き 0.238）の 2.89 は崩れではない
+        r = qc.eye_mismatch({"found": 2, "area_ratio": 2.89, "yaw_offset": 0.238})
+        self.assertFalse(r["mismatch"])
+
+    def test_unread_eyes_are_not_a_pass(self):
+        self.assertFalse(qc.eye_mismatch({"found": 1, "reason": "横に並ぶ2つの目が読めない"})["readable"])

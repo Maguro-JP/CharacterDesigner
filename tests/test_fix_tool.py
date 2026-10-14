@@ -49,7 +49,8 @@ class FixReportTest(unittest.TestCase):
 
     def test_clean_repaint_passes(self):
         rep, _ = self.run_fix(lambda im, m, *a: im.copy())
-        self.assertTrue(rep["clean"])
+        # 縞の画像には顔が無く、目の検品は「読めない」になる（それで clean は False）。跡と崩れが無いことだけを見る
+        self.assertEqual((rep["seams"], rep["scars"], rep["problems"]), ([], [], []))
 
 
 class BoxTest(unittest.TestCase):

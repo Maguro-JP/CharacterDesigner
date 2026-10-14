@@ -329,6 +329,17 @@ def sheet(src: str, out: str, zoom: float = 2.0, cell: int = 380) -> dict:
             "grid": [rows, cols], "notes": note}
 
 
+def eye_mismatch(eyes: dict, base: float = 2.0, per_yaw: float = 6.0) -> dict:
+    """左右の目の大きさが違いすぎるか。measure.eyes の面積比を、顔の向きで許す上限（base + per_yaw×|向き|）と比べる。
+    横を向くほど遠い目は小さく描かれるので、上限を広げる。崩れの無い 12 枚で面積比 1.04〜1.68（横向き 0.24 の 1 枚が 2.89）。
+    アラクネの目の描き直しで、検品担当が「右目が 1.5〜2 倍」と戻した 2 枚は 2.52・4.21 で外れ、元の絵 1.57 は内に入った。
+    三白眼のような形の崩れは、大きさでは拾えない"""
+    if eyes.get("found") != 2:
+        return {"readable": False, "reason": eyes.get("reason", "目が 2 つ読めない")}
+    limit = base + per_yaw * abs(eyes.get("yaw_offset", 0.0))
+    return {"readable": True, "mismatch": eyes["area_ratio"] > limit, "area_ratio": eyes["area_ratio"],
+            "limit": round(limit, 2)}
+
 # 下半身が人でない種族の言葉。頼んだ言葉にあれば、人の脚が残っていないかも数える
 NON_HUMAN_LOWER = ("arachne", "drider", "taur", "centaur", "lamia", "naga", "mermaid", "scylla")
 
@@ -353,6 +364,12 @@ def auto_check(src: str, prompt: str = "") -> dict:
                 res["problems"].append({"floating": fl["blobs"]})
         except ImportError as e:
             res["unreadable"].append({"floating": str(e)})
+        import measure
+        eye = eye_mismatch(measure.measure(src)["eyes"])
+        if not eye["readable"]:
+            res["unreadable"].append({"eyes": eye})
+        elif eye["mismatch"]:
+            res["problems"].append({"eyes": eye})
         if any(w in prompt.lower() for w in NON_HUMAN_LOWER):
             import joints
             legs = human_legs(joints.find(src), im.height)
