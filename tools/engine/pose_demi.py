@@ -82,7 +82,7 @@ def arachne(lift):
             root = ceph + Vector((sx * 0.22, 0.15 * math.sin(a), 0))
             out = Vector((sx * math.cos(a), math.sin(a), 0))
             # 脚を長く広げると蜘蛛が絵の大半を占め、人の上半身が消えた（2 回）。外への広がりを 0.7 倍にする
-            knee = root + out * 0.40 + Vector((0, 0, 0.50))   # 膝を高くして折れを下絵ではっきりさせる（0.28 では棒の脚になった）
+            knee = root + out * 0.40 + Vector((0, 0, 0.28))   # 0.50 に上げると脚が金属の柱、胴が布になった（4 回目）
             foot = root + out * 0.75 + Vector((0, 0, -(hip - 0.18)))
             foot.z = 0.03
             parts += [rod(root, knee, 0.045), rod(knee, foot, 0.035)]
