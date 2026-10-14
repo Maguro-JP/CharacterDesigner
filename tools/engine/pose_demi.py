@@ -4,7 +4,8 @@
 人の部分は人形のまま、人と違う部分（馬の胴と 4 本の脚、翼の腕と鳥の脚）を立体で足し、絵の生成には奥行きだけを渡す（ControlNet）。
 
 centaur: 人形の脚を縮めて隠し、腰の後ろに馬の胴（楕円の塊）、前後 2 本ずつの脚、尾を付ける。人の上半身は馬の胸の上に立つ
-harpy:   人形の両腕を横へ広げ、腕に沿って翼の板を付ける。すねを細くし、足の先に鉤爪を足す
+harpy:   人形の両腕を横へ広げ、腕に沿って羽を垂らす。足の先に鉤爪を足す
+arachne: 人形の脚を縮めて隠し、腰の下に蜘蛛の頭胸部と腹部、左右 4 本ずつの脚を付ける
 
 使い方: PYTHONPATH=.cache/engine/bpy python3 tools/engine/pose_demi.py <depth.png> --kind centaur [--width 1216] [--height 832] [--yaw 60]
 """
@@ -68,8 +69,27 @@ def harpy(rig):
     return parts
 
 
+def arachne(lift):
+    """人の腰の下に蜘蛛の頭胸部、その後ろに大きな腹部。脚 8 本は頭胸部から左右 4 本ずつ、膝を高く上げて外へ広げ、先を床に着ける"""
+    import math
+    hip = 0.83 + lift
+    ceph = Vector((0, 0.05, hip - 0.18))
+    parts = [ellipsoid(ceph, (0.30, 0.34, 0.20)),                                 # 頭胸部（人の腰とつながる）
+             ellipsoid(Vector((0, 0.70, hip - 0.05)), (0.42, 0.55, 0.38))]       # 腹部
+    for sx in (-1, 1):
+        for k, ang in enumerate((-50, -15, 15, 50)):                            # 前から後ろへ 4 本
+            a = math.radians(ang)
+            root = ceph + Vector((sx * 0.22, 0.15 * math.sin(a), 0))
+            out = Vector((sx * math.cos(a), math.sin(a), 0))
+            knee = root + out * 0.55 + Vector((0, 0, 0.35))
+            foot = root + out * 1.05 + Vector((0, 0, -(hip - 0.18)))
+            foot.z = 0.03
+            parts += [rod(root, knee, 0.045), rod(knee, foot, 0.035)]
+    return parts
+
+
 def main(av):
-    a = args(av, 60, [("--kind", dict(default="centaur", choices=["centaur", "harpy"], help="種族"))])
+    a = args(av, 60, [("--kind", dict(default="centaur", choices=["centaur", "harpy", "arachne"], help="種族"))])
     h, rig = mannequin()
     if a.kind == "harpy":
         import human
@@ -77,6 +97,16 @@ def main(av):
         check(rig)
         # 正面に近い向き（15 度）から撮ると、左右の翼が重ならない
         shoot(a.out, h, harpy(rig), a.width, a.height, 15 if a.yaw == 60 else a.yaw, Vector((0, 0, 1.0)), 3.6, 0.8)
+    if a.kind == "arachne":
+        lift = 0.40                                      # 蜘蛛の脚の膝の高さの分だけ持ち上げる
+        rig.location.z += lift
+        bpy.context.view_layer.update()
+        hide_legs(rig)
+        import human
+        human.adduct_arms(rig, 35)
+        check(rig)
+        # 斜め前（35 度）から撮ると、左右 4 本ずつの脚が重なりにくい
+        shoot(a.out, h, arachne(lift), a.width, a.height, 35 if a.yaw == 60 else a.yaw, Vector((0, 0.3, 1.0)), 3.6, 1.2)
     lift = 0.55                                          # 馬の脚の分だけ人形を持ち上げる
     rig.location.z += lift
     bpy.context.view_layer.update()
