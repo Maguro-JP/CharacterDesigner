@@ -73,3 +73,30 @@ class EyeMismatchTest(unittest.TestCase):
 
     def test_unread_eyes_are_not_a_pass(self):
         self.assertFalse(qc.eye_mismatch({"found": 1, "reason": "横に並ぶ2つの目が読めない"})["readable"])
+
+
+class PersonFoundTest(unittest.TestCase):
+    def pts(self, face, shoulders):
+        names = {"nose": face, "left_eye": face, "right_eye": face, "left_shoulder": shoulders, "right_shoulder": shoulders}
+        return [{"name": n, "x": 0, "y": 0, "score": v} for n, v in names.items()]
+
+    def test_spider_only_picture_has_no_person(self):
+        # 人を落として蜘蛛だけを描いた絵: 顔 0.25、肩 0.07
+        self.assertFalse(qc.person_found(self.pts(0.25, 0.07))["found"])
+
+    def test_person_is_found(self):
+        self.assertTrue(qc.person_found(self.pts(0.64, 0.8))["found"])
+
+
+class EdgeCutBackgroundTest(unittest.TestCase):
+    def test_gradient_background_is_not_reported_as_cut(self):
+        import tempfile
+        import numpy as np
+        from PIL import Image
+        a = np.zeros((200, 160, 3), "uint8")
+        a[...] = np.linspace(40, 200, 200, dtype="uint8")[:, None, None]   # 上から下へ明るくなる背景
+        with tempfile.TemporaryDirectory() as d:
+            Image.fromarray(a).save(f"{d}/g.png")
+            r = qc.auto_check(f"{d}/g.png", "1girl")
+        self.assertFalse(any("edge_cut" in x for x in r["problems"]))
+        self.assertTrue(any("edge_cut" in x for x in r["unreadable"]))

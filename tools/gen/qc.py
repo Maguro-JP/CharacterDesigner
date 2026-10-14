@@ -340,6 +340,16 @@ def eye_mismatch(eyes: dict, base: float = 2.0, per_yaw: float = 6.0) -> dict:
     return {"readable": True, "mismatch": eyes["area_ratio"] > limit, "area_ratio": eyes["area_ratio"],
             "limit": round(limit, 2)}
 
+def person_found(points: list[dict], least: float = 0.4) -> dict:
+    """人が描かれているか。骨格の点のうち顔（鼻・両目）か両肩の確からしさの平均が least 以上なら見つかったとする。
+    「引きで撮る、蜘蛛の体が全部入る」と頼むと、模型が人を落として蜘蛛だけを描いた（11 枚中 11 枚）。そのとき顔は 0.11〜0.30、
+    肩は 0.03〜0.07。人のいる絵は顔 0.60〜0.69、肩 0.65〜0.83。頭の大きい崩れた人（顔 0.26〜0.36）も見つからない側に入るので、
+    見つからないときは「人がいない」と言い切らず、読めないとして落とす"""
+    p = {q["name"]: q["score"] for q in points}
+    face = (p["nose"] + p["left_eye"] + p["right_eye"]) / 3
+    shoulders = (p["left_shoulder"] + p["right_shoulder"]) / 2
+    return {"found": face >= least or shoulders >= least, "face": round(float(face), 2), "shoulders": round(float(shoulders), 2)}
+
 # 下半身が人でない種族の言葉。頼んだ言葉にあれば、人の脚が残っていないかも数える
 NON_HUMAN_LOWER = ("arachne", "drider", "taur", "centaur", "lamia", "naga", "mermaid", "scylla")
 
@@ -352,9 +362,14 @@ def auto_check(src: str, prompt: str = "") -> dict:
     try:
         im = Image.open(src).convert("RGB")
         rgb = np.asarray(im)
-        cut = edge_cut(rgb)
-        if cut:
-            res["problems"].append({"edge_cut": cut})
+        # 床やなだらかな色の背景では、背景を人物と取り違えて四辺とも「切れている」と出した。四隅の色がそろわない絵は読めないとする
+        corners = np.concatenate([rgb[:8, :8], rgb[:8, -8:], rgb[-8:, :8], rgb[-8:, -8:]]).reshape(-1, 3).astype(float)
+        if corners.std(0).max() > 12:
+            res["unreadable"].append({"edge_cut": "背景が無地でない"})
+        else:
+            cut = edge_cut(rgb)
+            if cut:
+                res["problems"].append({"edge_cut": cut})
         seams = background_seams(rgb)
         if seams:
             res["problems"].append({"seams": seams})
@@ -364,6 +379,11 @@ def auto_check(src: str, prompt: str = "") -> dict:
                 res["problems"].append({"floating": fl["blobs"]})
         except ImportError as e:
             res["unreadable"].append({"floating": str(e)})
+        import joints
+        points = joints.find(src)
+        person = person_found(points)
+        if not person["found"]:
+            res["unreadable"].append({"person": person})
         import measure
         m = measure.measure(src)
         # measure が基準から外れたと出した数字（瞳の色の差、髪の白飛び、影の順序など）は全部、判定に入れる。
@@ -379,8 +399,7 @@ def auto_check(src: str, prompt: str = "") -> dict:
         elif eye["mismatch"]:
             res["problems"].append({"eyes": eye})
         if any(w in prompt.lower() for w in NON_HUMAN_LOWER):
-            import joints
-            legs = human_legs(joints.find(src), im.height)
+            legs = human_legs(points, im.height)
             if not legs["readable"]:
                 res["unreadable"].append({"human_legs": legs})
             elif legs["legs"]:
