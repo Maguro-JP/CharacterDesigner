@@ -81,8 +81,9 @@ def arachne(lift):
             a = math.radians(ang)
             root = ceph + Vector((sx * 0.22, 0.15 * math.sin(a), 0))
             out = Vector((sx * math.cos(a), math.sin(a), 0))
-            knee = root + out * 0.55 + Vector((0, 0, 0.35))
-            foot = root + out * 1.05 + Vector((0, 0, -(hip - 0.18)))
+            # 脚を長く広げると蜘蛛が絵の大半を占め、人の上半身が消えた（2 回）。外への広がりを 0.7 倍にする
+            knee = root + out * 0.40 + Vector((0, 0, 0.28))
+            foot = root + out * 0.75 + Vector((0, 0, -(hip - 0.18)))
             foot.z = 0.03
             parts += [rod(root, knee, 0.045), rod(knee, foot, 0.035)]
     return parts
@@ -105,8 +106,8 @@ def main(av):
         import human
         human.adduct_arms(rig, 35)
         check(rig)
-        # 斜め前（35 度）から撮ると、左右 4 本ずつの脚が重なりにくい
-        shoot(a.out, h, arachne(lift), a.width, a.height, 35 if a.yaw == 60 else a.yaw, Vector((0, 0.3, 1.0)), 3.6, 1.2)
+        # 斜め前（35 度）から、人の上半身に寄せて撮る。縦長（832x1216）では長い辺の縦に 2.4 が掛かる
+        shoot(a.out, h, arachne(lift), a.width, a.height, 35 if a.yaw == 60 else a.yaw, Vector((0, 0.2, 1.15)), 2.4, 1.0)
     lift = 0.55                                          # 馬の脚の分だけ人形を持ち上げる
     rig.location.z += lift
     bpy.context.view_layer.update()
