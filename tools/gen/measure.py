@@ -51,7 +51,10 @@ def face_mask(seg, labels):
     """顔の部位から顔だけを取る。部位分けの「顔」は首や出ている胴の肌まで含むことがある（水着の素体で頭から腰まで続いた）。
     一番上の塊を取り、上から見て幅が最も細くなる行（首のくびれ）より下を切る"""
     from scipy import ndimage
-    m = ndimage.binary_fill_holes(seg == labels["face"])
+    m = seg == labels["face"]
+    # 顔を横切る前髪の細い束で、顔が2つの塊に割れる（頭を拡大して部位分けすると束まで分かれて出た）。束の太さ程度を閉じてつなぐ
+    k = max(1, int(np.sqrt(m.sum()) * 0.04))
+    m = ndimage.binary_fill_holes(ndimage.binary_closing(np.pad(m, k), iterations=k)[k:-k, k:-k])
     lab, n = ndimage.label(m)
     if n == 0:
         return m
@@ -65,7 +68,10 @@ def face_mask(seg, labels):
     widths = m.sum(1)
     # 顔の幅が出そろう所（上から 30%）より下で、幅が最大の 60% を切った最初の細い所を首とみなす
     wmax = widths[y0:y0 + max(1, int((y1 - y0) * 0.5))].max()
-    for y in range(y0 + int((y1 - y0) * 0.3), y1):
+    # 首は顔の幅が出そろった行より下にある。前髪が額を覆うと上の方の幅が細く、30% の行から探すと額を首と取って
+    # 顔の上の端だけが残った（顔の高さ 87 行が 26 行になり、目が見つからなかった）
+    full = next(y for y in range(y0, y1 + 1) if widths[y] >= wmax * 0.9)
+    for y in range(max(y0 + int((y1 - y0) * 0.3), full), y1):
         if widths[y] < wmax * 0.6:
             m[y:] = False
             break
@@ -244,6 +250,28 @@ def light3d(src, rgb, seg, regions):
             "inverted_regions": inverted}
 
 
+def face_spots(lum, fm):
+    """顔の中の、肌に囲まれた白い点を探す。返すのは（最大の点の面積 ÷ 顔の面積、点の全部の範囲）。
+    目のハイライトは暗い瞳に囲まれるので数えない（点の周り 3 画素の暗い側が、顔の明るさの中央値の 0.85 倍未満なら目とみなす。
+    目のハイライトは 0.39〜0.75、鼻筋の点は 0.9〜1.11）"""
+    from scipy import ndimage
+    f = ndimage.binary_erosion(fm, iterations=2)
+    spots = np.zeros_like(fm, dtype=bool)
+    if f.sum() < 100:
+        return 0.0, spots
+    med = float(np.median(lum[f]))
+    b = f & (lum > min(0.97, med * 1.5))
+    lab, n = ndimage.label(b)
+    best = 0
+    for i in range(1, n + 1):
+        bl = lab == i
+        ring = ndimage.binary_dilation(bl, iterations=3) & ~bl
+        if np.percentile(lum[ring], 10) >= med * 0.85:
+            best = max(best, int(bl.sum()))
+            spots |= bl
+    return round(best / float(f.sum()), 4), spots
+
+
 def scene_light(rgb, seg, labels=None):
     """背景の光と人物の照らされ方を比べる数字。
     bg_dx: 背景の最も明るい 3% の重心が、人物の中心から横にどれだけずれているか（人物の幅で割る。0 付近なら真後ろ）
@@ -271,17 +299,23 @@ def scene_light(rgb, seg, labels=None):
     # 顔の明るさ ÷ 人物の明るい所（95 パーセンタイル）。逆光なら顔は影に入り低くなる。人物の内側の平均だけでは、
     # 金属の鎧の照り返しや真っ白な窓に紛れて、正面から照らされた顔を見逃した
     face_lit = None
+    face_spot = 0.0
     if labels is not None:
         fm = face_mask(seg, labels)
         if fm.sum() > 100:
             face_lit = round(float(np.median(lum[fm])) / max(float(np.percentile(lum[fig], 95)), 1e-6), 3)
+            face_spot = face_spots(lum, fm)[0]
     # 逆光の場面なのに顔が正面から照らされている: 背景にはっきりした光源があり（明るい所が背景の中央値の 1.5 倍超）、
     # それが人物の後ろ（横のずれが人物の幅の半分以内）にあり、顔が人物の明るい所の 0.88 倍を超えて明るい。
     # 較正: 正面から照らした素体 0.97〜0.98、逆光の素体 0.52〜0.61、検品で戻した外部の生成と手元の騎士 0.967・0.979
     contrast = hi / max(float(np.median(lum[bg])), 1e-6)
     dx = float((bx.mean() - (fx0 + fx1) / 2) / fw)
-    backlit_front = int(face_lit is not None and contrast > 1.5 and abs(dx) <= 0.5 and face_lit > 0.88)
-    return {"found": True, "face_lit": face_lit, "bg_contrast": round(contrast, 2), "backlit_front": backlit_front, "bg_dx": round(float((bx.mean() - (fx0 + fx1) / 2) / fw), 3),
+    backlit = contrast > 1.5 and abs(dx) <= 0.5
+    backlit_front = int(face_lit is not None and backlit and face_lit > 0.88)
+    # 逆光なのに顔の真ん中（鼻筋など）に白い光の点がある。顔の 0.2% 以上の点を数える。
+    # 較正: 下絵ありの逆光の騎士 3 枚 0.0069・0.0042・0.003（鼻筋の点）、点の無い逆光の騎士 0、外部の生成の騎士 0.0006
+    backlit_spot = int(backlit and face_spot >= 0.002)
+    return {"found": True, "face_lit": face_lit, "face_spot": face_spot, "backlit_spot": backlit_spot, "bg_contrast": round(contrast, 2), "backlit_front": backlit_front, "bg_dx": round(float((bx.mean() - (fx0 + fx1) / 2) / fw), 3),
             "bg_dy": round(float((by.mean() - ys.min()) / (ys.max() - ys.min() + 1)), 3),
             "bg_bright": round(hi, 3), "interior": round(inside / max(hi, 1e-6), 3),
             "rim": round(float(np.percentile(lum[edge], 90)) / max(inside, 1e-6), 3)}
@@ -373,9 +407,10 @@ def measure(src, hair_color: str = "") -> dict:
     regions = {"face": [L["face"]], "hair": [L["hair"]], "clothes": [L["upper"], L["dress"], L["skirt"], L["pants"]],
                "arms": [L["left_arm"], L["right_arm"]], "legs": [L["left_leg"], L["right_leg"]]}
     import faceform
-    lm = faceform.landmarks(rgb, seg, L)
+    hrgb, hseg = faceform.head_view(src, rgb, seg)
+    lm = faceform.landmarks(hrgb, hseg, L)
     face = faceform.fit(lm["points"], json.loads(faceform.TEMPLATE.read_text())["points"]) if "points" in lm and faceform.TEMPLATE.exists() else lm
-    return {"size": list(rgb.shape[1::-1]), "eyes": eyes(rgb, seg, L), "face": face, "light": light3d(src, rgb, seg, regions),
+    return {"size": list(rgb.shape[1::-1]), "eyes": eyes(hrgb, hseg, L), "face": face, "light": light3d(src, rgb, seg, regions),
             "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "pairs": pairs(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color)}
 
 

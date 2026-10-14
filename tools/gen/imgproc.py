@@ -789,6 +789,40 @@ def sharpen(src: str, out: str, radius: float = 3.0, amount: float = 1.5) -> dic
     return {"out": out, "edge_before": round(_edge(a * 255), 1), "edge_after": round(_edge(res * 255), 1)}
 
 
+
+def spot_fill(src: str, out: str, min_ratio: float = 0.002) -> dict:
+    """顔の中の、肌に囲まれた白い点（逆光なのに鼻筋に出る照り返し）を、周りの肌の色で埋める。
+    作画監督の scene.backlit_spot と同じ探し方（measure.face_spots）。目のハイライトは触らない。
+    描き直し（detail.py）では点が残った（強さ 0.4・0.5 とも）ので、点だけを画素で直す"""
+    import edit
+    import measure
+    from scipy import ndimage
+    im = Image.open(src).convert("RGB")
+    rgb = np.asarray(im, dtype=np.float32) / 255.0
+    seg = np.asarray(edit.parts(src))
+    fm = measure.face_mask(seg, edit.LABELS)
+    ratio, spots = measure.face_spots(rgb.mean(-1), fm)
+    if ratio < min_ratio:
+        im.save(out)
+        return {"filled": 0, "ratio": ratio}
+    area = ndimage.binary_dilation(spots, iterations=2)
+    ring = ndimage.binary_dilation(area, iterations=3) & ~area & fm
+    skin = np.median(rgb[ring], axis=0) if ring.any() else np.median(rgb[fm], axis=0)
+    # 縁をぼかして混ぜる。べた塗りの円にすると、点の形がそのまま残って見えた
+    a = ndimage.gaussian_filter(area.astype(np.float32), 1.2)[..., None]
+    fixed = rgb * (1 - a) + skin[None, None, :] * a
+    Image.fromarray((np.clip(fixed, 0, 1) * 255).round().astype(np.uint8)).save(out)
+    return {"filled": int(area.sum()), "ratio": ratio}
+
+def super_res(src: str, out: str, long: int = 4096) -> dict:
+    """超解像: Real-ESRGAN のアニメ絵用で、長い辺が long 画素になるまで拡大する（tools/gen/upscale.py）"""
+    import time
+    import upscale
+    t = time.time()
+    size = upscale.upscale(src, out, long)
+    return {"size": list(size), "seconds": round(time.time() - t, 1)}
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd", required=True)
@@ -825,8 +859,10 @@ def main():
     dn = sub.add_parser("denoise"); dn.add_argument("src"); dn.add_argument("out"); dn.add_argument("--weight", type=float, default=0.08)
     sp = sub.add_parser("sharpen"); sp.add_argument("src"); sp.add_argument("out")
     sp.add_argument("--radius", type=float, default=3.0); sp.add_argument("--amount", type=float, default=1.5)
+    sf = sub.add_parser("spotfill"); sf.add_argument("src"); sf.add_argument("out")
+    sr = sub.add_parser("upscale"); sr.add_argument("src"); sr.add_argument("out"); sr.add_argument("--long", type=int, default=4096)
     a = ap.parse_args()
-    fn = {"denoise": lambda: denoise(a.src, a.out, a.weight), "sharpen": lambda: sharpen(a.src, a.out, a.radius, a.amount),
+    fn = {"spotfill": lambda: spot_fill(a.src, a.out), "upscale": lambda: super_res(a.src, a.out, a.long),"denoise": lambda: denoise(a.src, a.out, a.weight), "sharpen": lambda: sharpen(a.src, a.out, a.radius, a.amount),
           "recolor": lambda: recolor(a.src, a.out, a.from_color, a.to, a.tol,
                                      box=tuple(int(v) for v in a.box.split(",")) if a.box else None),
           "grade": lambda: grade(a.src, a.out, a.brightness, a.contrast, a.saturation, a.warmth),
@@ -845,3 +881,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

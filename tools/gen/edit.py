@@ -40,7 +40,8 @@ _SEG = None
 def parts(src):
     """部位の塗り分け（1画素1部位の番号を明るさに入れた L の絵）を作り、絵の隣に置く。2回目からは読むだけ。"""
     out = Path(str(src) + ".parts.png")
-    if out.exists():
+    # 絵を書き換えたあとに古い塗り分けを読むと、大きさが合わずに測る所で落ちた。絵より新しいときだけ使い回す
+    if out.exists() and out.stat().st_mtime >= Path(src).stat().st_mtime:
         return Image.open(out)
     import numpy as np
     import torch
@@ -282,7 +283,9 @@ def inspect(src, limbs=True, objects=True, edges=True):
     # 人と違う体（ラミア、人魚、ケンタウロス、ハーピー）は脚や腕の数が人と違うので数えない（limbs=False）
     # 腕・脚は左右の両方が無いときだけ落とす。片方だけでは、長いスカートや持ち物で隠れた脚を「無い」と取った
     # （ローブの魔女3枚がどれも「右脚が無い」で落ちたが、目で見ると脚は描けていた。2026-10-11）
-    for name, ids in ((("腕", [14, 15]), ("脚", [12, 13])) if limbs else ()):
+    # 脚が服で全部覆われると脚の肌は 0 画素になる（つなぎの整備士で「脚が無い」と落ちた。2026-10-13）。ズボンと靴も脚の印に数える
+    legs = [12, 13, LABELS["pants"], LABELS["left_shoe"], LABELS["right_shoe"]]
+    for name, ids in ((("腕", [14, 15]), ("脚", legs)) if limbs else ()):
         if not np.isin(lab, ids).any():
             reasons.append(f"{name}が無い")
     if not edges:

@@ -1,7 +1,7 @@
 {
  "_doc": "関節の可動域（度）。人形のポーズの検査（tools/engine/rom_check.py）と、絵の検品（.claude/agents/checker.md）で使う。数字は健常な大人の自動運動の目安で、資料により 5〜15 度違う。出典と考え方は docs/knowledge/joints-and-motion.md。tolerance は検査で見逃す余裕（人形の骨と人の関節のずれ、体の柔らかい人の分）",
  "joints": {
-  "elbow": {"ja": "肘", "kind": "hinge", "flex": [0, 140], "range_seen": "屈曲 140〜150、過伸展 0（女性や柔らかい人で 5〜10）", "tolerance": 10,
+  "elbow": {"ja": "肘", "kind": "hinge", "absolute": true, "flex": [0, 140], "range_seen": "屈曲 140〜150、過伸展 0（女性や柔らかい人で 5〜10）", "tolerance": 10,
             "bones": {"L": ["upperarm02.L", "lowerarm01.L"], "R": ["upperarm02.R", "lowerarm01.R"]}},
   "knee": {"ja": "膝", "kind": "hinge", "flex": [0, 150], "range_seen": "屈曲 150、過伸展はほぼ 0（5〜10 で反張膝）", "tolerance": 10,
            "bones": {"L": ["upperleg02.L", "lowerleg01.L"], "R": ["upperleg02.R", "lowerleg01.R"]}},
