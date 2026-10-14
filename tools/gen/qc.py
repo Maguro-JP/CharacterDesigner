@@ -125,7 +125,7 @@ def repaint_scars(before: Image.Image, after: Image.Image, mask: Image.Image, wi
                 out.append({"x": x, "y": y, "size": cell, "sharp": round(float(sa), 2), "before": round(float(sb), 2)})
     return out
 
-def human_legs(points: list[dict], height: int, least: float = 0.45, torso_max: float = 0.35) -> dict:
+def human_legs(points: list[dict], height: int, least: float = 0.45, torso_max: float = 0.35, seen: float = 0.25) -> dict:
     """人の脚が残っているか（下半身が獣や蜘蛛の種族で、腰より下に人の膝と足首が描かれた崩れ）。
     骨格の点（tools/gen/joints.py の find）から、腰→足首の長さを胴（肩→腰）の長さで割り、膝と足首の確からしさの小さい方を掛ける。
     左右の大きい方が least 以上なら「ある」。部位分けの模型は蜘蛛の体をズボンや靴と読み、人の脚が無い絵で 49% をズボンとした。
@@ -137,6 +137,11 @@ def human_legs(points: list[dict], height: int, least: float = 0.45, torso_max: 
     torso = hip - shoulder
     if torso <= 0 or torso > torso_max * height:
         return {"readable": False, "legs": None, "score": None, "torso": round(torso / height, 2)}
+    # 膝と足首が見つからない（確からしさ seen 未満）のは「脚が無い」ではない。蜘蛛の胴の上に立つ人の脚、獣にまたがる脚で
+    # 確からしさが 0.10〜0.22 になり、「無い」と取り違えて通した（2 枚）。人の脚の無い絵では蜘蛛の脚を膝と読み 0.30〜0.49 になる
+    conf = max(min(p[s + "_knee"]["score"], p[s + "_ankle"]["score"]) for s in ("left", "right"))
+    if conf < seen:
+        return {"readable": False, "legs": None, "score": None, "torso": round(torso / height, 2), "conf": round(float(conf), 2)}
     score = max(min(p[s + "_knee"]["score"], p[s + "_ankle"]["score"]) * (p[s + "_ankle"]["y"] - hip) / torso
                 for s in ("left", "right"))
     return {"readable": True, "legs": score >= least, "score": round(float(score), 2), "torso": round(torso / height, 2)}

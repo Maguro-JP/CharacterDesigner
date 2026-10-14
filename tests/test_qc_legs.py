@@ -51,3 +51,11 @@ class AutoCheckTest(unittest.TestCase):
             saved = json.loads(Path(f"{d}/a.png.qc.json").read_text())
         self.assertEqual(r["problems"], [])
         self.assertEqual(saved["ok"], r["ok"])
+
+
+class UnseenLegsTest(unittest.TestCase):
+    def test_unseen_knees_are_unreadable_not_absent(self):
+        # 蜘蛛の胴の上に立つ人の脚は、骨格の模型が膝と足首を見つけられず確からしさ 0.13 になった。「無い」と返さない
+        r = qc.human_legs(points(shoulder=300, hip=500, knee=600, ankle=650, score=0.13), 1216)
+        self.assertFalse(r["readable"])
+        self.assertIsNone(r["legs"])
