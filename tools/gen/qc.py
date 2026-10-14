@@ -365,7 +365,13 @@ def auto_check(src: str, prompt: str = "") -> dict:
         except ImportError as e:
             res["unreadable"].append({"floating": str(e)})
         import measure
-        eye = eye_mismatch(measure.measure(src)["eyes"])
+        m = measure.measure(src)
+        # measure が基準から外れたと出した数字（瞳の色の差、髪の白飛び、影の順序など）は全部、判定に入れる。
+        # 面積比だけを見て、measure が出していた瞳の色の差 0.105（基準 0.062）を捨てて通した（目の描き直し、2026-10-14）
+        if measure.NORMS.exists():
+            for bad in measure.judge(m):
+                res["problems"].append({"measure": bad})
+        eye = eye_mismatch(m["eyes"])
         if not eye["readable"]:
             res["unreadable"].append({"eyes": eye})
         elif eye["mismatch"]:
