@@ -1,4 +1,4 @@
-"""検品の升目（qc.tiles）。どの画素も少なくとも1つの升目に入り、升目は拡大されているかを見る"""
+"""検品の拡大升目（qc.zoom_tiles）。どの画素も少なくとも1つの升目に入り、升目は拡大されているかを見る"""
 import sys
 import tempfile
 import unittest
@@ -21,7 +21,7 @@ class TilesTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             src = str(Path(d) / "w.png")
             Image.new("RGB", (768, 1344), "white").save(src)
-            r = qc.tiles(src, str(Path(d) / "t"), zoom=3.0)
+            r = qc.zoom_tiles(src, str(Path(d) / "t"), zoom=3.0)
             seen = np.zeros((1344, 768), bool)
             for t in r["tiles"]:
                 x0, y0, x1, y1 = t["box"]

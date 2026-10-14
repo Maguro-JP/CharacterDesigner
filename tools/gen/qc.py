@@ -297,26 +297,22 @@ def compare(srcs: list[str], limit: float = 40.0) -> dict:
             "parts_found": [[PART_JA[k] for k in c] for c in colors]}
 
 
-def tiles(src: str, outdir: str, cols: int = 2, rows: int = 4, zoom: float = 3.0, overlap: float = 0.15) -> dict:
-    """絵を重なりのある升目に切り、どれも zoom 倍に拡大して別々の画像に書く。検品はこの全部を1枚ずつ見る。
-    全体図や縮めた並べ図だけで選ぶと、手の光る物・途切れた袖・浮いた帯を見落とした（夜間の女性 10-13〜14 で5回）。
-    部位分けに頼らず升目で切るのは、部位分けが手を袖や服と取り違えても、見る範囲から漏れないようにするため"""
+def zoom_tiles(src: str, outdir: str, cols: int = 2, rows: int = 4, zoom: float = 3.0) -> dict:
+    """絵全体を tiles の升目に切り、どれも zoom 倍に拡大して別々の画像に書く。検品はこの全部を1枚ずつ開いて見る。
+    sheet の -detail は1枚の図にまとめるので約2倍にしかならず、選ぶ段と検品で、手の光る物・手の下に垂れる帯・
+    左右で違う靴を見落とした（夜間の女性 10-13〜14）。部位分けに頼らず絵全体を切るのは、手を袖や服と取り違えても
+    見る範囲から漏れないようにするため"""
     im = Image.open(src).convert("RGB")
-    w, h = im.size
-    tw, th = w / cols, h / rows
-    ox, oy = tw * overlap, th * overlap
     Path(outdir).mkdir(parents=True, exist_ok=True)
     stem = Path(src).stem
     out = []
-    for r in range(rows):
-        for c in range(cols):
-            box = (max(0, int(c * tw - ox)), max(0, int(r * th - oy)), min(w, int((c + 1) * tw + ox)), min(h, int((r + 1) * th + oy)))
-            t = im.crop(box)
-            p = str(Path(outdir) / f"{stem}-t{r}{c}.png")
-            t.resize((int(t.width * zoom), int(t.height * zoom)), Image.LANCZOS).save(p)
-            out.append({"file": p, "box": list(box)})
+    for i, box in enumerate(tiles((0, 0, im.width, im.height), rows, cols, overlap=0.15)):
+        t = im.crop(box)
+        p = str(Path(outdir) / f"{stem}-t{i // cols}{i % cols}.png")
+        t.resize((int(t.width * zoom), int(t.height * zoom)), Image.LANCZOS).save(p)
+        out.append({"file": p, "box": list(box)})
     return {"src": src, "zoom": zoom, "tiles": out,
-            "note": "全部の升目を1枚ずつ見る。見なかった升目があれば、その範囲は確かめていないと書く"}
+            "note": "全部の升目を1枚ずつ開いて見る。開かなかった升目があれば、その範囲は確かめていないと書く"}
 
 
 def main():
@@ -326,11 +322,11 @@ def main():
     f = sub.add_parser("facts"); f.add_argument("src"); f.add_argument("--character")
     c = sub.add_parser("compare"); c.add_argument("srcs", nargs="+"); c.add_argument("--limit", type=float, default=40.0)
     e = sub.add_parser("expr"); e.add_argument("base"); e.add_argument("out"); e.add_argument("srcs", nargs="+")
-    t = sub.add_parser("tiles"); t.add_argument("src"); t.add_argument("outdir"); t.add_argument("--zoom", type=float, default=3.0)
+    t = sub.add_parser("zoom"); t.add_argument("src"); t.add_argument("outdir"); t.add_argument("--zoom", type=float, default=3.0)
     a = ap.parse_args()
     r = {"sheet": lambda: sheet(a.src, a.out), "facts": lambda: facts(a.src, a.character),
          "compare": lambda: compare(a.srcs, a.limit), "expr": lambda: expr(a.base, a.out, a.srcs),
-         "tiles": lambda: tiles(a.src, a.outdir, zoom=a.zoom)}[a.cmd]()
+         "zoom": lambda: zoom_tiles(a.src, a.outdir, zoom=a.zoom)}[a.cmd]()
     print(json.dumps(r, ensure_ascii=False, indent=1))
 
 
