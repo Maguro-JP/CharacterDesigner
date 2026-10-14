@@ -119,7 +119,8 @@ def repaint_scars(before: Image.Image, after: Image.Image, mask: Image.Image, wi
             sa = ga[y:y + cell, x:x + cell][r].max() / spread
             cb = lb[y:y + cell, x:x + cell][r]
             sb = gb[y:y + cell, x:x + cell][r].max() / max(np.percentile(cb, 95) - np.percentile(cb, 5), contrast)
-            if sa < drop * max(sb, 0.6):
+            # 前から柔らかかった所（前後とも同じ鋭さ）は跡ではない。前より 2 割以上鈍った所だけを拾う
+            if sa < drop * max(sb, 0.6) and sa < 0.8 * sb:
                 out.append({"x": x, "y": y, "size": cell, "sharp": round(float(sa), 2), "before": round(float(sb), 2)})
     return out
 
