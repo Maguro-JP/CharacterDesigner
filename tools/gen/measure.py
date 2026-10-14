@@ -78,6 +78,29 @@ def face_mask(seg, labels):
     return m
 
 
+def iris_color(rgb, blob):
+    """目の塊のまわりで、枠の中央値より暗い画素（瞳とまつ毛）の色を (彩度, R/平均, G/平均, B/平均) で返す。
+    彩度の高い画素だけを見ると灰色の瞳が抜け、茶と灰の左右違いを見逃した。明るさで割って、光の当たり方の差は消す"""
+    x0, x1 = int(blob["cx"] - blob["w"] * 0.6), int(blob["cx"] + blob["w"] * 0.6)
+    y0, y1 = int(blob["cy"] - blob["h"] * 0.8), int(blob["cy"] + blob["h"] * 0.8)
+    p = rgb[max(0, y0):max(0, y1), max(0, x0):max(0, x1), :3].reshape(-1, 3)
+    if len(p) < 5:
+        return None
+    _, _, v = _hsv(p)
+    q = p[(v > 0.12) & (v < np.median(v))]
+    if len(q) < 5:
+        return None
+    _, s, _ = _hsv(q)
+    mean = q.mean(0)
+    return np.array([s.mean(), *(mean / max(float(mean.mean()), 1e-3))])
+
+
+def iris_delta(rgb, left, right):
+    """左右の瞳の色の差（iris_color の各成分の差の最大）。読めなければ None"""
+    a, b = iris_color(rgb, left), iris_color(rgb, right)
+    return None if a is None or b is None else round(float(np.abs(a - b).max()), 3)
+
+
 def eyes(rgb, seg, labels):
     """顔の中の暗い塊のうち大きい2つを目とみなして測る"""
     from scipy import ndimage
@@ -137,6 +160,7 @@ def eyes(rgb, seg, labels):
         "tilt_deg": round(float(np.degrees(np.arctan2(right["cy"] - left["cy"], right["cx"] - left["cx"]))), 1),
         "gap_face": round((right["cx"] - left["cx"]) / fw, 3),
         "eye_line": round(((left["cy"] + right["cy"]) / 2 - y0) / fh, 3),
+        "iris_delta": iris_delta(rgb, left, right),
         "left": {k: round(v, 1) for k, v in left.items()}, "right": {k: round(v, 1) for k, v in right.items()},
     }
 
