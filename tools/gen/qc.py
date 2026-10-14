@@ -40,6 +40,51 @@ def figure_mask(rgb: np.ndarray, paper: int = 30) -> np.ndarray:
     return np.abs(rgb.astype(float) - bg).max(-1) > paper
 
 
+def background_seams(rgb: np.ndarray, gap: int = 4, band: int = 12, flat: float = 4.0, least: float = 0.2,
+                     agree: float = 0.7, step: float = 5.0, cap: float = 25.0, sharp: float = 3.0,
+                     near: float = 20.0) -> list[dict]:
+    """背景の色が、まっすぐな横線・縦線を境に急に変わる所。部分の描き直しの範囲の縁に出る継ぎ目。
+
+    アラクネの下半身を描き直した絵で、範囲の上の縁（430 行目）を境に背景の青が 7 上がり、細かな粒が消えた。
+    明るさだけを見ると差は 1 未満で拾えなかったので、3 色それぞれの差を見る。
+    線の上下（左右）の帯（band 行、境から gap 行あける）が、どちらも平ら（ばらつき flat 未満）で
+    四隅の色（背景）から near 以内の列だけを数える。翼の中の平らな羽の帯や人物の輪郭を拾わないため。
+    差が step を超えて cap 未満、帯の中の変化の sharp 倍より大きい（なだらかな光のむらでない）、
+    agree 以上の列で同じ向きに変わる、をすべて満たす行を継ぎ目とし、近い行は 1 本にまとめる。
+    手元の 8 枚で、継ぎ目のある 1 枚だけを拾い、残り 7 枚は拾わなかった"""
+    X = rgb.astype(float)
+    corners = np.concatenate([X[:8, :8], X[:8, -8:], X[-8:, :8], X[-8:, -8:]]).reshape(-1, 3)
+    bgc = np.median(corners, 0)
+    out = []
+    for name, M in (("row", X), ("col", X.transpose(1, 0, 2))):
+        H, W, _ = M.shape
+        hits = []
+        for i in range(gap + band, H - gap - band):
+            a, b = M[i - gap - band:i - gap], M[i + gap:i + gap + band]
+            ok = ((a.std(0).max(-1) < flat) & (b.std(0).max(-1) < flat)
+                  & (np.abs(a.mean(0) - bgc).max(-1) < near) & (np.abs(b.mean(0) - bgc).max(-1) < near))
+            if ok.sum() < least * W:
+                continue
+            d = (b.mean(0) - a.mean(0))[ok]
+            med = np.median(d, 0)
+            c = int(np.abs(med).argmax())
+            h = band // 2
+            inner = (abs(np.median((a[h:].mean(0) - a[:h].mean(0))[ok][:, c]))
+                     + abs(np.median((b[h:].mean(0) - b[:h].mean(0))[ok][:, c])))
+            if (step < abs(med[c]) < cap and abs(med[c]) > sharp * inner
+                    and (np.sign(d[:, c]) == np.sign(med[c])).mean() > agree):
+                hits.append((i, float(abs(med[c])), float(ok.mean())))
+        groups = []
+        for r in hits:
+            if groups and r[0] - groups[-1][-1][0] <= gap + band:
+                groups[-1].append(r)
+            else:
+                groups.append([r])
+        for g in groups:
+            top = max(g, key=lambda r: r[1])
+            out.append({"at": name, "pos": top[0], "step": round(top[1], 1), "width": round(top[2], 2)})
+    return out
+
 def floating_blobs(rgb: np.ndarray, least: float = 0.0015) -> dict:
     """人物の塊から離れた塊（宙に浮いた布・煙・物）。地が平らでない絵（背景つき）は数えない。
     小さすぎる点（絵全体の least 未満）は、髪の跳ねや影の粒なので数えない"""
@@ -230,7 +275,7 @@ def facts(src: str, character: str | None = None) -> dict:
     parts = _parts(src, im)
     person = parts > 0
     res = {"edge_cut": edge_cut(rgb), "inventory": inventory(parts),
-           "floating": floating_blobs(rgb),
+           "floating": floating_blobs(rgb), "seams": background_seams(rgb),
            "skin_ratio": round(float(np.isin(parts, SKIN).sum() / max(person.sum(), 1)), 3)}
     import tagger
     got = tagger.read(src)
