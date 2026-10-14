@@ -1,0 +1,74 @@
+"""部分の描き直し（tools/gen/fix.py）が、描き直しのたびに跡の検品を走らせることの試験。描く所は偽物に差し替える。
+模型を外から取りに行かない既定（HF_HUB_OFFLINE）も確かめる。"""
+import json
+import os
+import subprocess
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+import numpy as np
+from PIL import Image, ImageFilter
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "tools" / "gen"))
+import fix  # noqa: E402
+
+try:
+    import scipy  # noqa: F401
+    HAS_SCIPY = True
+except ImportError:
+    HAS_SCIPY = False
+
+
+def stripes(w=256, h=256):
+    a = np.full((h, w), 200, "uint8")
+    for x in range(8, w, 24):
+        a[:, x:x + 3] = 20
+    return Image.fromarray(a).convert("RGB")
+
+
+@unittest.skipUnless(HAS_SCIPY, "scipy が無い（.cache/gen/lib に入る）")
+class FixReportTest(unittest.TestCase):
+    def run_fix(self, draw):
+        with tempfile.TemporaryDirectory() as d:
+            src, out = f"{d}/src.png", f"{d}/out.png"
+            stripes().save(src)
+            rep = fix.fix(src, out, [(64, 64, 192, 192)], "test", draw=draw)
+            saved = json.loads(Path(out + ".qc.json").read_text())
+            self.assertTrue(Path(out + ".mask.png").exists())
+        return rep, saved
+
+    def test_blurry_repaint_is_reported(self):
+        rep, saved = self.run_fix(lambda im, m, *a: Image.composite(im.filter(ImageFilter.GaussianBlur(4)), im, m))
+        self.assertFalse(rep["clean"])
+        self.assertTrue(rep["scars"])
+        self.assertEqual(saved["clean"], False)
+
+    def test_clean_repaint_passes(self):
+        rep, _ = self.run_fix(lambda im, m, *a: im.copy())
+        self.assertTrue(rep["clean"])
+
+
+class BoxTest(unittest.TestCase):
+    def test_reversed_box_is_rejected(self):
+        with self.assertRaises(Exception):
+            fix.parse_box("100,50,10,60")
+
+
+class OfflineDefaultTest(unittest.TestCase):
+    def test_models_are_not_fetched_by_default(self):
+        env = {k: v for k, v in os.environ.items() if k not in ("HF_HUB_OFFLINE", "CD_FETCH")}
+        for mod, want, extra in (("design", "1", {}), ("people", "1", {}), ("fix", "1", {}),
+                                 ("design", "0", {"CD_FETCH": "1"})):
+            r = subprocess.run([sys.executable, "-c", f"import {mod}, os; print(os.environ['HF_HUB_OFFLINE'])"],
+                               cwd=ROOT / "tools" / "gen", env={**env, **extra}, capture_output=True, text=True)
+            self.assertEqual(r.stdout.strip(), want, (mod, extra, r.stderr[-300:]))
+
+    def test_fix_sets_cache_before_diffusers(self):
+        # fix.py は diffusers を読む前に置き場所を決める。後だと手元の模型が見つからず、取りに行った
+        env = {k: v for k, v in os.environ.items() if k not in ("HF_HUB_OFFLINE", "HF_HOME", "CD_FETCH")}
+        r = subprocess.run([sys.executable, "-c", "import fix, os; print(os.environ['HF_HOME'])"],
+                           cwd=ROOT / "tools" / "gen", env=env, capture_output=True, text=True)
+        self.assertEqual(r.stdout.strip(), str(ROOT / ".cache" / "gen" / "hf"), r.stderr[-300:])
