@@ -30,7 +30,8 @@ os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))
 os.environ.setdefault("HF_HUB_OFFLINE", "0" if os.environ.get("CD_FETCH") == "1" else "1")
 sys.path.insert(0, str(Path(__file__).parent))
 
-MODEL = "cagliostrolab/animagine-xl-3.1"
+# 描く模型。CD_DRAW_MODEL で入れ替えられる（新しい模型を同じ言葉・同じ種で並べて比べるため）
+MODEL = os.environ.get("CD_DRAW_MODEL", "cagliostrolab/animagine-xl-3.1")
 QUALITY = "masterpiece, best quality, very aesthetic, absurdres"
 NEGATIVE = ("nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, "
             "worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, "
