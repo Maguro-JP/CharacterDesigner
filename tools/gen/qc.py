@@ -386,6 +386,9 @@ def person_found(points: list[dict], least: float = 0.4) -> dict:
 
 # 白っぽい髪の言葉。白飛びの検品から外す
 LIGHT_HAIR = ("silver hair", "white hair", "platinum", "blonde", "grey hair", "gray hair")
+# 白っぽい髪の白飛びの上限。検品担当が通した銀髪 0.031 と戻した銀髪 0.081 の間で、通した側に寄せた仮の値（判定の付いた絵 2 枚から）。
+# 判定の付いた絵が増えたら normlearn で学び直す
+LIGHT_HAIR_BLOWN_MAX = 0.06
 
 # 下半身が人でない種族の言葉。頼んだ言葉にあれば、人の脚が残っていないかも数える
 NON_HUMAN_LOWER = ("arachne", "drider", "taur", "centaur", "lamia", "naga", "mermaid", "scylla")
@@ -438,8 +441,9 @@ def auto_check(src: str, prompt: str = "") -> dict:
             species = any(w in prompt.lower() for w in NON_HUMAN_LOWER)
             for bad in measure.judge(m):
                 # 白っぽい髪は色そのものが明るく、白飛びの基準（茶や黒の髪で決めた）を外れる。銀髪のアラクネ 16 枚を
-                # 白飛びで落としたが、拡大すると髪の色だった。白っぽい髪を頼んだ絵では白飛びを崩れに数えない
-                if light_hair and bad["path"] == "hair.blown":
+                # 白飛びで落としたが、拡大すると髪の色だった。白っぽい髪を頼んだ絵では上限を LIGHT_HAIR_BLOWN_MAX に上げる。
+                # 丸ごと数えないと、検品担当が「頭頂が白く飛んで毛束が消えた」と戻した 0.081 の絵まで通した（2026-10-15）
+                if light_hair and bad["path"] == "hair.blown" and bad["value"] <= LIGHT_HAIR_BLOWN_MAX:
                     res.setdefault("ignored", []).append({"measure": bad, "why": "白っぽい髪を頼んだ"})
                     continue
                 # 白い肌や白い獣の体の隣に黒い蜘蛛の体が並ぶと、素材の色の明るさを光の向きと取り違えた（検品担当が 3 枚を

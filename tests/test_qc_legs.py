@@ -109,6 +109,10 @@ class LightHairTest(unittest.TestCase):
         self.assertTrue(any(w in "1girl, long silver hair" for w in qc.LIGHT_HAIR))
         self.assertFalse(any(w in "1girl, short brown hair" for w in qc.LIGHT_HAIR))
 
+    def test_light_hair_limit_between_judged(self):
+        # 検品担当が通した銀髪 0.031 は許し、戻した銀髪 0.081 は崩れに数える上限であること
+        self.assertTrue(0.031 <= qc.LIGHT_HAIR_BLOWN_MAX < 0.081)
+
 
 try:
     import scipy  # noqa: F401
