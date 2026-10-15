@@ -147,10 +147,11 @@ def human_legs(points: list[dict], height: int, least: float = 0.45, torso_max: 
     return {"readable": True, "legs": score >= least, "score": round(float(score), 2), "torso": round(torso / height, 2)}
 
 def repaint_holes(before: Image.Image, after: Image.Image, mask: Image.Image, near: float = 30.0,
-                  least: int = 50) -> list[dict]:
+                  least: int = 100) -> list[dict]:
     """描き直した範囲の中で、前は体だった所が背景の色になった塊（体に開いた穴、背景色にぼけた光）。
     アラクネの腹の描き直しで、脚と腹の間に背景色の穴（201 画素）と、白くぼけた光の塊（1431 画素）が出た。
-    どちらも輪郭の鋭さ（repaint_scars）では拾えず、検品担当が目で見つけた。背景の色は描き直す前の絵の四隅で決める"""
+    どちらも輪郭の鋭さ（repaint_scars）では拾えず、検品担当が目で見つけた。背景の色は描き直す前の絵の四隅で決める。
+    目を描き直すと、足された白目と瞳の光（53〜76 画素）を穴と取り違えた。本物の穴は 201 画素以上だったので下限を 100 にする"""
     from scipy import ndimage
     b = np.asarray(before.convert("RGB")).astype(float)
     a = np.asarray(after.convert("RGB")).astype(float)
