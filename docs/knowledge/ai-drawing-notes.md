@@ -190,3 +190,4 @@
 | 長い黒髪・ベージュのニット・黒のワイドパンツ・茶のローファー（21時の回、種 20261015210、80 分） | 手・靴・光の向きに崩れは無かった。自分で落とした: 瞳の色違い（iris_delta 0.205）、両手でニットの裾をつまむ姿勢で胸が画面の中心になる構図（打ち消しに large breasts が無かった） | tools/gen/free_text.py |
 | 同じ服で、腕を体の横に下ろす（arms at sides）を足し、打ち消しに large breasts, holding clothes を足す（種 20261015211） | 構図は正面の立ち姿になり、胸の強調も消えた。瞳の色もそろった。自分で落とした: 顔が幼く見える（頬の赤み、小さな口、丸い輪郭）、鼻に白い菱形の点、床の影の端が尖る | tools/gen/free_text.py |
 | 大人に寄せる言葉（30 years old, office lady, calm expression）と打ち消し（child, loli, blush, round face）を足す（種 20261015230） | 顔の幼さは減った（検品担当: 8頭身、幼いとまでは言わない）。検品担当が戻した: office lady の語でニットの下に頼んでいないシャツの襟が出た、両手とも指が2〜3本しか数えられない、胴の影のむらが1つの光と合わない。自分は襟に気付いたが通そうとし、指の数は見落とした | tools/gen/free_text.py |
+| office lady を外し、crew neck knit sweater, relaxed hands と打ち消し collared shirt, bad hands を足す（種 20261015231） | 襟は消えた。自分で落とした: black wide leg trousers が脚の分かれない長いスカートに描かれた（前の回でも裾近くまで分かれなかった）。黒いワイドパンツは、この模型ではスカートと区別されにくい。measure の light.inverted も外れ | tools/gen/free_text.py |
