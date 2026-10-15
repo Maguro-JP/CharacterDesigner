@@ -193,3 +193,7 @@ AI に下絵（奥行き）から毎回まっさらに描かせると、良い�
 下絵を使わず言葉だけで 2 周・8 枚描かせると、8 枚とも腰から下に人の脚が足先まで残り、蜘蛛の脚は背中や肩から生えた。
 1 周目（seed 31〜34）は arachne, spider lower body attached at the waist などの言葉、2 周目（seed 41〜44）は waist merges into large spider cephalothorax, from side と、負の言葉に human legs, thighs, knees, feet, spider legs from back を足した。
 2 周目では、背中にリュックのように付いた腹、頭の後ろの別の巨大な蜘蛛、余分な紫の腕も出た。言葉を足しても体のつながりは変わらなかった。
+
+## Animagine XL 4.0 に替えると、人の脚が消え、蜘蛛の脚が増えた（2026-10-15、アラクネ、832x1216）
+
+3.1 と同じ言葉（adult woman, mature face, modest clothing、打ち消しに human legs, child）で、4.0 の候補の点数上位 8 枚（seed 369〜393）を検品担当が見た。人の脚は 8 枚とも無く、顔が描かれた 7 枚は大人の顔、服は 8 枚とも首元まで覆う長袖だった（3.1 の同じ比べでは人の脚か馬の脚が 8 枚中 5 枚）。8 枚とも戻した。多かった崩れは蜘蛛の脚の数で、8 本の後ろに半透明の脚や刃の形の脚が並ぶもの、胴から離れて浮く脚が 6 枚。ほかに腕が蜘蛛の脚と混ざる 1 枚、顔が黒く塗れる 1 枚、袖の中で手が欠ける 1 枚。次の回から打ち消しに extra legs, afterimage, ghost limbs, floating legs を足して描かせる。
