@@ -41,7 +41,7 @@ SectionEnd
 Section "Uninstall"
   ; 描いた絵・保存した設定資料・取った部品と絵の模型は、消すと戻せない。既定は残し、入れたもの（プログラム）だけを消す。
   ; 残す場所の一覧は build.sh が書く（uninstall-files.nsh。DATA に挙げたものを除いた、入れたもの全部）
-  MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2 "描いた絵・保存したキャラクター・取った絵の模型も消しますか？$\r$\n消すと戻せません。残す場合は「いいえ」を選んでください（$INSTDIR に残ります）。" IDYES remove_all
+  MessageBox MB_YESNO|MB_ICONQUESTION|MB_DEFBUTTON2 /SD IDNO "描いた絵・保存したキャラクター・取った絵の模型も消しますか？$\r$\n消すと戻せません。残す場合は「いいえ」を選んでください（$INSTDIR に残ります）。" IDYES remove_all
   !include "${SRC}\..\uninstall-files.nsh"
   Goto shortcuts
   remove_all:
