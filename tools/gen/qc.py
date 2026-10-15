@@ -146,6 +146,26 @@ def human_legs(points: list[dict], height: int, least: float = 0.45, torso_max: 
                 for s in ("left", "right"))
     return {"readable": True, "legs": score >= least, "score": round(float(score), 2), "torso": round(torso / height, 2)}
 
+def repaint_holes(before: Image.Image, after: Image.Image, mask: Image.Image, near: float = 30.0,
+                  least: int = 50) -> list[dict]:
+    """描き直した範囲の中で、前は体だった所が背景の色になった塊（体に開いた穴、背景色にぼけた光）。
+    アラクネの腹の描き直しで、脚と腹の間に背景色の穴（201 画素）と、白くぼけた光の塊（1431 画素）が出た。
+    どちらも輪郭の鋭さ（repaint_scars）では拾えず、検品担当が目で見つけた。背景の色は描き直す前の絵の四隅で決める"""
+    from scipy import ndimage
+    b = np.asarray(before.convert("RGB")).astype(float)
+    a = np.asarray(after.convert("RGB")).astype(float)
+    m = np.asarray(mask.convert("L")) > 127
+    corners = np.concatenate([b[:8, :8], b[:8, -8:], b[-8:, :8], b[-8:, -8:]]).reshape(-1, 3)
+    bg = np.median(corners, 0)
+    hole = m & (np.abs(b - bg).max(-1) > near) & (np.abs(a - bg).max(-1) <= near)
+    lab, n = ndimage.label(hole)
+    out = []
+    for i, sl in enumerate(ndimage.find_objects(lab), 1):
+        size = int((lab[sl] == i).sum())
+        if size >= least:
+            out.append({"box": [sl[1].start, sl[0].start, sl[1].stop, sl[0].stop], "pixels": size})
+    return out
+
 def floating_blobs(rgb: np.ndarray, least: float = 0.0015) -> dict:
     """人物の塊から離れた塊（宙に浮いた布・煙・物）。地が平らでない絵（背景つき）は数えない。
     小さすぎる点（絵全体の least 未満）は、髪の跳ねや影の粒なので数えない"""

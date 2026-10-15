@@ -61,7 +61,8 @@ def scars_report(before: Image.Image, after: Image.Image, mask: Image.Image) -> 
     import qc
     seams = qc.background_seams(np.asarray(after.convert("RGB")))
     scars = qc.repaint_scars(before, after, mask)
-    return {"seams": seams, "scars": scars, "clean": not seams and not scars}
+    holes = qc.repaint_holes(before, after, mask)
+    return {"seams": seams, "scars": scars, "holes": holes, "clean": not seams and not scars and not holes}
 
 
 def fix(src: str, out: str, boxes, prompt: str, negative: str = "", strength: float = 0.75, seed: int = 3,
