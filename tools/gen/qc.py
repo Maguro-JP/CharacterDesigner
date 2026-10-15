@@ -394,11 +394,27 @@ LIGHT_HAIR_BLOWN_MAX = 0.06
 NON_HUMAN_LOWER = ("arachne", "drider", "taur", "centaur", "lamia", "naga", "mermaid", "scylla")
 
 
+def eyes_by_tags(tags: dict, least: float = 0.35) -> bool:
+    """絵のタグで目が描かれていると読めるか。目の色（purple eyes など）か closed eyes があり、mask が無いこと。
+    目の測り方（暗い塊を 2 つ探す）は、閉じた目・細い目・白く飛んだ髪の顔で目を見つけず、4.0 の 8 枚のうち 5 枚を
+    「読めない」と減点した（検品担当は 5 枚とも顔と目がはっきり描かれていると見た）。そのときタグは 5 枚とも目の色か
+    closed eyes を 0.42 以上で読んだ。顔の無い絵には目のタグが付かず、顔が黒く塗れた絵には mask が 0.53 で付いた"""
+    if tags.get("mask", 0) >= least:
+        return False
+    return any(v >= least and (k == "closed eyes" or (k.endswith(" eyes") and k.split()[0] in EYE_COLORS))
+               for k, v in tags.items())
+
+
+EYE_COLORS = {"blue", "red", "green", "purple", "yellow", "brown", "black", "grey", "gray", "pink", "orange",
+              "aqua", "white", "amber", "golden", "silver"}
+
+
 def auto_check(src: str, prompt: str = "") -> dict:
     """描いた直後に必ず走らせる検品。崩れが 1 つでも、読めない検品が 1 つでもあれば ok を False にする。
     Claude は検品を呼ばないと走らせず、描かせた絵を検品なしで次へ回した。描く道具（free_text.draw、fix.py）から毎回呼ぶ。
     ok が True でも完成ではない。通す・戻すは検品担当（checker）が目で見て決める"""
     res = {"src": src, "problems": [], "unreadable": []}
+    tags: dict = {}
     # 固定の制限は、ほかの検品が落ちても必ず走らせる（scipy が無く端の切れで落ちたとき、ここまで届かなかった）
     try:
         # 固定の制限（子どもを性的に描かない）を、頼んだ言葉だけでなく描けた絵でも確かめる。
@@ -452,10 +468,15 @@ def auto_check(src: str, prompt: str = "") -> dict:
                     res.setdefault("ignored", []).append({"measure": bad, "why": "体の素材の色が部位で違う種族"})
                     continue
                 # 目が見つからないのは崩れではなく「読めない」（顔の無い絵、小さすぎる顔）。どちらでも落とすが、分けて書く
+                if bad["path"] == "eyes.found" and eyes_by_tags(tags):
+                    res.setdefault("ignored", []).append({"measure": bad, "why": "目は描かれている（タグで読めた）"})
+                    continue
                 key = "unreadable" if bad["path"] == "eyes.found" else "problems"
                 res[key].append({"measure": bad})
         eye = eye_mismatch(m["eyes"])
-        if not eye["readable"]:
+        if not eye["readable"] and eyes_by_tags(tags):
+            res.setdefault("ignored", []).append({"eyes": eye, "why": "目は描かれている（タグで読めた）"})
+        elif not eye["readable"]:
             res["unreadable"].append({"eyes": eye})
         elif eye["mismatch"]:
             res["problems"].append({"eyes": eye})

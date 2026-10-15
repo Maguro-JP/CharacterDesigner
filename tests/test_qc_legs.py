@@ -172,3 +172,16 @@ class ScoreTest(unittest.TestCase):
         self.assertLess(qc.score(bad), qc.score(light))
         self.assertEqual(qc.score(clean), 100)
         self.assertEqual(qc.score({"problems": [{"fixed_restriction": "x"}], "unreadable": []}), 0)
+
+
+class EyesByTagsTest(unittest.TestCase):
+    def test_colored_or_closed_eyes_count(self):
+        self.assertTrue(qc.eyes_by_tags({"1girl": 1.0, "purple eyes": 0.49}))
+        self.assertTrue(qc.eyes_by_tags({"closed eyes": 0.43}))
+
+    def test_faceless_or_masked_do_not(self):
+        # 顔の無い絵（目のタグが無い）、顔が黒く塗れた絵（mask）、目の色でない言葉、低い確からしさ
+        self.assertFalse(qc.eyes_by_tags({"1girl": 0.97, "looking at viewer": 0.25}))
+        self.assertFalse(qc.eyes_by_tags({"purple eyes": 0.52, "mask": 0.53}))
+        self.assertFalse(qc.eyes_by_tags({"hair between eyes": 0.57, "extra eyes": 0.3}))
+        self.assertFalse(qc.eyes_by_tags({"blue eyes": 0.2}))
