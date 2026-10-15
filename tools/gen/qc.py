@@ -350,6 +350,9 @@ def person_found(points: list[dict], least: float = 0.4) -> dict:
     shoulders = (p["left_shoulder"] + p["right_shoulder"]) / 2
     return {"found": face >= least or shoulders >= least, "face": round(float(face), 2), "shoulders": round(float(shoulders), 2)}
 
+# 白っぽい髪の言葉。白飛びの検品から外す
+LIGHT_HAIR = ("silver hair", "white hair", "platinum", "blonde", "grey hair", "gray hair")
+
 # 下半身が人でない種族の言葉。頼んだ言葉にあれば、人の脚が残っていないかも数える
 NON_HUMAN_LOWER = ("arachne", "drider", "taur", "centaur", "lamia", "naga", "mermaid", "scylla")
 
@@ -389,7 +392,13 @@ def auto_check(src: str, prompt: str = "") -> dict:
         # measure が基準から外れたと出した数字（瞳の色の差、髪の白飛び、影の順序など）は全部、判定に入れる。
         # 面積比だけを見て、measure が出していた瞳の色の差 0.105（基準 0.062）を捨てて通した（目の描き直し、2026-10-14）
         if measure.NORMS.exists():
+            light_hair = any(w in prompt.lower() for w in LIGHT_HAIR)
             for bad in measure.judge(m):
+                # 白っぽい髪は色そのものが明るく、白飛びの基準（茶や黒の髪で決めた）を外れる。銀髪のアラクネ 16 枚を
+                # 白飛びで落としたが、拡大すると髪の色だった。白っぽい髪を頼んだ絵では白飛びを崩れに数えない
+                if light_hair and bad["path"] == "hair.blown":
+                    res.setdefault("ignored", []).append({"measure": bad, "why": "白っぽい髪を頼んだ"})
+                    continue
                 # 目が見つからないのは崩れではなく「読めない」（顔の無い絵、小さすぎる顔）。どちらでも落とすが、分けて書く
                 key = "unreadable" if bad["path"] == "eyes.found" else "problems"
                 res[key].append({"measure": bad})

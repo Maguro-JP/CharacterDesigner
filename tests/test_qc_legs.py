@@ -100,3 +100,10 @@ class EdgeCutBackgroundTest(unittest.TestCase):
             r = qc.auto_check(f"{d}/g.png", "1girl")
         self.assertFalse(any("edge_cut" in x for x in r["problems"]))
         self.assertTrue(any("edge_cut" in x for x in r["unreadable"]))
+
+
+class LightHairTest(unittest.TestCase):
+    def test_light_hair_words(self):
+        # 銀髪を頼んだ絵では、髪の白飛びを崩れに数えない（言葉の一覧に入っていること）
+        self.assertTrue(any(w in "1girl, long silver hair" for w in qc.LIGHT_HAIR))
+        self.assertFalse(any(w in "1girl, short brown hair" for w in qc.LIGHT_HAIR))
