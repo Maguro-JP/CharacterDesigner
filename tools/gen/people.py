@@ -30,8 +30,10 @@ os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))
 os.environ.setdefault("HF_HUB_OFFLINE", "0" if os.environ.get("CD_FETCH") == "1" else "1")
 sys.path.insert(0, str(Path(__file__).parent))
 
-# 描く模型。CD_DRAW_MODEL で入れ替えられる（新しい模型を同じ言葉・同じ種で並べて比べるため）
-MODEL = os.environ.get("CD_DRAW_MODEL", "cagliostrolab/animagine-xl-3.1")
+# 描く模型は tools/gen/models.py の一覧で作風ごとに決める（config/models.json、無ければ animagine-xl-3.1）。
+# CD_DRAW_MODEL を付けると、その場だけ入れ替えられる。CD_STYLE で作風を選ぶ（既定 anime）
+import models as _models
+MODEL = _models.for_style(os.environ.get("CD_STYLE", "anime"))
 QUALITY = "masterpiece, best quality, very aesthetic, absurdres"
 NEGATIVE = ("nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, "
             "worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, "
@@ -64,7 +66,7 @@ def pipe():
         from diffusers import EulerAncestralDiscreteScheduler, StableDiffusionXLPipeline
         import device
         # GPU があれば使う（tools/gen/device.py）。CPU のときは今までどおり bfloat16 で全部のコアを使う
-        _PIPE = StableDiffusionXLPipeline.from_pretrained(MODEL, torch_dtype=device.dtype(torch))
+        _PIPE = _models.load(os.environ.get("CD_STYLE", "anime"))
         _PIPE.scheduler = EulerAncestralDiscreteScheduler.from_config(_PIPE.scheduler.config)
         device.place(_PIPE, torch)
     return _PIPE
