@@ -1,0 +1,7 @@
+題材: 大人の女性（オリーブのトレンチコート、白いTシャツ、明るい青のワイドジーンズ、白いスニーカー、両手をポケット）
+模型: Animagine XL 3.1（free_text.draw、832x1216、24 段、face=True）。顔は imgproc.face_fix（強さ 0.35、種 7）で描き直し
+プロンプト: 1girl, solo, adult woman, mature female, short auburn bob hair, hair behind ears, forehead, visible eyes, olive green trench coat, white t-shirt, blue denim jeans, light blue wide leg jeans, white sneakers, both hands in pockets, standing, full body, front view, simple white background
+打ち消し: leggings, tight pants, skinny jeans, cuffed jeans, green pants, olive pants, mismatched shoes, different shoes, missing arm, large breasts, two-tone pants, hair over eyes, heterochromia
+種: 20261015080
+後の直し（画素）: 額と鼻の白い点を肌の色で埋めた。額の白飛びを頬の明るさへ寄せてぼかした。コートの色相を 32° から 60° へ回した（ベルトと後ろの身頃も含む）。床を背景の面で塗り直し、足元に影を1つ置いた。額は顔を描き直した直後の光の形を残し、頬との差を4割に縮めた。鼻筋と頬の上に弱い光を足し、顔と体の光の向きをそろえた
+選んだ理由: 服装が設定どおりで、手足・靴・顔に崩れが無い。検品担当が3回目で通した
