@@ -158,3 +158,13 @@ class LegsMarginTest(unittest.TestCase):
         self.assertGreaterEqual(r["score"], 0.45)
         self.assertLess(r["score"], 0.55)
         self.assertFalse(r["readable"])
+
+
+class ScoreTest(unittest.TestCase):
+    def test_lighter_defects_score_higher(self):
+        bad = {"problems": [{"human_legs": {}}, {"edge_cut": ["下"]}], "unreadable": []}
+        light = {"problems": [{"measure": {"path": "eyes.iris_delta"}}], "unreadable": []}
+        clean = {"problems": [], "unreadable": []}
+        self.assertLess(qc.score(bad), qc.score(light))
+        self.assertEqual(qc.score(clean), 100)
+        self.assertEqual(qc.score({"problems": [{"fixed_restriction": "x"}], "unreadable": []}), 0)

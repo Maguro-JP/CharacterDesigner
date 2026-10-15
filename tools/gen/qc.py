@@ -464,11 +464,29 @@ def auto_check(src: str, prompt: str = "") -> dict:
     except Exception as e:  # 検品が落ちたことを、検品が通ったことにしない
         res["unreadable"].append({"error": f"{type(e).__name__}: {e}"})
     res["ok"] = not res["problems"] and not res["unreadable"]
+    res["score"] = score(res)
     Path(src + ".qc.json").write_text(json.dumps(res, ensure_ascii=False, indent=1, default=str))
     if any("fixed_restriction" in x for x in res["problems"]):
         res["held"] = hold(src)
     return res
 
+
+# 崩れの重さ（100 点から引く）。体のつながりや人そのものの崩れは直せないので重く、部分の直しで直せる崩れは軽くする
+PENALTY = {"fixed_restriction": 100, "person": 60, "human_legs": 40, "edge_cut": 25, "eyes": 15, "floating": 15,
+           "seams": 10, "measure": 8}
+
+
+def score(res: dict) -> int:
+    """auto_check の結果に点数（0〜100）を付ける。落ちた絵どうしでも良し悪しを比べ、一番良い絵を土台に選べるようにする。
+    「通す・落とす」の二択では、どれも落ちたときに次の土台を選べなかった。読めない検品は崩れの半分の重さで引く"""
+    pts = 100.0
+    for x in res.get("problems", []):
+        k = next(iter(x))
+        pts -= PENALTY.get(k, 10)
+    for x in res.get("unreadable", []):
+        k = next(iter(x))
+        pts -= PENALTY.get(k, 10) / 2
+    return max(0, int(round(pts)))
 
 def hold(src: str) -> str:
     """固定の制限に当たった絵を、隣の held/ へ付随ファイルごと移す。見回りで手で移していたのを、描いた直後に行う。
