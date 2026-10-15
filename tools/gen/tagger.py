@@ -3,8 +3,7 @@
 模型は SmilingWolf/wd-vit-tagger-v3（Apache-2.0、約 380MB の ONNX）。アニメ絵を Danbooru のタグで読む。
 描く模型（Animagine）も同じ Danbooru のタグで描くので、頼んだタグと読んだタグをそのまま比べられる。
 
-置き場は .cache/assets/tagger（model.onnx と selected_tags.csv）。取るのは `sh tools/gen/setup.sh` の後に
-`python3 tools/gen/tagger.py setup`。
+置き場は .cache/assets/tagger（model.onnx と selected_tags.csv）。`sh tools/gen/setup.sh` が取る（単独では `python3 tools/gen/tagger.py setup`）。
 
   python3 tools/gen/tagger.py read 絵.png                 読んだタグ（確からしさ付き）
   python3 tools/gen/tagger.py check 絵.png "1girl, red scarf, knight"   頼んだうち描かれていないタグ

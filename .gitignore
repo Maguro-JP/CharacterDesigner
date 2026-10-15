@@ -5,5 +5,7 @@ __pycache__/
 
 # 部位分け（edit.parts）が絵の横に残す中間ファイル
 *.parts.png
+# 顔の切り出し（measure の head_view）が絵の横に残す中間ファイル
+*.head.png
 config/filters.json
 config/norms.user.json
