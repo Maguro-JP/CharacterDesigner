@@ -133,3 +133,19 @@ class FixedRestrictionTest(unittest.TestCase):
         import filters
         self.assertIsNotNone(filters.fixed("1girl, child, nude"))
         self.assertIsNone(filters.fixed("1girl, breasts, navel"))
+
+
+class HoldTest(unittest.TestCase):
+    def test_restricted_picture_is_moved_out(self):
+        import tempfile
+        from unittest import mock
+        from PIL import Image
+        import tagger
+        with tempfile.TemporaryDirectory() as d:
+            Image.new("RGB", (64, 64), (255, 255, 255)).save(f"{d}/a.png")
+            with mock.patch.object(tagger, "read", return_value={"child": 0.9, "nude": 0.9}):
+                r = qc.auto_check(f"{d}/a.png", "1girl")
+            self.assertFalse(Path(f"{d}/a.png").exists())
+            self.assertTrue(Path(f"{d}/held/a.png").exists())
+            self.assertTrue(Path(f"{d}/held/a.png.qc.json").exists())
+        self.assertFalse(r["ok"])

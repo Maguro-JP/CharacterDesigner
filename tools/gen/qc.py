@@ -389,6 +389,19 @@ def auto_check(src: str, prompt: str = "") -> dict:
     Claude は検品を呼ばないと走らせず、描かせた絵を検品なしで次へ回した。描く道具（free_text.draw、fix.py）から毎回呼ぶ。
     ok が True でも完成ではない。通す・戻すは検品担当（checker）が目で見て決める"""
     res = {"src": src, "problems": [], "unreadable": []}
+    # 固定の制限は、ほかの検品が落ちても必ず走らせる（scipy が無く端の切れで落ちたとき、ここまで届かなかった）
+    try:
+        # 固定の制限（子どもを性的に描かない）を、頼んだ言葉だけでなく描けた絵でも確かめる。
+        # 言葉で露出を頼んでいなくても、絵では露出が多く描かれた（アラクネの候補、検品担当の指摘）。
+        # 絵をタグに読み、filters.fixed（言葉の判定と同じ決まり）にかける
+        import filters
+        import tagger
+        tags = tagger.read(src)
+        reason = filters.fixed(", ".join(tags))
+        if reason:
+            res["problems"].append({"fixed_restriction": reason, "tags": sorted(tags, key=lambda t: -tags[t])[:20]})
+    except Exception as e:
+        res["unreadable"].append({"fixed_restriction": f"{type(e).__name__}: {e}"})
     try:
         im = Image.open(src).convert("RGB")
         rgb = np.asarray(im)
@@ -404,15 +417,6 @@ def auto_check(src: str, prompt: str = "") -> dict:
                 res["problems"].append({"floating": fl["blobs"]})
         except ImportError as e:
             res["unreadable"].append({"floating": str(e)})
-        # 固定の制限（子どもを性的に描かない）を、頼んだ言葉だけでなく描けた絵でも確かめる。
-        # 言葉で露出を頼んでいなくても、絵では露出が多く描かれた（アラクネの候補、検品担当の指摘）。
-        # 絵をタグに読み、filters.fixed（言葉の判定と同じ決まり）にかける
-        import filters
-        import tagger
-        tags = tagger.read(src)
-        reason = filters.fixed(", ".join(tags))
-        if reason:
-            res["problems"].append({"fixed_restriction": reason, "tags": sorted(tags, key=lambda t: -tags[t])[:20]})
         import joints
         points = joints.find(src)
         person = person_found(points)
@@ -454,7 +458,21 @@ def auto_check(src: str, prompt: str = "") -> dict:
         res["unreadable"].append({"error": f"{type(e).__name__}: {e}"})
     res["ok"] = not res["problems"] and not res["unreadable"]
     Path(src + ".qc.json").write_text(json.dumps(res, ensure_ascii=False, indent=1, default=str))
+    if any("fixed_restriction" in x for x in res["problems"]):
+        res["held"] = hold(src)
     return res
+
+
+def hold(src: str) -> str:
+    """固定の制限に当たった絵を、隣の held/ へ付随ファイルごと移す。見回りで手で移していたのを、描いた直後に行う。
+    移した先には、見せる・保存する経路（.pass、library）から外れた名前だけが残る"""
+    import shutil
+    p = Path(src)
+    dest = p.parent / "held"
+    dest.mkdir(exist_ok=True)
+    for f in p.parent.glob(p.name + "*"):
+        shutil.move(str(f), str(dest / f.name))
+    return str(dest / p.name)
 
 def facts(src: str, character: str | None = None) -> dict:
     """数えられる事実。判断はしない（検品担当が、この数字を手がかりに目で確かめる）"""
