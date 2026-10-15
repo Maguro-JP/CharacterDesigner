@@ -217,12 +217,19 @@ def color_gaps(colors: list[dict], limit: float = 40.0) -> list[dict]:
 BANDS = {"眉と目": (0.10, 0.58), "口": (0.60, 0.92)}
 
 
-def edge_cut(rgb: np.ndarray, margin: int = 2) -> list[str]:
-    """人物が絵の端で切れているか。地と違う画素が端の帯にあれば、その辺の名前を返す（全身の絵で足先や頭が切れる欠損）"""
-    fig = figure_mask(rgb)
+def edge_cut(rgb: np.ndarray, margin: int = 2, far: float = 40.0, least: float = 0.02, win: int = 248) -> list[str]:
+    """人物が絵の端で切れているか（全身の絵で足先や頭が切れる欠損）。辺ごとに、端の帯の色を辺に沿った移動中央値（win 画素）と比べ、
+    far 以上離れた画素が least を超える辺の名前を返す。
+    四隅の色を地とすると、影や色の変わる背景で四辺とも「切れている」と出た（アラクネの候補 24 枚中 22 枚が読めなくなった）。
+    辺に沿ってゆっくり変わる背景は移動中央値に乗り、人物がかかった所だけが外れる"""
+    from scipy import ndimage
+    x = rgb.astype(float)
     out = []
-    for name, band in (("上", fig[:margin]), ("下", fig[-margin:]), ("左", fig[:, :margin]), ("右", fig[:, -margin:])):
-        if band.mean() > 0.02:
+    for name, band in (("上", x[:margin]), ("下", x[-margin:]),
+                       ("左", x[:, :margin].transpose(1, 0, 2)), ("右", x[:, -margin:].transpose(1, 0, 2))):
+        line = band.mean(0)
+        bg = np.stack([ndimage.median_filter(line[:, c], size=win, mode="nearest") for c in range(3)], -1)
+        if (np.abs(line - bg).max(-1) > far).mean() > least:
             out.append(name)
     return out
 
@@ -385,14 +392,9 @@ def auto_check(src: str, prompt: str = "") -> dict:
     try:
         im = Image.open(src).convert("RGB")
         rgb = np.asarray(im)
-        # 床やなだらかな色の背景では、背景を人物と取り違えて四辺とも「切れている」と出した。四隅の色がそろわない絵は読めないとする
-        corners = np.concatenate([rgb[:8, :8], rgb[:8, -8:], rgb[-8:, :8], rgb[-8:, -8:]]).reshape(-1, 3).astype(float)
-        if corners.std(0).max() > 12:
-            res["unreadable"].append({"edge_cut": "背景が無地でない"})
-        else:
-            cut = edge_cut(rgb)
-            if cut:
-                res["problems"].append({"edge_cut": cut})
+        cut = edge_cut(rgb)
+        if cut:
+            res["problems"].append({"edge_cut": cut})
         seams = background_seams(rgb)
         if seams:
             res["problems"].append({"seams": seams})

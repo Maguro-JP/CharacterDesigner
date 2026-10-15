@@ -88,6 +88,7 @@ class PersonFoundTest(unittest.TestCase):
         self.assertTrue(qc.person_found(self.pts(0.64, 0.8))["found"])
 
 
+@unittest.skipUnless(__import__("importlib").util.find_spec("scipy") is not None, "scipy が無い（.cache/gen/lib に入る）")
 class EdgeCutBackgroundTest(unittest.TestCase):
     def test_gradient_background_is_not_reported_as_cut(self):
         import tempfile
@@ -98,8 +99,8 @@ class EdgeCutBackgroundTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             Image.fromarray(a).save(f"{d}/g.png")
             r = qc.auto_check(f"{d}/g.png", "1girl")
-        self.assertFalse(any("edge_cut" in x for x in r["problems"]))
-        self.assertTrue(any("edge_cut" in x for x in r["unreadable"]))
+        # 辺に沿ってゆっくり変わる背景は、切れとも読めないとも言わない
+        self.assertFalse(any("edge_cut" in x for x in r["problems"] + r["unreadable"]))
 
 
 class LightHairTest(unittest.TestCase):
@@ -107,3 +108,20 @@ class LightHairTest(unittest.TestCase):
         # 銀髪を頼んだ絵では、髪の白飛びを崩れに数えない（言葉の一覧に入っていること）
         self.assertTrue(any(w in "1girl, long silver hair" for w in qc.LIGHT_HAIR))
         self.assertFalse(any(w in "1girl, short brown hair" for w in qc.LIGHT_HAIR))
+
+
+try:
+    import scipy  # noqa: F401
+    HAS_SCIPY = True
+except ImportError:
+    HAS_SCIPY = False
+
+
+@unittest.skipUnless(HAS_SCIPY, "scipy が無い（.cache/gen/lib に入る）")
+class EdgeCutTest(unittest.TestCase):
+    def test_figure_touching_bottom_is_cut(self):
+        import numpy as np
+        a = np.zeros((200, 160, 3), "uint8")
+        a[...] = np.linspace(40, 200, 200, dtype="uint8")[:, None, None]   # なだらかに変わる背景
+        a[120:200, 60:100] = (20, 10, 60)                                     # 下の辺にかかった人物
+        self.assertEqual(qc.edge_cut(a), ["下"])
