@@ -26,12 +26,20 @@ def open_hands(rig):
 
 
 def main(av):
-    a = args(av, 0, [("--adduct", dict(type=float, default=35, help="腕を体の脇へ寄せる角度（度）"))])
+    a = args(av, 0, [("--adduct", dict(type=float, default=35, help="腕を体の脇へ寄せる角度（度）")),
+                     ("--twist", dict(type=float, default=0, help="上腕をねじる角度（度）。手のひらを前へ向ける")),
+                     ("--hand", dict(default="", help="L か R。その手だけを大きく撮る（手の測り方の較正用）"))])
     h, rig = mannequin()
     import human
     human.adduct_arms(rig, a.adduct)
+    if a.twist:
+        human.lower_arms(rig, a.twist)
     open_hands(rig)
     check(rig)
+    if a.hand:
+        b = rig.pose.bones[f"wrist.{a.hand}"] if f"wrist.{a.hand}" in rig.pose.bones else rig.pose.bones[f"hand.{a.hand}"]
+        at = rig.matrix_world @ b.tail
+        shoot(a.out, h, [], a.width, a.height, a.yaw, Vector(at), 0.32, 0.15)
     shoot(a.out, h, [], a.width, a.height, a.yaw, Vector((0, 0, 0.88)), 2.05, 0.35)
 
 
