@@ -134,9 +134,11 @@ def check(name: str) -> dict:
         res["form"] = "huggingface"
         try:
             from huggingface_hub import try_to_load_from_cache
-            idx = try_to_load_from_cache(where, "model_index.json")
-        except Exception:
-            idx = None
+        except ImportError:
+            # 部品が読めないのを「模型が手元に無い」と答えると、有る模型を取り直させてしまう（2026-10-15）
+            res["reason"] = "huggingface_hub を読めない。PYTHONPATH=.cache/gen/lib を付けて動かす（無ければ tools/gen/setup.py）"
+            return res
+        idx = try_to_load_from_cache(where, "model_index.json")
         if not isinstance(idx, str):
             res["reason"] = f"手元に無い。取るなら CD_FETCH=1 を付けて一度描く（約 7GB。先に df -h で空きを見る）"
             return res
