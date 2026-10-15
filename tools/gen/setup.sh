@@ -36,4 +36,8 @@ if [ ! -f "$D/pose/rtmpose-m-body7.onnx" ]; then
   find "$D/pose/tmp" -name "*.onnx" -exec mv {} "$D/pose/rtmpose-m-body7.onnx" \;
   rm -rf "$D/pose/tmp"
 fi
+# 頼んだ要素が描かれたかを読む模型（tools/gen/tagger.py、wd-vit-tagger-v3、Apache-2.0、約 380MB）。
+# 無いと検品の突き合わせ（qc.py facts）が毎回止まった。置き場は .cache/assets/tagger
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+[ -f "$ROOT/.cache/assets/tagger/model.onnx" ] || PYTHONPATH="$D/lib" python3 "$ROOT/tools/gen/tagger.py" setup
 echo "ready: $D"

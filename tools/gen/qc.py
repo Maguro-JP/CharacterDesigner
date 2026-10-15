@@ -7,6 +7,8 @@
   python3 tools/gen/qc.py sheet   絵.png OUT.png               全体と顔の拡大（OUT）、人物を分けた2倍前後の拡大（OUT-detail）の検品図
   python3 tools/gen/qc.py facts   絵.png [--character knight]   端で切れていないか・部位の棚卸し・浮いた塊・肌の割合・描かせないもの・設定の言葉の欠け
   python3 tools/gen/qc.py compare 絵1.png 絵2.png ...           組（三面図・表情差分）で、部位ごとの色がずれていないか
+  python3 tools/gen/qc.py scars   前.png 後.png 範囲.png         部分を描き直した範囲の縁で、前より輪郭が鈍った所（にじみの跡）
+  python3 tools/gen/qc.py legs    絵.png                        人の脚が残っているか（下半身が人でない種族で、腰より下に膝と足首がある）
   python3 tools/gen/qc.py expr    基準.png OUT.jpg 表情1.png ...  表情差分の見比べ図（顔・眉と目・口を「ふだん」と並べる）
 
 検品図は JPEG で書く（PNG だと1枚 数 MB になり、ディスクの空きが少ないとき検品担当が図を作れなかった）。
@@ -39,6 +41,110 @@ def figure_mask(rgb: np.ndarray, paper: int = 30) -> np.ndarray:
     bg = np.median(corners, 0)
     return np.abs(rgb.astype(float) - bg).max(-1) > paper
 
+
+def background_seams(rgb: np.ndarray, gap: int = 4, band: int = 12, flat: float = 4.0, least: float = 0.2,
+                     agree: float = 0.7, step: float = 5.0, cap: float = 25.0, sharp: float = 3.0,
+                     near: float = 20.0) -> list[dict]:
+    """背景の色が、まっすぐな横線・縦線を境に急に変わる所。部分の描き直しの範囲の縁に出る継ぎ目。
+
+    アラクネの下半身を描き直した絵で、範囲の上の縁（430 行目）を境に背景の青が 7 上がり、細かな粒が消えた。
+    明るさだけを見ると差は 1 未満で拾えなかったので、3 色それぞれの差を見る。
+    線の上下（左右）の帯（band 行、境から gap 行あける）が、どちらも平ら（ばらつき flat 未満）で
+    四隅の色（背景）から near 以内の列だけを数える。翼の中の平らな羽の帯や人物の輪郭を拾わないため。
+    差が step を超えて cap 未満、帯の中の変化の sharp 倍より大きい（なだらかな光のむらでない）、
+    agree 以上の列で同じ向きに変わる、をすべて満たす行を継ぎ目とし、近い行は 1 本にまとめる。
+    手元の 8 枚で、継ぎ目のある 1 枚だけを拾い、残り 7 枚は拾わなかった"""
+    X = rgb.astype(float)
+    corners = np.concatenate([X[:8, :8], X[:8, -8:], X[-8:, :8], X[-8:, -8:]]).reshape(-1, 3)
+    bgc = np.median(corners, 0)
+    out = []
+    for name, M in (("row", X), ("col", X.transpose(1, 0, 2))):
+        H, W, _ = M.shape
+        hits = []
+        for i in range(gap + band, H - gap - band):
+            a, b = M[i - gap - band:i - gap], M[i + gap:i + gap + band]
+            ok = ((a.std(0).max(-1) < flat) & (b.std(0).max(-1) < flat)
+                  & (np.abs(a.mean(0) - bgc).max(-1) < near) & (np.abs(b.mean(0) - bgc).max(-1) < near))
+            if ok.sum() < least * W:
+                continue
+            d = (b.mean(0) - a.mean(0))[ok]
+            med = np.median(d, 0)
+            c = int(np.abs(med).argmax())
+            h = band // 2
+            inner = (abs(np.median((a[h:].mean(0) - a[:h].mean(0))[ok][:, c]))
+                     + abs(np.median((b[h:].mean(0) - b[:h].mean(0))[ok][:, c])))
+            if (step < abs(med[c]) < cap and abs(med[c]) > sharp * inner
+                    and (np.sign(d[:, c]) == np.sign(med[c])).mean() > agree):
+                hits.append((i, float(abs(med[c])), float(ok.mean())))
+        groups = []
+        for r in hits:
+            if groups and r[0] - groups[-1][-1][0] <= gap + band:
+                groups[-1].append(r)
+            else:
+                groups.append([r])
+        for g in groups:
+            top = max(g, key=lambda r: r[1])
+            out.append({"at": name, "pos": top[0], "step": round(top[1], 1), "width": round(top[2], 2)})
+    return out
+
+def repaint_scars(before: Image.Image, after: Image.Image, mask: Image.Image, width: int = 10, cell: int = 32,
+                  drop: float = 0.5, contrast: float = 20.0) -> list[dict]:
+    """部分を描き直した範囲（mask の白）の縁の帯で、描き直す前より輪郭が鈍った所（にじみ・ぼやけの跡）。
+
+    絵全体から鈍い所を探すと、革の柔らかい光やしっぽのなだらかな塗りなど、わざと柔らかく描いた所も拾い、
+    本物のにじみと分けられなかった（8 か所のうち本物 3）。描き直した範囲は分かっているので、その縁だけを前後で比べる。
+    セルごとに「一番鋭い 1 画素の変化 ÷ 明暗の差」を測り、描き直した後が前（0.6 未満なら 0.6）の drop 倍を下回れば拾う。
+    絵の外は範囲の内とみなす（範囲が絵の端に接すると、端の帯を縁と取り違えた）"""
+    from scipy import ndimage
+    m = np.asarray(mask.convert("L")) > 127
+    ring = (ndimage.binary_dilation(m, iterations=width)
+            & ~ndimage.binary_erosion(m, iterations=width, border_value=1))
+
+    def gradient(im):
+        lum = np.asarray(im.convert("RGB")).astype(float) @ np.array([0.299, 0.587, 0.114])
+        return lum, np.hypot(ndimage.sobel(lum, 0), ndimage.sobel(lum, 1)) / 8.0
+
+    lb, gb = gradient(before)
+    la, ga = gradient(after)
+    h, w = m.shape
+    out = []
+    for y in range(0, h - cell + 1, cell // 2):
+        for x in range(0, w - cell + 1, cell // 2):
+            r = ring[y:y + cell, x:x + cell]
+            if r.mean() < 0.2:
+                continue
+            ca = la[y:y + cell, x:x + cell][r]
+            spread = np.percentile(ca, 95) - np.percentile(ca, 5)
+            if spread < contrast:
+                continue
+            sa = ga[y:y + cell, x:x + cell][r].max() / spread
+            cb = lb[y:y + cell, x:x + cell][r]
+            sb = gb[y:y + cell, x:x + cell][r].max() / max(np.percentile(cb, 95) - np.percentile(cb, 5), contrast)
+            # 前から柔らかかった所（前後とも同じ鋭さ）は跡ではない。前より 2 割以上鈍った所だけを拾う
+            if sa < drop * max(sb, 0.6) and sa < 0.8 * sb:
+                out.append({"x": x, "y": y, "size": cell, "sharp": round(float(sa), 2), "before": round(float(sb), 2)})
+    return out
+
+def human_legs(points: list[dict], height: int, least: float = 0.45, torso_max: float = 0.35, seen: float = 0.25) -> dict:
+    """人の脚が残っているか（下半身が獣や蜘蛛の種族で、腰より下に人の膝と足首が描かれた崩れ）。
+    骨格の点（tools/gen/joints.py の find）から、腰→足首の長さを胴（肩→腰）の長さで割り、膝と足首の確からしさの小さい方を掛ける。
+    左右の大きい方が least 以上なら「ある」。部位分けの模型は蜘蛛の体をズボンや靴と読み、人の脚が無い絵で 49% をズボンとした。
+    胴が絵の高さの torso_max を超えるときは、骨格の模型が人以外（蜘蛛の体、絵全体）を人と読んでいるので「読めない」と返す。
+    アラクネ 12 枚（検品担当の判定が正解）で、読めた 9 枚のうち 8 枚が合い、ひざまずいた 1 枚（0.42）を見落とした。3 枚は読めない"""
+    p = {q["name"]: q for q in points}
+    hip = (p["left_hip"]["y"] + p["right_hip"]["y"]) / 2
+    shoulder = (p["left_shoulder"]["y"] + p["right_shoulder"]["y"]) / 2
+    torso = hip - shoulder
+    if torso <= 0 or torso > torso_max * height:
+        return {"readable": False, "legs": None, "score": None, "torso": round(torso / height, 2)}
+    # 膝と足首が見つからない（確からしさ seen 未満）のは「脚が無い」ではない。蜘蛛の胴の上に立つ人の脚、獣にまたがる脚で
+    # 確からしさが 0.10〜0.22 になり、「無い」と取り違えて通した（2 枚）。人の脚の無い絵では蜘蛛の脚を膝と読み 0.30〜0.49 になる
+    conf = max(min(p[s + "_knee"]["score"], p[s + "_ankle"]["score"]) for s in ("left", "right"))
+    if conf < seen:
+        return {"readable": False, "legs": None, "score": None, "torso": round(torso / height, 2), "conf": round(float(conf), 2)}
+    score = max(min(p[s + "_knee"]["score"], p[s + "_ankle"]["score"]) * (p[s + "_ankle"]["y"] - hip) / torso
+                for s in ("left", "right"))
+    return {"readable": True, "legs": score >= least, "score": round(float(score), 2), "torso": round(torso / height, 2)}
 
 def floating_blobs(rgb: np.ndarray, least: float = 0.0015) -> dict:
     """人物の塊から離れた塊（宙に浮いた布・煙・物）。地が平らでない絵（背景つき）は数えない。
@@ -223,6 +329,87 @@ def sheet(src: str, out: str, zoom: float = 2.0, cell: int = 380) -> dict:
             "grid": [rows, cols], "notes": note}
 
 
+def eye_mismatch(eyes: dict, base: float = 2.0, per_yaw: float = 6.0) -> dict:
+    """左右の目の大きさが違いすぎるか。measure.eyes の面積比を、顔の向きで許す上限（base + per_yaw×|向き|）と比べる。
+    横を向くほど遠い目は小さく描かれるので、上限を広げる。崩れの無い 12 枚で面積比 1.04〜1.68（横向き 0.24 の 1 枚が 2.89）。
+    アラクネの目の描き直しで、検品担当が「右目が 1.5〜2 倍」と戻した 2 枚は 2.52・4.21 で外れ、元の絵 1.57 は内に入った。
+    三白眼のような形の崩れは、大きさでは拾えない"""
+    if eyes.get("found") != 2:
+        return {"readable": False, "reason": eyes.get("reason", "目が 2 つ読めない")}
+    limit = base + per_yaw * abs(eyes.get("yaw_offset", 0.0))
+    return {"readable": True, "mismatch": eyes["area_ratio"] > limit, "area_ratio": eyes["area_ratio"],
+            "limit": round(limit, 2)}
+
+def person_found(points: list[dict], least: float = 0.4) -> dict:
+    """人が描かれているか。骨格の点のうち顔（鼻・両目）か両肩の確からしさの平均が least 以上なら見つかったとする。
+    「引きで撮る、蜘蛛の体が全部入る」と頼むと、模型が人を落として蜘蛛だけを描いた（11 枚中 11 枚）。そのとき顔は 0.11〜0.30、
+    肩は 0.03〜0.07。人のいる絵は顔 0.60〜0.69、肩 0.65〜0.83。頭の大きい崩れた人（顔 0.26〜0.36）も見つからない側に入るので、
+    見つからないときは「人がいない」と言い切らず、読めないとして落とす"""
+    p = {q["name"]: q["score"] for q in points}
+    face = (p["nose"] + p["left_eye"] + p["right_eye"]) / 3
+    shoulders = (p["left_shoulder"] + p["right_shoulder"]) / 2
+    return {"found": face >= least or shoulders >= least, "face": round(float(face), 2), "shoulders": round(float(shoulders), 2)}
+
+# 下半身が人でない種族の言葉。頼んだ言葉にあれば、人の脚が残っていないかも数える
+NON_HUMAN_LOWER = ("arachne", "drider", "taur", "centaur", "lamia", "naga", "mermaid", "scylla")
+
+
+def auto_check(src: str, prompt: str = "") -> dict:
+    """描いた直後に必ず走らせる検品。崩れが 1 つでも、読めない検品が 1 つでもあれば ok を False にする。
+    Claude は検品を呼ばないと走らせず、描かせた絵を検品なしで次へ回した。描く道具（free_text.draw、fix.py）から毎回呼ぶ。
+    ok が True でも完成ではない。通す・戻すは検品担当（checker）が目で見て決める"""
+    res = {"src": src, "problems": [], "unreadable": []}
+    try:
+        im = Image.open(src).convert("RGB")
+        rgb = np.asarray(im)
+        # 床やなだらかな色の背景では、背景を人物と取り違えて四辺とも「切れている」と出した。四隅の色がそろわない絵は読めないとする
+        corners = np.concatenate([rgb[:8, :8], rgb[:8, -8:], rgb[-8:, :8], rgb[-8:, -8:]]).reshape(-1, 3).astype(float)
+        if corners.std(0).max() > 12:
+            res["unreadable"].append({"edge_cut": "背景が無地でない"})
+        else:
+            cut = edge_cut(rgb)
+            if cut:
+                res["problems"].append({"edge_cut": cut})
+        seams = background_seams(rgb)
+        if seams:
+            res["problems"].append({"seams": seams})
+        try:
+            fl = floating_blobs(rgb)
+            if fl.get("blobs"):
+                res["problems"].append({"floating": fl["blobs"]})
+        except ImportError as e:
+            res["unreadable"].append({"floating": str(e)})
+        import joints
+        points = joints.find(src)
+        person = person_found(points)
+        if not person["found"]:
+            res["unreadable"].append({"person": person})
+        import measure
+        m = measure.measure(src)
+        # measure が基準から外れたと出した数字（瞳の色の差、髪の白飛び、影の順序など）は全部、判定に入れる。
+        # 面積比だけを見て、measure が出していた瞳の色の差 0.105（基準 0.062）を捨てて通した（目の描き直し、2026-10-14）
+        if measure.NORMS.exists():
+            for bad in measure.judge(m):
+                # 目が見つからないのは崩れではなく「読めない」（顔の無い絵、小さすぎる顔）。どちらでも落とすが、分けて書く
+                key = "unreadable" if bad["path"] == "eyes.found" else "problems"
+                res[key].append({"measure": bad})
+        eye = eye_mismatch(m["eyes"])
+        if not eye["readable"]:
+            res["unreadable"].append({"eyes": eye})
+        elif eye["mismatch"]:
+            res["problems"].append({"eyes": eye})
+        if any(w in prompt.lower() for w in NON_HUMAN_LOWER):
+            legs = human_legs(points, im.height)
+            if not legs["readable"]:
+                res["unreadable"].append({"human_legs": legs})
+            elif legs["legs"]:
+                res["problems"].append({"human_legs": legs})
+    except Exception as e:  # 検品が落ちたことを、検品が通ったことにしない
+        res["unreadable"].append({"error": f"{type(e).__name__}: {e}"})
+    res["ok"] = not res["problems"] and not res["unreadable"]
+    Path(src + ".qc.json").write_text(json.dumps(res, ensure_ascii=False, indent=1, default=str))
+    return res
+
 def facts(src: str, character: str | None = None) -> dict:
     """数えられる事実。判断はしない（検品担当が、この数字を手がかりに目で確かめる）"""
     im = Image.open(src).convert("RGB")
@@ -230,7 +417,7 @@ def facts(src: str, character: str | None = None) -> dict:
     parts = _parts(src, im)
     person = parts > 0
     res = {"edge_cut": edge_cut(rgb), "inventory": inventory(parts),
-           "floating": floating_blobs(rgb),
+           "floating": floating_blobs(rgb), "seams": background_seams(rgb),
            "skin_ratio": round(float(np.isin(parts, SKIN).sum() / max(person.sum(), 1)), 3)}
     import tagger
     got = tagger.read(src)
@@ -321,11 +508,15 @@ def main():
     s = sub.add_parser("sheet"); s.add_argument("src"); s.add_argument("out")
     f = sub.add_parser("facts"); f.add_argument("src"); f.add_argument("--character")
     c = sub.add_parser("compare"); c.add_argument("srcs", nargs="+"); c.add_argument("--limit", type=float, default=40.0)
+    sc = sub.add_parser("scars"); sc.add_argument("before"); sc.add_argument("after"); sc.add_argument("mask")
+    lg = sub.add_parser("legs"); lg.add_argument("src")
     e = sub.add_parser("expr"); e.add_argument("base"); e.add_argument("out"); e.add_argument("srcs", nargs="+")
     t = sub.add_parser("zoom"); t.add_argument("src"); t.add_argument("outdir"); t.add_argument("--zoom", type=float, default=3.0)
     a = ap.parse_args()
     r = {"sheet": lambda: sheet(a.src, a.out), "facts": lambda: facts(a.src, a.character),
          "compare": lambda: compare(a.srcs, a.limit), "expr": lambda: expr(a.base, a.out, a.srcs),
+         "legs": lambda: human_legs(__import__("joints").find(a.src), Image.open(a.src).height),
+         "scars": lambda: repaint_scars(*(Image.open(p) for p in (a.before, a.after, a.mask))),
          "zoom": lambda: zoom_tiles(a.src, a.outdir, zoom=a.zoom)}[a.cmd]()
     print(json.dumps(r, ensure_ascii=False, indent=1))
 

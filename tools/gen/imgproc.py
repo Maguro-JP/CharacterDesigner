@@ -622,7 +622,8 @@ def face_mask(src: str, im: Image.Image, grow: float = 0.12) -> Image.Image:
 
 
 def face_redraw(im: Image.Image, box, prompt: str, negative: str = "", strength: float = 0.35, seed: int = 7,
-                ref: Image.Image | None = None, ref_scale: float = 0.4, mask: Image.Image | None = None) -> Image.Image:
+                ref: Image.Image | None = None, ref_scale: float = 0.4, mask: Image.Image | None = None,
+                pipe=None, steps: int = 24, guidance: float = 6.0) -> Image.Image:
     """枠の中（顔）を 1024 に拡大して描き直し、元の大きさに戻して、縁をぼかした楕円で貼る。髪・服・体は元のまま残る。
     顔の手直し（弱く）と、表情差分（強めに、表情の言葉で）が共有する。
     ref（手本の顔）を渡すと IP-Adapter で顔つきを寄せる。手本を読ませる部品を付けたまま ref を渡さないと、描く模型が
@@ -634,7 +635,8 @@ def face_redraw(im: Image.Image, box, prompt: str, negative: str = "", strength:
     import free_text
     crop = im.crop(box)
     big = crop.resize((1024, 1024), Image.LANCZOS)
-    pipe = demi.img2img()
+    # pipe を渡すと、その模型で描き直す（描いたのと同じ処理なら模型を読み直さない。読み直しは冷えた状態で 552 秒かかった）
+    pipe = pipe or demi.img2img()
     pos, neg = free_text.full_prompt(prompt, negative)
     pe, ne, pp, np_ = design.encode_xl(pipe, pos, neg)
     extra = {}
@@ -644,7 +646,7 @@ def face_redraw(im: Image.Image, box, prompt: str, negative: str = "", strength:
     elif getattr(pipe.unet, "encoder_hid_proj", None) is not None:
         pipe.unload_ip_adapter()
     redrawn = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
-                   image=big, strength=strength, num_inference_steps=24, guidance_scale=6.0,
+                   image=big, strength=strength, num_inference_steps=steps, guidance_scale=guidance,
                    generator=torch.Generator().manual_seed(seed), **extra).images[0]
     small = redrawn.resize(crop.size, Image.LANCZOS)
     w, h = crop.size

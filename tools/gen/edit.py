@@ -24,6 +24,9 @@ from PIL import Image, ImageChops, ImageFilter
 
 ROOT = Path(__file__).resolve().parents[2]
 os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))
+# 模型は既定で外から取りに行かない。呼んだ関数が手元に無い模型を指していると、数 GB を取りに行って
+# ディスクを埋めた（2026-10-14 に 2 回）。初めて取るときだけ CD_FETCH=1 を付けて動かす
+os.environ.setdefault("HF_HUB_OFFLINE", "0" if os.environ.get("CD_FETCH") == "1" else "1")
 SEG_MODEL = "sayeed99/segformer_b3_clothes"
 LABELS = {"background": 0, "hat": 1, "hair": 2, "sunglasses": 3, "upper": 4, "skirt": 5, "pants": 6, "dress": 7,
           "belt": 8, "left_shoe": 9, "right_shoe": 10, "face": 11, "left_leg": 12, "right_leg": 13,
