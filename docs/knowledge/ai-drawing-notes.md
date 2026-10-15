@@ -195,3 +195,4 @@ AI に下絵（奥行き）から毎回まっさらに描かせると、良い�
 下絵を使わず言葉だけで 2 周・8 枚描かせると、8 枚とも腰から下に人の脚が足先まで残り、蜘蛛の脚は背中や肩から生えた。
 1 周目（seed 31〜34）は arachne, spider lower body attached at the waist などの言葉、2 周目（seed 41〜44）は waist merges into large spider cephalothorax, from side と、負の言葉に human legs, thighs, knees, feet, spider legs from back を足した。
 2 周目では、背中にリュックのように付いた腹、頭の後ろの別の巨大な蜘蛛、余分な紫の腕も出た。言葉を足しても体のつながりは変わらなかった。
+| 3D の人形（両腕を脇に下ろし手を開く、tools/engine/pose_stand.py）の奥行きで縛って鬼娘を描く（ControlNet、強さ 0.5・前半 4 割 → 0.45・前半 3 割） | 手は開いて体から離れ、文章だけのときの2倍以上の大きさで描かれた。強さ 0.5・前半 4 割では袴が人形の脚に張り付いてズボンになった。0.45・前半 3 割に弱め、wide loose hakama を足すと、ゆったりした袴と腰より長い髪が出た。指はまだ溶けていたので、両手を detail.py --hand で描き直し（強さ 0.45）、残った片手をもう一度描き直して checker を通った。手が大きく描かれていれば、後からの描き直しで指が分かれる | tools/engine/pose_stand.py、tools/gen/detail.py |

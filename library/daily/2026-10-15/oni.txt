@@ -1,0 +1,6 @@
+題材: 鬼娘
+模型: Animagine XL 3.1（tools/gen/free_text.py）、形の縛りに ControlNet union（xinsir/controlnet-union-sdxl-1.0）
+種: 2026101530
+描き方: 3D の人形（tools/engine/pose_stand.py、腕を脇に下ろし手を開く、--adduct 22）の奥行きで縛って描く（強さ 0.45、前半 3 割）→ 両手を detail.py --hand で描き直し（強さ 0.45）→ 右手だけもう一度（強さ 0.5、種 5）
+選んだ理由: checker が通した。角2本、尖った耳2つ、指5本ずつ、下駄2つ
+出なかった特徴: 紫の羽織（赤い袖の白い着物になった）
