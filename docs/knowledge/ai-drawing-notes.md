@@ -191,3 +191,4 @@
 | 同じ服で、腕を体の横に下ろす（arms at sides）を足し、打ち消しに large breasts, holding clothes を足す（種 20261015211） | 構図は正面の立ち姿になり、胸の強調も消えた。瞳の色もそろった。自分で落とした: 顔が幼く見える（頬の赤み、小さな口、丸い輪郭）、鼻に白い菱形の点、床の影の端が尖る | tools/gen/free_text.py |
 | 大人に寄せる言葉（30 years old, office lady, calm expression）と打ち消し（child, loli, blush, round face）を足す（種 20261015230） | 顔の幼さは減った（検品担当: 8頭身、幼いとまでは言わない）。検品担当が戻した: office lady の語でニットの下に頼んでいないシャツの襟が出た、両手とも指が2〜3本しか数えられない、胴の影のむらが1つの光と合わない。自分は襟に気付いたが通そうとし、指の数は見落とした | tools/gen/free_text.py |
 | office lady を外し、crew neck knit sweater, relaxed hands と打ち消し collared shirt, bad hands を足す（種 20261015231） | 襟は消えた。自分で落とした: black wide leg trousers が脚の分かれない長いスカートに描かれた（前の回でも裾近くまで分かれなかった）。黒いワイドパンツは、この模型ではスカートと区別されにくい。measure の light.inverted も外れ | tools/gen/free_text.py |
+| ズボンを light gray straight leg trousers に替え、打ち消しに skirt, dress を足す（種 20261015232） | 脚は2本に分かれた。自分で落とした: ズボンがニットと同じベージュになった（ジーンズがコートの色になった回と同じ、隣の服の色が移る）、首がタートルネックになった、両手の指が開いて反り返る、瞳の色違い（0.103） | tools/gen/free_text.py |
