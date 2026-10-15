@@ -24,6 +24,16 @@ Ask for "a character like ..." in any language; it draws an illustrated characte
 
 ## Setup
 
+Windows (Setup.exe):
+
+1. Run `CharacterDesigner-Setup.exe`. It installs per user (`%LOCALAPPDATA%\Programs\CharacterDesigner`), so no administrator rights are needed. Python and Node.js are not required
+2. Open CharacterDesigner on the desktop. The first start downloads the drawing packages that fit the PC's GPU (1–3 GB) and the image model (~7 GB); if less than 10 GB is free it stops and says why
+3. When ready, `http://127.0.0.1:8000/` opens in the browser
+
+Build Setup.exe on Linux with `sh packaging/windows/build.sh` (uses NSIS makensis; output goes to `dist/`).
+
+From a clone:
+
 1. Run `sh app/start.sh` (the first run downloads packages and models, 10–20 minutes; later starts take seconds)
 2. Open `http://127.0.0.1:4173/`
 

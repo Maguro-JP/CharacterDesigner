@@ -15,6 +15,7 @@
   python3 tools/gen/models.py list                 置いてある模型と、作風ごとの割り当てを見る
   python3 tools/gen/models.py check <名前かパス>    使える模型かを確かめる（SDXL 系か、形式、大きさ）
   python3 tools/gen/models.py use <作風> <名前>     作風に模型を割り当てる（例: use anime illustrious-xl）
+  CD_FETCH=1 python3 tools/gen/models.py fetch <Hugging Face の名前>   模型を取る（約 7GB）
 """
 from __future__ import annotations
 
@@ -168,6 +169,12 @@ def load(style: str = "anime"):
     return StableDiffusionXLPipeline.from_pretrained(where, torch_dtype=device.dtype(torch))
 
 
+def fetch(name: str) -> str:
+    """Hugging Face の名前の模型を取る。diffusers 形式の部品（下のフォルダー）だけを取り、同じ中身の 1 ファイル版は取らない（同じ重みを 2 度置かない）"""
+    from huggingface_hub import snapshot_download
+    return snapshot_download(name, allow_patterns=["model_index.json", "*/*"])
+
+
 def use(style: str, name: str) -> dict:
     c = check(name)
     if not c["usable"]:
@@ -194,6 +201,8 @@ def main(argv):
         out = listing()
     elif cmd == "check" and len(argv) == 2:
         out = check(argv[1])
+    elif cmd == "fetch" and len(argv) == 2:
+        out = {"fetched": fetch(argv[1])}
     elif cmd == "use" and len(argv) == 3:
         out = use(argv[1], argv[2])
     else:

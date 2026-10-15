@@ -12,3 +12,4 @@ config/norms.user.json
 # 絵を描く模型（1 つ 約 7GB）と、作風ごとの割り当て（利用者ごと）。見本は config/models.example.json
 /models/
 /config/models.json
+/dist/
