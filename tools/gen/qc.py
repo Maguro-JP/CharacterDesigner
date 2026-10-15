@@ -404,6 +404,15 @@ def auto_check(src: str, prompt: str = "") -> dict:
                 res["problems"].append({"floating": fl["blobs"]})
         except ImportError as e:
             res["unreadable"].append({"floating": str(e)})
+        # 固定の制限（子どもを性的に描かない）を、頼んだ言葉だけでなく描けた絵でも確かめる。
+        # 言葉で露出を頼んでいなくても、絵では露出が多く描かれた（アラクネの候補、検品担当の指摘）。
+        # 絵をタグに読み、filters.fixed（言葉の判定と同じ決まり）にかける
+        import filters
+        import tagger
+        tags = tagger.read(src)
+        reason = filters.fixed(", ".join(tags))
+        if reason:
+            res["problems"].append({"fixed_restriction": reason, "tags": sorted(tags, key=lambda t: -tags[t])[:20]})
         import joints
         points = joints.find(src)
         person = person_found(points)
@@ -415,11 +424,17 @@ def auto_check(src: str, prompt: str = "") -> dict:
         # 面積比だけを見て、measure が出していた瞳の色の差 0.105（基準 0.062）を捨てて通した（目の描き直し、2026-10-14）
         if measure.NORMS.exists():
             light_hair = any(w in prompt.lower() for w in LIGHT_HAIR)
+            species = any(w in prompt.lower() for w in NON_HUMAN_LOWER)
             for bad in measure.judge(m):
                 # 白っぽい髪は色そのものが明るく、白飛びの基準（茶や黒の髪で決めた）を外れる。銀髪のアラクネ 16 枚を
                 # 白飛びで落としたが、拡大すると髪の色だった。白っぽい髪を頼んだ絵では白飛びを崩れに数えない
                 if light_hair and bad["path"] == "hair.blown":
                     res.setdefault("ignored", []).append({"measure": bad, "why": "白っぽい髪を頼んだ"})
+                    continue
+                # 白い肌や白い獣の体の隣に黒い蜘蛛の体が並ぶと、素材の色の明るさを光の向きと取り違えた（検品担当が 3 枚を
+                # 目で見て、3 枚とも影の向きはそろっていた）。下半身が人でない種族では影の順序を崩れに数えない
+                if species and bad["path"] == "light.inverted":
+                    res.setdefault("ignored", []).append({"measure": bad, "why": "体の素材の色が部位で違う種族"})
                     continue
                 # 目が見つからないのは崩れではなく「読めない」（顔の無い絵、小さすぎる顔）。どちらでも落とすが、分けて書く
                 key = "unreadable" if bad["path"] == "eyes.found" else "problems"

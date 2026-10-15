@@ -125,3 +125,11 @@ class EdgeCutTest(unittest.TestCase):
         a[...] = np.linspace(40, 200, 200, dtype="uint8")[:, None, None]   # なだらかに変わる背景
         a[120:200, 60:100] = (20, 10, 60)                                     # 下の辺にかかった人物
         self.assertEqual(qc.edge_cut(a), ["下"])
+
+
+class FixedRestrictionTest(unittest.TestCase):
+    def test_minor_and_sexual_tags_are_caught(self):
+        # 絵から読んだタグにも、言葉の判定と同じ固定の制限をかける（filters.fixed）
+        import filters
+        self.assertIsNotNone(filters.fixed("1girl, child, nude"))
+        self.assertIsNone(filters.fixed("1girl, breasts, navel"))
