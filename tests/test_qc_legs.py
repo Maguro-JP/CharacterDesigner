@@ -149,3 +149,12 @@ class HoldTest(unittest.TestCase):
             self.assertTrue(Path(f"{d}/held/a.png").exists())
             self.assertTrue(Path(f"{d}/held/a.png.qc.json").exists())
         self.assertFalse(r["ok"])
+
+
+class LegsMarginTest(unittest.TestCase):
+    def test_score_just_above_line_is_unreadable(self):
+        # 股のしわ（0.49）と本当の脚（0.54）は差が小さい。線のすぐ上は「ある」と言い切らない
+        r = qc.human_legs(points(shoulder=300, hip=500, knee=600, ankle=722, score=0.45), 1216)
+        self.assertGreaterEqual(r["score"], 0.45)
+        self.assertLess(r["score"], 0.55)
+        self.assertFalse(r["readable"])

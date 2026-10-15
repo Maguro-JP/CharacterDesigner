@@ -125,7 +125,8 @@ def repaint_scars(before: Image.Image, after: Image.Image, mask: Image.Image, wi
                 out.append({"x": x, "y": y, "size": cell, "sharp": round(float(sa), 2), "before": round(float(sb), 2)})
     return out
 
-def human_legs(points: list[dict], height: int, least: float = 0.45, torso_max: float = 0.35, seen: float = 0.25) -> dict:
+def human_legs(points: list[dict], height: int, least: float = 0.45, torso_max: float = 0.35, seen: float = 0.25,
+               margin: float = 0.1) -> dict:
     """人の脚が残っているか（下半身が獣や蜘蛛の種族で、腰より下に人の膝と足首が描かれた崩れ）。
     骨格の点（tools/gen/joints.py の find）から、腰→足首の長さを胴（肩→腰）の長さで割り、膝と足首の確からしさの小さい方を掛ける。
     左右の大きい方が least 以上なら「ある」。部位分けの模型は蜘蛛の体をズボンや靴と読み、人の脚が無い絵で 49% をズボンとした。
@@ -144,6 +145,11 @@ def human_legs(points: list[dict], height: int, least: float = 0.45, torso_max: 
         return {"readable": False, "legs": None, "score": None, "torso": round(torso / height, 2), "conf": round(float(conf), 2)}
     score = max(min(p[s + "_knee"]["score"], p[s + "_ankle"]["score"]) * (p[s + "_ankle"]["y"] - hip) / torso
                 for s in ("left", "right"))
+    # 線のすぐ上（least〜least+margin）は言い切らない。全身タイツの股のしわが 0.49、本当に脚のある絵が 0.54 で、
+    # 差が 0.05 しかなかった。読めないとして落とし、検品担当の目に回す（脚の残った絵が通ることは無い）
+    if least <= score < least + margin:
+        return {"readable": False, "legs": None, "score": round(float(score), 2), "torso": round(torso / height, 2),
+                "reason": "線の近くで言い切れない"}
     return {"readable": True, "legs": score >= least, "score": round(float(score), 2), "torso": round(torso / height, 2)}
 
 def repaint_holes(before: Image.Image, after: Image.Image, mask: Image.Image, near: float = 30.0,
