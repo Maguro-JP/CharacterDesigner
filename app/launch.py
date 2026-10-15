@@ -122,6 +122,11 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    # 道具の中はファイルを文字コードの指定なしで読む所が多い。Windows の既定（cp1252、cp932）では日本語の設定が読めずに落ちたので、
+    # Python の UTF-8 モードで動かし直す。子の処理（部品の取得、模型の確認）にも環境変数で引き継がれる
+    if not sys.flags.utf8_mode:
+        os.environ["PYTHONUTF8"] = "1"
+        sys.exit(subprocess.run([sys.executable, "-X", "utf8", *sys.argv]).returncode)
     try:
         main()
     except SystemExit as e:
