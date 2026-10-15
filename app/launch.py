@@ -30,6 +30,12 @@ PORT = int(os.environ.get("CD_PORT", "8000"))
 MODEL_NEED_GB = 10
 
 
+# Windows の窓は既定で日本語を書けない文字コード（cp1252 など）のことがある。書けずに落ちないよう UTF-8 にそろえる
+for _stream in (sys.stdout, sys.stderr):
+    if hasattr(_stream, "reconfigure"):
+        _stream.reconfigure(encoding="utf-8", errors="replace")
+
+
 def say(text: str) -> None:
     print(f"\n== {text}", flush=True)
 
