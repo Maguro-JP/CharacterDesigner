@@ -125,7 +125,8 @@ def repaint_scars(before: Image.Image, after: Image.Image, mask: Image.Image, wi
                 out.append({"x": x, "y": y, "size": cell, "sharp": round(float(sa), 2), "before": round(float(sb), 2)})
     return out
 
-def human_legs(points: list[dict], height: int, least: float = 0.45, torso_max: float = 0.35, seen: float = 0.25) -> dict:
+def human_legs(points: list[dict], height: int, least: float = 0.45, torso_max: float = 0.35, seen: float = 0.25,
+               margin: float = 0.1) -> dict:
     """人の脚が残っているか（下半身が獣や蜘蛛の種族で、腰より下に人の膝と足首が描かれた崩れ）。
     骨格の点（tools/gen/joints.py の find）から、腰→足首の長さを胴（肩→腰）の長さで割り、膝と足首の確からしさの小さい方を掛ける。
     左右の大きい方が least 以上なら「ある」。部位分けの模型は蜘蛛の体をズボンや靴と読み、人の脚が無い絵で 49% をズボンとした。
@@ -144,7 +145,33 @@ def human_legs(points: list[dict], height: int, least: float = 0.45, torso_max: 
         return {"readable": False, "legs": None, "score": None, "torso": round(torso / height, 2), "conf": round(float(conf), 2)}
     score = max(min(p[s + "_knee"]["score"], p[s + "_ankle"]["score"]) * (p[s + "_ankle"]["y"] - hip) / torso
                 for s in ("left", "right"))
+    # 線のすぐ上（least〜least+margin）は言い切らない。全身タイツの股のしわが 0.49、本当に脚のある絵が 0.54 で、
+    # 差が 0.05 しかなかった。読めないとして落とし、検品担当の目に回す（脚の残った絵が通ることは無い）
+    if least <= score < least + margin:
+        return {"readable": False, "legs": None, "score": round(float(score), 2), "torso": round(torso / height, 2),
+                "reason": "線の近くで言い切れない"}
     return {"readable": True, "legs": score >= least, "score": round(float(score), 2), "torso": round(torso / height, 2)}
+
+def repaint_holes(before: Image.Image, after: Image.Image, mask: Image.Image, near: float = 30.0,
+                  least: int = 100) -> list[dict]:
+    """描き直した範囲の中で、前は体だった所が背景の色になった塊（体に開いた穴、背景色にぼけた光）。
+    アラクネの腹の描き直しで、脚と腹の間に背景色の穴（201 画素）と、白くぼけた光の塊（1431 画素）が出た。
+    どちらも輪郭の鋭さ（repaint_scars）では拾えず、検品担当が目で見つけた。背景の色は描き直す前の絵の四隅で決める。
+    目を描き直すと、足された白目と瞳の光（53〜76 画素）を穴と取り違えた。本物の穴は 201 画素以上だったので下限を 100 にする"""
+    from scipy import ndimage
+    b = np.asarray(before.convert("RGB")).astype(float)
+    a = np.asarray(after.convert("RGB")).astype(float)
+    m = np.asarray(mask.convert("L")) > 127
+    corners = np.concatenate([b[:8, :8], b[:8, -8:], b[-8:, :8], b[-8:, -8:]]).reshape(-1, 3)
+    bg = np.median(corners, 0)
+    hole = m & (np.abs(b - bg).max(-1) > near) & (np.abs(a - bg).max(-1) <= near)
+    lab, n = ndimage.label(hole)
+    out = []
+    for i, sl in enumerate(ndimage.find_objects(lab), 1):
+        size = int((lab[sl] == i).sum())
+        if size >= least:
+            out.append({"box": [sl[1].start, sl[0].start, sl[1].stop, sl[0].stop], "pixels": size})
+    return out
 
 def floating_blobs(rgb: np.ndarray, least: float = 0.0015) -> dict:
     """人物の塊から離れた塊（宙に浮いた布・煙・物）。地が平らでない絵（背景つき）は数えない。
@@ -197,12 +224,19 @@ def color_gaps(colors: list[dict], limit: float = 40.0) -> list[dict]:
 BANDS = {"眉と目": (0.10, 0.58), "口": (0.60, 0.92)}
 
 
-def edge_cut(rgb: np.ndarray, margin: int = 2) -> list[str]:
-    """人物が絵の端で切れているか。地と違う画素が端の帯にあれば、その辺の名前を返す（全身の絵で足先や頭が切れる欠損）"""
-    fig = figure_mask(rgb)
+def edge_cut(rgb: np.ndarray, margin: int = 2, far: float = 40.0, least: float = 0.02, win: int = 248) -> list[str]:
+    """人物が絵の端で切れているか（全身の絵で足先や頭が切れる欠損）。辺ごとに、端の帯の色を辺に沿った移動中央値（win 画素）と比べ、
+    far 以上離れた画素が least を超える辺の名前を返す。
+    四隅の色を地とすると、影や色の変わる背景で四辺とも「切れている」と出た（アラクネの候補 24 枚中 22 枚が読めなくなった）。
+    辺に沿ってゆっくり変わる背景は移動中央値に乗り、人物がかかった所だけが外れる"""
+    from scipy import ndimage
+    x = rgb.astype(float)
     out = []
-    for name, band in (("上", fig[:margin]), ("下", fig[-margin:]), ("左", fig[:, :margin]), ("右", fig[:, -margin:])):
-        if band.mean() > 0.02:
+    for name, band in (("上", x[:margin]), ("下", x[-margin:]),
+                       ("左", x[:, :margin].transpose(1, 0, 2)), ("右", x[:, -margin:].transpose(1, 0, 2))):
+        line = band.mean(0)
+        bg = np.stack([ndimage.median_filter(line[:, c], size=win, mode="nearest") for c in range(3)], -1)
+        if (np.abs(line - bg).max(-1) > far).mean() > least:
             out.append(name)
     return out
 
@@ -350,8 +384,31 @@ def person_found(points: list[dict], least: float = 0.4) -> dict:
     shoulders = (p["left_shoulder"] + p["right_shoulder"]) / 2
     return {"found": face >= least or shoulders >= least, "face": round(float(face), 2), "shoulders": round(float(shoulders), 2)}
 
+# 白っぽい髪の言葉。白飛びの検品から外す
+LIGHT_HAIR = ("silver hair", "white hair", "platinum", "blonde", "grey hair", "gray hair")
+# 白っぽい髪の白飛びの上限。検品担当が通した銀髪 0.031 と戻した銀髪 0.081 の間で、通した側に寄せた仮の値（判定の付いた絵 2 枚から）。
+# 判定の付いた絵が増えたら normlearn で学び直す
+LIGHT_HAIR_BLOWN_MAX = 0.06
+
 # 下半身が人でない種族の言葉。頼んだ言葉にあれば、人の脚が残っていないかも数える
 NON_HUMAN_LOWER = ("arachne", "drider", "taur", "centaur", "lamia", "naga", "mermaid", "scylla")
+
+
+def eyes_by_tags(tags: dict, least: float = 0.35) -> bool:
+    """絵のタグで目が描かれていると読めるか。目の色（purple eyes など）か closed eyes があり、mask が無いこと。
+    目の測り方（暗い塊を 2 つ探す）は、閉じた目・細い目・白く飛んだ髪の顔で目を見つけず、4.0 の 8 枚のうち 5 枚を
+    「読めない」と減点した（検品担当は 5 枚とも顔と目がはっきり描かれていると見た）。そのときタグは 5 枚とも目の色か
+    closed eyes を 0.42 以上で読んだ。顔の無い絵には目のタグが付かず、顔が黒く塗れた絵には mask が 0.53 で付いた"""
+    if tags.get("mask", 0) >= least:
+        return False
+    return any(v >= least and (k == "closed eyes" or (k.endswith(" eyes") and k.split()[0] in EYE_COLORS))
+               for k, v in tags.items())
+
+
+EXTRA_EYES = 0.4
+
+EYE_COLORS = {"blue", "red", "green", "purple", "yellow", "brown", "black", "grey", "gray", "pink", "orange",
+              "aqua", "white", "amber", "golden", "silver"}
 
 
 def auto_check(src: str, prompt: str = "") -> dict:
@@ -359,17 +416,30 @@ def auto_check(src: str, prompt: str = "") -> dict:
     Claude は検品を呼ばないと走らせず、描かせた絵を検品なしで次へ回した。描く道具（free_text.draw、fix.py）から毎回呼ぶ。
     ok が True でも完成ではない。通す・戻すは検品担当（checker）が目で見て決める"""
     res = {"src": src, "problems": [], "unreadable": []}
+    tags: dict = {}
+    # 固定の制限は、ほかの検品が落ちても必ず走らせる（scipy が無く端の切れで落ちたとき、ここまで届かなかった）
+    try:
+        # 固定の制限（子どもを性的に描かない）を、頼んだ言葉だけでなく描けた絵でも確かめる。
+        # 言葉で露出を頼んでいなくても、絵では露出が多く描かれた（アラクネの候補、検品担当の指摘）。
+        # 絵をタグに読み、filters.fixed（言葉の判定と同じ決まり）にかける
+        import filters
+        import tagger
+        tags = tagger.read(src)
+        # 目の範囲を描き直した絵で瞳が消え光る線だけになったのを、目の測り方が揺れて見つけたと読み通した（2026-10-16）。
+        # タグは extra eyes を 0.53 で読んでいた。崩れの無い絵では 0.22〜0.30 だったので、EXTRA_EYES 以上を崩れに数える
+        if tags.get("extra eyes", 0) >= EXTRA_EYES:
+            res["problems"].append({"extra_eyes": round(float(tags["extra eyes"]), 2)})
+        reason = filters.fixed(", ".join(tags))
+        if reason:
+            res["problems"].append({"fixed_restriction": reason, "tags": sorted(tags, key=lambda t: -tags[t])[:20]})
+    except Exception as e:
+        res["unreadable"].append({"fixed_restriction": f"{type(e).__name__}: {e}"})
     try:
         im = Image.open(src).convert("RGB")
         rgb = np.asarray(im)
-        # 床やなだらかな色の背景では、背景を人物と取り違えて四辺とも「切れている」と出した。四隅の色がそろわない絵は読めないとする
-        corners = np.concatenate([rgb[:8, :8], rgb[:8, -8:], rgb[-8:, :8], rgb[-8:, -8:]]).reshape(-1, 3).astype(float)
-        if corners.std(0).max() > 12:
-            res["unreadable"].append({"edge_cut": "背景が無地でない"})
-        else:
-            cut = edge_cut(rgb)
-            if cut:
-                res["problems"].append({"edge_cut": cut})
+        cut = edge_cut(rgb)
+        if cut:
+            res["problems"].append({"edge_cut": cut})
         seams = background_seams(rgb)
         if seams:
             res["problems"].append({"seams": seams})
@@ -389,12 +459,30 @@ def auto_check(src: str, prompt: str = "") -> dict:
         # measure が基準から外れたと出した数字（瞳の色の差、髪の白飛び、影の順序など）は全部、判定に入れる。
         # 面積比だけを見て、measure が出していた瞳の色の差 0.105（基準 0.062）を捨てて通した（目の描き直し、2026-10-14）
         if measure.NORMS.exists():
+            light_hair = any(w in prompt.lower() for w in LIGHT_HAIR)
+            species = any(w in prompt.lower() for w in NON_HUMAN_LOWER)
             for bad in measure.judge(m):
+                # 白っぽい髪は色そのものが明るく、白飛びの基準（茶や黒の髪で決めた）を外れる。銀髪のアラクネ 16 枚を
+                # 白飛びで落としたが、拡大すると髪の色だった。白っぽい髪を頼んだ絵では上限を LIGHT_HAIR_BLOWN_MAX に上げる。
+                # 丸ごと数えないと、検品担当が「頭頂が白く飛んで毛束が消えた」と戻した 0.081 の絵まで通した（2026-10-15）
+                if light_hair and bad["path"] == "hair.blown" and bad["value"] <= LIGHT_HAIR_BLOWN_MAX:
+                    res.setdefault("ignored", []).append({"measure": bad, "why": "白っぽい髪を頼んだ"})
+                    continue
+                # 白い肌や白い獣の体の隣に黒い蜘蛛の体が並ぶと、素材の色の明るさを光の向きと取り違えた（検品担当が 3 枚を
+                # 目で見て、3 枚とも影の向きはそろっていた）。下半身が人でない種族では影の順序を崩れに数えない
+                if species and bad["path"] == "light.inverted":
+                    res.setdefault("ignored", []).append({"measure": bad, "why": "体の素材の色が部位で違う種族"})
+                    continue
                 # 目が見つからないのは崩れではなく「読めない」（顔の無い絵、小さすぎる顔）。どちらでも落とすが、分けて書く
+                if bad["path"] == "eyes.found" and eyes_by_tags(tags):
+                    res.setdefault("ignored", []).append({"measure": bad, "why": "目は描かれている（タグで読めた）"})
+                    continue
                 key = "unreadable" if bad["path"] == "eyes.found" else "problems"
                 res[key].append({"measure": bad})
         eye = eye_mismatch(m["eyes"])
-        if not eye["readable"]:
+        if not eye["readable"] and eyes_by_tags(tags):
+            res.setdefault("ignored", []).append({"eyes": eye, "why": "目は描かれている（タグで読めた）"})
+        elif not eye["readable"]:
             res["unreadable"].append({"eyes": eye})
         elif eye["mismatch"]:
             res["problems"].append({"eyes": eye})
@@ -407,8 +495,40 @@ def auto_check(src: str, prompt: str = "") -> dict:
     except Exception as e:  # 検品が落ちたことを、検品が通ったことにしない
         res["unreadable"].append({"error": f"{type(e).__name__}: {e}"})
     res["ok"] = not res["problems"] and not res["unreadable"]
+    res["score"] = score(res)
     Path(src + ".qc.json").write_text(json.dumps(res, ensure_ascii=False, indent=1, default=str))
+    if any("fixed_restriction" in x for x in res["problems"]):
+        res["held"] = hold(src)
     return res
+
+
+# 崩れの重さ（100 点から引く）。体のつながりや人そのものの崩れは直せないので重く、部分の直しで直せる崩れは軽くする
+PENALTY = {"fixed_restriction": 100, "person": 60, "human_legs": 40, "edge_cut": 25, "eyes": 15, "extra_eyes": 15, "floating": 15,
+           "seams": 10, "measure": 8}
+
+
+def score(res: dict) -> int:
+    """auto_check の結果に点数（0〜100）を付ける。落ちた絵どうしでも良し悪しを比べ、一番良い絵を土台に選べるようにする。
+    「通す・落とす」の二択では、どれも落ちたときに次の土台を選べなかった。読めない検品は崩れの半分の重さで引く"""
+    pts = 100.0
+    for x in res.get("problems", []):
+        k = next(iter(x))
+        pts -= PENALTY.get(k, 10)
+    for x in res.get("unreadable", []):
+        k = next(iter(x))
+        pts -= PENALTY.get(k, 10) / 2
+    return max(0, int(round(pts)))
+
+def hold(src: str) -> str:
+    """固定の制限に当たった絵を、隣の held/ へ付随ファイルごと移す。見回りで手で移していたのを、描いた直後に行う。
+    移した先には、見せる・保存する経路（.pass、library）から外れた名前だけが残る"""
+    import shutil
+    p = Path(src)
+    dest = p.parent / "held"
+    dest.mkdir(exist_ok=True)
+    for f in p.parent.glob(p.name + "*"):
+        shutil.move(str(f), str(dest / f.name))
+    return str(dest / p.name)
 
 def facts(src: str, character: str | None = None) -> dict:
     """数えられる事実。判断はしない（検品担当が、この数字を手がかりに目で確かめる）"""
