@@ -46,20 +46,26 @@ def head_box(src, margin: float = 0.4):
     return int(cx - half), int(cy - half), int(cx + half), int(cy + half)
 
 
-def detail(src, out, prompt: str, negative: str = "", strength: float = 0.4, steps: int = 24, seed: int = 0) -> dict:
+HAND_WORDS = ("detailed hand, open hand, five fingers, separated fingers, correct hand anatomy, clean lineart")
+HAND_NEGATIVE = "fused fingers, extra fingers, missing fingers, six fingers, four fingers, deformed hand, claws, blurry"
+
+
+def detail(src, out, prompt: str, negative: str = "", strength: float = 0.4, steps: int = 24, seed: int = 0,
+           box=None, words: str = FACE_WORDS, extra_negative: str = FACE_NEGATIVE) -> dict:
     import torch
     from PIL import Image, ImageDraw, ImageFilter
     import demi
     import design
     import free_text
     im = Image.open(src).convert("RGB")
-    box = head_box(src)
+    if box is None:
+        box = head_box(src)
     if box is None:
         if str(out) != str(src):
             im.save(out)
         return {"box": None, "reason": "顔が読めなかった（後ろ向き・小さすぎる）"}
     crop = im.crop(box)
-    pos, neg = free_text.full_prompt(f"{prompt}, {FACE_WORDS}", ", ".join(x for x in (negative, FACE_NEGATIVE) if x))
+    pos, neg = free_text.full_prompt(f"{prompt}, {words}", ", ".join(x for x in (negative, extra_negative) if x))
     pipe = demi.img2img()
     pe, ne, pp, np_ = design.encode_xl(pipe, pos, neg)
     redone = pipe(image=crop.resize((SIDE, SIDE), Image.LANCZOS), strength=strength, prompt_embeds=pe,
@@ -84,8 +90,21 @@ def main():
     ap.add_argument("--negative", default="")
     ap.add_argument("--strength", type=float, default=0.4)
     ap.add_argument("--seed", type=int, default=0)
+    # 手は部位分けで枠が取れないので、正方形の枠を x0,y0,x1,y1 で渡す（全身の絵では手が 30〜50 画素しか無く、
+    # 指が潰れて数えられなかった。顔と同じく切り出して大きく描き直す）
+    ap.add_argument("--hand", action="append", default=[], metavar="x0,y0,x1,y1")
     a = ap.parse_args()
-    print(detail(a.src, a.out, a.prompt, a.negative, a.strength, seed=a.seed))
+    if not a.hand:
+        print(detail(a.src, a.out, a.prompt, a.negative, a.strength, seed=a.seed))
+        return
+    src = a.src
+    for i, b in enumerate(a.hand):
+        box = tuple(int(v) for v in b.split(","))
+        if box[2] - box[0] != box[3] - box[1]:
+            sys.exit(f"--hand の枠は正方形にする: {b}")
+        print(detail(src, a.out, a.prompt, a.negative, a.strength, seed=a.seed + i, box=box,
+                     words=HAND_WORDS, extra_negative=HAND_NEGATIVE))
+        src = a.out
 
 
 if __name__ == "__main__":
