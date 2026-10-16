@@ -202,3 +202,33 @@ class ExtraEyesTest(unittest.TestCase):
         # 瞳が消え光る線になった目（0.53）は崩れ。崩れの無い絵の 0.22〜0.30 は数えない
         self.assertIn({"extra_eyes": 0.53}, self._check(0.53)["problems"])
         self.assertNotIn("extra_eyes", [k for p in self._check(0.3)["problems"] for k in p])
+
+
+@unittest.skipUnless(HAS_SCIPY, "scipy が無い（.cache/gen/lib に入る）")
+class EyeHintTest(unittest.TestCase):
+    """骨格の点の目の位置があれば、それに近い塊を目にする（顔の縁の髪の筋を目と取り違えない）"""
+
+    def _face(self):
+        import numpy as np
+        import edit
+        rgb = np.ones((200, 200, 3), np.float32)
+        seg = np.zeros((200, 200), np.uint8)
+        seg[20:180, 20:180] = edit.LABELS["face"]
+        rgb[60:110, 22:30] = 0.05          # 顔の縁の髪の筋（縦長、大きい）
+        rgb[90:96, 60:72] = 0.05           # 遠い側の小さな目
+        rgb[85:93, 120:150] = 0.05         # 近い側の目
+        return rgb, seg
+
+    def test_hint_picks_eyes_not_hair(self):
+        import measure
+        import edit
+        rgb, seg = self._face()
+        e = measure.eyes(rgb, seg, edit.LABELS, hint=[(66, 93), (135, 89)])
+        self.assertEqual(e["found"], 2)
+        self.assertGreater(e["left"]["cx"], 50)
+
+    def test_no_eye_near_hint_is_unreadable(self):
+        import measure
+        import edit
+        rgb, seg = self._face()
+        self.assertLess(measure.eyes(rgb, seg, edit.LABELS, hint=[(66, 160), (135, 160)])["found"], 2)

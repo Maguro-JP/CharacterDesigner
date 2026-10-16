@@ -82,7 +82,9 @@ def iris_color(rgb, blob):
     """目の塊のまわりで、枠の中央値より暗い画素（瞳とまつ毛）の色を (彩度, R/平均, G/平均, B/平均) で返す。
     彩度の高い画素だけを見ると灰色の瞳が抜け、茶と灰の左右違いを見逃した。明るさで割って、光の当たり方の差は消す"""
     x0, x1 = int(blob["cx"] - blob["w"] * 0.6), int(blob["cx"] + blob["w"] * 0.6)
-    y0, y1 = int(blob["cy"] - blob["h"] * 0.8), int(blob["cy"] + blob["h"] * 0.8)
+    # 細いまつ毛の塊（高さ 9、幅 12〜36）では、高さだけで枠を決めるとまつ毛しか入らず、すぐ下の瞳を測らなかった。
+    # 下へは目の幅の 6 割まで広げる（丸い目では高さの 8 割と同じくらい）
+    y0, y1 = int(blob["cy"] - blob["h"] * 0.8), int(blob["cy"] + max(blob["h"] * 0.8, blob["w"] * 0.6))
     p = rgb[max(0, y0):max(0, y1), max(0, x0):max(0, x1), :3].reshape(-1, 3)
     if len(p) < 5:
         return None
@@ -101,8 +103,11 @@ def iris_delta(rgb, left, right):
     return None if a is None or b is None else round(float(np.abs(a - b).max()), 3)
 
 
-def eyes(rgb, seg, labels):
-    """顔の中の暗い塊のうち大きい2つを目とみなして測る"""
+def eyes(rgb, seg, labels, hint=None):
+    """顔の中の暗い塊のうち大きい2つを目とみなして測る。hint（骨格の点の両目の位置、この絵の座標）があれば、
+    それぞれに一番近い塊を目とする。斜めの顔では遠い目が小さく、顔の縁の髪の筋（幅 12、高さ 37）を左目として拾い、
+    髪の色と瞳の色を比べて、そろった紫の目を「瞳の色が違う」と 28 通り落とした（2026-10-16）。骨格の点の目は、
+    検品担当が見た目の位置と 3 枚とも 10 画素以内で合った"""
     from scipy import ndimage
     face = face_mask(seg, labels)
     ys, xs = np.nonzero(face)
@@ -127,15 +132,24 @@ def eyes(rgb, seg, labels):
     sizes = ndimage.sum(dark, lab, range(1, n + 1))
     order = np.argsort(sizes)[::-1]
     blobs = []
-    for i in order[:6]:
+    for i in order[:12 if hint else 6]:
         if sizes[i] < max(12, fh * fw * 0.002):
             break
         yy, xx = np.nonzero(lab == i + 1)
         blobs.append({"cx": float(xx.mean()), "cy": float(yy.mean()), "area": float(sizes[i]),
                       "w": float(xx.max() - xx.min() + 1), "h": float(yy.max() - yy.min() + 1)})
-    # 目は横に並ぶ2つ。縦に重なるもの（眉と目、目と口）を避け、横の間隔が顔の幅の 15% 以上ある組を選ぶ
     best = None
-    for i in range(len(blobs)):
+    if hint:
+        near = max(10.0, fw * 0.15)
+        picked = []
+        for hx, hy in hint:
+            c = min(blobs, key=lambda b: (b["cx"] - hx) ** 2 + (b["cy"] - hy) ** 2, default=None)
+            if c is None or ((c["cx"] - hx) ** 2 + (c["cy"] - hy) ** 2) ** 0.5 > near or c in picked:
+                return {"found": len(picked), "reason": "骨格の点の目の近くに目の塊が無い"}
+            picked.append(c)
+        best = (0, picked[0], picked[1])
+    # 目は横に並ぶ2つ。縦に重なるもの（眉と目、目と口）を避け、横の間隔が顔の幅の 15% 以上ある組を選ぶ
+    for i in range(len(blobs) if best is None else 0):
         for j in range(i + 1, len(blobs)):
             a, b = blobs[i], blobs[j]
             dx, dy = abs(a["cx"] - b["cx"]), abs(a["cy"] - b["cy"])
@@ -398,7 +412,19 @@ def hair(rgb, seg, labels, spec: str = ""):
             "coherence": round(float(np.median(coh[inner])) if inner.any() else 0.0, 3)}
 
 
-def measure(src, hair_color: str = "") -> dict:
+def _eye_hint(points, view, least: float = 0.5):
+    """骨格の点の両目を、測る絵（切り出していれば切り出しの座標）に直す。確からしさが least 未満なら None"""
+    if not points:
+        return None
+    p = {q["name"]: q for q in points}
+    if any(p.get(n, {}).get("score", 0) < least for n in ("left_eye", "right_eye")):
+        return None
+    box, k = view.get("box"), view.get("k", 1.0)
+    ox, oy = (box[0], box[1]) if box else (0, 0)
+    return [((p[n]["x"] - ox) * k, (p[n]["y"] - oy) * k) for n in ("left_eye", "right_eye")]
+
+
+def measure(src, hair_color: str = "", points=None) -> dict:
     from PIL import Image
     import edit
     rgb = np.asarray(Image.open(src).convert("RGB"), dtype=np.float32) / 255.0
@@ -407,10 +433,11 @@ def measure(src, hair_color: str = "") -> dict:
     regions = {"face": [L["face"]], "hair": [L["hair"]], "clothes": [L["upper"], L["dress"], L["skirt"], L["pants"]],
                "arms": [L["left_arm"], L["right_arm"]], "legs": [L["left_leg"], L["right_leg"]]}
     import faceform
-    hrgb, hseg = faceform.head_view(src, rgb, seg)
+    view = {}
+    hrgb, hseg = faceform.head_view(src, rgb, seg, view)
     lm = faceform.landmarks(hrgb, hseg, L)
     face = faceform.fit(lm["points"], json.loads(faceform.TEMPLATE.read_text())["points"]) if "points" in lm and faceform.TEMPLATE.exists() else lm
-    return {"size": list(rgb.shape[1::-1]), "eyes": eyes(hrgb, hseg, L), "face": face, "light": light3d(src, rgb, seg, regions),
+    return {"size": list(rgb.shape[1::-1]), "eyes": eyes(hrgb, hseg, L, _eye_hint(points, view)), "face": face, "light": light3d(src, rgb, seg, regions),
             "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "pairs": pairs(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color)}
 
 
