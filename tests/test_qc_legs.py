@@ -185,3 +185,20 @@ class EyesByTagsTest(unittest.TestCase):
         self.assertFalse(qc.eyes_by_tags({"purple eyes": 0.52, "mask": 0.53}))
         self.assertFalse(qc.eyes_by_tags({"hair between eyes": 0.57, "extra eyes": 0.3}))
         self.assertFalse(qc.eyes_by_tags({"blue eyes": 0.2}))
+
+
+class ExtraEyesTest(unittest.TestCase):
+    def _check(self, value):
+        import tempfile
+        from unittest import mock
+        from PIL import Image
+        import tagger
+        with tempfile.TemporaryDirectory() as d:
+            Image.new("RGB", (64, 64), (255, 255, 255)).save(f"{d}/a.png")
+            with mock.patch.object(tagger, "read", return_value={"1girl": 1.0, "extra eyes": value}):
+                return qc.auto_check(f"{d}/a.png", "1girl")
+
+    def test_high_extra_eyes_is_a_problem(self):
+        # 瞳が消え光る線になった目（0.53）は崩れ。崩れの無い絵の 0.22〜0.30 は数えない
+        self.assertIn({"extra_eyes": 0.53}, self._check(0.53)["problems"])
+        self.assertNotIn("extra_eyes", [k for p in self._check(0.3)["problems"] for k in p])

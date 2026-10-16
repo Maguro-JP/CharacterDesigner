@@ -405,6 +405,8 @@ def eyes_by_tags(tags: dict, least: float = 0.35) -> bool:
                for k, v in tags.items())
 
 
+EXTRA_EYES = 0.4
+
 EYE_COLORS = {"blue", "red", "green", "purple", "yellow", "brown", "black", "grey", "gray", "pink", "orange",
               "aqua", "white", "amber", "golden", "silver"}
 
@@ -423,6 +425,10 @@ def auto_check(src: str, prompt: str = "") -> dict:
         import filters
         import tagger
         tags = tagger.read(src)
+        # 目の範囲を描き直した絵で瞳が消え光る線だけになったのを、目の測り方が揺れて見つけたと読み通した（2026-10-16）。
+        # タグは extra eyes を 0.53 で読んでいた。崩れの無い絵では 0.22〜0.30 だったので、EXTRA_EYES 以上を崩れに数える
+        if tags.get("extra eyes", 0) >= EXTRA_EYES:
+            res["problems"].append({"extra_eyes": round(float(tags["extra eyes"]), 2)})
         reason = filters.fixed(", ".join(tags))
         if reason:
             res["problems"].append({"fixed_restriction": reason, "tags": sorted(tags, key=lambda t: -tags[t])[:20]})
@@ -497,7 +503,7 @@ def auto_check(src: str, prompt: str = "") -> dict:
 
 
 # 崩れの重さ（100 点から引く）。体のつながりや人そのものの崩れは直せないので重く、部分の直しで直せる崩れは軽くする
-PENALTY = {"fixed_restriction": 100, "person": 60, "human_legs": 40, "edge_cut": 25, "eyes": 15, "floating": 15,
+PENALTY = {"fixed_restriction": 100, "person": 60, "human_legs": 40, "edge_cut": 25, "eyes": 15, "extra_eyes": 15, "floating": 15,
            "seams": 10, "measure": 8}
 
 
