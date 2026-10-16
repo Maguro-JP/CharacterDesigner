@@ -1,0 +1,38 @@
+# 毎月 1 日に Windows の Setup.exe を組み、GitHub の Release に置く。
+# Linux の上で NSIS を使って組むので、Windows のランナー（Linux の 2 倍の枠）は使わない。1 回 約 3 分。
+name: bundle
+on:
+  schedule:
+    - cron: "17 0 1 * *"   # 毎月 1 日 09:17 JST（0 分は混むのでずらす）
+  workflow_dispatch: {}      # 手で組みたいとき
+permissions:
+  contents: write            # Release を作るため
+concurrency:
+  group: bundle
+  cancel-in-progress: true
+jobs:
+  windows-setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0     # 版の名前（git describe）に要る
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/web/package-lock.json
+      - name: NSIS
+        run: sudo apt-get update -q && sudo apt-get install -y -q nsis
+      - name: Setup.exe を組む
+        run: sh packaging/windows/build.sh
+      - name: Release に置く
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="bundle-$(date -u +%Y-%m-%d)"
+          gh release create "$tag" dist/CharacterDesigner-Setup.exe \
+            --title "Windows Setup $(date -u +%Y-%m-%d)" \
+            --notes "$(git log -1 --format='%h %s') から組んだ Windows の Setup.exe。初回の起動で描く部品と絵の模型（約 10GB）を取ります。" \
+            --target "$GITHUB_SHA"

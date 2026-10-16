@@ -50,3 +50,22 @@ def test_image_border_is_not_an_edge():
     before = stripes()
     m = box_mask(box=(128, 0, 255, 255))
     assert all(c["x"] < 200 for c in qc.repaint_scars(before, before.copy(), m))
+
+
+@unittest.skipUnless(HAS_SCIPY, "scipy が無い（.cache/gen/lib に入る）")
+def test_hole_opened_in_body_is_found():
+    # 体（暗い四角）の中に、描き直しで背景色の穴が開いた
+    im = Image.new("RGB", (200, 200), (216, 211, 207))
+    ImageDraw.Draw(im).rectangle((40, 40, 160, 160), fill=(30, 30, 35))
+    after = im.copy()
+    ImageDraw.Draw(after).rectangle((90, 90, 110, 110), fill=(216, 211, 207))
+    m = box_mask(200, 200, (70, 70, 130, 130))
+    holes = qc.repaint_holes(im, after, m)
+    assert len(holes) == 1 and holes[0]["pixels"] == 21 * 21
+
+
+@unittest.skipUnless(HAS_SCIPY, "scipy が無い（.cache/gen/lib に入る）")
+def test_no_hole_when_unchanged():
+    im = Image.new("RGB", (200, 200), (216, 211, 207))
+    ImageDraw.Draw(im).rectangle((40, 40, 160, 160), fill=(30, 30, 35))
+    assert qc.repaint_holes(im, im.copy(), box_mask(200, 200, (70, 70, 130, 130))) == []
