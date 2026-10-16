@@ -88,6 +88,7 @@ class PersonFoundTest(unittest.TestCase):
         self.assertTrue(qc.person_found(self.pts(0.64, 0.8))["found"])
 
 
+@unittest.skipUnless(__import__("importlib").util.find_spec("scipy") is not None, "scipy が無い（.cache/gen/lib に入る）")
 class EdgeCutBackgroundTest(unittest.TestCase):
     def test_gradient_background_is_not_reported_as_cut(self):
         import tempfile
@@ -98,5 +99,106 @@ class EdgeCutBackgroundTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             Image.fromarray(a).save(f"{d}/g.png")
             r = qc.auto_check(f"{d}/g.png", "1girl")
-        self.assertFalse(any("edge_cut" in x for x in r["problems"]))
-        self.assertTrue(any("edge_cut" in x for x in r["unreadable"]))
+        # 辺に沿ってゆっくり変わる背景は、切れとも読めないとも言わない
+        self.assertFalse(any("edge_cut" in x for x in r["problems"] + r["unreadable"]))
+
+
+class LightHairTest(unittest.TestCase):
+    def test_light_hair_words(self):
+        # 銀髪を頼んだ絵では、髪の白飛びを崩れに数えない（言葉の一覧に入っていること）
+        self.assertTrue(any(w in "1girl, long silver hair" for w in qc.LIGHT_HAIR))
+        self.assertFalse(any(w in "1girl, short brown hair" for w in qc.LIGHT_HAIR))
+
+    def test_light_hair_limit_between_judged(self):
+        # 検品担当が通した銀髪 0.031 は許し、戻した銀髪 0.081 は崩れに数える上限であること
+        self.assertTrue(0.031 <= qc.LIGHT_HAIR_BLOWN_MAX < 0.081)
+
+
+try:
+    import scipy  # noqa: F401
+    HAS_SCIPY = True
+except ImportError:
+    HAS_SCIPY = False
+
+
+@unittest.skipUnless(HAS_SCIPY, "scipy が無い（.cache/gen/lib に入る）")
+class EdgeCutTest(unittest.TestCase):
+    def test_figure_touching_bottom_is_cut(self):
+        import numpy as np
+        a = np.zeros((200, 160, 3), "uint8")
+        a[...] = np.linspace(40, 200, 200, dtype="uint8")[:, None, None]   # なだらかに変わる背景
+        a[120:200, 60:100] = (20, 10, 60)                                     # 下の辺にかかった人物
+        self.assertEqual(qc.edge_cut(a), ["下"])
+
+
+class FixedRestrictionTest(unittest.TestCase):
+    def test_minor_and_sexual_tags_are_caught(self):
+        # 絵から読んだタグにも、言葉の判定と同じ固定の制限をかける（filters.fixed）
+        import filters
+        self.assertIsNotNone(filters.fixed("1girl, child, nude"))
+        self.assertIsNone(filters.fixed("1girl, breasts, navel"))
+
+
+class HoldTest(unittest.TestCase):
+    def test_restricted_picture_is_moved_out(self):
+        import tempfile
+        from unittest import mock
+        from PIL import Image
+        import tagger
+        with tempfile.TemporaryDirectory() as d:
+            Image.new("RGB", (64, 64), (255, 255, 255)).save(f"{d}/a.png")
+            with mock.patch.object(tagger, "read", return_value={"child": 0.9, "nude": 0.9}):
+                r = qc.auto_check(f"{d}/a.png", "1girl")
+            self.assertFalse(Path(f"{d}/a.png").exists())
+            self.assertTrue(Path(f"{d}/held/a.png").exists())
+            self.assertTrue(Path(f"{d}/held/a.png.qc.json").exists())
+        self.assertFalse(r["ok"])
+
+
+class LegsMarginTest(unittest.TestCase):
+    def test_score_just_above_line_is_unreadable(self):
+        # 股のしわ（0.49）と本当の脚（0.54）は差が小さい。線のすぐ上は「ある」と言い切らない
+        r = qc.human_legs(points(shoulder=300, hip=500, knee=600, ankle=722, score=0.45), 1216)
+        self.assertGreaterEqual(r["score"], 0.45)
+        self.assertLess(r["score"], 0.55)
+        self.assertFalse(r["readable"])
+
+
+class ScoreTest(unittest.TestCase):
+    def test_lighter_defects_score_higher(self):
+        bad = {"problems": [{"human_legs": {}}, {"edge_cut": ["下"]}], "unreadable": []}
+        light = {"problems": [{"measure": {"path": "eyes.iris_delta"}}], "unreadable": []}
+        clean = {"problems": [], "unreadable": []}
+        self.assertLess(qc.score(bad), qc.score(light))
+        self.assertEqual(qc.score(clean), 100)
+        self.assertEqual(qc.score({"problems": [{"fixed_restriction": "x"}], "unreadable": []}), 0)
+
+
+class EyesByTagsTest(unittest.TestCase):
+    def test_colored_or_closed_eyes_count(self):
+        self.assertTrue(qc.eyes_by_tags({"1girl": 1.0, "purple eyes": 0.49}))
+        self.assertTrue(qc.eyes_by_tags({"closed eyes": 0.43}))
+
+    def test_faceless_or_masked_do_not(self):
+        # 顔の無い絵（目のタグが無い）、顔が黒く塗れた絵（mask）、目の色でない言葉、低い確からしさ
+        self.assertFalse(qc.eyes_by_tags({"1girl": 0.97, "looking at viewer": 0.25}))
+        self.assertFalse(qc.eyes_by_tags({"purple eyes": 0.52, "mask": 0.53}))
+        self.assertFalse(qc.eyes_by_tags({"hair between eyes": 0.57, "extra eyes": 0.3}))
+        self.assertFalse(qc.eyes_by_tags({"blue eyes": 0.2}))
+
+
+class ExtraEyesTest(unittest.TestCase):
+    def _check(self, value):
+        import tempfile
+        from unittest import mock
+        from PIL import Image
+        import tagger
+        with tempfile.TemporaryDirectory() as d:
+            Image.new("RGB", (64, 64), (255, 255, 255)).save(f"{d}/a.png")
+            with mock.patch.object(tagger, "read", return_value={"1girl": 1.0, "extra eyes": value}):
+                return qc.auto_check(f"{d}/a.png", "1girl")
+
+    def test_high_extra_eyes_is_a_problem(self):
+        # 瞳が消え光る線になった目（0.53）は崩れ。崩れの無い絵の 0.22〜0.30 は数えない
+        self.assertIn({"extra_eyes": 0.53}, self._check(0.53)["problems"])
+        self.assertNotIn("extra_eyes", [k for p in self._check(0.3)["problems"] for k in p])

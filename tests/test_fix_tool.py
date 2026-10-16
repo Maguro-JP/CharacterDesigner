@@ -74,3 +74,31 @@ class OfflineDefaultTest(unittest.TestCase):
         r = subprocess.run([sys.executable, "-c", "import fix, os; print(os.environ['HF_HOME'])"],
                            cwd=ROOT / "tools" / "gen", env=env, capture_output=True, text=True)
         self.assertEqual(r.stdout.strip(), str(ROOT / ".cache" / "gen" / "hf"), r.stderr[-300:])
+
+
+class CarriedFaceTest(unittest.TestCase):
+    """顔に掛からない描き直しでは、元の絵の顔と目の外れを引き継ぐ"""
+
+    def setUp(self):
+        import json
+        import tempfile
+        self.dir = tempfile.mkdtemp()
+        self.src = os.path.join(self.dir, "a.png")
+        bad = {"measure": {"path": "eyes.iris_delta", "value": 0.155}}
+        other = {"measure": {"path": "hair.blown", "value": 0.2}}
+        with open(self.src + ".qc.json", "w") as f:
+            json.dump({"problems": [bad, other]}, f)
+        # 顔の点（目と鼻）がおよそ x 400〜440、y 150〜170 にある
+        self.points = [{"name": "nose", "x": 420, "y": 170, "score": 0.9},
+                       {"name": "left_eye", "x": 400, "y": 150, "score": 0.9},
+                       {"name": "right_eye", "x": 440, "y": 150, "score": 0.9}]
+
+    def test_far_box_carries_eye_problem_only(self):
+        got = fix.carried_face(self.src, [(300, 590, 420, 720)], self.points)
+        self.assertEqual([g["measure"]["path"] for g in got], ["eyes.iris_delta"])
+
+    def test_box_on_face_does_not_carry(self):
+        self.assertEqual(fix.carried_face(self.src, [(370, 135, 460, 175)], self.points), [])
+
+    def test_unreadable_face_carries(self):
+        self.assertEqual(len(fix.carried_face(self.src, [(370, 135, 460, 175)], [])), 1)

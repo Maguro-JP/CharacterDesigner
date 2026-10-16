@@ -1027,6 +1027,21 @@ def create_app(runner: Runner | None = None) -> FastAPI:
             raise HTTPException(404, "そのファイルはまだ無い")
         return FileResponse(p)
 
+    # 組み上げた画面（app/web/dist）があれば、同じ窓口で配る。配布版は Node を持たないので、画面のための別の窓口を立てない。
+    # /api の道筋を先に登録してあるので、こちらは残りの道筋だけを受ける
+    web = Path(os.environ.get("CD_WEB_DIST", ROOT / "app" / "web" / "dist"))
+    if (web / "index.html").exists():
+        from fastapi.staticfiles import StaticFiles
+
+        class Web(StaticFiles):
+            # 無い /api の道筋は画面に回さず 404 にする（画面の側が受けると 405 になり、窓口の答え方が変わる）
+            async def get_response(self, path, scope):
+                if path == "api" or path.startswith("api/"):
+                    raise HTTPException(404, "その窓口は無い")
+                return await super().get_response(path, scope)
+
+        app.mount("/", Web(directory=web, html=True), name="web")
+
     return app
 
 

@@ -61,7 +61,42 @@ def scars_report(before: Image.Image, after: Image.Image, mask: Image.Image) -> 
     import qc
     seams = qc.background_seams(np.asarray(after.convert("RGB")))
     scars = qc.repaint_scars(before, after, mask)
-    return {"seams": seams, "scars": scars, "clean": not seams and not scars}
+    holes = qc.repaint_holes(before, after, mask)
+    return {"seams": seams, "scars": scars, "holes": holes, "clean": not seams and not scars and not holes}
+
+
+FACE_POINTS = ("nose", "left_eye", "right_eye", "left_ear", "right_ear")
+
+
+def face_box(points: list[dict], least: float = 0.3) -> tuple[int, int, int, int] | None:
+    """骨格の点（顔の 5 点）から顔の枠。点の広がりの 1.5 倍（最小 40 画素）を足す。顔の点が読めなければ None"""
+    p = [q for q in points if q["name"] in FACE_POINTS and q["score"] >= least]
+    if len(p) < 2:
+        return None
+    xs, ys = [q["x"] for q in p], [q["y"] for q in p]
+    pad = max(max(xs) - min(xs), max(ys) - min(ys), 40) * 1.5
+    return int(min(xs) - pad), int(min(ys) - pad), int(max(xs) + pad), int(max(ys) + pad)
+
+
+def carried_face(src: str, boxes, points: list[dict] | None = None) -> list[dict]:
+    """描き直した範囲が顔に掛からないなら、元の絵で出ていた顔と目の外れ（face.*、eyes.*）を引き継ぐ。
+    顔の測り方は絵全体の部位分けから顔を切り出すので、顔から離れた腹の前を描き直しただけで目として選ぶ塊が変わり、
+    元の絵の瞳の色違い（0.155、基準 0.062）を描き直した絵では 0.059 と読んで通した（2026-10-15、検品担当が目で見つけた）。
+    顔の枠が読めないときは、掛かるかを言えないので引き継ぐ"""
+    q = Path(src + ".qc.json")
+    if not q.exists():
+        return []
+    old = [pr for pr in json.loads(q.read_text()).get("problems", [])
+           if "measure" in pr and pr["measure"]["path"].split(".")[0] in ("face", "eyes")]
+    if not old:
+        return []
+    if points is None:
+        import joints
+        points = joints.find(src)
+    fb = face_box(points)
+    if fb is not None and any(b[0] < fb[2] and fb[0] < b[2] and b[1] < fb[3] and fb[1] < b[3] for b in boxes):
+        return []
+    return [{**pr, "carried": "元の絵の顔は描き直していない"} for pr in old]
 
 
 def fix(src: str, out: str, boxes, prompt: str, negative: str = "", strength: float = 0.75, seed: int = 3,
@@ -77,8 +112,9 @@ def fix(src: str, out: str, boxes, prompt: str, negative: str = "", strength: fl
     rep.update(scars_report(im, res, mask))
     import qc
     auto = qc.auto_check(out, prompt)          # 描き直した絵全体も、描いた絵と同じ検品を必ず通す
-    rep.update(problems=auto["problems"], unreadable=auto["unreadable"])
-    rep["clean"] = rep["clean"] and auto["ok"]
+    carried = carried_face(src, boxes)
+    rep.update(problems=auto["problems"] + carried, unreadable=auto["unreadable"])
+    rep["clean"] = rep["clean"] and auto["ok"] and not carried
     Path(out + ".qc.json").write_text(json.dumps(rep, ensure_ascii=False, indent=1))
     return rep
 
