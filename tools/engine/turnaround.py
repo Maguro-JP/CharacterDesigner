@@ -11,6 +11,7 @@
 import argparse
 import math
 import os
+import json
 import sys
 from pathlib import Path
 
@@ -49,6 +50,8 @@ def main(argv):
     ap.add_argument("--hair-color", type=rgb, default=(60, 40, 30))
     ap.add_argument("--thickness", type=float, default=0.004, help="布の厚み（m）。0 で厚みを付けない")
     ap.add_argument("--heads", type=float, help="頭身。人形は写実の約 7.5 頭身で、アニメの顔を描かせると体と顔の釣り合いが崩れた。首から上を大きくして合わせる")
+    ap.add_argument("--no-fit", action="store_true", help="体の部位の釣り合いを合わせない（写実の人形のまま）")
+    ap.add_argument("--measure", help="体の部位の寸法（頭の高さを 1 とする）を JSON に書き出す先")
     ap.add_argument("--boots-height", type=float, default=0.5, help="靴の色を塗る高さ（m）。既定 0.5 は膝下までの鎧靴。短いブーツは 0.15")
     ap.add_argument("--split", type=float, default=0.95, help="上と下の布の色を分ける高さ（m）。裾の長い上着は下げる")
     ap.add_argument("--long-sleeves", action="store_true", help="腕を手首まで上の布の色にする（長袖の上着）")
@@ -63,9 +66,24 @@ def main(argv):
     macro = TargetService.get_default_macro_info_dict()
     macro["gender"] = 0.0
     h = HumanService.create_human(macro_detail_dict=macro)
+    if not a.no_fit:
+        # 体の部位の釣り合いを、作画の資料の間で一致している決まりに合わせる（女性は腰の幅≒肩幅、手≒顔の大きさ、足≒前腕）。
+        # 写実の人形は肩幅が腰より 1 割広く、その上に描いた服も肩の張った形で描かれた
+        m0 = human.measure_body(h, human._rig(h))
+        goals = {"shoulder_width": m0["hip_width"], "hand": 0.75, "foot": m0["forearm"]}
+        print("体の釣り合い:", json.dumps(human.fit_body(h, goals), ensure_ascii=False))
+        for o in [o for o in bpy.data.objects if o.type == "ARMATURE"]:
+            bpy.data.objects.remove(o)
+        for mod in [mod for mod in h.modifiers if mod.type == "ARMATURE"]:
+            h.modifiers.remove(mod)
     if a.heads:
-        human.deform(h.data, head_scale(a.heads), 1.0)
-    HumanService.add_builtin_rig(h, "default")
+        # 人形の頭身は体型で 6.9〜7.5 と揺れ、7.5 と決め打ちで倍率を出すと 7 頭身を頼んで 6.5 になった。
+        # 測った頭身から倍率を出し、もう一度測って合わせる
+        for _ in range(2):
+            now = human.measure_body(h, human._rig(h))["height"]
+            human.deform(h.data, head_scale(a.heads, now), 1.0)
+    # 骨は形を変え終えてから付け直す（古い骨と骨の設定を残すと、形を変える前の位置で体が曲がる）
+    human._rig(h)
     clothed = []
     import glob
     for name in a.clothes.split(","):
@@ -88,6 +106,8 @@ def main(argv):
             mod.thickness = a.thickness
             mod.offset = 1.0
     rig = next(o for o in bpy.data.objects if o.type == "ARMATURE")
+    if a.measure:
+        Path(a.measure).write_text(json.dumps(human.measure_body(h, rig), ensure_ascii=False, indent=1))
     human.adduct_arms(rig, 35)
     human.relax_hands(rig)
     # 関節が可動域を超えていないかを数える（下絵の崩れは絵にそのまま残る。docs/knowledge/joints-and-motion.md）

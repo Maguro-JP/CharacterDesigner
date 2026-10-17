@@ -234,3 +234,138 @@ if __name__ == "__main__":
     # 描き終えた後の後片付けで bpy が落ちる（Segmentation fault）。書き出しは済んでいるので、ここで抜ける
     sys.stdout.flush()
     os._exit(0)
+
+
+def measure_body(h, rig) -> dict:
+    """人形の体の部位の長さ・幅・太さを、頭の高さ（頭のてっぺんからあご）を 1 として返す。休みの姿勢（A の字）の形で測る。
+    服は体の上に作るので、体の寸法がジャンルの目安から外れていると、服も同じだけ外れた形で描かれる"""
+    import numpy as np
+    bones = {b.name: b for b in rig.data.bones}
+    names = {g.index: g.name for g in h.vertex_groups if g.name in bones}
+    co = np.array([v.co[:] for v in h.data.vertices])
+    # 体型（体重・筋肉など）は形の鍵で掛かっていて、頂点の座標そのものには入っていない。鍵の重みを足して実際の形にする
+    if h.data.shape_keys:
+        blocks = h.data.shape_keys.key_blocks
+        basis = np.array([d.co[:] for d in blocks[0].data])
+        co = basis.copy()
+        for kb in blocks[1:]:
+            if kb.value and not kb.mute:
+                co += kb.value * (np.array([d.co[:] for d in kb.data]) - basis)
+    main = []
+    for v in h.data.vertices:
+        gs = [g for g in v.groups if g.group in names]
+        main.append(names[max(gs, key=lambda g: g.weight).group] if gs else "")
+    main = np.array(main)
+
+    def sw(prefixes):
+        prefixes = (prefixes,) if isinstance(prefixes, str) else prefixes
+        return np.array([n.startswith(prefixes) for n in main])
+    body = np.isin(main, list(bones))
+
+    def J(name, tail=False):
+        b = bones[name]
+        return np.array((b.tail_local if tail else b.head_local)[:])
+
+    def width(mask):
+        return float(co[mask, 0].max() - co[mask, 0].min()) if mask.any() else 0.0
+
+    def thick(prefix):
+        # 骨に直交する太さ: その骨が主の頂点の、骨の軸からの距離の中央値 × 2（上位で取ると肩の膨らみまで拾い、上腕を 2 倍に測った）
+        m = sw(prefix) & np.array([n.endswith(".L") for n in main])
+        b = [n for n in bones if n.startswith(prefix) and n.endswith(".L")][0]
+        a, t = J(b), J(b, True)
+        d = (t - a) / np.linalg.norm(t - a)
+        r = co[m] - a
+        dist = np.linalg.norm(r - np.outer(r @ d, d), axis=1)
+        return float(np.median(dist) * 2)
+
+    top = float(co[body, 2].max())
+    floor = float(co[body, 2].min())
+    head_v = np.isin(main, ["head", "jaw"])
+    chin = float(co[head_v, 2].min())
+    head = top - chin
+    torso = sw(("spine", "pelvis", "breast", "clavicle", "shoulder", "upperleg01", "root"))
+    sh_z = J("upperarm01.L")[2]
+    waist_band = [width(torso & ~sw("upperleg") & (abs(co[:, 2] - z) < 0.01)) for z in
+                  np.linspace(J("spine02")[2], J("spine04")[2], 12)]
+    hip_z = J("upperleg01.L")[2]
+    hips = (torso | sw("upperleg")) & (co[:, 2] > hip_z - 0.12) & (co[:, 2] < hip_z + 0.02)
+    foot = sw(("foot.L", "toe")) & (co[:, 0] > 0)
+    L = lambda a, b, ta=False, tb=False: float(np.linalg.norm(J(a, ta) - J(b, tb)))
+    m = {
+        "height": (top - floor),
+        # 肩幅は左右の肩の関節の間＋上腕の太さ（外側の輪郭）。高さの帯で輪郭を取ると、A の字に開いた腕まで入って広く出た
+        "shoulder_width": float(abs(J("upperarm01.L")[0] - J("upperarm01.R")[0])) + thick("upperarm01"),
+        "waist_width": min(w for w in waist_band if w > 0),
+        "hip_width": width(hips),
+        "neck_length": float(chin - sh_z),
+        "upper_arm": L("upperarm01.L", "lowerarm01.L"),
+        "forearm": L("lowerarm01.L", "wrist.L"),
+        "hand": L("wrist.L", "finger3-3.L", tb=True),
+        "leg": float(hip_z - floor),
+        "thigh": L("upperleg01.L", "lowerleg01.L"),
+        "shin": L("lowerleg01.L", "foot.L"),
+        "foot": float(co[foot, 1].max() - co[foot, 1].min()) if foot.any() else 0.0,
+        "upper_arm_thick": thick("upperarm01"),
+        "thigh_thick": thick("upperleg01"),
+    }
+    out = {k: round(v / head, 2) for k, v in m.items()}
+    out["head_m"] = round(head, 3)
+    return out
+
+
+# 体の寸法を合わせるときに動かす形の鍵（MPFB の targets）。寸法の名前 → (鍵の置き場/名前の頭, 左右があるか)
+FIT_TARGETS = {
+    "shoulder_width": ("torso/measure-shoulder-dist", False),
+    "waist_width": ("torso/measure-waist-circ", False),
+    "hip_width": ("torso/measure-hips-circ", False),
+    "upper_arm_thick": ("arms/measure-upperarm-circ", False),
+    "thigh_thick": ("legs/measure-thigh-circ", False),
+    "neck_length": ("neck/measure-neck-height", False),
+    "hand": ("hands/{s}-hand-scale", True),
+    "foot": ("feet/{s}-foot-scale", True),
+}
+
+
+def _rig(h):
+    from bl_ext.user_default.mpfb.services.humanservice import HumanService
+    for o in [o for o in bpy.data.objects if o.type == "ARMATURE"]:
+        bpy.data.objects.remove(o)
+    for m in [m for m in h.modifiers if m.type == "ARMATURE"]:
+        h.modifiers.remove(m)
+    HumanService.add_builtin_rig(h, "default")
+    return next(o for o in bpy.data.objects if o.type == "ARMATURE")
+
+
+def _set_target(h, key, weight):
+    from bl_ext.user_default.mpfb.services.targetservice import TargetService
+    path, sided = FIT_TARGETS[key]
+    # 形の鍵は MPFB の本体の側（extensions/user_default）にあり、素材（extensions/.user）とは置き場が違う
+    root = Path.home() / ".config/blender/4.2/extensions/user_default/mpfb/data/targets"
+    for s in (("l", "r") if sided else ("",)):
+        base = path.format(s=s)
+        for end, w in (("incr", max(weight, 0.0)), ("decr", max(-weight, 0.0))):
+            name = base.split("/")[-1] + "-" + end
+            kb = h.data.shape_keys.key_blocks.get(name) if h.data.shape_keys else None
+            if kb is None:
+                if w == 0:
+                    continue
+                TargetService.load_target(h, str(root / f"{base}-{end}.target.gz"), weight=w, name=name)
+            else:
+                kb.value = w
+
+
+def fit_body(h, goals: dict, rounds: int = 2) -> dict:
+    """体の寸法（頭の高さを 1 とする）を goals に近づける。寸法ごとに形の鍵を ±1 で振って効き方を測り、直線で重みを決める。
+    鍵どうしは少し影響し合うので rounds 回くり返す。返り値は合わせた後の寸法と、使った重み"""
+    weights = {k: 0.0 for k in goals if k in FIT_TARGETS}
+    for _ in range(rounds):
+        for k in weights:
+            now = measure_body(h, _rig(h))[k]
+            _set_target(h, k, max(-1.0, min(1.0, weights[k] + 0.5)))
+            probe = measure_body(h, _rig(h))[k]
+            slope = (probe - now) / (max(-1.0, min(1.0, weights[k] + 0.5)) - weights[k]) if probe != now else 0.0
+            if slope:
+                weights[k] = max(-1.0, min(1.0, weights[k] + (goals[k] - now) / slope))
+            _set_target(h, k, weights[k])
+    return {"measure": measure_body(h, _rig(h)), "weights": {k: round(v, 2) for k, v in weights.items()}}
