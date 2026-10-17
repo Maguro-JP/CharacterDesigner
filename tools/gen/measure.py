@@ -11,6 +11,8 @@
 - 光: 顔・髪・服それぞれの明るさの傾きから、光の来る向き（画面の上で何度か）。部位ごとの向きのずれ
 - 影の色温度: 部位ごとに明るい所と暗い所の色相の差（暗い所が青寄りなら負）
 - 髪: 白く飛んだ画素の割合、髪の主な色から色相が外れた画素の割合、毛の流れのそろい方（構造テンソルのコヒーレンス）
+- 背景: 四隅の明るさと彩度（white background を頼んだ絵だけ判定する）
+- 作風: タグを読む模型の realistic / photorealistic の確からしさ（写実に寄りすぎた絵を外れにする）
 """
 from __future__ import annotations
 
@@ -235,7 +237,10 @@ def light3d(src, rgb, seg, regions):
     # 影の向きの順序: 絵全体の主な光の左右（当てはまりの良さで重みづけした多数決）を決め、部位ごとに、同じ色の素材の中で
     # 光に向いた面（法線の横の成分が光の側に 0.25 以上）と背を向けた面（反対側に 0.25 以上）の明るさの中央値を比べる。
     # 背を向けた面が明るいのは、照り返しなどの別の条件が無い限り自然ではあり得ない（逆の値が order に出る）
-    wsum = sum(np.sign(np.cos(np.radians(v["deg"]))) * max(v["r2"], 0) for v in out.values())
+    # 主な光の左右も、食い違いと同じ部位（r2 >= 0.2 で光が横から来る）だけで決める。どの部位も当てはまらない柔らかい光の絵
+    # （3101、r2 0.06〜0.2、ほぼ真下を向いた腕）で左右を決め、服の左右の明るさの差 0.033 を影の逆転と取り違えた
+    wsum = sum(np.sign(np.cos(np.radians(v["deg"]))) * v["r2"] for v in out.values()
+               if v["r2"] >= 0.2 and abs(np.cos(np.radians(v["deg"]))) >= 0.5)
     order = {}
     if abs(wsum) >= 0.2:
         side = 1.0 if wsum > 0 else -1.0
@@ -324,13 +329,18 @@ def scene_light(rgb, seg, labels=None):
     # 較正: 正面から照らした素体 0.97〜0.98、逆光の素体 0.52〜0.61、検品で戻した外部の生成と手元の騎士 0.967・0.979
     contrast = hi / max(float(np.median(lum[bg])), 1e-6)
     dx = float((bx.mean() - (fx0 + fx1) / 2) / fw)
-    backlit = contrast > 1.5 and abs(dx) <= 0.5
+    dy = float((by.mean() - ys.min()) / (ys.max() - ys.min() + 1))
+    # contrast は背景の中央値で割るので、暗い背景・むらのある灰色の背景では、足元の床の照り返しや光の輪でも 1.5 を超えた
+    # （正面から照らした 2 枚で、明るい所の重心が人物の高さの 0.63・0.99）。人物の後ろの光源は人物の上半分（bg_dy 0.5 以下）にあるものだけにする。
+    # 光源の明るさ ÷ 顔の明るさでは分けない: 窓が人物に隠れて見える所が小さいと、窓の方が顔より暗く測れる
+    source = dy <= 0.5
+    backlit = contrast > 1.5 and abs(dx) <= 0.5 and source
     backlit_front = int(face_lit is not None and backlit and face_lit > 0.88)
     # 逆光なのに顔の真ん中（鼻筋など）に白い光の点がある。顔の 0.2% 以上の点を数える。
     # 較正: 下絵ありの逆光の騎士 3 枚 0.0069・0.0042・0.003（鼻筋の点）、点の無い逆光の騎士 0、外部の生成の騎士 0.0006
     backlit_spot = int(backlit and face_spot >= 0.002)
     return {"found": True, "face_lit": face_lit, "face_spot": face_spot, "backlit_spot": backlit_spot, "bg_contrast": round(contrast, 2), "backlit_front": backlit_front, "bg_dx": round(float((bx.mean() - (fx0 + fx1) / 2) / fw), 3),
-            "bg_dy": round(float((by.mean() - ys.min()) / (ys.max() - ys.min() + 1)), 3),
+            "bg_dy": round(dy, 3),
             "bg_bright": round(hi, 3), "interior": round(inside / max(hi, 1e-6), 3),
             "rim": round(float(np.percentile(lum[edge], 90)) / max(inside, 1e-6), 3)}
 
@@ -424,7 +434,145 @@ def _eye_hint(points, view, least: float = 0.5):
     return [((p[n]["x"] - ox) * k, (p[n]["y"] - oy) * k) for n in ("left_eye", "right_eye")]
 
 
-def measure(src, hair_color: str = "", points=None) -> dict:
+def background(rgb, prompt: str = ""):
+    """四隅（短い辺の 5% の正方形）の明るさと彩度。corner_lum は4隅の中央値の最も暗いもの、corner_sat は最も色づいたもの。
+    人物が隅にかかる絵もあるので、平均ではなく中央値で取る。asked_white は頼んだ言葉に white background があるか"""
+    h, w = rgb.shape[:2]
+    s = max(8, int(min(h, w) * 0.05))
+    cs = [rgb[:s, :s], rgb[:s, -s:], rgb[-s:, :s], rgb[-s:, -s:]]
+    lum = min(float(np.median(c[..., :3].mean(-1))) for c in cs)
+    sat = max(float(np.median(c[..., :3].max(-1) - c[..., :3].min(-1))) for c in cs)
+    return {"asked_white": int("white background" in prompt.lower()), "corner_lum": round(lum, 3), "corner_sat": round(sat, 3)}
+
+
+def style(tags: dict | None):
+    """写実への寄り: タグを読む模型の realistic と photorealistic の大きい方。タグが読めなければ found False"""
+    if tags is None:
+        return {"found": False}
+    return {"found": True, "realism": round(max(float(tags.get("realistic", 0)), float(tags.get("photorealistic", 0))), 3)}
+
+
+# 頼んだ言葉の「色 + 物」と、タグの模型が読んだ「色 + 物」を照合する表。物は小さく始め、タグの名前（靴は footwear）に合わせる
+COLOR_ITEMS = {"skirt": "skirt", "sweater": "sweater", "boots": "footwear", "eyes": "eyes", "hair": "hair"}
+COLORS = ("black", "white", "grey", "brown", "red", "orange", "yellow", "green", "blue", "aqua", "purple", "pink", "blonde", "silver")
+# タグに無い色の名前を、タグの色に寄せる（navy は blue skirt として読まれる）
+COLOR_ALIAS = {"navy": "blue", "gray": "grey", "cyan": "aqua", "violet": "purple", "beige": "brown", "golden": "blonde", "blond": "blonde"}
+# 頼んだ色のタグがこれ未満で、別の色のタグがこれ以上なら食い違い。白いスカートは 0.18 でしか読まれなかったので低めに置く。
+# 頼んだ色も 0.1 以上で読まれていれば、濃い茶と黒のような近い色の揺れとみなして数えない
+COLOR_ASKED_MIN = 0.1
+COLOR_OTHER_MIN = 0.15
+
+
+def asked_colors(prompt: str) -> list[tuple[str, str]]:
+    """頼んだ言葉から（色, 物）を拾う。dark / light などの前置きは外し、最後の色の語を取る"""
+    out = []
+    for part in prompt.lower().split(","):
+        words = part.replace("-", " ").split()
+        for i, w in enumerate(words):
+            if w in COLOR_ITEMS and i > 0:
+                c = COLOR_ALIAS.get(words[i - 1], words[i - 1])
+                if c in COLORS:
+                    out.append((c, w))
+    return out
+
+
+def colors(prompt: str, tags: dict | None):
+    """頼んだ色と描かれた色の食い違い。mismatch は食い違った物の数、items はその中身（頼んだ色・読めた色・確からしさ）。
+    タグが読めなければ found False。tags は閾値で絞る前のもの（0.35 で絞ると白いスカート 0.18 を落とした）"""
+    if tags is None:
+        return {"found": False}
+    items = []
+    asked = asked_colors(prompt)
+    for c, it in asked:
+        name = COLOR_ITEMS[it]
+        got = float(tags.get(f"{c} {name}", 0))
+        other = max(((float(tags.get(f"{o} {name}", 0)), o) for o in COLORS if o != c), default=(0.0, ""))
+        if got < COLOR_ASKED_MIN and other[0] >= COLOR_OTHER_MIN:
+            items.append({"item": it, "asked": c, "seen": other[1], "score": round(other[0], 3)})
+    return {"found": True, "asked": len(asked), "mismatch": len(items), "items": items}
+
+
+def hands_pose(points, prompt: str, seen: float = 0.5) -> dict:
+    """頼んだ手の姿勢（hands behind back）が描けているか。骨格の点（tools/gen/joints.py）の手首と肩・腰から測る。
+    手を後ろに回すと、手首は胴に隠れて確からしさが下がるか、腰の幅の内側に来る。見えている手首（seen 以上）が
+    腰の幅からどれだけ外へ出ているかを、肩の幅で割った値の大きい方を behind_out にする（0 なら両手とも胴の内側か隠れている）。
+    頼んでいない絵、骨格が読めない絵では None（判定しない）"""
+    low = (prompt or "").lower()
+    if "hands behind back" not in low and "arms behind back" not in low:
+        return {"asked": None, "behind_out": None}
+    if not points:
+        return {"asked": "hands behind back", "behind_out": None}
+    p = {q["name"]: q for q in points}
+    sw = abs(p["left_shoulder"]["x"] - p["right_shoulder"]["x"])
+    if sw <= 0 or min(p[k]["score"] for k in ("left_shoulder", "right_shoulder", "left_hip", "right_hip")) < seen:
+        return {"asked": "hands behind back", "behind_out": None}
+    lo, hi = sorted((p["left_hip"]["x"], p["right_hip"]["x"]))
+    outs = []
+    for s in ("left", "right"):
+        w = p[s + "_wrist"]
+        outs.append(0.0 if w["score"] < seen else max(0.0, lo - w["x"], w["x"] - hi) / sw)
+    return {"asked": "hands behind back", "behind_out": round(float(max(outs)), 3), "wrists": [round(v, 3) for v in outs]}
+
+
+ADULT_WORDS = ("adult", "woman", "women", "mature", "man ", "lady")
+
+
+def proportion(points, seg, prompt: str, seen: float = 0.3) -> dict:
+    """頭身。人物の上端（部位分けの背景でない所）から目の高さまでを頭の半分とみなし、人物の上端から下端までをその2倍で割る。
+    頭の大きさを顔の部位の幅で取ると横向きで狭くなり、目の間で取ると横向きで縮むので、縦の長さだけで測る。
+    帽子が高いと小さく出るが、外れる向き（大人を子どもと見る）は検品で戻す側なので許す。
+    目・足首の点が読めない絵（seen 未満）では None。adult は頼んだ言葉に大人の語があるか"""
+    low = " " + (prompt or "").lower() + " "
+    adult = any(w in low for w in ADULT_WORDS)
+    if not points or seg is None:
+        return {"adult": adult, "heads": None}
+    p = {q["name"]: q for q in points}
+    if min(p[k]["score"] for k in ("left_eye", "right_eye", "left_ankle", "right_ankle")) < seen:
+        return {"adult": adult, "heads": None}
+    ys = np.nonzero((np.asarray(seg) != 0).any(axis=1))[0]
+    if not len(ys):
+        return {"adult": adult, "heads": None}
+    top, bot = float(ys.min()), float(ys.max())
+    eye = (p["left_eye"]["y"] + p["right_eye"]["y"]) / 2
+    if eye <= top:
+        return {"adult": adult, "heads": None}
+    return {"adult": adult, "heads": round((bot - top) / (2 * (eye - top)), 2)}
+
+
+def hands_seen(points, seg, prompt: str) -> dict:
+    """手が見えているか。手首の点の確からしさは袖に隠れた手でも 0.5〜0.68 が出て、見えている手と分けられなかった。
+    手首の点の周り（目の間の 0.6 倍 + 20 画素の四方）の腕の肌の画素を、顔の面積で割った値の大きい方を shown にする。
+    hands behind back を頼んだ絵、骨格か部位分けが無い絵では None"""
+    low = (prompt or "").lower()
+    if "behind back" in low or not points or seg is None:
+        return {"shown": None}
+    seg = np.asarray(seg)
+    face = float((seg == 11).sum())
+    if face <= 0:
+        return {"shown": None}
+    p = {q["name"]: q for q in points}
+    r = int(0.6 * abs(p["left_eye"]["x"] - p["right_eye"]["x"]) + 20)
+    out = []
+    for s in ("left", "right"):
+        x, y = int(p[s + "_wrist"]["x"]), int(p[s + "_wrist"]["y"])
+        win = seg[max(0, y - r):y + r, max(0, x - r):x + r]
+        out.append(round(float(np.isin(win, [14, 15]).sum()) / face, 4))
+    return {"shown": max(out), "wrists": out}
+
+
+def _prompt_of(src) -> str:
+    """描いた道具が隣に置く 絵.png.json の prompt。部分を描き直した絵（-face など）は元の絵の控えを見る"""
+    p = Path(src)
+    for j in (p.with_name(p.name + ".json"), p.with_name(p.stem.rsplit("-", 1)[0] + p.suffix + ".json")):
+        try:
+            return json.loads(j.read_text(encoding="utf-8")).get("prompt", "")
+        except (OSError, ValueError):
+            continue
+    return ""
+
+
+def measure(src, hair_color: str = "", points=None, prompt: str | None = None, tags: dict | None = None) -> dict:
+    """prompt と tags は、呼ぶ側（qc.auto_check）が持っていれば渡す。タグの模型を2度走らせないため"""
     from PIL import Image
     import edit
     rgb = np.asarray(Image.open(src).convert("RGB"), dtype=np.float32) / 255.0
@@ -437,8 +585,18 @@ def measure(src, hair_color: str = "", points=None) -> dict:
     hrgb, hseg = faceform.head_view(src, rgb, seg, view)
     lm = faceform.landmarks(hrgb, hseg, L)
     face = faceform.fit(lm["points"], json.loads(faceform.TEMPLATE.read_text())["points"]) if "points" in lm and faceform.TEMPLATE.exists() else lm
+    if prompt is None:
+        prompt = _prompt_of(src)
+    if tags is None:
+        try:
+            import tagger
+            tags = tagger.read(src, 0.0)
+        except Exception:   # タグの模型が無い環境（sh tools/gen/setup.sh 前）でも、ほかの数字は出す
+            tags = None
     return {"size": list(rgb.shape[1::-1]), "eyes": eyes(hrgb, hseg, L, _eye_hint(points, view)), "face": face, "light": light3d(src, rgb, seg, regions),
-            "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "pairs": pairs(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color)}
+            "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "pairs": pairs(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color),
+            "background": background(rgb, prompt), "style": style(tags), "colors": colors(prompt, tags),
+            "pose": hands_pose(points, prompt), "body": proportion(points, seg, prompt), "hands": hands_seen(points, seg, prompt)}
 
 
 def _get(d, path):
