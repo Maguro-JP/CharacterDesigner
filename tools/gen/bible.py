@@ -360,6 +360,8 @@ def turnaround_plan(ident: str, outdir: str, seed: int = 0) -> dict:
     for k in ("clothes", "hair", "hair_color", "split", "boots_height"):
         if colors.get(k):
             cmd += [f"--{k.replace('_', '-')}", colors[k]]
+    for k in colors.get("keep", []):
+        cmd += ["--keep", k]
     g = genre(ident)
     if "--heads" not in cmd and colors.get("heads", g.get("heads")):
         cmd += ["--heads", str(colors.get("heads", g.get("heads")))]

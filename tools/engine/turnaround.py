@@ -53,6 +53,8 @@ def main(argv):
     ap.add_argument("--no-fit", action="store_true", help="体の部位の釣り合いを合わせない（写実の人形のまま）")
     ap.add_argument("--measure", help="体の部位の寸法（頭の高さを 1 とする）を JSON に書き出す先")
     ap.add_argument("--boots-height", type=float, default=0.5, help="靴の色を塗る高さ（m）。既定 0.5 は膝下までの鎧靴。短いブーツは 0.15")
+    ap.add_argument("--keep", action="append", default=[], metavar="服:above|below:高さ",
+                    help="服の型の一部だけ使う（例 female_elegantsuit01:above:0.93 で上着だけ）。型は上下が一組で、上と下を別の型から取るため")
     ap.add_argument("--split", type=float, default=0.95, help="上と下の布の色を分ける高さ（m）。裾の長い上着は下げる")
     ap.add_argument("--long-sleeves", action="store_true", help="腕を手首まで上の布の色にする（長袖の上着）")
     ap.add_argument("--width", type=int, default=832)
@@ -99,6 +101,19 @@ def main(argv):
         before = set(bpy.data.objects)
         HumanService.add_mhclo_asset(found[0], h, asset_type="Hair", subdiv_levels=0)
         hair = [o for o in bpy.data.objects if o not in before and o.type == "MESH"]
+    if a.keep:
+        import bmesh
+        for spec in a.keep:
+            name, side, z = spec.split(":")
+            for o in clothed:
+                if name.lower() not in o.name.lower():
+                    continue
+                bm = bmesh.new()
+                bm.from_mesh(o.data)
+                gone = [f for f in bm.faces if ((o.matrix_world @ f.calc_center_median()).z < float(z)) == (side == "above")]
+                bmesh.ops.delete(bm, geom=gone, context="FACES")
+                bm.to_mesh(o.data)
+                bm.free()
     if a.thickness > 0:
         # 型の布は厚みの無い 1 枚の面で、襟や裾の縁が線にしかならなかった。厚みを付けて、縁と重なりを立体にする
         for o in clothed:
@@ -179,7 +194,9 @@ def main(argv):
 
     scene = bpy.context.scene
     sun = bpy.data.lights.new("sun", "SUN")
-    sun.energy = 3.0
+    sun.energy = 2.0
+    # 光の広がりを大きくして影の境目をぼかす。強い影の境目（手の影、脚の明暗の境）を、描く模型が服の色の境目として描いた
+    sun.angle = math.radians(60)
     so = bpy.data.objects.new("sun", sun)
     scene.collection.objects.link(so)
     scene.render.engine = "CYCLES"
@@ -187,7 +204,7 @@ def main(argv):
     scene.cycles.samples = 24
     scene.view_settings.view_transform = "Standard"
     scene.world.use_nodes = False
-    scene.world.color = (0.4, 0.4, 0.4)
+    scene.world.color = (0.7, 0.7, 0.7)
     scene.render.film_transparent = True
     scene.render.resolution_x, scene.render.resolution_y = a.width, a.height
     from PIL import Image

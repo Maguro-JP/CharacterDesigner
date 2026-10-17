@@ -17,11 +17,15 @@
   "bottom": "45,45,52",
   "boots": "70,42,28",
   "words": "red jacket, black trousers, black boots",
-  "clothes": "male_casualsuit03,shoes01",
+  "clothes": "female_elegantsuit01,female_sportsuit01,shoes01",
   "hair": "short02",
   "hair_color": "210,85,42",
-  "split": "0.8",
-  "boots_height": "0.15"
+  "split": "0.88",
+  "boots_height": "0.15",
+  "keep": [
+   "female_elegantsuit01:above:0.88",
+   "female_sportsuit01:below:0.95"
+  ]
  },
  "negative": "skirt, dress, half-closed eyes, narrow eyes, child, loli, weapon, sword, extra items, mismatched shoes, different shoes, floating feet, white hair, multicolored hair, streaked hair, two-tone hair, thick eyebrows, bushy eyebrows, short sleeves, nipples, see-through, covered nipples",
  "items": [],
