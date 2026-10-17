@@ -893,7 +893,8 @@ def facts(src: str, character: str | None = None) -> dict:
     rgb = np.asarray(im)
     parts = _parts(src, im)
     person = parts > 0
-    res = {"edge_cut": edge_cut(rgb), "inventory": inventory(parts),
+    # 端の切れは人物の画素だけで数える（背景が端まである絵で、全身が収まっているのに4辺切れと出た）
+    res = {"edge_cut": edge_cut(rgb, person=person), "inventory": inventory(parts),
            "floating": floating_blobs(rgb), "seams": background_seams(rgb),
            "skin_ratio": round(float(np.isin(parts, SKIN).sum() / max(person.sum(), 1)), 3)}
     import tagger
@@ -908,6 +909,16 @@ def facts(src: str, character: str | None = None) -> dict:
         res["avoided_but_seen"] = {t: p for t, p in got.items() if t in avoid}
         words = ", ".join(x for x in (c["look"], c.get("eyes", {}).get("tags", ""), c["outfit"]) if x)
         res["asked_but_missing"] = tagger.missing(words, got) + nouns_missing(words, got, tagger.vocabulary())
+    else:
+        # 設定資料の無い絵でも、描いたときの言葉（絵の隣の <絵>.json の prompt）があれば欠けを見る。
+        # 付けないと見なかったため、ピースサイン 8/8 の欠け・剣の欠け・短パンが長ズボンになったのを拾えなかった
+        side = Path(str(src) + ".json")
+        try:
+            words = json.loads(side.read_text(encoding="utf-8")).get("prompt", "") if side.exists() else ""
+        except (OSError, ValueError):
+            words = ""
+        if words:
+            res["asked_but_missing"] = tagger.missing(words, got) + nouns_missing(words, got, tagger.vocabulary())
     return res
 
 
