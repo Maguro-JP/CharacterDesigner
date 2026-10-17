@@ -61,6 +61,7 @@ def main(argv):
             clothed += [o for o in bpy.data.objects if o not in before and o.type == "MESH"]
     rig = next(o for o in bpy.data.objects if o.type == "ARMATURE")
     human.adduct_arms(rig, 35)
+    human.relax_hands(rig)
     # 関節が可動域を超えていないかを数える（下絵の崩れは絵にそのまま残る。docs/knowledge/joints-and-motion.md）
     import rom_check
     bpy.context.view_layer.update()

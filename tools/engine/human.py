@@ -81,6 +81,22 @@ def adduct_arms(rig, degrees=35):
     bpy.context.view_layer.update()
 
 
+def relax_hands(rig, curl=12, spread=6):
+    """力を抜いて下ろした手の形: 指の関節を軽く曲げ、指どうしを少し離す。親指は浅く曲げる。
+    指をまっすぐ開いて下に垂らした人形から描くと、指が溶けて 1 枚の刃のような手になった（両手とも、描き直し 3 回でも直らなかった）"""
+    for side, sign in (("L", 1), ("R", -1)):
+        for f, k in zip(range(2, 6), (-1.5, -0.5, 0.5, 1.5)):
+            for j in range(1, 4):
+                b = rig.pose.bones[f"finger{f}-{j}.{side}"]
+                b.rotation_mode = "XYZ"
+                b.rotation_euler = (math.radians(curl), 0, math.radians(spread * k * sign) if j == 1 else 0)
+        for j in (2, 3):
+            b = rig.pose.bones[f"finger1-{j}.{side}"]
+            b.rotation_mode = "XYZ"
+            b.rotation_euler = (math.radians(curl * 0.6), 0, 0)
+    bpy.context.view_layer.update()
+
+
 def lower_arms(rig, degrees):
     """上腕の骨を Y 軸（骨の向き）で左右逆向きに回す。名前は「下ろす」だが、実際は上腕のねじれ（肩の内旋・外旋）で、
     肘の位置は動かない（rom_check で振れ 0・ねじれ = degrees と測れた）。肘から先が回って手が下がって見えるだけ。
