@@ -19,8 +19,8 @@
     "width": 0.8
    },
    "learned": {
-    "from": "animagine-xl-4.0 で言葉だけで描いた人物 40 枚（qc.heads_tall と qc.proportions、胴の長さで割った値の中央値）",
-    "heads": 6.36,
+    "from": "animagine-xl-4.0 で言葉だけで描いた人物 40 枚（qc.heads_tall と qc.proportions、胴の長さで割った値の中央値）。頭身は関節の点からあごを取る測り方で測り直した値（中央値 6.28、25〜75% は 5.79〜6.75）",
+    "heads": 6.28,
     "shoulder_width": 0.53,
     "hip_width": 0.31,
     "upper_arm": 0.53,

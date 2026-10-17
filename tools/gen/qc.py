@@ -270,13 +270,19 @@ def color_gaps(colors: list[dict], limit: float = 40.0) -> list[dict]:
 BANDS = {"眉と目": (0.10, 0.58), "口": (0.60, 0.92)}
 
 
-def heads_tall(seg: np.ndarray, rgb: np.ndarray, far: float = 40.0) -> float | None:
+def heads_tall(seg: np.ndarray, rgb: np.ndarray, far: float = 40.0, points: list[dict] | None = None) -> float | None:
     """頭身: 人物の高さ ÷ 頭の高さ（頭のてっぺんからあごまで）。
     顔の部位（11）は首の肌まで含むので、下端をあごにすると頭を 2 割ほど大きく取った（頭身 6.2 の絵を 4.7 と測った）。
     幅が細くなる所（首に変わる所）をあごにする。
     髪の膨らみの分だけ頭を大きく取るので、作画の頭身より少し小さく出る。顔が読めなければ None"""
-    fg = np.abs(rgb.astype(int) - rgb[2, 2].astype(int)).sum(2) > far
-    rows = np.nonzero(fg.sum(1) > 3)[0]
+    # 人物の上端と下端は、人物の形（背景から分けた最も大きなつながった塊）で取る。色の違いだけで取ると、背景に描かれた
+    # 文字の列（上から 11 画素目）を頭のてっぺんと取り、頭身 6 の絵を 4.1 と測った。部位分けの範囲で取ると、
+    # 髪を読み落とした絵で頭のてっぺんが顔の上端になり 12.4 と測った（頭身の実験、2026-10-17）
+    try:
+        person = _largest(figure_mask(rgb))
+    except Exception:
+        person = np.abs(rgb.astype(int) - rgb[2, 2].astype(int)).sum(2) > far
+    rows = np.nonzero(person.sum(1) > 3)[0]
     width = (seg == 11).sum(1)
     if len(rows) == 0 or width.max() < 10:
         return None
@@ -303,6 +309,12 @@ def heads_tall(seg: np.ndarray, rgb: np.ndarray, far: float = 40.0) -> float | N
         if half:
             chin = half[0]
     top, bottom = rows[0], rows[-1]
+    p = {q["name"]: q for q in points or [] if q.get("score", 0) >= 0.3}
+    if all(k in p for k in ("nose", "left_eye", "right_eye")):
+        # 関節の点があれば、あごは鼻から（目と鼻の間）の 3 倍下。目盛りを当てて目で見た 2 枚とも 3.0 倍だった。
+        # 顔の部位の幅で取ると、首の肌や襟で外れ、頭身 5.7 の絵を 4.6、6.5 の絵を 11.5 と測った
+        eye = (p["left_eye"]["y"] + p["right_eye"]["y"]) / 2
+        chin = p["nose"]["y"] + 3.0 * max(p["nose"]["y"] - eye, 1.0)
     if chin <= top:
         return None
     return round(float((bottom - top) / (chin - top)), 2)
@@ -705,7 +717,8 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
         # 2 頭身に写実の塗り、のようにジャンルに合わない組み合わせは、体と顔の釣り合いが崩れて見えた。
         # 測り方は髪の膨らみの分だけ小さく出るので、範囲の下を 0.4 広げて比べる
         try:
-            ht = heads_tall(_parts(src, im), rgb)
+            import joints
+            ht = heads_tall(_parts(src, im), rgb, points=joints.find(src))
             res["heads_tall"] = ht
             if heads_range and ht is not None and not (heads_range[0] - 0.4 <= ht <= heads_range[1]):
                 res["problems"].append({"heads_tall": ht, "range": list(heads_range)})
