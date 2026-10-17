@@ -49,5 +49,31 @@ class StyleTest(unittest.TestCase):
         self.assertEqual(paths({"style": measure.style(None)}), set())
 
 
+ASK = "1woman, long dark brown hair, green eyes, white sweater, long navy skirt, brown boots, white background"
+
+
+class ColorsTest(unittest.TestCase):
+    """頼んだ色と描かれた色の照合。タグの確からしさは、戻した2枚（w-2101・w-2102）で読めた値"""
+
+    def test_asked_colors_parsed(self):
+        self.assertEqual(measure.asked_colors(ASK), [("brown", "hair"), ("green", "eyes"), ("white", "sweater"), ("blue", "skirt"), ("brown", "boots")])
+
+    def test_white_skirt_for_navy_flagged(self):
+        c = measure.colors(ASK, {"brown hair": 0.958, "green eyes": 0.886, "white skirt": 0.18, "blue skirt": 0.001, "brown footwear": 0.028, "black footwear": 0.912})
+        self.assertIn("colors.mismatch", paths({"colors": c}))
+        self.assertEqual({i["item"] for i in c["items"]}, {"skirt", "boots"})
+
+    def test_brown_eyes_for_green_flagged(self):
+        c = measure.colors(ASK, {"brown hair": 0.929, "brown eyes": 0.889, "green eyes": 0.003, "white sweater": 0.548, "green skirt": 0.364, "brown footwear": 0.309, "black footwear": 0.638})
+        self.assertEqual({i["item"] for i in c["items"]}, {"eyes", "skirt"})   # 茶も 0.31 で読めた靴は近い色の揺れとして数えない
+
+    def test_matching_colors_pass(self):
+        c = measure.colors(ASK, {"brown hair": 0.9, "green eyes": 0.9, "white sweater": 0.6, "blue skirt": 0.5, "brown footwear": 0.5})
+        self.assertEqual(paths({"colors": c}), set())
+
+    def test_no_tags_not_judged(self):
+        self.assertEqual(paths({"colors": measure.colors(ASK, None)}), set())
+
+
 if __name__ == "__main__":
     unittest.main()

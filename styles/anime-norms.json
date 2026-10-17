@@ -90,6 +90,11 @@
    "path": "style.realism",
    "max": 0.34,
    "means": "作風が写実に寄りすぎている（タグの realistic / photorealistic が高い）。アニメ調として出せない"
+  },
+  {
+   "path": "colors.mismatch",
+   "max": 0,
+   "means": "頼んだ色と描かれた色が食い違う（navy のスカートが白、green の目が茶など。items が中身）。タグの模型が読んだ「色 + 物」で照合する"
   }
  ]
 }

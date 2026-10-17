@@ -417,6 +417,7 @@ def auto_check(src: str, prompt: str = "") -> dict:
     ok が True でも完成ではない。通す・戻すは検品担当（checker）が目で見て決める"""
     res = {"src": src, "problems": [], "unreadable": []}
     tags: dict = {}
+    all_tags: dict = {}
     # 固定の制限は、ほかの検品が落ちても必ず走らせる（scipy が無く端の切れで落ちたとき、ここまで届かなかった）
     try:
         # 固定の制限（子どもを性的に描かない）を、頼んだ言葉だけでなく描けた絵でも確かめる。
@@ -424,7 +425,9 @@ def auto_check(src: str, prompt: str = "") -> dict:
         # 絵をタグに読み、filters.fixed（言葉の判定と同じ決まり）にかける
         import filters
         import tagger
-        tags = tagger.read(src)
+        # 1回だけ読み、絞る前の確からしさは measure（頼んだ色の照合）に渡す。絞った方を固定の制限とほかの検品に使う
+        all_tags = tagger.read(src, 0.0)
+        tags = {k: v for k, v in all_tags.items() if v >= 0.35}
         # 目の範囲を描き直した絵で瞳が消え光る線だけになったのを、目の測り方が揺れて見つけたと読み通した（2026-10-16）。
         # タグは extra eyes を 0.53 で読んでいた。崩れの無い絵では 0.22〜0.30 だったので、EXTRA_EYES 以上を崩れに数える
         if tags.get("extra eyes", 0) >= EXTRA_EYES:
@@ -455,8 +458,8 @@ def auto_check(src: str, prompt: str = "") -> dict:
         if not person["found"]:
             res["unreadable"].append({"person": person})
         import measure
-        # タグは上で読んだもの（0.35 未満は落ちているが、写実の境 0.34 の判定には足りる）を渡し、模型を2度走らせない
-        m = measure.measure(src, points=points, prompt=prompt or None, tags=tags or None)
+        # タグは上で読んだもの（絞る前）を渡し、模型を2度走らせない
+        m = measure.measure(src, points=points, prompt=prompt or None, tags=all_tags or None)
         # measure が基準から外れたと出した数字（瞳の色の差、髪の白飛び、影の順序など）は全部、判定に入れる。
         # 面積比だけを見て、measure が出していた瞳の色の差 0.105（基準 0.062）を捨てて通した（目の描き直し、2026-10-14）
         if measure.NORMS.exists():
