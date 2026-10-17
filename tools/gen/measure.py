@@ -54,7 +54,9 @@ def face_mask(seg, labels):
     """顔の部位から顔だけを取る。部位分けの「顔」は首や出ている胴の肌まで含むことがある（水着の素体で頭から腰まで続いた）。
     一番上の塊を取り、上から見て幅が最も細くなる行（首のくびれ）より下を切る"""
     from scipy import ndimage
-    m = seg == labels["face"]
+    # 部位分け（segformer）は、アニメの暗い大きな目を「サングラス」と読む。顔に入れないと目の大半が顔の外に落ち、
+    # 前髪のかかる目は残りの塊が小さすぎて目が1つしか見つからなかった（目の寄りの顔、2026-10-17）
+    m = (seg == labels["face"]) | (seg == labels.get("sunglasses", -1))
     # 顔を横切る前髪の細い束で、顔が2つの塊に割れる（頭を拡大して部位分けすると束まで分かれて出た）。束の太さ程度を閉じてつなぐ
     k = max(1, int(np.sqrt(m.sum()) * 0.04))
     m = ndimage.binary_fill_holes(ndimage.binary_closing(np.pad(m, k), iterations=k)[k:-k, k:-k])
@@ -123,6 +125,13 @@ def eyes(rgb, seg, labels, hint=None):
     band[y0 + int(fh * 0.2):y0 + int(fh * 0.75), x0:x1 + 1] = True
     # 前髪は顔の部位に入らないので、目の上を髪が横切っても暗い所は肌の内側だけを見る
     area = face & band
+    if hint:
+        # 前髪が目にかかると、部位分けは目の上半分を「髪」と読み、顔の範囲から目が抜ける（目の寄りの顔、2026-10-17）。
+        # 骨格の点の目の周りは、部位の名前に関わらず目を探す範囲に入れる
+        yy, xx = np.mgrid[:face.shape[0], :face.shape[1]]
+        r = max(10.0, fw * 0.15)
+        for hx, hy in hint:
+            area |= (xx - hx) ** 2 + (yy - hy) ** 2 <= r * r
     if area.sum() < 100:
         return {"found": 0, "reason": "目の帯が読めない"}
     # まつ毛と瞳は肌の影より暗い。割合（下から 12%）だけで決めると、横からの光で影の側の肌まで目に入った。
@@ -366,6 +375,39 @@ def pairs(rgb, seg, labels):
                      "area": round(float(max(ma.sum(), mb.sum()) / min(ma.sum(), mb.sum())), 2),
                      "shape": round(float(max(sa, sb) / min(sa, sb)), 2)}
     return out
+
+
+def limbs(rgb, seg, labels):
+    """手足の影が体の形に沿っているかを測る。手足は円柱に近いので、光源が1つなら形の影の境は手足の長さに沿って走り、
+    左右の脚は同じ光を受けて同じくらい暗くなる（docs/knowledge/anatomy.md の「体の影」）。
+    across: 影の境のうち、手足の軸を 45° より大きく横切る割合（斜めの直線の境、まだらの影で増える）。
+    leg_dark_gap: 左右の脚で、暗い所の割合の差（片脚だけ暗い絵で増える）。
+    正しい手本がまだ無いので、境は判定しない値から始め、normlearn で学んで締める"""
+    from scipy import ndimage
+    lum = ndimage.gaussian_filter(rgb[..., :3].mean(-1), 2)
+    out = {}
+    for name in ("left_leg", "right_leg", "left_arm", "right_arm"):
+        m = ndimage.binary_erosion(seg == labels[name], iterations=4)   # 縁の線を数えない
+        if m.sum() < 2000:
+            continue
+        ys, xs = np.nonzero(m)
+        _, vec = np.linalg.eigh(np.cov(np.vstack([xs, ys])))
+        axis = vec[:, 1]
+        # 明暗の境は、その手足の明るい所と暗い所の中ほどに置く（肌の色の違いで固定の値がずれないように）
+        dark = (lum < (np.percentile(lum[m], 85) + np.percentile(lum[m], 15)) / 2) & m
+        d = ndimage.gaussian_filter(dark.astype(float), 3)
+        gy, gx = np.gradient(d)
+        # 暗い所の切り抜きは手足の縁でも途切れるので、縁から離れた所の境だけを数える（縁の境は必ず軸に沿う）
+        edge = ndimage.binary_erosion(m, iterations=8) & (np.hypot(gx, gy) > 0.02)
+        across = 0.0
+        if edge.sum() >= 50:
+            cos = np.abs(-gy[edge] * axis[0] + gx[edge] * axis[1]) / np.hypot(gx[edge], gy[edge])
+            across = float((cos < np.cos(np.radians(45))).mean())
+        out[name] = {"dark_frac": round(float(dark.sum() / m.sum()), 3), "across": round(across, 3)}
+    res = {"parts": out, "across_max": max((v["across"] for v in out.values()), default=None)}
+    if "left_leg" in out and "right_leg" in out:
+        res["leg_dark_gap"] = round(abs(out["left_leg"]["dark_frac"] - out["right_leg"]["dark_frac"]), 3)
+    return res
 
 
 def temperature(rgb, seg, regions):
@@ -648,7 +690,7 @@ def measure(src, hair_color: str = "", points=None, prompt: str | None = None, t
         except Exception:   # タグの模型が無い環境（sh tools/gen/setup.sh 前）でも、ほかの数字は出す
             tags = None
     return {"size": list(rgb.shape[1::-1]), "eyes": eyes(hrgb, hseg, L, _eye_hint(points, view)), "face": face, "light": light3d(src, rgb, seg, regions),
-            "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "pairs": pairs(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color),
+            "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "pairs": pairs(rgb, seg, L), "limbs": limbs(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color),
             "background": background(rgb, prompt), "style": style(tags), "colors": colors(prompt, tags),
             "pose": hands_pose(points, prompt), "body": proportion(points, seg, prompt), "hands": hands_seen(points, seg, prompt)}
 
