@@ -7,6 +7,9 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools" / "gen"))
 import measure  # noqa: E402
 
+# 共通の基準だけで試す。利用者の判定から学んだ基準（config/norms.user.json）で結果が変わらないように
+measure.USER_NORMS = Path(__file__).parent / "no-user-norms.json"
+
 ASK = "1woman, standing, hands behind back"
 
 
