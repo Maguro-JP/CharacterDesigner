@@ -232,3 +232,31 @@ class EyeHintTest(unittest.TestCase):
         import edit
         rgb, seg = self._face()
         self.assertLess(measure.eyes(rgb, seg, edit.LABELS, hint=[(66, 160), (135, 160)])["found"], 2)
+
+
+@unittest.skipUnless(HAS_SCIPY, "scipy が無い（.cache/gen/lib に入る）")
+class SpiderLegsTest(unittest.TestCase):
+    """体の下端の暗い塊で蜘蛛の脚の先を数える。地面の影（明るい灰）は数えない"""
+
+    def _legs(self, n, shadow=False):
+        import numpy as np
+        rgb = np.ones((400, 400, 3), np.float32)
+        alpha = np.zeros((400, 400), bool)
+        rgb[50:300, 150:250] = 0.1                     # 胴
+        alpha[50:300, 150:250] = True
+        for i in range(n):
+            x = 20 + i * 45
+            rgb[200:380, x:x + 12] = 0.1               # 床まで届く脚
+            alpha[200:380, x:x + 12] = True
+        if shadow:
+            rgb[370:390, 0:400] = 0.6                  # 脚の先をつなぐ地面の影
+            alpha[370:390, 0:400] = True
+            rgb[200:380, 20:380:45] = 0.1
+        return qc.spider_legs(rgb, alpha)
+
+    def test_counts_tips(self):
+        self.assertEqual(self._legs(8)["count"], 8)
+        self.assertEqual(self._legs(6)["count"], 6)
+
+    def test_light_shadow_is_not_counted(self):
+        self.assertEqual(self._legs(8, shadow=True)["count"], 8)

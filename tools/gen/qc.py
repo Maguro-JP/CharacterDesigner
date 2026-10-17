@@ -411,6 +411,26 @@ EYE_COLORS = {"blue", "red", "green", "purple", "yellow", "brown", "black", "gre
               "aqua", "white", "amber", "golden", "silver"}
 
 
+SPIDER_WORDS = ("arachne", "drider", "spider body", "spider lower body")
+
+
+def spider_legs(rgb, alpha, dark: float = 0.35, band: float = 0.08, least: int = 30) -> dict:
+    """蜘蛛の脚の数を、体の下端の帯（体の高さの band）にある暗い塊で数える。床に届く脚の先は暗い塊で、地面の影は
+    明るさ dark 以上なので外れる。検品担当が脚の先を数えた 7 枚で、6 本の 4 枚と 7 本の 1 枚は数が合い、7 本を 5 と
+    読んだのが 1 枚、影と半透明の脚がつながって 8 本を 1 と読んだのが 1 枚。2 個以下はつながったとして「読めない」。
+    前で折れて床に届かない脚は数えない（床に 6 本、前に 2 本の絵を 6 と読む）"""
+    from scipy import ndimage
+    m = alpha & (rgb.mean(-1) < dark)
+    ys = np.nonzero(m.any(1))[0]
+    if len(ys) == 0:
+        return {"readable": False, "count": None}
+    top, bot = ys.min(), ys.max()
+    b = ndimage.binary_opening(m[int(bot - (bot - top) * band):bot + 1], iterations=1)
+    lab, n = ndimage.label(b)
+    count = int((ndimage.sum(b, lab, range(1, n + 1)) > least).sum()) if n else 0
+    return {"readable": count > 2, "count": count}
+
+
 def auto_check(src: str, prompt: str = "") -> dict:
     """描いた直後に必ず走らせる検品。崩れが 1 つでも、読めない検品が 1 つでもあれば ok を False にする。
     Claude は検品を呼ばないと走らせず、描かせた絵を検品なしで次へ回した。描く道具（free_text.draw、fix.py）から毎回呼ぶ。
@@ -486,6 +506,12 @@ def auto_check(src: str, prompt: str = "") -> dict:
             res["unreadable"].append({"eyes": eye})
         elif eye["mismatch"]:
             res["problems"].append({"eyes": eye})
+        if any(w in prompt.lower() for w in SPIDER_WORDS):
+            import design
+            alpha = np.asarray(design.cut_background(im).getchannel("A")) > 0
+            # 床に届く脚の先だけを数えるので、前で折れて床に届かない脚は入らない。検品担当が 8 本と通した 1 枚を 6 と読んだ。
+            # 崩れには数えず、参考として残す（床に届かない脚を数える方法ができたら崩れに入れる）
+            res["info"] = {"spider_legs": spider_legs(rgb.astype(np.float32) / 255.0, alpha)}
         if any(w in prompt.lower() for w in NON_HUMAN_LOWER):
             legs = human_legs(points, im.height)
             if not legs["readable"]:
