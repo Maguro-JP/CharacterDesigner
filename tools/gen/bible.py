@@ -340,6 +340,8 @@ def turnaround_plan(ident: str, outdir: str, seed: int = 0) -> dict:
     for k in ("skin", "top", "bottom", "cape", "boots"):
         if colors.get(k):
             cmd += [f"--{k}", colors[k]]
+    if colors.get("long_sleeves"):
+        cmd.append("--long-sleeves")
     views = {}
     for v, (words, strength) in VIEWS.items():
         # 三面図では持ち物を持たせない（人形の手は空で、持たせると手と持ち物が崩れた）

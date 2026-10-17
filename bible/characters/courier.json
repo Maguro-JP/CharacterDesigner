@@ -11,14 +11,15 @@
   "tags": "large eyes, open eyes, bright orange eyes, clear iris, two highlights, thin eyebrows, gentle smile",
   "notes": "明るい性格なので大きく開いた目。半目・細目にしない"
  },
- "outfit": "red jacket, closed zipped jacket, black trousers, black ankle boots",
+ "outfit": "red jacket, long sleeves, closed zipped jacket, black trousers, black ankle boots",
  "turnaround": {
   "top": "190,40,35",
   "bottom": "25,25,28",
   "boots": "25,25,28",
-  "words": "red jacket, black trousers, black boots"
+  "words": "red jacket, black trousers, black boots",
+  "long_sleeves": true
  },
- "negative": "skirt, dress, half-closed eyes, narrow eyes, child, loli, weapon, sword, extra items, mismatched shoes, different shoes, floating feet",
+ "negative": "skirt, dress, half-closed eyes, narrow eyes, child, loli, weapon, sword, extra items, mismatched shoes, different shoes, floating feet, white hair, multicolored hair, streaked hair, two-tone hair, thick eyebrows, bushy eyebrows, short sleeves",
  "items": [],
  "images": {},
  "outfit_parts": {

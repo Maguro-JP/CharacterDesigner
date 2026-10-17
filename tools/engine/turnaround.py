@@ -38,6 +38,7 @@ def main(argv):
     ap.add_argument("--bottom", type=rgb, default=(40, 40, 45), help="腰から下の布の色")
     ap.add_argument("--cape", type=rgb, help="背中のマントの色。省くとマントを付けない")
     ap.add_argument("--boots", type=rgb, help="膝から下の色（鎧靴など）。省くと下の布の色")
+    ap.add_argument("--long-sleeves", action="store_true", help="腕を手首まで上の布の色にする（長袖の上着）")
     ap.add_argument("--width", type=int, default=832)
     ap.add_argument("--height", type=int, default=1216)
     a = ap.parse_args(argv)
@@ -75,6 +76,25 @@ def main(argv):
             if (o.matrix_world @ f.center).z < 0.95:
                 f.material_index = len(o.data.materials) - 1
 
+    if a.long_sleeves:
+        # 人形の服は半袖で、長袖の上着を頼んでも半袖に描かれた（赤いジャケットが半袖になった）。
+        # 肌の面のうち、上腕と前腕の骨に主に付いている面を上の布の色にする
+        # 頂点の組には骨の重みのほかに body・Right などの重み 1 の目印の組があるので、骨の名前の組だけで比べる
+        bones = {b.name for b in rig.data.bones}
+        arm = {g.index for g in h.vertex_groups if g.name.lower().startswith(("upperarm", "lowerarm"))}
+        bone_ids = {g.index for g in h.vertex_groups if g.name in bones}
+
+        def main_bone(v):
+            gs = [g for g in h.data.vertices[v].groups if g.group in bone_ids]
+            return max(gs, key=lambda g: g.weight).group if gs else None
+        h.data.materials.append(top)
+        idx = len(h.data.materials) - 1
+        n = 0
+        for f in h.data.polygons:
+            if all(main_bone(v) in arm for v in f.vertices):
+                f.material_index = idx
+                n += 1
+        print("長袖にした面:", n)
     if a.boots:
         boots = tinted("boots", a.boots)
         for o in clothed:
