@@ -675,8 +675,8 @@ def main():
     d.add_argument("--n", type=int, default=1)
     d.add_argument("--style", default="anime", choices=list(STYLES))
     d.add_argument("--steps", type=int, default=6)
-    d.add_argument("--width", type=int, default=512)
-    d.add_argument("--height", type=int, default=768)
+    d.add_argument("--width", type=int)
+    d.add_argument("--height", type=int)
     d.add_argument("--kind", default="human", choices=["human", "creature"])
     r = sub.add_parser("restyle")
     r.add_argument("src")
@@ -713,7 +713,9 @@ def main():
     elif a.cmd == "sheet":
         sheet(a.cast, a.outdir, a.out, a.thumb)
     elif a.cmd == "draw":
-        draw(a.out, a.prompt, a.seed, a.n, a.style, a.steps, a.width, a.height, a.kind)
+        # 四足は縦長の画面だと立ち上がって脚が欠ける。動物は横長を既定にする
+        w, h = (768, 512) if a.kind == "creature" else (512, 768)
+        draw(a.out, a.prompt, a.seed, a.n, a.style, a.steps, a.width or w, a.height or h, a.kind)
     elif a.cmd == "restyle":
         restyle(a.src, a.out, a.style, a.strength, a.steps, a.prompt)
     else:
