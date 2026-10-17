@@ -36,7 +36,13 @@ if __name__ == "__main__":
     unittest.main()
 
 
-@unittest.skipIf(qc is None, "numpy が無い")
+try:
+    import scipy  # noqa: F401
+except ImportError:  # scipy は .cache/gen/lib にだけある
+    scipy = None
+
+
+@unittest.skipIf(qc is None or scipy is None, "numpy か scipy が無い")
 class BackgroundTest(unittest.TestCase):
     def test_clutter_and_part_color(self):
         import numpy as np
@@ -45,6 +51,8 @@ class BackgroundTest(unittest.TestCase):
         seg[100:250, 80:120] = 4
         rgb[100:250, 80:120] = (36, 48, 79)
         self.assertEqual(qc.background_clutter(rgb, seg), 0.0)
-        rgb[10:290:20, 5:195:20] = (250, 220, 0)                       # 点の模様
+        for y in range(10, 290, 20):                                     # 点の模様（4 画素角の点）
+            for x in range(5, 195, 20):
+                rgb[y:y + 4, x:x + 4] = (250, 220, 0)
         self.assertGreater(qc.background_clutter(rgb, seg), 0.005)
         self.assertEqual(qc.part_color(rgb, seg, [4]), [36.0, 48.0, 79.0])
