@@ -876,6 +876,14 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         # 頼みごとか描く言葉のどちらかが要る。描かない頼みごとは受け付けの時点でも止める（核でももう一度止める）
         if body.character:
             import bible
+            # 設定資料集の人物を絵にするのは、キャラデザモードで設計がそろってから（bible.require_design）。
+            # 人が参考画像を付けたときはイラストレーターモードで、そろっていなくても描く
+            try:
+                bible.require_design(body.character, _ref_path(body.ref) if body.ref else None)
+            except bible.DesignNotReady as e:
+                raise HTTPException(409, str(e))
+            except SystemExit as e:
+                raise HTTPException(404, str(e))
             try:
                 pos, neg = bible.prompt(body.character, scene=body.scene, pose=body.act, outfit=body.outfit or None,
                                         world=body.world or None, location=body.location or None)

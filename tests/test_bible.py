@@ -33,7 +33,7 @@ class Bible(unittest.TestCase):
         self.assertEqual(cmd[cmd.index("--cape") + 1], "110,25,30")
         self.assertEqual(cmd[cmd.index("--skin") + 1], bible.BASE_COLORS["skin"])   # 設定に無い色は既定
         self.assertNotIn("--boots", cmd)
-        self.assertEqual(set(plan["views"]), {"front", "side", "back"})
+        self.assertEqual(set(plan["views"]), {"front", "side", "back", "right"})
         for v, kw in plan["views"].items():
             self.assertEqual(kw["items"], [])                     # 三面図では持ち物を持たせない
             self.assertEqual(kw["base"], f"/tmp/out/base-{v}.png")
@@ -120,3 +120,122 @@ class Bible(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def fill_design(bible, ident):
+    """資料の 8 区分を全部そろえた状態にする（試験用）"""
+    c = bible.load("characters", ident)
+    c.update(age="28", height="168cm・7.5 頭身", role="r", personality="p", backstory="b", eyes={"tags": "x"},
+             expressions=[{"id": "neutral"}], outfit_parts={"top": "coat"}, colors={"髪": "#000000"}, rules="r", negative="n")
+    roles = ["view-front", "view-back", "view-left", "view-right", "pose-1", "pose-2", "pose-3", "detail-eyes", "detail-hair",
+             "detail-outfit-coat"] + [f"expr-{i}" for i in range(8)] + ["hairstyle-1", "hairstyle-2"]
+    c["images"] = {r: "x.jpg" for r in roles}
+    bible.save("characters", c)
+
+
+class DesignModeTest(unittest.TestCase):
+    """AI が人物を絵にするのは、キャラデザモードで設計がそろってから。人の参考資料があればイラストレーターモードで描ける"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.old = bible.BIBLE
+        bible.BIBLE = Path(self.tmp.name)
+        bible.new_character("sera", "セラ", "adult woman, dark green hair", "long navy coat")
+
+    def tearDown(self):
+        bible.BIBLE = self.old
+        self.tmp.cleanup()
+
+    def test_new_character_is_not_ready(self):
+        st = bible.design_status("sera")
+        self.assertFalse(st["ready"])
+        self.assertTrue(any("目" in m for m in st["missing"]))
+        with self.assertRaises(bible.DesignNotReady):
+            bible.require_design("sera")
+
+    def test_reference_allows_illustrator_mode(self):
+        ref = Path(self.tmp.name) / "ref.png"
+        ref.write_bytes(b"x")
+        self.assertEqual(bible.require_design("sera", str(ref)), "illustrator")
+        with self.assertRaises(bible.DesignNotReady):
+            bible.require_design("sera", str(ref) + ".missing")
+
+    def test_ready_after_design_and_approved_sheets(self):
+        fill_design(bible, "sera")
+        self.assertTrue(bible.design_status("sera")["ready"])
+        self.assertEqual(bible.require_design("sera"), "design")
+
+
+class DesignStepsSkipGateTest(unittest.TestCase):
+    """三面図はキャラデザモードの手順なので、設計がそろっていなくても描ける（門を通らない）"""
+
+    def test_turnaround_draws_while_designing(self):
+        from unittest import mock
+        tmp = tempfile.TemporaryDirectory()
+        old = bible.BIBLE
+        bible.BIBLE = Path(tmp.name)
+        try:
+            bible.new_character("sera", "セラ", "adult woman", "coat")
+            plan = {"base_cmd": ["true"], "views": {"front": {"base": "b.png", "strength": 0.6, "seed": 0}}}
+            seen = []
+
+            def fake_draw(ident, out, count, seed, **kw):
+                # 本物の draw と同じく、designing が無ければ門を通す
+                if not kw.get("designing"):
+                    bible.require_design(ident, kw.get("reference"))
+                seen.append(kw)
+                return ["try-0.png"]
+            with mock.patch.object(bible, "turnaround_plan", return_value=plan), \
+                    mock.patch.object(bible, "draw", side_effect=fake_draw):
+                files = bible.turnaround("sera", tmp.name, count=1)
+            self.assertEqual(len(files["front"]), 1)
+            self.assertTrue(seen[0]["designing"])
+        finally:
+            bible.BIBLE = old
+            tmp.cleanup()
+
+
+class CharSheetTest(unittest.TestCase):
+    """資料の 8 区分。足りない区分を出し、書き出しでは無い所を「未作成」と書く"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.old = bible.BIBLE
+        bible.BIBLE = Path(self.tmp.name)
+        bible.new_character("sera", "セラ", "adult woman", "coat")
+
+    def tearDown(self):
+        bible.BIBLE = self.old
+        self.tmp.cleanup()
+
+    def test_eight_sections_and_missing(self):
+        import charsheet
+        st = charsheet.status("sera")
+        self.assertEqual(len(st["sections"]), 8)
+        self.assertFalse(st["ready"])
+        self.assertTrue(any("正面" in m for m in st["sections"]["views"]["missing"]))
+
+    def test_items_need_their_own_closeups(self):
+        import charsheet
+        fill_design(bible, "sera")
+        self.assertTrue(charsheet.status("sera")["ready"])
+        bible.add_item("sera", "ledger", "帳面", "book")
+        self.assertFalse(charsheet.status("sera")["ready"])
+
+    def test_render_marks_missing(self):
+        import charsheet
+        out = Path(self.tmp.name) / "s.html"
+        r = charsheet.render("sera", str(out))
+        self.assertFalse(r["ready"])
+        self.assertIn("未作成", out.read_text(encoding="utf-8"))
+
+
+class VariantsPlanTest(unittest.TestCase):
+    def test_default_poses_and_no_default_hairstyles(self):
+        import bible
+        poses = bible.variants_plan("archivist", "pose")
+        self.assertGreaterEqual(len(poses), 3)
+        self.assertTrue(all(p["tags"] for p in poses))
+        self.assertIsInstance(bible.variants_plan("archivist", "hairstyle"), list)
+        with self.assertRaises(ValueError):
+            bible.variants_plan("archivist", "hat")

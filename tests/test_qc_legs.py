@@ -232,3 +232,73 @@ class EyeHintTest(unittest.TestCase):
         import edit
         rgb, seg = self._face()
         self.assertLess(measure.eyes(rgb, seg, edit.LABELS, hint=[(66, 160), (135, 160)])["found"], 2)
+
+
+@unittest.skipUnless(HAS_SCIPY, "scipy が無い（.cache/gen/lib に入る）")
+class SpiderLegsTest(unittest.TestCase):
+    """体の下端の暗い塊で蜘蛛の脚の先を数える。地面の影（明るい灰）は数えない"""
+
+    def _legs(self, n, shadow=False):
+        import numpy as np
+        rgb = np.ones((400, 400, 3), np.float32)
+        alpha = np.zeros((400, 400), bool)
+        rgb[50:300, 150:250] = 0.1                     # 胴
+        alpha[50:300, 150:250] = True
+        for i in range(n):
+            x = 20 + i * 45
+            rgb[200:380, x:x + 12] = 0.1               # 床まで届く脚
+            alpha[200:380, x:x + 12] = True
+        if shadow:
+            rgb[370:390, 0:400] = 0.6                  # 脚の先をつなぐ地面の影
+            alpha[370:390, 0:400] = True
+            rgb[200:380, 20:380:45] = 0.1
+        return qc.spider_legs(rgb, alpha)
+
+    def test_counts_tips(self):
+        self.assertEqual(self._legs(8)["count"], 8)
+        self.assertEqual(self._legs(6)["count"], 6)
+
+    def test_light_shadow_is_not_counted(self):
+        self.assertEqual(self._legs(8, shadow=True)["count"], 8)
+
+
+class HandBoxTest(unittest.TestCase):
+    """手の枠と回す角度（qc.hand_boxes）。hands.measure は偽物に替え、手の模型を使わない"""
+
+    def arm(self, elbow, wrist, score=0.9, side="left"):
+        return [{"name": f"{side}_elbow", "x": elbow[0], "y": elbow[1], "score": 0.9},
+                {"name": f"{side}_wrist", "x": wrist[0], "y": wrist[1], "score": score}]
+
+    def test_hanging_arm_box_below_wrist_turned_upside_down(self):
+        b = qc.hand_boxes(self.arm((100, 100), (100, 200)))[0]
+        # 前腕 100、手の中心は手首から 35 下、枠は 60 四方。指先が下なので 180 度回す
+        self.assertEqual(b["box"], (70, 205, 130, 265))
+        self.assertEqual(b["angle"], 180)
+
+    def test_arm_pointing_right_turns_left_90(self):
+        b = qc.hand_boxes(self.arm((0, 0), (100, 0)))[0]
+        self.assertEqual(b["box"], (105, -30, 165, 30))
+        self.assertEqual(b["angle"], 90)
+
+    def test_arm_pointing_left_and_up(self):
+        self.assertEqual(qc.hand_boxes(self.arm((100, 0), (0, 0)))[0]["angle"], 270)
+        self.assertEqual(qc.hand_boxes(self.arm((0, 100), (0, 0)))[0]["angle"], 0)
+
+    def test_unsure_wrist_is_skipped(self):
+        self.assertEqual(qc.hand_boxes(self.arm((0, 0), (0, 100), score=0.4)), [])
+
+    def test_hands_auto_bad_and_unreadable(self):
+        from unittest import mock
+        from PIL import Image
+        import hands
+        im = Image.new("RGB", (300, 300), (255, 255, 255))
+        seen = []
+
+        def fake(crop):
+            seen.append(crop.size)
+            return {}, ["index の手の色 0.4（0.85〜1.01）"], None
+        with mock.patch.object(hands, "measure", fake):
+            r = qc.hands_auto(self.arm((100, 50), (100, 150)) + self.arm((200, 50), (200, 150), side="right"), im)
+        self.assertEqual(seen, [(60, 60), (60, 60)])
+        self.assertTrue(r["readable"] and r["bad"])
+        self.assertFalse(qc.hands_auto([], im)["readable"])

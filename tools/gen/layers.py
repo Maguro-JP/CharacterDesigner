@@ -180,8 +180,10 @@ def place(char, height=0.8, x=0.5, foot=0.93):
 
 # ---- 2. 背景 ----
 
-def background(scene, seed, steps=28):
-    """人を描かない場面の絵を描く。人物が混ざったら seed を変えて描き直す（最大 3 回）。"""
+def background(scene, seed, steps=28, size=SIZE, negative=BG_NEGATIVE, check=None):
+    """人を描かない場面の絵を描く。人物が混ざったら seed を変えて描き直す（最大 3 回）。
+    size・negative・check は背景だけを作るモード（background.py）が横長や別の検品で使う。省くと合成用の縦長と部位分けの検品"""
+    check = check or has_person
     import torch
     import design
     import people
@@ -190,15 +192,15 @@ def background(scene, seed, steps=28):
     prompt = "no humans, scenery, detailed background, eye level, horizon in the middle, " + scene + ", " + people.QUALITY
     for k in range(3):
         t = time.time()
-        pe, ne, pp, np_ = design.encode_xl(pipe, prompt, BG_NEGATIVE)
+        pe, ne, pp, np_ = design.encode_xl(pipe, prompt, negative)
         kw = {}
         if people._IP:
             pipe.set_ip_adapter_scale(0.0)
             kw["ip_adapter_image"] = Image.new("RGB", (224, 224), "white")
         im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
-                  num_inference_steps=steps, guidance_scale=6.0, width=SIZE[0], height=SIZE[1],
+                  num_inference_steps=steps, guidance_scale=6.0, width=size[0], height=size[1],
                   generator=torch.Generator().manual_seed(seed + k * 100), **kw).images[0]
-        people_found = has_person(im)
+        people_found = check(im)
         print(f"背景: {time.time() - t:.0f} 秒 seed {seed + k * 100} " + ("人が混ざった" if people_found else "通った"), flush=True)
         if not people_found:
             return im
@@ -299,16 +301,28 @@ def depth_map(bg):
         _DEPTH = pipeline("depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf", device=device.name())
     d = _DEPTH(bg)["predicted_depth"]
     d = d.squeeze().numpy() if hasattr(d, "numpy") else np.asarray(d)
-    _DEPTH_CACHE[key] = np.asarray(Image.fromarray(d.astype("float32")).resize(SIZE, Image.BILINEAR))
+    _DEPTH_CACHE[key] = np.asarray(Image.fromarray(d.astype("float32")).resize(bg.size, Image.BILINEAR))
     return _DEPTH_CACHE[key]
 
 
 def horizon(bg):
-    """地平線の高さ（画面の上からの割合）。空は奥行きがほぼ 0 なので、最も遠い所（最大の 0.3% 未満）が行の半分を超える一番下の行。
-    見えている水平線と、3枚の背景で画面の 3% 以内で合った。空が見えない背景は None（大きさは --height で決める）"""
+    """地平線の高さ（画面の上からの割合）。奥行きの模型の値（近いほど大きい）は、平らな地面では画面の行に対しておよそ
+    一直線に変わり、地平線で 0 になる。画面の下 4 分の 1 の中ほどの列から直線を引き、0 になる行を地平線とする。
+    前は「空が行の半分を超える一番下の行」で測っていたが、城のように建物が空を隠す背景では建物の上の空の端（0.10〜0.13）を
+    地平線と読み、目の高さ（0.65〜0.80）から大きく外れた（2026-10-17、城門・大広間の 4 枚。新しい測り方は検品担当が
+    絵で見た目の高さと 0.07 以内で合った）。地面が読めない（直線が下へ向かって近づかない）ときだけ前の測り方を使う。
+    どちらでも読めなければ None（大きさは --height で決める）"""
     d = depth_map(bg)
+    h, w = d.shape
+    med = np.median(d[:, w // 4:3 * w // 4], axis=1)
+    ys = np.arange(int(h * 0.75), h)
+    k, b = np.polyfit(ys, med[ys], 1)
+    if k > 0:
+        hz = float(-b / k) / h
+        if 0.05 < hz < 0.98:
+            return hz
     rows = np.where((d < d.max() * 0.003).mean(axis=1) > 0.5)[0]
-    return float(rows.max()) / SIZE[1] if len(rows) else None
+    return float(rows.max()) / h if len(rows) else None
 
 
 def perspective_height(horizon_y, foot, eye=0.93):
@@ -583,7 +597,10 @@ def match_colors(char_layer, bg, light=None, amount=0.35, tint=0.15):
     a = np.asarray(char_layer.getchannel("A")) > 128
     if not a.any():
         return char_layer
-    near = (np.asarray(Image.fromarray(a.astype("uint8") * 255).filter(ImageFilter.MaxFilter(151))) > 0) & ~a
+    # 人物の周り 75 画素の帯。PIL の MaxFilter(151) は 1 人 約 30 秒かかった。scipy の最大値フィルターは縦横に分けて
+    # 計算するので 0.006 秒で、結果は画素単位で同じ（1216x832 の絵で確かめた）
+    from scipy import ndimage
+    near = ndimage.maximum_filter(a, size=151, mode="nearest") & ~a
     ycc = np.asarray(char_layer.convert("RGB").convert("YCbCr")).astype(float)
     gy = np.asarray(bg.convert("RGB").convert("YCbCr")).astype(float)[..., 0]
     y = ycc[..., 0]

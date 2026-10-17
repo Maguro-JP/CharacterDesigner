@@ -1,6 +1,6 @@
 {
  "title": "人の素体のレパートリー（男女）",
- "source": "描き分けの部品（tools/gen/traits.json）を素体で確かめ、効いたものを library/patterns.json に保存するための設定集",
+ "source": "描き分けの部品（tools/gen/traits.json）を素体で確かめ、効いたものを casts/patterns.json に保存するための設定集",
  "common": "anime style",
  "n": 1,
  "characters": [

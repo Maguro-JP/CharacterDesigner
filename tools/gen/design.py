@@ -25,6 +25,10 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+# 描く部品（torch、diffusers）は .cache/gen/lib にある。PYTHONPATH を付け忘れると torch が読めず止まったので、自分で通す
+_LIB = ROOT / ".cache" / "gen" / "lib"
+if _LIB.exists() and str(_LIB) not in sys.path:
+    sys.path.append(str(_LIB))
 os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))
 # 模型は既定で外から取りに行かない。呼んだ関数が手元に無い模型を指していると、数 GB を取りに行って
 # ディスクを埋めた（2026-10-14 に 2 回）。初めて取るときだけ CD_FETCH=1 を付けて動かす
@@ -82,6 +86,14 @@ XL_ITEM_SUFFIX = (", single object, still life, centered, full view, 2d game ite
                   "clean lineart, flat colors, white background")
 XL_ITEM_NEGATIVE = ("eyes, face, mouth, creature, animal, character, person, legs, feet, arms, hands, wings, tail, "
                     "multiple objects, cropped, text, watermark")
+# 手足の無い塊の生き物（幼年期のスライム形態など）。生き物の決まり文句（creature design、full body、feral）で
+# 描くと、「腕なし、脚なし」と書いても腕・脚・翼・尾が付いた。物の決まり文句なら塊になったが、物の打ち消しに
+# 目と顔があるので顔と胸の印が出なかった（DigiMon の幼年期、2026-10-06）。kind: "blob" は物の文で形を取り、
+# 顔は打ち消さず、手足だけを打ち消す
+XL_BLOB_SUFFIX = (", single round creature, full view, centered, 2d game monster illustration, cel shading, "
+                  "clean lineart, flat colors, white background")
+XL_BLOB_NEGATIVE = ("legs, feet, arms, hands, fingers, claws, wings, tail, neck, standing, sitting, "
+                    "multiple creatures, cropped, text, watermark")
 # 性別。指定が無いとアニメの人物向けのモデルは少女を描き、男性の職まで女性になった。
 # 「1boy」だけでは中性的な美形に寄った（学んだ絵に多い）ので、男性は体と顔の骨格から書く
 GENDER = {"male": ("1boy, male focus, adult man, broad shoulders, strong jawline, thick neck, short hair, masculine, ",
@@ -255,6 +267,9 @@ def load_cast(path):
         elif c.get("kind") == "item":
             # 物には生き物の決まり（目、顔つき）も人の決まりも付けない。item_common だけ
             common = cast.get("item_common", "")
+        elif c.get("kind") == "blob":
+            # 塊の生き物に creature_common を付けると手足を呼ぶ言葉が混ざるので、作風だけの blob_common を使う
+            common = cast.get("blob_common", "")
         else:
             common = cast.get("common", "")
         c["full_prompt"] = c["prompt"] + (", " + common if common else "")
@@ -264,17 +279,17 @@ def load_cast(path):
 TRAITS = json.loads((Path(__file__).parent / "traits.json").read_text(encoding="utf-8"))
 
 
-PATTERNS = json.loads((ROOT / "library" / "patterns.json").read_text(encoding="utf-8"))["patterns"]
+PATTERNS = json.loads((ROOT / "casts" / "patterns.json").read_text(encoding="utf-8"))["patterns"]
 
 
 def trait_texts(c):
-    """設定集の traits（"分類:種類" の並び）と patterns（library/patterns.json の名前）を、指示文と打ち消しの言葉にする。
+    """設定集の traits（"分類:種類" の並び）と patterns（casts/patterns.json の名前）を、指示文と打ち消しの言葉にする。
     知らない種類や名前は止める（黙って無視すると、効かなかったのか書き間違いなのか分からない）。"""
     ps, ns = [], []
     traits = list(c.get("traits", []))
     for name in c.get("patterns", []):
         if name not in PATTERNS:
-            raise SystemExit(f"{c.get('id')}: patterns の {name} が library/patterns.json に無い")
+            raise SystemExit(f"{c.get('id')}: patterns の {name} が casts/patterns.json に無い")
         traits += PATTERNS[name].get("traits", [])
         if PATTERNS[name].get("prompt"):
             ps.append(PATTERNS[name]["prompt"])
@@ -300,6 +315,9 @@ def full_texts(c, style="anime"):
     if c.get("kind") == "item":
         neg = ", ".join(x for x in (XL_ITEM_NEGATIVE, c.get("negative", "")) if x)
         return c["full_prompt"] + XL_ITEM_SUFFIX, neg
+    if c.get("kind") == "blob":
+        neg = ", ".join(x for x in (XL_BLOB_NEGATIVE, c.get("negative", "")) if x)
+        return c["full_prompt"] + XL_BLOB_SUFFIX, neg
     if c.get("kind") == "creature" and style in XL:
         neg = ", ".join(x for x in (XL_CREATURE_NEGATIVE, c.get("negative", "")) if x)
         return c["full_prompt"] + XL_CREATURE_SUFFIX, neg
@@ -353,7 +371,7 @@ def cast_paths(cast, outdir, style=None):
     base = style or cast.get("style", "anime")
     for c in cast["characters"]:
         seed, n = c.get("seed", 7), c.get("n", cast.get("n", 2))
-        styles = c.get("styles") or (CREATURE_STYLES if c.get("kind") in ("creature", "item")
+        styles = c.get("styles") or (CREATURE_STYLES if c.get("kind") in ("creature", "item", "blob")
                                      else ["xl"] if c.get("age") in OLD_AGES else [base])
         rejected = c.get("rejected", {})
         shots = []
@@ -388,7 +406,7 @@ def batch(cast_path, outdir, style, steps, width, height, kind=None):
     cast = load_cast(cast_path)
     Path(outdir).mkdir(parents=True, exist_ok=True)
     todo = [(c, p, seed, st) for c, shots in cast_paths(cast, outdir, style) for p, seed, st in shots
-            if not p.exists() and (kind is None or (c.get("kind") == "creature") == (kind == "creature"))]
+            if not p.exists() and (kind is None or (c.get("kind") in ("creature", "blob")) == (kind == "creature"))]
     print(f"{len(todo)} 枚を描く")
     # 下絵（init_dir/<id>.png）がある人物は、その形の上に描く（img2img）。文章だけでは手足の数や
     # 「手足の無い塊」を守らせきれなかった。strength が小さいほど下絵の形が残る
@@ -442,7 +460,7 @@ def batch(cast_path, outdir, style, steps, width, height, kind=None):
             meta = {"name": c.get("name", c["id"]), "prompt": text, "negative": neg, "seed": seed, "style": st,
                     "model": STYLES[st], "steps": steps}
             note = ""
-            if c.get("kind") not in ("creature", "item"):
+            if c.get("kind") not in ("creature", "item", "blob"):
                 meta["inspect"], meta["marks"] = check_person(p)
                 note = "  直す所: " + "、".join(meta["inspect"]) if meta["inspect"] else "  外れなし"
             Path(str(p) + ".json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")

@@ -20,8 +20,8 @@ import bpy
 sys.path.insert(0, str(Path(__file__).parent))
 import human  # noqa: E402  setup と腕を下ろす処理を使い回す
 
-# 体型の型は library/body-types.json に持つ（macro は全身の数字、targets は部位ごとの形の差分）
-TYPES = Path(__file__).resolve().parents[2] / "library" / "body-types.json"
+# 体型の型は casts/body-types.json に持つ（macro は全身の数字、targets は部位ごとの形の差分）
+TYPES = Path(__file__).resolve().parents[2] / "casts" / "body-types.json"
 BODIES = json.loads(TYPES.read_text(encoding="utf-8"))["female"]
 TARGETS = Path.home() / ".config/blender/4.2/extensions/user_default/mpfb/data/targets"
 VIEWS = {"front": 0, "side": 90, "back": 180}

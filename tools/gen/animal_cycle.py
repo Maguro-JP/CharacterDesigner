@@ -65,6 +65,50 @@ ANIMALS = [
     ("yak", "a yak, four legs, long shaggy black hair, curved horns"),
 ]
 
+# 動物の類。前の日と似た動物が続くと学びが少ないので、いちばん長く描いていない類から選ぶ
+GROUP = {
+    "capybara": "mammal",
+    "axolotl": "amphibian",
+    "pangolin": "mammal",
+    "toucan": "bird",
+    "chameleon": "reptile",
+    "snow leopard": "mammal",
+    "manta ray": "fish",
+    "tapir": "mammal",
+    "hummingbird": "bird",
+    "armadillo": "mammal",
+    "seahorse": "fish",
+    "okapi": "mammal",
+    "puffin": "bird",
+    "quokka": "mammal",
+    "shoebill": "bird",
+    "fennec fox": "mammal",
+    "hippo": "mammal",
+    "koi": "fish",
+    "sloth": "mammal",
+    "moose": "mammal",
+    "kiwi": "bird",
+    "red-crowned crane": "bird",
+    "platypus": "mammal",
+    "meerkat": "mammal",
+    "jellyfish": "invertebrate",
+    "narwhal": "mammal",
+    "peacock": "bird",
+    "raccoon dog": "mammal",
+    "mandrill": "mammal",
+    "lynx": "mammal",
+    "stag beetle": "insect",
+    "pufferfish": "fish",
+    "bison": "mammal",
+    "owl butterfly": "insect",
+    "sea turtle": "reptile",
+    "serval": "mammal",
+    "pelican": "bird",
+    "anteater": "mammal",
+    "gecko": "reptile",
+    "yak": "mammal",
+}
+
 # 簡単なものから本格的なものへ
 STYLES = [
     ("00-yurukyara", "yuru-chara mascot, super simple round shapes, thick outline, flat colors, cute"),
@@ -102,7 +146,9 @@ def today_animal(today):
         left = [n for n, _ in ANIMALS if n not in used]
         if not left:
             raise SystemExit("ANIMALS を描き尽くした。新しい動物を足す")
-        days[today] = left[0]
+        # 類ごとに最後に描いた日の順。まだ描いていない類が先、次に古い類
+        last = {GROUP[n]: d for d, n in sorted(days.items())}
+        days[today] = min(left, key=lambda n: (last.get(GROUP[n], ""), ANIMALS.index((n, dict(ANIMALS)[n]))))
         DONE.write_text(json.dumps(days, indent=1, ensure_ascii=False) + "\n")
     name = days[today]
     return name, dict(ANIMALS)[name]

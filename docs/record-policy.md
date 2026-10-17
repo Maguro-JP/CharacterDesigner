@@ -16,7 +16,7 @@
 | 再現に要る事実 | 題材、模型、プロンプト、種、設定値、選んだ絵と選んだ理由（1行） | 絵の隣の `.txt`、`library/` |
 | 決めたこと | 何をどうするか、理由、選ばなかった案、触る場所 | `docs/knowledge/decisions.md` |
 | 分かったこと | 「AI に描かせるとこうなった」「この処理で良くなった」 | `docs/knowledge/ai-drawing-notes.md` ほか `docs/knowledge/` |
-| 結果の数字 | 何件、何画素、何秒、何バイト | PR の説明、`docs/progress/` |
+| 結果の数字 | 何件、何画素、何秒、何バイト | PR の説明、`library/progress/` |
 | 失敗と次からの手順 | 場面・起きたこと・判定の誤り・次から | `.claude/skills/lessons/LESSONS.md` |
 | 出典 | 参考にした作品名、記事、ページ | `docs/references.md` |
 

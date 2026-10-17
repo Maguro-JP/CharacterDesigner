@@ -1,22 +1,29 @@
 #!/bin/sh
-# 絵を見せる前の関所。SendUserFile で送る絵（png/jpg/webp）には、検品担当（checker）が「通す」と返したときに
-# 置く印 <絵>.pass が要る。検品は工程の1つで、検品前の絵を見せるときは印 <絵>.preview でも送れる（完成は .pass のもの）。印が無ければ送らせない（検品を通さずに見せた絵で、目と髪の崩れを見落としたため）。
+# 絵を見せるときの書き分け。検品は描く流れの 1 つの工程で、見せる門ではない（落ちた絵も、なぜ落ちたかを見てもらうために見せる）。
+#   <絵>.pass がある絵  完成（検品を通った）として送ってよい
+#   <絵>.preview がある絵  検品前の途中の絵として印を付けたもの（説明は自由）
+#   それ以外の絵        途中の絵。説明（caption）に「途中」か「戻す」と書き、通った絵と区別する
+# 完成でない絵が完成と同じ扱いで送られるのだけを止める
 in=$(cat)
-missing=$(printf '%s' "$in" | python3 -c '
+msg=$(printf '%s' "$in" | python3 -c '
 import json, os, sys
 d = json.load(sys.stdin)
-fs = d.get("tool_input", {}).get("files", [])
+ti = d.get("tool_input", {})
+fs, cap = ti.get("files", []), ti.get("caption", "") or ""
 cwd = d.get("cwd", ".")
-out = []
+missing, shown = [], []
 for f in fs:
     p = f if os.path.isabs(f) else os.path.join(cwd, f)
-    if p.lower().endswith((".png", ".jpg", ".jpeg", ".webp")) and not (os.path.exists(p + ".pass") or os.path.exists(p + ".preview")):
-        out.append(f)
-print("\n".join(out))
+    if not p.lower().endswith((".png", ".jpg", ".jpeg", ".webp")):
+        continue
+    if not (os.path.exists(p + ".pass") or os.path.exists(p + ".preview")):
+        shown.append(f)
+if shown and "戻す" not in cap and "途中" not in cap:
+    print("検品を通っていない絵（.pass が無い）を送るときは、説明に「途中」か「戻す」と、残っている崩れを書く:")
+    print("\n".join(shown))
 ')
-if [ -n "$missing" ]; then
-  echo "検品を通っていない絵は送らない。checker に回し、「通す」なら <絵>.pass を置いてから送る:" >&2
-  echo "$missing" >&2
+if [ -n "$msg" ]; then
+  echo "$msg" >&2
   exit 2
 fi
 exit 0
