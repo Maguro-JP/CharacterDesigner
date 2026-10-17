@@ -12,6 +12,7 @@
 
   python3 tools/gen/hands.py <絵> --hand x0,y0,x1,y1:角度 [--hand ...]
   python3 tools/gen/hands.py <絵> --auto
+--auto は手のひらを探す模型（hand_detector.tflite）で枠と角度を出し、見つからなければ肘と手首から見当する。
 角度は、指先が上を向くまでに絵を回す角度（度。指先が下なら 180）。
 --auto は肘と手首（tools/gen/joints.py）から枠と角度を出す。手は前腕の延長に付くので、手首から前腕の向きへ
 前腕の 0.5 倍進んだ所を中心、前腕の 1.1 倍を一辺にする。握った手や手首を強く曲げた手では外れうるので、
@@ -146,6 +147,61 @@ def auto_boxes(src, least=0.3):
     return out
 
 
+def _anchors():
+    """手のひらを探す模型の下敷きの点（192 画素、刻み 8 で 2 つずつ、刻み 16 で 6 つずつ。計 2016）"""
+    out = []
+    for stride, per in ((8, 2), (16, 6)):
+        n = 192 // stride
+        for y in range(n):
+            for x in range(n):
+                out += [((x + 0.5) / n, (y + 0.5) / n)] * per
+    return np.array(out, np.float32)
+
+
+_PD = None
+
+
+def detect_palms(im, least=0.5):
+    """手のひらを探す模型（MediaPipe）で手の場所を探し、--hand と同じ書式の枠を返す。
+    肘が枠の外にある上半身の絵では、肘と手首から見当できなかった（2026-10-17、関節の確からしさ 0.12〜0.25）"""
+    global _PD
+    if _PD is None:
+        from ai_edge_litert.interpreter import Interpreter
+        _PD = Interpreter(str(MODEL.parent / "hand_detector.tflite"))
+        _PD.allocate_tensors()
+    w, h = im.size
+    s = max(w, h)
+    sq = Image.new("RGB", (s, s), (0, 0, 0))
+    sq.paste(im, ((s - w) // 2, (s - h) // 2))
+    x = np.asarray(sq.resize((192, 192), Image.BILINEAR), np.float32)[None] / 255.0
+    _PD.set_tensor(_PD.get_input_details()[0]["index"], x)
+    _PD.invoke()
+    out = {d["name"]: _PD.get_tensor(d["index"]) for d in _PD.get_output_details()}
+    raw, score = out["Identity"][0], 1 / (1 + np.exp(-np.clip(out["Identity_1"][0, :, 0], -50, 50)))
+    anc = _anchors()
+    found = []
+    for i in np.argsort(-score):
+        if score[i] < least:
+            break
+        cx, cy = raw[i, 0] / 192 + anc[i, 0], raw[i, 1] / 192 + anc[i, 1]
+        if any(abs(cx - fx) < 0.05 and abs(cy - fy) < 0.05 for fx, fy, *_ in found):
+            continue  # 同じ手を 2 度数えない
+        side = max(raw[i, 2], raw[i, 3]) / 192
+        wx, wy = raw[i, 4] / 192 + anc[i, 0], raw[i, 5] / 192 + anc[i, 1]      # 手首
+        mx, my = raw[i, 8] / 192 + anc[i, 0], raw[i, 9] / 192 + anc[i, 1]      # 中指の付け根
+        found.append((cx, cy, side, mx - wx, my - wy))
+    boxes = []
+    for cx, cy, side, dx, dy in found:
+        # 手のひらの枠を指の向きへ半分ずらし、2.6 倍に広げると指先まで入る（MediaPipe の手の追跡と同じ）
+        n = float(np.hypot(dx, dy)) or 1.0
+        cx, cy = cx + dx / n * side * 0.5, cy + dy / n * side * 0.5
+        r = side * 1.3 * s
+        px, py = cx * s - (s - w) / 2, cy * s - (s - h) / 2
+        ang = float(np.degrees(np.arctan2(dx, -dy)))
+        boxes.append(f"{int(px - r)},{int(py - r)},{int(px + r)},{int(py + r)}:{ang:.0f}")
+    return boxes
+
+
 def best_crop(im, box, rot):
     """--auto の枠は肘と手首からの見当なので、大きさと角度を少しずつ変えて、手らしさが最も高い切り出しを選ぶ。
     模型は手が枠いっぱいで指先が上のときにしか読めず、見当のままでは写っている手の 4 つに 3 つを読めなかった"""
@@ -173,7 +229,8 @@ def main():
     ap.add_argument("--auto", action="store_true", help="肘と手首から枠を出す")
     a = ap.parse_args()
     if a.auto:
-        a.hand += auto_boxes(a.src)
+        # 手のひらの模型を先に使う。肘と手首からの見当は、肘が枠の外にあると出ず、手の大きさも外しやすい
+        a.hand += detect_palms(Image.open(a.src).convert("RGB")) or auto_boxes(a.src)
     if not a.hand:
         ap.error("手の枠が無い（--hand を付けるか、--auto で肘と手首が読める絵にする）")
     im = Image.open(a.src).convert("RGB")

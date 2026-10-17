@@ -105,13 +105,13 @@ def main():
     # 手は部位分けで枠が取れないので、正方形の枠を x0,y0,x1,y1 で渡す（全身の絵では手が 30〜50 画素しか無く、
     # 指が潰れて数えられなかった。顔と同じく切り出して大きく描き直す）
     ap.add_argument("--hand", action="append", default=[], metavar="x0,y0,x1,y1")
-    ap.add_argument("--auto-hands", action="store_true", help="手の枠を肘と手首から出す（hands.py --auto と同じ見当）")
+    ap.add_argument("--auto-hands", action="store_true", help="手の枠を手のひらの模型で探す（hands.py --auto と同じ）")
     a = ap.parse_args()
     if a.auto_hands:
         import hands
         from PIL import Image
         w, h = Image.open(a.src).size
-        for b in hands.auto_boxes(a.src):
+        for b in hands.detect_palms(Image.open(a.src).convert("RGB")) or hands.auto_boxes(a.src):
             x0, y0, x1, y1 = (int(v) for v in b.split(":")[0].split(","))
             # 見当の枠は手首寄りに外れることがあるので 1.3 倍に広げ、絵の内に収める（正方形のまま）
             r = min(int((x1 - x0) * 0.65), w // 2, h // 2)

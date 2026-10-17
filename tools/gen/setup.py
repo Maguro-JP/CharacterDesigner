@@ -95,7 +95,7 @@ def main() -> None:
                 name = next(n for n in f.namelist() if n.endswith(".onnx"))
                 POSE[1].parent.mkdir(parents=True, exist_ok=True)
                 POSE[1].write_bytes(f.read(name))
-    if not HANDS[1].exists():
+    if not HANDS[1].exists() or not (HANDS[1].parent / "hand_detector.tflite").exists():
         # 手の関節を読む模型（tools/gen/hands.py）。配布の .task は zip で、関節の模型が中に入っている
         say("MediaPipe の手の模型（約 8MB）")
         with tempfile.TemporaryDirectory() as t:
@@ -104,6 +104,8 @@ def main() -> None:
             with zipfile.ZipFile(z) as f:
                 HANDS[1].parent.mkdir(parents=True, exist_ok=True)
                 HANDS[1].write_bytes(f.read(HANDS[1].name))
+                # 手のひらを探す模型。肘が枠の外にある上半身の絵では、肘と手首から手の場所を見当できない
+                (HANDS[1].parent / "hand_detector.tflite").write_bytes(f.read("hand_detector.tflite"))
         pip("ai-edge-litert")
     if not (ROOT / ".cache" / "assets" / "tagger" / "model.onnx").exists():
         say("タグを読む模型（約 380MB）")
