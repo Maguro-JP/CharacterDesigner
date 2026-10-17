@@ -117,7 +117,7 @@ SMALL_FACE = 160     # 顔の幅（画素）がこれ未満なら、頭を切り
 HEAD_WIDTH = 170     # 拡大後の顔の幅（切り出しが 1000 画素ほどになり、部位分けの 512 画素で顔が 85 画素ほどになる）
 
 
-def head_view(src, rgb, seg):
+def head_view(src, rgb, seg, view: dict | None = None):
     """顔が小さい絵では、頭の周りを切り出して拡大し、部位分けをやり直した（rgb, seg）を返す。大きければそのまま返す。
     部位分けは絵全体を 512 画素に縮めて読むので、全身の絵の顔は 40 画素ほどになる。そのままでは目と口の点が数画素ずれ、
     絵の大きさを 5% 変えるだけで顔のずれが 0.056〜0.211 と揺れた"""
@@ -137,6 +137,8 @@ def head_view(src, rgb, seg):
     h, w = seg.shape
     box = (int(max(0, cx - half)), int(max(0, cy - half * 0.8)), int(min(w, cx + half)), int(min(h, cy + half * 1.6)))
     k = HEAD_WIDTH / fw
+    if view is not None:
+        view.update(box=box, k=k)   # 元の絵の座標を切り出しの座標に直すため（measure が骨格の目の位置を当てる）
     im = Image.fromarray((rgb * 255).round().astype(np.uint8)).crop(box)
     im = im.resize((round(im.width * k), round(im.height * k)), Image.LANCZOS)
     out = Path(str(src) + ".head.png")
@@ -144,6 +146,8 @@ def head_view(src, rgb, seg):
     hrgb, hseg = np.asarray(im, dtype=np.float32) / 255.0, np.asarray(edit.parts(out))
     # 切り出しでも部位分けが顔を読み損ねることがある（顔が額の一部だけになった）。両目が読めないときは元の絵で測る
     if measure.eyes(hrgb, hseg, edit.LABELS).get("found") != 2:
+        if view is not None:
+            view.clear()
         return rgb, seg
     return hrgb, hseg
 
