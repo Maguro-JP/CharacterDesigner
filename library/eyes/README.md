@@ -19,3 +19,21 @@
 | 水色 | eye focus, close-up, 1boy, adult, aqua eyes, eyelashes, eyebrows | 3092 | eyes-aqua.jpg |
 
 赤・紫・水色は 1boy と頼んだが女性の顔で描かれた。
+
+## 目の状態と動物の目
+
+![閉じ目・ウインク・猫・狼・狐・ミミズク・蛇・鳥・兎の目](sheet-shapes-animals.jpg)
+
+| 目 | 言葉 | 種 | 絵 |
+|---|---|---|---|
+| 閉じ目 | eye focus, close-up, 1girl, mature female, closed eyes, black eyes, eyelashes, eyebrows | 3231 | eyes-closed.jpg |
+| ウインク | eye focus, close-up, 1girl, mature female, one eye closed, pink eyes, eyelashes, eyebrows | 3242 | eyes-wink.jpg |
+| 猫 | eye focus, close-up, cat, no humans, animal focus, green eyes, detailed fur | 3442 | eyes-cat.jpg |
+| 狼 | eye focus, close-up, wolf, no humans, animal focus, yellow eyes, detailed fur | 3462 | eyes-wolf.jpg |
+| 狐 | eye focus, close-up, fox, no humans, animal focus, orange eyes, detailed fur | 3472 | eyes-fox.jpg |
+| ミミズク | eye focus, close-up, owl, no humans, animal focus, orange eyes, detailed fur | 3480 | eyes-owl.jpg |
+| 蛇 | eye focus, close-up, snake, no humans, animal focus, yellow eyes, detailed fur | 3500 | eyes-snake.jpg |
+| 鳥 | eye focus, close-up, bird, no humans, animal focus, black eyes, detailed fur | 3521 | eyes-bird.jpg |
+| 兎 | eye focus, close-up, rabbit, no humans, animal focus, red eyes, detailed fur | 3531 | eyes-rabbit.jpg |
+
+ウインクは閉じた目の線の中に白い点が1つ残り、手の指先がぼやけている（目の資料としては通した）。
