@@ -3,6 +3,7 @@
 機械の検品で絵を落として一覧から外すと、人が魅力を感じた絵まで消えた。基準は人で、検品は直す所を挙げる役。
 """
 import json
+import os
 import sys
 import tempfile
 import types
@@ -100,7 +101,7 @@ class KeepPicturesTest(unittest.TestCase):
 
             fixed = []
 
-            def fix(src, out):
+            def fix(src, out, prompt=""):
                 fixed.append(src)
                 Path(out).write_bytes(b"y")
                 return {"fixed": True, "box": [0, 0, 1, 1]}
@@ -113,6 +114,98 @@ class KeepPicturesTest(unittest.TestCase):
             self.assertTrue(a.exists())  # 元の絵は残す
             self.assertEqual(meta["marks"], [eye])
             self.assertIn("differences", meta)
+
+    def _one(self, t, before, after):
+        a = Path(t) / "a.png"
+        a.write_bytes(b"x")
+        Path(str(a) + ".json").write_text(json.dumps({"prompt": "1girl, head tilt, gentle smile", "marks": []}))
+        prompts = []
+
+        def check(src, prompt):
+            return {"ok": False, "marks": after if "facefix" in src else before}
+
+        def fix(src, out, prompt=""):
+            prompts.append(prompt)
+            Path(out).write_bytes(b"y")
+            return {"fixed": True, "box": [0, 0, 1, 1]}
+
+        design.auto_face_fix([a], fix=fix, check=check)
+        return a, json.loads(Path(str(a) + ".json").read_text()), prompts
+
+    @staticmethod
+    def _rms(v):
+        return {"what": "face.rms", "kind": "fix", "repair": "face_fix", "where": {"path": "face.rms", "value": v, "min": None, "max": 0.07}}
+
+    def test_worse_face_fix_is_not_adopted(self):
+        # 7周目の 702: 0.091 → 0.181。悪くなった直しは採らず、元の絵を正として印に書く
+        with tempfile.TemporaryDirectory() as t:
+            a, meta, prompts = self._one(t, [self._rms(0.091)], [self._rms(0.181)])
+            self.assertFalse(meta["facefix"]["adopted"])
+            self.assertEqual(meta["facefix"]["file"], "a.facefix.rejected.png")
+            self.assertFalse((Path(t) / "a.facefix.png").exists())
+            self.assertTrue((Path(t) / "a.facefix.rejected.png").exists())
+            self.assertEqual(meta["marks"][-1]["what"], "face_fix_rejected")
+            self.assertIn("採らない", design.result_line(a))
+
+    def test_better_face_fix_is_adopted(self):
+        with tempfile.TemporaryDirectory() as t:
+            a, meta, _ = self._one(t, [self._rms(0.133)], [self._rms(0.08)])
+            self.assertTrue(meta["facefix"]["adopted"])
+            self.assertTrue((Path(t) / "a.facefix.png").exists())
+
+    def test_result_line_follows_marks(self):
+        # 描いた直後の行は作画監督の検品より前。最後の結果の行は marks と合う
+        with tempfile.TemporaryDirectory() as t:
+            a = Path(t) / "a.png"
+            Path(str(a) + ".json").write_text(json.dumps({"marks": [self._rms(0.076), {"what": "eyes.found"}]}))
+            self.assertIn("直す所 2（face.rms、eyes.found）", design.result_line(a))
+            Path(str(a) + ".json").write_text(json.dumps({"marks": []}))
+            self.assertIn("外れなし", design.result_line(a))
+
+
+class FakeTok:
+    """読点と単語を1トークンずつに数える代わりの読み手"""
+    class R:
+        def __init__(self, ids):
+            self.input_ids = ids
+
+    def __call__(self, text, add_special_tokens=False, verbose=True):
+        return self.R([0 if w == "," else 1 for w in text.replace(",", " , ").split()])
+
+
+class SplitTokensTest(unittest.TestCase):
+    def test_cut_at_last_comma(self):
+        # 7周目: 80 トークンの指示文が 75 個目で切れ、clean lineart が割れた
+        text = ", ".join(["a b"] * 26) + ", clean lineart, white background"
+        parts = design.split_tokens(FakeTok(), text)
+        self.assertTrue(all(len(c) <= 75 for c in parts))
+        self.assertEqual(sum(map(len, parts)), len(FakeTok()(text).input_ids))
+        self.assertEqual(parts[0][-1], 0)  # 区切りは読点の直後
+        self.assertEqual(design.split_tokens(FakeTok(), ""), [[]])
+
+
+class HubDefaultsTest(unittest.TestCase):
+    def test_constants_follow_even_if_hub_was_imported_first(self):
+        import types
+        fake = types.SimpleNamespace(HF_HOME="/root/.cache/huggingface", HF_HUB_CACHE="/root/.cache/huggingface/hub",
+                                     HF_ASSETS_CACHE="x", HF_HUB_OFFLINE=False)
+        keep = {k: os.environ.pop(k, None) for k in ("HF_HOME", "HF_HUB_OFFLINE", "HF_HUB_CACHE", "CD_FETCH")}
+        old = sys.modules.get("huggingface_hub.constants")
+        sys.modules["huggingface_hub.constants"] = fake
+        try:
+            design.hub_defaults()
+            self.assertTrue(fake.HF_HUB_CACHE.endswith(os.path.join(".cache", "gen", "hf", "hub")))
+            self.assertTrue(fake.HF_HUB_OFFLINE)
+        finally:
+            if old is None:
+                sys.modules.pop("huggingface_hub.constants")
+            else:
+                sys.modules["huggingface_hub.constants"] = old
+            for k, v in keep.items():
+                if v is None:
+                    os.environ.pop(k, None)
+                else:
+                    os.environ[k] = v
 
 
 if __name__ == "__main__":
