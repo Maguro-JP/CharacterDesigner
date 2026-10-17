@@ -35,7 +35,7 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
 
 ## 女性キャラクターの基準の体
 
-女性を描くときは、利用者が決めた体のベース `ideal` を使う（`library/body-types.json` の anime.ideal、見本 `library/samples/anime-ideal-female.png`）。
+女性を描くときは、利用者が決めた体のベース `ideal` を使う（`casts/body-types.json` の anime.ideal、見本 `library/samples/anime-ideal-female.png`）。
 `PYTHONPATH=.cache/gen/lib python3 tools/gen/people.py card <出力> <名前> --gender female --base ideal --tags "<種族や特徴>"`
 体型を変えるよう頼まれたときだけ、ベースの言葉を変える。
 
@@ -112,9 +112,9 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
 ### 作品の登場人物をまとめて頼まれたとき（何人も、系統や進化がある）
 
 依頼された作品は、デザインを作れるようになるための題材。作品の資料はその作品のリポジトリから読み、
-このリポジトリには設定集（`casts/<作品>.json`）と決まり（`docs/designs/<作品>.md`）だけを置く。
+このリポジトリには設定集（`casts/<作品>.json`）と決まり（`designs/<作品>/README.md`）だけを置く。
 
-1. 作品の資料を読み、作風・共通の印・系統ごとに残す印・段階の形を `docs/designs/<作品>.md` に決める。1体ずつ思いつきで書かない
+1. 作品の資料を読み、作風・共通の印・系統ごとに残す印・段階の形を `designs/<作品>/README.md` に決める。1体ずつ思いつきで書かない
 2. 設定集に1人1行で書く。人は `gender`（male / female / androgynous。男女は体と顔の骨格から描かれる）と `age`（child / teen / adult / middle / elder。中年と老人は自動で SDXL 系）、人でない者は `kind: "creature"`（SDXL 系で描き、人の決まり文句を付けない）。
    モンスターの指示文は `docs/knowledge/monster-design.md` の3節の書き方（元の動物の名詞から、部位の数、3色）
 3. 系統があるなら、先に各系統のベースの1体を決める（候補を6案ほど描き、検品し、選んでもらう）。ほかの段階はベースを手本に派生させる。
@@ -124,7 +124,7 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
 5. 同じ破綻が続いたら指示文の書き方を直し、`docs/knowledge/monster-design.md` の6節に足す
 6. 依頼先のリポジトリ（作品のリポジトリ）に送る。その作品のセッションが自分で続きを作れるようにするため:
    - `templates/character-design-client/SKILL.md` の `{{DESIGN_DIR}}` と `{{CAST}}` を埋めて、依頼先の `.claude/skills/character-design/SKILL.md` に置く
-   - 決定稿の絵・ドット絵・候補の一覧と、状態の表（README.md）を依頼先の決めた置き場に置く（DigiMon は `design/beasts/`、RuleCrawler は `docs/designs/`）
+   - 決定稿の絵・ドット絵・候補の一覧と、状態の表（README.md）を依頼先の決めた置き場に置く（DigiMon は `design/beasts/`、RuleCrawler は `designs/`）
    - push の仕方は依頼先の決まりに従う（どちらも main へ直接、1回にまとめる）。決定稿が増えたら、その都度送り直す
 
 やらないこと: 自前の図形（SVG の部品）でキャラクターを組む・下絵にする（利用者の方針。部品を図形で組んだ絵はデザインとして使わない）。
@@ -183,6 +183,6 @@ python3 tools/learn.py score styles/diorama.learned.json characters/*/sprite.jso
 
 ## 4. 残す
 
-- 比較画像と判定を `docs/progress/` に置く（良くなった所、弱い所を両方書く）
+- 比較画像と判定を `library/progress/` に置く（良くなった所、弱い所を両方書く）
 - 分かったことは `docs/knowledge/`、決めたことは `docs/knowledge/decisions.md`
 - `python3 -m unittest discover -s tests` を終了コードで確かめる（`| tail` の後ろに `&&` をつながない）

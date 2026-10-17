@@ -1,6 +1,6 @@
 # ポーズの描き分け（2026-10-04、理想のベースの体で12種）
 
-ポーズの型は `library/poses.json`、描く道具は `tools/gen/poses.py`、見本は `library/samples/poses-ideal-female.png`。
+ポーズの型は `casts/poses.json`、描く道具は `tools/gen/poses.py`、見本は `library/samples/poses-ideal-female.png`。
 体のベースの構図の言葉（standing, arms at sides）だけをポーズの言葉に差し替え、体・服・打ち消しはベースのまま描く。
 
 ## 結果

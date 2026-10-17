@@ -241,17 +241,17 @@ def load_cast(path):
 TRAITS = json.loads((Path(__file__).parent / "traits.json").read_text(encoding="utf-8"))
 
 
-PATTERNS = json.loads((ROOT / "library" / "patterns.json").read_text(encoding="utf-8"))["patterns"]
+PATTERNS = json.loads((ROOT / "casts" / "patterns.json").read_text(encoding="utf-8"))["patterns"]
 
 
 def trait_texts(c):
-    """設定集の traits（"分類:種類" の並び）と patterns（library/patterns.json の名前）を、指示文と打ち消しの言葉にする。
+    """設定集の traits（"分類:種類" の並び）と patterns（casts/patterns.json の名前）を、指示文と打ち消しの言葉にする。
     知らない種類や名前は止める（黙って無視すると、効かなかったのか書き間違いなのか分からない）。"""
     ps, ns = [], []
     traits = list(c.get("traits", []))
     for name in c.get("patterns", []):
         if name not in PATTERNS:
-            raise SystemExit(f"{c.get('id')}: patterns の {name} が library/patterns.json に無い")
+            raise SystemExit(f"{c.get('id')}: patterns の {name} が casts/patterns.json に無い")
         traits += PATTERNS[name].get("traits", [])
         if PATTERNS[name].get("prompt"):
             ps.append(PATTERNS[name]["prompt"])

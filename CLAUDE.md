@@ -6,6 +6,11 @@
 - 完了と言う前に `.claude/skills/verify-before-done/SKILL.md` の手順を通す。
 
 
+## 置き場所
+
+- 資料・絵・設定は `docs/STRUCTURE.md` の表の置き場にだけ置く。表に無い種類は、先に表へ行を足す（`tests/test_structure.py` が見る）
+- 決めたことは `docs/knowledge/decisions.md` の 1 か所、分かったことは `docs/knowledge/`、出典は `docs/references.md`、見本や比べの絵は `library/`
+
 ## 描かせ方の第一の決まり（速さより出来）
 
 - 質が先、速さは質が出来てから。1 枚に時間の上限を決めない。完璧な 1 枚が出来るまで、描く仕組みを直して描き直し続ける

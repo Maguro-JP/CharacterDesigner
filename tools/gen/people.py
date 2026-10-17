@@ -10,7 +10,7 @@ Animagine XL 3.1（CreativeML OpenRAIL++-M、2026-10-04 に公開元で確認）
 使い方:
   PYTHONPATH=.cache/gen/lib python3 tools/gen/people.py card <出力フォルダ> <名前> --gender male --age adult \
       [--tags "elf, pointy ears"] [--zoom head] [--views front,back] [--base ideal]
---base は library/body-types.json の anime にある体のベース。女性は ideal（利用者が決めた基準の体）を使う
+--base は casts/body-types.json の anime にある体のベース。女性は ideal（利用者が決めた基準の体）を使う
   PYTHONPATH=.cache/gen/lib python3 tools/gen/people.py sheet <出力フォルダ> <一覧図.png>
 --zoom は拡大する部位: head（耳・角・顔）、arms（腕の肌・刺青）、back（背中・翼）、tail（腰から下の後ろ）、none
 """
@@ -237,8 +237,8 @@ def zoom_box(src, where):
 
 
 def base(name):
-    """library/body-types.json の anime にある体のベース（tags、body、negative、seed）を返す。"""
-    return json.loads((ROOT / "library" / "body-types.json").read_text(encoding="utf-8"))["anime"][name]
+    """casts/body-types.json の anime にある体のベース（tags、body、negative、seed）を返す。"""
+    return json.loads((ROOT / "casts" / "body-types.json").read_text(encoding="utf-8"))["anime"][name]
 
 
 def base_body(b, outfit=""):
@@ -426,7 +426,7 @@ def main():
     c.add_argument("--zoom", default="head", choices=["head", "arms", "back", "tail", "none"])
     c.add_argument("--seed", type=int, default=7)
     c.add_argument("--label", default="")
-    c.add_argument("--base", default="", help="library/body-types.json の anime にある体のベース（例: ideal）")
+    c.add_argument("--base", default="", help="casts/body-types.json の anime にある体のベース（例: ideal）")
     c.add_argument("--outfit", default="", help="ベースの水着を差し替える服の言葉（例: \"pink frilled bikini\"）。体の言葉はそのまま")
     a = ap.parse_args()
     hair = a.hair or ("short black hair" if a.gender == "male" else "black hair, bob cut")
