@@ -193,12 +193,14 @@ def encode_xl(pipe, prompt, negative):
     return pe, ne, pooled[0].to(dt), pooled[1].to(dt)
 
 
-def draw(out, prompt, seed, n, style, steps, width, height, kind="human"):
+def draw(out, prompt, seed, n, style, steps, width, height, kind="human", negative=""):
     import torch
     pipe = _pipe(style)
     # 人用の決まり文句（character design, standing）のまま動物を頼むと、獣の耳の少女になる
     head, tail, neg = ((CREATURE_PREFIX, CREATURE_SUFFIX, NEGATIVE + ", " + CREATURE_NEGATIVE)
                        if kind == "creature" else (PREFIX, SUFFIX, NEGATIVE))
+    # 既定の打ち消しに足す。年齢の見え方（child, round face など）を絵ごとに抑えるため
+    neg = ", ".join(x for x in (neg, negative) if x)
     paths = []
     for i in range(n):
         t = time.time()
@@ -215,7 +217,7 @@ def draw(out, prompt, seed, n, style, steps, width, height, kind="human"):
                       guidance_scale=1.5, width=width, height=height, generator=g).images[0]
         p = out if n == 1 else str(Path(out).with_suffix("")) + f"-{seed + i}.png"
         im.save(p)
-        meta = {"prompt": prompt, "seed": seed + i, "style": style, "model": STYLES[style], "steps": steps}
+        meta = {"prompt": prompt, "negative": negative, "seed": seed + i, "style": style, "model": STYLES[style], "steps": steps}
         Path(p + ".json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
         paths.append(p)
         print(f"{p}: {time.time() - t:.1f} 秒")
@@ -678,6 +680,7 @@ def main():
     d.add_argument("--width", type=int)
     d.add_argument("--height", type=int)
     d.add_argument("--kind", default="human", choices=["human", "creature"])
+    d.add_argument("--negative", default="", help="既定の打ち消しに足す言葉")
     r = sub.add_parser("restyle")
     r.add_argument("src")
     r.add_argument("out")
@@ -715,7 +718,7 @@ def main():
     elif a.cmd == "draw":
         # 四足は縦長の画面だと立ち上がって脚が欠ける。動物は横長を既定にする
         w, h = (768, 512) if a.kind == "creature" else (512, 768)
-        draw(a.out, a.prompt, a.seed, a.n, a.style, a.steps, a.width or w, a.height or h, a.kind)
+        draw(a.out, a.prompt, a.seed, a.n, a.style, a.steps, a.width or w, a.height or h, a.kind, a.negative)
     elif a.cmd == "restyle":
         restyle(a.src, a.out, a.style, a.strength, a.steps, a.prompt)
     else:
