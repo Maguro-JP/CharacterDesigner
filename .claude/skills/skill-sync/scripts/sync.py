@@ -130,16 +130,16 @@ def main():
     if not add and not upd:
         return 0          # 差分なし。何も言わない
 
-    verb = "入れました" if a.apply else "入っていません"
+    # 向きが読めるように書く。Ciel が元で、対象リポジトリに入れる
+    print(f"Ciel → {target_root.name} の .claude/skills/" + ("" if a.apply else "（見るだけ）"))
     for n in add:
-        print(f"  追加 {n}  ({verb})")
-    verb = "更新しました" if a.apply else "古いままです"
+        print(f"  {'入れた' if a.apply else '入っていない'}  {n}")
     for n in upd:
-        print(f"  更新 {n}  ({verb})")
+        print(f"  {'更新した' if a.apply else 'Ciel より古い'}  {n}")
     if not a.apply:
-        print(f"\n反映するには --apply を付けて実行します。")
+        print("--apply で Ciel から入れる。")
     elif SELF in add + upd:
-        print(f"\n{SELF} 自身を更新しました。次回から新しい方が動きます。")
+        print(f"{SELF} 自身も Ciel の新しいものに替えた。この実行は古い方で動いた。次の実行から新しい方。")
     return 0 if a.apply else 1
 
 
