@@ -29,6 +29,9 @@ MEAN = np.array([123.675, 116.28, 103.53])
 STD = np.array([58.395, 57.12, 57.375])
 
 
+_SESS = None
+
+
 def crop_box(box: tuple[float, float, float, float]) -> tuple[float, float, float, float]:
     """人物の枠を 1.25 倍に広げ、縦横比 192:256 に合わせた切り出し枠（左, 上, 右, 下）"""
     x0, y0, x1, y1 = box
@@ -66,7 +69,10 @@ def find(src: str) -> list[dict]:
     canvas.paste(im, (-bx[0], -bx[1]))
     patch = canvas.resize((W, H), Image.BILINEAR)
     x = ((np.asarray(patch).astype(np.float32) - MEAN) / STD).transpose(2, 0, 1)[None].astype(np.float32)
-    sess = ort.InferenceSession(str(MODEL), providers=["CPUExecutionProvider"])
+    global _SESS
+    if _SESS is None:   # 何枚も測るとき、模型を1枚ごとに読み直さない
+        _SESS = ort.InferenceSession(str(MODEL), providers=["CPUExecutionProvider"])
+    sess = _SESS
     sx, sy = sess.run(None, {sess.get_inputs()[0].name: x})
     return decode(sx[0], sy[0], box)
 

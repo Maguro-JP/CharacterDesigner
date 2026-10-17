@@ -91,6 +91,7 @@ def main() -> None:
             fetch(POSE[0], z)
             with zipfile.ZipFile(z) as f:
                 name = next(n for n in f.namelist() if n.endswith(".onnx"))
+                POSE[1].parent.mkdir(parents=True, exist_ok=True)
                 POSE[1].write_bytes(f.read(name))
     if not (ROOT / ".cache" / "assets" / "tagger" / "model.onnx").exists():
         say("タグを読む模型（約 380MB）")
