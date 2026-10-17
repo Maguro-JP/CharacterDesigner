@@ -1,0 +1,6 @@
+{
+ "note": "描く模型が下絵の部位の長さを変える癖（描いた絵 ÷ 下絵）。turnaround.py は人形の部位をこの値で割って作る。qc.proportion_drift で描いた絵を測るたびに学び直す（tools/gen/bias.py）",
+ "model": "cagliostrolab/animagine-xl-4.0",
+ "bias": {"upper_arm": 1.12, "forearm": 1.26},
+ "samples": 4
+}

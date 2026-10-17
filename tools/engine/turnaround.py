@@ -27,6 +27,11 @@ from pose_prop import look_from, tinted  # noqa: E402
 VIEWS = {"front": Vector((0, -4.6, 1.0)), "side": Vector((4.6, 0, 1.0)), "back": Vector((0, 4.6, 1.0)), "right": Vector((-4.6, 0, 1.0))}
 
 
+def a_bias() -> dict:
+    p = Path(__file__).resolve().parents[2] / "styles" / "draw-bias.json"
+    return json.loads(p.read_text())["bias"] if p.exists() else {}
+
+
 def head_scale(heads: float, real: float = 7.5) -> float:
     """写実の人形（real 頭身）の頭を何倍にすれば heads 頭身になるか。身長 H・頭 h として (H - h + h*k) / (h*k) = heads を解く"""
     return (real - 1) / (heads - 1)
@@ -73,6 +78,10 @@ def main(argv):
         # 写実の人形は肩幅が腰より 1 割広く、その上に描いた服も肩の張った形で描かれた
         m0 = human.measure_body(h, human._rig(h))
         goals = {"shoulder_width": m0["hip_width"], "hand": 0.75, "foot": m0["forearm"]}
+        # 描く模型は下絵より腕を長く描く癖があった（前腕 1.24〜1.30 倍、上腕 1.08〜1.18 倍、3 枚とも同じ向き）。
+        # 癖の分だけ人形の腕を先に短くし、描いた絵で目安の長さになるようにする（癖は styles/draw-bias.json、描いた絵から学び直す）
+        for k, b in a_bias().items():
+            goals[k] = m0[k] / b
         print("体の釣り合い:", json.dumps(human.fit_body(h, goals), ensure_ascii=False))
         for o in [o for o in bpy.data.objects if o.type == "ARMATURE"]:
             bpy.data.objects.remove(o)

@@ -322,6 +322,8 @@ FIT_TARGETS = {
     "upper_arm_thick": ("arms/measure-upperarm-circ", False),
     "thigh_thick": ("legs/measure-thigh-circ", False),
     "neck_length": ("neck/measure-neck-height", False),
+    "upper_arm": ("arms/measure-upperarm-length", False),
+    "forearm": ("arms/measure-lowerarm-length", False),
     "hand": ("hands/{s}-hand-scale", True),
     "foot": ("feet/{s}-foot-scale", True),
 }
