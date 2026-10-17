@@ -120,3 +120,40 @@ class Bible(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DesignModeTest(unittest.TestCase):
+    """AI が人物を絵にするのは、キャラデザモードで設計がそろってから。人の参考資料があればイラストレーターモードで描ける"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.old = bible.BIBLE
+        bible.BIBLE = Path(self.tmp.name)
+        bible.new_character("sera", "セラ", "adult woman, dark green hair", "long navy coat")
+
+    def tearDown(self):
+        bible.BIBLE = self.old
+        self.tmp.cleanup()
+
+    def test_new_character_is_not_ready(self):
+        st = bible.design_status("sera")
+        self.assertFalse(st["ready"])
+        self.assertTrue(any("目" in m for m in st["missing"]))
+        with self.assertRaises(bible.DesignNotReady):
+            bible.require_design("sera")
+
+    def test_reference_allows_illustrator_mode(self):
+        ref = Path(self.tmp.name) / "ref.png"
+        ref.write_bytes(b"x")
+        self.assertEqual(bible.require_design("sera", str(ref)), "illustrator")
+        with self.assertRaises(bible.DesignNotReady):
+            bible.require_design("sera", str(ref) + ".missing")
+
+    def test_ready_after_design_and_approved_sheets(self):
+        c = bible.load("characters", "sera")
+        c["eyes"] = {"tags": "amber eyes"}
+        c["expressions"] = [{"id": "neutral"}]
+        c["images"] = {"turnaround": "x.jpg", "expressions": "y.jpg"}
+        bible.save("characters", c)
+        self.assertTrue(bible.design_status("sera")["ready"])
+        self.assertEqual(bible.require_design("sera"), "design")

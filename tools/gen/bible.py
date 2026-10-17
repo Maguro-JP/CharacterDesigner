@@ -214,12 +214,46 @@ def prompt(ident: str, scene: str = "", pose: str = "", outfit: str | None = Non
     return pos, neg
 
 
+# 描くモード。AI が人物を絵（イラスト）にするのは、キャラデザモードで設計がそろってから。
+# 設計を飛ばして言葉だけで描くと、描くたびに服・色・持ち物・顔が変わり、手や脚の数も崩れた（2026-10-17、人物 20 枚が 20 枚とも戻った）。
+# 人が参考資料を付けて描くよう指示したときは、人が設計を持っているので、イラストレーターモードですぐ描いてよい
+DESIGN_FIELDS = {"look": "見た目", "outfit": "服", "eyes": "目の設計（set-eyes）", "expressions": "表情の一覧（add-expression）"}
+DESIGN_SHEETS = {"turnaround": "三面図（checker が通したもの。add-image <id> turnaround）",
+                 "expressions": "表情差分（checker が通したもの。add-image <id> expressions）"}
+
+
+def design_status(ident: str) -> dict:
+    """キャラデザモードで、まだそろっていないものを返す。missing が空なら、イラストに描いてよい"""
+    c = load("characters", ident)
+    missing = [why for k, why in DESIGN_FIELDS.items() if not c.get(k)]
+    missing += [why for k, why in DESIGN_SHEETS.items() if not c.get("images", {}).get(k)]
+    return {"id": ident, "ready": not missing, "missing": missing}
+
+
+class DesignNotReady(RuntimeError):
+    pass
+
+
+def require_design(ident: str, reference: str | None = None) -> str:
+    """描く前に呼ぶ。人の参考資料があればイラストレーターモード、無ければ設計がそろっていることを求める"""
+    if reference:
+        if not Path(reference).exists():
+            raise DesignNotReady(f"参考資料が見つからない: {reference}")
+        return "illustrator"
+    st = design_status(ident)
+    if not st["ready"]:
+        raise DesignNotReady("キャラデザモードが終わっていない（足りないもの: " + "、".join(st["missing"]) +
+                             "）。先に設計をそろえるか、人の参考資料を --reference で渡す")
+    return "design"
+
+
 def draw(ident: str, outdir: str, count: int = 1, seed: int = 0, ref_scale: float = 0.6, base: str | None = None,
-         strength: float = 0.8, **kw) -> list[str]:
+         strength: float = 0.8, reference: str | None = None, **kw) -> list[str]:
     """組み立てた言葉で描く。色の手本があれば IP-Adapter で読ませる（顔つき・配色を寄せる）。
     ref_scale を上げるほど手本に似るが、構図やポーズも手本に引っ張られる。
     base に下絵（人形に持ち物を持たせて描いた絵、tools/engine/pose_prop.py）を渡すと、そこから描き換える。
     言葉だけでは手と持ち物のつながりが崩れたため、位置だけは下絵で決める。strength が低いほど下絵の形が残る"""
+    require_design(ident, reference)
     import torch
     from PIL import Image
     sys.path.insert(0, str(Path(__file__).parent))
@@ -471,6 +505,7 @@ def main():
             s.add_argument("out"); s.add_argument("--count", type=int, default=1); s.add_argument("--seed", type=int, default=0)
             s.add_argument("--ref-scale", type=float, default=0.6)
             s.add_argument("--base", help="下絵の画像（tools/engine/pose_prop.py の出力）"); s.add_argument("--strength", type=float, default=0.8)
+            s.add_argument("--reference", help="人が渡した参考資料の画像。渡すとイラストレーターモードで、設計がそろっていなくても描く")
         s.add_argument("--scene", default=""); s.add_argument("--pose", default=""); s.add_argument("--outfit")
         s.add_argument("--items", help="持ち物の id をカンマ区切りで。省くと全部"); s.add_argument("--world"); s.add_argument("--location")
         s.add_argument("--framing", default="full body")
@@ -485,6 +520,7 @@ def main():
     s.add_argument("id"); s.add_argument("out"); s.add_argument("--base"); s.add_argument("--seed", type=int, default=0)
     s.add_argument("--strength", type=float, default=0.85); s.add_argument("--only", help="表情の id をカンマ区切りで")
     s.add_argument("--ref-scale", type=float, default=0.0, help="手本の顔に寄せる強さ。既定は 0（使わない）。0.4 では手本の開いた目に引っ張られ、目が表情ごとに動かなかった")
+    s = sub.add_parser("design-status", help="キャラデザモードで、まだそろっていないもの"); s.add_argument("id")
     s = sub.add_parser("turnaround", help="三面図: 人形の下絵を3方向から写し、向きごとに描く")
     s.add_argument("id"); s.add_argument("out"); s.add_argument("--count", type=int, default=2); s.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
@@ -500,7 +536,8 @@ def main():
         "new-world": lambda: new_world(a.id, a.name, a.tags, a.desc),
         "add-location": lambda: add_location(a.id, a.loc, a.name, a.tags, a.desc, a.image, a.avoid),
         "prompt": lambda: dict(zip(("prompt", "negative"), prompt(a.id, **kw))),
-        "draw": lambda: draw(a.id, a.out, a.count, a.seed, a.ref_scale, a.base, a.strength, **kw),
+        "draw": lambda: draw(a.id, a.out, a.count, a.seed, a.ref_scale, a.base, a.strength, a.reference, **kw),
+        "design-status": lambda: design_status(a.id),
         "show": lambda: load("characters", a.id),
         "sheet": lambda: sheet(a.id, a.out),
         "turnaround": lambda: turnaround(a.id, a.out, a.count, a.seed),

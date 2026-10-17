@@ -75,6 +75,11 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
 
 ## 0. 頼まれたときの流れ
 
+描くモードは 2 つに分ける。
+- キャラデザモード（AI が描くときは必ずここから）: 設定（見た目・服・色・持ち物）→ 目と表情（face-designer）→ 持ち物（prop-designer）→ 三面図（`bible.py turnaround`）→ 顔の拡大と表情差分（`bible.py expressions`）→ checker が 1 枚ずつ元の大きさで検品 → 通した三面図と表情差分を `bible.py add-image <id> turnaround|expressions` で登録。`bible.py design-status <id>` が ready になるまで、イラストに描かない
+- イラストレーターモード: 人が参考資料を付けて描くよう指示したとき。`bible.py draw <id> <出力> --reference <画像>` で、設計がそろっていなくても描く
+
+
 1. まずアニメ風のデザインを描いて見せる。種を変えて数枚出し、選んでもらう
    `PYTHONPATH=.cache/gen/lib python3 tools/gen/design.py draw out.png "<人物の説明（英語）>" --n 4`
    （初めての環境では `sh tools/gen/setup.sh`。CPU で1枚 約1分）
