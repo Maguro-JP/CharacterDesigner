@@ -199,27 +199,40 @@ def encode_xl(pipe, prompt, negative):
 FRAMING = {"full": PREFIX, "upper": PREFIX.replace("full body, standing, ", "upper body, ")}
 
 
-def draw(out, prompt, seed, n, style, steps, width, height, framing="full"):
+def draw(out, prompt, seed, n, style, steps, width, height, kind="human", negative="", framing="full", scene=False):
     import torch
     pipe = _pipe(style)
-    prefix = FRAMING[framing]
+    # 人用の決まり文句（character design, standing）のまま動物を頼むと、獣の耳の少女になる
+    if kind == "creature" and style in XL:
+        # SDXL は言葉で書く。アニメのタグ（no humans, feral）は効かない
+        head, tail, neg = "", XL_CREATURE_SUFFIX, XL_CREATURE_NEGATIVE
+    elif kind == "creature":
+        head, tail, neg = CREATURE_PREFIX, CREATURE_SUFFIX, NEGATIVE + ", " + CREATURE_NEGATIVE
+    elif scene:
+        # 既定の「全身・白地」は、構図や場所や持ち物を頼んだ言葉とぶつかり、持ち物ごと落ちる。scene では外す
+        head, tail, neg = PREFIX.replace("full body, standing, ", ""), "", NEGATIVE
+    else:
+        # 人は構図（全身か上半身）で決まり文句を変える
+        head, tail, neg = FRAMING[framing], SUFFIX, NEGATIVE
+    # 既定の打ち消しに足す。年齢の見え方（child, round face など）を絵ごとに抑えるため
+    neg = ", ".join(x for x in (neg, negative) if x)
     paths = []
     for i in range(n):
         t = time.time()
         g = torch.Generator().manual_seed(seed + i)
         if style in XL:
             # SDXL は要約（pooled）も渡さないと止まる。guidance は batch の XL と同じ 2.0
-            pe, ne, pp, np_ = encode_xl(pipe, prefix + prompt + SUFFIX, NEGATIVE)
+            pe, ne, pp, np_ = encode_xl(pipe, head + prompt + tail, neg)
             im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
                       negative_pooled_prompt_embeds=np_, num_inference_steps=steps,
                       guidance_scale=2.0, width=width, height=height, generator=g).images[0]
         else:
-            pe, ne = encode(pipe, prefix + prompt + SUFFIX, NEGATIVE)
+            pe, ne = encode(pipe, head + prompt + tail, neg)
             im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, num_inference_steps=steps,
                       guidance_scale=1.5, width=width, height=height, generator=g).images[0]
         p = out if n == 1 else str(Path(out).with_suffix("")) + f"-{seed + i}.png"
         im.save(p)
-        meta = {"prompt": prompt, "seed": seed + i, "style": style, "model": STYLES[style], "steps": steps, "framing": framing}
+        meta = {"prompt": prompt, "negative": negative, "seed": seed + i, "style": style, "model": STYLES[style], "steps": steps, "framing": framing}
         Path(p + ".json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
         paths.append(p)
         print(f"{p}: {time.time() - t:.1f} 秒")
@@ -679,9 +692,12 @@ def main():
     d.add_argument("--n", type=int, default=1)
     d.add_argument("--style", default="anime", choices=list(STYLES))
     d.add_argument("--steps", type=int, default=6)
-    d.add_argument("--width", type=int, default=512)
-    d.add_argument("--height", type=int, default=768)
+    d.add_argument("--width", type=int)
+    d.add_argument("--height", type=int)
+    d.add_argument("--kind", default="human", choices=["human", "creature"])
+    d.add_argument("--negative", default="", help="既定の打ち消しに足す言葉")
     d.add_argument("--framing", choices=list(FRAMING), default="full", help="upper は上半身（手を確かめる絵）")
+    d.add_argument("--scene", action="store_true", help="全身・白地の決まり文句を外す（構図・場所・持ち物を言葉で決めるとき）")
     r = sub.add_parser("restyle")
     r.add_argument("src")
     r.add_argument("out")
@@ -717,7 +733,9 @@ def main():
     elif a.cmd == "sheet":
         sheet(a.cast, a.outdir, a.out, a.thumb)
     elif a.cmd == "draw":
-        draw(a.out, a.prompt, a.seed, a.n, a.style, a.steps, a.width, a.height, a.framing)
+        # 四足は縦長の画面だと立ち上がって脚が欠ける。動物は横長を既定にする
+        w, h = (768, 512) if a.kind == "creature" else (512, 768)
+        draw(a.out, a.prompt, a.seed, a.n, a.style, a.steps, a.width or w, a.height or h, a.kind, a.negative, a.framing, a.scene)
     elif a.cmd == "restyle":
         restyle(a.src, a.out, a.style, a.strength, a.steps, a.prompt)
     else:
