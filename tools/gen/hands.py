@@ -99,8 +99,13 @@ def measure(img):
     # 手のひらが中指の半分より短いのは、点が指の上につぶれた読み（カップを包んで重なった両手で 0.23、0.46）
     if m["palm"] < 0.5:
         return m, ["読めない: 点がつぶれた（手のひら " + str(m["palm"]) + "）"], _overlay(sq, lm)
+    # 長さの比は伸びた指でしか測れない。折った指は絵の上で短く見え、ピースの薬指（0.56）を短すぎると数えた。
+    # 付け根から先までの直線が、関節をたどった長さの 9 割に満たない指は折れているとして比べない
+    bent = {k for k, v in FINGERS.items() if np.linalg.norm(lm[v[-1]] - lm[v[0]]) < 0.9 * (length(lm, v) or 1.0)}
     for k, (lo, hi) in NORMS.items():
         vals = m[k].items() if isinstance(m[k], dict) else [(k, m[k])]
+        if k in bent:
+            continue
         for name, v in vals:
             if not lo <= v <= hi:
                 bad.append(f"{name}{'の手の色' if k == 'cover' else ''} {v}（{lo}〜{hi}）")
