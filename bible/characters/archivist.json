@@ -3,7 +3,7 @@
  "name": "書庫番のセラ",
  "look": "1girl, solo, adult woman, mature female, dark green hair, long hair, low ponytail, amber eyes",
  "outfit": "navy blue long coat, buttoned coat, white high collar shirt, navy blue trousers, brown ankle boots, brown leather belt",
- "negative": "skirt, dress, one-piece dress, short coat, bare legs, child, loli, hands clasped, interlocked fingers, background scenery",
+ "negative": "skirt, dress, one-piece dress, short coat, bare legs, child, loli, hands clasped, interlocked fingers, background scenery, sword, weapon, holding weapon",
  "items": [
   {
    "id": "ledger",

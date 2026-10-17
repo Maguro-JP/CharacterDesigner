@@ -188,7 +188,7 @@ def add_location(ident: str, loc: str, name: str, tags: str, desc: str = "", ima
 
 def prompt(ident: str, scene: str = "", pose: str = "", outfit: str | None = None, items: list[str] | None = None,
            world: str | None = None, location: str | None = None, framing: str = "full body",
-           background: bool = True) -> tuple[str, str]:
+           background: bool = True, eyes_after_outfit: bool = False) -> tuple[str, str]:
     """描く言葉を組み立てる。変えない見た目を先頭に置く（後ろの言葉ほど効きが弱い。長い言葉は 75 語ずつ全部読ませている）。
     服は差し替えがあればそれを、無ければいつもの服。持ち物は名前で選ぶ（省くと全部）。場所があれば背景を付ける"""
     c = load("characters", ident)
@@ -197,7 +197,11 @@ def prompt(ident: str, scene: str = "", pose: str = "", outfit: str | None = Non
     item_words = [", ".join(x for x in (i["tags"], i.get("size", ""), i.get("hold", "")) if x) for i in chosen]
     # 持ち物は服より前に置く（後ろに置くと効きが弱く、大スパナが腰袋の小さなスパナになった）
     # 目の設計は見た目のすぐ後に置く（先頭ほど強く効く。目は顔の印象を決める）
-    parts = [c["look"], c.get("eyes", {}).get("tags", ""), *item_words, outfit if outfit is not None else c["outfit"], pose, scene, framing]
+    eyes = c.get("eyes", {}).get("tags", "")
+    worn = outfit if outfit is not None else c["outfit"]
+    # 目の言葉は長い（50 語ほど）。目を先に置くと服の色が 75 語の 2 つ目の塊に押され、紺のコートが 4 枚とも別の色になった。
+    # eyes_after_outfit で目を服の後ろへ回す（比べてから既定を決める）
+    parts = ([c["look"], *item_words, worn, eyes] if eyes_after_outfit else [c["look"], eyes, *item_words, worn]) + [pose, scene, framing]
     avoid_loc = ""
     if world:
         w = load("worlds", world)
