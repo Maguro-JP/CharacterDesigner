@@ -61,3 +61,30 @@ class Draw(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class HorizonFromGroundTest(unittest.TestCase):
+    """地平線は地面の奥行きの直線が 0 になる行。空の端（建物の上）を地平線と読まない"""
+
+    def test_ground_line_beats_sky_edge(self):
+        from unittest import mock
+        import numpy as np
+        from PIL import Image
+        import layers
+        h, w = 400, 300
+        rows = np.arange(h, dtype=float)[:, None]
+        d = np.clip((rows - 280) * 0.02, 0, None) * np.ones((1, w))   # 地平線は 280 行（0.7）
+        d[40:280] = 1.0          # 建物（空の端は 40 行で、前の測り方は 0.1 と読む）
+        d[:40] = 0.0
+        with mock.patch.object(layers, "depth_map", return_value=d):
+            self.assertAlmostEqual(layers.horizon(Image.new("RGB", (w, h))), 0.7, places=2)
+
+    def test_no_ground_falls_back(self):
+        from unittest import mock
+        import numpy as np
+        from PIL import Image
+        import layers
+        d = np.ones((400, 300))
+        d[:120] = 0.0            # 空が上 3 割。地面の直線は読めない（平ら）
+        with mock.patch.object(layers, "depth_map", return_value=d):
+            self.assertAlmostEqual(layers.horizon(Image.new("RGB", (300, 400))), 119 / 400, places=3)

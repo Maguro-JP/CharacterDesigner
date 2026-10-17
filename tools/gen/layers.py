@@ -306,11 +306,23 @@ def depth_map(bg):
 
 
 def horizon(bg):
-    """地平線の高さ（画面の上からの割合）。空は奥行きがほぼ 0 なので、最も遠い所（最大の 0.3% 未満）が行の半分を超える一番下の行。
-    見えている水平線と、3枚の背景で画面の 3% 以内で合った。空が見えない背景は None（大きさは --height で決める）"""
+    """地平線の高さ（画面の上からの割合）。奥行きの模型の値（近いほど大きい）は、平らな地面では画面の行に対しておよそ
+    一直線に変わり、地平線で 0 になる。画面の下 4 分の 1 の中ほどの列から直線を引き、0 になる行を地平線とする。
+    前は「空が行の半分を超える一番下の行」で測っていたが、城のように建物が空を隠す背景では建物の上の空の端（0.10〜0.13）を
+    地平線と読み、目の高さ（0.65〜0.80）から大きく外れた（2026-10-17、城門・大広間の 4 枚。新しい測り方は検品担当が
+    絵で見た目の高さと 0.07 以内で合った）。地面が読めない（直線が下へ向かって近づかない）ときだけ前の測り方を使う。
+    どちらでも読めなければ None（大きさは --height で決める）"""
     d = depth_map(bg)
+    h, w = d.shape
+    med = np.median(d[:, w // 4:3 * w // 4], axis=1)
+    ys = np.arange(int(h * 0.75), h)
+    k, b = np.polyfit(ys, med[ys], 1)
+    if k > 0:
+        hz = float(-b / k) / h
+        if 0.05 < hz < 0.98:
+            return hz
     rows = np.where((d < d.max() * 0.003).mean(axis=1) > 0.5)[0]
-    return float(rows.max()) / d.shape[0] if len(rows) else None
+    return float(rows.max()) / h if len(rows) else None
 
 
 def perspective_height(horizon_y, foot, eye=0.93):
