@@ -308,6 +308,39 @@ def heads_tall(seg: np.ndarray, rgb: np.ndarray, far: float = 40.0) -> float | N
     return round(float((bottom - top) / (chin - top)), 2)
 
 
+SEGMENTS = {
+    "shoulder_width": ("left_shoulder", "right_shoulder"), "hip_width": ("left_hip", "right_hip"),
+    "upper_arm_l": ("left_shoulder", "left_elbow"), "upper_arm_r": ("right_shoulder", "right_elbow"),
+    "forearm_l": ("left_elbow", "left_wrist"), "forearm_r": ("right_elbow", "right_wrist"),
+    "thigh_l": ("left_hip", "left_knee"), "thigh_r": ("right_hip", "right_knee"),
+    "shin_l": ("left_knee", "left_ankle"), "shin_r": ("right_knee", "right_ankle"),
+}
+
+
+def proportions(points: list[dict], least: float = 0.3) -> dict:
+    """関節の点から、部位の長さを胴の長さ（両肩の中点から両股の中点）で割った値。読めない点の部位は入れない"""
+    p = {q["name"]: q for q in points if q.get("score", 1) >= least}
+
+    def d(a, b):
+        return float(np.hypot(p[a]["x"] - p[b]["x"], p[a]["y"] - p[b]["y"]))
+    need = ("left_shoulder", "right_shoulder", "left_hip", "right_hip")
+    if not all(k in p for k in need):
+        return {}
+    sx = (p["left_shoulder"]["x"] + p["right_shoulder"]["x"]) / 2
+    sy = (p["left_shoulder"]["y"] + p["right_shoulder"]["y"]) / 2
+    hx = (p["left_hip"]["x"] + p["right_hip"]["x"]) / 2
+    hy = (p["left_hip"]["y"] + p["right_hip"]["y"]) / 2
+    torso = float(np.hypot(sx - hx, sy - hy))
+    return {k: round(d(a, b) / torso, 3) for k, (a, b) in SEGMENTS.items() if a in p and b in p and torso > 0}
+
+
+def proportion_drift(base: dict, drawn: dict, tolerance: float = 0.15) -> dict:
+    """下絵（体の寸法を合わせた人形）と描いた絵で、部位の長さの比べ。描く模型が肩幅や脚の長さを変えると、
+    下絵で合わせた釣り合いが絵に残らない。tolerance（既定 15%）を超えた部位を挙げる"""
+    ratio = {k: round(drawn[k] / base[k], 2) for k in base if k in drawn and base[k] > 0}
+    return {"ratio": ratio, "off": {k: v for k, v in ratio.items() if abs(v - 1) > tolerance}}
+
+
 def edge_cut(rgb: np.ndarray, margin: int = 2, far: float = 40.0, least: float = 0.02, win: int = 248) -> list[str]:
     """人物が絵の端で切れているか（全身の絵で足先や頭が切れる欠損）。辺ごとに、端の帯の色を辺に沿った移動中央値（win 画素）と比べ、
     far 以上離れた画素が least を超える辺の名前を返す。
