@@ -9,7 +9,7 @@
     6.7
    ],
    "words": "anime style, cel shading, clean lineart",
-   "negative": "realistic, photorealistic, 3d",
+   "negative": "realistic, photorealistic, 3d, patterned background, polka dot background, dots, glowing outline, outer glow, aura",
    "body": {
     "thigh_thick": 0.66,
     "upper_arm_thick": 0.36
