@@ -91,3 +91,8 @@ OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じ
 - Proko の terminator の練習、Muddy Colors、Artists Network の陰影の基礎
 - 写真の照明（レンブラント・ライティング）の解説
 - 文化庁 アニメーション人材育成講座「色彩設計・仕上げの役割」
+
+## 宗教・文化への配慮（`styles/cultural.json`、2026-10-18）
+
+- ドイツ刑法 86a 条、ADL Hate Symbols Database、国土地理院「外国人にわかりやすい地図表現の検討」（2016）
+- Wikipedia の各項目（Swastika、Rising Sun Flag、Blackface、Depictions of Muhammad、Native American headdress、Cultural appropriation、Kimono、Bindi ほか）。一覧は `docs/knowledge/cultural-sensitivity.md`
