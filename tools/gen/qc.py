@@ -422,7 +422,8 @@ def proportion_drift(base: dict, drawn: dict, tolerance: float = 0.15) -> dict:
     return {"ratio": ratio, "off": {k: v for k, v in ratio.items() if abs(v - 1) > tolerance}}
 
 
-def edge_cut(rgb: np.ndarray, margin: int = 2, far: float = 40.0, least: float = 0.02, win: int = 248) -> list[str]:
+def edge_cut(rgb: np.ndarray, margin: int = 2, far: float = 40.0, least: float = 0.02, win: int = 248,
+             person: np.ndarray | None = None) -> list[str]:
     """人物が絵の端で切れているか（全身の絵で足先や頭が切れる欠損）。辺ごとに、端の帯の色を辺に沿った移動中央値（win 画素）と比べ、
     far 以上離れた画素が least を超える辺の名前を返す。
     四隅の色を地とすると、影や色の変わる背景で四辺とも「切れている」と出た（アラクネの候補 24 枚中 22 枚が読めなくなった）。
@@ -434,7 +435,13 @@ def edge_cut(rgb: np.ndarray, margin: int = 2, far: float = 40.0, least: float =
                        ("左", x[:, :margin].transpose(1, 0, 2)), ("右", x[:, -margin:].transpose(1, 0, 2))):
         line = band.mean(0)
         bg = np.stack([ndimage.median_filter(line[:, c], size=win, mode="nearest") for c in range(3)], -1)
-        if (np.abs(line - bg).max(-1) > far).mean() > least:
+        off = np.abs(line - bg).max(-1) > far
+        if person is not None:
+            # 人物（部位分けで背景でない所）にかかる画素だけを数える。背景の椰子の葉が端で切れているのを、
+            # 人物が切れていると取り違えた（描画確認、2026-10-17）
+            pm = {"上": person[:margin], "下": person[-margin:], "左": person[:, :margin].T, "右": person[:, -margin:].T}[name]
+            off = off & pm.any(0)
+        if off.mean() > least:
             out.append(name)
     return out
 
@@ -673,7 +680,11 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
                 res["problems"].append({"heads_tall": ht, "range": list(heads_range)})
         except ImportError as e:
             res["unreadable"].append({"heads_tall": str(e)})
-        cut = edge_cut(rgb)
+        try:
+            person = _parts(src, im) > 0
+        except Exception:   # 部位分けの模型が無い環境では、これまでどおり色だけで見る
+            person = None
+        cut = edge_cut(rgb, person=person)
         if cut:
             res["problems"].append({"edge_cut": cut})
         seams = background_seams(rgb)

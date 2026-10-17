@@ -61,6 +61,51 @@ def missing_words(prompt: str, tags: dict, least: float = LEAST) -> list[str]:
     return out
 
 
+def unmeasured_words(prompt: str, least_vocab: set | None = None) -> list[str]:
+    """頼んだ言葉のうち、タグの一覧にも、その中の 2〜3 語にも、最後の名詞にも当たらず、絵から確かめようの無いもの。
+    欠けとして数えると、直しても減らない崩れが残り、周が止まらなかった（描画確認、2026-10-17）。崩れの数とは分けて返す"""
+    import tagger
+    vocab = least_vocab or tagger.vocabulary()
+    out = []
+    for t in (x.strip().lower() for x in prompt.split(",")):
+        if not t or t in vocab or any(w in t for w in NOT_THINGS):
+            continue
+        ws = t.split()
+        grams = {" ".join(ws[i:i + n]) for n in (3, 2, 1) for i in range(len(ws) - n + 1)}
+        if not any(g in vocab for g in grams):
+            out.append(t)
+    return out
+
+
+def color_on_clothes(src: str, prompt: str, least: float = 0.01) -> list[str]:
+    """「色＋服の部分」の言い方（black bikini with red trim の red trim）を、服の範囲にその色がどれだけあるかで見る。
+    タグは縁取りの色を読まず、red trim を欠けと出した（描かれていた）。服の画素のうち、その色に近い画素が least 未満なら欠け"""
+    import numpy as np
+    from PIL import Image
+    import edit
+    import measure
+    rgb_of = {"black": (20, 20, 20), "white": (240, 240, 240), "grey": (128, 128, 128), "brown": (110, 70, 40),
+              "red": (200, 30, 30), "orange": (240, 130, 30), "yellow": (240, 220, 40), "green": (40, 150, 60),
+              "blue": (40, 70, 190), "aqua": (60, 200, 210), "purple": (130, 50, 170), "pink": (240, 140, 180),
+              "silver": (190, 190, 200), "blonde": (230, 200, 120)}
+    out = []
+    im = Image.open(src).convert("RGB")
+    seg = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST))
+    clothes = np.isin(seg, edit.REGIONS["clothes"])
+    if clothes.sum() < 200:
+        return out
+    px = np.asarray(im).astype(int)[clothes]
+    for t in (x.strip().lower() for x in prompt.split(",")):
+        ws = t.replace(" with ", " ").split()
+        for i, w in enumerate(ws[:-1]):
+            c = measure.COLOR_ALIAS.get(w, w)
+            if c in rgb_of and ws[i + 1] in WEAR_WORDS and ws[i + 1] in ("trim", "ribbon", "bow", "belt", "sash", "frills"):
+                near = (np.abs(px - np.array(rgb_of[c])).sum(1) < 120).mean()
+                if near < least:
+                    out.append(f"{w} {ws[i + 1]}")
+    return out
+
+
 def check(src: str, prompt: str) -> dict:
     """崩れを 1 つずつ鍵（kind:中身）に直して並べる。鍵は周をまたいで同じ崩れを数えるのに使う"""
     import qc
@@ -74,9 +119,19 @@ def check(src: str, prompt: str) -> dict:
     for t in TEXT_TAGS:
         if tags.get(t, 0.0) >= LEAST:
             flaws.append({"key": f"tag:{t}", "kind": "text", "detail": {t: tags[t]}})
+    colored = {" ".join(p.split()[-2:]) for p in prompt.lower().split(",")}
+    try:
+        color_missing = set(color_on_clothes(src, prompt))
+    except Exception:   # 部位分けの模型が無い環境ではタグだけで見る
+        color_missing = None
     for w in missing_words(prompt, tags):
+        # 色と服の部分の言い方は、服の範囲の色で決める（タグは縁取りの色を読まない）
+        if color_missing is not None and w in colored and any(w.endswith(x) for x in ("trim", "ribbon", "bow", "belt", "sash", "frills")):
+            if w not in color_missing:
+                continue
         flaws.append({"key": f"missing:{w}", "kind": "missing", "detail": w})
-    return {"auto": res, "flaws": flaws, "count": len(flaws)}
+    unmeasured = unmeasured_words(prompt)
+    return {"auto": res, "flaws": flaws, "count": len(flaws), "unmeasured": unmeasured}
 
 
 # ---- 崩れから範囲と言葉へ ----
