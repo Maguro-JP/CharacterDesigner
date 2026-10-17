@@ -6,7 +6,7 @@
 色は設定資料の大まかな配色で塗る。白い人形のまま描き換えを弱めると、白がそのまま服の色として残ったため。
 
 使い方: PYTHONPATH=.cache/engine/bpy python3 tools/engine/turnaround.py <出力の頭> [--skin R,G,B] [--top R,G,B] [--bottom R,G,B]
-出力は <頭>-front.png, <頭>-side.png, <頭>-back.png
+出力は <頭>-front.png, <頭>-side.png, <頭>-back.png, <頭>-right.png
 """
 import argparse
 import math
@@ -22,7 +22,8 @@ import human  # noqa: E402
 from pose_prop import look_from, tinted  # noqa: E402
 
 # 人形の座標: 前は -Y、右手は -X。横は本人の左側から写す（絵の中で左を向く）
-VIEWS = {"front": Vector((0, -4.6, 1.0)), "side": Vector((4.6, 0, 1.0)), "back": Vector((0, 4.6, 1.0))}
+# side は画面の左を向く横顔、right は画面の右を向く横顔（四面図。持ち物や髪の結び目が左右で違うので、裏返して作らない）
+VIEWS = {"front": Vector((0, -4.6, 1.0)), "side": Vector((4.6, 0, 1.0)), "back": Vector((0, 4.6, 1.0)), "right": Vector((-4.6, 0, 1.0))}
 
 
 def rgb(text):

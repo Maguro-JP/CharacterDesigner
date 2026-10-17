@@ -33,7 +33,7 @@ class Bible(unittest.TestCase):
         self.assertEqual(cmd[cmd.index("--cape") + 1], "110,25,30")
         self.assertEqual(cmd[cmd.index("--skin") + 1], bible.BASE_COLORS["skin"])   # 設定に無い色は既定
         self.assertNotIn("--boots", cmd)
-        self.assertEqual(set(plan["views"]), {"front", "side", "back"})
+        self.assertEqual(set(plan["views"]), {"front", "side", "back", "right"})
         for v, kw in plan["views"].items():
             self.assertEqual(kw["items"], [])                     # 三面図では持ち物を持たせない
             self.assertEqual(kw["base"], f"/tmp/out/base-{v}.png")

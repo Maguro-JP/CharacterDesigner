@@ -320,6 +320,7 @@ VIEWS = {
     "front": ("front view, facing viewer, detailed face", 0.85),
     "side": ("side view, profile, facing left", 0.8),
     "back": ("back view, from behind, facing away, head facing away", 0.8),
+    "right": ("side view, profile, facing right", 0.8),
 }
 # 下絵の色の既定。設定に turnaround が無いキャラクターに使う
 BASE_COLORS = {"skin": "240,200,170", "top": "175,175,185", "bottom": "40,40,45"}
