@@ -51,7 +51,9 @@ def face_mask(seg, labels):
     """顔の部位から顔だけを取る。部位分けの「顔」は首や出ている胴の肌まで含むことがある（水着の素体で頭から腰まで続いた）。
     一番上の塊を取り、上から見て幅が最も細くなる行（首のくびれ）より下を切る"""
     from scipy import ndimage
-    m = seg == labels["face"]
+    # 部位分け（segformer）は、アニメの暗い大きな目を「サングラス」と読む。顔に入れないと目の大半が顔の外に落ち、
+    # 前髪のかかる目は残りの塊が小さすぎて目が1つしか見つからなかった（目の寄りの顔、2026-10-17）
+    m = (seg == labels["face"]) | (seg == labels.get("sunglasses", -1))
     # 顔を横切る前髪の細い束で、顔が2つの塊に割れる（頭を拡大して部位分けすると束まで分かれて出た）。束の太さ程度を閉じてつなぐ
     k = max(1, int(np.sqrt(m.sum()) * 0.04))
     m = ndimage.binary_fill_holes(ndimage.binary_closing(np.pad(m, k), iterations=k)[k:-k, k:-k])
@@ -120,6 +122,13 @@ def eyes(rgb, seg, labels, hint=None):
     band[y0 + int(fh * 0.2):y0 + int(fh * 0.75), x0:x1 + 1] = True
     # 前髪は顔の部位に入らないので、目の上を髪が横切っても暗い所は肌の内側だけを見る
     area = face & band
+    if hint:
+        # 前髪が目にかかると、部位分けは目の上半分を「髪」と読み、顔の範囲から目が抜ける（目の寄りの顔、2026-10-17）。
+        # 骨格の点の目の周りは、部位の名前に関わらず目を探す範囲に入れる
+        yy, xx = np.mgrid[:face.shape[0], :face.shape[1]]
+        r = max(10.0, fw * 0.15)
+        for hx, hy in hint:
+            area |= (xx - hx) ** 2 + (yy - hy) ** 2 <= r * r
     if area.sum() < 100:
         return {"found": 0, "reason": "目の帯が読めない"}
     # まつ毛と瞳は肌の影より暗い。割合（下から 12%）だけで決めると、横からの光で影の側の肌まで目に入った。

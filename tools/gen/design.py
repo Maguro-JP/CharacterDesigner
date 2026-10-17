@@ -134,7 +134,8 @@ def _pipe(style, img2img=False):
     pipe = cls.from_pretrained(STYLES[style], torch_dtype=torch.float32, safety_checker=None)
     # LCM-LoRA: 25 段かかるところを 6 段で描く。CPU で1枚 約1分（512x768、4 コア）
     pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
-    pipe.load_lora_weights(LCM_LORA)
+    # 名前を渡さないと、模型を取りに行かない設定（HF_HUB_OFFLINE=1）で読めない
+    pipe.load_lora_weights(LCM_LORA, weight_name="pytorch_lora_weights.safetensors")
     pipe.fuse_lora()
     import device
     return device.place(pipe, torch)
