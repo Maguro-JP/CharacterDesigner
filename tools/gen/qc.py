@@ -455,7 +455,11 @@ def auto_check(src: str, prompt: str = "") -> dict:
         # 絵をタグに読み、filters.fixed（言葉の判定と同じ決まり）にかける
         import filters
         import tagger
-        tags = tagger.read(src)
+        # 一度だけ低い閾値で読み、検品には 0.35 以上を使う。低い側は res["tags"] で返し、頼んだ言葉の欠けを
+        # 調べる側（loop.py）が同じ絵をもう一度読まなくて済むようにする
+        low = tagger.read(src, threshold=0.05)
+        res["tags"] = low
+        tags = {k: v for k, v in low.items() if v >= 0.35}
         # 目の範囲を描き直した絵で瞳が消え光る線だけになったのを、目の測り方が揺れて見つけたと読み通した（2026-10-16）。
         # タグは extra eyes を 0.53 で読んでいた。崩れの無い絵では 0.22〜0.30 だったので、EXTRA_EYES 以上を崩れに数える
         if tags.get("extra eyes", 0) >= EXTRA_EYES:

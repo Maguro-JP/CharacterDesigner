@@ -52,6 +52,9 @@ def decode(simcc_x: np.ndarray, simcc_y: np.ndarray, box) -> list[dict]:
     return out
 
 
+_SESSION = None
+
+
 def find(src: str) -> list[dict]:
     import onnxruntime as ort
     sys.path.insert(0, str(Path(__file__).parent))
@@ -66,7 +69,10 @@ def find(src: str) -> list[dict]:
     canvas.paste(im, (-bx[0], -bx[1]))
     patch = canvas.resize((W, H), Image.BILINEAR)
     x = ((np.asarray(patch).astype(np.float32) - MEAN) / STD).transpose(2, 0, 1)[None].astype(np.float32)
-    sess = ort.InferenceSession(str(MODEL), providers=["CPUExecutionProvider"])
+    global _SESSION
+    if _SESSION is None:  # 1つの処理で何度も呼ばれる（描き直しの周ごと）。読み込みは1回だけにする
+        _SESSION = ort.InferenceSession(str(MODEL), providers=["CPUExecutionProvider"])
+    sess = _SESSION
     sx, sy = sess.run(None, {sess.get_inputs()[0].name: x})
     return decode(sx[0], sy[0], box)
 
