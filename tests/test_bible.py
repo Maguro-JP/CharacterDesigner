@@ -157,3 +157,32 @@ class DesignModeTest(unittest.TestCase):
         bible.save("characters", c)
         self.assertTrue(bible.design_status("sera")["ready"])
         self.assertEqual(bible.require_design("sera"), "design")
+
+
+class DesignStepsSkipGateTest(unittest.TestCase):
+    """三面図はキャラデザモードの手順なので、設計がそろっていなくても描ける（門を通らない）"""
+
+    def test_turnaround_draws_while_designing(self):
+        from unittest import mock
+        tmp = tempfile.TemporaryDirectory()
+        old = bible.BIBLE
+        bible.BIBLE = Path(tmp.name)
+        try:
+            bible.new_character("sera", "セラ", "adult woman", "coat")
+            plan = {"base_cmd": ["true"], "views": {"front": {"base": "b.png", "strength": 0.6, "seed": 0}}}
+            seen = []
+
+            def fake_draw(ident, out, count, seed, **kw):
+                # 本物の draw と同じく、designing が無ければ門を通す
+                if not kw.get("designing"):
+                    bible.require_design(ident, kw.get("reference"))
+                seen.append(kw)
+                return ["try-0.png"]
+            with mock.patch.object(bible, "turnaround_plan", return_value=plan), \
+                    mock.patch.object(bible, "draw", side_effect=fake_draw):
+                files = bible.turnaround("sera", tmp.name, count=1)
+            self.assertEqual(len(files["front"]), 1)
+            self.assertTrue(seen[0]["designing"])
+        finally:
+            bible.BIBLE = old
+            tmp.cleanup()

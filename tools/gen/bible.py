@@ -262,12 +262,15 @@ def reference_image(ident: str, roles: tuple[str, ...] = ("color",)):
 
 
 def draw(ident: str, outdir: str, count: int = 1, seed: int = 0, ref_scale: float = 0.6, base: str | None = None,
-         strength: float = 0.8, reference: str | None = None, **kw) -> list[str]:
+         strength: float = 0.8, reference: str | None = None, designing: bool = False, **kw) -> list[str]:
     """組み立てた言葉で描く。色の手本があれば IP-Adapter で読ませる（顔つき・配色を寄せる）。
     ref_scale を上げるほど手本に似るが、構図やポーズも手本に引っ張られる。
     base に下絵（人形に持ち物を持たせて描いた絵、tools/engine/pose_prop.py）を渡すと、そこから描き換える。
     言葉だけでは手と持ち物のつながりが崩れたため、位置だけは下絵で決める。strength が低いほど下絵の形が残る"""
-    require_design(ident, reference)
+    # 設計の手順（三面図・表情差分の基準の顔）は、設計を作るために描くので門を通らない（designing=True）。
+    # 門を付けた直後、三面図そのものが「三面図がまだ無い」で止まった（2026-10-17）
+    if not designing:
+        require_design(ident, reference)
     import torch
     from PIL import Image
     sys.path.insert(0, str(Path(__file__).parent))
@@ -356,7 +359,7 @@ def turnaround(ident: str, outdir: str, count: int = 2, seed: int = 0) -> dict:
     files = {}
     for v, kw in plan["views"].items():
         base, strength, s = kw.pop("base"), kw.pop("strength"), kw.pop("seed")
-        names = draw(ident, str(Path(outdir) / v), count, s, base=base, strength=strength, **kw)
+        names = draw(ident, str(Path(outdir) / v), count, s, base=base, strength=strength, designing=True, **kw)
         files[v] = [str(Path(outdir) / v / n) for n in names]
     return files
 
@@ -387,7 +390,7 @@ def expressions(ident: str, outdir: str, base: str | None = None, seed: int = 0,
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
     if base is None:
-        name = draw(ident, str(out / "base"), 1, seed, items=[], framing="upper body, portrait",
+        name = draw(ident, str(out / "base"), 1, seed, designing=True, items=[], framing="upper body, portrait",
                     pose="looking at viewer, facing viewer, " + DEFAULT_EXPRESSIONS[0]["tags"])[0]
         base = str(out / "base" / name)
     im = Image.open(base).convert("RGB")
