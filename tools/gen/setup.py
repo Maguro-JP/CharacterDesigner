@@ -4,7 +4,6 @@
   - torch（GPU に合わせて選ぶ。NVIDIA の GPU があれば CUDA 版、Mac は普通の版、それ以外は CPU 版。CD_TORCH=cpu|cuda|default で手で決める）
   - diffusers など描く部品、rembg（人物の切り抜き）、psd-tools（PSD の書き出し）、scipy（検品の計算）
   - Real-ESRGAN のアニメ絵用の重み（BSD-3-Clause、約 18MB）、RTMPose の ONNX（Apache-2.0、約 54MB）
-  - 手を測る MediaPipe の手の模型（Apache-2.0、hand_landmarker.task の中の hand_landmarks_detector.tflite）と、それを読む ai_edge_litert
   - 頼んだ要素が描かれたかを読む模型 wd-vit-tagger-v3（Apache-2.0、約 380MB）。固定の制限の検品にも使うので必ず入れる
 絵の模型（約 7GB）はここでは取らない。描くときに tools/gen/models.py が決めた模型を取る。
 
@@ -31,9 +30,8 @@ UPSCALE = ("https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/Re
            D / "upscale" / "RealESRGAN_x4plus_anime_6B.pth")
 POSE = ("https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/"
         "rtmpose-m_simcc-body7_pt-body7_420e-256x192-e48f03d0_20230504.zip", D / "pose" / "rtmpose-m-body7.onnx")
-
-HAND = ("https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task",
-        D / "mediapipe" / "hand_landmarks_detector.tflite")
+HANDS = ("https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task",
+         D / "mediapipe" / "hand_landmarks_detector.tflite")
 
 
 def say(text: str) -> None:
@@ -95,19 +93,18 @@ def main() -> None:
             fetch(POSE[0], z)
             with zipfile.ZipFile(z) as f:
                 name = next(n for n in f.namelist() if n.endswith(".onnx"))
+                POSE[1].parent.mkdir(parents=True, exist_ok=True)
                 POSE[1].write_bytes(f.read(name))
-    if not (LIB / "ai_edge_litert").exists():
-        say("ai_edge_litert（手の模型を読む）")
-        pip("ai-edge-litert")
-    if not HAND[1].exists():
-        # .task は zip で、手の位置を探す模型と関節を読む模型が入っている。hands.py は枠を渡すので関節の方だけ取り出す
-        say("MediaPipe の手の模型")
+    if not HANDS[1].exists():
+        # 手の関節を読む模型（tools/gen/hands.py）。配布の .task は zip で、関節の模型が中に入っている
+        say("MediaPipe の手の模型（約 8MB）")
         with tempfile.TemporaryDirectory() as t:
-            z = Path(t) / "hand.task"
-            fetch(HAND[0], z)
+            z = Path(t) / "h.task"
+            fetch(HANDS[0], z)
             with zipfile.ZipFile(z) as f:
-                HAND[1].parent.mkdir(parents=True, exist_ok=True)
-                HAND[1].write_bytes(f.read(HAND[1].name))
+                HANDS[1].parent.mkdir(parents=True, exist_ok=True)
+                HANDS[1].write_bytes(f.read(HANDS[1].name))
+        pip("ai-edge-litert")
     if not (ROOT / ".cache" / "assets" / "tagger" / "model.onnx").exists():
         say("タグを読む模型（約 380MB）")
         sys.path.insert(0, str(LIB))

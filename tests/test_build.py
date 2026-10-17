@@ -221,7 +221,7 @@ class BuildTest(unittest.TestCase):
             self.assertNotIn("standing", text)
             self.assertIn("1girl", neg)
         self.assertTrue(design.full_texts(cast["characters"][1])[0].startswith(design.PREFIX + "1boy"))
-        # 検品で落とした絵は数に入れず、次の seed で描き足す
+        # 利用者が要らないと決めた絵（rejected）は数に入れず、次の seed で描き足す
         cast["characters"][0]["rejected"] = {"m-xl-7.png": "くちばしが2つ"}
         shots = [p.name for c, s in design.cast_paths(cast, "/x") for p, _, _ in s if c["id"] == "m"]
         self.assertEqual(shots, ["m-xl-8.png", "m-xl-9.png"])

@@ -29,8 +29,8 @@ Ciel のスキルと、対象リポジトリの `.claude/skills/` を突き合�
 除外リストは Ciel の `.claude/sync-exclude.txt` に1行1リポジトリで書く。
 
 ```
-Maguro-JP/Sleep-Sound-Generator
-Maguro-JP/mock-up
+<owner>/<repo-a>
+<owner>/<repo-b>
 ```
 
 ## 手順
@@ -54,8 +54,10 @@ Ciel/.claude/skills/skill-sync/scripts/sync.py <対象のパス>
 差分があれば一覧を出して 1 を返す。
 
 ```
-  追加 auto-dev  (入っていません)
-  更新 ci-triage  (古いままです)
+Ciel → <repo> の .claude/skills/（見るだけ）
+  入っていない   auto-dev
+  Ciel より古い  ci-triage
+--apply で Ciel から入れる。
 ```
 
 ### 3. 反映する
@@ -87,7 +89,7 @@ PR にするかは、そのリポジトリの `.claude/policy/<利用者名>.jso
 **差分があったときだけ、1〜2行。**
 
 ```
-NetVision に auto-dev と ci-triage を入れました。コミット済み、未 push です。
+<repo> に auto-dev と ci-triage を入れました。コミット済み、未 push です。
 ```
 
 差分が無ければ黙る。「最新です」も書かない。
@@ -101,7 +103,7 @@ NetVision に auto-dev と ci-triage を入れました。コミット済み、�
 #!/bin/sh
 # 週1回。差分があるときだけ動く
 git -C ~/src/Ciel pull -q
-for repo in ~/src/NetVision ~/src/AdaptiveAIStudio ~/src/DigiMon; do
+for repo in ~/src/repo-a ~/src/repo-b; do
   ~/src/Ciel/.claude/skills/skill-sync/scripts/sync.py "$repo" --apply >/dev/null || true
 done
 ```
