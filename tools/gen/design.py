@@ -206,6 +206,9 @@ def draw(out, prompt, seed, n, style, steps, width, height, kind="human", negati
     if kind == "creature" and style in XL:
         # SDXL は言葉で書く。アニメのタグ（no humans, feral）は効かない
         head, tail, neg = "", XL_CREATURE_SUFFIX, XL_CREATURE_NEGATIVE
+        if " style" in prompt:
+            # 画風を頼まれたら、決まり文句のアニメ塗りで上書きしない
+            tail = ", full body, creature design, white background"
     elif kind == "creature":
         head, tail, neg = CREATURE_PREFIX, CREATURE_SUFFIX, NEGATIVE + ", " + CREATURE_NEGATIVE
     elif scene:
