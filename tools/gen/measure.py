@@ -237,7 +237,10 @@ def light3d(src, rgb, seg, regions):
     # 影の向きの順序: 絵全体の主な光の左右（当てはまりの良さで重みづけした多数決）を決め、部位ごとに、同じ色の素材の中で
     # 光に向いた面（法線の横の成分が光の側に 0.25 以上）と背を向けた面（反対側に 0.25 以上）の明るさの中央値を比べる。
     # 背を向けた面が明るいのは、照り返しなどの別の条件が無い限り自然ではあり得ない（逆の値が order に出る）
-    wsum = sum(np.sign(np.cos(np.radians(v["deg"]))) * max(v["r2"], 0) for v in out.values())
+    # 主な光の左右も、食い違いと同じ部位（r2 >= 0.2 で光が横から来る）だけで決める。どの部位も当てはまらない柔らかい光の絵
+    # （3101、r2 0.06〜0.2、ほぼ真下を向いた腕）で左右を決め、服の左右の明るさの差 0.033 を影の逆転と取り違えた
+    wsum = sum(np.sign(np.cos(np.radians(v["deg"]))) * v["r2"] for v in out.values()
+               if v["r2"] >= 0.2 and abs(np.cos(np.radians(v["deg"]))) >= 0.5)
     order = {}
     if abs(wsum) >= 0.2:
         side = 1.0 if wsum > 0 else -1.0
@@ -489,6 +492,28 @@ def colors(prompt: str, tags: dict | None):
     return {"found": True, "asked": len(asked), "mismatch": len(items), "items": items}
 
 
+def hands_pose(points, prompt: str, seen: float = 0.5) -> dict:
+    """頼んだ手の姿勢（hands behind back）が描けているか。骨格の点（tools/gen/joints.py）の手首と肩・腰から測る。
+    手を後ろに回すと、手首は胴に隠れて確からしさが下がるか、腰の幅の内側に来る。見えている手首（seen 以上）が
+    腰の幅からどれだけ外へ出ているかを、肩の幅で割った値の大きい方を behind_out にする（0 なら両手とも胴の内側か隠れている）。
+    頼んでいない絵、骨格が読めない絵では None（判定しない）"""
+    low = (prompt or "").lower()
+    if "hands behind back" not in low and "arms behind back" not in low:
+        return {"asked": None, "behind_out": None}
+    if not points:
+        return {"asked": "hands behind back", "behind_out": None}
+    p = {q["name"]: q for q in points}
+    sw = abs(p["left_shoulder"]["x"] - p["right_shoulder"]["x"])
+    if sw <= 0 or min(p[k]["score"] for k in ("left_shoulder", "right_shoulder", "left_hip", "right_hip")) < seen:
+        return {"asked": "hands behind back", "behind_out": None}
+    lo, hi = sorted((p["left_hip"]["x"], p["right_hip"]["x"]))
+    outs = []
+    for s in ("left", "right"):
+        w = p[s + "_wrist"]
+        outs.append(0.0 if w["score"] < seen else max(0.0, lo - w["x"], w["x"] - hi) / sw)
+    return {"asked": "hands behind back", "behind_out": round(float(max(outs)), 3), "wrists": [round(v, 3) for v in outs]}
+
+
 def _prompt_of(src) -> str:
     """描いた道具が隣に置く 絵.png.json の prompt。部分を描き直した絵（-face など）は元の絵の控えを見る"""
     p = Path(src)
@@ -524,7 +549,8 @@ def measure(src, hair_color: str = "", points=None, prompt: str | None = None, t
             tags = None
     return {"size": list(rgb.shape[1::-1]), "eyes": eyes(hrgb, hseg, L, _eye_hint(points, view)), "face": face, "light": light3d(src, rgb, seg, regions),
             "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "pairs": pairs(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color),
-            "background": background(rgb, prompt), "style": style(tags), "colors": colors(prompt, tags)}
+            "background": background(rgb, prompt), "style": style(tags), "colors": colors(prompt, tags),
+            "pose": hands_pose(points, prompt)}
 
 
 def _get(d, path):
