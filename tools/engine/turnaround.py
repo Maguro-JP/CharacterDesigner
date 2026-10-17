@@ -26,6 +26,11 @@ from pose_prop import look_from, tinted  # noqa: E402
 VIEWS = {"front": Vector((0, -4.6, 1.0)), "side": Vector((4.6, 0, 1.0)), "back": Vector((0, 4.6, 1.0)), "right": Vector((-4.6, 0, 1.0))}
 
 
+def head_scale(heads: float, real: float = 7.5) -> float:
+    """写実の人形（real 頭身）の頭を何倍にすれば heads 頭身になるか。身長 H・頭 h として (H - h + h*k) / (h*k) = heads を解く"""
+    return (real - 1) / (heads - 1)
+
+
 def rgb(text):
     return tuple(int(v) for v in text.split(","))
 
@@ -43,6 +48,7 @@ def main(argv):
     ap.add_argument("--hair", help="髪の型（MPFB の hair の名前、例 bob01）。省くと坊主頭")
     ap.add_argument("--hair-color", type=rgb, default=(60, 40, 30))
     ap.add_argument("--thickness", type=float, default=0.004, help="布の厚み（m）。0 で厚みを付けない")
+    ap.add_argument("--heads", type=float, help="頭身。人形は写実の約 7.5 頭身で、アニメの顔を描かせると体と顔の釣り合いが崩れた。首から上を大きくして合わせる")
     ap.add_argument("--boots-height", type=float, default=0.5, help="靴の色を塗る高さ（m）。既定 0.5 は膝下までの鎧靴。短いブーツは 0.15")
     ap.add_argument("--split", type=float, default=0.95, help="上と下の布の色を分ける高さ（m）。裾の長い上着は下げる")
     ap.add_argument("--long-sleeves", action="store_true", help="腕を手首まで上の布の色にする（長袖の上着）")
@@ -57,6 +63,8 @@ def main(argv):
     macro = TargetService.get_default_macro_info_dict()
     macro["gender"] = 0.0
     h = HumanService.create_human(macro_detail_dict=macro)
+    if a.heads:
+        human.deform(h.data, head_scale(a.heads), 1.0)
     HumanService.add_builtin_rig(h, "default")
     clothed = []
     import glob

@@ -211,12 +211,15 @@ def prompt(ident: str, scene: str = "", pose: str = "", outfit: str | None = Non
     elif background:
         # 背景を別に持つ使い方（ensemble.py drawin、背景は下書きにある）では付けない
         parts.append("simple background, white background")
+    # ジャンルの塗りと線。頭身に合う塗り方を一緒に渡す（写実寄りの塗りで 2 頭身、などの組み合わせは崩れて見える）
+    g = genre(ident)
+    parts.append(g.get("words", ""))
     pos = ", ".join(p.strip() for p in parts if p and p.strip())
     # 同じ物が2つ、設定に無い道具や武器、宙に浮いた物が描かれた（床に2本目のスパナ、騎士の手の黒い棒）
     guard = "duplicate items, extra weapons, extra tools, floating objects, holding unrelated object"
     # 持ち物と場所ごとの描かせないもの（腰袋に差した小さなスパナ、大広間の樽や木箱）
     avoid = [i.get("avoid", "") for i in chosen] + [avoid_loc]
-    neg = ", ".join(x for x in (c.get("negative", ""), guard, *avoid) if x)
+    neg = ", ".join(x for x in (c.get("negative", ""), guard, g.get("negative", ""), *avoid) if x)
     return pos, neg
 
 
@@ -330,6 +333,20 @@ VIEWS = {
 BASE_COLORS = {"skin": "240,200,170", "top": "175,175,185", "bottom": "40,40,45"}
 
 
+GENRES = ROOT / "styles" / "genres.json"
+
+
+def genre(ident: str) -> dict:
+    """人物のジャンル（設定の genre、無ければ既定）の頭身・塗り・線の決まり。heads は範囲の中ほど。
+    写実の人形にアニメの顔を描かせると、体と顔の釣り合いが崩れた。頭身は人形の側で作る"""
+    d = json.loads(GENRES.read_text(encoding="utf-8"))
+    key = load("characters", ident).get("genre") or d["default"]
+    g = dict(d["genres"][key], id=key)
+    lo, hi = g["heads_tall"]
+    g["heads"] = round((lo + hi) / 2, 2)
+    return g
+
+
 def turnaround_plan(ident: str, outdir: str, seed: int = 0) -> dict:
     """三面図の段取り: 下絵を写す命令と、向きごとに描く引数。描かずに中身だけ返す（試験と、描く前の確かめに使う）。
     下絵に無い物（マント）は絵に出なかったので、色の設定に cape・boots があれば下絵に置く"""
@@ -343,6 +360,9 @@ def turnaround_plan(ident: str, outdir: str, seed: int = 0) -> dict:
     for k in ("clothes", "hair", "hair_color", "split", "boots_height"):
         if colors.get(k):
             cmd += [f"--{k.replace('_', '-')}", colors[k]]
+    g = genre(ident)
+    if "--heads" not in cmd and colors.get("heads", g.get("heads")):
+        cmd += ["--heads", str(colors.get("heads", g.get("heads")))]
     if colors.get("long_sleeves"):
         cmd.append("--long-sleeves")
     views = {}

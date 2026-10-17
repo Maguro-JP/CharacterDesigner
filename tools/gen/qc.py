@@ -270,6 +270,44 @@ def color_gaps(colors: list[dict], limit: float = 40.0) -> list[dict]:
 BANDS = {"眉と目": (0.10, 0.58), "口": (0.60, 0.92)}
 
 
+def heads_tall(seg: np.ndarray, rgb: np.ndarray, far: float = 40.0) -> float | None:
+    """頭身: 人物の高さ ÷ 頭の高さ（頭のてっぺんからあごまで）。
+    顔の部位（11）は首の肌まで含むので、下端をあごにすると頭を 2 割ほど大きく取った（頭身 6.2 の絵を 4.7 と測った）。
+    幅が細くなる所（首に変わる所）をあごにする。
+    髪の膨らみの分だけ頭を大きく取るので、作画の頭身より少し小さく出る。顔が読めなければ None"""
+    fg = np.abs(rgb.astype(int) - rgb[2, 2].astype(int)).sum(2) > far
+    rows = np.nonzero(fg.sum(1) > 3)[0]
+    width = (seg == 11).sum(1)
+    if len(rows) == 0 or width.max() < 10:
+        return None
+    # 上から下へ見て、顔が細くなり始めた後の一番細い行（その後また広がる＝首から胸へ移る手前）をあごにする。
+    # 全体の最大で決めると、胸元の開いた服では胸の肌が顔より広く、あごを胸まで下げた。
+    # 決まった割合（0.6 倍）で切ると、首の太い絵で切れずに頭身 6.4 を 4.9 と測った
+    ys = np.nonzero(width)[0]
+    chin, most, low, low_y = int(ys[-1]), 0, None, None
+    for y in range(int(ys[0]), int(ys[-1]) + 1):
+        w = int(width[y])
+        most = max(most, w)
+        if low is None:
+            if most >= 10 and w < most * 0.85:
+                low, low_y = w, y
+            continue
+        if w < low:
+            low, low_y = w, y
+        elif w > low * 1.15:
+            chin = low_y
+            break
+    else:
+        # 襟の高い服では首が隠れ、幅が広がり直さないまま細くなって終わる。あごの先（V の先）は幅が最大の 3 割を切る辺り
+        half = [y for y in range(int(ys[0]), int(ys[-1]) + 1) if most >= 10 and width[y] < most * 0.3 and width[:y].max() >= most]
+        if half:
+            chin = half[0]
+    top, bottom = rows[0], rows[-1]
+    if chin <= top:
+        return None
+    return round(float((bottom - top) / (chin - top)), 2)
+
+
 def edge_cut(rgb: np.ndarray, margin: int = 2, far: float = 40.0, least: float = 0.02, win: int = 248) -> list[str]:
     """人物が絵の端で切れているか（全身の絵で足先や頭が切れる欠損）。辺ごとに、端の帯の色を辺に沿った移動中央値（win 画素）と比べ、
     far 以上離れた画素が least を超える辺の名前を返す。
@@ -477,7 +515,7 @@ def spider_legs(rgb, alpha, dark: float = 0.35, band: float = 0.08, least: int =
     return {"readable": count > 2, "count": count}
 
 
-def auto_check(src: str, prompt: str = "") -> dict:
+def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | None = None) -> dict:
     """描いた直後に必ず走らせる検品。崩れが 1 つでも、読めない検品が 1 つでもあれば ok を False にする。
     Claude は検品を呼ばないと走らせず、描かせた絵を検品なしで次へ回した。描く道具（free_text.draw、fix.py）から毎回呼ぶ。
     ok が True でも完成ではない。通す・戻すは検品担当（checker）が目で見て決める"""
@@ -503,6 +541,16 @@ def auto_check(src: str, prompt: str = "") -> dict:
     try:
         im = Image.open(src).convert("RGB")
         rgb = np.asarray(im)
+        # 頭身。ジャンルの範囲（styles/genres.json）を渡されたら外れを崩れに数える。写実の体にアニメの顔、
+        # 2 頭身に写実の塗り、のようにジャンルに合わない組み合わせは、体と顔の釣り合いが崩れて見えた。
+        # 測り方は髪の膨らみの分だけ小さく出るので、範囲の下を 0.4 広げて比べる
+        try:
+            ht = heads_tall(_parts(src, im), rgb)
+            res["heads_tall"] = ht
+            if heads_range and ht is not None and not (heads_range[0] - 0.4 <= ht <= heads_range[1]):
+                res["problems"].append({"heads_tall": ht, "range": list(heads_range)})
+        except ImportError as e:
+            res["unreadable"].append({"heads_tall": str(e)})
         cut = edge_cut(rgb)
         if cut:
             res["problems"].append({"edge_cut": cut})
