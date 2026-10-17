@@ -11,6 +11,8 @@
 - 光: 顔・髪・服それぞれの明るさの傾きから、光の来る向き（画面の上で何度か）。部位ごとの向きのずれ
 - 影の色温度: 部位ごとに明るい所と暗い所の色相の差（暗い所が青寄りなら負）
 - 髪: 白く飛んだ画素の割合、髪の主な色から色相が外れた画素の割合、毛の流れのそろい方（構造テンソルのコヒーレンス）
+- 背景: 四隅の明るさと彩度（white background を頼んだ絵だけ判定する）
+- 作風: タグを読む模型の realistic / photorealistic の確からしさ（写実に寄りすぎた絵を外れにする）
 """
 from __future__ import annotations
 
@@ -424,7 +426,37 @@ def _eye_hint(points, view, least: float = 0.5):
     return [((p[n]["x"] - ox) * k, (p[n]["y"] - oy) * k) for n in ("left_eye", "right_eye")]
 
 
-def measure(src, hair_color: str = "", points=None) -> dict:
+def background(rgb, prompt: str = ""):
+    """四隅（短い辺の 5% の正方形）の明るさと彩度。corner_lum は4隅の中央値の最も暗いもの、corner_sat は最も色づいたもの。
+    人物が隅にかかる絵もあるので、平均ではなく中央値で取る。asked_white は頼んだ言葉に white background があるか"""
+    h, w = rgb.shape[:2]
+    s = max(8, int(min(h, w) * 0.05))
+    cs = [rgb[:s, :s], rgb[:s, -s:], rgb[-s:, :s], rgb[-s:, -s:]]
+    lum = min(float(np.median(c[..., :3].mean(-1))) for c in cs)
+    sat = max(float(np.median(c[..., :3].max(-1) - c[..., :3].min(-1))) for c in cs)
+    return {"asked_white": int("white background" in prompt.lower()), "corner_lum": round(lum, 3), "corner_sat": round(sat, 3)}
+
+
+def style(tags: dict | None):
+    """写実への寄り: タグを読む模型の realistic と photorealistic の大きい方。タグが読めなければ found False"""
+    if tags is None:
+        return {"found": False}
+    return {"found": True, "realism": round(max(float(tags.get("realistic", 0)), float(tags.get("photorealistic", 0))), 3)}
+
+
+def _prompt_of(src) -> str:
+    """描いた道具が隣に置く 絵.png.json の prompt。部分を描き直した絵（-face など）は元の絵の控えを見る"""
+    p = Path(src)
+    for j in (p.with_name(p.name + ".json"), p.with_name(p.stem.rsplit("-", 1)[0] + p.suffix + ".json")):
+        try:
+            return json.loads(j.read_text(encoding="utf-8")).get("prompt", "")
+        except (OSError, ValueError):
+            continue
+    return ""
+
+
+def measure(src, hair_color: str = "", points=None, prompt: str | None = None, tags: dict | None = None) -> dict:
+    """prompt と tags は、呼ぶ側（qc.auto_check）が持っていれば渡す。タグの模型を2度走らせないため"""
     from PIL import Image
     import edit
     rgb = np.asarray(Image.open(src).convert("RGB"), dtype=np.float32) / 255.0
@@ -437,8 +469,17 @@ def measure(src, hair_color: str = "", points=None) -> dict:
     hrgb, hseg = faceform.head_view(src, rgb, seg, view)
     lm = faceform.landmarks(hrgb, hseg, L)
     face = faceform.fit(lm["points"], json.loads(faceform.TEMPLATE.read_text())["points"]) if "points" in lm and faceform.TEMPLATE.exists() else lm
+    if prompt is None:
+        prompt = _prompt_of(src)
+    if tags is None:
+        try:
+            import tagger
+            tags = tagger.read(src, 0.0)
+        except Exception:   # タグの模型が無い環境（sh tools/gen/setup.sh 前）でも、ほかの数字は出す
+            tags = None
     return {"size": list(rgb.shape[1::-1]), "eyes": eyes(hrgb, hseg, L, _eye_hint(points, view)), "face": face, "light": light3d(src, rgb, seg, regions),
-            "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "pairs": pairs(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color)}
+            "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "pairs": pairs(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color),
+            "background": background(rgb, prompt), "style": style(tags)}
 
 
 def _get(d, path):

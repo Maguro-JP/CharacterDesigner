@@ -455,7 +455,8 @@ def auto_check(src: str, prompt: str = "") -> dict:
         if not person["found"]:
             res["unreadable"].append({"person": person})
         import measure
-        m = measure.measure(src, points=points)
+        # タグは上で読んだもの（0.35 未満は落ちているが、写実の境 0.34 の判定には足りる）を渡し、模型を2度走らせない
+        m = measure.measure(src, points=points, prompt=prompt or None, tags=tags or None)
         # measure が基準から外れたと出した数字（瞳の色の差、髪の白飛び、影の順序など）は全部、判定に入れる。
         # 面積比だけを見て、measure が出していた瞳の色の差 0.105（基準 0.062）を捨てて通した（目の描き直し、2026-10-14）
         if measure.NORMS.exists():
