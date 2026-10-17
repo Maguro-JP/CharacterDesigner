@@ -30,6 +30,8 @@ UPSCALE = ("https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/Re
            D / "upscale" / "RealESRGAN_x4plus_anime_6B.pth")
 POSE = ("https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/"
         "rtmpose-m_simcc-body7_pt-body7_420e-256x192-e48f03d0_20230504.zip", D / "pose" / "rtmpose-m-body7.onnx")
+HANDS = ("https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task",
+         D / "mediapipe" / "hand_landmarks_detector.tflite")
 
 
 def say(text: str) -> None:
@@ -93,6 +95,16 @@ def main() -> None:
                 name = next(n for n in f.namelist() if n.endswith(".onnx"))
                 POSE[1].parent.mkdir(parents=True, exist_ok=True)
                 POSE[1].write_bytes(f.read(name))
+    if not HANDS[1].exists():
+        # 手の関節を読む模型（tools/gen/hands.py）。配布の .task は zip で、関節の模型が中に入っている
+        say("MediaPipe の手の模型（約 8MB）")
+        with tempfile.TemporaryDirectory() as t:
+            z = Path(t) / "h.task"
+            fetch(HANDS[0], z)
+            with zipfile.ZipFile(z) as f:
+                HANDS[1].parent.mkdir(parents=True, exist_ok=True)
+                HANDS[1].write_bytes(f.read(HANDS[1].name))
+        pip("ai-edge-litert")
     if not (ROOT / ".cache" / "assets" / "tagger" / "model.onnx").exists():
         say("タグを読む模型（約 380MB）")
         sys.path.insert(0, str(LIB))
