@@ -696,8 +696,10 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
         # 絵をタグに読み、filters.fixed（言葉の判定と同じ決まり）にかける
         import filters
         import tagger
-        # 1回だけ読み、絞る前の確からしさは measure（頼んだ色の照合）に渡す。絞った方を固定の制限とほかの検品に使う
+        # 1回だけ読み、絞る前の確からしさは measure（頼んだ色の照合）に渡し、res["tags"] でも返す。
+        # 頼んだ言葉の欠けを調べる側（loop.py）が同じ絵をもう一度読まなくて済むようにする。絞った方を固定の制限とほかの検品に使う
         all_tags = tagger.read(src, 0.0)
+        res["tags"] = all_tags
         tags = {k: v for k, v in all_tags.items() if v >= 0.35}
         # 低い確からしさまでのタグを返し、頼んだ言葉の欠けを調べる側（loop.py）が同じ絵をもう一度読まなくて済むようにする
         res["tags"] = {k: v for k, v in all_tags.items() if v >= 0.05}
