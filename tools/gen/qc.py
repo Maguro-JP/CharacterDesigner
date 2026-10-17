@@ -379,6 +379,42 @@ def shoe_pair(points: list[dict], im: Image.Image, least: float = 0.3) -> dict |
             "area_ratio": round(min(stats[0][1], stats[1][1]) / max(1, stats[0][1], stats[1][1]), 2)}
 
 
+def person_mask(seg: np.ndarray) -> np.ndarray:
+    """部位分けの「背景」以外を人物とする（髪・服・肌・持ち物の袋など）"""
+    return seg > 0
+
+
+def background_clutter(rgb: np.ndarray, seg: np.ndarray, far: float = 40.0, margin: int = 24) -> float:
+    """無地のはずの背景に、背景の色と違う画素がどれだけあるか（人物の周り margin 画素を除いた背景の割合）。
+    黄色の点の模様が背景一面に描かれた絵を、端の切れや浮いた塊の検品では拾えなかった"""
+    from scipy import ndimage
+    person = ndimage.binary_dilation(person_mask(seg), iterations=margin)
+    bg = rgb[2, 2].astype(int)
+    off = np.abs(rgb.astype(int) - bg).sum(2) > far
+    area = (~person).sum()
+    return round(float((off & ~person).sum() / max(1, area)), 4)
+
+
+def glow_ring(rgb: np.ndarray, seg: np.ndarray, width: int = 6) -> float:
+    """人物の輪郭のすぐ外側の帯の、背景からの色の離れ（彩度の高いにじみ）。輪郭の外にオレンジの光が付いた絵を拾うため。
+    帯の画素の、背景の色との差の中央値を返す（光の無い絵では 0 に近い）"""
+    from scipy import ndimage
+    m = person_mask(seg)
+    ring = ndimage.binary_dilation(m, iterations=width) & ~ndimage.binary_dilation(m, iterations=2)
+    if not ring.any():
+        return 0.0
+    bg = rgb[2, 2].astype(int)
+    return round(float(np.median(np.abs(rgb[ring].astype(int) - bg).sum(1))), 1)
+
+
+def part_color(rgb: np.ndarray, seg: np.ndarray, labels: list[int]) -> list[float] | None:
+    """部位分けの番号の画素の色の中央値（影や光に引っ張られにくいよう平均ではなく中央値）"""
+    m = np.isin(seg, labels)
+    if m.sum() < 200:
+        return None
+    return [float(v) for v in np.median(rgb[m], 0)]
+
+
 def proportion_drift(base: dict, drawn: dict, tolerance: float = 0.15) -> dict:
     """下絵（体の寸法を合わせた人形）と描いた絵で、部位の長さの比べ。描く模型が肩幅や脚の長さを変えると、
     下絵で合わせた釣り合いが絵に残らない。tolerance（既定 15%）を超えた部位を挙げる"""

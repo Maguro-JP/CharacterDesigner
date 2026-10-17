@@ -1,0 +1,54 @@
+{
+ "note": "検品の精度を測る手本。絵は git に入れない（scratchpad）。崩れは利用者と検品担当（checker）が目で挙げたもの。kind は qc_eval.py の KINDS",
+ "root": "/tmp/claude-0/-home-user-CharacterDesigner/8c6ecf16-92f2-5f55-bf0b-fbdaede0577a/scratchpad",
+ "images": {
+  "design/archivist/front-design/archivist-11.png": [
+   "extra_item",
+   "outfit_color",
+   "eyebrow",
+   "missing_item"
+  ],
+  "design/archivist/front-design/archivist-12.png": [
+   "missing_item",
+   "eyebrow",
+   "outfit_color"
+  ],
+  "design/archivist/front-design/archivist-13.png": [
+   "shoes_mismatch",
+   "legs_overlap",
+   "eyes_closed",
+   "outfit_color",
+   "heads_tall",
+   "missing_item"
+  ],
+  "design/archivist/front-design/archivist-14.png": [
+   "hands_clasped",
+   "outfit_shape",
+   "eyebrow",
+   "feet_perspective",
+   "missing_item",
+   "outfit_color"
+  ],
+  "courier/pipe1/hands/seed-0.png": [
+   "hands",
+   "seam"
+  ],
+  "courier/front13/s1-face.png": [
+   "background_pattern",
+   "glow_outline",
+   "hands"
+  ],
+  "courier/pipe1/face/seed-0.png": [
+   "hands"
+  ]
+ },
+ "characters": {
+  "design/archivist/front-design/archivist-11.png": "archivist",
+  "design/archivist/front-design/archivist-12.png": "archivist",
+  "design/archivist/front-design/archivist-13.png": "archivist",
+  "design/archivist/front-design/archivist-14.png": "archivist",
+  "courier/pipe1/hands/seed-0.png": "courier",
+  "courier/front13/s1-face.png": "courier",
+  "courier/pipe1/face/seed-0.png": "courier"
+ }
+}

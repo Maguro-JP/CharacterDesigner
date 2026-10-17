@@ -26,7 +26,12 @@ KEYS_JA = {"fixed_restriction": "固定の制限", "extra_eyes": "目の数", "e
            "heads_tall": "頭身", "spider_legs": "脚の数"}
 
 
-def inspect(src: str, genre: str = "anime", outdir: Path | None = None) -> dict:
+def _rgb(text: str) -> list[float]:
+    t = text.strip()
+    return [int(t[i:i + 2], 16) for i in (1, 3, 5)] if t.startswith("#") else [float(v) for v in t.split(",")]
+
+
+def inspect(src: str, genre: str = "anime", outdir: Path | None = None, character: str | None = None) -> dict:
     import numpy as np
     from PIL import Image
     import joints
@@ -44,7 +49,43 @@ def inspect(src: str, genre: str = "anime", outdir: Path | None = None) -> dict:
         problems.append({"kind": KEYS_JA.get(k, k), "detail": p})
     for k, v in body["off"].items():
         problems.append({"kind": "体の決まり", "detail": {k: v}})
+    import edit
+    im = Image.open(src).convert("RGB")
+    seg = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST))
+    # 背景の模様: 無地の背景に、人物の周りを除いて背景と違う画素が 0.5% 以上（点の模様の絵で 1.6%、ほかは 0.02% 以下）
+    clutter = qc.background_clutter(rgb.astype("uint8"), seg)
+    if clutter > 0.005:
+        problems.append({"kind": "背景の模様", "detail": {"clutter": clutter}})
+    # 手: 正面の立ち姿で、手の模型が手と読めない手（手らしさ 0.5 未満）は、指の崩れた手だった
+    hands = qc.hands_auto(pts, im)
+    weak = [round(h["measure"].get("presence", 0), 2) for h in hands["hands"] if h["measure"].get("presence", 0) < 0.5]
+    if weak:
+        problems.append({"kind": "手の指", "detail": {"presence": weak, "means": "手として読めない（指の数・形が崩れている）"}})
+    if character:
+        import bible
+        import tagger
+        c = bible.load("characters", character)
+        tags = tagger.read(src)
+        # 持ち物: 設定の描いてはいけないものに当たるタグ（剣など）と、設定の持ち物の名詞が読めないこと
+        neg = {w.strip().replace(" ", "_") for w in c.get("negative", "").split(",") if w.strip()}
+        extra = sorted(t for t in tags if t in neg)
+        if extra:
+            problems.append({"kind": "余分な持ち物", "detail": {"tags": extra}})
+        for it in c.get("items", []):
+            nouns = [w.split()[-1] for w in it["tags"].split(",")[:2]]
+            if not any(any(n in t for t in tags) for n in nouns):
+                problems.append({"kind": "足りない持ち物", "detail": {"item": it["id"], "nouns": nouns}})
+        # 服の色: 上着の部位の色の中央値と、設定の上着の色の距離（紺のコートが灰・茶・生成りで描かれた絵で 110〜280）
+        top = c.get("turnaround", {}).get("top")
+        got = qc.part_color(rgb, seg, [4, 7])
+        if top and got:
+            d = float(np.linalg.norm(np.array(got) - np.array(_rgb(top))))
+            if d > 90:
+                problems.append({"kind": "服の色", "detail": {"upper": [round(v) for v in got], "want": top, "dist": round(d)}})
     look = []
+    glow = qc.glow_ring(rgb.astype("uint8"), seg)
+    if glow > 65:
+        look.append({"kind": "輪郭の光", "detail": {"ring": glow}})
     sp = qc.shoe_pair(pts, Image.open(src))
     if sp and sp["color_diff"] > 30:
         # 数字だけでは崩れと決められない（奥の足の影でも出る）。人と検品担当が目で見る所として挙げる
@@ -91,10 +132,11 @@ def main():
     ap.add_argument("srcs", nargs="+")
     ap.add_argument("--genre", default="anime")
     ap.add_argument("--out", default="inspect-out")
+    ap.add_argument("--character", help="設定資料集の人物（持ち物・服の色を設定と比べる）")
     a = ap.parse_args()
     import design  # noqa: F401  模型を勝手に取りに行かない設定を先に効かせる
     out = Path(a.out)
-    res = [inspect(s, a.genre, out) for s in a.srcs]
+    res = [inspect(s, a.genre, out, a.character) for s in a.srcs]
     (out / "inspect.json").write_text(json.dumps(res, ensure_ascii=False, indent=1, default=float), encoding="utf-8")
     print(page(res, out))
     for r in res:

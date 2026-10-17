@@ -34,3 +34,17 @@ class ProportionDriftTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipIf(qc is None, "numpy が無い")
+class BackgroundTest(unittest.TestCase):
+    def test_clutter_and_part_color(self):
+        import numpy as np
+        rgb = np.full((300, 200, 3), 255, np.uint8)
+        seg = np.zeros((300, 200), np.uint8)
+        seg[100:250, 80:120] = 4
+        rgb[100:250, 80:120] = (36, 48, 79)
+        self.assertEqual(qc.background_clutter(rgb, seg), 0.0)
+        rgb[10:290:20, 5:195:20] = (250, 220, 0)                       # 点の模様
+        self.assertGreater(qc.background_clutter(rgb, seg), 0.005)
+        self.assertEqual(qc.part_color(rgb, seg, [4]), [36.0, 48.0, 79.0])
