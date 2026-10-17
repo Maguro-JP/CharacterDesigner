@@ -59,7 +59,7 @@ description: 題目ごとにセッションを分け、成果物を見せて直�
 ### 終わり
 
 判定が通った、または3回続けて判定が上がらない（諦める条件）ときに終わる。
-PR をマージし、束ねる側がいれば `fire_trigger(<trigger_id>, text="■ <題目> PR #N <1行>")` で知らせ、
+PR をマージし、束ねる側がいれば下の「セッション間の連絡」の形で `■ <題目> PR #N <1行>` を送り、
 返答を終える。自分では自分を片付けない。
 
 ## 束ねる側
@@ -68,8 +68,7 @@ PR をマージし、束ねる側がいれば `fire_trigger(<trigger_id>, text="
 
 1. 題目を切る。触るファイルが重ならないように。重なるものは1つにまとめるか順にする
 2. 数を決める。利用枠は全セッションで共有。既定は3つまで。`rate_limit_info.status` が `allowed` 以外なら増やさない。セッションを1つ立てるだけで文脈に10万トークン前後が乗るので、小さい題目で分けない
-3. 自分宛ての連絡用 Routine を1つ作る。`create_trigger(name="feedback-session 連絡（<repo>）", prompt="feedback-session の連絡。本文を読み、必要なことだけして1行で終える。", initiation="own_followup")`。cron も run_once_at も付けない（起こされるまで動かない）
-4. 題目ごとにセッションを立てる
+3. 題目ごとにセッションを立てる
 
 ```
 create_session(
@@ -83,18 +82,31 @@ create_session(
 ```
 <owner>/<repo> の feedback-session。題目: <題目>。成果物: <形1行>。判定: <1行>。
 .claude/skills/feedback-session/SKILL.md の「題目のセッション」に従う。枝は claude/fb-<題目>-<YYYYMMDD>。
-終わったら fire_trigger(<trigger_id>, text="■ <題目> PR #N <1行>") で知らせる。会話は成果物と1行だけ。
+終わったら束ねる側（session_id <束ねる側の id>）に「セッション間の連絡」の形で ■ <題目> PR #N <1行> を送る。
+会話は成果物と1行だけ。
 ```
 
-5. 立てたら `▶ <題目> ×N 開始` の1行を出して返答を終える。見に行かない
-6. 連絡が届いたら、その1行をそのまま出す。PR がマージ済みで、そのセッションが IDLE なら `archive_session` で片付ける
-7. 全部終わったら連絡用 Routine を `delete_trigger` で消す。消せなければ `tidy` に回す
+4. 立てたら `▶ <題目> ×N 開始` の1行を出して返答を終える。見に行かない
+5. 連絡が届いたら、その1行をそのまま出す。PR がマージ済みで、そのセッションが IDLE なら `archive_session` で片付ける
+6. 起きたあとの一回きりの Routine は `tidy` で消す
 
-連絡は相手のセッションが空いたときに届く（この環境で確かめた。作業中なら待たされる）。
-届かないときは `get_session` で相手の `post_turn_summary` を見る。
+人のフィードバックを題目のセッションに渡すときも、同じ形で送る。
 
-人のフィードバックを題目のセッションに渡したいときも同じ。題目のセッションに連絡用 Routine を
-1つ作り、`fire_trigger(id, text="<1行>")` で送る。
+## セッション間の連絡
+
+相手のセッションに結びつけた一回きりの Routine で送る。相手が空いたときに本文が届く
+（作業中なら終わるまで待たされる。21分待った例がある）。
+
+```
+create_trigger(name="feedback-session 連絡 → <相手の題目>", prompt="<本文1行>",
+               run_once_at=<2分後の UTC>, persistent_session_id="<相手の session_id>",
+               initiation="own_followup")
+```
+
+題目のセッションから束ねる側の id を知るには、引数なしの `get_session` の `parent_session_id` を見る。
+
+`fire_trigger` で相手の Routine を起こす形は使わない。2026-10-17 に試して、子から親へは届かず、
+自分宛てでは本文（text）が落ちた。届かないときは `get_session` で相手の `post_turn_summary` を見る。
 
 ## 人が開くとき
 
