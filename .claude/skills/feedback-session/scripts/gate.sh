@@ -7,8 +7,10 @@
 set -uo pipefail
 input="$(cat)"
 case "$input" in *'"stop_hook_active":true'*) exit 0;; esac
-[ -f .claude/feedback-session ] || exit 0  # 目印が無ければ何もしない
-topic="$(head -1 .claude/feedback-session 2>/dev/null || true)"
+# 目印は .claude/feedback-session（題目）か .claude/quiet（auto-dev などの自律の作業）。無ければ何もしない
+mark=""; for f in .claude/feedback-session .claude/quiet; do [ -f "$f" ] && { mark="$f"; break; }; done
+[ -n "$mark" ] || exit 0
+topic="$(head -1 "$mark" 2>/dev/null || true)"
 python3 - "$input" "$topic" <<'PY'
 import json, sys
 try:
