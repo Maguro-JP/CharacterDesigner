@@ -61,6 +61,51 @@ def missing_words(prompt: str, tags: dict, least: float = LEAST) -> list[str]:
     return out
 
 
+def unmeasured_words(prompt: str, least_vocab: set | None = None) -> list[str]:
+    """頼んだ言葉のうち、タグの一覧にも、その中の 2〜3 語にも、最後の名詞にも当たらず、絵から確かめようの無いもの。
+    欠けとして数えると、直しても減らない崩れが残り、周が止まらなかった（描画確認、2026-10-17）。崩れの数とは分けて返す"""
+    import tagger
+    vocab = least_vocab or tagger.vocabulary()
+    out = []
+    for t in (x.strip().lower() for x in prompt.split(",")):
+        if not t or t in vocab or any(w in t for w in NOT_THINGS):
+            continue
+        ws = t.split()
+        grams = {" ".join(ws[i:i + n]) for n in (3, 2, 1) for i in range(len(ws) - n + 1)}
+        if not any(g in vocab for g in grams):
+            out.append(t)
+    return out
+
+
+def color_on_clothes(src: str, prompt: str, least: float = 0.01) -> list[str]:
+    """「色＋服の部分」の言い方（black bikini with red trim の red trim）を、服の範囲にその色がどれだけあるかで見る。
+    タグは縁取りの色を読まず、red trim を欠けと出した（描かれていた）。服の画素のうち、その色に近い画素が least 未満なら欠け"""
+    import numpy as np
+    from PIL import Image
+    import edit
+    import measure
+    rgb_of = {"black": (20, 20, 20), "white": (240, 240, 240), "grey": (128, 128, 128), "brown": (110, 70, 40),
+              "red": (200, 30, 30), "orange": (240, 130, 30), "yellow": (240, 220, 40), "green": (40, 150, 60),
+              "blue": (40, 70, 190), "aqua": (60, 200, 210), "purple": (130, 50, 170), "pink": (240, 140, 180),
+              "silver": (190, 190, 200), "blonde": (230, 200, 120)}
+    out = []
+    im = Image.open(src).convert("RGB")
+    seg = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST))
+    clothes = np.isin(seg, edit.REGIONS["clothes"])
+    if clothes.sum() < 200:
+        return out
+    px = np.asarray(im).astype(int)[clothes]
+    for t in (x.strip().lower() for x in prompt.split(",")):
+        ws = t.replace(" with ", " ").split()
+        for i, w in enumerate(ws[:-1]):
+            c = measure.COLOR_ALIAS.get(w, w)
+            if c in rgb_of and ws[i + 1] in WEAR_WORDS and ws[i + 1] in ("trim", "ribbon", "bow", "belt", "sash", "frills"):
+                near = (np.abs(px - np.array(rgb_of[c])).sum(1) < 120).mean()
+                if near < least:
+                    out.append(f"{w} {ws[i + 1]}")
+    return out
+
+
 def check(src: str, prompt: str) -> dict:
     """崩れを 1 つずつ鍵（kind:中身）に直して並べる。鍵は周をまたいで同じ崩れを数えるのに使う"""
     import qc
@@ -74,9 +119,19 @@ def check(src: str, prompt: str) -> dict:
     for t in TEXT_TAGS:
         if tags.get(t, 0.0) >= LEAST:
             flaws.append({"key": f"tag:{t}", "kind": "text", "detail": {t: tags[t]}})
+    colored = {" ".join(p.split()[-2:]) for p in prompt.lower().split(",")}
+    try:
+        color_missing = set(color_on_clothes(src, prompt))
+    except Exception:   # 部位分けの模型が無い環境ではタグだけで見る
+        color_missing = None
     for w in missing_words(prompt, tags):
+        # 色と服の部分の言い方は、服の範囲の色で決める（タグは縁取りの色を読まない）
+        if color_missing is not None and w in colored and any(w.endswith(x) for x in ("trim", "ribbon", "bow", "belt", "sash", "frills")):
+            if w not in color_missing:
+                continue
         flaws.append({"key": f"missing:{w}", "kind": "missing", "detail": w})
-    return {"auto": res, "flaws": flaws, "count": len(flaws)}
+    unmeasured = unmeasured_words(prompt)
+    return {"auto": res, "flaws": flaws, "count": len(flaws), "unmeasured": unmeasured}
 
 
 # ---- 崩れから範囲と言葉へ ----
@@ -165,6 +220,15 @@ def plan(flaw: dict, src: str, prompt: str, points: list[dict], size) -> dict | 
         if box is None:
             return None
         return {"region": "part", "boxes": [box], "prompt": f"{w}, {w}, " + prompt, "negative": design.NEGATIVE}
+    if kind == "drift":
+        part = flaw["detail"]["part"]
+        region = "face" if part == "skin" else "part"
+        box = qc._face_from_joints(src, size) or fix.face_box(points)
+        if box is None:
+            return None
+        c = ",".join(str(int(v)) for v in flaw["detail"]["from"])
+        return {"region": region, "boxes": [_clip(box, size)],
+                "prompt": f"same {part} color as before (rgb {c}), " + prompt, "negative": "different hair color, color shift"}
     if kind == "floating":
         return {"region": "box", "boxes": [_clip(b["box"], size) for b in flaw["detail"]["floating"]],
                 "prompt": background_words(prompt), "negative": "floating object, debris"}
@@ -177,29 +241,44 @@ def plan(flaw: dict, src: str, prompt: str, points: list[dict], size) -> dict | 
     return None
 
 
+DRIFT_PARTS = {"hair": [2], "skin": [11, 14, 15]}
+DRIFT_MAX = 45.0   # 部位の色の中央値の RGB の距離。これを超えて変わったら、描き直しで色がずれたとみなす
+
+
+def drift_flaws(base: str, cur: str) -> list[dict]:
+    """最初の絵（round-0）からの、髪・肌の色と目の色のずれ。範囲を描き直すたびに髪の色が少しずつ変わり、
+    周を重ねると別の人物になった（描画確認、2026-10-17）。ずれは崩れとして数え、描き直しの言葉で元の色に戻させる"""
+    import edit
+    import qc
+    out = []
+    a, b = (Image.open(x).convert("RGB") for x in (base, cur))
+    sa = np.asarray(edit.parts(base).resize(a.size, Image.NEAREST))
+    sb = np.asarray(edit.parts(cur).resize(b.size, Image.NEAREST))
+    for name, labels in DRIFT_PARTS.items():
+        ca, cb = qc.part_color(np.asarray(a), sa, labels), qc.part_color(np.asarray(b), sb, labels)
+        if ca and cb:
+            d = float(np.linalg.norm(np.array(ca) - np.array(cb)))
+            if d > DRIFT_MAX:
+                out.append({"key": f"drift:{name}", "kind": "drift", "detail": {"part": name, "from": ca, "to": cb, "dist": round(d)}})
+    return out
+
+
 # ---- 描き直し ----
 
 def make_draw(style: str):
-    """元の絵と同じ模型で範囲だけを描き直す関数。模型は最初の 1 回だけ読み、以後は使い回す"""
-    if style in design.XL:
-        return fix.repaint
-    held = {}
-
+    """元の絵と同じ模型で範囲だけを描き直す関数（fix.repaint に寄せた。模型は fix.py が 1 回だけ読む）"""
     def draw(im, mask, prompt, negative, strength, seed):
-        import torch
-        from diffusers import StableDiffusionInpaintPipeline
-        if "p" not in held:
-            held["p"] = StableDiffusionInpaintPipeline(**design._pipe(style).components)
-        p = held["p"]
-        pe, ne = design.encode(p, prompt, negative)
-        g = p(prompt_embeds=pe, negative_prompt_embeds=ne, image=im, mask_image=mask, strength=strength,
-              num_inference_steps=max(6, int(round(6 / strength))), guidance_scale=1.5, width=im.width, height=im.height,
-              generator=torch.Generator().manual_seed(seed)).images[0]
-        return Image.composite(g, im, mask.filter(ImageFilter.GaussianBlur(8)))
+        return fix.repaint(im, mask, prompt, negative, strength, seed, style=style)
     return draw
 
 
 # ---- 回す ----
+
+def qc_face_box(src, size, points):
+    import qc
+    b = qc._face_from_joints(src, size) or fix.face_box(points)
+    return _clip(b, size) if b else None
+
 
 def run(src: str, outdir: str, prompt: str | None = None, rounds: int = 4, draw=None, seed: int | None = None,
         checker=check, points_of=None) -> dict:
@@ -242,6 +321,12 @@ def run(src: str, outdir: str, prompt: str | None = None, rounds: int = 4, draw=
                 continue
             done.add(sig)
             mask = fix.box_mask(im.size, pl["boxes"])
+            if pl["region"] != "face":
+                # 顔でない崩れ（手・服・背景）の範囲から顔を抜く。腕の範囲に顔がかかり、手を直すたびに顔が描き変わった
+                face = qc_face_box(cur, im.size, points)
+                if face:
+                    from PIL import ImageDraw
+                    ImageDraw.Draw(mask).rectangle(face, fill=0)
             im = draw(im, mask, pl["prompt"], pl["negative"], STRENGTH[pl["region"]], seed + r)
             repaints.append({"for": f["key"], "region": pl["region"], "boxes": [list(b) for b in pl["boxes"]],
                              "prompt": pl["prompt"]})
@@ -250,6 +335,10 @@ def run(src: str, outdir: str, prompt: str | None = None, rounds: int = 4, draw=
         cur = str(out / f"round-{r}.png")
         im.save(cur)
         res = checker(cur, prompt)
+        if checker is check:
+            dr = drift_flaws(history[0]["image"], cur)
+            res["flaws"] += dr
+            res["count"] += len(dr)
         keys = [f["key"] for f in res["flaws"]]
         history.append({"round": r, "image": cur, "count": res["count"], "flaws": keys, "repaints": repaints,
                         "seconds": round(time.time() - t, 1)})

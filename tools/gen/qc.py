@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -125,6 +126,51 @@ def repaint_scars(before: Image.Image, after: Image.Image, mask: Image.Image, wi
                 out.append({"x": x, "y": y, "size": cell, "sharp": round(float(sa), 2), "before": round(float(sb), 2)})
     return out
 
+def hand_boxes(points: list[dict], least: float = 0.5, ahead: float = 0.35, size: float = 0.6, floor: float = 0.8) -> list[dict]:
+    """骨格の点から、手ごとに切り出す枠と回す角度を決める。手首の確からしさが least 未満の手は読まない。
+    手は肘→手首の向きの先にあるので、手首から前腕の長さの ahead 倍先を中心に、前腕の size 倍四方を切る。
+    角度は指先（肘→手首の向き）が上になるまで反時計回りに回す度数（PIL の rotate と同じ向き）。
+    hands.measure は指先が上の手で読む（下向きのまま読ませると点が手の外に散った）。
+    手を腹の前で組むと前腕が奥へ縮んで写り、前腕だけで決めた枠は 26〜37 画素と手より小さくなった（3 枚中 2 枚）。
+    肩の点があれば、前腕の長さを上腕の長さの floor 倍より短くしない"""
+    p = {q["name"]: q for q in points}
+    out = []
+    for side in ("left", "right"):
+        w, e = p.get(f"{side}_wrist"), p.get(f"{side}_elbow")
+        if not w or not e or w["score"] < least:
+            continue
+        dx, dy = w["x"] - e["x"], w["y"] - e["y"]
+        arm = math.hypot(dx, dy)
+        if arm < 1:
+            continue
+        sh = p.get(f"{side}_shoulder")
+        if sh:
+            arm = max(arm, floor * math.hypot(e["x"] - sh["x"], e["y"] - sh["y"]))
+        cx, cy = w["x"] + dx / math.hypot(dx, dy) * arm * ahead, w["y"] + dy / math.hypot(dx, dy) * arm * ahead
+        half = arm * size / 2
+        angle = (90 - math.degrees(math.atan2(-dy, dx))) % 360
+        out.append({"side": side, "box": tuple(int(round(v)) for v in (cx - half, cy - half, cx + half, cy + half)),
+                    "angle": round(angle, 1), "score": round(float(w["score"]), 2)})
+    return out
+
+
+def hands_auto(points: list[dict], im: Image.Image, presence_min: float = 0.5) -> dict:
+    """手を切り出して hands.measure で測る。外れ（bad）が 1 つでもあれば崩れ。読める手が無ければ読めない。
+    手らしさ（presence）が presence_min 未満の手は、枠に手が入っていない（体の陰に隠れた手、枠のずれ）ことが多く、
+    実際の 3 枚では 4 手がそうだった。崩れには数えず、その手は読めないとする"""
+    import hands
+    boxes = hand_boxes(points)
+    res = {"readable": False, "bad": False, "hands": []}
+    for b in boxes:
+        crop = im.crop(b["box"]).rotate(b["angle"], expand=True, fillcolor=im.getpixel((0, 0)))
+        m, bad, _ = hands.measure(crop)
+        seen = m.get("presence", 1.0) >= presence_min
+        res["hands"].append({**b, "seen": seen, "measure": m, "outside": bad})
+        res["readable"] = res["readable"] or seen
+        res["bad"] = res["bad"] or (seen and bool(bad))
+    return res
+
+
 def human_legs(points: list[dict], height: int, least: float = 0.45, torso_max: float = 0.35, seen: float = 0.25,
                margin: float = 0.1) -> dict:
     """人の脚が残っているか（下半身が獣や蜘蛛の種族で、腰より下に人の膝と足首が描かれた崩れ）。
@@ -224,7 +270,177 @@ def color_gaps(colors: list[dict], limit: float = 40.0) -> list[dict]:
 BANDS = {"眉と目": (0.10, 0.58), "口": (0.60, 0.92)}
 
 
-def edge_cut(rgb: np.ndarray, margin: int = 2, far: float = 40.0, least: float = 0.02, win: int = 248) -> list[str]:
+# 頼んだ言葉に無ければ「設定に無い物」とする服飾のタグ。最後の語（hat、glasses）が頼んだ言葉にあれば数えない
+UNASKED_WEAR = ("hat", "cowboy hat", "witch hat", "baseball cap", "beret", "top hat", "glasses", "sunglasses", "scarf",
+                "headphones", "mask", "eyepatch", "cape", "gloves", "necktie", "bow")
+
+
+def heads_tall(seg: np.ndarray, rgb: np.ndarray, far: float = 40.0, points: list[dict] | None = None) -> float | None:
+    """頭身: 人物の高さ ÷ 頭の高さ（頭のてっぺんからあごまで）。
+    顔の部位（11）は首の肌まで含むので、下端をあごにすると頭を 2 割ほど大きく取った（頭身 6.2 の絵を 4.7 と測った）。
+    幅が細くなる所（首に変わる所）をあごにする。
+    髪の膨らみの分だけ頭を大きく取るので、作画の頭身より少し小さく出る。顔が読めなければ None"""
+    # 人物の上端と下端は、人物の形（背景から分けた最も大きなつながった塊）で取る。色の違いだけで取ると、背景に描かれた
+    # 文字の列（上から 11 画素目）を頭のてっぺんと取り、頭身 6 の絵を 4.1 と測った。部位分けの範囲で取ると、
+    # 髪を読み落とした絵で頭のてっぺんが顔の上端になり 12.4 と測った（頭身の実験、2026-10-17）
+    try:
+        person = _largest(figure_mask(rgb))
+    except Exception:
+        person = np.abs(rgb.astype(int) - rgb[2, 2].astype(int)).sum(2) > far
+    rows = np.nonzero(person.sum(1) > 3)[0]
+    width = (seg == 11).sum(1)
+    if len(rows) == 0 or width.max() < 10:
+        return None
+    # 上から下へ見て、顔が細くなり始めた後の一番細い行（その後また広がる＝首から胸へ移る手前）をあごにする。
+    # 全体の最大で決めると、胸元の開いた服では胸の肌が顔より広く、あごを胸まで下げた。
+    # 決まった割合（0.6 倍）で切ると、首の太い絵で切れずに頭身 6.4 を 4.9 と測った
+    ys = np.nonzero(width)[0]
+    chin, most, low, low_y = int(ys[-1]), 0, None, None
+    for y in range(int(ys[0]), int(ys[-1]) + 1):
+        w = int(width[y])
+        most = max(most, w)
+        if low is None:
+            if most >= 10 and w < most * 0.85:
+                low, low_y = w, y
+            continue
+        if w < low:
+            low, low_y = w, y
+        elif w > low * 1.15:
+            chin = low_y
+            break
+    else:
+        # 襟の高い服では首が隠れ、幅が広がり直さないまま細くなって終わる。あごの先（V の先）は幅が最大の 3 割を切る辺り
+        half = [y for y in range(int(ys[0]), int(ys[-1]) + 1) if most >= 10 and width[y] < most * 0.3 and width[:y].max() >= most]
+        if half:
+            chin = half[0]
+    top, bottom = rows[0], rows[-1]
+    p = {q["name"]: q for q in points or [] if q.get("score", 0) >= 0.3}
+    if all(k in p for k in ("nose", "left_eye", "right_eye")):
+        # 関節の点があれば、あごは鼻から（目と鼻の間）の 3 倍下。目盛りを当てて目で見た 2 枚とも 3.0 倍だった。
+        # 顔の部位の幅で取ると、首の肌や襟で外れ、頭身 5.7 の絵を 4.6、6.5 の絵を 11.5 と測った
+        eye = (p["left_eye"]["y"] + p["right_eye"]["y"]) / 2
+        chin = p["nose"]["y"] + 3.0 * max(p["nose"]["y"] - eye, 1.0)
+    if chin <= top:
+        return None
+    return round(float((bottom - top) / (chin - top)), 2)
+
+
+SEGMENTS = {
+    "shoulder_width": ("left_shoulder", "right_shoulder"), "hip_width": ("left_hip", "right_hip"),
+    "upper_arm_l": ("left_shoulder", "left_elbow"), "upper_arm_r": ("right_shoulder", "right_elbow"),
+    "forearm_l": ("left_elbow", "left_wrist"), "forearm_r": ("right_elbow", "right_wrist"),
+    "thigh_l": ("left_hip", "left_knee"), "thigh_r": ("right_hip", "right_knee"),
+    "shin_l": ("left_knee", "left_ankle"), "shin_r": ("right_knee", "right_ankle"),
+}
+
+
+def proportions(points: list[dict], least: float = 0.3) -> dict:
+    """関節の点から、部位の長さを胴の長さ（両肩の中点から両股の中点）で割った値。読めない点の部位は入れない"""
+    p = {q["name"]: q for q in points if q.get("score", 1) >= least}
+
+    def d(a, b):
+        return float(np.hypot(p[a]["x"] - p[b]["x"], p[a]["y"] - p[b]["y"]))
+    need = ("left_shoulder", "right_shoulder", "left_hip", "right_hip")
+    if not all(k in p for k in need):
+        return {}
+    sx = (p["left_shoulder"]["x"] + p["right_shoulder"]["x"]) / 2
+    sy = (p["left_shoulder"]["y"] + p["right_shoulder"]["y"]) / 2
+    hx = (p["left_hip"]["x"] + p["right_hip"]["x"]) / 2
+    hy = (p["left_hip"]["y"] + p["right_hip"]["y"]) / 2
+    torso = float(np.hypot(sx - hx, sy - hy))
+    return {k: round(d(a, b) / torso, 3) for k, (a, b) in SEGMENTS.items() if a in p and b in p and torso > 0}
+
+
+def structure(points: list[dict], top: float, bottom: float, least: float = 0.3, tolerance: float = 0.06) -> dict:
+    """頭身によらない体の決まり（styles/genres.json の structure）からの外れ。値は身長に対する割合の差。
+    股（両股の点の少し下）は身長の半分、腕を下ろした手首は股の高さ、肘は肩と手首の中ほど、膝は股と足首の中ほど。
+    立ち姿で腕を下ろした絵だけに使う（腕を上げた絵では手首の決まりは当たらない）"""
+    p = {q["name"]: q for q in points if q.get("score", 1) >= least}
+    H = bottom - top
+    out = {}
+    if H <= 0 or not all(k in p for k in ("left_hip", "right_hip")):
+        return {"values": out, "off": {}}
+    hip = (p["left_hip"]["y"] + p["right_hip"]["y"]) / 2
+    # 関節の点の股は脚の付け根の関節で、股の線より頭 0.25 個分ほど上にある
+    crotch = hip + H * 0.03
+    out["crotch_from_half"] = round((crotch - top) / H - 0.5, 3)
+    for side in ("left", "right"):
+        if f"{side}_wrist" in p:
+            out[f"wrist_{side}_from_crotch"] = round((p[f"{side}_wrist"]["y"] - crotch) / H, 3)
+        if all(f"{side}_{k}" in p for k in ("shoulder", "elbow", "wrist")):
+            s_, e, w = (p[f"{side}_{k}"]["y"] for k in ("shoulder", "elbow", "wrist"))
+            out[f"elbow_{side}_from_mid"] = round((e - (s_ + w) / 2) / H, 3)
+        if all(f"{side}_{k}" in p for k in ("hip", "knee", "ankle")):
+            h_, k_, a_ = (p[f"{side}_{k}"]["y"] for k in ("hip", "knee", "ankle"))
+            out[f"knee_{side}_from_mid"] = round((k_ - (h_ + a_) / 2) / H, 3)
+    return {"values": out, "off": {k: v for k, v in out.items() if abs(v) > tolerance}}
+
+
+def shoe_pair(points: list[dict], im: Image.Image, least: float = 0.3) -> dict | None:
+    """左右の足首の下を同じ大きさで切り出し、靴の平均の色の差（RGB の距離）と、塗られた面積の比を返す。
+    左右で違う靴（片方だけ灰色）の絵で 35.5、そろった絵で 2〜6 だった。影で暗い奥の足や、ズボンの裾が入る絵でも
+    15〜30 が出るので、崩れとは決めず、目で確かめる所の印に使う"""
+    p = {q["name"]: q for q in points if q.get("score", 1) >= least}
+    if not all(k in p for k in ("left_ankle", "right_ankle", "left_hip", "right_hip")):
+        return None
+    rgb = np.asarray(im.convert("RGB")).astype(float)
+    bg = rgb[2, 2]
+    r = max(12.0, abs(p["left_hip"]["x"] - p["right_hip"]["x"]) * 0.45)
+    stats = []
+    for s in ("left", "right"):
+        x, y = p[f"{s}_ankle"]["x"], p[f"{s}_ankle"]["y"]
+        box = rgb[max(0, int(y - r * 0.3)):int(y + r * 1.1), max(0, int(x - r * 0.6)):int(x + r * 0.6)]
+        m = np.abs(box - bg).sum(2) > 40
+        stats.append((box[m].mean(0) if m.any() else bg, int(m.sum())))
+    return {"color_diff": round(float(np.linalg.norm(stats[0][0] - stats[1][0])), 1),
+            "area_ratio": round(min(stats[0][1], stats[1][1]) / max(1, stats[0][1], stats[1][1]), 2)}
+
+
+def person_mask(seg: np.ndarray) -> np.ndarray:
+    """部位分けの「背景」以外を人物とする（髪・服・肌・持ち物の袋など）"""
+    return seg > 0
+
+
+def background_clutter(rgb: np.ndarray, seg: np.ndarray, far: float = 40.0, margin: int = 24) -> float:
+    """無地のはずの背景に、背景の色と違う画素がどれだけあるか（人物の周り margin 画素を除いた背景の割合）。
+    黄色の点の模様が背景一面に描かれた絵を、端の切れや浮いた塊の検品では拾えなかった"""
+    from scipy import ndimage
+    person = ndimage.binary_dilation(person_mask(seg), iterations=margin)
+    bg = rgb[2, 2].astype(int)
+    off = np.abs(rgb.astype(int) - bg).sum(2) > far
+    area = (~person).sum()
+    return round(float((off & ~person).sum() / max(1, area)), 4)
+
+
+def glow_ring(rgb: np.ndarray, seg: np.ndarray, width: int = 6) -> float:
+    """人物の輪郭のすぐ外側の帯の、背景からの色の離れ（彩度の高いにじみ）。輪郭の外にオレンジの光が付いた絵を拾うため。
+    帯の画素の、背景の色との差の中央値を返す（光の無い絵では 0 に近い）"""
+    from scipy import ndimage
+    m = person_mask(seg)
+    ring = ndimage.binary_dilation(m, iterations=width) & ~ndimage.binary_dilation(m, iterations=2)
+    if not ring.any():
+        return 0.0
+    bg = rgb[2, 2].astype(int)
+    return round(float(np.median(np.abs(rgb[ring].astype(int) - bg).sum(1))), 1)
+
+
+def part_color(rgb: np.ndarray, seg: np.ndarray, labels: list[int]) -> list[float] | None:
+    """部位分けの番号の画素の色の中央値（影や光に引っ張られにくいよう平均ではなく中央値）"""
+    m = np.isin(seg, labels)
+    if m.sum() < 200:
+        return None
+    return [float(v) for v in np.median(rgb[m], 0)]
+
+
+def proportion_drift(base: dict, drawn: dict, tolerance: float = 0.15) -> dict:
+    """下絵（体の寸法を合わせた人形）と描いた絵で、部位の長さの比べ。描く模型が肩幅や脚の長さを変えると、
+    下絵で合わせた釣り合いが絵に残らない。tolerance（既定 15%）を超えた部位を挙げる"""
+    ratio = {k: round(drawn[k] / base[k], 2) for k in base if k in drawn and base[k] > 0}
+    return {"ratio": ratio, "off": {k: v for k, v in ratio.items() if abs(v - 1) > tolerance}}
+
+
+def edge_cut(rgb: np.ndarray, margin: int = 2, far: float = 40.0, least: float = 0.02, win: int = 248,
+             person: np.ndarray | None = None) -> list[str]:
     """人物が絵の端で切れているか（全身の絵で足先や頭が切れる欠損）。辺ごとに、端の帯の色を辺に沿った移動中央値（win 画素）と比べ、
     far 以上離れた画素が least を超える辺の名前を返す。
     四隅の色を地とすると、影や色の変わる背景で四辺とも「切れている」と出た（アラクネの候補 24 枚中 22 枚が読めなくなった）。
@@ -236,7 +452,13 @@ def edge_cut(rgb: np.ndarray, margin: int = 2, far: float = 40.0, least: float =
                        ("左", x[:, :margin].transpose(1, 0, 2)), ("右", x[:, -margin:].transpose(1, 0, 2))):
         line = band.mean(0)
         bg = np.stack([ndimage.median_filter(line[:, c], size=win, mode="nearest") for c in range(3)], -1)
-        if (np.abs(line - bg).max(-1) > far).mean() > least:
+        off = np.abs(line - bg).max(-1) > far
+        if person is not None:
+            # 人物（部位分けで背景でない所）にかかる画素だけを数える。背景の椰子の葉が端で切れているのを、
+            # 人物が切れていると取り違えた（描画確認、2026-10-17）
+            pm = {"上": person[:margin], "下": person[-margin:], "左": person[:, :margin].T, "右": person[:, -margin:].T}[name]
+            off = off & pm.any(0)
+        if off.mean() > least:
             out.append(name)
     return out
 
@@ -346,7 +568,8 @@ def sheet(src: str, out: str, zoom: float = 2.0, cell: int = 380) -> dict:
         # 部位分けは、水着で出た胴の肌を顔と取り、顔の拡大が胸を写した（水着の 4 枚中 4 枚）。鼻が箱に入らなければ骨格の点を使う
         nx, ny = (jbox[0] + jbox[2]) / 2, (jbox[1] + jbox[3]) / 2
         if not (face_box[0] <= nx <= face_box[2] and face_box[1] <= ny <= face_box[3]) or \
-                (face_box[2] - face_box[0]) > 2 * (jbox[2] - jbox[0]):
+                (face_box[2] - face_box[0]) > 2 * (jbox[2] - jbox[0]) or \
+                (face_box[2] - face_box[0]) > 0.4 * (fbox[2] - fbox[0]) + (jbox[2] - jbox[0]):
             face_box = jbox
             note.append("部位分けの顔が骨格の点と合わず、骨格の点を使った")
     if face_box is None:
@@ -442,7 +665,27 @@ EYE_COLORS = {"blue", "red", "green", "purple", "yellow", "brown", "black", "gre
               "aqua", "white", "amber", "golden", "silver"}
 
 
-def auto_check(src: str, prompt: str = "") -> dict:
+SPIDER_WORDS = ("arachne", "drider", "spider body", "spider lower body")
+
+
+def spider_legs(rgb, alpha, dark: float = 0.35, band: float = 0.08, least: int = 30) -> dict:
+    """蜘蛛の脚の数を、体の下端の帯（体の高さの band）にある暗い塊で数える。床に届く脚の先は暗い塊で、地面の影は
+    明るさ dark 以上なので外れる。検品担当が脚の先を数えた 7 枚で、6 本の 4 枚と 7 本の 1 枚は数が合い、7 本を 5 と
+    読んだのが 1 枚、影と半透明の脚がつながって 8 本を 1 と読んだのが 1 枚。2 個以下はつながったとして「読めない」。
+    前で折れて床に届かない脚は数えない（床に 6 本、前に 2 本の絵を 6 と読む）"""
+    from scipy import ndimage
+    m = alpha & (rgb.mean(-1) < dark)
+    ys = np.nonzero(m.any(1))[0]
+    if len(ys) == 0:
+        return {"readable": False, "count": None}
+    top, bot = ys.min(), ys.max()
+    b = ndimage.binary_opening(m[int(bot - (bot - top) * band):bot + 1], iterations=1)
+    lab, n = ndimage.label(b)
+    count = int((ndimage.sum(b, lab, range(1, n + 1)) > least).sum()) if n else 0
+    return {"readable": count > 2, "count": count}
+
+
+def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | None = None) -> dict:
     """描いた直後に必ず走らせる検品。崩れが 1 つでも、読めない検品が 1 つでもあれば ok を False にする。
     Claude は検品を呼ばないと走らせず、描かせた絵を検品なしで次へ回した。描く道具（free_text.draw、fix.py）から毎回呼ぶ。
     ok が True でも完成ではない。通す・戻すは検品担当（checker）が目で見て決める。
@@ -464,6 +707,14 @@ def auto_check(src: str, prompt: str = "") -> dict:
         all_tags = tagger.read(src, 0.0)
         res["tags"] = all_tags
         tags = {k: v for k, v in all_tags.items() if v >= 0.35}
+        # 低い確からしさまでのタグを返し、頼んだ言葉の欠けを調べる側（loop.py）が同じ絵をもう一度読まなくて済むようにする
+        res["tags"] = {k: v for k, v in all_tags.items() if v >= 0.05}
+        # 頼んでいない服飾（帽子など）。バーの男 8 枚中 7 枚に頼んでいないカウボーイハットが描かれ、検品が数えなかった（描画確認 回5）
+        if prompt:
+            low_p = prompt.lower()
+            extra = sorted(t for t in UNASKED_WEAR if tags.get(t, 0) >= 0.5 and t.split()[-1] not in low_p)
+            if extra:
+                res["problems"].append({"unasked_item": extra})
         # 目の範囲を描き直した絵で瞳が消え光る線だけになったのを、目の測り方が揺れて見つけたと読み通した（2026-10-16）。
         # タグは extra eyes を 0.53 で読んでいた。崩れの無い絵では 0.22〜0.30 だったので、EXTRA_EYES 以上を崩れに数える
         if tags.get("extra eyes", 0) >= EXTRA_EYES:
@@ -478,7 +729,22 @@ def auto_check(src: str, prompt: str = "") -> dict:
     try:
         im = Image.open(src).convert("RGB")
         rgb = np.asarray(im)
-        cut = edge_cut(rgb)
+        # 頭身。ジャンルの範囲（styles/genres.json）を渡されたら外れを崩れに数える。写実の体にアニメの顔、
+        # 2 頭身に写実の塗り、のようにジャンルに合わない組み合わせは、体と顔の釣り合いが崩れて見えた。
+        # 測り方は髪の膨らみの分だけ小さく出るので、範囲の下を 0.4 広げて比べる
+        try:
+            import joints
+            ht = heads_tall(_parts(src, im), rgb, points=joints.find(src))
+            res["heads_tall"] = ht
+            if heads_range and ht is not None and not (heads_range[0] - 0.4 <= ht <= heads_range[1]):
+                res["problems"].append({"heads_tall": ht, "range": list(heads_range)})
+        except ImportError as e:
+            res["unreadable"].append({"heads_tall": str(e)})
+        try:
+            person = _parts(src, im) > 0
+        except Exception:   # 部位分けの模型が無い環境では、これまでどおり色だけで見る
+            person = None
+        cut = edge_cut(rgb, person=person)
         if cut:
             res["problems"].append({"edge_cut": cut})
         seams = background_seams(rgb)
@@ -531,6 +797,28 @@ def auto_check(src: str, prompt: str = "") -> dict:
             res["unreadable"].append({"eyes": eye})
         elif eye["mismatch"]:
             res["problems"].append({"eyes": eye})
+        # 手の数。胸の前に 3 本目の手が描かれた絵（描画確認 回5）を、手の形の検品は手ごとにしか見ないので拾わなかった。
+        # 手のひらの模型（MediaPipe）が 3 つ以上の手を見つけたら崩れに数える
+        try:
+            import hands as _hands
+            n_hands = len(_hands.detect_palms(im))
+            res["hands_count"] = n_hands
+            several = any(w in (prompt or "").lower() for w in ("2girls", "2boys", "multiple", "group", "couple"))
+            if n_hands > 2 and not several:
+                res["problems"].append({"extra_hands": n_hands})
+        except Exception as e:   # 手のひらの模型が無い環境
+            res["unreadable"].append({"hands_count": f"{type(e).__name__}: {e}"})
+        hand = hands_auto(points, im)
+        if not hand["readable"]:
+            res["unreadable"].append({"hands": hand})
+        elif hand["bad"]:
+            res["problems"].append({"hands": hand})
+        if any(w in prompt.lower() for w in SPIDER_WORDS):
+            import design
+            alpha = np.asarray(design.cut_background(im).getchannel("A")) > 0
+            # 床に届く脚の先だけを数えるので、前で折れて床に届かない脚は入らない。検品担当が 8 本と通した 1 枚を 6 と読んだ。
+            # 崩れには数えず、参考として残す（床に届かない脚を数える方法ができたら崩れに入れる）
+            res["info"] = {"spider_legs": spider_legs(rgb.astype(np.float32) / 255.0, alpha)}
         if any(w in prompt.lower() for w in NON_HUMAN_LOWER):
             legs = human_legs(points, im.height)
             if not legs["readable"]:
@@ -549,7 +837,7 @@ def auto_check(src: str, prompt: str = "") -> dict:
 
 
 # 崩れの重さ（100 点から引く）。体のつながりや人そのものの崩れは直せないので重く、部分の直しで直せる崩れは軽くする
-PENALTY = {"fixed_restriction": 100, "person": 60, "human_legs": 40, "edge_cut": 25, "eyes": 15, "extra_eyes": 15, "floating": 15,
+PENALTY = {"fixed_restriction": 100, "person": 60, "human_legs": 40, "edge_cut": 25, "eyes": 15, "extra_eyes": 15, "floating": 15, "hands": 15,
            "seams": 10, "measure": 8}
 
 
@@ -605,7 +893,8 @@ def facts(src: str, character: str | None = None) -> dict:
     rgb = np.asarray(im)
     parts = _parts(src, im)
     person = parts > 0
-    res = {"edge_cut": edge_cut(rgb), "inventory": inventory(parts),
+    # 端の切れは人物の画素だけで数える（背景が端まである絵で、全身が収まっているのに4辺切れと出た）
+    res = {"edge_cut": edge_cut(rgb, person=person), "inventory": inventory(parts),
            "floating": floating_blobs(rgb), "seams": background_seams(rgb),
            "skin_ratio": round(float(np.isin(parts, SKIN).sum() / max(person.sum(), 1)), 3)}
     import tagger
@@ -620,6 +909,16 @@ def facts(src: str, character: str | None = None) -> dict:
         res["avoided_but_seen"] = {t: p for t, p in got.items() if t in avoid}
         words = ", ".join(x for x in (c["look"], c.get("eyes", {}).get("tags", ""), c["outfit"]) if x)
         res["asked_but_missing"] = tagger.missing(words, got) + nouns_missing(words, got, tagger.vocabulary())
+    else:
+        # 設定資料の無い絵でも、描いたときの言葉（絵の隣の <絵>.json の prompt）があれば欠けを見る。
+        # 付けないと見なかったため、ピースサイン 8/8 の欠け・剣の欠け・短パンが長ズボンになったのを拾えなかった
+        side = Path(str(src) + ".json")
+        try:
+            words = json.loads(side.read_text(encoding="utf-8")).get("prompt", "") if side.exists() else ""
+        except (OSError, ValueError):
+            words = ""
+        if words:
+            res["asked_but_missing"] = tagger.missing(words, got) + nouns_missing(words, got, tagger.vocabulary())
     return res
 
 

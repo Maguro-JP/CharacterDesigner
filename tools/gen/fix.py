@@ -42,17 +42,32 @@ def parse_box(text: str) -> tuple[int, int, int, int]:
     return x0, y0, x1, y1
 
 
+_SD15 = {}
+
+
 def repaint(im: Image.Image, mask: Image.Image, prompt: str, negative: str, strength: float, seed: int,
-            steps: int = 24) -> Image.Image:
-    """手元の animagine で範囲だけを描き直す。描き直し専用の模型は手元に無く（約 5GB）、取りに行くとディスクを埋めた"""
+            steps: int = 24, style: str | None = None) -> Image.Image:
+    """範囲だけを描き直す。元の絵と同じ模型で描き直す（style、省くと SDXL の animagine）。
+    SDXL 専用だったため、SD1.5（MeinaMix）で描いた絵を SDXL で描き直し、範囲の内と外で絵柄が食い違った（描画確認、2026-10-17）。
+    描き直し専用の模型は手元に無く（約 5GB）、取りに行くとディスクを埋めたので、描いた模型の部品をそのまま使う"""
     import torch
-    from diffusers import StableDiffusionXLInpaintPipeline
-    import people
-    inp = StableDiffusionXLInpaintPipeline(**people.pipe().components)
-    pe, ne, pp, np_ = design.encode_xl(inp, prompt, negative)
-    g = inp(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
-            image=im, mask_image=mask, strength=strength, num_inference_steps=steps, guidance_scale=6.0,
-            width=im.width, height=im.height, generator=torch.Generator().manual_seed(seed)).images[0]
+    if style and style not in design.XL:
+        from diffusers import StableDiffusionInpaintPipeline
+        if style not in _SD15:   # 模型は 1 回だけ読む
+            _SD15[style] = StableDiffusionInpaintPipeline(**design._pipe(style).components)
+        p = _SD15[style]
+        pe, ne = design.encode(p, prompt, negative)
+        g = p(prompt_embeds=pe, negative_prompt_embeds=ne, image=im, mask_image=mask, strength=strength,
+              num_inference_steps=max(6, int(round(6 / strength))), guidance_scale=1.5, width=im.width, height=im.height,
+              generator=torch.Generator().manual_seed(seed)).images[0]
+    else:
+        from diffusers import StableDiffusionXLInpaintPipeline
+        import people
+        inp = StableDiffusionXLInpaintPipeline(**people.pipe().components)
+        pe, ne, pp, np_ = design.encode_xl(inp, prompt, negative)
+        g = inp(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
+                image=im, mask_image=mask, strength=strength, num_inference_steps=steps, guidance_scale=6.0,
+                width=im.width, height=im.height, generator=torch.Generator().manual_seed(seed)).images[0]
     # 範囲の外は元の画素のまま。縁は 8 画素ぼかしてなじませる
     return Image.composite(g, im, mask.filter(ImageFilter.GaussianBlur(8)))
 

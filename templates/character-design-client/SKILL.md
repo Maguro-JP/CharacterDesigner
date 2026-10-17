@@ -39,7 +39,7 @@ description: この作品のキャラクターやモンスターのデザイン�
 | 部位だけ描き直す | `edit.py inpaint <絵> <出力> --region skin_arms --strength 0.85 --prompt "<英語>"` |
 
 - 範囲の外は元の画素を貼り戻し、範囲の外で変わった画素の数を毎回出す（0 でなければ失敗）
-- 確かめたパターン（肌の色、腕の刺青、体型、角など）は CharacterDesigner の `library/patterns.json` に、コマンドと見本の絵つきで入っている。
+- 確かめたパターン（肌の色、腕の刺青、体型、角など）は CharacterDesigner の `casts/patterns.json` に、コマンドと見本の絵つきで入っている。
   設定集で `"patterns": ["名前"]`、または `command` のとおりに流す。効き目の記録は `docs/knowledge/traits.md`
 - 体の部品は、服を着た姿ではなく素体（`"framing": "body"`、無地の肌着）で決める。服に引っ張られないため
 - まだできないもの: 鱗、角や耳を後から足す、服の着せ替え（traits.md の最新の結果を見る）

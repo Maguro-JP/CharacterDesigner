@@ -1,0 +1,6 @@
+{
+ "note": "描く模型が下絵の部位の長さを変える癖（描いた絵 ÷ 下絵）。turnaround.py は人形の部位をこの値で割って作る。qc.proportion_drift で描いた絵を測るたびに学び直す（tools/gen/bias.py）。腕を癖の分だけ短くした人形から描いても、腕は短くならず 1.34〜1.38 倍に描かれた（模型は下絵の腕の長さに従わない）ので、空にしている",
+ "model": "cagliostrolab/animagine-xl-4.0",
+ "bias": {},
+ "samples": 4
+}
