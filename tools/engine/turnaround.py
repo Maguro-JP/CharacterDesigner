@@ -38,6 +38,12 @@ def main(argv):
     ap.add_argument("--bottom", type=rgb, default=(40, 40, 45), help="腰から下の布の色")
     ap.add_argument("--cape", type=rgb, help="背中のマントの色。省くとマントを付けない")
     ap.add_argument("--boots", type=rgb, help="膝から下の色（鎧靴など）。省くと下の布の色")
+    ap.add_argument("--clothes", default="female_casualsuit01,shoes01",
+                    help="着せる服の型（MPFB の clothes の名前をカンマ区切り）。布に厚みと縫い目のある型を着せる")
+    ap.add_argument("--hair", help="髪の型（MPFB の hair の名前、例 bob01）。省くと坊主頭")
+    ap.add_argument("--hair-color", type=rgb, default=(60, 40, 30))
+    ap.add_argument("--thickness", type=float, default=0.004, help="布の厚み（m）。0 で厚みを付けない")
+    ap.add_argument("--split", type=float, default=0.95, help="上と下の布の色を分ける高さ（m）。裾の長い上着は下げる")
     ap.add_argument("--long-sleeves", action="store_true", help="腕を手首まで上の布の色にする（長袖の上着）")
     ap.add_argument("--width", type=int, default=832)
     ap.add_argument("--height", type=int, default=1216)
@@ -53,12 +59,25 @@ def main(argv):
     HumanService.add_builtin_rig(h, "default")
     clothed = []
     import glob
-    for name in ("female_casualsuit01", "shoes01"):
+    for name in a.clothes.split(","):
         found = glob.glob(str(human.MPFB_DATA / "clothes" / name / "*.mhclo"))
         if found:
             before = set(bpy.data.objects)
             HumanService.add_mhclo_asset(found[0], h, asset_type="Clothes", subdiv_levels=0)
             clothed += [o for o in bpy.data.objects if o not in before and o.type == "MESH"]
+    hair = []
+    if a.hair:
+        # 坊主頭の人形から描くと、額に眉が塊で描かれ、髪の生え際と顔の大きさが毎回変わった
+        found = glob.glob(str(human.MPFB_DATA / "hair" / a.hair / "*.mhclo"))
+        before = set(bpy.data.objects)
+        HumanService.add_mhclo_asset(found[0], h, asset_type="Hair", subdiv_levels=0)
+        hair = [o for o in bpy.data.objects if o not in before and o.type == "MESH"]
+    if a.thickness > 0:
+        # 型の布は厚みの無い 1 枚の面で、襟や裾の縁が線にしかならなかった。厚みを付けて、縁と重なりを立体にする
+        for o in clothed:
+            mod = o.modifiers.new("thickness", "SOLIDIFY")
+            mod.thickness = a.thickness
+            mod.offset = 1.0
     rig = next(o for o in bpy.data.objects if o.type == "ARMATURE")
     human.adduct_arms(rig, 35)
     human.relax_hands(rig)
@@ -70,11 +89,13 @@ def main(argv):
     human.assign([h], tinted("skin", a.skin))
     top, bottom = tinted("top", a.top), tinted("bottom", a.bottom)
     human.assign(clothed, top)
+    if hair:
+        human.assign(hair, tinted("hair", a.hair_color))
     # 腰から下は別の色にする。上下が1色だと、スカートと鎧の境目が絵に出なかった
     for o in clothed:
         o.data.materials.append(bottom)
         for f in o.data.polygons:
-            if (o.matrix_world @ f.center).z < 0.95:
+            if (o.matrix_world @ f.center).z < a.split:
                 f.material_index = len(o.data.materials) - 1
 
     if a.long_sleeves:
