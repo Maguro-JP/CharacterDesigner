@@ -180,8 +180,10 @@ def place(char, height=0.8, x=0.5, foot=0.93):
 
 # ---- 2. 背景 ----
 
-def background(scene, seed, steps=28):
-    """人を描かない場面の絵を描く。人物が混ざったら seed を変えて描き直す（最大 3 回）。"""
+def background(scene, seed, steps=28, size=SIZE, negative=BG_NEGATIVE, check=None):
+    """人を描かない場面の絵を描く。人物が混ざったら seed を変えて描き直す（最大 3 回）。
+    size・negative・check は背景だけを作るモード（background.py）が横長や別の検品で使う。省くと合成用の縦長と部位分けの検品"""
+    check = check or has_person
     import torch
     import design
     import people
@@ -190,15 +192,15 @@ def background(scene, seed, steps=28):
     prompt = "no humans, scenery, detailed background, eye level, horizon in the middle, " + scene + ", " + people.QUALITY
     for k in range(3):
         t = time.time()
-        pe, ne, pp, np_ = design.encode_xl(pipe, prompt, BG_NEGATIVE)
+        pe, ne, pp, np_ = design.encode_xl(pipe, prompt, negative)
         kw = {}
         if people._IP:
             pipe.set_ip_adapter_scale(0.0)
             kw["ip_adapter_image"] = Image.new("RGB", (224, 224), "white")
         im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
-                  num_inference_steps=steps, guidance_scale=6.0, width=SIZE[0], height=SIZE[1],
+                  num_inference_steps=steps, guidance_scale=6.0, width=size[0], height=size[1],
                   generator=torch.Generator().manual_seed(seed + k * 100), **kw).images[0]
-        people_found = has_person(im)
+        people_found = check(im)
         print(f"背景: {time.time() - t:.0f} 秒 seed {seed + k * 100} " + ("人が混ざった" if people_found else "通った"), flush=True)
         if not people_found:
             return im
@@ -299,7 +301,7 @@ def depth_map(bg):
         _DEPTH = pipeline("depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf", device=device.name())
     d = _DEPTH(bg)["predicted_depth"]
     d = d.squeeze().numpy() if hasattr(d, "numpy") else np.asarray(d)
-    _DEPTH_CACHE[key] = np.asarray(Image.fromarray(d.astype("float32")).resize(SIZE, Image.BILINEAR))
+    _DEPTH_CACHE[key] = np.asarray(Image.fromarray(d.astype("float32")).resize(bg.size, Image.BILINEAR))
     return _DEPTH_CACHE[key]
 
 
@@ -308,7 +310,7 @@ def horizon(bg):
     見えている水平線と、3枚の背景で画面の 3% 以内で合った。空が見えない背景は None（大きさは --height で決める）"""
     d = depth_map(bg)
     rows = np.where((d < d.max() * 0.003).mean(axis=1) > 0.5)[0]
-    return float(rows.max()) / SIZE[1] if len(rows) else None
+    return float(rows.max()) / d.shape[0] if len(rows) else None
 
 
 def perspective_height(horizon_y, foot, eye=0.93):
