@@ -270,6 +270,11 @@ def color_gaps(colors: list[dict], limit: float = 40.0) -> list[dict]:
 BANDS = {"眉と目": (0.10, 0.58), "口": (0.60, 0.92)}
 
 
+# 頼んだ言葉に無ければ「設定に無い物」とする服飾のタグ。最後の語（hat、glasses）が頼んだ言葉にあれば数えない
+UNASKED_WEAR = ("hat", "cowboy hat", "witch hat", "baseball cap", "beret", "top hat", "glasses", "sunglasses", "scarf",
+                "headphones", "mask", "eyepatch", "cape", "gloves", "necktie", "bow")
+
+
 def heads_tall(seg: np.ndarray, rgb: np.ndarray, far: float = 40.0, points: list[dict] | None = None) -> float | None:
     """頭身: 人物の高さ ÷ 頭の高さ（頭のてっぺんからあごまで）。
     顔の部位（11）は首の肌まで含むので、下端をあごにすると頭を 2 割ほど大きく取った（頭身 6.2 の絵を 4.7 と測った）。
@@ -563,7 +568,8 @@ def sheet(src: str, out: str, zoom: float = 2.0, cell: int = 380) -> dict:
         # 部位分けは、水着で出た胴の肌を顔と取り、顔の拡大が胸を写した（水着の 4 枚中 4 枚）。鼻が箱に入らなければ骨格の点を使う
         nx, ny = (jbox[0] + jbox[2]) / 2, (jbox[1] + jbox[3]) / 2
         if not (face_box[0] <= nx <= face_box[2] and face_box[1] <= ny <= face_box[3]) or \
-                (face_box[2] - face_box[0]) > 2 * (jbox[2] - jbox[0]):
+                (face_box[2] - face_box[0]) > 2 * (jbox[2] - jbox[0]) or \
+                (face_box[2] - face_box[0]) > 0.4 * (fbox[2] - fbox[0]) + (jbox[2] - jbox[0]):
             face_box = jbox
             note.append("部位分けの顔が骨格の点と合わず、骨格の点を使った")
     if face_box is None:
@@ -703,6 +709,12 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
         tags = {k: v for k, v in all_tags.items() if v >= 0.35}
         # 低い確からしさまでのタグを返し、頼んだ言葉の欠けを調べる側（loop.py）が同じ絵をもう一度読まなくて済むようにする
         res["tags"] = {k: v for k, v in all_tags.items() if v >= 0.05}
+        # 頼んでいない服飾（帽子など）。バーの男 8 枚中 7 枚に頼んでいないカウボーイハットが描かれ、検品が数えなかった（描画確認 回5）
+        if prompt:
+            low_p = prompt.lower()
+            extra = sorted(t for t in UNASKED_WEAR if tags.get(t, 0) >= 0.5 and t.split()[-1] not in low_p)
+            if extra:
+                res["problems"].append({"unasked_item": extra})
         # 目の範囲を描き直した絵で瞳が消え光る線だけになったのを、目の測り方が揺れて見つけたと読み通した（2026-10-16）。
         # タグは extra eyes を 0.53 で読んでいた。崩れの無い絵では 0.22〜0.30 だったので、EXTRA_EYES 以上を崩れに数える
         if tags.get("extra eyes", 0) >= EXTRA_EYES:
@@ -783,6 +795,17 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
             res["unreadable"].append({"eyes": eye})
         elif eye["mismatch"]:
             res["problems"].append({"eyes": eye})
+        # 手の数。胸の前に 3 本目の手が描かれた絵（描画確認 回5）を、手の形の検品は手ごとにしか見ないので拾わなかった。
+        # 手のひらの模型（MediaPipe）が 3 つ以上の手を見つけたら崩れに数える
+        try:
+            import hands as _hands
+            n_hands = len(_hands.detect_palms(im))
+            res["hands_count"] = n_hands
+            several = any(w in (prompt or "").lower() for w in ("2girls", "2boys", "multiple", "group", "couple"))
+            if n_hands > 2 and not several:
+                res["problems"].append({"extra_hands": n_hands})
+        except Exception as e:   # 手のひらの模型が無い環境
+            res["unreadable"].append({"hands_count": f"{type(e).__name__}: {e}"})
         hand = hands_auto(points, im)
         if not hand["readable"]:
             res["unreadable"].append({"hands": hand})
