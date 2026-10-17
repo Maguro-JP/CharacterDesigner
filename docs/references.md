@@ -74,3 +74,11 @@ OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じ
 | PSD の書き出し | psd-tools | MIT |
 
 重みはリポジトリに置かず、初回の実行で `.cache/gen` に取る。
+
+## 体の目印・影・姿勢（`docs/knowledge/learning/body-pro-references.md`）
+
+- Andrew Loomis『Figure Drawing for All It's Worth』（1943）
+- lifedrawing.academy の人体デッサンの講座（コントラポスト、女性の体）
+- Proko の terminator の練習、Muddy Colors、Artists Network の陰影の基礎
+- 写真の照明（レンブラント・ライティング）の解説
+- 文化庁 アニメーション人材育成講座「色彩設計・仕上げの役割」
