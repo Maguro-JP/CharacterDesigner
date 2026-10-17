@@ -51,7 +51,8 @@ HAND_NEGATIVE = "fused fingers, extra fingers, missing fingers, six fingers, fou
 
 
 def detail(src, out, prompt: str, negative: str = "", strength: float = 0.4, steps: int = 24, seed: int = 0,
-           box=None, words: str = FACE_WORDS, extra_negative: str = FACE_NEGATIVE) -> dict:
+           box=None, words: str = FACE_WORDS, extra_negative: str = FACE_NEGATIVE, control: str | None = None,
+           control_scale: float = 0.8) -> dict:
     import torch
     from PIL import Image, ImageDraw, ImageFilter
     import demi
@@ -66,11 +67,21 @@ def detail(src, out, prompt: str, negative: str = "", strength: float = 0.4, ste
         return {"box": None, "reason": "顔が読めなかった（後ろ向き・小さすぎる）"}
     crop = im.crop(box)
     pos, neg = free_text.full_prompt(f"{prompt}, {words}", ", ".join(x for x in (negative, extra_negative) if x))
-    pipe = demi.img2img()
+    extra = {}
+    if control:
+        # 人形の奥行きの同じ枠を切り出して渡し、形（指の本数と向き）を人形で縛る。
+        # 言葉と強さだけで手を描き直すと、元の崩れた手の形に引っ張られ、指が 2〜3 本の爪の形のまま残った
+        import people
+        pipe = people.depth_img2img()
+        ctrl = Image.open(control).convert("RGB").resize(im.size).crop(box).resize((SIDE, SIDE), Image.LANCZOS)
+        extra = dict(control_image=ctrl, controlnet_conditioning_scale=control_scale)
+    else:
+        pipe = demi.img2img()
     pe, ne, pp, np_ = design.encode_xl(pipe, pos, neg)
     redone = pipe(image=crop.resize((SIDE, SIDE), Image.LANCZOS), strength=strength, prompt_embeds=pe,
                   negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
-                  num_inference_steps=steps, guidance_scale=6.0, generator=torch.Generator().manual_seed(seed)).images[0]
+                  num_inference_steps=steps, guidance_scale=6.0, generator=torch.Generator().manual_seed(seed),
+                  **extra).images[0]
     redone = redone.resize(crop.size, Image.LANCZOS)
     # 枠の縁で継ぎ目が出ないよう、内側の楕円だけを使い、縁を枠の 1/10 でぼかす
     s = crop.size[0]

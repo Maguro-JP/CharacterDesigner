@@ -32,7 +32,7 @@ PHASES = ["base", "draw", "face", "hands", "check"]
 # 工程ごとの描く強さ。draw の奥行きの縛りは描き始めだけ（全部で縛ると塗りが平たくなり、縛らないと腕を長く描いた）
 DRAW = dict(strength=0.85, depth_scale=0.8, depth_end=0.4)
 FACE_STRENGTH = 0.45
-HAND_STRENGTH = 0.6
+HAND_STRENGTH = 0.75   # 人形の手の奥行きで形を縛るので、元の崩れた手を強めに描き替える
 
 
 def _load(out: Path) -> dict:
@@ -145,7 +145,8 @@ def phase_hands(ident, out, view, seed, st):
         box = (x - 80, y - 50, x + 80, y + 110)
         detail.detail(cur, str(f), "relaxed hand at side, fingers together, slightly curled, five fingers, " + pos,
                       neg + ", claws, spread fingers, long fingers", strength=HAND_STRENGTH, seed=seed + i, box=box,
-                      words=detail.HAND_WORDS, extra_negative=detail.HAND_NEGATIVE)
+                      words=detail.HAND_WORDS, extra_negative=detail.HAND_NEGATIVE,
+                      control=st["phases"]["base"]["result"].get("depth"))
         cur = str(f)
     return {"file": cur}
 
@@ -156,7 +157,9 @@ def check_hands(res, ident, view, st):
     from PIL import Image
     h = qc.hands_auto(joints.find(res["file"]), Image.open(res["file"]).convert("RGB"))
     if not h["readable"]:
-        return []   # 手が読めない（後ろ向き・隠れている）ときは目で見る
+        # 正面と横では手は見えている。手の模型が手と読めない（手らしさ 0.0）のは、指が 2〜3 本の爪の形に崩れた手だった
+        # （読めない手を目に回して通したため、崩れた手が次の工程へ進んだ）。後ろ向きだけは隠れるので通す
+        return [] if view == "back" else ["手として読めない（指が描けていない）"]
     return [f"手 {json.dumps(h['bad'], ensure_ascii=False, default=float)}"] if h["bad"] else []
 
 
