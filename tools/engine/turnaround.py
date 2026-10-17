@@ -114,7 +114,7 @@ def main(argv):
         # 測った頭身から倍率を出し、もう一度測って合わせる
         for _ in range(2):
             now = human.measure_body(h, human._rig(h))["height"]
-            human.deform(h.data, head_scale(a.heads, now), 1.0)
+            human.deform(h.data, head_scale(a.heads, now), g_genre().get("legs", 1.0) if _ == 0 else 1.0)
     # 骨は形を変え終えてから付け直す（古い骨と骨の設定を残すと、形を変える前の位置で体が曲がる）
     human._rig(h)
     clothed = []

@@ -353,7 +353,8 @@ def genre(ident: str) -> dict:
     d = json.loads(GENRES.read_text(encoding="utf-8"))
     key = load("characters", ident).get("genre") or d["default"]
     g = dict(d["genres"][key], id=key)
-    lo, hi = g["heads_tall"]
+    gender = load("characters", ident).get("gender") or ("female" if "1girl" in load("characters", ident).get("look", "") else None)
+    lo, hi = g.get("heads_by_gender", {}).get(gender, g["heads_tall"])
     g["heads"] = round((lo + hi) / 2, 2)
     return g
 

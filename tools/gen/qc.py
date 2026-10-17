@@ -334,6 +334,31 @@ def proportions(points: list[dict], least: float = 0.3) -> dict:
     return {k: round(d(a, b) / torso, 3) for k, (a, b) in SEGMENTS.items() if a in p and b in p and torso > 0}
 
 
+def structure(points: list[dict], top: float, bottom: float, least: float = 0.3, tolerance: float = 0.06) -> dict:
+    """頭身によらない体の決まり（styles/genres.json の structure）からの外れ。値は身長に対する割合の差。
+    股（両股の点の少し下）は身長の半分、腕を下ろした手首は股の高さ、肘は肩と手首の中ほど、膝は股と足首の中ほど。
+    立ち姿で腕を下ろした絵だけに使う（腕を上げた絵では手首の決まりは当たらない）"""
+    p = {q["name"]: q for q in points if q.get("score", 1) >= least}
+    H = bottom - top
+    out = {}
+    if H <= 0 or not all(k in p for k in ("left_hip", "right_hip")):
+        return {"values": out, "off": {}}
+    hip = (p["left_hip"]["y"] + p["right_hip"]["y"]) / 2
+    # 関節の点の股は脚の付け根の関節で、股の線より頭 0.25 個分ほど上にある
+    crotch = hip + H * 0.03
+    out["crotch_from_half"] = round((crotch - top) / H - 0.5, 3)
+    for side in ("left", "right"):
+        if f"{side}_wrist" in p:
+            out[f"wrist_{side}_from_crotch"] = round((p[f"{side}_wrist"]["y"] - crotch) / H, 3)
+        if all(f"{side}_{k}" in p for k in ("shoulder", "elbow", "wrist")):
+            s_, e, w = (p[f"{side}_{k}"]["y"] for k in ("shoulder", "elbow", "wrist"))
+            out[f"elbow_{side}_from_mid"] = round((e - (s_ + w) / 2) / H, 3)
+        if all(f"{side}_{k}" in p for k in ("hip", "knee", "ankle")):
+            h_, k_, a_ = (p[f"{side}_{k}"]["y"] for k in ("hip", "knee", "ankle"))
+            out[f"knee_{side}_from_mid"] = round((k_ - (h_ + a_) / 2) / H, 3)
+    return {"values": out, "off": {k: v for k, v in out.items() if abs(v) > tolerance}}
+
+
 def proportion_drift(base: dict, drawn: dict, tolerance: float = 0.15) -> dict:
     """下絵（体の寸法を合わせた人形）と描いた絵で、部位の長さの比べ。描く模型が肩幅や脚の長さを変えると、
     下絵で合わせた釣り合いが絵に残らない。tolerance（既定 15%）を超えた部位を挙げる"""
