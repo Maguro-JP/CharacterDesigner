@@ -96,7 +96,7 @@
   {
    "path": "colors.mismatch",
    "max": 0,
-   "means": "頼んだ色と描かれた色が食い違う（navy のスカートが白、green の目が茶など。items が中身）。タグの模型が読んだ「色 + 物」で照合する"
+   "means": "頼んだ色と描かれた色が食い違う（navy のスカートが白、green の目が茶など。items が中身）。タグの模型が読んだ「色 + 物」で照合する。頼んだ髪の長さ・髪型（long hair に hair bun や short hair が読めた、など）も item hairstyle として数える。long black hair を頼んだ5周目の4枚（まとめ髪2、ボブ2）は4枚とも外れ、長い髪の1枚は通った（2026-10-17）"
   },
   {
    "path": "pose.behind_out",
