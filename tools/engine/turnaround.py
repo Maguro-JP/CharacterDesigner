@@ -56,6 +56,7 @@ def main(argv):
     ap.add_argument("--thickness", type=float, default=0.004, help="布の厚み（m）。0 で厚みを付けない")
     ap.add_argument("--heads", type=float, help="頭身。人形は写実の約 7.5 頭身で、アニメの顔を描かせると体と顔の釣り合いが崩れた。首から上を大きくして合わせる")
     ap.add_argument("--no-fit", action="store_true", help="体の部位の釣り合いを合わせない（写実の人形のまま）")
+    ap.add_argument("--depth", action="store_true", help="向きごとに奥行きの絵（<出力>-<向き>-depth.png、近いほど白）も写す。ControlNet で形を縛るため")
     ap.add_argument("--measure", help="体の部位の寸法（頭の高さを 1 とする）を JSON に書き出す先")
     ap.add_argument("--boots-height", type=float, default=0.5, help="靴の色を塗る高さ（m）。既定 0.5 は膝下までの鎧靴。短いブーツは 0.15")
     ap.add_argument("--keep", action="append", default=[], metavar="服:above|below:高さ",
@@ -229,6 +230,32 @@ def main(argv):
         bg.alpha_composite(im)
         bg.convert("RGB").save(out)
         print(out)
+        if a.depth:
+            # 描き直しの強さだけでは、描く模型が腕の長さを自分の癖で決めた（下絵より 1.2〜1.4 倍）。奥行きで形そのものを縛る
+            from pose_depth import depth_material
+            meshes = [o for o in bpy.data.objects if o.type == "MESH"]
+            keep = {o.name: list(o.data.materials) for o in meshes}
+            dist = (cam - Vector((0, 0, 0.88))).length
+            dm = depth_material(dist - 0.25, dist + 0.25)  # 体の厚みは前後 25cm ほど。広く取ると全身が同じ灰色になり、凹凸が読めなかった
+            for o in meshes:
+                o.data.materials.clear()
+                o.data.materials.append(dm)
+            world = scene.world.color[:]
+            scene.world.color = (0, 0, 0)
+            scene.render.film_transparent = False
+            sun.energy = 0
+            dout = os.path.abspath(f"{a.out}-{view}-depth.png")
+            scene.render.filepath = dout
+            bpy.ops.render.render(write_still=True)
+            Image.open(dout).convert("RGB").save(dout)
+            for o in meshes:
+                o.data.materials.clear()
+                for m in keep[o.name]:
+                    o.data.materials.append(m)
+            scene.world.color = world
+            scene.render.film_transparent = True
+            sun.energy = 2.0
+            print(dout)
 
 
 if __name__ == "__main__":

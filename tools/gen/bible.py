@@ -267,7 +267,8 @@ def reference_image(ident: str, roles: tuple[str, ...] = ("color",)):
 
 
 def draw(ident: str, outdir: str, count: int = 1, seed: int = 0, ref_scale: float = 0.6, base: str | None = None,
-         strength: float = 0.8, reference: str | None = None, designing: bool = False, **kw) -> list[str]:
+         strength: float = 0.8, reference: str | None = None, designing: bool = False, depth: str | None = None,
+         depth_scale: float = 0.6, **kw) -> list[str]:
     """組み立てた言葉で描く。色の手本があれば IP-Adapter で読ませる（顔つき・配色を寄せる）。
     ref_scale を上げるほど手本に似るが、構図やポーズも手本に引っ張られる。
     base に下絵（人形に持ち物を持たせて描いた絵、tools/engine/pose_prop.py）を渡すと、そこから描き換える。
@@ -306,7 +307,14 @@ def draw(ident: str, outdir: str, count: int = 1, seed: int = 0, ref_scale: floa
         if ref is not None:
             pipe.set_ip_adapter_scale(ref_scale)
             args["ip_adapter_image"] = ref
-        if start is not None:
+        if start is not None and depth:
+            i2i = people.depth_img2img()
+            del args["width"], args["height"]
+            if ref is not None:
+                i2i.set_ip_adapter_scale(ref_scale)
+            im = i2i(image=start, control_image=Image.open(depth).convert("RGB").resize((832, 1216)), strength=strength,
+                     controlnet_conditioning_scale=depth_scale, **args).images[0]
+        elif start is not None:
             i2i = demi.img2img()
             del args["width"], args["height"]
             if ref is not None:

@@ -94,6 +94,28 @@ def control_pipe():
     return _CONTROL
 
 
+_DEPTH = None
+DEPTH_MODEL = "diffusers/controlnet-depth-sdxl-1.0-small"   # openrail++。奥行きだけの小さい型（fp16 で約 320MB）
+
+
+def depth_img2img():
+    """下絵の色から描き直しつつ、奥行きの絵で体の形を縛る部品。描く本体と文章の読み手は pipe() と同じものを共有する。
+    描き直しの強さだけでは、描く模型が腕の長さを自分の癖で決めた（下絵の 1.2〜1.4 倍）"""
+    global _DEPTH
+    if _DEPTH is None:
+        import torch
+        from diffusers import ControlNetModel, StableDiffusionXLControlNetImg2ImgPipeline
+        import device
+        cn = ControlNetModel.from_pretrained(DEPTH_MODEL, variant="fp16", torch_dtype=device.dtype(torch))
+        device.module(cn, torch)
+        base = pipe()
+        _DEPTH = StableDiffusionXLControlNetImg2ImgPipeline(**{k: v for k, v in base.components.items() if k in (
+            "vae", "text_encoder", "text_encoder_2", "tokenizer", "tokenizer_2", "unet", "scheduler",
+            "feature_extractor", "image_encoder")}, controlnet=cn)
+        _DEPTH.vae.enable_tiling()
+    return _DEPTH
+
+
 def prompt_of(gender, age, tags, hair, view, body=BODY):
     who = AGE_GENDER.get((age, gender), "")
     parts = [GENDER[gender], "solo", who, AGE[age], tags, hair, body, VIEWS[view], QUALITY]
