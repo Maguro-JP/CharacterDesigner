@@ -31,7 +31,7 @@ USER_NORMS = ROOT / "config" / "norms.user.json"
 # 指摘の言葉と、それに関わる数字。言葉は日本語と英語の両方を持つ（利用者は日本語だけで使うとは限らない）
 TOPICS = {
     "face": (["顔", "目", "瞳", "口", "歪", "左右", "face", "eye", "mouth", "asymmetr", "distort"], ["face.rms", "eyes.found"]),
-    "shadow": (["影", "光", "明る", "暗", "逆光", "shadow", "light", "bright", "dark"], ["light.inverted", "light.side_conflict", "scene.backlit_front"]),
+    "shadow": (["影", "光", "明る", "暗", "逆光", "shadow", "light", "bright", "dark"], ["light.inverted", "light.side_conflict", "scene.backlit_front", "limbs.across_max", "limbs.leg_dark_gap"]),
     "hair": (["髪", "毛", "インナー", "白飛", "飛んで", "hair", "blown"], ["hair.blown", "hair.spec_off"]),
     "pairs": (["靴", "籠手", "手袋", "片方", "片手", "pair", "shoe", "glove", "gauntlet", "mismatch"], ["pairs.shoes.color", "pairs.arms.color"]),
 }
