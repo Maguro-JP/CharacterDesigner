@@ -79,23 +79,39 @@ def main(argv):
 
     if a.long_sleeves:
         # 人形の服は半袖で、長袖の上着を頼んでも半袖に描かれた（赤いジャケットが半袖になった）。
-        # 肌の面のうち、上腕と前腕の骨に主に付いている面を上の布の色にする
+        # 人形の服（半袖）を袖だけ伸ばすと、半袖の裾の段が絵で肩から脇への縫い目に描かれ、肩が落ちて見えた。
+        # 袖の面だけ消すと、肩の布が硬い板のまま残って割れた。腰より上は服を外し、体の面そのものを上の布の色にする（体に沿う長袖）。
         # 頂点の組には骨の重みのほかに body・Right などの重み 1 の目印の組があるので、骨の名前の組だけで比べる
+        import bmesh
         bones = {b.name for b in rig.data.bones}
-        arm = {g.index for g in h.vertex_groups if g.name.lower().startswith(("upperarm", "lowerarm"))}
+        torso = ("spine", "clavicle", "shoulder", "breast", "pectoral", "upperarm", "lowerarm", "chest")
         bone_ids = {g.index for g in h.vertex_groups if g.name in bones}
+        upper = {g.index for g in h.vertex_groups if g.name in bones and g.name.lower().startswith(torso)}
 
-        def main_bone(v):
-            gs = [g for g in h.data.vertices[v].groups if g.group in bone_ids]
+        def main_bone(o, ids, v):
+            gs = [g for g in o.data.vertices[v].groups if g.group in ids]
             return max(gs, key=lambda g: g.weight).group if gs else None
         h.data.materials.append(top)
         idx = len(h.data.materials) - 1
         n = 0
         for f in h.data.polygons:
-            if all(main_bone(v) in arm for v in f.vertices):
+            if (h.matrix_world @ f.center).z > 0.95 and all(main_bone(h, bone_ids, v) in upper for v in f.vertices):
                 f.material_index = idx
                 n += 1
-        print("長袖にした面:", n)
+        cut = 0
+        for o in clothed:
+            bm = bmesh.new()
+            bm.from_mesh(o.data)
+            gone = [f for f in bm.faces if (o.matrix_world @ f.calc_center_median()).z > 0.95]
+            bmesh.ops.delete(bm, geom=gone, context="FACES")
+            bm.to_mesh(o.data)
+            bm.free()
+            cut += len(gone)
+        # 服を着せると、服の下の体の面を隠す設定（MASK、頂点の組 Delete.<服>）が付く。服を外した胴が消えたので、
+        # 腰より上の頂点だけを隠す組から外す（設定ごと外すと、ズボンの下の脚の肌が布を突き抜けて出た）
+        for g in [g for g in h.vertex_groups if g.name.startswith("Delete.")]:
+            g.remove([v.index for v in h.data.vertices if (h.matrix_world @ v.co).z > 0.95])
+        print("長袖にした体の面:", n, "外した服の面:", cut)
     if a.boots:
         boots = tinted("boots", a.boots)
         for o in clothed:
