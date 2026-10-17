@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -383,6 +384,10 @@ def temperature(rgb, seg, regions):
     return out
 
 
+# 髪の色の照合で、色相と彩度を読む明るさの下限。これより暗い画素は色が見えないので、明るさのずれだけで見る
+SPEC_SEEN_V = 0.3
+
+
 def hair(rgb, seg, labels, spec: str = ""):
     from scipy import ndimage
     m = seg == labels["hair"]
@@ -413,8 +418,12 @@ def hair(rgb, seg, labels, spec: str = ""):
             sr, sg, sb = (int(one[i:i + 2], 16) / 255 for i in (1, 3, 5))
             hs, ss, vs = (x.item() for x in _hsv(np.array([[sr, sg, sb]], dtype=np.float32)))
             far_v = v > vs + 0.45
-            far_h = (s > 0.25) & (ss > 0.15) & (np.abs((h - hs + 180) % 360 - 180) > 40)
-            far_h_dark = (s > 0.25) & (ss <= 0.15)   # 色の無い髪（黒・白・灰）に色がついた
+            # 色相と彩度は、明るさが SEEN_V 以上の画素でだけ読む。ほぼ黒の画素は (max-min)/max の彩度が
+            # 少しの揺れで跳ね、色相も定まらない。光の帯を入れずに塗りつぶした黒髪は、髪の 5〜8 割がこの
+            # ほぼ黒の画素になり、指定どおりの黒髪を 0.62〜0.84 の外れと読んでいた
+            seen = v > SPEC_SEEN_V
+            far_h = seen & (s > 0.25) & (ss > 0.15) & (np.abs((h - hs + 180) % 360 - 180) > 40)
+            far_h_dark = seen & (s > 0.25) & (ss <= 0.15)   # 色の無い髪（黒・白・灰）に色がついた
             far &= far_v | far_h | far_h_dark
         spec_off = float((m & far).sum() / m.sum())
     return {"found": True, "blown": round(blown, 4), "main_hue": round(main, 1), "off_hue": round(off, 4), "glow": round(glow, 4), "base_v": round(base_v, 3),
@@ -477,7 +486,7 @@ def asked_colors(prompt: str) -> list[tuple[str, str]]:
 
 
 def colors(prompt: str, tags: dict | None):
-    """頼んだ色と描かれた色の食い違い。mismatch は食い違った物の数、items はその中身（頼んだ色・読めた色・確からしさ）。
+    """頼んだ色・髪の長さと髪型と、描かれたものの食い違い。mismatch は食い違った物の数、items はその中身（頼んだ色・読めた色・確からしさ）。
     タグが読めなければ found False。tags は閾値で絞る前のもの（0.35 で絞ると白いスカート 0.18 を落とした）"""
     if tags is None:
         return {"found": False}
@@ -489,7 +498,50 @@ def colors(prompt: str, tags: dict | None):
         other = max(((float(tags.get(f"{o} {name}", 0)), o) for o in COLORS if o != c), default=(0.0, ""))
         if got < COLOR_ASKED_MIN and other[0] >= COLOR_OTHER_MIN:
             items.append({"item": it, "asked": c, "seen": other[1], "score": round(other[0], 3)})
-    return {"found": True, "asked": len(asked), "mismatch": len(items), "items": items}
+    styles = asked_hair_styles(prompt)
+    items += hair_style_items(prompt, tags)
+    return {"found": True, "asked": len(asked) + len(styles), "mismatch": len(items), "items": items}
+
+
+# 頼んだ髪の長さ・髪型と、タグの模型が読んだ髪型の照合。頼んだ言葉 → それと両立しないタグ。
+# 長い下ろし髪とまとめ髪・短い髪は両立しない。逆向き（短い髪・まとめ髪を頼んで長い下ろし髪）も同じ形で持つ
+_LONG = ("long hair", "very long hair", "absurdly long hair", "hair down")
+_SHORT = ("short hair", "very short hair", "bob cut")
+_UP = ("hair bun", "single hair bun", "double bun", "ponytail", "updo", "twintails")
+HAIR_STYLE_CONFLICT = {**{a: _SHORT + _UP for a in _LONG}, **{a: ("long hair", "very long hair", "hair down") for a in _SHORT},
+                       **{a: ("hair down",) for a in _UP}}
+# 両立しないタグがこれ以上なら食い違い（506 のまとめ髪 hair bun 0.385、508 のボブ short hair 0.601）
+HAIR_STYLE_STRONG = 0.3
+# 頼んだタグ自体が弱い（これ未満）ときは、両立しないタグが HAIR_STYLE_WEAK 以上でも食い違いとする
+# （505 のまとめ髪は long hair 0.323 に short hair 0.131 と ponytail 0.105 で、強く出たタグが無かった）
+HAIR_STYLE_ASKED_MIN = 0.5
+HAIR_STYLE_WEAK = 0.1
+
+
+def asked_hair_styles(prompt: str) -> list[str]:
+    """頼んだ言葉から髪の長さ・髪型の語を拾う。long black hair のように色が挟まっても long hair として拾う"""
+    out = []
+    for part in prompt.lower().split(","):
+        words = [w for w in part.replace("-", " ").split() if w not in COLORS and w not in COLOR_ALIAS and w not in ("dark", "light", "straight", "wavy", "silky")]
+        text = " ".join(words)
+        for a in sorted(HAIR_STYLE_CONFLICT, key=len, reverse=True):
+            if re.search(r"\b" + a + r"\b", text):
+                if a not in out:
+                    out.append(a)
+                break
+    return out
+
+
+def hair_style_items(prompt: str, tags: dict) -> list[dict]:
+    items = []
+    for a in asked_hair_styles(prompt):
+        got = float(tags.get(a, 0))
+        if a in ("hair down", "very long hair", "absurdly long hair"):
+            got = max(got, float(tags.get("long hair", 0)))
+        score, seen = max(((float(tags.get(c, 0)), c) for c in HAIR_STYLE_CONFLICT[a]), default=(0.0, ""))
+        if score >= HAIR_STYLE_STRONG or (got < HAIR_STYLE_ASKED_MIN and score >= HAIR_STYLE_WEAK):
+            items.append({"item": "hairstyle", "asked": a, "seen": seen, "score": round(score, 3)})
+    return items
 
 
 def hands_pose(points, prompt: str, seen: float = 0.5) -> dict:
@@ -561,9 +613,11 @@ def hands_seen(points, seg, prompt: str) -> dict:
 
 
 def _prompt_of(src) -> str:
-    """描いた道具が隣に置く 絵.png.json の prompt。部分を描き直した絵（-face など）は元の絵の控えを見る"""
+    """描いた道具が隣に置く 絵.png.json の prompt。部分を描き直した絵（-face、.ff など）は元の絵の控えを見る
+    （.ff を見ないと、顔を直した絵だけ頼んだ言葉が空になり、色と髪型の照合が素通りしていた）"""
     p = Path(src)
-    for j in (p.with_name(p.name + ".json"), p.with_name(p.stem.rsplit("-", 1)[0] + p.suffix + ".json")):
+    for j in (p.with_name(p.name + ".json"), p.with_name(p.stem.rsplit("-", 1)[0] + p.suffix + ".json"),
+              p.with_name(p.stem.split(".", 1)[0] + p.suffix + ".json")):
         try:
             return json.loads(j.read_text(encoding="utf-8")).get("prompt", "")
         except (OSError, ValueError):
@@ -620,12 +674,15 @@ def load_norms() -> dict:
         return base
     key = lambda c: (c["path"], json.dumps(c.get("when"), sort_keys=True))
     over = {key(c): c for c in user.get("checks", [])}
-    base["checks"] = [over.get(key(c), c) for c in base["checks"]]
+    # 区分（kind）は共通の基準の方を残す。学んだ基準で「指示との違い」が「崩れ」に戻り、絵を落とす判定に入らないように
+    base["checks"] = [{**over[key(c)], **({"kind": c["kind"]} if "kind" in c else {})} if key(c) in over else c
+                      for c in base["checks"]]
     return base
 
 
 def judge(m: dict, norms: dict | None = None) -> list[dict]:
-    """基準（norms の checks）から外れた数字を挙げる。各行は 何を・値・基準・意味"""
+    """基準（norms の checks）から外れた数字を挙げる。各行は 何を・値・基準・意味。
+    指示との違い（kind が request）の行には kind を付ける。崩れとは分けて扱う（qc.auto_check の differences）"""
     norms = norms or load_norms()
     out = []
     for c in norms["checks"]:
@@ -640,7 +697,8 @@ def judge(m: dict, norms: dict | None = None) -> list[dict]:
         x = abs(v) if c.get("abs") else v
         lo, hi = c.get("min"), c.get("max")
         if (lo is not None and x < lo) or (hi is not None and x > hi):
-            out.append({"path": c["path"], "value": v, "min": lo, "max": hi, "means": c["means"]})
+            out.append({"path": c["path"], "value": v, "min": lo, "max": hi, "means": c["means"],
+                        **({"kind": c["kind"]} if "kind" in c else {})})
     return out
 
 
