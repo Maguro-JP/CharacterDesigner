@@ -585,7 +585,10 @@ def match_colors(char_layer, bg, light=None, amount=0.35, tint=0.15):
     a = np.asarray(char_layer.getchannel("A")) > 128
     if not a.any():
         return char_layer
-    near = (np.asarray(Image.fromarray(a.astype("uint8") * 255).filter(ImageFilter.MaxFilter(151))) > 0) & ~a
+    # 人物の周り 75 画素の帯。PIL の MaxFilter(151) は 1 人 約 30 秒かかった。scipy の最大値フィルターは縦横に分けて
+    # 計算するので 0.006 秒で、結果は画素単位で同じ（1216x832 の絵で確かめた）
+    from scipy import ndimage
+    near = ndimage.maximum_filter(a, size=151, mode="nearest") & ~a
     ycc = np.asarray(char_layer.convert("RGB").convert("YCbCr")).astype(float)
     gy = np.asarray(bg.convert("RGB").convert("YCbCr")).astype(float)[..., 0]
     y = ycc[..., 0]
