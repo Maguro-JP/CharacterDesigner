@@ -25,6 +25,10 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+# 描く部品（torch、diffusers）は .cache/gen/lib にある。PYTHONPATH を付け忘れると torch が読めず止まったので、自分で通す
+_LIB = ROOT / ".cache" / "gen" / "lib"
+if _LIB.exists() and str(_LIB) not in sys.path:
+    sys.path.append(str(_LIB))
 os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))
 # 模型は既定で外から取りに行かない。呼んだ関数が手元に無い模型を指していると、数 GB を取りに行って
 # ディスクを埋めた（2026-10-14 に 2 回）。初めて取るときだけ CD_FETCH=1 を付けて動かす

@@ -266,22 +266,9 @@ def drift_flaws(base: str, cur: str) -> list[dict]:
 # ---- 描き直し ----
 
 def make_draw(style: str):
-    """元の絵と同じ模型で範囲だけを描き直す関数。模型は最初の 1 回だけ読み、以後は使い回す"""
-    if style in design.XL:
-        return fix.repaint
-    held = {}
-
+    """元の絵と同じ模型で範囲だけを描き直す関数（fix.repaint に寄せた。模型は fix.py が 1 回だけ読む）"""
     def draw(im, mask, prompt, negative, strength, seed):
-        import torch
-        from diffusers import StableDiffusionInpaintPipeline
-        if "p" not in held:
-            held["p"] = StableDiffusionInpaintPipeline(**design._pipe(style).components)
-        p = held["p"]
-        pe, ne = design.encode(p, prompt, negative)
-        g = p(prompt_embeds=pe, negative_prompt_embeds=ne, image=im, mask_image=mask, strength=strength,
-              num_inference_steps=max(6, int(round(6 / strength))), guidance_scale=1.5, width=im.width, height=im.height,
-              generator=torch.Generator().manual_seed(seed)).images[0]
-        return Image.composite(g, im, mask.filter(ImageFilter.GaussianBlur(8)))
+        return fix.repaint(im, mask, prompt, negative, strength, seed, style=style)
     return draw
 
 
