@@ -228,3 +228,14 @@ class CharSheetTest(unittest.TestCase):
         r = charsheet.render("sera", str(out))
         self.assertFalse(r["ready"])
         self.assertIn("未作成", out.read_text(encoding="utf-8"))
+
+
+class VariantsPlanTest(unittest.TestCase):
+    def test_default_poses_and_no_default_hairstyles(self):
+        import bible
+        poses = bible.variants_plan("archivist", "pose")
+        self.assertGreaterEqual(len(poses), 3)
+        self.assertTrue(all(p["tags"] for p in poses))
+        self.assertIsInstance(bible.variants_plan("archivist", "hairstyle"), list)
+        with self.assertRaises(ValueError):
+            bible.variants_plan("archivist", "hat")

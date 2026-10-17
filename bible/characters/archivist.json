@@ -106,5 +106,34 @@
   "髪は暗い緑の長い髪を首の後ろの低い位置で一つに結ぶ。左右どちらの横向きでも結び目は首の後ろに見え、肩の前に垂らさない",
   "目は琥珀色の切れ長で半眼気味。ハイライトは左右とも左上に小さく1つ",
   "28歳の大人の女性として描く。背景は白い無地にする"
+ ],
+ "poses": [
+  {
+   "id": "stand",
+   "name": "立ち（帳面を提げる）",
+   "tags": "standing straight, calm, right hand holding the ledger at her side, left arm lowered"
+  },
+  {
+   "id": "walk",
+   "name": "歩き",
+   "tags": "walking forward, mid-stride, coat hem swaying, ledger at her right side"
+  },
+  {
+   "id": "work",
+   "name": "書架に手を伸ばす",
+   "tags": "reaching up to a tall bookshelf with left hand, three-quarter view, ledger in right hand"
+  }
+ ],
+ "hairstyles": [
+  {
+   "id": "down",
+   "name": "髪を下ろした姿（仕事の後）",
+   "tags": "hair down, long loose dark green hair, no ponytail"
+  },
+  {
+   "id": "bun",
+   "name": "まとめ髪（書庫の奥の作業）",
+   "tags": "hair in a low bun, dark green hair bun, no ponytail"
+  }
  ]
 }

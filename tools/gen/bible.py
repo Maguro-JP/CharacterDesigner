@@ -451,6 +451,40 @@ figcaption { font-size:12px; color:var(--sub); margin-top:4px; }
 ROLE_JA = {"color": "色の手本", "lineart": "線画", "colored-lineart": "線画に色を置いたもの", "sheet": "設定画"}
 
 
+# 設定資料の「ポーズ」と「髪型差分」。設定資料集に poses / hairstyles が無ければ既定を使う。
+# 既定のポーズは資料の決まり（立ち・歩き・役どころの動作・持ち物を使う）に合わせる
+DEFAULT_POSES = [
+    {"id": "stand", "name": "立ち", "tags": "standing, relaxed pose, arms at sides"},
+    {"id": "walk", "name": "歩き", "tags": "walking, mid-stride, one foot forward"},
+    {"id": "work", "name": "役どころの動作", "tags": "doing her job, three-quarter view"},
+]
+
+
+def variants_plan(ident: str, kind: str) -> list[dict]:
+    """描く差分の一覧。kind は pose か hairstyle。髪型は設定資料集の hairstyles にしか無い（既定を作らない。髪型は人物ごとの設計）"""
+    c = load("characters", ident)
+    if kind == "pose":
+        return c.get("poses") or DEFAULT_POSES
+    if kind == "hairstyle":
+        return c.get("hairstyles", [])
+    raise ValueError(kind)
+
+
+def variants(ident: str, outdir: str, kind: str, seed: int = 0, ref_scale: float = 0.5) -> dict:
+    """ポーズは全身、髪型は胸から上で描く。色の手本（color）を読ませ、服と顔を保つ。役割の名前 pose-<id> / hairstyle-<id> で出す"""
+    out = {}
+    for v in variants_plan(ident, kind):
+        sub = Path(outdir) / f"{kind}-{v['id']}"
+        if kind == "pose":
+            names = draw(ident, str(sub), seed=seed, ref_scale=ref_scale, designing=True, pose=v["tags"])
+        else:
+            # 髪型の言葉は見た目の後ろに入る。いつもの髪型の言葉に負けたら、hairstyles の tags を強める
+            names = draw(ident, str(sub), seed=seed, ref_scale=ref_scale, designing=True,
+                         pose=v["tags"], framing="upper body, portrait, bust shot")
+        out[f"{kind}-{v['id']}"] = str(sub / names[0])
+    return out
+
+
 def sheet(ident: str, out: str) -> dict:
     """保存した設定から、キャラクターの設定資料のページを1つの HTML に組む（絵は埋め込む）。
     文字は絵に焼き込まない（手元の日本語の書体が中国語用で、字形が崩れるため）"""
@@ -538,6 +572,9 @@ def main():
     s.add_argument("--strength", type=float, default=0.85); s.add_argument("--only", help="表情の id をカンマ区切りで")
     s.add_argument("--ref-scale", type=float, default=0.0, help="手本の顔に寄せる強さ。既定は 0（使わない）。0.4 では手本の開いた目に引っ張られ、目が表情ごとに動かなかった")
     s = sub.add_parser("design-status", help="キャラデザモードで、まだそろっていないもの"); s.add_argument("id")
+    s = sub.add_parser("variants", help="設定資料のポーズ（pose）・髪型差分（hairstyle）を描く")
+    s.add_argument("id"); s.add_argument("out"); s.add_argument("--kind", choices=["pose", "hairstyle"], required=True)
+    s.add_argument("--seed", type=int, default=0); s.add_argument("--ref-scale", type=float, default=0.5)
     s = sub.add_parser("turnaround", help="三面図: 人形の下絵を3方向から写し、向きごとに描く")
     s.add_argument("id"); s.add_argument("out"); s.add_argument("--count", type=int, default=2); s.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
@@ -558,6 +595,7 @@ def main():
         "show": lambda: load("characters", a.id),
         "sheet": lambda: sheet(a.id, a.out),
         "turnaround": lambda: turnaround(a.id, a.out, a.count, a.seed),
+        "variants": lambda: variants(a.id, a.out, a.kind, a.seed, a.ref_scale),
         "set-eyes": lambda: set_eyes(a.id, a.tags, a.notes),
         "set-body": lambda: set_body(a.id, a.plan),
         "body": lambda: body_plan(a.id),
