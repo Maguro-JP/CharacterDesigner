@@ -27,6 +27,12 @@ from pose_prop import look_from, tinted  # noqa: E402
 VIEWS = {"front": Vector((0, -4.6, 1.0)), "side": Vector((4.6, 0, 1.0)), "back": Vector((0, 4.6, 1.0)), "right": Vector((-4.6, 0, 1.0))}
 
 
+def g_body() -> dict:
+    """ジャンルの体の太さの目安（styles/genres.json の body）。写実の人形の太ももは頭 0.79 個分あり、描いた絵で脚が太く見えた"""
+    p = Path(__file__).resolve().parents[2] / "styles" / "genres.json"
+    return json.loads(p.read_text())["genres"].get(os.environ.get("CD_GENRE", "anime"), {}).get("body", {})
+
+
 def a_bias() -> dict:
     p = Path(__file__).resolve().parents[2] / "styles" / "draw-bias.json"
     return json.loads(p.read_text())["bias"] if p.exists() else {}
@@ -78,12 +84,19 @@ def main(argv):
         # 体の部位の釣り合いを、作画の資料の間で一致している決まりに合わせる（女性は腰の幅≒肩幅、手≒顔の大きさ、足≒前腕）。
         # 写実の人形は肩幅が腰より 1 割広く、その上に描いた服も肩の張った形で描かれた
         m0 = human.measure_body(h, human._rig(h))
-        goals = {"shoulder_width": m0["hip_width"], "hand": 0.75, "foot": m0["forearm"]}
+        goals = {"shoulder_width": m0["hip_width"], "hand": 0.75, "foot": m0["forearm"], **g_body()}
         # 描く模型は下絵より腕を長く描く癖があった（前腕 1.24〜1.30 倍、上腕 1.08〜1.18 倍、3 枚とも同じ向き）。
         # 癖の分だけ人形の腕を先に短くし、描いた絵で目安の長さになるようにする（癖は styles/draw-bias.json、描いた絵から学び直す）
         for k, b in a_bias().items():
             goals[k] = m0[k] / b
+        thick = {k: goals.pop(k) for k in ("thigh_thick", "upper_arm_thick") if k in goals}
         print("体の釣り合い:", json.dumps(human.fit_body(h, goals), ensure_ascii=False))
+        # 太さは形の鍵では変わらなかったので、骨の軸へ寄せて合わせる
+        for k, prefix in (("thigh_thick", "upperleg"), ("upper_arm_thick", "upperarm")):
+            if k in thick:
+                now = human.measure_body(h, human._rig(h))[k]
+                human.thin_limb(h, human._rig(h), prefix, thick[k] / now)
+        print("太さ:", {k: human.measure_body(h, human._rig(h))[k] for k in thick})
         for o in [o for o in bpy.data.objects if o.type == "ARMATURE"]:
             bpy.data.objects.remove(o)
         for mod in [mod for mod in h.modifiers if mod.type == "ARMATURE"]:

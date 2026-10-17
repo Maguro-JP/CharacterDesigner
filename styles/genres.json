@@ -2,11 +2,55 @@
  "note": "絵のジャンルごとの頭身・塗り・線。頭身は下絵の人形の頭の大きさで作り（言葉では頭身がほぼ変わらなかった）、描いた絵の頭身を測って外れを検品で落とす。値は一般的な作画の目安で、手本を集めて学び直す（unverified）",
  "unverified": true,
  "genres": {
-  "anime": {"name": "アニメの標準", "heads_tall": [6.5, 7.5], "words": "anime style, cel shading, clean lineart", "negative": "realistic, photorealistic, 3d"},
-  "shoujo": {"name": "少女漫画・長身", "heads_tall": [7.5, 8.5], "words": "anime style, slender, soft shading, delicate lineart", "negative": "realistic, chibi"},
-  "seinen": {"name": "青年漫画・写実寄り", "heads_tall": [7.0, 8.0], "words": "semi-realistic anime style, detailed shading", "negative": "chibi, super deformed"},
-  "youth": {"name": "少年少女の等身", "heads_tall": [5.5, 6.5], "words": "anime style, cel shading", "negative": "realistic"},
-  "chibi": {"name": "デフォルメ", "heads_tall": [2.0, 3.0], "words": "chibi, super deformed, big head, cel shading", "negative": "realistic, tall, long legs"}
+  "anime": {
+   "name": "アニメの標準",
+   "heads_tall": [
+    6.5,
+    7.5
+   ],
+   "words": "anime style, cel shading, clean lineart",
+   "negative": "realistic, photorealistic, 3d",
+   "body": {
+    "thigh_thick": 0.66,
+    "upper_arm_thick": 0.36
+   }
+  },
+  "shoujo": {
+   "name": "少女漫画・長身",
+   "heads_tall": [
+    7.5,
+    8.5
+   ],
+   "words": "anime style, slender, soft shading, delicate lineart",
+   "negative": "realistic, chibi"
+  },
+  "seinen": {
+   "name": "青年漫画・写実寄り",
+   "heads_tall": [
+    7.0,
+    8.0
+   ],
+   "words": "semi-realistic anime style, detailed shading",
+   "negative": "chibi, super deformed"
+  },
+  "youth": {
+   "name": "少年少女の等身",
+   "heads_tall": [
+    5.5,
+    6.5
+   ],
+   "words": "anime style, cel shading",
+   "negative": "realistic"
+  },
+  "chibi": {
+   "name": "デフォルメ",
+   "heads_tall": [
+    2.0,
+    3.0
+   ],
+   "words": "chibi, super deformed, big head, cel shading",
+   "negative": "realistic, tall, long legs"
+  }
  },
  "default": "anime"
 }

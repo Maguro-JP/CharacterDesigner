@@ -371,3 +371,28 @@ def fit_body(h, goals: dict, rounds: int = 2) -> dict:
                 weights[k] = max(-1.0, min(1.0, weights[k] + (goals[k] - now) / slope))
             _set_target(h, k, weights[k])
     return {"measure": measure_body(h, _rig(h)), "weights": {k: round(v, 2) for k, v in weights.items()}}
+
+
+def thin_limb(h, rig, prefix: str, factor: float) -> None:
+    """手足の太さを、骨の軸に向けて寄せて変える（factor 0.85 で 15% 細く）。形の鍵（measure-thigh-circ など）では
+    太ももが 0.79 → 0.77 しか変わらなかった。骨の重みで寄せ方を混ぜ、関節の境で段が付かないようにする"""
+    import numpy as np
+    bones = [b for b in rig.data.bones if b.name.startswith(prefix)]
+    groups = {g.name: g.index for g in h.vertex_groups}
+    blocks = list(h.data.shape_keys.key_blocks) if h.data.shape_keys else []
+    for b in bones:
+        gi = groups.get(b.name)
+        if gi is None:
+            continue
+        a, t = np.array(b.head_local[:]), np.array(b.tail_local[:])
+        d = (t - a) / np.linalg.norm(t - a)
+        for v in h.data.vertices:
+            w = next((g.weight for g in v.groups if g.group == gi), 0.0)
+            if w <= 0:
+                continue
+            k = 1 - (1 - factor) * w
+            for co in [v.co] + [kb.data[v.index].co for kb in blocks]:
+                p = np.array(co[:]) - a
+                along = a + d * (p @ d)
+                co[:] = tuple(along + (np.array(co[:]) - along) * k)
+    h.data.update()
