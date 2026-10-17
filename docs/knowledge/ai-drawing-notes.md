@@ -307,3 +307,4 @@ Animagine XL 4.0（24 段、上半身）の 1 枚目（手を振る）: 戻し�
 - 回6（白の無地のビキニ、種 6001）: 1 枚目を戻した。胸の間の線が長すぎる・肩と脚の影が光の向きに沿わない斑。回7 から言葉に single light source from upper left, soft simple cel shading、打ち消しに cleavage line, harsh shadows, patchy shadows, multiple light sources を足す
 
 目の資料集の瞳の色（タグの言葉、3 種ずつ、2026-10-18）: 13 種の候補のうち検品担当は 7 枚を通した（library/eyes）。戻した 6 枚は瞳の色違い 3（黒を頼んで灰青と茶、オッドアイの片目が頼んだ色にならない 2）、片目が髪で隠れる・片目だけの寄り 2、顔が幼い寄り 1。1boy と頼んでも 7 枚中 3 枚は女性の顔だった。
+- 回10（写実→Animagine 強さ 0.55）: 写実の段は 1 枚約 76 秒（dreamshaper-xl-lightning、6 段）。回11 の 1 回目（写実の明暗を toneshade で段の影にしてから強さ 0.4）は、顔まで平らにして目鼻が消え、灰色の背景に模様を描き足したので落とした。部位分けは水着の胴の肌を face と読んだ
