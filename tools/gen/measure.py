@@ -11,6 +11,8 @@
 - 光: 顔・髪・服それぞれの明るさの傾きから、光の来る向き（画面の上で何度か）。部位ごとの向きのずれ
 - 影の色温度: 部位ごとに明るい所と暗い所の色相の差（暗い所が青寄りなら負）
 - 髪: 白く飛んだ画素の割合、髪の主な色から色相が外れた画素の割合、毛の流れのそろい方（構造テンソルのコヒーレンス）
+- 背景: 四隅の明るさと彩度（white background を頼んだ絵だけ判定する）
+- 作風: タグを読む模型の realistic / photorealistic の確からしさ（写実に寄りすぎた絵を外れにする）
 """
 from __future__ import annotations
 
@@ -324,13 +326,18 @@ def scene_light(rgb, seg, labels=None):
     # 較正: 正面から照らした素体 0.97〜0.98、逆光の素体 0.52〜0.61、検品で戻した外部の生成と手元の騎士 0.967・0.979
     contrast = hi / max(float(np.median(lum[bg])), 1e-6)
     dx = float((bx.mean() - (fx0 + fx1) / 2) / fw)
-    backlit = contrast > 1.5 and abs(dx) <= 0.5
+    dy = float((by.mean() - ys.min()) / (ys.max() - ys.min() + 1))
+    # contrast は背景の中央値で割るので、暗い背景・むらのある灰色の背景では、足元の床の照り返しや光の輪でも 1.5 を超えた
+    # （正面から照らした 2 枚で、明るい所の重心が人物の高さの 0.63・0.99）。人物の後ろの光源は人物の上半分（bg_dy 0.5 以下）にあるものだけにする。
+    # 光源の明るさ ÷ 顔の明るさでは分けない: 窓が人物に隠れて見える所が小さいと、窓の方が顔より暗く測れる
+    source = dy <= 0.5
+    backlit = contrast > 1.5 and abs(dx) <= 0.5 and source
     backlit_front = int(face_lit is not None and backlit and face_lit > 0.88)
     # 逆光なのに顔の真ん中（鼻筋など）に白い光の点がある。顔の 0.2% 以上の点を数える。
     # 較正: 下絵ありの逆光の騎士 3 枚 0.0069・0.0042・0.003（鼻筋の点）、点の無い逆光の騎士 0、外部の生成の騎士 0.0006
     backlit_spot = int(backlit and face_spot >= 0.002)
     return {"found": True, "face_lit": face_lit, "face_spot": face_spot, "backlit_spot": backlit_spot, "bg_contrast": round(contrast, 2), "backlit_front": backlit_front, "bg_dx": round(float((bx.mean() - (fx0 + fx1) / 2) / fw), 3),
-            "bg_dy": round(float((by.mean() - ys.min()) / (ys.max() - ys.min() + 1)), 3),
+            "bg_dy": round(dy, 3),
             "bg_bright": round(hi, 3), "interior": round(inside / max(hi, 1e-6), 3),
             "rim": round(float(np.percentile(lum[edge], 90)) / max(inside, 1e-6), 3)}
 
@@ -424,7 +431,77 @@ def _eye_hint(points, view, least: float = 0.5):
     return [((p[n]["x"] - ox) * k, (p[n]["y"] - oy) * k) for n in ("left_eye", "right_eye")]
 
 
-def measure(src, hair_color: str = "", points=None) -> dict:
+def background(rgb, prompt: str = ""):
+    """四隅（短い辺の 5% の正方形）の明るさと彩度。corner_lum は4隅の中央値の最も暗いもの、corner_sat は最も色づいたもの。
+    人物が隅にかかる絵もあるので、平均ではなく中央値で取る。asked_white は頼んだ言葉に white background があるか"""
+    h, w = rgb.shape[:2]
+    s = max(8, int(min(h, w) * 0.05))
+    cs = [rgb[:s, :s], rgb[:s, -s:], rgb[-s:, :s], rgb[-s:, -s:]]
+    lum = min(float(np.median(c[..., :3].mean(-1))) for c in cs)
+    sat = max(float(np.median(c[..., :3].max(-1) - c[..., :3].min(-1))) for c in cs)
+    return {"asked_white": int("white background" in prompt.lower()), "corner_lum": round(lum, 3), "corner_sat": round(sat, 3)}
+
+
+def style(tags: dict | None):
+    """写実への寄り: タグを読む模型の realistic と photorealistic の大きい方。タグが読めなければ found False"""
+    if tags is None:
+        return {"found": False}
+    return {"found": True, "realism": round(max(float(tags.get("realistic", 0)), float(tags.get("photorealistic", 0))), 3)}
+
+
+# 頼んだ言葉の「色 + 物」と、タグの模型が読んだ「色 + 物」を照合する表。物は小さく始め、タグの名前（靴は footwear）に合わせる
+COLOR_ITEMS = {"skirt": "skirt", "sweater": "sweater", "boots": "footwear", "eyes": "eyes", "hair": "hair"}
+COLORS = ("black", "white", "grey", "brown", "red", "orange", "yellow", "green", "blue", "aqua", "purple", "pink", "blonde", "silver")
+# タグに無い色の名前を、タグの色に寄せる（navy は blue skirt として読まれる）
+COLOR_ALIAS = {"navy": "blue", "gray": "grey", "cyan": "aqua", "violet": "purple", "beige": "brown", "golden": "blonde", "blond": "blonde"}
+# 頼んだ色のタグがこれ未満で、別の色のタグがこれ以上なら食い違い。白いスカートは 0.18 でしか読まれなかったので低めに置く。
+# 頼んだ色も 0.1 以上で読まれていれば、濃い茶と黒のような近い色の揺れとみなして数えない
+COLOR_ASKED_MIN = 0.1
+COLOR_OTHER_MIN = 0.15
+
+
+def asked_colors(prompt: str) -> list[tuple[str, str]]:
+    """頼んだ言葉から（色, 物）を拾う。dark / light などの前置きは外し、最後の色の語を取る"""
+    out = []
+    for part in prompt.lower().split(","):
+        words = part.replace("-", " ").split()
+        for i, w in enumerate(words):
+            if w in COLOR_ITEMS and i > 0:
+                c = COLOR_ALIAS.get(words[i - 1], words[i - 1])
+                if c in COLORS:
+                    out.append((c, w))
+    return out
+
+
+def colors(prompt: str, tags: dict | None):
+    """頼んだ色と描かれた色の食い違い。mismatch は食い違った物の数、items はその中身（頼んだ色・読めた色・確からしさ）。
+    タグが読めなければ found False。tags は閾値で絞る前のもの（0.35 で絞ると白いスカート 0.18 を落とした）"""
+    if tags is None:
+        return {"found": False}
+    items = []
+    asked = asked_colors(prompt)
+    for c, it in asked:
+        name = COLOR_ITEMS[it]
+        got = float(tags.get(f"{c} {name}", 0))
+        other = max(((float(tags.get(f"{o} {name}", 0)), o) for o in COLORS if o != c), default=(0.0, ""))
+        if got < COLOR_ASKED_MIN and other[0] >= COLOR_OTHER_MIN:
+            items.append({"item": it, "asked": c, "seen": other[1], "score": round(other[0], 3)})
+    return {"found": True, "asked": len(asked), "mismatch": len(items), "items": items}
+
+
+def _prompt_of(src) -> str:
+    """描いた道具が隣に置く 絵.png.json の prompt。部分を描き直した絵（-face など）は元の絵の控えを見る"""
+    p = Path(src)
+    for j in (p.with_name(p.name + ".json"), p.with_name(p.stem.rsplit("-", 1)[0] + p.suffix + ".json")):
+        try:
+            return json.loads(j.read_text(encoding="utf-8")).get("prompt", "")
+        except (OSError, ValueError):
+            continue
+    return ""
+
+
+def measure(src, hair_color: str = "", points=None, prompt: str | None = None, tags: dict | None = None) -> dict:
+    """prompt と tags は、呼ぶ側（qc.auto_check）が持っていれば渡す。タグの模型を2度走らせないため"""
     from PIL import Image
     import edit
     rgb = np.asarray(Image.open(src).convert("RGB"), dtype=np.float32) / 255.0
@@ -437,8 +514,17 @@ def measure(src, hair_color: str = "", points=None) -> dict:
     hrgb, hseg = faceform.head_view(src, rgb, seg, view)
     lm = faceform.landmarks(hrgb, hseg, L)
     face = faceform.fit(lm["points"], json.loads(faceform.TEMPLATE.read_text())["points"]) if "points" in lm and faceform.TEMPLATE.exists() else lm
+    if prompt is None:
+        prompt = _prompt_of(src)
+    if tags is None:
+        try:
+            import tagger
+            tags = tagger.read(src, 0.0)
+        except Exception:   # タグの模型が無い環境（sh tools/gen/setup.sh 前）でも、ほかの数字は出す
+            tags = None
     return {"size": list(rgb.shape[1::-1]), "eyes": eyes(hrgb, hseg, L, _eye_hint(points, view)), "face": face, "light": light3d(src, rgb, seg, regions),
-            "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "pairs": pairs(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color)}
+            "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "pairs": pairs(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color),
+            "background": background(rgb, prompt), "style": style(tags), "colors": colors(prompt, tags)}
 
 
 def _get(d, path):
