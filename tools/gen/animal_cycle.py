@@ -59,11 +59,14 @@ STYLES = [
 def main():
     out = Path(sys.argv[1])
     done = json.loads(DONE.read_text()) if DONE.exists() else []
-    left = [a for a in ANIMALS if a[0] not in done]
-    if not left:
-        print("all animals done")
-        return
-    name, feat = left[0]
+    # 1種を描き終えたら待たずに次の種へ進む（毎時の起床を待つと、1種に2時間かかる）
+    for name, feat in [a for a in ANIMALS if a[0] not in done]:
+        draw_one(out, name, feat)
+        done.append(name)
+        DONE.write_text(json.dumps(done, indent=1) + "\n")
+
+
+def draw_one(out, name, feat):
     d = out / name.replace(" ", "-")
     d.mkdir(parents=True, exist_ok=True)
     print("animal:", name, flush=True)
@@ -78,7 +81,6 @@ def main():
                             "--kind", "creature", "--style", "xl", "--seed", "1"],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         print(key, "exit", r.returncode, flush=True)
-    DONE.write_text(json.dumps(done + [name], indent=1) + "\n")
 
 
 if __name__ == "__main__":
