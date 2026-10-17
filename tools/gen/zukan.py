@@ -22,9 +22,10 @@ def main():
     out = Path(sys.argv[2] if len(sys.argv) > 2 else "docs/zukan")
     out.mkdir(parents=True, exist_ok=True)
     book = defaultdict(list)
-    for p in sorted(src.glob("*/*.png")):
+    for p in sorted(src.glob("**/*.png")):
         if p.with_name(p.name + ".pass").exists():
-            book[p.stem].append((p.parent.name, p))
+            # 名前は <番号-画風>-<種>.png。種を外した部分を画風とする
+            book[p.stem.rsplit("-", 1)[0]].append((p.parent.name, p))
     lines = ["# 動物図鑑", "", "検品を通った絵だけを、画風ごとにまとめた一覧。番号は簡単な画風から本格的な画風への順。", ""]
     for style in sorted(book):
         items = book[style]
