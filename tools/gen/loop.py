@@ -220,6 +220,15 @@ def plan(flaw: dict, src: str, prompt: str, points: list[dict], size) -> dict | 
         if box is None:
             return None
         return {"region": "part", "boxes": [box], "prompt": f"{w}, {w}, " + prompt, "negative": design.NEGATIVE}
+    if kind == "drift":
+        part = flaw["detail"]["part"]
+        region = "face" if part == "skin" else "part"
+        box = qc._face_from_joints(src, size) or fix.face_box(points)
+        if box is None:
+            return None
+        c = ",".join(str(int(v)) for v in flaw["detail"]["from"])
+        return {"region": region, "boxes": [_clip(box, size)],
+                "prompt": f"same {part} color as before (rgb {c}), " + prompt, "negative": "different hair color, color shift"}
     if kind == "floating":
         return {"region": "box", "boxes": [_clip(b["box"], size) for b in flaw["detail"]["floating"]],
                 "prompt": background_words(prompt), "negative": "floating object, debris"}
@@ -230,6 +239,28 @@ def plan(flaw: dict, src: str, prompt: str, points: list[dict], size) -> dict | 
             boxes.append(_clip((0, a, size[0], b) if s["at"] == "row" else (a, 0, b, size[1]), size))
         return {"region": "box", "boxes": [b for b in boxes if b], "prompt": background_words(prompt), "negative": ""}
     return None
+
+
+DRIFT_PARTS = {"hair": [2], "skin": [11, 14, 15]}
+DRIFT_MAX = 45.0   # 部位の色の中央値の RGB の距離。これを超えて変わったら、描き直しで色がずれたとみなす
+
+
+def drift_flaws(base: str, cur: str) -> list[dict]:
+    """最初の絵（round-0）からの、髪・肌の色と目の色のずれ。範囲を描き直すたびに髪の色が少しずつ変わり、
+    周を重ねると別の人物になった（描画確認、2026-10-17）。ずれは崩れとして数え、描き直しの言葉で元の色に戻させる"""
+    import edit
+    import qc
+    out = []
+    a, b = (Image.open(x).convert("RGB") for x in (base, cur))
+    sa = np.asarray(edit.parts(base).resize(a.size, Image.NEAREST))
+    sb = np.asarray(edit.parts(cur).resize(b.size, Image.NEAREST))
+    for name, labels in DRIFT_PARTS.items():
+        ca, cb = qc.part_color(np.asarray(a), sa, labels), qc.part_color(np.asarray(b), sb, labels)
+        if ca and cb:
+            d = float(np.linalg.norm(np.array(ca) - np.array(cb)))
+            if d > DRIFT_MAX:
+                out.append({"key": f"drift:{name}", "kind": "drift", "detail": {"part": name, "from": ca, "to": cb, "dist": round(d)}})
+    return out
 
 
 # ---- 描き直し ----
@@ -255,6 +286,12 @@ def make_draw(style: str):
 
 
 # ---- 回す ----
+
+def qc_face_box(src, size, points):
+    import qc
+    b = qc._face_from_joints(src, size) or fix.face_box(points)
+    return _clip(b, size) if b else None
+
 
 def run(src: str, outdir: str, prompt: str | None = None, rounds: int = 4, draw=None, seed: int | None = None,
         checker=check, points_of=None) -> dict:
@@ -297,6 +334,12 @@ def run(src: str, outdir: str, prompt: str | None = None, rounds: int = 4, draw=
                 continue
             done.add(sig)
             mask = fix.box_mask(im.size, pl["boxes"])
+            if pl["region"] != "face":
+                # 顔でない崩れ（手・服・背景）の範囲から顔を抜く。腕の範囲に顔がかかり、手を直すたびに顔が描き変わった
+                face = qc_face_box(cur, im.size, points)
+                if face:
+                    from PIL import ImageDraw
+                    ImageDraw.Draw(mask).rectangle(face, fill=0)
             im = draw(im, mask, pl["prompt"], pl["negative"], STRENGTH[pl["region"]], seed + r)
             repaints.append({"for": f["key"], "region": pl["region"], "boxes": [list(b) for b in pl["boxes"]],
                              "prompt": pl["prompt"]})
@@ -305,6 +348,10 @@ def run(src: str, outdir: str, prompt: str | None = None, rounds: int = 4, draw=
         cur = str(out / f"round-{r}.png")
         im.save(cur)
         res = checker(cur, prompt)
+        if checker is check:
+            dr = drift_flaws(history[0]["image"], cur)
+            res["flaws"] += dr
+            res["count"] += len(dr)
         keys = [f["key"] for f in res["flaws"]]
         history.append({"round": r, "image": cur, "count": res["count"], "flaws": keys, "repaints": repaints,
                         "seconds": round(time.time() - t, 1)})

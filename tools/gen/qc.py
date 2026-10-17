@@ -515,6 +515,23 @@ def tiles(box, rows: int = 3, cols: int = 2, overlap: float = 0.12) -> list[tupl
              int(min(y0 + (r + 1) * h + oy, y1))) for r in range(rows) for c in range(cols)]
 
 
+def _face_from_joints(src: str, size: tuple[int, int], least: float = 0.3):
+    """骨格の点で顔を囲む箱。鼻と両目が読めないときは None。幅は耳と目の広がりの 2.2 倍、髪まで入るよう上へ寄せる"""
+    try:
+        import joints
+        p = {q["name"]: q for q in joints.find(src)}
+    except Exception:
+        return None
+    pts = [p[n] for n in ("nose", "left_eye", "right_eye", "left_ear", "right_ear") if n in p and p[n]["score"] >= least]
+    if not all(n in p and p[n]["score"] >= least for n in ("nose", "left_eye", "right_eye")):
+        return None
+    xs, ys = [q["x"] for q in pts], [q["y"] for q in pts]
+    side = max((max(xs) - min(xs)) * 2.2, 48)
+    cx, cy = p["nose"]["x"], p["nose"]["y"] - side * 0.1
+    box = (int(max(cx - side / 2, 0)), int(max(cy - side / 2, 0)), int(min(cx + side / 2, size[0])), int(min(cy + side / 2, size[1])))
+    return box if box[2] > box[0] and box[3] > box[1] else None
+
+
 def sheet(src: str, out: str, zoom: float = 2.0, cell: int = 380) -> dict:
     """検品図を2枚書く。out は全体と顔の拡大、out の -detail は人物を分けた拡大（どの枚も zoom 倍前後）。
     どこも「見ていない」にならないよう、人物の全部をどれかの拡大に入れる。
@@ -529,7 +546,21 @@ def sheet(src: str, out: str, zoom: float = 2.0, cell: int = 380) -> dict:
     except Exception:          # 部位分けの模型が無くても検品図は作る
         face_box = None
     note = []
-    if face_box is None:       # 顔が取れなければ、人物の上端の正方形を顔の候補にする
+    jbox = _face_from_joints(src, im.size)
+    if face_box is not None and jbox is not None:
+        # 部位分けは、水着で出た胴の肌を顔と取り、顔の拡大が胸を写した（水着の 4 枚中 4 枚）。鼻が箱に入らなければ骨格の点を使う
+        nx, ny = (jbox[0] + jbox[2]) / 2, (jbox[1] + jbox[3]) / 2
+        if not (face_box[0] <= nx <= face_box[2] and face_box[1] <= ny <= face_box[3]) or \
+                (face_box[2] - face_box[0]) > 2 * (jbox[2] - jbox[0]):
+            face_box = jbox
+            note.append("部位分けの顔が骨格の点と合わず、骨格の点を使った")
+    if face_box is None:
+        # 部位分けで顔が取れなければ骨格の点（鼻・両目・両耳）から顔を囲む。人物の上端の正方形は、背景を人物と取ると
+        # 胸まで入る大きさになり、顔の拡大が胴を写していた（水着の 4 枚中 4 枚）
+        face_box = jbox
+        if face_box is not None:
+            note.append("顔は部位分けで取れず、骨格の点を使った")
+    if face_box is None:       # 骨格の点も取れなければ、人物の上端の正方形を顔の候補にする
         side = int((fbox[2] - fbox[0]) * 0.5)
         cx = (fbox[0] + fbox[2]) // 2
         face_box = (max(cx - side // 2, 0), fbox[1], min(cx + side // 2, im.width), fbox[1] + side)
