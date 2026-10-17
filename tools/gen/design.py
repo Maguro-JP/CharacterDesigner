@@ -197,8 +197,13 @@ def draw(out, prompt, seed, n, style, steps, width, height, kind="human", negati
     import torch
     pipe = _pipe(style)
     # 人用の決まり文句（character design, standing）のまま動物を頼むと、獣の耳の少女になる
-    head, tail, neg = ((CREATURE_PREFIX, CREATURE_SUFFIX, NEGATIVE + ", " + CREATURE_NEGATIVE)
-                       if kind == "creature" else (PREFIX, SUFFIX, NEGATIVE))
+    if kind == "creature" and style in XL:
+        # SDXL は言葉で書く。アニメのタグ（no humans, feral）は効かない
+        head, tail, neg = "", XL_CREATURE_SUFFIX, XL_CREATURE_NEGATIVE
+    elif kind == "creature":
+        head, tail, neg = CREATURE_PREFIX, CREATURE_SUFFIX, NEGATIVE + ", " + CREATURE_NEGATIVE
+    else:
+        head, tail, neg = PREFIX, SUFFIX, NEGATIVE
     # 既定の打ち消しに足す。年齢の見え方（child, round face など）を絵ごとに抑えるため
     neg = ", ".join(x for x in (neg, negative) if x)
     paths = []
