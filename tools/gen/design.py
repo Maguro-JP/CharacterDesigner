@@ -199,7 +199,7 @@ def encode_xl(pipe, prompt, negative):
 FRAMING = {"full": PREFIX, "upper": PREFIX.replace("full body, standing, ", "upper body, ")}
 
 
-def draw(out, prompt, seed, n, style, steps, width, height, kind="human", negative="", framing="full"):
+def draw(out, prompt, seed, n, style, steps, width, height, kind="human", negative="", framing="full", scene=False):
     import torch
     pipe = _pipe(style)
     # 人用の決まり文句（character design, standing）のまま動物を頼むと、獣の耳の少女になる
@@ -208,6 +208,9 @@ def draw(out, prompt, seed, n, style, steps, width, height, kind="human", negati
         head, tail, neg = "", XL_CREATURE_SUFFIX, XL_CREATURE_NEGATIVE
     elif kind == "creature":
         head, tail, neg = CREATURE_PREFIX, CREATURE_SUFFIX, NEGATIVE + ", " + CREATURE_NEGATIVE
+    elif scene:
+        # 既定の「全身・白地」は、構図や場所や持ち物を頼んだ言葉とぶつかり、持ち物ごと落ちる。scene では外す
+        head, tail, neg = PREFIX.replace("full body, standing, ", ""), "", NEGATIVE
     else:
         # 人は構図（全身か上半身）で決まり文句を変える
         head, tail, neg = FRAMING[framing], SUFFIX, NEGATIVE
@@ -694,6 +697,7 @@ def main():
     d.add_argument("--kind", default="human", choices=["human", "creature"])
     d.add_argument("--negative", default="", help="既定の打ち消しに足す言葉")
     d.add_argument("--framing", choices=list(FRAMING), default="full", help="upper は上半身（手を確かめる絵）")
+    d.add_argument("--scene", action="store_true", help="全身・白地の決まり文句を外す（構図・場所・持ち物を言葉で決めるとき）")
     r = sub.add_parser("restyle")
     r.add_argument("src")
     r.add_argument("out")
@@ -731,7 +735,7 @@ def main():
     elif a.cmd == "draw":
         # 四足は縦長の画面だと立ち上がって脚が欠ける。動物は横長を既定にする
         w, h = (768, 512) if a.kind == "creature" else (512, 768)
-        draw(a.out, a.prompt, a.seed, a.n, a.style, a.steps, a.width or w, a.height or h, a.kind, a.negative, a.framing)
+        draw(a.out, a.prompt, a.seed, a.n, a.style, a.steps, a.width or w, a.height or h, a.kind, a.negative, a.framing, a.scene)
     elif a.cmd == "restyle":
         restyle(a.src, a.out, a.style, a.strength, a.steps, a.prompt)
     else:
