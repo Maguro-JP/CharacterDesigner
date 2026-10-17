@@ -17,6 +17,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import sys
 from pathlib import Path
@@ -124,6 +125,51 @@ def repaint_scars(before: Image.Image, after: Image.Image, mask: Image.Image, wi
             if sa < drop * max(sb, 0.6) and sa < 0.8 * sb:
                 out.append({"x": x, "y": y, "size": cell, "sharp": round(float(sa), 2), "before": round(float(sb), 2)})
     return out
+
+def hand_boxes(points: list[dict], least: float = 0.5, ahead: float = 0.35, size: float = 0.6, floor: float = 0.8) -> list[dict]:
+    """骨格の点から、手ごとに切り出す枠と回す角度を決める。手首の確からしさが least 未満の手は読まない。
+    手は肘→手首の向きの先にあるので、手首から前腕の長さの ahead 倍先を中心に、前腕の size 倍四方を切る。
+    角度は指先（肘→手首の向き）が上になるまで反時計回りに回す度数（PIL の rotate と同じ向き）。
+    hands.measure は指先が上の手で読む（下向きのまま読ませると点が手の外に散った）。
+    手を腹の前で組むと前腕が奥へ縮んで写り、前腕だけで決めた枠は 26〜37 画素と手より小さくなった（3 枚中 2 枚）。
+    肩の点があれば、前腕の長さを上腕の長さの floor 倍より短くしない"""
+    p = {q["name"]: q for q in points}
+    out = []
+    for side in ("left", "right"):
+        w, e = p.get(f"{side}_wrist"), p.get(f"{side}_elbow")
+        if not w or not e or w["score"] < least:
+            continue
+        dx, dy = w["x"] - e["x"], w["y"] - e["y"]
+        arm = math.hypot(dx, dy)
+        if arm < 1:
+            continue
+        sh = p.get(f"{side}_shoulder")
+        if sh:
+            arm = max(arm, floor * math.hypot(e["x"] - sh["x"], e["y"] - sh["y"]))
+        cx, cy = w["x"] + dx / math.hypot(dx, dy) * arm * ahead, w["y"] + dy / math.hypot(dx, dy) * arm * ahead
+        half = arm * size / 2
+        angle = (90 - math.degrees(math.atan2(-dy, dx))) % 360
+        out.append({"side": side, "box": tuple(int(round(v)) for v in (cx - half, cy - half, cx + half, cy + half)),
+                    "angle": round(angle, 1), "score": round(float(w["score"]), 2)})
+    return out
+
+
+def hands_auto(points: list[dict], im: Image.Image, presence_min: float = 0.5) -> dict:
+    """手を切り出して hands.measure で測る。外れ（bad）が 1 つでもあれば崩れ。読める手が無ければ読めない。
+    手らしさ（presence）が presence_min 未満の手は、枠に手が入っていない（体の陰に隠れた手、枠のずれ）ことが多く、
+    実際の 3 枚では 4 手がそうだった。崩れには数えず、その手は読めないとする"""
+    import hands
+    boxes = hand_boxes(points)
+    res = {"readable": False, "bad": False, "hands": []}
+    for b in boxes:
+        crop = im.crop(b["box"]).rotate(b["angle"], expand=True, fillcolor=im.getpixel((0, 0)))
+        m, bad, _ = hands.measure(crop)
+        seen = m.get("presence", 1.0) >= presence_min
+        res["hands"].append({**b, "seen": seen, "measure": m, "outside": bad})
+        res["readable"] = res["readable"] or seen
+        res["bad"] = res["bad"] or (seen and bool(bad))
+    return res
+
 
 def human_legs(points: list[dict], height: int, least: float = 0.45, torso_max: float = 0.35, seen: float = 0.25,
                margin: float = 0.1) -> dict:
@@ -506,6 +552,11 @@ def auto_check(src: str, prompt: str = "") -> dict:
             res["unreadable"].append({"eyes": eye})
         elif eye["mismatch"]:
             res["problems"].append({"eyes": eye})
+        hand = hands_auto(points, im)
+        if not hand["readable"]:
+            res["unreadable"].append({"hands": hand})
+        elif hand["bad"]:
+            res["problems"].append({"hands": hand})
         if any(w in prompt.lower() for w in SPIDER_WORDS):
             import design
             alpha = np.asarray(design.cut_background(im).getchannel("A")) > 0
@@ -529,7 +580,7 @@ def auto_check(src: str, prompt: str = "") -> dict:
 
 
 # 崩れの重さ（100 点から引く）。体のつながりや人そのものの崩れは直せないので重く、部分の直しで直せる崩れは軽くする
-PENALTY = {"fixed_restriction": 100, "person": 60, "human_legs": 40, "edge_cut": 25, "eyes": 15, "extra_eyes": 15, "floating": 15,
+PENALTY = {"fixed_restriction": 100, "person": 60, "human_legs": 40, "edge_cut": 25, "eyes": 15, "extra_eyes": 15, "floating": 15, "hands": 15,
            "seams": 10, "measure": 8}
 
 

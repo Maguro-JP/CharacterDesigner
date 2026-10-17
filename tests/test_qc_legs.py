@@ -260,3 +260,45 @@ class SpiderLegsTest(unittest.TestCase):
 
     def test_light_shadow_is_not_counted(self):
         self.assertEqual(self._legs(8, shadow=True)["count"], 8)
+
+
+class HandBoxTest(unittest.TestCase):
+    """手の枠と回す角度（qc.hand_boxes）。hands.measure は偽物に替え、手の模型を使わない"""
+
+    def arm(self, elbow, wrist, score=0.9, side="left"):
+        return [{"name": f"{side}_elbow", "x": elbow[0], "y": elbow[1], "score": 0.9},
+                {"name": f"{side}_wrist", "x": wrist[0], "y": wrist[1], "score": score}]
+
+    def test_hanging_arm_box_below_wrist_turned_upside_down(self):
+        b = qc.hand_boxes(self.arm((100, 100), (100, 200)))[0]
+        # 前腕 100、手の中心は手首から 35 下、枠は 60 四方。指先が下なので 180 度回す
+        self.assertEqual(b["box"], (70, 205, 130, 265))
+        self.assertEqual(b["angle"], 180)
+
+    def test_arm_pointing_right_turns_left_90(self):
+        b = qc.hand_boxes(self.arm((0, 0), (100, 0)))[0]
+        self.assertEqual(b["box"], (105, -30, 165, 30))
+        self.assertEqual(b["angle"], 90)
+
+    def test_arm_pointing_left_and_up(self):
+        self.assertEqual(qc.hand_boxes(self.arm((100, 0), (0, 0)))[0]["angle"], 270)
+        self.assertEqual(qc.hand_boxes(self.arm((0, 100), (0, 0)))[0]["angle"], 0)
+
+    def test_unsure_wrist_is_skipped(self):
+        self.assertEqual(qc.hand_boxes(self.arm((0, 0), (0, 100), score=0.4)), [])
+
+    def test_hands_auto_bad_and_unreadable(self):
+        from unittest import mock
+        from PIL import Image
+        import hands
+        im = Image.new("RGB", (300, 300), (255, 255, 255))
+        seen = []
+
+        def fake(crop):
+            seen.append(crop.size)
+            return {}, ["index の手の色 0.4（0.85〜1.01）"], None
+        with mock.patch.object(hands, "measure", fake):
+            r = qc.hands_auto(self.arm((100, 50), (100, 150)) + self.arm((200, 50), (200, 150), side="right"), im)
+        self.assertEqual(seen, [(60, 60), (60, 60)])
+        self.assertTrue(r["readable"] and r["bad"])
+        self.assertFalse(qc.hands_auto([], im)["readable"])
