@@ -44,7 +44,12 @@ def inspect(src: str, genre: str = "anime", outdir: Path | None = None) -> dict:
         problems.append({"kind": KEYS_JA.get(k, k), "detail": p})
     for k, v in body["off"].items():
         problems.append({"kind": "体の決まり", "detail": {k: v}})
-    res = {"src": src, "genre": genre, "ok": not problems and not auto["unreadable"], "problems": problems,
+    look = []
+    sp = qc.shoe_pair(pts, Image.open(src))
+    if sp and sp["color_diff"] > 30:
+        # 数字だけでは崩れと決められない（奥の足の影でも出る）。人と検品担当が目で見る所として挙げる
+        look.append({"kind": "靴の左右", "detail": sp})
+    res = {"src": src, "genre": genre, "ok": not problems and not auto["unreadable"], "problems": problems, "look": look,
            "unreadable": auto["unreadable"], "heads_tall": auto.get("heads_tall"), "structure": body["values"]}
     if outdir is not None:
         outdir.mkdir(parents=True, exist_ok=True)
@@ -61,6 +66,7 @@ def page(results: list[dict], out: Path) -> Path:
         n = len(r["problems"])
         items = "".join(f"<li><b>{e(p['kind'])}</b> {e(json.dumps(p['detail'], ensure_ascii=False, default=float))}</li>"
                         for p in r["problems"]) or "<li>数字で見つかった崩れは無し（目で見て決める）</li>"
+        look = "".join(f"<li><b>{e(p['kind'])}</b> {e(json.dumps(p['detail'], ensure_ascii=False, default=float))}</li>" for p in r.get("look", []))
         unread = "".join(f"<li>{e(json.dumps(u, ensure_ascii=False, default=float))}</li>" for u in r["unreadable"])
         imgs = f'<img src="{e(Path(r["src"]).resolve().as_uri())}">'
         if r.get("joints_image"):
@@ -68,6 +74,7 @@ def page(results: list[dict], out: Path) -> Path:
         cards.append(f'<section class="{"ok" if r["ok"] else "ng"}"><h2>{e(Path(r["src"]).name)}'
                      f'<small>{"崩れ無し" if r["ok"] else "崩れ " + str(n) + " 件"}・頭身 {r["heads_tall"]}</small></h2>'
                      f'<div class="imgs">{imgs}</div><ul>{items}</ul>'
+                     + (f"<p>目で確かめる所</p><ul>{look}</ul>" if look else "")
                      + (f"<p>読めなかった検品</p><ul>{unread}</ul>" if unread else "") + "</section>")
     p = out / "inspect.html"
     p.write_text('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'

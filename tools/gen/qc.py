@@ -359,6 +359,26 @@ def structure(points: list[dict], top: float, bottom: float, least: float = 0.3,
     return {"values": out, "off": {k: v for k, v in out.items() if abs(v) > tolerance}}
 
 
+def shoe_pair(points: list[dict], im: Image.Image, least: float = 0.3) -> dict | None:
+    """左右の足首の下を同じ大きさで切り出し、靴の平均の色の差（RGB の距離）と、塗られた面積の比を返す。
+    左右で違う靴（片方だけ灰色）の絵で 35.5、そろった絵で 2〜6 だった。影で暗い奥の足や、ズボンの裾が入る絵でも
+    15〜30 が出るので、崩れとは決めず、目で確かめる所の印に使う"""
+    p = {q["name"]: q for q in points if q.get("score", 1) >= least}
+    if not all(k in p for k in ("left_ankle", "right_ankle", "left_hip", "right_hip")):
+        return None
+    rgb = np.asarray(im.convert("RGB")).astype(float)
+    bg = rgb[2, 2]
+    r = max(12.0, abs(p["left_hip"]["x"] - p["right_hip"]["x"]) * 0.45)
+    stats = []
+    for s in ("left", "right"):
+        x, y = p[f"{s}_ankle"]["x"], p[f"{s}_ankle"]["y"]
+        box = rgb[max(0, int(y - r * 0.3)):int(y + r * 1.1), max(0, int(x - r * 0.6)):int(x + r * 0.6)]
+        m = np.abs(box - bg).sum(2) > 40
+        stats.append((box[m].mean(0) if m.any() else bg, int(m.sum())))
+    return {"color_diff": round(float(np.linalg.norm(stats[0][0] - stats[1][0])), 1),
+            "area_ratio": round(min(stats[0][1], stats[1][1]) / max(1, stats[0][1], stats[1][1]), 2)}
+
+
 def proportion_drift(base: dict, drawn: dict, tolerance: float = 0.15) -> dict:
     """下絵（体の寸法を合わせた人形）と描いた絵で、部位の長さの比べ。描く模型が肩幅や脚の長さを変えると、
     下絵で合わせた釣り合いが絵に残らない。tolerance（既定 15%）を超えた部位を挙げる"""
