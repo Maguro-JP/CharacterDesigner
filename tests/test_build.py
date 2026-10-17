@@ -226,6 +226,27 @@ class BuildTest(unittest.TestCase):
         shots = [p.name for c, s in design.cast_paths(cast, "/x") for p, _, _ in s if c["id"] == "m"]
         self.assertEqual(shots, ["m-xl-8.png", "m-xl-9.png"])
 
+    def test_blob_keeps_the_face_but_forbids_limbs(self):
+        # 塊の生き物は物の文で形を取るが、顔は打ち消さない。作風は blob_common だけを付ける
+        import tempfile
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import design
+        with tempfile.TemporaryDirectory() as t:
+            Path(f"{t}/c.json").write_text(json.dumps({
+                "creature_common": "creature words", "blob_common": "flat colors",
+                "characters": [{"id": "s", "kind": "blob", "prompt": "a jelly blob", "negative": "beak"}]}))
+            c = design.load_cast(f"{t}/c.json")["characters"][0]
+        self.assertEqual(c["full_prompt"], "a jelly blob, flat colors")
+        text, neg = design.full_texts(c, "xl")
+        self.assertTrue(text.endswith(design.XL_BLOB_SUFFIX))
+        self.assertNotIn("creature design", text)
+        for word in ("arms", "legs", "wings", "tail", "beak"):
+            self.assertIn(word, neg)
+        for word in ("eyes", "face", "mouth"):
+            self.assertNotIn(word, neg)
+        shots = [(p.name, st) for _, s in design.cast_paths({"characters": [c]}, "/x") for p, _, st in s]
+        self.assertEqual(shots, [("s-xl-7.png", "xl"), ("s-xl-8.png", "xl")])
+
     def test_derived_stage_uses_the_chosen_base_picture(self):
         # 系統の派生は、ベースの決定稿（chosen）の絵を手本にする。決定稿が無ければ手本なし
         import tempfile
