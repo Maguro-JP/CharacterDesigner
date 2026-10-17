@@ -396,3 +396,35 @@ def thin_limb(h, rig, prefix: str, factor: float) -> None:
                 along = a + d * (p @ d)
                 co[:] = tuple(along + (np.array(co[:]) - along) * k)
     h.data.update()
+
+
+TORSO = ("spine", "pelvis", "breast", "clavicle", "shoulder", "root")
+UPPER = ("neck", "head", "jaw", "upperarm", "lowerarm", "wrist", "finger", "metacarpal", "eye", "tongue", "teeth", "levator", "oris", "temporalis", "special")
+
+
+def reshape_torso(h, rig, length: float = 1.0, width: float = 1.0) -> None:
+    """胴を縦に length 倍、横に width 倍にする。腕・首・頭は胴の上端の動きに合わせて平行に動かし、形は変えない。
+    アニメの絵（言葉だけで描いた 40 枚）は、写実の人形より胴が約 1 割短く、肩と腰が 1〜2 割細かった。
+    描く模型はその釣り合いで描き直すので、人形の側を合わせておかないと腕や脚が下絵からずれた"""
+    import numpy as np
+    bones = {b.name for b in rig.data.bones}
+    names = {g.index: g.name for g in h.vertex_groups if g.name in bones}
+    hip = rig.data.bones["upperleg01.L"].head_local[2]
+    top = rig.data.bones["upperarm01.L"].head_local[2]
+    sh_x = abs(rig.data.bones["upperarm01.L"].head_local[0])
+    drop = (top - hip) * (1 - length)
+    pull = sh_x * (1 - width)
+    blocks = list(h.data.shape_keys.key_blocks) if h.data.shape_keys else []
+    for v in h.data.vertices:
+        gs = [g for g in v.groups if g.group in names]
+        main = names[max(gs, key=lambda g: g.weight).group] if gs else ""
+        for co in [v.co] + [kb.data[v.index].co for kb in blocks]:
+            x, y, z = co
+            if main.startswith(TORSO) and z > hip:
+                co[:] = (x * width, y, hip + (z - hip) * length)
+            elif main.startswith(("upperarm", "lowerarm", "wrist", "finger", "metacarpal")):
+                co[:] = (x - pull * (1 if x > 0 else -1), y, z - drop)
+            elif z > top - 0.02:
+                # 首・頭と、髪や目の補助の面（骨の重みが無く、骨で分けると髪だけ置き去りになった）
+                co[:] = (x, y, z - drop)
+    h.data.update()

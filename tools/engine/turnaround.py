@@ -27,6 +27,11 @@ from pose_prop import look_from, tinted  # noqa: E402
 VIEWS = {"front": Vector((0, -4.6, 1.0)), "side": Vector((4.6, 0, 1.0)), "back": Vector((0, 4.6, 1.0)), "right": Vector((-4.6, 0, 1.0))}
 
 
+def g_genre() -> dict:
+    p = Path(__file__).resolve().parents[2] / "styles" / "genres.json"
+    return json.loads(p.read_text())["genres"].get(os.environ.get("CD_GENRE", "anime"), {})
+
+
 def g_body() -> dict:
     """ジャンルの体の太さの目安（styles/genres.json の body）。写実の人形の太ももは頭 0.79 個分あり、描いた絵で脚が太く見えた"""
     p = Path(__file__).resolve().parents[2] / "styles" / "genres.json"
@@ -101,6 +106,9 @@ def main(argv):
             bpy.data.objects.remove(o)
         for mod in [mod for mod in h.modifiers if mod.type == "ARMATURE"]:
             h.modifiers.remove(mod)
+    torso = g_genre().get("torso")
+    if torso and not a.no_fit:
+        human.reshape_torso(h, human._rig(h), torso["length"], torso["width"])
     if a.heads:
         # 人形の頭身は体型で 6.9〜7.5 と揺れ、7.5 と決め打ちで倍率を出すと 7 頭身を頼んで 6.5 になった。
         # 測った頭身から倍率を出し、もう一度測って合わせる

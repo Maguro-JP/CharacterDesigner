@@ -5,14 +5,28 @@
   "anime": {
    "name": "アニメの標準",
    "heads_tall": [
-    6.5,
-    7.5
+    5.8,
+    6.7
    ],
    "words": "anime style, cel shading, clean lineart",
    "negative": "realistic, photorealistic, 3d",
    "body": {
     "thigh_thick": 0.66,
     "upper_arm_thick": 0.36
+   },
+   "torso": {
+    "length": 0.88,
+    "width": 0.8
+   },
+   "learned": {
+    "from": "animagine-xl-4.0 で言葉だけで描いた人物 40 枚（qc.heads_tall と qc.proportions、胴の長さで割った値の中央値）",
+    "heads": 6.36,
+    "shoulder_width": 0.53,
+    "hip_width": 0.31,
+    "upper_arm": 0.53,
+    "forearm": 0.42,
+    "thigh": 0.8,
+    "shin": 0.78
    }
   },
   "shoujo": {
