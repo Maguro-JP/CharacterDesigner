@@ -312,7 +312,10 @@ def draw(ident: str, outdir: str, count: int = 1, seed: int = 0, ref_scale: floa
             del args["width"], args["height"]
             if ref is not None:
                 i2i.set_ip_adapter_scale(ref_scale)
-            im = i2i(image=start, control_image=Image.open(depth).convert("RGB").resize((832, 1216)), strength=strength,
+            from PIL import ImageFilter
+            # 奥行きの細かい凹凸（胸や膝の起伏）を、模型が暗い影の塊として描いた。ぼかして大きな形だけを渡す
+            control = Image.open(depth).convert("RGB").resize((832, 1216)).filter(ImageFilter.GaussianBlur(6))
+            im = i2i(image=start, control_image=control, strength=strength,
                      controlnet_conditioning_scale=depth_scale, control_guidance_end=depth_end, **args).images[0]
         elif start is not None:
             i2i = demi.img2img()
