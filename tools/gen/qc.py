@@ -445,9 +445,13 @@ EYE_COLORS = {"blue", "red", "green", "purple", "yellow", "brown", "black", "gre
 def auto_check(src: str, prompt: str = "") -> dict:
     """描いた直後に必ず走らせる検品。崩れが 1 つでも、読めない検品が 1 つでもあれば ok を False にする。
     Claude は検品を呼ばないと走らせず、描かせた絵を検品なしで次へ回した。描く道具（free_text.draw、fix.py）から毎回呼ぶ。
-    ok が True でも完成ではない。通す・戻すは検品担当（checker）が目で見て決める"""
-    res = {"src": src, "problems": [], "unreadable": []}
+    ok が True でも完成ではない。通す・戻すは検品担当（checker）が目で見て決める。
+    ok が False でも絵は捨てない。機械の検品で落とした絵を隠すと、人が魅力を感じた絵まで消えた。
+    外れは marks（直す所の印。何が・どこで・どう直すか）に並べ、直せる崩れは部分の描き直しで直す。
+    指示や画風との違い（基準の kind が request）は崩れではないので differences に分け、ok と点数に入れない"""
+    res = {"src": src, "problems": [], "unreadable": [], "differences": []}
     tags: dict = {}
+    all_tags: dict = {}
     # 固定の制限は、ほかの検品が落ちても必ず走らせる（scipy が無く端の切れで落ちたとき、ここまで届かなかった）
     try:
         # 固定の制限（子どもを性的に描かない）を、頼んだ言葉だけでなく描けた絵でも確かめる。
@@ -455,11 +459,11 @@ def auto_check(src: str, prompt: str = "") -> dict:
         # 絵をタグに読み、filters.fixed（言葉の判定と同じ決まり）にかける
         import filters
         import tagger
-        # 一度だけ低い閾値で読み、検品には 0.35 以上を使う。低い側は res["tags"] で返し、頼んだ言葉の欠けを
-        # 調べる側（loop.py）が同じ絵をもう一度読まなくて済むようにする
-        low = tagger.read(src, threshold=0.05)
-        res["tags"] = low
-        tags = {k: v for k, v in low.items() if v >= 0.35}
+        # 1回だけ読み、絞る前の確からしさは measure（頼んだ色の照合）に渡し、res["tags"] でも返す。
+        # 頼んだ言葉の欠けを調べる側（loop.py）が同じ絵をもう一度読まなくて済むようにする。絞った方を固定の制限とほかの検品に使う
+        all_tags = tagger.read(src, 0.0)
+        res["tags"] = all_tags
+        tags = {k: v for k, v in all_tags.items() if v >= 0.35}
         # 目の範囲を描き直した絵で瞳が消え光る線だけになったのを、目の測り方が揺れて見つけたと読み通した（2026-10-16）。
         # タグは extra eyes を 0.53 で読んでいた。崩れの無い絵では 0.22〜0.30 だったので、EXTRA_EYES 以上を崩れに数える
         if tags.get("extra eyes", 0) >= EXTRA_EYES:
@@ -490,7 +494,8 @@ def auto_check(src: str, prompt: str = "") -> dict:
         if not person["found"]:
             res["unreadable"].append({"person": person})
         import measure
-        m = measure.measure(src, points=points)
+        # タグは上で読んだもの（絞る前）を渡し、模型を2度走らせない
+        m = measure.measure(src, points=points, prompt=prompt or None, tags=all_tags or None)
         # measure が基準から外れたと出した数字（瞳の色の差、髪の白飛び、影の順序など）は全部、判定に入れる。
         # 面積比だけを見て、measure が出していた瞳の色の差 0.105（基準 0.062）を捨てて通した（目の描き直し、2026-10-14）
         if measure.NORMS.exists():
@@ -512,6 +517,9 @@ def auto_check(src: str, prompt: str = "") -> dict:
                 if bad["path"] == "eyes.found" and eyes_by_tags(tags):
                     res.setdefault("ignored", []).append({"measure": bad, "why": "目は描かれている（タグで読めた）"})
                     continue
+                if bad.get("kind") == "request":
+                    res["differences"].append({"measure": bad})
+                    continue
                 key = "unreadable" if bad["path"] == "eyes.found" else "problems"
                 res[key].append({"measure": bad})
         eye = eye_mismatch(m["eyes"])
@@ -531,6 +539,7 @@ def auto_check(src: str, prompt: str = "") -> dict:
         res["unreadable"].append({"error": f"{type(e).__name__}: {e}"})
     res["ok"] = not res["problems"] and not res["unreadable"]
     res["score"] = score(res)
+    res["marks"] = marks(res)
     Path(src + ".qc.json").write_text(json.dumps(res, ensure_ascii=False, indent=1, default=str))
     if any("fixed_restriction" in x for x in res["problems"]):
         res["held"] = hold(src)
@@ -540,6 +549,29 @@ def auto_check(src: str, prompt: str = "") -> dict:
 # 崩れの重さ（100 点から引く）。体のつながりや人そのものの崩れは直せないので重く、部分の直しで直せる崩れは軽くする
 PENALTY = {"fixed_restriction": 100, "person": 60, "human_legs": 40, "edge_cut": 25, "eyes": 15, "extra_eyes": 15, "floating": 15,
            "seams": 10, "measure": 8}
+
+
+# 顔を描き直す（imgproc.face_fix）と直る崩れ。目の左右の色・大きさの違い、余分な目、正面に戻すと歪む顔
+FACE_FIX = {"eyes", "extra_eyes", "eyes.iris_delta", "eyes.found", "face.rms"}
+# 構図そのものの崩れ（人がいない・2人目、体が画面の端で切れた）。部分の描き直しでは直らないが、絵は捨てずに印だけ付ける
+LAYOUT = {"edge_cut", "person"}
+
+
+def marks(res: dict) -> list[dict]:
+    """外れた項目を「直す所」の印にする。kind は fix（部分の描き直しで直す）か layout（構図の崩れ）。
+    repair は直し方（face_fix は顔の描き直し、inpaint はその場所の描き直し、none は直しが無い）。
+    where は外れた場所や数字（端の辺、瞳の色の差、影の逆転した部位など、検品が出したもの）"""
+    out = []
+    for group in ("problems", "unreadable"):
+        for x in res.get(group, []):
+            k = next(iter(x))
+            if k == "fixed_restriction":
+                continue
+            what = x[k]["path"] if k == "measure" else k
+            kind = "layout" if what in LAYOUT else "fix"
+            repair = "face_fix" if what in FACE_FIX else "none" if kind == "layout" else "inpaint"
+            out.append({"what": what, "kind": kind, "repair": repair, "where": x[k], "unreadable": group == "unreadable"})
+    return out
 
 
 def score(res: dict) -> int:
