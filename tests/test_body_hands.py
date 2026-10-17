@@ -8,6 +8,9 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools" / "gen"))
 import measure  # noqa: E402
 
+# 共通の基準だけで試す。利用者の判定から学んだ基準（config/norms.user.json）で結果が変わらないように
+measure.USER_NORMS = Path(__file__).parent / "no-user-norms.json"
+
 
 def points(eye_y, ankle_y=950, wrist=(300, 500), score=0.9):
     p = {n: (500, 500) for n in ("nose", "left_ear", "right_ear", "left_shoulder", "right_shoulder", "left_elbow", "right_elbow",

@@ -8,6 +8,15 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools" / "gen"))
 import measure  # noqa: E402
 
+# 共通の基準だけで試す。利用者の判定から学んだ基準（config/norms.user.json）で結果が変わらないように
+measure.USER_NORMS = Path(__file__).parent / "no-user-norms.json"
+
+try:
+    import scipy  # noqa: F401  描く部品（.cache/gen/lib）に入っている
+    HAS_SCIPY = True
+except ImportError:
+    HAS_SCIPY = False
+
 WHITE = "full body, simple white background"
 
 
@@ -73,6 +82,64 @@ class ColorsTest(unittest.TestCase):
 
     def test_no_tags_not_judged(self):
         self.assertEqual(paths({"colors": measure.colors(ASK, None)}), set())
+
+
+LADY = "woman solo, long black hair, black long-sleeved dress, black boots, white background"
+
+
+class HairStyleTest(unittest.TestCase):
+    """頼んだ髪の長さ・髪型とタグの照合。確からしさは 5 周目の4枚（long black hair を頼んだ絵）で読めた値"""
+
+    def test_asked_styles_parsed(self):
+        self.assertEqual(measure.asked_hair_styles(LADY), ["long hair"])
+        self.assertEqual(measure.asked_hair_styles("1girl, very long silver hair, hair down"), ["very long hair", "hair down"])
+        self.assertEqual(measure.asked_hair_styles("1girl, black bob cut"), ["bob cut"])
+
+    def test_bun_and_bob_for_long_flagged(self):
+        for tags, seen in (({"long hair": 0.39, "hair bun": 0.385, "ponytail": 0.17}, "hair bun"),         # 506 まとめ髪
+                           ({"long hair": 0.03, "short hair": 0.601}, "short hair"),                       # 508 ボブ
+                           ({"long hair": 0.04, "short hair": 0.482}, "short hair"),                       # 512 ボブ
+                           ({"long hair": 0.323, "short hair": 0.131, "ponytail": 0.105}, "short hair")):  # 505 まとめ髪
+            c = measure.colors(LADY, {"black hair": 0.9, **tags})
+            self.assertIn("colors.mismatch", paths({"colors": c}))
+            self.assertEqual([(i["item"], i["seen"]) for i in c["items"]], [("hairstyle", seen)])
+
+    def test_long_hair_passes(self):
+        c = measure.colors(LADY, {"black hair": 0.9, "long hair": 0.57, "short hair": 0.12})   # 510 の長い髪
+        self.assertEqual(paths({"colors": c}), set())
+
+    def test_long_hair_for_short_flagged(self):
+        c = measure.colors("1girl, black bob cut", {"black hair": 0.9, "long hair": 0.8})
+        self.assertEqual([(i["asked"], i["seen"]) for i in c["items"]], [("bob cut", "long hair")])
+
+    def test_no_style_asked_not_judged(self):
+        c = measure.colors("1girl, black hair", {"black hair": 0.9, "short hair": 0.9})
+        self.assertEqual(c["mismatch"], 0)
+
+    def test_ff_prompt_found(self):
+        import json
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            (Path(d) / "a-1.png.json").write_text(json.dumps({"prompt": LADY}), encoding="utf-8")
+            self.assertEqual(measure._prompt_of(Path(d) / "a-1.ff.png"), LADY)
+
+
+@unittest.skipUnless(HAS_SCIPY, "描く部品（scipy）が無い")
+class DarkHairSpecTest(unittest.TestCase):
+    """光の帯の無いほぼ黒の髪は、彩度が跳ねても指定の黒から外れたと数えない。明るく色づいた髪は数える"""
+
+    def _hair(self, color):
+        rgb = np.ones((120, 120, 3), dtype=np.float32)
+        seg = np.zeros((120, 120), dtype=np.uint8)
+        seg[20:100, 20:100] = 1
+        rgb[20:100, 20:100] = color
+        return measure.hair(rgb, seg, {"hair": 1}, "#000000")["spec_off"]
+
+    def test_near_black_with_tint_passes(self):
+        self.assertLess(self._hair((0.02, 0.03, 0.08)), 0.2)   # 彩度 0.75 だが明るさ 0.08
+
+    def test_pink_hair_flagged(self):
+        self.assertGreater(self._hair((0.9, 0.5, 0.7)), 0.2)
 
 
 if __name__ == "__main__":
