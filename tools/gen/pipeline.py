@@ -59,6 +59,13 @@ def phase_base(ident, out, view, seed, st):
     import os
     import subprocess
     plan = bible.turnaround_plan(ident, str(out / "base"), seed)
+    if st.get("heads"):
+        # 頭身を比べる実験（sweep）では、ジャンルの既定の代わりに決めた頭身で人形を作る
+        cmd = plan["base_cmd"]
+        if "--heads" in cmd:
+            i = cmd.index("--heads")
+            del cmd[i:i + 2]
+        cmd += ["--heads", str(st["heads"])]
     env = {**os.environ, "PYTHONPATH": str(bible.ROOT / ".cache/engine/bpy")}
     subprocess.run(plan["base_cmd"] + ["--depth"], check=True, env=env, cwd=bible.ROOT, capture_output=True)
     f = str(out / "base" / f"base-{view}.png")
@@ -220,12 +227,16 @@ def board(out: Path, st: dict) -> Path:
 
 
 def run(ident: str, outdir: str, view: str = "front", start: str | None = None, only: str | None = None,
-        tries: int = 3, seed: int = 0, rewinds: int = 2) -> dict:
+        tries: int = 3, seed: int = 0, rewinds: int = 2, until: str | None = None, heads: float | None = None) -> dict:
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
     st = _load(out)
     st.update(id=ident, view=view)
+    if heads:
+        st["heads"] = heads
     todo = [only] if only else PHASES[PHASES.index(start):] if start else PHASES
+    if until:
+        todo = todo[:todo.index(until) + 1] if until in todo else todo
     for ph in todo:
         rec = st["phases"].setdefault(ph, {"tries": []})
         for k in range(tries if ph in RETRY else 1):
@@ -254,7 +265,7 @@ def run(ident: str, outdir: str, view: str = "front", start: str | None = None, 
         st.setdefault("rewinds", []).append({"to": back, "because": chk["tries"][-1]["bad"]})
         _save(out, st)
         print(f"検品で落ちたので {back} から先をやり直す", flush=True)
-        return run(ident, outdir, view, back, None, tries, seed, rewinds - 1)
+        return run(ident, outdir, view, back, None, tries, seed, rewinds - 1, until, heads)
     st.pop("stopped", None)
     _save(out, st)
     board(out, st)
@@ -274,11 +285,13 @@ def main():
     s.add_argument("id"); s.add_argument("out"); s.add_argument("--view", default="front")
     s.add_argument("--from", dest="start", choices=PHASES); s.add_argument("--only", choices=PHASES)
     s.add_argument("--tries", type=int, default=3); s.add_argument("--seed", type=int, default=0)
+    s.add_argument("--until", choices=PHASES, help="この工程まで進めて止める")
+    s.add_argument("--heads", type=float, help="人形の頭身（実験用。省くとジャンルの既定）")
     s = sub.add_parser("status"); s.add_argument("out")
     a = ap.parse_args()
     if a.cmd == "run":
         import design  # noqa: F401  模型を勝手に取りに行かない設定（HF_HUB_OFFLINE）を diffusers より先に効かせる
-        r = run(a.id, a.out, a.view, a.start, a.only, a.tries, a.seed)
+        r = run(a.id, a.out, a.view, a.start, a.only, a.tries, a.seed, until=a.until, heads=a.heads)
         print(json.dumps(status(a.out), ensure_ascii=False, indent=1, default=float))
         sys.exit(1 if r.get("stopped") else 0)
     print(json.dumps(status(a.out), ensure_ascii=False, indent=1, default=float))
