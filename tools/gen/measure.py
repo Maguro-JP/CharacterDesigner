@@ -514,6 +514,52 @@ def hands_pose(points, prompt: str, seen: float = 0.5) -> dict:
     return {"asked": "hands behind back", "behind_out": round(float(max(outs)), 3), "wrists": [round(v, 3) for v in outs]}
 
 
+ADULT_WORDS = ("adult", "woman", "women", "mature", "man ", "lady")
+
+
+def proportion(points, seg, prompt: str, seen: float = 0.3) -> dict:
+    """頭身。人物の上端（部位分けの背景でない所）から目の高さまでを頭の半分とみなし、人物の上端から下端までをその2倍で割る。
+    頭の大きさを顔の部位の幅で取ると横向きで狭くなり、目の間で取ると横向きで縮むので、縦の長さだけで測る。
+    帽子が高いと小さく出るが、外れる向き（大人を子どもと見る）は検品で戻す側なので許す。
+    目・足首の点が読めない絵（seen 未満）では None。adult は頼んだ言葉に大人の語があるか"""
+    low = " " + (prompt or "").lower() + " "
+    adult = any(w in low for w in ADULT_WORDS)
+    if not points or seg is None:
+        return {"adult": adult, "heads": None}
+    p = {q["name"]: q for q in points}
+    if min(p[k]["score"] for k in ("left_eye", "right_eye", "left_ankle", "right_ankle")) < seen:
+        return {"adult": adult, "heads": None}
+    ys = np.nonzero((np.asarray(seg) != 0).any(axis=1))[0]
+    if not len(ys):
+        return {"adult": adult, "heads": None}
+    top, bot = float(ys.min()), float(ys.max())
+    eye = (p["left_eye"]["y"] + p["right_eye"]["y"]) / 2
+    if eye <= top:
+        return {"adult": adult, "heads": None}
+    return {"adult": adult, "heads": round((bot - top) / (2 * (eye - top)), 2)}
+
+
+def hands_seen(points, seg, prompt: str) -> dict:
+    """手が見えているか。手首の点の確からしさは袖に隠れた手でも 0.5〜0.68 が出て、見えている手と分けられなかった。
+    手首の点の周り（目の間の 0.6 倍 + 20 画素の四方）の腕の肌の画素を、顔の面積で割った値の大きい方を shown にする。
+    hands behind back を頼んだ絵、骨格か部位分けが無い絵では None"""
+    low = (prompt or "").lower()
+    if "behind back" in low or not points or seg is None:
+        return {"shown": None}
+    seg = np.asarray(seg)
+    face = float((seg == 11).sum())
+    if face <= 0:
+        return {"shown": None}
+    p = {q["name"]: q for q in points}
+    r = int(0.6 * abs(p["left_eye"]["x"] - p["right_eye"]["x"]) + 20)
+    out = []
+    for s in ("left", "right"):
+        x, y = int(p[s + "_wrist"]["x"]), int(p[s + "_wrist"]["y"])
+        win = seg[max(0, y - r):y + r, max(0, x - r):x + r]
+        out.append(round(float(np.isin(win, [14, 15]).sum()) / face, 4))
+    return {"shown": max(out), "wrists": out}
+
+
 def _prompt_of(src) -> str:
     """描いた道具が隣に置く 絵.png.json の prompt。部分を描き直した絵（-face など）は元の絵の控えを見る"""
     p = Path(src)
@@ -550,7 +596,7 @@ def measure(src, hair_color: str = "", points=None, prompt: str | None = None, t
     return {"size": list(rgb.shape[1::-1]), "eyes": eyes(hrgb, hseg, L, _eye_hint(points, view)), "face": face, "light": light3d(src, rgb, seg, regions),
             "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "pairs": pairs(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color),
             "background": background(rgb, prompt), "style": style(tags), "colors": colors(prompt, tags),
-            "pose": hands_pose(points, prompt)}
+            "pose": hands_pose(points, prompt), "body": proportion(points, seg, prompt), "hands": hands_seen(points, seg, prompt)}
 
 
 def _get(d, path):
