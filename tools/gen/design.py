@@ -134,7 +134,8 @@ def _pipe(style, img2img=False):
     pipe = cls.from_pretrained(STYLES[style], torch_dtype=torch.float32, safety_checker=None)
     # LCM-LoRA: 25 段かかるところを 6 段で描く。CPU で1枚 約1分（512x768、4 コア）
     pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
-    pipe.load_lora_weights(LCM_LORA)
+    # 名前を明示する。省くと取得済みでもオフラインの既定（HF_HUB_OFFLINE=1）で読めずに落ちた
+    pipe.load_lora_weights(LCM_LORA, weight_name="pytorch_lora_weights.safetensors")
     pipe.fuse_lora()
     import device
     return device.place(pipe, torch)
@@ -193,26 +194,32 @@ def encode_xl(pipe, prompt, negative):
     return pe, ne, pooled[0].to(dt), pooled[1].to(dt)
 
 
-def draw(out, prompt, seed, n, style, steps, width, height):
+# draw の構図。upper は手や持ち物を確かめる絵のため。全身では手が 60〜100 画素しかなく、手の形が描けたかを読めなかった。
+# portrait（close-up）にすると手が枠の外に出るので付けない
+FRAMING = {"full": PREFIX, "upper": PREFIX.replace("full body, standing, ", "upper body, ")}
+
+
+def draw(out, prompt, seed, n, style, steps, width, height, framing="full"):
     import torch
     pipe = _pipe(style)
+    prefix = FRAMING[framing]
     paths = []
     for i in range(n):
         t = time.time()
         g = torch.Generator().manual_seed(seed + i)
         if style in XL:
             # SDXL は要約（pooled）も渡さないと止まる。guidance は batch の XL と同じ 2.0
-            pe, ne, pp, np_ = encode_xl(pipe, PREFIX + prompt + SUFFIX, NEGATIVE)
+            pe, ne, pp, np_ = encode_xl(pipe, prefix + prompt + SUFFIX, NEGATIVE)
             im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
                       negative_pooled_prompt_embeds=np_, num_inference_steps=steps,
                       guidance_scale=2.0, width=width, height=height, generator=g).images[0]
         else:
-            pe, ne = encode(pipe, PREFIX + prompt + SUFFIX, NEGATIVE)
+            pe, ne = encode(pipe, prefix + prompt + SUFFIX, NEGATIVE)
             im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, num_inference_steps=steps,
                       guidance_scale=1.5, width=width, height=height, generator=g).images[0]
         p = out if n == 1 else str(Path(out).with_suffix("")) + f"-{seed + i}.png"
         im.save(p)
-        meta = {"prompt": prompt, "seed": seed + i, "style": style, "model": STYLES[style], "steps": steps}
+        meta = {"prompt": prompt, "seed": seed + i, "style": style, "model": STYLES[style], "steps": steps, "framing": framing}
         Path(p + ".json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
         paths.append(p)
         print(f"{p}: {time.time() - t:.1f} 秒")
@@ -674,6 +681,7 @@ def main():
     d.add_argument("--steps", type=int, default=6)
     d.add_argument("--width", type=int, default=512)
     d.add_argument("--height", type=int, default=768)
+    d.add_argument("--framing", choices=list(FRAMING), default="full", help="upper は上半身（手を確かめる絵）")
     r = sub.add_parser("restyle")
     r.add_argument("src")
     r.add_argument("out")
@@ -709,7 +717,7 @@ def main():
     elif a.cmd == "sheet":
         sheet(a.cast, a.outdir, a.out, a.thumb)
     elif a.cmd == "draw":
-        draw(a.out, a.prompt, a.seed, a.n, a.style, a.steps, a.width, a.height)
+        draw(a.out, a.prompt, a.seed, a.n, a.style, a.steps, a.width, a.height, a.framing)
     elif a.cmd == "restyle":
         restyle(a.src, a.out, a.style, a.strength, a.steps, a.prompt)
     else:

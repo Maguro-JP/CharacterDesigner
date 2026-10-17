@@ -120,7 +120,12 @@ def auto_boxes(src, least=0.3):
     import joints
     pts = {p["name"]: p for p in joints.find(src)}
     # 前腕が手前へ縮んで見えると、前腕の長さだけでは枠が手より小さくなる。鼻から足首までの高さの 4.5% を下限にする
-    tall = max(pts["left_ankle"]["y"], pts["right_ankle"]["y"]) - pts["nose"]["y"]
+    ankles = [pts[k]["y"] for k in ("left_ankle", "right_ankle") if pts[k]["score"] >= least]
+    if ankles:
+        tall = max(ankles) - pts["nose"]["y"]
+    else:
+        # 上半身の絵には足首が無い。でたらめな足首で枠が顔まで広がったので、肩幅（全身の高さのおよそ 1/4）から見当する
+        tall = abs(pts["left_shoulder"]["x"] - pts["right_shoulder"]["x"]) * 4
     out = []
     for side in ("left", "right"):
         e, w = pts[f"{side}_elbow"], pts[f"{side}_wrist"]
@@ -143,9 +148,12 @@ def best_crop(im, box, rot):
     cx, cy, r = (x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) / 2
     best = None
     # 一辺 64 画素より小さく切ると、指だけの拡大を手と読んだ（手らしさ 0.97 で、点は指の上にでたらめに乗った）
-    for k in [k for k in (0.6, 0.8, 1.0) if r * k * 2 >= 64] or [1.0]:
+    # 中心も前腕の向きに沿って手首側へずらす。手が前腕に比べて小さい絵（上半身で手を上げた絵）では、見当の中心が顔まで行き過ぎた
+    ux, uy = np.sin(np.radians(rot)), -np.cos(np.radians(rot))
+    cands = [(cx - ux * r * t, cy - uy * r * t, k) for t in (0, 0.5, 0.9) for k in (0.4, 0.6, 0.8, 1.0) if r * k * 2 >= 64]
+    for x, y, k in cands or [(cx, cy, 1.0)]:
         for d in (-35, 0, 35):
-            c = im.crop((int(cx - r * k), int(cy - r * k), int(cx + r * k), int(cy + r * k)))
+            c = im.crop((int(x - r * k), int(y - r * k), int(x + r * k), int(y + r * k)))
             c = c.rotate(rot + d, expand=True, fillcolor=im.getpixel((0, 0)))
             p = landmarks(c)[2]
             if best is None or p > best[0]:
