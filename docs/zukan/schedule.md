@@ -34,47 +34,49 @@
 
 ## 日ごとの動物
 
-| 日付 | 動物 |
-|---|---|
-| 10/18 | capybara |
-| 10/19 | axolotl |
-| 10/20 | pangolin |
-| 10/21 | toucan |
-| 10/22 | chameleon |
-| 10/23 | snow leopard |
-| 10/24 | manta ray |
-| 10/25 | tapir |
-| 10/26 | hummingbird |
-| 10/27 | armadillo |
-| 10/28 | seahorse |
-| 10/29 | okapi |
-| 10/30 | puffin |
-| 10/31 | quokka |
-| 11/01 | shoebill |
-| 11/02 | fennec fox |
-| 11/03 | hippo |
-| 11/04 | koi |
-| 11/05 | sloth |
-| 11/06 | moose |
-| 11/07 | kiwi |
-| 11/08 | red-crowned crane |
-| 11/09 | platypus |
-| 11/10 | meerkat |
-| 11/11 | jellyfish |
-| 11/12 | narwhal |
-| 11/13 | peacock |
-| 11/14 | raccoon dog |
-| 11/15 | mandrill |
-| 11/16 | lynx |
-| 11/17 | stag beetle |
-| 11/18 | pufferfish |
-| 11/19 | bison |
-| 11/20 | owl butterfly |
-| 11/21 | sea turtle |
-| 11/22 | serval |
-| 11/23 | pelican |
-| 11/24 | anteater |
-| 11/25 | gecko |
-| 11/26 | yak |
+似た動物が続かないよう、いちばん長く描いていない類（哺乳類・鳥・爬虫類・両生類・魚・虫・その他）から選ぶ。
+
+| 日付 | 動物 | 類 |
+|---|---|---|
+| 10/18 | capybara | mammal |
+| 10/19 | axolotl | amphibian |
+| 10/20 | toucan | bird |
+| 10/21 | chameleon | reptile |
+| 10/22 | manta ray | fish |
+| 10/23 | jellyfish | invertebrate |
+| 10/24 | stag beetle | insect |
+| 10/25 | pangolin | mammal |
+| 10/26 | hummingbird | bird |
+| 10/27 | sea turtle | reptile |
+| 10/28 | seahorse | fish |
+| 10/29 | owl butterfly | insect |
+| 10/30 | snow leopard | mammal |
+| 10/31 | puffin | bird |
+| 11/01 | gecko | reptile |
+| 11/02 | koi | fish |
+| 11/03 | tapir | mammal |
+| 11/04 | shoebill | bird |
+| 11/05 | pufferfish | fish |
+| 11/06 | armadillo | mammal |
+| 11/07 | kiwi | bird |
+| 11/08 | okapi | mammal |
+| 11/09 | red-crowned crane | bird |
+| 11/10 | quokka | mammal |
+| 11/11 | peacock | bird |
+| 11/12 | fennec fox | mammal |
+| 11/13 | pelican | bird |
+| 11/14 | hippo | mammal |
+| 11/15 | sloth | mammal |
+| 11/16 | moose | mammal |
+| 11/17 | platypus | mammal |
+| 11/18 | meerkat | mammal |
+| 11/19 | narwhal | mammal |
+| 11/20 | raccoon dog | mammal |
+| 11/21 | mandrill | mammal |
+| 11/22 | lynx | mammal |
+| 11/23 | bison | mammal |
+| 11/24 | serval | mammal |
+| 11/25 | anteater | mammal |
+| 11/26 | yak | mammal |
 
 描いた絵は次の時の周で検品に回したうえで全部送る。検品を通った絵は、画風ごとの図鑑（`docs/zukan/`）にまとめる。
