@@ -193,23 +193,26 @@ def encode_xl(pipe, prompt, negative):
     return pe, ne, pooled[0].to(dt), pooled[1].to(dt)
 
 
-def draw(out, prompt, seed, n, style, steps, width, height, negative=""):
+def draw(out, prompt, seed, n, style, steps, width, height, kind="human", negative=""):
     import torch
-    # 既定の打ち消しに足す。年齢の見え方（child, round face など）を絵ごとに抑えるため
-    neg = ", ".join(x for x in (NEGATIVE, negative) if x)
     pipe = _pipe(style)
+    # 人用の決まり文句（character design, standing）のまま動物を頼むと、獣の耳の少女になる
+    head, tail, neg = ((CREATURE_PREFIX, CREATURE_SUFFIX, NEGATIVE + ", " + CREATURE_NEGATIVE)
+                       if kind == "creature" else (PREFIX, SUFFIX, NEGATIVE))
+    # 既定の打ち消しに足す。年齢の見え方（child, round face など）を絵ごとに抑えるため
+    neg = ", ".join(x for x in (neg, negative) if x)
     paths = []
     for i in range(n):
         t = time.time()
         g = torch.Generator().manual_seed(seed + i)
         if style in XL:
             # SDXL は要約（pooled）も渡さないと止まる。guidance は batch の XL と同じ 2.0
-            pe, ne, pp, np_ = encode_xl(pipe, PREFIX + prompt + SUFFIX, neg)
+            pe, ne, pp, np_ = encode_xl(pipe, head + prompt + tail, neg)
             im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
                       negative_pooled_prompt_embeds=np_, num_inference_steps=steps,
                       guidance_scale=2.0, width=width, height=height, generator=g).images[0]
         else:
-            pe, ne = encode(pipe, PREFIX + prompt + SUFFIX, neg)
+            pe, ne = encode(pipe, head + prompt + tail, neg)
             im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, num_inference_steps=steps,
                       guidance_scale=1.5, width=width, height=height, generator=g).images[0]
         p = out if n == 1 else str(Path(out).with_suffix("")) + f"-{seed + i}.png"
@@ -676,6 +679,7 @@ def main():
     d.add_argument("--steps", type=int, default=6)
     d.add_argument("--width", type=int, default=512)
     d.add_argument("--height", type=int, default=768)
+    d.add_argument("--kind", default="human", choices=["human", "creature"])
     d.add_argument("--negative", default="", help="既定の打ち消しに足す言葉")
     r = sub.add_parser("restyle")
     r.add_argument("src")
@@ -712,7 +716,7 @@ def main():
     elif a.cmd == "sheet":
         sheet(a.cast, a.outdir, a.out, a.thumb)
     elif a.cmd == "draw":
-        draw(a.out, a.prompt, a.seed, a.n, a.style, a.steps, a.width, a.height, a.negative)
+        draw(a.out, a.prompt, a.seed, a.n, a.style, a.steps, a.width, a.height, a.kind, a.negative)
     elif a.cmd == "restyle":
         restyle(a.src, a.out, a.style, a.strength, a.steps, a.prompt)
     else:
