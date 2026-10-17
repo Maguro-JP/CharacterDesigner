@@ -649,6 +649,8 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
         # 1回だけ読み、絞る前の確からしさは measure（頼んだ色の照合）に渡す。絞った方を固定の制限とほかの検品に使う
         all_tags = tagger.read(src, 0.0)
         tags = {k: v for k, v in all_tags.items() if v >= 0.35}
+        # 低い確からしさまでのタグを返し、頼んだ言葉の欠けを調べる側（loop.py）が同じ絵をもう一度読まなくて済むようにする
+        res["tags"] = {k: v for k, v in all_tags.items() if v >= 0.05}
         # 目の範囲を描き直した絵で瞳が消え光る線だけになったのを、目の測り方が揺れて見つけたと読み通した（2026-10-16）。
         # タグは extra eyes を 0.53 で読んでいた。崩れの無い絵では 0.22〜0.30 だったので、EXTRA_EYES 以上を崩れに数える
         if tags.get("extra eyes", 0) >= EXTRA_EYES:
