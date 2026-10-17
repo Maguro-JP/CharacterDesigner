@@ -50,3 +50,27 @@ class PipelineTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RewindTest(PipelineTest):
+    def test_check_failure_goes_back_to_hands_only(self):
+        hits = {"n": 0}
+        orig = pipeline.CHECK["check"]
+        pipeline.CHECK["check"] = lambda r, i, v, st: (['{"hands": 1}'] if hits.update(n=hits["n"] + 1) or hits["n"] == 1 else [])
+        try:
+            with tempfile.TemporaryDirectory() as d:
+                st = pipeline.run("x", d)
+                self.assertEqual([c[0] for c in self.calls], ["base", "draw", "face", "hands", "check", "hands", "check"])
+                self.assertEqual(st["rewinds"][0]["to"], "hands")
+        finally:
+            pipeline.CHECK["check"] = orig
+
+    test_only_failed_phase_is_redone = None
+    test_stop_and_resume_from_phase = None
+
+
+class RouteTest(unittest.TestCase):
+    def test_earliest_owner(self):
+        self.assertEqual(pipeline.route(['{"hands": 1}', '{"eyes": 2}']), "face")
+        self.assertEqual(pipeline.route(['{"heads_tall": 5.1}', '{"hands": 1}']), "base")
+        self.assertIsNone(pipeline.route(["なにか"]))

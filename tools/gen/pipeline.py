@@ -164,6 +164,18 @@ def check_check(res, ident, view, st):
     return [json.dumps(p, ensure_ascii=False, default=float) for p in res["auto"]["problems"]]
 
 
+# 検品（check）で見つかった崩れの種類 → 戻る工程（docs/knowledge/pipeline-flow.md の表）。そこから先だけをやり直す
+ROUTE = {"heads_tall": "base", "structure": "base", "drift": "draw", "edge_cut": "draw", "floating": "draw",
+         "seams": "draw", "fixed_restriction": "draw", "extra_eyes": "face", "eyes": "face", "measure": "face",
+         "hands": "hands"}
+
+
+def route(bad: list[str]) -> str | None:
+    """検品の崩れから、最も前の戻り先を選ぶ（前の工程を直せば後ろも描き直しになるので、一番前から）"""
+    hits = [ph for b in bad for k, ph in ROUTE.items() if k in b]
+    return min(hits, key=PHASES.index) if hits else None
+
+
 RUN = {"base": phase_base, "draw": phase_draw, "face": phase_face, "hands": phase_hands, "check": phase_check}
 CHECK = {"base": lambda r, i, v, s: check_base(r, i, v), "draw": check_draw, "face": check_face,
          "hands": check_hands, "check": check_check}
@@ -208,7 +220,7 @@ def board(out: Path, st: dict) -> Path:
 
 
 def run(ident: str, outdir: str, view: str = "front", start: str | None = None, only: str | None = None,
-        tries: int = 3, seed: int = 0) -> dict:
+        tries: int = 3, seed: int = 0, rewinds: int = 2) -> dict:
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
     st = _load(out)
@@ -235,6 +247,14 @@ def run(ident: str, outdir: str, view: str = "front", start: str | None = None, 
             _save(out, st)
             board(out, st)
             return st
+    chk = st["phases"].get("check", {})
+    back = route(chk["tries"][-1]["bad"]) if chk.get("tries") and not chk.get("ok") and not only else None
+    if back and rewinds > 0:
+        # 検品で落ちたら、崩れを受け持つ工程まで戻って、そこから先だけをやり直す（全部を描き直さない）
+        st.setdefault("rewinds", []).append({"to": back, "because": chk["tries"][-1]["bad"]})
+        _save(out, st)
+        print(f"検品で落ちたので {back} から先をやり直す", flush=True)
+        return run(ident, outdir, view, back, None, tries, seed, rewinds - 1)
     st.pop("stopped", None)
     _save(out, st)
     board(out, st)
