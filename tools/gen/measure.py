@@ -368,6 +368,39 @@ def pairs(rgb, seg, labels):
     return out
 
 
+def limbs(rgb, seg, labels):
+    """手足の影が体の形に沿っているかを測る。手足は円柱に近いので、光源が1つなら形の影の境は手足の長さに沿って走り、
+    左右の脚は同じ光を受けて同じくらい暗くなる（docs/knowledge/anatomy.md の「体の影」）。
+    across: 影の境のうち、手足の軸を 45° より大きく横切る割合（斜めの直線の境、まだらの影で増える）。
+    leg_dark_gap: 左右の脚で、暗い所の割合の差（片脚だけ暗い絵で増える）。
+    正しい手本がまだ無いので、境は判定しない値から始め、normlearn で学んで締める"""
+    from scipy import ndimage
+    lum = ndimage.gaussian_filter(rgb[..., :3].mean(-1), 2)
+    out = {}
+    for name in ("left_leg", "right_leg", "left_arm", "right_arm"):
+        m = ndimage.binary_erosion(seg == labels[name], iterations=4)   # 縁の線を数えない
+        if m.sum() < 2000:
+            continue
+        ys, xs = np.nonzero(m)
+        _, vec = np.linalg.eigh(np.cov(np.vstack([xs, ys])))
+        axis = vec[:, 1]
+        # 明暗の境は、その手足の明るい所と暗い所の中ほどに置く（肌の色の違いで固定の値がずれないように）
+        dark = (lum < (np.percentile(lum[m], 85) + np.percentile(lum[m], 15)) / 2) & m
+        d = ndimage.gaussian_filter(dark.astype(float), 3)
+        gy, gx = np.gradient(d)
+        # 暗い所の切り抜きは手足の縁でも途切れるので、縁から離れた所の境だけを数える（縁の境は必ず軸に沿う）
+        edge = ndimage.binary_erosion(m, iterations=8) & (np.hypot(gx, gy) > 0.02)
+        across = 0.0
+        if edge.sum() >= 50:
+            cos = np.abs(-gy[edge] * axis[0] + gx[edge] * axis[1]) / np.hypot(gx[edge], gy[edge])
+            across = float((cos < np.cos(np.radians(45))).mean())
+        out[name] = {"dark_frac": round(float(dark.sum() / m.sum()), 3), "across": round(across, 3)}
+    res = {"parts": out, "across_max": max((v["across"] for v in out.values()), default=None)}
+    if "left_leg" in out and "right_leg" in out:
+        res["leg_dark_gap"] = round(abs(out["left_leg"]["dark_frac"] - out["right_leg"]["dark_frac"]), 3)
+    return res
+
+
 def temperature(rgb, seg, regions):
     """部位ごとに、明るい半分と暗い半分の色相と彩度の差。暖かい光なら暗い所は青寄り（負）になるのが自然"""
     h, s, v = _hsv(rgb[..., :3])
@@ -648,7 +681,7 @@ def measure(src, hair_color: str = "", points=None, prompt: str | None = None, t
         except Exception:   # タグの模型が無い環境（sh tools/gen/setup.sh 前）でも、ほかの数字は出す
             tags = None
     return {"size": list(rgb.shape[1::-1]), "eyes": eyes(hrgb, hseg, L, _eye_hint(points, view)), "face": face, "light": light3d(src, rgb, seg, regions),
-            "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "pairs": pairs(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color),
+            "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "pairs": pairs(rgb, seg, L), "limbs": limbs(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color),
             "background": background(rgb, prompt), "style": style(tags), "colors": colors(prompt, tags),
             "pose": hands_pose(points, prompt), "body": proportion(points, seg, prompt), "hands": hands_seen(points, seg, prompt)}
 
