@@ -77,7 +77,8 @@
     "path": "background.asked_white",
     "min": 1
    },
-   "means": "white background を頼んだのに、四隅が暗い（灰色や色のある背景）"
+   "means": "white background を頼んだのに、四隅が暗い（灰色や色のある背景）",
+   "kind": "request"
   },
   {
    "path": "background.corner_sat",
@@ -86,17 +87,20 @@
     "path": "background.asked_white",
     "min": 1
    },
-   "means": "white background を頼んだのに、四隅に色が付いている"
+   "means": "white background を頼んだのに、四隅に色が付いている",
+   "kind": "request"
   },
   {
    "path": "style.realism",
    "max": 0.34,
-   "means": "作風が写実に寄りすぎている（タグの realistic / photorealistic が高い）。アニメ調として出せない"
+   "means": "作風が写実に寄りすぎている（タグの realistic / photorealistic が高い）。頼んだアニメ調との違いで、崩れではない",
+   "kind": "request"
   },
   {
    "path": "colors.mismatch",
    "max": 0,
-   "means": "頼んだ色と描かれた色が食い違う（navy のスカートが白、green の目が茶など。items が中身）。タグの模型が読んだ「色 + 物」で照合する。頼んだ髪の長さ・髪型（long hair に hair bun や short hair が読めた、など）も item hairstyle として数える。long black hair を頼んだ5周目の4枚（まとめ髪2、ボブ2）は4枚とも外れ、長い髪の1枚は通った（2026-10-17）"
+   "means": "頼んだ色と描かれた色が食い違う（navy のスカートが白、green の目が茶など。items が中身）。タグの模型が読んだ「色 + 物」で照合する。頼んだ髪の長さ・髪型（long hair に hair bun や short hair が読めた、など）も item hairstyle として数える。long black hair を頼んだ5周目の4枚（まとめ髪2、ボブ2）は4枚とも外れ、長い髪の1枚は通った（2026-10-17）",
+   "kind": "request"
   },
   {
    "path": "pose.behind_out",
@@ -117,5 +121,9 @@
    "min": 0.02,
    "means": "頼んでいないのに両手とも見えない（袖に隠れた・描かれていない）"
   }
- ]
+ ],
+ "kinds": {
+  "flaw": "崩れ（手・指・目・顔の歪み、光の食い違い）。直す所の印を付け、部分の描き直しで直す。kind を書かない基準はこれ",
+  "request": "指示や画風との違い（写実寄り、頼んだ色、背景）。崩れではないので絵を落とす判定に使わず、differences に分けて書く。良し悪しは人が決める"
+ }
 }

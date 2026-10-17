@@ -330,9 +330,9 @@ def full_texts(c, style="anime"):
 def cast_paths(cast, outdir, style=None):
     """設定集の1人ごとに、描く絵（パス, seed, 画風）を返す。
 
-    画像生成のモデルは描いた絵を見直さない（くちばしが2つ、途切れた脚）。描いた絵は目で検品し、
-    落とした絵は設定集の rejected に {"画像の名前": "理由"} で書く。理由は docs/knowledge/monster-design.md
-    の検品表の言葉で書き、同じ破綻が続けば指示文を直す。
+    画像生成のモデルは描いた絵を見直さない（くちばしが2つ、途切れた脚）。機械の検品は絵を捨てず、
+    直す所の印（<絵>.json の marks）を付けて残す。機械が落とした絵を一覧から外すと、人が魅力を感じた絵まで消えた。
+    設定集の rejected（{"画像の名前": "理由"}）は、利用者が要らないと決めた絵だけを書く所で、その絵は数に入れずに描き足す。
 
     人は style（設定集の style、無ければ anime）だけで、モンスターは CREATURE_STYLES の全部で描く。
     anime 以外の画風の絵は名前に画風を入れる（id-real-7.png）。
@@ -342,11 +342,11 @@ def cast_paths(cast, outdir, style=None):
         seed, n = c.get("seed", 7), c.get("n", cast.get("n", 2))
         styles = c.get("styles") or (CREATURE_STYLES if c.get("kind") in ("creature", "item")
                                      else ["xl"] if c.get("age") in OLD_AGES else [base])
-        rejected = {**c.get("rejected", {}), **auto_rejected(outdir)}
+        rejected = c.get("rejected", {})
         shots = []
         for st in styles:
             tag = "" if st == "anime" else f"{st}-"
-            # 検品で落とした絵（rejected のキーは画像の名前）は数に入れず、次の seed で描き足す
+            # 利用者が要らないと決めた絵（rejected のキーは画像の名前）は数に入れず、次の seed で描き足す
             s, got = seed, 0
             while got < n:
                 name = f"{c['id']}-{tag}{s}.png"
@@ -370,7 +370,7 @@ def base_image(cast, c, outdir):
     return Image.open(p).convert("RGB") if p.exists() else None
 
 
-def batch(cast_path, outdir, style, steps, width, height, kind=None, retry=3):
+def batch(cast_path, outdir, style, steps, width, height, kind=None):
     import torch
     cast = load_cast(cast_path)
     Path(outdir).mkdir(parents=True, exist_ok=True)
@@ -430,45 +430,89 @@ def batch(cast_path, outdir, style, steps, width, height, kind=None, retry=3):
                     "model": STYLES[st], "steps": steps}
             note = ""
             if c.get("kind") not in ("creature", "item"):
-                reasons = check_person(p, outdir)
-                meta["inspect"] = reasons
-                note = "  落とした: " + "、".join(reasons) if reasons else "  通った（背景を白に消した）"
+                meta["inspect"], meta["marks"] = check_person(p)
+                note = "  直す所: " + "、".join(meta["inspect"]) if meta["inspect"] else "  外れなし"
             Path(str(p) + ".json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
             print(f"{p}: {time.time() - t:.1f} 秒{note}", flush=True)
         del pipe
-    # 機械の判定で落ちた分は、次の seed で描き足す（同じ人物で最大 3 回まで）
-    if retry and any(json.loads(Path(str(t[1]) + ".json").read_text(encoding="utf-8")).get("inspect")
-                     for t in todo if Path(str(t[1]) + ".json").exists()):
-        batch(cast_path, outdir, style, steps, width, height, kind, retry - 1)
+    # 顔の崩れ（目の左右、正面に戻すと歪む顔）は、描く模型を手放してから顔の描き直しを自動でかける。
+    # 描く模型と描き直す模型を同時に持たないため、描き終えたあとにまとめて行う
+    people = [t[1] for t in todo if t[0].get("kind") not in ("creature", "item") and t[1].exists()]
+    if people:
+        auto_face_fix(people)
 
 
-def auto_rejected(outdir):
-    """機械の判定で落とした絵の一覧（画像の名前 → 理由）。cast_paths が数に入れずに描き足す。"""
-    f = Path(outdir) / "auto_rejected.json"
-    return json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+# edit.inspect の理由のうち、構図そのものの崩れ（人がいない、2人目や離れた物、体が画面の端で切れた）。部分の描き直しでは直らない
+LAYOUT_WORDS = ("人物が写っていない", "離れた物", "端で切れている")
 
 
-def check_person(p, outdir):
-    """人の絵を機械で検品する。落としたら理由を auto_rejected.json に書き、通ったら背景を白に消す。
+def person_marks(reasons):
+    """edit.inspect の理由を、直す所の印（qc.marks と同じ形）にする。"""
+    return [{"what": r, "kind": "layout" if any(w in r for w in LAYOUT_WORDS) else "fix",
+             "repair": "none" if any(w in r for w in LAYOUT_WORDS) else "inpaint", "where": r} for r in reasons]
 
-    背景の物（蛇、猫、狼、影）と、欠けた手足・二重の人物・画面で切れた体を、人が見る前に落とす。
+
+def check_person(p):
+    """人の絵を機械で検品し、(理由, 直す所の印) を返す。絵は捨てず、外れがあっても背景を白に消して並べる。
+
+    背景の物（蛇、猫、狼、影）と、欠けた手足・二重の人物・画面で切れた体を数える。構図の崩れには kind layout の印を付ける。
     元の絵は <名前>.raw.png に残す。
     """
     sys.path.insert(0, str(Path(__file__).parent))
     import shutil
     import edit
     reasons = edit.inspect(str(p))
-    if reasons:
-        rej = auto_rejected(outdir)
-        rej[Path(p).name] = "、".join(reasons)
-        (Path(outdir) / "auto_rejected.json").write_text(json.dumps(rej, ensure_ascii=False, indent=1), encoding="utf-8")
-    else:
-        shutil.copy(p, str(p).replace(".png", ".raw.png"))
+    shutil.copy(p, str(p).replace(".png", ".raw.png"))
+    # 2人目や離れた物がある絵は、背景を消すと片方が消えて崩れが見えなくなる。元のまま残す
+    if not any("離れた物" in r or "写っていない" in r for r in reasons):
         edit.clean_background(str(p))
-    return reasons
+    return reasons, person_marks(reasons)
+
+
+def auto_face_fix(paths, fix=None, check=None):
+    """描いた絵を作画監督（qc.auto_check）にかけ、直せる顔の崩れ（repair が face_fix の印）があれば顔を描き直す。
+    直した絵は <名前>.facefix.png に置き、元の絵は残す。直した絵も同じ検品にかけ、結果を <絵>.json の facefix に書く。
+    fix と check は試験で差し替える（既定は imgproc.face_fix と qc.auto_check）"""
+    sys.path.insert(0, str(Path(__file__).parent))
+    if check is None:
+        import qc
+        check = qc.auto_check
+    if fix is None:
+        import imgproc
+        fix = imgproc.face_fix
+    done = {}
+    for p in paths:
+        meta_path = Path(str(p) + ".json")
+        meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+        res = check(str(p), meta.get("prompt", ""))
+        if res.get("held"):  # 固定の制限に当たった絵は qc.hold が held/ へ移した。ここでは触らない
+            continue
+        meta["marks"] = meta.get("marks", []) + res.get("marks", [])
+        if res.get("differences"):
+            meta["differences"] = res["differences"]
+        if any(m.get("repair") == "face_fix" for m in res.get("marks", [])):
+            out = str(p).replace(".png", ".facefix.png")
+            r = fix(str(p), out)
+            if r.get("fixed"):
+                after = check(out, meta.get("prompt", ""))
+                r = {**r, "file": Path(out).name, "ok": after.get("ok"), "marks": after.get("marks", [])}
+            meta["facefix"] = r
+            done[str(p)] = r
+            print(f"{p}: 顔を描き直した → {r.get('file', r.get('why'))}", flush=True)
+        meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
+    return done
 
 
 FONT = "/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf"
+
+
+def mark_label(p):
+    """一覧図に書く印。構図の崩れがあれば「構図」、直す所があれば「直す N」、無ければ空"""
+    f = Path(str(p) + ".json")
+    marks = json.loads(f.read_text(encoding="utf-8")).get("marks", []) if f.exists() else []
+    layout = sum(m.get("kind") == "layout" for m in marks)
+    fix = len(marks) - layout
+    return "、".join(x for x in (f"構図 {layout}" if layout else "", f"直す {fix}" if fix else "") if x)
 
 
 def sheet(cast_path, outdir, out, thumb=256):
@@ -499,6 +543,11 @@ def sheet(cast_path, outdir, out, thumb=256):
         d.text((10, yy), line, fill=(80, 80, 80), font=small)
         for i, p in enumerate(ps):
             im.paste(Image.open(p).convert("RGB").resize((thumb, th), Image.LANCZOS), (label + i * thumb, y))
+            # 機械の検品で外れた絵も並べ、直す所の印を左上に書く（構図の崩れは別の印）
+            text = mark_label(p)
+            if text:
+                d.rectangle((label + i * thumb, y, label + i * thumb + d.textlength(text, font=small) + 8, y + 22), fill="white")
+                d.text((label + i * thumb + 4, y + 2), text, fill=(200, 0, 0), font=small)
         d.line((0, y + th - 1, im.width, y + th - 1), fill=(200, 200, 200))
     im.save(out)
     print(f"{out}: {len(rows)} 人, {im.width}x{im.height}")

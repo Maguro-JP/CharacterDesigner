@@ -674,12 +674,15 @@ def load_norms() -> dict:
         return base
     key = lambda c: (c["path"], json.dumps(c.get("when"), sort_keys=True))
     over = {key(c): c for c in user.get("checks", [])}
-    base["checks"] = [over.get(key(c), c) for c in base["checks"]]
+    # 区分（kind）は共通の基準の方を残す。学んだ基準で「指示との違い」が「崩れ」に戻り、絵を落とす判定に入らないように
+    base["checks"] = [{**over[key(c)], **({"kind": c["kind"]} if "kind" in c else {})} if key(c) in over else c
+                      for c in base["checks"]]
     return base
 
 
 def judge(m: dict, norms: dict | None = None) -> list[dict]:
-    """基準（norms の checks）から外れた数字を挙げる。各行は 何を・値・基準・意味"""
+    """基準（norms の checks）から外れた数字を挙げる。各行は 何を・値・基準・意味。
+    指示との違い（kind が request）の行には kind を付ける。崩れとは分けて扱う（qc.auto_check の differences）"""
     norms = norms or load_norms()
     out = []
     for c in norms["checks"]:
@@ -694,7 +697,8 @@ def judge(m: dict, norms: dict | None = None) -> list[dict]:
         x = abs(v) if c.get("abs") else v
         lo, hi = c.get("min"), c.get("max")
         if (lo is not None and x < lo) or (hi is not None and x > hi):
-            out.append({"path": c["path"], "value": v, "min": lo, "max": hi, "means": c["means"]})
+            out.append({"path": c["path"], "value": v, "min": lo, "max": hi, "means": c["means"],
+                        **({"kind": c["kind"]} if "kind" in c else {})})
     return out
 
 
