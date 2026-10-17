@@ -11,7 +11,11 @@
 手を指先が上になる向きに回してから読ませる（下向きのまま読ませると、点が手の外に散った）。
 
   python3 tools/gen/hands.py <絵> --hand x0,y0,x1,y1:角度 [--hand ...]
+  python3 tools/gen/hands.py <絵> --auto
 角度は、指先が上を向くまでに絵を回す角度（度。指先が下なら 180）。
+--auto は肘と手首（tools/gen/joints.py）から枠と角度を出す。手は前腕の延長に付くので、手首から前腕の向きへ
+前腕の 0.5 倍進んだ所を中心、前腕の 1.1 倍を一辺にする。握った手や手首を強く曲げた手では外れうるので、
+外れた枠は .hand*.png の赤い線で見て、--hand で指定し直す。
 """
 from __future__ import annotations
 
@@ -36,6 +40,9 @@ EDGES = [(0, 1), (1, 2), (2, 3), (3, 4), (0, 5), (5, 6), (6, 7), (7, 8), (0, 9),
 NORMS = {"presence": (0.8, 1.01), "thumb": (0.8, 1.12), "index": (0.80, 1.0), "ring": (0.85, 1.02),
          "pinky": (0.55, 0.85), "palm": (0.85, 1.35), "cover": (0.85, 1.01)}
 
+# これより低い手らしさは「読めない」として、崩れとは別に返す。try の絵で、袖に隠れた手・布だけの枠は 0.0〜0.15、
+# 写っている手は 0.74〜0.96 だった
+READABLE = 0.5
 _IT = None
 
 
@@ -69,7 +76,8 @@ def length(lm, ids):
 def measure(img):
     sq, lm, presence = landmarks(img)
     a = np.asarray(sq).astype(float)
-    palm_pts = [lm[0] * 0.5 + lm[k] * 0.5 for k in (5, 9, 13, 17)]
+    # 手のひらの色は指の付け根の 4 点で取る。手首の点は袖口に乗りやすく、手首との中点では袖の色を手の色と取り違えた
+    palm_pts = [lm[k] for k in (5, 9, 13, 17)]
     palm_col = np.median([a[int(p[1]), int(p[0])] for p in palm_pts], axis=0)
 
     def on_hand(p):
@@ -85,27 +93,95 @@ def measure(img):
     m["cover"] = {k: round(float(np.mean([on_hand(p) for p in np.linspace(lm[v[0]], lm[v[0]] + (lm[v[-1]] - lm[v[0]]) * 0.9, 24)])), 2)
                   for k, v in FINGERS.items()}
     bad = []
+    # 手らしさが低いときは、枠に手が写っていない（袖や布に隠れた、枠が外れた）。点はでたらめなので比を崩れとして数えない
+    if presence < READABLE:
+        return m, ["読めない: 手らしさ " + str(m["presence"])], _overlay(sq, lm)
+    # 手のひらが中指の半分より短いのは、点が指の上につぶれた読み（カップを包んで重なった両手で 0.23、0.46）
+    if m["palm"] < 0.5:
+        return m, ["読めない: 点がつぶれた（手のひら " + str(m["palm"]) + "）"], _overlay(sq, lm)
+    # 長さの比は伸びた指でしか測れない。折った指は絵の上で短く見え、ピースの薬指（0.56）を短すぎると数えた。
+    # 付け根から先までの直線が、関節をたどった長さの 9 割に満たない指は折れているとして比べない
+    bent = {k for k, v in FINGERS.items() if np.linalg.norm(lm[v[-1]] - lm[v[0]]) < 0.9 * (length(lm, v) or 1.0)}
     for k, (lo, hi) in NORMS.items():
         vals = m[k].items() if isinstance(m[k], dict) else [(k, m[k])]
+        if k in bent:
+            continue
         for name, v in vals:
             if not lo <= v <= hi:
                 bad.append(f"{name}{'の手の色' if k == 'cover' else ''} {v}（{lo}〜{hi}）")
+    return m, bad, _overlay(sq, lm)
+
+
+def _overlay(sq, lm):
     d = ImageDraw.Draw(sq)
     for i, j in EDGES:
         d.line([tuple(lm[i]), tuple(lm[j])], fill=(255, 0, 0), width=2)
-    return m, bad, sq
+    return sq
+
+
+def auto_boxes(src, least=0.3):
+    """肘と手首から、手の枠と、指先を上に向ける回転の角度を出す（--hand と同じ書式の文字列）"""
+    sys.path.insert(0, str(Path(__file__).parent))
+    import joints
+    pts = {p["name"]: p for p in joints.find(src)}
+    # 前腕が手前へ縮んで見えると、前腕の長さだけでは枠が手より小さくなる。鼻から足首までの高さの 4.5% を下限にする
+    ankles = [pts[k]["y"] for k in ("left_ankle", "right_ankle") if pts[k]["score"] >= least]
+    if ankles:
+        tall = max(ankles) - pts["nose"]["y"]
+    else:
+        # 上半身の絵には足首が無い。でたらめな足首で枠が顔まで広がったので、肩幅（全身の高さのおよそ 1/4）から見当する
+        tall = abs(pts["left_shoulder"]["x"] - pts["right_shoulder"]["x"]) * 4
+    out = []
+    for side in ("left", "right"):
+        e, w = pts[f"{side}_elbow"], pts[f"{side}_wrist"]
+        if min(e["score"], w["score"]) < least:
+            continue
+        dx, dy = w["x"] - e["x"], w["y"] - e["y"]
+        fore = float(np.hypot(dx, dy)) or 1.0
+        cx, cy = w["x"] + dx * 0.5, w["y"] + dy * 0.5
+        r = max(fore * 0.55, tall * 0.045)
+        # 前腕の向きを上（-y）に回す角度。PIL の rotate は反時計回りが正
+        ang = float(np.degrees(np.arctan2(dx, -dy)))
+        out.append(f"{int(cx - r)},{int(cy - r)},{int(cx + r)},{int(cy + r)}:{ang:.0f}")
+    return out
+
+
+def best_crop(im, box, rot):
+    """--auto の枠は肘と手首からの見当なので、大きさと角度を少しずつ変えて、手らしさが最も高い切り出しを選ぶ。
+    模型は手が枠いっぱいで指先が上のときにしか読めず、見当のままでは写っている手の 4 つに 3 つを読めなかった"""
+    x0, y0, x1, y1 = box
+    cx, cy, r = (x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) / 2
+    best = None
+    # 一辺 64 画素より小さく切ると、指だけの拡大を手と読んだ（手らしさ 0.97 で、点は指の上にでたらめに乗った）
+    # 中心も前腕の向きに沿って手首側へずらす。手が前腕に比べて小さい絵（上半身で手を上げた絵）では、見当の中心が顔まで行き過ぎた
+    ux, uy = np.sin(np.radians(rot)), -np.cos(np.radians(rot))
+    cands = [(cx - ux * r * t, cy - uy * r * t, k) for t in (0, 0.5, 0.9) for k in (0.4, 0.6, 0.8, 1.0) if r * k * 2 >= 64]
+    for x, y, k in cands or [(cx, cy, 1.0)]:
+        for d in (-35, 0, 35):
+            c = im.crop((int(x - r * k), int(y - r * k), int(x + r * k), int(y + r * k)))
+            c = c.rotate(rot + d, expand=True, fillcolor=im.getpixel((0, 0)))
+            p = landmarks(c)[2]
+            if best is None or p > best[0]:
+                best = (p, c)
+    return best[1]
 
 
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("src")
-    ap.add_argument("--hand", action="append", required=True, metavar="x0,y0,x1,y1:角度")
+    ap.add_argument("--hand", action="append", default=[], metavar="x0,y0,x1,y1:角度")
+    ap.add_argument("--auto", action="store_true", help="肘と手首から枠を出す")
     a = ap.parse_args()
+    if a.auto:
+        a.hand += auto_boxes(a.src)
+    if not a.hand:
+        ap.error("手の枠が無い（--hand を付けるか、--auto で肘と手首が読める絵にする）")
     im = Image.open(a.src).convert("RGB")
     ok = True
     for i, h in enumerate(a.hand):
         box, _, rot = h.partition(":")
-        crop = im.crop(tuple(int(v) for v in box.split(","))).rotate(float(rot or 0), expand=True, fillcolor=im.getpixel((0, 0)))
+        crop = best_crop(im, tuple(int(v) for v in box.split(",")), float(rot or 0)) if a.auto else \
+            im.crop(tuple(int(v) for v in box.split(","))).rotate(float(rot or 0), expand=True, fillcolor=im.getpixel((0, 0)))
         m, bad, view = measure(crop)
         view.save(f"{a.src}.hand{i}.png")
         print(json.dumps({"hand": h, "measure": m, "outside": bad}, ensure_ascii=False))
