@@ -13,6 +13,8 @@
   PYTHONPATH=.cache/gen/lib python3 tools/gen/pipeline.py run <id> <出力> [--view front] [--from draw] [--only hands] [--tries 3]
   python3 tools/gen/pipeline.py status <出力>
 
+試すたびに <出力>/progress.html（作業の様子の頁）を書き直す。工程ごとに試した絵を全部、通ったか・落ちた理由と並べる。
+
 描く模型は 1 つの処理の中で 1 回だけ読む（並べて動かすとメモリが足りず強制終了された）。
 """
 from __future__ import annotations
@@ -169,6 +171,42 @@ CHECK = {"base": lambda r, i, v, s: check_base(r, i, v), "draw": check_draw, "fa
 RETRY = {"draw", "face", "hands"}
 
 
+NAMES = {"base": "下絵（人形）", "draw": "全身を描く", "face": "顔を描き直す", "hands": "手を描き直す", "check": "検品"}
+
+
+def board(out: Path, st: dict) -> Path:
+    """作業の様子の 1 枚の頁（<出力>/progress.html）。工程ごとに、試した絵を全部、通ったか・落ちた理由と一緒に並べる。
+    一度に完成だけを出すと、どこで何が直されたのか、なぜ落ちたのかが人から見えなかった。試すたびに書き直す"""
+    import html
+    e = html.escape
+    rows = []
+    for ph in PHASES:
+        rec = st["phases"].get(ph)
+        if not rec:
+            rows.append(f'<section><h2>{NAMES[ph]}<small>まだ</small></h2></section>')
+            continue
+        cells = []
+        for t in rec["tries"]:
+            f = t.get("file")
+            img = f'<a href="{e(Path(f).relative_to(out).as_posix())}"><img src="{e(Path(f).relative_to(out).as_posix())}" loading="lazy"></a>' if f and Path(f).exists() and Path(f).is_relative_to(out) else ""
+            verdict = "通る" if not t["bad"] else "落ちる"
+            why = "".join(f"<li>{e(b)}</li>" for b in t["bad"])
+            cells.append(f'<figure class="{"ok" if not t["bad"] else "ng"}">{img}<figcaption>種 {t["seed"]}・{t["sec"]} 秒・{verdict}<ul>{why}</ul></figcaption></figure>')
+        mark = "通った" if rec.get("ok") else ("止まった" if st.get("stopped") == ph else "やり直し中")
+        rows.append(f'<section><h2>{NAMES[ph]}<small>{mark}・{len(rec["tries"])} 回</small></h2><div class="tries">{"".join(cells)}</div></section>')
+    page = ('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+            f'<title>作業の様子</title><meta http-equiv="refresh" content="30"><style>'
+            'body{font-family:sans-serif;background:#fbfaf7;color:#141313;margin:0;padding:16px}h1{font-size:22px}'
+            'section{border-top:2px solid #141313;padding:8px 0}h2{font-size:17px;margin:4px 0}h2 small{color:#d23a26;margin-left:8px}'
+            '.tries{display:flex;gap:12px;overflow-x:auto}figure{margin:0;min-width:260px;max-width:320px}'
+            'img{width:100%;border:3px solid #ccc;background:#fff}.ok img{border-color:#2a7}.ng img{border-color:#d23a26}'
+            'figcaption{font-size:13px}ul{margin:4px 0;padding-left:18px;color:#a33}</style>'
+            f'<h1>{e(st.get("id", ""))} の作業の様子（{e(st.get("view", ""))}）</h1>' + "".join(rows))
+    p = out / "progress.html"
+    p.write_text(page, encoding="utf-8")
+    return p
+
+
 def run(ident: str, outdir: str, view: str = "front", start: str | None = None, only: str | None = None,
         tries: int = 3, seed: int = 0) -> dict:
     out = Path(outdir)
@@ -187,6 +225,7 @@ def run(ident: str, outdir: str, view: str = "front", start: str | None = None, 
             rec["result"] = res
             rec["ok"] = not bad
             _save(out, st)
+            board(out, st)
             print(f"{ph} 種 {s}: {'通る' if not bad else '落ちる ' + '; '.join(bad)}", flush=True)
             if not bad:
                 break
@@ -194,9 +233,11 @@ def run(ident: str, outdir: str, view: str = "front", start: str | None = None, 
             # 落ちたまま次へ進むと、後の工程が崩れた絵を土台に描く。止めて、どこで落ちたかを返す
             st["stopped"] = ph
             _save(out, st)
+            board(out, st)
             return st
     st.pop("stopped", None)
     _save(out, st)
+    board(out, st)
     return st
 
 

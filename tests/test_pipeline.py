@@ -30,6 +30,9 @@ class PipelineTest(unittest.TestCase):
             self.assertEqual([c for c in self.calls if c[0] == "draw"], [("draw", 0)])   # 体は描き直さない
             self.assertEqual([c for c in self.calls if c[0] == "hands"], [("hands", 0), ("hands", 1), ("hands", 2)])
             self.assertEqual(st["phases"]["hands"]["tries"][0]["bad"], ["崩れ"])          # 落ちた試しも残す
+            page = (Path(d) / "progress.html").read_text()
+            self.assertEqual(page.count("落ちる"), 2)                                       # 作業の様子に落ちた試しも並ぶ
+            self.assertIn("手を描き直す", page)
 
     def test_stop_and_resume_from_phase(self):
         self.fail = {"face": 5}
