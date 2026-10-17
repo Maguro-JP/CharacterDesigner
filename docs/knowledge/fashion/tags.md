@@ -153,3 +153,13 @@
 |---|---|
 | 卒業式の袴 | `hakama`、`hakama_skirt`、`furisode`、`graduation`、`purple_hakama` ※、`green_hakama` ※ |
 | 浴衣 | `yukata`、`obi`（流行の柄と色は未確認） |
+
+## 絵の読み手の語彙で確かめた結果（2026-10）
+
+上の候補を、絵に何が描かれたかを読む模型 wd-vit-tagger-v3 の語彙（`selected_tags.csv`、10,861語。Danbooru の多いタグから選ばれている）と照らした。
+語彙にあるタグは Danbooru で件数が多く、描く模型も学んでいる見込みが高い。語彙に無いタグは、Danbooru に無いか件数が少ない。描けるかどうかは見本の絵で確かめる（`casts/fashion.json`）。
+
+| 結果 | 数 | タグ |
+|---|---|---|
+| 語彙にある | 99 | `ankle_strap`、`backpack`、`bag_charm`、`baggy_pants`、`ballerina`、`ballet_slippers`、`beanie`、`black_coat`、`black_hair`、`black_jacket`、`black_theme`、`blunt_bangs`、`bowl_cut`、`brown_cardigan`、`brown_coat`、`brown_hair`、`brown_jacket`、`brown_theme`、`button_badge`、`cardigan`、`cargo_pants`、`collared_shirt`、`colored_inner_hair`、`colorful`、`denim`、`dress`、`ear_ornament`、`earrings`、`fairy`、`feather_hair_ornament`、`fur_collar`、`furisode`、`gold_earrings`、`gradient_hair`、`graduation`、`green_hakama`、`hair_bow`、`hair_bun`、`hair_ribbon`、`hakama`、`hakama_skirt`、`hime_cut`、`hooded_jacket`、`hoodie`、`jacket`、`jeans`、`jersey`、`jirai_kei`、`keychain`、`korean_clothes`、`lace_trim`、`layered_clothes`、`layered_skirt`、`leather_jacket`、`leg_warmers`、`light_brown_hair`、`loafers`、`long_dress`、`long_hair`、`long_skirt`、`monochrome`、`necklace`、`obi`、`open_cardigan`、`pants`、`parted_bangs`、`pastel_colors`、`pink_cardigan`、`pink_theme`、`plaid_shirt`、`polka_dot`、`purple_hakama`、`purple_sweater`、`red_shirt`、`ribbed_sweater`、`see-through_sleeves`、`short_hair`、`sidelocks`、`single_hair_bun`、`sneakers`、`soccer_uniform`、`sparkle`、`star_hair_ornament`、`star_print`、`striped_shirt`、`stuffed_animal`、`sweater`、`sweater_dress`、`torn_jeans`、`track_jacket`、`trench_coat`、`tunic`、`turtleneck_sweater`、`two-tone_hair`、`undercut`、`white_shirt`、`white_skirt`、`white_sweater`、`yukata` |
+| 語彙に無い | 36 | `_`、`beige_cardigan`、`beige_jacket`、`beige_pants`、`beige_sweater`、`center_part`、`cropped_cardigan`、`dark_colors`、`ear_cuff`、`earth_tones`、`flannel`、`hiking_boots`、`jelly_shoes`、`khaki_pants`、`layered_hair`、`light_blue`、`light_blue_dress`、`low-top_sneakers`、`mountain_parka`、`navy_blue`、`olive_jacket`、`pink_and_black`、`roots_(hair)`、`see-through_bangs`、`silver_earrings`、`square-toe_shoes`、`sweatshirt`、`tote_bag`、`tulle_skirt`、`white_tunic`、`windbreaker`、`wing_print`、`wispy_bangs`、`wolf_cut`、`yellow`、`yellow-green` |

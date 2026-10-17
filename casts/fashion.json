@@ -57,6 +57,18 @@
   "leather-men": {
    "ja": "メンズのレザーブルゾン",
    "doc": "docs/knowledge/fashion/genres.md"
+  },
+  "ryosan": {
+   "ja": "量産型",
+   "doc": "docs/knowledge/fashion/genres.md"
+  },
+  "uniform": {
+   "ja": "制服の着こなし",
+   "doc": "docs/knowledge/fashion/genres.md"
+  },
+  "events": {
+   "ja": "季節の行事",
+   "doc": "docs/knowledge/fashion/seasons.md"
   }
  },
  "looks": [
@@ -70,12 +82,12 @@
    ],
    "gender": "female",
    "age": "teen",
-   "clothes": "pink cardigan, white lace-trimmed blouse, long white layered skirt, white leg warmers, pink ballet slippers",
-   "hair": "long brown hair, low bun, pink hair ribbon",
+   "clothes": "white tulle blouse, lavender mohair cardigan, long white tulle skirt, layered leg warmers, satin mary janes",
+   "hair": "long brown hair, low bun, pearl hair clip, ribbon",
    "colors": [
-    "#F4C6D0",
     "#FAF7F2",
-    "#1C1C1C"
+    "#C8B8DB",
+    "#F4C6D0"
    ],
    "role": "習いごとを続けている、几帳面"
   },
@@ -145,12 +157,12 @@
    ],
    "gender": "female",
    "age": "teen",
-   "clothes": "jirai kei, black blouse with frilled collar and pink ribbon, long black pleated skirt, white frilled socks, black platform mary janes",
-   "hair": "long black hair, hime cut, pink hair ribbon",
+   "clothes": "black frilled long-sleeve dress with long skirt, pink ribbon, black choker, white frilled socks, black thick-soled loafers",
+   "hair": "black hair, twintails, pink hair ribbon",
    "colors": [
     "#1A1A1A",
     "#D98FA6",
-    "#FFFFFF"
+    "#6E1E2B"
    ],
    "role": "甘いものが好き、身なりに手を抜かない"
   },
@@ -220,12 +232,12 @@
    ],
    "gender": "male",
    "age": "adult",
-   "clothes": "faded denim jacket, grey crew neck sweatshirt, baggy straight jeans, white canvas sneakers",
+   "clothes": "colorful patterned open-collar shirt, white graphic t-shirt, faded indigo jeans, white canvas sneakers, baseball cap",
    "hair": "messy brown hair",
    "colors": [
-    "#4F6D8F",
-    "#9A9A9A",
-    "#EDE6D6"
+    "#3F4F7A",
+    "#C9A23A",
+    "#8C3B2E"
    ],
    "role": "一点物が好き、こだわりが強い"
   },
@@ -296,7 +308,7 @@
    "gender": "male",
    "age": "teen",
    "clothes": "light grey hoodie, khaki chino pants, brown loafers",
-   "hair": "dark brown hair, mushroom cut, parted bangs",
+   "hair": "dark wine red hair, center part, mushroom cut, slightly wavy bangs",
    "colors": [
     "#8A7F5A",
     "#D8C8A8",
@@ -341,6 +353,80 @@
     "#111111"
    ],
    "role": "大人びて見せたい、バイクや音楽"
+  },
+  {
+   "id": "ryosan-f",
+   "ja": "量産型の女子",
+   "genre": "ryosan",
+   "seasons": [
+    "spring",
+    "autumn"
+   ],
+   "gender": "female",
+   "age": "teen",
+   "clothes": "pink frilled lace dress with long skirt, white frilled socks, pink mary janes, heart-shaped bag with plush keychain",
+   "hair": "light brown wavy hair, pink hair ribbon",
+   "colors": [
+    "#F7B8CF",
+    "#FFFFFF",
+    "#C9A68A"
+   ],
+   "role": "推しを応援している、友だちと揃えるのが好き"
+  },
+  {
+   "id": "uniform-preppy-f",
+   "ja": "制服のプレッピー系の女子",
+   "genre": "uniform",
+   "seasons": [
+    "spring",
+    "autumn"
+   ],
+   "gender": "female",
+   "age": "teen",
+   "clothes": "school uniform, navy blazer, white collared shirt, red neck ribbon, knee-length grey plaid skirt, white ankle socks, white sneakers, black backpack",
+   "hair": "black hair, low ponytail",
+   "colors": [
+    "#1F2A44",
+    "#C8102E",
+    "#9A9A9A"
+   ],
+   "role": "同じ学校の生徒を系統で描き分ける基準"
+  },
+  {
+   "id": "yukata-f",
+   "ja": "浴衣の女子（2026年）",
+   "genre": "events",
+   "seasons": [
+    "summer"
+   ],
+   "gender": "female",
+   "age": "teen",
+   "clothes": "navy yukata with sunflower print, yellow obi, geta",
+   "hair": "black hair, hair up, hair flower",
+   "colors": [
+    "#1F2A44",
+    "#F2C230",
+    "#FFFFFF"
+   ],
+   "role": "夏祭り、花火大会"
+  },
+  {
+   "id": "hakama-f",
+   "ja": "卒業式の袴の女子",
+   "genre": "events",
+   "seasons": [
+    "spring"
+   ],
+   "gender": "female",
+   "age": "adult",
+   "clothes": "red floral kimono, dark green hakama skirt, brown lace-up boots",
+   "hair": "dark brown hair, half updo, ribbon barrette, hair flower",
+   "colors": [
+    "#B22234",
+    "#2F5D50",
+    "#F3EEE0"
+   ],
+   "role": "大学の卒業式"
   }
  ]
 }

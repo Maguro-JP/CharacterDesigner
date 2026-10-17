@@ -16,7 +16,7 @@
 | `docs/record-policy.md` | 記録に書くもの・書かないものの基準 |
 | `docs/knowledge/` | 分かったこと。決めたことは `docs/knowledge/decisions.md`、描かせて分かったことは `docs/knowledge/ai-drawing-notes.md` |
 | `docs/knowledge/learning/` | 身につけるために調べたこと（self-learn の記録） |
-| `docs/knowledge/fashion/` | 流行のファッション（10代〜20代を中心に、系統・季節ごとの服・髪・小物・色）。描く言葉の札は `casts/fashion.json`、見本の絵は `library/samples/fashion-*.png` |
+| `docs/knowledge/fashion/` | 流行のファッション（10代〜20代を中心に、系統・季節ごとの服・髪・小物・色。入口は `README.md`）。描く言葉の札は `casts/fashion.json`、見本の絵は `library/samples/fashion-*.png` |
 | `docs/reports/` | 日報・週報・月報と判断待ち |
 | `tests/` | 試験 |
 | `.worklog/` | 作業中の生の記録（git に入れない） |
