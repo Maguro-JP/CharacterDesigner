@@ -22,9 +22,9 @@ class ModesTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def _ready(self, ident):
-        c = bible.load("characters", ident)
-        c.update(eyes={"tags": "x"}, expressions=[{"id": "neutral"}], images={"turnaround": "t", "expressions": "e"})
-        bible.save("characters", c)
+        sys.path.insert(0, str(Path(__file__).resolve().parent))
+        from test_bible import fill_design
+        fill_design(bible, ident)
 
     def test_five_modes(self):
         self.assertEqual(set(modes.MODES), {"CharacterDesigner", "Illustrator", "Background", "Composite", "Ensemble"})

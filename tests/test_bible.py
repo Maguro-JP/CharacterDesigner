@@ -122,6 +122,17 @@ if __name__ == "__main__":
     unittest.main()
 
 
+def fill_design(bible, ident):
+    """資料の 8 区分を全部そろえた状態にする（試験用）"""
+    c = bible.load("characters", ident)
+    c.update(age="28", height="168cm・7.5 頭身", role="r", personality="p", backstory="b", eyes={"tags": "x"},
+             expressions=[{"id": "neutral"}], outfit_parts={"top": "coat"}, colors={"髪": "#000000"}, rules="r", negative="n")
+    roles = ["view-front", "view-back", "view-left", "view-right", "pose-1", "pose-2", "pose-3", "detail-eyes", "detail-hair",
+             "detail-outfit-coat"] + [f"expr-{i}" for i in range(8)] + ["hairstyle-1", "hairstyle-2"]
+    c["images"] = {r: "x.jpg" for r in roles}
+    bible.save("characters", c)
+
+
 class DesignModeTest(unittest.TestCase):
     """AI が人物を絵にするのは、キャラデザモードで設計がそろってから。人の参考資料があればイラストレーターモードで描ける"""
 
@@ -150,11 +161,7 @@ class DesignModeTest(unittest.TestCase):
             bible.require_design("sera", str(ref) + ".missing")
 
     def test_ready_after_design_and_approved_sheets(self):
-        c = bible.load("characters", "sera")
-        c["eyes"] = {"tags": "amber eyes"}
-        c["expressions"] = [{"id": "neutral"}]
-        c["images"] = {"turnaround": "x.jpg", "expressions": "y.jpg"}
-        bible.save("characters", c)
+        fill_design(bible, "sera")
         self.assertTrue(bible.design_status("sera")["ready"])
         self.assertEqual(bible.require_design("sera"), "design")
 
@@ -186,3 +193,38 @@ class DesignStepsSkipGateTest(unittest.TestCase):
         finally:
             bible.BIBLE = old
             tmp.cleanup()
+
+
+class CharSheetTest(unittest.TestCase):
+    """資料の 8 区分。足りない区分を出し、書き出しでは無い所を「未作成」と書く"""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.old = bible.BIBLE
+        bible.BIBLE = Path(self.tmp.name)
+        bible.new_character("sera", "セラ", "adult woman", "coat")
+
+    def tearDown(self):
+        bible.BIBLE = self.old
+        self.tmp.cleanup()
+
+    def test_eight_sections_and_missing(self):
+        import charsheet
+        st = charsheet.status("sera")
+        self.assertEqual(len(st["sections"]), 8)
+        self.assertFalse(st["ready"])
+        self.assertTrue(any("正面" in m for m in st["sections"]["views"]["missing"]))
+
+    def test_items_need_their_own_closeups(self):
+        import charsheet
+        fill_design(bible, "sera")
+        self.assertTrue(charsheet.status("sera")["ready"])
+        bible.add_item("sera", "ledger", "帳面", "book")
+        self.assertFalse(charsheet.status("sera")["ready"])
+
+    def test_render_marks_missing(self):
+        import charsheet
+        out = Path(self.tmp.name) / "s.html"
+        r = charsheet.render("sera", str(out))
+        self.assertFalse(r["ready"])
+        self.assertIn("未作成", out.read_text(encoding="utf-8"))

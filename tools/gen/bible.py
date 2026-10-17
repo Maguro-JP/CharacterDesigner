@@ -219,16 +219,14 @@ def prompt(ident: str, scene: str = "", pose: str = "", outfit: str | None = Non
 # 描くモード。AI が人物を絵（イラスト）にするのは、キャラデザモードで設計がそろってから。
 # 設計を飛ばして言葉だけで描くと、描くたびに服・色・持ち物・顔が変わり、手や脚の数も崩れた（2026-10-17、人物 20 枚が 20 枚とも戻った）。
 # 人が参考資料を付けて描くよう指示したときは、人が設計を持っているので、イラストレーターモードですぐ描いてよい
-DESIGN_FIELDS = {"look": "見た目", "outfit": "服", "eyes": "目の設計（set-eyes）", "expressions": "表情の一覧（add-expression）"}
-DESIGN_SHEETS = {"turnaround": "三面図（checker が通したもの。add-image <id> turnaround）",
-                 "expressions": "表情差分（checker が通したもの。add-image <id> expressions）"}
 
 
 def design_status(ident: str) -> dict:
-    """キャラデザモードで、まだそろっていないものを返す。missing が空なら、イラストに描いてよい"""
-    c = load("characters", ident)
-    missing = [why for k, why in DESIGN_FIELDS.items() if not c.get(k)]
-    missing += [why for k, why in DESIGN_SHEETS.items() if not c.get("images", {}).get(k)]
+    """キャラデザモードで、まだそろっていないものを返す。missing が空なら、イラストに描いてよい。
+    何をそろえるか（資料の 8 区分）は tools/gen/charsheet.py の SECTIONS が決める"""
+    import charsheet
+    st = charsheet.status(ident)
+    missing = [f'{v["title"]}: {m}' for v in st["sections"].values() for m in v["missing"]]
     return {"id": ident, "ready": not missing, "missing": missing}
 
 

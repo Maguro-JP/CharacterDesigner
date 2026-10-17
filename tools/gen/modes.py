@@ -28,15 +28,19 @@ G = "PYTHONPATH=.cache/gen/lib python3 tools/gen/"
 
 MODES = {
     "CharacterDesigner": {
-        "purpose": "人物を設計する（設定資料一式）",
+        "purpose": "人物を設計する（設定資料一式。8 区分は tools/gen/charsheet.py）",
         "steps": [
-            ("設定を書く（見た目・服・色・年齢・役割）", "python3 tools/gen/bible.py new-character {c} --name ... --look ... --outfit ..."),
-            ("目と表情を決める（表情担当 face-designer）", "python3 tools/gen/bible.py set-eyes {c} --tags ... / add-expression"),
-            ("持ち物と持ち方を決める（小物担当 prop-designer）", "python3 tools/gen/bible.py add-item {c} ..."),
-            ("三面図を描かせる（人形の下絵から）", G + "bible.py turnaround {c} <出力> --count 2"),
-            ("顔の拡大と表情差分を描かせる", G + "bible.py expressions {c} <出力>"),
-            ("checker が 1 枚ずつ元の大きさで検品する。崩れた所だけを描き直させる", G + "fix.py / detail.py"),
-            ("通した三面図と表情差分を登録する", "python3 tools/gen/bible.py add-image {c} turnaround|expressions <絵>"),
+            ("1 基本情報: 名前・年齢・身長と頭身・役割・性格・背景設定を書く", "python3 tools/gen/bible.py new-character {c} ...（欄は bible/characters/{c}.json）"),
+            ("4・5 目と表情、髪型を決める（表情担当 face-designer）", "python3 tools/gen/bible.py set-eyes {c} --tags ... / add-expression"),
+            ("6 服の部位と持ち物・武装を決める（小物担当 prop-designer）", "python3 tools/gen/bible.py add-item {c} ..."),
+            ("7・8 色見本（名前・値・部位）と、描くときの決まり・描いてはいけないものを書く", ""),
+            ("2 全身の四面図（正面・背面・左・右）を描かせる", G + "bible.py turnaround {c} <出力>"),
+            ("3 ポーズを 3 種以上描かせる（立ち・歩き・役どころの動作・持ち物を使う）", G + "bible.py draw {c} <出力> --pose ..."),
+            ("4 胸から上の表情差分（8 種以上）と髪型差分（2 種以上）を描かせる", G + "bible.py expressions {c} <出力>"),
+            ("5・6 目・髪・服の部位・持ち物の拡大を描かせる", G + "detail.py"),
+            ("checker が 1 枚ずつ元の大きさで検品し、崩れた所だけを描き直させる", G + "fix.py / detail.py"),
+            ("通した絵を役割の名前（view-front、pose-1、expr-smile、detail-eyes など）で登録する", "python3 tools/gen/bible.py add-image {c} <役割> <絵>"),
+            ("資料を書き出して足りない区分を見る", "python3 tools/gen/charsheet.py render {c} <出力.html>"),
         ],
     },
     "Illustrator": {
