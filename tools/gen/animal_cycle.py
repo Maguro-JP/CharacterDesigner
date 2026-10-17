@@ -1,9 +1,9 @@
-"""その日の動物を、毎時1つの画風で描く（12時のゆるキャラから23時のリアル風まで12の画風）。
+"""その日の動物を、毎時1つの画風で描く（0時のゆるキャラから23時のリアル風まで24の画風）。
 
 使い方:
-  PYTHONPATH=.cache/gen/lib CD_FETCH=1 python3 tools/gen/animal_cycle.py <出力フォルダ> [画風の番号 0-11]
+  PYTHONPATH=.cache/gen/lib CD_FETCH=1 python3 tools/gen/animal_cycle.py <出力フォルダ> [画風の番号 0-23]
 
-画風は STYLES の12個で決まっている。動物は日ごとに ANIMALS からまだ描いていないものを選び、
+画風は STYLES の24個で決まっている。動物は日ごとに ANIMALS からまだ描いていないものを選び、
 docs/knowledge/feedback/animals-by-day.json に日付と一緒に残す。動物は足せばいくらでも増やせる。
 特徴（features）は全部の画風に同じ言葉で入れる。デフォルメでもリアルでも、
 同じ動物だと分かる目印（模様・耳・尾の形）を揃えるため。
@@ -18,7 +18,7 @@ ROOT = Path(__file__).resolve().parents[2]
 DONE = ROOT / "docs" / "knowledge" / "feedback" / "animals-by-day.json"
 
 JST = timezone(timedelta(hours=9))
-FIRST_HOUR = 12  # 12時がゆるキャラ、23時がリアル風
+FIRST_HOUR = 0  # 0時がゆるキャラ、23時がリアル風
 SEEDS = (1, 2, 3)  # 1つの画風を3枚。1枚約5分で、1時間の枠に収まる
 
 # 名前, 特徴（体の数と目印）
@@ -67,18 +67,30 @@ ANIMALS = [
 
 # 簡単なものから本格的なものへ
 STYLES = [
-    ("01-yurukyara", "yuru-chara mascot, super simple round shapes, thick outline, flat colors, cute"),
+    ("00-yurukyara", "yuru-chara mascot, super simple round shapes, thick outline, flat colors, cute"),
+    ("01-emoji", "flat emoji icon, simple geometric shapes, bold colors"),
     ("02-chibi", "chibi deformed sticker, big head, flat 2d, white outline"),
-    ("03-character", "anime character design sheet style, cel shading, clean lineart"),
-    ("04-anime", "1990s anime cel animation still"),
-    ("05-manga", "black and white manga ink drawing, screentone, monochrome"),
-    ("06-illust", "digital illustration, soft lighting, detailed"),
-    ("07-kirie", "paper cut-out art, layered colored paper, flat shapes"),
-    ("08-nihonga", "nihonga japanese painting, mineral pigments, gold leaf background"),
-    ("09-ukiyoe", "ukiyo-e woodblock print, bold outlines, flat colors"),
-    ("10-oil", "classical oil painting, visible brush strokes"),
-    ("11-watercolor", "loose watercolor painting, paper texture"),
-    ("12-real", "wildlife photograph, realistic, natural habitat, sharp focus"),
+    ("03-pixel", "16-bit pixel art sprite, limited palette"),
+    ("04-crayon", "child's crayon drawing, rough wax texture, naive shapes"),
+    ("05-picturebook", "soft pastel children's picture book illustration"),
+    ("06-character", "anime character design sheet style, cel shading, clean lineart"),
+    ("07-anime", "1990s anime cel animation still"),
+    ("08-manga", "black and white manga ink drawing, screentone, monochrome"),
+    ("09-americancomic", "american comic book art, bold ink outlines, halftone dots"),
+    ("10-retroposter", "retro sci-fi travel poster, limited palette, flat shapes"),
+    ("11-steampunk", "steampunk illustration, brass gears and goggles, sepia tones"),
+    ("12-kirie", "paper cut-out art, layered colored paper, flat shapes"),
+    ("13-stainedglass", "stained glass window, thick black leading, glowing colored glass"),
+    ("14-mosaic", "ancient roman mosaic of small stone tiles"),
+    ("15-ukiyoe", "ukiyo-e woodblock print, bold outlines, flat colors"),
+    ("16-sumie", "sumi-e ink wash painting, monochrome brush strokes, empty space"),
+    ("17-nihonga", "nihonga japanese painting, mineral pigments, gold leaf background"),
+    ("18-artnouveau", "art nouveau poster, ornamental flowing lines, decorative border"),
+    ("19-impressionist", "impressionist oil painting, visible dabs of color, soft light"),
+    ("20-watercolor", "loose watercolor painting, paper texture"),
+    ("21-oil", "classical oil painting, visible brush strokes, dramatic lighting"),
+    ("22-digitalpaint", "detailed digital painting, realistic fur, cinematic lighting"),
+    ("23-real", "wildlife photograph, realistic, natural habitat, sharp focus"),
 ]
 
 
@@ -97,7 +109,7 @@ def today_animal(today):
 
 
 def main():
-    # 1日1種。12時から23時（JST）まで毎時1つの画風を描き、23時がリアル風になる
+    # 1日1種。0時から23時（JST）まで毎時1つの画風を描き、23時がリアル風になる
     out = Path(sys.argv[1])
     now = datetime.now(JST)
     slot = now.hour - FIRST_HOUR if len(sys.argv) < 3 else int(sys.argv[2])
