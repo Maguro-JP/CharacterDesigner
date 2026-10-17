@@ -87,5 +87,80 @@ class TestEnsemble(unittest.TestCase):
             self.assertEqual(len(info["people"]), 2)
 
 
+LOOKS = {"a": ("1girl, solo, red hair, red coat", "bad hands"), "b": ("1girl, blue hair, armor", "bad hands, extra arms"),
+         "c": ("1boy, black hair", "")}
+
+
+class TestDrawin(unittest.TestCase):
+    def test_parse_character(self):
+        self.assertEqual(E.parse_character("knight@10,20,300,800"), {"id": "knight", "box": (10, 20, 300, 800)})
+        for bad in ("knight", "knight@1,2,3", "knight@300,20,10,800", "@1,2,3,4", "k@a,b,c,d"):
+            with self.assertRaises(ValueError):
+                E.parse_character(bad)
+
+    def test_headcount(self):
+        self.assertEqual(E.headcount(["1girl, x", "1girl"]), "2girls")
+        self.assertEqual(E.headcount(["1girl", "1boy"]), "1girl, 1boy")
+        self.assertEqual(E.headcount(["x", "y"]), "2people")
+
+    def test_prompts(self):
+        chars = [{"id": "a", "box": (0, 0, 1, 1)}, {"id": "b", "box": (0, 0, 1, 1)}]
+        whole, neg, parts = E.drawin_prompts(chars, "night street", prompt_of=lambda i: LOOKS[i])
+        self.assertTrue(whole.startswith("2girls, (red hair, red coat), (blue hair, armor), night street"))
+        self.assertNotIn("1girl", whole)
+        self.assertNotIn("solo,", whole)
+        self.assertEqual(neg, "bad hands, extra arms, solo")
+        self.assertEqual(parts, ["red hair, red coat, night street", "blue hair, armor, night street"])
+
+    def test_bible_prompt_without_background(self):
+        import bible
+        pos, _ = bible.prompt("knight", framing="", background=False)
+        self.assertNotIn("white background", pos)
+        self.assertIn("white background", bible.prompt("knight")[0])
+
+    def test_gate_stops_before_model(self):
+        called = []
+        with tempfile.TemporaryDirectory() as d:
+            Image.new("RGB", (64, 64)).save(Path(d) / "c.png")
+            with mock.patch("modes.check", return_value={"ok": False, "missing": ["a: 足りない"]}) as chk:
+                with self.assertRaises(E.GateClosed):
+                    E.drawin(Path(d) / "c.png", Path(d) / "o.png", [{"id": "a", "box": (0, 0, 8, 8)}], "s",
+                             whole=lambda *a: called.append(1), region=lambda *a: called.append(1))
+            chk.assert_called_once_with("Ensemble", ["a"], None)
+        self.assertEqual(called, [])
+
+    def test_drawin_flow(self):
+        calls = []
+
+        def whole(im, pos, neg, strength, seed):
+            calls.append(("whole", pos, seed))
+            return im
+
+        def region(im, mask, pos, neg, strength, seed, ref, scale):
+            calls.append(("region", mask.getbbox(), pos, seed, ref))
+            return im
+
+        with tempfile.TemporaryDirectory() as d:
+            d = Path(d)
+            Image.new("RGB", (200, 100)).save(d / "c.png")
+            chars = [E.parse_character("a@0,0,90,100"), E.parse_character("b@100,10,200,100")]
+            with mock.patch("modes.check", return_value={"ok": True, "missing": []}):
+                rep = E.drawin(d / "c.png", d / "o.png", chars, "park", seed=3, whole=whole, region=region,
+                               prompt_of=lambda i: LOOKS[i], ref_of=lambda i: "REF" if i == "a" else None,
+                               check=lambda src, p: {"ok": True, "problems": [], "unreadable": []})
+                with self.assertRaises(ValueError):   # 下書きからはみ出す範囲
+                    E.drawin(d / "c.png", d / "x.png", [E.parse_character("a@0,0,300,100")], "s",
+                             whole=whole, region=region, prompt_of=lambda i: LOOKS[i])
+            self.assertEqual([c[0] for c in calls], ["whole", "region", "region"])
+            self.assertEqual(calls[1][1], (0, 0, 91, 100))   # 下の端は絵の高さで切れる
+            self.assertEqual(calls[2][4], None)
+            self.assertEqual(calls[1][4], "REF")
+            self.assertEqual([c[-2] if c[0] == "region" else c[2] for c in calls], [3, 4, 5])
+            self.assertTrue((d / "o.png").exists())
+            q = (d / "o.png.qc.json")
+            self.assertTrue(q.exists())
+            self.assertEqual([c["reference"] for c in rep["characters"]], [True, False])
+
+
 if __name__ == "__main__":
     unittest.main()

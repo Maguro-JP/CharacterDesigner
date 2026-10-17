@@ -187,7 +187,8 @@ def add_location(ident: str, loc: str, name: str, tags: str, desc: str = "", ima
 
 
 def prompt(ident: str, scene: str = "", pose: str = "", outfit: str | None = None, items: list[str] | None = None,
-           world: str | None = None, location: str | None = None, framing: str = "full body") -> tuple[str, str]:
+           world: str | None = None, location: str | None = None, framing: str = "full body",
+           background: bool = True) -> tuple[str, str]:
     """描く言葉を組み立てる。変えない見た目を先頭に置く（後ろの言葉ほど効きが弱い。長い言葉は 75 語ずつ全部読ませている）。
     服は差し替えがあればそれを、無ければいつもの服。持ち物は名前で選ぶ（省くと全部）。場所があれば背景を付ける"""
     c = load("characters", ident)
@@ -203,7 +204,8 @@ def prompt(ident: str, scene: str = "", pose: str = "", outfit: str | None = Non
         loc = next((x for x in w["locations"] if x["id"] == location), None) if location else None
         parts += [loc["tags"] if loc else "", w["tags"]]
         avoid_loc = loc.get("avoid", "") if loc else ""
-    else:
+    elif background:
+        # 背景を別に持つ使い方（ensemble.py drawin、背景は下書きにある）では付けない
         parts.append("simple background, white background")
     pos = ", ".join(p.strip() for p in parts if p and p.strip())
     # 同じ物が2つ、設定に無い道具や武器、宙に浮いた物が描かれた（床に2本目のスパナ、騎士の手の黒い棒）
@@ -247,6 +249,18 @@ def require_design(ident: str, reference: str | None = None) -> str:
     return "design"
 
 
+def reference_path(ident: str, roles: tuple[str, ...] = ("color",)) -> Path | None:
+    """IP-Adapter に読ませる手本の絵。roles の順に、最初にあるものを返す"""
+    imgs = load("characters", ident).get("images", {})
+    return next((ROOT / imgs[r] for r in roles if imgs.get(r)), None)
+
+
+def reference_image(ident: str, roles: tuple[str, ...] = ("color",)):
+    from PIL import Image
+    p = reference_path(ident, roles)
+    return Image.open(p).convert("RGB") if p else None
+
+
 def draw(ident: str, outdir: str, count: int = 1, seed: int = 0, ref_scale: float = 0.6, base: str | None = None,
          strength: float = 0.8, reference: str | None = None, **kw) -> list[str]:
     """組み立てた言葉で描く。色の手本があれば IP-Adapter で読ませる（顔つき・配色を寄せる）。
@@ -269,9 +283,10 @@ def draw(ident: str, outdir: str, count: int = 1, seed: int = 0, ref_scale: floa
         import demi
         start = Image.open(base).convert("RGB").resize((832, 1216))
     ref = None
-    if c["images"].get("color") and ref_scale > 0:
-        people.use_reference()
-        ref = Image.open(ROOT / c["images"]["color"]).convert("RGB")
+    if ref_scale > 0:
+        ref = reference_image(ident)
+        if ref is not None:
+            people.use_reference()
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
     pe, ne, pp, np_ = design.encode_xl(pipe, pos, neg)
