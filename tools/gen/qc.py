@@ -469,6 +469,8 @@ def auto_check(src: str, prompt: str = "") -> dict:
         if tags.get("extra eyes", 0) >= EXTRA_EYES:
             res["problems"].append({"extra_eyes": round(float(tags["extra eyes"]), 2)})
         reason = filters.fixed(", ".join(tags))
+        # 宗教・文化の配慮（鉤十字、逆さ十字、着物の合わせなど）は崩れではないので problems に入れず、目で確かめる所として返す
+        res["cultural"] = filters.cultural(", ".join(tags))
         if reason:
             res["problems"].append({"fixed_restriction": reason, "tags": sorted(tags, key=lambda t: -tags[t])[:20]})
     except Exception as e:

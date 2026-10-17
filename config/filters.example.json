@@ -71,6 +71,13 @@
     "scary"
    ],
    "negative": "horror"
+  },
+  {
+   "name": "宗教・文化への配慮",
+   "enabled": false,
+   "cultural": true,
+   "words": [],
+   "negative": ""
   }
  ]
 }

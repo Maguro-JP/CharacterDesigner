@@ -181,6 +181,9 @@ def describe(text: str, local=None, recalled=()) -> dict:
     if not tags:
         return {"allowed": False, "reason": "描く言葉が1つも作れなかった。言い方を変えて頼む", "prompt": "", "negative": "",
                 "tags": [], "summary": got.get("summary", ""), "reader": reader, "notes": notes}
+    import filters
+    # 宗教・文化の配慮は止めずに知らせる（描くかは利用者が決める）。頼みごとと描く言葉の両方で見る
+    notes += [n for n in filters.advice_lines(text + ", " + ", ".join(tags)) if n not in notes]
     return {"allowed": True, "reason": "", "prompt": ", ".join(tags), "negative": ", ".join(neg), "tags": tags,
             "summary": got.get("summary", ""), "reader": reader, "notes": notes}
 
