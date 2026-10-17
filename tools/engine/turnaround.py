@@ -43,6 +43,7 @@ def main(argv):
     ap.add_argument("--hair", help="髪の型（MPFB の hair の名前、例 bob01）。省くと坊主頭")
     ap.add_argument("--hair-color", type=rgb, default=(60, 40, 30))
     ap.add_argument("--thickness", type=float, default=0.004, help="布の厚み（m）。0 で厚みを付けない")
+    ap.add_argument("--boots-height", type=float, default=0.5, help="靴の色を塗る高さ（m）。既定 0.5 は膝下までの鎧靴。短いブーツは 0.15")
     ap.add_argument("--split", type=float, default=0.95, help="上と下の布の色を分ける高さ（m）。裾の長い上着は下げる")
     ap.add_argument("--long-sleeves", action="store_true", help="腕を手首まで上の布の色にする（長袖の上着）")
     ap.add_argument("--width", type=int, default=832)
@@ -138,7 +139,7 @@ def main(argv):
         for o in clothed:
             o.data.materials.append(boots)
             for f in o.data.polygons:
-                if (o.matrix_world @ f.center).z < 0.5:
+                if (o.matrix_world @ f.center).z < a.boots_height:
                     f.material_index = len(o.data.materials) - 1
     if a.cape:
         # 下絵に無い物は絵に出なかった（マントの代わりに襟巻きが長く垂れた）ので、背中に板で置く

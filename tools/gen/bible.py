@@ -340,7 +340,7 @@ def turnaround_plan(ident: str, outdir: str, seed: int = 0) -> dict:
     for k in ("skin", "top", "bottom", "cape", "boots"):
         if colors.get(k):
             cmd += [f"--{k}", colors[k]]
-    for k in ("clothes", "hair", "hair_color", "split"):
+    for k in ("clothes", "hair", "hair_color", "split", "boots_height"):
         if colors.get(k):
             cmd += [f"--{k.replace('_', '-')}", colors[k]]
     if colors.get("long_sleeves"):

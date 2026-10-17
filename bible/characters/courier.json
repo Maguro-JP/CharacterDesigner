@@ -11,34 +11,35 @@
   "tags": "large eyes, open eyes, bright orange eyes, clear iris, two highlights, thin eyebrows, gentle smile",
   "notes": "明るい性格なので大きく開いた目。半目・細目にしない"
  },
- "outfit": "red jacket, long sleeves, closed zipped jacket, black trousers, black ankle boots",
+ "outfit": "red jacket, long sleeves, closed zipped jacket, dark gray trousers, dark brown leather ankle boots",
  "turnaround": {
   "top": "190,40,35",
-  "bottom": "25,25,28",
-  "boots": "25,25,28",
+  "bottom": "45,45,52",
+  "boots": "70,42,28",
   "words": "red jacket, black trousers, black boots",
   "clothes": "male_casualsuit03,shoes01",
   "hair": "short02",
   "hair_color": "210,85,42",
-  "split": "0.8"
+  "split": "0.8",
+  "boots_height": "0.15"
  },
  "negative": "skirt, dress, half-closed eyes, narrow eyes, child, loli, weapon, sword, extra items, mismatched shoes, different shoes, floating feet, white hair, multicolored hair, streaked hair, two-tone hair, thick eyebrows, bushy eyebrows, short sleeves, nipples, see-through, covered nipples",
  "items": [],
  "images": {},
  "outfit_parts": {
   "上着": "赤いジャケット（前を閉じる）",
-  "下": "黒のズボン",
-  "靴": "黒の短いブーツ"
+  "下": "濃い灰色のズボン",
+  "靴": "焦げ茶の革の短いブーツ"
  },
  "colors": {
   "髪": "#d2552a",
   "目": "#f08a24",
   "ジャケット": "#be2823",
-  "ズボン": "#19191c",
-  "ブーツ": "#19191c"
+  "ズボン": "#2d2d34",
+  "ブーツ": "#46291c"
  },
  "rules": [
-  "靴は左右とも黒の短いブーツ",
+  "靴は左右とも焦げ茶の短いブーツ（ズボンと同じ色にすると足先が消えた）",
   "目は大きく開く"
  ],
  "palette": [],
