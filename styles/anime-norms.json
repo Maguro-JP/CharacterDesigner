@@ -130,6 +130,31 @@
    "path": "limbs.leg_dark_gap",
    "max": 1.0,
    "means": "左右の脚で暗い所の割合が大きく違う（片脚だけ暗い）。同じ光を受ける脚は同じくらい暗くなる。手本が溜まるまでは判定しない値（1.0）に置き、normlearn で学んで締める"
+  },
+  {
+   "path": "skeleton.forearm_upper_max",
+   "max": 1.35,
+   "means": "前腕が上腕より大幅に長い。前腕の骨（橈骨）は上腕骨の約 0.8 倍で、手前へ向いた縮みでも前腕だけが伸びることは無い"
+  },
+  {
+   "path": "skeleton.forearm_upper_min",
+   "min": 0.45,
+   "means": "前腕が上腕の半分に満たない。奥へ大きく向けた腕でなければ骨の長さとしてあり得ない"
+  },
+  {
+   "path": "skeleton.shin_thigh_max",
+   "max": 1.45,
+   "means": "脛が太ももより大幅に長い。脛骨は大腿骨の約 0.8 倍"
+  },
+  {
+   "path": "skeleton.shin_thigh_min",
+   "min": 0.55,
+   "means": "脛が太ももの半分ほどしかない。しゃがみ・膝立ちの縮みでなければ骨としてあり得ない"
+  },
+  {
+   "path": "skeleton.left_right_max",
+   "max": 1.6,
+   "means": "同じ骨の長さが左右で大きく違う。手足の一方を奥へ向けた縮みで説明できない差"
   }
  ],
  "kinds": {
