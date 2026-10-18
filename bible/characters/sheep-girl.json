@@ -1,0 +1,106 @@
+{
+ "id": "sheep-girl",
+ "name": "羊娘メリノ",
+ "look": "1girl, adult woman, 22 years old, sheep girl, two curled ivory ram horns at the sides of her head, drooping fluffy sheep ears, (very long wavy cream hair reaching her waist:1.4), calm mature face, gentle smile, slim, graceful proportions",
+ "outfit": "(open front cardigan with wooden buttons:1.4), (mustard yellow:1.2) cardigan, (white blouse:1.3), (long dark brown wide-leg trousers:1.3), brown loafers",
+ "negative": "(animal on head:1.5), (sheep on head:1.4), (bodysuit:1.4), (skin tight:1.4), (skirt:1.5), (shorts:1.5), (bare legs:1.5), (barefoot:1.4), child, loli, weapon, extra items, multicolored hair, (sweater, pullover:1.5), (hands in pockets:1.5), (dark shadow on chest:1.3), (dark shadow on buttocks:1.3), (black trousers:1.3), (grey trousers:1.3), nude, naked, missing horns, missing ears, (bob cut:1.5), (short hair:1.5), (shoulder-length hair:1.5), (black shirt:1.4), (plaid:1.4)",
+ "items": [
+  {
+   "id": "yarn-basket",
+   "name": "糸玉の籠",
+   "tags": "holding small wicker basket, single basket, three yarn balls in basket, cream and mustard yarn",
+   "desc": "羊毛の糸玉3つを入れた小さな籠。軽いので左の前腕に持ち手を掛けて腰の横に提げる。右手は空けておく",
+   "hold": "basket handle hooked over her left forearm, left hand resting lightly on the basket rim, basket hanging at her left hip",
+   "size": "basket about the size of her head",
+   "avoid": "two baskets, basket on head, knitting needles, large basket"
+  },
+  {
+   "id": "horn-charm",
+   "name": "角の飾り",
+   "tags": "single small brass bell charm with short ribbon, tied on her right horn",
+   "desc": "右の角の付け根に緑の細いリボンで結んだ小さな真鍮の鈴。片方だけ",
+   "hold": "bell tied with a short green ribbon around the base of her right horn",
+   "size": "bell as small as her fingertip",
+   "avoid": "bells on both horns, large bell, collar bell"
+  },
+  {
+   "id": "cardigan-buttons",
+   "name": "カーディガンのボタン",
+   "tags": "small round wooden buttons on cardigan",
+   "desc": "前開きのカーディガンの前立てに並ぶ木の丸ボタン5つ。前は留めない",
+   "hold": "five buttons along the cardigan front edge, cardigan worn open",
+   "size": "buttons as small as her fingernail",
+   "avoid": "large buttons, gold buttons"
+  }
+ ],
+ "images": {
+  "color": "bible/characters/sheep-girl/color.jpg",
+  "turnaround": "bible/characters/sheep-girl/turnaround.jpg"
+ },
+ "palette": [],
+ "notes": "",
+ "eyes": {
+  "tags": "tareme, medium-sized almond eyes, soft half-lidded eyes, amber eyes, subtle gradient eyes, darker upper iris, round pupils, single small highlight upper left in both eyes, moderate eyelashes, slightly longer outer lashes, thin soft eyebrows, gently arched eyebrows, light brown eyebrows",
+  "notes": "穏やかな大人の女性なので、たれ目で切れ長寄りの中くらいの目にし、瞳を大きくしない。瞳は髪のクリーム色に合う琥珀色。ハイライトは左上に小さく1つで両目同じ位置、多いハイライトは幼く見えるため避けた。眉は細く緩い弧で、ふだんから力の入らない顔にする"
+ },
+ "expressions": [
+  {
+   "id": "neutral",
+   "name": "ふだん",
+   "tags": "closed mouth, faint relaxed smile, relaxed eyebrows, soft half-lidded eyes, calm gaze"
+  },
+  {
+   "id": "smile",
+   "name": "笑顔",
+   "tags": "gentle closed-mouth smile, corners of mouth slightly raised, relaxed eyebrows, eyes narrowed, lower eyelids raised"
+  },
+  {
+   "id": "laugh",
+   "name": "大笑い",
+   "tags": "open-mouth laugh, hand near mouth, eyebrows raised softly, eyes closed into curves, lower eyelids raised"
+  },
+  {
+   "id": "angry",
+   "name": "怒り",
+   "tags": "small frown, mouth pressed closed, eyebrows slightly drawn together and lowered, lower eyelids tensed, steady stare, no fangs"
+  },
+  {
+   "id": "sad",
+   "name": "悲しみ",
+   "tags": "slight downturned mouth, closed mouth, inner eyebrows raised, eyebrows in a slanted V shape, downcast eyes, glistening eyes"
+  },
+  {
+   "id": "surprised",
+   "name": "驚き",
+   "tags": "small open mouth, eyebrows raised, upper eyelids raised, widened eyes, hand on chest"
+  },
+  {
+   "id": "embarrassed",
+   "name": "照れ",
+   "tags": "shy small smile, eyebrows slightly raised at inner ends, eyes looking away, light blush on cheeks, hand touching hair"
+  },
+  {
+   "id": "determined",
+   "name": "決意",
+   "tags": "closed mouth, lips firm, eyebrows straight and slightly lowered, focused eyes, lower eyelids slightly tensed"
+  },
+  {
+   "id": "sleepy",
+   "name": "眠そう",
+   "tags": "small yawn or slightly open mouth, relaxed drooping eyebrows, heavy half-closed eyes"
+  },
+  {
+   "id": "tender",
+   "name": "慈しみ",
+   "tags": "soft closed-mouth smile, eyebrows raised slightly at inner ends, eyes narrowed warmly looking down, lower eyelids raised"
+  }
+ ],
+ "turnaround": {
+  "top": "205,160,50",
+  "bottom": "75,50,35",
+  "boots": "110,70,40",
+  "hair_color": "235,222,190",
+  "long_sleeves": true,
+  "words": "(open front cardigan with wooden buttons:1.4), (mustard yellow:1.2) cardigan, (white blouse:1.3), (dark brown wide-leg trousers:1.3), brown loafers, (curled ram horns:1.3), two drooping sheep ears, arms down at sides, (visible fingers:1.2)"
+ }
+}
