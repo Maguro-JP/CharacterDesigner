@@ -20,15 +20,43 @@ batch は設定集（casts/*.json）の全員を、モデルを1回だけ読み�
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))
-# 模型は既定で外から取りに行かない。呼んだ関数が手元に無い模型を指していると、数 GB を取りに行って
-# ディスクを埋めた（2026-10-14 に 2 回）。初めて取るときだけ CD_FETCH=1 を付けて動かす
-os.environ.setdefault("HF_HUB_OFFLINE", "0" if os.environ.get("CD_FETCH") == "1" else "1")
+# 描く部品（torch、diffusers）は .cache/gen/lib にある。PYTHONPATH を付け忘れると torch が読めず止まったので、自分で通す
+_LIB = ROOT / ".cache" / "gen" / "lib"
+if _LIB.exists() and str(_LIB) not in sys.path:
+    sys.path.append(str(_LIB))
+
+
+def hub_defaults():
+    """模型の置き場所（HF_HOME）と、取りに行かない既定（HF_HUB_OFFLINE）を決める。利用者が環境変数で決めた値は変えない。
+    模型は既定で外から取りに行かない。呼んだ関数が手元に無い模型を指していると、数 GB を取りに行って
+    ディスクを埋めた（2026-10-14 に 2 回）。初めて取るときだけ CD_FETCH=1 を付けて動かす。
+    huggingface_hub は読み込んだ時の環境変数を定数に写すので、diffusers を先に読んだ呼び出し元（6周目の run.py）では
+    環境変数を足しても効かず、模型を ~/.cache/huggingface へ取りに行った。読み込み済みなら定数も書き換え、読む順番に左右されなくする"""
+    mine = {k: k not in os.environ for k in ("HF_HOME", "HF_HUB_OFFLINE")}
+    home = os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))
+    offline = os.environ.setdefault("HF_HUB_OFFLINE", "0" if os.environ.get("CD_FETCH") == "1" else "1") == "1"
+    c = sys.modules.get("huggingface_hub.constants")
+    if c is None:
+        return
+    if mine["HF_HOME"] and not os.environ.get("HF_HUB_CACHE") and not os.environ.get("HUGGINGFACE_HUB_CACHE"):
+        c.HF_HOME, c.HF_HUB_CACHE = home, os.path.join(home, "hub")
+        c.HF_ASSETS_CACHE = os.path.join(home, "assets")
+    if mine["HF_HUB_OFFLINE"]:
+        # diffusers は定数を自分の名前に写して持つものがある（LoRA の読み込みなど）。読み込み済みのものも合わせる
+        for name in ("huggingface_hub.constants", "diffusers.loaders.lora_base", "diffusers.utils.hub_utils",
+                     "diffusers.models.attention_dispatch"):
+            m = sys.modules.get(name)
+            if m is not None and hasattr(m, "HF_HUB_OFFLINE"):
+                m.HF_HUB_OFFLINE = offline
+
+
+hub_defaults()
 
 # 画風ごとのモデル。どれも CreativeML OpenRAIL-M（出典と許諾は docs/references.md）
 STYLES = {
@@ -82,6 +110,14 @@ XL_ITEM_SUFFIX = (", single object, still life, centered, full view, 2d game ite
                   "clean lineart, flat colors, white background")
 XL_ITEM_NEGATIVE = ("eyes, face, mouth, creature, animal, character, person, legs, feet, arms, hands, wings, tail, "
                     "multiple objects, cropped, text, watermark")
+# 手足の無い塊の生き物（幼年期のスライム形態など）。生き物の決まり文句（creature design、full body、feral）で
+# 描くと、「腕なし、脚なし」と書いても腕・脚・翼・尾が付いた。物の決まり文句なら塊になったが、物の打ち消しに
+# 目と顔があるので顔と胸の印が出なかった（DigiMon の幼年期、2026-10-06）。kind: "blob" は物の文で形を取り、
+# 顔は打ち消さず、手足だけを打ち消す
+XL_BLOB_SUFFIX = (", single round creature, full view, centered, 2d game monster illustration, cel shading, "
+                  "clean lineart, flat colors, white background")
+XL_BLOB_NEGATIVE = ("legs, feet, arms, hands, fingers, claws, wings, tail, neck, standing, sitting, "
+                    "multiple creatures, cropped, text, watermark")
 # 性別。指定が無いとアニメの人物向けのモデルは少女を描き、男性の職まで女性になった。
 # 「1boy」だけでは中性的な美形に寄った（学んだ絵に多い）ので、男性は体と顔の骨格から書く
 GENDER = {"male": ("1boy, male focus, adult man, broad shoulders, strong jawline, thick neck, short hair, masculine, ",
@@ -141,8 +177,25 @@ def _pipe(style, img2img=False):
     return device.place(pipe, torch)
 
 
+def split_tokens(tok, text, size=75):
+    """指示文をトークンにし、size 個以下の区切りに分ける。区切りは size に届く手前の最後の読点で切る。
+    ちょうど 75 個目で切ると、決まり文句の「clean lineart」が「clean」と「lineart」に割れ、別の区切りで読まれた（7周目、80 トークン）。
+    読点が無いほど長い言葉だけは size で切る。verbose=False は、区切って読むので不要な「77 を超えた」警告を出さないため"""
+    ids = tok(text, add_special_tokens=False, verbose=False).input_ids
+    comma = tok(",", add_special_tokens=False, verbose=False).input_ids
+    comma = comma[0] if len(comma) == 1 else None
+    out = []
+    while len(ids) > size:
+        cut = max((i + 1 for i in range(size) if ids[i] == comma), default=size)
+        out.append(ids[:cut])
+        ids = ids[cut:]
+    if ids or not out:
+        out.append(ids)
+    return out
+
+
 def encode(pipe, prompt, negative):
-    """77 トークンで切らずに、長い指示文を 75 トークンずつに分けて読ませ、つなげて渡す。
+    """77 トークンで切らずに、長い指示文を 75 トークン以下の区切り（読点で切る）に分けて読ませ、つなげて渡す。
 
     SD1.5 の文章の読み手（CLIP）は 77 トークンまでしか読まない。世界観の決まりと人物の細部を
     両方書くと後ろが切れて、角灯や白い背景が絵から落ちた。区切りごとに頭と終わりの印を付けて読み、
@@ -150,13 +203,13 @@ def encode(pipe, prompt, negative):
     """
     import torch
     tok, enc = pipe.tokenizer, pipe.text_encoder
-    body = [tok(t, add_special_tokens=False).input_ids for t in (prompt, negative)]
-    n = max(1, *[(len(b) + 74) // 75 for b in body])
+    body = [split_tokens(tok, t) for t in (prompt, negative)]
+    n = max(1, *[len(b) for b in body])
     out = []
-    for ids in body:
+    for parts in body:
         chunks = []
         for i in range(n):
-            c = ids[i * 75:(i + 1) * 75]
+            c = parts[i] if i < len(parts) else []
             c = [tok.bos_token_id] + c + [tok.eos_token_id] * (76 - len(c))
             with torch.no_grad():
                 chunks.append(enc(torch.tensor([c]))[0])
@@ -164,8 +217,36 @@ def encode(pipe, prompt, negative):
     return out
 
 
+WEIGHTED = re.compile(r"\(([^():]+):([0-9]*\.?[0-9]+)\)")
+
+
+def split_weighted(tok, text, size=75):
+    """「(short skirt:1.5)」の形で重みを付けた指示文を、split_tokens と同じ区切りに分け、トークンごとの重みも返す。
+    重みの無い所は 1.0。打ち消しに「short skirt」を入れても指示文と同じ重みでしか効かず、
+    丈の長い服を頼んだ 11 枚すべてが短いスカートになったので、言葉ごとに強められるようにした"""
+    ids, ws, pos = [], [], 0
+    for m in list(WEIGHTED.finditer(text)) + [None]:
+        plain = text[pos:m.start()] if m else text[pos:]
+        for seg, w in ((plain, 1.0),) + (((m.group(1), float(m.group(2))),) if m else ()):
+            t = tok(seg, add_special_tokens=False, verbose=False).input_ids if seg.strip() else []
+            ids += t
+            ws += [w] * len(t)
+        if m:
+            pos = m.end()
+    comma = tok(",", add_special_tokens=False, verbose=False).input_ids
+    comma = comma[0] if len(comma) == 1 else None
+    out = []
+    while len(ids) > size:
+        cut = max((i + 1 for i in range(size) if ids[i] == comma), default=size)
+        out.append((ids[:cut], ws[:cut]))
+        ids, ws = ids[cut:], ws[cut:]
+    if ids or not out:
+        out.append((ids, ws))
+    return out
+
+
 def encode_xl(pipe, prompt, negative):
-    """SDXL 系の2つの文章の読み手それぞれで、長い指示文を 75 トークンずつ分けて読み、つなげて渡す。
+    """SDXL 系の2つの文章の読み手それぞれで、長い指示文を 75 トークン以下の区切り（読点で切る）に分けて読み、つなげて渡す。
 
     SDXL 系も 77 トークンまでしか読まない。DigiMon の作風（鋭い目、角張った輪郭）を共通に足したら
     41 枚すべてで後ろの「2D アニメの塗り、白い背景」が切れ、背景の入った絵になった。
@@ -173,19 +254,26 @@ def encode_xl(pipe, prompt, negative):
     """
     import torch
     pairs = [(pipe.tokenizer, pipe.text_encoder), (pipe.tokenizer_2, pipe.text_encoder_2)]
-    ids = [[tok(t, add_special_tokens=False).input_ids for t in (prompt, negative)] for tok, _ in pairs]
-    n = max(1, *[(len(b) + 74) // 75 for per in ids for b in per])
+    ids = [[split_weighted(tok, t) for t in (prompt, negative)] for tok, _ in pairs]
+    n = max(1, *[len(b) for per in ids for b in per])
     embeds, pooled = [[], []], [None, None]
     for (tok, enc), per in zip(pairs, ids):
         for k, body in enumerate(per):
             chunks = []
             for i in range(n):
-                c = body[i * 75:(i + 1) * 75]
+                c, w = body[i] if i < len(body) else ([], [])
                 pad = tok.pad_token_id if tok.pad_token_id is not None else tok.eos_token_id
                 c = [tok.bos_token_id] + c + [tok.eos_token_id] + [pad] * (75 - len(c))
+                w = [1.0] + w + [1.0] * (76 - len(w))
                 with torch.no_grad():
                     out = enc(torch.tensor([c]), output_hidden_states=True)
-                chunks.append(out.hidden_states[-2])
+                h = out.hidden_states[-2]
+                if any(x != 1.0 for x in w):
+                    # 重みを掛けたあと、区切り全体の平均を元に戻す。平均ごと動くと絵全体の調子が変わるため
+                    mean = h.mean()
+                    h = h * torch.tensor(w, dtype=h.dtype).view(1, -1, 1)
+                    h = h * (mean / h.mean())
+                chunks.append(h)
                 if enc is pipe.text_encoder_2 and i == 0:
                     pooled[k] = out[0]
             embeds[k].append(torch.cat(chunks, dim=1))
@@ -206,6 +294,9 @@ def draw(out, prompt, seed, n, style, steps, width, height, kind="human", negati
     if kind == "creature" and style in XL:
         # SDXL は言葉で書く。アニメのタグ（no humans, feral）は効かない
         head, tail, neg = "", XL_CREATURE_SUFFIX, XL_CREATURE_NEGATIVE
+        if " style" in prompt:
+            # 画風を頼まれたら、決まり文句のアニメ塗りで上書きしない
+            tail = ", full body, creature design, white background"
     elif kind == "creature":
         head, tail, neg = CREATURE_PREFIX, CREATURE_SUFFIX, NEGATIVE + ", " + CREATURE_NEGATIVE
     elif scene:
@@ -252,6 +343,9 @@ def load_cast(path):
         elif c.get("kind") == "item":
             # 物には生き物の決まり（目、顔つき）も人の決まりも付けない。item_common だけ
             common = cast.get("item_common", "")
+        elif c.get("kind") == "blob":
+            # 塊の生き物に creature_common を付けると手足を呼ぶ言葉が混ざるので、作風だけの blob_common を使う
+            common = cast.get("blob_common", "")
         else:
             common = cast.get("common", "")
         c["full_prompt"] = c["prompt"] + (", " + common if common else "")
@@ -261,17 +355,17 @@ def load_cast(path):
 TRAITS = json.loads((Path(__file__).parent / "traits.json").read_text(encoding="utf-8"))
 
 
-PATTERNS = json.loads((ROOT / "library" / "patterns.json").read_text(encoding="utf-8"))["patterns"]
+PATTERNS = json.loads((ROOT / "casts" / "patterns.json").read_text(encoding="utf-8"))["patterns"]
 
 
 def trait_texts(c):
-    """設定集の traits（"分類:種類" の並び）と patterns（library/patterns.json の名前）を、指示文と打ち消しの言葉にする。
+    """設定集の traits（"分類:種類" の並び）と patterns（casts/patterns.json の名前）を、指示文と打ち消しの言葉にする。
     知らない種類や名前は止める（黙って無視すると、効かなかったのか書き間違いなのか分からない）。"""
     ps, ns = [], []
     traits = list(c.get("traits", []))
     for name in c.get("patterns", []):
         if name not in PATTERNS:
-            raise SystemExit(f"{c.get('id')}: patterns の {name} が library/patterns.json に無い")
+            raise SystemExit(f"{c.get('id')}: patterns の {name} が casts/patterns.json に無い")
         traits += PATTERNS[name].get("traits", [])
         if PATTERNS[name].get("prompt"):
             ps.append(PATTERNS[name]["prompt"])
@@ -297,6 +391,9 @@ def full_texts(c, style="anime"):
     if c.get("kind") == "item":
         neg = ", ".join(x for x in (XL_ITEM_NEGATIVE, c.get("negative", "")) if x)
         return c["full_prompt"] + XL_ITEM_SUFFIX, neg
+    if c.get("kind") == "blob":
+        neg = ", ".join(x for x in (XL_BLOB_NEGATIVE, c.get("negative", "")) if x)
+        return c["full_prompt"] + XL_BLOB_SUFFIX, neg
     if c.get("kind") == "creature" and style in XL:
         neg = ", ".join(x for x in (XL_CREATURE_NEGATIVE, c.get("negative", "")) if x)
         return c["full_prompt"] + XL_CREATURE_SUFFIX, neg
@@ -350,7 +447,7 @@ def cast_paths(cast, outdir, style=None):
     base = style or cast.get("style", "anime")
     for c in cast["characters"]:
         seed, n = c.get("seed", 7), c.get("n", cast.get("n", 2))
-        styles = c.get("styles") or (CREATURE_STYLES if c.get("kind") in ("creature", "item")
+        styles = c.get("styles") or (CREATURE_STYLES if c.get("kind") in ("creature", "item", "blob")
                                      else ["xl"] if c.get("age") in OLD_AGES else [base])
         rejected = c.get("rejected", {})
         shots = []
@@ -385,7 +482,7 @@ def batch(cast_path, outdir, style, steps, width, height, kind=None):
     cast = load_cast(cast_path)
     Path(outdir).mkdir(parents=True, exist_ok=True)
     todo = [(c, p, seed, st) for c, shots in cast_paths(cast, outdir, style) for p, seed, st in shots
-            if not p.exists() and (kind is None or (c.get("kind") == "creature") == (kind == "creature"))]
+            if not p.exists() and (kind is None or (c.get("kind") in ("creature", "blob")) == (kind == "creature"))]
     print(f"{len(todo)} 枚を描く")
     # 下絵（init_dir/<id>.png）がある人物は、その形の上に描く（img2img）。文章だけでは手足の数や
     # 「手足の無い塊」を守らせきれなかった。strength が小さいほど下絵の形が残る
@@ -439,9 +536,10 @@ def batch(cast_path, outdir, style, steps, width, height, kind=None):
             meta = {"name": c.get("name", c["id"]), "prompt": text, "negative": neg, "seed": seed, "style": st,
                     "model": STYLES[st], "steps": steps}
             note = ""
-            if c.get("kind") not in ("creature", "item"):
+            if c.get("kind") not in ("creature", "item", "blob"):
                 meta["inspect"], meta["marks"] = check_person(p)
-                note = "  直す所: " + "、".join(meta["inspect"]) if meta["inspect"] else "  外れなし"
+                # ここは形の検品（edit.inspect）だけ。作画監督の検品は描き終えたあとなので、結果は最後の行に出す
+                note = "  形: " + "、".join(meta["inspect"]) if meta["inspect"] else "  形の外れなし"
             Path(str(p) + ".json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
             print(f"{p}: {time.time() - t:.1f} 秒{note}", flush=True)
         del pipe
@@ -450,6 +548,23 @@ def batch(cast_path, outdir, style, steps, width, height, kind=None):
     people = [t[1] for t in todo if t[0].get("kind") not in ("creature", "item") and t[1].exists()]
     if people:
         auto_face_fix(people)
+    # 結果の行は <絵>.json の marks から作る。描いた直後の行は作画監督の検品より前なので、7周目で marks に印がある
+    # 2枚を「外れなし」と出した
+    for p in people:
+        print(result_line(p), flush=True)
+
+
+def result_line(p):
+    """<絵>.json の marks と顔の描き直しの結果から、1枚の結果の行を作る"""
+    f = Path(str(p) + ".json")
+    meta = json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+    whats = list(dict.fromkeys(m.get("what", "?") for m in meta.get("marks", [])))
+    line = f"結果 {p}: " + (f"直す所 {len(whats)}（" + "、".join(whats) + "）" if whats else "外れなし")
+    ff = meta.get("facefix")
+    if ff:
+        line += "  顔の描き直し: " + ("採るかの判定なし" if "adopted" not in ff else "採った" if ff["adopted"]
+                                     else "採らない（" + ff.get("why", "") + "）")
+    return line
 
 
 # edit.inspect の理由のうち、構図そのものの崩れ（人がいない、2人目や離れた物、体が画面の端で切れた）。部分の描き直しでは直らない
@@ -479,6 +594,35 @@ def check_person(p):
     return reasons, person_marks(reasons)
 
 
+def _excess(m):
+    """印の数字が決まりの範囲からどれだけ外れているか（範囲内は 0）。数字の無い印は 1（読めない）"""
+    w = m.get("where")
+    v = w.get("value") if isinstance(w, dict) else None
+    if not isinstance(v, (int, float)):
+        return 1.0
+    lo, hi = w.get("min"), w.get("max")
+    return max((lo - v) if lo is not None else 0, (v - hi) if hi is not None else 0, 0)
+
+
+def face_worse(before, after):
+    """顔を描き直す前後の印を比べ、悪くなった所を返す（空なら悪くなっていない）。
+    顔の印（repair が face_fix）が新しく出た、または範囲からの外れが大きくなったものを数える。
+    ok（外れが1つも無い）だけで比べると、外れが減っても残る限り直しが効いたか分からなかった"""
+    was = {m.get("what"): _excess(m) for m in before if m.get("repair") == "face_fix"}
+    out = []
+    for m in after:
+        if m.get("repair") != "face_fix":
+            continue
+        k, e = m.get("what"), _excess(m)
+        if k not in was:
+            out.append(f"{k} が新しく出た")
+        elif e > was[k] + 1e-9:
+            w = m.get("where")
+            v = w.get("value") if isinstance(w, dict) else None
+            out.append(f"{k} {v}" if v is not None else f"{k} が悪くなった")
+    return out
+
+
 def auto_face_fix(paths, fix=None, check=None):
     """描いた絵を作画監督（qc.auto_check）にかけ、直せる顔の崩れ（repair が face_fix の印）があれば顔を描き直す。
     直した絵は <名前>.facefix.png に置き、元の絵は残す。直した絵も同じ検品にかけ、結果を <絵>.json の facefix に書く。
@@ -506,9 +650,22 @@ def auto_face_fix(paths, fix=None, check=None):
             if r.get("fixed"):
                 after = check(out, meta.get("prompt", ""))
                 r = {**r, "file": Path(out).name, "ok": after.get("ok"), "marks": after.get("marks", [])}
+                worse = face_worse(res.get("marks", []), after.get("marks", []))
+                r["adopted"] = not worse
+                if worse:
+                    # 直したあとの方が悪い絵は採らない。7周目は 4 枚とも外れが残り、1 枚は face.rms が 0.091 → 0.181 に悪くなった。
+                    # 悪い方を置いておくと、一覧や次の手順が誤って拾うので、名前を変えて元の絵を正とする
+                    rej = Path(out).with_suffix(".rejected.png")
+                    Path(out).replace(rej)
+                    r.update(file=rej.name, why="直したあとの方が悪い: " + "、".join(worse))
+                    meta["marks"].append({"what": "face_fix_rejected", "kind": "fix", "repair": "none",
+                                          "where": {"worse": worse, "file": rej.name}, "unreadable": False})
+            else:
+                r["adopted"] = False
             meta["facefix"] = r
             done[str(p)] = r
-            print(f"{p}: 顔を描き直した → {r.get('file', r.get('why'))}", flush=True)
+            print(f"{p}: 顔を描き直した → {r.get('file', '')} {'採った' if r.get('adopted') else '採らない ' + r.get('why', '')}",
+                  flush=True)
         meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
     return done
 

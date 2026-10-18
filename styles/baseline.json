@@ -1,0 +1,981 @@
+{
+ "about": "頼みごとで特に指定しない限り守る最低限の決まり。tools/gen/baseline.py が描く直前（free_text.full_prompt）に足し、描いたあとは check の検品が守られたかを見る。person は人物の絵に必ず掛ける決まり、when はその言葉があるときに掛ける決まり、unless の言葉があればその決まりを外す（頼んだことが先）。足すのは打ち消しが中心で、add は種族から当然に付く部位だけ。掛ける順は tiers（human → species → illustration）。説明は docs/knowledge/baseline-rules.md",
+ "person_words": [
+  "1girl",
+  "1boy",
+  "1other",
+  "2girls",
+  "2boys",
+  "girl",
+  "boy",
+  "woman",
+  "man",
+  "solo",
+  "person"
+ ],
+ "rules": [
+  {
+   "id": "arms",
+   "topic": "腕は 2 本・手は 2 つ",
+   "when": [],
+   "person": true,
+   "add": [],
+   "negative": [
+    "extra arms",
+    "extra hands"
+   ],
+   "unless": [
+    "multiple arms",
+    "four arms",
+    "six arms",
+    "extra arms",
+    "extra hands",
+    "asura"
+   ],
+   "check": "body_parts",
+   "why": "画像生成は腕や手を 3 本以上描くことがある",
+   "tier": "human"
+  },
+  {
+   "id": "legs",
+   "topic": "脚は 2 本",
+   "when": [],
+   "person": true,
+   "add": [],
+   "negative": [
+    "extra legs",
+    "missing limb"
+   ],
+   "unless": [
+    "centaur",
+    "arachne",
+    "spider girl",
+    "taur",
+    "multiple legs",
+    "extra legs",
+    "lamia",
+    "mermaid",
+    "merman",
+    "ghost",
+    "amputee",
+    "missing limb"
+   ],
+   "check": "body_parts",
+   "why": "下半身が人と違う種族以外で脚が増える・消える",
+   "tier": "human"
+  },
+  {
+   "id": "limbs",
+   "topic": "手足の数",
+   "when": [],
+   "person": true,
+   "add": [],
+   "negative": [
+    "extra limbs"
+   ],
+   "unless": [
+    "multiple arms",
+    "four arms",
+    "six arms",
+    "asura",
+    "centaur",
+    "arachne",
+    "spider girl",
+    "taur",
+    "tentacles",
+    "scylla"
+   ],
+   "check": "body_parts",
+   "why": "手足が体から余分に生える",
+   "tier": "human"
+  },
+  {
+   "id": "fingers",
+   "topic": "指は片手 5 本",
+   "when": [],
+   "person": true,
+   "add": [],
+   "negative": [
+    "extra fingers",
+    "fewer digits",
+    "fused fingers"
+   ],
+   "unless": [],
+   "check": "hands",
+   "why": "指の数の崩れが最も多い",
+   "tier": "human"
+  },
+  {
+   "id": "head",
+   "topic": "頭は 1 つ",
+   "when": [],
+   "person": true,
+   "add": [],
+   "negative": [
+    "multiple heads"
+   ],
+   "unless": [
+    "multiple heads",
+    "two-headed",
+    "hydra",
+    "cerberus"
+   ],
+   "check": "body_parts",
+   "why": "頭が 2 つ描かれる",
+   "tier": "human"
+  },
+  {
+   "id": "eyes",
+   "topic": "目は 2 つ",
+   "when": [],
+   "person": true,
+   "add": [],
+   "negative": [
+    "extra eyes"
+   ],
+   "unless": [
+    "third eye",
+    "multiple eyes",
+    "extra eyes",
+    "cyclops",
+    "one eye"
+   ],
+   "check": "extra_eyes",
+   "why": "目が増える",
+   "tier": "human"
+  },
+  {
+   "id": "eye_color",
+   "topic": "左右の目は同じ色",
+   "when": [],
+   "person": true,
+   "add": [],
+   "negative": [
+    "heterochromia"
+   ],
+   "unless": [
+    "heterochromia",
+    "odd eyes",
+    "mismatched eyes"
+   ],
+   "check": "measure",
+   "why": "頼んでいないのに左右で色が違う目になる",
+   "tier": "human"
+  },
+  {
+   "id": "ears",
+   "topic": "耳は 2 つ",
+   "when": [],
+   "person": true,
+   "add": [],
+   "negative": [
+    "extra ears"
+   ],
+   "unless": [
+    "extra ears"
+   ],
+   "check": "body_parts",
+   "why": "人の耳と獣耳が両方描かれる",
+   "tier": "human"
+  },
+  {
+   "id": "tails",
+   "topic": "尾は多くて 1 本",
+   "when": [],
+   "person": true,
+   "add": [],
+   "negative": [
+    "multiple tails"
+   ],
+   "unless": [
+    "multiple tails",
+    "nine tails",
+    "two tails",
+    "kitsune",
+    "nekomata",
+    "kyuubi"
+   ],
+   "check": "body_parts",
+   "why": "尾が増える",
+   "tier": "human"
+  },
+  {
+   "id": "wings",
+   "topic": "翼は 1 対",
+   "when": [],
+   "person": true,
+   "add": [],
+   "negative": [
+    "multiple wings",
+    "asymmetrical wings"
+   ],
+   "unless": [
+    "multiple wings",
+    "four wings",
+    "six wings",
+    "seraph",
+    "single wing",
+    "asymmetrical wings"
+   ],
+   "check": "body_parts",
+   "why": "翼が増える・左右で形が違う",
+   "tier": "human"
+  },
+  {
+   "id": "horns",
+   "topic": "角は左右そろう",
+   "when": [
+    "horns",
+    "horn"
+   ],
+   "person": false,
+   "add": [],
+   "negative": [
+    "asymmetrical horns",
+    "broken horn"
+   ],
+   "unless": [
+    "single horn",
+    "broken horn",
+    "asymmetrical horns",
+    "unicorn"
+   ],
+   "check": null,
+   "why": "片方だけ角が欠ける・形が違う",
+   "tier": "species"
+  },
+  {
+   "id": "catgirl",
+   "topic": "種族の部位: cat girl",
+   "when": [
+    "cat girl",
+    "catgirl",
+    "nekomimi"
+   ],
+   "person": false,
+   "add": [
+    "cat ears",
+    "cat tail"
+   ],
+   "negative": [
+    "human ears"
+   ],
+   "unless": [],
+   "check": "asked_but_missing",
+   "why": "種族の部位が欠ける・人の部位と重なる（獣耳の亜人に人の耳）",
+   "tier": "species"
+  },
+  {
+   "id": "foxgirl",
+   "topic": "種族の部位: fox girl",
+   "when": [
+    "fox girl",
+    "kitsune"
+   ],
+   "person": false,
+   "add": [
+    "fox ears",
+    "fox tail"
+   ],
+   "negative": [
+    "human ears"
+   ],
+   "unless": [],
+   "check": "asked_but_missing",
+   "why": "種族の部位が欠ける・人の部位と重なる（獣耳の亜人に人の耳）",
+   "tier": "species"
+  },
+  {
+   "id": "wolf",
+   "topic": "種族の部位: wolf girl",
+   "when": [
+    "wolf girl",
+    "wolf boy"
+   ],
+   "person": false,
+   "add": [
+    "wolf ears",
+    "wolf tail"
+   ],
+   "negative": [
+    "human ears"
+   ],
+   "unless": [],
+   "check": "asked_but_missing",
+   "why": "種族の部位が欠ける・人の部位と重なる（獣耳の亜人に人の耳）",
+   "tier": "species"
+  },
+  {
+   "id": "dog",
+   "topic": "種族の部位: dog girl",
+   "when": [
+    "dog girl",
+    "dog boy",
+    "inumimi"
+   ],
+   "person": false,
+   "add": [
+    "dog ears",
+    "dog tail"
+   ],
+   "negative": [
+    "human ears"
+   ],
+   "unless": [],
+   "check": "asked_but_missing",
+   "why": "種族の部位が欠ける・人の部位と重なる（獣耳の亜人に人の耳）",
+   "tier": "species"
+  },
+  {
+   "id": "bunny",
+   "topic": "種族の部位: bunny girl",
+   "when": [
+    "bunny girl",
+    "rabbit girl",
+    "usagimimi"
+   ],
+   "person": false,
+   "add": [
+    "rabbit ears"
+   ],
+   "negative": [
+    "human ears"
+   ],
+   "unless": [],
+   "check": "asked_but_missing",
+   "why": "種族の部位が欠ける・人の部位と重なる（獣耳の亜人に人の耳）",
+   "tier": "species"
+  },
+  {
+   "id": "elf",
+   "topic": "種族の部位: elf",
+   "when": [
+    "elf",
+    "high elf",
+    "dark elf"
+   ],
+   "person": false,
+   "add": [
+    "pointy ears"
+   ],
+   "negative": [
+    "animal ears"
+   ],
+   "unless": [],
+   "check": "asked_but_missing",
+   "why": "種族の部位が欠ける・人の部位と重なる（獣耳の亜人に人の耳）",
+   "tier": "species"
+  },
+  {
+   "id": "angel",
+   "topic": "種族の部位: angel",
+   "when": [
+    "angel"
+   ],
+   "person": false,
+   "add": [
+    "feathered wings"
+   ],
+   "negative": [
+    "bat wings",
+    "horns"
+   ],
+   "unless": [],
+   "check": "asked_but_missing",
+   "why": "種族の部位が欠ける・人の部位と重なる（獣耳の亜人に人の耳）",
+   "tier": "species"
+  },
+  {
+   "id": "demon",
+   "topic": "種族の部位: demon girl",
+   "when": [
+    "demon girl",
+    "demon boy",
+    "devil"
+   ],
+   "person": false,
+   "add": [
+    "horns"
+   ],
+   "negative": [
+    "halo"
+   ],
+   "unless": [],
+   "check": "asked_but_missing",
+   "why": "種族の部位が欠ける・人の部位と重なる（獣耳の亜人に人の耳）",
+   "tier": "species"
+  },
+  {
+   "id": "dragon",
+   "topic": "種族の部位: dragon girl",
+   "when": [
+    "dragon girl",
+    "dragon boy"
+   ],
+   "person": false,
+   "add": [
+    "dragon horns",
+    "dragon tail"
+   ],
+   "negative": [
+    "human ears"
+   ],
+   "unless": [],
+   "check": "asked_but_missing",
+   "why": "種族の部位が欠ける・人の部位と重なる（獣耳の亜人に人の耳）",
+   "tier": "species"
+  },
+  {
+   "id": "mermaid",
+   "topic": "種族の部位: mermaid",
+   "when": [
+    "mermaid",
+    "merman"
+   ],
+   "person": false,
+   "add": [
+    "fish tail",
+    "no legs"
+   ],
+   "negative": [
+    "legs",
+    "feet",
+    "shoes"
+   ],
+   "unless": [],
+   "check": "asked_but_missing",
+   "why": "種族の部位が欠ける・人の部位と重なる（獣耳の亜人に人の耳）",
+   "tier": "species"
+  },
+  {
+   "id": "lamia",
+   "topic": "種族の部位: lamia",
+   "when": [
+    "lamia"
+   ],
+   "person": false,
+   "add": [
+    "snake tail",
+    "no legs"
+   ],
+   "negative": [
+    "legs",
+    "feet",
+    "shoes"
+   ],
+   "unless": [],
+   "check": "asked_but_missing",
+   "why": "種族の部位が欠ける・人の部位と重なる（獣耳の亜人に人の耳）",
+   "tier": "species"
+  },
+  {
+   "id": "centaur",
+   "topic": "種族の部位: centaur",
+   "when": [
+    "centaur"
+   ],
+   "person": false,
+   "add": [
+    "horse lower body",
+    "four legs",
+    "hooves"
+   ],
+   "negative": [
+    "human legs",
+    "shoes"
+   ],
+   "unless": [],
+   "check": "asked_but_missing",
+   "why": "種族の部位が欠ける・人の部位と重なる（獣耳の亜人に人の耳）",
+   "tier": "species"
+  },
+  {
+   "id": "harpy",
+   "topic": "種族の部位: harpy",
+   "when": [
+    "harpy"
+   ],
+   "person": false,
+   "add": [
+    "winged arms",
+    "bird legs",
+    "talons"
+   ],
+   "negative": [
+    "human hands"
+   ],
+   "unless": [],
+   "check": "asked_but_missing",
+   "why": "種族の部位が欠ける・人の部位と重なる（獣耳の亜人に人の耳）",
+   "tier": "species"
+  },
+  {
+   "id": "quadruped",
+   "topic": "四足の獣は脚 4 本・尾 1 本",
+   "when": [
+    "cat",
+    "dog",
+    "fox",
+    "wolf",
+    "horse",
+    "deer",
+    "lion",
+    "tiger",
+    "bear",
+    "rabbit",
+    "cow",
+    "pig",
+    "sheep",
+    "goat"
+   ],
+   "person": false,
+   "add": [],
+   "negative": [
+    "extra legs",
+    "fewer legs",
+    "multiple tails",
+    "multiple heads",
+    "human hands",
+    "human face"
+   ],
+   "unless": [
+    "kitsune",
+    "nekomata",
+    "nine tails",
+    "cerberus",
+    "centaur",
+    "anthropomorphic",
+    "furry",
+    "kemonomimi"
+   ],
+   "check": "body_parts",
+   "why": "体の設計図（casts/body-plans.json）の部位の数。人型でない絵で手足の数・人の手が混ざる",
+   "tier": "species",
+   "animal": true
+  },
+  {
+   "id": "bird",
+   "topic": "鳥は翼 2 枚・脚 2 本・くちばし 1 つ",
+   "when": [
+    "bird",
+    "crow",
+    "owl",
+    "eagle",
+    "hawk",
+    "sparrow",
+    "parrot",
+    "penguin",
+    "duck",
+    "swan",
+    "chicken"
+   ],
+   "person": false,
+   "add": [],
+   "negative": [
+    "extra wings",
+    "extra legs",
+    "multiple heads",
+    "human hands"
+   ],
+   "unless": [
+    "harpy",
+    "multiple wings"
+   ],
+   "check": "body_parts",
+   "why": "体の設計図（casts/body-plans.json）の部位の数。人型でない絵で手足の数・人の手が混ざる",
+   "tier": "species",
+   "animal": true
+  },
+  {
+   "id": "insect",
+   "topic": "虫は脚 6 本・触角 2 本",
+   "when": [
+    "insect",
+    "beetle",
+    "ant",
+    "bee",
+    "butterfly",
+    "dragonfly",
+    "ladybug"
+   ],
+   "person": false,
+   "add": [],
+   "negative": [
+    "extra legs",
+    "fewer legs",
+    "human hands"
+   ],
+   "unless": [
+    "arachne"
+   ],
+   "check": "body_parts",
+   "why": "体の設計図（casts/body-plans.json）の部位の数。人型でない絵で手足の数・人の手が混ざる",
+   "tier": "species",
+   "animal": true
+  },
+  {
+   "id": "spider",
+   "topic": "蜘蛛は脚 8 本",
+   "when": [
+    "spider"
+   ],
+   "person": false,
+   "add": [],
+   "negative": [
+    "fewer legs",
+    "extra legs",
+    "human hands"
+   ],
+   "unless": [
+    "spider girl",
+    "arachne"
+   ],
+   "check": "body_parts",
+   "why": "体の設計図（casts/body-plans.json）の部位の数。人型でない絵で手足の数・人の手が混ざる",
+   "tier": "species",
+   "animal": true
+  },
+  {
+   "id": "fish",
+   "topic": "魚に脚は無い",
+   "when": [
+    "fish",
+    "shark",
+    "goldfish",
+    "carp",
+    "koi"
+   ],
+   "person": false,
+   "add": [],
+   "negative": [
+    "legs",
+    "feet",
+    "human hands"
+   ],
+   "unless": [
+    "mermaid",
+    "merman"
+   ],
+   "check": "body_parts",
+   "why": "体の設計図（casts/body-plans.json）の部位の数。人型でない絵で手足の数・人の手が混ざる",
+   "tier": "species",
+   "animal": true
+  },
+  {
+   "id": "western_dragon",
+   "topic": "西洋の竜は脚 4 本・翼 2 枚",
+   "when": [
+    "western dragon",
+    "wyvern"
+   ],
+   "person": false,
+   "add": [],
+   "negative": [
+    "extra legs",
+    "extra wings",
+    "multiple heads"
+   ],
+   "unless": [
+    "hydra",
+    "dragon girl",
+    "dragon boy"
+   ],
+   "check": "body_parts",
+   "why": "体の設計図（casts/body-plans.json）の部位の数。人型でない絵で手足の数・人の手が混ざる",
+   "tier": "species",
+   "animal": true
+  },
+  {
+   "id": "solo",
+   "topic": "1 人だけ",
+   "when": [
+    "solo",
+    "1girl",
+    "1boy",
+    "1other"
+   ],
+   "person": false,
+   "add": [],
+   "negative": [
+    "multiple girls",
+    "multiple boys",
+    "2girls",
+    "2boys",
+    "crowd"
+   ],
+   "unless": [
+    "2girls",
+    "2boys",
+    "multiple girls",
+    "multiple boys",
+    "crowd",
+    "group"
+   ],
+   "check": null,
+   "why": "頼んでいない人物が増える",
+   "tier": "illustration"
+  },
+  {
+   "id": "sword",
+   "topic": "持ち物は 1 つ: sword",
+   "when": [
+    "sword",
+    "katana",
+    "holding sword"
+   ],
+   "person": false,
+   "add": [],
+   "negative": [
+    "multiple swords",
+    "blade through hand"
+   ],
+   "unless": [
+    "dual wielding",
+    "multiple swords",
+    "two swords"
+   ],
+   "check": "held_items",
+   "why": "頼んだ持ち物が 2 つ描かれる（剣 2 本・カップ 2 個）",
+   "tier": "illustration"
+  },
+  {
+   "id": "bow",
+   "topic": "持ち物は 1 つ: bow (weapon)",
+   "when": [
+    "bow (weapon)",
+    "holding bow",
+    "archer"
+   ],
+   "person": false,
+   "add": [],
+   "negative": [
+    "multiple bows",
+    "no bowstring"
+   ],
+   "unless": [
+    "multiple bows"
+   ],
+   "check": "held_items",
+   "why": "頼んだ持ち物が 2 つ描かれる（剣 2 本・カップ 2 個）",
+   "tier": "illustration"
+  },
+  {
+   "id": "cup",
+   "topic": "持ち物は 1 つ: cup",
+   "when": [
+    "cup",
+    "mug",
+    "teacup",
+    "holding cup"
+   ],
+   "person": false,
+   "add": [],
+   "negative": [
+    "multiple cups"
+   ],
+   "unless": [
+    "multiple cups",
+    "two cups"
+   ],
+   "check": "held_items",
+   "why": "頼んだ持ち物が 2 つ描かれる（剣 2 本・カップ 2 個）",
+   "tier": "illustration"
+  },
+  {
+   "id": "staff",
+   "topic": "持ち物は 1 つ: staff",
+   "when": [
+    "staff",
+    "holding staff",
+    "wand"
+   ],
+   "person": false,
+   "add": [],
+   "negative": [
+    "multiple staffs"
+   ],
+   "unless": [
+    "multiple staffs"
+   ],
+   "check": "held_items",
+   "why": "頼んだ持ち物が 2 つ描かれる（剣 2 本・カップ 2 個）",
+   "tier": "illustration"
+  },
+  {
+   "id": "umbrella",
+   "topic": "持ち物は 1 つ: umbrella",
+   "when": [
+    "umbrella"
+   ],
+   "person": false,
+   "add": [],
+   "negative": [
+    "multiple umbrellas"
+   ],
+   "unless": [
+    "multiple umbrellas"
+   ],
+   "check": "held_items",
+   "why": "頼んだ持ち物が 2 つ描かれる（剣 2 本・カップ 2 個）",
+   "tier": "illustration"
+  },
+  {
+   "id": "book",
+   "topic": "持ち物は 1 つ: book",
+   "when": [
+    "book",
+    "holding book"
+   ],
+   "person": false,
+   "add": [],
+   "negative": [
+    "multiple books"
+   ],
+   "unless": [
+    "multiple books",
+    "stack of books",
+    "bookshelf",
+    "library"
+   ],
+   "check": "held_items",
+   "why": "頼んだ持ち物が 2 つ描かれる（剣 2 本・カップ 2 個）",
+   "tier": "illustration"
+  },
+  {
+   "id": "shoes",
+   "topic": "靴は左右そろう",
+   "when": [
+    "shoes",
+    "boots",
+    "sneakers",
+    "sandals",
+    "heels",
+    "loafers",
+    "footwear",
+    "full body"
+   ],
+   "person": false,
+   "add": [],
+   "negative": [
+    "mismatched footwear",
+    "mismatched shoes"
+   ],
+   "unless": [
+    "mismatched footwear",
+    "mismatched shoes",
+    "single shoe"
+   ],
+   "check": "shoe_pair",
+   "why": "左右で形・色の違う靴を描く",
+   "tier": "illustration"
+  },
+  {
+   "id": "gloves",
+   "topic": "手袋は左右そろう",
+   "when": [
+    "gloves",
+    "gauntlets"
+   ],
+   "person": false,
+   "add": [],
+   "negative": [
+    "single glove",
+    "mismatched gloves"
+   ],
+   "unless": [
+    "single glove",
+    "single gauntlet",
+    "mismatched gloves"
+   ],
+   "check": null,
+   "why": "片手だけ手袋・籠手になる",
+   "tier": "illustration"
+  },
+  {
+   "id": "earrings",
+   "topic": "耳飾りは左右そろう",
+   "when": [
+    "earrings"
+   ],
+   "person": false,
+   "add": [],
+   "negative": [
+    "single earring",
+    "mismatched earrings"
+   ],
+   "unless": [
+    "single earring",
+    "mismatched earrings"
+   ],
+   "check": null,
+   "why": "片耳だけ・左右で違う耳飾り",
+   "tier": "illustration"
+  },
+  {
+   "id": "headwear",
+   "topic": "頼んでいない帽子は描かない",
+   "when": [],
+   "person": true,
+   "add": [],
+   "negative": [
+    "hat",
+    "headwear"
+   ],
+   "unless": [
+    "hat",
+    "cap",
+    "beret",
+    "helmet",
+    "hood",
+    "crown",
+    "tiara",
+    "headwear",
+    "witch",
+    "headband",
+    "hairband",
+    "bonnet",
+    "turban",
+    "veil"
+   ],
+   "check": "unasked_item",
+   "why": "頼んでいない帽子が 8 枚中 7 枚に描かれた（描画確認 回5）",
+   "tier": "illustration"
+  },
+  {
+   "id": "eyewear",
+   "topic": "頼んでいない眼鏡は描かない",
+   "when": [],
+   "person": true,
+   "add": [],
+   "negative": [
+    "glasses",
+    "sunglasses"
+   ],
+   "unless": [
+    "glasses",
+    "sunglasses",
+    "goggles",
+    "eyewear",
+    "monocle"
+   ],
+   "check": "unasked_item",
+   "why": "頼んでいない眼鏡・サングラスが描かれる",
+   "tier": "illustration"
+  }
+ ],
+ "not_person": [
+  "no humans",
+  "animal focus",
+  "creature",
+  "monster",
+  "robot",
+  "mecha",
+  "slime",
+  "golem"
+ ],
+ "tiers": {
+  "human": "人として正しい体（腕・脚・指・頭・目・耳）",
+  "species": "動物・種族の体（設計図の部位の数、種族から付く部位）",
+  "illustration": "イラストとして要る決まり（1 人、持ち物は 1 つ、左右そろう物、頼んでいない帽子と眼鏡）"
+ }
+}

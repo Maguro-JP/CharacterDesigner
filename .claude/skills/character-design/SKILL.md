@@ -35,7 +35,7 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
 
 ## 女性キャラクターの基準の体
 
-女性を描くときは、利用者が決めた体のベース `ideal` を使う（`library/body-types.json` の anime.ideal、見本 `library/samples/anime-ideal-female.png`）。
+女性を描くときは、利用者が決めた体のベース `ideal` を使う（`casts/body-types.json` の anime.ideal、見本 `library/samples/anime-ideal-female.png`）。
 `PYTHONPATH=.cache/gen/lib python3 tools/gen/people.py card <出力> <名前> --gender female --base ideal --tags "<種族や特徴>"`
 体型を変えるよう頼まれたときだけ、ベースの言葉を変える。
 
@@ -75,6 +75,13 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
 
 ## 0. 頼まれたときの流れ
 
+描くモードは 2 つに分ける。
+- キャラデザの資料は 8 区分（`tools/gen/charsheet.py` の SECTIONS）: 1 基本情報（名前・年齢・身長と頭身・役割・性格・背景設定）、2 全身の四面図（正面・背面・左・右。左右は裏返して作らない）、3 ポーズ 3 種以上、4 胸から上の表情差分 8 種以上と髪型差分 2 種以上、5 目と髪の拡大、6 服の部位・装飾・武装と持ち物ごとの拡大、7 色見本（名前・値・部位）、8 補足（描くときの決まり・描いてはいけないもの）。`charsheet.py status <id>` で足りない物を見て、`charsheet.py render <id> <出力.html>` で資料を書き出す
+- キャラデザモード（AI が描くときは必ずここから）: 設定（見た目・服・色・持ち物）→ 目と表情（face-designer）→ 持ち物（prop-designer）→ 三面図（`bible.py turnaround`）→ 顔の拡大と表情差分（`bible.py expressions`）→ checker が 1 枚ずつ元の大きさで検品 → 通した三面図と表情差分を `bible.py add-image <id> turnaround|expressions` で登録。`bible.py design-status <id>` が ready になるまで、イラストに描かない
+- 背景に人物を入れるときは、キャラデザを貼り付けない。貼った絵は位置と大きさを決める下書きまでで、完成は下書きを土台にキャラデザを参考画像として読ませ、場面の光・向き・ポーズに合わせて描き直させた絵（`bible.py draw <id> <出力> --base <下書き> --strength 0.55`）
+- イラストレーターモード: 人が参考資料を付けて描くよう指示したとき。`bible.py draw <id> <出力> --reference <画像>` で、設計がそろっていなくても描く
+
+
 1. まずアニメ風のデザインを描いて見せる。種を変えて数枚出し、選んでもらう
    `PYTHONPATH=.cache/gen/lib python3 tools/gen/design.py draw out.png "<人物の説明（英語）>" --n 4`
    （初めての環境では `sh tools/gen/setup.sh`。CPU で1枚 約1分）
@@ -105,9 +112,9 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
 ### 作品の登場人物をまとめて頼まれたとき（何人も、系統や進化がある）
 
 依頼された作品は、デザインを作れるようになるための題材。作品の資料はその作品のリポジトリから読み、
-このリポジトリには設定集（`casts/<作品>.json`）と決まり（`docs/designs/<作品>.md`）だけを置く。
+このリポジトリには設定集（`casts/<作品>.json`）と決まり（`designs/<作品>/README.md`）だけを置く。
 
-1. 作品の資料を読み、作風・共通の印・系統ごとに残す印・段階の形を `docs/designs/<作品>.md` に決める。1体ずつ思いつきで書かない
+1. 作品の資料を読み、作風・共通の印・系統ごとに残す印・段階の形を `designs/<作品>/README.md` に決める。1体ずつ思いつきで書かない
 2. 設定集に1人1行で書く。人は `gender`（male / female / androgynous。男女は体と顔の骨格から描かれる）と `age`（child / teen / adult / middle / elder。中年と老人は自動で SDXL 系）、人でない者は `kind: "creature"`（SDXL 系で描き、人の決まり文句を付けない）。
    モンスターの指示文は `docs/knowledge/monster-design.md` の3節の書き方（元の動物の名詞から、部位の数、3色）
 3. 系統があるなら、先に各系統のベースの1体を決める（候補を6案ほど描き、検品し、選んでもらう）。ほかの段階はベースを手本に派生させる。
@@ -117,7 +124,7 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
 5. 同じ破綻が続いたら指示文の書き方を直し、`docs/knowledge/monster-design.md` の6節に足す
 6. 依頼先のリポジトリ（作品のリポジトリ）に送る。その作品のセッションが自分で続きを作れるようにするため:
    - `templates/character-design-client/SKILL.md` の `{{DESIGN_DIR}}` と `{{CAST}}` を埋めて、依頼先の `.claude/skills/character-design/SKILL.md` に置く
-   - 決定稿の絵・ドット絵・候補の一覧と、状態の表（README.md）を依頼先の決めた置き場に置く（DigiMon は `design/beasts/`、RuleCrawler は `docs/designs/`）
+   - 決定稿の絵・ドット絵・候補の一覧と、状態の表（README.md）を依頼先の決めた置き場に置く（DigiMon は `design/beasts/`、RuleCrawler は `designs/`）
    - push の仕方は依頼先の決まりに従う（どちらも main へ直接、1回にまとめる）。決定稿が増えたら、その都度送り直す
 
 やらないこと: 自前の図形（SVG の部品）でキャラクターを組む・下絵にする（利用者の方針。部品を図形で組んだ絵はデザインとして使わない）。
@@ -176,6 +183,6 @@ python3 tools/learn.py score styles/diorama.learned.json characters/*/sprite.jso
 
 ## 4. 残す
 
-- 比較画像と判定を `docs/progress/` に置く（良くなった所、弱い所を両方書く）
+- 比較画像と判定を `library/progress/` に置く（良くなった所、弱い所を両方書く）
 - 分かったことは `docs/knowledge/`、決めたことは `docs/knowledge/decisions.md`
 - `python3 -m unittest discover -s tests` を終了コードで確かめる（`| tail` の後ろに `&&` をつながない）

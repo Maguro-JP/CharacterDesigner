@@ -187,7 +187,8 @@ def add_location(ident: str, loc: str, name: str, tags: str, desc: str = "", ima
 
 
 def prompt(ident: str, scene: str = "", pose: str = "", outfit: str | None = None, items: list[str] | None = None,
-           world: str | None = None, location: str | None = None, framing: str = "full body") -> tuple[str, str]:
+           world: str | None = None, location: str | None = None, framing: str = "full body",
+           background: bool = True, eyes_after_outfit: bool = False) -> tuple[str, str]:
     """描く言葉を組み立てる。変えない見た目を先頭に置く（後ろの言葉ほど効きが弱い。長い言葉は 75 語ずつ全部読ませている）。
     服は差し替えがあればそれを、無ければいつもの服。持ち物は名前で選ぶ（省くと全部）。場所があれば背景を付ける"""
     c = load("characters", ident)
@@ -196,30 +197,86 @@ def prompt(ident: str, scene: str = "", pose: str = "", outfit: str | None = Non
     item_words = [", ".join(x for x in (i["tags"], i.get("size", ""), i.get("hold", "")) if x) for i in chosen]
     # 持ち物は服より前に置く（後ろに置くと効きが弱く、大スパナが腰袋の小さなスパナになった）
     # 目の設計は見た目のすぐ後に置く（先頭ほど強く効く。目は顔の印象を決める）
-    parts = [c["look"], c.get("eyes", {}).get("tags", ""), *item_words, outfit if outfit is not None else c["outfit"], pose, scene, framing]
+    eyes = c.get("eyes", {}).get("tags", "")
+    worn = outfit if outfit is not None else c["outfit"]
+    # 目の言葉は長い（50 語ほど）。目を先に置くと服の色が 75 語の 2 つ目の塊に押され、紺のコートが 4 枚とも別の色になった。
+    # eyes_after_outfit で目を服の後ろへ回す（比べてから既定を決める）
+    parts = ([c["look"], *item_words, worn, eyes] if eyes_after_outfit else [c["look"], eyes, *item_words, worn]) + [pose, scene, framing]
     avoid_loc = ""
     if world:
         w = load("worlds", world)
         loc = next((x for x in w["locations"] if x["id"] == location), None) if location else None
         parts += [loc["tags"] if loc else "", w["tags"]]
         avoid_loc = loc.get("avoid", "") if loc else ""
-    else:
+    elif background:
+        # 背景を別に持つ使い方（ensemble.py drawin、背景は下書きにある）では付けない
         parts.append("simple background, white background")
+    # ジャンルの塗りと線。頭身に合う塗り方を一緒に渡す（写実寄りの塗りで 2 頭身、などの組み合わせは崩れて見える）
+    g = genre(ident)
+    parts.append(g.get("words", ""))
     pos = ", ".join(p.strip() for p in parts if p and p.strip())
     # 同じ物が2つ、設定に無い道具や武器、宙に浮いた物が描かれた（床に2本目のスパナ、騎士の手の黒い棒）
     guard = "duplicate items, extra weapons, extra tools, floating objects, holding unrelated object"
     # 持ち物と場所ごとの描かせないもの（腰袋に差した小さなスパナ、大広間の樽や木箱）
     avoid = [i.get("avoid", "") for i in chosen] + [avoid_loc]
-    neg = ", ".join(x for x in (c.get("negative", ""), guard, *avoid) if x)
+    neg = ", ".join(x for x in (c.get("negative", ""), guard, g.get("negative", ""), *avoid) if x)
     return pos, neg
 
 
+# 描くモード。AI が人物を絵（イラスト）にするのは、キャラデザモードで設計がそろってから。
+# 設計を飛ばして言葉だけで描くと、描くたびに服・色・持ち物・顔が変わり、手や脚の数も崩れた（2026-10-17、人物 20 枚が 20 枚とも戻った）。
+# 人が参考資料を付けて描くよう指示したときは、人が設計を持っているので、イラストレーターモードですぐ描いてよい
+
+
+def design_status(ident: str) -> dict:
+    """キャラデザモードで、まだそろっていないものを返す。missing が空なら、イラストに描いてよい。
+    何をそろえるか（資料の 8 区分）は tools/gen/charsheet.py の SECTIONS が決める"""
+    import charsheet
+    st = charsheet.status(ident)
+    missing = [f'{v["title"]}: {m}' for v in st["sections"].values() for m in v["missing"]]
+    return {"id": ident, "ready": not missing, "missing": missing}
+
+
+class DesignNotReady(RuntimeError):
+    pass
+
+
+def require_design(ident: str, reference: str | None = None) -> str:
+    """描く前に呼ぶ。人の参考資料があればイラストレーターモード、無ければ設計がそろっていることを求める"""
+    if reference:
+        if not Path(reference).exists():
+            raise DesignNotReady(f"参考資料が見つからない: {reference}")
+        return "illustrator"
+    st = design_status(ident)
+    if not st["ready"]:
+        raise DesignNotReady("キャラデザモードが終わっていない（足りないもの: " + "、".join(st["missing"]) +
+                             "）。先に設計をそろえるか、人の参考資料を --reference で渡す")
+    return "design"
+
+
+def reference_path(ident: str, roles: tuple[str, ...] = ("color",)) -> Path | None:
+    """IP-Adapter に読ませる手本の絵。roles の順に、最初にあるものを返す"""
+    imgs = load("characters", ident).get("images", {})
+    return next((ROOT / imgs[r] for r in roles if imgs.get(r)), None)
+
+
+def reference_image(ident: str, roles: tuple[str, ...] = ("color",)):
+    from PIL import Image
+    p = reference_path(ident, roles)
+    return Image.open(p).convert("RGB") if p else None
+
+
 def draw(ident: str, outdir: str, count: int = 1, seed: int = 0, ref_scale: float = 0.6, base: str | None = None,
-         strength: float = 0.8, **kw) -> list[str]:
+         strength: float = 0.8, reference: str | None = None, designing: bool = False, depth: str | None = None,
+         depth_scale: float = 0.6, depth_end: float = 1.0, **kw) -> list[str]:
     """組み立てた言葉で描く。色の手本があれば IP-Adapter で読ませる（顔つき・配色を寄せる）。
     ref_scale を上げるほど手本に似るが、構図やポーズも手本に引っ張られる。
     base に下絵（人形に持ち物を持たせて描いた絵、tools/engine/pose_prop.py）を渡すと、そこから描き換える。
     言葉だけでは手と持ち物のつながりが崩れたため、位置だけは下絵で決める。strength が低いほど下絵の形が残る"""
+    # 設計の手順（三面図・表情差分の基準の顔）は、設計を作るために描くので門を通らない（designing=True）。
+    # 門を付けた直後、三面図そのものが「三面図がまだ無い」で止まった（2026-10-17）
+    if not designing:
+        require_design(ident, reference)
     import torch
     from PIL import Image
     sys.path.insert(0, str(Path(__file__).parent))
@@ -235,9 +292,10 @@ def draw(ident: str, outdir: str, count: int = 1, seed: int = 0, ref_scale: floa
         import demi
         start = Image.open(base).convert("RGB").resize((832, 1216))
     ref = None
-    if c["images"].get("color") and ref_scale > 0:
-        people.use_reference()
-        ref = Image.open(ROOT / c["images"]["color"]).convert("RGB")
+    if ref_scale > 0:
+        ref = reference_image(ident)
+        if ref is not None:
+            people.use_reference()
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
     pe, ne, pp, np_ = design.encode_xl(pipe, pos, neg)
@@ -249,7 +307,17 @@ def draw(ident: str, outdir: str, count: int = 1, seed: int = 0, ref_scale: floa
         if ref is not None:
             pipe.set_ip_adapter_scale(ref_scale)
             args["ip_adapter_image"] = ref
-        if start is not None:
+        if start is not None and depth:
+            i2i = people.depth_img2img()
+            del args["width"], args["height"]
+            if ref is not None:
+                i2i.set_ip_adapter_scale(ref_scale)
+            from PIL import ImageFilter
+            # 奥行きの細かい凹凸（胸や膝の起伏）を、模型が暗い影の塊として描いた。ぼかして大きな形だけを渡す
+            control = Image.open(depth).convert("RGB").resize((832, 1216)).filter(ImageFilter.GaussianBlur(6))
+            im = i2i(image=start, control_image=control, strength=strength,
+                     controlnet_conditioning_scale=depth_scale, control_guidance_end=depth_end, **args).images[0]
+        elif start is not None:
             i2i = demi.img2img()
             del args["width"], args["height"]
             if ref is not None:
@@ -270,9 +338,25 @@ VIEWS = {
     "front": ("front view, facing viewer, detailed face", 0.85),
     "side": ("side view, profile, facing left", 0.8),
     "back": ("back view, from behind, facing away, head facing away", 0.8),
+    "right": ("side view, profile, facing right", 0.8),
 }
 # 下絵の色の既定。設定に turnaround が無いキャラクターに使う
 BASE_COLORS = {"skin": "240,200,170", "top": "175,175,185", "bottom": "40,40,45"}
+
+
+GENRES = ROOT / "styles" / "genres.json"
+
+
+def genre(ident: str) -> dict:
+    """人物のジャンル（設定の genre、無ければ既定）の頭身・塗り・線の決まり。heads は範囲の中ほど。
+    写実の人形にアニメの顔を描かせると、体と顔の釣り合いが崩れた。頭身は人形の側で作る"""
+    d = json.loads(GENRES.read_text(encoding="utf-8"))
+    key = load("characters", ident).get("genre") or d["default"]
+    g = dict(d["genres"][key], id=key)
+    gender = load("characters", ident).get("gender") or ("female" if "1girl" in load("characters", ident).get("look", "") else None)
+    lo, hi = g.get("heads_by_gender", {}).get(gender, g["heads_tall"])
+    g["heads"] = round((lo + hi) / 2, 2)
+    return g
 
 
 def turnaround_plan(ident: str, outdir: str, seed: int = 0) -> dict:
@@ -285,6 +369,16 @@ def turnaround_plan(ident: str, outdir: str, seed: int = 0) -> dict:
     for k in ("skin", "top", "bottom", "cape", "boots"):
         if colors.get(k):
             cmd += [f"--{k}", colors[k]]
+    for k in ("clothes", "hair", "hair_color", "split", "boots_height"):
+        if colors.get(k):
+            cmd += [f"--{k.replace('_', '-')}", colors[k]]
+    for k in colors.get("keep", []):
+        cmd += ["--keep", k]
+    g = genre(ident)
+    if "--heads" not in cmd and colors.get("heads", g.get("heads")):
+        cmd += ["--heads", str(colors.get("heads", g.get("heads")))]
+    if colors.get("long_sleeves"):
+        cmd.append("--long-sleeves")
     views = {}
     for v, (words, strength) in VIEWS.items():
         # 三面図では持ち物を持たせない（人形の手は空で、持たせると手と持ち物が崩れた）
@@ -307,7 +401,7 @@ def turnaround(ident: str, outdir: str, count: int = 2, seed: int = 0) -> dict:
     files = {}
     for v, kw in plan["views"].items():
         base, strength, s = kw.pop("base"), kw.pop("strength"), kw.pop("seed")
-        names = draw(ident, str(Path(outdir) / v), count, s, base=base, strength=strength, **kw)
+        names = draw(ident, str(Path(outdir) / v), count, s, base=base, strength=strength, designing=True, **kw)
         files[v] = [str(Path(outdir) / v / n) for n in names]
     return files
 
@@ -338,7 +432,7 @@ def expressions(ident: str, outdir: str, base: str | None = None, seed: int = 0,
     out = Path(outdir)
     out.mkdir(parents=True, exist_ok=True)
     if base is None:
-        name = draw(ident, str(out / "base"), 1, seed, items=[], framing="upper body, portrait",
+        name = draw(ident, str(out / "base"), 1, seed, designing=True, items=[], framing="upper body, portrait",
                     pose="looking at viewer, facing viewer, " + DEFAULT_EXPRESSIONS[0]["tags"])[0]
         base = str(out / "base" / name)
     im = Image.open(base).convert("RGB")
@@ -398,6 +492,40 @@ figcaption { font-size:12px; color:var(--sub); margin-top:4px; }
 """
 
 ROLE_JA = {"color": "色の手本", "lineart": "線画", "colored-lineart": "線画に色を置いたもの", "sheet": "設定画"}
+
+
+# 設定資料の「ポーズ」と「髪型差分」。設定資料集に poses / hairstyles が無ければ既定を使う。
+# 既定のポーズは資料の決まり（立ち・歩き・役どころの動作・持ち物を使う）に合わせる
+DEFAULT_POSES = [
+    {"id": "stand", "name": "立ち", "tags": "standing, relaxed pose, arms at sides"},
+    {"id": "walk", "name": "歩き", "tags": "walking, mid-stride, one foot forward"},
+    {"id": "work", "name": "役どころの動作", "tags": "doing her job, three-quarter view"},
+]
+
+
+def variants_plan(ident: str, kind: str) -> list[dict]:
+    """描く差分の一覧。kind は pose か hairstyle。髪型は設定資料集の hairstyles にしか無い（既定を作らない。髪型は人物ごとの設計）"""
+    c = load("characters", ident)
+    if kind == "pose":
+        return c.get("poses") or DEFAULT_POSES
+    if kind == "hairstyle":
+        return c.get("hairstyles", [])
+    raise ValueError(kind)
+
+
+def variants(ident: str, outdir: str, kind: str, seed: int = 0, ref_scale: float = 0.5) -> dict:
+    """ポーズは全身、髪型は胸から上で描く。色の手本（color）を読ませ、服と顔を保つ。役割の名前 pose-<id> / hairstyle-<id> で出す"""
+    out = {}
+    for v in variants_plan(ident, kind):
+        sub = Path(outdir) / f"{kind}-{v['id']}"
+        if kind == "pose":
+            names = draw(ident, str(sub), seed=seed, ref_scale=ref_scale, designing=True, pose=v["tags"])
+        else:
+            # 髪型の言葉は見た目の後ろに入る。いつもの髪型の言葉に負けたら、hairstyles の tags を強める
+            names = draw(ident, str(sub), seed=seed, ref_scale=ref_scale, designing=True,
+                         pose=v["tags"], framing="upper body, portrait, bust shot")
+        out[f"{kind}-{v['id']}"] = str(sub / names[0])
+    return out
 
 
 def sheet(ident: str, out: str) -> dict:
@@ -471,6 +599,7 @@ def main():
             s.add_argument("out"); s.add_argument("--count", type=int, default=1); s.add_argument("--seed", type=int, default=0)
             s.add_argument("--ref-scale", type=float, default=0.6)
             s.add_argument("--base", help="下絵の画像（tools/engine/pose_prop.py の出力）"); s.add_argument("--strength", type=float, default=0.8)
+            s.add_argument("--reference", help="人が渡した参考資料の画像。渡すとイラストレーターモードで、設計がそろっていなくても描く")
         s.add_argument("--scene", default=""); s.add_argument("--pose", default=""); s.add_argument("--outfit")
         s.add_argument("--items", help="持ち物の id をカンマ区切りで。省くと全部"); s.add_argument("--world"); s.add_argument("--location")
         s.add_argument("--framing", default="full body")
@@ -485,6 +614,10 @@ def main():
     s.add_argument("id"); s.add_argument("out"); s.add_argument("--base"); s.add_argument("--seed", type=int, default=0)
     s.add_argument("--strength", type=float, default=0.85); s.add_argument("--only", help="表情の id をカンマ区切りで")
     s.add_argument("--ref-scale", type=float, default=0.0, help="手本の顔に寄せる強さ。既定は 0（使わない）。0.4 では手本の開いた目に引っ張られ、目が表情ごとに動かなかった")
+    s = sub.add_parser("design-status", help="キャラデザモードで、まだそろっていないもの"); s.add_argument("id")
+    s = sub.add_parser("variants", help="設定資料のポーズ（pose）・髪型差分（hairstyle）を描く")
+    s.add_argument("id"); s.add_argument("out"); s.add_argument("--kind", choices=["pose", "hairstyle"], required=True)
+    s.add_argument("--seed", type=int, default=0); s.add_argument("--ref-scale", type=float, default=0.5)
     s = sub.add_parser("turnaround", help="三面図: 人形の下絵を3方向から写し、向きごとに描く")
     s.add_argument("id"); s.add_argument("out"); s.add_argument("--count", type=int, default=2); s.add_argument("--seed", type=int, default=0)
     a = ap.parse_args()
@@ -500,10 +633,12 @@ def main():
         "new-world": lambda: new_world(a.id, a.name, a.tags, a.desc),
         "add-location": lambda: add_location(a.id, a.loc, a.name, a.tags, a.desc, a.image, a.avoid),
         "prompt": lambda: dict(zip(("prompt", "negative"), prompt(a.id, **kw))),
-        "draw": lambda: draw(a.id, a.out, a.count, a.seed, a.ref_scale, a.base, a.strength, **kw),
+        "draw": lambda: draw(a.id, a.out, a.count, a.seed, a.ref_scale, a.base, a.strength, a.reference, **kw),
+        "design-status": lambda: design_status(a.id),
         "show": lambda: load("characters", a.id),
         "sheet": lambda: sheet(a.id, a.out),
         "turnaround": lambda: turnaround(a.id, a.out, a.count, a.seed),
+        "variants": lambda: variants(a.id, a.out, a.kind, a.seed, a.ref_scale),
         "set-eyes": lambda: set_eyes(a.id, a.tags, a.notes),
         "set-body": lambda: set_body(a.id, a.plan),
         "body": lambda: body_plan(a.id),

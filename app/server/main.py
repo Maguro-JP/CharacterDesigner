@@ -421,6 +421,11 @@ class DescribeIn(BaseModel):
     text: str = Field(min_length=1, max_length=200)
 
 
+class CulturalIn(BaseModel):
+    # 頼みごと（200 字まで）と描く言葉をつないで送るので、描く言葉の長さまで受ける
+    text: str = Field(max_length=4000)
+
+
 class SaveIn(BaseModel):
     overwrite: bool = False
 
@@ -871,11 +876,25 @@ def create_app(runner: Runner | None = None) -> FastAPI:
     def studio_roster():
         return studio_roles.roster()
 
+    @app.post("/api/cultural")
+    def cultural(body: CulturalIn):
+        # 宗教・文化の配慮の知らせ。止めずに、描く前に画面で見せる（styles/cultural.json）
+        import filters
+        return {"advice": filters.advice_lines(body.text)}
+
     @app.post("/api/studio/jobs", status_code=202)
     def post_studio_job(body: StudioIn):
         # 頼みごとか描く言葉のどちらかが要る。描かない頼みごとは受け付けの時点でも止める（核でももう一度止める）
         if body.character:
             import bible
+            # 設定資料集の人物を絵にするのは、キャラデザモードで設計がそろってから（bible.require_design）。
+            # 人が参考画像を付けたときはイラストレーターモードで、そろっていなくても描く
+            try:
+                bible.require_design(body.character, _ref_path(body.ref) if body.ref else None)
+            except bible.DesignNotReady as e:
+                raise HTTPException(409, str(e))
+            except SystemExit as e:
+                raise HTTPException(404, str(e))
             try:
                 pos, neg = bible.prompt(body.character, scene=body.scene, pose=body.act, outfit=body.outfit or None,
                                         world=body.world or None, location=body.location or None)

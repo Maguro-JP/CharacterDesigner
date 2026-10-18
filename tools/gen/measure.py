@@ -466,7 +466,9 @@ def hair(rgb, seg, labels, spec: str = ""):
             seen = v > SPEC_SEEN_V
             far_h = seen & (s > 0.25) & (ss > 0.15) & (np.abs((h - hs + 180) % 360 - 180) > 40)
             far_h_dark = seen & (s > 0.25) & (ss <= 0.15)   # 色の無い髪（黒・白・灰）に色がついた
-            far &= far_v | far_h | far_h_dark
+            # 色の濃い指定（深紅など）に、色相だけ近い薄い色（光で桃色に染まった黒髪）を近いと数えていた。彩度が大きく足りない画素は外れ
+            far_s = seen & (ss > 0.5) & (s < ss - 0.35)
+            far &= far_v | far_h | far_h_dark | far_s
         spec_off = float((m & far).sum() / m.sum())
     return {"found": True, "blown": round(blown, 4), "main_hue": round(main, 1), "off_hue": round(off, 4), "glow": round(glow, 4), "base_v": round(base_v, 3),
             "spec_off": None if spec_off is None else round(spec_off, 4),
@@ -633,6 +635,46 @@ def proportion(points, seg, prompt: str, seen: float = 0.3) -> dict:
     return {"adult": adult, "heads": round((bot - top) / (2 * (eye - top)), 2)}
 
 
+def skeleton(points, seen: float = 0.3) -> dict:
+    """骨の長さの比。描いた体の骨格が人であり得るかを、関節の点（RTMPose）の間の長さで見る。
+    肉と脂肪の付き方は絵によって変わるが、骨の長さの比は人ならほぼ決まっている（上腕骨に対する前腕、大腿骨に対する脛）。
+    画面の上の長さなので、手足が奥へ向くと縮んで見える。そこで比の境は、縮みで説明できない値（前腕が上腕の 1.35 倍を超える、
+    脛が太ももの 0.6 倍を下回る など）だけを外れにする。左右の差は、同じ骨の長さが左右で 1.5 倍を超えるときだけ見る。
+    読めない点（seen 未満）がある骨は数えない"""
+    if not points:
+        return {}
+    p = {q["name"]: q for q in points}
+
+    def bone(a, b):
+        if a not in p or b not in p or min(p[a]["score"], p[b]["score"]) < seen:
+            return None
+        return float(np.hypot(p[a]["x"] - p[b]["x"], p[a]["y"] - p[b]["y"]))
+
+    out = {}
+    for side in ("left", "right"):
+        up, fore = bone(f"{side}_shoulder", f"{side}_elbow"), bone(f"{side}_elbow", f"{side}_wrist")
+        thigh, shin = bone(f"{side}_hip", f"{side}_knee"), bone(f"{side}_knee", f"{side}_ankle")
+        out[side] = {"upper_arm": up, "forearm": fore, "thigh": thigh, "shin": shin}
+    ratios = {}
+    for side in ("left", "right"):
+        b = out[side]
+        if b["upper_arm"] and b["forearm"] and b["upper_arm"] > 10:
+            ratios[f"{side}_forearm_upper"] = round(b["forearm"] / b["upper_arm"], 2)
+        if b["thigh"] and b["shin"] and b["thigh"] > 10:
+            ratios[f"{side}_shin_thigh"] = round(b["shin"] / b["thigh"], 2)
+    lr = []
+    for k in ("upper_arm", "forearm", "thigh", "shin"):
+        a, c = out["left"][k], out["right"][k]
+        if a and c and min(a, c) > 10:
+            lr.append(max(a, c) / min(a, c))
+    fa = [v for k, v in ratios.items() if k.endswith("forearm_upper")]
+    st = [v for k, v in ratios.items() if k.endswith("shin_thigh")]
+    return {"ratios": ratios,
+            "forearm_upper_max": max(fa, default=None), "forearm_upper_min": min(fa, default=None),
+            "shin_thigh_max": max(st, default=None), "shin_thigh_min": min(st, default=None),
+            "left_right_max": round(max(lr), 2) if lr else None}
+
+
 def hands_seen(points, seg, prompt: str) -> dict:
     """手が見えているか。手首の点の確からしさは袖に隠れた手でも 0.5〜0.68 が出て、見えている手と分けられなかった。
     手首の点の周り（目の間の 0.6 倍 + 20 画素の四方）の腕の肌の画素を、顔の面積で割った値の大きい方を shown にする。
@@ -692,7 +734,7 @@ def measure(src, hair_color: str = "", points=None, prompt: str | None = None, t
     return {"size": list(rgb.shape[1::-1]), "eyes": eyes(hrgb, hseg, L, _eye_hint(points, view)), "face": face, "light": light3d(src, rgb, seg, regions),
             "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "pairs": pairs(rgb, seg, L), "limbs": limbs(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color),
             "background": background(rgb, prompt), "style": style(tags), "colors": colors(prompt, tags),
-            "pose": hands_pose(points, prompt), "body": proportion(points, seg, prompt), "hands": hands_seen(points, seg, prompt)}
+            "pose": hands_pose(points, prompt), "body": proportion(points, seg, prompt), "skeleton": skeleton(points), "hands": hands_seen(points, seg, prompt)}
 
 
 def _get(d, path):

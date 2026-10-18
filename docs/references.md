@@ -75,6 +75,15 @@ OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じ
 
 重みはリポジトリに置かず、初回の実行で `.cache/gen` に取る。
 
+## 頭身（日本の漫画・アニメのキャラクターデザイン）
+
+`styles/genres.json` の頭身と体の決まりの出典。数値は描き方の解説の目安で、統計ではない。
+
+- CLIP STUDIO「キーワードは○頭身！『比率』と『重心』を理解して理想のボディを描く方法」 https://www.clipstudio.net/oekaki/archives/151156 （女性 6.5、男性 7、子ども 4〜5、モデル体型 8。股は身長の半分、ウエストは肘の辺り）
+- いちあっぷ「5頭身が向いているのはどんなキャラ？」 https://ichi-up.net/2015/002 （5〜6 頭身はアニメ・ゲーム・ライトノベル、7〜8 頭身はリアル寄り・美麗系・乙女ゲーム、2〜3 頭身はデフォルメ）
+- パルミー「人体の比率から身体のイラストを描こう」 https://www.palmie.jp/lessons/287 （手首は股の高さ、肘・膝は中点、手は前腕の約半分）
+- アタムアカデミー 6 頭身・8 頭身の描き方 https://atam-academy.com/blog/49102/ https://atam-academy.com/blog/49121/ （6 頭身は 1：2：3、8 頭身は 1：3：4）
+- メディバン「年齢別キャラの描きわけ」 https://medibangpaint.com/use/2020/12/how-to-draw-a-character-at-different-ages-2/ （中学生 5.5〜6、高校生 6〜7）
 ## 体の目印・影・姿勢（`docs/knowledge/learning/body-pro-references.md`）
 
 - Andrew Loomis『Figure Drawing for All It's Worth』（1943）
@@ -82,6 +91,11 @@ OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じ
 - Proko の terminator の練習、Muddy Colors、Artists Network の陰影の基礎
 - 写真の照明（レンブラント・ライティング）の解説
 - 文化庁 アニメーション人材育成講座「色彩設計・仕上げの役割」
+
+## 宗教・文化への配慮（`styles/cultural.json`、2026-10-18）
+
+- ドイツ刑法 86a 条、ADL Hate Symbols Database、国土地理院「外国人にわかりやすい地図表現の検討」（2016）
+- Wikipedia の各項目（Swastika、Rising Sun Flag、Blackface、Depictions of Muhammad、Native American headdress、Cultural appropriation、Kimono、Bindi ほか）。一覧は `docs/knowledge/cultural-sensitivity.md`
 
 ## 流行のファッション資料（`docs/knowledge/fashion/`、2026-10）
 

@@ -7,7 +7,7 @@
 
 - 手順: `.claude/skills/character-design/SKILL.md` の「作品の登場人物をまとめて頼まれたとき」
 - モンスターの書き方と検品表: `docs/knowledge/monster-design.md`
-- 作品ごとのデザインの決まり: `docs/designs/<作品>.md`
+- 作品ごとのデザインの決まり: `designs/<作品>/README.md`
 - 設定集（指示文、決定稿 `chosen`、検品で落とした理由 `rejected`、利用者が選び直した絵 `overruled`）: `casts/<作品>.json`
 
 ## 準備（新しいセッションで1回）
@@ -22,7 +22,7 @@ mkdir -p $O && cp designs/digimon/base/*.png $O/   # 決定稿を置く。派生
 系統の派生には IP-Adapter（h94/IP-Adapter の sdxl_models と image_encoder、約 3.2GB）も取得する。
 2つのモデルを同時に動かさない（メモリ 15GB を超えて強制終了される）。
 
-## DigiMon（`casts/digimon.json`、決まりは `docs/designs/digimon.md`）
+## DigiMon（`casts/digimon.json`、決まりは `designs/digimon/README-design.md`）
 
 | 系統 | ベース（成長期） | 状態 |
 |---|---|---|
