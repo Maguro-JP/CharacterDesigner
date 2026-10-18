@@ -95,6 +95,8 @@ def _gather(ident: str, views: list[str] | None, expr_dir: str | None, detail_di
             got["views"][v["id"]] = p
     if expr_dir:
         for f in sorted(Path(expr_dir).glob("expr-*.png")):
+            if ".parts." in f.name:   # 部位分けの控え（expr-angry.png.parts.png）は表情の絵ではない
+                continue
             got["expressions"][f.stem[5:]] = str(f)
     for k, v in imgs.items():
         if k.startswith("expr-"):
@@ -103,6 +105,8 @@ def _gather(ident: str, views: list[str] | None, expr_dir: str | None, detail_di
             got["details"][k[7:]] = v
     if detail_dir:
         for f in sorted(Path(detail_dir).glob("detail-*.png")):
+            if ".parts." in f.name:
+                continue
             got["details"][f.stem[7:]] = str(f)
     if imgs.get("lineart"):
         got["lineart"] = imgs["lineart"]
@@ -120,30 +124,36 @@ def missing(got: dict) -> list[str]:
     return out
 
 
-def _turnaround(got: dict, height: int, heads: float | None) -> tuple[str, dict]:
-    """三面図の欄: 人物の高さをそろえ（同じ縮尺）、頭身の目盛りの横線を引く"""
-    cells, scale = [], {}
+def _turnaround(got: dict, height: int, heads: float | None, width: int = 1480) -> tuple[str, dict]:
+    """三面図の欄: どの向きも同じ倍率（人物の高さをそろえる）で並べ、頭身の目盛りの横線を引く。
+    3 つ並べて欄の幅を超えるなら、3 つとも同じだけ縮める（向きごとに縮めると縮尺がずれる）"""
     names = {v["id"]: v["ja"] for v in spec()["views"]}
-    for vid, ja in names.items():
+    crops = {}
+    for vid in names:
         p = got["views"].get(vid)
-        if not p:
+        if p:
+            im = Image.open(p).convert("RGB")
+            x0, y0, x1, y1 = figure_box(im, p)
+            pad = int((y1 - y0) * 0.02)
+            crops[vid] = im.crop((max(x0 - pad, 0), max(y0 - pad, 0), min(x1 + pad, im.width), min(y1 + pad, im.height)))
+    gap, empty_w = 24, 400
+    wide = sum(int(c.width * height / c.height) for c in crops.values()) + empty_w * (len(names) - len(crops)) + gap * (len(names) - 1)
+    h = int(height * min(1.0, width / max(wide, 1)))
+    cells, scale = [], {}
+    for vid, ja in names.items():
+        c = crops.get(vid)
+        if c is None:
             cells.append(f'<div class="view empty"><span>{html.escape(ja)}（未）</span></div>')
             continue
-        im = Image.open(p).convert("RGB")
-        x0, y0, x1, y1 = figure_box(im, p)
-        pad = int((y1 - y0) * 0.02)
-        crop = im.crop((max(x0 - pad, 0), max(y0 - pad, 0), min(x1 + pad, im.width), min(y1 + pad, im.height)))
-        k = height / crop.height
+        k = h / c.height
         scale[vid] = round(k, 3)
-        w = int(crop.width * k)
-        cells.append(f'<figure class="view"><img src="{_uri(crop.resize((w, height), Image.LANCZOS))}" alt="{html.escape(ja)}">'
+        cells.append(f'<figure class="view"><img src="{_uri(c.resize((max(int(c.width * k), 1), h), Image.LANCZOS))}" alt="{html.escape(ja)}">'
                      f'<figcaption>{html.escape(ja)}</figcaption></figure>')
     lines = ""
     if heads:
-        n = int(heads) + 1
-        lines = "".join(f'<div class="guide" style="top:{min(i / heads, 1) * 100:.2f}%"><b>{i}</b></div>' for i in range(n + 1) if i / heads <= 1.0001)
+        lines = "".join(f'<div class="guide" style="top:{i / heads * 100:.2f}%"><b>{i}</b></div>' for i in range(int(heads) + 1))
         lines += f'<div class="guide end" style="top:100%"><b>{heads:g}</b></div>'
-    return f'<div class="turn" style="height:{height}px">{lines}{"".join(cells)}</div>', scale
+    return f'<div class="turn" style="height:{h}px">{lines}{"".join(cells)}</div>', scale
 
 
 def _heads(path: str) -> float | None:
@@ -198,7 +208,9 @@ def compose(ident: str, out: str, views: list[str] | None = None, expr_dir: str 
 
 
 def _expr_name(c: dict, k: str) -> str:
-    for x in c.get("expressions", []) if isinstance(c.get("expressions"), list) else []:
+    import bible
+    # 設定資料集に無い表情（既定の 8 つ）も、日本語の名前で出す
+    for x in bible.expressions_of(c["id"]):
         if x.get("id") == k:
             return x.get("name", k)
     return k
