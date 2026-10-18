@@ -18,14 +18,16 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 WEIGHTS = ROOT / ".cache" / "gen" / "upscale" / "RealESRGAN_x4plus_anime_6B.pth"
 URL = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth"
+# 写真（写実の絵）用。アニメ用は塗りを平らにする学習なので、写真に掛けると肌のきめと髪の毛筋が溶けて油絵のようになる
+WEIGHTS_PHOTO = ROOT / ".cache" / "gen" / "upscale" / "RealESRGAN_x4plus.pth"
+URL_PHOTO = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth"
 
-_NET = None
+_NET = {}
 
 
-def _net():
-    global _NET
-    if _NET is not None:
-        return _NET
+def _net(kind: str = "anime"):
+    if kind in _NET:
+        return _NET[kind]
     import torch
     from torch import nn
     import torch.nn.functional as F
@@ -74,24 +76,25 @@ def _net():
             feat = self.lrelu(self.conv_up2(F.interpolate(feat, scale_factor=2, mode="nearest")))
             return self.conv_last(self.lrelu(self.conv_hr(feat)))
 
-    if not WEIGHTS.exists():
-        raise FileNotFoundError(f"拡大の重みが無い。`sh tools/gen/setup.sh` で取る（{WEIGHTS}）")
-    state = torch.load(WEIGHTS, map_location="cpu", weights_only=True)
+    weights, nb = (WEIGHTS_PHOTO, 23) if kind == "photo" else (WEIGHTS, 6)
+    if not weights.exists():
+        raise FileNotFoundError(f"拡大の重みが無い。`sh tools/gen/setup.sh` で取る（{weights}）")
+    state = torch.load(weights, map_location="cpu", weights_only=True)
     state = state.get("params_ema", state.get("params", state))
-    net = RRDBNet()
+    net = RRDBNet(nb=nb)
     net.load_state_dict(state, strict=True)
     import device
     device.module(net, torch)
-    _NET = net.eval()
-    return _NET
+    _NET[kind] = net.eval()
+    return _NET[kind]
 
 
-def x4(img, tile: int = 256, pad: int = 16):
+def x4(img, tile: int = 256, pad: int = 16, kind: str = "anime"):
     """PIL の絵を4倍にする。CPU のメモリーに収めるため、端を重ねたタイルに分けて回す"""
     import numpy as np
     import torch
     from PIL import Image
-    net = _net()
+    net = _net(kind)
     a = np.asarray(img.convert("RGB"), dtype=np.float32) / 255.0
     h, w, _ = a.shape
     t = torch.from_numpy(a).permute(2, 0, 1)[None]
@@ -110,12 +113,12 @@ def x4(img, tile: int = 256, pad: int = 16):
     return Image.fromarray(b)
 
 
-def upscale(src, out, long: int = 4096):
+def upscale(src, out, long: int = 4096, kind: str = "anime"):
     """src を長い辺が long 画素になるまで拡大して out に置く。返すのは出来た大きさ"""
     from PIL import Image
     im = Image.open(src).convert("RGB")
     while max(im.size) < long:
-        im = x4(im)
+        im = x4(im, kind=kind)
     if max(im.size) != long:
         s = long / max(im.size)
         im = im.resize((round(im.width * s), round(im.height * s)), Image.LANCZOS)
@@ -128,8 +131,9 @@ def main():
     ap.add_argument("src")
     ap.add_argument("out")
     ap.add_argument("--long", type=int, default=4096, help="長い辺の画素数（既定 4096）")
+    ap.add_argument("--kind", choices=["anime", "photo"], default="anime", help="photo は写実の絵・写真用の重み")
     a = ap.parse_args()
-    print(upscale(a.src, a.out, a.long))
+    print(upscale(a.src, a.out, a.long, a.kind))
 
 
 if __name__ == "__main__":
