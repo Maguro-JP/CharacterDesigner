@@ -20,6 +20,7 @@ batch は設定集（casts/*.json）の全員を、モデルを1回だけ読み�
 import argparse
 import json
 import os
+import re
 import sys
 import time
 from pathlib import Path
@@ -216,6 +217,34 @@ def encode(pipe, prompt, negative):
     return out
 
 
+WEIGHTED = re.compile(r"\(([^():]+):([0-9]*\.?[0-9]+)\)")
+
+
+def split_weighted(tok, text, size=75):
+    """「(short skirt:1.5)」の形で重みを付けた指示文を、split_tokens と同じ区切りに分け、トークンごとの重みも返す。
+    重みの無い所は 1.0。打ち消しに「short skirt」を入れても指示文と同じ重みでしか効かず、
+    丈の長い服を頼んだ 11 枚すべてが短いスカートになったので、言葉ごとに強められるようにした"""
+    ids, ws, pos = [], [], 0
+    for m in list(WEIGHTED.finditer(text)) + [None]:
+        plain = text[pos:m.start()] if m else text[pos:]
+        for seg, w in ((plain, 1.0),) + (((m.group(1), float(m.group(2))),) if m else ()):
+            t = tok(seg, add_special_tokens=False, verbose=False).input_ids if seg.strip() else []
+            ids += t
+            ws += [w] * len(t)
+        if m:
+            pos = m.end()
+    comma = tok(",", add_special_tokens=False, verbose=False).input_ids
+    comma = comma[0] if len(comma) == 1 else None
+    out = []
+    while len(ids) > size:
+        cut = max((i + 1 for i in range(size) if ids[i] == comma), default=size)
+        out.append((ids[:cut], ws[:cut]))
+        ids, ws = ids[cut:], ws[cut:]
+    if ids or not out:
+        out.append((ids, ws))
+    return out
+
+
 def encode_xl(pipe, prompt, negative):
     """SDXL 系の2つの文章の読み手それぞれで、長い指示文を 75 トークン以下の区切り（読点で切る）に分けて読み、つなげて渡す。
 
@@ -225,19 +254,26 @@ def encode_xl(pipe, prompt, negative):
     """
     import torch
     pairs = [(pipe.tokenizer, pipe.text_encoder), (pipe.tokenizer_2, pipe.text_encoder_2)]
-    ids = [[split_tokens(tok, t) for t in (prompt, negative)] for tok, _ in pairs]
+    ids = [[split_weighted(tok, t) for t in (prompt, negative)] for tok, _ in pairs]
     n = max(1, *[len(b) for per in ids for b in per])
     embeds, pooled = [[], []], [None, None]
     for (tok, enc), per in zip(pairs, ids):
         for k, body in enumerate(per):
             chunks = []
             for i in range(n):
-                c = body[i] if i < len(body) else []
+                c, w = body[i] if i < len(body) else ([], [])
                 pad = tok.pad_token_id if tok.pad_token_id is not None else tok.eos_token_id
                 c = [tok.bos_token_id] + c + [tok.eos_token_id] + [pad] * (75 - len(c))
+                w = [1.0] + w + [1.0] * (76 - len(w))
                 with torch.no_grad():
                     out = enc(torch.tensor([c]), output_hidden_states=True)
-                chunks.append(out.hidden_states[-2])
+                h = out.hidden_states[-2]
+                if any(x != 1.0 for x in w):
+                    # 重みを掛けたあと、区切り全体の平均を元に戻す。平均ごと動くと絵全体の調子が変わるため
+                    mean = h.mean()
+                    h = h * torch.tensor(w, dtype=h.dtype).view(1, -1, 1)
+                    h = h * (mean / h.mean())
+                chunks.append(h)
                 if enc is pipe.text_encoder_2 and i == 0:
                     pooled[k] = out[0]
             embeds[k].append(torch.cat(chunks, dim=1))
