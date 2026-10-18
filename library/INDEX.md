@@ -1,36 +1,277 @@
 # 絵の目録
 
-`python3 tools/library_check.py` が書く。手で直さない。置き方の決まりは `docs/STRUCTURE.md`。
+`python3 tools/library_check.py` が書く。手で直さない。置き方の決まりは [docs/STRUCTURE.md](../docs/STRUCTURE.md)。
 
-全 262 枚。どこからも参照されていない絵 81 枚。
+全 267 枚（置き場 30 か所）。どこからも参照されていない絵 65 枚には「未参照」と付ける。
 
-| 置き場 | 枚数 | 絵 |
+## 置き場の一覧
+
+| 置き場 | 何の絵か | 枚数 |
 |---|---|---|
-| `bible/characters/knight/` | 3 | color.jpg, colored-lineart.jpg, lineart.jpg |
-| `bible/characters/mechanic/` | 3 | color.jpg, colored-lineart.jpg, lineart.jpg |
-| `bible/characters/swordswoman/` | 3 | color.jpg, colored-lineart.jpg, lineart.jpg |
-| `bible/characters/witch/` | 2 | color.jpg, lineart.jpg |
-| `bible/worlds/citadel/` | 2 | loc-gate.jpg, loc-hall.jpg |
-| `designs/digimon/` | 3 | candidates-chosen-lines.jpg, candidates-gor-yor.jpg, pixel-64-96.png |
-| `designs/digimon/base/` | 5 | emb-3-xl-9.png, hak-3-xl-10.png, kam-3-xl-9.png, rai-3-xl-7.png, tor-3-xl-9.png |
-| `designs/digimon/pixel96/` | 10 | emb-3-x3.png, emb-3.png, hak-3-x3.png, hak-3.png, kam-3-x3.png, kam-3.png, rai-3-x3.png, rai-3.png ほか 2 枚 |
-| `designs/rulecrawler/` | 3 | guild-unreviewed.jpg, joseki-explorer-7.png, shinan-unreviewed.jpg |
-| `docs/images/` | 6 | app-free-draw.jpg, app-studio.jpg, app-wish-to-case.png, atmosphere-moods.jpg, material-kinds.jpg, material-slime.jpg |
-| `library/book/` | 18 | dwarf.jpg, elder.jpg, elf.jpg, inpaint.jpg, jacket.jpg, knight-color.jpg, knight-line.jpg, lineart-methods.jpg ほか 10 枚 |
-| `library/daily/2026-10-13/` | 3 | 03-fox.png, 05-yukionna.png, women-test-1042.png |
-| `library/daily/2026-10-15/` | 1 | women-trench-20261015080.png |
-| `library/eyes/` | 18 | eyes-aqua.jpg, eyes-bird.jpg, eyes-blue.jpg, eyes-cat.jpg, eyes-closed.jpg, eyes-fox.jpg, eyes-green.jpg, eyes-grey.jpg ほか 10 枚 |
-| `library/progress/2026-09-29/` | 32 | apothecary.png, chibi16.gif, chibi16.png, cleric.png, dancer.png, hunter.png, idle.gif, idle.png ほか 24 枚 |
-| `library/progress/2026-09-30/` | 29 | bodies.png, body-muscles.png, dark-outlines.png, eyes.png, face-subtract.png, faces-all.png, far-eye.png, folds-warrior.png ほか 21 枚 |
-| `library/progress/2026-10-01/` | 6 | feet-apart.png, feet-outline.png, forehead.png, hair-tufts.png, lineup-detail.png, metal-seams.png |
-| `library/progress/2026-10-03/` | 11 | coat-hem.png, engine-human.png, engine-pixel.png, female-skin.png, gen-base.png, gen-styles.png, gen-survivor.png, hair-shine.png ほか 3 枚 |
-| `library/progress/2026-10-12/` | 14 | adduct-arms.png, expressions-noref.jpg, hd2d-learn-0.png, hd2d-learn-1.png, hd2d-learn-10.png, hd2d-learn-11.png, hd2d-learn-2.png, hd2d-learn-3.png ほか 6 枚 |
-| `library/samples/bible/` | 2 | bible-citadel-locations.jpg, bible-knight-scenes.jpg |
-| `library/samples/demi/` | 5 | demi3d-angel.png, demi3d-bunnygirl.png, demi3d-catgirl.png, demi3d-foxgirl.png, demi3d-succubus.png |
-| `library/samples/fashion/` | 4 | fashion-gorpcore-m.png, fashion-hakama-f.png, fashion-jirai-f.png, fashion-uniform-preppy-f.png |
-| `library/samples/handdraw/` | 12 | brushes-compare.jpg, handdraw-adjust.jpg, handdraw-brush.jpg, handdraw-from-rough.jpg, handdraw-grain-eyes.jpg, handdraw-light.jpg, handdraw-parts-walls.jpg, handdraw-refine.jpg ほか 4 枚 |
-| `library/samples/imgproc/` | 7 | deai-compare.jpg, imgproc-colorize-strength.jpg, imgproc-inpaint-outpaint.jpg, imgproc-lineart.jpg, imgproc-overview.jpg, shade-overview.jpg, shade-zoom.jpg |
-| `library/samples/lineart/` | 5 | lineart-color-four.jpg, lineart-color-parts.jpg, lineart-color-try.jpg, lineart-jobs.jpg, lineart-methods.jpg |
-| `library/samples/people/` | 38 | age-elder-female.png, age-elder-male.png, age-teen-female.png, age-teen-male.png, anime-ideal-female-5views.png, anime-ideal-female.png, base-female.png, base-male.png ほか 30 枚 |
-| `library/samples/studio/` | 8 | studio-chibi-witch-v2.jpg, studio-chibi-witch.jpg, studio-formats.jpg, studio-lora-watercolor.jpg, studio-paint-format.jpg, studio-paint-styles.jpg, studio-pose-underlay.jpg, studio-steampunk-mechanic.jpg |
-| `library/sheets/` | 9 | apothecary.png, cleric.png, dancer.png, hunter.png, merchant.png, scholar.png, swordsman.png, thief.png ほか 1 枚 |
+| [`bible/characters/knight/`](#bible-characters-knight) | 設定資料集の人物・場所の絵 | 3 |
+| [`bible/characters/mechanic/`](#bible-characters-mechanic) | 設定資料集の人物・場所の絵 | 3 |
+| [`bible/characters/swordswoman/`](#bible-characters-swordswoman) | 設定資料集の人物・場所の絵 | 3 |
+| [`bible/characters/witch/`](#bible-characters-witch) | 設定資料集の人物・場所の絵 | 2 |
+| [`bible/worlds/citadel/`](#bible-worlds-citadel) | 設定資料集の人物・場所の絵 | 2 |
+| [`designs/digimon/`](#designs-digimon) | 依頼された作品の決定稿 | 3 |
+| [`designs/digimon/base/`](#designs-digimon-base) | 依頼された作品の決定稿 | 5 |
+| [`designs/digimon/pixel96/`](#designs-digimon-pixel96) | 依頼された作品の決定稿 | 10 |
+| [`designs/rulecrawler/`](#designs-rulecrawler) | 依頼された作品の決定稿 | 3 |
+| [`docs/images/`](#docs-images) | README・アプリの案内の画面 | 6 |
+| [`library/book/`](#library-book) | 作例集 | 18 |
+| [`library/daily/2026-10-13/`](#library-daily-2026-10-13) | 日ごとの作例 | 3 |
+| [`library/daily/2026-10-15/`](#library-daily-2026-10-15) | 日ごとの作例 | 1 |
+| [`library/eyes/`](#library-eyes) | 目の資料集 | 18 |
+| [`library/feedback/baseline/`](#library-feedback-baseline) | フィードバックの成果物 | 2 |
+| [`library/feedback/settei/`](#library-feedback-settei) | フィードバックの成果物 | 3 |
+| [`library/progress/2026-09-29/`](#library-progress-2026-09-29) | 比べた記録 | 32 |
+| [`library/progress/2026-09-30/`](#library-progress-2026-09-30) | 比べた記録 | 29 |
+| [`library/progress/2026-10-01/`](#library-progress-2026-10-01) | 比べた記録 | 6 |
+| [`library/progress/2026-10-03/`](#library-progress-2026-10-03) | 比べた記録 | 11 |
+| [`library/progress/2026-10-12/`](#library-progress-2026-10-12) | 比べた記録 | 14 |
+| [`library/samples/bible/`](#library-samples-bible) | 見本の絵 | 2 |
+| [`library/samples/demi/`](#library-samples-demi) | 見本の絵 | 5 |
+| [`library/samples/fashion/`](#library-samples-fashion) | 見本の絵 | 4 |
+| [`library/samples/handdraw/`](#library-samples-handdraw) | 見本の絵 | 12 |
+| [`library/samples/imgproc/`](#library-samples-imgproc) | 見本の絵 | 7 |
+| [`library/samples/lineart/`](#library-samples-lineart) | 見本の絵 | 5 |
+| [`library/samples/people/`](#library-samples-people) | 見本の絵 | 38 |
+| [`library/samples/studio/`](#library-samples-studio) | 見本の絵 | 8 |
+| [`library/sheets/`](#library-sheets) | 職業の一覧（箱庭ドット） | 9 |
+
+<a id="bible-characters-knight"></a>
+## bible/characters/knight/
+
+|   |   |   |
+|---|---|---|
+| <a href="../bible/characters/knight/color.jpg"><img src="../bible/characters/knight/color.jpg" width="150" alt="color.jpg"></a><br><sub>color.jpg</sub> | <a href="../bible/characters/knight/colored-lineart.jpg"><img src="../bible/characters/knight/colored-lineart.jpg" width="150" alt="colored-lineart.jpg"></a><br><sub>colored-lineart.jpg</sub> | <a href="../bible/characters/knight/lineart.jpg"><img src="../bible/characters/knight/lineart.jpg" width="150" alt="lineart.jpg"></a><br><sub>lineart.jpg</sub> |
+
+<a id="bible-characters-mechanic"></a>
+## bible/characters/mechanic/
+
+|   |   |   |
+|---|---|---|
+| <a href="../bible/characters/mechanic/color.jpg"><img src="../bible/characters/mechanic/color.jpg" width="150" alt="color.jpg"></a><br><sub>color.jpg</sub> | <a href="../bible/characters/mechanic/colored-lineart.jpg"><img src="../bible/characters/mechanic/colored-lineart.jpg" width="150" alt="colored-lineart.jpg"></a><br><sub>colored-lineart.jpg</sub> | <a href="../bible/characters/mechanic/lineart.jpg"><img src="../bible/characters/mechanic/lineart.jpg" width="150" alt="lineart.jpg"></a><br><sub>lineart.jpg</sub> |
+
+<a id="bible-characters-swordswoman"></a>
+## bible/characters/swordswoman/
+
+|   |   |   |
+|---|---|---|
+| <a href="../bible/characters/swordswoman/color.jpg"><img src="../bible/characters/swordswoman/color.jpg" width="150" alt="color.jpg"></a><br><sub>color.jpg</sub> | <a href="../bible/characters/swordswoman/colored-lineart.jpg"><img src="../bible/characters/swordswoman/colored-lineart.jpg" width="150" alt="colored-lineart.jpg"></a><br><sub>colored-lineart.jpg</sub> | <a href="../bible/characters/swordswoman/lineart.jpg"><img src="../bible/characters/swordswoman/lineart.jpg" width="150" alt="lineart.jpg"></a><br><sub>lineart.jpg</sub> |
+
+<a id="bible-characters-witch"></a>
+## bible/characters/witch/
+
+|   |   |
+|---|---|
+| <a href="../bible/characters/witch/color.jpg"><img src="../bible/characters/witch/color.jpg" width="150" alt="color.jpg"></a><br><sub>color.jpg</sub> | <a href="../bible/characters/witch/lineart.jpg"><img src="../bible/characters/witch/lineart.jpg" width="150" alt="lineart.jpg"></a><br><sub>lineart.jpg</sub> |
+
+<a id="bible-worlds-citadel"></a>
+## bible/worlds/citadel/
+
+|   |   |
+|---|---|
+| <a href="../bible/worlds/citadel/loc-gate.jpg"><img src="../bible/worlds/citadel/loc-gate.jpg" width="150" alt="loc-gate.jpg"></a><br><sub>loc-gate.jpg</sub> | <a href="../bible/worlds/citadel/loc-hall.jpg"><img src="../bible/worlds/citadel/loc-hall.jpg" width="150" alt="loc-hall.jpg"></a><br><sub>loc-hall.jpg</sub> |
+
+<a id="designs-digimon"></a>
+## designs/digimon/
+
+|   |   |   |
+|---|---|---|
+| <a href="../designs/digimon/candidates-chosen-lines.jpg"><img src="../designs/digimon/candidates-chosen-lines.jpg" width="150" alt="candidates-chosen-lines.jpg"></a><br><sub>candidates-chosen-lines.jpg（未参照）</sub> | <a href="../designs/digimon/candidates-gor-yor.jpg"><img src="../designs/digimon/candidates-gor-yor.jpg" width="150" alt="candidates-gor-yor.jpg"></a><br><sub>candidates-gor-yor.jpg（未参照）</sub> | <a href="../designs/digimon/pixel-64-96.png"><img src="../designs/digimon/pixel-64-96.png" width="150" alt="pixel-64-96.png"></a><br><sub>pixel-64-96.png（未参照）</sub> |
+
+<a id="designs-digimon-base"></a>
+## designs/digimon/base/
+
+|   |   |   |   |   |
+|---|---|---|---|---|
+| <a href="../designs/digimon/base/emb-3-xl-9.png"><img src="../designs/digimon/base/emb-3-xl-9.png" width="150" alt="emb-3-xl-9.png"></a><br><sub>emb-3-xl-9.png（未参照）</sub> | <a href="../designs/digimon/base/hak-3-xl-10.png"><img src="../designs/digimon/base/hak-3-xl-10.png" width="150" alt="hak-3-xl-10.png"></a><br><sub>hak-3-xl-10.png（未参照）</sub> | <a href="../designs/digimon/base/kam-3-xl-9.png"><img src="../designs/digimon/base/kam-3-xl-9.png" width="150" alt="kam-3-xl-9.png"></a><br><sub>kam-3-xl-9.png（未参照）</sub> | <a href="../designs/digimon/base/rai-3-xl-7.png"><img src="../designs/digimon/base/rai-3-xl-7.png" width="150" alt="rai-3-xl-7.png"></a><br><sub>rai-3-xl-7.png（未参照）</sub> | <a href="../designs/digimon/base/tor-3-xl-9.png"><img src="../designs/digimon/base/tor-3-xl-9.png" width="150" alt="tor-3-xl-9.png"></a><br><sub>tor-3-xl-9.png（未参照）</sub> |
+
+<a id="designs-digimon-pixel96"></a>
+## designs/digimon/pixel96/
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <a href="../designs/digimon/pixel96/emb-3-x3.png"><img src="../designs/digimon/pixel96/emb-3-x3.png" width="150" alt="emb-3-x3.png"></a><br><sub>emb-3-x3.png（未参照）</sub> | <a href="../designs/digimon/pixel96/emb-3.png"><img src="../designs/digimon/pixel96/emb-3.png" width="150" alt="emb-3.png"></a><br><sub>emb-3.png（未参照）</sub> | <a href="../designs/digimon/pixel96/hak-3-x3.png"><img src="../designs/digimon/pixel96/hak-3-x3.png" width="150" alt="hak-3-x3.png"></a><br><sub>hak-3-x3.png（未参照）</sub> | <a href="../designs/digimon/pixel96/hak-3.png"><img src="../designs/digimon/pixel96/hak-3.png" width="150" alt="hak-3.png"></a><br><sub>hak-3.png（未参照）</sub> | <a href="../designs/digimon/pixel96/kam-3-x3.png"><img src="../designs/digimon/pixel96/kam-3-x3.png" width="150" alt="kam-3-x3.png"></a><br><sub>kam-3-x3.png（未参照）</sub> | <a href="../designs/digimon/pixel96/kam-3.png"><img src="../designs/digimon/pixel96/kam-3.png" width="150" alt="kam-3.png"></a><br><sub>kam-3.png（未参照）</sub> |
+| <a href="../designs/digimon/pixel96/rai-3-x3.png"><img src="../designs/digimon/pixel96/rai-3-x3.png" width="150" alt="rai-3-x3.png"></a><br><sub>rai-3-x3.png（未参照）</sub> | <a href="../designs/digimon/pixel96/rai-3.png"><img src="../designs/digimon/pixel96/rai-3.png" width="150" alt="rai-3.png"></a><br><sub>rai-3.png（未参照）</sub> | <a href="../designs/digimon/pixel96/tor-3-x3.png"><img src="../designs/digimon/pixel96/tor-3-x3.png" width="150" alt="tor-3-x3.png"></a><br><sub>tor-3-x3.png（未参照）</sub> | <a href="../designs/digimon/pixel96/tor-3.png"><img src="../designs/digimon/pixel96/tor-3.png" width="150" alt="tor-3.png"></a><br><sub>tor-3.png（未参照）</sub> |
+
+<a id="designs-rulecrawler"></a>
+## designs/rulecrawler/
+
+|   |   |   |
+|---|---|---|
+| <a href="../designs/rulecrawler/guild-unreviewed.jpg"><img src="../designs/rulecrawler/guild-unreviewed.jpg" width="150" alt="guild-unreviewed.jpg"></a><br><sub>guild-unreviewed.jpg（未参照）</sub> | <a href="../designs/rulecrawler/joseki-explorer-7.png"><img src="../designs/rulecrawler/joseki-explorer-7.png" width="150" alt="joseki-explorer-7.png"></a><br><sub>joseki-explorer-7.png（未参照）</sub> | <a href="../designs/rulecrawler/shinan-unreviewed.jpg"><img src="../designs/rulecrawler/shinan-unreviewed.jpg" width="150" alt="shinan-unreviewed.jpg"></a><br><sub>shinan-unreviewed.jpg（未参照）</sub> |
+
+<a id="docs-images"></a>
+## docs/images/
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <a href="../docs/images/app-free-draw.jpg"><img src="../docs/images/app-free-draw.jpg" width="150" alt="app-free-draw.jpg"></a><br><sub>app-free-draw.jpg</sub> | <a href="../docs/images/app-studio.jpg"><img src="../docs/images/app-studio.jpg" width="150" alt="app-studio.jpg"></a><br><sub>app-studio.jpg</sub> | <a href="../docs/images/app-wish-to-case.png"><img src="../docs/images/app-wish-to-case.png" width="150" alt="app-wish-to-case.png"></a><br><sub>app-wish-to-case.png</sub> | <a href="../docs/images/atmosphere-moods.jpg"><img src="../docs/images/atmosphere-moods.jpg" width="150" alt="atmosphere-moods.jpg"></a><br><sub>atmosphere-moods.jpg</sub> | <a href="../docs/images/material-kinds.jpg"><img src="../docs/images/material-kinds.jpg" width="150" alt="material-kinds.jpg"></a><br><sub>material-kinds.jpg</sub> | <a href="../docs/images/material-slime.jpg"><img src="../docs/images/material-slime.jpg" width="150" alt="material-slime.jpg"></a><br><sub>material-slime.jpg</sub> |
+
+<a id="library-book"></a>
+## library/book/
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <a href="book/dwarf.jpg"><img src="book/dwarf.jpg" width="150" alt="dwarf.jpg"></a><br><sub>dwarf.jpg（未参照）</sub> | <a href="book/elder.jpg"><img src="book/elder.jpg" width="150" alt="elder.jpg"></a><br><sub>elder.jpg（未参照）</sub> | <a href="book/elf.jpg"><img src="book/elf.jpg" width="150" alt="elf.jpg"></a><br><sub>elf.jpg（未参照）</sub> | <a href="book/inpaint.jpg"><img src="book/inpaint.jpg" width="150" alt="inpaint.jpg"></a><br><sub>inpaint.jpg（未参照）</sub> | <a href="book/jacket.jpg"><img src="book/jacket.jpg" width="150" alt="jacket.jpg"></a><br><sub>jacket.jpg（未参照）</sub> | <a href="book/knight-color.jpg"><img src="book/knight-color.jpg" width="150" alt="knight-color.jpg"></a><br><sub>knight-color.jpg（未参照）</sub> |
+| <a href="book/knight-line.jpg"><img src="book/knight-line.jpg" width="150" alt="knight-line.jpg"></a><br><sub>knight-line.jpg（未参照）</sub> | <a href="book/lineart-methods.jpg"><img src="book/lineart-methods.jpg" width="150" alt="lineart-methods.jpg"></a><br><sub>lineart-methods.jpg（未参照）</sub> | <a href="book/mech-line-1.jpg"><img src="book/mech-line-1.jpg" width="150" alt="mech-line-1.jpg"></a><br><sub>mech-line-1.jpg（未参照）</sub> | <a href="book/mech-line-2.jpg"><img src="book/mech-line-2.jpg" width="150" alt="mech-line-2.jpg"></a><br><sub>mech-line-2.jpg（未参照）</sub> | <a href="book/sheet-cleric.jpg"><img src="book/sheet-cleric.jpg" width="150" alt="sheet-cleric.jpg"></a><br><sub>sheet-cleric.jpg（未参照）</sub> | <a href="book/sheet-swordsman.jpg"><img src="book/sheet-swordsman.jpg" width="150" alt="sheet-swordsman.jpg"></a><br><sub>sheet-swordsman.jpg（未参照）</sub> |
+| <a href="book/studio.jpg"><img src="book/studio.jpg" width="150" alt="studio.jpg"></a><br><sub>studio.jpg（未参照）</sub> | <a href="book/sword-color.jpg"><img src="book/sword-color.jpg" width="150" alt="sword-color.jpg"></a><br><sub>sword-color.jpg（未参照）</sub> | <a href="book/sword-line.jpg"><img src="book/sword-line.jpg" width="150" alt="sword-line.jpg"></a><br><sub>sword-line.jpg（未参照）</sub> | <a href="book/witch-chibi-color.jpg"><img src="book/witch-chibi-color.jpg" width="150" alt="witch-chibi-color.jpg"></a><br><sub>witch-chibi-color.jpg（未参照）</sub> | <a href="book/witch-line-1.jpg"><img src="book/witch-line-1.jpg" width="150" alt="witch-line-1.jpg"></a><br><sub>witch-line-1.jpg（未参照）</sub> | <a href="book/witch-line-2.jpg"><img src="book/witch-line-2.jpg" width="150" alt="witch-line-2.jpg"></a><br><sub>witch-line-2.jpg（未参照）</sub> |
+
+<a id="library-daily-2026-10-13"></a>
+## library/daily/2026-10-13/
+
+|   |   |   |
+|---|---|---|
+| <a href="daily/2026-10-13/03-fox.png"><img src="daily/2026-10-13/03-fox.png" width="150" alt="03-fox.png"></a><br><sub>03-fox.png（未参照）</sub> | <a href="daily/2026-10-13/05-yukionna.png"><img src="daily/2026-10-13/05-yukionna.png" width="150" alt="05-yukionna.png"></a><br><sub>05-yukionna.png（未参照）</sub> | <a href="daily/2026-10-13/women-test-1042.png"><img src="daily/2026-10-13/women-test-1042.png" width="150" alt="women-test-1042.png"></a><br><sub>women-test-1042.png（未参照）</sub> |
+
+<a id="library-daily-2026-10-15"></a>
+## library/daily/2026-10-15/
+
+|   |
+|---|
+| <a href="daily/2026-10-15/women-trench-20261015080.png"><img src="daily/2026-10-15/women-trench-20261015080.png" width="150" alt="women-trench-20261015080.png"></a><br><sub>women-trench-20261015080.png（未参照）</sub> |
+
+<a id="library-eyes"></a>
+## library/eyes/
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <a href="eyes/eyes-aqua.jpg"><img src="eyes/eyes-aqua.jpg" width="150" alt="eyes-aqua.jpg"></a><br><sub>eyes-aqua.jpg</sub> | <a href="eyes/eyes-bird.jpg"><img src="eyes/eyes-bird.jpg" width="150" alt="eyes-bird.jpg"></a><br><sub>eyes-bird.jpg</sub> | <a href="eyes/eyes-blue.jpg"><img src="eyes/eyes-blue.jpg" width="150" alt="eyes-blue.jpg"></a><br><sub>eyes-blue.jpg</sub> | <a href="eyes/eyes-cat.jpg"><img src="eyes/eyes-cat.jpg" width="150" alt="eyes-cat.jpg"></a><br><sub>eyes-cat.jpg</sub> | <a href="eyes/eyes-closed.jpg"><img src="eyes/eyes-closed.jpg" width="150" alt="eyes-closed.jpg"></a><br><sub>eyes-closed.jpg</sub> | <a href="eyes/eyes-fox.jpg"><img src="eyes/eyes-fox.jpg" width="150" alt="eyes-fox.jpg"></a><br><sub>eyes-fox.jpg</sub> |
+| <a href="eyes/eyes-green.jpg"><img src="eyes/eyes-green.jpg" width="150" alt="eyes-green.jpg"></a><br><sub>eyes-green.jpg</sub> | <a href="eyes/eyes-grey.jpg"><img src="eyes/eyes-grey.jpg" width="150" alt="eyes-grey.jpg"></a><br><sub>eyes-grey.jpg</sub> | <a href="eyes/eyes-orange.jpg"><img src="eyes/eyes-orange.jpg" width="150" alt="eyes-orange.jpg"></a><br><sub>eyes-orange.jpg</sub> | <a href="eyes/eyes-owl.jpg"><img src="eyes/eyes-owl.jpg" width="150" alt="eyes-owl.jpg"></a><br><sub>eyes-owl.jpg</sub> | <a href="eyes/eyes-purple.jpg"><img src="eyes/eyes-purple.jpg" width="150" alt="eyes-purple.jpg"></a><br><sub>eyes-purple.jpg</sub> | <a href="eyes/eyes-rabbit.jpg"><img src="eyes/eyes-rabbit.jpg" width="150" alt="eyes-rabbit.jpg"></a><br><sub>eyes-rabbit.jpg</sub> |
+| <a href="eyes/eyes-red.jpg"><img src="eyes/eyes-red.jpg" width="150" alt="eyes-red.jpg"></a><br><sub>eyes-red.jpg</sub> | <a href="eyes/eyes-snake.jpg"><img src="eyes/eyes-snake.jpg" width="150" alt="eyes-snake.jpg"></a><br><sub>eyes-snake.jpg</sub> | <a href="eyes/eyes-wink.jpg"><img src="eyes/eyes-wink.jpg" width="150" alt="eyes-wink.jpg"></a><br><sub>eyes-wink.jpg</sub> | <a href="eyes/eyes-wolf.jpg"><img src="eyes/eyes-wolf.jpg" width="150" alt="eyes-wolf.jpg"></a><br><sub>eyes-wolf.jpg</sub> | <a href="eyes/sheet-colors.jpg"><img src="eyes/sheet-colors.jpg" width="150" alt="sheet-colors.jpg"></a><br><sub>sheet-colors.jpg</sub> | <a href="eyes/sheet-shapes-animals.jpg"><img src="eyes/sheet-shapes-animals.jpg" width="150" alt="sheet-shapes-animals.jpg"></a><br><sub>sheet-shapes-animals.jpg</sub> |
+
+<a id="library-feedback-baseline"></a>
+## library/feedback/baseline/
+
+|   |   |
+|---|---|
+| <a href="feedback/baseline/2026-10-18/catgirl-seed3.jpg"><img src="feedback/baseline/2026-10-18/catgirl-seed3.jpg" width="150" alt="catgirl-seed3.jpg"></a><br><sub>catgirl-seed3.jpg</sub> | <a href="feedback/baseline/2026-10-18/knight-seed5.jpg"><img src="feedback/baseline/2026-10-18/knight-seed5.jpg" width="150" alt="knight-seed5.jpg"></a><br><sub>knight-seed5.jpg</sub> |
+
+<a id="library-feedback-settei"></a>
+## library/feedback/settei/
+
+|   |   |   |
+|---|---|---|
+| <a href="feedback/settei/2026-10-18/swordswoman-1-main.jpg"><img src="feedback/settei/2026-10-18/swordswoman-1-main.jpg" width="150" alt="swordswoman-1-main.jpg"></a><br><sub>swordswoman-1-main.jpg</sub> | <a href="feedback/settei/2026-10-18/swordswoman-2-expressions.jpg"><img src="feedback/settei/2026-10-18/swordswoman-2-expressions.jpg" width="150" alt="swordswoman-2-expressions.jpg"></a><br><sub>swordswoman-2-expressions.jpg</sub> | <a href="feedback/settei/2026-10-18/swordswoman-3-details.jpg"><img src="feedback/settei/2026-10-18/swordswoman-3-details.jpg" width="150" alt="swordswoman-3-details.jpg"></a><br><sub>swordswoman-3-details.jpg</sub> |
+
+<a id="library-progress-2026-09-29"></a>
+## library/progress/2026-09-29/
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <a href="progress/2026-09-29/apothecary.png"><img src="progress/2026-09-29/apothecary.png" width="150" alt="apothecary.png"></a><br><sub>apothecary.png</sub> | <a href="progress/2026-09-29/chibi16.gif"><img src="progress/2026-09-29/chibi16.gif" width="150" alt="chibi16.gif"></a><br><sub>chibi16.gif（未参照）</sub> | <a href="progress/2026-09-29/chibi16.png"><img src="progress/2026-09-29/chibi16.png" width="150" alt="chibi16.png"></a><br><sub>chibi16.png</sub> | <a href="progress/2026-09-29/cleric.png"><img src="progress/2026-09-29/cleric.png" width="150" alt="cleric.png"></a><br><sub>cleric.png</sub> | <a href="progress/2026-09-29/dancer.png"><img src="progress/2026-09-29/dancer.png" width="150" alt="dancer.png"></a><br><sub>dancer.png</sub> | <a href="progress/2026-09-29/hunter.png"><img src="progress/2026-09-29/hunter.png" width="150" alt="hunter.png"></a><br><sub>hunter.png</sub> |
+| <a href="progress/2026-09-29/idle.gif"><img src="progress/2026-09-29/idle.gif" width="150" alt="idle.gif"></a><br><sub>idle.gif</sub> | <a href="progress/2026-09-29/idle.png"><img src="progress/2026-09-29/idle.png" width="150" alt="idle.png"></a><br><sub>idle.png</sub> | <a href="progress/2026-09-29/lineup.gif"><img src="progress/2026-09-29/lineup.gif" width="150" alt="lineup.gif"></a><br><sub>lineup.gif（未参照）</sub> | <a href="progress/2026-09-29/lineup.png"><img src="progress/2026-09-29/lineup.png" width="150" alt="lineup.png"></a><br><sub>lineup.png</sub> | <a href="progress/2026-09-29/male-faces.png"><img src="progress/2026-09-29/male-faces.png" width="150" alt="male-faces.png"></a><br><sub>male-faces.png</sub> | <a href="progress/2026-09-29/merchant-child.png"><img src="progress/2026-09-29/merchant-child.png" width="150" alt="merchant-child.png"></a><br><sub>merchant-child.png</sub> |
+| <a href="progress/2026-09-29/merchant-walk.gif"><img src="progress/2026-09-29/merchant-walk.gif" width="150" alt="merchant-walk.gif"></a><br><sub>merchant-walk.gif</sub> | <a href="progress/2026-09-29/merchant-walk.png"><img src="progress/2026-09-29/merchant-walk.png" width="150" alt="merchant-walk.png"></a><br><sub>merchant-walk.png（未参照）</sub> | <a href="progress/2026-09-29/readability.png"><img src="progress/2026-09-29/readability.png" width="150" alt="readability.png"></a><br><sub>readability.png</sub> | <a href="progress/2026-09-29/retro16.gif"><img src="progress/2026-09-29/retro16.gif" width="150" alt="retro16.gif"></a><br><sub>retro16.gif（未参照）</sub> | <a href="progress/2026-09-29/retro16.png"><img src="progress/2026-09-29/retro16.png" width="150" alt="retro16.png"></a><br><sub>retro16.png</sub> | <a href="progress/2026-09-29/right-facing.png"><img src="progress/2026-09-29/right-facing.png" width="150" alt="right-facing.png"></a><br><sub>right-facing.png</sub> |
+| <a href="progress/2026-09-29/right-walk.gif"><img src="progress/2026-09-29/right-walk.gif" width="150" alt="right-walk.gif"></a><br><sub>right-walk.gif</sub> | <a href="progress/2026-09-29/right-walk.png"><img src="progress/2026-09-29/right-walk.png" width="150" alt="right-walk.png"></a><br><sub>right-walk.png</sub> | <a href="progress/2026-09-29/swordsman.png"><img src="progress/2026-09-29/swordsman.png" width="150" alt="swordsman.png"></a><br><sub>swordsman.png</sub> | <a href="progress/2026-09-29/thief.png"><img src="progress/2026-09-29/thief.png" width="150" alt="thief.png"></a><br><sub>thief.png</sub> | <a href="progress/2026-09-29/walk-knees-legs.png"><img src="progress/2026-09-29/walk-knees-legs.png" width="150" alt="walk-knees-legs.png"></a><br><sub>walk-knees-legs.png</sub> | <a href="progress/2026-09-29/walk-knees.gif"><img src="progress/2026-09-29/walk-knees.gif" width="150" alt="walk-knees.gif"></a><br><sub>walk-knees.gif（未参照）</sub> |
+| <a href="progress/2026-09-29/walk-knees.png"><img src="progress/2026-09-29/walk-knees.png" width="150" alt="walk-knees.png"></a><br><sub>walk-knees.png</sub> | <a href="progress/2026-09-29/walk.gif"><img src="progress/2026-09-29/walk.gif" width="150" alt="walk.gif"></a><br><sub>walk.gif</sub> | <a href="progress/2026-09-29/walk.png"><img src="progress/2026-09-29/walk.png" width="150" alt="walk.png"></a><br><sub>walk.png</sub> | <a href="progress/2026-09-29/warrior-v3-vs-v4.png"><img src="progress/2026-09-29/warrior-v3-vs-v4.png" width="150" alt="warrior-v3-vs-v4.png"></a><br><sub>warrior-v3-vs-v4.png</sub> | <a href="progress/2026-09-29/warrior-v4-face-hands.png"><img src="progress/2026-09-29/warrior-v4-face-hands.png" width="150" alt="warrior-v4-face-hands.png"></a><br><sub>warrior-v4-face-hands.png</sub> | <a href="progress/2026-09-29/warrior-v4-hair.png"><img src="progress/2026-09-29/warrior-v4-hair.png" width="150" alt="warrior-v4-hair.png"></a><br><sub>warrior-v4-hair.png</sub> |
+| <a href="progress/2026-09-29/warrior-walk.gif"><img src="progress/2026-09-29/warrior-walk.gif" width="150" alt="warrior-walk.gif"></a><br><sub>warrior-walk.gif</sub> | <a href="progress/2026-09-29/warrior-walk.png"><img src="progress/2026-09-29/warrior-walk.png" width="150" alt="warrior-walk.png"></a><br><sub>warrior-walk.png</sub> |
+
+<a id="library-progress-2026-09-30"></a>
+## library/progress/2026-09-30/
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <a href="progress/2026-09-30/bodies.png"><img src="progress/2026-09-30/bodies.png" width="150" alt="bodies.png"></a><br><sub>bodies.png</sub> | <a href="progress/2026-09-30/body-muscles.png"><img src="progress/2026-09-30/body-muscles.png" width="150" alt="body-muscles.png"></a><br><sub>body-muscles.png</sub> | <a href="progress/2026-09-30/dark-outlines.png"><img src="progress/2026-09-30/dark-outlines.png" width="150" alt="dark-outlines.png"></a><br><sub>dark-outlines.png</sub> | <a href="progress/2026-09-30/eyes.png"><img src="progress/2026-09-30/eyes.png" width="150" alt="eyes.png"></a><br><sub>eyes.png</sub> | <a href="progress/2026-09-30/face-subtract.png"><img src="progress/2026-09-30/face-subtract.png" width="150" alt="face-subtract.png"></a><br><sub>face-subtract.png</sub> | <a href="progress/2026-09-30/faces-all.png"><img src="progress/2026-09-30/faces-all.png" width="150" alt="faces-all.png"></a><br><sub>faces-all.png</sub> |
+| <a href="progress/2026-09-30/far-eye.png"><img src="progress/2026-09-30/far-eye.png" width="150" alt="far-eye.png"></a><br><sub>far-eye.png</sub> | <a href="progress/2026-09-30/folds-warrior.png"><img src="progress/2026-09-30/folds-warrior.png" width="150" alt="folds-warrior.png"></a><br><sub>folds-warrior.png</sub> | <a href="progress/2026-09-30/hair-on-skull.png"><img src="progress/2026-09-30/hair-on-skull.png" width="150" alt="hair-on-skull.png"></a><br><sub>hair-on-skull.png</sub> | <a href="progress/2026-09-30/hair.png"><img src="progress/2026-09-30/hair.png" width="150" alt="hair.png"></a><br><sub>hair.png</sub> | <a href="progress/2026-09-30/legs-vs-ref-me.png"><img src="progress/2026-09-30/legs-vs-ref-me.png" width="150" alt="legs-vs-ref-me.png"></a><br><sub>legs-vs-ref-me.png</sub> | <a href="progress/2026-09-30/lineup-3q.png"><img src="progress/2026-09-30/lineup-3q.png" width="150" alt="lineup-3q.png"></a><br><sub>lineup-3q.png</sub> |
+| <a href="progress/2026-09-30/lineup-folds.png"><img src="progress/2026-09-30/lineup-folds.png" width="150" alt="lineup-folds.png"></a><br><sub>lineup-folds.png</sub> | <a href="progress/2026-09-30/lineup-legs.png"><img src="progress/2026-09-30/lineup-legs.png" width="150" alt="lineup-legs.png"></a><br><sub>lineup-legs.png</sub> | <a href="progress/2026-09-30/lineup-limbs.png"><img src="progress/2026-09-30/lineup-limbs.png" width="150" alt="lineup-limbs.png"></a><br><sub>lineup-limbs.png</sub> | <a href="progress/2026-09-30/lineup-subtract.png"><img src="progress/2026-09-30/lineup-subtract.png" width="150" alt="lineup-subtract.png"></a><br><sub>lineup-subtract.png</sub> | <a href="progress/2026-09-30/lineup-texture.png"><img src="progress/2026-09-30/lineup-texture.png" width="150" alt="lineup-texture.png"></a><br><sub>lineup-texture.png</sub> | <a href="progress/2026-09-30/lineup.gif"><img src="progress/2026-09-30/lineup.gif" width="150" alt="lineup.gif"></a><br><sub>lineup.gif（未参照）</sub> |
+| <a href="progress/2026-09-30/lineup.png"><img src="progress/2026-09-30/lineup.png" width="150" alt="lineup.png"></a><br><sub>lineup.png</sub> | <a href="progress/2026-09-30/pupils.png"><img src="progress/2026-09-30/pupils.png" width="150" alt="pupils.png"></a><br><sub>pupils.png</sub> | <a href="progress/2026-09-30/recipe-heads.png"><img src="progress/2026-09-30/recipe-heads.png" width="150" alt="recipe-heads.png"></a><br><sub>recipe-heads.png</sub> | <a href="progress/2026-09-30/saturation.png"><img src="progress/2026-09-30/saturation.png" width="150" alt="saturation.png"></a><br><sub>saturation.png</sub> | <a href="progress/2026-09-30/stance.png"><img src="progress/2026-09-30/stance.png" width="150" alt="stance.png"></a><br><sub>stance.png</sub> | <a href="progress/2026-09-30/thief-hair-warm.png"><img src="progress/2026-09-30/thief-hair-warm.png" width="150" alt="thief-hair-warm.png"></a><br><sub>thief-hair-warm.png</sub> |
+| <a href="progress/2026-09-30/thief-hair.png"><img src="progress/2026-09-30/thief-hair.png" width="150" alt="thief-hair.png"></a><br><sub>thief-hair.png</sub> | <a href="progress/2026-09-30/three-quarter.png"><img src="progress/2026-09-30/three-quarter.png" width="150" alt="three-quarter.png"></a><br><sub>three-quarter.png</sub> | <a href="progress/2026-09-30/warrior-base-head.png"><img src="progress/2026-09-30/warrior-base-head.png" width="150" alt="warrior-base-head.png"></a><br><sub>warrior-base-head.png</sub> | <a href="progress/2026-09-30/warrior-limb-legs.png"><img src="progress/2026-09-30/warrior-limb-legs.png" width="150" alt="warrior-limb-legs.png"></a><br><sub>warrior-limb-legs.png</sub> | <a href="progress/2026-09-30/warrior-texture.png"><img src="progress/2026-09-30/warrior-texture.png" width="150" alt="warrior-texture.png"></a><br><sub>warrior-texture.png</sub> |
+
+<a id="library-progress-2026-10-01"></a>
+## library/progress/2026-10-01/
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <a href="progress/2026-10-01/feet-apart.png"><img src="progress/2026-10-01/feet-apart.png" width="150" alt="feet-apart.png"></a><br><sub>feet-apart.png</sub> | <a href="progress/2026-10-01/feet-outline.png"><img src="progress/2026-10-01/feet-outline.png" width="150" alt="feet-outline.png"></a><br><sub>feet-outline.png</sub> | <a href="progress/2026-10-01/forehead.png"><img src="progress/2026-10-01/forehead.png" width="150" alt="forehead.png"></a><br><sub>forehead.png</sub> | <a href="progress/2026-10-01/hair-tufts.png"><img src="progress/2026-10-01/hair-tufts.png" width="150" alt="hair-tufts.png"></a><br><sub>hair-tufts.png</sub> | <a href="progress/2026-10-01/lineup-detail.png"><img src="progress/2026-10-01/lineup-detail.png" width="150" alt="lineup-detail.png"></a><br><sub>lineup-detail.png</sub> | <a href="progress/2026-10-01/metal-seams.png"><img src="progress/2026-10-01/metal-seams.png" width="150" alt="metal-seams.png"></a><br><sub>metal-seams.png</sub> |
+
+<a id="library-progress-2026-10-03"></a>
+## library/progress/2026-10-03/
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <a href="progress/2026-10-03/coat-hem.png"><img src="progress/2026-10-03/coat-hem.png" width="150" alt="coat-hem.png"></a><br><sub>coat-hem.png</sub> | <a href="progress/2026-10-03/engine-human.png"><img src="progress/2026-10-03/engine-human.png" width="150" alt="engine-human.png"></a><br><sub>engine-human.png</sub> | <a href="progress/2026-10-03/engine-pixel.png"><img src="progress/2026-10-03/engine-pixel.png" width="150" alt="engine-pixel.png"></a><br><sub>engine-pixel.png</sub> | <a href="progress/2026-10-03/female-skin.png"><img src="progress/2026-10-03/female-skin.png" width="150" alt="female-skin.png"></a><br><sub>female-skin.png</sub> | <a href="progress/2026-10-03/gen-base.png"><img src="progress/2026-10-03/gen-base.png" width="150" alt="gen-base.png"></a><br><sub>gen-base.png</sub> | <a href="progress/2026-10-03/gen-styles.png"><img src="progress/2026-10-03/gen-styles.png" width="150" alt="gen-styles.png"></a><br><sub>gen-styles.png</sub> |
+| <a href="progress/2026-10-03/gen-survivor.png"><img src="progress/2026-10-03/gen-survivor.png" width="150" alt="gen-survivor.png"></a><br><sub>gen-survivor.png</sub> | <a href="progress/2026-10-03/hair-shine.png"><img src="progress/2026-10-03/hair-shine.png" width="150" alt="hair-shine.png"></a><br><sub>hair-shine.png</sub> | <a href="progress/2026-10-03/near-arm.png"><img src="progress/2026-10-03/near-arm.png" width="150" alt="near-arm.png"></a><br><sub>near-arm.png</sub> | <a href="progress/2026-10-03/outline-tint.png"><img src="progress/2026-10-03/outline-tint.png" width="150" alt="outline-tint.png"></a><br><sub>outline-tint.png</sub> | <a href="progress/2026-10-03/skin-mid.png"><img src="progress/2026-10-03/skin-mid.png" width="150" alt="skin-mid.png"></a><br><sub>skin-mid.png</sub> |
+
+<a id="library-progress-2026-10-12"></a>
+## library/progress/2026-10-12/
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <a href="progress/2026-10-12/adduct-arms.png"><img src="progress/2026-10-12/adduct-arms.png" width="150" alt="adduct-arms.png"></a><br><sub>adduct-arms.png</sub> | <a href="progress/2026-10-12/expressions-noref.jpg"><img src="progress/2026-10-12/expressions-noref.jpg" width="150" alt="expressions-noref.jpg"></a><br><sub>expressions-noref.jpg</sub> | <a href="progress/2026-10-12/hd2d-learn-0.png"><img src="progress/2026-10-12/hd2d-learn-0.png" width="150" alt="hd2d-learn-0.png"></a><br><sub>hd2d-learn-0.png</sub> | <a href="progress/2026-10-12/hd2d-learn-1.png"><img src="progress/2026-10-12/hd2d-learn-1.png" width="150" alt="hd2d-learn-1.png"></a><br><sub>hd2d-learn-1.png</sub> | <a href="progress/2026-10-12/hd2d-learn-10.png"><img src="progress/2026-10-12/hd2d-learn-10.png" width="150" alt="hd2d-learn-10.png"></a><br><sub>hd2d-learn-10.png</sub> | <a href="progress/2026-10-12/hd2d-learn-11.png"><img src="progress/2026-10-12/hd2d-learn-11.png" width="150" alt="hd2d-learn-11.png"></a><br><sub>hd2d-learn-11.png</sub> |
+| <a href="progress/2026-10-12/hd2d-learn-2.png"><img src="progress/2026-10-12/hd2d-learn-2.png" width="150" alt="hd2d-learn-2.png"></a><br><sub>hd2d-learn-2.png</sub> | <a href="progress/2026-10-12/hd2d-learn-3.png"><img src="progress/2026-10-12/hd2d-learn-3.png" width="150" alt="hd2d-learn-3.png"></a><br><sub>hd2d-learn-3.png</sub> | <a href="progress/2026-10-12/hd2d-learn-4.png"><img src="progress/2026-10-12/hd2d-learn-4.png" width="150" alt="hd2d-learn-4.png"></a><br><sub>hd2d-learn-4.png</sub> | <a href="progress/2026-10-12/hd2d-learn-5.png"><img src="progress/2026-10-12/hd2d-learn-5.png" width="150" alt="hd2d-learn-5.png"></a><br><sub>hd2d-learn-5.png</sub> | <a href="progress/2026-10-12/hd2d-learn-6.png"><img src="progress/2026-10-12/hd2d-learn-6.png" width="150" alt="hd2d-learn-6.png"></a><br><sub>hd2d-learn-6.png</sub> | <a href="progress/2026-10-12/hd2d-learn-7.png"><img src="progress/2026-10-12/hd2d-learn-7.png" width="150" alt="hd2d-learn-7.png"></a><br><sub>hd2d-learn-7.png</sub> |
+| <a href="progress/2026-10-12/hd2d-learn-8.png"><img src="progress/2026-10-12/hd2d-learn-8.png" width="150" alt="hd2d-learn-8.png"></a><br><sub>hd2d-learn-8.png</sub> | <a href="progress/2026-10-12/hd2d-learn-9.png"><img src="progress/2026-10-12/hd2d-learn-9.png" width="150" alt="hd2d-learn-9.png"></a><br><sub>hd2d-learn-9.png</sub> |
+
+<a id="library-samples-bible"></a>
+## library/samples/bible/
+
+|   |   |
+|---|---|
+| <a href="samples/bible/bible-citadel-locations.jpg"><img src="samples/bible/bible-citadel-locations.jpg" width="150" alt="bible-citadel-locations.jpg"></a><br><sub>bible-citadel-locations.jpg</sub> | <a href="samples/bible/bible-knight-scenes.jpg"><img src="samples/bible/bible-knight-scenes.jpg" width="150" alt="bible-knight-scenes.jpg"></a><br><sub>bible-knight-scenes.jpg</sub> |
+
+<a id="library-samples-demi"></a>
+## library/samples/demi/
+
+|   |   |   |   |   |
+|---|---|---|---|---|
+| <a href="samples/demi/demi3d-angel.png"><img src="samples/demi/demi3d-angel.png" width="150" alt="demi3d-angel.png"></a><br><sub>demi3d-angel.png</sub> | <a href="samples/demi/demi3d-bunnygirl.png"><img src="samples/demi/demi3d-bunnygirl.png" width="150" alt="demi3d-bunnygirl.png"></a><br><sub>demi3d-bunnygirl.png</sub> | <a href="samples/demi/demi3d-catgirl.png"><img src="samples/demi/demi3d-catgirl.png" width="150" alt="demi3d-catgirl.png"></a><br><sub>demi3d-catgirl.png</sub> | <a href="samples/demi/demi3d-foxgirl.png"><img src="samples/demi/demi3d-foxgirl.png" width="150" alt="demi3d-foxgirl.png"></a><br><sub>demi3d-foxgirl.png</sub> | <a href="samples/demi/demi3d-succubus.png"><img src="samples/demi/demi3d-succubus.png" width="150" alt="demi3d-succubus.png"></a><br><sub>demi3d-succubus.png</sub> |
+
+<a id="library-samples-fashion"></a>
+## library/samples/fashion/
+
+|   |   |   |   |
+|---|---|---|---|
+| <a href="samples/fashion/fashion-gorpcore-m.png"><img src="samples/fashion/fashion-gorpcore-m.png" width="150" alt="fashion-gorpcore-m.png"></a><br><sub>fashion-gorpcore-m.png</sub> | <a href="samples/fashion/fashion-hakama-f.png"><img src="samples/fashion/fashion-hakama-f.png" width="150" alt="fashion-hakama-f.png"></a><br><sub>fashion-hakama-f.png</sub> | <a href="samples/fashion/fashion-jirai-f.png"><img src="samples/fashion/fashion-jirai-f.png" width="150" alt="fashion-jirai-f.png"></a><br><sub>fashion-jirai-f.png</sub> | <a href="samples/fashion/fashion-uniform-preppy-f.png"><img src="samples/fashion/fashion-uniform-preppy-f.png" width="150" alt="fashion-uniform-preppy-f.png"></a><br><sub>fashion-uniform-preppy-f.png</sub> |
+
+<a id="library-samples-handdraw"></a>
+## library/samples/handdraw/
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <a href="samples/handdraw/brushes-compare.jpg"><img src="samples/handdraw/brushes-compare.jpg" width="150" alt="brushes-compare.jpg"></a><br><sub>brushes-compare.jpg</sub> | <a href="samples/handdraw/handdraw-adjust.jpg"><img src="samples/handdraw/handdraw-adjust.jpg" width="150" alt="handdraw-adjust.jpg"></a><br><sub>handdraw-adjust.jpg</sub> | <a href="samples/handdraw/handdraw-brush.jpg"><img src="samples/handdraw/handdraw-brush.jpg" width="150" alt="handdraw-brush.jpg"></a><br><sub>handdraw-brush.jpg（未参照）</sub> | <a href="samples/handdraw/handdraw-from-rough.jpg"><img src="samples/handdraw/handdraw-from-rough.jpg" width="150" alt="handdraw-from-rough.jpg"></a><br><sub>handdraw-from-rough.jpg</sub> | <a href="samples/handdraw/handdraw-grain-eyes.jpg"><img src="samples/handdraw/handdraw-grain-eyes.jpg" width="150" alt="handdraw-grain-eyes.jpg"></a><br><sub>handdraw-grain-eyes.jpg</sub> | <a href="samples/handdraw/handdraw-light.jpg"><img src="samples/handdraw/handdraw-light.jpg" width="150" alt="handdraw-light.jpg"></a><br><sub>handdraw-light.jpg</sub> |
+| <a href="samples/handdraw/handdraw-parts-walls.jpg"><img src="samples/handdraw/handdraw-parts-walls.jpg" width="150" alt="handdraw-parts-walls.jpg"></a><br><sub>handdraw-parts-walls.jpg</sub> | <a href="samples/handdraw/handdraw-refine.jpg"><img src="samples/handdraw/handdraw-refine.jpg" width="150" alt="handdraw-refine.jpg"></a><br><sub>handdraw-refine.jpg</sub> | <a href="samples/handdraw/handdraw-steps-v2.jpg"><img src="samples/handdraw/handdraw-steps-v2.jpg" width="150" alt="handdraw-steps-v2.jpg"></a><br><sub>handdraw-steps-v2.jpg</sub> | <a href="samples/handdraw/handdraw-steps-v3.jpg"><img src="samples/handdraw/handdraw-steps-v3.jpg" width="150" alt="handdraw-steps-v3.jpg"></a><br><sub>handdraw-steps-v3.jpg</sub> | <a href="samples/handdraw/handdraw-steps.jpg"><img src="samples/handdraw/handdraw-steps.jpg" width="150" alt="handdraw-steps.jpg"></a><br><sub>handdraw-steps.jpg</sub> | <a href="samples/handdraw/method-rough.jpg"><img src="samples/handdraw/method-rough.jpg" width="150" alt="method-rough.jpg"></a><br><sub>method-rough.jpg</sub> |
+
+<a id="library-samples-imgproc"></a>
+## library/samples/imgproc/
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <a href="samples/imgproc/deai-compare.jpg"><img src="samples/imgproc/deai-compare.jpg" width="150" alt="deai-compare.jpg"></a><br><sub>deai-compare.jpg</sub> | <a href="samples/imgproc/imgproc-colorize-strength.jpg"><img src="samples/imgproc/imgproc-colorize-strength.jpg" width="150" alt="imgproc-colorize-strength.jpg"></a><br><sub>imgproc-colorize-strength.jpg</sub> | <a href="samples/imgproc/imgproc-inpaint-outpaint.jpg"><img src="samples/imgproc/imgproc-inpaint-outpaint.jpg" width="150" alt="imgproc-inpaint-outpaint.jpg"></a><br><sub>imgproc-inpaint-outpaint.jpg（未参照）</sub> | <a href="samples/imgproc/imgproc-lineart.jpg"><img src="samples/imgproc/imgproc-lineart.jpg" width="150" alt="imgproc-lineart.jpg"></a><br><sub>imgproc-lineart.jpg</sub> | <a href="samples/imgproc/imgproc-overview.jpg"><img src="samples/imgproc/imgproc-overview.jpg" width="150" alt="imgproc-overview.jpg"></a><br><sub>imgproc-overview.jpg（未参照）</sub> | <a href="samples/imgproc/shade-overview.jpg"><img src="samples/imgproc/shade-overview.jpg" width="150" alt="shade-overview.jpg"></a><br><sub>shade-overview.jpg</sub> |
+| <a href="samples/imgproc/shade-zoom.jpg"><img src="samples/imgproc/shade-zoom.jpg" width="150" alt="shade-zoom.jpg"></a><br><sub>shade-zoom.jpg（未参照）</sub> |
+
+<a id="library-samples-lineart"></a>
+## library/samples/lineart/
+
+|   |   |   |   |   |
+|---|---|---|---|---|
+| <a href="samples/lineart/lineart-color-four.jpg"><img src="samples/lineart/lineart-color-four.jpg" width="150" alt="lineart-color-four.jpg"></a><br><sub>lineart-color-four.jpg</sub> | <a href="samples/lineart/lineart-color-parts.jpg"><img src="samples/lineart/lineart-color-parts.jpg" width="150" alt="lineart-color-parts.jpg"></a><br><sub>lineart-color-parts.jpg</sub> | <a href="samples/lineart/lineart-color-try.jpg"><img src="samples/lineart/lineart-color-try.jpg" width="150" alt="lineart-color-try.jpg"></a><br><sub>lineart-color-try.jpg</sub> | <a href="samples/lineart/lineart-jobs.jpg"><img src="samples/lineart/lineart-jobs.jpg" width="150" alt="lineart-jobs.jpg"></a><br><sub>lineart-jobs.jpg</sub> | <a href="samples/lineart/lineart-methods.jpg"><img src="samples/lineart/lineart-methods.jpg" width="150" alt="lineart-methods.jpg"></a><br><sub>lineart-methods.jpg</sub> |
+
+<a id="library-samples-people"></a>
+## library/samples/people/
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <a href="samples/people/age-elder-female.png"><img src="samples/people/age-elder-female.png" width="150" alt="age-elder-female.png"></a><br><sub>age-elder-female.png</sub> | <a href="samples/people/age-elder-male.png"><img src="samples/people/age-elder-male.png" width="150" alt="age-elder-male.png"></a><br><sub>age-elder-male.png</sub> | <a href="samples/people/age-teen-female.png"><img src="samples/people/age-teen-female.png" width="150" alt="age-teen-female.png"></a><br><sub>age-teen-female.png</sub> | <a href="samples/people/age-teen-male.png"><img src="samples/people/age-teen-male.png" width="150" alt="age-teen-male.png"></a><br><sub>age-teen-male.png</sub> | <a href="samples/people/anime-ideal-female-5views.png"><img src="samples/people/anime-ideal-female-5views.png" width="150" alt="anime-ideal-female-5views.png"></a><br><sub>anime-ideal-female-5views.png</sub> | <a href="samples/people/anime-ideal-female.png"><img src="samples/people/anime-ideal-female.png" width="150" alt="anime-ideal-female.png"></a><br><sub>anime-ideal-female.png</sub> |
+| <a href="samples/people/base-female.png"><img src="samples/people/base-female.png" width="150" alt="base-female.png"></a><br><sub>base-female.png</sub> | <a href="samples/people/base-male.png"><img src="samples/people/base-male.png" width="150" alt="base-male.png"></a><br><sub>base-male.png</sub> | <a href="samples/people/body-ideal-female.png"><img src="samples/people/body-ideal-female.png" width="150" alt="body-ideal-female.png"></a><br><sub>body-ideal-female.png</sub> | <a href="samples/people/body-lean-male.png"><img src="samples/people/body-lean-male.png" width="150" alt="body-lean-male.png"></a><br><sub>body-lean-male.png</sub> | <a href="samples/people/body-plump-male.png"><img src="samples/people/body-plump-male.png" width="150" alt="body-plump-male.png"></a><br><sub>body-plump-male.png</sub> | <a href="samples/people/body-plump-tan-male.png"><img src="samples/people/body-plump-tan-male.png" width="150" alt="body-plump-tan-male.png"></a><br><sub>body-plump-tan-male.png</sub> |
+| <a href="samples/people/body-types-female.png"><img src="samples/people/body-types-female.png" width="150" alt="body-types-female.png"></a><br><sub>body-types-female.png</sub> | <a href="samples/people/ears-cat-female.png"><img src="samples/people/ears-cat-female.png" width="150" alt="ears-cat-female.png"></a><br><sub>ears-cat-female.png</sub> | <a href="samples/people/ears-elf-female.png"><img src="samples/people/ears-elf-female.png" width="150" alt="ears-elf-female.png"></a><br><sub>ears-elf-female.png</sub> | <a href="samples/people/outfit-black-jeans.png"><img src="samples/people/outfit-black-jeans.png" width="150" alt="outfit-black-jeans.png"></a><br><sub>outfit-black-jeans.png</sub> | <a href="samples/people/outfit-plaid-skirt.png"><img src="samples/people/outfit-plaid-skirt.png" width="150" alt="outfit-plaid-skirt.png"></a><br><sub>outfit-plaid-skirt.png</sub> | <a href="samples/people/outfit-red-leather-jacket.png"><img src="samples/people/outfit-red-leather-jacket.png" width="150" alt="outfit-red-leather-jacket.png"></a><br><sub>outfit-red-leather-jacket.png</sub> |
+| <a href="samples/people/outfit-white-hoodie.png"><img src="samples/people/outfit-white-hoodie.png" width="150" alt="outfit-white-hoodie.png"></a><br><sub>outfit-white-hoodie.png</sub> | <a href="samples/people/poses-ideal-female.png"><img src="samples/people/poses-ideal-female.png" width="150" alt="poses-ideal-female.png"></a><br><sub>poses-ideal-female.png</sub> | <a href="samples/people/race-dwarf-male.png"><img src="samples/people/race-dwarf-male.png" width="150" alt="race-dwarf-male.png"></a><br><sub>race-dwarf-male.png</sub> | <a href="samples/people/race-elf-female.png"><img src="samples/people/race-elf-female.png" width="150" alt="race-elf-female.png"></a><br><sub>race-elf-female.png</sub> | <a href="samples/people/race-elf-male.png"><img src="samples/people/race-elf-male.png" width="150" alt="race-elf-male.png"></a><br><sub>race-elf-male.png</sub> | <a href="samples/people/race-orc-female.png"><img src="samples/people/race-orc-female.png" width="150" alt="race-orc-female.png"></a><br><sub>race-orc-female.png</sub> |
+| <a href="samples/people/skin-blue-female.png"><img src="samples/people/skin-blue-female.png" width="150" alt="skin-blue-female.png"></a><br><sub>skin-blue-female.png</sub> | <a href="samples/people/skin-blue-male.png"><img src="samples/people/skin-blue-male.png" width="150" alt="skin-blue-male.png"></a><br><sub>skin-blue-male.png</sub> | <a href="samples/people/skin-dark-female.png"><img src="samples/people/skin-dark-female.png" width="150" alt="skin-dark-female.png"></a><br><sub>skin-dark-female.png</sub> | <a href="samples/people/skin-green-female.png"><img src="samples/people/skin-green-female.png" width="150" alt="skin-green-female.png"></a><br><sub>skin-green-female.png</sub> | <a href="samples/people/skin-green-male.png"><img src="samples/people/skin-green-male.png" width="150" alt="skin-green-male.png"></a><br><sub>skin-green-male.png</sub> | <a href="samples/people/skin-grey-female.png"><img src="samples/people/skin-grey-female.png" width="150" alt="skin-grey-female.png"></a><br><sub>skin-grey-female.png</sub> |
+| <a href="samples/people/skin-grey-male.png"><img src="samples/people/skin-grey-male.png" width="150" alt="skin-grey-male.png"></a><br><sub>skin-grey-male.png</sub> | <a href="samples/people/skin-red-female.png"><img src="samples/people/skin-red-female.png" width="150" alt="skin-red-female.png"></a><br><sub>skin-red-female.png</sub> | <a href="samples/people/skin-red-male.png"><img src="samples/people/skin-red-male.png" width="150" alt="skin-red-male.png"></a><br><sub>skin-red-male.png</sub> | <a href="samples/people/skin-tan-male.png"><img src="samples/people/skin-tan-male.png" width="150" alt="skin-tan-male.png"></a><br><sub>skin-tan-male.png</sub> | <a href="samples/people/tattoo-tribal-arms-male.png"><img src="samples/people/tattoo-tribal-arms-male.png" width="150" alt="tattoo-tribal-arms-male.png"></a><br><sub>tattoo-tribal-arms-male.png</sub> | <a href="samples/people/tattoo-tribal-male.png"><img src="samples/people/tattoo-tribal-male.png" width="150" alt="tattoo-tribal-male.png"></a><br><sub>tattoo-tribal-male.png</sub> |
+| <a href="samples/people/traits-clothes.jpg"><img src="samples/people/traits-clothes.jpg" width="150" alt="traits-clothes.jpg"></a><br><sub>traits-clothes.jpg</sub> | <a href="samples/people/traits-hair.jpg"><img src="samples/people/traits-hair.jpg" width="150" alt="traits-hair.jpg"></a><br><sub>traits-hair.jpg</sub> |
+
+<a id="library-samples-studio"></a>
+## library/samples/studio/
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <a href="samples/studio/studio-chibi-witch-v2.jpg"><img src="samples/studio/studio-chibi-witch-v2.jpg" width="150" alt="studio-chibi-witch-v2.jpg"></a><br><sub>studio-chibi-witch-v2.jpg</sub> | <a href="samples/studio/studio-chibi-witch.jpg"><img src="samples/studio/studio-chibi-witch.jpg" width="150" alt="studio-chibi-witch.jpg"></a><br><sub>studio-chibi-witch.jpg</sub> | <a href="samples/studio/studio-formats.jpg"><img src="samples/studio/studio-formats.jpg" width="150" alt="studio-formats.jpg"></a><br><sub>studio-formats.jpg（未参照）</sub> | <a href="samples/studio/studio-lora-watercolor.jpg"><img src="samples/studio/studio-lora-watercolor.jpg" width="150" alt="studio-lora-watercolor.jpg"></a><br><sub>studio-lora-watercolor.jpg</sub> | <a href="samples/studio/studio-paint-format.jpg"><img src="samples/studio/studio-paint-format.jpg" width="150" alt="studio-paint-format.jpg"></a><br><sub>studio-paint-format.jpg（未参照）</sub> | <a href="samples/studio/studio-paint-styles.jpg"><img src="samples/studio/studio-paint-styles.jpg" width="150" alt="studio-paint-styles.jpg"></a><br><sub>studio-paint-styles.jpg（未参照）</sub> |
+| <a href="samples/studio/studio-pose-underlay.jpg"><img src="samples/studio/studio-pose-underlay.jpg" width="150" alt="studio-pose-underlay.jpg"></a><br><sub>studio-pose-underlay.jpg</sub> | <a href="samples/studio/studio-steampunk-mechanic.jpg"><img src="samples/studio/studio-steampunk-mechanic.jpg" width="150" alt="studio-steampunk-mechanic.jpg"></a><br><sub>studio-steampunk-mechanic.jpg</sub> |
+
+<a id="library-sheets"></a>
+## library/sheets/
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <a href="sheets/apothecary.png"><img src="sheets/apothecary.png" width="150" alt="apothecary.png"></a><br><sub>apothecary.png（未参照）</sub> | <a href="sheets/cleric.png"><img src="sheets/cleric.png" width="150" alt="cleric.png"></a><br><sub>cleric.png（未参照）</sub> | <a href="sheets/dancer.png"><img src="sheets/dancer.png" width="150" alt="dancer.png"></a><br><sub>dancer.png（未参照）</sub> | <a href="sheets/hunter.png"><img src="sheets/hunter.png" width="150" alt="hunter.png"></a><br><sub>hunter.png（未参照）</sub> | <a href="sheets/merchant.png"><img src="sheets/merchant.png" width="150" alt="merchant.png"></a><br><sub>merchant.png（未参照）</sub> | <a href="sheets/scholar.png"><img src="sheets/scholar.png" width="150" alt="scholar.png"></a><br><sub>scholar.png（未参照）</sub> |
+| <a href="sheets/swordsman.png"><img src="sheets/swordsman.png" width="150" alt="swordsman.png"></a><br><sub>swordsman.png（未参照）</sub> | <a href="sheets/thief.png"><img src="sheets/thief.png" width="150" alt="thief.png"></a><br><sub>thief.png（未参照）</sub> | <a href="sheets/warrior.png"><img src="sheets/warrior.png" width="150" alt="warrior.png"></a><br><sub>warrior.png（未参照）</sub> |
