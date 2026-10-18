@@ -24,7 +24,9 @@ TEXT = (".md", ".json", ".py", ".ts", ".tsx", ".html", ".sh", ".txt")
 NAME = re.compile(r"^[a-z0-9][a-z0-9._-]*$")
 RULES = [
     (re.compile(r"^library/samples/[^/]+$"), "見本の絵は library/samples/<題目>/ に置く"),
-    (re.compile(r"^library/progress/(?!\d{4}-\d{2}-\d{2}/)[^/]+\.(png|jpe?g|gif|webp)$"), "比べた記録の絵は library/progress/<日付>/ に置く"),
+    # README.md は置き場の説明なので、日付のフォルダの外でもよい
+    (re.compile(r"^library/progress/(?!\d{4}-\d{2}-\d{2}/)(?!README\.md$)"), "比べた記録の絵は library/progress/<日付>/ に置く"),
+    (re.compile(r"^library/feedback/[^/]+/(?!\d{4}-\d{2}-\d{2}/)"), "フィードバックの成果物は library/feedback/<題目>/<日付>/ に置く"),
     (re.compile(r"^library/daily/(?!\d{4}-\d{2}-\d{2}/)"), "日ごとの作例は library/daily/<日付>/ に置く"),
 ]
 REF = re.compile(r"((?:library|docs/images|bible|designs)/[\w./-]+\.(?:png|jpe?g|gif|webp))")
@@ -38,11 +40,11 @@ def check() -> dict:
     files = tracked()
     images = [f for f in files if f.lower().endswith(IMAGES)]
     misplaced = []
-    for f in images:
+    for f in [x for x in files if x.startswith("library/")]:
         for rx, why in RULES:
             if rx.match(f):
                 misplaced.append(f"{f}: {why}")
-        if not NAME.match(Path(f).name):
+        if f.lower().endswith(IMAGES) and not NAME.match(Path(f).name):
             misplaced.append(f"{f}: 名前は英小文字・数字・ハイフンにする")
     have = set(images)
     broken, used = [], set()
