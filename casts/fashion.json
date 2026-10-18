@@ -1,0 +1,444 @@
+{
+ "_doc": "流行のファッションを描く言葉の札（docs/knowledge/fashion/）。1つの look が1人の装い。clothes は tools/gen/people.py card --clothes に、hair は --hair にそのまま渡す。系統の品目は資料の出典で確かめたものを使い、確かめられなかった所（色の組み合わせ、靴など）は描くための作例として足している。colors は目安の色で出典の値ではない。見本の描き方: PYTHONPATH=.cache/gen/lib python3 tools/gen/people.py card <出力> <id> --gender <gender> --age <age> --hair \"<hair>\" --clothes \"<clothes>\" --views front --zoom none。hair の最後に目の色を書く（書かないと左右の瞳の色が違って描かれた）",
+ "updated": "2026-10",
+ "genres": {
+  "ballet-core": {
+   "ja": "バレエコア",
+   "doc": "docs/knowledge/fashion/genres.md"
+  },
+  "neo-mori": {
+   "ja": "令和版森ガール",
+   "doc": "docs/knowledge/fashion/genres.md"
+  },
+  "fairy-grunge": {
+   "ja": "グランジ／フェアリーグランジ",
+   "doc": "docs/knowledge/fashion/genres.md"
+  },
+  "y2k": {
+   "ja": "Y2K・平成女児・ウィッシュコア",
+   "doc": "docs/knowledge/fashion/genres.md"
+  },
+  "jirai": {
+   "ja": "地雷系",
+   "doc": "docs/knowledge/fashion/genres.md"
+  },
+  "korean": {
+   "ja": "韓国系",
+   "doc": "docs/knowledge/fashion/genres.md"
+  },
+  "blokecore": {
+   "ja": "ストリート／ブロークコア",
+   "doc": "docs/knowledge/fashion/genres.md"
+  },
+  "gorpcore": {
+   "ja": "ゴープコア",
+   "doc": "docs/knowledge/fashion/genres.md"
+  },
+  "vintage": {
+   "ja": "古着・アメカジ",
+   "doc": "docs/knowledge/fashion/genres.md"
+  },
+  "quiet-age": {
+   "ja": "クワイエット・アゲ",
+   "doc": "docs/knowledge/fashion/genres.md"
+  },
+  "quiet-luxury": {
+   "ja": "クワイエット・ラグジュアリー",
+   "doc": "docs/knowledge/fashion/genres.md"
+  },
+  "natural-girly": {
+   "ja": "ナチュラル・フレンチカジュアル・ガーリー",
+   "doc": "docs/knowledge/fashion/genres.md"
+  },
+  "kireime-men": {
+   "ja": "きれいめ＆シンプル（メンズ）、オフィスカジュアル",
+   "doc": "docs/knowledge/fashion/genres.md"
+  },
+  "leather-men": {
+   "ja": "メンズのレザーブルゾン",
+   "doc": "docs/knowledge/fashion/genres.md"
+  },
+  "ryosan": {
+   "ja": "量産型",
+   "doc": "docs/knowledge/fashion/genres.md"
+  },
+  "uniform": {
+   "ja": "制服の着こなし",
+   "doc": "docs/knowledge/fashion/genres.md"
+  },
+  "events": {
+   "ja": "季節の行事",
+   "doc": "docs/knowledge/fashion/seasons.md"
+  }
+ },
+ "looks": [
+  {
+   "id": "ballet-core-f",
+   "ja": "バレエコアの女子",
+   "genre": "ballet-core",
+   "seasons": [
+    "spring",
+    "summer"
+   ],
+   "gender": "female",
+   "age": "teen",
+   "clothes": "white tulle blouse, lavender mohair cardigan, long white tulle skirt, layered leg warmers, satin mary janes",
+   "hair": "long brown hair, low bun, pearl hair clip, ribbon, brown eyes",
+   "colors": [
+    "#FAF7F2",
+    "#C8B8DB",
+    "#F4C6D0"
+   ],
+   "role": "習いごとを続けている、几帳面"
+  },
+  {
+   "id": "neo-mori-f",
+   "ja": "令和版森ガールの女子",
+   "genre": "neo-mori",
+   "seasons": [
+    "autumn"
+   ],
+   "gender": "female",
+   "age": "teen",
+   "clothes": "white cotton tunic, short beige cardigan, loose straight blue jeans, white sneakers",
+   "hair": "long brown hair, loose side braid, brown eyes",
+   "colors": [
+    "#EFE6D2",
+    "#8A9A7B",
+    "#C9B79C"
+   ],
+   "role": "のんびり、古いものや自然が好き"
+  },
+  {
+   "id": "fairy-grunge-f",
+   "ja": "フェアリーグランジの女子",
+   "genre": "fairy-grunge",
+   "seasons": [
+    "autumn",
+    "winter"
+   ],
+   "gender": "female",
+   "age": "teen",
+   "clothes": "open red plaid flannel shirt, dark grey long-sleeve lace-trimmed top, baggy torn jeans, black sneakers",
+   "hair": "messy long black hair, brown eyes",
+   "colors": [
+    "#6B6B47",
+    "#4A3B32",
+    "#5E4B5E"
+   ],
+   "role": "音楽好き、懐かしいものが好きで少し影がある"
+  },
+  {
+   "id": "y2k-wish-f",
+   "ja": "Y2K・ウィッシュコアの女子",
+   "genre": "y2k",
+   "seasons": [
+    "spring",
+    "summer"
+   ],
+   "gender": "female",
+   "age": "teen",
+   "clothes": "light blue star print t-shirt, pink zip-up hoodie, wide straight jeans, white sneakers, backpack with stuffed animal bag charm",
+   "hair": "brown twintails, star hair ornament, brown eyes",
+   "colors": [
+    "#FF8AC4",
+    "#8FD3F4",
+    "#FFE066"
+   ],
+   "role": "子どもの頃の好きなものを大事にする、にぎやか"
+  },
+  {
+   "id": "jirai-f",
+   "ja": "地雷系の女子",
+   "genre": "jirai",
+   "seasons": [
+    "autumn",
+    "winter"
+   ],
+   "gender": "female",
+   "age": "teen",
+   "clothes": "black frilled long-sleeve dress with long skirt, pink ribbon, black choker, white frilled socks, black thick-soled loafers",
+   "hair": "black hair, twintails, pink hair ribbon, brown eyes",
+   "colors": [
+    "#1A1A1A",
+    "#D98FA6",
+    "#6E1E2B"
+   ],
+   "role": "甘いものが好き、身なりに手を抜かない",
+   "sample": "library/samples/fashion-jirai-f.png",
+   "sample_seed": 107,
+   "sample_note": "目の色を足す前の hair（末尾の brown eyes なし）で描いた"
+  },
+  {
+   "id": "korean-f",
+   "ja": "韓国系の女子",
+   "genre": "korean",
+   "seasons": [
+    "spring",
+    "autumn"
+   ],
+   "gender": "female",
+   "age": "adult",
+   "clothes": "white knit cardigan, long white polka dot skirt, white sneakers, small shoulder bag",
+   "hair": "long chocolate brown hair, wispy bangs, sidelocks, brown eyes",
+   "colors": [
+    "#5A3A2A",
+    "#FAF7F2",
+    "#1C1C1C"
+   ],
+   "role": "流行に敏感、写真映えを気にする"
+  },
+  {
+   "id": "blokecore-m",
+   "ja": "ブロークコアの男子",
+   "genre": "blokecore",
+   "seasons": [
+    "summer"
+   ],
+   "gender": "male",
+   "age": "teen",
+   "clothes": "red soccer jersey, baggy blue jeans, white low-top sneakers",
+   "hair": "short black hair, center part, dark brown eyes",
+   "colors": [
+    "#C8102E",
+    "#1F2A44",
+    "#F5F5F5"
+   ],
+   "role": "スポーツ好き、気取らない"
+  },
+  {
+   "id": "gorpcore-m",
+   "ja": "ゴープコアの男子",
+   "genre": "gorpcore",
+   "seasons": [
+    "autumn",
+    "winter"
+   ],
+   "gender": "male",
+   "age": "adult",
+   "clothes": "olive hooded mountain jacket, black cargo pants, grey trail running shoes, black backpack",
+   "hair": "short black hair, dark brown eyes",
+   "colors": [
+    "#6B705C",
+    "#222222",
+    "#C9B79C"
+   ],
+   "role": "実用派、外遊びや旅行が好き",
+   "sample": "library/samples/fashion-gorpcore-m.png",
+   "sample_seed": 21,
+   "sample_note": "目の色を足す前の hair で描き（種 21、打ち消しに logo, brand logo, emblem, text）、imgproc facefix（1boy, detailed face, grey eyes, both eyes same color）で顔を直した"
+  },
+  {
+   "id": "vintage-m",
+   "ja": "古着・アメカジの男子",
+   "genre": "vintage",
+   "seasons": [
+    "spring",
+    "autumn"
+   ],
+   "gender": "male",
+   "age": "adult",
+   "clothes": "colorful patterned open-collar shirt, white graphic t-shirt, faded indigo jeans, white canvas sneakers, baseball cap",
+   "hair": "messy brown hair, dark brown eyes",
+   "colors": [
+    "#3F4F7A",
+    "#C9A23A",
+    "#8C3B2E"
+   ],
+   "role": "一点物が好き、こだわりが強い"
+  },
+  {
+   "id": "quiet-age-f",
+   "ja": "クワイエット・アゲの女子",
+   "genre": "quiet-age",
+   "seasons": [
+    "spring",
+    "autumn"
+   ],
+   "gender": "female",
+   "age": "teen",
+   "clothes": "white collared blouse, grey cardigan, long navy pleated skirt, loafers, small silver earrings, keychain on bag",
+   "hair": "black hair, low ponytail, brown eyes",
+   "colors": [
+    "#C0C0C8",
+    "#E6D3A3",
+    "#1F2A44"
+   ],
+   "role": "決まりの中で工夫する、自分らしさを手放さない"
+  },
+  {
+   "id": "quiet-luxury-f",
+   "ja": "クワイエット・ラグジュアリーの若い社会人",
+   "genre": "quiet-luxury",
+   "seasons": [
+    "autumn",
+    "winter"
+   ],
+   "gender": "female",
+   "age": "adult",
+   "clothes": "camel trench coat, ivory turtleneck sweater, long beige pleated skirt, brown boots, silver necklace",
+   "hair": "long dark brown hair, brown eyes",
+   "colors": [
+    "#C19A6B",
+    "#F3EEE0",
+    "#111111"
+   ],
+   "role": "落ち着いている、目立ちたくない"
+  },
+  {
+   "id": "natural-girly-f",
+   "ja": "ナチュラル・ガーリーの女子",
+   "genre": "natural-girly",
+   "seasons": [
+    "spring"
+   ],
+   "gender": "female",
+   "age": "teen",
+   "clothes": "pastel pink cardigan, light blue long dress, white sneakers",
+   "hair": "brown hair, bob cut, brown eyes",
+   "colors": [
+    "#F8C8DC",
+    "#BFE3F5",
+    "#FAF7F2"
+   ],
+   "role": "穏やか、似合うものを分かっている"
+  },
+  {
+   "id": "kireime-m",
+   "ja": "きれいめ＆シンプルの男子",
+   "genre": "kireime-men",
+   "seasons": [
+    "spring",
+    "autumn"
+   ],
+   "gender": "male",
+   "age": "teen",
+   "clothes": "light grey hoodie, khaki chino pants, brown loafers",
+   "hair": "dark wine red hair, center part, mushroom cut, slightly wavy bangs, dark brown eyes",
+   "colors": [
+    "#8A7F5A",
+    "#D8C8A8",
+    "#B5CC5A"
+   ],
+   "role": "真面目、清潔感、誰とでも付き合える"
+  },
+  {
+   "id": "office-casual-m",
+   "ja": "オフィスカジュアルの若い社会人",
+   "genre": "kireime-men",
+   "seasons": [
+    "spring",
+    "autumn"
+   ],
+   "gender": "male",
+   "age": "adult",
+   "clothes": "navy unstructured jacket, white t-shirt, beige wide slacks, black loafers",
+   "hair": "black hair, parted bangs, dark brown eyes",
+   "colors": [
+    "#1F2A44",
+    "#FFFFFF",
+    "#D8C8A8"
+   ],
+   "role": "新しい職場に慣れようとしている"
+  },
+  {
+   "id": "leather-m",
+   "ja": "レザーブルゾンの男子",
+   "genre": "leather-men",
+   "seasons": [
+    "autumn",
+    "winter"
+   ],
+   "gender": "male",
+   "age": "adult",
+   "clothes": "dark brown leather jacket, white t-shirt, black straight pants, black boots",
+   "hair": "black wolf cut hair, dark brown eyes",
+   "colors": [
+    "#4A3B32",
+    "#FFFFFF",
+    "#111111"
+   ],
+   "role": "大人びて見せたい、バイクや音楽"
+  },
+  {
+   "id": "ryosan-f",
+   "ja": "量産型の女子",
+   "genre": "ryosan",
+   "seasons": [
+    "spring",
+    "autumn"
+   ],
+   "gender": "female",
+   "age": "teen",
+   "clothes": "pink frilled lace dress with long skirt, white frilled socks, pink mary janes, heart-shaped bag with plush keychain",
+   "hair": "light brown wavy hair, pink hair ribbon, brown eyes",
+   "colors": [
+    "#F7B8CF",
+    "#FFFFFF",
+    "#C9A68A"
+   ],
+   "role": "推しを応援している、友だちと揃えるのが好き"
+  },
+  {
+   "id": "uniform-preppy-f",
+   "ja": "制服のプレッピー系の女子",
+   "genre": "uniform",
+   "seasons": [
+    "spring",
+    "autumn"
+   ],
+   "gender": "female",
+   "age": "teen",
+   "clothes": "school uniform, navy blazer, white collared shirt, red neck ribbon, knee-length grey plaid skirt, white ankle socks, white sneakers, black backpack",
+   "hair": "black hair, low ponytail, brown eyes",
+   "colors": [
+    "#1F2A44",
+    "#C8102E",
+    "#9A9A9A"
+   ],
+   "role": "同じ学校の生徒を系統で描き分ける基準",
+   "sample": "library/samples/fashion-uniform-preppy-f.png",
+   "sample_seed": 21,
+   "sample_note": "目の色を足す前の hair で描き（種 21、打ち消しに logo, brand logo, emblem, text）、imgproc facefix（1girl, detailed face, brown eyes, both eyes same color）で顔を直した"
+  },
+  {
+   "id": "yukata-f",
+   "ja": "浴衣の女子（2026年）",
+   "genre": "events",
+   "seasons": [
+    "summer"
+   ],
+   "gender": "female",
+   "age": "teen",
+   "clothes": "navy yukata with sunflower print, yellow obi, geta",
+   "hair": "black hair, hair up, hair flower, brown eyes",
+   "colors": [
+    "#1F2A44",
+    "#F2C230",
+    "#FFFFFF"
+   ],
+   "role": "夏祭り、花火大会"
+  },
+  {
+   "id": "hakama-f",
+   "ja": "卒業式の袴の女子",
+   "genre": "events",
+   "seasons": [
+    "spring"
+   ],
+   "gender": "female",
+   "age": "adult",
+   "clothes": "red floral kimono, dark green hakama skirt, brown lace-up boots",
+   "hair": "dark brown hair, half updo, ribbon barrette, hair flower, brown eyes",
+   "colors": [
+    "#B22234",
+    "#2F5D50",
+    "#F3EEE0"
+   ],
+   "role": "大学の卒業式",
+   "sample": "library/samples/fashion-hakama-f.png",
+   "sample_seed": 7,
+   "sample_note": "目の色を足す前の hair（末尾の brown eyes なし）で描いた"
+  }
+ ]
+}
