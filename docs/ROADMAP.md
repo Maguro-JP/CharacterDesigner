@@ -236,8 +236,9 @@
 - [x] 線画の抽出（塗り絵や清書の下地）: `imgproc.py lineart`（XDoG、模型なし、1枚 1秒以内。`library/samples/imgproc-lineart.jpg`）
 - [ ] 線画への着色: 白い線画から描き直す（img2img）だけでは塗れない。強さ 0.93 は色が付くが形が変わり、0.72・0.82 は形を守るが色がほとんど乗らない（`library/samples/imgproc-colorize-strength.jpg`）。次の手: 人と同じく、先に閉じた領域へ平らな色を置いてから描き直す（`handdraw.py` の下塗りを使う）
 - [x] 色の置き換え・色調補正・色合わせ（`imgproc.py recolor / grade / match`。置き換えは影の明るさを残し、枠で範囲を絞れる。剣士の灰色の襟巻きを赤にできた。`docs/knowledge/lineart.md`）
-- [ ] 姿勢推定（骨格の点を取る。ポーズを付けて描くとき、骨格で崩れを数える）
-- [ ] 奥行き推定（`layers.py` の Depth Anything を単体で）と、法線から光を当て直すリライティング
+- [x] 姿勢推定（`tools/gen/joints.py`、RTMPose。検品の体の決まり・頭身・手の枠で使う）
+- [x] 奥行き推定を単体で（`imgproc.py depth`、1 枚 5 秒。模型は `layers.depth_map` の 1 か所で読む）
+- [x] 法線から光を当て直す（`imgproc.py shade`）
 - [x] 顔の検出と、顔だけ拡大して描き直す修正（`imgproc.py facefix`。部位分けの顔の枠を 1024 に拡大し strength 0.35 で描き直して楕円の型で戻す。騎士の絵で目の描き込みが増え、継ぎ目は見えない。変わった画素 41,402）
 - [x] ノイズ除去、ぼかし除去（`imgproc.py denoise / sharpen`。剣士の JPEG のざらつき 0.81 → 0.39、線が少し柔らかくなる。描き直してぼやけた騎士の輪郭の急さ 51.3 → 93.8。skimage の unsharp_mask はこの環境で壊れた値を返したので scipy で計算する）
 
