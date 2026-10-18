@@ -13,3 +13,7 @@ config/norms.user.json
 /models/
 /config/models.json
 /dist/
+
+# 検品の副産物（絵の隣に書かれる。基準の絵を検品し直すたびに増える）
+library/**/*.qc.json
+library/**/*.parts.png
