@@ -60,7 +60,13 @@ def run(bench: dict, outdir: str, style=None, width=None, height=None, steps=Non
     st = style or bench["style"]
     res = {"variant": od.name, "style": st, "width": width or bench["width"], "height": height or bench["height"],
            "steps": steps or bench["steps"], "hires": hires, "cases": {}}
+    old = od / "result.json"
+    if old.exists():
+        # 続きから描く（止まったあとに、描けた絵を描き直さない）
+        res["cases"] = json.loads(old.read_text(encoding="utf-8"))["cases"]
     for c in bench["cases"][:only or None]:
+        if c["id"] in res["cases"]:
+            continue
         p = od / f"{c['id']}.png"
         t = time.time()
         design.draw(str(p), c["prompt"], c["seed"], 1, st, res["steps"], res["width"], res["height"])
