@@ -40,3 +40,12 @@ class HeldItems(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Rating(unittest.TestCase):
+    def test_rating_is_kept_and_not_reread(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools" / "gen"))
+        import tagger
+        tagger._RATING["/x.png"] = {"general": 0.9, "questionable": 0.0}
+        self.assertEqual(tagger.rating("/x.png")["general"], 0.9)
+        tagger._RATING.pop("/x.png")

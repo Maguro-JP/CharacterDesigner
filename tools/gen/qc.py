@@ -270,6 +270,8 @@ def color_gaps(colors: list[dict], limit: float = 40.0) -> list[dict]:
 BANDS = {"眉と目": (0.10, 0.58), "口": (0.60, 0.92)}
 
 
+# 露出の度合いの上限（年齢区分 questionable + explicit）。子どもを表す言葉と並んだときだけ使う
+RISKY = 0.5
 # 頼んだ言葉に無ければ「設定に無い物」とする服飾のタグ。最後の語（hat、glasses）が頼んだ言葉にあれば数えない
 UNASKED_WEAR = ("hat", "cowboy hat", "witch hat", "baseball cap", "beret", "top hat", "glasses", "sunglasses", "scarf",
                 "headphones", "mask", "eyepatch", "cape", "gloves", "necktie", "bow")
@@ -758,6 +760,12 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
         if tags.get("extra eyes", 0) >= EXTRA_EYES:
             res["problems"].append({"extra_eyes": round(float(tags["extra eyes"]), 2)})
         reason = filters.fixed(", ".join(tags))
+        # 露出の度合い（年齢区分の questionable と explicit の和）。子どもを表す言葉が頼みごとか絵にあるとき、
+        # 固定の制限の数字の裏付けとして使う。閾値 0.5 は較正していない（手本の絵が要る。ROADMAP 0.57）
+        res["rating"] = tagger.rating(src)
+        risky = res["rating"].get("questionable", 0) + res["rating"].get("explicit", 0)
+        if not reason and risky >= RISKY and (filters.has_minor(prompt) or filters.has_minor(", ".join(tags))):
+            reason = f"子どもを表す言葉のある絵で、露出の度合いが {risky:.2f}（{RISKY} 以上）。固定の制限で描き直す"
         # 宗教・文化の配慮（鉤十字、逆さ十字、着物の合わせなど）は崩れではないので problems に入れず、目で確かめる所として返す
         res["cultural"] = filters.cultural(", ".join(tags))
         if reason:

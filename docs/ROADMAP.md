@@ -147,19 +147,19 @@
 - [x] 検品図の顔の拡大が胸を写した（水着 4 枚中 4 枚）。部位分けが胴の肌を顔と取っていた。骨格の点で確かめるようにした（`qc.py` の `_face_from_joints`）
 - [ ] 同じ部位分けの顔を使う `measure.py` の目と顔の数字（eyes.found、eyes.iris_delta、face.rms）が、水着の絵で読み違えていないか測り直す。読み違えていれば骨格の点で顔を取る
 - [ ] 検品担当が検品図（qc.png、qc-detail.jpg）を開かずに一覧図だけで判定した（4 回中 3 回）。図を開いたことを判定の条件にする（開いていない図があれば「読めない」で返す）
-- [ ] 露出の度合いを測る経路が無い。`tagger.py:71` が年齢区分（general / sensitive / questionable / explicit）を捨てている。値を検品の数字に残し、境は `config/norms.user.json` で利用者が決める
+- [x] （tagger.rating と qc.RISKY。服を着た絵 5 枚で 0.000〜0.004。閾値 0.5 は較正していない）露出の度合いを測る経路が無い。`tagger.py:71` が年齢区分（general / sensitive / questionable / explicit）を捨てている。値を検品の数字に残し、境は `config/norms.user.json` で利用者が決める
 - [ ] 大人であることを確かめる数字が無い（子どものタグが無いことだけで見ている。mature female は大人の絵でも 0.01 未満）。頭身と顔の比率など、測れる数字で大人を確かめる
 - [ ] 検品の基準に、利用者の好み（色気、体型、露出の度合い）を崩れとして持ち込まない。崩れは頼んだものとの違い、形の崩れ、設定との矛盾に限る
 
 落とすだけで直さなかった所
 - [~] 検品で崩れが出たら、その範囲だけを描き直して検品し直すループ（`tools/gen/loop.py`）。崩れが 0 になるか上限で止め、崩れの最も少ない絵を残す
 - [ ] 頼んだ動作・持ち物・服の欠けを数字で拾う。shading eyes は欠けた 4 枚とも 0.0 で拾える。頼んだ言葉からタグの確かめを自動で作る
-- [ ] `fix.py` の描き直しが SDXL 専用で、SD1.5（MeinaMix）の絵を直せない。元の絵と同じ模型で描き直せるようにする
+- [x] `fix.py` の描き直しが SDXL 専用で、SD1.5（MeinaMix）の絵を直せない。元の絵と同じ模型で描き直せるようにする
 
 描く道具の穴
 - [x] `design.py draw` が全身・白地の決まり文句を必ず足し、構図・場所・持ち物を頼む言葉とぶつかった。`--scene` で外せるようにした
-- [ ] `design.py` は `PYTHONPATH=.cache/gen/lib` を付けないと torch を読めない。台本の頭で自分で通す
-- [ ] LCM-LoRA を `HF_HUB_OFFLINE=1` で読むと weight_name が無いと止まる（`design.py` の `load_lora_weights`）。weight_name を渡す
+- [x] `design.py` は `PYTHONPATH=.cache/gen/lib` を付けないと torch を読めない。台本の頭で自分で通す
+- [x] LCM-LoRA を `HF_HUB_OFFLINE=1` で読むと weight_name が無いと止まる（`design.py` の `load_lora_weights`）。weight_name を渡す
 - [ ] 持ち物 2 つを同時に使う動作（布でグラスを拭く）は MeinaMix V11 では言葉だけで描けなかった（12 枚）。下絵（姿勢）で手の位置を縛るか、得意な模型に替える
 - [ ] グラスの種類（ロックグラス）を頼んでもワイングラスになった（4 枚中 3 枚）。持ち物の形を数字か参考画像で縛る
 
@@ -182,19 +182,19 @@
 - [x] 検品図の顔の拡大が胸を写した（水着 4 枚中 4 枚）。部位分けが胴の肌を顔と取っていた。骨格の点で確かめるようにした（`qc.py` の `_face_from_joints`）
 - [ ] 同じ部位分けの顔を使う `measure.py` の目と顔の数字（eyes.found、eyes.iris_delta、face.rms）が、水着の絵で読み違えていないか測り直す。読み違えていれば骨格の点で顔を取る
 - [ ] 検品担当が検品図（qc.png、qc-detail.jpg）を開かずに一覧図だけで判定した（4 回中 3 回）。図を開いたことを判定の条件にする（開いていない図があれば「読めない」で返す）
-- [ ] 露出の度合いを測る経路が無い。`tagger.py:71` が年齢区分（general / sensitive / questionable / explicit）を捨てている。値を検品の数字に残し、境は `config/norms.user.json` で利用者が決める
+- [x] （tagger.rating と qc.RISKY。服を着た絵 5 枚で 0.000〜0.004。閾値 0.5 は較正していない）露出の度合いを測る経路が無い。`tagger.py:71` が年齢区分（general / sensitive / questionable / explicit）を捨てている。値を検品の数字に残し、境は `config/norms.user.json` で利用者が決める
 - [ ] 大人であることを確かめる数字が無い（子どものタグが無いことだけで見ている。mature female は大人の絵でも 0.01 未満）。頭身と顔の比率など、測れる数字で大人を確かめる
 - [ ] 検品の基準に、利用者の好み（色気、体型、露出の度合い）を崩れとして持ち込まない。崩れは頼んだものとの違い、形の崩れ、設定との矛盾に限る
 
 落とすだけで直さなかった所
 - [~] 検品で崩れが出たら、その範囲だけを描き直して検品し直すループ（`tools/gen/loop.py`）。崩れが 0 になるか上限で止め、崩れの最も少ない絵を残す
 - [ ] 頼んだ動作・持ち物・服の欠けを数字で拾う。shading eyes は欠けた 4 枚とも 0.0 で拾える。頼んだ言葉からタグの確かめを自動で作る
-- [ ] `fix.py` の描き直しが SDXL 専用で、SD1.5（MeinaMix）の絵を直せない。元の絵と同じ模型で描き直せるようにする
+- [x] `fix.py` の描き直しが SDXL 専用で、SD1.5（MeinaMix）の絵を直せない。元の絵と同じ模型で描き直せるようにする
 
 描く道具の穴
 - [x] `design.py draw` が全身・白地の決まり文句を必ず足し、構図・場所・持ち物を頼む言葉とぶつかった。`--scene` で外せるようにした
-- [ ] `design.py` は `PYTHONPATH=.cache/gen/lib` を付けないと torch を読めない。台本の頭で自分で通す
-- [ ] LCM-LoRA を `HF_HUB_OFFLINE=1` で読むと weight_name が無いと止まる（`design.py` の `load_lora_weights`）。weight_name を渡す
+- [x] `design.py` は `PYTHONPATH=.cache/gen/lib` を付けないと torch を読めない。台本の頭で自分で通す
+- [x] LCM-LoRA を `HF_HUB_OFFLINE=1` で読むと weight_name が無いと止まる（`design.py` の `load_lora_weights`）。weight_name を渡す
 - [ ] 持ち物 2 つを同時に使う動作（布でグラスを拭く）は MeinaMix V11 では言葉だけで描けなかった（12 枚）。下絵（姿勢）で手の位置を縛るか、得意な模型に替える
 - [ ] グラスの種類（ロックグラス）を頼んでもワイングラスになった（4 枚中 3 枚）。持ち物の形を数字か参考画像で縛る
 
