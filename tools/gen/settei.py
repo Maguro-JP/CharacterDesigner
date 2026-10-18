@@ -124,7 +124,7 @@ def missing(got: dict) -> list[str]:
     return out
 
 
-def _turnaround(got: dict, height: int, heads: float | None, width: int = 1480) -> tuple[str, dict]:
+def _turnaround(got: dict, height: int, heads: float | None, width: int = 2200) -> tuple[str, dict]:
     """三面図の欄: どの向きも同じ倍率（人物の高さをそろえる）で並べ、頭身の目盛りの横線を引く。
     3 つ並べて欄の幅を超えるなら、3 つとも同じだけ縮める（向きごとに縮めると縮尺がずれる）"""
     names = {v["id"]: v["ja"] for v in spec()["views"]}
@@ -185,25 +185,34 @@ def compose(ident: str, out: str, views: list[str] | None = None, expr_dir: str 
                    for x in colors) or '<tr><td colspan="4" class="empty">（正面の絵が無い）</td></tr>'
     exprs = "".join(f'<figure><img src="{_uri(_face(p))}" alt="{e(k)}"><figcaption>{e(_expr_name(c, k))}</figcaption></figure>'
                     for k, p in list(got["expressions"].items())[:sp["required"]["expressions_max"]])
-    details = "".join(f'<figure><img src="{_uri(Image.open(p).convert("RGB").resize((360, 360)))}" alt="{e(k)}"><figcaption>{e(sp["detail_ja"].get(k, k))}</figcaption></figure>'
+    details = "".join(f'<figure><img src="{_uri(Image.open(p).convert("RGB").resize((900, 900), Image.LANCZOS))}" alt="{e(k)}"><figcaption>{e(sp["detail_ja"].get(k, k))}</figcaption></figure>'
                       for k, p in got["details"].items())
     items = "".join(f'<li><b>{e(i["name"])}</b> {e(i.get("desc", ""))}' + (f'（{e(i["size"])}）' if i.get("size") else "") + "</li>" for i in c.get("items", []))
     lack = missing(got)
     notes = "".join(f"<li>{e(n)}</li>" for n in [x for x in str(c.get("notes", "")).split("。") if x.strip()])
     eyes = c.get("eyes", {}).get("notes", "")
-    body = sp["template"].format(
+    fields = dict(
         css=sp["css"], name=e(c["name"]), id=e(c["id"]), heads=f"{heads:g} 頭身" if heads else "頭身（未）",
         turn=turn, ctab=ctab, exprs=exprs or '<p class="empty">表情（未）</p>', details=details or '<p class="empty">部位の拡大（未）</p>',
         items=items or "<li>（無し）</li>", notes=notes + (f"<li>目: {e(eyes)}</li>" if eyes else ""),
         look=e(c.get("look", "")), outfit=e(c.get("outfit", "")),
         lack="".join(f"<li>{e(x)}</li>" for x in lack) or "<li>無し</li>",
         lineart=f'<img class="line" src="{_uri(Image.open(got["lineart"]))}" alt="線画">' if got.get("lineart") else "")
-    page = Path(out).with_suffix(".html")
-    page.write_text(body, encoding="utf-8")
-    _render(page, Path(out), sp["canvas"])
-    if not write_html:
-        page.unlink()
-    return {"out": out, "missing": lack, "heads": heads, "scale": scale, "colors": colors,
+    # 1 枚に詰めず、重要度の順にページを分ける（1 枚目に三面図と色指定、2 枚目に表情、3 枚目に部位の拡大）。
+    # 1 枚に全部を詰めると表情や拡大が小さくなり、設定画として細部を読めなかった
+    outs = []
+    base = Path(out)
+    for pg in sorted(sp["pages"], key=lambda x: x["priority"]):
+        if pg.get("needs") and not got[pg["needs"]]:
+            continue
+        dest = base.with_name(f"{base.stem}-{pg['priority']}-{pg['id']}{base.suffix}")
+        page = dest.with_suffix(".html")
+        page.write_text(pg["template"].format(page_title=e(pg["title"]), **fields), encoding="utf-8")
+        _render(page, dest, sp["canvas"])
+        if not write_html:
+            page.unlink()
+        outs.append(str(dest))
+    return {"out": outs, "missing": lack, "heads": heads, "scale": scale, "colors": colors,
             "expressions": len(got["expressions"]), "details": len(got["details"])}
 
 
@@ -228,7 +237,7 @@ def _face(path: str) -> Image.Image:
     except Exception:
         cy, cx, h = im.height // 4, im.width // 2, im.width // 4
     box = (max(cx - h, 0), max(cy - h, 0), min(cx + h, im.width), min(cy + h, im.height))
-    return im.crop(box).resize((300, 300), Image.LANCZOS)
+    return im.crop(box).resize((640, 640), Image.LANCZOS)
 
 
 def _render(page: Path, out: Path, canvas: dict):
