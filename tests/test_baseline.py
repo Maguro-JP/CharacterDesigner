@@ -48,3 +48,34 @@ class Baseline(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Rules(unittest.TestCase):
+    def test_every_rule_is_complete(self):
+        import json
+        d = json.loads(baseline.RULES.read_text(encoding="utf-8"))
+        ids = [x["id"] for x in d["rules"]]
+        self.assertEqual(len(ids), len(set(ids)))
+        for x in d["rules"]:
+            self.assertTrue(x["why"] and x["topic"], x["id"])
+            self.assertTrue(x["when"] or x["person"], x["id"])
+            self.assertTrue(x["add"] or x["negative"], x["id"])
+
+    def test_unasked_hat_unless_headwear_asked(self):
+        self.assertIn("hat", neg_of("1girl, smile"))
+        self.assertNotIn("hat", neg_of("1girl, witch"))
+        self.assertNotIn("hat", neg_of("1girl, beret"))
+
+    def test_pairs_and_items(self):
+        self.assertIn("mismatched footwear", neg_of("1girl, full body, boots"))
+        self.assertIn("multiple swords", neg_of("1boy, knight, holding sword"))
+        self.assertNotIn("multiple swords", neg_of("1boy, knight, dual wielding, sword"))
+        self.assertNotIn("heterochromia", neg_of("1girl, heterochromia"))
+        self.assertIn("heterochromia", neg_of("1girl, blue eyes"))
+
+    def test_checks_are_linked(self):
+        r = baseline.complete("1girl, cat girl, holding sword, full body")
+        c = baseline.checks(r["applied"])
+        self.assertEqual(c["sword"], "held_items")
+        self.assertEqual(c["arms"], "body_parts")
+        self.assertIn("catgirl", c)

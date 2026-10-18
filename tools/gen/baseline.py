@@ -1,8 +1,10 @@
-"""頼みごとに書かれていなくても守る最低限（腕は 2 本、獣耳の亜人に人の耳は無い など）を、描く直前の言葉に足す。
+"""頼みごとで特に指定しない限り守る最低限の決まりを、描く直前の言葉に足す（腕は 2 本、獣耳の亜人に人の耳は無い、
+頼んでいない帽子は描かない、持ち物は 1 つ、靴は左右そろう など）。画像生成の模型が間違えやすい所を、描く前に打ち消しで縛るのが目的。
 
-決まりは styles/baseline.json に 1 か所だけ持つ。足すのは打ち消しが中心で、描く言葉は種族から当然に付く部位だけ足す
-（猫娘なら cat ears, cat tail）。頼みごとが違う体を頼んだとき（多腕、九尾、ケンタウロス）は、その打ち消しを外す。
+決まりは styles/baseline.json に 1 か所だけ持つ。人物の絵に必ず掛ける決まり（person）と、言葉があるときに掛ける決まり（when）があり、
+頼みごとが違うものを頼んだとき（六本腕、九尾、二刀流、帽子）は unless でその決まりを外す。頼んだことが決まりより先。
 頼んだ言葉そのものは、どの打ち消しにも入れない（頼んだのに打ち消すと、模型は両方を弱めて中途半端に描く）。
+各決まりの check は、描いたあとにその決まりが守られたかを見る検品（qc の問題の名前）。
 """
 from __future__ import annotations
 
@@ -27,36 +29,36 @@ def _has(text: str, word: str) -> bool:
 
 
 def complete(prompt: str, negative: str = "") -> dict:
-    """足す描く言葉（add）、足す打ち消し（negative）、外した打ち消し（relaxed）、何を足したかの説明（notes）"""
+    """足す描く言葉（add）、足す打ち消し（negative）、頼みごとで外した決まり（relaxed）、掛けた決まりの id（applied）、説明（notes）"""
     r = _rules()
     low = prompt.lower()
     asked = set(_words(prompt))
-    add, neg, notes = [], [], []
-    for rule in r["implied"]:
+    given = set(_words(negative))
+    person = any(_has(low, w) for w in r["person_words"]) or re.search(r"\d+(girl|boy|other)s?", low) is not None
+    add, neg, notes, relaxed, applied = [], [], [], [], []
+    for rule in r["rules"]:
         hit = next((w for w in rule["when"] if _has(low, w)), None)
-        if not hit:
+        if not (hit or (rule["person"] and person)):
             continue
-        new = [w for w in _words(rule.get("add", "")) if w not in asked and not _has(low, w)]
+        why = next((w for w in rule["unless"] if _has(low, w)), None)
+        if why:
+            relaxed.append(rule["id"])
+            notes.append(f"「{rule['topic']}」は {why} を頼んだので掛けない")
+            continue
+        applied.append(rule["id"])
+        new = [w for w in rule["add"] if w not in asked and not _has(low, w) and w not in add]
         if new:
             add += new
             notes.append(f"{hit} から {', '.join(new)} を足した")
-        neg += _words(rule.get("negative", ""))
-    person = any(_has(low, w) for w in r["person_words"]) or re.search(r"\d+(girl|boy|other)s?", low)
-    if person:
-        neg += r["humanoid_negative"]
-    if _has(low, "solo"):
-        neg += _words(r["solo_negative"])
-    relaxed = []
-    out = []
-    for w in dict.fromkeys(neg):
-        if w in asked or _has(low, w) or any(_has(low, k) for k in r["relaxed_by"].get(w, [])):
-            relaxed.append(w)
-            continue
-        if w in _words(negative):
-            continue
-        out.append(w)
-    # 種族の部位（足した言葉）と打ち消しが食い違わないようにする（centaur の four legs と extra legs など）
-    out = [w for w in out if w not in add]
-    if relaxed:
-        notes.append(f"頼みごとに合わせて打ち消しから外した: {', '.join(relaxed)}")
-    return {"add": add, "negative": out, "relaxed": relaxed, "notes": notes}
+        neg += [w for w in rule["negative"] if w not in asked and not _has(low, w) and w not in given]
+    neg = [w for w in dict.fromkeys(neg) if w not in add]
+    # 外した決まりの打ち消しは、決まり文句（free_text.NEGATIVE）や他の決まりから入っても消す
+    drop = {w for rule in r["rules"] if rule["id"] in relaxed for w in rule["negative"]}
+    neg = [w for w in neg if w not in drop]
+    return {"add": add, "negative": neg, "relaxed": sorted(drop), "applied": applied, "notes": notes}
+
+
+def checks(applied: list[str]) -> dict:
+    """掛けた決まりと、描いたあとにそれを確かめる検品（qc の問題の名前）"""
+    by = {x["id"]: x for x in _rules()["rules"]}
+    return {i: by[i]["check"] for i in applied if by.get(i, {}).get("check")}
