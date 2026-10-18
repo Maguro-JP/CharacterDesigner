@@ -190,6 +190,7 @@ function PromptPanel({ ctx }: { ctx: Ctx }) {
         </button>
       </div>
       {note && <p className="text-xs text-neutral-400">{note}</p>}
+      <CulturalAdvice text={`${text}, ${prompt}`} />
       <label className="block">
         描く言葉（空なら読み手が頼みごとから作る）
         <textarea className="mt-1 h-20 w-full rounded border border-line bg-ink px-2 py-1 font-mono text-xs" value={prompt} onChange={(e) => setPrompt(e.target.value)} aria-label="描く言葉" />
@@ -512,4 +513,22 @@ export function useRoles(): Role[] {
     api.roles().then(setRoles).catch(() => setRoles([]));
   }, []);
   return roles;
+}
+
+/** 宗教・文化の上で見る人を傷つけやすい頼みごとに、描く前の知らせを出す。止めはしない（描くかは利用者が決める） */
+export function CulturalAdvice({ text }: { text: string }) {
+  const [advice, setAdvice] = useState<string[]>([]);
+  useEffect(() => {
+    if (!text.replace(/[,\s]/g, "")) { setAdvice([]); return; }
+    // 打つたびに聞かないよう、手が止まってから聞く
+    const t = setTimeout(() => api.cultural(text).then((r) => setAdvice(r.advice)).catch(() => setAdvice([])), 400);
+    return () => clearTimeout(t);
+  }, [text]);
+  if (!advice.length) return null;
+  return (
+    <div role="note" aria-label="宗教・文化の知らせ" className="rounded border border-signal p-2">
+      <p className="text-xs font-bold text-signal">描く前に確かめる（宗教・文化）</p>
+      {advice.map((a) => <p key={a} className="mt-1 text-xs">{a}</p>)}
+    </div>
+  );
 }

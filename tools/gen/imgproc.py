@@ -218,17 +218,24 @@ def roto(src: str, outdir: str) -> dict:
 SHADE_STYLES = ("cel2", "cel3", "soft", "rim", "back")
 
 
+def depth(src: str, out: str) -> str:
+    """奥行きの推定を単体で使う（Depth Anything V2 Small）。手前ほど白い灰色の絵を書き、元の絵と並べて確かめられるようにする"""
+    import layers
+    d = layers.depth_map(Image.open(src).convert("RGB"))
+    g = (255 * (d - d.min()) / max(float(d.max() - d.min()), 1e-6)).astype("uint8")
+    Image.fromarray(g).save(out)
+    return out
+
+
 def height_field(src: str, alpha: np.ndarray, inflate: float = 0.6) -> np.ndarray:
     """人物の立体を高さの地形（手前ほど高い）として作る。
     奥行きの推定（Depth Anything V2 Small）は顔や胸の起伏を拾うが、輪郭の際で急に落ちない（板のように平ら）。
     そこで輪郭から膨らませた丸み（inflate_dome）を足し、縁で面が奥へ回り込む形にする"""
     from scipy import ndimage
-    from transformers import pipeline
+    import layers
     im = Image.open(src).convert("RGB")
-    import device
-    est = pipeline("depth-estimation", model="depth-anything/Depth-Anything-V2-Small-hf", device=device.name())(im)["predicted_depth"]
-    d = est.squeeze().numpy() if hasattr(est, "numpy") else np.asarray(est)
-    d = np.asarray(Image.fromarray(d.astype("float32")).resize(im.size, Image.BILINEAR))
+    # 奥行きの模型は layers.depth_map の1か所で読む（ここで毎回 pipeline を作ると、呼ぶたびに模型を読み直していた）
+    d = layers.depth_map(im)
     inside = alpha > 0.5
     d = (d - d[inside].min()) / max(d[inside].max() - d[inside].min(), 1e-6)
     bulge = inflate_dome(inside)
@@ -862,9 +869,10 @@ def main():
     sp = sub.add_parser("sharpen"); sp.add_argument("src"); sp.add_argument("out")
     sp.add_argument("--radius", type=float, default=3.0); sp.add_argument("--amount", type=float, default=1.5)
     sf = sub.add_parser("spotfill"); sf.add_argument("src"); sf.add_argument("out")
+    dp = sub.add_parser("depth"); dp.add_argument("src"); dp.add_argument("out")
     sr = sub.add_parser("upscale"); sr.add_argument("src"); sr.add_argument("out"); sr.add_argument("--long", type=int, default=4096)
     a = ap.parse_args()
-    fn = {"spotfill": lambda: spot_fill(a.src, a.out), "upscale": lambda: super_res(a.src, a.out, a.long),"denoise": lambda: denoise(a.src, a.out, a.weight), "sharpen": lambda: sharpen(a.src, a.out, a.radius, a.amount),
+    fn = {"depth": lambda: depth(a.src, a.out), "spotfill": lambda: spot_fill(a.src, a.out), "upscale": lambda: super_res(a.src, a.out, a.long),"denoise": lambda: denoise(a.src, a.out, a.weight), "sharpen": lambda: sharpen(a.src, a.out, a.radius, a.amount),
           "recolor": lambda: recolor(a.src, a.out, a.from_color, a.to, a.tol,
                                      box=tuple(int(v) for v in a.box.split(",")) if a.box else None),
           "grade": lambda: grade(a.src, a.out, a.brightness, a.contrast, a.saturation, a.warmth),

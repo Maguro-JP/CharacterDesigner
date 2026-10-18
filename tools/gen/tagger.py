@@ -68,7 +68,20 @@ def read(path: str, threshold: float = 0.35) -> dict:
     sq.paste(im, ((side - im.width) // 2, (side - im.height) // 2))
     x = np.asarray(sq.resize((size, size), Image.BICUBIC), dtype=np.float32)[:, :, ::-1][None]
     probs = sess.run(None, {inp.name: np.ascontiguousarray(x)})[0][0]
+    # 年齢区分（category 9: general / sensitive / questionable / explicit）は絵のタグと混ぜず、別に控える。
+    # 捨てていたため、露出の度合いを測る経路が無かった。rating() が同じ絵をもう一度読まずに返す
+    _RATING[str(path)] = {t: round(float(p), 3) for (t, cat), p in zip(tags, probs) if cat == 9}
     return {t: round(float(p), 3) for (t, cat), p in zip(tags, probs) if cat != 9 and p >= threshold}
+
+
+_RATING: dict = {}
+
+
+def rating(path: str) -> dict:
+    """年齢区分の確からしさ（general / sensitive / questionable / explicit）。read() を済ませた絵は読み直さない"""
+    if str(path) not in _RATING:
+        read(path)
+    return dict(_RATING[str(path)])
 
 
 def vocabulary() -> set:

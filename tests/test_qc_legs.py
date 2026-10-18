@@ -302,3 +302,45 @@ class HandBoxTest(unittest.TestCase):
         self.assertEqual(seen, [(60, 60), (60, 60)])
         self.assertTrue(r["readable"] and r["bad"])
         self.assertFalse(qc.hands_auto([], im)["readable"])
+
+
+class RatingRestrictionTest(unittest.TestCase):
+    def test_risky_rating_with_minor_word_is_held(self):
+        import tempfile
+        from unittest import mock
+        from PIL import Image
+        import tagger
+        with tempfile.TemporaryDirectory() as d:
+            Image.new("RGB", (64, 64), (255, 255, 255)).save(f"{d}/a.png")
+            with mock.patch.object(tagger, "read", return_value={"1girl": 0.9}), \
+                 mock.patch.object(tagger, "rating", return_value={"questionable": 0.4, "explicit": 0.3}):
+                r = qc.auto_check(f"{d}/a.png", "1girl, child")
+            self.assertTrue(any("fixed_restriction" in p for p in r["problems"]))
+            Image.new("RGB", (64, 64), (255, 255, 255)).save(f"{d}/b.png")
+            with mock.patch.object(tagger, "read", return_value={"1girl": 0.9}), \
+                 mock.patch.object(tagger, "rating", return_value={"questionable": 0.4, "explicit": 0.3}):
+                r = qc.auto_check(f"{d}/b.png", "1girl, adult")
+            self.assertFalse(any("fixed_restriction" in p for p in r["problems"]))
+
+
+class EdgeBodyTest(unittest.TestCase):
+    def test_only_body_parts_count_for_edge_cut(self):
+        import numpy as np
+        rgb = np.full((120, 80, 3), 230, np.uint8)
+        rgb[20:110, 70:] = (40, 60, 120)     # 右の端にかかる背景の柱
+        seg = np.zeros((120, 80), int)
+        seg[20:110, 70:] = 4                # 部位分けが柱を服と読んだ
+        seg[30:60, 30:50] = 11              # 顔は内側
+        self.assertEqual(qc.edge_cut(rgb, person=seg > 0), ["右"])
+        self.assertEqual(qc.edge_cut(rgb, person=qc.edge_body(seg)), [])
+
+    def test_facts_rejects_parts_file(self):
+        with self.assertRaises(ValueError):
+            qc.facts("/x/out-1.png.parts.png")
+
+
+class MinorCompositionTest(unittest.TestCase):
+    def test_minor_words_add_composition_negative(self):
+        import filters
+        self.assertIn("from below", filters.negative("1girl, high school student, sitting"))
+        self.assertNotIn("from below", filters.negative("1girl, adult, office"))

@@ -23,7 +23,20 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 KEYS_JA = {"fixed_restriction": "固定の制限", "extra_eyes": "目の数", "eyes": "目の左右", "measure": "測った値の外れ",
            "hands": "手の指", "edge_cut": "端の切れ", "floating": "浮いた塊", "seams": "背景の継ぎ目",
-           "heads_tall": "頭身", "spider_legs": "脚の数"}
+           "heads_tall": "頭身", "spider_legs": "脚の数", "unasked_item": "余分な持ち物", "item_count": "持ち物の数",
+           "item_size": "持ち物の大きさ", "body_parts": "体の部位の数"}
+
+
+def from_auto(auto: dict) -> tuple[list[dict], list[dict]]:
+    """qc.auto_check の結果を、崩れ（problems）と目で確かめる所（look）に分ける。
+    宗教・文化の配慮は崩れではないので look に入れる（描くかは人が決める）"""
+    problems = []
+    for p in auto["problems"]:
+        k = next((k for k in p if k in KEYS_JA), next(iter(p)))
+        problems.append({"kind": KEYS_JA.get(k, k), "detail": p})
+    look = [{"kind": "宗教・文化", "detail": {"topic": a["topic"], "tag": a["hit"], "why": a["why"], "instead": a["instead"]}}
+            for a in auto.get("cultural", [])]
+    return problems, look
 
 
 def _rgb(text: str) -> list[float]:
@@ -37,16 +50,19 @@ def inspect(src: str, genre: str = "anime", outdir: Path | None = None, characte
     import joints
     import qc
     g = json.loads((Path(__file__).resolve().parents[2] / "styles" / "genres.json").read_text(encoding="utf-8"))["genres"][genre]
-    auto = qc.auto_check(src, "", tuple(g["heads_tall"]))
+    # 描いたときの言葉（絵の隣の <絵>.json の prompt）があれば渡す。頼んでいない持ち物・数・大きさはこれが無いと見られない
+    side = Path(str(src) + ".json")
+    try:
+        asked = json.loads(side.read_text(encoding="utf-8")).get("prompt", "") if side.exists() else ""
+    except (OSError, ValueError):
+        asked = ""
+    auto = qc.auto_check(src, asked, tuple(g["heads_tall"]))
     pts = joints.find(src)
     rgb = np.asarray(Image.open(src).convert("RGB")).astype(int)
     fg = np.abs(rgb - rgb[2, 2]).sum(2) > 40
     rows = np.nonzero(fg.sum(1) > 3)[0]
     body = qc.structure(pts, rows[0], rows[-1]) if len(rows) else {"values": {}, "off": {}}
-    problems = []
-    for p in auto["problems"]:
-        k = next((k for k in p if k in KEYS_JA), next(iter(p)))
-        problems.append({"kind": KEYS_JA.get(k, k), "detail": p})
+    problems, culture = from_auto(auto)
     for k, v in body["off"].items():
         problems.append({"kind": "体の決まり", "detail": {k: v}})
     import edit
@@ -82,7 +98,7 @@ def inspect(src: str, genre: str = "anime", outdir: Path | None = None, characte
             d = float(np.linalg.norm(np.array(got) - np.array(_rgb(top))))
             if d > 90:
                 problems.append({"kind": "服の色", "detail": {"upper": [round(v) for v in got], "want": top, "dist": round(d)}})
-    look = []
+    look = list(culture)
     glow = qc.glow_ring(rgb.astype("uint8"), seg)
     if glow > 65:
         look.append({"kind": "輪郭の光", "detail": {"ring": glow}})

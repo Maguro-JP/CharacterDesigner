@@ -180,6 +180,12 @@ export default function FreePanel({ status, onStatus, onSubmitted, onError }: Pr
           <p className="text-neutral-400">{readerJa(got.reader)}{got.summary && `: ${got.summary}`}</p>
           {got.notes.map((n) => <p key={n} className="text-xs text-neutral-400">{n}</p>)}
           {!got.allowed && <p className="mt-1 text-signal">{got.reason}</p>}
+          {!!got.advice?.length && (
+            <div role="note" aria-label="宗教・文化の知らせ" className="mt-2 rounded border border-signal p-2">
+              <p className="text-xs font-bold text-signal">描く前に確かめる（宗教・文化）</p>
+              {got.advice.map((a) => <p key={a} className="mt-1 text-xs">{a}</p>)}
+            </div>
+          )}
         </div>
       )}
 

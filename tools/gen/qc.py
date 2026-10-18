@@ -270,9 +270,59 @@ def color_gaps(colors: list[dict], limit: float = 40.0) -> list[dict]:
 BANDS = {"眉と目": (0.10, 0.58), "口": (0.60, 0.92)}
 
 
+# 露出の度合いの上限（年齢区分 questionable + explicit）。子どもを表す言葉と並んだときだけ使う
+RISKY = 0.5
 # 頼んだ言葉に無ければ「設定に無い物」とする服飾のタグ。最後の語（hat、glasses）が頼んだ言葉にあれば数えない
 UNASKED_WEAR = ("hat", "cowboy hat", "witch hat", "baseball cap", "beret", "top hat", "glasses", "sunglasses", "scarf",
                 "headphones", "mask", "eyepatch", "cape", "gloves", "necktie", "bow")
+
+
+# 「holding X」のうち物でないもの（体・人・動き）。持ち物の数え方から外す
+NOT_ITEMS = ("hands", "hair", "head", "arm", "breath", "behind back", "another's", "own", "heart", "leg", "foot", "wrist", "knees",
+             "clothes", "skirt", "hat", "helmet", "footwear", "jacket")
+# 同じ物を2つ以上描いたと読めるタグ。剣 2 本（knight 701）は dual wielding、カップ 2 個は multiple を含む言い方で出る
+MANY = ("dual wielding", "multiple swords", "multiple weapons", "multiple cups", "multiple bottles", "multiple books")
+
+
+# 体の部位の数の崩れと読めるタグ。頼んだ言葉に同じ言い方が無いときだけ崩れとする（九尾の狐なら multiple tails は頼んだもの）
+EXTRA_PARTS = ("multiple tails", "extra ears", "multiple wings", "extra arms", "multiple horns", "multiple heads", "missing limb")
+# 頼んだ部位と、それを描いた絵に出るべきタグ。翼を頼んで winged arms（腕が翼）と読めるのは、腕と別に翼を描いていない絵
+PART_SWAPS = {"wings": ("winged arms",)}
+
+
+def body_parts(tags: dict, prompt: str, least: float = 0.5) -> dict:
+    """種族の特徴の数を数える検品（今は目で数えていた）。尾 1 本の狐の絵で multiple tails を 0.455 と読んだので、閾値は 0.5。数の崩れ（尾・耳・翼・腕・角・頭の多すぎ、手足の欠け）と、
+    部位の取り違え（翼を頼んで腕が翼）を、絵から読んだタグで挙げる"""
+    low = prompt.lower()
+    extra = [t for t in EXTRA_PARTS if tags.get(t, 0) >= least and t not in low]
+    swapped = [f"{want}→{got}" for want, alts in PART_SWAPS.items() if want in low
+               for got in alts if got not in low and tags.get(got, 0) >= least]
+    return {"extra": extra, "swapped": swapped}
+
+
+# 頼んだ物と、模型が小さく描き替えやすい物
+SMALLER = {"sword": ("dagger", "knife"), "greatsword": ("sword", "dagger"), "spear": ("dagger",), "staff": ("wand",)}
+
+
+def held_items(tags: dict, prompt: str, least: float = 0.5) -> dict:
+    """持ち物の検品: 頼んでいない持ち物（holding X の X が頼んだ言葉に無い）と、同じ物の数（2つ以上と読めるタグを、頼んでいないのに読んだ）。
+    頼んでいない器（cup 0.56 で読めているのに印が付かない）とカップ・剣の重なりを、描画確認 回6 で拾えなかったため足した"""
+    low = prompt.lower()
+    unasked = []
+    for t, v in tags.items():
+        if v < least or not t.startswith("holding "):
+            continue
+        thing = t[len("holding "):].split(" (")[0]
+        # weapon・food のような総称は、剣や菓子を頼んだ絵でも並んで読まれる（holding weapon 0.9 と holding sword 0.91）
+        if any(w in thing for w in NOT_ITEMS) or thing in ("weapon", "food", "drink", "instrument", "object"):
+            continue
+        if thing.split()[-1] not in low:
+            unasked.append(thing)
+    # 大きさの取り違え: 剣を頼んだのに短剣・小刀と読める（回6 で 3/8 が短剣になった）。読みが頼んだ物より強いときだけ挙げる
+    small = [f"{want}→{got}" for want, alts in SMALLER.items() if want in low
+             for got in alts if got not in low and tags.get(got, 0) >= least and tags.get(got, 0) > tags.get(want, 0)]
+    many = [t for t in MANY if tags.get(t, 0) >= least * 0.8 and t not in low and "two " not in low and "multiple" not in low]
+    return {"unasked": sorted(unasked), "many": many, "small": small}
 
 
 def heads_tall(seg: np.ndarray, rgb: np.ndarray, far: float = 40.0, points: list[dict] | None = None) -> float | None:
@@ -394,6 +444,15 @@ def shoe_pair(points: list[dict], im: Image.Image, least: float = 0.3) -> dict |
         stats.append((box[m].mean(0) if m.any() else bg, int(m.sum())))
     return {"color_diff": round(float(np.linalg.norm(stats[0][0] - stats[1][0])), 1),
             "area_ratio": round(min(stats[0][1], stats[1][1]) / max(1, stats[0][1], stats[1][1]), 2)}
+
+
+# 端の切れを数える部位: 顔・腕・脚・靴。髪・服・すそ・鞄が画面の外へ流れるのは構図として普通で、
+# 背景が画面いっぱいの絵では服や背景の一部を人物と読み、32 枚ほぼ全部を「切れ」と出した（描画確認 回7）
+EDGE_BODY = (11, 12, 13, 14, 15, 9, 10)
+
+
+def edge_body(seg: np.ndarray) -> np.ndarray:
+    return np.isin(seg, EDGE_BODY)
 
 
 def person_mask(seg: np.ndarray) -> np.ndarray:
@@ -713,13 +772,33 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
         if prompt:
             low_p = prompt.lower()
             extra = sorted(t for t in UNASKED_WEAR if tags.get(t, 0) >= 0.5 and t.split()[-1] not in low_p)
+            held = held_items(tags, prompt)
+            extra = sorted(set(extra) | set(held["unasked"]))
             if extra:
                 res["problems"].append({"unasked_item": extra})
+            if held["many"]:
+                res["problems"].append({"item_count": held["many"]})
+            if held["small"]:
+                res["problems"].append({"item_size": held["small"]})
+            parts = body_parts(tags, prompt)
+            if parts["extra"] or parts["swapped"]:
+                res["problems"].append({"body_parts": parts})
         # 目の範囲を描き直した絵で瞳が消え光る線だけになったのを、目の測り方が揺れて見つけたと読み通した（2026-10-16）。
         # タグは extra eyes を 0.53 で読んでいた。崩れの無い絵では 0.22〜0.30 だったので、EXTRA_EYES 以上を崩れに数える
         if tags.get("extra eyes", 0) >= EXTRA_EYES:
             res["problems"].append({"extra_eyes": round(float(tags["extra eyes"]), 2)})
         reason = filters.fixed(", ".join(tags))
+        # 露出の度合い（年齢区分の questionable と explicit の和）。子どもを表す言葉が頼みごとか絵にあるとき、
+        # 固定の制限の数字の裏付けとして使う。閾値 0.5 は較正していない（手本の絵が要る。ROADMAP 0.57）
+        # 読めなくても、言葉による固定の制限（上の reason）は必ず効かせる
+        try:
+            res["rating"] = tagger.rating(src)
+        except Exception as e:
+            res["rating"] = {}
+            res["unreadable"].append({"rating": f"{type(e).__name__}: {e}"})
+        risky = res["rating"].get("questionable", 0) + res["rating"].get("explicit", 0)
+        if not reason and risky >= RISKY and (filters.has_minor(prompt) or filters.has_minor(", ".join(tags))):
+            reason = f"子どもを表す言葉のある絵で、露出の度合いが {risky:.2f}（{RISKY} 以上）。固定の制限で描き直す"
         # 宗教・文化の配慮（鉤十字、逆さ十字、着物の合わせなど）は崩れではないので problems に入れず、目で確かめる所として返す
         res["cultural"] = filters.cultural(", ".join(tags))
         if reason:
@@ -741,7 +820,7 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
         except ImportError as e:
             res["unreadable"].append({"heads_tall": str(e)})
         try:
-            person = _parts(src, im) > 0
+            person = edge_body(_parts(src, im))
         except Exception:   # 部位分けの模型が無い環境では、これまでどおり色だけで見る
             person = None
         cut = edge_cut(rgb, person=person)
@@ -888,14 +967,18 @@ def hold(src: str) -> str:
         shutil.move(str(f), str(dest / f.name))
     return str(dest / p.name)
 
-def facts(src: str, character: str | None = None) -> dict:
-    """数えられる事実。判断はしない（検品担当が、この数字を手がかりに目で確かめる）"""
+def facts(src: str, character: str | None = None, prompt: str = "") -> dict:
+    """数えられる事実。判断はしない（検品担当が、この数字を手がかりに目で確かめる）。
+    prompt を渡すか、絵の隣の <絵>.json に prompt があれば、頼んだ言葉の欠けと持ち物の数も見る"""
+    if ".parts." in Path(src).name:
+        # 部位分けの控え（絵の隣の .parts.png）は絵ではない。一覧に混ざると部位分けの図をさらに部位分けした（描画確認 回7）
+        raise ValueError(f"{src} は部位分けの控え。元の絵を渡す")
     im = Image.open(src).convert("RGB")
     rgb = np.asarray(im)
     parts = _parts(src, im)
     person = parts > 0
     # 端の切れは人物の画素だけで数える（背景が端まである絵で、全身が収まっているのに4辺切れと出た）
-    res = {"edge_cut": edge_cut(rgb, person=person), "inventory": inventory(parts),
+    res = {"edge_cut": edge_cut(rgb, person=edge_body(parts)), "inventory": inventory(parts),
            "floating": floating_blobs(rgb), "seams": background_seams(rgb),
            "skin_ratio": round(float(np.isin(parts, SKIN).sum() / max(person.sum(), 1)), 3)}
     import tagger
@@ -915,11 +998,12 @@ def facts(src: str, character: str | None = None) -> dict:
         # 付けないと見なかったため、ピースサイン 8/8 の欠け・剣の欠け・短パンが長ズボンになったのを拾えなかった
         side = Path(str(src) + ".json")
         try:
-            words = json.loads(side.read_text(encoding="utf-8")).get("prompt", "") if side.exists() else ""
+            words = prompt or (json.loads(side.read_text(encoding="utf-8")).get("prompt", "") if side.exists() else "")
         except (OSError, ValueError):
-            words = ""
+            words = prompt
         if words:
             res["asked_but_missing"] = tagger.missing(words, got) + nouns_missing(words, got, tagger.vocabulary())
+            res["held_items"] = held_items(got, words)
     return res
 
 
@@ -996,13 +1080,14 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("sheet"); s.add_argument("src"); s.add_argument("out")
     f = sub.add_parser("facts"); f.add_argument("src"); f.add_argument("--character")
+    f.add_argument("--prompt", default="", help="頼んだ言葉（無ければ絵の隣の <絵>.json の prompt）")
     c = sub.add_parser("compare"); c.add_argument("srcs", nargs="+"); c.add_argument("--limit", type=float, default=40.0)
     sc = sub.add_parser("scars"); sc.add_argument("before"); sc.add_argument("after"); sc.add_argument("mask")
     lg = sub.add_parser("legs"); lg.add_argument("src")
     e = sub.add_parser("expr"); e.add_argument("base"); e.add_argument("out"); e.add_argument("srcs", nargs="+")
     t = sub.add_parser("zoom"); t.add_argument("src"); t.add_argument("outdir"); t.add_argument("--zoom", type=float, default=3.0)
     a = ap.parse_args()
-    r = {"sheet": lambda: sheet(a.src, a.out), "facts": lambda: facts(a.src, a.character),
+    r = {"sheet": lambda: sheet(a.src, a.out), "facts": lambda: facts(a.src, a.character, a.prompt),
          "compare": lambda: compare(a.srcs, a.limit), "expr": lambda: expr(a.base, a.out, a.srcs),
          "legs": lambda: human_legs(__import__("joints").find(a.src), Image.open(a.src).height),
          "scars": lambda: repaint_scars(*(Image.open(p) for p in (a.before, a.after, a.mask))),

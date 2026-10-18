@@ -68,5 +68,15 @@ class Rules(unittest.TestCase):
             self.assertIsNone(filters.check("1girl, kimono", p))
 
 
+class Describe(unittest.TestCase):
+    def test_describe_returns_advice_apart_from_notes(self):
+        import free_text
+        r = free_text.describe("1girl, kimono, smile")
+        self.assertTrue(r["allowed"])
+        self.assertTrue(any("着物の合わせ" in a for a in r["advice"]))
+        self.assertFalse(any("着物の合わせ" in n for n in r["notes"]))
+        self.assertEqual(free_text.describe("1girl, school uniform")["advice"], [])
+
+
 if __name__ == "__main__":
     unittest.main()
