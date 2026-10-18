@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 import time
@@ -53,13 +54,28 @@ def score(bench: dict, out: str) -> dict:
     return res
 
 
-def run(bench: dict, outdir: str, style=None, width=None, height=None, steps=None, hires=0.0, strength=0.35, only=0) -> dict:
-    import design  # noqa: F401  模型を勝手に取りに行かない設定を先に効かせる
+def draw_xl(out: str, prompt: str, seed: int, steps: int, width: int, height: int) -> None:
+    """SDXL 系の模型（tools/gen/models.py の割り当て、CD_DRAW_MODEL で入れ替え）で 1 回だけ描く。
+    people.draw は落ちると種を変えて描き直すので、同じ種どうしで比べられない"""
+    import torch
+    import people
+    pipe = people.pipe()
+    pe, ne, pp, np_ = design.encode_xl(pipe, f"{people.QUALITY}, {prompt}", people.NEGATIVE)
+    pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
+         num_inference_steps=steps, guidance_scale=5.0, width=width, height=height,
+         generator=torch.Generator().manual_seed(seed)).images[0].save(out)
+
+
+def run(bench: dict, outdir: str, style=None, width=None, height=None, steps=None, hires=0.0, strength=0.35, only=0,
+        engine="design") -> dict:
+    global design
+    import design  # 模型を勝手に取りに行かない設定を先に効かせる
     od = Path(outdir)
     od.mkdir(parents=True, exist_ok=True)
     st = style or bench["style"]
     res = {"variant": od.name, "style": st, "width": width or bench["width"], "height": height or bench["height"],
-           "steps": steps or bench["steps"], "hires": hires, "cases": {}}
+           "steps": steps or bench["steps"], "hires": hires, "engine": engine,
+           "model": os.environ.get("CD_DRAW_MODEL", "") if engine == "people" else "", "cases": {}}
     old = od / "result.json"
     if old.exists():
         # 続きから描く（止まったあとに、描けた絵を描き直さない）
@@ -69,7 +85,10 @@ def run(bench: dict, outdir: str, style=None, width=None, height=None, steps=Non
             continue
         p = od / f"{c['id']}.png"
         t = time.time()
-        design.draw(str(p), c["prompt"], c["seed"], 1, st, res["steps"], res["width"], res["height"])
+        if engine == "people":
+            draw_xl(str(p), c["prompt"], c["seed"], res["steps"], res["width"], res["height"])
+        else:
+            design.draw(str(p), c["prompt"], c["seed"], 1, st, res["steps"], res["width"], res["height"])
         if hires:
             design.hires(str(p), c["prompt"], c["seed"], st, hires, strength, res["steps"])
         r = count(str(p), c["prompt"])
@@ -114,6 +133,7 @@ def main():
     r.add_argument("--style"); r.add_argument("--width", type=int); r.add_argument("--height", type=int)
     r.add_argument("--steps", type=int); r.add_argument("--hires", type=float, default=0.0)
     r.add_argument("--strength", type=float, default=0.35); r.add_argument("--only", type=int, default=0, help="先頭の N 枚だけ（費用を先に測る）")
+    r.add_argument("--engine", choices=["design", "people"], default="design", help="people は SDXL 系（CD_DRAW_MODEL で模型を選ぶ）")
     q = sub.add_parser("rescore"); q.add_argument("bench"); q.add_argument("outdir")
     c = sub.add_parser("compare"); c.add_argument("base"); c.add_argument("new")
     a = ap.parse_args()
@@ -123,7 +143,7 @@ def main():
         r_ = score(json.loads(Path(a.bench).read_text(encoding="utf-8")), a.out)
         print(f"{len(r_['cases'])} 枚、崩れ {sum(v['problems'] for v in r_['cases'].values())}")
     elif a.cmd == "run":
-        run(json.loads(Path(a.bench).read_text(encoding="utf-8")), a.outdir, a.style, a.width, a.height, a.steps, a.hires, a.strength, a.only)
+        run(json.loads(Path(a.bench).read_text(encoding="utf-8")), a.outdir, a.style, a.width, a.height, a.steps, a.hires, a.strength, a.only, a.engine)
     elif a.cmd == "rescore":
         rescore(json.loads(Path(a.bench).read_text(encoding="utf-8")), a.outdir)
     else:
