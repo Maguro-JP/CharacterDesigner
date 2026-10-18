@@ -80,7 +80,11 @@ def finish_xl(path: str, prompt: str, seed: int, long: int, res: dict) -> None:
     big = str(Path(path).with_suffix("")) + f"-{long}.png"
     import tile
     tl = tile.tile(path, big, prompt, long=long, seed=seed)
-    res.setdefault("stages", []).append({"hires": round(t1 - t), "face": round(t2 - t1), **tl})
+    t3 = time.time()
+    import cleanup
+    cl = cleanup.cleanup(big, big)
+    res.setdefault("stages", []).append({"hires": round(t1 - t), "face": round(t2 - t1), **{k: v for k, v in tl.items() if k != "log"},
+                                         "cleanup": round(time.time() - t3), "lines_colors": cl})
 
 
 def run(bench: dict, outdir: str, style=None, width=None, height=None, steps=None, hires=0.0, strength=0.35, only=0,

@@ -38,6 +38,20 @@ class Tile(unittest.TestCase):
                 self.assertGreaterEqual(a + tile.SIDE - b, tile.OVERLAP)
         self.assertEqual(tile.LONG, 4096)
 
+    def test_drift_ignores_detail_but_sees_shape(self):
+        import numpy as np
+        from PIL import Image
+        import tile
+        rng = np.random.default_rng(0)
+        base = np.full((1024, 1024), 200, np.uint8)
+        base[300:700, 400:600] = 60
+        fine = np.clip(base + rng.normal(0, 25, base.shape), 0, 255).astype(np.uint8)   # 描き込み（細かい模様）
+        moved = np.full((1024, 1024), 200, np.uint8)
+        moved[300:700, 650:850] = 60                                                      # 形が動いた
+        a = Image.fromarray(base)
+        self.assertLess(tile.drift(a, Image.fromarray(fine)), tile.DRIFT)
+        self.assertGreater(tile.drift(a, Image.fromarray(moved)), tile.DRIFT)
+
 
 if __name__ == "__main__":
     unittest.main()
