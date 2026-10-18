@@ -188,6 +188,10 @@ def describe(text: str, local=None, recalled=()) -> dict:
     import baseline
     # 描く直前に足す最低限（種族の部位など）を、何を足したか見えるように知らせる
     notes += baseline.complete(", ".join(tags))["notes"]
+    # 模型の言葉の表に無い言葉は、言葉だけでは別の物になる。分からない物は調べる（参考画像）か言い換える
+    unknown = baseline.unknown(", ".join(tags))
+    if unknown:
+        notes.append(f"描く模型が知らない言葉: {', '.join(unknown)}。参考画像を付ける（画面の参考画像・refsearch）か、知っている言葉に言い換える")
     return {"allowed": True, "reason": "", "prompt": ", ".join(tags), "negative": ", ".join(neg), "tags": tags,
             "summary": got.get("summary", ""), "reader": reader, "notes": notes, "advice": advice}
 

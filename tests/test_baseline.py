@@ -39,7 +39,9 @@ class Baseline(unittest.TestCase):
         self.assertNotIn("pointy ears", free_text.full_prompt("1girl, selfie")[0])
 
     def test_animal_alone_gets_no_humanoid_negative(self):
-        self.assertEqual(baseline.complete("fox, forest")["negative"], [])
+        r = baseline.complete("fox, forest")
+        self.assertNotIn("extra arms", r["negative"])
+        self.assertIn("quadruped", r["applied"])   # 動物には動物の決まり（脚 4 本）を掛ける
 
     def test_solo_keeps_one_person(self):
         self.assertIn("multiple girls", neg_of("1girl, solo"))
@@ -79,3 +81,33 @@ class Rules(unittest.TestCase):
         self.assertEqual(c["sword"], "held_items")
         self.assertEqual(c["arms"], "body_parts")
         self.assertIn("catgirl", c)
+
+
+class Override(unittest.TestCase):
+    def test_off_by_id_or_topic(self):
+        self.assertNotIn("hat", baseline.complete("1girl", off=["headwear"])["negative"])
+        topic = "頼んでいない眼鏡は描かない"
+        self.assertNotIn("glasses", baseline.complete("1girl", off=[topic])["negative"])
+
+    def test_asked_word_beats_rule(self):
+        self.assertNotIn("glasses", neg_of("1girl, glasses"))
+        self.assertNotIn("human ears", neg_of("1girl, cat girl, human ears"))
+
+    def test_tiers_order_and_animals(self):
+        r = baseline.complete("1girl, cat girl")
+        self.assertNotIn("quadruped", r["applied"])
+        self.assertLess(r["applied"].index("arms"), r["applied"].index("catgirl"))
+        self.assertLess(r["applied"].index("catgirl"), r["applied"].index("headwear"))
+        a = baseline.complete("cat, sitting, no humans")
+        self.assertIn("quadruped", a["applied"])
+        self.assertNotIn("arms", a["applied"])
+        self.assertNotIn("quadruped", baseline.complete("kitsune, fox, no humans")["applied"])
+
+    def test_unknown_words(self):
+        try:
+            import tagger
+            tagger.vocabulary()
+        except Exception:
+            self.skipTest("言葉の表が読めない")
+        self.assertEqual(baseline.unknown("1girl, red dress, smile"), [])
+        self.assertIn("glaive", baseline.unknown("1girl, glaive"))

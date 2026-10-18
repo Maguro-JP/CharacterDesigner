@@ -28,17 +28,33 @@ def _has(text: str, word: str) -> bool:
     return re.search(r"(?<![a-z])" + re.escape(word.lower()) + r"(?![a-z])", text) is not None
 
 
-def complete(prompt: str, negative: str = "") -> dict:
-    """足す描く言葉（add）、足す打ち消し（negative）、頼みごとで外した決まり（relaxed）、掛けた決まりの id（applied）、説明（notes）"""
+def complete(prompt: str, negative: str = "", off=()) -> dict:
+    """足す描く言葉（add）、足す打ち消し（negative）、頼みごとで外した決まり（relaxed）、掛けた決まりの id（applied）、説明（notes）。
+
+    頼みごとが決まりより先。決まりを外すのは次のどれか:
+      - unless の言葉が頼みごとにある（六本腕、二刀流、帽子）
+      - 決まりの打ち消しの言葉そのものを頼んだ（hat を頼めば hat は打ち消さない）
+      - 打ち消しに自分で書いた言葉と重なる（同じ言葉を二重に入れない）
+      - off に決まりの id か題目を渡した（画面や設定で「この決まりは要らない」と言われたとき）
+    """
     r = _rules()
     low = prompt.lower()
     asked = set(_words(prompt))
     given = set(_words(negative))
-    person = any(_has(low, w) for w in r["person_words"]) or re.search(r"\d+(girl|boy|other)s?", low) is not None
+    off = {str(o).strip().lower() for o in off if str(o).strip()}
+    person = (any(_has(low, w) for w in r["person_words"]) or re.search(r"\d+(girl|boy|other)s?", low) is not None) \
+        and not _has(low, "no humans")
     add, neg, notes, relaxed, applied = [], [], [], [], []
     for rule in r["rules"]:
         hit = next((w for w in rule["when"] if _has(low, w)), None)
         if not (hit or (rule["person"] and person)):
+            continue
+        # 動物の決まりは人物の絵には掛けない（cat girl の cat で四足の決まりを掛けない）
+        if rule.get("animal") and person:
+            continue
+        if rule["id"] in off or rule["topic"].lower() in off:
+            relaxed.append(rule["id"])
+            notes.append(f"「{rule['topic']}」は外すよう指定されたので掛けない")
             continue
         why = next((w for w in rule["unless"] if _has(low, w)), None)
         if why:
@@ -56,6 +72,24 @@ def complete(prompt: str, negative: str = "") -> dict:
     drop = {w for rule in r["rules"] if rule["id"] in relaxed for w in rule["negative"]}
     neg = [w for w in neg if w not in drop]
     return {"add": add, "negative": neg, "relaxed": sorted(drop), "applied": applied, "notes": notes}
+
+
+def unknown(prompt: str) -> list[str]:
+    """描く模型の言葉の表（絵から読むタグの語彙）に無い言葉。模型が知らない物を言葉だけで描かせると、別の物になる。
+    出たら参考画像を探す（tools/gen/refsearch.py、アプリの参考画像）か、知っている言葉に言い換える"""
+    try:
+        import tagger
+        vocab = tagger.vocabulary()
+    except Exception:
+        return []
+    out = []
+    for w in _words(prompt):
+        if re.fullmatch(r"\d+(girl|boy|other)s?|solo|masterpiece|best quality|.*background|full body|upper body", w):
+            continue
+        key = w.replace(" ", "_")
+        if w not in vocab and key not in vocab and not all(x in vocab for x in w.split()):
+            out.append(w)
+    return out
 
 
 def checks(applied: list[str]) -> dict:
