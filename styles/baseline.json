@@ -1,0 +1,224 @@
+{
+ "about": "頼みごとに書かれていなくても守る体の最低限と、言葉から当然に付いてくる言葉。tools/gen/baseline.py が描く直前（free_text.full_prompt）に足す。頼みごとが違う体を頼んだとき（多腕、九尾、ケンタウロスなど）は relaxed_by でその打ち消しを外す",
+ "person_words": [
+  "1girl",
+  "1boy",
+  "1other",
+  "2girls",
+  "2boys",
+  "girl",
+  "boy",
+  "woman",
+  "man",
+  "solo",
+  "person"
+ ],
+ "humanoid_negative": [
+  "extra arms",
+  "extra legs",
+  "extra limbs",
+  "missing limb",
+  "extra hands",
+  "extra fingers",
+  "fewer digits",
+  "fused fingers",
+  "multiple heads",
+  "extra eyes",
+  "extra ears",
+  "multiple tails",
+  "multiple wings",
+  "bad anatomy"
+ ],
+ "relaxed_by": {
+  "extra arms": [
+   "multiple arms",
+   "four arms",
+   "six arms",
+   "extra arms",
+   "asura"
+  ],
+  "extra hands": [
+   "multiple arms",
+   "four arms",
+   "six arms",
+   "extra hands",
+   "asura"
+  ],
+  "extra legs": [
+   "centaur",
+   "arachne",
+   "spider girl",
+   "taur",
+   "multiple legs",
+   "extra legs"
+  ],
+  "extra limbs": [
+   "multiple arms",
+   "four arms",
+   "six arms",
+   "asura",
+   "centaur",
+   "arachne",
+   "spider girl",
+   "taur",
+   "tentacles",
+   "scylla"
+  ],
+  "missing limb": [
+   "amputee",
+   "missing limb",
+   "lamia",
+   "mermaid",
+   "ghost"
+  ],
+  "multiple heads": [
+   "multiple heads",
+   "two-headed",
+   "hydra",
+   "cerberus"
+  ],
+  "extra eyes": [
+   "third eye",
+   "multiple eyes",
+   "extra eyes"
+  ],
+  "extra ears": [
+   "extra ears"
+  ],
+  "multiple tails": [
+   "multiple tails",
+   "nine tails",
+   "two tails",
+   "kitsune",
+   "nekomata",
+   "kyuubi"
+  ],
+  "multiple wings": [
+   "multiple wings",
+   "four wings",
+   "six wings",
+   "seraph"
+  ],
+  "multiple swords": [
+   "dual wielding",
+   "multiple swords",
+   "two swords"
+  ]
+ },
+ "solo_negative": "multiple girls, multiple boys, 2girls, 2boys",
+ "implied": [
+  {
+   "when": [
+    "cat girl",
+    "catgirl",
+    "nekomimi"
+   ],
+   "add": "cat ears, cat tail",
+   "negative": "human ears"
+  },
+  {
+   "when": [
+    "fox girl",
+    "kitsune"
+   ],
+   "add": "fox ears, fox tail",
+   "negative": "human ears"
+  },
+  {
+   "when": [
+    "wolf girl",
+    "wolf boy"
+   ],
+   "add": "wolf ears, wolf tail",
+   "negative": "human ears"
+  },
+  {
+   "when": [
+    "dog girl",
+    "dog boy",
+    "inumimi"
+   ],
+   "add": "dog ears, dog tail",
+   "negative": "human ears"
+  },
+  {
+   "when": [
+    "bunny girl",
+    "rabbit girl",
+    "usagimimi"
+   ],
+   "add": "rabbit ears",
+   "negative": "human ears"
+  },
+  {
+   "when": [
+    "elf",
+    "high elf",
+    "dark elf"
+   ],
+   "add": "pointy ears",
+   "negative": "animal ears"
+  },
+  {
+   "when": [
+    "angel"
+   ],
+   "add": "feathered wings",
+   "negative": "bat wings, horns"
+  },
+  {
+   "when": [
+    "demon girl",
+    "demon boy",
+    "devil"
+   ],
+   "add": "horns",
+   "negative": "halo"
+  },
+  {
+   "when": [
+    "dragon girl",
+    "dragon boy"
+   ],
+   "add": "dragon horns, dragon tail",
+   "negative": "human ears"
+  },
+  {
+   "when": [
+    "mermaid",
+    "merman"
+   ],
+   "add": "fish tail, no legs",
+   "negative": "legs, feet, shoes"
+  },
+  {
+   "when": [
+    "lamia"
+   ],
+   "add": "snake tail, no legs",
+   "negative": "legs, feet, shoes"
+  },
+  {
+   "when": [
+    "centaur"
+   ],
+   "add": "horse lower body, four legs, hooves",
+   "negative": "human legs, shoes"
+  },
+  {
+   "when": [
+    "harpy"
+   ],
+   "add": "winged arms, bird legs, talons",
+   "negative": "human hands"
+  },
+  {
+   "when": [
+    "holding sword",
+    "sword"
+   ],
+   "add": "",
+   "negative": "multiple swords"
+  }
+ ]
+}

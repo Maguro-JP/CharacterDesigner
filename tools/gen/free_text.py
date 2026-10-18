@@ -185,6 +185,9 @@ def describe(text: str, local=None, recalled=()) -> dict:
     # 宗教・文化の配慮は止めずに知らせる（描くかは利用者が決める）。頼みごとと描く言葉の両方で見る。
     # notes に混ぜると読み手の注記に埋もれたので、画面が目立たせて出せるよう advice に分ける
     advice = filters.advice_lines(text + ", " + ", ".join(tags))
+    import baseline
+    # 描く直前に足す最低限（種族の部位など）を、何を足したか見えるように知らせる
+    notes += baseline.complete(", ".join(tags))["notes"]
     return {"allowed": True, "reason": "", "prompt": ", ".join(tags), "negative": ", ".join(neg), "tags": tags,
             "summary": got.get("summary", ""), "reader": reader, "notes": notes, "advice": advice}
 
@@ -194,9 +197,15 @@ def full_prompt(prompt: str, negative: str = "") -> tuple[str, str]:
     why = blocked_tags(prompt.split(","))
     if why:
         raise ValueError(why)
-    pos = ", ".join(x for x in (prompt.strip().strip(","), QUALITY) if x)
+    import baseline
     import filters
-    neg = ", ".join(x for x in (filters.negative(prompt), negative.strip().strip(","), NEGATIVE) if x)
+    # 頼みごとに書かれていなくても守る最低限（腕は 2 本、獣耳の亜人に人の耳は無い）と、種族から当然に付く部位を足す
+    base = baseline.complete(prompt, negative)
+    pos = ", ".join(x for x in (prompt.strip().strip(","), ", ".join(base["add"]), QUALITY) if x)
+    neg = ", ".join(x for x in (filters.negative(prompt), negative.strip().strip(","), ", ".join(base["negative"]), NEGATIVE) if x)
+    # 頼んだ言葉は打ち消しに残さない（NEGATIVE の決まり文句に bad hands などがあっても、多腕を頼めば extra arms は外す）
+    drop = set(base["relaxed"])
+    neg = ", ".join(w for w in (x.strip() for x in neg.split(",")) if w and w.lower() not in drop)
     return pos, neg
 
 
