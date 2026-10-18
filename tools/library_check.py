@@ -7,6 +7,8 @@
   - 見本の絵は library/samples/<題目>/<名前>.png（題目ごとのフォルダ。平らに並べると 80 枚を超えて探せなかった）
   - 比べた記録の絵は library/progress/<YYYY-MM-DD>/<名前>.png
   - 日ごとの作例は library/daily/<YYYY-MM-DD>/
+  - フィードバックの絵は 1 枚ずつ library/feedback/<題目>/<日付>/<組>/<組>-<姿勢か番号>-s<種>.jpg と、組ごとの README.md
+    （一覧図にまとめると絵ごとの判定と崩れが書けなかった。設定画は頁ごとに種が違うので -s<種> を付けない）
   - 名前は英小文字・数字・ハイフン・点・下線だけ
 """
 from __future__ import annotations
@@ -27,6 +29,7 @@ RULES = [
     # README.md は置き場の説明なので、日付のフォルダの外でもよい
     (re.compile(r"^library/progress/(?!\d{4}-\d{2}-\d{2}/)(?!README\.md$)"), "比べた記録の絵は library/progress/<日付>/ に置く"),
     (re.compile(r"^library/feedback/[^/]+/(?!\d{4}-\d{2}-\d{2}/)"), "フィードバックの成果物は library/feedback/<題目>/<日付>/ に置く"),
+    (re.compile(r"^library/feedback/[^/]+/\d{4}-\d{2}-\d{2}/[^/]+\.(?:png|jpe?g|gif|webp)$"), "フィードバックの絵は <日付>/<組>/ に 1 枚ずつ置く"),
     (re.compile(r"^library/daily/(?!\d{4}-\d{2}-\d{2}/)"), "日ごとの作例は library/daily/<日付>/ に置く"),
 ]
 REF = re.compile(r"((?:library|docs/images|bible|designs)/[\w./-]+\.(?:png|jpe?g|gif|webp))")
@@ -34,6 +37,28 @@ REF = re.compile(r"((?:library|docs/images|bible|designs)/[\w./-]+\.(?:png|jpe?g
 
 def tracked() -> list[str]:
     return subprocess.run(["git", "ls-files"], cwd=ROOT, capture_output=True, text=True).stdout.split()
+
+
+FB_IMAGE = re.compile(r"^library/feedback/([^/]+)/\d{4}-\d{2}-\d{2}/([^/]+)/([^/]+)$")
+NO_SEED = {"settei"}  # 頁に種の違う絵を並べる題目
+
+
+def feedback_groups(files: list[str]) -> list[str]:
+    """フィードバックの絵の名前（<組>-…-s<種>）と、組ごとの README を調べる"""
+    out, have = [], set(files)
+    for f in files:
+        m = FB_IMAGE.match(f)
+        if not m or not f.lower().endswith(IMAGES):
+            continue
+        topic, group, name = m.groups()
+        stem = Path(name).stem
+        if not stem.startswith(group + "-"):
+            out.append(f"{f}: 名前は組の名前 {group}- で始める")
+        if topic not in NO_SEED and not re.search(r"-s\d+(?:-|$)", stem):
+            out.append(f"{f}: 名前に種 -s<種> を入れる")
+        if str(Path(f).parent / "README.md") not in have:
+            out.append(f"{f}: 組のフォルダに README.md（絵ごとの判定・言葉・種・崩れ）を置く")
+    return out
 
 
 def check() -> dict:
@@ -46,6 +71,7 @@ def check() -> dict:
                 misplaced.append(f"{f}: {why}")
         if f.lower().endswith(IMAGES) and not NAME.match(Path(f).name):
             misplaced.append(f"{f}: 名前は英小文字・数字・ハイフンにする")
+    misplaced += feedback_groups(files)
     have = set(images)
     broken, used = [], set()
     for f in files:

@@ -37,3 +37,15 @@ class LibraryCheck(unittest.TestCase):
         import sys
         r = subprocess.run([sys.executable, "tools/library_check.py", "--check"], cwd=ROOT, capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout)
+
+    def test_feedback_images_are_one_per_file_with_group_readme(self):
+        import sys
+        sys.path.insert(0, str(ROOT / "tools"))
+        import library_check as lc
+        base = "library/feedback/check/2026-10-18"
+        ok = [f"{base}/r5-coat/r5-coat-s101.jpg", f"{base}/r5-coat/README.md",
+              "library/feedback/settei/2026-10-18/sw/sw-1-main" + ".jpg", "library/feedback/settei/2026-10-18/sw/README.md"]
+        self.assertEqual(lc.feedback_groups(ok), [])
+        bad = lc.feedback_groups([f"{base}/r5-coat/coat-s1" + ".jpg", f"{base}/r5-coat/r5-coat-sheet" + ".jpg"])
+        self.assertEqual(len(bad), 4, bad)  # 組の名前・種・README×2
+        self.assertTrue(any(rx.match(f"{base}/sheet.jpg") for rx, _ in lc.RULES))
