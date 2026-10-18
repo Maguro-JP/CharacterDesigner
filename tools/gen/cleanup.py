@@ -30,6 +30,8 @@ FACE = 11
 SPECK = 60          # これより小さい暗い粒はごみ（4096 画素の絵で、主線の一筆は数千画素ある）
 DARK = 0.42         # 主線とみなす暗さ（明るさ 0〜1）
 CONTRAST = 0.10     # まわりよりこれだけ暗いと線
+MARGIN = 24         # 部位の縁からこの画素までは色を寄せない（4096 画素の絵で、部位分けの縁のずれが 10〜30 画素）
+FAR = 60            # 段の色からこれだけ離れた画素は模様・別の物とみなして寄せない
 
 
 def _lum(rgb: np.ndarray) -> np.ndarray:
@@ -108,12 +110,12 @@ def clean_lines(rgb: np.ndarray, seg: np.ndarray, strength: float = 1.0) -> np.n
     dirt = m & ~keep & ~face
     base = rgb.copy()
     base[dirt] = fill[dirt]
-    # 細い途切れ（2〜3 画素）をつなぐ。つないだ所は近くの線の色で塗る
-    joined = binary_closing(keep, structure=np.ones((5, 5))) & ~face
+    # 細い途切れ（2〜3 画素）だけをつなぎ、つないだ所を近くの線の色で塗る。もとの線は描き直さない
+    # （線全体を近くの最も暗い色で塗り直すと、線が太り輪郭がガタついた。4096 画素の絵で確かめた）
+    gap = binary_closing(keep, structure=np.ones((5, 5))) & ~keep & ~face
     ink = np.stack([grey_erosion(rgb[..., c], size=(7, 7)) for c in range(3)], -1)
-    # 縁をなめらかにする: 線の形をぼかして濃さにし、線の色を重ねる
-    alpha = np.asarray(Image.fromarray((joined * 255).astype("uint8")).filter(ImageFilter.GaussianBlur(1.2))).astype(float) / 255.0
-    alpha = (np.clip((alpha - 0.2) / 0.6, 0, 1) * strength)[..., None]
+    soft = np.asarray(Image.fromarray((gap * 255).astype("uint8")).filter(ImageFilter.GaussianBlur(0.8))).astype(float) / 255.0
+    alpha = (np.clip(soft * 1.5, 0, 1) * strength)[..., None]
     out = base * (1 - alpha) + np.minimum(ink, base) * alpha
     out[face] = rgb[face]
     return out
@@ -121,7 +123,7 @@ def clean_lines(rgb: np.ndarray, seg: np.ndarray, strength: float = 1.0) -> np.n
 
 def clean_colors(rgb: np.ndarray, seg: np.ndarray, strength: float = 0.6, k: int = 3) -> np.ndarray:
     """部位ごとに明るさで k 段に分け、段ごとの中央の色へ strength だけ寄せる。主線と顔は触らない"""
-    from scipy.ndimage import uniform_filter
+    from scipy.ndimage import distance_transform_edt, median_filter, uniform_filter
     m = line_mask(rgb)
     L = _lum(rgb)
     # 段の分け方は少しならした明るさで決める（1 画素ずつの粒で段が細かく割れないように）
@@ -130,17 +132,30 @@ def clean_colors(rgb: np.ndarray, seg: np.ndarray, strength: float = 0.6, k: int
     for p in np.unique(seg):
         if p in (0, FACE):
             continue
-        sel = (seg == p) & ~m
+        part = seg == p
+        # 部位分けは 512 画素で読んだものを引き伸ばすので、縁が数十画素ずれる。縁の近くは寄せる割合を 0 へ下げる
+        # （縁まで寄せると、背景や隣の部位の画素を部位の色で塗り、輪郭の外に色がはみ出した）
+        inside = distance_transform_edt(part)
+        w = np.clip((inside - MARGIN) / MARGIN, 0, 1)
+        sel = part & ~m & (w > 0)
         if sel.sum() < 2000:
             continue
         c = _split(Ls[sel], k)
-        idx = np.abs(Ls[sel][:, None] - c[None]).argmin(1)
+        lab = np.full(seg.shape, -1, np.int16)
+        lab[sel] = np.abs(Ls[sel][:, None] - c[None]).argmin(1)
+        # 段の境をなめらかにする: 段の番号を多数決でならす（1 画素ずつ段が入れ替わるとギザギザの境になった）
+        lab = median_filter(lab, size=9)
+        sel &= lab >= 0
+        idx = lab[sel]
         px = rgb[sel]
-        target = np.zeros_like(px)
+        target = px.copy()
         for i in range(k):
             if (idx == i).any():
                 target[idx == i] = np.median(px[idx == i], axis=0)
-        out[sel] = px * (1 - strength) + target * strength
+        # 段の色と大きく違う画素（模様・小物・別の物）は触らない
+        far = np.linalg.norm(px - target, axis=1) > FAR
+        a = (w[sel] * strength)[:, None] * (~far)[:, None]
+        out[sel] = px * (1 - a) + target * a
     return out
 
 
