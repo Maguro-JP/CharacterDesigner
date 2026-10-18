@@ -3,7 +3,7 @@
 使い方:
   python3 tools/gen/zukan.py <animal_cycle の出力フォルダ> [docs/zukan]
 
-<出力>/<動物>/<番号-画風>.png のうち、隣に .pass がある絵だけを使う。
+<出力>/<日付>/<動物>/<番号-画風>-<種>.png のうち、隣に .pass がある絵だけを使う。
 画風ごとに1枚の一覧図（docs/zukan/<番号-画風>.jpg）と、目次（docs/zukan/README.md）を書く。
 縮小した JPEG だけを残すのは、リポジトリを重くしないため（元の絵は手元に残る）。
 """
@@ -22,7 +22,7 @@ def main():
     out = Path(sys.argv[2] if len(sys.argv) > 2 else "docs/zukan")
     out.mkdir(parents=True, exist_ok=True)
     book = defaultdict(list)
-    for p in sorted(src.glob("**/*.png")):
+    for p in sorted(src.glob("[0-9]*/*/*.png")):
         if p.with_name(p.name + ".pass").exists():
             # 名前は <番号-画風>-<種>.png。種を外した部分を画風とする
             book[p.stem.rsplit("-", 1)[0]].append((p.parent.name, p))
