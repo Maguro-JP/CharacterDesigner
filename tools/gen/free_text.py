@@ -182,10 +182,11 @@ def describe(text: str, local=None, recalled=()) -> dict:
         return {"allowed": False, "reason": "描く言葉が1つも作れなかった。言い方を変えて頼む", "prompt": "", "negative": "",
                 "tags": [], "summary": got.get("summary", ""), "reader": reader, "notes": notes}
     import filters
-    # 宗教・文化の配慮は止めずに知らせる（描くかは利用者が決める）。頼みごとと描く言葉の両方で見る
-    notes += [n for n in filters.advice_lines(text + ", " + ", ".join(tags)) if n not in notes]
+    # 宗教・文化の配慮は止めずに知らせる（描くかは利用者が決める）。頼みごとと描く言葉の両方で見る。
+    # notes に混ぜると読み手の注記に埋もれたので、画面が目立たせて出せるよう advice に分ける
+    advice = filters.advice_lines(text + ", " + ", ".join(tags))
     return {"allowed": True, "reason": "", "prompt": ", ".join(tags), "negative": ", ".join(neg), "tags": tags,
-            "summary": got.get("summary", ""), "reader": reader, "notes": notes}
+            "summary": got.get("summary", ""), "reader": reader, "notes": notes, "advice": advice}
 
 
 def full_prompt(prompt: str, negative: str = "") -> tuple[str, str]:

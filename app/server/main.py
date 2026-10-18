@@ -421,6 +421,11 @@ class DescribeIn(BaseModel):
     text: str = Field(min_length=1, max_length=200)
 
 
+class CulturalIn(BaseModel):
+    # 頼みごと（200 字まで）と描く言葉をつないで送るので、描く言葉の長さまで受ける
+    text: str = Field(max_length=4000)
+
+
 class SaveIn(BaseModel):
     overwrite: bool = False
 
@@ -870,6 +875,12 @@ def create_app(runner: Runner | None = None) -> FastAPI:
     @app.get("/api/studio/roles")
     def studio_roster():
         return studio_roles.roster()
+
+    @app.post("/api/cultural")
+    def cultural(body: CulturalIn):
+        # 宗教・文化の配慮の知らせ。止めずに、描く前に画面で見せる（styles/cultural.json）
+        import filters
+        return {"advice": filters.advice_lines(body.text)}
 
     @app.post("/api/studio/jobs", status_code=202)
     def post_studio_job(body: StudioIn):

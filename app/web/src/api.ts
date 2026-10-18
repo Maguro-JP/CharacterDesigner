@@ -99,6 +99,7 @@ export type FreeDescribe = {
   summary: string;
   reader: Reader;
   notes: string[];
+  advice?: string[];
 };
 
 export type LlmLocal = { ok: boolean; url?: string; model?: string | null; models?: string[]; error?: string };
@@ -114,6 +115,7 @@ export type FreeJobIn = { prompt: string; negative: string; ja: string; seed: nu
 
 export const api = {
   cases: () => call<Record<string, Case>>("/api/cases"),
+  cultural: (text: string) => call<{ advice: string[] }>("/api/cultural", { method: "POST", body: JSON.stringify({ text }) }),
   parts: () => call<PartChoices>("/api/parts"),
   saveCase: (name: string, c: Case) => call<Case>(`/api/cases/${name}`, { method: "PUT", body: JSON.stringify(c) }),
   jobs: () => call<Job[]>("/api/jobs"),
