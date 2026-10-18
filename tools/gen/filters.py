@@ -48,9 +48,14 @@ SEXUAL = ["裸", "ヌード", "全裸", "半裸", "エロ", "えっち", "エッ
           "areola", "uncensored", "r-18", "r18", "swimsuit", "bikini"]
 MINOR = ["子ども", "子供", "こども", "幼女", "幼児", "児童", "小学生", "中学生", "未成年", "幼い", "少女", "少年", "女の子", "男の子",
          "child", "children", "kid", "kids", "toddler", "teen", "teenage", "underage", "minor", "schoolgirl", "schoolboy",
-         "little girl", "little boy", "young girl", "young boy", "elementary school"]
+         "little girl", "little boy", "young girl", "young boy", "elementary school",
+         # 高校生・制服の題材も 18 歳未満に見える人物として扱う（固定の制限。描画確認 回7 の高校生の題材）
+         "high school", "high school student", "school uniform", "serafuku", "sailor uniform", "高校生", "女子高生", "男子高校生"]
 # 語そのものが子どもの性的な描写を指すもの。いつでも止める
 ALWAYS = ["ロリ", "ショタ", "loli", "lolicon", "shota", "shotacon"]
+# 子どもを表す語があるとき、いつも打ち消しに足す構図（低い視点・腿を中心にした構図）。
+# 高校生の題材で、膝上の構図と座りの組み合わせから低い視点の絵が 8 枚中 5 枚出た（描画確認 回7）。固定の制限なので設定では外せない
+MINOR_NEGATIVE = "from below, thigh focus, crotch focus, upskirt, pantyshot, ass focus"
 # 性的な語があるとき、打ち消しに足す（模型が幼い顔と体に寄せることがあるため）
 SAFE_NEGATIVE = "loli, shota, child, underage"
 
@@ -166,5 +171,7 @@ def check(text: str, path: Path | None = None) -> str | None:
 def negative(prompt: str = "", path: Path | None = None) -> str:
     """打ち消しに足す言葉。入れているフィルターの分と、性的な語があるときの子どもの言葉"""
     parts = [SAFE_NEGATIVE] if has_sexual(prompt) else []
+    if has_minor(prompt):
+        parts.append(MINOR_NEGATIVE)
     parts += [x for x in [cultural_negative(prompt)] if x]
     return ", ".join(parts + [f["negative"] for f in active(path) if f.get("negative")])

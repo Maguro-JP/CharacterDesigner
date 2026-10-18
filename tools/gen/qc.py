@@ -446,6 +446,15 @@ def shoe_pair(points: list[dict], im: Image.Image, least: float = 0.3) -> dict |
             "area_ratio": round(min(stats[0][1], stats[1][1]) / max(1, stats[0][1], stats[1][1]), 2)}
 
 
+# 端の切れを数える部位: 顔・腕・脚・靴。髪・服・すそ・鞄が画面の外へ流れるのは構図として普通で、
+# 背景が画面いっぱいの絵では服や背景の一部を人物と読み、32 枚ほぼ全部を「切れ」と出した（描画確認 回7）
+EDGE_BODY = (11, 12, 13, 14, 15, 9, 10)
+
+
+def edge_body(seg: np.ndarray) -> np.ndarray:
+    return np.isin(seg, EDGE_BODY)
+
+
 def person_mask(seg: np.ndarray) -> np.ndarray:
     """部位分けの「背景」以外を人物とする（髪・服・肌・持ち物の袋など）"""
     return seg > 0
@@ -811,7 +820,7 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
         except ImportError as e:
             res["unreadable"].append({"heads_tall": str(e)})
         try:
-            person = _parts(src, im) > 0
+            person = edge_body(_parts(src, im))
         except Exception:   # 部位分けの模型が無い環境では、これまでどおり色だけで見る
             person = None
         cut = edge_cut(rgb, person=person)
@@ -957,14 +966,18 @@ def hold(src: str) -> str:
         shutil.move(str(f), str(dest / f.name))
     return str(dest / p.name)
 
-def facts(src: str, character: str | None = None) -> dict:
-    """数えられる事実。判断はしない（検品担当が、この数字を手がかりに目で確かめる）"""
+def facts(src: str, character: str | None = None, prompt: str = "") -> dict:
+    """数えられる事実。判断はしない（検品担当が、この数字を手がかりに目で確かめる）。
+    prompt を渡すか、絵の隣の <絵>.json に prompt があれば、頼んだ言葉の欠けと持ち物の数も見る"""
+    if ".parts." in Path(src).name:
+        # 部位分けの控え（絵の隣の .parts.png）は絵ではない。一覧に混ざると部位分けの図をさらに部位分けした（描画確認 回7）
+        raise ValueError(f"{src} は部位分けの控え。元の絵を渡す")
     im = Image.open(src).convert("RGB")
     rgb = np.asarray(im)
     parts = _parts(src, im)
     person = parts > 0
     # 端の切れは人物の画素だけで数える（背景が端まである絵で、全身が収まっているのに4辺切れと出た）
-    res = {"edge_cut": edge_cut(rgb, person=person), "inventory": inventory(parts),
+    res = {"edge_cut": edge_cut(rgb, person=edge_body(parts)), "inventory": inventory(parts),
            "floating": floating_blobs(rgb), "seams": background_seams(rgb),
            "skin_ratio": round(float(np.isin(parts, SKIN).sum() / max(person.sum(), 1)), 3)}
     import tagger
@@ -984,9 +997,9 @@ def facts(src: str, character: str | None = None) -> dict:
         # 付けないと見なかったため、ピースサイン 8/8 の欠け・剣の欠け・短パンが長ズボンになったのを拾えなかった
         side = Path(str(src) + ".json")
         try:
-            words = json.loads(side.read_text(encoding="utf-8")).get("prompt", "") if side.exists() else ""
+            words = prompt or (json.loads(side.read_text(encoding="utf-8")).get("prompt", "") if side.exists() else "")
         except (OSError, ValueError):
-            words = ""
+            words = prompt
         if words:
             res["asked_but_missing"] = tagger.missing(words, got) + nouns_missing(words, got, tagger.vocabulary())
             res["held_items"] = held_items(got, words)
@@ -1066,13 +1079,14 @@ def main():
     sub = ap.add_subparsers(dest="cmd", required=True)
     s = sub.add_parser("sheet"); s.add_argument("src"); s.add_argument("out")
     f = sub.add_parser("facts"); f.add_argument("src"); f.add_argument("--character")
+    f.add_argument("--prompt", default="", help="頼んだ言葉（無ければ絵の隣の <絵>.json の prompt）")
     c = sub.add_parser("compare"); c.add_argument("srcs", nargs="+"); c.add_argument("--limit", type=float, default=40.0)
     sc = sub.add_parser("scars"); sc.add_argument("before"); sc.add_argument("after"); sc.add_argument("mask")
     lg = sub.add_parser("legs"); lg.add_argument("src")
     e = sub.add_parser("expr"); e.add_argument("base"); e.add_argument("out"); e.add_argument("srcs", nargs="+")
     t = sub.add_parser("zoom"); t.add_argument("src"); t.add_argument("outdir"); t.add_argument("--zoom", type=float, default=3.0)
     a = ap.parse_args()
-    r = {"sheet": lambda: sheet(a.src, a.out), "facts": lambda: facts(a.src, a.character),
+    r = {"sheet": lambda: sheet(a.src, a.out), "facts": lambda: facts(a.src, a.character, a.prompt),
          "compare": lambda: compare(a.srcs, a.limit), "expr": lambda: expr(a.base, a.out, a.srcs),
          "legs": lambda: human_legs(__import__("joints").find(a.src), Image.open(a.src).height),
          "scars": lambda: repaint_scars(*(Image.open(p) for p in (a.before, a.after, a.mask))),
