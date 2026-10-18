@@ -49,3 +49,16 @@ class Rating(unittest.TestCase):
         tagger._RATING["/x.png"] = {"general": 0.9, "questionable": 0.0}
         self.assertEqual(tagger.rating("/x.png")["general"], 0.9)
         tagger._RATING.pop("/x.png")
+
+
+@unittest.skipIf(qc is None, "qc を読めない")
+class BodyParts(unittest.TestCase):
+    def test_extra_parts_unless_asked(self):
+        self.assertEqual(qc.body_parts({"multiple tails": 0.6, "extra ears": 0.5}, "fox girl, fox tail")["extra"],
+                         ["multiple tails", "extra ears"])
+        self.assertEqual(qc.body_parts({"multiple tails": 0.6}, "kitsune, multiple tails")["extra"], [])
+        self.assertEqual(qc.body_parts({"extra ears": 0.2}, "cat girl")["extra"], [])
+
+    def test_wings_drawn_as_arms(self):
+        self.assertEqual(qc.body_parts({"winged arms": 0.7}, "angel, white wings")["swapped"], ["wings→winged arms"])
+        self.assertEqual(qc.body_parts({"winged arms": 0.7}, "harpy, winged arms")["swapped"], [])

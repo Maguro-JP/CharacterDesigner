@@ -284,6 +284,22 @@ NOT_ITEMS = ("hands", "hair", "head", "arm", "breath", "behind back", "another's
 MANY = ("dual wielding", "multiple swords", "multiple weapons", "multiple cups", "multiple bottles", "multiple books")
 
 
+# 体の部位の数の崩れと読めるタグ。頼んだ言葉に同じ言い方が無いときだけ崩れとする（九尾の狐なら multiple tails は頼んだもの）
+EXTRA_PARTS = ("multiple tails", "extra ears", "multiple wings", "extra arms", "multiple horns", "multiple heads", "missing limb")
+# 頼んだ部位と、それを描いた絵に出るべきタグ。翼を頼んで winged arms（腕が翼）と読めるのは、腕と別に翼を描いていない絵
+PART_SWAPS = {"wings": ("winged arms",)}
+
+
+def body_parts(tags: dict, prompt: str, least: float = 0.5) -> dict:
+    """種族の特徴の数を数える検品（今は目で数えていた）。尾 1 本の狐の絵で multiple tails を 0.455 と読んだので、閾値は 0.5。数の崩れ（尾・耳・翼・腕・角・頭の多すぎ、手足の欠け）と、
+    部位の取り違え（翼を頼んで腕が翼）を、絵から読んだタグで挙げる"""
+    low = prompt.lower()
+    extra = [t for t in EXTRA_PARTS if tags.get(t, 0) >= least and t not in low]
+    swapped = [f"{want}→{got}" for want, alts in PART_SWAPS.items() if want in low
+               for got in alts if got not in low and tags.get(got, 0) >= least]
+    return {"extra": extra, "swapped": swapped}
+
+
 # 頼んだ物と、模型が小さく描き替えやすい物
 SMALLER = {"sword": ("dagger", "knife"), "greatsword": ("sword", "dagger"), "spear": ("dagger",), "staff": ("wand",)}
 
@@ -755,6 +771,9 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
                 res["problems"].append({"item_count": held["many"]})
             if held["small"]:
                 res["problems"].append({"item_size": held["small"]})
+            parts = body_parts(tags, prompt)
+            if parts["extra"] or parts["swapped"]:
+                res["problems"].append({"body_parts": parts})
         # 目の範囲を描き直した絵で瞳が消え光る線だけになったのを、目の測り方が揺れて見つけたと読み通した（2026-10-16）。
         # タグは extra eyes を 0.53 で読んでいた。崩れの無い絵では 0.22〜0.30 だったので、EXTRA_EYES 以上を崩れに数える
         if tags.get("extra eyes", 0) >= EXTRA_EYES:
