@@ -841,6 +841,16 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
         import joints
         points = joints.find(src)
         person = person_found(points)
+        # 見えない手足と目: 見えないのが当たり前（構図の外・隠す姿勢・物の陰）は通し、要るのに見えない・途中で無いものだけ落とす
+        if person["found"]:
+            try:
+                import occlusion
+                occ = occlusion.judge(points, _parts(src, Image.open(src).convert("RGB")), prompt)
+                res["occlusion"] = occ["parts"]
+                if occ["problems"]:
+                    res["problems"].append({"occlusion": occ["problems"]})
+            except Exception as e:
+                res["unreadable"].append({"occlusion": f"{type(e).__name__}: {e}"})
         if not person["found"]:
             res["unreadable"].append({"person": person})
         import measure
@@ -920,7 +930,7 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
 
 
 # 崩れの重さ（100 点から引く）。体のつながりや人そのものの崩れは直せないので重く、部分の直しで直せる崩れは軽くする
-PENALTY = {"fixed_restriction": 100, "person": 60, "human_legs": 40, "edge_cut": 25, "eyes": 15, "extra_eyes": 15, "floating": 15, "hands": 15,
+PENALTY = {"fixed_restriction": 100, "person": 60, "human_legs": 40, "edge_cut": 25, "eyes": 15, "extra_eyes": 15, "floating": 15, "hands": 15, "occlusion": 15,
            "seams": 10, "measure": 8}
 
 

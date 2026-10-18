@@ -1,0 +1,34 @@
+{
+ "about": "隠す構図の検品の決まり（tools/gen/occlusion.py）。見えない部位を全部落とさず、見えないのが当たり前なら通し、見えないとおかしいなら落とし、無い（途中で途切れた）なら落とす",
+ "parts": {
+  "left_hand": {"joint": "left_wrist", "parent": "left_elbow", "seg": [14], "group": "hands"},
+  "right_hand": {"joint": "right_wrist", "parent": "right_elbow", "seg": [15], "group": "hands"},
+  "left_arm": {"joint": "left_elbow", "parent": "left_shoulder", "seg": [14], "group": "arms"},
+  "right_arm": {"joint": "right_elbow", "parent": "right_shoulder", "seg": [15], "group": "arms"},
+  "left_leg": {"joint": "left_knee", "parent": "left_hip", "seg": [12], "group": "legs"},
+  "right_leg": {"joint": "right_knee", "parent": "right_hip", "seg": [13], "group": "legs"},
+  "left_foot": {"joint": "left_ankle", "parent": "left_knee", "seg": [9, 12], "group": "feet"},
+  "right_foot": {"joint": "right_ankle", "parent": "right_knee", "seg": [10, 13], "group": "feet"},
+  "left_eye": {"joint": "left_eye", "parent": "nose", "seg": [11], "group": "eyes"},
+  "right_eye": {"joint": "right_eye", "parent": "nose", "seg": [11], "group": "eyes"}
+ },
+ "hide": [
+  {"words": ["upper body", "portrait", "close-up", "bust shot", "headshot"], "groups": ["legs", "feet"], "why": "構図の外"},
+  {"words": ["portrait", "close-up", "headshot"], "groups": ["hands", "arms"], "why": "構図の外"},
+  {"words": ["cowboy shot"], "groups": ["feet"], "why": "構図の外（膝の上で切る）"},
+  {"words": ["from behind", "facing away", "back view"], "groups": ["eyes"], "why": "後ろ向き"},
+  {"words": ["profile", "from side", "side view"], "groups": ["eyes", "hands", "arms", "legs", "feet"], "one": true, "why": "横向きの奥の側"},
+  {"words": ["hands in pockets", "hand in pocket", "hands behind back", "arms behind back", "hand behind back", "hands behind head", "arms behind head"], "groups": ["hands"], "why": "手を隠す姿勢"},
+  {"words": ["crossed arms", "arms crossed"], "groups": ["hands"], "why": "腕組みで手が腕の陰"},
+  {"words": ["hair over one eye", "eyepatch", "hair over eyes"], "groups": ["eyes"], "one": true, "why": "髪・眼帯で隠す"},
+  {"words": ["sitting", "seiza", "kneeling", "crossed legs", "indian style", "lying", "crouching", "squatting"], "groups": ["feet"], "one": true, "why": "座り姿勢で奥の足が体の陰"},
+  {"words": ["long dress", "long skirt", "hakama", "kimono", "gown", "robe"], "groups": ["feet", "legs"], "why": "裾で隠れる"},
+  {"words": ["in water", "partially submerged", "wading", "bathing"], "groups": ["feet", "legs"], "why": "水の中"}
+ ],
+ "need": [
+  {"words": ["waving", "peace sign", "v sign", "thumbs up", "pointing", "raised hand", "arms raised", "arms up", "hand up", "holding", "hand on hip", "hands on hips"], "groups": ["hands"], "one": true, "why": "頼んだ動作に手が要る"},
+  {"words": ["arms raised", "arms up", "hands up", "both hands", "holding with both hands"], "groups": ["hands"], "why": "両手を使う動作"},
+  {"words": ["looking at viewer"], "groups": ["eyes"], "why": "こちらを見る顔"},
+  {"words": ["full body"], "groups": ["feet"], "why": "全身の構図"}
+ ]
+}
