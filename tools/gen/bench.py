@@ -67,20 +67,20 @@ def draw_xl(out: str, prompt: str, seed: int, steps: int, width: int, height: in
 
 
 def finish_xl(path: str, prompt: str, seed: int, long: int, res: dict) -> None:
-    """仕上げ: 1.5 倍に描き直して細部を足す → 顔と髪を 1024 画素で描き直す → AI の拡大で長辺 long 画素にする。
+    """仕上げ: 1.5 倍に描き直して細部を足す → 顔と髪を 1024 画素で描き直す → AI の拡大で長辺 long 画素にし、区切りごとに描き直す（tile.py）。
     検品は拡大の前の絵（1.5 倍）に掛ける。検品の数字は 100 万画素前後の絵で学んだもので、4 倍の絵では測り方が変わる。
     工程ごとの秒数を res["stages"] に残す（遅い所を測って直すため）"""
     import detail
     import hires as hr
-    import upscale
     t = time.time()
     hr.upscale(path, path, prompt, scale=1.5, strength=0.35, seed=seed)
     t1 = time.time()
     detail.detail(path, path, prompt, seed=seed)
     t2 = time.time()
     big = str(Path(path).with_suffix("")) + f"-{long}.png"
-    upscale.upscale(path, big, long=long)
-    res.setdefault("stages", []).append({"hires": round(t1 - t), "face": round(t2 - t1), "upscale": round(time.time() - t2)})
+    import tile
+    tl = tile.tile(path, big, prompt, long=long, seed=seed)
+    res.setdefault("stages", []).append({"hires": round(t1 - t), "face": round(t2 - t1), **tl})
 
 
 def run(bench: dict, outdir: str, style=None, width=None, height=None, steps=None, hires=0.0, strength=0.35, only=0,
@@ -152,7 +152,7 @@ def main():
     r.add_argument("--style"); r.add_argument("--width", type=int); r.add_argument("--height", type=int)
     r.add_argument("--steps", type=int); r.add_argument("--hires", type=float, default=0.0)
     r.add_argument("--strength", type=float, default=0.35); r.add_argument("--only", type=int, default=0, help="先頭の N 枚だけ（費用を先に測る）")
-    r.add_argument("--finish", type=int, default=0, help="仕上げ（1.5 倍の描き直し・顔の描き直し・拡大）まで通し、長辺をこの画素にする（例 3508 は A4 300dpi）")
+    r.add_argument("--finish", type=int, nargs="?", const=4096, default=0, help="仕上げ（1.5 倍の描き直し・顔の描き直し・拡大と区切りの描き直し）まで通す。数を省くと長辺 4096 画素")
     r.add_argument("--engine", choices=["design", "people"], default="design", help="people は SDXL 系（CD_DRAW_MODEL で模型を選ぶ）")
     q = sub.add_parser("rescore"); q.add_argument("bench"); q.add_argument("outdir")
     c = sub.add_parser("compare"); c.add_argument("base"); c.add_argument("new")

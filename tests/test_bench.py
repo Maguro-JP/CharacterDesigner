@@ -27,5 +27,17 @@ class Bench(unittest.TestCase):
         self.assertIn("崩れ 1 → 2", text)
 
 
+class Tile(unittest.TestCase):
+    def test_spans_cover_with_overlap(self):
+        import tile
+        for n in (1024, 2800, 4096):
+            xs = tile.spans(n)
+            self.assertEqual(xs[0], 0)
+            self.assertEqual(xs[-1] + tile.SIDE, max(n, tile.SIDE))
+            for a, b in zip(xs, xs[1:]):
+                self.assertGreaterEqual(a + tile.SIDE - b, tile.OVERLAP)
+        self.assertEqual(tile.LONG, 4096)
+
+
 if __name__ == "__main__":
     unittest.main()
