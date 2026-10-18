@@ -284,8 +284,8 @@
 - [ ] 動画のロトスコーピング（mp4。ffmpeg が要る）
 - [x] インペインティング（範囲を描き直す。`edit.py` にあるものを呼べるようにする）とアウトペインティング（絵の外を描き足す）: `imgproc.py inpaint / outpaint`。丸窓を描き足せ、描き足しの横縞も消えた。描き足しの左の境目にうっすら筋が残る。`docs/knowledge/imgproc.md`
 - [x] 超解像（拡大して細部を足す）: `imgproc.py upscale`（Real-ESRGAN のアニメ絵用、`upscale.py`）。832x1216 の騎士を長い辺 2048 に 65.5 秒（CPU）。線がくっきりし、目で見て崩れは無い。顔の白い点を埋める `imgproc.py spotfill` も足した
-- [x] 線画の抽出（塗り絵や清書の下地）: `imgproc.py lineart`（XDoG、模型なし、1枚 1秒以内。`library/samples/imgproc-lineart.jpg`）
-- [ ] 線画への着色: 白い線画から描き直す（img2img）だけでは塗れない。強さ 0.93 は色が付くが形が変わり、0.72・0.82 は形を守るが色がほとんど乗らない（`library/samples/imgproc-colorize-strength.jpg`）。次の手: 人と同じく、先に閉じた領域へ平らな色を置いてから描き直す（`handdraw.py` の下塗りを使う）
+- [x] 線画の抽出（塗り絵や清書の下地）: `imgproc.py lineart`（XDoG、模型なし、1枚 1秒以内。`library/samples/imgproc/imgproc-lineart.jpg`）
+- [ ] 線画への着色: 白い線画から描き直す（img2img）だけでは塗れない。強さ 0.93 は色が付くが形が変わり、0.72・0.82 は形を守るが色がほとんど乗らない（`library/samples/imgproc/imgproc-colorize-strength.jpg`）。次の手: 人と同じく、先に閉じた領域へ平らな色を置いてから描き直す（`handdraw.py` の下塗りを使う）
 - [x] 色の置き換え・色調補正・色合わせ（`imgproc.py recolor / grade / match`。置き換えは影の明るさを残し、枠で範囲を絞れる。剣士の灰色の襟巻きを赤にできた。`docs/knowledge/lineart.md`）
 - [x] 姿勢推定（`tools/gen/joints.py`、RTMPose。検品の体の決まり・頭身・手の枠で使う）
 - [x] 奥行き推定を単体で（`imgproc.py depth`、1 枚 5 秒。模型は `layers.depth_map` の 1 か所で読む）

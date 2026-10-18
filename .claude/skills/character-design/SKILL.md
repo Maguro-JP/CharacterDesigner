@@ -35,7 +35,7 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
 
 ## 女性キャラクターの基準の体
 
-女性を描くときは、利用者が決めた体のベース `ideal` を使う（`casts/body-types.json` の anime.ideal、見本 `library/samples/anime-ideal-female.png`）。
+女性を描くときは、利用者が決めた体のベース `ideal` を使う（`casts/body-types.json` の anime.ideal、見本 `library/samples/people/anime-ideal-female.png`）。
 `PYTHONPATH=.cache/gen/lib python3 tools/gen/people.py card <出力> <名前> --gender female --base ideal --tags "<種族や特徴>"`
 体型を変えるよう頼まれたときだけ、ベースの言葉を変える。
 
@@ -61,7 +61,7 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
    - 余分な部品が出た → negative に足す
    - 向きが変わった → strength を下げる
 5. 通った絵を、`docs/knowledge/demihuman-anatomy.md` の項目で目で見る（人の耳が残っていないか、頼んでいないとがった耳、付け根、色の食い違い）
-6. 目で通ったものだけを見せる。`library/samples/demi3d-<名前>.png` に置き、分かったことを `docs/knowledge/demihuman-anatomy.md` に足す
+6. 目で通ったものだけを見せる。`library/samples/demi/demi3d-<名前>.png` に置き、分かったことを `docs/knowledge/demihuman-anatomy.md` に足す
 
 ## 完成の1枚絵（背景つき）を頼まれたとき
 

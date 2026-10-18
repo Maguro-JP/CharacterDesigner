@@ -53,7 +53,7 @@ class FashionCastTest(unittest.TestCase):
             s = x.get("sample")
             if not s:
                 continue
-            self.assertRegex(s, r"^library/samples/fashion-[a-z0-9-]+\.png$")
+            self.assertRegex(s, r"^library/samples/fashion/fashion-[a-z0-9-]+\.png$")
             self.assertTrue((ROOT / s).exists(), s)
 
     def test_docs_have_update_date(self):
