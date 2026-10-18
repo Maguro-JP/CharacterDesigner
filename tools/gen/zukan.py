@@ -1,13 +1,14 @@
 """検品を通った動物の絵を、画風ごとの図鑑（一覧図）にまとめる。
 
 使い方:
-  python3 tools/gen/zukan.py <animal_cycle の出力フォルダ> [docs/zukan]
+  python3 tools/gen/zukan.py <animal_cycle の出力フォルダ> [library/feedback/animal/<日付>/zukan]
 
 <出力>/<日付>/<動物>/<番号-画風>-<種>.png のうち、隣に .pass がある絵だけを使う。
-画風ごとに1枚の一覧図（docs/zukan/<番号-画風>.jpg）と、目次（docs/zukan/README.md）を書く。
+画風ごとに1枚の一覧図（library/feedback/animal/<日付>/zukan/zukan-<番号-画風>-s123.jpg）と、目次（library/feedback/animal/<日付>/zukan/README.md）を書く。
 縮小した JPEG だけを残すのは、リポジトリを重くしないため（元の絵は手元に残る）。
 """
 import sys
+from datetime import datetime, timedelta, timezone
 from collections import defaultdict
 from pathlib import Path
 
@@ -19,7 +20,9 @@ COLS = 4
 
 def main():
     src = Path(sys.argv[1])
-    out = Path(sys.argv[2] if len(sys.argv) > 2 else "docs/zukan")
+    # 決まりの置き場は library/feedback/<題目>/<日付>/。日付は利用者の時間（JST）
+    today = datetime.now(timezone(timedelta(hours=9))).strftime("%Y-%m-%d")
+    out = Path(sys.argv[2] if len(sys.argv) > 2 else f"library/feedback/animal/{today}/zukan")
     out.mkdir(parents=True, exist_ok=True)
     book = defaultdict(list)
     for p in sorted(src.glob("[0-9]*/*/*.png")):
@@ -38,8 +41,9 @@ def main():
             x, y = (i % COLS) * THUMB[0], (i // COLS) * (THUMB[1] + 20)
             sheet.paste(im, (x, y))
             d.text((x + 4, y + THUMB[1] + 4), name, fill="black")
-        sheet.save(out / f"{style}.jpg", quality=85)
-        lines += [f"## {style}（{len(items)} 種）", "", f"![{style} の動物の一覧]({style}.jpg)", "",
+        # 名前は library の決まり（<組>-…-s<種>）。1枚に種 1〜3 を並べるので s123
+        sheet.save(out / f"zukan-{style}-s123.jpg", quality=85)
+        lines += [f"## {style}（{len(items)} 種）", "", f"![{style} の動物の一覧](zukan-{style}-s123.jpg)", "",
                   ", ".join(n for n, _ in items), ""]
     (out / "README.md").write_text("\n".join(lines))
     print({k: len(v) for k, v in sorted(book.items())})

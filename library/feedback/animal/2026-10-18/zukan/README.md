@@ -4,108 +4,108 @@
 
 ## 01-yurukyara（3 種）
 
-![01-yurukyara の動物の一覧](01-yurukyara.jpg)
+![01-yurukyara の動物の一覧](zukan-01-yurukyara-s123.jpg)
 
 capybara, capybara, capybara
 
 ## 06-character（3 種）
 
-![06-character の動物の一覧](06-character.jpg)
+![06-character の動物の一覧](zukan-06-character-s123.jpg)
 
 capybara, capybara, capybara
 
 ## 08-manga（3 種）
 
-![08-manga の動物の一覧](08-manga.jpg)
+![08-manga の動物の一覧](zukan-08-manga-s123.jpg)
 
 capybara, capybara, capybara
 
 ## 09-americancomic（3 種）
 
-![09-americancomic の動物の一覧](09-americancomic.jpg)
+![09-americancomic の動物の一覧](zukan-09-americancomic-s123.jpg)
 
 capybara, capybara, capybara
 
 ## 10-retroposter（3 種）
 
-![10-retroposter の動物の一覧](10-retroposter.jpg)
+![10-retroposter の動物の一覧](zukan-10-retroposter-s123.jpg)
 
 capybara, capybara, capybara
 
 ## 11-steampunk（3 種）
 
-![11-steampunk の動物の一覧](11-steampunk.jpg)
+![11-steampunk の動物の一覧](zukan-11-steampunk-s123.jpg)
 
 capybara, capybara, capybara
 
 ## 12-kirie（3 種）
 
-![12-kirie の動物の一覧](12-kirie.jpg)
+![12-kirie の動物の一覧](zukan-12-kirie-s123.jpg)
 
 capybara, capybara, capybara
 
 ## 13-stainedglass（3 種）
 
-![13-stainedglass の動物の一覧](13-stainedglass.jpg)
+![13-stainedglass の動物の一覧](zukan-13-stainedglass-s123.jpg)
 
 capybara, capybara, capybara
 
 ## 14-mosaic（3 種）
 
-![14-mosaic の動物の一覧](14-mosaic.jpg)
+![14-mosaic の動物の一覧](zukan-14-mosaic-s123.jpg)
 
 capybara, capybara, capybara
 
 ## 15-ukiyoe（3 種）
 
-![15-ukiyoe の動物の一覧](15-ukiyoe.jpg)
+![15-ukiyoe の動物の一覧](zukan-15-ukiyoe-s123.jpg)
 
 capybara, capybara, capybara
 
 ## 16-sumie（3 種）
 
-![16-sumie の動物の一覧](16-sumie.jpg)
+![16-sumie の動物の一覧](zukan-16-sumie-s123.jpg)
 
 capybara, capybara, capybara
 
 ## 17-nihonga（3 種）
 
-![17-nihonga の動物の一覧](17-nihonga.jpg)
+![17-nihonga の動物の一覧](zukan-17-nihonga-s123.jpg)
 
 capybara, capybara, capybara
 
 ## 18-artnouveau（3 種）
 
-![18-artnouveau の動物の一覧](18-artnouveau.jpg)
+![18-artnouveau の動物の一覧](zukan-18-artnouveau-s123.jpg)
 
 capybara, capybara, capybara
 
 ## 19-impressionist（3 種）
 
-![19-impressionist の動物の一覧](19-impressionist.jpg)
+![19-impressionist の動物の一覧](zukan-19-impressionist-s123.jpg)
 
 capybara, capybara, capybara
 
 ## 20-watercolor（3 種）
 
-![20-watercolor の動物の一覧](20-watercolor.jpg)
+![20-watercolor の動物の一覧](zukan-20-watercolor-s123.jpg)
 
 capybara, capybara, capybara
 
 ## 21-oil（3 種）
 
-![21-oil の動物の一覧](21-oil.jpg)
+![21-oil の動物の一覧](zukan-21-oil-s123.jpg)
 
 capybara, capybara, capybara
 
 ## 22-digitalpaint（3 種）
 
-![22-digitalpaint の動物の一覧](22-digitalpaint.jpg)
+![22-digitalpaint の動物の一覧](zukan-22-digitalpaint-s123.jpg)
 
 capybara, capybara, capybara
 
 ## 23-real（3 種）
 
-![23-real の動物の一覧](23-real.jpg)
+![23-real の動物の一覧](zukan-23-real-s123.jpg)
 
 capybara, capybara, capybara
