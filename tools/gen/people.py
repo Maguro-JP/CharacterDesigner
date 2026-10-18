@@ -29,6 +29,9 @@ os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))
 # ディスクを埋めた（2026-10-14 に 2 回）。初めて取るときだけ CD_FETCH=1 を付けて動かす
 os.environ.setdefault("HF_HUB_OFFLINE", "0" if os.environ.get("CD_FETCH") == "1" else "1")
 sys.path.insert(0, str(Path(__file__).parent))
+# 模型の置き場所（.cache/gen/hf）と取りに行かない既定を、diffusers・transformers を読む前に効かせる。
+# 関数の中で design を読んでいたため、先に transformers を読んだ呼び出しでは ~/.cache/huggingface へ取りに行った
+import design  # noqa: E402,F401
 
 # 描く模型は tools/gen/models.py の一覧で作風ごとに決める（config/models.json、無ければ animagine-xl-3.1）。
 # CD_DRAW_MODEL を付けると、その場だけ入れ替えられる。CD_STYLE で作風を選ぶ（既定 anime）
