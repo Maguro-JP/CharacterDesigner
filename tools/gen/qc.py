@@ -275,6 +275,31 @@ UNASKED_WEAR = ("hat", "cowboy hat", "witch hat", "baseball cap", "beret", "top 
                 "headphones", "mask", "eyepatch", "cape", "gloves", "necktie", "bow")
 
 
+# 「holding X」のうち物でないもの（体・人・動き）。持ち物の数え方から外す
+NOT_ITEMS = ("hands", "hair", "head", "arm", "breath", "behind back", "another's", "own", "heart", "leg", "foot", "wrist", "knees",
+             "clothes", "skirt", "hat", "helmet", "footwear", "jacket")
+# 同じ物を2つ以上描いたと読めるタグ。剣 2 本（knight 701）は dual wielding、カップ 2 個は multiple を含む言い方で出る
+MANY = ("dual wielding", "multiple swords", "multiple weapons", "multiple cups", "multiple bottles", "multiple books")
+
+
+def held_items(tags: dict, prompt: str, least: float = 0.5) -> dict:
+    """持ち物の検品: 頼んでいない持ち物（holding X の X が頼んだ言葉に無い）と、同じ物の数（2つ以上と読めるタグを、頼んでいないのに読んだ）。
+    頼んでいない器（cup 0.56 で読めているのに印が付かない）とカップ・剣の重なりを、描画確認 回6 で拾えなかったため足した"""
+    low = prompt.lower()
+    unasked = []
+    for t, v in tags.items():
+        if v < least or not t.startswith("holding "):
+            continue
+        thing = t[len("holding "):].split(" (")[0]
+        # weapon・food のような総称は、剣や菓子を頼んだ絵でも並んで読まれる（holding weapon 0.9 と holding sword 0.91）
+        if any(w in thing for w in NOT_ITEMS) or thing in ("weapon", "food", "drink", "instrument", "object"):
+            continue
+        if thing.split()[-1] not in low:
+            unasked.append(thing)
+    many = [t for t in MANY if tags.get(t, 0) >= least * 0.8 and t not in low and "two " not in low and "multiple" not in low]
+    return {"unasked": sorted(unasked), "many": many}
+
+
 def heads_tall(seg: np.ndarray, rgb: np.ndarray, far: float = 40.0, points: list[dict] | None = None) -> float | None:
     """頭身: 人物の高さ ÷ 頭の高さ（頭のてっぺんからあごまで）。
     顔の部位（11）は首の肌まで含むので、下端をあごにすると頭を 2 割ほど大きく取った（頭身 6.2 の絵を 4.7 と測った）。
@@ -713,8 +738,12 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
         if prompt:
             low_p = prompt.lower()
             extra = sorted(t for t in UNASKED_WEAR if tags.get(t, 0) >= 0.5 and t.split()[-1] not in low_p)
+            held = held_items(tags, prompt)
+            extra = sorted(set(extra) | set(held["unasked"]))
             if extra:
                 res["problems"].append({"unasked_item": extra})
+            if held["many"]:
+                res["problems"].append({"item_count": held["many"]})
         # 目の範囲を描き直した絵で瞳が消え光る線だけになったのを、目の測り方が揺れて見つけたと読み通した（2026-10-16）。
         # タグは extra eyes を 0.53 で読んでいた。崩れの無い絵では 0.22〜0.30 だったので、EXTRA_EYES 以上を崩れに数える
         if tags.get("extra eyes", 0) >= EXTRA_EYES:
@@ -919,6 +948,7 @@ def facts(src: str, character: str | None = None) -> dict:
             words = ""
         if words:
             res["asked_but_missing"] = tagger.missing(words, got) + nouns_missing(words, got, tagger.vocabulary())
+            res["held_items"] = held_items(got, words)
     return res
 
 
