@@ -111,3 +111,14 @@ class Override(unittest.TestCase):
             self.skipTest("言葉の表が読めない")
         self.assertEqual(baseline.unknown("1girl, red dress, smile"), [])
         self.assertIn("glaive", baseline.unknown("1girl, glaive"))
+
+
+class Swimsuit(unittest.TestCase):
+    def test_default_and_override(self):
+        pos = free_text.full_prompt("1girl, adult woman, swimsuit, beach")[0]
+        self.assertIn("plain white bikini", pos)
+        self.assertNotIn("plain white bikini", free_text.full_prompt("1girl, adult woman, black one-piece swimsuit")[0])
+
+    def test_minor_and_swimsuit_still_blocked(self):
+        with self.assertRaises(ValueError):
+            free_text.full_prompt("1girl, high school student, swimsuit")
