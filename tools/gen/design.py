@@ -18,6 +18,7 @@ batch は設定集（casts/*.json）の全員を、モデルを1回だけ読み�
 途中で止まっても同じコマンドで続きから描ける。sheet は描いた絵を名前付きで1枚に並べる。
 """
 import argparse
+import functools
 import json
 import os
 import re
@@ -153,7 +154,9 @@ XL_HUMAN_NEGATIVE = "nsfw, nude, cropped, multiple views, text, watermark, extra
 ELDER_FEMALE = "old woman, grandmother, deep wrinkles, sagging cheeks, white hair in a bun, "
 
 
+@functools.lru_cache(maxsize=2)
 def _pipe(style, img2img=False):
+    """模型は 1 回だけ読む。draw は 1 枚ごとに呼ばれ、読み直すと 1 枚に読み込みの時間が足された"""
     import torch
     from diffusers import LCMScheduler, StableDiffusionImg2ImgPipeline, StableDiffusionPipeline
     torch.set_num_threads(os.cpu_count() or 4)
@@ -328,6 +331,28 @@ def draw(out, prompt, seed, n, style, steps, width, height, kind="human", negati
         paths.append(p)
         print(f"{p}: {time.time() - t:.1f} 秒")
     return paths
+
+
+def hires(path, prompt, seed, style, scale=1.5, strength=0.35, steps=6, negative=""):
+    """描いた全身の絵を scale 倍に引き伸ばし、同じ模型・同じ言葉で弱く描き直す（hires fix）。
+    初めから大きく描かせると人物が増えたり形が崩れたりするので、得意な大きさで構図を決めてから細部を足す。
+    SD1.5 系は描いた模型の部品をそのまま使い、模型を 2 度読まない"""
+    import torch
+    from diffusers import StableDiffusionImg2ImgPipeline
+    from PIL import Image
+    if style in XL:
+        import hires as hr
+        return hr.upscale(path, path, prompt, negative, scale, strength, seed=seed)
+    pipe = StableDiffusionImg2ImgPipeline(**_pipe(style).components)
+    im = Image.open(path).convert("RGB")
+    w, h = int(im.width * scale) // 8 * 8, int(im.height * scale) // 8 * 8
+    pe, ne = encode(pipe, FRAMING["full"] + prompt + SUFFIX, ", ".join(x for x in (NEGATIVE, negative) if x))
+    # LCM は strength × 段数 しか回らない。段数を strength で割り、描き直す段数を元の段数にそろえる
+    n = max(steps, round(steps / max(strength, 0.1)))
+    out = pipe(image=im.resize((w, h), Image.LANCZOS), strength=strength, prompt_embeds=pe, negative_prompt_embeds=ne,
+               num_inference_steps=n, guidance_scale=1.5, generator=torch.Generator().manual_seed(seed)).images[0]
+    out.save(path)
+    return out.size
 
 
 def load_cast(path):

@@ -9,7 +9,7 @@
 ## 置き場所
 
 - 資料・絵・設定は `docs/STRUCTURE.md` の表の置き場にだけ置く。表に無い種類は、先に表へ行を足す（`tests/test_structure.py` が見る）
-- 決めたことは `docs/knowledge/decisions.md` の 1 か所、分かったことは `docs/knowledge/`、出典は `docs/references.md`、見本や比べの絵は `library/`。利用者に見せた成果物は `library/feedback/<題目>/<日付>/` に README（判定と残っている崩れ）付きで残す
+- 決めたことは `docs/knowledge/decisions.md` の 1 か所、分かったことは `docs/knowledge/`、出典は `docs/references.md`、見本や比べの絵は `library/`。利用者に見せた成果物は 一覧図にまとめず 1 枚ずつ `library/feedback/<題目>/<日付>/<組>/<組>-<姿勢か番号>-s<種>.jpg` に、組ごとの README（絵ごとの判定・言葉・種・崩れ）付きで残し、見せるときも 1 枚ずつ元の大きさで送る
 
 ## 描かせ方の第一の決まり（速さより出来）
 
