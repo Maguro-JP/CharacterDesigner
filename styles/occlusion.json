@@ -29,6 +29,6 @@
   {"words": ["waving", "peace sign", "v sign", "thumbs up", "pointing", "raised hand", "arms raised", "arms up", "hand up", "holding", "hand on hip", "hands on hips"], "groups": ["hands"], "one": true, "why": "頼んだ動作に手が要る"},
   {"words": ["arms raised", "arms up", "hands up", "both hands", "holding with both hands"], "groups": ["hands"], "why": "両手を使う動作"},
   {"words": ["looking at viewer"], "groups": ["eyes"], "why": "こちらを見る顔"},
-  {"words": ["full body"], "groups": ["feet"], "why": "全身の構図"}
+  {"words": ["full body"], "groups": ["feet"], "soft": true, "why": "全身の構図（座り姿勢などの隠す決まりが先）"}
  ]
 }

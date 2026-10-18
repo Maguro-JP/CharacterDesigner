@@ -71,7 +71,9 @@ def judge(points: list[dict], seg, prompt: str = "") -> dict:
         need_all = [r for r in need if g in r["groups"] and not r.get("one")]
         need_one = [r for r in need if g in r["groups"] and r.get("one")]
         pair = len([n for n, d in RULES["parts"].items() if d["group"] == g and n in parts])
-        allowed = 0 if need_all else pair if ok_all else 1 if ok_one else 0
+        # 構図の要り用（全身）は、姿勢の隠す決まり（座ると奥の足が体の陰）より弱い。動作の要り用（手を振る）は強い
+        hard = [r for r in need_all if not r.get("soft")]
+        allowed = 0 if hard else pair if ok_all else 1 if ok_one else 0
         if need_one and len(unseen) >= pair:
             allowed = min(allowed, pair - 1)
         for i, n in enumerate(sorted(unseen)):

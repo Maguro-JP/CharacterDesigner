@@ -74,6 +74,17 @@ def run(bench: dict, outdir: str, style=None, width=None, height=None, steps=Non
     return res
 
 
+def rescore(bench: dict, outdir: str) -> dict:
+    """描き直した絵を、今の検品で数え直す（検品を直したあと、描き直さずに基準と同じ物差しにそろえる）"""
+    od = Path(outdir)
+    res = json.loads((od / "result.json").read_text(encoding="utf-8"))
+    prompts = {c["id"]: c["prompt"] for c in bench["cases"]}
+    for i, r in res["cases"].items():
+        r.update(count(str(od / f"{i}.png"), prompts[i]))
+    (od / "result.json").write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
+    return res
+
+
 def compare(base: dict, new: dict) -> tuple[str, bool]:
     """同じ絵どうしで崩れの数を並べる。合計が増えたら採らない（worse=True）"""
     ids = [i for i in new["cases"] if i in base["cases"]]
@@ -97,6 +108,7 @@ def main():
     r.add_argument("--style"); r.add_argument("--width", type=int); r.add_argument("--height", type=int)
     r.add_argument("--steps", type=int); r.add_argument("--hires", type=float, default=0.0)
     r.add_argument("--strength", type=float, default=0.35); r.add_argument("--only", type=int, default=0, help="先頭の N 枚だけ（費用を先に測る）")
+    q = sub.add_parser("rescore"); q.add_argument("bench"); q.add_argument("outdir")
     c = sub.add_parser("compare"); c.add_argument("base"); c.add_argument("new")
     a = ap.parse_args()
     if a.cmd == "make":
@@ -106,6 +118,8 @@ def main():
         print(f"{len(r_['cases'])} 枚、崩れ {sum(v['problems'] for v in r_['cases'].values())}")
     elif a.cmd == "run":
         run(json.loads(Path(a.bench).read_text(encoding="utf-8")), a.outdir, a.style, a.width, a.height, a.steps, a.hires, a.strength, a.only)
+    elif a.cmd == "rescore":
+        rescore(json.loads(Path(a.bench).read_text(encoding="utf-8")), a.outdir)
     else:
         text, worse = compare(*(json.loads(Path(p).read_text(encoding="utf-8")) for p in (a.base, a.new)))
         print(text)

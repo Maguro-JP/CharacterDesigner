@@ -60,6 +60,11 @@ class Occlusion(unittest.TestCase):
         self.assertEqual(occlusion.judge(pts, seg_with(), "cowboy shot")["problems"], [])
         self.assertEqual(states(occlusion.judge(pts, seg_with(), "full body")), {"left_foot": "must_see", "right_foot": "must_see"})
 
+    def test_sitting_hides_far_foot_even_in_full_body(self):
+        pts = body(right_ankle=(150, 380))
+        self.assertEqual(occlusion.judge(pts, seg_with(), "full body, crouching")["problems"], [])
+        self.assertEqual(states(occlusion.judge(pts, seg_with(), "full body, standing")), {"right_foot": "absent"})
+
     def test_profile_allows_only_one_eye(self):
         one = body(right_eye=(150, 30))
         self.assertEqual(occlusion.judge(one, seg_with(), "profile")["problems"], [])
