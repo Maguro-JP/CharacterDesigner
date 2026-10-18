@@ -1,4 +1,4 @@
-"""ポーズの型（library/poses.json）を、体のベース（library/body-types.json の anime）に当てて描き、一覧図にする。
+"""ポーズの型（casts/poses.json）を、体のベース（casts/body-types.json の anime）に当てて描き、一覧図にする。
 
 体のベースの構図の言葉（立って腕を下ろす）だけをポーズの言葉に差し替える。体・服・打ち消しはベースのまま。
 描いた絵は people.draw で検品し、落ちたら seed を変えて描き直す（最大 3 回）。
@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 import people  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
-POSES = json.loads((ROOT / "library" / "poses.json").read_text(encoding="utf-8"))
+POSES = json.loads((ROOT / "casts" / "poses.json").read_text(encoding="utf-8"))
 HAIR = "black hair, long hair, ponytail"
 
 

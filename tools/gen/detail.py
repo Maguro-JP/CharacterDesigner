@@ -46,12 +46,14 @@ def head_box(src, margin: float = 0.4):
     return int(cx - half), int(cy - half), int(cx + half), int(cy + half)
 
 
-HAND_WORDS = ("detailed hand, open hand, five fingers, separated fingers, correct hand anatomy, clean lineart")
+# open hand を入れると、閉じかけた手や顎に添えた手まで指を扇に広げ、6 本以上に増やした（2026-10-17、try-301）
+HAND_WORDS = ("detailed hand, five fingers, separated fingers, correct hand anatomy, clean lineart")
 HAND_NEGATIVE = "fused fingers, extra fingers, missing fingers, six fingers, four fingers, deformed hand, claws, blurry"
 
 
 def detail(src, out, prompt: str, negative: str = "", strength: float = 0.4, steps: int = 24, seed: int = 0,
-           box=None, words: str = FACE_WORDS, extra_negative: str = FACE_NEGATIVE) -> dict:
+           box=None, words: str = FACE_WORDS, extra_negative: str = FACE_NEGATIVE, control: str | None = None,
+           control_scale: float = 0.8) -> dict:
     import torch
     from PIL import Image, ImageDraw, ImageFilter
     import demi
@@ -66,11 +68,21 @@ def detail(src, out, prompt: str, negative: str = "", strength: float = 0.4, ste
         return {"box": None, "reason": "顔が読めなかった（後ろ向き・小さすぎる）"}
     crop = im.crop(box)
     pos, neg = free_text.full_prompt(f"{prompt}, {words}", ", ".join(x for x in (negative, extra_negative) if x))
-    pipe = demi.img2img()
+    extra = {}
+    if control:
+        # 人形の奥行きの同じ枠を切り出して渡し、形（指の本数と向き）を人形で縛る。
+        # 言葉と強さだけで手を描き直すと、元の崩れた手の形に引っ張られ、指が 2〜3 本の爪の形のまま残った
+        import people
+        pipe = people.depth_img2img()
+        ctrl = Image.open(control).convert("RGB").resize(im.size).crop(box).resize((SIDE, SIDE), Image.LANCZOS)
+        extra = dict(control_image=ctrl, controlnet_conditioning_scale=control_scale)
+    else:
+        pipe = demi.img2img()
     pe, ne, pp, np_ = design.encode_xl(pipe, pos, neg)
     redone = pipe(image=crop.resize((SIDE, SIDE), Image.LANCZOS), strength=strength, prompt_embeds=pe,
                   negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
-                  num_inference_steps=steps, guidance_scale=6.0, generator=torch.Generator().manual_seed(seed)).images[0]
+                  num_inference_steps=steps, guidance_scale=6.0, generator=torch.Generator().manual_seed(seed),
+                  **extra).images[0]
     redone = redone.resize(crop.size, Image.LANCZOS)
     # 枠の縁で継ぎ目が出ないよう、内側の楕円だけを使い、縁を枠の 1/10 でぼかす
     s = crop.size[0]
@@ -93,7 +105,20 @@ def main():
     # 手は部位分けで枠が取れないので、正方形の枠を x0,y0,x1,y1 で渡す（全身の絵では手が 30〜50 画素しか無く、
     # 指が潰れて数えられなかった。顔と同じく切り出して大きく描き直す）
     ap.add_argument("--hand", action="append", default=[], metavar="x0,y0,x1,y1")
+    ap.add_argument("--auto-hands", action="store_true", help="手の枠を手のひらの模型で探す（hands.py --auto と同じ）")
     a = ap.parse_args()
+    if a.auto_hands:
+        import hands
+        from PIL import Image
+        w, h = Image.open(a.src).size
+        for b in hands.detect_palms(Image.open(a.src).convert("RGB")) or hands.auto_boxes(a.src):
+            x0, y0, x1, y1 = (int(v) for v in b.split(":")[0].split(","))
+            # 見当の枠は手首寄りに外れることがあるので 1.3 倍に広げ、絵の内に収める（正方形のまま）
+            r = min(int((x1 - x0) * 0.65), w // 2, h // 2)
+            cx, cy = min(max((x0 + x1) // 2, r), w - r), min(max((y0 + y1) // 2, r), h - r)
+            a.hand.append(f"{cx - r},{cy - r},{cx + r},{cy + r}")
+        if not a.hand:
+            sys.exit("手の枠が出なかった（肘と手首が読めない）")
     if not a.hand:
         print(detail(a.src, a.out, a.prompt, a.negative, a.strength, seed=a.seed))
         return

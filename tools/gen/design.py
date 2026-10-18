@@ -25,6 +25,10 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+# 描く部品（torch、diffusers）は .cache/gen/lib にある。PYTHONPATH を付け忘れると torch が読めず止まったので、自分で通す
+_LIB = ROOT / ".cache" / "gen" / "lib"
+if _LIB.exists() and str(_LIB) not in sys.path:
+    sys.path.append(str(_LIB))
 os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))
 # 模型は既定で外から取りに行かない。呼んだ関数が手元に無い模型を指していると、数 GB を取りに行って
 # ディスクを埋めた（2026-10-14 に 2 回）。初めて取るときだけ CD_FETCH=1 を付けて動かす
@@ -82,6 +86,14 @@ XL_ITEM_SUFFIX = (", single object, still life, centered, full view, 2d game ite
                   "clean lineart, flat colors, white background")
 XL_ITEM_NEGATIVE = ("eyes, face, mouth, creature, animal, character, person, legs, feet, arms, hands, wings, tail, "
                     "multiple objects, cropped, text, watermark")
+# 手足の無い塊の生き物（幼年期のスライム形態など）。生き物の決まり文句（creature design、full body、feral）で
+# 描くと、「腕なし、脚なし」と書いても腕・脚・翼・尾が付いた。物の決まり文句なら塊になったが、物の打ち消しに
+# 目と顔があるので顔と胸の印が出なかった（DigiMon の幼年期、2026-10-06）。kind: "blob" は物の文で形を取り、
+# 顔は打ち消さず、手足だけを打ち消す
+XL_BLOB_SUFFIX = (", single round creature, full view, centered, 2d game monster illustration, cel shading, "
+                  "clean lineart, flat colors, white background")
+XL_BLOB_NEGATIVE = ("legs, feet, arms, hands, fingers, claws, wings, tail, neck, standing, sitting, "
+                    "multiple creatures, cropped, text, watermark")
 # 性別。指定が無いとアニメの人物向けのモデルは少女を描き、男性の職まで女性になった。
 # 「1boy」だけでは中性的な美形に寄った（学んだ絵に多い）ので、男性は体と顔の骨格から書く
 GENDER = {"male": ("1boy, male focus, adult man, broad shoulders, strong jawline, thick neck, short hair, masculine, ",
@@ -134,7 +146,8 @@ def _pipe(style, img2img=False):
     pipe = cls.from_pretrained(STYLES[style], torch_dtype=torch.float32, safety_checker=None)
     # LCM-LoRA: 25 段かかるところを 6 段で描く。CPU で1枚 約1分（512x768、4 コア）
     pipe.scheduler = LCMScheduler.from_config(pipe.scheduler.config)
-    pipe.load_lora_weights(LCM_LORA)
+    # 名前を明示する。省くと取得済みでもオフラインの既定（HF_HUB_OFFLINE=1）で読めずに落ちた
+    pipe.load_lora_weights(LCM_LORA, weight_name="pytorch_lora_weights.safetensors")
     pipe.fuse_lora()
     import device
     return device.place(pipe, torch)
@@ -193,26 +206,48 @@ def encode_xl(pipe, prompt, negative):
     return pe, ne, pooled[0].to(dt), pooled[1].to(dt)
 
 
-def draw(out, prompt, seed, n, style, steps, width, height):
+# draw の構図。upper は手や持ち物を確かめる絵のため。全身では手が 60〜100 画素しかなく、手の形が描けたかを読めなかった。
+# portrait（close-up）にすると手が枠の外に出るので付けない
+FRAMING = {"full": PREFIX, "upper": PREFIX.replace("full body, standing, ", "upper body, ")}
+
+
+def draw(out, prompt, seed, n, style, steps, width, height, kind="human", negative="", framing="full", scene=False):
     import torch
     pipe = _pipe(style)
+    # 人用の決まり文句（character design, standing）のまま動物を頼むと、獣の耳の少女になる
+    if kind == "creature" and style in XL:
+        # SDXL は言葉で書く。アニメのタグ（no humans, feral）は効かない
+        head, tail, neg = "", XL_CREATURE_SUFFIX, XL_CREATURE_NEGATIVE
+        if " style" in prompt:
+            # 画風を頼まれたら、決まり文句のアニメ塗りで上書きしない
+            tail = ", full body, creature design, white background"
+    elif kind == "creature":
+        head, tail, neg = CREATURE_PREFIX, CREATURE_SUFFIX, NEGATIVE + ", " + CREATURE_NEGATIVE
+    elif scene:
+        # 既定の「全身・白地」は、構図や場所や持ち物を頼んだ言葉とぶつかり、持ち物ごと落ちる。scene では外す
+        head, tail, neg = PREFIX.replace("full body, standing, ", ""), "", NEGATIVE
+    else:
+        # 人は構図（全身か上半身）で決まり文句を変える
+        head, tail, neg = FRAMING[framing], SUFFIX, NEGATIVE
+    # 既定の打ち消しに足す。年齢の見え方（child, round face など）を絵ごとに抑えるため
+    neg = ", ".join(x for x in (neg, negative) if x)
     paths = []
     for i in range(n):
         t = time.time()
         g = torch.Generator().manual_seed(seed + i)
         if style in XL:
             # SDXL は要約（pooled）も渡さないと止まる。guidance は batch の XL と同じ 2.0
-            pe, ne, pp, np_ = encode_xl(pipe, PREFIX + prompt + SUFFIX, NEGATIVE)
+            pe, ne, pp, np_ = encode_xl(pipe, head + prompt + tail, neg)
             im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
                       negative_pooled_prompt_embeds=np_, num_inference_steps=steps,
                       guidance_scale=2.0, width=width, height=height, generator=g).images[0]
         else:
-            pe, ne = encode(pipe, PREFIX + prompt + SUFFIX, NEGATIVE)
+            pe, ne = encode(pipe, head + prompt + tail, neg)
             im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, num_inference_steps=steps,
                       guidance_scale=1.5, width=width, height=height, generator=g).images[0]
         p = out if n == 1 else str(Path(out).with_suffix("")) + f"-{seed + i}.png"
         im.save(p)
-        meta = {"prompt": prompt, "seed": seed + i, "style": style, "model": STYLES[style], "steps": steps}
+        meta = {"prompt": prompt, "negative": negative, "seed": seed + i, "style": style, "model": STYLES[style], "steps": steps, "framing": framing}
         Path(p + ".json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
         paths.append(p)
         print(f"{p}: {time.time() - t:.1f} 秒")
@@ -232,6 +267,9 @@ def load_cast(path):
         elif c.get("kind") == "item":
             # 物には生き物の決まり（目、顔つき）も人の決まりも付けない。item_common だけ
             common = cast.get("item_common", "")
+        elif c.get("kind") == "blob":
+            # 塊の生き物に creature_common を付けると手足を呼ぶ言葉が混ざるので、作風だけの blob_common を使う
+            common = cast.get("blob_common", "")
         else:
             common = cast.get("common", "")
         c["full_prompt"] = c["prompt"] + (", " + common if common else "")
@@ -241,17 +279,17 @@ def load_cast(path):
 TRAITS = json.loads((Path(__file__).parent / "traits.json").read_text(encoding="utf-8"))
 
 
-PATTERNS = json.loads((ROOT / "library" / "patterns.json").read_text(encoding="utf-8"))["patterns"]
+PATTERNS = json.loads((ROOT / "casts" / "patterns.json").read_text(encoding="utf-8"))["patterns"]
 
 
 def trait_texts(c):
-    """設定集の traits（"分類:種類" の並び）と patterns（library/patterns.json の名前）を、指示文と打ち消しの言葉にする。
+    """設定集の traits（"分類:種類" の並び）と patterns（casts/patterns.json の名前）を、指示文と打ち消しの言葉にする。
     知らない種類や名前は止める（黙って無視すると、効かなかったのか書き間違いなのか分からない）。"""
     ps, ns = [], []
     traits = list(c.get("traits", []))
     for name in c.get("patterns", []):
         if name not in PATTERNS:
-            raise SystemExit(f"{c.get('id')}: patterns の {name} が library/patterns.json に無い")
+            raise SystemExit(f"{c.get('id')}: patterns の {name} が casts/patterns.json に無い")
         traits += PATTERNS[name].get("traits", [])
         if PATTERNS[name].get("prompt"):
             ps.append(PATTERNS[name]["prompt"])
@@ -277,6 +315,9 @@ def full_texts(c, style="anime"):
     if c.get("kind") == "item":
         neg = ", ".join(x for x in (XL_ITEM_NEGATIVE, c.get("negative", "")) if x)
         return c["full_prompt"] + XL_ITEM_SUFFIX, neg
+    if c.get("kind") == "blob":
+        neg = ", ".join(x for x in (XL_BLOB_NEGATIVE, c.get("negative", "")) if x)
+        return c["full_prompt"] + XL_BLOB_SUFFIX, neg
     if c.get("kind") == "creature" and style in XL:
         neg = ", ".join(x for x in (XL_CREATURE_NEGATIVE, c.get("negative", "")) if x)
         return c["full_prompt"] + XL_CREATURE_SUFFIX, neg
@@ -320,9 +361,9 @@ def full_texts(c, style="anime"):
 def cast_paths(cast, outdir, style=None):
     """設定集の1人ごとに、描く絵（パス, seed, 画風）を返す。
 
-    画像生成のモデルは描いた絵を見直さない（くちばしが2つ、途切れた脚）。描いた絵は目で検品し、
-    落とした絵は設定集の rejected に {"画像の名前": "理由"} で書く。理由は docs/knowledge/monster-design.md
-    の検品表の言葉で書き、同じ破綻が続けば指示文を直す。
+    画像生成のモデルは描いた絵を見直さない（くちばしが2つ、途切れた脚）。機械の検品は絵を捨てず、
+    直す所の印（<絵>.json の marks）を付けて残す。機械が落とした絵を一覧から外すと、人が魅力を感じた絵まで消えた。
+    設定集の rejected（{"画像の名前": "理由"}）は、利用者が要らないと決めた絵だけを書く所で、その絵は数に入れずに描き足す。
 
     人は style（設定集の style、無ければ anime）だけで、モンスターは CREATURE_STYLES の全部で描く。
     anime 以外の画風の絵は名前に画風を入れる（id-real-7.png）。
@@ -330,13 +371,13 @@ def cast_paths(cast, outdir, style=None):
     base = style or cast.get("style", "anime")
     for c in cast["characters"]:
         seed, n = c.get("seed", 7), c.get("n", cast.get("n", 2))
-        styles = c.get("styles") or (CREATURE_STYLES if c.get("kind") in ("creature", "item")
+        styles = c.get("styles") or (CREATURE_STYLES if c.get("kind") in ("creature", "item", "blob")
                                      else ["xl"] if c.get("age") in OLD_AGES else [base])
-        rejected = {**c.get("rejected", {}), **auto_rejected(outdir)}
+        rejected = c.get("rejected", {})
         shots = []
         for st in styles:
             tag = "" if st == "anime" else f"{st}-"
-            # 検品で落とした絵（rejected のキーは画像の名前）は数に入れず、次の seed で描き足す
+            # 利用者が要らないと決めた絵（rejected のキーは画像の名前）は数に入れず、次の seed で描き足す
             s, got = seed, 0
             while got < n:
                 name = f"{c['id']}-{tag}{s}.png"
@@ -360,12 +401,12 @@ def base_image(cast, c, outdir):
     return Image.open(p).convert("RGB") if p.exists() else None
 
 
-def batch(cast_path, outdir, style, steps, width, height, kind=None, retry=3):
+def batch(cast_path, outdir, style, steps, width, height, kind=None):
     import torch
     cast = load_cast(cast_path)
     Path(outdir).mkdir(parents=True, exist_ok=True)
     todo = [(c, p, seed, st) for c, shots in cast_paths(cast, outdir, style) for p, seed, st in shots
-            if not p.exists() and (kind is None or (c.get("kind") == "creature") == (kind == "creature"))]
+            if not p.exists() and (kind is None or (c.get("kind") in ("creature", "blob")) == (kind == "creature"))]
     print(f"{len(todo)} 枚を描く")
     # 下絵（init_dir/<id>.png）がある人物は、その形の上に描く（img2img）。文章だけでは手足の数や
     # 「手足の無い塊」を守らせきれなかった。strength が小さいほど下絵の形が残る
@@ -419,46 +460,90 @@ def batch(cast_path, outdir, style, steps, width, height, kind=None, retry=3):
             meta = {"name": c.get("name", c["id"]), "prompt": text, "negative": neg, "seed": seed, "style": st,
                     "model": STYLES[st], "steps": steps}
             note = ""
-            if c.get("kind") not in ("creature", "item"):
-                reasons = check_person(p, outdir)
-                meta["inspect"] = reasons
-                note = "  落とした: " + "、".join(reasons) if reasons else "  通った（背景を白に消した）"
+            if c.get("kind") not in ("creature", "item", "blob"):
+                meta["inspect"], meta["marks"] = check_person(p)
+                note = "  直す所: " + "、".join(meta["inspect"]) if meta["inspect"] else "  外れなし"
             Path(str(p) + ".json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
             print(f"{p}: {time.time() - t:.1f} 秒{note}", flush=True)
         del pipe
-    # 機械の判定で落ちた分は、次の seed で描き足す（同じ人物で最大 3 回まで）
-    if retry and any(json.loads(Path(str(t[1]) + ".json").read_text(encoding="utf-8")).get("inspect")
-                     for t in todo if Path(str(t[1]) + ".json").exists()):
-        batch(cast_path, outdir, style, steps, width, height, kind, retry - 1)
+    # 顔の崩れ（目の左右、正面に戻すと歪む顔）は、描く模型を手放してから顔の描き直しを自動でかける。
+    # 描く模型と描き直す模型を同時に持たないため、描き終えたあとにまとめて行う
+    people = [t[1] for t in todo if t[0].get("kind") not in ("creature", "item") and t[1].exists()]
+    if people:
+        auto_face_fix(people)
 
 
-def auto_rejected(outdir):
-    """機械の判定で落とした絵の一覧（画像の名前 → 理由）。cast_paths が数に入れずに描き足す。"""
-    f = Path(outdir) / "auto_rejected.json"
-    return json.loads(f.read_text(encoding="utf-8")) if f.exists() else {}
+# edit.inspect の理由のうち、構図そのものの崩れ（人がいない、2人目や離れた物、体が画面の端で切れた）。部分の描き直しでは直らない
+LAYOUT_WORDS = ("人物が写っていない", "離れた物", "端で切れている")
 
 
-def check_person(p, outdir):
-    """人の絵を機械で検品する。落としたら理由を auto_rejected.json に書き、通ったら背景を白に消す。
+def person_marks(reasons):
+    """edit.inspect の理由を、直す所の印（qc.marks と同じ形）にする。"""
+    return [{"what": r, "kind": "layout" if any(w in r for w in LAYOUT_WORDS) else "fix",
+             "repair": "none" if any(w in r for w in LAYOUT_WORDS) else "inpaint", "where": r} for r in reasons]
 
-    背景の物（蛇、猫、狼、影）と、欠けた手足・二重の人物・画面で切れた体を、人が見る前に落とす。
+
+def check_person(p):
+    """人の絵を機械で検品し、(理由, 直す所の印) を返す。絵は捨てず、外れがあっても背景を白に消して並べる。
+
+    背景の物（蛇、猫、狼、影）と、欠けた手足・二重の人物・画面で切れた体を数える。構図の崩れには kind layout の印を付ける。
     元の絵は <名前>.raw.png に残す。
     """
     sys.path.insert(0, str(Path(__file__).parent))
     import shutil
     import edit
     reasons = edit.inspect(str(p))
-    if reasons:
-        rej = auto_rejected(outdir)
-        rej[Path(p).name] = "、".join(reasons)
-        (Path(outdir) / "auto_rejected.json").write_text(json.dumps(rej, ensure_ascii=False, indent=1), encoding="utf-8")
-    else:
-        shutil.copy(p, str(p).replace(".png", ".raw.png"))
+    shutil.copy(p, str(p).replace(".png", ".raw.png"))
+    # 2人目や離れた物がある絵は、背景を消すと片方が消えて崩れが見えなくなる。元のまま残す
+    if not any("離れた物" in r or "写っていない" in r for r in reasons):
         edit.clean_background(str(p))
-    return reasons
+    return reasons, person_marks(reasons)
+
+
+def auto_face_fix(paths, fix=None, check=None):
+    """描いた絵を作画監督（qc.auto_check）にかけ、直せる顔の崩れ（repair が face_fix の印）があれば顔を描き直す。
+    直した絵は <名前>.facefix.png に置き、元の絵は残す。直した絵も同じ検品にかけ、結果を <絵>.json の facefix に書く。
+    fix と check は試験で差し替える（既定は imgproc.face_fix と qc.auto_check）"""
+    sys.path.insert(0, str(Path(__file__).parent))
+    if check is None:
+        import qc
+        check = qc.auto_check
+    if fix is None:
+        import imgproc
+        fix = imgproc.face_fix
+    done = {}
+    for p in paths:
+        meta_path = Path(str(p) + ".json")
+        meta = json.loads(meta_path.read_text(encoding="utf-8")) if meta_path.exists() else {}
+        res = check(str(p), meta.get("prompt", ""))
+        if res.get("held"):  # 固定の制限に当たった絵は qc.hold が held/ へ移した。ここでは触らない
+            continue
+        meta["marks"] = meta.get("marks", []) + res.get("marks", [])
+        if res.get("differences"):
+            meta["differences"] = res["differences"]
+        if any(m.get("repair") == "face_fix" for m in res.get("marks", [])):
+            out = str(p).replace(".png", ".facefix.png")
+            r = fix(str(p), out)
+            if r.get("fixed"):
+                after = check(out, meta.get("prompt", ""))
+                r = {**r, "file": Path(out).name, "ok": after.get("ok"), "marks": after.get("marks", [])}
+            meta["facefix"] = r
+            done[str(p)] = r
+            print(f"{p}: 顔を描き直した → {r.get('file', r.get('why'))}", flush=True)
+        meta_path.write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
+    return done
 
 
 FONT = "/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf"
+
+
+def mark_label(p):
+    """一覧図に書く印。構図の崩れがあれば「構図」、直す所があれば「直す N」、無ければ空"""
+    f = Path(str(p) + ".json")
+    marks = json.loads(f.read_text(encoding="utf-8")).get("marks", []) if f.exists() else []
+    layout = sum(m.get("kind") == "layout" for m in marks)
+    fix = len(marks) - layout
+    return "、".join(x for x in (f"構図 {layout}" if layout else "", f"直す {fix}" if fix else "") if x)
 
 
 def sheet(cast_path, outdir, out, thumb=256):
@@ -489,6 +574,11 @@ def sheet(cast_path, outdir, out, thumb=256):
         d.text((10, yy), line, fill=(80, 80, 80), font=small)
         for i, p in enumerate(ps):
             im.paste(Image.open(p).convert("RGB").resize((thumb, th), Image.LANCZOS), (label + i * thumb, y))
+            # 機械の検品で外れた絵も並べ、直す所の印を左上に書く（構図の崩れは別の印）
+            text = mark_label(p)
+            if text:
+                d.rectangle((label + i * thumb, y, label + i * thumb + d.textlength(text, font=small) + 8, y + 22), fill="white")
+                d.text((label + i * thumb + 4, y + 2), text, fill=(200, 0, 0), font=small)
         d.line((0, y + th - 1, im.width, y + th - 1), fill=(200, 200, 200))
     im.save(out)
     print(f"{out}: {len(rows)} 人, {im.width}x{im.height}")
@@ -672,8 +762,12 @@ def main():
     d.add_argument("--n", type=int, default=1)
     d.add_argument("--style", default="anime", choices=list(STYLES))
     d.add_argument("--steps", type=int, default=6)
-    d.add_argument("--width", type=int, default=512)
-    d.add_argument("--height", type=int, default=768)
+    d.add_argument("--width", type=int)
+    d.add_argument("--height", type=int)
+    d.add_argument("--kind", default="human", choices=["human", "creature"])
+    d.add_argument("--negative", default="", help="既定の打ち消しに足す言葉")
+    d.add_argument("--framing", choices=list(FRAMING), default="full", help="upper は上半身（手を確かめる絵）")
+    d.add_argument("--scene", action="store_true", help="全身・白地の決まり文句を外す（構図・場所・持ち物を言葉で決めるとき）")
     r = sub.add_parser("restyle")
     r.add_argument("src")
     r.add_argument("out")
@@ -709,7 +803,9 @@ def main():
     elif a.cmd == "sheet":
         sheet(a.cast, a.outdir, a.out, a.thumb)
     elif a.cmd == "draw":
-        draw(a.out, a.prompt, a.seed, a.n, a.style, a.steps, a.width, a.height)
+        # 四足は縦長の画面だと立ち上がって脚が欠ける。動物は横長を既定にする
+        w, h = (768, 512) if a.kind == "creature" else (512, 768)
+        draw(a.out, a.prompt, a.seed, a.n, a.style, a.steps, a.width or w, a.height or h, a.kind, a.negative, a.framing, a.scene)
     elif a.cmd == "restyle":
         restyle(a.src, a.out, a.style, a.strength, a.steps, a.prompt)
     else:

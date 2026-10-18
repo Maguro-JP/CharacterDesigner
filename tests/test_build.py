@@ -1,6 +1,6 @@
 """tools/build.py の試験。
 
-見た目の良し悪しは画像で判定する（docs/progress/）。ここで固定するのは、
+見た目の良し悪しは画像で判定する（library/progress/）。ここで固定するのは、
 壊れたら気付きにくい所: 書き出しの再現性、細い部品が縮小で消えないこと、
 孤立ドットの掃除、頭と体の実測。
 """
@@ -221,10 +221,31 @@ class BuildTest(unittest.TestCase):
             self.assertNotIn("standing", text)
             self.assertIn("1girl", neg)
         self.assertTrue(design.full_texts(cast["characters"][1])[0].startswith(design.PREFIX + "1boy"))
-        # 検品で落とした絵は数に入れず、次の seed で描き足す
+        # 利用者が要らないと決めた絵（rejected）は数に入れず、次の seed で描き足す
         cast["characters"][0]["rejected"] = {"m-xl-7.png": "くちばしが2つ"}
         shots = [p.name for c, s in design.cast_paths(cast, "/x") for p, _, _ in s if c["id"] == "m"]
         self.assertEqual(shots, ["m-xl-8.png", "m-xl-9.png"])
+
+    def test_blob_keeps_the_face_but_forbids_limbs(self):
+        # 塊の生き物は物の文で形を取るが、顔は打ち消さない。作風は blob_common だけを付ける
+        import tempfile
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import design
+        with tempfile.TemporaryDirectory() as t:
+            Path(f"{t}/c.json").write_text(json.dumps({
+                "creature_common": "creature words", "blob_common": "flat colors",
+                "characters": [{"id": "s", "kind": "blob", "prompt": "a jelly blob", "negative": "beak"}]}))
+            c = design.load_cast(f"{t}/c.json")["characters"][0]
+        self.assertEqual(c["full_prompt"], "a jelly blob, flat colors")
+        text, neg = design.full_texts(c, "xl")
+        self.assertTrue(text.endswith(design.XL_BLOB_SUFFIX))
+        self.assertNotIn("creature design", text)
+        for word in ("arms", "legs", "wings", "tail", "beak"):
+            self.assertIn(word, neg)
+        for word in ("eyes", "face", "mouth"):
+            self.assertNotIn(word, neg)
+        shots = [(p.name, st) for _, s in design.cast_paths({"characters": [c]}, "/x") for p, _, st in s]
+        self.assertEqual(shots, [("s-xl-7.png", "xl"), ("s-xl-8.png", "xl")])
 
     def test_derived_stage_uses_the_chosen_base_picture(self):
         # 系統の派生は、ベースの決定稿（chosen）の絵を手本にする。決定稿が無ければ手本なし

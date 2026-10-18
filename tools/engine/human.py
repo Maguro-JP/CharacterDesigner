@@ -81,6 +81,22 @@ def adduct_arms(rig, degrees=35):
     bpy.context.view_layer.update()
 
 
+def relax_hands(rig, curl=12, spread=6):
+    """力を抜いて下ろした手の形: 指の関節を軽く曲げ、指どうしを少し離す。親指は浅く曲げる。
+    指をまっすぐ開いて下に垂らした人形から描くと、指が溶けて 1 枚の刃のような手になった（両手とも、描き直し 3 回でも直らなかった）"""
+    for side, sign in (("L", 1), ("R", -1)):
+        for f, k in zip(range(2, 6), (-1.5, -0.5, 0.5, 1.5)):
+            for j in range(1, 4):
+                b = rig.pose.bones[f"finger{f}-{j}.{side}"]
+                b.rotation_mode = "XYZ"
+                b.rotation_euler = (math.radians(curl), 0, math.radians(spread * k * sign) if j == 1 else 0)
+        for j in (2, 3):
+            b = rig.pose.bones[f"finger1-{j}.{side}"]
+            b.rotation_mode = "XYZ"
+            b.rotation_euler = (math.radians(curl * 0.6), 0, 0)
+    bpy.context.view_layer.update()
+
+
 def lower_arms(rig, degrees):
     """上腕の骨を Y 軸（骨の向き）で左右逆向きに回す。名前は「下ろす」だが、実際は上腕のねじれ（肩の内旋・外旋）で、
     肘の位置は動かない（rom_check で振れ 0・ねじれ = degrees と測れた）。肘から先が回って手が下がって見えるだけ。
@@ -218,3 +234,197 @@ if __name__ == "__main__":
     # 描き終えた後の後片付けで bpy が落ちる（Segmentation fault）。書き出しは済んでいるので、ここで抜ける
     sys.stdout.flush()
     os._exit(0)
+
+
+def measure_body(h, rig) -> dict:
+    """人形の体の部位の長さ・幅・太さを、頭の高さ（頭のてっぺんからあご）を 1 として返す。休みの姿勢（A の字）の形で測る。
+    服は体の上に作るので、体の寸法がジャンルの目安から外れていると、服も同じだけ外れた形で描かれる"""
+    import numpy as np
+    bones = {b.name: b for b in rig.data.bones}
+    names = {g.index: g.name for g in h.vertex_groups if g.name in bones}
+    co = np.array([v.co[:] for v in h.data.vertices])
+    # 体型（体重・筋肉など）は形の鍵で掛かっていて、頂点の座標そのものには入っていない。鍵の重みを足して実際の形にする
+    if h.data.shape_keys:
+        blocks = h.data.shape_keys.key_blocks
+        basis = np.array([d.co[:] for d in blocks[0].data])
+        co = basis.copy()
+        for kb in blocks[1:]:
+            if kb.value and not kb.mute:
+                co += kb.value * (np.array([d.co[:] for d in kb.data]) - basis)
+    main = []
+    for v in h.data.vertices:
+        gs = [g for g in v.groups if g.group in names]
+        main.append(names[max(gs, key=lambda g: g.weight).group] if gs else "")
+    main = np.array(main)
+
+    def sw(prefixes):
+        prefixes = (prefixes,) if isinstance(prefixes, str) else prefixes
+        return np.array([n.startswith(prefixes) for n in main])
+    body = np.isin(main, list(bones))
+
+    def J(name, tail=False):
+        b = bones[name]
+        return np.array((b.tail_local if tail else b.head_local)[:])
+
+    def width(mask):
+        return float(co[mask, 0].max() - co[mask, 0].min()) if mask.any() else 0.0
+
+    def thick(prefix):
+        # 骨に直交する太さ: その骨が主の頂点の、骨の軸からの距離の中央値 × 2（上位で取ると肩の膨らみまで拾い、上腕を 2 倍に測った）
+        m = sw(prefix) & np.array([n.endswith(".L") for n in main])
+        b = [n for n in bones if n.startswith(prefix) and n.endswith(".L")][0]
+        a, t = J(b), J(b, True)
+        d = (t - a) / np.linalg.norm(t - a)
+        r = co[m] - a
+        dist = np.linalg.norm(r - np.outer(r @ d, d), axis=1)
+        return float(np.median(dist) * 2)
+
+    top = float(co[body, 2].max())
+    floor = float(co[body, 2].min())
+    head_v = np.isin(main, ["head", "jaw"])
+    chin = float(co[head_v, 2].min())
+    head = top - chin
+    torso = sw(("spine", "pelvis", "breast", "clavicle", "shoulder", "upperleg01", "root"))
+    sh_z = J("upperarm01.L")[2]
+    waist_band = [width(torso & ~sw("upperleg") & (abs(co[:, 2] - z) < 0.01)) for z in
+                  np.linspace(J("spine02")[2], J("spine04")[2], 12)]
+    hip_z = J("upperleg01.L")[2]
+    hips = (torso | sw("upperleg")) & (co[:, 2] > hip_z - 0.12) & (co[:, 2] < hip_z + 0.02)
+    foot = sw(("foot.L", "toe")) & (co[:, 0] > 0)
+    L = lambda a, b, ta=False, tb=False: float(np.linalg.norm(J(a, ta) - J(b, tb)))
+    m = {
+        "height": (top - floor),
+        # 肩幅は左右の肩の関節の間＋上腕の太さ（外側の輪郭）。高さの帯で輪郭を取ると、A の字に開いた腕まで入って広く出た
+        "shoulder_width": float(abs(J("upperarm01.L")[0] - J("upperarm01.R")[0])) + thick("upperarm01"),
+        "waist_width": min(w for w in waist_band if w > 0),
+        "hip_width": width(hips),
+        "neck_length": float(chin - sh_z),
+        "upper_arm": L("upperarm01.L", "lowerarm01.L"),
+        "forearm": L("lowerarm01.L", "wrist.L"),
+        "hand": L("wrist.L", "finger3-3.L", tb=True),
+        "leg": float(hip_z - floor),
+        "thigh": L("upperleg01.L", "lowerleg01.L"),
+        "shin": L("lowerleg01.L", "foot.L"),
+        "foot": float(co[foot, 1].max() - co[foot, 1].min()) if foot.any() else 0.0,
+        "upper_arm_thick": thick("upperarm01"),
+        "thigh_thick": thick("upperleg01"),
+    }
+    out = {k: round(v / head, 2) for k, v in m.items()}
+    out["head_m"] = round(head, 3)
+    return out
+
+
+# 体の寸法を合わせるときに動かす形の鍵（MPFB の targets）。寸法の名前 → (鍵の置き場/名前の頭, 左右があるか)
+FIT_TARGETS = {
+    "shoulder_width": ("torso/measure-shoulder-dist", False),
+    "waist_width": ("torso/measure-waist-circ", False),
+    "hip_width": ("torso/measure-hips-circ", False),
+    "upper_arm_thick": ("arms/measure-upperarm-circ", False),
+    "thigh_thick": ("legs/measure-thigh-circ", False),
+    "neck_length": ("neck/measure-neck-height", False),
+    "upper_arm": ("arms/measure-upperarm-length", False),
+    "forearm": ("arms/measure-lowerarm-length", False),
+    "hand": ("hands/{s}-hand-scale", True),
+    "foot": ("feet/{s}-foot-scale", True),
+}
+
+
+def _rig(h):
+    from bl_ext.user_default.mpfb.services.humanservice import HumanService
+    for o in [o for o in bpy.data.objects if o.type == "ARMATURE"]:
+        bpy.data.objects.remove(o)
+    for m in [m for m in h.modifiers if m.type == "ARMATURE"]:
+        h.modifiers.remove(m)
+    HumanService.add_builtin_rig(h, "default")
+    return next(o for o in bpy.data.objects if o.type == "ARMATURE")
+
+
+def _set_target(h, key, weight):
+    from bl_ext.user_default.mpfb.services.targetservice import TargetService
+    path, sided = FIT_TARGETS[key]
+    # 形の鍵は MPFB の本体の側（extensions/user_default）にあり、素材（extensions/.user）とは置き場が違う
+    root = Path.home() / ".config/blender/4.2/extensions/user_default/mpfb/data/targets"
+    for s in (("l", "r") if sided else ("",)):
+        base = path.format(s=s)
+        for end, w in (("incr", max(weight, 0.0)), ("decr", max(-weight, 0.0))):
+            name = base.split("/")[-1] + "-" + end
+            kb = h.data.shape_keys.key_blocks.get(name) if h.data.shape_keys else None
+            if kb is None:
+                if w == 0:
+                    continue
+                TargetService.load_target(h, str(root / f"{base}-{end}.target.gz"), weight=w, name=name)
+            else:
+                kb.value = w
+
+
+def fit_body(h, goals: dict, rounds: int = 2) -> dict:
+    """体の寸法（頭の高さを 1 とする）を goals に近づける。寸法ごとに形の鍵を ±1 で振って効き方を測り、直線で重みを決める。
+    鍵どうしは少し影響し合うので rounds 回くり返す。返り値は合わせた後の寸法と、使った重み"""
+    weights = {k: 0.0 for k in goals if k in FIT_TARGETS}
+    for _ in range(rounds):
+        for k in weights:
+            now = measure_body(h, _rig(h))[k]
+            _set_target(h, k, max(-1.0, min(1.0, weights[k] + 0.5)))
+            probe = measure_body(h, _rig(h))[k]
+            slope = (probe - now) / (max(-1.0, min(1.0, weights[k] + 0.5)) - weights[k]) if probe != now else 0.0
+            if slope:
+                weights[k] = max(-1.0, min(1.0, weights[k] + (goals[k] - now) / slope))
+            _set_target(h, k, weights[k])
+    return {"measure": measure_body(h, _rig(h)), "weights": {k: round(v, 2) for k, v in weights.items()}}
+
+
+def thin_limb(h, rig, prefix: str, factor: float) -> None:
+    """手足の太さを、骨の軸に向けて寄せて変える（factor 0.85 で 15% 細く）。形の鍵（measure-thigh-circ など）では
+    太ももが 0.79 → 0.77 しか変わらなかった。骨の重みで寄せ方を混ぜ、関節の境で段が付かないようにする"""
+    import numpy as np
+    bones = [b for b in rig.data.bones if b.name.startswith(prefix)]
+    groups = {g.name: g.index for g in h.vertex_groups}
+    blocks = list(h.data.shape_keys.key_blocks) if h.data.shape_keys else []
+    for b in bones:
+        gi = groups.get(b.name)
+        if gi is None:
+            continue
+        a, t = np.array(b.head_local[:]), np.array(b.tail_local[:])
+        d = (t - a) / np.linalg.norm(t - a)
+        for v in h.data.vertices:
+            w = next((g.weight for g in v.groups if g.group == gi), 0.0)
+            if w <= 0:
+                continue
+            k = 1 - (1 - factor) * w
+            for co in [v.co] + [kb.data[v.index].co for kb in blocks]:
+                p = np.array(co[:]) - a
+                along = a + d * (p @ d)
+                co[:] = tuple(along + (np.array(co[:]) - along) * k)
+    h.data.update()
+
+
+TORSO = ("spine", "pelvis", "breast", "clavicle", "shoulder", "root")
+UPPER = ("neck", "head", "jaw", "upperarm", "lowerarm", "wrist", "finger", "metacarpal", "eye", "tongue", "teeth", "levator", "oris", "temporalis", "special")
+
+
+def reshape_torso(h, rig, length: float = 1.0, width: float = 1.0) -> None:
+    """胴を縦に length 倍、横に width 倍にする。腕・首・頭は胴の上端の動きに合わせて平行に動かし、形は変えない。
+    アニメの絵（言葉だけで描いた 40 枚）は、写実の人形より胴が約 1 割短く、肩と腰が 1〜2 割細かった。
+    描く模型はその釣り合いで描き直すので、人形の側を合わせておかないと腕や脚が下絵からずれた"""
+    import numpy as np
+    bones = {b.name for b in rig.data.bones}
+    names = {g.index: g.name for g in h.vertex_groups if g.name in bones}
+    hip = rig.data.bones["upperleg01.L"].head_local[2]
+    top = rig.data.bones["upperarm01.L"].head_local[2]
+    sh_x = abs(rig.data.bones["upperarm01.L"].head_local[0])
+    drop = (top - hip) * (1 - length)
+    pull = sh_x * (1 - width)
+    blocks = list(h.data.shape_keys.key_blocks) if h.data.shape_keys else []
+    for v in h.data.vertices:
+        gs = [g for g in v.groups if g.group in names]
+        main = names[max(gs, key=lambda g: g.weight).group] if gs else ""
+        for co in [v.co] + [kb.data[v.index].co for kb in blocks]:
+            x, y, z = co
+            if main.startswith(TORSO) and z > hip:
+                co[:] = (x * width, y, hip + (z - hip) * length)
+            elif main.startswith(("upperarm", "lowerarm", "wrist", "finger", "metacarpal")):
+                co[:] = (x - pull * (1 if x > 0 else -1), y, z - drop)
+            elif z > top - 0.02:
+                # 首・頭と、髪や目の補助の面（骨の重みが無く、骨で分けると髪だけ置き去りになった）
+                co[:] = (x, y, z - drop)
+    h.data.update()

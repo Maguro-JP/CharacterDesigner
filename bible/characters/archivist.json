@@ -1,0 +1,139 @@
+{
+ "id": "archivist",
+ "name": "書庫番のセラ",
+ "look": "1girl, solo, adult woman, mature female, dark green hair, long hair, low ponytail, amber eyes",
+ "outfit": "navy blue long coat, buttoned coat, white high collar shirt, navy blue trousers, brown ankle boots, brown leather belt",
+ "negative": "skirt, dress, one-piece dress, short coat, bare legs, child, loli, hands clasped, interlocked fingers, background scenery, sword, weapon, holding weapon",
+ "items": [
+  {
+   "id": "ledger",
+   "name": "革表紙の帳面",
+   "tags": "holding book, single closed ledger, brown leather cover, brass corner fittings, leather strap clasp",
+   "desc": "茶の革表紙に真鍮の角金具、革帯の留め具を留めた閉じた帳面。右腕を下ろし、背の側を指で挟んで体の横に軽く提げる",
+   "hold": "right arm lowered straight, right hand loosely pinching the spine edge of the closed ledger, fingers on the front cover and thumb on the back, ledger hanging vertically beside her right thigh, left arm lowered empty",
+   "size": "ledger about as long as her forearm, A4-sized, two fingers thick",
+   "avoid": "two books, open book, book held with both hands, hands clasped in front, giant book, tiny notebook"
+  }
+ ],
+ "images": {},
+ "palette": [],
+ "notes": "古文書館の書庫番。28歳。落ち着いて口数は少ないが、調べものには粘り強い。白い無地の背景で描く",
+ "age": 28,
+ "role": "古文書館の書庫番。落ち着いていて口数は少ない。調べものには粘り強く、頼まれた本は必ず探し出す",
+ "outfit_parts": {
+  "上着": "紺の長いコート（前を留める）、白い立ち襟のシャツ",
+  "下": "紺のズボン（スカートにしない。ワンピースにまとめられるのを避ける）",
+  "靴": "茶の短いブーツ",
+  "小物": "茶の革ベルト"
+ },
+ "colors": {
+  "髪（暗い緑）": "#2f4a3a",
+  "目（琥珀）": "#d49a3a",
+  "服・コートとズボン（紺）": "#24304f",
+  "差し色・帳面とベルトとブーツ（茶）": "#7a5232"
+ },
+ "turnaround": {
+  "top": "36,48,79",
+  "bottom": "36,48,79",
+  "boots": "122,82,50",
+  "words": "long navy coat reaching the knees, navy trousers"
+ },
+ "eyes": {
+  "tags": "narrow eyes, slightly tareme, medium eyes, half-closed eyes, amber eyes, gradient eyes, darker amber upper iris, round pupils, single highlight, small highlight at upper left of both eyes, long eyelashes, thin eyelashes, thin straight eyebrows, mature female face",
+  "notes": "28歳の大人なので目は中くらいの大きさの切れ長、目尻をわずかに下げて落ち着きと物静かさを出す。半眼気味で読書家らしい静かな視線。瞳は琥珀色で上を濃くするグラデーション。ハイライトは左右とも左上に小さく1つにして、子どもっぽいきらめきを避ける。眉は細くまっすぐ、ふだんは動かさない"
+ },
+ "expressions": [
+  {
+   "id": "neutral",
+   "name": "ふだん",
+   "tags": "calm expression, closed mouth, straight thin eyebrows, relaxed eyelids, half-closed eyes, quiet gaze"
+  },
+  {
+   "id": "smile",
+   "name": "笑顔",
+   "tags": "faint smile, closed mouth, corners of mouth slightly raised, relaxed eyebrows, eyes slightly narrowed, raised lower eyelids, soft gaze"
+  },
+  {
+   "id": "laugh",
+   "name": "大笑い",
+   "tags": "quiet laugh, small open mouth, hand near mouth, eyebrows slightly raised, eyes closed in crescent shape, light blush"
+  },
+  {
+   "id": "angry",
+   "name": "怒り",
+   "tags": "cold anger, closed mouth, pressed lips, eyebrows drawn together and lowered, narrowed eyes, tense lower eyelids, sharp stare, shadowed eyes"
+  },
+  {
+   "id": "sad",
+   "name": "悲しみ",
+   "tags": "sad, closed mouth, slight frown, inner eyebrows raised, worried eyebrows, downcast eyes, half-closed eyes, looking down, glistening eyes"
+  },
+  {
+   "id": "surprised",
+   "name": "驚き",
+   "tags": "mild surprise, slightly parted lips, eyebrows raised, upper eyelids raised, widened eyes, small pupils"
+  },
+  {
+   "id": "blush",
+   "name": "照れ",
+   "tags": "embarrassed, light blush, closed mouth, small wavy mouth, slightly raised inner eyebrows, averted eyes, looking away"
+  },
+  {
+   "id": "determined",
+   "name": "決意",
+   "tags": "focused, closed mouth, firm lips, eyebrows slightly lowered and drawn together, narrowed eyes, steady gaze, looking straight"
+  },
+  {
+   "id": "reading",
+   "name": "調べもの",
+   "tags": "absorbed in reading, slightly parted lips, relaxed straight eyebrows, half-closed eyes, looking down at book, intent gaze"
+  },
+  {
+   "id": "found",
+   "name": "見つけた",
+   "tags": "satisfied, small smirk, one corner of mouth raised, eyebrows slightly raised, eyes slightly narrowed, glint in eyes"
+  }
+ ],
+ "height": "168cm・7.5 頭身",
+ "personality": "落ち着いていて口数は少なく、ふだんは表情をあまり動かさない。\n調べものには粘り強く、頼まれた本は何日かかっても必ず探し出す。探していたものを見つけたときだけ、口の端を片方上げて小さく笑う。\n声を荒げて怒ることはなく、本を乱暴に扱う人には黙って冷たい目を向ける。\n褒められるのは苦手で、照れると目をそらす。",
+ "backstory": "港町の製本屋の娘として生まれ、子どもの頃から綴じ糸と革の匂いの中で育った。\n十八歳のとき、水害で傷んだ町の記録の修復を手伝ったことがきっかけで、古文書館に見習いとして入った。\n十年かけて書庫の配置をすべて覚え、いまは地下の閉架書庫をひとりで預かる書庫番をしている。\n右手の革表紙の帳面は、書庫から出した本と戻した本を一冊ずつ書き留める貸し出しの控え。前任の書庫番から引き継いだ真鍮の角金具の表紙に、自分で中身を綴じ直して使っている。\n帳面に書いた記録は一度も欠かしたことがなく、それが彼女の誇りになっている。",
+ "rules": [
+  "帳面は1冊だけで、必ず右手に持つ。閉じたまま背の側を指で挟み、右の太ももの横に縦に提げる。左手は何も持たない",
+  "帳面の大きさは前腕と同じくらい（A4ほど）、厚さは指2本分。大きすぎる本・小さな手帳にしない",
+  "両手を体の前で重ねない・組まない。帳面を両手で抱えない",
+  "コートは紺で膝丈、前のボタンを留める。短い上着にしない",
+  "下は紺のズボンと茶の短いブーツ。スカート・ワンピースにしない。脚を出さない",
+  "髪は暗い緑の長い髪を首の後ろの低い位置で一つに結ぶ。左右どちらの横向きでも結び目は首の後ろに見え、肩の前に垂らさない",
+  "目は琥珀色の切れ長で半眼気味。ハイライトは左右とも左上に小さく1つ",
+  "28歳の大人の女性として描く。背景は白い無地にする"
+ ],
+ "poses": [
+  {
+   "id": "stand",
+   "name": "立ち（帳面を提げる）",
+   "tags": "standing straight, calm, right hand holding the ledger at her side, left arm lowered"
+  },
+  {
+   "id": "walk",
+   "name": "歩き",
+   "tags": "walking forward, mid-stride, coat hem swaying, ledger at her right side"
+  },
+  {
+   "id": "work",
+   "name": "書架に手を伸ばす",
+   "tags": "reaching up to a tall bookshelf with left hand, three-quarter view, ledger in right hand"
+  }
+ ],
+ "hairstyles": [
+  {
+   "id": "down",
+   "name": "髪を下ろした姿（仕事の後）",
+   "tags": "hair down, long loose dark green hair, no ponytail"
+  },
+  {
+   "id": "bun",
+   "name": "まとめ髪（書庫の奥の作業）",
+   "tags": "hair in a low bun, dark green hair bun, no ponytail"
+  }
+ ]
+}

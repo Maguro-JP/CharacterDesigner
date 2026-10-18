@@ -140,7 +140,7 @@ def check(name: str) -> dict:
             return res
         idx = try_to_load_from_cache(where, "model_index.json")
         if not isinstance(idx, str):
-            res["reason"] = f"手元に無い。取るなら CD_FETCH=1 を付けて一度描く（約 7GB。先に df -h で空きを見る）"
+            res["reason"] = f"手元に無い。取るなら CD_FETCH=1 python3 tools/gen/models.py fetch {where}（約 7GB。先に df -h で空きを見る。描く処理は取りに行かない）"
             return res
         cls = json.loads(Path(idx).read_text()).get("_class_name", "")
         res["family"] = "sdxl" if "XL" in cls else cls or "unknown"
@@ -148,7 +148,7 @@ def check(name: str) -> dict:
         from huggingface_hub import try_to_load_from_cache
         names = ["unet/diffusion_pytorch_model.safetensors", "unet/diffusion_pytorch_model.fp16.safetensors"]
         if not any(isinstance(try_to_load_from_cache(where, n), str) for n in names):
-            res["reason"] = "目録はあるが、描く本体（unet）の重みが手元に無い（取得が途中で止まった）。CD_FETCH=1 で取り直す"
+            res["reason"] = f"目録はあるが、描く本体（unet）の重みが手元に無い（取得が途中で止まった）。CD_FETCH=1 python3 tools/gen/models.py fetch {where} で取り直す"
             return res
     if res.get("family") != "sdxl":
         res["reason"] = f"系統が {res.get('family')}。いまの道具は SDXL 系だけを描ける"

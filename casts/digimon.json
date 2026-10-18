@@ -1,6 +1,6 @@
 {
  "title": "DigiMon（SIGNAL BEASTS）",
- "source": "DigiMon design/signal-beasts の系統表と作風の比較ボード。決まりは docs/designs/digimon.md",
+ "source": "DigiMon design/signal-beasts の系統表と作風の比較ボード。決まりは designs/digimon/README-design.md",
  "creature_common": "original digital monster design, thick uniform black outline, flat cel colors, no gradient, no texture, no shading, sharp angular shapes, fierce eyes, cool rather than cute, three-quarter view",
  "item_common": "original game item design, thick uniform black outline, flat cel colors, no gradient, no texture, sharp clean shapes, three-quarter view",
  "n": 2,

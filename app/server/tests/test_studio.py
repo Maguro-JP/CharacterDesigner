@@ -172,7 +172,9 @@ def test_turnaround_proposal_for_characters_without_one(client, monkeypatch, tmp
     items = c.get("/api/proposals").json()["items"]
     turn = [x for x in items if x["kind"] == "turnaround"]
     assert turn and turn[0]["request"]["count"] == 1
-    assert items.index(turn[0]) < max(i for i, x in enumerate(items) if x["kind"] == "demi")   # 見本の提案より前
+    # 見本の提案より前。設定資料集のキャラクターが増えると、見本の提案は一覧の上限から押し出されることがある
+    demi = [i for i, x in enumerate(items) if x["kind"] == "demi"]
+    assert not demi or items.index(turn[0]) < max(demi)
     job = c.post(f"/api/proposals/{turn[0]['id']}/do").json()
     assert job["kind"] == "turnaround" and job["free"]["character"] == turn[0]["request"]["character"]
     wait(c, job["id"])
