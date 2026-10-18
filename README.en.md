@@ -7,6 +7,10 @@ Ask for "a character like ..." in any language; it draws an illustrated characte
 
 ![The studio screen: request on the left, the large view in the middle, role progress and proposals on the right](docs/images/app-studio.jpg)
 
+## Layout
+
+A map of the repository is in [docs/STRUCTURE.md](docs/STRUCTURE.md) (Japanese); every image is listed with thumbnails in [library/INDEX.md](library/INDEX.md).
+
 ## Features
 
 - Draw: illustrated character designs from a request (local image generation; the drawing step can be swapped for an external image generator). 1.5x redraw, face and hair redraw, upscaling to 4K

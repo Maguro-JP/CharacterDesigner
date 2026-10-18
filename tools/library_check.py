@@ -47,7 +47,7 @@ def check() -> dict:
     have = set(images)
     broken, used = [], set()
     for f in files:
-        if not f.endswith(TEXT) or f.startswith("tools/library_check.py"):
+        if not f.endswith(TEXT) or f in ("tools/library_check.py", "library/INDEX.md"):
             continue
         try:
             s = (ROOT / f).read_text(encoding="utf-8")
@@ -62,22 +62,45 @@ def check() -> dict:
         base = Path(f).parent
         for m in re.findall(r"\]\(([\w./-]+\.(?:png|jpe?g|gif|webp))\)", s):
             used.add(str((base / m)).replace("\\", "/"))
+        if Path(f).name == "README.md":
+            # 同じフォルダの README に名前だけ書いた絵（表の 1 行に 1 枚）も使われているとみなす
+            used.update(i for i in images if Path(i).parent == base and Path(i).name in s)
     orphans = sorted(set(images) - used)
     return {"images": len(images), "misplaced": misplaced, "broken": sorted(set(broken)), "orphans": orphans}
 
 
+TOPIC_JA = {"samples": "見本の絵", "progress": "比べた記録", "daily": "日ごとの作例", "feedback": "フィードバックの成果物", "book": "作例集",
+            "eyes": "目の資料集", "sheets": "職業の一覧（箱庭ドット）",
+            "bible": "設定資料集の人物・場所の絵", "designs": "依頼された作品の決定稿", "docs": "README・アプリの案内の画面"}
+
+
 def index(res: dict) -> Path:
+    """絵の目録。置き場ごとに見出しと縮小画を並べる（GitHub の画面でそのまま絵が見える）"""
     groups = defaultdict(list)
     for f in sorted(f for f in tracked() if f.lower().endswith(IMAGES)):
         parts = f.split("/")
         key = "/".join(parts[:3]) if parts[0] == "library" and len(parts) > 3 else "/".join(parts[:-1])
-        groups[key].append(parts[-1])
-    lines = ["# 絵の目録", "", "`python3 tools/library_check.py` が書く。手で直さない。置き方の決まりは `docs/STRUCTURE.md`。", "",
-             f"全 {res['images']} 枚。どこからも参照されていない絵 {len(res['orphans'])} 枚。", "", "| 置き場 | 枚数 | 絵 |", "|---|---|---|"]
+        groups[key].append(f)
+    orphan = set(res["orphans"])
+    lines = ["# 絵の目録", "",
+             "`python3 tools/library_check.py` が書く。手で直さない。置き方の決まりは [docs/STRUCTURE.md](../docs/STRUCTURE.md)。", "",
+             f"全 {res['images']} 枚（置き場 {len(groups)} か所）。どこからも参照されていない絵 {len(orphan)} 枚には「未参照」と付ける。", "",
+             "## 置き場の一覧", "", "| 置き場 | 何の絵か | 枚数 |", "|---|---|---|"]
     for k in sorted(groups):
-        names = groups[k]
-        shown = ", ".join(names[:8]) + (f" ほか {len(names) - 8} 枚" if len(names) > 8 else "")
-        lines.append(f"| `{k}/` | {len(names)} | {shown} |")
+        top = k.split("/")[1] if k.startswith("library/") and "/" in k else k.split("/")[0]
+        lines.append(f"| [`{k}/`](#{re.sub(r'[^a-z0-9-]', '', k.replace('/', '-'))}) | {TOPIC_JA.get(top, top)} | {len(groups[k])} |")
+    for k in sorted(groups):
+        lines += ["", f'<a id="{re.sub(r"[^a-z0-9-]", "", k.replace("/", "-"))}"></a>', f"## {k}/", ""]
+        cells = []
+        for f in groups[k]:
+            rel = "../" + f if not f.startswith("library/") else f[len("library/"):]
+            mark = "（未参照）" if f in orphan else ""
+            cells.append(f'<a href="{rel}"><img src="{rel}" width="150" alt="{Path(f).name}"></a><br><sub>{Path(f).name}{mark}</sub>')
+        for i in range(0, len(cells), 6):
+            row = cells[i:i + 6]
+            if i == 0:
+                lines += ["| " + " | ".join([" "] * len(row)) + " |", "|" + "---|" * len(row)]
+            lines.append("| " + " | ".join(row) + " |")
     p = ROOT / "library" / "INDEX.md"
     p.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return p
