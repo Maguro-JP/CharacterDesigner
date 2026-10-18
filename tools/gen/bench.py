@@ -66,15 +66,36 @@ def draw_xl(out: str, prompt: str, seed: int, steps: int, width: int, height: in
          generator=torch.Generator().manual_seed(seed)).images[0].save(out)
 
 
+def finish_xl(path: str, prompt: str, seed: int, long: int, res: dict) -> None:
+    """仕上げ: 1.5 倍に描き直して細部を足す → 顔と髪を 1024 画素で描き直す → AI の拡大で長辺 long 画素にし、区切りごとに描き直す（tile.py）。
+    検品は拡大の前の絵（1.5 倍）に掛ける。検品の数字は 100 万画素前後の絵で学んだもので、4 倍の絵では測り方が変わる。
+    工程ごとの秒数を res["stages"] に残す（遅い所を測って直すため）"""
+    import detail
+    import hires as hr
+    t = time.time()
+    hr.upscale(path, path, prompt, scale=1.5, strength=0.35, seed=seed)
+    t1 = time.time()
+    detail.detail(path, path, prompt, seed=seed)
+    t2 = time.time()
+    big = str(Path(path).with_suffix("")) + f"-{long}.png"
+    import tile
+    tl = tile.tile(path, big, prompt, long=long, seed=seed)
+    t3 = time.time()
+    import cleanup
+    cl = cleanup.cleanup(big, big)
+    res.setdefault("stages", []).append({"hires": round(t1 - t), "face": round(t2 - t1), **{k: v for k, v in tl.items() if k != "log"},
+                                         "cleanup": round(time.time() - t3), "lines_colors": cl})
+
+
 def run(bench: dict, outdir: str, style=None, width=None, height=None, steps=None, hires=0.0, strength=0.35, only=0,
-        engine="design") -> dict:
+        engine="design", finish=0) -> dict:
     global design
     import design  # 模型を勝手に取りに行かない設定を先に効かせる
     od = Path(outdir)
     od.mkdir(parents=True, exist_ok=True)
     st = style or bench["style"]
     res = {"variant": od.name, "style": st, "width": width or bench["width"], "height": height or bench["height"],
-           "steps": steps or bench["steps"], "hires": hires, "engine": engine,
+           "steps": steps or bench["steps"], "hires": hires, "engine": engine, "finish": finish,
            "model": os.environ.get("CD_DRAW_MODEL", "") if engine == "people" else "", "cases": {}}
     old = od / "result.json"
     if old.exists():
@@ -89,7 +110,9 @@ def run(bench: dict, outdir: str, style=None, width=None, height=None, steps=Non
             draw_xl(str(p), c["prompt"], c["seed"], res["steps"], res["width"], res["height"])
         else:
             design.draw(str(p), c["prompt"], c["seed"], 1, st, res["steps"], res["width"], res["height"])
-        if hires:
+        if finish:
+            finish_xl(str(p), c["prompt"], c["seed"], finish, res)
+        elif hires:
             design.hires(str(p), c["prompt"], c["seed"], st, hires, strength, res["steps"])
         r = count(str(p), c["prompt"])
         r["seconds"] = round(time.time() - t, 1)
@@ -133,6 +156,7 @@ def main():
     r.add_argument("--style"); r.add_argument("--width", type=int); r.add_argument("--height", type=int)
     r.add_argument("--steps", type=int); r.add_argument("--hires", type=float, default=0.0)
     r.add_argument("--strength", type=float, default=0.35); r.add_argument("--only", type=int, default=0, help="先頭の N 枚だけ（費用を先に測る）")
+    r.add_argument("--finish", type=int, nargs="?", const=4096, default=0, help="仕上げ（1.5 倍の描き直し・顔の描き直し・拡大と区切りの描き直し）まで通す。数を省くと長辺 4096 画素")
     r.add_argument("--engine", choices=["design", "people"], default="design", help="people は SDXL 系（CD_DRAW_MODEL で模型を選ぶ）")
     q = sub.add_parser("rescore"); q.add_argument("bench"); q.add_argument("outdir")
     c = sub.add_parser("compare"); c.add_argument("base"); c.add_argument("new")
@@ -143,7 +167,7 @@ def main():
         r_ = score(json.loads(Path(a.bench).read_text(encoding="utf-8")), a.out)
         print(f"{len(r_['cases'])} 枚、崩れ {sum(v['problems'] for v in r_['cases'].values())}")
     elif a.cmd == "run":
-        run(json.loads(Path(a.bench).read_text(encoding="utf-8")), a.outdir, a.style, a.width, a.height, a.steps, a.hires, a.strength, a.only, a.engine)
+        run(json.loads(Path(a.bench).read_text(encoding="utf-8")), a.outdir, a.style, a.width, a.height, a.steps, a.hires, a.strength, a.only, a.engine, a.finish)
     elif a.cmd == "rescore":
         rescore(json.loads(Path(a.bench).read_text(encoding="utf-8")), a.outdir)
     else:

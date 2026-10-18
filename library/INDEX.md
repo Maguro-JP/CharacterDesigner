@@ -2,7 +2,7 @@
 
 `python3 tools/library_check.py` が書く。手で直さない。置き方の決まりは [docs/STRUCTURE.md](../docs/STRUCTURE.md)。
 
-全 461 枚（置き場 32 か所）。どこからも参照されていない絵 65 枚には「未参照」と付ける。
+全 465 枚（置き場 33 か所）。どこからも参照されていない絵 65 枚には「未参照」と付ける。
 
 ## 置き場の一覧
 
@@ -24,6 +24,7 @@
 | [`library/eyes/`](#library-eyes) | 目の資料集 | 18 |
 | [`library/feedback/animal/`](#library-feedback-animal) | フィードバックの成果物 | 18 |
 | [`library/feedback/baseline/`](#library-feedback-baseline) | フィードバックの成果物 | 2 |
+| [`library/feedback/bench/`](#library-feedback-bench) | フィードバックの成果物 | 4 |
 | [`library/feedback/check/`](#library-feedback-check) | フィードバックの成果物 | 176 |
 | [`library/feedback/settei/`](#library-feedback-settei) | フィードバックの成果物 | 3 |
 | [`library/progress/2026-09-29/`](#library-progress-2026-09-29) | 比べた記録 | 32 |
@@ -159,6 +160,13 @@
 |   |   |
 |---|---|
 | <a href="feedback/baseline/2026-10-18/catgirl/catgirl-stand-s3.jpg"><img src="feedback/baseline/2026-10-18/catgirl/catgirl-stand-s3.jpg" width="150" alt="catgirl-stand-s3.jpg"></a><br><sub>catgirl-stand-s3.jpg</sub> | <a href="feedback/baseline/2026-10-18/knight/knight-stand-s5.jpg"><img src="feedback/baseline/2026-10-18/knight/knight-stand-s5.jpg" width="150" alt="knight-stand-s5.jpg"></a><br><sub>knight-stand-s5.jpg</sub> |
+
+<a id="library-feedback-bench"></a>
+## library/feedback/bench/
+
+|   |   |   |   |
+|---|---|---|---|
+| <a href="feedback/bench/2026-10-18/ani40/ani40-armsup-s11.jpg"><img src="feedback/bench/2026-10-18/ani40/ani40-armsup-s11.jpg" width="150" alt="ani40-armsup-s11.jpg"></a><br><sub>ani40-armsup-s11.jpg</sub> | <a href="feedback/bench/2026-10-18/ani40/ani40-armsup-s12.jpg"><img src="feedback/bench/2026-10-18/ani40/ani40-armsup-s12.jpg" width="150" alt="ani40-armsup-s12.jpg"></a><br><sub>ani40-armsup-s12.jpg</sub> | <a href="feedback/bench/2026-10-18/ani40/ani40-armsup-s13.jpg"><img src="feedback/bench/2026-10-18/ani40/ani40-armsup-s13.jpg" width="150" alt="ani40-armsup-s13.jpg"></a><br><sub>ani40-armsup-s13.jpg</sub> | <a href="feedback/bench/2026-10-18/ani40/ani40-armsup-s14.jpg"><img src="feedback/bench/2026-10-18/ani40/ani40-armsup-s14.jpg" width="150" alt="ani40-armsup-s14.jpg"></a><br><sub>ani40-armsup-s14.jpg</sub> |
 
 <a id="library-feedback-check"></a>
 ## library/feedback/check/
