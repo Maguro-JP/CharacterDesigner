@@ -885,8 +885,9 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
             several = any(w in (prompt or "").lower() for w in ("2girls", "2boys", "multiple", "group", "couple"))
             if n_hands > 2 and not several:
                 res["problems"].append({"extra_hands": n_hands})
-        except Exception as e:   # 手のひらの模型が無い環境
-            res["unreadable"].append({"hands_count": f"{type(e).__name__}: {e}"})
+        except Exception as e:   # 手のひらの模型が無い環境は、崩れと分けて「読めない」と書く
+            unavailable = type(e).__name__ == "Unavailable"
+            res["unreadable"].append({"hands_count": {"readable": False, "why": str(e) if unavailable else f"{type(e).__name__}: {e}"}})
         hand = hands_auto(points, im)
         if not hand["readable"]:
             res["unreadable"].append({"hands": hand})

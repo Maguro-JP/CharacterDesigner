@@ -47,11 +47,28 @@ READABLE = 0.5
 _IT = None
 
 
+class Unavailable(RuntimeError):
+    """手の模型か、それを読む部品（ai-edge-litert）が無い。崩れではなく「読めない」として扱う"""
+
+
+def _litert():
+    try:
+        from ai_edge_litert.interpreter import Interpreter
+    except ImportError as e:
+        raise Unavailable("手の模型を読む部品 ai-edge-litert が無い（sh tools/gen/setup.sh で入る）") from e
+    return Interpreter
+
+
+def _model(path):
+    if not path.exists():
+        raise Unavailable(f"手の模型 {path.name} が無い（sh tools/gen/setup.sh で入る）")
+    return str(path)
+
+
 def _interp():
     global _IT
     if _IT is None:
-        from ai_edge_litert.interpreter import Interpreter
-        _IT = Interpreter(str(MODEL))
+        _IT = _litert()(_model(MODEL))
         _IT.allocate_tensors()
     return _IT
 
@@ -166,8 +183,7 @@ def detect_palms(im, least=0.5):
     肘が枠の外にある上半身の絵では、肘と手首から見当できなかった（2026-10-17、関節の確からしさ 0.12〜0.25）"""
     global _PD
     if _PD is None:
-        from ai_edge_litert.interpreter import Interpreter
-        _PD = Interpreter(str(MODEL.parent / "hand_detector.tflite"))
+        _PD = _litert()(_model(MODEL.parent / "hand_detector.tflite"))
         _PD.allocate_tensors()
     w, h = im.size
     s = max(w, h)
