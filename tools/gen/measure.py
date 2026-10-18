@@ -466,7 +466,9 @@ def hair(rgb, seg, labels, spec: str = ""):
             seen = v > SPEC_SEEN_V
             far_h = seen & (s > 0.25) & (ss > 0.15) & (np.abs((h - hs + 180) % 360 - 180) > 40)
             far_h_dark = seen & (s > 0.25) & (ss <= 0.15)   # 色の無い髪（黒・白・灰）に色がついた
-            far &= far_v | far_h | far_h_dark
+            # 色の濃い指定（深紅など）に、色相だけ近い薄い色（光で桃色に染まった黒髪）を近いと数えていた。彩度が大きく足りない画素は外れ
+            far_s = seen & (ss > 0.5) & (s < ss - 0.35)
+            far &= far_v | far_h | far_h_dark | far_s
         spec_off = float((m & far).sum() / m.sum())
     return {"found": True, "blown": round(blown, 4), "main_hue": round(main, 1), "off_hue": round(off, 4), "glow": round(glow, 4), "base_v": round(base_v, 3),
             "spec_off": None if spec_off is None else round(spec_off, 4),
