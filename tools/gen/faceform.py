@@ -108,6 +108,23 @@ def fit(points: dict, template: dict) -> dict:
     res = resid(best.x).reshape(-1, 2)
     per = {n: round(float(np.hypot(*res[i])), 3) for i, n in enumerate(names)}
     worst = max(per, key=per.get)
+    if "mouth" in names and len(names) >= 9:
+        # 口は 1 点だけ顔の下にあり奥行きもあるので、横のずれを左右の向きが吸い、ずれが目の点に散る（口を 0.75 目幅ずらすと worst が目頭に出た）。
+        # 目の点だけで向きを解き直し、その向きで口がどれだけ外れるかを見る。目だけでよく合い、口が大きく外れるなら、崩れは口
+        eyes = [i for i, n in enumerate(names) if n != "mouth"]
+        m = names.index("mouth")
+
+        def resid_eyes(v):
+            return resid(v).reshape(-1, 2)[eyes].ravel()
+        e = least_squares(resid_eyes, best.x,
+                          bounds=([-1.4, -0.8, -1.0, 0, -np.inf, -np.inf], [1.4, 0.8, 1.0, np.inf, np.inf, np.inf]))
+        r_e = resid(e.x).reshape(-1, 2)
+        # 目の点が崩れた顔では、目だけの当てはめにもその目のずれが残る。口のずれがそれより十分大きいときだけ口とする
+        eye_worst = float(np.hypot(*r_e[eyes].T).max())
+        mouth_off = float(np.hypot(*r_e[m]))
+        if mouth_off > 2 * max(eye_worst, 0.01) and mouth_off > max(per.values()):
+            worst = "mouth"
+            per["mouth"] = round(mouth_off, 3)
     return {"yaw_deg": round(float(np.degrees(best.x[0])), 1), "pitch_deg": round(float(np.degrees(best.x[1])), 1),
             "roll_deg": round(float(np.degrees(best.x[2])), 1),
             "rms": round(float(np.sqrt((res ** 2).sum(1).mean())), 3), "worst": worst, "per_point": per, "used": names}

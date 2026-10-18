@@ -34,9 +34,8 @@ class Fit(unittest.TestCase):
             self.assertAlmostEqual(r["yaw_deg"], yaw, delta=3, msg=yaw)
 
     def test_moved_point_is_worst(self):
-        # 口を横にずらした顔は、左右の向き（yaw）が口のずれを吸い、worst が目の点に出る（rms は 0.087 で外れにはなる）。
-        # worst で場所を当てられるのは、目の点と、口の上下のずれ
-        for name, (dx, dy) in (("eyeL_out", (0, 10)), ("eyeR_top", (0, 8)), ("mouth", (0, 15))):
+        # 口を横にずらした顔は、左右の向き（yaw）が口のずれを吸い、worst が目の点に出ていた。目だけで向きを解き直して口と分かる
+        for name, (dx, dy) in (("eyeL_out", (0, 10)), ("eyeR_top", (0, 8)), ("mouth", (0, 15)), ("mouth", (30, 0)), ("mouth", (-20, 0))):
             pts = project(self.t, 10)
             pts[name] = [pts[name][0] + dx, pts[name][1] + dy]
             r = faceform.fit(pts, self.t)
