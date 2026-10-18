@@ -164,7 +164,8 @@
     "#D98FA6",
     "#6E1E2B"
    ],
-   "role": "甘いものが好き、身なりに手を抜かない"
+   "role": "甘いものが好き、身なりに手を抜かない",
+   "sample": "library/samples/fashion-jirai-f.png"
   },
   {
    "id": "korean-f",
@@ -426,7 +427,8 @@
     "#2F5D50",
     "#F3EEE0"
    ],
-   "role": "大学の卒業式"
+   "role": "大学の卒業式",
+   "sample": "library/samples/fashion-hakama-f.png"
   }
  ]
 }
