@@ -28,6 +28,8 @@ CUDA_INDEX = "https://download.pytorch.org/whl/cu128"
 CPU_INDEX = "https://download.pytorch.org/whl/cpu"
 UPSCALE = ("https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth",
            D / "upscale" / "RealESRGAN_x4plus_anime_6B.pth")
+UPSCALE_PHOTO = ("https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth",
+                 D / "upscale" / "RealESRGAN_x4plus.pth")
 POSE = ("https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/"
         "rtmpose-m_simcc-body7_pt-body7_420e-256x192-e48f03d0_20230504.zip", D / "pose" / "rtmpose-m-body7.onnx")
 HANDS = ("https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task",
@@ -86,6 +88,9 @@ def main() -> None:
     if not UPSCALE[1].exists():
         say("Real-ESRGAN の重み（約 18MB）")
         fetch(*UPSCALE)
+    if not UPSCALE_PHOTO[1].exists():
+        say("Real-ESRGAN の写真用の重み（約 64MB）")
+        fetch(*UPSCALE_PHOTO)
     if not POSE[1].exists():
         say("RTMPose の重み（約 54MB）")
         with tempfile.TemporaryDirectory() as t:
