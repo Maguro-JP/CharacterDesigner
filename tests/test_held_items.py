@@ -30,7 +30,12 @@ class HeldItems(unittest.TestCase):
 
     def test_weak_tags_are_ignored(self):
         r = qc.held_items({"holding cup": 0.3, "multiple swords": 0.2}, "1girl")
-        self.assertEqual(r, {"unasked": [], "many": []})
+        self.assertEqual(r, {"unasked": [], "many": [], "small": []})
+
+    def test_sword_drawn_as_dagger(self):
+        self.assertEqual(qc.held_items({"dagger": 0.7, "sword": 0.4}, "knight, holding sword")["small"], ["sword→dagger"])
+        self.assertEqual(qc.held_items({"dagger": 0.6, "sword": 0.9}, "knight, holding sword")["small"], [])
+        self.assertEqual(qc.held_items({"dagger": 0.7}, "thief, dagger")["small"], [])
 
 
 if __name__ == "__main__":

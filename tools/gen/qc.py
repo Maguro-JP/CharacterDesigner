@@ -282,6 +282,10 @@ NOT_ITEMS = ("hands", "hair", "head", "arm", "breath", "behind back", "another's
 MANY = ("dual wielding", "multiple swords", "multiple weapons", "multiple cups", "multiple bottles", "multiple books")
 
 
+# 頼んだ物と、模型が小さく描き替えやすい物
+SMALLER = {"sword": ("dagger", "knife"), "greatsword": ("sword", "dagger"), "spear": ("dagger",), "staff": ("wand",)}
+
+
 def held_items(tags: dict, prompt: str, least: float = 0.5) -> dict:
     """持ち物の検品: 頼んでいない持ち物（holding X の X が頼んだ言葉に無い）と、同じ物の数（2つ以上と読めるタグを、頼んでいないのに読んだ）。
     頼んでいない器（cup 0.56 で読めているのに印が付かない）とカップ・剣の重なりを、描画確認 回6 で拾えなかったため足した"""
@@ -296,8 +300,11 @@ def held_items(tags: dict, prompt: str, least: float = 0.5) -> dict:
             continue
         if thing.split()[-1] not in low:
             unasked.append(thing)
+    # 大きさの取り違え: 剣を頼んだのに短剣・小刀と読める（回6 で 3/8 が短剣になった）。読みが頼んだ物より強いときだけ挙げる
+    small = [f"{want}→{got}" for want, alts in SMALLER.items() if want in low
+             for got in alts if got not in low and tags.get(got, 0) >= least and tags.get(got, 0) > tags.get(want, 0)]
     many = [t for t in MANY if tags.get(t, 0) >= least * 0.8 and t not in low and "two " not in low and "multiple" not in low]
-    return {"unasked": sorted(unasked), "many": many}
+    return {"unasked": sorted(unasked), "many": many, "small": small}
 
 
 def heads_tall(seg: np.ndarray, rgb: np.ndarray, far: float = 40.0, points: list[dict] | None = None) -> float | None:
@@ -744,6 +751,8 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
                 res["problems"].append({"unasked_item": extra})
             if held["many"]:
                 res["problems"].append({"item_count": held["many"]})
+            if held["small"]:
+                res["problems"].append({"item_size": held["small"]})
         # 目の範囲を描き直した絵で瞳が消え光る線だけになったのを、目の測り方が揺れて見つけたと読み通した（2026-10-16）。
         # タグは extra eyes を 0.53 で読んでいた。崩れの無い絵では 0.22〜0.30 だったので、EXTRA_EYES 以上を崩れに数える
         if tags.get("extra eyes", 0) >= EXTRA_EYES:
