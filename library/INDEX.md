@@ -2,7 +2,7 @@
 
 `python3 tools/library_check.py` が書く。手で直さない。置き方の決まりは [docs/STRUCTURE.md](../docs/STRUCTURE.md)。
 
-全 275 枚（置き場 31 か所）。どこからも参照されていない絵 72 枚には「未参照」と付ける。
+全 267 枚（置き場 30 か所）。どこからも参照されていない絵 65 枚には「未参照」と付ける。
 
 ## 置き場の一覧
 
@@ -23,7 +23,6 @@
 | [`library/daily/2026-10-15/`](#library-daily-2026-10-15) | 日ごとの作例 | 1 |
 | [`library/eyes/`](#library-eyes) | 目の資料集 | 18 |
 | [`library/feedback/baseline/`](#library-feedback-baseline) | フィードバックの成果物 | 2 |
-| [`library/feedback/check/`](#library-feedback-check) | フィードバックの成果物 | 8 |
 | [`library/feedback/settei/`](#library-feedback-settei) | フィードバックの成果物 | 3 |
 | [`library/progress/2026-09-29/`](#library-progress-2026-09-29) | 比べた記録 | 32 |
 | [`library/progress/2026-09-30/`](#library-progress-2026-09-30) | 比べた記録 | 29 |
@@ -149,14 +148,6 @@
 |   |   |
 |---|---|
 | <a href="feedback/baseline/2026-10-18/catgirl-seed3.jpg"><img src="feedback/baseline/2026-10-18/catgirl-seed3.jpg" width="150" alt="catgirl-seed3.jpg"></a><br><sub>catgirl-seed3.jpg</sub> | <a href="feedback/baseline/2026-10-18/knight-seed5.jpg"><img src="feedback/baseline/2026-10-18/knight-seed5.jpg" width="150" alt="knight-seed5.jpg"></a><br><sub>knight-seed5.jpg</sub> |
-
-<a id="library-feedback-check"></a>
-## library/feedback/check/
-
-|   |   |   |   |   |   |
-|---|---|---|---|---|---|
-| <a href="feedback/check/2026-10-18/r6-casual.jpg"><img src="feedback/check/2026-10-18/r6-casual.jpg" width="150" alt="r6-casual.jpg"></a><br><sub>r6-casual.jpg（未参照）</sub> | <a href="feedback/check/2026-10-18/r6-kimono.jpg"><img src="feedback/check/2026-10-18/r6-kimono.jpg" width="150" alt="r6-kimono.jpg"></a><br><sub>r6-kimono.jpg（未参照）</sub> | <a href="feedback/check/2026-10-18/r6-knight.jpg"><img src="feedback/check/2026-10-18/r6-knight.jpg" width="150" alt="r6-knight.jpg"></a><br><sub>r6-knight.jpg（未参照）</sub> | <a href="feedback/check/2026-10-18/r6-office.jpg"><img src="feedback/check/2026-10-18/r6-office.jpg" width="150" alt="r6-office.jpg"></a><br><sub>r6-office.jpg（未参照）</sub> | <a href="feedback/check/2026-10-18/r7-club.jpg"><img src="feedback/check/2026-10-18/r7-club.jpg" width="150" alt="r7-club.jpg"></a><br><sub>r7-club.jpg（未参照）</sub> | <a href="feedback/check/2026-10-18/r7-festival.jpg"><img src="feedback/check/2026-10-18/r7-festival.jpg" width="150" alt="r7-festival.jpg"></a><br><sub>r7-festival.jpg（未参照）</sub> |
-| <a href="feedback/check/2026-10-18/r7-sailor.jpg"><img src="feedback/check/2026-10-18/r7-sailor.jpg" width="150" alt="r7-sailor.jpg"></a><br><sub>r7-sailor.jpg（未参照）</sub> | <a href="feedback/check/2026-10-18/stage1-tee.jpg"><img src="feedback/check/2026-10-18/stage1-tee.jpg" width="150" alt="stage1-tee.jpg"></a><br><sub>stage1-tee.jpg</sub> |
 
 <a id="library-feedback-settei"></a>
 ## library/feedback/settei/
