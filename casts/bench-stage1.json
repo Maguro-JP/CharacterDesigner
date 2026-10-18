@@ -1,0 +1,285 @@
+{
+ "about": "描き方を変えたときに比べる基準の組（tools/gen/bench.py）。模型は MeinaMix V11（style anime）、LCM 6 段、512x768",
+ "style": "anime",
+ "steps": 6,
+ "width": 512,
+ "height": 768,
+ "cases": [
+  {
+   "id": "stage1-tee-armsup-s11",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-armsup-s11.jpg",
+   "prompt": "full body, standing, arms raised above head, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 11
+  },
+  {
+   "id": "stage1-tee-armsup-s12",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-armsup-s12.jpg",
+   "prompt": "full body, standing, arms raised above head, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 12
+  },
+  {
+   "id": "stage1-tee-armsup-s13",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-armsup-s13.jpg",
+   "prompt": "full body, standing, arms raised above head, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 13
+  },
+  {
+   "id": "stage1-tee-armsup-s14",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-armsup-s14.jpg",
+   "prompt": "full body, standing, arms raised above head, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 14
+  },
+  {
+   "id": "stage1-tee-cowboy-s11",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-cowboy-s11.jpg",
+   "prompt": "cowboy shot, hand on hip, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 11
+  },
+  {
+   "id": "stage1-tee-cowboy-s12",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-cowboy-s12.jpg",
+   "prompt": "cowboy shot, hand on hip, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 12
+  },
+  {
+   "id": "stage1-tee-cowboy-s13",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-cowboy-s13.jpg",
+   "prompt": "cowboy shot, hand on hip, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 13
+  },
+  {
+   "id": "stage1-tee-cowboy-s14",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-cowboy-s14.jpg",
+   "prompt": "cowboy shot, hand on hip, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 14
+  },
+  {
+   "id": "stage1-tee-crouch-s11",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-crouch-s11.jpg",
+   "prompt": "full body, crouching, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 11
+  },
+  {
+   "id": "stage1-tee-crouch-s12",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-crouch-s12.jpg",
+   "prompt": "full body, crouching, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 12
+  },
+  {
+   "id": "stage1-tee-crouch-s13",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-crouch-s13.jpg",
+   "prompt": "full body, crouching, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 13
+  },
+  {
+   "id": "stage1-tee-crouch-s14",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-crouch-s14.jpg",
+   "prompt": "full body, crouching, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 14
+  },
+  {
+   "id": "stage1-tee-sit-s11",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-sit-s11.jpg",
+   "prompt": "full body, sitting on a bench, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 11
+  },
+  {
+   "id": "stage1-tee-sit-s12",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-sit-s12.jpg",
+   "prompt": "full body, sitting on a bench, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 12
+  },
+  {
+   "id": "stage1-tee-sit-s13",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-sit-s13.jpg",
+   "prompt": "full body, sitting on a bench, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 13
+  },
+  {
+   "id": "stage1-tee-sit-s14",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-sit-s14.jpg",
+   "prompt": "full body, sitting on a bench, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 14
+  },
+  {
+   "id": "stage1-tee-stand-s11",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-stand-s11.jpg",
+   "prompt": "full body, standing, front view, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 11
+  },
+  {
+   "id": "stage1-tee-stand-s12",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-stand-s12.jpg",
+   "prompt": "full body, standing, front view, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 12
+  },
+  {
+   "id": "stage1-tee-stand-s13",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-stand-s13.jpg",
+   "prompt": "full body, standing, front view, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 13
+  },
+  {
+   "id": "stage1-tee-stand-s14",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-stand-s14.jpg",
+   "prompt": "full body, standing, front view, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 14
+  },
+  {
+   "id": "stage1-tee-walk-s11",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-walk-s11.jpg",
+   "prompt": "full body, walking, side view, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 11
+  },
+  {
+   "id": "stage1-tee-walk-s12",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-walk-s12.jpg",
+   "prompt": "full body, walking, side view, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 12
+  },
+  {
+   "id": "stage1-tee-walk-s13",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-walk-s13.jpg",
+   "prompt": "full body, walking, side view, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 13
+  },
+  {
+   "id": "stage1-tee-walk-s14",
+   "image": "library/feedback/check/2026-10-18/stage1-tee/stage1-tee-walk-s14.jpg",
+   "prompt": "full body, walking, side view, young adult woman in her early 20s, plain white t-shirt, blue jeans, sneakers, simple gray background",
+   "seed": 14
+  },
+  {
+   "id": "stage1-bikini-white-armsup-s11",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-armsup-s11.jpg",
+   "prompt": "full body, standing, arms raised above head, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 11
+  },
+  {
+   "id": "stage1-bikini-white-armsup-s12",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-armsup-s12.jpg",
+   "prompt": "full body, standing, arms raised above head, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 12
+  },
+  {
+   "id": "stage1-bikini-white-armsup-s13",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-armsup-s13.jpg",
+   "prompt": "full body, standing, arms raised above head, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 13
+  },
+  {
+   "id": "stage1-bikini-white-armsup-s14",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-armsup-s14.jpg",
+   "prompt": "full body, standing, arms raised above head, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 14
+  },
+  {
+   "id": "stage1-bikini-white-cowboy-s11",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-cowboy-s11.jpg",
+   "prompt": "cowboy shot, hand on hip, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 11
+  },
+  {
+   "id": "stage1-bikini-white-cowboy-s12",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-cowboy-s12.jpg",
+   "prompt": "cowboy shot, hand on hip, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 12
+  },
+  {
+   "id": "stage1-bikini-white-cowboy-s13",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-cowboy-s13.jpg",
+   "prompt": "cowboy shot, hand on hip, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 13
+  },
+  {
+   "id": "stage1-bikini-white-cowboy-s14",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-cowboy-s14.jpg",
+   "prompt": "cowboy shot, hand on hip, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 14
+  },
+  {
+   "id": "stage1-bikini-white-crouch-s11",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-crouch-s11.jpg",
+   "prompt": "full body, crouching, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 11
+  },
+  {
+   "id": "stage1-bikini-white-crouch-s12",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-crouch-s12.jpg",
+   "prompt": "full body, crouching, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 12
+  },
+  {
+   "id": "stage1-bikini-white-crouch-s14",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-crouch-s14.jpg",
+   "prompt": "full body, crouching, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 14
+  },
+  {
+   "id": "stage1-bikini-white-sit-s11",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-sit-s11.jpg",
+   "prompt": "full body, sitting on a bench, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 11
+  },
+  {
+   "id": "stage1-bikini-white-sit-s12",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-sit-s12.jpg",
+   "prompt": "full body, sitting on a bench, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 12
+  },
+  {
+   "id": "stage1-bikini-white-sit-s14",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-sit-s14.jpg",
+   "prompt": "full body, sitting on a bench, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 14
+  },
+  {
+   "id": "stage1-bikini-white-stand-s11",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-stand-s11.jpg",
+   "prompt": "full body, standing, front view, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 11
+  },
+  {
+   "id": "stage1-bikini-white-stand-s12",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-stand-s12.jpg",
+   "prompt": "full body, standing, front view, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 12
+  },
+  {
+   "id": "stage1-bikini-white-stand-s13",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-stand-s13.jpg",
+   "prompt": "full body, standing, front view, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 13
+  },
+  {
+   "id": "stage1-bikini-white-stand-s14",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-stand-s14.jpg",
+   "prompt": "full body, standing, front view, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 14
+  },
+  {
+   "id": "stage1-bikini-white-walk-s11",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-walk-s11.jpg",
+   "prompt": "full body, walking, side view, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 11
+  },
+  {
+   "id": "stage1-bikini-white-walk-s12",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-walk-s12.jpg",
+   "prompt": "full body, walking, side view, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 12
+  },
+  {
+   "id": "stage1-bikini-white-walk-s13",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-walk-s13.jpg",
+   "prompt": "full body, walking, side view, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 13
+  },
+  {
+   "id": "stage1-bikini-white-walk-s14",
+   "image": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-walk-s14.jpg",
+   "prompt": "full body, walking, side view, young adult woman in her mid 20s, plain white bikini, triangle top, simple bikini bottom, barefoot, simple gray background",
+   "seed": 14
+  }
+ ]
+}
