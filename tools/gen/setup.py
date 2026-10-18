@@ -106,6 +106,9 @@ def main() -> None:
                 HANDS[1].write_bytes(f.read(HANDS[1].name))
                 # 手のひらを探す模型。肘が枠の外にある上半身の絵では、肘と手首から手の場所を見当できない
                 (HANDS[1].parent / "hand_detector.tflite").write_bytes(f.read("hand_detector.tflite"))
+    if not (LIB / "ai_edge_litert").exists():
+        # 模型の有無とは別に見る。模型だけ先に置かれた環境で、読み込む部品が入らないまま残らないように
+        say("ai-edge-litert（手の模型を読む部品、約 22MB）")
         pip("ai-edge-litert")
     if not (ROOT / ".cache" / "assets" / "tagger" / "model.onnx").exists():
         say("タグを読む模型（約 380MB）")
