@@ -762,7 +762,12 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
         reason = filters.fixed(", ".join(tags))
         # 露出の度合い（年齢区分の questionable と explicit の和）。子どもを表す言葉が頼みごとか絵にあるとき、
         # 固定の制限の数字の裏付けとして使う。閾値 0.5 は較正していない（手本の絵が要る。ROADMAP 0.57）
-        res["rating"] = tagger.rating(src)
+        # 読めなくても、言葉による固定の制限（上の reason）は必ず効かせる
+        try:
+            res["rating"] = tagger.rating(src)
+        except Exception as e:
+            res["rating"] = {}
+            res["unreadable"].append({"rating": f"{type(e).__name__}: {e}"})
         risky = res["rating"].get("questionable", 0) + res["rating"].get("explicit", 0)
         if not reason and risky >= RISKY and (filters.has_minor(prompt) or filters.has_minor(", ".join(tags))):
             reason = f"子どもを表す言葉のある絵で、露出の度合いが {risky:.2f}（{RISKY} 以上）。固定の制限で描き直す"
