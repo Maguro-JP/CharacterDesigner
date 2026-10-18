@@ -94,6 +94,13 @@ def control_pipe():
     return _CONTROL
 
 
+def clothed(clothes):
+    """素体の体の言葉の、肌着と素足だけを服の言葉に差し替える（立ち方と無地の背景はそのまま）。空なら素体のまま。"""
+    if not clothes:
+        return BODY
+    return BODY.replace("barefoot, grey tank top, grey shorts", clothes)
+
+
 _DEPTH = None
 DEPTH_MODEL = "diffusers/controlnet-depth-sdxl-1.0-small"   # openrail++。奥行きだけの小さい型（fp16 で約 320MB）
 
@@ -428,6 +435,7 @@ def main():
     c.add_argument("--label", default="")
     c.add_argument("--base", default="", help="casts/body-types.json の anime にある体のベース（例: ideal）")
     c.add_argument("--outfit", default="", help="ベースの水着を差し替える服の言葉（例: \"pink frilled bikini\"）。体の言葉はそのまま")
+    c.add_argument("--clothes", default="", help="素体の肌着と素足を差し替える服と靴の言葉（--base を使わないとき。casts/fashion.json の見本）")
     a = ap.parse_args()
     hair = a.hair or ("short black hair" if a.gender == "male" else "black hair, bob cut")
     if a.base:
@@ -436,7 +444,8 @@ def main():
         card(a.outdir, a.name, a.gender, a.age, tags, hair, a.views.split(","), a.zoom, a.seed if a.seed != 7 else b["seed"],
              a.label or a.name, body=base_body(b, a.outfit), negative=b["negative"])
         return
-    card(a.outdir, a.name, a.gender, a.age, a.tags, hair, a.views.split(","), a.zoom, a.seed, a.label or a.name)
+    card(a.outdir, a.name, a.gender, a.age, a.tags, hair, a.views.split(","), a.zoom, a.seed, a.label or a.name,
+         body=clothed(a.clothes))
 
 
 if __name__ == "__main__":
