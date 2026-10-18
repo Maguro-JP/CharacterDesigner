@@ -29,3 +29,11 @@ class StructureTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class LibraryCheck(unittest.TestCase):
+    def test_images_follow_layout_and_references_resolve(self):
+        import subprocess
+        import sys
+        r = subprocess.run([sys.executable, "tools/library_check.py", "--check"], cwd=ROOT, capture_output=True, text=True)
+        self.assertEqual(r.returncode, 0, r.stdout)

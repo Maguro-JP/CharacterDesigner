@@ -62,3 +62,16 @@ class BodyParts(unittest.TestCase):
     def test_wings_drawn_as_arms(self):
         self.assertEqual(qc.body_parts({"winged arms": 0.7}, "angel, white wings")["swapped"], ["wings→winged arms"])
         self.assertEqual(qc.body_parts({"winged arms": 0.7}, "harpy, winged arms")["swapped"], [])
+
+
+class MissingWords(unittest.TestCase):
+    def test_motion_and_cropped_feet_are_not_missing(self):
+        import tagger
+        try:
+            tagger.vocabulary()
+        except Exception:
+            self.skipTest("言葉の表が読めない")
+        got = {"1girl": 0.9}
+        self.assertNotIn("walking", tagger.missing("1girl, walking", got))
+        self.assertNotIn("boots", tagger.missing("1girl, cowboy shot, boots", got))
+        self.assertIn("boots", tagger.missing("1girl, full body, boots", got))

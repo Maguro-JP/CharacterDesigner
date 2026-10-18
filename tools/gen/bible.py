@@ -605,6 +605,8 @@ def main():
         s.add_argument("--framing", default="full body")
     s = sub.add_parser("show"); s.add_argument("id")
     s = sub.add_parser("sheet"); s.add_argument("id"); s.add_argument("out")
+    s = sub.add_parser("settei", help="設定画 1 枚（三面図・頭身の目盛り・表情・部位の拡大・色指定）を PNG に組む（tools/gen/settei.py）")
+    s.add_argument("id"); s.add_argument("out"); s.add_argument("--expressions"); s.add_argument("--details"); s.add_argument("--views")
     s = sub.add_parser("set-body"); s.add_argument("id"); s.add_argument("plan")
     s = sub.add_parser("body"); s.add_argument("id")
     s = sub.add_parser("set-eyes"); s.add_argument("id"); s.add_argument("--tags", required=True); s.add_argument("--notes", default="")
@@ -637,6 +639,7 @@ def main():
         "design-status": lambda: design_status(a.id),
         "show": lambda: load("characters", a.id),
         "sheet": lambda: sheet(a.id, a.out),
+        "settei": lambda: __import__("settei").compose(a.id, a.out, a.views.split(",") if a.views else None, a.expressions, a.details),
         "turnaround": lambda: turnaround(a.id, a.out, a.count, a.seed),
         "variants": lambda: variants(a.id, a.out, a.kind, a.seed, a.ref_scale),
         "set-eyes": lambda: set_eyes(a.id, a.tags, a.notes),

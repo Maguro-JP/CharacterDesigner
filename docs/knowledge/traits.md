@@ -228,7 +228,7 @@ muscle:high は腕がわずかに太くなった程度。背景の明るさが�
 
 ## 髪型（2026-10-10、Animagine、同じ人物・同じ seed 11・上半身）
 
-並べ図: `library/samples/traits-hair.jpg`。髪型の言葉だけを替え、打ち消しに紛らわしい髪型を入れた。
+並べ図: `library/samples/people/traits-hair.jpg`。髪型の言葉だけを替え、打ち消しに紛らわしい髪型を入れた。
 
 | 種類 | 結果 | 余計な変化 |
 |---|---|---|
@@ -247,7 +247,7 @@ muscle:high は腕がわずかに太くなった程度。背景の明るさが�
 
 ## 服（2026-10-11、Animagine、同じ人物・同じ seed 11・膝上まで）
 
-並べ図: `library/samples/traits-clothes.jpg`。服の言葉だけを替え、打ち消しに紛らわしい服を入れた。1枚およそ 130 秒（CPU）。
+並べ図: `library/samples/people/traits-clothes.jpg`。服の言葉だけを替え、打ち消しに紛らわしい服を入れた。1枚およそ 130 秒（CPU）。
 
 | 種類 | 結果 | 余計な変化 |
 |---|---|---|

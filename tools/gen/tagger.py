@@ -88,13 +88,22 @@ def vocabulary() -> set:
     return {t for t, _ in _load()[1]}
 
 
+# 歩く・走るなどの動きは、止まった絵のタグでは読み分けにくい（歩いている絵 2 枚で walking を「無い」と出した。描画確認 段階1）
+MOTION = ("walking", "running", "jumping", "dancing", "standing", "turning")
+# 足元が画面に入らない構図。この構図では足元の言葉の欠けを数えない（cowboy shot で靴の言葉が全部「無い」と出た）
+CROPPED = ("cowboy shot", "upper body", "portrait", "close-up", "knee up", "half body", "bust")
+FEET = ("shoes", "boots", "footwear", "socks", "sandals", "sneakers", "heels", "feet", "barefoot", "loafers", "thighhighs", "kneehighs")
+
+
 def missing(prompt: str, got: dict, least: float = 0.2) -> list[str]:
     """頼んだタグのうち、絵から読めなかったもの。模型の知らない言い方（タグの一覧に無い）と、構図・光の言い方は数えない
-    （数えられないものを落ちたことにすると、描き直しが止まらない）"""
+    （数えられないものを落ちたことにすると、描き直しが止まらない）。動きの言葉と、足元の入らない構図での足元の言葉も数えない"""
     vocab = vocabulary()
+    low = prompt.lower()
+    cropped = any(c in low for c in CROPPED)
     out = []
     for t in (x.strip().lower() for x in prompt.split(",")):
-        if not t or t not in vocab or any(w in t for w in SKIP):
+        if not t or t not in vocab or any(w in t for w in SKIP) or t in MOTION or (cropped and any(f in t for f in FEET)):
             continue
         # 「holding lantern」が読めなくても lantern が読めれば描けている（持ち方の言い方は読み分けにくい）
         core = t.split(" ", 1)[1] if t.startswith(("holding ", "wearing ", "carrying ")) else t

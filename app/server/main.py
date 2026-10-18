@@ -50,7 +50,7 @@ PROPOSALS = Path(os.environ.get("CD_PROPOSALS", ROOT / ".cache" / "app" / "propo
 
 DATA = Path(os.environ.get("CD_APP_DATA", ROOT / ".cache" / "app" / "jobs"))
 # 通った設定資料の置き場所。スキルの手順と同じ名前（demi3d-<種の名前>.png）で置く
-SAMPLES = Path(os.environ.get("CD_SAMPLES", ROOT / "library" / "samples"))
+SAMPLES = Path(os.environ.get("CD_SAMPLES", ROOT / "library" / "samples" / "demi"))
 NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
 # 返してよいファイル。仕事のフォルダの中の、この形の名前だけ（../ などで外を読ませない）
 PREVIEW_FILE = re.compile(r"^(underlay|mask)\.png$")

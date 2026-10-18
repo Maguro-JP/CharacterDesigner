@@ -1,0 +1,58 @@
+{
+ "about": "設定画 1 枚の構成。tools/gen/settei.py が読む。アニメ・ゲーム・漫画の設定資料で共通する欄（三面図を同じ縮尺で並べ頭身の目盛りを引く、表情集、部位の拡大、色指定表、持ち物、注記）を 1 枚に収める。考え方は docs/knowledge/settei-format.md",
+ "canvas": {
+  "width": 3508,
+  "height": 2480,
+  "turn_height": 1950,
+  "chromium": "/opt/pw-browsers/chromium-1194/chrome-linux/chrome"
+ },
+ "views": [
+  {
+   "id": "front",
+   "ja": "正面"
+  },
+  {
+   "id": "side",
+   "ja": "横"
+  },
+  {
+   "id": "back",
+   "ja": "背面"
+  }
+ ],
+ "required": {
+  "expressions": 4,
+  "expressions_max": 9,
+  "details": 3
+ },
+ "detail_ja": {
+  "eyes": "目",
+  "hair": "髪（後ろの流れ）",
+  "outfit-upper": "上着の細部",
+  "outfit-lower": "下の細部",
+  "outfit-shoes": "靴"
+ },
+ "css": "\n*{box-sizing:border-box}html,body{margin:0;background:#f7f5f0;color:#141313;font-family:'IPAGothic','IPAPGothic',sans-serif}\n.sheet{width:3508px;height:2480px;padding:56px 64px;display:grid;grid-template-rows:auto 1fr;gap:28px}\nheader{display:flex;align-items:baseline;gap:36px;border-bottom:6px solid #141313;padding-bottom:14px}\nheader h1{font-size:76px;margin:0;letter-spacing:.04em}header .id{font-size:34px;color:#666}\nheader .heads{margin-left:auto;font-size:38px;color:#d23a26;font-weight:bold}\n.grid{display:grid;gap:44px;min-height:0}.grid.main{grid-template-columns:2300px 1fr}.grid.detail{grid-template-columns:2500px 1fr}.grid>section{min-width:0;overflow:hidden}\nh2{font-size:32px;margin:0 0 12px;border-left:12px solid #d23a26;padding-left:12px}\n.turn{position:relative;display:flex;justify-content:space-around;align-items:flex-end;gap:24px;margin:40px 0 0 56px;border-bottom:3px solid #141313}\n.view{margin:0;text-align:center;position:relative;z-index:1}.view img{display:block}\n.view figcaption{font-size:28px;margin-top:6px}\n.view.empty{flex:0 0 400px;width:400px;height:100%;border:4px dashed #bbb;display:flex;align-items:center;justify-content:center;font-size:32px;color:#999}\n.guide{position:absolute;left:-56px;right:0;border-top:2px dashed rgba(210,58,38,.55);z-index:0}\n.guide b{position:absolute;left:0;top:-18px;font-size:26px;color:#d23a26}\n.guide.end{border-top-style:solid}\n.exprs{display:grid;grid-template-columns:repeat(3,320px);gap:14px}\n.exprs figure,.details figure{margin:0;text-align:center}.exprs img{width:320px;height:320px;border:3px solid #141313}\n.exprs figcaption,.details figcaption{font-size:26px}\n.details{display:grid;grid-template-columns:repeat(3,320px);gap:14px;margin-top:24px}.details img{width:320px;height:320px;border:3px solid #141313}\ntable{border-collapse:collapse;font-size:24px;width:100%}th,td{border:2px solid #141313;padding:6px 8px;text-align:left;font-family:monospace}\nth{font-family:'IPAGothic',sans-serif}td i{display:inline-block;width:40px;height:28px;vertical-align:middle;margin-right:8px;border:1px solid #141313}\nthead th{background:#141313;color:#f7f5f0}\nul{margin:0;padding-left:30px;font-size:26px;line-height:1.5}.side section{margin-bottom:26px}\n.lack li{color:#d23a26}.empty{color:#999;font-size:28px}\n.line{max-width:100%;max-height:520px;border:3px solid #141313}\n.words{font-size:22px;color:#444;font-family:monospace;word-break:break-word}\nheader .page{font-size:34px;color:#141313;border:3px solid #141313;padding:2px 14px}.exprs.big{grid-template-columns:repeat(4,600px);gap:24px}.exprs.big img{width:600px;height:600px}.details.big{grid-template-columns:repeat(3,800px);gap:24px}.details.big img{width:800px;height:800px}.line{max-height:1900px}",
+ "pages": [
+  {
+   "id": "main",
+   "priority": 1,
+   "title": "設定画 1 全身と色",
+   "template": "<!doctype html><html lang=\"ja\"><meta charset=\"utf-8\"><title>{name} {page_title}</title><style>{css}</style><div class=\"sheet\"><header><h1>{name}</h1><span class=\"id\">{id}</span><span class=\"page\">{page_title}</span><span class=\"heads\">{heads}</span></header><div class=\"grid main\"><section><h2>三面図（同じ縮尺・頭身の目盛り）</h2>{turn}</section><div class=\"side\"><section><h2>色指定</h2><table><thead><tr><th>部位</th><th>基本色</th><th>影色</th><th>明るい色</th></tr></thead><tbody>{ctab}</tbody></table></section><section><h2>持ち物・装飾</h2><ul>{items}</ul></section><section><h2>注記</h2><ul>{notes}</ul><p class=\"words\">見た目: {look}<br>服: {outfit}</p></section><section class=\"lack\"><h2>足りない欄</h2><ul>{lack}</ul></section></div></div></div>"
+  },
+  {
+   "id": "expressions",
+   "priority": 2,
+   "title": "設定画 2 表情",
+   "needs": "expressions",
+   "template": "<!doctype html><html lang=\"ja\"><meta charset=\"utf-8\"><title>{name} {page_title}</title><style>{css}</style><div class=\"sheet\"><header><h1>{name}</h1><span class=\"id\">{id}</span><span class=\"page\">{page_title}</span><span class=\"heads\">{heads}</span></header><section><h2>表情</h2><div class=\"exprs big\">{exprs}</div></section></div>"
+  },
+  {
+   "id": "details",
+   "priority": 3,
+   "title": "設定画 3 部位の拡大と線画",
+   "needs": "details",
+   "template": "<!doctype html><html lang=\"ja\"><meta charset=\"utf-8\"><title>{name} {page_title}</title><style>{css}</style><div class=\"sheet\"><header><h1>{name}</h1><span class=\"id\">{id}</span><span class=\"page\">{page_title}</span><span class=\"heads\">{heads}</span></header><div class=\"grid detail\"><section><h2>部位の拡大</h2><div class=\"details big\">{details}</div></section><section><h2>線画</h2>{lineart}</section></div></div>"
+  }
+ ]
+}

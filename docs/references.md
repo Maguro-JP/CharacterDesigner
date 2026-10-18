@@ -97,6 +97,9 @@ OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じ
 - ドイツ刑法 86a 条、ADL Hate Symbols Database、国土地理院「外国人にわかりやすい地図表現の検討」（2016）
 - Wikipedia の各項目（Swastika、Rising Sun Flag、Blackface、Depictions of Muhammad、Native American headdress、Cultural appropriation、Kimono、Bindi ほか）。一覧は `docs/knowledge/cultural-sensitivity.md`
 
+## 設定画の構成（`styles/settei.json`、2026-10-18）
+
+- Model sheet（Wikipedia 英語版）、アニメ制作の設定資料（キャラクター設定・色指定表）の一般的な構成。`docs/knowledge/settei-format.md`
 ## 流行のファッション資料（`docs/knowledge/fashion/`、2026-10）
 
 若者の流行の調査（界隈別ランキング、トレンド大賞、高校生・服飾学校の学生のアンケート）、業界紙と雑誌のウェブ版の記事、事業者の発表の 48 件。

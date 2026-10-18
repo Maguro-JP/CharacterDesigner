@@ -25,6 +25,11 @@ import struct
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+# 模型の置き場所（.cache/gen/hf）と取りに行かない既定を、diffusers・transformers を読む前に効かせる。
+# 関数の中で design を読んでいたため、先に transformers を読んだ呼び出しでは ~/.cache/huggingface へ取りに行った
+import design  # noqa: E402,F401
+
 ROOT = Path(__file__).resolve().parents[2]
 # 模型の置き場所と、取りに行かない既定（ほかの読み込み口と同じ。huggingface_hub を読む前に決める）
 os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))

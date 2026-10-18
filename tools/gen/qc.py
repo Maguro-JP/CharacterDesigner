@@ -824,6 +824,9 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
         except Exception:   # 部位分けの模型が無い環境では、これまでどおり色だけで見る
             person = None
         cut = edge_cut(rgb, person=person)
+        import tagger
+        if any(c in prompt.lower() for c in tagger.CROPPED):
+            cut = [x for x in cut if x != "下"]   # 足元の入らない構図では下の切れは崩れではない
         if cut:
             res["problems"].append({"edge_cut": cut})
         seams = background_seams(rgb)
@@ -978,7 +981,14 @@ def facts(src: str, character: str | None = None, prompt: str = "") -> dict:
     parts = _parts(src, im)
     person = parts > 0
     # 端の切れは人物の画素だけで数える（背景が端まである絵で、全身が収まっているのに4辺切れと出た）
-    res = {"edge_cut": edge_cut(rgb, person=edge_body(parts)), "inventory": inventory(parts),
+    import tagger
+    side = Path(str(src) + ".json")
+    try:
+        asked = prompt or (json.loads(side.read_text(encoding="utf-8")).get("prompt", "") if side.exists() else "")
+    except (OSError, ValueError):
+        asked = prompt
+    framed = any(c in asked.lower() for c in tagger.CROPPED)
+    res = {"edge_cut": [x for x in edge_cut(rgb, person=edge_body(parts)) if not (framed and x == "下")], "inventory": inventory(parts),
            "floating": floating_blobs(rgb), "seams": background_seams(rgb),
            "skin_ratio": round(float(np.isin(parts, SKIN).sum() / max(person.sum(), 1)), 3)}
     import tagger

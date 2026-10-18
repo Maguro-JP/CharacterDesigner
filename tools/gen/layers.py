@@ -32,6 +32,9 @@ os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))
 # ディスクを埋めた（2026-10-14 に 2 回）。初めて取るときだけ CD_FETCH=1 を付けて動かす
 os.environ.setdefault("HF_HUB_OFFLINE", "0" if os.environ.get("CD_FETCH") == "1" else "1")
 sys.path.insert(0, str(Path(__file__).parent))
+# 模型の置き場所（.cache/gen/hf）と取りに行かない既定を、diffusers・transformers を読む前に効かせる。
+# 関数の中で design を読んでいたため、先に transformers を読んだ呼び出しでは ~/.cache/huggingface へ取りに行った
+import design  # noqa: E402,F401
 
 SIZE = (832, 1216)   # 縦長。全身の人物が大きく入る
 BG_NEGATIVE = ("1girl, 1boy, person, people, human, character, figure, silhouette, aerial view, from above, high angle, "

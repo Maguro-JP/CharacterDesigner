@@ -112,11 +112,11 @@
     "buttocks/buttocks-volume-incr": 0.45,
     "torso/measure-hips-circ-incr": 0.2
    },
-   "sample": "library/samples/body-ideal-female.png（左がアスリートの型、右が理想のベース。正面・横・背面）",
+   "sample": "library/samples/people/body-ideal-female.png（左がアスリートの型、右が理想のベース。正面・横・背面）",
    "breast_scale": 1.3
   }
  },
- "sample": "library/samples/body-types-female.png（左から定義順。上が正面、下が横）",
+ "sample": "library/samples/people/body-types-female.png（左から定義順。上が正面、下が横）",
  "make": "PYTHONPATH=.cache/engine/bpy python3 tools/engine/mannequin.py <出力フォルダ> [--only hourglass,glamour]",
  "anime": {
   "about": "アニメ絵（tools/gen/people.py、Animagine XL 3.1）で描くときの体のベース。tags は体の言葉、body は服と構図、negative は打ち消しに足す言葉。--base <名前> で使う",
@@ -128,9 +128,9 @@
    "body": "full body, standing, arms at sides, white background, simple background, barefoot, plain white bikini, bikini top, bikini bottom, no logo",
    "negative": "logo, brand logo, emblem, text on clothes, see-through, abs, muscular, six pack, micro bikini, thick thighs",
    "seed": 31,
-   "sample": "library/samples/anime-ideal-female.png",
+   "sample": "library/samples/people/anime-ideal-female.png",
    "history": "競泳水着（胸が分からない）→黒のスポーツビキニ（腹筋が強すぎ）→白ビキニ（脚が気持ち太い）→thin thighs（細すぎ）→ slender legs のみ（決定）",
-   "views": "library/samples/anime-ideal-female-5views.png（正面・斜め前・横・斜め後ろ・背面。people.py --views front,front34,side,back34,back）"
+   "views": "library/samples/people/anime-ideal-female-5views.png（正面・斜め前・横・斜め後ろ・背面。people.py --views front,front34,side,back34,back）"
   }
  }
 }

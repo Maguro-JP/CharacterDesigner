@@ -15,7 +15,7 @@
 | `tags.md` | 画像生成で描かせる英語の言葉（Danbooru 風のタグ）の候補と、誤解されやすい言葉 | 描く言葉を組む |
 | `sources.md` | 出典の一覧（48件、記事名・媒体・公開年月・URL） | 根拠を確かめる |
 
-描く言葉の札は `casts/fashion.json`（1つの装いが1行）、見本の絵は `library/samples/fashion-*.png`（地雷系、卒業式の袴、ゴープコア、制服のプレッピー系の4枚。札の `sample` に書いた装い）。
+描く言葉の札は `casts/fashion.json`（1つの装いが1行）、見本の絵は `library/samples/fashion/fashion-*.png`（地雷系、卒業式の袴、ゴープコア、制服のプレッピー系の4枚。札の `sample` に書いた装い）。
 
 ## 使い方の流れ
 

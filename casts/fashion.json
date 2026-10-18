@@ -165,7 +165,7 @@
     "#6E1E2B"
    ],
    "role": "甘いものが好き、身なりに手を抜かない",
-   "sample": "library/samples/fashion-jirai-f.png",
+   "sample": "library/samples/fashion/fashion-jirai-f.png",
    "sample_seed": 107,
    "sample_note": "目の色を足す前の hair（末尾の brown eyes なし）で描いた"
   },
@@ -224,7 +224,7 @@
     "#C9B79C"
    ],
    "role": "実用派、外遊びや旅行が好き",
-   "sample": "library/samples/fashion-gorpcore-m.png",
+   "sample": "library/samples/fashion/fashion-gorpcore-m.png",
    "sample_seed": 21,
    "sample_note": "目の色を足す前の hair で描き（種 21、打ち消しに logo, brand logo, emblem, text）、imgproc facefix（1boy, detailed face, grey eyes, both eyes same color）で顔を直した"
   },
@@ -397,7 +397,7 @@
     "#9A9A9A"
    ],
    "role": "同じ学校の生徒を系統で描き分ける基準",
-   "sample": "library/samples/fashion-uniform-preppy-f.png",
+   "sample": "library/samples/fashion/fashion-uniform-preppy-f.png",
    "sample_seed": 21,
    "sample_note": "目の色を足す前の hair で描き（種 21、打ち消しに logo, brand logo, emblem, text）、imgproc facefix（1girl, detailed face, brown eyes, both eyes same color）で顔を直した"
   },
@@ -436,7 +436,7 @@
     "#F3EEE0"
    ],
    "role": "大学の卒業式",
-   "sample": "library/samples/fashion-hakama-f.png",
+   "sample": "library/samples/fashion/fashion-hakama-f.png",
    "sample_seed": 7,
    "sample_note": "目の色を足す前の hair（末尾の brown eyes なし）で描いた"
   }

@@ -961,6 +961,57 @@
    "check": "unasked_item",
    "why": "頼んでいない眼鏡・サングラスが描かれる",
    "tier": "illustration"
+  },
+  {
+   "id": "swimsuit_default",
+   "topic": "水着の既定は無地の白いビキニ",
+   "when": [
+    "swimsuit",
+    "bikini"
+   ],
+   "person": false,
+   "add": [
+    "plain white bikini",
+    "triangle bikini top",
+    "bikini bottom"
+   ],
+   "negative": [
+    "frills",
+    "pattern",
+    "jacket",
+    "one-piece swimsuit",
+    "competition swimsuit"
+   ],
+   "unless": [
+    "white",
+    "black",
+    "red",
+    "blue",
+    "navy",
+    "green",
+    "yellow",
+    "pink",
+    "purple",
+    "orange",
+    "brown",
+    "grey",
+    "gray",
+    "striped",
+    "polka dot",
+    "floral",
+    "frilled",
+    "one-piece",
+    "competition",
+    "school swimsuit",
+    "sling",
+    "micro",
+    "string",
+    "sports bikini",
+    "highleg"
+   ],
+   "check": "asked_but_missing",
+   "tier": "illustration",
+   "why": "体の線を隠さず形の崩れを見分けやすい既定（利用者の決定）。黒は線が潰れて読みにくい。水着は大人の人物だけ（18 歳未満に見える題材との組み合わせは filters.fixed が止める）"
   }
  ],
  "not_person": [

@@ -12,7 +12,7 @@
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
    "samples": {
-    "female": "library/samples/skin-dark-female.png"
+    "female": "library/samples/people/skin-dark-female.png"
    }
   },
   "body-plump": {
@@ -26,7 +26,7 @@
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
    "samples": {
-    "male": "library/samples/body-plump-male.png"
+    "male": "library/samples/people/body-plump-male.png"
    }
   },
   "body-lean": {
@@ -40,7 +40,7 @@
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
    "samples": {
-    "male": "library/samples/body-lean-male.png"
+    "male": "library/samples/people/body-lean-male.png"
    }
   },
   "ears-elf": {
@@ -54,7 +54,7 @@
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
    "samples": {
-    "female": "library/samples/ears-elf-female.png"
+    "female": "library/samples/people/ears-elf-female.png"
    }
   },
   "tattoo-tribal": {
@@ -68,7 +68,7 @@
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
    "samples": {
-    "male": "library/samples/tattoo-tribal-male.png"
+    "male": "library/samples/people/tattoo-tribal-male.png"
    }
   },
   "race-orc": {
@@ -82,7 +82,7 @@
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-03",
    "samples": {
-    "female": "library/samples/race-orc-female.png"
+    "female": "library/samples/people/race-orc-female.png"
    }
   },
   "skin-blue": {
@@ -94,8 +94,8 @@
     "female": "できた（範囲の外で変わった画素 0）"
    },
    "samples": {
-    "male": "library/samples/skin-blue-male.png",
-    "female": "library/samples/skin-blue-female.png"
+    "male": "library/samples/people/skin-blue-male.png",
+    "female": "library/samples/people/skin-blue-female.png"
    }
   },
   "skin-green": {
@@ -107,8 +107,8 @@
     "female": "できた（範囲の外で変わった画素 0）"
    },
    "samples": {
-    "male": "library/samples/skin-green-male.png",
-    "female": "library/samples/skin-green-female.png"
+    "male": "library/samples/people/skin-green-male.png",
+    "female": "library/samples/people/skin-green-female.png"
    }
   },
   "skin-grey": {
@@ -120,8 +120,8 @@
     "female": "できた（範囲の外で変わった画素 0）"
    },
    "samples": {
-    "male": "library/samples/skin-grey-male.png",
-    "female": "library/samples/skin-grey-female.png"
+    "male": "library/samples/people/skin-grey-male.png",
+    "female": "library/samples/people/skin-grey-female.png"
    }
   },
   "skin-red": {
@@ -133,8 +133,8 @@
     "female": "できた（範囲の外で変わった画素 0）"
    },
    "samples": {
-    "male": "library/samples/skin-red-male.png",
-    "female": "library/samples/skin-red-female.png"
+    "male": "library/samples/people/skin-red-male.png",
+    "female": "library/samples/people/skin-red-female.png"
    }
   },
   "tattoo-tribal-arms": {
@@ -146,7 +146,7 @@
     "female": "未確認"
    },
    "samples": {
-    "male": "library/samples/tattoo-tribal-arms-male.png"
+    "male": "library/samples/people/tattoo-tribal-arms-male.png"
    }
   },
   "skin-tan": {
@@ -160,7 +160,7 @@
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
    "samples": {
-    "male": "library/samples/skin-tan-male.png"
+    "male": "library/samples/people/skin-tan-male.png"
    }
   },
   "body-plump-tan": {
@@ -175,7 +175,7 @@
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
    "samples": {
-    "male": "library/samples/body-plump-tan-male.png"
+    "male": "library/samples/people/body-plump-tan-male.png"
    }
   },
   "race-elf": {
@@ -189,8 +189,8 @@
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
    "samples": {
-    "male": "library/samples/race-elf-male.png",
-    "female": "library/samples/race-elf-female.png"
+    "male": "library/samples/people/race-elf-male.png",
+    "female": "library/samples/people/race-elf-female.png"
    }
   },
   "race-dwarf": {
@@ -204,7 +204,7 @@
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
    "samples": {
-    "male": "library/samples/race-dwarf-male.png"
+    "male": "library/samples/people/race-dwarf-male.png"
    }
   },
   "ears-cat": {
@@ -218,38 +218,38 @@
    },
    "model": "anime（SD1.5 系）、素体（framing: body）、2026-10-04",
    "samples": {
-    "female": "library/samples/ears-cat-female.png"
+    "female": "library/samples/people/ears-cat-female.png"
    }
   }
  },
  "base_samples": {
-  "male": "library/samples/base-male.png",
-  "female": "library/samples/base-female.png"
+  "male": "library/samples/people/base-male.png",
+  "female": "library/samples/people/base-female.png"
  },
  "outfits": {
   "outfit-red-leather-jacket": {
    "ja": "赤い革の上着（長袖）",
    "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint <絵> <出力> --region upper+arms --grow 10 --prompt \"red leather jacket with long sleeves, open front, black t-shirt underneath, hands\"",
    "verified": "男でできた（片方の肩に白い当て布）",
-   "sample": "library/samples/outfit-red-leather-jacket.png"
+   "sample": "library/samples/people/outfit-red-leather-jacket.png"
   },
   "outfit-white-hoodie": {
    "ja": "白いパーカー（長袖）",
    "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint <絵> <出力> --region upper+arms --grow 10 --prompt \"white hoodie with long sleeves and blue drawstrings, hands\"",
    "verified": "女でできた",
-   "sample": "library/samples/outfit-white-hoodie.png"
+   "sample": "library/samples/people/outfit-white-hoodie.png"
   },
   "outfit-plaid-skirt": {
    "ja": "赤いチェックのスカート",
    "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint <絵> <出力> --region lower+legs-feet --grow 14 --prompt \"red plaid pleated skirt, knee length, bare legs\"",
    "verified": "女でできた（足先は元のまま、靴は出ない）",
-   "sample": "library/samples/outfit-plaid-skirt.png"
+   "sample": "library/samples/people/outfit-plaid-skirt.png"
   },
   "outfit-black-jeans": {
    "ja": "黒いジーンズ（長い丈）",
    "command": "PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint <絵> <出力> --region lower+legs-feet --grow 10 --prompt \"black jeans, long trousers down to the ankles\"",
    "verified": "男でできた（足先は元のまま）",
-   "sample": "library/samples/outfit-black-jeans.png"
+   "sample": "library/samples/people/outfit-black-jeans.png"
   }
  },
  "ages": {
@@ -261,8 +261,8 @@
     "female": "出た"
    },
    "samples": {
-    "male": "library/samples/age-teen-male.png",
-    "female": "library/samples/age-teen-female.png"
+    "male": "library/samples/people/age-teen-male.png",
+    "female": "library/samples/people/age-teen-female.png"
    }
   },
   "elder": {
@@ -273,8 +273,8 @@
     "female": "出た（眼鏡、サンダル）"
    },
    "samples": {
-    "male": "library/samples/age-elder-male.png",
-    "female": "library/samples/age-elder-female.png"
+    "male": "library/samples/people/age-elder-male.png",
+    "female": "library/samples/people/age-elder-female.png"
    }
   }
  }
