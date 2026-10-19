@@ -111,6 +111,29 @@ MANY_WORDS = ("two ", "both", "pair", "multiple", "several", "dual", "2 ")
 ALIAS = {"swordsman": "sword", "swordswoman": "sword", "swordsmaster": "sword", "katana": "sword"}
 
 
+# 部品（刃と柄）に分けて聞く物は、箱が接していれば 1 つの物とする。騎士の 1 本の剣で、刃の箱と柄の箱が
+# 重ならずに接していたため 2 か所と数えた（重なりの割合だけでは、つながった部品を別の物と見る）
+TOUCH = {"sword"}
+GAP = 0.03          # 長い辺に対するこの割合までの隙間は、接しているとみなす（分かれた剣士の柄と刃は 0.126 離れていた）
+
+
+def _gap(a, b) -> float:
+    dx = max(0.0, max(a[0], b[0]) - min(a[2], b[2]))
+    dy = max(0.0, max(a[1], b[1]) - min(a[3], b[3]))
+    return max(dx, dy)
+
+
+def joined(groups: list[list[list[float]]], src: str) -> list[list[list[float]]]:
+    """箱どうしが接している（隙間が長い辺の GAP 以内）塊をまとめる"""
+    from PIL import Image
+    near = GAP * max(Image.open(src).size)
+    out: list[list[list[float]]] = []
+    for g in groups:
+        hit = [h for h in out if any(_gap(a, b) <= near for a in g for b in h)]
+        out = [h for h in out if h not in hit] + [g + [x for h in hit for x in h]]
+    return out
+
+
 def count_extra(src: str, prompt: str, least: float = 0.2) -> list[str]:
     """頼んだ数え物（鞄・剣・器）が 1 つのはずなのに、重ならない 2 か所以上に見つかれば、その理由を返す。
     セーラー服で book bag を持たせた 8 枚で、目で見て 2 つの鞄を描いた絵のうち 3 枚に当たり、1 つの絵には当たらなかった"""
@@ -127,6 +150,8 @@ def count_extra(src: str, prompt: str, least: float = 0.2) -> list[str]:
         if word not in words:
             continue
         groups = clusters([b for _, _, b in detect(src, queries, least)])
+        if word in TOUCH:
+            groups = joined(groups, src)
         if len(groups) >= 2:
             out.append(f"{word} が {len(groups)} か所に描かれている（頼んだのは 1 つ。別々の物か、1 つが途中で切れて分かれた）")
     return out

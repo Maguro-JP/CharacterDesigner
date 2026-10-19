@@ -2,7 +2,7 @@
 
 `python3 tools/library_check.py` が書く。手で直さない。置き方の決まりは [docs/STRUCTURE.md](../docs/STRUCTURE.md)。
 
-全 541 枚（置き場 38 か所）。どこからも参照されていない絵 129 枚には「未参照」と付ける。
+全 545 枚（置き場 39 か所）。どこからも参照されていない絵 129 枚には「未参照」と付ける。
 
 ## 置き場の一覧
 
@@ -30,6 +30,7 @@
 | [`library/feedback/check/`](#library-feedback-check) | フィードバックの成果物 | 176 |
 | [`library/feedback/finish/`](#library-feedback-finish) | フィードバックの成果物 | 2 |
 | [`library/feedback/settei/`](#library-feedback-settei) | フィードバックの成果物 | 3 |
+| [`library/feedback/shoes/`](#library-feedback-shoes) | フィードバックの成果物 | 4 |
 | [`library/feedback/stylize/`](#library-feedback-stylize) | フィードバックの成果物 | 66 |
 | [`library/progress/2026-09-29/`](#library-progress-2026-09-29) | 比べた記録 | 32 |
 | [`library/progress/2026-09-30/`](#library-progress-2026-09-30) | 比べた記録 | 29 |
@@ -236,6 +237,13 @@
 |   |   |   |
 |---|---|---|
 | <a href="feedback/settei/2026-10-18/swordswoman/swordswoman-1-main.jpg"><img src="feedback/settei/2026-10-18/swordswoman/swordswoman-1-main.jpg" width="150" alt="swordswoman-1-main.jpg"></a><br><sub>swordswoman-1-main.jpg</sub> | <a href="feedback/settei/2026-10-18/swordswoman/swordswoman-2-expressions.jpg"><img src="feedback/settei/2026-10-18/swordswoman/swordswoman-2-expressions.jpg" width="150" alt="swordswoman-2-expressions.jpg"></a><br><sub>swordswoman-2-expressions.jpg</sub> | <a href="feedback/settei/2026-10-18/swordswoman/swordswoman-3-details.jpg"><img src="feedback/settei/2026-10-18/swordswoman/swordswoman-3-details.jpg" width="150" alt="swordswoman-3-details.jpg"></a><br><sub>swordswoman-3-details.jpg</sub> |
+
+<a id="library-feedback-shoes"></a>
+## library/feedback/shoes/
+
+|   |   |   |   |
+|---|---|---|---|
+| <a href="feedback/shoes/2026-10-20/knight/knight-1-s21.jpg"><img src="feedback/shoes/2026-10-20/knight/knight-1-s21.jpg" width="150" alt="knight-1-s21.jpg"></a><br><sub>knight-1-s21.jpg</sub> | <a href="feedback/shoes/2026-10-20/knight/knight-2-s22.jpg"><img src="feedback/shoes/2026-10-20/knight/knight-2-s22.jpg" width="150" alt="knight-2-s22.jpg"></a><br><sub>knight-2-s22.jpg</sub> | <a href="feedback/shoes/2026-10-20/knight/knight-3-s23.jpg"><img src="feedback/shoes/2026-10-20/knight/knight-3-s23.jpg" width="150" alt="knight-3-s23.jpg"></a><br><sub>knight-3-s23.jpg</sub> | <a href="feedback/shoes/2026-10-20/knight/knight-4-s24.jpg"><img src="feedback/shoes/2026-10-20/knight/knight-4-s24.jpg" width="150" alt="knight-4-s24.jpg"></a><br><sub>knight-4-s24.jpg</sub> |
 
 <a id="library-feedback-stylize"></a>
 ## library/feedback/stylize/
