@@ -2,7 +2,7 @@
 
 `python3 tools/library_check.py` が書く。手で直さない。置き方の決まりは [docs/STRUCTURE.md](../docs/STRUCTURE.md)。
 
-全 465 枚（置き場 33 か所）。どこからも参照されていない絵 65 枚には「未参照」と付ける。
+全 470 枚（置き場 35 か所）。どこからも参照されていない絵 65 枚には「未参照」と付ける。
 
 ## 置き場の一覧
 
@@ -26,6 +26,7 @@
 | [`library/feedback/baseline/`](#library-feedback-baseline) | フィードバックの成果物 | 2 |
 | [`library/feedback/bench/`](#library-feedback-bench) | フィードバックの成果物 | 4 |
 | [`library/feedback/check/`](#library-feedback-check) | フィードバックの成果物 | 176 |
+| [`library/feedback/finish/`](#library-feedback-finish) | フィードバックの成果物 | 2 |
 | [`library/feedback/settei/`](#library-feedback-settei) | フィードバックの成果物 | 3 |
 | [`library/progress/2026-09-29/`](#library-progress-2026-09-29) | 比べた記録 | 32 |
 | [`library/progress/2026-09-30/`](#library-progress-2026-09-30) | 比べた記録 | 29 |
@@ -41,6 +42,7 @@
 | [`library/samples/people/`](#library-samples-people) | 見本の絵 | 38 |
 | [`library/samples/studio/`](#library-samples-studio) | 見本の絵 | 8 |
 | [`library/sheets/`](#library-sheets) | 職業の一覧（箱庭ドット） | 9 |
+| [`library/women/2026-10-18/`](#library-women-2026-10-18) | women | 3 |
 
 <a id="bible-characters-knight"></a>
 ## bible/characters/knight/
@@ -204,6 +206,13 @@
 | <a href="feedback/check/2026-10-18/stage1-tee/stage1-tee-stand-s11.jpg"><img src="feedback/check/2026-10-18/stage1-tee/stage1-tee-stand-s11.jpg" width="150" alt="stage1-tee-stand-s11.jpg"></a><br><sub>stage1-tee-stand-s11.jpg</sub> | <a href="feedback/check/2026-10-18/stage1-tee/stage1-tee-stand-s12.jpg"><img src="feedback/check/2026-10-18/stage1-tee/stage1-tee-stand-s12.jpg" width="150" alt="stage1-tee-stand-s12.jpg"></a><br><sub>stage1-tee-stand-s12.jpg</sub> | <a href="feedback/check/2026-10-18/stage1-tee/stage1-tee-stand-s13.jpg"><img src="feedback/check/2026-10-18/stage1-tee/stage1-tee-stand-s13.jpg" width="150" alt="stage1-tee-stand-s13.jpg"></a><br><sub>stage1-tee-stand-s13.jpg</sub> | <a href="feedback/check/2026-10-18/stage1-tee/stage1-tee-stand-s14.jpg"><img src="feedback/check/2026-10-18/stage1-tee/stage1-tee-stand-s14.jpg" width="150" alt="stage1-tee-stand-s14.jpg"></a><br><sub>stage1-tee-stand-s14.jpg</sub> | <a href="feedback/check/2026-10-18/stage1-tee/stage1-tee-walk-s11.jpg"><img src="feedback/check/2026-10-18/stage1-tee/stage1-tee-walk-s11.jpg" width="150" alt="stage1-tee-walk-s11.jpg"></a><br><sub>stage1-tee-walk-s11.jpg</sub> | <a href="feedback/check/2026-10-18/stage1-tee/stage1-tee-walk-s12.jpg"><img src="feedback/check/2026-10-18/stage1-tee/stage1-tee-walk-s12.jpg" width="150" alt="stage1-tee-walk-s12.jpg"></a><br><sub>stage1-tee-walk-s12.jpg</sub> |
 | <a href="feedback/check/2026-10-18/stage1-tee/stage1-tee-walk-s13.jpg"><img src="feedback/check/2026-10-18/stage1-tee/stage1-tee-walk-s13.jpg" width="150" alt="stage1-tee-walk-s13.jpg"></a><br><sub>stage1-tee-walk-s13.jpg</sub> | <a href="feedback/check/2026-10-18/stage1-tee/stage1-tee-walk-s14.jpg"><img src="feedback/check/2026-10-18/stage1-tee/stage1-tee-walk-s14.jpg" width="150" alt="stage1-tee-walk-s14.jpg"></a><br><sub>stage1-tee-walk-s14.jpg</sub> |
 
+<a id="library-feedback-finish"></a>
+## library/feedback/finish/
+
+|   |   |
+|---|---|
+| <a href="feedback/finish/2026-10-18/tee4k/tee4k-armsup-clean-s11.jpg"><img src="feedback/finish/2026-10-18/tee4k/tee4k-armsup-clean-s11.jpg" width="150" alt="tee4k-armsup-clean-s11.jpg"></a><br><sub>tee4k-armsup-clean-s11.jpg</sub> | <a href="feedback/finish/2026-10-18/tee4k/tee4k-armsup-s11.jpg"><img src="feedback/finish/2026-10-18/tee4k/tee4k-armsup-s11.jpg" width="150" alt="tee4k-armsup-s11.jpg"></a><br><sub>tee4k-armsup-s11.jpg</sub> |
+
 <a id="library-feedback-settei"></a>
 ## library/feedback/settei/
 
@@ -330,3 +339,10 @@
 |---|---|---|---|---|---|
 | <a href="sheets/apothecary.png"><img src="sheets/apothecary.png" width="150" alt="apothecary.png"></a><br><sub>apothecary.png（未参照）</sub> | <a href="sheets/cleric.png"><img src="sheets/cleric.png" width="150" alt="cleric.png"></a><br><sub>cleric.png（未参照）</sub> | <a href="sheets/dancer.png"><img src="sheets/dancer.png" width="150" alt="dancer.png"></a><br><sub>dancer.png（未参照）</sub> | <a href="sheets/hunter.png"><img src="sheets/hunter.png" width="150" alt="hunter.png"></a><br><sub>hunter.png（未参照）</sub> | <a href="sheets/merchant.png"><img src="sheets/merchant.png" width="150" alt="merchant.png"></a><br><sub>merchant.png（未参照）</sub> | <a href="sheets/scholar.png"><img src="sheets/scholar.png" width="150" alt="scholar.png"></a><br><sub>scholar.png（未参照）</sub> |
 | <a href="sheets/swordsman.png"><img src="sheets/swordsman.png" width="150" alt="swordsman.png"></a><br><sub>swordsman.png（未参照）</sub> | <a href="sheets/thief.png"><img src="sheets/thief.png" width="150" alt="thief.png"></a><br><sub>thief.png（未参照）</sub> | <a href="sheets/warrior.png"><img src="sheets/warrior.png" width="150" alt="warrior.png"></a><br><sub>warrior.png（未参照）</sub> |
+
+<a id="library-women-2026-10-18"></a>
+## library/women/2026-10-18/
+
+|   |   |   |
+|---|---|---|
+| <a href="women/2026-10-18/pockets-20261018229.png"><img src="women/2026-10-18/pockets-20261018229.png" width="150" alt="pockets-20261018229.png"></a><br><sub>pockets-20261018229.png</sub> | <a href="women/2026-10-18/pockets-20261018234.png"><img src="women/2026-10-18/pockets-20261018234.png" width="150" alt="pockets-20261018234.png"></a><br><sub>pockets-20261018234.png</sub> | <a href="women/2026-10-18/pockets-20261018239.png"><img src="women/2026-10-18/pockets-20261018239.png" width="150" alt="pockets-20261018239.png"></a><br><sub>pockets-20261018239.png</sub> |
