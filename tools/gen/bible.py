@@ -406,6 +406,26 @@ def turnaround(ident: str, outdir: str, count: int = 2, seed: int = 0) -> dict:
     return files
 
 
+# 笑う表情。これ以外では、見た目と目の言葉から笑みの言葉を外す。外さないと、怒り・悲しみ・ふだんも
+# 見た目の「gentle smile」に引かれて微笑みになった（羊娘の表情 11 種で 4 種）
+SMILING = {"smile", "laugh", "tender", "blush", "embarrassed"}
+_SMILE_WORDS = ("gentle smile", "smile", "smiling", "soft half-lidded eyes", "half-lidded eyes")
+# 表情ごとの打ち消し。言葉で頼むだけでは隣の表情（微笑み、片目つぶり）に寄ったので、寄った先を打ち消す
+EXPR_AVOID = {
+    "neutral": "(smile, smiling, happy, blush, open mouth:1.3)",
+    "angry": "(smile, smiling, happy, blush, sad, teary eyes:1.3)",
+    "sad": "(smile, smiling, happy, angry, v-shaped eyebrows:1.3)",
+    "laugh": "(one eye closed, wink, closed mouth:1.3)",
+    "determined": "(smile, blush, sad:1.2)",
+    "surprised": "(smile, closed mouth:1.2)",
+}
+
+
+def _drop_smile(text: str) -> str:
+    parts = [p.strip() for p in text.split(",")]
+    return ", ".join(p for p in parts if p and p.strip("() ").split(":")[0] not in _SMILE_WORDS)
+
+
 def expressions_plan(ident: str, only: list[str] | None = None) -> list[dict]:
     """表情差分の段取り: 表情ごとの描く言葉。顔だけを描き直すので、言葉は顔に関わるもの（見た目・目・表情）に絞る。
     服や持ち物の言葉を入れると、顔の枠の中に服の柄や持ち物が描き込まれやすい"""
@@ -415,9 +435,13 @@ def expressions_plan(ident: str, only: list[str] | None = None) -> list[dict]:
     for e in expressions_of(ident):
         if only and e["id"] not in only:
             continue
-        words = ", ".join(x for x in (c["look"], eyes, e["tags"], "portrait, face focus, detailed eyes") if x)
+        smiling = e["id"] in SMILING
+        look, eye = (c["look"], eyes) if smiling else (_drop_smile(c["look"]), _drop_smile(eyes))
+        # 表情の言葉を先頭の区切りに置く。後ろの区切りほど効きにくく、見た目の言葉の後ろに置くと表情が消えた
+        words = ", ".join(x for x in (e["tags"], look, eye, "portrait, face focus, detailed eyes") if x)
+        avoid = e.get("avoid") or EXPR_AVOID.get(e["id"], "")
         out.append({"id": e["id"], "name": e["name"], "prompt": words,
-                    "negative": ", ".join(x for x in (c.get("negative", ""), "extra eyes, asymmetrical eyes, different eye colors") if x)})
+                    "negative": ", ".join(x for x in (avoid, c.get("negative", ""), "extra eyes, asymmetrical eyes, different eye colors") if x)})
     return out
 
 

@@ -1,7 +1,7 @@
 {
  "id": "sheep-girl",
  "name": "羊娘メリノ",
- "look": "1girl, adult woman, 22 years old, sheep girl, two curled ivory ram horns at the sides of her head, drooping fluffy sheep ears, (very long wavy cream hair reaching her waist:1.4), calm mature face, gentle smile, slim, graceful proportions",
+ "look": "1girl, adult woman, 22 years old, sheep girl, two curled ivory ram horns at the sides of her head, drooping fluffy sheep ears, (very long wavy cream hair reaching her waist:1.4), calm mature face, gentle smile, slim, graceful proportions, (amber orange eyes, thin soft light-brown eyebrows:1.3)",
  "outfit": "(open front cardigan with wooden buttons:1.4), (mustard yellow:1.2) cardigan, (white blouse:1.3), (long dark brown wide-leg trousers:1.3), brown loafers",
  "negative": "(animal on head:1.5), (sheep on head:1.4), (bodysuit:1.4), (skin tight:1.4), (skirt:1.5), (shorts:1.5), (bare legs:1.5), (barefoot:1.4), child, loli, weapon, extra items, multicolored hair, (sweater, pullover:1.5), (hands in pockets:1.5), (dark shadow on chest:1.3), (dark shadow on buttocks:1.3), (black trousers:1.3), (grey trousers:1.3), nude, naked, missing horns, missing ears, (bob cut:1.5), (short hair:1.5), (shoulder-length hair:1.5), (black shirt:1.4), (plaid:1.4)",
  "items": [
@@ -35,7 +35,14 @@
  ],
  "images": {
   "color": "bible/characters/sheep-girl/color.jpg",
-  "turnaround": "bible/characters/sheep-girl/turnaround.jpg"
+  "turnaround": "bible/characters/sheep-girl/turnaround.jpg",
+  "expr-smile": "bible/characters/sheep-girl/expr-smile.jpg",
+  "expr-blush": "bible/characters/sheep-girl/expr-blush.jpg",
+  "expr-determined": "bible/characters/sheep-girl/expr-determined.jpg",
+  "expr-embarrassed": "bible/characters/sheep-girl/expr-embarrassed.jpg",
+  "expr-sleepy": "bible/characters/sheep-girl/expr-sleepy.jpg",
+  "expr-surprised": "bible/characters/sheep-girl/expr-surprised.jpg",
+  "expr-tender": "bible/characters/sheep-girl/expr-tender.jpg"
  },
  "palette": [],
  "notes": "",
@@ -47,7 +54,7 @@
   {
    "id": "neutral",
    "name": "ふだん",
-   "tags": "closed mouth, faint relaxed smile, relaxed eyebrows, soft half-lidded eyes, calm gaze"
+   "tags": "(expressionless, straight closed mouth, not smiling, level relaxed eyebrows, calm open eyes:1.6)"
   },
   {
    "id": "smile",
@@ -57,17 +64,17 @@
   {
    "id": "laugh",
    "name": "大笑い",
-   "tags": "open-mouth laugh, hand near mouth, eyebrows raised softly, eyes closed into curves, lower eyelids raised"
+   "tags": "(laughing, both eyes closed in happy arcs ^_^, open mouth, raised eyebrows, hand near mouth:1.6)"
   },
   {
    "id": "angry",
    "name": "怒り",
-   "tags": "small frown, mouth pressed closed, eyebrows slightly drawn together and lowered, lower eyelids tensed, steady stare, no fangs"
+   "tags": "(angry, furrowed V-shaped eyebrows visible through bangs, glaring narrowed eyes, frowning mouth, pale cheeks:1.6)"
   },
   {
    "id": "sad",
    "name": "悲しみ",
-   "tags": "slight downturned mouth, closed mouth, inner eyebrows raised, eyebrows in a slanted V shape, downcast eyes, glistening eyes"
+   "tags": "(sad, frown, downturned mouth, thin worried eyebrows slanted upward at inner ends, teary eyes, not smiling:1.7)"
   },
   {
    "id": "surprised",
@@ -102,5 +109,14 @@
   "hair_color": "235,222,190",
   "long_sleeves": true,
   "words": "(open front cardigan with wooden buttons:1.4), (mustard yellow:1.2) cardigan, (white blouse:1.3), (dark brown wide-leg trousers:1.3), brown loafers, (curled ram horns:1.3), two drooping sheep ears, arms down at sides, (visible fingers:1.2)"
+ },
+ "swatches": {
+  "カーディガン": "247,214,123",
+  "ズボン": "131,92,65",
+  "靴・影": "89,64,51",
+  "髪": "248,234,195",
+  "角": "166,136,104",
+  "ブラウス": "240,240,245",
+  "肌": "250,222,205"
  }
 }

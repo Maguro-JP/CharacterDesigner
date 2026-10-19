@@ -14,6 +14,10 @@
 
   python3 tools/gen/charsheet.py status <id>        足りないものを区分ごとに出す
   python3 tools/gen/charsheet.py render <id> <出力.html>   資料を書き出す（無い所は「未作成」）
+  python3 tools/gen/charsheet.py sheet <id> <出力.html> <出力.png>   見せる1枚（四面図・表情・色見本・注記）
+
+見せる1枚の並べ方は docs/knowledge/learning/design-sheet-layout.md の決まりに合わせる。
+四面図は横一列で足をそろえて高さの線を引き、表情は名前つきの均等なます、色見本は役と面積の割合、注記は数と位置を書く。
 """
 from __future__ import annotations
 
@@ -29,7 +33,8 @@ import bible  # noqa: E402
 # 区分: (キー, 見出し, 文字の欄, 絵の役割の決まり)。絵の役割の決まりは (接頭辞, 最少の枚数, 説明)
 SECTIONS = [
     ("profile", "基本情報", ["name", "age", "height", "role", "personality", "backstory"], []),
-    ("views", "全身の四面図", [], [("view-front", 1, "正面"), ("view-back", 1, "背面"), ("view-left", 1, "左"), ("view-right", 1, "右")]),
+    # 向きの回る順（正面→左→背面→右）。斜め前（3/4）は現場で最も使う向きなので枠を置くが、必須にはしない
+    ("views", "全身の四面図", [], [("view-front", 1, "正面"), ("view-34", 0, "斜め前"), ("view-left", 1, "左"), ("view-back", 1, "背面"), ("view-right", 1, "右")]),
     ("poses", "ポーズ", [], [("pose-", 3, "立ち・歩き・役どころの動作・持ち物を使う")]),
     ("bust", "胸から上（表情・髪型）", ["expressions"], [("expr-", 8, "表情差分"), ("hairstyle-", 2, "髪型差分")]),
     ("details", "目と髪の詳細", ["eyes"], [("detail-eyes", 1, "目の拡大"), ("detail-hair", 1, "髪の拡大")]),
@@ -150,7 +155,193 @@ def render(ident: str, out: str) -> dict:
             "bytes": len(page.encode())}
 
 
+# 胸から上の表情の絵（832x1216）から顔と角を切り出す枠（幅・高さに対する割合）。表情差分は同じ基準の絵から
+# 描き直すので顔の位置がそろっており、割合の固定で足りる。切り出さずに並べると顔が小さく、表情の差が見えなかった
+FACE_CROP = (0.24, 0.05, 0.77, 0.41)
+FONT = "/usr/share/fonts/opentype/ipafont-gothic/ipag.ttf"   # 日本語の字形の書体（中国語用の書体は字形が崩れた）
+
+
+def _fg_mask(im):
+    import numpy as np
+    a = np.asarray(im.convert("RGB")).astype(int)
+    return (a.min(axis=2) < 235)
+
+
+def _figures(im):
+    """四面図の1枚の絵から、人物ごとの左右の範囲と、全員の上端・下端を返す（白い背景の列の切れ目で分ける）"""
+    import numpy as np
+    m = _fg_mask(im)
+    cols = m.sum(axis=0) > 2
+    spans, start = [], None
+    for x, on in enumerate(list(cols) + [False]):
+        if on and start is None:
+            start = x
+        elif not on and start is not None:
+            if x - start > im.width * 0.04:
+                spans.append((start, x))
+            start = None
+    rows = np.nonzero(m.sum(axis=1) > 2)[0]
+    return spans, int(rows.min()), int(rows.max())
+
+
+def color_shares(im, named: dict) -> dict:
+    """人物の画素を、名前つきの色の最も近いものに割り当てて、面積の割合を返す（白い背景は除く）"""
+    import numpy as np
+    a = np.asarray(im.convert("RGB")).astype(int)[_fg_mask(im)]
+    names = list(named)
+    ref = np.array([named[n] for n in names])
+    d = ((a[:, None, :] - ref[None, :, :]) ** 2).sum(axis=2)
+    idx = d.argmin(axis=1)
+    total = len(idx)
+    return {n: round(float((idx == i).sum()) / total, 3) for i, n in enumerate(names)}
+
+
+SWATCH_JA = {"top": "カーディガン", "bottom": "ズボン", "boots": "靴", "hair_color": "髪", "blouse": "ブラウス", "skin": "肌",
+             "horn": "角", "eyes": "目"}
+
+
+def _swatches(c: dict) -> list[dict]:
+    """色見本: 設定資料の swatches（名前 → "r,g,b"、描いた絵から測った色）か、無ければ四面図の決まりの色（turnaround の値）。
+    四面図の人物の画素を最も近い色に割り当てて面積の割合を測る。決まりの色は塗りの明るい面より暗く、測ると
+    カーディガンが 6% になるなど実際とずれたので、描いた絵から測った色を持たせる。
+    役は面積の順に、髪と肌を除いて 主・副・アクセント（docs/knowledge/learning/character-design-basics.md の 6:3:1）"""
+    from PIL import Image
+    src = c.get("swatches") or {SWATCH_JA.get(k, k): c.get("turnaround", {})[k] for k in ("top", "bottom", "boots", "hair_color")
+                                 if isinstance(c.get("turnaround", {}).get(k), str)}
+    named = {k: tuple(int(v) for v in str(x).split(",")) for k, x in src.items()}
+    shares = {}
+    if c.get("images", {}).get("turnaround"):
+        shares = color_shares(Image.open(bible.ROOT / c["images"]["turnaround"]), named)
+    base = ("髪", "肌")
+    order = [k for k in sorted(named, key=lambda k: -shares.get(k, 0)) if k not in base]
+    roles = {k: r for k, r in zip(order, ("主", "副", "アクセント"))}
+    return [{"key": k, "name": k, "hex": "#%02x%02x%02x" % named[k], "share": shares.get(k, 0.0),
+             "role": roles.get(k, "髪・肌" if k in base else "その他")} for k in named]
+
+
+def _notes(c: dict) -> list[str]:
+    out = []
+    for i in c.get("items", []):
+        out.append(f"{i['name']}: {i.get('desc', '')}")
+    if c.get("eyes", {}).get("notes"):
+        out.append("目: " + c["eyes"]["notes"])
+    return out
+
+
+def sheet(ident: str, out_html: str, out_png: str, width: int = 2400) -> dict:
+    """見せる1枚を、同じ並べ方で HTML と PNG に書き出す。載せるのは images にある turnaround と expr-*（検品を通した絵だけを登録する）"""
+    from PIL import Image, ImageDraw, ImageFont
+    c = bible.load("characters", ident)
+    imgs = c.get("images", {})
+    exprs = {e["id"]: e["name"] for e in bible.expressions_of(ident)}
+    # 表情は設定の並び（ふだん→笑い→怒り…）の順に置く。名前が重なる表情（照れが2つ）は id を添える
+    order = [e["id"] for e in bible.expressions_of(ident)]
+    expr_roles = sorted((r for r in imgs if r.startswith("expr-")), key=lambda r: order.index(r[5:]) if r[5:] in order else 99)
+    seen = [exprs.get(r[5:], r[5:]) for r in expr_roles]
+    exprs = {r[5:]: (exprs.get(r[5:], r[5:]) + (f"（{r[5:]}）" if seen.count(exprs.get(r[5:], r[5:])) > 1 else "")) for r in expr_roles}
+    sw = _swatches(c)
+    notes = _notes(c)
+    f = lambda n: ImageFont.truetype(FONT, n)
+    pad, gap = 60, 40
+    W = width
+    canvas = Image.new("RGB", (W, 4000), (251, 250, 247))
+    d = ImageDraw.Draw(canvas)
+    d.text((pad, pad), c["name"], fill=(20, 19, 19), font=f(64))
+    d.text((pad + 520, pad + 28), f"{ident}  設定資料", fill=(93, 88, 83), font=f(28))
+    y = pad + 100
+    d.line([(pad, y), (W - pad, y)], fill=(20, 19, 19), width=4)
+    y += gap
+    # 1段目: 四面図。足の位置をそろえ、上端・半分・下端に線を引く
+    if imgs.get("turnaround"):
+        t = Image.open(bible.ROOT / imgs["turnaround"]).convert("RGB")
+        spans, top, bot = _figures(t)
+        # 元の四面図が小さい（羊娘は高さ 304 画素）ので、2 倍を超えて引き伸ばさない。ぼやけて線が読めなくなった
+        h = min(900, (bot - top) * 2)
+        k = h / (bot - top)
+        crop = t.crop((0, top, t.width, bot + 1))
+        crop = crop.resize((int(crop.width * k), h), Image.LANCZOS)
+        x0 = max((W - crop.width) // 2, pad + 140)   # 左の余白に高さの線の名前を置く
+        d.text((pad, y), "全身の四面図", fill=(20, 19, 19), font=f(36))
+        y += 60
+        canvas.paste(crop, (x0, y))
+        for frac, label in ((0.0, "頭の上"), (0.5, "全身の半分"), (1.0, "足の下")):
+            yy = y + int(frac * (h - 1))
+            d.line([(pad, yy), (W - pad, yy)], fill=(210, 58, 38), width=1)
+            d.text((pad, yy - 26 if frac else yy + 4), label, fill=(210, 58, 38), font=f(20))
+        names = ["正面", "横（右向き）", "横（左向き）", "背面"] if len(spans) == 4 else [""] * len(spans)
+        for (a, b), nm in zip(spans, names):
+            d.text((x0 + int((a + b) / 2 * k) - 20, y + h + 10), nm, fill=(93, 88, 83), font=f(26))
+        y += h + 60 + gap
+    # 2段目: 表情。顔の枠で切り、名前つきの均等なます
+    if expr_roles:
+        d.line([(pad, y), (W - pad, y)], fill=(217, 212, 205), width=1)
+        y += 20
+        d.text((pad, y), f"表情（{len(expr_roles)}種）", fill=(20, 19, 19), font=f(36))
+        y += 60
+        cols = 6 if len(expr_roles) > 8 else 4
+        cell = (W - 2 * pad - (cols - 1) * 24) // cols
+        for i, r in enumerate(expr_roles):
+            im = Image.open(bible.ROOT / imgs[r]).convert("RGB")
+            fx = FACE_CROP
+            face = im.crop((int(fx[0] * im.width), int(fx[1] * im.height), int(fx[2] * im.width), int(fx[3] * im.height)))
+            face = face.resize((cell, cell), Image.LANCZOS)
+            cx, cy = pad + (i % cols) * (cell + 24), y + (i // cols) * (cell + 60)
+            canvas.paste(face, (cx, cy))
+            d.rectangle([cx, cy, cx + cell - 1, cy + cell - 1], outline=(217, 212, 205))
+            d.text((cx, cy + cell + 8), exprs.get(r[5:], r[5:]), fill=(93, 88, 83), font=f(26))
+        y += ((len(expr_roles) + cols - 1) // cols) * (cell + 60) + gap
+    # 3段目: 色見本（左）と注記（右）
+    d.line([(pad, y), (W - pad, y)], fill=(217, 212, 205), width=1)
+    y += 20
+    d.text((pad, y), "色見本（四面図での面積）", fill=(20, 19, 19), font=f(36))
+    nx = W // 2
+    d.text((nx, y), "注記", fill=(20, 19, 19), font=f(36))
+    y += 60
+    yy = y
+    for s in sw:
+        rgb = tuple(int(s["hex"][i:i + 2], 16) for i in (1, 3, 5))
+        d.rectangle([pad, yy, pad + 64, yy + 64], fill=rgb, outline=(217, 212, 205))
+        d.text((pad + 84, yy + 4), f"{s['name']}  {s['role']}", fill=(20, 19, 19), font=f(26))
+        d.text((pad + 84, yy + 36), f"{s['hex']}  {s['share'] * 100:.0f}%", fill=(93, 88, 83), font=f(22))
+        yy += 84
+    ny = y
+    for n in notes:
+        line, lines = "", []
+        for ch in n:
+            if d.textlength(line + ch, font=f(24)) > W - nx - pad:
+                lines.append(line)
+                line = ""
+            line += ch
+        lines.append(line)
+        for ln in lines:
+            d.text((nx, ny), ln, fill=(20, 19, 19), font=f(24))
+            ny += 34
+        ny += 14
+    y = max(yy, ny) + pad
+    canvas = canvas.crop((0, 0, W, y))
+    Path(out_png).parent.mkdir(parents=True, exist_ok=True)
+    canvas.save(out_png, optimize=True)
+    # HTML は同じ1枚の絵を埋め込み、注記と色見本は文字でも持つ（検索と写しのため）
+    e = html.escape
+    rows = "".join(f'<tr><td><i style="background:{s["hex"]}"></i></td><td>{e(s["name"])}</td><td>{e(s["role"])}</td>'
+                   f'<td><code>{s["hex"]}</code></td><td>{s["share"] * 100:.0f}%</td></tr>' for s in sw)
+    page = (f'<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
+            f'<title>{e(c["name"])} 設定資料</title><style>{CSS}'
+            'table{border-collapse:collapse} td{padding:4px 10px;border-bottom:1px solid var(--rule)} td i{display:block;width:28px;height:28px;border:1px solid var(--rule)}'
+            '.one img{width:100%;height:auto;display:block}</style>'
+            f'<div class="sheet"><header><h1>{e(c["name"])}</h1><span class="id">{e(ident)}</span></header>'
+            f'<section class="one"><img src="data:image/png;base64,{base64.b64encode(Path(out_png).read_bytes()).decode()}" alt="{e(c["name"])}の設定資料"></section>'
+            f'<section><h2>色見本</h2><table>{rows}</table></section>'
+            f'<section><h2>注記</h2><ul>' + "".join(f"<li>{e(n)}</li>" for n in notes) + '</ul></section></div>')
+    Path(out_html).write_text(page, encoding="utf-8")
+    return {"html": out_html, "png": out_png, "size": list(canvas.size), "expressions": len(expr_roles),
+            "swatches": {s["name"]: [s["role"], s["share"]] for s in sw}, "bytes": len(page.encode())}
+
+
 def main():
+    if len(sys.argv) >= 5 and sys.argv[1] == "sheet":
+        print(json.dumps(sheet(sys.argv[2], sys.argv[3], sys.argv[4]), ensure_ascii=False, indent=1))
+        return
     if len(sys.argv) >= 3 and sys.argv[1] == "status":
         r = status(sys.argv[2])
     elif len(sys.argv) >= 4 and sys.argv[1] == "render":
