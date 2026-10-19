@@ -35,7 +35,7 @@ README と PR の説明には作品名を出さない。
 | 手本からの派生 | h94/IP-Adapter | Apache-2.0 | 重みを配るなら許諾文を添える（配っていない） |
 | 人体の部位分け | sayeed99/segformer_b3_clothes | MIT（学習データは ATR。データ自体の許諾は公開元に書かれていない） | 部位の範囲を取るだけに使い、データや重みを配らない |
 | 3D の人体 | MakeHuman の基本素材（MPFB 経由） | 素材は CC0。MPFB のコードは GPL | コードはリポジトリに入れず `tools/engine/setup.sh` で取る |
-| 姿勢の下絵（候補） | MakeHuman の追加素材のポーズ集（BVH、MPFB の loadmhbvh で読む） | まだ確かめていない（取る前に大きさとライセンスを見る） | しゃがむ・座るの下絵が素材の棚に無いため。取り込みはまだ |
+| 姿勢の下絵 | MakeHuman の asset pack「Poses 01（sitting）」（https://static.makehumancommunity.org/assets/assetpacks/poses01.html、BVH 18、約 1.1MB） | CC0（配布ページの記載、2026-10-20 に確かめた） | リポジトリに入れず `tools/engine/setup.sh` で .cache/engine に取る。座る姿勢の下絵を人形で撮るため |
 | アニメ調の 3D 素体 | VRoid Studio の公式サンプル HairSample_Female（VRM 0.x） | CC0（VRoid の公式ヘルプのサンプル模型の利用条件） | 模型はリポジトリに入れない。`tools/engine/viewer/vrm-base.html` で表示 |
 | アニメ調の 3D 素体 | pixiv の VRM1_Constraint_Twist_Sample（VRM 1.0） | 改変・再配布・商用可、表記不要 | 模型はリポジトリに入れない。`tools/engine/viewer/vrm-pose.html` で表示 |
 | 3D 表示 | three.js 0.147、@pixiv/three-vrm 1.0.6 | MIT | ページから CDN で読む |

@@ -19,4 +19,6 @@ fi
 command -v "$PY" > bpy/.python
 [ -f mpfb.zip ] || curl -sSL -o mpfb.zip "https://extensions.blender.org/download/sha256:4f0a879d64a39bf646fbf5f53601ac678855da329d650617dca5737548239a87/add-on-mpfb-v2.0.17.zip?repository=%2Fapi%2Fv1%2Fextensions%2F&blender_version_min=4.2.0"
 [ -f sysassets.zip ] || curl -sSL -o sysassets.zip https://files.makehumancommunity.org/asset_packs/makehuman_system_assets/makehuman_system_assets_cc0.zip
+# 座る姿勢のポーズ集（CC0、約 1.1MB、18 の姿勢）。素材の棚に座る・しゃがむ下絵が無く、言葉と打ち消しでは姿勢が直らなかった
+[ -f poses01.zip ] || curl -sSL -o poses01.zip https://files.makehumancommunity.org/asset_packs/poses01/poses01_cc0.zip
 echo "ready: $D"
