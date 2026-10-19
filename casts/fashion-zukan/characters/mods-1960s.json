@@ -1,0 +1,33 @@
+{
+ "id": "mods-1960s",
+ "name": "1960年代のモッズ",
+ "age": "",
+ "height": "",
+ "role": "服装の図鑑の見本（06-1946-1999.md のモッズ）",
+ "personality": "",
+ "backstory": "",
+ "look": "1boy, solo, young man, mod haircut, mop-top, dark brown hair, brown eyes",
+ "eyes": {
+  "tags": "open eyes, brown eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "1960s fashion, mod fashion, slim navy suit, narrow black tie, white button-down shirt, chelsea boots",
+ "turnaround": {
+  "top": "30,40,70",
+  "bottom": "30,40,70",
+  "boots": "60,40,30",
+  "words": "slim suit, narrow tie, chelsea boots",
+  "clothes": "male_elegantsuit01,shoes02",
+  "hair": "short03",
+  "hair_color": "60,40,30",
+  "boots_height": "0.12"
+ },
+ "negative": "logo, text, sneakers, flag print, target emblem",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": ""
+}

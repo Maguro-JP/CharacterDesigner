@@ -1,0 +1,33 @@
+{
+ "id": "hiphop-1990s",
+ "name": "1990年代のヒップホップ",
+ "age": "",
+ "height": "",
+ "role": "服装の図鑑の見本（06-1946-1999.md のヒップホップ）",
+ "personality": "",
+ "backstory": "",
+ "look": "1boy, solo, young man, short black hair, dark brown eyes",
+ "eyes": {
+  "tags": "open eyes, dark brown eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "1990s fashion, hip hop fashion, oversized red and navy tracksuit jacket, baggy jeans, white high-top sneakers, bucket hat, plain gold chain",
+ "turnaround": {
+  "top": "170,30,40",
+  "bottom": "60,80,120",
+  "boots": "240,240,240",
+  "words": "oversized tracksuit, baggy jeans, bucket hat",
+  "clothes": "male_casualsuit02,shoes03",
+  "hair": "short01",
+  "hair_color": "20,20,20",
+  "boots_height": "0.12"
+ },
+ "negative": "logo, brand logo, text, three stripes, swoosh",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": ""
+}

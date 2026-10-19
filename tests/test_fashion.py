@@ -78,3 +78,42 @@ class ClothedTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ZukanTest(unittest.TestCase):
+    ZUKAN = DOCS / "zukan"
+
+    def test_chapters_have_date_items_and_sources(self):
+        chapters = sorted(self.ZUKAN.glob("0*.md"))
+        self.assertGreaterEqual(len(chapters), 8)
+        for p in chapters:
+            s = p.read_text(encoding="utf-8")
+            self.assertRegex(s, r"最終確認: 20\d\d-\d\d", p.name)
+            self.assertGreaterEqual(len(re.findall(r"^### ", s, re.M)), 10, p.name)
+            self.assertIn("## 出典", s, p.name)
+
+    def test_no_hangul_or_bold(self):
+        # 図鑑は日本語で書く。出典の題も訳して載せる（ハングルが混ざると壊れて見えた）
+        for p in self.ZUKAN.glob("*.md"):
+            s = p.read_text(encoding="utf-8")
+            self.assertIsNone(re.search("[가-힯]", s), p.name)
+            self.assertNotIn("**", s, p.name)
+
+    def test_zukan_figures_are_bible_shaped(self):
+        for p in (ROOT / "casts" / "fashion-zukan" / "characters").glob("*.json"):
+            c = json.loads(p.read_text(encoding="utf-8"))
+            self.assertEqual(c["id"], p.stem)
+            for key in ("look", "outfit", "turnaround", "negative"):
+                self.assertIn(key, c, p.name)
+            self.assertIsNone(BANNED.search(c["outfit"]), p.name)
+
+
+class BibleSwitchTest(unittest.TestCase):
+    def test_cd_bible_switches_root(self):
+        import os
+        import subprocess
+        import sys
+        code = "import sys; sys.path.insert(0, 'tools/gen'); import bible; print(bible.BIBLE)"
+        env = {**os.environ, "CD_BIBLE": "casts/fashion-zukan"}
+        out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env, capture_output=True, text=True)
+        self.assertEqual(out.stdout.strip(), "casts/fashion-zukan", out.stderr)

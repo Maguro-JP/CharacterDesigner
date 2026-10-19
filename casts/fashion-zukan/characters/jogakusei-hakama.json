@@ -1,0 +1,35 @@
+{
+ "id": "jogakusei-hakama",
+ "name": "明治・大正の女学生（矢絣の着物に袴）",
+ "age": "",
+ "height": "",
+ "role": "服装の図鑑の見本（05-1900-1945.md の女学生の袴）",
+ "personality": "",
+ "backstory": "",
+ "look": "1girl, solo, young woman, long black hair, half updo, large hair ribbon, brown eyes",
+ "eyes": {
+  "tags": "open eyes, brown eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "japanese clothes, purple kimono with yagasuri arrow feather pattern, maroon hakama skirt, ankle-length hakama, brown lace-up boots, taishou era schoolgirl",
+ "turnaround": {
+  "top": "120,70,140",
+  "bottom": "110,30,40",
+  "boots": "80,50,30",
+  "words": "yagasuri kimono, maroon hakama, lace-up boots",
+  "clothes": "female_elegantsuit01,shoes01",
+  "hair": "long01",
+  "hair_color": "20,18,18",
+  "split": "0.95",
+  "boots_height": "0.15",
+  "long_sleeves": true
+ },
+ "negative": "left-over-right kimono, short skirt, modern clothes, logo, text",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": ""
+}

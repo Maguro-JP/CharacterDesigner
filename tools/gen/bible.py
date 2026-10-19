@@ -25,12 +25,15 @@
 """
 import argparse
 import json
+import os
 import shutil
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-BIBLE = ROOT / "bible"
+# 設定資料集の置き場。CD_BIBLE で切り替えると、物語の人物と混ぜずに別の題材（服装の図鑑の人物 casts/fashion-zukan）を
+# 同じ描く流れ（tools/gen/pipeline.py）に通せる
+BIBLE = Path(os.environ["CD_BIBLE"]) if os.environ.get("CD_BIBLE") else ROOT / "bible"
 
 
 def _path(kind: str, ident: str) -> Path:
@@ -359,13 +362,20 @@ def genre(ident: str) -> dict:
     return g
 
 
+def bpy_python() -> str:
+    """Blender の部品（bpy 4.2、Python 3.11 向け）を動かす Python。描く部品（torch）と版が違うことがあるので
+    tools/engine/setup.sh が入れたときの Python を .cache/engine/bpy/.python から読む。無ければ今の Python"""
+    p = ROOT / ".cache/engine/bpy/.python"
+    return p.read_text(encoding="utf-8").strip() if p.exists() else sys.executable
+
+
 def turnaround_plan(ident: str, outdir: str, seed: int = 0) -> dict:
     """三面図の段取り: 下絵を写す命令と、向きごとに描く引数。描かずに中身だけ返す（試験と、描く前の確かめに使う）。
     下絵に無い物（マント）は絵に出なかったので、色の設定に cape・boots があれば下絵に置く"""
     c = load("characters", ident)
     colors = {**BASE_COLORS, **c.get("turnaround", {})}
     base = str(Path(outdir) / "base")
-    cmd = [sys.executable, str(ROOT / "tools/engine/turnaround.py"), base]
+    cmd = [bpy_python(), str(ROOT / "tools/engine/turnaround.py"), base]
     for k in ("skin", "top", "bottom", "cape", "boots"):
         if colors.get(k):
             cmd += [f"--{k}", colors[k]]
