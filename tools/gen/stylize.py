@@ -50,6 +50,16 @@ def _paper(h: int, w: int, tone=(0.97, 0.95, 0.90), grain: float = 0.03) -> np.n
     return np.clip(np.array(tone, dtype=np.float32) + n, 0, 1)
 
 
+def _streaks(h: int, w: int, angle: float, density: float = 0.5, blur: float = 0.7) -> np.ndarray:
+    """斜めの筆の目 0〜1。大きめに作って回してから切り出し、回した角に地が出ないようにする"""
+    n = int(np.hypot(h, w)) + 2
+    rng = np.random.default_rng(SEED)
+    g = Image.fromarray(((rng.random((n, n)) < density) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(blur))
+    g = g.resize((n, n // 4)).resize((n, n), Image.BILINEAR).rotate(angle, resample=Image.BILINEAR)
+    y0, x0 = (n - h) // 2, (n - w) // 2
+    return np.asarray(g, dtype=np.float32)[y0:y0 + h, x0:x0 + w] / 255.0
+
+
 def _quantize(im: Image.Image, colors: int) -> Image.Image:
     return im.convert("RGB").quantize(colors=colors, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).convert("RGB")
 
@@ -107,9 +117,7 @@ def sketch(im):
     h, w = g.shape
     rng = np.random.default_rng(SEED)
     # 斜めの鉛筆の目を陰の所にだけ入れる
-    hatch = (rng.random((h, w)) < 0.5).astype(np.float32)
-    hatch = np.asarray(Image.fromarray((hatch * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.6))
-                       .rotate(35, resample=Image.BILINEAR), dtype=np.float32) / 255.0
+    hatch = _streaks(h, w, 35)
     shade = np.clip((0.55 - g) * 1.6, 0, 1)
     out = dodge ** 1.6 * (1 - 0.25 * shade * hatch)
     return _img(np.repeat(out[..., None], 3, -1) * _paper(h, w, (1.0, 0.99, 0.96)))
@@ -443,11 +451,86 @@ def charcoal(im):
     return _img(v[..., None] * _paper(h, w, (0.97, 0.96, 0.93)))
 
 
+def engraving(im):
+    """銅版画。暗さに応じて細い平行線の密度と太さを変え、主線を重ねる"""
+    g = np.asarray(ImageOps.autocontrast(im.convert("L"), cutoff=2), dtype=np.float32) / 255.0
+    g = _blur(g, 1.0)
+    h, w = g.shape
+    p = max(4, min(h, w) // 110)
+    yy, xx = np.mgrid[0:h, 0:w]
+    wave = np.abs(((yy + 0.6 * xx + 3 * np.sin(xx / 40.0)) % p) / p - 0.5) * 2  # 0 が線の芯
+    hatch = (wave < (1 - g) * 0.9).astype(np.float32)
+    cross = (np.abs(((yy - 0.6 * xx) % p) / p - 0.5) * 2 < (0.45 - g) * 1.2).astype(np.float32)
+    ink = np.maximum(np.maximum(hatch, cross), _line(im))
+    return _img(np.repeat((1 - ink)[..., None], 3, -1) * _paper(h, w, (0.97, 0.95, 0.9), 0.02))
+
+
+def colorpencil(im):
+    """色鉛筆。紙の白を残し、斜めの細かい筆の目で色を乗せる"""
+    a = _arr(im)
+    h, w, _ = a.shape
+    rng = np.random.default_rng(SEED)
+    grain = _streaks(h, w, 30, 0.5)
+    cover = np.clip((1 - _gray(a)) * 1.3 + 0.15, 0, 1)
+    take = (grain < cover).astype(np.float32)[..., None] * 0.85 + 0.15
+    paper = _paper(h, w, (0.99, 0.98, 0.95))
+    out = paper * (1 - take) + a * take
+    return _img(out * (1 - 0.6 * _line(im)[..., None]))
+
+
+def neon(im):
+    """ネオン。黒地に、元の色で光る線"""
+    line = _line(im)
+    a = _arr(im)
+    g = _gray(a)[..., None]
+    col = np.clip(g + (a - g) * 2.2 + 0.25, 0, 1)
+    glow = _blur(line, 4.0)[..., None]
+    core = line[..., None]
+    return _img(col * np.clip(glow * 2.2, 0, 1) * 0.8 + core * 0.9)
+
+
+def silhouette(im):
+    """影絵。被写体を黒一色にし、夕焼けの色の地に置く"""
+    sub = _subject(im)
+    h, w = sub.shape
+    t = np.linspace(0, 1, h, dtype=np.float32)[:, None, None]
+    sky = np.array([0.98, 0.78, 0.35]) * (1 - t) + np.array([0.85, 0.3, 0.25]) * t
+    return _img(np.broadcast_to(sky, (h, w, 3)) * (1 - sub[..., None]) + 0.04 * sub[..., None])
+
+
+def pastel(im):
+    """パステル。色を淡くし、粉のざらつきと擦れを入れる"""
+    a = _arr(im)
+    k = _kuwahara(a, max(2, min(a.shape[:2]) // 120))
+    soft = 1 - (1 - k) * 0.6
+    g = _gray(soft)[..., None]
+    soft = g + (soft - g) * 0.8
+    h, w, _ = a.shape
+    rng = np.random.default_rng(SEED)
+    dust = np.asarray(Image.fromarray((rng.random((h, w)) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.2)), dtype=np.float32)[..., None] / 255.0
+    return _img(soft * (0.92 + 0.12 * dust) * _paper(h, w, (0.99, 0.97, 0.93)))
+
+
+def linocut(im):
+    """版画（リノカット）。白と黒の 2 値に彫り、彫り跡の筋を少し残す"""
+    g = np.asarray(ImageOps.autocontrast(im.convert("L"), cutoff=2), dtype=np.float32) / 255.0
+    g = _blur(g, 1.5)
+    h, w = g.shape
+    yy, xx = np.mgrid[0:h, 0:w]
+    gouge = 0.08 * np.sin((xx * 0.3 + yy * 0.9) / max(2, min(h, w) // 200))
+    ink = ((g + gouge) < 0.5).astype(np.float32)
+    ink = np.maximum(ink, _line(im))
+    ink = np.asarray(Image.fromarray((ink * 255).astype(np.uint8)).filter(ImageFilter.ModeFilter(3)), dtype=np.float32) / 255.0
+    return _img(np.repeat((1 - ink)[..., None], 3, -1) * _paper(h, w, (0.97, 0.94, 0.87), 0.02))
+
+
 STYLES = {
     "mono": mono, "sepia": sepia, "sketch": sketch, "charcoal": charcoal, "lineart": lineart, "ink": ink,
     "kirie": kirie, "stainedglass": stainedglass, "mosaic": mosaic, "impressionist": impressionist,
     "pointillism": pointillism, "oil": oil, "watercolor": watercolor, "anime": anime, "manga": manga,
     "ukiyoe": ukiyoe, "popart": popart, "pixel": pixel, "blueprint": blueprint,
+    "engraving": engraving, "colorpencil": colorpencil, "neon": neon, "silhouette": silhouette,
+    "pastel": pastel, "linocut": linocut,
 }
 
 
