@@ -2,7 +2,7 @@
 
 `python3 tools/library_check.py` が書く。手で直さない。置き方の決まりは [docs/STRUCTURE.md](../docs/STRUCTURE.md)。
 
-全 540 枚（置き場 38 か所）。どこからも参照されていない絵 129 枚には「未参照」と付ける。
+全 545 枚（置き場 39 か所）。どこからも参照されていない絵 129 枚には「未参照」と付ける。
 
 ## 置き場の一覧
 
@@ -26,10 +26,11 @@
 | [`library/feedback/app-e2e/`](#library-feedback-app-e2e) | フィードバックの成果物 | 1 |
 | [`library/feedback/baseline/`](#library-feedback-baseline) | フィードバックの成果物 | 2 |
 | [`library/feedback/bench/`](#library-feedback-bench) | フィードバックの成果物 | 4 |
-| [`library/feedback/body/`](#library-feedback-body) | フィードバックの成果物 | 3 |
+| [`library/feedback/body/`](#library-feedback-body) | フィードバックの成果物 | 4 |
 | [`library/feedback/check/`](#library-feedback-check) | フィードバックの成果物 | 176 |
 | [`library/feedback/finish/`](#library-feedback-finish) | フィードバックの成果物 | 2 |
 | [`library/feedback/settei/`](#library-feedback-settei) | フィードバックの成果物 | 3 |
+| [`library/feedback/shoes/`](#library-feedback-shoes) | フィードバックの成果物 | 4 |
 | [`library/feedback/stylize/`](#library-feedback-stylize) | フィードバックの成果物 | 66 |
 | [`library/progress/2026-09-29/`](#library-progress-2026-09-29) | 比べた記録 | 32 |
 | [`library/progress/2026-09-30/`](#library-progress-2026-09-30) | 比べた記録 | 29 |
@@ -183,9 +184,9 @@
 <a id="library-feedback-body"></a>
 ## library/feedback/body/
 
-|   |   |   |
-|---|---|---|
-| <a href="feedback/body/2026-10-19/r16/r16-front-s16001.jpg"><img src="feedback/body/2026-10-19/r16/r16-front-s16001.jpg" width="150" alt="r16-front-s16001.jpg"></a><br><sub>r16-front-s16001.jpg</sub> | <a href="feedback/body/2026-10-19/r17/r17-side-s17001.jpg"><img src="feedback/body/2026-10-19/r17/r17-side-s17001.jpg" width="150" alt="r17-side-s17001.jpg"></a><br><sub>r17-side-s17001.jpg</sub> | <a href="feedback/body/2026-10-19/r18/r18-front-s18001.jpg"><img src="feedback/body/2026-10-19/r18/r18-front-s18001.jpg" width="150" alt="r18-front-s18001.jpg"></a><br><sub>r18-front-s18001.jpg</sub> |
+|   |   |   |   |
+|---|---|---|---|
+| <a href="feedback/body/2026-10-19/r16/r16-front-s16001.jpg"><img src="feedback/body/2026-10-19/r16/r16-front-s16001.jpg" width="150" alt="r16-front-s16001.jpg"></a><br><sub>r16-front-s16001.jpg</sub> | <a href="feedback/body/2026-10-19/r17/r17-side-s17001.jpg"><img src="feedback/body/2026-10-19/r17/r17-side-s17001.jpg" width="150" alt="r17-side-s17001.jpg"></a><br><sub>r17-side-s17001.jpg</sub> | <a href="feedback/body/2026-10-19/r18/r18-front-s18001.jpg"><img src="feedback/body/2026-10-19/r18/r18-front-s18001.jpg" width="150" alt="r18-front-s18001.jpg"></a><br><sub>r18-front-s18001.jpg</sub> | <a href="feedback/body/2026-10-19/r19/r19-side-s19001.jpg"><img src="feedback/body/2026-10-19/r19/r19-side-s19001.jpg" width="150" alt="r19-side-s19001.jpg"></a><br><sub>r19-side-s19001.jpg</sub> |
 
 <a id="library-feedback-check"></a>
 ## library/feedback/check/
@@ -236,6 +237,13 @@
 |   |   |   |
 |---|---|---|
 | <a href="feedback/settei/2026-10-18/swordswoman/swordswoman-1-main.jpg"><img src="feedback/settei/2026-10-18/swordswoman/swordswoman-1-main.jpg" width="150" alt="swordswoman-1-main.jpg"></a><br><sub>swordswoman-1-main.jpg</sub> | <a href="feedback/settei/2026-10-18/swordswoman/swordswoman-2-expressions.jpg"><img src="feedback/settei/2026-10-18/swordswoman/swordswoman-2-expressions.jpg" width="150" alt="swordswoman-2-expressions.jpg"></a><br><sub>swordswoman-2-expressions.jpg</sub> | <a href="feedback/settei/2026-10-18/swordswoman/swordswoman-3-details.jpg"><img src="feedback/settei/2026-10-18/swordswoman/swordswoman-3-details.jpg" width="150" alt="swordswoman-3-details.jpg"></a><br><sub>swordswoman-3-details.jpg</sub> |
+
+<a id="library-feedback-shoes"></a>
+## library/feedback/shoes/
+
+|   |   |   |   |
+|---|---|---|---|
+| <a href="feedback/shoes/2026-10-20/knight/knight-1-s21.jpg"><img src="feedback/shoes/2026-10-20/knight/knight-1-s21.jpg" width="150" alt="knight-1-s21.jpg"></a><br><sub>knight-1-s21.jpg</sub> | <a href="feedback/shoes/2026-10-20/knight/knight-2-s22.jpg"><img src="feedback/shoes/2026-10-20/knight/knight-2-s22.jpg" width="150" alt="knight-2-s22.jpg"></a><br><sub>knight-2-s22.jpg</sub> | <a href="feedback/shoes/2026-10-20/knight/knight-3-s23.jpg"><img src="feedback/shoes/2026-10-20/knight/knight-3-s23.jpg" width="150" alt="knight-3-s23.jpg"></a><br><sub>knight-3-s23.jpg</sub> | <a href="feedback/shoes/2026-10-20/knight/knight-4-s24.jpg"><img src="feedback/shoes/2026-10-20/knight/knight-4-s24.jpg" width="150" alt="knight-4-s24.jpg"></a><br><sub>knight-4-s24.jpg</sub> |
 
 <a id="library-feedback-stylize"></a>
 ## library/feedback/stylize/
