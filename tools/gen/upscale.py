@@ -12,14 +12,15 @@
 """
 from __future__ import annotations
 
+import cdhome
 import argparse
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-WEIGHTS = ROOT / ".cache" / "gen" / "upscale" / "RealESRGAN_x4plus_anime_6B.pth"
+WEIGHTS = cdhome.HOME / "gen" / "upscale" / "RealESRGAN_x4plus_anime_6B.pth"
 URL = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth"
 # 写真（写実の絵）用。アニメ用は塗りを平らにする学習なので、写真に掛けると肌のきめと髪の毛筋が溶けて油絵のようになる
-WEIGHTS_PHOTO = ROOT / ".cache" / "gen" / "upscale" / "RealESRGAN_x4plus.pth"
+WEIGHTS_PHOTO = cdhome.HOME / "gen" / "upscale" / "RealESRGAN_x4plus.pth"
 URL_PHOTO = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.0/RealESRGAN_x4plus.pth"
 
 _NET = {}

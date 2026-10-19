@@ -17,6 +17,7 @@
 batch は設定集（casts/*.json）の全員を、モデルを1回だけ読み込んで描く。描き終えた絵は飛ばすので、
 途中で止まっても同じコマンドで続きから描ける。sheet は描いた絵を名前付きで1枚に並べる。
 """
+import cdhome
 import argparse
 import functools
 import json
@@ -28,7 +29,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 # 描く部品（torch、diffusers）は .cache/gen/lib にある。PYTHONPATH を付け忘れると torch が読めず止まったので、自分で通す
-_LIB = ROOT / ".cache" / "gen" / "lib"
+_LIB = cdhome.HOME / "gen" / "lib"
 if _LIB.exists() and str(_LIB) not in sys.path:
     sys.path.append(str(_LIB))
 
@@ -40,7 +41,7 @@ def hub_defaults():
     huggingface_hub は読み込んだ時の環境変数を定数に写すので、diffusers を先に読んだ呼び出し元（6周目の run.py）では
     環境変数を足しても効かず、模型を ~/.cache/huggingface へ取りに行った。読み込み済みなら定数も書き換え、読む順番に左右されなくする"""
     mine = {k: k not in os.environ for k in ("HF_HOME", "HF_HUB_OFFLINE")}
-    home = os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))
+    home = os.environ.setdefault("HF_HOME", str(cdhome.HOME / "gen" / "hf"))
     offline = os.environ.setdefault("HF_HUB_OFFLINE", "0" if os.environ.get("CD_FETCH") == "1" else "1") == "1"
     c = sys.modules.get("huggingface_hub.constants")
     if c is None:

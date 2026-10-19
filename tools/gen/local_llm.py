@@ -14,6 +14,7 @@ Ollama・LM Studio・llama.cpp の server（llama-cpp-python の llama_cpp.serve
 """
 from __future__ import annotations
 
+import cdhome
 import json
 import os
 import urllib.error
@@ -25,7 +26,7 @@ ROOT = Path(__file__).resolve().parents[2]
 
 
 def settings_path() -> Path:
-    return Path(os.environ.get("CD_LLM_SETTINGS", ROOT / ".cache" / "app" / "llm.json"))
+    return Path(os.environ.get("CD_LLM_SETTINGS", cdhome.HOME / "app" / "llm.json"))
 
 
 def load_settings() -> dict:

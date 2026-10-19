@@ -25,6 +25,8 @@ import webbrowser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+# 部品と模型の置き場所。決め方は tools/gen/cdhome.py と同じ（起動は部品を入れる前に動くので、そちらを読まずに同じ式で持つ）
+HOME = Path(os.environ.get("CD_HOME") or ROOT / ".cache")
 PORT = int(os.environ.get("CD_PORT", "8000"))
 # 絵の模型 約 7GB に、取る途中の一時ファイルと描いた絵の分を足した空き
 MODEL_NEED_GB = 10
@@ -47,7 +49,7 @@ def run(args: list[str], env: dict | None = None) -> None:
 
 
 def setup() -> None:
-    lib = ROOT / ".cache" / "app" / "lib"
+    lib = HOME / "app" / "lib"
     if not (lib / "fastapi").exists():
         say("サーバーの部品")
         run([sys.executable, "-m", "pip", "install", "-q", "--disable-pip-version-check", "--target", str(lib),
@@ -59,7 +61,7 @@ def setup() -> None:
 def ensure_model() -> bool:
     """作風 anime に割り当てた模型が手元に無ければ取る。取れないときは理由を出して False を返す（画面は開く）"""
     gen = str(ROOT / "tools" / "gen")
-    env = {"PYTHONPATH": os.pathsep.join([str(ROOT / ".cache" / "gen" / "lib"), gen])}
+    env = {"PYTHONPATH": os.pathsep.join([str(HOME / "gen" / "lib"), gen])}
     probe = subprocess.run([sys.executable, "-c", "import json, models; c = models.check(models.for_style('anime'));"
                             "print(json.dumps(c, ensure_ascii=False))"],
                            env={**os.environ, **env}, capture_output=True, text=True)
@@ -94,9 +96,9 @@ def open_when_ready(url: str) -> None:
 
 
 def serve(browser: bool) -> None:
-    for p in (ROOT / ".cache" / "app" / "lib", ROOT / ".cache" / "gen" / "lib", ROOT):
+    for p in (HOME / "app" / "lib", HOME / "gen" / "lib", ROOT):
         sys.path.insert(0, str(p))
-    os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))
+    os.environ.setdefault("HF_HOME", str(HOME / "gen" / "hf"))
     url = f"http://127.0.0.1:{PORT}/"
     say(f"起動します。開く: {url}（止めるときはこの窓を閉じるか Ctrl-C）")
     if browser:
