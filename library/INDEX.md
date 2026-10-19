@@ -2,7 +2,7 @@
 
 `python3 tools/library_check.py` が書く。手で直さない。置き方の決まりは [docs/STRUCTURE.md](../docs/STRUCTURE.md)。
 
-全 545 枚（置き場 39 か所）。どこからも参照されていない絵 129 枚には「未参照」と付ける。
+全 553 枚（置き場 39 か所）。どこからも参照されていない絵 129 枚には「未参照」と付ける。
 
 ## 置き場の一覧
 
@@ -30,7 +30,7 @@
 | [`library/feedback/check/`](#library-feedback-check) | フィードバックの成果物 | 176 |
 | [`library/feedback/finish/`](#library-feedback-finish) | フィードバックの成果物 | 2 |
 | [`library/feedback/settei/`](#library-feedback-settei) | フィードバックの成果物 | 3 |
-| [`library/feedback/shoes/`](#library-feedback-shoes) | フィードバックの成果物 | 4 |
+| [`library/feedback/shoes/`](#library-feedback-shoes) | フィードバックの成果物 | 12 |
 | [`library/feedback/stylize/`](#library-feedback-stylize) | フィードバックの成果物 | 66 |
 | [`library/progress/2026-09-29/`](#library-progress-2026-09-29) | 比べた記録 | 32 |
 | [`library/progress/2026-09-30/`](#library-progress-2026-09-30) | 比べた記録 | 29 |
@@ -241,9 +241,10 @@
 <a id="library-feedback-shoes"></a>
 ## library/feedback/shoes/
 
-|   |   |   |   |
-|---|---|---|---|
-| <a href="feedback/shoes/2026-10-20/knight/knight-1-s21.jpg"><img src="feedback/shoes/2026-10-20/knight/knight-1-s21.jpg" width="150" alt="knight-1-s21.jpg"></a><br><sub>knight-1-s21.jpg</sub> | <a href="feedback/shoes/2026-10-20/knight/knight-2-s22.jpg"><img src="feedback/shoes/2026-10-20/knight/knight-2-s22.jpg" width="150" alt="knight-2-s22.jpg"></a><br><sub>knight-2-s22.jpg</sub> | <a href="feedback/shoes/2026-10-20/knight/knight-3-s23.jpg"><img src="feedback/shoes/2026-10-20/knight/knight-3-s23.jpg" width="150" alt="knight-3-s23.jpg"></a><br><sub>knight-3-s23.jpg</sub> | <a href="feedback/shoes/2026-10-20/knight/knight-4-s24.jpg"><img src="feedback/shoes/2026-10-20/knight/knight-4-s24.jpg" width="150" alt="knight-4-s24.jpg"></a><br><sub>knight-4-s24.jpg</sub> |
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <a href="feedback/shoes/2026-10-20/knight/knight-1-s21.jpg"><img src="feedback/shoes/2026-10-20/knight/knight-1-s21.jpg" width="150" alt="knight-1-s21.jpg"></a><br><sub>knight-1-s21.jpg</sub> | <a href="feedback/shoes/2026-10-20/knight/knight-2-s22.jpg"><img src="feedback/shoes/2026-10-20/knight/knight-2-s22.jpg" width="150" alt="knight-2-s22.jpg"></a><br><sub>knight-2-s22.jpg</sub> | <a href="feedback/shoes/2026-10-20/knight/knight-3-s23.jpg"><img src="feedback/shoes/2026-10-20/knight/knight-3-s23.jpg" width="150" alt="knight-3-s23.jpg"></a><br><sub>knight-3-s23.jpg</sub> | <a href="feedback/shoes/2026-10-20/knight/knight-4-s24.jpg"><img src="feedback/shoes/2026-10-20/knight/knight-4-s24.jpg" width="150" alt="knight-4-s24.jpg"></a><br><sub>knight-4-s24.jpg</sub> | <a href="feedback/shoes/2026-10-20/knight2/knight2-1-s25.jpg"><img src="feedback/shoes/2026-10-20/knight2/knight2-1-s25.jpg" width="150" alt="knight2-1-s25.jpg"></a><br><sub>knight2-1-s25.jpg</sub> | <a href="feedback/shoes/2026-10-20/knight2/knight2-2-s26.jpg"><img src="feedback/shoes/2026-10-20/knight2/knight2-2-s26.jpg" width="150" alt="knight2-2-s26.jpg"></a><br><sub>knight2-2-s26.jpg</sub> |
+| <a href="feedback/shoes/2026-10-20/knight2/knight2-3-s27.jpg"><img src="feedback/shoes/2026-10-20/knight2/knight2-3-s27.jpg" width="150" alt="knight2-3-s27.jpg"></a><br><sub>knight2-3-s27.jpg</sub> | <a href="feedback/shoes/2026-10-20/knight2/knight2-4-s28.jpg"><img src="feedback/shoes/2026-10-20/knight2/knight2-4-s28.jpg" width="150" alt="knight2-4-s28.jpg"></a><br><sub>knight2-4-s28.jpg</sub> | <a href="feedback/shoes/2026-10-20/knight2/knight2-5-s29.jpg"><img src="feedback/shoes/2026-10-20/knight2/knight2-5-s29.jpg" width="150" alt="knight2-5-s29.jpg"></a><br><sub>knight2-5-s29.jpg</sub> | <a href="feedback/shoes/2026-10-20/knight2/knight2-6-s30.jpg"><img src="feedback/shoes/2026-10-20/knight2/knight2-6-s30.jpg" width="150" alt="knight2-6-s30.jpg"></a><br><sub>knight2-6-s30.jpg</sub> | <a href="feedback/shoes/2026-10-20/knight2/knight2-7-s31.jpg"><img src="feedback/shoes/2026-10-20/knight2/knight2-7-s31.jpg" width="150" alt="knight2-7-s31.jpg"></a><br><sub>knight2-7-s31.jpg</sub> | <a href="feedback/shoes/2026-10-20/knight2/knight2-8-s32.jpg"><img src="feedback/shoes/2026-10-20/knight2/knight2-8-s32.jpg" width="150" alt="knight2-8-s32.jpg"></a><br><sub>knight2-8-s32.jpg</sub> |
 
 <a id="library-feedback-stylize"></a>
 ## library/feedback/stylize/
