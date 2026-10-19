@@ -835,6 +835,14 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
             low_p = prompt.lower()
             held = held_items(tags, prompt)
             extra = sorted(set(unasked_wear(tags, prompt)) | set(held["unasked"]))
+            try:
+                import pieces
+                if pieces.ready():
+                    extra_count = pieces.count_extra(src, prompt)
+                    if extra_count:
+                        res["problems"].append({"item_count": extra_count})
+            except Exception as e:
+                res["unreadable"].append({"item_count": f"{type(e).__name__}: {e}"})
             many = not_solo(all_tags, prompt)
             if many:
                 res["problems"].append({"not_solo": many})

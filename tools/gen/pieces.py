@@ -64,18 +64,28 @@ def asked(prompt: str) -> list[str]:
     return [k for k in QUERIES if k in words]
 
 
-def detect(src: str, queries: list[str]) -> list[tuple[str, float, list[float]]]:
+_OWL = None
+
+
+def _owl():
+    """検出器は 1 回だけ読む（絵ごとに読み直すと 1 枚に読み込みの時間が足された）"""
+    global _OWL
+    if _OWL is None:
+        from transformers import Owlv2ForObjectDetection, Owlv2Processor
+        _OWL = (Owlv2Processor.from_pretrained(MODEL), Owlv2ForObjectDetection.from_pretrained(MODEL))
+    return _OWL
+
+
+def detect(src: str, queries: list[str], least: float = LEAST) -> list[tuple[str, float, list[float]]]:
     import torch
     from PIL import Image
-    from transformers import Owlv2ForObjectDetection, Owlv2Processor
-    proc = Owlv2Processor.from_pretrained(MODEL)
-    model = Owlv2ForObjectDetection.from_pretrained(MODEL)
+    proc, model = _owl()
     im = Image.open(src).convert("RGB")
     with torch.no_grad():
         out = model(**proc(text=[queries], images=im, return_tensors="pt"))
     # OWLv2 は正方形に詰めて読むので、長い辺の正方形で座標を戻す
     s = max(im.size)
-    r = proc.post_process_grounded_object_detection(out, threshold=LEAST, target_sizes=torch.tensor([[s, s]]))[0]
+    r = proc.post_process_grounded_object_detection(out, threshold=least, target_sizes=torch.tensor([[s, s]]))[0]
     return [(queries[int(l)], float(c), [float(v) for v in b]) for c, l, b in zip(r["scores"], r["labels"], r["boxes"])]
 
 
@@ -87,6 +97,32 @@ def split_objects(src: str, prompt: str) -> list[str]:
         groups = clusters([b for _, _, b in found])
         if len(groups) >= 2:
             out.append(f"{word} が {len(groups)} つに分かれて描かれている（柄と先が別々）")
+    return out
+
+
+# 頼んだ持ち物が 1 つのはずなのに、別の所に 2 つ以上描かれた崩れ（学生鞄が両手に 1 つずつ、8 枚中 3〜4 枚）
+COUNT = {"bag": ["a bag", "a school bag"], "backpack": ["a backpack"], "sword": ["a sword"], "cup": ["a cup"],
+         "glass": ["a drinking glass"], "umbrella": ["an umbrella"], "book": ["a book"]}
+MANY_WORDS = ("two ", "both", "pair", "multiple", "several", "dual", "2 ")
+
+
+def count_extra(src: str, prompt: str, least: float = 0.2) -> list[str]:
+    """頼んだ数え物（鞄・剣・器）が 1 つのはずなのに、重ならない 2 か所以上に見つかれば、その理由を返す。
+    セーラー服で book bag を持たせた 8 枚で、目で見て 2 つの鞄を描いた絵のうち 3 枚に当たり、1 つの絵には当たらなかった"""
+    low = prompt.lower()
+    if any(w in low for w in MANY_WORDS):
+        return []
+    words = {w.strip(" ()") for t in low.split(",") for w in t.split()}
+    # 「book bag」の book は鞄の言い方の一部で、本を頼んではいない
+    if "book bag" in low and "book," not in low + ",":
+        words.discard("book")
+    out = []
+    for word, queries in COUNT.items():
+        if word not in words:
+            continue
+        groups = clusters([b for _, _, b in detect(src, queries, least)])
+        if len(groups) >= 2:
+            out.append(f"{word} が {len(groups)} つ描かれている（頼んだのは 1 つ）")
     return out
 
 
