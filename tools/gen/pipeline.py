@@ -160,7 +160,9 @@ def check_hands(res, ident, view, st):
         # 正面と横では手は見えている。手の模型が手と読めない（手らしさ 0.0）のは、指が 2〜3 本の爪の形に崩れた手だった
         # （読めない手を目に回して通したため、崩れた手が次の工程へ進んだ）。後ろ向きだけは隠れるので通す
         return [] if view == "back" else ["手として読めない（指が描けていない）"]
-    return [f"手 {json.dumps(h['bad'], ensure_ascii=False, default=float)}"] if h["bad"] else []
+    # どの手のどの測りが範囲の外かを残す（bad は真偽だけで、「手 true」では直す所が分からなかった）
+    out = {f"{i}": x["outside"] for i, x in enumerate(h["hands"]) if x.get("seen") and x.get("outside")}
+    return [f"手の外れ {json.dumps(out, ensure_ascii=False, default=float)}"] if h["bad"] else []
 
 
 def phase_check(ident, out, view, seed, st):
