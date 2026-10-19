@@ -50,6 +50,16 @@ def _paper(h: int, w: int, tone=(0.97, 0.95, 0.90), grain: float = 0.03) -> np.n
     return np.clip(np.array(tone, dtype=np.float32) + n, 0, 1)
 
 
+def _streaks(h: int, w: int, angle: float, density: float = 0.5, blur: float = 0.7) -> np.ndarray:
+    """斜めの筆の目 0〜1。大きめに作って回してから切り出し、回した角に地が出ないようにする"""
+    n = int(np.hypot(h, w)) + 2
+    rng = np.random.default_rng(SEED)
+    g = Image.fromarray(((rng.random((n, n)) < density) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(blur))
+    g = g.resize((n, n // 4)).resize((n, n), Image.BILINEAR).rotate(angle, resample=Image.BILINEAR)
+    y0, x0 = (n - h) // 2, (n - w) // 2
+    return np.asarray(g, dtype=np.float32)[y0:y0 + h, x0:x0 + w] / 255.0
+
+
 def _quantize(im: Image.Image, colors: int) -> Image.Image:
     return im.convert("RGB").quantize(colors=colors, method=Image.Quantize.MEDIANCUT, dither=Image.Dither.NONE).convert("RGB")
 
@@ -107,9 +117,7 @@ def sketch(im):
     h, w = g.shape
     rng = np.random.default_rng(SEED)
     # 斜めの鉛筆の目を陰の所にだけ入れる
-    hatch = (rng.random((h, w)) < 0.5).astype(np.float32)
-    hatch = np.asarray(Image.fromarray((hatch * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(0.6))
-                       .rotate(35, resample=Image.BILINEAR), dtype=np.float32) / 255.0
+    hatch = _streaks(h, w, 35)
     shade = np.clip((0.55 - g) * 1.6, 0, 1)
     out = dodge ** 1.6 * (1 - 0.25 * shade * hatch)
     return _img(np.repeat(out[..., None], 3, -1) * _paper(h, w, (1.0, 0.99, 0.96)))
@@ -179,19 +187,50 @@ def ink(im):
     return _img(v[..., None] * _paper(h, w, (0.96, 0.93, 0.86), 0.04))
 
 
+def _subject(im) -> np.ndarray:
+    """被写体の形 0/1。四辺の色を背景とみなし、背景から色が離れた所を被写体にする。
+    描いた動物は無地に近い背景の上にいるので、模型なしでも形が取れる"""
+    a = _arr(im.filter(ImageFilter.GaussianBlur(2)))
+    h, w, _ = a.shape
+    edge = np.concatenate([a[0], a[-1], a[:, 0], a[:, -1]])
+    bg = np.median(edge, 0)
+    d = np.sqrt(((a - bg) ** 2).sum(-1))
+    m = (d > max(0.12, np.percentile(np.sqrt(((edge - bg) ** 2).sum(-1)), 95) * 1.5)).astype(np.uint8) * 255
+    # 白い体が白い地にいると色の差では取れない。線（XDoG）も壁にして、四隅から背景を塗りつぶし、
+    # 塗られなかった所を被写体とする
+    s = max(1, min(h, w) // 300)
+    wall = np.maximum(m, (_drop_specks(xdog(im, sigma=0.7 * s), 3 * s, 7 * s) > 0.5) * 255).astype(np.uint8)
+    img = Image.fromarray(wall).filter(ImageFilter.MaxFilter(7))
+    from PIL import ImageDraw
+    for xy in ((0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)):
+        if img.getpixel(xy) == 0:
+            ImageDraw.floodfill(img, xy, 128)
+    m = np.where(np.asarray(img) == 128, 0, 255).astype(np.uint8)
+    img = Image.fromarray(m)
+    for f in (ImageFilter.MinFilter(5), ImageFilter.ModeFilter(9)):
+        img = img.filter(f)
+    return np.asarray(img, dtype=np.float32) / 255.0
+
+
 def kirie(im):
-    """切り絵。色を 5 枚の色紙に減らし、境に黒い切り線を入れる"""
-    a0 = _kuwahara(_arr(im), max(2, min(im.size) // 160))
-    q = _quantize(_img(a0), 6)
-    # 小さな切れ端は紙で切り出せないので、周りの色に吸わせる
-    q = q.filter(ImageFilter.ModeFilter(5))
-    a = _arr(q)
-    lab = a @ np.array([1, 7, 49], dtype=np.float32)
-    edge = np.zeros(lab.shape, bool)
-    edge[:, 1:] |= lab[:, 1:] != lab[:, :-1]
-    edge[1:, :] |= lab[1:, :] != lab[:-1, :]
-    edge = np.asarray(Image.fromarray(edge.astype(np.uint8) * 255).filter(ImageFilter.MaxFilter(3)), dtype=np.float32) / 255.0
-    return _img(a * (1 - edge[..., None] * 0.9))
+    """切り絵。被写体を黒い紙で切り抜き、明るい所と線の間を窓にして裏の色紙を透かす。
+    色を減らすだけの切り絵は背景の明暗まで紙に切られ、顔の形が崩れた"""
+    sub = _subject(im)
+    g = _gray(_arr(im.filter(ImageFilter.GaussianBlur(1.5))))
+    line = _line(im)
+    line = np.asarray(_img(np.repeat(line[..., None], 3, -1)).convert("L").filter(ImageFilter.MaxFilter(3)), dtype=np.float32) / 255.0
+    # 明るい所を窓にする。窓の境は線で残し、紙が一続きにつながるようにする
+    window = (g > np.percentile(g[sub > 0.5], 55) if (sub > 0.5).any() else g > 0.6) & (line < 0.5)
+    win = np.asarray(Image.fromarray(window.astype(np.uint8) * 255).filter(ImageFilter.ModeFilter(5)), dtype=np.float32) / 255.0
+    # 被写体の外周は必ず紙で縁取る。白い体が白い地に溶けて形が消えるのを防ぐ
+    rim = np.asarray(Image.fromarray((sub * 255).astype(np.uint8)).filter(ImageFilter.MinFilter(7)), dtype=np.float32) / 255.0
+    win = win * rim
+    paper = sub * (1 - win)
+    back = np.array([0.80, 0.12, 0.14], dtype=np.float32)
+    h, w = g.shape
+    ground = _paper(h, w, (0.96, 0.93, 0.86), 0.02)
+    out = ground * (1 - sub[..., None]) + back * (sub * win)[..., None] + 0.06 * paper[..., None]
+    return _img(out)
 
 
 def _cells(h: int, w: int, size: int):
@@ -231,11 +270,15 @@ def _borders(lab: np.ndarray, width: int) -> np.ndarray:
 
 
 def stainedglass(im):
-    """ステンドグラス。ガラス片ごとに色を平らにし、鉛の枠で区切り、彩度を上げて光を透かす"""
+    """ステンドグラス。被写体は細かい片、背景は大きい片にし、片ごとに色を平らにして鉛の枠で区切る。
+    片の大きさを揃えると、被写体の片が粗くて輪郭が消えるか、背景が枠だらけになった"""
     a = _arr(im)
     h, w, _ = a.shape
-    lab, n = _cells(h, w, max(14, min(h, w) // 24))
-    m = _cell_mean(a, lab, n)
+    sub = _subject(im) > 0.5
+    small, ns = _cells(h, w, max(8, min(h, w) // 48))
+    big, nb = _cells(h, w, max(16, min(h, w) // 14))
+    lab = np.where(sub, small, big + ns)
+    m = _cell_mean(a, lab, ns + nb)
     g = _gray(m)[..., None]
     m = np.clip(g + (m - g) * 1.6, 0, 1) * 1.08
     lead = np.maximum(_borders(lab, 3), _line(im))
@@ -267,9 +310,12 @@ def _strokes(im, length: int, width: int, density: float, jitter: float):
     n = int(h * w * density / (length * width))
     ys = rng.integers(0, h, n)
     xs = rng.integers(0, w, n)
+    # 背景に細かい筆を散らすと色の粒に見えた。背景では筆の色の揺れを小さくする
+    sub = _subject(im) > 0.5
     for y, x in zip(ys, xs):
+        jitter_here = jitter if sub[y, x] else jitter * 0.3
         # 明るさを主にずらし、色相のずれは小さく抑える（白地に虹色の粒が散るのを避ける）
-        c = a[y, x] * (1 + rng.uniform(-jitter, jitter)) + rng.uniform(-jitter, jitter, 3) * 0.25
+        c = a[y, x] * (1 + rng.uniform(-jitter_here, jitter_here)) + rng.uniform(-jitter_here, jitter_here, 3) * 0.25
         col = tuple(int(v) for v in np.clip(c * 255, 0, 255))
         t = ang[y, x] + rng.uniform(-0.3, 0.3)
         dx, dy = np.cos(t) * length / 2, np.sin(t) * length / 2
@@ -294,8 +340,10 @@ def pointillism(im):
     d = ImageDraw.Draw(canvas)
     rng = np.random.default_rng(SEED)
     n = int(h * w / (r * r) * 0.9)
+    sub = _subject(im) > 0.5
     for y, x in zip(rng.integers(0, h, n), rng.integers(0, w, n)):
-        c = np.clip((a[y, x] * (1 + rng.uniform(-0.2, 0.2)) + rng.uniform(-0.05, 0.05, 3)) * 255, 0, 255).astype(int)
+        j = 0.2 if sub[y, x] else 0.05
+        c = np.clip((a[y, x] * (1 + rng.uniform(-j, j)) + rng.uniform(-j / 4, j / 4, 3)) * 255, 0, 255).astype(int)
         d.ellipse([x - r, y - r, x + r, y + r], fill=tuple(int(v) for v in c))
     return canvas
 
@@ -403,11 +451,86 @@ def charcoal(im):
     return _img(v[..., None] * _paper(h, w, (0.97, 0.96, 0.93)))
 
 
+def engraving(im):
+    """銅版画。暗さに応じて細い平行線の密度と太さを変え、主線を重ねる"""
+    g = np.asarray(ImageOps.autocontrast(im.convert("L"), cutoff=2), dtype=np.float32) / 255.0
+    g = _blur(g, 1.0)
+    h, w = g.shape
+    p = max(4, min(h, w) // 110)
+    yy, xx = np.mgrid[0:h, 0:w]
+    wave = np.abs(((yy + 0.6 * xx + 3 * np.sin(xx / 40.0)) % p) / p - 0.5) * 2  # 0 が線の芯
+    hatch = (wave < (1 - g) * 0.9).astype(np.float32)
+    cross = (np.abs(((yy - 0.6 * xx) % p) / p - 0.5) * 2 < (0.45 - g) * 1.2).astype(np.float32)
+    ink = np.maximum(np.maximum(hatch, cross), _line(im))
+    return _img(np.repeat((1 - ink)[..., None], 3, -1) * _paper(h, w, (0.97, 0.95, 0.9), 0.02))
+
+
+def colorpencil(im):
+    """色鉛筆。紙の白を残し、斜めの細かい筆の目で色を乗せる"""
+    a = _arr(im)
+    h, w, _ = a.shape
+    rng = np.random.default_rng(SEED)
+    grain = _streaks(h, w, 30, 0.5)
+    cover = np.clip((1 - _gray(a)) * 1.3 + 0.15, 0, 1)
+    take = (grain < cover).astype(np.float32)[..., None] * 0.85 + 0.15
+    paper = _paper(h, w, (0.99, 0.98, 0.95))
+    out = paper * (1 - take) + a * take
+    return _img(out * (1 - 0.6 * _line(im)[..., None]))
+
+
+def neon(im):
+    """ネオン。黒地に、元の色で光る線"""
+    line = _line(im)
+    a = _arr(im)
+    g = _gray(a)[..., None]
+    col = np.clip(g + (a - g) * 2.2 + 0.25, 0, 1)
+    glow = _blur(line, 4.0)[..., None]
+    core = line[..., None]
+    return _img(col * np.clip(glow * 2.2, 0, 1) * 0.8 + core * 0.9)
+
+
+def silhouette(im):
+    """影絵。被写体を黒一色にし、夕焼けの色の地に置く"""
+    sub = _subject(im)
+    h, w = sub.shape
+    t = np.linspace(0, 1, h, dtype=np.float32)[:, None, None]
+    sky = np.array([0.98, 0.78, 0.35]) * (1 - t) + np.array([0.85, 0.3, 0.25]) * t
+    return _img(np.broadcast_to(sky, (h, w, 3)) * (1 - sub[..., None]) + 0.04 * sub[..., None])
+
+
+def pastel(im):
+    """パステル。色を淡くし、粉のざらつきと擦れを入れる"""
+    a = _arr(im)
+    k = _kuwahara(a, max(2, min(a.shape[:2]) // 120))
+    soft = 1 - (1 - k) * 0.6
+    g = _gray(soft)[..., None]
+    soft = g + (soft - g) * 0.8
+    h, w, _ = a.shape
+    rng = np.random.default_rng(SEED)
+    dust = np.asarray(Image.fromarray((rng.random((h, w)) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.2)), dtype=np.float32)[..., None] / 255.0
+    return _img(soft * (0.92 + 0.12 * dust) * _paper(h, w, (0.99, 0.97, 0.93)))
+
+
+def linocut(im):
+    """版画（リノカット）。白と黒の 2 値に彫り、彫り跡の筋を少し残す"""
+    g = np.asarray(ImageOps.autocontrast(im.convert("L"), cutoff=2), dtype=np.float32) / 255.0
+    g = _blur(g, 1.5)
+    h, w = g.shape
+    yy, xx = np.mgrid[0:h, 0:w]
+    gouge = 0.08 * np.sin((xx * 0.3 + yy * 0.9) / max(2, min(h, w) // 200))
+    ink = ((g + gouge) < 0.5).astype(np.float32)
+    ink = np.maximum(ink, _line(im))
+    ink = np.asarray(Image.fromarray((ink * 255).astype(np.uint8)).filter(ImageFilter.ModeFilter(3)), dtype=np.float32) / 255.0
+    return _img(np.repeat((1 - ink)[..., None], 3, -1) * _paper(h, w, (0.97, 0.94, 0.87), 0.02))
+
+
 STYLES = {
     "mono": mono, "sepia": sepia, "sketch": sketch, "charcoal": charcoal, "lineart": lineart, "ink": ink,
     "kirie": kirie, "stainedglass": stainedglass, "mosaic": mosaic, "impressionist": impressionist,
     "pointillism": pointillism, "oil": oil, "watercolor": watercolor, "anime": anime, "manga": manga,
     "ukiyoe": ukiyoe, "popart": popart, "pixel": pixel, "blueprint": blueprint,
+    "engraving": engraving, "colorpencil": colorpencil, "neon": neon, "silhouette": silhouette,
+    "pastel": pastel, "linocut": linocut,
 }
 
 
