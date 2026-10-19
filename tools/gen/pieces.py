@@ -114,6 +114,7 @@ ALIAS = {"swordsman": "sword", "swordswoman": "sword", "swordsmaster": "sword", 
 # 部品（刃と柄）に分けて聞く物は、箱が接していれば 1 つの物とする。騎士の 1 本の剣で、刃の箱と柄の箱が
 # 重ならずに接していたため 2 か所と数えた（重なりの割合だけでは、つながった部品を別の物と見る）
 TOUCH = {"sword"}
+STRONG = 0.3        # 部品に分けて聞く物で、塊を物とみなす自信の下限
 GAP = 0.03          # 長い辺に対するこの割合までの隙間は、接しているとみなす（分かれた剣士の柄と刃は 0.126 離れていた）
 
 
@@ -149,9 +150,14 @@ def count_extra(src: str, prompt: str, least: float = 0.2) -> list[str]:
     for word, queries in COUNT.items():
         if word not in words:
             continue
-        groups = clusters([b for _, _, b in detect(src, queries, least)])
+        found = detect(src, queries, least)
+        groups = clusters([b for _, _, b in found])
         if word in TOUCH:
             groups = joined(groups, src)
+            # 刃・柄と聞くと、鎧の草摺や垂れ布も 0.2〜0.29 で当たった（1 本の剣の騎士 8 枚中 7 枚を 2 か所と数えた）。
+            # どの箱も STRONG に届かない塊は剣とみなさない
+            score = {tuple(b): c for _, c, b in found}
+            groups = [g for g in groups if max(score.get(tuple(b), 0) for b in g) >= STRONG]
         if len(groups) >= 2:
             out.append(f"{word} が {len(groups)} か所に描かれている（頼んだのは 1 つ。別々の物か、1 つが途中で切れて分かれた）")
     return out
