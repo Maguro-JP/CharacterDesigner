@@ -448,6 +448,36 @@ def shoe_pair(points: list[dict], im: Image.Image, least: float = 0.3) -> dict |
 
 # 端の切れを数える部位: 顔・腕・脚・靴。髪・服・すそ・鞄が画面の外へ流れるのは構図として普通で、
 # 背景が画面いっぱいの絵では服や背景の一部を人物と読み、32 枚ほぼ全部を「切れ」と出した（描画確認 回7）
+LEG_LABELS = (5, 6, 7, 9, 10, 12, 13)
+# 脚が重なって見えて当たり前の姿勢と、脚の下が入らない構図
+LEGS_OVERLAP_OK = ("sitting", "seiza", "kneeling", "crouching", "squatting", "lying", "crossed legs", "legs together",
+                   "cowboy shot", "upper body", "portrait", "close-up", "from side", "profile", "long dress", "long skirt", "gown")
+
+
+def legs_fused(points: list[dict], seg: np.ndarray, prompt: str = "", apart: float = 0.09, least: float = 0.1,
+               seen: float = 0.5) -> dict:
+    """両脚が服の中で 1 本に溶けた崩れ。足首が絵の幅の apart 以上離れているのに、腰と足首の間（3 割〜9 割の高さ）で
+    脚の部位（ズボン・スカート・脚・靴）が左右 2 つに分かれる行が least 未満しかない。
+    基準の組の約 50 枚で、溶けた 1 枚（足首の差 0.103、分かれた行 0）だけが当たった。脚の重なりが当たり前の姿勢
+    （座る・しゃがむ・横向き・膝上の構図）では見ない（しゃがんだ横向きの絵は足首が 0.26 離れて分かれた行が 0 だった）"""
+    low = prompt.lower()
+    p = {q["name"]: q for q in points}
+    need = ("left_hip", "right_hip", "left_ankle", "right_ankle")
+    if any(w in low for w in LEGS_OVERLAP_OK) or any(n not in p or p[n]["score"] < seen for n in need):
+        return {"readable": False}
+    h, w = seg.shape
+    hip = (p["left_hip"]["y"] + p["right_hip"]["y"]) / 2
+    ank = (p["left_ankle"]["y"] + p["right_ankle"]["y"]) / 2
+    dx = abs(p["left_ankle"]["x"] - p["right_ankle"]["x"]) / w
+    y0, y1 = int(hip + (ank - hip) * 0.3), min(h - 1, int(hip + (ank - hip) * 0.9))
+    if y1 <= y0:
+        return {"readable": False}
+    m = np.isin(seg[y0:y1], LEG_LABELS).astype(int)
+    runs = (np.diff(np.pad(m, ((0, 0), (1, 1))), axis=1) == 1).sum(1)
+    split = float((runs >= 2).mean())
+    return {"readable": True, "fused": dx >= apart and split < least, "ankle_apart": round(dx, 3), "split_rows": round(split, 2)}
+
+
 EDGE_BODY = (11, 12, 13, 14, 15, 9, 10)
 
 
@@ -849,6 +879,9 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
                 res["occlusion"] = occ["parts"]
                 if occ["problems"]:
                     res["problems"].append({"occlusion": occ["problems"]})
+                fused = legs_fused(points, _parts(src, Image.open(src).convert("RGB")), prompt)
+                if fused.get("fused"):
+                    res["problems"].append({"legs_fused": fused})
             except Exception as e:
                 res["unreadable"].append({"occlusion": f"{type(e).__name__}: {e}"})
         if not person["found"]:
@@ -930,7 +963,7 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
 
 
 # 崩れの重さ（100 点から引く）。体のつながりや人そのものの崩れは直せないので重く、部分の直しで直せる崩れは軽くする
-PENALTY = {"fixed_restriction": 100, "person": 60, "human_legs": 40, "edge_cut": 25, "eyes": 15, "extra_eyes": 15, "floating": 15, "hands": 15, "occlusion": 15,
+PENALTY = {"fixed_restriction": 100, "person": 60, "human_legs": 40, "edge_cut": 25, "eyes": 15, "extra_eyes": 15, "floating": 15, "hands": 15, "occlusion": 15, "legs_fused": 25,
            "seams": 10, "measure": 8}
 
 
