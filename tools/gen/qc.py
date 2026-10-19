@@ -274,7 +274,23 @@ BANDS = {"眉と目": (0.10, 0.58), "口": (0.60, 0.92)}
 RISKY = 0.5
 # 頼んだ言葉に無ければ「設定に無い物」とする服飾のタグ。最後の語（hat、glasses）が頼んだ言葉にあれば数えない
 UNASKED_WEAR = ("hat", "cowboy hat", "witch hat", "baseball cap", "beret", "top hat", "glasses", "sunglasses", "scarf",
-                "headphones", "mask", "eyepatch", "cape", "gloves", "necktie", "bow")
+                "headphones", "mask", "eyepatch", "cape", "gloves", "necktie", "bow",
+                # 頼んでいない上着・刀・腕の布（白ビキニの描画確認で数枚に出た）
+                "jacket", "open jacket", "coat", "hoodie", "cardigan", "katana", "sword", "arm warmers", "detached sleeves",
+                "bandages", "armband")
+# 服の柄・文字。plain の T シャツの胸に読めない文字が描かれた（基準の組、MeinaMix）。頼んだ言葉に柄・文字の言葉が無ければ崩れ
+PRINTS = ("clothes writing", "print shirt", "english text", "logo")
+PRINT_WORDS = ("print", "logo", "text", "writing", "letter", "graphic")
+
+
+def unasked_wear(tags: dict, prompt: str, least: float = 0.5) -> list[str]:
+    """頼んだ言葉に無い服飾・持ち物（帽子、上着、刀、腕の布）と、柄・文字を頼んでいない服の柄・文字。
+    基準の組の 46 枚で 10 枚に当たり、目で見た 3 枚（刀に見える白い布、黒い腕の布、胸の文字）はどれも描かれていた"""
+    low = prompt.lower()
+    out = [t for t in UNASKED_WEAR if tags.get(t, 0) >= least and t.split()[-1] not in low]
+    if not any(w in low for w in PRINT_WORDS):
+        out += [t for t in PRINTS if tags.get(t, 0) >= least]
+    return sorted(out)
 
 
 # 「holding X」のうち物でないもの（体・人・動き）。持ち物の数え方から外す
@@ -801,9 +817,8 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
         # 頼んでいない服飾（帽子など）。バーの男 8 枚中 7 枚に頼んでいないカウボーイハットが描かれ、検品が数えなかった（描画確認 回5）
         if prompt:
             low_p = prompt.lower()
-            extra = sorted(t for t in UNASKED_WEAR if tags.get(t, 0) >= 0.5 and t.split()[-1] not in low_p)
             held = held_items(tags, prompt)
-            extra = sorted(set(extra) | set(held["unasked"]))
+            extra = sorted(set(unasked_wear(tags, prompt)) | set(held["unasked"]))
             if extra:
                 res["problems"].append({"unasked_item": extra})
             if held["many"]:
