@@ -508,7 +508,9 @@ class JobIn(BaseModel):
 
 
 def create_app(runner: Runner | None = None) -> FastAPI:
-    app = FastAPI(title="CharacterDesigner")
+    # 版は根の VERSION の 1 か所だけに置く（画面・Setup.exe・サーバーで食い違わないように）
+    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    app = FastAPI(title="CharacterDesigner", version=version)
     jobs = Queue(runner or Runner())
     app.state.jobs = jobs
 

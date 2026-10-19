@@ -52,7 +52,7 @@ C は画面だけをサーバーに置きたくなった時に足す。E は配�
 1. 置き場所を入れた場所から切り離す（ROOT/.cache をやめ、利用者のキャッシュと環境変数で決める）
 2. [x] GPU の自動選択（tools/gen/device.py。GPU の実機では確かめていない）
 3. `pyproject.toml` とコマンドの入口（serve、mcp、measure、learn、draw、setup）
-4. 版の番号（0.1.0 から。変わった所を CHANGELOG.md に）
+4. [x] 版の番号（0.1.0 から。変わった所を CHANGELOG.md に）
 5. [x] 使っている部品とモデルのライセンスの一覧（`docs/third-party.md`。描く模型の利用条件を含む）
 6. まっさらな環境での通し確認（入れる → 起動 → 1 枚描く → 測る → 学ぶ）。Linux と Mac。Windows は確かめられないので確かめていないと書く
 7. Claude Code のプラグインの雛形（担当・スキル・MCP の登録）
