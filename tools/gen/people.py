@@ -33,7 +33,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 # 関数の中で design を読んでいたため、先に transformers を読んだ呼び出しでは ~/.cache/huggingface へ取りに行った
 import design  # noqa: E402,F401
 
-# 描く模型は tools/gen/models.py の一覧で作風ごとに決める（config/models.json、無ければ animagine-xl-3.1）。
+# 描く模型は tools/gen/models.py の一覧で作風ごとに決める（config/models.json、無ければ animagine-xl-4.0）。
 # CD_DRAW_MODEL を付けると、その場だけ入れ替えられる。CD_STYLE で作風を選ぶ（既定 anime）
 import models as _models
 MODEL = _models.for_style(os.environ.get("CD_STYLE", "anime"))

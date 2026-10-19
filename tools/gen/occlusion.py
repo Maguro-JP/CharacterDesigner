@@ -40,8 +40,10 @@ def _under(seg, x: float, y: float, own: list[int]) -> str:
     return "bg"
 
 
-def judge(points: list[dict], seg, prompt: str = "") -> dict:
-    """部位ごとに seen / hidden / must_see / absent を決める。problems は落とす部位だけ"""
+def judge(points: list[dict], seg, prompt: str = "", hands_shown: dict | None = None) -> dict:
+    """部位ごとに seen / hidden / must_see / absent を決める。problems は落とす部位だけ。
+    hands_shown（{"left": True, ...}、手の模型が手と読めたか）があれば、手は手首の確からしさでなくこれで決める。
+    関節の模型は隠れた手首にも高い確からしさを出す（頭の後ろの手を 0.77〜0.89）"""
     p = {q["name"]: q for q in points}
     hide = _words(prompt, RULES["hide"])
     need = _words(prompt, RULES["need"])
@@ -50,7 +52,9 @@ def judge(points: list[dict], seg, prompt: str = "") -> dict:
         j, par = p.get(d["joint"]), p.get(d["parent"])
         if not j:
             continue
-        if j["score"] >= SEEN:
+        side = name.split("_")[0]
+        hand_known = d["group"] == "hands" and hands_shown is not None and side in hands_shown
+        if (hands_shown[side] if hand_known else j["score"] >= SEEN):
             parts[name] = {"state": "seen"}
             continue
         where = _under(seg, j["x"], j["y"], d["seg"])

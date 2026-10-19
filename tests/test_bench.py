@@ -53,5 +53,20 @@ class Tile(unittest.TestCase):
         self.assertGreater(tile.drift(a, Image.fromarray(moved)), tile.DRIFT)
 
 
+class PoseDrift(unittest.TestCase):
+    def test_crouch_turned_standing_is_caught_at_pose_scale(self):
+        import numpy as np
+        from PIL import Image
+        import hires
+        import tile
+        crouch = np.full((1824, 1248), 220, np.uint8)
+        crouch[900:1700, 350:900] = 60          # しゃがんだ形: 低く横に広い
+        stand = np.full((1824, 1248), 220, np.uint8)
+        stand[200:1750, 500:750] = 60           # 立ち姿: 高く細い
+        a = Image.fromarray(crouch)
+        self.assertGreater(tile.drift(a, Image.fromarray(stand), scale=hires.POSE_SCALE), tile.DRIFT)
+        self.assertLess(tile.drift(a, a, scale=hires.POSE_SCALE), tile.DRIFT)
+
+
 if __name__ == "__main__":
     unittest.main()

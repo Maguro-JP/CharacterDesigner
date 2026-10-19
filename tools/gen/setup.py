@@ -78,7 +78,9 @@ def main() -> None:
         else:
             pip("torch")
     for mod, spec in (("diffusers", ["diffusers", "transformers", "accelerate", "safetensors"]),
-                      ("rembg", ["rembg[cpu]"]), ("psd_tools", ["psd-tools"]), ("scipy", ["scipy"])):
+                      ("rembg", ["rembg[cpu]"]), ("psd_tools", ["psd-tools"]), ("scipy", ["scipy"]),
+                      # 動画のロトスコーピング（imgproc.py roto）。同梱の ffmpeg を使うので別に入れなくてよい（BSD-2-Clause、約 80MB）
+                      ("imageio_ffmpeg", ["imageio-ffmpeg"])):
         if not (LIB / mod).exists():
             say(" ".join(spec))
             pip(*spec)

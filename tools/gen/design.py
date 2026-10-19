@@ -343,14 +343,23 @@ def hires(path, prompt, seed, style, scale=1.5, strength=0.35, steps=6, negative
     if style in XL:
         import hires as hr
         return hr.upscale(path, path, prompt, negative, scale, strength, seed=seed)
+    import hires as hr
+    import tile
     pipe = StableDiffusionImg2ImgPipeline(**_pipe(style).components)
     im = Image.open(path).convert("RGB")
     w, h = int(im.width * scale) // 8 * 8, int(im.height * scale) // 8 * 8
+    big = im.resize((w, h), Image.LANCZOS)
     pe, ne = encode(pipe, FRAMING["full"] + prompt + SUFFIX, ", ".join(x for x in (NEGATIVE, negative) if x))
-    # LCM は strength × 段数 しか回らない。段数を strength で割り、描き直す段数を元の段数にそろえる
-    n = max(steps, round(steps / max(strength, 0.1)))
-    out = pipe(image=im.resize((w, h), Image.LANCZOS), strength=strength, prompt_embeds=pe, negative_prompt_embeds=ne,
-               num_inference_steps=n, guidance_scale=1.5, generator=torch.Generator().manual_seed(seed)).images[0]
+    out = big
+    # 姿勢が変わった描き直しは弱めて描き直し、それでも変わるなら引き伸ばしただけの絵を使う（hires.upscale と同じ決まり）
+    for st in (strength, strength * tile.RETRY):
+        # LCM は strength × 段数 しか回らない。段数を strength で割り、描き直す段数を元の段数にそろえる
+        n = max(steps, round(steps / max(st, 0.1)))
+        cand = pipe(image=big, strength=st, prompt_embeds=pe, negative_prompt_embeds=ne,
+                    num_inference_steps=n, guidance_scale=1.5, generator=torch.Generator().manual_seed(seed)).images[0]
+        if tile.drift(big, cand, scale=hr.POSE_SCALE) <= tile.DRIFT:
+            out = cand
+            break
     out.save(path)
     return out.size
 
