@@ -2,7 +2,7 @@
 
 `python3 tools/library_check.py` が書く。手で直さない。置き方の決まりは [docs/STRUCTURE.md](../docs/STRUCTURE.md)。
 
-全 470 枚（置き場 35 か所）。どこからも参照されていない絵 65 枚には「未参照」と付ける。
+全 471 枚（置き場 36 か所）。どこからも参照されていない絵 65 枚には「未参照」と付ける。
 
 ## 置き場の一覧
 
@@ -25,6 +25,7 @@
 | [`library/feedback/animal/`](#library-feedback-animal) | フィードバックの成果物 | 18 |
 | [`library/feedback/baseline/`](#library-feedback-baseline) | フィードバックの成果物 | 2 |
 | [`library/feedback/bench/`](#library-feedback-bench) | フィードバックの成果物 | 4 |
+| [`library/feedback/body/`](#library-feedback-body) | フィードバックの成果物 | 1 |
 | [`library/feedback/check/`](#library-feedback-check) | フィードバックの成果物 | 176 |
 | [`library/feedback/finish/`](#library-feedback-finish) | フィードバックの成果物 | 2 |
 | [`library/feedback/settei/`](#library-feedback-settei) | フィードバックの成果物 | 3 |
@@ -169,6 +170,13 @@
 |   |   |   |   |
 |---|---|---|---|
 | <a href="feedback/bench/2026-10-18/ani40/ani40-armsup-s11.jpg"><img src="feedback/bench/2026-10-18/ani40/ani40-armsup-s11.jpg" width="150" alt="ani40-armsup-s11.jpg"></a><br><sub>ani40-armsup-s11.jpg</sub> | <a href="feedback/bench/2026-10-18/ani40/ani40-armsup-s12.jpg"><img src="feedback/bench/2026-10-18/ani40/ani40-armsup-s12.jpg" width="150" alt="ani40-armsup-s12.jpg"></a><br><sub>ani40-armsup-s12.jpg</sub> | <a href="feedback/bench/2026-10-18/ani40/ani40-armsup-s13.jpg"><img src="feedback/bench/2026-10-18/ani40/ani40-armsup-s13.jpg" width="150" alt="ani40-armsup-s13.jpg"></a><br><sub>ani40-armsup-s13.jpg</sub> | <a href="feedback/bench/2026-10-18/ani40/ani40-armsup-s14.jpg"><img src="feedback/bench/2026-10-18/ani40/ani40-armsup-s14.jpg" width="150" alt="ani40-armsup-s14.jpg"></a><br><sub>ani40-armsup-s14.jpg</sub> |
+
+<a id="library-feedback-body"></a>
+## library/feedback/body/
+
+|   |
+|---|
+| <a href="feedback/body/2026-10-19/r16/r16-front-s16001.jpg"><img src="feedback/body/2026-10-19/r16/r16-front-s16001.jpg" width="150" alt="r16-front-s16001.jpg"></a><br><sub>r16-front-s16001.jpg</sub> |
 
 <a id="library-feedback-check"></a>
 ## library/feedback/check/
