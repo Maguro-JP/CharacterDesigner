@@ -1,0 +1,34 @@
+{
+ "id": "victorian-gentleman",
+ "name": "19世紀の紳士（フロックコートとシルクハット）",
+ "age": "",
+ "height": "",
+ "role": "服装の図鑑の見本（04-19th-century.md の 7）",
+ "personality": "",
+ "backstory": "",
+ "look": "1boy, solo, adult man, short brown hair, side part, brown eyes",
+ "eyes": {
+  "tags": "open eyes, brown eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "victorian gentleman, black frock coat, knee-length coat, grey waistcoat, white shirt, high collar, black cravat, grey striped trousers, black leather shoes, black top hat",
+ "turnaround": {
+  "top": "30,30,35",
+  "bottom": "110,110,115",
+  "boots": "20,20,20",
+  "words": "victorian gentleman, frock coat, top hat",
+  "clothes": "male_elegantsuit01,shoes02",
+  "hair": "short02",
+  "hair_color": "90,60,40",
+  "split": "0.6",
+  "boots_height": "0.12"
+ },
+ "negative": "modern clothes, sneakers, jeans, logo, text, steampunk goggles",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": ""
+}
