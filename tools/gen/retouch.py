@@ -306,23 +306,28 @@ def deburr(a: np.ndarray, protect: np.ndarray | None = None, r: int | None = Non
     return out
 
 
-def dejag(a: np.ndarray, protect: np.ndarray | None = None, amount: float = 1.0) -> np.ndarray:
-    """線の縁の階段をならす: 線の形を 2 倍に広げてぼかし、半分の濃さで切った形に描き直す（縁の 1〜2 画素だけ）"""
-    from scipy.ndimage import binary_dilation, binary_erosion, grey_erosion
-    m = _line(a)
-    if not m.any():
-        return a
-    band = binary_dilation(m, iterations=2) & ~binary_erosion(m, iterations=2)
+def dejag(a: np.ndarray, protect: np.ndarray | None = None, reach: float = 2.0) -> np.ndarray:
+    """線の縁の階段をならす: 縁の画素だけ、縁の向き（明るさの勾配に直交する向き）に沿って前後の色と平均する。
+    新しい線の色を置かないので、線は太りも痩せもしない（線を 2 倍でならして描き直すやり方は、線を太らせ角張らせた）"""
+    from scipy.ndimage import gaussian_filter, map_coordinates, sobel
+    L = gaussian_filter(_lum(a), 1.0)
+    gy, gx = sobel(L, 0), sobel(L, 1)
+    mag = np.hypot(gx, gy)
+    band = mag > max(0.15, np.quantile(mag, 0.9))
     if protect is not None:
         band &= ~protect
-    soft = np.asarray(Image.fromarray((m * 255).astype("uint8")).resize((m.shape[1] * 2, m.shape[0] * 2), Image.NEAREST)
-                      .filter(ImageFilter.GaussianBlur(1.6)).resize((m.shape[1], m.shape[0]), Image.BOX)).astype(float) / 255
-    ink = np.stack([grey_erosion(a[..., c], size=(5, 5)) for c in range(3)], -1)
-    # 地の色は線でない所だけの平均（最も明るい色で取ると、輪郭の外に明るい縁が出た）
-    paper = _masked_mean(a, ~m, 9)
-    target = paper * (1 - soft[..., None]) + ink * soft[..., None]
-    w = (band * amount)[..., None]
-    return a * (1 - w) + target * w
+    ys, xs = np.nonzero(band)
+    if ys.size == 0:
+        return a
+    tx, ty = -gy[ys, xs] / mag[ys, xs], gx[ys, xs] / mag[ys, xs]
+    out = a.copy()
+    for c in range(3):
+        acc, wsum = a[ys, xs, c].copy(), np.ones(ys.size)
+        for k, w in ((1.0, 0.8), (-1.0, 0.8), (reach, 0.4), (-reach, 0.4)):
+            acc += w * map_coordinates(a[..., c], [ys + k * ty, xs + k * tx], order=1, mode="nearest")
+            wsum += w
+        out[ys, xs, c] = acc / wsum
+    return out
 
 
 def sharpen(a: np.ndarray, sigma: float = 1.2, amount: float = 0.6) -> np.ndarray:
