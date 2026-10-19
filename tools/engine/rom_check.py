@@ -45,6 +45,17 @@ def hinge_angle(rel) -> float:
     return math.degrees(math.atan2(y[2], y[1]))
 
 
+def hinge_front(rel, front) -> float:
+    """蝶番の曲げ角（度）を、親の骨の「体の前の向き」へ前腕がどれだけ倒れたかで測る。正が自然な曲げ、負が逆曲がり。
+    front は休みの姿勢で体の前を指す向きを親の骨の軸で表したもの（親の骨と一緒にねじれる）。
+    MPFB の上腕は骨の X・Z 軸が曲げの面に揃っておらず、骨の軸の面で測ると、BVH の座る姿勢で頬に手を当てた腕（自然に 120 度
+    曲がった肘）を「逆に 88 度」と読んだ。休みの姿勢の 35 度の開きも、前ではなく外へ（運搬角）の開きだった"""
+    y = [rel[i][1] for i in range(3)]
+    f = [front[0], 0.0, front[2]]          # 骨の向き（Y）の成分を除く
+    n = math.hypot(f[0], f[2]) or 1.0
+    return math.degrees(math.atan2((y[0] * f[0] + y[2] * f[2]) / n, y[1]))
+
+
 def swing_twist(rel) -> tuple[float, float]:
     """球の関節の振れ（骨の向きが変わった角）と、ねじれ（骨の向きを軸にした回転）。どちらも度で、向きは問わない"""
     y = (rel[0][1], rel[1][1], rel[2][1])
@@ -64,13 +75,13 @@ def swing_twist(rel) -> tuple[float, float]:
     return swing, abs(math.degrees(math.atan2(-xr[2], xr[0])))
 
 
-def judge(name: str, rel) -> list[str]:
-    """1つの関節の角度を可動域と比べ、外れていれば理由を返す（空なら通る）"""
+def judge(name: str, rel, angle: float | None = None) -> list[str]:
+    """1つの関節の角度を可動域と比べ、外れていれば理由を返す（空なら通る）。angle を渡せば蝶番はその角で見る"""
     j = ROM[name]
     tol = j.get("tolerance", 0)
     out = []
     if j["kind"] == "hinge":
-        a = hinge_angle(rel)
+        a = hinge_angle(rel) if angle is None else angle
         lo, hi = j["flex"]
         if a < lo - tol:
             out.append(f"{j['ja']}が逆に {lo - a:.0f} 度曲がっている（可動域 {lo}〜{hi}）")
@@ -102,12 +113,14 @@ def check_rig(rig) -> list[str]:
             if pa not in rig.pose.bones or ch not in rig.pose.bones:
                 continue
             if j.get("absolute"):
-                # 今の姿勢での曲げそのもの（休みの姿勢からの差ではない）。MPFB の人形は休みの姿勢で肘が 35 度曲がっていて、
-                # 差で測るとまっすぐ伸ばした腕を「逆に 35 度」と出した。足首は休みの姿勢が 0 度（すねと足の甲が直角）なので差で測る
+                # 今の姿勢での曲げそのもの（休みの姿勢からの差ではない）。前の向きは人形の正面（-Y）を休みの姿勢の上腕の軸に移したもの
+                r = _axes(rig.data.bones[pa].matrix_local)
+                front = [-r[1][k] for k in range(3)]
                 rel = _mul(_t(_axes(rig.pose.bones[pa].matrix)), _axes(rig.pose.bones[ch].matrix))
-            else:
-                rel = relative(_axes(rig.data.bones[pa].matrix_local), _axes(rig.data.bones[ch].matrix_local),
-                               _axes(rig.pose.bones[pa].matrix), _axes(rig.pose.bones[ch].matrix))
+                out += [f"{side}: {x}" if side != "C" else x for x in judge(name, rel, hinge_front(rel, front))]
+                continue
+            rel = relative(_axes(rig.data.bones[pa].matrix_local), _axes(rig.data.bones[ch].matrix_local),
+                           _axes(rig.pose.bones[pa].matrix), _axes(rig.pose.bones[ch].matrix))
             out += [f"{side}: {r}" if side != "C" else r for r in judge(name, rel)]
     return out
 
@@ -146,6 +159,7 @@ def _self_test():
         "首を 45 度ひねる": ({"head": ("y", 45)}, False),
         "腕をまっすぐ伸ばす（休みの姿勢の曲げ 35 度を戻す）": ({"lowerarm01_L": ("x", -35)}, False),
         "肘の逆曲がり 30 度（休みの姿勢から -65 度）": ({"lowerarm01_L": ("x", -65)}, True),
+        "上腕を 70 度ねじる（肘は休みの姿勢のまま）": ({"upperarm02_L": ("y", 70)}, False),
         "膝が前へ 40 度曲がる": ({"lowerleg01_R": ("x", -40)}, True),
         "首が 170 度ひねる": ({"head": ("y", 170)}, True),
         "手首が甲の側へ 120 度": ({"wrist_R": ("x", -120)}, True),
