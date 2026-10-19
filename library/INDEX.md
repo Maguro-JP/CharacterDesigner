@@ -2,7 +2,7 @@
 
 `python3 tools/library_check.py` が書く。手で直さない。置き方の決まりは [docs/STRUCTURE.md](../docs/STRUCTURE.md)。
 
-全 512 枚（置き場 37 か所）。どこからも参照されていない絵 103 枚には「未参照」と付ける。
+全 514 枚（置き場 38 か所）。どこからも参照されていない絵 103 枚には「未参照」と付ける。
 
 ## 置き場の一覧
 
@@ -23,9 +23,10 @@
 | [`library/daily/2026-10-15/`](#library-daily-2026-10-15) | 日ごとの作例 | 1 |
 | [`library/eyes/`](#library-eyes) | 目の資料集 | 18 |
 | [`library/feedback/animal/`](#library-feedback-animal) | フィードバックの成果物 | 18 |
+| [`library/feedback/app-e2e/`](#library-feedback-app-e2e) | フィードバックの成果物 | 1 |
 | [`library/feedback/baseline/`](#library-feedback-baseline) | フィードバックの成果物 | 2 |
 | [`library/feedback/bench/`](#library-feedback-bench) | フィードバックの成果物 | 4 |
-| [`library/feedback/body/`](#library-feedback-body) | フィードバックの成果物 | 2 |
+| [`library/feedback/body/`](#library-feedback-body) | フィードバックの成果物 | 3 |
 | [`library/feedback/check/`](#library-feedback-check) | フィードバックの成果物 | 176 |
 | [`library/feedback/finish/`](#library-feedback-finish) | フィードバックの成果物 | 2 |
 | [`library/feedback/settei/`](#library-feedback-settei) | フィードバックの成果物 | 3 |
@@ -158,6 +159,13 @@
 | <a href="feedback/animal/2026-10-18/zukan/zukan-12-kirie-s123.jpg"><img src="feedback/animal/2026-10-18/zukan/zukan-12-kirie-s123.jpg" width="150" alt="zukan-12-kirie-s123.jpg"></a><br><sub>zukan-12-kirie-s123.jpg</sub> | <a href="feedback/animal/2026-10-18/zukan/zukan-13-stainedglass-s123.jpg"><img src="feedback/animal/2026-10-18/zukan/zukan-13-stainedglass-s123.jpg" width="150" alt="zukan-13-stainedglass-s123.jpg"></a><br><sub>zukan-13-stainedglass-s123.jpg</sub> | <a href="feedback/animal/2026-10-18/zukan/zukan-14-mosaic-s123.jpg"><img src="feedback/animal/2026-10-18/zukan/zukan-14-mosaic-s123.jpg" width="150" alt="zukan-14-mosaic-s123.jpg"></a><br><sub>zukan-14-mosaic-s123.jpg</sub> | <a href="feedback/animal/2026-10-18/zukan/zukan-15-ukiyoe-s123.jpg"><img src="feedback/animal/2026-10-18/zukan/zukan-15-ukiyoe-s123.jpg" width="150" alt="zukan-15-ukiyoe-s123.jpg"></a><br><sub>zukan-15-ukiyoe-s123.jpg</sub> | <a href="feedback/animal/2026-10-18/zukan/zukan-16-sumie-s123.jpg"><img src="feedback/animal/2026-10-18/zukan/zukan-16-sumie-s123.jpg" width="150" alt="zukan-16-sumie-s123.jpg"></a><br><sub>zukan-16-sumie-s123.jpg</sub> | <a href="feedback/animal/2026-10-18/zukan/zukan-17-nihonga-s123.jpg"><img src="feedback/animal/2026-10-18/zukan/zukan-17-nihonga-s123.jpg" width="150" alt="zukan-17-nihonga-s123.jpg"></a><br><sub>zukan-17-nihonga-s123.jpg</sub> |
 | <a href="feedback/animal/2026-10-18/zukan/zukan-18-artnouveau-s123.jpg"><img src="feedback/animal/2026-10-18/zukan/zukan-18-artnouveau-s123.jpg" width="150" alt="zukan-18-artnouveau-s123.jpg"></a><br><sub>zukan-18-artnouveau-s123.jpg</sub> | <a href="feedback/animal/2026-10-18/zukan/zukan-19-impressionist-s123.jpg"><img src="feedback/animal/2026-10-18/zukan/zukan-19-impressionist-s123.jpg" width="150" alt="zukan-19-impressionist-s123.jpg"></a><br><sub>zukan-19-impressionist-s123.jpg</sub> | <a href="feedback/animal/2026-10-18/zukan/zukan-20-watercolor-s123.jpg"><img src="feedback/animal/2026-10-18/zukan/zukan-20-watercolor-s123.jpg" width="150" alt="zukan-20-watercolor-s123.jpg"></a><br><sub>zukan-20-watercolor-s123.jpg</sub> | <a href="feedback/animal/2026-10-18/zukan/zukan-21-oil-s123.jpg"><img src="feedback/animal/2026-10-18/zukan/zukan-21-oil-s123.jpg" width="150" alt="zukan-21-oil-s123.jpg"></a><br><sub>zukan-21-oil-s123.jpg</sub> | <a href="feedback/animal/2026-10-18/zukan/zukan-22-digitalpaint-s123.jpg"><img src="feedback/animal/2026-10-18/zukan/zukan-22-digitalpaint-s123.jpg" width="150" alt="zukan-22-digitalpaint-s123.jpg"></a><br><sub>zukan-22-digitalpaint-s123.jpg</sub> | <a href="feedback/animal/2026-10-18/zukan/zukan-23-real-s123.jpg"><img src="feedback/animal/2026-10-18/zukan/zukan-23-real-s123.jpg" width="150" alt="zukan-23-real-s123.jpg"></a><br><sub>zukan-23-real-s123.jpg</sub> |
 
+<a id="library-feedback-app-e2e"></a>
+## library/feedback/app-e2e/
+
+|   |
+|---|
+| <a href="feedback/app-e2e/2026-10-19/sword/sword-1-s1019.jpg"><img src="feedback/app-e2e/2026-10-19/sword/sword-1-s1019.jpg" width="150" alt="sword-1-s1019.jpg"></a><br><sub>sword-1-s1019.jpg</sub> |
+
 <a id="library-feedback-baseline"></a>
 ## library/feedback/baseline/
 
@@ -175,9 +183,9 @@
 <a id="library-feedback-body"></a>
 ## library/feedback/body/
 
-|   |   |
-|---|---|
-| <a href="feedback/body/2026-10-19/r16/r16-front-s16001.jpg"><img src="feedback/body/2026-10-19/r16/r16-front-s16001.jpg" width="150" alt="r16-front-s16001.jpg"></a><br><sub>r16-front-s16001.jpg</sub> | <a href="feedback/body/2026-10-19/r17/r17-side-s17001.jpg"><img src="feedback/body/2026-10-19/r17/r17-side-s17001.jpg" width="150" alt="r17-side-s17001.jpg"></a><br><sub>r17-side-s17001.jpg</sub> |
+|   |   |   |
+|---|---|---|
+| <a href="feedback/body/2026-10-19/r16/r16-front-s16001.jpg"><img src="feedback/body/2026-10-19/r16/r16-front-s16001.jpg" width="150" alt="r16-front-s16001.jpg"></a><br><sub>r16-front-s16001.jpg</sub> | <a href="feedback/body/2026-10-19/r17/r17-side-s17001.jpg"><img src="feedback/body/2026-10-19/r17/r17-side-s17001.jpg" width="150" alt="r17-side-s17001.jpg"></a><br><sub>r17-side-s17001.jpg</sub> | <a href="feedback/body/2026-10-19/r18/r18-front-s18001.jpg"><img src="feedback/body/2026-10-19/r18/r18-front-s18001.jpg" width="150" alt="r18-front-s18001.jpg"></a><br><sub>r18-front-s18001.jpg</sub> |
 
 <a id="library-feedback-check"></a>
 ## library/feedback/check/
