@@ -2,7 +2,11 @@
 
 `python3 tools/library_check.py` が書く。手で直さない。置き方の決まりは [docs/STRUCTURE.md](../docs/STRUCTURE.md)。
 
+<<<<<<< Updated upstream
 全 514 枚（置き場 38 か所）。どこからも参照されていない絵 103 枚には「未参照」と付ける。
+=======
+全 513 枚（置き場 37 か所）。どこからも参照されていない絵 103 枚には「未参照」と付ける。
+>>>>>>> Stashed changes
 
 ## 置き場の一覧
 
