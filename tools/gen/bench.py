@@ -82,6 +82,9 @@ def finish_xl(path: str, prompt: str, seed: int, long: int, res: dict) -> None:
     tl = tile.tile(path, big, prompt, long=long, seed=seed)
     t3 = time.time()
     import cleanup
+    # 清書の前の絵も残す（清書の効き目を、清書の強さを変えて比べ直せるように）
+    import shutil
+    shutil.copy(big, str(Path(big).with_suffix("")) + "-raw.png")
     cl = cleanup.cleanup(big, big)
     res.setdefault("stages", []).append({"hires": round(t1 - t), "face": round(t2 - t1), **{k: v for k, v in tl.items() if k != "log"},
                                          "cleanup": round(time.time() - t3), "lines_colors": cl})
