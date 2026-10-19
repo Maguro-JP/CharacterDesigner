@@ -281,7 +281,7 @@
 `tools/gen/imgproc.py` にまとめる。済の条件: 描いた絵の上で動き、結果を目で見て崩れが無い。記録は `docs/knowledge/imgproc.md`。
 
 - [x] セグメンテーション（セマンティック、インスタンス）、イメージマッティング、背景除去、切り抜きとクリッピングパス、クロマキー、ロトスコーピング（GIF とコマのフォルダ）
-- [ ] 動画のロトスコーピング（mp4。ffmpeg が要る）
+- [x] 動画のロトスコーピング（`imgproc.py roto IN.mp4 OUT`。imageio-ffmpeg の同梱の ffmpeg で読み、人物を抜いた透明の webm（VP9、アルファあり）と透明 PNG・GIF を書く。416x608・7 コマで 27 秒、1 コマ目を開くと背景の 8 割が透明）
 - [x] インペインティング（範囲を描き直す。`edit.py` にあるものを呼べるようにする）とアウトペインティング（絵の外を描き足す）: `imgproc.py inpaint / outpaint`。丸窓を描き足せ、描き足しの横縞も消えた。描き足しの左の境目にうっすら筋が残る。`docs/knowledge/imgproc.md`
 - [x] 超解像（拡大して細部を足す）: `imgproc.py upscale`（Real-ESRGAN のアニメ絵用、`upscale.py`）。832x1216 の騎士を長い辺 2048 に 65.5 秒（CPU）。線がくっきりし、目で見て崩れは無い。顔の白い点を埋める `imgproc.py spotfill` も足した
 - [x] 線画の抽出（塗り絵や清書の下地）: `imgproc.py lineart`（XDoG、模型なし、1枚 1秒以内。`library/samples/imgproc/imgproc-lineart.jpg`）
