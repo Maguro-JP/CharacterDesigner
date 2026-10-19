@@ -24,8 +24,8 @@ STYLES = {
 }
 NEGATIVE = "extra legs, extra heads, deformed anatomy, text, watermark, frame, human"
 
-# 強すぎると形が変わり（足の数、向き）、弱すぎると画風が出なかった。0.5 前後で形が残った
-STRENGTH = 0.5
+# 0.5 では 5 段のうち 2 段しか描き直さず、元絵とほぼ同じだった。0.72 で形（足、向き）を保ったまま塗りが変わった
+STRENGTH = 0.72
 STEPS = 10
 
 
