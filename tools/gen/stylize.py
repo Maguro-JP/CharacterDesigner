@@ -302,9 +302,12 @@ def _strokes(im, length: int, width: int, density: float, jitter: float):
     n = int(h * w * density / (length * width))
     ys = rng.integers(0, h, n)
     xs = rng.integers(0, w, n)
+    # 背景に細かい筆を散らすと色の粒に見えた。背景では筆の色の揺れを小さくする
+    sub = _subject(im) > 0.5
     for y, x in zip(ys, xs):
+        jitter_here = jitter if sub[y, x] else jitter * 0.3
         # 明るさを主にずらし、色相のずれは小さく抑える（白地に虹色の粒が散るのを避ける）
-        c = a[y, x] * (1 + rng.uniform(-jitter, jitter)) + rng.uniform(-jitter, jitter, 3) * 0.25
+        c = a[y, x] * (1 + rng.uniform(-jitter_here, jitter_here)) + rng.uniform(-jitter_here, jitter_here, 3) * 0.25
         col = tuple(int(v) for v in np.clip(c * 255, 0, 255))
         t = ang[y, x] + rng.uniform(-0.3, 0.3)
         dx, dy = np.cos(t) * length / 2, np.sin(t) * length / 2
@@ -329,8 +332,10 @@ def pointillism(im):
     d = ImageDraw.Draw(canvas)
     rng = np.random.default_rng(SEED)
     n = int(h * w / (r * r) * 0.9)
+    sub = _subject(im) > 0.5
     for y, x in zip(rng.integers(0, h, n), rng.integers(0, w, n)):
-        c = np.clip((a[y, x] * (1 + rng.uniform(-0.2, 0.2)) + rng.uniform(-0.05, 0.05, 3)) * 255, 0, 255).astype(int)
+        j = 0.2 if sub[y, x] else 0.05
+        c = np.clip((a[y, x] * (1 + rng.uniform(-j, j)) + rng.uniform(-j / 4, j / 4, 3)) * 255, 0, 255).astype(int)
         d.ellipse([x - r, y - r, x + r, y + r], fill=tuple(int(v) for v in c))
     return canvas
 
