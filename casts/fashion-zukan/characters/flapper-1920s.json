@@ -7,16 +7,20 @@
  "personality": "",
  "backstory": "",
  "look": "1girl, solo, young adult woman, black hair, short bob cut, finger waves, brown eyes",
- "eyes": {"tags": "open eyes, brown eyes, both eyes same color", "notes": ""},
+ "eyes": {
+  "tags": "open eyes, brown eyes, both eyes same color",
+  "notes": ""
+ },
  "outfit": "1920s flapper dress, dropped waist, straight loose silhouette, knee-length hem, beaded fringe, sleeveless, cloche hat, long pearl necklace, t-strap shoes, white stockings",
  "turnaround": {
   "top": "200,170,120",
   "bottom": "200,170,120",
-  "boots": "40,30,30",
+  "boots": "235,225,210",
   "words": "1920s flapper dress, cloche hat, long pearl necklace",
   "clothes": "female_elegantsuit01,shoes01",
   "hair": "bob01",
-  "hair_color": "30,25,25"
+  "hair_color": "30,25,25",
+  "boots_height": "0.05"
  },
  "negative": "trousers, pants, modern clothes, cleavage, short skirt, see-through, logo, text",
  "items": [],

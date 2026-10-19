@@ -30,7 +30,9 @@ import bible  # noqa: E402
 
 PHASES = ["base", "draw", "face", "hands", "check"]
 # 工程ごとの描く強さ。draw の奥行きの縛りは描き始めだけ（全部で縛ると塗りが平たくなり、縛らないと腕を長く描いた）
-DRAW = dict(strength=0.85, depth_scale=0.8, depth_end=0.4)
+# 2026-10-19: 0.8・0.4 では CPU（bf16）で絵全体がぼやけた（flapper-1920s、輪郭も目も溶けた）。縛りを外すとくっきりし、
+# 0.4・0.3 でもくっきりしたまま人形の形に従った
+DRAW = dict(strength=0.85, depth_scale=0.4, depth_end=0.3)
 FACE_STRENGTH = 0.45
 HAND_STRENGTH = 0.75   # 人形の手の奥行きで形を縛るので、元の崩れた手を強めに描き替える
 
