@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DOCS_TOP = {"ROADMAP.md", "STRUCTURE.md", "models.md", "references.md", "record-policy.md", "release-plan.md", "filters.md"}
+DOCS_TOP = {"ROADMAP.md", "STRUCTURE.md", "models.md", "references.md", "record-policy.md", "release-plan.md", "filters.md", "third-party.md"}
 IMAGES = (".png", ".jpg", ".jpeg", ".gif", ".webp")
 
 
