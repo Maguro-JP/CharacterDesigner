@@ -12,6 +12,7 @@ json が無い・license が空の素材は一覧に出すが使わない（ラ�
 """
 from __future__ import annotations
 
+import cdhome
 import argparse
 import json
 import re
@@ -19,9 +20,9 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-LORA = ROOT / ".cache" / "assets" / "lora"
+LORA = cdhome.HOME / "assets" / "lora"
 # 姿勢の下絵（M8 の T3）。人形の絵・ラフ・写真など、構図と姿勢だけを借りる絵。<名前>.png と出典の <名前>.json の組
-POSE = ROOT / ".cache" / "assets" / "pose"
+POSE = cdhome.HOME / "assets" / "pose"
 NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,47}$")
 
 

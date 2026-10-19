@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import cdhome
 import argparse
 import hashlib
 import json
@@ -19,7 +20,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-REFS = ROOT / ".cache" / "app" / "refs"
+REFS = cdhome.HOME / "app" / "refs"
 INDEX = REFS / "index.jsonl"
 API = "https://api.openverse.org/v1/images/"
 UA = "CharacterDesigner/0.1 (reference search for character design)"

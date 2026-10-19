@@ -14,6 +14,7 @@
   PYTHONPATH=.cache/gen/lib python3 tools/gen/edit.py inpaint in.png out.png --region skin_arms --prompt "black tribal tattoos"
 部位の名前: skin, face, arms, legs, skin_arms, hair, head_top, upper, lower, shoes, clothes（+ でつなぐと合わせる。例 upper+arms。末尾の -feet で足先を外す。例 lower+legs-feet）
 """
+import cdhome
 import argparse
 import colorsys
 import os
@@ -28,7 +29,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import design  # noqa: E402,F401
 
 ROOT = Path(__file__).resolve().parents[2]
-os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))
+os.environ.setdefault("HF_HOME", str(cdhome.HOME / "gen" / "hf"))
 # 模型は既定で外から取りに行かない。呼んだ関数が手元に無い模型を指していると、数 GB を取りに行って
 # ディスクを埋めた（2026-10-14 に 2 回）。初めて取るときだけ CD_FETCH=1 を付けて動かす
 os.environ.setdefault("HF_HUB_OFFLINE", "0" if os.environ.get("CD_FETCH") == "1" else "1")

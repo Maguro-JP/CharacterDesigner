@@ -142,6 +142,7 @@ Setup.exe は Linux の上で `sh packaging/windows/build.sh` で組む（NSIS �
 | `CD_DEVICE` | 描く場所（`cuda`・`mps`・`cpu`）。省くと NVIDIA の GPU → Apple の GPU → CPU の順に自動で選ぶ。指定した場所が無ければ CPU | 任意 |
 | `CD_TORCH` | 部品を入れるときの torch の種類（`cuda`・`cpu`・`default`）。省くと NVIDIA の GPU がある Linux は CUDA 版、Mac は普通の版、それ以外は CPU 版 | 任意 |
 | `CD_APP_DATA` | 描いた絵の置き場所（既定は `.cache/app/jobs`） | 任意 |
+| `CD_HOME` | 部品・模型・学んだ基準の置き場所（既定はリポジトリの `.cache`）。いまは Python の道具だけが従い、取る台本（setup.sh など）はまだ従わない | 任意 |
 | `PLAYWRIGHT_MODULE` / `CHROMIUM_PATH` | 下絵を撮るブラウザーを指す（無ければ `start.sh` が取る） | 任意 |
 
 ## 作画監督の基準と記録

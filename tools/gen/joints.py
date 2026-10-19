@@ -8,6 +8,7 @@
 
   sh tools/gen/setup.sh で取ったあと  python3 tools/gen/joints.py IMAGE [OUT.png]
 """
+import cdhome
 import json
 import sys
 from pathlib import Path
@@ -16,7 +17,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[2]
-MODEL = ROOT / ".cache" / "gen" / "pose" / "rtmpose-m-body7.onnx"
+MODEL = cdhome.HOME / "gen" / "pose" / "rtmpose-m-body7.onnx"
 URL = ("https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/"
        "rtmpose-m_simcc-body7_pt-body7_420e-256x192-e48f03d0_20230504.zip")
 # COCO の 17 点の並び

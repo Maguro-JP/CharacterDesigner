@@ -19,6 +19,7 @@
 """
 from __future__ import annotations
 
+import cdhome
 import json
 import os
 import struct
@@ -32,7 +33,7 @@ import design  # noqa: E402,F401
 
 ROOT = Path(__file__).resolve().parents[2]
 # 模型の置き場所と、取りに行かない既定（ほかの読み込み口と同じ。huggingface_hub を読む前に決める）
-os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))
+os.environ.setdefault("HF_HOME", str(cdhome.HOME / "gen" / "hf"))
 os.environ.setdefault("HF_HUB_OFFLINE", "0" if os.environ.get("CD_FETCH") == "1" else "1")
 MODELS_DIR = ROOT / "models"
 CONFIG = ROOT / "config" / "models.json"

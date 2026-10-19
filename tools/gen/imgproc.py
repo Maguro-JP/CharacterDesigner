@@ -20,6 +20,7 @@
 """
 from __future__ import annotations
 
+import cdhome
 import argparse
 import json
 import sys
@@ -84,7 +85,7 @@ def matte(src: str, out: str, band: int = 6) -> dict:
     im = Image.open(src).convert("RGB")
     from rembg import new_session, remove
     import os
-    os.environ.setdefault("U2NET_HOME", str(Path(__file__).resolve().parents[2] / ".cache" / "gen" / "u2net"))
+    os.environ.setdefault("U2NET_HOME", str(cdhome.HOME / "gen" / "u2net"))
     a0 = np.asarray(remove(im, session=new_session("isnet-anime"), only_mask=True).convert("L")) / 255.0
     fg = a0 > 0.5
     sure_fg = ndimage.binary_erosion(fg, iterations=band)
@@ -208,7 +209,7 @@ def roto(src: str, outdir: str) -> dict:
     結果は透明 PNG の連番と、透明な GIF、各コマの人物の範囲（外接矩形）を書いた roto.json"""
     from rembg import new_session, remove
     import os
-    os.environ.setdefault("U2NET_HOME", str(Path(__file__).resolve().parents[2] / ".cache" / "gen" / "u2net"))
+    os.environ.setdefault("U2NET_HOME", str(cdhome.HOME / "gen" / "u2net"))
     p = Path(src)
     video = p.suffix.lower() in VIDEO
     if p.is_dir():
@@ -340,7 +341,7 @@ def shade(src: str, out: str, style: str = "cel2", light: str = "-1,1,1.2", shad
     im = Image.open(src).convert("RGB")
     from rembg import new_session, remove
     import os
-    os.environ.setdefault("U2NET_HOME", str(Path(__file__).resolve().parents[2] / ".cache" / "gen" / "u2net"))
+    os.environ.setdefault("U2NET_HOME", str(cdhome.HOME / "gen" / "u2net"))
     alpha = np.asarray(remove(im, session=new_session("isnet-anime"), only_mask=True).convert("L")) / 255.0
     L = np.array([float(v) for v in light.split(",")])
     if style == "back":
@@ -387,7 +388,7 @@ def shade(src: str, out: str, style: str = "cel2", light: str = "-1,1,1.2", shad
 def _person_alpha(src: str, im: Image.Image) -> np.ndarray:
     from rembg import new_session, remove
     import os
-    os.environ.setdefault("U2NET_HOME", str(Path(__file__).resolve().parents[2] / ".cache" / "gen" / "u2net"))
+    os.environ.setdefault("U2NET_HOME", str(cdhome.HOME / "gen" / "u2net"))
     return np.asarray(remove(im, session=new_session("isnet-anime"), only_mask=True).convert("L")) / 255.0 > 0.5
 
 

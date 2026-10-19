@@ -20,6 +20,7 @@
 """
 from __future__ import annotations
 
+import cdhome
 import argparse
 import json
 import sys
@@ -29,7 +30,7 @@ import numpy as np
 from PIL import Image, ImageDraw
 
 ROOT = Path(__file__).resolve().parents[2]
-MODEL = ROOT / ".cache" / "gen" / "mediapipe" / "hand_landmarks_detector.tflite"
+MODEL = cdhome.HOME / "gen" / "mediapipe" / "hand_landmarks_detector.tflite"
 FINGERS = {"thumb": [1, 2, 3, 4], "index": [5, 6, 7, 8], "middle": [9, 10, 11, 12], "ring": [13, 14, 15, 16],
            "pinky": [17, 18, 19, 20]}
 EDGES = [(0, 1), (1, 2), (2, 3), (3, 4), (0, 5), (5, 6), (6, 7), (7, 8), (0, 9), (9, 10), (10, 11), (11, 12),

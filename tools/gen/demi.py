@@ -16,6 +16,7 @@
   python3 tools/gen/demi.py underlay succubus <出力フォルダ>   # 下絵と型だけ撮る（数秒〜1分）
 描く亜人は casts/demi3d.json に書く。
 """
+import cdhome
 import argparse
 import base64
 import functools
@@ -32,7 +33,7 @@ from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(Path(__file__).parent))
-CACHE = ROOT / ".cache" / "engine" / "vrm"
+CACHE = cdhome.HOME / "engine" / "vrm"
 PAGE = ROOT / "tools" / "engine" / "viewer" / "vrm-base.html"
 SHOOT = ROOT / "tools" / "engine" / "vrm_shoot.mjs"
 CASES = ROOT / "casts" / "demi3d.json"

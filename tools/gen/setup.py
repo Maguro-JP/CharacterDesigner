@@ -11,6 +11,7 @@
 """
 from __future__ import annotations
 
+import cdhome
 import os
 import platform
 import shutil
@@ -22,7 +23,7 @@ import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-D = ROOT / ".cache" / "gen"
+D = cdhome.HOME / "gen"
 LIB = D / "lib"
 CUDA_INDEX = "https://download.pytorch.org/whl/cu128"
 CPU_INDEX = "https://download.pytorch.org/whl/cpu"
@@ -117,7 +118,7 @@ def main() -> None:
         # 模型の有無とは別に見る。模型だけ先に置かれた環境で、読み込む部品が入らないまま残らないように
         say("ai-edge-litert（手の模型を読む部品、約 22MB）")
         pip("ai-edge-litert")
-    if not (ROOT / ".cache" / "assets" / "tagger" / "model.onnx").exists():
+    if not (cdhome.HOME / "assets" / "tagger" / "model.onnx").exists():
         say("タグを読む模型（約 380MB）")
         sys.path.insert(0, str(LIB))
         sys.path.insert(0, str(ROOT / "tools" / "gen"))

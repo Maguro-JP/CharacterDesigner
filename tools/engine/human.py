@@ -24,7 +24,7 @@ from pathlib import Path
 import bpy
 
 ROOT = Path(__file__).resolve().parents[2]
-CACHE = ROOT / ".cache" / "engine"
+CACHE = Path(os.environ.get("CD_HOME") or ROOT / ".cache") / "engine"  # tools/gen/cdhome.py と同じ決め方
 MPFB_DATA = Path.home() / ".config/blender/4.2/extensions/.user/user_default/mpfb/data"
 
 # 塗り分けの色。topixel.py はこの色で部位を見分ける
