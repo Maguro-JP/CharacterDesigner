@@ -306,31 +306,41 @@ def deburr(a: np.ndarray, protect: np.ndarray | None = None, r: int | None = Non
     return out
 
 
-def dejag(a: np.ndarray, protect: np.ndarray | None = None, amount: float = 1.0) -> np.ndarray:
-    """線の縁の階段をならす: 線の形を 2 倍に広げてぼかし、半分の濃さで切った形に描き直す（縁の 1〜2 画素だけ）"""
-    from scipy.ndimage import binary_dilation, binary_erosion, grey_erosion
-    m = _line(a)
-    if not m.any():
-        return a
-    band = binary_dilation(m, iterations=2) & ~binary_erosion(m, iterations=2)
+def dejag(a: np.ndarray, protect: np.ndarray | None = None, reach: float = 2.0) -> np.ndarray:
+    """線の縁の階段をならす: 縁の画素だけ、縁の向き（明るさの勾配に直交する向き）に沿って前後の色と平均する。
+    新しい線の色を置かないので、線は太りも痩せもしない（線を 2 倍でならして描き直すやり方は、線を太らせ角張らせた）"""
+    from scipy.ndimage import gaussian_filter, map_coordinates, sobel
+    L = gaussian_filter(_lum(a), 1.0)
+    gy, gx = sobel(L, 0), sobel(L, 1)
+    mag = np.hypot(gx, gy)
+    band = mag > max(0.15, np.quantile(mag, 0.9))
     if protect is not None:
         band &= ~protect
-    soft = np.asarray(Image.fromarray((m * 255).astype("uint8")).resize((m.shape[1] * 2, m.shape[0] * 2), Image.NEAREST)
-                      .filter(ImageFilter.GaussianBlur(1.6)).resize((m.shape[1], m.shape[0]), Image.BOX)).astype(float) / 255
-    ink = np.stack([grey_erosion(a[..., c], size=(5, 5)) for c in range(3)], -1)
-    # 地の色は線でない所だけの平均（最も明るい色で取ると、輪郭の外に明るい縁が出た）
-    paper = _masked_mean(a, ~m, 9)
-    target = paper * (1 - soft[..., None]) + ink * soft[..., None]
-    w = (band * amount)[..., None]
-    return a * (1 - w) + target * w
+    ys, xs = np.nonzero(band)
+    if ys.size == 0:
+        return a
+    tx, ty = -gy[ys, xs] / mag[ys, xs], gx[ys, xs] / mag[ys, xs]
+    out = a.copy()
+    for c in range(3):
+        acc, wsum = a[ys, xs, c].copy(), np.ones(ys.size)
+        for k, w in ((1.0, 0.8), (-1.0, 0.8), (reach, 0.4), (-reach, 0.4)):
+            acc += w * map_coordinates(a[..., c], [ys + k * ty, xs + k * tx], order=1, mode="nearest")
+            wsum += w
+        out[ys, xs, c] = acc / wsum
+    return out
 
 
 def sharpen(a: np.ndarray, sigma: float = 1.2, amount: float = 0.6) -> np.ndarray:
     """アンシャープマスクを明るさだけに掛ける（色ににじみを出さない）"""
     from scipy.ndimage import gaussian_filter
+    from scipy.ndimage import binary_dilation
     L = _lum(a) * 255
     d = (L - gaussian_filter(L, sigma)) * amount
-    return a + d[..., None]
+    # 強い縁の周りだけを締める。平らな所まで掛けると塗りのざらつきが黒い粒になり、線の塊が 710 → 1390 に増えた
+    g = _grad(L / 255)
+    near = binary_dilation(g > np.quantile(g, 0.95), iterations=2)
+    w = gaussian_filter(near.astype(float), 1.0)
+    return a + (d * w)[..., None]
 
 
 OPS = {"heal": heal, "denoise": denoise, "white_balance": white_balance, "levels": levels, "dehaze": dehaze,
@@ -381,9 +391,15 @@ LINE_GUARD = {"denoise", "defringe", "deburr", "dejag", "sharpen"}   # 線の形
 
 def line_state(a: np.ndarray) -> tuple[int, int]:
     """主線の塊の数と面積。毛先が切れて点線になると塊が増え、線が太る・痩せると面積が変わる"""
+    import cleanup
     from scipy.ndimage import label
     m = _line(a)
-    return int(label(m, structure=np.ones((3, 3)))[1]), int(m.sum())
+    lab, n = label(m, structure=np.ones((3, 3)))
+    # 粒（cleanup.SPECK 未満）は数えない。シャープは縁の際に見えない粒を作り、塊を 671 → 976 に増やしたが、
+    # 元の大きさで見て線は切れていなかった。切れた毛先は粒より大きい塊になる
+    sizes = np.bincount(lab.ravel())[1:]
+    big = sizes >= cleanup.SPECK
+    return int(big.sum()), int(sizes[big].sum())
 
 
 def line_broken(a: np.ndarray, b: np.ndarray, pieces: float = 1.05, area: float = 0.02, thickness: bool = True) -> str:
