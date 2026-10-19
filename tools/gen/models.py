@@ -3,14 +3,14 @@
 模型の置き方は 3 通り。どれも models/ に置けば一覧に出る（models/ は git に入れない。1 つ 約 7GB）。
   1. .safetensors のファイル 1 つ（配布サイトでよく見る形）。読むときは、手元にある同じ系統の模型の設定を借りる
   2. diffusers 形式のフォルダー（中に model_index.json がある）
-  3. Hugging Face の名前（例 cagliostrolab/animagine-xl-3.1）。config/models.json に書く。取るのは CD_FETCH=1 のときだけ
+  3. Hugging Face の名前（例 cagliostrolab/animagine-xl-4.0）。config/models.json に書く。取るのは CD_FETCH=1 のときだけ
 .ckpt / .pt / .bin は、読むときに中のプログラムが動きうる形式なので受け付けない。
 
 いま描けるのは SDXL 系の模型だけ（Animagine、Illustrious、Pony、dreamshaper XL など）。SD1.5・SD3・Flux は描く仕組みが違う。
 判定は .safetensors の先頭にある部品名の一覧だけを読んで行う（模型の本体は読まないので一瞬で終わる）。
 
 作風と模型の対応は config/models.json に書く（利用者ごと、git に入れない。見本は config/models.example.json）。
-無ければ anime だけを animagine-xl-3.1 にする。環境変数 CD_DRAW_MODEL を付けると、その場だけ模型を入れ替えられる。
+無ければ anime だけを animagine-xl-4.0 にする（3.1 から替えた。手元の 3.1 は空きを作るために消した。4.0 は基準の組の 4 枚で、MeinaMix の 10 件に対して崩れ 9 件）。環境変数 CD_DRAW_MODEL を付けると、その場だけ模型を入れ替えられる。
 
   python3 tools/gen/models.py list                 置いてある模型と、作風ごとの割り当てを見る
   python3 tools/gen/models.py check <名前かパス>    使える模型かを確かめる（SDXL 系か、形式、大きさ）
@@ -36,9 +36,9 @@ os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))
 os.environ.setdefault("HF_HUB_OFFLINE", "0" if os.environ.get("CD_FETCH") == "1" else "1")
 MODELS_DIR = ROOT / "models"
 CONFIG = ROOT / "config" / "models.json"
-DEFAULT = {"styles": {"anime": "cagliostrolab/animagine-xl-3.1"}}
+DEFAULT = {"styles": {"anime": "cagliostrolab/animagine-xl-4.0"}}
 # .safetensors 1 つから組むときに借りる設定（部品の並べ方）。手元に取ってある SDXL の模型の名前
-SDXL_CONFIG = "cagliostrolab/animagine-xl-3.1"
+SDXL_CONFIG = "cagliostrolab/animagine-xl-4.0"
 UNSAFE = (".ckpt", ".pt", ".pth", ".bin")
 
 
