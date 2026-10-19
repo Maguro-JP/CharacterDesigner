@@ -2,7 +2,7 @@
 
 `python3 tools/library_check.py` が書く。手で直さない。置き方の決まりは [docs/STRUCTURE.md](../docs/STRUCTURE.md)。
 
-全 553 枚（置き場 39 か所）。どこからも参照されていない絵 129 枚には「未参照」と付ける。
+全 555 枚（置き場 39 か所）。どこからも参照されていない絵 129 枚には「未参照」と付ける。
 
 ## 置き場の一覧
 
@@ -26,7 +26,7 @@
 | [`library/feedback/app-e2e/`](#library-feedback-app-e2e) | フィードバックの成果物 | 1 |
 | [`library/feedback/baseline/`](#library-feedback-baseline) | フィードバックの成果物 | 2 |
 | [`library/feedback/bench/`](#library-feedback-bench) | フィードバックの成果物 | 4 |
-| [`library/feedback/body/`](#library-feedback-body) | フィードバックの成果物 | 4 |
+| [`library/feedback/body/`](#library-feedback-body) | フィードバックの成果物 | 6 |
 | [`library/feedback/check/`](#library-feedback-check) | フィードバックの成果物 | 176 |
 | [`library/feedback/finish/`](#library-feedback-finish) | フィードバックの成果物 | 2 |
 | [`library/feedback/settei/`](#library-feedback-settei) | フィードバックの成果物 | 3 |
@@ -184,9 +184,9 @@
 <a id="library-feedback-body"></a>
 ## library/feedback/body/
 
-|   |   |   |   |
-|---|---|---|---|
-| <a href="feedback/body/2026-10-19/r16/r16-front-s16001.jpg"><img src="feedback/body/2026-10-19/r16/r16-front-s16001.jpg" width="150" alt="r16-front-s16001.jpg"></a><br><sub>r16-front-s16001.jpg</sub> | <a href="feedback/body/2026-10-19/r17/r17-side-s17001.jpg"><img src="feedback/body/2026-10-19/r17/r17-side-s17001.jpg" width="150" alt="r17-side-s17001.jpg"></a><br><sub>r17-side-s17001.jpg</sub> | <a href="feedback/body/2026-10-19/r18/r18-front-s18001.jpg"><img src="feedback/body/2026-10-19/r18/r18-front-s18001.jpg" width="150" alt="r18-front-s18001.jpg"></a><br><sub>r18-front-s18001.jpg</sub> | <a href="feedback/body/2026-10-19/r19/r19-side-s19001.jpg"><img src="feedback/body/2026-10-19/r19/r19-side-s19001.jpg" width="150" alt="r19-side-s19001.jpg"></a><br><sub>r19-side-s19001.jpg</sub> |
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <a href="feedback/body/2026-10-19/r16/r16-front-s16001.jpg"><img src="feedback/body/2026-10-19/r16/r16-front-s16001.jpg" width="150" alt="r16-front-s16001.jpg"></a><br><sub>r16-front-s16001.jpg</sub> | <a href="feedback/body/2026-10-19/r17/r17-side-s17001.jpg"><img src="feedback/body/2026-10-19/r17/r17-side-s17001.jpg" width="150" alt="r17-side-s17001.jpg"></a><br><sub>r17-side-s17001.jpg</sub> | <a href="feedback/body/2026-10-19/r18/r18-front-s18001.jpg"><img src="feedback/body/2026-10-19/r18/r18-front-s18001.jpg" width="150" alt="r18-front-s18001.jpg"></a><br><sub>r18-front-s18001.jpg</sub> | <a href="feedback/body/2026-10-19/r19/r19-side-s19001.jpg"><img src="feedback/body/2026-10-19/r19/r19-side-s19001.jpg" width="150" alt="r19-side-s19001.jpg"></a><br><sub>r19-side-s19001.jpg</sub> | <a href="feedback/body/2026-10-19/r20/r20-back-s20001.jpg"><img src="feedback/body/2026-10-19/r20/r20-back-s20001.jpg" width="150" alt="r20-back-s20001.jpg"></a><br><sub>r20-back-s20001.jpg</sub> | <a href="feedback/body/2026-10-20/r21/r21-walk-s21001.jpg"><img src="feedback/body/2026-10-20/r21/r21-walk-s21001.jpg" width="150" alt="r21-walk-s21001.jpg"></a><br><sub>r21-walk-s21001.jpg</sub> |
 
 <a id="library-feedback-check"></a>
 ## library/feedback/check/
