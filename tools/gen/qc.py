@@ -156,6 +156,7 @@ def hand_boxes(points: list[dict], least: float = 0.5, ahead: float = 0.35, size
 
 # 手が読めなかったとき、枠をずらして読み直す幅（枠の一辺に対する割合）
 SHIFT = 0.75
+PALM_LEAST = 0.3  # 手のひらを探す模型の確からしさの下限（拾った枠は手らしさ SHIFT_MIN で確かめる）
 SHIFT_MIN = 0.8   # ずらした枠を手とみなす手らしさの下限（剣士の手は 0.98）
 
 
@@ -183,6 +184,19 @@ def hands_auto(points: list[dict], im: Image.Image, presence_min: float = 0.5) -
                     # ずらした枠は服や髪を手と読むことがある（傘の絵で 0.50〜0.54 の枠が髪と服だった）。はっきり手と読めた枠だけを使う
                     if sm.get("presence", 0.0) >= SHIFT_MIN and sm.get("presence", 0.0) > m.get("presence", 0.0):
                         b, m, bad = {**b, "box": sb}, sm, sbad
+        if m.get("presence", 1.0) < presence_min:
+            # ずらしても読めなければ、手首の周り（枠の 3 倍四方）で手のひらを探す模型に手の場所を探させる。
+            # 傘を持つ絵 8 枚で、読めた手が 3 → 7（拾った 7 つとも傘の柄を握る手だった）
+            x0, y0, x1, y1 = b["box"]
+            cx, cy, h = (x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) * 1.5
+            ox, oy = int(cx - h), int(cy - h)
+            reg = im.crop((ox, oy, int(cx + h), int(cy + h)))
+            for found in hands.detect_palms(reg, PALM_LEAST):
+                fb, ang = found.split(":")
+                a0, b0, a1, b1 = (int(v) for v in fb.split(","))
+                pm, pbad, _ = hands.measure(reg.crop((a0, b0, a1, b1)).rotate(float(ang), expand=True, fillcolor=im.getpixel((0, 0))))
+                if pm.get("presence", 0.0) >= SHIFT_MIN and pm.get("presence", 0.0) > m.get("presence", 0.0):
+                    b, m, bad = {**b, "box": (ox + a0, oy + b0, ox + a1, oy + b1), "angle": float(ang)}, pm, pbad
         seen = m.get("presence", 1.0) >= presence_min
         res["hands"].append({**b, "seen": seen, "measure": m, "outside": bad})
         res["readable"] = res["readable"] or seen
