@@ -24,7 +24,7 @@ SEEDS = (1, 2, 3)  # 1つの画風を3枚。1枚約5分で、1時間の枠に収
 # 名前, 特徴（体の数と目印）
 ANIMALS = [
     ("capybara", "a capybara, four short legs, blunt square snout, small round ears, brown fur"),
-    ("axolotl", "an axolotl, four small legs, three pairs of feathery pink gills, smiling mouth, long tail"),
+    ("axolotl", "an axolotl, a pale pink salamander, wide flat head with frilly gill branches on both sides of the head, tiny black dot eyes, small toothless smiling mouth, soft smooth skin, four short legs, long flat tail"),
     ("pangolin", "a pangolin, four legs, body covered in overlapping brown scales, long tail"),
     ("toucan", "a toucan, two wings, two feet, huge orange and yellow beak, black body, white throat"),
     ("chameleon", "a chameleon, four legs, curled tail, bulging eyes, green skin"),
@@ -154,6 +154,14 @@ def today_animal(today):
     return name, dict(ANIMALS)[name]
 
 
+# 種を取り違えた絵（ウーパールーパーが牙と背びれのある蜥蜴になる）が続いたので、
+# どの動物にも効く崩れの打ち消しと、取り違えやすい動物ごとの打ち消しを足す
+NEGATIVE = "extra legs, missing legs, extra heads, fused limbs, deformed anatomy, wrong species, text, watermark"
+NOT = {
+    "axolotl": "sharp teeth, fangs, spikes, dorsal spines, scales, lizard, dragon, fish tail fin",
+}
+
+
 def main():
     # 1日1種。0時から23時（JST）まで毎時1つの画風を描き、23時がリアル風になる
     out = Path(sys.argv[1])
@@ -179,7 +187,8 @@ def draw_one(out, name, feat, styles=STYLES):
         # 「 style」を含めると design.py がアニメ塗りの決まり文句を付けない
         prompt = f"{style} style, {feat}, full body, small in frame"
         r = subprocess.run([sys.executable, str(ROOT / "tools/gen/design.py"), "draw", str(p), prompt,
-                            "--kind", "creature", "--style", "xl", "--seed", str(seed)],
+                            "--kind", "creature", "--style", "xl", "--seed", str(seed),
+                            "--negative", ", ".join(x for x in (NEGATIVE, NOT.get(name, "")) if x)],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         print(key, seed, "exit", r.returncode, flush=True)
 
