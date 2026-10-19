@@ -333,9 +333,14 @@ def dejag(a: np.ndarray, protect: np.ndarray | None = None, reach: float = 2.0) 
 def sharpen(a: np.ndarray, sigma: float = 1.2, amount: float = 0.6) -> np.ndarray:
     """アンシャープマスクを明るさだけに掛ける（色ににじみを出さない）"""
     from scipy.ndimage import gaussian_filter
+    from scipy.ndimage import binary_dilation
     L = _lum(a) * 255
     d = (L - gaussian_filter(L, sigma)) * amount
-    return a + d[..., None]
+    # 強い縁の周りだけを締める。平らな所まで掛けると塗りのざらつきが黒い粒になり、線の塊が 710 → 1390 に増えた
+    g = _grad(L / 255)
+    near = binary_dilation(g > np.quantile(g, 0.95), iterations=2)
+    w = gaussian_filter(near.astype(float), 1.0)
+    return a + (d * w)[..., None]
 
 
 OPS = {"heal": heal, "denoise": denoise, "white_balance": white_balance, "levels": levels, "dehaze": dehaze,
@@ -386,9 +391,15 @@ LINE_GUARD = {"denoise", "defringe", "deburr", "dejag", "sharpen"}   # 線の形
 
 def line_state(a: np.ndarray) -> tuple[int, int]:
     """主線の塊の数と面積。毛先が切れて点線になると塊が増え、線が太る・痩せると面積が変わる"""
+    import cleanup
     from scipy.ndimage import label
     m = _line(a)
-    return int(label(m, structure=np.ones((3, 3)))[1]), int(m.sum())
+    lab, n = label(m, structure=np.ones((3, 3)))
+    # 粒（cleanup.SPECK 未満）は数えない。シャープは縁の際に見えない粒を作り、塊を 671 → 976 に増やしたが、
+    # 元の大きさで見て線は切れていなかった。切れた毛先は粒より大きい塊になる
+    sizes = np.bincount(lab.ravel())[1:]
+    big = sizes >= cleanup.SPECK
+    return int(big.sum()), int(sizes[big].sum())
 
 
 def line_broken(a: np.ndarray, b: np.ndarray, pieces: float = 1.05, area: float = 0.02, thickness: bool = True) -> str:
