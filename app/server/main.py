@@ -973,8 +973,11 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         if body.ref and _ref_path(body.ref) == "":
             raise HTTPException(422, "その参考画像は無い（/api/refs で保存したものを選ぶ）")
         control = ""
-        if body.control:
-            found = assets.get_pose(body.control)
+        # 座る頼みで下絵を選んでいなければ、棚から種類の合う下絵を選ぶ（言葉だけでは座る頼みの絵が立ったまま描かれた）。
+        # "none" を渡すと選ばない
+        picked = assets.pick_pose(body.prompt, body.seed or 0) if not body.control else None
+        if body.control and body.control != "none" or picked:
+            found = assets.get_pose(picked or body.control)
             if found is None:
                 raise HTTPException(422, f"姿勢の下絵「{body.control}」は使えない（無いか、出典とライセンスが書かれていない）")
             control = str(found)
