@@ -115,13 +115,54 @@ def sketch(im):
     return _img(np.repeat(out[..., None], 3, -1) * _paper(h, w, (1.0, 0.99, 0.96)))
 
 
+def _blur(a: np.ndarray, r: float) -> np.ndarray:
+    """2 次元のガウスぼかし（縦と横に分けて掛ける）。Pillow の 8 ビットぼかしでは細い差が丸められて線が途切れた"""
+    n = max(1, int(r * 3))
+    x = np.arange(-n, n + 1, dtype=np.float32)
+    k = np.exp(-x * x / (2 * r * r))
+    k /= k.sum()
+    b = np.pad(a, n, mode="edge")
+    b = sum(k[i] * b[:, i:i + a.shape[1]] for i in range(2 * n + 1))
+    return sum(k[i] * b[i:i + a.shape[0], :] for i in range(2 * n + 1))
+
+
+def _box(a: np.ndarray, r: int) -> np.ndarray:
+    c = np.pad(a, ((r + 1, r), (r + 1, r))).cumsum(0).cumsum(1)
+    h, w = a.shape
+    s = 2 * r + 1
+    return c[s:s + h, s:s + w] - c[:h, s:s + w] - c[s:s + h, :w] + c[:h, :w]
+
+
+def _drop_specks(line: np.ndarray, r: int, min_px: int) -> np.ndarray:
+    """小さな点（毛並みや紙のざらつきが線に化けたもの）を消す。
+    近くの線の量が少ない画素は、つながった線ではなく点とみなす"""
+    on = (line > 0.5).astype(np.float32)
+    return line * (_box(on, r) >= min_px)
+
+
+def xdog(im, sigma: float = 0.8, k: float = 1.6, p: float = 22.0, eps: float = -0.02, phi: float = 60.0) -> np.ndarray:
+    """XDoG（ぼかしの差を鋭く引き伸ばす）で線の濃さ 0〜1 を出す。
+    勾配で取る輪郭は太さが揃わず二重線になったが、XDoG は 1 本の筆の線に近くなった"""
+    g = np.asarray(im.convert("L"), dtype=np.float32) / 255.0
+    # 平らな所の小さなざらつきを先に消し、毛並みが全部線になるのを防ぐ
+    g = _blur(g, 0.6)
+    d = (1 + p) * _blur(g, sigma) - p * _blur(g, sigma * k)
+    v = np.where(d >= eps, 1.0, 1.0 + np.tanh(phi * (d - eps)))
+    return np.clip(1 - v, 0, 1)
+
+
+def _line(im) -> np.ndarray:
+    """塗りの上に重ねる主線。線画と同じ XDoG を使い、画風ごとの主線の質をそろえる"""
+    s = max(1, min(im.size) // 300)
+    return _drop_specks(xdog(im, sigma=0.7 * s), 3 * s, 7 * s)
+
+
 def lineart(im):
-    """線画。輪郭だけを黒い線で残し、塗りを消す"""
-    e = _edges(im, 1.2)
-    line = np.clip((e - 0.12) * 2.2, 0, 1)
-    line = np.asarray(Image.fromarray((line * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(3)), dtype=np.float32) / 255.0
-    out = 1 - line
-    return _img(np.repeat(out[..., None], 3, -1))
+    """線画。XDoG で線を取り、小さな点を消して、白地に黒の線だけを残す。塗りや下地に使える"""
+    s = max(1, min(im.size) // 300)
+    line = xdog(im, sigma=0.7 * s)
+    line = _drop_specks(line, 3 * s, 7 * s)
+    return _img(np.repeat((1 - line)[..., None], 3, -1))
 
 
 def ink(im):
@@ -197,7 +238,7 @@ def stainedglass(im):
     m = _cell_mean(a, lab, n)
     g = _gray(m)[..., None]
     m = np.clip(g + (m - g) * 1.6, 0, 1) * 1.08
-    lead = np.maximum(_borders(lab, 3), np.clip((_edges(im, 1.5) - 0.3) * 2, 0, 1))
+    lead = np.maximum(_borders(lab, 3), _line(im))
     return _img(m * (1 - lead[..., None]) + 0.08 * lead[..., None])
 
 
@@ -292,7 +333,7 @@ def anime(im):
     q = np.clip(q * cel, 0, 1)
     gq = _gray(q)[..., None]
     q = np.clip(gq + (q - gq) * 1.25, 0, 1)
-    line = np.clip((_edges(im, 1.0) - 0.2) * 2.5, 0, 1)
+    line = _line(im)
     return _img(q * (1 - 0.85 * line[..., None]))
 
 
@@ -307,7 +348,7 @@ def manga(im):
     v = ((xx - yy) % p) / p - 0.5
     dot = np.hypot(u, v)
     tone = np.where(g < 0.18, 0.0, np.where(g < 0.68, (dot > (0.68 - g) * 0.9).astype(np.float32), 1.0))
-    line = np.clip((_edges(im, 1.0) - 0.15) * 3, 0, 1)
+    line = _line(im)
     out = tone * (1 - line)
     return _img(np.repeat(out[..., None], 3, -1))
 
@@ -318,7 +359,7 @@ def ukiyoe(im):
     g = _gray(q)[..., None]
     q = g + (q - g) * 0.8
     q = q * np.array([1.0, 0.96, 0.86], dtype=np.float32) + 0.03
-    line = np.clip((_edges(im, 1.4) - 0.2) * 2.5, 0, 1)
+    line = _line(im)
     h, w, _ = q.shape
     return _img(q * (1 - 0.8 * line[..., None]) * _paper(h, w, (0.98, 0.94, 0.85), 0.04))
 
@@ -329,7 +370,7 @@ def popart(im):
     pal = np.array([[0.1, 0.1, 0.35], [0.9, 0.15, 0.3], [1.0, 0.8, 0.1], [0.98, 0.95, 0.88]], dtype=np.float32)
     idx = np.clip((g * 4).astype(int), 0, 3)
     out = pal[idx]
-    line = np.clip((_edges(im, 1.0) - 0.2) * 3, 0, 1)
+    line = _line(im)
     return _img(out * (1 - line[..., None]))
 
 
@@ -344,7 +385,7 @@ def pixel(im):
 
 def blueprint(im):
     """青写真。輪郭を白い線で、紺の地に"""
-    line = np.clip((_edges(im, 1.2) - 0.12) * 2.5, 0, 1)[..., None]
+    line = _line(im)[..., None]
     bg = np.array([0.08, 0.2, 0.45], dtype=np.float32)
     return _img(bg * (1 - line) + np.array([0.9, 0.95, 1.0]) * line)
 
@@ -357,7 +398,7 @@ def charcoal(im):
     grain = np.asarray(Image.fromarray((rng.random((h, w)) * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(1.0)), dtype=np.float32) / 255.0
     smudge = np.asarray(Image.fromarray((g * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(3)), dtype=np.float32) / 255.0
     v = np.clip(smudge ** 1.3 + (grain - 0.5) * 0.35 * (1 - smudge), 0, 1)
-    line = np.clip((_edges(im, 1.5) - 0.15) * 2, 0, 1)
+    line = _line(im)
     v = v * (1 - 0.7 * line)
     return _img(v[..., None] * _paper(h, w, (0.97, 0.96, 0.93)))
 
