@@ -119,6 +119,13 @@ def check_rig(rig) -> list[str]:
                 rel = _mul(_t(_axes(rig.pose.bones[pa].matrix)), _axes(rig.pose.bones[ch].matrix))
                 out += [f"{side}: {x}" if side != "C" else x for x in judge(name, rel, hinge_front(rel, front))]
                 continue
+            if j.get("between"):
+                # すねと足の甲の間の角が休みの姿勢から何度閉じたか（閉じる向きが底屈で正）。骨の軸の面で測ると、
+                # BVH で足がねじれた床座り（wolgade_sit_on_ground_01）の底屈 45 度を 87 度と読んだ
+                rest = math.degrees(rig.data.bones[pa].matrix_local.to_3x3().col[1].angle(rig.data.bones[ch].matrix_local.to_3x3().col[1]))
+                now = math.degrees(rig.pose.bones[pa].matrix.to_3x3().col[1].angle(rig.pose.bones[ch].matrix.to_3x3().col[1]))
+                out += [f"{side}: {x}" if side != "C" else x for x in judge(name, None, rest - now)]
+                continue
             rel = relative(_axes(rig.data.bones[pa].matrix_local), _axes(rig.data.bones[ch].matrix_local),
                            _axes(rig.pose.bones[pa].matrix), _axes(rig.pose.bones[ch].matrix))
             out += [f"{side}: {r}" if side != "C" else r for r in judge(name, rel)]
