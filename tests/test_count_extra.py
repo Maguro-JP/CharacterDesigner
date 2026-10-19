@@ -40,6 +40,14 @@ class CountExtra(unittest.TestCase):
                 mock.patch("PIL.Image.open", return_value=mock.Mock(size=(832, 1216))):
             self.assertEqual(pieces.count_extra("x.png", "1boy, knight, holding sword"), [])
 
+    def test_weak_armor_hits_are_not_swords(self):
+        # 草摺や垂れ布が刃・柄として 0.2〜0.29 で当たっても、剣とは数えない（騎士の種 25）
+        found = [("a sword", 0.44, [144, 634, 269, 1140]), ("a sword blade", 0.26, [366, 636, 393, 780]),
+                 ("a sword hilt", 0.25, [345, 613, 434, 650])]
+        with mock.patch.object(pieces, "detect", return_value=found), \
+                mock.patch("PIL.Image.open", return_value=mock.Mock(size=(832, 1216))):
+            self.assertEqual(pieces.count_extra("x.png", "1boy, knight, holding sword"), [])
+
 
 if __name__ == "__main__":
     unittest.main()
