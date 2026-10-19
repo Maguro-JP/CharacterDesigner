@@ -21,6 +21,16 @@ class CountExtra(unittest.TestCase):
         with mock.patch.object(pieces, "detect", return_value=two):
             self.assertEqual(pieces.count_extra("x.png", "two bags, holding bag"), [])
 
+    def test_swordsman_hilt_apart_from_blade(self):
+        # 剣士の言い方でも剣を数え、柄と刃が離れた絵を 1 件にする
+        apart = [("a sword hilt", 0.3, [0, 0, 60, 60]), ("a sword blade", 0.6, [300, 400, 420, 900])]
+        with mock.patch.object(pieces, "detect", return_value=apart) as d:
+            self.assertEqual(len(pieces.count_extra("x.png", "1girl, swordsman, full body")), 1)
+            self.assertIn("a sword blade", d.call_args[0][1])
+        joined = [("a sword hilt", 0.3, [0, 0, 60, 60]), ("a sword", 0.6, [0, 0, 120, 500])]
+        with mock.patch.object(pieces, "detect", return_value=joined):
+            self.assertEqual(pieces.count_extra("x.png", "1girl, swordsman"), [])
+
 
 if __name__ == "__main__":
     unittest.main()
