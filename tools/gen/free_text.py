@@ -300,7 +300,9 @@ def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, w
             elif control:
                 from PIL import Image
                 cimg = Image.open(control).convert("RGB").resize((width, height))
-                im = draw_pipe(control_image=[cimg], control_mode=[1], controlnet_conditioning_scale=control_scale,
+                # まとめの模型は奥行きを番号 1 で受け、小さい奥行きの模型は image で受ける（people.control_pipe）
+                cin = dict(control_image=[cimg], control_mode=[1]) if getattr(draw_pipe, "cd_union", True) else dict(image=cimg)
+                im = draw_pipe(**cin, controlnet_conditioning_scale=control_scale,
                                control_guidance_end=control_end, width=width, height=height, **common, **ref_kw).images[0]
             else:
                 im = draw_pipe(width=width, height=height, **common, **ref_kw).images[0]

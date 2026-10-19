@@ -77,6 +77,7 @@ def pipe():
 
 
 _CONTROL = None
+DEPTH_MODEL = "diffusers/controlnet-depth-sdxl-1.0-small"   # openrail++。奥行きだけの小さい型（fp16 で約 320MB）
 CONTROL_MODEL = "xinsir/controlnet-union-sdxl-1.0"   # Apache-2.0。奥行き・線・関節を1つの模型で扱う（promax 版、約 2.5GB）
 
 
@@ -87,13 +88,24 @@ def control_pipe():
         import torch
         from diffusers import ControlNetUnionModel, StableDiffusionXLControlNetUnionPipeline
         import device
-        cn = ControlNetUnionModel.from_pretrained(CONTROL_MODEL, filename="diffusion_pytorch_model_promax.safetensors",
-                                                  config_file_name="config_promax.json", torch_dtype=device.dtype(torch))
-        device.module(cn, torch)
         base = pipe()
-        _CONTROL = StableDiffusionXLControlNetUnionPipeline(**{k: v for k, v in base.components.items() if k in (
+        shared = {k: v for k, v in base.components.items() if k in (
             "vae", "text_encoder", "text_encoder_2", "tokenizer", "tokenizer_2", "unet", "scheduler",
-            "feature_extractor", "image_encoder")}, controlnet=cn)
+            "feature_extractor", "image_encoder")}
+        try:
+            cn = ControlNetUnionModel.from_pretrained(CONTROL_MODEL, filename="diffusion_pytorch_model_promax.safetensors",
+                                                      config_file_name="config_promax.json", torch_dtype=device.dtype(torch))
+            device.module(cn, torch)
+            _CONTROL = StableDiffusionXLControlNetUnionPipeline(**shared, controlnet=cn)
+            _CONTROL.cd_union = True
+        except OSError:
+            # まとめの模型（約 2.5GB）を取っていない手元では、奥行きだけの小さい模型（約 320MB、取る台本が取る）で縛る。
+            # 取っていないと、画面で下絵を選んだ仕事が config.json が無いと止まった（2026-10-20）
+            from diffusers import ControlNetModel, StableDiffusionXLControlNetPipeline
+            cn = ControlNetModel.from_pretrained(DEPTH_MODEL, variant="fp16", torch_dtype=device.dtype(torch))
+            device.module(cn, torch)
+            _CONTROL = StableDiffusionXLControlNetPipeline(**shared, controlnet=cn)
+            _CONTROL.cd_union = False
         _CONTROL.vae.enable_tiling()
     return _CONTROL
 
@@ -106,7 +118,6 @@ def clothed(clothes):
 
 
 _DEPTH = None
-DEPTH_MODEL = "diffusers/controlnet-depth-sdxl-1.0-small"   # openrail++。奥行きだけの小さい型（fp16 で約 320MB）
 
 
 def depth_img2img():
