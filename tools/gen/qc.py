@@ -841,6 +841,12 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
                     extra_count = pieces.count_extra(src, prompt)
                     if extra_count:
                         res["problems"].append({"item_count": extra_count})
+                    # 長い持ち物（ほうき・杖・槍・傘）が柄と先で別々に描かれた矛盾。サーバーの描き直しの検品だけが見ていて、
+                    # 自由に描く・比べ（bench）の検品では数えていなかった
+                    if pieces.asked(prompt):
+                        split = pieces.split_objects(src, prompt)
+                        if split:
+                            res["problems"].append({"item_split": split})
             except Exception as e:
                 res["unreadable"].append({"item_count": f"{type(e).__name__}: {e}"})
             many = not_solo(all_tags, prompt)
