@@ -126,6 +126,9 @@ def measure(img):
         if k in bent:
             continue
         for name, v in vals:
+            # 折った指は指の線が握った物や手のひらの上を通るので、指の色も比べない（剣の柄を握った手の 5 本が 0.0〜0.29 だった）
+            if k == "cover" and name in bent:
+                continue
             if not lo <= v <= hi:
                 bad.append(f"{name}{'の手の色' if k == 'cover' else ''} {v}（{lo}〜{hi}）")
     return m, bad, _overlay(sq, lm)

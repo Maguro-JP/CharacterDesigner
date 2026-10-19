@@ -154,6 +154,10 @@ def hand_boxes(points: list[dict], least: float = 0.5, ahead: float = 0.35, size
     return out
 
 
+# 手が読めなかったとき、枠をずらして読み直す幅（枠の一辺に対する割合）
+SHIFT = 0.75
+
+
 def hands_auto(points: list[dict], im: Image.Image, presence_min: float = 0.5) -> dict:
     """手を切り出して hands.measure で測る。外れ（bad）が 1 つでもあれば崩れ。読める手が無ければ読めない。
     手らしさ（presence）が presence_min 未満の手は、枠に手が入っていない（体の陰に隠れた手、枠のずれ）ことが多く、
@@ -164,6 +168,19 @@ def hands_auto(points: list[dict], im: Image.Image, presence_min: float = 0.5) -
     for b in boxes:
         crop = im.crop(b["box"]).rotate(b["angle"], expand=True, fillcolor=im.getpixel((0, 0)))
         m, bad, _ = hands.measure(crop)
+        if m.get("presence", 1.0) < presence_min:
+            # 手首の点がずれると、前腕の先に置いた枠から手が外れる（4096 の剣士で、枠が剣の鍔だけを写し手らしさ 0.01、
+            # 手は枠の左上に 200 画素ほどずれていた）。枠を縦横に SHIFT ずつずらして読み直し、手らしさの一番高い枠を使う
+            x0, y0, x1, y1 = b["box"]
+            step = (x1 - x0) * SHIFT
+            for dx in (-step, 0, step):
+                for dy in (-step, 0, step):
+                    if not dx and not dy:
+                        continue
+                    sb = tuple(int(round(v)) for v in (x0 + dx, y0 + dy, x1 + dx, y1 + dy))
+                    sm, sbad, _ = hands.measure(im.crop(sb).rotate(b["angle"], expand=True, fillcolor=im.getpixel((0, 0))))
+                    if sm.get("presence", 0.0) > m.get("presence", 0.0):
+                        b, m, bad = {**b, "box": sb}, sm, sbad
         seen = m.get("presence", 1.0) >= presence_min
         res["hands"].append({**b, "seen": seen, "measure": m, "outside": bad})
         res["readable"] = res["readable"] or seen
