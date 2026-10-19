@@ -519,6 +519,43 @@ LEGS_OVERLAP_OK = ("sitting", "seiza", "kneeling", "crouching", "squatting", "ly
                    "cowboy shot", "upper body", "portrait", "close-up", "from side", "profile", "long dress", "long skirt", "gown")
 
 
+# 頼んだ姿勢の言葉と、関節で確かめる形。基準の組で「crouching」を頼んだ 7 枚のうち 4 枚が立ったまま描かれ、検品が数えなかった
+POSE_WORDS = {"arms_up": ("arms raised", "arms up", "hands up", "raising arms", "arms above head"),
+              "hand_on_hip": ("hand on hip", "hands on hips", "hand on own hip"),
+              "low": ("crouching", "squatting", "sitting", "kneeling")}
+# 腿の縦の長さ（膝の高さ − 腰の高さ）を胴の長さで割った比。基準の組で立ち姿 0.77〜1.0、座る・しゃがむ -0.42〜0.53
+THIGH_STANDING = 0.7
+# 手首が腰からこの割合（胴の長さに対して）以内なら、手を腰に当てている。基準の組の hand on hip 8 枚は両手とも 0.35 以内
+HIP_NEAR = 0.35
+
+
+def pose_missing(points: list[dict], prompt: str, least: float = 0.3) -> list[str]:
+    """頼んだ姿勢（腕を上げる・手を腰に・座る/しゃがむ）が関節の形に出ていなければ、その理由を返す。
+    関節が読めない（確からしさが least 未満）ときは数えない"""
+    low = prompt.lower()
+    p = {q["name"]: q for q in points}
+    need = ("nose", "left_shoulder", "right_shoulder", "left_hip", "right_hip", "left_knee", "right_knee", "left_wrist", "right_wrist")
+    if any(n not in p for n in need):
+        return []
+    y = lambda n: p[n]["y"]
+    ok = lambda *ns: all(p[n]["score"] >= least for n in ns)
+    torso = abs((y("left_hip") + y("right_hip")) / 2 - (y("left_shoulder") + y("right_shoulder")) / 2) or 1.0
+    out = []
+    if any(w in low for w in POSE_WORDS["arms_up"]) and ok("nose", "left_wrist", "right_wrist"):
+        if not any(y(w) < y("nose") for w in ("left_wrist", "right_wrist")):
+            out.append("腕を上げる姿勢を頼んだが、両手首とも頭より下")
+    if any(w in low for w in POSE_WORDS["hand_on_hip"]) and ok("left_wrist", "right_wrist", "left_hip", "right_hip"):
+        near = [math.hypot(p[f"{s}_wrist"]["x"] - p[f"{s}_hip"]["x"], y(f"{s}_wrist") - y(f"{s}_hip")) / torso < HIP_NEAR
+                for s in ("left", "right")]
+        if not any(near):
+            out.append("手を腰に当てる姿勢を頼んだが、どちらの手首も腰から離れている")
+    if any(w in low for w in POSE_WORDS["low"]) and ok("left_hip", "right_hip", "left_knee", "right_knee"):
+        thigh = ((y("left_knee") + y("right_knee")) / 2 - (y("left_hip") + y("right_hip")) / 2) / torso
+        if thigh > THIGH_STANDING:
+            out.append(f"座る・しゃがむ姿勢を頼んだが、腿が立ち姿の長さ（{thigh:.2f}）")
+    return out
+
+
 def legs_fused(points: list[dict], seg: np.ndarray, prompt: str = "", apart: float = 0.09, least: float = 0.1,
                seen: float = 0.5) -> dict:
     """両脚が服の中で 1 本に溶けた崩れ。足首が絵の幅の apart 以上離れているのに、腰と足首の間（3 割〜9 割の高さ）で
@@ -967,6 +1004,9 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
                 fused = legs_fused(points, _parts(src, Image.open(src).convert("RGB")), prompt)
                 if fused.get("fused"):
                     res["problems"].append({"legs_fused": fused})
+                missed = pose_missing(points, prompt)
+                if missed:
+                    res["problems"].append({"pose_missing": missed})
             except Exception as e:
                 res["unreadable"].append({"occlusion": f"{type(e).__name__}: {e}"})
         if not person["found"]:
