@@ -2,7 +2,7 @@
 
 `python3 tools/library_check.py` が書く。手で直さない。置き方の決まりは [docs/STRUCTURE.md](../docs/STRUCTURE.md)。
 
-全 555 枚（置き場 39 か所）。どこからも参照されていない絵 129 枚には「未参照」と付ける。
+全 563 枚（置き場 40 か所）。どこからも参照されていない絵 129 枚には「未参照」と付ける。
 
 ## 置き場の一覧
 
@@ -29,6 +29,7 @@
 | [`library/feedback/body/`](#library-feedback-body) | フィードバックの成果物 | 6 |
 | [`library/feedback/check/`](#library-feedback-check) | フィードバックの成果物 | 176 |
 | [`library/feedback/finish/`](#library-feedback-finish) | フィードバックの成果物 | 2 |
+| [`library/feedback/hands/`](#library-feedback-hands) | フィードバックの成果物 | 8 |
 | [`library/feedback/settei/`](#library-feedback-settei) | フィードバックの成果物 | 3 |
 | [`library/feedback/shoes/`](#library-feedback-shoes) | フィードバックの成果物 | 12 |
 | [`library/feedback/stylize/`](#library-feedback-stylize) | フィードバックの成果物 | 66 |
@@ -230,6 +231,14 @@
 |   |   |
 |---|---|
 | <a href="feedback/finish/2026-10-18/tee4k/tee4k-armsup-clean-s11.jpg"><img src="feedback/finish/2026-10-18/tee4k/tee4k-armsup-clean-s11.jpg" width="150" alt="tee4k-armsup-clean-s11.jpg"></a><br><sub>tee4k-armsup-clean-s11.jpg</sub> | <a href="feedback/finish/2026-10-18/tee4k/tee4k-armsup-s11.jpg"><img src="feedback/finish/2026-10-18/tee4k/tee4k-armsup-s11.jpg" width="150" alt="tee4k-armsup-s11.jpg"></a><br><sub>tee4k-armsup-s11.jpg</sub> |
+
+<a id="library-feedback-hands"></a>
+## library/feedback/hands/
+
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <a href="feedback/hands/2026-10-20/umbrella/umbrella-1-s41.jpg"><img src="feedback/hands/2026-10-20/umbrella/umbrella-1-s41.jpg" width="150" alt="umbrella-1-s41.jpg"></a><br><sub>umbrella-1-s41.jpg</sub> | <a href="feedback/hands/2026-10-20/umbrella/umbrella-2-s42.jpg"><img src="feedback/hands/2026-10-20/umbrella/umbrella-2-s42.jpg" width="150" alt="umbrella-2-s42.jpg"></a><br><sub>umbrella-2-s42.jpg</sub> | <a href="feedback/hands/2026-10-20/umbrella/umbrella-3-s43.jpg"><img src="feedback/hands/2026-10-20/umbrella/umbrella-3-s43.jpg" width="150" alt="umbrella-3-s43.jpg"></a><br><sub>umbrella-3-s43.jpg</sub> | <a href="feedback/hands/2026-10-20/umbrella/umbrella-4-s44.jpg"><img src="feedback/hands/2026-10-20/umbrella/umbrella-4-s44.jpg" width="150" alt="umbrella-4-s44.jpg"></a><br><sub>umbrella-4-s44.jpg</sub> | <a href="feedback/hands/2026-10-20/umbrella/umbrella-5-s45.jpg"><img src="feedback/hands/2026-10-20/umbrella/umbrella-5-s45.jpg" width="150" alt="umbrella-5-s45.jpg"></a><br><sub>umbrella-5-s45.jpg</sub> | <a href="feedback/hands/2026-10-20/umbrella/umbrella-6-s46.jpg"><img src="feedback/hands/2026-10-20/umbrella/umbrella-6-s46.jpg" width="150" alt="umbrella-6-s46.jpg"></a><br><sub>umbrella-6-s46.jpg</sub> |
+| <a href="feedback/hands/2026-10-20/umbrella/umbrella-7-s47.jpg"><img src="feedback/hands/2026-10-20/umbrella/umbrella-7-s47.jpg" width="150" alt="umbrella-7-s47.jpg"></a><br><sub>umbrella-7-s47.jpg</sub> | <a href="feedback/hands/2026-10-20/umbrella/umbrella-8-s48.jpg"><img src="feedback/hands/2026-10-20/umbrella/umbrella-8-s48.jpg" width="150" alt="umbrella-8-s48.jpg"></a><br><sub>umbrella-8-s48.jpg</sub> |
 
 <a id="library-feedback-settei"></a>
 ## library/feedback/settei/
