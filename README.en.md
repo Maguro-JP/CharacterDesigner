@@ -85,7 +85,7 @@ Register the MCP server with Claude Code from the repository root:
 | `CD_DEVICE` | Where to draw (`cuda`, `mps`, `cpu`). Omitted: NVIDIA GPU, then Apple GPU, then CPU | Optional |
 | `CD_TORCH` | Which torch build setup installs (`cuda`, `cpu`, `default`). Omitted: CUDA on Linux with an NVIDIA GPU, the default build on Mac, CPU elsewhere | Optional |
 | `CD_APP_DATA` | Where drawn images are stored (default `.cache/app/jobs`) | Optional |
-| `CD_HOME` | Where packages, models and learned norms live (default `.cache` in the repository). Only the Python tools follow it so far; the setup scripts do not yet | Optional |
+| `CD_HOME` | Where packages, models and learned norms live (default `.cache` in the repository) | Optional |
 
 User filters live in `config/filters.json` and learned norms in `config/norms.user.json`; neither is committed.
 
