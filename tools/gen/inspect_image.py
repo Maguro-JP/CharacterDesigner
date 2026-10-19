@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 KEYS_JA = {"fixed_restriction": "固定の制限", "extra_eyes": "目の数", "eyes": "目の左右", "measure": "測った値の外れ",
            "hands": "手の指", "edge_cut": "端の切れ", "floating": "浮いた塊", "seams": "背景の継ぎ目",
-           "heads_tall": "頭身", "spider_legs": "脚の数", "unasked_item": "余分な持ち物", "item_count": "持ち物の数",
+           "heads_tall": "頭身", "spider_legs": "脚の数", "unasked_item": "余分な持ち物", "item_count": "持ち物の数", "item_split": "持ち物の分かれ",
            "item_size": "持ち物の大きさ", "body_parts": "体の部位の数", "occlusion": "見えない部位", "legs_fused": "脚の溶け", "not_solo": "余分な人物"}
 
 
