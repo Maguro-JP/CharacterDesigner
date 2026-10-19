@@ -13,13 +13,35 @@ A map of the repository is in [docs/STRUCTURE.md](docs/STRUCTURE.md) (Japanese);
 
 ## Features
 
-- Draw: illustrated character designs from a request (local image generation; the drawing step can be swapped for an external image generator). 1.5x redraw, face and hair redraw, upscaling to 4K
+- Draw: illustrated character designs from a request (local image generation; the drawing step can be swapped for an external image generator). 1.5x redraw, face and hair redraw, and a finish to 4096 px on the long side (AI upscaling, then each 1024 px tile is redrawn to add detail; tiles whose shape changed are not used)
 - Art director (inspection): measures face geometry, shadow order, background vs. figure lighting, hair color and left/right pairs, and lists values outside the norms. Norms are calibrated on images whose answer is known
+- Retouching: photo-correction techniques (spot healing, denoising, levels, defringing, anti-aliasing, sharpening and more), each applied only after measuring that it helped and did not break the picture (`tools/gen/retouch.py`)
 - Learning: re-learns the art director's norms from verdicts on drawn images and from the user's feedback, per user
 - Post-processing options: chibi / deformed, pixel art, 3D, realistic — made from the finished illustration. The design itself is always decided as an illustration
 - Paint board: pressure, layers, line cleanup, materials (translucent, metal, ...), atmosphere (god rays, dappled light, ...). Each AI assist can be turned on or off
 - Use from Claude: an MCP server lets Claude draw, inspect, learn and finish
 - Nothing is restricted up front. Users block what they do not want with their own filters. The single fixed limit is sexual depiction of children ([docs/filters.md](docs/filters.md))
+
+## Art director: inspection by numbers
+
+`tools/gen/measure.py` and `tools/gen/qc.py` measure what a person notices at a glance:
+- Face geometry when turned back to the front, shadow order against the light, a backlit scene with a front-lit face, hair color against the requested colors, left/right pairs
+- Shape and count: two legs fused into one, two bodies merged when one person was asked, one requested item drawn twice, unrequested prints, text, jackets or weapons
+- Hidden parts (`tools/gen/occlusion.py`): a hand or foot that is not visible passes when hiding it is natural (out of frame, facing away, behind an object), and fails when the request needs it or the limb ends in empty background
+- Comparing drawing methods: redraw the same prompts and seeds (`casts/bench-stage1.json`) and compare problem counts before and after (`tools/gen/bench.py`)
+
+Norms live in `styles/anime-norms.json`; verdicts and user feedback re-learn them into `config/norms.user.json` (`tools/gen/normlearn.py`).
+
+## Content limits and filters
+
+Nothing is restricted up front; users block what they do not want with their own filters (`config/filters.json`).
+The single fixed limit is sexual depiction of children. See [docs/filters.md](docs/filters.md).
+
+## Use from Claude (MCP)
+
+With the app running (`sh app/start.sh`), register the MCP server and ask Claude to draw:
+`claude mcp add characterdesigner -e PYTHONPATH=.cache/app/lib -- python3 -m app.mcp.server`.
+Call `guide` first; it returns the workflow and every tool's arguments.
 
 ## Requirements
 
