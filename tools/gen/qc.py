@@ -283,6 +283,22 @@ PRINTS = ("clothes writing", "print shirt", "english text", "logo")
 PRINT_WORDS = ("print", "logo", "text", "writing", "letter", "graphic")
 
 
+GROUP_WORDS = ("2girls", "2boys", "3girls", "multiple", "group", "couple", "crowd", "friends", "together with")
+
+
+def not_solo(all_tags: dict, prompt: str, least: float = 0.5) -> dict | None:
+    """1 人を頼んだのに 1 人に見えない（2 人の体が混ざる・余分な人物）。タグの solo の確からしさで見る。
+    しゃがみの 1 枚で上下に 2 人の体が混ざった絵は solo 0.20、ほかの 1 人の絵は 0.98〜0.99 だった"""
+    low = prompt.lower()
+    if any(w in low for w in GROUP_WORDS):
+        return None
+    person = max(all_tags.get(t, 0) for t in ("1girl", "1boy", "1other"))
+    solo = all_tags.get("solo", 0)
+    if person >= least and solo < least:
+        return {"solo": round(float(solo), 2), "multiple": round(float(max(all_tags.get("multiple girls", 0), all_tags.get("multiple boys", 0))), 2)}
+    return None
+
+
 def unasked_wear(tags: dict, prompt: str, least: float = 0.5) -> list[str]:
     """頼んだ言葉に無い服飾・持ち物（帽子、上着、刀、腕の布）と、柄・文字を頼んでいない服の柄・文字。
     基準の組の 46 枚で 10 枚に当たり、目で見た 3 枚（刀に見える白い布、黒い腕の布、胸の文字）はどれも描かれていた"""
@@ -819,6 +835,9 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
             low_p = prompt.lower()
             held = held_items(tags, prompt)
             extra = sorted(set(unasked_wear(tags, prompt)) | set(held["unasked"]))
+            many = not_solo(all_tags, prompt)
+            if many:
+                res["problems"].append({"not_solo": many})
             if extra:
                 res["problems"].append({"unasked_item": extra})
             if held["many"]:
@@ -982,7 +1001,7 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
 
 
 # 崩れの重さ（100 点から引く）。体のつながりや人そのものの崩れは直せないので重く、部分の直しで直せる崩れは軽くする
-PENALTY = {"fixed_restriction": 100, "person": 60, "human_legs": 40, "edge_cut": 25, "eyes": 15, "extra_eyes": 15, "floating": 15, "hands": 15, "occlusion": 15, "legs_fused": 25,
+PENALTY = {"fixed_restriction": 100, "person": 60, "human_legs": 40, "edge_cut": 25, "eyes": 15, "extra_eyes": 15, "floating": 15, "hands": 15, "occlusion": 15, "legs_fused": 25, "not_solo": 40,
            "seams": 10, "measure": 8}
 
 
