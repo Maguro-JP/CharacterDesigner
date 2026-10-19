@@ -179,19 +179,50 @@ def ink(im):
     return _img(v[..., None] * _paper(h, w, (0.96, 0.93, 0.86), 0.04))
 
 
+def _subject(im) -> np.ndarray:
+    """被写体の形 0/1。四辺の色を背景とみなし、背景から色が離れた所を被写体にする。
+    描いた動物は無地に近い背景の上にいるので、模型なしでも形が取れる"""
+    a = _arr(im.filter(ImageFilter.GaussianBlur(2)))
+    h, w, _ = a.shape
+    edge = np.concatenate([a[0], a[-1], a[:, 0], a[:, -1]])
+    bg = np.median(edge, 0)
+    d = np.sqrt(((a - bg) ** 2).sum(-1))
+    m = (d > max(0.12, np.percentile(np.sqrt(((edge - bg) ** 2).sum(-1)), 95) * 1.5)).astype(np.uint8) * 255
+    # 白い体が白い地にいると色の差では取れない。線（XDoG）も壁にして、四隅から背景を塗りつぶし、
+    # 塗られなかった所を被写体とする
+    s = max(1, min(h, w) // 300)
+    wall = np.maximum(m, (_drop_specks(xdog(im, sigma=0.7 * s), 3 * s, 7 * s) > 0.5) * 255).astype(np.uint8)
+    img = Image.fromarray(wall).filter(ImageFilter.MaxFilter(7))
+    from PIL import ImageDraw
+    for xy in ((0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)):
+        if img.getpixel(xy) == 0:
+            ImageDraw.floodfill(img, xy, 128)
+    m = np.where(np.asarray(img) == 128, 0, 255).astype(np.uint8)
+    img = Image.fromarray(m)
+    for f in (ImageFilter.MinFilter(5), ImageFilter.ModeFilter(9)):
+        img = img.filter(f)
+    return np.asarray(img, dtype=np.float32) / 255.0
+
+
 def kirie(im):
-    """切り絵。色を 5 枚の色紙に減らし、境に黒い切り線を入れる"""
-    a0 = _kuwahara(_arr(im), max(2, min(im.size) // 160))
-    q = _quantize(_img(a0), 6)
-    # 小さな切れ端は紙で切り出せないので、周りの色に吸わせる
-    q = q.filter(ImageFilter.ModeFilter(5))
-    a = _arr(q)
-    lab = a @ np.array([1, 7, 49], dtype=np.float32)
-    edge = np.zeros(lab.shape, bool)
-    edge[:, 1:] |= lab[:, 1:] != lab[:, :-1]
-    edge[1:, :] |= lab[1:, :] != lab[:-1, :]
-    edge = np.asarray(Image.fromarray(edge.astype(np.uint8) * 255).filter(ImageFilter.MaxFilter(3)), dtype=np.float32) / 255.0
-    return _img(a * (1 - edge[..., None] * 0.9))
+    """切り絵。被写体を黒い紙で切り抜き、明るい所と線の間を窓にして裏の色紙を透かす。
+    色を減らすだけの切り絵は背景の明暗まで紙に切られ、顔の形が崩れた"""
+    sub = _subject(im)
+    g = _gray(_arr(im.filter(ImageFilter.GaussianBlur(1.5))))
+    line = _line(im)
+    line = np.asarray(_img(np.repeat(line[..., None], 3, -1)).convert("L").filter(ImageFilter.MaxFilter(3)), dtype=np.float32) / 255.0
+    # 明るい所を窓にする。窓の境は線で残し、紙が一続きにつながるようにする
+    window = (g > np.percentile(g[sub > 0.5], 55) if (sub > 0.5).any() else g > 0.6) & (line < 0.5)
+    win = np.asarray(Image.fromarray(window.astype(np.uint8) * 255).filter(ImageFilter.ModeFilter(5)), dtype=np.float32) / 255.0
+    # 被写体の外周は必ず紙で縁取る。白い体が白い地に溶けて形が消えるのを防ぐ
+    rim = np.asarray(Image.fromarray((sub * 255).astype(np.uint8)).filter(ImageFilter.MinFilter(7)), dtype=np.float32) / 255.0
+    win = win * rim
+    paper = sub * (1 - win)
+    back = np.array([0.80, 0.12, 0.14], dtype=np.float32)
+    h, w = g.shape
+    ground = _paper(h, w, (0.96, 0.93, 0.86), 0.02)
+    out = ground * (1 - sub[..., None]) + back * (sub * win)[..., None] + 0.06 * paper[..., None]
+    return _img(out)
 
 
 def _cells(h: int, w: int, size: int):
@@ -231,11 +262,15 @@ def _borders(lab: np.ndarray, width: int) -> np.ndarray:
 
 
 def stainedglass(im):
-    """ステンドグラス。ガラス片ごとに色を平らにし、鉛の枠で区切り、彩度を上げて光を透かす"""
+    """ステンドグラス。被写体は細かい片、背景は大きい片にし、片ごとに色を平らにして鉛の枠で区切る。
+    片の大きさを揃えると、被写体の片が粗くて輪郭が消えるか、背景が枠だらけになった"""
     a = _arr(im)
     h, w, _ = a.shape
-    lab, n = _cells(h, w, max(14, min(h, w) // 24))
-    m = _cell_mean(a, lab, n)
+    sub = _subject(im) > 0.5
+    small, ns = _cells(h, w, max(8, min(h, w) // 48))
+    big, nb = _cells(h, w, max(16, min(h, w) // 14))
+    lab = np.where(sub, small, big + ns)
+    m = _cell_mean(a, lab, ns + nb)
     g = _gray(m)[..., None]
     m = np.clip(g + (m - g) * 1.6, 0, 1) * 1.08
     lead = np.maximum(_borders(lab, 3), _line(im))
