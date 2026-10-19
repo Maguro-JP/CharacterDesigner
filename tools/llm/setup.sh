@@ -11,7 +11,7 @@
 #（例: CD_LLM_URL=http://127.0.0.1:11434/v1 CD_LLM_MODEL=qwen2.5:7b sh app/start.sh）。
 set -eu
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
-DIR="$ROOT/.cache/llm"
+DIR="${CD_HOME:-$ROOT/.cache}/llm"  # 置き場所は tools/gen/cdhome.py と同じ決め方
 mkdir -p "$DIR"
 
 # 既定は Qwen2.5 の指示に従う版（Apache-2.0、日本語が読める）。大きいほど読み違いが減り、遅くなる

@@ -3,7 +3,7 @@
 # .cache/engine に取ってくる。どれも数百 MB あるのでリポジトリには入れない。
 # 取り直しは .cache/engine を消してから流す。
 set -eu
-D="$(cd "$(dirname "$0")/../.." && pwd)/.cache/engine"
+D="${CD_HOME:-$(cd "$(dirname "$0")/../.." && pwd)/.cache}/engine"  # 置き場所は tools/gen/cdhome.py と同じ決め方
 mkdir -p "$D"
 cd "$D"
 if [ ! -d bpy ]; then
