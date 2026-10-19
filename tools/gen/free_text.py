@@ -153,6 +153,13 @@ def describe(text: str, local=None, recalled=()) -> dict:
             got, reader = {"tags": text.split(","), "negative": [], "summary": "英語のタグとしてそのまま使った",
                            "allowed": True, "reason": ""}, "tags"
         else:
+            # 言葉の模型が無くても、対応表にある日本語の言葉だけで描けるようにする（起動直後や模型を入れていない PC で止めないため）
+            words, _ = ensure_words(text, [])
+            if words:
+                got, reader = {"tags": words, "negative": [], "summary": "対応表の言葉だけで直した（言葉の模型があればもっと細かく読める）",
+                               "allowed": True, "reason": ""}, "dict"
+                notes.append("言葉の模型につながらないので、対応表にある言葉だけで直した")
+        if got is None:
             if local is not None and notes and "LocalLLMError" in notes[0] and "HTTP Error" not in notes[0] and "urlopen" not in notes[0]:
                 why = f"手元の模型（{local.model or '既定'}）では描く言葉に直せなかった。画面の「言葉の模型」で大きい模型に替えるか、英語のタグをカンマ区切りで書く"
             elif local is not None and notes:
