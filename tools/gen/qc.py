@@ -156,6 +156,7 @@ def hand_boxes(points: list[dict], least: float = 0.5, ahead: float = 0.35, size
 
 # 手が読めなかったとき、枠をずらして読み直す幅（枠の一辺に対する割合）
 SHIFT = 0.75
+SHIFT_MIN = 0.8   # ずらした枠を手とみなす手らしさの下限（剣士の手は 0.98）
 
 
 def hands_auto(points: list[dict], im: Image.Image, presence_min: float = 0.5) -> dict:
@@ -179,7 +180,8 @@ def hands_auto(points: list[dict], im: Image.Image, presence_min: float = 0.5) -
                         continue
                     sb = tuple(int(round(v)) for v in (x0 + dx, y0 + dy, x1 + dx, y1 + dy))
                     sm, sbad, _ = hands.measure(im.crop(sb).rotate(b["angle"], expand=True, fillcolor=im.getpixel((0, 0))))
-                    if sm.get("presence", 0.0) > m.get("presence", 0.0):
+                    # ずらした枠は服や髪を手と読むことがある（傘の絵で 0.50〜0.54 の枠が髪と服だった）。はっきり手と読めた枠だけを使う
+                    if sm.get("presence", 0.0) >= SHIFT_MIN and sm.get("presence", 0.0) > m.get("presence", 0.0):
                         b, m, bad = {**b, "box": sb}, sm, sbad
         seen = m.get("presence", 1.0) >= presence_min
         res["hands"].append({**b, "seen": seen, "measure": m, "outside": bad})
