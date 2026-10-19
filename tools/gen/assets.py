@@ -53,6 +53,7 @@ def list_poses() -> list[dict]:
         usable = bool(str(meta.get("license", "")).strip())
         out.append({"name": f.stem, "title": meta.get("title", f.stem), "source": meta.get("source", ""),
                     "license": meta.get("license", ""), "usable": usable, "strength": float(meta.get("strength", 0.93)),
+                    "kind": meta.get("kind", ""),
                     "why": "" if usable else "出典とライセンスが書かれていないので使わない"})
     return out
 
@@ -62,6 +63,22 @@ def get_pose(name: str) -> Path | None:
         return None
     ok = any(x["name"] == name and x["usable"] for x in list_poses())
     return POSE / f"{name}.png" if ok else None
+
+
+# 頼みの言葉から姿勢の種類を選ぶ。上から順に見て最初に当たったもの。「sitting」だけなら椅子に座る
+POSE_KINDS = (("hug_knees", ("hugging knees", "hugging her knees", "hugging his knees", "knees to chest")),
+              ("cross_legged", ("cross-legged", "cross legged", "lotus position", "indian style")),
+              ("chair_legs_crossed", ("legs crossed", "crossed legs", "crossing legs")),
+              ("floor", ("sitting on the floor", "sitting on the ground", "sitting on floor", "sitting on ground", "seated on the floor")),
+              ("chair", ("sitting", "seated", "sits ")))
+
+
+def pick_pose(prompt: str, seed: int = 0) -> str | None:
+    """頼みの言葉に合う種類の下絵を棚から1つ選ぶ（種で回す）。種類の言葉が無い・合う下絵が無ければ None"""
+    low = f" {prompt.lower()} "
+    kind = next((k for k, words in POSE_KINDS if any(w in low for w in words)), None)
+    found = [x["name"] for x in list_poses() if x["usable"] and x["kind"] == kind] if kind else []
+    return found[seed % len(found)] if found else None
 
 
 def add_pose(src: str, name: str, license: str, title: str = "", source: str = "", strength: float = 0.93) -> dict:

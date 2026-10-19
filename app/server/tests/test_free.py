@@ -185,3 +185,18 @@ def test_free_job_takes_pose_control(client, monkeypatch, tmp_path):
     assert j["state"] == "done"
     spec = runner.calls[0][1]
     assert spec["control"] == str(tmp_path / "sword-depth.png") and spec["control_scale"] == 0.4
+
+
+def test_free_job_picks_sitting_pose(client, monkeypatch, tmp_path):
+    # 座る頼みで下絵を選んでいなければ、棚から種類の合う下絵を選ぶ。"none" なら選ばない。立つ頼みでは選ばない
+    import assets
+    from PIL import Image
+    monkeypatch.setattr(assets, "POSE", tmp_path)
+    Image.new("RGB", (16, 24), "black").save(tmp_path / "chair.png")
+    (tmp_path / "chair.json").write_text('{"license": "CC0", "kind": "chair"}')
+    runner = FakeRunner()
+    c, _ = client(runner)
+    for body in ({"prompt": "1girl, sitting"}, {"prompt": "1girl, sitting", "control": "none"}, {"prompt": "1girl, standing"}):
+        assert wait(c, c.post("/api/free/jobs", json=body).json()["id"])["state"] == "done"
+    got = [call[1]["control"] for call in runner.calls]
+    assert got[0].endswith("chair.png") and got[1] == "" and got[2] == ""
