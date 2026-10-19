@@ -472,3 +472,4 @@ Animagine XL 3.1、tools/gen/people.py card --clothes（素体の肌着と素足
 - 線画の外形を被写体の形（背景色と線から取る）で太くすると、床の影まで外形として太線になり、形の取りこぼし（背の突起）に線が付かなかった。外形の太線は戻し、XDoG の線だけにした。
 - 実在の動物の画風指定から「creature design」を外し「real animal species, true-to-life anatomy」を足しても、ウーパールーパーの鰓は背の棘のままで、口に歯が戻った（種 1、344 秒）。言葉の直しでは差が出ないので戻した。今の速い版の模型（LCM、6 段）が種の形を知らない所は、言葉より模型か段数の問題とみる。
 - 元絵を下敷きに SDXL で描き直す（tools/gen/airestyle.py）と、強さ 0.5 では元絵とほぼ同じ、0.72 で形を保ったまま塗りがイラストに変わった（1 画風 約 6 分）。漫画を頼んでも白黒にはならなかった。白黒や網点は stylize の加工を後から掛ける方が確か。
+- 回16〜18（写実→Animagine 強さ 0.6、1 枚ずつ）: 回17 は肌一面に筋の模様と体の外の線が出て戻した。回18 で写実の段に natural matte skin texture、イラストの段に smooth natural skin with soft subtle shading と打ち消し（glossy/oily skin, specular spots）、32 段を足すと、肌の斑と筋の模様が消え、輪郭線と陰影がそろった。足首から下の重なりと肌の暗さは残った
