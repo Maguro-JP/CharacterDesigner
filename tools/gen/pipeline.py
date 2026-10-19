@@ -35,6 +35,8 @@ PHASES = ["base", "draw", "face", "hands", "check"]
 DRAW = dict(strength=0.85, depth_scale=0.4, depth_end=0.3)
 FACE_STRENGTH = 0.45
 HAND_STRENGTH = 0.75   # 人形の手の奥行きで形を縛るので、元の崩れた手を強めに描き替える
+# 手の奥行きの縛り。detail の既定 0.8 では全身の段と同じく枠の中がぼやけ、服に四角いにじみが残った（2026-10-19）
+HAND_CONTROL = 0.4
 
 
 def _load(out: Path) -> dict:
@@ -148,7 +150,7 @@ def phase_hands(ident, out, view, seed, st):
         detail.detail(cur, str(f), "relaxed hand at side, fingers together, slightly curled, five fingers, " + pos,
                       neg + ", claws, spread fingers, long fingers", strength=HAND_STRENGTH, seed=seed + i, box=box,
                       words=detail.HAND_WORDS, extra_negative=detail.HAND_NEGATIVE,
-                      control=st["phases"]["base"]["result"].get("depth"))
+                      control=st["phases"]["base"]["result"].get("depth"), control_scale=HAND_CONTROL)
         cur = str(f)
     return {"file": cur}
 
