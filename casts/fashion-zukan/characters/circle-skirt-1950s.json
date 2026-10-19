@@ -1,0 +1,33 @@
+{
+ "id": "circle-skirt-1950s",
+ "name": "1950年代のサークルスカート",
+ "age": "",
+ "height": "",
+ "role": "服装の図鑑の見本（06-1946-1999.md のグリーサーとサークルスカート）",
+ "personality": "",
+ "backstory": "",
+ "look": "1girl, solo, young woman, high ponytail, chiffon scarf in hair, brown hair, brown eyes",
+ "eyes": {
+  "tags": "open eyes, brown eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "1950s fashion, white short-sleeved blouse with peter pan collar, pink felt circle skirt, poodle applique, knee-length skirt, white bobby socks, black and white saddle shoes",
+ "turnaround": {
+  "top": "240,240,240",
+  "bottom": "235,150,170",
+  "boots": "30,30,30",
+  "words": "pink circle skirt, saddle shoes",
+  "clothes": "female_elegantsuit01,shoes01",
+  "hair": "ponytail01",
+  "hair_color": "110,70,40",
+  "boots_height": "0.1"
+ },
+ "negative": "short skirt, logo, text, modern clothes",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": ""
+}
