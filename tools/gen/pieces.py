@@ -101,9 +101,13 @@ def split_objects(src: str, prompt: str) -> list[str]:
 
 
 # 頼んだ持ち物が 1 つのはずなのに、別の所に 2 つ以上描かれた崩れ（学生鞄が両手に 1 つずつ、8 枚中 3〜4 枚）
-COUNT = {"bag": ["a bag", "a school bag"], "backpack": ["a backpack"], "sword": ["a sword"], "cup": ["a cup"],
+# 剣は刃と柄も聞く。1 本が途中で切れて柄と刃が離れて描かれた絵（アプリの通し確認の剣士）は「a sword」だけでは 1 か所に見え、
+# 刃と柄も聞くと 2 か所に分かれた。騎士の 9 枚では、片手に短剣・もう片手に別の柄を描いた 1 枚だけが 2 か所になった
+COUNT = {"bag": ["a bag", "a school bag"], "backpack": ["a backpack"], "sword": ["a sword", "a sword blade", "a sword hilt"], "cup": ["a cup"],
          "glass": ["a drinking glass"], "umbrella": ["an umbrella"], "book": ["a book"]}
 MANY_WORDS = ("two ", "both", "pair", "multiple", "several", "dual", "2 ")
+# 持ち物を名前に含む言い方（剣士は剣を 1 本持つ）
+ALIAS = {"swordsman": "sword", "swordswoman": "sword", "swordsmaster": "sword", "katana": "sword"}
 
 
 def count_extra(src: str, prompt: str, least: float = 0.2) -> list[str]:
@@ -113,6 +117,7 @@ def count_extra(src: str, prompt: str, least: float = 0.2) -> list[str]:
     if any(w in low for w in MANY_WORDS):
         return []
     words = {w.strip(" ()") for t in low.split(",") for w in t.split()}
+    words |= {ALIAS[w] for w in words if w in ALIAS}
     # 「book bag」の book は鞄の言い方の一部で、本を頼んではいない
     if "book bag" in low and "book," not in low + ",":
         words.discard("book")
@@ -122,7 +127,7 @@ def count_extra(src: str, prompt: str, least: float = 0.2) -> list[str]:
             continue
         groups = clusters([b for _, _, b in detect(src, queries, least)])
         if len(groups) >= 2:
-            out.append(f"{word} が {len(groups)} つ描かれている（頼んだのは 1 つ）")
+            out.append(f"{word} が {len(groups)} か所に描かれている（頼んだのは 1 つ。別々の物か、1 つが途中で切れて分かれた）")
     return out
 
 
