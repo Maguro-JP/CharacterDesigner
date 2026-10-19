@@ -41,6 +41,14 @@ class Angles(unittest.TestCase):
         c, s = math.cos(math.radians(30)), math.sin(math.radians(30))
         self.assertAlmostEqual(rom_check.hinge_front([[c, -s, 0], [s, c, 0], [0, 0, 1]], front), 0, places=6)
 
+    def test_trunk_bends_further_forward(self):
+        # 前（親の Z）へ 70 度は通り、横（親の X）へ 70 度と、前の向きを渡さない 70 度は外れ
+        self.assertEqual(rom_check.judge("trunk", rot_x(70), front=[0, 0, 1]), [])
+        c, s = math.cos(math.radians(70)), math.sin(math.radians(70))
+        self.assertTrue(rom_check.judge("trunk", [[c, -s, 0], [s, c, 0], [0, 0, 1]], front=[0, 0, 1]))
+        self.assertTrue(rom_check.judge("trunk", rot_x(70)))
+        self.assertTrue(rom_check.judge("trunk", rot_x(-70), front=[0, 0, 1]))
+
     def test_swing_and_twist(self):
         sw, tw = rom_check.swing_twist(rot_y(120))
         self.assertAlmostEqual(sw, 0, places=6)

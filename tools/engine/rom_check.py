@@ -75,7 +75,7 @@ def swing_twist(rel) -> tuple[float, float]:
     return swing, abs(math.degrees(math.atan2(-xr[2], xr[0])))
 
 
-def judge(name: str, rel, angle: float | None = None) -> list[str]:
+def judge(name: str, rel, angle: float | None = None, front=None) -> list[str]:
     """1つの関節の角度を可動域と比べ、外れていれば理由を返す（空なら通る）。angle を渡せば蝶番はその角で見る"""
     j = ROM[name]
     tol = j.get("tolerance", 0)
@@ -89,8 +89,18 @@ def judge(name: str, rel, angle: float | None = None) -> list[str]:
             out.append(f"{j['ja']}が {a:.0f} 度まで曲がっている（可動域 {lo}〜{hi}）")
     elif j["kind"] == "ball":
         sw, tw = swing_twist(rel)
-        if sw > j["swing"] + tol:
-            out.append(f"{j['ja']}が {sw:.0f} 度振れている（上限 {j['swing']}）")
+        lim = j["swing"]
+        if front is not None and "swing_front" in j:
+            # 前へ曲げる向きは広い（胴は前屈で 80 まで。後ろ・横は 25〜50）。振れの大半が体の前なら前の上限で見る。
+            # 一律 50 で見ると、膝を抱えて背中を丸めた床座り 2 本（68 度）を外れと読んだ。front は休みの姿勢の正面を子の骨の休みの軸で表した向き
+            y = [rel[k][1] for k in range(3)]
+            f = [front[0], 0.0, front[2]]
+            side = math.hypot(y[0], y[2])
+            fwd = (y[0] * f[0] + y[2] * f[2]) / (math.hypot(f[0], f[2]) or 1.0)
+            if side > 1e-6 and fwd / side > 0.7:
+                lim = j["swing_front"]
+        if sw > lim + tol:
+            out.append(f"{j['ja']}が {sw:.0f} 度振れている（上限 {lim}）")
         if tw > j["twist"] + tol:
             out.append(f"{j['ja']}が {tw:.0f} 度ねじれている（上限 {j['twist']}）")
     return out
@@ -128,7 +138,8 @@ def check_rig(rig) -> list[str]:
                 continue
             rel = relative(_axes(rig.data.bones[pa].matrix_local), _axes(rig.data.bones[ch].matrix_local),
                            _axes(rig.pose.bones[pa].matrix), _axes(rig.pose.bones[ch].matrix))
-            out += [f"{side}: {r}" if side != "C" else r for r in judge(name, rel)]
+            r0 = _axes(rig.data.bones[ch].matrix_local)  # relative の角は子の休みの姿勢の軸で表れるので、前の向きも子の軸に移す
+            out += [f"{side}: {r}" if side != "C" else r for r in judge(name, rel, front=[-r0[1][k] for k in range(3)])]
     return out
 
 
