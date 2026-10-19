@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import cdhome
 import csv
 import json
 import sys
@@ -17,7 +18,7 @@ import urllib.request
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-DIR = ROOT / ".cache" / "assets" / "tagger"
+DIR = cdhome.HOME / "assets" / "tagger"
 REPO = "https://huggingface.co/SmilingWolf/wd-vit-tagger-v3/resolve/main"
 _SESSION = None
 _TAGS = None

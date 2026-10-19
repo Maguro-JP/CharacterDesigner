@@ -274,7 +274,39 @@ BANDS = {"眉と目": (0.10, 0.58), "口": (0.60, 0.92)}
 RISKY = 0.5
 # 頼んだ言葉に無ければ「設定に無い物」とする服飾のタグ。最後の語（hat、glasses）が頼んだ言葉にあれば数えない
 UNASKED_WEAR = ("hat", "cowboy hat", "witch hat", "baseball cap", "beret", "top hat", "glasses", "sunglasses", "scarf",
-                "headphones", "mask", "eyepatch", "cape", "gloves", "necktie", "bow")
+                "headphones", "mask", "eyepatch", "cape", "gloves", "necktie", "bow",
+                # 頼んでいない上着・刀・腕の布（白ビキニの描画確認で数枚に出た）
+                "jacket", "open jacket", "coat", "hoodie", "cardigan", "katana", "sword", "arm warmers", "detached sleeves",
+                "bandages", "armband")
+# 服の柄・文字。plain の T シャツの胸に読めない文字が描かれた（基準の組、MeinaMix）。頼んだ言葉に柄・文字の言葉が無ければ崩れ
+PRINTS = ("clothes writing", "print shirt", "english text", "logo")
+PRINT_WORDS = ("print", "logo", "text", "writing", "letter", "graphic")
+
+
+GROUP_WORDS = ("2girls", "2boys", "3girls", "multiple", "group", "couple", "crowd", "friends", "together with")
+
+
+def not_solo(all_tags: dict, prompt: str, least: float = 0.5) -> dict | None:
+    """1 人を頼んだのに 1 人に見えない（2 人の体が混ざる・余分な人物）。タグの solo の確からしさで見る。
+    しゃがみの 1 枚で上下に 2 人の体が混ざった絵は solo 0.20、ほかの 1 人の絵は 0.98〜0.99 だった"""
+    low = prompt.lower()
+    if any(w in low for w in GROUP_WORDS):
+        return None
+    person = max(all_tags.get(t, 0) for t in ("1girl", "1boy", "1other"))
+    solo = all_tags.get("solo", 0)
+    if person >= least and solo < least:
+        return {"solo": round(float(solo), 2), "multiple": round(float(max(all_tags.get("multiple girls", 0), all_tags.get("multiple boys", 0))), 2)}
+    return None
+
+
+def unasked_wear(tags: dict, prompt: str, least: float = 0.5) -> list[str]:
+    """頼んだ言葉に無い服飾・持ち物（帽子、上着、刀、腕の布）と、柄・文字を頼んでいない服の柄・文字。
+    基準の組の 46 枚で 10 枚に当たり、目で見た 3 枚（刀に見える白い布、黒い腕の布、胸の文字）はどれも描かれていた"""
+    low = prompt.lower()
+    out = [t for t in UNASKED_WEAR if tags.get(t, 0) >= least and t.split()[-1] not in low]
+    if not any(w in low for w in PRINT_WORDS):
+        out += [t for t in PRINTS if tags.get(t, 0) >= least]
+    return sorted(out)
 
 
 # 「holding X」のうち物でないもの（体・人・動き）。持ち物の数え方から外す
@@ -448,6 +480,36 @@ def shoe_pair(points: list[dict], im: Image.Image, least: float = 0.3) -> dict |
 
 # 端の切れを数える部位: 顔・腕・脚・靴。髪・服・すそ・鞄が画面の外へ流れるのは構図として普通で、
 # 背景が画面いっぱいの絵では服や背景の一部を人物と読み、32 枚ほぼ全部を「切れ」と出した（描画確認 回7）
+LEG_LABELS = (5, 6, 7, 9, 10, 12, 13)
+# 脚が重なって見えて当たり前の姿勢と、脚の下が入らない構図
+LEGS_OVERLAP_OK = ("sitting", "seiza", "kneeling", "crouching", "squatting", "lying", "crossed legs", "legs together",
+                   "cowboy shot", "upper body", "portrait", "close-up", "from side", "profile", "long dress", "long skirt", "gown")
+
+
+def legs_fused(points: list[dict], seg: np.ndarray, prompt: str = "", apart: float = 0.09, least: float = 0.1,
+               seen: float = 0.5) -> dict:
+    """両脚が服の中で 1 本に溶けた崩れ。足首が絵の幅の apart 以上離れているのに、腰と足首の間（3 割〜9 割の高さ）で
+    脚の部位（ズボン・スカート・脚・靴）が左右 2 つに分かれる行が least 未満しかない。
+    基準の組の約 50 枚で、溶けた 1 枚（足首の差 0.103、分かれた行 0）だけが当たった。脚の重なりが当たり前の姿勢
+    （座る・しゃがむ・横向き・膝上の構図）では見ない（しゃがんだ横向きの絵は足首が 0.26 離れて分かれた行が 0 だった）"""
+    low = prompt.lower()
+    p = {q["name"]: q for q in points}
+    need = ("left_hip", "right_hip", "left_ankle", "right_ankle")
+    if any(w in low for w in LEGS_OVERLAP_OK) or any(n not in p or p[n]["score"] < seen for n in need):
+        return {"readable": False}
+    h, w = seg.shape
+    hip = (p["left_hip"]["y"] + p["right_hip"]["y"]) / 2
+    ank = (p["left_ankle"]["y"] + p["right_ankle"]["y"]) / 2
+    dx = abs(p["left_ankle"]["x"] - p["right_ankle"]["x"]) / w
+    y0, y1 = int(hip + (ank - hip) * 0.3), min(h - 1, int(hip + (ank - hip) * 0.9))
+    if y1 <= y0:
+        return {"readable": False}
+    m = np.isin(seg[y0:y1], LEG_LABELS).astype(int)
+    runs = (np.diff(np.pad(m, ((0, 0), (1, 1))), axis=1) == 1).sum(1)
+    split = float((runs >= 2).mean())
+    return {"readable": True, "fused": dx >= apart and split < least, "ankle_apart": round(dx, 3), "split_rows": round(split, 2)}
+
+
 EDGE_BODY = (11, 12, 13, 14, 15, 9, 10)
 
 
@@ -771,9 +833,25 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
         # 頼んでいない服飾（帽子など）。バーの男 8 枚中 7 枚に頼んでいないカウボーイハットが描かれ、検品が数えなかった（描画確認 回5）
         if prompt:
             low_p = prompt.lower()
-            extra = sorted(t for t in UNASKED_WEAR if tags.get(t, 0) >= 0.5 and t.split()[-1] not in low_p)
             held = held_items(tags, prompt)
-            extra = sorted(set(extra) | set(held["unasked"]))
+            extra = sorted(set(unasked_wear(tags, prompt)) | set(held["unasked"]))
+            try:
+                import pieces
+                if pieces.ready():
+                    extra_count = pieces.count_extra(src, prompt)
+                    if extra_count:
+                        res["problems"].append({"item_count": extra_count})
+                    # 長い持ち物（ほうき・杖・槍・傘）が柄と先で別々に描かれた矛盾。サーバーの描き直しの検品だけが見ていて、
+                    # 自由に描く・比べ（bench）の検品では数えていなかった
+                    if pieces.asked(prompt):
+                        split = pieces.split_objects(src, prompt)
+                        if split:
+                            res["problems"].append({"item_split": split})
+            except Exception as e:
+                res["unreadable"].append({"item_count": f"{type(e).__name__}: {e}"})
+            many = not_solo(all_tags, prompt)
+            if many:
+                res["problems"].append({"not_solo": many})
             if extra:
                 res["problems"].append({"unasked_item": extra})
             if held["many"]:
@@ -842,13 +920,20 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
         points = joints.find(src)
         person = person_found(points)
         # 見えない手足と目: 見えないのが当たり前（構図の外・隠す姿勢・物の陰）は通し、要るのに見えない・途中で無いものだけ落とす
+        hand_pre = None
         if person["found"]:
             try:
                 import occlusion
-                occ = occlusion.judge(points, _parts(src, Image.open(src).convert("RGB")), prompt)
+                # 手が見えるかは手首の確からしさでは決めない（頭の後ろに隠れた手を 0.77〜0.89 と読んだ）。手の模型の手らしさで見る
+                hand_pre = hands_auto(points, Image.open(src).convert("RGB"))
+                shown = {h["side"]: h["seen"] for h in hand_pre["hands"]}
+                occ = occlusion.judge(points, _parts(src, Image.open(src).convert("RGB")), prompt, hands_shown=shown)
                 res["occlusion"] = occ["parts"]
                 if occ["problems"]:
                     res["problems"].append({"occlusion": occ["problems"]})
+                fused = legs_fused(points, _parts(src, Image.open(src).convert("RGB")), prompt)
+                if fused.get("fused"):
+                    res["problems"].append({"legs_fused": fused})
             except Exception as e:
                 res["unreadable"].append({"occlusion": f"{type(e).__name__}: {e}"})
         if not person["found"]:
@@ -901,7 +986,7 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
         except Exception as e:   # 手のひらの模型が無い環境は、崩れと分けて「読めない」と書く
             unavailable = type(e).__name__ == "Unavailable"
             res["unreadable"].append({"hands_count": {"readable": False, "why": str(e) if unavailable else f"{type(e).__name__}: {e}"}})
-        hand = hands_auto(points, im)
+        hand = hand_pre if hand_pre is not None else hands_auto(points, im)
         if not hand["readable"]:
             res["unreadable"].append({"hands": hand})
         elif hand["bad"]:
@@ -930,7 +1015,7 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
 
 
 # 崩れの重さ（100 点から引く）。体のつながりや人そのものの崩れは直せないので重く、部分の直しで直せる崩れは軽くする
-PENALTY = {"fixed_restriction": 100, "person": 60, "human_legs": 40, "edge_cut": 25, "eyes": 15, "extra_eyes": 15, "floating": 15, "hands": 15, "occlusion": 15,
+PENALTY = {"fixed_restriction": 100, "person": 60, "human_legs": 40, "edge_cut": 25, "eyes": 15, "extra_eyes": 15, "floating": 15, "hands": 15, "occlusion": 15, "legs_fused": 25, "not_solo": 40,
            "seams": 10, "measure": 8}
 
 

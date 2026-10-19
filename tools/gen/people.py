@@ -14,6 +14,7 @@ Animagine XL 3.1（CreativeML OpenRAIL++-M、2026-10-04 に公開元で確認）
   PYTHONPATH=.cache/gen/lib python3 tools/gen/people.py sheet <出力フォルダ> <一覧図.png>
 --zoom は拡大する部位: head（耳・角・顔）、arms（腕の肌・刺青）、back（背中・翼）、tail（腰から下の後ろ）、none
 """
+import cdhome
 import argparse
 import json
 import os
@@ -24,7 +25,7 @@ from pathlib import Path
 from PIL import Image, ImageDraw, ImageFont
 
 ROOT = Path(__file__).resolve().parents[2]
-os.environ.setdefault("HF_HOME", str(ROOT / ".cache" / "gen" / "hf"))
+os.environ.setdefault("HF_HOME", str(cdhome.HOME / "gen" / "hf"))
 # 模型は既定で外から取りに行かない。呼んだ関数が手元に無い模型を指していると、数 GB を取りに行って
 # ディスクを埋めた（2026-10-14 に 2 回）。初めて取るときだけ CD_FETCH=1 を付けて動かす
 os.environ.setdefault("HF_HUB_OFFLINE", "0" if os.environ.get("CD_FETCH") == "1" else "1")
@@ -33,7 +34,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 # 関数の中で design を読んでいたため、先に transformers を読んだ呼び出しでは ~/.cache/huggingface へ取りに行った
 import design  # noqa: E402,F401
 
-# 描く模型は tools/gen/models.py の一覧で作風ごとに決める（config/models.json、無ければ animagine-xl-3.1）。
+# 描く模型は tools/gen/models.py の一覧で作風ごとに決める（config/models.json、無ければ animagine-xl-4.0）。
 # CD_DRAW_MODEL を付けると、その場だけ入れ替えられる。CD_STYLE で作風を選ぶ（既定 anime）
 import models as _models
 MODEL = _models.for_style(os.environ.get("CD_STYLE", "anime"))

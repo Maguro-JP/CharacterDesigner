@@ -65,6 +65,20 @@ class Occlusion(unittest.TestCase):
         self.assertEqual(occlusion.judge(pts, seg_with(), "full body, crouching")["problems"], [])
         self.assertEqual(states(occlusion.judge(pts, seg_with(), "full body, standing")), {"right_foot": "absent"})
 
+    def test_hand_model_decides_hand_visibility(self):
+        # 手首の関節は見えている（0.9）が、手の模型は手と読めない: 体の陰なら通し、手を振る頼みなら落とす
+        pts = body()
+        for q in pts:
+            if q["name"] == "left_wrist":
+                q["x"], q["y"] = 100, 150
+        shown = {"left": False, "right": True}
+        self.assertEqual(occlusion.judge(pts, seg_with(), "standing", hands_shown=shown)["problems"], [])
+        self.assertEqual(states(occlusion.judge(pts, seg_with(), "waving", hands_shown=shown)), {"left_hand": "must_see"})
+
+    def test_arms_raised_allows_hands_behind_head(self):
+        pts = body()
+        self.assertEqual(occlusion.judge(pts, seg_with(), "arms raised above head", hands_shown={"left": False, "right": False})["problems"], [])
+
     def test_profile_allows_only_one_eye(self):
         one = body(right_eye=(150, 30))
         self.assertEqual(occlusion.judge(one, seg_with(), "profile")["problems"], [])

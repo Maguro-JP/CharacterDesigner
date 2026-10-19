@@ -15,6 +15,10 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
+POSE_SCALE = 24   # 姿勢の変わり方を見る縮め方（全身が 50 画素ほどになる大きさ）
+LAST: dict = {}   # 直前の描き直しで使った強さ（0 は描き直しを使わなかった）
+
+
 def upscale(src, out, prompt: str, negative: str = "", scale: float = 1.5, strength: float = 0.35,
             steps: int = 24, seed: int = 0) -> tuple[int, int]:
     """src を scale 倍に引き伸ばして描き直し、out に置く。返すのは出来た大きさ"""
@@ -30,10 +34,19 @@ def upscale(src, out, prompt: str, negative: str = "", scale: float = 1.5, stren
     pos, neg = free_text.full_prompt(prompt, negative)
     pipe = demi.img2img()
     pe, ne, pp, np_ = design.encode_xl(pipe, pos, neg)
-    res = pipe(image=big, strength=strength, prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
-               negative_pooled_prompt_embeds=np_, num_inference_steps=steps, guidance_scale=6.0,
-               generator=torch.Generator().manual_seed(seed)).images[0]
+    import tile
+    # 描き直しで姿勢が変わることがある（しゃがんだ絵 3 枚が立ち姿に戻った）。形の変わり方を測り、変わりすぎたら
+    # 弱めて描き直し、それでも変わるなら引き伸ばしただけの絵を使う。細部より姿勢を守る
+    res, used = big, 0.0
+    for st in (strength, strength * tile.RETRY):
+        cand = pipe(image=big, strength=st, prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
+                    negative_pooled_prompt_embeds=np_, num_inference_steps=steps, guidance_scale=6.0,
+                    generator=torch.Generator().manual_seed(seed)).images[0]
+        if tile.drift(big, cand, scale=POSE_SCALE) <= tile.DRIFT:
+            res, used = cand, st
+            break
     res.save(out)
+    LAST.update(strength=used)
     return res.size
 
 

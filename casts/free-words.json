@@ -13,6 +13,18 @@
   "猫耳": "cat ears", "狐耳": "fox ears", "翼": "wings", "角": "horns", "尻尾": "tail",
   "ポニーテール": "ponytail", "ツインテール": "twintails", "ボブ": "bob cut", "三つ編み": "braid", "お団子": "hair bun",
   "雪": "snow", "雨": "rain", "桜": "cherry blossoms", "夜": "night", "夕焼け": "sunset", "城": "castle", "森": "forest", "海": "ocean", "街": "city",
-  "図書館": "library", "教室": "classroom", "宇宙": "space", "砂漠": "desert"
+  "図書館": "library", "教室": "classroom", "宇宙": "space", "砂漠": "desert",
+ "赤髪": "red hair", "赤い髪": "red hair", "赤い目": "red eyes", "赤い瞳": "red eyes", "青髪": "blue hair", "青い髪": "blue hair",
+ "青い目": "blue eyes", "青い瞳": "blue eyes", "黒髪": "black hair", "黒い髪": "black hair", "黒い目": "black eyes", "黒い瞳": "black eyes",
+ "白髪": "white hair", "白い髪": "white hair", "白い目": "white eyes", "白い瞳": "white eyes", "金髪": "blonde hair", "金色の髪": "blonde hair",
+ "金色の目": "yellow eyes", "金色の瞳": "yellow eyes", "銀髪": "silver hair", "銀色の髪": "silver hair", "銀色の目": "silver eyes", "銀色の瞳": "silver eyes",
+ "茶髪": "brown hair", "茶色の髪": "brown hair", "茶色の目": "brown eyes", "茶色の瞳": "brown eyes", "緑髪": "green hair", "緑色の髪": "green hair",
+ "緑色の目": "green eyes", "緑色の瞳": "green eyes", "紫髪": "purple hair", "紫色の髪": "purple hair", "紫色の目": "purple eyes", "紫色の瞳": "purple eyes",
+ "桃髪": "pink hair", "桃色の髪": "pink hair", "桃色の目": "pink eyes", "桃色の瞳": "pink eyes", "ピンク髪": "pink hair", "ピンク色の髪": "pink hair",
+ "ピンク色の目": "pink eyes", "ピンク色の瞳": "pink eyes", "水色髪": "light blue hair", "水色色の髪": "light blue hair", "水色色の目": "light blue eyes", "水色色の瞳": "light blue eyes",
+ "灰髪": "grey hair", "灰色の髪": "grey hair", "灰色の目": "grey eyes", "灰色の瞳": "grey eyes", "オレンジ髪": "orange hair", "オレンジ色の髪": "orange hair",
+ "オレンジ色の目": "orange eyes", "オレンジ色の瞳": "orange eyes", "黄髪": "yellow hair", "黄色の髪": "yellow hair", "黄色の目": "yellow eyes", "黄色の瞳": "yellow eyes",
+ "全身": "full body", "上半身": "upper body", "バストアップ": "portrait", "剣士": "swordsman|swordswoman", "長髪": "long hair", "ロングヘア": "long hair",
+ "短髪": "short hair", "ショートヘア": "short hair", "笑顔": "smile"
  }
 }

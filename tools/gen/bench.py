@@ -82,13 +82,16 @@ def finish_xl(path: str, prompt: str, seed: int, long: int, res: dict) -> None:
     tl = tile.tile(path, big, prompt, long=long, seed=seed)
     t3 = time.time()
     import cleanup
+    # 清書の前の絵も残す（清書の効き目を、清書の強さを変えて比べ直せるように）
+    import shutil
+    shutil.copy(big, str(Path(big).with_suffix("")) + "-raw.png")
     cl = cleanup.cleanup(big, big)
     res.setdefault("stages", []).append({"hires": round(t1 - t), "face": round(t2 - t1), **{k: v for k, v in tl.items() if k != "log"},
                                          "cleanup": round(time.time() - t3), "lines_colors": cl})
 
 
 def run(bench: dict, outdir: str, style=None, width=None, height=None, steps=None, hires=0.0, strength=0.35, only=0,
-        engine="design", finish=0) -> dict:
+        engine="design", finish=0, ids=()) -> dict:
     global design
     import design  # 模型を勝手に取りに行かない設定を先に効かせる
     od = Path(outdir)
@@ -101,7 +104,8 @@ def run(bench: dict, outdir: str, style=None, width=None, height=None, steps=Non
     if old.exists():
         # 続きから描く（止まったあとに、描けた絵を描き直さない）
         res["cases"] = json.loads(old.read_text(encoding="utf-8"))["cases"]
-    for c in bench["cases"][:only or None]:
+    cases = [c for c in bench["cases"] if not ids or any(k in c["id"] for k in ids)]
+    for c in cases[:only or None]:
         if c["id"] in res["cases"]:
             continue
         p = od / f"{c['id']}.png"
@@ -113,7 +117,11 @@ def run(bench: dict, outdir: str, style=None, width=None, height=None, steps=Non
         if finish:
             finish_xl(str(p), c["prompt"], c["seed"], finish, res)
         elif hires:
-            design.hires(str(p), c["prompt"], c["seed"], st, hires, strength, res["steps"])
+            # SDXL で描いた絵は SDXL で描き直す（SD1.5 の模型で描き直すと画風が混ざる）
+            design.hires(str(p), c["prompt"], c["seed"], "xl" if engine == "people" else st, hires, strength, res["steps"])
+            if engine == "people":
+                import hires as hr
+                res.setdefault("hires_used", {})[c["id"]] = hr.LAST.get("strength")
         r = count(str(p), c["prompt"])
         r["seconds"] = round(time.time() - t, 1)
         res["cases"][c["id"]] = r
@@ -157,6 +165,7 @@ def main():
     r.add_argument("--steps", type=int); r.add_argument("--hires", type=float, default=0.0)
     r.add_argument("--strength", type=float, default=0.35); r.add_argument("--only", type=int, default=0, help="先頭の N 枚だけ（費用を先に測る）")
     r.add_argument("--finish", type=int, nargs="?", const=4096, default=0, help="仕上げ（1.5 倍の描き直し・顔の描き直し・拡大と区切りの描き直し）まで通す。数を省くと長辺 4096 画素")
+    r.add_argument("--ids", nargs="*", default=(), help="名前にこの文字を含む絵だけ（例 tee-crouch）")
     r.add_argument("--engine", choices=["design", "people"], default="design", help="people は SDXL 系（CD_DRAW_MODEL で模型を選ぶ）")
     q = sub.add_parser("rescore"); q.add_argument("bench"); q.add_argument("outdir")
     c = sub.add_parser("compare"); c.add_argument("base"); c.add_argument("new")
@@ -167,7 +176,7 @@ def main():
         r_ = score(json.loads(Path(a.bench).read_text(encoding="utf-8")), a.out)
         print(f"{len(r_['cases'])} 枚、崩れ {sum(v['problems'] for v in r_['cases'].values())}")
     elif a.cmd == "run":
-        run(json.loads(Path(a.bench).read_text(encoding="utf-8")), a.outdir, a.style, a.width, a.height, a.steps, a.hires, a.strength, a.only, a.engine, a.finish)
+        run(json.loads(Path(a.bench).read_text(encoding="utf-8")), a.outdir, a.style, a.width, a.height, a.steps, a.hires, a.strength, a.only, a.engine, a.finish, a.ids)
     elif a.cmd == "rescore":
         rescore(json.loads(Path(a.bench).read_text(encoding="utf-8")), a.outdir)
     else:

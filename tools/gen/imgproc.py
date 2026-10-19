@@ -5,7 +5,7 @@
   python3 tools/gen/imgproc.py remove   IN OUT.png          背景除去（人物だけを残し、背景を透明にする）
   python3 tools/gen/imgproc.py cutout   IN OUT.png [--path OUT.svg]   切り抜き（輪郭で抜く。--path でクリッピングパスを SVG で書く）
   python3 tools/gen/imgproc.py chroma   IN OUT.png [--key #00b140] [--tol 60]   クロマキー（指定の色を消す。色を省くと四隅の色）
-  python3 tools/gen/imgproc.py roto     IN.gif|DIR OUT_DIR    ロトスコーピング（コマごとに人物を抜き、透明 PNG と輪郭の動きを書く）
+  python3 tools/gen/imgproc.py roto     IN.gif|IN.mp4|DIR OUT_DIR    ロトスコーピング（コマごとに人物を抜き、透明 PNG と輪郭の動きを書く）
   python3 tools/gen/imgproc.py shade    IN OUT.png [--style cel2|cel3|soft|rim|back] [--light x,y,z]   影の付け方（立体を計算して光を当てる）
   python3 tools/gen/imgproc.py aitells  IN                    AI っぽさを数える（つや、色数、色むら、線のにじみ、線の均一さ、奥行きの無さ）
   python3 tools/gen/imgproc.py recolor IN OUT.png --from #969696 --to #c02020 [--tol 40]   色の置き換え（影の明るさは残す）
@@ -20,6 +20,7 @@
 """
 from __future__ import annotations
 
+import cdhome
 import argparse
 import json
 import sys
@@ -84,7 +85,7 @@ def matte(src: str, out: str, band: int = 6) -> dict:
     im = Image.open(src).convert("RGB")
     from rembg import new_session, remove
     import os
-    os.environ.setdefault("U2NET_HOME", str(Path(__file__).resolve().parents[2] / ".cache" / "gen" / "u2net"))
+    os.environ.setdefault("U2NET_HOME", str(cdhome.HOME / "gen" / "u2net"))
     a0 = np.asarray(remove(im, session=new_session("isnet-anime"), only_mask=True).convert("L")) / 255.0
     fg = a0 > 0.5
     sure_fg = ndimage.binary_erosion(fg, iterations=band)
@@ -173,17 +174,50 @@ def chroma(src: str, out: str, key: str | None = None, tol: float = 35.0, soft: 
 
 # ---- ロトスコーピング ----
 
+VIDEO = (".mp4", ".mov", ".webm", ".mkv", ".avi")
+
+
+def read_video(src: str, limit: int = 600) -> tuple[list, float]:
+    """動画のコマを読む（imageio-ffmpeg の同梱の ffmpeg。BSD-2-Clause、約 80MB）。長い動画で溢れないよう limit コマまで"""
+    import imageio_ffmpeg
+    gen = imageio_ffmpeg.read_frames(src)
+    meta = next(gen)
+    w, h = meta["size"]
+    frames = []
+    for i, buf in enumerate(gen):
+        if i >= limit:
+            break
+        frames.append(Image.frombytes("RGB", (w, h), bytes(buf)))
+    return frames, float(meta.get("fps") or 10)
+
+
+def write_video(cuts: list, out: Path, fps: float) -> None:
+    """透明を保った動画（VP9 の webm、アルファあり）に書く。mp4 は透明を持てない"""
+    import imageio_ffmpeg
+    w, h = cuts[0].size
+    gen = imageio_ffmpeg.write_frames(str(out), (w, h), pix_fmt_in="rgba", pix_fmt_out="yuva420p", codec="libvpx-vp9",
+                                      fps=fps, macro_block_size=1, output_params=["-auto-alt-ref", "0"])
+    gen.send(None)
+    for c in cuts:
+        gen.send(c.convert("RGBA").tobytes())
+    gen.close()
+
+
 def roto(src: str, outdir: str) -> dict:
-    """動く絵（GIF、またはコマの PNG を並べたフォルダ）から、コマごとに人物を抜く。
+    """動く絵（GIF、動画、またはコマの PNG を並べたフォルダ）から、コマごとに人物を抜く。動画なら透明の webm も書く。
     コマどうしで輪郭がちらつかないよう、前後のコマのアルファ値と平均して滑らかにする（動きの大きい所はそのコマを優先）。
     結果は透明 PNG の連番と、透明な GIF、各コマの人物の範囲（外接矩形）を書いた roto.json"""
     from rembg import new_session, remove
     import os
-    os.environ.setdefault("U2NET_HOME", str(Path(__file__).resolve().parents[2] / ".cache" / "gen" / "u2net"))
+    os.environ.setdefault("U2NET_HOME", str(cdhome.HOME / "gen" / "u2net"))
     p = Path(src)
+    video = p.suffix.lower() in VIDEO
     if p.is_dir():
         frames = [Image.open(f).convert("RGB") for f in sorted(p.glob("*.png")) + sorted(p.glob("*.jpg"))]
         dur = 100
+    elif video:
+        frames, fps = read_video(src)
+        dur = round(1000 / fps)
     else:
         g = Image.open(src)
         frames, dur = [], g.info.get("duration", 100)
@@ -209,6 +243,8 @@ def roto(src: str, outdir: str) -> dict:
         bb = Image.fromarray((a > 0.5).astype("uint8") * 255).getbbox()
         boxes.append(list(bb) if bb else None)
     cuts[0].save(out / "roto.gif", save_all=True, append_images=cuts[1:], duration=dur, loop=0, disposal=2)
+    if video:
+        write_video(cuts, out / "roto.webm", 1000 / dur)
     (out / "roto.json").write_text(json.dumps({"frames": len(frames), "boxes": boxes}, ensure_ascii=False))
     return {"frames": len(frames), "kept_mean": round(float(np.mean([(r > 0.5).mean() for r in raw])), 4)}
 
@@ -305,7 +341,7 @@ def shade(src: str, out: str, style: str = "cel2", light: str = "-1,1,1.2", shad
     im = Image.open(src).convert("RGB")
     from rembg import new_session, remove
     import os
-    os.environ.setdefault("U2NET_HOME", str(Path(__file__).resolve().parents[2] / ".cache" / "gen" / "u2net"))
+    os.environ.setdefault("U2NET_HOME", str(cdhome.HOME / "gen" / "u2net"))
     alpha = np.asarray(remove(im, session=new_session("isnet-anime"), only_mask=True).convert("L")) / 255.0
     L = np.array([float(v) for v in light.split(",")])
     if style == "back":
@@ -352,7 +388,7 @@ def shade(src: str, out: str, style: str = "cel2", light: str = "-1,1,1.2", shad
 def _person_alpha(src: str, im: Image.Image) -> np.ndarray:
     from rembg import new_session, remove
     import os
-    os.environ.setdefault("U2NET_HOME", str(Path(__file__).resolve().parents[2] / ".cache" / "gen" / "u2net"))
+    os.environ.setdefault("U2NET_HOME", str(cdhome.HOME / "gen" / "u2net"))
     return np.asarray(remove(im, session=new_session("isnet-anime"), only_mask=True).convert("L")) / 255.0 > 0.5
 
 

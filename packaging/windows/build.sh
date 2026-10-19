@@ -66,7 +66,17 @@ DATA=".cache library bible characters designs config out models"
   echo '  Delete "$INSTDIR\Uninstall.exe"'
 } > "$B/uninstall-files.nsh"
 
+echo "== 同梱物の欠けを見る"
+# 欠けたまま組むと、入れた先で起動して初めて分かる。起動と描く流れに要るものが揃っているかを、組む前に止めて確かめる
+missing=""
+for f in VERSION python/python.exe CharacterDesigner.cmd app/launch.py app/web/dist/index.html app/server/main.py app/mcp/server.py \
+         tools/gen/design.py tools/gen/models.py tools/gen/qc.py tools/gen/setup.py styles/anime-norms.json \
+         .cache/app/lib/fastapi .cache/app/lib/uvicorn python/Lib/site-packages/pip; do
+  [ -e "$APP/$f" ] || missing="$missing $f"
+done
+[ -z "$missing" ] || { echo "同梱物が欠けている:$missing" >&2; exit 1; }
+
 echo "== Setup.exe"
-VERSION="$(git describe --tags --always 2>/dev/null || echo dev)"
+VERSION="$(cat VERSION)+$(git rev-parse --short HEAD 2>/dev/null || echo dev)"
 makensis -V2 -DSRC="$APP" -DOUT="$OUT/CharacterDesigner-Setup.exe" -DVERSION="$VERSION" packaging/windows/installer.nsi
 ls -l "$OUT/CharacterDesigner-Setup.exe"

@@ -30,6 +30,7 @@ from pydantic import BaseModel, Field
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tools" / "gen"))
+import cdhome  # noqa: E402  置き場所（CD_HOME）
 import demi  # noqa: E402  描く処理の本体
 import demi_text  # noqa: E402  日本語の頼みごとを種の設定に組む
 import free_text  # noqa: E402  自由に描く（日本語 → 描く言葉 → 絵）
@@ -42,13 +43,13 @@ from app.server.studio.session import Ports, Session, Spec, recall_from  # noqa:
 from app.server.studio.session import styles as studio_session_styles  # noqa: E402
 
 # 覚えていること（通った描く言葉と seed、落ちた理由）。1行1件で足していく
-MEMORY = Path(os.environ.get("CD_MEMORY", ROOT / ".cache" / "app" / "memory.jsonl"))
+MEMORY = Path(os.environ.get("CD_MEMORY", cdhome.HOME / "app" / "memory.jsonl"))
 # 画面の配置（データで持つ。壊れていても既定に直して返す）
-LAYOUT = Path(os.environ.get("CD_LAYOUT", ROOT / ".cache" / "app" / "layout.json"))
+LAYOUT = Path(os.environ.get("CD_LAYOUT", cdhome.HOME / "app" / "layout.json"))
 # 退けた提案（同じ提案を二度出さない）
-PROPOSALS = Path(os.environ.get("CD_PROPOSALS", ROOT / ".cache" / "app" / "proposals.json"))
+PROPOSALS = Path(os.environ.get("CD_PROPOSALS", cdhome.HOME / "app" / "proposals.json"))
 
-DATA = Path(os.environ.get("CD_APP_DATA", ROOT / ".cache" / "app" / "jobs"))
+DATA = Path(os.environ.get("CD_APP_DATA", cdhome.HOME / "app" / "jobs"))
 # 通った設定資料の置き場所。スキルの手順と同じ名前（demi3d-<種の名前>.png）で置く
 SAMPLES = Path(os.environ.get("CD_SAMPLES", ROOT / "library" / "samples" / "demi"))
 NAME = re.compile(r"^[a-z0-9][a-z0-9_-]{0,40}$")
@@ -508,7 +509,9 @@ class JobIn(BaseModel):
 
 
 def create_app(runner: Runner | None = None) -> FastAPI:
-    app = FastAPI(title="CharacterDesigner")
+    # 版は根の VERSION の 1 か所だけに置く（画面・Setup.exe・サーバーで食い違わないように）
+    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    app = FastAPI(title="CharacterDesigner", version=version)
     jobs = Queue(runner or Runner())
     app.state.jobs = jobs
 
@@ -770,7 +773,7 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         # 作画監督の数字の検品。絵の当たり前（顔の形、影の順序、髪の色）を測り、基準から外れた所を返す
         import hashlib
         import measure
-        d = ROOT / ".cache" / "app" / "learn" / "images"
+        d = cdhome.HOME / "app" / "learn" / "images"
         d.mkdir(parents=True, exist_ok=True)
         path = d / (hashlib.sha1(body.png.encode()).hexdigest()[:16] + ".png")
         if not path.exists():
@@ -783,7 +786,7 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         # 判定と指摘を学習の手本に足す。絵は .cache/app/learn/images に置く（利用者のデータなのでリポジトリに入れない）
         import hashlib
         import normlearn
-        d = ROOT / ".cache" / "app" / "learn" / "images"
+        d = cdhome.HOME / "app" / "learn" / "images"
         d.mkdir(parents=True, exist_ok=True)
         path = d / (hashlib.sha1(body.png.encode()).hexdigest()[:16] + ".png")
         if not path.exists():

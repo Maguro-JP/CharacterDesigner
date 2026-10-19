@@ -94,7 +94,11 @@ def test_without_model_english_tags_pass_and_japanese_explains(client, monkeypat
     c, _ = client(FakeRunner())
     r = c.post("/api/free/describe", json={"text": "1girl, red scarf, snow"}).json()
     assert r["allowed"] and r["reader"] == "tags" and r["prompt"] == "1girl, red scarf, snow"
-    r = c.post("/api/free/describe", json={"text": "雪の中の少女"}).json()
+    # 対応表にある言葉は、模型が無くても対応表だけで直す
+    r = c.post("/api/free/describe", json={"text": "赤い髪の剣士の女性、全身"}).json()
+    assert r["allowed"] and r["reader"] == "dict" and "red hair" in r["tags"]
+    # 対応表に1つも当たらない日本語は、窓口につながらないことを返す
+    r = c.post("/api/free/describe", json={"text": "あいうえお"}).json()
     assert not r["allowed"] and "つながらない" in r["reason"]
 
 
