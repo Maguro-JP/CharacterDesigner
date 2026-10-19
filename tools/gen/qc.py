@@ -872,10 +872,14 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
         points = joints.find(src)
         person = person_found(points)
         # 見えない手足と目: 見えないのが当たり前（構図の外・隠す姿勢・物の陰）は通し、要るのに見えない・途中で無いものだけ落とす
+        hand_pre = None
         if person["found"]:
             try:
                 import occlusion
-                occ = occlusion.judge(points, _parts(src, Image.open(src).convert("RGB")), prompt)
+                # 手が見えるかは手首の確からしさでは決めない（頭の後ろに隠れた手を 0.77〜0.89 と読んだ）。手の模型の手らしさで見る
+                hand_pre = hands_auto(points, Image.open(src).convert("RGB"))
+                shown = {h["side"]: h["seen"] for h in hand_pre["hands"]}
+                occ = occlusion.judge(points, _parts(src, Image.open(src).convert("RGB")), prompt, hands_shown=shown)
                 res["occlusion"] = occ["parts"]
                 if occ["problems"]:
                     res["problems"].append({"occlusion": occ["problems"]})
@@ -934,7 +938,7 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
         except Exception as e:   # 手のひらの模型が無い環境は、崩れと分けて「読めない」と書く
             unavailable = type(e).__name__ == "Unavailable"
             res["unreadable"].append({"hands_count": {"readable": False, "why": str(e) if unavailable else f"{type(e).__name__}: {e}"}})
-        hand = hands_auto(points, im)
+        hand = hand_pre if hand_pre is not None else hands_auto(points, im)
         if not hand["readable"]:
             res["unreadable"].append({"hands": hand})
         elif hand["bad"]:
