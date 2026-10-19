@@ -437,8 +437,8 @@ def expressions_plan(ident: str, only: list[str] | None = None) -> list[dict]:
             continue
         smiling = e["id"] in SMILING
         look, eye = (c["look"], eyes) if smiling else (_drop_smile(c["look"]), _drop_smile(eyes))
-        # 表情の言葉を先頭の区切りに置く。後ろの区切りほど効きにくく、見た目の言葉の後ろに置くと表情が消えた
-        words = ", ".join(x for x in (e["tags"], look, eye, "portrait, face focus, detailed eyes") if x)
+        # 見た目の言葉を先頭に置く。表情の言葉を先頭にすると、角の色と左右の瞳の色がそろわなくなった（羊娘 4 枚中 3 枚）
+        words = ", ".join(x for x in (look, eye, e["tags"], "portrait, face focus, detailed eyes") if x)
         avoid = e.get("avoid") or EXPR_AVOID.get(e["id"], "")
         out.append({"id": e["id"], "name": e["name"], "prompt": words,
                     "negative": ", ".join(x for x in (avoid, c.get("negative", ""), "extra eyes, asymmetrical eyes, different eye colors") if x)})
