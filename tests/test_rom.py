@@ -32,6 +32,15 @@ class Angles(unittest.TestCase):
         rel = rom_check.relative(I, I, p, rom_check._mul(p, rot_x(45)))
         self.assertAlmostEqual(rom_check.hinge_angle(rel), 45, places=6)
 
+    def test_hinge_front_follows_parent_twist(self):
+        # 前の向きが親の Z なら、X まわりの曲げがそのまま角になる。外への開き（Z まわり）は曲げに数えない
+        front = [0, 0, 1]
+        self.assertAlmostEqual(rom_check.hinge_front(rot_x(40), front), 40, places=6)
+        self.assertAlmostEqual(rom_check.hinge_front(rot_x(-25), front), -25, places=6)
+        self.assertAlmostEqual(rom_check.hinge_front(rot_y(70), front), 0, places=6)
+        c, s = math.cos(math.radians(30)), math.sin(math.radians(30))
+        self.assertAlmostEqual(rom_check.hinge_front([[c, -s, 0], [s, c, 0], [0, 0, 1]], front), 0, places=6)
+
     def test_swing_and_twist(self):
         sw, tw = rom_check.swing_twist(rot_y(120))
         self.assertAlmostEqual(sw, 0, places=6)

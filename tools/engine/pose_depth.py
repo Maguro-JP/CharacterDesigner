@@ -102,7 +102,7 @@ def depth_material(near, far):
     return m
 
 
-def shoot(out, h, parts, width, height, yaw_deg, look_at, frame, depth):
+def shoot(out, h, parts, width, height, yaw_deg, look_at, frame, depth, done=True):
     """正射影のカメラで、正面から右手側へ yaw_deg 回り込んで撮る。frame は写す縦の長さ、depth は奥行きの白黒を付ける幅（前後）"""
     scene = bpy.context.scene
     r = 4.8
@@ -127,7 +127,8 @@ def shoot(out, h, parts, width, height, yaw_deg, look_at, frame, depth):
     bpy.ops.render.render(write_still=True)
     print("撮った:", out)
     sys.stdout.flush()
-    os._exit(0)
+    if done:  # 撮ったあとに続きのある台本（pose_bvh の棚置き）は done=False で戻る
+        os._exit(0)
 
 
 def args(argv, yaw, extra=()):

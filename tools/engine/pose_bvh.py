@@ -4,8 +4,13 @@
 姿勢そのものは人が作った CC0 のポーズ集（MakeHuman の asset pack「Poses 01」、`tools/engine/setup.sh` が
 .cache/engine/poses01.zip に取る）から選び、この台本は人形に当てて撮るだけにする。
 
-使い方: PYTHONPATH=.cache/engine/bpy python3 tools/engine/pose_bvh.py <depth.png> --pose callharvey3d_sittingdefault [--yaw 0]
+使い方: PYTHONPATH=.cache/engine/bpy python3 tools/engine/pose_bvh.py <depth.png> --pose callharvey3d_sittingdefault [--yaw 0] [--shelf sit-chair]
+
+--shelf を付けると、関節が可動域に収まった姿勢だけを素材の棚（<CD_HOME>/assets/pose/<名前>.png と出典の .json）に置く。
+外れた姿勢は棚に置かず、終了コード 3 で止める（人にできない姿勢は描いた絵にそのまま残るため）。
 """
+import json
+import os
 import sys
 import zipfile
 from pathlib import Path
@@ -39,20 +44,37 @@ def bvh_path(name: str) -> Path:
 
 
 def main(av):
-    a = args(av, 0, [("--pose", dict(required=True, help="ポーズ集の BVH の名前（拡張子なし）"))])
+    a = args(av, 0, [("--pose", dict(required=True, help="ポーズ集の BVH の名前（拡張子なし）")),
+                     ("--shelf", dict(default="", help="外れが無ければ素材の棚にこの名前で置く"))])
     path = bvh_path(a.pose)
     h, rig = mannequin()
     from bl_ext.user_default.mpfb.services.animationservice import AnimationService
     bpy.ops.preferences.addon_enable(module="io_anim_bvh")
     bpy.context.view_layer.objects.active = rig
     AnimationService.import_bvh_file_as_pose(rig, str(path))
-    check(rig)
+    bad = check(rig)
+    if a.shelf and bad:
+        print(f"棚に置かない（可動域の外れ {len(bad)} 件）", flush=True)
+        os._exit(3)
     # 座ると頭の高さが下がるので、人形の外枠の中心を写す
     bpy.context.view_layer.update()
     zs = [(h.matrix_world @ v.co).z for v in h.data.vertices]
     mid = (max(zs) + min(zs)) / 2
-    shoot(a.out, h, [], a.width, a.height, a.yaw, Vector((0, 0, mid)), (max(zs) - min(zs)) * 1.15, 0.45)
+    shoot(a.out, h, [], a.width, a.height, a.yaw, Vector((0, 0, mid)), (max(zs) - min(zs)) * 1.15, 0.45, done=not a.shelf)
+    if a.shelf:
+        shelve(a.out, a.shelf, a.pose)
+    sys.stdout.flush()
+    os._exit(0)
 
+
+def shelve(src, name, pose):
+    """外れの無い姿勢を素材の棚に置く。棚の形は tools/gen/assets.py の list_poses が読む形"""
+    shelf = ENGINE.parent / "assets" / "pose"
+    shelf.mkdir(parents=True, exist_ok=True)
+    (shelf / f"{name}.png").write_bytes(Path(src).read_bytes())
+    (shelf / f"{name}.json").write_text(json.dumps({"title": name, "source": f"MakeHuman asset pack Poses 01: {pose}.bvh",
+                                                    "license": "CC0"}, ensure_ascii=False, indent=1))
+    print(f"棚に置いた: {shelf / name}.png", flush=True)
 
 if __name__ == "__main__":
     main(argv())
