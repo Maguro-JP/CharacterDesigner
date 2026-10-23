@@ -1,7 +1,7 @@
 #!/bin/sh
 # 手元のアプリを1つのコマンドで起動する。初回は部品とモデルを取る（数十分、ディスク 約 8GB）。2回目からはすぐ起動する。
 #
-#   sh app/start.sh            取れていない部品を取り、サーバー（8000）と画面（4173）を起動する
+#   sh app/start.sh            取れていない部品を取り、サーバー（8000）を起こして CharacterDesigner のウィンドウを開く
 #   sh app/start.sh --setup    部品を取るだけで起動しない
 #
 # 取ったものは .cache/ に置く（リポジトリには入れない）。取り直すときは .cache/ の該当フォルダを消してから流す。
@@ -97,12 +97,12 @@ PY
 fi
 PYTHONPATH="$H/app/lib:$H/gen/lib" HF_HOME="$H/gen/hf" python3 -m uvicorn app.server.main:app --host 127.0.0.1 --port 8000 &
 SERVER=$!
-(cd app/web && npx vite preview --strictPort) &
-WEB=$!
+# 画面は組み上げたもの（app/web/dist）をサーバーが同じ窓口で配る。Vite の別の窓口は立てない
+WEB=""
 # Ctrl-C で両方を止める（片方だけ残ってポートを塞がないように）
 trap 'kill $SERVER $WEB $LLM 2>/dev/null; exit 0' INT TERM
 i=0
-until curl -s -m 2 http://127.0.0.1:4173/api/cases >/dev/null 2>&1; do
+until curl -s -m 2 http://127.0.0.1:8000/api/cases >/dev/null 2>&1; do
   i=$((i + 1))
   if [ $i -gt 120 ] || ! kill -0 $SERVER 2>/dev/null; then
     echo "サーバーが起動しない。上の出力を見る" >&2
@@ -125,7 +125,6 @@ if [ -n "$LLM" ]; then
   done
 fi
 echo
-echo "開く: http://127.0.0.1:4173/   （止めるときは Ctrl-C）"
 echo "最初の1件はモデルの読み込みに 約 10 分、そのあと1回 約 3 分（CPU）"
 if [ -n "$LLM" ] || [ -n "${CD_LLM_URL:-}" ]; then
   echo "言葉の頼みごとは手元の模型で読む（${CD_LLM_URL:-http://127.0.0.1:8081/v1}。ログは $H/llm/server.log）"
@@ -134,4 +133,21 @@ elif [ -n "${ANTHROPIC_API_KEY:-}" ]; then
 else
   echo "手元の模型も ANTHROPIC_API_KEY も無いので、言葉の頼みごとは辞書で読む（自由に描くは英語のタグだけ）"
 fi
-wait
+# 画面はアプリのウィンドウで開く（ブラウザーは開かない。ユーザーの決まり。.claude/skills/character-designer-app）。
+# ウィンドウを閉じたらサーバーと言葉の模型も止める。CD_NO_WINDOW=1 ならサーバーだけ動かす（開発と MCP 用）
+open_window() {
+  PYTHONPATH="$H/app/lib" python3 - <<'PY'
+import webview
+webview.create_window("CharacterDesigner", "http://127.0.0.1:8000/", width=1280, height=820, min_size=(960, 640))
+webview.start()
+PY
+}
+if [ "${CD_NO_WINDOW:-}" = "1" ]; then
+  echo "サーバーだけ動かす（CD_NO_WINDOW=1）。止めるときは Ctrl-C"
+  wait
+elif open_window; then
+  kill $SERVER $LLM 2>/dev/null
+else
+  echo "ウィンドウを開けない（pywebview か、この OS の WebView の部品が無い）。サーバーは動いたまま。止めるときは Ctrl-C" >&2
+  wait
+fi
