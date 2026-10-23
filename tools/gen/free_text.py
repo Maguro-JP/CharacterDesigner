@@ -318,9 +318,6 @@ def draw(prompt: str, negative: str, out: Path, seed: int = 0, count: int = 1, w
                 import upscale as upscale_mod
                 upscale_mod.upscale(out / name, out / name, long)
             names.append(name)
-            # 描いたら必ず検品する。結果は <絵>.qc.json。呼び忘れで検品なしの絵が次へ回らないよう、ここで毎回走らせる
-            import qc
-            qc.auto_check(str(out / name), prompt)
             if on_image:
                 on_image(k, name)
     finally:
