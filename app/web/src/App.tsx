@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, type Job, type Layout, type LayoutNode, type LlmStatus, type PartChoices } from "./api";
+import { api, type Job, type Layout, type LayoutNode, type LlmStatus, type PartChoices, type SetupStatus } from "./api";
+import Setup from "./Setup";
 import LayoutView from "./Layout";
 import { type Ctx, type Pick, useRoles } from "./panels";
 
@@ -26,6 +27,10 @@ export default function App() {
   const [narrow, setNarrow] = useState(window.innerWidth < NARROW);
   const roles = useRoles();
   const saving = useRef<Layout | null>(null);
+  const [setup, setSetup] = useState<SetupStatus | null>(null);
+  useEffect(() => {
+    api.setup().then(setSetup).catch(() => setSetup(null));
+  }, []);
 
   const refreshJobs = useCallback(() => {
     api.jobs().then(setJobs).catch((e: Error) => setError(e.message));
@@ -61,6 +66,12 @@ export default function App() {
     });
     if (done && saving.current) api.saveLayout(saving.current).catch((e: Error) => setError(`配置を保存できない: ${e.message}`));
   };
+
+  // 初回の設定が済んでいない、または取っている途中なら、設定の画面だけを出す
+  if (setup && (setup.needed || setup.running)) return <Setup status={setup} onDone={() => {
+    setSetup({ ...setup, needed: false, running: false });
+    api.llm().then(setLlm).catch(() => setLlm(null));   // 設定の途中で言葉の模型が起きたので聞き直す
+  }} />;
 
   const ctx: Ctx = { jobs, refreshJobs, selected, select: setSelected, llm, setLlm, roles, setError, now, labels };
 

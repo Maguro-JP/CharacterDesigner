@@ -17,6 +17,7 @@ CD_LLM_URL と CD_LLM_MODEL を渡す（そのときは取らない・起こさ�
 from __future__ import annotations
 
 import argparse
+import atexit
 import json
 import os
 import shutil
@@ -52,6 +53,21 @@ for _stream in (sys.stdout, sys.stderr):
 
 def say(text: str) -> None:
     print(f"\n== {text}", flush=True)
+
+
+# 取っている物の進み。初回の設定の画面（/api/setup）がこれを読んで進みの棒を出す
+STATE: dict = {"running": False, "step": "", "percent": None, "error": "", "done": False}
+
+
+def report(step: str, percent: float | None = None) -> None:
+    if step != STATE["step"]:
+        say(step)
+    STATE.update(step=step, percent=percent)
+
+
+def fail(text: str) -> None:
+    print(text, file=sys.stderr)
+    STATE["error"] = text
 
 
 def run(args: list[str], env: dict | None = None) -> None:
@@ -104,8 +120,7 @@ def choose(again: bool, auto: bool) -> dict:
     }
     if os.environ.get("CD_LLM_URL"):
         c["llm"] = "no"  # 手持ちの窓口（Ollama など）を使う
-    CHOICES.parent.mkdir(parents=True, exist_ok=True)
-    CHOICES.write_text(json.dumps(c, ensure_ascii=False, indent=1), encoding="utf-8")
+    save_choices(c)
     return c
 
 
@@ -120,6 +135,7 @@ def fetch(url: str, dest: Path) -> None:
             if total and done * 100 // total >= shown + 5:
                 shown = done * 100 // total
                 print(f"  {shown}%（{done / 1e9:.2f} / {total / 1e9:.2f}GB）", flush=True)
+                STATE["percent"] = shown
     part.replace(dest)
 
 
@@ -127,22 +143,22 @@ def ensure_llm(size: str) -> bool:
     """言葉の模型の部品（llama-cpp-python の組み済みの配布物）と GGUF を取る。取れなければ理由を出して False"""
     lib = LLM_DIR / "lib"
     if not (lib / "llama_cpp" / "__init__.py").exists():
-        say("言葉の模型の部品（llama-cpp-python）")
+        report("言葉の模型の部品（llama-cpp-python）を入れています")
         # 元のソースから組むと C++ の組み立てに数十分かかり、Windows では組み立ての道具も要るので、組み済みのものだけを使う
         r = subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--disable-pip-version-check", "--target", str(lib),
                             "--only-binary", "llama-cpp-python", "--extra-index-url", "https://abetlen.github.io/llama-cpp-python/whl/cpu",
                             "llama-cpp-python[server]>=0.3.16"])
         if r.returncode != 0:
-            print("言葉の模型の部品を入れられませんでした。日本語の頼みは辞書で読みます。", file=sys.stderr)
+            fail("言葉の模型の部品を入れられませんでした。日本語の頼みは辞書で読みます。")
             return False
     label, url = LLM_SIZES[size]
     gguf = LLM_DIR / url.rsplit("/", 1)[1]
     if not gguf.exists():
-        say(f"言葉の模型 {gguf.name}（{label}。初回だけ）")
+        report(f"言葉の模型 {gguf.name}（{label}）を取っています", 0)
         try:
             fetch(url, gguf)
         except OSError as e:
-            print(f"言葉の模型を取れませんでした（{e}）。次の起動で取り直します。", file=sys.stderr)
+            fail(f"言葉の模型を取れませんでした（{e}）。次の起動で取り直します。")
             return False
     (LLM_DIR / "default.txt").write_text(gguf.name, encoding="utf-8")
     return True
@@ -173,23 +189,65 @@ def ensure_model() -> bool:
                             "print(json.dumps(c, ensure_ascii=False))"],
                            env={**os.environ, **env}, capture_output=True, text=True)
     if probe.returncode != 0:
-        print(probe.stderr, file=sys.stderr)
+        fail(probe.stderr.strip().splitlines()[-1] if probe.stderr.strip() else "絵の模型を確かめられませんでした")
         return False
     import json
     c = json.loads(probe.stdout.strip().splitlines()[-1])
     if c["usable"]:
         return True
     if c.get("form") != "huggingface":
-        print(f"絵の模型「{c['name']}」は使えません: {c.get('reason')}", file=sys.stderr)
+        fail(f"絵の模型「{c['name']}」は使えません: {c.get('reason')}")
         return False
     free = shutil.disk_usage(ROOT).free / 1e9
     if free < MODEL_NEED_GB:
-        print(f"絵の模型（約 7GB）を取るには空きが {MODEL_NEED_GB}GB 要ります。今は {free:.1f}GB です。"
-              f"空きを作ってから起動し直してください。", file=sys.stderr)
+        fail(f"絵の模型（約 7GB）を取るには空きが {MODEL_NEED_GB}GB 要ります。今は {free:.1f}GB です。"
+             f"空きを作ってから起動し直してください。")
         return False
-    say(f"絵の模型 {c['name']}（約 7GB。初回だけ。回線によって 10 分〜1 時間）")
-    run([sys.executable, str(ROOT / "tools" / "gen" / "models.py"), "fetch", c["name"]], env={**env, "CD_FETCH": "1"})
+    report(f"絵の模型 {c['name']}（約 7GB）を取っています。回線によって 10 分〜1 時間", 0)
+    # 取った量は置き場所の大きさの増え方で見る（取る道具は進みを返さない）
+    hf = HOME / "gen" / "hf"
+    start = folder_gb(hf)
+    p = subprocess.Popen([sys.executable, str(ROOT / "tools" / "gen" / "models.py"), "fetch", c["name"]],
+                         env={**os.environ, **env, "CD_FETCH": "1"})
+    while p.poll() is None:
+        time.sleep(3)
+        STATE["percent"] = min(99, round((folder_gb(hf) - start) / 7 * 100))
+    if p.returncode != 0:
+        fail(f"絵の模型を取れませんでした（終了コード {p.returncode}）。回線を確かめて、もう一度始めてください。")
+        return False
     return True
+
+
+def folder_gb(d: Path) -> float:
+    return sum(f.stat().st_size for f in d.rglob("*") if f.is_file()) / 1e9 if d.exists() else 0.0
+
+
+LLM_PROC: list = []
+# 窓を閉じたときに言葉の模型の窓口を残さない（画面から起こした分も、この取り込み先ごとに止める）
+atexit.register(lambda: [proc.terminate() for proc in LLM_PROC])
+
+
+def save_choices(c: dict) -> None:
+    CHOICES.parent.mkdir(parents=True, exist_ok=True)
+    CHOICES.write_text(json.dumps(c, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def apply_choices(c: dict) -> bool:
+    """選んだ物を取り、言葉の模型を起こす。画面からは裏の糸で、窓からは起動の前に呼ぶ"""
+    STATE.update(running=True, error="", done=False)
+    ok = True
+    try:
+        if c.get("image_model"):
+            ok = ensure_model() and ok
+        if c.get("llm", "no") != "no":
+            ok = ensure_llm(c["llm"]) and ok
+            if not LLM_PROC:
+                proc = start_llm()
+                if proc:
+                    LLM_PROC.append(proc)
+    finally:
+        STATE.update(running=False, done=True, step="終わりました" if ok else STATE["step"], percent=100 if ok else STATE["percent"])
+    return ok
 
 
 def open_when_ready(url: str) -> None:
@@ -222,22 +280,23 @@ def main() -> None:
     ap.add_argument("--yes", action="store_true", help="聞かずに既定（全部取る）で進める")
     a = ap.parse_args()
     os.chdir(ROOT)
-    c = choose(a.choose, a.yes)
     setup()
-    ok = ensure_model() if c["image_model"] else False
-    if c["llm"] != "no":
-        ensure_llm(c["llm"])
-    if a.setup:
-        say("部品はそろいました" if ok else "絵の模型がまだありません（上の理由を見てください）")
-        return
-    if not ok:
-        print("絵の模型が無いので、描く仕事は失敗します。画面は開きます（--choose で取り直せます）。", file=sys.stderr)
-    llm = start_llm()
+    # 窓で聞くのは --setup（画面を開かない）か --yes のときだけ。ふだんの初回は画面で選ぶ（/api/setup）
+    if CHOICES.exists() and not a.choose or a.setup or a.yes:
+        c = choose(a.choose, a.yes)
+        ok = apply_choices(c)
+        if a.setup:
+            say("部品はそろいました" if ok else "取れなかった物があります（上の理由を見てください）")
+            return
+    else:
+        if a.choose and CHOICES.exists():
+            CHOICES.unlink()
+        say("初回の設定は、開いた画面で選んでください")
     try:
         serve(not a.no_browser)
     finally:
-        if llm:
-            llm.terminate()
+        for proc in LLM_PROC:
+            proc.terminate()
 
 
 if __name__ == "__main__":
