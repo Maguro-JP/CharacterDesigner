@@ -1,44 +1,11 @@
-"""利用者のフィルター: 描きたくないものを、利用者が自分で決めて止める。
+"""描く前の判定。子どもを性的に描くことだけを止める固定の制限（設定では外せない）。
 
-既定ではどれも切ってある（最初から規制はしない）。使う人が config/filters.json で入れたものだけが働く。
-1つのフィルターは「名前・入れるか・止める言葉・打ち消しに足す言葉」。言葉はどの言語で書いてもよく、1つの一覧に並べる。
-止める言葉が頼みごとか描く言葉に出たら、描かずに理由を返す。打ち消しの言葉は、入れている間いつも足す。
-
-設定ファイルが無いときは、下の PRESETS（全部切った状態）を使う。書き方の見本は config/filters.example.json。
-
-固定の制限（設定では外せない）は、子どもを性的に描くことだけ。docs/filters.md に利用者向けの説明がある。
-宗教・文化の配慮（styles/cultural.json）は止めずに知らせる。知らずに描いて見る人を傷つけるのを防ぐのが目的で、
-描くかは利用者が決める。止めたい人は「宗教・文化への配慮」のフィルターを入れる。
-判定はこのファイルの1か所で行い、ほかの所（free_text など）は check() を呼ぶだけにする。
+利用者のフィルターと宗教・文化の知らせは外した（描けるようにするのが先、2026-10-24 の利用者の指示）。
+ほかの所（free_text など）は check() と negative() を呼ぶだけにする。説明は docs/filters.md。
 """
 from __future__ import annotations
 
-import json
 import re
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[2]
-CONFIG = ROOT / "config" / "filters.json"
-
-# 用意しておく型。どれも切ってある。入れるかは利用者が決める
-PRESETS = [
-    {"name": "グロテスク", "enabled": False,
-     "words": ["グロ", "流血", "内臓", "切断", "死体", "腐敗", "gore", "guro", "blood", "bloody", "dismemberment", "decapitation", "corpse", "intestines", "severed"],
-     "negative": "gore, blood, injury, wound"},
-    {"name": "性的な表現", "enabled": False,
-     "words": ["裸", "ヌード", "エロ", "性的", "下着", "R18", "R-18", "nsfw", "nude", "naked", "nipples", "explicit", "lingerie", "underwear", "erotic", "hentai"],
-     "negative": "nsfw, nude, explicit"},
-    {"name": "暴力", "enabled": False,
-     "words": ["暴力", "殴る", "拷問", "violence", "torture", "beating"],
-     "negative": "violence"},
-    {"name": "ホラー", "enabled": False,
-     "words": ["ホラー", "恐怖", "怨霊", "horror", "creepy", "scary"],
-     "negative": "horror"},
-    # 言葉は styles/cultural.json の hate と caution の決まりから組む（cultural_words）。ここで一覧を二重に持たない
-    {"name": "宗教・文化への配慮", "enabled": False, "cultural": True, "words": [], "negative": ""},
-]
-CULTURAL = ROOT / "styles" / "cultural.json"
-
 
 # 固定の制限。子どもを性的に描くことだけを止める。子どもを表す語だけ、性的な語だけでは止めない
 SEXUAL = ["裸", "ヌード", "全裸", "半裸", "エロ", "えっち", "エッチ", "性的", "性行為", "セックス", "下着", "ランジェリー",
@@ -83,21 +50,6 @@ def has_sexual(text: str) -> bool:
     return bool(_hits(SEXUAL, text))
 
 
-def load(path: Path | None = None) -> list[dict]:
-    """利用者のフィルターを読む。壊れた設定でも描く処理は止めず、既定（全部切った状態）に戻す"""
-    p = path or CONFIG
-    try:
-        data = json.loads(p.read_text(encoding="utf-8"))
-        items = data.get("filters", []) if isinstance(data, dict) else []
-        return [f for f in items if isinstance(f, dict) and f.get("name")]
-    except (OSError, ValueError):
-        return [dict(f) for f in PRESETS]
-
-
-def active(path: Path | None = None) -> list[dict]:
-    return [f for f in load(path) if f.get("enabled")]
-
-
 def _hit(f: dict, text: str) -> str | None:
     low = text.lower()
     tokens = set(re.findall(r"[a-z0-9\-]+", low))
@@ -115,63 +67,23 @@ def _hit(f: dict, text: str) -> str | None:
     return None
 
 
-def _rules() -> list[dict]:
-    try:
-        return json.loads(CULTURAL.read_text(encoding="utf-8"))["rules"]
-    except (OSError, ValueError, KeyError):
-        return []
+def advice_lines(text: str) -> list[str]:
+    """知らせる中身。今は出さない（呼ぶ側を変えずに済むよう残す）"""
+    return []
 
 
 def cultural(text: str) -> list[dict]:
-    """宗教・文化の上で見る人を傷つけやすい描写に当たれば、知らせる中身の一覧（止めはしない）。
-    words が出たとき（with があれば、それも並んだとき）に当たる。triggers だけのときは、誤って描かれやすい場面として知らせる"""
-    out = []
-    for r in _rules():
-        w = _hit({"words": r.get("words", [])}, text) if r.get("words") else None
-        if w and r.get("with") and not _hit({"words": r["with"]}, text):
-            w = None
-        t = None if w else _hit({"words": r.get("triggers", [])}, text)
-        if w or (t and not r.get("words")):
-            out.append({"id": r["id"], "topic": r["topic"], "level": r["level"], "hit": w or t,
-                        "why": r["why"], "instead": r["instead"]})
-    return out
+    return []
 
 
-def cultural_negative(text: str) -> str:
-    """場面の言葉（軍服、寺など）から、模型が頼まれずに描きやすい印を打ち消しに足す"""
-    return ", ".join(r["negative"] for r in _rules() if r.get("negative")
-                     and _hit({"words": r.get("triggers", []) + r.get("words", [])}, text))
+def check(text: str, path=None) -> str | None:
+    """止める理由。固定の制限に当たったときだけ。当たらなければ None"""
+    return fixed(text)
 
 
-def cultural_words(levels=("hate", "caution")) -> list[str]:
-    return [w for r in _rules() if r["level"] in levels and not r.get("with") for w in r.get("words", [])]
-
-
-def advice_lines(text: str) -> list[str]:
-    """画面や記録にそのまま出せる1行ずつの知らせ"""
-    mark = {"hate": "差別の象徴", "caution": "宗教・文化の配慮", "advise": "描き方の注意"}
-    return [f"{mark[a['level']]}「{a['topic']}」（{a['hit']}）: {a['why']}。{a['instead']}" for a in cultural(text)]
-
-
-def check(text: str, path: Path | None = None) -> str | None:
-    """止める理由。先に固定の制限、次に利用者が入れているフィルター。当たらなければ None"""
-    why = fixed(text)
-    if why:
-        return why
-    for f in active(path):
-        w = _hit(dict(f, words=list(f.get("words", [])) + cultural_words()) if f.get("cultural") else f, text)
-        if not w and f.get("cultural"):
-            # 組み合わせの決まり（宗教の装い＋性的な言葉など）も、入れている間は止める
-            w = next((a["hit"] for a in cultural(text) if a["level"] in ("hate", "caution")), None)
-        if w:
-            return f"利用者のフィルター「{f['name']}」で止めた（{w}）。config/filters.json で切れる"
-    return None
-
-
-def negative(prompt: str = "", path: Path | None = None) -> str:
-    """打ち消しに足す言葉。入れているフィルターの分と、性的な語があるときの子どもの言葉"""
+def negative(prompt: str = "", path=None) -> str:
+    """打ち消しに足す言葉。性的な語があるときの子どもの言葉と、子どもを表す語があるときの構図"""
     parts = [SAFE_NEGATIVE] if has_sexual(prompt) else []
     if has_minor(prompt):
         parts.append(MINOR_NEGATIVE)
-    parts += [x for x in [cultural_negative(prompt)] if x]
-    return ", ".join(parts + [f["negative"] for f in active(path) if f.get("negative")])
+    return ", ".join(parts)

@@ -28,27 +28,10 @@ def test_roles_run_in_order_and_pass_first_time(tmp_path):
     r = Session(fake_ports([[]], painted, memory), events.append).send(Spec(text="雪の騎士"), str(tmp_path))
     assert r.ok and r.passed == "try-0.png"
     assert [e["role"] for e in events] == ["GUARD", "INTERPRETER", "INTERPRETER", "DIRECTOR", "PAINTER", "PAINTER",
-                                           "INSPECTOR", "CRITIC", "CURATOR"]
+                                           "CURATOR"]
     # 演出が構図と光を足した
     assert "cowboy shot" in painted[0]["prompt"] and "single light source" in painted[0]["prompt"]
     assert memory[0]["ok"] and memory[0]["prompt"] == r.prompt
-
-
-def test_retry_fixes_and_changes_seed(tmp_path):
-    painted, memory, events = [], [], []
-    r = Session(fake_ports([["左腕が無い"], []], painted, memory), events.append).send(
-        Spec(prompt="1girl, full body, simple background", seed=5), str(tmp_path))
-    assert r.ok and r.passed == "try-1.png"
-    assert [p["seed"] for p in painted] == [5, 6]
-    assert "missing limb" in painted[1]["negative"]
-    assert any(e["stage"] == "retry" for e in events)
-
-
-def test_same_failure_twice_stops(tmp_path):
-    painted, memory = [], []
-    r = Session(fake_ports([["右脚が無い"], ["右脚が無い"], []], painted, memory)).send(Spec(prompt="1girl", tries=5), str(tmp_path))
-    assert not r.ok and len(painted) == 2 and "2回続けて" in r.reason
-    assert not memory[0]["ok"]
 
 
 def test_guard_stops_before_drawing(tmp_path):
@@ -132,39 +115,6 @@ def test_memory_api(client, monkeypatch, tmp_path):
     assert c.get("/api/memory", params={"q": "雪の騎士の少年"}).json()[0]["prompt"].startswith("1boy, knight")
 
 
-def test_proposals_from_facts(client, monkeypatch, tmp_path):
-    # 手がかり: 見本の無い種 → 設定資料を描く提案。通らなかったスタジオの仕事 → seed を変えて描き直す提案
-    monkeypatch.setattr(main, "PROPOSALS", tmp_path / "p.json")
-
-    class Failing(FakeRunner):
-        def studio(self, spec, outdir, on_event):
-            from app.server.studio.session import Ports, Session
-
-            def paint(prompt, negative, seed, w, h, out):
-                name = f"try-{len(list(Path(out).glob('try-*.png')))}.png"
-                Image.new("RGB", (8, 8), "red").save(Path(out) / name)
-                return name
-            return Session(Ports(describe=lambda t, rec=(): {}, paint=paint, inspect=lambda p, c: ["左腕が無い"]), on_event).send(spec, str(outdir))
-    from PIL import Image
-    c, _ = client(Failing())
-    p = c.get("/api/proposals").json()
-    assert p["idle"] and all(x["kind"] in ("demi", "turnaround") for x in p["items"]) and len(p["items"]) <= 5
-    j = wait(c, c.post("/api/studio/jobs", json={"text": "騎士", "prompt": "1boy, full body", "tries": 2, "seed": 3}).json()["id"])
-    assert not j["passed"]
-    items = c.get("/api/proposals").json()["items"]
-    retry = items[0]
-    assert retry["kind"] == "studio" and retry["who"] == "INSPECTOR" and retry["request"]["seed"] == 5
-    # 退けたら二度と出さない。頼んだら仕事になり、並ばなくなる
-    assert c.post(f"/api/proposals/{items[1]['id']}/dismiss").json()["ok"]
-    ids = [x["id"] for x in c.get("/api/proposals").json()["items"]]
-    assert items[1]["id"] not in ids
-    job = c.post(f"/api/proposals/{retry['id']}/do").json()
-    assert job["kind"] == "studio" and job["free"]["seed"] == 5
-    wait(c, job["id"])
-    assert retry["id"] not in [x["id"] for x in c.get("/api/proposals").json()["items"]]
-    assert c.post("/api/proposals/nope/do").status_code == 404
-
-
 def test_turnaround_proposal_for_characters_without_one(client, monkeypatch, tmp_path):
     # 設定資料集のキャラクターで三面図をまだ描いていないもの → 三面図の提案。頼んだら並ばなくなる
     monkeypatch.setattr(main, "PROPOSALS", tmp_path / "p.json")
@@ -213,43 +163,6 @@ def test_hidden_files_are_not_served(client):
     assert j["outcome"]["files"] == ["try-1.png"]
     assert c.get(f"/api/jobs/{j['id']}/files/try-0.png").status_code == 404
     assert c.get(f"/api/jobs/{j['id']}/files/try-1.png").status_code == 200
-
-
-def test_relight_proposal_changes_drawing_and_is_not_repeated(client, monkeypatch, tmp_path):
-    # 検品で弱いと出た絵の提案は、描く言葉か seed を変える。同じ描き方は二度提案しない
-    monkeypatch.setattr(main, "PROPOSALS", tmp_path / "p.json")
-
-    class Critic(FakeRunner):
-        def studio(self, spec, outdir, on_event):
-            from app.server.studio.session import Ports, Session
-
-            def paint(prompt, negative, seed, w, h, out):
-                name = f"try-{len(list(Path(out).glob('try-*.png')))}.png"
-                Image.new("RGB", (8, 8), "blue").save(Path(out) / name)
-                return name
-            return Session(Ports(describe=lambda t, rec=(): {}, paint=paint, inspect=lambda p, c: [],
-                                 critique=lambda p: ["明暗が細切れ"]), on_event).send(spec, str(outdir))
-    from PIL import Image
-    c, _ = client(Critic())
-    wait(c, c.post("/api/studio/jobs", json={"prompt": "1girl, single light source", "seed": 2, "tries": 2}).json()["id"])
-    p = next(x for x in c.get("/api/proposals").json()["items"] if x["who"] == "CRITIC")
-    assert p["request"]["seed"] == 4 and "dramatic lighting" in p["request"]["prompt"]
-    j = wait(c, c.post(f"/api/proposals/{p['id']}/do").json()["id"])
-    # 描き直した絵にも弱さの指摘が出るが、その提案は新しい描き方（seed がさらに進む）だけ
-    again = [x for x in c.get("/api/proposals").json()["items"] if x["who"] == "CRITIC"]
-    assert all(x["request"]["seed"] != 4 for x in again)
-
-
-def test_missing_elements_move_forward_on_retry(tmp_path):
-    painted, memory, events = [], [], []
-    seen = []
-    verdicts = iter([["描かれていない: goggles、sword"], []])
-    ports = fake_ports([], painted, memory)
-    ports.inspect = lambda path, c: (seen.append(c), next(verdicts))[1]
-    r = Session(ports, events.append).send(Spec(prompt="1girl, solo, steampunk, mechanic, goggles, sword", direct=False), str(tmp_path))
-    assert r.ok
-    assert painted[1]["prompt"].startswith("1girl, solo, goggles, sword, steampunk")
-    assert seen[0]["prompt"].endswith("sword") and "limbs" in seen[0]   # 検品に今の描く言葉を渡す
 
 
 def test_asset_shelf(client, monkeypatch, tmp_path):
@@ -322,27 +235,6 @@ def test_handdraw_endpoint(client, monkeypatch):
     assert c.get(f"/api/jobs/{j['id']}/files/hd-try-0-5-final.png").status_code == 200
 
 
-def test_methods_and_findings(tmp_path):
-    painted, memory, events = [], [], []
-    ports = fake_ports([["右脚が無い"], []], painted, memory)
-    called = {}
-
-    def finish(name, method, prompt, negative, seed, outdir):
-        called.update(name=name, method=method)
-        return "try-9.png"
-    ports.finish = finish
-    r = Session(ports, events.append).send(Spec(prompt="1girl, full body", method="handdraw", tries=3), str(tmp_path))
-    assert called == {"name": "try-1.png", "method": "handdraw"} and r.passed == "try-9.png"
-    assert "try-0.png: 右脚が無い" in r.findings                      # 矛盾は文字で残す
-    assert "extra fingers" in painted[0]["negative"]                   # あり得ない形は打ち消す
-    painted2 = []
-    Session(fake_ports([[]], painted2, [])).send(Spec(prompt="1girl, six arms", allow_impossible=True), str(tmp_path))
-    assert "extra arms" not in painted2[0]["negative"]                 # 特別な注文なら打ち消さない
-    painted3 = []
-    r3 = Session(fake_ports([[]], painted3, [])).send(Spec(prompt="1girl"), str(tmp_path))
-    assert r3.passed == "try-0.png"                                    # 一発なら仕上げ直さない
-
-
 def test_brush_choice(client):
     c, _ = client(FakeRunner())
     b = c.get("/api/brushes").json()
@@ -353,15 +245,3 @@ def test_brush_choice(client):
     assert j["free"]["brush"] == "maru" and j["free"]["line_style"] == "chibi"
 
 
-def test_cape_hides_arms_and_best_failed_is_finished(tmp_path):
-    from app.server.studio.session import checks_for
-    assert checks_for("1girl, witch, purple cape, full body")["limbs"] is False
-    painted, called = [], {}
-    ports = fake_ports([["描かれていない: hat", "体が画面の端で切れている"], ["描かれていない: hat"]], painted, [])
-
-    def finish(name, method, prompt, negative, seed, outdir):
-        called["name"] = name
-        return "try-9.png"
-    ports.finish = finish
-    r = Session(ports).send(Spec(prompt="1girl, hat", method="handdraw", tries=2), str(tmp_path))
-    assert called["name"] == "try-1.png" and not r.ok and r.passed == "try-9.png"

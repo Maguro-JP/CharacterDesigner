@@ -253,23 +253,9 @@ class Session:
                 res.prompt, res.negative = prompt, negative
                 last = None
                 continue
-            reasons = self.ports.inspect(f"{outdir}/{name}", {**checks_for(prompt), "prompt": prompt})
-            if not reasons:
-                res.ok, res.passed = True, name
-                self._say("INSPECTOR", "done", "数えて通った", file=name)
-                break
-            self._say("INSPECTOR", "fail", "落ちた: " + "、".join(reasons), file=name, reasons=reasons)
-            res.findings += [f"{name}: {r}" for r in reasons]
-            tries_reasons[name] = reasons
-            if last is not None and sorted(reasons) == sorted(last):
-                res.reason = "同じ理由で2回続けて落ちたので打ち切った: " + "、".join(reasons)
-                self._say("INSPECTOR", "stop", res.reason)
-                break
-            last = reasons
-            prompt, negative, how = fix_for(reasons, prompt, negative)
-            res.prompt, res.negative = prompt, negative
-            if k + 1 < spec.tries:
-                self._say("PAINTER", "retry", f"直して描き直す（{how}）", prompt=prompt)
+            # 検品で落として描き直す仕組みは外した。描けた絵をそのまま返す（2026-10-24 の利用者の指示）
+            res.ok, res.passed = True, name
+            break
         else:
             if not res.ok:
                 res.reason = f"{spec.tries} 回描いて通らなかった"
@@ -286,10 +272,6 @@ class Session:
                 res.files.append(done)
                 res.passed = done
                 self._say("PAINTER", "done", "仕上げた", file=done)
-        if res.passed:
-            res.critique = self.ports.critique(f"{outdir}/{res.passed}")
-            res.findings += [f"{res.passed}: {c}" for c in res.critique]
-            self._say("CRITIC", "done", "、".join(res.critique) if res.critique else "目立つ弱さは見つからなかった")
         self.ports.remember({"text": spec.text, "prompt": res.prompt, "negative": res.negative, "ok": res.ok,
                              "seed": spec.seed + len(res.files) - 1 if res.files else spec.seed,
                              "size": [spec.width, spec.height], "reason": res.reason, "t": time.time()})
