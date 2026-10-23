@@ -23,7 +23,7 @@ CharacterDesigner/
 │   ├── book/ eyes/ sheets/      作例集・目の資料集・職業の一覧
 ├── docs/                      案内（ROADMAP・STRUCTURE・references など）
 │   ├── knowledge/             分かったこと・決めたこと（decisions.md は 1 か所だけ）
-│   ├── reports/               日報・週報・判断待ち（pending.md）
+│   ├── reports/               日報・週報・判断待ち（pending.md）・成果物の表（deliverables.md）
 │   └── images/                README の画面の絵
 ├── config/                    利用者ごとの設定の見本
 └── tests/                     試験
@@ -48,7 +48,7 @@ CharacterDesigner/
 | `docs/knowledge/` | 分かったこと（描かせ方、検品、解剖、作画の決まり）と、決めたこと（`decisions.md`、1 か所だけ） | 絵 |
 | `docs/knowledge/learning/` | 学習の記録（self-learn） | |
 | `docs/knowledge/fashion/` | 流行のファッション資料（10代〜20代を中心に、系統・季節ごとの服・髪・小物・色と出典。入口は `README.md`）。世界の服装の図鑑は `zukan/`（古代〜現在と伝統衣装。図鑑の人物の設定は `casts/fashion-zukan/characters/`）。描く言葉の札は `casts/fashion.json`、見本の絵は `library/samples/fashion/` | 実在ブランドの写真や他人の画像（言葉と数字と出典だけ） |
-| `docs/reports/` | 日報・週報・月報、確かめたいことの一覧（`pending.md`） | |
+| `docs/reports/` | 日報・週報・月報、確かめたいことの一覧（`pending.md`）、成果物の表（`deliverables.md`） | |
 | `docs/images/` | README とアプリの案内の画面の絵 | 作例（それは `library/`） |
 | `tests/` `tests/fixtures/` | 試験と、試験・精度の測定に使う小さな正解の記録 | 大きな絵（作業場所に置き、記録には道だけ書く） |
 | `.worklog/` | 作業中の試行錯誤（git に入れない） | |

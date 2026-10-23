@@ -140,3 +140,4 @@
 - 2026-10-20: 足首の曲げは、すねと足の甲の骨の間の角が休みの姿勢から閉じた分（底屈が正）で測る（casts/rom.json の ankle に between）（AI の判断）。理由: 骨の軸の面で測ると、BVH で足がねじれた姿勢の底屈 45 度を 87 度と読んだ。選ばなかった案: 上限を広げる（本当に伸ばしすぎた足も通る）。触る場所: `tools/engine/rom_check.py` の check_rig、`casts/rom.json`
 - 2026-10-20: 胴の振れは骨盤の root から spine01 までで測り、振れの大半が体の前なら前屈の上限 80（casts/rom.json の trunk の swing_front）で見る（AI の判断）。理由: 股の骨 pelvis.L は BVH で太ももと一緒に回り、背中がまっすぐな座り姿を外れと読んだ（18 本で 3 本）。選ばなかった案: 上限を一律に広げる（後ろへの反りすぎも通る）。触る場所: `casts/rom.json`、`tools/engine/rom_check.py` の judge
 - 2026-10-20: 自由描きの窓口は、下絵を選んでいない座る頼みに、棚から言葉の種類が合う下絵を種で回して選ぶ（control に "none" で止める）（AI の判断）。理由: 言葉だけでは座る頼みの絵が立ったまま描かれた。選ばなかった案: 画面で毎回選ばせる（座る下絵があることを知らないと使われない）。触る場所: `tools/gen/assets.py` の POSE_KINDS・pick_pose、`app/server/main.py`、種類の表は `tools/engine/pose_bvh.py` の KINDS
+- 2026-10-24: CharacterDesigner はデスクトップアプリとして作る。起動はブラウザではなくアプリのウィンドウ（pywebview で既存のサーバーと画面を包む）で開き、ユーザーが触る機能は全部画面に置く。開発は CLI ではなく GUI（ユーザーの決定。`.claude/skills/character-designer-app/SKILL.md`）
