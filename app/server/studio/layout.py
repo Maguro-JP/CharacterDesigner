@@ -22,7 +22,6 @@ PANEL_KINDS = {
     "proposals": "提案",         # 待機中に拾った提案（承認するまで描かない）
     "demi": "亜人の設定資料",    # 亜人の種を選んで描く（前からの欄）
     "refs": "参考画像",          # 参考画像を探して手元に置き、描くときの手本に選ぶ
-    "filters": "フィルター",     # 利用者のフィルター（描きたくないものを止める）と、外せない制限の説明
 }
 
 DEFAULT = {
@@ -37,8 +36,7 @@ DEFAULT = {
              "children": [{"type": "tabs", "children": [{"type": "panel", "panel": "canvas"}, {"type": "panel", "panel": "paint"}, {"type": "panel", "panel": "refs"}]},
                           {"type": "panel", "panel": "gallery"}]},
             {"type": "tabs", "children": [{"type": "panel", "panel": "roster"}, {"type": "panel", "panel": "proposals"}, {"type": "panel", "panel": "log"},
-                                          {"type": "panel", "panel": "memory"}, {"type": "panel", "panel": "demi"},
-                                          {"type": "panel", "panel": "filters"}]},
+                                          {"type": "panel", "panel": "memory"}, {"type": "panel", "panel": "demi"}]},
         ],
     },
 }

@@ -243,9 +243,3 @@ def test_turnaround_rejects_unknown_character(client):
     assert c.post("/api/bible/knight/turnaround", json={"count": 9}).status_code == 422
 
 
-def test_cultural_advice(client):
-    c, _ = client(FakeRunner(pass_on=0))
-    r = c.post("/api/cultural", json={"text": "1girl, kimono, " + "x, " * 100})
-    assert r.status_code == 200
-    assert any("着物の合わせ" in a for a in r.json()["advice"])
-    assert c.post("/api/cultural", json={"text": "1girl, forest"}).json()["advice"] == []

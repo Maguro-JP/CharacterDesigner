@@ -136,10 +136,6 @@ class AtmosphereIn(BaseModel):
     light_x: float | None = Field(None, ge=-1.0, le=2.0)
     light_y: float | None = Field(None, ge=-1.0, le=2.0)
 
-class FiltersIn(BaseModel):
-    """利用者のフィルター。画面の「フィルター」から保存する"""
-    filters: list[dict] = Field(default_factory=list)
-
 class InkIn(BaseModel):
     """線の清書に渡すもの。描く板のレイヤーをそのまま送る"""
     png: str = Field(..., description="描く板のレイヤー（data:image/png;base64,...）")
@@ -422,9 +418,6 @@ class DescribeIn(BaseModel):
     text: str = Field(min_length=1, max_length=200)
 
 
-class CulturalIn(BaseModel):
-    # 頼みごと（200 字まで）と描く言葉をつないで送るので、描く言葉の長さまで受ける
-    text: str = Field(max_length=4000)
 
 
 class SaveIn(BaseModel):
@@ -848,27 +841,6 @@ def create_app(runner: Runner | None = None) -> FastAPI:
             raise HTTPException(404, "その参考画像は無い")
         return FileResponse(p, media_type="image/jpeg")
 
-    @app.get("/api/filters")
-    def get_filters():
-        # 利用者のフィルターと、設定で外せない固定の制限の説明（docs/filters.md）
-        import filters
-        return {"filters": filters.load(), "fixed": "子どもを性的に描くこと（loli・shota などの語、子どもを表す語と性的な語の組み合わせ）。設定では外せない",
-                "doc": "docs/filters.md"}
-
-    @app.put("/api/filters")
-    def put_filters(body: FiltersIn):
-        import filters
-        clean = []
-        for f in body.filters:
-            name = str(f.get("name", "")).strip()[:40]
-            if not name:
-                continue
-            words = [str(w).strip()[:60] for w in f.get("words", []) if str(w).strip()][:200]
-            clean.append({"name": name, "enabled": bool(f.get("enabled")), "words": words, "negative": str(f.get("negative", ""))[:200]})
-        filters.CONFIG.parent.mkdir(parents=True, exist_ok=True)
-        filters.CONFIG.write_text(json.dumps({"filters": clean}, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
-        return {"filters": filters.load()}
-
     @app.get("/api/brushes")
     def get_brushes():
         import brushes
@@ -884,12 +856,6 @@ def create_app(runner: Runner | None = None) -> FastAPI:
     @app.get("/api/studio/roles")
     def studio_roster():
         return studio_roles.roster()
-
-    @app.post("/api/cultural")
-    def cultural(body: CulturalIn):
-        # 宗教・文化の配慮の知らせ。止めずに、描く前に画面で見せる（styles/cultural.json）
-        import filters
-        return {"advice": filters.advice_lines(body.text)}
 
     @app.post("/api/studio/jobs", status_code=202)
     def post_studio_job(body: StudioIn):
