@@ -62,7 +62,7 @@ export function LlmSettings({ status, onChange }: { status: LlmStatus | null; on
         {local.ok ? (
           <span className="text-accent">{local.model}（{local.url}）</span>
         ) : (
-          <span className="text-signal">つながらない（`sh app/start.sh` で起こすか、ここで窓口を選ぶ）</span>
+          <span className="text-signal">つながらない（初回の設定で取っていなければ辞書で読みます。起動し直すか、ここで窓口を選ぶ）</span>
         )}
         {status.claude && "・Claude の鍵あり"}
         <button type="button" className="ml-2 underline" onClick={() => setOpen((o) => !o)}>

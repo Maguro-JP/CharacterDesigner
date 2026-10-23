@@ -508,6 +508,12 @@ class JobIn(BaseModel):
     tries: int = Field(3, ge=1, le=6)
 
 
+class SetupIn(BaseModel):
+    """初回の設定で選んだ取る物"""
+    image_model: bool = True
+    llm: str = Field("default", pattern="^(default|small|no)$")
+
+
 def create_app(runner: Runner | None = None) -> FastAPI:
     # 版は根の VERSION の 1 か所だけに置く（画面・Setup.exe・サーバーで食い違わないように）
     version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
@@ -1051,6 +1057,30 @@ def create_app(runner: Runner | None = None) -> FastAPI:
         if not p.exists():
             raise HTTPException(404, "そのファイルはまだ無い")
         return FileResponse(p)
+
+    # 初回の設定。取る物（絵の模型、言葉の模型）を画面で選ばせ、裏で取って進みを返す。中身は app/launch.py（窓から起動したときと同じ処理）
+    from app import launch
+
+    @app.get("/api/setup")
+    def setup_status():
+        choices = None
+        if launch.CHOICES.exists():
+            try:
+                choices = json.loads(launch.CHOICES.read_text(encoding="utf-8"))
+            except ValueError:
+                choices = None
+        return {"needed": choices is None, "choices": choices, **launch.STATE,
+                "free_gb": round(shutil.disk_usage(ROOT).free / 1e9, 1),
+                "sizes": {"image_model": "約 7GB", **{k: v[0] for k, v in launch.LLM_SIZES.items()}}}
+
+    @app.post("/api/setup", status_code=202)
+    def setup_start(body: SetupIn):
+        if launch.STATE["running"]:
+            raise HTTPException(409, "いま取っている途中です。終わるまで待ってください")
+        c = {"image_model": body.image_model, "llm": body.llm}
+        launch.save_choices(c)
+        threading.Thread(target=launch.apply_choices, args=(c,), daemon=True).start()
+        return setup_status()
 
     # 組み上げた画面（app/web/dist）があれば、同じ窓口で配る。配布版は Node を持たないので、画面のための別の窓口を立てない。
     # /api の道筋を先に登録してあるので、こちらは残りの道筋だけを受ける

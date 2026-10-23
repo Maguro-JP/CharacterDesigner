@@ -88,6 +88,18 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   return (await res.json()) as T;
 }
 
+export type SetupStatus = {
+  needed: boolean;
+  choices: { image_model: boolean; llm: string } | null;
+  running: boolean;
+  step: string;
+  percent: number | null;
+  error: string;
+  done: boolean;
+  free_gb: number;
+  sizes: Record<string, string>;
+};
+
 export type Reader = "local" | "claude" | "words" | "tags" | "check" | null;
 
 export type FreeDescribe = {
@@ -132,6 +144,9 @@ export const api = {
     }),
   fileUrl: (jobId: string, name: string) => `/api/jobs/${jobId}/files/${name}`,
   llm: () => call<LlmStatus>("/api/llm"),
+  setup: () => call<SetupStatus>("/api/setup"),
+  startSetup: (image_model: boolean, llm: string) =>
+    call<SetupStatus>("/api/setup", { method: "POST", body: JSON.stringify({ image_model, llm }) }),
   roles: () => call<Role[]>("/api/studio/roles"),
   styles: () => call<Record<"paint" | "format", { id: string; ja: string; refs: string }[]>>("/api/styles"),
   handdraw: (jobId: string, file: string, brush = "", lineStyle = "default") =>
