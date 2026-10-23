@@ -15,6 +15,11 @@ EXEMPT = {
     "tests/test_record_policy.py",
     # 秘密情報を見つけるための型の一覧で、例としての接続文字列を含む
     ".claude/skills/secret-leak-check/references/patterns.md",
+    # Ciel から配られるスキル。避ける言い回しの説明と、Ciel 側の失敗の記録を含む（直すなら Ciel 側で直す）
+    ".claude/skills/content-audit/SKILL.md",
+    ".claude/skills/content-audit/references/checklist.md",
+    ".claude/skills/follow-instructions/SKILL.md",
+    ".claude/skills/lessons/LESSONS.md",
 }
 
 PATTERNS = {
