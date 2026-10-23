@@ -38,6 +38,8 @@
 | rembg / psd-tools | 2.0.85 / 1.23.0 | MIT |
 | fastapi / pydantic / mcp | 0.143.0 / 2.14.0 / 2.3.0 | MIT |
 | uvicorn / imageio-ffmpeg | 0.54.0 / 0.6.0 | BSD-3-Clause / BSD-2-Clause |
+| pywebview / bottle / proxy_tools / typing_extensions（画面をアプリのウィンドウで開く） | 6.2.1 / 0.13.4 / 0.1.0 / 4.16.0 | BSD-3-Clause / MIT / MIT / PSF-2.0 |
+| pythonnet / clr-loader / cffi / pycparser（Windows で WebView2 を使うための部品） | 3.2.1 / 0.3.1 / 2.1.1 / 3.12 | MIT / MIT（wheel の情報に無く、確かめていない） / MIT-0 / BSD-3-Clause |
 
 ## 配り方への影響
 

@@ -42,7 +42,14 @@ rm -f "$APP/python/python$PYTAG._pth"
 echo "== pip とサーバーの部品（Windows 用）"
 W="--platform win_amd64 --python-version $PYVER --implementation cp --only-binary=:all: -q --disable-pip-version-check"
 python3 -m pip install $W --target "$APP/python/Lib/site-packages" pip
-python3 -m pip install $W --target "$APP/.cache/app/lib" -r app/server/requirements.txt
+# pywebview の部品 proxy_tools は wheel が無い（純 Python の sdist だけ）ので、Windows 用の wheel だけを取る指定から外して別に入れる
+grep -v "^pywebview" app/server/requirements.txt > "$OUT/requirements-win.txt"
+python3 -m pip install $W --target "$APP/.cache/app/lib" -r "$OUT/requirements-win.txt"
+python3 -m pip install $W --target "$APP/.cache/app/lib" --no-deps pywebview pythonnet clr-loader bottle typing_extensions cffi pycparser
+# proxy_tools は sdist から wheel を組めない環境がある（純 Python の 1 モジュール）。取って展開し、パッケージの入れ物をそのまま置く
+python3 -m pip download -q --disable-pip-version-check --no-deps --no-binary=:all: -d "$OUT/download" proxy_tools
+tar xzf "$OUT/download"/proxy_tools-*.tar.gz -C "$OUT/download"
+cp -r "$OUT/download"/proxy_tools-*/proxy_tools "$APP/.cache/app/lib/"
 
 echo "== 起動の入口"
 cat > "$APP/CharacterDesigner.cmd" <<'CMD'
