@@ -19,7 +19,8 @@ description: CharacterDesigner のアプリを作る・直すとき。起動（a
 | Setup.exe は Python の埋め込み版とサーバーの部品を入れる | pywebview の wheel も入れる。WebView2 が無ければ Evergreen Bootstrapper を入れるか、起動時に案内を出す |
 | 初回の設定（setupgui）と取得の進みは画面に出る | そのまま。ターミナルの文は開発者向けの記録に留める |
 
-直す順は、`app/launch.py` のウィンドウ化、`packaging/windows/build.sh` の部品、README の順。
+2026-10-24 に `app/launch.py`（pywebview のウィンドウ、`--no-window`）、`app/start.sh`、`packaging/windows/build.sh`（Windows 用の部品）、README を直した。
+手元の Windows でウィンドウが開くことは、まだ見ていない（成果物の表の状態は確認待ち）。
 
 ## 入口の決まり
 

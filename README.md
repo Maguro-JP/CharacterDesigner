@@ -32,14 +32,14 @@ Windows（Setup.exe）:
 
 1. `CharacterDesigner-Setup.exe` を開いて入れる。利用者ごとの場所（`%LOCALAPPDATA%\Programs\CharacterDesigner`）に入るので、管理者の権限は要らない。Python と Node.js も要らない
 2. デスクトップの CharacterDesigner を開く。初回は、その PC の GPU に合う描く部品（1〜3GB）と絵の模型（約 7GB）を取る（空きが 10GB より少なければ、取らずに理由を出す）
-3. 準備ができるとブラウザーで `http://127.0.0.1:8000/` が開く
+3. 準備ができると CharacterDesigner のウィンドウが開く（ブラウザーは使わない）
 
 Setup.exe は Linux の上で `sh packaging/windows/build.sh` で組む（NSIS の makensis を使う。出来上がりは `dist/`）。
 
 手元の clone から:
 
 1. `sh app/start.sh` を流す（初回は部品とモデルの取得に 10〜20 分。2 回目からは数秒で起動する）
-2. 表示された `http://127.0.0.1:4173/` を開く
+2. CharacterDesigner のウィンドウが開く。開発でサーバーだけ動かすときは `python3 app/launch.py --no-window`
 
 ## 使い方
 

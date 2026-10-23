@@ -2,11 +2,11 @@
 
 1. 足りない部品を入れる（初回だけ。描く部品 約 1〜3GB、タグを読む模型 約 380MB）
 2. 絵の模型が手元に無ければ取る（約 7GB。先に空きを確かめ、足りなければ取らずに理由を出す）
-3. サーバーを起こし、画面（同じ窓口で配る）をブラウザーで開く
+3. サーバーを起こし、画面（同じ窓口で配る）をアプリのウィンドウで開く（ブラウザーは開かない）
 
   python app/launch.py              入れて、起こして、開く
   python app/launch.py --setup      入れるだけ
-  python app/launch.py --no-browser ブラウザーを開かない
+  python app/launch.py --no-window  ウィンドウを開かず、サーバーだけ起こす（開発と MCP 用）
 
 配布版では、入れた場所の .cache に部品と模型を置く。利用者ごとの場所（%LOCALAPPDATA%\\Programs）に入れるので、管理者の権限は要らない。
 初回の起動では、大きな取り物（絵の模型、言葉の模型）を取るかどうかを1つずつ聞き、答えを <置き場所>/choices.json に残す。
@@ -26,7 +26,6 @@ import sys
 import threading
 import time
 import urllib.request
-import webbrowser
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -250,32 +249,65 @@ def apply_choices(c: dict) -> bool:
     return ok
 
 
-def open_when_ready(url: str) -> None:
-    for _ in range(240):
+WINDOW_TITLE = "CharacterDesigner"
+
+
+def wait_ready(url: str, tries: int = 240) -> bool:
+    """サーバーが応答を返すまで待つ（最長 tries 秒）"""
+    for _ in range(tries):
         try:
             urllib.request.urlopen(url + "api/cases", timeout=2)
-            webbrowser.open(url)
-            return
+            return True
         except Exception:
             time.sleep(1)
+    return False
 
 
-def serve(browser: bool) -> None:
+def open_window(url: str) -> bool:
+    """画面をアプリのウィンドウで開く。閉じるまで戻らない。
+    pywebview が無ければ False を返す。ブラウザーは開かない（ユーザーの決まり。.claude/skills/character-designer-app）"""
+    try:
+        import webview  # pywebview。部品は app/server/requirements.txt から .cache/app/lib に入る
+    except ImportError:
+        fail("画面の部品（pywebview）が入っていない。`sh app/start.sh --setup`（配布版は入れ直し）で入る。"
+             f"それまではサーバーだけ動く: {url}")
+        return False
+    webview.create_window(WINDOW_TITLE, url, width=1280, height=820, min_size=(960, 640))
+    webview.start()
+    return True
+
+
+def serve(window: bool) -> None:
     for p in (HOME / "app" / "lib", HOME / "gen" / "lib", ROOT):
         sys.path.insert(0, str(p))
     os.environ.setdefault("HF_HOME", str(HOME / "gen" / "hf"))
     url = f"http://127.0.0.1:{PORT}/"
-    say(f"起動します。開く: {url}（止めるときはこの窓を閉じるか Ctrl-C）")
-    if browser:
-        threading.Thread(target=open_when_ready, args=(url,), daemon=True).start()
     import uvicorn
-    uvicorn.run("app.server.main:app", host="127.0.0.1", port=PORT)
+    server = uvicorn.Server(uvicorn.Config("app.server.main:app", host="127.0.0.1", port=PORT))
+    if not window:
+        say(f"サーバーだけ起こします（ウィンドウは開かない。開発と MCP 用）: {url}（止めるときは Ctrl-C）")
+        server.run()
+        return
+    # サーバーは裏のスレッドで起こし、ウィンドウは主スレッドで開く（macOS の WebKit は主スレッドを求める）。
+    # ウィンドウを閉じたらサーバーも止める。URL は人に見せない
+    say("起動します。CharacterDesigner のウィンドウが開きます（閉じると止まります）")
+    t = threading.Thread(target=server.run, daemon=True)
+    t.start()
+    try:
+        if not wait_ready(url):
+            raise SystemExit("サーバーが起動しない（上の出力を見てください）")
+        if not open_window(url):
+            t.join()  # ウィンドウを開けなくてもサーバーは動いたまま（MCP と開発から使える）。Ctrl-C で止める
+    finally:
+        server.should_exit = True
+        t.join(timeout=10)
 
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--setup", action="store_true", help="入れるだけで起動しない")
-    ap.add_argument("--no-browser", action="store_true")
+    ap.add_argument("--no-window", action="store_true", help="ウィンドウを開かず、サーバーだけ起こす（開発と MCP 用）")
+    ap.add_argument("--no-browser", dest="no_window", action="store_true", help=argparse.SUPPRESS)  # 前の名前。古い起動の仕方を壊さない
     ap.add_argument("--choose", action="store_true", help="取る物を選び直す")
     ap.add_argument("--yes", action="store_true", help="聞かずに既定（全部取る）で進める")
     a = ap.parse_args()
@@ -293,7 +325,7 @@ def main() -> None:
             CHOICES.unlink()
         say("初回の設定は、開いた画面で選んでください")
     try:
-        serve(not a.no_browser)
+        serve(not a.no_window)
     finally:
         for proc in LLM_PROC:
             proc.terminate()

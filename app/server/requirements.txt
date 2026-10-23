@@ -1,6 +1,8 @@
 # 手元で動くアプリのサーバー。描く処理（torch、diffusers）は tools/gen/setup.sh で .cache/gen/lib に入る
 fastapi>=0.115
 uvicorn>=0.30
+# 画面をアプリのウィンドウで開く（ブラウザーは開かない。ユーザーの決まり）。Windows は pythonnet 経由で WebView2 を使う
+pywebview>=5
 # 頼みごとを Claude で読む（環境変数 ANTHROPIC_API_KEY があるときだけ使う。無ければ辞書で読む）
 anthropic>=1.11
 # Claude から使う MCP サーバー（app/mcp）
