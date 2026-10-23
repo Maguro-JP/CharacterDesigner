@@ -53,7 +53,7 @@ def skeleton(pose: str, out: str):
     im.save(out)
 
 
-def draw(ident, pose, outdir, ref, seed, count, scale, ref_scale, end):
+def draw(ident, pose, outdir, ref, seed, count, scale, ref_scale, end, words=None, extra_negative=""):
     import torch
     import bible
     import free_text
@@ -65,6 +65,11 @@ def draw(ident, pose, outdir, ref, seed, count, scale, ref_scale, end):
     skel = out / f"{pose}-skeleton.png"
     skeleton(pose, skel)
     pos, neg = bible.prompt(ident, pose=POSES[pose][1], items=[])
+    if words:
+        # 設定の言葉をそのまま組むと 227 語になり、姿勢の言葉が 3 つ目の区切りに落ちた。固定部分を 77 語以内に削って渡す
+        pos = f"{words}, {POSES[pose][1]}"
+    if extra_negative:
+        neg = f"{extra_negative}, {neg}"
     pos, neg = free_text.full_prompt(pos, neg)
     base = people.pipe()
     people.use_reference()
@@ -97,11 +102,13 @@ def main():
     s.add_argument("--ref", required=True); s.add_argument("--seed", type=int, default=0); s.add_argument("--count", type=int, default=2)
     s.add_argument("--scale", type=float, default=0.8); s.add_argument("--ref-scale", type=float, default=0.5)
     s.add_argument("--end", type=float, default=0.8)
+    s.add_argument("--words", help="設定の言葉の代わりに使う固定部分（姿勢の言葉は後ろに足す）")
+    s.add_argument("--extra-negative", default="")
     a = ap.parse_args()
     if a.cmd == "skeleton":
         skeleton(a.pose, a.out)
     else:
-        draw(a.id, a.pose, a.outdir, a.ref, a.seed, a.count, a.scale, a.ref_scale, a.end)
+        draw(a.id, a.pose, a.outdir, a.ref, a.seed, a.count, a.scale, a.ref_scale, a.end, a.words, a.extra_negative)
 
 
 if __name__ == "__main__":
