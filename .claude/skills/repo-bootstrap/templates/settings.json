@@ -137,6 +137,16 @@
             "timeout": 10
           }
         ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/skills/desktop-app/hooks/no_browser.py",
+            "timeout": 10
+          }
+        ]
       }
     ]
   }
