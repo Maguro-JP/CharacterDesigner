@@ -24,7 +24,7 @@ except ImportError:
 
 import re  # noqa: E402
 
-from PySide6.QtCore import QObject, QSize, Qt, QThread, Signal  # noqa: E402
+from PySide6.QtCore import QObject, QSettings, QSize, Qt, QThread, Signal  # noqa: E402
 from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPalette, QPixmap  # noqa: E402
 from PySide6.QtWidgets import (QApplication, QDockWidget, QFileDialog,  # noqa: E402
                                QHBoxLayout, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
@@ -49,6 +49,10 @@ class Job(QObject):
             self.done.emit(prompt, str(path))
         except Exception as e:  # 描けなかった理由をそのまま会話に出す
             self.failed.emit(f"描けませんでした: {e}")
+
+
+# 欄は動かせて、外に出せて、閉じられる（作画ソフトと同じ）
+PANEL = QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable | QDockWidget.DockWidgetClosable
 
 
 class Window(QMainWindow):
@@ -84,7 +88,8 @@ class Window(QMainWindow):
         box.setLayout(left)
         dock = QDockWidget("頼み", self)
         dock.setWidget(box)
-        dock.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable)
+        dock.setObjectName("chat")
+        dock.setFeatures(PANEL)
         self.addDockWidget(Qt.LeftDockWidgetArea, dock)
         self.resizeDocks([dock], [360], Qt.Horizontal)
 
@@ -96,7 +101,8 @@ class Window(QMainWindow):
         self.history.currentItemChanged.connect(lambda cur, _: cur and self.canvas.show_image(cur.data(Qt.UserRole)))
         hist = QDockWidget("描いた絵", self)
         hist.setWidget(self.history)
-        hist.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable)
+        hist.setObjectName("history")
+        hist.setFeatures(PANEL)
         self.addDockWidget(Qt.RightDockWidgetArea, hist)
         self.resizeDocks([hist], [180], Qt.Horizontal)
 
@@ -120,7 +126,7 @@ class Window(QMainWindow):
 
         # 左端: 道具
         tools = QToolBar("道具", self)
-        tools.setMovable(False)
+        tools.setObjectName("tools")
         self.addToolBar(Qt.LeftToolBarArea, tools)
         group = QActionGroup(self)
         self.tool_actions = {}
@@ -177,7 +183,8 @@ class Window(QMainWindow):
         lbox.setLayout(lay)
         ldock = QDockWidget("レイヤー", self)
         ldock.setWidget(lbox)
-        ldock.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable)
+        ldock.setObjectName("chat")
+        dock.setFeatures(PANEL)
         self.addDockWidget(Qt.RightDockWidgetArea, ldock)
         self.canvas.changed.connect(self._refresh_layers)
         self._refresh_layers()
@@ -192,6 +199,27 @@ class Window(QMainWindow):
         layer_menu.addAction(QAction("新しいレイヤー", self, shortcut="Ctrl+Shift+N", triggered=self.canvas.add_layer))
         layer_menu.addAction(QAction("レイヤーを消す", self, triggered=self.canvas.delete_layer))
         layer_menu.addAction(QAction("画像をレイヤーとして読み込む…", self, triggered=self.import_layer))
+
+        # ウィンドウ: 欄ごとの表示と、並べ方（整列・別ウィンドウ・自由配置）
+        self.panels = {"chat": (dock, Qt.LeftDockWidgetArea), "history": (hist, Qt.RightDockWidgetArea),
+                       "layers": (ldock, Qt.RightDockWidgetArea)}
+        self.tools = tools
+        self.setDockNestingEnabled(True)
+        self.setDockOptions(QMainWindow.AllowNestedDocks | QMainWindow.AllowTabbedDocks | QMainWindow.AnimatedDocks)
+        win = self.menuBar().addMenu("ウィンドウ")
+        for d, _area in self.panels.values():
+            win.addAction(d.toggleViewAction())
+        win.addAction(tools.toggleViewAction())
+        win.addSeparator()
+        win.addAction(QAction("整列", self, triggered=self.arrange))
+        win.addAction(QAction("すべて別ウィンドウにする", self, triggered=self.float_all))
+        win.addAction(QAction("自由配置（欄をドラッグして好きな所に置く）", self, triggered=self.free_layout))
+        self.settings = QSettings("CharacterDesigner", "chatdraw")
+        self.default_state = self.saveState()
+        state = self.settings.value("state")
+        if state is not None:
+            self.restoreGeometry(self.settings.value("geometry"))
+            self.restoreState(state)
 
     def say(self, text: str, who: str = "CharacterDesigner"):
         self.chat.append(f"<b>{who}</b>: {text}")
@@ -243,6 +271,39 @@ class Window(QMainWindow):
 
     def _show_color(self):
         self.color_button.setStyleSheet(f"background:{self.canvas.color.name()}; border:1px solid #888")
+
+    def arrange(self):
+        """欄をすべてウィンドウの左右に戻して並べる"""
+        self.restoreState(self.default_state)
+        for d, area in self.panels.values():
+            d.setFloating(False)
+            self.addDockWidget(area, d)
+            d.show()
+        self.addToolBar(Qt.LeftToolBarArea, self.tools)
+        self.tools.show()
+
+    def float_all(self):
+        """欄をすべて別のウィンドウにして、少しずつずらして並べる"""
+        x, y = self.geometry().right() - 380, self.geometry().top() + 40
+        for i, (d, _area) in enumerate(self.panels.values()):
+            d.show()
+            d.setFloating(True)
+            d.resize(360, 520)
+            d.move(x - i * 40, y + i * 40)
+
+    def free_layout(self):
+        """欄の見出しをドラッグすると、左右上下のどこにでも置け、重ねるとタブになる"""
+        for d, _area in self.panels.values():
+            d.show()
+            d.setFeatures(PANEL)
+        self.tools.setMovable(True)
+        self.statusBar().showMessage("欄の見出しをドラッグして、好きな所に置いてください。外へ出すと別ウィンドウになります")
+
+    def closeEvent(self, e):
+        # 次に開いたときも同じ並びにする
+        self.settings.setValue("geometry", self.saveGeometry())
+        self.settings.setValue("state", self.saveState())
+        super().closeEvent(e)
 
     def _refresh_layers(self):
         # 上にあるレイヤーを上に並べる（作画ソフトと同じ順）

@@ -74,6 +74,21 @@ class WindowTest(unittest.TestCase):
             self.assertTrue(w.button.isEnabled())
 
 
+class LayoutTest(unittest.TestCase):
+    def test_float_and_arrange(self):
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Window
+        QApplication.instance() or QApplication([])
+        w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
+        w.show()
+        w.float_all()
+        self.assertTrue(all(d.isFloating() for d, _ in w.panels.values()))
+        w.arrange()
+        self.assertFalse(any(d.isFloating() for d, _ in w.panels.values()))
+        w.panels["history"][0].toggleViewAction().trigger()
+        self.assertTrue(w.panels["history"][0].isHidden())
+
+
 class DrawTest(unittest.TestCase):
     def setUp(self):
         from PySide6.QtWidgets import QApplication
