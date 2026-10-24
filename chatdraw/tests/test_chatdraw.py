@@ -387,6 +387,27 @@ class SetupTest(unittest.TestCase):
         self.assertEqual(Words(Path("")).to_prompt("騎士"), "騎士")
 
 
+class PathsTest(unittest.TestCase):
+    def test_shared_llm_folder(self):
+        import importlib
+        import os
+        from unittest import mock
+        with TemporaryDirectory() as d, mock.patch.dict(os.environ, {"LLM_HOME": d}):
+            import chatdraw.paths as paths
+            paths = importlib.reload(paths)
+            try:
+                self.assertEqual(paths.GGUF, Path(d) / "gguf")             # 言葉の模型
+                self.assertEqual(paths.HUB, Path(d) / "huggingface")       # 絵の模型
+                paths.ensure_shared()
+                self.assertTrue((Path(d) / "README.txt").exists())
+                (Path(d) / "gguf" / "a.gguf").write_bytes(b"x")
+                self.assertEqual(paths.find_gguf("a.gguf"), Path(d) / "gguf" / "a.gguf")
+                self.assertEqual(paths.llm_target(), Path(d) / "gguf")   # 新しく取る物も共有の置き場へ
+            finally:
+                os.environ.pop("LLM_HOME")
+                importlib.reload(paths)
+
+
 class ChooseTest(unittest.TestCase):
     def test_auto_picks_from_installed_only(self):
         from chatdraw.choose import choose_image

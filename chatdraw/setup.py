@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (QButtonGroup, QDialog, QFrame, QGridLayout, QHBox
 
 from chatdraw.engine import SKETCH_ADAPTER, SKETCH_FILES, Painter
 from chatdraw.models import IMAGES, WORDS, ImageModel, WordsModel
-from chatdraw.paths import HUB, OWN_LLM, find_gguf, llm_target
+from chatdraw.paths import HUB, OWN_LLM, ensure_shared, find_gguf, llm_target
 
 LLM = OWN_LLM
 AUTO = "auto"   # おまかせ。頼みごとに、手元の模型から合う物を AI が選ぶ
@@ -60,6 +60,7 @@ class Fetcher(QObject):
 
     def run(self, image: ImageModel | None, words: WordsModel | None, update: bool = False):
         try:
+            ensure_shared()
             if image is not None:
                 self._image(image)
             if words is not None:
