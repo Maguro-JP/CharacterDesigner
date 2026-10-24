@@ -1,0 +1,39 @@
+# Actions の artifact（描いた絵）を、作業の機械から読めるブランチ draw-results に写す。
+# 作業の機械からは artifact の置き場（blob）に届かず、raw.githubusercontent.com には届くため。
+# 写すものは config/artifact-to-branch.json に書いて push する。main には入れない。
+name: artifact-to-branch
+on:
+  push:
+    paths:
+      - "config/artifact-to-branch.json"
+permissions:
+  contents: write
+  actions: read
+jobs:
+  copy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - id: req
+        run: |
+          echo "run=$(python3 -c 'import json;print(json.load(open("config/artifact-to-branch.json"))["run_id"])')" >> "$GITHUB_OUTPUT"
+          echo "name=$(python3 -c 'import json;print(json.load(open("config/artifact-to-branch.json"))["artifact"])')" >> "$GITHUB_OUTPUT"
+      - uses: actions/download-artifact@v4
+        with:
+          name: ${{ steps.req.outputs.name }}
+          run-id: ${{ steps.req.outputs.run }}
+          github-token: ${{ github.token }}
+          path: got
+      - name: draw-results に写す
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898+github-actions[bot]@users.noreply.github.com"
+          git fetch origin draw-results || true
+          if git rev-parse --verify origin/draw-results >/dev/null 2>&1; then git checkout -b draw-results origin/draw-results; else git checkout --orphan draw-results; git rm -rfq .; fi
+          mkdir -p "${{ steps.req.outputs.run }}"
+          cp -r got/. "${{ steps.req.outputs.run }}/"
+          git add "${{ steps.req.outputs.run }}"
+          git diff --cached --quiet && { echo "写し済み"; exit 0; }   # 同じ実行をもう一度写すときは何もしない
+          git commit -qm "artifact ${{ steps.req.outputs.run }}"
+          git push origin draw-results

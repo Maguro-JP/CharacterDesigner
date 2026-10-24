@@ -1,0 +1,39 @@
+# 頼み 1 件を、手元に置けない大きな模型（FLUX、Z-Image など）で 1 枚描く（chatdraw/draw_one.py）。
+# 頼みは config/draw-request.json に書いて push する。リポジトリは公開しているので Actions の枠を使わない。CPU で 1 枚 数十分。
+name: draw-one
+on:
+  push:
+    paths:
+      - "config/draw-request.json"
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: draw-one-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  draw:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v4
+      - name: 置き場を空ける
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1; free -g
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 部品
+        run: |
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy
+      - name: 描く
+        env:
+          LLM_HOME: ${{ runner.temp }}/llm
+          CD_HOME: ${{ runner.temp }}/cd
+        run: python -u -m chatdraw.draw_one out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: draw-one
+          path: out/
+          retention-days: 7
