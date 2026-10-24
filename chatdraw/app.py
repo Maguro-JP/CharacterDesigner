@@ -34,6 +34,8 @@ from PySide6.QtWidgets import (QApplication, QDockWidget, QFileDialog,  # noqa: 
 from PIL import Image  # noqa: E402
 
 from chatdraw.canvas import Canvas  # noqa: E402
+from chatdraw.colorpanel import ColorPanel  # noqa: E402
+from chatdraw.icons import icon  # noqa: E402
 from chatdraw.engine import Painter, Studio, Words, check  # noqa: E402
 from chatdraw.settings import Settings, SettingsDialog  # noqa: E402
 
@@ -115,6 +117,13 @@ class PanelTitle(QWidget):
         self.toggle()
 
 
+# 左端の道具。None は区切り
+TOOLS = (("move", "移動", "V"), ("select", "四角の選択", "M"), (None, "", ""),
+         ("pen", "ペン", "B"), ("eraser", "消しゴム", "E"), ("blur", "ぼかし", "R"), (None, "", ""),
+         ("fill", "塗りつぶし", "G"), ("gradient", "グラデーション", "J"), (None, "", ""),
+         ("line", "直線", "N"), ("rect", "四角", "U"), ("ellipse", "楕円", "O"), (None, "", ""),
+         ("eyedropper", "スポイト", "I"), ("hand", "手のひら", "H"), ("zoom", "拡大（Shift か右クリックで縮小）", "Z"))
+
 # 欄は動かせて、外に出せて、閉じられる（作画ソフトと同じ）
 PANEL = QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable | QDockWidget.DockWidgetClosable
 
@@ -141,14 +150,15 @@ class Window(QMainWindow):
         self.entry = QLineEdit()
         self.entry.setPlaceholderText("描いてほしい絵を書いてください")
         self.entry.returnPressed.connect(self.send)
-        self.button = QPushButton("描く")
+        self.button = QPushButton(icon("ai", "#ffffff"), " AI で描く")
+        self.button.setObjectName("primary")
         self.button.clicked.connect(self.send)
         self.stop_button = QPushButton("止める")
         self.stop_button.setEnabled(False)
         self.stop_button.clicked.connect(self.stop)
+        self.entry.setMinimumHeight(34)
         row = QHBoxLayout()
-        row.addWidget(self.entry)
-        row.addWidget(self.button)
+        row.addWidget(self.button, 1)
         row.addWidget(self.stop_button)
         # 描き方: 新しく描くか、キャンバスの絵（下描き・ラフ）を元に描き直すか
         self.mode = QComboBox()
@@ -170,10 +180,11 @@ class Window(QMainWindow):
         left = QVBoxLayout()
         left.addWidget(self.chat)
         left.addLayout(form)
+        left.addWidget(self.entry)
         left.addLayout(row)
         box = QWidget()
         box.setLayout(left)
-        dock = QDockWidget("頼み", self)
+        dock = QDockWidget("AI", self)
         dock.setWidget(box)
         dock.setObjectName("chat")
         dock.setFeatures(PANEL)
@@ -213,39 +224,76 @@ class Window(QMainWindow):
         # 左端: 道具
         tools = QToolBar("道具", self)
         tools.setObjectName("tools")
+        tools.setIconSize(QSize(22, 22))
+        tools.setMovable(True)
         self.addToolBar(Qt.LeftToolBarArea, tools)
         group = QActionGroup(self)
         self.tool_actions = {}
-        for key, label, short in (("pen", "ペン", "B"), ("eraser", "消しゴム", "E"), ("fill", "塗りつぶし", "G"),
-                                  ("eyedropper", "スポイト", "I"), ("hand", "手のひら", "H")):
-            act = QAction(label, self, checkable=True, shortcut=short, triggered=lambda _=False, k=key: self.canvas.set_tool(k))
+        # 作画ソフトでよく使う並びと同じキー（V 移動、M 選択、B ペン、E 消しゴム、G 塗り、I スポイト、H 手のひら、Z 拡大）
+        for key, label, short in TOOLS:
+            if key is None:
+                tools.addSeparator()
+                continue
+            act = QAction(icon(key), label, self, checkable=True, shortcut=short,
+                          triggered=lambda _=False, k=key: self.canvas.set_tool(k))
+            act.setToolTip(f"{label}（{short}）")
             group.addAction(act)
             tools.addAction(act)
             self.tool_actions[key] = act
         self.tool_actions["pen"].setChecked(True)
-        # 左上: ツールの設定（色・太さ・濃さ）
-        self.color_button = QPushButton()
-        self.color_button.setFixedSize(48, 32)
-        self.color_button.clicked.connect(self.pick_color)
-        self._show_color()
+        for short, fn in (("X", self.canvas.swap_colors), ("D", self.canvas.reset_colors)):
+            act = QAction(self, shortcut=short, triggered=fn)
+            self.addAction(act)
+
+        # 上: 選んだ道具の設定（太さ・濃さ・形の塗り）。作画ソフトと同じく、絵のすぐ上に置いて手元で変える
+        bar = QToolBar("道具の設定", self)
+        bar.setObjectName("options")
+        bar.setMovable(True)
+        self.addToolBar(Qt.TopToolBarArea, bar)
+        self.options = bar
+        self.tool_name = QLabel("ペン")
+        self.tool_name.setObjectName("toolName")
+        bar.addWidget(self.tool_name)
+        bar.addSeparator()
+        bar.addWidget(QLabel(" 太さ "))
+        self.size_slider = QSlider(Qt.Horizontal)
+        self.size_slider.setRange(1, 300)
+        self.size_slider.setFixedWidth(160)
+        self.size_slider.setValue(self.canvas.size)
+        bar.addWidget(self.size_slider)
         self.size_box = QSpinBox()
-        self.size_box.setRange(1, 200)
+        self.size_box.setRange(1, 300)
         self.size_box.setValue(self.canvas.size)
         self.size_box.setSuffix(" px")
-        self.size_box.valueChanged.connect(lambda v: setattr(self.canvas, "size", v))
+        bar.addWidget(self.size_box)
+        self.size_box.valueChanged.connect(lambda v: (setattr(self.canvas, "size", v), self.size_slider.setValue(v)))
+        self.size_slider.valueChanged.connect(self.size_box.setValue)
+        bar.addSeparator()
+        bar.addWidget(QLabel(" 濃さ "))
         self.flow = QSlider(Qt.Horizontal)
         self.flow.setRange(1, 100)
         self.flow.setValue(100)
-        self.flow.valueChanged.connect(lambda v: setattr(self.canvas, "brush_opacity", v / 100))
-        opts = QFormLayout()
-        opts.addRow("色", self.color_button)
-        opts.addRow("太さ", self.size_box)
-        opts.addRow("濃さ", self.flow)
-        obox = QWidget()
-        obox.setLayout(opts)
-        odock = QDockWidget("ツールの設定", self)
-        odock.setObjectName("toolopts")
-        odock.setWidget(obox)
+        self.flow.setFixedWidth(120)
+        self.flow_label = QLabel("100%")
+        self.flow.valueChanged.connect(lambda v: (setattr(self.canvas, "brush_opacity", v / 100), self.flow_label.setText(f"{v}%")))
+        bar.addWidget(self.flow)
+        bar.addWidget(self.flow_label)
+        bar.addSeparator()
+        self.fill_shapes = QCheckBox("形を塗りつぶす")
+        self.fill_shapes.setToolTip("四角と楕円を、線だけでなく中まで塗る")
+        self.fill_shapes.toggled.connect(lambda on: setattr(self.canvas, "fill_shapes", on))
+        bar.addWidget(self.fill_shapes)
+        for key, _label, _s in TOOLS:
+            if key:
+                self.tool_actions[key].triggered.connect(lambda _=False, k=key: self._tool_changed(k))
+        self._tool_changed("pen")
+
+        # 左上: 色（色相・彩度と明度・16 進・描く色と背景色・見本・最近使った色）
+        self.color_panel = ColorPanel(self.canvas)
+        self.canvas.used_color.connect(self.color_panel.remember)
+        odock = QDockWidget("カラー", self)
+        odock.setObjectName("color")
+        odock.setWidget(self.color_panel)
         odock.setFeatures(PANEL)
         self.addDockWidget(Qt.LeftDockWidgetArea, odock)
 
@@ -282,7 +330,6 @@ class Window(QMainWindow):
         bdock.setFeatures(PANEL)
         self.addDockWidget(Qt.LeftDockWidgetArea, bdock)
         self.brush_list.setCurrentRow(0)
-        self.canvas.color_picked.connect(lambda _c: self._show_color())
         self.canvas.brush_changed.connect(self.size_box.setValue)
         self.ai_label = QLabel()
         self.statusBar().addPermanentWidget(self.ai_label)
@@ -329,13 +376,17 @@ class Window(QMainWindow):
         view.addAction(QAction("回転を戻す", self, shortcut="Ctrl+\\", triggered=self.canvas.reset_rotation))
         setting_menu = self.menuBar().addMenu("設定")
         setting_menu.addAction(QAction("設定…", self, shortcut="Ctrl+,", triggered=self.open_settings))
+        sel = self.menuBar().addMenu("選択範囲")
+        sel.addAction(QAction("すべてを選択", self, shortcut="Ctrl+A", triggered=self.canvas.select_all))
+        sel.addAction(QAction("選択を解除", self, shortcut="Ctrl+D", triggered=lambda: self.canvas.set_selection(None)))
+        sel.addAction(QAction("選択範囲の中を消す", self, triggered=self.canvas.clear_selection_area))
         layer_menu = self.menuBar().addMenu("レイヤー")
         layer_menu.addAction(QAction("新しいレイヤー", self, shortcut="Ctrl+Shift+N", triggered=self.canvas.add_layer))
         layer_menu.addAction(QAction("レイヤーを消す", self, triggered=self.canvas.delete_layer))
         layer_menu.addAction(QAction("画像をレイヤーとして読み込む…", self, triggered=self.import_layer))
 
         # ウィンドウ: 欄ごとの表示と、並べ方（整列・別ウィンドウ・自由配置）
-        self.panels = {"brushes": (bdock, Qt.LeftDockWidgetArea), "toolopts": (odock, Qt.LeftDockWidgetArea),
+        self.panels = {"color": (odock, Qt.LeftDockWidgetArea), "brushes": (bdock, Qt.LeftDockWidgetArea),
                        "chat": (dock, Qt.LeftDockWidgetArea),
                        "history": (hist, Qt.RightDockWidgetArea), "layers": (ldock, Qt.RightDockWidgetArea)}
         for d, _area in self.panels.values():
@@ -347,7 +398,7 @@ class Window(QMainWindow):
         self.setDockNestingEnabled(True)
         self.setDockOptions(QMainWindow.AllowNestedDocks | QMainWindow.AllowTabbedDocks | QMainWindow.AnimatedDocks)
         win = self.menuBar().addMenu("ウィンドウ")
-        keys = {"brushes": "F3", "toolopts": "F5", "chat": "F6", "history": "F7", "layers": "F8"}
+        keys = {"brushes": "F3", "color": "F5", "chat": "F6", "history": "F7", "layers": "F8"}
         for k, (d, _area) in self.panels.items():
             act = d.toggleViewAction()   # チェックが付いていれば表示中
             act.setShortcut(keys[k])
@@ -367,7 +418,7 @@ class Window(QMainWindow):
         win.addAction(QAction("すべて別ウィンドウにする", self, triggered=self.float_all))
         win.addAction(QAction("自由配置（欄をドラッグして好きな所に置く）", self, triggered=self.free_layout))
         self.layout_store = QSettings("CharacterDesigner", "chatdraw")
-        state = self.layout_store.value("state")
+        state = self.layout_store.value("state2")   # 欄の並びを変えたら名前を変え、古い並びを読まない
         if state is not None:
             self.restoreGeometry(self.layout_store.value("geometry"))
             self.restoreState(state)
@@ -493,8 +544,7 @@ class Window(QMainWindow):
     def pick_color(self):
         c = QColorDialog.getColor(self.canvas.color, self, "色")
         if c.isValid():
-            self.canvas.color = c
-            self._show_color()
+            self.color_panel.set_color(c)
 
     def _brush_selected(self, name: str):
         if name not in self.canvas.brushes:
@@ -513,27 +563,32 @@ class Window(QMainWindow):
         if key in getattr(self, "tool_actions", {}):
             self.tool_actions[key].setChecked(True)
 
-    def _show_color(self):
-        self.color_button.setStyleSheet(f"background:{self.canvas.color.name()}; border:1px solid #888")
+    def _tool_changed(self, key: str):
+        """上の道具の設定の見出しを、選んだ道具の名前にする"""
+        label = next(lb for k, lb, _s in TOOLS if k == key)
+        self.tool_name.setText(label)
+        self.fill_shapes.setVisible(key in ("rect", "ellipse"))
 
     def arrange(self):
         """初期の配置。左に道具・ツールの設定・頼み、右に描いた絵・レイヤー、真ん中を広く絵に使う"""
-        brushes, opt, chat = self.panels["brushes"][0], self.panels["toolopts"][0], self.panels["chat"][0]
+        brushes, opt, chat = self.panels["brushes"][0], self.panels["color"][0], self.panels["chat"][0]
         hist, layers = self.panels["history"][0], self.panels["layers"][0]
         for d, _area in self.panels.values():
             d.setFloating(False)
             d.show()
         self.addToolBar(Qt.LeftToolBarArea, self.tools)
         self.tools.show()
-        self.addDockWidget(Qt.LeftDockWidgetArea, brushes)
-        self.splitDockWidget(brushes, opt, Qt.Vertical)
-        self.splitDockWidget(opt, chat, Qt.Vertical)
+        self.addToolBar(Qt.TopToolBarArea, self.options)
+        self.options.show()
+        self.addDockWidget(Qt.LeftDockWidgetArea, opt)
+        self.splitDockWidget(opt, brushes, Qt.Vertical)
+        self.splitDockWidget(brushes, chat, Qt.Vertical)
         self.addDockWidget(Qt.RightDockWidgetArea, hist)
         self.splitDockWidget(hist, layers, Qt.Vertical)
         w, h = max(self.width(), 1200), max(self.height(), 800)
         side = min(320, max(240, int(w * 0.17)))   # 真ん中の絵を広く取る
         self.resizeDocks([brushes, hist], [side, side], Qt.Horizontal)
-        self.resizeDocks([brushes, opt, chat], [330, 130, h - 460], Qt.Vertical)   # ブラシと設定は中身の高さだけ
+        self.resizeDocks([opt, brushes, chat], [330, 300, max(260, h - 680)], Qt.Vertical)   # 色とブラシは中身の高さだけ
         self.resizeDocks([hist, layers], [int(h * 0.4), int(h * 0.6)], Qt.Vertical)
 
     def _as_window(self, d: QDockWidget, floating: bool):
@@ -552,6 +607,7 @@ class Window(QMainWindow):
         for d, _area in self.panels.values():
             d.setVisible(on)
         self.tools.setVisible(on)
+        self.options.setVisible(on)
 
     def float_all(self):
         """欄をすべて別のウィンドウにして、少しずつずらして並べる"""
@@ -573,7 +629,7 @@ class Window(QMainWindow):
     def closeEvent(self, e):
         # 次に開いたときも同じ並びにする
         self.layout_store.setValue("geometry", self.saveGeometry())
-        self.layout_store.setValue("state", self.saveState())
+        self.layout_store.setValue("state2", self.saveState())
         super().closeEvent(e)
 
     def _refresh_layers(self):
@@ -631,15 +687,67 @@ class Window(QMainWindow):
         self.button.setEnabled(True)
 
 
+THEME = """
+* { font-size: 12px; }
+QMainWindow, QDockWidget > QWidget, QWidget#panel { background: #17181b; color: #e8e8ea; }
+QWidget { color: #e8e8ea; }
+QMenuBar { background: #111214; padding: 2px 6px; }
+QMenuBar::item { padding: 5px 10px; border-radius: 6px; }
+QMenuBar::item:selected, QMenu::item:selected { background: #2a2b30; }
+QMenu { background: #1d1e22; border: 1px solid #2c2d33; border-radius: 10px; padding: 6px; }
+QMenu::item { padding: 6px 22px; border-radius: 6px; }
+QToolBar { background: #111214; border: none; spacing: 4px; padding: 6px; }
+QToolBar#tools QToolButton { width: 34px; height: 34px; border-radius: 9px; }
+QToolButton { border-radius: 8px; padding: 4px; }
+QToolButton:hover { background: #26272c; }
+QToolButton:checked { background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ff7a1a, stop:1 #e5322d); }
+QToolBar::separator { background: #2a2b30; width: 1px; height: 1px; margin: 5px; }
+QLabel#toolName { font-weight: 600; padding: 0 8px; color: #ffffff; }
+QDockWidget { titlebar-close-icon: none; }
+PanelTitle { background: #111214; }
+PanelTitle QLabel { font-weight: 600; letter-spacing: 0.5px; color: #c9c9cf; }
+PanelTitle QPushButton { color: #8e8e95; border: none; border-radius: 5px; padding: 0; background: transparent; }
+PanelTitle QPushButton:hover { background: #2a2b30; color: #ffffff; }
+QPushButton { background: #24252a; border: 1px solid #2f3036; border-radius: 8px; padding: 6px 12px; }
+QPushButton:hover { border-color: #ff7a1a; }
+QPushButton#small { padding: 0; }
+QPushButton:disabled { color: #5d5e64; border-color: #24252a; }
+QPushButton#primary { font-weight: 700; color: #ffffff; border: none;
+    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ff7a1a, stop:0.55 #e5322d, stop:1 #b3166b); }
+QPushButton#primary:hover { background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ff9346, stop:0.55 #f04a45, stop:1 #c92b80); }
+QPushButton#primary:disabled { background: #2a2b30; color: #6c6d73; }
+QLineEdit, QSpinBox, QComboBox, QTextEdit, QListWidget { background: #1f2024; border: 1px solid #2c2d33; border-radius: 8px;
+    padding: 5px 8px; selection-background-color: #e5322d; }
+QLineEdit:focus, QSpinBox:focus, QComboBox:focus, QTextEdit:focus { border-color: #ff7a1a; }
+QListWidget::item { padding: 5px; border-radius: 6px; }
+QListWidget::item:selected { background: #2e2224; color: #ffffff; border-left: 2px solid #ff7a1a; }
+QSlider::groove:horizontal { height: 4px; background: #2c2d33; border-radius: 2px; }
+QSlider::sub-page:horizontal { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ff7a1a, stop:1 #e5322d); border-radius: 2px; }
+QSlider::handle:horizontal { width: 14px; height: 14px; margin: -5px 0; border-radius: 7px; background: #ffffff; }
+QCheckBox::indicator { width: 15px; height: 15px; border-radius: 4px; border: 1px solid #45464d; background: #1f2024; }
+QCheckBox::indicator:checked { background: #ff7a1a; border-color: #ff7a1a; }
+QProgressBar { background: #1f2024; border: none; border-radius: 6px; height: 10px; text-align: center; color: #ffffff; }
+QProgressBar::chunk { border-radius: 6px; background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ff7a1a, stop:1 #b3166b); }
+QStatusBar { background: #111214; color: #9a9aa1; }
+QScrollBar:vertical { background: transparent; width: 10px; }
+QScrollBar::handle:vertical { background: #34353b; border-radius: 4px; min-height: 30px; margin: 2px; }
+QScrollBar::add-line, QScrollBar::sub-line { height: 0; width: 0; }
+QMainWindow::separator { background: #0c0d0f; width: 3px; height: 3px; }
+QMainWindow::separator:hover { background: #ff7a1a; }
+QToolTip { background: #24252a; color: #ffffff; border: 1px solid #3a3b42; border-radius: 6px; padding: 4px 8px; }
+"""
+
+
 def dark(app: QApplication):
-    """作画ソフトと同じ暗い色にする（絵の色が見やすい）"""
+    """暗い灰色の地に、赤とオレンジの差し色。絵の色を邪魔しない暗さにし、AI で描くボタンだけを光らせる"""
     app.setStyle("Fusion")
     p = QPalette()
-    for role, c in ((QPalette.Window, "#3c3c3c"), (QPalette.WindowText, "#e6e6e6"), (QPalette.Base, "#2b2b2b"),
-                    (QPalette.AlternateBase, "#353535"), (QPalette.Text, "#e6e6e6"), (QPalette.Button, "#454545"),
-                    (QPalette.ButtonText, "#e6e6e6"), (QPalette.Highlight, "#d9480f"), (QPalette.HighlightedText, "#ffffff")):
+    for role, c in ((QPalette.Window, "#17181b"), (QPalette.WindowText, "#e8e8ea"), (QPalette.Base, "#1f2024"),
+                    (QPalette.AlternateBase, "#24252a"), (QPalette.Text, "#e8e8ea"), (QPalette.Button, "#24252a"),
+                    (QPalette.ButtonText, "#e8e8ea"), (QPalette.Highlight, "#e5322d"), (QPalette.HighlightedText, "#ffffff")):
         p.setColor(role, QColor(c))
     app.setPalette(p)
+    app.setStyleSheet(THEME)
 
 
 def main():

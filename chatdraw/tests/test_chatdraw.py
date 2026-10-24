@@ -259,6 +259,94 @@ class DrawTest(unittest.TestCase):
         c.pick(QPointF(50, 80))
         self.assertEqual(c.color.name(), "#ffffff")
 
+    def drag(self, tool, a, b):
+        from PySide6.QtCore import QPointF
+        c = self.c
+        c.set_tool(tool)
+        c._press(QPointF(*a), 1.0)
+        c.drag(QPointF(*a), QPointF(*b))
+        c.end_drag(QPointF(*a), QPointF(*b))
+        c.drag_start = None
+
+    def test_shapes_gradient_and_move(self):
+        from PySide6.QtGui import QColor
+        c = self.c
+        c.color, c.size = QColor("red"), 4
+        self.drag("line", (10, 10), (90, 10))
+        self.assertEqual(self.px(50, 10), "#ff0000")
+        self.drag("rect", (20, 30), (80, 70))
+        self.assertEqual(self.px(20, 50), "#ff0000")
+        self.assertEqual(self.px(50, 50), "#ffffff")        # 線だけ
+        c.fill_shapes = True
+        self.drag("ellipse", (30, 40), (70, 60))
+        self.assertEqual(self.px(50, 50), "#ff0000")        # 塗りつぶし
+        c.undo()
+        self.assertEqual(self.px(50, 50), "#ffffff")
+        self.drag("move", (0, 0), (0, 20))                  # レイヤーを下へ 20 動かす
+        self.assertEqual(self.px(50, 30), "#ff0000")
+        self.assertEqual(self.px(50, 10), "#ffffff")
+        c.color, c.bg_color = QColor("#000000"), QColor("#0000ff")
+        c.new_canvas(100, 100)
+        self.drag("gradient", (0, 50), (100, 50))
+        self.assertLess(c.flatten().pixelColor(5, 50).blue(), 40)
+        self.assertGreater(c.flatten().pixelColor(95, 50).blue(), 220)
+
+    def test_selection_limits_painting(self):
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QColor
+        c = self.c
+        c.color, c.size = QColor("red"), 6
+        self.drag("select", (0, 0), (50, 100))
+        self.assertIsNotNone(c.selection)
+        c.set_tool("pen")
+        c._press(QPointF(10, 50), 1.0)
+        c.stroke(QPointF(10, 50), QPointF(90, 50))
+        c.end_stroke()
+        c.last = None
+        self.assertEqual(self.px(30, 50), "#ff0000")
+        self.assertEqual(self.px(70, 50), "#ffffff")        # 範囲の外には描かない
+        c.set_selection(None)
+        c.set_tool("pen")
+        c.stroke(QPointF(60, 20), QPointF(90, 20))
+        c.select_all()
+        c.clear_selection_area()
+        self.assertEqual(self.px(70, 20), "#ffffff")        # Delete で中を消す
+        c.undo()
+        self.assertEqual(self.px(70, 20), "#ff0000")
+
+    def test_blur_softens_edge(self):
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QColor
+        c = self.c
+        c.color, c.size = QColor("black"), 30
+        c.stroke(QPointF(50, 0), QPointF(50, 99))
+        before = c.layers[1].image.pixelColor(67, 50).alpha()
+        c.size = 40
+        c.set_tool("blur")
+        for _ in range(4):
+            c.stroke(QPointF(50, 30), QPointF(50, 70))
+        after = c.layers[1].image.pixelColor(67, 50).alpha()
+        self.assertGreater(after, before)                   # 縁の外へにじむ
+
+
+class ColorPanelTest(unittest.TestCase):
+    def test_hex_swatch_swap(self):
+        from PySide6.QtGui import QColor
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.canvas import Canvas
+        from chatdraw.colorpanel import ColorPanel
+        QApplication.instance() or QApplication([])
+        c = Canvas()
+        panel = ColorPanel(c)
+        panel.hex.setText("#3d7bff")
+        panel._hex_entered()
+        self.assertEqual(c.color.name(), "#3d7bff")
+        c.swap_colors()
+        self.assertEqual((c.color.name(), c.bg_color.name()), ("#ffffff", "#3d7bff"))
+        self.assertEqual(panel.hex.text(), "#ffffff")
+        panel.remember()
+        self.assertEqual(panel.recent, ["#ffffff"])
+
 
 if __name__ == "__main__":
     unittest.main()
