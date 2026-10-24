@@ -12,6 +12,26 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from chatdraw.paths import HOME as DATA  # noqa: E402
 
+
+def attach_streams():
+    """pythonw.exe で起動すると標準の出力が None になり、模型を取るときの進み表示（tqdm）が書き込めずに落ちた。
+    出力が無いときは記録のファイル（DATA/chatdraw.log）へ向ける"""
+    if sys.stdout is not None and sys.stderr is not None:
+        return
+    try:
+        DATA.mkdir(parents=True, exist_ok=True)
+        log = open(DATA / "chatdraw.log", "a", encoding="utf-8", errors="replace", buffering=1)
+    except OSError:
+        import os
+        log = open(os.devnull, "w")
+    if sys.stdout is None:
+        sys.stdout = log
+    if sys.stderr is None:
+        sys.stderr = log
+
+
+attach_streams()
+
 # 部品はデータの置き場に入れる（入れたアプリ本体の場所は書き換えない）
 for lib in (DATA / "simple" / "lib", DATA / "gen" / "lib", DATA / "llm" / "lib"):
     if lib.exists() and str(lib) not in sys.path:
@@ -24,7 +44,8 @@ except ImportError:
     # 線を数百本引くと落ちた。落ちないことを確かめた 6.9.3 に固定する
     import subprocess
     lib = DATA / "simple" / "lib"
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--target", str(lib), "PySide6-Essentials==6.9.3"], check=True)
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--target", str(lib), "PySide6-Essentials==6.9.3"], check=True,
+                   stdin=subprocess.DEVNULL, stdout=sys.stdout, stderr=sys.stderr, creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     sys.path.insert(0, str(lib))
 
 import re  # noqa: E402

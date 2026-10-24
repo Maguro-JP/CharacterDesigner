@@ -1237,6 +1237,24 @@ class FixAndBatchTest(unittest.TestCase):
         self.assertEqual(self.w.canvas.layers[1].name, "線")
 
 
+class NoConsoleTest(unittest.TestCase):
+    """pythonw.exe の起動（標準の出力が None）でも、進み表示（tqdm）を書く所で落ちない"""
+    def test_streams_attached(self):
+        import subprocess
+        import tempfile
+        with tempfile.TemporaryDirectory() as d:
+            code = ("import sys; sys.stdout = None; sys.stderr = None\n"
+                    "import chatdraw.app\n"
+                    "from tqdm import tqdm\n"
+                    "for _ in tqdm(range(3)): pass\n"
+                    "sys.stderr.write('written\\n'); sys.stderr.flush()\n")
+            libs = os.pathsep.join(str(ROOT / ".cache" / n / "lib") for n in ("simple", "gen"))
+            env = dict(os.environ, CD_HOME=d, QT_QPA_PLATFORM="offscreen", PYTHONPATH=libs)
+            r = subprocess.run([sys.executable, "-c", code], cwd=str(ROOT), env=env, capture_output=True, text=True, timeout=120)
+            self.assertEqual(r.returncode, 0, r.stderr[-800:])
+            self.assertIn("written", (Path(d) / "chatdraw.log").read_text(encoding="utf-8"))
+
+
 class SystemTest(unittest.TestCase):
     """絵の上の指示・作業ファイル・PSD・自動保存・更新・加工・ライブラリーと好み"""
     def setUp(self):

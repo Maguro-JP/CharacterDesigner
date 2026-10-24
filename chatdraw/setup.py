@@ -55,6 +55,24 @@ def engine_ready() -> bool:
     return all(importlib.util.find_spec(m) is not None for m in ("torch", "diffusers", "transformers"))
 
 
+def run_pip(args: list[str], say=lambda msg, pct: None, msg: str = "", pct: int = 0):
+    """pip を動かし、出力を HOME/setup.log に残す。落ちたら最後の数行を理由として返す。
+    pythonw.exe から起動したアプリには標準の入出力が無く、そのまま子に渡すと pip が入出力を作れずに落ちることがあるので、
+    入力は空、出力はファイルに向ける。黒い窓も出さない"""
+    from chatdraw.paths import HOME
+    HOME.mkdir(parents=True, exist_ok=True)
+    log = HOME / "setup.log"
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    with open(log, "a", encoding="utf-8", errors="replace") as f:
+        f.write("\n$ pip " + " ".join(args) + "\n")
+        f.flush()
+        r = subprocess.run([sys.executable, "-m", "pip", *args], stdin=subprocess.DEVNULL, stdout=f, stderr=subprocess.STDOUT,
+                           creationflags=flags)
+    if r.returncode != 0:
+        tail = log.read_text(encoding="utf-8", errors="replace").strip().splitlines()[-6:]
+        raise RuntimeError(f"部品を入れられませんでした（pip の終了コード {r.returncode}）。記録: {log}\n" + "\n".join(tail))
+
+
 def install_engine(say=lambda msg, pct: None):
     """絵を描く部品を、データの置き場（HOME/gen/lib）に入れる。NVIDIA の GPU があれば GPU 版、無ければ CPU 版の torch を取る。
     インストーラーに入れないのは、torch の版が機械の GPU で変わり（CUDA 版 約 2.5GB、CPU 版 約 200MB）、合わない方を配ると無駄になるため"""
@@ -64,15 +82,15 @@ def install_engine(say=lambda msg, pct: None):
     gpu = shutil.which("nvidia-smi") is not None
     index = "https://download.pytorch.org/whl/cu124" if gpu else "https://download.pytorch.org/whl/cpu"
     say("絵を描く部品を入れています", 0)
-    pip = [sys.executable, "-m", "pip", "install", "-q", "--disable-pip-version-check", "--no-cache-dir", "--target", str(lib), "--upgrade"]
-    subprocess.run(pip + ["torch", "--index-url", index], check=True)
+    pip = ["install", "-q", "--disable-pip-version-check", "--no-cache-dir", "--target", str(lib), "--upgrade"]
+    run_pip(pip + ["torch", "--index-url", index])
     # 後の部品（transformers など）は torch を欲しがり、そのままだと、ふつうの配り元の GPU 版（約 4GB 多い）で上書きした
     # （CPU の機械で 5.7GB になった）。入れた torch の版に固定して、同じ物を使わせる
     import re
     ver = re.search(r"__version__\s*=\s*['\"]([^'\"]+)", (lib / "torch" / "version.py").read_text()).group(1)
     say("絵を描く部品を入れています", 50)
-    subprocess.run(pip + ["diffusers", "transformers", "accelerate", "huggingface_hub", "safetensors", f"torch=={ver}",
-                          "--extra-index-url", index], check=True)
+    run_pip(pip + ["diffusers", "transformers", "accelerate", "huggingface_hub", "safetensors", f"torch=={ver}",
+                   "--extra-index-url", index])
     say("絵を描く部品を入れています", 90)
     if str(lib) not in sys.path:
         sys.path.insert(0, str(lib))
@@ -129,9 +147,8 @@ class Fetcher(QObject):
         if not llm_lib_ready():
             self.progress.emit("言葉の模型を動かす部品を入れています", 0)
             # 元のソースから組むと数十分かかり、組み立ての道具も要るので、組み済みの配布物だけを使う
-            subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--target", str(lib), "--only-binary", "llama-cpp-python",
-                            "--extra-index-url", "https://abetlen.github.io/llama-cpp-python/whl/cpu", "llama-cpp-python>=0.3.16"],
-                           check=True)
+            run_pip(["install", "-q", "--disable-pip-version-check", "--target", str(lib), "--only-binary", "llama-cpp-python",
+                     "--extra-index-url", "https://abetlen.github.io/llama-cpp-python/whl/cpu", "llama-cpp-python>=0.3.16"])
         dest = have = words_path(m)
         with urllib.request.urlopen(urllib.request.Request(m.url, method="HEAD")) as r:
             remote = int(r.headers.get("Content-Length") or 0)
