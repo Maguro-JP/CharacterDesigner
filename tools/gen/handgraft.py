@@ -98,3 +98,17 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def place_depth(depth: Image.Image, src_wrist, src_tip, size, dst_wrist, dst_tip) -> Image.Image:
+    """人形の手の奥行き（tools/engine/pose_hand.py）を、絵の手首と指先に合わせて絵と同じ大きさの黒地に置く。
+    detail.py の control に渡すと、手の枠だけを奥行きで縛って描き直せる。
+    人形の奥行きは手の中の濃淡がほとんど無い（ほぼ一様な灰色）ので、手の範囲を明るく引き伸ばして形をはっきりさせる"""
+    g = np.asarray(depth.convert("L")).astype(np.float32)
+    on = g > 8
+    if on.any():
+        lo, hi = g[on].min(), g[on].max()
+        g = np.where(on, 170 + 85 * (g - lo) / max(hi - lo, 1.0), 0)
+    d = Image.fromarray(g.astype(np.uint8)).convert("RGB")
+    coef = transform(src_wrist, src_tip, dst_wrist, dst_tip)
+    return d.transform(size, Image.AFFINE, coef, resample=Image.BICUBIC)

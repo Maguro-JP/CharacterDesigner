@@ -47,3 +47,15 @@ class HandGraft(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PlaceDepth(unittest.TestCase):
+    def test_hand_lands_on_wrist_and_is_brightened(self):
+        d = Image.new("L", (40, 40), 0)
+        a = np.asarray(d).copy()
+        a[10:30, 18:22] = 90          # 下向きの手（暗い灰色）
+        out = handgraft.place_depth(Image.fromarray(a), (20, 10), (20, 30), (200, 100), (100, 20), (100, 60))
+        o = np.asarray(out)[..., 0]
+        self.assertEqual(out.size, (200, 100))
+        self.assertGreater(o[40, 100], 150)   # 手首と指先の間は明るい手
+        self.assertEqual(o[40, 150], 0)       # 手の外は黒
