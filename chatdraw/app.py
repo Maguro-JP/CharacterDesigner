@@ -34,7 +34,8 @@ from PySide6.QtWidgets import (QApplication, QDockWidget, QFileDialog,  # noqa: 
 from PIL import Image  # noqa: E402
 
 from chatdraw.canvas import Canvas  # noqa: E402
-from chatdraw.engine import Studio  # noqa: E402
+from chatdraw.engine import Painter, Studio, Words  # noqa: E402
+from chatdraw.settings import Settings, SettingsDialog  # noqa: E402
 
 
 class Job(QObject):
@@ -64,6 +65,48 @@ def qimage_to_pil(img):
                             img.bytesPerLine(), 1).convert("RGB")
 
 
+class PanelTitle(QWidget):
+    """欄の見出し。畳む（最小化）・別ウィンドウにする・隠す の 3 つのボタンを持つ。見出しをダブルクリックしても畳める"""
+
+    def __init__(self, dock: "QDockWidget"):
+        super().__init__(dock)
+        self.dock = dock
+        self.collapsed = False
+        row = QHBoxLayout(self)
+        row.setContentsMargins(6, 2, 2, 2)
+        row.setSpacing(2)
+        self.label = QLabel(dock.windowTitle())
+        row.addWidget(self.label)
+        row.addStretch()
+        for text, tip, fn in (("▁", "畳む（見出しだけにする）", self.toggle), ("⧉", "別ウィンドウにする・戻す", self.float_),
+                              ("✕", "隠す（「ウィンドウ」メニューで戻せます）", dock.hide)):
+            b = QPushButton(text)
+            b.setToolTip(tip)
+            b.setFixedSize(22, 20)
+            b.setFlat(True)
+            b.clicked.connect(fn)
+            row.addWidget(b)
+            if text == "▁":
+                self.collapse_button = b
+
+    def toggle(self):
+        self.collapsed = not self.collapsed
+        body = self.dock.widget()
+        if body is not None:
+            body.setVisible(not self.collapsed)
+        if self.collapsed:
+            self.dock.setMaximumHeight(self.sizeHint().height() + 4)
+        else:
+            self.dock.setMaximumHeight(16777215)
+        self.collapse_button.setText("▔" if self.collapsed else "▁")
+
+    def float_(self):
+        self.dock.setFloating(not self.dock.isFloating())
+
+    def mouseDoubleClickEvent(self, e):
+        self.toggle()
+
+
 # 欄は動かせて、外に出せて、閉じられる（作画ソフトと同じ）
 PANEL = QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable | QDockWidget.DockWidgetClosable
 
@@ -73,7 +116,8 @@ class Window(QMainWindow):
 
     def __init__(self, studio: Studio | None = None):
         super().__init__()
-        self.studio = studio or Studio()
+        self.settings = Settings()
+        self.studio = studio or self._studio_from_settings()
         self.setWindowTitle("CharacterDesigner")
         self.resize(1400, 900)
         self.images: list[str] = []
@@ -106,7 +150,7 @@ class Window(QMainWindow):
             self.size_pick.addItem(label, wh)
         self.strength = QSlider(Qt.Horizontal)
         self.strength.setRange(10, 95)
-        self.strength.setValue(60)
+        self.strength.setValue(int(self.settings.get("rough_strength") * 100))
         self.strength_label = QLabel("元から変える強さ 0.60")
         self.strength.valueChanged.connect(lambda v: self.strength_label.setText(f"元から変える強さ {v / 100:.2f}"))
         self.mode.currentIndexChanged.connect(self._mode_changed)
@@ -239,6 +283,8 @@ class Window(QMainWindow):
         view.addAction(QAction("左に回す", self, shortcut="Ctrl+[", triggered=lambda: self.canvas.rotate_view(-15)))
         view.addAction(QAction("右に回す", self, shortcut="Ctrl+]", triggered=lambda: self.canvas.rotate_view(15)))
         view.addAction(QAction("回転を戻す", self, shortcut="Ctrl+\\", triggered=self.canvas.reset_rotation))
+        setting_menu = self.menuBar().addMenu("設定")
+        setting_menu.addAction(QAction("設定…", self, shortcut="Ctrl+,", triggered=self.open_settings))
         layer_menu = self.menuBar().addMenu("レイヤー")
         layer_menu.addAction(QAction("新しいレイヤー", self, shortcut="Ctrl+Shift+N", triggered=self.canvas.add_layer))
         layer_menu.addAction(QAction("レイヤーを消す", self, triggered=self.canvas.delete_layer))
@@ -248,6 +294,7 @@ class Window(QMainWindow):
         self.panels = {"toolopts": (odock, Qt.LeftDockWidgetArea), "chat": (dock, Qt.LeftDockWidgetArea),
                        "history": (hist, Qt.RightDockWidgetArea), "layers": (ldock, Qt.RightDockWidgetArea)}
         for d, _area in self.panels.values():
+            d.setTitleBarWidget(PanelTitle(d))
             # 欄の境目をドラッグして上下左右に広げ縮めできる。狭めすぎて中身が潰れない大きさだけ決める
             d.setMinimumSize(160, 80)
             d.topLevelChanged.connect(lambda floating, d=d: self._as_window(d, floating))
@@ -263,6 +310,10 @@ class Window(QMainWindow):
         tact = tools.toggleViewAction()
         tact.setShortcut("F4")
         win.addAction(tact)
+        win.addSeparator()
+        win.addAction(QAction("すべての欄を畳む", self, triggered=lambda: self._collapse_all(True)))
+        win.addAction(QAction("すべての欄を広げる", self, triggered=lambda: self._collapse_all(False)))
+        win.addAction(QAction("メインウィンドウを最小化", self, shortcut="Ctrl+M", triggered=self.showMinimized))
         win.addSeparator()
         win.addAction(QAction("すべての欄を表示", self, triggered=lambda: self._show_all(True)))
         win.addAction(QAction("すべての欄を隠す（絵だけを見る）", self, shortcut="Tab", triggered=lambda: self._show_all(False)))
@@ -320,6 +371,26 @@ class Window(QMainWindow):
         self.place(path)
         self.say("描きました")
         self._end("できました")
+
+    def _studio_from_settings(self) -> Studio:
+        g = self.settings.get
+        return Studio(Words(Path(g("words_model"))), Painter(g("image_model"), g("steps"), guidance=g("guidance")),
+                      Path(g("output_dir")))
+
+    def open_settings(self):
+        """設定ウィンドウを開き、保存されたら描く仕組みに当てる。絵の模型を替えたときだけ読み直す"""
+        if SettingsDialog(self.settings, self).exec():
+            g = self.settings.get
+            painter = self.studio.painter
+            if getattr(painter, "model", None) != g("image_model"):
+                self.studio.painter = Painter(g("image_model"), g("steps"), guidance=g("guidance"))
+            else:
+                painter.steps, painter.guidance = g("steps"), g("guidance")
+            if str(getattr(self.studio.words, "path", "")) != g("words_model"):
+                self.studio.words = Words(Path(g("words_model")))
+            self.studio.out = Path(g("output_dir"))
+            self.strength.setValue(int(g("rough_strength") * 100))
+            self.statusBar().showMessage("設定を保存しました")
 
     def ask_models(self, force: bool = False):
         """描くのに要る模型が足りなければ、取るかどうかを聞く"""
@@ -382,6 +453,12 @@ class Window(QMainWindow):
         if floating:
             d.setWindowFlags(Qt.Window | Qt.WindowTitleHint | Qt.WindowCloseButtonHint | Qt.WindowMinMaxButtonsHint)
             d.show()
+
+    def _collapse_all(self, on: bool):
+        for d, _area in self.panels.values():
+            title = d.titleBarWidget()
+            if isinstance(title, PanelTitle) and title.collapsed != on:
+                title.toggle()
 
     def _show_all(self, on: bool):
         for d, _area in self.panels.values():

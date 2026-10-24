@@ -95,6 +95,29 @@ class LayoutTest(unittest.TestCase):
         self.assertFalse(any(d.isFloating() for d, _ in w.panels.values()))
         w.panels["history"][0].toggleViewAction().trigger()
         self.assertTrue(w.panels["history"][0].isHidden())
+        title = w.panels["layers"][0].titleBarWidget()
+        title.toggle()
+        self.assertTrue(w.panels["layers"][0].widget().isHidden())   # 畳むと中身が隠れて見出しだけ残る
+        title.toggle()
+        self.assertFalse(w.panels["layers"][0].widget().isHidden())
+
+
+class SettingsTest(unittest.TestCase):
+    def test_dialog_saves_and_applies(self):
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.settings import Settings, SettingsDialog
+        QApplication.instance() or QApplication([])
+        with TemporaryDirectory() as d:
+            store = QSettings(str(Path(d) / "s.ini"), QSettings.IniFormat)
+            st = Settings(store)
+            self.assertEqual(st.get("steps"), 24)
+            dlg = SettingsDialog(st)
+            dlg.inputs["steps"][1].setValue(30)
+            dlg.inputs["image_model"][1].setCurrentText("Lykon/dreamshaper-xl-lightning")
+            dlg.save()
+            self.assertEqual(st.get("steps"), 30)
+            self.assertEqual(st.get("image_model"), "Lykon/dreamshaper-xl-lightning")
 
 
 class DrawTest(unittest.TestCase):

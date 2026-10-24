@@ -65,8 +65,8 @@ class Stopped(Exception):
 class Painter:
     """絵の模型で描く。模型は最初の 1 枚のときに 1 回だけ読む。キャンバスの絵を元に描き直すこともできる"""
 
-    def __init__(self, model: str = IMAGE_MODEL, steps: int = 24, size: tuple[int, int] = (832, 1216)):
-        self.model, self.steps, self.size = model, steps, size
+    def __init__(self, model: str = IMAGE_MODEL, steps: int = 24, size: tuple[int, int] = (832, 1216), guidance: float = 5.0):
+        self.model, self.steps, self.size, self.guidance = model, steps, size, guidance
         self._pipe = None
         self._redraw = None
         self.stop = False
@@ -83,10 +83,11 @@ class Painter:
     def load(self):
         if self._pipe is None:
             import torch
-            from diffusers import StableDiffusionXLPipeline
+            from diffusers import AutoPipelineForText2Image
             # CPU では bfloat16、GPU では float16 で読む。float32 で読むと 16GB のパソコンでメモリが尽きた
             dtype = torch.float16 if torch.cuda.is_available() else torch.bfloat16
-            self._pipe = StableDiffusionXLPipeline.from_pretrained(self.model, torch_dtype=dtype,
+            # 模型の種類（SDXL、SD1.5 など）は model_index.json から決まる
+            self._pipe = AutoPipelineForText2Image.from_pretrained(self.model, torch_dtype=dtype,
                                                                    cache_dir=str(HOME / "gen" / "hf" / "hub"))
             if torch.cuda.is_available():
                 self._pipe.to("cuda")
@@ -107,12 +108,12 @@ class Painter:
             return kw
 
         args = dict(prompt=f"{prompt}, masterpiece, best quality", negative_prompt="lowres, worst quality, low quality",
-                    num_inference_steps=steps, guidance_scale=5.0,
+                    num_inference_steps=steps, guidance_scale=self.guidance,
                     generator=torch.Generator(pipe.device).manual_seed(seed), callback_on_step_end=step)
         if base is not None:
             if self._redraw is None:
-                from diffusers import StableDiffusionXLImg2ImgPipeline
-                self._redraw = StableDiffusionXLImg2ImgPipeline(**pipe.components)   # 同じ模型を読み直さずに使う
+                from diffusers import AutoPipelineForImage2Image
+                self._redraw = AutoPipelineForImage2Image.from_pipe(pipe)   # 同じ模型を読み直さずに使う
             w, h = base.size
             w, h = w - w % 8, h - h % 8
             total = max(1, int(steps * strength))
