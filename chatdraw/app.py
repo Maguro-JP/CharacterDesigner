@@ -25,11 +25,12 @@ except ImportError:
 import re  # noqa: E402
 
 from PySide6.QtCore import QObject, QSize, Qt, QThread, Signal  # noqa: E402
-from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QImage, QPainter, QPalette, QPen, QPixmap  # noqa: E402
-from PySide6.QtWidgets import (QApplication, QDockWidget, QFileDialog, QGraphicsPixmapItem, QGraphicsScene,  # noqa: E402
-                               QGraphicsView, QHBoxLayout, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
-                               QColorDialog, QProgressBar, QPushButton, QSpinBox, QTextEdit, QToolBar, QVBoxLayout, QWidget)
+from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPalette, QPixmap  # noqa: E402
+from PySide6.QtWidgets import (QApplication, QDockWidget, QFileDialog,  # noqa: E402
+                               QHBoxLayout, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
+                               QColorDialog, QLabel, QProgressBar, QPushButton, QSlider, QSpinBox, QTextEdit, QToolBar, QVBoxLayout, QWidget)
 
+from chatdraw.canvas import Canvas  # noqa: E402
 from chatdraw.engine import Studio  # noqa: E402
 
 
@@ -48,113 +49,6 @@ class Job(QObject):
             self.done.emit(prompt, str(path))
         except Exception as e:  # 描けなかった理由をそのまま会話に出す
             self.failed.emit(f"描けませんでした: {e}")
-
-
-class Canvas(QGraphicsView):
-    """真ん中の絵の欄。ペンと消しゴムで描け、ホイールで拡大・縮小、手のひらで動かす"""
-
-    def __init__(self):
-        super().__init__()
-        self.setScene(QGraphicsScene(self))
-        self.item = QGraphicsPixmapItem()
-        self.scene().addItem(self.item)
-        self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
-        self.setBackgroundBrush(QColor("#2b2b2b"))
-        self.image = QImage()
-        self.tool, self.color, self.size = "pen", QColor("#000000"), 6
-        self.undo_stack: list[QImage] = []
-        self.redo_stack: list[QImage] = []
-        self.last = None
-        self.set_tool("pen")
-
-    # 絵を出す・新しく作る
-    def show_image(self, path: str):
-        self.set_image(QImage(path).convertToFormat(QImage.Format_ARGB32))
-
-    def new_canvas(self, w: int = 1200, h: int = 1600):
-        img = QImage(w, h, QImage.Format_ARGB32)
-        img.fill(QColor("white"))
-        self.set_image(img)
-
-    def set_image(self, img: QImage):
-        self.image = img
-        self.undo_stack.clear()
-        self.redo_stack.clear()
-        self.refresh()
-        self.scene().setSceneRect(self.item.boundingRect())
-        self.fit()
-
-    def refresh(self):
-        self.item.setPixmap(QPixmap.fromImage(self.image))
-
-    def fit(self):
-        if not self.image.isNull():
-            self.fitInView(self.item, Qt.KeepAspectRatio)
-
-    def actual(self):
-        self.resetTransform()
-
-    # 道具
-    def set_tool(self, tool: str):
-        self.tool = tool
-        self.setDragMode(QGraphicsView.ScrollHandDrag if tool == "hand" else QGraphicsView.NoDrag)
-        self.setCursor(Qt.OpenHandCursor if tool == "hand" else Qt.CrossCursor)
-
-    def undo(self):
-        if self.undo_stack:
-            self.redo_stack.append(self.image.copy())
-            self.image = self.undo_stack.pop()
-            self.refresh()
-
-    def redo(self):
-        if self.redo_stack:
-            self.undo_stack.append(self.image.copy())
-            self.image = self.redo_stack.pop()
-            self.refresh()
-
-    def stroke(self, a, b):
-        p = QPainter(self.image)
-        p.setRenderHint(QPainter.Antialiasing)
-        if self.tool == "eraser":
-            p.setCompositionMode(QPainter.CompositionMode_Source)
-            pen = QPen(QColor("white"), self.size * 2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
-        else:
-            pen = QPen(self.color, self.size, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
-        p.setPen(pen)
-        if a == b:
-            p.drawPoint(a)   # 押しただけでも点が付くように
-        else:
-            p.drawLine(a, b)
-        p.end()
-        self.refresh()
-
-    def mousePressEvent(self, e):
-        if self.tool in ("pen", "eraser") and e.button() == Qt.LeftButton and not self.image.isNull():
-            self.undo_stack.append(self.image.copy())
-            del self.undo_stack[:-50]
-            self.redo_stack.clear()
-            self.last = self.mapToScene(e.position().toPoint())
-            self.stroke(self.last, self.last)
-            return
-        super().mousePressEvent(e)
-
-    def mouseMoveEvent(self, e):
-        if self.last is not None:
-            pos = self.mapToScene(e.position().toPoint())
-            self.stroke(self.last, pos)
-            self.last = pos
-            return
-        super().mouseMoveEvent(e)
-
-    def mouseReleaseEvent(self, e):
-        if self.last is not None:
-            self.last = None
-            return
-        super().mouseReleaseEvent(e)
-
-    def wheelEvent(self, e):
-        f = 1.15 if e.angleDelta().y() > 0 else 1 / 1.15
-        self.scale(f, f)
 
 
 class Window(QMainWindow):
@@ -230,7 +124,8 @@ class Window(QMainWindow):
         self.addToolBar(Qt.LeftToolBarArea, tools)
         group = QActionGroup(self)
         self.tool_actions = {}
-        for key, label, short in (("pen", "ペン", "P"), ("eraser", "消しゴム", "E"), ("hand", "手のひら", "H")):
+        for key, label, short in (("pen", "ペン", "P"), ("eraser", "消しゴム", "E"), ("fill", "塗りつぶし", "G"),
+                                  ("eyedropper", "スポイト", "I"), ("hand", "手のひら", "H")):
             act = QAction(label, self, checkable=True, shortcut=short, triggered=lambda _=False, k=key: self.canvas.set_tool(k))
             group.addAction(act)
             tools.addAction(act)
@@ -248,10 +143,55 @@ class Window(QMainWindow):
         self.size_box.setSuffix(" px")
         self.size_box.valueChanged.connect(lambda v: setattr(self.canvas, "size", v))
         tools.addWidget(self.size_box)
+        tools.addWidget(QLabel("濃さ"))
+        self.flow = QSlider(Qt.Horizontal)
+        self.flow.setRange(1, 100)
+        self.flow.setValue(100)
+        self.flow.setMaximumWidth(70)
+        self.flow.valueChanged.connect(lambda v: setattr(self.canvas, "brush_opacity", v / 100))
+        tools.addWidget(self.flow)
+        self.canvas.color_picked.connect(lambda _c: self._show_color())
+
+        # 右下: レイヤー
+        self.layer_list = QListWidget()
+        self.layer_list.itemChanged.connect(self._layer_toggled)
+        self.layer_list.currentRowChanged.connect(self._layer_selected)
+        self.layer_opacity = QSlider(Qt.Horizontal)
+        self.layer_opacity.setRange(0, 100)
+        self.layer_opacity.valueChanged.connect(lambda v: self.canvas.set_opacity(v / 100))
+        buttons = QHBoxLayout()
+        for label, fn in (("＋", self.canvas.add_layer), ("－", self.canvas.delete_layer),
+                          ("↑", lambda: self.canvas.move_layer(1)), ("↓", lambda: self.canvas.move_layer(-1))):
+            b = QPushButton(label)
+            b.setFixedWidth(34)
+            b.clicked.connect(fn)
+            buttons.addWidget(b)
+        lay = QVBoxLayout()
+        lay.addWidget(self.layer_list)
+        row2 = QHBoxLayout()
+        row2.addWidget(QLabel("不透明度"))
+        row2.addWidget(self.layer_opacity)
+        lay.addLayout(row2)
+        lay.addLayout(buttons)
+        lbox = QWidget()
+        lbox.setLayout(lay)
+        ldock = QDockWidget("レイヤー", self)
+        ldock.setWidget(lbox)
+        ldock.setFeatures(QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable)
+        self.addDockWidget(Qt.RightDockWidgetArea, ldock)
+        self.canvas.changed.connect(self._refresh_layers)
+        self._refresh_layers()
 
         view = self.menuBar().addMenu("表示")
         view.addAction(QAction("全体を表示", self, shortcut="Ctrl+0", triggered=self.canvas.fit))
         view.addAction(QAction("100%", self, shortcut="Ctrl+1", triggered=self.canvas.actual))
+        view.addAction(QAction("左に回す", self, shortcut="Ctrl+[", triggered=lambda: self.canvas.rotate_view(-15)))
+        view.addAction(QAction("右に回す", self, shortcut="Ctrl+]", triggered=lambda: self.canvas.rotate_view(15)))
+        view.addAction(QAction("回転を戻す", self, shortcut="Ctrl+\\", triggered=self.canvas.reset_rotation))
+        layer_menu = self.menuBar().addMenu("レイヤー")
+        layer_menu.addAction(QAction("新しいレイヤー", self, shortcut="Ctrl+Shift+N", triggered=self.canvas.add_layer))
+        layer_menu.addAction(QAction("レイヤーを消す", self, triggered=self.canvas.delete_layer))
+        layer_menu.addAction(QAction("画像をレイヤーとして読み込む…", self, triggered=self.import_layer))
 
     def say(self, text: str, who: str = "CharacterDesigner"):
         self.chat.append(f"<b>{who}</b>: {text}")
@@ -304,17 +244,49 @@ class Window(QMainWindow):
     def _show_color(self):
         self.color_button.setStyleSheet(f"background:{self.canvas.color.name()}; border:1px solid #888")
 
+    def _refresh_layers(self):
+        # 上にあるレイヤーを上に並べる（作画ソフトと同じ順）
+        self.layer_list.blockSignals(True)
+        self.layer_list.clear()
+        for i in reversed(range(len(self.canvas.layers))):
+            layer = self.canvas.layers[i]
+            item = QListWidgetItem(layer.name)
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
+            item.setCheckState(Qt.Checked if layer.visible else Qt.Unchecked)
+            item.setData(Qt.UserRole, i)
+            self.layer_list.addItem(item)
+            if i == self.canvas.current:
+                self.layer_list.setCurrentItem(item)
+        if self.canvas.layers:
+            self.layer_opacity.blockSignals(True)
+            self.layer_opacity.setValue(int(self.canvas.layers[self.canvas.current].opacity * 100))
+            self.layer_opacity.blockSignals(False)
+        self.layer_list.blockSignals(False)
+
+    def _layer_selected(self, row: int):
+        item = self.layer_list.item(row)
+        if item is not None:
+            self.canvas.select(item.data(Qt.UserRole))
+
+    def _layer_toggled(self, item: QListWidgetItem):
+        self.canvas.set_visible(item.data(Qt.UserRole), item.checkState() == Qt.Checked)
+
+    def import_layer(self):
+        path, _ = QFileDialog.getOpenFileName(self, "画像をレイヤーとして読み込む", "", "画像 (*.png *.jpg *.jpeg *.webp)")
+        if path:
+            self.canvas.add_image_layer(path, Path(path).stem)
+
     def open_image(self):
         path, _ = QFileDialog.getOpenFileName(self, "開く", "", "画像 (*.png *.jpg *.jpeg *.webp)")
         if path:
             self.canvas.show_image(path)
 
     def save_as(self):
-        if self.canvas.image.isNull():
+        if not self.canvas.layers:
             return
         dst, _ = QFileDialog.getSaveFileName(self, "名前を付けて保存", "drawing.png", "PNG (*.png)")
         if dst:
-            self.canvas.image.save(dst)
+            self.canvas.flatten().save(dst)
 
     def _end(self, msg: str):
         self.statusBar().showMessage(msg)

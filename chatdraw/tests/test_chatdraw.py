@@ -75,24 +75,60 @@ class WindowTest(unittest.TestCase):
 
 
 class DrawTest(unittest.TestCase):
-    def test_pen_eraser_undo(self):
+    def setUp(self):
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.canvas import Canvas
+        QApplication.instance() or QApplication([])
+        self.c = Canvas()
+        self.c.new_canvas(100, 100)
+
+    def px(self, x, y):
+        return self.c.flatten().pixelColor(x, y).name()
+
+    def test_pen_eraser_undo_on_layer(self):
         from PySide6.QtCore import QPointF
         from PySide6.QtGui import QColor
-        from PySide6.QtWidgets import QApplication
-        from chatdraw.app import Canvas
-        QApplication.instance() or QApplication([])
-        c = Canvas()
-        c.new_canvas(100, 100)
+        c = self.c
         c.color, c.size = QColor("red"), 4
-        c.undo_stack.append(c.image.copy())
+        c.snapshot()
         c.stroke(QPointF(10, 50), QPointF(90, 50))
-        self.assertEqual(c.image.pixelColor(50, 50).name(), "#ff0000")
+        self.assertEqual(self.px(50, 50), "#ff0000")
+        self.assertEqual(c.layers[0].image.pixelColor(50, 50).name(), "#ffffff")   # 背景には描かない
         c.tool = "eraser"
         c.stroke(QPointF(50, 50), QPointF(50, 50))
-        self.assertEqual(c.image.pixelColor(50, 50).name(), "#ffffff")
+        self.assertEqual(self.px(50, 50), "#ffffff")   # 消すと下の背景が見える
         c.undo()
-        self.assertEqual(c.image.pixelColor(50, 50).name(), "#ffffff")  # 戻すと線を引く前の白
-        self.assertEqual(c.image.pixelColor(20, 50).name(), "#ffffff")
+        self.assertEqual(self.px(20, 50), "#ffffff")
+
+    def test_layers_visibility_order(self):
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QColor
+        c = self.c
+        c.color, c.size = QColor("blue"), 10
+        c.stroke(QPointF(50, 50), QPointF(50, 50))
+        c.add_layer()
+        c.color = QColor("lime")
+        c.stroke(QPointF(50, 50), QPointF(50, 50))
+        self.assertEqual(self.px(50, 50), "#00ff00")
+        c.set_visible(c.current, False)
+        self.assertEqual(self.px(50, 50), "#0000ff")
+        c.set_visible(c.current, True)
+        c.move_layer(-1)
+        self.assertEqual(self.px(50, 50), "#0000ff")
+        self.assertEqual(len(c.layers), 3)
+
+    def test_fill_and_eyedropper(self):
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QColor
+        c = self.c
+        c.color, c.size = QColor("black"), 3
+        c.stroke(QPointF(0, 30), QPointF(99, 30))   # 横線で上下に分ける
+        c.color = QColor("#ff8800")
+        c.fill(QPointF(50, 10))
+        self.assertEqual(self.px(50, 10), "#ff8800")
+        self.assertEqual(self.px(50, 80), "#ffffff")   # 線の向こうは塗らない
+        c.pick(QPointF(50, 80))
+        self.assertEqual(c.color.name(), "#ffffff")
 
 
 if __name__ == "__main__":
