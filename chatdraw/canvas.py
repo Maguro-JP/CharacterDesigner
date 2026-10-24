@@ -11,6 +11,8 @@ from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPixmap
 from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem, QGraphicsScene, QGraphicsView
 
+from chatdraw.brush import PRESETS, Brush, Dabs, stamp
+
 UNDO_BYTES = 1_500_000_000   # 元に戻すに使うメモリの上限（約 1.5GB）
 
 
@@ -37,6 +39,8 @@ class LayerItem(QGraphicsItem):
     def __init__(self, layer: Layer):
         super().__init__()
         self.layer = layer
+        self.buffer: QImage | None = None   # 描いている途中の線（手を離すとレイヤーへ重ねる）
+        self.buffer_opacity = 1.0
 
     def boundingRect(self) -> QRectF:
         return QRectF(0, 0, self.layer.image.width(), self.layer.image.height())
@@ -47,6 +51,9 @@ class LayerItem(QGraphicsItem):
         r = option.exposedRect.toAlignedRect().intersected(self.layer.image.rect())
         p.setOpacity(self.layer.opacity)
         p.drawImage(r.topLeft(), self.layer.image, r)
+        if self.buffer is not None:
+            p.setOpacity(self.layer.opacity * self.buffer_opacity)
+            p.drawImage(r.topLeft(), self.buffer, r)
 
 
 class Canvas(QGraphicsView):
@@ -71,6 +78,11 @@ class Canvas(QGraphicsView):
         self.color = QColor("#000000")
         self.size = 6
         self.brush_opacity = 1.0
+        self.brushes = {b.name: Brush(**b.to_dict()) for b in PRESETS}
+        self.brush = self.brushes["ペン"]
+        self.dabs = Dabs()
+        self.buffer: QImage | None = None
+        self.carry = 0.0
         self.undo_stack: list[tuple] = []
         self.redo_stack: list[tuple] = []
         self.last: QPointF | None = None
@@ -123,10 +135,13 @@ class Canvas(QGraphicsView):
         w, h = self.size_px()
         out = blank(w, h)
         p = QPainter(out)
-        for layer in self.layers:
+        for i, layer in enumerate(self.layers):
             if layer.visible:
                 p.setOpacity(layer.opacity)
                 p.drawImage(0, 0, layer.image)
+                if self.buffer is not None and i == self.current:
+                    p.setOpacity(layer.opacity * self.brush_opacity)
+                    p.drawImage(0, 0, self.buffer)
         p.end()
         return out
 
@@ -252,6 +267,8 @@ class Canvas(QGraphicsView):
 
     # ---- 道具 ----
     def set_tool(self, tool: str):
+        if tool == "pen" and getattr(self, "brush", None) is not None and self.brush.name == "消しゴム":
+            self.brush = self.brushes["ペン"]   # ペンに持ち替えたのに消しゴムのブラシのままにしない
         self.tool = tool
         self.setDragMode(QGraphicsView.ScrollHandDrag if tool == "hand" else QGraphicsView.NoDrag)
         self.viewport().setCursor(Qt.OpenHandCursor if tool == "hand" else Qt.CrossCursor)
@@ -273,31 +290,48 @@ class Canvas(QGraphicsView):
         self.brush_changed.emit(self.size)
 
     def _ring(self, pos: QPointF):
-        r = (self.size * (2 if self.tool == "eraser" else 1)) / 2
+        r = (self.size * (2 if self.tool == "eraser" and self.brush.name != "消しゴム" else 1)) / 2
         self.cursor_ring.setRect(pos.x() - r, pos.y() - r, r * 2, r * 2)
 
+    def set_brush(self, name: str):
+        self.brush = self.brushes[name]
+        self.set_tool("eraser" if name == "消しゴム" else "pen")
+
+    def begin_stroke(self):
+        """線の描き始め。消しゴムはレイヤーから直接消し、ほかは線用の下書きに描く"""
+        self.carry = 0.0
+        if self.tool != "eraser":
+            w, h = self.size_px()
+            self.buffer = blank(w, h)
+            it = self.items[self.current]
+            it.buffer, it.buffer_opacity = self.buffer, self.brush_opacity
+
+    def end_stroke(self):
+        """手を離したら、下書きの線を濃さを掛けてレイヤーへ重ねる"""
+        if self.buffer is not None:
+            p = QPainter(self.layers[self.current].image)
+            p.setOpacity(self.brush_opacity)
+            p.drawImage(0, 0, self.buffer)
+            p.end()
+            it = self.items[self.current]
+            it.buffer = None
+            it.update()
+            self.buffer = None
+
     def stroke(self, a: QPointF, b: QPointF, pressure: float = 1.0):
-        layer = self.layers[self.current].image
-        p = QPainter(layer)
-        p.setRenderHint(QPainter.Antialiasing)
-        width = max(0.5, self.size * pressure)
-        if self.tool == "eraser":
-            width *= 2
-            p.setCompositionMode(QPainter.CompositionMode_DestinationOut)
-            pen = QPen(QColor(0, 0, 0, int(255 * self.brush_opacity)), width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
-        else:
-            c = QColor(self.color)
-            c.setAlphaF(self.brush_opacity * c.alphaF())
-            pen = QPen(c, width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
-        p.setPen(pen)
-        if a == b:
-            p.drawPoint(a)   # 押しただけでも点が付くように
-        else:
-            p.drawLine(a, b)
-        p.end()
-        pad = width / 2 + 2
-        dirty = QRectF(a, b).normalized().adjusted(-pad, -pad, pad, pad)
+        """a から b まで今のブラシで描く。線の途中でなければ、その 1 区切りだけで線を描き終える"""
+        alone = self.buffer is None and self.tool != "eraser"
+        if alone:
+            self.begin_stroke()
+        erase = self.tool == "eraser"
+        target = self.layers[self.current].image if erase else self.buffer
+        brush = self.brushes["消しゴム"] if erase and self.brush.name != "消しゴム" else self.brush
+        size = self.size * (2 if erase and brush is not self.brush else 1)
+        color = QColor(0, 0, 0) if erase else self.color
+        dirty, self.carry = stamp(target, brush, self.dabs, a, b, size, color, pressure, self.carry, erase=erase)
         self.items[self.current].update(dirty)   # 線を引いた四角だけ描き直す
+        if alone:
+            self.end_stroke()
 
     def pick(self, pos: QPointF):
         img = self.flatten()
@@ -360,6 +394,7 @@ class Canvas(QGraphicsView):
             return True
         if self.tool in ("pen", "eraser"):
             self.snapshot()
+            self.begin_stroke()
             self.last = pos
             self.stroke(pos, pos, pressure)
             return True
@@ -387,6 +422,7 @@ class Canvas(QGraphicsView):
 
     def mouseReleaseEvent(self, e):
         if self.last is not None:
+            self.end_stroke()
             self.last = None
             self.pressure = 1.0
             return
@@ -404,6 +440,7 @@ class Canvas(QGraphicsView):
             self.stroke(self.last, pos, self.pressure)
             self.last = pos
         elif t == e.Type.TabletRelease:
+            self.end_stroke()
             self.last = None
         e.accept()
 

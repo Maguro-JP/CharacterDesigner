@@ -165,6 +165,23 @@ class DrawTest(unittest.TestCase):
         self.assertEqual(self.px(50, 50), "#0000ff")
         self.assertEqual(len(c.layers), 3)
 
+    def test_brushes_differ(self):
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QColor
+        c = self.c
+        c.color, c.size = QColor("black"), 20
+        alphas = {}
+        for name in ("ペン", "エアブラシ", "鉛筆"):
+            c.new_canvas(100, 100)
+            c.set_brush(name)
+            c.stroke(QPointF(20, 50), QPointF(80, 50))
+            alphas[name] = c.layers[1].image.pixelColor(50, 50).alpha()
+            edge = c.layers[1].image.pixelColor(50, 58).alpha()
+            alphas[name + "の縁"] = edge
+        self.assertGreater(alphas["ペン"], 240)
+        self.assertLess(alphas["エアブラシ"], alphas["ペン"])          # エアブラシは薄く重ねる
+        self.assertLess(alphas["エアブラシの縁"], alphas["ペンの縁"])   # 縁がぼける
+
     def test_keys_hold_tool_and_resize_brush(self):
         c = self.c
         c.set_tool("pen")

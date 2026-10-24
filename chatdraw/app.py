@@ -29,7 +29,7 @@ from PySide6.QtCore import QObject, QSettings, QSize, Qt, QThread, Signal  # noq
 from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPalette, QPixmap  # noqa: E402
 from PySide6.QtWidgets import (QApplication, QDockWidget, QFileDialog,  # noqa: E402
                                QHBoxLayout, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
-                               QColorDialog, QComboBox, QFormLayout, QLabel, QProgressBar, QPushButton, QSlider, QSpinBox, QTextEdit, QToolBar, QVBoxLayout, QWidget)
+                               QCheckBox, QColorDialog, QComboBox, QFormLayout, QLabel, QProgressBar, QPushButton, QSlider, QSpinBox, QTextEdit, QToolBar, QVBoxLayout, QWidget)
 
 from PIL import Image  # noqa: E402
 
@@ -151,7 +151,7 @@ class Window(QMainWindow):
         self.strength = QSlider(Qt.Horizontal)
         self.strength.setRange(10, 95)
         self.strength.setValue(int(self.settings.get("rough_strength") * 100))
-        self.strength_label = QLabel("元から変える強さ 0.60")
+        self.strength_label = QLabel(f"元から変える強さ {self.strength.value() / 100:.2f}")
         self.strength.valueChanged.connect(lambda v: self.strength_label.setText(f"元から変える強さ {v / 100:.2f}"))
         self.mode.currentIndexChanged.connect(self._mode_changed)
         self._mode_changed(0)
@@ -240,6 +240,40 @@ class Window(QMainWindow):
         odock.setWidget(obox)
         odock.setFeatures(PANEL)
         self.addDockWidget(Qt.LeftDockWidgetArea, odock)
+
+        # 左上: ブラシ。種類を選び、硬さ・流量・間隔・筆圧の効き方を変える
+        self.brush_list = QListWidget()
+        for b in self.canvas.brushes.values():
+            self.brush_list.addItem(b.name)
+        self.brush_list.currentTextChanged.connect(self._brush_selected)
+        self.hardness = QSlider(Qt.Horizontal)
+        self.hardness.setRange(0, 100)
+        self.flow_s = QSlider(Qt.Horizontal)
+        self.flow_s.setRange(1, 100)
+        self.spacing = QSlider(Qt.Horizontal)
+        self.spacing.setRange(2, 100)
+        self.size_pressure = QCheckBox("筆圧で太さ")
+        self.opacity_pressure = QCheckBox("筆圧で濃さ")
+        self.hardness.valueChanged.connect(lambda v: setattr(self.canvas.brush, "hardness", v / 100))
+        self.flow_s.valueChanged.connect(lambda v: setattr(self.canvas.brush, "flow", v / 100))
+        self.spacing.valueChanged.connect(lambda v: setattr(self.canvas.brush, "spacing", v / 100))
+        self.size_pressure.toggled.connect(lambda on: setattr(self.canvas.brush, "size_pressure", on))
+        self.opacity_pressure.toggled.connect(lambda on: setattr(self.canvas.brush, "opacity_pressure", on))
+        bform = QFormLayout()
+        bform.addRow(self.brush_list)
+        bform.addRow("硬さ", self.hardness)
+        bform.addRow("流量", self.flow_s)
+        bform.addRow("間隔", self.spacing)
+        bform.addRow(self.size_pressure)
+        bform.addRow(self.opacity_pressure)
+        bbox = QWidget()
+        bbox.setLayout(bform)
+        bdock = QDockWidget("ブラシ", self)
+        bdock.setObjectName("brushes")
+        bdock.setWidget(bbox)
+        bdock.setFeatures(PANEL)
+        self.addDockWidget(Qt.LeftDockWidgetArea, bdock)
+        self.brush_list.setCurrentRow(0)
         self.canvas.color_picked.connect(lambda _c: self._show_color())
         self.canvas.brush_changed.connect(self.size_box.setValue)
         self.zoom_label = QLabel("100%")
@@ -291,7 +325,8 @@ class Window(QMainWindow):
         layer_menu.addAction(QAction("画像をレイヤーとして読み込む…", self, triggered=self.import_layer))
 
         # ウィンドウ: 欄ごとの表示と、並べ方（整列・別ウィンドウ・自由配置）
-        self.panels = {"toolopts": (odock, Qt.LeftDockWidgetArea), "chat": (dock, Qt.LeftDockWidgetArea),
+        self.panels = {"brushes": (bdock, Qt.LeftDockWidgetArea), "toolopts": (odock, Qt.LeftDockWidgetArea),
+                       "chat": (dock, Qt.LeftDockWidgetArea),
                        "history": (hist, Qt.RightDockWidgetArea), "layers": (ldock, Qt.RightDockWidgetArea)}
         for d, _area in self.panels.values():
             d.setTitleBarWidget(PanelTitle(d))
@@ -302,7 +337,7 @@ class Window(QMainWindow):
         self.setDockNestingEnabled(True)
         self.setDockOptions(QMainWindow.AllowNestedDocks | QMainWindow.AllowTabbedDocks | QMainWindow.AnimatedDocks)
         win = self.menuBar().addMenu("ウィンドウ")
-        keys = {"toolopts": "F5", "chat": "F6", "history": "F7", "layers": "F8"}
+        keys = {"brushes": "F3", "toolopts": "F5", "chat": "F6", "history": "F7", "layers": "F8"}
         for k, (d, _area) in self.panels.items():
             act = d.toggleViewAction()   # チェックが付いていれば表示中
             act.setShortcut(keys[k])
@@ -426,26 +461,44 @@ class Window(QMainWindow):
             self.canvas.color = c
             self._show_color()
 
+    def _brush_selected(self, name: str):
+        if name not in self.canvas.brushes:
+            return
+        self.canvas.set_brush(name)
+        b = self.canvas.brush
+        for w, v in ((self.hardness, b.hardness), (self.flow_s, b.flow), (self.spacing, b.spacing)):
+            w.blockSignals(True)
+            w.setValue(int(v * 100))
+            w.blockSignals(False)
+        for w, v in ((self.size_pressure, b.size_pressure), (self.opacity_pressure, b.opacity_pressure)):
+            w.blockSignals(True)
+            w.setChecked(v)
+            w.blockSignals(False)
+        key = "eraser" if name == "消しゴム" else "pen"
+        if key in getattr(self, "tool_actions", {}):
+            self.tool_actions[key].setChecked(True)
+
     def _show_color(self):
         self.color_button.setStyleSheet(f"background:{self.canvas.color.name()}; border:1px solid #888")
 
     def arrange(self):
         """初期の配置。左に道具・ツールの設定・頼み、右に描いた絵・レイヤー、真ん中を広く絵に使う"""
-        opt, chat = self.panels["toolopts"][0], self.panels["chat"][0]
+        brushes, opt, chat = self.panels["brushes"][0], self.panels["toolopts"][0], self.panels["chat"][0]
         hist, layers = self.panels["history"][0], self.panels["layers"][0]
         for d, _area in self.panels.values():
             d.setFloating(False)
             d.show()
         self.addToolBar(Qt.LeftToolBarArea, self.tools)
         self.tools.show()
-        self.addDockWidget(Qt.LeftDockWidgetArea, opt)
+        self.addDockWidget(Qt.LeftDockWidgetArea, brushes)
+        self.splitDockWidget(brushes, opt, Qt.Vertical)
         self.splitDockWidget(opt, chat, Qt.Vertical)
         self.addDockWidget(Qt.RightDockWidgetArea, hist)
         self.splitDockWidget(hist, layers, Qt.Vertical)
         w, h = max(self.width(), 1200), max(self.height(), 800)
         side = min(320, max(240, int(w * 0.17)))   # 真ん中の絵を広く取る
-        self.resizeDocks([opt, hist], [side, side], Qt.Horizontal)
-        self.resizeDocks([opt, chat], [140, h - 140], Qt.Vertical)   # ツールの設定は中身の高さだけ
+        self.resizeDocks([brushes, hist], [side, side], Qt.Horizontal)
+        self.resizeDocks([brushes, opt, chat], [330, 130, h - 460], Qt.Vertical)   # ブラシと設定は中身の高さだけ
         self.resizeDocks([hist, layers], [int(h * 0.4), int(h * 0.6)], Qt.Vertical)
 
     def _as_window(self, d: QDockWidget, floating: bool):
