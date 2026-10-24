@@ -536,8 +536,10 @@ class ManagerTest(unittest.TestCase):
 class ChooseTest(unittest.TestCase):
     def test_auto_picks_from_installed_only(self):
         from chatdraw.choose import choose_image
-        from chatdraw.models import IMAGES
-        anime, known, fast = IMAGES
+        from chatdraw.models import image_model
+        anime = image_model("cagliostrolab/animagine-xl-4.0")
+        known = image_model("OnomaAIResearch/Illustrious-xl-early-release-v0")
+        fast = image_model("Lykon/dreamshaper-xl-lightning")
         self.assertEqual(choose_image("写実的な街の写真", "", None, [anime, fast])[0], fast)
         self.assertEqual(choose_image("制服の女の子", "", None, [anime, known])[0], known)
         self.assertEqual(choose_image("赤いマフラーの騎士", "", None, [anime, known, fast])[0], anime)
@@ -571,10 +573,12 @@ class ChooseTest(unittest.TestCase):
                     super().__init__()
                     self.model = model
                     made.append(model)
-            with mock.patch("chatdraw.choose.installed_images", return_value=[IMAGES[0], IMAGES[2]]), \
+            from chatdraw.models import image_model
+            fast = image_model("Lykon/dreamshaper-xl-lightning")
+            with mock.patch("chatdraw.choose.installed_images", return_value=[IMAGES[0], fast]), \
                     mock.patch("chatdraw.engine.Painter", Made):
                 st.draw("写実的な街の写真", 1, said.append)
-            self.assertEqual(made, [IMAGES[2].repo])
+            self.assertEqual(made, [fast.repo])
             self.assertTrue(any("DreamShaper" in m for m in said))
 
 

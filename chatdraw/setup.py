@@ -15,7 +15,7 @@ from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QProgressBar, QPushButton, QRadioButton,
                                QStackedWidget, QVBoxLayout, QWidget)
 
-from chatdraw.engine import SKETCH_ADAPTER, SKETCH_FILES, Painter
+from chatdraw.engine import SKETCH, Painter
 from chatdraw.models import (IMAGES, PASS, WORDS, ImageModel, WordsModel, offered_images, offered_words, verified_images,
                              verified_words)
 from chatdraw.paths import HUB, OWN_LLM, ensure_shared, find_gguf, llm_target
@@ -119,7 +119,8 @@ class Fetcher(QObject):
         try:
             # 取ってある分は飛ばし、新しい版があればその差分だけを取る
             snapshot_download(m.repo, cache_dir=str(HUB), **m.files)
-            snapshot_download(SKETCH_ADAPTER, cache_dir=str(HUB), **SKETCH_FILES)   # ラフから描く部品（約 0.15GB）
+            repo, files, _ = SKETCH[m.family]
+            snapshot_download(repo, cache_dir=str(HUB), **files)   # ラフから描く部品（約 0.15〜0.3GB）
         finally:
             done.set()
 

@@ -13,6 +13,17 @@ IMAGE_MODEL = os.environ.get("CD_IMAGE_MODEL", "cagliostrolab/animagine-xl-4.0")
 # ラフ（線の下描き）の形に沿って描かせる部品。元の絵を描き直す img2img では、ラフの線がそのまま残って絵にならなかった
 SKETCH_ADAPTER = "TencentARC/t2i-adapter-sketch-sdxl-1.0"
 SKETCH_FILES = dict(allow_patterns=["*.json", "*.fp16.safetensors"])
+# 模型の世代ごとのラフの部品（repo、取るファイル、variant）。古い世代（SD1.5）は別の部品が要る
+SKETCH = {"sdxl": (SKETCH_ADAPTER, SKETCH_FILES, "fp16"),
+          "sd15": ("TencentARC/t2iadapter_sketch_sd15v2", dict(allow_patterns=["*.json", "*.bin"]), None)}
+
+
+def native_size(size, family: str):
+    """古い世代（SD1.5）は 512 前後で学んでいるので、同じ縦横比のまま約 0.6 倍で描く（1216 のままだと人が 2 人に割れた）"""
+    if family != "sd15":
+        return size
+    w, h = size
+    return (max(256, round(w * 0.625 / 64) * 64), max(256, round(h * 0.625 / 64) * 64))
 
 ASK = ("Translate the Japanese drawing request into English tags for an anime illustration model. "
        "Reply with one line of comma-separated tags only. Translate every detail, add nothing that is not in the request.")
@@ -155,10 +166,16 @@ class Painter:
         except Exception:
             return False
 
-    def sketch_ready(self) -> bool:
+    @property
+    def family(self) -> str:
+        from chatdraw.models import image_model
+        return image_model(self.model).family
+
+    def sketch_ready(self, family: str | None = None) -> bool:
         try:
             from huggingface_hub import snapshot_download
-            snapshot_download(SKETCH_ADAPTER, cache_dir=str(HUB), local_files_only=True, **SKETCH_FILES)
+            repo, files, _ = SKETCH[family or self.family]
+            snapshot_download(repo, cache_dir=str(HUB), local_files_only=True, **files)
             return True
         except Exception:
             return False
@@ -172,8 +189,9 @@ class Painter:
             # 模型の種類（SDXL、SD1.5 など）は model_index.json から決まる
             from chatdraw.models import image_model
             variant = image_model(self.model).variant
+            extra = {"safety_checker": None, "requires_safety_checker": False} if image_model(self.model).family == "sd15" else {}
             self._pipe = AutoPipelineForText2Image.from_pretrained(self.model, torch_dtype=dtype, variant=variant,
-                                                                   cache_dir=str(HUB))
+                                                                   cache_dir=str(HUB), **extra)
             if torch.cuda.is_available():
                 self._pipe.to("cuda")
         return self._pipe
@@ -197,19 +215,26 @@ class Painter:
                     pass   # 途中の絵が作れなくても描くのは続ける
             return kw
 
-        args = dict(prompt=f"{prompt}, masterpiece, best quality", negative_prompt="lowres, worst quality, low quality",
+        from chatdraw.models import image_model
+        info = image_model(self.model)
+        size = native_size(size or self.size, info.family)
+        args = dict(prompt=f"{info.prefix}{prompt}, masterpiece, best quality", negative_prompt="lowres, worst quality, low quality",
                     num_inference_steps=steps, guidance_scale=self.guidance,
                     generator=torch.Generator(pipe.device).manual_seed(seed), callback_on_step_end=step)
         if base is not None:
             if self._sketch is None:
-                from diffusers import StableDiffusionXLAdapterPipeline, T2IAdapter
-                adapter = T2IAdapter.from_pretrained(SKETCH_ADAPTER, variant="fp16", torch_dtype=pipe.unet.dtype,
-                                                     cache_dir=str(HUB))
+                from diffusers import StableDiffusionAdapterPipeline, StableDiffusionXLAdapterPipeline, T2IAdapter
+                repo, _files, variant = SKETCH[info.family]
+                adapter = T2IAdapter.from_pretrained(repo, variant=variant, torch_dtype=pipe.unet.dtype, cache_dir=str(HUB))
                 keep = ("vae", "text_encoder", "text_encoder_2", "tokenizer", "tokenizer_2", "unet", "scheduler")
+                parts = {k: v for k, v in pipe.components.items() if k in keep}
                 # 読んだ模型の部品をそのまま渡す（模型を 2 度読まない）
-                self._sketch = StableDiffusionXLAdapterPipeline(**{k: v for k, v in pipe.components.items() if k in keep},
-                                                                adapter=adapter.to(pipe.device))
-            w, h = size or self.size
+                if info.family == "sd15":
+                    self._sketch = StableDiffusionAdapterPipeline(**parts, adapter=adapter.to(pipe.device), safety_checker=None,
+                                                                  feature_extractor=None, requires_safety_checker=False)
+                else:
+                    self._sketch = StableDiffusionXLAdapterPipeline(**parts, adapter=adapter.to(pipe.device))
+            w, h = size
             sketch = sketch_lines(base, (w, h))
             args["negative_prompt"] += ", sketch, lineart, monochrome"
             total = steps
@@ -222,7 +247,7 @@ class Painter:
             out = self._sketch(image=sketch, width=w, height=h, adapter_conditioning_scale=strength,
                                adapter_conditioning_factor=1.0, callback=old_step, callback_steps=1, **args).images[0]
         else:
-            w, h = size or self.size
+            w, h = size
             total = steps
             out = pipe(width=w, height=h, **args).images[0]
         if self.stop:

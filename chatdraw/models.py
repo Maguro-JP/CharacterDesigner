@@ -17,6 +17,9 @@ FULL = dict(allow_patterns=["*.json", "*.txt", "unet/*.safetensors", "vae/*.safe
             ignore_patterns=["*.fp16.*", "*.bin"])
 HALF = dict(allow_patterns=["*.json", "*.txt", "unet/*.fp16.safetensors", "vae/*.fp16.safetensors",
                             "text_encoder*/*.fp16.safetensors"])
+# safetensors の無い古い模型（.bin だけ）
+BIN = dict(allow_patterns=["*.json", "*.txt", "unet/*.bin", "vae/*.bin", "text_encoder*/*.bin"], ignore_patterns=["*.fp16.*"])
+FILES = {"full": FULL, "half": HALF, "bin": BIN}
 
 
 @dataclass(frozen=True)
@@ -33,6 +36,8 @@ class ImageModel:
     recommended: bool = False
     en: str = ""    # おまかせで言葉の模型に選ばせるときの説明
     score: int = 0  # 内部の点数。0 は確かめていない
+    family: str = "sdxl"   # sdxl か sd15。ラフから描く部品と、描く大きさが変わる
+    prefix: str = ""       # 頼みの頭に足す言葉（模型が決まり文句を要るとき）
 
 
 @dataclass(frozen=True)
@@ -50,18 +55,17 @@ class WordsModel:
         return f"https://huggingface.co/{self.repo}/resolve/main/{self.file}"
 
 
-IMAGES = (
-    ImageModel("cagliostrolab/animagine-xl-4.0", "Animagine XL 4.0", "アニメ絵。線と塗りが整っていて、キャラクターに強い",
-               "1 枚 約 4〜10 分", 6.9, 24, 5.0, recommended=True,
-               en="anime illustration, clean lines and coloring, original characters",
-               score=85),   # 2026-10-24: 新規とラフから（棒人間・線画）の 3 枚で、崩れなく描け、ラフの形に沿った
-    ImageModel("OnomaAIResearch/Illustrious-xl-early-release-v0", "Illustrious XL", "アニメ絵。知っているキャラクターや服の種類が多い",
-               "1 枚 約 5〜12 分", 6.9, 28, 6.0,
-               en="anime illustration, knows many existing characters, costumes and outfits"),
-    ImageModel("Lykon/dreamshaper-xl-lightning", "DreamShaper XL Lightning", "速い。写実寄りからイラストまで幅広い",
-               "1 枚 約 1〜3 分", 6.9, 6, 2.0, variant="fp16", files=HALF,
-               en="fast; realistic, photo, semi-realistic, scenery, general illustration"),
-)
+def _load_images() -> tuple[ImageModel, ...]:
+    """絵の模型の一覧（catalog.json）。点（score）は確かめた結果で、0 は確かめていない物"""
+    import json
+    items = json.loads((Path(__file__).with_name("catalog.json")).read_text(encoding="utf-8"))
+    return tuple(ImageModel(m["repo"], m["name"], m["good"], "", m["gb"], m["steps"], m["guidance"],
+                            variant="fp16" if m["format"] == "half" else None, files=FILES[m["format"]],
+                            en=m["en"], score=m["score"], family=m["family"], prefix=m.get("prefix", ""))
+                 for m in items)
+
+
+IMAGES = _load_images()
 
 # 2026-10-24 に、日本語の頼み 5 件を描く言葉に直させて比べた。Qwen3.5 2B は 5 件とも細部（目の色、マント、手を振る）まで
 # 正しく、Qwen2.5 1.5B は 3 件で取り違えた（緑の目、訳さずに日本語のまま）。速さは同じ（1 件 約 2.5 秒、CPU）

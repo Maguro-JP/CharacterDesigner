@@ -29,11 +29,13 @@ def choose_image(text: str, prompt: str, words=None, have: list[ImageModel] | No
     if len(have) == 1:
         return have[0], "手元にある模型"
     low = f"{text} {prompt}".lower()
-    by = {m.repo: m for m in have}
-    if any(w in low for w in REAL) and "Lykon/dreamshaper-xl-lightning" in by:
-        return by["Lykon/dreamshaper-xl-lightning"], "写実の頼み"
-    if any(w in low for w in KNOWN) and "OnomaAIResearch/Illustrious-xl-early-release-v0" in by:
-        return by["OnomaAIResearch/Illustrious-xl-early-release-v0"], "衣装や既存の題材の頼み"
+    def best(kind: str):
+        cands = [m for m in have if kind in m.en]
+        return max(cands, key=lambda m: m.score) if cands else None
+    if any(w in low for w in REAL) and (m := best("realistic")):
+        return m, "写実の頼み"
+    if any(w in low for w in KNOWN) and (m := best("outfits")):
+        return m, "衣装や既存の題材の頼み"
     if words is not None and getattr(words, "ready", lambda: False)():
         options = "\n".join(f"{i}. {m.en}" for i, m in enumerate(have, 1))
         default = max(range(1, len(have) + 1), key=lambda i: have[i - 1].score)
