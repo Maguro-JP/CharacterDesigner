@@ -173,6 +173,7 @@ QToolButton#aiPreset:checked {{ color: {on}; border: none;
     background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {a1}, stop:0.6 {a2}, stop:1 {a3}); }}
 QPushButton#suggest {{ padding: 3px 10px; border-radius: 9px; background: transparent; border: 1px dashed {line2}; color: {muted}; font-size: 11px; }}
 QPushButton#suggest:hover {{ border: 1px solid {a1}; color: {strong}; }}
+QLineEdit#noteEdit {{ background: #ff2d2d; color: #ffffff; border: 2px solid #ffffff; border-radius: 8px; font-weight: 700; }}
 QToolTip {{ background: {button}; color: {strong}; border: 1px solid {line2}; border-radius: 6px; padding: 4px 8px; }}
 """
 

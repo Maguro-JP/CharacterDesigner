@@ -123,6 +123,17 @@ class AiPanel(QWidget):
         row.addWidget(self.again)
         row.addWidget(self.save_button)
         lay.addLayout(row)
+        lay.addWidget(self._head("加工", "出来た絵から作ります。元の絵は残し、新しいレイヤーに重ねます"))
+        fx = QHBoxLayout()
+        self.chibi_button = QPushButton("ちびキャラに")
+        self.chibi_button.setToolTip("頭の大きなデフォルメに、AI が描き直します")
+        self.chibi_button.clicked.connect(w.make_chibi)
+        self.pixel_button = QPushButton("ドット絵に")
+        self.pixel_button.setToolTip("長い辺 128 ドット・24 色のドット絵にします")
+        self.pixel_button.clicked.connect(lambda: w.make_pixel())
+        fx.addWidget(self.chibi_button)
+        fx.addWidget(self.pixel_button)
+        lay.addLayout(fx)
         self.upscale_button = QPushButton("絵を 2 倍に拡大")
         self.upscale_button.setToolTip("線と塗りを保ったまま、今の絵を 2 倍の大きさにします")
         self.upscale_button.clicked.connect(w.upscale_canvas)
@@ -254,8 +265,10 @@ class AiPanel(QWidget):
             name, ok = QInputDialog.getText(self, "AI プリセットを保存", "名前")
             if not ok or not name.strip():
                 return
-        name = name.strip()
-        self.w.layout_store.setValue(f"ai_presets/{name}", json.dumps(self.current(), ensure_ascii=False))
+        self.save_preset(name.strip(), self.current())
+
+    def save_preset(self, name: str, data: dict):
+        self.w.layout_store.setValue(f"ai_presets/{name}", json.dumps(data, ensure_ascii=False))
         self.preset = name
         self.fill_presets()
         self.w.notify("AI プリセットを保存しました", "ok", f"「{name}」は AI の欄にいつでも出ます")
@@ -274,8 +287,15 @@ class AiPanel(QWidget):
 
     def style_tags(self) -> str:
         """描く言葉に足すタグ。作風と、プリセットの決まった言葉"""
-        tags = [STYLE_TAGS.get(self.style, ""), PROMPT_SUFFIX.get(self.preset, "")]
+        tags = [STYLE_TAGS.get(self.style, ""), PROMPT_SUFFIX.get(self.preset, ""), ", ".join(self.taste()["tags"])]
         return ", ".join(t for t in tags if t)
+
+    def taste(self) -> dict:
+        """ライブラリーから読み取った好み。「好みを描く言葉に足す」を外していれば空"""
+        lib = getattr(self.w, "library", None)
+        if lib is None or not int(self.w.layout_store.value("use_taste", 1)):
+            return {"tags": [], "avoid": []}
+        return lib.profile()
 
     def sync(self, *_):
         for i, b in enumerate(self.mode_buttons[1]):

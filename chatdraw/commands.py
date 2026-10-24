@@ -137,7 +137,8 @@ COMMANDS: list[Command] = [
     # キャンバス・ファイル
     Command("new_canvas", "新しいキャンバスにしました", "make a new canvas; arg is 'width height' if given", _canvas_size,
             ("新しいキャンバス", "新規")),
-    Command("save", "保存の窓を開きました", "save the picture", lambda w, a: w.save_as(), ("保存",)),
+    Command("save", "保存します", "save the work file (layers and red pen marks)", lambda w, a: w.save_project(), ("保存",)),
+    Command("export_png", "PNG で書き出します", "export the picture as one PNG", lambda w, a: w.save_as(), ("PNG",)),
     Command("open", "開く窓を開きました", "open a picture", lambda w, a: w.open_image(), ("開いて", "ファイルを開")),
     # AI
     Command("mode_new", "新規で描くようにしました", "next drawing starts from a blank canvas", _mode(0), ("新規で描",)),
@@ -195,6 +196,25 @@ def _extend():
                             lambda w, a: w.ai_panel.seed_lock.setChecked(False), ("種の固定を外", "種を外")))
     COMMANDS.append(Command("use_reference", "参考画像に寄せて描きます", "use the reference image when drawing",
                             lambda w, a: w.ai_panel.use_ref.setChecked(True), ("参考画像に寄せ", "参考画像を使")))
+    COMMANDS.append(Command("export_psd", "PSD で書き出します", "export layers as PSD", lambda w, a: w.export_psd(), ("PSD",)))
+    COMMANDS.append(Command("chibi", "ちびキャラに描き直します", "redraw the picture as a chibi (super deformed)",
+                            lambda w, a: w.make_chibi(), ("ちびキャラに", "デフォルメに")))
+    COMMANDS.append(Command("pixel", "ドット絵にしました", "turn the picture into pixel art",
+                            lambda w, a: w.make_pixel(), ("ドット絵に",)))
+    COMMANDS.append(Command("show_library", "ライブラリーを出しました", "show the library panel (works, documents, taste)",
+                            _panel("library"), ("ライブラリー", "好みを見")))
+
+    def rate_last(rating):
+        def run(w, _a):
+            works = w.library.works()
+            if works:
+                w.library_panel.rate(works[0]["id"], rating)
+        return run
+    COMMANDS.append(Command("like", "好きな絵として覚えました", "mark the last picture as liked", rate_last(1), ("この絵が好き", "これ好き", "気に入った")))
+    COMMANDS.append(Command("dislike", "いまいちな絵として覚えました", "mark the last picture as disliked", rate_last(-1),
+                            ("いまいち", "好きじゃない")))
+    COMMANDS.append(Command("check_update", "更新を確かめます", "check for a new version of the app",
+                            lambda w, a: w.check_update(manual=True), ("更新を確", "アップデート")))
     COMMANDS.append(Command("edit_theme", "テーマを作る窓を開きます", "open the theme editor to change colors, pattern and effects",
                             lambda w, a: w.edit_theme(), ("テーマを作", "色を変えたい", "テーマを編集")))
     COMMANDS.append(Command("draw_again", "もう一度描きます", "draw the last request again with a new seed",
@@ -213,14 +233,15 @@ ASK = ("You control a drawing app. If the user asks to operate the app, reply wi
 
 def by_words(text: str) -> tuple[Command | None, str]:
     """言葉の決まりで選ぶ。色・数は頼みの中から拾う"""
-    for c in COMMANDS:
-        if any(w in text for w in c.words):
-            arg = text
-            if c.name == "color":
-                arg = next((k for k in COLOR_WORDS if k in text), "")
-                m = re.search(r"#[0-9a-fA-F]{6}", text)
-                arg = m.group() if m else arg
-            return c, arg
+    hits = [(max(len(w) for w in c.words if w in text), i, c) for i, c in enumerate(COMMANDS) if any(w in text for w in c.words)]
+    if hits:
+        c = max(hits, key=lambda h: (h[0], -h[1]))[2]   # いちばん長く合った言葉の操作（「設定を保存」を「保存」と取り違えない）
+        arg = text
+        if c.name == "color":
+            arg = next((k for k in COLOR_WORDS if k in text), "")
+            m = re.search(r"#[0-9a-fA-F]{6}", text)
+            arg = m.group() if m else arg
+        return c, arg
     return None, ""
 
 

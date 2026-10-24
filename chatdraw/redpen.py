@@ -24,6 +24,7 @@ class RedPen(QGraphicsItem):
     def __init__(self):
         super().__init__()
         self.marks: list[list[QPointF]] = []
+        self.texts: list[str] = []   # 印ごとに絵の上へ直接書いた指示（空ならチャットの文を使う）
         self.drawing: list[QPointF] | None = None
         self.size = (0, 0)
         self.setZValue(1e9 - 2)
@@ -40,6 +41,7 @@ class RedPen(QGraphicsItem):
     def begin(self, pos: QPointF):
         self.drawing = [QPointF(pos)]
         self.marks.append(self.drawing)
+        self.texts.append("")
         self.update()
 
     def add(self, pos: QPointF):
@@ -54,10 +56,12 @@ class RedPen(QGraphicsItem):
     def undo(self):
         if self.marks:
             self.marks.pop()
+            self.texts.pop()
             self.update()
 
     def clear(self):
         self.marks.clear()
+        self.texts.clear()
         self.drawing = None
         self.update()
 
@@ -84,6 +88,24 @@ class RedPen(QGraphicsItem):
             p.drawEllipse(c, r, r)
             p.setPen(QColor("white"))
             p.drawText(QRectF(c.x() - r, c.y() - r, 2 * r, 2 * r), Qt.AlignCenter, str(n))
+            note = self.texts[n - 1] if n - 1 < len(self.texts) else ""
+            if note:   # 絵の上に書いた指示を、番号の横に赤い札で見せる
+                fm = p.fontMetrics()
+                box = QRectF(c.x() + r * 1.3, c.y() - r, fm.horizontalAdvance(note) + 12 / scale, 2 * r)
+                p.setPen(Qt.NoPen)
+                p.setBrush(QColor(255, 45, 45, 225))
+                p.drawRoundedRect(box, 6 / scale, 6 / scale)
+                p.setPen(QColor("white"))
+                p.drawText(box, Qt.AlignCenter, note)
+
+    def number_at(self, pos: QPointF, scale: float = 1.0) -> int:
+        """pos にある番号の丸（1 から）。無ければ 0。丸をダブルクリックすると指示を書き直せる"""
+        r = 13 / max(0.05, scale)
+        for n, pts in enumerate(self.marks, 1):
+            c = pts[0] + QPointF(-r, -r)
+            if (pos - c).manhattanLength() <= r * 1.6:
+                return n
+        return 0
 
     # ---- AI に渡す ----
     def masks(self) -> list[QImage]:
@@ -121,6 +143,12 @@ def _closed(pts: list[QPointF]) -> bool:
     xs, ys = [p.x() for p in pts], [p.y() for p in pts]
     span = max(max(xs) - min(xs), max(ys) - min(ys))
     return (pts[0] - pts[-1]).manhattanLength() <= max(30.0, span * 0.3)
+
+
+def merge(texts: list[str], text: str) -> list[str]:
+    """絵の上に書いた指示を先に使い、書いていない印はチャットの文（番号ごとの指示か、全体の指示）を使う"""
+    chat = notes(text, len(texts)) if text else [""] * len(texts)
+    return [t.strip() or c for t, c in zip(texts, chat)]
 
 
 def notes(text: str, count: int) -> list[str]:

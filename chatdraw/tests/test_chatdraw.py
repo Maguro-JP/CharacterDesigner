@@ -1133,3 +1133,138 @@ class FixAndBatchTest(unittest.TestCase):
         self.w.upscale_canvas()
         wait_idle(self.app, self.w)
         self.assertEqual(self.w.canvas.size_px(), (400, 320))
+
+
+class SystemTest(unittest.TestCase):
+    """絵の上の指示・作業ファイル・PSD・自動保存・更新・加工・ライブラリーと好み"""
+    def setUp(self):
+        from tempfile import mkdtemp, mktemp
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Window
+        self.app = QApplication.instance() or QApplication([])
+        self.dir = Path(mkdtemp())
+        self.painter = FakePainter()
+        self.w = Window(Studio(FakeWords(), self.painter, self.dir))
+        self.w.layout_store = QSettings(mktemp(suffix=".ini"), QSettings.IniFormat)
+        self.w.layout_store.setValue("feature_tours", 0)
+        self.w.canvas.new_canvas(200, 160)
+
+    def mark(self, x, y, note=""):
+        from PySide6.QtCore import QPointF
+        pen = self.w.canvas.redpen
+        pen.begin(QPointF(x, y))
+        for dx, dy in ((30, 0), (30, 30), (0, 30), (0, 2)):
+            pen.add(QPointF(x + dx, y + dy))
+        pen.end()
+        pen.texts[-1] = note
+
+    def test_notes_written_on_picture_need_no_chat(self):
+        from chatdraw.redpen import merge
+        self.assertEqual(merge(["笑顔に", ""], "2: 帽子を青に"), ["笑顔に", "帽子を青に"])
+        self.mark(20, 20, "笑顔に")
+        self.mark(120, 80, "帽子を青に")
+        self.w.mode.setCurrentIndex(2)
+        self.w.entry.clear()
+        self.w.send()                                                 # チャットが空でも、絵の上の指示で直す
+        wait_idle(self.app, self.w)
+        self.assertEqual(len([c for c in self.painter.calls if c[0] == "redraw"]), 2)
+
+    def test_note_editor_on_canvas(self):
+        self.mark(20, 20)
+        self.w.edit_note(1)
+        self.assertFalse(self.w.note_edit.isHidden())
+        self.w.note_edit.setText("目を大きく")
+        self.w._note_done()
+        self.assertEqual(self.w.canvas.redpen.texts, ["目を大きく"])
+
+    def test_project_roundtrip_psd_and_autosave(self):
+        import struct
+        from PySide6.QtGui import QColor, QPainter
+        from chatdraw import project
+        p = QPainter(self.w.canvas.layers[1].image)
+        p.fillRect(10, 10, 20, 20, QColor("red"))
+        p.end()
+        self.w.canvas.layers[1].name = "赤"
+        self.mark(50, 50, "直す")
+        path = self.dir / "a.cdproj"
+        project.save(self.w.canvas, path)
+        self.w.canvas.new_canvas(50, 50)
+        self.w.open_path(str(path))
+        self.assertEqual(self.w.canvas.size_px(), (200, 160))
+        self.assertEqual(self.w.canvas.layers[1].name, "赤")
+        self.assertEqual(self.w.canvas.layers[1].image.pixelColor(15, 15).name(), "#ff0000")
+        self.assertEqual(self.w.canvas.redpen.texts, ["直す"])
+        psd = self.dir / "a.psd"
+        project.export_psd(self.w.canvas, psd)
+        head = psd.read_bytes()[:26]
+        self.assertEqual(head[:4], b"8BPS")
+        self.assertEqual(struct.unpack(">II", head[14:22]), (160, 200))
+        try:
+            from psd_tools import PSDImage
+        except ImportError:
+            PSDImage = None
+        if PSDImage:
+            layers = list(PSDImage.open(psd))
+            self.assertEqual([l.name for l in layers], ["背景", "赤"])
+            self.assertEqual(layers[1].topil().getpixel((15, 15))[:3], (255, 0, 0))
+        from unittest import mock
+        auto = self.dir / "auto" / "autosave.cdproj"
+        with mock.patch("chatdraw.project.autosave_path", return_value=auto):
+            self.w.dirty = True
+            self.w.autosave()
+            self.assertTrue(auto.exists())
+            self.w.layout_store.setValue("running", 0)
+            self.assertFalse(self.w.offer_restore())                   # 正しく閉じていれば聞かない
+
+    def test_update_check(self):
+        import json as _json
+        from chatdraw import updater
+        self.assertTrue(updater.newer("v0.2.0", "0.1.9"))
+        self.assertFalse(updater.newer("0.1.0", "0.1.0"))
+        feed = self.dir / "latest.json"
+        feed.write_text(_json.dumps({"tag_name": "v99.0.0", "html_url": "x",
+                                     "assets": [{"name": "CharacterDesigner-Setup.exe", "browser_download_url": "https://e/s.exe"}]}))
+        info = updater.check(feed.as_uri())
+        self.assertEqual((info["version"], info["setup"]), ("99.0.0", "https://e/s.exe"))
+        feed.write_text(_json.dumps({"tag_name": "v0.0.1"}))
+        self.assertIsNone(updater.check(feed.as_uri()))
+        self.assertIsNone(updater.check("http://127.0.0.1:9/none"))     # 確かめられないときは黙る
+
+    def test_pixel_and_chibi(self):
+        n = len(self.w.canvas.layers)
+        self.w.make_pixel(long=32, colors=8)
+        self.assertEqual(self.w.canvas.layers[-1].name if self.w.canvas.current == len(self.w.canvas.layers) - 1
+                         else self.w.canvas.layers[self.w.canvas.current].name, "ドット絵")
+        self.assertEqual(len(self.w.canvas.layers), n + 1)
+        self.w.make_chibi()
+        wait_idle(self.app, self.w)
+        self.assertEqual([c[0] for c in self.painter.calls], ["redraw"])
+        self.assertIn("ちびキャラ", [l.name for l in self.w.canvas.layers])
+
+    def test_library_learns_taste(self):
+        from chatdraw.library import DISLIKE, LIKE
+        lib = self.w.library
+        for prompt, rating in (("red hair, watercolor", LIKE), ("red hair, armor", LIKE), ("dark, horror", DISLIKE),
+                               ("dark, gore", DISLIKE), ("red hair", 0)):
+            item = lib.add_work(str(self.dir / "x.png"), {"prompt": prompt, "style_name": "水彩"})
+            lib.rate(item["id"], rating)
+        p = lib.profile()
+        self.assertEqual(p["tags"], ["red hair"])                      # 好きに 2 回以上出た言葉
+        self.assertEqual(p["avoid"], ["dark"])                         # いまいちに 2 回以上、好きに無い言葉
+        self.assertEqual(p["style"], "水彩")
+        self.assertIn("red hair", self.w.ai_panel.style_tags())        # 描く言葉に足す
+        self.w.layout_store.setValue("use_taste", 0)
+        self.assertNotIn("red hair", self.w.ai_panel.style_tags())     # 外せる
+        self.w.layout_store.setValue("use_taste", 1)
+        self.w.entry.setText("雪の城の前の騎士")
+        self.w.send()
+        wait_idle(self.app, self.w)
+        self.assertEqual(self.painter.avoid, "dark")                   # 避ける言葉は描かない物に足す
+        self.assertEqual(lib.works()[0]["text"], "雪の城の前の騎士")    # 描いた絵は作品に入る
+        from PIL import Image
+        doc = self.dir / "doc.png"
+        Image.new("RGB", (8, 8), "red").save(doc)
+        self.w.library_panel.add_doc(str(doc), "この塗りが好き")
+        self.assertEqual(lib.docs()[0]["note"], "この塗りが好き")
+        self.assertTrue(Path(lib.docs()[0]["path"]).exists())          # 写しを取る

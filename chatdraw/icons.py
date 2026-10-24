@@ -266,6 +266,15 @@ def _path(key: str) -> QPainterPath:
         p.lineTo(20, 12)
         p.moveTo(20, 4)
         p.lineTo(13, 11)
+    elif key == "library":
+        # 並んだ本
+        p.addRect(QRectF(4, 5, 4, 15))
+        p.addRect(QRectF(9, 5, 4, 15))
+        p.moveTo(15, 6)
+        p.lineTo(18.5, 5)
+        p.lineTo(22, 19)
+        p.lineTo(18.5, 20)
+        p.closeSubpath()
     elif key == "ai":
         # 4 つの角の光（AI が描く）
         for cx, cy, r in ((10, 12, 7), (18.5, 5.5, 3)):
@@ -325,4 +334,4 @@ def icon(key: str, color: str | None = None, active: str | None = None, size: in
     return QIcon(_Engine(key, color, active))
 
 
-KEYS = ("chat", "progress", "view", "layout", "new", "open", "save", "undo", "redo", "fit", "rotate", "rough", "models", "settings", "palette", "brush", "history", "layers", "help", "move", "select", "pen", "eraser", "blur", "fill", "gradient", "line", "rect", "ellipse", "eyedropper", "hand", "zoom", "redpen", "upscale", "ai")
+KEYS = ("chat", "progress", "view", "layout", "new", "open", "save", "undo", "redo", "fit", "rotate", "rough", "models", "settings", "palette", "brush", "history", "layers", "help", "move", "select", "pen", "eraser", "blur", "fill", "gradient", "line", "rect", "ellipse", "eyedropper", "hand", "zoom", "redpen", "upscale", "library", "ai")

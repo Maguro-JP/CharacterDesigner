@@ -176,6 +176,7 @@ class Painter:
         self._sketch = None
         self._inpaint = None
         self._ref = False   # 参考画像の部品を読んでいるか
+        self.avoid = ""     # 利用者の好みから読み取った、避ける言葉（描かない物に足す）
         self.stop = False
 
     def ready(self) -> bool:
@@ -271,7 +272,7 @@ class Painter:
         from chatdraw.models import image_model
         info = image_model(self.model)
         size = native_size(size or self.size, info.family)
-        args = dict(prompt=f"{info.prefix}{prompt}, masterpiece, best quality", negative_prompt="lowres, worst quality, low quality",
+        args = dict(prompt=f"{info.prefix}{prompt}, masterpiece, best quality", negative_prompt="lowres, worst quality, low quality" + (f", {self.avoid}" if self.avoid else ""),
                     num_inference_steps=steps, guidance_scale=self.guidance,
                     generator=torch.Generator(pipe.device).manual_seed(seed), callback_on_step_end=step)
         if base is not None:
@@ -327,7 +328,7 @@ class Painter:
         box = crop_box(mask, image.size)
         crop, crop_mask = image.crop(box).convert("RGB"), mask.crop(box)
         w, h = work_size(crop.size, info.family)
-        args = dict(prompt=f"{info.prefix}{prompt}, masterpiece, best quality", negative_prompt="lowres, worst quality, low quality",
+        args = dict(prompt=f"{info.prefix}{prompt}, masterpiece, best quality", negative_prompt="lowres, worst quality, low quality" + (f", {self.avoid}" if self.avoid else ""),
                     num_inference_steps=self.steps, guidance_scale=self.guidance, strength=strength,
                     generator=torch.Generator(pipe.device).manual_seed(seed))
         total = max(1, int(self.steps * strength))

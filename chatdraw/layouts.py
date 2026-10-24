@@ -98,6 +98,7 @@ def recommended(w):
     _column(w, L, ["color", "layers"], [5, 5])
     _hide(w, ["brushes"])
     _column(w, R, ["view", "chat", "history"], [3, 3, 4])
+    _tabs(w, ["history", "library"])
     w.addDockWidget(T, w.panels["progress"][0])
     w.addDockWidget(B, w.panels["talk"][0])
     for k in ("progress", "talk"):
@@ -114,7 +115,7 @@ def creator(w):
     bars(w, ribbon=True, tools=None, bottom=True)
     _column(w, L, ["color", "brushes", "layers"], [4, 3, 3])
     _column(w, R, ["view", "history"], [5, 5])
-    _tabs(w, ["history", "chat"])
+    _tabs(w, ["history", "chat", "library"])
     w.panels["history"][0].raise_()
     w.addDockWidget(T, w.panels["progress"][0])
     w.addDockWidget(B, w.panels["talk"][0])
@@ -130,6 +131,7 @@ def ai_focus(w):
     bars(w, ribbon=False, tools=("redpen", "select", "hand"), options=False)   # 手で描く道具は出さず、AI に直す所を示す道具だけ
     _column(w, L, ["chat"])
     _column(w, R, ["view", "history"], [3, 7])
+    _tabs(w, ["history", "library"])
     w.addDockWidget(T, w.panels["progress"][0])
     w.addDockWidget(B, w.panels["talk"][0])
     for k in ("progress", "talk"):
@@ -147,7 +149,7 @@ def simple(w):
     _column(w, L, ["color"])
     w.addDockWidget(B, w.panels["talk"][0])
     w.panels["talk"][0].show()
-    _hide(w, ["brushes", "layers", "history", "view", "chat", "progress"])
+    _hide(w, ["brushes", "layers", "history", "view", "chat", "progress", "library"])
     _widths(w, ["color"], [], 260)
     w.resizeDocks([w.panels["talk"][0]], [160], Qt.Vertical)
 
@@ -165,7 +167,7 @@ def drawing_focus(w):
     bars(w, ribbon=False, tools=None)
     _column(w, L, ["color", "brushes", "layers"], [4, 3, 3])
     _column(w, R, ["view"])
-    _hide(w, ["chat", "history", "progress", "talk"])
+    _hide(w, ["chat", "history", "progress", "talk", "library"])
     _widths(w, ["color"], ["view"], 280)
 
 

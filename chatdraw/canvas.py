@@ -66,10 +66,11 @@ class Canvas(QGraphicsView):
     color_picked = Signal(QColor)
     zoomed = Signal(float)
     brush_changed = Signal(int)
-    history_changed = Signal()
-    moved = Signal(int, int)    # カーソルのキャンバス上の位置（下の帯の座標に出す）  # 元に戻すの積み重ねが変わった（操作の履歴の欄を描き直す）
-    used_color = Signal()
-    marked = Signal()           # 赤ペンで印を付けた（AI の欄を「直す」にする）       # 描く色で描き始めた（最近使った色に足す）
+    history_changed = Signal()  # 元に戻すの積み重ねが変わった（操作の履歴の欄を描き直す）
+    moved = Signal(int, int)    # カーソルのキャンバス上の位置（下の帯の座標に出す）
+    used_color = Signal()       # 描く色で描き始めた（最近使った色に足す）
+    marked = Signal()           # 赤ペンで印を付けた（AI の欄を「直す」にする）
+    note_wanted = Signal(int)   # 赤ペンの印に、絵の上で指示を書く（印の番号、1 から）
 
     def drawBackground(self, painter, rect):
         """絵の周りはテーマの模様。画面に貼り付けて描く（拡大や移動で模様が流れない）"""
@@ -682,6 +683,15 @@ class Canvas(QGraphicsView):
         self.setFocus()   # 絵の上に来たらキー（Space、Alt、[ ]）を受ける
         super().enterEvent(e)
 
+    def mouseDoubleClickEvent(self, e):
+        """赤ペンの番号の丸をダブルクリックすると、その印の指示を書き直す"""
+        n = self.redpen.number_at(self.mapToScene(e.position().toPoint()), self.zoom())
+        if n:
+            self.redpen.drawing = None
+            self.note_wanted.emit(n)
+            return
+        super().mouseDoubleClickEvent(e)
+
     def mouseMoveEvent(self, e):
         pos = self.mapToScene(e.position().toPoint())
         self._ring(pos)
@@ -702,7 +712,12 @@ class Canvas(QGraphicsView):
 
     def mouseReleaseEvent(self, e):
         if self.redpen.drawing is not None:
+            short = len(self.redpen.drawing) < 3
             self.redpen.end()
+            if short:
+                self.redpen.undo()   # 押しただけ（ダブルクリックの 1 回目など）は印にしない
+            else:
+                self.note_wanted.emit(len(self.redpen.marks))   # 囲んだらすぐ、その横に指示を書ける
             return
         if self.drag_start is not None:
             self.end_drag(self.drag_start, self.mapToScene(e.position().toPoint()))
@@ -727,6 +742,7 @@ class Canvas(QGraphicsView):
             self.redpen.add(pos)
         elif t == e.Type.TabletRelease and self.redpen.drawing is not None:
             self.redpen.end()
+            self.note_wanted.emit(len(self.redpen.marks))
         elif t == e.Type.TabletMove and self.drag_start is not None:
             self.drag(self.drag_start, pos)
         elif t == e.Type.TabletRelease and self.drag_start is not None:
