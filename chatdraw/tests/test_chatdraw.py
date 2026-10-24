@@ -1468,6 +1468,25 @@ class UsableTest(unittest.TestCase):
         self.assertFalse(d2._check())
         store.clear()
 
+    def test_progress_moves_stays_and_tells(self):
+        a = self.w.activity
+        seen = []
+        a.changed.connect(lambda t, p: seen.append(p))
+        a.begin("テスト", "新規")
+        v0 = a.bar.value()
+        self.spin(0.3)
+        self.assertNotEqual(a.bar.value(), v0)              # 工程の数が分かる前でも帯が動く
+        self.assertIn("CharacterDesigner", self.w.windowTitle())
+        a.status("描いています 3/10", 3, 10)
+        self.assertIn("30%", self.w.windowTitle())
+        a.end("描きました", None, record=False)
+        self.w.hide_progress_if_idle(0)
+        self.spin(0.3)
+        self.assertTrue(self.w.panels["progress"][0].isVisible())   # 終わっても消えない
+        self.assertEqual(self.w.windowTitle(), "CharacterDesigner")
+        self.assertEqual(seen[0], -1)
+        self.assertEqual(seen[-1], -2)
+
     def test_cursor_styles(self):
         from PySide6.QtCore import Qt as Q
         from chatdraw.canvas import CURSOR_STYLES

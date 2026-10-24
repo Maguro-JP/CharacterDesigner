@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import time
 
-from PySide6.QtCore import QSize, Qt, QTimer
+from PySide6.QtCore import QSize, Qt, QTimer, Signal
 from PySide6.QtGui import QIcon, QPixmap
 from PySide6.QtWidgets import (QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QProgressBar, QTabWidget, QVBoxLayout,
                                QWidget)
@@ -22,6 +22,9 @@ def fmt(sec: float) -> str:
 
 
 class ActivityPanel(QWidget):
+    # 進みが変わったとき（文、割合）。割合は 0〜100、どこまで進んだか分からない間は -1、待ちに戻ったら -2
+    changed = Signal(str, int)
+
     def __init__(self):
         super().__init__()
         self.state = QLabel("待機中")
@@ -29,7 +32,7 @@ class ActivityPanel(QWidget):
         self.detail = QLabel("頼みを書いて「AI で描く」を押してください")
         self.detail.setObjectName("stateDetail")
         self.detail.setWordWrap(True)
-        self.detail.setVisible(False)   # 詳しい言葉はカーソルを重ねたときだけ出す
+        self.detail.setVisible(True)   # 今している事を常に出す。隠すと、帯が止まって見えたときに何をしているか分からなかった
         self.steps = QHBoxLayout()
         self.steps.setSpacing(4)
         self.step_labels = []
@@ -43,7 +46,7 @@ class ActivityPanel(QWidget):
             self.steps.addWidget(lb)
         self.bar = QProgressBar()
         self.bar.setTextVisible(False)
-        self.bar.setFixedHeight(6)
+        self.bar.setFixedHeight(10)
         self.time = QLabel("")
         self.time.setObjectName("stateDetail")
         self.list = QListWidget()
@@ -85,7 +88,23 @@ class ActivityPanel(QWidget):
         self.tick = QTimer(self)
         self.tick.setInterval(1000)
         self.tick.timeout.connect(self._show_time)
+        # 工程の数が分かるまでの動き。Qt の「動く帯」（範囲 0〜0）はテーマの色を当てると止まって見えたので、自分で往復させる
+        self.pulse = QTimer(self)
+        self.pulse.setInterval(60)
+        self.pulse.timeout.connect(self._pulse)
+        self._pulse_at = 0
         self._mark(-1)
+
+    def _busy(self, on: bool):
+        if on:
+            self.bar.setRange(0, 100)
+            self.pulse.start()
+        else:
+            self.pulse.stop()
+
+    def _pulse(self):
+        self._pulse_at = (self._pulse_at + 3) % 200
+        self.bar.setValue(self._pulse_at if self._pulse_at <= 100 else 200 - self._pulse_at)
 
     def _mark(self, stage: int):
         self.stage = stage
@@ -100,10 +119,11 @@ class ActivityPanel(QWidget):
         self.text, self.mode = text, mode
         self.state.setText("準備中")
         self.progress_view.setToolTip(f"{mode}\n{text}")
-        self.bar.setRange(0, 0)   # 工程の数が分かるまでは動く帯にする
+        self._busy(True)   # 工程の数が分かるまでは往復する帯にする
         self._mark(0)
         self.tick.start()
         self._show_time()
+        self.changed.emit(f"{mode}: 準備中", -1)
 
     def status(self, msg: str, step: int | None = None, total: int | None = None):
         for i, (_short, head) in enumerate(STAGES):
@@ -111,10 +131,13 @@ class ActivityPanel(QWidget):
                 self._mark(i)
                 self.step_started = time.time()
         if step is not None and total:
+            self._busy(False)
             self.bar.setRange(0, total)
             self.bar.setValue(step)
             self.steps_done, self.steps_total = step, total
         self.state.setText(STAGE_TITLE.get(self.stage, "準備中") + (f"  {step}/{total}" if step is not None and total else ""))
+        self.detail.setText(msg)   # 今している事を文でも出す（帯だけでは止まって見える）
+        self.changed.emit(f"{self.mode}: {self.state.text()}", int(step * 100 / total) if step is not None and total else -1)
         self.progress_view.setToolTip(f"{msg}\n{self.mode}\n{self.text}")
         self._show_time()
 
@@ -153,6 +176,7 @@ class ActivityPanel(QWidget):
             item.setToolTip(f"{stamp}　{result}　{took}\n{self.mode}\n{self.text}")
             self.list.insertItem(0, item)
         self.tick.stop()
+        self._busy(False)
         self.started = None
         self.steps_done = 0
         self.bar.setRange(0, 1)
@@ -161,6 +185,8 @@ class ActivityPanel(QWidget):
         self.state.setText("待機中")
         self.progress_view.setToolTip(f"前の 1 枚: {result}（{took}）")
         self.time.setText("")
+        self.detail.setText(f"前の 1 枚: {result}（{took}）")
+        self.changed.emit(result, -2)
         return item
 
 
