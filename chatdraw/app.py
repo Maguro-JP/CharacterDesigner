@@ -13,6 +13,15 @@ for lib in (ROOT / ".cache" / "simple" / "lib", ROOT / ".cache" / "gen" / "lib",
     if lib.exists() and str(lib) not in sys.path:
         sys.path.insert(0, str(lib))
 
+try:
+    import PySide6  # noqa: F401
+except ImportError:
+    # 初めての起動だけ、ウィンドウの部品（PySide6）を入れる
+    import subprocess
+    lib = ROOT / ".cache" / "simple" / "lib"
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--target", str(lib), "PySide6-Essentials"], check=True)
+    sys.path.insert(0, str(lib))
+
 from PySide6.QtCore import QObject, Qt, QThread, Signal  # noqa: E402
 from PySide6.QtGui import QPixmap  # noqa: E402
 from PySide6.QtWidgets import (QApplication, QHBoxLayout, QLabel, QLineEdit, QMainWindow, QPushButton,  # noqa: E402
