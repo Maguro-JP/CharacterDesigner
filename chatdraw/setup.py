@@ -13,7 +13,7 @@ from pathlib import Path
 from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import QCheckBox, QDialog, QLabel, QProgressBar, QPushButton, QVBoxLayout
 
-from chatdraw.engine import HOME, IMAGE_MODEL, MODEL_FILES, Painter, Words
+from chatdraw.engine import HOME, IMAGE_MODEL, MODEL_FILES, SKETCH_ADAPTER, SKETCH_FILES, Painter, Words
 
 LLM_URL = "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct-GGUF/resolve/main/qwen2.5-1.5b-instruct-q4_k_m.gguf"
 IMAGE_GB, LLM_GB = 7.0, 1.1
@@ -22,7 +22,8 @@ IMAGE_GB, LLM_GB = 7.0, 1.1
 def missing() -> dict:
     """足りない物。絵の模型と言葉の模型（部品と本体）"""
     llm_lib = (HOME / "llm" / "lib" / "llama_cpp").exists()
-    return {"image": not Painter().ready(), "words": not (Words().ready() and llm_lib)}
+    p = Painter()
+    return {"image": not (p.ready() and p.sketch_ready()), "words": not (Words().ready() and llm_lib)}
 
 
 def folder_gb(d: Path) -> float:
@@ -55,6 +56,7 @@ class Fetcher(QObject):
         threading.Thread(target=watch, daemon=True).start()
         try:
             snapshot_download(IMAGE_MODEL, cache_dir=str(hub), **MODEL_FILES)
+            snapshot_download(SKETCH_ADAPTER, cache_dir=str(hub), **SKETCH_FILES)   # ラフから描く部品（約 0.15GB）
         finally:
             done.set()
 

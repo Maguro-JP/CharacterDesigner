@@ -14,6 +14,9 @@ WORDS_MODEL = HOME / "llm" / "model.gguf"
 # 絵の模型のうち、描くのに使う物だけ（1 枚にまとめた重みや fp16 の写しは取らない。約 7GB で済む）
 MODEL_FILES = dict(allow_patterns=["*.json", "*.txt", "unet/*.safetensors", "vae/*.safetensors", "text_encoder*/*.safetensors"],
                    ignore_patterns=["*.fp16.*", "*.bin"])
+# ラフ（線の下描き）の形に沿って描かせる部品。元の絵を描き直す img2img では、ラフの線がそのまま残って絵にならなかった
+SKETCH_ADAPTER = "TencentARC/t2i-adapter-sketch-sdxl-1.0"
+SKETCH_FILES = dict(allow_patterns=["*.json", "*.fp16.safetensors"])
 
 ASK = ("You turn a Japanese drawing request into English tags for an anime illustration model. "
        "Reply with comma-separated tags only, no sentences. Keep every detail of the request.")
@@ -111,7 +114,7 @@ class Painter:
     def __init__(self, model: str = IMAGE_MODEL, steps: int = 24, size: tuple[int, int] = (832, 1216), guidance: float = 5.0):
         self.model, self.steps, self.size, self.guidance = model, steps, size, guidance
         self._pipe = None
-        self._redraw = None
+        self._sketch = None
         self.stop = False
 
     def ready(self) -> bool:
@@ -119,6 +122,14 @@ class Painter:
         try:
             from huggingface_hub import snapshot_download
             snapshot_download(self.model, cache_dir=str(HOME / "gen" / "hf" / "hub"), local_files_only=True, **MODEL_FILES)
+            return True
+        except Exception:
+            return False
+
+    def sketch_ready(self) -> bool:
+        try:
+            from huggingface_hub import snapshot_download
+            snapshot_download(SKETCH_ADAPTER, cache_dir=str(HOME / "gen" / "hf" / "hub"), local_files_only=True, **SKETCH_FILES)
             return True
         except Exception:
             return False
@@ -136,8 +147,8 @@ class Painter:
                 self._pipe.to("cuda")
         return self._pipe
 
-    def paint(self, prompt: str, seed: int, on_step=None, base=None, strength: float = 0.6, size=None, on_preview=None):
-        """base（PIL の絵）を渡すと、その絵を元に描き直す。strength が大きいほど元から離れる"""
+    def paint(self, prompt: str, seed: int, on_step=None, base=None, strength: float = 0.7, size=None, on_preview=None):
+        """base（PIL のラフ）を渡すと、その線の形に沿って描く。strength が大きいほどラフに沿う"""
         import torch
         pipe = self.load()
         self.stop = False
@@ -159,13 +170,22 @@ class Painter:
                     num_inference_steps=steps, guidance_scale=self.guidance,
                     generator=torch.Generator(pipe.device).manual_seed(seed), callback_on_step_end=step)
         if base is not None:
-            if self._redraw is None:
-                from diffusers import AutoPipelineForImage2Image
-                self._redraw = AutoPipelineForImage2Image.from_pipe(pipe)   # 同じ模型を読み直さずに使う
-            w, h = base.size
-            w, h = w - w % 8, h - h % 8
-            total = max(1, int(steps * strength))
-            out = self._redraw(image=base.convert("RGB").resize((w, h)), strength=strength, **args).images[0]
+            if self._sketch is None:
+                from diffusers import StableDiffusionXLAdapterPipeline, T2IAdapter
+                adapter = T2IAdapter.from_pretrained(SKETCH_ADAPTER, variant="fp16", torch_dtype=pipe.unet.dtype,
+                                                     cache_dir=str(HOME / "gen" / "hf" / "hub"))
+                keep = ("vae", "text_encoder", "text_encoder_2", "tokenizer", "tokenizer_2", "unet", "scheduler")
+                # 読んだ模型の部品をそのまま渡す（模型を 2 度読まない）
+                self._sketch = StableDiffusionXLAdapterPipeline(**{k: v for k, v in pipe.components.items() if k in keep},
+                                                                adapter=adapter.to(pipe.device))
+            from PIL import ImageOps
+            w, h = size or self.size
+            # 部品は黒地に白い線で受け取るので、白い紙の黒い線を反転して渡す
+            sketch = ImageOps.invert(base.convert("L")).convert("RGB").resize((w, h))
+            args["negative_prompt"] += ", sketch, lineart, monochrome"
+            total = steps
+            out = self._sketch(image=sketch, width=w, height=h, adapter_conditioning_scale=strength,
+                               adapter_conditioning_factor=0.9, **args).images[0]
         else:
             w, h = size or self.size
             total = steps
@@ -183,7 +203,7 @@ class Studio:
         self.painter = painter or Painter()
         self.out = out or Path(os.environ.get("CD_OUTPUT") or Path.home() / "Pictures" / "CharacterDesigner")
 
-    def draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 0.6, size=None,
+    def draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 0.7, size=None,
              on_preview=None) -> tuple[str, Path]:
         say = on_status or (lambda msg: None)
         if refused(text):

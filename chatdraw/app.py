@@ -157,10 +157,10 @@ class Window(QMainWindow):
         for label, wh in (("縦長 832×1216", (832, 1216)), ("横長 1216×832", (1216, 832)), ("正方形 1024×1024", (1024, 1024))):
             self.size_pick.addItem(label, wh)
         self.strength = QSlider(Qt.Horizontal)
-        self.strength.setRange(10, 95)
-        self.strength.setValue(int(self.settings.get("rough_strength") * 100))
-        self.strength_label = QLabel(f"元から変える強さ {self.strength.value() / 100:.2f}")
-        self.strength.valueChanged.connect(lambda v: self.strength_label.setText(f"元から変える強さ {v / 100:.2f}"))
+        self.strength.setRange(30, 100)
+        self.strength.setValue(int(self.settings.get("rough_follow") * 100))
+        self.strength_label = QLabel(f"ラフに沿う強さ {self.strength.value() / 100:.2f}")
+        self.strength.valueChanged.connect(lambda v: self.strength_label.setText(f"ラフに沿う強さ {v / 100:.2f}"))
         self.mode.currentIndexChanged.connect(self._mode_changed)
         self._mode_changed(0)
         form = QFormLayout()
@@ -453,7 +453,7 @@ class Window(QMainWindow):
             if str(getattr(self.studio.words, "path", "")) != g("words_model"):
                 self.studio.words = Words(Path(g("words_model")))
             self.studio.out = Path(g("output_dir"))
-            self.strength.setValue(int(g("rough_strength") * 100))
+            self.strength.setValue(int(g("rough_follow") * 100))
             self.check_ai()
             self.statusBar().showMessage("設定を保存しました")
 
