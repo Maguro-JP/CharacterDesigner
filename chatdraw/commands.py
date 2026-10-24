@@ -178,6 +178,23 @@ def _extend():
         COMMANDS.append(Command(f"ai_{name}", f"AI プリセット「{name}」にしました。描きたい絵を書いてください",
                                 f"use the AI preset {name}: {sub}", lambda w, a, n=name: w.ai_panel.apply_name(n),
                                 (f"{name}のプリセット", f"プリセットを{name}", f"{name}にして")))
+    COMMANDS.append(Command("redpen", "赤ペンにしました。直してほしい所を囲んでください", "switch to the red pen to mark areas for AI to fix",
+                            _tool("redpen"), ("赤ペン",)))
+    COMMANDS.append(Command("clear_marks", "赤ペンの印を消しました", "clear all red pen marks",
+                            lambda w, a: w.canvas.redpen.clear(), ("印を消", "赤ペンを消")))
+    COMMANDS.append(Command("mode_fix", "「直す」にしました。直す所を赤ペンで囲むか、四角で選んでください",
+                            "fix only the marked or selected area", lambda w, a: w.mode.setCurrentIndex(2), ("直すモード", "部分だけ直")))
+    COMMANDS.append(Command("upscale", "絵を 2 倍に拡大します", "upscale the picture to twice the size",
+                            lambda w, a: w.upscale_canvas(), ("2 倍に拡大", "2倍に拡大", "絵を拡大", "高解像度に")))
+    COMMANDS.append(Command("count", "枚数を変えました", "set how many pictures to draw at once (1, 2 or 4)",
+                            lambda w, a: w.ai_panel.set_count(4 if "4" in a or "四" in a else 2 if "2" in a or "二" in a else 1),
+                            ("枚数を",)))
+    COMMANDS.append(Command("seed_lock", "種を固定しました", "lock the seed to redraw the same picture",
+                            lambda w, a: w.ai_panel.seed_lock.setChecked(True), ("種を固定",)))
+    COMMANDS.append(Command("seed_free", "種の固定を外しました", "unlock the seed",
+                            lambda w, a: w.ai_panel.seed_lock.setChecked(False), ("種の固定を外", "種を外")))
+    COMMANDS.append(Command("use_reference", "参考画像に寄せて描きます", "use the reference image when drawing",
+                            lambda w, a: w.ai_panel.use_ref.setChecked(True), ("参考画像に寄せ", "参考画像を使")))
     COMMANDS.append(Command("edit_theme", "テーマを作る窓を開きます", "open the theme editor to change colors, pattern and effects",
                             lambda w, a: w.edit_theme(), ("テーマを作", "色を変えたい", "テーマを編集")))
     COMMANDS.append(Command("draw_again", "もう一度描きます", "draw the last request again with a new seed",

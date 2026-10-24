@@ -248,6 +248,24 @@ def _path(key: str) -> QPainterPath:
         p.lineTo(9, 20)
         p.moveTo(9, 11)
         p.lineTo(21, 11)
+    elif key == "redpen":
+        # 囲んだ印とペン先（AI に直す所を示す）
+        p.moveTo(14, 7)
+        p.cubicTo(9, 3, 2, 6, 3, 12)
+        p.cubicTo(4, 18, 12, 19, 15, 15)
+        p.moveTo(13, 21)
+        p.lineTo(14, 17.5)
+        p.lineTo(20.5, 11)
+        p.lineTo(23, 13.5)
+        p.lineTo(16.5, 20)
+        p.closeSubpath()
+    elif key == "upscale":
+        p.addRect(QRectF(3, 11, 9, 9))
+        p.moveTo(12, 4)
+        p.lineTo(20, 4)
+        p.lineTo(20, 12)
+        p.moveTo(20, 4)
+        p.lineTo(13, 11)
     elif key == "ai":
         # 4 つの角の光（AI が描く）
         for cx, cy, r in ((10, 12, 7), (18.5, 5.5, 3)):
@@ -307,4 +325,4 @@ def icon(key: str, color: str | None = None, active: str | None = None, size: in
     return QIcon(_Engine(key, color, active))
 
 
-KEYS = ("chat", "progress", "view", "layout", "new", "open", "save", "undo", "redo", "fit", "rotate", "rough", "models", "settings", "palette", "brush", "history", "layers", "help", "move", "select", "pen", "eraser", "blur", "fill", "gradient", "line", "rect", "ellipse", "eyedropper", "hand", "zoom", "ai")
+KEYS = ("chat", "progress", "view", "layout", "new", "open", "save", "undo", "redo", "fit", "rotate", "rough", "models", "settings", "palette", "brush", "history", "layers", "help", "move", "select", "pen", "eraser", "blur", "fill", "gradient", "line", "rect", "ellipse", "eyedropper", "hand", "zoom", "redpen", "upscale", "ai")

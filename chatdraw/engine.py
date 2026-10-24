@@ -17,6 +17,12 @@ SKETCH_FILES = dict(allow_patterns=["*.json", "*.fp16.safetensors"])
 SKETCH = {"sdxl": (SKETCH_ADAPTER, SKETCH_FILES, "fp16"),
           "sd15": ("TencentARC/t2iadapter_sketch_sd15v2", dict(allow_patterns=["*.json", "*.bin"]), None)}
 
+# 参考画像の絵柄や雰囲気を借りる部品（IP-Adapter）。(repo, 部品の置き場, 重み, 絵を読む部品の置き場)。
+# 絵を読む部品（ViT-H）は SDXL と SD1.5 で同じ物を使い、取るのは 1 回で済ませる
+REFERENCE = {"sdxl": ("h94/IP-Adapter", "sdxl_models", "ip-adapter_sdxl_vit-h.safetensors", "models/image_encoder"),
+             "sd15": ("h94/IP-Adapter", "models", "ip-adapter_sd15.safetensors", "models/image_encoder")}
+REFERENCE_GB = {"sdxl": 3.2, "sd15": 2.6}
+
 
 def native_size(size, family: str):
     """古い世代（SD1.5）は 512 前後で学んでいるので、同じ縦横比のまま約 0.6 倍で描く（1216 のままだと人が 2 人に割れた）"""
@@ -142,6 +148,21 @@ def sketch_lines(base, size):
     return out.convert("RGB")
 
 
+def crop_box(mask, size, pad: float = 0.35):
+    """mask の白い所を囲む四角に、周りの絵（描き直すときの手がかり）を pad の割合だけ足した四角"""
+    x0, y0, x1, y1 = mask.getbbox() or (0, 0, *size)
+    pw, ph = (x1 - x0) * pad + 24, (y1 - y0) * pad + 24
+    return (max(0, int(x0 - pw)), max(0, int(y0 - ph)), min(size[0], int(x1 + pw)), min(size[1], int(y1 + ph)))
+
+
+def work_size(size, family: str):
+    """切り出した所を描く大きさ。縦横比はそのまま、模型の得意な画素数に合わせ、8 の倍数にする"""
+    area = 1024 * 1024 if family != "sd15" else 512 * 640
+    w, h = size
+    k = (area / max(1, w * h)) ** 0.5
+    return max(64, round(w * k / 8) * 8), max(64, round(h * k / 8) * 8)
+
+
 class Stopped(Exception):
     """利用者が「止める」を押した"""
 
@@ -153,6 +174,8 @@ class Painter:
         self.model, self.steps, self.size, self.guidance = model, steps, size, guidance
         self._pipe = None
         self._sketch = None
+        self._inpaint = None
+        self._ref = False   # 参考画像の部品を読んでいるか
         self.stop = False
 
     def ready(self) -> bool:
@@ -180,6 +203,34 @@ class Painter:
         except Exception:
             return False
 
+    def reference_ready(self, family: str | None = None) -> bool:
+        """参考画像の部品が手元にあるか（取りに行かずに確かめる）"""
+        try:
+            from huggingface_hub import snapshot_download
+            repo, sub, weight, enc = REFERENCE[family or self.family]
+            snapshot_download(repo, cache_dir=str(HUB), local_files_only=True,
+                              allow_patterns=[f"{sub}/{weight}", f"{enc}/*"])
+            return True
+        except Exception:
+            return False
+
+    def _use_reference(self, pipe, reference, scale: float, args: dict):
+        """参考画像を描く言葉と一緒に渡す。無ければ読んだ部品を外す（外さないと参考画像なしで描けない）"""
+        import inspect
+        if reference is None:
+            if self._ref:
+                pipe.unload_ip_adapter()
+                self._ref = False
+            return
+        if "ip_adapter_image" not in inspect.signature(pipe.__call__).parameters:
+            return   # この描き方（ラフから）は参考画像を受け取れない
+        if not self._ref:
+            repo, sub, weight, enc = REFERENCE[self.family]
+            pipe.load_ip_adapter(repo, subfolder=sub, weight_name=weight, image_encoder_folder=enc, cache_dir=str(HUB))
+            self._ref = True
+        pipe.set_ip_adapter_scale(scale)
+        args["ip_adapter_image"] = reference.convert("RGB")
+
     def load(self):
         if self._pipe is None:
             import torch
@@ -196,8 +247,10 @@ class Painter:
                 self._pipe.to("cuda")
         return self._pipe
 
-    def paint(self, prompt: str, seed: int, on_step=None, base=None, strength: float = 1.0, size=None, on_preview=None):
-        """base（PIL のラフ）を渡すと、その線の形に沿って描く。strength が大きいほどラフに沿う"""
+    def paint(self, prompt: str, seed: int, on_step=None, base=None, strength: float = 1.0, size=None, on_preview=None,
+              reference=None, ref_scale: float = 0.6):
+        """base（PIL のラフ）を渡すと、その線の形に沿って描く。strength が大きいほどラフに沿う。
+        reference（PIL）を渡すと、その絵の絵柄や雰囲気を借りる。ref_scale が大きいほど寄せる"""
         import torch
         pipe = self.load()
         self.stop = False
@@ -249,10 +302,52 @@ class Painter:
         else:
             w, h = size
             total = steps
+            self._use_reference(pipe, reference, ref_scale, args)
             out = pipe(width=w, height=h, **args).images[0]
         if self.stop:
             raise Stopped("止めました")
         return out
+
+    def redraw(self, prompt: str, seed: int, image, mask, strength: float = 0.75, on_step=None, reference=None,
+               ref_scale: float = 0.6):
+        """image（PIL）の mask（PIL の L、白が直す所）だけを描き直し、同じ大きさの絵を返す。
+
+        直す所の周りを切り出し、模型の得意な大きさに広げてから描く。小さい所（顔や手）を絵全体の大きさのまま
+        描き直すと、細部が潰れて直らない。描いた物は、ぼかした mask で元の絵になじませて戻す。
+        """
+        import torch
+        from PIL import Image, ImageFilter
+        from chatdraw.models import image_model
+        info = image_model(self.model)
+        pipe = self.load()
+        if self._inpaint is None:
+            from diffusers import AutoPipelineForInpainting
+            self._inpaint = AutoPipelineForInpainting.from_pipe(pipe)   # 読んだ模型の部品をそのまま使う
+        self.stop = False
+        box = crop_box(mask, image.size)
+        crop, crop_mask = image.crop(box).convert("RGB"), mask.crop(box)
+        w, h = work_size(crop.size, info.family)
+        args = dict(prompt=f"{info.prefix}{prompt}, masterpiece, best quality", negative_prompt="lowres, worst quality, low quality",
+                    num_inference_steps=self.steps, guidance_scale=self.guidance, strength=strength,
+                    generator=torch.Generator(pipe.device).manual_seed(seed))
+        total = max(1, int(self.steps * strength))
+
+        def step(p, i, _t, kw):
+            if self.stop:
+                p._interrupt = True
+            if on_step:
+                on_step(min(i + 1, total), total)
+            return kw
+        args["callback_on_step_end"] = step
+        self._use_reference(self._inpaint, reference, ref_scale, args)
+        out = self._inpaint(image=crop.resize((w, h), Image.LANCZOS), mask_image=crop_mask.resize((w, h), Image.LANCZOS),
+                            width=w, height=h, **args).images[0]
+        if self.stop:
+            raise Stopped("止めました")
+        result = image.convert("RGB").copy()
+        soft = crop_mask.filter(ImageFilter.GaussianBlur(max(2, min(crop.size) // 64)))
+        result.paste(out.resize(crop.size, Image.LANCZOS), box[:2], soft)
+        return result
 
 
 class Studio:
@@ -266,7 +361,7 @@ class Studio:
         self.words_auto = False   # おまかせ: 頼みごとに、手元の言葉の模型から合う物を選ぶ
 
     def draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
-             on_preview=None, style: str = "") -> tuple[str, Path]:
+             on_preview=None, style: str = "", reference=None, ref_scale: float = 0.6, meta: dict | None = None) -> tuple[str, Path]:
         say = on_status or (lambda msg: None)
         if refused(text):
             raise ValueError("子どもを性的に描く頼みは描きません")
@@ -290,9 +385,48 @@ class Studio:
                     self.painter = Painter(m.repo, m.steps, guidance=m.guidance)   # 前の模型は捨ててメモリを空ける
                 say(f"選んだ模型: {m.name}（{why}）")
         say("絵の模型を読んでいます（初めの 1 回だけ時間がかかります）")
+        extra = dict(reference=reference, ref_scale=ref_scale) if reference is not None else {}
         image = self.painter.paint(prompt, seed, on_step=lambda i, n: say(f"描いています（{i}/{n}）"),
-                                   base=base, strength=strength, size=size, on_preview=on_preview)
-        self.out.mkdir(parents=True, exist_ok=True)
-        path = self.out / f"{seed}.png"
-        image.save(path)
+                                   base=base, strength=strength, size=size, on_preview=on_preview, **extra)
+        path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model))
         return prompt, path
+
+    def _save(self, image, seed: int, meta: dict) -> Path:
+        """絵と、同じ名前の .json（頼み・描く言葉・種・作風・模型）を残す。履歴から同じ設定で描き直すため"""
+        import json
+        import time
+        self.out.mkdir(parents=True, exist_ok=True)
+        path = self.out / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}.png"   # 種を固定して描き直しても前の絵を消さない
+        image.save(path)
+        path.with_suffix(".json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
+        return path
+
+    def fix(self, image, regions: list[tuple], seed: int, on_status=None, style: str = "", strength: float = 0.75,
+            reference=None, ref_scale: float = 0.6):
+        """赤ペン先生と範囲の描き直し。regions は (mask, 指示の文) の並び。直す所ごとに指示を描く言葉に直し、
+        順に描き直す。返すのは (描く言葉の並び, 直した所だけを残した透明な絵の置き場)"""
+        from PIL import Image, ImageChops
+        say = on_status or (lambda msg: None)
+        prompts = []
+        whole = Image.new("L", image.size, 0)
+        result = image.convert("RGB")
+        for k, (mask, note) in enumerate(regions, 1):
+            if refused(note):
+                raise ValueError("子どもを性的に描く頼みは描きません")
+            say(f"頼みを描く言葉に直しています（{k}/{len(regions)} か所目）")
+            prompt = self.words.to_prompt(note) if note else ""
+            prompt = ", ".join(t for t in (prompt, style) if t)
+            if refused(prompt):
+                raise ValueError("子どもを性的に描く頼みは描きません")
+            say("絵の模型を読んでいます（初めの 1 回だけ時間がかかります）")
+            result = self.painter.redraw(prompt, seed + k, result, mask, strength=strength,
+                                         on_step=lambda i, n, k=k: say(f"描いています（{i}/{n}・{k}/{len(regions)} か所目）"),
+                                         reference=reference, ref_scale=ref_scale)
+            prompts.append(prompt)
+            whole = ImageChops.lighter(whole, mask)
+        patch = result.convert("RGBA")
+        from PIL import ImageFilter
+        patch.putalpha(whole.filter(ImageFilter.GaussianBlur(3)))   # 直した所だけを新しいレイヤーにする（元の絵は残す）
+        path = self._save(patch, seed, dict(text=" / ".join(n for _m, n in regions), prompt=" / ".join(prompts), seed=seed,
+                                            style=style, model=self.painter.model, mode="直す"))
+        return prompts, path

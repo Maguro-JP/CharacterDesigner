@@ -46,24 +46,62 @@ from chatdraw.settings import Settings, SettingsDialog  # noqa: E402
 
 
 class Job(QObject):
+    """AI の 1 回分を裏で回す。描く（枚数分）か、直す（regions を渡したとき）"""
     status = Signal(str)
     preview = Signal(object)   # 描いている途中の絵（PIL）
-    done = Signal(str, str)
+    one = Signal(str, str)     # 1 枚できた（描く言葉、置き場）
+    done = Signal()
     failed = Signal(str)
 
-    def __init__(self, studio: Studio, text: str, seed: int, base=None, strength: float = 0.6, size=None, style: str = ""):
+    def __init__(self, studio: Studio, text: str, seeds, base=None, strength: float = 0.6, size=None, style: str = "",
+                 regions=None, reference=None, ref_scale: float = 0.6, meta: dict | None = None):
         super().__init__()
-        self.studio, self.text, self.seed, self.style = studio, text, seed, style
+        self.seeds = [seeds] if isinstance(seeds, int) else list(seeds)
+        self.studio, self.text, self.style = studio, text, style
         self.base, self.strength, self.size = base, strength, size
+        self.regions, self.reference, self.ref_scale, self.meta = regions, reference, ref_scale, meta or {}
 
     def run(self):
         try:
-            prompt, path = self.studio.draw(self.text, self.seed, on_status=self.status.emit,
-                                            base=self.base, strength=self.strength, size=self.size,
-                                            on_preview=self.preview.emit, style=self.style)
-            self.done.emit(prompt, str(path))
+            if self.regions is not None:
+                prompts, path = self.studio.fix(self.base, self.regions, self.seeds[0], on_status=self.status.emit,
+                                                style=self.style, strength=self.strength, reference=self.reference,
+                                                ref_scale=self.ref_scale)
+                self.one.emit(" / ".join(prompts), str(path))
+            else:
+                for seed in self.seeds:
+                    extra = dict(reference=self.reference, ref_scale=self.ref_scale) if self.reference is not None else {}
+                    prompt, path = self.studio.draw(self.text, seed, on_status=self.status.emit,
+                                                    base=self.base, strength=self.strength, size=self.size,
+                                                    on_preview=self.preview.emit, style=self.style, meta=self.meta, **extra)
+                    self.one.emit(prompt, str(path))
+            self.done.emit()
         except Exception as e:  # 描けなかった理由をそのまま会話に出す
             self.failed.emit(f"描けませんでした: {e}")
+
+
+class Task(QObject):
+    """時間のかかる処理（拡大など）を裏で回す。fn(on_step) の返りを done で返す"""
+    status = Signal(str)
+    done = Signal(object)
+    failed = Signal(str)
+
+    def __init__(self, fn):
+        super().__init__()
+        self.fn = fn
+
+    def run(self):
+        try:
+            self.done.emit(self.fn(lambda i, n: self.status.emit(f"描いています（{i}/{n}）")))
+        except Exception as e:
+            self.failed.emit(f"できませんでした: {e}")
+
+
+def gray_to_pil(img):
+    """直す所の形（QImage の灰色）を PIL の L にする"""
+    from PySide6.QtGui import QImage
+    img = img.convertToFormat(QImage.Format_Grayscale8)
+    return Image.frombuffer("L", (img.width(), img.height()), bytes(img.constBits()), "raw", "L", img.bytesPerLine(), 1)
 
 
 def fit_size(w: int, h: int, area: int = 832 * 1216) -> tuple[int, int]:
@@ -144,6 +182,7 @@ class Reference(QLabel):
         pm = QPixmap(path)
         if not pm.isNull():
             self.image = pm
+            self.path = path
             self.setToolTip(Path(path).name)
             self._fit()
 
@@ -246,7 +285,8 @@ TOOLS = (("move", "移動", "V"), ("select", "四角の選択", "M"), (None, "",
          ("pen", "ペン", "B"), ("eraser", "消しゴム", "E"), ("blur", "ぼかし", "R"), (None, "", ""),
          ("fill", "塗りつぶし", "G"), ("gradient", "グラデーション", "J"), (None, "", ""),
          ("line", "直線", "N"), ("rect", "四角", "U"), ("ellipse", "楕円", "O"), (None, "", ""),
-         ("eyedropper", "スポイト", "I"), ("hand", "手のひら", "H"), ("zoom", "拡大（Shift か右クリックで縮小）", "Z"))
+         ("eyedropper", "スポイト", "I"), ("hand", "手のひら", "H"), ("zoom", "拡大（Shift か右クリックで縮小）", "Z"), (None, "", ""),
+         ("redpen", "赤ペン（AI に直す所を囲む）", "T"))
 
 # 欄の帯とメニューに並べる順（よく使う順）
 PANEL_ORDER = ("talk", "chat", "view", "history", "progress", "layers", "color", "brushes")
@@ -295,7 +335,7 @@ class Window(QMainWindow):
         row.addWidget(self.stop_button)
         # 描き方: 新しく描くか、キャンバスの絵（下描き・ラフ）を元に描き直すか
         self.mode = QComboBox()
-        self.mode.addItems(["新規", "ラフから"])
+        self.mode.addItems(["新規", "ラフから", "直す"])
         self.mode.setToolTip("新規: 白紙から描く\nラフから: キャンバスの線の形に沿って描く")
         self.size_pick = QComboBox()
         self.size_pick.setToolTip("描く絵の大きさ")
@@ -374,7 +414,10 @@ class Window(QMainWindow):
         # 右: 描いた絵。AI の今の工程・進み・時間と、描いた絵の履歴
         self.activity = ActivityPanel()
         self.history = self.activity.list
-        self.history.itemDoubleClicked.connect(lambda it: it.data(Qt.UserRole) and self.canvas.show_image(it.data(Qt.UserRole)))
+        # ダブルクリックは今の絵に重ねる（今の絵を閉じない）。右クリックで開く・同じ設定で描き直す
+        self.history.itemDoubleClicked.connect(lambda it: it.data(Qt.UserRole) and self.canvas.add_image_layer(it.data(Qt.UserRole), "AI の絵"))
+        self.history.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.history.customContextMenuRequested.connect(self._history_menu)
         hist = QDockWidget("履歴", self)
         hist.setWidget(self.activity)
         hist.setObjectName("history")
@@ -567,6 +610,7 @@ class Window(QMainWindow):
         ldock.setFeatures(PANEL)
         self.addDockWidget(Qt.RightDockWidgetArea, ldock)
         self.canvas.changed.connect(self._refresh_layers)
+        self.canvas.marked.connect(lambda: self.mode.setCurrentIndex(2))   # 赤ペンで囲んだら、AI の欄を「直す」にする
         self._refresh_layers()
         # 操作の履歴（履歴の欄の「操作」のタブ）
         self.canvas.history_changed.connect(lambda: show_ops(self.activity.ops, self.canvas))
@@ -798,6 +842,12 @@ class Window(QMainWindow):
             self.say(reply)
             self.feature_tour("ai_commands")
             return
+        if self.canvas.redpen.marks and self.mode.currentIndex() != 2:
+            self.mode.setCurrentIndex(2)   # 赤ペンの印があるときの頼みは、印の所を直す頼みとして受ける
+        if self.mode.currentIndex() == 2 and not self.canvas.redpen.marks and self.canvas.selection_mask() is None:
+            self.notify("直す所がありません", "info", "赤ペンで直す所を囲むか、四角の選択で選んでから頼んでください")
+            self.feature_tour("redpen")
+            return
         st = self.check_ai()
         if not st["image"]:
             self.say(st["reason"] or "AI が使えません")
@@ -811,35 +861,154 @@ class Window(QMainWindow):
         self.panels["progress"][0].show()   # 描いている間は、工程と進みが見えるように進みの欄を出す
         self.activity.begin(text, self.mode.currentText())
         self.activity.status("AI が使えるかを確かめました")
-        base = None
-        if self.mode.currentIndex() == 1:
-            base = qimage_to_pil(self.canvas.flatten())
+        m = re.search(r"([124１２４一二四])\s*枚", text)
+        if m:   # 「4 枚描いて」のように枚数を書いたら、その枚数で描く
+            self.ai_panel.set_count({"１": 1, "一": 1, "２": 2, "二": 2, "４": 4, "四": 4}.get(m.group(1)) or int(m.group(1)))
+        mode = self.mode.currentIndex()
+        base = qimage_to_pil(self.canvas.flatten()) if mode in (1, 2) else None
+        regions = self.fix_regions(text) if mode == 2 else None
+        seeds = self.ai_panel.seeds()[:1 if mode == 2 else None]
+        self.ai_panel.seed.setValue(seeds[0])   # 使った種を見せる（固定すれば同じ絵を描き直せる）
+        self.batch, self.batch_items = [], []
+        meta = dict(mode=self.mode.currentText(), preset=self.ai_panel.preset, style_name=self.ai_panel.style,
+                    size=list(self.size_pick.currentData()), strength=self.strength.value())
         self.thread = QThread()
-        self.job = Job(self.studio, text, int(time.time()), base=base, strength=self.strength.value() / 100,
-                       style=self.ai_panel.style_tags(),
+        self.job = Job(self.studio, text, seeds, base=base, strength=self.strength.value() / 100,
+                       style=self.ai_panel.style_tags(), regions=regions, reference=self.ai_panel.reference(),
+                       ref_scale=self.ai_panel.ref_scale.value() / 100, meta=meta,
                        size=fit_size(*self.canvas.size_px()) if base is not None else self.size_pick.currentData())
         self.job.moveToThread(self.thread)
         self.thread.started.connect(self.job.run)
         self.job.status.connect(self.on_status)
         self.job.preview.connect(self.show_preview)
+        self.job.one.connect(self.on_one)
         self.job.done.connect(self.finish)
         self.job.failed.connect(self.fail)
         self.thread.start()
+
+    def fix_regions(self, text: str):
+        """直す所と指示の並び。赤ペンの印は番号ごとの指示、四角の選択は文全体を指示にする"""
+        from chatdraw.redpen import notes
+        marks = self.canvas.redpen.masks()
+        regions = [(gray_to_pil(m), n) for m, n in zip(marks, notes(text, len(marks)))]
+        sel = self.canvas.selection_mask()
+        if sel is not None:
+            regions.append((gray_to_pil(sel), text))
+        return regions
 
     def on_status(self, msg: str):
         m = re.search(r"（(\d+)/(\d+)）", msg)
         self.activity.status(msg, *(int(m.group(1)), int(m.group(2))) if m else (None, None))
 
-    def finish(self, prompt: str, path: str):
+    def on_one(self, prompt: str, path: str):
+        """1 枚できるたびに呼ばれる。初めの 1 枚はキャンバスに置き、ほかは履歴に並べて選べるようにする"""
         self.images.append(path)
-        self.activity.status("キャンバスに置いています")
         self.canvas.show_overlay(None)
-        self.place(path)
-        self.activity.end("描けました", path)
-        self.say("描きました")
-        self.notify("描けました", "ok", "レイヤーとして重ねました。押すと履歴を開きます",
+        if self.mode.currentIndex() == 2:
+            self.canvas.add_image_layer(path, f"AI の直し {len(self.images)}")
+            self.canvas.redpen.clear()   # 直したら印は役目を終える
+        elif not self.batch:
+            self.activity.status("キャンバスに置いています")
+            self.place(path)
+        self.batch.append(path)
+        self.batch_items.append(self.activity.add(path, prompt))
+
+    def finish(self):
+        n = len(self.batch)
+        fixed = self.mode.currentIndex() == 2
+        result = "直しました" if fixed else f"{n} 枚描きました" if n > 1 else "描けました"
+        for it in self.batch_items:
+            it.setToolTip(f"{result}\n{it.toolTip()}")
+        self.activity.end(result, None, record=False)
+        self.say("直しました" if fixed else f"{n} 枚描きました。履歴から選べます" if n > 1 else "描きました")
+        self.notify("直しました" if fixed else "描けました", "ok",
+                    "直した所を新しいレイヤーに重ねました" if fixed else
+                    (f"1 枚目を重ねました。ほかの {n - 1} 枚は履歴をダブルクリックで重ねられます" if n > 1
+                     else "レイヤーとして重ねました。押すと履歴を開きます"),
                     on_click=lambda: (self.panels["history"][0].show(), self.activity.tabs.setCurrentIndex(0)))
         self._end("できました")
+
+    def upscale_canvas(self):
+        """今の絵（見えているレイヤーを重ねた 1 枚）を 2 倍にして、新しい絵として開く"""
+        from chatdraw import upscale
+        if self.thread:
+            return
+        if self.canvas.undo_stack or len(self.canvas.layers) > 2:
+            box = QMessageBox(QMessageBox.Question, "絵を 2 倍に拡大",
+                              "レイヤーを重ねた 1 枚を 2 倍にして、新しい絵として開きます。\n今の絵は閉じるので、先に保存しておくと戻れます。", parent=self)
+            save = box.addButton("保存してから拡大", QMessageBox.AcceptRole)
+            go = box.addButton("拡大", QMessageBox.DestructiveRole)
+            box.addButton("やめる", QMessageBox.RejectRole)
+            box.exec()
+            if box.clickedButton() is save:
+                if not self.save_as():
+                    return
+            elif box.clickedButton() is not go:
+                return
+        img = qimage_to_pil(self.canvas.flatten())
+        out = Path(self.settings.get("output_dir"))
+        self.feature_tour("upscale")
+        self.panels["progress"][0].show()
+        self.activity.begin("絵を 2 倍に拡大", "拡大")
+        self.activity.status("描いています" + ("" if upscale.ready() else "（初めに拡大の部品 18MB を取ります）"))
+
+        def work(on_step):
+            big = upscale.upscale(img, 2, on_step=on_step)
+            out.mkdir(parents=True, exist_ok=True)
+            path = out / f"{time.strftime('%Y%m%d-%H%M%S')}-x2.png"
+            big.save(path)
+            return str(path)
+        self._run_task(work, self._upscaled)
+
+    def _upscaled(self, path: str):
+        self.canvas.show_image(path)
+        self.activity.add(path, "2 倍に拡大")
+        self.activity.end("拡大しました", None, record=False)
+        w, h = self.canvas.size_px()
+        self.notify("拡大しました", "ok", f"{w}×{h} の絵として開きました")
+        self._end("拡大しました")
+
+    def _run_task(self, fn, then):
+        self.thread = QThread()
+        self.task = Task(fn)
+        self.task.moveToThread(self.thread)
+        self.thread.started.connect(self.task.run)
+        self.task.status.connect(self.on_status)
+        self.task.done.connect(then)
+        self.task.failed.connect(self.fail)
+        self.button.setEnabled(False)
+        self.thread.start()
+
+    def _history_menu(self, pos):
+        from PySide6.QtWidgets import QMenu
+        it = self.history.itemAt(pos)
+        path = it.data(Qt.UserRole) if it else None
+        if not path:
+            return
+        m = QMenu(self)
+        m.addAction("今の絵に重ねる", lambda: self.canvas.add_image_layer(path, "AI の絵"))
+        m.addAction("この設定で描き直す", lambda: self.redo_from(path))
+        m.addAction("この絵を開く", lambda: self.canvas.show_image(path))
+        m.exec(self.history.mapToGlobal(pos))
+
+    def redo_from(self, path: str):
+        """履歴の絵と同じ頼み・種・作風を、AI の欄とチャットに戻す。押せば同じ設定で描ける"""
+        import json
+        meta_path = Path(path).with_suffix(".json")
+        try:
+            meta = json.loads(meta_path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            self.notify("設定が残っていません", "info", "この絵には描いたときの設定が残っていません")
+            return
+        self.entry.setText(meta.get("text", ""))
+        self.ai_panel.seed.setValue(int(meta.get("seed", 0)))
+        self.ai_panel.seed_lock.setChecked(True)
+        self.ai_panel.set_style(meta.get("style_name", "おまかせ"))
+        self.ai_panel.set_count(1)
+        if meta.get("mode") in ("新規", "ラフから"):
+            self.mode.setCurrentText(meta["mode"])
+        self.entry.setFocus()
+        self.notify("同じ設定にしました", "ok", f"種 {meta.get('seed')} を固定しました。「描く」で同じ絵を描きます")
 
     def _studio_from_settings(self) -> Studio:
         """設定の模型で描く仕組みを作る。前と同じ絵の模型なら、読んだ物をそのまま使う（7GB を読み直さない）"""
@@ -989,9 +1158,13 @@ class Window(QMainWindow):
     def _mode_changed(self, i: int):
         if i == 1 and hasattr(self, "layout_store"):
             self.feature_tour("rough")
+        if i == 2 and hasattr(self, "layout_store"):
+            self.feature_tour("redpen")
         self.size_pick.setEnabled(i == 0)          # 元に描くときはキャンバスの大きさで描く
-        self.strength.setEnabled(i == 1)
-        self.strength_label.setEnabled(i == 1)
+        self.strength.setEnabled(i in (1, 2))
+        self.strength_label.setEnabled(i in (1, 2))
+        self.strength.setToolTip("直す強さ。大きいほど元の絵から離れて描き直す" if i == 2 else
+                                 "ラフに沿う強さ。大きいほどラフの線の形どおりに描く")
 
     def fail(self, why: str):
         self.canvas.show_overlay(None)
@@ -1382,15 +1555,18 @@ class Window(QMainWindow):
         if path:
             self.canvas.show_image(path)
 
-    def save_as(self):
+    def save_as(self) -> bool:
+        """保存できたら True"""
         if not self.canvas.layers:
-            return
+            return False
         if self.feature_tour("save", self.save_as):
-            return
+            return False
         dst, _ = QFileDialog.getSaveFileName(self, "名前を付けて保存", "drawing.png", "PNG (*.png)")
-        if dst:
-            ok = self.canvas.flatten().save(dst)
-            self.notify("保存しました" if ok else "保存できませんでした", "ok" if ok else "error", Path(dst).name)
+        if not dst:
+            return False
+        ok = self.canvas.flatten().save(dst)
+        self.notify("保存しました" if ok else "保存できませんでした", "ok" if ok else "error", Path(dst).name)
+        return bool(ok)
 
     def hide_progress_if_idle(self, ms: int = 4000):
         """描いていないときは進みの欄を隠す。描き終わってすぐ消すと結果を読めないので、少し待ってから薄くして隠す"""

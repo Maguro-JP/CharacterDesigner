@@ -36,9 +36,19 @@ class FakePainter:
     def paint(self, prompt, seed, on_step=None, **kw):
         from PIL import Image
         self.calls.append((prompt, seed))
+        self.kw = kw
         if on_step:
             on_step(1, 1)
         return Image.new("RGB", (64, 96), "white")
+
+    def redraw(self, prompt, seed, image, mask, on_step=None, **kw):
+        """直す所を赤で塗る（本物は模型で描き直す）"""
+        from PIL import Image
+        self.calls.append(("redraw", prompt, seed))
+        self.kw = kw
+        out = image.copy()
+        out.paste(Image.new("RGB", image.size, "red"), (0, 0), mask)
+        return out
 
 
 class EngineTest(unittest.TestCase):
@@ -711,8 +721,9 @@ class LayoutsTest(unittest.TestCase):
         L.creator(w)                                                       # クリエイター向け: リボンと全部の道具
         self.assertFalse(w.ribbon_bar.isHidden())
         self.assertTrue(w.tool_actions["gradient"].isVisible())
-        L.ai_focus(w)                                                      # AI 特化: 手で描く道具は出さない
-        self.assertTrue(w.tools.isHidden() and w.panels["color"][0].isHidden())
+        L.ai_focus(w)                                                      # AI 特化: 手で描く道具は出さず、赤ペンだけ出す
+        self.assertTrue(w.tool_actions["redpen"].isVisible() and not w.tool_actions["pen"].isVisible())
+        self.assertTrue(w.panels["color"][0].isHidden())
         L.canvas_only(w)
         self.assertEqual(L.visible(w), [])
         L.recommended(w)
@@ -982,3 +993,143 @@ class ThemeLookTest(unittest.TestCase):
         self.w.set_theme(themes.DEFAULT)
         themes.remove_custom(self.w.layout_store, "緑の歯車")
         self.assertNotIn("緑の歯車", themes.all_names())
+
+
+def wait_idle(app, w, limit: float = 300.0):
+    """裏の処理が終わる（w.thread が None になる）まで待つ"""
+    import time as _t
+    end = _t.time() + limit
+    while w.thread is not None and _t.time() < end:
+        app.processEvents()
+        w.thread and w.thread.wait(10)
+    app.processEvents()
+
+
+class FixAndBatchTest(unittest.TestCase):
+    """赤ペン先生・範囲の描き直し・枚数・種・参考画像・拡大"""
+    def setUp(self):
+        from tempfile import mkdtemp, mktemp
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Window
+        self.app = QApplication.instance() or QApplication([])
+        self.dir = Path(mkdtemp())
+        self.painter = FakePainter()
+        self.w = Window(Studio(FakeWords(), self.painter, self.dir))
+        self.w.layout_store = QSettings(mktemp(suffix=".ini"), QSettings.IniFormat)
+        self.w.layout_store.setValue("feature_tours", 0)
+        self.w.canvas.new_canvas(200, 160)
+
+    def circle(self, cx, cy, r):
+        import math
+        from PySide6.QtCore import QPointF
+        pen = self.w.canvas.redpen
+        pen.begin(QPointF(cx + r, cy))
+        for k in range(1, 41):
+            a = 2 * math.pi * k / 40
+            pen.add(QPointF(cx + r * math.cos(a), cy + r * math.sin(a)))
+        pen.end()
+
+    def test_notes_by_number(self):
+        from chatdraw.redpen import notes
+        self.assertEqual(notes("1: 手を直して 2: 帽子を青に", 2), ["手を直して", "帽子を青に"])
+        self.assertEqual(notes("①指を5本に②目を大きく", 2), ["指を5本に", "目を大きく"])
+        self.assertEqual(notes("もっときれいに", 2), ["もっときれいに", "もっときれいに"])
+
+    def test_circle_mask_fills_inside(self):
+        self.circle(60, 60, 30)
+        m = self.w.canvas.redpen.masks()[0]
+        self.assertEqual(m.pixelColor(60, 60).value(), 255)          # 囲んだ中も直す所
+        self.assertEqual(m.pixelColor(150, 140).value(), 0)          # 外は直さない
+
+    def test_redpen_fix_makes_layer_and_clears_marks(self):
+        from PIL import Image
+        self.circle(50, 50, 20)
+        self.circle(150, 100, 20)
+        self.assertEqual(self.w.mode.currentIndex(), 0)
+        self.w.canvas.marked.emit()
+        self.assertEqual(self.w.mode.currentIndex(), 2)              # 赤ペンで囲むと「直す」になる
+        layers = len(self.w.canvas.layers)
+        self.w.entry.setText("1: 手を直して 2: 帽子を青に")
+        self.w.send()
+        wait_idle(self.app, self.w)
+        fixes = [c for c in self.painter.calls if c[0] == "redraw"]
+        self.assertEqual(len(fixes), 2)                               # 印ごとに 1 回ずつ直す
+        self.assertEqual(len(self.w.canvas.layers), layers + 1)      # 直した所は新しいレイヤー
+        self.assertEqual(self.w.canvas.redpen.marks, [])             # 直したら印は消える
+        patch = Image.open(self.w.images[-1])
+        self.assertEqual(patch.mode, "RGBA")
+        self.assertGreater(patch.getpixel((50, 50))[3], 200)         # 直した所は見え、
+        self.assertEqual(patch.getpixel((100, 150))[3], 0)            # ほかは透明（元の絵を残す）
+
+    def test_fix_without_marks_does_nothing(self):
+        self.w.mode.setCurrentIndex(2)
+        self.w.entry.setText("直して")
+        self.w.send()
+        self.assertIsNone(self.w.thread)
+        self.assertEqual(self.painter.calls, [])
+
+    def test_selection_fix(self):
+        from PySide6.QtCore import QRect
+        self.w.canvas.set_selection(QRect(10, 10, 40, 40))
+        self.w.mode.setCurrentIndex(2)
+        self.w.entry.setText("笑顔に")
+        self.w.send()
+        wait_idle(self.app, self.w)
+        self.assertEqual([c for c in self.painter.calls if c[0] == "redraw"], [("redraw", "1girl, red scarf", self.w.ai_panel.seed.value() + 1)])
+
+    def test_batch_seed_meta_and_redo(self):
+        import json
+        self.w.ai_panel.set_count(4)
+        self.w.entry.setText("雪の城の前の騎士")
+        self.w.send()
+        wait_idle(self.app, self.w)
+        seeds = [c[1] for c in self.painter.calls]
+        self.assertEqual(len(seeds), 4)
+        self.assertEqual(seeds, list(range(seeds[0], seeds[0] + 4)))  # 種は続けて使う
+        self.assertEqual(self.w.history.count(), 4)
+        meta = json.loads(Path(self.w.images[0]).with_suffix(".json").read_text(encoding="utf-8"))
+        self.assertEqual((meta["text"], meta["seed"]), ("雪の城の前の騎士", seeds[0]))
+        self.w.entry.clear()
+        self.w.redo_from(self.w.images[2])                            # 履歴から同じ設定に戻す
+        self.assertEqual(self.w.entry.text(), "雪の城の前の騎士")
+        self.assertTrue(self.w.ai_panel.seed_lock.isChecked())
+        self.painter.calls.clear()
+        self.w.send()
+        wait_idle(self.app, self.w)
+        self.assertEqual([c[1] for c in self.painter.calls], [seeds[2]])   # 同じ種で描き直せる
+
+    def test_count_from_words(self):
+        self.w.entry.setText("猫耳の少女を2枚")
+        self.w.send()
+        wait_idle(self.app, self.w)
+        self.assertEqual(len(self.painter.calls), 2)
+
+    def test_reference_reaches_painter(self):
+        from PIL import Image
+        ref = self.dir / "ref.png"
+        Image.new("RGB", (32, 32), "blue").save(ref)
+        self.w.reference.load(str(ref))
+        self.w.ai_panel.use_ref.setChecked(True)
+        self.w.ai_panel.ref_scale.setValue(80)
+        self.w.entry.setText("雪の城の前の騎士")
+        self.w.send()
+        wait_idle(self.app, self.w)
+        self.assertEqual(self.painter.kw["reference"].getpixel((0, 0)), (0, 0, 255))
+        self.assertAlmostEqual(self.painter.kw["ref_scale"], 0.8)
+
+    def test_crop_and_work_size(self):
+        from PIL import Image
+        from chatdraw.engine import crop_box, work_size
+        m = Image.new("L", (1000, 800), 0)
+        m.paste(255, (400, 300, 500, 400))
+        x0, y0, x1, y1 = crop_box(m, m.size)
+        self.assertTrue(x0 < 400 and y0 < 300 and x1 > 500 and y1 > 400)
+        w, h = work_size((x1 - x0, y1 - y0), "sdxl")
+        self.assertTrue(w % 8 == 0 and h % 8 == 0 and 0.8e6 < w * h < 1.2e6)
+
+    @unittest.skipUnless(__import__("chatdraw.upscale", fromlist=["ready"]).ready(), "拡大の重みが手元に無い")
+    def test_upscale_doubles_canvas(self):
+        self.w.upscale_canvas()
+        wait_idle(self.app, self.w)
+        self.assertEqual(self.w.canvas.size_px(), (400, 320))

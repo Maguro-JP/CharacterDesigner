@@ -129,23 +129,35 @@ class ActivityPanel(QWidget):
             line += f"　あと約 {fmt(per * (self.steps_total - self.steps_done))}"
         self.time.setText(line)
 
-    def end(self, result: str, path: str | None = None):
-        """1 回分を履歴の先頭に足し、状態を待ちに戻す"""
+    def add(self, path: str, prompt: str = "") -> QListWidgetItem:
+        """できた 1 枚を履歴の先頭に足す（何枚もまとめて描くときは 1 枚ずつ）"""
+        item = QListWidgetItem("")
+        item.setSizeHint(QSize(92, 132))
+        item.setIcon(QIcon(QPixmap(path).scaledToHeight(184, Qt.SmoothTransformation)))
+        item.setData(Qt.UserRole, path)
+        item.setToolTip(f"{time.strftime('%H:%M')}　{self.mode}\n{self.text}\n{prompt}\n右クリックで同じ設定で描き直せます")
+        self.list.insertItem(0, item)
+        return item
+
+    def end(self, result: str, path: str | None = None, record: bool = True):
+        """1 回分を終える。record なら履歴の先頭に足す（できた絵を add で足したときは足さない）。状態を待ちに戻す"""
         took = fmt(time.time() - self.started) if self.started else ""
         stamp = time.strftime("%H:%M")
-        item = QListWidgetItem("" if path else result)
-        item.setSizeHint(QSize(92, 132))
-        if path:
-            item.setIcon(QIcon(QPixmap(path).scaledToHeight(184, Qt.SmoothTransformation)))
-            item.setData(Qt.UserRole, path)
-        item.setToolTip(f"{stamp}　{result}　{took}\n{self.mode}\n{self.text}")
-        self.list.insertItem(0, item)
+        item = None
+        if record:
+            item = QListWidgetItem("" if path else result)
+            item.setSizeHint(QSize(92, 132))
+            if path:
+                item.setIcon(QIcon(QPixmap(path).scaledToHeight(184, Qt.SmoothTransformation)))
+                item.setData(Qt.UserRole, path)
+            item.setToolTip(f"{stamp}　{result}　{took}\n{self.mode}\n{self.text}")
+            self.list.insertItem(0, item)
         self.tick.stop()
         self.started = None
         self.steps_done = 0
         self.bar.setRange(0, 1)
         self.bar.setValue(1 if path else 0)
-        self._mark(len(STAGES) if path else -1)
+        self._mark(len(STAGES) if path or not record else -1)
         self.state.setText("待機中")
         self.progress_view.setToolTip(f"前の 1 枚: {result}（{took}）")
         self.time.setText("")

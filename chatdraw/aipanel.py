@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (QButtonGroup, QGridLayout, QHBoxLayout, QInputDialog, QLabel, QMenu, QPushButton,
+from PySide6.QtWidgets import (QCheckBox, QSlider, QSpinBox, QButtonGroup, QGridLayout, QHBoxLayout, QInputDialog, QLabel, QMenu, QPushButton,
                                QSizePolicy, QToolButton, QVBoxLayout, QWidget)
 
 # 作風: (名前, 描く言葉に足すタグ, ヒント)。タグは英語のまま模型に渡す
@@ -36,6 +36,7 @@ PRESETS: list[tuple[str, str, int, str, str, int]] = [
     ("イラスト", "場面の 1 枚を横長で", 0, "横", "厚塗り", 100),
     ("アイコン", "顔まわりを正方形で", 0, "正方形", "アニメ", 100),
     ("線画だけ", "塗らずに線で描く", 0, "縦", "線画", 100),
+    ("赤ペンで直す", "囲んだ所を指示どおりに", 2, "縦", "おまかせ", 75),
 ]
 PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background", "アイコン": "portrait, upper body, looking at viewer"}
 
@@ -77,13 +78,41 @@ class AiPanel(QWidget):
         lay.addLayout(styles)
 
         lay.addWidget(self._head("描き方", ""))
-        self.mode_buttons = self._segment(["新規", "ラフから"], lambda i: w.mode.setCurrentIndex(i))
+        self.mode_buttons = self._segment(["新規", "ラフから", "直す"], lambda i: w.mode.setCurrentIndex(i))
+        for b, tip in zip(self.mode_buttons[1], ("白紙から描きます", "キャンバスの線の形に沿って描きます",
+                                                  "赤ペンで囲んだ所か、四角で選んだ所だけを描き直します")):
+            b.setToolTip(tip)
         lay.addLayout(self.mode_buttons[0])
         self.size_buttons = self._segment(list(SIZES), self._pick_size)
         lay.addLayout(self.size_buttons[0])
         w.mode.currentIndexChanged.connect(self.sync)
         w.size_pick.currentIndexChanged.connect(self.sync)
 
+        # 枚数・種・参考画像。どれも頼まなければ今までどおり（1 枚、毎回違う種、参考画像なし）
+        lay.addWidget(self._head("枚数と種", "何枚描くか。種を固定すると、同じ頼みで同じ絵になります"))
+        self.count_buttons = self._segment(["1 枚", "2 枚", "4 枚"], lambda i: None)
+        self.count_buttons[1][0].setChecked(True)
+        lay.addLayout(self.count_buttons[0])
+        seed_row = QHBoxLayout()
+        self.seed = QSpinBox()
+        self.seed.setRange(0, 2_147_483_647)
+        self.seed.setToolTip("種。前に描いた絵の種が入ります")
+        self.seed_lock = QCheckBox("種を固定")
+        self.seed_lock.setToolTip("固定すると、同じ頼みと設定で同じ絵になります。外すと毎回違う絵になります")
+        seed_row.addWidget(self.seed, 1)
+        seed_row.addWidget(self.seed_lock)
+        lay.addLayout(seed_row)
+        ref_row = QHBoxLayout()
+        self.use_ref = QCheckBox("参考画像に寄せる")
+        self.use_ref.setToolTip("表示の欄の「参考画像」の絵柄や雰囲気を借りて描きます。\n初めて使うときに部品（約 3GB）を取ります")
+        self.ref_scale = QSlider(Qt.Horizontal)
+        self.ref_scale.setRange(10, 100)
+        self.ref_scale.setValue(60)
+        self.ref_scale.setToolTip("寄せる強さ")
+        self.use_ref.toggled.connect(lambda on: on and self.w.feature_tour("reference_ai"))
+        ref_row.addWidget(self.use_ref)
+        ref_row.addWidget(self.ref_scale, 1)
+        lay.addLayout(ref_row)
         row = QHBoxLayout()
         self.again = QPushButton("もう一度描く")
         self.again.setToolTip("前と同じ頼みを、別の種で描き直します")
@@ -94,6 +123,10 @@ class AiPanel(QWidget):
         row.addWidget(self.again)
         row.addWidget(self.save_button)
         lay.addLayout(row)
+        self.upscale_button = QPushButton("絵を 2 倍に拡大")
+        self.upscale_button.setToolTip("線と塗りを保ったまま、今の絵を 2 倍の大きさにします")
+        self.upscale_button.clicked.connect(w.upscale_canvas)
+        lay.addWidget(self.upscale_button)
         self.set_style("おまかせ")
         self.sync()
 
@@ -119,6 +152,27 @@ class AiPanel(QWidget):
             buttons.append(b)
             row.addWidget(b)
         return row, buttons
+
+    def count(self) -> int:
+        return (1, 2, 4)[next((i for i, b in enumerate(self.count_buttons[1]) if b.isChecked()), 0)]
+
+    def set_count(self, n: int):
+        for b, k in zip(self.count_buttons[1], (1, 2, 4)):
+            b.setChecked(k == n)
+
+    def seeds(self) -> list[int]:
+        """描く種の並び。固定なら欄の種から、外していれば新しい種から、枚数分を続けて使う"""
+        import random
+        first = self.seed.value() if self.seed_lock.isChecked() else random.randrange(0, 2_000_000_000)
+        return [first + i for i in range(self.count())]
+
+    def reference(self):
+        """寄せる参考画像（PIL）。寄せない・置いていないなら None"""
+        path = getattr(self.w.reference, "path", None)
+        if not self.use_ref.isChecked() or not path:
+            return None
+        from PIL import Image
+        return Image.open(path).convert("RGB")
 
     def _pick_size(self, i: int):
         self.w.size_pick.setCurrentIndex(i)
@@ -228,4 +282,6 @@ class AiPanel(QWidget):
             b.setChecked(i == self.w.mode.currentIndex())
         for i, b in enumerate(self.size_buttons[1]):
             b.setChecked(i == self.w.size_pick.currentIndex())
-            b.setEnabled(self.w.mode.currentIndex() == 0)   # ラフからはキャンバスの縦横に合わせる
+            b.setEnabled(self.w.mode.currentIndex() == 0)   # ラフから・直すはキャンバスの縦横に合わせる
+        for b in self.count_buttons[1]:
+            b.setEnabled(self.w.mode.currentIndex() != 2)   # 直すときは 1 回だけ

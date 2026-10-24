@@ -68,7 +68,7 @@ def _widths(w, left: list, right: list, side: int):
 
 
 # よく使う道具。おすすめの配置では、これだけを道具の帯に出す（ほかはクリエイター向けの配置か、AI に頼めば使える）
-ESSENTIAL_TOOLS = ("pen", "eraser", "fill", "eyedropper", "select", "move", "hand")
+ESSENTIAL_TOOLS = ("pen", "eraser", "fill", "eyedropper", "select", "move", "hand", "redpen")
 
 
 def bars(w, ribbon: bool, tools: tuple | None, options: bool = True, bottom: bool = False, panelbar: bool = True):
@@ -124,7 +124,7 @@ def creator(w):
 def ai_focus(w):
     """AI 特化。手で描く道具は出さず、左に AI プリセットと作風、右に全体と履歴、下にチャットを大きく。上に進み"""
     _reset(w)
-    bars(w, ribbon=False, tools=(), options=False)
+    bars(w, ribbon=False, tools=("redpen", "select", "hand"), options=False)   # 手で描く道具は出さず、AI に直す所を示す道具だけ
     _column(w, L, ["chat"])
     _column(w, R, ["view", "history"], [3, 7])
     w.addDockWidget(T, w.panels["progress"][0])

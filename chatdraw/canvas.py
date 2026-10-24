@@ -15,7 +15,7 @@ from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem, QGraphicsRect
 from chatdraw.brush import PRESETS, Brush, Dabs, stamp
 
 UNDO_BYTES = 1_500_000_000   # 元に戻すに使うメモリの上限（約 1.5GB）
-TOOL_NAMES = {"eraser": "消しゴム", "blur": "ぼかし", "fill": "塗りつぶし", "gradient": "グラデーション", "line": "直線",
+TOOL_NAMES = {"redpen": "赤ペン", "eraser": "消しゴム", "blur": "ぼかし", "fill": "塗りつぶし", "gradient": "グラデーション", "line": "直線",
               "rect": "四角", "ellipse": "楕円", "move": "移動", "select": "選択範囲を消す"}
 BRUSH_TOOLS = ("pen", "eraser", "blur")                       # なぞって描く道具（筆の輪を出す）
 DRAG_TOOLS = ("line", "rect", "ellipse", "gradient", "move", "select")   # 押した所から離した所までで決まる道具
@@ -68,7 +68,8 @@ class Canvas(QGraphicsView):
     brush_changed = Signal(int)
     history_changed = Signal()
     moved = Signal(int, int)    # カーソルのキャンバス上の位置（下の帯の座標に出す）  # 元に戻すの積み重ねが変わった（操作の履歴の欄を描き直す）
-    used_color = Signal()       # 描く色で描き始めた（最近使った色に足す）
+    used_color = Signal()
+    marked = Signal()           # 赤ペンで印を付けた（AI の欄を「直す」にする）       # 描く色で描き始めた（最近使った色に足す）
 
     def drawBackground(self, painter, rect):
         """絵の周りはテーマの模様。画面に貼り付けて描く（拡大や移動で模様が流れない）"""
@@ -130,6 +131,9 @@ class Canvas(QGraphicsView):
         self.sel_item.setZValue(1e9 - 1)
         self.sel_item.setVisible(False)
         self.scene().addItem(self.sel_item)
+        from chatdraw.redpen import RedPen
+        self.redpen = RedPen()   # 赤ペン先生の印。レイヤーとは別に持ち、保存する絵にも AI に渡す絵にも入れない
+        self.scene().addItem(self.redpen)
         self.set_tool("pen")
 
     # ---- 書類 ----
@@ -170,6 +174,7 @@ class Canvas(QGraphicsView):
         self.rebuild()
         w, h = self.size_px()
         self.scene().setSceneRect(QRectF(0, 0, w, h))
+        self.redpen.set_size(w, h)
         self.fit()
 
     def flatten(self) -> QImage:
@@ -536,6 +541,18 @@ class Canvas(QGraphicsView):
         if rect is not None:
             self.sel_item.setRect(QRectF(rect))
 
+    def selection_mask(self) -> QImage | None:
+        """四角の選択範囲を、直す所の形（白が直す所）にする。選択が無ければ None"""
+        if self.selection is None or self.selection.isEmpty():
+            return None
+        w, h = self.size_px()
+        m = QImage(w, h, QImage.Format_Grayscale8)
+        m.fill(0)
+        q = QPainter(m)
+        q.fillRect(self.selection, QColor("white"))
+        q.end()
+        return m
+
     def select_all(self):
         w, h = self.size_px()
         self.set_selection(QRect(0, 0, w, h))
@@ -612,6 +629,10 @@ class Canvas(QGraphicsView):
 
     # ---- マウスとペンタブレット ----
     def _press(self, pos: QPointF, pressure: float):
+        if self.tool == "redpen" and self.layers:
+            self.redpen.begin(pos)
+            self.marked.emit()
+            return True
         if not self.layers or not self.layers[self.current].visible:
             return False
         if self.tool == "eyedropper":
@@ -668,6 +689,9 @@ class Canvas(QGraphicsView):
         if self.drag_start is not None:
             self.drag(self.drag_start, pos)
             return
+        if self.redpen.drawing is not None:
+            self.redpen.add(pos)
+            return
         if self.last is not None:
             self.stroke(self.last, pos, self.pressure)
             self.last = pos
@@ -677,6 +701,9 @@ class Canvas(QGraphicsView):
         super().mouseMoveEvent(e)
 
     def mouseReleaseEvent(self, e):
+        if self.redpen.drawing is not None:
+            self.redpen.end()
+            return
         if self.drag_start is not None:
             self.end_drag(self.drag_start, self.mapToScene(e.position().toPoint()))
             self.drag_start = None
@@ -696,6 +723,10 @@ class Canvas(QGraphicsView):
         t = e.type()
         if t == e.Type.TabletPress:
             self._press(pos, self.pressure)
+        elif t == e.Type.TabletMove and self.redpen.drawing is not None:
+            self.redpen.add(pos)
+        elif t == e.Type.TabletRelease and self.redpen.drawing is not None:
+            self.redpen.end()
         elif t == e.Type.TabletMove and self.drag_start is not None:
             self.drag(self.drag_start, pos)
         elif t == e.Type.TabletRelease and self.drag_start is not None:
