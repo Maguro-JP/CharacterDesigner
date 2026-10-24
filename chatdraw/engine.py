@@ -177,6 +177,21 @@ def seams(before, after, mask, limit: float = 28.0, grow: int = 12):
     return out
 
 
+def erase(image, mask, rounds: int = 60):
+    """mask（白）の所を消しゴムで消す。周りの色を内へ少しずつ広げて埋め、元の線や形を残さない。
+    消すのは mask の中だけで、外の画素は変えない"""
+    from PIL import Image, ImageChops, ImageFilter
+    img = image.convert("RGB")
+    keep = mask.convert("L").point(lambda v: 0 if v > 127 else 255)
+    from PIL import ImageStat
+    ring = ImageChops.subtract(mask.convert("L").filter(ImageFilter.MaxFilter(9)), mask.convert("L"))
+    mean = tuple(int(v) for v in ImageStat.Stat(img, ring).mean) if ring.getbbox() else (128, 128, 128)
+    fill = Image.composite(img, Image.new("RGB", img.size, mean), keep)   # 中の元の線は使わず、周りの色から始める
+    for i in range(rounds):
+        fill = Image.composite(img, fill.filter(ImageFilter.GaussianBlur(4 if i < rounds // 2 else 2)), keep)
+    return Image.composite(fill, img, mask.convert("L").point(lambda v: 255 if v > 127 else 0))
+
+
 class Stopped(Exception):
     """利用者が「止める」を押した"""
 
@@ -324,12 +339,13 @@ class Painter:
         return out
 
     def redraw(self, prompt: str, seed: int, image, mask, strength: float = 0.45, on_step=None, reference=None,
-               ref_scale: float = 0.6):
+               ref_scale: float = 0.6, clean: bool = False):
         """image（PIL）の mask（PIL の L、白が直す所）の中だけを、元の絵を土台に少しだけ直して返す（微調整）。
 
         元の絵は縮めも広げもせず、そのままの大きさで模型に渡す。直す所の外の画素は 1 つも変えない。
         直す所を切り出して別に描いて貼る形も、絵全体を描き直す形もとらない（どちらも元の絵が崩れた）。
         strength が小さいほど元の絵に近いまま直す。足りなければ同じ所をもう一度直す。
+        clean なら、描く前に直す所を消しゴムで消す（元の線が薄く残って二重になるのを防ぐ。開いた目を閉じるなど形を変えるとき）。
         """
         import torch
         from PIL import Image
@@ -340,6 +356,8 @@ class Painter:
             from diffusers import AutoPipelineForInpainting
             self._inpaint = AutoPipelineForInpainting.from_pipe(pipe)   # 読んだ模型の部品をそのまま使う
         self.stop = False
+        if clean:
+            image = erase(image, mask)
         w, h = image.size
         # 模型は 8 の倍数の大きさしか受けないので、右と下の端を写して足すだけにする（縮めも広げもしない）
         base = Image.new("RGB", (w + (-w % 8), h + (-h % 8)))
