@@ -21,7 +21,6 @@ def main():
         t = time.time()
         im = draw(req["prompt"], req["tags"], req.get("seed", 7), req["compose"], req["render"], size=tuple(req.get("size", (832, 1216))),
                   say=lambda m: print(m, flush=True), keep=out)
-        im.save(out / f"3-twostage-s{req.get('seed', 7)}.png")
         (out / "request.json").write_text(json.dumps(dict(req, seconds=round(time.time() - t)), ensure_ascii=False, indent=1), encoding="utf-8")
         print("exit=0")
         return

@@ -70,28 +70,58 @@ def render(prompt: str, negative: str, depth, lines, seed: int, model: str, size
     return out
 
 
-def draw(sentence: str, tags: str, seed: int, compose_model: str, render_model: str, size=(832, 1216), say=print, keep=None):
-    """sentence は構図の模型に渡す文、tags は仕上げの模型に渡すタグ。keep に置き場を渡すと途中の絵も残す"""
+def compose(sentence: str, seed: int, compose_model: str, size, path):
     from chatdraw.engine import Painter
     from chatdraw.models import image_model
-    t = time.time()
     cm = image_model(compose_model)
-    composer = Painter(compose_model, steps=cm.steps, size=size, guidance=cm.guidance)
-    composition = composer.paint(sentence, seed, on_step=lambda i, n: say(f"構図 {i}/{n}"))
-    del composer
-    gc.collect()
-    say(f"構図: {time.time() - t:.0f} 秒")
+    im = Painter(compose_model, steps=cm.steps, size=size, guidance=cm.guidance).paint(
+        sentence, seed, on_step=lambda i, n: print(f"構図 {i}/{n}", flush=True))
+    im.save(path)
+
+
+def finish(tags: str, seed: int, render_model: str, size, composition_path, keep):
+    from PIL import Image
+    from chatdraw.models import image_model
     t = time.time()
-    depth, lines = structure(composition)
-    say(f"形を取り出す: {time.time() - t:.0f} 秒")
-    t = time.time()
+    depth, lines = structure(Image.open(composition_path).convert("RGB"))
+    depth.save(keep / "2-depth.png")
+    lines.save(keep / "2-lines.png")
+    print(f"形を取り出す: {time.time() - t:.0f} 秒", flush=True)
     rm = image_model(render_model)
     out = render(f"{tags}, masterpiece, best quality", "lowres, worst quality, low quality, bad anatomy, bad hands",
                  depth, lines, seed, render_model, size=size, steps=rm.steps, guidance=rm.guidance,
-                 on_step=lambda i, n: say(f"仕上げ {i}/{n}"))
-    say(f"仕上げ: {time.time() - t:.0f} 秒")
-    if keep is not None:
-        composition.save(keep / "1-composition.png")
-        depth.save(keep / "2-depth.png")
-        lines.save(keep / "2-lines.png")
-    return out
+                 on_step=lambda i, n: print(f"仕上げ {i}/{n} {time.time() - t:.0f} 秒", flush=True))
+    out.save(keep / f"3-twostage-s{seed}.png")
+
+
+def draw(sentence: str, tags: str, seed: int, compose_model: str, render_model: str, size=(832, 1216), say=print, keep=None):
+    """sentence は構図の模型に渡す文、tags は仕上げの模型に渡すタグ。
+    段ごとに別の処理（プロセス）で動かし、段の間でメモリを OS に返す（16GB の機械で、FLUX のあとに SDXL を読むと
+    1 つの処理の中では解放しきれず、仕上げが進まなかった）。途中の絵は段ごとに keep に置く"""
+    import subprocess
+    import sys
+    from pathlib import Path
+    keep = Path(keep or ".")
+    keep.mkdir(parents=True, exist_ok=True)
+    comp = keep / "1-composition.png"
+    w, h = size
+    t = time.time()
+    subprocess.run([sys.executable, "-u", "-m", "chatdraw.twostage", "compose", sentence, str(seed), compose_model, str(w), str(h), str(comp)],
+                   check=True)
+    say(f"構図: {time.time() - t:.0f} 秒")
+    t = time.time()
+    subprocess.run([sys.executable, "-u", "-m", "chatdraw.twostage", "finish", tags, str(seed), render_model, str(w), str(h), str(comp),
+                    str(keep)], check=True)
+    say(f"形と仕上げ: {time.time() - t:.0f} 秒")
+    from PIL import Image
+    return Image.open(keep / f"3-twostage-s{seed}.png")
+
+
+if __name__ == "__main__":
+    import sys
+    from pathlib import Path
+    cmd, text, seed, model, w, h = sys.argv[1:7]
+    if cmd == "compose":
+        compose(text, int(seed), model, (int(w), int(h)), sys.argv[7])
+    else:
+        finish(text, int(seed), model, (int(w), int(h)), sys.argv[7], Path(sys.argv[8]))

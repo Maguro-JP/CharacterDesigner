@@ -5,5 +5,6 @@
  "prompt": "An adult woman in a navy one-piece swimsuit standing on a beach at sunset, smiling, full body, anime illustration style",
  "tags": "1girl, solo, adult woman, mature female, navy one-piece swimsuit, standing, beach, sunset, smile, full body",
  "seed": 7,
+ "note": "段ごとに別の処理で動かす版",
  "size": [832, 1216]
 }
