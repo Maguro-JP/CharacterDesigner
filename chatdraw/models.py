@@ -19,7 +19,44 @@ HALF = dict(allow_patterns=["*.json", "*.txt", "unet/*.fp16.safetensors", "vae/*
                             "text_encoder*/*.fp16.safetensors"])
 # safetensors の無い古い模型（.bin だけ）
 BIN = dict(allow_patterns=["*.json", "*.txt", "unet/*.bin", "vae/*.bin", "text_encoder*/*.bin"], ignore_patterns=["*.fp16.*"])
-FILES = {"full": FULL, "half": HALF, "bin": BIN}
+# 新しい世代（DiT）の模型。部品のフォルダーだけを取り、根に置かれた 1 つにまとめた重みは取らない（同じ物を 2 度取らない）
+DIT = dict(allow_patterns=["*.json", "*.txt", "*.model", "*.jinja", "scheduler/*", "tokenizer/*", "tokenizer_2/*",
+                           "text_encoder/*", "text_encoder_2/*", "transformer/*", "vae/*"])
+FILES = {"full": FULL, "half": HALF, "bin": BIN, "dit": DIT}
+
+
+@dataclass(frozen=True)
+class Family:
+    """模型の世代ごとの違い。描く部品、頼みの書き方、使える機能を 1 か所で決める。
+    値は各模型の公式の札（Hugging Face の README）の使い方の例に合わせた"""
+    name: str
+    pipeline: str             # diffusers の部品の名前
+    size: tuple = (1024, 1024)   # 学んだ大きさ（縦長の絵はここから縦横比を変える）
+    multiple: int = 64        # 縦横の大きさをこの倍数にそろえる
+    tags: bool = True         # タグで頼む（SD 系）。False は文で頼む
+    negative: bool = True     # 描かない物（negative_prompt）を受けるか
+    cfg_key: str = "guidance_scale"
+    sketch: bool = False      # ラフから描ける（T2I-Adapter がある）
+    inpaint: bool = False     # 範囲の直しができる
+    reference: bool = False   # 参考画像（IP-Adapter）が使える
+    extra: dict = field(default_factory=dict)
+
+
+FAMILIES = {
+    "sdxl": Family("SDXL", "StableDiffusionXLPipeline", (832, 1216), 64, sketch=True, inpaint=True, reference=True),
+    "sd15": Family("SD1.5", "StableDiffusionPipeline", (512, 768), 64, sketch=True, inpaint=True, reference=True),
+    "flux2": Family("FLUX.2", "Flux2KleinPipeline", (1024, 1024), 16, tags=False, negative=False),
+    "flux1": Family("FLUX.1", "FluxPipeline", (1024, 1024), 16, tags=False, negative=False, extra={"max_sequence_length": 256}),
+    "chroma": Family("Chroma", "ChromaPipeline", (1024, 1024), 16, tags=False),
+    "zimage": Family("Z-Image", "ZImagePipeline", (1024, 1024), 16, tags=False, negative=False),
+    "qwenimage": Family("Qwen-Image", "QwenImagePipeline", (1024, 1024), 16, tags=False, cfg_key="true_cfg_scale"),
+    "lumina2": Family("Lumina 2", "Lumina2Pipeline", (1024, 1024), 16, tags=True,
+                      extra={"cfg_trunc_ratio": 0.25, "cfg_normalization": True}),
+}
+
+
+def family(name: str) -> Family:
+    return FAMILIES.get(name, FAMILIES["sdxl"])
 
 
 @dataclass(frozen=True)
@@ -36,8 +73,9 @@ class ImageModel:
     recommended: bool = False
     en: str = ""    # おまかせで言葉の模型に選ばせるときの説明
     score: int = 0  # 内部の点数。0 は確かめていない
-    family: str = "sdxl"   # sdxl か sd15。ラフから描く部品と、描く大きさが変わる
+    family: str = "sdxl"   # 世代（FAMILIES の名前）。描く部品、描く大きさ、使える機能が変わる
     prefix: str = ""       # 頼みの頭に足す言葉（模型が決まり文句を要るとき）
+    commercial: str = ""   # 商用の可否（模型のライセンスの表示から。画面の札に出す）
 
 
 @dataclass(frozen=True)
@@ -61,7 +99,8 @@ def _load_images() -> tuple[ImageModel, ...]:
     items = json.loads((Path(__file__).with_name("catalog.json")).read_text(encoding="utf-8"))
     return tuple(ImageModel(m["repo"], m["name"], m["good"], "", m["gb"], m["steps"], m["guidance"],
                             variant="fp16" if m["format"] == "half" else None, files=FILES[m["format"]],
-                            en=m["en"], score=m["score"], family=m["family"], prefix=m.get("prefix", ""))
+                            en=m["en"], score=m["score"], family=m["family"], prefix=m.get("prefix", ""),
+                            commercial=m.get("commercial", ""))
                  for m in items)
 
 

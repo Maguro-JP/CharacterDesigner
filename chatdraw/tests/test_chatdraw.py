@@ -21,7 +21,7 @@ class FakeWords:
     def ready(self):
         return True
 
-    def to_prompt(self, text):
+    def to_prompt(self, text, tags=True):
         return "1girl, red scarf" if has_japanese(text) else text
 
 

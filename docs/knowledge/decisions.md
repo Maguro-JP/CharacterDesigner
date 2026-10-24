@@ -163,3 +163,6 @@
 - 2026-10-24 確かめていない模型も、推奨だけ表示を外せば取れるようにする。推奨（点の届いた物）とは分けて印を付ける。触る場所: chatdraw/setup.py の _choose_page
 - 2026-10-24 手で置く模型の置き場は、模型の置き場の下の manual 1 か所にする。ファイルを選んだときは動かさずにその道で使う（7GB を写すと時間と置き場を食うため）。世代はフォルダーなら model_index.json、ファイルなら大きさ（5GB 超で SDXL）で決める。触る場所: chatdraw/models.py の manual_images、local_family
 - 2026-10-24 使う人向けの文書（手順書・操作方法）は chatdraw/help/ に置く。Setup.exe に入り、アプリの中で同じ文書を読めるようにするため。README からはそこへ繋ぐ。触る場所: chatdraw/help/、chatdraw/helpview.py
+- 2026-10-24 模型の良し悪しは、速さではなく描いた絵の出来で決める。速さは画面に目安として出すだけで、推奨の点には入れない。触る場所: chatdraw/verify_models.py（絵を残し、点は絵を見て付ける）、chatdraw/catalog.json の score
+- 2026-10-24 新しい世代（FLUX.1、FLUX.2、Z-Image、Qwen-Image、Lumina 2、Chroma）は、世代の表（chatdraw/models.py の FAMILIES）で読む部品・大きさ・頼みの書き方・使える機能を決める。ラフから・範囲の直し・参考画像は、部品が揃うまで SDXL と SD1.5 だけで使え、ほかの世代ではボタンを止めて理由を出す。触る場所: chatdraw/models.py の FAMILIES、chatdraw/engine.py の prompt_args
+

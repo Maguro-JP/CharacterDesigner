@@ -49,7 +49,7 @@ def missing() -> dict:
     if not engine_ready():
         return {"image": True, "words": not llm_lib_ready()}
     from chatdraw.models import all_images
-    return {"image": not (any(has_image(m) for m in all_images()) and Painter().sketch_ready()),
+    return {"image": not any(has_image(m) for m in all_images()),
             "words": not (llm_lib_ready() and any(has_words(m) for m in WORDS))}
 
 
@@ -141,8 +141,9 @@ class Fetcher(QObject):
         try:
             # 取ってある分は飛ばし、新しい版があればその差分だけを取る
             snapshot_download(m.repo, cache_dir=str(HUB), **m.files)
-            repo, files, _ = SKETCH[m.family]
-            snapshot_download(repo, cache_dir=str(HUB), **files)   # ラフから描く部品（約 0.15〜0.3GB）
+            if m.family in SKETCH:   # ラフから描く部品は SD 系だけにある
+                repo, files, _ = SKETCH[m.family]
+                snapshot_download(repo, cache_dir=str(HUB), **files)   # ラフから描く部品（約 0.15〜0.3GB）
         finally:
             done.set()
 
@@ -270,7 +271,9 @@ class SetupDialog(QDialog):
             r.setChecked(m.repo == now_image if now_image else best)
             self.image_group.addButton(r)
             self.image_radios[m.repo] = r
-            meta = f"{m.gb:.0f}GB" + ("" if m.score > 0 else "・まだ確かめていない")
+            from chatdraw.models import family as fam
+            meta = f"{fam(m.family).name}・{m.gb:.0f}GB" + (f"・{m.commercial}" if m.commercial else "") + \
+                ("" if m.score > 0 else "・まだ確かめていない")
             cards.append((card(r, m.good, meta, has_image(m), best), m.score >= PASS))
         self.sections.append((grid, cards))
 
