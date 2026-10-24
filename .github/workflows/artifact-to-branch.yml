@@ -34,5 +34,6 @@ jobs:
           mkdir -p "${{ steps.req.outputs.run }}"
           cp -r got/. "${{ steps.req.outputs.run }}/"
           git add "${{ steps.req.outputs.run }}"
+          git diff --cached --quiet && { echo "写し済み"; exit 0; }   # 同じ実行をもう一度写すときは何もしない
           git commit -qm "artifact ${{ steps.req.outputs.run }}"
           git push origin draw-results
