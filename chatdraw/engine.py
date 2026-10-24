@@ -497,6 +497,24 @@ class Studio:
         path.with_suffix(".json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
         return path
 
+    def _fix_once(self, before, mask, prompt, seed, strength, k, count, say, reference, ref_scale):
+        """1 回直して、縁に出た継ぎ目だけを元に戻し、残る所を細く描き直す"""
+        from PIL import Image
+        result = self.painter.redraw(prompt, seed, before, mask, strength=strength,
+                                     on_step=lambda i, n: say(f"描いています（{i}/{n}・{k}/{count} か所目）"),
+                                     reference=reference, ref_scale=ref_scale)
+        for t in range(1, 3):
+            seam = seams(before, result, mask)
+            if seam is None:
+                break
+            if t == 1:
+                say(f"継ぎ目を消しています（{k} か所目）")
+                result = Image.composite(before, result, seam)   # 間違えた線だけを元の絵に戻す（消しゴム）
+                continue
+            result = self.painter.redraw(prompt, seed + 100, result, seam, strength=0.3,
+                                         on_step=lambda i, n: say(f"描いています（{i}/{n}・{k}/{count} か所目の継ぎ目）"))
+        return result
+
     def fix(self, image, regions: list[tuple], seed: int, on_status=None, style: str = "", strength: float = 0.75,
             reference=None, ref_scale: float = 0.6):
         """赤ペン先生と範囲の描き直し。regions は (mask, 指示の文) の並び。直す所ごとに指示を描く言葉に直し、
@@ -515,29 +533,22 @@ class Studio:
                 raise ValueError("子どもを性的に描く頼みは描きません")
             say("絵の模型を読んでいます（初めの 1 回だけ時間がかかります）")
             before = result
-            result = self.painter.redraw(prompt, seed + k, result, mask, strength=strength,
-                                         on_step=lambda i, n, k=k: say(f"描いています（{i}/{n}・{k}/{len(regions)} か所目）"),
-                                         reference=reference, ref_scale=ref_scale)
-            # 直したら確かめる。鉛筆と消しゴムと同じく、縁に出た継ぎ目（間違えた線）だけを消して元に戻し、
-            # それでも残る所だけを細く描き直して、もう一度確かめる（3 回まで）。広く消さない（物が変わる）
-            for t in range(1, 4):
-                seam = seams(before, result, mask)
-                if seam is None:
-                    say(f"確かめました（{k} か所目・継ぎ目なし）")
+            # 直しきる: 直す → 確かめる、を崩れが見つからなくなるまで、強さと種を変えて繰り返す（4 回まで）。
+            # 毎回、元の絵から直す（崩れた直しの上に重ねない）。見つからなければそこで止め、残れば崩れの少ない物を使う
+            best, best_flaws = None, None
+            tries = [(strength, 0), (min(0.95, strength + 0.15), 1), (min(0.95, strength + 0.3), 2), (min(0.95, strength + 0.15), 3)]
+            for n_try, (s_try, seed_shift) in enumerate(tries, 1):
+                out = self._fix_once(before, mask, prompt, seed + k + 1000 * seed_shift, s_try, k, len(regions), say,
+                                     reference, ref_scale)
+                found = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, out, mask)]
+                say(f"確かめました（{k} か所目・{n_try} 回目・崩れ {len(found)} 件）")
+                if best is None or len(found) < len(best_flaws):
+                    best, best_flaws = out, found
+                if not found:
                     break
-                from PIL import Image
-                if t == 1:
-                    say(f"継ぎ目を消しています（{k} か所目）")
-                    result = Image.composite(before, result, seam)   # 間違えた線だけを元の絵に戻す
-                    continue
-                say(f"継ぎ目を描き直しています（{k} か所目・{t - 1} 回目）")
-                result = self.painter.redraw(prompt, seed + k + 100 * t, result, seam, strength=0.3,
-                                             on_step=lambda i, n, k=k: say(f"描いています（{i}/{n}・{k}/{len(regions)} か所目の継ぎ目）"))
-            else:
-                if seams(before, result, mask) is not None:
-                    say(f"{k} か所目の縁に継ぎ目が残っています。もう一度その所を囲んで直してください")
+            result = best
             prompts.append(prompt)
-            self.last_flaws += [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, result, mask)]
+            self.last_flaws += best_flaws
         if self.last_flaws:
             say("崩れが見つかりました: " + " / ".join(self.last_flaws))
         path = self._save(result, seed, dict(text=" / ".join(n for _m, n in regions), prompt=" / ".join(prompts), seed=seed,
