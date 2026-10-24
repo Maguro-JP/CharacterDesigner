@@ -97,27 +97,26 @@ class ModelManager(QDialog):
         return key == item.key if item.kind == "image" else Path(key).name == item.path.name
 
     def refresh(self):
+        """絵の模型と言葉の模型を分けて並べる。それぞれ、手元にある物の下に、まだ取っていない推奨の物を出す"""
         while self.list.count():
-            w = self.list.takeAt(0).widget()
-            if w:
-                w.deleteLater()
-        title = QLabel("手元の模型")
-        title.setObjectName("dialogTitle")
-        self.list.addWidget(title)
+            it = self.list.takeAt(0)
+            if it.widget():
+                it.widget().deleteLater()
         have = installed()
-        for it in have:
-            self.list.addWidget(self._row(it.name, f"{it.gb:.1f}GB", "使用中" if self.in_use(it) else "削除",
-                                          None if self.in_use(it) else (lambda _=False, it=it: self.ask_delete(it))))
-        if not have:
-            self.list.addWidget(QLabel("まだありません"))
-        names = {it.name for it in have}
-        more = [m for m in [*offered_images(), *offered_words()] if m.name not in names]
-        if more:
-            head = QLabel("推奨の模型")
-            head.setObjectName("sectionHead")
+        for kind, title, offered in (("image", "絵の模型", offered_images()), ("words", "言葉の模型", offered_words())):
+            head = QLabel(title)
+            head.setObjectName("dialogTitle")
             self.list.addWidget(head)
-            for m in more:
-                self.list.addWidget(self._row(m.name, f"{m.gb:.1f}GB", "取る", lambda _=False, m=m: self.fetch(m)))
+            mine = [it for it in have if it.kind == kind]
+            for it in mine:
+                self.list.addWidget(self._row(it.name, f"{it.gb:.1f}GB", "使用中" if self.in_use(it) else "削除",
+                                              None if self.in_use(it) else (lambda _=False, it=it: self.ask_delete(it))))
+            names = {it.name for it in mine}
+            for m in offered:
+                if m.name not in names:
+                    self.list.addWidget(self._row(m.name, f"{m.gb:.1f}GB", "取る", lambda _=False, m=m: self.fetch(m)))
+            if not mine and not offered:
+                self.list.addWidget(QLabel("ありません"))
 
     def _row(self, name: str, size: str, action: str, fn) -> QWidget:
         box = QFrame()
