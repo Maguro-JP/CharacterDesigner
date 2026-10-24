@@ -482,15 +482,35 @@ class Window(QMainWindow):
         self.setDockOptions(QMainWindow.AllowNestedDocks | QMainWindow.AllowTabbedDocks | QMainWindow.AnimatedDocks)
         # 欄どうしを重ねるとタブになる（欄の見出しを別の欄の上へドラッグ）。タブは上に出す
         self.setTabPosition(Qt.AllDockWidgetAreas, QTabWidget.North)
+        # 欄の帯: 欄ごとのアイコン。押すと欄を出す・隠す。初めは右の端に置き、上下左右のどこへでも動かせる
+        bar = QToolBar("欄の帯", self)
+        bar.setObjectName("panelbar")
+        bar.setIconSize(QSize(22, 22))
+        self.addToolBar(Qt.RightToolBarArea, bar)
+        self.panel_bar = bar
         win = self.menuBar().addMenu("ウィンドウ")
         keys = {"brushes": "F3", "color": "F5", "chat": "F6", "history": "F7", "layers": "F8"}
-        for k, (d, _area) in self.panels.items():
+        icons = {"color": "palette", "brushes": "brush", "chat": "ai", "history": "history", "layers": "layers"}
+        for k in ("chat", "layers", "history", "color", "brushes"):
+            d = self.panels[k][0]
             act = d.toggleViewAction()   # チェックが付いていれば表示中
             act.setShortcut(keys[k])
+            act.setIcon(icon(icons[k]))
+            act.setToolTip(f"{d.windowTitle()}（{keys[k]}）")
             win.addAction(act)
+            bar.addAction(act)
         tact = tools.toggleViewAction()
         tact.setShortcut("F4")
         win.addAction(tact)
+        win.addAction(bar.toggleViewAction())
+        win.addAction(self.options.toggleViewAction())
+        # 帯は上下左右のどこにでも置ける（帯の端をドラッグしても動く）
+        where = win.addMenu("帯の位置")
+        for name, tb in (("道具の帯", tools), ("欄の帯", bar)):
+            sub = where.addMenu(name)
+            for label, area in (("左", Qt.LeftToolBarArea), ("右", Qt.RightToolBarArea), ("上", Qt.TopToolBarArea),
+                                ("下", Qt.BottomToolBarArea)):
+                sub.addAction(QAction(label, self, triggered=lambda _=False, tb=tb, area=area: self.place_bar(tb, area)))
         win.addSeparator()
         win.addAction(QAction("すべての欄を畳む", self, triggered=lambda: self._collapse_all(True)))
         win.addAction(QAction("すべての欄を広げる", self, triggered=lambda: self._collapse_all(False)))
@@ -502,8 +522,10 @@ class Window(QMainWindow):
         win.addAction(QAction("整列（初期の配置に戻す）", self, triggered=self.arrange))
         win.addAction(QAction("すべて別ウィンドウにする", self, triggered=self.float_all))
         win.addAction(QAction("自由配置（欄をドラッグして好きな所に置く）", self, triggered=self.free_layout))
+        help_menu = self.menuBar().addMenu("ヘルプ")
+        help_menu.addAction(QAction(icon("help"), "使い方ツアー", self, shortcut="F1", triggered=self.start_tour))
         self.layout_store = QSettings("CharacterDesigner", "chatdraw")
-        state = self.layout_store.value("state3")   # 欄の並びを変えたら名前を変え、古い並びを読まない
+        state = self.layout_store.value("state4")   # 欄の並びを変えたら名前を変え、古い並びを読まない
         if state is not None:
             self.restoreGeometry(self.layout_store.value("geometry"))
             self.restoreState(state)
@@ -538,6 +560,7 @@ class Window(QMainWindow):
         self.say(text, "あなた")
         self.button.setEnabled(False)
         self.stop_button.setEnabled(True)
+        self.panels["history"][0].show()   # 描いている間は、工程と進みが見えるように履歴の欄を出す
         self.activity.begin(text, self.mode.currentText())
         self.activity.status("AI が使えるかを確かめました")
         base = None
@@ -760,17 +783,52 @@ class Window(QMainWindow):
         self.tools.show()
         self.addToolBar(Qt.TopToolBarArea, self.options)
         self.options.show()
-        # 左は作画ソフトと同じデッサンの道具（色・ブラシ）、右は AI とこの道具ならではの欄（頼み・描いた絵と進み）とレイヤー
+        self.addToolBar(Qt.RightToolBarArea, self.panel_bar)
+        self.panel_bar.show()
+        # 初めはシンプルにする。左は道具と色、右は AI とレイヤーだけ。ブラシと履歴は欄の帯のアイコンで開く
         self.addDockWidget(Qt.LeftDockWidgetArea, opt)
         self.splitDockWidget(opt, brushes, Qt.Vertical)
         self.addDockWidget(Qt.RightDockWidgetArea, chat)
         self.splitDockWidget(chat, hist, Qt.Vertical)
         self.splitDockWidget(hist, layers, Qt.Vertical)
+        brushes.hide()
+        hist.hide()
         w, h = max(self.width(), 1200), max(self.height(), 800)
         side = min(320, max(240, int(w * 0.17)))   # 真ん中の絵を広く取る
-        self.resizeDocks([brushes, chat], [side, side + 20], Qt.Horizontal)
-        self.resizeDocks([opt, brushes], [330, h - 330], Qt.Vertical)
-        self.resizeDocks([chat, hist, layers], [int(h * 0.36), int(h * 0.40), int(h * 0.24)], Qt.Vertical)
+        self.resizeDocks([opt, chat], [side, side + 20], Qt.Horizontal)
+        self.resizeDocks([chat, layers], [int(h * 0.45), int(h * 0.55)], Qt.Vertical)
+
+    def place_bar(self, bar: QToolBar, area):
+        self.addToolBar(area, bar)
+        bar.show()
+
+    def tour_steps(self):
+        from chatdraw.tour import Step
+        p = self.panels
+
+        def show(key):
+            return lambda: (p[key][0].show(), p[key][0].raise_())
+        return [
+            Step(lambda: None, "CharacterDesigner へようこそ", "AI に頼んで描かせ、自分でも描き足せます。主な所を順に案内します。"),
+            Step(lambda: p["chat"][0], "AI に頼む", "描きたい絵を書いて「描く」を押します。\n「ラフから」にすると、キャンバスの線に沿って描きます。", show("chat")),
+            Step(lambda: self.canvas, "キャンバス", "描いている途中の絵がここに出ます。\nホイールで拡大、Space を押しながらドラッグで動かせます。"),
+            Step(lambda: self.tools, "道具", "ペン・消しゴム・塗りつぶしなどを選びます。\nアイコンにカーソルを重ねると、名前とキーが出ます。"),
+            Step(lambda: p["color"][0], "色", "描く色を選びます。タブでパレットに切り替えられます。", show("color")),
+            Step(lambda: p["layers"][0], "レイヤー", "AI の絵はレイヤーとして重なります。描き足しは別のレイヤーにすると、あとで直せます。",
+                 show("layers")),
+            Step(lambda: self.panel_bar, "欄の帯", "欄を出す・隠すアイコンです。ブラシや履歴はここから開きます。\n帯はドラッグで上下左右へ動かせます。"),
+            Step(lambda: self.menuBar(), "メニュー", "「AI」で絵の模型を切り替え、「ウィンドウ」で配置を整えます。\nこの案内は「ヘルプ」からいつでも見られます。"),
+        ]
+
+    def start_tour(self):
+        from chatdraw.tour import Tour
+        self.tour = Tour(self, self.tour_steps(), on_close=lambda: self.layout_store.setValue("tour_done", 1))
+        self.tour.start()
+
+    def maybe_tour(self):
+        """初めて起動したときだけ、ツアーを出す"""
+        if not int(self.layout_store.value("tour_done", 0)):
+            self.start_tour()
 
     def _as_window(self, d: QDockWidget, floating: bool):
         """別ウィンドウにした欄を、ふつうのウィンドウの枠にする。上下左右と四隅の端をつかんで大きさを変えられ、最大化もできる"""
@@ -789,6 +847,7 @@ class Window(QMainWindow):
             d.setVisible(on)
         self.tools.setVisible(on)
         self.options.setVisible(on)
+        self.panel_bar.setVisible(on)
 
     def float_all(self):
         """欄をすべて別のウィンドウにして、少しずつずらして並べる"""
@@ -810,7 +869,7 @@ class Window(QMainWindow):
     def closeEvent(self, e):
         # 次に開いたときも同じ並びにする
         self.layout_store.setValue("geometry", self.saveGeometry())
-        self.layout_store.setValue("state3", self.saveState())
+        self.layout_store.setValue("state4", self.saveState())
         super().closeEvent(e)
 
     def _refresh_layers(self):
@@ -930,6 +989,8 @@ QTabWidget::pane { border: none; }
 QTabBar::tab { background: transparent; color: #8e8e95; padding: 5px 12px; border: none; border-bottom: 2px solid transparent; }
 QTabBar::tab:selected { color: #ffffff; border-bottom: 2px solid #ff7a1a; }
 QTabBar::tab:hover { color: #e8e8ea; }
+QFrame#tourCard { background: #1f2024; border: 1px solid #ff7a1a; border-radius: 12px; }
+QToolBar#panelbar QToolButton { width: 34px; height: 34px; border-radius: 9px; }
 QStatusBar { background: #111214; color: #9a9aa1; }
 QScrollBar:vertical { background: transparent; width: 10px; }
 QScrollBar::handle:vertical { background: #34353b; border-radius: 4px; min-height: 30px; margin: 2px; }
@@ -960,6 +1021,7 @@ def main():
     w.ask_models()
     w.upgrade_models()
     w.check_ai()
+    w.maybe_tour()
     sys.exit(app.exec())
 
 

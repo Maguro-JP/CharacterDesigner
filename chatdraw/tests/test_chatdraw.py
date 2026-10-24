@@ -111,8 +111,13 @@ class LayoutTest(unittest.TestCase):
         self.assertEqual(w.dockWidgetArea(w.panels["chat"][0]), _Qt.RightDockWidgetArea)   # AI は右
         self.assertEqual(w.dockWidgetArea(w.panels["brushes"][0]), _Qt.LeftDockWidgetArea)   # 道具は左
         self.assertFalse(any(d.isFloating() for d, _ in w.panels.values()))
-        w.panels["history"][0].toggleViewAction().trigger()
-        self.assertTrue(w.panels["history"][0].isHidden())
+        self.assertTrue(w.panels["history"][0].isHidden())             # 初めはシンプル。履歴とブラシは隠す
+        self.assertTrue(w.panels["brushes"][0].isHidden())
+        w.panels["history"][0].toggleViewAction().trigger()             # 欄の帯のアイコンで出す
+        self.assertFalse(w.panels["history"][0].isHidden())
+        self.assertIn(w.panels["history"][0].toggleViewAction(), w.panel_bar.actions())
+        w.place_bar(w.panel_bar, _Qt.BottomToolBarArea)                 # 帯は下にも置ける
+        self.assertEqual(w.toolBarArea(w.panel_bar), _Qt.BottomToolBarArea)
         title = w.panels["layers"][0].titleBarWidget()
         title.toggle()
         self.assertTrue(w.panels["layers"][0].widget().isHidden())   # 畳むと中身が隠れて見出しだけ残る
@@ -559,6 +564,34 @@ class TabsTest(unittest.TestCase):
         self.assertEqual((px(20), px(50)), ("#ff0000", "#ffffff"))
         ops.setCurrentRow(2)                                   # また進める
         self.assertEqual(px(50), "#ff0000")
+
+
+class TourTest(unittest.TestCase):
+    def test_tour_walks_all_steps_and_remembers(self):
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Window
+        app = QApplication.instance() or QApplication([])
+        w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
+        w.resize(1400, 900)
+        w.show()
+        w.layout_store.remove("tour_done")
+        w.maybe_tour()
+        t = w.tour
+        self.assertTrue(t.isVisible())
+        n = len(t.steps)
+        for i in range(n):
+            for _ in range(5):
+                app.processEvents()
+            t._place()
+            self.assertEqual(t.count.text(), f"{i + 1} / {n}")
+            hole = t.hole()
+            small = hole is not None and hole.width() * hole.height() < w.width() * w.height() * 0.4
+            if small:                                                    # 説明の札は抜いた所に重ならない（大きな所は中に置く）
+                self.assertFalse(hole.intersects(t.card.geometry()), (i, hole, t.card.geometry()))
+            t.next.click()
+        self.assertEqual(int(w.layout_store.value("tour_done")), 1)
+        w.maybe_tour()                                                   # 2 回目は出さない
+        self.assertIs(w.tour, t)
 
 
 class FitSizeTest(unittest.TestCase):

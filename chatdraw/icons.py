@@ -109,6 +109,48 @@ def _path(key: str) -> QPainterPath:
         p.lineTo(9.5, 12.5)
         p.moveTo(6.5, 9.5)
         p.lineTo(12.5, 9.5)
+    elif key == "palette":
+        p.moveTo(12, 3)
+        p.cubicTo(6, 3, 3, 7.5, 3, 12)
+        p.cubicTo(3, 17, 7, 21, 12, 21)
+        p.cubicTo(14, 21, 14, 18.5, 13, 17.5)
+        p.cubicTo(12, 16, 13, 14.5, 15, 14.5)
+        p.lineTo(17, 14.5)
+        p.cubicTo(19.5, 14.5, 21, 13, 21, 10.5)
+        p.cubicTo(21, 6.5, 17, 3, 12, 3)
+        for cx, cy in ((7.5, 11), (9.5, 7), (14, 6.5), (17.5, 9.5)):
+            p.addEllipse(QPointF(cx, cy), 1.1, 1.1)
+    elif key == "brush":
+        p.moveTo(20, 4)
+        p.lineTo(11, 13)
+        p.moveTo(11, 13)
+        p.cubicTo(8, 13, 6, 15, 6, 17)
+        p.cubicTo(6, 19, 5, 20, 3.5, 20.5)
+        p.cubicTo(7, 21.5, 11, 20, 11.5, 17)
+        p.cubicTo(11.8, 15.5, 11.5, 14, 11, 13)
+    elif key == "history":
+        p.addEllipse(QRectF(3.5, 3.5, 17, 17))
+        p.moveTo(12, 7)
+        p.lineTo(12, 12)
+        p.lineTo(15.5, 14)
+    elif key == "layers":
+        p.moveTo(12, 4)
+        p.lineTo(21, 8.5)
+        p.lineTo(12, 13)
+        p.lineTo(3, 8.5)
+        p.closeSubpath()
+        p.moveTo(3, 12.5)
+        p.lineTo(12, 17)
+        p.lineTo(21, 12.5)
+        p.moveTo(3, 16.5)
+        p.lineTo(12, 21)
+        p.lineTo(21, 16.5)
+    elif key == "help":
+        p.addEllipse(QRectF(3.5, 3.5, 17, 17))
+        p.moveTo(9.5, 9.5)
+        p.cubicTo(9.5, 6.5, 14.5, 6.5, 14.5, 9.5)
+        p.cubicTo(14.5, 11.5, 12, 11.5, 12, 14)
+        p.addEllipse(QPointF(12, 17), 0.6, 0.6)
     elif key == "ai":
         # 4 つの角の光（AI が描く）
         for cx, cy, r in ((10, 12, 7), (18.5, 5.5, 3)):
@@ -137,4 +179,4 @@ def icon(key: str, color: str = "#e8e8ea", active: str = "#ffffff", size: int = 
     return ic
 
 
-KEYS = ("move", "select", "pen", "eraser", "blur", "fill", "gradient", "line", "rect", "ellipse", "eyedropper", "hand", "zoom", "ai")
+KEYS = ("palette", "brush", "history", "layers", "help", "move", "select", "pen", "eraser", "blur", "fill", "gradient", "line", "rect", "ellipse", "eyedropper", "hand", "zoom", "ai")

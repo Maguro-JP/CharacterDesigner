@@ -17,6 +17,7 @@ class SVSquare(QWidget):
         super().__init__()
         self.hue, self.s, self.v = 0.0, 1.0, 1.0
         self.setMinimumSize(160, 130)
+        self.setMaximumHeight(220)
 
     def paintEvent(self, _e):
         p = QPainter(self)
@@ -168,8 +169,9 @@ class ColorPanel(QWidget):
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 2, 8, 8)
         lay.setSpacing(6)
-        lay.addWidget(self.tabs, 1)
+        lay.addWidget(self.tabs)
         lay.addLayout(top)
+        lay.addStretch(1)   # 欄が縦に長くても、色の四角は伸ばさずに上へ詰める
         self.square.picked.connect(lambda s, v: self._from_hsv())
         self.hue.picked.connect(lambda h: self._from_hsv())
         canvas.color_picked.connect(lambda c: self.show_color())
