@@ -541,10 +541,14 @@ class Window(QMainWindow):
 
     def upgrade_models(self):
         """使っている言葉の模型を、完全に上回る新しい模型があれば裏で取って乗り換える。古いファイルは消さない"""
-        from chatdraw.models import successor
+        from chatdraw.models import SUPERSEDED, WORDS, offered_words
         from chatdraw.setup import Fetcher, has_words, words_path
-        new = successor(self.settings.get("words_model"))
-        if new is None:
+        # 言葉の模型は利用者に選ばせず、確かめていちばん点の高い物を使う。利用者が自分で置いた模型（一覧に無い物）はそのまま
+        now = self.settings.get("words_model")
+        best = offered_words()
+        new = best[0] if best else None
+        known = {m.file for m in WORDS} | set(SUPERSEDED)
+        if new is None or Path(now).name == new.file or (now not in ("", "auto") and Path(now).name not in known):
             return
 
         def switch(err: str = ""):
@@ -566,32 +570,21 @@ class Window(QMainWindow):
     # ---- AI のメニュー: 模型の切り替え ----
     def _fill_ai_menu(self):
         """開くたびに作り直す（取った・取っていないが変わるため）"""
-        from chatdraw.models import IMAGES, WORDS
-        from chatdraw.setup import AUTO, has_image, has_words, words_path
+        from chatdraw.models import IMAGES, offered_images
+        from chatdraw.setup import AUTO, has_image
         menu = self.ai_menu
         menu.clear()
-        now_image, now_words = self.settings.get("image_model"), self.settings.get("words_model")
-        from chatdraw.models import offered_images, offered_words
-        from chatdraw.paths import llm_dirs
-        # 出すのは、確かめて点の届いた模型と、手元にある模型だけ
+        now_image = self.settings.get("image_model")
+        # 出すのは、確かめて推奨に届いた模型と、手元にある模型だけ（ほかは「模型の管理」で推奨の絞りを外すと出る）
         images = [m for m in IMAGES if m in offered_images() or has_image(m)]
-        words = [(m.file, m.name, has_words(m)) for m in WORDS if m in offered_words() or has_words(m)]
-        known = {m.file for m in WORDS}
-        own = sorted({p.name for d in llm_dirs() for p in d.glob("*.gguf") if p.name not in known and not p.is_symlink()})
-        words += [(name, Path(name).stem, True) for name in own]   # 利用者が自分で置いた模型
-        for title, items, now in (
-                ("絵の模型", [(AUTO, "おまかせ", True)] + [(m.repo, m.name, has_image(m)) for m in images], now_image),
-                ("言葉の模型", [(AUTO, "おまかせ", True)] + words + [("", "使わない", True)],
-                 Path(now_words).name if now_words not in (AUTO, "") else now_words)):
-            menu.addSection(title)
-            group = QActionGroup(menu)
-            for key, name, have in items:
-                act = QAction(name if have else f"{name}（未取得）", menu, checkable=True)
-                act.setChecked(key == now)
-                act.setToolTip("選ぶと取ってから使います" if not have else "")
-                act.triggered.connect(lambda _=False, t=title, k=key: self.switch_model(t, k))
-                group.addAction(act)
-                menu.addAction(act)
+        menu.addSection("絵の模型")
+        group = QActionGroup(menu)
+        for key, name, have in [(AUTO, "おまかせ", True)] + [(m.repo, m.name, has_image(m)) for m in images]:
+            act = QAction(name if have else f"{name}（未取得）", menu, checkable=True)
+            act.setChecked(key == now_image)
+            act.triggered.connect(lambda _=False, k=key: self.switch_model("絵の模型", k))
+            group.addAction(act)
+            menu.addAction(act)
         menu.addSeparator()
         menu.addAction(QAction("模型の管理…", self, triggered=self.manage_models))
 

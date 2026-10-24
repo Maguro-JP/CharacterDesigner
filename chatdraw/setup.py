@@ -214,7 +214,6 @@ class SetupDialog(QDialog):
         # 一度選んだことがあれば今の選択を、初めてならおすすめを選んでおく
         chose = self.settings is not None and int(self.settings.store.value("setup_done", 0))
         now_image = self.settings.get("image_model") if chose else None
-        now_words = self.settings.get("words_model") if chose else None
 
         head = QLabel("絵の模型")
         head.setObjectName("sectionHead")
@@ -240,36 +239,8 @@ class SetupDialog(QDialog):
             cards.append((card(r, m.good, f"{m.gb:.0f}GB", has_image(m), best), m.score >= PASS))
         self.sections.append((grid, cards))
 
-        head = QLabel("言葉の模型")
-        head.setToolTip("日本語の頼みを、絵の模型が分かる言葉に直す")
-        head.setObjectName("sectionHead")
-        lay.addWidget(head)
-        self.words_group = QButtonGroup(self)
-        self.words_radios: dict[str, QRadioButton] = {}
-        grid = QGridLayout()
-        grid.setSpacing(8)
-        lay.addLayout(grid)
-        r = QRadioButton("おまかせ")
-        r.setChecked(now_words == AUTO)
-        self.words_group.addButton(r)
-        self.words_radios[AUTO] = r
-        cards = [(card(r, "頼みに合う物を AI が選ぶ", "", False, False), True)]
-        words = verified_words()
-        for m in words:
-            best = m is words[0]
-            r = QRadioButton(m.name)
-            r.setChecked(Path(now_words).name == m.file if now_words and now_words != AUTO else now_words is None and best)
-            self.words_group.addButton(r)
-            self.words_radios[m.file] = r
-            cards.append((card(r, m.good, f"{m.gb}GB", has_words(m), best), m.score >= PASS))
-        self.no_words = QRadioButton("使わない")
-        self.words_group.addButton(self.no_words)
-        cards.append((card(self.no_words, "英語で頼むなら要らない", "", False, False), True))
-        self.sections.append((grid, cards))
+        # 言葉の模型は性能で決まるので選ばせない。確かめていちばん点の高い物を自動で使う
         self._relayout()
-        self.no_words.setChecked(now_words == "")
-        if not any(r.isChecked() for r in self.words_group.buttons()):
-            (self.words_radios[words[0].file] if words else self.no_words).setChecked(True)
         if not any(r.isChecked() for r in self.image_group.buttons()):
             self.image_radios[AUTO].setChecked(True)
 
@@ -302,31 +273,26 @@ class SetupDialog(QDialog):
             for i, box in enumerate(shown):
                 grid.addWidget(box, i // 2, i % 2)
 
-    def chosen(self) -> tuple[ImageModel | str, WordsModel | str | None]:
-        """選んだ物。おまかせは AUTO、言葉の模型を使わないときは None"""
+    def chosen(self) -> tuple[ImageModel | str, WordsModel | None]:
+        """選んだ絵の模型（おまかせは AUTO）と、使う言葉の模型（いちばん点の高い推奨。無ければ None）"""
         image = AUTO if self.image_radios[AUTO].isChecked() else next(m for m in IMAGES if m.repo in self.image_radios
                                                                         and self.image_radios[m.repo].isChecked())
-        if self.words_radios[AUTO].isChecked():
-            return image, AUTO
-        return image, next((m for m in WORDS if m.file in self.words_radios and self.words_radios[m.file].isChecked()), None)
+        best = offered_words()
+        return image, best[0] if best else None
 
     def to_fetch(self) -> tuple[ImageModel | None, WordsModel | None]:
         """取る物。おまかせで手元に 1 つも無ければ、おすすめを取る"""
         image, words = self.chosen()
         if image == AUTO:
             image = None if any(has_image(m) for m in IMAGES) else offered_images()[0]
-        if words == AUTO:
-            words = None if any(has_words(m) for m in WORDS) else offered_words()[0]
+        if words is not None and has_words(words):
+            words = None
         return image, words
 
-    def select(self, image: str | None = None, words: str | None = None):
-        """メニューから選んだ物を選んでおく（words は WordsModel.file か AUTO、"" で使わない）"""
+    def select(self, image: str | None = None):
+        """メニューから選んだ絵の模型を選んでおく"""
         if image is not None:
             self.image_radios[image].setChecked(True)
-        if words == "":
-            self.no_words.setChecked(True)
-        elif words is not None:
-            self.words_radios[words].setChecked(True)
 
     # ---- 2 枚目: 取る ----
     def _fetch_page(self) -> QWidget:
@@ -385,7 +351,7 @@ class SetupDialog(QDialog):
             self.settings.set("image_model", image.repo)
             self.settings.set("steps", image.steps)
             self.settings.set("guidance", image.guidance)
-        self.settings.set("words_model", AUTO if words == AUTO else str(words_path(words)) if words else "")
+        self.settings.set("words_model", str(words_path(words)) if words else "")
         self.settings.set("setup_done", 1)
 
     # ---- 3 枚目: 案内 ----

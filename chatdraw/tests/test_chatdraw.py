@@ -372,20 +372,19 @@ class SetupTest(unittest.TestCase):
             self.assertEqual(words, offered_words()[0])
             for m in IMAGES:                                                    # 確かめていない模型は出さない（取っていなくても確かめた物は出す）
                 self.assertEqual(m.repo in dlg.image_radios, m.score > 0)
-            from chatdraw.models import WORDS
-            low = next(m for m in WORDS if 0 < m.score < PASS)
-            self.assertFalse(dlg.words_radios[low.file].parent().isVisibleTo(dlg))   # 推奨だけのときは隠す
-            dlg.only_rec.setChecked(False)
-            self.assertTrue(dlg.words_radios[low.file].parent().isVisibleTo(dlg))    # 外すと出す
+            low = next((m for m in IMAGES if 0 < m.score < PASS), None)
+            if low is not None:
+                self.assertFalse(dlg.image_radios[low.repo].parent().isVisibleTo(dlg))   # 推奨だけのときは隠す
+                dlg.only_rec.setChecked(False)
+                self.assertTrue(dlg.image_radios[low.repo].parent().isVisibleTo(dlg))    # 外すと出す
+            self.assertFalse(hasattr(dlg, "words_radios"))                     # 言葉の模型は選ばせない
             dlg.image_radios[AUTO].setChecked(True)
-            dlg.no_words.setChecked(True)
             dlg.apply()
             self.assertEqual(st.get("image_model"), AUTO)
-            self.assertEqual(st.get("words_model"), "")
+            self.assertTrue(st.get("words_model").endswith(offered_words()[0].file))   # いちばん点の高い物を使う
             self.assertEqual(int(st.store.value("setup_done")), 1)
             again = SetupDialog(st, first=False)                                # 入れ替えの画面は今の選択を出す
             self.assertTrue(again.image_radios[AUTO].isChecked())
-            self.assertTrue(again.no_words.isChecked())
 
     def test_unused_words_model_passes_request_through(self):
         from chatdraw.engine import Words
