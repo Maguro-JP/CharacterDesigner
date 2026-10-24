@@ -22,7 +22,7 @@ class FakePainter:
     def __init__(self):
         self.calls = []
 
-    def paint(self, prompt, seed, on_step=None):
+    def paint(self, prompt, seed, on_step=None, **kw):
         from PIL import Image
         self.calls.append((prompt, seed))
         if on_step:

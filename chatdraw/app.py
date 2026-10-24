@@ -29,7 +29,9 @@ from PySide6.QtCore import QObject, QSettings, QSize, Qt, QThread, Signal  # noq
 from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPalette, QPixmap  # noqa: E402
 from PySide6.QtWidgets import (QApplication, QDockWidget, QFileDialog,  # noqa: E402
                                QHBoxLayout, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
-                               QColorDialog, QFormLayout, QLabel, QProgressBar, QPushButton, QSlider, QSpinBox, QTextEdit, QToolBar, QVBoxLayout, QWidget)
+                               QColorDialog, QComboBox, QFormLayout, QLabel, QProgressBar, QPushButton, QSlider, QSpinBox, QTextEdit, QToolBar, QVBoxLayout, QWidget)
+
+from PIL import Image  # noqa: E402
 
 from chatdraw.canvas import Canvas  # noqa: E402
 from chatdraw.engine import Studio  # noqa: E402
@@ -40,16 +42,26 @@ class Job(QObject):
     done = Signal(str, str)
     failed = Signal(str)
 
-    def __init__(self, studio: Studio, text: str, seed: int):
+    def __init__(self, studio: Studio, text: str, seed: int, base=None, strength: float = 0.6, size=None):
         super().__init__()
         self.studio, self.text, self.seed = studio, text, seed
+        self.base, self.strength, self.size = base, strength, size
 
     def run(self):
         try:
-            prompt, path = self.studio.draw(self.text, self.seed, on_status=self.status.emit)
+            prompt, path = self.studio.draw(self.text, self.seed, on_status=self.status.emit,
+                                            base=self.base, strength=self.strength, size=self.size)
             self.done.emit(prompt, str(path))
         except Exception as e:  # 描けなかった理由をそのまま会話に出す
             self.failed.emit(f"描けませんでした: {e}")
+
+
+def qimage_to_pil(img):
+    """キャンバスの絵（QImage）を描く模型に渡せる形（PIL）にする"""
+    from PySide6.QtGui import QImage
+    img = img.convertToFormat(QImage.Format_RGBA8888)
+    return Image.frombuffer("RGBA", (img.width(), img.height()), bytes(img.constBits()), "raw", "RGBA",
+                            img.bytesPerLine(), 1).convert("RGB")
 
 
 # 欄は動かせて、外に出せて、閉じられる（作画ソフトと同じ）
@@ -79,11 +91,33 @@ class Window(QMainWindow):
         self.entry.returnPressed.connect(self.send)
         self.button = QPushButton("描く")
         self.button.clicked.connect(self.send)
+        self.stop_button = QPushButton("止める")
+        self.stop_button.setEnabled(False)
+        self.stop_button.clicked.connect(self.stop)
         row = QHBoxLayout()
         row.addWidget(self.entry)
         row.addWidget(self.button)
+        row.addWidget(self.stop_button)
+        # 描き方: 新しく描くか、キャンバスの絵（下描き・ラフ）を元に描き直すか
+        self.mode = QComboBox()
+        self.mode.addItems(["新しく描く", "キャンバスを元に描く"])
+        self.size_pick = QComboBox()
+        for label, wh in (("縦長 832×1216", (832, 1216)), ("横長 1216×832", (1216, 832)), ("正方形 1024×1024", (1024, 1024))):
+            self.size_pick.addItem(label, wh)
+        self.strength = QSlider(Qt.Horizontal)
+        self.strength.setRange(10, 95)
+        self.strength.setValue(60)
+        self.strength_label = QLabel("元から変える強さ 0.60")
+        self.strength.valueChanged.connect(lambda v: self.strength_label.setText(f"元から変える強さ {v / 100:.2f}"))
+        self.mode.currentIndexChanged.connect(self._mode_changed)
+        self._mode_changed(0)
+        form = QFormLayout()
+        form.addRow("描き方", self.mode)
+        form.addRow("大きさ", self.size_pick)
+        form.addRow(self.strength_label, self.strength)
         left = QVBoxLayout()
         left.addWidget(self.chat)
+        left.addLayout(form)
         left.addLayout(row)
         box = QWidget()
         box.setLayout(left)
@@ -117,6 +151,7 @@ class Window(QMainWindow):
         file.addAction(QAction("新規キャンバス", self, shortcut="Ctrl+N", triggered=lambda: self.canvas.new_canvas()))
         file.addAction(QAction("開く…", self, shortcut="Ctrl+O", triggered=self.open_image))
         file.addAction(QAction("名前を付けて保存…", self, shortcut="Ctrl+S", triggered=self.save_as))
+        file.addAction(QAction("模型を取る…", self, triggered=lambda: self.ask_models(force=True)))
         file.addSeparator()
         file.addAction(QAction("終了", self, shortcut="Ctrl+Q", triggered=self.close))
         edit = self.menuBar().addMenu("編集")
@@ -255,8 +290,13 @@ class Window(QMainWindow):
         self.button.setEnabled(False)
         self.progress.setValue(0)
         self.progress.setVisible(True)
+        self.stop_button.setEnabled(True)
+        base = None
+        if self.mode.currentIndex() == 1:
+            base = qimage_to_pil(self.canvas.flatten())
         self.thread = QThread()
-        self.job = Job(self.studio, text, int(time.time()))
+        self.job = Job(self.studio, text, int(time.time()), base=base, strength=self.strength.value() / 100,
+                       size=self.size_pick.currentData())
         self.job.moveToThread(self.thread)
         self.thread.started.connect(self.job.run)
         self.job.status.connect(self.on_status)
@@ -277,9 +317,32 @@ class Window(QMainWindow):
         item.setData(Qt.UserRole, path)
         self.history.insertItem(0, item)
         self.history.setCurrentItem(item)
-        self.canvas.show_image(path)
+        self.place(path)
         self.say("描きました")
         self._end("できました")
+
+    def ask_models(self, force: bool = False):
+        """描くのに要る模型が足りなければ、取るかどうかを聞く"""
+        from chatdraw.setup import SetupDialog, missing
+        need = missing()
+        if any(need.values()) or force:
+            SetupDialog(need, self).exec()
+
+    def place(self, path: str):
+        """描けた絵を置く。まだ何も描いていないキャンバスなら絵を開き、描いている途中なら新しいレイヤーとして重ねる"""
+        if not self.canvas.undo_stack and len(self.canvas.layers) <= 2:
+            self.canvas.show_image(path)
+        else:
+            self.canvas.add_image_layer(path, f"AI の絵 {len(self.images)}")
+
+    def stop(self):
+        self.studio.painter.stop = True
+        self.statusBar().showMessage("止めています（いまの 1 工程が終わると止まります）")
+
+    def _mode_changed(self, i: int):
+        self.size_pick.setEnabled(i == 0)          # 元に描くときはキャンバスの大きさで描く
+        self.strength.setEnabled(i == 1)
+        self.strength_label.setEnabled(i == 1)
 
     def fail(self, why: str):
         self.say(why)
@@ -393,6 +456,7 @@ class Window(QMainWindow):
 
     def _end(self, msg: str):
         self.statusBar().showMessage(msg)
+        self.stop_button.setEnabled(False)
         self.progress.setVisible(False)
         self.thread.quit()
         self.thread.wait()
@@ -416,6 +480,7 @@ def main():
     dark(app)
     w = Window()
     w.show()
+    w.ask_models()
     sys.exit(app.exec())
 
 
