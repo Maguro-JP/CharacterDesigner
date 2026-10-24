@@ -1105,6 +1105,23 @@ class FixAndBatchTest(unittest.TestCase):
         wait_idle(self.app, self.w)
         self.assertEqual(len(self.painter.calls), 2)
 
+    def test_reference_asks_before_fetching(self):
+        """参考画像の部品が無ければ、取る前に大きさを出して聞く。断れば参考画像なしで描く"""
+        from unittest import mock
+        from PIL import Image
+        from PySide6.QtWidgets import QMessageBox
+        ref = self.dir / "ref.png"
+        Image.new("RGB", (32, 32), "blue").save(ref)
+        self.w.reference.load(str(ref))
+        self.w.ai_panel.use_ref.setChecked(True)
+        self.painter.reference_ready = lambda: False
+        with mock.patch.object(QMessageBox, "question", return_value=QMessageBox.No) as asked:
+            self.w.entry.setText("雪の城の前の騎士")
+            self.w.send()
+            wait_idle(self.app, self.w)
+        self.assertTrue(asked.called)
+        self.assertNotIn("reference", self.painter.kw)
+
     def test_reference_reaches_painter(self):
         from PIL import Image
         ref = self.dir / "ref.png"
@@ -1211,9 +1228,13 @@ class FixAndBatchTest(unittest.TestCase):
 
     @unittest.skipUnless(__import__("chatdraw.upscale", fromlist=["ready"]).ready(), "拡大の重みが手元に無い")
     def test_upscale_doubles_canvas(self):
+        n = len(self.w.canvas.layers)
+        self.w.canvas.layers[1].name = "線"
         self.w.upscale_canvas()
         wait_idle(self.app, self.w)
         self.assertEqual(self.w.canvas.size_px(), (400, 320))
+        self.assertEqual(len(self.w.canvas.layers), n)                 # レイヤーは分かれたまま
+        self.assertEqual(self.w.canvas.layers[1].name, "線")
 
 
 class SystemTest(unittest.TestCase):
