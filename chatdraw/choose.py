@@ -8,7 +8,7 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from chatdraw.models import IMAGES, WORDS, ImageModel
+from chatdraw.models import IMAGES, PASS, WORDS, ImageModel
 
 REAL = ("写真", "写実", "リアル", "実写", "photo", "realistic", "real ", "photorealistic", "風景写真")
 KNOWN = ("コスプレ", "制服", "衣装", "版権", "原作", "cosplay", "uniform", "costume", "outfit")
@@ -36,14 +36,14 @@ def choose_image(text: str, prompt: str, words=None, have: list[ImageModel] | No
         return by["OnomaAIResearch/Illustrious-xl-early-release-v0"], "衣装や既存の題材の頼み"
     if words is not None and getattr(words, "ready", lambda: False)():
         options = "\n".join(f"{i}. {m.en}" for i, m in enumerate(have, 1))
-        default = next((i for i, m in enumerate(have, 1) if m.recommended), 1)
+        default = max(range(1, len(have) + 1), key=lambda i: have[i - 1].score)
         try:
             m = re.search(r"\d+", words.ask(PICK.format(options=options, default=default), f"{text}\n{prompt}", max_tokens=4))
             if m and 1 <= int(m.group()) <= len(have):
                 return have[int(m.group()) - 1], "AI が頼みから選びました"
         except Exception:
             pass   # 言葉の模型が動かなくても、言葉で決めて描く
-    rec = next((m for m in have if m.recommended), have[0])
+    rec = max(have, key=lambda m: m.score)
     return rec, "アニメ絵の頼み"
 
 
@@ -54,5 +54,6 @@ def choose_words(text: str) -> Path | None:
     if not have:
         return None
     detailed = len(text) > 60 or text.count("、") + text.count(",") >= 4
-    pick = max(have, key=lambda m: m.gb) if detailed else next((m for m in have if m.recommended), min(have, key=lambda m: m.gb))
+    good = [m for m in have if m.score >= PASS] or have   # 点の届かない模型は、ほかに無いときだけ使う
+    pick = max(good, key=lambda m: m.gb) if detailed else max(good, key=lambda m: m.score)
     return words_path(pick)

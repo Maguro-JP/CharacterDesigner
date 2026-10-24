@@ -1,5 +1,9 @@
 """選べる模型の一覧。初回の設定と模型の管理で、候補として見せる。
 
+score は内部の点数（0〜100）で、利用者には見せない。動かして確かめた結果から付け、確かめていない模型は 0 にする。
+候補に出すのは PASS 点以上の物だけで、いちばん点の高い物を「おすすめ」にする。
+確かめ方: 絵の模型は頼み 1 件をラフあり・なしで描かせて見る。言葉の模型は日本語の頼み 5 件を描く言葉に直させ、細部まで正しい件数で付ける。
+
 絵の模型はラフから描く部品（SDXL 用）と組むので、SDXL の系統だけを載せる。
 大きさは Hugging Face に載っている、取る分のファイルの合計（2026-10-24 に確かめた）。
 """
@@ -28,6 +32,7 @@ class ImageModel:
     files: dict = field(default_factory=lambda: FULL)
     recommended: bool = False
     en: str = ""    # おまかせで言葉の模型に選ばせるときの説明
+    score: int = 0  # 内部の点数。0 は確かめていない
 
 
 @dataclass(frozen=True)
@@ -38,6 +43,7 @@ class WordsModel:
     good: str
     gb: float
     recommended: bool = False
+    score: int = 0
 
     @property
     def url(self) -> str:
@@ -47,7 +53,8 @@ class WordsModel:
 IMAGES = (
     ImageModel("cagliostrolab/animagine-xl-4.0", "Animagine XL 4.0", "アニメ絵。線と塗りが整っていて、キャラクターに強い",
                "1 枚 約 4〜10 分", 6.9, 24, 5.0, recommended=True,
-               en="anime illustration, clean lines and coloring, original characters"),
+               en="anime illustration, clean lines and coloring, original characters",
+               score=85),   # 2026-10-24: 新規とラフから（棒人間・線画）の 3 枚で、崩れなく描け、ラフの形に沿った
     ImageModel("OnomaAIResearch/Illustrious-xl-early-release-v0", "Illustrious XL", "アニメ絵。知っているキャラクターや服の種類が多い",
                "1 枚 約 5〜12 分", 6.9, 28, 6.0,
                en="anime illustration, knows many existing characters, costumes and outfits"),
@@ -60,11 +67,11 @@ IMAGES = (
 # 正しく、Qwen2.5 1.5B は 3 件で取り違えた（緑の目、訳さずに日本語のまま）。速さは同じ（1 件 約 2.5 秒、CPU）
 WORDS = (
     WordsModel("unsloth/Qwen3.5-2B-GGUF", "Qwen3.5-2B-Q4_K_M.gguf", "Qwen3.5 2B",
-               "速さと正確さの釣り合いが良い。細かい指定も落とさない", 1.3, recommended=True),
+               "速さと正確さの釣り合いが良い。細かい指定も落とさない", 1.3, recommended=True, score=100),   # 5 件中 5 件
     WordsModel("unsloth/Qwen3.5-4B-GGUF", "Qwen3.5-4B-Q4_K_M.gguf", "Qwen3.5 4B",
                "長い頼みをさらに正確に直す。少し遅い", 2.7),
     WordsModel("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf", "Qwen3.5 0.8B",
-               "最も軽い。短い頼み向き", 0.5),
+               "最も軽い。短い頼み向き", 0.5, score=20),   # 5 件中 1 件。日本語のまま返すことが多い
 )
 
 # 新しい模型が完全に上回る古い模型。使っていたら新しい方へ乗り換える（古いファイルは消さない）
@@ -84,3 +91,14 @@ def successor(path: str) -> "WordsModel | None":
 def image_model(repo: str) -> ImageModel:
     """一覧に無い模型（設定で名前を書いた物）は、ふつうの形で取る"""
     return next((m for m in IMAGES if m.repo == repo), ImageModel(repo, repo, "", "", 0.0, 24, 5.0))
+
+
+PASS = 60   # 候補に出す点の下限
+
+
+def offered_images() -> list[ImageModel]:
+    return sorted((m for m in IMAGES if m.score >= PASS), key=lambda m: -m.score)
+
+
+def offered_words() -> list[WordsModel]:
+    return sorted((m for m in WORDS if m.score >= PASS), key=lambda m: -m.score)

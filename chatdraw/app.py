@@ -509,7 +509,7 @@ class Window(QMainWindow):
         image, words = g("image_model"), g("words_model")
         if image == AUTO:
             have = [m for m in IMAGES if has_image(m)]
-            first = next((m for m in have if m.recommended), have[0] if have else IMAGES[0])
+            first = max(have, key=lambda m: m.score) if have else IMAGES[0]
             image, steps, guidance = first.repo, first.steps, first.guidance
         else:
             steps, guidance = g("steps"), g("guidance")
@@ -571,9 +571,17 @@ class Window(QMainWindow):
         menu = self.ai_menu
         menu.clear()
         now_image, now_words = self.settings.get("image_model"), self.settings.get("words_model")
+        from chatdraw.models import offered_images, offered_words
+        from chatdraw.paths import llm_dirs
+        # 出すのは、確かめて点の届いた模型と、手元にある模型だけ
+        images = [m for m in IMAGES if m in offered_images() or has_image(m)]
+        words = [(m.file, m.name, has_words(m)) for m in WORDS if m in offered_words() or has_words(m)]
+        known = {m.file for m in WORDS}
+        own = sorted({p.name for d in llm_dirs() for p in d.glob("*.gguf") if p.name not in known and not p.is_symlink()})
+        words += [(name, Path(name).stem, True) for name in own]   # 利用者が自分で置いた模型
         for title, items, now in (
-                ("絵の模型", [(AUTO, "おまかせ", True)] + [(m.repo, m.name, has_image(m)) for m in IMAGES], now_image),
-                ("言葉の模型", [(AUTO, "おまかせ", True)] + [(m.file, m.name, has_words(m)) for m in WORDS] + [("", "使わない", True)],
+                ("絵の模型", [(AUTO, "おまかせ", True)] + [(m.repo, m.name, has_image(m)) for m in images], now_image),
+                ("言葉の模型", [(AUTO, "おまかせ", True)] + words + [("", "使わない", True)],
                  Path(now_words).name if now_words not in (AUTO, "") else now_words)):
             menu.addSection(title)
             group = QActionGroup(menu)
@@ -585,7 +593,13 @@ class Window(QMainWindow):
                 group.addAction(act)
                 menu.addAction(act)
         menu.addSeparator()
-        menu.addAction(QAction("模型の管理（更新）…", self, triggered=lambda: self.ask_models(force=True)))
+        menu.addAction(QAction("模型の管理…", self, triggered=self.manage_models))
+
+    def manage_models(self):
+        from chatdraw.manager import ModelManager
+        ModelManager(self.settings, self).exec()
+        self.studio = self._studio_from_settings()
+        self.check_ai()
 
     def switch_model(self, kind: str, key: str):
         """メニューで選んだ模型に替える。取っていなければ取ってから替える。消すことはしない"""
@@ -597,6 +611,12 @@ class Window(QMainWindow):
         else:
             m = next((m for m in WORDS if m.file == key), None)
             need = m is not None and not has_words(m) or key == AUTO and not any(has_words(x) for x in WORDS)
+            if m is None and key not in (AUTO, ""):
+                from chatdraw.paths import find_gguf
+                self.settings.set("words_model", str(find_gguf(key) or key))   # 利用者が自分で置いた模型
+                self.studio = self._studio_from_settings()
+                self.check_ai()
+                return
         if need:
             dlg = SetupDialog(self.settings, self, first=False)
             dlg.select(**({"image": key} if kind == "絵の模型" else {"words": key}))

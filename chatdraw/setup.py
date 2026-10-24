@@ -16,7 +16,7 @@ from PySide6.QtWidgets import (QButtonGroup, QDialog, QFrame, QGridLayout, QHBox
                                QStackedWidget, QVBoxLayout, QWidget)
 
 from chatdraw.engine import SKETCH_ADAPTER, SKETCH_FILES, Painter
-from chatdraw.models import IMAGES, WORDS, ImageModel, WordsModel
+from chatdraw.models import IMAGES, WORDS, ImageModel, WordsModel, offered_images, offered_words
 from chatdraw.paths import HUB, OWN_LLM, ensure_shared, find_gguf, llm_target
 
 LLM = OWN_LLM
@@ -74,7 +74,11 @@ def install_engine(say=lambda msg, pct: None):
 
 
 def folder_gb(d: Path) -> float:
-    return sum(f.stat().st_size for f in d.rglob("*") if f.is_file()) / 1e9 if d.exists() else 0.0
+    # Hugging Face の置き場は、同じ中身を blobs と snapshots（別名）の 2 か所から指す。別名をそのまま数えると 2 倍になった
+    if not d.exists():
+        return 0.0
+    seen = {f.resolve() for f in d.rglob("*") if f.is_file()}
+    return sum(f.stat().st_size for f in seen) / 1e9
 
 
 class Fetcher(QObject):
@@ -147,13 +151,15 @@ def card(radio: QRadioButton, good: str, meta: str, have: bool, recommended: boo
     top = QHBoxLayout()
     top.addWidget(radio)
     top.addStretch()
-    for text, name in (("おすすめ", "badgeHot") if recommended else (None, None), ("取得済み", "badge") if have else (None, None)):
+    for text, name in (("おすすめ", "badgeHot") if recommended else (None, None), ("✓", "badge") if have else (None, None)):
         if text:
             b = QLabel(text)
             b.setObjectName(name)
             top.addWidget(b)
     lay.addLayout(top)
     for text, name in ((good, "cardGood"), (meta, "cardMeta")):
+        if not text:
+            continue
         lb = QLabel(text)
         lb.setObjectName(name)
         lb.setWordWrap(True)
@@ -188,7 +194,7 @@ class SetupDialog(QDialog):
         title = QLabel("使う AI を選んでください" if self.first else "模型の入れ替えと更新")
         title.setObjectName("dialogTitle")
         lay.addWidget(title)
-        hint = QLabel("選んだ物を自動で取ります。あとから「AI」メニューでいつでも切り替えられます。")
+        hint = QLabel("あとから「AI」メニューで切り替えられます。")
         hint.setObjectName("cardMeta")
         lay.addWidget(hint)
         # 一度選んだことがあれば今の選択を、初めてならおすすめを選んでおく
@@ -196,7 +202,7 @@ class SetupDialog(QDialog):
         now_image = self.settings.get("image_model") if chose else None
         now_words = self.settings.get("words_model") if chose else None
 
-        head = QLabel("絵の模型（絵を描く）")
+        head = QLabel("絵の模型")
         head.setObjectName("sectionHead")
         lay.addWidget(head)
         self.image_group = QButtonGroup(self)
@@ -208,15 +214,19 @@ class SetupDialog(QDialog):
         r.setChecked(now_image == AUTO)
         self.image_group.addButton(r)
         self.image_radios[AUTO] = r
-        grid.addWidget(card(r, "頼みごとに、取ってある模型から合う物を AI が選ぶ", "取っていなければ、おすすめを取る", False, False), 0, 0)
-        for i, m in enumerate(IMAGES, 1):
+        grid.addWidget(card(r, "頼みに合う物を AI が選ぶ", "", False, False), 0, 0)
+        # 候補は、動かして確かめて点の届いた物だけ。いちばん点の高い物を「おすすめ」にする
+        images = offered_images()
+        for i, m in enumerate(images, 1):
+            best = m is images[0]
             r = QRadioButton(m.name)
-            r.setChecked(m.repo == now_image if now_image else m.recommended)
+            r.setChecked(m.repo == now_image if now_image else best)
             self.image_group.addButton(r)
             self.image_radios[m.repo] = r
-            grid.addWidget(card(r, m.good, f"約 {m.gb:.0f}GB　{m.speed}", has_image(m), m.recommended), i // 2, i % 2)
+            grid.addWidget(card(r, m.good, f"{m.gb:.0f}GB", has_image(m), best), i // 2, i % 2)
 
-        head = QLabel("言葉の模型（日本語の頼みを、絵の模型が分かる言葉に直す）")
+        head = QLabel("言葉の模型")
+        head.setToolTip("日本語の頼みを、絵の模型が分かる言葉に直す")
         head.setObjectName("sectionHead")
         lay.addWidget(head)
         self.words_group = QButtonGroup(self)
@@ -228,19 +238,24 @@ class SetupDialog(QDialog):
         r.setChecked(now_words == AUTO)
         self.words_group.addButton(r)
         self.words_radios[AUTO] = r
-        grid.addWidget(card(r, "長い頼みは大きい模型、短い頼みは速い模型を AI が選ぶ", "取っていなければ、おすすめを取る", False, False), 0, 0)
-        for i, m in enumerate(WORDS, 1):
+        grid.addWidget(card(r, "頼みに合う物を AI が選ぶ", "", False, False), 0, 0)
+        words = offered_words()
+        for i, m in enumerate(words, 1):
+            best = m is words[0]
             r = QRadioButton(m.name)
-            r.setChecked(Path(now_words).name == m.file if now_words and now_words != AUTO else now_words is None and m.recommended)
+            r.setChecked(Path(now_words).name == m.file if now_words and now_words != AUTO else now_words is None and best)
             self.words_group.addButton(r)
             self.words_radios[m.file] = r
-            grid.addWidget(card(r, m.good, f"約 {m.gb}GB", has_words(m), m.recommended), i // 2, i % 2)
+            grid.addWidget(card(r, m.good, f"{m.gb}GB", has_words(m), best), i // 2, i % 2)
         self.no_words = QRadioButton("使わない")
         self.words_group.addButton(self.no_words)
-        grid.addWidget(card(self.no_words, "頼みをそのまま絵の模型に渡す。英語で頼むなら十分", "0GB", False, False), 2, 0)
+        n = len(words) + 1
+        grid.addWidget(card(self.no_words, "英語で頼むなら要らない", "", False, False), n // 2, n % 2)
         self.no_words.setChecked(now_words == "")
         if not any(r.isChecked() for r in self.words_group.buttons()):
-            self.words_radios[WORDS[0].file].setChecked(True)
+            (self.words_radios[words[0].file] if words else self.no_words).setChecked(True)
+        if not any(r.isChecked() for r in self.image_group.buttons()):
+            self.image_radios[AUTO].setChecked(True)
 
         row = QHBoxLayout()
         self.later = QPushButton("あとで")
@@ -261,18 +276,19 @@ class SetupDialog(QDialog):
 
     def chosen(self) -> tuple[ImageModel | str, WordsModel | str | None]:
         """選んだ物。おまかせは AUTO、言葉の模型を使わないときは None"""
-        image = AUTO if self.image_radios[AUTO].isChecked() else next(m for m in IMAGES if self.image_radios[m.repo].isChecked())
+        image = AUTO if self.image_radios[AUTO].isChecked() else next(m for m in IMAGES if m.repo in self.image_radios
+                                                                        and self.image_radios[m.repo].isChecked())
         if self.words_radios[AUTO].isChecked():
             return image, AUTO
-        return image, next((m for m in WORDS if self.words_radios[m.file].isChecked()), None)
+        return image, next((m for m in WORDS if m.file in self.words_radios and self.words_radios[m.file].isChecked()), None)
 
     def to_fetch(self) -> tuple[ImageModel | None, WordsModel | None]:
         """取る物。おまかせで手元に 1 つも無ければ、おすすめを取る"""
         image, words = self.chosen()
         if image == AUTO:
-            image = None if any(has_image(m) for m in IMAGES) else next(m for m in IMAGES if m.recommended)
+            image = None if any(has_image(m) for m in IMAGES) else offered_images()[0]
         if words == AUTO:
-            words = None if any(has_words(m) for m in WORDS) else next(m for m in WORDS if m.recommended)
+            words = None if any(has_words(m) for m in WORDS) else offered_words()[0]
         return image, words
 
     def select(self, image: str | None = None, words: str | None = None):

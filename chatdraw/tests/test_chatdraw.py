@@ -360,26 +360,27 @@ class SetupTest(unittest.TestCase):
     def test_choose_models_writes_settings(self):
         from PySide6.QtCore import QSettings
         from PySide6.QtWidgets import QApplication
-        from chatdraw.models import IMAGES, WORDS
+        from chatdraw.models import IMAGES, PASS, offered_images, offered_words
         from chatdraw.settings import Settings
-        from chatdraw.setup import SetupDialog
+        from chatdraw.setup import AUTO, SetupDialog
         QApplication.instance() or QApplication([])
         with TemporaryDirectory() as d:
             st = Settings(QSettings(str(Path(d) / "s.ini"), QSettings.IniFormat))
             dlg = SetupDialog(st, first=True)
             image, words = dlg.chosen()
-            self.assertTrue(image.recommended and words.recommended)          # 初めはおすすめが選ばれている
-            dlg.image_radios[IMAGES[2].repo].setChecked(True)                   # 速い模型に替える
+            self.assertEqual(image, offered_images()[0])                       # 初めは点のいちばん高い物
+            self.assertEqual(words, offered_words()[0])
+            for m in IMAGES:                                                    # 確かめていない模型は候補に出さない
+                self.assertEqual(m.repo in dlg.image_radios, m.score >= PASS)
+            dlg.image_radios[AUTO].setChecked(True)
             dlg.no_words.setChecked(True)
             dlg.apply()
-            self.assertEqual(st.get("image_model"), IMAGES[2].repo)
-            self.assertEqual(st.get("steps"), IMAGES[2].steps)                  # 模型に合う工程の数になる
+            self.assertEqual(st.get("image_model"), AUTO)
             self.assertEqual(st.get("words_model"), "")
             self.assertEqual(int(st.store.value("setup_done")), 1)
             again = SetupDialog(st, first=False)                                # 入れ替えの画面は今の選択を出す
-            self.assertTrue(again.image_radios[IMAGES[2].repo].isChecked())
+            self.assertTrue(again.image_radios[AUTO].isChecked())
             self.assertTrue(again.no_words.isChecked())
-            self.assertEqual(len(WORDS), 3)
 
     def test_unused_words_model_passes_request_through(self):
         from chatdraw.engine import Words
@@ -488,6 +489,43 @@ class MigrateTest(unittest.TestCase):
             self.assertTrue(migrate(old, root / "LLM" / "huggingface", gguf, root / "Pictures", root / "log.txt"))
             self.assertEqual((gguf / "q.gguf").read_bytes(), b"shared")                 # 共有の物は上書きしない
             self.assertFalse(old.exists())
+
+
+class ManagerTest(unittest.TestCase):
+    def test_list_and_delete_only_what_user_confirms(self):
+        from unittest import mock
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication, QMessageBox
+        from chatdraw import manager
+        from chatdraw.settings import Settings
+        QApplication.instance() or QApplication([])
+        with TemporaryDirectory() as d:
+            hub, gguf = Path(d) / "huggingface", Path(d) / "gguf"
+            (hub / "models--cagliostrolab--animagine-xl-4.0" / "snapshots" / "x").mkdir(parents=True)
+            (hub / "models--cagliostrolab--animagine-xl-4.0" / "snapshots" / "x" / "model_index.json").write_text("{}")
+            (hub / "models--TencentARC--t2i-adapter-sketch-sdxl-1.0" / "snapshots" / "x").mkdir(parents=True)   # 部品は出さない
+            gguf.mkdir()
+            (gguf / "Qwen3.5-2B-Q4_K_M.gguf").write_bytes(b"a")
+            (gguf / "mine.gguf").write_bytes(b"b")
+            with mock.patch.object(manager, "HUB", hub), mock.patch.object(manager, "GGUF", gguf), \
+                    mock.patch.object(manager, "OWN_LLM", Path(d) / "none"):
+                items = manager.installed()
+                self.assertEqual([i.name for i in items], ["Animagine XL 4.0", "Qwen3.5 2B", "mine"])
+                st = Settings(QSettings(str(Path(d) / "s.ini"), QSettings.IniFormat))
+                st.set("words_model", str(gguf / "mine.gguf"))
+                dlg = manager.ModelManager(st)
+                self.assertTrue(dlg.in_use(items[2]))                           # 使っている物は消せない
+                with mock.patch.object(QMessageBox, "question", return_value=QMessageBox.No):
+                    dlg.ask_delete(items[1])
+                self.assertTrue((gguf / "Qwen3.5-2B-Q4_K_M.gguf").exists())    # 「いいえ」なら消さない
+                with mock.patch.object(QMessageBox, "question", return_value=QMessageBox.Yes):
+                    dlg.ask_delete(items[1])
+                    dlg.ask_delete(items[0])
+                self.assertFalse((gguf / "Qwen3.5-2B-Q4_K_M.gguf").exists())
+                self.assertFalse((hub / "models--cagliostrolab--animagine-xl-4.0").exists())
+                self.assertTrue((hub / "models--TencentARC--t2i-adapter-sketch-sdxl-1.0").exists())
+                with self.assertRaises(ValueError):                            # 置き場の外は消さない
+                    manager.delete(manager.Item("words", "x", Path(d) / "other" / "a.gguf", 0, ""))
 
 
 class ChooseTest(unittest.TestCase):
