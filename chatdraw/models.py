@@ -102,3 +102,12 @@ def offered_images() -> list[ImageModel]:
 
 def offered_words() -> list[WordsModel]:
     return sorted((m for m in WORDS if m.score >= PASS), key=lambda m: -m.score)
+
+
+def verified_images() -> list[ImageModel]:
+    """動作を確かめた模型（点が 0 より上）。点の高い順"""
+    return sorted((m for m in IMAGES if m.score > 0), key=lambda m: -m.score)
+
+
+def verified_words() -> list[WordsModel]:
+    return sorted((m for m in WORDS if m.score > 0), key=lambda m: -m.score)

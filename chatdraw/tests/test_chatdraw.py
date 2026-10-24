@@ -370,8 +370,13 @@ class SetupTest(unittest.TestCase):
             image, words = dlg.chosen()
             self.assertEqual(image, offered_images()[0])                       # 初めは点のいちばん高い物
             self.assertEqual(words, offered_words()[0])
-            for m in IMAGES:                                                    # 確かめていない模型は候補に出さない
-                self.assertEqual(m.repo in dlg.image_radios, m.score >= PASS)
+            for m in IMAGES:                                                    # 確かめていない模型は出さない（取っていなくても確かめた物は出す）
+                self.assertEqual(m.repo in dlg.image_radios, m.score > 0)
+            from chatdraw.models import WORDS
+            low = next(m for m in WORDS if 0 < m.score < PASS)
+            self.assertFalse(dlg.words_radios[low.file].parent().isVisibleTo(dlg))   # 推奨だけのときは隠す
+            dlg.only_rec.setChecked(False)
+            self.assertTrue(dlg.words_radios[low.file].parent().isVisibleTo(dlg))    # 外すと出す
             dlg.image_radios[AUTO].setChecked(True)
             dlg.no_words.setChecked(True)
             dlg.apply()

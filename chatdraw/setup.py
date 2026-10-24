@@ -12,11 +12,12 @@ import urllib.request
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, Signal
-from PySide6.QtWidgets import (QButtonGroup, QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QProgressBar, QPushButton, QRadioButton,
+from PySide6.QtWidgets import (QButtonGroup, QCheckBox, QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QProgressBar, QPushButton, QRadioButton,
                                QStackedWidget, QVBoxLayout, QWidget)
 
 from chatdraw.engine import SKETCH_ADAPTER, SKETCH_FILES, Painter
-from chatdraw.models import IMAGES, WORDS, ImageModel, WordsModel, offered_images, offered_words
+from chatdraw.models import (IMAGES, PASS, WORDS, ImageModel, WordsModel, offered_images, offered_words, verified_images,
+                             verified_words)
 from chatdraw.paths import HUB, OWN_LLM, ensure_shared, find_gguf, llm_target
 
 LLM = OWN_LLM
@@ -203,6 +204,12 @@ class SetupDialog(QDialog):
         hint = QLabel("あとから「AI」メニューで切り替えられます。")
         hint.setObjectName("cardMeta")
         lay.addWidget(hint)
+        self.only_rec = QCheckBox("推奨だけ表示")
+        self.only_rec.setChecked(True)
+        self.only_rec.setToolTip("外すと、動作を確かめたほかの模型も出します")
+        self.only_rec.toggled.connect(self._relayout)
+        lay.addWidget(self.only_rec)
+        self.sections: list[tuple[QGridLayout, list[tuple[QFrame, bool]]]] = []
         # 一度選んだことがあれば今の選択を、初めてならおすすめを選んでおく
         chose = self.settings is not None and int(self.settings.store.value("setup_done", 0))
         now_image = self.settings.get("image_model") if chose else None
@@ -220,16 +227,17 @@ class SetupDialog(QDialog):
         r.setChecked(now_image == AUTO)
         self.image_group.addButton(r)
         self.image_radios[AUTO] = r
-        grid.addWidget(card(r, "頼みに合う物を AI が選ぶ", "", False, False), 0, 0)
-        # 候補は、動かして確かめて点の届いた物だけ。いちばん点の高い物を「おすすめ」にする
-        images = offered_images()
-        for i, m in enumerate(images, 1):
+        cards = [(card(r, "頼みに合う物を AI が選ぶ", "", False, False), True)]
+        # 出すのは動作を確かめた模型だけ（取っていなくても出す）。点の届いた物が推奨で、いちばん高い物を「おすすめ」にする
+        images = verified_images()
+        for m in images:
             best = m is images[0]
             r = QRadioButton(m.name)
             r.setChecked(m.repo == now_image if now_image else best)
             self.image_group.addButton(r)
             self.image_radios[m.repo] = r
-            grid.addWidget(card(r, m.good, f"{m.gb:.0f}GB", has_image(m), best), i // 2, i % 2)
+            cards.append((card(r, m.good, f"{m.gb:.0f}GB", has_image(m), best), m.score >= PASS))
+        self.sections.append((grid, cards))
 
         head = QLabel("言葉の模型")
         head.setToolTip("日本語の頼みを、絵の模型が分かる言葉に直す")
@@ -244,19 +252,20 @@ class SetupDialog(QDialog):
         r.setChecked(now_words == AUTO)
         self.words_group.addButton(r)
         self.words_radios[AUTO] = r
-        grid.addWidget(card(r, "頼みに合う物を AI が選ぶ", "", False, False), 0, 0)
-        words = offered_words()
-        for i, m in enumerate(words, 1):
+        cards = [(card(r, "頼みに合う物を AI が選ぶ", "", False, False), True)]
+        words = verified_words()
+        for m in words:
             best = m is words[0]
             r = QRadioButton(m.name)
             r.setChecked(Path(now_words).name == m.file if now_words and now_words != AUTO else now_words is None and best)
             self.words_group.addButton(r)
             self.words_radios[m.file] = r
-            grid.addWidget(card(r, m.good, f"{m.gb}GB", has_words(m), best), i // 2, i % 2)
+            cards.append((card(r, m.good, f"{m.gb}GB", has_words(m), best), m.score >= PASS))
         self.no_words = QRadioButton("使わない")
         self.words_group.addButton(self.no_words)
-        n = len(words) + 1
-        grid.addWidget(card(self.no_words, "英語で頼むなら要らない", "", False, False), n // 2, n % 2)
+        cards.append((card(self.no_words, "英語で頼むなら要らない", "", False, False), True))
+        self.sections.append((grid, cards))
+        self._relayout()
         self.no_words.setChecked(now_words == "")
         if not any(r.isChecked() for r in self.words_group.buttons()):
             (self.words_radios[words[0].file] if words else self.no_words).setChecked(True)
@@ -279,6 +288,18 @@ class SetupDialog(QDialog):
         row.addWidget(self.go)
         lay.addLayout(row)
         return page
+
+    def _relayout(self):
+        """「推奨だけ表示」に合わせて札を並べ直す。隠した札の所に穴を空けない。選んでいる札は隠さない"""
+        only = self.only_rec.isChecked()
+        for grid, cards in self.sections:
+            for box, _ in cards:
+                grid.removeWidget(box)
+            shown = [box for box, rec in cards if rec or not only or box.findChild(QRadioButton).isChecked()]
+            for box, _ in cards:
+                box.setVisible(box in shown)
+            for i, box in enumerate(shown):
+                grid.addWidget(box, i // 2, i % 2)
 
     def chosen(self) -> tuple[ImageModel | str, WordsModel | str | None]:
         """選んだ物。おまかせは AUTO、言葉の模型を使わないときは None"""

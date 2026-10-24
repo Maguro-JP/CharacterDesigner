@@ -11,10 +11,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import (QDialog, QFrame, QHBoxLayout, QLabel, QMessageBox, QProgressBar, QPushButton, QVBoxLayout,
+from PySide6.QtWidgets import (QCheckBox, QDialog, QFrame, QHBoxLayout, QLabel, QMessageBox, QProgressBar, QPushButton, QVBoxLayout,
                                QWidget)
 
-from chatdraw.models import IMAGES, WORDS, offered_images, offered_words
+from chatdraw.models import IMAGES, PASS, WORDS, verified_images, verified_words
 from chatdraw.paths import GGUF, HUB, OWN_LLM
 from chatdraw.setup import AUTO, Fetcher, folder_gb
 
@@ -66,6 +66,11 @@ class ModelManager(QDialog):
         self.setWindowTitle("模型の管理")
         self.setMinimumWidth(520)
         self.body = QVBoxLayout(self)
+        self.only_rec = QCheckBox("推奨だけ表示")
+        self.only_rec.setChecked(True)
+        self.only_rec.setToolTip("外すと、動作を確かめたほかの模型も出します")
+        self.only_rec.toggled.connect(self.refresh)
+        self.body.addWidget(self.only_rec)
         self.list = QVBoxLayout()
         self.body.addLayout(self.list)
         self.bar = QProgressBar()
@@ -103,7 +108,9 @@ class ModelManager(QDialog):
             if it.widget():
                 it.widget().deleteLater()
         have = installed()
-        for kind, title, offered in (("image", "絵の模型", offered_images()), ("words", "言葉の模型", offered_words())):
+        only = self.only_rec.isChecked()
+        for kind, title, offered in (("image", "絵の模型", verified_images()), ("words", "言葉の模型", verified_words())):
+            offered = [m for m in offered if m.score >= PASS or not only]
             head = QLabel(title)
             head.setObjectName("dialogTitle")
             self.list.addWidget(head)
