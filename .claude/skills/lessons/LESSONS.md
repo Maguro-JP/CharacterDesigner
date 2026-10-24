@@ -445,4 +445,4 @@
 - 場面: マージ、版の番号（VERSION）を上げたとき
 - 起きたこと: VERSION だけを 0.2.0 にした PR をマージし、app/web/package.json と CHANGELOG.md が 0.1.0 のままで tests/test_version.py が落ちた
 - 判定の誤り: 小さな変更なので試験は要らないと決めた
-- 次から: マージの前に必ず `bash .claude/hooks/test.sh` を流し、通ってからマージする。版を上げるときは VERSION・app/web/package.json・package-lock.json・CHANGELOG.md を一緒に変える
+- 次から: マージの前に必ず `bash .claude/hooks/test.sh </dev/null` を流し、通ってからマージする。版を上げるときは VERSION・app/web/package.json・package-lock.json・CHANGELOG.md を一緒に変える
