@@ -83,6 +83,14 @@ class LayoutTest(unittest.TestCase):
         w.show()
         w.float_all()
         self.assertTrue(all(d.isFloating() for d, _ in w.panels.values()))
+        from PySide6.QtCore import Qt
+        d = w.panels["layers"][0]
+        self.assertTrue(d.windowFlags() & Qt.WindowMinMaxButtonsHint)
+        # 左上の端をつかんで広げたのと同じ動き: 位置と大きさが両方変わる
+        d.setGeometry(100, 100, 400, 300)
+        d.setGeometry(50, 60, 450, 340)
+        self.assertEqual((d.width(), d.height()), (450, 340))
+        self.assertLessEqual(abs(d.x() - 50) + abs(d.y() - 60), 4)   # 枠の分だけずれる
         w.arrange()
         self.assertFalse(any(d.isFloating() for d, _ in w.panels.values()))
         w.panels["history"][0].toggleViewAction().trigger()

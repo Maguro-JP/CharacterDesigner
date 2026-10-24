@@ -208,7 +208,9 @@ class Window(QMainWindow):
         self.panels = {"toolopts": (odock, Qt.LeftDockWidgetArea), "chat": (dock, Qt.LeftDockWidgetArea),
                        "history": (hist, Qt.RightDockWidgetArea), "layers": (ldock, Qt.RightDockWidgetArea)}
         for d, _area in self.panels.values():
-            d.setMinimumWidth(160)   # 欄の境目をドラッグして広げ縮めできる。狭めすぎて中身が潰れない幅
+            # 欄の境目をドラッグして上下左右に広げ縮めできる。狭めすぎて中身が潰れない大きさだけ決める
+            d.setMinimumSize(160, 80)
+            d.topLevelChanged.connect(lambda floating, d=d: self._as_window(d, floating))
         self.tools = tools
         self.setDockNestingEnabled(True)
         self.setDockOptions(QMainWindow.AllowNestedDocks | QMainWindow.AllowTabbedDocks | QMainWindow.AnimatedDocks)
@@ -305,6 +307,12 @@ class Window(QMainWindow):
         self.resizeDocks([opt, hist], [side, side], Qt.Horizontal)
         self.resizeDocks([opt, chat], [140, h - 140], Qt.Vertical)   # ツールの設定は中身の高さだけ
         self.resizeDocks([hist, layers], [int(h * 0.4), int(h * 0.6)], Qt.Vertical)
+
+    def _as_window(self, d: QDockWidget, floating: bool):
+        """別ウィンドウにした欄を、ふつうのウィンドウの枠にする。上下左右と四隅の端をつかんで大きさを変えられ、最大化もできる"""
+        if floating:
+            d.setWindowFlags(Qt.Window | Qt.WindowTitleHint | Qt.WindowCloseButtonHint | Qt.WindowMinMaxButtonsHint)
+            d.show()
 
     def _show_all(self, on: bool):
         for d, _area in self.panels.values():
