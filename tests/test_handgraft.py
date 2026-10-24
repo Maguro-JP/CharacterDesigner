@@ -69,3 +69,12 @@ class Outline(unittest.TestCase):
         self.assertEqual(o[20, 20], 0)       # 中は塗らない
         self.assertEqual(o[0, 0], 0)         # 外も塗らない
         self.assertTrue((o[10:30, 9:12] == 255).any())   # 縁に線
+
+
+class Restore(unittest.TestCase):
+    def test_restores_only_inside_ellipse(self):
+        good = Image.new("RGB", (50, 50), (255, 0, 0))
+        img = Image.new("RGB", (50, 50), (0, 0, 255))
+        out = np.asarray(handgraft.restore_regions(good, img, [(10, 10, 30, 30)], feather=1))
+        self.assertEqual(tuple(out[20, 20]), (255, 0, 0))
+        self.assertEqual(tuple(out[45, 45]), (0, 0, 255))

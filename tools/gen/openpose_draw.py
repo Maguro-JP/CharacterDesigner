@@ -130,6 +130,29 @@ def draw(ident, pose, outdir, ref, seed, count, scale, ref_scale, end, words=Non
         control_scale=scale, control_end=end, ref=ref, ref_scale=ref_scale), ensure_ascii=False, indent=1), encoding="utf-8")
 
 
+def redraw(src, pose, out, ref, words, extra_negative="", strength=0.55, scale=0.8, ref_scale=0.8, seed=0):
+    """描いた絵の全体を、骨組み（openpose）で姿勢を保ったまま、手本の絵に寄せて一度で描き直す（img2img）。
+    部位ごとの描き直しを重ねると、部位ごとに作風と色がずれた（羊娘の髪・角・ズボン）"""
+    import torch
+    import free_text
+    import people
+    skel = Path(out).with_name(Path(out).stem + "-skeleton.png")
+    skeleton(pose, skel)
+    pos, neg = free_text.full_prompt(words, extra_negative)
+    people.use_reference()
+    p = people.union_img2img()
+    base = people.pipe()
+    p.register_modules(image_encoder=base.image_encoder, feature_extractor=base.feature_extractor)
+    p.set_ip_adapter_scale(ref_scale)
+    pe, ne, pp, np_ = design.encode_xl(p, pos, neg)
+    im = p(image=Image.open(src).convert("RGB").resize((W, H)), strength=strength, control_image=[Image.open(skel).convert("RGB")],
+           control_mode=[0], controlnet_conditioning_scale=scale, ip_adapter_image=Image.open(ref).convert("RGB"),
+           prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
+           num_inference_steps=24, guidance_scale=6.0, generator=torch.Generator().manual_seed(seed)).images[0]
+    im.save(out)
+    return out
+
+
 def main():
     ap = argparse.ArgumentParser()
     sub = ap.add_subparsers(dest="cmd", required=True)

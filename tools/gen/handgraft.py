@@ -121,3 +121,17 @@ def outline(depth: Image.Image, width: int = 3) -> Image.Image:
     if width > 1:
         edge = edge.filter(ImageFilter.MaxFilter(width if width % 2 else width + 1))
     return edge.point(lambda v: 255 if v > 0 else 0)
+
+
+def restore_regions(good: Image.Image, img: Image.Image, ellipses, feather: float = 4.0) -> Image.Image:
+    """全体を描き直したあと、前の絵で通っていた所（手・顔・小物）を楕円の枠で前の絵から戻す。
+    全体の描き直しは作風と色をそろえるが、通っていた手や表情まで描き変えた。枠の縁はぼかして混ぜる"""
+    from PIL import ImageDraw
+    m = Image.new("L", img.size, 0)
+    d = ImageDraw.Draw(m)
+    for e in ellipses:
+        d.ellipse(e, fill=255)
+    m = m.filter(ImageFilter.GaussianBlur(feather))
+    out = img.convert("RGB").copy()
+    out.paste(good.convert("RGB"), (0, 0), m)
+    return out
