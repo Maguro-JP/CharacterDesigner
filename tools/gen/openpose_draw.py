@@ -44,6 +44,31 @@ POSES = {
 }
 
 
+# 開いた手の 21 点（OpenPose の手: 0 手首、1-4 親指、5-8 人差し指、9-12 中指、13-16 薬指、17-20 小指）。
+# 手首を原点に、前腕の向きを +y にした手の座標。x は親指の側が +。体の骨組みだけでは、下ろした手の指が 2〜3 本に溶けた
+OPEN_HAND = [(0, 0), (8, 8), (14, 16), (18, 24), (21, 31),
+             (6, 28), (8, 39), (9, 48), (10, 56),
+             (1, 30), (1, 42), (1, 52), (1, 61),
+             (-5, 29), (-6, 40), (-7, 49), (-8, 57),
+             (-10, 26), (-13, 35), (-15, 42), (-17, 48)]
+HAND_EDGES = [(0, 1), (1, 2), (2, 3), (3, 4), (0, 5), (5, 6), (6, 7), (7, 8), (0, 9), (9, 10), (10, 11), (11, 12),
+              (0, 13), (13, 14), (14, 15), (15, 16), (0, 17), (17, 18), (18, 19), (19, 20)]
+# 姿勢ごとに、開いた手で縛る手（肘と手首の番号、親指が向く側 +1 は絵の右）。腰に当てた手は隠れるので縛らない
+HANDS = {"basket": [(3, 4, 1)], "hip": [(6, 7, -1)], "wave": [(3, 4, 1), (6, 7, -1)]}
+
+
+def hand_points(elbow, wrist, thumb):
+    """前腕の向き（肘→手首）に沿って開いた手の 21 点を置く。thumb は親指が絵の右（+1）か左（-1）か"""
+    import math
+    dx, dy = wrist[0] - elbow[0], wrist[1] - elbow[1]
+    n = math.hypot(dx, dy) or 1
+    uy = (dx / n, dy / n)            # 指先の向き
+    ux = (-uy[1], uy[0])             # それに直交する向き
+    if ux[0] * thumb < 0 or (ux[0] == 0 and ux[1] * thumb < 0):
+        ux = (-ux[0], -ux[1])
+    return [(wrist[0] + x * ux[0] + y * uy[0], wrist[1] + x * ux[1] + y * uy[1]) for x, y in OPEN_HAND]
+
+
 def skeleton(pose: str, out: str):
     pts = {**STAND, **POSES[pose][0]}
     im = Image.new("RGB", (W, H), "black")
@@ -53,6 +78,14 @@ def skeleton(pose: str, out: str):
         d.line([pts[a], pts[b]], fill=c, width=10)
     for i, p in pts.items():
         d.ellipse([p[0] - 6, p[1] - 6, p[0] + 6, p[1] + 6], fill=COLORS[i])
+    import colorsys
+    for e, w, thumb in HANDS.get(pose, []):
+        hp = hand_points(pts[e], pts[w], thumb)
+        for i, (a, b) in enumerate(HAND_EDGES):
+            c = tuple(int(v * 255) for v in colorsys.hsv_to_rgb(i / len(HAND_EDGES), 1.0, 1.0))
+            d.line([hp[a], hp[b]], fill=c, width=2)
+        for q in hp:
+            d.ellipse([q[0] - 2, q[1] - 2, q[0] + 2, q[1] + 2], fill=(0, 0, 255))
     im.save(out)
 
 
