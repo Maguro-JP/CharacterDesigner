@@ -20,15 +20,11 @@ from chatdraw.paths import HUB, OWN_LLM, ensure_shared, find_gguf, llm_target
 
 LLM = OWN_LLM
 AUTO = "auto"   # おまかせ。頼みごとに、手元の模型から合う物を AI が選ぶ
-OLD_WORDS = OWN_LLM / "model.gguf"   # 一覧を作る前に取った言葉の模型（Qwen2.5 1.5B と同じ物）
 
 
 def words_path(m: WordsModel) -> Path:
     """手元にある置き場（AdaptiveAIStudio と共有の置き場を先に見る）。無ければ、これから取る置き場"""
-    found = find_gguf(m.file)
-    if found is None and m.file == WORDS[0].file and OLD_WORDS.exists():
-        return OLD_WORDS
-    return found or llm_target() / m.file
+    return find_gguf(m.file) or llm_target() / m.file
 
 
 def has_image(m: ImageModel) -> bool:
@@ -205,8 +201,7 @@ class SetupDialog(QDialog):
         grid.addWidget(card(r, "長い頼みは大きい模型、短い頼みは速い模型を AI が選ぶ", "取っていなければ、おすすめを取る", False, False), 0, 0)
         for i, m in enumerate(WORDS, 1):
             r = QRadioButton(m.name)
-            names = (m.file, OLD_WORDS.name) if m is WORDS[0] else (m.file,)
-            r.setChecked(Path(now_words).name in names if now_words and now_words != AUTO else now_words is None and m.recommended)
+            r.setChecked(Path(now_words).name == m.file if now_words and now_words != AUTO else now_words is None and m.recommended)
             self.words_group.addButton(r)
             self.words_radios[m.file] = r
             grid.addWidget(card(r, m.good, f"約 {m.gb}GB", has_words(m), m.recommended), i // 2, i % 2)

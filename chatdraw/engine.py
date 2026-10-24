@@ -14,8 +14,8 @@ IMAGE_MODEL = os.environ.get("CD_IMAGE_MODEL", "cagliostrolab/animagine-xl-4.0")
 SKETCH_ADAPTER = "TencentARC/t2i-adapter-sketch-sdxl-1.0"
 SKETCH_FILES = dict(allow_patterns=["*.json", "*.fp16.safetensors"])
 
-ASK = ("You turn a Japanese drawing request into English tags for an anime illustration model. "
-       "Reply with comma-separated tags only, no sentences. Keep every detail of the request.")
+ASK = ("Translate the Japanese drawing request into English tags for an anime illustration model. "
+       "Reply with one line of comma-separated tags only. Translate every detail, add nothing that is not in the request.")
 
 
 # 子どもを表す言葉と性的な言葉が並んだ頼みだけは描かない。ほかは止めない
@@ -42,20 +42,23 @@ class Words:
         if path is None:
             from chatdraw.models import WORDS
             from chatdraw.paths import find_gguf
-            path = find_gguf(WORDS[0].file) or find_gguf("model.gguf") or Path("")
+            path = next((p for p in (find_gguf(m.file) for m in WORDS) if p), None) or find_gguf("model.gguf") or Path("")
         self.path = path
         self._llm = None
 
     def ready(self) -> bool:
         return self.path.is_file()   # 「使わない」を選ぶと空の名前になる
 
-    def ask(self, system: str, text: str, max_tokens: int = 160) -> str:
+    def ask(self, system: str, text: str, max_tokens: int = 96) -> str:
         if self._llm is None:
             from llama_cpp import Llama
             self._llm = Llama(model_path=str(self.path), n_ctx=2048, verbose=False)
         out = self._llm.create_chat_completion(messages=[{"role": "system", "content": system}, {"role": "user", "content": text}],
-                                               temperature=0.2, max_tokens=max_tokens)
-        return out["choices"][0]["message"]["content"].strip()
+                                               temperature=0.2, max_tokens=max_tokens,
+                                               # 小さい模型は同じ言葉を繰り返し始めると止まらない（Qwen3.5 2B で 5 件中 2 件）。繰り返しを抑えると 0 件になった
+                                               repeat_penalty=1.3, presence_penalty=0.5)
+        import re
+        return re.sub(r"<think>.*?</think>", "", out["choices"][0]["message"]["content"], flags=re.S).strip()
 
     def to_prompt(self, text: str) -> str:
         if not has_japanese(text) or not self.ready():

@@ -539,6 +539,30 @@ class Window(QMainWindow):
             self.studio = self._studio_from_settings()   # 選んだ模型で描き直す
             self.check_ai()
 
+    def upgrade_models(self):
+        """使っている言葉の模型を、完全に上回る新しい模型があれば裏で取って乗り換える。古いファイルは消さない"""
+        from chatdraw.models import successor
+        from chatdraw.setup import Fetcher, has_words, words_path
+        new = successor(self.settings.get("words_model"))
+        if new is None:
+            return
+
+        def switch(err: str = ""):
+            if err:
+                self.statusBar().showMessage(f"{new.name} に乗り換えられませんでした", 6000)
+                return
+            self.settings.set("words_model", str(words_path(new)))
+            self.studio = self._studio_from_settings()
+            self.statusBar().showMessage(f"言葉の模型を {new.name} に乗り換えました", 6000)
+        if has_words(new):
+            switch()
+            return
+        import threading
+        self.upgrader = Fetcher()
+        self.upgrader.finished.connect(switch, Qt.QueuedConnection)
+        self.statusBar().showMessage(f"新しい言葉の模型 {new.name} を裏で取っています", 6000)
+        threading.Thread(target=self.upgrader.run, args=(None, new), daemon=True).start()
+
     # ---- AI のメニュー: 模型の切り替え ----
     def _fill_ai_menu(self):
         """開くたびに作り直す（取った・取っていないが変わるため）"""
@@ -555,7 +579,7 @@ class Window(QMainWindow):
             group = QActionGroup(menu)
             for key, name, have in items:
                 act = QAction(name if have else f"{name}（未取得）", menu, checkable=True)
-                act.setChecked(key == now or title == "言葉の模型" and key == WORDS[0].file and now == "model.gguf")
+                act.setChecked(key == now)
                 act.setToolTip("選ぶと取ってから使います" if not have else "")
                 act.triggered.connect(lambda _=False, t=title, k=key: self.switch_model(t, k))
                 group.addAction(act)
@@ -851,6 +875,7 @@ def main():
     w = Window()
     w.show()
     w.ask_models()
+    w.upgrade_models()
     w.check_ai()
     sys.exit(app.exec())
 

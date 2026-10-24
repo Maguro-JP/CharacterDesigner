@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 
 # 1 枚にまとめた重みや、同じ重みの別の形式は取らない（取る量をほぼ半分にする）
 FULL = dict(allow_patterns=["*.json", "*.txt", "unet/*.safetensors", "vae/*.safetensors", "text_encoder*/*.safetensors"],
@@ -55,14 +56,29 @@ IMAGES = (
                en="fast; realistic, photo, semi-realistic, scenery, general illustration"),
 )
 
+# 2026-10-24 に、日本語の頼み 5 件を描く言葉に直させて比べた。Qwen3.5 2B は 5 件とも細部（目の色、マント、手を振る）まで
+# 正しく、Qwen2.5 1.5B は 3 件で取り違えた（緑の目、訳さずに日本語のまま）。速さは同じ（1 件 約 2.5 秒、CPU）
 WORDS = (
-    WordsModel("Qwen/Qwen2.5-1.5B-Instruct-GGUF", "qwen2.5-1.5b-instruct-q4_k_m.gguf", "Qwen2.5 1.5B",
-               "速さと正確さの釣り合いが良い", 1.1, recommended=True),
-    WordsModel("Qwen/Qwen2.5-3B-Instruct-GGUF", "qwen2.5-3b-instruct-q4_k_m.gguf", "Qwen2.5 3B",
-               "長い頼みや細かい指定を正確に直す。少し遅い", 2.1),
-    WordsModel("Qwen/Qwen2.5-0.5B-Instruct-GGUF", "qwen2.5-0.5b-instruct-q4_k_m.gguf", "Qwen2.5 0.5B",
+    WordsModel("unsloth/Qwen3.5-2B-GGUF", "Qwen3.5-2B-Q4_K_M.gguf", "Qwen3.5 2B",
+               "速さと正確さの釣り合いが良い。細かい指定も落とさない", 1.3, recommended=True),
+    WordsModel("unsloth/Qwen3.5-4B-GGUF", "Qwen3.5-4B-Q4_K_M.gguf", "Qwen3.5 4B",
+               "長い頼みをさらに正確に直す。少し遅い", 2.7),
+    WordsModel("unsloth/Qwen3.5-0.8B-GGUF", "Qwen3.5-0.8B-Q4_K_M.gguf", "Qwen3.5 0.8B",
                "最も軽い。短い頼み向き", 0.5),
 )
+
+# 新しい模型が完全に上回る古い模型。使っていたら新しい方へ乗り換える（古いファイルは消さない）
+SUPERSEDED = {
+    "model.gguf": "Qwen3.5-2B-Q4_K_M.gguf",
+    "qwen2.5-1.5b-instruct-q4_k_m.gguf": "Qwen3.5-2B-Q4_K_M.gguf",
+    "qwen2.5-3b-instruct-q4_k_m.gguf": "Qwen3.5-4B-Q4_K_M.gguf",
+    "qwen2.5-0.5b-instruct-q4_k_m.gguf": "Qwen3.5-0.8B-Q4_K_M.gguf",
+}
+
+
+def successor(path: str) -> "WordsModel | None":
+    name = SUPERSEDED.get(Path(path).name) if path else None
+    return next((m for m in WORDS if m.file == name), None)
 
 
 def image_model(repo: str) -> ImageModel:

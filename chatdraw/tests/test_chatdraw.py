@@ -408,6 +408,35 @@ class PathsTest(unittest.TestCase):
                 importlib.reload(paths)
 
 
+class UpgradeTest(unittest.TestCase):
+    def test_superseded_words_model_switches_without_deleting(self):
+        from chatdraw.models import WORDS, successor
+        self.assertEqual(successor("/x/qwen2.5-1.5b-instruct-q4_k_m.gguf"), WORDS[0])
+        self.assertIsNone(successor("/x/my-own-model.gguf"))     # 利用者が自分で入れた模型はそのまま
+        self.assertIsNone(successor(""))
+
+    def test_window_switches_to_successor(self):
+        from unittest import mock
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Window
+        from chatdraw.models import WORDS
+        from chatdraw.settings import Settings
+        QApplication.instance() or QApplication([])
+        with TemporaryDirectory() as d:
+            old = Path(d) / "qwen2.5-1.5b-instruct-q4_k_m.gguf"
+            old.write_bytes(b"x")
+            new = Path(d) / WORDS[0].file
+            new.write_bytes(b"y")
+            w = Window(Studio(FakeWords(), FakePainter(), Path(d)))
+            w.settings = Settings(QSettings(str(Path(d) / "s.ini"), QSettings.IniFormat))
+            w.settings.set("words_model", str(old))
+            with mock.patch("chatdraw.setup.find_gguf", lambda name: Path(d) / name if (Path(d) / name).exists() else None):
+                w.upgrade_models()
+            self.assertEqual(w.settings.get("words_model"), str(new))
+            self.assertTrue(old.exists())                                    # 古い模型は消さない
+
+
 class ChooseTest(unittest.TestCase):
     def test_auto_picks_from_installed_only(self):
         from chatdraw.choose import choose_image
