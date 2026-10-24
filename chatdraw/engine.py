@@ -441,14 +441,20 @@ class Studio:
             result = self.painter.redraw(prompt, seed + k, result, mask, strength=strength,
                                          on_step=lambda i, n, k=k: say(f"描いています（{i}/{n}・{k}/{len(regions)} か所目）"),
                                          reference=reference, ref_scale=ref_scale)
-            # 直したら確かめる。縁に継ぎ目が出ていれば、その所だけを消して描き直し、もう一度確かめる（3 回まで）
+            # 直したら確かめる。鉛筆と消しゴムと同じく、縁に出た継ぎ目（間違えた線）だけを消して元に戻し、
+            # それでも残る所だけを細く描き直して、もう一度確かめる（3 回まで）。広く消さない（物が変わる）
             for t in range(1, 4):
                 seam = seams(before, result, mask)
                 if seam is None:
                     say(f"確かめました（{k} か所目・継ぎ目なし）")
                     break
-                say(f"継ぎ目を直しています（{k} か所目・{t} 回目）")
-                result = self.painter.redraw(prompt, seed + k + 100 * t, result, seam, strength=0.35,
+                from PIL import Image
+                if t == 1:
+                    say(f"継ぎ目を消しています（{k} か所目）")
+                    result = Image.composite(before, result, seam)   # 間違えた線だけを元の絵に戻す
+                    continue
+                say(f"継ぎ目を描き直しています（{k} か所目・{t - 1} 回目）")
+                result = self.painter.redraw(prompt, seed + k + 100 * t, result, seam, strength=0.3,
                                              on_step=lambda i, n, k=k: say(f"描いています（{i}/{n}・{k}/{len(regions)} か所目の継ぎ目）"))
             else:
                 if seams(before, result, mask) is not None:

@@ -1138,8 +1138,8 @@ class FixAndBatchTest(unittest.TestCase):
         painter = Seamy()
         said = []
         RealStudio(FakeWords(), painter, self.dir).fix(before, [(m, "笑顔に")], 5, on_status=said.append)
-        self.assertGreaterEqual(len(painter.calls), 2)               # 継ぎ目の所をもう一度直した
-        self.assertTrue(any("継ぎ目を直しています" in t for t in said))
+        self.assertTrue(any("継ぎ目を消しています" in t for t in said))   # まず間違えた線だけを元に戻し、
+        self.assertTrue(any("確かめました" in t for t in said))          # もう一度確かめる
 
     def test_redraw_keeps_picture_outside_marks(self):
         """直すのは囲んだ所の中だけ。元の絵は縮めも広げもせず、外の画素は 1 つも変えない"""
