@@ -16,6 +16,14 @@ def main():
     out = Path(sys.argv[1])
     out.mkdir(parents=True, exist_ok=True)
     req = json.loads(Path("config/draw-request.json").read_text(encoding="utf-8"))
+    if req.get("mode") == "twostage":
+        from chatdraw.twostage import draw
+        t = time.time()
+        im = draw(req["prompt"], req["tags"], req.get("seed", 7), req["compose"], req["render"], size=tuple(req.get("size", (832, 1216))),
+                  say=lambda m: print(m, flush=True), keep=out)
+        (out / "request.json").write_text(json.dumps(dict(req, seconds=round(time.time() - t)), ensure_ascii=False, indent=1), encoding="utf-8")
+        print("exit=0")
+        return
     from huggingface_hub import snapshot_download
     from chatdraw.models import image_model
     from chatdraw.paths import HUB

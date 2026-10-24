@@ -5,9 +5,10 @@ on:
   push:
     paths:
       - "config/draw-request.json"
+      - "chatdraw/twostage.py"
   workflow_dispatch: {}
 permissions:
-  contents: read
+  contents: write   # 描いた絵を draw-results ブランチに置くため（作業の機械は artifact の置き場に届かない）
 concurrency:
   group: draw-one-${{ github.ref }}
   cancel-in-progress: true
@@ -37,3 +38,13 @@ jobs:
           name: draw-one
           path: out/
           retention-days: 7
+      - name: draw-results に置く
+        if: always()
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898+github-actions[bot]@users.noreply.github.com"
+          cp -r out "$RUNNER_TEMP/out"
+          git fetch origin draw-results && git checkout -q -B draw-results origin/draw-results || { git checkout -q --orphan draw-results; git rm -rfq .; }
+          mkdir -p "$GITHUB_RUN_ID" && cp -r "$RUNNER_TEMP/out/." "$GITHUB_RUN_ID/"
+          git add "$GITHUB_RUN_ID" && git diff --cached --quiet || { git commit -qm "draw-one $GITHUB_RUN_ID"; git push -q origin draw-results; }
+
