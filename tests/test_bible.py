@@ -239,3 +239,38 @@ class VariantsPlanTest(unittest.TestCase):
         self.assertIsInstance(bible.variants_plan("archivist", "hairstyle"), list)
         with self.assertRaises(ValueError):
             bible.variants_plan("archivist", "hat")
+
+
+class SheetPosesTest(unittest.TestCase):
+    """見せる1枚に、登録したポーズ（pose-*）の欄が出る"""
+
+    def test_pose_section(self):
+        import charsheet
+        from PIL import Image
+        tmp = tempfile.TemporaryDirectory()
+        old = bible.BIBLE
+        try:
+            bible.BIBLE = Path(tmp.name)
+            bible.new_character("sera", "セラ", "adult woman", "coat")
+            c = bible.load("characters", "sera")
+            pics = {}
+            for k in ("wave", "basket"):
+                p = Path(tmp.name) / f"{k}.png"
+                im = Image.new("RGB", (100, 160), "white")
+                im.paste((120, 80, 60), (30, 20, 70, 150))
+                im.save(p)
+                pics[f"pose-{k}"] = str(p)
+            c["images"] = pics
+            c["poses"] = [{"id": "wave", "name": "手を振る"}]
+            bible.save("characters", c)
+            no = charsheet.sheet("sera", f"{tmp.name}/a.html", f"{tmp.name}/a.png")
+            self.assertEqual(no["poses"], 2)
+            c["images"] = {}
+            bible.save("characters", c)
+            base = charsheet.sheet("sera", f"{tmp.name}/b.html", f"{tmp.name}/b.png")
+            self.assertEqual(base["poses"], 0)
+            # ポーズの欄のぶん、1枚が縦に伸びる
+            self.assertGreater(no["size"][1], base["size"][1])
+        finally:
+            bible.BIBLE = old
+            tmp.cleanup()

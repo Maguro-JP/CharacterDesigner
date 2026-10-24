@@ -229,8 +229,8 @@ def _notes(c: dict) -> list[str]:
 
 
 def sheet(ident: str, out_html: str, out_png: str, width: int = 2400) -> dict:
-    """見せる1枚を、同じ並べ方で HTML と PNG に書き出す。載せるのは images にある turnaround と expr-*（検品を通した絵だけを登録する）"""
-    from PIL import Image, ImageDraw, ImageFont
+    """見せる1枚を、同じ並べ方で HTML と PNG に書き出す。載せるのは images にある turnaround と expr-* と pose-*（検品を通した絵だけを登録する）"""
+    from PIL import Image, ImageDraw, ImageFont, ImageOps
     c = bible.load("characters", ident)
     imgs = c.get("images", {})
     exprs = {e["id"]: e["name"] for e in bible.expressions_of(ident)}
@@ -290,7 +290,28 @@ def sheet(ident: str, out_html: str, out_png: str, width: int = 2400) -> dict:
             d.rectangle([cx, cy, cx + cell - 1, cy + cell - 1], outline=(217, 212, 205))
             d.text((cx, cy + cell + 8), exprs.get(r[5:], r[5:]), fill=(93, 88, 83), font=f(26))
         y += ((len(expr_roles) + cols - 1) // cols) * (cell + 60) + gap
-    # 3段目: 色見本（左）と注記（右）
+    # 3段目: ポーズ。全身を人物の範囲で切り、足の位置をそろえて横に並べる（検品を通した pose-* だけを登録する）
+    pose_roles = sorted(r for r in imgs if r.startswith("pose-"))
+    if pose_roles:
+        d.line([(pad, y), (W - pad, y)], fill=(217, 212, 205), width=1)
+        y += 20
+        d.text((pad, y), f"ポーズ（{len(pose_roles)}種）", fill=(20, 19, 19), font=f(36))
+        y += 60
+        cols = min(4, len(pose_roles))
+        cell = (W - 2 * pad - (cols - 1) * 24) // cols
+        ph = int(cell * 1.6)
+        names = {p.get("id"): p.get("name", p.get("id")) for p in c.get("poses", []) if isinstance(p, dict)}
+        for i, r in enumerate(pose_roles):
+            im = Image.open(bible.ROOT / imgs[r]).convert("RGB")
+            box = ImageOps.invert(im.convert("L")).point(lambda v: 255 if v > 12 else 0).getbbox() or (0, 0, im.width, im.height)
+            fig = im.crop(box)
+            k = min(cell / fig.width, ph / fig.height)
+            fig = fig.resize((max(1, int(fig.width * k)), max(1, int(fig.height * k))), Image.LANCZOS)
+            cx, cy = pad + (i % cols) * (cell + 24), y + (i // cols) * (ph + 60)
+            canvas.paste(fig, (cx + (cell - fig.width) // 2, cy + ph - fig.height))
+            d.text((cx, cy + ph + 8), names.get(r[5:], r[5:]), fill=(93, 88, 83), font=f(26))
+        y += ((len(pose_roles) + cols - 1) // cols) * (ph + 60) + gap
+    # 4段目: 色見本（左）と注記（右）
     d.line([(pad, y), (W - pad, y)], fill=(217, 212, 205), width=1)
     y += 20
     d.text((pad, y), "色見本（四面図での面積）", fill=(20, 19, 19), font=f(36))
@@ -334,7 +355,7 @@ def sheet(ident: str, out_html: str, out_png: str, width: int = 2400) -> dict:
             f'<section><h2>色見本</h2><table>{rows}</table></section>'
             f'<section><h2>注記</h2><ul>' + "".join(f"<li>{e(n)}</li>" for n in notes) + '</ul></section></div>')
     Path(out_html).write_text(page, encoding="utf-8")
-    return {"html": out_html, "png": out_png, "size": list(canvas.size), "expressions": len(expr_roles),
+    return {"html": out_html, "png": out_png, "size": list(canvas.size), "expressions": len(expr_roles), "poses": len(pose_roles),
             "swatches": {s["name"]: [s["role"], s["share"]] for s in sw}, "bytes": len(page.encode())}
 
 
