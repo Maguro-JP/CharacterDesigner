@@ -848,3 +848,35 @@ class ChooseTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CommandsTest(unittest.TestCase):
+    """チャットから全部の機能を AI に頼めるか"""
+    def setUp(self):
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Window
+        QApplication.instance() or QApplication([])
+        self.w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
+
+    def test_every_tool_panel_preset_has_command(self):
+        from chatdraw import commands, layouts
+        names = {c.name for c in commands.COMMANDS}
+        for key in self.w.tool_actions:
+            self.assertIn(key, names)
+        for key in self.w.panels:
+            self.assertIn(f"show_{key}", names)
+        presets = {n for c in commands.COMMANDS if c.name.startswith("layout_")
+                   for n in layouts.PRESETS if c.say.startswith(n.replace(" ", "")[:2])}
+        self.assertEqual(presets, set(layouts.PRESETS))
+
+    def test_handle_runs_and_draw_passes(self):
+        from chatdraw import commands
+        self.assertEqual(commands.handle(self.w, "消しゴムにして"), "消しゴムにしました")
+        self.assertEqual(self.w.canvas.tool, "eraser")
+        self.assertIsNone(commands.handle(self.w, "赤いスカーフの女の子を描いて"))
+
+    def test_send_does_not_draw_for_command(self):
+        self.w.entry.setText("スポイトにして")
+        self.w.send()
+        self.assertEqual(self.w.canvas.tool, "eyedropper")
+        self.assertIsNone(self.w.thread)

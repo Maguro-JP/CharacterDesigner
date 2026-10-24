@@ -702,6 +702,14 @@ class Window(QMainWindow):
         text = self.entry.text().strip()
         if not text or self.thread:
             return
+        from chatdraw import commands
+        reply = commands.handle(self, text)   # 操作の頼み（道具・色・欄・配置など）はその場で行い、絵は描かない
+        if reply:
+            self.entry.clear()
+            self.say(text, "あなた")
+            self.say(reply)
+            self.feature_tour("ai_commands")
+            return
         st = self.check_ai()
         if not st["image"]:
             self.say(st["reason"] or "AI が使えません")
