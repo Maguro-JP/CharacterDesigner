@@ -532,6 +532,15 @@ class ManagerTest(unittest.TestCase):
                     manager.delete(manager.Item("words", "x", Path(d) / "other" / "a.gguf", 0, ""))
 
 
+class FitSizeTest(unittest.TestCase):
+    def test_rough_size_keeps_canvas_ratio(self):
+        from chatdraw.app import fit_size
+        w, h = fit_size(512, 768)
+        self.assertEqual((w % 64, h % 64), (0, 0))
+        self.assertAlmostEqual(w / h, 512 / 768, delta=0.03)
+        self.assertLess(abs(w * h - 832 * 1216) / (832 * 1216), 0.1)
+
+
 class ChooseTest(unittest.TestCase):
     def test_auto_picks_from_installed_only(self):
         from chatdraw.choose import choose_image

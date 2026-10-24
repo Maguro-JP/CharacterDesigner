@@ -66,6 +66,13 @@ class Job(QObject):
             self.failed.emit(f"描けませんでした: {e}")
 
 
+def fit_size(w: int, h: int, area: int = 832 * 1216) -> tuple[int, int]:
+    """キャンバスと同じ縦横比で、模型の得意な画素数（約 100 万）に合う大きさ。64 の倍数にする。
+    決まった大きさで描くと、ラフと縦横比がずれて、重ねたときに下のラフがはみ出した"""
+    k = (area / max(1, w * h)) ** 0.5
+    return max(64, round(w * k / 64) * 64), max(64, round(h * k / 64) * 64)
+
+
 def qimage_from_pil(im):
     from PySide6.QtGui import QImage
     im = im.convert("RGBA")
@@ -479,7 +486,7 @@ class Window(QMainWindow):
             base = qimage_to_pil(self.canvas.flatten())
         self.thread = QThread()
         self.job = Job(self.studio, text, int(time.time()), base=base, strength=self.strength.value() / 100,
-                       size=self.size_pick.currentData())
+                       size=fit_size(*self.canvas.size_px()) if base is not None else self.size_pick.currentData())
         self.job.moveToThread(self.thread)
         self.thread.started.connect(self.job.run)
         self.job.status.connect(self.on_status)
