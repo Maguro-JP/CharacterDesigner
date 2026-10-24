@@ -16,6 +16,15 @@ from chatdraw.paths import HOME as DATA  # noqa: E402
 def attach_streams():
     """pythonw.exe で起動すると標準の出力が None になり、模型を取るときの進み表示（tqdm）が書き込めずに落ちた。
     出力が無いときは記録のファイル（DATA/chatdraw.log）へ向ける"""
+    for stream in (sys.stdout, sys.stderr):
+        # Windows の窓（コンソール）の文字コードは cp1252 などで、日本語を書くと UnicodeEncodeError で落ちた。
+        # 書けない文字は置き換えて書き続ける
+        enc = (getattr(stream, "encoding", "") or "").lower().replace("-", "")
+        if stream is not None and hasattr(stream, "reconfigure") and enc != "utf8":
+            try:
+                stream.reconfigure(errors="replace")
+            except (ValueError, OSError):
+                pass
     if sys.stdout is not None and sys.stderr is not None:
         return
     try:
