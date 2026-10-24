@@ -18,8 +18,9 @@ PICK = ("Choose the best image model for the drawing request. Reply with the num
 
 
 def installed_images() -> list[ImageModel]:
+    from chatdraw.models import all_images
     from chatdraw.setup import has_image
-    return [m for m in IMAGES if has_image(m)]
+    return [m for m in all_images() if has_image(m)]
 
 
 def choose_image(text: str, prompt: str, words=None, have: list[ImageModel] | None = None) -> tuple[ImageModel | None, str]:

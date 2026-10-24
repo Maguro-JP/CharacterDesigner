@@ -161,3 +161,5 @@
 - 2026-10-24 進みの欄は自分で隠さない。進みはタイトル・通知の領域・デスクトップの通知にも出す。描き終わると消えて状態が分からなかったため。触る場所: chatdraw/activity.py の changed、chatdraw/app.py の show_progress
 - 2026-10-24 絵の模型の確かめは Actions（model-verify.yml）で流す。模型は 1 つ 7GB ほどあり、手元の置き場に入らないため。数字で落とすのは読み込めない・真っ黒・一色・ラフと組めないの 4 つで、点は残した絵を見て付ける。触る場所: chatdraw/verify_models.py、config/verify-models.txt
 - 2026-10-24 確かめていない模型も、推奨だけ表示を外せば取れるようにする。推奨（点の届いた物）とは分けて印を付ける。触る場所: chatdraw/setup.py の _choose_page
+- 2026-10-24 手で置く模型の置き場は、模型の置き場の下の manual 1 か所にする。ファイルを選んだときは動かさずにその道で使う（7GB を写すと時間と置き場を食うため）。世代はフォルダーなら model_index.json、ファイルなら大きさ（5GB 超で SDXL）で決める。触る場所: chatdraw/models.py の manual_images、local_family
+- 2026-10-24 使う人向けの文書（手順書・操作方法）は chatdraw/help/ に置く。Setup.exe に入り、アプリの中で同じ文書を読めるようにするため。README からはそこへ繋ぐ。触る場所: chatdraw/help/、chatdraw/helpview.py

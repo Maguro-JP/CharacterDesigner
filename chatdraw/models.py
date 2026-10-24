@@ -92,9 +92,64 @@ def successor(path: str) -> "WordsModel | None":
     return next((m for m in WORDS if m.file == name), None)
 
 
+def manual_dir() -> Path:
+    """手で置く絵の模型の置き場（模型の置き場の下の manual）。ここに置いた物は起動のたびに一覧に足す"""
+    from chatdraw.paths import LLM_HOME
+    return LLM_HOME / "manual"
+
+
+def is_local(repo: str) -> bool:
+    """手で置いた模型か（Hugging Face の名前ではなく、手元のファイルかフォルダーの道）"""
+    if not repo or repo.count("/") == 1 and not Path(repo).exists():
+        return False
+    p = Path(repo)
+    return p.is_absolute() and (p.is_dir() and (p / "model_index.json").exists() or p.is_file() and p.suffix == ".safetensors")
+
+
+def local_family(path: Path) -> str:
+    """手で置いた模型の世代。フォルダーは model_index.json の部品の名前、1 つのファイルは大きさで決める
+    （SD1.5 の 1 ファイルは 2〜4GB、SDXL は 6〜7GB）"""
+    import json
+    if path.is_dir():
+        try:
+            name = json.loads((path / "model_index.json").read_text(encoding="utf-8")).get("_class_name", "")
+        except (OSError, ValueError):
+            name = ""
+        return "sdxl" if "XL" in name else "sd15"
+    return "sdxl" if path.stat().st_size > 5e9 else "sd15"
+
+
+def local_model(path: str) -> ImageModel:
+    p = Path(path)
+    fam = local_family(p)
+    gb = (sum(f.stat().st_size for f in p.rglob("*") if f.is_file()) if p.is_dir() else p.stat().st_size) / 1e9
+    return ImageModel(str(p), (p.stem if p.is_file() else p.name) + "（手で置いた模型）", "手で置いた模型", "", round(gb, 1),
+                      24 if fam == "sdxl" else 28, 5.0 if fam == "sdxl" else 7.0, files={}, family=fam, score=0)
+
+
+def manual_images() -> list[ImageModel]:
+    """手で置いた絵の模型。manual の置き場の .safetensors（1 つのファイル）と、model_index.json のあるフォルダー"""
+    d = manual_dir()
+    if not d.is_dir():
+        return []
+    found = sorted(f for f in d.glob("*.safetensors") if f.is_file())
+    found += sorted(x for x in d.iterdir() if x.is_dir() and (x / "model_index.json").exists())
+    return [local_model(str(f)) for f in found]
+
+
+def all_images() -> list[ImageModel]:
+    """一覧の模型と、手で置いた模型"""
+    return list(IMAGES) + manual_images()
+
+
 def image_model(repo: str) -> ImageModel:
-    """一覧に無い模型（設定で名前を書いた物）は、ふつうの形で取る"""
-    return next((m for m in IMAGES if m.repo == repo), ImageModel(repo, repo, "", "", 0.0, 24, 5.0))
+    """一覧に無い模型は、手で置いた物ならその形で、Hugging Face の名前ならふつうの形で取る"""
+    found = next((m for m in IMAGES if m.repo == repo), None)
+    if found is not None:
+        return found
+    if is_local(repo):
+        return local_model(repo)
+    return ImageModel(repo, repo, "", "", 0.0, 24, 5.0)
 
 
 PASS = 60   # 候補に出す点の下限

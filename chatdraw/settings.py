@@ -33,7 +33,8 @@ def local_models() -> list[str]:
     for d in sorted(hub.glob("models--*")):
         if any(s.joinpath("model_index.json").exists() for s in d.glob("snapshots/*")):
             out.append(d.name[len("models--"):].replace("--", "/"))
-    return out
+    from chatdraw.models import manual_images
+    return out + [m.repo for m in manual_images()]   # 手で置いた模型は道で書く
 
 
 class Settings:
