@@ -53,7 +53,7 @@ HAND_NEGATIVE = "fused fingers, extra fingers, missing fingers, six fingers, fou
 
 def detail(src, out, prompt: str, negative: str = "", strength: float = 0.4, steps: int = 24, seed: int = 0,
            box=None, words: str = FACE_WORDS, extra_negative: str = FACE_NEGATIVE, control: str | None = None,
-           control_scale: float = 0.8, control_mode: int | None = None) -> dict:
+           control_scale: float = 0.8, control_mode: int | None = None, ref: str | None = None, ref_scale: float = 0.5) -> dict:
     import torch
     from PIL import Image, ImageDraw, ImageFilter
     import demi
@@ -72,6 +72,8 @@ def detail(src, out, prompt: str, negative: str = "", strength: float = 0.4, ste
     if control and control_mode is not None:
         # union の型で縛る（3 は線: canny・lineart）。control は絵と同じ大きさの、黒地に白い線の絵
         import people
+        if ref:
+            people.use_reference()   # 手本を読む部品は、union の部品を作る前に本体へ載せる
         pipe = people.union_img2img()
         ctrl = Image.open(control).convert("RGB").resize(im.size).crop(box).resize((SIDE, SIDE), Image.LANCZOS)
         extra = dict(control_image=[ctrl], control_mode=[control_mode], controlnet_conditioning_scale=control_scale)
@@ -84,6 +86,14 @@ def detail(src, out, prompt: str, negative: str = "", strength: float = 0.4, ste
         extra = dict(control_image=ctrl, controlnet_conditioning_scale=control_scale)
     else:
         pipe = demi.img2img()
+    if ref and control_mode is not None:
+        import people
+        base = people.pipe()
+        pipe.register_modules(image_encoder=base.image_encoder, feature_extractor=base.feature_extractor)
+        pipe.set_ip_adapter_scale(ref_scale)
+        extra["ip_adapter_image"] = Image.open(ref).convert("RGB")
+    elif ref:
+        raise ValueError("手本（ref）は control_mode と一緒に使う")
     pe, ne, pp, np_ = design.encode_xl(pipe, pos, neg)
     redone = pipe(image=crop.resize((SIDE, SIDE), Image.LANCZOS), strength=strength, prompt_embeds=pe,
                   negative_prompt_embeds=ne, pooled_prompt_embeds=pp, negative_pooled_prompt_embeds=np_,
@@ -101,7 +111,7 @@ def detail(src, out, prompt: str, negative: str = "", strength: float = 0.4, ste
 
 
 def detail_masked(src, out, prompt: str, box, keep_labels, words: str, extra_negative: str = "", strength: float = 0.5,
-                  seed: int = 0, grow: int = 1, protect=(), protect_circles=()) -> int:
+                  seed: int = 0, grow: int = 1, protect=(), protect_circles=(), **kw) -> int:
     """枠を描き直し、その結果を部位（keep_labels）の範囲にだけ使う。顔・角・手など protect の部位と、
     protect_circles（(x, y, 半径) の円、鈴など部位分けに出ない物）は元の絵のまま残す。
     枠の楕円で混ぜるだけでは、髪の枠に顔や角が入って一緒に描き変わった。返すのは差し替えた画素の数"""
@@ -109,7 +119,7 @@ def detail_masked(src, out, prompt: str, box, keep_labels, words: str, extra_neg
     from PIL import Image, ImageFilter
     import edit
     tmp = str(out) + ".tmp.png"
-    detail(src, tmp, prompt, "", strength, seed=seed, box=box, words=words, extra_negative=extra_negative)
+    detail(src, tmp, prompt, "", strength, seed=seed, box=box, words=words, extra_negative=extra_negative, **kw)
     seg = np.asarray(edit.parts(src))
     m = Image.fromarray((np.isin(seg, keep_labels) * 255).astype(np.uint8))
     if grow > 1:
