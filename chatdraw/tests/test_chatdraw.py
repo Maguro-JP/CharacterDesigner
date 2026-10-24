@@ -79,6 +79,10 @@ class WindowTest(unittest.TestCase):
                 w.thread and w.thread.wait(10)
             self.assertEqual(len(w.images), 1)
             self.assertTrue(Path(w.images[0]).exists())
+            item = w.history.item(0)                       # 描いた絵の欄の履歴に、結果と頼みが残る
+            self.assertIn("描けました", item.text())
+            self.assertIn("雪の城の前の騎士", item.text())
+            self.assertEqual(w.activity.state.text(), "待っています")
             self.assertTrue(w.button.isEnabled())
 
 
@@ -102,6 +106,9 @@ class LayoutTest(unittest.TestCase):
         self.assertEqual((d.width(), d.height()), (450, 340))
         self.assertLessEqual(abs(d.x() - 50) + abs(d.y() - 60), 4)   # 枠の分だけずれる
         w.arrange()
+        from PySide6.QtCore import Qt as _Qt
+        self.assertEqual(w.dockWidgetArea(w.panels["chat"][0]), _Qt.RightDockWidgetArea)   # AI は右
+        self.assertEqual(w.dockWidgetArea(w.panels["brushes"][0]), _Qt.LeftDockWidgetArea)   # 道具は左
         self.assertFalse(any(d.isFloating() for d, _ in w.panels.values()))
         w.panels["history"][0].toggleViewAction().trigger()
         self.assertTrue(w.panels["history"][0].isHidden())

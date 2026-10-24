@@ -33,6 +33,7 @@ from PySide6.QtWidgets import (QApplication, QDockWidget, QFileDialog,  # noqa: 
 
 from PIL import Image  # noqa: E402
 
+from chatdraw.activity import ActivityPanel  # noqa: E402
 from chatdraw.canvas import Canvas  # noqa: E402
 from chatdraw.colorpanel import ColorPanel  # noqa: E402
 from chatdraw.icons import icon  # noqa: E402
@@ -191,22 +192,18 @@ class Window(QMainWindow):
         self.addDockWidget(Qt.LeftDockWidgetArea, dock)
 
         # 右: 描いた絵の一覧。押すと真ん中に出す
-        self.history = QListWidget()
-        self.history.setViewMode(QListWidget.IconMode)
-        self.history.setIconSize(QSize(120, 176))
-        self.history.setResizeMode(QListWidget.Adjust)
-        self.history.currentItemChanged.connect(lambda cur, _: cur and self.canvas.show_image(cur.data(Qt.UserRole)))
-        hist = QDockWidget("描いた絵", self)
-        hist.setWidget(self.history)
+        # 右: 描いた絵。AI の今の工程・進み・時間と、描いた絵の履歴
+        self.activity = ActivityPanel()
+        self.history = self.activity.list
+        self.history.itemDoubleClicked.connect(lambda it: it.data(Qt.UserRole) and self.canvas.show_image(it.data(Qt.UserRole)))
+        hist = QDockWidget("描いた絵と進み", self)
+        hist.setWidget(self.activity)
         hist.setObjectName("history")
         hist.setFeatures(PANEL)
         self.addDockWidget(Qt.RightDockWidgetArea, hist)
 
         # 下: 進み
-        self.progress = QProgressBar()
-        self.progress.setMaximumWidth(240)
-        self.progress.setVisible(False)
-        self.statusBar().addPermanentWidget(self.progress)
+        self.progress = self.activity.bar   # 進みは描いた絵の欄に出す
         self.statusBar().showMessage("頼みを書いて「描く」を押してください")
 
         # 上: メニュー
@@ -387,7 +384,7 @@ class Window(QMainWindow):
 
         # ウィンドウ: 欄ごとの表示と、並べ方（整列・別ウィンドウ・自由配置）
         self.panels = {"color": (odock, Qt.LeftDockWidgetArea), "brushes": (bdock, Qt.LeftDockWidgetArea),
-                       "chat": (dock, Qt.LeftDockWidgetArea),
+                       "chat": (dock, Qt.RightDockWidgetArea),
                        "history": (hist, Qt.RightDockWidgetArea), "layers": (ldock, Qt.RightDockWidgetArea)}
         for d, _area in self.panels.values():
             d.setTitleBarWidget(PanelTitle(d))
@@ -418,7 +415,7 @@ class Window(QMainWindow):
         win.addAction(QAction("すべて別ウィンドウにする", self, triggered=self.float_all))
         win.addAction(QAction("自由配置（欄をドラッグして好きな所に置く）", self, triggered=self.free_layout))
         self.layout_store = QSettings("CharacterDesigner", "chatdraw")
-        state = self.layout_store.value("state2")   # 欄の並びを変えたら名前を変え、古い並びを読まない
+        state = self.layout_store.value("state3")   # 欄の並びを変えたら名前を変え、古い並びを読まない
         if state is not None:
             self.restoreGeometry(self.layout_store.value("geometry"))
             self.restoreState(state)
@@ -452,9 +449,9 @@ class Window(QMainWindow):
         self.entry.clear()
         self.say(text, "あなた")
         self.button.setEnabled(False)
-        self.progress.setValue(0)
-        self.progress.setVisible(True)
         self.stop_button.setEnabled(True)
+        self.activity.begin(text, self.mode.currentText())
+        self.activity.status("AI が使えるかを確かめました")
         base = None
         if self.mode.currentIndex() == 1:
             base = qimage_to_pil(self.canvas.flatten())
@@ -472,18 +469,14 @@ class Window(QMainWindow):
     def on_status(self, msg: str):
         self.statusBar().showMessage(msg)
         m = re.search(r"（(\d+)/(\d+)）", msg)
-        if m:
-            self.progress.setMaximum(int(m.group(2)))
-            self.progress.setValue(int(m.group(1)))
+        self.activity.status(msg, *(int(m.group(1)), int(m.group(2))) if m else (None, None))
 
     def finish(self, prompt: str, path: str):
         self.images.append(path)
-        item = QListWidgetItem(QIcon(QPixmap(path).scaledToWidth(240, Qt.SmoothTransformation)), "")
-        item.setData(Qt.UserRole, path)
-        self.history.insertItem(0, item)
-        self.history.setCurrentItem(item)
+        self.activity.status("キャンバスに置いています")
         self.canvas.show_overlay(None)
         self.place(path)
+        self.activity.end("描けました", path)
         self.say("描きました")
         self._end("できました")
 
@@ -539,6 +532,8 @@ class Window(QMainWindow):
     def fail(self, why: str):
         self.canvas.show_overlay(None)
         self.say(why)
+        if self.activity.started is not None:
+            self.activity.end("止めました" if "止め" in why else "描けませんでした")
         self._end(why)
 
     def pick_color(self):
@@ -570,7 +565,7 @@ class Window(QMainWindow):
         self.fill_shapes.setVisible(key in ("rect", "ellipse"))
 
     def arrange(self):
-        """初期の配置。左に道具・ツールの設定・頼み、右に描いた絵・レイヤー、真ん中を広く絵に使う"""
+        """初期の配置。左に道具・色・ブラシ、右に AI・描いた絵と進み・レイヤー、真ん中を広く絵に使う"""
         brushes, opt, chat = self.panels["brushes"][0], self.panels["color"][0], self.panels["chat"][0]
         hist, layers = self.panels["history"][0], self.panels["layers"][0]
         for d, _area in self.panels.values():
@@ -580,16 +575,17 @@ class Window(QMainWindow):
         self.tools.show()
         self.addToolBar(Qt.TopToolBarArea, self.options)
         self.options.show()
+        # 左は作画ソフトと同じデッサンの道具（色・ブラシ）、右は AI とこの道具ならではの欄（頼み・描いた絵と進み）とレイヤー
         self.addDockWidget(Qt.LeftDockWidgetArea, opt)
         self.splitDockWidget(opt, brushes, Qt.Vertical)
-        self.splitDockWidget(brushes, chat, Qt.Vertical)
-        self.addDockWidget(Qt.RightDockWidgetArea, hist)
+        self.addDockWidget(Qt.RightDockWidgetArea, chat)
+        self.splitDockWidget(chat, hist, Qt.Vertical)
         self.splitDockWidget(hist, layers, Qt.Vertical)
         w, h = max(self.width(), 1200), max(self.height(), 800)
         side = min(320, max(240, int(w * 0.17)))   # 真ん中の絵を広く取る
-        self.resizeDocks([brushes, hist], [side, side], Qt.Horizontal)
-        self.resizeDocks([opt, brushes, chat], [330, 300, max(260, h - 680)], Qt.Vertical)   # 色とブラシは中身の高さだけ
-        self.resizeDocks([hist, layers], [int(h * 0.4), int(h * 0.6)], Qt.Vertical)
+        self.resizeDocks([brushes, chat], [side, side + 20], Qt.Horizontal)
+        self.resizeDocks([opt, brushes], [330, h - 330], Qt.Vertical)
+        self.resizeDocks([chat, hist, layers], [int(h * 0.36), int(h * 0.40), int(h * 0.24)], Qt.Vertical)
 
     def _as_window(self, d: QDockWidget, floating: bool):
         """別ウィンドウにした欄を、ふつうのウィンドウの枠にする。上下左右と四隅の端をつかんで大きさを変えられ、最大化もできる"""
@@ -629,7 +625,7 @@ class Window(QMainWindow):
     def closeEvent(self, e):
         # 次に開いたときも同じ並びにする
         self.layout_store.setValue("geometry", self.saveGeometry())
-        self.layout_store.setValue("state2", self.saveState())
+        self.layout_store.setValue("state3", self.saveState())
         super().closeEvent(e)
 
     def _refresh_layers(self):
@@ -679,7 +675,6 @@ class Window(QMainWindow):
     def _end(self, msg: str):
         self.statusBar().showMessage(msg)
         self.stop_button.setEnabled(False)
-        self.progress.setVisible(False)
         if self.thread is not None:
             self.thread.quit()
             self.thread.wait()
@@ -728,6 +723,12 @@ QCheckBox::indicator { width: 15px; height: 15px; border-radius: 4px; border: 1p
 QCheckBox::indicator:checked { background: #ff7a1a; border-color: #ff7a1a; }
 QProgressBar { background: #1f2024; border: none; border-radius: 6px; height: 10px; text-align: center; color: #ffffff; }
 QProgressBar::chunk { border-radius: 6px; background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ff7a1a, stop:1 #b3166b); }
+QLabel#stateTitle { font-size: 15px; font-weight: 700; color: #ffffff; }
+QLabel#stateDetail { color: #a9a9b0; }
+QLabel#sectionHead { font-weight: 600; color: #c9c9cf; padding-top: 6px; }
+QLabel#step { border-radius: 6px; padding: 3px 0; background: #1f2024; color: #6c6d73; }
+QLabel#step[state="done"] { background: #2e2224; color: #ffb38a; }
+QLabel#step[state="now"] { color: #ffffff; background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ff7a1a, stop:1 #e5322d); }
 QStatusBar { background: #111214; color: #9a9aa1; }
 QScrollBar:vertical { background: transparent; width: 10px; }
 QScrollBar::handle:vertical { background: #34353b; border-radius: 4px; min-height: 30px; margin: 2px; }
