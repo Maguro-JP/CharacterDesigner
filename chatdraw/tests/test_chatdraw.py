@@ -114,9 +114,20 @@ class LayoutTest(unittest.TestCase):
         self.assertEqual(w.dockWidgetArea(w.panels["chat"][0]), _Qt.RightDockWidgetArea)   # AI は右
         self.assertEqual(w.dockWidgetArea(w.panels["brushes"][0]), _Qt.LeftDockWidgetArea)   # 道具は左
         self.assertFalse(any(d.isFloating() for d, _ in w.panels.values()))
-        self.assertTrue(w.panels["history"][0].isHidden())             # 初めはシンプル。履歴とブラシは隠す
-        self.assertTrue(w.panels["brushes"][0].isHidden())
-        w.panels["history"][0].toggleViewAction().trigger()             # 欄の帯のアイコンで出す
+        # おすすめの配置: 左に手で描く道具、右の上に表示・中に AI・下に履歴、真ん中の上に進み・下にチャット
+        area = lambda k: w.dockWidgetArea(w.panels[k][0])
+        for k in ("color", "brushes", "layers"):
+            self.assertEqual(area(k), _Qt.LeftDockWidgetArea)
+        for k in ("view", "chat", "history"):
+            self.assertEqual(area(k), _Qt.RightDockWidgetArea)
+        self.assertEqual(area("progress"), _Qt.TopDockWidgetArea)
+        self.assertEqual(area("talk"), _Qt.BottomDockWidgetArea)
+        ys = [w.panels[k][0].y() for k in ("view", "chat", "history")]
+        self.assertEqual(ys, sorted(ys))                                 # 右は上から表示・AI・履歴
+        self.assertEqual(w.corner(_Qt.BottomLeftCorner), _Qt.LeftDockWidgetArea)   # 上下の欄は真ん中だけ
+        w.panels["history"][0].toggleViewAction().trigger()             # 欄の帯のアイコンで隠す・出す
+        self.assertTrue(w.panels["history"][0].isHidden())
+        w.panels["history"][0].toggleViewAction().trigger()
         self.assertFalse(w.panels["history"][0].isHidden())
         self.assertIn(w.panels["history"][0].toggleViewAction(), w.panel_bar.actions())
         w.place_bar(w.panel_bar, _Qt.BottomToolBarArea)                 # 帯は下にも置ける
@@ -548,14 +559,14 @@ class TabsTest(unittest.TestCase):
         from chatdraw.app import Window
         QApplication.instance() or QApplication([])
         w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
-        self.assertEqual([w.ai_tabs.tabText(i) for i in range(w.ai_tabs.count())], ["頼む", "会話"])
+        self.assertEqual([w.ai_tabs.tabText(i) for i in range(w.ai_tabs.count())], ["描き方"])
+        self.assertEqual([w.view_tabs.tabText(i) for i in range(w.view_tabs.count())], ["全体", "参考画像"])
         r = w.ribbon
         self.assertEqual([r.tabText(i) for i in range(r.count())], ["ホーム", "描く", "AI", "表示"])
         r._clicked(r.currentIndex())                                   # 開いているタブを押すと畳む
         self.assertTrue(r.collapsed and not r.currentWidget().isVisibleTo(r))
         r._clicked(0)                                                  # もう一度押すと広げる
         self.assertFalse(r.collapsed)
-        self.assertEqual([w.layer_tabs.tabText(i) for i in range(w.layer_tabs.count())], ["レイヤー", "ナビゲーター"])
         self.assertEqual([w.brush_tabs.tabText(i) for i in range(w.brush_tabs.count())], ["ブラシ", "設定"])
         self.assertEqual([w.color_panel.tabs.tabText(i) for i in range(2)], ["カラー", "パレット"])
         tabs = w.activity.tabs
@@ -667,6 +678,56 @@ class MotionTest(unittest.TestCase):
             self.assertIsNone(n.graphicsEffect())
         finally:
             motion.MOTION = False
+
+
+class LayoutsTest(unittest.TestCase):
+    def test_presets_align_split_save_export(self):
+        from PySide6.QtCore import QSettings
+        from PySide6.QtCore import Qt as _Qt
+        from PySide6.QtWidgets import QApplication
+        from chatdraw import layouts as L
+        from chatdraw.app import Window
+        app = QApplication.instance() or QApplication([])
+        w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
+        w.resize(1500, 900)
+        w.show()
+        w.arrange()
+        area = lambda k: w.dockWidgetArea(w.panels[k][0])
+        for name, fn in L.PRESETS.items():                                # 決まった配置はどれも当てられる
+            fn(w)
+            app.processEvents()
+            self.assertTrue(L.visible(w), name)
+        L.drawing_focus(w)
+        self.assertTrue(w.panels["talk"][0].isHidden())
+        L.recommended(w)
+        L.align(w, "left")                                                 # 左に寄せる
+        self.assertTrue(all(area(k) == _Qt.LeftDockWidgetArea for k in L.visible(w)))
+        L.align(w, "right")
+        self.assertTrue(all(area(k) == _Qt.RightDockWidgetArea for k in L.visible(w)))
+        L.split(w, 3)                                                      # 3 等分: 左右の欄が幅の 1/3 前後
+        app.processEvents()
+        left = [w.panels[k][0] for k in L.visible(w) if area(k) == _Qt.LeftDockWidgetArea][0]
+        self.assertGreater(left.width(), 1500 // 3 - 120)
+        with TemporaryDirectory() as d:
+            store = QSettings(str(Path(d) / "s.ini"), QSettings.IniFormat)
+            L.recommended(w)
+            app.processEvents()
+            L.save(w, store, "いつもの")
+            self.assertEqual(L.saved_names(store), ["いつもの"])
+            L.drawing_focus(w)
+            app.processEvents()
+            self.assertTrue(L.load(w, store, "いつもの"))                  # 自分の配置に戻せる
+            app.processEvents()
+            self.assertFalse(w.panels["talk"][0].isHidden())
+            L.export(w, str(Path(d) / "mine.json"), "いつもの")
+            L.drawing_focus(w)
+            self.assertEqual(L.import_(w, str(Path(d) / "mine.json")), "いつもの")   # 書き出した配置を読み込める
+            app.processEvents()
+            self.assertFalse(w.panels["talk"][0].isHidden())
+            (Path(d) / "bad.json").write_text("{}")
+            self.assertIsNone(L.import_(w, str(Path(d) / "bad.json")))
+            L.remove(store, "いつもの")
+            self.assertEqual(L.saved_names(store), [])
 
 
 class FitSizeTest(unittest.TestCase):

@@ -129,6 +129,47 @@ class Navigator(QLabel):
         self.canvas.centerOn(min(max(px, 0), 1) * w, min(max(py, 0), 1) * h)
 
 
+class Reference(QLabel):
+    """参考画像。押すか画像を落とすと読み込み、欄の大きさに合わせて縮めて見せる"""
+
+    def __init__(self):
+        super().__init__("押すか画像をここへ落とすと\n参考画像を置けます")
+        self.setAlignment(Qt.AlignCenter)
+        self.setObjectName("cardMeta")
+        self.setAcceptDrops(True)
+        self.setMinimumHeight(120)
+        self.image: QPixmap | None = None
+
+    def load(self, path: str):
+        pm = QPixmap(path)
+        if not pm.isNull():
+            self.image = pm
+            self.setToolTip(Path(path).name)
+            self._fit()
+
+    def _fit(self):
+        if self.image is not None:
+            self.setPixmap(self.image.scaled(self.width() - 8, self.height() - 8, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self._fit()
+
+    def mousePressEvent(self, e):
+        path, _ = QFileDialog.getOpenFileName(self, "参考画像", "", "画像 (*.png *.jpg *.jpeg *.webp)")
+        if path:
+            self.load(path)
+
+    def dragEnterEvent(self, e):
+        if e.mimeData().hasUrls():
+            e.acceptProposedAction()
+
+    def dropEvent(self, e):
+        urls = e.mimeData().urls()
+        if urls:
+            self.load(urls[0].toLocalFile())
+
+
 class PanelTitle(QWidget):
     """欄の見出し。畳む（最小化）・別ウィンドウにする・隠す の 3 つのボタンを持つ。見出しをダブルクリックしても畳める"""
 
@@ -207,6 +248,9 @@ TOOLS = (("move", "移動", "V"), ("select", "四角の選択", "M"), (None, "",
          ("line", "直線", "N"), ("rect", "四角", "U"), ("ellipse", "楕円", "O"), (None, "", ""),
          ("eyedropper", "スポイト", "I"), ("hand", "手のひら", "H"), ("zoom", "拡大（Shift か右クリックで縮小）", "Z"))
 
+# 欄の帯とメニューに並べる順（よく使う順）
+PANEL_ORDER = ("talk", "chat", "view", "history", "progress", "layers", "color", "brushes")
+
 # 欄は動かせて、外に出せて、閉じられる（作画ソフトと同じ）
 PANEL = QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable | QDockWidget.DockWidgetClosable
 
@@ -269,25 +313,44 @@ class Window(QMainWindow):
         follow = QHBoxLayout()
         follow.addWidget(self.strength, 1)
         follow.addWidget(self.strength_label)
-        # AI の欄はタブで「頼む」と「会話」を切り替える
+        # AI の欄は描き方の設定（描き方・大きさ・ラフに沿う強さ・絵の模型）だけ。頼みを書くのはチャットの欄
         ask = QVBoxLayout()
         ask.addLayout(form)
         ask.addLayout(follow)
-        ask.addWidget(self.entry)
-        ask.addLayout(row)
+        self.model_label = QPushButton()
+        self.model_label.setObjectName("modelButton")
+        self.model_label.setToolTip("絵の模型。押すと切り替えられます")
+        self.model_label.clicked.connect(lambda: self.ai_menu.exec(self.model_label.mapToGlobal(self.model_label.rect().bottomLeft())))
+        ask.addWidget(self.model_label)
         ask.addStretch()
         ask_page = QWidget()
         ask_page.setLayout(ask)
         self.ai_tabs = QTabWidget()
-        self.ai_tabs.addTab(ask_page, "頼む")
-        self.ai_tabs.addTab(self.chat, "会話")
+        self.ai_tabs.addTab(ask_page, "描き方")
+        self.ai_tabs.setTabBarAutoHide(True)   # タブが 1 つのときは見出しだけで足りる
         dock = QDockWidget("AI", self)
         dock.setWidget(self.ai_tabs)
         dock.setObjectName("chat")
         dock.setFeatures(PANEL)
         self.addDockWidget(Qt.LeftDockWidgetArea, dock)
 
-        # 右: 描いた絵の一覧。押すと真ん中に出す
+        # 真ん中の下: チャット。会話の流れと、頼みを書く欄と「描く」
+        talk_box = QWidget()
+        tl = QVBoxLayout(talk_box)
+        tl.setContentsMargins(8, 4, 8, 8)
+        tl.addWidget(self.chat, 1)
+        line = QHBoxLayout()
+        line.addWidget(self.entry, 1)
+        line.addWidget(self.button)
+        line.addWidget(self.stop_button)
+        self.button.setMinimumWidth(110)
+        tl.addLayout(line)
+        talk = QDockWidget("チャット", self)
+        talk.setWidget(talk_box)
+        talk.setObjectName("talk")
+        talk.setFeatures(PANEL)
+        self.addDockWidget(Qt.BottomDockWidgetArea, talk)
+
         # 右: 描いた絵。AI の今の工程・進み・時間と、描いた絵の履歴
         self.activity = ActivityPanel()
         self.history = self.activity.list
@@ -297,6 +360,12 @@ class Window(QMainWindow):
         hist.setObjectName("history")
         hist.setFeatures(PANEL)
         self.addDockWidget(Qt.RightDockWidgetArea, hist)
+        # 真ん中の上: 進み（工程・帯・時間）
+        prog = QDockWidget("進み", self)
+        prog.setWidget(self.activity.progress_view)
+        prog.setObjectName("progress")
+        prog.setFeatures(PANEL)
+        self.addDockWidget(Qt.TopDockWidgetArea, prog)
 
         # 下: 進み
         self.progress = self.activity.bar   # 進みは描いた絵の欄に出す
@@ -459,7 +528,18 @@ class Window(QMainWindow):
         self.navigator = Navigator(self.canvas)
         self.layer_tabs = QTabWidget()
         self.layer_tabs.addTab(lbox, "レイヤー")
-        self.layer_tabs.addTab(self.navigator, "ナビゲーター")
+        self.layer_tabs.setTabBarAutoHide(True)
+        # 右の上: 表示（全体の縮小図と参考画像）
+        self.reference = Reference()
+        self.view_tabs = QTabWidget()
+        self.view_tabs.addTab(self.navigator, "全体")
+        self.view_tabs.addTab(self.reference, "参考画像")
+        vdock = QDockWidget("表示", self)
+        vdock.setWidget(self.view_tabs)
+        vdock.setObjectName("view")
+        vdock.setFeatures(PANEL)
+        self.addDockWidget(Qt.RightDockWidgetArea, vdock)
+        self.view_dock = vdock
         ldock = QDockWidget("レイヤー", self)
         ldock.setWidget(self.layer_tabs)
         ldock.setObjectName("layers")
@@ -496,7 +576,9 @@ class Window(QMainWindow):
         # ウィンドウ: 欄ごとの表示と、並べ方（整列・別ウィンドウ・自由配置）
         self.panels = {"color": (odock, Qt.LeftDockWidgetArea), "brushes": (bdock, Qt.LeftDockWidgetArea),
                        "chat": (dock, Qt.RightDockWidgetArea),
-                       "history": (hist, Qt.RightDockWidgetArea), "layers": (ldock, Qt.RightDockWidgetArea)}
+                       "history": (hist, Qt.RightDockWidgetArea), "layers": (ldock, Qt.LeftDockWidgetArea),
+                       "view": (self.view_dock, Qt.RightDockWidgetArea), "talk": (talk, Qt.BottomDockWidgetArea),
+                       "progress": (prog, Qt.TopDockWidgetArea)}
         for d, _area in self.panels.values():
             d.setTitleBarWidget(PanelTitle(d))
             # 欄の境目をドラッグして上下左右に広げ縮めできる。狭めすぎて中身が潰れない大きさだけ決める
@@ -515,9 +597,11 @@ class Window(QMainWindow):
         self.addToolBar(Qt.RightToolBarArea, bar)
         self.panel_bar = bar
         win = self.menuBar().addMenu("ウィンドウ")
-        keys = {"brushes": "F3", "color": "F5", "chat": "F6", "history": "F7", "layers": "F8"}
-        icons = {"color": "palette", "brushes": "brush", "chat": "ai", "history": "history", "layers": "layers"}
-        for k in ("chat", "layers", "history", "color", "brushes"):
+        keys = {"brushes": "F3", "color": "F5", "chat": "F6", "history": "F7", "layers": "F8", "view": "F9", "talk": "F10",
+                "progress": "F11"}
+        icons = {"color": "palette", "brushes": "brush", "chat": "ai", "history": "history", "layers": "layers", "view": "view",
+                 "talk": "chat", "progress": "progress"}
+        for k in PANEL_ORDER:
             d = self.panels[k][0]
             act = d.toggleViewAction()   # チェックが付いていれば表示中
             act.setShortcut(keys[k])
@@ -534,7 +618,7 @@ class Window(QMainWindow):
         self._ribbon_toggle = win
         # 帯は上下左右のどこにでも置ける（帯の端をドラッグしても動く）
         panel_where = win.addMenu("欄の位置")
-        for k in ("chat", "layers", "history", "color", "brushes"):
+        for k in PANEL_ORDER:
             d = self.panels[k][0]
             sub = panel_where.addMenu(d.windowTitle())
             for label, area in (("左", Qt.LeftDockWidgetArea), ("右", Qt.RightDockWidgetArea), ("下", Qt.BottomDockWidgetArea),
@@ -560,16 +644,18 @@ class Window(QMainWindow):
         win.addAction(QAction("自由配置（欄をドラッグして好きな所に置く）", self, triggered=self.free_layout))
         self.build_ribbon()
         self.build_bottom()
+        self.layout_store = QSettings("CharacterDesigner", "chatdraw")
+        self.build_layout_menu()
+        self._show_model()
         help_menu = self.menuBar().addMenu("ヘルプ")
         help_menu.addAction(QAction(icon("help"), "使い方ツアー", self, shortcut="F1", triggered=self.start_tour))
-        self.layout_store = QSettings("CharacterDesigner", "chatdraw")
         self._ribbon_toggle.addAction(self.ribbon_bar.toggleViewAction())
         self._bars_menu.addAction(self.bottom_bar.toggleViewAction())
         for name, tb in (("下の帯", self.bottom_bar), ("道具の設定の帯", self.options)):
             sub = self._where.addMenu(name)
             for label, area in (("上", Qt.TopToolBarArea), ("下", Qt.BottomToolBarArea)):
                 sub.addAction(QAction(label, self, triggered=lambda _=False, tb=tb, area=area: self.place_bar(tb, area)))
-        state = self.layout_store.value("state6")   # 欄の並びを変えたら名前を変え、古い並びを読まない
+        state = self.layout_store.value("state7")   # 欄の並びを変えたら名前を変え、古い並びを読まない
         if state is not None:
             self.restoreGeometry(self.layout_store.value("geometry"))
             self.restoreState(state)
@@ -579,8 +665,15 @@ class Window(QMainWindow):
     def say(self, text: str, who: str = "CharacterDesigner"):
         self.chat.append(f"<b>{who}</b>: {text}")
 
+    def _show_model(self):
+        from chatdraw.models import image_model
+        from chatdraw.setup import AUTO
+        key = self.settings.get("image_model")
+        self.model_label.setText("絵の模型: おまかせ" if key == AUTO else f"絵の模型: {image_model(key).name}")
+
     def check_ai(self) -> dict:
         """AI が使えるかを確かめて、下の欄に出す。描く前と起動のときに毎回呼ぶ"""
+        self._show_model()
         st = check(getattr(self.studio, "painter", None), getattr(self.studio, "words", None)) if isinstance(self.studio, Studio) else \
             {"torch": True, "image": True, "words": True, "reason": ""}
         if st["image"]:
@@ -604,7 +697,7 @@ class Window(QMainWindow):
         self.say(text, "あなた")
         self.button.setEnabled(False)
         self.stop_button.setEnabled(True)
-        self.panels["history"][0].show()   # 描いている間は、工程と進みが見えるように履歴の欄を出す
+        self.panels["progress"][0].show()   # 描いている間は、工程と進みが見えるように進みの欄を出す
         self.activity.begin(text, self.mode.currentText())
         self.activity.status("AI が使えるかを確かめました")
         base = None
@@ -840,18 +933,66 @@ class Window(QMainWindow):
         self.panel_bar.show()
         self.addToolBar(Qt.BottomToolBarArea, self.bottom_bar)
         self.bottom_bar.show()
-        # 初めはシンプルにする。左は道具と色、右は AI とレイヤーだけ。ブラシと履歴は欄の帯のアイコンで開く
-        self.addDockWidget(Qt.LeftDockWidgetArea, opt)
-        self.splitDockWidget(opt, brushes, Qt.Vertical)
-        self.addDockWidget(Qt.RightDockWidgetArea, chat)
-        self.splitDockWidget(chat, hist, Qt.Vertical)
-        self.splitDockWidget(hist, layers, Qt.Vertical)
-        brushes.hide()
-        hist.hide()
-        w, h = max(self.width(), 1200), max(self.height(), 800)
-        side = min(320, max(240, int(w * 0.17)))   # 真ん中の絵を広く取る
-        self.resizeDocks([opt, chat], [side, side + 20], Qt.Horizontal)
-        self.resizeDocks([chat, layers], [int(h * 0.45), int(h * 0.55)], Qt.Vertical)
+        from chatdraw.layouts import recommended
+        recommended(self)
+
+    def apply_layout(self, fn, *args):
+        """配置を当て、絵を新しい大きさに合わせる"""
+        fn(self, *args)
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self.canvas.fit)
+
+    def build_layout_menu(self):
+        """「配置」メニュー。決まった配置・寄せ・等分・自分の配置の保存と読み出し・書き出しと読み込み"""
+        from PySide6.QtWidgets import QInputDialog
+        from chatdraw import layouts as L
+        menu = self.menuBar().addMenu("配置")
+        self.layout_menu = menu
+
+        def fill():
+            menu.clear()
+            for name, fn in L.PRESETS.items():
+                menu.addAction(QAction(name, self, triggered=lambda _=False, fn=fn: self.apply_layout(fn)))
+            menu.addSeparator()
+            for label, where in (("左に寄せる", "left"), ("右に寄せる", "right"), ("真ん中に寄せる（絵を中央に）", "center")):
+                menu.addAction(QAction(label, self, triggered=lambda _=False, w=where: self.apply_layout(L.align, w)))
+            for n in (3, 5):
+                menu.addAction(QAction(f"{n} 等分にする", self, triggered=lambda _=False, n=n: self.apply_layout(L.split, n)))
+            menu.addSeparator()
+            mine = L.saved_names(self.layout_store)
+            if mine:
+                sub = menu.addMenu("自分の配置")
+                for name in mine:
+                    sub.addAction(QAction(name, self, triggered=lambda _=False, n=name: (
+                        L.load(self, self.layout_store, n), self.notify(f"「{n}」の配置にしました", "ok"))))
+                rm = menu.addMenu("自分の配置を消す")
+                for name in mine:
+                    rm.addAction(QAction(name, self, triggered=lambda _=False, n=name: (
+                        L.remove(self.layout_store, n), self.notify(f"「{n}」を消しました", "info"))))
+
+            def save():
+                name, ok = QInputDialog.getText(self, "今の配置を保存", "配置の名前")
+                if ok and name.strip():
+                    L.save(self, self.layout_store, name.strip())
+                    self.notify(f"「{name.strip()}」として保存しました", "ok")
+            menu.addAction(QAction("今の配置を保存…", self, triggered=save))
+            menu.addSeparator()
+
+            def export():
+                path, _ = QFileDialog.getSaveFileName(self, "配置を書き出す", "layout.cdlayout.json", "配置 (*.json)")
+                if path:
+                    L.export(self, path)
+                    self.notify("配置を書き出しました", "ok", Path(path).name)
+
+            def import_():
+                path, _ = QFileDialog.getOpenFileName(self, "配置を読み込む", "", "配置 (*.json)")
+                if path:
+                    name = L.import_(self, path)
+                    self.notify(f"「{name}」の配置にしました" if name else "読み込めませんでした", "ok" if name else "error")
+            menu.addAction(QAction("配置を書き出す…", self, triggered=export))
+            menu.addAction(QAction("配置を読み込む…", self, triggered=import_))
+        menu.aboutToShow.connect(fill)
+        fill()
 
     def build_status(self):
         """下のステータスバー。左に知らせ、右に道具・座標・キャンバスの大きさ・レイヤー・AI の状態・拡大率を並べる。
@@ -947,8 +1088,8 @@ class Window(QMainWindow):
         def ai(mode):
             p["chat"][0].show()
             p["chat"][0].raise_()
-            self.ai_tabs.setCurrentIndex(0)
             self.mode.setCurrentIndex(mode)
+            p["talk"][0].show()
             self.entry.setFocus()
         r.add_page("AI", [
             ("描く", [act("ai", "頼んで描く", lambda: ai(0), "描きたい絵を書いて AI に描かせる"),
@@ -960,7 +1101,10 @@ class Window(QMainWindow):
             ("キャンバス", [act("fit", "全体", self.canvas.fit, "全体を表示（Ctrl+0）"),
                           act("zoom", "100%", self.canvas.actual, "等倍で表示（Ctrl+1）"),
                           act("rotate", "回す", lambda: self.canvas.rotate_view(15), "右に回す（Ctrl+]）")]),
-            ("欄", [p[k][0].toggleViewAction() for k in ("chat", "layers", "history", "color", "brushes")]),
+            ("欄", [p[k][0].toggleViewAction() for k in PANEL_ORDER]),
+            ("配置", [act("layout", "おすすめ", lambda: self.apply_layout(__import__("chatdraw.layouts", fromlist=["x"]).recommended),
+                         "おすすめの配置に戻す"),
+                     act("layout", "配置…", lambda: self.layout_menu.exec(self.cursor().pos()), "決まった配置・寄せ・等分・保存")]),
             ("ヘルプ", [act("help", "使い方", self.start_tour, "使い方ツアー（F1）")]),
         ])
         r.setCurrentIndex(1)   # 初めは「描く」を開いておく
@@ -1063,7 +1207,7 @@ class Window(QMainWindow):
     def closeEvent(self, e):
         # 次に開いたときも同じ並びにする
         self.layout_store.setValue("geometry", self.saveGeometry())
-        self.layout_store.setValue("state6", self.saveState())
+        self.layout_store.setValue("state7", self.saveState())
         super().closeEvent(e)
 
     def _refresh_layers(self):
@@ -1198,6 +1342,7 @@ QPushButton#statusButton:hover { color: #ff7a1a; }
 QFrame#notice { background: #24252a; border-radius: 10px; }
 QLabel#noticeTitle { font-weight: 700; color: #ffffff; }
 QStatusBar::item { border: none; }
+QPushButton#modelButton { text-align: left; }
 QStatusBar { background: #111214; color: #9a9aa1; }
 QScrollBar:vertical { background: transparent; width: 10px; }
 QScrollBar::handle:vertical { background: #34353b; border-radius: 4px; min-height: 30px; margin: 2px; }

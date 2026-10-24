@@ -222,6 +222,32 @@ def _path(key: str) -> QPainterPath:
             p.moveTo(12 + 6 * math.cos(a), 12 + 6 * math.sin(a))
             p.lineTo(12 + 9 * math.cos(a), 12 + 9 * math.sin(a))
         p.addEllipse(QPointF(12, 12), 6, 6)
+    elif key == "chat":
+        p.moveTo(4, 5)
+        p.lineTo(20, 5)
+        p.lineTo(20, 16)
+        p.lineTo(11, 16)
+        p.lineTo(6, 20)
+        p.lineTo(7, 16)
+        p.lineTo(4, 16)
+        p.closeSubpath()
+    elif key == "progress":
+        p.addRoundedRect(QRectF(3, 9, 18, 6), 3, 3)
+        p.moveTo(6, 12)
+        p.lineTo(13, 12)
+    elif key == "view":
+        p.moveTo(2, 12)
+        p.cubicTo(5, 6, 9, 5, 12, 5)
+        p.cubicTo(15, 5, 19, 6, 22, 12)
+        p.cubicTo(19, 18, 15, 19, 12, 19)
+        p.cubicTo(9, 19, 5, 18, 2, 12)
+        p.addEllipse(QPointF(12, 12), 3, 3)
+    elif key == "layout":
+        p.addRoundedRect(QRectF(3, 4, 18, 16), 2, 2)
+        p.moveTo(9, 4)
+        p.lineTo(9, 20)
+        p.moveTo(9, 11)
+        p.lineTo(21, 11)
     elif key == "ai":
         # 4 つの角の光（AI が描く）
         for cx, cy, r in ((10, 12, 7), (18.5, 5.5, 3)):
@@ -250,4 +276,4 @@ def icon(key: str, color: str = "#e8e8ea", active: str = "#ffffff", size: int = 
     return ic
 
 
-KEYS = ("new", "open", "save", "undo", "redo", "fit", "rotate", "rough", "models", "settings", "palette", "brush", "history", "layers", "help", "move", "select", "pen", "eraser", "blur", "fill", "gradient", "line", "rect", "ellipse", "eyedropper", "hand", "zoom", "ai")
+KEYS = ("chat", "progress", "view", "layout", "new", "open", "save", "undo", "redo", "fit", "rotate", "rough", "models", "settings", "palette", "brush", "history", "layers", "help", "move", "select", "pen", "eraser", "blur", "fill", "gradient", "line", "rect", "ellipse", "eyedropper", "hand", "zoom", "ai")

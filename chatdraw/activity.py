@@ -54,14 +54,22 @@ class ActivityPanel(QWidget):
         self.list.setSpacing(2)
         self.list.setWordWrap(True)
         self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        # 進み（工程・帯・時間）は別の欄（progress_view）に出す。画面の真ん中の上に置けるように、履歴とは分ける
+        self.progress_view = QWidget()
+        top = QVBoxLayout(self.progress_view)
+        top.setContentsMargins(10, 4, 10, 6)
+        top.setSpacing(4)
+        head = QHBoxLayout()
+        head.addWidget(self.state)
+        head.addStretch()
+        head.addWidget(self.time)
+        top.addLayout(head)
+        top.addLayout(self.steps)
+        top.addWidget(self.bar)
+        top.addWidget(self.detail)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 6, 8, 8)
         lay.setSpacing(6)
-        lay.addWidget(self.state)
-        lay.addLayout(self.steps)
-        lay.addWidget(self.bar)
-        lay.addWidget(self.detail)
-        lay.addWidget(self.time)
         # 下はタブで切り替える。描いた絵と、キャンバスの操作の履歴（選ぶとそこまで戻る）
         self.ops = QListWidget()
         self.ops.setToolTip("選ぶと、その操作のあとまで戻ります")
@@ -91,7 +99,7 @@ class ActivityPanel(QWidget):
         self.started = time.time()
         self.text, self.mode = text, mode
         self.state.setText("準備中")
-        self.setToolTip(f"{mode}\n{text}")
+        self.progress_view.setToolTip(f"{mode}\n{text}")
         self.bar.setRange(0, 0)   # 工程の数が分かるまでは動く帯にする
         self._mark(0)
         self.tick.start()
@@ -107,7 +115,7 @@ class ActivityPanel(QWidget):
             self.bar.setValue(step)
             self.steps_done, self.steps_total = step, total
         self.state.setText(STAGE_TITLE.get(self.stage, "準備中") + (f"  {step}/{total}" if step is not None and total else ""))
-        self.setToolTip(f"{msg}\n{self.mode}\n{self.text}")
+        self.progress_view.setToolTip(f"{msg}\n{self.mode}\n{self.text}")
         self._show_time()
 
     def _show_time(self):
@@ -139,7 +147,7 @@ class ActivityPanel(QWidget):
         self.bar.setValue(1 if path else 0)
         self._mark(len(STAGES) if path else -1)
         self.state.setText("待機中")
-        self.setToolTip(f"前の 1 枚: {result}（{took}）")
+        self.progress_view.setToolTip(f"前の 1 枚: {result}（{took}）")
         self.time.setText("")
         return item
 
