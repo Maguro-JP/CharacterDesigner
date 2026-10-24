@@ -26,6 +26,7 @@ jobs:
       - name: Setup.exe を組む
         run: sh packaging/chatdraw/build.sh
       - name: 試す版として置く
+        if: github.ref != 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -33,3 +34,12 @@ jobs:
           gh release delete "$tag" -y --cleanup-tag 2>/dev/null || true
           gh release create "$tag" dist/*.exe --prerelease --target "$GITHUB_SHA" \
             --title "chatdraw 試す版（${GITHUB_REF_NAME}）" --notes "コミット ${GITHUB_SHA} から組んだ試す版です。"
+      - name: 公開する版として置く（main）
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v$(cat VERSION)"
+          gh release view "$tag" >/dev/null 2>&1 && { echo "$tag は公開済み"; exit 0; }
+          gh release create "$tag" dist/*.exe --target "$GITHUB_SHA" --title "CharacterDesigner $tag" \
+            --notes "アプリの「ヘルプ」の「更新を確かめる」から入れられます。"
