@@ -532,6 +532,35 @@ class ManagerTest(unittest.TestCase):
                     manager.delete(manager.Item("words", "x", Path(d) / "other" / "a.gguf", 0, ""))
 
 
+class TabsTest(unittest.TestCase):
+    def test_panels_switch_with_tabs_and_history_goes_back(self):
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QColor
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Window
+        QApplication.instance() or QApplication([])
+        w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
+        self.assertEqual([w.ai_tabs.tabText(i) for i in range(w.ai_tabs.count())], ["頼む", "会話"])
+        self.assertEqual([w.layer_tabs.tabText(i) for i in range(w.layer_tabs.count())], ["レイヤー", "ナビゲーター"])
+        self.assertEqual([w.brush_tabs.tabText(i) for i in range(w.brush_tabs.count())], ["ブラシ", "設定"])
+        self.assertEqual([w.color_panel.tabs.tabText(i) for i in range(2)], ["カラー", "パレット"])
+        tabs = w.activity.tabs
+        self.assertEqual([tabs.tabText(i) for i in range(tabs.count())], ["描いた絵", "操作"])
+        c = w.canvas
+        c.new_canvas(100, 100)
+        c.color, c.size = QColor("red"), 4
+        for y in (20, 50):
+            c.snapshot()
+            c.stroke(QPointF(10, y), QPointF(90, y))
+        ops = w.activity.ops
+        self.assertEqual([ops.item(i).text() for i in range(ops.count())], ["始め", "ペン", "ペン"])
+        ops.setCurrentRow(1)                                   # 1 本目のあとまで戻る
+        px = lambda y: c.flatten().pixelColor(50, y).name()
+        self.assertEqual((px(20), px(50)), ("#ff0000", "#ffffff"))
+        ops.setCurrentRow(2)                                   # また進める
+        self.assertEqual(px(50), "#ff0000")
+
+
 class FitSizeTest(unittest.TestCase):
     def test_rough_size_keeps_canvas_ratio(self):
         from chatdraw.app import fit_size

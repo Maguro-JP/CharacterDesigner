@@ -5,7 +5,8 @@ import time
 
 from PySide6.QtCore import QSize, Qt, QTimer
 from PySide6.QtGui import QIcon, QPixmap
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QProgressBar, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (QHBoxLayout, QLabel, QListWidget, QListWidgetItem, QProgressBar, QTabWidget, QVBoxLayout,
+                               QWidget)
 
 # AI が 1 枚を描くまでの工程。状態の言葉の頭で、今どの工程かを決める
 STAGES = (("確かめる", "AI が使えるか"), ("言葉", "頼みを描く言葉に直して"), ("読む", "絵の模型を読んで"),
@@ -61,7 +62,13 @@ class ActivityPanel(QWidget):
         lay.addWidget(self.bar)
         lay.addWidget(self.detail)
         lay.addWidget(self.time)
-        lay.addWidget(self.list, 1)
+        # 下はタブで切り替える。描いた絵と、キャンバスの操作の履歴（選ぶとそこまで戻る）
+        self.ops = QListWidget()
+        self.ops.setToolTip("選ぶと、その操作のあとまで戻ります")
+        self.tabs = QTabWidget()
+        self.tabs.addTab(self.list, "描いた絵")
+        self.tabs.addTab(self.ops, "操作")
+        lay.addWidget(self.tabs, 1)
         self.started: float | None = None
         self.step_started: float | None = None
         self.stage = -1
@@ -135,3 +142,18 @@ class ActivityPanel(QWidget):
         self.setToolTip(f"前の 1 枚: {result}（{took}）")
         self.time.setText("")
         return item
+
+
+def show_ops(view: QListWidget, canvas):
+    """操作の履歴を出す。先頭は「始め」、済んだ操作のあとに戻した操作を薄く並べ、今いる所を選んでおく"""
+    view.blockSignals(True)
+    view.clear()
+    view.addItem("始め")
+    for name in canvas.undo_names:
+        view.addItem(name)
+    for name in reversed(canvas.redo_names):
+        it = QListWidgetItem(name)
+        it.setForeground(Qt.gray)
+        view.addItem(it)
+    view.setCurrentRow(len(canvas.undo_names))
+    view.blockSignals(False)

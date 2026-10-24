@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen
-from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLineEdit, QPushButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTabWidget, QVBoxLayout, QWidget
 
 SWATCHES = ("#000000", "#3a3a3c", "#7a7a7e", "#c7c7cc", "#ffffff", "#f6d7c3", "#e8b79a", "#b97a56",
             "#e5322d", "#ff7a1a", "#ffc93c", "#7ccf5a", "#2fb3a3", "#3d7bff", "#7b5cff", "#e255a1")
@@ -147,14 +147,29 @@ class ColorPanel(QWidget):
         self.recent_row = QHBoxLayout()
         self.recent_row.setSpacing(4)
         self.recent_row.addStretch()
+        # タブで「カラー」（色を作る）と「パレット」（見本と最近使った色）を切り替える。描く色と背景色はどちらでも見える
+        pick = QWidget()
+        pl = QVBoxLayout(pick)
+        pl.setContentsMargins(0, 4, 0, 0)
+        pl.addWidget(self.square, 1)
+        pl.addWidget(self.hue)
+        pal = QWidget()
+        al = QVBoxLayout(pal)
+        al.setContentsMargins(0, 6, 0, 0)
+        al.addLayout(grid)
+        recent = QLabel("最近の色")
+        recent.setObjectName("cardMeta")
+        al.addWidget(recent)
+        al.addLayout(self.recent_row)
+        al.addStretch()
+        self.tabs = QTabWidget()
+        self.tabs.addTab(pick, "カラー")
+        self.tabs.addTab(pal, "パレット")
         lay = QVBoxLayout(self)
-        lay.setContentsMargins(8, 6, 8, 8)
-        lay.setSpacing(8)
-        lay.addWidget(self.square, 1)
-        lay.addWidget(self.hue)
+        lay.setContentsMargins(8, 2, 8, 8)
+        lay.setSpacing(6)
+        lay.addWidget(self.tabs, 1)
         lay.addLayout(top)
-        lay.addLayout(grid)
-        lay.addLayout(self.recent_row)
         self.square.picked.connect(lambda s, v: self._from_hsv())
         self.hue.picked.connect(lambda h: self._from_hsv())
         canvas.color_picked.connect(lambda c: self.show_color())

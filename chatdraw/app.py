@@ -31,13 +31,13 @@ import re  # noqa: E402
 
 from PySide6.QtCore import QObject, QSettings, QSize, Qt, QThread, Signal  # noqa: E402
 from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPalette, QPixmap  # noqa: E402
-from PySide6.QtWidgets import (QApplication, QDockWidget, QFileDialog,  # noqa: E402
+from PySide6.QtWidgets import (QTabWidget, QApplication, QDockWidget, QFileDialog,  # noqa: E402
                                QHBoxLayout, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
                                QCheckBox, QColorDialog, QComboBox, QFormLayout, QLabel, QProgressBar, QPushButton, QSlider, QSpinBox, QTextEdit, QToolBar, QVBoxLayout, QWidget)
 
 from PIL import Image  # noqa: E402
 
-from chatdraw.activity import ActivityPanel  # noqa: E402
+from chatdraw.activity import ActivityPanel, show_ops  # noqa: E402
 from chatdraw.canvas import Canvas  # noqa: E402
 from chatdraw.colorpanel import ColorPanel  # noqa: E402
 from chatdraw.icons import icon  # noqa: E402
@@ -85,6 +85,48 @@ def qimage_to_pil(img):
     img = img.convertToFormat(QImage.Format_RGBA8888)
     return Image.frombuffer("RGBA", (img.width(), img.height()), bytes(img.constBits()), "raw", "RGBA",
                             img.bytesPerLine(), 1).convert("RGB")
+
+
+class Navigator(QLabel):
+    """キャンバス全体の縮小図。押した所を真ん中に出す。描くたびに作り直すと重いので、変わってから少し待って作る"""
+
+    def __init__(self, canvas):
+        super().__init__()
+        self.canvas = canvas
+        self.setAlignment(Qt.AlignCenter)
+        self.setMinimumHeight(120)
+        self.setToolTip("押した所を真ん中に表示します")
+        from PySide6.QtCore import QTimer
+        self.timer = QTimer(self)
+        self.timer.setSingleShot(True)
+        self.timer.setInterval(400)
+        self.timer.timeout.connect(self.redraw)
+        canvas.changed.connect(self.timer.start)
+        canvas.history_changed.connect(self.timer.start)
+
+    def redraw(self):
+        if not self.isVisible() or not self.canvas.layers:
+            return
+        img = self.canvas.flatten().scaled(max(1, self.width() - 8), max(1, self.height() - 8), Qt.KeepAspectRatio,
+                                           Qt.SmoothTransformation)
+        self.setPixmap(QPixmap.fromImage(img))
+
+    def showEvent(self, e):
+        super().showEvent(e)
+        self.redraw()
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        self.timer.start()
+
+    def mousePressEvent(self, e):
+        pm = self.pixmap()
+        if pm is None or pm.isNull():
+            return
+        w, h = self.canvas.size_px()
+        x0, y0 = (self.width() - pm.width()) / 2, (self.height() - pm.height()) / 2
+        px, py = (e.position().x() - x0) / pm.width(), (e.position().y() - y0) / pm.height()
+        self.canvas.centerOn(min(max(px, 0), 1) * w, min(max(py, 0), 1) * h)
 
 
 class PanelTitle(QWidget):
@@ -198,16 +240,20 @@ class Window(QMainWindow):
         follow = QHBoxLayout()
         follow.addWidget(self.strength, 1)
         follow.addWidget(self.strength_label)
-        left = QVBoxLayout()
-        left.addWidget(self.chat)
-        left.addLayout(form)
-        left.addLayout(follow)
-        left.addWidget(self.entry)
-        left.addLayout(row)
-        box = QWidget()
-        box.setLayout(left)
+        # AI の欄はタブで「頼む」と「会話」を切り替える
+        ask = QVBoxLayout()
+        ask.addLayout(form)
+        ask.addLayout(follow)
+        ask.addWidget(self.entry)
+        ask.addLayout(row)
+        ask.addStretch()
+        ask_page = QWidget()
+        ask_page.setLayout(ask)
+        self.ai_tabs = QTabWidget()
+        self.ai_tabs.addTab(ask_page, "頼む")
+        self.ai_tabs.addTab(self.chat, "会話")
         dock = QDockWidget("AI", self)
-        dock.setWidget(box)
+        dock.setWidget(self.ai_tabs)
         dock.setObjectName("chat")
         dock.setFeatures(PANEL)
         self.addDockWidget(Qt.LeftDockWidgetArea, dock)
@@ -335,7 +381,6 @@ class Window(QMainWindow):
         self.size_pressure.toggled.connect(lambda on: setattr(self.canvas.brush, "size_pressure", on))
         self.opacity_pressure.toggled.connect(lambda on: setattr(self.canvas.brush, "opacity_pressure", on))
         bform = QFormLayout()
-        bform.addRow(self.brush_list)
         self.hardness.setToolTip("縁のくっきりさ")
         self.flow_s.setToolTip("1 回に置く絵の具の量")
         self.spacing.setToolTip("筆の跡の間隔")
@@ -346,9 +391,13 @@ class Window(QMainWindow):
         bform.addRow(self.opacity_pressure)
         bbox = QWidget()
         bbox.setLayout(bform)
+        # タブで「ブラシ」（種類を選ぶ）と「設定」（硬さ・流量・間隔・筆圧）を切り替える
+        self.brush_tabs = QTabWidget()
+        self.brush_tabs.addTab(self.brush_list, "ブラシ")
+        self.brush_tabs.addTab(bbox, "設定")
         bdock = QDockWidget("ブラシ", self)
         bdock.setObjectName("brushes")
-        bdock.setWidget(bbox)
+        bdock.setWidget(self.brush_tabs)
         bdock.setFeatures(PANEL)
         self.addDockWidget(Qt.LeftDockWidgetArea, bdock)
         self.brush_list.setCurrentRow(0)
@@ -382,13 +431,21 @@ class Window(QMainWindow):
         lay.addLayout(buttons)
         lbox = QWidget()
         lbox.setLayout(lay)
+        self.navigator = Navigator(self.canvas)
+        self.layer_tabs = QTabWidget()
+        self.layer_tabs.addTab(lbox, "レイヤー")
+        self.layer_tabs.addTab(self.navigator, "ナビゲーター")
         ldock = QDockWidget("レイヤー", self)
-        ldock.setWidget(lbox)
+        ldock.setWidget(self.layer_tabs)
         ldock.setObjectName("layers")
         ldock.setFeatures(PANEL)
         self.addDockWidget(Qt.RightDockWidgetArea, ldock)
         self.canvas.changed.connect(self._refresh_layers)
         self._refresh_layers()
+        # 操作の履歴（履歴の欄の「操作」のタブ）
+        self.canvas.history_changed.connect(lambda: show_ops(self.activity.ops, self.canvas))
+        self.activity.ops.currentRowChanged.connect(lambda r: r >= 0 and self.canvas.go_to(r))
+        show_ops(self.activity.ops, self.canvas)
 
         view = self.menuBar().addMenu("表示")
         view.addAction(QAction("全体を表示", self, shortcut="Ctrl+0", triggered=self.canvas.fit))
@@ -423,6 +480,8 @@ class Window(QMainWindow):
         self.tools = tools
         self.setDockNestingEnabled(True)
         self.setDockOptions(QMainWindow.AllowNestedDocks | QMainWindow.AllowTabbedDocks | QMainWindow.AnimatedDocks)
+        # 欄どうしを重ねるとタブになる（欄の見出しを別の欄の上へドラッグ）。タブは上に出す
+        self.setTabPosition(Qt.AllDockWidgetAreas, QTabWidget.North)
         win = self.menuBar().addMenu("ウィンドウ")
         keys = {"brushes": "F3", "color": "F5", "chat": "F6", "history": "F7", "layers": "F8"}
         for k, (d, _area) in self.panels.items():
@@ -867,6 +926,10 @@ QLabel#stepNum { color: #ffffff; font-weight: 700; border-radius: 14px; backgrou
 QRadioButton { font-weight: 600; }
 QRadioButton::indicator { width: 14px; height: 14px; border-radius: 7px; border: 1px solid #45464d; background: #1f2024; }
 QRadioButton::indicator:checked { background: #ff7a1a; border-color: #ff7a1a; }
+QTabWidget::pane { border: none; }
+QTabBar::tab { background: transparent; color: #8e8e95; padding: 5px 12px; border: none; border-bottom: 2px solid transparent; }
+QTabBar::tab:selected { color: #ffffff; border-bottom: 2px solid #ff7a1a; }
+QTabBar::tab:hover { color: #e8e8ea; }
 QStatusBar { background: #111214; color: #9a9aa1; }
 QScrollBar:vertical { background: transparent; width: 10px; }
 QScrollBar::handle:vertical { background: #34353b; border-radius: 4px; min-height: 30px; margin: 2px; }

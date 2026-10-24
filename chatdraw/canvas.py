@@ -15,6 +15,8 @@ from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem, QGraphicsRect
 from chatdraw.brush import PRESETS, Brush, Dabs, stamp
 
 UNDO_BYTES = 1_500_000_000   # 元に戻すに使うメモリの上限（約 1.5GB）
+TOOL_NAMES = {"eraser": "消しゴム", "blur": "ぼかし", "fill": "塗りつぶし", "gradient": "グラデーション", "line": "直線",
+              "rect": "四角", "ellipse": "楕円", "move": "移動", "select": "選択範囲を消す"}
 BRUSH_TOOLS = ("pen", "eraser", "blur")                       # なぞって描く道具（筆の輪を出す）
 DRAG_TOOLS = ("line", "rect", "ellipse", "gradient", "move", "select")   # 押した所から離した所までで決まる道具
 
@@ -64,6 +66,7 @@ class Canvas(QGraphicsView):
     color_picked = Signal(QColor)
     zoomed = Signal(float)
     brush_changed = Signal(int)
+    history_changed = Signal()  # 元に戻すの積み重ねが変わった（操作の履歴の欄を描き直す）
     used_color = Signal()       # 描く色で描き始めた（最近使った色に足す）
 
     def __init__(self):
@@ -92,6 +95,8 @@ class Canvas(QGraphicsView):
         self.buffer: QImage | None = None
         self.carry = 0.0
         self.undo_stack: list[tuple] = []
+        self.undo_names: list[str] = []
+        self.redo_names: list[str] = []
         self.redo_stack: list[tuple] = []
         self.last: QPointF | None = None
         self.pressure = 1.0
@@ -142,6 +147,9 @@ class Canvas(QGraphicsView):
         self.set_selection(None)
         self.undo_stack.clear()
         self.redo_stack.clear()
+        self.undo_names.clear()
+        self.redo_names.clear()
+        self.history_changed.emit()
         self.rebuild()
         w, h = self.size_px()
         self.scene().setSceneRect(QRectF(0, 0, w, h))
@@ -236,9 +244,19 @@ class Canvas(QGraphicsView):
 
     def _push(self, entry):
         self.undo_stack.append(entry)
+        self.undo_names.append(self.action_name(entry))
         self.redo_stack.clear()
+        self.redo_names.clear()
         while len(self.undo_stack) > 1 and sum(self._bytes(e) for e in self.undo_stack) > UNDO_BYTES:
             self.undo_stack.pop(0)
+            self.undo_names.pop(0)
+        self.history_changed.emit()
+
+    def action_name(self, entry) -> str:
+        """操作の履歴に出す名前。並びを変えた操作はレイヤー、ほかは今の道具の名前"""
+        if entry[0] == "all":
+            return "レイヤー"
+        return TOOL_NAMES.get(self.tool, "描く") if self.tool != "pen" else self.brush.name
 
     @staticmethod
     def _bytes(entry) -> int:
@@ -264,10 +282,21 @@ class Canvas(QGraphicsView):
     def undo(self):
         if self.undo_stack:
             self._apply(self.undo_stack.pop(), self.redo_stack)
+            self.redo_names.append(self.undo_names.pop())
+            self.history_changed.emit()
 
     def redo(self):
         if self.redo_stack:
             self._apply(self.redo_stack.pop(), self.undo_stack)
+            self.undo_names.append(self.redo_names.pop())
+            self.history_changed.emit()
+
+    def go_to(self, done: int):
+        """操作の履歴で選んだ所まで戻す・進める（done は済んだ操作の数）"""
+        while len(self.undo_stack) > done and self.undo_stack:
+            self.undo()
+        while len(self.undo_stack) < done and self.redo_stack:
+            self.redo()
 
     # ---- 表示 ----
     def fit(self):
