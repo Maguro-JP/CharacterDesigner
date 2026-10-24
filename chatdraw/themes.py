@@ -174,6 +174,9 @@ QToolButton#aiPreset:checked {{ color: {on}; border: none;
 QPushButton#suggest {{ padding: 3px 10px; border-radius: 9px; background: transparent; border: 1px dashed {line2}; color: {muted}; font-size: 11px; }}
 QPushButton#suggest:hover {{ border: 1px solid {a1}; color: {strong}; }}
 QLineEdit#noteEdit {{ background: #ff2d2d; color: #ffffff; border: 2px solid #ffffff; border-radius: 8px; font-weight: 700; }}
+QScrollArea {{ background: {bg}; border: none; }}
+QScrollArea > #qt_scrollarea_viewport {{ background: {bg}; }}
+QWidget#scrollInner {{ background: {bg}; }}
 QToolTip {{ background: {button}; color: {strong}; border: 1px solid {line2}; border-radius: 6px; padding: 4px 8px; }}
 """
 

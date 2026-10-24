@@ -141,6 +141,16 @@ class AiPanel(QWidget):
         lay.addWidget(self.upscale_button)
         self.set_style("おまかせ")
         self.sync()
+        self.fit_narrow()
+
+    def fit_narrow(self):
+        """ボタンの文字の長さで欄の幅が決まらないようにする（狭い欄では 1 列に並べ替える）"""
+        from PySide6.QtWidgets import QAbstractButton, QSpinBox
+        for b in self.findChildren(QAbstractButton) + self.findChildren(QSpinBox):
+            b.setMinimumWidth(0)
+            sp = b.sizePolicy()
+            sp.setHorizontalPolicy(QSizePolicy.Ignored)
+            b.setSizePolicy(sp)
 
     # ---- 部品 ----
     def _head(self, title: str, tip: str) -> QLabel:
@@ -198,6 +208,7 @@ class AiPanel(QWidget):
         b.setToolButtonStyle(Qt.ToolButtonTextOnly)
         b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         b.setMinimumHeight(46)
+        b.setMinimumWidth(0)
         if own:
             b.setContextMenuPolicy(Qt.CustomContextMenu)
             b.customContextMenuRequested.connect(lambda _p, n=name, b=b: self._own_menu(n, b))
@@ -229,8 +240,25 @@ class AiPanel(QWidget):
             b = self._card(name, sub, own)
             b.clicked.connect(lambda _=False, n=name, d=data: self.apply(n, d))
             self.preset_group.addButton(b)
-            self.preset_box.addWidget(b, i // 2, i % 2)
+            cols = self._cols()
+            self.preset_box.addWidget(b, i // cols, i % cols)
             b.setChecked(name == self.preset)
+
+    def _cols(self) -> int:
+        """欄が狭いときはカードを 1 列にする（2 列のまま狭めると、カードの文字が欄の外にはみ出した）"""
+        return 2 if self.width() >= 330 else 1
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        cols = self._cols()
+        if cols != getattr(self, "_laid_cols", None):
+            self._laid_cols = cols
+            buttons = [self.preset_box.itemAt(i).widget() for i in range(self.preset_box.count())]
+            for b in buttons:
+                self.preset_box.removeWidget(b)
+            for i, b in enumerate(buttons):
+                self.preset_box.addWidget(b, i // cols, i % cols)
+            self.fit_narrow()
 
     def apply(self, name: str, data: dict):
         """プリセットを当てる。描き方・大きさ・画風・強さをそろえ、頼みを書く欄に移る"""

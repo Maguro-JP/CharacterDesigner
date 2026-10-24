@@ -113,7 +113,8 @@ def creator(w):
     """クリエイター向け。リボンと全部の道具、左に色・ブラシ・レイヤー、右に表示と履歴、下に小さくチャット"""
     _reset(w)
     bars(w, ribbon=True, tools=None, bottom=True)
-    _column(w, L, ["color", "brushes", "layers"], [4, 3, 3])
+    _column(w, L, ["color", "layers"], [5, 5])
+    _tabs(w, ["color", "brushes"])   # 3 つ縦に積むと、ノートの画面（高さ 720）に収まらなかった
     _column(w, R, ["view", "history"], [5, 5])
     _tabs(w, ["history", "chat", "library"])
     w.panels["history"][0].raise_()
@@ -165,7 +166,8 @@ def drawing_focus(w):
     """作画中心。全部の道具と、左に色・ブラシ・レイヤー、右に表示。AI の欄は隠す"""
     _reset(w)
     bars(w, ribbon=False, tools=None)
-    _column(w, L, ["color", "brushes", "layers"], [4, 3, 3])
+    _column(w, L, ["color", "layers"], [5, 5])
+    _tabs(w, ["color", "brushes"])   # 3 つ縦に積むと、ノートの画面（高さ 720）に収まらなかった
     _column(w, R, ["view"])
     _hide(w, ["chat", "history", "progress", "talk", "library"])
     _widths(w, ["color"], ["view"], 280)
