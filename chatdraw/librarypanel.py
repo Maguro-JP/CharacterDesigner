@@ -66,7 +66,7 @@ class LibraryPanel(QWidget):
         self.use.setChecked(bool(int(self.w.layout_store.value("use_taste", 1))))
         self.use.toggled.connect(lambda on: self.w.layout_store.setValue("use_taste", int(on)))
         make = QPushButton("好みを AI プリセットにする")
-        make.setToolTip("読み取った好み（作風と言葉）を、自分の AI プリセットとして残します")
+        make.setToolTip("読み取った好み（画風と言葉）を、自分の AI プリセットとして残します")
         make.clicked.connect(self.make_preset)
         tl.addWidget(self.summary, 1)
         tl.addWidget(self.use)
@@ -104,7 +104,7 @@ class LibraryPanel(QWidget):
         else:
             lines = [f"「好き」の絵 {p['liked']} 枚から読み取りました。"]
             if p["style"]:
-                lines.append(f"よく選ぶ作風: {p['style']}")
+                lines.append(f"よく選ぶ画風: {p['style']}")
             if p["tags"]:
                 lines.append("好きな要素: " + ", ".join(p["tags"]))
             if p["avoid"]:

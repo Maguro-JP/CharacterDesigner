@@ -1046,6 +1046,19 @@ class Window(QMainWindow):
                                                        strength=0.7, style=postfx.CHIBI_TAGS,
                                                        regions=[(full, postfx.CHIBI_NOTE)], check=False))
 
+    def make_lineart(self):
+        """今の絵から線だけを取り出した線画を、新しいレイヤーに重ねる（元の絵は残す）"""
+        from chatdraw import postfx
+        self.feature_tour("lineart")
+        img = postfx.lineart(qimage_to_pil(self.canvas.flatten()))
+        out = Path(self.settings.get("output_dir"))
+        out.mkdir(parents=True, exist_ok=True)
+        path = out / f"{time.strftime('%Y%m%d-%H%M%S')}-lineart.png"
+        img.save(path)
+        self.canvas.add_image_layer(str(path), "線画")
+        self.activity.add(str(path), "線画")
+        self.notify("線画にしました", "ok", "新しいレイヤーに重ねました。元の絵は下に残っています")
+
     def make_pixel(self, long: int = 128, colors: int = 24):
         """今の絵をドット絵にして、新しいレイヤーに重ねる。小さいドット絵（1 ドット 1 画素）も出力の置き場に残す"""
         from chatdraw import postfx
@@ -1156,7 +1169,7 @@ class Window(QMainWindow):
         m.exec(self.history.mapToGlobal(pos))
 
     def redo_from(self, path: str):
-        """履歴の絵と同じ頼み・種・作風を、AI の欄とチャットに戻す。押せば同じ設定で描ける"""
+        """履歴の絵と同じ頼み・種・画風を、AI の欄とチャットに戻す。押せば同じ設定で描ける"""
         import json
         meta_path = Path(path).with_suffix(".json")
         try:

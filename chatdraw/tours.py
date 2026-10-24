@@ -65,7 +65,7 @@ def catalog(w) -> dict[str, tuple[str, list[Step]]]:
         "theme_edit": ("テーマを作る", [Step(lambda: None, "テーマを作る", "元にするテーマを選び、色・絵の周りの模様・演出を替えると、その場で画面に当たります。\n名前を付けて保存すると「テーマ」に並び、やめると元に戻ります。")]),
         "upscale": ("拡大", [Step(lambda: w.ai_panel.upscale_button, "絵を 2 倍に拡大", "線と塗りを保ったまま、今の絵を 2 倍の大きさにして開きます。", _show(w, "chat"))]),
         "reference_ai": ("参考画像に寄せる", [Step(lambda: w.ai_panel.use_ref, "参考画像に寄せる", "表示の欄の「参考画像」の絵柄や雰囲気を借りて描きます。\n右の帯で寄せる強さを決めます。初めて使うときに部品を取ります。", _show(w, "chat"))]),
-        "ai_presets": ("AI プリセット", [Step(lambda: w.ai_panel, "AI プリセット", "押すと描き方・大きさ・作風がそろいます。そのまま描きたい絵を書けば描けます。\n「今の設定を保存」で自分のプリセットも作れます。", _show(w, "chat"))]),
+        "ai_presets": ("AI プリセット", [Step(lambda: w.ai_panel, "AI プリセット", "押すと描き方・大きさ・画風がそろいます。そのまま描きたい絵を書けば描けます。\n「今の設定を保存」で自分のプリセットも作れます。", _show(w, "chat"))]),
         # ---- 配置 ----
         "layout": ("配置", [Step(lambda: w.menuBar(), "配置", "「配置」メニューで、決まった配置・左右や真ん中への寄せ・3 等分や 5 等分に切り替えます。\n欄の境目はドラッグで広げ縮めできます。")]),
         "layout_save": ("配置の保存", [Step(lambda: w.menuBar(), "今の配置を保存", "名前を付けて今の配置を残します。\n「配置」の「自分の配置」からいつでも戻せ、要らなければ消せます。")]),
@@ -77,6 +77,7 @@ def catalog(w) -> dict[str, tuple[str, list[Step]]]:
         "save": ("保存", [Step(lambda: None, "保存", "見えているレイヤーを重ねた 1 枚を PNG で保存します。")]),
         "open": ("開く", [Step(lambda: None, "開く", "絵を開くと、その上に描くための空のレイヤーが足されます。")]),
         "chibi": ("ちびキャラ", [Step(lambda: w.ai_panel.chibi_button, "ちびキャラにする", "今の絵を、頭の大きなデフォルメに AI が描き直します。元の絵は残り、新しいレイヤーに重なります。", _show(w, "chat"))]),
+        "lineart": ("線画", [Step(lambda: w.ai_panel.lineart_button, "線画にする", "今の絵から線だけを取り出し、白地の線画を新しいレイヤーに重ねます。元の絵は残ります。", _show(w, "chat"))]),
         "pixel": ("ドット絵", [Step(lambda: w.ai_panel.pixel_button, "ドット絵にする", "今の絵を縮めて色を減らし、輪郭を付けたドット絵にします。\n1 ドット 1 画素の小さな絵は履歴に残ります。", _show(w, "chat"))]),
         "project": ("作業ファイル", [Step(lambda: None, "作業ファイル", "レイヤーと赤ペンの印ごと残します。開き直すと続きから描けます。\nほかの作画ソフトへは「書き出す」の PSD で渡せます。描いている間は 2 分ごとに自動で控えを取ります。")]),
     }

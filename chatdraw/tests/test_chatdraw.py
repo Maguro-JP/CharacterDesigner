@@ -894,7 +894,7 @@ class CommandsTest(unittest.TestCase):
 
 
 class ThemeTest(unittest.TestCase):
-    """テーマを替えてもアイコンが地に溶けず、AI プリセットと作風が描く言葉に届くか"""
+    """テーマを替えてもアイコンが地に溶けず、AI プリセットと画風が描く言葉に届くか"""
     def setUp(self):
         from PySide6.QtWidgets import QApplication
         from chatdraw.app import Window
@@ -929,7 +929,7 @@ class ThemeTest(unittest.TestCase):
 
     def test_commands_for_theme_style_preset(self):
         from chatdraw import commands
-        self.assertEqual(commands.handle(self.w, "作風を水彩にして"), "作風を「水彩」にしました")
+        self.assertEqual(commands.handle(self.w, "画風を水彩にして"), "画風を「水彩」にしました")
         self.assertEqual(self.w.ai_panel.style, "水彩")
         self.assertEqual(commands.handle(self.w, "キャラデザにして"), "AI プリセット「キャラデザ」にしました。描きたい絵を書いてください")
         self.assertIsNone(commands.handle(self.w, "自然の中の少女を描いて"))

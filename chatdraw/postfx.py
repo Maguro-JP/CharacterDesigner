@@ -1,4 +1,4 @@
-"""出来た絵に掛ける後の加工。ドット絵（縮める・色を減らす・輪郭を付ける）。ちびキャラは AI の描き直しで行う（app.py）。
+"""出来た絵に掛ける後の加工（今ある絵を変える）。描く前に指示する画風とは別に持つ。ドット絵（縮める・色を減らす・輪郭を付ける）、線画。ちびキャラは AI の描き直しで行う（app.py）。
 
 ドット絵は、絵の模型に直接ドット絵を描かせるより、出来た絵を縮めて色を減らす方が、元の絵の形と色を保てる。
 """
@@ -47,6 +47,16 @@ def _darkest(img: Image.Image, alpha: Image.Image) -> tuple:
         return (20, 16, 24)
     d = min(seen, key=lambda c: sum(c))
     return tuple(max(0, v - 20) for v in d)
+
+
+def lineart(img: Image.Image, strength: float = 1.0) -> Image.Image:
+    """img から線だけを取り出し、白地に黒の線画にする。塗りの面と影は消え、線と色の境目だけが残る（AI は使わない）"""
+    from PIL import ImageOps
+    g = img.convert("L")
+    # 少しぼかした絵より暗い所が線（明るい側の縁は拾わない）。面の濃さは引き算で消える
+    darker = ImageChops.subtract(g.filter(ImageFilter.GaussianBlur(3)), g)
+    lines = darker.point(lambda v: 0 if v < 6 else min(255, int((v - 6) * 10 * strength)))
+    return ImageOps.invert(lines.filter(ImageFilter.MedianFilter(3))).convert("RGB")
 
 
 def enlarge(img: Image.Image, size: tuple[int, int]) -> Image.Image:
