@@ -192,6 +192,64 @@ def erase(image, mask, rounds: int = 60):
     return Image.composite(fill, img, mask.convert("L").point(lambda v: 255 if v > 127 else 0))
 
 
+def flaws(before, after, mask) -> list[str]:
+    """直した絵に、目で見て崩れと分かる跡が残っていないかを数字で見る。見つけた崩れの並びを返す（無ければ空）。
+
+    実際に出た崩れから作った検査（docs/knowledge/decisions.md の 2026-10-24）。直した所（mask）の 1 か所ずつ、縁と中だけを見る。
+    - 縁の段差: 縁のすぐ内側の色が元の絵から大きく変わり、直した所の輪郭が見える（消した跡が丸く残った）
+    - 平らな塗り: 中の塗りのきめが、周りより大きく減った
+    - 線が切れた: 外から縁へ入っていた線（髪の毛など）が、縁の内側で途切れた
+    - 元の形が薄く残る: 元の絵の線が、消えきらずに薄く残った（目を閉じたのに元の目の輪郭が透ける）
+    """
+    import numpy as np
+    from PIL import Image, ImageFilter
+    try:
+        from scipy import ndimage
+        labels, n = ndimage.label(np.asarray(mask.convert("L")) > 127)
+    except ImportError:
+        labels, n = (np.asarray(mask.convert("L")) > 127).astype(int), 1
+
+    def grad(g):
+        gx, gy = np.zeros_like(g), np.zeros_like(g)
+        gx[:, 1:-1] = g[:, 2:] - g[:, :-2]
+        gy[1:-1, :] = g[2:, :] - g[:-2, :]
+        return np.hypot(gx, gy) / 2
+
+    def detail(g):
+        lap = np.zeros_like(g)
+        lap[1:-1, 1:-1] = 4 * g[1:-1, 1:-1] - g[:-2, 1:-1] - g[2:, 1:-1] - g[1:-1, :-2] - g[1:-1, 2:]
+        return np.abs(lap)
+
+    lb, la = (np.asarray(i.convert("L"), dtype=np.float32) for i in (before, after))
+    cb, ca = (np.asarray(i.convert("RGB").filter(ImageFilter.GaussianBlur(3)), dtype=np.float32) for i in (before, after))
+    gb, ga, da = grad(lb), grad(la), detail(la)
+    found = []
+    for k in range(1, n + 1):
+        part = Image.fromarray(((labels == k) * 255).astype(np.uint8), "L")
+        full = labels == k
+        inner = np.asarray(part.filter(ImageFilter.MinFilter(9))) > 127
+        core = np.asarray(part.filter(ImageFilter.MinFilter(15))) > 127
+        outer = (np.asarray(part.filter(ImageFilter.MaxFilter(15))) > 127) & ~full
+        band = full & ~inner
+        if not core.any() or not band.any() or not outer.any():
+            continue
+        where = f"{k} か所目"
+        if np.abs(ca - cb)[band].mean() > 6:
+            found.append(f"{where}: 縁の段差（直した所の輪郭が見える）")
+        ring = da[outer].mean()
+        if ring > 1.0 and da[core].mean() < ring * 0.45:
+            found.append(f"{where}: 平らな塗り（中の塗りのきめが消えた）")
+        crossing = (gb > 18)[band].mean()
+        if crossing > 0.04 and (ga > 18)[band].mean() < crossing * 0.5:
+            found.append(f"{where}: 線が切れた（縁に入っていた線が中で途切れた）")
+        strong = inner & (gb > 25)
+        if strong.sum() > 30:
+            r = ga[strong] / gb[strong]
+            if ((r > 0.2) & (r < 0.7)).mean() > 0.3:
+                found.append(f"{where}: 元の形が薄く残る（元の線が消えきらずに透ける）")
+    return found
+
+
 class Stopped(Exception):
     """利用者が「止める」を押した"""
 
@@ -445,6 +503,7 @@ class Studio:
         絵全体を順に描き直す。返すのは (描く言葉の並び, 描き直した絵全体の置き場)。直す所だけを貼り合わせない"""
         say = on_status or (lambda msg: None)
         prompts = []
+        self.last_flaws = []   # 直したあとに見つけた崩れ（空なら見つからなかった。出来たかどうかは利用者が決める）
         result = image.convert("RGB")
         for k, (mask, note) in enumerate(regions, 1):
             if refused(note):
@@ -478,6 +537,9 @@ class Studio:
                 if seams(before, result, mask) is not None:
                     say(f"{k} か所目の縁に継ぎ目が残っています。もう一度その所を囲んで直してください")
             prompts.append(prompt)
+            self.last_flaws += [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, result, mask)]
+        if self.last_flaws:
+            say("崩れが見つかりました: " + " / ".join(self.last_flaws))
         path = self._save(result, seed, dict(text=" / ".join(n for _m, n in regions), prompt=" / ".join(prompts), seed=seed,
-                                            style=style, model=self.painter.model, mode="直す"))
+                                            style=style, model=self.painter.model, mode="直す", flaws=self.last_flaws))
         return prompts, path

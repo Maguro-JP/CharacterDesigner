@@ -979,8 +979,15 @@ class Window(QMainWindow):
         if self.job_kind == "chibi":
             self.canvas.add_image_layer(path, "ちびキャラ")
         elif self.job_kind == "fix":
-            self.canvas.add_image_layer(path, f"AI の直し {len(self.images)}")
-            self.canvas.redpen.clear()   # 直したら印は役目を終える
+            bad = getattr(self.studio, "last_flaws", [])
+            self.canvas.add_image_layer(path, f"AI の直し {len(self.images)}" + ("（崩れあり）" if bad else ""))
+            if bad:   # 崩れの見つかった直しは見えなくして重ねる。元の絵を壊さず、見るか消すかは利用者が決める
+                self.canvas.set_visible(self.canvas.current, False)
+                self._refresh_layers()
+                for f in bad:
+                    self.say(f"崩れ: {f}")
+            else:
+                self.canvas.redpen.clear()   # 崩れが見つからなければ、印は役目を終える
         elif not self.batch:
             self.activity.status("キャンバスに置いています")
             self.place(path)
@@ -992,13 +999,16 @@ class Window(QMainWindow):
     def finish(self):
         n = len(self.batch)
         fixed = self.job_kind in ("fix", "chibi")
-        result = "直しました" if fixed else f"{n} 枚描きました" if n > 1 else "描けました"
+        bad = getattr(self.studio, "last_flaws", []) if self.job_kind == "fix" else []
+        result = ("直しを重ねました（崩れあり・隠しています）" if bad else "直しを重ねました") if fixed else \
+            f"{n} 枚描きました" if n > 1 else "描けました"
         for it in self.batch_items:
             it.setToolTip(f"{result}\n{it.toolTip()}")
         self.activity.end(result, None, record=False)
-        self.say("直しました" if fixed else f"{n} 枚描きました。履歴から選べます" if n > 1 else "描きました")
-        self.notify("直しました" if fixed else "描けました", "ok",
-                    "直した所を新しいレイヤーに重ねました" if fixed else
+        self.say(result if fixed else f"{n} 枚描きました。履歴から選べます" if n > 1 else "描きました")
+        self.notify(result if fixed else "描けました", "error" if bad else "ok",
+                    (f"崩れ {len(bad)} 件。レイヤーを隠して重ねました。見て決めてください" if bad else
+                     "新しいレイヤーに重ねました。見て決めてください") if fixed else
                     (f"1 枚目を重ねました。ほかの {n - 1} 枚は履歴をダブルクリックで重ねられます" if n > 1
                      else "レイヤーとして重ねました。押すと履歴を開きます"),
                     on_click=lambda: (self.panels["history"][0].show(), self.activity.tabs.setCurrentIndex(0)))

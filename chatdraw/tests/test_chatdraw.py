@@ -42,12 +42,12 @@ class FakePainter:
         return Image.new("RGB", (64, 96), "white")
 
     def redraw(self, prompt, seed, image, mask, on_step=None, **kw):
-        """直す所を、元に近い色で塗る（本物は模型で描き直す。継ぎ目が出ないので確かめは 1 回で通る）"""
+        """直す所を、紙と同じ色で塗る（本物は模型で描き直す。崩れが出ないので確かめは 1 回で通る）"""
         from PIL import Image
         self.calls.append(("redraw", prompt, seed))
         self.kw = kw
         out = image.copy()
-        out.paste(Image.new("RGB", image.size, "#f4f4f4"), (0, 0), mask)
+        out.paste(Image.new("RGB", image.size, "#ffffff"), (0, 0), mask)
         return out
 
 
@@ -1140,6 +1140,50 @@ class FixAndBatchTest(unittest.TestCase):
         RealStudio(FakeWords(), painter, self.dir).fix(before, [(m, "笑顔に")], 5, on_status=said.append)
         self.assertTrue(any("継ぎ目を消しています" in t for t in said))   # まず間違えた線だけを元に戻し、
         self.assertTrue(any("確かめました" in t for t in said))          # もう一度確かめる
+
+    def test_flaws_find_what_broke_before(self):
+        """前に出た崩れ（消した跡の丸・切れた線・薄く残った元の線）を見つけ、変えていない絵では何も言わない"""
+        from PIL import Image, ImageDraw, ImageFilter
+        from chatdraw.engine import erase, flaws
+        img = Image.new("RGB", (200, 160), (235, 190, 170))
+        d = ImageDraw.Draw(img)
+        for x in range(0, 200, 9):                                     # 髪の毛のような線が直す所を横切る
+            d.line((x, 0, x + 40, 160), fill=(90, 50, 40), width=2)
+        d.ellipse((80, 60, 120, 100), outline=(30, 20, 20), width=4)   # 直したい形（開いた目）
+        m = Image.new("L", img.size, 0)
+        ImageDraw.Draw(m).ellipse((70, 50, 130, 110), fill=255)
+        self.assertEqual(flaws(img, img, m), [])
+        erased = erase(img, m)                                         # 消して平らに埋めただけ
+        found = " ".join(flaws(img, erased, m))
+        self.assertIn("線が切れた", found)
+        ghost = Image.blend(img, erased, 0.55)                          # 元の形が薄く透ける
+        self.assertIn("元の形が薄く残る", " ".join(flaws(img, Image.composite(ghost, img, m), m)))
+
+    def test_fix_with_flaws_is_hidden_and_reported(self):
+        from PIL import Image
+        from chatdraw.engine import erase
+
+        class Breaks(FakePainter):
+            def redraw(self, prompt, seed, image, mask, on_step=None, **kw):
+                self.calls.append(("redraw", prompt, seed))
+                return erase(image, mask)
+        self.w.studio.painter = Breaks()
+        from PySide6.QtGui import QColor, QPainter
+        p = QPainter(self.w.canvas.layers[1].image)
+        for x in range(0, 200, 9):
+            p.setPen(QColor(90, 50, 40))
+            p.drawLine(x, 0, x + 40, 160)
+        p.end()
+        from PySide6.QtCore import QRect
+        self.w.canvas.set_selection(QRect(60, 40, 70, 70))
+        self.w.mode.setCurrentIndex(2)
+        self.w.entry.setText("目を閉じて")
+        self.w.send()
+        wait_idle(self.app, self.w)
+        top = self.w.canvas.layers[self.w.canvas.current]
+        self.assertIn("崩れあり", top.name)
+        self.assertFalse(top.visible)                                  # 崩れた直しは見えなくして重ねる（元の絵を壊さない）
+        self.assertTrue(self.w.studio.last_flaws)
 
     def test_redraw_keeps_picture_outside_marks(self):
         """直すのは囲んだ所の中だけ。元の絵は縮めも広げもせず、外の画素は 1 つも変えない"""
