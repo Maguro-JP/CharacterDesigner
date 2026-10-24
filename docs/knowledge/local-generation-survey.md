@@ -58,6 +58,35 @@ ComfyUI と A1111 は、`checkpoints`（A1111 は `Stable-diffusion`）、`loras
 
 README によると、SD1.x・SDXL・SD3.5・FLUX.1・FLUX.2・Qwen Image・Z-Image・Chroma・Anima など、多くの世代に対応しています。LoRA、IP-Adapter（SD1.5 と SDXL）、TAESD、VAE の分割、ESRGAN の拡大もあります。ControlNet は SD1.5 だけです。GGUF の量子化で、CPU や小さい GPU でも動かしやすくなります。
 
+## 頼みを読む部品（言葉の模型）
+
+新しい世代の多くは、頼みを読む所に、チャットに使う言葉の模型と同じ作りの物を使っています。各模型の `text_encoder/config.json` で確かめました。
+
+| 模型 | 頼みを読む部品 |
+|---|---|
+| SDXL（stable-diffusion-xl-base-1.0） | CLIPTextModel（12 層。画像と言葉を結びつけるための小さな部品） |
+| FLUX.2 klein 4B | Qwen3ForCausalLM（36 層） |
+| Z-Image Turbo | Qwen3ForCausalLM（36 層） |
+| Qwen-Image 2512 | Qwen2_5_VLForConditionalGeneration（28 層。画像も読める作り） |
+| Neta Lumina 1.0 | Gemma2Model（26 層） |
+
+言葉の模型は、頼みの文を読んで意味の数字に直す所だけに使い、返事の文は作りません。絵を描くのは別の部品（transformer）です。
+
+## 小さな試験用の模型で描かせた結果
+
+Hugging Face の試験用の小さな模型で、chatdraw の描く仕組み（Painter.paint）を通しました。絵の出来ではなく、読み込みと描く流れが通るかだけを見ています。
+
+| 世代 | 試験用の模型 | 結果 |
+|---|---|---|
+| Z-Image | tiny-random/z-image | 通った（ZImagePipeline、工程の知らせ 2/2） |
+| Qwen-Image | tiny-random/Qwen-Image | 通った（QwenImagePipeline、工程の知らせ 2/2） |
+| FLUX.1 | katuni4ka/tiny-random-flux | 通った（FluxPipeline、工程の知らせ 2/2） |
+| Chroma | charchits7/tiny-chroma-pipe | 落ちた（メモリを 135GB 求めた。試験用の模型の作りのせいか、chatdraw の渡し方のせいかは、まだ切り分けていません） |
+| FLUX.2 | tiny-random/flux2 | 落ちた（FLUX.2 dev の形の試験用の模型で、klein の部品では読めなかった。klein の試験用の模型はまだ見つけていません） |
+| Lumina 2 | なし | 試していません |
+
+どの世代も、ラフから描く頼みには「ラフから描く部品がまだありません」と返しました。
+
 ## 測った結果
 
 （測り終わったら書きます）
