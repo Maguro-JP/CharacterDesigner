@@ -18,6 +18,9 @@ FIELDS = [
     ("guidance", "頼みの効き", "描き方", "float:1:15", 5.0, "大きいほど頼みの言葉に寄せる"),
     ("rough_follow", "ラフに沿う強さ", "描き方", "float:0.3:1", 1.0, "大きいほどラフの線の形に沿う。小さいほど AI が形を変える"),
     ("output_dir", "描いた絵の保存先", "保存", "dir", str(Path.home() / "Pictures" / "CharacterDesigner"), ""),
+    ("model_dir", "模型の置き場", "保存", "model_dir", "", "絵と言葉の模型を置く所。空なら既定（Windows は C:\\LLM）。変えると次の起動から効く。"
+     "前の置き場の模型は動かさないので、要るなら自分で移す"),
+    ("cursor", "カーソル", "操作", "choice:十字と筆の輪,点と筆の輪,筆の輪だけ,矢印", "十字と筆の輪", "絵の上で描くときのカーソルの形"),
 ]
 
 
@@ -37,6 +40,9 @@ class Settings:
 
     def get(self, key: str):
         field = next(f for f in FIELDS if f[0] == key)
+        if key == "model_dir":
+            from chatdraw.paths import chosen_model_dir
+            return chosen_model_dir()
         value = self.store.value(key, field[4])
         kind = field[3]
         if kind.startswith("int") or kind == "bool":
@@ -108,7 +114,12 @@ class SettingsDialog(QDialog):
             w = QCheckBox()
             w.setChecked(bool(int(value)))
             return w
-        if kind == "dir":
+        if kind.startswith("choice:"):
+            w = QComboBox()
+            w.addItems(kind.split(":", 1)[1].split(","))
+            w.setCurrentText(str(value))
+            return w
+        if kind in ("dir", "model_dir"):
             box = QWidget()
             row = QHBoxLayout(box)
             row.setContentsMargins(0, 0, 0, 0)
@@ -129,11 +140,18 @@ class SettingsDialog(QDialog):
             return int(w.isChecked())
         if isinstance(w, (QSpinBox, QDoubleSpinBox)):
             return w.value()
-        if kind == "dir":
+        if kind in ("dir", "model_dir"):
             return w.edit.text().strip()
         return w.text().strip()
 
     def save(self):
+        from chatdraw.paths import chosen_model_dir, set_model_dir
         for key in self.inputs:
+            if key == "model_dir":
+                new = self.value(key)
+                if new != chosen_model_dir():
+                    set_model_dir(new)   # 模型の置き場は起動の最初に読むので、QSettings ではなくファイルに書く
+                    self.model_dir_changed = True
+                continue
             self.settings.set(key, self.value(key))
         self.accept()

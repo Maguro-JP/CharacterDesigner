@@ -6,10 +6,10 @@
 """
 from __future__ import annotations
 
-from chatdraw.paths import LLM_HOME, WINDOWS
+from chatdraw.paths import LLM_HOME, SHARED
 import os
 
-UPSCALE = LLM_HOME / "upscale" if WINDOWS or os.environ.get("LLM_HOME") else LLM_HOME / "gen" / "upscale"
+UPSCALE = LLM_HOME / "upscale" if SHARED else LLM_HOME / "gen" / "upscale"
 WEIGHTS = UPSCALE / "RealESRGAN_x4plus_anime_6B.pth"
 URL = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth"
 _NET = []

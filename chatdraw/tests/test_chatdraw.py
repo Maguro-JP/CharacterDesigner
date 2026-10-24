@@ -11,6 +11,7 @@ sys.path.insert(0, str(ROOT / ".cache" / "simple" / "lib"))
 sys.path.insert(0, str(ROOT))
 
 from chatdraw.engine import Studio, has_japanese  # noqa: E402
+from PySide6.QtCore import Qt  # noqa: E402
 import chatdraw.motion  # noqa: E402
 
 chatdraw.motion.MOTION = False   # 試験は動きを切って、結果だけを見る（動きは MotionTest で見る）
@@ -1389,6 +1390,113 @@ class SystemTest(unittest.TestCase):
         self.w.library_panel.add_doc(str(doc), "この塗りが好き")
         self.assertEqual(lib.docs()[0]["note"], "この塗りが好き")
         self.assertTrue(Path(lib.docs()[0]["path"]).exists())          # 写しを取る
+
+
+class UsableTest(unittest.TestCase):
+    """画面に収まる・Tab で戻せる・キーとカーソルと模型の置き場を変えられる"""
+    def setUp(self):
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Window
+        from chatdraw import fit
+        self.app = QApplication.instance() or QApplication([])
+        fit.install(self.app)
+        self.w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
+        self.w.show()
+
+    def tearDown(self):
+        self.w.dirty = False
+        self.w.close()
+
+    def spin(self, s=0.6):
+        import time
+        end = time.time() + s
+        while time.time() < end:
+            self.app.processEvents()
+
+    def test_window_and_dialogs_stay_on_screen(self):
+        from PySide6.QtWidgets import QDialog
+        area = self.w.screen().availableGeometry()
+        self.w.resize(area.width() * 3, area.height() * 3)
+        self.w.move(area.right() - 10, area.bottom() - 10)
+        self.spin()
+        self.assertTrue(area.contains(self.w.frameGeometry()), (area, self.w.frameGeometry()))
+        d = QDialog(self.w)
+        d.resize(400, area.height() * 4)   # 縦に長い窓
+        d.show()
+        self.spin()
+        self.assertTrue(area.contains(d.frameGeometry()), (area, d.frameGeometry()))
+        d.close()
+        dock = self.w.panels["layers"][0]
+        dock.setFloating(True)
+        dock.resize(300, area.height() * 3)
+        self.spin()
+        self.assertTrue(area.contains(dock.frameGeometry()), (area, dock.frameGeometry()))
+
+    def test_every_panel_scrolls(self):
+        from PySide6.QtWidgets import QScrollArea
+        for key, (dock, _a) in self.w.panels.items():
+            box = dock.widget()
+            self.assertIsInstance(box, QScrollArea, key)
+            self.assertEqual(box.verticalScrollBarPolicy(), Qt.ScrollBarAsNeeded, key)
+
+    def test_tab_hides_and_restores(self):
+        self.w.toggle_all()
+        self.assertFalse(self.w.tools.isVisible())
+        self.w.toggle_all()
+        self.assertTrue(self.w.tools.isVisible())
+        self.assertTrue(self.w.panels["chat"][0].isVisible())
+
+    def test_keys_can_be_changed_and_saved(self):
+        from PySide6.QtCore import QSettings
+        from chatdraw import keys
+        store = QSettings(str(Path(self.w.layout_store.fileName()).with_name("keys-test.ini")), QSettings.IniFormat)
+        store.clear()
+        keys.apply(self.w, store)
+        d = keys.KeyDialog(self.w, store)
+        names = [d.table.item(r, 0).data(Qt.UserRole) for r in range(d.table.rowCount())]
+        row = names.index("ファイル/新規キャンバス" if "ファイル/新規キャンバス" in names else "新規キャンバス")
+        d.table.setCurrentCell(row, 0)
+        d._store_row("Ctrl+Alt+K")
+        d.save()
+        self.assertEqual(d.actions[names[row]].shortcut().toString(), "Ctrl+Alt+K")
+        self.assertEqual(store.value(keys.PREFIX + names[row]), "Ctrl+Alt+K")
+        # 重なる割り当ては保存しない
+        d2 = keys.KeyDialog(self.w, store)
+        other = names.index("道具/ペン")
+        d2.table.setCurrentCell(other, 0)
+        d2._store_row("Ctrl+Alt+K")
+        self.assertFalse(d2._check())
+        store.clear()
+
+    def test_cursor_styles(self):
+        from PySide6.QtCore import Qt as Q
+        from chatdraw.canvas import CURSOR_STYLES
+        self.w.canvas.set_tool("pen")
+        for st in CURSOR_STYLES:
+            self.w.canvas.set_cursor_style(st)
+            self.assertTrue(self.w.canvas.cursor_ring.isVisible())
+        self.w.canvas.set_cursor_style("筆の輪だけ")
+        self.assertEqual(self.w.canvas.viewport().cursor().shape(), Q.BlankCursor)
+
+    def test_model_dir_choice(self):
+        import importlib
+        import chatdraw.paths as paths
+        with TemporaryDirectory() as home, TemporaryDirectory() as models:
+            old = os.environ.get("CD_HOME")
+            os.environ["CD_HOME"] = home
+            try:
+                paths.set_model_dir(models)
+                fresh = importlib.reload(paths)
+                self.assertEqual(fresh.LLM_HOME, Path(models))
+                self.assertEqual(fresh.HUB, Path(models) / "huggingface")
+                fresh.set_model_dir("")
+                self.assertEqual(importlib.reload(paths).chosen_model_dir(), "")
+            finally:
+                if old is None:
+                    os.environ.pop("CD_HOME", None)
+                else:
+                    os.environ["CD_HOME"] = old
+                importlib.reload(paths)
 
 
 class SmallScreenTest(unittest.TestCase):

@@ -30,17 +30,8 @@ gguf\\         言葉の模型（llama.cpp で読む .gguf）
 huggingface\\  絵の模型など、Hugging Face の形のままの模型
 
 複数のアプリが同じ模型を読みます。消すと、使っているアプリで取り直しになります。
-置き場を移したいときは、環境変数 LLM_HOME に新しい場所を書いてください。
+置き場を移したいときは、アプリの「設定」の「保存」で模型の置き場を選んでください。
 """
-
-
-def llm_home() -> Path:
-    """共有の模型の置き場。LLM_HOME > Windows の C:\\LLM > 開発中の .cache の順に決める"""
-    if os.environ.get("LLM_HOME"):
-        return Path(os.environ["LLM_HOME"])
-    if WINDOWS:
-        return Path((os.environ.get("SystemDrive") or "C:") + "\\") / "LLM"
-    return ROOT / ".cache"
 
 
 def data_home() -> Path:
@@ -52,11 +43,55 @@ def data_home() -> Path:
     return ROOT / ".cache"
 
 
+def config_file() -> Path:
+    """利用者が設定で選んだ置き場を書くファイル。模型の置き場は読み込みの最初に決まるので、QSettings ではなくここに持つ"""
+    return data_home() / "places.json"
+
+
+def chosen_model_dir() -> str:
+    try:
+        import json
+        return str(json.loads(config_file().read_text(encoding="utf-8")).get("model_dir") or "")
+    except (OSError, ValueError):
+        return ""
+
+
+def set_model_dir(path: str):
+    """模型の置き場を変える。次の起動から効く。空にすると既定の置き場に戻す"""
+    import json
+    f = config_file()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        data = json.loads(f.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        data = {}
+    data["model_dir"] = path
+    f.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+
+
+def default_model_dir() -> Path:
+    if WINDOWS:
+        return Path((os.environ.get("SystemDrive") or "C:") + "\\") / "LLM"
+    return ROOT / ".cache"
+
+
+def llm_home() -> Path:
+    """共有の模型の置き場。設定で選んだ所 > LLM_HOME > Windows の C:\\LLM > 開発中の .cache の順に決める。
+    設定を先にするのは、前の版や別のアプリが残した LLM_HOME に引っ張られて、選んだ所が使われなかったのを避けるため"""
+    chosen = chosen_model_dir()
+    if chosen:
+        return Path(chosen)
+    if os.environ.get("LLM_HOME"):
+        return Path(os.environ["LLM_HOME"])
+    return default_model_dir()
+
+
 LLM_HOME = llm_home()
 HOME = data_home()
 # 開発中（Windows でない）は、これまでの置き場（.cache/gen/hf/hub と .cache/llm）をそのまま使う
-HUB = LLM_HOME / "huggingface" if WINDOWS or os.environ.get("LLM_HOME") else LLM_HOME / "gen" / "hf" / "hub"
-GGUF = LLM_HOME / "gguf" if WINDOWS or os.environ.get("LLM_HOME") else LLM_HOME / "llm"
+SHARED = WINDOWS or bool(os.environ.get("LLM_HOME")) or bool(chosen_model_dir())   # 共有の形（huggingface、gguf）で置くか
+HUB = LLM_HOME / "huggingface" if SHARED else LLM_HOME / "gen" / "hf" / "hub"
+GGUF = LLM_HOME / "gguf" if SHARED else LLM_HOME / "llm"
 OWN_LLM = HOME / "llm"   # 言葉の模型を動かす部品（llama-cpp-python）
 
 
