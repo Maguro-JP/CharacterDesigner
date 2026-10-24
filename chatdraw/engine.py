@@ -148,6 +148,35 @@ def sketch_lines(base, size):
     return out.convert("RGB")
 
 
+def seams(before, after, mask, limit: float = 28.0, grow: int = 12):
+    """直した所の縁で、元の絵に無かった段差（線や色の継ぎ目）が出た所を返す（白が段差、無ければ None）。
+
+    縁の内側と外側の両方に幅を取り、明るさの勾配が元の絵より limit 以上強くなった画素を段差とみなす。
+    元の絵にもともとある線（髪の線など）は、元の絵の勾配を引くので数えない。
+    """
+    import numpy as np
+    from PIL import Image, ImageFilter
+    m = np.asarray(mask.convert("L")) > 127
+    if not m.any():
+        return None
+    outer = np.asarray(mask.convert("L").filter(ImageFilter.MaxFilter(9))) > 127
+    inner = np.asarray(mask.convert("L").filter(ImageFilter.MinFilter(9))) > 127
+    band = outer & ~inner
+
+    def grad(img):
+        g = np.asarray(img.convert("L"), dtype=np.float32)
+        gx, gy = np.zeros_like(g), np.zeros_like(g)
+        gx[:, 1:-1] = g[:, 2:] - g[:, :-2]
+        gy[1:-1, :] = g[2:, :] - g[:-2, :]
+        return np.hypot(gx, gy) / 2
+    step = (grad(after) - grad(before)) > limit
+    hit = band & step
+    if hit.sum() < 12:   # 数画素の点は段差として数えない
+        return None
+    out = Image.fromarray((hit * 255).astype(np.uint8), "L").filter(ImageFilter.MaxFilter(2 * (grow // 2) + 1))
+    return out
+
+
 class Stopped(Exception):
     """利用者が「止める」を押した"""
 
@@ -408,9 +437,22 @@ class Studio:
             if refused(prompt):
                 raise ValueError("子どもを性的に描く頼みは描きません")
             say("絵の模型を読んでいます（初めの 1 回だけ時間がかかります）")
+            before = result
             result = self.painter.redraw(prompt, seed + k, result, mask, strength=strength,
                                          on_step=lambda i, n, k=k: say(f"描いています（{i}/{n}・{k}/{len(regions)} か所目）"),
                                          reference=reference, ref_scale=ref_scale)
+            # 直したら確かめる。縁に継ぎ目が出ていれば、その所だけを消して描き直し、もう一度確かめる（3 回まで）
+            for t in range(1, 4):
+                seam = seams(before, result, mask)
+                if seam is None:
+                    say(f"確かめました（{k} か所目・継ぎ目なし）")
+                    break
+                say(f"継ぎ目を直しています（{k} か所目・{t} 回目）")
+                result = self.painter.redraw(prompt, seed + k + 100 * t, result, seam, strength=0.35,
+                                             on_step=lambda i, n, k=k: say(f"描いています（{i}/{n}・{k}/{len(regions)} か所目の継ぎ目）"))
+            else:
+                if seams(before, result, mask) is not None:
+                    say(f"{k} か所目の縁に継ぎ目が残っています。もう一度その所を囲んで直してください")
             prompts.append(prompt)
         path = self._save(result, seed, dict(text=" / ".join(n for _m, n in regions), prompt=" / ".join(prompts), seed=seed,
                                             style=style, model=self.painter.model, mode="直す"))

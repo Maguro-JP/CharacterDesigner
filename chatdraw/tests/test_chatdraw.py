@@ -42,12 +42,12 @@ class FakePainter:
         return Image.new("RGB", (64, 96), "white")
 
     def redraw(self, prompt, seed, image, mask, on_step=None, **kw):
-        """直す所を赤で塗る（本物は模型で描き直す）"""
+        """直す所を、元に近い色で塗る（本物は模型で描き直す。継ぎ目が出ないので確かめは 1 回で通る）"""
         from PIL import Image
         self.calls.append(("redraw", prompt, seed))
         self.kw = kw
         out = image.copy()
-        out.paste(Image.new("RGB", image.size, "red"), (0, 0), mask)
+        out.paste(Image.new("RGB", image.size, "#f4f4f4"), (0, 0), mask)
         return out
 
 
@@ -1116,6 +1116,30 @@ class FixAndBatchTest(unittest.TestCase):
         wait_idle(self.app, self.w)
         self.assertEqual(self.painter.kw["reference"].getpixel((0, 0)), (0, 0, 255))
         self.assertAlmostEqual(self.painter.kw["ref_scale"], 0.8)
+
+    def test_seams_found_and_repaired(self):
+        """直した縁に継ぎ目が出たら見つけ、その所だけを描き直して確かめ直す"""
+        from PIL import Image
+        from chatdraw.engine import Studio as RealStudio, seams
+        before = Image.new("RGB", (120, 100), "white")
+        m = Image.new("L", before.size, 0)
+        m.paste(255, (30, 30, 90, 70))
+        broken = before.copy()
+        broken.paste((40, 40, 40), (30, 30, 90, 70))
+        self.assertIsNotNone(seams(before, broken, m))               # 縁にくっきりした段差
+        self.assertIsNone(seams(before, before, m))                  # 変わらなければ継ぎ目なし
+
+        class Seamy(FakePainter):
+            def redraw(self, prompt, seed, image, mask, on_step=None, **kw):
+                self.calls.append(("redraw", prompt, seed, mask.getbbox()))
+                out = image.copy()
+                out.paste((40, 40, 40) if len(self.calls) == 1 else (250, 250, 250), (0, 0), mask)
+                return out
+        painter = Seamy()
+        said = []
+        RealStudio(FakeWords(), painter, self.dir).fix(before, [(m, "笑顔に")], 5, on_status=said.append)
+        self.assertGreaterEqual(len(painter.calls), 2)               # 継ぎ目の所をもう一度直した
+        self.assertTrue(any("継ぎ目を直しています" in t for t in said))
 
     def test_redraw_keeps_picture_outside_marks(self):
         """直すのは囲んだ所の中だけ。元の絵は縮めも広げもせず、外の画素は 1 つも変えない"""
