@@ -32,6 +32,25 @@ def attach_streams():
 
 attach_streams()
 
+
+def isolate():
+    """前の版やほかのアプリが残した環境の設定に引っ張られないようにする。
+    Hugging Face の置き場や「取らない」の設定が残っていると、選んだ置き場と違う所を見たり、模型を取れなかったりした"""
+    import os
+    from chatdraw.paths import HUB
+    for k in ("HF_HOME", "HUGGINGFACE_HUB_CACHE", "TRANSFORMERS_CACHE", "HF_HUB_OFFLINE", "TRANSFORMERS_OFFLINE",
+              "HF_DATASETS_OFFLINE", "DIFFUSERS_CACHE"):
+        os.environ.pop(k, None)
+    os.environ["HF_HUB_CACHE"] = str(HUB)
+    # 利用者の Python に入っている物（site-packages）を読まない。版の違う部品が混ざって起動しなかった
+    import site
+    user = getattr(site, "USER_SITE", None)
+    if user:
+        sys.path[:] = [p for p in sys.path if not p.startswith(user)]
+
+
+isolate()
+
 # 部品はデータの置き場に入れる（入れたアプリ本体の場所は書き換えない）
 for lib in (DATA / "simple" / "lib", DATA / "gen" / "lib", DATA / "llm" / "lib"):
     if lib.exists() and str(lib) not in sys.path:
@@ -345,6 +364,7 @@ class Window(QMainWindow):
         self.thread: QThread | None = None
 
         self.canvas = Canvas()
+        self.canvas.set_cursor_style(self.settings.get("cursor"))
         self.canvas.new_canvas()
         self.setCentralWidget(self.canvas)
 
@@ -522,9 +542,12 @@ class Window(QMainWindow):
             tools.addAction(act)
             self.tool_actions[key] = act
         self.tool_actions["pen"].setChecked(True)
-        for short, fn in (("X", self.canvas.swap_colors), ("D", self.canvas.reset_colors)):
-            act = QAction(self, shortcut=short, triggered=fn)
+        self.extra_key_actions = []
+        for text, short, fn in (("描く色と背景の色を入れ替える", "X", self.canvas.swap_colors),
+                                ("色を黒と白に戻す", "D", self.canvas.reset_colors)):
+            act = QAction(text, self, shortcut=short, triggered=fn)
             self.addAction(act)
+            self.extra_key_actions.append(act)
 
         # 上: 選んだ道具の設定（太さ・濃さ・形の塗り）。作画ソフトと同じく、絵のすぐ上に置いて手元で変える
         bar = QToolBar("道具の設定", self)
@@ -697,6 +720,8 @@ class Window(QMainWindow):
         self._fill_ai_menu()
         setting_menu = self.menuBar().addMenu("設定")
         setting_menu.addAction(QAction("設定…", self, shortcut="Ctrl+,", triggered=self.open_settings))
+        setting_menu.addAction(QAction("キーの設定…", self, triggered=self.open_keys))
+        setting_menu.addAction(QAction("並びを初めの形に戻す", self, triggered=self.reset_layout))
         setting_menu.addAction(QAction("模型の管理（入れ替え・更新）…", self, triggered=lambda: self.ask_models(force=True)))
         sel = self.menuBar().addMenu("選択範囲")
         sel.addAction(QAction("すべてを選択", self, shortcut="Ctrl+A", triggered=self.canvas.select_all))
@@ -725,7 +750,7 @@ class Window(QMainWindow):
                        "view": (self.view_dock, Qt.RightDockWidgetArea), "talk": (talk, Qt.BottomDockWidgetArea),
                        "progress": (prog, Qt.TopDockWidgetArea)}
         from PySide6.QtWidgets import QScrollArea
-        for key in ("color", "brushes", "layers", "library", "view", "history"):
+        for key in self.panels:
             # 中身が欄より大きいときは欄の中で流す。中身の大きさで欄が縮まず、ウィンドウが画面（ノートの高さ 720 など）からはみ出した
             d = self.panels[key][0]
             inner = d.widget()
@@ -733,7 +758,9 @@ class Window(QMainWindow):
             box.setWidget(inner)
             box.setWidgetResizable(True)
             box.setFrameShape(QScrollArea.NoFrame)
-            box.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            # 縦も横も、収まらないときだけ流す棒を出す
+            box.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+            box.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
             box.setMinimumSize(0, 0)
             inner.setObjectName(inner.objectName() or "scrollInner")
             d.setWidget(box)
@@ -796,7 +823,8 @@ class Window(QMainWindow):
         win.addAction(QAction("メインウィンドウを最小化", self, shortcut="Ctrl+M", triggered=self.showMinimized))
         win.addSeparator()
         win.addAction(QAction("すべての欄を表示", self, triggered=lambda: self._show_all(True)))
-        win.addAction(QAction("すべての欄を隠す（絵だけを見る）", self, shortcut="Tab", triggered=lambda: self._show_all(False)))
+        # Tab は出す・隠すを入れ替える。隠すだけだと、もう一度押しても戻らず、帯も消えて操作できなくなった
+        win.addAction(QAction("欄を隠す・出す（絵だけを見る）", self, shortcut="Tab", triggered=self.toggle_all))
         win.addSeparator()
         win.addAction(QAction("整列（初期の配置に戻す）", self, triggered=self.arrange))
         win.addAction(QAction("すべて別ウィンドウにする", self, triggered=self.float_all))
@@ -830,12 +858,17 @@ class Window(QMainWindow):
             sub = self._where.addMenu(name)
             for label, area in (("上", Qt.TopToolBarArea), ("下", Qt.BottomToolBarArea)):
                 sub.addAction(QAction(label, self, triggered=lambda _=False, tb=tb, area=area: self.place_bar(tb, area)))
-        state = self.layout_store.value("state8")   # 欄の並びを変えたら名前を変え、古い並びを読まない
+        state = self.layout_store.value("state9")   # 欄の並びを変えたら名前を変え、古い並びを読まない
         if state is not None:
-            self.restoreGeometry(self.layout_store.value("geometry"))
-            self.restoreState(state)
+            self.restoreGeometry(self.layout_store.value("geometry9"))
+            if not self.restoreState(state):
+                self.arrange()
         else:
             self.arrange()
+        for old in ("state8", "geometry"):   # 前の版の並び。読むと欄が画面の外や縦長のまま戻った
+            self.layout_store.remove(old)
+        from chatdraw import keys
+        keys.apply(self, self.layout_store)
 
     def draw_again(self):
         """前と同じ頼みを、別の種で描き直す"""
@@ -1258,13 +1291,35 @@ class Window(QMainWindow):
         studio.image_auto, studio.words_auto = g("image_model") == AUTO, words == AUTO
         return studio
 
+    def open_keys(self):
+        from chatdraw.keys import KeyDialog
+        if KeyDialog(self, self.layout_store).exec():
+            self.statusBar().showMessage("キーの設定を保存しました", 4000)
+
+    def reset_layout(self):
+        """欄と帯を初めの並びに戻し、ウィンドウを画面に収める（並びが崩れて操作できなくなったときの戻り道）"""
+        from chatdraw.fit import fit
+        self._all_hidden = False
+        self._show_all(True)
+        for d, _area in self.panels.values():
+            d.setFloating(False)
+        self.arrange()
+        self.showNormal()
+        area = self.screen().availableGeometry()
+        self.resize(min(1400, area.width() - 40), min(900, area.height() - 60))
+        fit(self)
+
     def open_settings(self):
         """設定ウィンドウを開き、保存されたら描く仕組みに当てる。絵の模型を替えたときだけ読み直す"""
-        if SettingsDialog(self.settings, self).exec():
+        dlg = SettingsDialog(self.settings, self)
+        if dlg.exec():
             g = self.settings.get
+            if getattr(dlg, "model_dir_changed", False):
+                self.notify("模型の置き場を変えました", "info", "次に起動したときから新しい置き場を使います。前の置き場の模型は動かしていません")
             self.studio = self._studio_from_settings()
             self.strength.setValue(int(g("rough_follow") * 100))
             self.check_ai()
+            self.canvas.set_cursor_style(g("cursor"))
             self.statusBar().showMessage("設定を保存しました")
 
     def ask_models(self, force: bool = False):
@@ -1715,6 +1770,13 @@ class Window(QMainWindow):
             if isinstance(title, PanelTitle) and title.collapsed != on:
                 title.toggle()
 
+    def toggle_all(self):
+        on = not getattr(self, "_all_hidden", False)
+        self._show_all(not on)
+        self._all_hidden = on
+        if on:
+            self.statusBar().showMessage("欄を隠しました。Tab でまた出します", 6000)
+
     def _show_all(self, on: bool):
         for d, _area in self.panels.values():
             d.setVisible(on)
@@ -1753,8 +1815,8 @@ class Window(QMainWindow):
                 return
         self.layout_store.setValue("running", 0)   # 正しく閉じた印（次の起動で戻すかを聞かない）
         # 次に開いたときも同じ並びにする
-        self.layout_store.setValue("geometry", self.saveGeometry())
-        self.layout_store.setValue("state8", self.saveState())
+        self.layout_store.setValue("geometry9", self.saveGeometry())
+        self.layout_store.setValue("state9", self.saveState())
         super().closeEvent(e)
 
     def _refresh_layers(self):
@@ -1990,6 +2052,8 @@ def dark(app: QApplication, name: str | None = None):
 def main():
     app = QApplication(sys.argv)
     dark(app)
+    from chatdraw import fit
+    fit.install(app)
     w = Window()
     w.show()
     w.ask_models()

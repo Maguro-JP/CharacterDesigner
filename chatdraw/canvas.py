@@ -17,6 +17,7 @@ from chatdraw.brush import PRESETS, Brush, Dabs, stamp
 UNDO_BYTES = 1_500_000_000   # 元に戻すに使うメモリの上限（約 1.5GB）
 TOOL_NAMES = {"redpen": "赤ペン", "eraser": "消しゴム", "blur": "ぼかし", "fill": "塗りつぶし", "gradient": "グラデーション", "line": "直線",
               "rect": "四角", "ellipse": "楕円", "move": "移動", "select": "選択範囲を消す"}
+CURSOR_STYLES = ("十字と筆の輪", "点と筆の輪", "筆の輪だけ", "矢印")   # 設定の「カーソル」で選ぶ形
 BRUSH_TOOLS = ("pen", "eraser", "blur")                       # なぞって描く道具（筆の輪を出す）
 DRAG_TOOLS = ("line", "rect", "ellipse", "gradient", "move", "select")   # 押した所から離した所までで決まる道具
 
@@ -121,10 +122,14 @@ class Canvas(QGraphicsView):
         self.pressure = 1.0
         self.angle = 0.0
         self.held: str | None = None   # Space や Alt を押している間だけ持ち替える前の道具
+        # 筆の輪。白だけだと白い紙の上で見えなかったので、黒い輪の内側に白い輪を重ねる
         self.cursor_ring = QGraphicsEllipseItem()
-        self.cursor_ring.setPen(QPen(QColor(255, 255, 255, 200), 0))
+        self.cursor_ring.setPen(QPen(QColor(0, 0, 0, 200), 0))
         self.cursor_ring.setZValue(1e9)
         self.scene().addItem(self.cursor_ring)
+        self.cursor_ring_in = QGraphicsEllipseItem(self.cursor_ring)
+        self.cursor_ring_in.setPen(QPen(QColor(255, 255, 255, 220), 0))
+        self.cursor_style = CURSOR_STYLES[0]
         self.sel_item = QGraphicsRectItem()
         pen = QPen(QColor("#ff7a1a"), 0, Qt.DashLine)
         self.sel_item.setPen(pen)
@@ -363,9 +368,29 @@ class Canvas(QGraphicsView):
             self.brush = self.brushes["ペン"]   # ペンに持ち替えたのに消しゴムのブラシのままにしない
         self.tool = tool
         self.setDragMode(QGraphicsView.ScrollHandDrag if tool == "hand" else QGraphicsView.NoDrag)
+        self._apply_cursor()
+
+    def set_cursor_style(self, style: str):
+        """絵の上のカーソルの形を変える（設定の「カーソル」）"""
+        self.cursor_style = style if style in CURSOR_STYLES else CURSOR_STYLES[0]
+        self._apply_cursor()
+
+    def _apply_cursor(self):
+        tool = self.tool
         cursors = {"hand": Qt.OpenHandCursor, "move": Qt.SizeAllCursor, "zoom": Qt.PointingHandCursor}
-        self.viewport().setCursor(cursors.get(tool, Qt.CrossCursor))
-        self.cursor_ring.setVisible(tool in BRUSH_TOOLS)
+        brush = tool in BRUSH_TOOLS
+        if tool in cursors:
+            shape = cursors[tool]
+        elif self.cursor_style == "点と筆の輪":
+            shape = _dot_cursor()
+        elif self.cursor_style == "矢印":
+            shape = Qt.ArrowCursor
+        elif brush and self.cursor_style == "筆の輪だけ":
+            shape = Qt.BlankCursor
+        else:
+            shape = Qt.CrossCursor
+        self.viewport().setCursor(shape)
+        self.cursor_ring.setVisible(brush)
 
     def hold(self, tool: str):
         """キーを押している間だけ道具を持ち替える（Space で手のひら、Alt でスポイト）"""
@@ -385,6 +410,8 @@ class Canvas(QGraphicsView):
     def _ring(self, pos: QPointF):
         r = (self.size * (2 if self.tool in ("eraser", "blur") and self.brush.name != "消しゴム" else 1)) / 2
         self.cursor_ring.setRect(pos.x() - r, pos.y() - r, r * 2, r * 2)
+        k = 1.0 / max(self.zoom(), 1e-6)   # 内側の輪は画面で 1 画素だけ内に置く
+        self.cursor_ring_in.setRect(pos.x() - r + k, pos.y() - r + k, max(0.0, r * 2 - 2 * k), max(0.0, r * 2 - 2 * k))
 
     def set_brush(self, name: str):
         self.brush = self.brushes[name]
@@ -779,3 +806,17 @@ class Canvas(QGraphicsView):
             self.release()
         else:
             super().keyReleaseEvent(e)
+
+
+def _dot_cursor():
+    """真ん中に小さな点だけのカーソル（白い縁の黒い点。どの色の上でも見える）"""
+    from PySide6.QtGui import QCursor, QPainter, QPixmap
+    pm = QPixmap(9, 9)
+    pm.fill(Qt.transparent)
+    p = QPainter(pm)
+    p.setRenderHint(QPainter.Antialiasing)
+    p.setPen(QPen(QColor(255, 255, 255), 1.5))
+    p.setBrush(QColor(0, 0, 0))
+    p.drawEllipse(2, 2, 5, 5)
+    p.end()
+    return QCursor(pm, 4, 4)

@@ -25,7 +25,7 @@ RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 
 !define MUI_FINISHPAGE_RUN "$INSTDIR\python\pythonw.exe"
-!define MUI_FINISHPAGE_RUN_PARAMETERS "-m chatdraw.app"
+!define MUI_FINISHPAGE_RUN_PARAMETERS "-E -s -m chatdraw.app"
 !define MUI_FINISHPAGE_RUN_TEXT "CharacterDesigner を起動する"
 !insertmacro MUI_PAGE_DIRECTORY
 !insertmacro MUI_PAGE_INSTFILES
@@ -73,9 +73,9 @@ Section "Install"
   SetShellVarContext all
   SetOutPath "$INSTDIR"
   CreateDirectory "$SMPROGRAMS\${APP}"
-  CreateShortcut "$SMPROGRAMS\${APP}\${APP}.lnk" "$INSTDIR\python\pythonw.exe" "-m chatdraw.app" "$INSTDIR\python\pythonw.exe"
+  CreateShortcut "$SMPROGRAMS\${APP}\${APP}.lnk" "$INSTDIR\python\pythonw.exe" "-E -s -m chatdraw.app" "$INSTDIR\python\pythonw.exe"
   CreateShortcut "$SMPROGRAMS\${APP}\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
-  CreateShortcut "$DESKTOP\${APP}.lnk" "$INSTDIR\python\pythonw.exe" "-m chatdraw.app" "$INSTDIR\python\pythonw.exe"
+  CreateShortcut "$DESKTOP\${APP}.lnk" "$INSTDIR\python\pythonw.exe" "-E -s -m chatdraw.app" "$INSTDIR\python\pythonw.exe"
 
   WriteRegStr HKLM "Software\${APP}" "InstallDir" "$INSTDIR"
   WriteRegStr HKLM "${UNINST}" "DisplayName" "${APP}"

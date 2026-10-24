@@ -81,14 +81,14 @@ def install_engine(say=lambda msg, pct: None):
     lib.mkdir(parents=True, exist_ok=True)
     gpu = shutil.which("nvidia-smi") is not None
     index = "https://download.pytorch.org/whl/cu124" if gpu else "https://download.pytorch.org/whl/cpu"
-    say("絵を描く部品を入れています", 0)
+    say("絵を描く部品を入れています（数分かかります）", -1)
     pip = ["install", "-q", "--disable-pip-version-check", "--no-cache-dir", "--target", str(lib), "--upgrade"]
     run_pip(pip + ["torch", "--index-url", index])
     # 後の部品（transformers など）は torch を欲しがり、そのままだと、ふつうの配り元の GPU 版（約 4GB 多い）で上書きした
     # （CPU の機械で 5.7GB になった）。入れた torch の版に固定して、同じ物を使わせる
     import re
     ver = re.search(r"__version__\s*=\s*['\"]([^'\"]+)", (lib / "torch" / "version.py").read_text()).group(1)
-    say("絵を描く部品を入れています", 50)
+    say("絵を描く部品の続きを入れています（数分かかります）", -1)
     run_pip(pip + ["diffusers", "transformers", "accelerate", "huggingface_hub", "safetensors", f"torch=={ver}",
                    "--extra-index-url", index])
     say("絵を描く部品を入れています", 90)
@@ -145,7 +145,7 @@ class Fetcher(QObject):
     def _words(self, m: WordsModel, update: bool):
         lib = LLM / "lib"
         if not llm_lib_ready():
-            self.progress.emit("言葉の模型を動かす部品を入れています", 0)
+            self.progress.emit("言葉の模型を動かす部品を入れています（数分かかります）", -1)
             # 元のソースから組むと数十分かかり、組み立ての道具も要るので、組み済みの配布物だけを使う
             run_pip(["install", "-q", "--disable-pip-version-check", "--target", str(lib), "--only-binary", "llama-cpp-python",
                      "--extra-index-url", "https://abetlen.github.io/llama-cpp-python/whl/cpu", "llama-cpp-python>=0.3.16"])
@@ -341,10 +341,16 @@ class SetupDialog(QDialog):
         threading.Thread(target=self.fetcher.run, args=(image, words, update), daemon=True).start()
 
     def _progress(self, msg: str, pct: int):
+        """pct が負なら、どこまで進んだか分からない作業（部品を入れる）。棒を動かし続けて、止まって見えないようにする"""
         self.label.setText(msg)
-        self.bar.setValue(pct)
+        if pct < 0:
+            self.bar.setRange(0, 0)
+        else:
+            self.bar.setRange(0, 100)
+            self.bar.setValue(pct)
 
     def _finished(self, err: str):
+        self.bar.setRange(0, 100)
         if err:
             self.fetch_title.setText("取れませんでした")
             self.label.setText(err)
