@@ -28,7 +28,7 @@ from PySide6.QtCore import QObject, QSettings, QSize, Qt, QThread, Signal  # noq
 from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPalette, QPixmap  # noqa: E402
 from PySide6.QtWidgets import (QApplication, QDockWidget, QFileDialog,  # noqa: E402
                                QHBoxLayout, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
-                               QColorDialog, QLabel, QProgressBar, QPushButton, QSlider, QSpinBox, QTextEdit, QToolBar, QVBoxLayout, QWidget)
+                               QColorDialog, QFormLayout, QLabel, QProgressBar, QPushButton, QSlider, QSpinBox, QTextEdit, QToolBar, QVBoxLayout, QWidget)
 
 from chatdraw.canvas import Canvas  # noqa: E402
 from chatdraw.engine import Studio  # noqa: E402
@@ -91,7 +91,6 @@ class Window(QMainWindow):
         dock.setObjectName("chat")
         dock.setFeatures(PANEL)
         self.addDockWidget(Qt.LeftDockWidgetArea, dock)
-        self.resizeDocks([dock], [360], Qt.Horizontal)
 
         # 右: 描いた絵の一覧。押すと真ん中に出す
         self.history = QListWidget()
@@ -104,7 +103,6 @@ class Window(QMainWindow):
         hist.setObjectName("history")
         hist.setFeatures(PANEL)
         self.addDockWidget(Qt.RightDockWidgetArea, hist)
-        self.resizeDocks([hist], [180], Qt.Horizontal)
 
         # 下: 進み
         self.progress = QProgressBar()
@@ -137,25 +135,31 @@ class Window(QMainWindow):
             tools.addAction(act)
             self.tool_actions[key] = act
         self.tool_actions["pen"].setChecked(True)
-        tools.addSeparator()
+        # 左上: ツールの設定（色・太さ・濃さ）
         self.color_button = QPushButton()
-        self.color_button.setFixedSize(40, 28)
+        self.color_button.setFixedSize(48, 32)
         self.color_button.clicked.connect(self.pick_color)
         self._show_color()
-        tools.addWidget(self.color_button)
         self.size_box = QSpinBox()
         self.size_box.setRange(1, 200)
         self.size_box.setValue(self.canvas.size)
         self.size_box.setSuffix(" px")
         self.size_box.valueChanged.connect(lambda v: setattr(self.canvas, "size", v))
-        tools.addWidget(self.size_box)
-        tools.addWidget(QLabel("濃さ"))
         self.flow = QSlider(Qt.Horizontal)
         self.flow.setRange(1, 100)
         self.flow.setValue(100)
-        self.flow.setMaximumWidth(70)
         self.flow.valueChanged.connect(lambda v: setattr(self.canvas, "brush_opacity", v / 100))
-        tools.addWidget(self.flow)
+        opts = QFormLayout()
+        opts.addRow("色", self.color_button)
+        opts.addRow("太さ", self.size_box)
+        opts.addRow("濃さ", self.flow)
+        obox = QWidget()
+        obox.setLayout(opts)
+        odock = QDockWidget("ツールの設定", self)
+        odock.setObjectName("toolopts")
+        odock.setWidget(obox)
+        odock.setFeatures(PANEL)
+        self.addDockWidget(Qt.LeftDockWidgetArea, odock)
         self.canvas.color_picked.connect(lambda _c: self._show_color())
 
         # 右下: レイヤー
@@ -183,8 +187,8 @@ class Window(QMainWindow):
         lbox.setLayout(lay)
         ldock = QDockWidget("レイヤー", self)
         ldock.setWidget(lbox)
-        ldock.setObjectName("chat")
-        dock.setFeatures(PANEL)
+        ldock.setObjectName("layers")
+        ldock.setFeatures(PANEL)
         self.addDockWidget(Qt.RightDockWidgetArea, ldock)
         self.canvas.changed.connect(self._refresh_layers)
         self._refresh_layers()
@@ -201,25 +205,36 @@ class Window(QMainWindow):
         layer_menu.addAction(QAction("画像をレイヤーとして読み込む…", self, triggered=self.import_layer))
 
         # ウィンドウ: 欄ごとの表示と、並べ方（整列・別ウィンドウ・自由配置）
-        self.panels = {"chat": (dock, Qt.LeftDockWidgetArea), "history": (hist, Qt.RightDockWidgetArea),
-                       "layers": (ldock, Qt.RightDockWidgetArea)}
+        self.panels = {"toolopts": (odock, Qt.LeftDockWidgetArea), "chat": (dock, Qt.LeftDockWidgetArea),
+                       "history": (hist, Qt.RightDockWidgetArea), "layers": (ldock, Qt.RightDockWidgetArea)}
+        for d, _area in self.panels.values():
+            d.setMinimumWidth(160)   # 欄の境目をドラッグして広げ縮めできる。狭めすぎて中身が潰れない幅
         self.tools = tools
         self.setDockNestingEnabled(True)
         self.setDockOptions(QMainWindow.AllowNestedDocks | QMainWindow.AllowTabbedDocks | QMainWindow.AnimatedDocks)
         win = self.menuBar().addMenu("ウィンドウ")
-        for d, _area in self.panels.values():
-            win.addAction(d.toggleViewAction())
-        win.addAction(tools.toggleViewAction())
+        keys = {"toolopts": "F5", "chat": "F6", "history": "F7", "layers": "F8"}
+        for k, (d, _area) in self.panels.items():
+            act = d.toggleViewAction()   # チェックが付いていれば表示中
+            act.setShortcut(keys[k])
+            win.addAction(act)
+        tact = tools.toggleViewAction()
+        tact.setShortcut("F4")
+        win.addAction(tact)
         win.addSeparator()
-        win.addAction(QAction("整列", self, triggered=self.arrange))
+        win.addAction(QAction("すべての欄を表示", self, triggered=lambda: self._show_all(True)))
+        win.addAction(QAction("すべての欄を隠す（絵だけを見る）", self, shortcut="Tab", triggered=lambda: self._show_all(False)))
+        win.addSeparator()
+        win.addAction(QAction("整列（初期の配置に戻す）", self, triggered=self.arrange))
         win.addAction(QAction("すべて別ウィンドウにする", self, triggered=self.float_all))
         win.addAction(QAction("自由配置（欄をドラッグして好きな所に置く）", self, triggered=self.free_layout))
         self.settings = QSettings("CharacterDesigner", "chatdraw")
-        self.default_state = self.saveState()
         state = self.settings.value("state")
         if state is not None:
             self.restoreGeometry(self.settings.value("geometry"))
             self.restoreState(state)
+        else:
+            self.arrange()
 
     def say(self, text: str, who: str = "CharacterDesigner"):
         self.chat.append(f"<b>{who}</b>: {text}")
@@ -273,14 +288,28 @@ class Window(QMainWindow):
         self.color_button.setStyleSheet(f"background:{self.canvas.color.name()}; border:1px solid #888")
 
     def arrange(self):
-        """欄をすべてウィンドウの左右に戻して並べる"""
-        self.restoreState(self.default_state)
-        for d, area in self.panels.values():
+        """初期の配置。左に道具・ツールの設定・頼み、右に描いた絵・レイヤー、真ん中を広く絵に使う"""
+        opt, chat = self.panels["toolopts"][0], self.panels["chat"][0]
+        hist, layers = self.panels["history"][0], self.panels["layers"][0]
+        for d, _area in self.panels.values():
             d.setFloating(False)
-            self.addDockWidget(area, d)
             d.show()
         self.addToolBar(Qt.LeftToolBarArea, self.tools)
         self.tools.show()
+        self.addDockWidget(Qt.LeftDockWidgetArea, opt)
+        self.splitDockWidget(opt, chat, Qt.Vertical)
+        self.addDockWidget(Qt.RightDockWidgetArea, hist)
+        self.splitDockWidget(hist, layers, Qt.Vertical)
+        w, h = max(self.width(), 1200), max(self.height(), 800)
+        side = min(320, max(240, int(w * 0.17)))   # 真ん中の絵を広く取る
+        self.resizeDocks([opt, hist], [side, side], Qt.Horizontal)
+        self.resizeDocks([opt, chat], [140, h - 140], Qt.Vertical)   # ツールの設定は中身の高さだけ
+        self.resizeDocks([hist, layers], [int(h * 0.4), int(h * 0.6)], Qt.Vertical)
+
+    def _show_all(self, on: bool):
+        for d, _area in self.panels.values():
+            d.setVisible(on)
+        self.tools.setVisible(on)
 
     def float_all(self):
         """欄をすべて別のウィンドウにして、少しずつずらして並べる"""
