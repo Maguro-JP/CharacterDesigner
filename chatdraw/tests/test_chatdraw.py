@@ -1518,6 +1518,59 @@ class UsableTest(unittest.TestCase):
                 importlib.reload(paths)
 
 
+class ManualModelTest(unittest.TestCase):
+    """手で置いた模型（.safetensors と diffusers のフォルダー）を一覧に出し、取らずに使う。ヘルプの文書が開ける"""
+    def setUp(self):
+        from unittest import mock
+        self.tmp = TemporaryDirectory()
+        root = Path(self.tmp.name)
+        manual = root / "manual"
+        (manual / "my-xl").mkdir(parents=True)
+        (manual / "my-xl" / "model_index.json").write_text('{"_class_name": "StableDiffusionXLPipeline"}', encoding="utf-8")
+        (manual / "small.safetensors").write_bytes(b"0" * 1024)
+        self.patch = mock.patch("chatdraw.paths.LLM_HOME", root)
+        self.patch.start()
+        self.root = root
+
+    def tearDown(self):
+        self.patch.stop()
+        self.tmp.cleanup()
+
+    def test_listed_and_ready(self):
+        from chatdraw.models import all_images, image_model, is_local, manual_images
+        from chatdraw.setup import has_image
+        found = {Path(m.repo).name: m for m in manual_images()}
+        self.assertEqual(set(found), {"my-xl", "small.safetensors"})
+        self.assertEqual(found["my-xl"].family, "sdxl")
+        self.assertEqual(found["small.safetensors"].family, "sd15")
+        self.assertTrue(all(has_image(m) for m in found.values()))
+        self.assertTrue(is_local(found["my-xl"].repo))
+        self.assertFalse(is_local("cagliostrolab/animagine-xl-4.0"))
+        self.assertEqual(image_model(found["my-xl"].repo).family, "sdxl")
+        self.assertGreater(len(all_images()), len(manual_images()))
+
+    def test_setup_uses_local_without_fetching_image(self):
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.setup import SetupDialog
+        QApplication.instance() or QApplication([])
+        d = SetupDialog(None, None, first=True)
+        d.start = lambda update: None   # 取る所は動かさない
+        d.use_local(str(self.root / "manual" / "my-xl"))
+        image, _words = d.to_fetch()
+        self.assertIsNone(image)
+        self.assertEqual(d.chosen()[0].repo, str((self.root / "manual" / "my-xl").resolve()))
+
+    def test_help_docs_open(self):
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.helpview import DOCS, HelpDialog
+        QApplication.instance() or QApplication([])
+        for key in DOCS:
+            d = HelpDialog(key)
+            self.assertGreater(len(d.view.toPlainText()), 500, key)
+        d = HelpDialog("install")
+        self.assertIn("手で置く", d.view.toPlainText())
+
+
 class SmallScreenTest(unittest.TestCase):
     """ノートの画面（1280×720）に、どの配置でもウィンドウが収まる"""
     def test_every_preset_fits_1280x720(self):

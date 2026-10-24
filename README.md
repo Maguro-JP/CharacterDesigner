@@ -30,13 +30,7 @@
 
 ## セットアップ
 
-Windows（Setup.exe）:
-
-1. `CharacterDesigner-Setup.exe` を開いて入れる。利用者ごとの場所（`%LOCALAPPDATA%\Programs\CharacterDesigner`）に入るので、管理者の権限は要らない。Python と Node.js も要らない
-2. デスクトップの CharacterDesigner を開く。初回は、その PC の GPU に合う描く部品（1〜3GB）と絵の模型（約 7GB）を取る（空きが 10GB より少なければ、取らずに理由を出す）
-3. 準備ができると CharacterDesigner のウィンドウが開く（ブラウザーは使わない）
-
-Setup.exe は Linux の上で `sh packaging/windows/build.sh` で組む（NSIS の makensis を使う。出来上がりは `dist/`）。
+Windows（Setup.exe）: いま配っている Setup.exe は描画アプリ（chatdraw）です。入れ方・模型の取り方と手で置く方法・更新・削除・困ったときは [手順書](chatdraw/help/install.md)、使い方は [操作方法](chatdraw/help/manual.md) にあります。どちらもアプリの「ヘルプ」メニューから開けます。
 
 手元の clone から:
 

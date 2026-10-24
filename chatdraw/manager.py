@@ -37,6 +37,9 @@ def installed() -> list[Item]:
             if any(s.joinpath("model_index.json").exists() for s in d.glob("snapshots/*")):
                 repo = d.name[len("models--"):].replace("--", "/")
                 items.append(Item("image", names.get(repo, repo.split("/")[-1]), d, folder_gb(d), repo))
+    from chatdraw.models import manual_images
+    for m in manual_images():
+        items.append(Item("manual", m.name, Path(m.repo), m.gb, m.repo))   # 手で置いた物は、置いた人が消す（ここでは消さない）
     files = {m.file: m.name for m in WORDS}
     seen = set()
     for d in (GGUF, OWN_LLM):
@@ -71,8 +74,17 @@ class ModelManager(QDialog):
         self.only_rec.setToolTip("外すと、動作を確かめたほかの模型も出します")
         self.only_rec.toggled.connect(self.refresh)
         self.body.addWidget(self.only_rec)
-        self.list = QVBoxLayout()
-        self.body.addLayout(self.list)
+        # 模型が多いので、並びだけを窓の中で流す（窓が画面より縦に長くならないように）
+        from PySide6.QtWidgets import QScrollArea, QWidget as _W
+        holder = _W()
+        self.list = QVBoxLayout(holder)
+        self.list.setContentsMargins(0, 0, 0, 0)
+        box = QScrollArea()
+        box.setWidget(holder)
+        box.setWidgetResizable(True)
+        box.setFrameShape(QScrollArea.NoFrame)
+        self.body.addWidget(box, 1)
+        self.resize(560, 600)
         self.bar = QProgressBar()
         self.bar.setTextVisible(False)
         self.bar.setFixedHeight(6)
@@ -81,6 +93,17 @@ class ModelManager(QDialog):
         self.status.setObjectName("cardMeta")
         self.body.addWidget(self.bar)
         self.body.addWidget(self.status)
+        hand = QHBoxLayout()
+        open_dir = QPushButton("手で置く模型の置き場を開く")
+        open_dir.setToolTip("ここに .safetensors か、model_index.json のあるフォルダーを置くと、一覧に出ます")
+        open_dir.clicked.connect(self.open_manual_dir)
+        pick = QPushButton("ファイルを選んで使う…")
+        pick.setToolTip("手元の絵の模型（.safetensors）を選んで、そのまま使います。ファイルは動かしません")
+        pick.clicked.connect(self.pick_file)
+        hand.addWidget(open_dir)
+        hand.addWidget(pick)
+        hand.addStretch()
+        self.body.addLayout(hand)
         row = QHBoxLayout()
         self.update_button = QPushButton("更新を確かめる")
         self.update_button.clicked.connect(self.update_all)
@@ -124,6 +147,39 @@ class ModelManager(QDialog):
                     self.list.addWidget(self._row(m.name, f"{m.gb:.1f}GB", "取る", lambda _=False, m=m: self.fetch(m)))
             if not mine and not offered:
                 self.list.addWidget(QLabel("ありません"))
+            if kind == "image":
+                for it in [x for x in have if x.kind == "manual"]:
+                    use = (lambda _=False, it=it: self.pick_file(it.key))
+                    self.list.addWidget(self._row(it.name, f"{it.gb:.1f}GB", "使用中" if self.settings.get("image_model") == it.key
+                                                  else "使う", None if self.settings.get("image_model") == it.key else use))
+
+    def open_manual_dir(self):
+        """手で置く模型の置き場を作って開く（エクスプローラー）"""
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        from chatdraw.models import manual_dir
+        d = manual_dir()
+        d.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(d)))
+        self.status.setText(f"{d} に置いたら、この窓を開き直すと一覧に出ます")
+
+    def pick_file(self, path: str | None = None):
+        from PySide6.QtWidgets import QFileDialog
+        from chatdraw.models import is_local, local_model
+        if path is None:
+            path, _ = QFileDialog.getOpenFileName(self, "絵の模型を選ぶ", "", "絵の模型 (*.safetensors)")
+            if not path:
+                return
+        path = str(Path(path).resolve())
+        if not is_local(path):
+            self.status.setText("使えない形です。.safetensors のファイルか、model_index.json のあるフォルダーを選んでください")
+            return
+        self.settings.set("image_model", path)
+        m = local_model(path)
+        self.settings.set("steps", m.steps)
+        self.settings.set("guidance", m.guidance)
+        self.status.setText(f"{m.name} を使います（{'SDXL' if m.family == 'sdxl' else 'SD1.5'} として読みます）")
+        self.refresh()
 
     def _row(self, name: str, size: str, action: str, fn) -> QWidget:
         box = QFrame()

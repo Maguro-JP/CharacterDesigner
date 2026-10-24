@@ -841,6 +841,9 @@ class Window(QMainWindow):
         self._show_model()
         help_menu = self.menuBar().addMenu("ヘルプ")
         help_menu.addAction(QAction(icon("help"), "使い方ツアー", self, shortcut="F1", triggered=self.start_tour))
+        help_menu.addAction(QAction("操作方法", self, triggered=lambda: self.open_help("manual")))
+        help_menu.addAction(QAction("手順書（入れ方・模型の置き方・困ったとき）", self, triggered=lambda: self.open_help("install")))
+        help_menu.addAction(QAction("記録の置き場を開く", self, triggered=self.open_logs))
         help_menu.addAction(QAction("更新を確かめる", self, triggered=lambda: self.check_update(manual=True)))
         from chatdraw import tours
         each = help_menu.addMenu("機能ごとの案内")
@@ -1275,12 +1278,12 @@ class Window(QMainWindow):
 
     def _studio_from_settings(self) -> Studio:
         """設定の模型で描く仕組みを作る。前と同じ絵の模型なら、読んだ物をそのまま使う（7GB を読み直さない）"""
-        from chatdraw.models import IMAGES
+        from chatdraw.models import IMAGES, all_images
         from chatdraw.setup import AUTO, has_image
         g = self.settings.get
         image, words = g("image_model"), g("words_model")
         if image == AUTO:
-            have = [m for m in IMAGES if has_image(m)]
+            have = [m for m in all_images() if has_image(m)]
             first = max(have, key=lambda m: m.score) if have else IMAGES[0]
             image, steps, guidance = first.repo, first.steps, first.guidance
         else:
@@ -1291,6 +1294,17 @@ class Window(QMainWindow):
         studio = Studio(Words(None if words == AUTO else Path(words)), painter, Path(g("output_dir")))
         studio.image_auto, studio.words_auto = g("image_model") == AUTO, words == AUTO
         return studio
+
+    def open_help(self, key: str):
+        from chatdraw.helpview import HelpDialog
+        HelpDialog(key, self).show()
+
+    def open_logs(self):
+        """記録（chatdraw.log、setup.log）の置き場を開く。困ったときに中を見たり、渡したりするため"""
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        DATA.mkdir(parents=True, exist_ok=True)
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(DATA)))
 
     def open_keys(self):
         from chatdraw.keys import KeyDialog
@@ -1370,7 +1384,8 @@ class Window(QMainWindow):
         menu.clear()
         now_image = self.settings.get("image_model")
         # 出すのは、確かめて推奨に届いた模型と、手元にある模型だけ（ほかは「模型の管理」で推奨の絞りを外すと出る）
-        images = [m for m in IMAGES if m in offered_images() or has_image(m)]
+        from chatdraw.models import manual_images
+        images = [m for m in IMAGES if m in offered_images() or has_image(m)] + manual_images()
         menu.addSection("絵の模型")
         group = QActionGroup(menu)
         for key, name, have in [(AUTO, "おまかせ", True)] + [(m.repo, m.name, has_image(m)) for m in images]:
@@ -1396,8 +1411,9 @@ class Window(QMainWindow):
         from chatdraw.models import IMAGES, WORDS
         from chatdraw.setup import AUTO, SetupDialog, has_image, has_words, words_path
         if kind == "絵の模型":
-            m = next((m for m in IMAGES if m.repo == key), None)
-            need = m is not None and not has_image(m) or key == AUTO and not any(has_image(x) for x in IMAGES)
+            from chatdraw.models import all_images
+            m = next((m for m in all_images() if m.repo == key), None)
+            need = m is not None and not has_image(m) or key == AUTO and not any(has_image(x) for x in all_images())
         else:
             m = next((m for m in WORDS if m.file == key), None)
             need = m is not None and not has_words(m) or key == AUTO and not any(has_words(x) for x in WORDS)

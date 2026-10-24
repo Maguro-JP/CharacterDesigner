@@ -268,6 +268,9 @@ class Painter:
 
     def ready(self) -> bool:
         """模型が手元にそろっているか（取りに行かずに確かめる）"""
+        from chatdraw.models import is_local
+        if is_local(self.model):
+            return True
         try:
             from huggingface_hub import snapshot_download
             from chatdraw.models import image_model
@@ -329,8 +332,17 @@ class Painter:
             from chatdraw.models import image_model
             variant = image_model(self.model).variant
             extra = {"safety_checker": None, "requires_safety_checker": False} if image_model(self.model).family == "sd15" else {}
-            self._pipe = AutoPipelineForText2Image.from_pretrained(self.model, torch_dtype=dtype, variant=variant,
-                                                                   cache_dir=str(HUB), **extra)
+            from chatdraw.models import is_local
+            if is_local(self.model) and Path(self.model).is_file():
+                # 手で置いた 1 つのファイル（.safetensors）。世代に合う描き方で読む
+                from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline
+                cls = StableDiffusionXLPipeline if image_model(self.model).family == "sdxl" else StableDiffusionPipeline
+                self._pipe = cls.from_single_file(self.model, torch_dtype=dtype, **extra)
+            elif is_local(self.model):
+                self._pipe = AutoPipelineForText2Image.from_pretrained(self.model, torch_dtype=dtype, **extra)
+            else:
+                self._pipe = AutoPipelineForText2Image.from_pretrained(self.model, torch_dtype=dtype, variant=variant,
+                                                                       cache_dir=str(HUB), **extra)
             if torch.cuda.is_available():
                 self._pipe.to("cuda")
         return self._pipe

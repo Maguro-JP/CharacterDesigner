@@ -108,7 +108,7 @@ def legacy_gguf_dirs() -> list[Path]:
 def llm_dirs() -> list[Path]:
     """言葉の模型を探す場所。共有の置き場を先に見る"""
     out = []
-    for d in [GGUF, *legacy_gguf_dirs()]:
+    for d in [GGUF, LLM_HOME / "manual", *legacy_gguf_dirs()]:   # manual は手で置いた模型の置き場（.gguf もここに置ける）
         if d.is_dir() and d not in out:
             out.append(d)
     return out

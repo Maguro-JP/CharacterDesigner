@@ -42,7 +42,7 @@ python3 -m pip install $W --target "$SP" pip "PySide6-Essentials==6.9.3" numpy P
 
 echo "== 同梱物の欠けを見る"
 missing=""
-for f in VERSION python/python.exe python/pythonw.exe chatdraw/app.py chatdraw/migrate.py chatdraw/paths.py chatdraw/setup.py \
+for f in VERSION python/python.exe python/pythonw.exe chatdraw/app.py chatdraw/help/install.md chatdraw/help/manual.md chatdraw/helpview.py chatdraw/migrate.py chatdraw/paths.py chatdraw/setup.py \
          python/Lib/site-packages/PySide6 python/Lib/site-packages/numpy python/Lib/site-packages/PIL \
          python/Lib/site-packages/huggingface_hub python/Lib/site-packages/pip; do
   [ -e "$SRC/$f" ] || missing="$missing $f"

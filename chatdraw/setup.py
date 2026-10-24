@@ -30,6 +30,9 @@ def words_path(m: WordsModel) -> Path:
 
 
 def has_image(m: ImageModel) -> bool:
+    from chatdraw.models import is_local
+    if is_local(m.repo):
+        return True   # 手で置いた模型は、置いてあること自体が「手元にある」
     return Painter(m.repo).ready()
 
 
@@ -45,7 +48,8 @@ def missing() -> dict:
     """足りない物。絵の模型（ラフの部品を含む）と、言葉の模型（部品と本体）"""
     if not engine_ready():
         return {"image": True, "words": not llm_lib_ready()}
-    return {"image": not (any(has_image(m) for m in IMAGES) and Painter().sketch_ready()),
+    from chatdraw.models import all_images
+    return {"image": not (any(has_image(m) for m in all_images()) and Painter().sketch_ready()),
             "words": not (llm_lib_ready() and any(has_words(m) for m in WORDS))}
 
 
@@ -275,6 +279,19 @@ class SetupDialog(QDialog):
         if not any(r.isChecked() for r in self.image_group.buttons()):
             self.image_radios[AUTO].setChecked(True)
 
+        # 回線を使わずに、手元の模型を使う道。置き方は手順書の 3 章
+        hand = QHBoxLayout()
+        note = QLabel("手元に模型（.safetensors か diffusers のフォルダー）があるときは、取らずにそれを使えます。")
+        note.setObjectName("cardMeta")
+        note.setWordWrap(True)
+        use_local = QPushButton("手元の模型を使う…")
+        use_local.clicked.connect(self.use_local)
+        guide = QPushButton("置き方を見る")
+        guide.clicked.connect(lambda: __import__("chatdraw.helpview", fromlist=["HelpDialog"]).HelpDialog("install", self).show())
+        hand.addWidget(note, 1)
+        hand.addWidget(use_local)
+        hand.addWidget(guide)
+        lay.addLayout(hand)
         row = QHBoxLayout()
         self.later = QPushButton("あとで")
         self.later.clicked.connect(self.reject)
@@ -291,6 +308,23 @@ class SetupDialog(QDialog):
         row.addWidget(self.go)
         lay.addLayout(row)
         return page
+
+    def use_local(self, path: str | None = None):
+        """手元の絵の模型を選んで使う。ファイルは動かさない。ラフの部品と言葉の模型は、取れるときだけ取る"""
+        from PySide6.QtWidgets import QFileDialog, QMessageBox
+        from chatdraw.models import is_local, local_model
+        if path is None:
+            path, _ = QFileDialog.getOpenFileName(self, "絵の模型を選ぶ", "", "絵の模型 (*.safetensors);;model_index.json (model_index.json)")
+            if not path:
+                return
+            if Path(path).name == "model_index.json":
+                path = str(Path(path).parent)   # diffusers のフォルダーは、中の model_index.json を選んでもらう
+        path = str(Path(path).resolve())
+        if not is_local(path):
+            QMessageBox.information(self, "使えない形です", ".safetensors のファイルか、model_index.json のあるフォルダーを選んでください。")
+            return
+        self.local = local_model(path)
+        self.start(update=False)   # 絵の模型は取らず、描く部品と言葉の模型だけを用意する
 
     def _relayout(self):
         """「推奨だけ表示」に合わせて札を並べ直す。隠した札の所に穴を空けない。選んでいる札は隠さない"""
@@ -309,12 +343,16 @@ class SetupDialog(QDialog):
         image = AUTO if self.image_radios[AUTO].isChecked() else next(m for m in IMAGES if m.repo in self.image_radios
                                                                         and self.image_radios[m.repo].isChecked())
         best = offered_words()
+        if getattr(self, "local", None) is not None:
+            image = self.local
         return image, best[0] if best else None
 
     def to_fetch(self) -> tuple[ImageModel | None, WordsModel | None]:
         """取る物。おまかせで手元に 1 つも無ければ、おすすめを取る"""
         image, words = self.chosen()
-        if image == AUTO:
+        if getattr(self, "local", None) is not None:
+            image = None   # 手で置いた模型は取らない
+        elif image == AUTO:
             image = None if any(has_image(m) for m in IMAGES) else offered_images()[0]
         if words is not None and has_words(words):
             words = None
