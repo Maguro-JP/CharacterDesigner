@@ -16,4 +16,8 @@ out="$(PYTHONPATH=$lib python3 -m unittest discover -s tests -q 2>&1)" || { echo
 if [ -d .cache/app/lib/fastapi ]; then
   out="$(PYTHONPATH=.cache/app/lib:.cache/gen/lib:. python3 -m pytest -q -p no:cacheprovider app/server/tests app/mcp/tests 2>&1)" || { echo "$out" | tail -30 >&2; exit 2; }
 fi
+# 描画アプリ（chatdraw）の試験。ここに入れていなかったため、「描く」を押すと落ちる不具合を通したままマージした
+if [ -d .cache/simple/lib/PySide6 ]; then
+  out="$(QT_QPA_PLATFORM=offscreen PYTHONPATH=.cache/simple/lib:$lib python3 -m unittest chatdraw.tests.test_chatdraw 2>&1)" || { echo "$out" | tail -30 >&2; exit 2; }
+fi
 exit 0

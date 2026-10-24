@@ -174,11 +174,15 @@ class ModelManager(QDialog):
         if not is_local(path):
             self.status.setText("使えない形です。.safetensors のファイルか、model_index.json のあるフォルダーを選んでください")
             return
-        self.settings.set("image_model", path)
         m = local_model(path)
+        from chatdraw.models import family as fam
+        if m.family == "unknown":
+            self.status.setText("形を見分けられませんでした。SDXL・SD1.5・FLUX.1 の .safetensors か、diffusers のフォルダーを選んでください")
+            return
+        self.settings.set("image_model", m.repo)
         self.settings.set("steps", m.steps)
         self.settings.set("guidance", m.guidance)
-        self.status.setText(f"{m.name} を使います（{'SDXL' if m.family == 'sdxl' else 'SD1.5'} として読みます）")
+        self.status.setText(f"{m.name} を使います（{fam(m.family).name} として読みます）")
         self.refresh()
 
     def _row(self, name: str, size: str, action: str, fn) -> QWidget:

@@ -20,6 +20,8 @@ def text(key: str) -> str:
 class HelpDialog(QDialog):
     def __init__(self, key: str, parent=None):
         super().__init__(parent)
+        from PySide6.QtCore import Qt
+        self.setAttribute(Qt.WA_DeleteOnClose)   # 開くたびに作るので、閉じたら消す（残すと開いた数だけ溜まった）
         self.resize(720, 640)
         self.view = QTextBrowser()
         self.view.setOpenExternalLinks(False)

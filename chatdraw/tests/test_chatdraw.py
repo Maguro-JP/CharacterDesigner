@@ -102,7 +102,7 @@ class WindowTest(unittest.TestCase):
             w.hide_progress_if_idle(0)
             for _ in range(20):
                 app.processEvents()
-            self.assertTrue(w.panels["progress"][0].isHidden())          # 動きが無くなったら隠す
+            self.assertFalse(w.panels["progress"][0].isHidden())         # 時間がたっても隠さない（消えると状態が分からなかった）
             self.assertTrue(w.button.isEnabled())
 
 
@@ -137,7 +137,7 @@ class LayoutTest(unittest.TestCase):
         for k in ("view", "chat", "history"):
             self.assertEqual(area(k), _Qt.RightDockWidgetArea)
         self.assertEqual(area("progress"), _Qt.TopDockWidgetArea)
-        self.assertTrue(w.panels["progress"][0].isHidden())             # 描いていないときは進みを隠す
+        self.assertFalse(w.panels["progress"][0].isHidden())            # 進みは描いていなくても出しておく（消えると状態が分からなかった）
         self.assertEqual(area("talk"), _Qt.BottomDockWidgetArea)
         ys = [w.panels[k][0].y() for k in ("view", "chat", "history")]
         self.assertEqual(ys, sorted(ys))                                 # 右は上から表示・AI・履歴
@@ -406,8 +406,10 @@ class SetupTest(unittest.TestCase):
             image, words = dlg.chosen()
             self.assertEqual(image, offered_images()[0])                       # 初めは点のいちばん高い物
             self.assertEqual(words, offered_words()[0])
-            for m in IMAGES:                                                    # 確かめていない模型は出さない（取っていなくても確かめた物は出す）
-                self.assertEqual(m.repo in dlg.image_radios, m.score > 0)
+            for m in IMAGES:                                                    # 一覧の模型はすべて札がある（推奨だけ表示を外すと選べる）
+                self.assertIn(m.repo, dlg.image_radios)
+            untested = next(m for m in IMAGES if m.score <= 0)
+            self.assertFalse(dlg.image_radios[untested.repo].parent().isVisibleTo(dlg))   # 初めは推奨だけ
             low = next((m for m in IMAGES if 0 < m.score < PASS), None)
             if low is not None:
                 self.assertFalse(dlg.image_radios[low.repo].parent().isVisibleTo(dlg))   # 推奨だけのときは隠す
@@ -1487,6 +1489,31 @@ class UsableTest(unittest.TestCase):
         self.assertEqual(seen[0], -1)
         self.assertEqual(seen[-1], -2)
 
+    def test_key_filter_does_not_assign_hidden_row(self):
+        from PySide6.QtCore import QSettings
+        from chatdraw import keys
+        store = QSettings(str(Path(self.w.layout_store.fileName()).with_name("keys-test2.ini")), QSettings.IniFormat)
+        store.clear()
+        d = keys.KeyDialog(self.w, store)
+        d.table.setCurrentCell(0, 0)
+        d.search.setText("この名前の操作は無い")
+        self.assertEqual(d.table.currentRow(), -1)
+        before = d.table_now()
+        d._store_row("Ctrl+Alt+J")
+        self.assertEqual(d.table_now(), before)
+        store.clear()
+
+    def test_mode_buttons_follow_family(self):
+        """世代で使えない機能のボタンを止める（ここで落ちて「描く」が動かなくなったことがある）"""
+        self.w.studio.painter.model = "black-forest-labs/FLUX.2-klein-4B"
+        self.w.check_ai()
+        btns = self.w.ai_panel.mode_buttons[1]
+        self.assertFalse(btns[1].isEnabled())
+        self.assertFalse(btns[2].isEnabled())
+        self.w.studio.painter.model = "cagliostrolab/animagine-xl-4.0"
+        self.w.check_ai()
+        self.assertTrue(btns[1].isEnabled())
+
     def test_cursor_styles(self):
         from PySide6.QtCore import Qt as Q
         from chatdraw.canvas import CURSOR_STYLES
@@ -1542,7 +1569,7 @@ class ManualModelTest(unittest.TestCase):
         found = {Path(m.repo).name: m for m in manual_images()}
         self.assertEqual(set(found), {"my-xl", "small.safetensors"})
         self.assertEqual(found["my-xl"].family, "sdxl")
-        self.assertEqual(found["small.safetensors"].family, "sd15")
+        self.assertEqual(found["small.safetensors"].family, "unknown")   # 中の重みの名前が無いので見分けない
         self.assertTrue(all(has_image(m) for m in found.values()))
         self.assertTrue(is_local(found["my-xl"].repo))
         self.assertFalse(is_local("cagliostrolab/animagine-xl-4.0"))
@@ -1559,6 +1586,43 @@ class ManualModelTest(unittest.TestCase):
         image, _words = d.to_fetch()
         self.assertIsNone(image)
         self.assertEqual(d.chosen()[0].repo, str((self.root / "manual" / "my-xl").resolve()))
+
+    def test_family_from_contents(self):
+        """フォルダーは部品の名前、1 つのファイルは重みの名前で世代を見分ける（大きさでは決めない）"""
+        import json
+        import struct
+        from chatdraw.models import local_family
+        root = self.root / "manual"
+        (root / "my-flux").mkdir()
+        (root / "my-flux" / "model_index.json").write_text('{"_class_name": "FluxPipeline"}', encoding="utf-8")
+        self.assertEqual(local_family(root / "my-flux"), "flux1")
+
+        def fake(name, keys):
+            head = json.dumps({k: {"dtype": "F16", "shape": [1], "data_offsets": [0, 2]} for k in keys}).encode()
+            (root / name).write_bytes(struct.pack("<Q", len(head)) + head + b"00")
+            return root / name
+        self.assertEqual(local_family(fake("xl.safetensors", ["conditioner.embedders.1.model.ln_final.weight"])), "sdxl")
+        self.assertEqual(local_family(fake("v15.safetensors", ["cond_stage_model.transformer.x"])), "sd15")
+        self.assertEqual(local_family(fake("flux.safetensors", ["double_blocks.0.img_attn.qkv.weight"])), "flux1")
+        self.assertEqual(local_family(fake("other.safetensors", ["foo"])), "unknown")
+
+    def test_setup_keeps_local_choice(self):
+        """手で置いた模型を使っている人が窓を開き直しても、おまかせに書き換えない。札を選べばそちらに替わる"""
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.settings import Settings
+        from chatdraw.setup import AUTO, SetupDialog
+        QApplication.instance() or QApplication([])
+        st = Settings(QSettings(str(self.root / "s.ini"), QSettings.IniFormat))
+        path = str((self.root / "manual" / "my-xl").resolve())
+        st.set("image_model", path)
+        st.store.setValue("setup_done", 1)
+        d = SetupDialog(st, None, first=False)
+        d.apply()
+        self.assertEqual(st.get("image_model"), path)
+        d.image_radios[AUTO].click()
+        self.assertIsNone(d.local)
+        d.select("no/such-model")   # 一覧に無い名前でも落ちない
 
     def test_help_docs_open(self):
         from PySide6.QtWidgets import QApplication

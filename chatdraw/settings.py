@@ -153,7 +153,13 @@ class SettingsDialog(QDialog):
             if key == "model_dir":
                 new = self.value(key)
                 if new != chosen_model_dir():
-                    set_model_dir(new)   # 模型の置き場は起動の最初に読むので、QSettings ではなくファイルに書く
+                    try:
+                        set_model_dir(new)   # 模型の置き場は起動の最初に読むので、QSettings ではなくファイルに書く
+                    except OSError as e:
+                        from PySide6.QtWidgets import QMessageBox
+                        QMessageBox.warning(self, "模型の置き場を変えられません",
+                                            f"設定のファイルに書けませんでした。\n{e}\n\nほかの設定は保存します。")
+                        continue
                     self.model_dir_changed = True
                 continue
             self.settings.set(key, self.value(key))

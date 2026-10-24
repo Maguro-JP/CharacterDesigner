@@ -241,6 +241,11 @@ class SetupDialog(QDialog):
         head.setObjectName("sectionHead")
         lay.addWidget(head)
         self.image_group = QButtonGroup(self)
+        # 札を選んだら、手元の模型を使う選択は外す（残ると、選んだ札の模型が取られず設定にも入らなかった）
+        self.image_group.buttonClicked.connect(lambda _b: setattr(self, "local", None))
+        # 手で置いた模型を使っているときは、それを今の選択として持つ（無いと「おまかせ」に戻して書き換えた）
+        from chatdraw.models import is_local, local_model
+        self.local = local_model(now_image) if now_image and is_local(now_image) else None
         self.image_radios: dict[str, QRadioButton] = {}
         # 札が多い（30 余り）ので、札の並びだけを流す。窓が画面より縦に長くならないように
         from PySide6.QtWidgets import QScrollArea
@@ -326,7 +331,12 @@ class SetupDialog(QDialog):
         if not is_local(path):
             QMessageBox.information(self, "使えない形です", ".safetensors のファイルか、model_index.json のあるフォルダーを選んでください。")
             return
-        self.local = local_model(path)
+        m = local_model(path)
+        if m.family == "unknown":
+            QMessageBox.information(self, "見分けられない形です", "SDXL・SD1.5・FLUX.1 の .safetensors か、"
+                                    "model_index.json のある diffusers のフォルダーを選んでください。")
+            return
+        self.local = m
         self.start(update=False)   # 絵の模型は取らず、描く部品と言葉の模型だけを用意する
 
     def _relayout(self):
@@ -363,7 +373,7 @@ class SetupDialog(QDialog):
 
     def select(self, image: str | None = None):
         """メニューから選んだ絵の模型を選んでおく"""
-        if image is not None:
+        if image is not None and image in self.image_radios:   # 一覧に無い模型（手で置いた物など）は選ばずに置く
             self.image_radios[image].setChecked(True)
 
     # ---- 2 枚目: 取る ----
@@ -380,7 +390,7 @@ class SetupDialog(QDialog):
         self.bar.setFixedHeight(8)
         self.back = QPushButton("戻る")
         self.back.setVisible(False)
-        self.back.clicked.connect(lambda: self.pages.setCurrentIndex(0))
+        self.back.clicked.connect(lambda: (setattr(self, "local", None), self.pages.setCurrentIndex(0)))
         for w in (self.fetch_title, self.bar, self.label):
             lay.addWidget(w)
         lay.addStretch()
@@ -396,15 +406,28 @@ class SetupDialog(QDialog):
         threading.Thread(target=self.fetcher.run, args=(image, words, update), daemon=True).start()
 
     def _progress(self, msg: str, pct: int):
-        """pct が負なら、どこまで進んだか分からない作業（部品を入れる）。棒を動かし続けて、止まって見えないようにする"""
+        """pct が負なら、どこまで進んだか分からない作業（部品を入れる）。棒を往復させて、止まって見えないようにする。
+        Qt の動く帯（範囲 0〜0）は、テーマの色を当てると止まって見えた（進みの欄と同じ直し）"""
+        from PySide6.QtCore import QTimer
         self.label.setText(msg)
+        if not hasattr(self, "_pulse"):
+            self._pulse, self._pulse_at = QTimer(self), 0
+            self._pulse.setInterval(60)
+
+            def tick():
+                self._pulse_at = (self._pulse_at + 3) % 200
+                self.bar.setValue(self._pulse_at if self._pulse_at <= 100 else 200 - self._pulse_at)
+            self._pulse.timeout.connect(tick)
+        self.bar.setRange(0, 100)
         if pct < 0:
-            self.bar.setRange(0, 0)
+            self._pulse.start()
         else:
-            self.bar.setRange(0, 100)
+            self._pulse.stop()
             self.bar.setValue(pct)
 
     def _finished(self, err: str):
+        if hasattr(self, "_pulse"):
+            self._pulse.stop()
         self.bar.setRange(0, 100)
         if err:
             self.fetch_title.setText("取れませんでした")

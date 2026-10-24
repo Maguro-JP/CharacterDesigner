@@ -7,7 +7,7 @@
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QEvent, QObject, QRect, QTimer
+from PySide6.QtCore import QEvent, QObject, QRect, Qt, QTimer
 from PySide6.QtGui import QGuiApplication
 from PySide6.QtWidgets import QApplication, QWidget
 
@@ -21,15 +21,23 @@ def fit(w: QWidget):
     """w を画面の使える範囲に収める。最大化・全画面のときは OS に任せる（その大きさは OS が使える範囲で決める）"""
     if not w.isWindow() or w.isMaximized() or w.isFullScreen() or w.isMinimized():
         return
+    if w.windowType() in (Qt.Popup, Qt.ToolTip, Qt.SplashScreen):
+        return   # メニュー、一覧の開き、ツールチップは Qt が画面に合わせて出すので触らない
     area = available(w)
     frame = w.frameGeometry()
     extra_w = frame.width() - w.width()     # 枠と見出しの分
     extra_h = frame.height() - w.height()
     max_w, max_h = area.width() - extra_w, area.height() - extra_h
+    # 元の最小の大きさを覚えておき、画面に収まる分だけ使う。下げたままにすると、広い画面に戻しても戻らなかった
+    orig = w.property("fit_min0")
+    if orig is None:
+        orig = (w.minimumWidth(), w.minimumHeight())
+        w.setProperty("fit_min0", orig)
+    want = (min(orig[0], max_w), min(orig[1], max_h))
+    if want != (w.minimumWidth(), w.minimumHeight()):
+        w.setMinimumSize(*want)
     width, height = min(w.width(), max_w), min(w.height(), max_h)
     if (width, height) != (w.width(), w.height()):
-        # 中身の最小の大きさが画面より大きいと縮められないので、最小を下げてから縮める
-        w.setMinimumSize(min(w.minimumWidth(), width), min(w.minimumHeight(), height))
         w.resize(width, height)
     frame = w.frameGeometry()
     x = min(max(frame.x(), area.left()), area.right() - frame.width() + 1)
