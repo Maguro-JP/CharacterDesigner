@@ -17,7 +17,6 @@ FIELDS = [
     ("guidance", "頼みの効き", "描き方", "float:1:15", 5.0, "大きいほど頼みの言葉に寄せる"),
     ("rough_strength", "ラフから描くときの強さ", "描き方", "float:0.3:0.98", 0.85, "大きいほどラフから離れて絵らしくなる"),
     ("output_dir", "描いた絵の保存先", "保存", "dir", str(Path.home() / "Pictures" / "CharacterDesigner"), ""),
-    ("timelapse", "タイムラプスを記録する", "保存", "bool", 1, "線を引くたびと AI が描く工程ごとに写しを残す"),
 ]
 
 

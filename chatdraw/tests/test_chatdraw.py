@@ -112,31 +112,24 @@ class LayoutTest(unittest.TestCase):
         self.assertFalse(w.panels["layers"][0].widget().isHidden())
 
 
-class TimelapseTest(unittest.TestCase):
-    def test_records_strokes_and_exports_gif(self):
-        from PIL import Image
-        from PySide6.QtCore import QPointF
-        from PySide6.QtWidgets import QApplication
-        from chatdraw.app import Window
-        QApplication.instance() or QApplication([])
-        with TemporaryDirectory() as d:
-            w = Window(Studio(FakeWords(), FakePainter(), Path(d)))
-            w.recorder.enabled = True
-            w.canvas.new_canvas(200, 200)
-            for i in range(3):
-                w.canvas.stroke(QPointF(10, 10 + i * 20), QPointF(150, 10 + i * 20))
-            self.assertEqual(len(w.recorder.frames), 3)
-            w.show_preview(Image.new("RGB", (25, 25), "red"))   # AI の途中の絵も残る
-            self.assertEqual(len(w.recorder.frames), 4)
-            n = w.recorder.export(Path(d) / "t.gif")
-            self.assertEqual(n, 4)
-            self.assertEqual(Image.open(Path(d) / "t.gif").n_frames, 4)
-
+class PreviewTest(unittest.TestCase):
     def test_latent_preview_shape(self):
         import torch
         from chatdraw.engine import latent_preview
         im = latent_preview(torch.zeros(1, 4, 16, 12))
         self.assertEqual(im.size, (12, 16))
+
+    def test_preview_shows_over_canvas_and_clears(self):
+        from PIL import Image
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Window
+        QApplication.instance() or QApplication([])
+        with TemporaryDirectory() as d:
+            w = Window(Studio(FakeWords(), FakePainter(), Path(d)))
+            w.show_preview(Image.new("RGB", (25, 25), "red"))
+            self.assertTrue(w.canvas.overlay.isVisible())
+            w.fail("止めました")
+            self.assertFalse(w.canvas.overlay.isVisible())
 
 
 class SettingsTest(unittest.TestCase):

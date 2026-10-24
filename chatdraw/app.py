@@ -35,7 +35,6 @@ from PIL import Image  # noqa: E402
 
 from chatdraw.canvas import Canvas  # noqa: E402
 from chatdraw.engine import Painter, Studio, Words, check  # noqa: E402
-from chatdraw.timelapse import Recorder  # noqa: E402
 from chatdraw.settings import Settings, SettingsDialog  # noqa: E402
 
 
@@ -126,8 +125,6 @@ class Window(QMainWindow):
     def __init__(self, studio: Studio | None = None):
         super().__init__()
         self.settings = Settings()
-        self.recorder = Recorder()
-        self.recorder.enabled = bool(self.settings.get("timelapse"))
         self.studio = studio or self._studio_from_settings()
         self.setWindowTitle("CharacterDesigner")
         self.resize(1400, 900)
@@ -207,8 +204,6 @@ class Window(QMainWindow):
         file.addAction(QAction("開く…", self, shortcut="Ctrl+O", triggered=self.open_image))
         file.addAction(QAction("名前を付けて保存…", self, shortcut="Ctrl+S", triggered=self.save_as))
         file.addAction(QAction("模型を取る…", self, triggered=lambda: self.ask_models(force=True)))
-        file.addAction(QAction("タイムラプスを書き出す…", self, triggered=self.export_timelapse))
-        file.addAction(QAction("タイムラプスを消して撮り直す", self, triggered=self.recorder.clear))
         file.addSeparator()
         file.addAction(QAction("終了", self, shortcut="Ctrl+Q", triggered=self.close))
         edit = self.menuBar().addMenu("編集")
@@ -291,7 +286,6 @@ class Window(QMainWindow):
         self.canvas.brush_changed.connect(self.size_box.setValue)
         self.ai_label = QLabel()
         self.statusBar().addPermanentWidget(self.ai_label)
-        self.canvas.stroke_done.connect(self._record)
         self.zoom_label = QLabel("100%")
         self.statusBar().addPermanentWidget(self.zoom_label)
         self.canvas.zoomed.connect(lambda z: self.zoom_label.setText(f"{z * 100:.0f}%"))
@@ -439,7 +433,6 @@ class Window(QMainWindow):
         self.history.setCurrentItem(item)
         self.canvas.show_overlay(None)
         self.place(path)
-        self._record()
         self.say("描きました")
         self._end("できました")
 
@@ -461,7 +454,6 @@ class Window(QMainWindow):
                 self.studio.words = Words(Path(g("words_model")))
             self.studio.out = Path(g("output_dir"))
             self.strength.setValue(int(g("rough_strength") * 100))
-            self.recorder.enabled = bool(g("timelapse"))
             self.check_ai()
             self.statusBar().showMessage("設定を保存しました")
 
@@ -473,22 +465,8 @@ class Window(QMainWindow):
             SetupDialog(need, self).exec()
 
     def show_preview(self, img):
-        """AI が描いている途中の絵をキャンバスの上に重ねて見せ、タイムラプスにも残す"""
+        """AI が描いている途中の絵を、工程ごとにキャンバスの上に重ねて見せる（録画はしない）"""
         self.canvas.show_overlay(qimage_from_pil(img))
-        self.recorder.add(img)
-
-    def _record(self):
-        if self.recorder.enabled:
-            self.recorder.add(qimage_to_pil(self.canvas.flatten()))
-
-    def export_timelapse(self):
-        if not self.recorder.frames:
-            self.statusBar().showMessage("タイムラプスの写しがまだありません")
-            return
-        dst, _ = QFileDialog.getSaveFileName(self, "タイムラプスを書き出す", "timelapse.gif", "GIF (*.gif)")
-        if dst:
-            n = self.recorder.export(dst)
-            self.statusBar().showMessage(f"タイムラプスを書き出しました（{n} 枚）")
 
     def place(self, path: str):
         """描けた絵を置く。新しく描いて、まだ何も描いていないキャンバスなら絵を開く。
@@ -646,9 +624,10 @@ class Window(QMainWindow):
         self.statusBar().showMessage(msg)
         self.stop_button.setEnabled(False)
         self.progress.setVisible(False)
-        self.thread.quit()
-        self.thread.wait()
-        self.thread = None
+        if self.thread is not None:
+            self.thread.quit()
+            self.thread.wait()
+            self.thread = None
         self.button.setEnabled(True)
 
 
