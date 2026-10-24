@@ -1057,10 +1057,9 @@ class FixAndBatchTest(unittest.TestCase):
         self.assertEqual(len(fixes), 2)                               # 印ごとに 1 回ずつ直す
         self.assertEqual(len(self.w.canvas.layers), layers + 1)      # 直した所は新しいレイヤー
         self.assertEqual(self.w.canvas.redpen.marks, [])             # 直したら印は消える
-        patch = Image.open(self.w.images[-1])
-        self.assertEqual(patch.mode, "RGBA")
-        self.assertGreater(patch.getpixel((50, 50))[3], 200)         # 直した所は見え、
-        self.assertEqual(patch.getpixel((100, 150))[3], 0)            # ほかは透明（元の絵を残す）
+        whole = Image.open(self.w.images[-1])
+        self.assertEqual(whole.mode, "RGB")                           # 直す所だけを貼った透明な絵ではなく、
+        self.assertEqual(whole.size, (200, 160))                      # 描き直した絵全体を 1 枚で重ねる
 
     def test_fix_without_marks_does_nothing(self):
         self.w.mode.setCurrentIndex(2)
@@ -1118,14 +1117,9 @@ class FixAndBatchTest(unittest.TestCase):
         self.assertEqual(self.painter.kw["reference"].getpixel((0, 0)), (0, 0, 255))
         self.assertAlmostEqual(self.painter.kw["ref_scale"], 0.8)
 
-    def test_crop_and_work_size(self):
-        from PIL import Image
-        from chatdraw.engine import crop_box, work_size
-        m = Image.new("L", (1000, 800), 0)
-        m.paste(255, (400, 300, 500, 400))
-        x0, y0, x1, y1 = crop_box(m, m.size)
-        self.assertTrue(x0 < 400 and y0 < 300 and x1 > 500 and y1 > 400)
-        w, h = work_size((x1 - x0, y1 - y0), "sdxl")
+    def test_work_size(self):
+        from chatdraw.engine import work_size
+        w, h = work_size((1000, 800), "sdxl")
         self.assertTrue(w % 8 == 0 and h % 8 == 0 and 0.8e6 < w * h < 1.2e6)
 
     @unittest.skipUnless(__import__("chatdraw.upscale", fromlist=["ready"]).ready(), "拡大の重みが手元に無い")

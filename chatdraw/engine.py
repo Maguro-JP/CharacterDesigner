@@ -148,13 +148,6 @@ def sketch_lines(base, size):
     return out.convert("RGB")
 
 
-def crop_box(mask, size, pad: float = 0.35):
-    """mask の白い所を囲む四角に、周りの絵（描き直すときの手がかり）を pad の割合だけ足した四角"""
-    x0, y0, x1, y1 = mask.getbbox() or (0, 0, *size)
-    pw, ph = (x1 - x0) * pad + 24, (y1 - y0) * pad + 24
-    return (max(0, int(x0 - pw)), max(0, int(y0 - ph)), min(size[0], int(x1 + pw)), min(size[1], int(y1 + ph)))
-
-
 def work_size(size, family: str):
     """切り出した所を描く大きさ。縦横比はそのまま、模型の得意な画素数に合わせ、8 の倍数にする"""
     area = 1024 * 1024 if family != "sd15" else 512 * 640
@@ -311,13 +304,13 @@ class Painter:
 
     def redraw(self, prompt: str, seed: int, image, mask, strength: float = 0.75, on_step=None, reference=None,
                ref_scale: float = 0.6):
-        """image（PIL）の mask（PIL の L、白が直す所）だけを描き直し、同じ大きさの絵を返す。
+        """image（PIL）を、mask（PIL の L、白が直す所）を手がかりに、絵全体ごと描き直して返す。
 
-        直す所の周りを切り出し、模型の得意な大きさに広げてから描く。小さい所（顔や手）を絵全体の大きさのまま
-        描き直すと、細部が潰れて直らない。描いた物は、ぼかした mask で元の絵になじませて戻す。
+        直す所だけを切り出して描き、元の絵に貼り戻す形はとらない。切り貼りした所は、周りと光・線・形がつながらず、
+        崩れの元になる。絵全体を 1 枚として模型に渡し、つながりは模型の描き直しの中で決めさせる。
         """
         import torch
-        from PIL import Image, ImageFilter
+        from PIL import Image
         from chatdraw.models import image_model
         info = image_model(self.model)
         pipe = self.load()
@@ -325,9 +318,7 @@ class Painter:
             from diffusers import AutoPipelineForInpainting
             self._inpaint = AutoPipelineForInpainting.from_pipe(pipe)   # 読んだ模型の部品をそのまま使う
         self.stop = False
-        box = crop_box(mask, image.size)
-        crop, crop_mask = image.crop(box).convert("RGB"), mask.crop(box)
-        w, h = work_size(crop.size, info.family)
+        w, h = work_size(image.size, info.family)
         args = dict(prompt=f"{info.prefix}{prompt}, masterpiece, best quality", negative_prompt="lowres, worst quality, low quality" + (f", {self.avoid}" if self.avoid else ""),
                     num_inference_steps=self.steps, guidance_scale=self.guidance, strength=strength,
                     generator=torch.Generator(pipe.device).manual_seed(seed))
@@ -341,14 +332,11 @@ class Painter:
             return kw
         args["callback_on_step_end"] = step
         self._use_reference(self._inpaint, reference, ref_scale, args)
-        out = self._inpaint(image=crop.resize((w, h), Image.LANCZOS), mask_image=crop_mask.resize((w, h), Image.LANCZOS),
+        out = self._inpaint(image=image.convert("RGB").resize((w, h), Image.LANCZOS), mask_image=mask.resize((w, h), Image.LANCZOS),
                             width=w, height=h, **args).images[0]
         if self.stop:
             raise Stopped("止めました")
-        result = image.convert("RGB").copy()
-        soft = crop_mask.filter(ImageFilter.GaussianBlur(max(2, min(crop.size) // 64)))
-        result.paste(out.resize(crop.size, Image.LANCZOS), box[:2], soft)
-        return result
+        return out.resize(image.size, Image.LANCZOS)
 
 
 class Studio:
@@ -405,11 +393,9 @@ class Studio:
     def fix(self, image, regions: list[tuple], seed: int, on_status=None, style: str = "", strength: float = 0.75,
             reference=None, ref_scale: float = 0.6):
         """赤ペン先生と範囲の描き直し。regions は (mask, 指示の文) の並び。直す所ごとに指示を描く言葉に直し、
-        順に描き直す。返すのは (描く言葉の並び, 直した所だけを残した透明な絵の置き場)"""
-        from PIL import Image, ImageChops
+        絵全体を順に描き直す。返すのは (描く言葉の並び, 描き直した絵全体の置き場)。直す所だけを貼り合わせない"""
         say = on_status or (lambda msg: None)
         prompts = []
-        whole = Image.new("L", image.size, 0)
         result = image.convert("RGB")
         for k, (mask, note) in enumerate(regions, 1):
             if refused(note):
@@ -424,10 +410,6 @@ class Studio:
                                          on_step=lambda i, n, k=k: say(f"描いています（{i}/{n}・{k}/{len(regions)} か所目）"),
                                          reference=reference, ref_scale=ref_scale)
             prompts.append(prompt)
-            whole = ImageChops.lighter(whole, mask)
-        patch = result.convert("RGBA")
-        from PIL import ImageFilter
-        patch.putalpha(whole.filter(ImageFilter.GaussianBlur(3)))   # 直した所だけを新しいレイヤーにする（元の絵は残す）
-        path = self._save(patch, seed, dict(text=" / ".join(n for _m, n in regions), prompt=" / ".join(prompts), seed=seed,
+        path = self._save(result, seed, dict(text=" / ".join(n for _m, n in regions), prompt=" / ".join(prompts), seed=seed,
                                             style=style, model=self.painter.model, mode="直す"))
         return prompts, path
