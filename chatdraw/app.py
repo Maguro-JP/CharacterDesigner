@@ -321,10 +321,10 @@ class Window(QMainWindow):
         win.addAction(QAction("整列（初期の配置に戻す）", self, triggered=self.arrange))
         win.addAction(QAction("すべて別ウィンドウにする", self, triggered=self.float_all))
         win.addAction(QAction("自由配置（欄をドラッグして好きな所に置く）", self, triggered=self.free_layout))
-        self.settings = QSettings("CharacterDesigner", "chatdraw")
-        state = self.settings.value("state")
+        self.layout_store = QSettings("CharacterDesigner", "chatdraw")
+        state = self.layout_store.value("state")
         if state is not None:
-            self.restoreGeometry(self.settings.value("geometry"))
+            self.restoreGeometry(self.layout_store.value("geometry"))
             self.restoreState(state)
         else:
             self.arrange()
@@ -484,8 +484,8 @@ class Window(QMainWindow):
 
     def closeEvent(self, e):
         # 次に開いたときも同じ並びにする
-        self.settings.setValue("geometry", self.saveGeometry())
-        self.settings.setValue("state", self.saveState())
+        self.layout_store.setValue("geometry", self.saveGeometry())
+        self.layout_store.setValue("state", self.saveState())
         super().closeEvent(e)
 
     def _refresh_layers(self):

@@ -81,6 +81,8 @@ class LayoutTest(unittest.TestCase):
         QApplication.instance() or QApplication([])
         w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
         w.show()
+        from chatdraw.settings import Settings
+        self.assertIsInstance(w.settings, Settings)   # 並びの保存と取り違えない
         w.float_all()
         self.assertTrue(all(d.isFloating() for d, _ in w.panels.values()))
         from PySide6.QtCore import Qt
