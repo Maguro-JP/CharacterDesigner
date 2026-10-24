@@ -158,3 +158,4 @@
 - 2026-10-24 模型の置き場は利用者が設定で選ぶ。置き場は起動の最初に決まるので、ProgramData の places.json に書き、LLM_HOME より先に読む。前の版の環境の設定に引っ張られないため。触る場所: chatdraw/paths.py、chatdraw/settings.py
 - 2026-10-24 起動は `pythonw -E -s` にし、Hugging Face の環境の設定を起動時に外す。利用者の Python や前の版の設定に頼らないため。触る場所: packaging/chatdraw/installer.nsi、chatdraw/app.py の isolate
 - 2026-10-24 キーの割り当ては QSettings の keys/ に、既定と違う物だけを持つ。重なる割り当ては保存させない。触る場所: chatdraw/keys.py
+- 2026-10-24 進みの欄は自分で隠さない。進みはタイトル・通知の領域・デスクトップの通知にも出す。描き終わると消えて状態が分からなかったため。触る場所: chatdraw/activity.py の changed、chatdraw/app.py の show_progress

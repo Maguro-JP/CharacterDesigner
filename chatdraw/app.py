@@ -499,6 +499,7 @@ class Window(QMainWindow):
         # 真ん中の上: 進み（工程・帯・時間）
         prog = QDockWidget("進み", self)
         prog.setWidget(self.activity.progress_view)
+        self.activity.changed.connect(self.show_progress)
         prog.setObjectName("progress")
         prog.setFeatures(PANEL)
         self.addDockWidget(Qt.TopDockWidgetArea, prog)
@@ -1718,7 +1719,7 @@ class Window(QMainWindow):
             Step(lambda: None, "CharacterDesigner へようこそ", "AI に頼んで描かせ、自分でも描き足せます。主な所を順に案内します。"),
             Step(lambda: p["talk"][0], "チャット", "描きたい絵を書いて「描く」を押します。\nAI とのやり取りはここに残ります。", show("talk")),
             Step(lambda: p["chat"][0], "AI の設定", "「新規」か「ラフから」、絵の大きさ、ラフに沿う強さ、絵の模型を選びます。", show("chat")),
-            Step(lambda: p["progress"][0], "進み", "AI が描いている間だけ出て、工程と残り時間を見せます。\n描き終わると自分で隠れます。",
+            Step(lambda: p["progress"][0], "進み", "AI が描いている間は、工程と残り時間と今している事を見せます。\n描き終わっても消えません。タイトルとデスクトップの通知にも出します。",
                  show("progress")),
             Step(lambda: self.canvas, "キャンバス", "描いている途中の絵がここに出ます。\nホイールで拡大、Space を押しながらドラッグで動かせます。"),
             Step(lambda: p["view"][0], "表示", "全体の縮小図と参考画像です。縮小図を押すと、その場所を表示します。", show("view")),
@@ -2012,16 +2013,40 @@ class Window(QMainWindow):
         return bool(ok)
 
     def hide_progress_if_idle(self, ms: int = 4000):
-        """描いていないときは進みの欄を隠す。描き終わってすぐ消すと結果を読めないので、少し待ってから薄くして隠す"""
-        from PySide6.QtCore import QTimer
-        from chatdraw.motion import fade_out
-        dock = self.panels["progress"][0]
+        """進みの欄は自分では隠さない。描き終わると消えて、結果も今の状態も分からなかった。閉じるのは利用者だけ"""
 
-        def hide():
-            if self.thread is None and not dock.isHidden() and not dock.isFloating():
-                body = dock.widget()
-                fade_out(body, then=lambda: (dock.hide(), body.show()))
-        QTimer.singleShot(ms, hide)
+    def show_progress(self, text: str, pct: int):
+        """進みをウィンドウの外にも出す。タイトル（タスクバーに出る）、通知の領域のアイコン、終わったときの知らせ"""
+        base = "CharacterDesigner"
+        if pct == -2:
+            self.setWindowTitle(base)
+        else:
+            self.setWindowTitle(f"{pct}% {text} - {base}" if pct >= 0 else f"{text} - {base}")
+        tray = self._tray()
+        if tray is not None:
+            tray.setToolTip(text if pct < 0 else f"{text}（{pct}%）")
+        if pct == -2:
+            self.tell_outside("CharacterDesigner", text)
+
+    def _tray(self):
+        from PySide6.QtWidgets import QSystemTrayIcon
+        if getattr(self, "tray", None) is None:
+            if not QSystemTrayIcon.isSystemTrayAvailable():
+                return None
+            self.tray = QSystemTrayIcon(self.windowIcon() if not self.windowIcon().isNull() else icon("ai"), self)
+            self.tray.activated.connect(lambda *_: (self.showNormal() if self.isMinimized() else None, self.raise_(),
+                                                    self.activateWindow()))
+            self.tray.show()
+        return self.tray
+
+    def tell_outside(self, title: str, text: str):
+        """ほかのウィンドウを見ている間に終わったら、デスクトップの通知とタスクバーの点滅で知らせる（設定の「知らせ」）"""
+        if self.settings.get("notify") == "画面の中だけ" or (self.isActiveWindow() and not self.isMinimized()):
+            return
+        QApplication.alert(self, 0)
+        tray = self._tray()
+        if tray is not None:
+            tray.showMessage(title, text, tray.icon(), 8000)
 
     def _end(self, msg: str):
         self.statusBar().showMessage(msg, 4000)

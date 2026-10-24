@@ -86,8 +86,7 @@ def bars(w, ribbon: bool, tools: tuple | None, options: bool = True, bottom: boo
 
 
 def _progress_idle(w):
-    if getattr(w, "thread", None) is None:
-        w.panels["progress"][0].hide()   # 進みは描いている間だけ出す（場所は真ん中の上に取ってある）
+    w.panels["progress"][0].show()   # 進みの欄は初めから出しておく。描いている間だけ出すと、終わると消えて状態が分からなかった
 
 
 def recommended(w):
