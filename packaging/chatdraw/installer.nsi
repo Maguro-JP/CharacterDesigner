@@ -1,4 +1,4 @@
-; chatdraw（CharacterDesigner）の Setup.exe。build.sh から makensis で組む（SRC、OUT、VERSION を渡す）
+﻿; chatdraw（CharacterDesigner）の Setup.exe。build.sh から makensis で組む（SRC、OUT、VERSION を渡す）
 ;
 ; 置き場（chatdraw/paths.py と同じ。自作の AdaptiveAIStudio にそろえる）
 ;   C:\Program Files\CharacterDesigner\      プログラム（入れ直すたびに丸ごと置き換える）
