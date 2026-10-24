@@ -8,6 +8,7 @@ on:
       - "chatdraw/**"
       - "packaging/chatdraw/**"
       - "VERSION"
+      - ".github/workflows/chatdraw-setup.yml"
   workflow_dispatch: {}
 permissions:
   contents: write            # Release に置くため
