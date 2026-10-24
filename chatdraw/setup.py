@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 import threading
@@ -41,8 +42,35 @@ def llm_lib_ready() -> bool:
 
 def missing() -> dict:
     """足りない物。絵の模型（ラフの部品を含む）と、言葉の模型（部品と本体）"""
+    if not engine_ready():
+        return {"image": True, "words": not llm_lib_ready()}
     return {"image": not (any(has_image(m) for m in IMAGES) and Painter().sketch_ready()),
             "words": not (llm_lib_ready() and any(has_words(m) for m in WORDS))}
+
+
+def engine_ready() -> bool:
+    """絵を描く部品（torch と diffusers）が読めるか"""
+    import importlib.util
+    return all(importlib.util.find_spec(m) is not None for m in ("torch", "diffusers", "transformers"))
+
+
+def install_engine(say=lambda msg, pct: None):
+    """絵を描く部品を、データの置き場（HOME/gen/lib）に入れる。NVIDIA の GPU があれば GPU 版、無ければ CPU 版の torch を取る。
+    インストーラーに入れないのは、torch の版が機械の GPU で変わり（CUDA 版 約 2.5GB、CPU 版 約 200MB）、合わない方を配ると無駄になるため"""
+    from chatdraw.paths import HOME
+    lib = HOME / "gen" / "lib"
+    lib.mkdir(parents=True, exist_ok=True)
+    gpu = shutil.which("nvidia-smi") is not None
+    index = "https://download.pytorch.org/whl/cu124" if gpu else "https://download.pytorch.org/whl/cpu"
+    say("絵を描く部品を入れています（GPU 版）" if gpu else "絵を描く部品を入れています", 0)
+    pip = [sys.executable, "-m", "pip", "install", "-q", "--disable-pip-version-check", "--target", str(lib), "--upgrade"]
+    subprocess.run(pip + ["torch", "--index-url", index], check=True)
+    say("絵を描く部品を入れています", 50)
+    subprocess.run(pip + ["diffusers", "transformers", "accelerate", "huggingface_hub", "safetensors"], check=True)
+    if str(lib) not in sys.path:
+        sys.path.insert(0, str(lib))
+    import importlib
+    importlib.invalidate_caches()
 
 
 def folder_gb(d: Path) -> float:
@@ -57,6 +85,8 @@ class Fetcher(QObject):
     def run(self, image: ImageModel | None, words: WordsModel | None, update: bool = False):
         try:
             ensure_shared()
+            if not engine_ready():
+                install_engine(self.progress.emit)
             if image is not None:
                 self._image(image)
             if words is not None:

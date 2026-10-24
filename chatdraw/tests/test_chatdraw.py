@@ -437,6 +437,59 @@ class UpgradeTest(unittest.TestCase):
             self.assertTrue(old.exists())                                    # 古い模型は消さない
 
 
+class MigrateTest(unittest.TestCase):
+    def make_old(self, root: Path) -> Path:
+        old = root / "Programs" / "CharacterDesigner"
+        (old / ".cache" / "gen" / "hf" / "hub" / "models--a--b" / "snapshots").mkdir(parents=True)
+        (old / ".cache" / "gen" / "hf" / "hub" / "models--a--b" / "snapshots" / "w.bin").write_bytes(b"w")
+        (old / ".cache" / "gen" / "lib").mkdir(parents=True)                 # 取り直せる部品
+        (old / ".cache" / "llm").mkdir(parents=True)
+        (old / ".cache" / "llm" / "q.gguf").write_bytes(b"q")
+        (old / ".cache" / "llm" / "model.gguf").symlink_to("q.gguf")
+        (old / "library" / "mine").mkdir(parents=True)
+        (old / "library" / "mine" / "a.png").write_bytes(b"p")
+        (old / "python").mkdir()
+        (old / "python" / "python.exe").write_bytes(b"x")
+        return old
+
+    def test_moves_everything_then_removes_old(self):
+        from chatdraw.migrate import migrate
+        with TemporaryDirectory() as d:
+            root = Path(d)
+            old = self.make_old(root)
+            hub, gguf, works = root / "LLM" / "huggingface", root / "LLM" / "gguf", root / "Pictures"
+            self.assertTrue(migrate(old, hub, gguf, works, root / "log.txt"))
+            self.assertTrue((hub / "models--a--b" / "snapshots" / "w.bin").exists())   # 絵の模型
+            self.assertTrue((gguf / "q.gguf").exists())                                  # 言葉の模型
+            self.assertFalse((gguf / "model.gguf").exists())                             # 別名は持っていかない
+            self.assertTrue((works / "previous-version" / "library" / "mine" / "a.png").exists())   # 描いた物
+            self.assertFalse(old.exists())                                               # 前の版は残さない
+            self.assertIn("前の版の場所を消した", (root / "log.txt").read_text(encoding="utf-8"))
+
+    def test_keeps_old_when_something_cannot_move(self):
+        from unittest import mock
+        from chatdraw import migrate as m
+        with TemporaryDirectory() as d:
+            root = Path(d)
+            old = self.make_old(root)
+            with mock.patch.object(m.shutil, "move", side_effect=OSError("使用中")):
+                self.assertFalse(m.migrate(old, root / "h", root / "g", root / "w", root / "log.txt"))
+            self.assertTrue((old / "library" / "mine" / "a.png").exists())             # 移せないなら何も消さない
+            self.assertTrue((old / ".cache" / "llm" / "q.gguf").exists())
+
+    def test_same_model_already_shared_is_not_duplicated(self):
+        from chatdraw.migrate import migrate
+        with TemporaryDirectory() as d:
+            root = Path(d)
+            old = self.make_old(root)
+            gguf = root / "LLM" / "gguf"
+            gguf.mkdir(parents=True)
+            (gguf / "q.gguf").write_bytes(b"shared")
+            self.assertTrue(migrate(old, root / "LLM" / "huggingface", gguf, root / "Pictures", root / "log.txt"))
+            self.assertEqual((gguf / "q.gguf").read_bytes(), b"shared")                 # 共有の物は上書きしない
+            self.assertFalse(old.exists())
+
+
 class ChooseTest(unittest.TestCase):
     def test_auto_picks_from_installed_only(self):
         from chatdraw.choose import choose_image

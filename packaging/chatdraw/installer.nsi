@@ -1,0 +1,107 @@
+; chatdraw（CharacterDesigner）の Setup.exe。build.sh から makensis で組む（SRC、OUT、VERSION を渡す）
+;
+; 置き場（chatdraw/paths.py と同じ。自作の AdaptiveAIStudio にそろえる）
+;   C:\Program Files\CharacterDesigner\      プログラム（入れ直すたびに丸ごと置き換える）
+;   C:\ProgramData\CharacterDesigner\        部品（torch など。初回の起動で取る）と記録
+;   C:\LLM\gguf、C:\LLM\huggingface          模型（自作アプリで共有。消さない）
+;   ピクチャ\CharacterDesigner\              描いた絵
+;
+; 入れる: 前の版（%LOCALAPPDATA%\Programs\CharacterDesigner）があれば、模型と描いた物を新しい置き場へ移してから、前の版を消す
+; 更新: 同じ場所に入れ直す。前のプログラムを消してから置くので、古いファイルが残らない。部品・模型・描いた絵はそのまま
+; 消す: プログラム、ショートカット、登録、設定を消す。部品（ProgramData）は聞いてから消す。模型と描いた絵は消さない
+Target amd64-unicode
+Unicode true
+!include "MUI2.nsh"
+
+!define APP "CharacterDesigner"
+!define UNINST "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP}"
+
+Name "${APP}"
+OutFile "${OUT}"
+InstallDir "$PROGRAMFILES64\${APP}"
+InstallDirRegKey HKLM "Software\${APP}" "InstallDir"
+RequestExecutionLevel admin
+SetCompressor /SOLID lzma
+
+!define MUI_FINISHPAGE_RUN "$INSTDIR\python\pythonw.exe"
+!define MUI_FINISHPAGE_RUN_PARAMETERS "-m chatdraw.app"
+!define MUI_FINISHPAGE_RUN_TEXT "CharacterDesigner を起動する"
+!insertmacro MUI_PAGE_DIRECTORY
+!insertmacro MUI_PAGE_INSTFILES
+!insertmacro MUI_PAGE_FINISH
+!insertmacro MUI_UNPAGE_CONFIRM
+!insertmacro MUI_UNPAGE_INSTFILES
+!insertmacro MUI_LANGUAGE "Japanese"
+
+Var OLD
+
+Section "Install"
+  ; 更新のとき、前のプログラムを先に消す（消したファイルが残って古いまま読まれないように）
+  RMDir /r "$INSTDIR\chatdraw"
+  RMDir /r "$INSTDIR\python"
+  SetOutPath "$INSTDIR"
+  File /r "${SRC}\*.*"
+  WriteUninstaller "$INSTDIR\Uninstall.exe"
+
+  ; 書き換える置き場。ふつうの利用者も書けるようにする（ProgramData と C:\ 直下は既定で管理者しか書けない）
+  CreateDirectory "$COMMONPROGRAMDATA\${APP}"
+  nsExec::ExecToLog '"$SYSDIR\icacls.exe" "$COMMONPROGRAMDATA\${APP}" /grant *S-1-5-32-545:(OI)(CI)M /T /Q'
+  CreateDirectory "C:\LLM\gguf"
+  CreateDirectory "C:\LLM\huggingface"
+  nsExec::ExecToLog '"$SYSDIR\icacls.exe" "C:\LLM" /grant *S-1-5-32-545:(OI)(CI)M /Q'
+
+  ; 前の版からの移行。前の版は利用者ごとに入れていたので、HKCU の登録から場所を読む
+  SetShellVarContext current
+  ReadRegStr $OLD HKCU "${UNINST}" "InstallLocation"
+  StrCmp $OLD "" 0 +2
+    StrCpy $OLD "$LOCALAPPDATA\Programs\${APP}"
+  IfFileExists "$OLD\*.*" 0 no_old
+    DetailPrint "前の版を移しています: $OLD"
+    nsExec::ExecToLog '"$INSTDIR\python\python.exe" -m chatdraw.migrate "$OLD"'
+    Pop $0
+    StrCmp $0 "0" 0 migrate_failed
+      Delete "$SMPROGRAMS\${APP}\*.lnk"
+      RMDir "$SMPROGRAMS\${APP}"
+      Delete "$DESKTOP\${APP}.lnk"
+      DeleteRegKey HKCU "${UNINST}"
+      Goto no_old
+    migrate_failed:
+      MessageBox MB_OK|MB_ICONEXCLAMATION "前の版の一部を移せなかったので、前の版はそのまま残しました。$\r$\n記録: $COMMONPROGRAMDATA\${APP}\migrate.log"
+  no_old:
+
+  SetShellVarContext all
+  SetOutPath "$INSTDIR"
+  CreateDirectory "$SMPROGRAMS\${APP}"
+  CreateShortcut "$SMPROGRAMS\${APP}\${APP}.lnk" "$INSTDIR\python\pythonw.exe" "-m chatdraw.app" "$INSTDIR\python\pythonw.exe"
+  CreateShortcut "$SMPROGRAMS\${APP}\アンインストール.lnk" "$INSTDIR\Uninstall.exe"
+  CreateShortcut "$DESKTOP\${APP}.lnk" "$INSTDIR\python\pythonw.exe" "-m chatdraw.app" "$INSTDIR\python\pythonw.exe"
+
+  WriteRegStr HKLM "Software\${APP}" "InstallDir" "$INSTDIR"
+  WriteRegStr HKLM "${UNINST}" "DisplayName" "${APP}"
+  WriteRegStr HKLM "${UNINST}" "DisplayVersion" "${VERSION}"
+  WriteRegStr HKLM "${UNINST}" "InstallLocation" "$INSTDIR"
+  WriteRegStr HKLM "${UNINST}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
+  WriteRegDWORD HKLM "${UNINST}" "NoModify" 1
+  WriteRegDWORD HKLM "${UNINST}" "NoRepair" 1
+SectionEnd
+
+Section "Uninstall"
+  RMDir /r "$INSTDIR\chatdraw"
+  RMDir /r "$INSTDIR\python"
+  Delete "$INSTDIR\VERSION"
+  Delete "$INSTDIR\LICENSE"
+  Delete "$INSTDIR\Uninstall.exe"
+  RMDir "$INSTDIR"
+  SetShellVarContext all
+  RMDir /r "$SMPROGRAMS\${APP}"
+  Delete "$DESKTOP\${APP}.lnk"
+  DeleteRegKey HKLM "${UNINST}"
+  DeleteRegKey HKLM "Software\${APP}"
+  ; 窓の並びと設定（QSettings が HKCU\Software\CharacterDesigner に書く）
+  DeleteRegKey HKCU "Software\${APP}"
+  ; 部品（torch など 数 GB）と記録。取り直せる物だけなので、既定は消す
+  MessageBox MB_YESNO|MB_ICONQUESTION "絵を描く部品と記録（$COMMONPROGRAMDATA\${APP}）も消しますか？$\r$\n部品は、入れ直したときに取り直せます。描いた絵と模型はここには入っていません。" /SD IDYES IDNO keep_data
+    RMDir /r "$COMMONPROGRAMDATA\${APP}"
+  keep_data:
+  MessageBox MB_OK|MB_ICONINFORMATION "アンインストールしました。$\r$\n$\r$\n次の物は残してあります。$\r$\n描いた絵: ピクチャの ${APP} フォルダー$\r$\n模型: C:\LLM（ほかの自作アプリも使うため。要らなければフォルダーごと消せます）" /SD IDOK
+SectionEnd
