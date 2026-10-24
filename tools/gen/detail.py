@@ -53,7 +53,7 @@ HAND_NEGATIVE = "fused fingers, extra fingers, missing fingers, six fingers, fou
 
 def detail(src, out, prompt: str, negative: str = "", strength: float = 0.4, steps: int = 24, seed: int = 0,
            box=None, words: str = FACE_WORDS, extra_negative: str = FACE_NEGATIVE, control: str | None = None,
-           control_scale: float = 0.8) -> dict:
+           control_scale: float = 0.8, control_mode: int | None = None) -> dict:
     import torch
     from PIL import Image, ImageDraw, ImageFilter
     import demi
@@ -69,7 +69,13 @@ def detail(src, out, prompt: str, negative: str = "", strength: float = 0.4, ste
     crop = im.crop(box)
     pos, neg = free_text.full_prompt(f"{prompt}, {words}", ", ".join(x for x in (negative, extra_negative) if x))
     extra = {}
-    if control:
+    if control and control_mode is not None:
+        # union の型で縛る（3 は線: canny・lineart）。control は絵と同じ大きさの、黒地に白い線の絵
+        import people
+        pipe = people.union_img2img()
+        ctrl = Image.open(control).convert("RGB").resize(im.size).crop(box).resize((SIDE, SIDE), Image.LANCZOS)
+        extra = dict(control_image=[ctrl], control_mode=[control_mode], controlnet_conditioning_scale=control_scale)
+    elif control:
         # 人形の奥行きの同じ枠を切り出して渡し、形（指の本数と向き）を人形で縛る。
         # 言葉と強さだけで手を描き直すと、元の崩れた手の形に引っ張られ、指が 2〜3 本の爪の形のまま残った
         import people

@@ -59,3 +59,13 @@ class PlaceDepth(unittest.TestCase):
         self.assertEqual(out.size, (200, 100))
         self.assertGreater(o[40, 100], 150)   # 手首と指先の間は明るい手
         self.assertEqual(o[40, 150], 0)       # 手の外は黒
+
+
+class Outline(unittest.TestCase):
+    def test_outline_is_edge_only(self):
+        a = np.zeros((40, 40), np.uint8)
+        a[10:30, 10:30] = 120
+        o = np.asarray(handgraft.outline(Image.fromarray(a), 1))
+        self.assertEqual(o[20, 20], 0)       # 中は塗らない
+        self.assertEqual(o[0, 0], 0)         # 外も塗らない
+        self.assertTrue((o[10:30, 9:12] == 255).any())   # 縁に線

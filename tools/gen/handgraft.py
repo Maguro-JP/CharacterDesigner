@@ -112,3 +112,12 @@ def place_depth(depth: Image.Image, src_wrist, src_tip, size, dst_wrist, dst_tip
     d = Image.fromarray(g.astype(np.uint8)).convert("RGB")
     coef = transform(src_wrist, src_tip, dst_wrist, dst_tip)
     return d.transform(size, Image.AFFINE, coef, resample=Image.BICUBIC)
+
+
+def outline(depth: Image.Image, width: int = 3) -> Image.Image:
+    """人形の手の奥行きから、輪郭の線（黒地に白）を作る。指の間のすき間も輪郭として出る"""
+    m = Image.fromarray(((np.asarray(depth.convert("L")) > 8) * 255).astype(np.uint8))
+    edge = m.filter(ImageFilter.FIND_EDGES)
+    if width > 1:
+        edge = edge.filter(ImageFilter.MaxFilter(width if width % 2 else width + 1))
+    return edge.point(lambda v: 255 if v > 0 else 0)

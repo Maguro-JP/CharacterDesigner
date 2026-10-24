@@ -97,6 +97,28 @@ def control_pipe():
     return _CONTROL
 
 
+_UNION_I2I = None
+
+
+def union_img2img():
+    """下絵から描き直しつつ、ControlNet union の型（線・骨組み・奥行きなど、control_mode で選ぶ）で縛る部品。
+    奥行きだけの型では、人形の手の奥行きに指の境目の濃淡がほとんど無く、指が分かれなかった。線の型で輪郭を渡す。
+    この環境には promax 版が無いので標準版を読む。描く本体と文章の読み手は pipe() と共有する"""
+    global _UNION_I2I
+    if _UNION_I2I is None:
+        import torch
+        from diffusers import ControlNetUnionModel, StableDiffusionXLControlNetUnionImg2ImgPipeline
+        import device
+        cn = ControlNetUnionModel.from_pretrained(CONTROL_MODEL, torch_dtype=device.dtype(torch))
+        device.module(cn, torch)
+        base = pipe()
+        _UNION_I2I = StableDiffusionXLControlNetUnionImg2ImgPipeline(**{k: v for k, v in base.components.items() if k in (
+            "vae", "text_encoder", "text_encoder_2", "tokenizer", "tokenizer_2", "unet", "scheduler",
+            "feature_extractor", "image_encoder")}, controlnet=cn)
+        _UNION_I2I.vae.enable_tiling()
+    return _UNION_I2I
+
+
 def clothed(clothes):
     """素体の体の言葉の、肌着と素足だけを服の言葉に差し替える（立ち方と無地の背景はそのまま）。空なら素体のまま。"""
     if not clothes:
