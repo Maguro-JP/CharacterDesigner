@@ -113,6 +113,21 @@ class LayoutTest(unittest.TestCase):
 
 
 class PreviewTest(unittest.TestCase):
+    def test_sketch_lines_keep_ratio_and_colored_lines(self):
+        from PIL import Image, ImageDraw
+        from chatdraw.engine import sketch_lines
+        im = Image.new("RGB", (100, 100), "#f8f4ea")   # 白でない紙
+        d = ImageDraw.Draw(im)
+        d.line((10, 50, 90, 50), fill="#d03020", width=3)   # 赤い線
+        d.line((50, 10, 50, 90), fill="#b0b0b0", width=3)   # 薄い鉛筆
+        out = sketch_lines(im, (200, 400))
+        self.assertEqual(out.size, (200, 400))
+        self.assertEqual(out.getpixel((5, 5)), (0, 0, 0))           # 余白と紙は線なし
+        self.assertGreater(out.getpixel((100, 200))[0], 150)         # 交わる所
+        self.assertGreater(out.getpixel((40, 200))[0], 200)         # 赤い線も線になる
+        self.assertGreater(out.getpixel((100, 150))[0], 200)        # 薄い線も線になる（縦横比を保って中央）
+        self.assertEqual(out.getpixel((100, 20)), (0, 0, 0))        # 正方形の外の余り
+
     def test_latent_preview_shape(self):
         import torch
         from chatdraw.engine import latent_preview

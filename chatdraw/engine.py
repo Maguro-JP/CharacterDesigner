@@ -104,6 +104,27 @@ def check(painter=None, words=None) -> dict:
     return out
 
 
+def sketch_lines(base, size):
+    """キャンバスの絵から、ラフの線だけを黒地に白い線で取り出す（部品はこの形で受け取る）。
+
+    紙の色との差で線を拾うので、色の付いた線や薄い鉛筆も線になる。縦横の比は変えず、余りは黒（線なし）で埋める。
+    引き伸ばして渡すと、ラフの体の比率が崩れて描かれた。
+    """
+    import numpy as np
+    from PIL import Image
+    arr = np.asarray(base.convert("RGB"), dtype=np.float32)
+    paper = np.median(arr.reshape(-1, 3), axis=0)              # いちばん多い色を紙とみなす
+    diff = np.abs(arr - paper).max(axis=2)
+    lines = np.clip((diff - 16) * 4, 0, 255).astype(np.uint8)  # 紙のむらは消し、線ははっきりさせる
+    img = Image.fromarray(lines, "L")
+    w, h = size
+    k = min(w / img.width, h / img.height)
+    img = img.resize((max(1, round(img.width * k)), max(1, round(img.height * k))), Image.LANCZOS)
+    out = Image.new("L", (w, h), 0)
+    out.paste(img, ((w - img.width) // 2, (h - img.height) // 2))
+    return out.convert("RGB")
+
+
 class Stopped(Exception):
     """利用者が「止める」を押した"""
 
@@ -178,14 +199,18 @@ class Painter:
                 # 読んだ模型の部品をそのまま渡す（模型を 2 度読まない）
                 self._sketch = StableDiffusionXLAdapterPipeline(**{k: v for k, v in pipe.components.items() if k in keep},
                                                                 adapter=adapter.to(pipe.device))
-            from PIL import ImageOps
             w, h = size or self.size
-            # 部品は黒地に白い線で受け取るので、白い紙の黒い線を反転して渡す
-            sketch = ImageOps.invert(base.convert("L")).convert("RGB").resize((w, h))
+            sketch = sketch_lines(base, (w, h))
             args["negative_prompt"] += ", sketch, lineart, monochrome"
             total = steps
+            args.pop("callback_on_step_end")
+
+            def old_step(i, t, latents):   # この描き方は古い形の途中報告だけを受ける。止めるときは例外で抜ける
+                if self.stop:
+                    raise Stopped("止めました")
+                step(self._sketch, i, t, {"latents": latents})
             out = self._sketch(image=sketch, width=w, height=h, adapter_conditioning_scale=strength,
-                               adapter_conditioning_factor=0.9, **args).images[0]
+                               adapter_conditioning_factor=1.0, callback=old_step, callback_steps=1, **args).images[0]
         else:
             w, h = size or self.size
             total = steps
