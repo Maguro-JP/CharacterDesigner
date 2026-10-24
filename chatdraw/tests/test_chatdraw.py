@@ -546,6 +546,12 @@ class TabsTest(unittest.TestCase):
         QApplication.instance() or QApplication([])
         w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
         self.assertEqual([w.ai_tabs.tabText(i) for i in range(w.ai_tabs.count())], ["頼む", "会話"])
+        r = w.ribbon
+        self.assertEqual([r.tabText(i) for i in range(r.count())], ["ホーム", "描く", "AI", "表示"])
+        r._clicked(r.currentIndex())                                   # 開いているタブを押すと畳む
+        self.assertTrue(r.collapsed and not r.currentWidget().isVisibleTo(r))
+        r._clicked(0)                                                  # もう一度押すと広げる
+        self.assertFalse(r.collapsed)
         self.assertEqual([w.layer_tabs.tabText(i) for i in range(w.layer_tabs.count())], ["レイヤー", "ナビゲーター"])
         self.assertEqual([w.brush_tabs.tabText(i) for i in range(w.brush_tabs.count())], ["ブラシ", "設定"])
         self.assertEqual([w.color_panel.tabs.tabText(i) for i in range(2)], ["カラー", "パレット"])

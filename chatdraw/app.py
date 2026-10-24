@@ -504,6 +504,7 @@ class Window(QMainWindow):
         win.addAction(tact)
         win.addAction(bar.toggleViewAction())
         win.addAction(self.options.toggleViewAction())
+        self._ribbon_toggle = win
         # 帯は上下左右のどこにでも置ける（帯の端をドラッグしても動く）
         where = win.addMenu("帯の位置")
         for name, tb in (("道具の帯", tools), ("欄の帯", bar)):
@@ -522,10 +523,12 @@ class Window(QMainWindow):
         win.addAction(QAction("整列（初期の配置に戻す）", self, triggered=self.arrange))
         win.addAction(QAction("すべて別ウィンドウにする", self, triggered=self.float_all))
         win.addAction(QAction("自由配置（欄をドラッグして好きな所に置く）", self, triggered=self.free_layout))
+        self.build_ribbon()
         help_menu = self.menuBar().addMenu("ヘルプ")
         help_menu.addAction(QAction(icon("help"), "使い方ツアー", self, shortcut="F1", triggered=self.start_tour))
         self.layout_store = QSettings("CharacterDesigner", "chatdraw")
-        state = self.layout_store.value("state4")   # 欄の並びを変えたら名前を変え、古い並びを読まない
+        self._ribbon_toggle.addAction(self.ribbon_bar.toggleViewAction())
+        state = self.layout_store.value("state5")   # 欄の並びを変えたら名前を変え、古い並びを読まない
         if state is not None:
             self.restoreGeometry(self.layout_store.value("geometry"))
             self.restoreState(state)
@@ -781,6 +784,9 @@ class Window(QMainWindow):
             d.show()
         self.addToolBar(Qt.LeftToolBarArea, self.tools)
         self.tools.show()
+        self.addToolBar(Qt.TopToolBarArea, self.ribbon_bar)
+        self.ribbon_bar.show()
+        self.addToolBarBreak(Qt.TopToolBarArea)
         self.addToolBar(Qt.TopToolBarArea, self.options)
         self.options.show()
         self.addToolBar(Qt.RightToolBarArea, self.panel_bar)
@@ -798,6 +804,60 @@ class Window(QMainWindow):
         self.resizeDocks([opt, chat], [side, side + 20], Qt.Horizontal)
         self.resizeDocks([chat, layers], [int(h * 0.45), int(h * 0.55)], Qt.Vertical)
 
+    def build_ribbon(self):
+        """上部のリボン。メニューと同じ操作を、タブごとに大きなアイコンで並べる"""
+        from chatdraw.ribbon import Ribbon
+
+        def act(key, label, fn, tip=""):
+            a = QAction(icon(key), label, self, triggered=fn)
+            a.setToolTip(tip or label)
+            return a
+        p = self.panels
+        r = Ribbon()
+        r.add_page("ホーム", [
+            ("ファイル", [act("new", "新規", lambda: self.canvas.new_canvas(), "新しいキャンバス（Ctrl+N）"),
+                         act("open", "開く", self.open_image, "絵を開く（Ctrl+O）"),
+                         act("save", "保存", self.save_as, "名前を付けて保存（Ctrl+S）")]),
+            ("編集", [act("undo", "戻す", self.canvas.undo, "元に戻す（Ctrl+Z）"),
+                     act("redo", "やり直す", self.canvas.redo, "やり直す（Ctrl+Y）")]),
+            ("選択", [act("select", "すべて", self.canvas.select_all, "すべてを選択（Ctrl+A）"),
+                     act("fit", "解除", lambda: self.canvas.set_selection(None), "選択を解除（Ctrl+D）")]),
+        ])
+        t = self.tool_actions
+        r.add_page("描く", [
+            ("道具", [t[k] for k in ("pen", "eraser", "blur", "fill", "gradient")]),
+            ("図形", [t[k] for k in ("line", "rect", "ellipse")]),
+            ("色", [t["eyedropper"], act("palette", "入れ替え", self.canvas.swap_colors, "描く色と背景色を入れ替える（X）")]),
+        ])
+
+        def ai(mode):
+            p["chat"][0].show()
+            p["chat"][0].raise_()
+            self.ai_tabs.setCurrentIndex(0)
+            self.mode.setCurrentIndex(mode)
+            self.entry.setFocus()
+        r.add_page("AI", [
+            ("描く", [act("ai", "頼んで描く", lambda: ai(0), "描きたい絵を書いて AI に描かせる"),
+                     act("rough", "ラフから", lambda: ai(1), "キャンバスの線に沿って AI に描かせる")]),
+            ("模型", [act("models", "絵の模型", lambda: self.ai_menu.exec(self.cursor().pos()), "絵の模型を切り替える"),
+                     act("settings", "管理", self.manage_models, "模型の一覧・取得・更新・削除")]),
+        ])
+        r.add_page("表示", [
+            ("キャンバス", [act("fit", "全体", self.canvas.fit, "全体を表示（Ctrl+0）"),
+                          act("zoom", "100%", self.canvas.actual, "等倍で表示（Ctrl+1）"),
+                          act("rotate", "回す", lambda: self.canvas.rotate_view(15), "右に回す（Ctrl+]）")]),
+            ("欄", [p[k][0].toggleViewAction() for k in ("chat", "layers", "history", "color", "brushes")]),
+            ("ヘルプ", [act("help", "使い方", self.start_tour, "使い方ツアー（F1）")]),
+        ])
+        r.setCurrentIndex(1)   # 初めは「描く」を開いておく
+        bar = QToolBar("リボン", self)
+        bar.setObjectName("ribbonbar")
+        bar.setMovable(False)
+        bar.addWidget(r)
+        self.insertToolBar(self.options, bar)     # リボンを道具の設定の帯の前に入れ、
+        self.insertToolBarBreak(self.options)     # 道具の設定の帯はリボンの下の段に置く
+        self.ribbon, self.ribbon_bar = r, bar
+
     def place_bar(self, bar: QToolBar, area):
         self.addToolBar(area, bar)
         bar.show()
@@ -812,6 +872,7 @@ class Window(QMainWindow):
             Step(lambda: None, "CharacterDesigner へようこそ", "AI に頼んで描かせ、自分でも描き足せます。主な所を順に案内します。"),
             Step(lambda: p["chat"][0], "AI に頼む", "描きたい絵を書いて「描く」を押します。\n「ラフから」にすると、キャンバスの線に沿って描きます。", show("chat")),
             Step(lambda: self.canvas, "キャンバス", "描いている途中の絵がここに出ます。\nホイールで拡大、Space を押しながらドラッグで動かせます。"),
+            Step(lambda: self.ribbon, "リボン", "よく使う操作をタブごとに並べています。\n開いているタブをもう一度押すと畳めます。"),
             Step(lambda: self.tools, "道具", "ペン・消しゴム・塗りつぶしなどを選びます。\nアイコンにカーソルを重ねると、名前とキーが出ます。"),
             Step(lambda: p["color"][0], "色", "描く色を選びます。タブでパレットに切り替えられます。", show("color")),
             Step(lambda: p["layers"][0], "レイヤー", "AI の絵はレイヤーとして重なります。描き足しは別のレイヤーにすると、あとで直せます。",
@@ -848,6 +909,7 @@ class Window(QMainWindow):
         self.tools.setVisible(on)
         self.options.setVisible(on)
         self.panel_bar.setVisible(on)
+        self.ribbon_bar.setVisible(on)
 
     def float_all(self):
         """欄をすべて別のウィンドウにして、少しずつずらして並べる"""
@@ -869,7 +931,7 @@ class Window(QMainWindow):
     def closeEvent(self, e):
         # 次に開いたときも同じ並びにする
         self.layout_store.setValue("geometry", self.saveGeometry())
-        self.layout_store.setValue("state4", self.saveState())
+        self.layout_store.setValue("state5", self.saveState())
         super().closeEvent(e)
 
     def _refresh_layers(self):
@@ -991,6 +1053,12 @@ QTabBar::tab:selected { color: #ffffff; border-bottom: 2px solid #ff7a1a; }
 QTabBar::tab:hover { color: #e8e8ea; }
 QFrame#tourCard { background: #1f2024; border: 1px solid #ff7a1a; border-radius: 12px; }
 QToolBar#panelbar QToolButton { width: 34px; height: 34px; border-radius: 9px; }
+QTabWidget#ribbon::pane { border: none; border-bottom: 1px solid #2a2b30; }
+QTabWidget#ribbon QTabBar::tab { padding: 4px 16px; }
+QWidget#ribbonGroup QToolButton { font-size: 11px; padding: 3px 4px; border-radius: 8px; }
+QLabel#ribbonGroupName { color: #6c6d73; font-size: 10px; }
+QFrame#ribbonSep { color: #2a2b30; }
+QToolBar#ribbonbar { padding: 0 6px; }
 QStatusBar { background: #111214; color: #9a9aa1; }
 QScrollBar:vertical { background: transparent; width: 10px; }
 QScrollBar::handle:vertical { background: #34353b; border-radius: 4px; min-height: 30px; margin: 2px; }

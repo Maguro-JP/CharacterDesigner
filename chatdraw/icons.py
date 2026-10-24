@@ -151,6 +151,77 @@ def _path(key: str) -> QPainterPath:
         p.cubicTo(9.5, 6.5, 14.5, 6.5, 14.5, 9.5)
         p.cubicTo(14.5, 11.5, 12, 11.5, 12, 14)
         p.addEllipse(QPointF(12, 17), 0.6, 0.6)
+    elif key == "new":
+        p.moveTo(6, 3)
+        p.lineTo(14, 3)
+        p.lineTo(19, 8)
+        p.lineTo(19, 21)
+        p.lineTo(6, 21)
+        p.closeSubpath()
+        p.moveTo(14, 3)
+        p.lineTo(14, 8)
+        p.lineTo(19, 8)
+    elif key == "open":
+        p.moveTo(3, 6)
+        p.lineTo(9, 6)
+        p.lineTo(11, 8)
+        p.lineTo(21, 8)
+        p.lineTo(21, 19)
+        p.lineTo(3, 19)
+        p.closeSubpath()
+    elif key == "save":
+        p.addRoundedRect(QRectF(4, 4, 16, 16), 2, 2)
+        p.moveTo(8, 4)
+        p.lineTo(8, 9)
+        p.lineTo(16, 9)
+        p.lineTo(16, 4)
+        p.addRect(QRectF(8, 13, 8, 7))
+    elif key in ("undo", "redo"):
+        sx = 1 if key == "undo" else -1
+        def X(v):
+            return 12 + sx * (v - 12)
+        p.moveTo(X(8), 5)
+        p.lineTo(X(4), 9)
+        p.lineTo(X(8), 13)
+        p.moveTo(X(4), 9)
+        p.lineTo(X(15), 9)
+        p.cubicTo(X(19), 9, X(20), 13, X(20), 15)
+        p.cubicTo(X(20), 18, X(17), 19, X(15), 19)
+        p.lineTo(X(10), 19)
+    elif key == "fit":
+        for (ax, ay), (bx, by), (cx, cy) in (((4, 9), (4, 4), (9, 4)), ((15, 4), (20, 4), (20, 9)),
+                                              ((20, 15), (20, 20), (15, 20)), ((9, 20), (4, 20), (4, 15))):
+            p.moveTo(ax, ay)
+            p.lineTo(bx, by)
+            p.lineTo(cx, cy)
+    elif key == "rotate":
+        p.moveTo(19, 12)
+        p.cubicTo(19, 16, 16, 19.5, 12, 19.5)
+        p.cubicTo(8, 19.5, 4.5, 16, 4.5, 12)
+        p.cubicTo(4.5, 8, 8, 4.5, 12, 4.5)
+        p.lineTo(17, 4.5)
+        p.moveTo(14, 1.5)
+        p.lineTo(17, 4.5)
+        p.lineTo(14, 7.5)
+    elif key == "rough":
+        p.moveTo(4, 18)
+        p.cubicTo(7, 12, 10, 16, 13, 10)
+        p.cubicTo(15, 6, 18, 8, 20, 5)
+        p.moveTo(4, 21)
+        p.lineTo(20, 21)
+    elif key == "models":
+        p.addRoundedRect(QRectF(4, 4, 7, 7), 1.5, 1.5)
+        p.addRoundedRect(QRectF(13, 4, 7, 7), 1.5, 1.5)
+        p.addRoundedRect(QRectF(4, 13, 7, 7), 1.5, 1.5)
+        p.addRoundedRect(QRectF(13, 13, 7, 7), 1.5, 1.5)
+    elif key == "settings":
+        p.addEllipse(QPointF(12, 12), 3, 3)
+        import math
+        for k in range(8):
+            a = k * math.pi / 4
+            p.moveTo(12 + 6 * math.cos(a), 12 + 6 * math.sin(a))
+            p.lineTo(12 + 9 * math.cos(a), 12 + 9 * math.sin(a))
+        p.addEllipse(QPointF(12, 12), 6, 6)
     elif key == "ai":
         # 4 つの角の光（AI が描く）
         for cx, cy, r in ((10, 12, 7), (18.5, 5.5, 3)):
@@ -179,4 +250,4 @@ def icon(key: str, color: str = "#e8e8ea", active: str = "#ffffff", size: int = 
     return ic
 
 
-KEYS = ("palette", "brush", "history", "layers", "help", "move", "select", "pen", "eraser", "blur", "fill", "gradient", "line", "rect", "ellipse", "eyedropper", "hand", "zoom", "ai")
+KEYS = ("new", "open", "save", "undo", "redo", "fit", "rotate", "rough", "models", "settings", "palette", "brush", "history", "layers", "help", "move", "select", "pen", "eraser", "blur", "fill", "gradient", "line", "rect", "ellipse", "eyedropper", "hand", "zoom", "ai")
