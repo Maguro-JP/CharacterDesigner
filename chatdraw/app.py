@@ -54,19 +54,20 @@ class Job(QObject):
     failed = Signal(str)
 
     def __init__(self, studio: Studio, text: str, seeds, base=None, strength: float = 0.6, size=None, style: str = "",
-                 regions=None, reference=None, ref_scale: float = 0.6, meta: dict | None = None):
+                 regions=None, reference=None, ref_scale: float = 0.6, meta: dict | None = None, check: bool = True):
         super().__init__()
         self.seeds = [seeds] if isinstance(seeds, int) else list(seeds)
         self.studio, self.text, self.style = studio, text, style
         self.base, self.strength, self.size = base, strength, size
         self.regions, self.reference, self.ref_scale, self.meta = regions, reference, ref_scale, meta or {}
+        self.check = check
 
     def run(self):
         try:
             if self.regions is not None:
                 prompts, path = self.studio.fix(self.base, self.regions, self.seeds[0], on_status=self.status.emit,
                                                 style=self.style, strength=self.strength, reference=self.reference,
-                                                ref_scale=self.ref_scale)
+                                                ref_scale=self.ref_scale, check=self.check)
                 self.one.emit(" / ".join(prompts), str(path))
             else:
                 for seed in self.seeds:
@@ -120,6 +121,14 @@ def qimage_from_pil(im):
     from PySide6.QtGui import QImage
     im = im.convert("RGBA")
     return QImage(im.tobytes(), im.width, im.height, im.width * 4, QImage.Format_RGBA8888).copy()
+
+
+def qimage_to_pil_rgba(img):
+    """レイヤー（QImage）を、透明度を保ったまま PIL にする"""
+    from PySide6.QtGui import QImage
+    img = img.convertToFormat(QImage.Format_RGBA8888)
+    return Image.frombuffer("RGBA", (img.width(), img.height()), bytes(img.constBits()), "raw", "RGBA",
+                            img.bytesPerLine(), 1).copy()
 
 
 def qimage_to_pil(img):
@@ -897,6 +906,13 @@ class Window(QMainWindow):
         m = re.search(r"([124１２４一二四])\s*枚", text)
         if m:   # 「4 枚描いて」のように枚数を書いたら、その枚数で描く
             self.ai_panel.set_count({"１": 1, "一": 1, "２": 2, "二": 2, "４": 4, "四": 4}.get(m.group(1)) or int(m.group(1)))
+        if self.ai_panel.reference() is not None and hasattr(self.studio.painter, "reference_ready") \
+                and not self.studio.painter.reference_ready():
+            from chatdraw.engine import REFERENCE_GB
+            gb = REFERENCE_GB.get(getattr(self.studio.painter, "family", "sdxl"), 3)
+            if QMessageBox.question(self, "参考画像に寄せる", f"参考画像を読む部品（約 {gb}GB）を初めに取ります。取りますか。") \
+                    != QMessageBox.Yes:
+                self.ai_panel.use_ref.setChecked(False)   # 取らないなら、参考画像なしで描く
         mode = self.mode.currentIndex()
         base = qimage_to_pil(self.canvas.flatten()) if mode in (1, 2) else None
         regions = self.fix_regions(text) if mode == 2 else None
@@ -993,8 +1009,7 @@ class Window(QMainWindow):
             self.place(path)
         self.batch.append(path)
         self.batch_items.append(self.activity.add(path, prompt))
-        self.library.add_work(path)   # 描いた絵はライブラリーにも入る（好き・いまいちを付けて好みを育てる）
-        self.library_panel.refresh()
+        self.library_panel.add(self.library.add_work(path))   # 描いた絵はライブラリーにも入る（好き・いまいちを付けて好みを育てる）
 
     def finish(self):
         n = len(self.batch)
@@ -1029,7 +1044,20 @@ class Window(QMainWindow):
         full = Image.new("L", base.size, 255)
         self._start_job("ちびキャラにする", "chibi", Job(self.studio, postfx.CHIBI_NOTE, self.ai_panel.seeds()[:1], base=base,
                                                        strength=0.7, style=postfx.CHIBI_TAGS,
-                                                       regions=[(full, postfx.CHIBI_NOTE)]))
+                                                       regions=[(full, postfx.CHIBI_NOTE)], check=False))
+
+    def make_lineart(self):
+        """今の絵から線だけを取り出した線画を、新しいレイヤーに重ねる（元の絵は残す）"""
+        from chatdraw import postfx
+        self.feature_tour("lineart")
+        img = postfx.lineart(qimage_to_pil(self.canvas.flatten()))
+        out = Path(self.settings.get("output_dir"))
+        out.mkdir(parents=True, exist_ok=True)
+        path = out / f"{time.strftime('%Y%m%d-%H%M%S')}-lineart.png"
+        img.save(path)
+        self.canvas.add_image_layer(str(path), "線画")
+        self.activity.add(str(path), "線画")
+        self.notify("線画にしました", "ok", "新しいレイヤーに重ねました。元の絵は下に残っています")
 
     def make_pixel(self, long: int = 128, colors: int = 24):
         """今の絵をドット絵にして、新しいレイヤーに重ねる。小さいドット絵（1 ドット 1 画素）も出力の置き場に残す"""
@@ -1067,13 +1095,14 @@ class Window(QMainWindow):
         self.thread.start()
 
     def upscale_canvas(self):
-        """今の絵（見えているレイヤーを重ねた 1 枚）を 2 倍にして、新しい絵として開く"""
+        """今の絵を、レイヤーを分けたまま 2 倍の大きさにする（元に戻すの履歴は消えるので、先に保存を勧める）"""
         from chatdraw import upscale
         if self.thread:
             return
-        if self.canvas.undo_stack or len(self.canvas.layers) > 2:
+        if self.canvas.undo_stack:
             box = QMessageBox(QMessageBox.Question, "絵を 2 倍に拡大",
-                              "レイヤーを重ねた 1 枚を 2 倍にして、新しい絵として開きます。\n今の絵は閉じるので、先に保存しておくと戻れます。", parent=self)
+                              "レイヤーはそのままで 2 倍にします。拡大すると「元に戻す」の履歴は消えるので、先に保存しておくと戻れます。",
+                              parent=self)
             save = box.addButton("保存してから拡大", QMessageBox.AcceptRole)
             go = box.addButton("拡大", QMessageBox.DestructiveRole)
             box.addButton("やめる", QMessageBox.RejectRole)
@@ -1083,27 +1112,37 @@ class Window(QMainWindow):
                     return
             elif box.clickedButton() is not go:
                 return
-        img = qimage_to_pil(self.canvas.flatten())
-        out = Path(self.settings.get("output_dir"))
+        layers = [(l.name, l.visible, l.opacity, qimage_to_pil_rgba(l.image)) for l in self.canvas.layers]
+        current = self.canvas.current
         self.feature_tour("upscale")
         self.panels["progress"][0].show()
         self.activity.begin("絵を 2 倍に拡大", "拡大")
         self.activity.status("描いています" + ("" if upscale.ready() else "（初めに拡大の部品 18MB を取ります）"))
 
         def work(on_step):
-            big = upscale.upscale(img, 2, on_step=on_step)
-            out.mkdir(parents=True, exist_ok=True)
-            path = out / f"{time.strftime('%Y%m%d-%H%M%S')}-x2.png"
-            big.save(path)
-            return str(path)
+            from PIL import Image
+            out = []
+            for i, (name, visible, opacity, img) in enumerate(layers, 1):
+                size = (img.width * 2, img.height * 2)
+                if img.getchannel("A").getbbox() is None:   # 何も描いていないレイヤーは、模型に通さず広げるだけ
+                    big = Image.new("RGBA", size, (0, 0, 0, 0))
+                else:
+                    big = upscale.upscale(img, 2, on_step=lambda a, n, i=i: on_step((i - 1) * 100 + a * 100 // n, len(layers) * 100))
+                out.append((name, visible, opacity, big))
+            return out, current
         self._run_task(work, self._upscaled)
 
-    def _upscaled(self, path: str):
-        self.canvas.show_image(path)
-        self.activity.add(path, "2 倍に拡大")
+    def _upscaled(self, result):
+        from chatdraw.canvas import Layer
+        made, current = result
+        from PySide6.QtGui import QImage
+        layers = [Layer(name, qimage_from_pil(big).convertToFormat(QImage.Format_ARGB32_Premultiplied), visible, opacity)
+                  for name, visible, opacity, big in made]
+        self.canvas._reset(layers, current)
+        self.dirty = True
         self.activity.end("拡大しました", None, record=False)
         w, h = self.canvas.size_px()
-        self.notify("拡大しました", "ok", f"{w}×{h} の絵として開きました")
+        self.notify("拡大しました", "ok", f"{w}×{h}・レイヤー {len(layers)} 枚のまま")
         self._end("拡大しました")
 
     def _run_task(self, fn, then):
@@ -1130,7 +1169,7 @@ class Window(QMainWindow):
         m.exec(self.history.mapToGlobal(pos))
 
     def redo_from(self, path: str):
-        """履歴の絵と同じ頼み・種・作風を、AI の欄とチャットに戻す。押せば同じ設定で描ける"""
+        """履歴の絵と同じ頼み・種・画風を、AI の欄とチャットに戻す。押せば同じ設定で描ける"""
         import json
         meta_path = Path(path).with_suffix(".json")
         try:
@@ -1652,7 +1691,7 @@ class Window(QMainWindow):
 
     def closeEvent(self, e):
         if getattr(self, "dirty", False) and self.isVisible() and not getattr(self, "closing_checked", False):
-            box = QMessageBox(QMessageBox.Question, "閉じる前に", "保存していない変更があります。保存しますか。", parent=self)
+            box = QMessageBox(QMessageBox.Question, "閉じる前に", "作業ファイルに保存していない変更があります。保存しますか。", parent=self)
             save = box.addButton("保存", QMessageBox.AcceptRole)
             drop = box.addButton("保存しない", QMessageBox.DestructiveRole)
             box.addButton("やめる", QMessageBox.RejectRole)

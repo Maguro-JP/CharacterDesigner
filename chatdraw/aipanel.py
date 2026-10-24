@@ -1,6 +1,6 @@
-"""AI の欄。押すだけで描き方がそろう「AI プリセット」と、絵の雰囲気を決める「作風」を、大きなカードとチップで並べる。
+"""AI の欄。押すだけで描き方がそろう「AI プリセット」と、絵の雰囲気を決める「画風」を、大きなカードとチップで並べる。
 
-描き方（新規・ラフから）、大きさ、ラフに沿う強さ、作風を 1 つずつ選ばせると、初めての人は何を選べばよいか分からない。
+描き方（新規・ラフから）、大きさ、ラフに沿う強さ、画風を 1 つずつ選ばせると、初めての人は何を選べばよいか分からない。
 よく使う組み合わせをプリセットにして、1 回押せば描ける状態にする。自分の組み合わせも名前を付けて残せる。
 """
 from __future__ import annotations
@@ -11,14 +11,12 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QSlider, QSpinBox, QButtonGroup, QGridLayout, QHBoxLayout, QInputDialog, QLabel, QMenu, QPushButton,
                                QSizePolicy, QToolButton, QVBoxLayout, QWidget)
 
-# 作風: (名前, 描く言葉に足すタグ, ヒント)。タグは英語のまま模型に渡す
+# 画風: (名前, 描く言葉に足すタグ, ヒント)。タグは英語のまま模型に渡す
 STYLES: list[tuple[str, str, str]] = [
-    ("おまかせ", "", "作風を足さず、頼みと絵の模型に任せます"),
+    ("おまかせ", "", "画風を足さず、頼みと絵の模型に任せます"),
     ("アニメ", "anime coloring, cel shading, clean lineart, vibrant colors", "くっきりした線と影のアニメの塗り"),
     ("厚塗り", "painterly, thick painting, rich lighting, detailed shading", "絵の具を重ねたような厚い塗り"),
     ("水彩", "watercolor, soft colors, paper texture, light wash", "にじみのある淡い水彩"),
-    ("線画", "monochrome, lineart, ink drawing, white background", "色を塗らない線だけの絵"),
-    ("デフォルメ", "chibi, super deformed, cute, big head", "頭の大きなかわいい等身"),
     ("SF", "science fiction, futuristic, neon lights, mecha details", "近未来の光と機械"),
     ("レトロ", "retro anime, 1990s style, film grain, muted colors", "90 年代のアニメの色合い"),
     ("スチームパンク", "steampunk, brass, gears, victorian, warm light", "真鍮と歯車の世界"),
@@ -28,14 +26,13 @@ STYLE_TAGS = {name: tags for name, tags, _ in STYLES}
 
 SIZES = {"縦": (832, 1216), "横": (1216, 832), "正方形": (1024, 1024)}
 
-# AI プリセット: (名前, ひとこと, 描き方 0=新規 1=ラフから, 大きさ, 作風, ラフに沿う強さ%)
+# AI プリセット: (名前, ひとこと, 描き方 0=新規 1=ラフから, 大きさ, 画風, ラフに沿う強さ%)
 PRESETS: list[tuple[str, str, int, str, str, int]] = [
     ("キャラデザ", "全身の立ち絵を縦長で", 0, "縦", "アニメ", 100),
     ("ラフを清書", "キャンバスの線を清書", 1, "縦", "アニメ", 100),
     ("ラフから自由に", "ラフを元に AI が整える", 1, "縦", "厚塗り", 60),
     ("イラスト", "場面の 1 枚を横長で", 0, "横", "厚塗り", 100),
     ("アイコン", "顔まわりを正方形で", 0, "正方形", "アニメ", 100),
-    ("線画だけ", "塗らずに線で描く", 0, "縦", "線画", 100),
     ("赤ペンで直す", "囲んだ所を指示どおりに", 2, "縦", "おまかせ", 45),
 ]
 PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background", "アイコン": "portrait, upper body, looking at viewer"}
@@ -53,7 +50,7 @@ class AiPanel(QWidget):
         lay.setContentsMargins(8, 6, 8, 8)
         lay.setSpacing(8)
 
-        lay.addWidget(self._head("AI プリセット", "押すと描き方・大きさ・作風がそろいます"))
+        lay.addWidget(self._head("AI プリセット", "押すと描き方・大きさ・画風がそろいます"))
         self.preset_box = QGridLayout()
         self.preset_box.setSpacing(6)
         lay.addLayout(self.preset_box)
@@ -61,7 +58,7 @@ class AiPanel(QWidget):
         self.preset_group.setExclusive(True)
         self.fill_presets()
 
-        lay.addWidget(self._head("作風", "絵の雰囲気。描く言葉に足します"))
+        lay.addWidget(self._head("画風", "絵の雰囲気。描く言葉に足します"))
         styles = QGridLayout()
         styles.setSpacing(4)
         self.style_group = QButtonGroup(self)
@@ -118,7 +115,7 @@ class AiPanel(QWidget):
         self.again.setToolTip("前と同じ頼みを、別の種で描き直します")
         self.again.clicked.connect(w.draw_again)
         self.save_button = QPushButton("今の設定を保存")
-        self.save_button.setToolTip("今の描き方・大きさ・作風を、自分の AI プリセットとして残します")
+        self.save_button.setToolTip("今の描き方・大きさ・画風を、自分の AI プリセットとして残します")
         self.save_button.clicked.connect(self.save_current)
         row.addWidget(self.again)
         row.addWidget(self.save_button)
@@ -128,6 +125,10 @@ class AiPanel(QWidget):
         self.chibi_button = QPushButton("ちびキャラに")
         self.chibi_button.setToolTip("頭の大きなデフォルメに、AI が描き直します")
         self.chibi_button.clicked.connect(w.make_chibi)
+        self.lineart_button = QPushButton("線画に")
+        self.lineart_button.setToolTip("今の絵から線だけを取り出し、白地の線画にします")
+        self.lineart_button.clicked.connect(w.make_lineart)
+        fx.addWidget(self.lineart_button)
         self.pixel_button = QPushButton("ドット絵に")
         self.pixel_button.setToolTip("長い辺 128 ドット・24 色のドット絵にします")
         self.pixel_button.clicked.connect(lambda: w.make_pixel())
@@ -232,7 +233,7 @@ class AiPanel(QWidget):
             b.setChecked(name == self.preset)
 
     def apply(self, name: str, data: dict):
-        """プリセットを当てる。描き方・大きさ・作風・強さをそろえ、頼みを書く欄に移る"""
+        """プリセットを当てる。描き方・大きさ・画風・強さをそろえ、頼みを書く欄に移る"""
         self.preset = name
         self.w.mode.setCurrentIndex(int(data.get("mode", 0)))
         self.w.size_pick.setCurrentIndex(list(SIZES).index(data.get("size", "縦")))
@@ -278,7 +279,7 @@ class AiPanel(QWidget):
         m.addAction("消す", lambda: (self.w.layout_store.remove(f"ai_presets/{name}"), self.fill_presets()))
         m.exec(button.mapToGlobal(button.rect().bottomLeft()))
 
-    # ---- 作風と同期 ----
+    # ---- 画風と同期 ----
     def set_style(self, name: str):
         self.style = name if name in STYLE_TAGS else "おまかせ"
         for n, b in self.style_buttons.items():
@@ -286,7 +287,7 @@ class AiPanel(QWidget):
         self.changed.emit()
 
     def style_tags(self) -> str:
-        """描く言葉に足すタグ。作風と、プリセットの決まった言葉"""
+        """描く言葉に足すタグ。画風と、プリセットの決まった言葉"""
         tags = [STYLE_TAGS.get(self.style, ""), PROMPT_SUFFIX.get(self.preset, ""), ", ".join(self.taste()["tags"])]
         return ", ".join(t for t in tags if t)
 

@@ -894,7 +894,7 @@ class CommandsTest(unittest.TestCase):
 
 
 class ThemeTest(unittest.TestCase):
-    """テーマを替えてもアイコンが地に溶けず、AI プリセットと作風が描く言葉に届くか"""
+    """テーマを替えてもアイコンが地に溶けず、AI プリセットと画風が描く言葉に届くか"""
     def setUp(self):
         from PySide6.QtWidgets import QApplication
         from chatdraw.app import Window
@@ -929,7 +929,7 @@ class ThemeTest(unittest.TestCase):
 
     def test_commands_for_theme_style_preset(self):
         from chatdraw import commands
-        self.assertEqual(commands.handle(self.w, "作風を水彩にして"), "作風を「水彩」にしました")
+        self.assertEqual(commands.handle(self.w, "画風を水彩にして"), "画風を「水彩」にしました")
         self.assertEqual(self.w.ai_panel.style, "水彩")
         self.assertEqual(commands.handle(self.w, "キャラデザにして"), "AI プリセット「キャラデザ」にしました。描きたい絵を書いてください")
         self.assertIsNone(commands.handle(self.w, "自然の中の少女を描いて"))
@@ -1057,9 +1057,10 @@ class FixAndBatchTest(unittest.TestCase):
         self.assertEqual(len(fixes), 2)                               # 印ごとに 1 回ずつ直す
         self.assertEqual(len(self.w.canvas.layers), layers + 1)      # 直した所は新しいレイヤー
         self.assertEqual(self.w.canvas.redpen.marks, [])             # 直したら印は消える
-        whole = Image.open(self.w.images[-1])
-        self.assertEqual(whole.mode, "RGB")                           # 直す所だけを貼った透明な絵ではなく、
-        self.assertEqual(whole.size, (200, 160))                      # 描き直した絵全体を 1 枚で重ねる
+        layer = Image.open(self.w.images[-1])
+        self.assertEqual(layer.size, (200, 160))                      # 絵と同じ大きさで重ね、
+        self.assertEqual(layer.getpixel((5, 150))[3], 0)              # 直していない所は透かす（下のレイヤーを隠さない）
+        self.assertEqual(layer.getpixel((50, 50))[3], 255)
 
     def test_fix_without_marks_does_nothing(self):
         self.w.mode.setCurrentIndex(2)
@@ -1103,6 +1104,23 @@ class FixAndBatchTest(unittest.TestCase):
         self.w.send()
         wait_idle(self.app, self.w)
         self.assertEqual(len(self.painter.calls), 2)
+
+    def test_reference_asks_before_fetching(self):
+        """参考画像の部品が無ければ、取る前に大きさを出して聞く。断れば参考画像なしで描く"""
+        from unittest import mock
+        from PIL import Image
+        from PySide6.QtWidgets import QMessageBox
+        ref = self.dir / "ref.png"
+        Image.new("RGB", (32, 32), "blue").save(ref)
+        self.w.reference.load(str(ref))
+        self.w.ai_panel.use_ref.setChecked(True)
+        self.painter.reference_ready = lambda: False
+        with mock.patch.object(QMessageBox, "question", return_value=QMessageBox.No) as asked:
+            self.w.entry.setText("雪の城の前の騎士")
+            self.w.send()
+            wait_idle(self.app, self.w)
+        self.assertTrue(asked.called)
+        self.assertNotIn("reference", self.painter.kw)
 
     def test_reference_reaches_painter(self):
         from PIL import Image
@@ -1210,9 +1228,13 @@ class FixAndBatchTest(unittest.TestCase):
 
     @unittest.skipUnless(__import__("chatdraw.upscale", fromlist=["ready"]).ready(), "拡大の重みが手元に無い")
     def test_upscale_doubles_canvas(self):
+        n = len(self.w.canvas.layers)
+        self.w.canvas.layers[1].name = "線"
         self.w.upscale_canvas()
         wait_idle(self.app, self.w)
         self.assertEqual(self.w.canvas.size_px(), (400, 320))
+        self.assertEqual(len(self.w.canvas.layers), n)                 # レイヤーは分かれたまま
+        self.assertEqual(self.w.canvas.layers[1].name, "線")
 
 
 class SystemTest(unittest.TestCase):
@@ -1321,6 +1343,7 @@ class SystemTest(unittest.TestCase):
         wait_idle(self.app, self.w)
         self.assertEqual([c[0] for c in self.painter.calls], ["redraw"])
         self.assertIn("ちびキャラ", [l.name for l in self.w.canvas.layers])
+        self.assertTrue(self.w.canvas.layers[self.w.canvas.current].visible)   # 絵全体を描き替える加工は、崩れの検査で隠さない
 
     def test_library_learns_taste(self):
         from chatdraw.library import DISLIKE, LIKE

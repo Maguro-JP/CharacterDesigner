@@ -166,15 +166,15 @@ COMMANDS: list[Command] = [
 ]
 
 def _extend():
-    """テーマ・作風・AI プリセットは一覧から操作を作る（足したら AI からもすぐ使える）。
-    言葉は「水彩の作風」「テーマをネオン」のように種類の語を伴うものだけにし、「自然の中の少女」のような絵の頼みを取り違えない"""
+    """テーマ・画風・AI プリセットは一覧から操作を作る（足したら AI からもすぐ使える）。
+    言葉は「水彩の画風」「テーマをネオン」のように種類の語を伴うものだけにし、「自然の中の少女」のような絵の頼みを取り違えない"""
     from chatdraw import aipanel, themes
     for name in themes.THEMES:
         COMMANDS.append(Command(f"theme_{name}", f"テーマを「{name}」にしました", f"switch the color theme to {name}",
                                 lambda w, a, n=name: w.set_theme(n), (f"{name}のテーマ", f"テーマを{name}")))
     for name, _tags, tip in aipanel.STYLES:
-        COMMANDS.append(Command(f"style_{name}", f"作風を「{name}」にしました", f"set the drawing style to {name}",
-                                lambda w, a, n=name: w.ai_panel.set_style(n), (f"{name}の作風", f"作風を{name}")))
+        COMMANDS.append(Command(f"style_{name}", f"画風を「{name}」にしました", f"set the drawing style to {name}",
+                                lambda w, a, n=name: w.ai_panel.set_style(n), (f"{name}の画風", f"画風を{name}")))
     for name, sub, *_ in aipanel.PRESETS:
         COMMANDS.append(Command(f"ai_{name}", f"AI プリセット「{name}」にしました。描きたい絵を書いてください",
                                 f"use the AI preset {name}: {sub}", lambda w, a, n=name: w.ai_panel.apply_name(n),
@@ -199,6 +199,8 @@ def _extend():
     COMMANDS.append(Command("export_psd", "PSD で書き出します", "export layers as PSD", lambda w, a: w.export_psd(), ("PSD",)))
     COMMANDS.append(Command("chibi", "ちびキャラに描き直します", "redraw the picture as a chibi (super deformed)",
                             lambda w, a: w.make_chibi(), ("ちびキャラに", "デフォルメに")))
+    COMMANDS.append(Command("lineart", "線画にしました", "turn the current picture into line art (keep the original layer)",
+                            lambda w, a: w.make_lineart(), ("線画に",)))
     COMMANDS.append(Command("pixel", "ドット絵にしました", "turn the picture into pixel art",
                             lambda w, a: w.make_pixel(), ("ドット絵に",)))
     COMMANDS.append(Command("show_library", "ライブラリーを出しました", "show the library panel (works, documents, taste)",

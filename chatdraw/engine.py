@@ -516,14 +516,17 @@ class Studio:
         return result
 
     def fix(self, image, regions: list[tuple], seed: int, on_status=None, style: str = "", strength: float = 0.75,
-            reference=None, ref_scale: float = 0.6):
-        """赤ペン先生と範囲の描き直し。regions は (mask, 指示の文) の並び。直す所ごとに指示を描く言葉に直し、
+            reference=None, ref_scale: float = 0.6, check: bool = True):
+        """赤ペン先生と範囲の描き直し。check を外すと崩れの検査をしない（ちびキャラのように絵全体を描き替える加工）。regions は (mask, 指示の文) の並び。直す所ごとに指示を描く言葉に直し、
         絵全体を順に描き直す。返すのは (描く言葉の並び, 描き直した絵全体の置き場)。直す所だけを貼り合わせない"""
         say = on_status or (lambda msg: None)
         prompts = []
         self.last_flaws = []   # 直したあとに見つけた崩れ（空なら見つからなかった。出来たかどうかは利用者が決める）
         result = image.convert("RGB")
+        from PIL import Image as _Image, ImageChops as _Chops
+        touched = _Image.new("L", image.size, 0)
         for k, (mask, note) in enumerate(regions, 1):
+            touched = _Chops.lighter(touched, mask.convert("L"))
             if refused(note):
                 raise ValueError("子どもを性的に描く頼みは描きません")
             say(f"頼みを描く言葉に直しています（{k}/{len(regions)} か所目）")
@@ -540,7 +543,7 @@ class Studio:
             for n_try, (s_try, seed_shift) in enumerate(tries, 1):
                 out = self._fix_once(before, mask, prompt, seed + k + 1000 * seed_shift, s_try, k, len(regions), say,
                                      reference, ref_scale)
-                found = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, out, mask)]
+                found = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, out, mask)] if check else []
                 say(f"確かめました（{k} か所目・{n_try} 回目・崩れ {len(found)} 件）")
                 if best is None or len(found) < len(best_flaws):
                     best, best_flaws = out, found
@@ -551,6 +554,9 @@ class Studio:
             self.last_flaws += best_flaws
         if self.last_flaws:
             say("崩れが見つかりました: " + " / ".join(self.last_flaws))
-        path = self._save(result, seed, dict(text=" / ".join(n for _m, n in regions), prompt=" / ".join(prompts), seed=seed,
+        # 重ねるレイヤーは直した所だけを見せる（外は元と同じ画素なので、下のレイヤーに描き足しても隠さない）
+        layer = result.convert("RGBA")
+        layer.putalpha(touched.point(lambda v: 255 if v > 0 else 0))
+        path = self._save(layer, seed, dict(text=" / ".join(n for _m, n in regions), prompt=" / ".join(prompts), seed=seed,
                                             style=style, model=self.painter.model, mode="直す", flaws=self.last_flaws))
         return prompts, path
