@@ -62,6 +62,14 @@
         "hooks": [
           {
             "type": "command",
+            "command": "python3 .claude/skills/prompt-from-context/hooks/brief.py"
+          }
+        ]
+      },
+      {
+        "hooks": [
+          {
+            "type": "command",
             "command": "python3 .claude/skills/finish-first/hooks/focus.py",
             "timeout": 10
           }
@@ -144,6 +152,18 @@
           {
             "type": "command",
             "command": "python3 .claude/skills/desktop-app/hooks/no_browser.py",
+            "timeout": 10
+          }
+        ]
+      }
+    ],
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write|MultiEdit|Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 .claude/skills/follow-instructions/hooks/no_self_grant.py",
             "timeout": 10
           }
         ]
