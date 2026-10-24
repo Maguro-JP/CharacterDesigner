@@ -1,0 +1,34 @@
+# chatdraw の Setup.exe を組み、試す版として Release（prerelease）に置く。
+# リポジトリは公開しているので Actions の枠を使わない。手元で組むと時間とディスクを食うため、組むのはここで行う。
+# Linux の上で NSIS を使って組む（Windows のランナーは使わない）。1 回 約 5 分。
+name: chatdraw-setup
+on:
+  push:
+    paths:
+      - "chatdraw/**"
+      - "packaging/chatdraw/**"
+      - "VERSION"
+  workflow_dispatch: {}
+permissions:
+  contents: write            # Release に置くため
+concurrency:
+  group: chatdraw-setup-${{ github.ref }}
+  cancel-in-progress: true   # 続けて push したら古い方を止める
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: NSIS
+        run: sudo apt-get update -q && sudo apt-get install -y -q nsis
+      - name: Setup.exe を組む
+        run: sh packaging/chatdraw/build.sh
+      - name: 試す版として置く
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="chatdraw-test-$(echo "${GITHUB_REF_NAME}" | tr '/' '-')"
+          gh release delete "$tag" -y --cleanup-tag 2>/dev/null || true
+          gh release create "$tag" dist/*.exe --prerelease --target "$GITHUB_SHA" \
+            --title "chatdraw 試す版（${GITHUB_REF_NAME}）" --notes "コミット ${GITHUB_SHA} から組んだ試す版です。"
