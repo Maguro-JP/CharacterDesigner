@@ -11,6 +11,9 @@ sys.path.insert(0, str(ROOT / ".cache" / "simple" / "lib"))
 sys.path.insert(0, str(ROOT))
 
 from chatdraw.engine import Studio, has_japanese  # noqa: E402
+import chatdraw.motion  # noqa: E402
+
+chatdraw.motion.MOTION = False   # 試験は動きを切って、結果だけを見る（動きは MotionTest で見る）
 
 
 class FakeWords:
@@ -627,6 +630,43 @@ class StatusTest(unittest.TestCase):
         self.assertTrue(n.isVisible() and m.isVisible())
         self.assertLess(m.y(), n.y())                                            # 新しい知らせは上に積む
         self.assertTrue(n.geometry().right() <= w.width())
+
+
+class MotionTest(unittest.TestCase):
+    def test_panels_move_anywhere_and_animate(self):
+        import time
+        from PySide6.QtCore import Qt as _Qt
+        from PySide6.QtWidgets import QApplication
+        from chatdraw import motion
+        from chatdraw.app import Window
+        app = QApplication.instance() or QApplication([])
+        w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
+        w.resize(1400, 900)
+        w.show()
+        w.arrange()
+        for k in ("chat", "layers", "history"):                        # 右の欄も下に置ける
+            w.move_panel(w.panels[k][0], _Qt.BottomDockWidgetArea)
+            self.assertEqual(w.dockWidgetArea(w.panels[k][0]), _Qt.BottomDockWidgetArea)
+        menu = w.panels["layers"][0].titleBarWidget().place_menu()   # 見出しの「⋯」から選べる
+        self.assertIn("下に置く", [a.text() for a in menu.actions()])
+        motion.MOTION = True
+        try:
+            w.panels["brushes"][0].show()
+            title = w.panels["color"][0].titleBarWidget()
+            title.toggle()                                               # 畳むと高さが動いて縮む
+            end = time.time() + 1
+            while time.time() < end:
+                app.processEvents()
+            self.assertLess(w.panels["color"][0].height(), 60)
+            self.assertTrue(w.panels["color"][0].widget().isHidden())
+            n = w.notify("描けました", "ok")
+            self.assertIsNotNone(n.graphicsEffect())                     # 出る途中は透明から見えるまで動く
+            end = time.time() + 1
+            while time.time() < end:
+                app.processEvents()
+            self.assertIsNone(n.graphicsEffect())
+        finally:
+            motion.MOTION = False
 
 
 class FitSizeTest(unittest.TestCase):

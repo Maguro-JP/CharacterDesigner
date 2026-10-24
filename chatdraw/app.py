@@ -142,6 +142,12 @@ class PanelTitle(QWidget):
         self.label = QLabel(dock.windowTitle())
         row.addWidget(self.label)
         row.addStretch()
+        place = QPushButton("⋯")
+        place.setToolTip("置き場所（左・右・下・上・別ウィンドウ）")
+        place.setFixedSize(22, 20)
+        place.setFlat(True)
+        place.clicked.connect(lambda: self.place_menu().exec(place.mapToGlobal(place.rect().bottomLeft())))
+        row.addWidget(place)
         for text, tip, fn in (("▁", "畳む（見出しだけにする）", self.toggle), ("⧉", "別ウィンドウにする・戻す", self.float_),
                               ("✕", "隠す（「ウィンドウ」メニューで戻せます）", dock.hide)):
             b = QPushButton(text)
@@ -153,15 +159,38 @@ class PanelTitle(QWidget):
             if text == "▁":
                 self.collapse_button = b
 
+    def place_menu(self):
+        """欄の置き場所を選ぶメニュー。どの欄も左右・下・上と別ウィンドウに置ける"""
+        from PySide6.QtWidgets import QMenu
+        menu = QMenu(self)
+        mw = self.dock.parent()
+        for label, area in (("左に置く", Qt.LeftDockWidgetArea), ("右に置く", Qt.RightDockWidgetArea),
+                            ("下に置く", Qt.BottomDockWidgetArea), ("上に置く", Qt.TopDockWidgetArea)):
+            menu.addAction(label, lambda area=area: mw.move_panel(self.dock, area))
+        menu.addSeparator()
+        menu.addAction("別ウィンドウにする", lambda: self.dock.setFloating(True))
+        return menu
+
     def toggle(self):
+        """畳む・広げる。中身を薄くしてから畳み、広げたら中身を濃くしていく（どこが畳まれたかを目で追える）。
+        高さそのものは動かさない。中身の最小の高さより低くできず、動きの途中で止まった"""
+        from chatdraw.motion import fade_in, fade_out
         self.collapsed = not self.collapsed
         body = self.dock.widget()
-        if body is not None:
-            body.setVisible(not self.collapsed)
+        head = self.height() + 4
         if self.collapsed:
-            self.dock.setMaximumHeight(self.sizeHint().height() + 4)
+            def done():
+                self.dock.setMinimumHeight(0)   # 欄の最小の高さが中身の分（例: 256）に上がっていて、畳めなかった
+                self.dock.setMaximumHeight(head)
+            if body is not None:
+                fade_out(body, then=done)
+            else:
+                done()
         else:
             self.dock.setMaximumHeight(16777215)
+            self.dock.setMinimumHeight(80)
+            if body is not None:
+                fade_in(body)
         self.collapse_button.setText("▔" if self.collapsed else "▁")
 
     def float_(self):
@@ -473,6 +502,7 @@ class Window(QMainWindow):
             # 欄の境目をドラッグして上下左右に広げ縮めできる。狭めすぎて中身が潰れない大きさだけ決める
             d.setMinimumSize(160, 80)
             d.topLevelChanged.connect(lambda floating, d=d: self._as_window(d, floating))
+            d.visibilityChanged.connect(lambda on, d=d: self._appear(d, on))
         self.tools = tools
         self.setDockNestingEnabled(True)
         self.setDockOptions(QMainWindow.AllowNestedDocks | QMainWindow.AllowTabbedDocks | QMainWindow.AnimatedDocks)
@@ -503,6 +533,13 @@ class Window(QMainWindow):
         self._bars_menu = win
         self._ribbon_toggle = win
         # 帯は上下左右のどこにでも置ける（帯の端をドラッグしても動く）
+        panel_where = win.addMenu("欄の位置")
+        for k in ("chat", "layers", "history", "color", "brushes"):
+            d = self.panels[k][0]
+            sub = panel_where.addMenu(d.windowTitle())
+            for label, area in (("左", Qt.LeftDockWidgetArea), ("右", Qt.RightDockWidgetArea), ("下", Qt.BottomDockWidgetArea),
+                                ("上", Qt.TopDockWidgetArea)):
+                sub.addAction(QAction(label, self, triggered=lambda _=False, d=d, area=area: self.move_panel(d, area)))
         where = win.addMenu("帯の位置")
         self._where = where
         for name, tb in (("道具の帯", tools), ("欄の帯", bar)):
@@ -935,6 +972,15 @@ class Window(QMainWindow):
         self.insertToolBarBreak(self.options)     # 道具の設定の帯はリボンの下の段に置く
         self.ribbon, self.ribbon_bar = r, bar
 
+    def move_panel(self, dock: QDockWidget, area):
+        """欄を左・右・下・上のどこかへ移す。移した先で中身をふわっと出す"""
+        from chatdraw.motion import fade_in
+        dock.setFloating(False)
+        self.addDockWidget(area, dock)
+        dock.show()
+        if dock.widget() is not None:
+            fade_in(dock.widget())
+
     def place_bar(self, bar: QToolBar, area):
         self.addToolBar(area, bar)
         bar.show()
@@ -968,6 +1014,13 @@ class Window(QMainWindow):
         """初めて起動したときだけ、ツアーを出す"""
         if not int(self.layout_store.value("tour_done", 0)):
             self.start_tour()
+
+    def _appear(self, d: QDockWidget, on: bool):
+        """隠していた欄を出したときだけ、中身をふわっと出す（タブの切り替えでは動かさない）"""
+        from chatdraw.motion import fade_in
+        if on and getattr(d, "_was_hidden", False) and d.widget() is not None:
+            fade_in(d.widget())
+        d._was_hidden = not on and d.isHidden()
 
     def _as_window(self, d: QDockWidget, floating: bool):
         """別ウィンドウにした欄を、ふつうのウィンドウの枠にする。上下左右と四隅の端をつかんで大きさを変えられ、最大化もできる"""

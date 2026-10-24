@@ -58,7 +58,8 @@ class Tour(QWidget):
 
     def start(self):
         self.setGeometry(self.window_.rect())
-        self.show()
+        from chatdraw.motion import fade_in
+        fade_in(self)
         self.raise_()
         self.show_step(0)
 
@@ -85,6 +86,8 @@ class Tour(QWidget):
         self.next.setText("はじめる" if self.i == len(self.steps) - 1 else "次へ")
         self.card.adjustSize()
         self._place()
+        from chatdraw.motion import slide_in
+        slide_in(self.card, self.card.pos(), dy=12)   # 札は次の所へ滑り込ませる
         self.update()
 
     def _place(self):
@@ -139,7 +142,7 @@ class Tour(QWidget):
 
     def finish(self):
         self.window_.removeEventFilter(self)
-        self.hide()
-        self.deleteLater()
         if self.on_close:
             self.on_close()
+        from chatdraw.motion import fade_out
+        fade_out(self, then=self.deleteLater)

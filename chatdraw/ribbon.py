@@ -66,7 +66,18 @@ class Ribbon(QTabWidget):
             self.set_collapsed(True)
 
     def set_collapsed(self, on: bool):
+        """畳む・広げる。高さを動かして見せる"""
+        from chatdraw.motion import resize_height
         self.collapsed = on
-        for i in range(self.count()):
-            self.widget(i).setVisible(not on)
-        self.setMaximumHeight(self.tabBar().sizeHint().height() + 2 if on else 16777215)
+        head = self.tabBar().sizeHint().height() + 2
+        if on:
+            self.full = self.height()
+
+            def done():
+                for i in range(self.count()):
+                    self.widget(i).setVisible(False)
+            resize_height(self, self.full, head, then=done)
+        else:
+            for i in range(self.count()):
+                self.widget(i).setVisible(True)
+            resize_height(self, head, getattr(self, "full", 110) or 110, then=lambda: self.setMaximumHeight(16777215))

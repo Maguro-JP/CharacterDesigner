@@ -38,8 +38,9 @@ class Notice(QFrame):
         stack = [n for n in window.findChildren(Notice) if n is not self and n.isVisible()]
         self.offset = sum(n.height() + 8 for n in stack)   # 前の知らせの上に積む
         self._place()
-        self.show()
         self.raise_()
+        from chatdraw.motion import slide_in
+        slide_in(self, self.pos(), dx=40, dy=0)   # 右から滑り込む
         QTimer.singleShot(ms, self.close_)
 
     def _place(self):
@@ -58,6 +59,9 @@ class Notice(QFrame):
         self.close_()
 
     def close_(self):
+        if getattr(self, "_closing", False):
+            return
+        self._closing = True
         self.window_.removeEventFilter(self)
-        self.hide()
-        self.deleteLater()
+        from chatdraw.motion import fade_out
+        fade_out(self, then=self.deleteLater)
