@@ -70,6 +70,21 @@ class Canvas(QGraphicsView):
     moved = Signal(int, int)    # カーソルのキャンバス上の位置（下の帯の座標に出す）  # 元に戻すの積み重ねが変わった（操作の履歴の欄を描き直す）
     used_color = Signal()       # 描く色で描き始めた（最近使った色に足す）
 
+    def drawBackground(self, painter, rect):
+        """絵の周りはテーマの模様。画面に貼り付けて描く（拡大や移動で模様が流れない）"""
+        if self.backdrop is None:
+            return super().drawBackground(painter, rect)
+        painter.save()
+        painter.resetTransform()
+        self.backdrop(painter, self.viewport().rect())
+        painter.restore()
+
+    def update_margins(self):
+        """紙の外だけを描き直す。動く模様のために、毎回紙の中（レイヤー）まで描き直さない"""
+        from PySide6.QtGui import QRegion
+        page = self.mapFromScene(self.sceneRect()).boundingRect()
+        self.viewport().update(QRegion(self.viewport().rect()).subtracted(QRegion(page)))
+
     def __init__(self):
         super().__init__()
         self.setScene(QGraphicsScene(self))
@@ -80,6 +95,7 @@ class Canvas(QGraphicsView):
         self.setMouseTracking(True)
         self.setFocusPolicy(Qt.StrongFocus)
         self.layers: list[Layer] = []
+        self.backdrop = None          # 絵の周りの模様を描く関数 (painter, 画面の四角)。None なら無地
         self.items: list[LayerItem] = []
         self.current = 0
         self.tool = "pen"

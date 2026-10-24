@@ -178,6 +178,8 @@ def _extend():
         COMMANDS.append(Command(f"ai_{name}", f"AI プリセット「{name}」にしました。描きたい絵を書いてください",
                                 f"use the AI preset {name}: {sub}", lambda w, a, n=name: w.ai_panel.apply_name(n),
                                 (f"{name}のプリセット", f"プリセットを{name}", f"{name}にして")))
+    COMMANDS.append(Command("edit_theme", "テーマを作る窓を開きます", "open the theme editor to change colors, pattern and effects",
+                            lambda w, a: w.edit_theme(), ("テーマを作", "色を変えたい", "テーマを編集")))
     COMMANDS.append(Command("draw_again", "もう一度描きます", "draw the last request again with a new seed",
                             lambda w, a: w.draw_again(), ("もう一度描", "描き直して")))
     COMMANDS.append(Command("save_ai_preset", "今の設定を AI プリセットに保存しました", "save the current AI settings as a preset",

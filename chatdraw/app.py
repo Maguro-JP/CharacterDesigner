@@ -32,7 +32,7 @@ import re  # noqa: E402
 from PySide6.QtCore import QObject, QSettings, QSize, Qt, QThread, Signal  # noqa: E402
 from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPalette, QPixmap  # noqa: E402
 from PySide6.QtWidgets import (QTabWidget, QApplication, QDockWidget, QFileDialog,  # noqa: E402
-                               QHBoxLayout, QLineEdit, QListWidget, QListWidgetItem, QMainWindow,
+                               QHBoxLayout, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox,
                                QCheckBox, QColorDialog, QComboBox, QFormLayout, QLabel, QProgressBar, QPushButton, QSlider, QSpinBox, QTextEdit, QToolBar, QVBoxLayout, QWidget)
 
 from PIL import Image  # noqa: E402
@@ -581,12 +581,7 @@ class Window(QMainWindow):
         view.addAction(QAction("回転を戻す", self, shortcut="Ctrl+\\", triggered=self.canvas.reset_rotation))
         from chatdraw import themes
         self.theme_menu = view.addMenu("テーマ")
-        self.theme_group = QActionGroup(self)
-        for name in themes.THEMES:
-            a = QAction(name, self, checkable=True, triggered=lambda _=False, n=name: self.set_theme(n))
-            a.setChecked(name == themes.current["name"])
-            self.theme_group.addAction(a)
-            self.theme_menu.addAction(a)
+        self.theme_menu.aboutToShow.connect(self._fill_theme_menu)
         self.ai_menu = self.menuBar().addMenu("AI")
         self.ai_menu.aboutToShow.connect(self._fill_ai_menu)
         self._fill_ai_menu()
@@ -675,8 +670,11 @@ class Window(QMainWindow):
         self.build_ribbon()
         self.build_bottom()
         self.build_layout_menu()
-        from chatdraw.themes import current as _theme
-        self.canvas.setBackgroundBrush(QColor(_theme["canvas"]))
+        from chatdraw import themes
+        from chatdraw.look import Look
+        themes.load_custom(self.layout_store)
+        self.look = Look(self)
+        self._look(themes.current)
         self._show_model()
         help_menu = self.menuBar().addMenu("ヘルプ")
         help_menu.addAction(QAction(icon("help"), "使い方ツアー", self, shortcut="F1", triggered=self.start_tour))
@@ -712,15 +710,58 @@ class Window(QMainWindow):
         self.entry.setText(self.last_text)
         self.send()
 
-    def set_theme(self, name: str):
-        """色のテーマを替えて覚える。アイコン・絵の周り・欄の色がそろって替わる"""
+    def _fill_theme_menu(self):
+        """決まったテーマ、自分のテーマ、テーマを作る・消す"""
         from chatdraw import themes
-        t = themes.apply(QApplication.instance(), name)
+        m = self.theme_menu
+        m.clear()
+        group = QActionGroup(m)
+        for name in themes.all_names():
+            if name == next(iter(themes.CUSTOM), None):
+                m.addSeparator()
+            a = QAction(name, m, checkable=True, triggered=lambda _=False, n=name: self.set_theme(n))
+            a.setChecked(name == themes.current["name"])
+            group.addAction(a)
+            m.addAction(a)
+        m.addSeparator()
+        m.addAction(QAction("テーマを作る…", m, triggered=self.edit_theme))
+        if themes.CUSTOM:
+            gone = m.addMenu("自分のテーマを消す")
+            for name in themes.CUSTOM:
+                gone.addAction(QAction(name, gone, triggered=lambda _=False, n=name: self.remove_theme(n)))
+
+    def _look(self, t: dict):
         self.canvas.setBackgroundBrush(QColor(t["canvas"]))
-        self.layout_store.setValue("theme", t["name"])
-        for a in self.theme_group.actions():
-            a.setChecked(a.text() == t["name"])
+        self.look.apply(t)
+
+    def set_theme(self, name: str):
+        """テーマ（色・模様・演出）を替えて覚える。アイコン・絵の周り・欄の色がそろって替わる"""
+        from chatdraw import look, themes
+
+        def change():
+            t = themes.apply(QApplication.instance(), name)
+            self._look(t)
+            self.layout_store.setValue("theme", t["name"])
+        look.crossfade(self, change)
         self.feature_tour("theme")
+        return themes.current
+
+    def preview_theme(self, t: dict):
+        """テーマを作る窓で替えている途中の色を、保存せずに当てる"""
+        from chatdraw import themes
+        self._look(themes.apply(QApplication.instance(), t))
+
+    def edit_theme(self):
+        from chatdraw.themeedit import ThemeEditor
+        self.feature_tour("theme_edit", lambda: ThemeEditor(self).exec())
+
+    def remove_theme(self, name: str):
+        from chatdraw import themes
+        if QMessageBox.question(self, "自分のテーマを消す", f"「{name}」を消します。よろしいですか") != QMessageBox.Yes:
+            return
+        if themes.current["name"] == name:
+            self.set_theme(themes.DEFAULT)
+        themes.remove_custom(self.layout_store, name)
 
     def say(self, text: str, who: str = "CharacterDesigner"):
         self.chat.append(f"<b>{who}</b>: {text}")
@@ -1382,8 +1423,10 @@ THEME = _qss()   # 既定のテーマ（chatdraw/themes.py）
 def dark(app: QApplication, name: str | None = None):
     """テーマの色を当てる。name が無ければ前に選んだテーマ（初めはナイト: 暗い灰色の地に赤とオレンジの差し色）"""
     from chatdraw import themes
+    store = QSettings("CharacterDesigner", "chatdraw")
+    themes.load_custom(store)
     if name is None:
-        name = QSettings("CharacterDesigner", "chatdraw").value("theme", themes.DEFAULT)
+        name = store.value("theme", themes.DEFAULT)
     return themes.apply(app, name)
 
 

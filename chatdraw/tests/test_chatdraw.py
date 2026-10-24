@@ -926,3 +926,59 @@ class ThemeTest(unittest.TestCase):
         from chatdraw import themes
         self.assertEqual(themes.current["name"], "ペーパー")
         self.w.set_theme(themes.DEFAULT)
+
+
+class ThemeLookTest(unittest.TestCase):
+    """テーマの模様・演出・自分のテーマ"""
+    def setUp(self):
+        from tempfile import mktemp
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Window
+        self.app = QApplication.instance() or QApplication([])
+        self.w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
+        self.w.layout_store = QSettings(mktemp(suffix=".ini"), QSettings.IniFormat)
+        self.w.layout_store.setValue("feature_tours", 0)
+
+    def test_every_pattern_paints_and_moves(self):
+        from PySide6.QtCore import QRect
+        from PySide6.QtGui import QImage, QPainter
+        from chatdraw import backdrop, themes
+        for kind in backdrop.PATTERNS:
+            t = themes.finish({"pattern": kind})
+            frames = []
+            for phase in (0.0, 1.5):
+                img = QImage(200, 120, QImage.Format_RGB32)
+                p = QPainter(img)
+                backdrop.paint(p, QRect(0, 0, 200, 120), t, phase)
+                p.end()
+                frames.append(img)
+            if kind in ("stars", "grid", "stripes", "neongrid", "gears", "leaves", "sunburst"):
+                self.assertNotEqual(frames[0], frames[1], f"{kind} が動かない")
+
+    def test_every_preset_has_pattern_and_gradient(self):
+        from chatdraw import themes
+        pats = {themes.THEMES[n]["pattern"] for n in themes.THEMES}
+        self.assertEqual(len(pats), len(themes.THEMES))                 # テーマごとに模様が違う
+        self.assertIn("stop:1 {bar2}", themes.TEMPLATE)
+
+    def test_custom_theme_save_apply_remove(self):
+        from chatdraw import themes
+        from chatdraw.themeedit import ThemeEditor
+        ed = ThemeEditor(self.w)
+        ed.set("a1", "#00ff00")
+        self.assertEqual(themes.current["a1"], "#00ff00")              # 替えるとその場で当たる
+        ed.reject()
+        self.assertEqual(themes.current["name"], themes.DEFAULT)      # やめると元に戻る
+        ed = ThemeEditor(self.w)
+        ed.set("a1", "#00ff00")
+        ed.set("pattern", "gears")
+        ed.save("緑の歯車")
+        self.assertEqual(themes.current["name"], "緑の歯車")
+        self.assertEqual(themes.current["pattern"], "gears")
+        themes.CUSTOM.clear()
+        themes.load_custom(self.w.layout_store)                          # 次に起動しても残る
+        self.assertIn("緑の歯車", themes.CUSTOM)
+        self.w.set_theme(themes.DEFAULT)
+        themes.remove_custom(self.w.layout_store, "緑の歯車")
+        self.assertNotIn("緑の歯車", themes.all_names())
