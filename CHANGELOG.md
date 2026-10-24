@@ -2,6 +2,11 @@
 
 版の番号は根の `VERSION` に 1 か所だけ置く。画面（`app/web/package.json`）、サーバー（`/openapi.json` の version）、Setup.exe の表示はそこに合わせる。
 
+## 0.2.8（2026-10-24）
+
+- Windows の窓（コンソール）の文字コードで日本語を書くと落ちていたのを直した
+- 組んだ Setup.exe を Windows の機械に入れ、起動・描く部品と模型の取得・1 枚描く・アンインストールを通す試験を Actions に足した（chatdraw-e2e）。アンインストールのあとに残った物が無いことも見る
+
 ## 0.2.7（2026-10-24）
 
 - 新しい世代の画像生成の模型を一覧に足した（FLUX.2 klein 4B、Z-Image Turbo、Qwen-Image 2512、Neta Lumina 1.0、Chroma1-HD、FLUX.1 schnell）。世代ごとに、模型の札にある部品・大きさ・工程の数・頼みの効きで描く。まだ絵の出来は確かめていない（「まだ確かめていない」の印が付く）
