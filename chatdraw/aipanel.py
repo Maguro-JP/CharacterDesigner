@@ -36,7 +36,7 @@ PRESETS: list[tuple[str, str, int, str, str, int]] = [
     ("イラスト", "場面の 1 枚を横長で", 0, "横", "厚塗り", 100),
     ("アイコン", "顔まわりを正方形で", 0, "正方形", "アニメ", 100),
     ("線画だけ", "塗らずに線で描く", 0, "縦", "線画", 100),
-    ("赤ペンで直す", "囲んだ所を指示どおりに", 2, "縦", "おまかせ", 75),
+    ("赤ペンで直す", "囲んだ所を指示どおりに", 2, "縦", "おまかせ", 45),
 ]
 PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background", "アイコン": "portrait, upper body, looking at viewer"}
 

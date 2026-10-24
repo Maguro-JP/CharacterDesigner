@@ -1291,7 +1291,9 @@ class Window(QMainWindow):
         self.size_pick.setEnabled(i == 0)          # 元に描くときはキャンバスの大きさで描く
         self.strength.setEnabled(i in (1, 2))
         self.strength_label.setEnabled(i in (1, 2))
-        self.strength.setToolTip("直す強さ。大きいほど元の絵から離れて描き直す" if i == 2 else
+        if i == 2 and self.strength.value() > 60:
+            self.strength.setValue(45)   # 直すときは元の絵を土台に少しだけ変える（微調整）。足りなければもう一度直す
+        self.strength.setToolTip("直す強さ。小さいほど元の絵のまま少しだけ直す" if i == 2 else
                                  "ラフに沿う強さ。大きいほどラフの線の形どおりに描く")
 
     def fail(self, why: str):

@@ -148,14 +148,6 @@ def sketch_lines(base, size):
     return out.convert("RGB")
 
 
-def work_size(size, family: str):
-    """切り出した所を描く大きさ。縦横比はそのまま、模型の得意な画素数に合わせ、8 の倍数にする"""
-    area = 1024 * 1024 if family != "sd15" else 512 * 640
-    w, h = size
-    k = (area / max(1, w * h)) ** 0.5
-    return max(64, round(w * k / 8) * 8), max(64, round(h * k / 8) * 8)
-
-
 class Stopped(Exception):
     """利用者が「止める」を押した"""
 
@@ -302,12 +294,13 @@ class Painter:
             raise Stopped("止めました")
         return out
 
-    def redraw(self, prompt: str, seed: int, image, mask, strength: float = 0.75, on_step=None, reference=None,
+    def redraw(self, prompt: str, seed: int, image, mask, strength: float = 0.45, on_step=None, reference=None,
                ref_scale: float = 0.6):
-        """image（PIL）を、mask（PIL の L、白が直す所）を手がかりに、絵全体ごと描き直して返す。
+        """image（PIL）の mask（PIL の L、白が直す所）の中だけを、元の絵を土台に少しだけ直して返す（微調整）。
 
-        直す所だけを切り出して描き、元の絵に貼り戻す形はとらない。切り貼りした所は、周りと光・線・形がつながらず、
-        崩れの元になる。絵全体を 1 枚として模型に渡し、つながりは模型の描き直しの中で決めさせる。
+        元の絵は縮めも広げもせず、そのままの大きさで模型に渡す。直す所の外の画素は 1 つも変えない。
+        直す所を切り出して別に描いて貼る形も、絵全体を描き直す形もとらない（どちらも元の絵が崩れた）。
+        strength が小さいほど元の絵に近いまま直す。足りなければ同じ所をもう一度直す。
         """
         import torch
         from PIL import Image
@@ -318,7 +311,13 @@ class Painter:
             from diffusers import AutoPipelineForInpainting
             self._inpaint = AutoPipelineForInpainting.from_pipe(pipe)   # 読んだ模型の部品をそのまま使う
         self.stop = False
-        w, h = work_size(image.size, info.family)
+        w, h = image.size
+        # 模型は 8 の倍数の大きさしか受けないので、右と下の端を写して足すだけにする（縮めも広げもしない）
+        base = Image.new("RGB", (w + (-w % 8), h + (-h % 8)))
+        base.paste(image.convert("RGB").resize(base.size, Image.NEAREST))
+        base.paste(image.convert("RGB"), (0, 0))
+        mask_in = Image.new("L", base.size, 0)
+        mask_in.paste(mask, (0, 0))
         args = dict(prompt=f"{info.prefix}{prompt}, masterpiece, best quality", negative_prompt="lowres, worst quality, low quality" + (f", {self.avoid}" if self.avoid else ""),
                     num_inference_steps=self.steps, guidance_scale=self.guidance, strength=strength,
                     generator=torch.Generator(pipe.device).manual_seed(seed))
@@ -332,11 +331,14 @@ class Painter:
             return kw
         args["callback_on_step_end"] = step
         self._use_reference(self._inpaint, reference, ref_scale, args)
-        out = self._inpaint(image=image.convert("RGB").resize((w, h), Image.LANCZOS), mask_image=mask.resize((w, h), Image.LANCZOS),
-                            width=w, height=h, **args).images[0]
+        out = self._inpaint(image=base, mask_image=mask_in, width=base.width, height=base.height, **args).images[0]
         if self.stop:
             raise Stopped("止めました")
-        return out.resize(image.size, Image.LANCZOS)
+        out = out.crop((0, 0, w, h))
+        # 直す所の外は元の画素のまま残す。境目は直す所の内側でだけなじませる（外へはにじませない）
+        from PIL import ImageChops, ImageFilter
+        inner = ImageChops.multiply(mask.filter(ImageFilter.MinFilter(9)).filter(ImageFilter.GaussianBlur(3)), mask)
+        return Image.composite(out, image.convert("RGB"), inner)
 
 
 class Studio:

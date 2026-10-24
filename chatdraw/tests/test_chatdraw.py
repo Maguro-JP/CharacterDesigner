@@ -1117,10 +1117,28 @@ class FixAndBatchTest(unittest.TestCase):
         self.assertEqual(self.painter.kw["reference"].getpixel((0, 0)), (0, 0, 255))
         self.assertAlmostEqual(self.painter.kw["ref_scale"], 0.8)
 
-    def test_work_size(self):
-        from chatdraw.engine import work_size
-        w, h = work_size((1000, 800), "sdxl")
-        self.assertTrue(w % 8 == 0 and h % 8 == 0 and 0.8e6 < w * h < 1.2e6)
+    def test_redraw_keeps_picture_outside_marks(self):
+        """直すのは囲んだ所の中だけ。元の絵は縮めも広げもせず、外の画素は 1 つも変えない"""
+        from types import SimpleNamespace
+        from PIL import Image, ImageChops
+        from chatdraw.engine import Painter
+        seen = {}
+
+        def fake(**kw):
+            seen.update(size=kw["image"].size, strength=kw["strength"])
+            return SimpleNamespace(images=[Image.new("RGB", kw["image"].size, "red")])
+        p = Painter("x")
+        p._pipe, p._inpaint = SimpleNamespace(device="cpu"), fake
+        img = Image.effect_noise((203, 157), 60).convert("RGB")
+        m = Image.new("L", img.size, 0)
+        m.paste(255, (60, 40, 140, 120))
+        out = p.redraw("smile", 1, img, m)
+        self.assertEqual(out.size, img.size)
+        self.assertEqual(seen["size"], (208, 160))                    # 8 の倍数へは端を足すだけ
+        self.assertLess(seen["strength"], 0.5)                        # 既定は少しだけ直す
+        outside = ImageChops.multiply(ImageChops.difference(out, img).convert("L"), Image.eval(m, lambda v: 255 - v))
+        self.assertEqual(outside.getbbox(), None)                     # 外は元のまま
+        self.assertEqual(out.getpixel((100, 80)), (255, 0, 0))        # 中は直っている
 
     @unittest.skipUnless(__import__("chatdraw.upscale", fromlist=["ready"]).ready(), "拡大の重みが手元に無い")
     def test_upscale_doubles_canvas(self):
