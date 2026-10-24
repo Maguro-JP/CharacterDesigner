@@ -221,7 +221,6 @@ class Window(QMainWindow):
         file.addAction(QAction("新規キャンバス", self, shortcut="Ctrl+N", triggered=lambda: self.canvas.new_canvas()))
         file.addAction(QAction("開く…", self, shortcut="Ctrl+O", triggered=self.open_image))
         file.addAction(QAction("名前を付けて保存…", self, shortcut="Ctrl+S", triggered=self.save_as))
-        file.addAction(QAction("模型を取る…", self, triggered=lambda: self.ask_models(force=True)))
         file.addSeparator()
         file.addAction(QAction("終了", self, shortcut="Ctrl+Q", triggered=self.close))
         edit = self.menuBar().addMenu("編集")
@@ -388,6 +387,7 @@ class Window(QMainWindow):
         view.addAction(QAction("回転を戻す", self, shortcut="Ctrl+\\", triggered=self.canvas.reset_rotation))
         setting_menu = self.menuBar().addMenu("設定")
         setting_menu.addAction(QAction("設定…", self, shortcut="Ctrl+,", triggered=self.open_settings))
+        setting_menu.addAction(QAction("模型の管理（入れ替え・更新）…", self, triggered=lambda: self.ask_models(force=True)))
         sel = self.menuBar().addMenu("選択範囲")
         sel.addAction(QAction("すべてを選択", self, shortcut="Ctrl+A", triggered=self.canvas.select_all))
         sel.addAction(QAction("選択を解除", self, shortcut="Ctrl+D", triggered=lambda: self.canvas.set_selection(None)))
@@ -516,11 +516,14 @@ class Window(QMainWindow):
             self.statusBar().showMessage("設定を保存しました")
 
     def ask_models(self, force: bool = False):
-        """描くのに要る模型が足りなければ、取るかどうかを聞く"""
+        """初めての起動か、絵の模型が足りなければ、候補を見せて選んでもらう。force なら入れ替えと更新の画面を開く"""
         from chatdraw.setup import SetupDialog, missing
-        need = missing()
-        if any(need.values()) or force:
-            SetupDialog(need, self).exec()
+        first = not int(self.settings.store.value("setup_done", 0))
+        if not (force or first or missing()["image"]):
+            return
+        if SetupDialog(self.settings, self, first=not force).exec():
+            self.studio = self._studio_from_settings()   # 選んだ模型で描き直す
+            self.check_ai()
 
     def show_preview(self, img):
         """AI が描いている途中の絵を、工程ごとにキャンバスの上に重ねて見せる（録画はしない）"""
@@ -743,6 +746,18 @@ QLabel#sectionHead { font-weight: 600; color: #c9c9cf; padding-top: 6px; }
 QLabel#step { border-radius: 2px; padding: 0; background: #1f2024; color: #6c6d73; }
 QLabel#step[state="done"] { background: #2e2224; color: #ffb38a; }
 QLabel#step[state="now"] { color: #ffffff; background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ff7a1a, stop:1 #e5322d); }
+QDialog { background: #17181b; }
+QLabel#dialogTitle { font-size: 18px; font-weight: 700; color: #ffffff; padding: 4px 0; }
+QFrame#card { background: #1f2024; border: 1px solid #2c2d33; border-radius: 10px; }
+QFrame#card:hover { border-color: #ff7a1a; }
+QLabel#cardGood { color: #e8e8ea; }
+QLabel#cardMeta { color: #8e8e95; }
+QLabel#badge { color: #7ccf5a; font-size: 11px; }
+QLabel#badgeHot { color: #ffffff; font-size: 11px; padding: 1px 8px; border-radius: 8px; background: #e5322d; }
+QLabel#stepNum { color: #ffffff; font-weight: 700; border-radius: 14px; background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ff7a1a, stop:1 #e5322d); }
+QRadioButton { font-weight: 600; }
+QRadioButton::indicator { width: 14px; height: 14px; border-radius: 7px; border: 1px solid #45464d; background: #1f2024; }
+QRadioButton::indicator:checked { background: #ff7a1a; border-color: #ff7a1a; }
 QStatusBar { background: #111214; color: #9a9aa1; }
 QScrollBar:vertical { background: transparent; width: 10px; }
 QScrollBar::handle:vertical { background: #34353b; border-radius: 4px; min-height: 30px; margin: 2px; }

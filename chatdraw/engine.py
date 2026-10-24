@@ -11,9 +11,6 @@ ROOT = Path(__file__).resolve().parents[1]
 HOME = Path(os.environ.get("CD_HOME") or ROOT / ".cache")
 IMAGE_MODEL = os.environ.get("CD_IMAGE_MODEL", "cagliostrolab/animagine-xl-4.0")
 WORDS_MODEL = HOME / "llm" / "model.gguf"
-# 絵の模型のうち、描くのに使う物だけ（1 枚にまとめた重みや fp16 の写しは取らない。約 7GB で済む）
-MODEL_FILES = dict(allow_patterns=["*.json", "*.txt", "unet/*.safetensors", "vae/*.safetensors", "text_encoder*/*.safetensors"],
-                   ignore_patterns=["*.fp16.*", "*.bin"])
 # ラフ（線の下描き）の形に沿って描かせる部品。元の絵を描き直す img2img では、ラフの線がそのまま残って絵にならなかった
 SKETCH_ADAPTER = "TencentARC/t2i-adapter-sketch-sdxl-1.0"
 SKETCH_FILES = dict(allow_patterns=["*.json", "*.fp16.safetensors"])
@@ -47,7 +44,7 @@ class Words:
         self._llm = None
 
     def ready(self) -> bool:
-        return self.path.exists()
+        return self.path.is_file()   # 「使わない」を選ぶと空の名前になる
 
     def to_prompt(self, text: str) -> str:
         if not has_japanese(text) or not self.ready():
@@ -142,7 +139,9 @@ class Painter:
         """模型が手元にそろっているか（取りに行かずに確かめる）"""
         try:
             from huggingface_hub import snapshot_download
-            snapshot_download(self.model, cache_dir=str(HOME / "gen" / "hf" / "hub"), local_files_only=True, **MODEL_FILES)
+            from chatdraw.models import image_model
+            snapshot_download(self.model, cache_dir=str(HOME / "gen" / "hf" / "hub"), local_files_only=True,
+                              **image_model(self.model).files)
             return True
         except Exception:
             return False
@@ -162,7 +161,9 @@ class Painter:
             # CPU では bfloat16、GPU では float16 で読む。float32 で読むと 16GB のパソコンでメモリが尽きた
             dtype = torch.float16 if torch.cuda.is_available() else torch.bfloat16
             # 模型の種類（SDXL、SD1.5 など）は model_index.json から決まる
-            self._pipe = AutoPipelineForText2Image.from_pretrained(self.model, torch_dtype=dtype,
+            from chatdraw.models import image_model
+            variant = image_model(self.model).variant
+            self._pipe = AutoPipelineForText2Image.from_pretrained(self.model, torch_dtype=dtype, variant=variant,
                                                                    cache_dir=str(HOME / "gen" / "hf" / "hub"))
             if torch.cuda.is_available():
                 self._pipe.to("cuda")

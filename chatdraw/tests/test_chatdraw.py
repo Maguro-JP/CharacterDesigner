@@ -356,5 +356,36 @@ class ColorPanelTest(unittest.TestCase):
         self.assertEqual(panel.recent, ["#ffffff"])
 
 
+class SetupTest(unittest.TestCase):
+    def test_choose_models_writes_settings(self):
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.models import IMAGES, WORDS
+        from chatdraw.settings import Settings
+        from chatdraw.setup import SetupDialog
+        QApplication.instance() or QApplication([])
+        with TemporaryDirectory() as d:
+            st = Settings(QSettings(str(Path(d) / "s.ini"), QSettings.IniFormat))
+            dlg = SetupDialog(st, first=True)
+            image, words = dlg.chosen()
+            self.assertTrue(image.recommended and words.recommended)          # 初めはおすすめが選ばれている
+            dlg.image_radios[IMAGES[2].repo].setChecked(True)                   # 速い模型に替える
+            dlg.no_words.setChecked(True)
+            dlg.apply()
+            self.assertEqual(st.get("image_model"), IMAGES[2].repo)
+            self.assertEqual(st.get("steps"), IMAGES[2].steps)                  # 模型に合う工程の数になる
+            self.assertEqual(st.get("words_model"), "")
+            self.assertEqual(int(st.store.value("setup_done")), 1)
+            again = SetupDialog(st, first=False)                                # 入れ替えの画面は今の選択を出す
+            self.assertTrue(again.image_radios[IMAGES[2].repo].isChecked())
+            self.assertTrue(again.no_words.isChecked())
+            self.assertEqual(len(WORDS), 3)
+
+    def test_unused_words_model_passes_request_through(self):
+        from chatdraw.engine import Words
+        self.assertFalse(Words(Path("")).ready())
+        self.assertEqual(Words(Path("")).to_prompt("騎士"), "騎士")
+
+
 if __name__ == "__main__":
     unittest.main()
