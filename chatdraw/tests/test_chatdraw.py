@@ -736,6 +736,48 @@ class LayoutsTest(unittest.TestCase):
             self.assertEqual(L.saved_names(store), [])
 
 
+class FeatureTourTest(unittest.TestCase):
+    def test_every_feature_has_a_tour_shown_once_on_first_use(self):
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication
+        from chatdraw import tours
+        from chatdraw.app import TOOLS, Window
+        app = QApplication.instance() or QApplication([])
+        with TemporaryDirectory() as d:
+            w = Window(Studio(FakeWords(), FakePainter(), Path(d)))
+            w.layout_store = QSettings(str(Path(d) / "l.ini"), QSettings.IniFormat)
+            w.resize(1400, 900)
+            w.show()
+            w.arrange()
+            cat = tours.catalog(w)
+            for key, _l, _s in TOOLS:                                     # すべての道具とすべての欄に案内がある
+                if key:
+                    self.assertIn(key, cat)
+            for key in w.panels:
+                self.assertIn(key, cat)
+            for key in ("layout_save", "layout_export", "draw", "rough", "model", "manager"):
+                self.assertIn(key, cat)
+            w.tool_actions["blur"].trigger()                              # 初めて使うと出る
+            self.assertTrue(w.tour.isVisible())
+            self.assertIn("ぼかし", w.tour.title.text())
+            w.tour.finish()
+            app.processEvents()
+            first = w.tour
+            w.tool_actions["blur"].trigger()                              # 2 回目は出さない
+            self.assertIs(w.tour, first)
+            ran = []
+            self.assertTrue(w.feature_tour("layout_save", lambda: ran.append(1)))
+            self.assertEqual(ran, [])                                     # 案内を閉じてから保存の窓を開く
+            w.tour.next.click()
+            self.assertEqual(ran, [1])
+            w.layout_store.setValue("feature_tours", 0)                   # 出さない設定
+            self.assertFalse(w.feature_tour("layout_export", lambda: ran.append(2)))
+            self.assertEqual(ran, [1, 2])
+            w.layout_store.setValue("feature_tours", 1)
+            tours.reset(w)
+            self.assertFalse(tours.seen(w, "blur"))                        # もう一度出るようにできる
+
+
 class FitSizeTest(unittest.TestCase):
     def test_rough_size_keeps_canvas_ratio(self):
         from chatdraw.app import fit_size

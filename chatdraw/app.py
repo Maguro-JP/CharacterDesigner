@@ -447,6 +447,7 @@ class Window(QMainWindow):
         for key, _label, _s in TOOLS:
             if key:
                 self.tool_actions[key].triggered.connect(lambda _=False, k=key: self._tool_changed(k))
+                self.tool_actions[key].triggered.connect(lambda _=False, k=key: self.feature_tour(k))
         self._tool_changed("pen")
 
         # 左上: 色（色相・彩度と明度・16 進・描く色と背景色・見本・最近使った色）
@@ -607,6 +608,7 @@ class Window(QMainWindow):
             act.setShortcut(keys[k])
             act.setIcon(icon(icons[k]))
             act.setToolTip(f"{d.windowTitle()}（{keys[k]}）")
+            act.triggered.connect(lambda on, k=k: on and self.feature_tour(k))
             win.addAction(act)
             bar.addAction(act)
         tact = tools.toggleViewAction()
@@ -649,6 +651,17 @@ class Window(QMainWindow):
         self._show_model()
         help_menu = self.menuBar().addMenu("ヘルプ")
         help_menu.addAction(QAction(icon("help"), "使い方ツアー", self, shortcut="F1", triggered=self.start_tour))
+        from chatdraw import tours
+        each = help_menu.addMenu("機能ごとの案内")
+        for key, (name, _steps) in tours.catalog(self).items():
+            each.addAction(QAction(name, self, triggered=lambda _=False, k=key: tours.show(self, k, force=True)))
+        help_menu.addSeparator()
+        auto = QAction("機能を初めて使うときに案内を出す", self, checkable=True)
+        auto.setChecked(tours.enabled(self))
+        auto.toggled.connect(lambda on: self.layout_store.setValue("feature_tours", int(on)))
+        help_menu.addAction(auto)
+        help_menu.addAction(QAction("機能の案内をもう一度出す", self, triggered=lambda: (tours.reset(self),
+                                                                                       self.notify("次に使うときに、また案内します", "ok"))))
         self._ribbon_toggle.addAction(self.ribbon_bar.toggleViewAction())
         self._bars_menu.addAction(self.bottom_bar.toggleViewAction())
         for name, tb in (("下の帯", self.bottom_bar), ("道具の設定の帯", self.options)):
@@ -697,6 +710,7 @@ class Window(QMainWindow):
         self.say(text, "あなた")
         self.button.setEnabled(False)
         self.stop_button.setEnabled(True)
+        self.feature_tour("draw")
         self.panels["progress"][0].show()   # 描いている間は、工程と進みが見えるように進みの欄を出す
         self.activity.begin(text, self.mode.currentText())
         self.activity.status("AI が使えるかを確かめました")
@@ -817,12 +831,15 @@ class Window(QMainWindow):
         menu.addAction(QAction("模型の管理…", self, triggered=self.manage_models))
 
     def manage_models(self):
+        if self.feature_tour("manager", self.manage_models):
+            return
         from chatdraw.manager import ModelManager
         ModelManager(self.settings, self).exec()
         self.studio = self._studio_from_settings()
         self.check_ai()
 
     def switch_model(self, kind: str, key: str):
+        self.feature_tour("model")
         """メニューで選んだ模型に替える。取っていなければ取ってから替える。消すことはしない"""
         from chatdraw.models import IMAGES, WORDS
         from chatdraw.setup import AUTO, SetupDialog, has_image, has_words, words_path
@@ -872,6 +889,8 @@ class Window(QMainWindow):
         self.statusBar().showMessage("止めています")
 
     def _mode_changed(self, i: int):
+        if i == 1 and hasattr(self, "layout_store"):
+            self.feature_tour("rough")
         self.size_pick.setEnabled(i == 0)          # 元に描くときはキャンバスの大きさで描く
         self.strength.setEnabled(i == 1)
         self.strength_label.setEnabled(i == 1)
@@ -952,7 +971,8 @@ class Window(QMainWindow):
         def fill():
             menu.clear()
             for name, fn in L.PRESETS.items():
-                menu.addAction(QAction(name, self, triggered=lambda _=False, fn=fn: self.apply_layout(fn)))
+                menu.addAction(QAction(name, self, triggered=lambda _=False, fn=fn: self.feature_tour(
+                    "layout", lambda fn=fn: self.apply_layout(fn))))
             menu.addSeparator()
             for label, where in (("左に寄せる", "left"), ("右に寄せる", "right"), ("真ん中に寄せる（絵を中央に）", "center")):
                 menu.addAction(QAction(label, self, triggered=lambda _=False, w=where: self.apply_layout(L.align, w)))
@@ -975,7 +995,7 @@ class Window(QMainWindow):
                 if ok and name.strip():
                     L.save(self, self.layout_store, name.strip())
                     self.notify(f"「{name.strip()}」として保存しました", "ok")
-            menu.addAction(QAction("今の配置を保存…", self, triggered=save))
+            menu.addAction(QAction("今の配置を保存…", self, triggered=lambda: self.feature_tour("layout_save", save)))
             menu.addSeparator()
 
             def export():
@@ -989,8 +1009,8 @@ class Window(QMainWindow):
                 if path:
                     name = L.import_(self, path)
                     self.notify(f"「{name}」の配置にしました" if name else "読み込めませんでした", "ok" if name else "error")
-            menu.addAction(QAction("配置を書き出す…", self, triggered=export))
-            menu.addAction(QAction("配置を読み込む…", self, triggered=import_))
+            menu.addAction(QAction("配置を書き出す…", self, triggered=lambda: self.feature_tour("layout_export", export)))
+            menu.addAction(QAction("配置を読み込む…", self, triggered=lambda: self.feature_tour("layout_export", import_)))
         menu.aboutToShow.connect(fill)
         fill()
 
@@ -1119,6 +1139,7 @@ class Window(QMainWindow):
     def move_panel(self, dock: QDockWidget, area):
         """欄を左・右・下・上のどこかへ移す。移した先で中身をふわっと出す"""
         from chatdraw.motion import fade_in
+        self.feature_tour("panel_place")
         dock.setFloating(False)
         self.addDockWidget(area, dock)
         dock.show()
@@ -1126,6 +1147,7 @@ class Window(QMainWindow):
             fade_in(dock.widget())
 
     def place_bar(self, bar: QToolBar, area):
+        self.feature_tour("bars")
         self.addToolBar(area, bar)
         bar.show()
 
@@ -1149,8 +1171,15 @@ class Window(QMainWindow):
             Step(lambda: self.ribbon, "リボン", "よく使う操作をタブごとに並べています。\n開いているタブをもう一度押すと畳めます。"),
             Step(lambda: self.panel_bar, "欄の帯", "欄を出す・隠すアイコンです。\n帯はドラッグで上下左右へ動かせます。"),
             Step(lambda: self.bottom_bar, "下の帯とステータスバー", "下の帯で拡大と元に戻すを操作します。\nいちばん下には道具・位置・大きさ・AI の状態が出ます。"),
-            Step(lambda: self.menuBar(), "配置とメニュー", "「配置」で決まった配置・寄せ・等分・自分の配置の保存ができます。\nこの案内は「ヘルプ」からいつでも見られます。"),
+            Step(lambda: self.menuBar(), "配置", "「配置」で、決まった配置・寄せ・3 等分や 5 等分に切り替えます。\n欄の境目はドラッグで広げ縮めできます。"),
+            Step(lambda: self.menuBar(), "配置の保存と書き出し", "「今の配置を保存」で名前を付けて残し、「自分の配置」から戻せます。\n「書き出す・読み込む」で配置をファイルにして持ち運べます。"),
+            Step(lambda: None, "機能ごとの案内", "機能を初めて使うときにも、その機能の案内が出ます。\n「ヘルプ」から見直したり、出さないようにしたりできます。"),
         ]
+
+    def feature_tour(self, key: str, then=None) -> bool:
+        """機能を初めて使うときの案内（chatdraw/tours.py）。出したら閉じたあとに then を呼ぶ"""
+        from chatdraw import tours
+        return tours.show(self, key, then)
 
     def start_tour(self):
         from chatdraw.tour import Tour
@@ -1249,12 +1278,16 @@ class Window(QMainWindow):
             self.canvas.add_image_layer(path, Path(path).stem)
 
     def open_image(self):
+        if self.feature_tour("open", self.open_image):
+            return
         path, _ = QFileDialog.getOpenFileName(self, "開く", "", "画像 (*.png *.jpg *.jpeg *.webp)")
         if path:
             self.canvas.show_image(path)
 
     def save_as(self):
         if not self.canvas.layers:
+            return
+        if self.feature_tour("save", self.save_as):
             return
         dst, _ = QFileDialog.getSaveFileName(self, "名前を付けて保存", "drawing.png", "PNG (*.png)")
         if dst:

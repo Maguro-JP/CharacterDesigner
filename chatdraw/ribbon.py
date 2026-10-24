@@ -64,6 +64,9 @@ class Ribbon(QTabWidget):
             self.set_collapsed(False)
         elif i == self.currentIndex():
             self.set_collapsed(True)
+            win = self.window()
+            if hasattr(win, "feature_tour"):
+                win.feature_tour("ribbon")
 
     def set_collapsed(self, on: bool):
         """畳む・広げる。高さを動かして見せる"""
