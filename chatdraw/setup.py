@@ -224,7 +224,7 @@ class SetupDialog(QDialog):
         lay.addWidget(hint)
         self.only_rec = QCheckBox("推奨だけ表示")
         self.only_rec.setChecked(True)
-        self.only_rec.setToolTip("外すと、動作を確かめたほかの模型も出します")
+        self.only_rec.setToolTip("外すと、一覧のほかの模型も出します。まだ確かめていない模型には印を付けます")
         self.only_rec.toggled.connect(self._relayout)
         lay.addWidget(self.only_rec)
         self.sections: list[tuple[QGridLayout, list[tuple[QFrame, bool]]]] = []
@@ -237,23 +237,37 @@ class SetupDialog(QDialog):
         lay.addWidget(head)
         self.image_group = QButtonGroup(self)
         self.image_radios: dict[str, QRadioButton] = {}
-        grid = QGridLayout()
+        # 札が多い（30 余り）ので、札の並びだけを流す。窓が画面より縦に長くならないように
+        from PySide6.QtWidgets import QScrollArea
+        holder = QWidget()
+        grid = QGridLayout(holder)
         grid.setSpacing(8)
-        lay.addLayout(grid)
+        grid.setContentsMargins(0, 0, 0, 0)
+        box = QScrollArea()
+        box.setWidget(holder)
+        box.setWidgetResizable(True)
+        box.setFrameShape(QScrollArea.NoFrame)
+        box.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        box.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        lay.addWidget(box, 1)
         r = QRadioButton("おまかせ")
         r.setChecked(now_image == AUTO)
         self.image_group.addButton(r)
         self.image_radios[AUTO] = r
         cards = [(card(r, "頼みに合う物を AI が選ぶ", "", False, False), True)]
-        # 出すのは動作を確かめた模型だけ（取っていなくても出す）。点の届いた物が推奨で、いちばん高い物を「おすすめ」にする
-        images = verified_images()
+        # 初めは推奨（点の届いた物）だけを出す。「推奨だけ表示」を外すと、一覧のほかの模型も取れる（まだ確かめていない物は印を付ける）。
+        # いちばん点の高い物を「おすすめ」にする
+        checked = verified_images()
+        best_repo = checked[0].repo if checked else None
+        images = checked + sorted((m for m in IMAGES if m.score <= 0), key=lambda m: m.name.lower())
         for m in images:
-            best = m is images[0]
+            best = m.repo == best_repo
             r = QRadioButton(m.name)
             r.setChecked(m.repo == now_image if now_image else best)
             self.image_group.addButton(r)
             self.image_radios[m.repo] = r
-            cards.append((card(r, m.good, f"{m.gb:.0f}GB", has_image(m), best), m.score >= PASS))
+            meta = f"{m.gb:.0f}GB" + ("" if m.score > 0 else "・まだ確かめていない")
+            cards.append((card(r, m.good, meta, has_image(m), best), m.score >= PASS))
         self.sections.append((grid, cards))
 
         # 言葉の模型は性能で決まるので選ばせない。確かめていちばん点の高い物を自動で使う
