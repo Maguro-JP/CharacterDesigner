@@ -15,7 +15,7 @@ FIELDS = [
     ("words_model", "言葉の模型", "模型", "words_model", str(HOME / "llm" / "model.gguf"), "日本語の頼みを描く言葉に直す模型（.gguf）"),
     ("steps", "描く工程の数", "描き方", "int:4:80", 24, "多いほど細かく描けて、時間がかかる"),
     ("guidance", "頼みの効き", "描き方", "float:1:15", 5.0, "大きいほど頼みの言葉に寄せる"),
-    ("rough_follow", "ラフに沿う強さ", "描き方", "float:0.3:1", 0.7, "大きいほどラフの線の形に沿う。小さいほど AI が形を変える"),
+    ("rough_follow", "ラフに沿う強さ", "描き方", "float:0.3:1", 1.0, "大きいほどラフの線の形に沿う。小さいほど AI が形を変える"),
     ("output_dir", "描いた絵の保存先", "保存", "dir", str(Path.home() / "Pictures" / "CharacterDesigner"), ""),
 ]
 

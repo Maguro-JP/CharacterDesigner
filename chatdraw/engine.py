@@ -168,7 +168,7 @@ class Painter:
                 self._pipe.to("cuda")
         return self._pipe
 
-    def paint(self, prompt: str, seed: int, on_step=None, base=None, strength: float = 0.7, size=None, on_preview=None):
+    def paint(self, prompt: str, seed: int, on_step=None, base=None, strength: float = 1.0, size=None, on_preview=None):
         """base（PIL のラフ）を渡すと、その線の形に沿って描く。strength が大きいほどラフに沿う"""
         import torch
         pipe = self.load()
@@ -228,7 +228,7 @@ class Studio:
         self.painter = painter or Painter()
         self.out = out or Path(os.environ.get("CD_OUTPUT") or Path.home() / "Pictures" / "CharacterDesigner")
 
-    def draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 0.7, size=None,
+    def draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
              on_preview=None) -> tuple[str, Path]:
         say = on_status or (lambda msg: None)
         if refused(text):
