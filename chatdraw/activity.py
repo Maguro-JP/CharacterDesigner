@@ -12,6 +12,9 @@ STAGES = (("確かめる", "AI が使えるか"), ("言葉", "頼みを描く言
           ("描く", "描いて"), ("置く", "キャンバスに置"))
 
 
+STAGE_TITLE = {0: "確認中", 1: "言葉に変換中", 2: "模型を準備中", 3: "描画中", 4: "仕上げ中"}
+
+
 def fmt(sec: float) -> str:
     sec = int(sec)
     return f"{sec // 60}分{sec % 60:02d}秒" if sec >= 60 else f"{sec}秒"
@@ -20,27 +23,33 @@ def fmt(sec: float) -> str:
 class ActivityPanel(QWidget):
     def __init__(self):
         super().__init__()
-        self.state = QLabel("待っています")
+        self.state = QLabel("待機中")
         self.state.setObjectName("stateTitle")
         self.detail = QLabel("頼みを書いて「AI で描く」を押してください")
         self.detail.setObjectName("stateDetail")
         self.detail.setWordWrap(True)
+        self.detail.setVisible(False)   # 詳しい言葉はカーソルを重ねたときだけ出す
         self.steps = QHBoxLayout()
         self.steps.setSpacing(4)
         self.step_labels = []
-        for short, _ in STAGES:
-            lb = QLabel(short)
+        for short, head in STAGES:
+            lb = QLabel("")
+            lb.setFixedHeight(4)
+            lb.setToolTip(short)
             lb.setAlignment(Qt.AlignCenter)
             lb.setObjectName("step")
             self.step_labels.append(lb)
             self.steps.addWidget(lb)
         self.bar = QProgressBar()
         self.bar.setTextVisible(False)
-        self.bar.setFixedHeight(8)
+        self.bar.setFixedHeight(6)
         self.time = QLabel("")
         self.time.setObjectName("stateDetail")
         self.list = QListWidget()
-        self.list.setIconSize(QSize(64, 92))
+        self.list.setViewMode(QListWidget.IconMode)
+        self.list.setIconSize(QSize(84, 122))
+        self.list.setResizeMode(QListWidget.Adjust)
+        self.list.setMovement(QListWidget.Static)
         self.list.setSpacing(2)
         self.list.setWordWrap(True)
         self.list.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
@@ -52,9 +61,6 @@ class ActivityPanel(QWidget):
         lay.addWidget(self.bar)
         lay.addWidget(self.detail)
         lay.addWidget(self.time)
-        head = QLabel("履歴")
-        head.setObjectName("sectionHead")
-        lay.addWidget(head)
         lay.addWidget(self.list, 1)
         self.started: float | None = None
         self.step_started: float | None = None
@@ -77,8 +83,8 @@ class ActivityPanel(QWidget):
     def begin(self, text: str, mode: str):
         self.started = time.time()
         self.text, self.mode = text, mode
-        self.state.setText("AI が描いています")
-        self.detail.setText(f"{mode}: {text}")
+        self.state.setText("準備中")
+        self.setToolTip(f"{mode}\n{text}")
         self.bar.setRange(0, 0)   # 工程の数が分かるまでは動く帯にする
         self._mark(0)
         self.tick.start()
@@ -93,7 +99,8 @@ class ActivityPanel(QWidget):
             self.bar.setRange(0, total)
             self.bar.setValue(step)
             self.steps_done, self.steps_total = step, total
-        self.detail.setText(f"{msg}\n{self.mode}: {self.text}")
+        self.state.setText(STAGE_TITLE.get(self.stage, "準備中") + (f"  {step}/{total}" if step is not None and total else ""))
+        self.setToolTip(f"{msg}\n{self.mode}\n{self.text}")
         self._show_time()
 
     def _show_time(self):
@@ -101,21 +108,22 @@ class ActivityPanel(QWidget):
             self.time.setText("")
             return
         took = time.time() - self.started
-        line = f"かかった時間 {fmt(took)}"
+        line = fmt(took)
         if self.stage == 3 and getattr(self, "steps_done", 0) > 1 and self.step_started:
             per = (time.time() - self.step_started) / self.steps_done
-            line += f"　残りの目安 {fmt(per * (self.steps_total - self.steps_done))}"
+            line += f"　あと約 {fmt(per * (self.steps_total - self.steps_done))}"
         self.time.setText(line)
 
     def end(self, result: str, path: str | None = None):
         """1 回分を履歴の先頭に足し、状態を待ちに戻す"""
         took = fmt(time.time() - self.started) if self.started else ""
         stamp = time.strftime("%H:%M")
-        item = QListWidgetItem(f"{stamp}　{result}　{took}\n{self.mode}\n{self.text}")
+        item = QListWidgetItem("" if path else result)
+        item.setSizeHint(QSize(92, 132))
         if path:
             item.setIcon(QIcon(QPixmap(path).scaledToHeight(184, Qt.SmoothTransformation)))
             item.setData(Qt.UserRole, path)
-        item.setToolTip(self.text)
+        item.setToolTip(f"{stamp}　{result}　{took}\n{self.mode}\n{self.text}")
         self.list.insertItem(0, item)
         self.tick.stop()
         self.started = None
@@ -123,7 +131,7 @@ class ActivityPanel(QWidget):
         self.bar.setRange(0, 1)
         self.bar.setValue(1 if path else 0)
         self._mark(len(STAGES) if path else -1)
-        self.state.setText("待っています")
-        self.detail.setText(f"前の 1 枚: {result}（{took}）")
+        self.state.setText("待機中")
+        self.setToolTip(f"前の 1 枚: {result}（{took}）")
         self.time.setText("")
         return item

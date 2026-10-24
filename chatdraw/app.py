@@ -149,12 +149,16 @@ class Window(QMainWindow):
         self.chat = QTextEdit()
         self.chat.setReadOnly(True)
         self.entry = QLineEdit()
-        self.entry.setPlaceholderText("描いてほしい絵を書いてください")
+        self.entry.setPlaceholderText("描きたい絵…")
+        self.entry.setToolTip("描いてほしい絵を日本語か英語で書き、Enter か「描く」で描きます")
         self.entry.returnPressed.connect(self.send)
-        self.button = QPushButton(icon("ai", "#ffffff"), " AI で描く")
+        self.button = QPushButton(icon("ai", "#ffffff"), " 描く")
+        self.button.setToolTip("AI で描く（Enter）")
         self.button.setObjectName("primary")
         self.button.clicked.connect(self.send)
-        self.stop_button = QPushButton("止める")
+        self.stop_button = QPushButton("■")
+        self.stop_button.setToolTip("止める")
+        self.stop_button.setFixedWidth(40)
         self.stop_button.setEnabled(False)
         self.stop_button.clicked.connect(self.stop)
         self.entry.setMinimumHeight(34)
@@ -163,24 +167,30 @@ class Window(QMainWindow):
         row.addWidget(self.stop_button)
         # 描き方: 新しく描くか、キャンバスの絵（下描き・ラフ）を元に描き直すか
         self.mode = QComboBox()
-        self.mode.addItems(["新しく描く", "キャンバスを元に描く"])
+        self.mode.addItems(["新規", "ラフから"])
+        self.mode.setToolTip("新規: 白紙から描く\nラフから: キャンバスの線の形に沿って描く")
         self.size_pick = QComboBox()
-        for label, wh in (("縦長 832×1216", (832, 1216)), ("横長 1216×832", (1216, 832)), ("正方形 1024×1024", (1024, 1024))):
+        self.size_pick.setToolTip("描く絵の大きさ")
+        for label, wh in (("縦 832×1216", (832, 1216)), ("横 1216×832", (1216, 832)), ("正方形 1024", (1024, 1024))):
             self.size_pick.addItem(label, wh)
         self.strength = QSlider(Qt.Horizontal)
         self.strength.setRange(30, 100)
         self.strength.setValue(int(self.settings.get("rough_follow") * 100))
-        self.strength_label = QLabel(f"ラフに沿う強さ {self.strength.value() / 100:.2f}")
-        self.strength.valueChanged.connect(lambda v: self.strength_label.setText(f"ラフに沿う強さ {v / 100:.2f}"))
+        self.strength_label = QLabel(f"{self.strength.value()}%")
+        self.strength.setToolTip("ラフに沿う強さ。大きいほどラフの線の形どおりに描く")
+        self.strength.valueChanged.connect(lambda v: self.strength_label.setText(f"{v}%"))
         self.mode.currentIndexChanged.connect(self._mode_changed)
         self._mode_changed(0)
-        form = QFormLayout()
-        form.addRow("描き方", self.mode)
-        form.addRow("大きさ", self.size_pick)
-        form.addRow(self.strength_label, self.strength)
+        form = QHBoxLayout()
+        form.addWidget(self.mode)
+        form.addWidget(self.size_pick)
+        follow = QHBoxLayout()
+        follow.addWidget(self.strength, 1)
+        follow.addWidget(self.strength_label)
         left = QVBoxLayout()
         left.addWidget(self.chat)
         left.addLayout(form)
+        left.addLayout(follow)
         left.addWidget(self.entry)
         left.addLayout(row)
         box = QWidget()
@@ -196,7 +206,7 @@ class Window(QMainWindow):
         self.activity = ActivityPanel()
         self.history = self.activity.list
         self.history.itemDoubleClicked.connect(lambda it: it.data(Qt.UserRole) and self.canvas.show_image(it.data(Qt.UserRole)))
-        hist = QDockWidget("描いた絵と進み", self)
+        hist = QDockWidget("履歴", self)
         hist.setWidget(self.activity)
         hist.setObjectName("history")
         hist.setFeatures(PANEL)
@@ -204,7 +214,7 @@ class Window(QMainWindow):
 
         # 下: 進み
         self.progress = self.activity.bar   # 進みは描いた絵の欄に出す
-        self.statusBar().showMessage("頼みを書いて「描く」を押してください")
+
 
         # 上: メニュー
         file = self.menuBar().addMenu("ファイル")
@@ -276,7 +286,7 @@ class Window(QMainWindow):
         bar.addWidget(self.flow)
         bar.addWidget(self.flow_label)
         bar.addSeparator()
-        self.fill_shapes = QCheckBox("形を塗りつぶす")
+        self.fill_shapes = QCheckBox("塗り")
         self.fill_shapes.setToolTip("四角と楕円を、線だけでなく中まで塗る")
         self.fill_shapes.toggled.connect(lambda on: setattr(self.canvas, "fill_shapes", on))
         bar.addWidget(self.fill_shapes)
@@ -305,8 +315,10 @@ class Window(QMainWindow):
         self.flow_s.setRange(1, 100)
         self.spacing = QSlider(Qt.Horizontal)
         self.spacing.setRange(2, 100)
-        self.size_pressure = QCheckBox("筆圧で太さ")
-        self.opacity_pressure = QCheckBox("筆圧で濃さ")
+        self.size_pressure = QCheckBox("筆圧→太さ")
+        self.opacity_pressure = QCheckBox("筆圧→濃さ")
+        self.size_pressure.setToolTip("ペンタブレットの筆圧で線の太さを変える")
+        self.opacity_pressure.setToolTip("ペンタブレットの筆圧で線の濃さを変える")
         self.hardness.valueChanged.connect(lambda v: setattr(self.canvas.brush, "hardness", v / 100))
         self.flow_s.valueChanged.connect(lambda v: setattr(self.canvas.brush, "flow", v / 100))
         self.spacing.valueChanged.connect(lambda v: setattr(self.canvas.brush, "spacing", v / 100))
@@ -314,6 +326,9 @@ class Window(QMainWindow):
         self.opacity_pressure.toggled.connect(lambda on: setattr(self.canvas.brush, "opacity_pressure", on))
         bform = QFormLayout()
         bform.addRow(self.brush_list)
+        self.hardness.setToolTip("縁のくっきりさ")
+        self.flow_s.setToolTip("1 回に置く絵の具の量")
+        self.spacing.setToolTip("筆の跡の間隔")
         bform.addRow("硬さ", self.hardness)
         bform.addRow("流量", self.flow_s)
         bform.addRow("間隔", self.spacing)
@@ -351,7 +366,7 @@ class Window(QMainWindow):
         lay = QVBoxLayout()
         lay.addWidget(self.layer_list)
         row2 = QHBoxLayout()
-        row2.addWidget(QLabel("不透明度"))
+        self.layer_opacity.setToolTip("レイヤーの不透明度")
         row2.addWidget(self.layer_opacity)
         lay.addLayout(row2)
         lay.addLayout(buttons)
@@ -467,7 +482,6 @@ class Window(QMainWindow):
         self.thread.start()
 
     def on_status(self, msg: str):
-        self.statusBar().showMessage(msg)
         m = re.search(r"（(\d+)/(\d+)）", msg)
         self.activity.status(msg, *(int(m.group(1)), int(m.group(2))) if m else (None, None))
 
@@ -522,7 +536,7 @@ class Window(QMainWindow):
 
     def stop(self):
         self.studio.painter.stop = True
-        self.statusBar().showMessage("止めています（いまの 1 工程が終わると止まります）")
+        self.statusBar().showMessage("止めています")
 
     def _mode_changed(self, i: int):
         self.size_pick.setEnabled(i == 0)          # 元に描くときはキャンバスの大きさで描く
@@ -620,7 +634,7 @@ class Window(QMainWindow):
             d.show()
             d.setFeatures(PANEL)
         self.tools.setMovable(True)
-        self.statusBar().showMessage("欄の見出しをドラッグして、好きな所に置いてください。外へ出すと別ウィンドウになります")
+        self.statusBar().showMessage("欄をドラッグして配置できます", 4000)
 
     def closeEvent(self, e):
         # 次に開いたときも同じ並びにする
@@ -673,7 +687,7 @@ class Window(QMainWindow):
             self.canvas.flatten().save(dst)
 
     def _end(self, msg: str):
-        self.statusBar().showMessage(msg)
+        self.statusBar().showMessage(msg, 4000)
         self.stop_button.setEnabled(False)
         if self.thread is not None:
             self.thread.quit()
@@ -726,7 +740,7 @@ QProgressBar::chunk { border-radius: 6px; background: qlineargradient(x1:0, y1:0
 QLabel#stateTitle { font-size: 15px; font-weight: 700; color: #ffffff; }
 QLabel#stateDetail { color: #a9a9b0; }
 QLabel#sectionHead { font-weight: 600; color: #c9c9cf; padding-top: 6px; }
-QLabel#step { border-radius: 6px; padding: 3px 0; background: #1f2024; color: #6c6d73; }
+QLabel#step { border-radius: 2px; padding: 0; background: #1f2024; color: #6c6d73; }
 QLabel#step[state="done"] { background: #2e2224; color: #ffb38a; }
 QLabel#step[state="now"] { color: #ffffff; background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ff7a1a, stop:1 #e5322d); }
 QStatusBar { background: #111214; color: #9a9aa1; }
