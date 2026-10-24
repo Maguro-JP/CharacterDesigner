@@ -62,11 +62,17 @@ def install_engine(say=lambda msg, pct: None):
     lib.mkdir(parents=True, exist_ok=True)
     gpu = shutil.which("nvidia-smi") is not None
     index = "https://download.pytorch.org/whl/cu124" if gpu else "https://download.pytorch.org/whl/cpu"
-    say("絵を描く部品を入れています（GPU 版）" if gpu else "絵を描く部品を入れています", 0)
-    pip = [sys.executable, "-m", "pip", "install", "-q", "--disable-pip-version-check", "--target", str(lib), "--upgrade"]
+    say("絵を描く部品を入れています", 0)
+    pip = [sys.executable, "-m", "pip", "install", "-q", "--disable-pip-version-check", "--no-cache-dir", "--target", str(lib), "--upgrade"]
     subprocess.run(pip + ["torch", "--index-url", index], check=True)
+    # 後の部品（transformers など）は torch を欲しがり、そのままだと、ふつうの配り元の GPU 版（約 4GB 多い）で上書きした
+    # （CPU の機械で 5.7GB になった）。入れた torch の版に固定して、同じ物を使わせる
+    import re
+    ver = re.search(r"__version__\s*=\s*['\"]([^'\"]+)", (lib / "torch" / "version.py").read_text()).group(1)
     say("絵を描く部品を入れています", 50)
-    subprocess.run(pip + ["diffusers", "transformers", "accelerate", "huggingface_hub", "safetensors"], check=True)
+    subprocess.run(pip + ["diffusers", "transformers", "accelerate", "huggingface_hub", "safetensors", f"torch=={ver}",
+                          "--extra-index-url", index], check=True)
+    say("絵を描く部品を入れています", 90)
     if str(lib) not in sys.path:
         sys.path.insert(0, str(lib))
     import importlib
