@@ -80,6 +80,9 @@ def bars(w, ribbon: bool, tools: tuple | None, options: bool = True, bottom: boo
     w.tools.setVisible(tools is None or bool(tools))
     for key, act in w.tool_actions.items():
         act.setVisible(tools is None or key in tools)
+    for act in w.tools.actions():
+        if act.isSeparator():
+            act.setVisible(tools is None)   # 道具を絞ったときは区切りの線だけが並ばないようにする
 
 
 def _progress_idle(w):
