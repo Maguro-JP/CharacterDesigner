@@ -74,5 +74,26 @@ class WindowTest(unittest.TestCase):
             self.assertTrue(w.button.isEnabled())
 
 
+class DrawTest(unittest.TestCase):
+    def test_pen_eraser_undo(self):
+        from PySide6.QtCore import QPointF
+        from PySide6.QtGui import QColor
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Canvas
+        QApplication.instance() or QApplication([])
+        c = Canvas()
+        c.new_canvas(100, 100)
+        c.color, c.size = QColor("red"), 4
+        c.undo_stack.append(c.image.copy())
+        c.stroke(QPointF(10, 50), QPointF(90, 50))
+        self.assertEqual(c.image.pixelColor(50, 50).name(), "#ff0000")
+        c.tool = "eraser"
+        c.stroke(QPointF(50, 50), QPointF(50, 50))
+        self.assertEqual(c.image.pixelColor(50, 50).name(), "#ffffff")
+        c.undo()
+        self.assertEqual(c.image.pixelColor(50, 50).name(), "#ffffff")  # 戻すと線を引く前の白
+        self.assertEqual(c.image.pixelColor(20, 50).name(), "#ffffff")
+
+
 if __name__ == "__main__":
     unittest.main()
