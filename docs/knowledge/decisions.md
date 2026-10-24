@@ -159,3 +159,5 @@
 - 2026-10-24 起動は `pythonw -E -s` にし、Hugging Face の環境の設定を起動時に外す。利用者の Python や前の版の設定に頼らないため。触る場所: packaging/chatdraw/installer.nsi、chatdraw/app.py の isolate
 - 2026-10-24 キーの割り当ては QSettings の keys/ に、既定と違う物だけを持つ。重なる割り当ては保存させない。触る場所: chatdraw/keys.py
 - 2026-10-24 進みの欄は自分で隠さない。進みはタイトル・通知の領域・デスクトップの通知にも出す。描き終わると消えて状態が分からなかったため。触る場所: chatdraw/activity.py の changed、chatdraw/app.py の show_progress
+- 2026-10-24 絵の模型の確かめは Actions（model-verify.yml）で流す。模型は 1 つ 7GB ほどあり、手元の置き場に入らないため。数字で落とすのは読み込めない・真っ黒・一色・ラフと組めないの 4 つで、点は残した絵を見て付ける。触る場所: chatdraw/verify_models.py、config/verify-models.txt
+- 2026-10-24 確かめていない模型も、推奨だけ表示を外せば取れるようにする。推奨（点の届いた物）とは分けて印を付ける。触る場所: chatdraw/setup.py の _choose_page
