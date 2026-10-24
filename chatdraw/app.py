@@ -344,6 +344,7 @@ class Window(QMainWindow):
         self.stop_button.setEnabled(False)
         self.stop_button.clicked.connect(self.stop)
         self.entry.setMinimumHeight(34)
+        self.entry.setMinimumWidth(120)
         row = QHBoxLayout()
         row.addWidget(self.button, 1)
         row.addWidget(self.stop_button)
@@ -389,7 +390,15 @@ class Window(QMainWindow):
         ask_page = QWidget()
         ask_page.setLayout(ask)
         self.ai_tabs = QTabWidget()
-        self.ai_tabs.addTab(ask_page, "描き方")
+        # AI の欄は項目が多いので、縦に流れる形にする。入りきらない画面（ノートの 1280×720 など）でウィンドウが画面より大きくならない
+        from PySide6.QtWidgets import QScrollArea
+        ask_scroll = QScrollArea()
+        ask_scroll.setWidget(ask_page)
+        ask_scroll.setWidgetResizable(True)
+        ask_scroll.setFrameShape(QScrollArea.NoFrame)
+        ask_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        ask_page.setObjectName("scrollInner")
+        self.ai_tabs.addTab(ask_scroll, "描き方")
         self.ai_tabs.setTabBarAutoHide(True)   # タブが 1 つのときは見出しだけで足りる
         dock = QDockWidget("AI", self)
         dock.setWidget(self.ai_tabs)
@@ -418,7 +427,16 @@ class Window(QMainWindow):
             chip.clicked.connect(lambda _=False, t=text: (self.entry.setText(t), self.entry.setFocus()))
             tips.addWidget(chip)
         tips.addStretch()
-        tl.addLayout(tips)
+        tips_box = QWidget()
+        tips_box.setLayout(tips)
+        tips_scroll = QScrollArea()   # 頼みの例は横に流す。狭い画面でチャットの欄の幅を広げさせない
+        tips_scroll.setWidget(tips_box)
+        tips_scroll.setWidgetResizable(True)
+        tips_scroll.setFrameShape(QScrollArea.NoFrame)
+        tips_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        tips_box.setObjectName("scrollInner")
+        tips_scroll.setFixedHeight(tips_box.sizeHint().height() + 6)
+        tl.addWidget(tips_scroll)
         talk = QDockWidget("チャット", self)
         talk.setWidget(talk_box)
         talk.setObjectName("talk")
@@ -685,6 +703,19 @@ class Window(QMainWindow):
                        "history": (hist, Qt.RightDockWidgetArea), "layers": (ldock, Qt.LeftDockWidgetArea),
                        "view": (self.view_dock, Qt.RightDockWidgetArea), "talk": (talk, Qt.BottomDockWidgetArea),
                        "progress": (prog, Qt.TopDockWidgetArea)}
+        from PySide6.QtWidgets import QScrollArea
+        for key in ("color", "brushes", "layers", "library", "view", "history"):
+            # 中身が欄より大きいときは欄の中で流す。中身の大きさで欄が縮まず、ウィンドウが画面（ノートの高さ 720 など）からはみ出した
+            d = self.panels[key][0]
+            inner = d.widget()
+            box = QScrollArea()
+            box.setWidget(inner)
+            box.setWidgetResizable(True)
+            box.setFrameShape(QScrollArea.NoFrame)
+            box.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+            box.setMinimumSize(0, 0)
+            inner.setObjectName(inner.objectName() or "scrollInner")
+            d.setWidget(box)
         for d, _area in self.panels.values():
             d.setTitleBarWidget(PanelTitle(d))
             # 欄の境目をドラッグして上下左右に広げ縮めできる。狭めすぎて中身が潰れない大きさだけ決める

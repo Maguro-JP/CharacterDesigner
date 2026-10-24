@@ -1371,3 +1371,22 @@ class SystemTest(unittest.TestCase):
         self.w.library_panel.add_doc(str(doc), "この塗りが好き")
         self.assertEqual(lib.docs()[0]["note"], "この塗りが好き")
         self.assertTrue(Path(lib.docs()[0]["path"]).exists())          # 写しを取る
+
+
+class SmallScreenTest(unittest.TestCase):
+    """ノートの画面（1280×720）に、どの配置でもウィンドウが収まる"""
+    def test_every_preset_fits_1280x720(self):
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Window
+        from chatdraw import layouts
+        app = QApplication.instance() or QApplication([])
+        w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
+        w.resize(1280, 720)
+        w.show()
+        for name, fn in layouts.PRESETS.items():
+            w.apply_layout(fn)
+            for _ in range(5):
+                app.processEvents()
+            mw, mh = w.minimumSizeHint().toTuple()
+            self.assertLessEqual(mw, 1280, name)
+            self.assertLessEqual(mh, 680, name)                       # タイトルの帯とタスクバーの分を残す
