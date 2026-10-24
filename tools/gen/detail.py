@@ -100,6 +100,36 @@ def detail(src, out, prompt: str, negative: str = "", strength: float = 0.4, ste
     return {"box": box, "side": s}
 
 
+def detail_masked(src, out, prompt: str, box, keep_labels, words: str, extra_negative: str = "", strength: float = 0.5,
+                  seed: int = 0, grow: int = 1, protect=(), protect_circles=()) -> int:
+    """枠を描き直し、その結果を部位（keep_labels）の範囲にだけ使う。顔・角・手など protect の部位と、
+    protect_circles（(x, y, 半径) の円、鈴など部位分けに出ない物）は元の絵のまま残す。
+    枠の楕円で混ぜるだけでは、髪の枠に顔や角が入って一緒に描き変わった。返すのは差し替えた画素の数"""
+    import numpy as np
+    from PIL import Image, ImageFilter
+    import edit
+    tmp = str(out) + ".tmp.png"
+    detail(src, tmp, prompt, "", strength, seed=seed, box=box, words=words, extra_negative=extra_negative)
+    seg = np.asarray(edit.parts(src))
+    m = Image.fromarray((np.isin(seg, keep_labels) * 255).astype(np.uint8))
+    if grow > 1:
+        m = m.filter(ImageFilter.MaxFilter(grow))
+    k = Image.fromarray((np.isin(seg, protect) * 255).astype(np.uint8)).filter(ImageFilter.MaxFilter(7))
+    k = np.asarray(k).copy()
+    yy, xx = np.mgrid[0:k.shape[0], 0:k.shape[1]]
+    for x, y, r in protect_circles:
+        k[(xx - x) ** 2 + (yy - y) ** 2 < r * r] = 255
+    mm = np.asarray(m).astype(int) - k
+    inside = np.zeros_like(mm)
+    inside[box[1]:box[3], box[0]:box[2]] = 1
+    mm = Image.fromarray((np.clip(mm, 0, 255) * inside).astype(np.uint8)).filter(ImageFilter.GaussianBlur(2))
+    im = Image.open(src).convert("RGB")
+    im.paste(Image.open(tmp).convert("RGB"), (0, 0), mm)
+    im.save(out)
+    Path(tmp).unlink()
+    return int((np.asarray(mm) > 127).sum())
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("src")
