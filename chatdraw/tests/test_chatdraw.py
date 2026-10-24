@@ -1057,9 +1057,10 @@ class FixAndBatchTest(unittest.TestCase):
         self.assertEqual(len(fixes), 2)                               # 印ごとに 1 回ずつ直す
         self.assertEqual(len(self.w.canvas.layers), layers + 1)      # 直した所は新しいレイヤー
         self.assertEqual(self.w.canvas.redpen.marks, [])             # 直したら印は消える
-        whole = Image.open(self.w.images[-1])
-        self.assertEqual(whole.mode, "RGB")                           # 直す所だけを貼った透明な絵ではなく、
-        self.assertEqual(whole.size, (200, 160))                      # 描き直した絵全体を 1 枚で重ねる
+        layer = Image.open(self.w.images[-1])
+        self.assertEqual(layer.size, (200, 160))                      # 絵と同じ大きさで重ね、
+        self.assertEqual(layer.getpixel((5, 150))[3], 0)              # 直していない所は透かす（下のレイヤーを隠さない）
+        self.assertEqual(layer.getpixel((50, 50))[3], 255)
 
     def test_fix_without_marks_does_nothing(self):
         self.w.mode.setCurrentIndex(2)
@@ -1321,6 +1322,7 @@ class SystemTest(unittest.TestCase):
         wait_idle(self.app, self.w)
         self.assertEqual([c[0] for c in self.painter.calls], ["redraw"])
         self.assertIn("ちびキャラ", [l.name for l in self.w.canvas.layers])
+        self.assertTrue(self.w.canvas.layers[self.w.canvas.current].visible)   # 絵全体を描き替える加工は、崩れの検査で隠さない
 
     def test_library_learns_taste(self):
         from chatdraw.library import DISLIKE, LIKE

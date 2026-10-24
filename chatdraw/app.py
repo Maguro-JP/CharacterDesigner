@@ -54,19 +54,20 @@ class Job(QObject):
     failed = Signal(str)
 
     def __init__(self, studio: Studio, text: str, seeds, base=None, strength: float = 0.6, size=None, style: str = "",
-                 regions=None, reference=None, ref_scale: float = 0.6, meta: dict | None = None):
+                 regions=None, reference=None, ref_scale: float = 0.6, meta: dict | None = None, check: bool = True):
         super().__init__()
         self.seeds = [seeds] if isinstance(seeds, int) else list(seeds)
         self.studio, self.text, self.style = studio, text, style
         self.base, self.strength, self.size = base, strength, size
         self.regions, self.reference, self.ref_scale, self.meta = regions, reference, ref_scale, meta or {}
+        self.check = check
 
     def run(self):
         try:
             if self.regions is not None:
                 prompts, path = self.studio.fix(self.base, self.regions, self.seeds[0], on_status=self.status.emit,
                                                 style=self.style, strength=self.strength, reference=self.reference,
-                                                ref_scale=self.ref_scale)
+                                                ref_scale=self.ref_scale, check=self.check)
                 self.one.emit(" / ".join(prompts), str(path))
             else:
                 for seed in self.seeds:
@@ -993,8 +994,7 @@ class Window(QMainWindow):
             self.place(path)
         self.batch.append(path)
         self.batch_items.append(self.activity.add(path, prompt))
-        self.library.add_work(path)   # 描いた絵はライブラリーにも入る（好き・いまいちを付けて好みを育てる）
-        self.library_panel.refresh()
+        self.library_panel.add(self.library.add_work(path))   # 描いた絵はライブラリーにも入る（好き・いまいちを付けて好みを育てる）
 
     def finish(self):
         n = len(self.batch)
@@ -1029,7 +1029,7 @@ class Window(QMainWindow):
         full = Image.new("L", base.size, 255)
         self._start_job("ちびキャラにする", "chibi", Job(self.studio, postfx.CHIBI_NOTE, self.ai_panel.seeds()[:1], base=base,
                                                        strength=0.7, style=postfx.CHIBI_TAGS,
-                                                       regions=[(full, postfx.CHIBI_NOTE)]))
+                                                       regions=[(full, postfx.CHIBI_NOTE)], check=False))
 
     def make_pixel(self, long: int = 128, colors: int = 24):
         """今の絵をドット絵にして、新しいレイヤーに重ねる。小さいドット絵（1 ドット 1 画素）も出力の置き場に残す"""
@@ -1652,7 +1652,7 @@ class Window(QMainWindow):
 
     def closeEvent(self, e):
         if getattr(self, "dirty", False) and self.isVisible() and not getattr(self, "closing_checked", False):
-            box = QMessageBox(QMessageBox.Question, "閉じる前に", "保存していない変更があります。保存しますか。", parent=self)
+            box = QMessageBox(QMessageBox.Question, "閉じる前に", "作業ファイルに保存していない変更があります。保存しますか。", parent=self)
             save = box.addButton("保存", QMessageBox.AcceptRole)
             drop = box.addButton("保存しない", QMessageBox.DestructiveRole)
             box.addButton("やめる", QMessageBox.RejectRole)

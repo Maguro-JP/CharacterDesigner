@@ -88,6 +88,10 @@ class LibraryPanel(QWidget):
         item.setToolTip("\n".join(t for t in tip if t))
         return item
 
+    def add(self, item: dict):
+        """足した 1 枚だけを先頭に並べる（全部を読み直さない）"""
+        (self.works if item["kind"] == "work" else self.docs).insertItem(0, self._item(item))
+
     def refresh(self):
         lib = self.w.library
         for view, rows in ((self.works, lib.works()), (self.docs, lib.docs())):
