@@ -944,9 +944,31 @@ class Window(QMainWindow):
         key = self.settings.get("image_model")
         self.model_label.setText("絵の模型: おまかせ" if key == AUTO else f"絵の模型: {image_model(key).name}")
 
+    def _fit_features(self):
+        """選んだ模型の世代で使えない機能（ラフから、直す、参考画像）のボタンを止め、理由を出す"""
+        from chatdraw.models import family as fam, image_model
+        painter = getattr(getattr(self, "studio", None), "painter", None)
+        model = getattr(painter, "model", "") or ""
+        if not model or not hasattr(self, "ai_panel"):
+            return
+        f = fam(image_model(model).family)
+        why = f"{f.name} の模型では使えません。SDXL の模型に替えると使えます"
+        panel = self.ai_panel
+        widgets = [(panel.mode_buttons[1], f.sketch), (panel.mode_buttons[2], f.inpaint)]
+        if hasattr(panel, "use_ref"):
+            widgets.append((panel.use_ref, f.reference))
+        for b, ok in widgets:
+            if b.property("tip0") is None:
+                b.setProperty("tip0", b.toolTip())   # 元の説明は残しておき、使えるときに戻す
+            b.setEnabled(ok)
+            b.setToolTip(b.property("tip0") if ok else why)
+        if not f.sketch and self.mode.currentIndex() == 1 or not f.inpaint and self.mode.currentIndex() == 2:
+            self.mode.setCurrentIndex(0)
+
     def check_ai(self) -> dict:
         """AI が使えるかを確かめて、下の欄に出す。描く前と起動のときに毎回呼ぶ"""
         self._show_model()
+        self._fit_features()
         st = check(getattr(self.studio, "painter", None), getattr(self.studio, "words", None)) if isinstance(self.studio, Studio) else \
             {"torch": True, "image": True, "words": True, "reason": ""}
         if st["image"]:

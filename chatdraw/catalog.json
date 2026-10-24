@@ -11,7 +11,8 @@
   "steps": 24,
   "guidance": 5.0,
   "score": 85,
-  "note": "2026-10-24: 新規とラフから（棒人間・線画）の 3 枚。崩れなく描け、ラフの形に沿った"
+  "note": "2026-10-24: 新規とラフから（棒人間・線画）の 3 枚。崩れなく描け、ラフの形に沿った",
+  "commercial": "条件付きで商用可（openrail++）"
  },
  {
   "repo": "cagliostrolab/animagine-xl-3.1",
@@ -76,7 +77,8 @@
   "en": "anime, wide range of artist styles",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 0,
+  "commercial": "ライセンスの本文を読む必要あり"
  },
  {
   "repo": "John6666/hassaku-xl-illustrious-v31-sdxl",
@@ -246,7 +248,8 @@
   "en": "general, base model",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 0,
+  "commercial": "条件付きで商用可（openrail++）"
  },
  {
   "repo": "SG161222/RealVisXL_V5.0",
@@ -429,5 +432,89 @@
   "steps": 24,
   "guidance": 7.0,
   "score": 0
+ },
+ {
+  "repo": "black-forest-labs/FLUX.2-klein-4B",
+  "name": "FLUX.2 klein 4B",
+  "good": "文で頼める新しい世代。4 工程で速い。写真も絵も描く",
+  "family": "flux2",
+  "format": "dit",
+  "gb": 16.0,
+  "en": "general purpose, natural language prompts, fast",
+  "steps": 4,
+  "guidance": 1.0,
+  "score": 0,
+  "commercial": "商用可（Apache-2.0）",
+  "prefix": ""
+ },
+ {
+  "repo": "Tongyi-MAI/Z-Image-Turbo",
+  "name": "Z-Image Turbo",
+  "good": "文で頼める。8 工程で速い。写真と字が得意",
+  "family": "zimage",
+  "format": "dit",
+  "gb": 32.8,
+  "en": "general purpose, photorealistic, text rendering",
+  "steps": 9,
+  "guidance": 0.0,
+  "score": 0,
+  "commercial": "商用可（Apache-2.0）",
+  "prefix": ""
+ },
+ {
+  "repo": "Qwen/Qwen-Image-2512",
+  "name": "Qwen-Image 2512",
+  "good": "文で頼める大きな模型。字と細かい指示に強い。GPU が大きくないと重い",
+  "family": "qwenimage",
+  "format": "dit",
+  "gb": 57.7,
+  "en": "general purpose, complex prompts, text rendering",
+  "steps": 50,
+  "guidance": 4.0,
+  "score": 0,
+  "commercial": "商用可（Apache-2.0）",
+  "prefix": ""
+ },
+ {
+  "repo": "VirtualAddressExtension/Neta-Lumina-v1.0-diffusers",
+  "name": "Neta Lumina 1.0",
+  "good": "新しい世代のアニメ向け。タグと文の両方で頼める",
+  "family": "lumina2",
+  "format": "dit",
+  "gb": 21.2,
+  "en": "anime illustration, new architecture",
+  "steps": 50,
+  "guidance": 4.0,
+  "score": 0,
+  "commercial": "商用可（Apache-2.0）",
+  "prefix": ""
+ },
+ {
+  "repo": "lodestones/Chroma1-HD",
+  "name": "Chroma1-HD",
+  "good": "FLUX 系の土台の模型。味付けが無く、何でも描く",
+  "family": "chroma",
+  "format": "dit",
+  "gb": 27.5,
+  "en": "general purpose base model",
+  "steps": 40,
+  "guidance": 3.0,
+  "score": 0,
+  "commercial": "商用可（Apache-2.0）",
+  "prefix": ""
+ },
+ {
+  "repo": "black-forest-labs/FLUX.1-schnell",
+  "name": "FLUX.1 schnell",
+  "good": "文で頼める。4 工程で速い。取るには Hugging Face での同意が要る",
+  "family": "flux1",
+  "format": "dit",
+  "gb": 33.7,
+  "en": "general purpose, fast",
+  "steps": 4,
+  "guidance": 0.0,
+  "score": 0,
+  "commercial": "商用可（Apache-2.0）",
+  "prefix": ""
  }
 ]

@@ -25,12 +25,42 @@ REFERENCE_GB = {"sdxl": 3.2, "sd15": 2.6}
 
 
 def native_size(size, family: str):
-    """古い世代（SD1.5）は 512 前後で学んでいるので、同じ縦横比のまま約 0.6 倍で描く（1216 のままだと人が 2 人に割れた）"""
-    if family != "sd15":
-        return size
+    """世代ごとに学んだ大きさへ、同じ縦横比のまま合わせる。
+    SD1.5 は 512 前後で学んでいるので約 0.6 倍で描く（1216 のままだと人が 2 人に割れた）。
+    新しい世代（DiT）は 1024×1024 前後の画素の数で学んでいるので、その数にそろえ、縦横を 16 の倍数にする"""
+    from chatdraw.models import family as fam
     w, h = size
-    return (max(256, round(w * 0.625 / 64) * 64), max(256, round(h * 0.625 / 64) * 64))
+    if family == "sd15":
+        return (max(256, round(w * 0.625 / 64) * 64), max(256, round(h * 0.625 / 64) * 64))
+    f = fam(family)
+    if family == "sdxl":
+        return size
+    k = (f.size[0] * f.size[1] / (w * h)) ** 0.5
+    m = f.multiple
+    return (max(256, round(w * k / m) * m), max(256, round(h * k / m) * m))
 
+class Unsupported(Exception):
+    """選んだ模型の世代では、まだ使えない機能（ラフから、参考画像、範囲の直し）"""
+
+
+def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, seed: int, pipe) -> dict:
+    """世代に合う頼みの形を作る。SD 系はタグに質の言葉と描かない物を足す。新しい世代は札の例どおり、
+    描かない物を受けない模型には渡さず、頼みの効きは模型ごとの名前（guidance_scale か true_cfg_scale）で渡す"""
+    import inspect
+    import torch
+    text = f"{info.prefix}{prompt}"
+    if f.tags:
+        text += ", masterpiece, best quality"
+    args = {"prompt": text, "num_inference_steps": steps, f.cfg_key: guidance,
+            "generator": torch.Generator(getattr(pipe, "device", "cpu")).manual_seed(seed), **f.extra}
+    if f.negative:
+        args["negative_prompt"] = "lowres, worst quality, low quality" + (f", {avoid}" if avoid else "")
+    accepted = inspect.signature(pipe.__call__).parameters
+    return {k: v for k, v in args.items() if k in accepted}   # 部品が受けない引数は渡さない（版の違いで落ちないように）
+
+
+ASK_SENTENCE = ("Translate the Japanese drawing request into one English sentence that describes the image for a text-to-image model. "
+                "Reply with the sentence only. Translate every detail, add nothing that is not in the request.")
 ASK = ("Translate the Japanese drawing request into English tags for an anime illustration model. "
        "Reply with one line of comma-separated tags only. Translate every detail, add nothing that is not in the request.")
 
@@ -77,11 +107,12 @@ class Words:
         import re
         return re.sub(r"<think>.*?</think>", "", out["choices"][0]["message"]["content"], flags=re.S).strip()
 
-    def to_prompt(self, text: str) -> str:
+    def to_prompt(self, text: str, tags: bool = True) -> str:
+        """日本語の頼みを、絵の模型が分かる英語にする。tags なら SD 系のタグ、そうでなければ文（FLUX などは文で頼む）"""
         if not has_japanese(text) or not self.ready():
             return text
-        tags = self.ask(ASK, text).splitlines()[0]
-        return tags or text
+        out = self.ask(ASK if tags else ASK_SENTENCE, text).splitlines()[0]
+        return out or text
 
 
 # 途中の絵（latents）をそのまま色に直す係数。VAE で戻すより何百倍も速く、描いている様子を見せるのに足りる
@@ -340,12 +371,39 @@ class Painter:
                 self._pipe = cls.from_single_file(self.model, torch_dtype=dtype, **extra)
             elif is_local(self.model):
                 self._pipe = AutoPipelineForText2Image.from_pretrained(self.model, torch_dtype=dtype, **extra)
+            elif image_model(self.model).family not in ("sdxl", "sd15"):
+                # 新しい世代（FLUX、Z-Image、Qwen-Image、Lumina 2 など）は、模型の札にある部品で読む。
+                # 重みが大きい（16〜58GB）ので、CPU でも bf16 で読む（fp32 では家庭の機械のメモリに入らない）
+                import diffusers
+                from chatdraw.models import family as fam
+                cls = getattr(diffusers, fam(image_model(self.model).family).pipeline, None) or diffusers.DiffusionPipeline
+                self._pipe = cls.from_pretrained(self.model, torch_dtype=torch.bfloat16, cache_dir=str(HUB))
             else:
                 self._pipe = AutoPipelineForText2Image.from_pretrained(self.model, torch_dtype=dtype, variant=variant,
                                                                        cache_dir=str(HUB), **extra)
-            if torch.cuda.is_available():
-                self._pipe.to("cuda")
+            self._place(self._pipe)
         return self._pipe
+
+    def _place(self, pipe):
+        """GPU のメモリに合わせて置き方を決める（diffusers の公式の方法）。
+        模型が GPU のメモリに収まれば全部を載せ、収まらなければ、部品を使う間だけ載せる（enable_model_cpu_offload）。
+        どちらでも、最後に絵にする所（VAE）は分けて作り、メモリの山を下げる"""
+        import torch
+        from chatdraw.models import image_model
+        if torch.cuda.is_available():
+            free, _total = torch.cuda.mem_get_info()
+            need = image_model(self.model).gb * 1e9 * 1.2   # 描く途中の分を 2 割足す
+            if free >= need:
+                pipe.to("cuda")
+            else:
+                pipe.enable_model_cpu_offload()
+        vae = getattr(pipe, "vae", None)
+        for name in ("enable_tiling", "enable_slicing"):
+            if vae is not None and hasattr(vae, name):
+                try:
+                    getattr(vae, name)()
+                except Exception:
+                    pass   # 分けられない VAE もある（その時はそのまま）
 
     def paint(self, prompt: str, seed: int, on_step=None, base=None, strength: float = 1.0, size=None, on_preview=None,
               reference=None, ref_scale: float = 0.6):
@@ -368,12 +426,18 @@ class Painter:
                     pass   # 途中の絵が作れなくても描くのは続ける
             return kw
 
-        from chatdraw.models import image_model
+        from chatdraw.models import family as fam, image_model
         info = image_model(self.model)
+        f = fam(info.family)
         size = native_size(size or self.size, info.family)
-        args = dict(prompt=f"{info.prefix}{prompt}, masterpiece, best quality", negative_prompt="lowres, worst quality, low quality" + (f", {self.avoid}" if self.avoid else ""),
-                    num_inference_steps=steps, guidance_scale=self.guidance,
-                    generator=torch.Generator(pipe.device).manual_seed(seed), callback_on_step_end=step)
+        args = prompt_args(info, f, prompt, self.avoid, steps, self.guidance, seed, pipe)
+        import inspect
+        if "callback_on_step_end" in inspect.signature(pipe.__call__).parameters:
+            args["callback_on_step_end"] = step
+        if base is not None and not f.sketch:
+            raise Unsupported(f"{f.name} の模型は、ラフから描く部品がまだありません。「新規」で描くか、SDXL の模型に替えてください")
+        if reference is not None and not f.reference:
+            raise Unsupported(f"{f.name} の模型は、参考画像をまだ使えません。参考画像を外すか、SDXL の模型に替えてください")
         if base is not None:
             if self._sketch is None:
                 from diffusers import StableDiffusionAdapterPipeline, StableDiffusionXLAdapterPipeline, T2IAdapter
@@ -419,8 +483,10 @@ class Painter:
         """
         import torch
         from PIL import Image
-        from chatdraw.models import image_model
+        from chatdraw.models import family as fam, image_model
         info = image_model(self.model)
+        if not fam(info.family).inpaint:
+            raise Unsupported(f"{fam(info.family).name} の模型は、範囲の直しがまだできません。直すときは SDXL の模型に替えてください")
         pipe = self.load()
         if self._inpaint is None:
             from diffusers import AutoPipelineForInpainting
@@ -479,7 +545,8 @@ class Studio:
             if path is not None and path != getattr(self.words, "path", None):
                 self.words = Words(path)
         say("頼みを描く言葉に直しています")
-        prompt = self.words.to_prompt(text)
+        from chatdraw.models import family as fam, image_model
+        prompt = self.words.to_prompt(text, tags=fam(image_model(getattr(self.painter, "model", "")).family).tags)
         if style:   # AI の欄で選んだ作風。頼みの言葉の後ろに足す（頼みの方を先に効かせる）
             prompt = f"{prompt}, {style}"
         if refused(prompt):

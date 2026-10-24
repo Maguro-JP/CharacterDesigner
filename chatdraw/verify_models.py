@@ -64,8 +64,9 @@ def fetch(repo: str):
     t = time.time()
     snapshot_download(repo, cache_dir=str(HUB), **m.files)
     from chatdraw.engine import SKETCH
-    sk, files, _ = SKETCH[m.family]
-    snapshot_download(sk, cache_dir=str(HUB), **files)
+    if m.family in SKETCH:
+        sk, files, _ = SKETCH[m.family]
+        snapshot_download(sk, cache_dir=str(HUB), **files)
     return round(time.time() - t, 1)
 
 
@@ -75,7 +76,9 @@ def run(repo: str, out: Path) -> dict:
     from chatdraw.models import image_model
     from chatdraw.engine import Painter
     m = image_model(repo)
-    size = (832, 1216) if m.family == "sdxl" else (512, 768)
+    from chatdraw.models import family as fam
+    f = fam(m.family)
+    size = f.size
     report = {"repo": repo, "fetch_s": fetched, "family": m.family, "steps": m.steps, "size": size, "images": [], "errors": []}
     painter = Painter(repo, steps=m.steps, size=size, guidance=m.guidance)
     t = time.time()
@@ -86,7 +89,8 @@ def run(repo: str, out: Path) -> dict:
         return report
     report["load_s"] = round(time.time() - t, 1)
     jobs = [(name, (m.prefix + ", " if m.prefix else "") + p, None) for name, p in PROMPTS]
-    jobs.append((ROUGH[0], (m.prefix + ", " if m.prefix else "") + ROUGH[1], stick_figure(size)))
+    if f.sketch:   # ラフの部品がある世代だけ、ラフから描けるかを見る
+        jobs.append((ROUGH[0], (m.prefix + ", " if m.prefix else "") + ROUGH[1], stick_figure(size)))
     for name, prompt, base in jobs:
         t = time.time()
         try:
@@ -102,7 +106,7 @@ def run(repo: str, out: Path) -> dict:
                                  "per_step_s": round(took / m.steps, 2), "file": path.name, **st, "broken": broken(st)})
         print(f"{name}: {took:.0f} 秒", flush=True)
     report["peak_rss_gb"] = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6, 1)
-    report["auto"] = "落とす" if report["errors"] or any(i["broken"] for i in report["images"]) or len(report["images"]) < 3 \
+    report["auto"] = "落とす" if report["errors"] or any(i["broken"] for i in report["images"]) or len(report["images"]) < len(jobs) \
         else "絵を見て決める"
     return report
 
