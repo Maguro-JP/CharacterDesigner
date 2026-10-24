@@ -73,7 +73,7 @@ Section "Install"
   SetOutPath "$INSTDIR"
   CreateDirectory "$SMPROGRAMS\${APP}"
   CreateShortcut "$SMPROGRAMS\${APP}\${APP}.lnk" "$INSTDIR\python\pythonw.exe" "-m chatdraw.app" "$INSTDIR\python\pythonw.exe"
-  CreateShortcut "$SMPROGRAMS\${APP}\アンインストール.lnk" "$INSTDIR\Uninstall.exe"
+  CreateShortcut "$SMPROGRAMS\${APP}\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
   CreateShortcut "$DESKTOP\${APP}.lnk" "$INSTDIR\python\pythonw.exe" "-m chatdraw.app" "$INSTDIR\python\pythonw.exe"
 
   WriteRegStr HKLM "Software\${APP}" "InstallDir" "$INSTDIR"
