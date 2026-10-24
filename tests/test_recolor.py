@@ -32,3 +32,28 @@ class Recolor(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class Masks(unittest.TestCase):
+    def test_delta_e(self):
+        self.assertAlmostEqual(recolor.delta_e((10, 20, 30), (10, 20, 30)), 0.0)
+        self.assertGreater(recolor.delta_e((255, 255, 255), (0, 0, 0)), 99)
+
+    def test_belt_is_dark_band_on_pants_top(self):
+        seg = np.zeros((60, 40), np.uint8)
+        seg[30:60, 5:35] = 6                      # ズボン
+        rgb = np.full((60, 40, 3), 230, np.uint8)
+        rgb[28:32, 10:30] = (60, 40, 30)          # 上端の暗いベルト
+        rgb[45, 15] = (60, 40, 30)                # 帯の外の暗い画素は入らない
+        m = recolor.belt_mask(rgb, seg)
+        self.assertTrue(m[29, 20] and m[31, 12])
+        self.assertFalse(m[45, 15])
+        self.assertFalse(m[20, 20])
+
+    def test_hair_skips_dark_horn(self):
+        seg = np.ones((10, 10), np.uint8)         # 髪と角がまとめて帽子の部位
+        rgb = np.full((10, 10, 3), (245, 228, 170), np.uint8)
+        rgb[:5] = (110, 80, 50)                   # 角
+        m = recolor.hair_mask(rgb, seg)
+        self.assertFalse(m[2, 2])
+        self.assertTrue(m[7, 7])
