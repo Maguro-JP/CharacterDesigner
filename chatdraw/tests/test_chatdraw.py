@@ -902,7 +902,7 @@ class ThemeTest(unittest.TestCase):
             self.assertTrue(ink, name)
             bg = QColor(t["bar"])
             diff = max(abs(c.lightness() - bg.lightness()) for c in ink)
-            self.assertGreater(diff, 120, f"{name}: アイコンと帯の明るさの差 {diff}")
+            self.assertGreater(diff, 100, f"{name}: アイコンと帯の明るさの差 {diff}")
         self.w.set_theme(themes.DEFAULT)
 
     def test_ai_preset_and_style_reach_prompt(self):

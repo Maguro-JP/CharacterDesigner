@@ -12,27 +12,41 @@ from PySide6.QtWidgets import QWidget
 # canvas 絵の周り、text 文字、strong 強い文字、soft 見出し、muted 控えめ、dim 使えない物、a1〜a3 差し色、sel 選んだ行、
 # done 済んだ工程、ok 良い知らせ、on 差し色の上の文字
 THEMES: dict[str, dict[str, str]] = {
+    # 暗い灰色の地に赤とオレンジ。絵の色を邪魔しない基本の組
     "ナイト": dict(bg="#17181b", bar="#111214", menu="#1d1e22", field="#1f2024", button="#24252a", hover="#26272c", line="#2c2d33",
                  line2="#3a3b42", deep="#0c0d0f", canvas="#0e0f11", text="#e8e8ea", strong="#ffffff", soft="#c9c9cf", muted="#8e8e95",
-                 dim="#6c6d73", a1="#ff7a1a", a2="#e5322d", a3="#b3166b", sel="#2e2224", done="#ffb38a", ok="#7ccf5a", dark="1"),
-    "ペーパー": dict(bg="#f4f3f0", bar="#ffffff", menu="#ffffff", field="#ffffff", button="#ecebe7", hover="#e4e2dd", line="#d8d6d0",
-                   line2="#c9c6bf", deep="#d0cdc6", canvas="#8d8b86", text="#1c1c1e", strong="#000000", soft="#3a3a3e", muted="#6b6b70",
-                   dim="#a2a2a7", a1="#ff6a00", a2="#d7261e", a3="#a3125a", sel="#fde3d6", done="#c2410c", ok="#2f8a2f", dark="0"),
-    "ソウルレッド": dict(bg="#121012", bar="#0a0909", menu="#1a1517", field="#1c1719", button="#241d20", hover="#2c2326", line="#33292c",
-                     line2="#4a3a3d", deep="#060505", canvas="#080707", text="#efe7e7", strong="#ffffff", soft="#d2c4c5", muted="#9b8d8f",
-                     dim="#6e6264", a1="#ff3b45", a2="#b8101e", a3="#5c0710", sel="#3a1519", done="#ff8a8f", ok="#7ccf5a", dark="1"),
-    "ネオン": dict(bg="#0b0f17", bar="#070a10", menu="#10161f", field="#121a25", button="#16202c", hover="#1b2735", line="#22303f",
-                 line2="#2f4357", deep="#04060a", canvas="#05080d", text="#d9ecf5", strong="#ffffff", soft="#b2cad8", muted="#7c93a3",
-                 dim="#56697a", a1="#00e5ff", a2="#2f7bff", a3="#b14dff", sel="#13283a", done="#7ff0ff", ok="#6cf0a0", dark="1"),
-    "スチームパンク": dict(bg="#1d1712", bar="#140f0b", menu="#241c15", field="#2a2118", button="#30261c", hover="#3a2e22", line="#463727",
-                      line2="#5c4733", deep="#0d0a07", canvas="#0f0b08", text="#ecdcc0", strong="#fff4de", soft="#d4bf9b", muted="#a48d6a",
-                      dim="#7a6649", a1="#e0ad4a", a2="#b5652b", a3="#7a3b1c", sel="#3d2c1a", done="#f0c674", ok="#9fc26a", dark="1"),
-    "フォレスト": dict(bg="#151a16", bar="#0f1310", menu="#1a211b", field="#1d251e", button="#222b23", hover="#29342a", line="#2f3a30",
-                    line2="#435244", deep="#090c09", canvas="#0a0d0a", text="#e4ecdf", strong="#ffffff", soft="#c4d2bd", muted="#8fa088",
-                    dim="#66755f", a1="#a6d64a", a2="#3f9b5a", a3="#1f6e6a", sel="#24361f", done="#c8e88a", ok="#a6d64a", dark="1"),
-    "レトロ": dict(bg="#efe6d2", bar="#f7f0e0", menu="#fbf6ea", field="#fffaf0", button="#e6dbc3", hover="#ddd0b4", line="#d1c3a5",
-                 line2="#bfae8c", deep="#cdbf9f", canvas="#8f8670", text="#2b2620", strong="#14110d", soft="#4a4136", muted="#7a6e5c",
-                 dim="#a89b84", a1="#e8752a", a2="#c94a2a", a3="#2f8f8a", sel="#f6d9bf", done="#b5501c", ok="#3f8a4a", dark="0"),
+                 dim="#6c6d73", a1="#ff7a1a", a2="#e5322d", a3="#b3166b", sel="#2e2224", done="#ffb38a", ok="#7ccf5a",
+                 bartext="#e8e8ea", barline="#111214", head="#111214", headtext="#c9c9cf"),
+    # 白い紙と黒い帯。帯と見出しは墨の黒、差し色は朱
+    "ペーパー": dict(bg="#fbfaf7", bar="#141414", menu="#1d1d1d", field="#ffffff", button="#efede8", hover="#e6e3dc", line="#dcd8cf",
+                   line2="#c4bfb4", deep="#141414", canvas="#c9c5bc", text="#161616", strong="#000000", soft="#2e2e2e", muted="#6b6b70",
+                   dim="#a2a2a7", a1="#ff4b1f", a2="#d7261e", a3="#8a0f2e", sel="#ffe1d6", done="#c2410c", ok="#2f8a2f",
+                   bartext="#f4f2ee", barline="#ff4b1f", head="#ffffff", headtext="#161616"),
+    # 赤い車体と黒い内装。帯は深い赤、地は黒、差し色はクロームの銀と赤
+    "ソウルレッド": dict(bg="#120a0b", bar="#7d0a16", menu="#5e0711", field="#1e1012", button="#2b1518", hover="#3a1b1f", line="#3f1d22",
+                     line2="#6b2a32", deep="#3d050b", canvas="#0a0506", text="#f5e9ea", strong="#ffffff", soft="#e6c9cc", muted="#b08a8f",
+                     dim="#7a5a5e", a1="#ff3347", a2="#c4001a", a3="#5c0710", sel="#4a0f17", done="#ff9aa4", ok="#9be07a",
+                     bartext="#ffffff", barline="#c9ced6", head="#2a0b10", headtext="#ffd9dd"),
+    # 夜の電飾。紫紺の地に水色と桃色が光る
+    "ネオン": dict(bg="#0c0624", bar="#14083d", menu="#1a0b4d", field="#170a3a", button="#20104d", hover="#2a1563", line="#3a1f85",
+                 line2="#5b34c4", deep="#05021a", canvas="#05021a", text="#e8f7ff", strong="#ffffff", soft="#bfe9ff", muted="#8f86c8",
+                 dim="#5d5694", a1="#00f0ff", a2="#ff2bd6", a3="#7a2bff", sel="#2c0f66", done="#7ff6ff", ok="#5dffa8",
+                 bartext="#7ff6ff", barline="#ff2bd6", head="#1a0b4d", headtext="#00f0ff"),
+    # 革と真鍮。焦げ茶の地に銅の帯、真鍮の金が差し色
+    "スチームパンク": dict(bg="#2a1c10", bar="#5a3417", menu="#4a2b13", field="#36240f", button="#43301a", hover="#523b20", line="#6e4d24",
+                      line2="#a07335", deep="#1a1008", canvas="#140c06", text="#f6e4c3", strong="#fff6e2", soft="#efd29c", muted="#c09a64",
+                      dim="#8a6c45", a1="#ffc24a", a2="#d9822b", a3="#8a4a1c", sel="#5a3a17", done="#ffd98a", ok="#b5d46a",
+                      bartext="#ffe0a3", barline="#c9973d", head="#3e2611", headtext="#ffc24a"),
+    # 森の奥。深い緑の地に若葉の黄緑と木漏れ日の橙
+    "フォレスト": dict(bg="#0f2619", bar="#174a2c", menu="#1a3d28", field="#143320", button="#1c3f29", hover="#245035", line="#2c5c3e",
+                    line2="#4c8a5e", deep="#08180e", canvas="#081a0f", text="#eaf7e4", strong="#ffffff", soft="#cdeec0", muted="#93b98a",
+                    dim="#62855a", a1="#c4f04a", a2="#2fbf6a", a3="#e8a23c", sel="#24502f", done="#d8f59a", ok="#c4f04a",
+                    bartext="#e6ffd0", barline="#c4f04a", head="#133a23", headtext="#c4f04a"),
+    # 昔のワゴン車。クリームの地に青緑の帯、橙と赤の差し色
+    "レトロ": dict(bg="#f4e8cc", bar="#1f7f7a", menu="#196b67", field="#fffaf0", button="#eadcbd", hover="#e0cfaa", line="#d6c39b",
+                 line2="#bfa877", deep="#1f7f7a", canvas="#c8b48a", text="#2b2118", strong="#140e08", soft="#4a3a28", muted="#806a4e",
+                 dim="#ad9a7c", a1="#f07a24", a2="#d6452b", a3="#1f7f7a", sel="#f9d7b4", done="#b5501c", ok="#3f8a4a",
+                 bartext="#fff6e0", barline="#f07a24", head="#e9d7ae", headtext="#7a3a12"),
 }
 DEFAULT = "ナイト"
 
@@ -40,21 +54,25 @@ TEMPLATE = """
 * {{ font-size: 12px; }}
 QMainWindow, QDockWidget > QWidget, QWidget#panel {{ background: {bg}; color: {text}; }}
 QWidget {{ color: {text}; }}
-QMenuBar {{ background: {bar}; padding: 2px 6px; }}
+QMenuBar {{ background: {bar}; color: {bartext}; padding: 2px 6px; border-bottom: 2px solid {barline}; }}
+QMenuBar::item {{ color: {bartext}; }}
 QMenuBar::item {{ padding: 5px 10px; border-radius: 6px; }}
 QMenuBar::item:selected, QMenu::item:selected {{ background: {line2}; }}
-QMenu {{ background: {menu}; border: 1px solid {line}; border-radius: 10px; padding: 6px; }}
+QMenu {{ background: {menu}; color: {bartext}; border: 1px solid {barline}; border-radius: 10px; padding: 6px; }}
 QMenu::item {{ padding: 6px 22px; border-radius: 6px; }}
-QToolBar {{ background: {bar}; border: none; spacing: 4px; padding: 6px; }}
+QToolBar {{ background: {bar}; color: {bartext}; border: none; spacing: 4px; padding: 6px; }}
+QToolBar QLabel, QToolBar QCheckBox {{ color: {bartext}; }}
+QToolBar QToolButton:hover {{ background: {barhover}; }}
 QToolBar#tools QToolButton {{ width: 34px; height: 34px; border-radius: 9px; }}
 QToolButton {{ border-radius: 8px; padding: 4px; }}
 QToolButton:hover {{ background: {hover}; }}
 QToolButton:checked {{ background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {a1}, stop:1 {a2}); }}
 QToolBar::separator {{ background: {line2}; width: 1px; height: 1px; margin: 5px; }}
-QLabel#toolName {{ font-weight: 600; padding: 0 8px; color: {strong}; }}
+QLabel#toolName {{ font-weight: 600; padding: 0 8px; color: {bartext}; }}
 QDockWidget {{ titlebar-close-icon: none; }}
-PanelTitle {{ background: {bar}; }}
-PanelTitle QLabel {{ font-weight: 600; letter-spacing: 0.5px; color: {soft}; }}
+PanelTitle {{ background: {head}; border-bottom: 2px solid {barline}; }}
+PanelTitle QLabel {{ font-weight: 700; letter-spacing: 0.5px; color: {headtext}; }}
+PanelTitle QPushButton {{ color: {headtext}; }}
 PanelTitle QPushButton {{ color: {muted}; border: none; border-radius: 5px; padding: 0; background: transparent; }}
 PanelTitle QPushButton:hover {{ background: {line2}; color: {strong}; }}
 QPushButton {{ background: {button}; border: 1px solid {line}; border-radius: 8px; padding: 6px 12px; }}
@@ -107,14 +125,14 @@ QWidget#ribbonGroup QToolButton {{ font-size: 11px; padding: 3px 4px; border-rad
 QLabel#ribbonGroupName {{ color: {dim}; font-size: 10px; }}
 QFrame#ribbonSep {{ color: {line2}; }}
 QToolBar#ribbonbar {{ padding: 0 6px; }}
-QLabel#statusCell {{ color: {muted}; padding: 0 10px; border-left: 1px solid {button}; }}
-QPushButton#statusButton {{ background: transparent; border: none; color: {soft}; padding: 0 10px; }}
+QLabel#statusCell {{ color: {bartext}; padding: 0 10px; border-left: 1px solid {barhover}; }}
+QPushButton#statusButton {{ background: transparent; border: none; color: {bartext}; padding: 0 10px; }}
 QPushButton#statusButton:hover {{ color: {a1}; }}
 QFrame#notice {{ background: {button}; border-radius: 10px; }}
 QLabel#noticeTitle {{ font-weight: 700; color: {strong}; }}
 QStatusBar::item {{ border: none; }}
 QPushButton#modelButton {{ text-align: left; }}
-QStatusBar {{ background: {bar}; color: {muted}; }}
+QStatusBar {{ background: {bar}; color: {bartext}; border-top: 2px solid {barline}; }}
 QScrollBar:vertical {{ background: transparent; width: 10px; }}
 QScrollBar::handle:vertical {{ background: {line2}; border-radius: 4px; min-height: 30px; margin: 2px; }}
 QScrollBar::add-line, QScrollBar::sub-line {{ height: 0; width: 0; }}
@@ -146,6 +164,8 @@ def _lighter(c: str, k: int = 115) -> str:
 
 def colors(name: str = DEFAULT) -> dict[str, str]:
     t = dict(THEMES.get(name, THEMES[DEFAULT]))
+    bar = QColor(t["bar"])
+    t["barhover"] = (bar.lighter(170) if bar.lightness() < 60 else bar.lighter(125)).name()
     t.update(a1h=_lighter(t["a1"]), a2h=_lighter(t["a2"]), a3h=_lighter(t["a3"]), on="#ffffff", name=name if name in THEMES else DEFAULT)
     return t
 

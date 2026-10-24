@@ -269,12 +269,12 @@ class _Engine(QIconEngine):
     def _color(self, mode, state) -> QColor:
         from chatdraw.themes import current
         if mode == QIcon.Disabled:
-            return QColor(current["dim"])
+            return QColor(current["muted"])
         if state == QIcon.On:
             return QColor(self.active or current["on"])   # 選んだ道具は差し色の地の上に描く
         if mode in (QIcon.Active, QIcon.Selected):
-            return QColor(self.active or current["strong"])
-        return QColor(self.color or current["text"])
+            return QColor(self.active or current["bartext"])
+        return QColor(self.color or current["bartext"])   # アイコンはほとんど帯の上に並ぶ
 
     def paint(self, painter, rect, mode, state):
         painter.save()
