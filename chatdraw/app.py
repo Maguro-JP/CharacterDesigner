@@ -668,7 +668,7 @@ class Window(QMainWindow):
             sub = self._where.addMenu(name)
             for label, area in (("上", Qt.TopToolBarArea), ("下", Qt.BottomToolBarArea)):
                 sub.addAction(QAction(label, self, triggered=lambda _=False, tb=tb, area=area: self.place_bar(tb, area)))
-        state = self.layout_store.value("state7")   # 欄の並びを変えたら名前を変え、古い並びを読まない
+        state = self.layout_store.value("state8")   # 欄の並びを変えたら名前を変え、古い並びを読まない
         if state is not None:
             self.restoreGeometry(self.layout_store.value("geometry"))
             self.restoreState(state)
@@ -1242,7 +1242,7 @@ class Window(QMainWindow):
     def closeEvent(self, e):
         # 次に開いたときも同じ並びにする
         self.layout_store.setValue("geometry", self.saveGeometry())
-        self.layout_store.setValue("state7", self.saveState())
+        self.layout_store.setValue("state8", self.saveState())
         super().closeEvent(e)
 
     def _refresh_layers(self):

@@ -702,9 +702,19 @@ class LayoutsTest(unittest.TestCase):
         for name, fn in L.PRESETS.items():                                # 決まった配置はどれも当てられる
             fn(w)
             app.processEvents()
-            self.assertTrue(L.visible(w), name)
+            self.assertTrue(L.visible(w) or name == "絵だけ", name)
         L.drawing_focus(w)
         self.assertTrue(w.panels["talk"][0].isHidden())
+        L.recommended(w)                                                   # おすすめ: リボンを出さず、道具はよく使うものだけ
+        self.assertTrue(w.ribbon_bar.isHidden())
+        self.assertTrue(w.tool_actions["pen"].isVisible() and not w.tool_actions["gradient"].isVisible())
+        L.creator(w)                                                       # クリエイター向け: リボンと全部の道具
+        self.assertFalse(w.ribbon_bar.isHidden())
+        self.assertTrue(w.tool_actions["gradient"].isVisible())
+        L.ai_focus(w)                                                      # AI 特化: 手で描く道具は出さない
+        self.assertTrue(w.tools.isHidden() and w.panels["color"][0].isHidden())
+        L.canvas_only(w)
+        self.assertEqual(L.visible(w), [])
         L.recommended(w)
         L.align(w, "left")                                                 # 左に寄せる
         self.assertTrue(all(area(k) == _Qt.LeftDockWidgetArea for k in L.visible(w)))

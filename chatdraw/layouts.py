@@ -67,59 +67,107 @@ def _widths(w, left: list, right: list, side: int):
         w.resizeDocks([w.panels[right[0]][0]], [side], Qt.Horizontal)
 
 
+# よく使う道具。おすすめの配置では、これだけを道具の帯に出す（ほかはクリエイター向けの配置か、AI に頼めば使える）
+ESSENTIAL_TOOLS = ("pen", "eraser", "fill", "eyedropper", "select", "move", "hand")
+
+
+def bars(w, ribbon: bool, tools: tuple | None, options: bool = True, bottom: bool = False, panelbar: bool = True):
+    """帯の出し入れと、道具の帯に出す道具（None なら全部）"""
+    w.ribbon_bar.setVisible(ribbon)
+    w.options.setVisible(options)
+    w.bottom_bar.setVisible(bottom)
+    w.panel_bar.setVisible(panelbar)
+    w.tools.setVisible(tools is None or bool(tools))
+    for key, act in w.tool_actions.items():
+        act.setVisible(tools is None or key in tools)
+
+
+def _progress_idle(w):
+    if getattr(w, "thread", None) is None:
+        w.panels["progress"][0].hide()   # 進みは描いている間だけ出す（場所は真ん中の上に取ってある）
+
+
 def recommended(w):
-    """おすすめ。左に手で描く道具（色・ブラシ・レイヤー）、右の上に表示（全体・参考画像）、右の中に AI の設定、
-    右の下に履歴、真ん中の上に進み、真ん中の下にチャット"""
+    """おすすめ（初めの配置）。絵を広く見せるため、リボンと下の帯は出さず、道具はよく使うものだけにする。
+    左に色とレイヤー、右の上に表示、右の中に AI の設定、右の下に履歴、真ん中の上に進み、真ん中の下にチャット"""
     _reset(w)
-    _column(w, L, ["color", "brushes"], [4, 6])
-    _tabs(w, ["brushes", "layers"])
-    w.panels["layers"][0].raise_()
+    bars(w, ribbon=False, tools=ESSENTIAL_TOOLS)
+    _column(w, L, ["color", "layers"], [5, 5])
+    _hide(w, ["brushes"])
     _column(w, R, ["view", "chat", "history"], [3, 3, 4])
     w.addDockWidget(T, w.panels["progress"][0])
     w.addDockWidget(B, w.panels["talk"][0])
     for k in ("progress", "talk"):
         w.panels[k][0].show()
-    side = min(330, max(250, int(max(w.width(), 1200) * 0.19)))
+    side = min(300, max(240, int(max(w.width(), 1200) * 0.17)))
     _widths(w, ["color"], ["view"], side)
-    w.resizeDocks([w.panels["progress"][0], w.panels["talk"][0]], [70, 190], Qt.Vertical)
-    if getattr(w, "thread", None) is None:
-        w.panels["progress"][0].hide()   # 進みは描いている間だけ出す（場所は真ん中の上に取ってある）
+    w.resizeDocks([w.panels["progress"][0], w.panels["talk"][0]], [70, 170], Qt.Vertical)
+    _progress_idle(w)
 
 
-def simple(w):
-    """シンプル。左に色、右に AI とレイヤー、下にチャットだけ"""
+def creator(w):
+    """クリエイター向け。リボンと全部の道具、左に色・ブラシ・レイヤー、右に表示と履歴、下に小さくチャット"""
     _reset(w)
-    _column(w, L, ["color"])
-    _column(w, R, ["chat", "layers"], [4, 6])
+    bars(w, ribbon=True, tools=None, bottom=True)
+    _column(w, L, ["color", "brushes", "layers"], [4, 3, 3])
+    _column(w, R, ["view", "history"], [5, 5])
+    _tabs(w, ["history", "chat"])
+    w.panels["history"][0].raise_()
+    w.addDockWidget(T, w.panels["progress"][0])
     w.addDockWidget(B, w.panels["talk"][0])
     w.panels["talk"][0].show()
-    _hide(w, ["brushes", "history", "view", "progress"])
-    _widths(w, ["color"], ["chat"], 280)
-    w.resizeDocks([w.panels["talk"][0]], [170], Qt.Vertical)
+    _widths(w, ["color"], ["view"], 300)
+    w.resizeDocks([w.panels["talk"][0]], [130], Qt.Vertical)
+    _progress_idle(w)
 
 
 def ai_focus(w):
-    """AI 中心。チャットを大きく、右に AI・進み・履歴。手で描く道具は隠す"""
+    """AI 特化。手で描く道具は出さず、チャットを大きく、右に AI の設定・履歴、上に進み"""
     _reset(w)
-    _column(w, R, ["chat", "progress", "history"], [3, 2, 5])
+    bars(w, ribbon=False, tools=(), options=False)
+    _column(w, R, ["chat", "history"], [4, 6])
     _column(w, L, ["view"])
+    w.addDockWidget(T, w.panels["progress"][0])
     w.addDockWidget(B, w.panels["talk"][0])
-    w.panels["talk"][0].show()
+    for k in ("progress", "talk"):
+        w.panels[k][0].show()
     _hide(w, ["color", "brushes", "layers"])
     _widths(w, ["view"], ["chat"], 300)
-    w.resizeDocks([w.panels["talk"][0]], [300], Qt.Vertical)
+    w.resizeDocks([w.panels["talk"][0]], [320], Qt.Vertical)
+    _progress_idle(w)
+
+
+def simple(w):
+    """シンプル。よく使う道具と色、下にチャットだけ。ほかの欄は欄の帯から開く"""
+    _reset(w)
+    bars(w, ribbon=False, tools=ESSENTIAL_TOOLS)
+    _column(w, L, ["color"])
+    w.addDockWidget(B, w.panels["talk"][0])
+    w.panels["talk"][0].show()
+    _hide(w, ["brushes", "layers", "history", "view", "chat", "progress"])
+    _widths(w, ["color"], [], 260)
+    w.resizeDocks([w.panels["talk"][0]], [160], Qt.Vertical)
+
+
+def canvas_only(w):
+    """絵だけ。帯も欄も隠して、絵をいちばん広く見せる（Tab でも同じ）"""
+    _reset(w)
+    bars(w, ribbon=False, tools=(), options=False, panelbar=False)
+    _hide(w, list(w.panels))
 
 
 def drawing_focus(w):
-    """作画中心。左に色・ブラシ・レイヤー、右に表示だけ。AI の欄は隠す"""
+    """作画中心。全部の道具と、左に色・ブラシ・レイヤー、右に表示。AI の欄は隠す"""
     _reset(w)
+    bars(w, ribbon=False, tools=None)
     _column(w, L, ["color", "brushes", "layers"], [4, 3, 3])
     _column(w, R, ["view"])
     _hide(w, ["chat", "history", "progress", "talk"])
     _widths(w, ["color"], ["view"], 280)
 
 
-PRESETS = {"おすすめ": recommended, "シンプル": simple, "AI 中心": ai_focus, "作画中心": drawing_focus}
+PRESETS = {"おすすめ": recommended, "クリエイター向け": creator, "AI 特化": ai_focus, "作画中心": drawing_focus,
+           "シンプル": simple, "絵だけ": canvas_only}
 
 
 def visible(w) -> list[str]:
