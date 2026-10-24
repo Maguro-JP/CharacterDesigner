@@ -8,9 +8,8 @@ import os
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-HOME = Path(os.environ.get("CD_HOME") or ROOT / ".cache")
+from chatdraw.paths import HOME, HUB  # noqa: E402
 IMAGE_MODEL = os.environ.get("CD_IMAGE_MODEL", "cagliostrolab/animagine-xl-4.0")
-WORDS_MODEL = HOME / "llm" / "model.gguf"
 # ラフ（線の下描き）の形に沿って描かせる部品。元の絵を描き直す img2img では、ラフの線がそのまま残って絵にならなかった
 SKETCH_ADAPTER = "TencentARC/t2i-adapter-sketch-sdxl-1.0"
 SKETCH_FILES = dict(allow_patterns=["*.json", "*.fp16.safetensors"])
@@ -39,22 +38,29 @@ def has_japanese(text: str) -> bool:
 class Words:
     """日本語の頼みを描く言葉に直す。言葉の模型が無ければ、頼みをそのまま渡す"""
 
-    def __init__(self, path: Path = WORDS_MODEL):
+    def __init__(self, path: Path | None = None):
+        if path is None:
+            from chatdraw.models import WORDS
+            from chatdraw.paths import find_gguf
+            path = find_gguf(WORDS[0].file) or find_gguf("model.gguf") or Path("")
         self.path = path
         self._llm = None
 
     def ready(self) -> bool:
         return self.path.is_file()   # 「使わない」を選ぶと空の名前になる
 
-    def to_prompt(self, text: str) -> str:
-        if not has_japanese(text) or not self.ready():
-            return text
+    def ask(self, system: str, text: str, max_tokens: int = 160) -> str:
         if self._llm is None:
             from llama_cpp import Llama
             self._llm = Llama(model_path=str(self.path), n_ctx=2048, verbose=False)
-        out = self._llm.create_chat_completion(messages=[{"role": "system", "content": ASK}, {"role": "user", "content": text}],
-                                               temperature=0.2, max_tokens=160)
-        tags = out["choices"][0]["message"]["content"].strip().splitlines()[0]
+        out = self._llm.create_chat_completion(messages=[{"role": "system", "content": system}, {"role": "user", "content": text}],
+                                               temperature=0.2, max_tokens=max_tokens)
+        return out["choices"][0]["message"]["content"].strip()
+
+    def to_prompt(self, text: str) -> str:
+        if not has_japanese(text) or not self.ready():
+            return text
+        tags = self.ask(ASK, text).splitlines()[0]
         return tags or text
 
 
@@ -140,7 +146,7 @@ class Painter:
         try:
             from huggingface_hub import snapshot_download
             from chatdraw.models import image_model
-            snapshot_download(self.model, cache_dir=str(HOME / "gen" / "hf" / "hub"), local_files_only=True,
+            snapshot_download(self.model, cache_dir=str(HUB), local_files_only=True,
                               **image_model(self.model).files)
             return True
         except Exception:
@@ -149,7 +155,7 @@ class Painter:
     def sketch_ready(self) -> bool:
         try:
             from huggingface_hub import snapshot_download
-            snapshot_download(SKETCH_ADAPTER, cache_dir=str(HOME / "gen" / "hf" / "hub"), local_files_only=True, **SKETCH_FILES)
+            snapshot_download(SKETCH_ADAPTER, cache_dir=str(HUB), local_files_only=True, **SKETCH_FILES)
             return True
         except Exception:
             return False
@@ -164,7 +170,7 @@ class Painter:
             from chatdraw.models import image_model
             variant = image_model(self.model).variant
             self._pipe = AutoPipelineForText2Image.from_pretrained(self.model, torch_dtype=dtype, variant=variant,
-                                                                   cache_dir=str(HOME / "gen" / "hf" / "hub"))
+                                                                   cache_dir=str(HUB))
             if torch.cuda.is_available():
                 self._pipe.to("cuda")
         return self._pipe
@@ -195,7 +201,7 @@ class Painter:
             if self._sketch is None:
                 from diffusers import StableDiffusionXLAdapterPipeline, T2IAdapter
                 adapter = T2IAdapter.from_pretrained(SKETCH_ADAPTER, variant="fp16", torch_dtype=pipe.unet.dtype,
-                                                     cache_dir=str(HOME / "gen" / "hf" / "hub"))
+                                                     cache_dir=str(HUB))
                 keep = ("vae", "text_encoder", "text_encoder_2", "tokenizer", "tokenizer_2", "unet", "scheduler")
                 # 読んだ模型の部品をそのまま渡す（模型を 2 度読まない）
                 self._sketch = StableDiffusionXLAdapterPipeline(**{k: v for k, v in pipe.components.items() if k in keep},
@@ -228,16 +234,31 @@ class Studio:
         self.words = words or Words()
         self.painter = painter or Painter()
         self.out = out or Path(os.environ.get("CD_OUTPUT") or Path.home() / "Pictures" / "CharacterDesigner")
+        self.image_auto = False   # おまかせ: 頼みごとに、手元の絵の模型から合う物を選ぶ
+        self.words_auto = False   # おまかせ: 頼みごとに、手元の言葉の模型から合う物を選ぶ
 
     def draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
              on_preview=None) -> tuple[str, Path]:
         say = on_status or (lambda msg: None)
         if refused(text):
             raise ValueError("子どもを性的に描く頼みは描きません")
+        if self.words_auto:
+            from chatdraw.choose import choose_words
+            path = choose_words(text)
+            if path is not None and path != getattr(self.words, "path", None):
+                self.words = Words(path)
         say("頼みを描く言葉に直しています")
         prompt = self.words.to_prompt(text)
         if refused(prompt):
             raise ValueError("子どもを性的に描く頼みは描きません")
+        if self.image_auto:
+            from chatdraw.choose import choose_image
+            say("頼みに合う絵の模型を選んでいます")
+            m, why = choose_image(text, prompt, self.words)
+            if m is not None:
+                if m.repo != self.painter.model:
+                    self.painter = Painter(m.repo, m.steps, guidance=m.guidance)   # 前の模型は捨ててメモリを空ける
+                say(f"選んだ模型: {m.name}（{why}）")
         say("絵の模型を読んでいます（初めの 1 回だけ時間がかかります）")
         image = self.painter.paint(prompt, seed, on_step=lambda i, n: say(f"描いています（{i}/{n}）"),
                                    base=base, strength=strength, size=size, on_preview=on_preview)

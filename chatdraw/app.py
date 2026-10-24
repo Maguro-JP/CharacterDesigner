@@ -9,7 +9,11 @@ import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-for lib in (ROOT / ".cache" / "simple" / "lib", ROOT / ".cache" / "gen" / "lib", ROOT / ".cache" / "llm" / "lib", ROOT):
+sys.path.insert(0, str(ROOT))
+from chatdraw.paths import HOME as DATA  # noqa: E402
+
+# 部品はデータの置き場に入れる（入れたアプリ本体の場所は書き換えない）
+for lib in (DATA / "simple" / "lib", DATA / "gen" / "lib", DATA / "llm" / "lib"):
     if lib.exists() and str(lib) not in sys.path:
         sys.path.insert(0, str(lib))
 
@@ -19,7 +23,7 @@ except ImportError:
     # 初めての起動だけ、ウィンドウの部品（PySide6）を入れる。6.12.0 は Python 3.11 で None の参照数を減らしすぎ、
     # 線を数百本引くと落ちた。落ちないことを確かめた 6.9.3 に固定する
     import subprocess
-    lib = ROOT / ".cache" / "simple" / "lib"
+    lib = DATA / "simple" / "lib"
     subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--target", str(lib), "PySide6-Essentials==6.9.3"], check=True)
     sys.path.insert(0, str(lib))
 
@@ -385,6 +389,9 @@ class Window(QMainWindow):
         view.addAction(QAction("左に回す", self, shortcut="Ctrl+[", triggered=lambda: self.canvas.rotate_view(-15)))
         view.addAction(QAction("右に回す", self, shortcut="Ctrl+]", triggered=lambda: self.canvas.rotate_view(15)))
         view.addAction(QAction("回転を戻す", self, shortcut="Ctrl+\\", triggered=self.canvas.reset_rotation))
+        self.ai_menu = self.menuBar().addMenu("AI")
+        self.ai_menu.aboutToShow.connect(self._fill_ai_menu)
+        self._fill_ai_menu()
         setting_menu = self.menuBar().addMenu("設定")
         setting_menu.addAction(QAction("設定…", self, shortcut="Ctrl+,", triggered=self.open_settings))
         setting_menu.addAction(QAction("模型の管理（入れ替え・更新）…", self, triggered=lambda: self.ask_models(force=True)))
@@ -495,22 +502,29 @@ class Window(QMainWindow):
         self._end("できました")
 
     def _studio_from_settings(self) -> Studio:
+        """設定の模型で描く仕組みを作る。前と同じ絵の模型なら、読んだ物をそのまま使う（7GB を読み直さない）"""
+        from chatdraw.models import IMAGES
+        from chatdraw.setup import AUTO, has_image
         g = self.settings.get
-        return Studio(Words(Path(g("words_model"))), Painter(g("image_model"), g("steps"), guidance=g("guidance")),
-                      Path(g("output_dir")))
+        image, words = g("image_model"), g("words_model")
+        if image == AUTO:
+            have = [m for m in IMAGES if has_image(m)]
+            first = next((m for m in have if m.recommended), have[0] if have else IMAGES[0])
+            image, steps, guidance = first.repo, first.steps, first.guidance
+        else:
+            steps, guidance = g("steps"), g("guidance")
+        old = getattr(self, "studio", None)
+        painter = old.painter if old is not None and getattr(old.painter, "model", None) == image else Painter(image)
+        painter.steps, painter.guidance = steps, guidance
+        studio = Studio(Words(None if words == AUTO else Path(words)), painter, Path(g("output_dir")))
+        studio.image_auto, studio.words_auto = g("image_model") == AUTO, words == AUTO
+        return studio
 
     def open_settings(self):
         """設定ウィンドウを開き、保存されたら描く仕組みに当てる。絵の模型を替えたときだけ読み直す"""
         if SettingsDialog(self.settings, self).exec():
             g = self.settings.get
-            painter = self.studio.painter
-            if getattr(painter, "model", None) != g("image_model"):
-                self.studio.painter = Painter(g("image_model"), g("steps"), guidance=g("guidance"))
-            else:
-                painter.steps, painter.guidance = g("steps"), g("guidance")
-            if str(getattr(self.studio.words, "path", "")) != g("words_model"):
-                self.studio.words = Words(Path(g("words_model")))
-            self.studio.out = Path(g("output_dir"))
+            self.studio = self._studio_from_settings()
             self.strength.setValue(int(g("rough_follow") * 100))
             self.check_ai()
             self.statusBar().showMessage("設定を保存しました")
@@ -524,6 +538,57 @@ class Window(QMainWindow):
         if SetupDialog(self.settings, self, first=not force).exec():
             self.studio = self._studio_from_settings()   # 選んだ模型で描き直す
             self.check_ai()
+
+    # ---- AI のメニュー: 模型の切り替え ----
+    def _fill_ai_menu(self):
+        """開くたびに作り直す（取った・取っていないが変わるため）"""
+        from chatdraw.models import IMAGES, WORDS
+        from chatdraw.setup import AUTO, has_image, has_words, words_path
+        menu = self.ai_menu
+        menu.clear()
+        now_image, now_words = self.settings.get("image_model"), self.settings.get("words_model")
+        for title, items, now in (
+                ("絵の模型", [(AUTO, "おまかせ", True)] + [(m.repo, m.name, has_image(m)) for m in IMAGES], now_image),
+                ("言葉の模型", [(AUTO, "おまかせ", True)] + [(m.file, m.name, has_words(m)) for m in WORDS] + [("", "使わない", True)],
+                 Path(now_words).name if now_words not in (AUTO, "") else now_words)):
+            menu.addSection(title)
+            group = QActionGroup(menu)
+            for key, name, have in items:
+                act = QAction(name if have else f"{name}（未取得）", menu, checkable=True)
+                act.setChecked(key == now or title == "言葉の模型" and key == WORDS[0].file and now == "model.gguf")
+                act.setToolTip("選ぶと取ってから使います" if not have else "")
+                act.triggered.connect(lambda _=False, t=title, k=key: self.switch_model(t, k))
+                group.addAction(act)
+                menu.addAction(act)
+        menu.addSeparator()
+        menu.addAction(QAction("模型の管理（更新）…", self, triggered=lambda: self.ask_models(force=True)))
+
+    def switch_model(self, kind: str, key: str):
+        """メニューで選んだ模型に替える。取っていなければ取ってから替える。消すことはしない"""
+        from chatdraw.models import IMAGES, WORDS
+        from chatdraw.setup import AUTO, SetupDialog, has_image, has_words, words_path
+        if kind == "絵の模型":
+            m = next((m for m in IMAGES if m.repo == key), None)
+            need = m is not None and not has_image(m) or key == AUTO and not any(has_image(x) for x in IMAGES)
+        else:
+            m = next((m for m in WORDS if m.file == key), None)
+            need = m is not None and not has_words(m) or key == AUTO and not any(has_words(x) for x in WORDS)
+        if need:
+            dlg = SetupDialog(self.settings, self, first=False)
+            dlg.select(**({"image": key} if kind == "絵の模型" else {"words": key}))
+            dlg.start(update=False)
+            if not dlg.exec():
+                return
+        elif kind == "絵の模型":
+            self.settings.set("image_model", key)
+            if m is not None:
+                self.settings.set("steps", m.steps)
+                self.settings.set("guidance", m.guidance)
+        else:
+            self.settings.set("words_model", key if key in (AUTO, "") else str(words_path(m)))
+        self.studio = self._studio_from_settings()
+        self.check_ai()
+        self.statusBar().showMessage(f"{kind}を替えました", 4000)
 
     def show_preview(self, img):
         """AI が描いている途中の絵を、工程ごとにキャンバスの上に重ねて見せる（録画はしない）"""

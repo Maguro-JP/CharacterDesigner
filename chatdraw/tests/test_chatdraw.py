@@ -387,5 +387,50 @@ class SetupTest(unittest.TestCase):
         self.assertEqual(Words(Path("")).to_prompt("騎士"), "騎士")
 
 
+class ChooseTest(unittest.TestCase):
+    def test_auto_picks_from_installed_only(self):
+        from chatdraw.choose import choose_image
+        from chatdraw.models import IMAGES
+        anime, known, fast = IMAGES
+        self.assertEqual(choose_image("写実的な街の写真", "", None, [anime, fast])[0], fast)
+        self.assertEqual(choose_image("制服の女の子", "", None, [anime, known])[0], known)
+        self.assertEqual(choose_image("赤いマフラーの騎士", "", None, [anime, known, fast])[0], anime)
+        self.assertEqual(choose_image("写実的な街の写真", "", None, [anime])[0], anime)     # 取っていない物は選ばない
+        self.assertIsNone(choose_image("騎士", "", None, [])[0])
+
+    def test_auto_uses_words_model_answer(self):
+        from chatdraw.choose import choose_image
+        from chatdraw.models import IMAGES
+
+        class Asker(FakeWords):
+            def ask(self, system, text, max_tokens=160):
+                self.seen = system
+                return "2"
+        w = Asker()
+        m, why = choose_image("騎士", "knight", w, list(IMAGES))
+        self.assertEqual(m, IMAGES[1])
+        self.assertIn("realistic", w.seen)                                   # 候補の説明を見せて選ばせる
+
+    def test_studio_switches_painter_when_auto(self):
+        from unittest import mock
+        from chatdraw.models import IMAGES
+        with TemporaryDirectory() as d:
+            st = Studio(FakeWords(), FakePainter(), Path(d))
+            st.image_auto = True
+            said = []
+            made = []
+
+            class Made(FakePainter):
+                def __init__(self, model, steps=24, guidance=5.0):
+                    super().__init__()
+                    self.model = model
+                    made.append(model)
+            with mock.patch("chatdraw.choose.installed_images", return_value=[IMAGES[0], IMAGES[2]]), \
+                    mock.patch("chatdraw.engine.Painter", Made):
+                st.draw("写実的な街の写真", 1, said.append)
+            self.assertEqual(made, [IMAGES[2].repo])
+            self.assertTrue(any("DreamShaper" in m for m in said))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -7,12 +7,13 @@ from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFormLayout, QHBoxLayout,
                                QLineEdit, QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget)
 
-from chatdraw.engine import HOME, IMAGE_MODEL
+from chatdraw.engine import IMAGE_MODEL
+from chatdraw.paths import HUB, llm_dirs
 
 # (キー, 見出し, 欄の名前, 種類, 既定値, 補足)。種類で入力の部品が決まる
 FIELDS = [
     ("image_model", "絵の模型", "模型", "image_model", IMAGE_MODEL, "絵を描く模型。手元に取ってある物から選ぶか、Hugging Face の名前を書く"),
-    ("words_model", "言葉の模型", "模型", "words_model", str(HOME / "llm" / "model.gguf"), "日本語の頼みを描く言葉に直す模型（.gguf）"),
+    ("words_model", "言葉の模型", "模型", "words_model", "", "日本語の頼みを描く言葉に直す模型（.gguf）"),
     ("steps", "描く工程の数", "描き方", "int:4:80", 24, "多いほど細かく描けて、時間がかかる"),
     ("guidance", "頼みの効き", "描き方", "float:1:15", 5.0, "大きいほど頼みの言葉に寄せる"),
     ("rough_follow", "ラフに沿う強さ", "描き方", "float:0.3:1", 1.0, "大きいほどラフの線の形に沿う。小さいほど AI が形を変える"),
@@ -22,7 +23,7 @@ FIELDS = [
 
 def local_models() -> list[str]:
     """手元に取ってある、絵を描ける模型（model_index.json がある物）"""
-    hub = HOME / "gen" / "hf" / "hub"
+    hub = HUB
     out = []
     for d in sorted(hub.glob("models--*")):
         if any(s.joinpath("model_index.json").exists() for s in d.glob("snapshots/*")):
@@ -87,7 +88,7 @@ class SettingsDialog(QDialog):
         if kind == "words_model":
             w = QComboBox()
             w.setEditable(True)
-            w.addItems([str(p) for p in sorted((HOME / "llm").glob("*.gguf"))])
+            w.addItems([str(p) for d in llm_dirs() for p in sorted(d.glob("*.gguf"))])
             w.setCurrentText(value)
             return w
         if kind.startswith("int"):

@@ -26,6 +26,7 @@ class ImageModel:
     variant: str | None = None
     files: dict = field(default_factory=lambda: FULL)
     recommended: bool = False
+    en: str = ""    # おまかせで言葉の模型に選ばせるときの説明
 
 
 @dataclass(frozen=True)
@@ -44,11 +45,14 @@ class WordsModel:
 
 IMAGES = (
     ImageModel("cagliostrolab/animagine-xl-4.0", "Animagine XL 4.0", "アニメ絵。線と塗りが整っていて、キャラクターに強い",
-               "1 枚 約 4〜10 分", 6.9, 24, 5.0, recommended=True),
+               "1 枚 約 4〜10 分", 6.9, 24, 5.0, recommended=True,
+               en="anime illustration, clean lines and coloring, original characters"),
     ImageModel("OnomaAIResearch/Illustrious-xl-early-release-v0", "Illustrious XL", "アニメ絵。知っているキャラクターや服の種類が多い",
-               "1 枚 約 5〜12 分", 6.9, 28, 6.0),
+               "1 枚 約 5〜12 分", 6.9, 28, 6.0,
+               en="anime illustration, knows many existing characters, costumes and outfits"),
     ImageModel("Lykon/dreamshaper-xl-lightning", "DreamShaper XL Lightning", "速い。写実寄りからイラストまで幅広い",
-               "1 枚 約 1〜3 分", 6.9, 6, 2.0, variant="fp16", files=HALF),
+               "1 枚 約 1〜3 分", 6.9, 6, 2.0, variant="fp16", files=HALF,
+               en="fast; realistic, photo, semi-realistic, scenery, general illustration"),
 )
 
 WORDS = (

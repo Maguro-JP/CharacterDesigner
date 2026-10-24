@@ -11,22 +11,24 @@ import urllib.request
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, Signal
-from PySide6.QtWidgets import (QButtonGroup, QDialog, QFrame, QHBoxLayout, QLabel, QProgressBar, QPushButton, QRadioButton,
+from PySide6.QtWidgets import (QButtonGroup, QDialog, QFrame, QGridLayout, QHBoxLayout, QLabel, QProgressBar, QPushButton, QRadioButton,
                                QStackedWidget, QVBoxLayout, QWidget)
 
-from chatdraw.engine import HOME, SKETCH_ADAPTER, SKETCH_FILES, Painter
+from chatdraw.engine import SKETCH_ADAPTER, SKETCH_FILES, Painter
 from chatdraw.models import IMAGES, WORDS, ImageModel, WordsModel
+from chatdraw.paths import HUB, OWN_LLM, find_gguf, llm_target
 
-HUB = HOME / "gen" / "hf" / "hub"
-LLM = HOME / "llm"
-OLD_WORDS = LLM / "model.gguf"   # 一覧を作る前に取った言葉の模型（Qwen2.5 1.5B と同じ物）
+LLM = OWN_LLM
+AUTO = "auto"   # おまかせ。頼みごとに、手元の模型から合う物を AI が選ぶ
+OLD_WORDS = OWN_LLM / "model.gguf"   # 一覧を作る前に取った言葉の模型（Qwen2.5 1.5B と同じ物）
 
 
 def words_path(m: WordsModel) -> Path:
-    p = LLM / m.file
-    if not p.exists() and m.file == WORDS[0].file and OLD_WORDS.exists():
+    """手元にある置き場（AdaptiveAIStudio と共有の置き場を先に見る）。無ければ、これから取る置き場"""
+    found = find_gguf(m.file)
+    if found is None and m.file == WORDS[0].file and OLD_WORDS.exists():
         return OLD_WORDS
-    return p
+    return found or llm_target() / m.file
 
 
 def has_image(m: ImageModel) -> bool:
@@ -43,8 +45,7 @@ def llm_lib_ready() -> bool:
 
 def missing() -> dict:
     """足りない物。絵の模型（ラフの部品を含む）と、言葉の模型（部品と本体）"""
-    p = Painter()
-    return {"image": not (p.ready() and p.sketch_ready()),
+    return {"image": not (any(has_image(m) for m in IMAGES) and Painter().sketch_ready()),
             "words": not (llm_lib_ready() and any(has_words(m) for m in WORDS))}
 
 
@@ -92,13 +93,12 @@ class Fetcher(QObject):
             subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--target", str(lib), "--only-binary", "llama-cpp-python",
                             "--extra-index-url", "https://abetlen.github.io/llama-cpp-python/whl/cpu", "llama-cpp-python>=0.3.16"],
                            check=True)
-        dest = LLM / m.file
+        dest = have = words_path(m)
         with urllib.request.urlopen(urllib.request.Request(m.url, method="HEAD")) as r:
             remote = int(r.headers.get("Content-Length") or 0)
-        have = words_path(m)
         if have.exists() and (not update or have.stat().st_size == remote):
             return   # 同じ大きさなら同じ版とみなして取り直さない
-        LLM.mkdir(parents=True, exist_ok=True)
+        dest.parent.mkdir(parents=True, exist_ok=True)
         part = dest.with_suffix(".part")
         with urllib.request.urlopen(m.url) as r, open(part, "wb") as f:
             total, got = int(r.headers.get("Content-Length") or 0), 0
@@ -143,7 +143,7 @@ class SetupDialog(QDialog):
         self.settings = settings
         self.first = first
         self.setWindowTitle("はじめに" if first else "模型の管理")
-        self.setMinimumWidth(560)
+        self.setMinimumWidth(760)
         self.pages = QStackedWidget()
         self.pages.addWidget(self._choose_page())
         self.pages.addWidget(self._fetch_page())
@@ -161,7 +161,7 @@ class SetupDialog(QDialog):
         title = QLabel("使う AI を選んでください" if self.first else "模型の入れ替えと更新")
         title.setObjectName("dialogTitle")
         lay.addWidget(title)
-        hint = QLabel("選んだ物を自動で取ります。あとから「設定」の「模型の管理」で入れ替えられます。")
+        hint = QLabel("選んだ物を自動で取ります。あとから「AI」メニューでいつでも切り替えられます。")
         hint.setObjectName("cardMeta")
         lay.addWidget(hint)
         # 一度選んだことがあれば今の選択を、初めてならおすすめを選んでおく
@@ -174,28 +174,44 @@ class SetupDialog(QDialog):
         lay.addWidget(head)
         self.image_group = QButtonGroup(self)
         self.image_radios: dict[str, QRadioButton] = {}
-        for m in IMAGES:
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        lay.addLayout(grid)
+        r = QRadioButton("おまかせ")
+        r.setChecked(now_image == AUTO)
+        self.image_group.addButton(r)
+        self.image_radios[AUTO] = r
+        grid.addWidget(card(r, "頼みごとに、取ってある模型から合う物を AI が選ぶ", "取っていなければ、おすすめを取る", False, False), 0, 0)
+        for i, m in enumerate(IMAGES, 1):
             r = QRadioButton(m.name)
             r.setChecked(m.repo == now_image if now_image else m.recommended)
             self.image_group.addButton(r)
             self.image_radios[m.repo] = r
-            lay.addWidget(card(r, m.good, f"約 {m.gb:.0f}GB　{m.speed}", has_image(m), m.recommended))
+            grid.addWidget(card(r, m.good, f"約 {m.gb:.0f}GB　{m.speed}", has_image(m), m.recommended), i // 2, i % 2)
 
         head = QLabel("言葉の模型（日本語の頼みを、絵の模型が分かる言葉に直す）")
         head.setObjectName("sectionHead")
         lay.addWidget(head)
         self.words_group = QButtonGroup(self)
         self.words_radios: dict[str, QRadioButton] = {}
-        for m in WORDS:
+        grid = QGridLayout()
+        grid.setSpacing(8)
+        lay.addLayout(grid)
+        r = QRadioButton("おまかせ")
+        r.setChecked(now_words == AUTO)
+        self.words_group.addButton(r)
+        self.words_radios[AUTO] = r
+        grid.addWidget(card(r, "長い頼みは大きい模型、短い頼みは速い模型を AI が選ぶ", "取っていなければ、おすすめを取る", False, False), 0, 0)
+        for i, m in enumerate(WORDS, 1):
             r = QRadioButton(m.name)
             names = (m.file, OLD_WORDS.name) if m is WORDS[0] else (m.file,)
-            r.setChecked(Path(now_words).name in names if now_words else now_words is None and m.recommended)
+            r.setChecked(Path(now_words).name in names if now_words and now_words != AUTO else now_words is None and m.recommended)
             self.words_group.addButton(r)
             self.words_radios[m.file] = r
-            lay.addWidget(card(r, m.good, f"約 {m.gb}GB", has_words(m), m.recommended))
+            grid.addWidget(card(r, m.good, f"約 {m.gb}GB", has_words(m), m.recommended), i // 2, i % 2)
         self.no_words = QRadioButton("使わない")
         self.words_group.addButton(self.no_words)
-        lay.addWidget(card(self.no_words, "頼みをそのまま絵の模型に渡す。英語で頼むなら十分", "0GB", False, False))
+        grid.addWidget(card(self.no_words, "頼みをそのまま絵の模型に渡す。英語で頼むなら十分", "0GB", False, False), 2, 0)
         self.no_words.setChecked(now_words == "")
         if not any(r.isChecked() for r in self.words_group.buttons()):
             self.words_radios[WORDS[0].file].setChecked(True)
@@ -217,10 +233,30 @@ class SetupDialog(QDialog):
         lay.addLayout(row)
         return page
 
-    def chosen(self) -> tuple[ImageModel, WordsModel | None]:
-        image = next(m for m in IMAGES if self.image_radios[m.repo].isChecked())
-        words = next((m for m in WORDS if self.words_radios[m.file].isChecked()), None)
+    def chosen(self) -> tuple[ImageModel | str, WordsModel | str | None]:
+        """選んだ物。おまかせは AUTO、言葉の模型を使わないときは None"""
+        image = AUTO if self.image_radios[AUTO].isChecked() else next(m for m in IMAGES if self.image_radios[m.repo].isChecked())
+        if self.words_radios[AUTO].isChecked():
+            return image, AUTO
+        return image, next((m for m in WORDS if self.words_radios[m.file].isChecked()), None)
+
+    def to_fetch(self) -> tuple[ImageModel | None, WordsModel | None]:
+        """取る物。おまかせで手元に 1 つも無ければ、おすすめを取る"""
+        image, words = self.chosen()
+        if image == AUTO:
+            image = None if any(has_image(m) for m in IMAGES) else next(m for m in IMAGES if m.recommended)
+        if words == AUTO:
+            words = None if any(has_words(m) for m in WORDS) else next(m for m in WORDS if m.recommended)
         return image, words
+
+    def select(self, image: str | None = None, words: str | None = None):
+        """メニューから選んだ物を選んでおく（words は WordsModel.file か AUTO、"" で使わない）"""
+        if image is not None:
+            self.image_radios[image].setChecked(True)
+        if words == "":
+            self.no_words.setChecked(True)
+        elif words is not None:
+            self.words_radios[words].setChecked(True)
 
     # ---- 2 枚目: 取る ----
     def _fetch_page(self) -> QWidget:
@@ -244,7 +280,7 @@ class SetupDialog(QDialog):
         return page
 
     def start(self, update: bool):
-        image, words = self.chosen()
+        image, words = self.to_fetch()
         self.pages.setCurrentIndex(1)
         self.fetch_title.setText("更新を確かめています" if update else "準備しています")
         self.label.setText("初めての取得は回線によって数十分かかります。閉じずにお待ちください。")
@@ -273,10 +309,13 @@ class SetupDialog(QDialog):
         if self.settings is None:
             return
         image, words = self.chosen()
-        self.settings.set("image_model", image.repo)
-        self.settings.set("steps", image.steps)
-        self.settings.set("guidance", image.guidance)
-        self.settings.set("words_model", str(words_path(words)) if words else "")
+        if image == AUTO:
+            self.settings.set("image_model", AUTO)
+        else:
+            self.settings.set("image_model", image.repo)
+            self.settings.set("steps", image.steps)
+            self.settings.set("guidance", image.guidance)
+        self.settings.set("words_model", AUTO if words == AUTO else str(words_path(words)) if words else "")
         self.settings.set("setup_done", 1)
 
     # ---- 3 枚目: 案内 ----
