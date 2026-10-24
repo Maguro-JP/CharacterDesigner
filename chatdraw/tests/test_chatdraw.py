@@ -684,8 +684,9 @@ class MotionTest(unittest.TestCase):
             w.panels["brushes"][0].show()
             title = w.panels["color"][0].titleBarWidget()
             title.toggle()                                               # 畳むと高さが動いて縮む
-            end = time.time() + 1
-            while time.time() < end:
+            # 動きは時計で進むので、機械が忙しいと 1 秒では終わらなかった。畳み終わるまで（最長 8 秒）待つ
+            end = time.time() + 8
+            while time.time() < end and not (w.panels["color"][0].height() < 60 and w.panels["color"][0].widget().isHidden()):
                 app.processEvents()
             self.assertLess(w.panels["color"][0].height(), 60)
             self.assertTrue(w.panels["color"][0].widget().isHidden())
