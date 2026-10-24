@@ -47,9 +47,12 @@ Section "Install"
   ; 書き換える置き場。ふつうの利用者も書けるようにする（ProgramData と C:\ 直下は既定で管理者しか書けない）
   CreateDirectory "$COMMONPROGRAMDATA\${APP}"
   nsExec::ExecToLog '"$SYSDIR\icacls.exe" "$COMMONPROGRAMDATA\${APP}" /grant *S-1-5-32-545:(OI)(CI)M /T /Q'
-  CreateDirectory "C:\LLM\gguf"
-  CreateDirectory "C:\LLM\huggingface"
-  nsExec::ExecToLog '"$SYSDIR\icacls.exe" "C:\LLM" /grant *S-1-5-32-545:(OI)(CI)M /Q'
+  ; 模型の置き場はシステムのドライブの LLM（アプリの paths.default_model_dir と同じ。C: 以外にも合わせる）
+  StrCpy $1 "$WINDIR" 3
+  CreateDirectory "$1LLM\gguf"
+  CreateDirectory "$1LLM\huggingface"
+  CreateDirectory "$1LLM\manual"
+  nsExec::ExecToLog '"$SYSDIR\icacls.exe" "$1LLM" /grant *S-1-5-32-545:(OI)(CI)M /Q'
 
   ; 前の版からの移行。前の版は利用者ごとに入れていたので、HKCU の登録から場所を読む
   SetShellVarContext current

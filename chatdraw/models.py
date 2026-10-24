@@ -56,6 +56,8 @@ FAMILIES = {
 
 
 def family(name: str) -> Family:
+    if name == "unknown":
+        return Family("見分けられない形", "", tags=True)
     return FAMILIES.get(name, FAMILIES["sdxl"])
 
 
@@ -146,24 +148,54 @@ def is_local(repo: str) -> bool:
 
 
 def local_family(path: Path) -> str:
-    """手で置いた模型の世代。フォルダーは model_index.json の部品の名前、1 つのファイルは大きさで決める
-    （SD1.5 の 1 ファイルは 2〜4GB、SDXL は 6〜7GB）"""
+    """手で置いた模型の世代。フォルダーは model_index.json の部品の名前（_class_name）を世代の表と突き合わせ、
+    1 つのファイルは中の重みの名前で見分ける（大きさだけで決めると、7GB を超える FLUX を SDXL として読んで落ちた）。
+    見分けられない物は "unknown" を返し、読む前に理由を出す"""
     import json
     if path.is_dir():
         try:
             name = json.loads((path / "model_index.json").read_text(encoding="utf-8")).get("_class_name", "")
         except (OSError, ValueError):
             name = ""
-        return "sdxl" if "XL" in name else "sd15"
-    return "sdxl" if path.stat().st_size > 5e9 else "sd15"
+        for key, f in FAMILIES.items():
+            if name == f.pipeline:
+                return key
+        if name.startswith("StableDiffusionXL"):
+            return "sdxl"
+        if name.startswith("StableDiffusion") and "3" not in name:
+            return "sd15"
+        return "unknown"
+    keys = safetensors_keys(path)
+    if any(k.startswith("conditioner.embedders.1") for k in keys):
+        return "sdxl"
+    if any(k.startswith("cond_stage_model.") for k in keys) or any(k.startswith("model.diffusion_model.input_blocks") for k in keys):
+        return "sd15"
+    if any(k.startswith(("double_blocks.", "model.diffusion_model.double_blocks.")) for k in keys):
+        return "flux1"
+    return "unknown"
+
+
+def safetensors_keys(path: Path) -> list[str]:
+    """.safetensors の頭（重みの名前の一覧）だけを読む。中身の数 GB は読まない"""
+    import json
+    import struct
+    try:
+        with open(path, "rb") as f:
+            n = struct.unpack("<Q", f.read(8))[0]
+            if n <= 0 or n > 100_000_000:
+                return []
+            return list(json.loads(f.read(n)).keys())
+    except (OSError, ValueError, struct.error):
+        return []
 
 
 def local_model(path: str) -> ImageModel:
-    p = Path(path)
+    p = Path(path).resolve()   # 道の書き方（区切り、相対）をそろえ、設定と一覧で同じ模型を同じ名前で指す
     fam = local_family(p)
     gb = (sum(f.stat().st_size for f in p.rglob("*") if f.is_file()) if p.is_dir() else p.stat().st_size) / 1e9
+    steps, guidance = {"sdxl": (24, 5.0), "sd15": (28, 7.0), "flux1": (28, 3.5)}.get(fam, (24, 5.0))
     return ImageModel(str(p), (p.stem if p.is_file() else p.name) + "（手で置いた模型）", "手で置いた模型", "", round(gb, 1),
-                      24 if fam == "sdxl" else 28, 5.0 if fam == "sdxl" else 7.0, files={}, family=fam, score=0)
+                      steps, guidance, files={}, family=fam, score=0)
 
 
 def manual_images() -> list[ImageModel]:

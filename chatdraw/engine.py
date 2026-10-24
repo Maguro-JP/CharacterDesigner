@@ -364,14 +364,23 @@ class Painter:
             variant = image_model(self.model).variant
             extra = {"safety_checker": None, "requires_safety_checker": False} if image_model(self.model).family == "sd15" else {}
             from chatdraw.models import is_local
+            fam_name = image_model(self.model).family
+            if fam_name == "unknown":
+                raise Unsupported("手で置いた模型の形を見分けられませんでした。SDXL・SD1.5・FLUX.1 の .safetensors か、"
+                                  "model_index.json のある diffusers のフォルダーを置いてください")
             if is_local(self.model) and Path(self.model).is_file():
-                # 手で置いた 1 つのファイル（.safetensors）。世代に合う描き方で読む
-                from diffusers import StableDiffusionPipeline, StableDiffusionXLPipeline
-                cls = StableDiffusionXLPipeline if image_model(self.model).family == "sdxl" else StableDiffusionPipeline
-                self._pipe = cls.from_single_file(self.model, torch_dtype=dtype, **extra)
+                # 手で置いた 1 つのファイル（.safetensors）。見分けた世代の部品で読む
+                import diffusers
+                from chatdraw.models import family as fam
+                cls = getattr(diffusers, fam(fam_name).pipeline)
+                self._pipe = cls.from_single_file(self.model, torch_dtype=dtype if fam_name in ("sdxl", "sd15") else torch.bfloat16,
+                                                  **extra)
             elif is_local(self.model):
-                self._pipe = AutoPipelineForText2Image.from_pretrained(self.model, torch_dtype=dtype, **extra)
-            elif image_model(self.model).family not in ("sdxl", "sd15"):
+                import diffusers
+                cls = AutoPipelineForText2Image if fam_name in ("sdxl", "sd15") else diffusers.DiffusionPipeline
+                self._pipe = cls.from_pretrained(self.model, torch_dtype=dtype if fam_name in ("sdxl", "sd15") else torch.bfloat16,
+                                                 **extra)
+            elif fam_name not in ("sdxl", "sd15"):
                 # 新しい世代（FLUX、Z-Image、Qwen-Image、Lumina 2 など）は、模型の札にある部品で読む。
                 # 重みが大きい（16〜58GB）ので、CPU でも bf16 で読む（fp32 では家庭の機械のメモリに入らない）
                 import diffusers
@@ -544,21 +553,25 @@ class Studio:
             path = choose_words(text)
             if path is not None and path != getattr(self.words, "path", None):
                 self.words = Words(path)
-        say("頼みを描く言葉に直しています")
         from chatdraw.models import family as fam, image_model
+        if self.image_auto:
+            # 模型を先に選ぶ。頼みの形（タグか文か）は選んだ模型の世代で決まるので、直したあとに替えると食い違った。
+            # ラフや参考画像を使うときは、その機能のある世代の模型だけから選ぶ
+            from chatdraw.choose import choose_image, installed_images
+            say("頼みに合う絵の模型を選んでいます")
+            have = [m for m in installed_images()
+                    if (base is None or fam(m.family).sketch) and (reference is None or fam(m.family).reference)]
+            m, why = choose_image(text, text, self.words, have=have)
+            if m is not None:
+                if m.repo != self.painter.model:
+                    self.painter = Painter(m.repo, m.steps, guidance=m.guidance)   # 前の模型は捨ててメモリを空ける
+                say(f"絵の模型: {m.name}（{why}）")
+        say("頼みを描く言葉に直しています")
         prompt = self.words.to_prompt(text, tags=fam(image_model(getattr(self.painter, "model", "")).family).tags)
         if style:   # AI の欄で選んだ作風。頼みの言葉の後ろに足す（頼みの方を先に効かせる）
             prompt = f"{prompt}, {style}"
         if refused(prompt):
             raise ValueError("子どもを性的に描く頼みは描きません")
-        if self.image_auto:
-            from chatdraw.choose import choose_image
-            say("頼みに合う絵の模型を選んでいます")
-            m, why = choose_image(text, prompt, self.words)
-            if m is not None:
-                if m.repo != self.painter.model:
-                    self.painter = Painter(m.repo, m.steps, guidance=m.guidance)   # 前の模型は捨ててメモリを空ける
-                say(f"選んだ模型: {m.name}（{why}）")
         say("絵の模型を読んでいます（初めの 1 回だけ時間がかかります）")
         extra = dict(reference=reference, ref_scale=ref_scale) if reference is not None else {}
         image = self.painter.paint(prompt, seed, on_step=lambda i, n: say(f"描いています（{i}/{n}）"),

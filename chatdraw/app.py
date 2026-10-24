@@ -55,7 +55,9 @@ def isolate():
     import site
     user = getattr(site, "USER_SITE", None)
     if user:
-        sys.path[:] = [p for p in sys.path if not p.startswith(user)]
+        import os.path
+        mine = os.path.normcase(user)   # Windows は道の大文字小文字を区別しないので、そろえてから比べる
+        sys.path[:] = [p for p in sys.path if not os.path.normcase(p).startswith(mine)]
 
 
 isolate()
@@ -876,6 +878,9 @@ class Window(QMainWindow):
             self.restoreGeometry(self.layout_store.value("geometry9"))
             if not self.restoreState(state):
                 self.arrange()
+            for d, _area in self.panels.values():
+                if d.isFloating():
+                    self._as_window(d, True)   # 戻した並びで外に出ている欄も、ふつうの窓の枠にする
         else:
             self.arrange()
         for old in ("state8", "geometry"):   # 前の版の並び。読むと欄が画面の外や縦長のまま戻った
@@ -963,7 +968,8 @@ class Window(QMainWindow):
         f = fam(image_model(model).family)
         why = f"{f.name} の模型では使えません。SDXL の模型に替えると使えます"
         panel = self.ai_panel
-        widgets = [(panel.mode_buttons[1], f.sketch), (panel.mode_buttons[2], f.inpaint)]
+        buttons = panel.mode_buttons[1]   # mode_buttons は（並び、ボタンの一覧）の 2 つ組
+        widgets = [(buttons[1], f.sketch), (buttons[2], f.inpaint)]
         if hasattr(panel, "use_ref"):
             widgets.append((panel.use_ref, f.reference))
         for b, ok in widgets:
@@ -1840,6 +1846,7 @@ class Window(QMainWindow):
         for i, (d, _area) in enumerate(self.panels.values()):
             d.show()
             d.setFloating(True)
+            self._as_window(d, True)   # 前の並びで既に外に出ていると topLevelChanged が来ず、窓の枠にならなかった
             d.resize(360, 520)
             d.move(x - i * 40, y + i * 40)
 

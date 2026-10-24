@@ -110,6 +110,11 @@ class KeyDialog(QDialog):
     def _filter(self, text: str):
         for r in range(self.table.rowCount()):
             self.table.setRowHidden(r, text.strip() not in self.table.item(r, 0).text())
+        r = self.table.currentRow()
+        if r >= 0 and self.table.isRowHidden(r):
+            # 選んだ行が隠れたら選択を外す（そのままキーを押すと、見えない行に割り当たった）
+            self.table.setCurrentCell(-1, -1)
+            self.edit.clear()
 
     def _pick(self, row: int):
         if row >= 0:
@@ -117,7 +122,7 @@ class KeyDialog(QDialog):
 
     def _store_row(self, seq: str):
         r = self.table.currentRow()
-        if r < 0:
+        if r < 0 or self.table.isRowHidden(r):
             return
         item = self.table.item(r, 1)
         item.setData(Qt.UserRole, seq)
