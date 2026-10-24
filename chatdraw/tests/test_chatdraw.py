@@ -140,6 +140,27 @@ class DrawTest(unittest.TestCase):
         self.assertEqual(self.px(50, 50), "#0000ff")
         self.assertEqual(len(c.layers), 3)
 
+    def test_keys_hold_tool_and_resize_brush(self):
+        c = self.c
+        c.set_tool("pen")
+        c.hold("hand")
+        self.assertEqual(c.tool, "hand")
+        c.release()
+        self.assertEqual(c.tool, "pen")
+        c.size = 10
+        c.resize_brush(1.25)
+        self.assertEqual(c.size, 12)
+        c.resize_brush(0.8)
+        self.assertEqual(c.size, 9)
+
+    def test_undo_keeps_only_touched_layer(self):
+        from PySide6.QtCore import QPointF
+        c = self.c
+        c.snapshot()
+        c.stroke(QPointF(10, 10), QPointF(20, 20))
+        self.assertEqual(c.undo_stack[-1][0], "one")
+        self.assertEqual(c._bytes(c.undo_stack[-1]), 100 * 100 * 4)   # 触った 1 枚の分だけ
+
     def test_fill_and_eyedropper(self):
         from PySide6.QtCore import QPointF
         from PySide6.QtGui import QColor

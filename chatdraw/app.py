@@ -16,10 +16,11 @@ for lib in (ROOT / ".cache" / "simple" / "lib", ROOT / ".cache" / "gen" / "lib",
 try:
     import PySide6  # noqa: F401
 except ImportError:
-    # 初めての起動だけ、ウィンドウの部品（PySide6）を入れる
+    # 初めての起動だけ、ウィンドウの部品（PySide6）を入れる。6.12.0 は Python 3.11 で None の参照数を減らしすぎ、
+    # 線を数百本引くと落ちた。落ちないことを確かめた 6.9.3 に固定する
     import subprocess
     lib = ROOT / ".cache" / "simple" / "lib"
-    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--target", str(lib), "PySide6-Essentials"], check=True)
+    subprocess.run([sys.executable, "-m", "pip", "install", "-q", "--target", str(lib), "PySide6-Essentials==6.9.3"], check=True)
     sys.path.insert(0, str(lib))
 
 import re  # noqa: E402
@@ -128,7 +129,7 @@ class Window(QMainWindow):
         self.addToolBar(Qt.LeftToolBarArea, tools)
         group = QActionGroup(self)
         self.tool_actions = {}
-        for key, label, short in (("pen", "ペン", "P"), ("eraser", "消しゴム", "E"), ("fill", "塗りつぶし", "G"),
+        for key, label, short in (("pen", "ペン", "B"), ("eraser", "消しゴム", "E"), ("fill", "塗りつぶし", "G"),
                                   ("eyedropper", "スポイト", "I"), ("hand", "手のひら", "H")):
             act = QAction(label, self, checkable=True, shortcut=short, triggered=lambda _=False, k=key: self.canvas.set_tool(k))
             group.addAction(act)
@@ -161,6 +162,10 @@ class Window(QMainWindow):
         odock.setFeatures(PANEL)
         self.addDockWidget(Qt.LeftDockWidgetArea, odock)
         self.canvas.color_picked.connect(lambda _c: self._show_color())
+        self.canvas.brush_changed.connect(self.size_box.setValue)
+        self.zoom_label = QLabel("100%")
+        self.statusBar().addPermanentWidget(self.zoom_label)
+        self.canvas.zoomed.connect(lambda z: self.zoom_label.setText(f"{z * 100:.0f}%"))
 
         # 右下: レイヤー
         self.layer_list = QListWidget()

@@ -1,13 +1,17 @@
-"""作画の欄。レイヤー、筆圧つきのペン、消しゴム、スポイト、塗りつぶし、元に戻す、拡大・回転を持つ。"""
+"""作画の欄。レイヤー、筆圧つきのペン、消しゴム、スポイト、塗りつぶし、元に戻す、拡大・回転を持つ。
+
+描くたびに全部を描き直すと、大きな絵（4096 画素）で線が遅れる。レイヤーごとに絵の部品を持ち、
+線を引いた所の四角だけを描き直す。元に戻すは、触ったレイヤーの分だけを覚える。
+"""
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtCore import QPointF, Qt, Signal
+from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QImage, QPainter, QPen, QPixmap
-from PySide6.QtWidgets import QGraphicsPixmapItem, QGraphicsScene, QGraphicsView
+from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem, QGraphicsScene, QGraphicsView
 
-UNDO_LIMIT = 50
+UNDO_BYTES = 1_500_000_000   # 元に戻すに使うメモリの上限（約 1.5GB）
 
 
 @dataclass
@@ -27,30 +31,56 @@ def blank(w: int, h: int, color: QColor | None = None) -> QImage:
     return img
 
 
+class LayerItem(QGraphicsItem):
+    """1 枚のレイヤーを、頼まれた四角だけ描く"""
+
+    def __init__(self, layer: Layer):
+        super().__init__()
+        self.layer = layer
+
+    def boundingRect(self) -> QRectF:
+        return QRectF(0, 0, self.layer.image.width(), self.layer.image.height())
+
+    def paint(self, p: QPainter, option, widget=None):
+        if not self.layer.visible:
+            return
+        r = option.exposedRect.toAlignedRect().intersected(self.layer.image.rect())
+        p.setOpacity(self.layer.opacity)
+        p.drawImage(r.topLeft(), self.layer.image, r)
+
+
 class Canvas(QGraphicsView):
     changed = Signal()          # レイヤーの並びや中身が変わった（レイヤーの欄を描き直す）
     color_picked = Signal(QColor)
+    zoomed = Signal(float)
+    brush_changed = Signal(int)
 
     def __init__(self):
         super().__init__()
         self.setScene(QGraphicsScene(self))
-        self.item = QGraphicsPixmapItem()
-        self.item.setTransformationMode(Qt.SmoothTransformation)
-        self.scene().addItem(self.item)
         self.setTransformationAnchor(QGraphicsView.AnchorUnderMouse)
         self.setBackgroundBrush(QColor("#2b2b2b"))
         self.setRenderHint(QPainter.SmoothPixmapTransform)
+        self.setViewportUpdateMode(QGraphicsView.MinimalViewportUpdate)
+        self.setMouseTracking(True)
+        self.setFocusPolicy(Qt.StrongFocus)
         self.layers: list[Layer] = []
+        self.items: list[LayerItem] = []
         self.current = 0
         self.tool = "pen"
         self.color = QColor("#000000")
         self.size = 6
         self.brush_opacity = 1.0
-        self.undo_stack: list[tuple[list[Layer], int]] = []
-        self.redo_stack: list[tuple[list[Layer], int]] = []
+        self.undo_stack: list[tuple] = []
+        self.redo_stack: list[tuple] = []
         self.last: QPointF | None = None
         self.pressure = 1.0
         self.angle = 0.0
+        self.held: str | None = None   # Space や Alt を押している間だけ持ち替える前の道具
+        self.cursor_ring = QGraphicsEllipseItem()
+        self.cursor_ring.setPen(QPen(QColor(255, 255, 255, 200), 0))
+        self.cursor_ring.setZValue(1e9)
+        self.scene().addItem(self.cursor_ring)
         self.set_tool("pen")
 
     # ---- 書類 ----
@@ -71,21 +101,22 @@ class Canvas(QGraphicsView):
             self._reset([Layer(name, img)], 0)
             return
         w, h = self.size_px()
-        self.snapshot()
+        self.snapshot_all()
         layer = blank(w, h)
         p = QPainter(layer)
         p.drawImage(0, 0, img.scaled(w, h, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         p.end()
         self.layers.insert(self.current + 1, Layer(name, layer))
         self.current += 1
-        self.render()
+        self.rebuild()
 
     def _reset(self, layers: list[Layer], current: int):
         self.layers, self.current = layers, current
         self.undo_stack.clear()
         self.redo_stack.clear()
-        self.render()
-        self.scene().setSceneRect(self.item.boundingRect())
+        self.rebuild()
+        w, h = self.size_px()
+        self.scene().setSceneRect(QRectF(0, 0, w, h))
         self.fit()
 
     def flatten(self) -> QImage:
@@ -99,34 +130,41 @@ class Canvas(QGraphicsView):
         p.end()
         return out
 
-    def render(self):
-        self.item.setPixmap(QPixmap.fromImage(self.flatten()) if self.layers else QPixmap())
+    def rebuild(self):
+        """レイヤーの並びが変わったときだけ、絵の部品を作り直す"""
+        for it in self.items:
+            self.scene().removeItem(it)
+        self.items = []
+        for z, layer in enumerate(self.layers):
+            it = LayerItem(layer)
+            it.setZValue(z)
+            self.scene().addItem(it)
+            self.items.append(it)
         self.changed.emit()
 
     # ---- レイヤー ----
     def add_layer(self):
         w, h = self.size_px()
-        self.snapshot()
-        n = len(self.layers)
-        self.layers.insert(self.current + 1, Layer(f"レイヤー {n}", blank(w, h)))
+        self.snapshot_all()
+        self.layers.insert(self.current + 1, Layer(f"レイヤー {len(self.layers)}", blank(w, h)))
         self.current += 1
-        self.render()
+        self.rebuild()
 
     def delete_layer(self):
         if len(self.layers) <= 1:
             return
-        self.snapshot()
+        self.snapshot_all()
         del self.layers[self.current]
         self.current = max(0, self.current - 1)
-        self.render()
+        self.rebuild()
 
     def move_layer(self, step: int):
         j = self.current + step
         if 0 <= j < len(self.layers):
-            self.snapshot()
+            self.snapshot_all()
             self.layers[self.current], self.layers[j] = self.layers[j], self.layers[self.current]
             self.current = j
-            self.render()
+            self.rebuild()
 
     def select(self, i: int):
         if 0 <= i < len(self.layers):
@@ -135,38 +173,69 @@ class Canvas(QGraphicsView):
 
     def set_visible(self, i: int, on: bool):
         self.layers[i].visible = on
-        self.render()
+        self.items[i].update()
 
     def set_opacity(self, value: float):
         self.layers[self.current].opacity = value
-        self.render()
+        self.items[self.current].update()
 
     # ---- 元に戻す ----
+    # 線や塗りは触ったレイヤー 1 枚だけを覚える。並びを変えたときだけ全部を覚える
     def snapshot(self):
-        self.undo_stack.append(([layer.copy() for layer in self.layers], self.current))
-        del self.undo_stack[:-UNDO_LIMIT]
+        self._push(("one", self.current, self.layers[self.current].image.copy()))
+
+    def snapshot_all(self):
+        self._push(("all", [layer.copy() for layer in self.layers], self.current))
+
+    def _push(self, entry):
+        self.undo_stack.append(entry)
         self.redo_stack.clear()
+        while len(self.undo_stack) > 1 and sum(self._bytes(e) for e in self.undo_stack) > UNDO_BYTES:
+            self.undo_stack.pop(0)
+
+    @staticmethod
+    def _bytes(entry) -> int:
+        if entry[0] == "one":
+            return entry[2].sizeInBytes()
+        return sum(layer.image.sizeInBytes() for layer in entry[1])
+
+    def _apply(self, entry, other: list):
+        if entry[0] == "one":
+            _, i, img = entry
+            other.append(("one", i, self.layers[i].image.copy()))
+            self.layers[i].image = img
+            self.current = i
+            self.items[i].layer = self.layers[i]
+            self.items[i].update()
+            self.changed.emit()
+        else:
+            _, layers, cur = entry
+            other.append(("all", [layer.copy() for layer in self.layers], self.current))
+            self.layers, self.current = layers, cur
+            self.rebuild()
 
     def undo(self):
         if self.undo_stack:
-            self.redo_stack.append(([layer.copy() for layer in self.layers], self.current))
-            self.layers, self.current = self.undo_stack.pop()
-            self.render()
+            self._apply(self.undo_stack.pop(), self.redo_stack)
 
     def redo(self):
         if self.redo_stack:
-            self.undo_stack.append(([layer.copy() for layer in self.layers], self.current))
-            self.layers, self.current = self.redo_stack.pop()
-            self.render()
+            self._apply(self.redo_stack.pop(), self.undo_stack)
 
     # ---- 表示 ----
     def fit(self):
         if self.layers:
-            self.fitInView(self.item, Qt.KeepAspectRatio)
+            self.fitInView(self.scene().sceneRect(), Qt.KeepAspectRatio)
+            self.zoomed.emit(self.zoom())
 
     def actual(self):
         self.resetTransform()
         self.angle = 0.0
+        self.zoomed.emit(1.0)
+
+    def zoom(self) -> float:
+        t = self.transform()
+        return (t.m11() ** 2 + t.m12() ** 2) ** 0.5
 
     def rotate_view(self, deg: float):
         self.angle = (self.angle + deg) % 360
@@ -179,12 +248,33 @@ class Canvas(QGraphicsView):
     def wheelEvent(self, e):
         f = 1.15 if e.angleDelta().y() > 0 else 1 / 1.15
         self.scale(f, f)
+        self.zoomed.emit(self.zoom())
 
     # ---- 道具 ----
     def set_tool(self, tool: str):
         self.tool = tool
         self.setDragMode(QGraphicsView.ScrollHandDrag if tool == "hand" else QGraphicsView.NoDrag)
-        self.setCursor(Qt.OpenHandCursor if tool == "hand" else Qt.CrossCursor)
+        self.viewport().setCursor(Qt.OpenHandCursor if tool == "hand" else Qt.CrossCursor)
+        self.cursor_ring.setVisible(tool in ("pen", "eraser"))
+
+    def hold(self, tool: str):
+        """キーを押している間だけ道具を持ち替える（Space で手のひら、Alt でスポイト）"""
+        if self.held is None and self.last is None:
+            self.held = self.tool
+            self.set_tool(tool)
+
+    def release(self):
+        if self.held is not None:
+            self.set_tool(self.held)
+            self.held = None
+
+    def resize_brush(self, factor: float):
+        self.size = max(1, min(500, max(self.size + 1, round(self.size * factor)) if factor > 1 else int(self.size * factor) or 1))
+        self.brush_changed.emit(self.size)
+
+    def _ring(self, pos: QPointF):
+        r = (self.size * (2 if self.tool == "eraser" else 1)) / 2
+        self.cursor_ring.setRect(pos.x() - r, pos.y() - r, r * 2, r * 2)
 
     def stroke(self, a: QPointF, b: QPointF, pressure: float = 1.0):
         layer = self.layers[self.current].image
@@ -192,8 +282,9 @@ class Canvas(QGraphicsView):
         p.setRenderHint(QPainter.Antialiasing)
         width = max(0.5, self.size * pressure)
         if self.tool == "eraser":
+            width *= 2
             p.setCompositionMode(QPainter.CompositionMode_DestinationOut)
-            pen = QPen(QColor(0, 0, 0, int(255 * self.brush_opacity)), width * 2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
+            pen = QPen(QColor(0, 0, 0, int(255 * self.brush_opacity)), width, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin)
         else:
             c = QColor(self.color)
             c.setAlphaF(self.brush_opacity * c.alphaF())
@@ -204,7 +295,9 @@ class Canvas(QGraphicsView):
         else:
             p.drawLine(a, b)
         p.end()
-        self.render()
+        pad = width / 2 + 2
+        dirty = QRectF(a, b).normalized().adjusted(-pad, -pad, pad, pad)
+        self.items[self.current].update(dirty)   # 線を引いた四角だけ描き直す
 
     def pick(self, pos: QPointF):
         img = self.flatten()
@@ -253,7 +346,7 @@ class Canvas(QGraphicsView):
         p = QPainter(self.layers[self.current].image)
         p.drawImage(0, 0, overlay)
         p.end()
-        self.render()
+        self.items[self.current].update()
 
     # ---- マウスとペンタブレット ----
     def _press(self, pos: QPointF, pressure: float):
@@ -277,12 +370,19 @@ class Canvas(QGraphicsView):
             return
         super().mousePressEvent(e)
 
+    def enterEvent(self, e):
+        self.setFocus()   # 絵の上に来たらキー（Space、Alt、[ ]）を受ける
+        super().enterEvent(e)
+
     def mouseMoveEvent(self, e):
+        pos = self.mapToScene(e.position().toPoint())
+        self._ring(pos)
         if self.last is not None:
-            pos = self.mapToScene(e.position().toPoint())
             self.stroke(self.last, pos, self.pressure)
             self.last = pos
             return
+        if self.tool == "eyedropper" and e.buttons() & Qt.LeftButton:
+            self.pick(pos)
         super().mouseMoveEvent(e)
 
     def mouseReleaseEvent(self, e):
@@ -296,6 +396,7 @@ class Canvas(QGraphicsView):
         # ペンタブレットの筆圧で太さと濃さを変える
         pos = self.mapToScene(e.position().toPoint())
         self.pressure = max(0.05, e.pressure())
+        self._ring(pos)
         t = e.type()
         if t == e.Type.TabletPress:
             self._press(pos, self.pressure)
@@ -305,3 +406,25 @@ class Canvas(QGraphicsView):
         elif t == e.Type.TabletRelease:
             self.last = None
         e.accept()
+
+    def keyPressEvent(self, e):
+        if e.isAutoRepeat():
+            return
+        if e.key() == Qt.Key_Space:
+            self.hold("hand")
+        elif e.key() == Qt.Key_Alt:
+            self.hold("eyedropper")
+        elif e.key() == Qt.Key_BracketRight:
+            self.resize_brush(1.25)
+        elif e.key() == Qt.Key_BracketLeft:
+            self.resize_brush(0.8)
+        else:
+            super().keyPressEvent(e)
+
+    def keyReleaseEvent(self, e):
+        if e.isAutoRepeat():
+            return
+        if e.key() in (Qt.Key_Space, Qt.Key_Alt):
+            self.release()
+        else:
+            super().keyReleaseEvent(e)
