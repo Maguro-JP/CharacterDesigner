@@ -82,8 +82,11 @@ class Tour(QWidget):
         self.count.setText(f"{self.i + 1} / {len(self.steps)}")
         self.title.setText(step.title)
         self.text.setText(step.text)
+        one = len(self.steps) == 1   # 機能ごとの短い案内は、数と「戻る」を出さない
+        self.count.setVisible(not one)
+        self.back.setVisible(not one)
         self.back.setEnabled(self.i > 0)
-        self.next.setText("はじめる" if self.i == len(self.steps) - 1 else "次へ")
+        self.next.setText("わかった" if one else "はじめる" if self.i == len(self.steps) - 1 else "次へ")
         self.card.adjustSize()
         self._place()
         from chatdraw.motion import slide_in
