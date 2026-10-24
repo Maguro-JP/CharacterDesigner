@@ -87,6 +87,11 @@ class WindowTest(unittest.TestCase):
             self.assertIn("雪の城の前の騎士", item.toolTip())
             self.assertEqual(item.text(), "")                     # 見た目は絵だけ
             self.assertEqual(w.activity.state.text(), "待機中")
+            self.assertFalse(w.panels["progress"][0].isHidden())         # 描き終わった直後は結果が読めるよう出しておく
+            w.hide_progress_if_idle(0)
+            for _ in range(20):
+                app.processEvents()
+            self.assertTrue(w.panels["progress"][0].isHidden())          # 動きが無くなったら隠す
             self.assertTrue(w.button.isEnabled())
 
 
@@ -121,6 +126,7 @@ class LayoutTest(unittest.TestCase):
         for k in ("view", "chat", "history"):
             self.assertEqual(area(k), _Qt.RightDockWidgetArea)
         self.assertEqual(area("progress"), _Qt.TopDockWidgetArea)
+        self.assertTrue(w.panels["progress"][0].isHidden())             # 描いていないときは進みを隠す
         self.assertEqual(area("talk"), _Qt.BottomDockWidgetArea)
         ys = [w.panels[k][0].y() for k in ("view", "chat", "history")]
         self.assertEqual(ys, sorted(ys))                                 # 右は上から表示・AI・履歴

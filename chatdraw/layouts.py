@@ -82,6 +82,8 @@ def recommended(w):
     side = min(330, max(250, int(max(w.width(), 1200) * 0.19)))
     _widths(w, ["color"], ["view"], side)
     w.resizeDocks([w.panels["progress"][0], w.panels["talk"][0]], [70, 190], Qt.Vertical)
+    if getattr(w, "thread", None) is None:
+        w.panels["progress"][0].hide()   # 進みは描いている間だけ出す（場所は真ん中の上に取ってある）
 
 
 def simple(w):

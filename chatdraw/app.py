@@ -1137,21 +1137,27 @@ class Window(QMainWindow):
             return lambda: (p[key][0].show(), p[key][0].raise_())
         return [
             Step(lambda: None, "CharacterDesigner へようこそ", "AI に頼んで描かせ、自分でも描き足せます。主な所を順に案内します。"),
-            Step(lambda: p["chat"][0], "AI に頼む", "描きたい絵を書いて「描く」を押します。\n「ラフから」にすると、キャンバスの線に沿って描きます。", show("chat")),
+            Step(lambda: p["talk"][0], "チャット", "描きたい絵を書いて「描く」を押します。\nAI とのやり取りはここに残ります。", show("talk")),
+            Step(lambda: p["chat"][0], "AI の設定", "「新規」か「ラフから」、絵の大きさ、ラフに沿う強さ、絵の模型を選びます。", show("chat")),
+            Step(lambda: p["progress"][0], "進み", "AI が描いている間だけ出て、工程と残り時間を見せます。\n描き終わると自分で隠れます。",
+                 show("progress")),
             Step(lambda: self.canvas, "キャンバス", "描いている途中の絵がここに出ます。\nホイールで拡大、Space を押しながらドラッグで動かせます。"),
-            Step(lambda: self.ribbon, "リボン", "よく使う操作をタブごとに並べています。\n開いているタブをもう一度押すと畳めます。"),
+            Step(lambda: p["view"][0], "表示", "全体の縮小図と参考画像です。縮小図を押すと、その場所を表示します。", show("view")),
+            Step(lambda: p["history"][0], "履歴", "描いた絵と、キャンバスの操作の履歴です。\n操作を選ぶと、その時点まで戻れます。", show("history")),
             Step(lambda: self.tools, "道具", "ペン・消しゴム・塗りつぶしなどを選びます。\nアイコンにカーソルを重ねると、名前とキーが出ます。"),
-            Step(lambda: p["color"][0], "色", "描く色を選びます。タブでパレットに切り替えられます。", show("color")),
-            Step(lambda: p["layers"][0], "レイヤー", "AI の絵はレイヤーとして重なります。描き足しは別のレイヤーにすると、あとで直せます。",
-                 show("layers")),
-            Step(lambda: self.panel_bar, "欄の帯", "欄を出す・隠すアイコンです。ブラシや履歴はここから開きます。\n帯はドラッグで上下左右へ動かせます。"),
+            Step(lambda: p["color"][0], "色・ブラシ・レイヤー", "左には手で描くための欄をまとめています。\nAI の絵はレイヤーとして重なります。", show("color")),
+            Step(lambda: self.ribbon, "リボン", "よく使う操作をタブごとに並べています。\n開いているタブをもう一度押すと畳めます。"),
+            Step(lambda: self.panel_bar, "欄の帯", "欄を出す・隠すアイコンです。\n帯はドラッグで上下左右へ動かせます。"),
             Step(lambda: self.bottom_bar, "下の帯とステータスバー", "下の帯で拡大と元に戻すを操作します。\nいちばん下には道具・位置・大きさ・AI の状態が出ます。"),
-            Step(lambda: self.menuBar(), "メニュー", "「AI」で絵の模型を切り替え、「ウィンドウ」で配置を整えます。\nこの案内は「ヘルプ」からいつでも見られます。"),
+            Step(lambda: self.menuBar(), "配置とメニュー", "「配置」で決まった配置・寄せ・等分・自分の配置の保存ができます。\nこの案内は「ヘルプ」からいつでも見られます。"),
         ]
 
     def start_tour(self):
         from chatdraw.tour import Tour
-        self.tour = Tour(self, self.tour_steps(), on_close=lambda: self.layout_store.setValue("tour_done", 1))
+        def closed():
+            self.layout_store.setValue("tour_done", 1)
+            self.hide_progress_if_idle(0)   # ツアーで見せた進みの欄を、描いていなければ戻す
+        self.tour = Tour(self, self.tour_steps(), on_close=closed)
         self.tour.start()
 
     def maybe_tour(self):
@@ -1255,6 +1261,18 @@ class Window(QMainWindow):
             ok = self.canvas.flatten().save(dst)
             self.notify("保存しました" if ok else "保存できませんでした", "ok" if ok else "error", Path(dst).name)
 
+    def hide_progress_if_idle(self, ms: int = 4000):
+        """描いていないときは進みの欄を隠す。描き終わってすぐ消すと結果を読めないので、少し待ってから薄くして隠す"""
+        from PySide6.QtCore import QTimer
+        from chatdraw.motion import fade_out
+        dock = self.panels["progress"][0]
+
+        def hide():
+            if self.thread is None and not dock.isHidden() and not dock.isFloating():
+                body = dock.widget()
+                fade_out(body, then=lambda: (dock.hide(), body.show()))
+        QTimer.singleShot(ms, hide)
+
     def _end(self, msg: str):
         self.statusBar().showMessage(msg, 4000)
         self.stop_button.setEnabled(False)
@@ -1263,6 +1281,7 @@ class Window(QMainWindow):
             self.thread.wait()
             self.thread = None
         self.button.setEnabled(True)
+        self.hide_progress_if_idle()
 
 
 THEME = """
