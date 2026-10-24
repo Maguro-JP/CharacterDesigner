@@ -122,18 +122,18 @@ def creator(w):
 
 
 def ai_focus(w):
-    """AI 特化。手で描く道具は出さず、チャットを大きく、右に AI の設定・履歴、上に進み"""
+    """AI 特化。手で描く道具は出さず、左に AI プリセットと作風、右に全体と履歴、下にチャットを大きく。上に進み"""
     _reset(w)
     bars(w, ribbon=False, tools=(), options=False)
-    _column(w, R, ["chat", "history"], [4, 6])
-    _column(w, L, ["view"])
+    _column(w, L, ["chat"])
+    _column(w, R, ["view", "history"], [3, 7])
     w.addDockWidget(T, w.panels["progress"][0])
     w.addDockWidget(B, w.panels["talk"][0])
     for k in ("progress", "talk"):
         w.panels[k][0].show()
     _hide(w, ["color", "brushes", "layers"])
-    _widths(w, ["view"], ["chat"], 300)
-    w.resizeDocks([w.panels["talk"][0]], [320], Qt.Vertical)
+    _widths(w, ["chat"], ["view"], 320)
+    w.resizeDocks([w.panels["talk"][0]], [260], Qt.Vertical)
     _progress_idle(w)
 
 

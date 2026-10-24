@@ -164,6 +164,27 @@ COMMANDS: list[Command] = [
     Command("tour", "使い方を案内します", "start the guided tour", lambda w, a: w.start_tour(), ("使い方", "ツアー")),
 ]
 
+def _extend():
+    """テーマ・作風・AI プリセットは一覧から操作を作る（足したら AI からもすぐ使える）。
+    言葉は「水彩の作風」「テーマをネオン」のように種類の語を伴うものだけにし、「自然の中の少女」のような絵の頼みを取り違えない"""
+    from chatdraw import aipanel, themes
+    for name in themes.THEMES:
+        COMMANDS.append(Command(f"theme_{name}", f"テーマを「{name}」にしました", f"switch the color theme to {name}",
+                                lambda w, a, n=name: w.set_theme(n), (f"{name}のテーマ", f"テーマを{name}")))
+    for name, _tags, tip in aipanel.STYLES:
+        COMMANDS.append(Command(f"style_{name}", f"作風を「{name}」にしました", f"set the drawing style to {name}",
+                                lambda w, a, n=name: w.ai_panel.set_style(n), (f"{name}の作風", f"作風を{name}")))
+    for name, sub, *_ in aipanel.PRESETS:
+        COMMANDS.append(Command(f"ai_{name}", f"AI プリセット「{name}」にしました。描きたい絵を書いてください",
+                                f"use the AI preset {name}: {sub}", lambda w, a, n=name: w.ai_panel.apply_name(n),
+                                (f"{name}のプリセット", f"プリセットを{name}", f"{name}にして")))
+    COMMANDS.append(Command("draw_again", "もう一度描きます", "draw the last request again with a new seed",
+                            lambda w, a: w.draw_again(), ("もう一度描", "描き直して")))
+    COMMANDS.append(Command("save_ai_preset", "今の設定を AI プリセットに保存しました", "save the current AI settings as a preset",
+                            lambda w, a: w.ai_panel.save_current("自分の設定"), ("プリセットを保存", "設定を保存")))
+
+
+_extend()
 BY_NAME = {c.name: c for c in COMMANDS}
 
 ASK = ("You control a drawing app. If the user asks to operate the app, reply with JSON "

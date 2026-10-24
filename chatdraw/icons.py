@@ -1,8 +1,8 @@
 """道具の絵（アイコン）。画像ファイルを持たず、線で描く。どの大きさでもにじまず、明るさの切り替えにも色を合わせられる"""
 from __future__ import annotations
 
-from PySide6.QtCore import QPointF, QRectF, Qt
-from PySide6.QtGui import QColor, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtCore import QPointF, QRect, QRectF, Qt
+from PySide6.QtGui import QColor, QIcon, QIconEngine, QPainter, QPainterPath, QPen, QPixmap
 
 
 def _path(key: str) -> QPainterPath:
@@ -259,21 +259,52 @@ def _path(key: str) -> QPainterPath:
     return p
 
 
-def icon(key: str, color: str = "#e8e8ea", active: str = "#ffffff", size: int = 24) -> QIcon:
-    ic = QIcon()
-    for mode, c in ((QIcon.Normal, color), (QIcon.Active, active), (QIcon.Selected, active)):
-        for state in (QIcon.Off, QIcon.On):
-            pm = QPixmap(size * 2, size * 2)   # 高い画素密度の画面でも細い線がにじまない
-            pm.setDevicePixelRatio(2)
-            pm.fill(Qt.transparent)
-            p = QPainter(pm)
-            p.setRenderHint(QPainter.Antialiasing)
-            p.scale(size / 24, size / 24)
-            p.setPen(QPen(QColor(c if state == QIcon.Off else active), 1.7, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-            p.drawPath(_path(key))
-            p.end()
-            ic.addPixmap(pm, mode, state)
-    return ic
+class _Engine(QIconEngine):
+    """描くたびに今のテーマの色を読むアイコン。テーマを替えても作り直さずに色が合う（明るいテーマで白い線が消えない）"""
+
+    def __init__(self, key: str, color: str | None, active: str | None):
+        super().__init__()
+        self.key, self.color, self.active = key, color, active
+
+    def _color(self, mode, state) -> QColor:
+        from chatdraw.themes import current
+        if mode == QIcon.Disabled:
+            return QColor(current["dim"])
+        if state == QIcon.On:
+            return QColor(self.active or current["on"])   # 選んだ道具は差し色の地の上に描く
+        if mode in (QIcon.Active, QIcon.Selected):
+            return QColor(self.active or current["strong"])
+        return QColor(self.color or current["text"])
+
+    def paint(self, painter, rect, mode, state):
+        painter.save()
+        painter.setRenderHint(QPainter.Antialiasing)
+        side = min(rect.width(), rect.height())
+        painter.translate(rect.x() + (rect.width() - side) / 2, rect.y() + (rect.height() - side) / 2)
+        painter.scale(side / 24, side / 24)
+        painter.setPen(QPen(self._color(mode, state), 1.8, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        painter.setBrush(Qt.NoBrush)
+        painter.drawPath(_path(self.key))
+        painter.restore()
+
+    def pixmap(self, size, mode, state):
+        pm = QPixmap(size.width() * 2, size.height() * 2)   # 高い画素密度の画面でも細い線がにじまない
+        pm.setDevicePixelRatio(2)
+        pm.fill(Qt.transparent)
+        p = QPainter(pm)
+        try:
+            self.paint(p, QRect(0, 0, size.width(), size.height()), mode, state)
+        finally:
+            p.end()   # 途中で落ちても描きかけのまま捨てない（捨てると Qt ごと落ちる）
+        return pm
+
+    def clone(self):
+        return _Engine(self.key, self.color, self.active)
+
+
+def icon(key: str, color: str | None = None, active: str | None = None, size: int = 24) -> QIcon:
+    """key のアイコン。color を渡さなければ今のテーマの文字の色で描く"""
+    return QIcon(_Engine(key, color, active))
 
 
 KEYS = ("chat", "progress", "view", "layout", "new", "open", "save", "undo", "redo", "fit", "rotate", "rough", "models", "settings", "palette", "brush", "history", "layers", "help", "move", "select", "pen", "eraser", "blur", "fill", "gradient", "line", "rect", "ellipse", "eyedropper", "hand", "zoom", "ai")

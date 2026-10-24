@@ -880,3 +880,49 @@ class CommandsTest(unittest.TestCase):
         self.w.send()
         self.assertEqual(self.w.canvas.tool, "eyedropper")
         self.assertIsNone(self.w.thread)
+
+
+class ThemeTest(unittest.TestCase):
+    """テーマを替えてもアイコンが地に溶けず、AI プリセットと作風が描く言葉に届くか"""
+    def setUp(self):
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Window
+        self.app = QApplication.instance() or QApplication([])
+        self.w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
+
+    def test_every_theme_icons_contrast(self):
+        from PySide6.QtCore import QSize
+        from PySide6.QtGui import QColor, QIcon
+        from chatdraw import themes
+        from chatdraw.icons import icon
+        for name in themes.THEMES:
+            t = self.w.set_theme(name) or themes.current
+            img = icon("pen").pixmap(QSize(24, 24), QIcon.Normal, QIcon.Off).toImage()
+            ink = [QColor(img.pixel(x, y)) for x in range(img.width()) for y in range(img.height()) if QColor.fromRgba(img.pixel(x, y)).alpha() > 200]
+            self.assertTrue(ink, name)
+            bg = QColor(t["bar"])
+            diff = max(abs(c.lightness() - bg.lightness()) for c in ink)
+            self.assertGreater(diff, 120, f"{name}: アイコンと帯の明るさの差 {diff}")
+        self.w.set_theme(themes.DEFAULT)
+
+    def test_ai_preset_and_style_reach_prompt(self):
+        p = self.w.ai_panel
+        self.assertTrue(p.apply_name("ラフを清書"))
+        self.assertEqual(self.w.mode.currentIndex(), 1)
+        self.assertEqual(self.w.strength.value(), 100)
+        p.set_style("水彩")
+        self.assertIn("watercolor", p.style_tags())
+        p.save_current("試験の設定")
+        self.assertIn("試験の設定", p.own_presets())
+        self.w.layout_store.remove("ai_presets/試験の設定")
+
+    def test_commands_for_theme_style_preset(self):
+        from chatdraw import commands
+        self.assertEqual(commands.handle(self.w, "作風を水彩にして"), "作風を「水彩」にしました")
+        self.assertEqual(self.w.ai_panel.style, "水彩")
+        self.assertEqual(commands.handle(self.w, "キャラデザにして"), "AI プリセット「キャラデザ」にしました。描きたい絵を書いてください")
+        self.assertIsNone(commands.handle(self.w, "自然の中の少女を描いて"))
+        commands.handle(self.w, "テーマをペーパーにして")
+        from chatdraw import themes
+        self.assertEqual(themes.current["name"], "ペーパー")
+        self.w.set_theme(themes.DEFAULT)

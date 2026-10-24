@@ -266,7 +266,7 @@ class Studio:
         self.words_auto = False   # おまかせ: 頼みごとに、手元の言葉の模型から合う物を選ぶ
 
     def draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
-             on_preview=None) -> tuple[str, Path]:
+             on_preview=None, style: str = "") -> tuple[str, Path]:
         say = on_status or (lambda msg: None)
         if refused(text):
             raise ValueError("子どもを性的に描く頼みは描きません")
@@ -277,6 +277,8 @@ class Studio:
                 self.words = Words(path)
         say("頼みを描く言葉に直しています")
         prompt = self.words.to_prompt(text)
+        if style:   # AI の欄で選んだ作風。頼みの言葉の後ろに足す（頼みの方を先に効かせる）
+            prompt = f"{prompt}, {style}"
         if refused(prompt):
             raise ValueError("子どもを性的に描く頼みは描きません")
         if self.image_auto:

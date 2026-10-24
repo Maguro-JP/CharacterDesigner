@@ -51,16 +51,16 @@ class Job(QObject):
     done = Signal(str, str)
     failed = Signal(str)
 
-    def __init__(self, studio: Studio, text: str, seed: int, base=None, strength: float = 0.6, size=None):
+    def __init__(self, studio: Studio, text: str, seed: int, base=None, strength: float = 0.6, size=None, style: str = ""):
         super().__init__()
-        self.studio, self.text, self.seed = studio, text, seed
+        self.studio, self.text, self.seed, self.style = studio, text, seed, style
         self.base, self.strength, self.size = base, strength, size
 
     def run(self):
         try:
             prompt, path = self.studio.draw(self.text, self.seed, on_status=self.status.emit,
                                             base=self.base, strength=self.strength, size=self.size,
-                                            on_preview=self.preview.emit)
+                                            on_preview=self.preview.emit, style=self.style)
             self.done.emit(prompt, str(path))
         except Exception as e:  # 描けなかった理由をそのまま会話に出す
             self.failed.emit(f"描けませんでした: {e}")
@@ -261,6 +261,8 @@ class Window(QMainWindow):
     def __init__(self, studio: Studio | None = None):
         super().__init__()
         self.settings = Settings()
+        self.layout_store = QSettings("CharacterDesigner", "chatdraw")   # 配置・テーマ・AI プリセット・ツアーの済み
+        self.last_text = ""
         self.studio = studio or self._studio_from_settings()
         self.setWindowTitle("CharacterDesigner")
         self.resize(1400, 900)
@@ -275,8 +277,8 @@ class Window(QMainWindow):
         self.chat = QTextEdit()
         self.chat.setReadOnly(True)
         self.entry = QLineEdit()
-        self.entry.setPlaceholderText("描きたい絵…")
-        self.entry.setToolTip("描いてほしい絵を日本語か英語で書き、Enter か「描く」で描きます")
+        self.entry.setPlaceholderText("描きたい絵か、してほしい操作を書く（例: 猫耳の少女 / ペンにして）")
+        self.entry.setToolTip("描いてほしい絵を日本語か英語で書き、Enter か「描く」で描きます。\n「赤にして」「レイヤーを足して」のような操作も AI がします")
         self.entry.returnPressed.connect(self.send)
         self.button = QPushButton(icon("ai", "#ffffff"), " 描く")
         self.button.setToolTip("AI で描く（Enter）")
@@ -307,21 +309,28 @@ class Window(QMainWindow):
         self.strength.valueChanged.connect(lambda v: self.strength_label.setText(f"{v}%"))
         self.mode.currentIndexChanged.connect(self._mode_changed)
         self._mode_changed(0)
-        form = QHBoxLayout()
-        form.addWidget(self.mode)
-        form.addWidget(self.size_pick)
+        for hidden in (self.mode, self.size_pick):   # 選ぶのは AI の欄のボタン。こちらは値の入れ物
+            hidden.setParent(self)
+            hidden.hide()
         follow = QHBoxLayout()
         follow.addWidget(self.strength, 1)
         follow.addWidget(self.strength_label)
         # AI の欄は描き方の設定（描き方・大きさ・ラフに沿う強さ・絵の模型）だけ。頼みを書くのはチャットの欄
+        from chatdraw.aipanel import AiPanel
         ask = QVBoxLayout()
-        ask.addLayout(form)
+        ask.setContentsMargins(0, 0, 0, 0)
+        self.ai_panel = AiPanel(self)
+        ask.addWidget(self.ai_panel)
+        follow.setContentsMargins(8, 0, 8, 0)
         ask.addLayout(follow)
         self.model_label = QPushButton()
         self.model_label.setObjectName("modelButton")
         self.model_label.setToolTip("絵の模型。押すと切り替えられます")
         self.model_label.clicked.connect(lambda: self.ai_menu.exec(self.model_label.mapToGlobal(self.model_label.rect().bottomLeft())))
-        ask.addWidget(self.model_label)
+        model_row = QHBoxLayout()
+        model_row.setContentsMargins(8, 0, 8, 8)
+        model_row.addWidget(self.model_label)
+        ask.addLayout(model_row)
         ask.addStretch()
         ask_page = QWidget()
         ask_page.setLayout(ask)
@@ -345,6 +354,17 @@ class Window(QMainWindow):
         line.addWidget(self.stop_button)
         self.button.setMinimumWidth(110)
         tl.addLayout(line)
+        # 頼みの例。押すと書く欄に入る（何を頼めるかを見せる）
+        tips = QHBoxLayout()
+        tips.setSpacing(4)
+        for text in ("赤いマフラーの女の子", "鎧の騎士 全身", "猫耳の少女 笑顔", "夕暮れの街", "レイヤーを足して", "AI 特化の配置にして"):
+            chip = QPushButton(text)
+            chip.setObjectName("suggest")
+            chip.setCursor(Qt.PointingHandCursor)
+            chip.clicked.connect(lambda _=False, t=text: (self.entry.setText(t), self.entry.setFocus()))
+            tips.addWidget(chip)
+        tips.addStretch()
+        tl.addLayout(tips)
         talk = QDockWidget("チャット", self)
         talk.setWidget(talk_box)
         talk.setObjectName("talk")
@@ -559,6 +579,14 @@ class Window(QMainWindow):
         view.addAction(QAction("左に回す", self, shortcut="Ctrl+[", triggered=lambda: self.canvas.rotate_view(-15)))
         view.addAction(QAction("右に回す", self, shortcut="Ctrl+]", triggered=lambda: self.canvas.rotate_view(15)))
         view.addAction(QAction("回転を戻す", self, shortcut="Ctrl+\\", triggered=self.canvas.reset_rotation))
+        from chatdraw import themes
+        self.theme_menu = view.addMenu("テーマ")
+        self.theme_group = QActionGroup(self)
+        for name in themes.THEMES:
+            a = QAction(name, self, checkable=True, triggered=lambda _=False, n=name: self.set_theme(n))
+            a.setChecked(name == themes.current["name"])
+            self.theme_group.addAction(a)
+            self.theme_menu.addAction(a)
         self.ai_menu = self.menuBar().addMenu("AI")
         self.ai_menu.aboutToShow.connect(self._fill_ai_menu)
         self._fill_ai_menu()
@@ -646,8 +674,9 @@ class Window(QMainWindow):
         win.addAction(QAction("自由配置（欄をドラッグして好きな所に置く）", self, triggered=self.free_layout))
         self.build_ribbon()
         self.build_bottom()
-        self.layout_store = QSettings("CharacterDesigner", "chatdraw")
         self.build_layout_menu()
+        from chatdraw.themes import current as _theme
+        self.canvas.setBackgroundBrush(QColor(_theme["canvas"]))
         self._show_model()
         help_menu = self.menuBar().addMenu("ヘルプ")
         help_menu.addAction(QAction(icon("help"), "使い方ツアー", self, shortcut="F1", triggered=self.start_tour))
@@ -674,6 +703,24 @@ class Window(QMainWindow):
             self.restoreState(state)
         else:
             self.arrange()
+
+    def draw_again(self):
+        """前と同じ頼みを、別の種で描き直す"""
+        if not self.last_text:
+            self.notify("まだ描いていません", "info", "チャットに描きたい絵を書いて「描く」を押します")
+            return
+        self.entry.setText(self.last_text)
+        self.send()
+
+    def set_theme(self, name: str):
+        """色のテーマを替えて覚える。アイコン・絵の周り・欄の色がそろって替わる"""
+        from chatdraw import themes
+        t = themes.apply(QApplication.instance(), name)
+        self.canvas.setBackgroundBrush(QColor(t["canvas"]))
+        self.layout_store.setValue("theme", t["name"])
+        for a in self.theme_group.actions():
+            a.setChecked(a.text() == t["name"])
+        self.feature_tour("theme")
 
     def say(self, text: str, who: str = "CharacterDesigner"):
         self.chat.append(f"<b>{who}</b>: {text}")
@@ -715,6 +762,7 @@ class Window(QMainWindow):
             self.say(st["reason"] or "AI が使えません")
             return
         self.entry.clear()
+        self.last_text = text
         self.say(text, "あなた")
         self.button.setEnabled(False)
         self.stop_button.setEnabled(True)
@@ -727,6 +775,7 @@ class Window(QMainWindow):
             base = qimage_to_pil(self.canvas.flatten())
         self.thread = QThread()
         self.job = Job(self.studio, text, int(time.time()), base=base, strength=self.strength.value() / 100,
+                       style=self.ai_panel.style_tags(),
                        size=fit_size(*self.canvas.size_px()) if base is not None else self.size_pick.currentData())
         self.job.moveToThread(self.thread)
         self.thread.started.connect(self.job.run)
@@ -1325,104 +1374,17 @@ class Window(QMainWindow):
         self.hide_progress_if_idle()
 
 
-THEME = """
-* { font-size: 12px; }
-QMainWindow, QDockWidget > QWidget, QWidget#panel { background: #17181b; color: #e8e8ea; }
-QWidget { color: #e8e8ea; }
-QMenuBar { background: #111214; padding: 2px 6px; }
-QMenuBar::item { padding: 5px 10px; border-radius: 6px; }
-QMenuBar::item:selected, QMenu::item:selected { background: #2a2b30; }
-QMenu { background: #1d1e22; border: 1px solid #2c2d33; border-radius: 10px; padding: 6px; }
-QMenu::item { padding: 6px 22px; border-radius: 6px; }
-QToolBar { background: #111214; border: none; spacing: 4px; padding: 6px; }
-QToolBar#tools QToolButton { width: 34px; height: 34px; border-radius: 9px; }
-QToolButton { border-radius: 8px; padding: 4px; }
-QToolButton:hover { background: #26272c; }
-QToolButton:checked { background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ff7a1a, stop:1 #e5322d); }
-QToolBar::separator { background: #2a2b30; width: 1px; height: 1px; margin: 5px; }
-QLabel#toolName { font-weight: 600; padding: 0 8px; color: #ffffff; }
-QDockWidget { titlebar-close-icon: none; }
-PanelTitle { background: #111214; }
-PanelTitle QLabel { font-weight: 600; letter-spacing: 0.5px; color: #c9c9cf; }
-PanelTitle QPushButton { color: #8e8e95; border: none; border-radius: 5px; padding: 0; background: transparent; }
-PanelTitle QPushButton:hover { background: #2a2b30; color: #ffffff; }
-QPushButton { background: #24252a; border: 1px solid #2f3036; border-radius: 8px; padding: 6px 12px; }
-QPushButton:hover { border-color: #ff7a1a; }
-QPushButton#small { padding: 0; }
-QPushButton:disabled { color: #5d5e64; border-color: #24252a; }
-QPushButton#primary { font-weight: 700; color: #ffffff; border: none;
-    background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ff7a1a, stop:0.55 #e5322d, stop:1 #b3166b); }
-QPushButton#primary:hover { background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ff9346, stop:0.55 #f04a45, stop:1 #c92b80); }
-QPushButton#primary:disabled { background: #2a2b30; color: #6c6d73; }
-QLineEdit, QSpinBox, QComboBox, QTextEdit, QListWidget { background: #1f2024; border: 1px solid #2c2d33; border-radius: 8px;
-    padding: 5px 8px; selection-background-color: #e5322d; }
-QLineEdit:focus, QSpinBox:focus, QComboBox:focus, QTextEdit:focus { border-color: #ff7a1a; }
-QListWidget::item { padding: 5px; border-radius: 6px; }
-QListWidget::item:selected { background: #2e2224; color: #ffffff; border-left: 2px solid #ff7a1a; }
-QSlider::groove:horizontal { height: 4px; background: #2c2d33; border-radius: 2px; }
-QSlider::sub-page:horizontal { background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ff7a1a, stop:1 #e5322d); border-radius: 2px; }
-QSlider::handle:horizontal { width: 14px; height: 14px; margin: -5px 0; border-radius: 7px; background: #ffffff; }
-QCheckBox::indicator { width: 15px; height: 15px; border-radius: 4px; border: 1px solid #45464d; background: #1f2024; }
-QCheckBox::indicator:checked { background: #ff7a1a; border-color: #ff7a1a; }
-QProgressBar { background: #1f2024; border: none; border-radius: 6px; height: 10px; text-align: center; color: #ffffff; }
-QProgressBar::chunk { border-radius: 6px; background: qlineargradient(x1:0, y1:0, x2:1, y2:0, stop:0 #ff7a1a, stop:1 #b3166b); }
-QLabel#stateTitle { font-size: 15px; font-weight: 700; color: #ffffff; }
-QLabel#stateDetail { color: #a9a9b0; }
-QLabel#sectionHead { font-weight: 600; color: #c9c9cf; padding-top: 6px; }
-QLabel#step { border-radius: 2px; padding: 0; background: #1f2024; color: #6c6d73; }
-QLabel#step[state="done"] { background: #2e2224; color: #ffb38a; }
-QLabel#step[state="now"] { color: #ffffff; background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ff7a1a, stop:1 #e5322d); }
-QDialog { background: #17181b; }
-QLabel#dialogTitle { font-size: 18px; font-weight: 700; color: #ffffff; padding: 4px 0; }
-QFrame#card { background: #1f2024; border: 1px solid #2c2d33; border-radius: 10px; }
-QFrame#card:hover { border-color: #ff7a1a; }
-QLabel#cardGood { color: #e8e8ea; }
-QLabel#cardMeta { color: #8e8e95; }
-QLabel#badge { color: #7ccf5a; font-size: 11px; }
-QLabel#badgeHot { color: #ffffff; font-size: 11px; padding: 1px 8px; border-radius: 8px; background: #e5322d; }
-QLabel#stepNum { color: #ffffff; font-weight: 700; border-radius: 14px; background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 #ff7a1a, stop:1 #e5322d); }
-QRadioButton { font-weight: 600; }
-QRadioButton::indicator { width: 14px; height: 14px; border-radius: 7px; border: 1px solid #45464d; background: #1f2024; }
-QRadioButton::indicator:checked { background: #ff7a1a; border-color: #ff7a1a; }
-QTabWidget::pane { border: none; }
-QTabBar::tab { background: transparent; color: #8e8e95; padding: 5px 12px; border: none; border-bottom: 2px solid transparent; }
-QTabBar::tab:selected { color: #ffffff; border-bottom: 2px solid #ff7a1a; }
-QTabBar::tab:hover { color: #e8e8ea; }
-QFrame#tourCard { background: #1f2024; border: 1px solid #ff7a1a; border-radius: 12px; }
-QToolBar#panelbar QToolButton { width: 34px; height: 34px; border-radius: 9px; }
-QTabWidget#ribbon::pane { border: none; border-bottom: 1px solid #2a2b30; }
-QTabWidget#ribbon QTabBar::tab { padding: 4px 16px; }
-QWidget#ribbonGroup QToolButton { font-size: 11px; padding: 3px 4px; border-radius: 8px; }
-QLabel#ribbonGroupName { color: #6c6d73; font-size: 10px; }
-QFrame#ribbonSep { color: #2a2b30; }
-QToolBar#ribbonbar { padding: 0 6px; }
-QLabel#statusCell { color: #9a9aa1; padding: 0 10px; border-left: 1px solid #24252a; }
-QPushButton#statusButton { background: transparent; border: none; color: #c9c9cf; padding: 0 10px; }
-QPushButton#statusButton:hover { color: #ff7a1a; }
-QFrame#notice { background: #24252a; border-radius: 10px; }
-QLabel#noticeTitle { font-weight: 700; color: #ffffff; }
-QStatusBar::item { border: none; }
-QPushButton#modelButton { text-align: left; }
-QStatusBar { background: #111214; color: #9a9aa1; }
-QScrollBar:vertical { background: transparent; width: 10px; }
-QScrollBar::handle:vertical { background: #34353b; border-radius: 4px; min-height: 30px; margin: 2px; }
-QScrollBar::add-line, QScrollBar::sub-line { height: 0; width: 0; }
-QMainWindow::separator { background: #0c0d0f; width: 3px; height: 3px; }
-QMainWindow::separator:hover { background: #ff7a1a; }
-QToolTip { background: #24252a; color: #ffffff; border: 1px solid #3a3b42; border-radius: 6px; padding: 4px 8px; }
-"""
+from chatdraw.themes import qss as _qss
+THEME = _qss()   # 既定のテーマ（chatdraw/themes.py）
 
 
-def dark(app: QApplication):
-    """暗い灰色の地に、赤とオレンジの差し色。絵の色を邪魔しない暗さにし、AI で描くボタンだけを光らせる"""
-    app.setStyle("Fusion")
-    p = QPalette()
-    for role, c in ((QPalette.Window, "#17181b"), (QPalette.WindowText, "#e8e8ea"), (QPalette.Base, "#1f2024"),
-                    (QPalette.AlternateBase, "#24252a"), (QPalette.Text, "#e8e8ea"), (QPalette.Button, "#24252a"),
-                    (QPalette.ButtonText, "#e8e8ea"), (QPalette.Highlight, "#e5322d"), (QPalette.HighlightedText, "#ffffff")):
-        p.setColor(role, QColor(c))
-    app.setPalette(p)
-    app.setStyleSheet(THEME)
+
+def dark(app: QApplication, name: str | None = None):
+    """テーマの色を当てる。name が無ければ前に選んだテーマ（初めはナイト: 暗い灰色の地に赤とオレンジの差し色）"""
+    from chatdraw import themes
+    if name is None:
+        name = QSettings("CharacterDesigner", "chatdraw").value("theme", themes.DEFAULT)
+    return themes.apply(app, name)
 
 
 def main():
