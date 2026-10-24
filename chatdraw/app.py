@@ -402,11 +402,7 @@ class Window(QMainWindow):
         self.addDockWidget(Qt.LeftDockWidgetArea, bdock)
         self.brush_list.setCurrentRow(0)
         self.canvas.brush_changed.connect(self.size_box.setValue)
-        self.ai_label = QLabel()
-        self.statusBar().addPermanentWidget(self.ai_label)
-        self.zoom_label = QLabel("100%")
-        self.statusBar().addPermanentWidget(self.zoom_label)
-        self.canvas.zoomed.connect(lambda z: self.zoom_label.setText(f"{z * 100:.0f}%"))
+        self.build_status()
 
         # 右下: レイヤー
         self.layer_list = QListWidget()
@@ -504,9 +500,11 @@ class Window(QMainWindow):
         win.addAction(tact)
         win.addAction(bar.toggleViewAction())
         win.addAction(self.options.toggleViewAction())
+        self._bars_menu = win
         self._ribbon_toggle = win
         # 帯は上下左右のどこにでも置ける（帯の端をドラッグしても動く）
         where = win.addMenu("帯の位置")
+        self._where = where
         for name, tb in (("道具の帯", tools), ("欄の帯", bar)):
             sub = where.addMenu(name)
             for label, area in (("左", Qt.LeftToolBarArea), ("右", Qt.RightToolBarArea), ("上", Qt.TopToolBarArea),
@@ -524,11 +522,17 @@ class Window(QMainWindow):
         win.addAction(QAction("すべて別ウィンドウにする", self, triggered=self.float_all))
         win.addAction(QAction("自由配置（欄をドラッグして好きな所に置く）", self, triggered=self.free_layout))
         self.build_ribbon()
+        self.build_bottom()
         help_menu = self.menuBar().addMenu("ヘルプ")
         help_menu.addAction(QAction(icon("help"), "使い方ツアー", self, shortcut="F1", triggered=self.start_tour))
         self.layout_store = QSettings("CharacterDesigner", "chatdraw")
         self._ribbon_toggle.addAction(self.ribbon_bar.toggleViewAction())
-        state = self.layout_store.value("state5")   # 欄の並びを変えたら名前を変え、古い並びを読まない
+        self._bars_menu.addAction(self.bottom_bar.toggleViewAction())
+        for name, tb in (("下の帯", self.bottom_bar), ("道具の設定の帯", self.options)):
+            sub = self._where.addMenu(name)
+            for label, area in (("上", Qt.TopToolBarArea), ("下", Qt.BottomToolBarArea)):
+                sub.addAction(QAction(label, self, triggered=lambda _=False, tb=tb, area=area: self.place_bar(tb, area)))
+        state = self.layout_store.value("state6")   # 欄の並びを変えたら名前を変え、古い並びを読まない
         if state is not None:
             self.restoreGeometry(self.layout_store.value("geometry"))
             self.restoreState(state)
@@ -591,6 +595,8 @@ class Window(QMainWindow):
         self.place(path)
         self.activity.end("描けました", path)
         self.say("描きました")
+        self.notify("描けました", "ok", "レイヤーとして重ねました。押すと履歴を開きます",
+                    on_click=lambda: (self.panels["history"][0].show(), self.activity.tabs.setCurrentIndex(0)))
         self._end("できました")
 
     def _studio_from_settings(self) -> Studio:
@@ -649,7 +655,7 @@ class Window(QMainWindow):
                 return
             self.settings.set("words_model", str(words_path(new)))
             self.studio = self._studio_from_settings()
-            self.statusBar().showMessage(f"言葉の模型を {new.name} に乗り換えました", 6000)
+            self.notify(f"言葉の模型を {new.name} に乗り換えました", "ok")
         if has_words(new):
             switch()
             return
@@ -717,7 +723,7 @@ class Window(QMainWindow):
             self.settings.set("words_model", key if key in (AUTO, "") else str(words_path(m)))
         self.studio = self._studio_from_settings()
         self.check_ai()
-        self.statusBar().showMessage(f"{kind}を替えました", 4000)
+        self.notify(f"{kind}を替えました", "ok")
 
     def show_preview(self, img):
         """AI が描いている途中の絵を、工程ごとにキャンバスの上に重ねて見せる（録画はしない）"""
@@ -745,6 +751,8 @@ class Window(QMainWindow):
         self.say(why)
         if self.activity.started is not None:
             self.activity.end("止めました" if "止め" in why else "描けませんでした")
+        self.notify("止めました" if "止め" in why else "描けませんでした", "info" if "止め" in why else "error",
+                    "" if "止め" in why else why)
         self._end(why)
 
     def pick_color(self):
@@ -773,6 +781,8 @@ class Window(QMainWindow):
         """上の道具の設定の見出しを、選んだ道具の名前にする"""
         label = next(lb for k, lb, _s in TOOLS if k == key)
         self.tool_name.setText(label)
+        if hasattr(self, "st_tool"):
+            self.st_tool.setText(label)
         self.fill_shapes.setVisible(key in ("rect", "ellipse"))
 
     def arrange(self):
@@ -791,6 +801,8 @@ class Window(QMainWindow):
         self.options.show()
         self.addToolBar(Qt.RightToolBarArea, self.panel_bar)
         self.panel_bar.show()
+        self.addToolBar(Qt.BottomToolBarArea, self.bottom_bar)
+        self.bottom_bar.show()
         # 初めはシンプルにする。左は道具と色、右は AI とレイヤーだけ。ブラシと履歴は欄の帯のアイコンで開く
         self.addDockWidget(Qt.LeftDockWidgetArea, opt)
         self.splitDockWidget(opt, brushes, Qt.Vertical)
@@ -803,6 +815,71 @@ class Window(QMainWindow):
         side = min(320, max(240, int(w * 0.17)))   # 真ん中の絵を広く取る
         self.resizeDocks([opt, chat], [side, side + 20], Qt.Horizontal)
         self.resizeDocks([chat, layers], [int(h * 0.45), int(h * 0.55)], Qt.Vertical)
+
+    def build_status(self):
+        """下のステータスバー。左に知らせ、右に道具・座標・キャンバスの大きさ・レイヤー・AI の状態・拡大率を並べる。
+        拡大率は押すと全体表示に戻る"""
+        sb = self.statusBar()
+        sb.setSizeGripEnabled(True)
+
+        def cell(tip, w=0):
+            lb = QLabel()
+            lb.setObjectName("statusCell")
+            lb.setToolTip(tip)
+            if w:
+                lb.setMinimumWidth(w)
+            sb.addPermanentWidget(lb)
+            return lb
+        self.st_tool = cell("今の道具", 70)
+        self.st_pos = cell("カーソルの位置（画素）", 90)
+        self.st_size = cell("キャンバスの大きさ", 90)
+        self.st_layer = cell("描いているレイヤー", 90)
+        self.ai_label = cell("AI の状態")
+        self.zoom_label = QPushButton("100%")
+        self.zoom_label.setObjectName("statusButton")
+        self.zoom_label.setToolTip("拡大率。押すと全体を表示します")
+        self.zoom_label.clicked.connect(self.canvas.fit)
+        sb.addPermanentWidget(self.zoom_label)
+        self.canvas.zoomed.connect(lambda z: self.zoom_label.setText(f"{z * 100:.0f}%"))
+        self.canvas.moved.connect(lambda x, y: self.st_pos.setText(f"{x}, {y}"))
+        self.canvas.changed.connect(self._status_doc)
+        self._status_doc()
+        self.st_tool.setText(self.tool_name.text())
+
+    def _status_doc(self):
+        w, h = self.canvas.size_px()
+        self.st_size.setText(f"{w}×{h}")
+        if self.canvas.layers:
+            self.st_layer.setText(self.canvas.layers[self.canvas.current].name)
+
+    def build_bottom(self):
+        """下の帯。表示と元に戻すの操作を、手の届く下に並べる。「ウィンドウ」から隠せ、上にも移せる"""
+        from PySide6.QtWidgets import QSlider as _S
+        bar = QToolBar("下の帯", self)
+        bar.setObjectName("bottombar")
+        bar.setIconSize(QSize(18, 18))
+        for key, label, fn in (("undo", "元に戻す", self.canvas.undo), ("redo", "やり直す", self.canvas.redo)):
+            bar.addAction(QAction(icon(key), label, self, triggered=fn))
+        bar.addSeparator()
+        bar.addAction(QAction(icon("fit"), "全体を表示", self, triggered=self.canvas.fit))
+        self.zoom_slider = _S(Qt.Horizontal)
+        self.zoom_slider.setRange(5, 800)
+        self.zoom_slider.setValue(100)
+        self.zoom_slider.setFixedWidth(180)
+        self.zoom_slider.setToolTip("拡大率")
+        self.zoom_slider.valueChanged.connect(lambda v: self.canvas.set_zoom(v / 100))
+        self.canvas.zoomed.connect(lambda z: (self.zoom_slider.blockSignals(True), self.zoom_slider.setValue(int(z * 100)),
+                                              self.zoom_slider.blockSignals(False)))
+        bar.addWidget(self.zoom_slider)
+        bar.addAction(QAction(icon("rotate"), "右に回す", self, triggered=lambda: self.canvas.rotate_view(15)))
+        bar.addAction(QAction("回転を戻す", self, triggered=self.canvas.reset_rotation))
+        self.addToolBar(Qt.BottomToolBarArea, bar)
+        self.bottom_bar = bar
+
+    def notify(self, text: str, kind: str = "info", detail: str = "", on_click=None):
+        """右下に短い知らせを出す（数秒で消える。作業は止めない）"""
+        from chatdraw.notice import Notice
+        return Notice(self, text, kind, detail=detail, on_click=on_click)
 
     def build_ribbon(self):
         """上部のリボン。メニューと同じ操作を、タブごとに大きなアイコンで並べる"""
@@ -878,6 +955,7 @@ class Window(QMainWindow):
             Step(lambda: p["layers"][0], "レイヤー", "AI の絵はレイヤーとして重なります。描き足しは別のレイヤーにすると、あとで直せます。",
                  show("layers")),
             Step(lambda: self.panel_bar, "欄の帯", "欄を出す・隠すアイコンです。ブラシや履歴はここから開きます。\n帯はドラッグで上下左右へ動かせます。"),
+            Step(lambda: self.bottom_bar, "下の帯とステータスバー", "下の帯で拡大と元に戻すを操作します。\nいちばん下には道具・位置・大きさ・AI の状態が出ます。"),
             Step(lambda: self.menuBar(), "メニュー", "「AI」で絵の模型を切り替え、「ウィンドウ」で配置を整えます。\nこの案内は「ヘルプ」からいつでも見られます。"),
         ]
 
@@ -909,6 +987,7 @@ class Window(QMainWindow):
         self.tools.setVisible(on)
         self.options.setVisible(on)
         self.panel_bar.setVisible(on)
+        self.bottom_bar.setVisible(on)
         self.ribbon_bar.setVisible(on)
 
     def float_all(self):
@@ -931,7 +1010,7 @@ class Window(QMainWindow):
     def closeEvent(self, e):
         # 次に開いたときも同じ並びにする
         self.layout_store.setValue("geometry", self.saveGeometry())
-        self.layout_store.setValue("state5", self.saveState())
+        self.layout_store.setValue("state6", self.saveState())
         super().closeEvent(e)
 
     def _refresh_layers(self):
@@ -976,7 +1055,8 @@ class Window(QMainWindow):
             return
         dst, _ = QFileDialog.getSaveFileName(self, "名前を付けて保存", "drawing.png", "PNG (*.png)")
         if dst:
-            self.canvas.flatten().save(dst)
+            ok = self.canvas.flatten().save(dst)
+            self.notify("保存しました" if ok else "保存できませんでした", "ok" if ok else "error", Path(dst).name)
 
     def _end(self, msg: str):
         self.statusBar().showMessage(msg, 4000)
@@ -1059,6 +1139,12 @@ QWidget#ribbonGroup QToolButton { font-size: 11px; padding: 3px 4px; border-radi
 QLabel#ribbonGroupName { color: #6c6d73; font-size: 10px; }
 QFrame#ribbonSep { color: #2a2b30; }
 QToolBar#ribbonbar { padding: 0 6px; }
+QLabel#statusCell { color: #9a9aa1; padding: 0 10px; border-left: 1px solid #24252a; }
+QPushButton#statusButton { background: transparent; border: none; color: #c9c9cf; padding: 0 10px; }
+QPushButton#statusButton:hover { color: #ff7a1a; }
+QFrame#notice { background: #24252a; border-radius: 10px; }
+QLabel#noticeTitle { font-weight: 700; color: #ffffff; }
+QStatusBar::item { border: none; }
 QStatusBar { background: #111214; color: #9a9aa1; }
 QScrollBar:vertical { background: transparent; width: 10px; }
 QScrollBar::handle:vertical { background: #34353b; border-radius: 4px; min-height: 30px; margin: 2px; }

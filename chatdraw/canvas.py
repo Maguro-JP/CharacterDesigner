@@ -66,7 +66,8 @@ class Canvas(QGraphicsView):
     color_picked = Signal(QColor)
     zoomed = Signal(float)
     brush_changed = Signal(int)
-    history_changed = Signal()  # 元に戻すの積み重ねが変わった（操作の履歴の欄を描き直す）
+    history_changed = Signal()
+    moved = Signal(int, int)    # カーソルのキャンバス上の位置（下の帯の座標に出す）  # 元に戻すの積み重ねが変わった（操作の履歴の欄を描き直す）
     used_color = Signal()       # 描く色で描き始めた（最近使った色に足す）
 
     def __init__(self):
@@ -312,6 +313,14 @@ class Canvas(QGraphicsView):
     def zoom(self) -> float:
         t = self.transform()
         return (t.m11() ** 2 + t.m12() ** 2) ** 0.5
+
+    def set_zoom(self, z: float):
+        """拡大率を z（1.0 で等倍）にする。回転はそのまま"""
+        cur = self.zoom()
+        if cur > 0:
+            f = z / cur
+            self.scale(f, f)
+            self.zoomed.emit(self.zoom())
 
     def rotate_view(self, deg: float):
         self.angle = (self.angle + deg) % 360
@@ -639,6 +648,7 @@ class Canvas(QGraphicsView):
     def mouseMoveEvent(self, e):
         pos = self.mapToScene(e.position().toPoint())
         self._ring(pos)
+        self.moved.emit(int(pos.x()), int(pos.y()))
         if self.drag_start is not None:
             self.drag(self.drag_start, pos)
             return

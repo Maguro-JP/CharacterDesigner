@@ -600,6 +600,35 @@ class TourTest(unittest.TestCase):
         self.assertIs(w.tour, t)
 
 
+class StatusTest(unittest.TestCase):
+    def test_status_bar_bottom_band_and_notice(self):
+        from PySide6.QtCore import Qt as _Qt
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Window
+        from chatdraw.notice import Notice
+        app = QApplication.instance() or QApplication([])
+        w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
+        w.resize(1400, 900)
+        w.show()
+        w.arrange()
+        w.canvas.new_canvas(300, 200)
+        self.assertEqual(w.st_size.text(), "300×200")
+        w.canvas.moved.emit(12, 34)
+        self.assertEqual(w.st_pos.text(), "12, 34")
+        w.tool_actions["eraser"].trigger()
+        self.assertEqual(w.st_tool.text(), "消しゴム")
+        self.assertEqual(w.toolBarArea(w.bottom_bar), _Qt.BottomToolBarArea)   # 下の帯
+        w.zoom_slider.setValue(200)
+        self.assertAlmostEqual(w.canvas.zoom(), 2.0, places=2)
+        w.zoom_label.click()                                                     # 押すと全体表示
+        self.assertNotEqual(w.zoom_label.text(), "200%")
+        n = w.notify("保存しました", "ok")
+        m = w.notify("描けました", "ok")
+        self.assertTrue(n.isVisible() and m.isVisible())
+        self.assertLess(m.y(), n.y())                                            # 新しい知らせは上に積む
+        self.assertTrue(n.geometry().right() <= w.width())
+
+
 class FitSizeTest(unittest.TestCase):
     def test_rough_size_keeps_canvas_ratio(self):
         from chatdraw.app import fit_size
