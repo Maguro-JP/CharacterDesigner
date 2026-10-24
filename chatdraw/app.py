@@ -329,8 +329,9 @@ class Window(QMainWindow):
             SetupDialog(need, self).exec()
 
     def place(self, path: str):
-        """描けた絵を置く。まだ何も描いていないキャンバスなら絵を開き、描いている途中なら新しいレイヤーとして重ねる"""
-        if not self.canvas.undo_stack and len(self.canvas.layers) <= 2:
+        """描けた絵を置く。新しく描いて、まだ何も描いていないキャンバスなら絵を開く。
+        キャンバスを元に描いたときと、描いている途中なら、元の絵を残して新しいレイヤーとして重ねる"""
+        if self.mode.currentIndex() == 0 and not self.canvas.undo_stack and len(self.canvas.layers) <= 2:
             self.canvas.show_image(path)
         else:
             self.canvas.add_image_layer(path, f"AI の絵 {len(self.images)}")
