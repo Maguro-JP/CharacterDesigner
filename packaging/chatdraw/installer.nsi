@@ -12,6 +12,7 @@
 Target amd64-unicode
 Unicode true
 !include "MUI2.nsh"
+!include "LogicLib.nsh"
 
 !define APP "CharacterDesigner"
 !define UNINST "Software\Microsoft\Windows\CurrentVersion\Uninstall\${APP}"
@@ -86,13 +87,22 @@ Section "Install"
 SectionEnd
 
 Section "Uninstall"
+  ; 入れた所は丸ごと消す（__pycache__ など起動で出来た物も残さない）。名前が違う所に入れたときは、入れた物だけを消す
   RMDir /r "$INSTDIR\chatdraw"
   RMDir /r "$INSTDIR\python"
   Delete "$INSTDIR\VERSION"
   Delete "$INSTDIR\LICENSE"
   Delete "$INSTDIR\Uninstall.exe"
+  ${If} ${FileExists} "$INSTDIR\*.*"
+  ${AndIf} "$INSTDIR" == "$PROGRAMFILES64\${APP}"
+    RMDir /r "$INSTDIR"
+  ${EndIf}
   RMDir "$INSTDIR"
   SetShellVarContext all
+  ; 取った更新の Setup.exe と自動保存の控えは、部品を残すときも消す（作業ファイルではなく一時の物）
+  RMDir /r "$COMMONPROGRAMDATA\${APP}\updates"
+  RMDir /r "$COMMONPROGRAMDATA\${APP}\autosave"
+  Delete "$SMPROGRAMS\${APP}\*.lnk"
   RMDir /r "$SMPROGRAMS\${APP}"
   Delete "$DESKTOP\${APP}.lnk"
   DeleteRegKey HKLM "${UNINST}"
