@@ -61,6 +61,7 @@ class Canvas(QGraphicsView):
     color_picked = Signal(QColor)
     zoomed = Signal(float)
     brush_changed = Signal(int)
+    stroke_done = Signal()      # 線・塗り・レイヤーの並びが 1 回変わった（タイムラプスの写しを撮る）
 
     def __init__(self):
         super().__init__()
@@ -156,6 +157,22 @@ class Canvas(QGraphicsView):
             self.scene().addItem(it)
             self.items.append(it)
         self.changed.emit()
+
+    # ---- AI が描いている途中の絵 ----
+    def show_overlay(self, img: QImage | None):
+        """AI の途中の絵を、キャンバスいっぱいに薄く重ねて見せる。None で消す"""
+        if not hasattr(self, "overlay"):
+            from PySide6.QtWidgets import QGraphicsPixmapItem
+            self.overlay = QGraphicsPixmapItem()
+            self.overlay.setZValue(1e8)
+            self.overlay.setTransformationMode(Qt.SmoothTransformation)
+            self.scene().addItem(self.overlay)
+        if img is None:
+            self.overlay.setVisible(False)
+            return
+        w, h = self.size_px()
+        self.overlay.setPixmap(QPixmap.fromImage(img).scaled(w, h, Qt.IgnoreAspectRatio, Qt.SmoothTransformation))
+        self.overlay.setVisible(True)
 
     # ---- レイヤー ----
     def add_layer(self):
@@ -317,6 +334,7 @@ class Canvas(QGraphicsView):
             it.buffer = None
             it.update()
             self.buffer = None
+        self.stroke_done.emit()
 
     def stroke(self, a: QPointF, b: QPointF, pressure: float = 1.0):
         """a から b まで今のブラシで描く。線の途中でなければ、その 1 区切りだけで線を描き終える"""
@@ -381,6 +399,7 @@ class Canvas(QGraphicsView):
         p.drawImage(0, 0, overlay)
         p.end()
         self.items[self.current].update()
+        self.stroke_done.emit()
 
     # ---- マウスとペンタブレット ----
     def _press(self, pos: QPointF, pressure: float):

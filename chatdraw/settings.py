@@ -4,7 +4,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from PySide6.QtCore import QSettings
-from PySide6.QtWidgets import (QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFormLayout, QHBoxLayout,
+from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFormLayout, QHBoxLayout,
                                QLineEdit, QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget)
 
 from chatdraw.engine import HOME, IMAGE_MODEL
@@ -17,6 +17,7 @@ FIELDS = [
     ("guidance", "頼みの効き", "描き方", "float:1:15", 5.0, "大きいほど頼みの言葉に寄せる"),
     ("rough_strength", "ラフから描くときの強さ", "描き方", "float:0.3:0.98", 0.85, "大きいほどラフから離れて絵らしくなる"),
     ("output_dir", "描いた絵の保存先", "保存", "dir", str(Path.home() / "Pictures" / "CharacterDesigner"), ""),
+    ("timelapse", "タイムラプスを記録する", "保存", "bool", 1, "線を引くたびと AI が描く工程ごとに写しを残す"),
 ]
 
 
@@ -38,7 +39,7 @@ class Settings:
         field = next(f for f in FIELDS if f[0] == key)
         value = self.store.value(key, field[4])
         kind = field[3]
-        if kind.startswith("int"):
+        if kind.startswith("int") or kind == "bool":
             return int(value)
         if kind.startswith("float"):
             return float(value)
@@ -103,6 +104,10 @@ class SettingsDialog(QDialog):
             w.setSingleStep(0.05)
             w.setValue(float(value))
             return w
+        if kind == "bool":
+            w = QCheckBox()
+            w.setChecked(bool(int(value)))
+            return w
         if kind == "dir":
             box = QWidget()
             row = QHBoxLayout(box)
@@ -120,6 +125,8 @@ class SettingsDialog(QDialog):
         kind, w = self.inputs[key]
         if isinstance(w, QComboBox):
             return w.currentText().strip()
+        if isinstance(w, QCheckBox):
+            return int(w.isChecked())
         if isinstance(w, (QSpinBox, QDoubleSpinBox)):
             return w.value()
         if kind == "dir":

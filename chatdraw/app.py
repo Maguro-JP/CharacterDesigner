@@ -34,12 +34,14 @@ from PySide6.QtWidgets import (QApplication, QDockWidget, QFileDialog,  # noqa: 
 from PIL import Image  # noqa: E402
 
 from chatdraw.canvas import Canvas  # noqa: E402
-from chatdraw.engine import Painter, Studio, Words  # noqa: E402
+from chatdraw.engine import Painter, Studio, Words, check  # noqa: E402
+from chatdraw.timelapse import Recorder  # noqa: E402
 from chatdraw.settings import Settings, SettingsDialog  # noqa: E402
 
 
 class Job(QObject):
     status = Signal(str)
+    preview = Signal(object)   # 描いている途中の絵（PIL）
     done = Signal(str, str)
     failed = Signal(str)
 
@@ -51,10 +53,17 @@ class Job(QObject):
     def run(self):
         try:
             prompt, path = self.studio.draw(self.text, self.seed, on_status=self.status.emit,
-                                            base=self.base, strength=self.strength, size=self.size)
+                                            base=self.base, strength=self.strength, size=self.size,
+                                            on_preview=self.preview.emit)
             self.done.emit(prompt, str(path))
         except Exception as e:  # 描けなかった理由をそのまま会話に出す
             self.failed.emit(f"描けませんでした: {e}")
+
+
+def qimage_from_pil(im):
+    from PySide6.QtGui import QImage
+    im = im.convert("RGBA")
+    return QImage(im.tobytes(), im.width, im.height, im.width * 4, QImage.Format_RGBA8888).copy()
 
 
 def qimage_to_pil(img):
@@ -117,6 +126,8 @@ class Window(QMainWindow):
     def __init__(self, studio: Studio | None = None):
         super().__init__()
         self.settings = Settings()
+        self.recorder = Recorder()
+        self.recorder.enabled = bool(self.settings.get("timelapse"))
         self.studio = studio or self._studio_from_settings()
         self.setWindowTitle("CharacterDesigner")
         self.resize(1400, 900)
@@ -196,6 +207,8 @@ class Window(QMainWindow):
         file.addAction(QAction("開く…", self, shortcut="Ctrl+O", triggered=self.open_image))
         file.addAction(QAction("名前を付けて保存…", self, shortcut="Ctrl+S", triggered=self.save_as))
         file.addAction(QAction("模型を取る…", self, triggered=lambda: self.ask_models(force=True)))
+        file.addAction(QAction("タイムラプスを書き出す…", self, triggered=self.export_timelapse))
+        file.addAction(QAction("タイムラプスを消して撮り直す", self, triggered=self.recorder.clear))
         file.addSeparator()
         file.addAction(QAction("終了", self, shortcut="Ctrl+Q", triggered=self.close))
         edit = self.menuBar().addMenu("編集")
@@ -276,6 +289,9 @@ class Window(QMainWindow):
         self.brush_list.setCurrentRow(0)
         self.canvas.color_picked.connect(lambda _c: self._show_color())
         self.canvas.brush_changed.connect(self.size_box.setValue)
+        self.ai_label = QLabel()
+        self.statusBar().addPermanentWidget(self.ai_label)
+        self.canvas.stroke_done.connect(self._record)
         self.zoom_label = QLabel("100%")
         self.statusBar().addPermanentWidget(self.zoom_label)
         self.canvas.zoomed.connect(lambda z: self.zoom_label.setText(f"{z * 100:.0f}%"))
@@ -367,9 +383,26 @@ class Window(QMainWindow):
     def say(self, text: str, who: str = "CharacterDesigner"):
         self.chat.append(f"<b>{who}</b>: {text}")
 
+    def check_ai(self) -> dict:
+        """AI が使えるかを確かめて、下の欄に出す。描く前と起動のときに毎回呼ぶ"""
+        st = check(getattr(self.studio, "painter", None), getattr(self.studio, "words", None)) if isinstance(self.studio, Studio) else \
+            {"torch": True, "image": True, "words": True, "reason": ""}
+        if st["image"]:
+            self.ai_label.setText("AI: 使えます" + ("" if st["words"] else "（言葉の模型なし。日本語はそのまま渡します）"))
+            self.ai_label.setStyleSheet("color:#8fd18f")
+        else:
+            self.ai_label.setText("AI: 使えません")
+            self.ai_label.setStyleSheet("color:#ff7a5c")
+            self.ai_label.setToolTip(st["reason"])
+        return st
+
     def send(self):
         text = self.entry.text().strip()
         if not text or self.thread:
+            return
+        st = self.check_ai()
+        if not st["image"]:
+            self.say(st["reason"] or "AI が使えません")
             return
         self.entry.clear()
         self.say(text, "あなた")
@@ -386,6 +419,7 @@ class Window(QMainWindow):
         self.job.moveToThread(self.thread)
         self.thread.started.connect(self.job.run)
         self.job.status.connect(self.on_status)
+        self.job.preview.connect(self.show_preview)
         self.job.done.connect(self.finish)
         self.job.failed.connect(self.fail)
         self.thread.start()
@@ -403,7 +437,9 @@ class Window(QMainWindow):
         item.setData(Qt.UserRole, path)
         self.history.insertItem(0, item)
         self.history.setCurrentItem(item)
+        self.canvas.show_overlay(None)
         self.place(path)
+        self._record()
         self.say("描きました")
         self._end("できました")
 
@@ -425,6 +461,8 @@ class Window(QMainWindow):
                 self.studio.words = Words(Path(g("words_model")))
             self.studio.out = Path(g("output_dir"))
             self.strength.setValue(int(g("rough_strength") * 100))
+            self.recorder.enabled = bool(g("timelapse"))
+            self.check_ai()
             self.statusBar().showMessage("設定を保存しました")
 
     def ask_models(self, force: bool = False):
@@ -433,6 +471,24 @@ class Window(QMainWindow):
         need = missing()
         if any(need.values()) or force:
             SetupDialog(need, self).exec()
+
+    def show_preview(self, img):
+        """AI が描いている途中の絵をキャンバスの上に重ねて見せ、タイムラプスにも残す"""
+        self.canvas.show_overlay(qimage_from_pil(img))
+        self.recorder.add(img)
+
+    def _record(self):
+        if self.recorder.enabled:
+            self.recorder.add(qimage_to_pil(self.canvas.flatten()))
+
+    def export_timelapse(self):
+        if not self.recorder.frames:
+            self.statusBar().showMessage("タイムラプスの写しがまだありません")
+            return
+        dst, _ = QFileDialog.getSaveFileName(self, "タイムラプスを書き出す", "timelapse.gif", "GIF (*.gif)")
+        if dst:
+            n = self.recorder.export(dst)
+            self.statusBar().showMessage(f"タイムラプスを書き出しました（{n} 枚）")
 
     def place(self, path: str):
         """描けた絵を置く。新しく描いて、まだ何も描いていないキャンバスなら絵を開く。
@@ -452,6 +508,7 @@ class Window(QMainWindow):
         self.strength_label.setEnabled(i == 1)
 
     def fail(self, why: str):
+        self.canvas.show_overlay(None)
         self.say(why)
         self._end(why)
 
@@ -612,6 +669,7 @@ def main():
     w = Window()
     w.show()
     w.ask_models()
+    w.check_ai()
     sys.exit(app.exec())
 
 

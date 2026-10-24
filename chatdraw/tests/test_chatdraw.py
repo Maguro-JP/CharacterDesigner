@@ -14,13 +14,21 @@ from chatdraw.engine import Studio, has_japanese  # noqa: E402
 
 
 class FakeWords:
+    def ready(self):
+        return True
+
     def to_prompt(self, text):
         return "1girl, red scarf" if has_japanese(text) else text
 
 
 class FakePainter:
+    model = "fake"
+
     def __init__(self):
         self.calls = []
+
+    def ready(self):
+        return True
 
     def paint(self, prompt, seed, on_step=None, **kw):
         from PIL import Image
@@ -102,6 +110,33 @@ class LayoutTest(unittest.TestCase):
         self.assertTrue(w.panels["layers"][0].widget().isHidden())   # 畳むと中身が隠れて見出しだけ残る
         title.toggle()
         self.assertFalse(w.panels["layers"][0].widget().isHidden())
+
+
+class TimelapseTest(unittest.TestCase):
+    def test_records_strokes_and_exports_gif(self):
+        from PIL import Image
+        from PySide6.QtCore import QPointF
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Window
+        QApplication.instance() or QApplication([])
+        with TemporaryDirectory() as d:
+            w = Window(Studio(FakeWords(), FakePainter(), Path(d)))
+            w.recorder.enabled = True
+            w.canvas.new_canvas(200, 200)
+            for i in range(3):
+                w.canvas.stroke(QPointF(10, 10 + i * 20), QPointF(150, 10 + i * 20))
+            self.assertEqual(len(w.recorder.frames), 3)
+            w.show_preview(Image.new("RGB", (25, 25), "red"))   # AI の途中の絵も残る
+            self.assertEqual(len(w.recorder.frames), 4)
+            n = w.recorder.export(Path(d) / "t.gif")
+            self.assertEqual(n, 4)
+            self.assertEqual(Image.open(Path(d) / "t.gif").n_frames, 4)
+
+    def test_latent_preview_shape(self):
+        import torch
+        from chatdraw.engine import latent_preview
+        im = latent_preview(torch.zeros(1, 4, 16, 12))
+        self.assertEqual(im.size, (12, 16))
 
 
 class SettingsTest(unittest.TestCase):

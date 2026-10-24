@@ -58,6 +58,49 @@ class Words:
         return tags or text
 
 
+# 途中の絵（latents）をそのまま色に直す係数。VAE で戻すより何百倍も速く、描いている様子を見せるのに足りる
+LATENT_RGB = {
+    4: ([[0.3651, 0.4232, 0.4341], [-0.2533, -0.0042, 0.1068], [0.1076, 0.1111, -0.0362], [-0.3165, -0.2492, -0.2188]],
+        [0.1084, -0.0175, -0.0011]),
+}
+SD15_RGB = ([[0.3512, 0.2297, 0.3227], [0.3250, 0.4974, 0.2350], [-0.2829, 0.1762, 0.2721], [-0.2120, -0.2616, -0.7177]],
+            [0.0, 0.0, 0.0])
+
+
+def latent_preview(latents, sdxl: bool = True):
+    """途中の latents（1×4×h×w）から、描いている途中の絵（PIL、1/8 の大きさ）を作る"""
+    import torch
+    from PIL import Image
+    factors, bias = LATENT_RGB[4] if sdxl else SD15_RGB
+    lat = latents[0].float()
+    rgb = torch.einsum("chw,cr->hwr", lat, torch.tensor(factors)) + torch.tensor(bias)
+    arr = ((rgb.clamp(-1, 1) + 1) * 127.5).byte().cpu().numpy()
+    return Image.fromarray(arr, "RGB")
+
+
+def check(painter=None, words=None) -> dict:
+    """AI が使えるかを確かめる（描く前と起動のたびに呼ぶ）。描く部品・絵の模型・言葉の模型のそろい具合と、使えない理由を返す"""
+    out = {"torch": False, "image": False, "words": False, "reason": ""}
+    try:
+        import diffusers  # noqa: F401
+        import torch  # noqa: F401
+        out["torch"] = True
+    except Exception as e:
+        out["reason"] = f"描く部品が読めません（{e}）"
+        return out
+    painter = painter or Painter()
+    words = words or Words()
+    out["image"] = painter.ready()
+    try:
+        import llama_cpp  # noqa: F401
+        out["words"] = words.ready()
+    except Exception:
+        out["words"] = False
+    if not out["image"]:
+        out["reason"] = f"絵の模型（{painter.model}）が手元にありません。「ファイル」の「模型を取る」から取ってください"
+    return out
+
+
 class Stopped(Exception):
     """利用者が「止める」を押した"""
 
@@ -93,7 +136,7 @@ class Painter:
                 self._pipe.to("cuda")
         return self._pipe
 
-    def paint(self, prompt: str, seed: int, on_step=None, base=None, strength: float = 0.6, size=None):
+    def paint(self, prompt: str, seed: int, on_step=None, base=None, strength: float = 0.6, size=None, on_preview=None):
         """base（PIL の絵）を渡すと、その絵を元に描き直す。strength が大きいほど元から離れる"""
         import torch
         pipe = self.load()
@@ -105,6 +148,11 @@ class Painter:
                 p._interrupt = True
             if on_step:
                 on_step(i + 1, total)
+            if on_preview is not None and "latents" in kw:
+                try:
+                    on_preview(latent_preview(kw["latents"], sdxl=hasattr(p, "text_encoder_2")))
+                except Exception:
+                    pass   # 途中の絵が作れなくても描くのは続ける
             return kw
 
         args = dict(prompt=f"{prompt}, masterpiece, best quality", negative_prompt="lowres, worst quality, low quality",
@@ -135,7 +183,8 @@ class Studio:
         self.painter = painter or Painter()
         self.out = out or Path(os.environ.get("CD_OUTPUT") or Path.home() / "Pictures" / "CharacterDesigner")
 
-    def draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 0.6, size=None) -> tuple[str, Path]:
+    def draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 0.6, size=None,
+             on_preview=None) -> tuple[str, Path]:
         say = on_status or (lambda msg: None)
         if refused(text):
             raise ValueError("子どもを性的に描く頼みは描きません")
@@ -145,7 +194,7 @@ class Studio:
             raise ValueError("子どもを性的に描く頼みは描きません")
         say("絵の模型を読んでいます（初めの 1 回だけ時間がかかります）")
         image = self.painter.paint(prompt, seed, on_step=lambda i, n: say(f"描いています（{i}/{n}）"),
-                                   base=base, strength=strength, size=size)
+                                   base=base, strength=strength, size=size, on_preview=on_preview)
         self.out.mkdir(parents=True, exist_ok=True)
         path = self.out / f"{seed}.png"
         image.save(path)
