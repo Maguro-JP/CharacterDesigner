@@ -1,0 +1,244 @@
+{
+ "1-composition.png": {
+  "readable": true,
+  "bad": [
+   "手 1: palm 0.65（0.85〜1.35）",
+   "手 1: indexの手の色 0.67（0.85〜1.01）"
+  ],
+  "hands": [
+   {
+    "box": [
+     433,
+     529,
+     573,
+     670
+    ],
+    "angle": -119.0,
+    "measure": {
+     "presence": 1.0,
+     "palm": 0.65,
+     "thumb": 0.81,
+     "index": 0.86,
+     "ring": 0.96,
+     "pinky": 0.76,
+     "cover": {
+      "thumb": 1.0,
+      "index": 0.67,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 0.96
+     },
+     "fingers": {
+      "count": 4,
+      "rows": [
+       4,
+       5,
+       4,
+       4,
+       4
+      ],
+      "reason": "",
+      "width": 30.8,
+      "apart": 1.18
+     }
+    },
+    "bad": [
+     "palm 0.65（0.85〜1.35）",
+     "indexの手の色 0.67（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     367,
+     240,
+     538,
+     411
+    ],
+    "angle": 67.0,
+    "measure": {
+     "presence": 0.07,
+     "palm": 2.15,
+     "thumb": 1.79,
+     "index": 0.91,
+     "ring": 1.03,
+     "pinky": 0.84,
+     "cover": {
+      "thumb": 0.92,
+      "index": 1.0,
+      "middle": 1.0,
+      "ring": 0.79,
+      "pinky": 0.54
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "指先が付け根より上に無い"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.07"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     333,
+     63,
+     469,
+     199
+    ],
+    "angle": 36.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 1.16,
+     "thumb": 1.07,
+     "index": 0.85,
+     "ring": 1.06,
+     "pinky": 0.85,
+     "cover": {
+      "thumb": 1.0,
+      "index": 0.67,
+      "middle": 0.67,
+      "ring": 0.71,
+      "pinky": 0.67
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "曲げた指がある"
+     }
+    },
+    "bad": [],
+    "seen": true
+   },
+   {
+    "box": [
+     378,
+     180,
+     528,
+     329
+    ],
+    "angle": 29.0,
+    "measure": {
+     "presence": 0.0,
+     "palm": 3.45,
+     "thumb": 2.72,
+     "index": 1.32,
+     "ring": 1.33,
+     "pinky": 0.86,
+     "cover": {
+      "thumb": 0.88,
+      "index": 0.0,
+      "middle": 0.71,
+      "ring": 0.5,
+      "pinky": 0.04
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "曲げた指がある"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.0"
+    ],
+    "seen": false
+   }
+  ],
+  "feet": [
+   {
+    "side": "right",
+    "box": [
+     313,
+     1075,
+     437,
+     1193
+    ],
+    "count": null,
+    "evidence": {
+     "F": 78.5,
+     "toe_line": 19.8,
+     "why": "境の線では 4 本、指先の山では 3 本で、合わない",
+     "lines": 4,
+     "tips": 3,
+     "width": 44.8,
+     "line_at": [
+      157,
+      197,
+      232
+     ],
+     "line_power": [
+      1.0,
+      0.33,
+      0.33
+     ],
+     "tip_at": [
+      138,
+      194,
+      208
+     ],
+     "span": [
+      95,
+      274
+     ]
+    },
+    "bad": []
+   },
+   {
+    "side": "left",
+    "box": [
+     426,
+     1101,
+     508,
+     1229
+    ],
+    "count": null,
+    "evidence": {
+     "F": 74.6,
+     "toe_line": 30.1,
+     "why": "境の線では 7 本、指先の山では 4 本で、合わない",
+     "lines": 7,
+     "tips": 4,
+     "width": 64.0,
+     "line_at": [
+      93,
+      168,
+      194,
+      229,
+      262,
+      282
+     ],
+     "line_power": [
+      0.95,
+      1.0,
+      0.35,
+      0.96,
+      0.78,
+      0.44
+     ],
+     "tip_at": [
+      134,
+      182,
+      203,
+      236
+     ],
+     "span": [
+      54,
+      310
+     ]
+    },
+    "bad": []
+   }
+  ],
+  "faces": [],
+  "face": {
+   "box": null,
+   "readable": false,
+   "bad": [],
+   "tags": {},
+   "eye_dark": null,
+   "reason": "顔が写っていないか、小さすぎます"
+  }
+ }
+}
