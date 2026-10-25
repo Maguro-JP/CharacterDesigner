@@ -1,0 +1,22 @@
+{
+ "mode": "twostage",
+ "compose": "black-forest-labs/FLUX.2-klein-4B",
+ "render": "cagliostrolab/animagine-xl-4.0",
+ "prompt": "adult woman standing on a seaside promenade at sunset, full body",
+ "tags": "1girl, solo, adult woman, mature female, full body, standing, contrapposto, hands at sides, five fingers, navy sweater, white collar, charcoal grey trousers, black loafers, black hair, long hair, wind, seaside promenade, blue hour, dusk, soft light, sky, clouds",
+ "seed": 20261026,
+ "size": [
+  832,
+  1216
+ ],
+ "variants": [
+  {
+   "name": "pose-depth",
+   "pose": 0.7,
+   "depth": 0.4,
+   "end": 0.7
+  }
+ ],
+ "composition": "config/poses/stand-yaw30-contra10.png",
+ "seconds": 0
+}
