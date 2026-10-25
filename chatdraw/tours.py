@@ -52,9 +52,10 @@ def catalog(w) -> dict[str, tuple[str, list[Step]]]:
         "talk": ("チャット", [Step(_panel(w, "talk"), "チャット", "描きたい絵を書いて Enter か「描く」を押します。■ で止めます。", _show(w, "talk"))]),
         "library": ("ライブラリー", [Step(_panel(w, "library"), "ライブラリー", "描いた絵は「作品」に入ります。右クリックで「好き」「いまいち」を付けてください。\n「資料」には好きな絵柄の絵を置けます。「好み」に読み取った結果が出て、描くときに足されます。", _show(w, "library"))]),
         "taste": ("好み", [Step(_panel(w, "library"), "好みを学ぶ", "「好き」の絵に多い要素を足し、「いまいち」の絵に多い要素を避けて描きます。\n同じ要素が 2 回以上出るまでは足しません。「好み」のタブで外せます。", _show(w, "library"))]),
-        "progress": ("進み", [Step(_panel(w, "progress"), "進み", "AI が描いている間の工程・進み・残り時間です。描き終わると隠れます。", _show(w, "progress"))]),
+        "progress": ("進み", [Step(lambda: w.progress_popup, "進み", "AI が描いている間は、右下に進みが出ます。描き終わっても × で閉じるまで残ります。",
+                                  lambda: w.progress_popup.pop())]),
         # ---- AI ----
-        "draw": ("AI で描く", [Step(_panel(w, "progress"), "AI が描いています", "工程と残り時間はここに出ます。\n描いている途中の絵がキャンバスに重なって見えます。", _show(w, "progress")),
+        "draw": ("AI で描く", [Step(lambda: w.progress_popup, "AI が描いています", "工程と進みは右下に出ます。\n描いている途中の絵がキャンバスに重なって見えます。", lambda: w.progress_popup.pop()),
                               Step(lambda: c, "描いている途中の絵", "描き終わると、絵は新しいレイヤーとして重なります。")]),
         "rough": ("ラフから描く", [Step(lambda: c, "ラフから描く", "キャンバスに描いた線の形に沿って、AI が描きます。\n構図の分かる線画ほど、思った形に近く描けます。"),
                                   Step(_panel(w, "chat"), "ラフに沿う強さ", "大きいほど線どおりに描きます。小さいと AI が形を変えます。", _show(w, "chat"))]),

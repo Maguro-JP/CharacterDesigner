@@ -86,7 +86,8 @@ def bars(w, ribbon: bool, tools: tuple | None, options: bool = True, bottom: boo
 
 
 def _progress_idle(w):
-    w.panels["progress"][0].show()   # 進みの欄は初めから出しておく。描いている間だけ出すと、終わると消えて状態が分からなかった
+    """進みは右下のポップアップに出すので、上の進みの欄は初めは隠す（絵を見る場所を広く取る）"""
+    w.panels["progress"][0].hide()
 
 
 def recommended(w):
@@ -101,11 +102,10 @@ def recommended(w):
     w.panels["history"][0].raise_()
     w.addDockWidget(T, w.panels["progress"][0])
     w.addDockWidget(B, w.panels["talk"][0])
-    for k in ("progress", "talk"):
-        w.panels[k][0].show()
+    w.panels["talk"][0].show()
     side = min(320, max(260, int(max(w.width(), 1200) * 0.19)))
     _widths(w, ["color"], ["chat"], side)
-    w.resizeDocks([w.panels["progress"][0], w.panels["talk"][0]], [70, 200], Qt.Vertical)
+    w.resizeDocks([w.panels["talk"][0]], [200], Qt.Vertical)
     _progress_idle(w)
 
 
@@ -135,8 +135,7 @@ def ai_focus(w):
     _tabs(w, ["history", "library"])
     w.addDockWidget(T, w.panels["progress"][0])
     w.addDockWidget(B, w.panels["talk"][0])
-    for k in ("progress", "talk"):
-        w.panels[k][0].show()
+    w.panels["talk"][0].show()
     _hide(w, ["color", "brushes", "layers"])
     _widths(w, ["chat"], ["view"], 320)
     w.resizeDocks([w.panels["talk"][0]], [260], Qt.Vertical)

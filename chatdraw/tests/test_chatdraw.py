@@ -98,11 +98,11 @@ class WindowTest(unittest.TestCase):
             self.assertIn("雪の城の前の騎士", item.toolTip())
             self.assertEqual(item.text(), "")                     # 見た目は絵だけ
             self.assertEqual(w.activity.state.text(), "待機中")
-            self.assertFalse(w.panels["progress"][0].isHidden())         # 描き終わった直後は結果が読めるよう出しておく
+            self.assertFalse(w.progress_popup.isHidden())                # 描き終わった直後は結果が読めるよう右下に出しておく
             w.hide_progress_if_idle(0)
             for _ in range(20):
                 app.processEvents()
-            self.assertFalse(w.panels["progress"][0].isHidden())         # 時間がたっても隠さない（消えると状態が分からなかった）
+            self.assertFalse(w.progress_popup.isHidden())                # 時間がたっても隠さない（消えると状態が分からなかった）
             self.assertTrue(w.button.isEnabled())
 
 
@@ -130,14 +130,13 @@ class LayoutTest(unittest.TestCase):
         self.assertEqual(w.dockWidgetArea(w.panels["chat"][0]), _Qt.RightDockWidgetArea)   # AI は右
         self.assertEqual(w.dockWidgetArea(w.panels["brushes"][0]), _Qt.LeftDockWidgetArea)   # 道具は左
         self.assertFalse(any(d.isFloating() for d, _ in w.panels.values()))
-        # おすすめの配置: 左に手で描く道具、右の上に表示・中に AI・下に履歴、真ん中の上に進み・下にチャット
+        # おすすめの配置: 左に手で描く道具、右に AI と履歴（表示とライブラリーは履歴とタブ）、真ん中の下にチャット
         area = lambda k: w.dockWidgetArea(w.panels[k][0])
         for k in ("color", "brushes", "layers"):
             self.assertEqual(area(k), _Qt.LeftDockWidgetArea)
         for k in ("view", "chat", "history"):
             self.assertEqual(area(k), _Qt.RightDockWidgetArea)
-        self.assertEqual(area("progress"), _Qt.TopDockWidgetArea)
-        self.assertFalse(w.panels["progress"][0].isHidden())            # 進みは描いていなくても出しておく（消えると状態が分からなかった）
+        self.assertTrue(w.panels["progress"][0].isHidden())             # 進みは右下のポップアップに出すので、上の欄は初めは隠す
         self.assertEqual(area("talk"), _Qt.BottomDockWidgetArea)
         ys = [w.panels[k][0].y() for k in ("view", "chat", "history")]
         self.assertEqual(ys, sorted(ys))                                 # 右は上から表示・AI・履歴
@@ -1487,7 +1486,16 @@ class UsableTest(unittest.TestCase):
         a.end("描きました", None, record=False)
         self.w.hide_progress_if_idle(0)
         self.spin(0.3)
-        self.assertTrue(self.w.panels["progress"][0].isVisible())   # 終わっても消えない
+        p = self.w.progress_popup
+        self.assertTrue(p.isVisible())                              # 終わっても消えない
+        self.assertEqual(p.title.text(), "終わりました")
+        self.assertEqual(p.pos(), p.target())                       # 右下に止まっている
+        g = self.w.centralWidget().geometry()
+        self.assertTrue(g.contains(p.geometry()), (g, p.geometry()))   # 絵の欄の中（チャットや右の欄に重ならない）
+        self.assertGreater(p.x() + p.width(), g.right() - 80)       # 右の端に寄っている
+        self.assertGreater(p.y() + p.height(), g.bottom() - 80)     # 下の端に寄っている
+        p.close_popup()
+        self.assertFalse(p.isVisible())                             # × で閉じられる
         self.assertEqual(self.w.windowTitle(), "CharacterDesigner")
         self.assertEqual(seen[0], -1)
         self.assertEqual(seen[-1], -2)
