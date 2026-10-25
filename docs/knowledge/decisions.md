@@ -168,3 +168,4 @@
 
 - 2026-10-25 2 段で描く仕組みは、段ごとに絵をファイルに残し、Actions では構図と仕上げを別のジョブにする。仕上げは 1 つの構図から縛りの組み合わせを何通りも描き、既定の縛りは骨組みと奥行きにする（細い線は構図の模型の癖を写すため比べの 1 通りだけ）。選ばなかった案: 1 つのジョブのまま上限を延ばす（打ち切られると全部消える）。触る場所: chatdraw/twostage.py の VARIANTS、.github/workflows/draw-one.yml、config/draw-request.json の variants と composition_run
 - 2026-10-25 アプリの「描く」に 2 段の描き方を入れ、設定の「描き方」（おまかせ・1 つの模型・2 段）で選ぶ。おまかせは文で頼める模型と SDXL の模型と部品がそろえば 2 段にする（速さより崩れにくさを先にする）。骨組みは transformers の VitPose で取り、依存を増やさない。選ばなかった案: controlnet_aux の openpose（timm・opencv などが増える）。触る場所: chatdraw/engine.py の Studio._two_stage_models、chatdraw/twostage.py の pick と run_stages、chatdraw/settings.py の draw_way
+- 2026-10-25 描く試験の題材は、すべてビキニの大人の女性にそろえる（模型どうし・描き方どうしを同じ題材で比べるため）。触る場所: chatdraw/verify_models.py の PROMPTS と ROUGH、chatdraw/e2e.py、config/draw-request.json

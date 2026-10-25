@@ -15,11 +15,12 @@ import time
 import traceback
 from pathlib import Path
 
+# 描く試験の題材は、すべてビキニの大人の女性にそろえる（模型どうし・描き方どうしを同じ題材で比べるため）
 PROMPTS = [
-    ("girl", "1girl, solo, red hair, green eyes, school uniform, smile, full body, standing, simple background, white background"),
-    ("knight", "1boy, solo, armor, cape, holding sword, full body, standing, simple background, white background"),
+    ("bikini", "1girl, solo, adult woman, mature female, red bikini, beach, smile, full body, standing"),
+    ("bikini-pose", "1girl, solo, adult woman, mature female, white bikini, beach, looking back, hands on own hips, full body"),
 ]
-ROUGH = ("rough", "1girl, solo, waving hand, full body, simple background, white background")
+ROUGH = ("rough", "1girl, solo, adult woman, mature female, blue bikini, waving hand, full body, simple background, white background")
 SEED = 7
 
 

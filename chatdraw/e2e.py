@@ -79,7 +79,7 @@ def main():
     def draw():
         from chatdraw.engine import Painter, Studio, Words
         studio = Studio(Words(Path("")), Painter(TINY, steps=2, size=(256, 256)), out)
-        prompt, path = studio.draw("1girl, red hair", 1, size=(256, 256))
+        prompt, path = studio.draw("1girl, adult woman, bikini", 1, size=(256, 256))
         shot["path"] = path
         if not Path(path).exists():
             raise RuntimeError(f"絵が保存されていない: {path}")
