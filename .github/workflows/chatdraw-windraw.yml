@@ -31,6 +31,11 @@ jobs:
     needs: build
     runs-on: windows-latest
     timeout-minutes: 360
+    # 種を変えて 4 本を同時に描く（1 本 1〜数時間かかるので、順に描き直すより先に通った絵が出る）。1 本落ちても他は続ける
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [7, 1007, 2007, 3007]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
@@ -51,7 +56,7 @@ jobs:
         shell: pwsh
         working-directory: C:\Program Files\CharacterDesigner
         run: |
-          & "C:\Program Files\CharacterDesigner\python\python.exe" -E -s -m chatdraw.windraw "$env:RUNNER_TEMP\windraw" "${{ inputs.request }}"
+          & "C:\Program Files\CharacterDesigner\python\python.exe" -E -s -m chatdraw.windraw "$env:RUNNER_TEMP\windraw" "${{ inputs.request }}" ${{ matrix.seed }}
           $code = $LASTEXITCODE
           Get-Content "$env:RUNNER_TEMP\windraw\report.json"
           if ($code -ne 0) { exit $code }
@@ -60,4 +65,4 @@ jobs:
         shell: bash
         run: |
           mkdir -p out && cp -r "$RUNNER_TEMP/windraw/." out/ 2>/dev/null || true
-          GITHUB_RUN_ID="windraw-$GITHUB_RUN_ID" sh .github/scripts/draw-results.sh out
+          GITHUB_RUN_ID="windraw-$GITHUB_RUN_ID-s${{ matrix.seed }}" sh .github/scripts/draw-results.sh out
