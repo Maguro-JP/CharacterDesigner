@@ -32,12 +32,10 @@ jobs:
       matrix:
         # 影の直し方を並べて比べる（同じ種・同じ絵）。どれも段ごとに影の検品と肌・髪・線を測る（--check）
         include:
-          - variant: post-relight-face
-            extra: "--post-relight 0.8 --cast 0.45 --face 0.35"
-          - variant: iclight-face
-            extra: "--iclight 0.6 --post-relight 0.6 --cast 0.45 --face 0.35"
-          - variant: iclight-only-face
-            extra: "--iclight 0.6 --cast 0.45 --face 0.35"
+          - variant: iclight-faceinpaint
+            extra: "--iclight 0.6 --post-relight 0.6 --cast 0.45 --face 0.6"
+          - variant: iclight-faceinpaint-finalhf
+            extra: "--iclight 0.6 --post-relight 0.6 --cast 0.45 --face 0.6 --final-hf 2.5"
     steps:
       - uses: actions/checkout@v4
       - name: 置き場を空ける
@@ -48,7 +46,7 @@ jobs:
       - name: 部品
         run: |
           pip install -q torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy onnxruntime
       - name: 描く
         env:
           CD_HOME: ${{ runner.temp }}/cd
@@ -79,7 +77,7 @@ jobs:
       - name: 部品
         run: |
           pip install -q torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy onnxruntime
       - name: 測る
         env:
           CD_HOME: ${{ runner.temp }}/cd

@@ -279,6 +279,35 @@ def light3d(src, rgb, seg, regions):
             "inverted_regions": inverted}
 
 
+def bimodal(L, seg, labels, f=1.0):
+    """肌の部位ごとに、明るさの分布が 2 つの山に分かれるか（セルの塗りの特徴）。山の間の谷の深さ（1 − 谷 ÷ 低い方の山）を、
+    部位の画素数で重みづけして平均する。セルの塗りは明るい面と影の面の 2 つの山の間がほぼ空き 1 に近く、
+    実写の陰はなだらかに続いて谷が浅い。境の急さ（段の割合）は実写の輪郭や服の縁でも高く出て、見分けられなかった"""
+    from scipy import ndimage
+    Lb = ndimage.gaussian_filter(L, 1 * f)
+    tot, acc = 0, 0.0
+    for name in ("face", "left_arm", "right_arm", "left_leg", "right_leg"):
+        m = ndimage.binary_erosion(seg == labels[name], iterations=max(2, round(4 * f)))
+        if m.sum() < 400:
+            continue
+        v = Lb[m]
+        lo, hi = np.percentile(v, [1, 99])
+        if hi - lo < 0.04:
+            continue
+        h, _ = np.histogram(v, 48, (lo, hi))
+        h = ndimage.gaussian_filter1d(h.astype(float), 1.2)
+        i = int(np.argmax(h))
+        cand = [j for j in range(1, 47) if abs(j - i) >= 6 and h[j] >= h[j - 1] and h[j] >= h[j + 1]]
+        d = 0.0
+        if cand:
+            j = max(cand, key=lambda k: h[k])
+            a, b = sorted((i, j))
+            d = 1 - h[a:b + 1].min() / max(h[j], 1e-6)
+        tot += m.sum()
+        acc += d * m.sum()
+    return round(float(acc / tot), 3) if tot else None
+
+
 def shadow(rgb, seg, labels):
     """影の自然さを測る（写真級の描き直しの検品）。アニメの塗りを写真に描き直すと、セルの影の段差が残り、
     部位ごとに陰の側が食い違い、床に落ちる影が浮いた（足から離れた）。人はそれを一目で「不自然」と見る。
@@ -312,6 +341,7 @@ def shadow(rgb, seg, labels):
         h = ndimage.gaussian_filter1d(h.astype(float), 1.5)
         pk = [i for i in range(1, 63) if h[i] >= h[i - 1] and h[i] > h[i + 1] and h[i] >= 0.05 * h.max()]
         out["steps"] = len(pk)
+        out["bimodal"] = bimodal(L, seg, labels, f)
         lo, hi = np.percentile(L[si], [10, 90])
         out["ratio"] = round(float(lo / max(hi, 1e-6)), 3)
     regions = {"face": [labels["face"]], "arms": [labels["left_arm"], labels["right_arm"]],

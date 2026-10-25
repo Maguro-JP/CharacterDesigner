@@ -252,14 +252,20 @@ def lambert(n, deg, elev=40.0):
 
 
 def normal_corr(im, depth, parts):
-    """推定した面の向きから作った陰影と、絵の明るさの相関（人物の中、光の向きは 30° 刻みで一番合うもの）。
-    立体に沿って陰が付いていれば高く、平らな塗りや部位ごとに食い違う陰では低い。返すのは (相関, 向き)"""
+    """推定した面の向きから作った陰影と、絵の明るさの相関（光の向きは 30° 刻みで一番合うもの）。返すのは (相関, 向き)。
+    顔と胴の大きな面だけで、大きくならした明るさで測る。部位ごと・細かい明るさで測ると、実写でも髪の筋・服の模様・
+    手足の細い面で相関が 0.01〜0.29 に散り、アニメの残る絵と見分けられなかった"""
     import numpy as np
     from scipy import ndimage
     f = im.width / 768
-    body = ndimage.binary_erosion(np.asarray(parts) != BACKGROUND, iterations=max(2, round(4 * f)))
-    L = ndimage.gaussian_filter(np.asarray(im.convert("L")).astype(np.float32), 2 * f)[body]   # 線と肌理を除く
-    n = normals(depth, im.width, np.asarray(parts) != BACKGROUND)[body]
+    seg = np.asarray(parts)
+    small = (2, 12, 13, 14, 15)                     # 髪・手足は大きな面に入れない
+    big = (seg != BACKGROUND) & ~np.isin(seg, small)
+    big = ndimage.binary_erosion(big, iterations=max(3, round(8 * f)))
+    if big.sum() < 500:
+        return None, 0
+    L = ndimage.gaussian_filter(np.asarray(im.convert("L")).astype(np.float32), 6 * f)[big]
+    n = normals(depth, im.width, seg != BACKGROUND)[big]
     best = (-1.0, 0)
     for deg in range(0, 360, 30):
         c = float(np.corrcoef(lambert(n, deg), L)[0, 1])
@@ -561,6 +567,103 @@ def face_fix(pipe, img, parts, a, log):
     return out
 
 
+def face_qc(img):
+    try:
+        return _face_qc(img)
+    except Exception as e:   # 検品の部品が読めないときは通さない（読めない検品を通ったことにしない）
+        return False, {"eyes": {"readable": False, "reason": f"{type(e).__name__}: {e}"}, "extra_eyes": None}
+
+
+def _face_qc(img):
+    """既存の顔の検品で顔を見る: 目が 2 つ読めて左右の大きさが釣り合う（qc.eye_mismatch）、タグが余分な目を読まない（qc.EXTRA_EYES）。
+    返すのは (通ったか, 数字)"""
+    import tempfile
+    import numpy as np
+    import edit
+    import faceform
+    import measure
+    import qc
+    with tempfile.TemporaryDirectory() as d:
+        f = Path(d) / "face.png"
+        img.save(f)
+        rgb = np.asarray(img, dtype=np.float32) / 255.0
+        seg = np.asarray(edit.parts(f))
+        view = {}
+        hrgb, hseg = faceform.head_view(f, rgb, seg, view)
+        eyes = measure.eyes(hrgb, hseg, edit.LABELS)
+        mis = qc.eye_mismatch(eyes)
+        extra = 0.0
+        try:
+            import tagger
+            extra = float(tagger.read(f, 0.0).get("extra eyes", 0.0))
+        except Exception as e:   # タグの模型が無ければ目の数字だけで見る
+            print("tagger", e, flush=True)
+    ok = bool(mis.get("readable")) and not mis.get("mismatch") and extra < qc.EXTRA_EYES
+    return ok, {"eyes": mis, "extra_eyes": round(extra, 3)}
+
+
+def face_inpaint(pipe, nets, img, a, log, tries=5):
+    """顔の部位だけを inpaint で描き直す。顔の枠は骨格の点から取り（qc._face_from_joints）、2.5 倍に広げて 768 に拡大して描く。
+    髪は描き直す範囲から外し、lineart の ControlNet で髪の線を押さえる（目に髪がかかったまま描かれたため）。
+    既存の顔の検品（face_qc）を通るまで種を変えて描き直す（上限 tries 回）。通らなければ一番目の数字の良い絵を返す。
+    tile で枠を丸ごと弱く描き直す方法（0.35）では、目にかかる髪と顔のにじみが直らなかった"""
+    import tempfile
+    import numpy as np
+    import torch
+    from diffusers import StableDiffusionControlNetInpaintPipeline
+    from PIL import Image, ImageFilter
+    from scipy import ndimage
+    import closeup
+    import qc
+    t = time.time()
+    ok0, q0 = face_qc(img)
+    log("face_before", {"ok": ok0, **q0})
+    with tempfile.TemporaryDirectory() as d:
+        f = Path(d) / "x.png"
+        img.save(f)
+        box = qc._face_from_joints(str(f), img.size)
+    seg = np.asarray(_parts_of(img))
+    if box is None:
+        b = closeup._bbox(seg == 11)
+        if b is None:
+            return img
+        box = b
+    x0, y0, x1, y1 = box
+    side = int(max(x1 - x0, y1 - y0) * 2.5)
+    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+    side = min(side, img.width, img.height)
+    left = int(min(max(cx - side / 2, 0), img.width - side))
+    top = int(min(max(cy - side / 2, 0), img.height - side))
+    box = (left, top, left + side, top + side)
+    crop = img.crop(box).resize((768, 768), Image.LANCZOS)
+    cs = np.asarray(Image.fromarray(seg).crop(box).resize((768, 768), Image.NEAREST))
+    m = ndimage.binary_dilation(cs == 11, iterations=6) & (cs != 2)          # 髪は描き直さない
+    mask = Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(4))
+    li = lineart(crop)
+    inp = StableDiffusionControlNetInpaintPipeline(**{k: v for k, v in pipe.components.items() if k != "controlnet"}, controlnet=nets)
+    inp.set_progress_bar_config(disable=True)
+    best = None
+    for k in range(tries):
+        r = inp(a.prompt + ", detailed face, symmetric eyes, natural lips, eyes visible", negative_prompt=a.negative + ", hair over eyes, deformed face, asymmetric eyes, extra eyes",
+                image=crop, mask_image=mask, control_image=[crop, li], strength=a.face, controlnet_conditioning_scale=[0.5, 1.0],
+                num_inference_steps=a.steps, guidance_scale=a.guidance, generator=torch.Generator().manual_seed(a.seed + 100 + k),
+                width=768, height=768).images[0]
+        small = r.resize((side, side), Image.LANCZOS)
+        pm = mask.resize((side, side), Image.LANCZOS)
+        out = img.copy()
+        out.paste(small, box[:2], pm)
+        ok, q = face_qc(out)
+        log(f"face_try{k}", {"ok": ok, **q, "s": round(time.time() - t, 1)})
+        score = q["eyes"].get("area_ratio", 99) if q["eyes"].get("readable") else 99
+        if best is None or ok or score < best[0]:
+            best = (score if not ok else -1, out)
+        if ok:
+            break
+    log("face_box", list(box))
+    log("face_s", round(time.time() - t, 1))
+    return best[1]
+
+
 def cast_shadow(img, parts, depth, deg=135.0, opacity=0.45):
     """床に落ち影を合成する。人物の形を、足元を支点に光と逆の向きへ倒して床に写す（光が左上なら右の奥へ）。
     奥行きで手前ほど高い所（体の厚み）として倒れ方を強め、足から離れるほどぼかして薄くする。背景だけを暗くする。
@@ -662,7 +765,8 @@ def parse(argv):
     ap.add_argument("--iclight", type=float, default=0, help="1 段目の後に IC-Light を掛ける強さ（0 ならしない）")
     ap.add_argument("--post-relight", type=float, default=0, help="描き直しの後に奥行きから陰と色を付け直す量（0 ならしない）")
     ap.add_argument("--cast", type=float, default=0, help="床の落ち影の濃さ（0 なら付けない）")
-    ap.add_argument("--face", type=float, default=0, help="最後に顔を描き直す強さ（0 ならしない）")
+    ap.add_argument("--face", type=float, default=0, help="最後に顔を inpaint で描き直す強さ（0 ならしない）")
+    ap.add_argument("--final-hf", type=float, default=0, help="工程の最後に高い周波数を戻す幅（0 ならしない）")
     ap.add_argument("--check", action="store_true", help="段ごとに影の検品と肌・髪・線の保ち方を測る（部位分けの模型を読む）")
     ap.add_argument("--dry-run", action="store_true", help="模型を読まず、帯消しと lineart だけ書き出す")
     return ap.parse_args(argv)
@@ -712,12 +816,14 @@ def main(argv=None) -> int:
         check(im, clean, parts, log, "input")
     pipe, multi = load(log, depth=a.depth_scale > 0)
     import numpy as np
+    from PIL import Image
     hair = np.asarray(parts) == 2 if a.hair_strength >= 0 else None   # 2 は髪（edit.LABELS）
     r1 = stage1(multi, clean, li, a, log, dep, hair)
     r1.save(a.out / f"{stem}-1-photoreal-st{a.strength}-s{a.seed}.png")
     r1_color = r1                                  # 色の検品の基準（描き直しの後の工程は 1 段目の色を保つ）
     if a.check:
         check(im, r1, parts, log, "stage1")
+    nets = multi.controlnet.nets[:2] if hasattr(multi.controlnet, "nets") else multi.controlnet   # tile と lineart（顔の描き直しで使い回す）
     del multi
     if a.iclight > 0:
         raw, r1 = iclight(pipe, r1, parts, a, log)
@@ -728,10 +834,14 @@ def main(argv=None) -> int:
     if a.scale > 0:
         r2 = stage2(pipe, r1, a, log)
         r2.save(a.out / f"{stem}-2-tile-x{a.scale}-s{a.seed}.png")
+        if a.check:
+            check(im, r2, parts, log, "stage2", ref=r1_color)
         if a.hf_sigma > 0:
             r3 = hfmix(r1, r2, a.hf_sigma, a.hf_amount)
             r3.save(a.out / f"{stem}-3-hf-g{a.hf_sigma}-s{a.seed}.png")
             r2 = r3
+            if a.check:
+                check(im, r2, parts, log, "hf", ref=r1_color)
     else:
         r2 = r1
     if a.post_relight > 0 or a.cast > 0:
@@ -744,9 +854,22 @@ def main(argv=None) -> int:
             r2 = cast_shadow(r2, p2, d2, a.light_deg, a.cast)
         r2.save(a.out / f"{stem}-4-light-r{a.post_relight}-c{a.cast}-s{a.seed}.png")
         log("post_light_s", round(time.time() - t1, 1))
+        if a.check:
+            check(im, r2, parts, log, "light", ref=r1_color)
+    textured = r2
     if a.face > 0:
-        r2 = face_fix(pipe, r2, _parts_of(r2), a, log)
+        r2 = face_inpaint(pipe, nets, r2, a, log)
         r2.save(a.out / f"{stem}-5-face-f{a.face}-s{a.seed}.png")
+        if a.check:
+            check(im, r2, parts, log, "face", ref=r1_color)
+    if a.final_hf > 0:
+        # 工程の最後にも高い周波数を戻す。光の付け直し・顔の描き直しは低い周波数を変えるが、肌理は 2 段目の後の絵から取る
+        keep = np.asarray(_parts_of(r2)) == 11
+        mixed = hfmix(textured, r2, a.final_hf, 1.0)
+        mm = np.asarray(mixed).copy()
+        mm[keep] = np.asarray(r2)[keep]          # 顔は描き直した絵の肌理を使う
+        r2 = Image.fromarray(mm)
+        r2.save(a.out / f"{stem}-6-finalhf-g{a.final_hf}-s{a.seed}.png")
     if a.check:
         check(im, r2, parts, log, "final", ref=r1_color)
     log("total_s", round(time.time() - t, 1))

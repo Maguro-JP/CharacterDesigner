@@ -110,7 +110,7 @@ class ShadowCheckTest(unittest.TestCase):
         for cel in (True, False):
             rgb, seg, depth = _sphere(cel)
             m = measure.shadow(rgb, seg, edit.LABELS)
-            m["normal_corr"], _ = photoreal.normal_corr(Image.fromarray((rgb * 255).astype(np.uint8)), depth, Image.fromarray(seg))
+            m["normal_corr"], _ = photoreal.normal_corr(Image.fromarray((rgb * 255).astype(np.uint8)), depth, Image.fromarray(np.where(seg > 0, 4, 0).astype(np.uint8)))
             out[cel] = {f["path"] for f in measure.judge_shadow(m)}
         self.assertIn("step_frac", out[True])
         self.assertNotIn("step_frac", out[False])
@@ -160,6 +160,7 @@ class ShadowCheckTest(unittest.TestCase):
 
     def test_relight_follows_one_light(self):
         rgb, seg, depth = _sphere(False)
+        seg = np.where(seg > 0, 4, 0).astype(np.uint8)   # 相関は胴と顔の大きな面で測るので、球を胴（4）にする
         flat = Image.fromarray(np.where(seg[..., None] > 0, 200, 150).astype(np.uint8).repeat(3, 2))
         before, _ = photoreal.normal_corr(flat, depth, Image.fromarray(seg))
         after_im = photoreal.relight(flat, Image.fromarray(seg), depth, 135, amount=0.5)

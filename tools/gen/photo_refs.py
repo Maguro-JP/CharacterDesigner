@@ -94,7 +94,7 @@ def main(argv=None) -> int:
             print(json.dumps(rows[-1], ensure_ascii=False), flush=True)
     (a.out / "refs.json").write_text(json.dumps(rows, indent=1, ensure_ascii=False))
     dist = {}
-    for k in ("step_frac", "spread", "normal_corr", "ratio", "soft"):
+    for k in ("bimodal", "step_frac", "spread", "normal_corr", "ratio", "soft"):
         v = [r["shadow"][k] for r in rows if r["shadow"].get(k) is not None]
         if v:
             dist[k] = {q: round(float(np.percentile(v, q)), 3) for q in (0, 10, 50, 90, 100)}
