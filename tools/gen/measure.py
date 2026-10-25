@@ -297,7 +297,7 @@ def bimodal(L, seg, labels, f=1.0):
         h, _ = np.histogram(v, 48, (lo, hi))
         h = ndimage.gaussian_filter1d(h.astype(float), 1.2)
         i = int(np.argmax(h))
-        cand = [j for j in range(1, 47) if abs(j - i) >= 6 and h[j] >= h[j - 1] and h[j] >= h[j + 1]]
+        cand = [j for j in range(1, len(h) - 1) if abs(j - i) >= 6 and h[j] >= h[j - 1] and h[j] >= h[j + 1]]
         d = 0.0
         if cand:
             j = max(cand, key=lambda k: h[k])

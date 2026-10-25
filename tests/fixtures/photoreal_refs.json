@@ -1,15 +1,16 @@
 {
- "about": "実写の手本（Wikimedia Commons、CC0 か Public domain）を tools/gen/photo_refs.py で測った数字と出典。写真そのものは置かない。run 40220830042",
+ "about": "実写の手本（Wikimedia Commons、CC0 か Public domain）を tools/gen/photo_refs.py で測った数字と出典。写真そのものは置かない。run 40228080756",
  "rows": [
   {
    "title": "File:Woman-sherbrooke (Unsplash).jpg",
    "license": "CC0",
    "url": "https://commons.wikimedia.org/wiki/File:Woman-sherbrooke_(Unsplash).jpg",
    "shadow": {
+    "bimodal": 0.176,
     "step_frac": 0.757,
     "spread": 2.7,
     "ratio": 0.221,
-    "normal_corr": 0.008,
+    "normal_corr": -0.059,
     "soft": 0.359
    }
   },
@@ -18,10 +19,11 @@
    "license": "CC0",
    "url": "https://commons.wikimedia.org/wiki/File:Woman_in_swimsuit_posing_(Unsplash).jpg",
    "shadow": {
+    "bimodal": 0.123,
     "step_frac": 0.738,
     "spread": 113.7,
     "ratio": 0.67,
-    "normal_corr": 0.096,
+    "normal_corr": 0.325,
     "soft": 0.392
    }
   },
@@ -30,10 +32,11 @@
    "license": "CC0",
    "url": "https://commons.wikimedia.org/wiki/File:Pexels-andrea-piacquadio-774909.jpg",
    "shadow": {
+    "bimodal": 0.026,
     "step_frac": 0.356,
     "spread": 0.0,
     "ratio": 0.33,
-    "normal_corr": 0.272,
+    "normal_corr": 0.397,
     "soft": 0.51
    }
   },
@@ -42,10 +45,11 @@
    "license": "CC0",
    "url": "https://commons.wikimedia.org/wiki/File:Pexels-christina-morillo-1181498.jpg",
    "shadow": {
+    "bimodal": 0.011,
     "step_frac": 0.647,
     "spread": 132.4,
     "ratio": 0.257,
-    "normal_corr": 0.128,
+    "normal_corr": 0.258,
     "soft": 0.379
    }
   },
@@ -54,10 +58,11 @@
    "license": "CC0",
    "url": "https://commons.wikimedia.org/wiki/File:Woman_Wearing_Bikini_on_Seashore.jpg",
    "shadow": {
+    "bimodal": 0.624,
     "step_frac": 0.137,
     "spread": 174.2,
     "ratio": 0.223,
-    "normal_corr": 0.295,
+    "normal_corr": 0.391,
     "soft": 0.537
    }
   },
@@ -66,10 +71,11 @@
    "license": "CC0",
    "url": "https://commons.wikimedia.org/wiki/File:Woman_afro_glasses_blue_top.jpg",
    "shadow": {
+    "bimodal": 0.011,
     "step_frac": 0.496,
     "spread": 151.8,
     "ratio": 0.438,
-    "normal_corr": 0.135,
+    "normal_corr": 0.058,
     "soft": 0.452
    }
   },
@@ -78,10 +84,11 @@
    "license": "CC0",
    "url": "https://commons.wikimedia.org/wiki/File:Woman_in_cardigan.jpg",
    "shadow": {
+    "bimodal": 0.0,
     "step_frac": 0.431,
     "spread": 163.5,
     "ratio": 0.615,
-    "normal_corr": 0.114,
+    "normal_corr": 0.236,
     "soft": 0.478
    }
   },
@@ -90,10 +97,11 @@
    "license": "CC0",
    "url": "https://commons.wikimedia.org/wiki/File:Woman_in_red_t-shirt_smiling_and_looking_down.jpg",
    "shadow": {
+    "bimodal": 0.066,
     "step_frac": 0.598,
     "spread": 121.2,
     "ratio": 0.676,
-    "normal_corr": 0.234,
+    "normal_corr": 0.419,
     "soft": 0.408
    }
   },
@@ -102,10 +110,11 @@
    "license": "CC0",
    "url": "https://commons.wikimedia.org/wiki/File:Woman_mechanic_working_on_engine_(cropped).jpeg",
    "shadow": {
+    "bimodal": 0.033,
     "step_frac": 0.061,
     "spread": 75.4,
     "ratio": 0.411,
-    "normal_corr": 0.21,
+    "normal_corr": 0.182,
     "soft": 0.684
    }
   },
@@ -114,10 +123,11 @@
    "license": "CC0",
    "url": "https://commons.wikimedia.org/wiki/File:Woman_pink_and_blue_dress_(crop_hands).jpg",
    "shadow": {
+    "bimodal": 0.1,
     "step_frac": 0.249,
     "spread": 0.0,
     "ratio": 0.448,
-    "normal_corr": 0.205,
+    "normal_corr": 0.199,
     "soft": 0.569
    }
   },
@@ -126,10 +136,11 @@
    "license": "CC0",
    "url": "https://commons.wikimedia.org/wiki/File:Woman_pink_and_blue_dress_(crop_waist).jpg",
    "shadow": {
+    "bimodal": 0.177,
     "step_frac": 0.401,
     "spread": 0.0,
     "ratio": 0.415,
-    "normal_corr": 0.198,
+    "normal_corr": 0.202,
     "soft": 0.484
    }
   },
@@ -138,10 +149,11 @@
    "license": "CC0",
    "url": "https://commons.wikimedia.org/wiki/File:Young_woman_in_Brazil_sitting_on_steps_(cropped).jpg",
    "shadow": {
+    "bimodal": 0.03,
     "step_frac": 0.206,
     "spread": 133.6,
     "ratio": 0.457,
-    "normal_corr": 0.051,
+    "normal_corr": 0.071,
     "soft": 0.563
    }
   },
@@ -150,10 +162,11 @@
    "license": "CC0",
    "url": "https://commons.wikimedia.org/wiki/File:Man_in_hood_stretching_hand_(Unsplash).jpg",
    "shadow": {
+    "bimodal": 0.161,
     "step_frac": 0.235,
     "spread": 143.6,
     "ratio": 0.399,
-    "normal_corr": 0.371,
+    "normal_corr": 0.531,
     "soft": 0.523
    }
   },
@@ -162,10 +175,11 @@
    "license": "CC0",
    "url": "https://commons.wikimedia.org/wiki/File:Man_rolling_sleeves_(Unsplash).jpg",
    "shadow": {
+    "bimodal": 0.361,
     "step_frac": 0.498,
     "spread": 0.0,
     "ratio": 0.254,
-    "normal_corr": 0.203,
+    "normal_corr": 0.327,
     "soft": 0.453
    }
   }

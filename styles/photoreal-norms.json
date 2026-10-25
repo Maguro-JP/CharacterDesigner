@@ -1,26 +1,26 @@
 {
- "about": "写真級の描き直し（tools/gen/photoreal.py）の影・肌・線・色の基準。measure.judge_shadow が読む。アニメの絵には使わない。影の 4 つ（step_frac、spread、normal_corr、ratio）は、カラーの実写の手本 14 枚（tests/fixtures/photoreal_refs.json）の 10〜90 パーセンタイル",
+ "about": "写真級の描き直し（tools/gen/photoreal.py）の影・肌・線・色の基準。measure.judge_shadow が読む。アニメの絵には使わない。影の基準はカラーの実写の手本 14 枚（tests/fixtures/photoreal_refs.json）で決めた。bimodal はアニメの塗りの残りを分ける基準で、手本の 90 パーセンタイル 0.31 と残る絵 0.37〜0.70 の間の 0.4。spread、ratio、normal_corr は手本とアニメの残る絵の範囲が重なり分けられないので、手本の最小〜最大の外（極端な崩れ）だけを落とす",
  "checks": [
   {
-   "path": "step_frac",
-   "means": "肌の大きな明るさの境のうち段のように急な境の割合。セルの影の段が残っている",
-   "max": 0.711
+   "path": "bimodal",
+   "max": 0.4,
+   "means": "肌の部位の明るさの分布が 2 つの山に分かれる深さ。セルの塗りが残っている"
   },
   {
    "path": "spread",
    "means": "部位ごとの光の向きのずれ（度）。顔と腕と脚で陰の側が食い違う",
-   "max": 160
+   "max": 175
   },
   {
    "path": "ratio",
    "means": "肌の陰と光の明るさの比。高すぎると平らな光、低すぎると影が黒くつぶれる",
-   "min": 0.23,
-   "max": 0.66
+   "min": 0.22,
+   "max": 0.68
   },
   {
    "path": "normal_corr",
-   "means": "推定した面の向きの陰影と絵の明るさの相関。立体に沿った陰になっていない",
-   "min": 0.065
+   "means": "顔と胴の大きな面で、推定した面の向きの陰影と絵の明るさの相関。立体に沿った陰になっていない",
+   "min": -0.06
   },
   {
    "path": "flat_skin",

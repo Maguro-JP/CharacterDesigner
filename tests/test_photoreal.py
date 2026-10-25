@@ -92,10 +92,12 @@ def _sphere(cel=False):
     inside = dx ** 2 + dy ** 2 < 1
     dz = np.sqrt(np.clip(1 - dx ** 2 - dy ** 2, 0, 1))
     n = np.stack([dx, dy, dz], -1)
-    shade = photoreal.lambert(n, 135)
+    t, e = np.radians(135), np.radians(40)
+    shade = 0.5 + 0.5 * (n @ np.array([np.cos(t) * np.cos(e), np.sin(t) * np.cos(e), np.sin(e)]))   # 回り込む光（陰の側にも陰影が続く）
     if cel:
         shade = np.where(shade > 0.45, 0.9, 0.45)
     L = np.where(inside, 0.4 + 0.55 * shade, 0.6)
+    L = L + np.random.default_rng(0).normal(0, 0.03, L.shape)   # 肌理の揺れ（段が分布の端の 1 本に潰れないように）
     rgb = np.stack([L, L * 0.85, L * 0.75], -1)
     seg = np.where(inside, 12, 0).astype(np.uint8)
     depth = Image.fromarray((np.where(inside, dz, 0) * 255).astype(np.uint8))
@@ -112,24 +114,25 @@ class ShadowCheckTest(unittest.TestCase):
             m = measure.shadow(rgb, seg, edit.LABELS)
             m["normal_corr"], _ = photoreal.normal_corr(Image.fromarray((rgb * 255).astype(np.uint8)), depth, Image.fromarray(np.where(seg > 0, 4, 0).astype(np.uint8)))
             out[cel] = {f["path"] for f in measure.judge_shadow(m)}
-        self.assertIn("step_frac", out[True])
-        self.assertNotIn("step_frac", out[False])
+        self.assertIn("bimodal", out[True])
+        self.assertNotIn("bimodal", out[False])
         self.assertNotIn("normal_corr", out[False])
 
     def test_photo_refs_mostly_pass(self):
         import measure
         rows = json.loads((ROOT / "tests" / "fixtures" / "photoreal_refs.json").read_text())["rows"]
         self.assertGreaterEqual(len(rows), 10)
-        passed = [r for r in rows if not measure.judge_shadow(r["shadow"])]
-        self.assertGreaterEqual(len(passed), 8)        # 4 つの基準を 10〜90 パーセンタイルで切るので、全部は通らない
+        fails = [[f["path"] for f in measure.judge_shadow(r["shadow"])] for r in rows]
+        self.assertGreaterEqual(sum(not f for f in fails), 13)   # 強い日差しの 1 枚（bimodal 0.62）だけ落ちる
 
     def test_anime_left_and_gray_fail(self):
         import measure
-        # 描き直し後もアニメの塗りが残る絵（run 40214490230 の post-relight の最後の数字）と、灰色に抜けた IC-Light の絵
-        anime = {"step_frac": 0.348, "spread": 177.9, "ratio": 0.672, "normal_corr": 0.289, "flat_skin": 0.0401,
-                 "hair_iou": 0.896, "line_f": 0.926, "sat_ratio": 1.0, "color_dab": 0.49, "hair_de": 2.23}
+        # アニメの塗りが残る絵を測り直した数字（作り直した測り方）。run 40214490230 の post-relight の最後の絵、
+        # run 40205259892 の r3 の最後の絵（cowboy-s12）。どちらも bimodal で落ちる
+        for b, flat in ((0.466, 0.0401), (0.67, 0.0081)):
+            m = {"bimodal": b, "spread": 160, "ratio": 0.6, "normal_corr": 0.5, "flat_skin": flat}
+            self.assertIn("bimodal", {f["path"] for f in measure.judge_shadow(m)})
         gray = {"sat_ratio": 0.153, "color_dab": 12.09, "hair_de": 49.29}
-        self.assertTrue({"flat_skin", "spread", "ratio"} <= {f["path"] for f in measure.judge_shadow(anime)})
         self.assertEqual({f["path"] for f in measure.judge_shadow(gray)}, {"sat_ratio", "color_dab", "hair_de"})
 
     def test_color_keep_catches_gray_and_hair(self):
