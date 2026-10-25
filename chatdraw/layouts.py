@@ -96,15 +96,17 @@ def recommended(w):
     bars(w, ribbon=False, tools=ESSENTIAL_TOOLS)
     _column(w, L, ["color", "layers"], [5, 5])
     _hide(w, ["brushes"])
-    _column(w, R, ["view", "chat", "history"], [3, 3, 4])
-    _tabs(w, ["history", "library"])
+    # AI の欄に高さを多く取る（3 つを同じ高さに積むと、AI の欄はプリセットが 1 つ見えるだけで使いにくかった）
+    _column(w, R, ["chat", "history"], [6, 4])
+    _tabs(w, ["history", "view", "library"])
+    w.panels["history"][0].raise_()
     w.addDockWidget(T, w.panels["progress"][0])
     w.addDockWidget(B, w.panels["talk"][0])
     for k in ("progress", "talk"):
         w.panels[k][0].show()
-    side = min(300, max(240, int(max(w.width(), 1200) * 0.17)))
-    _widths(w, ["color"], ["view"], side)
-    w.resizeDocks([w.panels["progress"][0], w.panels["talk"][0]], [70, 170], Qt.Vertical)
+    side = min(320, max(260, int(max(w.width(), 1200) * 0.19)))
+    _widths(w, ["color"], ["chat"], side)
+    w.resizeDocks([w.panels["progress"][0], w.panels["talk"][0]], [70, 240], Qt.Vertical)
     _progress_idle(w)
 
 

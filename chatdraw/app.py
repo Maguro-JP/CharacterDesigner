@@ -469,6 +469,18 @@ class Window(QMainWindow):
         line.addWidget(self.stop_button)
         self.button.setMinimumWidth(110)
         tl.addLayout(line)
+        # 前に頼んだ言葉。押すと書く欄に戻り、ダブルクリックでそのまま描く。書く欄で ↑↓ でも呼び出せる
+        from PySide6.QtWidgets import QListWidget
+        self.prompt_list = QListWidget()
+        self.prompt_list.setObjectName("promptHistory")
+        self.prompt_list.setToolTip("前に頼んだ言葉。押すと書く欄に入り、ダブルクリックでもう一度描きます")
+        self.prompt_list.setMaximumHeight(110)
+        self.prompt_list.setMinimumHeight(60)
+        self.prompt_list.itemClicked.connect(lambda it: (self.entry.setText(it.text()), self.entry.setFocus()))
+        self.prompt_list.itemDoubleClicked.connect(lambda it: (self.entry.setText(it.text()), self.send()))
+        tl.addWidget(self.prompt_list)
+        self._load_prompts()
+        self.entry.installEventFilter(self)
         # 頼みの例。押すと書く欄に入る（何を頼めるかを見せる）
         tips = QHBoxLayout()
         tips.setSpacing(4)
@@ -888,6 +900,38 @@ class Window(QMainWindow):
         from chatdraw import keys
         keys.apply(self, self.layout_store)
 
+    PROMPT_KEY, PROMPT_MAX = "prompts/history", 30
+
+    def _load_prompts(self):
+        self.prompt_list.clear()
+        saved = self.settings.store.value(self.PROMPT_KEY, []) or []
+        for t in ([saved] if isinstance(saved, str) else list(saved))[:self.PROMPT_MAX]:
+            self.prompt_list.addItem(str(t))
+        self.prompt_list.setVisible(self.prompt_list.count() > 0)
+        self._prompt_pos = -1
+
+    def _remember_prompt(self, text: str):
+        """頼んだ言葉を、新しい順に残す（同じ言葉は 1 つにまとめて先頭へ）"""
+        items = [self.prompt_list.item(i).text() for i in range(self.prompt_list.count())]
+        items = [text] + [t for t in items if t != text]
+        self.settings.store.setValue(self.PROMPT_KEY, items[:self.PROMPT_MAX])
+        self._load_prompts()
+
+    def _entry_keys(self, obj, e) -> bool:
+        """書く欄で ↑ を押すと前に頼んだ言葉、↓ で新しい方へ戻る"""
+        from PySide6.QtCore import QEvent
+        if obj is getattr(self, "entry", None) and e.type() == QEvent.KeyPress and e.key() in (Qt.Key_Up, Qt.Key_Down):
+            n = self.prompt_list.count()
+            if n:
+                self._prompt_pos = min(self._prompt_pos + 1, n - 1) if e.key() == Qt.Key_Up else self._prompt_pos - 1
+                if self._prompt_pos < 0:
+                    self._prompt_pos = -1
+                    self.entry.clear()
+                else:
+                    self.entry.setText(self.prompt_list.item(self._prompt_pos).text())
+                return True
+        return False
+
     def draw_again(self):
         """前と同じ頼みを、別の種で描き直す"""
         if not self.last_text:
@@ -1022,6 +1066,7 @@ class Window(QMainWindow):
             return
         self.entry.clear()
         self.last_text = text
+        self._remember_prompt(text)
         self.say(text, "あなた")
         self.button.setEnabled(False)
         self.stop_button.setEnabled(True)
@@ -1114,6 +1159,8 @@ class Window(QMainWindow):
 
     def eventFilter(self, obj, e):
         from PySide6.QtCore import QEvent
+        if self._entry_keys(obj, e):
+            return True
         if obj is getattr(self, "note_edit", None) and e.type() == QEvent.KeyPress and e.key() == Qt.Key_Escape:
             self.note_edit.hide()
             return True
@@ -1137,6 +1184,8 @@ class Window(QMainWindow):
         """1 枚できるたびに呼ばれる。初めの 1 枚はキャンバスに置き、ほかは履歴に並べて選べるようにする"""
         self.images.append(path)
         self.canvas.show_overlay(None)
+        if prompt and prompt != self.last_text:
+            self.say(f"絵の模型に渡した言葉: {prompt}")   # 頼みとずれた絵が出たとき、どこでずれたかを見られるように
         if self.job_kind == "chibi":
             self.canvas.add_image_layer(path, "ちびキャラ")
         elif self.job_kind == "fix":
@@ -1504,8 +1553,10 @@ class Window(QMainWindow):
     def place(self, path: str):
         """描けた絵を置く。新しく描いて、まだ何も描いていないキャンバスなら絵を開く。
         キャンバスを元に描いたときと、描いている途中なら、元の絵を残して新しいレイヤーとして重ねる"""
-        if self.mode.currentIndex() == 0 and not self.canvas.undo_stack and len(self.canvas.layers) <= 2:
-            self.canvas.show_image(path)
+        if self.mode.currentIndex() == 0:
+            # 新しく描いた絵は、いつも同じ形で置く（キャンバスを置き換え、前の状態は元に戻すで戻せる）。
+            # 前は、キャンバスの状態で置き換えたり上に重ねたりが変わり、大きさの違う絵が重なった
+            self.canvas.replace_with_image(path, f"AI の絵 {len(self.images)}")
         else:
             self.canvas.add_image_layer(path, f"AI の絵 {len(self.images)}")
 

@@ -154,6 +154,20 @@ class Canvas(QGraphicsView):
         img = QImage(path).convertToFormat(QImage.Format_ARGB32_Premultiplied)
         self._reset([Layer("絵", img), Layer("レイヤー 1", blank(img.width(), img.height()))], 1)
 
+    def replace_with_image(self, path: str, name: str = "AI の絵"):
+        """AI が新しく描いた絵に、キャンバスを置き換える。絵を下に、描くための空のレイヤーを上に置く。
+        前の絵の上に重ねると、大きさの違う絵が重なって見分けられなかった。前の状態は「元に戻す」で戻せる"""
+        img = QImage(path).convertToFormat(QImage.Format_ARGB32_Premultiplied)
+        if not self.layers:
+            self._reset([Layer(name, img), Layer("レイヤー 1", blank(img.width(), img.height()))], 1)
+            return
+        self.snapshot_all()
+        self.layers = [Layer(name, img), Layer("レイヤー 1", blank(img.width(), img.height()))]
+        self.current = 1
+        self.set_selection(None)
+        self.rebuild()
+        self.fit()
+
     def add_image_layer(self, path: str, name: str = "絵"):
         img = QImage(path).convertToFormat(QImage.Format_ARGB32_Premultiplied)
         if not self.layers:
@@ -165,8 +179,9 @@ class Canvas(QGraphicsView):
         p = QPainter(layer)
         p.drawImage(0, 0, img.scaled(w, h, Qt.KeepAspectRatio, Qt.SmoothTransformation))
         p.end()
-        self.layers.insert(self.current + 1, Layer(name, layer))
-        self.current += 1
+        # 一番上に重ねる。選んでいたレイヤーの真上に差し込むと、利用者の線の下に入ったり、次の線が AI の絵に描かれたりした
+        self.layers.append(Layer(name, layer))
+        self.current = len(self.layers) - 1
         self.rebuild()
 
     def _reset(self, layers: list[Layer], current: int):
@@ -207,6 +222,10 @@ class Canvas(QGraphicsView):
             it.setZValue(z)
             self.scene().addItem(it)
             self.items.append(it)
+        w, h = self.size_px()
+        if self.scene().sceneRect() != QRectF(0, 0, w, h):   # 元に戻すで大きさの違う絵に戻ったとき
+            self.scene().setSceneRect(QRectF(0, 0, w, h))
+            self.redpen.set_size(w, h)
         self.changed.emit()
 
     # ---- AI が描いている途中の絵 ----

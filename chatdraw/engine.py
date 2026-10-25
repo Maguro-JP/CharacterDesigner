@@ -172,10 +172,17 @@ class Words:
 
     def to_prompt(self, text: str, tags: bool = True) -> str:
         """日本語の頼みを、絵の模型が分かる英語にする。tags なら SD 系のタグ、そうでなければ文（FLUX などは文で頼む）"""
-        if not has_japanese(text) or not self.ready():
+        if not has_japanese(text):
             return text
-        out = self.ask(ASK if tags else ASK_SENTENCE, text).splitlines()[0]
-        return out or text
+        from chatdraw.jaterms import merge, tags_from
+        picked = tags_from(text)
+        if not self.ready():
+            # 言葉の模型が無いときは表で拾った語だけで描く。日本語のまま渡すと、SDXL の模型は読めず全く違う絵になった
+            if not picked:
+                return text
+            return ", ".join(picked) if tags else "An anime illustration of " + ", ".join(picked)
+        out = (self.ask(ASK if tags else ASK_SENTENCE, text).splitlines() or [""])[0].strip()
+        return merge(out, picked) if tags else (out or ("An anime illustration of " + ", ".join(picked) if picked else text))
 
 
 # 途中の絵（latents）をそのまま色に直す係数。VAE で戻すより何百倍も速く、描いている様子を見せるのに足りる
