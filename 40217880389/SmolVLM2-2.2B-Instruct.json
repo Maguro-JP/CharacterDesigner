@@ -1,0 +1,229 @@
+{
+ "model": "HuggingFaceTB/SmolVLM2-2.2B-Instruct",
+ "side": 448,
+ "rows": [
+  {
+   "name": "win7_wave",
+   "kind": "hand",
+   "truth": 5,
+   "bad": true,
+   "count": 5,
+   "votes": [
+    5,
+    5
+   ],
+   "odd": false,
+   "verdict": "ok",
+   "answers": [
+    "5",
+    "TOTAL: 5",
+    "No."
+   ],
+   "flag": false,
+   "hit": false,
+   "sec": 208.7,
+   "rss_mb": 8559
+  },
+  {
+   "name": "win7_low",
+   "kind": "hand",
+   "truth": null,
+   "bad": true,
+   "count": 5,
+   "votes": [
+    5,
+    5
+   ],
+   "odd": false,
+   "verdict": "ok",
+   "answers": [
+    "5",
+    "TOTAL: 5",
+    "No."
+   ],
+   "flag": false,
+   "hit": false,
+   "sec": 149.9,
+   "rss_mb": 8559
+  },
+  {
+   "name": "bk_hand1",
+   "kind": "hand",
+   "truth": null,
+   "bad": false,
+   "count": 5,
+   "votes": [
+    5,
+    5
+   ],
+   "odd": false,
+   "verdict": "ok",
+   "answers": [
+    "5",
+    "TOTAL: 5",
+    "No."
+   ],
+   "flag": false,
+   "hit": true,
+   "sec": 149.2,
+   "rss_mb": 8559
+  },
+  {
+   "name": "bk_hand2",
+   "kind": "hand",
+   "truth": 4,
+   "bad": false,
+   "count": 5,
+   "votes": [
+    5,
+    5
+   ],
+   "odd": false,
+   "verdict": "ok",
+   "answers": [
+    "5",
+    "TOTAL: 5",
+    "No."
+   ],
+   "flag": false,
+   "hit": true,
+   "sec": 149.3,
+   "rss_mb": 8559
+  },
+  {
+   "name": "bk3_hand1",
+   "kind": "hand",
+   "truth": 4,
+   "bad": false,
+   "count": 5,
+   "votes": [
+    5,
+    5
+   ],
+   "odd": false,
+   "verdict": "ok",
+   "answers": [
+    "5",
+    "TOTAL: 5",
+    "No."
+   ],
+   "flag": false,
+   "hit": true,
+   "sec": 149.4,
+   "rss_mb": 8559
+  },
+  {
+   "name": "bk3_hand2",
+   "kind": "hand",
+   "truth": 4,
+   "bad": false,
+   "count": 5,
+   "votes": [
+    5,
+    5
+   ],
+   "odd": false,
+   "verdict": "ok",
+   "answers": [
+    "5",
+    "TOTAL: 5",
+    "No."
+   ],
+   "flag": false,
+   "hit": true,
+   "sec": 149.3,
+   "rss_mb": 8559
+  },
+  {
+   "name": "bk_foot_l",
+   "kind": "foot",
+   "truth": 6,
+   "bad": true,
+   "count": 5,
+   "votes": [
+    5,
+    5
+   ],
+   "odd": false,
+   "verdict": "ok",
+   "answers": [
+    "5",
+    "TOTAL: 5",
+    "No."
+   ],
+   "flag": false,
+   "hit": false,
+   "sec": 148.3,
+   "rss_mb": 8559
+  },
+  {
+   "name": "bk_foot_r",
+   "kind": "foot",
+   "truth": 5,
+   "bad": false,
+   "count": 5,
+   "votes": [
+    5,
+    5
+   ],
+   "odd": false,
+   "verdict": "ok",
+   "answers": [
+    "5",
+    "TOTAL: 5",
+    "No."
+   ],
+   "flag": false,
+   "hit": true,
+   "sec": 148.5,
+   "rss_mb": 8559
+  },
+  {
+   "name": "bk3_foot_l",
+   "kind": "foot",
+   "truth": 5,
+   "bad": false,
+   "count": 5,
+   "votes": [
+    5,
+    5
+   ],
+   "odd": false,
+   "verdict": "ok",
+   "answers": [
+    "5",
+    "TOTAL: 5",
+    "No."
+   ],
+   "flag": false,
+   "hit": true,
+   "sec": 149.0,
+   "rss_mb": 8559
+  },
+  {
+   "name": "bk3_foot_r",
+   "kind": "foot",
+   "truth": 5,
+   "bad": false,
+   "count": 5,
+   "votes": [
+    5,
+    5
+   ],
+   "odd": false,
+   "verdict": "ok",
+   "answers": [
+    "5",
+    "TOTAL: 5",
+    "No."
+   ],
+   "flag": false,
+   "hit": true,
+   "sec": 148.7,
+   "rss_mb": 8559
+  }
+ ],
+ "hits": 7,
+ "n": 10,
+ "total_sec": 1550.2
+}
