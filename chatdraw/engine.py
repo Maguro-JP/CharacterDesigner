@@ -659,11 +659,16 @@ class Studio:
             image = self.painter.paint(prompt, s_k, on_step=lambda i, n: say(f"描いています（{i}/{n}）"),
                                        base=base, strength=strength, size=size, on_preview=on_preview, **extra)
             image = self._fix_hands(image, prompt, s_k, say)
-            left = (self.hand_rounds[-1]["bad"] if self.hand_rounds else [])
+            left = list(self.hand_rounds[-1]["bad"] if self.hand_rounds else [])
+            from chatdraw import requestcheck
+            asked = requestcheck.check(image, prompt)
+            if asked["readable"]:
+                say(requestcheck.summary(asked))
+                left += [f"描かれていない: {m}" for m in asked["missing"]]
             redraws.append({"seed": s_k, "bad": left})
             if best is None or len(left) < len(best[1]):
                 best = (image, left, s_k)
-            if not left or self.painter.stop or not self.hand_rounds:
+            if not left or getattr(self.painter, "stop", False) or (not self.hand_rounds and not asked["readable"]):
                 break
         image, _left, seed = best
         path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model,

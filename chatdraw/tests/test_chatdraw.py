@@ -2058,3 +2058,25 @@ class HandRoundsTest(unittest.TestCase):
             s._fix_hands(Image.new("RGB", (64, 64)), "1girl", 7, lambda m: None)
         self.assertEqual(len(calls), 2)                                  # 2 回直して、3 回目の検品で崩れが消えた
         self.assertEqual([r["bad"] for r in s.hand_rounds][-1], [])
+
+
+class RequestCheckTest(unittest.TestCase):
+    """頼んだ物が描かれたかの検品（chatdraw/requestcheck.py）"""
+
+    def test_summary_and_off(self):
+        from chatdraw import requestcheck
+        self.assertIn("hand up", requestcheck.summary({"readable": True, "missing": ["hand up"]}))
+        self.assertIn("すべて", requestcheck.summary({"readable": True, "missing": []}))
+        self.assertFalse(requestcheck.check(__file__, "1girl")["readable"])   # CD_CHECK=off では止めて理由を返す
+
+    def test_missing_tags_trigger_redraw(self):
+        import tempfile
+        from unittest import mock
+        from chatdraw import handcheck, requestcheck
+        s = Studio(FakeWords(), FakePainter(), Path(tempfile.mkdtemp()))
+        asked = iter([{"readable": True, "missing": ["hand up"]}, {"readable": True, "missing": []}])
+        with mock.patch.object(requestcheck, "check", side_effect=lambda im, t: next(asked)):
+            prompt, path = s.draw("1girl, hand up", 7)
+        import json
+        meta = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+        self.assertEqual([r["bad"] for r in meta["redraws"]], [["描かれていない: hand up"], []])   # 描かれるまで描き直した

@@ -93,8 +93,8 @@ def install_engine(say=lambda msg, pct: None):
     import re
     ver = re.search(r"__version__\s*=\s*['\"]([^'\"]+)", (lib / "torch" / "version.py").read_text()).group(1)
     say("絵を描く部品の続きを入れています（数分かかります）", -1)
-    # ai-edge-litert は、描いた絵の手と指を検品する模型を読む部品（chatdraw/handcheck.py）
-    run_pip(pip + ["diffusers", "transformers", "accelerate", "huggingface_hub", "safetensors", "ai-edge-litert", f"torch=={ver}",
+    # ai-edge-litert と onnxruntime は、描いた絵を検品する模型を読む部品（chatdraw/handcheck.py、requestcheck.py）
+    run_pip(pip + ["diffusers", "transformers", "accelerate", "huggingface_hub", "safetensors", "ai-edge-litert", "onnxruntime", f"torch=={ver}",
                    "--extra-index-url", index])
     say("絵を描く部品を入れています", 90)
     if str(lib) not in sys.path:

@@ -24,8 +24,9 @@ POSE = "usyd-community/vitpose-base-simple"   # Apache-2.0。transformers だけ
 # 2 段で描くのに要る部品（構図と仕上げの模型は別に取る）。(repo, 取るファイル)
 PARTS = [(UNION, ["config_promax.json", "diffusion_pytorch_model_promax.safetensors"]),
          (DEPTH, ["*.json", "*.safetensors"]),
-         (POSE, ["*.json", "*.safetensors"])]
-PARTS_GB = 2.9
+         (POSE, ["*.json", "*.safetensors"]),
+         ("SmilingWolf/wd-vit-tagger-v3", ["model.onnx", "selected_tags.csv"])]   # 頼んだ物が描かれたかの検品
+PARTS_GB = 3.3
 # COCO の 17 点（VitPose の出力）から引く骨と、その色（ControlNet の openpose の絵と同じ並びの色）
 _NECK = 17
 BONES = [(_NECK, 0), (_NECK, 5), (5, 7), (7, 9), (_NECK, 6), (6, 8), (8, 10), (_NECK, 11), (11, 13), (13, 15), (_NECK, 12), (12, 14),
@@ -174,7 +175,7 @@ def render(pipe, prompt: str, negative: str, shapes: dict, variant: dict, seed: 
                 generator=torch.Generator("cpu").manual_seed(seed), callback_on_step_end=step).images[0]
 
 
-def compose(sentence: str, seed: int, compose_model: str, size, path):
+def compose(sentence: str, seed: int, compose_model: str, size, path, tags: str = ""):
     """構図の模型（FLUX.2 klein など）で、文から絵全体を描く。
     頼みを読む部品（Qwen3、約 8GB）は最初に 1 回だけ使い、読み終えたら外してから描く。
     外さないと 16GB の機械でメモリが足りず、1 工程に約 23 分、絵にする所で 2 時間以上止まった"""
@@ -201,7 +202,7 @@ def compose(sentence: str, seed: int, compose_model: str, size, path):
     w, h = native_size(size, cm.family)
     # 1 回描いて終わりにしない。描いて検品し、手に崩れがあれば種を変えて描き直す（頼みは 1 回読んだ物を使い回す）。
     # 崩れの無い構図が出たらそこで止め、出なければ崩れの一番少ない構図を使う。どの回も 1-composition-t<回>.png に残す
-    from chatdraw import handcheck
+    from chatdraw import handcheck, requestcheck
     rounds, best = [], None
     for k in range(COMPOSE_TRIES):
         s_k = seed + 1000 * k
@@ -214,11 +215,13 @@ def compose(sentence: str, seed: int, compose_model: str, size, path):
         try_path = Path(path).with_name(f"1-composition-t{k + 1}.png")
         im.save(try_path)
         res = handcheck.check(im)
-        print(f"構図 {k + 1}回目（種 {s_k}）: {handcheck.summary(res)}", flush=True)
-        rounds.append({"try": k + 1, "seed": s_k, "bad": res["bad"], "readable": res["readable"]})
-        if best is None or len(res["bad"]) < len(best[1]["bad"]):
-            best = (im, res)
-        if res["readable"] and not res["bad"]:
+        asked = requestcheck.check(im, tags, fetch=True) if tags else {"readable": False, "missing": []}
+        print(f"構図 {k + 1}回目（種 {s_k}）: {handcheck.summary(res)}　{requestcheck.summary(asked)}", flush=True)
+        bad = res["bad"] + [f"描かれていない: {m}" for m in asked["missing"]]
+        rounds.append({"try": k + 1, "seed": s_k, "bad": bad, "readable": res["readable"]})
+        if best is None or len(bad) < len(best[1]):
+            best = (im, bad)
+        if res["readable"] and not bad:
             break
     best[0].save(path)
     Path(path).with_name("compose-rounds.json").write_text(json.dumps(rounds, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -316,13 +319,15 @@ def finish(tags: str, seed: int, render_model: str, size, composition_path, keep
         out.save(keep / f"3-{v['name']}-s{seed}-refined.png")
         out = fix_hands(pipe, out, prompt, negative, seed + 500, rm.steps, rm.guidance, keep, v["name"] + "-refined")
         out.save(keep / f"3-{v['name']}-s{seed}.png")
-        from chatdraw import handcheck
+        from chatdraw import handcheck, requestcheck
         res = handcheck.check(out)
-        passed = res["readable"] and not res["bad"]
+        asked = requestcheck.check(out, tags, fetch=True)
+        passed = res["readable"] and not res["bad"] and not asked["missing"]
         (keep / f"result-{v['name']}.json").write_text(json.dumps({"passed": passed, "seed": seed, "bad": res["bad"],
-                                                                   "readable": res["readable"]}, ensure_ascii=False, indent=1),
-                                                       encoding="utf-8")
-        print(f"仕上げの結果: {'検品を通りました' if passed else '検品を通りません'}（{handcheck.summary(res)}）", flush=True)
+                                                                   "missing": asked["missing"], "readable": res["readable"]},
+                                                                  ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"仕上げの結果: {'検品を通りました' if passed else '検品を通りません'}（{handcheck.summary(res)}　"
+              f"{requestcheck.summary(asked)}）", flush=True)
 
 
 # 構図の文に足す、場面の変化（カメラ・光・背景）。同じ頼みでいつも同じ浜辺・同じ正面の立ち姿になり、
@@ -372,7 +377,7 @@ def run_stages(sentence: str, tags: str, seed: int, compose_model: str, render_m
     py = sys.executable
     if py.lower().endswith("pythonw.exe"):   # 出力を読むので、窓の無い pythonw ではなく python で動かす（窓は flags で出さない）
         py = py[:-len("pythonw.exe")] + "python.exe"
-    steps = [("構図", ["compose", sentence, str(seed), compose_model, str(w), str(h), str(comp)]),
+    steps = [("構図", ["compose", sentence, str(seed), compose_model, str(w), str(h), str(comp), tags]),
              ("仕上げ", ["finish", tags, str(seed), render_model, str(w), str(h), str(comp), str(keep), json.dumps([variant])])]
     for label, args in steps:
         if label == "構図" and comp.exists():
@@ -422,7 +427,7 @@ def draw(sentence: str, tags: str, seed: int, compose_model: str, render_model: 
     elif stage in ("all", "compose"):
         t = time.time()
         subprocess.run([sys.executable, "-u", "-m", "chatdraw.twostage", "compose", sentence, str(seed), compose_model, str(w), str(h),
-                        str(comp)], check=True)
+                        str(comp), tags], check=True)
         say(f"構図: {time.time() - t:.0f} 秒")
     if stage == "compose":
         return None
@@ -439,6 +444,6 @@ if __name__ == "__main__":
     import sys
     cmd, text, seed, model, w, h = sys.argv[1:7]
     if cmd == "compose":
-        compose(text, int(seed), model, (int(w), int(h)), sys.argv[7])
+        compose(text, int(seed), model, (int(w), int(h)), sys.argv[7], sys.argv[8] if len(sys.argv) > 8 else "")
     else:
         finish(text, int(seed), model, (int(w), int(h)), sys.argv[7], Path(sys.argv[8]), json.loads(sys.argv[9]))

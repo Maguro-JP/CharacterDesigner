@@ -56,7 +56,7 @@ jobs:
         if: steps.mode.outputs.reuse == ''
         run: |
           pip install -q torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy ai-edge-litert
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy ai-edge-litert onnxruntime
       - id: cpu
         name: CPU の型の速さ（遅い機械なら出し直す）
         if: steps.mode.outputs.reuse == ''
@@ -90,7 +90,7 @@ jobs:
       - name: 部品
         run: |
           pip install -q torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy ai-edge-litert
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy ai-edge-litert onnxruntime
       - name: 構図の絵を取る
         run: |
           run="${{ needs.compose.outputs.reuse }}"
