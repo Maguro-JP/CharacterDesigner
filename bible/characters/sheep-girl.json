@@ -9,8 +9,8 @@
    "id": "yarn-basket",
    "name": "糸玉の籠",
    "tags": "holding small wicker basket, single basket, three yarn balls in basket, cream and mustard yarn",
-   "desc": "羊毛の糸玉3つを入れた小さな籠。軽いので左の前腕に持ち手を掛けて腰の横に提げる。右手は空けておく",
-   "hold": "basket handle hooked over her left forearm, left hand resting lightly on the basket rim, basket hanging at her left hip",
+   "desc": "羊毛の糸玉3つを入れた小さな籠。左手で持ち手を握り、腰の横に提げる。右手は空けておく",
+   "hold": "gripping the basket handle in her left hand, basket hanging at her left hip",
    "size": "basket about the size of her head",
    "avoid": "two baskets, basket on head, knitting needles, large basket"
   },
@@ -128,7 +128,7 @@
    "items": [
     "yarn-basket"
    ],
-   "notes": "左の前腕に籠を掛ける"
+   "notes": "左手で籠の持ち手を握り、腰の横に提げる"
   },
   {
    "id": "wave",

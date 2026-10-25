@@ -6,6 +6,7 @@
 使い方: PYTHONPATH=.cache/engine/bpy python3 tools/engine/pose_hand.py <depth.png> --side L [--spread 14 --curl 10]
 写る向きは正面から（yaw 0）。手首が上、指先が下。手の長さが絵の縦の約 7 割になるよう写す
 """
+import math
 import os
 import sys
 
@@ -34,14 +35,38 @@ def hand_mask_shot(out, h, side, width, height, center, frame):
     from pose_prop import look_from
     scene = bpy.context.scene
     look_from(scene, center, Vector((center.x, center.y - 4.8, center.z)), frame)
-    groups = {g.index for g in h.vertex_groups if g.name.endswith("." + side) and g.name.startswith(("wrist", "finger", "metacarpal"))}
+    # 指ごとに灰の濃さを変える。握った手は手だけ白で撮ると 1 つの塊になり、指の境が線に出なかった
+    parts = {"palm": ("wrist", "metacarpal")}
+    for f in range(1, 6):
+        parts[f"finger{f}"] = (f"finger{f}-",)
+    gid = {}
+    for g in h.vertex_groups:
+        if g.name.endswith("." + side):
+            for k, pre in parts.items():
+                if g.name.startswith(pre):
+                    gid[g.index] = k
+    levels = {"palm": 1.0, "finger1": 0.82, "finger2": 0.70, "finger3": 0.88, "finger4": 0.74, "finger5": 0.92}
     mesh = h.data
     mesh.materials.clear()
     mesh.materials.append(_emit("body", (0.25, 0.25, 0.25, 1)))
-    mesh.materials.append(_emit("hand", (1, 1, 1, 1)))
-    hand_v = {v.index for v in mesh.vertices if sum(g.weight for g in v.groups if g.group in groups) > 0.5}
+    order = list(levels)
+    for k in order:
+        v = levels[k]
+        mesh.materials.append(_emit(k, (v, v, v, 1)))
+    vpart = {}
+    for v in mesh.vertices:
+        # 手の骨の重みの合計が 0.3 を超える頂点を手とし、いちばん重い部位に入れる（0.5 で切ると手のひらが斑に抜けた）
+        ws = {}
+        for g in v.groups:
+            if g.group in gid:
+                ws[gid[g.group]] = ws.get(gid[g.group], 0) + g.weight
+        if sum(ws.values()) > 0.3:
+            vpart[v.index] = max(ws, key=ws.get)
+    hand_v = set(vpart)
     for poly in mesh.polygons:
-        poly.material_index = 1 if sum(i in hand_v for i in poly.vertices) * 2 > len(poly.vertices) else 0
+        ks = [vpart.get(i) for i in poly.vertices]
+        top = max(set(ks), key=ks.count)
+        poly.material_index = order.index(top) + 1 if top else 0
     for o in bpy.data.objects:
         if o.type == "MESH" and o is not h:
             o.hide_render = True
@@ -61,7 +86,7 @@ def hand_mask_shot(out, h, side, width, height, center, frame):
 
 def main(av):
     a = args(av, 0, [("--side", dict(choices=["L", "R"], required=True)),
-                     ("--spread", dict(type=float, default=14.0)), ("--twist", dict(type=float, default=0.0)), ("--hip", dict(action="store_true")), ("--range", dict(type=float, default=0.6)), ("--mask", dict(action="store_true")), ("--hip-at", dict(default="0.17,-0.03,0.93")), ("--curl", dict(type=float, default=10.0))])
+                     ("--spread", dict(type=float, default=14.0)), ("--twist", dict(type=float, default=0.0)), ("--hip", dict(action="store_true")), ("--range", dict(type=float, default=0.6)), ("--mask", dict(action="store_true")), ("--hip-at", dict(default="0.17,-0.03,0.93")), ("--grip", dict(action="store_true")), ("--frame", dict(type=float, default=0.0)), ("--curl", dict(type=float, default=10.0))])
     h, rig = mannequin()
     import human
     human.adduct_arms(rig, 15)
@@ -72,8 +97,19 @@ def main(av):
         hx, hy, hz = (float(v) for v in a.hip_at.split(","))
         grip(rig, a.side, Vector((hx * sgn, hy, hz)), Vector((0.55 * sgn, 0.15, 1.05)))
     human.relax_hands(rig, curl=a.curl, spread=a.spread)
+    if a.grip:
+        # 持ち手を握る形: 4 本の指を 3 つの関節とも深く曲げ、親指を浅く巻く（pose_depth.grip と同じ曲げ）
+        for f in range(2, 6):
+            for j in range(1, 4):
+                b = rig.pose.bones[f"finger{f}-{j}.{a.side}"]
+                b.rotation_mode = "XYZ"
+                b.rotation_euler = (math.radians(75), 0, 0)
+        for j in (2, 3):
+            b = rig.pose.bones[f"finger1-{j}.{a.side}"]
+            b.rotation_mode = "XYZ"
+            b.rotation_euler = (math.radians(45), 0, 0)
+        bpy.context.view_layer.update()
     # 前腕をひねって手のひらか手の甲をカメラへ向ける。横向きのままでは指が重なり、奥行きでも 1 つの塊になった
-    import math
     for b in () if a.hip else (f"lowerarm01.{a.side}", f"lowerarm02.{a.side}"):
         pb = rig.pose.bones[b]
         pb.rotation_mode = "XYZ"
@@ -84,7 +120,7 @@ def main(av):
     wrist = m @ rig.pose.bones[f"wrist.{a.side}"].head
     tip = m @ rig.pose.bones[f"finger3-3.{a.side}"].tail
     center = (wrist + tip) / 2
-    frame = (wrist - tip).length / 0.7
+    frame = a.frame if a.frame else (wrist - tip).length / 0.7
     print("手首", tuple(round(v, 3) for v in wrist), "指先", tuple(round(v, 3) for v in tip))
     sys.stdout.flush()
     if a.mask:
