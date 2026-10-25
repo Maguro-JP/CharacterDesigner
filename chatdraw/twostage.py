@@ -1,7 +1,7 @@
 """構図と仕上げを別の模型に任せて、絵全体を 1 枚として描く（切り貼りはしない）。
 
 1. 構図: 文で頼める新しい世代（FLUX.2 klein など）に、同じ頼みを文で描かせる。手足の数や姿勢が崩れにくい
-2. 形を取り出す: 1 の絵から、骨組み（openpose、体・手・顔）、奥行き（Depth Anything V2）、細い線を取る。色や塗りは捨てる
+2. 形を取り出す: 1 の絵から、骨組み（VitPose の体の 17 点を openpose の形に描いた物）、奥行き（Depth Anything V2）、細い線を取る。色や塗りは捨てる
 3. 仕上げ: SDXL のアニメの模型（Animagine など）に、2 の形を ControlNet（xinsir の Union）で渡し、白紙から絵全体を描かせる
 
 設計の決まり（docs/knowledge/drawing-algorithm.md の「設計の見直し」）:
@@ -20,7 +20,69 @@ from pathlib import Path
 
 UNION = "xinsir/controlnet-union-sdxl-1.0"
 DEPTH = "depth-anything/Depth-Anything-V2-Small-hf"
-POSE = "lllyasviel/Annotators"
+POSE = "usyd-community/vitpose-base-simple"   # Apache-2.0。transformers だけで読める（部品を増やさない）
+# 2 段で描くのに要る部品（構図と仕上げの模型は別に取る）。(repo, 取るファイル)
+PARTS = [(UNION, ["config_promax.json", "diffusion_pytorch_model_promax.safetensors"]),
+         (DEPTH, ["*.json", "*.safetensors"]),
+         (POSE, ["*.json", "*.safetensors"])]
+PARTS_GB = 2.9
+# COCO の 17 点（VitPose の出力）から引く骨と、その色（ControlNet の openpose の絵と同じ並びの色）
+_NECK = 17
+BONES = [(_NECK, 0), (_NECK, 5), (5, 7), (7, 9), (_NECK, 6), (6, 8), (8, 10), (_NECK, 11), (11, 13), (13, 15), (_NECK, 12), (12, 14),
+         (14, 16), (0, 1), (1, 3), (0, 2), (2, 4)]
+COLORS = [(255, 0, 0), (255, 85, 0), (255, 170, 0), (255, 255, 0), (170, 255, 0), (85, 255, 0), (0, 255, 0), (0, 255, 85), (0, 255, 170),
+          (0, 255, 255), (0, 170, 255), (0, 85, 255), (0, 0, 255), (85, 0, 255), (170, 0, 255), (255, 0, 255), (255, 0, 170)]
+
+
+def parts_ready() -> bool:
+    """2 段で描く部品が手元にあるか（取りに行かずに確かめる）"""
+    from huggingface_hub import snapshot_download
+    from chatdraw.paths import HUB
+    try:
+        for repo, files in PARTS:
+            snapshot_download(repo, cache_dir=str(HUB), local_files_only=True, allow_patterns=files)
+        return True
+    except Exception:
+        return False
+
+
+def fetch_parts(say=print):
+    from huggingface_hub import snapshot_download
+    from chatdraw.paths import HUB
+    for i, (repo, files) in enumerate(PARTS, 1):
+        say(f"2 段で描く部品を取っています（{i}/{len(PARTS)}）")
+        snapshot_download(repo, cache_dir=str(HUB), allow_patterns=files)
+
+
+def pose_map(image, threshold: float = 0.3):
+    """VitPose で体の 17 点を取り、ControlNet の openpose と同じ形の絵（黒地に色の棒と点）にする。
+    人は 1 人の絵として、絵全体を枠にする。手の指は取らない（指の形は仕上げの模型に任せる）"""
+    import torch
+    from PIL import Image, ImageDraw
+    from transformers import AutoProcessor, VitPoseForPoseEstimation
+    from chatdraw.paths import HUB
+    proc = AutoProcessor.from_pretrained(POSE, cache_dir=str(HUB))
+    model = VitPoseForPoseEstimation.from_pretrained(POSE, cache_dir=str(HUB))
+    w, h = image.size
+    boxes = [[[0, 0, w, h]]]
+    with torch.no_grad():
+        out = model(**proc(image, boxes=boxes, return_tensors="pt"))
+    res = proc.post_process_pose_estimation(out, boxes=boxes)[0][0]
+    pts, scores = res["keypoints"].tolist(), res["scores"].tolist()
+    ok = [s >= threshold for s in scores]
+    neck = [(pts[5][0] + pts[6][0]) / 2, (pts[5][1] + pts[6][1]) / 2]
+    pts.append(neck)
+    ok.append(ok[5] and ok[6])
+    canvas = Image.new("RGB", (w, h))
+    d = ImageDraw.Draw(canvas)
+    width = max(4, round(min(w, h) / 120))
+    for (a, b), c in zip(BONES, COLORS):
+        if ok[a] and ok[b]:
+            d.line([tuple(pts[a]), tuple(pts[b])], fill=tuple(int(v * 0.6) for v in c), width=width)
+    for p, good, c in zip(pts, ok, COLORS + [(255, 0, 0)]):
+        if good:
+            d.ellipse([p[0] - width, p[1] - width, p[0] + width, p[1] + width], fill=c)
+    return canvas, sum(ok)
 # xinsir の Union の種類の番号（README の表）: 0 骨組み、1 奥行き、2 太い線、3 細い線
 MODES = {"pose": 0, "depth": 1, "lines": 3}
 # 比べの既定。名前はファイル名に入る
@@ -36,11 +98,8 @@ def structure(image, keep: Path):
     from chatdraw.paths import HUB
     out = {}
     t = time.time()
-    from controlnet_aux import OpenposeDetector
-    det = OpenposeDetector.from_pretrained(POSE, cache_dir=str(HUB))
-    out["pose"] = det(image, detect_resolution=1024, image_resolution=max(image.size), include_body=True, include_hand=True,
-                      include_face=True).resize(image.size)
-    del det
+    out["pose"], found = pose_map(image)
+    print(f"骨組みの点: {found}/18", flush=True)
     from transformers import pipeline
     est = pipeline("depth-estimation", model=DEPTH, model_kwargs={"cache_dir": str(HUB)})
     out["depth"] = est(image)["depth"].convert("RGB").resize(image.size)
@@ -144,6 +203,64 @@ def finish(tags: str, seed: int, render_model: str, size, composition_path, keep
                      on_step=lambda i, n, name=v["name"]: print(f"仕上げ {name} {i}/{n} {time.time() - t:.0f} 秒", flush=True))
         out.save(keep / f"3-{v['name']}-s{seed}.png")
         print(f"仕上げ {v['name']}: {time.time() - t:.0f} 秒", flush=True)
+
+
+COMPOSERS = ("flux2", "zimage", "qwenimage", "flux1", "chroma", "lumina2")   # 文で頼める世代（構図の段に使う）
+
+
+def pick(installed, painter_model: str = ""):
+    """手元の模型から、構図の模型（文で頼める世代の点の高い物）と仕上げの模型（今の SDXL か、点の高い SDXL）を選ぶ。
+    どちらかが無ければ None"""
+    comp = sorted((m for m in installed if m.family in COMPOSERS), key=lambda m: -m.score)
+    sdxl = [m for m in installed if m.family == "sdxl"]
+    render = next((m for m in sdxl if m.repo == painter_model), None) or (max(sdxl, key=lambda m: m.score) if sdxl else None)
+    return (comp[0], render) if comp and render else None
+
+
+def run_stages(sentence: str, tags: str, seed: int, compose_model: str, render_model: str, size, keep: Path, variant: dict,
+               say=print, stopped=lambda: False):
+    """アプリから 2 段で描く。段ごとに別の処理で動かし、その出力の行を進みとして say に渡す。
+    stopped() が真になったら処理を止める。描いた絵の道を返す"""
+    import os
+    import subprocess
+    import sys
+    keep.mkdir(parents=True, exist_ok=True)
+    comp = keep / "1-composition.png"
+    w, h = size
+    env = dict(os.environ, PYTHONPATH=os.pathsep.join(p for p in sys.path if p), PYTHONIOENCODING="utf-8")
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)
+    py = sys.executable
+    if py.lower().endswith("pythonw.exe"):   # 出力を読むので、窓の無い pythonw ではなく python で動かす（窓は flags で出さない）
+        py = py[:-len("pythonw.exe")] + "python.exe"
+    steps = [("構図", ["compose", sentence, str(seed), compose_model, str(w), str(h), str(comp)]),
+             ("仕上げ", ["finish", tags, str(seed), render_model, str(w), str(h), str(comp), str(keep), json.dumps([variant])])]
+    for label, args in steps:
+        if label == "構図" and comp.exists():
+            continue   # 前に描いた構図がある（同じ置き場で続きから描く）
+        say(f"{label}の段を始めています")
+        proc = subprocess.Popen([py, "-s", "-u", "-m", "chatdraw.twostage", *args], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                                env=env, creationflags=flags, text=True, encoding="utf-8", errors="replace")
+        import threading
+
+        def watch():   # 出力の無い間（1 工程に数分かかる）も、止めるを押したらすぐ止める
+            while proc.poll() is None:
+                if stopped():
+                    proc.kill()
+                    return
+                time.sleep(0.5)
+        threading.Thread(target=watch, daemon=True).start()
+        tail = []
+        for line in proc.stdout:
+            line = line.strip()
+            if line:
+                tail = (tail + [line])[-5:]
+                if line.startswith(("構図", "仕上げ", "形を", "頼みを", "骨組み")):
+                    say(line)
+        if stopped():
+            raise InterruptedError("止めました")
+        if proc.wait() != 0:
+            raise RuntimeError(f"{label}の段で止まりました: {' / '.join(tail)}")
+    return keep / f"3-{variant['name']}-s{seed}.png"
 
 
 def draw(sentence: str, tags: str, seed: int, compose_model: str, render_model: str, size=(832, 1216), say=print, keep=None,

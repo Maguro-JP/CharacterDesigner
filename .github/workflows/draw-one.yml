@@ -64,8 +64,8 @@ jobs:
           python-version: "3.12"
       - name: 部品
         run: |
-          pip install -q torch torchvision --index-url https://download.pytorch.org/whl/cpu
-          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy controlnet_aux==0.0.10
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy
       - name: 構図の絵を取る
         run: |
           run=$(python3 -c "import json;print(json.load(open('config/draw-request.json')).get('composition_run','') or '$GITHUB_RUN_ID')")

@@ -1691,3 +1691,80 @@ class TwoStageTest(unittest.TestCase):
                 calls.clear()
                 twostage.draw("s", "t", 1, "c", "r", keep=Path(d) / "k2", stage="compose")
                 self.assertEqual(calls, ["compose"])   # 仕上げはしない
+
+
+class TwoStageAppTest(unittest.TestCase):
+    """アプリの描く経路（Studio）が、描き方の設定と手元の模型で 2 段を選ぶか"""
+
+    def _studio(self, way):
+        import tempfile
+        from pathlib import Path
+        from chatdraw.engine import Studio
+        s = Studio(out=Path(tempfile.mkdtemp()))
+        s.way = way
+        return s
+
+    def test_way_one_and_rough_never_use_two_stage(self):
+        s = self._studio("one")
+        self.assertIsNone(s._two_stage_models(None, None))
+        s.way = "two"
+        self.assertIsNone(s._two_stage_models(object(), None))   # ラフから描くときは 1 つの模型
+
+    def test_auto_falls_back_and_two_explains(self):
+        from unittest import mock
+        from chatdraw import twostage
+        s = self._studio("auto")
+        with mock.patch.object(twostage, "pick", return_value=None):
+            self.assertIsNone(s._two_stage_models(None, None))
+            s.way = "two"
+            with self.assertRaises(ValueError):
+                s._two_stage_models(None, None)
+
+    def test_pick_prefers_sentence_model_and_current_sdxl(self):
+        from chatdraw import twostage
+        from chatdraw.models import image_model
+        have = [image_model("black-forest-labs/FLUX.2-klein-4B"), image_model("cagliostrolab/animagine-xl-4.0")]
+        comp, render = twostage.pick(have, "cagliostrolab/animagine-xl-4.0")
+        self.assertEqual((comp.family, render.repo), ("flux2", "cagliostrolab/animagine-xl-4.0"))
+        self.assertIsNone(twostage.pick(have[1:], ""))
+
+    def test_draw_two_saves_with_stage_record(self):
+        import json
+        from unittest import mock
+        from PIL import Image
+        from chatdraw import twostage
+        from chatdraw.models import image_model
+        s = self._studio("two")
+        s.words.to_prompt = lambda text, tags=True: "1girl, smile" if tags else "A woman smiling."
+        two = (image_model("black-forest-labs/FLUX.2-klein-4B"), image_model("cagliostrolab/animagine-xl-4.0"))
+
+        def fake(sentence, tags, seed, c, r, size, keep, variant, say, stopped):
+            keep.mkdir(parents=True)
+            p = keep / f"3-{variant['name']}-s{seed}.png"
+            Image.new("RGB", (8, 8)).save(p)
+            self.assertEqual((sentence, tags), ("A woman smiling.", "1girl, smile"))
+            return p
+        with mock.patch.object(twostage, "pick", return_value=two), mock.patch.object(twostage, "parts_ready", return_value=True), \
+                mock.patch.object(twostage, "run_stages", side_effect=fake), \
+                mock.patch("chatdraw.choose.installed_images", return_value=[]):
+            prompt, path = s.draw("笑う女の人", 3)
+        meta = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+        self.assertEqual((meta["way"], meta["compose_model"]), ("two", "black-forest-labs/FLUX.2-klein-4B"))
+
+    def test_run_stages_reports_where_it_stopped(self):
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+        from chatdraw import twostage
+
+        class P:
+            stdout = iter(["構図 1/4 10 秒\n", "Traceback\n", "MemoryError\n"])
+            def poll(self): return 1
+            def wait(self): return 1
+            def kill(self): pass
+        said = []
+        with mock.patch("subprocess.Popen", return_value=P()):
+            with self.assertRaises(RuntimeError) as e:
+                twostage.run_stages("s", "t", 1, "c", "r", (8, 8), Path(tempfile.mkdtemp()), twostage.VARIANTS[0], say=said.append)
+        self.assertIn("MemoryError", str(e.exception))
+        self.assertIn("構図 1/4 10 秒", said)
