@@ -84,7 +84,7 @@ jobs:
         env:
           CD_HOME: ${{ runner.temp }}/cd
           CD_FETCH: "1"
-        run: python -u tools/gen/photo_refs.py out/refs --n 6
+        run: python -u tools/gen/photo_refs.py out/refs --n 14
       - name: draw-results に置く
         if: always()
         run: sh .github/scripts/draw-results.sh out
