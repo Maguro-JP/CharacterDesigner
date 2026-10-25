@@ -134,10 +134,17 @@ def main():
     ap.add_argument("--color", help="寄せる色（16 進）。--match と どちらか")
     ap.add_argument("--match", help="手本の絵。部位ごとに手本の同じ部位の色の中央値へ寄せる")
     ap.add_argument("--white", action="store_true", help="人物の外の背景を白にする")
+    ap.add_argument("--exclude", action="append", default=[], metavar="x0,y0,x1,y1",
+                    help="色を変えない楕円の枠（持ち物など）。部位分けでズボンに籠が入り、糸玉の色が変わった")
     a = ap.parse_args()
     res = np.asarray(Image.open(a.src).convert("RGB"))
+    keep = Image.new("L", Image.open(a.src).size, 0)
+    from PIL import ImageDraw
+    for e in a.exclude:
+        ImageDraw.Draw(keep).ellipse(tuple(int(v) for v in e.split(",")), fill=255)
+    keep = np.asarray(keep.filter(ImageFilter.GaussianBlur(2))).astype(np.float32) / 255
     for part in a.part.split(","):
-        mask = part_mask(a.src, part)
+        mask = part_mask(a.src, part) * (1 - keep)
         target = mean_color(a.match, part) if a.match else hexrgb(a.color)
         before = mean_color(a.src, part)
         res = recolor(res, mask, target)
