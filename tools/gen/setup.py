@@ -33,6 +33,8 @@ UPSCALE_PHOTO = ("https://github.com/xinntao/Real-ESRGAN/releases/download/v0.1.
                  D / "upscale" / "RealESRGAN_x4plus.pth")
 POSE = ("https://download.openmmlab.com/mmpose/v1/projects/rtmposev1/onnx_sdk/"
         "rtmpose-m_simcc-body7_pt-body7_420e-256x192-e48f03d0_20230504.zip", D / "pose" / "rtmpose-m-body7.onnx")
+# 足の指を数える検品（tools/gen/feet.py）が足首・親指の先・小指の先を読む全身 133 点の模型（DWPose、Apache-2.0）
+WHOLE = ("https://huggingface.co/yzd-v/DWPose/resolve/main/dw-ll_ucoco_384.onnx", D / "pose" / "dw-ll_ucoco_384.onnx")
 HANDS = ("https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/latest/hand_landmarker.task",
          D / "mediapipe" / "hand_landmarks_detector.tflite")
 
@@ -103,6 +105,9 @@ def main() -> None:
                 name = next(n for n in f.namelist() if n.endswith(".onnx"))
                 POSE[1].parent.mkdir(parents=True, exist_ok=True)
                 POSE[1].write_bytes(f.read(name))
+    if not WHOLE[1].exists():
+        say("DWPose の全身の点の重み（約 134MB）")
+        fetch(*WHOLE)
     if not HANDS[1].exists() or not (HANDS[1].parent / "hand_detector.tflite").exists():
         # 手の関節を読む模型（tools/gen/hands.py）。配布の .task は zip で、関節の模型が中に入っている
         say("MediaPipe の手の模型（約 8MB）")
