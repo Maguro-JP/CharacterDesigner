@@ -1,0 +1,31 @@
+{
+ "args": {
+  "src": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-cowboy-s12.jpg",
+  "out": "out",
+  "width": "768",
+  "height": "1152",
+  "prompt": "RAW photo, a 27 year old woman, plain white bikini, standing, hand on hip, grey studio backdrop, natural skin texture, soft studio lighting, 85mm, sharp focus, high detail",
+  "negative": "anime, cartoon, illustration, painting, 3d, cgi, plastic skin, airbrushed, lowres, bad anatomy, bad hands, extra fingers, child, teen",
+  "seed": "12",
+  "steps": "25",
+  "guidance": "6.0",
+  "strength": "0.7",
+  "tile_scale": "0.6",
+  "lineart_scale": "0.8",
+  "scale": "1.5",
+  "strength2": "0.3",
+  "tile2_scale": "0.8",
+  "tile": "768",
+  "overlap": "128",
+  "dry_run": "False"
+ },
+ "band_px": 0,
+ "clean_s": 0.37,
+ "load_s": 24.3,
+ "stage1_s": 1548.0,
+ "stage1_rss_gb": 11.16,
+ "stage2_tiles": 6,
+ "stage2_s": 1871.2,
+ "stage2_rss_gb": 11.16,
+ "total_s": 3446.3
+}
