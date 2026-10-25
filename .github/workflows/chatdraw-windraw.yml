@@ -1,0 +1,63 @@
+# 利用者の Windows と同じ経路で、本物の模型を使って 1 枚描く（chatdraw/windraw.py）。
+# Setup.exe を組んで Windows の機械に入れ、アプリの Python で、日本語の頼みを描く言葉に直して描き、検品の結果と絵を残す。
+# 手元の Linux で通っても利用者の Windows では動かないことがあったため、描く確かめは Windows を本番にする。
+# 絵と結果は draw-results ブランチの windraw-<実行の番号>/ に置く。リポジトリは公開しているので Actions の枠を使わない。
+name: chatdraw-windraw
+on:
+  workflow_dispatch:
+    inputs:
+      request:
+        description: "日本語の頼み"
+        default: "白いビキニの女性が海で手を振っている 全身"
+permissions:
+  contents: write   # 描いた絵を draw-results ブランチに置くため
+concurrency:
+  group: chatdraw-windraw-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update -q && sudo apt-get install -y -q nsis
+      - run: sh packaging/chatdraw/build.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: setup-windraw
+          path: dist/CharacterDesigner-Setup.exe
+          retention-days: 1
+  windows:
+    needs: build
+    runs-on: windows-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: setup-windraw
+      - name: 入れる
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath .\CharacterDesigner-Setup.exe -ArgumentList '/S' -Wait -PassThru
+          "exit=$($p.ExitCode)"
+          if (-not (Test-Path "C:\Program Files\CharacterDesigner\python\pythonw.exe")) { throw "入っていない" }
+      - name: CPU とメモリ
+        shell: pwsh
+        run: |
+          Get-CimInstance Win32_Processor | Select-Object Name, NumberOfLogicalProcessors
+          "{0:N1} GB" -f ((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory / 1GB)
+      - name: 描く
+        shell: pwsh
+        working-directory: C:\Program Files\CharacterDesigner
+        run: |
+          & "C:\Program Files\CharacterDesigner\python\python.exe" -E -s -m chatdraw.windraw "$env:RUNNER_TEMP\windraw" "${{ inputs.request }}"
+          $code = $LASTEXITCODE
+          Get-Content "$env:RUNNER_TEMP\windraw\report.json"
+          if ($code -ne 0) { exit $code }
+      - name: draw-results に置く
+        if: always()
+        shell: bash
+        run: |
+          mkdir -p out && cp -r "$RUNNER_TEMP/windraw/." out/ 2>/dev/null || true
+          GITHUB_RUN_ID="windraw-$GITHUB_RUN_ID" sh .github/scripts/draw-results.sh out
