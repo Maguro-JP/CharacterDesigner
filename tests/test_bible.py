@@ -271,6 +271,10 @@ class SheetPosesTest(unittest.TestCase):
             self.assertEqual(base["poses"], 0)
             # ポーズの欄のぶん、1枚が縦に伸びる
             self.assertGreater(no["size"][1], base["size"][1])
+            # 下の端まで描いてあり、黒い余りが無い
+            from PIL import Image as I
+            last = I.open(f"{tmp.name}/a.png").convert("RGB").crop((0, no["size"][1] - 5, no["size"][0], no["size"][1]))
+            self.assertGreater(min(last.getpixel((x, 2))[0] for x in range(0, last.width, 50)), 200)
         finally:
             bible.BIBLE = old
             tmp.cleanup()

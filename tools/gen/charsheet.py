@@ -244,7 +244,8 @@ def sheet(ident: str, out_html: str, out_png: str, width: int = 2400) -> dict:
     f = lambda n: ImageFont.truetype(FONT, n)
     pad, gap = 60, 40
     W = width
-    canvas = Image.new("RGB", (W, 4000), (251, 250, 247))
+    # 下の段まで入る高さで作り、最後に使った所まで切る（足りないと切った所が黒くなった）
+    canvas = Image.new("RGB", (W, 12000), (251, 250, 247))
     d = ImageDraw.Draw(canvas)
     d.text((pad, pad), c["name"], fill=(20, 19, 19), font=f(64))
     d.text((pad + 520, pad + 28), f"{ident}  設定資料", fill=(93, 88, 83), font=f(28))
@@ -297,7 +298,8 @@ def sheet(ident: str, out_html: str, out_png: str, width: int = 2400) -> dict:
         y += 20
         d.text((pad, y), f"ポーズ（{len(pose_roles)}種）", fill=(20, 19, 19), font=f(36))
         y += 60
-        cols = min(4, len(pose_roles))
+        # 枚数が少なくても 4 列のますの大きさにする。1 枚を幅いっぱいにすると縦に伸び、1 枚の絵の高さを超えた
+        cols = 4
         cell = (W - 2 * pad - (cols - 1) * 24) // cols
         ph = int(cell * 1.6)
         names = {p.get("id"): p.get("name", p.get("id")) for p in c.get("poses", []) if isinstance(p, dict)}
