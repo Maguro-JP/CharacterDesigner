@@ -678,7 +678,11 @@ class Studio:
         # 描けるまで描き直す。手を直しても検品を通らなければ、種を変えて描き直す（REDRAW_TRIES 回まで）。
         # 通らなかったときは、崩れの一番少ない絵を渡す（どの回の崩れも .json の redraws に残す）
         best, redraws = None, []
+        # 頼んでいない物が描かれたら、次の回はそれを描かない物に足す（描き終えたら元に戻す）
+        avoid0, unasked = getattr(self.painter, "avoid", ""), []
         for k in range(self.REDRAW_TRIES):
+            if unasked:
+                self.painter.avoid = ", ".join([a for a in [avoid0] + unasked if a])
             s_k = seed + 1000 * k
             if k:
                 say(f"検品を通らなかったので、種を変えて描き直しています（{k + 1}/{self.REDRAW_TRIES} 回目）")
@@ -691,11 +695,15 @@ class Studio:
             if asked["readable"]:
                 say(requestcheck.summary(asked))
                 left += [f"描かれていない: {m}" for m in asked["missing"]]
+                left += [f"頼んでいない: {e}" for e in asked.get("extra", [])]
+                unasked += [e for e in asked.get("extra", []) if e not in unasked]
             redraws.append({"seed": s_k, "bad": left})
             if best is None or len(left) < len(best[1]):
                 best = (image, left, s_k)
             if not left or getattr(self.painter, "stop", False) or (not self.hand_rounds and not asked["readable"]):
                 break
+        if hasattr(self.painter, "avoid"):
+            self.painter.avoid = avoid0
         image, _left, seed = best
         path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model,
                                             hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws))

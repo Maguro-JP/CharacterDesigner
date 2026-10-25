@@ -96,7 +96,8 @@ def main():
         hands = handcheck.check(state["path"])
         asked = requestcheck.check(state["path"], state["prompt"], fetch=True)
         res = {"hands": handcheck.summary(hands), "asked": requestcheck.summary(asked), "missing": asked.get("missing", []),
-               "bad": hands["bad"], "passed": hands["readable"] and not hands["bad"] and not asked.get("missing")}
+               "extra": asked.get("extra", []), "bad": hands["bad"],
+               "passed": hands["readable"] and not hands["bad"] and not asked.get("missing") and not asked.get("extra")}
         (out / "result.json").write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
         return res
 
