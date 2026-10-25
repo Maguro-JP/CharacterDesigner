@@ -103,6 +103,20 @@ def keep_hands(im, found) -> list[str]:
     return [b for cx, cy, b in found if cy < floor]
 
 
+def vlm_digits(crop, kind: str = "hand"):
+    """CD_VLM_COUNT=1 のときだけ、小さな VLM に指を数えさせる（tools/gen/vlmcount.py）。
+    関節 21 点の模型はいつも指を 5 本置くので、足りない・多い・くっついた指を見逃した。
+    模型は数 GB で 1 枚に数十秒かかるため既定では切っておく。部品が無ければ None"""
+    if os.environ.get("CD_VLM_COUNT") != "1":
+        return None
+    try:
+        _hands()   # tools/gen を道に入れる
+        import vlmcount
+        return vlmcount.count_digits(crop, kind)
+    except Exception:
+        return None
+
+
 def check(image, fetch: bool = True) -> dict:
     """絵（PIL か道）の手を全部測る。bad に崩れの説明を並べる。readable が False なら手を読めなかった"""
     from PIL import Image
@@ -123,8 +137,12 @@ def check(image, fetch: bool = True) -> dict:
         # 枠の大きさと向きを少しずつ変え、手らしさの最も高い切り出しで測る（枠のままでは指先が切れ、指を数えられなかった）
         crop = hands.best_crop(im, (x0, y0, x1, y1), float(ang))
         m, bad, _ = hands.measure(crop)
+        vlm = vlm_digits(crop)
+        if vlm and vlm["verdict"] in ("too_many", "odd"):
+            bad = list(bad) + [f"指の数か形が崩れています（VLM: {vlm['count']} 本、崩れ={vlm['odd']}）"]
         seen = not any(str(x).startswith("読めない") for x in bad)
-        out["hands"].append({"box": [x0, y0, x1, y1], "angle": float(ang), "measure": m, "bad": bad, "seen": seen})
+        out["hands"].append({"box": [x0, y0, x1, y1], "angle": float(ang), "measure": m, "bad": bad, "seen": seen,
+                             "vlm": vlm})
         out["readable"] = out["readable"] or seen
         if seen:
             out["bad"] += [f"手 {i}: {x}" for x in bad]
