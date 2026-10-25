@@ -161,6 +161,52 @@ def step_color(c, src: Path, out: Path) -> Path:
     return dst
 
 
+def paint_basket(im, cx, cy, w, hook):
+    """籠を PIL で描く: 編み目の楕円の胴、持ち手の弧（hook の点＝前腕の上を通る）、上に糸玉 3 つ。
+    言葉だけでは籠が描かれなかった（0/4）ので、形を先に置いてから描き直しでなじませる"""
+    from PIL import ImageDraw
+    d = ImageDraw.Draw(im)
+    h = int(w * 0.62)
+    x0, y0, x1, y1 = cx - w // 2, cy - h // 2, cx + w // 2, cy + h // 2
+    # 持ち手: 胴の左上 → 前腕の上 → 胴の右上
+    pts = [(x0 + 6, y0 + 4), hook, (x1 - 6, y0 + 4)]
+    d.line(pts, fill=(120, 80, 40), width=6, joint="curve")
+    d.line(pts, fill=(165, 115, 60), width=3, joint="curve")
+    # 糸玉（クリーム、からし、クリーム）
+    r = max(6, w // 8)
+    for k, col in enumerate([(242, 228, 192), (214, 168, 58), (236, 218, 175)]):
+        bx = x0 + w * (k + 1) // 4
+        d.ellipse([bx - r, y0 - r + 2, bx + r, y0 + r + 2], fill=col, outline=(120, 95, 60))
+    # 胴と編み目
+    d.ellipse([x0, y0, x1, y1], fill=(176, 126, 70), outline=(100, 66, 34), width=2)
+    d.rectangle([x0, y0 + h // 4, x1, y1 - h // 3], fill=(176, 126, 70))
+    for yy in range(y0 + 6, y1 - 4, 6):
+        d.line([(x0 + 3, yy), (x1 - 3, yy)], fill=(140, 96, 50), width=1)
+    for xx in range(x0 + 8, x1 - 4, 8):
+        d.line([(xx, y0 + 4), (xx, y1 - 6)], fill=(150, 104, 55), width=1)
+    d.line([(x0, y0 + 2), (x1, y0 + 2)], fill=(110, 72, 36), width=3)
+
+
+def step_basket(c, src: Path, out: Path) -> Path:
+    from PIL import Image
+    import detail
+    b = c["basket"]
+    dst = out / "5-basket.png"
+    if _done(dst):
+        return dst
+    im = Image.open(src).convert("RGB")
+    paint_basket(im, b["center"][0], b["center"][1], b["width"], tuple(b["hook"]))
+    paint = out / "5-basket-paint.png"
+    im.save(paint)
+    tmp = str(dst) + ".tmp.png"
+    detail.detail(str(paint), tmp, Path(c["words"]).read_text().strip(), "", b.get("strength", 0.45), seed=b.get("seed", 30),
+                  box=tuple(b["box"]),
+                  words="(small wicker basket with three yarn balls:1.3), basket handle hooked over forearm, cream and mustard yarn, clean lineart",
+                  extra_negative="two baskets, large basket, knitting needles, blurry")
+    Path(tmp).rename(dst)
+    return dst
+
+
 def run(cfg: str) -> Path:
     c = json.loads(Path(cfg).read_text(encoding="utf-8"))
     out = Path(c["out"])
@@ -174,6 +220,9 @@ def run(cfg: str) -> Path:
     if c.get("bell"):
         cur = step_bell(c, cur, out)
     cur = step_color(c, cur, out)
+    if c.get("basket"):
+        # 籠は手が通ってから描く（手の描き直しで籠が崩れないように）。色を寄せた後に置く
+        cur = step_basket(c, cur, out)
     print("できた:", cur, flush=True)
     return cur
 
