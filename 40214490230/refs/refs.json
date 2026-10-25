@@ -1,0 +1,83 @@
+[
+ {
+  "title": "File:(23) Ballet Russe de Monte Carlo in Australia - vn3462906.jpg",
+  "license": "Public domain",
+  "url": "https://commons.wikimedia.org/wiki/File:(23)_Ballet_Russe_de_Monte_Carlo_in_Australia_-_vn3462906.jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/da/%2823%29_Ballet_Russe_de_Monte_Carlo_in_Australia_-_vn3462906.jpg/960px-%2823%29_Ballet_Russe_de_Monte_Carlo_in_Australia_-_vn3462906.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1618
+  ],
+  "shadow": {
+   "soft": 0.41,
+   "step_frac": 0.588,
+   "steps": 3,
+   "ratio": 0.43,
+   "spread": 102.0,
+   "cast": 0.328,
+   "cast_gap": 0.001,
+   "normal_corr": 0.176,
+   "normal_light_deg": 180
+  },
+  "fails": [
+   "step_frac",
+   "spread",
+   "normal_corr"
+  ],
+  "s": 6.1
+ },
+ {
+  "title": "File:(23) Ballet Russe de Monte Carlo in Australia - vn3462906 (cropped).jpg",
+  "license": "Public domain",
+  "url": "https://commons.wikimedia.org/wiki/File:(23)_Ballet_Russe_de_Monte_Carlo_in_Australia_-_vn3462906_(cropped).jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/9/92/%2823%29_Ballet_Russe_de_Monte_Carlo_in_Australia_-_vn3462906_%28cropped%29.jpg/960px-%2823%29_Ballet_Russe_de_Monte_Carlo_in_Australia_-_vn3462906_%28cropped%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1500
+  ],
+  "shadow": {
+   "soft": 0.376,
+   "step_frac": 0.667,
+   "steps": 3,
+   "ratio": 0.43,
+   "spread": 98.5,
+   "cast": 0.107,
+   "cast_gap": 0.063,
+   "normal_corr": 0.171,
+   "normal_light_deg": 180
+  },
+  "fails": [
+   "step_frac",
+   "spread",
+   "normal_corr"
+  ],
+  "s": 3.8
+ },
+ {
+  "title": "File:Mina Wylie, Coogee, 1913 (6940034707).jpg",
+  "license": "Public domain",
+  "url": "https://commons.wikimedia.org/wiki/File:Mina_Wylie,_Coogee,_1913_(6940034707).jpg",
+  "thumb": "https://upload.wikimedia.org/wikipedia/commons/2/2a/Mina_Wylie%2C_Coogee%2C_1913_%286940034707%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+  "size": [
+   791,
+   1050
+  ],
+  "shadow": {
+   "soft": 0.517,
+   "step_frac": 0.292,
+   "steps": 1,
+   "ratio": 0.436,
+   "spread": 118.7,
+   "cast": -0.164,
+   "cast_gap": 0.001,
+   "normal_corr": 0.1,
+   "normal_light_deg": 60
+  },
+  "fails": [
+   "step_frac",
+   "spread",
+   "normal_corr"
+  ],
+  "s": 3.1
+ }
+]
