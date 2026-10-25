@@ -1,0 +1,179 @@
+{
+ "args": {
+  "src": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-cowboy-s12.jpg",
+  "out": "out/deshade-relight",
+  "width": "768",
+  "height": "1152",
+  "prompt": "RAW photo, a 27 year old woman, plain white bikini, standing, hand on hip, grey studio backdrop, natural skin texture, soft studio lighting, 85mm, sharp focus, high detail",
+  "negative": "anime, cartoon, illustration, painting, 3d, cgi, plastic skin, airbrushed, lowres, bad anatomy, bad hands, extra fingers, child, teen",
+  "seed": "12",
+  "steps": "25",
+  "guidance": "6.0",
+  "strength": "0.7",
+  "tile_scale": "0.6",
+  "lineart_scale": "0.8",
+  "scale": "1.5",
+  "strength2": "0.3",
+  "hf_sigma": "2.5",
+  "hf_amount": "1.0",
+  "tile2_scale": "0.8",
+  "tile": "768",
+  "overlap": "128",
+  "deshade": "12.0",
+  "depth_scale": "0",
+  "relight": "0.5",
+  "light_deg": "135",
+  "check": "True",
+  "dry_run": "False"
+ },
+ "deshade_s": 1.04,
+ "band_px": 0,
+ "blob_px": 0,
+ "clean_s": 1.39,
+ "depth_s": 3.7,
+ "input_shadow": {
+  "soft": 0.628,
+  "step_frac": 0.294,
+  "steps": 2,
+  "ratio": 0.532,
+  "spread": 174.2,
+  "cast": -0.451,
+  "normal_corr": 0.315,
+  "normal_light_deg": 90
+ },
+ "input_keep": {
+  "flat_skin": 0.3215,
+  "hair_iou": 0.821,
+  "line_f": 0.995
+ },
+ "input_fails": [
+  {
+   "path": "step_frac",
+   "value": 0.294,
+   "min": null,
+   "max": 0.2,
+   "means": "肌の大きな明るさの境のうち段のように急な境の割合。セルの影の段が残っている"
+  },
+  {
+   "path": "spread",
+   "value": 174.2,
+   "min": null,
+   "max": 90,
+   "means": "部位ごとの光の向きのずれ（度）。顔と腕と脚で陰の側が食い違う"
+  },
+  {
+   "path": "normal_corr",
+   "value": 0.315,
+   "min": 0.38,
+   "max": null,
+   "means": "推定した面の向きの陰影と絵の明るさの相関。立体に沿った陰になっていない"
+  },
+  {
+   "path": "flat_skin",
+   "value": 0.3215,
+   "min": null,
+   "max": 0.005,
+   "means": "肌の平らな面の割合。アニメの塗りが残っている"
+  }
+ ],
+ "input_check_s": 7.3,
+ "load_s": 32.2,
+ "stage1_s": 1309.9,
+ "stage1_rss_gb": 10.84,
+ "stage1_shadow": {
+  "soft": 0.392,
+  "step_frac": 0.591,
+  "steps": 2,
+  "ratio": 0.517,
+  "spread": 173.5,
+  "cast": -0.476,
+  "normal_corr": 0.296,
+  "normal_light_deg": 90
+ },
+ "stage1_keep": {
+  "flat_skin": 0.0085,
+  "hair_iou": 0.755,
+  "line_f": 0.865
+ },
+ "stage1_fails": [
+  {
+   "path": "step_frac",
+   "value": 0.591,
+   "min": null,
+   "max": 0.2,
+   "means": "肌の大きな明るさの境のうち段のように急な境の割合。セルの影の段が残っている"
+  },
+  {
+   "path": "spread",
+   "value": 173.5,
+   "min": null,
+   "max": 90,
+   "means": "部位ごとの光の向きのずれ（度）。顔と腕と脚で陰の側が食い違う"
+  },
+  {
+   "path": "normal_corr",
+   "value": 0.296,
+   "min": 0.38,
+   "max": null,
+   "means": "推定した面の向きの陰影と絵の明るさの相関。立体に沿った陰になっていない"
+  },
+  {
+   "path": "flat_skin",
+   "value": 0.0085,
+   "min": null,
+   "max": 0.005,
+   "means": "肌の平らな面の割合。アニメの塗りが残っている"
+  }
+ ],
+ "stage1_check_s": 6.8,
+ "stage2_tiles": 6,
+ "stage2_s": 1599.6,
+ "stage2_rss_gb": 10.84,
+ "final_shadow": {
+  "soft": 0.375,
+  "step_frac": 0.629,
+  "steps": 2,
+  "ratio": 0.508,
+  "spread": 173.8,
+  "cast": -0.49,
+  "normal_corr": 0.295,
+  "normal_light_deg": 90
+ },
+ "final_keep": {
+  "flat_skin": 0.0081,
+  "hair_iou": 0.753,
+  "line_f": 0.866
+ },
+ "final_fails": [
+  {
+   "path": "step_frac",
+   "value": 0.629,
+   "min": null,
+   "max": 0.2,
+   "means": "肌の大きな明るさの境のうち段のように急な境の割合。セルの影の段が残っている"
+  },
+  {
+   "path": "spread",
+   "value": 173.8,
+   "min": null,
+   "max": 90,
+   "means": "部位ごとの光の向きのずれ（度）。顔と腕と脚で陰の側が食い違う"
+  },
+  {
+   "path": "normal_corr",
+   "value": 0.295,
+   "min": 0.38,
+   "max": null,
+   "means": "推定した面の向きの陰影と絵の明るさの相関。立体に沿った陰になっていない"
+  },
+  {
+   "path": "flat_skin",
+   "value": 0.0081,
+   "min": null,
+   "max": 0.005,
+   "means": "肌の平らな面の割合。アニメの塗りが残っている"
+  }
+ ],
+ "final_check_s": 8.1,
+ "total_s": 2972.1
+}
