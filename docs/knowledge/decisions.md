@@ -173,3 +173,4 @@
 - 2026-10-25 描いた絵は、描くたびに手と指を検品し、結果を会話と絵の隣の .check.json に出す。指の数は手の色の筋で数える。測り方は tools/gen/hands.py の 1 か所に置き、アプリは chatdraw/handcheck.py から呼ぶ（Setup.exe に tools/gen/hands.py を入れる）。選ばなかった案: アプリ用に測り方を写す（2 か所で食い違う）。触る場所: tools/gen/hands.py の count_fingers、chatdraw/handcheck.py、chatdraw/engine.py の Studio._inspect
 - 2026-10-25 2 段で描く構図の文に、種で選んだカメラ・光・背景の言葉を足す。同じ頼みでいつも同じ浜辺・正面の立ち姿になり、ポーズの確認にしか使えなかったため。触る場所: chatdraw/twostage.py の SCENE と enrich
 - 2026-10-25 描いた絵は、頼んだタグが描かれたかを検品する（chatdraw/requestcheck.py、読む模型は wd-vit-tagger-v3）。読めなかった頼みがあれば、手の崩れと同じく描き直す（構図は種を変えて最大 3 回、仕上げは検品を通るまで種を変えて出し直し）。測り方は tools/gen/tagger.py の 1 か所。選ばなかった案: CLIP の似ている度合い（タグごとの有る無しが分からない）。触る場所: chatdraw/requestcheck.py、chatdraw/twostage.py の compose と finish、chatdraw/engine.py の Studio.draw
+- 2026-10-25 重い描画（写真級の描き直しなど、手元で 1 枚 46 分・空き 4.4GB では回らないもの）は Actions で回す。リポジトリは public なので Actions の枠を気にしない。触る場所: .github/workflows/photoreal.yml、config/photoreal-request.json

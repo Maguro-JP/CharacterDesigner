@@ -1,0 +1,4 @@
+{
+ "src": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-cowboy-s12.jpg",
+ "args": ["--strength", "0.7", "--seed", "12", "--scale", "1.5", "--strength2", "0.3"]
+}
