@@ -27,6 +27,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import design  # noqa: E402,F401  模型を勝手に取りに行かない設定を先に効かせる
 
 CHECKPOINT = ("SG161222/Realistic_Vision_V6.0_B1_noVAE", "Realistic_Vision_V6.0_NV_B1_fp16.safetensors")
+# 比べる写実の模型。許諾は配布元（CivitAI）の表示で、どちらも絵の商用利用・改変を許し、模型の販売は許さない（docs/references.md）。
+# Beautiful Realistic Asians は模型の貸し出しも許さないので外した
+CHECKPOINTS = {"rv": CHECKPOINT, "majicmix": ("digiplay/majicMIX_realistic_v7", "majicmixRealistic_v7.safetensors")}
+ASIAN = ", japanese woman, east asian face"
+ASIAN_NEG = ", western, caucasian, european face"
+FACE_CLIP = "openai/clip-vit-base-patch32"
 CONFIG = "stable-diffusion-v1-5/stable-diffusion-v1-5"   # 単体ファイルの形の設定だけを読む（SD1.5 と同じ形）
 VAE = "stabilityai/sd-vae-ft-mse"
 TILE = "lllyasviel/control_v11f1e_sd15_tile"
@@ -345,6 +351,11 @@ def check(src, out_img, src_parts, log, tag, ref=None):
     r = ref or src
     rs = np.asarray(src_parts) if ref is None else np.asarray(_parts_of(ref))
     km.update(measure.color_keep(np.asarray(r).astype(np.float32) / 255, rgb, rs, seg, edit.LABELS))
+    try:
+        km["face_sim"] = face_sim(src, out_img, src_parts)   # 元のアニメの顔と比べる（別人になっていないか）
+        km["face_ok"], km["face_qc"] = face_qc(out_img)
+    except Exception as e:
+        km["face_sim"] = f"{type(e).__name__}: {e}"
     log(f"{tag}_shadow", sh)
     log(f"{tag}_keep", km)
     log(f"{tag}_fails", measure.judge_shadow({**sh, **km}))
@@ -357,7 +368,7 @@ def tiles(length: int, side: int, overlap: int) -> list[int]:
     return list(range(0, length - side, side - overlap)) + [length - side]
 
 
-def load(log, depth=False):
+def load(log, depth=False, model="rv"):
     """tile の pipe と、tile＋lineart の pipe（部品は共有）を 1 回だけ読む"""
     import torch
     from diffusers import (AutoencoderKL, ControlNetModel, DPMSolverMultistepScheduler,
@@ -367,7 +378,7 @@ def load(log, depth=False):
     vae = AutoencoderKL.from_pretrained(VAE)
     tile = ControlNetModel.from_pretrained(TILE)
     la = ControlNetModel.from_pretrained(LINEART, variant="fp16", use_safetensors=True, torch_dtype=torch.float32)
-    ck = hf_hub_download(*CHECKPOINT)
+    ck = hf_hub_download(*CHECKPOINTS[model])
     pipe = StableDiffusionControlNetImg2ImgPipeline.from_single_file(
         ck, controlnet=tile, vae=vae, config=CONFIG, torch_dtype=torch.float32,
         safety_checker=None, feature_extractor=None, requires_safety_checker=False)
@@ -565,6 +576,37 @@ def face_fix(pipe, img, parts, a, log):
     log("face_box", list(box))
     log("face_s", round(time.time() - t, 1))
     return out
+
+
+def _face_crop(img, parts=None):
+    import numpy as np
+    import closeup
+    seg = np.asarray(parts if parts is not None else _parts_of(img))
+    b = closeup._bbox(seg == 11)
+    return None if b is None else img.crop(closeup.square(b, img.width, img.height, margin=0.1))
+
+
+_CLIP = None
+
+
+def face_sim(a_img, b_img, a_parts=None):
+    """2 枚の顔の似ている度合い（顔を切り出した CLIP の画像の埋め込みの cos）。顔認証の模型（ArcFace など）は
+    研究用の許諾が多いので使わない。アニメと写真の間の絶対の値より、模型や工程どうしの比べに使う"""
+    global _CLIP
+    import torch
+    from transformers import CLIPModel, CLIPProcessor
+    fa, fb = _face_crop(a_img, a_parts), _face_crop(b_img)
+    if fa is None or fb is None:
+        return None
+    if _CLIP is None:
+        _CLIP = (CLIPModel.from_pretrained(FACE_CLIP), CLIPProcessor.from_pretrained(FACE_CLIP))
+    m, pr = _CLIP
+    with torch.no_grad():
+        e = m.get_image_features(**pr(images=[fa, fb], return_tensors="pt"))
+    if not torch.is_tensor(e):   # 新しい transformers は出力の組で返す（射影した埋め込みは pooler_output）
+        e = e.pooler_output
+    e = e / e.norm(dim=-1, keepdim=True)
+    return round(float(e[0] @ e[1]), 4)
 
 
 def face_qc(img):
@@ -766,6 +808,8 @@ def parse(argv):
     ap.add_argument("--post-relight", type=float, default=0, help="描き直しの後に奥行きから陰と色を付け直す量（0 ならしない）")
     ap.add_argument("--cast", type=float, default=0, help="床の落ち影の濃さ（0 なら付けない）")
     ap.add_argument("--face", type=float, default=0, help="最後に顔を inpaint で描き直す強さ（0 ならしない）")
+    ap.add_argument("--model", choices=sorted(CHECKPOINTS), default="rv", help="写実の模型")
+    ap.add_argument("--asian", action="store_true", help="東アジアの顔に寄せる言葉を足す（顔の描き直しにも同じ言葉を使う）")
     ap.add_argument("--final-hf", type=float, default=0, help="工程の最後に高い周波数を戻す幅（0 ならしない）")
     ap.add_argument("--check", action="store_true", help="段ごとに影の検品と肌・髪・線の保ち方を測る（部位分けの模型を読む）")
     ap.add_argument("--dry-run", action="store_true", help="模型を読まず、帯消しと lineart だけ書き出す")
@@ -774,6 +818,8 @@ def parse(argv):
 
 def main(argv=None) -> int:
     a = parse(argv if argv is not None else sys.argv[1:])
+    if a.asian:   # 写実の模型は言葉が無いと西洋の顔に描いた。どの工程も同じ言葉を使う
+        a.prompt, a.negative = a.prompt + ASIAN, a.negative + ASIAN_NEG
     if not Path(str(a.src) + ".parts.png").exists():
         # library の .parts.png は git に入れない（検品の副産物）ので、Actions では無い。無ければ部位分けの模型で作って隣に置く
         if a.dry_run:
@@ -814,7 +860,7 @@ def main(argv=None) -> int:
         clean.save(a.out / f"{stem}-0-relit.png")
     if a.check:
         check(im, clean, parts, log, "input")
-    pipe, multi = load(log, depth=a.depth_scale > 0)
+    pipe, multi = load(log, depth=a.depth_scale > 0, model=a.model)
     import numpy as np
     from PIL import Image
     hair = np.asarray(parts) == 2 if a.hair_strength >= 0 else None   # 2 は髪（edit.LABELS）

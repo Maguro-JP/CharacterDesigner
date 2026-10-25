@@ -188,3 +188,12 @@ class CastShadowTest(unittest.TestCase):
     def test_light_gradient_bright_toward_light(self):
         g = np.asarray(photoreal.light_gradient((64, 64), 135).convert("L")).astype(int)
         self.assertGreater(g[0, 0], g[63, 63])
+
+
+class AsianPromptTest(unittest.TestCase):
+    def test_asian_words_reach_prompt_and_negative(self):
+        a = photoreal.parse(["x.png", "out", "--asian", "--model", "majicmix"])
+        self.assertEqual(a.model, "majicmix")
+        self.assertIn("majicmix", photoreal.CHECKPOINTS)
+        self.assertTrue(photoreal.ASIAN.strip(", ").startswith("japanese"))
+        self.assertIn("caucasian", photoreal.ASIAN_NEG)
