@@ -24,6 +24,69 @@ REFERENCE = {"sdxl": ("h94/IP-Adapter", "sdxl_models", "ip-adapter_sdxl_vit-h.sa
 REFERENCE_GB = {"sdxl": 3.2, "sd15": 2.6}
 
 
+def total_ram_gb() -> float:
+    """機械のメモリの合計（GB）。分からなければ 0"""
+    try:
+        if os.name == "nt":
+            import ctypes
+
+            class Mem(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong), ("ullTotalPhys", ctypes.c_ulonglong),
+                            ("ullAvailPhys", ctypes.c_ulonglong), ("ullTotalPageFile", ctypes.c_ulonglong),
+                            ("ullAvailPageFile", ctypes.c_ulonglong), ("ullTotalVirtual", ctypes.c_ulonglong),
+                            ("ullAvailVirtual", ctypes.c_ulonglong), ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+            m = Mem()
+            m.dwLength = ctypes.sizeof(Mem)
+            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
+            return m.ullTotalPhys / 1e9
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES") / 1e9
+    except Exception:
+        return 0.0
+
+
+_BF16_FAST: bool | None = None
+
+
+def bf16_fast() -> bool:
+    """この CPU で bfloat16 の計算が float32 より速いか（1 回だけ測って覚える。約 0.2 秒）。
+    bf16 の命令（AVX512_BF16、AMX）がある CPU では bf16 が数倍速く、無い CPU では命令をまねるので 4〜8 倍遅い。
+    同じ Actions の構図の段が、機械によって 6 分と 70 分以上に分かれた原因がこれだった"""
+    global _BF16_FAST
+    if _BF16_FAST is None:
+        import time
+        import torch
+        took = {}
+        with torch.no_grad():
+            for dt in (torch.float32, torch.bfloat16):
+                a, w = torch.randn(512, 1024, dtype=dt), torch.nn.Linear(1024, 1024, dtype=dt)
+                w(a)
+                t = time.perf_counter()
+                for _ in range(4):
+                    w(a)
+                took[dt] = time.perf_counter() - t
+        _BF16_FAST = took[torch.bfloat16] < took[torch.float32]
+    return _BF16_FAST
+
+
+def cpu_dtype(gb_half: float):
+    """CPU で模型を読む型。gb_half は 16 ビットで読んだときの大きさ（GB）。
+    bf16 が速い CPU は bf16。遅い CPU は、メモリに入れば float32（2 倍の大きさと、描く途中の分）、入らなければ bf16（遅いが動く）"""
+    import torch
+    if bf16_fast():
+        return torch.bfloat16
+    if total_ram_gb() >= gb_half * 2 * 1.3:
+        return torch.float32
+    return torch.bfloat16
+
+
+def dtype_note(dtype) -> str:
+    """進みの欄に出す一言。遅くなる理由を利用者が分かるように"""
+    import torch
+    if dtype == torch.bfloat16 and not bf16_fast():
+        return "この CPU は bf16 の計算が遅く、メモリも float32 には足りないので、時間がかかります"
+    return ""
+
+
 def native_size(size, family: str):
     """世代ごとに学んだ大きさへ、同じ縦横比のまま合わせる。
     SD1.5 は 512 前後で学んでいるので約 0.6 倍で描く（1216 のままだと人が 2 人に割れた）。
@@ -357,10 +420,10 @@ class Painter:
         if self._pipe is None:
             import torch
             from diffusers import AutoPipelineForText2Image
-            # CPU では bfloat16、GPU では float16 で読む。float32 で読むと 16GB のパソコンでメモリが尽きた
-            dtype = torch.float16 if torch.cuda.is_available() else torch.bfloat16
-            # 模型の種類（SDXL、SD1.5 など）は model_index.json から決まる
+            # GPU では float16。CPU では、bf16 の速さとメモリの量で決める（cpu_dtype）
             from chatdraw.models import image_model
+            dtype = torch.float16 if torch.cuda.is_available() else cpu_dtype(image_model(self.model).gb or 7)
+            self.dtype = dtype
             variant = image_model(self.model).variant
             extra = {"safety_checker": None, "requires_safety_checker": False} if image_model(self.model).family == "sd15" else {}
             from chatdraw.models import is_local
@@ -373,12 +436,12 @@ class Painter:
                 import diffusers
                 from chatdraw.models import family as fam
                 cls = getattr(diffusers, fam(fam_name).pipeline)
-                self._pipe = cls.from_single_file(self.model, torch_dtype=dtype if fam_name in ("sdxl", "sd15") else torch.bfloat16,
+                self._pipe = cls.from_single_file(self.model, torch_dtype=dtype,
                                                   **extra)
             elif is_local(self.model):
                 import diffusers
                 cls = AutoPipelineForText2Image if fam_name in ("sdxl", "sd15") else diffusers.DiffusionPipeline
-                self._pipe = cls.from_pretrained(self.model, torch_dtype=dtype if fam_name in ("sdxl", "sd15") else torch.bfloat16,
+                self._pipe = cls.from_pretrained(self.model, torch_dtype=dtype,
                                                  **extra)
             elif fam_name not in ("sdxl", "sd15"):
                 # 新しい世代（FLUX、Z-Image、Qwen-Image、Lumina 2 など）は、模型の札にある部品で読む。
@@ -386,7 +449,7 @@ class Painter:
                 import diffusers
                 from chatdraw.models import family as fam
                 cls = getattr(diffusers, fam(image_model(self.model).family).pipeline, None) or diffusers.DiffusionPipeline
-                self._pipe = cls.from_pretrained(self.model, torch_dtype=torch.bfloat16, cache_dir=str(HUB))
+                self._pipe = cls.from_pretrained(self.model, torch_dtype=dtype, cache_dir=str(HUB))
             else:
                 self._pipe = AutoPipelineForText2Image.from_pretrained(self.model, torch_dtype=dtype, variant=variant,
                                                                        cache_dir=str(HUB), **extra)

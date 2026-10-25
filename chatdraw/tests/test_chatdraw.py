@@ -1768,3 +1768,25 @@ class TwoStageAppTest(unittest.TestCase):
                 twostage.run_stages("s", "t", 1, "c", "r", (8, 8), Path(tempfile.mkdtemp()), twostage.VARIANTS[0], say=said.append)
         self.assertIn("MemoryError", str(e.exception))
         self.assertIn("構図 1/4 10 秒", said)
+
+
+class CpuDtypeTest(unittest.TestCase):
+    """CPU で読む型を、bf16 の速さとメモリの量で選ぶか"""
+
+    def test_choice(self):
+        import torch
+        from unittest import mock
+        from chatdraw import engine
+        with mock.patch.object(engine, "bf16_fast", return_value=True):
+            self.assertEqual(engine.cpu_dtype(7), torch.bfloat16)
+        with mock.patch.object(engine, "bf16_fast", return_value=False):
+            with mock.patch.object(engine, "total_ram_gb", return_value=32):
+                self.assertEqual(engine.cpu_dtype(7), torch.float32)    # 遅い CPU でもメモリに入れば float32
+            with mock.patch.object(engine, "total_ram_gb", return_value=16):
+                self.assertEqual(engine.cpu_dtype(7), torch.bfloat16)   # 入らなければ bf16（遅いが動く）
+                self.assertIn("時間がかかります", engine.dtype_note(torch.bfloat16))
+
+    def test_measure_and_ram(self):
+        from chatdraw import engine
+        self.assertIsInstance(engine.bf16_fast(), bool)
+        self.assertGreater(engine.total_ram_gb(), 0)

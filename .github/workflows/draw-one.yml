@@ -39,6 +39,9 @@ jobs:
         run: |
           pip install -q torch --index-url https://download.pytorch.org/whl/cpu
           pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy
+      - name: CPU の型の速さ
+        run: lscpu | grep -E "Model name|Flags" | sed -E 's/(Flags:).*/\1 '"$(grep -o -w -E 'avx512_bf16|amx_bf16|avx512f|avx2' /proc/cpuinfo | sort -u | tr '\n' ' ')"'/'; free -g | head -2; python -c "from chatdraw.engine import bf16_fast,total_ram_gb;print('bf16 が速い:', bf16_fast(), 'メモリ:', round(total_ram_gb()), 'GB')"
+        if: steps.mode.outputs.reuse == ''
       - name: 描く（2 段の頼みは構図だけ）
         if: steps.mode.outputs.reuse == ''
         env:
@@ -73,6 +76,8 @@ jobs:
           mkdir -p "$RUNNER_TEMP/comp"
           git show "origin/draw-results:$run/1-composition.png" > "$RUNNER_TEMP/comp/1-composition.png"
           echo "DRAW_COMPOSITION=$RUNNER_TEMP/comp/1-composition.png" >> "$GITHUB_ENV"
+      - name: CPU の型の速さ
+        run: lscpu | grep -E "Model name|Flags" | sed -E 's/(Flags:).*/\1 '"$(grep -o -w -E 'avx512_bf16|amx_bf16|avx512f|avx2' /proc/cpuinfo | sort -u | tr '\n' ' ')"'/'; free -g | head -2; python -c "from chatdraw.engine import bf16_fast,total_ram_gb;print('bf16 が速い:', bf16_fast(), 'メモリ:', round(total_ram_gb()), 'GB')"
       - name: 形と仕上げ
         env:
           LLM_HOME: ${{ runner.temp }}/llm
