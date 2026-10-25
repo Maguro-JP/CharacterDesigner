@@ -709,6 +709,22 @@ def _prompt_of(src) -> str:
     return ""
 
 
+
+def stray_color(rgb) -> float:
+    """白い水着と灰の背景を頼んだ写実の絵の中で、鮮やかな色の画素が占める割合（%）。
+
+    写実の段の模型は、頼んでいない光の漏れ・色のにじみ・小物を鮮やかな色で描いた。肌（彩度 0.36 前後）と
+    灰の背景は彩度が低いので、彩度 0.5 を超える画素の多さで、頼んでいない色の物を数えられる。
+    身体 回32〜42 の写実 11 枚では、崩れた 8 枚が 2.14% 以上、崩れの無い 3 枚が 1.72% 以下だった。
+    """
+    import numpy as np
+    a = np.asarray(rgb, dtype=np.float32)
+    if a.max() > 1.0:
+        a = a / 255.0
+    mx, mn = a.max(-1), a.min(-1)
+    sat = (mx - mn) / np.maximum(mx, 1e-6)
+    return float(((sat > 0.5) & (mx > 0.25)).mean() * 100)
+
 def measure(src, hair_color: str = "", points=None, prompt: str | None = None, tags: dict | None = None) -> dict:
     """prompt と tags は、呼ぶ側（qc.auto_check）が持っていれば渡す。タグの模型を2度走らせないため"""
     from PIL import Image
