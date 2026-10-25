@@ -166,3 +166,4 @@
 - 2026-10-24 模型の良し悪しは、速さではなく描いた絵の出来で決める。速さは画面に目安として出すだけで、推奨の点には入れない。触る場所: chatdraw/verify_models.py（絵を残し、点は絵を見て付ける）、chatdraw/catalog.json の score
 - 2026-10-24 新しい世代（FLUX.1、FLUX.2、Z-Image、Qwen-Image、Lumina 2、Chroma）は、世代の表（chatdraw/models.py の FAMILIES）で読む部品・大きさ・頼みの書き方・使える機能を決める。ラフから・範囲の直し・参考画像は、部品が揃うまで SDXL と SD1.5 だけで使え、ほかの世代ではボタンを止めて理由を出す。触る場所: chatdraw/models.py の FAMILIES、chatdraw/engine.py の prompt_args
 
+- 2026-10-25 2 段で描く仕組みは、段ごとに絵をファイルに残し、Actions では構図と仕上げを別のジョブにする。仕上げは 1 つの構図から縛りの組み合わせを何通りも描き、既定の縛りは骨組みと奥行きにする（細い線は構図の模型の癖を写すため比べの 1 通りだけ）。選ばなかった案: 1 つのジョブのまま上限を延ばす（打ち切られると全部消える）。触る場所: chatdraw/twostage.py の VARIANTS、.github/workflows/draw-one.yml、config/draw-request.json の variants と composition_run

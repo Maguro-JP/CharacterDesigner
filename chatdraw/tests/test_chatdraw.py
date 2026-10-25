@@ -1653,3 +1653,41 @@ class SmallScreenTest(unittest.TestCase):
             mw, mh = w.minimumSizeHint().toTuple()
             self.assertLessEqual(mw, 1280, name)
             self.assertLessEqual(mh, 680, name)                       # タイトルの帯とタスクバーの分を残す
+
+
+class TwoStageTest(unittest.TestCase):
+    """2 段で描く仕組みの段の分け方と縛りの渡し方（模型は読まない）"""
+
+    def test_render_passes_only_named_controls(self):
+        from PIL import Image
+        from chatdraw import twostage
+        seen = {}
+
+        class Pipe:
+            def __call__(self, **kw):
+                seen.update(kw)
+                return type("R", (), {"images": [Image.new("RGB", (8, 8))]})()
+        shapes = {k: Image.new("RGB", (16, 16)) for k in ("pose", "depth", "lines")}
+        twostage.render(Pipe(), "p", "n", shapes, {"name": "x", "pose": 0.7, "depth": 0.4, "end": 0.7}, 1, (8, 8), 2, 5.0)
+        self.assertEqual(seen["control_mode"], [0, 1])
+        self.assertEqual(seen["controlnet_conditioning_scale"], [0.7, 0.4])
+        self.assertEqual(seen["control_guidance_end"], 0.7)
+
+    def test_draw_skips_compose_when_given_and_stops_after_compose(self):
+        import subprocess
+        import tempfile
+        from pathlib import Path
+        from unittest import mock
+        from PIL import Image
+        from chatdraw import twostage
+        with tempfile.TemporaryDirectory() as d:
+            comp = Path(d) / "given.png"
+            Image.new("RGB", (8, 8)).save(comp)
+            calls = []
+            with mock.patch.object(subprocess, "run", side_effect=lambda a, **k: calls.append(a[4])):
+                twostage.draw("s", "t", 1, "c", "r", keep=Path(d) / "k", composition=str(comp), stage="finish")
+                self.assertEqual(calls, ["finish"])   # 構図をとばした
+                self.assertTrue((Path(d) / "k" / "1-composition.png").exists())
+                calls.clear()
+                twostage.draw("s", "t", 1, "c", "r", keep=Path(d) / "k2", stage="compose")
+                self.assertEqual(calls, ["compose"])   # 仕上げはしない

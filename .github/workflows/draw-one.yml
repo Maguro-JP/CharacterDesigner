@@ -1,5 +1,7 @@
-# 頼み 1 件を、手元に置けない大きな模型（FLUX、Z-Image など）で 1 枚描く（chatdraw/draw_one.py）。
-# 頼みは config/draw-request.json に書いて push する。リポジトリは公開しているので Actions の枠を使わない。CPU で 1 枚 数十分。
+# 頼み 1 件を、手元に置けない大きな模型（FLUX、Z-Image など）で描く（chatdraw/draw_one.py）。
+# 頼みは config/draw-request.json に書いて push する。リポジトリは公開しているので Actions の枠を使わない。CPU で 1 枚 数十分〜数時間。
+# 2 段で描く頼み（mode: twostage）は、構図と仕上げを別のジョブにする。構図の絵は先に draw-results に置くので、
+# 仕上げのジョブが打ち切られても構図は残り、頼みに composition_run を書けば構図をとばして仕上げだけ描き直せる。
 name: draw-one
 on:
   push:
@@ -13,7 +15,44 @@ concurrency:
   group: draw-one-${{ github.ref }}
   cancel-in-progress: true
 jobs:
-  draw:
+  compose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    outputs:
+      twostage: ${{ steps.mode.outputs.twostage }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: mode
+        name: 頼みの形
+        run: |
+          echo "twostage=$(python3 -c "import json;print(str(json.load(open('config/draw-request.json')).get('mode')=='twostage').lower())")" >> "$GITHUB_OUTPUT"
+          echo "reuse=$(python3 -c "import json;print(json.load(open('config/draw-request.json')).get('composition_run',''))")" >> "$GITHUB_OUTPUT"
+      - name: 置き場を空ける
+        if: steps.mode.outputs.reuse == ''
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1; free -g
+      - uses: actions/setup-python@v5
+        if: steps.mode.outputs.reuse == ''
+        with:
+          python-version: "3.12"
+      - name: 部品
+        if: steps.mode.outputs.reuse == ''
+        run: |
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy
+      - name: 描く（2 段の頼みは構図だけ）
+        if: steps.mode.outputs.reuse == ''
+        env:
+          LLM_HOME: ${{ runner.temp }}/llm
+          CD_HOME: ${{ runner.temp }}/cd
+          DRAW_STAGE: compose
+        run: python -u -m chatdraw.draw_one out
+      - name: draw-results に置く
+        if: always() && steps.mode.outputs.reuse == ''
+        run: sh .github/scripts/draw-results.sh out
+
+  finish:
+    needs: compose
+    if: needs.compose.outputs.twostage == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
@@ -25,26 +64,21 @@ jobs:
           python-version: "3.12"
       - name: 部品
         run: |
-          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy
-      - name: 描く
+          pip install -q torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy controlnet_aux==0.0.10
+      - name: 構図の絵を取る
+        run: |
+          run=$(python3 -c "import json;print(json.load(open('config/draw-request.json')).get('composition_run','') or '$GITHUB_RUN_ID')")
+          git fetch -q origin draw-results
+          mkdir -p "$RUNNER_TEMP/comp"
+          git show "origin/draw-results:$run/1-composition.png" > "$RUNNER_TEMP/comp/1-composition.png"
+          echo "DRAW_COMPOSITION=$RUNNER_TEMP/comp/1-composition.png" >> "$GITHUB_ENV"
+      - name: 形と仕上げ
         env:
           LLM_HOME: ${{ runner.temp }}/llm
           CD_HOME: ${{ runner.temp }}/cd
+          DRAW_STAGE: finish
         run: python -u -m chatdraw.draw_one out
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: draw-one
-          path: out/
-          retention-days: 7
       - name: draw-results に置く
         if: always()
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898+github-actions[bot]@users.noreply.github.com"
-          cp -r out "$RUNNER_TEMP/out"
-          git fetch origin draw-results && git checkout -q -B draw-results origin/draw-results || { git checkout -q --orphan draw-results; git rm -rfq .; }
-          mkdir -p "$GITHUB_RUN_ID" && cp -r "$RUNNER_TEMP/out/." "$GITHUB_RUN_ID/"
-          git add "$GITHUB_RUN_ID" && git diff --cached --quiet || { git commit -qm "draw-one $GITHUB_RUN_ID"; git push -q origin draw-results; }
-
+        run: sh .github/scripts/draw-results.sh out
