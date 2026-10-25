@@ -1,0 +1,205 @@
+{
+ "args": {
+  "src": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-stand-s12.jpg",
+  "out": "out/iclight-only-face",
+  "width": "768",
+  "height": "1152",
+  "prompt": "RAW photo, a 27 year old woman, plain white bikini, standing, hand on hip, grey studio backdrop, natural skin texture, soft studio lighting, 85mm, sharp focus, high detail",
+  "negative": "anime, cartoon, illustration, painting, 3d, cgi, plastic skin, airbrushed, lowres, bad anatomy, bad hands, extra fingers, child, teen",
+  "seed": "12",
+  "steps": "25",
+  "guidance": "6.0",
+  "strength": "0.7",
+  "tile_scale": "0.6",
+  "lineart_scale": "1.0",
+  "scale": "1.5",
+  "strength2": "0.25",
+  "hf_sigma": "2.5",
+  "hf_amount": "1.0",
+  "tile2_scale": "0.8",
+  "tile": "768",
+  "overlap": "128",
+  "deshade": "0",
+  "depth_scale": "0",
+  "relight": "0",
+  "light_deg": "135",
+  "hair_strength": "0.35",
+  "iclight": "0.6",
+  "post_relight": "0",
+  "cast": "0.45",
+  "face": "0.35",
+  "check": "True",
+  "dry_run": "False"
+ },
+ "band_px": 0,
+ "blob_px": 1835,
+ "clean_s": 0.65,
+ "input_shadow": {
+  "soft": 0.62,
+  "step_frac": 0.29,
+  "steps": 2,
+  "ratio": 0.677,
+  "spread": 164.5,
+  "cast": 0.079,
+  "cast_gap": 0.001,
+  "normal_corr": 0.239,
+  "normal_light_deg": 60
+ },
+ "input_keep": {
+  "flat_skin": 0.3569,
+  "hair_iou": 0.951,
+  "line_f": 0.977,
+  "sat_ratio": 1.003,
+  "color_dab": 0.41,
+  "hair_de": 0.11
+ },
+ "input_fails": [
+  {
+   "path": "spread",
+   "value": 164.5,
+   "min": null,
+   "max": 160,
+   "means": "部位ごとの光の向きのずれ（度）。顔と腕と脚で陰の側が食い違う"
+  },
+  {
+   "path": "ratio",
+   "value": 0.677,
+   "min": 0.23,
+   "max": 0.66,
+   "means": "肌の陰と光の明るさの比。高すぎると平らな光、低すぎると影が黒くつぶれる"
+  },
+  {
+   "path": "flat_skin",
+   "value": 0.3569,
+   "min": null,
+   "max": 0.005,
+   "means": "肌の平らな面の割合。アニメの塗りが残っている"
+  }
+ ],
+ "input_check_s": 9.1,
+ "load_s": 28.7,
+ "stage1_s": 1345.5,
+ "stage1_rss_gb": 10.97,
+ "stage1_shadow": {
+  "soft": 0.513,
+  "step_frac": 0.412,
+  "steps": 2,
+  "ratio": 0.684,
+  "spread": 148.1,
+  "cast": 0.056,
+  "cast_gap": 0.001,
+  "normal_corr": 0.183,
+  "normal_light_deg": 90
+ },
+ "stage1_keep": {
+  "flat_skin": 0.0495,
+  "hair_iou": 0.893,
+  "line_f": 0.924,
+  "sat_ratio": 0.902,
+  "color_dab": 1.0,
+  "hair_de": 2.71
+ },
+ "stage1_fails": [
+  {
+   "path": "ratio",
+   "value": 0.684,
+   "min": 0.23,
+   "max": 0.66,
+   "means": "肌の陰と光の明るさの比。高すぎると平らな光、低すぎると影が黒くつぶれる"
+  },
+  {
+   "path": "flat_skin",
+   "value": 0.0495,
+   "min": null,
+   "max": 0.005,
+   "means": "肌の平らな面の割合。アニメの塗りが残っている"
+  },
+  {
+   "path": "hair_iou",
+   "value": 0.893,
+   "min": 0.9,
+   "max": null,
+   "means": "元の絵と髪の形の重なり。髪型が崩れた"
+  }
+ ],
+ "stage1_check_s": 6.9,
+ "iclight_s": 739.5,
+ "iclight_rss_gb": 11.49,
+ "iclight_shadow": {
+  "soft": 0.455,
+  "step_frac": 0.493,
+  "steps": 3,
+  "ratio": 0.642,
+  "spread": 137.1,
+  "cast": 0.053,
+  "cast_gap": 0.001,
+  "normal_corr": 0.147,
+  "normal_light_deg": 120
+ },
+ "iclight_keep": {
+  "flat_skin": 0.0346,
+  "hair_iou": 0.902,
+  "line_f": 0.91,
+  "sat_ratio": 0.94,
+  "color_dab": 1.39,
+  "hair_de": 1.67
+ },
+ "iclight_fails": [
+  {
+   "path": "flat_skin",
+   "value": 0.0346,
+   "min": null,
+   "max": 0.005,
+   "means": "肌の平らな面の割合。アニメの塗りが残っている"
+  }
+ ],
+ "iclight_check_s": 9.2,
+ "stage2_tiles": 6,
+ "stage2_s": 1403.0,
+ "stage2_rss_gb": 11.49,
+ "post_light_s": 5.4,
+ "face_box": [
+  35,
+  0,
+  1029,
+  994
+ ],
+ "face_s": 296.5,
+ "final_shadow": {
+  "soft": 0.412,
+  "step_frac": 0.551,
+  "steps": 3,
+  "ratio": 0.638,
+  "spread": 140.6,
+  "cast": 0.145,
+  "cast_gap": 0.001,
+  "normal_corr": 0.135,
+  "normal_light_deg": 120
+ },
+ "final_keep": {
+  "flat_skin": 0.0422,
+  "hair_iou": 0.884,
+  "line_f": 0.905,
+  "sat_ratio": 0.989,
+  "color_dab": 2.8,
+  "hair_de": 1.31
+ },
+ "final_fails": [
+  {
+   "path": "flat_skin",
+   "value": 0.0422,
+   "min": null,
+   "max": 0.005,
+   "means": "肌の平らな面の割合。アニメの塗りが残っている"
+  },
+  {
+   "path": "hair_iou",
+   "value": 0.884,
+   "min": 0.9,
+   "max": null,
+   "means": "元の絵と髪の形の重なり。髪型が崩れた"
+  }
+ ],
+ "final_check_s": 10.8,
+ "total_s": 3862.1
+}
