@@ -85,6 +85,12 @@ def bars(w, ribbon: bool, tools: tuple | None, options: bool = True, bottom: boo
             act.setVisible(tools is None)   # 道具を絞ったときは区切りの線だけが並ばないようにする
 
 
+def _first_tool(w, key: str):
+    """配置ごとの初めの道具。デザインツールの配置（クリエイター向け）はペン、ほかは手（絵を動かして見る）"""
+    if hasattr(w, "select_tool"):
+        w.select_tool(key)
+
+
 def _progress_idle(w):
     """進みは右下のポップアップに出すので、上の進みの欄は初めは隠す（絵を見る場所を広く取る）"""
     w.panels["progress"][0].hide()
@@ -107,6 +113,7 @@ def recommended(w):
     _widths(w, ["color"], ["chat"], side)
     w.resizeDocks([w.panels["talk"][0]], [200], Qt.Vertical)
     _progress_idle(w)
+    _first_tool(w, "hand")
 
 
 def creator(w):
@@ -124,6 +131,7 @@ def creator(w):
     _widths(w, ["color"], ["view"], 300)
     w.resizeDocks([w.panels["talk"][0]], [130], Qt.Vertical)
     _progress_idle(w)
+    _first_tool(w, "pen")
 
 
 def ai_focus(w):
@@ -140,6 +148,7 @@ def ai_focus(w):
     _widths(w, ["chat"], ["view"], 320)
     w.resizeDocks([w.panels["talk"][0]], [260], Qt.Vertical)
     _progress_idle(w)
+    _first_tool(w, "hand")
 
 
 def simple(w):
@@ -152,6 +161,7 @@ def simple(w):
     _hide(w, ["brushes", "layers", "history", "view", "chat", "progress", "library"])
     _widths(w, ["color"], [], 260)
     w.resizeDocks([w.panels["talk"][0]], [160], Qt.Vertical)
+    _first_tool(w, "hand")
 
 
 def canvas_only(w):

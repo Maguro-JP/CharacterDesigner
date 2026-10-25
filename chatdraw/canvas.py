@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtCore import QPointF, QRect, QRectF, Qt, Signal
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QImage, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView
 
@@ -72,6 +72,8 @@ class Canvas(QGraphicsView):
     used_color = Signal()       # 描く色で描き始めた（最近使った色に足す）
     marked = Signal()           # 赤ペンで印を付けた（AI の欄を「直す」にする）
     note_wanted = Signal(int)   # 赤ペンの印に、絵の上で指示を書く（印の番号、1 から）
+    menu_wanted = Signal(QPoint)  # 右クリック（動かさずに離した）。画面の位置で右クリックのメニューを出す
+    stroke_done = Signal()        # 線・塗り・レイヤーが 1 回変わった（タイムラプスの写しを撮る）
 
     def drawBackground(self, painter, rect):
         """絵の周りはテーマの模様。画面に貼り付けて描く（拡大や移動で模様が流れない）"""
@@ -141,6 +143,28 @@ class Canvas(QGraphicsView):
         self.redpen = RedPen()   # 赤ペン先生の印。レイヤーとは別に持ち、保存する絵にも AI に渡す絵にも入れない
         self.scene().addItem(self.redpen)
         self.set_tool("pen")
+        # 右ボタンでつかんで動かす。押して動かさずに離したら右クリックのメニュー
+        self.pan_from: QPoint | None = None
+        self.panned = False
+        # 止まって少したったらカーソルを隠す（絵を見るときに邪魔にならない）。動かすとすぐ出る
+        from PySide6.QtCore import QTimer
+        self.hide_cursor_after = 1500
+        self.idle = QTimer(self)
+        self.idle.setSingleShot(True)
+        self.idle.timeout.connect(self._hide_cursor)
+
+    def _hide_cursor(self):
+        if self.last is None and self.drag_start is None and self.pan_from is None and self.underMouse():
+            self.viewport().setCursor(Qt.BlankCursor)
+            self.cursor_ring.setVisible(False)
+
+    def _wake_cursor(self):
+        if self.viewport().cursor().shape() == Qt.BlankCursor and not (self.tool in BRUSH_TOOLS and self.cursor_style == "筆の輪だけ"):
+            self._apply_cursor()
+        elif self.tool in BRUSH_TOOLS and not self.cursor_ring.isVisible():
+            self.cursor_ring.setVisible(True)
+        if self.hide_cursor_after > 0:
+            self.idle.start(self.hide_cursor_after)
 
     # ---- 書類 ----
     def size_px(self) -> tuple[int, int]:
@@ -718,6 +742,9 @@ class Canvas(QGraphicsView):
     zoom_out = False
 
     def mousePressEvent(self, e):
+        if e.button() == Qt.RightButton and self.tool != "zoom":
+            self.pan_from, self.panned = e.position().toPoint(), False
+            return
         self.zoom_out = bool(e.modifiers() & Qt.ShiftModifier) or e.button() == Qt.RightButton and self.tool == "zoom"
         if self.tool == "zoom" and e.button() == Qt.RightButton and self._press(self.mapToScene(e.position().toPoint()), 1.0):
             return
@@ -739,6 +766,18 @@ class Canvas(QGraphicsView):
         super().mouseDoubleClickEvent(e)
 
     def mouseMoveEvent(self, e):
+        self._wake_cursor()
+        if self.pan_from is not None:
+            now = e.position().toPoint()
+            d = now - self.pan_from
+            if self.panned or abs(d.x()) + abs(d.y()) > 4:   # 少し動かしただけでは、右クリックのままにする
+                if not self.panned:
+                    self.viewport().setCursor(Qt.ClosedHandCursor)
+                self.panned = True
+                self.horizontalScrollBar().setValue(self.horizontalScrollBar().value() - d.x())
+                self.verticalScrollBar().setValue(self.verticalScrollBar().value() - d.y())
+                self.pan_from = now
+            return
         pos = self.mapToScene(e.position().toPoint())
         self._ring(pos)
         self.moved.emit(int(pos.x()), int(pos.y()))
@@ -757,6 +796,12 @@ class Canvas(QGraphicsView):
         super().mouseMoveEvent(e)
 
     def mouseReleaseEvent(self, e):
+        if e.button() == Qt.RightButton and self.pan_from is not None:
+            moved, self.pan_from = self.panned, None
+            self._apply_cursor()
+            if not moved:
+                self.menu_wanted.emit(e.globalPosition().toPoint())
+            return
         if self.redpen.drawing is not None:
             short = len(self.redpen.drawing) < 3
             self.redpen.end()
@@ -768,13 +813,17 @@ class Canvas(QGraphicsView):
         if self.drag_start is not None:
             self.end_drag(self.drag_start, self.mapToScene(e.position().toPoint()))
             self.drag_start = None
+            self.stroke_done.emit()
             return
         if self.last is not None:
             self.end_stroke()
             self.last = None
             self.pressure = 1.0
+            self.stroke_done.emit()
             return
         super().mouseReleaseEvent(e)
+        if e.button() == Qt.LeftButton and self.tool in ("fill", "move", "select", "line", "rect", "ellipse", "gradient"):
+            self.stroke_done.emit()
 
     def tabletEvent(self, e):
         # ペンタブレットの筆圧で太さと濃さを変える
@@ -800,6 +849,7 @@ class Canvas(QGraphicsView):
         elif t == e.Type.TabletRelease:
             self.end_stroke()
             self.last = None
+            self.stroke_done.emit()
         e.accept()
 
     def keyPressEvent(self, e):
