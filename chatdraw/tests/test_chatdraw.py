@@ -1880,3 +1880,19 @@ class UsabilityFixTest(unittest.TestCase):
             w.canvas.add_image_layer(str(p), "AI の直し")
             self.assertEqual(w.canvas.current, len(w.canvas.layers) - 1)
             self.assertEqual(w.canvas.layers[-1].name, "AI の直し")
+
+
+class ButtonTipTest(unittest.TestCase):
+    """ボタンの説明はボタンに書かず、カーソルを合わせたときに出す"""
+
+    def test_ai_panel_buttons_are_one_line(self):
+        from PySide6.QtWidgets import QAbstractButton, QApplication
+        from chatdraw.app import Window
+        QApplication.instance() or QApplication([])
+        w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
+        buttons = w.ai_panel.findChildren(QAbstractButton)
+        self.assertTrue(buttons)
+        for b in buttons:
+            self.assertNotIn("\n", b.text(), b.text())
+        for b in w.ai_panel.preset_group.buttons():
+            self.assertIn(":", b.toolTip())   # 説明はツールチップに
