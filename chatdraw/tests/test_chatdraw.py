@@ -1809,6 +1809,7 @@ class UsabilityFixTest(unittest.TestCase):
         app = QApplication.instance() or QApplication([])
         w = Window(Studio(FakeWords(), FakePainter(), Path(d)))
         w.settings.store.remove(w.PROMPT_KEY)
+        w.settings.store.remove(w.FAV_KEY)
         w._load_prompts()
         return app, w
 
@@ -1822,20 +1823,36 @@ class UsabilityFixTest(unittest.TestCase):
                 break
             w.thread and w.thread.wait(10)
 
-    def test_prompt_history_and_recall(self):
+    def _chips(self, w):
+        return [w.tips.itemAt(i).widget().text() for i in range(w.tips.count()) if w.tips.itemAt(i).widget()]
+
+    def test_recent_words_replace_examples_and_favorites_stay(self):
         from PySide6.QtCore import QEvent, Qt
         from PySide6.QtGui import QKeyEvent
         with TemporaryDirectory() as d:
             app, w = self._window(d)
+            w.settings.store.remove(w.FAV_KEY)
+            w._load_prompts()
+            self.assertEqual(self._chips(w)[:2], list(w.EXAMPLES[:2]))      # まだ何も頼んでいないときだけ例
             self._draw(app, w, "ビキニの女性")
             self._draw(app, w, "海の女性")
             self._draw(app, w, "ビキニの女性")
-            texts = [w.prompt_list.item(i).text() for i in range(w.prompt_list.count())]
-            self.assertEqual(texts, ["ビキニの女性", "海の女性"])          # 新しい順、同じ言葉は 1 つ
+            self.assertEqual(self._chips(w), ["ビキニの女性", "海の女性"])    # 例の所が直近の言葉になる（新しい順、重ねない）
+            w.entry.setText("海の女性")
+            w._toggle_fav()                                                  # ☆ で固定
+            self.assertEqual(self._chips(w), ["★ 海の女性", "ビキニの女性"])  # お気に入りが先頭
+            self.assertEqual(w.fav_button.text(), "★")
+            for i in range(30):
+                w._remember_prompt(f"言葉 {i}")
+            self.assertIn("★ 海の女性", self._chips(w))                       # 直近が増えてもお気に入りは消えない
+            self.assertEqual(len(w.recent_prompts()), w.PROMPT_MAX)
+            w.entry.clear()
             w.eventFilter(w.entry, QKeyEvent(QEvent.KeyPress, Qt.Key_Up, Qt.NoModifier))
-            w.eventFilter(w.entry, QKeyEvent(QEvent.KeyPress, Qt.Key_Up, Qt.NoModifier))
-            self.assertEqual(w.entry.text(), "海の女性")                   # ↑ で前の言葉
+            self.assertEqual(w.entry.text(), "海の女性")                       # ↑ はお気に入りから
+            w.forget_prompt("海の女性")
+            self.assertNotIn("★ 海の女性", self._chips(w))
             w.settings.store.remove(w.PROMPT_KEY)
+            w.settings.store.remove(w.FAV_KEY)
 
     def test_new_drawings_replace_and_undo_restores(self):
         with TemporaryDirectory() as d:
