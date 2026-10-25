@@ -1,0 +1,215 @@
+{
+ "1-composition.png": {
+  "readable": true,
+  "bad": [
+   "手 3: thumb 1.19（0.8〜1.12）",
+   "手 3: index 1.03（0.8〜1.0）",
+   "手 3: thumbの手の色 0.75（0.85〜1.01）",
+   "手 3: ringの手の色 0.62（0.85〜1.01）",
+   "手 3: pinkyの手の色 0.83（0.85〜1.01）"
+  ],
+  "hands": [
+   {
+    "box": [
+     309,
+     47,
+     460,
+     199
+    ],
+    "angle": 56.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 1.05,
+     "thumb": 0.93,
+     "index": 0.8,
+     "ring": 0.92,
+     "pinky": 0.72,
+     "cover": {
+      "thumb": 0.96,
+      "index": 0.58,
+      "middle": 0.75,
+      "ring": 0.33,
+      "pinky": 0.17
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "指先が付け根より上に無い"
+     }
+    },
+    "bad": [],
+    "seen": true
+   },
+   {
+    "box": [
+     634,
+     162,
+     776,
+     304
+    ],
+    "angle": 11.0,
+    "measure": {
+     "presence": 0.22,
+     "palm": 1.02,
+     "thumb": 0.96,
+     "index": 1.0,
+     "ring": 0.97,
+     "pinky": 0.89,
+     "cover": {
+      "thumb": 0.75,
+      "index": 1.0,
+      "middle": 1.0,
+      "ring": 0.67,
+      "pinky": 0.58
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       0,
+       0,
+       1,
+       2,
+       1
+      ],
+      "reason": "指が 1 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.22"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     462,
+     532,
+     565,
+     635
+    ],
+    "angle": 176.0,
+    "measure": {
+     "presence": 0.94,
+     "palm": 1.06,
+     "thumb": 1.19,
+     "index": 1.03,
+     "ring": 0.89,
+     "pinky": 0.73,
+     "cover": {
+      "thumb": 0.75,
+      "index": 1.0,
+      "middle": 0.88,
+      "ring": 0.62,
+      "pinky": 0.83
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "thumb 1.19（0.8〜1.12）",
+     "index 1.03（0.8〜1.0）",
+     "thumbの手の色 0.75（0.85〜1.01）",
+     "ringの手の色 0.62（0.85〜1.01）",
+     "pinkyの手の色 0.83（0.85〜1.01）"
+    ],
+    "seen": true
+   }
+  ],
+  "feet": [
+   {
+    "side": "right",
+    "box": [
+     240,
+     1168,
+     312,
+     1232
+    ],
+    "count": null,
+    "evidence": {
+     "F": 40.4,
+     "toe_line": 23.5,
+     "why": "境の線では 3 本、指先の山では 4 本で、合わない",
+     "lines": 3,
+     "tips": 4,
+     "width": 48.2,
+     "line_at": [
+      122,
+      193
+     ],
+     "line_power": [
+      0.35,
+      1.0
+     ],
+     "tip_at": [
+      45,
+      83,
+      162,
+      193
+     ],
+     "span": [
+      8,
+      201
+     ]
+    },
+    "bad": []
+   },
+   {
+    "side": "left",
+    "box": [
+     577,
+     1169,
+     630,
+     1230
+    ],
+    "count": null,
+    "evidence": {
+     "F": 35.8,
+     "toe_line": 28.6,
+     "why": "境の線では 5 本、指先の山では 3 本で、合わない",
+     "lines": 5,
+     "tips": 3,
+     "width": 25.5,
+     "line_at": [
+      62,
+      82,
+      94,
+      115
+     ],
+     "line_power": [
+      0.65,
+      0.26,
+      0.69,
+      1.0
+     ],
+     "tip_at": [
+      51,
+      93,
+      116
+     ],
+     "span": [
+      20,
+      122
+     ]
+    },
+    "bad": []
+   }
+  ],
+  "faces": [],
+  "face": {
+   "box": null,
+   "readable": false,
+   "bad": [],
+   "tags": {},
+   "eye_dark": null,
+   "reason": "顔が写っていないか、小さすぎます"
+  }
+ }
+}
