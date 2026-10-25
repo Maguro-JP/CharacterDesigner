@@ -542,6 +542,8 @@ class Studio:
         self.out = out or Path(os.environ.get("CD_OUTPUT") or Path.home() / "Pictures" / "CharacterDesigner")
         self.image_auto = False   # おまかせ: 頼みごとに、手元の絵の模型から合う物を選ぶ
         self.words_auto = False   # おまかせ: 頼みごとに、手元の言葉の模型から合う物を選ぶ
+        # 描き方。"auto" は、構図の模型・SDXL の模型・2 段の部品がそろっていれば 2 段で描く。"one" は 1 つの模型、"two" は必ず 2 段
+        self.way = "auto"
 
     def draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
              on_preview=None, style: str = "", reference=None, ref_scale: float = 0.6, meta: dict | None = None) -> tuple[str, Path]:
@@ -566,6 +568,9 @@ class Studio:
                 if m.repo != self.painter.model:
                     self.painter = Painter(m.repo, m.steps, guidance=m.guidance)   # 前の模型は捨ててメモリを空ける
                 say(f"絵の模型: {m.name}（{why}）")
+        two = self._two_stage_models(base, reference, say)
+        if two is not None:
+            return self._draw_two(text, seed, two, style, size, say, meta)
         say("頼みを描く言葉に直しています")
         prompt = self.words.to_prompt(text, tags=fam(image_model(getattr(self.painter, "model", "")).family).tags)
         if style:   # AI の欄で選んだ作風。頼みの言葉の後ろに足す（頼みの方を先に効かせる）
@@ -578,6 +583,53 @@ class Studio:
                                    base=base, strength=strength, size=size, on_preview=on_preview, **extra)
         path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model))
         return prompt, path
+
+    def _two_stage_models(self, base, reference, say=lambda m: None):
+        """2 段で描くなら (構図の模型, 仕上げの模型)、1 つの模型で描くなら None。
+        ラフ・参考画像は 2 段の描き方にまだ渡せないので、その時は 1 つの模型で描く"""
+        if self.way == "one" or base is not None or reference is not None:
+            return None
+        from chatdraw import twostage
+        from chatdraw.choose import installed_images
+        two = twostage.pick(installed_images(), getattr(self.painter, "model", ""))
+        if two is not None and getattr(self, "fetch_two_parts", False) and not twostage.parts_ready():
+            try:
+                twostage.fetch_parts(say=say)
+            except Exception as e:
+                say(f"2 段で描く部品を取れませんでした（{e}）。1 つの模型で描きます")
+            self.fetch_two_parts = False
+        if two is None or not twostage.parts_ready():
+            if self.way == "two":
+                raise ValueError("2 段で描くには、文で頼める模型（FLUX.2 klein など）と SDXL の模型、2 段の部品が要ります。"
+                                 "模型の窓で取ってください")
+            return None
+        return two
+
+    def _draw_two(self, text, seed, two, style, size, say, meta):
+        """構図（文で頼める模型）と仕上げ（SDXL のアニメの模型）を分けて描く（chatdraw/twostage.py）"""
+        import time
+        from chatdraw import twostage
+        comp, render = two
+        say(f"2 段で描きます（構図: {comp.name}、仕上げ: {render.name}）")
+        say("頼みを描く言葉に直しています")
+        sentence = self.words.to_prompt(text, tags=False)
+        tags = self.words.to_prompt(text, tags=True)
+        if style:
+            tags = f"{tags}, {style}"
+        if refused(sentence) or refused(tags):
+            raise ValueError("子どもを性的に描く頼みは描きません")
+        self.painter._pipe = None   # 1 つの模型で読んだ物は捨てて、段の処理にメモリを渡す
+        import gc
+        gc.collect()
+        keep = self.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}"
+        self.painter.stop = False
+        path = twostage.run_stages(sentence, tags, seed, comp.repo, render.repo, tuple(size or (832, 1216)), keep, twostage.VARIANTS[0],
+                                   say=say, stopped=lambda: self.painter.stop)
+        from PIL import Image
+        image = Image.open(path)
+        saved = self._save(image, seed, dict(meta or {}, text=text, prompt=tags, sentence=sentence, seed=seed, style=style,
+                                             model=render.repo, compose_model=comp.repo, way="two", stages=str(keep)))
+        return tags, saved
 
     def _save(self, image, seed: int, meta: dict) -> Path:
         """絵と、同じ名前の .json（頼み・描く言葉・種・作風・模型）を残す。履歴から同じ設定で描き直すため"""

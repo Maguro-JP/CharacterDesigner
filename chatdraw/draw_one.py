@@ -17,11 +17,17 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     req = json.loads(Path("config/draw-request.json").read_text(encoding="utf-8"))
     if req.get("mode") == "twostage":
+        # 段は環境変数 DRAW_STAGE（compose、finish、all）で選ぶ。Actions では段ごとに別のジョブにして、
+        # 1 つのジョブが打ち切られても、前の段の絵は draw-results に残る
+        import os
         from chatdraw.twostage import draw
+        stage = os.environ.get("DRAW_STAGE", "all")
+        comp = os.environ.get("DRAW_COMPOSITION") or None
         t = time.time()
-        im = draw(req["prompt"], req["tags"], req.get("seed", 7), req["compose"], req["render"], size=tuple(req.get("size", (832, 1216))),
-                  say=lambda m: print(m, flush=True), keep=out)
-        (out / "request.json").write_text(json.dumps(dict(req, seconds=round(time.time() - t)), ensure_ascii=False, indent=1), encoding="utf-8")
+        draw(req["prompt"], req["tags"], req.get("seed", 7), req["compose"], req["render"], size=tuple(req.get("size", (832, 1216))),
+             say=lambda m: print(m, flush=True), keep=out, composition=comp, variants=req.get("variants"), stage=stage)
+        (out / f"request-{stage}.json").write_text(json.dumps(dict(req, seconds=round(time.time() - t)), ensure_ascii=False, indent=1),
+                                                   encoding="utf-8")
         print("exit=0")
         return
     from huggingface_hub import snapshot_download

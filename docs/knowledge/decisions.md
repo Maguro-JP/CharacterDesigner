@@ -166,3 +166,5 @@
 - 2026-10-24 模型の良し悪しは、速さではなく描いた絵の出来で決める。速さは画面に目安として出すだけで、推奨の点には入れない。触る場所: chatdraw/verify_models.py（絵を残し、点は絵を見て付ける）、chatdraw/catalog.json の score
 - 2026-10-24 新しい世代（FLUX.1、FLUX.2、Z-Image、Qwen-Image、Lumina 2、Chroma）は、世代の表（chatdraw/models.py の FAMILIES）で読む部品・大きさ・頼みの書き方・使える機能を決める。ラフから・範囲の直し・参考画像は、部品が揃うまで SDXL と SD1.5 だけで使え、ほかの世代ではボタンを止めて理由を出す。触る場所: chatdraw/models.py の FAMILIES、chatdraw/engine.py の prompt_args
 
+- 2026-10-25 2 段で描く仕組みは、段ごとに絵をファイルに残し、Actions では構図と仕上げを別のジョブにする。仕上げは 1 つの構図から縛りの組み合わせを何通りも描き、既定の縛りは骨組みと奥行きにする（細い線は構図の模型の癖を写すため比べの 1 通りだけ）。選ばなかった案: 1 つのジョブのまま上限を延ばす（打ち切られると全部消える）。触る場所: chatdraw/twostage.py の VARIANTS、.github/workflows/draw-one.yml、config/draw-request.json の variants と composition_run
+- 2026-10-25 アプリの「描く」に 2 段の描き方を入れ、設定の「描き方」（おまかせ・1 つの模型・2 段）で選ぶ。おまかせは文で頼める模型と SDXL の模型と部品がそろえば 2 段にする（速さより崩れにくさを先にする）。骨組みは transformers の VitPose で取り、依存を増やさない。選ばなかった案: controlnet_aux の openpose（timm・opencv などが増える）。触る場所: chatdraw/engine.py の Studio._two_stage_models、chatdraw/twostage.py の pick と run_stages、chatdraw/settings.py の draw_way

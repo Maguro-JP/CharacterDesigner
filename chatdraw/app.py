@@ -1039,6 +1039,7 @@ class Window(QMainWindow):
             if QMessageBox.question(self, "参考画像に寄せる", f"参考画像を読む部品（約 {gb}GB）を初めに取ります。取りますか。") \
                     != QMessageBox.Yes:
                 self.ai_panel.use_ref.setChecked(False)   # 取らないなら、参考画像なしで描く
+        self.offer_two_stage_parts()
         mode = self.mode.currentIndex()
         base = qimage_to_pil(self.canvas.flatten()) if mode in (1, 2) else None
         regions = self.fix_regions(text) if mode == 2 else None
@@ -1062,6 +1063,24 @@ class Window(QMainWindow):
         self.job.done.connect(self.finish)
         self.job.failed.connect(self.fail)
         self.thread.start()
+
+    def offer_two_stage_parts(self):
+        """2 段で描ける模型がそろっていて、部品（約 2.9GB）だけが無いときに、取るかを聞く。
+        取らないと、おまかせでは黙って 1 つの模型で描き、崩れにくい描き方が使われないままになる"""
+        if self.studio.way == "one" or self.mode.currentIndex() != 0 or getattr(self, "_two_parts_asked", False):
+            return
+        from chatdraw import twostage
+        from chatdraw.choose import installed_images
+        try:
+            if twostage.pick(installed_images(), self.studio.painter.model) is None or twostage.parts_ready():
+                return
+        except Exception:
+            return
+        self._two_parts_asked = True   # 断られたら、この起動の間は聞き直さない
+        if QMessageBox.question(self, "構図と仕上げを分けて描く",
+                                f"手足や姿勢が崩れにくい描き方（構図と仕上げを分ける）に使う部品（約 {twostage.PARTS_GB}GB）を取りますか。"
+                                "取らないときは、1 つの模型で描きます。") == QMessageBox.Yes:
+            self.studio.fetch_two_parts = True   # 取るのは描く裏の処理で行う（画面を止めない）
 
     def edit_note(self, n: int):
         """赤ペンの n 番の印の横に、指示を書く欄を出す。Enter で絵の上に残し、Esc でやめる"""
@@ -1330,6 +1349,7 @@ class Window(QMainWindow):
         painter.steps, painter.guidance = steps, guidance
         studio = Studio(Words(None if words == AUTO else Path(words)), painter, Path(g("output_dir")))
         studio.image_auto, studio.words_auto = g("image_model") == AUTO, words == AUTO
+        studio.way = {"1つの模型で描く": "one", "構図と仕上げを分けて描く": "two"}.get(g("draw_way"), "auto")
         return studio
 
     def open_help(self, key: str):
