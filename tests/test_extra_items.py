@@ -16,6 +16,10 @@ class ExtraItems(unittest.TestCase):
         got = {"straw hat": 0.9, "jacket": 0.3, "bikini": 0.9}
         self.assertEqual(tagger.extras("1girl, bikini, straw hat", got), [])
 
+    def test_unasked_sarong_is_found(self):
+        # ビキニを頼んで、腰に長い布（sarong）を巻いた絵が出た（Windows の描画）
+        self.assertEqual(tagger.extras("1girl, white bikini, beach", {"sarong": 0.93, "sandals": 0.84}), ["sarong"])
+
 
 if __name__ == "__main__":
     unittest.main()

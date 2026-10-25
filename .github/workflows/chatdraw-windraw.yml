@@ -35,7 +35,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        seed: [7, 1007, 2007, 3007]
+        seed: [7, 100007, 200007, 300007]   # 描き直しは種に 1000 ずつ足すので、近い種だと同じ絵に重なった（1007 と 2007 が 3007 と同じ絵になった）
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
