@@ -378,6 +378,8 @@ class Window(QMainWindow):
         self.canvas.set_cursor_style(self.settings.get("cursor"))
         self.canvas.new_canvas()
         self.setCentralWidget(self.canvas)
+        self.canvas.menu_wanted.connect(self.canvas_menu)
+        self.canvas.hide_cursor_after = 1500 if self.settings.get("cursor_hide") == "止まったら隠す" else 0
 
         # 左: 頼み（チャット）
         self.chat = QTextEdit()
@@ -471,6 +473,15 @@ class Window(QMainWindow):
         tl.addLayout(line)
         # 書く欄の下のボタン。お気に入り（★、固定）を先に、そのあとに直近に頼んだ言葉を新しい順に並べる。
         # 押すと書く欄に入り、ダブルクリックでそのまま描く。右クリックで固定・外す・消す。書く欄で ↑↓ でも呼び出せる
+        # 音声入力。Windows の音声入力（Win+H）を書く欄で開く。話した言葉が書く欄に入る（模型を足さずに済む）
+        self.mic_button = QPushButton("🎤")
+        self.mic_button.setFixedWidth(40)
+        self.mic_button.setToolTip("声で頼む（Windows の音声入力 Win+H を開きます）")
+        self.mic_button.clicked.connect(self.voice_input)
+        if sys.platform != "win32":
+            self.mic_button.setEnabled(False)
+            self.mic_button.setToolTip("声で頼む（Windows で使えます）")
+        line.addWidget(self.mic_button)
         self.fav_button = QPushButton("☆")
         self.fav_button.setToolTip("書く欄の言葉をお気に入りに固定する")
         self.fav_button.setFixedWidth(40)
@@ -502,6 +513,8 @@ class Window(QMainWindow):
         self.activity = ActivityPanel()
         self.history = self.activity.list
         # ダブルクリックは今の絵に重ねる（今の絵を閉じない）。右クリックで開く・同じ設定で描き直す
+        # 押すとその絵をキャンバスに出す（元に戻すで戻せる）。ダブルクリックは今の絵に重ねる
+        self.history.itemClicked.connect(lambda it: it.data(Qt.UserRole) and self.show_history_image(it.data(Qt.UserRole)))
         self.history.itemDoubleClicked.connect(lambda it: it.data(Qt.UserRole) and self.canvas.add_image_layer(it.data(Qt.UserRole), "AI の絵"))
         self.history.setContextMenuPolicy(Qt.CustomContextMenu)
         self.history.customContextMenuRequested.connect(self._history_menu)
@@ -727,6 +740,22 @@ class Window(QMainWindow):
         view.addAction(QAction("左に回す", self, shortcut="Ctrl+[", triggered=lambda: self.canvas.rotate_view(-15)))
         view.addAction(QAction("右に回す", self, shortcut="Ctrl+]", triggered=lambda: self.canvas.rotate_view(15)))
         view.addAction(QAction("回転を戻す", self, shortcut="Ctrl+\\", triggered=self.canvas.reset_rotation))
+        view.addSeparator()
+        from chatdraw.timelapse import Recorder
+        self.recorder = Recorder()
+        self.recorder.enabled = self.settings.get("timelapse") == "記録する"
+        self.canvas.stroke_done.connect(self._record)
+        self.tl_action = QAction("タイムラプスを記録する", self, checkable=True, checked=self.recorder.enabled)
+        self.tl_action.setToolTip("線を引くたび、AI が描く工程ごとに写しを撮り、描いた過程を残します")
+        self.tl_action.toggled.connect(self._set_timelapse)
+        view.addAction(self.tl_action)
+        view.addAction(QAction("タイムラプスを見る…", self, shortcut="Ctrl+Shift+T", triggered=self.open_timelapse))
+        view.addAction(QAction("タイムラプスを消す", self, triggered=self.recorder.clear))
+        view.addSeparator()
+        self.pin_action = QAction("表示する絵を固定する", self, checkable=True)
+        self.pin_action.setToolTip("固定すると、AI が新しく描いた絵はキャンバスに出さず履歴に入れます。外すと最新の絵を出します")
+        self.pin_action.toggled.connect(self._set_pinned)
+        view.addAction(self.pin_action)
         from chatdraw import themes
         self.theme_menu = view.addMenu("テーマ")
         self.theme_menu.aboutToShow.connect(self._fill_theme_menu)
@@ -892,6 +921,8 @@ class Window(QMainWindow):
             self.layout_store.remove(old)
         from chatdraw import keys
         keys.apply(self, self.layout_store)
+        # 起動したときの道具。初めは手（絵を動かして見る）。描くときにペンを選ぶ。設定でペンにもできる
+        self.select_tool("pen" if self.settings.get("first_tool") == "ペン" else "hand")
 
     PROMPT_KEY, FAV_KEY, PROMPT_MAX = "prompts/history", "prompts/favorites", 20
     EXAMPLES = ("赤いマフラーの女の子", "鎧の騎士 全身", "猫耳の少女 笑顔", "夕暮れの街", "レイヤーを足して")
@@ -957,6 +988,27 @@ class Window(QMainWindow):
         if text not in favs:
             self._save(self.FAV_KEY, favs + [text])
             self.statusBar().showMessage(f"お気に入りに固定しました: {text}", 4000)
+
+    def select_tool(self, key: str):
+        """道具を持ち替える（初めの道具や配置を変えたとき）。利用者が押したときと違い、初めて使うときの案内は出さない"""
+        act = self.tool_actions.get(key)
+        if act is None:
+            return
+        act.setChecked(True)
+        self.canvas.set_tool(key)
+        self._tool_changed(key)
+
+    def voice_input(self):
+        """書く欄に移ってから Win+H を送り、Windows の音声入力を開く"""
+        self.entry.setFocus()
+        if sys.platform != "win32":
+            return
+        import ctypes
+        user32 = ctypes.windll.user32
+        win, h, up = 0x5B, 0x48, 0x0002
+        for key, flag in ((win, 0), (h, 0), (h, up), (win, up)):
+            user32.keybd_event(key, 0, flag, 0)
+        self.statusBar().showMessage("話してください。言葉が書く欄に入ります（止めるときはもう一度 Win+H）", 5000)
 
     def _toggle_fav(self):
         text = self.entry.text().strip() or self.last_text
@@ -1257,11 +1309,16 @@ class Window(QMainWindow):
                     self.say(f"崩れ: {f}")
             else:
                 self.canvas.redpen.clear()   # 崩れが見つからなければ、印は役目を終える
+        elif not self.batch and self.pin_action.isChecked() and self.mode.currentIndex() == 0:
+            self.say("表示する絵を固定しているので、新しい絵は履歴に入れました（押すと出ます）")
         elif not self.batch:
             self.activity.status("キャンバスに置いています")
             self.place(path)
         self.batch.append(path)
         self.batch_items.append(self.activity.add(path, prompt))
+        if len(self.batch) == 1 and not self.pin_action.isChecked():
+            self.history.setCurrentRow(0)   # 選んでいた古い絵ではなく、出した新しい絵を選んだ形にする
+        self._record()
         self.library_panel.add(self.library.add_work(path))   # 描いた絵はライブラリーにも入る（好き・いまいちを付けて好みを育てる）
 
     def finish(self):
@@ -1414,10 +1471,108 @@ class Window(QMainWindow):
         if not path:
             return
         m = QMenu(self)
+        m.addAction("この絵を出す", lambda: self.show_history_image(path))
+        m.addAction("この絵を出して固定する", lambda: (self.show_history_image(path), self.pin_action.setChecked(True)))
+        if self.pin_action.isChecked():
+            m.addAction("固定を外す（最新の絵を出す）", lambda: self.pin_action.setChecked(False))
         m.addAction("今の絵に重ねる", lambda: self.canvas.add_image_layer(path, "AI の絵"))
+        m.addSeparator()
         m.addAction("この設定で描き直す", lambda: self.redo_from(path))
-        m.addAction("この絵を開く", lambda: self.canvas.show_image(path))
+        m.addAction("頼みの言葉を書く欄に入れる", lambda: self._prompt_from(path))
+        m.addAction("お気に入りの言葉にする", lambda: self._prompt_from(path, pin=True))
+        m.addSeparator()
+        m.addAction("絵をコピー", lambda: self.copy_image(path))
+        m.addAction("保存した場所を開く", lambda: self.open_folder(path))
+        from chatdraw import share
+        sns = m.addMenu("SNS に送る")
+        for name in share.SERVICES:
+            act = sns.addAction(f"{name} に送る", lambda n=name: share.post(self, n, path, self._prompt_text(path)))
+            act.setEnabled(share.enabled(self.settings, name))
+        if not any(share.enabled(self.settings, n) for n in share.SERVICES):
+            sns.setToolTip("設定の「SNS 連携」で選ぶと使えます")
+            sns.setEnabled(False)
         m.exec(self.history.mapToGlobal(pos))
+
+    def _prompt_text(self, path: str) -> str:
+        import json
+        try:
+            return json.loads(Path(path).with_suffix(".json").read_text(encoding="utf-8")).get("text", "")
+        except (OSError, ValueError):
+            return ""
+
+    def _prompt_from(self, path: str, pin: bool = False):
+        text = self._prompt_text(path)
+        if not text:
+            self.notify("頼みの言葉が残っていません", "info", "この絵の .json がありません")
+            return
+        self.entry.setText(text)
+        if pin:
+            self.pin_prompt(text)
+
+    def copy_image(self, path: str | None = None):
+        from PySide6.QtWidgets import QApplication
+        QApplication.clipboard().setImage(QImage(path) if path else self.canvas.flatten())
+        self.statusBar().showMessage("絵をコピーしました", 3000)
+
+    def open_folder(self, path: str):
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(path).parent)))
+
+    def show_history_image(self, path: str):
+        """履歴で選んだ絵をキャンバスに出す。出した絵は「固定」すると、新しく描いても入れ替わらない"""
+        self.canvas.replace_with_image(path, "AI の絵")
+        self._record()
+
+    def _set_pinned(self, on: bool):
+        """固定を外したら、いちばん新しい絵を出す（固定の間に描いた絵が出ないままにしない）"""
+        self.statusBar().showMessage("表示する絵を固定しました。新しい絵は履歴に入ります" if on else "固定を外しました。最新の絵を出します", 4000)
+        if not on and self.images:
+            self.show_history_image(self.images[-1])
+            self.history.setCurrentRow(0)
+
+    def _record(self):
+        if self.recorder.enabled:
+            self.recorder.add(qimage_to_pil(self.canvas.flatten()))
+
+    def _set_timelapse(self, on: bool):
+        self.recorder.enabled = on
+        self.settings.set("timelapse", "記録する" if on else "記録しない")
+
+    def open_timelapse(self):
+        from chatdraw.timelapse import TimelapseDialog
+        TimelapseDialog(self.recorder, self, Path(self.settings.get("output_dir"))).show()
+
+    def canvas_menu(self, gpos):
+        """絵の上の右クリック（右ボタンを動かさずに離したとき）。よく使う操作をまとめる"""
+        from PySide6.QtWidgets import QMenu
+        c = self.canvas
+        m = QMenu(self)
+        m.addAction("元に戻す", c.undo).setEnabled(bool(c.undo_stack))
+        m.addAction("やり直す", c.redo).setEnabled(bool(c.redo_stack))
+        m.addSeparator()
+        tools = m.addMenu("道具")
+        for key, label in (("hand", "手（画面を動かす）"), ("pen", "ペン"), ("eraser", "消しゴム"), ("eyedropper", "スポイト"),
+                           ("select", "四角の選択"), ("redpen", "赤ペン（AI に直す所を示す）")):
+            if key in self.tool_actions:
+                tools.addAction(label, self.tool_actions[key].trigger)
+        m.addSeparator()
+        m.addAction("全体を表示", c.fit)
+        m.addAction("100%", c.actual)
+        m.addAction("回転を戻す", c.reset_rotation)
+        m.addSeparator()
+        m.addAction("レイヤーを足す", c.add_layer)
+        if c.selection is not None:
+            m.addAction("選択を外す", lambda: c.set_selection(None))
+        m.addAction("絵をコピー", self.copy_image)
+        m.addSeparator()
+        m.addAction("この絵を AI で描き直す（もう一度描く）", self.draw_again).setEnabled(bool(self.last_text) and not self.thread)
+        pin = m.addAction("表示する絵を固定する")
+        pin.setCheckable(True)
+        pin.setChecked(self.pin_action.isChecked())
+        pin.toggled.connect(self.pin_action.setChecked)
+        m.addAction("タイムラプスを見る…", self.open_timelapse)
+        m.exec(gpos)
 
     def redo_from(self, path: str):
         """履歴の絵と同じ頼み・種・画風を、AI の欄とチャットに戻す。押せば同じ設定で描ける"""
@@ -1604,8 +1759,9 @@ class Window(QMainWindow):
         self.notify(f"{kind}を替えました", "ok")
 
     def show_preview(self, img):
-        """AI が描いている途中の絵を、工程ごとにキャンバスの上に重ねて見せる（録画はしない）"""
+        """AI が描いている途中の絵を、工程ごとにキャンバスの上に重ねて見せ、タイムラプスにも残す"""
         self.canvas.show_overlay(qimage_from_pil(img))
+        self.recorder.add(img)
 
     def place(self, path: str):
         """描けた絵を置く。新しく描いて、まだ何も描いていないキャンバスなら絵を開く。

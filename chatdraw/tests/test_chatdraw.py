@@ -592,6 +592,7 @@ class TabsTest(unittest.TestCase):
         tabs = w.activity.tabs
         self.assertEqual([tabs.tabText(i) for i in range(tabs.count())], ["描いた絵", "操作"])
         c = w.canvas
+        w.tool_actions["pen"].trigger()                        # 起動したときは手なので、ペンに持ち替えて描く
         c.new_canvas(100, 100)
         c.color, c.size = QColor("red"), 4
         for y in (20, 50):
@@ -1904,3 +1905,105 @@ class ButtonTipTest(unittest.TestCase):
             self.assertNotIn("\n", b.text(), b.text())
         for b in w.ai_panel.preset_group.buttons():
             self.assertIn(":", b.toolTip())   # 説明はツールチップに
+
+
+class ViewingTest(unittest.TestCase):
+    """右ドラッグで動かす、右クリックのメニュー、表示する絵の固定、タイムラプス、SNS、初めの道具"""
+
+    def _window(self, d):
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Window
+        app = QApplication.instance() or QApplication([])
+        w = Window(Studio(FakeWords(), FakePainter(), Path(d)))
+        w.resize(1200, 800)
+        w.show()
+        app.processEvents()
+        return app, w
+
+    def _draw(self, app, w, text):
+        n = len(w.images)
+        w.entry.setText(text)
+        w.send()
+        for _ in range(300):
+            app.processEvents()
+            if len(w.images) > n and not w.thread:
+                break
+            w.thread and w.thread.wait(10)
+
+    def test_right_drag_pans_and_click_opens_menu(self):
+        from PySide6.QtCore import QEvent, QPointF, Qt
+        from PySide6.QtGui import QMouseEvent
+        with TemporaryDirectory() as d:
+            app, w = self._window(d)
+            c = w.canvas
+            c.set_zoom(4.0)
+            app.processEvents()
+            menus = []
+            c.menu_wanted.disconnect(w.canvas_menu)                     # 試験ではメニューを開かない（開くと止まる）
+            c.menu_wanted.connect(menus.append)
+            h0 = c.horizontalScrollBar().value()
+
+            def ev(t, x, btn, btns):
+                return QMouseEvent(t, QPointF(x, 100), QPointF(x, 100), btn, btns, Qt.NoModifier)
+            c.mousePressEvent(ev(QEvent.MouseButtonPress, 200, Qt.RightButton, Qt.RightButton))
+            c.mouseMoveEvent(ev(QEvent.MouseMove, 150, Qt.NoButton, Qt.RightButton))
+            c.mouseReleaseEvent(ev(QEvent.MouseButtonRelease, 150, Qt.RightButton, Qt.NoButton))
+            self.assertNotEqual(c.horizontalScrollBar().value(), h0)   # つかんで動いた
+            self.assertEqual(menus, [])                                 # 動かしたときはメニューを出さない
+            c.mousePressEvent(ev(QEvent.MouseButtonPress, 200, Qt.RightButton, Qt.RightButton))
+            c.mouseReleaseEvent(ev(QEvent.MouseButtonRelease, 201, Qt.RightButton, Qt.NoButton))
+            self.assertEqual(len(menus), 1)                             # 動かさずに離すと右クリックのメニュー
+
+    def test_first_tool_is_hand_and_creator_layout_is_pen(self):
+        from chatdraw import layouts
+        with TemporaryDirectory() as d:
+            app, w = self._window(d)
+            self.assertEqual(w.canvas.tool, "hand")
+            layouts.creator(w)
+            self.assertEqual(w.canvas.tool, "pen")
+            layouts.recommended(w)
+            self.assertEqual(w.canvas.tool, "hand")
+
+    def test_new_image_shows_unless_pinned_and_unpin_shows_latest(self):
+        with TemporaryDirectory() as d:
+            app, w = self._window(d)
+            self._draw(app, w, "1girl")
+            first = w.images[-1]
+            w.show_history_image(first)
+            w.pin_action.setChecked(True)
+            shown = w.canvas.layers[0].image.copy()
+            self._draw(app, w, "1girl, smile")
+            self.assertEqual(w.canvas.layers[0].image, shown)          # 固定の間は入れ替わらない
+            w.pin_action.setChecked(False)                             # 外すと最新の絵が出る
+            self.assertEqual(w.history.currentRow(), 0)
+            self._draw(app, w, "1girl, bikini")
+            self.assertEqual(w.history.currentRow(), 0)                # 新しい絵が選ばれた形になる
+
+    def test_timelapse_records_and_exports(self):
+        from PIL import Image
+        with TemporaryDirectory() as d:
+            app, w = self._window(d)
+            w.recorder.clear()
+            w.tl_action.setChecked(True)
+            self._draw(app, w, "1girl")
+            w.canvas.stroke_done.emit()
+            self.assertGreaterEqual(len(w.recorder.frames), 1)
+            out = Path(d) / "t.gif"
+            self.assertGreaterEqual(w.recorder.export(out), 1)
+            self.assertEqual(Image.open(out).format, "GIF")
+            from chatdraw.timelapse import TimelapseDialog
+            dlg = TimelapseDialog(w.recorder, w)
+            dlg.toggle()
+            self.assertTrue(dlg.timer.isActive())
+            dlg.close()
+
+    def test_sns_is_off_until_chosen(self):
+        from chatdraw import share
+        with TemporaryDirectory() as d:
+            app, w = self._window(d)
+            w.settings.set("sns", "オフ")
+            self.assertFalse(any(share.enabled(w.settings, n) for n in share.SERVICES))
+            w.settings.set("sns", "Bluesky")
+            self.assertTrue(share.enabled(w.settings, "Bluesky"))
+            self.assertIn("bsky.app/intent/compose?text=", share.compose_url("Bluesky", "ビキニの女性"))
+            w.settings.set("sns", "オフ")
