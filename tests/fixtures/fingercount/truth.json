@@ -1,0 +1,13 @@
+{
+  "_note": "手と足の切り出しと、目で数えた指の数（見える指。親指を含む）。bad は崩れ（多い・少ない・くっついている）。occluded は隠れて数が 5 に届かない普通の手",
+  "win7_wave": {"kind": "hand", "visible": 5, "bad": true, "why": "指が細長く、2 本が根元で 1 つにまとまる"},
+  "win7_low": {"kind": "hand", "visible": null, "bad": true, "why": "指がくっついて 3 本に見える"},
+  "bk_hand1": {"kind": "hand", "visible": null, "bad": false, "why": "握った手（指は数えられない）"},
+  "bk_hand2": {"kind": "hand", "visible": 4, "bad": false, "occluded": true, "why": "腰に当てた手。親指が隠れる"},
+  "bk3_hand1": {"kind": "hand", "visible": 4, "bad": false, "occluded": true, "why": "額に当てた手。親指が隠れる"},
+  "bk3_hand2": {"kind": "hand", "visible": 4, "bad": false, "occluded": true, "why": "腰に当てた手。親指が隠れる"},
+  "bk_foot_l": {"kind": "foot", "visible": 6, "bad": true, "why": "足の指が 6 本"},
+  "bk_foot_r": {"kind": "foot", "visible": 5, "bad": false},
+  "bk3_foot_l": {"kind": "foot", "visible": 5, "bad": false},
+  "bk3_foot_r": {"kind": "foot", "visible": 5, "bad": false}
+}
