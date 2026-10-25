@@ -31,6 +31,9 @@ jobs:
         run: |
           nproc; free -g
           mkdir -p out
-          python3 tools/gen/vlmcount.py eval tests/fixtures/fingercount "out/$(basename "$CD_VLM_MODEL").json"
+          n=$(basename "$CD_VLM_MODEL")
+          # 記録はこのブランチから読めないので、失敗の原因も結果と一緒に draw-results に置く
+          set -o pipefail
+          python3 tools/gen/vlmcount.py eval tests/fixtures/fingercount "out/$n.json" 2>&1 | tail -c 20000 | tee "out/$n.log"
       - if: always()
         run: sh .github/scripts/draw-results.sh out
