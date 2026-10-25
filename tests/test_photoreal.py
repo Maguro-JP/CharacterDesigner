@@ -39,6 +39,24 @@ class PhotorealTest(unittest.TestCase):
             assert o[60:100, 55:62].max(2).min() > 150          # 帯が背景の明るさで埋まる
             assert (o[30:100, 30:50] == (230, 190, 170)).all()  # 肌には触らない
 
+    def test_blob_scaled_by_width(self):
+        a = np.full((400, 768, 3), 200, np.float32)
+        a[100:120, 100:120] = 10                      # 400 画素の浮いた塊
+        a[300:302, 300:302] = 10                      # 4 画素の点は外す
+        self.assertEqual(int(photoreal.find_blobs(a).sum()), 400)
+        b = np.full((800, 1536, 3), 200, np.float32)
+        b[200:240, 200:240] = 10                      # 2 倍の幅では 1600 画素で同じ塊
+        b[600:610, 600:610] = 10                      # 100 画素は 768 幅の 25 画素相当で外す
+        self.assertEqual(int(photoreal.find_blobs(b).sum()), 1600)
+
+    def test_hfmix_keeps_low_from_stage2(self):
+        from PIL import Image as I
+        s1 = I.fromarray(np.random.default_rng(0).integers(0, 255, (64, 64, 3), dtype=np.uint8))
+        s2 = I.new("RGB", (96, 96), (120, 120, 120))
+        o = np.asarray(photoreal.hfmix(s1, s2)).astype(float)
+        self.assertLess(abs(o.mean() - 120), 6)
+        self.assertGreater(o.std(), 3)
+
     def test_tiles_cover_edges(self):
         xs = photoreal.tiles(1152, 768, 128)
         assert xs[0] == 0 and xs[-1] == 1152 - 768

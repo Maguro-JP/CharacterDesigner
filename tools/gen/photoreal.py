@@ -4,8 +4,9 @@
 
 重いので Actions で回す（.github/workflows/photoreal.yml、頼みは config/photoreal-request.json）。
 
-経路: 帯を消す → Realistic Vision V6 B1 に ControlNet の tile と lineart を 2 つ掛けて img2img →
-1.5 倍に拡大して tile だけで弱く（strength 0.3）重ねたタイルごとに描き直す。
+経路: 帯と浮いた暗い塊を消す → Realistic Vision V6 B1 に ControlNet の tile と lineart を 2 つ掛けて img2img →
+1.5 倍に拡大して tile だけで弱く（strength 0.25）重ねたタイルごとに描き直す →
+1 段目の高い周波数（σ2.5、量 1.0）を混ぜ戻す。
 
 - 帯: 元の絵に服（部位 7）の暗い大きな塊があると、模型はそれを黒い帯として描き写した。描く前に背景（部位 0）だけから
   拡散で埋める。埋める元に肌を入れると脚の肌色がにじんだ。部位は絵の隣の .parts.png を使い回す（2 度計算しない）
@@ -101,6 +102,75 @@ def clean_band(im, parts, dark: int = 80, grow: int = 6):
     bl = np.stack([ndimage.gaussian_filter(out[..., c], 3) for c in range(3)], -1)
     out[m] = bl[m]                                # 埋めた所の縞を消す
     return Image.fromarray(np.clip(out, 0, 255).astype(np.uint8)), int(m.sum())
+
+
+def find_blobs(a, dark=60, near=6, smin=150, smax=5000, contrast=100, base_width=768):
+    """周りから浮いた暗い塊を、部位の番号に頼らず大きさと明るさの差で見つける。部位分けが手の下の塊を腕に数えて
+    帯消しから外し、描くと黒い飾りになったため。数字は 768 幅で決めたので、面積は幅の 2 乗、距離は幅に比例させる"""
+    import numpy as np
+    from scipy import ndimage
+    f = a.shape[1] / base_width
+    near, r_in, r_out = max(1, round(near * f)), max(1, round(2 * f)), max(2, round(8 * f))
+    smin, smax = smin * f * f, smax * f * f
+    L = a.max(2)
+    d = L < dark
+    grp, n = ndimage.label(ndimage.binary_dilation(d, iterations=near))   # 近い欠片は 1 つの塊に寄せる
+    lab = np.where(d, grp, 0)
+    out = np.zeros(d.shape, bool)
+    for i in range(1, n + 1):
+        m = lab == i
+        sz = int(m.sum())
+        if not (smin <= sz <= smax):
+            continue                                                       # 髪（約 1.6 万画素）や目の点は外れる
+        ring = ndimage.binary_dilation(m, iterations=r_out) & ~ndimage.binary_dilation(m, iterations=r_in) & ~d
+        if ring.sum() and float(np.median(L[ring]) - L[m].mean()) >= contrast:
+            out |= m
+    return out
+
+
+def fill_blobs(im, grow=3):
+    """暗い塊を明るい周り（max>=90）から拡散で埋める。返すのは (絵, 埋めた画素数)"""
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+    a = np.asarray(im).astype(np.float32)
+    m = find_blobs(a)
+    if not m.any():
+        return im, 0
+    m = ndimage.binary_dilation(m, iterations=max(1, round(grow * a.shape[1] / 768)))   # にじんだ縁も一緒に
+    known = ~m & (a.max(2) >= 90)
+    f = np.where(known[..., None], a, 0)
+    w = known.astype(np.float32)
+    k = np.ones((5, 5), np.float32)
+    rem = m.copy()
+    while rem.any():
+        s = np.stack([ndimage.convolve(f[..., c] * w, k, mode="nearest") for c in range(3)], -1)
+        ws = ndimage.convolve(w, k, mode="nearest")
+        new = rem & (ws > 0)
+        if not new.any():
+            break
+        f[new] = s[new] / ws[new][:, None]
+        w[new] = 1
+        rem &= ~new
+    o = a.copy()
+    o[m] = f[m]
+    bl = np.stack([ndimage.gaussian_filter(o[..., c], 2) for c in range(3)], -1)
+    o[m] = bl[m]
+    return Image.fromarray(np.clip(o, 0, 255).astype(np.uint8)), int(m.sum())
+
+
+def hfmix(s1, s2, sigma=2.5, k=1.0):
+    """2 段目の低い周波数に 1 段目（拡大）の高い周波数を戻す。2 段目は肌が滑らかに塗り直された（平らな面 0.0036 → 0.0234）"""
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+
+    def g(x):
+        return np.stack([ndimage.gaussian_filter(x[..., c], sigma) for c in range(3)], -1)
+    a = np.asarray(s1.resize(s2.size, Image.LANCZOS)).astype(np.float32)
+    b = np.asarray(s2).astype(np.float32)
+    o = g(b) + k * (a - g(a)) + (1 - k) * (b - g(b))
+    return Image.fromarray(np.clip(o, 0, 255).astype(np.uint8))
 
 
 def lineart(im):
@@ -204,7 +274,9 @@ def parse(argv):
     ap.add_argument("--tile-scale", type=float, default=0.6)
     ap.add_argument("--lineart-scale", type=float, default=0.8)
     ap.add_argument("--scale", type=float, default=1.5, help="2 段目の拡大率（0 なら 2 段目をしない）")
-    ap.add_argument("--strength2", type=float, default=0.3)
+    ap.add_argument("--strength2", type=float, default=0.25)
+    ap.add_argument("--hf-sigma", type=float, default=2.5, help="1 段目の高い周波数を戻す幅（0 なら戻さない）")
+    ap.add_argument("--hf-amount", type=float, default=1.0)
     ap.add_argument("--tile2-scale", type=float, default=0.8)
     ap.add_argument("--tile", type=int, default=768)
     ap.add_argument("--overlap", type=int, default=128)
@@ -230,10 +302,12 @@ def main(argv=None) -> int:
     t = time.time()
     im, parts = load_source(a.src, a.width, a.height)
     clean, px = clean_band(im, parts)
+    clean, bpx = fill_blobs(clean)
     li = lineart(clean)
     clean.save(a.out / f"{stem}-0-clean.png")
     li.save(a.out / f"{stem}-0-lineart.png")
     log("band_px", px)
+    log("blob_px", bpx)
     log("clean_s", round(time.time() - t, 2))
     if a.dry_run:
         return 0
@@ -244,6 +318,9 @@ def main(argv=None) -> int:
     if a.scale > 0:
         r2 = stage2(pipe, r1, a, log)
         r2.save(a.out / f"{stem}-2-tile-x{a.scale}-s{a.seed}.png")
+        if a.hf_sigma > 0:
+            r3 = hfmix(r1, r2, a.hf_sigma, a.hf_amount)
+            r3.save(a.out / f"{stem}-3-hf-g{a.hf_sigma}-s{a.seed}.png")
     log("total_s", round(time.time() - t, 1))
     return 0
 
