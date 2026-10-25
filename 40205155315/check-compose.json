@@ -1,0 +1,192 @@
+{
+ "1-composition.png": {
+  "readable": true,
+  "bad": [
+   "手 2: thumb 0.69（0.8〜1.12）",
+   "手 2: palm 0.8（0.85〜1.35）",
+   "手 2: indexの手の色 0.67（0.85〜1.01）",
+   "手 2: ringの手の色 0.29（0.85〜1.01）"
+  ],
+  "hands": [
+   {
+    "box": [
+     288,
+     52,
+     450,
+     214
+    ],
+    "angle": 60.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 0.98,
+     "thumb": 0.97,
+     "index": 0.87,
+     "ring": 1.06,
+     "pinky": 0.86,
+     "cover": {
+      "thumb": 1.0,
+      "index": 0.46,
+      "middle": 0.38,
+      "ring": 0.54,
+      "pinky": 0.5
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "曲げた指がある"
+     }
+    },
+    "bad": [],
+    "seen": true
+   },
+   {
+    "box": [
+     375,
+     550,
+     534,
+     708
+    ],
+    "angle": -99.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 0.8,
+     "thumb": 0.69,
+     "index": 0.94,
+     "ring": 0.96,
+     "pinky": 0.82,
+     "cover": {
+      "thumb": 1.0,
+      "index": 0.67,
+      "middle": 0.92,
+      "ring": 0.29,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       3,
+       3,
+       4,
+       3,
+       4
+      ],
+      "reason": "切った線ごとに数が揺れる（4 本と同じ線が 2 本）"
+     }
+    },
+    "bad": [
+     "thumb 0.69（0.8〜1.12）",
+     "palm 0.8（0.85〜1.35）",
+     "indexの手の色 0.67（0.85〜1.01）",
+     "ringの手の色 0.29（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     390,
+     60,
+     507,
+     177
+    ],
+    "angle": -91.0,
+    "measure": {
+     "presence": 0.6,
+     "palm": 0.42,
+     "thumb": 0.68,
+     "index": 0.86,
+     "ring": 0.94,
+     "pinky": 0.76,
+     "cover": {
+      "thumb": 0.96,
+      "index": 0.75,
+      "middle": 0.83,
+      "ring": 1.0,
+      "pinky": 0.71
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       4,
+       4,
+       6,
+       4,
+       3
+      ],
+      "reason": "切った線ごとに数が揺れる（5 本と同じ線が 0 本）"
+     }
+    },
+    "bad": [
+     "読めない: 点がつぶれた（手のひら 0.42）"
+    ],
+    "seen": false
+   }
+  ],
+  "feet": [
+   {
+    "side": "right",
+    "box": [
+     313,
+     1223,
+     402,
+     1266
+    ],
+    "count": null,
+    "evidence": {
+     "F": 34.3,
+     "toe_line": 32.6,
+     "why": "指先の線が見つからない"
+    },
+    "bad": []
+   },
+   {
+    "side": "left",
+    "box": [
+     525,
+     1215,
+     574,
+     1245
+    ],
+    "count": null,
+    "evidence": {
+     "F": 18.9,
+     "toe_line": 35.5,
+     "why": "境の線では 4 本、指先の山では 5 本で、合わない",
+     "lines": 4,
+     "tips": 5,
+     "width": 16.8,
+     "line_at": [
+      41,
+      59,
+      84
+     ],
+     "line_power": [
+      0.48,
+      1.0,
+      0.57
+     ],
+     "tip_at": [
+      51,
+      67,
+      76,
+      88,
+      95
+     ],
+     "span": [
+      36,
+      103
+     ]
+    },
+    "bad": []
+   }
+  ],
+  "faces": [],
+  "face": {
+   "box": null,
+   "readable": false,
+   "bad": [],
+   "tags": {},
+   "eye_dark": null,
+   "reason": "顔が写っていないか、小さすぎます"
+  }
+ }
+}
