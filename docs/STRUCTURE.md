@@ -43,7 +43,7 @@ CharacterDesigner/
 | `casts/` | 描く題材の一覧（作品ごとの登場人物、言葉の札、体の設計図、ポーズ、体型、描き分けのパターン） | 絵 |
 | `characters/` | 箱庭ドットの職業の部品（`parts.json`、`sprite.json`） | イラストの人物（それは `bible/`） |
 | `designs/<作品>/` | 依頼された作品のデザインの決まり（`README.md`）と決定稿の絵 | 道具の知見 |
-| `library/` | 見本の絵（`samples/<題目>/`。題目は people・demi・fashion・handdraw・studio・lineart・imgproc・bible）、作例集（`book/`）、比べた絵の記録（`progress/<日付>/`）、職業の一覧の絵（`sheets/`）、日ごとの作例（`daily/<日付>/`）、フィードバックの成果物（`feedback/<題目>/<日付>/<組>/` に 1 枚ずつと組ごとの README）。目録は `INDEX.md`（`tools/library_check.py` が書く） | 参考にした作品の画像（置かない。出典だけを `docs/references.md` に） |
+| `library/` | 見本の絵（`samples/<題目>/`。題目は people・demi・fashion・handdraw・studio・lineart・imgproc・bible）、作例集（`book/`）、比べた絵の記録（`progress/<日付>/`）、職業の一覧の絵（`sheets/`）、日ごとの作例（`daily/<日付>/`）、指の数え方の評価に使う正解つきの切り出し（`fingercount/`）、フィードバックの成果物（`feedback/<題目>/<日付>/<組>/` に 1 枚ずつと組ごとの README）。目録は `INDEX.md`（`tools/library_check.py` が書く） | 参考にした作品の画像（置かない。出典だけを `docs/references.md` に） |
 | `docs/` 直下 | 使う人向けの案内（README から辿る文書、`ROADMAP.md`、`STRUCTURE.md`、`models.md`、`references.md`、`record-policy.md`、`release-plan.md`、`third-party.md`） | 研究のメモ |
 | `docs/knowledge/` | 分かったこと（描かせ方、検品、解剖、作画の決まり）と、決めたこと（`decisions.md`、1 か所だけ） | 絵 |
 | `docs/knowledge/learning/` | 学習の記録（self-learn） | |

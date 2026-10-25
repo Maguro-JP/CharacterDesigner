@@ -6,7 +6,7 @@
 小さな模型は「指は 5 本」と答えがちなことが知られているので、数のほかに「崩れているか」も別に聞く。
 
 模型は CD_VLM_MODEL（既定 Qwen/Qwen2.5-VL-3B-Instruct）。torch と transformers が無ければ ImportError。
-評価: python3 tools/gen/vlmcount.py eval tests/fixtures/fingercount  （.github/workflows/fingercount-eval.yml）
+評価: python3 tools/gen/vlmcount.py eval library/fingercount  （.github/workflows/fingercount-eval.yml）
 """
 from __future__ import annotations
 
@@ -17,6 +17,10 @@ import sys
 import time
 from collections import Counter
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+# 模型の置き場所と取りに行かない既定を、transformers を読む前に効かせる（評価で初めて取るときは CD_FETCH=1）
+import design  # noqa: E402,F401
 
 MODEL = os.environ.get("CD_VLM_MODEL", "Qwen/Qwen2.5-VL-3B-Instruct")
 SIDE = int(os.environ.get("CD_VLM_SIDE", "448"))   # 切り出しの短い辺をこの大きさまで拡げる

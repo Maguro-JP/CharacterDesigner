@@ -11,7 +11,7 @@ sys.path.insert(0, str(ROOT / "tools" / "gen"))
 sys.path.insert(0, str(ROOT))
 import vlmcount  # noqa: E402
 
-FIX = ROOT / "tests" / "fixtures" / "fingercount"
+FIX = ROOT / "library" / "fingercount"
 
 
 class Parse(unittest.TestCase):

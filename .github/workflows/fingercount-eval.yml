@@ -1,4 +1,4 @@
-# 手と足の指の数を小さな VLM に数えさせる方法を、正解つきの切り出し（tests/fixtures/fingercount）で測る。
+# 手と足の指の数を小さな VLM に数えさせる方法を、正解つきの切り出し（library/fingercount）で測る。
 # 模型は数 GB あり手元の機械に置けないので、公開リポジトリの Actions の枠で動かす。結果は draw-results ブランチの <実行の番号>/ に置く
 name: fingercount-eval
 on:
@@ -6,7 +6,7 @@ on:
     paths:
       - ".github/workflows/fingercount-eval.yml"
       - "tools/gen/vlmcount.py"
-      - "tests/fixtures/fingercount/**"
+      - "library/fingercount/**"
   workflow_dispatch:
 permissions:
   contents: write
@@ -28,12 +28,13 @@ jobs:
       - name: eval
         env:
           CD_VLM_MODEL: ${{ matrix.model }}
+          CD_FETCH: "1"   # 評価の機械には模型が無いので取りに行く
         run: |
           nproc; free -g
           mkdir -p out
           n=$(basename "$CD_VLM_MODEL")
           # 記録はこのブランチから読めないので、失敗の原因も結果と一緒に draw-results に置く
           set -o pipefail
-          python3 tools/gen/vlmcount.py eval tests/fixtures/fingercount "out/$n.json" 2>&1 | tail -c 20000 | tee "out/$n.log"
+          python3 tools/gen/vlmcount.py eval library/fingercount "out/$n.json" 2>&1 | tail -c 20000 | tee "out/$n.log"
       - if: always()
         run: sh .github/scripts/draw-results.sh out
