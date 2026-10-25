@@ -1,0 +1,202 @@
+{
+ "readable": true,
+ "bad": [],
+ "hands": [
+  {
+   "box": [
+    524,
+    101,
+    680,
+    257
+   ],
+   "angle": -8.0,
+   "measure": {
+    "presence": 0.98,
+    "palm": 1.03,
+    "thumb": 1.05,
+    "index": 0.85,
+    "ring": 0.92,
+    "pinky": 0.76,
+    "cover": {
+     "thumb": 1.0,
+     "index": 1.0,
+     "middle": 1.0,
+     "ring": 0.96,
+     "pinky": 1.0
+    },
+    "fingers": {
+     "count": null,
+     "rows": [
+      6,
+      6,
+      5,
+      4,
+      4
+     ],
+     "reason": "切った線ごとに数が揺れる（5 本と同じ線が 1 本）"
+    }
+   },
+   "bad": [],
+   "seen": true
+  },
+  {
+   "box": [
+    536,
+    470,
+    672,
+    606
+   ],
+   "angle": 155.0,
+   "measure": {
+    "presence": 0.01,
+    "palm": 2.07,
+    "thumb": 1.31,
+    "index": 0.88,
+    "ring": 1.02,
+    "pinky": 0.79,
+    "cover": {
+     "thumb": 0.0,
+     "index": 0.75,
+     "middle": 1.0,
+     "ring": 0.75,
+     "pinky": 0.46
+    },
+    "fingers": {
+     "count": null,
+     "rows": [],
+     "reason": "曲げた指がある"
+    }
+   },
+   "bad": [
+    "読めない: 手らしさ 0.01"
+   ],
+   "seen": false
+  },
+  {
+   "box": [
+    186,
+    449,
+    395,
+    657
+   ],
+   "angle": -45.0,
+   "measure": {
+    "presence": 0.08,
+    "palm": 1.06,
+    "thumb": 1.48,
+    "index": 1.11,
+    "ring": 0.75,
+    "pinky": 0.59,
+    "cover": {
+     "thumb": 0.46,
+     "index": 0.46,
+     "middle": 0.62,
+     "ring": 1.0,
+     "pinky": 1.0
+    },
+    "fingers": {
+     "count": null,
+     "rows": [
+      0,
+      1,
+      1,
+      1,
+      2
+     ],
+     "reason": "指が 1 本にしか見えない（重なって隠れている）"
+    }
+   },
+   "bad": [
+    "読めない: 手らしさ 0.08"
+   ],
+   "seen": false
+  },
+  {
+   "box": [
+    560,
+    450,
+    670,
+    559
+   ],
+   "angle": 67.0,
+   "measure": {
+    "presence": 0.02,
+    "palm": 1.07,
+    "thumb": 1.02,
+    "index": 0.81,
+    "ring": 0.88,
+    "pinky": 0.73,
+    "cover": {
+     "thumb": 0.71,
+     "index": 0.75,
+     "middle": 0.75,
+     "ring": 0.62,
+     "pinky": 0.71
+    },
+    "fingers": {
+     "count": null,
+     "rows": [
+      0,
+      3,
+      2,
+      1,
+      1
+     ],
+     "reason": "指が 1 本にしか見えない（重なって隠れている）"
+    }
+   },
+   "bad": [
+    "読めない: 手らしさ 0.02"
+   ],
+   "seen": false
+  },
+  {
+   "box": [
+    575,
+    538,
+    701,
+    664
+   ],
+   "angle": -139.0,
+   "measure": {
+    "presence": 0.02,
+    "palm": 0.94,
+    "thumb": 0.74,
+    "index": 0.96,
+    "ring": 0.96,
+    "pinky": 0.75,
+    "cover": {
+     "thumb": 0.0,
+     "index": 0.79,
+     "middle": 0.96,
+     "ring": 0.92,
+     "pinky": 1.0
+    },
+    "fingers": {
+     "count": null,
+     "rows": [
+      1,
+      1,
+      3,
+      0,
+      0
+     ],
+     "reason": "指が 1 本にしか見えない（重なって隠れている）"
+    }
+   },
+   "bad": [
+    "読めない: 手らしさ 0.02"
+   ],
+   "seen": false
+  }
+ ],
+ "feet": [],
+ "feet_reason": "足の検品の部品がありません（No module named 'feet'）",
+ "faces": [],
+ "face": {
+  "box": null,
+  "readable": false,
+  "bad": [],
+  "reason": "顔の検品の部品がありません（No module named 'facecheck'）"
+ }
+}

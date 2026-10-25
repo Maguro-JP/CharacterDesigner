@@ -1,0 +1,19 @@
+{
+ "text": "白いビキニの女性が海で手を振っている 全身",
+ "prompt": "white bikini, 1girl, solo, adult woman, mature female, beach, ocean, waving, full body",
+ "seed": 3007,
+ "style": "",
+ "model": "cagliostrolab/animagine-xl-4.0",
+ "hand_rounds": [
+  {
+   "round": 0,
+   "bad": []
+  }
+ ],
+ "redraws": [
+  {
+   "seed": 3007,
+   "bad": []
+  }
+ ]
+}
