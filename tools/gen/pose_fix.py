@@ -168,10 +168,13 @@ def paint_basket(im, cx, cy, w, hook):
     d = ImageDraw.Draw(im)
     h = int(w * 0.62)
     x0, y0, x1, y1 = cx - w // 2, cy - h // 2, cx + w // 2, cy + h // 2
-    # 持ち手: 胴の左上 → 前腕の上 → 胴の右上
-    pts = [(x0 + 6, y0 + 4), hook, (x1 - 6, y0 + 4)]
-    d.line(pts, fill=(120, 80, 40), width=6, joint="curve")
-    d.line(pts, fill=(165, 115, 60), width=3, joint="curve")
+    # 持ち手: 胴の上の縁から前腕まで上がる弧。掛けた点（hook）を弧の頂点にし、前腕を包む小さな輪を足す。
+    # 胴の中心は掛けた点の真下に置く（横にずらすと、籠が前腕から浮いて見えた）
+    hx, hy = hook
+    top = y0 + 4
+    d.arc([x0 + 6, hy, x1 - 6, 2 * top - hy], 180, 360, fill=(120, 80, 40), width=6)
+    d.arc([x0 + 7, hy + 1, x1 - 7, 2 * top - hy - 1], 180, 360, fill=(165, 115, 60), width=3)
+    d.arc([hx - 9, hy - 9, hx + 9, hy + 9], 200, 340, fill=(120, 80, 40), width=4)
     # 糸玉（クリーム、からし、クリーム）
     r = max(6, w // 8)
     for k, col in enumerate([(242, 228, 192), (214, 168, 58), (236, 218, 175)]):
@@ -195,7 +198,8 @@ def step_basket(c, src: Path, out: Path) -> Path:
     if _done(dst):
         return dst
     im = Image.open(src).convert("RGB")
-    paint_basket(im, b["center"][0], b["center"][1], b["width"], tuple(b["hook"]))
+    # 籠の重心は掛けた点の真下（横の位置は hook にそろえる）
+    paint_basket(im, b["hook"][0], b["center"][1], b["width"], tuple(b["hook"]))
     paint = out / "5-basket-paint.png"
     im.save(paint)
     tmp = str(dst) + ".tmp.png"
@@ -205,6 +209,22 @@ def step_basket(c, src: Path, out: Path) -> Path:
                   extra_negative="two baskets, large basket, knitting needles, blurry")
     Path(tmp).rename(dst)
     return dst
+
+
+def mirror_eye(im, good_center, bad_center, rx: int = 10, ry: int = 12, feather: float = 1.5):
+    """崩れた側の瞳を、通っている側の瞳を左右反転して置き換える（色とハイライトの形を両目でそろえる）。
+    瞳の楕円だけを混ぜ、まつ毛や白目は元のまま残す。左右の瞳の色やハイライトが違う崩れは、描き直しでは直らなかった"""
+    from PIL import Image, ImageDraw, ImageFilter, ImageOps
+    gx, gy = good_center
+    bx, by = bad_center
+    w, h = rx * 2 + 4, ry * 2 + 4
+    patch = ImageOps.mirror(im.crop((gx - w // 2, gy - h // 2, gx - w // 2 + w, gy - h // 2 + h)))
+    m = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(m).ellipse((w // 2 - rx, h // 2 - ry, w // 2 + rx, h // 2 + ry), fill=255)
+    m = m.filter(ImageFilter.GaussianBlur(feather))
+    out = im.copy()
+    out.paste(patch, (bx - w // 2, by - h // 2), m)
+    return out
 
 
 def run(cfg: str) -> Path:
