@@ -796,6 +796,8 @@ class Window(QMainWindow):
         bar.setIconSize(QSize(22, 22))
         self.addToolBar(Qt.RightToolBarArea, bar)
         self.panel_bar = bar
+        from chatdraw.popup import ProgressPopup
+        self.progress_popup = ProgressPopup(self)   # 進みは右下のポップアップに出す（上の欄は「ウィンドウ」から出せる）
         win = self.menuBar().addMenu("ウィンドウ")
         keys = {"brushes": "F3", "color": "F5", "chat": "F6", "history": "F7", "layers": "F8", "view": "F9", "talk": "F10",
                 "progress": "F11", "library": "F12"}
@@ -1129,7 +1131,6 @@ class Window(QMainWindow):
         self.button.setEnabled(False)
         self.stop_button.setEnabled(True)
         self.feature_tour("draw")
-        self.panels["progress"][0].show()   # 描いている間は、工程と進みが見えるように進みの欄を出す
         self.activity.begin(text, self.mode.currentText())
         self.activity.status("AI が使えるかを確かめました")
         m = re.search(r"([124１２４一二四])\s*枚", text)
@@ -1332,7 +1333,6 @@ class Window(QMainWindow):
         self.say(label, "あなた")
         self.button.setEnabled(False)
         self.stop_button.setEnabled(True)
-        self.panels["progress"][0].show()
         self.activity.begin(label, kind)
         self.batch, self.batch_items, self.job_kind = [], [], kind
         self.thread = QThread()
@@ -1367,7 +1367,6 @@ class Window(QMainWindow):
         layers = [(l.name, l.visible, l.opacity, qimage_to_pil_rgba(l.image)) for l in self.canvas.layers]
         current = self.canvas.current
         self.feature_tour("upscale")
-        self.panels["progress"][0].show()
         self.activity.begin("絵を 2 倍に拡大", "拡大")
         self.activity.status("描いています" + ("" if upscale.ready() else "（初めに拡大の部品 18MB を取ります）"))
 
@@ -1901,8 +1900,8 @@ class Window(QMainWindow):
             Step(lambda: None, "CharacterDesigner へようこそ", "AI に頼んで描かせ、自分でも描き足せます。主な所を順に案内します。"),
             Step(lambda: p["talk"][0], "チャット", "描きたい絵を書いて「描く」を押します。\nAI とのやり取りはここに残ります。", show("talk")),
             Step(lambda: p["chat"][0], "AI の設定", "「新規」か「ラフから」、絵の大きさ、ラフに沿う強さ、絵の模型を選びます。", show("chat")),
-            Step(lambda: p["progress"][0], "進み", "AI が描いている間は、工程と残り時間と今している事を見せます。\n描き終わっても消えません。タイトルとデスクトップの通知にも出します。",
-                 show("progress")),
+            Step(lambda: self.progress_popup, "進み", "AI が描いている間は、右下に工程と進みが出ます。\n描き終わっても × で閉じるまで消えません。タイトルとデスクトップの通知にも出します。",
+                 lambda: self.progress_popup.pop()),
             Step(lambda: self.canvas, "キャンバス", "描いている途中の絵がここに出ます。\nホイールで拡大、Space を押しながらドラッグで動かせます。"),
             Step(lambda: p["view"][0], "表示", "全体の縮小図と参考画像です。縮小図を押すと、その場所を表示します。", show("view")),
             Step(lambda: p["history"][0], "履歴", "描いた絵と、キャンバスの操作の履歴です。\n操作を選ぶと、その時点まで戻れます。", show("history")),
@@ -2134,7 +2133,6 @@ class Window(QMainWindow):
             return
         if self.thread:
             return
-        self.panels["progress"][0].show()
         self.activity.begin(f"版 {info['version']} を取る", "更新")
         self._run_task(lambda on_step: str(updater.download(info["setup"], lambda got, total: on_step(got >> 20, total >> 20))),
                        self._update_ready)
@@ -2194,6 +2192,11 @@ class Window(QMainWindow):
         ok = self.canvas.flatten().save(dst)
         self.notify("保存しました" if ok else "保存できませんでした", "ok" if ok else "error", Path(dst).name)
         return bool(ok)
+
+    def resizeEvent(self, e):
+        super().resizeEvent(e)
+        if hasattr(self, "progress_popup"):
+            self.progress_popup.place()
 
     def hide_progress_if_idle(self, ms: int = 4000):
         """進みの欄は自分では隠さない。描き終わると消えて、結果も今の状態も分からなかった。閉じるのは利用者だけ"""
