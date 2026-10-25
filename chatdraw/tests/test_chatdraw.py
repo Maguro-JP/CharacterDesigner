@@ -1518,10 +1518,14 @@ class UsableTest(unittest.TestCase):
 
     def test_mode_buttons_follow_family(self):
         """世代で使えない機能のボタンを止める（ここで落ちて「描く」が動かなくなったことがある）"""
-        self.w.studio.painter.model = "black-forest-labs/FLUX.2-klein-4B"
+        self.w.studio.painter.model = "Tongyi-MAI/Z-Image-Turbo"
         self.w.check_ai()
         btns = self.w.ai_panel.mode_buttons[1]
         self.assertFalse(btns[1].isEnabled())
+        self.assertFalse(btns[2].isEnabled())
+        self.w.studio.painter.model = "black-forest-labs/FLUX.2-klein-4B"   # FLUX.2 klein はラフから描ける（絵を渡す）が、範囲の直しは無い
+        self.w.check_ai()
+        self.assertTrue(btns[1].isEnabled())
         self.assertFalse(btns[2].isEnabled())
         self.w.studio.painter.model = "cagliostrolab/animagine-xl-4.0"
         self.w.check_ai()
@@ -2095,3 +2099,24 @@ class ConveyTest(unittest.TestCase):
         self.assertIn("waving", w.to_prompt("女性が海で手を振っている"))        # 「振る」の形が変わっても拾う
         self.assertEqual(leftover("白いビキニの女性が海で手を振っている 全身"), [])
         self.assertEqual(leftover("ドラゴンに乗った騎士"), ["ドラゴン", "乗"])   # 拾えなかった言葉は利用者に見せる
+
+
+class EditFamilyTest(unittest.TestCase):
+    """FLUX.2 klein は、ラフと参考画像を頼みと一緒に絵として渡す（別の部品を取らない）"""
+
+    def test_flux2_passes_images(self):
+        from unittest import mock
+        from PIL import Image
+        from chatdraw.engine import Painter
+        p = Painter("black-forest-labs/FLUX.2-klein-4B", steps=2)
+        self.assertTrue(p.sketch_ready() and p.reference_ready())
+        seen = {}
+
+        class Pipe:
+            def __call__(self, **kw):
+                seen.update(kw)
+                return type("R", (), {"images": [Image.new("RGB", (16, 16))]})()
+        with mock.patch.object(p, "load", return_value=Pipe()):
+            p.paint("a woman", 1, base=Image.new("RGB", (32, 32)), reference=Image.new("RGB", (32, 32)), size=(64, 64))
+        self.assertEqual(len(seen["image"]), 2)                    # ラフと参考画像の 2 枚
+        self.assertIn("rough sketch", seen["prompt"])

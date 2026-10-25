@@ -4,6 +4,7 @@
 tools/gen/hands.py の measure で、指の長さの釣り合い・指の上の手の色・指の数（手の色の筋で数える）を測る。
 測り方は tools/gen/hands.py の 1 か所だけに置き、ここはアプリと 2 段で描く流れから呼ぶ入口にする。
 模型か部品（ai-edge-litert）が無いときは「読めない」を返し、絵は止めない（検品が無いことを隠さず出す）。
+足の指は tools/gen/feet.py で数え、feet に足ごとの枠と数を入れる。手の模型は足の指を手の指と読むので、足は手とは別の道で数える。
 """
 from __future__ import annotations
 
@@ -78,16 +79,40 @@ def find_hands(hands, im) -> list[str]:
     return keep_hands(im, found)
 
 
+_KP: dict = {}
+
+
+def _keypoints(im) -> dict:
+    """体の点を 1 枚につき 1 回だけ読む（手の振り分けと顔の検品で同じ点を使う。VitPose の読み込みは数秒かかる）"""
+    key = (id(im), im.size)
+    if key not in _KP:
+        try:
+            from chatdraw.twostage import keypoints
+            _KP.clear()
+            _KP[key] = keypoints(im)
+        except Exception:
+            return {}
+    return _KP[key]
+
+
+def _face(im, asked: str) -> dict:
+    """顔の検品（tools/gen/facecheck.py）。部品が無ければ読めないことを返し、手の検品は止めない"""
+    gen = ROOT / "tools" / "gen"
+    if str(gen) not in sys.path:
+        sys.path.insert(0, str(gen))
+    try:
+        import facecheck
+        return facecheck.check_face(im, keypoints=_keypoints(im), asked=asked)
+    except Exception as e:
+        return {"box": None, "readable": False, "bad": [], "reason": f"顔の検品の部品がありません（{e}）"}
+
+
 def keep_hands(im, found) -> list[str]:
     """見つけた手のひらから、足を外す。手のひらの模型は足の指を手の指と読み、手らしさ 0.9 以上で通した（ビキニの絵の両足）。
     体の点（VitPose）の手首が読めれば、手首の近く（肘から手首の長さの 1.2 倍以内）の物だけを手とする。
     読めなければ、足首の高さより下（読めなければ絵の下 15%）の物を外す"""
     w, h = im.size
-    try:
-        from chatdraw.twostage import keypoints
-        kp = keypoints(im)
-    except Exception:
-        kp = {}
+    kp = _keypoints(im)
     wrists = [(kp[f"{s}_wrist"], kp.get(f"{s}_elbow")) for s in ("left", "right") if f"{s}_wrist" in kp]
     if wrists:
         out = []
@@ -103,11 +128,46 @@ def keep_hands(im, found) -> list[str]:
     return [b for cx, cy, b in found if cy < floor]
 
 
-def check(image, fetch: bool = True) -> dict:
-    """絵（PIL か道）の手を全部測る。bad に崩れの説明を並べる。readable が False なら手を読めなかった"""
+def ensure_feet_model(fetch: bool = True) -> bool:
+    """足の点を読む模型（DWPose、約 134MB）が置き場にあるか。無ければ取る"""
+    _hands()   # CD_HOME と tools/gen の道を整える
+    import feet
+    if feet.MODEL.exists():
+        return True
+    if not fetch:
+        return False
+    import urllib.request
+    feet.MODEL.parent.mkdir(parents=True, exist_ok=True)
+    tmp = feet.MODEL.with_suffix(".part")
+    urllib.request.urlretrieve(feet.URL, tmp)
+    tmp.replace(feet.MODEL)
+    return True
+
+
+def check_feet(im, fetch: bool = True) -> tuple[list[dict], list[str], str]:
+    """足の指を数える。返す: 足ごとの結果、bad に足す説明、読めなかった訳（読めたら空）"""
+    try:
+        ensure_feet_model(fetch)
+        import feet
+        found = feet.public(feet.count_toes(im))
+    except Exception as e:   # 模型か部品が無い。手の検品は続ける
+        return [], [], f"足の検品の部品がありません（{e}）"
+    bad = []
+    for i, f in enumerate(found, 1):
+        n = f["count"]
+        f["bad"] = []
+        if n is not None and n != 5:
+            f["bad"] = [f"指が{'多い' if n > 5 else '足りない'}（{n} 本。5 本のはず）"]   # 直す所の一覧（bad_regions）に入れる
+            bad.append(f"足 {i}: " + f["bad"][0])
+    return found, bad, ""
+
+
+def check(image, fetch: bool = True, asked: str = "") -> dict:
+    """絵（PIL か道）の手を全部測る。bad に崩れの説明を並べる。readable が False なら手を読めなかった。
+    顔の検品も通し、顔の崩れは bad の後ろに足し、顔の枠を faces に返す（asked は頼んだタグ。閉じた目を頼んだかを見る）"""
     from PIL import Image
     if os.environ.get("CD_CHECK") == "off":   # 試験で、模型を取りに行かないようにする
-        return {"readable": False, "bad": [], "hands": [], "reason": "検品を止めています（CD_CHECK=off）"}
+        return {"readable": False, "bad": [], "hands": [], "feet": [], "reason": "検品を止めています（CD_CHECK=off）"}
     im = Image.open(image).convert("RGB") if isinstance(image, (str, Path)) else image.convert("RGB")
     try:
         hands = _hands()
@@ -115,7 +175,11 @@ def check(image, fetch: bool = True) -> dict:
         ensure_models(fetch)
         boxes = find_hands(hands, im)
     except Exception as e:   # 部品か模型が無い。描いた絵は止めず、検品が無いことを返す
-        return {"readable": False, "bad": [], "hands": [], "reason": f"検品の部品がありません（{e}）"}
+        res = {"readable": False, "bad": [], "hands": [], "reason": f"検品の部品がありません（{e}）"}
+        res["feet"], res["bad"], why = check_feet(im, fetch)
+        if why:
+            res["feet_reason"] = why
+        return _add_face(res, im, asked)
     out = {"readable": False, "bad": [], "hands": []}
     for i, b in enumerate(boxes, 1):
         box, ang = b.split(":")
@@ -128,15 +192,59 @@ def check(image, fetch: bool = True) -> dict:
         out["readable"] = out["readable"] or seen
         if seen:
             out["bad"] += [f"手 {i}: {x}" for x in bad]
+    out["feet"], bad, why = check_feet(im, fetch)
+    out["bad"] += bad
+    if why:
+        out["feet_reason"] = why
+    return _add_face(out, im, asked)
+
+
+def _add_face(out: dict, im, asked: str) -> dict:
+    f = _face(im, asked)
+    # 直す所の一覧（bad_regions）が手や足と同じ形で読めるよう、枠と崩れを並べる
+    out["faces"] = [{"box": f["box"], "bad": f.get("bad", []), "seen": bool(f.get("readable"))}] if f.get("box") else []
+    out["face"] = f
+    out["bad"] += f.get("bad", [])
     return out
+
+
+def _feet_line(res: dict) -> str:
+    """足の指の数の 1 句（数えた足が無ければ空）"""
+    feet = res.get("feet") or []
+    if not feet:
+        return ""
+    return "足の指 " + "・".join(f"{f['count']} 本" if f["count"] is not None else "読めない" for f in feet)
 
 
 def summary(res: dict) -> str:
     """会話に出す 1 行"""
+    face = [b for b in res.get("bad", []) if b.startswith("顔")]
+    if face and (res.get("reason") or not res["readable"]):   # 手を読めなくても、顔の崩れは隠さない
+        return "検品: 崩れ " + str(len(face)) + " 件。" + "、".join(face)
+    foot = _feet_line(res)
+    tail = f"。{foot}" if foot else ""
+    feet_bad = [b for b in res["bad"] if b.startswith("足 ")]
     if res.get("reason"):
-        return f"検品: {res['reason']}"
+        return f"検品: {res['reason']}" + (("。崩れ " + "、".join(feet_bad)) if feet_bad else tail)
     if not res["readable"]:
-        return "検品: 手を読めませんでした（手が写っていないか、隠れています）。目で確かめてください"
+        head = "検品: 手を読めませんでした（手が写っていないか、隠れています）。目で確かめてください"
+        return head + (("。崩れ " + "、".join(feet_bad)) if feet_bad else tail)
     if res["bad"]:
         return "検品: 崩れ " + str(len(res["bad"])) + " 件。" + "、".join(res["bad"])
-    return f"検品: 手 {sum(h['seen'] for h in res['hands'])} つで、指の数と形に崩れは見つかりませんでした"
+    return f"検品: 手 {sum(h['seen'] for h in res['hands'])} つで、指の数と形に崩れは見つかりませんでした" + tail
+
+
+# 直す所の種類ごとに、描き直しの頼みに足す言葉
+FIX_WORDS = {"hand": "detailed hand, five fingers, correct hand anatomy",
+             "foot": "detailed feet, five toes, correct foot anatomy",
+             "face": "detailed face, beautiful detailed eyes, clear eyes"}
+
+
+def bad_regions(res: dict) -> list[tuple[list[int], str]]:
+    """検品で崩れの見つかった所の枠と種類（hand / foot / face）。AI が自分で直す所の一覧にする"""
+    out = []
+    for key, kind in (("hands", "hand"), ("feet", "foot"), ("faces", "face")):
+        for h in res.get(key, []):
+            if h.get("seen", True) and h.get("bad"):
+                out.append((list(h["box"]), kind))
+    return out

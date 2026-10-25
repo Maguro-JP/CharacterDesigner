@@ -133,49 +133,132 @@ def measure(img):
             if not lo <= v <= hi:
                 bad.append(f"{name}{'の手の色' if k == 'cover' else ''} {v}（{lo}〜{hi}）")
     # 指の数。模型の点はいつも 5 本に置くので、点の数では数えられない（6 本指の絵でも 5 本と読む）。
-    # 手の色の上で、指の付け根の線より先を横に切り、手の色の切れ目で分かれた筋の数を数える
+    # 指の付け根から先を横に切り、付け根から先まで続く手の色の筋を数える（count_fingers）。数えられなければ何も言わない
     n = m["fingers"]
     if n["count"] is not None and n["count"] > 4:
         bad.append(f"指が多い（親指の外に {n['count']} 本。4 本のはず）")
-    elif n["count"] is not None and n["count"] < 4 and not bent:
+    # 足りないと言うのは、指どうしが指 1 本の幅より離れていて、重なって隠れた指が無いと言えるときだけ。
+    # 横から見た手や重ねた手は指が隠れるので、3 本に見えても崩れとは限らない（腰に当てた手、重ねた両手）
+    elif n["count"] is not None and n["count"] < 4 and not bent and n.get("apart", 0) >= 1.0:
         bad.append(f"指が足りない（親指の外に {n['count']} 本。4 本のはず）")
     return m, bad, _overlay(sq, lm)
 
 
-def count_fingers(a, lm, palm_col, tol: float = 90.0) -> dict:
-    """親指の外の指の本数を、手の色の筋の数で数える。
-    手を指先が上の向きに回してあるので、人差し指〜小指の付け根（5、9、13、17）の線から指先までの間を横に切る。
-    切った線の上で、手の色の続く所（4 画素以上）を 1 本と数え、高さを変えた 9 本の線で最も多く出た数を本数とする。
-    指を閉じて隙間が無い手は 1〜2 本に見えるので、隙間の線が 1 本も無いときは数えない（count は None）"""
+FAN = (5, 9, 13, 17)        # 人差し指〜小指の付け根
+CUTS = (0.3, 0.4, 0.5, 0.6, 0.7)   # 付け根から指先までのどこで切るか（割合）
+
+
+def _sample(a, xy):
+    """xy（x, y の並び）の上の色を、隣の 4 画素から重みを付けて取る"""
     h, w = a.shape[:2]
-    base_y = float(np.mean([lm[k][1] for k in (5, 9, 13, 17)]))
-    tip_y = float(np.mean([lm[k][1] for k in (8, 12, 16, 20)]))
+    x = np.clip(xy[:, 0], 0, w - 1.001)
+    y = np.clip(xy[:, 1], 0, h - 1.001)
+    x0, y0 = x.astype(int), y.astype(int)
+    fx, fy = (x - x0)[:, None], (y - y0)[:, None]
+    return (a[y0, x0] * (1 - fx) * (1 - fy) + a[y0, x0 + 1] * fx * (1 - fy)
+            + a[y0 + 1, x0] * (1 - fx) * fy + a[y0 + 1, x0 + 1] * fx * fy)
+
+
+def _strips(a, lm, t, palm_col, tol, ext=1.0, depth=0.07):
+    """指の扇を横に切る 1 本の線の上で、両側を区切られた手の色の筋（中心と幅）を返す。
+    線は 4 本の指の点（付け根から指先へ t の所）を結び、両端の指から指 1 本分だけ外へ延ばす。
+    筋を区切るのは、手の色でない所と、両側より暗い谷（アニメの絵の指の間の線）。
+    線の端に触れた筋は数えない。指の外に重なった体の肌や同じ色の髪は、輪郭の線の外で端まで続くので、
+    ここで落ちる（前の数え方は、手の色の続く所を全部数え、4 本指の手を 5〜6 本と数えた）"""
+    pts = np.array([lm[k] + (lm[k + 3] - lm[k]) * t for k in FAN])
+    s = float(np.median(np.linalg.norm(np.diff(pts, axis=0), axis=1))) or 1.0
+    u0 = (pts[0] - pts[1]) / (np.linalg.norm(pts[0] - pts[1]) or 1.0)
+    u1 = (pts[3] - pts[2]) / (np.linalg.norm(pts[3] - pts[2]) or 1.0)
+    poly = np.vstack([pts[0] + u0 * s * ext, pts, pts[3] + u1 * s * ext])
+    L = np.concatenate([[0.0], np.cumsum(np.linalg.norm(np.diff(poly, axis=0), axis=1))])
+    q = np.arange(0.0, L[-1], 1.0)
+    xy = np.stack([np.interp(q, L, poly[:, 0]), np.interp(q, L, poly[:, 1])], 1)
+    col = _sample(a, xy)
+    lp = float(np.mean(palm_col)) or 1.0
+    lum = np.convolve(np.pad(col.mean(1), 2, mode="edge"), [0.06, 0.24, 0.4, 0.24, 0.06], "valid")
+    n = len(lum)
+    cut = np.abs(col - palm_col).sum(1) >= tol
+    w = max(3, int(s * 0.3))
+    for i in range(1, n - 1):
+        if lum[i] <= lum[i - 1] and lum[i] <= lum[i + 1]:
+            if min(lum[max(0, i - w):i].max(), lum[i + 1:i + 1 + w].max()) - lum[i] > depth * lp:
+                cut[i] = True
+    out, i = [], 0
+    while i < n:
+        if cut[i]:
+            i += 1
+            continue
+        j = i
+        while j < n and not cut[j]:
+            j += 1
+        if i > 0 and j < n and j - i >= 0.2 * s:
+            out.append((xy[(i + j) // 2], float(j - i)))
+        i = j
+    return out
+
+
+def straightness(lm) -> list[float]:
+    """人差し指〜小指の、付け根から指先までの直線と関節をたどった長さの比（1 が伸びた指）"""
+    return [float(np.linalg.norm(lm[k + 3] - lm[k]) / (length(lm, [k, k + 1, k + 2, k + 3]) or 1.0)) for k in FAN]
+
+
+def count_fingers(a, lm, palm_col, tol: float = 120.0) -> dict:
+    """親指の外の指の本数を数える。数えられないときは count を None にする（自信の無い数で手を落とさない）。
+
+    指の付け根から指先までを 5 か所で横に切り、切った線ごとに、手の色の筋を取る（_strips）。
+    筋を切った線から切った線へ、横の位置が筋の幅の半分より動かないものをつなぎ、3 本以上の線に続いた物を 1 本の指とする。
+    指は付け根から先まで続くが、指の間の隙間や影の切れ端は 1〜2 本の線にしか出ない。
+    次のときは数えない。
+      - 指が 1 本でも曲がっている（握った手。曲げた指は横に切っても筋にならず、握り拳を 3 本と数えた）
+      - 指が 2 本以下に見える（横から見た手や閉じた指。重なって隠れた指は数えられない）
+      - 指として数えた本数と同じ数の筋が出た線が 4 本に満たない（線ごとに数が揺れる）
+      - 指の幅の 2 倍より広い筋がある（体の肌や閉じた指の塊が指の扇の中に入っている）"""
+    a = np.asarray(a, float)
+    palm_col = np.asarray(palm_col, float)
+    out = {"count": None, "rows": [], "reason": ""}
+    tip_y = float(np.mean([lm[k + 3][1] for k in FAN]))
+    base_y = float(np.mean([lm[k][1] for k in FAN]))
     if tip_y >= base_y - 8:
-        return {"count": None, "rows": []}   # 指先が付け根より上に無い（握った手、下向き）
-    x0 = int(max(0, min(lm[k][0] for k in (5, 6, 7, 8, 17, 18, 19, 20)) - 0.15 * (base_y - tip_y)))
-    x1 = int(min(w - 1, max(lm[k][0] for k in (5, 6, 7, 8, 17, 18, 19, 20)) + 0.15 * (base_y - tip_y)))
-    skin = np.abs(a - palm_col).sum(axis=2) < tol
-    counts = []
-    for t in np.linspace(0.25, 0.75, 9):
-        y = int(base_y + (tip_y - base_y) * t)
-        row = skin[y, x0:x1 + 1]
-        runs, run = 0, 0
-        for v in row:
-            if v:
-                run += 1
+        out["reason"] = "指先が付け根より上に無い"
+        return out
+    if min(straightness(lm)) < 0.8:
+        out["reason"] = "曲げた指がある"
+        return out
+    axis = np.mean([lm[k + 3] - lm[k] for k in FAN], axis=0)
+    axis = axis / (np.linalg.norm(axis) or 1.0)
+    perp = np.array([-axis[1], axis[0]])
+    rows = [[(float(c @ perp), w) for c, w in _strips(a, lm, t, palm_col, tol)] for t in CUTS]
+    out["rows"] = [len(r) for r in rows]
+    chains: list[dict] = []
+    for r, strips in enumerate(rows):
+        for c, w in strips:
+            near = [ch for ch in chains if ch["last"] == r - 1 and abs(ch["c"] - c) < 0.5 * max(w, ch["w"][-1])]
+            if near:
+                ch = min(near, key=lambda ch: abs(ch["c"] - c))
+                ch.update(c=c, last=r)
+                ch["w"].append(w)
             else:
-                runs += run >= 4
-                run = 0
-        runs += run >= 4
-        counts.append(int(runs))
-    seen = [c for c in counts if c >= 2]
-    if not seen:
-        return {"count": None, "rows": counts}
-    # 2 本以上の線で出た数のうち一番多い本数を取る。指の先の方は隣の指と重なって 1 本少なく見えるので、
-    # 一番よく出た数では、6 本指の手（線ごとに 4、4、5、4、5…）を 5 本と数えて通した
-    vals, freq = np.unique(seen, return_counts=True)
-    twice = [int(v) for v, f in zip(vals, freq) if f >= 2]
-    return {"count": max(twice) if twice else int(vals[np.argmax(freq)]), "rows": counts}
+                chains.append({"c": c, "w": [w], "last": r})
+    fingers = [ch for ch in chains if len(ch["w"]) >= 3]
+    n = len(fingers)
+    if n <= 2:
+        out["reason"] = f"指が {n} 本にしか見えない（重なって隠れている）"
+        return out
+    width = float(np.median([np.mean(ch["w"]) for ch in fingers]))
+    agree = sum(len(r) == n for r in rows)
+    # 5 本の線のうち 4 本で同じ数が出たときだけ数える。3 本で通すと、崩れて読めない手（腕が絡んだ絵）を 3 本、5 本と言い切った
+    if agree < 4:
+        out["reason"] = f"切った線ごとに数が揺れる（{n} 本と同じ線が {agree} 本）"
+        return out
+    if any(w > 2.0 * width for r in rows for _, w in r):
+        out["reason"] = "指の扇に、指の 2 倍より広い手の色がある"
+        return out
+    out["count"] = n
+    out["width"] = round(width, 1)
+    # 指の点どうしの一番狭い間（真ん中で切った所）。指 1 本の幅より広く離れていれば、指どうしは重なっていない
+    mid = np.array([lm[k] + (lm[k + 3] - lm[k]) * 0.5 for k in FAN])
+    out["apart"] = round(float(np.linalg.norm(np.diff(mid, axis=0), axis=1).min()) / (width or 1.0), 2)
+    return out
 
 
 def _overlay(sq, lm):
