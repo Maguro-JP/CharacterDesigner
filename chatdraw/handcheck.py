@@ -78,16 +78,40 @@ def find_hands(hands, im) -> list[str]:
     return keep_hands(im, found)
 
 
+_KP: dict = {}
+
+
+def _keypoints(im) -> dict:
+    """体の点を 1 枚につき 1 回だけ読む（手の振り分けと顔の検品で同じ点を使う。VitPose の読み込みは数秒かかる）"""
+    key = (id(im), im.size)
+    if key not in _KP:
+        try:
+            from chatdraw.twostage import keypoints
+            _KP.clear()
+            _KP[key] = keypoints(im)
+        except Exception:
+            return {}
+    return _KP[key]
+
+
+def _face(im, asked: str) -> dict:
+    """顔の検品（tools/gen/facecheck.py）。部品が無ければ読めないことを返し、手の検品は止めない"""
+    gen = ROOT / "tools" / "gen"
+    if str(gen) not in sys.path:
+        sys.path.insert(0, str(gen))
+    try:
+        import facecheck
+        return facecheck.check_face(im, keypoints=_keypoints(im), asked=asked)
+    except Exception as e:
+        return {"box": None, "readable": False, "bad": [], "reason": f"顔の検品の部品がありません（{e}）"}
+
+
 def keep_hands(im, found) -> list[str]:
     """見つけた手のひらから、足を外す。手のひらの模型は足の指を手の指と読み、手らしさ 0.9 以上で通した（ビキニの絵の両足）。
     体の点（VitPose）の手首が読めれば、手首の近く（肘から手首の長さの 1.2 倍以内）の物だけを手とする。
     読めなければ、足首の高さより下（読めなければ絵の下 15%）の物を外す"""
     w, h = im.size
-    try:
-        from chatdraw.twostage import keypoints
-        kp = keypoints(im)
-    except Exception:
-        kp = {}
+    kp = _keypoints(im)
     wrists = [(kp[f"{s}_wrist"], kp.get(f"{s}_elbow")) for s in ("left", "right") if f"{s}_wrist" in kp]
     if wrists:
         out = []
@@ -103,8 +127,9 @@ def keep_hands(im, found) -> list[str]:
     return [b for cx, cy, b in found if cy < floor]
 
 
-def check(image, fetch: bool = True) -> dict:
-    """絵（PIL か道）の手を全部測る。bad に崩れの説明を並べる。readable が False なら手を読めなかった"""
+def check(image, fetch: bool = True, asked: str = "") -> dict:
+    """絵（PIL か道）の手を全部測る。bad に崩れの説明を並べる。readable が False なら手を読めなかった。
+    顔の検品も通し、顔の崩れは bad の後ろに足し、顔の枠を faces に返す（asked は頼んだタグ。閉じた目を頼んだかを見る）"""
     from PIL import Image
     if os.environ.get("CD_CHECK") == "off":   # 試験で、模型を取りに行かないようにする
         return {"readable": False, "bad": [], "hands": [], "reason": "検品を止めています（CD_CHECK=off）"}
@@ -115,7 +140,8 @@ def check(image, fetch: bool = True) -> dict:
         ensure_models(fetch)
         boxes = find_hands(hands, im)
     except Exception as e:   # 部品か模型が無い。描いた絵は止めず、検品が無いことを返す
-        return {"readable": False, "bad": [], "hands": [], "reason": f"検品の部品がありません（{e}）"}
+        res = {"readable": False, "bad": [], "hands": [], "reason": f"検品の部品がありません（{e}）"}
+        return _add_face(res, im, asked)
     out = {"readable": False, "bad": [], "hands": []}
     for i, b in enumerate(boxes, 1):
         box, ang = b.split(":")
@@ -128,11 +154,22 @@ def check(image, fetch: bool = True) -> dict:
         out["readable"] = out["readable"] or seen
         if seen:
             out["bad"] += [f"手 {i}: {x}" for x in bad]
+    return _add_face(out, im, asked)
+
+
+def _add_face(out: dict, im, asked: str) -> dict:
+    f = _face(im, asked)
+    out["faces"] = [f["box"]] if f.get("box") else []
+    out["face"] = f
+    out["bad"] += f.get("bad", [])
     return out
 
 
 def summary(res: dict) -> str:
     """会話に出す 1 行"""
+    face = [b for b in res.get("bad", []) if b.startswith("顔")]
+    if face and (res.get("reason") or not res["readable"]):   # 手を読めなくても、顔の崩れは隠さない
+        return "検品: 崩れ " + str(len(face)) + " 件。" + "、".join(face)
     if res.get("reason"):
         return f"検品: {res['reason']}"
     if not res["readable"]:
