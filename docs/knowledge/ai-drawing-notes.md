@@ -540,3 +540,5 @@ AI に描かせた絵（FLUX.2 klein の構図、ビキニの女性）で、上�
 - 身体 回30（2026-10-25）: 写実の段は平らな光で白い肌だったのに、イラストの段（animagine-xl-4.0、img2img 0.7）で顔・腹・脚に体の形と関係の無いまだらの影が出て、肌も褐色に寄った。負の言葉の patchy shadows と tan では止まらなかった。光の言葉を「single light source」から「soft even studio light」に替え、dappled light・leaf shadows などを負の言葉に足して次の回で比べる。
 
 - 身体 回32（2026-10-25）: 写実の段で毛穴を描かせる言葉を「flawless smooth clear skin, even skin tone」に替え、負の言葉に pores・moles・blemishes を足すと、肌の斑点と膝の赤みが消えた。イラストの段で光の言葉を「soft even studio light」に替えると、顔と胸のまだらの影が消えた。腹を横切る帯の影と、写実の段より褐色に寄る肌は残った。次は img2img の強さを 0.7 から 0.6 に下げ、写実の段の明暗と肌の色をどれだけ残せるかを比べる。
+
+- 身体 回33・回34（2026-10-25）: 写実の段に「softbox key light」「white fill card」と書くと、照明の機材を光る形として描くことがあった（回32・回34で水色の光）。イラストの段はそれを透ける布に描き替えた。光の言葉を「soft overcast daylight」と「nothing else in the scene」に替えて次の回で比べる。
