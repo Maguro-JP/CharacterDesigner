@@ -52,7 +52,11 @@ def step_hand(c, h, src: Path, out: Path) -> Path:
     words = Path(c["words"]).read_text().strip()
     line = out / f"hand-{h['name']}-line.png"
     if not line.exists():
-        handgraft.place_depth(handgraft.outline(Image.open(h["depth"]), 5), tuple(h["src_wrist"]), tuple(h["src_tip"]),
+        src_img = Image.open(h["depth"]).convert("L")
+        if h.get("mask"):
+            # 手だけを白で撮った絵（pose_hand.py --mask）。灰の体を外して、手の輪郭だけを線にする
+            src_img = src_img.point(lambda v: 255 if v > 200 else 0)
+        handgraft.place_depth(handgraft.outline(src_img, 5), tuple(h["src_wrist"]), tuple(h["src_tip"]),
                               Image.open(src).size, tuple(h["wrist"]), tuple(h["tip"])).save(line)
     first, dst = out / f"2-hand-{h['name']}.png", out / f"2-hand-{h['name']}-blend.png"
     box = tuple(h["box"])
@@ -81,7 +85,8 @@ def horn_box(src: str, side: str = "image-left"):
     seg = np.asarray(edit.parts(src))
     hsv = np.asarray(Image.fromarray(a).convert("HSV")).astype(int)
     h = hsv[..., 0] * 360 / 255
-    m = (h > 25) & (h < 60) & (hsv[..., 1] > 70) & (hsv[..., 2] > 90) & (hsv[..., 2] < 215) & np.isin(seg, (1, 2))
+    # 色の幅は広めに取る。羊娘の籠のポーズでは、狭い幅（色相 25〜60・彩度 70 以上）で角の半分しか取れず、鈴が髪にはみ出た
+    m = (h > 20) & (h < 65) & (hsv[..., 1] > 45) & (hsv[..., 2] > 80) & (hsv[..., 2] < 225) & np.isin(seg, (1, 2))
     face = np.nonzero(seg == 11)
     cx = int(face[1].mean()) if len(face[1]) else a.shape[1] // 2
     top = int(face[0].min()) if len(face[0]) else 200
@@ -111,7 +116,9 @@ def step_bell(c, src: Path, out: Path) -> Path:
     ys, xs = np.nonzero(horn)
     y0 = int(ys.min() + 0.62 * (ys.max() - ys.min()))
     row = xs[ys == y0]
-    x0 = int(row.max()) - 14 if side == "image-left" else int(row.min()) + 14
+    # 角の中心寄り: その高さでの角の幅の中ほどから、顔の側へ 1/4 寄せる
+    mid = (int(row.min()) + int(row.max())) / 2
+    x0 = int(mid + (row.max() - mid) / 2) if side == "image-left" else int(mid - (mid - row.min()) / 2)
     print(f"角 {xs.min()}-{xs.max()} x {ys.min()}-{ys.max()}、鈴の位置 ({x0}, {y0})", flush=True)
     im = Image.open(src).convert("RGB")
     d = ImageDraw.Draw(im)
