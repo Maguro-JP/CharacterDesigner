@@ -1,0 +1,272 @@
+{
+ "readable": true,
+ "bad": [],
+ "hands": [
+  {
+   "box": [
+    141,
+    247,
+    293,
+    399
+   ],
+   "angle": -32.0,
+   "measure": {
+    "presence": 0.99,
+    "palm": 1.0,
+    "thumb": 1.03,
+    "index": 0.92,
+    "ring": 0.93,
+    "pinky": 0.81,
+    "cover": {
+     "thumb": 1.0,
+     "index": 1.0,
+     "middle": 1.0,
+     "ring": 1.0,
+     "pinky": 1.0
+    },
+    "fingers": {
+     "count": null,
+     "rows": [
+      5,
+      4,
+      4,
+      3,
+      3
+     ],
+     "reason": "切った線ごとに数が揺れる（3 本と同じ線が 2 本）"
+    }
+   },
+   "bad": [],
+   "seen": true
+  },
+  {
+   "box": [
+    314,
+    213,
+    447,
+    346
+   ],
+   "angle": 4.0,
+   "measure": {
+    "presence": 0.35,
+    "palm": 0.96,
+    "thumb": 0.98,
+    "index": 0.95,
+    "ring": 0.96,
+    "pinky": 0.82,
+    "cover": {
+     "thumb": 0.25,
+     "index": 0.83,
+     "middle": 0.71,
+     "ring": 0.58,
+     "pinky": 0.5
+    },
+    "fingers": {
+     "count": null,
+     "rows": [
+      3,
+      4,
+      5,
+      5,
+      4
+     ],
+     "reason": "切った線ごとに数が揺れる（4 本と同じ線が 2 本）"
+    }
+   },
+   "bad": [
+    "読めない: 手らしさ 0.35"
+   ],
+   "seen": false
+  },
+  {
+   "box": [
+    519,
+    348,
+    619,
+    447
+   ],
+   "angle": 143.0,
+   "measure": {
+    "presence": 0.0,
+    "palm": 0.91,
+    "thumb": 0.73,
+    "index": 0.95,
+    "ring": 0.81,
+    "pinky": 0.66,
+    "cover": {
+     "thumb": 1.0,
+     "index": 1.0,
+     "middle": 1.0,
+     "ring": 1.0,
+     "pinky": 1.0
+    },
+    "fingers": {
+     "count": null,
+     "rows": [
+      0,
+      1,
+      0,
+      0,
+      1
+     ],
+     "reason": "指が 0 本にしか見えない（重なって隠れている）"
+    }
+   },
+   "bad": [
+    "読めない: 手らしさ 0.0"
+   ],
+   "seen": false
+  },
+  {
+   "box": [
+    519,
+    659,
+    668,
+    808
+   ],
+   "angle": 159.0,
+   "measure": {
+    "presence": 0.96,
+    "palm": 0.97,
+    "thumb": 1.03,
+    "index": 0.95,
+    "ring": 0.86,
+    "pinky": 0.65,
+    "cover": {
+     "thumb": 1.0,
+     "index": 0.92,
+     "middle": 0.88,
+     "ring": 0.96,
+     "pinky": 1.0
+    },
+    "fingers": {
+     "count": null,
+     "rows": [
+      1,
+      0,
+      2,
+      1,
+      2
+     ],
+     "reason": "指が 1 本にしか見えない（重なって隠れている）"
+    }
+   },
+   "bad": [],
+   "seen": true
+  },
+  {
+   "box": [
+    125,
+    410,
+    301,
+    584
+   ],
+   "angle": -16.0,
+   "measure": {
+    "presence": 0.44,
+    "palm": 2.1,
+    "thumb": 1.88,
+    "index": 1.1,
+    "ring": 0.9,
+    "pinky": 0.83,
+    "cover": {
+     "thumb": 0.79,
+     "index": 0.96,
+     "middle": 1.0,
+     "ring": 1.0,
+     "pinky": 1.0
+    },
+    "fingers": {
+     "count": null,
+     "rows": [],
+     "reason": "曲げた指がある"
+    }
+   },
+   "bad": [
+    "読めない: 手らしさ 0.44"
+   ],
+   "seen": false
+  },
+  {
+   "box": [
+    86,
+    698,
+    195,
+    807
+   ],
+   "angle": -93.0,
+   "measure": {
+    "presence": 0.0,
+    "palm": 2.46,
+    "thumb": 1.6,
+    "index": 0.91,
+    "ring": 1.11,
+    "pinky": 0.75,
+    "cover": {
+     "thumb": 0.83,
+     "index": 1.0,
+     "middle": 1.0,
+     "ring": 1.0,
+     "pinky": 1.0
+    },
+    "fingers": {
+     "count": null,
+     "rows": [],
+     "reason": "曲げた指がある"
+    }
+   },
+   "bad": [
+    "読めない: 手らしさ 0.0"
+   ],
+   "seen": false
+  },
+  {
+   "box": [
+    378,
+    435,
+    489,
+    545
+   ],
+   "angle": -16.0,
+   "measure": {
+    "presence": 0.06,
+    "palm": 1.21,
+    "thumb": 2.47,
+    "index": 0.99,
+    "ring": 0.86,
+    "pinky": 0.64,
+    "cover": {
+     "thumb": 0.5,
+     "index": 1.0,
+     "middle": 1.0,
+     "ring": 1.0,
+     "pinky": 1.0
+    },
+    "fingers": {
+     "count": null,
+     "rows": [
+      2,
+      2,
+      0,
+      1,
+      2
+     ],
+     "reason": "指が 0 本にしか見えない（重なって隠れている）"
+    }
+   },
+   "bad": [
+    "読めない: 手らしさ 0.06"
+   ],
+   "seen": false
+  }
+ ],
+ "feet": [],
+ "feet_reason": "足の検品の部品がありません（No module named 'feet'）",
+ "faces": [],
+ "face": {
+  "box": null,
+  "readable": false,
+  "bad": [],
+  "reason": "顔の検品の部品がありません（No module named 'facecheck'）"
+ }
+}
