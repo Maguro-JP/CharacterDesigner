@@ -64,10 +64,10 @@ class AiPanel(QWidget):
         self.style_group = QButtonGroup(self)
         self.style_buttons: dict[str, QPushButton] = {}
         for i, (name, _tags, tip) in enumerate(STYLES):
-            b = QPushButton(name)
+            b = QPushButton(name if len(name) <= 5 else name[:4] + "…")   # 長い名前は詰め、全部はカーソルを合わせたときに出す
             b.setObjectName("chip")
             b.setCheckable(True)
-            b.setToolTip(tip)
+            b.setToolTip(f"{name}: {tip}")
             b.clicked.connect(lambda _=False, n=name: self.set_style(n))
             self.style_group.addButton(b)
             self.style_buttons[name] = b
@@ -203,11 +203,11 @@ class AiPanel(QWidget):
         b = QToolButton()
         b.setObjectName("aiPreset")
         b.setCheckable(True)
-        b.setText(f"{name}\n{sub}")
+        b.setText(name)   # 説明はボタンに書かず、カーソルを合わせたときに出す（ボタンが大きくなり、欄を取りすぎた）
         b.setToolTip(f"{name}: {sub}" + ("\n右クリックで消せます" if own else ""))
         b.setToolButtonStyle(Qt.ToolButtonTextOnly)
         b.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        b.setMinimumHeight(46)
+        b.setMinimumHeight(28)
         b.setMinimumWidth(0)
         if own:
             b.setContextMenuPolicy(Qt.CustomContextMenu)
@@ -246,7 +246,7 @@ class AiPanel(QWidget):
 
     def _cols(self) -> int:
         """欄が狭いときはカードを 1 列にする（2 列のまま狭めると、カードの文字が欄の外にはみ出した）"""
-        return 2 if self.width() >= 330 else 1
+        return 3 if self.width() >= 300 else 2
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
@@ -268,7 +268,7 @@ class AiPanel(QWidget):
         self.w.strength.setValue(int(data.get("strength", 100)))
         self.set_style(data.get("style", "おまかせ"))
         for b in self.preset_group.buttons():
-            b.setChecked(b.text().split("\n")[0] == name)
+            b.setChecked(b.text() == name)
         self.w.entry.setFocus()
         self.w.feature_tour("ai_presets")
         self.w.statusBar().showMessage(f"AI プリセット「{name}」にしました")
