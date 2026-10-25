@@ -869,7 +869,8 @@ def main(argv=None) -> int:
     r1_color = r1                                  # 色の検品の基準（描き直しの後の工程は 1 段目の色を保つ）
     if a.check:
         check(im, r1, parts, log, "stage1")
-    nets = multi.controlnet.nets[:2] if hasattr(multi.controlnet, "nets") else multi.controlnet   # tile と lineart（顔の描き直しで使い回す）
+    # tile と lineart（顔の描き直しで使い回す）。ModuleList のまま渡すと、pipe が複数の ControlNet の組と見なさず check_inputs で落ちた
+    nets = list(multi.controlnet.nets[:2]) if hasattr(multi.controlnet, "nets") else list(multi.controlnet)
     del multi
     if a.iclight > 0:
         raw, r1 = iclight(pipe, r1, parts, a, log)

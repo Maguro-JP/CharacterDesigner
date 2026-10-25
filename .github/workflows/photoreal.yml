@@ -59,6 +59,7 @@ jobs:
           else args=$(python3 -c "import json,shlex;print(shlex.join(json.load(open('config/photoreal-request.json')).get('args',[])))"); fi
           echo "src=$src args=$args"
           eval "set -- $args"
+          python tools/gen/tagger.py setup || true   # 顔の検品の余分な目のタグに使う
           python -u tools/gen/photoreal.py "$src" "out/${{ matrix.variant }}" "$@" ${{ matrix.extra }} --check
           df -h / | tail -1
       - name: draw-results に置く
