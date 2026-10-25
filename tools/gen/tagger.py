@@ -116,7 +116,7 @@ def missing(prompt: str, got: dict, least: float = 0.2) -> list[str]:
 # 頼んでいないのに描かれやすい物（服と持ち物）。強く読めたのに頼みに無ければ、頼みと違う絵として描き直しの理由にする
 # （白いビキニを頼んで、白い上着を羽織った絵が出た。Windows の描画 種 7）
 EXTRA_WATCH = ("shirt", "jacket", "coat", "hoodie", "sweater", "cardigan", "vest", "skirt", "pants", "shorts", "jeans", "dress",
-               "kimono", "apron", "cape", "hat", "cap", "glasses", "sunglasses", "mask", "bag", "umbrella", "sword", "weapon",
+               "kimono", "apron", "cape", "sarong", "pareo", "shawl", "robe", "towel", "hat", "cap", "glasses", "sunglasses", "mask", "bag", "umbrella", "sword", "weapon",
                "gloves", "scarf", "necktie", "pantyhose", "thighhighs")
 
 
