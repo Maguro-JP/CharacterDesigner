@@ -8,25 +8,37 @@ on:
     paths:
       - "config/draw-request.json"
       - "chatdraw/twostage.py"
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      attempt:
+        description: "何回目か（bf16 の遅い機械に当たったら、自分で出し直す）"
+        default: "1"
+      composition_run:
+        description: "構図を使い回す実行の番号（空なら構図から描く）"
+        default: ""
 permissions:
   contents: write   # 描いた絵を draw-results ブランチに置くため（作業の機械は artifact の置き場に届かない）
+  actions: write    # bf16 の遅い機械に当たったとき、この頼みを出し直すため（.github/scripts/cpu-reroll.sh）
 concurrency:
   group: draw-one-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: false   # 出し直した実行が、出し直した元を止めないように
 jobs:
   compose:
     runs-on: ubuntu-latest
     timeout-minutes: 360
     outputs:
       twostage: ${{ steps.mode.outputs.twostage }}
+      reuse: ${{ steps.mode.outputs.reuse }}
+      slow: ${{ steps.cpu.outputs.slow }}
     steps:
       - uses: actions/checkout@v4
       - id: mode
         name: 頼みの形
         run: |
           echo "twostage=$(python3 -c "import json;print(str(json.load(open('config/draw-request.json')).get('mode')=='twostage').lower())")" >> "$GITHUB_OUTPUT"
-          echo "reuse=$(python3 -c "import json;print(json.load(open('config/draw-request.json')).get('composition_run',''))")" >> "$GITHUB_OUTPUT"
+          reuse="${{ inputs.composition_run }}"
+          [ -n "$reuse" ] || reuse=$(python3 -c "import json;print(json.load(open('config/draw-request.json')).get('composition_run',''))")
+          echo "reuse=$reuse" >> "$GITHUB_OUTPUT"
       - name: 置き場を空ける
         if: steps.mode.outputs.reuse == ''
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1; free -g
@@ -39,23 +51,26 @@ jobs:
         run: |
           pip install -q torch --index-url https://download.pytorch.org/whl/cpu
           pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy
-      - name: CPU の型の速さ
-        run: lscpu | grep -E "Model name|Flags" | sed -E 's/(Flags:).*/\1 '"$(grep -o -w -E 'avx512_bf16|amx_bf16|avx512f|avx2' /proc/cpuinfo | sort -u | tr '\n' ' ')"'/'; free -g | head -2; python -c "from chatdraw.engine import bf16_fast,total_ram_gb;print('bf16 が速い:', bf16_fast(), 'メモリ:', round(total_ram_gb()), 'GB')"
+      - id: cpu
+        name: CPU の型の速さ（遅い機械なら出し直す）
         if: steps.mode.outputs.reuse == ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: sh .github/scripts/cpu-reroll.sh "${{ inputs.attempt || '1' }}" ""
       - name: 描く（2 段の頼みは構図だけ）
-        if: steps.mode.outputs.reuse == ''
+        if: steps.mode.outputs.reuse == '' && steps.cpu.outputs.slow != 'true'
         env:
           LLM_HOME: ${{ runner.temp }}/llm
           CD_HOME: ${{ runner.temp }}/cd
           DRAW_STAGE: compose
         run: python -u -m chatdraw.draw_one out
       - name: draw-results に置く
-        if: always() && steps.mode.outputs.reuse == ''
+        if: always() && steps.mode.outputs.reuse == '' && steps.cpu.outputs.slow != 'true'
         run: sh .github/scripts/draw-results.sh out
 
   finish:
     needs: compose
-    if: needs.compose.outputs.twostage == 'true'
+    if: needs.compose.outputs.twostage == 'true' && needs.compose.outputs.slow != 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 360
     steps:
@@ -71,19 +86,25 @@ jobs:
           pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy
       - name: 構図の絵を取る
         run: |
-          run=$(python3 -c "import json;print(json.load(open('config/draw-request.json')).get('composition_run','') or '$GITHUB_RUN_ID')")
+          run="${{ needs.compose.outputs.reuse }}"
+          [ -n "$run" ] || run=$GITHUB_RUN_ID
+          echo "COMPOSITION_RUN=$run" >> "$GITHUB_ENV"
           git fetch -q origin draw-results
           mkdir -p "$RUNNER_TEMP/comp"
           git show "origin/draw-results:$run/1-composition.png" > "$RUNNER_TEMP/comp/1-composition.png"
           echo "DRAW_COMPOSITION=$RUNNER_TEMP/comp/1-composition.png" >> "$GITHUB_ENV"
-      - name: CPU の型の速さ
-        run: lscpu | grep -E "Model name|Flags" | sed -E 's/(Flags:).*/\1 '"$(grep -o -w -E 'avx512_bf16|amx_bf16|avx512f|avx2' /proc/cpuinfo | sort -u | tr '\n' ' ')"'/'; free -g | head -2; python -c "from chatdraw.engine import bf16_fast,total_ram_gb;print('bf16 が速い:', bf16_fast(), 'メモリ:', round(total_ram_gb()), 'GB')"
+      - id: cpu
+        name: CPU の型の速さ（遅い機械なら出し直す）
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: sh .github/scripts/cpu-reroll.sh "${{ inputs.attempt || '1' }}" "$COMPOSITION_RUN"
       - name: 形と仕上げ
+        if: steps.cpu.outputs.slow != 'true'
         env:
           LLM_HOME: ${{ runner.temp }}/llm
           CD_HOME: ${{ runner.temp }}/cd
           DRAW_STAGE: finish
         run: python -u -m chatdraw.draw_one out
       - name: draw-results に置く
-        if: always()
+        if: always() && steps.cpu.outputs.slow != 'true'
         run: sh .github/scripts/draw-results.sh out
