@@ -228,8 +228,8 @@ def compose(sentence: str, seed: int, compose_model: str, size, path, tags: str 
     print(f"構図を保存: {time.time() - t:.0f} 秒（{len(rounds)} 回描いた）", flush=True)
 
 
-COMPOSE_TRIES = 3   # 構図を描き直す回数の上限（速い機械で 1 回 約 4 分）
-FIX_ROUNDS = 3      # 仕上げのあと、崩れた手を直して検品し直す回数の上限
+COMPOSE_TRIES = 6   # 構図を描き直す回数の上限（速い機械で 1 回 約 4 分）
+FIX_ROUNDS = 6      # 質が先。仕上げのあと、崩れた手を直して検品し直す回数の上限
 
 
 REFINE_SCALE, REFINE_STRENGTH = 1.5, 0.35
@@ -288,7 +288,7 @@ def fix_hands(pipe, image, prompt: str, negative: str, seed: int, steps: int, gu
         words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in regions))
         out = inpaint(prompt=f"{prompt}, {words}",
                       negative_prompt=negative + ", extra fingers, missing fingers, fused fingers, extra toes, faceless, empty eyes",
-                      image=image, mask_image=soft, width=image.width, height=image.height, strength=(0.55, 0.7, 0.85)[min(r, 2)],
+                      image=image, mask_image=soft, width=image.width, height=image.height, strength=(0.55, 0.65, 0.75, 0.85, 0.9, 0.95)[min(r, 5)],
                       num_inference_steps=steps, guidance_scale=guidance,
                       generator=torch.Generator("cpu").manual_seed(seed + 77 * (r + 1))).images[0].resize(image.size)
         image = Image.composite(out, image, soft)   # 枠の外は元の絵のまま

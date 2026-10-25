@@ -704,9 +704,11 @@ class Studio:
                 break
         if hasattr(self.painter, "avoid"):
             self.painter.avoid = avoid0
-        image, _left, seed = best
+        image, left, seed = best
+        if left:   # 通らなかった絵を、出来た絵として渡さない。残った崩れを先に見せる
+            say(f"検品を通る絵が {len(redraws)} 回描いても出ませんでした（途中）。残った崩れ: " + "、".join(left[:5]))
         path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model,
-                                            hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws))
+                                            hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws, passed=not left))
         self._inspect(path, say)
         return prompt, path
 
@@ -759,8 +761,10 @@ class Studio:
         return tags, saved
 
     last_check: dict | None = None
-    FIX_ROUNDS = 3     # 描いたあと、崩れた手を直して検品し直す回数の上限
-    REDRAW_TRIES = 3   # 直しても検品を通らないとき、種を変えて描き直す回数の上限
+    # 質が先で、速さは後。時間がかかっても、崩れが消えるまで直して描き直す（3 回ずつでは崩れの残った絵を渡していた）。
+    # 上限は、検品が読み違え続けたときに止まらなくなるのを避けるためだけに置く
+    FIX_ROUNDS = 6     # 描いたあと、崩れた所を直して検品し直す回数の上限
+    REDRAW_TRIES = 12  # 直しても検品を通らないとき、種を変えて描き直す回数の上限
 
     def _fix_hands(self, image, prompt: str, seed: int, say):
         """1 回描いて終わりにしない。描いた絵の手・足・顔を検品し、崩れた所だけを直して、もう一度検品する。
@@ -787,7 +791,7 @@ class Studio:
                 d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
             words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in regions))
             # 回を重ねるほど強く描き直す（弱いままだと崩れた指の形をなぞり、何回直しても同じ崩れが残った）
-            image = self.painter.redraw(f"{prompt}, {words}", seed + 77 * (r + 1), image, mask, strength=(0.55, 0.7, 0.85)[min(r, 2)])
+            image = self.painter.redraw(f"{prompt}, {words}", seed + 77 * (r + 1), image, mask, strength=(0.55, 0.65, 0.75, 0.85, 0.9, 0.95)[min(r, 5)])
         return image
 
     def _inspect(self, path: Path, say):
