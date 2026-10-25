@@ -2035,3 +2035,26 @@ class HandCheckTest(unittest.TestCase):
             res = handcheck.check(Image.new("RGB", (256, 256), "white"), fetch=False)
         self.assertFalse(res["readable"])                 # 手の無い絵は「読めない」（崩れにしない）
         self.assertEqual(res["bad"], [])
+
+
+class HandRoundsTest(unittest.TestCase):
+    """描いて終わりにせず、検品と手の直しを崩れが消えるまで回すか（Studio._fix_hands）"""
+
+    def test_rounds_until_clean(self):
+        import tempfile
+        from unittest import mock
+        from PIL import Image
+        from chatdraw import handcheck
+        from chatdraw.engine import Painter
+        s = Studio(FakeWords(), Painter("cagliostrolab/animagine-xl-4.0"), Path(tempfile.mkdtemp()))
+        results = iter([
+            {"readable": True, "bad": ["手 1: 指が多い"], "hands": [{"box": [10, 10, 40, 40], "seen": True, "bad": ["指が多い"]}]},
+            {"readable": True, "bad": ["手 1: 指が多い"], "hands": [{"box": [10, 10, 40, 40], "seen": True, "bad": ["指が多い"]}]},
+            {"readable": True, "bad": [], "hands": [{"box": [10, 10, 40, 40], "seen": True, "bad": []}]},
+        ])
+        calls = []
+        with mock.patch.dict(os.environ, {"CD_CHECK": "on"}), mock.patch.object(handcheck, "check", side_effect=lambda im: next(results)), \
+                mock.patch.object(s.painter, "redraw", side_effect=lambda p, seed, im, mask, strength: calls.append(seed) or im):
+            s._fix_hands(Image.new("RGB", (64, 64)), "1girl", 7, lambda m: None)
+        self.assertEqual(len(calls), 2)                                  # 2 回直して、3 回目の検品で崩れが消えた
+        self.assertEqual([r["bad"] for r in s.hand_rounds][-1], [])

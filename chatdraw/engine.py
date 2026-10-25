@@ -651,7 +651,9 @@ class Studio:
         extra = dict(reference=reference, ref_scale=ref_scale) if reference is not None else {}
         image = self.painter.paint(prompt, seed, on_step=lambda i, n: say(f"描いています（{i}/{n}）"),
                                    base=base, strength=strength, size=size, on_preview=on_preview, **extra)
-        path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model))
+        image = self._fix_hands(image, prompt, seed, say)
+        path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model,
+                                            hand_rounds=getattr(self, "hand_rounds", [])))
         self._inspect(path, say)
         return prompt, path
 
@@ -704,6 +706,34 @@ class Studio:
         return tags, saved
 
     last_check: dict | None = None
+    FIX_ROUNDS = 3   # 描いたあと、崩れた手を直して検品し直す回数の上限
+
+    def _fix_hands(self, image, prompt: str, seed: int, say):
+        """1 回描いて終わりにしない。描いた絵の手を検品し、崩れた手の所だけを直して、もう一度検品する。
+        崩れが消えるか FIX_ROUNDS 回で止める。直すのは手の枠の中だけで、枠の外は元の絵のまま（Painter.redraw）"""
+        import os
+        from chatdraw.models import family as fam, image_model
+        self.hand_rounds = []
+        if os.environ.get("CD_CHECK") == "off" or not fam(image_model(getattr(self.painter, "model", "")).family).inpaint:
+            return image
+        from PIL import Image, ImageDraw
+        from chatdraw import handcheck
+        for r in range(self.FIX_ROUNDS + 1):
+            say(f"検品しています（手と指・{r + 1} 回目）")
+            res = handcheck.check(image)
+            self.hand_rounds.append({"round": r, "bad": res["bad"]})
+            boxes = [h["box"] for h in res["hands"] if h["seen"] and h["bad"]]
+            if not boxes or r == self.FIX_ROUNDS or self.painter.stop:
+                return image
+            say(f"崩れた手を直しています（{len(boxes)} か所・{r + 1} 回目）: " + "、".join(res["bad"][:3]))
+            mask = Image.new("L", image.size, 0)
+            d = ImageDraw.Draw(mask)
+            for x0, y0, x1, y1 in boxes:
+                cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) * 0.6
+                d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
+            image = self.painter.redraw(f"{prompt}, detailed hand, five fingers, correct hand anatomy", seed + 77 * (r + 1),
+                                        image, mask, strength=0.6)
+        return image
 
     def _inspect(self, path: Path, say):
         """描いた絵の手と指を検品し、結果を絵の隣の .check.json に残す（chatdraw/handcheck.py）"""
