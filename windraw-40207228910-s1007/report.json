@@ -1,0 +1,84 @@
+{
+ "request": "白いビキニの女性が海で手を振っている 全身",
+ "steps": [
+  {
+   "name": "描く部品と模型を取る",
+   "ok": true,
+   "seconds": 213.2,
+   "detail": {
+    "messages": [
+     "絵を描く部品を入れています（数分かかります）",
+     "絵を描く部品の続きを入れています（数分かかります）",
+     "絵を描く部品を入れています"
+    ]
+   }
+  },
+  {
+   "name": "検品の模型を取る",
+   "ok": true,
+   "seconds": 8.4,
+   "detail": {
+    "bf16_fast": true,
+    "ram_gb": 17
+   }
+  },
+  {
+   "name": "頼みを描く言葉に直す（模型に何が渡るか）",
+   "ok": true,
+   "seconds": 0.0,
+   "detail": {
+    "tags": "white bikini, 1girl, solo, adult woman, mature female, beach, ocean, waving, full body"
+   }
+  },
+  {
+   "name": "描く（検品と直しと描き直しを含む）",
+   "ok": true,
+   "seconds": 6643.0,
+   "detail": {
+    "file": "D:\\a\\_temp\\windraw\\20261025-172834-3007.png",
+    "prompt": "white bikini, 1girl, solo, adult woman, mature female, beach, ocean, waving, full body",
+    "redraws": [
+     {
+      "seed": 1007,
+      "bad": [
+       "手 3: thumbの手の色 0.0（0.85〜1.01）",
+       "手 3: indexの手の色 0.5（0.85〜1.01）",
+       "手 3: middleの手の色 0.79（0.85〜1.01）",
+       "手 3: ringの手の色 0.83（0.85〜1.01）",
+       "手 3: pinkyの手の色 0.79（0.85〜1.01）",
+       "描かれていない: mature female"
+      ]
+     },
+     {
+      "seed": 2007,
+      "bad": [
+       "手 3: thumbの手の色 0.46（0.85〜1.01）",
+       "手 3: indexの手の色 0.46（0.85〜1.01）",
+       "手 3: middleの手の色 0.54（0.85〜1.01）",
+       "手 3: ringの手の色 0.17（0.85〜1.01）",
+       "手 3: pinkyの手の色 0.17（0.85〜1.01）"
+      ]
+     },
+     {
+      "seed": 3007,
+      "bad": []
+     }
+    ]
+   }
+  },
+  {
+   "name": "出来を確かめる",
+   "ok": true,
+   "seconds": 2.0,
+   "detail": {
+    "hands": "検品: 手 1 つで、指の数と形に崩れは見つかりませんでした",
+    "asked": "検品: 頼んだ物はすべて描かれていました",
+    "missing": [],
+    "extra": [],
+    "bad": [],
+    "passed": true
+   }
+  }
+ ],
+ "ok": true
+}
