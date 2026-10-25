@@ -69,10 +69,15 @@ def main():
         from chatdraw.engine import Words
         w = Words(Path(""))   # 言葉の模型を入れていない利用者と同じ（語の表で直す）
         tags = w.to_prompt(text, tags=True)
+        from chatdraw.jaterms import leftover
+        lost = leftover(text)
         state["tags"] = tags
-        (out / "prompt.json").write_text(json.dumps({"request": text, "tags": tags}, ensure_ascii=False, indent=1), encoding="utf-8")
+        (out / "prompt.json").write_text(json.dumps({"request": text, "tags": tags, "lost": lost}, ensure_ascii=False, indent=1),
+                                         encoding="utf-8")
         if tags == text:
             raise RuntimeError("日本語の頼みが、そのまま模型に渡っている（描く言葉に直っていない）")
+        if lost:
+            raise RuntimeError("模型に伝わらない言葉がある: " + "、".join(lost))
         return {"tags": tags}
 
     def draw():

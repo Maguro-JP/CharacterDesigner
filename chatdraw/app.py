@@ -1297,6 +1297,8 @@ class Window(QMainWindow):
         self.canvas.show_overlay(None)
         if prompt and prompt != self.last_text:
             self.say(f"絵の模型に渡した言葉: {prompt}")   # 頼みとずれた絵が出たとき、どこでずれたかを見られるように
+        if getattr(self.studio, "last_lost", None) and self.job_kind == "draw":
+            self.say("模型に伝わらなかった言葉: " + "、".join(self.studio.last_lost))
         check = getattr(self.studio, "last_check", None)
         if check is not None and self.job_kind == "draw":
             from chatdraw.handcheck import summary

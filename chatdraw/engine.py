@@ -642,6 +642,11 @@ class Studio:
         if two is not None:
             return self._draw_two(text, seed, two, style, size, say, meta)
         say("頼みを描く言葉に直しています")
+        from chatdraw.jaterms import leftover
+        lost = leftover(text) if has_japanese(text) and not self.words.ready() else []
+        if lost:   # 模型に伝わらない言葉を隠さない（伝わらないまま描くと、頼みと違う絵になる）
+            say("模型に伝わらない言葉があります: " + "、".join(lost) + "（英語で書くか、言葉の模型を入れると伝わります）")
+        self.last_lost = lost
         prompt = self.words.to_prompt(text, tags=fam(image_model(getattr(self.painter, "model", "")).family).tags)
         if style:   # AI の欄で選んだ作風。頼みの言葉の後ろに足す（頼みの方を先に効かせる）
             prompt = f"{prompt}, {style}"
