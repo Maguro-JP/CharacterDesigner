@@ -117,11 +117,12 @@ def missing(prompt: str, got: dict, least: float = 0.2) -> list[str]:
 # （白いビキニを頼んで、白い上着を羽織った絵が出た。Windows の描画 種 7）
 EXTRA_WATCH = ("shirt", "jacket", "coat", "hoodie", "sweater", "cardigan", "vest", "skirt", "pants", "shorts", "jeans", "dress",
                "kimono", "apron", "cape", "sarong", "pareo", "shawl", "robe", "towel", "hat", "cap", "glasses", "sunglasses", "mask", "bag", "umbrella", "sword", "weapon",
-               "gloves", "scarf", "necktie", "pantyhose", "thighhighs")
+               "gloves", "scarf", "necktie", "pantyhose", "thighhighs", "clothes")
 
 
-def extras(prompt: str, got: dict, least: float = 0.6) -> list[str]:
-    """頼みに無い服・持ち物のうち、絵から強く読めたもの（確からしさ least 以上）。頼みに同じ語があれば数えない"""
+def extras(prompt: str, got: dict, least: float = 0.3) -> list[str]:
+    """頼みに無い服・持ち物のうち、絵から読めたもの（確からしさ least 以上）。頼みに同じ語があれば数えない。
+    薄い羽織りは確からしさが低く出る（白い開いたシャツが 0.37）ので、least は低めにして描き直しの側に倒す"""
     low = prompt.lower()
     out = []
     for t, p in sorted(got.items(), key=lambda kv: -kv[1]):
