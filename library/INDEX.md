@@ -2,7 +2,7 @@
 
 `python3 tools/library_check.py` が書く。手で直さない。置き方の決まりは [docs/STRUCTURE.md](../docs/STRUCTURE.md)。
 
-全 566 枚（置き場 40 か所）。どこからも参照されていない絵 129 枚には「未参照」と付ける。
+全 568 枚（置き場 40 か所）。どこからも参照されていない絵 129 枚には「未参照」と付ける。
 
 ## 置き場の一覧
 
@@ -17,7 +17,7 @@
 | [`designs/digimon/base/`](#designs-digimon-base) | 依頼された作品の決定稿 | 5 |
 | [`designs/digimon/pixel96/`](#designs-digimon-pixel96) | 依頼された作品の決定稿 | 10 |
 | [`designs/rulecrawler/`](#designs-rulecrawler) | 依頼された作品の決定稿 | 3 |
-| [`docs/images/`](#docs-images) | README・アプリの案内の画面 | 6 |
+| [`docs/images/`](#docs-images) | README・アプリの案内の画面 | 7 |
 | [`library/book/`](#library-book) | 作例集 | 18 |
 | [`library/daily/2026-10-13/`](#library-daily-2026-10-13) | 日ごとの作例 | 3 |
 | [`library/daily/2026-10-15/`](#library-daily-2026-10-15) | 日ごとの作例 | 1 |
@@ -26,7 +26,7 @@
 | [`library/feedback/app-e2e/`](#library-feedback-app-e2e) | フィードバックの成果物 | 1 |
 | [`library/feedback/baseline/`](#library-feedback-baseline) | フィードバックの成果物 | 2 |
 | [`library/feedback/bench/`](#library-feedback-bench) | フィードバックの成果物 | 4 |
-| [`library/feedback/body/`](#library-feedback-body) | フィードバックの成果物 | 9 |
+| [`library/feedback/body/`](#library-feedback-body) | フィードバックの成果物 | 10 |
 | [`library/feedback/check/`](#library-feedback-check) | フィードバックの成果物 | 176 |
 | [`library/feedback/finish/`](#library-feedback-finish) | フィードバックの成果物 | 2 |
 | [`library/feedback/hands/`](#library-feedback-hands) | フィードバックの成果物 | 8 |
@@ -118,7 +118,8 @@
 
 |   |   |   |   |   |   |
 |---|---|---|---|---|---|
-| <a href="../docs/images/app-free-draw.jpg"><img src="../docs/images/app-free-draw.jpg" width="150" alt="app-free-draw.jpg"></a><br><sub>app-free-draw.jpg</sub> | <a href="../docs/images/app-studio.jpg"><img src="../docs/images/app-studio.jpg" width="150" alt="app-studio.jpg"></a><br><sub>app-studio.jpg</sub> | <a href="../docs/images/app-wish-to-case.png"><img src="../docs/images/app-wish-to-case.png" width="150" alt="app-wish-to-case.png"></a><br><sub>app-wish-to-case.png</sub> | <a href="../docs/images/atmosphere-moods.jpg"><img src="../docs/images/atmosphere-moods.jpg" width="150" alt="atmosphere-moods.jpg"></a><br><sub>atmosphere-moods.jpg</sub> | <a href="../docs/images/material-kinds.jpg"><img src="../docs/images/material-kinds.jpg" width="150" alt="material-kinds.jpg"></a><br><sub>material-kinds.jpg</sub> | <a href="../docs/images/material-slime.jpg"><img src="../docs/images/material-slime.jpg" width="150" alt="material-slime.jpg"></a><br><sub>material-slime.jpg</sub> |
+| <a href="../docs/images/app-free-draw.jpg"><img src="../docs/images/app-free-draw.jpg" width="150" alt="app-free-draw.jpg"></a><br><sub>app-free-draw.jpg</sub> | <a href="../docs/images/app-studio.jpg"><img src="../docs/images/app-studio.jpg" width="150" alt="app-studio.jpg"></a><br><sub>app-studio.jpg</sub> | <a href="../docs/images/app-wish-to-case.png"><img src="../docs/images/app-wish-to-case.png" width="150" alt="app-wish-to-case.png"></a><br><sub>app-wish-to-case.png</sub> | <a href="../docs/images/atmosphere-moods.jpg"><img src="../docs/images/atmosphere-moods.jpg" width="150" alt="atmosphere-moods.jpg"></a><br><sub>atmosphere-moods.jpg</sub> | <a href="../docs/images/chatdraw-main.jpg"><img src="../docs/images/chatdraw-main.jpg" width="150" alt="chatdraw-main.jpg"></a><br><sub>chatdraw-main.jpg</sub> | <a href="../docs/images/material-kinds.jpg"><img src="../docs/images/material-kinds.jpg" width="150" alt="material-kinds.jpg"></a><br><sub>material-kinds.jpg</sub> |
+| <a href="../docs/images/material-slime.jpg"><img src="../docs/images/material-slime.jpg" width="150" alt="material-slime.jpg"></a><br><sub>material-slime.jpg</sub> |
 
 <a id="library-book"></a>
 ## library/book/
@@ -188,7 +189,7 @@
 |   |   |   |   |   |   |
 |---|---|---|---|---|---|
 | <a href="feedback/body/2026-10-19/r16/r16-front-s16001.jpg"><img src="feedback/body/2026-10-19/r16/r16-front-s16001.jpg" width="150" alt="r16-front-s16001.jpg"></a><br><sub>r16-front-s16001.jpg</sub> | <a href="feedback/body/2026-10-19/r17/r17-side-s17001.jpg"><img src="feedback/body/2026-10-19/r17/r17-side-s17001.jpg" width="150" alt="r17-side-s17001.jpg"></a><br><sub>r17-side-s17001.jpg</sub> | <a href="feedback/body/2026-10-19/r18/r18-front-s18001.jpg"><img src="feedback/body/2026-10-19/r18/r18-front-s18001.jpg" width="150" alt="r18-front-s18001.jpg"></a><br><sub>r18-front-s18001.jpg</sub> | <a href="feedback/body/2026-10-19/r19/r19-side-s19001.jpg"><img src="feedback/body/2026-10-19/r19/r19-side-s19001.jpg" width="150" alt="r19-side-s19001.jpg"></a><br><sub>r19-side-s19001.jpg</sub> | <a href="feedback/body/2026-10-19/r20/r20-back-s20001.jpg"><img src="feedback/body/2026-10-19/r20/r20-back-s20001.jpg" width="150" alt="r20-back-s20001.jpg"></a><br><sub>r20-back-s20001.jpg</sub> | <a href="feedback/body/2026-10-20/r21/r21-walk-s21001.jpg"><img src="feedback/body/2026-10-20/r21/r21-walk-s21001.jpg" width="150" alt="r21-walk-s21001.jpg"></a><br><sub>r21-walk-s21001.jpg</sub> |
-| <a href="feedback/body/2026-10-20/r22/r22-sit-s22001.jpg"><img src="feedback/body/2026-10-20/r22/r22-sit-s22001.jpg" width="150" alt="r22-sit-s22001.jpg"></a><br><sub>r22-sit-s22001.jpg</sub> | <a href="feedback/body/2026-10-20/r23/r23-armsup-s23001.jpg"><img src="feedback/body/2026-10-20/r23/r23-armsup-s23001.jpg" width="150" alt="r23-armsup-s23001.jpg"></a><br><sub>r23-armsup-s23001.jpg</sub> | <a href="feedback/body/2026-10-20/r24/r24-front-s24001.jpg"><img src="feedback/body/2026-10-20/r24/r24-front-s24001.jpg" width="150" alt="r24-front-s24001.jpg"></a><br><sub>r24-front-s24001.jpg</sub> |
+| <a href="feedback/body/2026-10-20/r22/r22-sit-s22001.jpg"><img src="feedback/body/2026-10-20/r22/r22-sit-s22001.jpg" width="150" alt="r22-sit-s22001.jpg"></a><br><sub>r22-sit-s22001.jpg</sub> | <a href="feedback/body/2026-10-20/r23/r23-armsup-s23001.jpg"><img src="feedback/body/2026-10-20/r23/r23-armsup-s23001.jpg" width="150" alt="r23-armsup-s23001.jpg"></a><br><sub>r23-armsup-s23001.jpg</sub> | <a href="feedback/body/2026-10-20/r24/r24-front-s24001.jpg"><img src="feedback/body/2026-10-20/r24/r24-front-s24001.jpg" width="150" alt="r24-front-s24001.jpg"></a><br><sub>r24-front-s24001.jpg</sub> | <a href="feedback/body/2026-10-20/r25/r25-side-s25001.jpg"><img src="feedback/body/2026-10-20/r25/r25-side-s25001.jpg" width="150" alt="r25-side-s25001.jpg"></a><br><sub>r25-side-s25001.jpg</sub> |
 
 <a id="library-feedback-check"></a>
 ## library/feedback/check/
