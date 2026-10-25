@@ -217,7 +217,7 @@ def compose(sentence: str, seed: int, compose_model: str, size, path, tags: str 
         res = handcheck.check(im, asked=tags)
         asked = requestcheck.check(im, tags, fetch=True) if tags else {"readable": False, "missing": []}
         print(f"構図 {k + 1}回目（種 {s_k}）: {handcheck.summary(res)}　{requestcheck.summary(asked)}", flush=True)
-        bad = res["bad"] + [f"描かれていない: {m}" for m in asked["missing"]]
+        bad = res["bad"] + [f"描かれていない: {m}" for m in asked["missing"]] + [f"頼んでいない: {e}" for e in asked.get("extra", [])]
         rounds.append({"try": k + 1, "seed": s_k, "bad": bad, "readable": res["readable"]})
         if best is None or len(bad) < len(best[1]):
             best = (im, bad)
@@ -324,7 +324,7 @@ def finish(tags: str, seed: int, render_model: str, size, composition_path, keep
         from chatdraw import handcheck, requestcheck
         res = handcheck.check(out, asked=tags)
         asked = requestcheck.check(out, tags, fetch=True)
-        passed = res["readable"] and not res["bad"] and not asked["missing"]
+        passed = res["readable"] and not res["bad"] and not asked["missing"] and not asked.get("extra")
         (keep / f"result-{v['name']}.json").write_text(json.dumps({"passed": passed, "seed": seed, "bad": res["bad"],
                                                                    "missing": asked["missing"], "readable": res["readable"]},
                                                                   ensure_ascii=False, indent=1), encoding="utf-8")

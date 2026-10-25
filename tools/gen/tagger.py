@@ -113,6 +113,26 @@ def missing(prompt: str, got: dict, least: float = 0.2) -> list[str]:
     return out
 
 
+# 頼んでいないのに描かれやすい物（服と持ち物）。強く読めたのに頼みに無ければ、頼みと違う絵として描き直しの理由にする
+# （白いビキニを頼んで、白い上着を羽織った絵が出た。Windows の描画 種 7）
+EXTRA_WATCH = ("shirt", "jacket", "coat", "hoodie", "sweater", "cardigan", "vest", "skirt", "pants", "shorts", "jeans", "dress",
+               "kimono", "apron", "cape", "hat", "cap", "glasses", "sunglasses", "mask", "bag", "umbrella", "sword", "weapon",
+               "gloves", "scarf", "necktie", "pantyhose", "thighhighs")
+
+
+def extras(prompt: str, got: dict, least: float = 0.6) -> list[str]:
+    """頼みに無い服・持ち物のうち、絵から強く読めたもの（確からしさ least 以上）。頼みに同じ語があれば数えない"""
+    low = prompt.lower()
+    out = []
+    for t, p in sorted(got.items(), key=lambda kv: -kv[1]):
+        if p < least or t in low:
+            continue
+        words = t.replace("_", " ").split()
+        if words and words[-1] in EXTRA_WATCH and words[-1] not in low:
+            out.append(t)
+    return out
+
+
 if __name__ == "__main__":
     cmd = sys.argv[1] if len(sys.argv) > 1 else ""
     if cmd == "setup":
