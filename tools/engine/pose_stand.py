@@ -25,16 +25,34 @@ def open_hands(rig):
             b.rotation_euler = (0, 0, math.radians(SPREAD * k * sign))
 
 
+def contrapposto(rig, deg):
+    """左足に体重を載せる。骨盤を傾け、胸と首を逆へ傾けて肩と腰の線を逆向きにし、右膝を緩める。
+    両足を伸ばしたまま並べると、肩と腰が水平な棒立ちになり、絵でも硬く見えた（周7の検品）"""
+    def rot(name, x=0.0, y=0.0, z=0.0):
+        b = rig.pose.bones[name]
+        b.rotation_mode = "XYZ"
+        b.rotation_euler = (math.radians(x), math.radians(y), math.radians(z))
+    rot("root", y=deg)
+    rot("upperleg01.L", y=-deg)          # 体重を載せる脚は床に垂直に戻す
+    rot("upperleg01.R", x=-6, y=-deg)
+    rot("lowerleg01.R", x=14)            # 遊ぶ脚の膝を緩める
+    rot("spine03", y=-deg * 1.6)         # 胸を骨盤と逆へ傾ける
+    rot("neck01", y=deg * 0.6)           # 頭は肩と逆へ少し戻す
+
+
 def main(av):
     a = args(av, 0, [("--adduct", dict(type=float, default=35, help="腕を体の脇へ寄せる角度（度）")),
                      ("--twist", dict(type=float, default=0, help="上腕をねじる角度（度）。手のひらを前へ向ける")),
-                     ("--hand", dict(default="", help="L か R。その手だけを大きく撮る（手の測り方の較正用）"))])
+                     ("--hand", dict(default="", help="L か R。その手だけを大きく撮る（手の測り方の較正用）")),
+                     ("--contra", dict(type=float, default=0, help="片足に体重を載せる立ち方（コントラポスト）の腰の傾き（度）"))])
     h, rig = mannequin()
     import human
     human.adduct_arms(rig, a.adduct)
     if a.twist:
         human.lower_arms(rig, a.twist)
     open_hands(rig)
+    if a.contra:
+        contrapposto(rig, a.contra)
     check(rig)
     if a.hand:
         b = rig.pose.bones[f"wrist.{a.hand}"] if f"wrist.{a.hand}" in rig.pose.bones else rig.pose.bones[f"hand.{a.hand}"]
