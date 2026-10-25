@@ -1,0 +1,496 @@
+{
+ "args": {
+  "src": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-stand-s12.jpg",
+  "out": "out/majicmix-asian",
+  "width": "768",
+  "height": "1152",
+  "prompt": "RAW photo, a 27 year old woman, plain white bikini, standing, hand on hip, grey studio backdrop, natural skin texture, soft studio lighting, 85mm, sharp focus, high detail, japanese woman, east asian face",
+  "negative": "anime, cartoon, illustration, painting, 3d, cgi, plastic skin, airbrushed, lowres, bad anatomy, bad hands, extra fingers, child, teen, western, caucasian, european face",
+  "seed": "12",
+  "steps": "25",
+  "guidance": "6.0",
+  "strength": "0.7",
+  "tile_scale": "0.6",
+  "lineart_scale": "1.0",
+  "scale": "1.5",
+  "strength2": "0.25",
+  "hf_sigma": "2.5",
+  "hf_amount": "1.0",
+  "tile2_scale": "0.8",
+  "tile": "768",
+  "overlap": "128",
+  "deshade": "0",
+  "depth_scale": "0",
+  "relight": "0",
+  "light_deg": "135",
+  "hair_strength": "0.35",
+  "iclight": "0.6",
+  "post_relight": "0.6",
+  "cast": "0.45",
+  "face": "0.6",
+  "model": "majicmix",
+  "asian": "True",
+  "final_hf": "2.5",
+  "check": "True",
+  "dry_run": "False"
+ },
+ "band_px": 0,
+ "blob_px": 1835,
+ "clean_s": 0.79,
+ "input_shadow": {
+  "soft": 0.62,
+  "step_frac": 0.29,
+  "steps": 2,
+  "bimodal": 0.701,
+  "ratio": 0.677,
+  "spread": 164.5,
+  "cast": 0.079,
+  "cast_gap": 0.001,
+  "normal_corr": 0.347,
+  "normal_light_deg": 30
+ },
+ "input_keep": {
+  "flat_skin": 0.3569,
+  "hair_iou": 0.951,
+  "line_f": 0.977,
+  "sat_ratio": 1.003,
+  "color_dab": 0.41,
+  "hair_de": 0.11,
+  "face_sim": 0.9917,
+  "face_ok": true,
+  "face_qc": {
+   "eyes": {
+    "readable": true,
+    "mismatch": false,
+    "area_ratio": 1.4,
+    "limit": 2.68
+   },
+   "extra_eyes": 0.0
+  }
+ },
+ "input_fails": [
+  {
+   "path": "bimodal",
+   "value": 0.701,
+   "min": null,
+   "max": 0.4,
+   "means": "肌の部位の明るさの分布が 2 つの山に分かれる深さ。セルの塗りが残っている"
+  },
+  {
+   "path": "flat_skin",
+   "value": 0.3569,
+   "min": null,
+   "max": 0.005,
+   "means": "肌の平らな面の割合。アニメの塗りが残っている"
+  }
+ ],
+ "input_check_s": 22.8,
+ "load_s": 16.0,
+ "stage1_s": 1550.4,
+ "stage1_rss_gb": 11.61,
+ "stage1_shadow": {
+  "soft": 0.506,
+  "step_frac": 0.417,
+  "steps": 2,
+  "bimodal": 0.687,
+  "ratio": 0.696,
+  "spread": 160.7,
+  "cast": 0.086,
+  "cast_gap": 0.001,
+  "normal_corr": 0.412,
+  "normal_light_deg": 60
+ },
+ "stage1_keep": {
+  "flat_skin": 0.2559,
+  "hair_iou": 0.903,
+  "line_f": 0.936,
+  "sat_ratio": 0.899,
+  "color_dab": 1.91,
+  "hair_de": 2.86,
+  "face_sim": 0.9049,
+  "face_ok": true,
+  "face_qc": {
+   "eyes": {
+    "readable": true,
+    "mismatch": false,
+    "area_ratio": 3.18,
+    "limit": 3.27
+   },
+   "extra_eyes": 0.0
+  }
+ },
+ "stage1_fails": [
+  {
+   "path": "bimodal",
+   "value": 0.687,
+   "min": null,
+   "max": 0.4,
+   "means": "肌の部位の明るさの分布が 2 つの山に分かれる深さ。セルの塗りが残っている"
+  },
+  {
+   "path": "ratio",
+   "value": 0.696,
+   "min": 0.22,
+   "max": 0.68,
+   "means": "肌の陰と光の明るさの比。高すぎると平らな光、低すぎると影が黒くつぶれる"
+  },
+  {
+   "path": "flat_skin",
+   "value": 0.2559,
+   "min": null,
+   "max": 0.005,
+   "means": "肌の平らな面の割合。アニメの塗りが残っている"
+  }
+ ],
+ "stage1_check_s": 18.7,
+ "iclight_s": 831.7,
+ "iclight_rss_gb": 13.1,
+ "iclight_shadow": {
+  "soft": 0.443,
+  "step_frac": 0.51,
+  "steps": 2,
+  "bimodal": 0.122,
+  "ratio": 0.636,
+  "spread": 140.1,
+  "cast": 0.086,
+  "cast_gap": 0.001,
+  "normal_corr": 0.368,
+  "normal_light_deg": 180
+ },
+ "iclight_keep": {
+  "flat_skin": 0.1997,
+  "hair_iou": 0.903,
+  "line_f": 0.924,
+  "sat_ratio": 0.942,
+  "color_dab": 5.89,
+  "hair_de": 2.33,
+  "face_sim": 0.8872,
+  "face_ok": false,
+  "face_qc": {
+   "eyes": {
+    "readable": false,
+    "reason": "横に並ぶ2つの目が読めない"
+   },
+   "extra_eyes": 0.0
+  }
+ },
+ "iclight_fails": [
+  {
+   "path": "flat_skin",
+   "value": 0.1997,
+   "min": null,
+   "max": 0.005,
+   "means": "肌の平らな面の割合。アニメの塗りが残っている"
+  }
+ ],
+ "iclight_check_s": 21.5,
+ "stage2_tiles": 6,
+ "stage2_s": 1641.2,
+ "stage2_rss_gb": 13.1,
+ "stage2_shadow": {
+  "soft": 0.436,
+  "step_frac": 0.518,
+  "steps": 2,
+  "bimodal": 0.096,
+  "ratio": 0.633,
+  "spread": 135.0,
+  "cast": 0.087,
+  "cast_gap": 0.001,
+  "normal_corr": 0.38,
+  "normal_light_deg": 180
+ },
+ "stage2_keep": {
+  "flat_skin": 0.3107,
+  "hair_iou": 0.902,
+  "line_f": 0.916,
+  "sat_ratio": 0.96,
+  "color_dab": 6.35,
+  "hair_de": 1.95,
+  "face_sim": 0.8786,
+  "face_ok": false,
+  "face_qc": {
+   "eyes": {
+    "readable": false,
+    "reason": "横に並ぶ2つの目が読めない"
+   },
+   "extra_eyes": 0.0
+  }
+ },
+ "stage2_fails": [
+  {
+   "path": "flat_skin",
+   "value": 0.3107,
+   "min": null,
+   "max": 0.005,
+   "means": "肌の平らな面の割合。アニメの塗りが残っている"
+  },
+  {
+   "path": "color_dab",
+   "value": 6.35,
+   "min": null,
+   "max": 6,
+   "means": "肌・服の平均色の a,b の差（1 段目と比べる）。色味が変わった"
+  }
+ ],
+ "stage2_check_s": 22.6,
+ "hf_shadow": {
+  "soft": 0.462,
+  "step_frac": 0.485,
+  "steps": 2,
+  "bimodal": 0.094,
+  "ratio": 0.633,
+  "spread": 133.1,
+  "cast": 0.084,
+  "cast_gap": 0.001,
+  "normal_corr": 0.393,
+  "normal_light_deg": 180
+ },
+ "hf_keep": {
+  "flat_skin": 0.1944,
+  "hair_iou": 0.9,
+  "line_f": 0.922,
+  "sat_ratio": 0.96,
+  "color_dab": 6.24,
+  "hair_de": 1.96,
+  "face_sim": 0.8977,
+  "face_ok": false,
+  "face_qc": {
+   "eyes": {
+    "readable": false,
+    "reason": "横に並ぶ2つの目が読めない"
+   },
+   "extra_eyes": 0.0
+  }
+ },
+ "hf_fails": [
+  {
+   "path": "flat_skin",
+   "value": 0.1944,
+   "min": null,
+   "max": 0.005,
+   "means": "肌の平らな面の割合。アニメの塗りが残っている"
+  },
+  {
+   "path": "color_dab",
+   "value": 6.24,
+   "min": null,
+   "max": 6,
+   "means": "肌・服の平均色の a,b の差（1 段目と比べる）。色味が変わった"
+  }
+ ],
+ "hf_check_s": 22.2,
+ "post_light_s": 6.3,
+ "light_shadow": {
+  "soft": 0.441,
+  "step_frac": 0.544,
+  "steps": 3,
+  "bimodal": 0.091,
+  "ratio": 0.615,
+  "spread": 109.5,
+  "cast": 0.177,
+  "cast_gap": 0.001,
+  "normal_corr": 0.786,
+  "normal_light_deg": 150
+ },
+ "light_keep": {
+  "flat_skin": 0.1574,
+  "hair_iou": 0.899,
+  "line_f": 0.913,
+  "sat_ratio": 0.922,
+  "color_dab": 4.42,
+  "hair_de": 0.58,
+  "face_sim": 0.8749,
+  "face_ok": false,
+  "face_qc": {
+   "eyes": {
+    "readable": false,
+    "reason": "横に並ぶ2つの目が読めない"
+   },
+   "extra_eyes": 0.0
+  }
+ },
+ "light_fails": [
+  {
+   "path": "flat_skin",
+   "value": 0.1574,
+   "min": null,
+   "max": 0.005,
+   "means": "肌の平らな面の割合。アニメの塗りが残っている"
+  },
+  {
+   "path": "hair_iou",
+   "value": 0.899,
+   "min": 0.9,
+   "max": null,
+   "means": "元の絵と髪の形の重なり。髪型が崩れた"
+  }
+ ],
+ "light_check_s": 22.2,
+ "face_before": {
+  "ok": false,
+  "eyes": {
+   "readable": false,
+   "reason": "横に並ぶ2つの目が読めない"
+  },
+  "extra_eyes": 0.0
+ },
+ "face_try0": {
+  "ok": false,
+  "eyes": {
+   "readable": true,
+   "mismatch": true,
+   "area_ratio": 5.68,
+   "limit": 3.21
+  },
+  "extra_eyes": 0.0,
+  "s": 805.4
+ },
+ "face_try1": {
+  "ok": false,
+  "eyes": {
+   "readable": true,
+   "mismatch": true,
+   "area_ratio": 4.39,
+   "limit": 3.24
+  },
+  "extra_eyes": 0.0,
+  "s": 1595.3
+ },
+ "face_try2": {
+  "ok": false,
+  "eyes": {
+   "readable": true,
+   "mismatch": true,
+   "area_ratio": 4.92,
+   "limit": 3.24
+  },
+  "extra_eyes": 0.0,
+  "s": 2385.9
+ },
+ "face_try3": {
+  "ok": false,
+  "eyes": {
+   "readable": true,
+   "mismatch": true,
+   "area_ratio": 2.91,
+   "limit": 2.35
+  },
+  "extra_eyes": 0.0,
+  "s": 3176.1
+ },
+ "face_try4": {
+  "ok": false,
+  "eyes": {
+   "readable": true,
+   "mismatch": true,
+   "area_ratio": 6.74,
+   "limit": 3.23
+  },
+  "extra_eyes": 0.0,
+  "s": 3966.3
+ },
+ "face_box": [
+  0,
+  0,
+  1152,
+  1152
+ ],
+ "face_s": 3966.3,
+ "face_shadow": {
+  "soft": 0.451,
+  "step_frac": 0.496,
+  "steps": 2,
+  "bimodal": 0.087,
+  "ratio": 0.624,
+  "spread": 98.6,
+  "cast": 0.177,
+  "cast_gap": 0.001,
+  "normal_corr": 0.756,
+  "normal_light_deg": 150
+ },
+ "face_keep": {
+  "flat_skin": 0.154,
+  "hair_iou": 0.89,
+  "line_f": 0.89,
+  "sat_ratio": 0.951,
+  "color_dab": 4.39,
+  "hair_de": 0.64,
+  "face_sim": 0.8488,
+  "face_ok": false,
+  "face_qc": {
+   "eyes": {
+    "readable": true,
+    "mismatch": true,
+    "area_ratio": 2.91,
+    "limit": 2.35
+   },
+   "extra_eyes": 0.0
+  }
+ },
+ "face_fails": [
+  {
+   "path": "flat_skin",
+   "value": 0.154,
+   "min": null,
+   "max": 0.005,
+   "means": "肌の平らな面の割合。アニメの塗りが残っている"
+  },
+  {
+   "path": "hair_iou",
+   "value": 0.89,
+   "min": 0.9,
+   "max": null,
+   "means": "元の絵と髪の形の重なり。髪型が崩れた"
+  }
+ ],
+ "face_check_s": 23.5,
+ "final_shadow": {
+  "soft": 0.45,
+  "step_frac": 0.499,
+  "steps": 2,
+  "bimodal": 0.084,
+  "ratio": 0.625,
+  "spread": 100.3,
+  "cast": 0.177,
+  "cast_gap": 0.001,
+  "normal_corr": 0.756,
+  "normal_light_deg": 150
+ },
+ "final_keep": {
+  "flat_skin": 0.1534,
+  "hair_iou": 0.89,
+  "line_f": 0.895,
+  "sat_ratio": 0.952,
+  "color_dab": 4.52,
+  "hair_de": 0.62,
+  "face_sim": 0.8501,
+  "face_ok": false,
+  "face_qc": {
+   "eyes": {
+    "readable": true,
+    "mismatch": true,
+    "area_ratio": 2.7,
+    "limit": 2.36
+   },
+   "extra_eyes": 0.0
+  }
+ },
+ "final_fails": [
+  {
+   "path": "flat_skin",
+   "value": 0.1534,
+   "min": null,
+   "max": 0.005,
+   "means": "肌の平らな面の割合。アニメの塗りが残っている"
+  },
+  {
+   "path": "hair_iou",
+   "value": 0.89,
+   "min": 0.9,
+   "max": null,
+   "means": "元の絵と髪の形の重なり。髪型が崩れた"
+  }
+ ],
+ "final_check_s": 23.4,
+ "total_s": 8197.4
+}
