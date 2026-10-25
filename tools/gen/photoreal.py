@@ -374,20 +374,160 @@ def load(log, depth=False):
     return pipe, multi
 
 
-def stage1(multi, clean, li, a, log, depth=None):
+def stage1(multi, clean, li, a, log, depth=None, hair=None):
+    """1 段目。hair（髪の部位の真偽の配列）があれば、髪の範囲だけ strength を a.hair_strength に下げる:
+    各段の後で、髪の範囲の潜在を元の絵に同じ雑音を足したものに戻し、最後の a.hair_strength の分だけ描かせる。
+    strength 0.7 で、ボブの髪が長い髪に描き変わった（髪の重なり 0.94 → 0.76）"""
+    import numpy as np
     import torch
     t = time.time()
     ctl, sc = [clean, li], [a.tile_scale, a.lineart_scale]
     if depth is not None and a.depth_scale > 0:
         ctl.append(depth)
         sc.append(a.depth_scale)
+    kw = {}
+    if hair is not None and hair.any() and 0 <= a.hair_strength < a.strength:
+        from scipy import ndimage
+        x = multi.image_processor.preprocess(clean).to(torch.float32)
+        with torch.no_grad():
+            init = multi.vae.encode(x).latent_dist.mean * multi.vae.config.scaling_factor
+        noise = torch.randn(init.shape, generator=torch.Generator().manual_seed(a.seed + 1000))
+        h, w = init.shape[-2:]
+        m = ndimage.zoom(ndimage.binary_dilation(hair, iterations=8).astype(np.float32), (h / hair.shape[0], w / hair.shape[1]), order=1)
+        m = torch.from_numpy(np.clip(ndimage.gaussian_filter(m, 1), 0, 1))[None, None]
+        free = int(round(a.steps * a.hair_strength))     # 髪を描かせる最後の段の数
+
+        def keep_hair(pipe, i, ts, kws):
+            sch = pipe.scheduler
+            k = sch.step_index
+            if k is not None and k < len(sch.timesteps) - free:
+                ref = sch.add_noise(init, noise, sch.timesteps[k:k + 1])
+                kws["latents"] = kws["latents"] * (1 - m) + ref * m
+            return kws
+        kw = {"callback_on_step_end": keep_hair, "callback_on_step_end_tensor_inputs": ["latents"]}
     r = multi(a.prompt, negative_prompt=a.negative, image=clean, control_image=ctl, strength=a.strength,
               controlnet_conditioning_scale=sc, num_inference_steps=a.steps,
               guidance_scale=a.guidance, generator=torch.Generator().manual_seed(a.seed),
-              width=clean.width, height=clean.height).images[0]
+              width=clean.width, height=clean.height, **kw).images[0]
     log("stage1_s", round(time.time() - t, 1))
     log("stage1_rss_gb", round(rss_gb(), 2))
     return r
+
+
+ICLIGHT = ("lllyasviel/ic-light", "iclight_sd15_fc.safetensors")
+
+
+def light_gradient(size, deg):
+    """光の向き（0° が右、90° が上）に明るくなる灰色の勾配。IC-Light の fc 版に光の向きを渡す背景"""
+    import numpy as np
+    from PIL import Image
+    W, H = size
+    yy, xx = np.mgrid[:H, :W].astype(np.float32)
+    v = np.cos(np.radians(deg)) * (xx / W - 0.5) + np.sin(np.radians(deg)) * (0.5 - yy / H)
+    v = (v - v.min()) / max(v.max() - v.min(), 1e-6)
+    return Image.fromarray((v * 255).astype(np.uint8)).convert("RGB")
+
+
+def iclight(pipe, img, parts, a, log):
+    """IC-Light（SD1.5、fc 版）で人物に 1 方向の光を付け直す。Realistic Vision の UNet に IC-Light の差分を足して入力を 8 ch にし、
+    人物（背景を灰色にした絵）の潜在を毎段つなげて描く。終わったら差分を引いて元の UNet に戻す（2 段目で使い回すため。
+    UNet を写すとメモリが 3.4GB 増えて 16GB の機械に乗らない）。返す絵は、人物の中だけ IC-Light の低い周波数と
+    1 段目の高い周波数（肌の肌理と線）を合わせる"""
+    import numpy as np
+    import torch
+    from diffusers import DPMSolverMultistepScheduler, StableDiffusionImg2ImgPipeline
+    from huggingface_hub import hf_hub_download
+    from PIL import Image
+    from safetensors.torch import load_file
+    from scipy import ndimage
+    t = time.time()
+    unet = pipe.unet
+    off = load_file(hf_hub_download(*ICLIGHT))
+    old_conv, old_fwd = unet.conv_in, unet.forward
+    with torch.no_grad():
+        conv = torch.nn.Conv2d(8, old_conv.out_channels, old_conv.kernel_size, old_conv.stride, old_conv.padding)
+        conv.weight.zero_()
+        conv.weight[:, :4].copy_(old_conv.weight)
+        conv.bias.copy_(old_conv.bias)
+        unet.conv_in = conv
+        sd = unet.state_dict()
+        for k, v in off.items():
+            sd[k].add_(v.to(sd[k].dtype))
+
+    def fwd(sample, timestep, encoder_hidden_states, **kw):
+        c = kw["cross_attention_kwargs"]["concat_conds"].to(sample)
+        c = torch.cat([c] * (sample.shape[0] // c.shape[0]), 0)
+        kw["cross_attention_kwargs"] = {}
+        return old_fwd(torch.cat([sample, c], 1), timestep, encoder_hidden_states, **kw)
+    unet.forward = fwd
+    try:
+        body = ndimage.binary_dilation(np.asarray(parts) != BACKGROUND, iterations=3)
+        fg = np.where(body[..., None], np.asarray(img), 127).astype(np.uint8)
+        proc = pipe.image_processor
+        with torch.no_grad():
+            cc = pipe.vae.encode(proc.preprocess(Image.fromarray(fg)).float()).latent_dist.mode() * pipe.vae.config.scaling_factor
+        i2i = StableDiffusionImg2ImgPipeline(vae=pipe.vae, text_encoder=pipe.text_encoder, tokenizer=pipe.tokenizer, unet=unet,
+                                             scheduler=DPMSolverMultistepScheduler.from_config(pipe.scheduler.config, use_karras_sigmas=True),
+                                             safety_checker=None, feature_extractor=None, requires_safety_checker=False)
+        i2i.set_progress_bar_config(disable=True)
+        r = i2i(a.prompt + ", soft directional light", negative_prompt=a.negative, image=light_gradient(img.size, a.light_deg),
+                strength=a.iclight, num_inference_steps=a.steps, guidance_scale=2.0,
+                generator=torch.Generator().manual_seed(a.seed), cross_attention_kwargs={"concat_conds": cc}).images[0]
+    finally:
+        unet.forward = old_fwd
+        with torch.no_grad():
+            sd = unet.state_dict()
+            for k, v in off.items():
+                if k in sd and sd[k].shape == v.shape:
+                    sd[k].sub_(v.to(sd[k].dtype))
+        unet.conv_in = old_conv
+    r = r.resize(img.size, Image.LANCZOS)
+    mix = hfmix(img, r, sigma=4.0 * img.width / 768)
+    w = ndimage.gaussian_filter((np.asarray(parts) != BACKGROUND).astype(np.float32), 2)[..., None]
+    o = np.asarray(mix).astype(np.float32) * w + np.asarray(img).astype(np.float32) * (1 - w)
+    log("iclight_s", round(time.time() - t, 1))
+    log("iclight_rss_gb", round(rss_gb(), 2))
+    return r, Image.fromarray(np.clip(o, 0, 255).astype(np.uint8))
+
+
+def cast_shadow(img, parts, depth, deg=135.0, opacity=0.45):
+    """床に落ち影を合成する。人物の形を、足元を支点に光と逆の向きへ倒して床に写す（光が左上なら右の奥へ）。
+    奥行きで手前ほど高い所（体の厚み）として倒れ方を強め、足から離れるほどぼかして薄くする。背景だけを暗くする。
+    元の絵の床は足元が周りより明るく（cast −0.5）、人物が浮いて見えた"""
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+    p = np.asarray(parts)
+    body = p != BACKGROUND
+    if not body.any():
+        return img
+    H, W = body.shape
+    f = W / 768
+    ys, xs = np.nonzero(body)
+    foot = ys.max()
+    z = np.asarray(depth.convert("L")).astype(np.float32)[ys, xs] / 255
+    h = (foot - ys).astype(np.float32)
+    dx = -np.cos(np.radians(deg))                    # 光と逆の左右
+    sx = xs + dx * h * 0.8 * (0.8 + 0.4 * z)
+    sy = foot - h * 0.18                             # 奥へ倒れるので上に縮んで写る
+    ok = (sx >= 0) & (sx < W) & (sy >= 0) & (sy < H)
+    acc = np.zeros((H, W), np.float32)
+    far = np.zeros((H, W), np.float32)
+    np.add.at(acc, (sy[ok].astype(int), sx[ok].astype(int)), 1)
+    np.add.at(far, (sy[ok].astype(int), sx[ok].astype(int)), h[ok])
+    m = ndimage.binary_closing(acc > 0, iterations=max(2, round(4 * f)))
+    dist = np.where(acc > 0, far / np.maximum(acc, 1), 0)
+    dist = ndimage.grey_dilation(dist, size=max(3, round(6 * f))) / max(foot - ys.min(), 1)
+    near = ndimage.gaussian_filter(m.astype(np.float32), 3 * f)
+    farb = ndimage.gaussian_filter(m.astype(np.float32), 14 * f)
+    k = np.clip(ndimage.gaussian_filter(dist, 8 * f), 0, 1)
+    s = (near * (1 - k) + farb * k) * (1 - 0.5 * k)  # 足から離れるほどぼけて薄い
+    cy, cx = foot, int(xs[ys > foot - 0.03 * H].mean())
+    yy, xx = np.mgrid[:H, :W]
+    contact = np.exp(-(((xx - cx) / (40 * f)) ** 2 + ((yy - cy) / (8 * f)) ** 2))   # 足元の接地の影
+    s = np.clip(np.maximum(s, contact), 0, 1) * ~body
+    a = np.asarray(img).astype(np.float32) * (1 - opacity * s)[..., None]
+    return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
 
 
 def stage2(pipe, src, a, log):
@@ -447,6 +587,10 @@ def parse(argv):
     ap.add_argument("--depth-scale", type=float, default=0, help="depth の ControlNet の強さ（0 なら使わない）")
     ap.add_argument("--relight", type=float, default=0, help="奥行きから付け直す陰の量（0 ならしない）")
     ap.add_argument("--light-deg", type=float, default=135, help="付け直す光の向き（0° が右、90° が上）")
+    ap.add_argument("--hair-strength", type=float, default=-1, help="髪の範囲の 1 段目の強さ（負なら全体と同じ）")
+    ap.add_argument("--iclight", type=float, default=0, help="1 段目の後に IC-Light を掛ける強さ（0 ならしない）")
+    ap.add_argument("--post-relight", type=float, default=0, help="描き直しの後に奥行きから陰と色を付け直す量（0 ならしない）")
+    ap.add_argument("--cast", type=float, default=0, help="床の落ち影の濃さ（0 なら付けない）")
     ap.add_argument("--check", action="store_true", help="段ごとに影の検品と肌・髪・線の保ち方を測る（部位分けの模型を読む）")
     ap.add_argument("--dry-run", action="store_true", help="模型を読まず、帯消しと lineart だけ書き出す")
     return ap.parse_args(argv)
@@ -495,11 +639,19 @@ def main(argv=None) -> int:
     if a.check:
         check(im, clean, parts, log, "input")
     pipe, multi = load(log, depth=a.depth_scale > 0)
-    r1 = stage1(multi, clean, li, a, log, dep)
+    import numpy as np
+    hair = np.asarray(parts) == 2 if a.hair_strength >= 0 else None   # 2 は髪（edit.LABELS）
+    r1 = stage1(multi, clean, li, a, log, dep, hair)
     r1.save(a.out / f"{stem}-1-photoreal-st{a.strength}-s{a.seed}.png")
     if a.check:
         check(im, r1, parts, log, "stage1")
     del multi
+    if a.iclight > 0:
+        raw, r1 = iclight(pipe, r1, parts, a, log)
+        raw.save(a.out / f"{stem}-1b-iclight-raw.png")
+        r1.save(a.out / f"{stem}-1b-iclight.png")
+        if a.check:
+            check(im, r1, parts, log, "iclight")
     if a.scale > 0:
         r2 = stage2(pipe, r1, a, log)
         r2.save(a.out / f"{stem}-2-tile-x{a.scale}-s{a.seed}.png")
@@ -507,8 +659,20 @@ def main(argv=None) -> int:
             r3 = hfmix(r1, r2, a.hf_sigma, a.hf_amount)
             r3.save(a.out / f"{stem}-3-hf-g{a.hf_sigma}-s{a.seed}.png")
             r2 = r3
-        if a.check:
-            check(im, r2, parts, log, "final")
+    else:
+        r2 = r1
+    if a.post_relight > 0 or a.cast > 0:
+        t1 = time.time()
+        p2 = _parts_of(r2)
+        d2 = depth_map(r2)
+        if a.post_relight > 0:
+            r2 = relight(r2, p2, d2, a.light_deg, amount=a.post_relight)
+        if a.cast > 0:
+            r2 = cast_shadow(r2, p2, d2, a.light_deg, a.cast)
+        r2.save(a.out / f"{stem}-4-light-r{a.post_relight}-c{a.cast}-s{a.seed}.png")
+        log("post_light_s", round(time.time() - t1, 1))
+    if a.check:
+        check(im, r2, parts, log, "final")
     log("total_s", round(time.time() - t, 1))
     return 0
 

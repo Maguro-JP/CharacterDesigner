@@ -28,14 +28,12 @@ jobs:
       matrix:
         # 影の直し方を並べて比べる（同じ種・同じ絵）。どれも段ごとに影の検品と肌・髪・線を測る（--check）
         include:
-          - variant: r3
-            extra: ""
-          - variant: deshade-relight
-            extra: "--deshade 12 --relight 0.5"
-          - variant: depth
-            extra: "--depth-scale 0.5"
-          - variant: deshade-relight-depth
-            extra: "--deshade 12 --relight 0.5 --depth-scale 0.5"
+          - variant: post-relight
+            extra: "--post-relight 0.6 --cast 0.45"
+          - variant: post-relight-08
+            extra: "--post-relight 0.8 --cast 0.45"
+          - variant: iclight
+            extra: "--iclight 0.6 --post-relight 0.6 --cast 0.45"
     steps:
       - uses: actions/checkout@v4
       - name: 置き場を空ける
@@ -61,6 +59,28 @@ jobs:
           eval "set -- $args"
           python -u tools/gen/photoreal.py "$src" "out/${{ matrix.variant }}" "$@" ${{ matrix.extra }} --check
           df -h / | tail -1
+      - name: draw-results に置く
+        if: always()
+        run: sh .github/scripts/draw-results.sh out
+
+  refs:
+    # 実写の手本（CC0・Public domain）で、影の検品が写真の境目を崩れと取り違えないかを確かめる。数字と出典だけを置く
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 部品
+        run: |
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy
+      - name: 測る
+        env:
+          CD_HOME: ${{ runner.temp }}/cd
+          CD_FETCH: "1"
+        run: python -u tools/gen/photo_refs.py out/refs --n 6
       - name: draw-results に置く
         if: always()
         run: sh .github/scripts/draw-results.sh out

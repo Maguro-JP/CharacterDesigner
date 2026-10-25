@@ -131,3 +131,21 @@ class ShadowCheckTest(unittest.TestCase):
         after, deg = photoreal.normal_corr(after_im, depth, Image.fromarray(seg))
         self.assertGreater(after, before + 0.3)
         self.assertIn(deg, (120, 150))
+
+
+class CastShadowTest(unittest.TestCase):
+    def test_cast_darkens_floor_away_from_light(self):
+        H, W = 400, 300
+        seg = np.zeros((H, W), np.uint8)
+        seg[100:350, 130:170] = 12                       # 立った棒（足は 349 行）
+        img = Image.new("RGB", (W, H), (180, 180, 180))
+        depth = Image.fromarray((seg > 0).astype(np.uint8) * 200)
+        o = np.asarray(photoreal.cast_shadow(img, Image.fromarray(seg), depth, 135, 0.5)).astype(int)
+        self.assertTrue((o[seg > 0] == 180).all())        # 人物は暗くしない
+        right, left = o[300:350, 200:290].mean(), o[300:350, 10:100].mean()
+        self.assertLess(right, left - 3)                  # 左上の光なら影は右へ
+        self.assertLess(o[352, 150, 0], 170)              # 足元の接地の影
+
+    def test_light_gradient_bright_toward_light(self):
+        g = np.asarray(photoreal.light_gradient((64, 64), 135).convert("L")).astype(int)
+        self.assertGreater(g[0, 0], g[63, 63])
