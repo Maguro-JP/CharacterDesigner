@@ -2,8 +2,8 @@
  "mode": "twostage",
  "compose": "black-forest-labs/FLUX.2-klein-4B",
  "render": "cagliostrolab/animagine-xl-4.0",
- "prompt": "An adult woman in a navy one-piece swimsuit on a beach at sunset, looking back over her shoulder with a smile, hands clasped in front of her chest, wind blowing her long hair, full body, anime illustration style",
- "tags": "1girl, solo, adult woman, mature female, navy one-piece swimsuit, beach, sunset, looking back, looking over shoulder, smile, own hands clasped, hands on own chest, wind, long hair, floating hair, full body",
+ "prompt": "An adult woman in a red bikini standing on a sunny beach, smiling, one hand raised to shade her eyes, the other hand on her hip, long brown hair, full body, anime illustration style",
+ "tags": "1girl, solo, adult woman, mature female, red bikini, beach, sunny, smile, hand up, shading eyes, hand on own hip, long hair, brown hair, full body",
  "seed": 7,
  "size": [
   832,
@@ -15,17 +15,6 @@
    "pose": 0.7,
    "depth": 0.4,
    "end": 0.7
-  },
-  {
-   "name": "pose-only",
-   "pose": 0.8,
-   "end": 0.8
-  },
-  {
-   "name": "depth-lines",
-   "depth": 0.5,
-   "lines": 0.4,
-   "end": 0.6
   }
  ]
 }

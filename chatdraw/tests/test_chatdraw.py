@@ -86,9 +86,9 @@ class WindowTest(unittest.TestCase):
             w = Window(Studio(FakeWords(), FakePainter(), Path(d)))
             w.entry.setText("雪の城の前の騎士")
             w.send()
-            for _ in range(200):
+            for _ in range(400):
                 app.processEvents()
-                if w.images:
+                if w.images and not w.thread:   # 描き終わり（finish）まで待つ。1 枚できた直後は結果の言葉がまだ付いていない
                     break
                 w.thread and w.thread.wait(10)
             self.assertEqual(len(w.images), 1)
@@ -427,7 +427,9 @@ class SetupTest(unittest.TestCase):
     def test_unused_words_model_passes_request_through(self):
         from chatdraw.engine import Words
         self.assertFalse(Words(Path("")).ready())
-        self.assertEqual(Words(Path("")).to_prompt("騎士"), "騎士")
+        # 言葉の模型が無いときも、日本語をそのまま渡さず、表で拾った語で描く（そのまま渡すと全く違う絵が出た）
+        self.assertEqual(Words(Path("")).to_prompt("騎士"), "knight, armor")
+        self.assertEqual(Words(Path("")).to_prompt("ぴょぴょ"), "ぴょぴょ")   # 拾えない時だけそのまま
 
 
 class PathsTest(unittest.TestCase):
@@ -1768,3 +1770,113 @@ class TwoStageAppTest(unittest.TestCase):
                 twostage.run_stages("s", "t", 1, "c", "r", (8, 8), Path(tempfile.mkdtemp()), twostage.VARIANTS[0], say=said.append)
         self.assertIn("MemoryError", str(e.exception))
         self.assertIn("構図 1/4 10 秒", said)
+
+
+class CpuDtypeTest(unittest.TestCase):
+    """CPU で読む型を、bf16 の速さとメモリの量で選ぶか"""
+
+    def test_choice(self):
+        import torch
+        from unittest import mock
+        from chatdraw import engine
+        with mock.patch.object(engine, "bf16_fast", return_value=True):
+            self.assertEqual(engine.cpu_dtype(7), torch.bfloat16)
+        with mock.patch.object(engine, "bf16_fast", return_value=False):
+            with mock.patch.object(engine, "total_ram_gb", return_value=32):
+                self.assertEqual(engine.cpu_dtype(7), torch.float32)    # 遅い CPU でもメモリに入れば float32
+            with mock.patch.object(engine, "total_ram_gb", return_value=16):
+                self.assertEqual(engine.cpu_dtype(7), torch.bfloat16)   # 入らなければ bf16（遅いが動く）
+                self.assertIn("時間がかかります", engine.dtype_note(torch.bfloat16))
+
+    def test_measure_and_ram(self):
+        from chatdraw import engine
+        self.assertIsInstance(engine.bf16_fast(), bool)
+        self.assertGreater(engine.total_ram_gb(), 0)
+
+
+class UsabilityFixTest(unittest.TestCase):
+    """使いにくいと言われた所: 頼みと違う絵、頼みの言葉の履歴、描いた絵の重なり"""
+
+    def test_japanese_terms(self):
+        from chatdraw.jaterms import merge, tags_from
+        self.assertEqual(tags_from("白いビキニの女性が海で笑顔")[:2], ["white bikini", "1girl"])
+        self.assertIn("red hair", tags_from("赤い髪の女の子"))
+        self.assertEqual(merge("1girl, beach", ["1girl", "white bikini"]), "1girl, beach, white bikini")   # 抜けた語だけ足す
+
+    def _window(self, d):
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Window
+        app = QApplication.instance() or QApplication([])
+        w = Window(Studio(FakeWords(), FakePainter(), Path(d)))
+        w.settings.store.remove(w.PROMPT_KEY)
+        w.settings.store.remove(w.FAV_KEY)
+        w._load_prompts()
+        return app, w
+
+    def _draw(self, app, w, text):
+        n = len(w.images)
+        w.entry.setText(text)
+        w.send()
+        for _ in range(300):
+            app.processEvents()
+            if len(w.images) > n and not w.thread:
+                break
+            w.thread and w.thread.wait(10)
+
+    def _chips(self, w):
+        return [w.tips.itemAt(i).widget().text() for i in range(w.tips.count()) if w.tips.itemAt(i).widget()]
+
+    def test_recent_words_replace_examples_and_favorites_stay(self):
+        from PySide6.QtCore import QEvent, Qt
+        from PySide6.QtGui import QKeyEvent
+        with TemporaryDirectory() as d:
+            app, w = self._window(d)
+            w.settings.store.remove(w.FAV_KEY)
+            w._load_prompts()
+            self.assertEqual(self._chips(w)[:2], list(w.EXAMPLES[:2]))      # まだ何も頼んでいないときだけ例
+            self._draw(app, w, "ビキニの女性")
+            self._draw(app, w, "海の女性")
+            self._draw(app, w, "ビキニの女性")
+            self.assertEqual(self._chips(w), ["ビキニの女性", "海の女性"])    # 例の所が直近の言葉になる（新しい順、重ねない）
+            w.entry.setText("海の女性")
+            w._toggle_fav()                                                  # ☆ で固定
+            self.assertEqual(self._chips(w), ["★ 海の女性", "ビキニの女性"])  # お気に入りが先頭
+            self.assertEqual(w.fav_button.text(), "★")
+            for i in range(30):
+                w._remember_prompt(f"言葉 {i}")
+            self.assertIn("★ 海の女性", self._chips(w))                       # 直近が増えてもお気に入りは消えない
+            self.assertEqual(len(w.recent_prompts()), w.PROMPT_MAX)
+            w.entry.clear()
+            w.eventFilter(w.entry, QKeyEvent(QEvent.KeyPress, Qt.Key_Up, Qt.NoModifier))
+            self.assertEqual(w.entry.text(), "海の女性")                       # ↑ はお気に入りから
+            w.forget_prompt("海の女性")
+            self.assertNotIn("★ 海の女性", self._chips(w))
+            w.settings.store.remove(w.PROMPT_KEY)
+            w.settings.store.remove(w.FAV_KEY)
+
+    def test_new_drawings_replace_and_undo_restores(self):
+        with TemporaryDirectory() as d:
+            app, w = self._window(d)
+            self._draw(app, w, "1girl")
+            self._draw(app, w, "1girl, smile")
+            names = [l.name for l in w.canvas.layers]
+            self.assertEqual(len(names), 2)                     # 絵 1 枚と描くためのレイヤー。前の絵は重ならない
+            self.assertTrue(names[0].startswith("AI の絵"))
+            self.assertEqual(w.canvas.current, 1)               # 次の線は空のレイヤーに描く
+            first = w.canvas.layers[0].name
+            w.canvas.undo()
+            self.assertNotEqual(w.canvas.layers[0].name, first)  # 元に戻すで前の絵に戻る
+            w.settings.store.remove(w.PROMPT_KEY)
+
+    def test_layer_added_on_top_not_under_strokes(self):
+        from PySide6.QtGui import QImage
+        with TemporaryDirectory() as d:
+            app, w = self._window(d)
+            p = Path(d) / "a.png"
+            img = QImage(64, 64, QImage.Format_ARGB32)
+            img.fill(0xffff0000)
+            img.save(str(p))
+            w.canvas.select(0)
+            w.canvas.add_image_layer(str(p), "AI の直し")
+            self.assertEqual(w.canvas.current, len(w.canvas.layers) - 1)
+            self.assertEqual(w.canvas.layers[-1].name, "AI の直し")

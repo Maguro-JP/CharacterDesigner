@@ -469,25 +469,28 @@ class Window(QMainWindow):
         line.addWidget(self.stop_button)
         self.button.setMinimumWidth(110)
         tl.addLayout(line)
-        # 頼みの例。押すと書く欄に入る（何を頼めるかを見せる）
-        tips = QHBoxLayout()
-        tips.setSpacing(4)
-        for text in ("赤いマフラーの女の子", "鎧の騎士 全身", "猫耳の少女 笑顔", "夕暮れの街", "レイヤーを足して", "AI 特化の配置にして"):
-            chip = QPushButton(text)
-            chip.setObjectName("suggest")
-            chip.setCursor(Qt.PointingHandCursor)
-            chip.clicked.connect(lambda _=False, t=text: (self.entry.setText(t), self.entry.setFocus()))
-            tips.addWidget(chip)
-        tips.addStretch()
+        # 書く欄の下のボタン。お気に入り（★、固定）を先に、そのあとに直近に頼んだ言葉を新しい順に並べる。
+        # 押すと書く欄に入り、ダブルクリックでそのまま描く。右クリックで固定・外す・消す。書く欄で ↑↓ でも呼び出せる
+        self.fav_button = QPushButton("☆")
+        self.fav_button.setToolTip("書く欄の言葉をお気に入りに固定する")
+        self.fav_button.setFixedWidth(40)
+        self.fav_button.clicked.connect(self._toggle_fav)
+        self.entry.textChanged.connect(lambda t: self.fav_button.setText("★" if t.strip() and t.strip() in self.favorite_prompts() else "☆"))
+        line.addWidget(self.fav_button)
+        self.tips = QHBoxLayout()
+        self.tips.setSpacing(4)
         tips_box = QWidget()
-        tips_box.setLayout(tips)
-        tips_scroll = QScrollArea()   # 頼みの例は横に流す。狭い画面でチャットの欄の幅を広げさせない
+        tips_box.setLayout(self.tips)
+        tips_scroll = QScrollArea()   # ボタンは横に流す。狭い画面でチャットの欄の幅を広げさせない
         tips_scroll.setWidget(tips_box)
         tips_scroll.setWidgetResizable(True)
         tips_scroll.setFrameShape(QScrollArea.NoFrame)
         tips_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         tips_box.setObjectName("scrollInner")
-        tips_scroll.setFixedHeight(tips_box.sizeHint().height() + 6)
+        self.tips_scroll = tips_scroll
+        self.entry.installEventFilter(self)
+        self._load_prompts()
+        tips_scroll.setFixedHeight(QPushButton("あ").sizeHint().height() + 14)
         tl.addWidget(tips_scroll)
         talk = QDockWidget("チャット", self)
         talk.setWidget(talk_box)
@@ -888,6 +891,105 @@ class Window(QMainWindow):
         from chatdraw import keys
         keys.apply(self, self.layout_store)
 
+    PROMPT_KEY, FAV_KEY, PROMPT_MAX = "prompts/history", "prompts/favorites", 20
+    EXAMPLES = ("赤いマフラーの女の子", "鎧の騎士 全身", "猫耳の少女 笑顔", "夕暮れの街", "レイヤーを足して")
+
+    def _list(self, key: str) -> list[str]:
+        saved = self.settings.store.value(key, []) or []
+        return [str(t) for t in ([saved] if isinstance(saved, str) else list(saved))]
+
+    def recent_prompts(self) -> list[str]:
+        return self._list(self.PROMPT_KEY)
+
+    def favorite_prompts(self) -> list[str]:
+        return self._list(self.FAV_KEY)
+
+    def _load_prompts(self):
+        """書く欄の下のボタンを作り直す。お気に入り、直近の言葉の順。どちらも無いときだけ頼みの例を出す"""
+        while self.tips.count():
+            it = self.tips.takeAt(0)
+            if it.widget():
+                it.widget().deleteLater()
+        favs = self.favorite_prompts()
+        recent = [t for t in self.recent_prompts() if t not in favs]
+        self.chip_texts = favs + recent   # ↑↓ で呼び出す順
+        rows = [(t, True) for t in favs] + [(t, False) for t in recent] or [(t, None) for t in self.EXAMPLES]
+        for text, fav in rows:
+            chip = QPushButton(("★ " if fav else "") + (text if len(text) <= 24 else text[:23] + "…"))
+            chip.setObjectName("suggest")
+            chip.setCursor(Qt.PointingHandCursor)
+            chip.setProperty("prompt", text)
+            chip.setToolTip(text + ("\n押すと書く欄に入り、ダブルクリックでもう一度描きます。右クリックで固定・消す" if fav is not None else ""))
+            chip.clicked.connect(lambda _=False, t=text: (self.entry.setText(t), self.entry.setFocus()))
+            if fav is not None:
+                chip.setContextMenuPolicy(Qt.CustomContextMenu)
+                chip.customContextMenuRequested.connect(lambda pos, c=chip, t=text, f=fav: self._chip_menu(c, pos, t, f))
+                chip.installEventFilter(self)
+            self.tips.addWidget(chip)
+        self.tips.addStretch()
+        self.fav_button.setText("★" if self.entry.text().strip() in favs and self.entry.text().strip() else "☆")
+        self._prompt_pos = -1
+
+    def _chip_menu(self, chip, pos, text: str, fav: bool):
+        from PySide6.QtWidgets import QMenu
+        m = QMenu(self)
+        m.addAction("お気に入りから外す" if fav else "お気に入りに固定する", lambda: (self.unpin_prompt(text) if fav else self.pin_prompt(text)))
+        m.addAction("この言葉ですぐ描く", lambda: (self.entry.setText(text), self.send()))
+        m.addAction("一覧から消す", lambda: self.forget_prompt(text))
+        m.exec(chip.mapToGlobal(pos))
+
+    def _save(self, key: str, items: list[str], limit: int | None = None):
+        self.settings.store.setValue(key, items[:limit] if limit else items)
+        self._load_prompts()
+
+    def _remember_prompt(self, text: str):
+        """頼んだ言葉を、新しい順に残す（同じ言葉は 1 つにまとめて先頭へ）"""
+        self._save(self.PROMPT_KEY, [text] + [t for t in self.recent_prompts() if t != text], self.PROMPT_MAX)
+
+    def pin_prompt(self, text: str):
+        """お気に入りに固定する。お気に入りは数を限らず、消すまで残す"""
+        if not text:
+            self.notify("固定する言葉がありません", "info", "書く欄に言葉を書いてから ☆ を押します")
+            return
+        favs = self.favorite_prompts()
+        if text not in favs:
+            self._save(self.FAV_KEY, favs + [text])
+            self.statusBar().showMessage(f"お気に入りに固定しました: {text}", 4000)
+
+    def _toggle_fav(self):
+        text = self.entry.text().strip() or self.last_text
+        if text and text in self.favorite_prompts():
+            self.unpin_prompt(text)
+        else:
+            self.pin_prompt(text)
+        self.fav_button.setText("★" if text in self.favorite_prompts() else "☆")
+
+    def unpin_prompt(self, text: str):
+        self._save(self.FAV_KEY, [t for t in self.favorite_prompts() if t != text])
+
+    def forget_prompt(self, text: str):
+        self.settings.store.setValue(self.FAV_KEY, [t for t in self.favorite_prompts() if t != text])
+        self._save(self.PROMPT_KEY, [t for t in self.recent_prompts() if t != text])
+
+    def _entry_keys(self, obj, e) -> bool:
+        """書く欄で ↑ を押すと前に頼んだ言葉、↓ で新しい方へ戻る"""
+        from PySide6.QtCore import QEvent
+        if obj is getattr(self, "entry", None) and e.type() == QEvent.KeyPress and e.key() in (Qt.Key_Up, Qt.Key_Down):
+            texts = getattr(self, "chip_texts", [])
+            if texts:
+                self._prompt_pos = min(self._prompt_pos + 1, len(texts) - 1) if e.key() == Qt.Key_Up else self._prompt_pos - 1
+                if self._prompt_pos < 0:
+                    self._prompt_pos = -1
+                    self.entry.clear()
+                else:
+                    self.entry.setText(texts[self._prompt_pos])
+                return True
+        if e.type() == QEvent.MouseButtonDblClick and isinstance(obj, QPushButton) and obj.property("prompt"):
+            self.entry.setText(obj.property("prompt"))   # ボタンをダブルクリックで、その言葉ですぐ描く
+            self.send()
+            return True
+        return False
+
     def draw_again(self):
         """前と同じ頼みを、別の種で描き直す"""
         if not self.last_text:
@@ -1022,6 +1124,7 @@ class Window(QMainWindow):
             return
         self.entry.clear()
         self.last_text = text
+        self._remember_prompt(text)
         self.say(text, "あなた")
         self.button.setEnabled(False)
         self.stop_button.setEnabled(True)
@@ -1114,6 +1217,8 @@ class Window(QMainWindow):
 
     def eventFilter(self, obj, e):
         from PySide6.QtCore import QEvent
+        if self._entry_keys(obj, e):
+            return True
         if obj is getattr(self, "note_edit", None) and e.type() == QEvent.KeyPress and e.key() == Qt.Key_Escape:
             self.note_edit.hide()
             return True
@@ -1137,6 +1242,8 @@ class Window(QMainWindow):
         """1 枚できるたびに呼ばれる。初めの 1 枚はキャンバスに置き、ほかは履歴に並べて選べるようにする"""
         self.images.append(path)
         self.canvas.show_overlay(None)
+        if prompt and prompt != self.last_text:
+            self.say(f"絵の模型に渡した言葉: {prompt}")   # 頼みとずれた絵が出たとき、どこでずれたかを見られるように
         if self.job_kind == "chibi":
             self.canvas.add_image_layer(path, "ちびキャラ")
         elif self.job_kind == "fix":
@@ -1504,8 +1611,10 @@ class Window(QMainWindow):
     def place(self, path: str):
         """描けた絵を置く。新しく描いて、まだ何も描いていないキャンバスなら絵を開く。
         キャンバスを元に描いたときと、描いている途中なら、元の絵を残して新しいレイヤーとして重ねる"""
-        if self.mode.currentIndex() == 0 and not self.canvas.undo_stack and len(self.canvas.layers) <= 2:
-            self.canvas.show_image(path)
+        if self.mode.currentIndex() == 0:
+            # 新しく描いた絵は、いつも同じ形で置く（キャンバスを置き換え、前の状態は元に戻すで戻せる）。
+            # 前は、キャンバスの状態で置き換えたり上に重ねたりが変わり、大きさの違う絵が重なった
+            self.canvas.replace_with_image(path, f"AI の絵 {len(self.images)}")
         else:
             self.canvas.add_image_layer(path, f"AI の絵 {len(self.images)}")
 

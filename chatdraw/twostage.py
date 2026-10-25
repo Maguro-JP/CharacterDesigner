@@ -131,7 +131,10 @@ def load_render(model: str):
         os.symlink(weights, os.path.join(d, "diffusion_pytorch_model.safetensors"))
     except OSError:
         shutil.copy(weights, os.path.join(d, "diffusion_pytorch_model.safetensors"))
-    dtype = torch.float16 if torch.cuda.is_available() else torch.bfloat16
+    from chatdraw.engine import cpu_dtype, dtype_note
+    from chatdraw.models import image_model
+    dtype = torch.float16 if torch.cuda.is_available() else cpu_dtype((image_model(model).gb or 7) + 2.5)   # 2.5 は Union の分
+    print(f"仕上げの型: {dtype} {dtype_note(dtype)}", flush=True)
     cn = ControlNetUnionModel.from_pretrained(d, torch_dtype=dtype)
     pipe = StableDiffusionXLControlNetUnionPipeline.from_pretrained(model, controlnet=cn, torch_dtype=dtype, cache_dir=str(HUB))
     if torch.cuda.is_available():
@@ -165,6 +168,8 @@ def compose(sentence: str, seed: int, compose_model: str, size, path):
     cm = image_model(compose_model)
     painter = Painter(compose_model, steps=cm.steps, size=size, guidance=cm.guidance)
     pipe = painter.load()
+    from chatdraw.engine import dtype_note
+    print(f"構図の型: {painter.dtype} {dtype_note(painter.dtype)}", flush=True)
     if not hasattr(pipe, "encode_prompt") or getattr(pipe, "text_encoder", None) is None:
         painter.paint(sentence, seed, on_step=lambda i, n: print(f"構図 {i}/{n}", flush=True)).save(path)
         return
