@@ -272,8 +272,8 @@ def fix_hands(pipe, image, prompt: str, negative: str, seed: int, steps: int, gu
         res = handcheck.check(image)
         rounds.append({"round": r, "bad": res["bad"], "readable": res["readable"]})
         print(f"仕上げの検品 {r}回目: {handcheck.summary(res)}", flush=True)
-        bad_boxes = [h["box"] for h in res["hands"] if h["seen"] and h["bad"]]
-        if not bad_boxes or r == FIX_ROUNDS:
+        regions = handcheck.bad_regions(res)   # 手・足・顔のうち、崩れの見つかった所
+        if not regions or r == FIX_ROUNDS:
             break
         if inpaint is None:
             parts = {k: v for k, v in pipe.components.items() if k in ("vae", "text_encoder", "text_encoder_2", "tokenizer", "tokenizer_2",
@@ -281,12 +281,14 @@ def fix_hands(pipe, image, prompt: str, negative: str, seed: int, steps: int, gu
             inpaint = StableDiffusionXLInpaintPipeline(**parts)   # 読んだ模型の部品をそのまま使う（模型を 2 度読まない）
         mask = Image.new("L", image.size, 0)
         d = ImageDraw.Draw(mask)
-        for x0, y0, x1, y1 in bad_boxes:
-            cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) * 0.6
+        for (x0, y0, x1, y1), _kind in regions:
+            cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, y1 - y0) * 0.6
             d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
         soft = mask.filter(ImageFilter.GaussianBlur(4))
-        out = inpaint(prompt=f"{prompt}, detailed hand, five fingers, correct hand anatomy", negative_prompt=negative + ", extra fingers, missing fingers, fused fingers",
-                      image=image, mask_image=soft, width=image.width, height=image.height, strength=0.6,
+        words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in regions))
+        out = inpaint(prompt=f"{prompt}, {words}",
+                      negative_prompt=negative + ", extra fingers, missing fingers, fused fingers, extra toes, faceless, empty eyes",
+                      image=image, mask_image=soft, width=image.width, height=image.height, strength=(0.55, 0.7, 0.85)[min(r, 2)],
                       num_inference_steps=steps, guidance_scale=guidance,
                       generator=torch.Generator("cpu").manual_seed(seed + 77 * (r + 1))).images[0].resize(image.size)
         image = Image.composite(out, image, soft)   # 枠の外は元の絵のまま

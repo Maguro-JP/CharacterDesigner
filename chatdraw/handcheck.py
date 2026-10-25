@@ -140,3 +140,19 @@ def summary(res: dict) -> str:
     if res["bad"]:
         return "検品: 崩れ " + str(len(res["bad"])) + " 件。" + "、".join(res["bad"])
     return f"検品: 手 {sum(h['seen'] for h in res['hands'])} つで、指の数と形に崩れは見つかりませんでした"
+
+
+# 直す所の種類ごとに、描き直しの頼みに足す言葉
+FIX_WORDS = {"hand": "detailed hand, five fingers, correct hand anatomy",
+             "foot": "detailed feet, five toes, correct foot anatomy",
+             "face": "detailed face, beautiful detailed eyes, clear eyes"}
+
+
+def bad_regions(res: dict) -> list[tuple[list[int], str]]:
+    """検品で崩れの見つかった所の枠と種類（hand / foot / face）。AI が自分で直す所の一覧にする"""
+    out = []
+    for key, kind in (("hands", "hand"), ("feet", "foot"), ("faces", "face")):
+        for h in res.get(key, []):
+            if h.get("seen", True) and h.get("bad"):
+                out.append((list(h["box"]), kind))
+    return out

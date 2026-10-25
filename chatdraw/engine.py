@@ -734,7 +734,7 @@ class Studio:
     REDRAW_TRIES = 3   # 直しても検品を通らないとき、種を変えて描き直す回数の上限
 
     def _fix_hands(self, image, prompt: str, seed: int, say):
-        """1 回描いて終わりにしない。描いた絵の手を検品し、崩れた手の所だけを直して、もう一度検品する。
+        """1 回描いて終わりにしない。描いた絵の手・足・顔を検品し、崩れた所だけを直して、もう一度検品する。
         崩れが消えるか FIX_ROUNDS 回で止める。直すのは手の枠の中だけで、枠の外は元の絵のまま（Painter.redraw）"""
         import os
         from chatdraw.models import family as fam, image_model
@@ -747,17 +747,18 @@ class Studio:
             say(f"検品しています（手と指・{r + 1} 回目）")
             res = handcheck.check(image)
             self.hand_rounds.append({"round": r, "bad": res["bad"]})
-            boxes = [h["box"] for h in res["hands"] if h["seen"] and h["bad"]]
-            if not boxes or r == self.FIX_ROUNDS or self.painter.stop:
+            regions = handcheck.bad_regions(res)   # 手・足・顔のうち、崩れの見つかった所
+            if not regions or r == self.FIX_ROUNDS or getattr(self.painter, "stop", False):
                 return image
-            say(f"崩れた手を直しています（{len(boxes)} か所・{r + 1} 回目）: " + "、".join(res["bad"][:3]))
+            say(f"崩れた所を直しています（{len(regions)} か所・{r + 1} 回目）: " + "、".join(res["bad"][:3]))
             mask = Image.new("L", image.size, 0)
             d = ImageDraw.Draw(mask)
-            for x0, y0, x1, y1 in boxes:
-                cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) * 0.6
+            for (x0, y0, x1, y1), _kind in regions:
+                cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, y1 - y0) * 0.6
                 d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
-            image = self.painter.redraw(f"{prompt}, detailed hand, five fingers, correct hand anatomy", seed + 77 * (r + 1),
-                                        image, mask, strength=0.6)
+            words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in regions))
+            # 回を重ねるほど強く描き直す（弱いままだと崩れた指の形をなぞり、何回直しても同じ崩れが残った）
+            image = self.painter.redraw(f"{prompt}, {words}", seed + 77 * (r + 1), image, mask, strength=(0.55, 0.7, 0.85)[min(r, 2)])
         return image
 
     def _inspect(self, path: Path, say):
