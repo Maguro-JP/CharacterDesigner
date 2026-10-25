@@ -1,0 +1,253 @@
+{
+ "1-composition.png": {
+  "readable": true,
+  "bad": [
+   "手 1: thumbの手の色 0.0（0.85〜1.01）",
+   "手 2: palm 0.7（0.85〜1.35）",
+   "手 2: thumbの手の色 0.83（0.85〜1.01）",
+   "手 2: indexの手の色 0.46（0.85〜1.01）",
+   "手 2: ringの手の色 0.54（0.85〜1.01）"
+  ],
+  "hands": [
+   {
+    "box": [
+     312,
+     16,
+     488,
+     192
+    ],
+    "angle": 55.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 0.93,
+     "thumb": 0.88,
+     "index": 0.81,
+     "ring": 0.95,
+     "pinky": 0.8,
+     "cover": {
+      "thumb": 0.0,
+      "index": 0.58,
+      "middle": 0.67,
+      "ring": 0.62,
+      "pinky": 0.29
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "指先が付け根より上に無い"
+     }
+    },
+    "bad": [
+     "thumbの手の色 0.0（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     400,
+     591,
+     569,
+     761
+    ],
+    "angle": -101.0,
+    "measure": {
+     "presence": 1.0,
+     "palm": 0.7,
+     "thumb": 0.87,
+     "index": 0.84,
+     "ring": 0.96,
+     "pinky": 0.77,
+     "cover": {
+      "thumb": 0.83,
+      "index": 0.46,
+      "middle": 0.96,
+      "ring": 0.54,
+      "pinky": 0.96
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       3,
+       3,
+       4,
+       4,
+       5
+      ],
+      "reason": "切った線ごとに数が揺れる（4 本と同じ線が 2 本）"
+     }
+    },
+    "bad": [
+     "palm 0.7（0.85〜1.35）",
+     "thumbの手の色 0.83（0.85〜1.01）",
+     "indexの手の色 0.46（0.85〜1.01）",
+     "ringの手の色 0.54（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     428,
+     290,
+     577,
+     439
+    ],
+    "angle": 82.0,
+    "measure": {
+     "presence": 0.03,
+     "palm": 1.12,
+     "thumb": 0.98,
+     "index": 1.02,
+     "ring": 0.91,
+     "pinky": 0.74,
+     "cover": {
+      "thumb": 0.21,
+      "index": 0.42,
+      "middle": 0.46,
+      "ring": 0.46,
+      "pinky": 0.17
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       1,
+       1,
+       1,
+       1,
+       3
+      ],
+      "reason": "指が 1 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.03"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     301,
+     229,
+     459,
+     385
+    ],
+    "angle": 30.0,
+    "measure": {
+     "presence": 0.02,
+     "palm": 0.87,
+     "thumb": 0.97,
+     "index": 0.94,
+     "ring": 0.87,
+     "pinky": 0.69,
+     "cover": {
+      "thumb": 0.58,
+      "index": 0.5,
+      "middle": 0.5,
+      "ring": 0.46,
+      "pinky": 0.71
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       6,
+       5,
+       4,
+       3,
+       3
+      ],
+      "reason": "切った線ごとに数が揺れる（4 本と同じ線が 1 本）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.02"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     434,
+     182,
+     581,
+     328
+    ],
+    "angle": 58.0,
+    "measure": {
+     "presence": 0.01,
+     "palm": 0.71,
+     "thumb": 0.77,
+     "index": 0.92,
+     "ring": 0.85,
+     "pinky": 0.74,
+     "cover": {
+      "thumb": 0.42,
+      "index": 0.08,
+      "middle": 0.08,
+      "ring": 0.04,
+      "pinky": 0.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "指先が付け根より上に無い"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.01"
+    ],
+    "seen": false
+   }
+  ],
+  "feet": [
+   {
+    "side": "right",
+    "box": [
+     379,
+     1216,
+     443,
+     1268
+    ],
+    "count": null,
+    "evidence": {
+     "F": 33.4,
+     "toe_line": 16.4,
+     "why": "境の線では 1 本、指先の山では 0 本で、合わない",
+     "lines": 1,
+     "tips": 0,
+     "width": 4.8,
+     "line_at": [],
+     "line_power": [],
+     "tip_at": [],
+     "span": [
+      87,
+      106
+     ]
+    },
+    "bad": []
+   },
+   {
+    "side": "left",
+    "box": [
+     435,
+     1226,
+     503,
+     1259
+    ],
+    "count": null,
+    "evidence": {
+     "F": 25.5,
+     "toe_line": 30.7,
+     "why": "指先の線が見つからない"
+    },
+    "bad": []
+   }
+  ],
+  "faces": [],
+  "face": {
+   "box": null,
+   "readable": false,
+   "bad": [],
+   "tags": {},
+   "eye_dark": null,
+   "reason": "顔が写っていないか、小さすぎます"
+  }
+ }
+}
