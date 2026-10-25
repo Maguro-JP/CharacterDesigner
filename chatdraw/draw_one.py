@@ -26,6 +26,14 @@ def main():
         t = time.time()
         draw(req["prompt"], req["tags"], req.get("seed", 7), req["compose"], req["render"], size=tuple(req.get("size", (832, 1216))),
              say=lambda m: print(m, flush=True), keep=out, composition=comp, variants=req.get("variants"), stage=stage)
+        from chatdraw import handcheck
+        checks = {}
+        for f in sorted(out.glob("1-composition.png")) + sorted(out.glob("3-*.png")):
+            res = handcheck.check(f)
+            checks[f.name] = res
+            print(f"{f.name}: {handcheck.summary(res)}", flush=True)
+        if checks:
+            (out / f"check-{stage}.json").write_text(json.dumps(checks, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
         (out / f"request-{stage}.json").write_text(json.dumps(dict(req, seconds=round(time.time() - t)), ensure_ascii=False, indent=1),
                                                    encoding="utf-8")
         print("exit=0")

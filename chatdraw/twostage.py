@@ -171,9 +171,11 @@ def compose(sentence: str, seed: int, compose_model: str, size, path):
     from chatdraw.engine import dtype_note
     print(f"構図の型: {painter.dtype} {dtype_note(painter.dtype)}", flush=True)
     if not hasattr(pipe, "encode_prompt") or getattr(pipe, "text_encoder", None) is None:
-        painter.paint(sentence, seed, on_step=lambda i, n: print(f"構図 {i}/{n}", flush=True)).save(path)
+        painter.paint(enrich(sentence, seed), seed, on_step=lambda i, n: print(f"構図 {i}/{n}", flush=True)).save(path)
         return
     t = time.time()
+    sentence = enrich(sentence, seed)
+    print(f"構図の文: {sentence}", flush=True)
     with torch.no_grad():
         embeds = pipe.encode_prompt(sentence, device="cpu")
     embeds = embeds[0] if isinstance(embeds, tuple) else embeds
@@ -208,6 +210,26 @@ def finish(tags: str, seed: int, render_model: str, size, composition_path, keep
                      on_step=lambda i, n, name=v["name"]: print(f"仕上げ {name} {i}/{n} {time.time() - t:.0f} 秒", flush=True))
         out.save(keep / f"3-{v['name']}-s{seed}.png")
         print(f"仕上げ {v['name']}: {time.time() - t:.0f} 秒", flush=True)
+
+
+# 構図の文に足す、場面の変化（カメラ・光・背景）。同じ頼みでいつも同じ浜辺・同じ正面の立ち姿になり、
+# 構図の段がポーズの確認にしか使えなかったので、種ごとに違う組み合わせを足して、場面の魅力を出す
+SCENE = {
+    "camera": ["low angle shot", "slightly high angle", "dynamic three-quarter view", "cinematic wide shot", "dutch angle",
+               "eye-level shot with shallow depth of field"],
+    "light": ["golden hour backlight with rim light", "soft overcast light", "dramatic side lighting", "sparkling midday sun",
+              "warm sunset glow", "dappled light through leaves"],
+    "detail": ["detailed background with depth", "foreground elements framing the subject", "atmospheric perspective",
+               "scattered props that tell a story", "wind-blown details", "reflections and light particles"],
+}
+
+
+def enrich(sentence: str, seed: int) -> str:
+    """構図の文に、種で選んだカメラ・光・背景の言葉を足す（頼みの言葉は先に置き、頼みの方を効かせる）"""
+    import random
+    r = random.Random(seed)
+    extra = [r.choice(v) for v in SCENE.values()]
+    return f"{sentence.rstrip('. ')}. {', '.join(extra)}."
 
 
 COMPOSERS = ("flux2", "zimage", "qwenimage", "flux1", "chroma", "lumina2")   # 文で頼める世代（構図の段に使う）

@@ -7,6 +7,7 @@ from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parents[2]
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("CD_CHECK", "off")   # 描くたびの検品は、模型を取りに行くので試験では止める（HandCheckTest で別に確かめる）
 sys.path.insert(0, str(ROOT / ".cache" / "simple" / "lib"))
 sys.path.insert(0, str(ROOT))
 
@@ -2007,3 +2008,30 @@ class ViewingTest(unittest.TestCase):
             self.assertTrue(share.enabled(w.settings, "Bluesky"))
             self.assertIn("bsky.app/intent/compose?text=", share.compose_url("Bluesky", "ビキニの女性"))
             w.settings.set("sns", "オフ")
+
+
+class HandCheckTest(unittest.TestCase):
+    """描いた絵の検品（chatdraw/handcheck.py）。模型が手元にあるときは本物で、無いときは止まらず理由を返すかを見る"""
+
+    def test_summary_and_missing_parts(self):
+        from chatdraw import handcheck
+        self.assertIn("崩れ 1 件", handcheck.summary({"readable": True, "bad": ["手 1: 指が多い"], "hands": [{"seen": True}]}))
+        self.assertIn("読めません", handcheck.summary({"readable": False, "bad": [], "hands": []}))
+        self.assertIn("止めて", handcheck.summary(handcheck.check(__file__)))   # CD_CHECK=off なら止めて理由を返す
+
+    def test_six_fingers_found_with_real_models(self):
+        from pathlib import Path
+        from unittest import mock
+        root = Path(__file__).resolve().parents[2]
+        if not (root / ".cache" / "gen" / "mediapipe" / "hand_landmarks_detector.tflite").exists():
+            self.skipTest("手の模型が手元にない")
+        try:
+            import ai_edge_litert  # noqa: F401
+        except ImportError:
+            self.skipTest("ai-edge-litert が無い")
+        from PIL import Image, ImageDraw
+        from chatdraw import handcheck
+        with mock.patch.dict(os.environ, {"CD_CHECK": "on", "CD_HOME": str(root / ".cache")}):
+            res = handcheck.check(Image.new("RGB", (256, 256), "white"), fetch=False)
+        self.assertFalse(res["readable"])                 # 手の無い絵は「読めない」（崩れにしない）
+        self.assertEqual(res["bad"], [])

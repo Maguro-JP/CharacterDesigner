@@ -652,6 +652,7 @@ class Studio:
         image = self.painter.paint(prompt, seed, on_step=lambda i, n: say(f"描いています（{i}/{n}）"),
                                    base=base, strength=strength, size=size, on_preview=on_preview, **extra)
         path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model))
+        self._inspect(path, say)
         return prompt, path
 
     def _two_stage_models(self, base, reference, say=lambda m: None):
@@ -699,7 +700,25 @@ class Studio:
         image = Image.open(path)
         saved = self._save(image, seed, dict(meta or {}, text=text, prompt=tags, sentence=sentence, seed=seed, style=style,
                                              model=render.repo, compose_model=comp.repo, way="two", stages=str(keep)))
+        self._inspect(saved, say)
         return tags, saved
+
+    last_check: dict | None = None
+
+    def _inspect(self, path: Path, say):
+        """描いた絵の手と指を検品し、結果を絵の隣の .check.json に残す（chatdraw/handcheck.py）"""
+        import json
+        say("検品しています（手と指）")
+        try:
+            from chatdraw import handcheck
+            res = handcheck.check(path)
+        except Exception as e:   # 検品で落ちても、描いた絵は渡す
+            res = {"readable": False, "bad": [], "hands": [], "reason": f"検品で止まりました（{e}）"}
+        self.last_check = res
+        try:
+            path.with_suffix(".check.json").write_text(json.dumps(res, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+        except OSError:
+            pass
 
     def _save(self, image, seed: int, meta: dict) -> Path:
         """絵と、同じ名前の .json（頼み・描く言葉・種・作風・模型）を残す。履歴から同じ設定で描き直すため"""
