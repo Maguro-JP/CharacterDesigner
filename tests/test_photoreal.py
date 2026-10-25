@@ -56,7 +56,7 @@ class PhotorealTest(unittest.TestCase):
     def test_request_points_at_tracked_image(self):
         req = json.loads((ROOT / "config" / "photoreal-request.json").read_text())
         assert not req["src"].startswith(".worklog")
-        assert (ROOT / req["src"]).exists() and (ROOT / (req["src"] + ".parts.png")).exists()
+        assert (ROOT / req["src"]).exists()   # .parts.png は git に入れないので、無ければ台本が作る
 
 
 

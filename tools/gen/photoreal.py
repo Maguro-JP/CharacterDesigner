@@ -215,8 +215,14 @@ def parse(argv):
 def main(argv=None) -> int:
     a = parse(argv if argv is not None else sys.argv[1:])
     if not Path(str(a.src) + ".parts.png").exists():
-        print(f"部位の絵がありません: {a.src}.parts.png", file=sys.stderr)
-        return 2
+        # library の .parts.png は git に入れない（検品の副産物）ので、Actions では無い。無ければ部位分けの模型で作って隣に置く
+        if a.dry_run:
+            print(f"部位の絵がありません: {a.src}.parts.png（--dry-run は模型を読まないので作らない）", file=sys.stderr)
+            return 2
+        import edit
+        t = time.time()
+        edit.parts(a.src)
+        print("parts_s", round(time.time() - t, 1), flush=True)
     a.out.mkdir(parents=True, exist_ok=True)
     log = Log(a.out / "times.json")
     log("args", {k: str(v) for k, v in vars(a).items()})
