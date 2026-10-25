@@ -649,11 +649,25 @@ class Studio:
             raise ValueError("子どもを性的に描く頼みは描きません")
         say("絵の模型を読んでいます（初めの 1 回だけ時間がかかります）")
         extra = dict(reference=reference, ref_scale=ref_scale) if reference is not None else {}
-        image = self.painter.paint(prompt, seed, on_step=lambda i, n: say(f"描いています（{i}/{n}）"),
-                                   base=base, strength=strength, size=size, on_preview=on_preview, **extra)
-        image = self._fix_hands(image, prompt, seed, say)
+        # 描けるまで描き直す。手を直しても検品を通らなければ、種を変えて描き直す（REDRAW_TRIES 回まで）。
+        # 通らなかったときは、崩れの一番少ない絵を渡す（どの回の崩れも .json の redraws に残す）
+        best, redraws = None, []
+        for k in range(self.REDRAW_TRIES):
+            s_k = seed + 1000 * k
+            if k:
+                say(f"検品を通らなかったので、種を変えて描き直しています（{k + 1}/{self.REDRAW_TRIES} 回目）")
+            image = self.painter.paint(prompt, s_k, on_step=lambda i, n: say(f"描いています（{i}/{n}）"),
+                                       base=base, strength=strength, size=size, on_preview=on_preview, **extra)
+            image = self._fix_hands(image, prompt, s_k, say)
+            left = (self.hand_rounds[-1]["bad"] if self.hand_rounds else [])
+            redraws.append({"seed": s_k, "bad": left})
+            if best is None or len(left) < len(best[1]):
+                best = (image, left, s_k)
+            if not left or self.painter.stop or not self.hand_rounds:
+                break
+        image, _left, seed = best
         path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model,
-                                            hand_rounds=getattr(self, "hand_rounds", [])))
+                                            hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws))
         self._inspect(path, say)
         return prompt, path
 
@@ -706,7 +720,8 @@ class Studio:
         return tags, saved
 
     last_check: dict | None = None
-    FIX_ROUNDS = 3   # 描いたあと、崩れた手を直して検品し直す回数の上限
+    FIX_ROUNDS = 3     # 描いたあと、崩れた手を直して検品し直す回数の上限
+    REDRAW_TRIES = 3   # 直しても検品を通らないとき、種を変えて描き直す回数の上限
 
     def _fix_hands(self, image, prompt: str, seed: int, say):
         """1 回描いて終わりにしない。描いた絵の手を検品し、崩れた手の所だけを直して、もう一度検品する。

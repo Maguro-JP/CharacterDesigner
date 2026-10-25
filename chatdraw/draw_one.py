@@ -24,7 +24,8 @@ def main():
         stage = os.environ.get("DRAW_STAGE", "all")
         comp = os.environ.get("DRAW_COMPOSITION") or None
         t = time.time()
-        draw(req["prompt"], req["tags"], req.get("seed", 7), req["compose"], req["render"], size=tuple(req.get("size", (832, 1216))),
+        seed = int(os.environ.get("DRAW_SEED") or req.get("seed", 7))   # 検品を通るまで、種を変えて描き直す（draw-one.yml）
+        draw(req["prompt"], req["tags"], seed, req["compose"], req["render"], size=tuple(req.get("size", (832, 1216))),
              say=lambda m: print(m, flush=True), keep=out, composition=comp, variants=req.get("variants"), stage=stage)
         from chatdraw import handcheck
         checks = {}

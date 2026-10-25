@@ -16,6 +16,12 @@ on:
       composition_run:
         description: "構図を使い回す実行の番号（空なら構図から描く）"
         default: ""
+      seed:
+        description: "種（空なら頼みの種）。検品を通らなかったとき、種を変えて出し直す"
+        default: ""
+      tries:
+        description: "検品を通らずに描き直した回数"
+        default: "0"
 permissions:
   contents: write   # 描いた絵を draw-results ブランチに置くため（作業の機械は artifact の置き場に届かない）
   actions: write    # bf16 の遅い機械に当たったとき、この頼みを出し直すため（.github/scripts/cpu-reroll.sh）
@@ -56,13 +62,14 @@ jobs:
         if: steps.mode.outputs.reuse == ''
         env:
           GH_TOKEN: ${{ github.token }}
-        run: sh .github/scripts/cpu-reroll.sh "${{ inputs.attempt || '1' }}" ""
+        run: sh .github/scripts/cpu-reroll.sh "${{ inputs.attempt || '1' }}" "" "${{ inputs.seed }}" "${{ inputs.tries || '0' }}"
       - name: 描く（2 段の頼みは構図だけ）
         if: steps.mode.outputs.reuse == '' && steps.cpu.outputs.slow != 'true'
         env:
           LLM_HOME: ${{ runner.temp }}/llm
           CD_HOME: ${{ runner.temp }}/cd
           DRAW_STAGE: compose
+          DRAW_SEED: ${{ inputs.seed }}
         run: python -u -m chatdraw.draw_one out
       - name: draw-results に置く
         if: always() && steps.mode.outputs.reuse == '' && steps.cpu.outputs.slow != 'true'
@@ -97,14 +104,30 @@ jobs:
         name: CPU の型の速さ（遅い機械なら出し直す）
         env:
           GH_TOKEN: ${{ github.token }}
-        run: sh .github/scripts/cpu-reroll.sh "${{ inputs.attempt || '1' }}" "$COMPOSITION_RUN"
+        run: sh .github/scripts/cpu-reroll.sh "${{ inputs.attempt || '1' }}" "$COMPOSITION_RUN" "${{ inputs.seed }}" "${{ inputs.tries || '0' }}"
       - name: 形と仕上げ
         if: steps.cpu.outputs.slow != 'true'
         env:
           LLM_HOME: ${{ runner.temp }}/llm
           CD_HOME: ${{ runner.temp }}/cd
           DRAW_STAGE: finish
+          DRAW_SEED: ${{ inputs.seed }}
         run: python -u -m chatdraw.draw_one out
       - name: draw-results に置く
         if: always() && steps.cpu.outputs.slow != 'true'
         run: sh .github/scripts/draw-results.sh out
+      - name: 検品を通らなければ、種を変えて描き直す
+        if: steps.cpu.outputs.slow != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # 描けるまで描き直す。仕上げの検品（result-*.json の passed）を 1 つも通らなければ、種を 1 つ進めて構図から出し直す（20 回まで）
+          if grep -q '"passed": true' out/result-*.json 2>/dev/null; then echo "検品を通りました"; exit 0; fi
+          tries=$(( ${{ inputs.tries || '0' }} + 1 ))
+          [ "$tries" -le 20 ] || { echo "20 回描き直しても通りませんでした"; exit 0; }
+          base=${{ inputs.seed }}
+          [ -n "$base" ] || base=$(python3 -c "import json;print(json.load(open('config/draw-request.json')).get('seed',7))")
+          curl -sS -f -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/draw-one.yml/dispatches" \
+            -d "{\"ref\":\"$GITHUB_REF_NAME\",\"inputs\":{\"attempt\":\"1\",\"composition_run\":\"\",\"seed\":\"$((base + 1))\",\"tries\":\"$tries\"}}"
+          echo "検品を通らなかったので、種 $((base + 1)) で描き直します（$tries 回目）"

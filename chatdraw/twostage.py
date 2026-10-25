@@ -229,6 +229,33 @@ COMPOSE_TRIES = 3   # 構図を描き直す回数の上限（速い機械で 1 �
 FIX_ROUNDS = 3      # 仕上げのあと、崩れた手を直して検品し直す回数の上限
 
 
+REFINE_SCALE, REFINE_STRENGTH = 1.5, 0.35
+
+
+def refine(pipe, image, prompt: str, negative: str, seed: int, steps: int, guidance: float):
+    """清書。絵全体を 1.5 倍に広げ、弱い強さ（0.35）で描き直して、指先・目・髪の線の細かい所を描き込む。
+    AI の絵は縮めた大きさで細部を決めるので、指や線が雑で汚れて見えた。形は元の絵に従う（強さを弱くする）。
+    最後に元の大きさへ戻す"""
+    import torch
+    from PIL import Image
+    from diffusers import StableDiffusionXLImg2ImgPipeline
+    parts = {k: v for k, v in pipe.components.items() if k in ("vae", "text_encoder", "text_encoder_2", "tokenizer", "tokenizer_2",
+                                                                 "unet", "scheduler")}
+    i2i = StableDiffusionXLImg2ImgPipeline(**parts)   # 読んだ模型の部品をそのまま使う
+    w, h = image.size
+    big = image.resize((int(w * REFINE_SCALE) // 8 * 8, int(h * REFINE_SCALE) // 8 * 8), Image.LANCZOS)
+    t = time.time()
+
+    def step(p, i, _t, kw):
+        print(f"清書 {i + 1} {time.time() - t:.0f} 秒", flush=True)
+        return kw
+    out = i2i(prompt=prompt, negative_prompt=negative, image=big, strength=REFINE_STRENGTH, num_inference_steps=steps,
+              guidance_scale=guidance, generator=torch.Generator("cpu").manual_seed(seed + 9),
+              callback_on_step_end=step).images[0]
+    print(f"清書: {time.time() - t:.0f} 秒", flush=True)
+    return out.resize((w, h), Image.LANCZOS)
+
+
 def fix_hands(pipe, image, prompt: str, negative: str, seed: int, steps: int, guidance: float, keep: Path, name: str):
     """仕上げた絵の手を検品し、崩れた手の所だけを直して、もう一度検品する。崩れが消えるか FIX_ROUNDS 回で止める。
     直すのは手の枠の中だけで、枠の外は 1 画素も変えない（直した絵の枠の外を、元の絵の画素に戻す）。どの回も残す"""
@@ -282,9 +309,20 @@ def finish(tags: str, seed: int, render_model: str, size, composition_path, keep
                      on_step=lambda i, n, name=v["name"]: print(f"仕上げ {name} {i}/{n} {time.time() - t:.0f} 秒", flush=True))
         out.save(keep / f"3-{v['name']}-s{seed}-fix0.png")
         print(f"仕上げ {v['name']}: {time.time() - t:.0f} 秒", flush=True)
-        out = fix_hands(pipe, out, f"{tags}, masterpiece, best quality", "lowres, worst quality, low quality, bad anatomy, bad hands",
-                        seed, rm.steps, rm.guidance, keep, v["name"])
+        prompt = f"{tags}, masterpiece, best quality, highly detailed, clean lineart"
+        negative = "lowres, worst quality, low quality, bad anatomy, bad hands, blurry, messy lines, jpeg artifacts"
+        out = fix_hands(pipe, out, prompt, negative, seed, rm.steps, rm.guidance, keep, v["name"])
+        out = refine(pipe, out, prompt, negative, seed, rm.steps, rm.guidance)
+        out.save(keep / f"3-{v['name']}-s{seed}-refined.png")
+        out = fix_hands(pipe, out, prompt, negative, seed + 500, rm.steps, rm.guidance, keep, v["name"] + "-refined")
         out.save(keep / f"3-{v['name']}-s{seed}.png")
+        from chatdraw import handcheck
+        res = handcheck.check(out)
+        passed = res["readable"] and not res["bad"]
+        (keep / f"result-{v['name']}.json").write_text(json.dumps({"passed": passed, "seed": seed, "bad": res["bad"],
+                                                                   "readable": res["readable"]}, ensure_ascii=False, indent=1),
+                                                       encoding="utf-8")
+        print(f"仕上げの結果: {'検品を通りました' if passed else '検品を通りません'}（{handcheck.summary(res)}）", flush=True)
 
 
 # 構図の文に足す、場面の変化（カメラ・光・背景）。同じ頼みでいつも同じ浜辺・同じ正面の立ち姿になり、
