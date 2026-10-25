@@ -14,6 +14,9 @@ on:
       args:
         description: "台本の引数（空なら頼みの args）"
         default: ""
+      only:
+        description: "refs なら実写の手本の計測だけを回す（基準を決め直すとき）"
+        default: ""
 permissions:
   contents: write   # 結果を draw-results ブランチに置くため
 concurrency:
@@ -21,19 +24,20 @@ concurrency:
   cancel-in-progress: false
 jobs:
   photoreal:
+    if: inputs.only != 'refs'
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 330
     strategy:
       fail-fast: false
       matrix:
         # 影の直し方を並べて比べる（同じ種・同じ絵）。どれも段ごとに影の検品と肌・髪・線を測る（--check）
         include:
-          - variant: post-relight
-            extra: "--post-relight 0.6 --cast 0.45"
-          - variant: post-relight-08
-            extra: "--post-relight 0.8 --cast 0.45"
-          - variant: iclight
-            extra: "--iclight 0.6 --post-relight 0.6 --cast 0.45"
+          - variant: post-relight-face
+            extra: "--post-relight 0.8 --cast 0.45 --face 0.35"
+          - variant: iclight-face
+            extra: "--iclight 0.6 --post-relight 0.6 --cast 0.45 --face 0.35"
+          - variant: iclight-only-face
+            extra: "--iclight 0.6 --cast 0.45 --face 0.35"
     steps:
       - uses: actions/checkout@v4
       - name: 置き場を空ける

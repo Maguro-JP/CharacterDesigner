@@ -324,8 +324,9 @@ def _parts_of(im):
         return edit.parts(f).copy()
 
 
-def check(src, out_img, src_parts, log, tag):
-    """影の検品（measure.shadow と styles/photoreal-norms.json）と、肌・髪・線の保ち方を並べて記録する"""
+def check(src, out_img, src_parts, log, tag, ref=None):
+    """影の検品（measure.shadow と styles/photoreal-norms.json）と、肌・髪・線・色の保ち方を並べて記録する。
+    色は ref（1 段目の絵。無ければ元の絵）と比べる"""
     import numpy as np
     import edit
     import measure
@@ -335,6 +336,9 @@ def check(src, out_img, src_parts, log, tag):
     sh = measure.shadow(rgb, seg, edit.LABELS)
     sh["normal_corr"], sh["normal_light_deg"] = normal_corr(out_img, depth_map(out_img), seg)
     km = keep_metrics(src, out_img, src_parts)
+    r = ref or src
+    rs = np.asarray(src_parts) if ref is None else np.asarray(_parts_of(ref))
+    km.update(measure.color_keep(np.asarray(r).astype(np.float32) / 255, rgb, rs, seg, edit.LABELS))
     log(f"{tag}_shadow", sh)
     log(f"{tag}_keep", km)
     log(f"{tag}_fails", measure.judge_shadow({**sh, **km}))
@@ -428,6 +432,26 @@ def light_gradient(size, deg):
     return Image.fromarray((v * 255).astype(np.uint8)).convert("RGB")
 
 
+def iclight_merge(img, r, parts):
+    """IC-Light の絵 r から明るさだけを取り、1 段目の絵 img に合わせる"""
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+    r = r.resize(img.size, Image.LANCZOS)
+    # 明るさだけを使う。IC-Light の色をそのまま使うと、灰色の勾配に引かれて絵が灰色に抜け、黒髪が白くなった。
+    # 低い周波数の明るさ（Lab の L）だけを IC-Light から取り、色（a,b）と細かい明るさは 1 段目のまま
+    mix = np.asarray(hfmix(img, r, sigma=4.0 * img.width / 768)).astype(np.float32) / 255
+    lab0, labm = rgb2lab(np.asarray(img).astype(np.float32) / 255), rgb2lab(mix)
+    hair = np.asarray(parts) == 2
+    w = ndimage.gaussian_filter(((np.asarray(parts) != BACKGROUND) & ~hair).astype(np.float32), 2)   # 髪の明るさも替えない
+    m = w > 0.5
+    if m.any():   # 明るさの平均は 1 段目にそろえ、陰の付き方（明るさの変わり方）だけを取る。そのままでは体が全体に暗く沈んだ
+        labm[..., 0] += float(lab0[..., 0][m].mean() - labm[..., 0][m].mean())
+    lab0[..., 0] = labm[..., 0] * w + lab0[..., 0] * (1 - w)
+    o = lab2rgb(lab0) * 255
+    return Image.fromarray(np.clip(o, 0, 255).astype(np.uint8))
+
+
 def iclight(pipe, img, parts, a, log):
     """IC-Light（SD1.5、fc 版）で人物に 1 方向の光を付け直す。Realistic Vision の UNet に IC-Light の差分を足して入力を 8 ch にし、
     人物（背景を灰色にした絵）の潜在を毎段つなげて描く。終わったら差分を引いて元の UNet に戻す（2 段目で使い回すため。
@@ -481,13 +505,60 @@ def iclight(pipe, img, parts, a, log):
                 if k in sd and sd[k].shape == v.shape:
                     sd[k].sub_(v.to(sd[k].dtype))
         unet.conv_in = old_conv
-    r = r.resize(img.size, Image.LANCZOS)
-    mix = hfmix(img, r, sigma=4.0 * img.width / 768)
-    w = ndimage.gaussian_filter((np.asarray(parts) != BACKGROUND).astype(np.float32), 2)[..., None]
-    o = np.asarray(mix).astype(np.float32) * w + np.asarray(img).astype(np.float32) * (1 - w)
+    o = iclight_merge(img, r, parts)
     log("iclight_s", round(time.time() - t, 1))
     log("iclight_rss_gb", round(rss_gb(), 2))
-    return r, Image.fromarray(np.clip(o, 0, 255).astype(np.uint8))
+    return r, o
+
+
+def rgb2lab(rgb):
+    import measure
+    return measure.lab(rgb)
+
+
+def lab2rgb(L):
+    """Lab（D65）を sRGB（0〜1）に戻す（measure.lab の逆）"""
+    import numpy as np
+    fy = (L[..., 0] + 16) / 116
+    fx, fz = fy + L[..., 1] / 500, fy - L[..., 2] / 200
+    f = np.stack([fx, fy, fz], -1)
+    xyz = np.where(f ** 3 > 0.008856, f ** 3, (f - 16 / 116) / 7.787) * np.array([0.95047, 1.0, 1.08883])
+    c = xyz @ np.linalg.inv(np.array([[0.4124, 0.2126, 0.0193], [0.3576, 0.7152, 0.1192], [0.1805, 0.0722, 0.9505]]))
+    c = np.clip(c, 0, 1)
+    return np.clip(np.where(c > 0.0031308, 1.055 * c ** (1 / 2.4) - 0.055, 12.92 * c), 0, 1)
+
+
+def face_fix(pipe, img, parts, a, log):
+    """顔だけを正方形に切り出して 768 に広げ、tile で弱く描き直し、縁をぼかした楕円で戻す（imgproc.face_redraw と同じ形。
+    あちらは SDXL の言葉の組み立てを使うので、SD1.5 の pipe ではここで描く）。全身の絵で顔は 100 画素前後しかなく、
+    描き直しの後に唇のにじみ、目にかかる髪の崩れが残った"""
+    import numpy as np
+    import torch
+    from PIL import Image, ImageDraw, ImageFilter
+    import closeup
+    t = time.time()
+    seg = np.asarray(parts)
+    if seg.shape != (img.height, img.width):
+        seg = np.asarray(parts.resize(img.size, Image.NEAREST))
+    b = closeup._bbox(seg == 11)
+    if b is None:
+        return img
+    box = closeup.square(b, img.width, img.height, margin=0.25)
+    crop = img.crop(box)
+    big = crop.resize((768, 768), Image.LANCZOS)
+    r = pipe(a.prompt + ", detailed face, detailed eyes, natural lips", negative_prompt=a.negative + ", deformed face, asymmetric eyes",
+             image=big, control_image=big, strength=a.face, controlnet_conditioning_scale=0.8, num_inference_steps=a.steps,
+             guidance_scale=a.guidance, generator=torch.Generator().manual_seed(a.seed + 7), width=768, height=768).images[0]
+    small = r.resize(crop.size, Image.LANCZOS)
+    w, h = crop.size
+    m = Image.new("L", (w, h), 0)
+    ImageDraw.Draw(m).ellipse([w * 0.08, h * 0.08, w * 0.92, h * 0.92], fill=255)
+    m = m.filter(ImageFilter.GaussianBlur(max(w // 16, 2)))
+    out = img.copy()
+    out.paste(small, box[:2], m)
+    log("face_box", list(box))
+    log("face_s", round(time.time() - t, 1))
+    return out
 
 
 def cast_shadow(img, parts, depth, deg=135.0, opacity=0.45):
@@ -591,6 +662,7 @@ def parse(argv):
     ap.add_argument("--iclight", type=float, default=0, help="1 段目の後に IC-Light を掛ける強さ（0 ならしない）")
     ap.add_argument("--post-relight", type=float, default=0, help="描き直しの後に奥行きから陰と色を付け直す量（0 ならしない）")
     ap.add_argument("--cast", type=float, default=0, help="床の落ち影の濃さ（0 なら付けない）")
+    ap.add_argument("--face", type=float, default=0, help="最後に顔を描き直す強さ（0 ならしない）")
     ap.add_argument("--check", action="store_true", help="段ごとに影の検品と肌・髪・線の保ち方を測る（部位分けの模型を読む）")
     ap.add_argument("--dry-run", action="store_true", help="模型を読まず、帯消しと lineart だけ書き出す")
     return ap.parse_args(argv)
@@ -643,6 +715,7 @@ def main(argv=None) -> int:
     hair = np.asarray(parts) == 2 if a.hair_strength >= 0 else None   # 2 は髪（edit.LABELS）
     r1 = stage1(multi, clean, li, a, log, dep, hair)
     r1.save(a.out / f"{stem}-1-photoreal-st{a.strength}-s{a.seed}.png")
+    r1_color = r1                                  # 色の検品の基準（描き直しの後の工程は 1 段目の色を保つ）
     if a.check:
         check(im, r1, parts, log, "stage1")
     del multi
@@ -651,7 +724,7 @@ def main(argv=None) -> int:
         raw.save(a.out / f"{stem}-1b-iclight-raw.png")
         r1.save(a.out / f"{stem}-1b-iclight.png")
         if a.check:
-            check(im, r1, parts, log, "iclight")
+            check(im, r1, parts, log, "iclight", ref=r1_color)
     if a.scale > 0:
         r2 = stage2(pipe, r1, a, log)
         r2.save(a.out / f"{stem}-2-tile-x{a.scale}-s{a.seed}.png")
@@ -671,8 +744,11 @@ def main(argv=None) -> int:
             r2 = cast_shadow(r2, p2, d2, a.light_deg, a.cast)
         r2.save(a.out / f"{stem}-4-light-r{a.post_relight}-c{a.cast}-s{a.seed}.png")
         log("post_light_s", round(time.time() - t1, 1))
+    if a.face > 0:
+        r2 = face_fix(pipe, r2, _parts_of(r2), a, log)
+        r2.save(a.out / f"{stem}-5-face-f{a.face}-s{a.seed}.png")
     if a.check:
-        check(im, r2, parts, log, "final")
+        check(im, r2, parts, log, "final", ref=r1_color)
     log("total_s", round(time.time() - t, 1))
     return 0
 

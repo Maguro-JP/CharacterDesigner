@@ -21,10 +21,10 @@ import design  # noqa: E402,F401
 
 API = "https://commons.wikimedia.org/w/api.php"
 UA = "CharacterDesigner-photoref/0.1 (https://github.com/Maguro-JP/CharacterDesigner)"
-QUERIES = ["full body portrait woman standing studio photograph",
-           "woman standing full length portrait photograph",
-           "fashion model full body photograph studio",
-           "woman swimsuit standing beach photograph"]
+QUERIES = ["woman swimsuit beach standing color photograph", "full body portrait woman standing studio photograph",
+           "fashion model full body photograph", "woman bikini beach", "woman standing full length portrait",
+           "cosplayer full body", "athlete woman standing portrait", "woman dress full body outdoor",
+           "model photo shoot full body", "woman yoga pose photograph"]
 FREE = ("cc0", "public domain", "pd")
 
 
@@ -44,7 +44,7 @@ def search(q, limit=40):
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("out", type=Path)
-    ap.add_argument("--n", type=int, default=6)
+    ap.add_argument("--n", type=int, default=14)
     a = ap.parse_args(argv)
     import numpy as np
     from PIL import Image
@@ -71,12 +71,22 @@ def main(argv=None) -> int:
             skin = np.isin(seg, photoreal.SKIN).mean()
             if (seg != 0).mean() < 0.08 or skin < 0.02:   # 人物が小さい・肌が見えない写真は測らない
                 continue
+            hsv = np.asarray(im.convert("HSV")).astype(np.float32) / 255
+            if hsv[..., 1][seg != 0].mean() < 0.12:       # 白黒・色あせた古い写真は手本にしない（光と色の基準がずれる）
+                continue
             sh = measure.shadow(np.asarray(im, np.float32) / 255, seg, edit.LABELS)
             sh["normal_corr"], sh["normal_light_deg"] = photoreal.normal_corr(im, photoreal.depth_map(im), seg)
             fails = [f["path"] for f in measure.judge_shadow(sh)]
             rows.append({**c, "size": im.size, "shadow": sh, "fails": fails, "s": round(time.time() - t, 1)})
             print(json.dumps(rows[-1], ensure_ascii=False), flush=True)
     (a.out / "refs.json").write_text(json.dumps(rows, indent=1, ensure_ascii=False))
+    dist = {}
+    for k in ("step_frac", "spread", "normal_corr", "ratio", "soft"):
+        v = [r["shadow"][k] for r in rows if r["shadow"].get(k) is not None]
+        if v:
+            dist[k] = {q: round(float(np.percentile(v, q)), 3) for q in (0, 10, 50, 90, 100)}
+    (a.out / "dist.json").write_text(json.dumps(dist, indent=1))
+    print("dist", json.dumps(dist))
     print("measured", len(rows), "passed", sum(not r["fails"] for r in rows))
     return 0
 

@@ -340,6 +340,47 @@ def shadow(rgb, seg, labels):
     return out
 
 
+def lab(rgb):
+    """sRGB（0〜1）を CIE Lab（D65）にする"""
+    c = np.where(rgb > 0.04045, ((rgb + 0.055) / 1.055) ** 2.4, rgb / 12.92)
+    xyz = c @ np.array([[0.4124, 0.2126, 0.0193], [0.3576, 0.7152, 0.1192], [0.1805, 0.0722, 0.9505]])
+    xyz /= np.array([0.95047, 1.0, 1.08883])
+    f = np.where(xyz > 0.008856, np.cbrt(xyz), 7.787 * xyz + 16 / 116)
+    return np.stack([116 * f[..., 1] - 16, 500 * (f[..., 0] - f[..., 1]), 200 * (f[..., 1] - f[..., 2])], -1)
+
+
+def color_keep(ref, rgb, ref_seg, seg, labels):
+    """描き直しで色が保てているか（基準の絵＝1 段目と比べる）。IC-Light の後に絵が灰色に抜け、黒髪が白くなった。
+    sat_ratio: 人物の平均の彩度（Lab の a,b の長さ）の比。灰色に抜けると下がる
+    color_dab: 肌・服の部位ごとの平均色の a,b の差の最大（明るさは光の付け直しで変わってよいので除く）
+    hair_de: 髪の平均色の ΔE（明るさも含める。黒髪が白くなるのは明るさの変わり方）"""
+    from scipy import ndimage
+    from PIL import Image
+    if ref.shape != rgb.shape:
+        ref = np.asarray(Image.fromarray((ref * 255).astype(np.uint8)).resize(rgb.shape[1::-1], Image.LANCZOS)).astype(np.float32) / 255
+        ref_seg = np.asarray(Image.fromarray(ref_seg).resize(rgb.shape[1::-1], Image.NEAREST))
+    f = rgb.shape[1] / 768
+    A = lab(ndimage.gaussian_filter(rgb, (2 * f, 2 * f, 0)))
+    B = lab(ndimage.gaussian_filter(ref, (2 * f, 2 * f, 0)))
+    out = {}
+    body, rbody = seg > 0, ref_seg > 0
+    if body.any() and rbody.any():
+        out["sat_ratio"] = round(float(np.hypot(A[..., 1], A[..., 2])[body].mean() / max(np.hypot(B[..., 1], B[..., 2])[rbody].mean(), 1e-3)), 3)
+    groups = {"skin": [labels[k] for k in ("face", "left_arm", "right_arm", "left_leg", "right_leg")],
+              "clothes": [labels[k] for k in ("upper", "dress", "skirt", "pants")]}
+    dab = []
+    for ids in groups.values():
+        m, r = np.isin(seg, ids), np.isin(ref_seg, ids)
+        if m.sum() > 200 and r.sum() > 200:
+            dab.append(float(np.hypot(*(A[m].mean(0)[1:] - B[r].mean(0)[1:]))))
+    if dab:
+        out["color_dab"] = round(max(dab), 2)
+    m, r = seg == labels["hair"], ref_seg == labels["hair"]
+    if m.sum() > 200 and r.sum() > 200:
+        out["hair_de"] = round(float(np.linalg.norm(A[m].mean(0) - B[r].mean(0))), 2)
+    return out
+
+
 PHOTO_NORMS = ROOT / "styles" / "photoreal-norms.json"
 
 
