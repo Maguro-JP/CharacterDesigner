@@ -15,7 +15,7 @@ concurrency:
 jobs:
   draw:
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 360
     steps:
       - uses: actions/checkout@v4
       - name: 置き場を空ける

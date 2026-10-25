@@ -71,12 +71,34 @@ def render(prompt: str, negative: str, depth, lines, seed: int, model: str, size
 
 
 def compose(sentence: str, seed: int, compose_model: str, size, path):
-    from chatdraw.engine import Painter
+    """構図の模型（FLUX.2 klein など）で、文から絵全体を描く。
+    頼みを読む部品（Qwen3、約 8GB）は最初に 1 回だけ使い、読み終えたら外してから描く。
+    外さないと 16GB の機械でメモリが足りず、1 工程に約 23 分、絵にする所で 2 時間以上止まった（Actions の実行 40142913883）"""
+    import torch
+    from chatdraw.engine import Painter, native_size
     from chatdraw.models import image_model
     cm = image_model(compose_model)
-    im = Painter(compose_model, steps=cm.steps, size=size, guidance=cm.guidance).paint(
-        sentence, seed, on_step=lambda i, n: print(f"構図 {i}/{n}", flush=True))
+    painter = Painter(compose_model, steps=cm.steps, size=size, guidance=cm.guidance)
+    pipe = painter.load()
+    if not hasattr(pipe, "encode_prompt") or getattr(pipe, "text_encoder", None) is None:
+        painter.paint(sentence, seed, on_step=lambda i, n: print(f"構図 {i}/{n}", flush=True)).save(path)
+        return
+    t = time.time()
+    with torch.no_grad():
+        embeds = pipe.encode_prompt(sentence, device="cpu")
+    embeds = embeds[0] if isinstance(embeds, tuple) else embeds
+    pipe.text_encoder = None
+    gc.collect()
+    print(f"頼みを読む: {time.time() - t:.0f} 秒", flush=True)
+    w, h = native_size(size, cm.family)
+
+    def step(p, i, _t, kw):
+        print(f"構図 {i + 1}/{cm.steps} {time.time() - t:.0f} 秒", flush=True)
+        return kw
+    im = pipe(prompt_embeds=embeds, width=w, height=h, num_inference_steps=cm.steps, guidance_scale=cm.guidance,
+              generator=torch.Generator("cpu").manual_seed(seed), callback_on_step_end=step).images[0]
     im.save(path)
+    print(f"構図を保存: {time.time() - t:.0f} 秒", flush=True)
 
 
 def finish(tags: str, seed: int, render_model: str, size, composition_path, keep):
