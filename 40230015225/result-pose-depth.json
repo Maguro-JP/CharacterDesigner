@@ -1,0 +1,15 @@
+{
+ "passed": false,
+ "seed": 30010,
+ "bad": [
+  "手 1: thumbの手の色 0.54（0.85〜1.01）",
+  "手 1: indexの手の色 0.21（0.85〜1.01）",
+  "手 1: middleの手の色 0.75（0.85〜1.01）",
+  "手 1: ringの手の色 0.62（0.85〜1.01）"
+ ],
+ "missing": [
+  "mature female",
+  "hand up"
+ ],
+ "readable": true
+}
