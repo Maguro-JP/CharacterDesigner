@@ -1,0 +1,229 @@
+{
+ "model": "Qwen/Qwen2.5-VL-3B-Instruct",
+ "side": 448,
+ "rows": [
+  {
+   "name": "win7_wave",
+   "kind": "hand",
+   "truth": 5,
+   "bad": true,
+   "count": null,
+   "votes": [
+    5,
+    1
+   ],
+   "odd": false,
+   "verdict": "unreadable",
+   "answers": [
+    "5",
+    "The visible digits in the drawn hand are:\n\n1. Thumb\n2. Index finger\n3. Middle finger\n4. Ring finger\n5. Little finger\n\nSo, the total is 5.",
+    "No."
+   ],
+   "flag": false,
+   "hit": false,
+   "sec": 230.8,
+   "rss_mb": 8312
+  },
+  {
+   "name": "win7_low",
+   "kind": "hand",
+   "truth": null,
+   "bad": true,
+   "count": 5,
+   "votes": [
+    5,
+    5
+   ],
+   "odd": false,
+   "verdict": "ok",
+   "answers": [
+    "5",
+    "Let's count the visible digits of the drawn hand:\n\n1. Thumb\n2. Index finger\n3. Middle finger\n4. Ring finger\n5. Little finger\n\nSo, the total number of visible digits is 5.\n\nTOTAL: 5",
+    "No."
+   ],
+   "flag": false,
+   "hit": false,
+   "sec": 190.3,
+   "rss_mb": 8340
+  },
+  {
+   "name": "bk_hand1",
+   "kind": "hand",
+   "truth": null,
+   "bad": false,
+   "count": null,
+   "votes": [
+    5,
+    1
+   ],
+   "odd": false,
+   "verdict": "unreadable",
+   "answers": [
+    "5",
+    "In the image, there is only one digit visible in the hand, which is the thumb. Therefore, the total number of visible digits is 1.\n\nTOTAL: 1",
+    "No."
+   ],
+   "flag": false,
+   "hit": true,
+   "sec": 176.3,
+   "rss_mb": 8340
+  },
+  {
+   "name": "bk_hand2",
+   "kind": "hand",
+   "truth": 4,
+   "bad": false,
+   "count": 5,
+   "votes": [
+    5,
+    5
+   ],
+   "odd": false,
+   "verdict": "ok",
+   "answers": [
+    "5",
+    "Let's count the visible digits of the drawn hand:\n\n1. Thumb\n2. Index finger\n3. Middle finger\n4. Ring finger\n5. Little finger\n\nSo, the total number of visible digits is 5.\n\nTOTAL: 5",
+    "No."
+   ],
+   "flag": false,
+   "hit": true,
+   "sec": 183.0,
+   "rss_mb": 8340
+  },
+  {
+   "name": "bk3_hand1",
+   "kind": "hand",
+   "truth": 4,
+   "bad": false,
+   "count": 5,
+   "votes": [
+    5,
+    5
+   ],
+   "odd": false,
+   "verdict": "ok",
+   "answers": [
+    "5",
+    "Let's count the visible digits of the drawn hand:\n\n1. Thumb\n2. Index finger\n3. Middle finger\n4. Ring finger\n5. Little finger\n\nSo, the total number of visible digits is 5.\n\nTOTAL: 5",
+    "No."
+   ],
+   "flag": false,
+   "hit": true,
+   "sec": 183.4,
+   "rss_mb": 8340
+  },
+  {
+   "name": "bk3_hand2",
+   "kind": "hand",
+   "truth": 4,
+   "bad": false,
+   "count": 5,
+   "votes": [
+    5,
+    5
+   ],
+   "odd": false,
+   "verdict": "ok",
+   "answers": [
+    "5",
+    "Let's count the visible digits of the drawn hand:\n\n1. Thumb\n2. Index finger\n3. Middle finger\n4. Ring finger\n5. Little finger\n\nSo, the total number of visible digits is 5.\n\nTOTAL: 5",
+    "No."
+   ],
+   "flag": false,
+   "hit": true,
+   "sec": 184.0,
+   "rss_mb": 8340
+  },
+  {
+   "name": "bk_foot_l",
+   "kind": "foot",
+   "truth": 6,
+   "bad": true,
+   "count": 5,
+   "votes": [
+    5,
+    5
+   ],
+   "odd": false,
+   "verdict": "ok",
+   "answers": [
+    "5",
+    "The foot in the image has five toes. Therefore, the total number of visible toes is:\n\nTOTAL: 5",
+    "No."
+   ],
+   "flag": false,
+   "hit": false,
+   "sec": 170.8,
+   "rss_mb": 8340
+  },
+  {
+   "name": "bk_foot_r",
+   "kind": "foot",
+   "truth": 5,
+   "bad": false,
+   "count": 5,
+   "votes": [
+    5,
+    5
+   ],
+   "odd": false,
+   "verdict": "ok",
+   "answers": [
+    "5",
+    "The foot in the image has 5 visible toes. Therefore, the total is:\n\nTOTAL: 5",
+    "No."
+   ],
+   "flag": false,
+   "hit": true,
+   "sec": 169.3,
+   "rss_mb": 8340
+  },
+  {
+   "name": "bk3_foot_l",
+   "kind": "foot",
+   "truth": 5,
+   "bad": false,
+   "count": 5,
+   "votes": [
+    5,
+    5
+   ],
+   "odd": false,
+   "verdict": "ok",
+   "answers": [
+    "5",
+    "TOTAL: 5",
+    "No."
+   ],
+   "flag": false,
+   "hit": true,
+   "sec": 161.4,
+   "rss_mb": 8340
+  },
+  {
+   "name": "bk3_foot_r",
+   "kind": "foot",
+   "truth": 5,
+   "bad": false,
+   "count": 5,
+   "votes": [
+    5,
+    5
+   ],
+   "odd": false,
+   "verdict": "ok",
+   "answers": [
+    "5",
+    "TOTAL: 5",
+    "No."
+   ],
+   "flag": false,
+   "hit": true,
+   "sec": 161.9,
+   "rss_mb": 8340
+  }
+ ],
+ "hits": 7,
+ "n": 10,
+ "total_sec": 1811.2
+}
