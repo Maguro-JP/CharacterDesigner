@@ -3,8 +3,8 @@
  "compose": "black-forest-labs/FLUX.2-klein-4B",
  "render": "cagliostrolab/animagine-xl-4.0",
  "prompt": "Wide landscape anime illustration. An adult woman in a beige trench coat with sleeves, white blouse and navy trousers stands on a seaside promenade at sunset, placed on the right third of the frame, looking left toward the setting sun over the ocean. Her left hand rests on the metal railing, her right hand is in her coat pocket, both arms clearly visible. Weight on one leg, shoulders and hips tilted opposite ways. Long straight black hair blowing in the wind. Low horizon in the lower third, wide sky with clouds, backlit with warm rim light.",
- "tags": "1girl, solo, adult woman, mature female, beige trench coat, white blouse, navy pants, black hair, long hair, wind, seaside, promenade, railing, hand on railing, hand in pocket, sunset, ocean, horizon, sky, clouds, backlighting, rim light, cowboy shot, scenery",
- "seed": 20261025,
+ "tags": "1girl, solo, adult woman, mature female, full body, standing, contrapposto, hands at sides, open hands, five fingers, navy sweater, white collar, charcoal grey trousers, black loafers, black hair, long hair, wind, seaside promenade, blue hour, dusk, sky, clouds",
+ "seed": 20261026,
  "size": [
   1216,
   832
@@ -16,5 +16,6 @@
    "depth": 0.4,
    "end": 0.7
   }
- ]
+ ],
+ "composition": "config/poses/stand-yaw30-contra10.png"
 }
