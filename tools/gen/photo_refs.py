@@ -22,7 +22,8 @@ import design  # noqa: E402,F401
 
 API = "https://commons.wikimedia.org/w/api.php"
 UA = "CharacterDesigner-photoref/0.1 (https://github.com/Maguro-JP/CharacterDesigner)"
-QUERIES = ["pexels woman standing", "pexels woman full body", "unsplash woman standing", "pexels woman beach",
+QUERIES = ["Unsplash woman", "Pexels woman", "Unsplash man standing", "Pexels person standing", "Unsplash people beach",
+           "Pexels portrait", "Unsplash portrait", "Pexels fitness", "pexels woman standing", "pexels woman full body", "unsplash woman standing", "pexels woman beach",
            "unsplash woman portrait full body", "pexels model posing", "pexels woman dress", "unsplash fashion woman",
            "woman swimsuit beach standing color photograph", "full body portrait woman standing studio photograph",
            "fashion model full body photograph", "woman bikini beach", "woman standing full length portrait",
