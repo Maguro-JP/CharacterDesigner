@@ -56,13 +56,16 @@ def _ask(im, text: str) -> str:
     proc, model = _load()
     msgs = [{"role": "user", "content": [{"type": "image"}, {"type": "text", "text": text}]}]
     prompt = proc.apply_chat_template(msgs, add_generation_prompt=True)
-    inp = proc(text=[prompt], images=[im], return_tensors="pt")
+    inp = proc(text=[prompt], images=[im], return_tensors="pt").to(torch.bfloat16)   # 絵の値も模型と同じ型にする（SmolVLM は合わないと止まった）
     with torch.no_grad():
         out = model.generate(**inp, max_new_tokens=80, do_sample=False)
     return proc.batch_decode(out[:, inp["input_ids"].shape[1]:], skip_special_tokens=True)[0].strip()
 
 
 def _number(ans: str):
+    items = re.findall(r"(?m)^\s*(\d+)\.", ans)   # 1 本ずつ並べた答えは、最後の番号が本数（先頭の「1.」を本数と読んだ）
+    if items and not re.search(r"TOTAL:", ans):
+        return int(items[-1])
     m = re.search(r"TOTAL:\s*(\d+)", ans) or re.search(r"\b(\d+)\b", ans)
     if m:
         return int(m.group(1))
