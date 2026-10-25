@@ -1,0 +1,29 @@
+[
+ {
+  "title": "File:Young woman in bikini on the beach, Portugal 2010.jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Young_woman_in_bikini_on_the_beach,_Portugal_2010.jpg",
+  "thumb": "https://upload.wikimedia.org/wikipedia/commons/9/9c/Young_woman_in_bikini_on_the_beach%2C_Portugal_2010.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+  "size": [
+   326,
+   702
+  ],
+  "shadow": {
+   "soft": 0.549,
+   "step_frac": 0.226,
+   "steps": 2,
+   "ratio": 0.43,
+   "spread": 96.6,
+   "cast": 0.009,
+   "cast_gap": 0.001,
+   "normal_corr": 0.208,
+   "normal_light_deg": 60
+  },
+  "fails": [
+   "step_frac",
+   "spread",
+   "normal_corr"
+  ],
+  "s": 6.0
+ }
+]
