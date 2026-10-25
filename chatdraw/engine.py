@@ -387,6 +387,9 @@ class Painter:
         return image_model(self.model).family
 
     def sketch_ready(self, family: str | None = None) -> bool:
+        from chatdraw.models import family as fam
+        if fam(family or self.family).edit:
+            return True   # 絵を頼みと一緒に渡す世代は、別の部品が要らない
         try:
             from huggingface_hub import snapshot_download
             repo, files, _ = SKETCH[family or self.family]
@@ -397,6 +400,9 @@ class Painter:
 
     def reference_ready(self, family: str | None = None) -> bool:
         """参考画像の部品が手元にあるか（取りに行かずに確かめる）"""
+        from chatdraw.models import family as fam
+        if fam(family or self.family).edit:
+            return True
         try:
             from huggingface_hub import snapshot_download
             repo, sub, weight, enc = REFERENCE[family or self.family]
@@ -517,6 +523,21 @@ class Painter:
             raise Unsupported(f"{f.name} の模型は、ラフから描く部品がまだありません。「新規」で描くか、SDXL の模型に替えてください")
         if reference is not None and not f.reference:
             raise Unsupported(f"{f.name} の模型は、参考画像をまだ使えません。参考画像を外すか、SDXL の模型に替えてください")
+        if f.edit and (base is not None or reference is not None):
+            # 絵を頼みと一緒に渡す世代（FLUX.2 klein）。ラフは「この下描きを清書する」、参考画像は「この絵の絵柄で描く」と文で伝える
+            w, h = size
+            total = steps
+            pics = [p.convert("RGB").resize((w, h)) for p in (base, reference) if p is not None]
+            lead = []
+            if base is not None:
+                lead.append("Turn the first image, a rough sketch, into a finished illustration that keeps its pose and composition")
+            if reference is not None:
+                lead.append("Use the art style and colors of the " + ("second" if base is not None else "given") + " image")
+            args["prompt"] = ". ".join(lead + [args.get("prompt", prompt)])
+            out = pipe(image=pics if len(pics) > 1 else pics[0], width=w, height=h, **args).images[0]
+            if self.stop:
+                raise Stopped("止めました")
+            return out
         if base is not None:
             if self._sketch is None:
                 from diffusers import StableDiffusionAdapterPipeline, StableDiffusionXLAdapterPipeline, T2IAdapter
