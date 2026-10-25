@@ -80,3 +80,54 @@ class PhotorealTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _sphere(cel=False):
+    """球（肌の部位 12）を左上の光で塗る。cel なら 2 段の影にする。奥行きは球の高さ"""
+    import measure  # noqa: F401
+    H = W = 768
+    yy, xx = np.mgrid[:H, :W].astype(np.float32)
+    r = 300.0
+    dx, dy = (xx - 384) / r, (384 - yy) / r
+    inside = dx ** 2 + dy ** 2 < 1
+    dz = np.sqrt(np.clip(1 - dx ** 2 - dy ** 2, 0, 1))
+    n = np.stack([dx, dy, dz], -1)
+    shade = photoreal.lambert(n, 135)
+    if cel:
+        shade = np.where(shade > 0.45, 0.9, 0.45)
+    L = np.where(inside, 0.4 + 0.55 * shade, 0.6)
+    rgb = np.stack([L, L * 0.85, L * 0.75], -1)
+    seg = np.where(inside, 12, 0).astype(np.uint8)
+    depth = Image.fromarray((np.where(inside, dz, 0) * 255).astype(np.uint8))
+    return rgb, seg, depth
+
+
+class ShadowCheckTest(unittest.TestCase):
+    def test_cel_steps_fail_and_soft_shading_passes(self):
+        import edit
+        import measure
+        out = {}
+        for cel in (True, False):
+            rgb, seg, depth = _sphere(cel)
+            m = measure.shadow(rgb, seg, edit.LABELS)
+            m["normal_corr"], _ = photoreal.normal_corr(Image.fromarray((rgb * 255).astype(np.uint8)), depth, Image.fromarray(seg))
+            out[cel] = {f["path"] for f in measure.judge_shadow(m)}
+        self.assertIn("step_frac", out[True])
+        self.assertNotIn("step_frac", out[False])
+        self.assertNotIn("normal_corr", out[False])
+
+    def test_current_output_numbers_fail(self):
+        import measure
+        # 今の出力（r3、2 段目 0.25 と高い周波数の戻し）を測った数字。段の割合と光の向きのずれと立体との相関で落ちる
+        now = {"step_frac": 0.5, "ratio": 0.599, "spread": 163.6, "normal_corr": 0.363,
+               "flat_skin": 0.0036, "hair_iou": 0.919, "line_f": 0.88}
+        self.assertEqual({f["path"] for f in measure.judge_shadow(now)}, {"step_frac", "spread", "normal_corr"})
+
+    def test_relight_follows_one_light(self):
+        rgb, seg, depth = _sphere(False)
+        flat = Image.fromarray(np.where(seg[..., None] > 0, 200, 150).astype(np.uint8).repeat(3, 2))
+        before, _ = photoreal.normal_corr(flat, depth, Image.fromarray(seg))
+        after_im = photoreal.relight(flat, Image.fromarray(seg), depth, 135, amount=0.5)
+        after, deg = photoreal.normal_corr(after_im, depth, Image.fromarray(seg))
+        self.assertGreater(after, before + 0.3)
+        self.assertIn(deg, (120, 150))

@@ -279,6 +279,85 @@ def light3d(src, rgb, seg, regions):
             "inverted_regions": inverted}
 
 
+def shadow(rgb, seg, labels):
+    """影の自然さを測る（写真級の描き直しの検品）。アニメの塗りを写真に描き直すと、セルの影の段差が残り、
+    部位ごとに陰の側が食い違い、床に落ちる影が浮いた（足から離れた）。人はそれを一目で「不自然」と見る。
+    - soft: 影の境の柔らかさ。大きな明るさの境（σ4 の傾きの上位 5%）で、σ4 と σ1 の傾きの比の中央値。
+      段のような境は σ を大きくすると傾きが下がり（0.3 前後）、なだらかな陰はほとんど下がらない（1 に近い）
+    - steps: 肌の明るさの山の数（ならした分布の、高さ 5% 以上の山）。セルの影は 2〜3 の段に分かれる
+    - spread: 部位ごとの光の向き（measure.light）の最大のずれ。光が 1 つならそろう
+    - ratio: 肌の陰と光の明るさの比（10 と 90 パーセンタイル）。1 に近いほど平らな光
+    - cast: 足元の床の暗さ（足の下 4% の高さの帯の背景 ÷ 背景の中央値を 1 から引く）と、
+      背景の暗い最大の塊が体から離れている距離（高さに対する割合）。浮いた影は離れて出る"""
+    from scipy import ndimage
+    f = rgb.shape[1] / 768
+    L = rgb[..., :3].mean(-1)
+    g1 = np.hypot(*np.gradient(ndimage.gaussian_filter(L, 1 * f)))
+    g4 = np.hypot(*np.gradient(ndimage.gaussian_filter(L, 4 * f)))
+    skin = np.isin(seg, [labels[k] for k in ("face", "left_arm", "right_arm", "left_leg", "right_leg")])
+    body = seg > 0
+    out = {}
+    si = ndimage.binary_erosion(skin, iterations=max(2, round(6 * f)))   # 肌の輪郭と服との境を数えない
+    if si.sum() > 500:
+        sel = si & (g4 >= np.percentile(g4[si], 95))
+        # 段の上では σ1 の傾きが段の線だけに立つので、近く（σ4 の幅）の σ1 の傾きの最大と比べる
+        line = ndimage.binary_dilation(ndimage.grey_closing(L, size=max(3, round(5 * f))) - L > 0.06, iterations=max(2, round(3 * f)))
+        g1m = ndimage.maximum_filter(np.where(line, 0, g1), size=max(3, round(8 * f)))   # 線（へそ、輪郭の描き線）は段に数えない
+        sel &= ~line
+        r = g4[sel] / np.maximum(g1m[sel], 1e-6)
+        out["soft"] = round(float(np.median(r)), 3)
+        out["step_frac"] = round(float((r < 0.45).mean()), 3)   # 段のような境の割合
+    if si.sum() > 500:
+        h, _ = np.histogram(L[si], 64, (0, 1))
+        h = ndimage.gaussian_filter1d(h.astype(float), 1.5)
+        pk = [i for i in range(1, 63) if h[i] >= h[i - 1] and h[i] > h[i + 1] and h[i] >= 0.05 * h.max()]
+        out["steps"] = len(pk)
+        lo, hi = np.percentile(L[si], [10, 90])
+        out["ratio"] = round(float(lo / max(hi, 1e-6)), 3)
+    regions = {"face": [labels["face"]], "arms": [labels["left_arm"], labels["right_arm"]],
+               "legs": [labels["left_leg"], labels["right_leg"]],
+               "clothes": [labels["upper"], labels["dress"], labels["skirt"], labels["pants"]]}
+    out["spread"] = light(rgb, seg, labels, regions)["max_spread_deg"]
+    bg = seg == 0
+    ys, xs = np.nonzero(body)
+    if bg.sum() > 1000 and len(ys):
+        med = float(np.median(L[bg]))
+        H = rgb.shape[0]
+        foot = ys.max()
+        band = np.zeros_like(bg)
+        x0, x1 = np.percentile(xs[ys > foot - 0.08 * H], [0, 100]).astype(int) if (ys > foot - 0.08 * H).any() else (xs.min(), xs.max())
+        pad = int(0.06 * H)
+        band[max(foot - int(0.04 * H), 0):min(foot + int(0.04 * H), H), max(x0 - pad, 0):x1 + pad] = True
+        band &= bg
+        out["cast"] = round(1 - float(L[band].mean()) / max(med, 1e-6), 3) if band.any() else 0.0
+        dark = ndimage.binary_opening(bg & (L < 0.85 * med), iterations=2)
+        lab, n = ndimage.label(dark)
+        if n:
+            big = lab == 1 + int(np.argmax(ndimage.sum(dark, lab, range(1, n + 1))))
+            if big.sum() > 0.002 * bg.size:
+                dist = ndimage.distance_transform_edt(~body)
+                out["cast_gap"] = round(float(dist[big].min()) / H, 3)
+    return out
+
+
+PHOTO_NORMS = ROOT / "styles" / "photoreal-norms.json"
+
+
+def judge_shadow(m: dict, norms: dict | None = None) -> list[dict]:
+    """写真級の絵の影と肌・線の数字（shadow と photoreal.keep_metrics）を、styles/photoreal-norms.json の範囲で判定する。
+    アニメの基準（anime-norms.json）には入れない。セルの影の段はアニメでは正しい"""
+    norms = norms or json.loads(PHOTO_NORMS.read_text(encoding="utf-8"))
+    out = []
+    for c in norms["checks"]:
+        v = m.get(c["path"])
+        if v is None:
+            continue
+        lo, hi = c.get("min"), c.get("max")
+        if (lo is not None and v < lo) or (hi is not None and v > hi):
+            out.append({"path": c["path"], "value": v, "min": lo, "max": hi, "means": c["means"]})
+    return out
+
+
 def face_spots(lum, fm):
     """顔の中の、肌に囲まれた白い点を探す。返すのは（最大の点の面積 ÷ 顔の面積、点の全部の範囲）。
     目のハイライトは暗い瞳に囲まれるので数えない（点の周り 3 画素の暗い側が、顔の明るさの中央値の 0.85 倍未満なら目とみなす。

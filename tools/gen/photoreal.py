@@ -31,11 +31,14 @@ CONFIG = "stable-diffusion-v1-5/stable-diffusion-v1-5"   # 単体ファイルの
 VAE = "stabilityai/sd-vae-ft-mse"
 TILE = "lllyasviel/control_v11f1e_sd15_tile"
 LINEART = "lllyasviel/control_v11p_sd15_lineart"
+DEPTH = "lllyasviel/control_v11f1p_sd15_depth"
+DEPTH_EST = "depth-anything/Depth-Anything-V2-Small-hf"
 PROMPT = ("RAW photo, a 27 year old woman, plain white bikini, standing, hand on hip, grey studio backdrop, "
           "natural skin texture, soft studio lighting, 85mm, sharp focus, high detail")
 NEGATIVE = ("anime, cartoon, illustration, painting, 3d, cgi, plastic skin, airbrushed, lowres, bad anatomy, "
             "bad hands, extra fingers, child, teen")
 BACKGROUND, CLOTH = 0, 7
+SKIN = (11, 12, 13, 14, 15)   # 顔・脚・腕（edit.LABELS）
 
 
 def rss_gb() -> float:
@@ -185,13 +188,166 @@ def lineart(im):
     return Image.fromarray(np.clip(np.maximum(d, s), 0, 255).astype(np.uint8)).convert("RGB")
 
 
+def deshade(im, parts, sigma=12.0, keep=1.5):
+    """セルの影の段差をぼかして消す（1 段目の前）。部位ごとに明るさを大きくならし（部位の外を混ぜない）、
+    細かい明るさ（線、目、σ keep より細かい所）はそのまま戻す。色は明るさの比で掛けるので色相は変えない。
+    元の段のある影を tile で写すと、写真の肌の上にアニメの影の境が残った"""
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+    f = im.width / 768
+    a = np.asarray(im).astype(np.float32)
+    p = np.asarray(parts)
+    L = a.mean(2) + 1e-3
+    out = L.copy()
+    small = ndimage.gaussian_filter(L, keep * f)
+    for i in np.unique(p):
+        if i == BACKGROUND:
+            continue
+        m = (p == i).astype(np.float32)
+        if m.sum() < 200:
+            continue
+        num = ndimage.gaussian_filter(L * m, sigma * f)
+        den = ndimage.gaussian_filter(m, sigma * f)
+        big = num / np.maximum(den, 1e-3)
+        sm = ndimage.gaussian_filter(L * m, keep * f) / np.maximum(ndimage.gaussian_filter(m, keep * f), 1e-3)
+        out[m > 0] = (big + (L - sm))[m > 0]
+    # 線・目の縁は元のまま。暗い画素で比を掛けると色が赤や白に跳ねて縁取りになった
+    line = ndimage.binary_dilation(np.asarray(lineart(im).convert("L")) > 60, iterations=max(1, round(f)))
+    ratio = np.clip(np.clip(out, 0, 255) / L, 0.7, 1.4)
+    ratio = np.where(line | (p == BACKGROUND), 1.0, ratio)
+    ratio = ndimage.gaussian_filter(ratio, 1.0 * f)
+    o = a * ratio[..., None]
+    return Image.fromarray(np.clip(o, 0, 255).astype(np.uint8))
+
+
+def depth_map(im):
+    """奥行きを読む（Depth Anything V2 Small、約 100MB）。depth の ControlNet と光の付け直しで共有する"""
+    from transformers import pipeline
+    d = pipeline("depth-estimation", model=DEPTH_EST)(im)["depth"]
+    return d.convert("RGB").resize(im.size)
+
+
+def normals(depth, width, body=None):
+    """奥行き（手前ほど明るい）から面の向き（単位の法線、x 右・y 上・z 手前）を出す。
+    人物の外を一番近い人物の奥行きで埋めてから傾きを取る。埋めないと輪郭の段差で縁が真横向きになり、縁が暗い帯になった"""
+    import numpy as np
+    from scipy import ndimage
+    f = width / 768
+    z = np.asarray(depth.convert("L")).astype(np.float32) / 255
+    if body is not None and body.any():
+        idx = ndimage.distance_transform_edt(~body, return_distances=False, return_indices=True)
+        z = z[tuple(idx)]
+    z = ndimage.gaussian_filter(z, 3 * f)
+    gy, gx = np.gradient(z)
+    k = 40.0 * f                                    # 奥行きの傾きを面の傾きにする強さ
+    n = np.stack([-gx * k, gy * k, np.ones_like(z)], -1)
+    return n / np.linalg.norm(n, axis=-1, keepdims=True)
+
+
+def lambert(n, deg, elev=40.0):
+    import numpy as np
+    t, e = np.radians(deg), np.radians(elev)
+    return np.clip(n @ np.array([np.cos(t) * np.cos(e), np.sin(t) * np.cos(e), np.sin(e)]), 0, 1)
+
+
+def normal_corr(im, depth, parts):
+    """推定した面の向きから作った陰影と、絵の明るさの相関（人物の中、光の向きは 30° 刻みで一番合うもの）。
+    立体に沿って陰が付いていれば高く、平らな塗りや部位ごとに食い違う陰では低い。返すのは (相関, 向き)"""
+    import numpy as np
+    from scipy import ndimage
+    f = im.width / 768
+    body = ndimage.binary_erosion(np.asarray(parts) != BACKGROUND, iterations=max(2, round(4 * f)))
+    L = ndimage.gaussian_filter(np.asarray(im.convert("L")).astype(np.float32), 2 * f)[body]   # 線と肌理を除く
+    n = normals(depth, im.width, np.asarray(parts) != BACKGROUND)[body]
+    best = (-1.0, 0)
+    for deg in range(0, 360, 30):
+        c = float(np.corrcoef(lambert(n, deg), L)[0, 1])
+        if c > best[0]:
+            best = (c, deg)
+    return round(best[0], 3), best[1]
+
+
+def relight(im, parts, depth, deg=135.0, elev=40.0, amount=0.35):
+    """奥行きから面の向きを出し、1 つの光（deg: 0° が右、90° が上）で陰と色を付け直す。人物だけに掛ける。
+    部位ごとに陰の側が食い違った（顔が下から、腕が左上から照らされた）ので、元の絵の陰を 1 つの光の陰に寄せる。
+    色も面の向きに沿わせる: 陰の側は赤を残し青を落とす（肌の中で光が散る分）、光の側はわずかに温かく。
+    平らな塗りの上でも、面の向きでなだらかに明るさと色が変わる"""
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+    f = im.width / 768
+    body = np.asarray(parts) != BACKGROUND
+    sh = lambert(normals(depth, im.width, body), deg, elev)
+    sh = sh / max(float(np.median(sh[body])), 1e-3)
+    g = np.where(body, 1 - amount + amount * sh, 1.0)
+    g = ndimage.gaussian_filter(g, 2 * f)           # 人物の縁で段を作らない
+    skin = np.isin(np.asarray(parts), SKIN)
+    warm = ndimage.gaussian_filter(skin.astype(np.float32), 2 * f)   # 色の寄せは肌だけ（服と髪の色は変えない）
+    gain = np.stack([g ** (1 - 0.1 * warm), g, g ** (1 + 0.08 * warm)], -1)   # 赤・緑・青
+    a = np.asarray(im).astype(np.float32) * gain
+    return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
+
+
+def keep_metrics(src, out, src_parts=None):
+    """肌の平らな面の割合と、髪・線の形が保てているかを測る（影の検品と並べて毎回出す）。
+    flat_skin: 肌の 3x3 の中で RGB の幅が 2 以下の画素の割合（アニメの塗りの残り。0.005 以下を目安）
+    hair_iou: 元と描いた絵の髪の部位の重なり。line_f: 元の線と描いた絵の線の一致（2 画素までのずれを許す F 値）"""
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+    import edit
+    o = out.resize(src.size, Image.LANCZOS)
+    a = np.asarray(o).astype(np.int16)
+    rng = ndimage.maximum_filter(a, (3, 3, 1)) - ndimage.minimum_filter(a, (3, 3, 1))
+    flat = rng.max(2) <= 2
+    po = np.asarray(_parts_of(o))
+    ps = np.asarray(src_parts) if src_parts is not None else np.asarray(_parts_of(src))
+    skin = ndimage.binary_erosion(np.isin(po, [edit.LABELS[k] for k in ("face", "left_arm", "right_arm", "left_leg", "right_leg")]), iterations=3)
+    hs, ho = ps == edit.LABELS["hair"], po == edit.LABELS["hair"]
+    ls = np.asarray(lineart(src).convert("L")) > 60
+    lo = np.asarray(lineart(o).convert("L")) > 60
+    prec = (lo & ndimage.binary_dilation(ls, iterations=2)).sum() / max(lo.sum(), 1)
+    rec = (ls & ndimage.binary_dilation(lo, iterations=2)).sum() / max(ls.sum(), 1)
+    return {"flat_skin": round(float(flat[skin].mean()), 4) if skin.any() else None,
+            "hair_iou": round(float((hs & ho).sum() / max((hs | ho).sum(), 1)), 3),
+            "line_f": round(float(2 * prec * rec / max(prec + rec, 1e-6)), 3)}
+
+
+def _parts_of(im):
+    """部位分け（edit.parts）は絵のファイルを受けるので、一時のファイルを通す"""
+    import tempfile
+    import edit
+    with tempfile.TemporaryDirectory() as d:
+        f = Path(d) / "x.png"
+        im.save(f)
+        return edit.parts(f).copy()
+
+
+def check(src, out_img, src_parts, log, tag):
+    """影の検品（measure.shadow と styles/photoreal-norms.json）と、肌・髪・線の保ち方を並べて記録する"""
+    import numpy as np
+    import edit
+    import measure
+    t = time.time()
+    rgb = np.asarray(out_img).astype(np.float32) / 255
+    seg = np.asarray(_parts_of(out_img))
+    sh = measure.shadow(rgb, seg, edit.LABELS)
+    sh["normal_corr"], sh["normal_light_deg"] = normal_corr(out_img, depth_map(out_img), seg)
+    km = keep_metrics(src, out_img, src_parts)
+    log(f"{tag}_shadow", sh)
+    log(f"{tag}_keep", km)
+    log(f"{tag}_fails", measure.judge_shadow({**sh, **km}))
+    log(f"{tag}_check_s", round(time.time() - t, 1))
+
+
 def tiles(length: int, side: int, overlap: int) -> list[int]:
     if length <= side:
         return [0]
     return list(range(0, length - side, side - overlap)) + [length - side]
 
 
-def load(log):
+def load(log, depth=False):
     """tile の pipe と、tile＋lineart の pipe（部品は共有）を 1 回だけ読む"""
     import torch
     from diffusers import (AutoencoderKL, ControlNetModel, DPMSolverMultistepScheduler,
@@ -209,17 +365,24 @@ def load(log):
     pipe.set_progress_bar_config(disable=True)
     c = dict(pipe.components)
     c.pop("controlnet")
-    multi = StableDiffusionControlNetImg2ImgPipeline(**c, controlnet=[tile, la])
+    nets = [tile, la]
+    if depth:
+        nets.append(ControlNetModel.from_pretrained(DEPTH, variant="fp16", use_safetensors=True, torch_dtype=torch.float32))
+    multi = StableDiffusionControlNetImg2ImgPipeline(**c, controlnet=nets)
     multi.set_progress_bar_config(disable=True)
     log("load_s", round(time.time() - t, 1))
     return pipe, multi
 
 
-def stage1(multi, clean, li, a, log):
+def stage1(multi, clean, li, a, log, depth=None):
     import torch
     t = time.time()
-    r = multi(a.prompt, negative_prompt=a.negative, image=clean, control_image=[clean, li], strength=a.strength,
-              controlnet_conditioning_scale=[a.tile_scale, a.lineart_scale], num_inference_steps=a.steps,
+    ctl, sc = [clean, li], [a.tile_scale, a.lineart_scale]
+    if depth is not None and a.depth_scale > 0:
+        ctl.append(depth)
+        sc.append(a.depth_scale)
+    r = multi(a.prompt, negative_prompt=a.negative, image=clean, control_image=ctl, strength=a.strength,
+              controlnet_conditioning_scale=sc, num_inference_steps=a.steps,
               guidance_scale=a.guidance, generator=torch.Generator().manual_seed(a.seed),
               width=clean.width, height=clean.height).images[0]
     log("stage1_s", round(time.time() - t, 1))
@@ -280,6 +443,11 @@ def parse(argv):
     ap.add_argument("--tile2-scale", type=float, default=0.8)
     ap.add_argument("--tile", type=int, default=768)
     ap.add_argument("--overlap", type=int, default=128)
+    ap.add_argument("--deshade", type=float, default=0, help="1 段目の前にセルの影の段差をならす幅（768 幅の画素、0 ならしない）")
+    ap.add_argument("--depth-scale", type=float, default=0, help="depth の ControlNet の強さ（0 なら使わない）")
+    ap.add_argument("--relight", type=float, default=0, help="奥行きから付け直す陰の量（0 ならしない）")
+    ap.add_argument("--light-deg", type=float, default=135, help="付け直す光の向き（0° が右、90° が上）")
+    ap.add_argument("--check", action="store_true", help="段ごとに影の検品と肌・髪・線の保ち方を測る（部位分けの模型を読む）")
     ap.add_argument("--dry-run", action="store_true", help="模型を読まず、帯消しと lineart だけ書き出す")
     return ap.parse_args(argv)
 
@@ -303,7 +471,11 @@ def main(argv=None) -> int:
     im, parts = load_source(a.src, a.width, a.height)
     clean, px = clean_band(im, parts)
     clean, bpx = fill_blobs(clean)
-    li = lineart(clean)
+    li = lineart(clean)                           # 線は段差をならす前の絵から取る（線の形を保つ）
+    if a.deshade > 0:
+        t1 = time.time()
+        clean = deshade(clean, parts, a.deshade)
+        log("deshade_s", round(time.time() - t1, 2))
     clean.save(a.out / f"{stem}-0-clean.png")
     li.save(a.out / f"{stem}-0-lineart.png")
     log("band_px", px)
@@ -311,9 +483,22 @@ def main(argv=None) -> int:
     log("clean_s", round(time.time() - t, 2))
     if a.dry_run:
         return 0
-    pipe, multi = load(log)
-    r1 = stage1(multi, clean, li, a, log)
+    dep = None
+    if a.depth_scale > 0 or a.relight > 0:
+        t1 = time.time()
+        dep = depth_map(clean)
+        dep.save(a.out / f"{stem}-0-depth.png")
+        log("depth_s", round(time.time() - t1, 1))
+    if a.relight > 0:
+        clean = relight(clean, parts, dep, a.light_deg, amount=a.relight)
+        clean.save(a.out / f"{stem}-0-relit.png")
+    if a.check:
+        check(im, clean, parts, log, "input")
+    pipe, multi = load(log, depth=a.depth_scale > 0)
+    r1 = stage1(multi, clean, li, a, log, dep)
     r1.save(a.out / f"{stem}-1-photoreal-st{a.strength}-s{a.seed}.png")
+    if a.check:
+        check(im, r1, parts, log, "stage1")
     del multi
     if a.scale > 0:
         r2 = stage2(pipe, r1, a, log)
@@ -321,6 +506,9 @@ def main(argv=None) -> int:
         if a.hf_sigma > 0:
             r3 = hfmix(r1, r2, a.hf_sigma, a.hf_amount)
             r3.save(a.out / f"{stem}-3-hf-g{a.hf_sigma}-s{a.seed}.png")
+            r2 = r3
+        if a.check:
+            check(im, r2, parts, log, "final")
     log("total_s", round(time.time() - t, 1))
     return 0
 
