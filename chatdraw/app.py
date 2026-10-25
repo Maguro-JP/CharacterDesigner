@@ -1297,6 +1297,10 @@ class Window(QMainWindow):
         self.canvas.show_overlay(None)
         if prompt and prompt != self.last_text:
             self.say(f"絵の模型に渡した言葉: {prompt}")   # 頼みとずれた絵が出たとき、どこでずれたかを見られるように
+        check = getattr(self.studio, "last_check", None)
+        if check is not None and self.job_kind == "draw":
+            from chatdraw.handcheck import summary
+            self.say(summary(check))   # 検品の結果は、絵ごとに先に出す（崩れを見落としたまま使わないように）
         if self.job_kind == "chibi":
             self.canvas.add_image_layer(path, "ちびキャラ")
         elif self.job_kind == "fix":

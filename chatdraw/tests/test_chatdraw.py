@@ -7,6 +7,7 @@ from tempfile import TemporaryDirectory
 
 ROOT = Path(__file__).resolve().parents[2]
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+os.environ.setdefault("CD_CHECK", "off")   # 描くたびの検品は、模型を取りに行くので試験では止める（HandCheckTest で別に確かめる）
 sys.path.insert(0, str(ROOT / ".cache" / "simple" / "lib"))
 sys.path.insert(0, str(ROOT))
 
@@ -2007,3 +2008,75 @@ class ViewingTest(unittest.TestCase):
             self.assertTrue(share.enabled(w.settings, "Bluesky"))
             self.assertIn("bsky.app/intent/compose?text=", share.compose_url("Bluesky", "ビキニの女性"))
             w.settings.set("sns", "オフ")
+
+
+class HandCheckTest(unittest.TestCase):
+    """描いた絵の検品（chatdraw/handcheck.py）。模型が手元にあるときは本物で、無いときは止まらず理由を返すかを見る"""
+
+    def test_summary_and_missing_parts(self):
+        from chatdraw import handcheck
+        self.assertIn("崩れ 1 件", handcheck.summary({"readable": True, "bad": ["手 1: 指が多い"], "hands": [{"seen": True}]}))
+        self.assertIn("読めません", handcheck.summary({"readable": False, "bad": [], "hands": []}))
+        self.assertIn("止めて", handcheck.summary(handcheck.check(__file__)))   # CD_CHECK=off なら止めて理由を返す
+
+    def test_six_fingers_found_with_real_models(self):
+        from pathlib import Path
+        from unittest import mock
+        root = Path(__file__).resolve().parents[2]
+        if not (root / ".cache" / "gen" / "mediapipe" / "hand_landmarks_detector.tflite").exists():
+            self.skipTest("手の模型が手元にない")
+        try:
+            import ai_edge_litert  # noqa: F401
+        except ImportError:
+            self.skipTest("ai-edge-litert が無い")
+        from PIL import Image, ImageDraw
+        from chatdraw import handcheck
+        with mock.patch.dict(os.environ, {"CD_CHECK": "on", "CD_HOME": str(root / ".cache")}):
+            res = handcheck.check(Image.new("RGB", (256, 256), "white"), fetch=False)
+        self.assertFalse(res["readable"])                 # 手の無い絵は「読めない」（崩れにしない）
+        self.assertEqual(res["bad"], [])
+
+
+class HandRoundsTest(unittest.TestCase):
+    """描いて終わりにせず、検品と手の直しを崩れが消えるまで回すか（Studio._fix_hands）"""
+
+    def test_rounds_until_clean(self):
+        import tempfile
+        from unittest import mock
+        from PIL import Image
+        from chatdraw import handcheck
+        from chatdraw.engine import Painter
+        s = Studio(FakeWords(), Painter("cagliostrolab/animagine-xl-4.0"), Path(tempfile.mkdtemp()))
+        results = iter([
+            {"readable": True, "bad": ["手 1: 指が多い"], "hands": [{"box": [10, 10, 40, 40], "seen": True, "bad": ["指が多い"]}]},
+            {"readable": True, "bad": ["手 1: 指が多い"], "hands": [{"box": [10, 10, 40, 40], "seen": True, "bad": ["指が多い"]}]},
+            {"readable": True, "bad": [], "hands": [{"box": [10, 10, 40, 40], "seen": True, "bad": []}]},
+        ])
+        calls = []
+        with mock.patch.dict(os.environ, {"CD_CHECK": "on"}), mock.patch.object(handcheck, "check", side_effect=lambda im: next(results)), \
+                mock.patch.object(s.painter, "redraw", side_effect=lambda p, seed, im, mask, strength: calls.append(seed) or im):
+            s._fix_hands(Image.new("RGB", (64, 64)), "1girl", 7, lambda m: None)
+        self.assertEqual(len(calls), 2)                                  # 2 回直して、3 回目の検品で崩れが消えた
+        self.assertEqual([r["bad"] for r in s.hand_rounds][-1], [])
+
+
+class RequestCheckTest(unittest.TestCase):
+    """頼んだ物が描かれたかの検品（chatdraw/requestcheck.py）"""
+
+    def test_summary_and_off(self):
+        from chatdraw import requestcheck
+        self.assertIn("hand up", requestcheck.summary({"readable": True, "missing": ["hand up"]}))
+        self.assertIn("すべて", requestcheck.summary({"readable": True, "missing": []}))
+        self.assertFalse(requestcheck.check(__file__, "1girl")["readable"])   # CD_CHECK=off では止めて理由を返す
+
+    def test_missing_tags_trigger_redraw(self):
+        import tempfile
+        from unittest import mock
+        from chatdraw import handcheck, requestcheck
+        s = Studio(FakeWords(), FakePainter(), Path(tempfile.mkdtemp()))
+        asked = iter([{"readable": True, "missing": ["hand up"]}, {"readable": True, "missing": []}])
+        with mock.patch.object(requestcheck, "check", side_effect=lambda im, t: next(asked)):
+            prompt, path = s.draw("1girl, hand up", 7)
+        import json
+        meta = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+        self.assertEqual([r["bad"] for r in meta["redraws"]], [["描かれていない: hand up"], []])   # 描かれるまで描き直した

@@ -39,6 +39,7 @@ Var OLD
 Section "Install"
   ; 更新のとき、前のプログラムを先に消す（消したファイルが残って古いまま読まれないように）
   RMDir /r "$INSTDIR\chatdraw"
+  RMDir /r "$INSTDIR\tools"
   RMDir /r "$INSTDIR\python"
   SetOutPath "$INSTDIR"
   File /r "${SRC}\*.*"
@@ -92,6 +93,7 @@ SectionEnd
 Section "Uninstall"
   ; 入れた所は丸ごと消す（__pycache__ など起動で出来た物も残さない）。名前が違う所に入れたときは、入れた物だけを消す
   RMDir /r "$INSTDIR\chatdraw"
+  RMDir /r "$INSTDIR\tools"
   RMDir /r "$INSTDIR\python"
   Delete "$INSTDIR\VERSION"
   Delete "$INSTDIR\LICENSE"

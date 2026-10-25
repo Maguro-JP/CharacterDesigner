@@ -649,9 +649,31 @@ class Studio:
             raise ValueError("子どもを性的に描く頼みは描きません")
         say("絵の模型を読んでいます（初めの 1 回だけ時間がかかります）")
         extra = dict(reference=reference, ref_scale=ref_scale) if reference is not None else {}
-        image = self.painter.paint(prompt, seed, on_step=lambda i, n: say(f"描いています（{i}/{n}）"),
-                                   base=base, strength=strength, size=size, on_preview=on_preview, **extra)
-        path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model))
+        # 描けるまで描き直す。手を直しても検品を通らなければ、種を変えて描き直す（REDRAW_TRIES 回まで）。
+        # 通らなかったときは、崩れの一番少ない絵を渡す（どの回の崩れも .json の redraws に残す）
+        best, redraws = None, []
+        for k in range(self.REDRAW_TRIES):
+            s_k = seed + 1000 * k
+            if k:
+                say(f"検品を通らなかったので、種を変えて描き直しています（{k + 1}/{self.REDRAW_TRIES} 回目）")
+            image = self.painter.paint(prompt, s_k, on_step=lambda i, n: say(f"描いています（{i}/{n}）"),
+                                       base=base, strength=strength, size=size, on_preview=on_preview, **extra)
+            image = self._fix_hands(image, prompt, s_k, say)
+            left = list(self.hand_rounds[-1]["bad"] if self.hand_rounds else [])
+            from chatdraw import requestcheck
+            asked = requestcheck.check(image, prompt)
+            if asked["readable"]:
+                say(requestcheck.summary(asked))
+                left += [f"描かれていない: {m}" for m in asked["missing"]]
+            redraws.append({"seed": s_k, "bad": left})
+            if best is None or len(left) < len(best[1]):
+                best = (image, left, s_k)
+            if not left or getattr(self.painter, "stop", False) or (not self.hand_rounds and not asked["readable"]):
+                break
+        image, _left, seed = best
+        path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model,
+                                            hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws))
+        self._inspect(path, say)
         return prompt, path
 
     def _two_stage_models(self, base, reference, say=lambda m: None):
@@ -699,7 +721,54 @@ class Studio:
         image = Image.open(path)
         saved = self._save(image, seed, dict(meta or {}, text=text, prompt=tags, sentence=sentence, seed=seed, style=style,
                                              model=render.repo, compose_model=comp.repo, way="two", stages=str(keep)))
+        self._inspect(saved, say)
         return tags, saved
+
+    last_check: dict | None = None
+    FIX_ROUNDS = 3     # 描いたあと、崩れた手を直して検品し直す回数の上限
+    REDRAW_TRIES = 3   # 直しても検品を通らないとき、種を変えて描き直す回数の上限
+
+    def _fix_hands(self, image, prompt: str, seed: int, say):
+        """1 回描いて終わりにしない。描いた絵の手を検品し、崩れた手の所だけを直して、もう一度検品する。
+        崩れが消えるか FIX_ROUNDS 回で止める。直すのは手の枠の中だけで、枠の外は元の絵のまま（Painter.redraw）"""
+        import os
+        from chatdraw.models import family as fam, image_model
+        self.hand_rounds = []
+        if os.environ.get("CD_CHECK") == "off" or not fam(image_model(getattr(self.painter, "model", "")).family).inpaint:
+            return image
+        from PIL import Image, ImageDraw
+        from chatdraw import handcheck
+        for r in range(self.FIX_ROUNDS + 1):
+            say(f"検品しています（手と指・{r + 1} 回目）")
+            res = handcheck.check(image)
+            self.hand_rounds.append({"round": r, "bad": res["bad"]})
+            boxes = [h["box"] for h in res["hands"] if h["seen"] and h["bad"]]
+            if not boxes or r == self.FIX_ROUNDS or self.painter.stop:
+                return image
+            say(f"崩れた手を直しています（{len(boxes)} か所・{r + 1} 回目）: " + "、".join(res["bad"][:3]))
+            mask = Image.new("L", image.size, 0)
+            d = ImageDraw.Draw(mask)
+            for x0, y0, x1, y1 in boxes:
+                cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) * 0.6
+                d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
+            image = self.painter.redraw(f"{prompt}, detailed hand, five fingers, correct hand anatomy", seed + 77 * (r + 1),
+                                        image, mask, strength=0.6)
+        return image
+
+    def _inspect(self, path: Path, say):
+        """描いた絵の手と指を検品し、結果を絵の隣の .check.json に残す（chatdraw/handcheck.py）"""
+        import json
+        say("検品しています（手と指）")
+        try:
+            from chatdraw import handcheck
+            res = handcheck.check(path)
+        except Exception as e:   # 検品で落ちても、描いた絵は渡す
+            res = {"readable": False, "bad": [], "hands": [], "reason": f"検品で止まりました（{e}）"}
+        self.last_check = res
+        try:
+            path.with_suffix(".check.json").write_text(json.dumps(res, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+        except OSError:
+            pass
 
     def _save(self, image, seed: int, meta: dict) -> Path:
         """絵と、同じ名前の .json（頼み・描く言葉・種・作風・模型）を残す。履歴から同じ設定で描き直すため"""

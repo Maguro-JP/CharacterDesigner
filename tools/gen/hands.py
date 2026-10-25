@@ -111,6 +111,7 @@ def measure(img):
     # 指の線（付け根から先の手前 1 割まで）の上で手の色だった割合。先端は輪郭の線に乗るので外す
     m["cover"] = {k: round(float(np.mean([on_hand(p) for p in np.linspace(lm[v[0]], lm[v[0]] + (lm[v[-1]] - lm[v[0]]) * 0.9, 24)])), 2)
                   for k, v in FINGERS.items()}
+    m["fingers"] = count_fingers(a, lm, palm_col)
     bad = []
     # 手らしさが低いときは、枠に手が写っていない（袖や布に隠れた、枠が外れた）。点はでたらめなので比を崩れとして数えない
     if presence < READABLE:
@@ -131,7 +132,50 @@ def measure(img):
                 continue
             if not lo <= v <= hi:
                 bad.append(f"{name}{'の手の色' if k == 'cover' else ''} {v}（{lo}〜{hi}）")
+    # 指の数。模型の点はいつも 5 本に置くので、点の数では数えられない（6 本指の絵でも 5 本と読む）。
+    # 手の色の上で、指の付け根の線より先を横に切り、手の色の切れ目で分かれた筋の数を数える
+    n = m["fingers"]
+    if n["count"] is not None and n["count"] > 4:
+        bad.append(f"指が多い（親指の外に {n['count']} 本。4 本のはず）")
+    elif n["count"] is not None and n["count"] < 4 and not bent:
+        bad.append(f"指が足りない（親指の外に {n['count']} 本。4 本のはず）")
     return m, bad, _overlay(sq, lm)
+
+
+def count_fingers(a, lm, palm_col, tol: float = 90.0) -> dict:
+    """親指の外の指の本数を、手の色の筋の数で数える。
+    手を指先が上の向きに回してあるので、人差し指〜小指の付け根（5、9、13、17）の線から指先までの間を横に切る。
+    切った線の上で、手の色の続く所（4 画素以上）を 1 本と数え、高さを変えた 9 本の線で最も多く出た数を本数とする。
+    指を閉じて隙間が無い手は 1〜2 本に見えるので、隙間の線が 1 本も無いときは数えない（count は None）"""
+    h, w = a.shape[:2]
+    base_y = float(np.mean([lm[k][1] for k in (5, 9, 13, 17)]))
+    tip_y = float(np.mean([lm[k][1] for k in (8, 12, 16, 20)]))
+    if tip_y >= base_y - 8:
+        return {"count": None, "rows": []}   # 指先が付け根より上に無い（握った手、下向き）
+    x0 = int(max(0, min(lm[k][0] for k in (5, 6, 7, 8, 17, 18, 19, 20)) - 0.15 * (base_y - tip_y)))
+    x1 = int(min(w - 1, max(lm[k][0] for k in (5, 6, 7, 8, 17, 18, 19, 20)) + 0.15 * (base_y - tip_y)))
+    skin = np.abs(a - palm_col).sum(axis=2) < tol
+    counts = []
+    for t in np.linspace(0.25, 0.75, 9):
+        y = int(base_y + (tip_y - base_y) * t)
+        row = skin[y, x0:x1 + 1]
+        runs, run = 0, 0
+        for v in row:
+            if v:
+                run += 1
+            else:
+                runs += run >= 4
+                run = 0
+        runs += run >= 4
+        counts.append(int(runs))
+    seen = [c for c in counts if c >= 2]
+    if not seen:
+        return {"count": None, "rows": counts}
+    # 2 本以上の線で出た数のうち一番多い本数を取る。指の先の方は隣の指と重なって 1 本少なく見えるので、
+    # 一番よく出た数では、6 本指の手（線ごとに 4、4、5、4、5…）を 5 本と数えて通した
+    vals, freq = np.unique(seen, return_counts=True)
+    twice = [int(v) for v, f in zip(vals, freq) if f >= 2]
+    return {"count": max(twice) if twice else int(vals[np.argmax(freq)]), "rows": counts}
 
 
 def _overlay(sq, lm):

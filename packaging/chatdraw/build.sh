@@ -23,7 +23,7 @@ if [ -n "$(git status --porcelain --untracked-files=normal -- chatdraw packaging
 fi
 
 echo "== chatdraw（HEAD）"
-git archive HEAD chatdraw VERSION LICENSE | tar -x -C "$SRC"
+git archive HEAD chatdraw VERSION LICENSE tools/gen/hands.py tools/gen/cdhome.py tools/gen/tagger.py | tar -x -C "$SRC"   # 検品の測り方（tools/gen/hands.py）も入れる
 rm -rf "$SRC/chatdraw/tests"
 
 echo "== Python $PYVER（埋め込み版）"
@@ -42,7 +42,7 @@ python3 -m pip install $W --target "$SP" pip "PySide6-Essentials==6.9.3" numpy P
 
 echo "== 同梱物の欠けを見る"
 missing=""
-for f in VERSION python/python.exe python/pythonw.exe chatdraw/app.py chatdraw/help/install.md chatdraw/help/manual.md chatdraw/helpview.py chatdraw/migrate.py chatdraw/paths.py chatdraw/setup.py \
+for f in VERSION python/python.exe python/pythonw.exe chatdraw/app.py chatdraw/handcheck.py chatdraw/requestcheck.py tools/gen/hands.py tools/gen/tagger.py tools/gen/cdhome.py chatdraw/help/install.md chatdraw/help/manual.md chatdraw/helpview.py chatdraw/migrate.py chatdraw/paths.py chatdraw/setup.py \
          python/Lib/site-packages/PySide6 python/Lib/site-packages/numpy python/Lib/site-packages/PIL \
          python/Lib/site-packages/huggingface_hub python/Lib/site-packages/pip; do
   [ -e "$SRC/$f" ] || missing="$missing $f"

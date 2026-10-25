@@ -24,8 +24,9 @@ POSE = "usyd-community/vitpose-base-simple"   # Apache-2.0。transformers だけ
 # 2 段で描くのに要る部品（構図と仕上げの模型は別に取る）。(repo, 取るファイル)
 PARTS = [(UNION, ["config_promax.json", "diffusion_pytorch_model_promax.safetensors"]),
          (DEPTH, ["*.json", "*.safetensors"]),
-         (POSE, ["*.json", "*.safetensors"])]
-PARTS_GB = 2.9
+         (POSE, ["*.json", "*.safetensors"]),
+         ("SmilingWolf/wd-vit-tagger-v3", ["model.onnx", "selected_tags.csv"])]   # 頼んだ物が描かれたかの検品
+PARTS_GB = 3.3
 # COCO の 17 点（VitPose の出力）から引く骨と、その色（ControlNet の openpose の絵と同じ並びの色）
 _NECK = 17
 BONES = [(_NECK, 0), (_NECK, 5), (5, 7), (7, 9), (_NECK, 6), (6, 8), (8, 10), (_NECK, 11), (11, 13), (13, 15), (_NECK, 12), (12, 14),
@@ -52,6 +53,22 @@ def fetch_parts(say=print):
     for i, (repo, files) in enumerate(PARTS, 1):
         say(f"2 段で描く部品を取っています（{i}/{len(PARTS)}）")
         snapshot_download(repo, cache_dir=str(HUB), allow_patterns=files)
+
+
+def keypoints(image, threshold: float = 0.3) -> dict:
+    """VitPose で体の 17 点を読み、名前と (x, y) を返す（確からしさが threshold 未満の点は入れない）"""
+    import torch
+    from transformers import AutoProcessor, VitPoseForPoseEstimation
+    from chatdraw.paths import HUB
+    names = ["nose", "left_eye", "right_eye", "left_ear", "right_ear", "left_shoulder", "right_shoulder", "left_elbow",
+             "right_elbow", "left_wrist", "right_wrist", "left_hip", "right_hip", "left_knee", "right_knee", "left_ankle", "right_ankle"]
+    proc = AutoProcessor.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True)
+    model = VitPoseForPoseEstimation.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True)
+    w, h = image.size
+    boxes = [[[0, 0, w, h]]]
+    with torch.no_grad():
+        res = proc.post_process_pose_estimation(model(**proc(image, boxes=boxes, return_tensors="pt")), boxes=boxes)[0][0]
+    return {n: tuple(p) for n, p, sc in zip(names, res["keypoints"].tolist(), res["scores"].tolist()) if sc >= threshold}
 
 
 def pose_map(image, threshold: float = 0.3):
@@ -158,7 +175,7 @@ def render(pipe, prompt: str, negative: str, shapes: dict, variant: dict, seed: 
                 generator=torch.Generator("cpu").manual_seed(seed), callback_on_step_end=step).images[0]
 
 
-def compose(sentence: str, seed: int, compose_model: str, size, path):
+def compose(sentence: str, seed: int, compose_model: str, size, path, tags: str = ""):
     """構図の模型（FLUX.2 klein など）で、文から絵全体を描く。
     頼みを読む部品（Qwen3、約 8GB）は最初に 1 回だけ使い、読み終えたら外してから描く。
     外さないと 16GB の機械でメモリが足りず、1 工程に約 23 分、絵にする所で 2 時間以上止まった"""
@@ -171,9 +188,11 @@ def compose(sentence: str, seed: int, compose_model: str, size, path):
     from chatdraw.engine import dtype_note
     print(f"構図の型: {painter.dtype} {dtype_note(painter.dtype)}", flush=True)
     if not hasattr(pipe, "encode_prompt") or getattr(pipe, "text_encoder", None) is None:
-        painter.paint(sentence, seed, on_step=lambda i, n: print(f"構図 {i}/{n}", flush=True)).save(path)
+        painter.paint(enrich(sentence, seed), seed, on_step=lambda i, n: print(f"構図 {i}/{n}", flush=True)).save(path)
         return
     t = time.time()
+    sentence = enrich(sentence, seed)
+    print(f"構図の文: {sentence}", flush=True)
     with torch.no_grad():
         embeds = pipe.encode_prompt(sentence, device="cpu")
     embeds = embeds[0] if isinstance(embeds, tuple) else embeds
@@ -181,14 +200,99 @@ def compose(sentence: str, seed: int, compose_model: str, size, path):
     gc.collect()
     print(f"頼みを読む: {time.time() - t:.0f} 秒", flush=True)
     w, h = native_size(size, cm.family)
+    # 1 回描いて終わりにしない。描いて検品し、手に崩れがあれば種を変えて描き直す（頼みは 1 回読んだ物を使い回す）。
+    # 崩れの無い構図が出たらそこで止め、出なければ崩れの一番少ない構図を使う。どの回も 1-composition-t<回>.png に残す
+    from chatdraw import handcheck, requestcheck
+    rounds, best = [], None
+    for k in range(COMPOSE_TRIES):
+        s_k = seed + 1000 * k
+
+        def step(p, i, _t, kw, k=k):
+            print(f"構図 {k + 1}回目 {i + 1}/{cm.steps} {time.time() - t:.0f} 秒", flush=True)
+            return kw
+        im = pipe(prompt_embeds=embeds, width=w, height=h, num_inference_steps=cm.steps, guidance_scale=cm.guidance,
+                  generator=torch.Generator("cpu").manual_seed(s_k), callback_on_step_end=step).images[0]
+        try_path = Path(path).with_name(f"1-composition-t{k + 1}.png")
+        im.save(try_path)
+        res = handcheck.check(im)
+        asked = requestcheck.check(im, tags, fetch=True) if tags else {"readable": False, "missing": []}
+        print(f"構図 {k + 1}回目（種 {s_k}）: {handcheck.summary(res)}　{requestcheck.summary(asked)}", flush=True)
+        bad = res["bad"] + [f"描かれていない: {m}" for m in asked["missing"]]
+        rounds.append({"try": k + 1, "seed": s_k, "bad": bad, "readable": res["readable"]})
+        if best is None or len(bad) < len(best[1]):
+            best = (im, bad)
+        if res["readable"] and not bad:
+            break
+    best[0].save(path)
+    Path(path).with_name("compose-rounds.json").write_text(json.dumps(rounds, ensure_ascii=False, indent=1), encoding="utf-8")
+    print(f"構図を保存: {time.time() - t:.0f} 秒（{len(rounds)} 回描いた）", flush=True)
+
+
+COMPOSE_TRIES = 3   # 構図を描き直す回数の上限（速い機械で 1 回 約 4 分）
+FIX_ROUNDS = 3      # 仕上げのあと、崩れた手を直して検品し直す回数の上限
+
+
+REFINE_SCALE, REFINE_STRENGTH = 1.5, 0.35
+
+
+def refine(pipe, image, prompt: str, negative: str, seed: int, steps: int, guidance: float):
+    """清書。絵全体を 1.5 倍に広げ、弱い強さ（0.35）で描き直して、指先・目・髪の線の細かい所を描き込む。
+    AI の絵は縮めた大きさで細部を決めるので、指や線が雑で汚れて見えた。形は元の絵に従う（強さを弱くする）。
+    最後に元の大きさへ戻す"""
+    import torch
+    from PIL import Image
+    from diffusers import StableDiffusionXLImg2ImgPipeline
+    parts = {k: v for k, v in pipe.components.items() if k in ("vae", "text_encoder", "text_encoder_2", "tokenizer", "tokenizer_2",
+                                                                 "unet", "scheduler")}
+    i2i = StableDiffusionXLImg2ImgPipeline(**parts)   # 読んだ模型の部品をそのまま使う
+    w, h = image.size
+    big = image.resize((int(w * REFINE_SCALE) // 8 * 8, int(h * REFINE_SCALE) // 8 * 8), Image.LANCZOS)
+    t = time.time()
 
     def step(p, i, _t, kw):
-        print(f"構図 {i + 1}/{cm.steps} {time.time() - t:.0f} 秒", flush=True)
+        print(f"清書 {i + 1} {time.time() - t:.0f} 秒", flush=True)
         return kw
-    im = pipe(prompt_embeds=embeds, width=w, height=h, num_inference_steps=cm.steps, guidance_scale=cm.guidance,
-              generator=torch.Generator("cpu").manual_seed(seed), callback_on_step_end=step).images[0]
-    im.save(path)
-    print(f"構図を保存: {time.time() - t:.0f} 秒", flush=True)
+    out = i2i(prompt=prompt, negative_prompt=negative, image=big, strength=REFINE_STRENGTH, num_inference_steps=steps,
+              guidance_scale=guidance, generator=torch.Generator("cpu").manual_seed(seed + 9),
+              callback_on_step_end=step).images[0]
+    print(f"清書: {time.time() - t:.0f} 秒", flush=True)
+    return out.resize((w, h), Image.LANCZOS)
+
+
+def fix_hands(pipe, image, prompt: str, negative: str, seed: int, steps: int, guidance: float, keep: Path, name: str):
+    """仕上げた絵の手を検品し、崩れた手の所だけを直して、もう一度検品する。崩れが消えるか FIX_ROUNDS 回で止める。
+    直すのは手の枠の中だけで、枠の外は 1 画素も変えない（直した絵の枠の外を、元の絵の画素に戻す）。どの回も残す"""
+    import torch
+    from PIL import Image, ImageDraw, ImageFilter
+    from diffusers import StableDiffusionXLInpaintPipeline
+    from chatdraw import handcheck
+    inpaint = None
+    rounds = []
+    for r in range(FIX_ROUNDS + 1):
+        res = handcheck.check(image)
+        rounds.append({"round": r, "bad": res["bad"], "readable": res["readable"]})
+        print(f"仕上げの検品 {r}回目: {handcheck.summary(res)}", flush=True)
+        bad_boxes = [h["box"] for h in res["hands"] if h["seen"] and h["bad"]]
+        if not bad_boxes or r == FIX_ROUNDS:
+            break
+        if inpaint is None:
+            parts = {k: v for k, v in pipe.components.items() if k in ("vae", "text_encoder", "text_encoder_2", "tokenizer", "tokenizer_2",
+                                                                         "unet", "scheduler")}
+            inpaint = StableDiffusionXLInpaintPipeline(**parts)   # 読んだ模型の部品をそのまま使う（模型を 2 度読まない）
+        mask = Image.new("L", image.size, 0)
+        d = ImageDraw.Draw(mask)
+        for x0, y0, x1, y1 in bad_boxes:
+            cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) * 0.6
+            d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
+        soft = mask.filter(ImageFilter.GaussianBlur(4))
+        out = inpaint(prompt=f"{prompt}, detailed hand, five fingers, correct hand anatomy", negative_prompt=negative + ", extra fingers, missing fingers, fused fingers",
+                      image=image, mask_image=soft, width=image.width, height=image.height, strength=0.6,
+                      num_inference_steps=steps, guidance_scale=guidance,
+                      generator=torch.Generator("cpu").manual_seed(seed + 77 * (r + 1))).images[0].resize(image.size)
+        image = Image.composite(out, image, soft)   # 枠の外は元の絵のまま
+        image.save(keep / f"3-{name}-s{seed}-fix{r + 1}.png")
+    (keep / f"fix-rounds-{name}.json").write_text(json.dumps(rounds, ensure_ascii=False, indent=1), encoding="utf-8")
+    return image
 
 
 def finish(tags: str, seed: int, render_model: str, size, composition_path, keep: Path, variants=None):
@@ -206,8 +310,44 @@ def finish(tags: str, seed: int, render_model: str, size, composition_path, keep
         out = render(pipe, f"{tags}, masterpiece, best quality", "lowres, worst quality, low quality, bad anatomy, bad hands",
                      shapes, v, seed, tuple(size), rm.steps, rm.guidance,
                      on_step=lambda i, n, name=v["name"]: print(f"仕上げ {name} {i}/{n} {time.time() - t:.0f} 秒", flush=True))
-        out.save(keep / f"3-{v['name']}-s{seed}.png")
+        out.save(keep / f"3-{v['name']}-s{seed}-fix0.png")
         print(f"仕上げ {v['name']}: {time.time() - t:.0f} 秒", flush=True)
+        prompt = f"{tags}, masterpiece, best quality, highly detailed, clean lineart"
+        negative = "lowres, worst quality, low quality, bad anatomy, bad hands, blurry, messy lines, jpeg artifacts"
+        out = fix_hands(pipe, out, prompt, negative, seed, rm.steps, rm.guidance, keep, v["name"])
+        out = refine(pipe, out, prompt, negative, seed, rm.steps, rm.guidance)
+        out.save(keep / f"3-{v['name']}-s{seed}-refined.png")
+        out = fix_hands(pipe, out, prompt, negative, seed + 500, rm.steps, rm.guidance, keep, v["name"] + "-refined")
+        out.save(keep / f"3-{v['name']}-s{seed}.png")
+        from chatdraw import handcheck, requestcheck
+        res = handcheck.check(out)
+        asked = requestcheck.check(out, tags, fetch=True)
+        passed = res["readable"] and not res["bad"] and not asked["missing"]
+        (keep / f"result-{v['name']}.json").write_text(json.dumps({"passed": passed, "seed": seed, "bad": res["bad"],
+                                                                   "missing": asked["missing"], "readable": res["readable"]},
+                                                                  ensure_ascii=False, indent=1), encoding="utf-8")
+        print(f"仕上げの結果: {'検品を通りました' if passed else '検品を通りません'}（{handcheck.summary(res)}　"
+              f"{requestcheck.summary(asked)}）", flush=True)
+
+
+# 構図の文に足す、場面の変化（カメラ・光・背景）。同じ頼みでいつも同じ浜辺・同じ正面の立ち姿になり、
+# 構図の段がポーズの確認にしか使えなかったので、種ごとに違う組み合わせを足して、場面の魅力を出す
+SCENE = {
+    "camera": ["low angle shot", "slightly high angle", "dynamic three-quarter view", "cinematic wide shot", "dutch angle",
+               "eye-level shot with shallow depth of field"],
+    "light": ["golden hour backlight with rim light", "soft overcast light", "dramatic side lighting", "sparkling midday sun",
+              "warm sunset glow", "dappled light through leaves"],
+    "detail": ["detailed background with depth", "foreground elements framing the subject", "atmospheric perspective",
+               "scattered props that tell a story", "wind-blown details", "reflections and light particles"],
+}
+
+
+def enrich(sentence: str, seed: int) -> str:
+    """構図の文に、種で選んだカメラ・光・背景の言葉を足す（頼みの言葉は先に置き、頼みの方を効かせる）"""
+    import random
+    r = random.Random(seed)
+    extra = [r.choice(v) for v in SCENE.values()]
+    return f"{sentence.rstrip('. ')}. {', '.join(extra)}."
 
 
 COMPOSERS = ("flux2", "zimage", "qwenimage", "flux1", "chroma", "lumina2")   # 文で頼める世代（構図の段に使う）
@@ -237,7 +377,7 @@ def run_stages(sentence: str, tags: str, seed: int, compose_model: str, render_m
     py = sys.executable
     if py.lower().endswith("pythonw.exe"):   # 出力を読むので、窓の無い pythonw ではなく python で動かす（窓は flags で出さない）
         py = py[:-len("pythonw.exe")] + "python.exe"
-    steps = [("構図", ["compose", sentence, str(seed), compose_model, str(w), str(h), str(comp)]),
+    steps = [("構図", ["compose", sentence, str(seed), compose_model, str(w), str(h), str(comp), tags]),
              ("仕上げ", ["finish", tags, str(seed), render_model, str(w), str(h), str(comp), str(keep), json.dumps([variant])])]
     for label, args in steps:
         if label == "構図" and comp.exists():
@@ -287,7 +427,7 @@ def draw(sentence: str, tags: str, seed: int, compose_model: str, render_model: 
     elif stage in ("all", "compose"):
         t = time.time()
         subprocess.run([sys.executable, "-u", "-m", "chatdraw.twostage", "compose", sentence, str(seed), compose_model, str(w), str(h),
-                        str(comp)], check=True)
+                        str(comp), tags], check=True)
         say(f"構図: {time.time() - t:.0f} 秒")
     if stage == "compose":
         return None
@@ -304,6 +444,6 @@ if __name__ == "__main__":
     import sys
     cmd, text, seed, model, w, h = sys.argv[1:7]
     if cmd == "compose":
-        compose(text, int(seed), model, (int(w), int(h)), sys.argv[7])
+        compose(text, int(seed), model, (int(w), int(h)), sys.argv[7], sys.argv[8] if len(sys.argv) > 8 else "")
     else:
         finish(text, int(seed), model, (int(w), int(h)), sys.argv[7], Path(sys.argv[8]), json.loads(sys.argv[9]))
