@@ -2080,3 +2080,18 @@ class RequestCheckTest(unittest.TestCase):
         import json
         meta = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
         self.assertEqual([r["bad"] for r in meta["redraws"]], [["描かれていない: hand up"], []])   # 描かれるまで描き直した
+
+
+class ConveyTest(unittest.TestCase):
+    """日本語の頼みが、模型に渡る言葉に漏れなく直るか（言葉の模型が無い利用者の経路）"""
+
+    def test_request_reaches_model(self):
+        from chatdraw.engine import Words
+        from chatdraw.jaterms import leftover
+        w = Words(Path(""))
+        t = w.to_prompt("赤いビキニの女性が浜辺で日よけの手、腰に手、長い茶髪、全身")
+        for tag in ("red bikini", "beach", "shading eyes", "hand on own hip", "long hair", "brown hair", "full body"):
+            self.assertIn(tag, t)
+        self.assertIn("waving", w.to_prompt("女性が海で手を振っている"))        # 「振る」の形が変わっても拾う
+        self.assertEqual(leftover("白いビキニの女性が海で手を振っている 全身"), [])
+        self.assertEqual(leftover("ドラゴンに乗った騎士"), ["ドラゴン", "乗"])   # 拾えなかった言葉は利用者に見せる

@@ -26,19 +26,25 @@ TERMS = {
     "ドレス": "dress", "着物": "kimono", "浴衣": "yukata", "鎧": "armor", "パーカー": "hoodie", "スカート": "skirt",
     "ジーンズ": "jeans", "眼鏡": "glasses", "メガネ": "glasses", "帽子": "hat", "麦わら帽子": "straw hat",
     # 髪と目
-    "長い髪": "long hair", "ロングヘア": "long hair", "短い髪": "short hair", "ショートヘア": "short hair",
+    "長い髪": "long hair", "長髪": "long hair", "ロングヘア": "long hair", "短い髪": "short hair", "ショートヘア": "short hair",
     "ポニーテール": "ponytail", "ツインテール": "twintails", "おさげ": "braid", "ボブ": "bob cut",
     # 表情と姿勢
     "笑顔": "smile", "笑う": "smile", "微笑む": "light smile", "泣く": "crying, tears", "怒る": "angry", "照れる": "blush",
     "立つ": "standing", "立っている": "standing", "座る": "sitting", "座っている": "sitting", "走る": "running",
     "寝る": "lying", "振り返る": "looking back", "手を振る": "waving", "ピース": "v, peace sign", "腕を組む": "crossed arms",
+    "日よけ": "hand up, shading eyes", "腰に手": "hand on own hip", "腰に当て": "hand on own hip", "手を上げ": "hand up",
+    "両手を上げ": "arms up", "手を組": "own hands clasped", "見上げ": "looking up", "見下ろ": "looking down", "歩": "walking",
+    "跳": "jumping", "飛ぶ": "flying", "飛ん": "flying", "泳": "swimming", "ほうき": "broom", "箒": "broom", "傘": "umbrella",
+    "剣": "sword", "杖": "staff", "花": "flower", "本": "book", "しゃがむ": "squatting", "ひざまず": "kneeling", "抱え": "holding", "持っ": "holding",
     "全身": "full body", "上半身": "upper body", "顔": "portrait, close-up",
     # 場所と時
-    "海": "beach, ocean", "砂浜": "beach", "ビーチ": "beach", "プール": "pool", "森": "forest", "街": "city street",
+    "海": "beach, ocean", "砂浜": "beach", "浜辺": "beach", "海辺": "beach, ocean", "夏": "summer", "ビーチ": "beach", "プール": "pool", "森": "forest", "街": "city street",
     "教室": "classroom", "部屋": "indoors, room", "空": "sky", "夜": "night", "夕焼け": "sunset", "夕日": "sunset",
     "雨": "rain", "雪": "snow", "桜": "cherry blossoms", "白い背景": "simple background, white background",
 }
 
+# 「長い茶髪」「短い黒髪」のように、長さと色が髪に付いた言い方
+_LENGTH = {"長い": "long hair", "短い": "short hair"}
 _COLOR_WORDS = {"髪": "hair", "目": "eyes", "瞳": "eyes", "ビキニ": "bikini", "水着": "swimsuit", "ドレス": "dress", "服": "clothes"}
 
 
@@ -57,14 +63,50 @@ def tags_from(text: str) -> list[str]:
         for wj, we in _COLOR_WORDS.items():
             for m in re.finditer(f"{cj}(?:色)?(?:い|の)?{wj}", text):
                 take(m.start(), m.end(), f"{ce} {we}")
+    for lj, le in _LENGTH.items():
+        for m in re.finditer(f"{lj}(?=[^、。 ]{{0,3}}髪)", text):
+            take(m.start(), m.end(), le)
     for ja, en in sorted(TERMS.items(), key=lambda kv: -len(kv[0])):
-        for m in re.finditer(re.escape(ja), text):
-            take(m.start(), m.end(), en)
+        # 動きの言葉は終わりの形を変えて書かれる（振る・振っている・振って）。「る」で終わる語は語幹でも拾う
+        keys = [ja] + ([ja[:-1]] if ja.endswith("る") and len(ja) >= 3 else [])
+        for key in keys:
+            for m in re.finditer(re.escape(key), text):
+                take(m.start(), m.end(), en)
     out: list[str] = []
     for _, tag in sorted(found):
         for t in tag.split(", "):
             if t not in out:
                 out.append(t)
+    return out
+
+
+_FILLER = set("のがをにでとはもへやてっいるたなだですますしたいる、。・ 　!！?？")
+
+
+def leftover(text: str) -> list[str]:
+    """表で拾えなかった言葉（つなぎの字を除いた残り）。模型に伝わらない言葉として利用者に見せる"""
+    taken = [False] * len(text)
+    for cj, ce in COLORS.items():
+        for wj in _COLOR_WORDS:
+            for m in re.finditer(f"{cj}(?:色)?(?:い|の)?{wj}", text):
+                taken[m.start():m.end()] = [True] * (m.end() - m.start())
+    for lj in _LENGTH:
+        for m in re.finditer(f"{lj}(?=[^、。 ]{{0,3}}髪)", text):
+            taken[m.start():m.end()] = [True] * (m.end() - m.start())
+    for ja in TERMS:
+        for key in [ja] + ([ja[:-1]] if ja.endswith("る") and len(ja) >= 3 else []):
+            for m in re.finditer(re.escape(key), text):
+                taken[m.start():m.end()] = [True] * (m.end() - m.start())
+    out, cur = [], ""
+    for ch, t in zip(text, taken):
+        if t or ch in _FILLER or not re.match(r"[\u3040-\u30ff\u4e00-\u9fff]", ch):
+            if len(cur) >= 2 or re.search(r"[\u4e00-\u9fff]", cur):   # 漢字は 1 字でも意味がある（乗った、持った）
+                out.append(cur)
+            cur = ""
+        else:
+            cur += ch
+    if len(cur) >= 2 or re.search(r"[\u4e00-\u9fff]", cur):
+        out.append(cur)
     return out
 
 
