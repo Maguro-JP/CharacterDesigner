@@ -48,6 +48,61 @@ def ensure_models(fetch: bool = True) -> bool:
     return True
 
 
+LEAST = 0.3   # 手のひらの確からしさの下限。拾った手は measure の手らしさ（0.5 以上）で確かめる
+
+
+def find_hands(hands, im) -> list[str]:
+    """絵全体と、重ねて切った区画（一辺 = 短い辺の 6 割）の両方で手のひらを探す。
+    手のひらを探す模型は絵を 192 画素に縮めて読むので、全身の絵では手が数画素になり、
+    仕上げたビキニの絵では 2 つの手のうち 1 つも見つからなかった。区画で探すと手が大きく写る"""
+    w, h = im.size
+    found: list[tuple[float, float, str]] = []
+
+    def add(b: str, ox: int = 0, oy: int = 0):
+        box, ang = b.split(":")
+        x0, y0, x1, y1 = (int(v) for v in box.split(","))
+        x0, y0, x1, y1 = x0 + ox, y0 + oy, x1 + ox, y1 + oy
+        cx, cy, r = (x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) / 2
+        if any(abs(cx - fx) < r * 0.6 and abs(cy - fy) < r * 0.6 for fx, fy, _ in found):
+            return   # 同じ手を 2 度数えない
+        found.append((cx, cy, f"{x0},{y0},{x1},{y1}:{ang}"))
+    for b in hands.detect_palms(im, LEAST):
+        add(b)
+    side = int(min(w, h) * 0.6)
+    step = side // 2
+    for y in range(0, max(1, h - side + step), step):
+        for x in range(0, max(1, w - side + step), step):
+            tile = im.crop((x, y, min(w, x + side), min(h, y + side)))
+            for b in hands.detect_palms(tile, LEAST):
+                add(b, x, y)
+    return keep_hands(im, found)
+
+
+def keep_hands(im, found) -> list[str]:
+    """見つけた手のひらから、足を外す。手のひらの模型は足の指を手の指と読み、手らしさ 0.9 以上で通した（ビキニの絵の両足）。
+    体の点（VitPose）の手首が読めれば、手首の近く（肘から手首の長さの 1.2 倍以内）の物だけを手とする。
+    読めなければ、足首の高さより下（読めなければ絵の下 15%）の物を外す"""
+    w, h = im.size
+    try:
+        from chatdraw.twostage import keypoints
+        kp = keypoints(im)
+    except Exception:
+        kp = {}
+    wrists = [(kp[f"{s}_wrist"], kp.get(f"{s}_elbow")) for s in ("left", "right") if f"{s}_wrist" in kp]
+    if wrists:
+        out = []
+        for cx, cy, b in found:
+            for (wx, wy), el in wrists:
+                reach = 1.2 * (((wx - el[0]) ** 2 + (wy - el[1]) ** 2) ** 0.5 if el else min(w, h) * 0.12)
+                if ((cx - wx) ** 2 + (cy - wy) ** 2) ** 0.5 <= max(reach, min(w, h) * 0.08):
+                    out.append(b)
+                    break
+        return out
+    ankles = [kp[k][1] for k in ("left_ankle", "right_ankle") if k in kp]
+    floor = min(ankles) - 0.03 * h if ankles else 0.85 * h
+    return [b for cx, cy, b in found if cy < floor]
+
+
 def check(image, fetch: bool = True) -> dict:
     """絵（PIL か道）の手を全部測る。bad に崩れの説明を並べる。readable が False なら手を読めなかった"""
     from PIL import Image
@@ -58,7 +113,7 @@ def check(image, fetch: bool = True) -> dict:
         hands = _hands()
         hands._litert()   # 部品が無ければ、模型を取りに行く前に止める
         ensure_models(fetch)
-        boxes = hands.detect_palms(im, 0.5)
+        boxes = find_hands(hands, im)
     except Exception as e:   # 部品か模型が無い。描いた絵は止めず、検品が無いことを返す
         return {"readable": False, "bad": [], "hands": [], "reason": f"検品の部品がありません（{e}）"}
     out = {"readable": False, "bad": [], "hands": []}

@@ -54,6 +54,22 @@ def fetch_parts(say=print):
         snapshot_download(repo, cache_dir=str(HUB), allow_patterns=files)
 
 
+def keypoints(image, threshold: float = 0.3) -> dict:
+    """VitPose で体の 17 点を読み、名前と (x, y) を返す（確からしさが threshold 未満の点は入れない）"""
+    import torch
+    from transformers import AutoProcessor, VitPoseForPoseEstimation
+    from chatdraw.paths import HUB
+    names = ["nose", "left_eye", "right_eye", "left_ear", "right_ear", "left_shoulder", "right_shoulder", "left_elbow",
+             "right_elbow", "left_wrist", "right_wrist", "left_hip", "right_hip", "left_knee", "right_knee", "left_ankle", "right_ankle"]
+    proc = AutoProcessor.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True)
+    model = VitPoseForPoseEstimation.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True)
+    w, h = image.size
+    boxes = [[[0, 0, w, h]]]
+    with torch.no_grad():
+        res = proc.post_process_pose_estimation(model(**proc(image, boxes=boxes, return_tensors="pt")), boxes=boxes)[0][0]
+    return {n: tuple(p) for n, p, sc in zip(names, res["keypoints"].tolist(), res["scores"].tolist()) if sc >= threshold}
+
+
 def pose_map(image, threshold: float = 0.3):
     """VitPose で体の 17 点を取り、ControlNet の openpose と同じ形の絵（黒地に色の棒と点）にする。
     人は 1 人の絵として、絵全体を枠にする。手の指は取らない（指の形は仕上げの模型に任せる）"""
