@@ -1275,3 +1275,43 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+MOUTH_AREA = (0.002, 0.06)   # 顔の部位に対する口の面積の比。写実に描き直した顔 6 枚で 0.0013〜0.0134（にじんだ唇は対称で落ちる）。仮の範囲
+MOUTH_SYM = 0.35             # 口を顔の真ん中で左右に折り返したときの重なり（IoU）の下限
+
+
+def mouth_check(rgb, seg, face_label: int = 11) -> dict:
+    """口の検品。顔の部位の下半分で、肌より赤みが強く暗い画素（唇）の塊を口とし、顔に対する面積の比と左右の対称を測る。
+    写実に描き直した顔で、唇が頬へにじむ・片側に寄る崩れが出たが、目の検品（eye_mismatch）では拾えなかった。
+    折り返しの軸は口の左右の真ん中（形の対称を見る）"""
+    import measure
+    from scipy import ndimage
+    face = seg == face_label
+    if face.sum() < 400:
+        return {"readable": False, "reason": "顔の部位が小さい"}
+    ys, xs = np.nonzero(face)
+    y0, y1 = ys.min(), ys.max()
+    lab = measure.lab(np.asarray(rgb, np.float32) / (255.0 if np.asarray(rgb).max() > 1.5 else 1.0))
+    a = lab[..., 1]
+    L = lab[..., 0]
+    lower = face & (np.arange(face.shape[0])[:, None] > y0 + 0.55 * (y1 - y0))
+    if lower.sum() < 100:
+        return {"readable": False, "reason": "顔の下半分が読めない"}
+    lips = lower & (a > np.median(a[face]) + 8) & (L < np.median(L[face]))
+    lips = ndimage.binary_opening(lips, iterations=1)
+    lab_, n = ndimage.label(lips)
+    if n == 0:
+        return {"readable": True, "found": False, "area": 0.0, "sym": 0.0, "bad": True}
+    sz = ndimage.sum(lips, lab_, range(1, n + 1))
+    m = lab_ == 1 + int(np.argmax(sz))
+    area = float(m.sum() / face.sum())
+    my, mx = np.nonzero(m)
+    cx = (mx.min() + mx.max()) / 2   # 口そのものの左右の真ん中で折り返す（顔の部位の真ん中は、顔の向きで口からずれた）
+    fx = np.round(2 * cx - mx).astype(int)
+    ok = (fx >= 0) & (fx < m.shape[1])
+    mir = np.zeros_like(m)
+    mir[my[ok], fx[ok]] = True
+    sym = float((m & mir).sum() / max((m | mir).sum(), 1))
+    bad = not (MOUTH_AREA[0] <= area <= MOUTH_AREA[1]) or sym < MOUTH_SYM
+    return {"readable": True, "found": True, "area": round(area, 4), "sym": round(sym, 3), "bad": bad}

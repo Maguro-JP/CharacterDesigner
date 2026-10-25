@@ -32,10 +32,10 @@ jobs:
       matrix:
         # 影の直し方を並べて比べる（同じ種・同じ絵）。どれも段ごとに影の検品と肌・髪・線を測る（--check）
         include:
-          - variant: rv-asian
-            extra: "--model rv --asian --iclight 0.6 --post-relight 0.6 --cast 0.45 --face 0.6 --final-hf 2.5"
-          - variant: majicmix-asian
-            extra: "--model majicmix --asian --iclight 0.6 --post-relight 0.6 --cast 0.45 --face 0.6 --final-hf 2.5"
+          - variant: rv-asian-s2-015
+            extra: "--model rv --asian --strength2 0.15 --iclight 0.6 --post-relight 0.6 --cast 0.45 --face 0.6 --final-hf 2.5"
+          - variant: rv-asian-s2-020
+            extra: "--model rv --asian --strength2 0.2 --iclight 0.6 --post-relight 0.6 --cast 0.45 --face 0.6 --final-hf 2.5"
     steps:
       - uses: actions/checkout@v4
       - name: 置き場を空ける

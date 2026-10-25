@@ -197,3 +197,38 @@ class AsianPromptTest(unittest.TestCase):
         self.assertIn("majicmix", photoreal.CHECKPOINTS)
         self.assertTrue(photoreal.ASIAN.strip(", ").startswith("japanese"))
         self.assertIn("caucasian", photoreal.ASIAN_NEG)
+
+
+class FaceStepsTest(unittest.TestCase):
+    def _face(self, lips):
+        rgb = np.full((200, 200, 3), (225, 185, 165), np.uint8)
+        seg = np.zeros((200, 200), np.uint8)
+        yy, xx = np.mgrid[:200, :200]
+        seg[(xx - 100) ** 2 / 70 ** 2 + (yy - 100) ** 2 / 90 ** 2 <= 1] = 11
+        rgb[lips] = (170, 60, 70)
+        return rgb, seg, yy, xx
+
+    def test_mouth_symmetric_passes_smeared_fails(self):
+        import qc
+        rgb, seg, yy, xx = self._face(np.zeros((200, 200), bool))
+        good = (np.abs(xx - 100) <= 14) & (np.abs(yy - 160) <= 4)
+        rgb[good] = (170, 60, 70)
+        self.assertFalse(qc.mouth_check(rgb, seg)["bad"])
+        rgb2, seg, yy, xx = self._face(np.zeros((200, 200), bool))
+        # 唇が頬の下へ斜めににじんだ形（6 周目の絵の崩れ）
+        smear = ((np.abs(xx - 100) <= 14) & (np.abs(yy - 160) <= 4)) | ((xx > 100) & (xx < 160) & (yy > 156) & (yy < 185) & (yy - 156 > (xx - 100) * 0.45) & (yy - 156 < (xx - 100) * 0.45 + 8))
+        rgb2[smear] = (170, 60, 70)
+        self.assertTrue(qc.mouth_check(rgb2, seg)["bad"])
+
+    def test_uncover_eye_mirrors_visible_eye(self):
+        img = np.full((120, 160, 3), 220, np.uint8)
+        seg = np.full((120, 160), 11, np.uint8)
+        img[55:65, 95:110] = 20                      # 見えている目（右側）
+        seg[40:80, 30:75] = 2                        # 左の目に前髪
+        img[40:80, 30:75] = 10
+        out, disk, dist = photoreal.uncover_eye(Image.fromarray(img), seg, ((52, 60), (102, 60)))
+        o = np.asarray(out)
+        self.assertIsNotNone(disk)
+        self.assertTrue(disk[60, 52])
+        self.assertLess(o[60, 47:57].mean(), 60)     # 反転した目が下絵に入る
+        self.assertGreater(o[52, 52].mean(), 150)    # 目の周りは見えている目の周りの肌

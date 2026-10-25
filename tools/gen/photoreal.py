@@ -640,16 +640,55 @@ def _face_qc(img):
             extra = float(tagger.read(f, 0.0).get("extra eyes", 0.0))
         except Exception as e:   # タグの模型が無ければ目の数字だけで見る
             print("tagger", e, flush=True)
-    ok = bool(mis.get("readable")) and not mis.get("mismatch") and extra < qc.EXTRA_EYES
-    return ok, {"eyes": mis, "extra_eyes": round(extra, 3)}
+    mouth = qc.mouth_check(np.asarray(img), np.asarray(seg))
+    ok = bool(mis.get("readable")) and not mis.get("mismatch") and extra < qc.EXTRA_EYES and not mouth.get("bad", True)
+    return ok, {"eyes": mis, "extra_eyes": round(extra, 3), "mouth": mouth}
 
 
-def face_inpaint(pipe, nets, img, a, log, tries=5):
-    """顔の部位だけを inpaint で描き直す。顔の枠は骨格の点から取り（qc._face_from_joints）、2.5 倍に広げて 768 に拡大して描く。
-    髪は描き直す範囲から外し、lineart の ControlNet で髪の線を押さえる（目に髪がかかったまま描かれたため）。
-    既存の顔の検品（face_qc）を通るまで種を変えて描き直す（上限 tries 回）。通らなければ一番目の数字の良い絵を返す。
-    tile で枠を丸ごと弱く描き直す方法（0.35）では、目にかかる髪と顔のにじみが直らなかった"""
+def eye_points(img):
+    """骨格の点から両目の位置（元の絵の座標）を読む。読めなければ None"""
     import tempfile
+    import joints
+    with tempfile.TemporaryDirectory() as d:
+        f = Path(d) / "x.png"
+        img.save(f)
+        p = {q["name"]: q for q in joints.find(str(f))}
+    if not all(n in p and p[n]["score"] >= 0.3 for n in ("left_eye", "right_eye")):
+        return None
+    return (p["left_eye"]["x"], p["left_eye"]["y"]), (p["right_eye"]["x"], p["right_eye"]["y"])
+
+
+def uncover_eye(img, seg, eyes, hair_label=2):
+    """前髪に隠れた目を、見えている目を左右反転した形で下絵として描き入れる。返すのは (下絵の絵, 隠れた目の円の真偽, 目の間の距離)。
+    髪を描き直す範囲から外すと、隠れた目は描き直せず崩れたままだった（6 周目、5 回とも目が 2 つ読めない）"""
+    import numpy as np
+    from PIL import Image, ImageDraw, ImageFilter
+    (lx, ly), (rx, ry) = eyes
+    dist = float(np.hypot(rx - lx, ry - ly))
+    r = max(int(dist * 0.3), 6)
+
+    def hair_frac(x, y):
+        y0, y1, x0, x1 = int(y - r), int(y + r), int(x - r), int(x + r)
+        return float((seg[max(y0, 0):y1, max(x0, 0):x1] == hair_label).mean())
+    fl, fr = hair_frac(lx, ly), hair_frac(rx, ry)
+    if max(fl, fr) < 0.3:
+        return img, None, dist
+    (hx, hy), (vx, vy) = ((lx, ly), (rx, ry)) if fl > fr else ((rx, ry), (lx, ly))
+    patch = img.crop((int(vx - r), int(vy - r), int(vx + r), int(vy + r))).transpose(Image.FLIP_LEFT_RIGHT)
+    m = Image.new("L", patch.size, 0)
+    ImageDraw.Draw(m).ellipse([r * 0.15, r * 0.3, r * 1.85, r * 1.7], fill=255)
+    out = img.copy()
+    out.paste(patch, (int(hx - r), int(hy - r)), m.filter(ImageFilter.GaussianBlur(max(r // 5, 1))))
+    yy, xx = np.mgrid[:seg.shape[0], :seg.shape[1]]
+    disk = (xx - hx) ** 2 + (yy - hy) ** 2 <= (r * 1.4) ** 2
+    return out, disk, dist
+
+
+def face_inpaint(pipe, nets, img, a, log, tries=5, side_px=768):
+    """顔を切り出して 2〜3 倍に拡大し（骨格の点の顔の枠を side_px に）、顔の部位だけを inpaint で描き直して戻す。
+    前髪が目にかかっていれば、見えている目を反転した下絵を描き入れ、その目の周りは髪ごと描き直させ、
+    描いた後に元の線画（前髪の毛筋）を上から重ねて前髪を戻す。顔の検品（face_qc: 目・余分な目・口）を通るまで
+    種を変えて描き直す（上限 tries 回）。工程ごとの秒を記録する（6 周目は 5 回で 66 分かかった）"""
     import numpy as np
     import torch
     from diffusers import StableDiffusionControlNetInpaintPipeline
@@ -658,50 +697,72 @@ def face_inpaint(pipe, nets, img, a, log, tries=5):
     import closeup
     import qc
     t = time.time()
+    tm = {}
     ok0, q0 = face_qc(img)
+    tm["qc_before"] = round(time.time() - t, 1)
     log("face_before", {"ok": ok0, **q0})
-    with tempfile.TemporaryDirectory() as d:
-        f = Path(d) / "x.png"
-        img.save(f)
-        box = qc._face_from_joints(str(f), img.size)
+    t1 = time.time()
     seg = np.asarray(_parts_of(img))
-    if box is None:
+    eyes = eye_points(img)
+    tm["prep"] = round(time.time() - t1, 1)
+    hidden = None
+    base = img
+    if eyes is not None:
+        base, hidden, dist = uncover_eye(img, seg, eyes)
+        (lx, ly), (rx, ry) = eyes
+        cx, cy, side = (lx + rx) / 2, (ly + ry) / 2 + dist * 0.35, int(dist * 2.6)   # 目の間の距離から顔の枠
+    else:
         b = closeup._bbox(seg == 11)
         if b is None:
             return img
-        box = b
-    x0, y0, x1, y1 = box
-    side = int(max(x1 - x0, y1 - y0) * 2.5)
-    cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
-    side = min(side, img.width, img.height)
+        cx, cy, side = (b[0] + b[2]) / 2, (b[1] + b[3]) / 2, int(max(b[2] - b[0], b[3] - b[1]) * 1.3)
+    side = max(min(side, img.width, img.height), 64)
     left = int(min(max(cx - side / 2, 0), img.width - side))
     top = int(min(max(cy - side / 2, 0), img.height - side))
     box = (left, top, left + side, top + side)
-    crop = img.crop(box).resize((768, 768), Image.LANCZOS)
-    cs = np.asarray(Image.fromarray(seg).crop(box).resize((768, 768), Image.NEAREST))
+    log("face_box", {"box": list(box), "scale": round(side_px / side, 2), "hidden_eye": hidden is not None})
+    crop = base.crop(box).resize((side_px, side_px), Image.LANCZOS)
+    cs = np.asarray(Image.fromarray(seg).crop(box).resize((side_px, side_px), Image.NEAREST))
     m = ndimage.binary_dilation(cs == 11, iterations=6) & (cs != 2)          # 髪は描き直さない
+    if hidden is not None:
+        hd = np.asarray(Image.fromarray(hidden).crop(box).resize((side_px, side_px), Image.NEAREST))
+        m |= hd                                                                 # 隠れた目の周りは髪ごと描き直す
     mask = Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(4))
+    orig_crop = img.crop(box).resize((side_px, side_px), Image.LANCZOS)
     li = lineart(crop)
     inp = StableDiffusionControlNetInpaintPipeline(**{k: v for k, v in pipe.components.items() if k != "controlnet"}, controlnet=nets)
     inp.set_progress_bar_config(disable=True)
+    bangs = None
+    if hidden is not None:   # 前髪の毛筋（元の絵の線画のうち、隠れた目の円の中の髪）
+        bl = np.asarray(lineart(orig_crop).convert("L")).astype(np.float32) / 255
+        bangs = np.clip(bl * 1.5, 0, 1) * ((cs == 2) & hd)
     best = None
     for k in range(tries):
-        r = inp(a.prompt + ", detailed face, symmetric eyes, natural lips, eyes visible", negative_prompt=a.negative + ", hair over eyes, deformed face, asymmetric eyes, extra eyes",
+        t2 = time.time()
+        r = inp(a.prompt + ", detailed face, symmetric eyes, natural lips, both eyes visible", negative_prompt=a.negative + ", hair over eyes, deformed face, asymmetric eyes, extra eyes",
                 image=crop, mask_image=mask, control_image=[crop, li], strength=a.face, controlnet_conditioning_scale=[0.5, 1.0],
                 num_inference_steps=a.steps, guidance_scale=a.guidance, generator=torch.Generator().manual_seed(a.seed + 100 + k),
-                width=768, height=768).images[0]
+                width=side_px, height=side_px).images[0]
+        tm[f"draw{k}"] = round(time.time() - t2, 1)
+        if bangs is not None:   # 前髪を毛筋で重ね戻す（透けた前髪にする。塗りで戻すと目がまた隠れる）
+            hair_rgb = np.asarray(orig_crop).astype(np.float32)
+            rr = np.asarray(r).astype(np.float32)
+            w = (bangs * 0.8)[..., None]
+            r = Image.fromarray(np.clip(rr * (1 - w) + hair_rgb * w, 0, 255).astype(np.uint8))
         small = r.resize((side, side), Image.LANCZOS)
         pm = mask.resize((side, side), Image.LANCZOS)
         out = img.copy()
         out.paste(small, box[:2], pm)
+        t3 = time.time()
         ok, q = face_qc(out)
-        log(f"face_try{k}", {"ok": ok, **q, "s": round(time.time() - t, 1)})
+        tm[f"qc{k}"] = round(time.time() - t3, 1)
+        log(f"face_try{k}", {"ok": ok, **q})
         score = q["eyes"].get("area_ratio", 99) if q["eyes"].get("readable") else 99
         if best is None or ok or score < best[0]:
             best = (score if not ok else -1, out)
         if ok:
             break
-    log("face_box", list(box))
+    log("face_times", tm)
     log("face_s", round(time.time() - t, 1))
     return best[1]
 
