@@ -1,12 +1,57 @@
 {
- "about": "写真級の描き直し（tools/gen/photoreal.py）の影と肌・線の基準。measure.judge_shadow が読む。アニメの絵には使わない",
+ "about": "写真級の描き直し（tools/gen/photoreal.py）の影・肌・線・色の基準。measure.judge_shadow が読む。アニメの絵には使わない。影の 4 つ（step_frac、spread、normal_corr、ratio）は、カラーの実写の手本 14 枚（tests/fixtures/photoreal_refs.json）の 10〜90 パーセンタイル",
  "checks": [
-  {"path": "step_frac", "max": 0.2, "means": "肌の大きな明るさの境のうち段のように急な境の割合。セルの影の段が残っている"},
-  {"path": "spread", "max": 90, "means": "部位ごとの光の向きのずれ（度）。顔と腕と脚で陰の側が食い違う"},
-  {"path": "ratio", "min": 0.3, "max": 0.8, "means": "肌の陰と光の明るさの比。高すぎると平らな光、低すぎると影が黒くつぶれる"},
-  {"path": "normal_corr", "min": 0.38, "means": "推定した面の向きの陰影と絵の明るさの相関。立体に沿った陰になっていない"},
-  {"path": "flat_skin", "max": 0.005, "means": "肌の平らな面の割合。アニメの塗りが残っている"},
-  {"path": "hair_iou", "min": 0.7, "means": "元の絵と髪の形の重なり。髪型が崩れた"},
-  {"path": "line_f", "min": 0.3, "means": "元の線との一致。線の形が崩れた"}
+  {
+   "path": "step_frac",
+   "means": "肌の大きな明るさの境のうち段のように急な境の割合。セルの影の段が残っている",
+   "max": 0.711
+  },
+  {
+   "path": "spread",
+   "means": "部位ごとの光の向きのずれ（度）。顔と腕と脚で陰の側が食い違う",
+   "max": 160
+  },
+  {
+   "path": "ratio",
+   "means": "肌の陰と光の明るさの比。高すぎると平らな光、低すぎると影が黒くつぶれる",
+   "min": 0.23,
+   "max": 0.66
+  },
+  {
+   "path": "normal_corr",
+   "means": "推定した面の向きの陰影と絵の明るさの相関。立体に沿った陰になっていない",
+   "min": 0.065
+  },
+  {
+   "path": "flat_skin",
+   "max": 0.005,
+   "means": "肌の平らな面の割合。アニメの塗りが残っている"
+  },
+  {
+   "path": "hair_iou",
+   "min": 0.9,
+   "means": "元の絵と髪の形の重なり。髪型が崩れた"
+  },
+  {
+   "path": "line_f",
+   "min": 0.3,
+   "means": "元の線との一致。線の形が崩れた"
+  },
+  {
+   "path": "sat_ratio",
+   "min": 0.75,
+   "max": 1.4,
+   "means": "1 段目と比べた人物の彩度の比。灰色に抜けた（低い）か、色が派手になった（高い）"
+  },
+  {
+   "path": "color_dab",
+   "max": 6,
+   "means": "肌・服の平均色の a,b の差（1 段目と比べる）。色味が変わった"
+  },
+  {
+   "path": "hair_de",
+   "max": 12,
+   "means": "髪の平均色の ΔE（1 段目と比べる）。髪の色が変わった（黒髪が白くなる）"
+  }
  ]
 }

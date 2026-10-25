@@ -116,12 +116,47 @@ class ShadowCheckTest(unittest.TestCase):
         self.assertNotIn("step_frac", out[False])
         self.assertNotIn("normal_corr", out[False])
 
-    def test_current_output_numbers_fail(self):
+    def test_photo_refs_mostly_pass(self):
         import measure
-        # 今の出力（r3、2 段目 0.25 と高い周波数の戻し）を測った数字。段の割合と光の向きのずれと立体との相関で落ちる
-        now = {"step_frac": 0.5, "ratio": 0.599, "spread": 163.6, "normal_corr": 0.363,
-               "flat_skin": 0.0036, "hair_iou": 0.919, "line_f": 0.88}
-        self.assertEqual({f["path"] for f in measure.judge_shadow(now)}, {"step_frac", "spread", "normal_corr"})
+        rows = json.loads((ROOT / "tests" / "fixtures" / "photoreal_refs.json").read_text())["rows"]
+        self.assertGreaterEqual(len(rows), 10)
+        passed = [r for r in rows if not measure.judge_shadow(r["shadow"])]
+        self.assertGreaterEqual(len(passed), 8)        # 4 つの基準を 10〜90 パーセンタイルで切るので、全部は通らない
+
+    def test_anime_left_and_gray_fail(self):
+        import measure
+        # 描き直し後もアニメの塗りが残る絵（run 40214490230 の post-relight の最後の数字）と、灰色に抜けた IC-Light の絵
+        anime = {"step_frac": 0.348, "spread": 177.9, "ratio": 0.672, "normal_corr": 0.289, "flat_skin": 0.0401,
+                 "hair_iou": 0.896, "line_f": 0.926, "sat_ratio": 1.0, "color_dab": 0.49, "hair_de": 2.23}
+        gray = {"sat_ratio": 0.153, "color_dab": 12.09, "hair_de": 49.29}
+        self.assertTrue({"flat_skin", "spread", "ratio"} <= {f["path"] for f in measure.judge_shadow(anime)})
+        self.assertEqual({f["path"] for f in measure.judge_shadow(gray)}, {"sat_ratio", "color_dab", "hair_de"})
+
+    def test_color_keep_catches_gray_and_hair(self):
+        import edit
+        import measure
+        rgb = np.zeros((200, 200, 3), np.float32)
+        seg = np.zeros((200, 200), np.uint8)
+        seg[20:80, 50:150] = 2
+        rgb[20:80, 50:150] = 0.05                      # 黒髪
+        seg[80:190, 50:150] = 12
+        rgb[80:190, 50:150] = (0.9, 0.7, 0.6)          # 肌
+        same = measure.color_keep(rgb, rgb.copy(), seg, seg, edit.LABELS)
+        self.assertAlmostEqual(same["sat_ratio"], 1.0, places=2)
+        g = rgb.copy()
+        g[80:190, 50:150] = 0.72                        # 灰色に抜けた肌
+        g[20:80, 50:150] = 0.9                          # 白くなった髪
+        bad = measure.color_keep(rgb, g, seg, seg, edit.LABELS)
+        self.assertLess(bad["sat_ratio"], 0.5)
+        self.assertGreater(bad["hair_de"], 40)
+
+    def test_iclight_merge_keeps_color(self):
+        img = Image.new("RGB", (64, 96), (220, 170, 150))
+        seg = np.full((96, 64), 12, np.uint8)
+        gray = Image.fromarray(np.tile(np.linspace(60, 200, 64, dtype=np.uint8)[None, :, None], (96, 1, 3)))
+        o = np.asarray(photoreal.iclight_merge(img, gray, Image.fromarray(seg))).astype(float)
+        self.assertGreater(o[:, :, 0].mean() - o[:, :, 2].mean(), 40)   # 肌の赤みが残る
+        self.assertGreater(o[:, -5:].mean(), o[:, :5].mean() + 20)       # 明るさの変わり方は IC-Light から
 
     def test_relight_follows_one_light(self):
         rgb, seg, depth = _sphere(False)

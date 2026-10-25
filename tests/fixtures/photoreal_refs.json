@@ -1,0 +1,173 @@
+{
+ "about": "実写の手本（Wikimedia Commons、CC0 か Public domain）を tools/gen/photo_refs.py で測った数字と出典。写真そのものは置かない。run 40220830042",
+ "rows": [
+  {
+   "title": "File:Woman-sherbrooke (Unsplash).jpg",
+   "license": "CC0",
+   "url": "https://commons.wikimedia.org/wiki/File:Woman-sherbrooke_(Unsplash).jpg",
+   "shadow": {
+    "step_frac": 0.757,
+    "spread": 2.7,
+    "ratio": 0.221,
+    "normal_corr": 0.008,
+    "soft": 0.359
+   }
+  },
+  {
+   "title": "File:Woman in swimsuit posing (Unsplash).jpg",
+   "license": "CC0",
+   "url": "https://commons.wikimedia.org/wiki/File:Woman_in_swimsuit_posing_(Unsplash).jpg",
+   "shadow": {
+    "step_frac": 0.738,
+    "spread": 113.7,
+    "ratio": 0.67,
+    "normal_corr": 0.096,
+    "soft": 0.392
+   }
+  },
+  {
+   "title": "File:Pexels-andrea-piacquadio-774909.jpg",
+   "license": "CC0",
+   "url": "https://commons.wikimedia.org/wiki/File:Pexels-andrea-piacquadio-774909.jpg",
+   "shadow": {
+    "step_frac": 0.356,
+    "spread": 0.0,
+    "ratio": 0.33,
+    "normal_corr": 0.272,
+    "soft": 0.51
+   }
+  },
+  {
+   "title": "File:Pexels-christina-morillo-1181498.jpg",
+   "license": "CC0",
+   "url": "https://commons.wikimedia.org/wiki/File:Pexels-christina-morillo-1181498.jpg",
+   "shadow": {
+    "step_frac": 0.647,
+    "spread": 132.4,
+    "ratio": 0.257,
+    "normal_corr": 0.128,
+    "soft": 0.379
+   }
+  },
+  {
+   "title": "File:Woman Wearing Bikini on Seashore.jpg",
+   "license": "CC0",
+   "url": "https://commons.wikimedia.org/wiki/File:Woman_Wearing_Bikini_on_Seashore.jpg",
+   "shadow": {
+    "step_frac": 0.137,
+    "spread": 174.2,
+    "ratio": 0.223,
+    "normal_corr": 0.295,
+    "soft": 0.537
+   }
+  },
+  {
+   "title": "File:Woman afro glasses blue top.jpg",
+   "license": "CC0",
+   "url": "https://commons.wikimedia.org/wiki/File:Woman_afro_glasses_blue_top.jpg",
+   "shadow": {
+    "step_frac": 0.496,
+    "spread": 151.8,
+    "ratio": 0.438,
+    "normal_corr": 0.135,
+    "soft": 0.452
+   }
+  },
+  {
+   "title": "File:Woman in cardigan.jpg",
+   "license": "CC0",
+   "url": "https://commons.wikimedia.org/wiki/File:Woman_in_cardigan.jpg",
+   "shadow": {
+    "step_frac": 0.431,
+    "spread": 163.5,
+    "ratio": 0.615,
+    "normal_corr": 0.114,
+    "soft": 0.478
+   }
+  },
+  {
+   "title": "File:Woman in red t-shirt smiling and looking down.jpg",
+   "license": "CC0",
+   "url": "https://commons.wikimedia.org/wiki/File:Woman_in_red_t-shirt_smiling_and_looking_down.jpg",
+   "shadow": {
+    "step_frac": 0.598,
+    "spread": 121.2,
+    "ratio": 0.676,
+    "normal_corr": 0.234,
+    "soft": 0.408
+   }
+  },
+  {
+   "title": "File:Woman mechanic working on engine (cropped).jpeg",
+   "license": "CC0",
+   "url": "https://commons.wikimedia.org/wiki/File:Woman_mechanic_working_on_engine_(cropped).jpeg",
+   "shadow": {
+    "step_frac": 0.061,
+    "spread": 75.4,
+    "ratio": 0.411,
+    "normal_corr": 0.21,
+    "soft": 0.684
+   }
+  },
+  {
+   "title": "File:Woman pink and blue dress (crop hands).jpg",
+   "license": "CC0",
+   "url": "https://commons.wikimedia.org/wiki/File:Woman_pink_and_blue_dress_(crop_hands).jpg",
+   "shadow": {
+    "step_frac": 0.249,
+    "spread": 0.0,
+    "ratio": 0.448,
+    "normal_corr": 0.205,
+    "soft": 0.569
+   }
+  },
+  {
+   "title": "File:Woman pink and blue dress (crop waist).jpg",
+   "license": "CC0",
+   "url": "https://commons.wikimedia.org/wiki/File:Woman_pink_and_blue_dress_(crop_waist).jpg",
+   "shadow": {
+    "step_frac": 0.401,
+    "spread": 0.0,
+    "ratio": 0.415,
+    "normal_corr": 0.198,
+    "soft": 0.484
+   }
+  },
+  {
+   "title": "File:Young woman in Brazil sitting on steps (cropped).jpg",
+   "license": "CC0",
+   "url": "https://commons.wikimedia.org/wiki/File:Young_woman_in_Brazil_sitting_on_steps_(cropped).jpg",
+   "shadow": {
+    "step_frac": 0.206,
+    "spread": 133.6,
+    "ratio": 0.457,
+    "normal_corr": 0.051,
+    "soft": 0.563
+   }
+  },
+  {
+   "title": "File:Man in hood stretching hand (Unsplash).jpg",
+   "license": "CC0",
+   "url": "https://commons.wikimedia.org/wiki/File:Man_in_hood_stretching_hand_(Unsplash).jpg",
+   "shadow": {
+    "step_frac": 0.235,
+    "spread": 143.6,
+    "ratio": 0.399,
+    "normal_corr": 0.371,
+    "soft": 0.523
+   }
+  },
+  {
+   "title": "File:Man rolling sleeves (Unsplash).jpg",
+   "license": "CC0",
+   "url": "https://commons.wikimedia.org/wiki/File:Man_rolling_sleeves_(Unsplash).jpg",
+   "shadow": {
+    "step_frac": 0.498,
+    "spread": 0.0,
+    "ratio": 0.254,
+    "normal_corr": 0.203,
+    "soft": 0.453
+   }
+  }
+ ]
+}
