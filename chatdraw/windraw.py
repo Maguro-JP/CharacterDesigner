@@ -19,7 +19,8 @@ import time
 import traceback
 from pathlib import Path
 
-MODEL = "cagliostrolab/animagine-xl-4.0"
+# 推奨の絵の模型（手・足・顔の崩れと頼みの取りこぼしが少ない）。Actions の入力で別の模型も試せる
+MODEL = os.environ.get("CD_WINDRAW_MODEL") or "Laxhar/noobai-XL-Vpred-1.0"
 
 
 def main():

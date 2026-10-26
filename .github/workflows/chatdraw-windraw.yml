@@ -9,6 +9,9 @@ on:
       request:
         description: "日本語の頼み"
         default: "白いビキニの女性が海で手を振っている 全身"
+      model:
+        description: "絵の模型（Hugging Face の名前）"
+        default: "Laxhar/noobai-XL-Vpred-1.0"
 permissions:
   contents: write   # 描いた絵を draw-results ブランチに置くため
 concurrency:
@@ -55,6 +58,8 @@ jobs:
       - name: 描く
         shell: pwsh
         working-directory: C:\Program Files\CharacterDesigner
+        env:
+          CD_WINDRAW_MODEL: ${{ inputs.model }}
         run: |
           & "C:\Program Files\CharacterDesigner\python\python.exe" -E -s -m chatdraw.windraw "$env:RUNNER_TEMP\windraw" "${{ inputs.request }}" ${{ matrix.seed }}
           $code = $LASTEXITCODE
