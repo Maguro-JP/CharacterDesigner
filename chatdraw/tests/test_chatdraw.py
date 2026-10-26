@@ -815,6 +815,76 @@ class FitSizeTest(unittest.TestCase):
         self.assertLess(abs(w * h - 832 * 1216) / (832 * 1216), 0.1)
 
 
+class VpredModelTest(unittest.TestCase):
+    """推奨の絵の模型（NoobAI XL V-Pred 1.0）の設定が札どおりに渡るか"""
+
+    def test_entry_matches_model_card(self):
+        from chatdraw.engine import IMAGE_MODEL
+        from chatdraw.models import image_model
+        from chatdraw import windraw
+        m = image_model("Laxhar/noobai-XL-Vpred-1.0")
+        self.assertEqual((m.family, m.vpred, m.rescale, m.steps, m.guidance), ("sdxl", True, 0.7, 28, 5.0))
+        self.assertIn("bad hands", m.negative)
+        self.assertTrue(m.prefix.startswith("masterpiece, best quality"))
+        self.assertTrue(m.commercial)
+        self.assertEqual(windraw.MODEL, m.repo)
+        if not os.environ.get("CD_IMAGE_MODEL"):
+            self.assertEqual(IMAGE_MODEL, m.repo)
+        self.assertEqual(image_model("cagliostrolab/animagine-xl-4.0").score, 85)   # 古い模型も残す
+        self.assertFalse(image_model("cagliostrolab/animagine-xl-4.0").vpred)
+
+    def test_prompt_args_use_card_negative_and_rescale(self):
+        import types
+        from unittest import mock
+        gen = types.SimpleNamespace(manual_seed=lambda s: s)
+        with mock.patch.dict(sys.modules, {"torch": types.SimpleNamespace(Generator=lambda d: gen)}):
+            self._check_args()
+
+    def _check_args(self):
+        from chatdraw.engine import prompt_args
+        from chatdraw.models import family, image_model
+        m = image_model("Laxhar/noobai-XL-Vpred-1.0")
+
+        class Pipe:
+            device = "cpu"
+
+            def __call__(self, prompt=None, negative_prompt=None, num_inference_steps=None, guidance_scale=None,
+                         guidance_rescale=None, generator=None):
+                pass
+        a = prompt_args(m, family("sdxl"), "1girl, waving", "hat", 28, 5.0, 1, Pipe())
+        self.assertEqual(a["prompt"].count("masterpiece"), 1)
+        self.assertEqual(a["guidance_rescale"], 0.7)
+        self.assertTrue(a["negative_prompt"].startswith("nsfw, worst quality") and a["negative_prompt"].endswith(", hat"))
+        old = prompt_args(image_model("cagliostrolab/animagine-xl-4.0"), family("sdxl"), "1girl", "", 24, 5.0, 1, Pipe())
+        self.assertNotIn("guidance_rescale", old)
+        self.assertTrue(old["prompt"].endswith("masterpiece, best quality"))
+
+    def test_scheduler_switches_to_vpred(self):
+        import types
+        from unittest import mock
+        from chatdraw.engine import use_vpred
+        from chatdraw.models import image_model
+
+        class Euler:
+            def __init__(self, config):
+                self.config = config
+
+            @classmethod
+            def from_config(cls, config, **kw):
+                return cls({**config, **kw})
+
+        class Pipe:
+            scheduler = Euler({"prediction_type": "epsilon", "rescale_betas_zero_snr": False})   # 置いてある設定は epsilon のまま
+        with mock.patch.dict(sys.modules, {"diffusers": types.SimpleNamespace(EulerDiscreteScheduler=Euler)}):
+            p = Pipe()
+            self.assertTrue(use_vpred(p, image_model("Laxhar/noobai-XL-Vpred-1.0")))
+            self.assertEqual(p.scheduler.config["prediction_type"], "v_prediction")
+            self.assertTrue(p.scheduler.config["rescale_betas_zero_snr"])
+            q = Pipe()
+            self.assertFalse(use_vpred(q, image_model("cagliostrolab/animagine-xl-4.0")))
+            self.assertEqual(q.scheduler.config["prediction_type"], "epsilon")
+
+
 class ChooseTest(unittest.TestCase):
     def test_auto_picks_from_installed_only(self):
         from chatdraw.choose import choose_image
@@ -2122,3 +2192,257 @@ class EditFamilyTest(unittest.TestCase):
             p.paint("a woman", 1, base=Image.new("RGB", (32, 32)), reference=Image.new("RGB", (32, 32)), size=(64, 64))
         self.assertEqual(len(seen["image"]), 2)                    # ラフと参考画像の 2 枚
         self.assertIn("rough sketch", seen["prompt"])
+
+
+class FreezeTest(unittest.TestCase):
+    """固まる・開かない不具合の再発を見る（模型の管理、操作の言葉、ツアー、落ちた印）"""
+    def setUp(self):
+        from tempfile import mktemp
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Window
+        self.app = QApplication.instance() or QApplication([])
+        self.w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
+        self.w.layout_store = QSettings(mktemp(suffix=".ini"), QSettings.IniFormat)
+
+    def test_manager_opens_after_tour_and_every_time(self):
+        from unittest import mock
+        import chatdraw.manager
+        opened = []
+        with mock.patch.object(chatdraw.manager.ModelManager, "exec", lambda _self: opened.append(1) or 0):
+            self.w.manage_models()                 # 初めては案内を出す
+            self.assertEqual(opened, [])
+            self.w.tour.next.click()               # 閉じると管理の窓が開く（前は RecursionError）
+            self.assertEqual(opened, [1])
+            self.w.manage_models()                 # 2 回目からはすぐ開く
+            self.assertEqual(opened, [1, 1])
+            self.w.layout_store.setValue("feature_tours", 0)
+            self.w.manage_models()
+            self.assertEqual(opened, [1, 1, 1])
+
+    def test_open_and_save_do_not_recurse(self):
+        from unittest import mock
+        from chatdraw import app as appmod
+        asked = []
+        with mock.patch.object(appmod.QFileDialog, "getOpenFileName", lambda *a, **k: asked.append("open") or ("", "")), \
+                mock.patch.object(appmod.QFileDialog, "getSaveFileName", lambda *a, **k: asked.append("save") or ("", "")):
+            for _ in range(2):
+                self.w.open_image()
+                if getattr(self.w, "tour", None) is not None and not getattr(self.w.tour, "done", True):
+                    self.w.tour.finish()
+            self.assertEqual(asked, ["open", "open"])
+            self.w.canvas.new_canvas(64, 64) if hasattr(self.w.canvas, "new_canvas") else None
+            for _ in range(2):
+                self.w.save_project(ask=True)
+                if not getattr(self.w.tour, "done", True):
+                    self.w.tour.finish()
+            self.assertEqual(asked.count("save"), 2)
+
+    def test_tour_overlay_goes_away_even_if_on_close_fails(self):
+        from chatdraw.tour import Step, Tour
+        calls = []
+
+        def boom():
+            calls.append(1)
+            raise RuntimeError("x")
+        t = Tour(self.w, [Step(lambda: None, "t", "x")], on_close=boom)
+        t.start()
+        with self.assertRaises(RuntimeError):
+            t.finish()
+        self.assertTrue(t.testAttribute(Qt.WA_TransparentForMouseEvents))   # 後ろの部品を押せる
+        self.assertFalse(t.isVisible())
+        t.finish()                                                         # 2 回目は何もしない
+        self.assertEqual(calls, [1])
+
+    def test_command_words_ask_model_off_gui_thread(self):
+        import threading
+        import time
+
+        class Slow(FakeWords):
+            def ask(self, system, text, max_tokens=96):
+                self.thread = threading.current_thread()
+                time.sleep(1.5)                    # 模型の読み込みと推論の代わり
+                return '{"command": "eraser", "arg": ""}'
+        slow = Slow()
+        self.w.studio.words = slow
+        self.w.entry.setText("消しゴムにして")
+        t0 = time.time()
+        self.w.send()
+        self.assertLess(time.time() - t0, 0.5)     # 画面の糸は止めない
+        while time.time() - t0 < 10 and getattr(self.w, "asking", False):
+            self.app.processEvents()
+            time.sleep(0.01)
+        self.app.processEvents()
+        self.assertIsNot(getattr(slow, "thread", None), threading.main_thread())   # 聞いたなら裏の糸（語の表で決まれば聞かない）
+        self.assertFalse(self.w.asking)
+        self.assertEqual(self.w.entry.text(), "")  # 操作をして書く欄を空けた
+
+    def test_prompt_pipeline_is_fast_for_any_words(self):
+        import time
+        from chatdraw import commands, jaterms
+        from chatdraw.engine import Words, refused
+        words = Words(Path(""))
+        texts = ["", " ", "赤いスカーフの女の子", "あ" * 5000, "((((" * 500, "\\" * 2000, "🙂" * 1000, "a" * 20000,
+                 "長い黒髪の剣士、鎧、夕焼け、" * 200, "#ff0000" * 500, "、" * 5000]
+        for t in texts:
+            t0 = time.time()
+            jaterms.tags_from(t)
+            jaterms.leftover(t)
+            refused(t)
+            words.to_prompt(t)
+            commands.by_words(t)
+            self.assertLess(time.time() - t0, 1.0, t[:20])
+
+    def test_crash_marker_is_pid_and_stale_safe(self):
+        import os
+        from chatdraw.app import crashed_before
+        s = self.w.layout_store
+        s.setValue("running", 0)
+        self.assertFalse(crashed_before(s))
+        s.setValue("running", 1)                   # 昔の印
+        self.assertTrue(crashed_before(s))
+        s.setValue("running", 2 ** 22 + 12345)     # もう居ないプロセス
+        self.assertTrue(crashed_before(s))
+        s.setValue("running", os.getppid())        # 今も動いているプロセス（2 つ目の起動）
+        self.assertFalse(crashed_before(s))
+        self.w.offer_restore()
+        self.assertEqual(int(s.value("running")), os.getpid())
+
+# 大人の女性の頼み 30 件。(頼み, 描く物に要るタグ, 描かない物に要るタグ)。言葉の模型が無い利用者の経路で、伝わり方を見る
+CONVEY_CASES = [
+    ("赤いビキニの女性が浜辺で手を振っている、全身", ["red bikini", "1girl", "beach", "waving", "full body"], []),
+    ("黒髪ロングの女性が着物で桜の下に立っている", ["black hair", "long hair", "kimono", "cherry blossoms", "standing"], []),
+    ("眼鏡をかけた銀髪の女騎士が剣を持っている、帽子なし", ["glasses", "silver hair", "1girl", "knight", "sword", "holding"], ["hat"]),
+    ("金髪の女性が赤い帽子と青いドレスを着て城の前で微笑む", ["blonde hair", "red hat", "blue dress", "castle", "light smile"], []),
+    ("二人の女性がカフェで座っている", ["2girls", "cafe", "sitting"], []),
+    ("女性と男性が公園を歩いている", ["1girl", "1boy", "park", "walking"], []),
+    ("ポニーテールの女性が図書館で本を読んでいる", ["ponytail", "library", "book", "reading"], []),
+    ("白いワンピースの女性が麦わら帽子をかぶって草原に立つ、夏", ["white dress", "straw hat", "grassland", "standing", "summer"], []),
+    ("メイドの女性がカップを持って笑顔", ["maid", "cup", "holding", "smile"], []),
+    ("スーツの女性がネクタイを締めて駅に立つ、眼鏡は無し", ["suit", "necktie", "train station", "standing"], ["glasses"]),
+    ("魔法使いの女性がほうきで夜空を飛ぶ", ["mage", "broom", "night", "sky", "flying"], []),
+    ("黒いコートに赤いマフラーの女性、雪の夜", ["black coat", "red scarf", "snow", "night"], []),
+    ("エルフの女性が弓を持って森で振り返る", ["elf", "bow (weapon)", "forest", "looking back"], []),
+    ("ショートヘアの女性が上半身、ウインク", ["short hair", "upper body", "wink"], []),
+    ("茶髪の女性が雨の中で傘をさしている", ["brown hair", "rain", "umbrella"], []),
+    ("浴衣の女性が神社で花を持つ、夕焼け", ["yukata", "shrine", "flower", "holding", "sunset"], []),
+    ("青い目のお姉さんが腕を組んで屋上に立つ", ["blue eyes", "crossed arms", "rooftop", "standing"], []),
+    ("女性が料理をしている、エプロン、室内", ["cooking", "apron", "indoors"], []),
+    ("三人の女性が海辺で走る", ["3girls", "beach", "running"], []),
+    ("女性がしゃがんで猫耳、ピンクの髪", ["squatting", "cat ears", "pink hair"], []),
+    ("白衣の女性が横顔、眼鏡", ["lab coat", "profile", "glasses"], []),
+    ("パーカーとジーンズの女性が後ろ姿、街", ["hoodie", "jeans", "from behind", "city street"], []),
+    ("女性がピースして笑う、全身、白い背景", ["peace sign", "smile", "full body", "white background"], []),
+    ("紫の髪の女性がドレスで踊っている", ["purple hair", "dress", "dancing"], []),
+    ("緑の目の女性が泣いている、傘なし", ["green eyes", "crying"], ["umbrella"]),
+    ("女性が両手を上げて跳ぶ、ビーチ", ["arms up", "jumping", "beach"], []),
+    ("黒いブーツとミニスカートの女性が腰に手", ["black boots", "miniskirt", "hand on own hip"], []),
+    ("女性がサングラスをかけてプールで泳ぐ", ["sunglasses", "pool", "swimming"], []),
+    ("鎧の女騎士が盾と剣を持つ、マント", ["armor", "knight", "shield", "sword", "cape"], []),
+    ("女性が手袋を外して眠る、帽子をかぶらない", ["sleeping"], ["gloves", "hat"]),
+]
+
+
+class ConveyCasesTest(unittest.TestCase):
+    """頼みの 30 件が、描く物・描かない物・伝わらない言葉の 3 つに正しく分かれるか"""
+
+    def test_table_path(self):
+        from chatdraw.engine import Words
+        from chatdraw.jaterms import leftover, negatives, tags_from
+        for text, want, neg in CONVEY_CASES:
+            with self.subTest(text=text):
+                tags = tags_from(text)
+                for t in want:
+                    self.assertIn(t, tags)
+                self.assertEqual(sorted(negatives(text)), sorted(neg))
+                for t in neg:   # 打ち消した物を描く言葉に入れない（帽子なしで帽子が描かれた）
+                    self.assertNotIn(t, tags)
+                self.assertEqual(leftover(text), [])
+                w = Words(Path(""))
+                out = w.to_prompt(text)
+                self.assertEqual(sorted(w.negative), sorted(neg))
+                for t in neg:
+                    self.assertNotIn(t, out.split(", "))
+
+    def test_counts_do_not_say_solo(self):
+        from chatdraw.jaterms import tags_from
+        for text in ("二人の女性がカフェで座っている", "女性と男性が公園を歩いている", "三人の女性が海辺で走る"):
+            self.assertNotIn("solo", tags_from(text))
+            self.assertNotIn("1girl", tags_from("三人の女性が海辺で走る"))
+
+    def test_color_binds_to_object(self):
+        from chatdraw.jaterms import tags_from
+        tags = tags_from("赤い帽子と青いドレスの女性")
+        self.assertIn("red hat", tags)
+        self.assertIn("blue dress", tags)
+        self.assertNotIn("red dress", tags)
+
+    def test_unknown_words_are_shown(self):
+        from chatdraw.engine import Words
+        w = Words(Path(""))
+        w.to_prompt("ドラゴンに乗った女性")
+        self.assertIn("ドラゴン", w.untranslated)
+
+    def test_model_path_merge(self):
+        """言葉の模型の答えを整える: 日本語・打ち消しを描く言葉に残さず、表で拾った語を足す"""
+        from chatdraw.engine import Words
+        w = Words(Path(__file__))   # ready() を真にする（読むのは ask だけで、ここでは差し替える）
+        w.ask = lambda system, text, max_tokens=64, one_line=True: "silver hair, 女騎士, no hat, hat, sword"
+        out = w.to_prompt("眼鏡をかけた銀髪の女騎士が剣を持っている、帽子なし").split(", ")
+        self.assertNotIn("hat", out)
+        self.assertNotIn("no hat", out)
+        self.assertNotIn("女騎士", out)
+        self.assertIn("glasses", out)   # 模型が落とした語は表から足す
+        self.assertEqual(w.negative, ["hat"])
+        self.assertEqual(w.untranslated, ["女騎士"])
+
+
+class WordsSpeedTest(unittest.TestCase):
+    """言葉の模型を 1 回だけ読み、要る分だけ作らせるか"""
+
+    def setUp(self):
+        from chatdraw import engine
+        self.engine = engine
+        self.made = []
+        test = self
+
+        class FakeLlama:
+            metadata = {"tokenizer.chat_template": "<|im_start|>{% if enable_thinking %}<think>{% endif %}"}
+
+            def __init__(self, **kw):
+                test.made.append(kw)
+
+            def create_completion(self, prompt, **kw):
+                test.prompt, test.kw = prompt, kw
+                return {"choices": [{"text": "red bikini, beach"}], "usage": {"completion_tokens": 4}}
+        import types
+        self.fake = types.ModuleType("llama_cpp")
+        self.fake.Llama = FakeLlama
+        self.saved = sys.modules.get("llama_cpp")
+        sys.modules["llama_cpp"] = self.fake
+        engine._LOADED.clear()
+
+    def tearDown(self):
+        self.engine._LOADED.clear()
+        if self.saved is None:
+            sys.modules.pop("llama_cpp", None)
+        else:
+            sys.modules["llama_cpp"] = self.saved
+
+    def test_loaded_once_and_short(self):
+        from chatdraw.engine import Words
+        p = Path(__file__)
+        for _ in range(3):   # 設定を替えて Words を作り直しても、読み直さない
+            Words(p).to_prompt("赤いビキニの女性が浜辺に立つ")
+        self.assertEqual(len(self.made), 1)
+        self.assertEqual(self.made[0]["n_ctx"], 512)
+        self.assertEqual(self.made[0]["n_threads"], self.engine.physical_cores())
+        self.assertIn("\n", self.kw["stop"])            # 1 行目で止める
+        self.assertLessEqual(self.kw["max_tokens"], 64)
+        self.assertTrue(self.prompt.endswith("<think>\n\n</think>\n\n"))   # 考える模型に考えさせない
+
+    def test_unclosed_think_is_dropped(self):
+        from chatdraw.engine import Words
+        w = Words(Path(__file__))
+        self.fake.Llama.create_completion = lambda self, prompt, **kw: {"choices": [{"text": "<think>the user wants"}], "usage": {}}
+        self.assertEqual(w.ask("s", "t"), "")

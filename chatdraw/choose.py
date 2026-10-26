@@ -58,5 +58,9 @@ def choose_words(text: str) -> Path | None:
         return None
     detailed = len(text) > 60 or text.count("、") + text.count(",") >= 4
     good = [m for m in have if m.score >= PASS] or have   # 点の届かない模型は、ほかに無いときだけ使う
+    from chatdraw.engine import _LOADED
+    loaded = [m for m in good if str(words_path(m)) in _LOADED]
+    if loaded:   # 読んである模型を使う。頼みごとに替えると、そのたびに読み直しで 100 秒以上待たせた
+        return words_path(loaded[0])
     pick = max(good, key=lambda m: m.gb) if detailed else max(good, key=lambda m: m.score)
     return words_path(pick)

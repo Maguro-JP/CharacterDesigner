@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import os
 import sys
 import time
 from pathlib import Path
@@ -149,6 +150,44 @@ class Task(QObject):
             self.failed.emit(f"できませんでした: {e}")
 
 
+def pid_alive(pid: int) -> bool:
+    """その番号のプロセスがまだ動いているか。Windows の os.kill は相手を止めてしまうので使わない"""
+    if pid <= 0:
+        return False
+    if sys.platform == "win32":
+        import ctypes
+        k = ctypes.windll.kernel32
+        h = k.OpenProcess(0x1000, False, pid)   # PROCESS_QUERY_LIMITED_INFORMATION
+        if not h:
+            return False
+        code = ctypes.c_ulong()
+        ok = k.GetExitCodeProcess(h, ctypes.byref(code))
+        k.CloseHandle(h)
+        return bool(ok) and code.value == 259   # STILL_ACTIVE
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def crashed_before(store) -> bool:
+    """前の起動が正しく閉じずに終わったか。印には起動したプロセスの番号を残す。
+
+    前は印が 0/1 だけで、固まって止められると 1 が残り、正しく 1 回閉じるまで起動のたびに落ちた扱いになった。
+    番号が今も動いている（2 つ目の起動）なら落ちた扱いにしない。昔の印の 1 は落ちた扱い
+    """
+    try:
+        prev = int(store.value("running", 0) or 0)
+    except (TypeError, ValueError):
+        return True
+    if prev == 0:
+        return False
+    return prev == 1 or prev != os.getpid() and not pid_alive(prev)
+
+
 class Bridge(QObject):
     """裏の糸（threading）から画面へ結果を渡す"""
     got = Signal(object)
@@ -191,14 +230,16 @@ def qimage_to_pil(img):
 
 
 class Navigator(QLabel):
-    """キャンバス全体の縮小図。押した所を真ん中に出す。描くたびに作り直すと重いので、変わってから少し待って作る"""
+    """キャンバス全体の縮小図。今見えている所を四角で示し、押した所を真ん中に出す。四角は引いて動かせる。
+    描くたびに作り直すと重いので、絵は変わってから少し待って作る（四角はすぐ描き直す）"""
 
     def __init__(self, canvas):
         super().__init__()
         self.canvas = canvas
         self.setAlignment(Qt.AlignCenter)
         self.setMinimumHeight(120)
-        self.setToolTip("押した所を真ん中に表示します")
+        self.setToolTip("赤い四角が今見えている所です。押すか四角を引くと、表示する場所が動きます")
+        self._grab = None   # 四角を引いているとき、押した所と四角の中心のずれ
         from PySide6.QtCore import QTimer
         self.timer = QTimer(self)
         self.timer.setSingleShot(True)
@@ -206,6 +247,9 @@ class Navigator(QLabel):
         self.timer.timeout.connect(self.redraw)
         canvas.changed.connect(self.timer.start)
         canvas.history_changed.connect(self.timer.start)
+        canvas.horizontalScrollBar().valueChanged.connect(self.update)
+        canvas.verticalScrollBar().valueChanged.connect(self.update)
+        canvas.zoomed.connect(self.update)
 
     def redraw(self):
         if not self.isVisible() or not self.canvas.layers:
@@ -222,14 +266,59 @@ class Navigator(QLabel):
         super().resizeEvent(e)
         self.timer.start()
 
-    def mousePressEvent(self, e):
+    def _frame(self):
+        """縮小図の置き場（左上と倍率）。絵がまだ無ければ None"""
         pm = self.pixmap()
-        if pm is None or pm.isNull():
-            return
         w, h = self.canvas.size_px()
-        x0, y0 = (self.width() - pm.width()) / 2, (self.height() - pm.height()) / 2
-        px, py = (e.position().x() - x0) / pm.width(), (e.position().y() - y0) / pm.height()
-        self.canvas.centerOn(min(max(px, 0), 1) * w, min(max(py, 0), 1) * h)
+        if pm is None or pm.isNull() or not w or not h:
+            return None
+        return (self.width() - pm.width()) / 2, (self.height() - pm.height()) / 2, pm.width() / w, pm.height() / h
+
+    def view_rect(self):
+        """今キャンバスに見えている所を、縮小図の上の四角で返す"""
+        from PySide6.QtCore import QRectF
+        f = self._frame()
+        if f is None:
+            return None
+        x0, y0, sx, sy = f
+        r = self.canvas.mapToScene(self.canvas.viewport().rect()).boundingRect() & self.canvas.scene().sceneRect()
+        return QRectF(x0 + r.x() * sx, y0 + r.y() * sy, r.width() * sx, r.height() * sy)
+
+    def paintEvent(self, e):
+        super().paintEvent(e)
+        r = self.view_rect()
+        if r is None or r.isEmpty():
+            return
+        from PySide6.QtGui import QPainter, QPen, QColor
+        p = QPainter(self)
+        p.setPen(QPen(QColor(230, 40, 40), 2))
+        p.drawRect(r.adjusted(1, 1, -1, -1))
+        p.end()
+
+    def _center_at(self, pos):
+        f = self._frame()
+        if f is None:
+            return
+        x0, y0, sx, sy = f
+        w, h = self.canvas.size_px()
+        self.canvas.centerOn(min(max((pos.x() - x0) / sx, 0), w), min(max((pos.y() - y0) / sy, 0), h))
+        self.update()
+
+    def mousePressEvent(self, e):
+        r = self.view_rect()
+        pos = e.position()
+        if r is not None and r.contains(pos):
+            self._grab = pos - r.center()   # 四角の中を押したら、押した所がずれないように引く
+        else:
+            self._grab = pos - pos
+            self._center_at(pos)
+
+    def mouseMoveEvent(self, e):
+        if self._grab is not None and e.buttons() & Qt.LeftButton:
+            self._center_at(e.position() - self._grab)
+
+    def mouseReleaseEvent(self, e):
+        self._grab = None
 
 
 class Reference(QLabel):
@@ -365,6 +454,8 @@ class Window(QMainWindow):
 
     def __init__(self, studio: Studio | None = None):
         super().__init__()
+        from chatdraw import wheelguard
+        wheelguard.install()   # 欄のスクロールで種や強さが変わらないようにする
         self.settings = Settings()
         self.layout_store = QSettings("CharacterDesigner", "chatdraw")   # 配置・テーマ・AI プリセット・ツアーの済み
         self.last_text = ""
@@ -1159,7 +1250,40 @@ class Window(QMainWindow):
         if not text:
             text = " / ".join(f"{i}: {t}" for i, t in enumerate(pen.texts, 1))
         from chatdraw import commands
-        reply = commands.handle(self, text)   # 操作の頼み（道具・色・欄・配置など）はその場で行い、絵は描かない
+        words = getattr(getattr(self, "studio", None), "words", None)
+        if commands.needs_model(text, words):
+            # 言葉の模型に聞くのは裏で行う。画面の糸で聞くと、「赤」「保存」などの操作の言葉を含む頼みで
+            # 模型の読み込みと推論の間（数秒〜数十秒）アプリが固まった
+            if getattr(self, "asking", False):
+                return
+            self.asking = True
+            self.button.setEnabled(False)
+
+            def got(picked):
+                self.asking = False
+                self.button.setEnabled(True)
+                self._send_after(text, None if isinstance(picked, BaseException) else picked)
+            self.in_background(lambda: commands.by_model(text, words), got)
+            return
+        self._send_after(text, None)   # 模型に聞けないときは言葉の決まりで選ぶ
+
+    def in_background(self, work, done):
+        """work を裏の糸で動かし、答えを画面の糸の done に渡す。work が例外を出したら、その例外を渡す"""
+        import threading
+        bridge = Bridge(self)
+        bridge.got.connect(lambda v: (done(v), bridge.deleteLater()), Qt.QueuedConnection)
+
+        def run():
+            try:
+                v = work()
+            except BaseException as e:   # noqa: BLE001  裏で落ちても画面の糸に必ず返す
+                v = e
+            bridge.got.emit(v)
+        threading.Thread(target=run, daemon=True).start()
+
+    def _send_after(self, text: str, picked):
+        from chatdraw import commands
+        reply = commands.handle(self, text, picked=picked)   # 操作の頼み（道具・色・欄・配置など）はその場で行い、絵は描かない
         if reply:
             self.entry.clear()
             self.say(text, "あなた")
@@ -1722,7 +1846,7 @@ class Window(QMainWindow):
         menu.addAction(QAction("模型の管理…", self, triggered=self.manage_models))
 
     def manage_models(self):
-        if self.feature_tour("manager", self.manage_models):
+        if self.tour_first("manager", self.manage_models):
             return
         from chatdraw.manager import ModelManager
         ModelManager(self.settings, self).exec()
@@ -2082,6 +2206,11 @@ class Window(QMainWindow):
         from chatdraw import tours
         return tours.show(self, key, then)
 
+    def tour_first(self, key: str, then) -> bool:
+        """初めてなら案内を出して True（閉じたあとに then）。出さなければ then を呼ばずに False"""
+        from chatdraw import tours
+        return tours.first(self, key, then)
+
     def start_tour(self):
         from chatdraw.tour import Tour
         def closed():
@@ -2197,7 +2326,7 @@ class Window(QMainWindow):
             self.canvas.add_image_layer(path, Path(path).stem)
 
     def open_image(self):
-        if self.feature_tour("open", self.open_image):
+        if self.tour_first("open", self.open_image):
             return
         path, _ = QFileDialog.getOpenFileName(self, "開く", "", "作業ファイルと画像 (*.cdproj *.png *.jpg *.jpeg *.webp)")
         if path:
@@ -2222,7 +2351,7 @@ class Window(QMainWindow):
         from chatdraw import project
         path = getattr(self, "project_path", None)
         if ask or not path:
-            if self.feature_tour("project", lambda: self.save_project(ask)):
+            if self.tour_first("project", lambda: self.save_project(ask)):
                 return False
             path, _ = QFileDialog.getSaveFileName(self, "作業ファイルを保存", "drawing" + project.SUFFIX,
                                                   f"作業ファイル (*{project.SUFFIX})")
@@ -2325,8 +2454,8 @@ class Window(QMainWindow):
     def offer_restore(self):
         """前に閉じずに終わっていて、自動保存が残っていれば、戻すかを聞く（自動保存は消さない）"""
         from chatdraw import project
-        crashed = int(self.layout_store.value("running", 0))
-        self.layout_store.setValue("running", 1)
+        crashed = crashed_before(self.layout_store)
+        self.layout_store.setValue("running", os.getpid())
         path = project.autosave_path()
         if not crashed or not path.exists():
             return False
@@ -2346,7 +2475,7 @@ class Window(QMainWindow):
         """保存できたら True"""
         if not self.canvas.layers:
             return False
-        if self.feature_tour("save", self.save_as):
+        if self.tour_first("save", self.save_as):
             return False
         dst, _ = QFileDialog.getSaveFileName(self, "名前を付けて保存", "drawing.png", "PNG (*.png)")
         if not dst:
@@ -2433,6 +2562,8 @@ def main():
     w.upgrade_models()
     w.check_ai()
     w.offer_restore()
+    # closeEvent を通らずに終わる道（更新を入れて閉じるなど）でも、正しく閉じた印を残す
+    app.aboutToQuit.connect(lambda: (w.layout_store.setValue("running", 0), w.layout_store.sync()))
     w.maybe_tour()
     from PySide6.QtCore import QTimer
     QTimer.singleShot(5000, w.check_update)   # 起動の邪魔をしないよう、少し待ってから確かめる

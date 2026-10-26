@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 from chatdraw.paths import HOME, HUB  # noqa: E402
-IMAGE_MODEL = os.environ.get("CD_IMAGE_MODEL", "cagliostrolab/animagine-xl-4.0")
+IMAGE_MODEL = os.environ.get("CD_IMAGE_MODEL", "Laxhar/noobai-XL-Vpred-1.0")
 # ラフ（線の下描き）の形に沿って描かせる部品。元の絵を描き直す img2img では、ラフの線がそのまま残って絵にならなかった
 SKETCH_ADAPTER = "TencentARC/t2i-adapter-sketch-sdxl-1.0"
 SKETCH_FILES = dict(allow_patterns=["*.json", "*.fp16.safetensors"])
@@ -112,20 +112,41 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
     import inspect
     import torch
     text = f"{info.prefix}{prompt}"
-    if f.tags:
+    if f.tags and "masterpiece" not in info.prefix:
         text += ", masterpiece, best quality"
     args = {"prompt": text, "num_inference_steps": steps, f.cfg_key: guidance,
             "generator": torch.Generator(getattr(pipe, "device", "cpu")).manual_seed(seed), **f.extra}
     if f.negative:
-        args["negative_prompt"] = "lowres, worst quality, low quality" + (f", {avoid}" if avoid else "")
+        args["negative_prompt"] = negative_for(info, avoid)
+    if getattr(info, "rescale", 0.0):
+        args["guidance_rescale"] = info.rescale
     accepted = inspect.signature(pipe.__call__).parameters
     return {k: v for k, v in args.items() if k in accepted}   # 部品が受けない引数は渡さない（版の違いで落ちないように）
+
+
+def negative_for(info, avoid: str = "") -> str:
+    """描かない物。模型の札に推奨があればそれを使う（模型ごとに学んだ質の言葉が違う）"""
+    base = getattr(info, "negative", "") or "lowres, worst quality, low quality"
+    return base + (f", {avoid}" if avoid else "")
+
+
+def use_vpred(pipe, info) -> bool:
+    """v-prediction の模型は、置いてある scheduler の設定が epsilon のまま（NoobAI V-Pred 1.0 の札）なので、
+    読んだ後に Euler を v_prediction と zero terminal SNR に替える。替えないと色の抜けた崩れた絵になる"""
+    if not getattr(info, "vpred", False) or getattr(pipe, "scheduler", None) is None:
+        return False
+    from diffusers import EulerDiscreteScheduler
+    pipe.scheduler = EulerDiscreteScheduler.from_config(pipe.scheduler.config, prediction_type="v_prediction",
+                                                        rescale_betas_zero_snr=True)
+    return True
 
 
 ASK_SENTENCE = ("Translate the Japanese drawing request into one English sentence that describes the image for a text-to-image model. "
                 "Reply with the sentence only. Translate every detail, add nothing that is not in the request.")
 ASK = ("Translate the Japanese drawing request into English tags for an anime illustration model. "
-       "Reply with one line of comma-separated tags only. Translate every detail, add nothing that is not in the request.")
+       "Reply with one line of short comma-separated tags only (e.g. red bikini, long hair, beach, waving). "
+       "Bind each color to its object. Translate every detail, add nothing that is not in the request. "
+       "For things the request says to leave out, write no <thing>.")
 
 
 # 子どもを表す言葉と性的な言葉が並んだ頼みだけは描かない。ほかは止めない
@@ -145,6 +166,64 @@ def has_japanese(text: str) -> bool:
     return any("぀" <= ch <= "ヿ" or "一" <= ch <= "鿿" for ch in text)
 
 
+def physical_cores() -> int:
+    """物理コアの数。llama.cpp は論理コア（ハイパースレッド）まで使うと、かえって遅くなる"""
+    try:
+        import psutil
+        n = psutil.cpu_count(logical=False)
+        if n:
+            return n
+    except Exception:
+        pass
+    try:   # Linux: (物理 ID, コア ID) の組を数える
+        ids, phys = set(), "0"
+        for line in Path("/proc/cpuinfo").read_text().splitlines():
+            if line.startswith("physical id"):
+                phys = line.split(":")[1].strip()
+            elif line.startswith("core id"):
+                ids.add((phys, line.split(":")[1].strip()))
+        if ids:
+            return len(ids)
+    except Exception:
+        pass
+    return max(1, (os.cpu_count() or 2) // 2)
+
+
+# 読んだ言葉の模型（道 → Llama）。設定を替えて Words を作り直しても、同じ模型は読み直さない（1 回の読み込みに 100 秒以上かかった）。
+# 持つのは 1 つだけにし、別の模型に替えたら前の物は捨ててメモリを空ける
+_LOADED: dict[str, object] = {}
+
+
+def _llm_for(path: Path):
+    key = str(path)
+    if key not in _LOADED:
+        _LOADED.clear()
+        from llama_cpp import Llama
+        # 頼みは短い（指示と頼みで 200 トークン前後）。n_ctx を 2048 から 512 にすると、KV の置き場が 1/4 になる
+        _LOADED[key] = Llama(model_path=key, n_ctx=512, n_batch=512, n_threads=physical_cores(), verbose=False)
+    return _LOADED[key]
+
+
+def _clean_tags(out: str) -> tuple[list[str], list[str], list[str]]:
+    """言葉の模型が返したタグを、(描く物, 打ち消した物, 英語にならなかった言葉) に分ける"""
+    import re
+    keep, neg, ja = [], [], []
+    for t in re.split(r"[,、\n]", out):
+        t = t.strip().strip(".。\"'").strip()
+        if not t:
+            continue
+        if has_japanese(t):   # 訳しそこねた日本語をそのまま絵の模型に渡さない（読めずに別の物を描いた）
+            ja.append(t)
+            continue
+        m = re.match(r"(?i)^(?:no|without|not)\s+(.+)$", t)
+        if m:   # SD 系は「no hat」の hat を描く。打ち消しは描かない物へ回す
+            neg.append(m.group(1))
+            continue
+        if t.lower() not in [k.lower() for k in keep]:
+            keep.append(t)
+    return keep, neg, ja
+
+
 class Words:
     """日本語の頼みを描く言葉に直す。言葉の模型が無ければ、頼みをそのまま渡す"""
 
@@ -154,35 +233,71 @@ class Words:
             from chatdraw.paths import find_gguf
             path = next((p for p in (find_gguf(m.file) for m in WORDS) if p), None) or find_gguf("model.gguf") or Path("")
         self.path = path
-        self._llm = None
+        self.negative: list[str] = []   # 直前の頼みで打ち消した物（帽子なし → hat）。描かない物に足す
+        self.untranslated: list[str] = []   # 直前の頼みで、英語にならなかった言葉
+        self.tokens = 0   # 直前の 1 回で模型が出したトークンの数（速さを測るため）
+
+    @property
+    def _llm(self):
+        return _LOADED.get(str(self.path))
 
     def ready(self) -> bool:
         return self.path.is_file()   # 「使わない」を選ぶと空の名前になる
 
-    def ask(self, system: str, text: str, max_tokens: int = 96) -> str:
-        if self._llm is None:
-            from llama_cpp import Llama
-            self._llm = Llama(model_path=str(self.path), n_ctx=2048, verbose=False)
-        out = self._llm.create_chat_completion(messages=[{"role": "system", "content": system}, {"role": "user", "content": text}],
-                                               temperature=0.2, max_tokens=max_tokens,
-                                               # 小さい模型は同じ言葉を繰り返し始めると止まらない（Qwen3.5 2B で 5 件中 2 件）。繰り返しを抑えると 0 件になった
-                                               repeat_penalty=1.3, presence_penalty=0.5)
+    def ask(self, system: str, text: str, max_tokens: int = 64, one_line: bool = True) -> str:
+        """1 回の問い。one_line なら 1 行目で止める（使うのは 1 行目だけなので、残りを作らせない）"""
         import re
-        return re.sub(r"<think>.*?</think>", "", out["choices"][0]["message"]["content"], flags=re.S).strip()
+        llm = _llm_for(self.path)
+        sampling = dict(temperature=0.2, max_tokens=max_tokens,
+                        # 小さい模型は同じ言葉を繰り返し始めると止まらない（Qwen3.5 2B で 5 件中 2 件）。繰り返しを抑えると 0 件になった
+                        repeat_penalty=1.3, presence_penalty=0.5)
+        template = (getattr(llm, "metadata", None) or {}).get("tokenizer.chat_template", "")
+        stop = ["<|im_end|>", "<|endoftext|>"] + (["\n"] if one_line else [])
+        if "<|im_start|>" in template:
+            # Qwen の形を自分で組む。考える模型（Qwen3.5）は、何もしないと <think> の中で数百トークン考えてから答え、
+            # max_tokens を使い切ると答えが空になった。考える欄を空で閉じてから答えさせる。
+            # 指示の部分は毎回同じなので、llama.cpp が前回の KV を使い回し、読み直すのは頼みの分だけになる
+            prompt = (f"<|im_start|>system\n{system}<|im_end|>\n<|im_start|>user\n{text}<|im_end|>\n<|im_start|>assistant\n"
+                      + ("<think>\n\n</think>\n\n" if "think" in template else ""))
+            out = llm.create_completion(prompt, stop=stop, **sampling)
+            reply = out["choices"][0]["text"]
+        else:
+            out = llm.create_chat_completion(messages=[{"role": "system", "content": system}, {"role": "user", "content": text}],
+                                             stop=stop, **sampling)
+            reply = out["choices"][0]["message"]["content"] or ""
+        self.tokens = (out.get("usage") or {}).get("completion_tokens", 0)
+        reply = re.sub(r"<think>.*?(</think>|$)", "", reply, flags=re.S)   # 閉じていない考えも捨てる
+        return reply.strip()
 
     def to_prompt(self, text: str, tags: bool = True) -> str:
-        """日本語の頼みを、絵の模型が分かる英語にする。tags なら SD 系のタグ、そうでなければ文（FLUX などは文で頼む）"""
+        """日本語の頼みを、絵の模型が分かる英語にする。tags なら SD 系のタグ、そうでなければ文（FLUX などは文で頼む）。
+        打ち消した物は self.negative に、英語にならなかった言葉は self.untranslated に残す"""
+        self.negative, self.untranslated = [], []
         if not has_japanese(text):
             return text
-        from chatdraw.jaterms import merge, tags_from
+        from chatdraw.jaterms import leftover, merge, negatives, tags_from
         picked = tags_from(text)
+        self.negative = negatives(text)
         if not self.ready():
             # 言葉の模型が無いときは表で拾った語だけで描く。日本語のまま渡すと、SDXL の模型は読めず全く違う絵になった
+            self.untranslated = leftover(text)
             if not picked:
                 return text
             return ", ".join(picked) if tags else "An anime illustration of " + ", ".join(picked)
-        out = (self.ask(ASK if tags else ASK_SENTENCE, text).splitlines() or [""])[0].strip()
-        return merge(out, picked) if tags else (out or ("An anime illustration of " + ", ".join(picked) if picked else text))
+        if not tags:
+            out = self.ask(ASK_SENTENCE, text, max_tokens=96)
+            if has_japanese(out):
+                self.untranslated = [out]
+                out = ""
+            return out or ("An anime illustration of " + ", ".join(picked) if picked else text)
+        keep, neg, ja = _clean_tags(self.ask(ASK, text))
+        self.untranslated = ja
+        for n in neg:
+            if n not in self.negative:
+                self.negative.append(n)
+        bad = {n.lower() for n in self.negative}
+        keep = [t for t in keep if t.lower() not in bad]   # 打ち消した物を、模型が描く言葉に入れていても外す
+        return merge(", ".join(keep), [t for t in picked if t.lower() not in bad])
 
 
 # 途中の絵（latents）をそのまま色に直す係数。VAE で戻すより何百倍も速く、描いている様子を見せるのに足りる
@@ -466,6 +581,7 @@ class Painter:
             else:
                 self._pipe = AutoPipelineForText2Image.from_pretrained(self.model, torch_dtype=dtype, variant=variant,
                                                                        cache_dir=str(HUB), **extra)
+            use_vpred(self._pipe, image_model(self.model))
             self._place(self._pipe)
         return self._pipe
 
@@ -601,9 +717,11 @@ class Painter:
         base.paste(image.convert("RGB"), (0, 0))
         mask_in = Image.new("L", base.size, 0)
         mask_in.paste(mask, (0, 0))
-        args = dict(prompt=f"{info.prefix}{prompt}, masterpiece, best quality", negative_prompt="lowres, worst quality, low quality" + (f", {self.avoid}" if self.avoid else ""),
+        args = dict(prompt=f"{info.prefix}{prompt}, masterpiece, best quality", negative_prompt=negative_for(info, self.avoid),
                     num_inference_steps=self.steps, guidance_scale=self.guidance, strength=strength,
                     generator=torch.Generator(pipe.device).manual_seed(seed))
+        if info.rescale:
+            args["guidance_rescale"] = info.rescale
         total = max(1, int(self.steps * strength))
 
         def step(p, i, _t, kw):
@@ -663,12 +781,14 @@ class Studio:
         if two is not None:
             return self._draw_two(text, seed, two, style, size, say, meta)
         say("頼みを描く言葉に直しています")
-        from chatdraw.jaterms import leftover
-        lost = leftover(text) if has_japanese(text) and not self.words.ready() else []
+        prompt = self.words.to_prompt(text, tags=fam(image_model(getattr(self.painter, "model", "")).family).tags)
+        lost = list(getattr(self.words, "untranslated", []) or [])
         if lost:   # 模型に伝わらない言葉を隠さない（伝わらないまま描くと、頼みと違う絵になる）
             say("模型に伝わらない言葉があります: " + "、".join(lost) + "（英語で書くか、言葉の模型を入れると伝わります）")
         self.last_lost = lost
-        prompt = self.words.to_prompt(text, tags=fam(image_model(getattr(self.painter, "model", "")).family).tags)
+        negative = list(getattr(self.words, "negative", []) or [])
+        if negative:
+            say("描かない物: " + ", ".join(negative))
         if style:   # AI の欄で選んだ作風。頼みの言葉の後ろに足す（頼みの方を先に効かせる）
             prompt = f"{prompt}, {style}"
         if refused(prompt):
@@ -680,9 +800,11 @@ class Studio:
         best, redraws = None, []
         # 頼んでいない物が描かれたら、次の回はそれを描かない物に足す（描き終えたら元に戻す）
         avoid0, unasked = getattr(self.painter, "avoid", ""), []
+        if negative and hasattr(self.painter, "avoid"):   # 「帽子なし」の帽子は、描かない物に入れて描かせない
+            self.painter.avoid = ", ".join([a for a in [avoid0] + negative if a])
         for k in range(self.REDRAW_TRIES):
             if unasked:
-                self.painter.avoid = ", ".join([a for a in [avoid0] + unasked if a])
+                self.painter.avoid = ", ".join([a for a in [avoid0] + negative + unasked if a])
             s_k = seed + 1000 * k
             if k:
                 say(f"検品を通らなかったので、種を変えて描き直しています（{k + 1}/{self.REDRAW_TRIES} 回目）")
