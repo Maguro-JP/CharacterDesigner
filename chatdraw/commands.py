@@ -253,7 +253,7 @@ def by_model(text: str, words) -> tuple[Command | None, str] | None:
         return None
     lines = "\n".join(f"- {c.name}: {c.help}" for c in COMMANDS)
     try:
-        out = words.ask(ASK.format(lines=lines), text, max_tokens=40)
+        out = words.ask(ASK.format(lines=lines), text, max_tokens=40, one_line=False)   # JSON は行をまたぐことがある
         data = json.loads(re.search(r"\{.*\}", out, re.S).group())
     except Exception:
         return None
