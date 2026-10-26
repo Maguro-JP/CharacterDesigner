@@ -491,7 +491,28 @@ def project_shadow(body, light_deg, squash=0.45, lean=0.6, seg=None):
     return ndimage.binary_closing(m, iterations=max(2, round(3 * f)))
 
 
-def cast_check(rgb, seg, light_deg):
+def body_light_deg(rgb, seg, least=0.01):
+    """体の陰から光の左右を読む。手足の、体の真ん中より右の画素と左の画素の明るさの平均を比べ、明るい側から光が来ているとする。
+    返すのは光の向き（右上 45° か左上 135°）と、明るさの差（右が明るいと正）。差が least より小さければ None。
+    手足の切り口ごとの左右で比べると、脚の内側の陰どうしが打ち消して、片脚がまるごと暗い（光が反対から来ている）のを読めなかった。
+    光の向きを決め打ちにすると、体の陰と逆の向きに影を落とした"""
+    L = rgb[..., :3].mean(-1)
+    limb = np.isin(seg, (12, 13, 14, 15))
+    body = seg > 0
+    if limb.sum() < 200:
+        return None, 0.0
+    cx = float(np.nonzero(body)[1].mean())
+    xx = np.arange(seg.shape[1])[None, :]
+    r, l = limb & (xx > cx), limb & (xx < cx)
+    if r.sum() < 100 or l.sum() < 100:
+        return None, 0.0
+    d = float(L[r].mean() - L[l].mean())
+    if abs(d) < least:
+        return None, round(d, 4)
+    return (45.0 if d > 0 else 135.0), round(d, 4)
+
+
+def cast_check(rgb, seg, light_deg=None):
     """床の落ち影の検品。体の陰から読んだ光の向き（light_deg、0° が右、90° が上）で人物の形を床に写したものと比べる。
     6 周目の絵は、影が脚の形をしない左右の塊で、足の裏から離れ、体の陰と逆の向きに伸びていたのに、
     足元の暗さだけを見る検品（cast）が通した。
@@ -503,6 +524,9 @@ def cast_check(rgb, seg, light_deg):
     from scipy import ndimage
     H, W = seg.shape
     f = W / 768
+    # 光の向きは渡された値ではなく、絵の体の陰から読む（描いた側が決めた光の向きで測ると、体の陰と逆の影を通した）
+    seen, diff = body_light_deg(rgb, seg)
+    light_deg = seen if seen is not None else (light_deg if light_deg is not None else 135.0)
     L = rgb[..., :3].mean(-1)
     body = seg > 0
     bg = ~ndimage.binary_dilation(body, iterations=max(2, round(3 * f)))
@@ -511,7 +535,8 @@ def cast_check(rgb, seg, light_deg):
     shade = bg & (L < 0.9 * ref) & (np.arange(H)[:, None] > foot - 0.35 * H)
     shade = ndimage.binary_opening(shade, iterations=2)
     exp = project_shadow(body, light_deg, seg=seg) & ~body
-    out = {"cast_iou": round(float((shade & exp).sum() / max((shade | exp).sum(), 1)), 3)}
+    out = {"cast_iou": round(float((shade & exp).sum() / max((shade | exp).sum(), 1)), 3),
+           "light_deg": light_deg, "light_lr_diff": diff}
     # 接地: 左右の足ごとに、足の裏の真下 1% の帯が、写した形と重なる（IoU 0.5 以上の）影のひと続きの塊に入る割合。
     # 低い方を contact にする（8 周目の絵は片足にだけ影が付き、もう片足は浮いていた）
     sh2 = shade.copy()
@@ -564,7 +589,10 @@ def cast_check(rgb, seg, light_deg):
     if near.any() and far.any():
         sg = max(3, round(12 * f))
         Lf = ndimage.gaussian_filter(L * far, sg) / np.maximum(ndimage.gaussian_filter(far.astype(np.float32), sg), 1e-3)   # 少し外の背景の明るさを縁まで広げる
-        out["halo"] = round(float(((L > Lf + 0.06) & white)[near].mean()), 3)
+        hl = (L > Lf + 0.06) & white
+        out["halo"] = round(float(hl[near].mean()), 3)
+        fnear = near & (np.arange(H)[:, None] >= foot - 0.08 * H)        # 足の周り（下から 8%）
+        out["halo_feet"] = round(float(hl[fnear].mean()), 3) if fnear.any() else 0.0
     return out
 
 

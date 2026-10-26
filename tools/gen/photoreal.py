@@ -681,7 +681,7 @@ def uncover_eye(img, seg, eyes, hair_label=2):
     (hx, hy), (vx, vy) = ((lx, ly), (rx, ry)) if fl > fr else ((rx, ry), (lx, ly))
     patch = img.crop((int(vx - r), int(vy - r), int(vx + r), int(vy + r))).transpose(Image.FLIP_LEFT_RIGHT)
     m = Image.new("L", patch.size, 0)
-    ImageDraw.Draw(m).ellipse([r * 0.15, r * 0.3, r * 1.85, r * 1.7], fill=255)
+    ImageDraw.Draw(m).ellipse([r * 0.2, r * 0.55, r * 1.8, r * 1.45], fill=255)   # 目の形だけ（上の額の肌を前髪の上に貼らない）
     out = img.copy()
     out.paste(patch, (int(hx - r), int(hy - r)), m.filter(ImageFilter.GaussianBlur(max(r // 5, 1))))
     yy, xx = np.mgrid[:seg.shape[0], :seg.shape[1]]
@@ -741,7 +741,47 @@ def face_inpaint(pipe, nets, img, a, log, tries=5, side_px=None):
         m |= hd                                                                 # 隠れた目の周りは髪ごと描き直す
     mask = Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(4))
     orig_crop = img.crop(box).resize((side_px, side_px), Image.LANCZOS)
+    near = core = None
+    if eyes is not None:
+        (lx, ly), (rx, ry) = eyes
+        sc = side_px / side
+        yy, xx = np.mgrid[:side_px, :side_px]
+        near = np.zeros((side_px, side_px), bool)
+        core = np.zeros((side_px, side_px), bool)     # 目そのもの（瞳と目の縁の線は残す）
+        for ex, ey in ((lx, ly), (rx, ry)):
+            d2 = ((xx - (ex - box[0]) * sc) ** 2 + ((yy - (ey - box[1]) * sc) * 1.6) ** 2)
+            near |= d2 <= (dist * 0.6 * sc) ** 2
+            core |= d2 <= (dist * 0.28 * sc) ** 2
+    if hidden is not None:
+        # 下絵の明るい塊を肌の色で埋める（貼った目の周りに元の絵の明るい塊があり、描き直しでも頬の白い斑として残った）
+        c = np.asarray(crop).astype(np.float32)
+        skin = (cs == 11) & ~hd
+        if skin.sum() > 100:
+            med = np.median(c[skin], axis=0)
+            Lc = c.mean(2)
+            mx, mn = c.max(2), c.min(2)
+            bright = (Lc > med.mean() + 25) & ((mx - mn) / np.maximum(mx, 1) < 0.2)
+            hairpx0 = (cs == 2) & ~hd
+            if hairpx0.sum() > 100:          # 前髪の所で、髪より大きく明るい画素（貼った下絵の肌）も塊に入れる
+                bright |= (cs == 2) & (Lc > np.median(c[hairpx0].mean(1)) + 60)
+            blob = ndimage.binary_dilation(hd & bright & ~core, iterations=3) & hd & ~core   # 貼った目そのものは残す
+            fillc = np.broadcast_to(med, c.shape).copy()
+            hairpx = (cs == 2) & ~hd
+            if hairpx.sum() > 100:          # 前髪の上に乗った明るい塊は髪の色で埋める
+                fillc[cs == 2] = np.median(c[hairpx], axis=0)
+            w = ndimage.gaussian_filter(blob.astype(np.float32), 3)[..., None]
+            crop = Image.fromarray(np.clip(c * (1 - w) + fillc * w, 0, 255).astype(np.uint8))
+            log("face_blob_px", int(blob.sum()))
     li = lineart(crop)
+    if eyes is not None:
+        # 目の周りの前髪の線を線画から除く（前髪のかかった絵から線画を取ると、描いた顔に前髪の黒い線が残った）
+        la = np.asarray(li).copy()
+        oc = np.asarray(orig_crop).astype(np.float32)
+        dark_hair = (oc.mean(2) < 70)              # 部位分けが肌に数えた前髪の毛筋（暗い画素）も含める
+        cut = near & ((cs == 2) | (ndimage.binary_dilation(dark_hair, iterations=2) & ~core))
+        la[cut] = 0
+        li = Image.fromarray(la)
+        log("face_lineart_cut_px", int(cut.sum()))
     inp = StableDiffusionControlNetInpaintPipeline(**{k: v for k, v in pipe.components.items() if k != "controlnet"}, controlnet=nets)
     inp.set_progress_bar_config(disable=True)
     bangs = None
@@ -835,7 +875,15 @@ def composite_person(scene, person, parts, feather=1.5):
     import numpy as np
     from PIL import Image
     from scipy import ndimage
-    body = (np.asarray(parts) != BACKGROUND).astype(np.float32)
+    body = (np.asarray(parts) != BACKGROUND)
+    f = scene.width / 768
+    # 足の周り（下から 8%）は、部位分けが縁の明るい灰色の帯まで足に含めていたので、縁を 2〜3 画素削ってから重ねる
+    H = body.shape[0]
+    ys = np.nonzero(body)[0]
+    if len(ys):
+        low = np.arange(H)[:, None] >= ys.max() - 0.08 * H
+        body = np.where(low, ndimage.binary_erosion(body, iterations=max(2, round(2 * f))), body)
+    body = body.astype(np.float32)
     # 内側へだけぼかす（外へ広げると、人物の絵の側の明るい床が影の上に重なって縁が白く光った）
     al = np.clip((ndimage.gaussian_filter(body, feather * scene.width / 768) - 0.5) * 2, 0, 1)[..., None]
     o = np.asarray(person).astype(np.float32) * al + np.asarray(scene).astype(np.float32) * (1 - al)
@@ -883,8 +931,11 @@ def cast_shadow(img, parts, depth=None, deg=135.0, opacity=0.45):
             if yb >= ft["bottom"] - 0.02 * H:
                 n = min(yb + depth_px, H) - yb
                 contact[yb:yb + n, x] = np.linspace(1, 0.3, n)
-    contact = ndimage.gaussian_filter(contact, (1.2 * f, 1.5 * f))
-    dark = np.maximum(opacity * s, 0.65 * np.clip(contact * 1.4, 0, 1))
+    contact = ndimage.gaussian_filter(contact, (2 * f, 2.5 * f))
+    # 足の周りの遮られた暗さ（足に近い床ほど光が届かない）。無いと、足の横の床が影より明るい縁になって光って見えた
+    low = body & (np.arange(H)[:, None] >= foot - 0.06 * H)
+    ao = ndimage.gaussian_filter(low.astype(np.float32), 10 * f)
+    dark = np.maximum.reduce([opacity * s, 0.5 * np.clip(contact * 1.3, 0, 1), 0.4 * np.clip(ao * 2, 0, 1)])
     scene = Image.fromarray(np.clip(floor * (1 - dark[..., None]), 0, 255).astype(np.uint8))
     return composite_person(scene, img, parts)
 
@@ -987,7 +1038,11 @@ def resume(a, im, parts, log, stem, t):
         r2 = relight(r2, p2, d2, a.light_deg, amount=a.post_relight)
     r2 = dehalo(r2, p2)
     if a.cast > 0:
-        r2 = cast_shadow(clear_floor(r2, p2), p2, d2, a.light_deg, a.cast)
+        import measure
+        seen, diff = measure.body_light_deg(np.asarray(r2, np.float32) / 255, np.asarray(p2))
+        deg = seen if seen is not None else a.light_deg      # 影は体の陰から読んだ光の逆へ
+        log("cast_light", {"deg": deg, "lr_diff": diff})
+        r2 = cast_shadow(clear_floor(r2, p2), p2, d2, deg, a.cast)
     r2.save(a.out / f"{stem}-4-light-r{a.post_relight}-c{a.cast}-s{a.seed}.png")
     log("post_light_s", round(time.time() - t1, 1))
     if a.check:
@@ -1133,7 +1188,11 @@ def main(argv=None) -> int:
         if a.post_relight > 0:
             r2 = relight(r2, p2, d2, a.light_deg, amount=a.post_relight)
         if a.cast > 0:
-            r2 = cast_shadow(clear_floor(dehalo(r2, p2), p2), p2, d2, a.light_deg, a.cast)
+            import measure
+            r2 = dehalo(r2, p2)
+            seen, diff = measure.body_light_deg(np.asarray(r2, np.float32) / 255, np.asarray(p2))
+            log("cast_light", {"deg": seen if seen is not None else a.light_deg, "lr_diff": diff})
+            r2 = cast_shadow(clear_floor(r2, p2), p2, d2, seen if seen is not None else a.light_deg, a.cast)
         r2.save(a.out / f"{stem}-4-light-r{a.post_relight}-c{a.cast}-s{a.seed}.png")
         log("post_light_s", round(time.time() - t1, 1))
         if a.check:

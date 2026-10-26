@@ -181,7 +181,7 @@ class CastShadowTest(unittest.TestCase):
         depth = Image.fromarray((seg > 0).astype(np.uint8) * 200)
         o = np.asarray(photoreal.cast_shadow(img, Image.fromarray(seg), depth, 135, 0.5)).astype(int)
         from scipy import ndimage
-        self.assertTrue((o[ndimage.binary_erosion(seg > 0, iterations=3)] == 180).all())   # 人物は暗くしない（縁は 1〜2 画素ぼかして重ねる）
+        self.assertTrue((o[ndimage.binary_erosion(seg > 0, iterations=6)] == 180).all())   # 人物は暗くしない（縁はぼかして重ね、足の周りは 2〜3 画素削る）
         right, left = o[250:345, 175:260].mean(), o[250:345, 40:125].mean()
         self.assertLess(right, left - 3)                  # 左上の光なら影は右へ
         self.assertLess(o[352, 150, 0], 170)              # 足元の接地の影
@@ -232,7 +232,7 @@ class FaceStepsTest(unittest.TestCase):
         self.assertIsNotNone(disk)
         self.assertTrue(disk[60, 52])
         self.assertLess(o[60, 47:57].mean(), 60)     # 反転した目が下絵に入る
-        self.assertGreater(o[52, 52].mean(), 150)    # 目の周りは見えている目の周りの肌
+        self.assertGreater(o[60, 59].mean(), 150)    # 目の横は見えている目の横の肌
 
 
 class CastCheckTest(unittest.TestCase):
@@ -286,3 +286,17 @@ class CastCheckTest(unittest.TestCase):
         self.assertGreaterEqual(m["contact"], 0.6)
         self.assertGreaterEqual(m["cast_side"], 0.85)
         self.assertLessEqual(m["cast_spill"], 0.2)
+
+
+class BodyLightTest(unittest.TestCase):
+    def test_light_side_from_body(self):
+        import measure
+        seg = np.zeros((300, 200), np.uint8)
+        seg[50:280, 60:95] = 12
+        seg[50:280, 105:140] = 13
+        a = np.full((300, 200, 3), 0.5, np.float32)
+        a[seg == 12] = 0.8                            # 左の脚が明るい: 光は左から
+        a[seg == 13] = 0.55
+        self.assertEqual(measure.body_light_deg(a, seg)[0], 135.0)
+        a[seg == 12], a[seg == 13] = 0.55, 0.8
+        self.assertEqual(measure.body_light_deg(a, seg)[0], 45.0)
