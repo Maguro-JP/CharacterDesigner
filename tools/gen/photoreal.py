@@ -353,6 +353,9 @@ def check(src, out_img, src_parts, log, tag, ref=None, light_deg=135.0):
     r = ref or src
     rs = np.asarray(src_parts) if ref is None else np.asarray(_parts_of(ref))
     km["leg_de"] = measure.leg_color(rgb, seg)
+    km["skin_tex"] = measure.skin_texture(rgb, seg)
+    km["face_tex"] = measure.skin_texture(rgb, seg, "face")
+    km["leg_shade_width"] = measure.leg_shade_width(rgb, seg)
     km["contour_dev"] = measure.contour_dev(np.asarray(Image.fromarray(np.asarray(src_parts)).resize(out_img.size, Image.NEAREST)), seg)
     km["skin_vstep"] = measure.skin_vstep(rgb, seg)
     mx_, mn_ = rgb.max(-1), rgb.min(-1)
@@ -901,6 +904,12 @@ def composite_person(scene, person, parts, feather=1.5):
     from scipy import ndimage
     body = (np.asarray(parts) != BACKGROUND)
     f = scene.width / 768
+    # 足の周り（下から 8%）は、縁の 3 画素を床（影を付けた背景）に置き換える。部位分けが足に含めた縁の灰色が残った
+    H = body.shape[0]
+    ys = np.nonzero(body)[0]
+    if len(ys):
+        low = np.arange(H)[:, None] >= ys.max() - 0.08 * H
+        body = np.where(low, ndimage.binary_erosion(body, iterations=max(3, round(3 * f))), body)
     body = body.astype(np.float32)
     # 内側へだけぼかす（外へ広げると、人物の絵の側の明るい床が影の上に重なって縁が白く光った）
     al = np.clip((ndimage.gaussian_filter(body, feather * scene.width / 768) - 0.5) * 2, 0, 1)[..., None]
@@ -1120,35 +1129,72 @@ SKIN_TEX = Path(__file__).resolve().parents[2] / "styles" / "skin-texture.json"
 SDXL_SKIN = "SG161222/RealVisXL_V5.0"   # openrail++（使い方の制限あり、絵の商用利用は可）
 
 
-def skin_grain(img, parts, amount=1.0, seed=0):
-    """実写の肌の粒（毛穴ときめ）を重ねる。実写の手本の肌の、周波数ごとの強さ（styles/skin-texture.json）に合わせた雑音を作り、
-    肌の部位の明るさに掛ける。光の当たる所は強く、陰では弱くする（陰では肌理が見えにくい）。模型を使わないので速く、ぶれない。
-    肌の部位を tile で描き直す方法は、肌をかえってならした（16 周目、肌の平らな面 0.062 → 0.082）"""
+def _grain_noise(H, W, part_tex, seed):
+    """手本の周波数ごとの強さに合わせた雑音（標準偏差 1）"""
+    import numpy as np
+    fy = np.fft.fftfreq(H)[:, None]
+    fx = np.fft.fftfreq(W)[None, :]
+    r = np.hypot(fy, fx) * 2     # 周波数は手本の画素のまま（絵の幅で伸ばすと粒が大きな斑になった）
+    pw = np.array(part_tex["power"])
+    centers = (np.arange(len(pw)) + 0.5) / len(pw)
+    amp = np.sqrt(np.interp(r, centers, pw, left=pw[0], right=0))
+    n = np.real(np.fft.ifft2(np.fft.fft2(np.random.default_rng(seed).normal(size=(H, W))) * amp))
+    return n / max(n.std(), 1e-6)
+
+
+def skin_grain(img, parts, amount=1.0, seed=0, face_amount=0.5):
+    """実写の肌の粒（毛穴ときめ）を重ねる。体（脚と腕）と顔は、実写の手本のそれぞれの部位の周波数ごとの強さ
+    （styles/skin-texture.json の body と face）に合わせた雑音を作り、肌の明るさに足す。顔は弱く（face_amount 倍）、
+    目・眉・唇（顔の中の暗い所と赤い所）には掛けない。体と同じ粒を顔に掛けると、そばかすのような粒が乗った。
+    光の当たる所は強く、陰では弱くする。模型を使わないので速く、ぶれない"""
     import json
     import numpy as np
     from PIL import Image
     from scipy import ndimage
     tex = json.loads(SKIN_TEX.read_text(encoding="utf-8"))
     H, W = img.height, img.width
-    # 周波数は手本の画素のまま使う（手本は人物が小さく写り、絵の幅で伸ばすと粒が大きな斑になった）
-    scale = 1.0
-    fy = np.fft.fftfreq(H)[:, None]
-    fx = np.fft.fftfreq(W)[None, :]
-    r = np.hypot(fy, fx) * 2 * scale                    # 手本の切り抜きの半径（0〜1 がナイキスト）
-    pw = np.array(tex["power"])
-    centers = (np.arange(len(pw)) + 0.5) / len(pw)
-    amp = np.sqrt(np.interp(r, centers, pw, left=pw[0], right=0))
-    rng = np.random.default_rng(seed)
-    n = np.real(np.fft.ifft2(np.fft.fft2(rng.normal(size=(H, W))) * amp))
-    n = n / max(n.std(), 1e-6) * tex["std"] * amount
     seg = np.asarray(parts)
-    skin = np.isin(seg, SKIN)
     a = np.asarray(img).astype(np.float32) / 255
     L = a.mean(2)
-    lit = np.clip(L / max(float(np.median(L[skin])) if skin.any() else 0.5, 1e-3), 0.3, 1.3)   # 明るい所ほど強く
-    w = ndimage.gaussian_filter(skin.astype(np.float32), 2) * lit * skin   # 肌の外（背景）には掛けない
-    o = a + (n * w)[..., None]                            # 明るさに足す（色相は変えない）
+    body = np.isin(seg, (12, 13, 14, 15))
+    face = seg == 11
+    if face.any():
+        red = a[..., 0] - a[..., 1]
+        feat = (L < np.median(L[face]) * 0.8) | (red > np.median(red[face]) + 15 / 255)
+        face = face & ~ndimage.binary_dilation(feat & face, iterations=max(2, round(3 * W / 768)))
+    add = np.zeros((H, W), np.float32)
+    for mask, key, k in ((body, "body", amount), (face, "face", amount * face_amount)):
+        if not mask.any() or key not in tex:
+            continue
+        n = _grain_noise(H, W, tex[key], seed + (7 if key == "face" else 0)) * tex[key]["std"] * k
+        lit = np.clip(L / max(float(np.median(L[mask])), 1e-3), 0.3, 1.3)   # 明るい所ほど強く
+        w = ndimage.gaussian_filter(mask.astype(np.float32), 2) * lit * mask  # 部位の外（背景）には掛けない
+        add += n * w
+    o = a + add[..., None]                               # 明るさに足す（色相は変えない）
     return Image.fromarray(np.clip(o * 255, 0, 255).astype(np.uint8))
+
+
+def recut_to_source(img, parts, src_parts):
+    """描いた人物が元の絵の体の輪郭からはみ出した所（髪と顔を除く）を、背景で埋める（元の輪郭で切り抜き直す）。
+    左の肩が元の輪郭の外へ膨らんでいた。欠けを肌で埋めるだけでは膨らみは消えなかった"""
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+    seg = np.asarray(parts)
+    src = np.asarray(src_parts.resize(img.size, Image.NEAREST)) if src_parts.size != img.size else np.asarray(src_parts)
+    f = img.width / 768
+    A = ndimage.binary_dilation(src > 0, iterations=max(2, round(2 * f)))
+    extra = (seg > 0) & ~A & ~np.isin(seg, (2, 11)) & ~np.isin(src, (2,))
+    extra = ndimage.binary_opening(extra, iterations=1)
+    if not extra.any():
+        return img, 0
+    a = np.asarray(img).astype(np.float32)
+    bg = (seg == 0) & (src == 0)
+    sg = max(4, round(12 * f))
+    den = np.maximum(ndimage.gaussian_filter(bg.astype(np.float32), sg), 1e-3)
+    ref = np.stack([ndimage.gaussian_filter(a[..., c] * bg, sg) / den for c in range(3)], -1)
+    w = ndimage.gaussian_filter(extra.astype(np.float32), 1.2)[..., None]
+    return Image.fromarray(np.clip(a * (1 - w) + ref * w, 0, 255).astype(np.uint8)), int(extra.sum())
 
 
 def skin_sdxl(img, parts, a, log):
@@ -1340,6 +1386,14 @@ def resume(a, im, parts, log, stem, t):
     if a.face > 0:
         r2 = face_ipadapter(pipe, nets, r2, im, a, log) if a.face_mode == "ipadapter" else face_inpaint(pipe, nets, r2, a, log)
         r2.save(a.out / f"{stem}-5-face-{a.face_mode}-f{a.face}-s{a.seed}.png")
+    pn = _parts_of(r2)
+    if a.leg_soften > 0:
+        # 太腿の内側の陰の境目が硬く線のように見えたので、脚の中だけ大きな明るさの段をならす（粒を重ねる前）
+        segn = np.asarray(pn)
+        legs = Image.fromarray(np.where(np.isin(segn, (12, 13)), segn, 0).astype(np.uint8))
+        r2 = deshade(r2, legs, a.leg_soften)
+    r2, xpx = recut_to_source(r2, pn, parts)
+    log("recut_px", xpx)
     if a.grain > 0:
         t1 = time.time()
         r2 = skin_grain(r2, _parts_of(r2), a.grain, a.seed)
@@ -1410,6 +1464,7 @@ def parse(argv):
     ap.add_argument("--asian", action="store_true", help="東アジアの顔に寄せる言葉を足す（顔の描き直しにも同じ言葉を使う）")
     ap.add_argument("--face-px", type=int, default=768, help="顔を描く大きさ")
     ap.add_argument("--grain", type=float, default=0, help="実写の肌の粒を重ねる量（styles/skin-texture.json の強さを 1 とする、0 ならしない）")
+    ap.add_argument("--leg-soften", type=float, default=0, help="脚の陰の境目をならす幅（768 幅の画素、0 ならしない）")
     ap.add_argument("--sdxl-skin", type=float, default=0, help="SDXL の写実の模型で肌だけを描き直す強さ（0 ならしない）")
     ap.add_argument("--s1-hf", type=float, default=0, help="最後に 1 段目の高い周波数を体に戻す幅（0 ならしない）")
     ap.add_argument("--face-mode", choices=("ipadapter", "uncover"), default="ipadapter", help="顔の描き直し方")

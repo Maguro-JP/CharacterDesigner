@@ -388,6 +388,24 @@ class LipsAndContourTest(unittest.TestCase):
 
 
 class SkinGrainTest(unittest.TestCase):
+    def test_grain_amount_judged_by_texture(self):
+        import measure
+        # 15 周目の絵に粒を重ねて skin_texture を測った数字（量 0、0.3、1.0）。粒が無い・多すぎるは落ち、0.3 は通る
+        for v, bad in ((0.523, True), (0.676, False), (2.079, True)):
+            self.assertEqual(bool(measure.judge_shadow({"skin_tex": v})), bad)
+
+    def test_face_grain_skips_eyes_and_lips(self):
+        seg = np.zeros((200, 200), np.uint8)
+        seg[20:180, 40:160] = 11
+        img = np.full((200, 200, 3), 120, np.uint8)
+        img[seg > 0] = (225, 185, 165)
+        img[70:80, 60:90] = (30, 25, 25)               # 目
+        img[140:150, 80:120] = (190, 70, 80)           # 唇
+        out = np.asarray(photoreal.skin_grain(Image.fromarray(img), Image.fromarray(seg), 0.3, 1)).astype(int)
+        self.assertTrue((out[70:80, 60:90] == img[70:80, 60:90]).all())
+        self.assertTrue((out[140:150, 80:120] == img[140:150, 80:120]).all())
+        self.assertGreater(out[100:130, 60:140].std(), 0.3)
+
     def test_grain_breaks_flat_skin_keeps_color(self):
         import measure
         seg = np.zeros((256, 256), np.uint8)

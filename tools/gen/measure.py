@@ -596,6 +596,65 @@ def contour_dev(src_seg, seg):
     return round(float(ndimage.distance_transform_edt(~B)[miss].max()), 1)
 
 
+def leg_shade_width(rgb, seg):
+    """脚の陰の境目の幅（画素、幅 768 にそろえて）。脚の中の明るさの大きな境（σ4 の傾きの上位 5%）で、明るさの差 ÷ 傾きの
+    最大（境を横切るのにかかる幅）の中央値。セルの塗りの段が残る硬い境は 2〜3 画素、なだらかな陰は 10 画素以上になる。
+    太腿の内側の陰の境目が線のように硬く見えた"""
+    from scipy import ndimage
+    f = rgb.shape[1] / 768
+    L = rgb[..., :3].mean(-1)
+    legs = ndimage.binary_erosion(np.isin(seg, (12, 13)), iterations=max(3, round(6 * f)))
+    if legs.sum() < 500:
+        return None
+    g1 = np.hypot(*np.gradient(ndimage.gaussian_filter(L, 1 * f)))
+    g4 = np.hypot(*np.gradient(ndimage.gaussian_filter(L, 4 * f)))
+    sel = legs & (g4 >= np.percentile(g4[legs], 95))
+    d = ndimage.gaussian_filter(L, 8 * f)
+    span = ndimage.maximum_filter(d, size=max(5, round(16 * f))) - ndimage.minimum_filter(d, size=max(5, round(16 * f)))
+    gmax = ndimage.maximum_filter(g1, size=max(3, round(6 * f)))
+    w = span[sel] / np.maximum(gmax[sel], 1e-4) / f
+    return round(float(np.median(w)), 2)
+
+
+def skin_texture(rgb, seg, part="body"):
+    """絵の肌の、周波数ごとの強さを、実写の手本の分布（styles/skin-texture.json）と比べる。絵を手本と同じ幅 768 に縮め、
+    同じ測り方（48 画素の切り抜きの、3 画素のぼかしとの差のパワーを半径 16 段で平均）で測る。返すのは、高い方の 10 段
+    （毛穴ときめの大きさ）での、絵のパワー ÷ 手本の中央値の比の中央値。1 で手本と同じ、小さいと平らな塗り、大きいと粒が多すぎる。
+    肌の平らな面の割合は、粒を足すだけで下がり、多すぎる粒を落とせなかった"""
+    import json
+    from PIL import Image
+    from scipy import ndimage
+    tex = json.loads((ROOT / "styles" / "skin-texture.json").read_text(encoding="utf-8"))
+    W = tex["ref_width"]
+    H = round(rgb.shape[0] * W / rgb.shape[1])
+    im = Image.fromarray((np.clip(rgb[..., :3], 0, 1) * 255).astype(np.uint8)).resize((W, H), Image.LANCZOS)
+    sg = np.asarray(Image.fromarray(seg).resize((W, H), Image.NEAREST))
+    labels = (11,) if part == "face" else (12, 13, 14, 15)
+    L = np.asarray(im.convert("L")).astype(np.float32) / 255
+    hp = L - ndimage.gaussian_filter(L, 3)
+    skin = ndimage.binary_erosion(np.isin(sg, labels), iterations=3)
+    if part == "face" and skin.any():
+        a = np.asarray(im).astype(np.float32)
+        red = a[..., 0] - a[..., 1]
+        skin &= (a.mean(2) > np.median(a.mean(2)[skin]) * 0.8) & (red < np.median(red[skin]) + 15)
+    P_, B = tex["patch"], tex["bins"]
+    yy, xx = np.mgrid[:P_, :P_] - P_ // 2
+    rad = np.hypot(yy, xx) / (P_ / 2)
+    pows = []
+    step = P_ // 2 if part == "face" else P_
+    for y in range(0, H - P_, step):
+        for x in range(0, W - P_, step):
+            if skin[y:y + P_, x:x + P_].mean() > 0.95:
+                q = hp[y:y + P_, x:x + P_]
+                Pw = np.abs(np.fft.fftshift(np.fft.fft2(q - q.mean()))) ** 2
+                pows.append([float(Pw[(rad >= i / B) & (rad < (i + 1) / B)].mean()) for i in range(B)])
+    if not pows:
+        return None
+    mine = np.median(pows, 0)
+    ref = np.array(tex[part]["power"])
+    return round(float(np.median((mine / np.maximum(ref, 1e-9))[B - 10:])), 3)
+
+
 def cast_check(rgb, seg, light_deg=None):
     """床の落ち影の検品。体の陰から読んだ光の向き（light_deg、0° が右、90° が上）で人物の形を床に写したものと比べる。
     6 周目の絵は、影が脚の形をしない左右の塊で、足の裏から離れ、体の陰と逆の向きに伸びていたのに、
