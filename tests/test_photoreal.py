@@ -390,9 +390,8 @@ class LipsAndContourTest(unittest.TestCase):
 class SkinGrainTest(unittest.TestCase):
     def test_grain_amount_judged_by_texture(self):
         import measure
-        # 15 周目の絵に粒を重ねて skin_texture を測った数字（量 0、0.3、1.0、2.0）。基準は手本ごとの値の 10〜90 パーセンタイルで、
-        # 手本の幅が広いため、量 0 と 1.0 も通り、落ちるのは量 2.0 だけ（量 0.3 と 1.0 は見分けられない）
-        for v, bad in ((0.523, False), (0.676, False), (2.079, False), (6.431, True)):
+        # 15 周目の絵に粒を重ねて skin_texture を測った数字（量 0、0.3、1.0、2.0）。粒なしと量 1.0 以上は落ち、0.3 は通る
+        for v, bad in ((0.523, True), (0.676, False), (2.079, True), (6.431, True)):
             self.assertEqual(bool(measure.judge_shadow({"skin_tex": v})), bad)
 
     def test_face_grain_skips_eyes_and_lips(self):
