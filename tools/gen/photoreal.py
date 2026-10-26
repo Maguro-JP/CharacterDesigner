@@ -1104,6 +1104,9 @@ def deblow(img, parts):
     sg = max(4, round(12 * f))
     den = np.maximum(ndimage.gaussian_filter(good.astype(np.float32), sg), 1e-3)
     ref = np.stack([ndimage.gaussian_filter(a[..., c] * good, sg) / den for c in range(3)], -1)
+    # 近くに白飛びしていない肌が無い所は、肌の全体の中央値で埋める（重みの小さい所で割ると黒い塊になった）
+    far = den < 0.05
+    ref[far] = np.median(a[good], axis=0)
     w = ndimage.gaussian_filter(blown.astype(np.float32), 2 * f)[..., None] * skin[..., None]
     o = a * (1 - w) + ref * w
     return Image.fromarray(np.clip(o, 0, 255).astype(np.uint8)), int(blown.sum())
