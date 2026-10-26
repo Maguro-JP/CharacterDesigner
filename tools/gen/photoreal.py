@@ -647,8 +647,12 @@ def _face_qc(img):
 
 def eye_points(img):
     """骨格の点から両目の位置（元の絵の座標）を読む。読めなければ None"""
+    import os
     import tempfile
     import joints
+    if not joints.MODEL.exists() and os.environ.get("CD_FETCH") == "1":
+        import setup   # Actions では模型が無いので取る（無いまま読むと onnxruntime が NO_SUCHFILE で落ちた）
+        setup.fetch_pose()
     with tempfile.TemporaryDirectory() as d:
         f = Path(d) / "x.png"
         img.save(f)
@@ -703,7 +707,11 @@ def face_inpaint(pipe, nets, img, a, log, tries=5, side_px=768):
     log("face_before", {"ok": ok0, **q0})
     t1 = time.time()
     seg = np.asarray(_parts_of(img))
-    eyes = eye_points(img)
+    try:
+        eyes = eye_points(img)
+    except Exception as e:   # 骨格の点が読めなければ、顔の部位の枠で描く（前髪をどける工程はとばす）
+        log("face_eyes_error", f"{type(e).__name__}: {e}")
+        eyes = None
     tm["prep"] = round(time.time() - t1, 1)
     hidden = None
     base = img
