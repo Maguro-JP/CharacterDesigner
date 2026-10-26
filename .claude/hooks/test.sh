@@ -18,6 +18,6 @@ if [ -d .cache/app/lib/fastapi ]; then
 fi
 # 描画アプリ（chatdraw）の試験。ここに入れていなかったため、「描く」を押すと落ちる不具合を通したままマージした
 if [ -d .cache/simple/lib/PySide6 ]; then
-  out="$(QT_QPA_PLATFORM=offscreen PYTHONPATH=.cache/simple/lib:$lib python3 -m unittest chatdraw.tests.test_chatdraw chatdraw.tests.test_presetui 2>&1)" || { echo "$out" | tail -30 >&2; exit 2; }
+  out="$(QT_QPA_PLATFORM=offscreen PYTHONPATH=.cache/simple/lib:$lib python3 -m unittest chatdraw.tests.test_chatdraw chatdraw.tests.test_presetui chatdraw.tests.test_modeldoc 2>&1)" || { echo "$out" | tail -30 >&2; exit 2; }
 fi
 exit 0
