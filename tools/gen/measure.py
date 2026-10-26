@@ -411,6 +411,90 @@ def color_keep(ref, rgb, ref_seg, seg, labels):
     return out
 
 
+def floor_ref(L, bg):
+    """背景（床と壁）の明るさの見込み。行ごとの背景の中央値（撮影の背景は上下にだけなだらかに変わる）。落ち影はこれより暗い所"""
+    rows = np.array([np.median(L[y][bg[y]]) if bg[y].sum() > 20 else np.nan for y in range(L.shape[0])])
+    idx = np.arange(len(rows))
+    ok = ~np.isnan(rows)
+    rows = np.interp(idx, idx[ok], rows[ok]) if ok.any() else np.full(len(rows), float(L.mean()))
+    return rows[:, None] * np.ones((1, L.shape[1]))
+
+
+def feet_line(body):
+    """足の裏の行（人物の一番下）と、足の裏の画素（下から 1.5% の帯）"""
+    ys, xs = np.nonzero(body)
+    foot = int(ys.max())
+    H = body.shape[0]
+    sole = body & (np.arange(H)[:, None] >= foot - max(3, int(0.015 * H)))
+    return foot, sole
+
+
+def project_shadow(body, light_deg, squash=0.22, lean=0.9):
+    """人物の切り抜きを、足の裏を床の線として、光と逆の向きの床へ倒して写した形（真偽の配列）。
+    光の左右（cos）の逆へ、高さ h の点を横に h×lean×|cos|、奥へ h×squash だけ動かす（床は奥ほど上に写る）"""
+    from scipy import ndimage
+    H, W = body.shape
+    ys, xs = np.nonzero(body)
+    foot, _ = feet_line(body)
+    h = (foot - ys).astype(np.float32)
+    dx = -np.cos(np.radians(light_deg))
+    sx = np.round(xs + dx * h * lean).astype(int)
+    sy = np.round(foot - h * squash).astype(int)
+    ok = (sx >= 0) & (sx < W) & (sy >= 0) & (sy < H)
+    m = np.zeros((H, W), bool)
+    m[sy[ok], sx[ok]] = True
+    f = W / 768
+    return ndimage.binary_closing(m, iterations=max(2, round(3 * f)))
+
+
+def cast_check(rgb, seg, light_deg):
+    """床の落ち影の検品。体の陰から読んだ光の向き（light_deg、0° が右、90° が上）で人物の形を床に写したものと比べる。
+    6 周目の絵は、影が脚の形をしない左右の塊で、足の裏から離れ、体の陰と逆の向きに伸びていたのに、
+    足元の暗さだけを見る検品（cast）が通した。
+    cast_iou: 写した形（人物の外）と、実際の影（背景の見込みより 10% 以上暗い所）の重なり
+    contact: 足の裏の真下 1〜2% の帯で影になっている割合（接地の影。無ければ足が浮いて見える）
+    cast_side: 実際の影のうち、足の裏から見て光と逆の側にある割合（体の陰の向きと影の向きの一致）
+    cast_spill: 実際の影のうち、写した形（少し広げたもの）の外にはみ出た割合（脚の形をしない塊）
+    halo: 人物の縁のすぐ外（1〜6 画素）が、少し外（10〜24 画素）の背景より明るい割合（白いにじみ）"""
+    from scipy import ndimage
+    H, W = seg.shape
+    f = W / 768
+    L = rgb[..., :3].mean(-1)
+    body = seg > 0
+    bg = ~ndimage.binary_dilation(body, iterations=max(2, round(3 * f)))
+    ref = floor_ref(L, bg)
+    foot, sole = feet_line(body)
+    shade = bg & (L < 0.9 * ref) & (np.arange(H)[:, None] > foot - 0.35 * H)
+    shade = ndimage.binary_opening(shade, iterations=2)
+    exp = project_shadow(body, light_deg) & ~body
+    out = {"cast_iou": round(float((shade & exp).sum() / max((shade | exp).sum(), 1)), 3)}
+    below = np.zeros_like(body)
+    sy, sx = np.nonzero(sole)
+    for dy in range(1, max(3, int(0.01 * H))):   # 足の裏の真下 1% の帯
+        yy = np.clip(sy + dy, 0, H - 1)
+        below[yy, sx] = True
+    below &= ~body
+    out["contact"] = round(float((L[below] < 0.85 * ref[below]).mean()), 3) if below.any() else 0.0
+    if shade.sum() > 50:
+        fx = float(sx.mean()) if len(sx) else W / 2
+        want = -np.sign(np.cos(np.radians(light_deg)))
+        side = np.sign(np.nonzero(shade)[1] - fx)
+        out["cast_side"] = round(float((side == want).mean()), 3) if want else 1.0   # 光と逆の側にある影の割合
+        out["cast_spill"] = round(float((shade & ~ndimage.binary_dilation(exp, iterations=max(3, round(12 * f)))).sum() / shade.sum()), 3)
+    else:
+        out["cast_side"], out["cast_spill"] = 0.0, 1.0
+    # 縁の内側も見る（部位分けは白いにじみを人物に含める）。にじみは白い（彩度が低い）
+    mx, mn = rgb[..., :3].max(-1), rgb[..., :3].min(-1)
+    white = (mx - mn) / np.maximum(mx, 1e-3) < 0.15
+    near = ndimage.binary_dilation(body, iterations=max(2, round(6 * f))) & ~ndimage.binary_erosion(body, iterations=max(2, round(4 * f)))
+    far = ndimage.binary_dilation(body, iterations=max(4, round(24 * f))) & ~ndimage.binary_dilation(body, iterations=max(3, round(10 * f)))
+    if near.any() and far.any():
+        sg = max(3, round(12 * f))
+        Lf = ndimage.gaussian_filter(L * far, sg) / np.maximum(ndimage.gaussian_filter(far.astype(np.float32), sg), 1e-3)   # 少し外の背景の明るさを縁まで広げる
+        out["halo"] = round(float(((L > Lf + 0.06) & white)[near].mean()), 3)
+    return out
+
+
 PHOTO_NORMS = ROOT / "styles" / "photoreal-norms.json"
 
 
@@ -422,6 +506,10 @@ def judge_shadow(m: dict, norms: dict | None = None) -> list[dict]:
     for c in norms["checks"]:
         v = m.get(c["path"])
         if v is None:
+            continue
+        if isinstance(v, bool):
+            if v != c.get("equals", True):
+                out.append({"path": c["path"], "value": v, "equals": c.get("equals", True), "means": c["means"]})
             continue
         lo, hi = c.get("min"), c.get("max")
         if (lo is not None and v < lo) or (hi is not None and v > hi):

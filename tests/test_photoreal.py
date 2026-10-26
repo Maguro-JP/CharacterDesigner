@@ -232,3 +232,27 @@ class FaceStepsTest(unittest.TestCase):
         self.assertTrue(disk[60, 52])
         self.assertLess(o[60, 47:57].mean(), 60)     # 反転した目が下絵に入る
         self.assertGreater(o[52, 52].mean(), 150)    # 目の周りは見えている目の周りの肌
+
+
+class CastCheckTest(unittest.TestCase):
+    def test_round6_floor_shadow_fails(self):
+        import measure
+        # 6 周目の rv-asian の最後の絵（run 40233249025）を cast_check で測った数字。影は左右の塊で、縁に白いにじみがある。
+        # 足の真下は元の絵の塊で暗いので、接地（contact 0.78）では落ちない。形・向き・はみ出し・にじみで落ちる
+        bad = {"cast_iou": 0.386, "contact": 0.78, "cast_side": 0.79, "cast_spill": 0.372, "halo": 0.128}
+        self.assertEqual({f["path"] for f in measure.judge_shadow(bad)}, {"cast_iou", "cast_side", "cast_spill", "halo"})
+
+    def test_projected_shadow_with_contact_passes(self):
+        import measure
+        H, W = 600, 400
+        seg = np.zeros((H, W), np.uint8)
+        seg[150:520, 180:200] = 12                     # 脚 2 本
+        seg[150:520, 210:230] = 13
+        seg[100:300, 170:240] = 4
+        img = Image.new("RGB", (W, H), (150, 150, 150))
+        out = photoreal.cast_shadow(img, Image.fromarray(seg), None, 135, 0.5)
+        m = measure.cast_check(np.asarray(out, np.float32) / 255, seg, 135)
+        self.assertGreaterEqual(m["cast_iou"], 0.6)
+        self.assertGreaterEqual(m["contact"], 0.6)
+        self.assertGreaterEqual(m["cast_side"], 0.85)
+        self.assertLessEqual(m["cast_spill"], 0.2)

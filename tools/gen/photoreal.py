@@ -336,7 +336,7 @@ def _parts_of(im):
         return edit.parts(f).copy()
 
 
-def check(src, out_img, src_parts, log, tag, ref=None):
+def check(src, out_img, src_parts, log, tag, ref=None, light_deg=135.0):
     """影の検品（measure.shadow と styles/photoreal-norms.json）と、肌・髪・線・色の保ち方を並べて記録する。
     色は ref（1 段目の絵。無ければ元の絵）と比べる"""
     import numpy as np
@@ -347,6 +347,7 @@ def check(src, out_img, src_parts, log, tag, ref=None):
     seg = np.asarray(_parts_of(out_img))
     sh = measure.shadow(rgb, seg, edit.LABELS)
     sh["normal_corr"], sh["normal_light_deg"] = normal_corr(out_img, depth_map(out_img), seg)
+    sh.update(measure.cast_check(rgb, seg, light_deg))
     km = keep_metrics(src, out_img, src_parts)
     r = ref or src
     rs = np.asarray(src_parts) if ref is None else np.asarray(_parts_of(ref))
@@ -775,44 +776,101 @@ def face_inpaint(pipe, nets, img, a, log, tries=5, side_px=768):
     return best[1]
 
 
-def cast_shadow(img, parts, depth, deg=135.0, opacity=0.45):
-    """床に落ち影を合成する。人物の形を、足元を支点に光と逆の向きへ倒して床に写す（光が左上なら右の奥へ）。
-    奥行きで手前ほど高い所（体の厚み）として倒れ方を強め、足から離れるほどぼかして薄くする。背景だけを暗くする。
-    元の絵の床は足元が周りより明るく（cast −0.5）、人物が浮いて見えた"""
+def clear_floor(img, parts):
+    """元の絵の床の影を消す（背景の行ごとの色で埋める）。元のアニメの絵の影は脚の形をしない左右の塊で、写真に描き直しても
+    その形のまま残り、足が浮いて見えた。正しい影は cast_shadow で付け直す"""
     import numpy as np
     from PIL import Image
     from scipy import ndimage
-    p = np.asarray(parts)
-    body = p != BACKGROUND
+    import measure
+    a = np.asarray(img).astype(np.float32)
+    body = np.asarray(parts) != BACKGROUND
+    f = img.width / 768
+    bg = ~ndimage.binary_dilation(body, iterations=max(2, round(2 * f)))
+    L = a.mean(2) / 255
+    ref = measure.floor_ref(L, bg)
+    foot, _ = measure.feet_line(body)
+    H = a.shape[0]
+    dark = bg & (L < 0.97 * ref) & (np.arange(H)[:, None] > foot - 0.3 * H)
+    dark = ndimage.binary_dilation(ndimage.binary_opening(dark, iterations=2), iterations=max(3, round(8 * f))) & bg
+    known = bg & ~dark
+    fill = a.copy()
+    w = known.astype(np.float32)
+    k = np.ones((7, 7), np.float32)
+    small = max(1, int(round(4 * f)))                    # 縮めて埋めて戻す（大きな塊を 1 画素ずつ埋めると遅い）
+    fs, ws = fill[::small, ::small] * w[::small, ::small, None], w[::small, ::small]
+    rem = dark[::small, ::small].copy()
+    while rem.any():
+        num = np.stack([ndimage.convolve(fs[..., c], k, mode="nearest") for c in range(3)], -1)
+        den = ndimage.convolve(ws, k, mode="nearest")
+        new = rem & (den > 0)
+        if not new.any():
+            break
+        fs[new] = num[new] / den[new][:, None]
+        ws[new] = 1
+        rem &= ~new
+    fs = np.stack([ndimage.gaussian_filter(fs[..., c], 2) for c in range(3)], -1)
+    up = np.asarray(Image.fromarray(np.clip(fs, 0, 255).astype(np.uint8)).resize((a.shape[1], a.shape[0]), Image.BILINEAR)).astype(np.float32)
+    wm = ndimage.gaussian_filter(dark.astype(np.float32), 2 * f)[..., None] * bg[..., None]
+    o = a * (1 - wm) + up * wm
+    return Image.fromarray(np.clip(o, 0, 255).astype(np.uint8))
+
+
+def cast_shadow(img, parts, depth=None, deg=135.0, opacity=0.45):
+    """床に落ち影を付ける。人物の切り抜きを、光（deg、体の陰を付けた光）と逆の向きへ床に写し（measure.project_shadow）、
+    足から離れるほどぼかして薄くする。足の裏の真下には濃く小さい接地の影を必ず置く（無いと足が浮いて見えた）。
+    人物の上には塗らない"""
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+    import measure
+    body = np.asarray(parts) != BACKGROUND
     if not body.any():
         return img
     H, W = body.shape
     f = W / 768
-    ys, xs = np.nonzero(body)
-    foot = ys.max()
-    z = np.asarray(depth.convert("L")).astype(np.float32)[ys, xs] / 255
-    h = (foot - ys).astype(np.float32)
-    dx = -np.cos(np.radians(deg))                    # 光と逆の左右
-    sx = xs + dx * h * 0.8 * (0.8 + 0.4 * z)
-    sy = foot - h * 0.18                             # 奥へ倒れるので上に縮んで写る
-    ok = (sx >= 0) & (sx < W) & (sy >= 0) & (sy < H)
-    acc = np.zeros((H, W), np.float32)
-    far = np.zeros((H, W), np.float32)
-    np.add.at(acc, (sy[ok].astype(int), sx[ok].astype(int)), 1)
-    np.add.at(far, (sy[ok].astype(int), sx[ok].astype(int)), h[ok])
-    m = ndimage.binary_closing(acc > 0, iterations=max(2, round(4 * f)))
-    dist = np.where(acc > 0, far / np.maximum(acc, 1), 0)
-    dist = ndimage.grey_dilation(dist, size=max(3, round(6 * f))) / max(foot - ys.min(), 1)
-    near = ndimage.gaussian_filter(m.astype(np.float32), 3 * f)
-    farb = ndimage.gaussian_filter(m.astype(np.float32), 14 * f)
-    k = np.clip(ndimage.gaussian_filter(dist, 8 * f), 0, 1)
-    s = (near * (1 - k) + farb * k) * (1 - 0.5 * k)  # 足から離れるほどぼけて薄い
-    cy, cx = foot, int(xs[ys > foot - 0.03 * H].mean())
-    yy, xx = np.mgrid[:H, :W]
-    contact = np.exp(-(((xx - cx) / (40 * f)) ** 2 + ((yy - cy) / (8 * f)) ** 2))   # 足元の接地の影
-    s = np.clip(np.maximum(s, contact), 0, 1) * ~body
-    a = np.asarray(img).astype(np.float32) * (1 - opacity * s)[..., None]
-    return Image.fromarray(np.clip(a, 0, 255).astype(np.uint8))
+    foot, sole = measure.feet_line(body)
+    sh = measure.project_shadow(body, deg).astype(np.float32)
+    yy = np.arange(H)[:, None] * np.ones((1, W))
+    far = np.clip((foot - yy) / max(0.25 * H, 1), 0, 1)               # 足から奥へ離れるほど 1
+    s = ndimage.gaussian_filter(sh, 2 * f) * (1 - far) + ndimage.gaussian_filter(sh, 10 * f) * far
+    s *= 1 - 0.5 * far
+    # 接地の影: 足（下から 5% の帯）の列ごとの一番下の画素の真下に、薄い帯を置いて少しぼかす（爪先だけでなく踵の下にも付く）
+    contact = np.zeros((H, W), np.float32)
+    feet = body & (np.arange(H)[:, None] >= foot - 0.05 * H)
+    cols = np.nonzero(feet.any(0))[0]
+    bottom = H - 1 - np.argmax(feet[::-1, cols], axis=0)
+    depth_px = max(3, int(0.012 * H))
+    for x, yb in zip(cols, bottom):
+        contact[yb:min(yb + depth_px, H), x] = 1
+    contact = ndimage.gaussian_filter(contact, (1.5 * f, 2.5 * f))
+    a = np.asarray(img).astype(np.float32)
+    dark = np.maximum(opacity * s, 0.6 * np.clip(contact * 1.6, 0, 1)) * ~body
+    return Image.fromarray(np.clip(a * (1 - dark[..., None]), 0, 255).astype(np.uint8))
+
+
+def dehalo(img, parts):
+    """人物の縁のすぐ外の白いにじみ（ハロー）を、少し外の背景の色で埋める。光の付け直しと 2 段目の描き直しで、縁の外に
+    明るい帯と白い塊が残った"""
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+    body = np.asarray(parts) != BACKGROUND
+    f = img.width / 768
+    a = np.asarray(img).astype(np.float32)
+    # 部位分けは白いにじみを人物に含めることが多いので、縁の内側 4 画素も見る。肌は彩度があり、にじみは白い（彩度が低い）
+    near = ndimage.binary_dilation(body, iterations=max(2, round(8 * f))) & ~ndimage.binary_erosion(body, iterations=max(2, round(4 * f)))
+    far = ndimage.binary_dilation(body, iterations=max(4, round(28 * f))) & ~ndimage.binary_dilation(body, iterations=max(3, round(12 * f)))
+    sg = max(3, round(14 * f))
+    den = np.maximum(ndimage.gaussian_filter(far.astype(np.float32), sg), 1e-3)
+    ref = np.stack([ndimage.gaussian_filter(a[..., c] * far, sg) / den for c in range(3)], -1)
+    mx, mn = a.max(2), a.min(2)
+    sat = (mx - mn) / np.maximum(mx, 1)
+    hot = near & (a.mean(2) > ref.mean(2) + 0.04 * 255) & (sat < 0.15)
+    hot = ndimage.binary_dilation(hot, iterations=1) & near
+    w = ndimage.gaussian_filter(hot.astype(np.float32), 1.0 * f)[..., None]
+    o = a * (1 - w) + ref * w
+    return Image.fromarray(np.clip(o, 0, 255).astype(np.uint8))
 
 
 def stage2(pipe, src, a, log):
@@ -967,7 +1025,7 @@ def main(argv=None) -> int:
         if a.post_relight > 0:
             r2 = relight(r2, p2, d2, a.light_deg, amount=a.post_relight)
         if a.cast > 0:
-            r2 = cast_shadow(r2, p2, d2, a.light_deg, a.cast)
+            r2 = cast_shadow(clear_floor(dehalo(r2, p2), p2), p2, d2, a.light_deg, a.cast)
         r2.save(a.out / f"{stem}-4-light-r{a.post_relight}-c{a.cast}-s{a.seed}.png")
         log("post_light_s", round(time.time() - t1, 1))
         if a.check:
