@@ -719,16 +719,16 @@ def face_inpaint(pipe, nets, img, a, log, tries=5, side_px=None):
     if eyes is not None:
         base, hidden, dist = uncover_eye(img, seg, eyes)
         (lx, ly), (rx, ry) = eyes
-        # 頭の全体を枠にする（目の間の 5.5 倍、髪の上まで）。目の間の 2.6 倍では 147 画素と狭く、5.2 倍に拡大していた
-        cx, cy, side = (lx + rx) / 2, (ly + ry) / 2 + dist * 0.2, int(dist * 5.5)
+        # 目の間の 2.6 倍の枠（7 周目）。頭の全体（5.5 倍、拡大 2 倍）にした 8 周目は、前髪の線と頬の白い斑が出て悪くなった
+        cx, cy, side = (lx + rx) / 2, (ly + ry) / 2 + dist * 0.35, int(dist * 2.6)
     else:
         b = closeup._bbox(seg == 11)
         if b is None:
             return img
         cx, cy, side = (b[0] + b[2]) / 2, (b[1] + b[3]) / 2, int(max(b[2] - b[0], b[3] - b[1]) * 1.3)
     side = max(min(side, img.width, img.height), 64)
-    if side_px is None:   # 拡大は 2〜3 倍に収め、描く大きさの上限は a.face_px（8 の倍数）
-        side_px = int(min(max(side * 2, 512), a.face_px)) // 8 * 8
+    if side_px is None:
+        side_px = a.face_px // 8 * 8
     left = int(min(max(cx - side / 2, 0), img.width - side))
     top = int(min(max(cy - side / 2, 0), img.height - side))
     box = (left, top, left + side, top + side)
@@ -756,11 +756,16 @@ def face_inpaint(pipe, nets, img, a, log, tries=5, side_px=None):
                 num_inference_steps=a.steps, guidance_scale=a.guidance, generator=torch.Generator().manual_seed(a.seed + 100 + k),
                 width=side_px, height=side_px).images[0]
         tm[f"draw{k}"] = round(time.time() - t2, 1)
-        if bangs is not None:   # 前髪を毛筋で重ね戻す（透けた前髪にする。塗りで戻すと目がまた隠れる）
+        if k == 0:   # 崩れの切り分けのため、描いたまま・前髪を戻した後を残す
+            r.save(a.out / "face-try0-raw.png")
+            crop.save(a.out / "face-try0-underdraw.png")
+        if bangs is not None and a.bangs:   # 前髪を毛筋で重ね戻す（透けた前髪にする。塗りで戻すと目がまた隠れる）
             hair_rgb = np.asarray(orig_crop).astype(np.float32)
             rr = np.asarray(r).astype(np.float32)
             w = (bangs * 0.8)[..., None]
             r = Image.fromarray(np.clip(rr * (1 - w) + hair_rgb * w, 0, 255).astype(np.uint8))
+        if k == 0:
+            r.save(a.out / "face-try0-bangs.png")
         small = r.resize((side, side), Image.LANCZOS)
         pm = mask.resize((side, side), Image.LANCZOS)
         out = img.copy()
@@ -831,45 +836,57 @@ def composite_person(scene, person, parts, feather=1.5):
     from PIL import Image
     from scipy import ndimage
     body = (np.asarray(parts) != BACKGROUND).astype(np.float32)
-    al = np.clip(ndimage.gaussian_filter(body, feather * scene.width / 768), 0, 1) * body.max()
-    al = np.maximum(al, ndimage.binary_erosion(body > 0, iterations=2))[..., None]
+    # 内側へだけぼかす（外へ広げると、人物の絵の側の明るい床が影の上に重なって縁が白く光った）
+    al = np.clip((ndimage.gaussian_filter(body, feather * scene.width / 768) - 0.5) * 2, 0, 1)[..., None]
     o = np.asarray(person).astype(np.float32) * al + np.asarray(scene).astype(np.float32) * (1 - al)
     return Image.fromarray(np.clip(o, 0, 255).astype(np.uint8))
 
 
 def cast_shadow(img, parts, depth=None, deg=135.0, opacity=0.45):
-    """床に落ち影を付ける。人物の切り抜きを、光（deg、体の陰を付けた光）と逆の向きへ床に写し（measure.project_shadow）、
-    足から離れるほどぼかして薄くする。足の裏の真下には濃く小さい接地の影を置く（無いと足が浮いて見えた）。
-    影は床にだけ付け、人物の切り抜きを上に重ねる（composite_person）。接地の影を横に広げると、足の縁を黒い線が囲んだ"""
+    """床に落ち影を付ける。人物の切り抜きの全体（両脚と胴）を、光（deg、体の陰を付けた光）と逆の向きへ床に写し
+    （measure.project_shadow、脚はその足の裏が支点）、足から離れるほどぼかして薄くする。左右の足ごとに、その足の裏の
+    真下に濃く小さい接地の影を置く。影は人物を除いた床（床を当てはめた面で人物の下も埋めた絵）に付け、人物の切り抜きを
+    縁 1.5 画素ぼかして上に重ねる。人物ごと暗くしてから重ねると、縁のぼかしの所に暗くした肌が混ざり、爪先の下に
+    赤黒い縁が出た"""
     import numpy as np
     from PIL import Image
     from scipy import ndimage
     import measure
-    body = np.asarray(parts) != BACKGROUND
+    seg = np.asarray(parts)
+    body = seg != BACKGROUND
     if not body.any():
         return img
     H, W = body.shape
     f = W / 768
-    foot, sole = measure.feet_line(body)
-    sh = measure.project_shadow(body, deg).astype(np.float32)
+    a = np.asarray(img).astype(np.float32)
+    foot, _ = measure.feet_line(body)
+    bg = ~ndimage.binary_dilation(body, iterations=max(2, round(2 * f)))
+    lower = np.arange(H)[:, None] > foot - 0.3 * H
+    floor = a.copy()
+    under = ndimage.binary_dilation(body, iterations=max(2, round(3 * f)))
+    # 人物の下も、近くの床の色で埋める（床全体に当てはめた面を上の方まで伸ばすと明るすぎ、縁が白く光った）
+    sg = max(4, round(12 * f))
+    den = np.maximum(ndimage.gaussian_filter(bg.astype(np.float32), sg), 1e-3)
+    local = np.stack([ndimage.gaussian_filter(a[..., c] * bg, sg) / den for c in range(3)], -1)
+    floor[under] = local[under]
+    sh = measure.project_shadow(body, deg, seg=seg).astype(np.float32)
     yy = np.arange(H)[:, None] * np.ones((1, W))
     far = np.clip((foot - yy) / max(0.25 * H, 1), 0, 1)
     s = ndimage.gaussian_filter(sh, 2 * f) * (1 - far) + ndimage.gaussian_filter(sh, 10 * f) * far
     s *= 1 - 0.5 * far
     contact = np.zeros((H, W), np.float32)
-    feet = body & (np.arange(H)[:, None] >= foot - 0.05 * H)
-    cols = np.nonzero(feet.any(0))[0]
-    bottom = H - 1 - np.argmax(feet[::-1, cols], axis=0)
     depth_px = max(3, int(0.012 * H))
-    for x, yb in zip(cols, bottom):
-        if yb >= foot - 0.02 * H:          # 床に着いている所（足の裏の近く）だけ。脛の横には付けない
-            contact[yb:min(yb + depth_px, H), x] = np.linspace(1, 0.3, min(yb + depth_px, H) - yb)
+    for ft in measure.feet(seg):                                     # 足ごとに、その足の裏の真下
+        fy, fx = np.nonzero(ft["sole"])
+        for x in np.unique(fx):
+            yb = fy[fx == x].max()
+            if yb >= ft["bottom"] - 0.02 * H:
+                n = min(yb + depth_px, H) - yb
+                contact[yb:yb + n, x] = np.linspace(1, 0.3, n)
     contact = ndimage.gaussian_filter(contact, (1.2 * f, 1.5 * f))
-    a = np.asarray(img).astype(np.float32)
     dark = np.maximum(opacity * s, 0.65 * np.clip(contact * 1.4, 0, 1))
-    scene = Image.fromarray(np.clip(a * (1 - dark[..., None]), 0, 255).astype(np.uint8))
+    scene = Image.fromarray(np.clip(floor * (1 - dark[..., None]), 0, 255).astype(np.uint8))
     return composite_person(scene, img, parts)
-
 
 def dehalo(img, parts, band=3):
     """縁の白いにじみ（ハロー）を消す。切り抜きの縁の内側 band 画素を、さらに内側の色（一番近い内側の画素）で塗り直し、
@@ -889,8 +906,9 @@ def dehalo(img, parts, band=3):
     inside = a[idx[0], idx[1]]
     o = a.copy()
     # 肌の部位は縁から 10 画素まで見る（部位分けが手の周りのにじみを腕に含めた）。白い服（水着）は塗り直さない
-    skin = np.isin(np.asarray(parts), SKIN)
-    skin_in = ndimage.binary_erosion(skin, iterations=max(2, round(10 * f)) + 1)
+    # 背景に接する肌の縁だけ（顔と髪の境は塗り直さない。塗り直すと頬に斑ができた）
+    skin = np.isin(np.asarray(parts), SKIN) & ndimage.binary_dilation(~body, iterations=max(2, round(10 * f)) + 1)
+    skin_in = ndimage.binary_erosion(np.isin(np.asarray(parts), SKIN), iterations=max(2, round(10 * f)) + 1)
     sidx = ndimage.distance_transform_edt(~skin_in, return_distances=False, return_indices=True)
     hot_s = skin & ~skin_in & white
     o[hot_s] = a[sidx[0], sidx[1]][hot_s]
@@ -1022,7 +1040,8 @@ def parse(argv):
     ap.add_argument("--face", type=float, default=0, help="最後に顔を inpaint で描き直す強さ（0 ならしない）")
     ap.add_argument("--model", choices=sorted(CHECKPOINTS), default="rv", help="写実の模型")
     ap.add_argument("--asian", action="store_true", help="東アジアの顔に寄せる言葉を足す（顔の描き直しにも同じ言葉を使う）")
-    ap.add_argument("--face-px", type=int, default=768, help="顔を描く大きさの上限")
+    ap.add_argument("--face-px", type=int, default=768, help="顔を描く大きさ")
+    ap.add_argument("--no-bangs", dest="bangs", action="store_false", help="描いた顔に前髪の毛筋を重ね戻さない（切り分け用）")
     ap.add_argument("--resume", default="", help="この絵（2 段目と高い周波数の戻しの後、-3-hf）から光と影と顔だけを掛け直す。draw-results:<path> も受ける")
     ap.add_argument("--final-hf", type=float, default=0, help="工程の最後に高い周波数を戻す幅（0 ならしない）")
     ap.add_argument("--check", action="store_true", help="段ごとに影の検品と肌・髪・線の保ち方を測る（部位分けの模型を読む）")

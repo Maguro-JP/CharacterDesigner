@@ -182,7 +182,7 @@ class CastShadowTest(unittest.TestCase):
         o = np.asarray(photoreal.cast_shadow(img, Image.fromarray(seg), depth, 135, 0.5)).astype(int)
         from scipy import ndimage
         self.assertTrue((o[ndimage.binary_erosion(seg > 0, iterations=3)] == 180).all())   # 人物は暗くしない（縁は 1〜2 画素ぼかして重ねる）
-        right, left = o[300:350, 200:290].mean(), o[300:350, 10:100].mean()
+        right, left = o[250:345, 175:260].mean(), o[250:345, 40:125].mean()
         self.assertLess(right, left - 3)                  # 左上の光なら影は右へ
         self.assertLess(o[352, 150, 0], 170)              # 足元の接地の影
 
@@ -242,6 +242,21 @@ class CastCheckTest(unittest.TestCase):
         # 接地は、足の下の暗さだけで測ると 0.78 で通った。写した影とのつながりで測ると 0.0
         bad = {"cast_iou": 0.386, "contact": 0.0, "cast_side": 0.79, "cast_spill": 0.372, "halo": 0.128}
         self.assertEqual({f["path"] for f in measure.judge_shadow(bad)}, set(bad))
+
+    def test_round8_thin_one_foot_shadow_fails(self):
+        import measure
+        # 8 周目の最後の絵（run 40258442824）。細い尾のような影で、左右の足とも写した影につながらない
+        bad = {"cast_iou": 0.016, "contact": 0.0, "cast_thick": 0.457, "cast_side": 0.973, "cast_spill": 0.853, "halo": 0.092}
+        self.assertEqual({f["path"] for f in measure.judge_shadow(bad)}, {"cast_iou", "contact", "cast_thick", "cast_spill", "halo"})
+
+    def test_feet_found_separately(self):
+        import measure
+        seg = np.zeros((600, 400), np.uint8)
+        seg[150:520, 180:200] = 12
+        seg[150:500, 215:235] = 12                     # 片足が上がっている
+        f = measure.feet(seg)
+        self.assertEqual(len(f), 2)
+        self.assertEqual(sorted(x["bottom"] for x in f), [499, 519])
 
     def test_blob_under_feet_is_not_contact(self):
         import measure

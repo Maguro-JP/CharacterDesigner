@@ -429,17 +429,61 @@ def feet_line(body):
     return foot, sole
 
 
-def project_shadow(body, light_deg, squash=0.22, lean=0.9):
-    """人物の切り抜きを、足の裏を床の線として、光と逆の向きの床へ倒して写した形（真偽の配列）。
-    光の左右（cos）の逆へ、高さ h の点を横に h×lean×|cos|、奥へ h×squash だけ動かす（床は奥ほど上に写る）"""
+def feet(seg, labels=None):
+    """左右の足ごとの、足の裏の行（bottom）、足の裏の画素（sole）、足の列の範囲（x0, x1）。
+    列ごとの人物の下端の山を足とし、離れた（幅の 3% 以上）2 つまでを取る。部位分けの脚の番号（12・13）は、
+    片脚が両足の下まで覆うことがあり、足を分けるのに使えなかった"""
+    from scipy import ndimage
+    body = seg > 0
+    H, W = body.shape
+    ys, _ = np.nonzero(body)
+    top, foot = ys.min(), ys.max()
+    cols = body.any(0)
+    b = np.where(cols, H - 1 - np.argmax(body[::-1], axis=0), -1).astype(np.float32)
+    low = foot - 0.1 * (foot - top)
+    b[b < low] = -1                                   # 下の 10% に届かない列（手など）は足でない
+    bs = ndimage.maximum_filter1d(b, size=3)
+    gap = max(3, int(0.03 * W))
+    order = np.argsort(-bs)
+    peaks = []
+    for x in order:
+        if bs[x] < 0 or len(peaks) == 2:
+            break
+        if all(abs(x - p) > gap * 2 for p in peaks) and bs[x] >= foot - 0.05 * H:
+            peaks.append(int(x))
+    out = []
+    for p in sorted(peaks):
+        x0 = p
+        while x0 > 0 and b[x0 - 1] >= low and not any(q != p and abs(x0 - 1 - q) < abs(x0 - 1 - p) for q in peaks):
+            x0 -= 1
+        x1 = p
+        while x1 < W - 1 and b[x1 + 1] >= low and not any(q != p and abs(x1 + 1 - q) < abs(x1 + 1 - p) for q in peaks):
+            x1 += 1
+        bottom = int(b[p])
+        sole = np.zeros_like(body)
+        sole[:, x0:x1 + 1] = body[:, x0:x1 + 1] & (np.arange(H)[:, None] >= bottom - max(3, int(0.03 * H)))
+        out.append({"label": len(out) + 1, "bottom": bottom, "sole": sole, "x0": x0, "x1": x1, "cx": float(p)})
+    return out
+
+
+def project_shadow(body, light_deg, squash=0.45, lean=0.6, seg=None):
+    """人物の切り抜きの全体（両脚と胴）を、光と逆の向きの床へ倒して写した形（真偽の配列）。高さ h の点を、
+    横へ h×lean、奥へ h×squash だけ動かす（床は奥ほど上に写る）。脚の画素は、その脚の足の裏を支点にする（片足が上がって
+    いても、その足から影が出る）。奥へ 0.22・横へ 0.9 で倒すと、脚 2 本と胴の幅が潰れて細い尾のような影になった"""
     from scipy import ndimage
     H, W = body.shape
     ys, xs = np.nonzero(body)
     foot, _ = feet_line(body)
-    h = (foot - ys).astype(np.float32)
+    pivot = np.full(len(ys), float(foot))
+    if seg is not None:   # 脚の下半分（足の列の範囲の画素）は、その足の裏を支点にする
+        knee = foot - 0.25 * (foot - ys.min())
+        for ft in feet(seg):
+            sel = (xs >= ft["x0"]) & (xs <= ft["x1"]) & (ys >= knee)
+            pivot[sel] = ft["bottom"]
+    h = np.clip(pivot - ys, 0, None).astype(np.float32)
     dx = -np.cos(np.radians(light_deg))
     sx = np.round(xs + dx * h * lean).astype(int)
-    sy = np.round(foot - h * squash).astype(int)
+    sy = np.round(pivot - h * squash).astype(int)
     ok = (sx >= 0) & (sx < W) & (sy >= 0) & (sy < H)
     m = np.zeros((H, W), bool)
     m[sy[ok], sx[ok]] = True
@@ -466,26 +510,44 @@ def cast_check(rgb, seg, light_deg):
     foot, sole = feet_line(body)
     shade = bg & (L < 0.9 * ref) & (np.arange(H)[:, None] > foot - 0.35 * H)
     shade = ndimage.binary_opening(shade, iterations=2)
-    exp = project_shadow(body, light_deg) & ~body
+    exp = project_shadow(body, light_deg, seg=seg) & ~body
     out = {"cast_iou": round(float((shade & exp).sum() / max((shade | exp).sum(), 1)), 3)}
-    below = np.zeros_like(body)
-    sy, sx = np.nonzero(sole)
-    for dy in range(1, max(3, int(0.01 * H))):   # 足の裏の真下 1% の帯
-        yy = np.clip(sy + dy, 0, H - 1)
-        below[yy, sx] = True
-    below &= ~body
-    # 接地: 足の裏の真下の影が、人物の形を写した影とひと続きか。足の下が暗いだけでは数えない
-    # （6 周目の絵は元のアニメの影の塊が足の下を暗くしていて、暗さだけの測り方では 0.78 で通った）
-    sh2 = shade | (below & (L < 0.85 * ref))
-    # 人物のすぐ外（3 画素）は影の判定から外しているので、そこをまたいでつなぐ
-    lab, n = ndimage.label(ndimage.binary_dilation(sh2, iterations=max(3, round(4 * f)) + 1))
+    # 接地: 左右の足ごとに、足の裏の真下 1% の帯が、写した形と重なる（IoU 0.5 以上の）影のひと続きの塊に入る割合。
+    # 低い方を contact にする（8 周目の絵は片足にだけ影が付き、もう片足は浮いていた）
+    sh2 = shade.copy()
+    belows = []
+    for ft in feet(seg):
+        bl = np.zeros_like(body)
+        fy, fx_ = np.nonzero(ft["sole"])
+        cols = np.unique(fx_)
+        for x in cols:
+            yb = fy[fx_ == x].max()
+            bl[yb + 1:min(yb + max(3, int(0.01 * H)), H), x] = True
+        bl &= ~body
+        belows.append((ft, bl))
+        sh2 |= bl & (L < 0.85 * ref)
+    lab, n = ndimage.label(ndimage.binary_dilation(sh2, iterations=max(4, round(6 * f)) + 2))
     good = np.zeros(n + 1, bool)
-    for i in np.unique(lab[below & sh2]):
-        if i == 0:
-            continue
-        comp = lab == i
-        good[i] = (comp & exp).sum() / max((comp | exp).sum(), 1) >= 0.5
-    out["contact"] = round(float((sh2[below] & good[lab[below]]).mean()), 3) if below.any() else 0.0
+    for i in np.unique(lab[sh2]):
+        if i:
+            comp = (lab == i) & sh2          # つなぐために広げた分は重なりに数えない
+            good[i] = (comp & exp).sum() / max((comp | exp).sum(), 1) >= 0.5
+    per = {}
+    for ft, bl in belows:
+        per[ft["label"]] = round(float((sh2[bl] & good[lab[bl]]).mean()), 3) if bl.any() else 0.0
+    out["contact_feet"] = per
+    out["contact"] = min(per.values()) if per else 0.0
+    sy, sx = np.nonzero(sole)
+    # 影の太さ: 影の短い向きの幅（主成分の短い軸の ±2σ）÷ 人物の幅（腰から膝の行の幅の中央値）
+    if shade.sum() > 50:
+        py, px = np.nonzero(shade)
+        cov = np.cov(np.stack([px, py]).astype(np.float64))
+        minor = 4 * np.sqrt(max(np.linalg.eigvalsh(cov)[0], 0))
+        rows = [r for r in range(int(0.45 * H), int(0.75 * H)) if body[r].any()]
+        widths = [np.ptp(np.nonzero(body[r])[0]) + 1 for r in rows] or [1]
+        out["cast_thick"] = round(float(minor / max(np.median(widths), 1)), 3)
+    else:
+        out["cast_thick"] = 0.0
     if shade.sum() > 50:
         fx = float(sx.mean()) if len(sx) else W / 2
         want = -np.sign(np.cos(np.radians(light_deg)))
