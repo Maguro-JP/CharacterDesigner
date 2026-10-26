@@ -1,0 +1,182 @@
+{
+ "args": {
+  "src": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-stand-s12.jpg",
+  "out": "out/skin-grain",
+  "width": "768",
+  "height": "1152",
+  "prompt": "RAW photo, a 27 year old woman, plain white bikini, standing, hand on hip, grey studio backdrop, natural skin texture, soft studio lighting, 85mm, sharp focus, high detail, japanese woman, east asian face",
+  "negative": "anime, cartoon, illustration, painting, 3d, cgi, plastic skin, airbrushed, lowres, bad anatomy, bad hands, extra fingers, child, teen, western, caucasian, european face",
+  "seed": "12",
+  "steps": "25",
+  "guidance": "6.0",
+  "strength": "0.7",
+  "tile_scale": "0.6",
+  "lineart_scale": "1.0",
+  "scale": "1.5",
+  "strength2": "0.15",
+  "hf_sigma": "2.5",
+  "hf_amount": "1.0",
+  "tile2_scale": "0.8",
+  "tile": "768",
+  "overlap": "128",
+  "deshade": "0",
+  "depth_scale": "0",
+  "relight": "0",
+  "light_deg": "135",
+  "hair_strength": "0.35",
+  "iclight": "0",
+  "post_relight": "0.6",
+  "cast": "0.45",
+  "face": "0.75",
+  "model": "rv",
+  "asian": "True",
+  "face_px": "768",
+  "grain": "0.3",
+  "feet": "0.35",
+  "shoulder": "True",
+  "leg_soften": "4.0",
+  "sdxl_skin": "0",
+  "s1_hf": "0",
+  "face_mode": "ipadapter",
+  "ip_scale": "0.5",
+  "bangs": "True",
+  "resume": "draw-results:40248087657/rv-asian-s2-015/stage1-bikini-white-stand-s12-3-hf-g2.5-s12.png",
+  "final_hf": "0.0",
+  "check": "True",
+  "dry_run": "False"
+ },
+ "band_px": 0,
+ "blob_px": 1835,
+ "clean_s": 0.7,
+ "load_s": 32.9,
+ "blown_px": 7819,
+ "cast_light": {
+  "deg": 135.0,
+  "lr_diff": -0.0191
+ },
+ "post_blob_px": 1405,
+ "post_light_s": 11.0,
+ "light_shadow": {
+  "soft": 0.419,
+  "step_frac": 0.625,
+  "steps": 3,
+  "bimodal": 0.237,
+  "ratio": 0.623,
+  "spread": 92.8,
+  "cast": 0.103,
+  "cast_gap": 0.001,
+  "normal_corr": 0.807,
+  "normal_light_deg": 150,
+  "floor_step": 0.0027,
+  "cast_iou": 0.823,
+  "light_deg": 135.0,
+  "light_lr_diff": -0.0144,
+  "contact_feet": {
+   "1": 0.935,
+   "2": 0.995
+  },
+  "contact": 0.935,
+  "cast_thick": 1.077,
+  "cast_side": 0.979,
+  "cast_spill": 0.024,
+  "halo": 0.094,
+  "halo_feet": 0.175
+ },
+ "light_keep": {
+  "flat_skin": 0.0658,
+  "hair_iou": 0.912,
+  "line_f": 0.874,
+  "leg_de": 2.03,
+  "skin_tex": 0.629,
+  "face_tex": 1.728,
+  "leg_shade_width": 1.53,
+  "contour_dev": 25.2,
+  "skin_vstep": 1.96,
+  "blown_skin": 0.0005,
+  "dark_blob_px": 0,
+  "sat_ratio": 0.923,
+  "color_dab": 1.22,
+  "hair_de": 0.96,
+  "face_sim": 0.819,
+  "face_ok": false,
+  "face_qc": {
+   "eyes": {
+    "readable": false,
+    "reason": "横に並ぶ2つの目が読めない"
+   },
+   "extra_eyes": 0.0,
+   "mouth": {
+    "readable": true,
+    "found": true,
+    "area": 0.0129,
+    "sym": 0.621,
+    "bleed": 0.305,
+    "bad": true
+   }
+  }
+ },
+ "light_fails": [
+  {
+   "path": "halo",
+   "value": 0.094,
+   "min": null,
+   "max": 0.05,
+   "means": "人物の縁の白いにじみの割合（縁の内外 4〜6 画素で、少し外の背景より明るく彩度の低い画素）"
+  },
+  {
+   "path": "halo_feet",
+   "value": 0.175,
+   "min": null,
+   "max": 0.04,
+   "means": "足の縁の内外 1〜3 画素の灰色の画素が、近くの床より明るい割合。影と肌の間に明るい灰色の縁が光る"
+  },
+  {
+   "path": "contour_dev",
+   "value": 25.2,
+   "min": null,
+   "max": 12,
+   "means": "元の絵の体の輪郭から欠けた所の、描いた体からの距離の最大（画素）。肩の輪郭が欠けて膨らみと切れ込みになった"
+  },
+  {
+   "path": "leg_shade_width",
+   "value": 1.53,
+   "min": 2.5,
+   "max": null,
+   "means": "脚の陰の境目の幅（768 幅の画素）。セルの塗りの段が残り、境目が線のように硬い"
+  }
+ ],
+ "light_check_s": 22.7,
+ "ipadapter_load_s": 16.6,
+ "face_try0": {
+  "ok": true,
+  "eyes": {
+   "readable": true,
+   "mismatch": false,
+   "area_ratio": 1.62,
+   "limit": 3.22
+  },
+  "extra_eyes": 0.0,
+  "mouth": {
+   "readable": true,
+   "found": true,
+   "area": 0.0009,
+   "sym": 0.34,
+   "bleed": 0.021,
+   "bad": false
+  },
+  "draw_s": 392.8
+ },
+ "face_box": {
+  "box": [
+   13,
+   0,
+   1057,
+   1044
+  ],
+  "scale": 0.74
+ },
+ "face_s": 425.1,
+ "leg_step_px": 4880,
+ "shoulder_s": 301.8,
+ "shoulder_px": 1365
+}
