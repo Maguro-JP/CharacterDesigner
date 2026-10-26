@@ -1,0 +1,290 @@
+{
+ "args": {
+  "src": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-stand-s12.jpg",
+  "out": "out/s2-015-face768",
+  "width": "768",
+  "height": "1152",
+  "prompt": "RAW photo, a 27 year old woman, plain white bikini, standing, hand on hip, grey studio backdrop, natural skin texture, soft studio lighting, 85mm, sharp focus, high detail, japanese woman, east asian face",
+  "negative": "anime, cartoon, illustration, painting, 3d, cgi, plastic skin, airbrushed, lowres, bad anatomy, bad hands, extra fingers, child, teen, western, caucasian, european face",
+  "seed": "12",
+  "steps": "25",
+  "guidance": "6.0",
+  "strength": "0.7",
+  "tile_scale": "0.6",
+  "lineart_scale": "1.0",
+  "scale": "1.5",
+  "strength2": "0.15",
+  "hf_sigma": "2.5",
+  "hf_amount": "1.0",
+  "tile2_scale": "0.8",
+  "tile": "768",
+  "overlap": "128",
+  "deshade": "0",
+  "depth_scale": "0",
+  "relight": "0",
+  "light_deg": "135",
+  "hair_strength": "0.35",
+  "iclight": "0",
+  "post_relight": "0.6",
+  "cast": "0.45",
+  "face": "0.6",
+  "model": "rv",
+  "asian": "True",
+  "face_px": "768",
+  "resume": "draw-results:40248087657/rv-asian-s2-015/stage1-bikini-white-stand-s12-3-hf-g2.5-s12.png",
+  "final_hf": "2.5",
+  "check": "True",
+  "dry_run": "False"
+ },
+ "band_px": 0,
+ "blob_px": 1835,
+ "clean_s": 0.81,
+ "load_s": 16.0,
+ "post_light_s": 10.0,
+ "light_shadow": {
+  "soft": 0.445,
+  "step_frac": 0.526,
+  "steps": 2,
+  "bimodal": 0.143,
+  "ratio": 0.608,
+  "spread": 120.2,
+  "cast": 0.176,
+  "cast_gap": 0.001,
+  "normal_corr": 0.789,
+  "normal_light_deg": 150,
+  "cast_iou": 0.877,
+  "contact": 0.995,
+  "cast_side": 0.974,
+  "cast_spill": 0.005,
+  "halo": 0.093
+ },
+ "light_keep": {
+  "flat_skin": 0.0725,
+  "hair_iou": 0.894,
+  "line_f": 0.905,
+  "sat_ratio": 0.923,
+  "color_dab": 1.38,
+  "hair_de": 0.56,
+  "face_sim": 0.8403,
+  "face_ok": false,
+  "face_qc": {
+   "eyes": {
+    "readable": false,
+    "reason": "横に並ぶ2つの目が読めない"
+   },
+   "extra_eyes": 0.0,
+   "mouth": {
+    "readable": true,
+    "found": true,
+    "area": 0.0111,
+    "sym": 0.621,
+    "bad": false
+   }
+  }
+ },
+ "light_fails": [
+  {
+   "path": "flat_skin",
+   "value": 0.0725,
+   "min": null,
+   "max": 0.005,
+   "means": "肌の平らな面の割合。アニメの塗りが残っている"
+  },
+  {
+   "path": "hair_iou",
+   "value": 0.894,
+   "min": 0.9,
+   "max": null,
+   "means": "元の絵と髪の形の重なり。髪型が崩れた"
+  },
+  {
+   "path": "halo",
+   "value": 0.093,
+   "min": null,
+   "max": 0.05,
+   "means": "人物の縁の白いにじみの割合（縁の内外 4〜6 画素で、少し外の背景より明るく彩度の低い画素）"
+  }
+ ],
+ "light_check_s": 32.5,
+ "face_before": {
+  "ok": false,
+  "eyes": {
+   "readable": false,
+   "reason": "横に並ぶ2つの目が読めない"
+  },
+  "extra_eyes": 0.0,
+  "mouth": {
+   "readable": true,
+   "found": true,
+   "area": 0.0111,
+   "sym": 0.621,
+   "bad": false
+  }
+ },
+ "face_box": {
+  "box": [
+   383,
+   40,
+   698,
+   355
+  ],
+  "scale": 1.98,
+  "hidden_eye": true
+ },
+ "face_try0": {
+  "ok": false,
+  "eyes": {
+   "readable": false,
+   "reason": "横に並ぶ2つの目が読めない"
+  },
+  "extra_eyes": 0.0,
+  "mouth": {
+   "readable": true,
+   "found": true,
+   "area": 0.0107,
+   "sym": 0.621,
+   "bad": false
+  }
+ },
+ "face_try1": {
+  "ok": false,
+  "eyes": {
+   "readable": false,
+   "reason": "横に並ぶ2つの目が読めない"
+  },
+  "extra_eyes": 0.0,
+  "mouth": {
+   "readable": true,
+   "found": true,
+   "area": 0.0109,
+   "sym": 0.63,
+   "bad": false
+  }
+ },
+ "face_try2": {
+  "ok": false,
+  "eyes": {
+   "readable": false,
+   "reason": "横に並ぶ2つの目が読めない"
+  },
+  "extra_eyes": 0.0,
+  "mouth": {
+   "readable": true,
+   "found": true,
+   "area": 0.0109,
+   "sym": 0.623,
+   "bad": false
+  }
+ },
+ "face_try3": {
+  "ok": false,
+  "eyes": {
+   "readable": false,
+   "reason": "横に並ぶ2つの目が読めない"
+  },
+  "extra_eyes": 0.0,
+  "mouth": {
+   "readable": true,
+   "found": true,
+   "area": 0.0108,
+   "sym": 0.623,
+   "bad": false
+  }
+ },
+ "face_try4": {
+  "ok": false,
+  "eyes": {
+   "readable": false,
+   "reason": "横に並ぶ2つの目が読めない"
+  },
+  "extra_eyes": 0.0,
+  "mouth": {
+   "readable": true,
+   "found": true,
+   "area": 0.0111,
+   "sym": 0.639,
+   "bad": false
+  }
+ },
+ "face_times": {
+  "qc_before": 5.9,
+  "prep": 14.1,
+  "draw0": 473.4,
+  "qc0": 5.7,
+  "draw1": 471.4,
+  "qc1": 5.7,
+  "draw2": 475.5,
+  "qc2": 5.8,
+  "draw3": 482.4,
+  "qc3": 5.8,
+  "draw4": 472.4,
+  "qc4": 5.7
+ },
+ "face_s": 2423.9,
+ "final_shadow": {
+  "soft": 0.433,
+  "step_frac": 0.587,
+  "steps": 2,
+  "bimodal": 0.273,
+  "ratio": 0.612,
+  "spread": 129.7,
+  "cast": 0.176,
+  "cast_gap": 0.001,
+  "normal_corr": 0.793,
+  "normal_light_deg": 150,
+  "cast_iou": 0.876,
+  "contact": 0.993,
+  "cast_side": 0.973,
+  "cast_spill": 0.005,
+  "halo": 0.092
+ },
+ "final_keep": {
+  "flat_skin": 0.0673,
+  "hair_iou": 0.867,
+  "line_f": 0.902,
+  "sat_ratio": 0.938,
+  "color_dab": 1.15,
+  "hair_de": 0.91,
+  "face_sim": 0.845,
+  "face_ok": false,
+  "face_qc": {
+   "eyes": {
+    "readable": false,
+    "reason": "横に並ぶ2つの目が読めない"
+   },
+   "extra_eyes": 0.0,
+   "mouth": {
+    "readable": true,
+    "found": true,
+    "area": 0.0107,
+    "sym": 0.621,
+    "bad": false
+   }
+  }
+ },
+ "final_fails": [
+  {
+   "path": "flat_skin",
+   "value": 0.0673,
+   "min": null,
+   "max": 0.005,
+   "means": "肌の平らな面の割合。アニメの塗りが残っている"
+  },
+  {
+   "path": "hair_iou",
+   "value": 0.867,
+   "min": 0.9,
+   "max": null,
+   "means": "元の絵と髪の形の重なり。髪型が崩れた"
+  },
+  {
+   "path": "halo",
+   "value": 0.092,
+   "min": null,
+   "max": 0.05,
+   "means": "人物の縁の白いにじみの割合（縁の内外 4〜6 画素で、少し外の背景より明るく彩度の低い画素）"
+  }
+ ],
+ "final_check_s": 26.1,
+ "total_s": 2545.8
+}
