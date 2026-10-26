@@ -2,7 +2,7 @@
 
 `python3 tools/library_check.py` が書く。手で直さない。置き方の決まりは [docs/STRUCTURE.md](../docs/STRUCTURE.md)。
 
-全 629 枚（置き場 41 か所）。どこからも参照されていない絵 130 枚には「未参照」と付ける。
+全 632 枚（置き場 41 か所）。どこからも参照されていない絵 130 枚には「未参照」と付ける。
 
 ## 置き場の一覧
 
@@ -13,7 +13,6 @@
 | [`bible/characters/swordswoman/`](#bible-characters-swordswoman) | 設定資料集の人物・場所の絵 | 3 |
 | [`bible/characters/witch/`](#bible-characters-witch) | 設定資料集の人物・場所の絵 | 2 |
 | [`bible/worlds/citadel/`](#bible-worlds-citadel) | 設定資料集の人物・場所の絵 | 2 |
-| [`config/poses/`](#config-poses) | config | 1 |
 | [`designs/digimon/`](#designs-digimon) | 依頼された作品の決定稿 | 3 |
 | [`designs/digimon/base/`](#designs-digimon-base) | 依頼された作品の決定稿 | 5 |
 | [`designs/digimon/pixel96/`](#designs-digimon-pixel96) | 依頼された作品の決定稿 | 10 |
@@ -27,13 +26,14 @@
 | [`library/feedback/app-e2e/`](#library-feedback-app-e2e) | フィードバックの成果物 | 1 |
 | [`library/feedback/baseline/`](#library-feedback-baseline) | フィードバックの成果物 | 2 |
 | [`library/feedback/bench/`](#library-feedback-bench) | フィードバックの成果物 | 4 |
-| [`library/feedback/body/`](#library-feedback-body) | フィードバックの成果物 | 70 |
+| [`library/feedback/body/`](#library-feedback-body) | フィードバックの成果物 | 73 |
 | [`library/feedback/check/`](#library-feedback-check) | フィードバックの成果物 | 176 |
 | [`library/feedback/finish/`](#library-feedback-finish) | フィードバックの成果物 | 2 |
 | [`library/feedback/hands/`](#library-feedback-hands) | フィードバックの成果物 | 8 |
 | [`library/feedback/settei/`](#library-feedback-settei) | フィードバックの成果物 | 3 |
 | [`library/feedback/shoes/`](#library-feedback-shoes) | フィードバックの成果物 | 12 |
 | [`library/feedback/stylize/`](#library-feedback-stylize) | フィードバックの成果物 | 66 |
+| [`library/poses/`](#library-poses) | poses | 1 |
 | [`library/progress/2026-09-29/`](#library-progress-2026-09-29) | 比べた記録 | 32 |
 | [`library/progress/2026-09-30/`](#library-progress-2026-09-30) | 比べた記録 | 29 |
 | [`library/progress/2026-10-01/`](#library-progress-2026-10-01) | 比べた記録 | 6 |
@@ -84,13 +84,6 @@
 |   |   |
 |---|---|
 | <a href="../bible/worlds/citadel/loc-gate.jpg"><img src="../bible/worlds/citadel/loc-gate.jpg" width="150" alt="loc-gate.jpg"></a><br><sub>loc-gate.jpg</sub> | <a href="../bible/worlds/citadel/loc-hall.jpg"><img src="../bible/worlds/citadel/loc-hall.jpg" width="150" alt="loc-hall.jpg"></a><br><sub>loc-hall.jpg</sub> |
-
-<a id="config-poses"></a>
-## config/poses/
-
-|   |
-|---|
-| <a href="../config/poses/stand-yaw30-contra10.png"><img src="../config/poses/stand-yaw30-contra10.png" width="150" alt="stand-yaw30-contra10.png"></a><br><sub>stand-yaw30-contra10.png（未参照）</sub> |
 
 <a id="designs-digimon"></a>
 ## designs/digimon/
@@ -207,7 +200,8 @@
 | <a href="feedback/body/2026-10-25/r48/r48-back-real-s48000.jpg"><img src="feedback/body/2026-10-25/r48/r48-back-real-s48000.jpg" width="150" alt="r48-back-real-s48000.jpg"></a><br><sub>r48-back-real-s48000.jpg</sub> | <a href="feedback/body/2026-10-25/r48/r48-back-s48000.jpg"><img src="feedback/body/2026-10-25/r48/r48-back-s48000.jpg" width="150" alt="r48-back-s48000.jpg"></a><br><sub>r48-back-s48000.jpg</sub> | <a href="feedback/body/2026-10-25/r49/r49-walking-real-s49000.jpg"><img src="feedback/body/2026-10-25/r49/r49-walking-real-s49000.jpg" width="150" alt="r49-walking-real-s49000.jpg"></a><br><sub>r49-walking-real-s49000.jpg</sub> | <a href="feedback/body/2026-10-25/r49/r49-walking-s49000.jpg"><img src="feedback/body/2026-10-25/r49/r49-walking-s49000.jpg" width="150" alt="r49-walking-s49000.jpg"></a><br><sub>r49-walking-s49000.jpg</sub> | <a href="feedback/body/2026-10-25/r50/r50-sitting-real-s50000.jpg"><img src="feedback/body/2026-10-25/r50/r50-sitting-real-s50000.jpg" width="150" alt="r50-sitting-real-s50000.jpg"></a><br><sub>r50-sitting-real-s50000.jpg</sub> | <a href="feedback/body/2026-10-25/r51/r51-armsup-s51100.jpg"><img src="feedback/body/2026-10-25/r51/r51-armsup-s51100.jpg" width="150" alt="r51-armsup-s51100.jpg"></a><br><sub>r51-armsup-s51100.jpg</sub> |
 | <a href="feedback/body/2026-10-25/r52/r52-front-real-s52000.jpg"><img src="feedback/body/2026-10-25/r52/r52-front-real-s52000.jpg" width="150" alt="r52-front-real-s52000.jpg"></a><br><sub>r52-front-real-s52000.jpg</sub> | <a href="feedback/body/2026-10-25/r52/r52-front-s52000.jpg"><img src="feedback/body/2026-10-25/r52/r52-front-s52000.jpg" width="150" alt="r52-front-s52000.jpg"></a><br><sub>r52-front-s52000.jpg</sub> | <a href="feedback/body/2026-10-25/r53/r53-side-s53000.jpg"><img src="feedback/body/2026-10-25/r53/r53-side-s53000.jpg" width="150" alt="r53-side-s53000.jpg"></a><br><sub>r53-side-s53000.jpg</sub> | <a href="feedback/body/2026-10-25/r54/r54-back-real-s54600.jpg"><img src="feedback/body/2026-10-25/r54/r54-back-real-s54600.jpg" width="150" alt="r54-back-real-s54600.jpg"></a><br><sub>r54-back-real-s54600.jpg</sub> | <a href="feedback/body/2026-10-25/r54/r54-back-s54600.jpg"><img src="feedback/body/2026-10-25/r54/r54-back-s54600.jpg" width="150" alt="r54-back-s54600.jpg"></a><br><sub>r54-back-s54600.jpg</sub> | <a href="feedback/body/2026-10-25/r55/r55-walking-real-s55000.jpg"><img src="feedback/body/2026-10-25/r55/r55-walking-real-s55000.jpg" width="150" alt="r55-walking-real-s55000.jpg"></a><br><sub>r55-walking-real-s55000.jpg</sub> |
 | <a href="feedback/body/2026-10-25/r55/r55-walking-s55000.jpg"><img src="feedback/body/2026-10-25/r55/r55-walking-s55000.jpg" width="150" alt="r55-walking-s55000.jpg"></a><br><sub>r55-walking-s55000.jpg</sub> | <a href="feedback/body/2026-10-25/r56/r56-sitting-real-s56500.jpg"><img src="feedback/body/2026-10-25/r56/r56-sitting-real-s56500.jpg" width="150" alt="r56-sitting-real-s56500.jpg"></a><br><sub>r56-sitting-real-s56500.jpg</sub> | <a href="feedback/body/2026-10-26/r57/r57-armsup-real-s57100.jpg"><img src="feedback/body/2026-10-26/r57/r57-armsup-real-s57100.jpg" width="150" alt="r57-armsup-real-s57100.jpg"></a><br><sub>r57-armsup-real-s57100.jpg</sub> | <a href="feedback/body/2026-10-26/r57/r57-armsup-s57100.jpg"><img src="feedback/body/2026-10-26/r57/r57-armsup-s57100.jpg" width="150" alt="r57-armsup-s57100.jpg"></a><br><sub>r57-armsup-s57100.jpg</sub> | <a href="feedback/body/2026-10-26/r58/r58-front-real-s58100.jpg"><img src="feedback/body/2026-10-26/r58/r58-front-real-s58100.jpg" width="150" alt="r58-front-real-s58100.jpg"></a><br><sub>r58-front-real-s58100.jpg</sub> | <a href="feedback/body/2026-10-26/r58/r58-front-s58100.jpg"><img src="feedback/body/2026-10-26/r58/r58-front-s58100.jpg" width="150" alt="r58-front-s58100.jpg"></a><br><sub>r58-front-s58100.jpg</sub> |
-| <a href="feedback/body/2026-10-26/r59/r59-side-real-s59000.jpg"><img src="feedback/body/2026-10-26/r59/r59-side-real-s59000.jpg" width="150" alt="r59-side-real-s59000.jpg"></a><br><sub>r59-side-real-s59000.jpg</sub> | <a href="feedback/body/2026-10-26/r59/r59-side-s59000.jpg"><img src="feedback/body/2026-10-26/r59/r59-side-s59000.jpg" width="150" alt="r59-side-s59000.jpg"></a><br><sub>r59-side-s59000.jpg</sub> | <a href="feedback/body/2026-10-26/r60/r60-back-real-s60200.jpg"><img src="feedback/body/2026-10-26/r60/r60-back-real-s60200.jpg" width="150" alt="r60-back-real-s60200.jpg"></a><br><sub>r60-back-real-s60200.jpg</sub> | <a href="feedback/body/2026-10-26/r60/r60-back-s60200.jpg"><img src="feedback/body/2026-10-26/r60/r60-back-s60200.jpg" width="150" alt="r60-back-s60200.jpg"></a><br><sub>r60-back-s60200.jpg</sub> |
+| <a href="feedback/body/2026-10-26/r59/r59-side-real-s59000.jpg"><img src="feedback/body/2026-10-26/r59/r59-side-real-s59000.jpg" width="150" alt="r59-side-real-s59000.jpg"></a><br><sub>r59-side-real-s59000.jpg</sub> | <a href="feedback/body/2026-10-26/r59/r59-side-s59000.jpg"><img src="feedback/body/2026-10-26/r59/r59-side-s59000.jpg" width="150" alt="r59-side-s59000.jpg"></a><br><sub>r59-side-s59000.jpg</sub> | <a href="feedback/body/2026-10-26/r60/r60-back-real-s60200.jpg"><img src="feedback/body/2026-10-26/r60/r60-back-real-s60200.jpg" width="150" alt="r60-back-real-s60200.jpg"></a><br><sub>r60-back-real-s60200.jpg</sub> | <a href="feedback/body/2026-10-26/r60/r60-back-s60200.jpg"><img src="feedback/body/2026-10-26/r60/r60-back-s60200.jpg" width="150" alt="r60-back-s60200.jpg"></a><br><sub>r60-back-s60200.jpg</sub> | <a href="feedback/body/2026-10-26/r61/r61-walking-real-s61200.jpg"><img src="feedback/body/2026-10-26/r61/r61-walking-real-s61200.jpg" width="150" alt="r61-walking-real-s61200.jpg"></a><br><sub>r61-walking-real-s61200.jpg</sub> | <a href="feedback/body/2026-10-26/r61/r61-walking-s61200.jpg"><img src="feedback/body/2026-10-26/r61/r61-walking-s61200.jpg" width="150" alt="r61-walking-s61200.jpg"></a><br><sub>r61-walking-s61200.jpg</sub> |
+| <a href="feedback/body/2026-10-26/r62/r62-sitting-real-s62600.jpg"><img src="feedback/body/2026-10-26/r62/r62-sitting-real-s62600.jpg" width="150" alt="r62-sitting-real-s62600.jpg"></a><br><sub>r62-sitting-real-s62600.jpg</sub> |
 
 <a id="library-feedback-check"></a>
 ## library/feedback/check/
@@ -291,6 +285,13 @@
 | <a href="feedback/stylize/2026-10-19/capybara/capybara-blueprint-s1.jpg"><img src="feedback/stylize/2026-10-19/capybara/capybara-blueprint-s1.jpg" width="150" alt="capybara-blueprint-s1.jpg"></a><br><sub>capybara-blueprint-s1.jpg（未参照）</sub> | <a href="feedback/stylize/2026-10-19/capybara/capybara-charcoal-s1.jpg"><img src="feedback/stylize/2026-10-19/capybara/capybara-charcoal-s1.jpg" width="150" alt="capybara-charcoal-s1.jpg"></a><br><sub>capybara-charcoal-s1.jpg（未参照）</sub> | <a href="feedback/stylize/2026-10-19/capybara/capybara-impressionist-s1.jpg"><img src="feedback/stylize/2026-10-19/capybara/capybara-impressionist-s1.jpg" width="150" alt="capybara-impressionist-s1.jpg"></a><br><sub>capybara-impressionist-s1.jpg（未参照）</sub> | <a href="feedback/stylize/2026-10-19/capybara/capybara-ink-s1.jpg"><img src="feedback/stylize/2026-10-19/capybara/capybara-ink-s1.jpg" width="150" alt="capybara-ink-s1.jpg"></a><br><sub>capybara-ink-s1.jpg（未参照）</sub> | <a href="feedback/stylize/2026-10-19/capybara/capybara-kirie-s1.jpg"><img src="feedback/stylize/2026-10-19/capybara/capybara-kirie-s1.jpg" width="150" alt="capybara-kirie-s1.jpg"></a><br><sub>capybara-kirie-s1.jpg（未参照）</sub> | <a href="feedback/stylize/2026-10-19/capybara/capybara-lineart-s1.jpg"><img src="feedback/stylize/2026-10-19/capybara/capybara-lineart-s1.jpg" width="150" alt="capybara-lineart-s1.jpg"></a><br><sub>capybara-lineart-s1.jpg（未参照）</sub> |
 | <a href="feedback/stylize/2026-10-19/capybara/capybara-manga-s1.jpg"><img src="feedback/stylize/2026-10-19/capybara/capybara-manga-s1.jpg" width="150" alt="capybara-manga-s1.jpg"></a><br><sub>capybara-manga-s1.jpg（未参照）</sub> | <a href="feedback/stylize/2026-10-19/capybara/capybara-mono-s1.jpg"><img src="feedback/stylize/2026-10-19/capybara/capybara-mono-s1.jpg" width="150" alt="capybara-mono-s1.jpg"></a><br><sub>capybara-mono-s1.jpg（未参照）</sub> | <a href="feedback/stylize/2026-10-19/capybara/capybara-mosaic-s1.jpg"><img src="feedback/stylize/2026-10-19/capybara/capybara-mosaic-s1.jpg" width="150" alt="capybara-mosaic-s1.jpg"></a><br><sub>capybara-mosaic-s1.jpg（未参照）</sub> | <a href="feedback/stylize/2026-10-19/capybara/capybara-oil-s1.jpg"><img src="feedback/stylize/2026-10-19/capybara/capybara-oil-s1.jpg" width="150" alt="capybara-oil-s1.jpg"></a><br><sub>capybara-oil-s1.jpg（未参照）</sub> | <a href="feedback/stylize/2026-10-19/capybara/capybara-pixel-s1.jpg"><img src="feedback/stylize/2026-10-19/capybara/capybara-pixel-s1.jpg" width="150" alt="capybara-pixel-s1.jpg"></a><br><sub>capybara-pixel-s1.jpg（未参照）</sub> | <a href="feedback/stylize/2026-10-19/capybara/capybara-pointillism-s1.jpg"><img src="feedback/stylize/2026-10-19/capybara/capybara-pointillism-s1.jpg" width="150" alt="capybara-pointillism-s1.jpg"></a><br><sub>capybara-pointillism-s1.jpg（未参照）</sub> |
 | <a href="feedback/stylize/2026-10-19/capybara/capybara-popart-s1.jpg"><img src="feedback/stylize/2026-10-19/capybara/capybara-popart-s1.jpg" width="150" alt="capybara-popart-s1.jpg"></a><br><sub>capybara-popart-s1.jpg（未参照）</sub> | <a href="feedback/stylize/2026-10-19/capybara/capybara-sepia-s1.jpg"><img src="feedback/stylize/2026-10-19/capybara/capybara-sepia-s1.jpg" width="150" alt="capybara-sepia-s1.jpg"></a><br><sub>capybara-sepia-s1.jpg（未参照）</sub> | <a href="feedback/stylize/2026-10-19/capybara/capybara-sketch-s1.jpg"><img src="feedback/stylize/2026-10-19/capybara/capybara-sketch-s1.jpg" width="150" alt="capybara-sketch-s1.jpg"></a><br><sub>capybara-sketch-s1.jpg（未参照）</sub> | <a href="feedback/stylize/2026-10-19/capybara/capybara-stainedglass-s1.jpg"><img src="feedback/stylize/2026-10-19/capybara/capybara-stainedglass-s1.jpg" width="150" alt="capybara-stainedglass-s1.jpg"></a><br><sub>capybara-stainedglass-s1.jpg（未参照）</sub> | <a href="feedback/stylize/2026-10-19/capybara/capybara-ukiyoe-s1.jpg"><img src="feedback/stylize/2026-10-19/capybara/capybara-ukiyoe-s1.jpg" width="150" alt="capybara-ukiyoe-s1.jpg"></a><br><sub>capybara-ukiyoe-s1.jpg（未参照）</sub> | <a href="feedback/stylize/2026-10-19/capybara/capybara-watercolor-s1.jpg"><img src="feedback/stylize/2026-10-19/capybara/capybara-watercolor-s1.jpg" width="150" alt="capybara-watercolor-s1.jpg"></a><br><sub>capybara-watercolor-s1.jpg（未参照）</sub> |
+
+<a id="library-poses"></a>
+## library/poses/
+
+|   |
+|---|
+| <a href="poses/stand-yaw30-contra10.png"><img src="poses/stand-yaw30-contra10.png" width="150" alt="stand-yaw30-contra10.png"></a><br><sub>stand-yaw30-contra10.png（未参照）</sub> |
 
 <a id="library-progress-2026-09-29"></a>
 ## library/progress/2026-09-29/
