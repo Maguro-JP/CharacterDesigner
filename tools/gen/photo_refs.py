@@ -61,7 +61,16 @@ def skin_spectrum(im, seg, labels=(12, 13, 14, 15)):
     """肌の高い周波数の成分の、周波数ごとの強さ（48 画素の切り抜きの、明るさの 2 次元のパワーの、半径ごとの平均）と標準偏差。
     肌の部位の中に収まる切り抜きだけを使う。写真は置かず、この数字だけを残して、写真級の絵の肌に重ねる粒を作る"""
     import numpy as np
+    from PIL import Image
     from scipy import ndimage
+    import measure
+    sc = measure.skin_scale(seg)                 # 顔の幅を measure.FACE_W にそろえる（撮影の距離をそろえる）
+    if sc is None:
+        return None
+    W = max(64, round(im.width * sc))
+    H = round(im.height * W / im.width)
+    im = im.resize((W, H), Image.LANCZOS)
+    seg = np.asarray(Image.fromarray(seg).resize((W, H), Image.NEAREST))
     L = np.asarray(im.convert("L")).astype(np.float32) / 255
     hp = L - ndimage.gaussian_filter(L, 3)
     skin = ndimage.binary_erosion(np.isin(seg, labels), iterations=3)

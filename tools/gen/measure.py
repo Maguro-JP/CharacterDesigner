@@ -616,16 +616,33 @@ def leg_shade_width(rgb, seg):
     return round(float(np.median(w)), 2)
 
 
+FACE_W = 100   # 肌の周波数を比べるときに、顔の幅をこの画素数にそろえる
+
+
+def skin_scale(seg):
+    """顔の幅（顔の部位の行ごとの幅の 90 パーセンタイル）から、顔の幅を FACE_W 画素にする倍率。顔が無ければ None。
+    手本の写真は撮影の距離がまちまちで、同じ画素の大きさで比べると肌の粒の強さが 0.34〜5.35 と散った"""
+    face = seg == 11
+    if face.sum() < 200:
+        return None
+    w = [int(r.sum()) for r in face if r.any()]
+    fw = float(np.percentile(w, 90))
+    return FACE_W / fw if fw > 10 else None
+
+
 def skin_texture(rgb, seg, part="body"):
     """絵の肌の、周波数ごとの強さを、実写の手本の分布（styles/skin-texture.json）と比べる。絵を手本と同じ幅 768 に縮め、
-    同じ測り方（48 画素の切り抜きの、3 画素のぼかしとの差のパワーを半径 16 段で平均）で測る。返すのは、高い方の 10 段
+    同じ測り方（顔の幅を FACE_W 画素にそろえ、48 画素の切り抜きの、3 画素のぼかしとの差のパワーを半径 16 段で平均）で測る。返すのは、高い方の 10 段
     （毛穴ときめの大きさ）での、絵のパワー ÷ 手本の中央値の比の中央値。1 で手本と同じ、小さいと平らな塗り、大きいと粒が多すぎる。
     肌の平らな面の割合は、粒を足すだけで下がり、多すぎる粒を落とせなかった"""
     import json
     from PIL import Image
     from scipy import ndimage
     tex = json.loads((ROOT / "styles" / "skin-texture.json").read_text(encoding="utf-8"))
-    W = tex["ref_width"]
+    sc = skin_scale(seg)
+    if sc is None:
+        return None
+    W = max(64, round(rgb.shape[1] * sc))                  # 顔の幅を FACE_W にそろえる（撮影の距離をそろえる）
     H = round(rgb.shape[0] * W / rgb.shape[1])
     im = Image.fromarray((np.clip(rgb[..., :3], 0, 1) * 255).astype(np.uint8)).resize((W, H), Image.LANCZOS)
     sg = np.asarray(Image.fromarray(seg).resize((W, H), Image.NEAREST))
