@@ -587,7 +587,8 @@ def cast_check(rgb, seg, light_deg=None):
     foot, sole = feet_line(body)
     shade = bg & (L < 0.9 * ref) & (np.arange(H)[:, None] > foot - 0.35 * H)
     shade = ndimage.binary_opening(shade, iterations=2)
-    exp = project_shadow(body, light_deg, seg=seg) & ~body
+    # 足（下から 2%）は写さない（作る側と同じ。足の影は接地の影が受け持つ）
+    exp = project_shadow(body & (np.arange(H)[:, None] < foot - 0.02 * H), light_deg, seg=seg) & ~body
     out = {"floor_step": floor_step(rgb, seg, light_deg),
            "cast_iou": round(float((shade & exp).sum() / max((shade | exp).sum(), 1)), 3),
            "light_deg": light_deg, "light_lr_diff": diff}
