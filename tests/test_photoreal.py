@@ -418,3 +418,11 @@ class SkinGrainTest(unittest.TestCase):
         self.assertGreater(out[inner].std(axis=0).mean(), 1.0)          # 平らな塗りでなくなる
         self.assertLess(np.abs(out[inner].mean(0) - (220, 180, 160)).max(), 2)   # 平均の色は変えない
         self.assertTrue((out[seg == 0] == 120).all())                     # 背景には掛けない
+
+
+class LogTest(unittest.TestCase):
+    def test_log_writes_numpy_numbers(self):
+        with tempfile.TemporaryDirectory() as d:
+            log = photoreal.Log(Path(d) / "t.json")
+            log("box", [np.int64(3), np.float32(1.5)])
+            self.assertEqual(json.loads((Path(d) / "t.json").read_text())["box"], [3, 1.5])

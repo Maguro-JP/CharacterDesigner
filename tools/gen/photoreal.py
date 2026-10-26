@@ -57,7 +57,8 @@ class Log:
 
     def __call__(self, k, v):
         self.d[k] = v
-        self.path.write_text(json.dumps(self.d, indent=1, ensure_ascii=False))
+        # numpy の数（int64 など）も書けるようにする。足の枠を numpy の数で記録して json が落ちた
+        self.path.write_text(json.dumps(self.d, indent=1, ensure_ascii=False, default=lambda o: o.item() if hasattr(o, "item") else str(o)))
         print(k, v, flush=True)
 
 
