@@ -904,12 +904,6 @@ def composite_person(scene, person, parts, feather=1.5):
     from scipy import ndimage
     body = (np.asarray(parts) != BACKGROUND)
     f = scene.width / 768
-    # 足の周り（下から 8%）は、縁の 3 画素を床（影を付けた背景）に置き換える。部位分けが足に含めた縁の灰色が残った
-    H = body.shape[0]
-    ys = np.nonzero(body)[0]
-    if len(ys):
-        low = np.arange(H)[:, None] >= ys.max() - 0.08 * H
-        body = np.where(low, ndimage.binary_erosion(body, iterations=max(3, round(3 * f))), body)
     body = body.astype(np.float32)
     # 内側へだけぼかす（外へ広げると、人物の絵の側の明るい床が影の上に重なって縁が白く光った）
     al = np.clip((ndimage.gaussian_filter(body, feather * scene.width / 768) - 0.5) * 2, 0, 1)[..., None]
@@ -1174,6 +1168,115 @@ def skin_grain(img, parts, amount=1.0, seed=0, face_amount=0.5):
     return Image.fromarray(np.clip(o * 255, 0, 255).astype(np.uint8))
 
 
+def soften_leg_steps(img, parts, sigma=4.0, step=8.0):
+    """脚の中の、明るさが数画素で大きく変わる段（太腿の内側の、アニメの塗りの段が残った硬い陰の境）だけをぼかす。
+    断面で見ると、段は 4 画素で 45 階調（1 画素 11 階調）変わり、なだらかな陰は 32 画素で 29 階調（1 画素 0.9 階調）だった。
+    1 画素あたり step 階調を超える所の周りだけを σ sigma でぼかす（肌の粒は掛ける前なので段に数えない）"""
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+    seg = np.asarray(parts)
+    f = img.width / 768
+    a = np.asarray(img).astype(np.float32)
+    L = ndimage.gaussian_filter(a.mean(2), 0.8 * f)
+    g = np.hypot(*np.gradient(L))
+    legs = ndimage.binary_erosion(np.isin(seg, (12, 13)), iterations=max(3, round(5 * f)))   # 脚の外の輪郭は除く
+    steps = legs & (g > step)
+    if not steps.any():
+        return img, 0
+    w = np.clip(ndimage.gaussian_filter(ndimage.binary_dilation(steps, iterations=max(2, round(3 * f))).astype(np.float32), 2 * f) * 1.5, 0, 1)
+    w *= legs
+    bl = np.stack([ndimage.gaussian_filter(a[..., c], sigma * f) for c in range(3)], -1)
+    return Image.fromarray(np.clip(a * (1 - w[..., None]) + bl * w[..., None], 0, 255).astype(np.uint8)), int(steps.sum())
+
+
+def feet_redraw(pipe, nets, img, parts, a, log):
+    """足首から下とその周り 12 画素を、tile の ControlNet で弱く（a.feet）inpaint で描き直す。部位分けが足に含めた縁の灰色が、
+    塗り直しや縁を床に置き換えるやり方では消えず（足の縁 0.126〜0.288）、描き直して縁ごと作り直す"""
+    import numpy as np
+    import torch
+    from diffusers import StableDiffusionControlNetInpaintPipeline
+    from PIL import Image, ImageFilter
+    from scipy import ndimage
+    t = time.time()
+    seg = np.asarray(parts)
+    body = seg > 0
+    ys, xs = np.nonzero(body)
+    top, foot = ys.min(), ys.max()
+    H, W = seg.shape
+    f = W / 768
+    ankle = foot - 0.07 * (foot - top)
+    feet = body & (np.arange(H)[:, None] >= ankle)
+    m = ndimage.binary_dilation(feet, iterations=max(4, round(12 * f)))
+    fy, fx = np.nonzero(m)
+    pad = int(30 * f)
+    x0, x1 = max(fx.min() - pad, 0), min(fx.max() + pad, W)
+    y0, y1 = max(fy.min() - pad, 0), min(fy.max() + pad, H)
+    side = max(x1 - x0, y1 - y0)
+    x0, y0 = max(min(x0, W - side), 0), max(min(y0, H - side), 0)
+    box = (x0, y0, x0 + side, y0 + side)
+    px = 768
+    crop = img.crop(box).resize((px, px), Image.LANCZOS)
+    mk = Image.fromarray((m * 255).astype(np.uint8)).crop(box).resize((px, px), Image.NEAREST).filter(ImageFilter.GaussianBlur(6))
+    inp = StableDiffusionControlNetInpaintPipeline(**{k: v for k, v in pipe.components.items() if k != "controlnet"}, controlnet=nets[0])
+    inp.set_progress_bar_config(disable=True)
+    r = inp(a.prompt + ", bare feet standing on the floor, natural toes", negative_prompt=a.negative + ", halo, outline, glow",
+            image=crop, mask_image=mk, control_image=crop, strength=a.feet, controlnet_conditioning_scale=0.8,
+            num_inference_steps=a.steps, guidance_scale=a.guidance, generator=torch.Generator().manual_seed(a.seed + 500),
+            width=px, height=px).images[0]
+    out = img.copy()
+    out.paste(r.resize((side, side), Image.LANCZOS), box[:2], mk.resize((side, side), Image.LANCZOS))
+    log("feet_box", list(box))
+    log("feet_s", round(time.time() - t, 1))
+    return out
+
+
+def shoulder_redraw(pipe, nets, img, parts, src, src_parts, a, log, least=12):
+    """体の輪郭が元の絵から大きくずれた所（欠けと膨らみ、元の輪郭から least 画素より離れる所）だけを、元の絵の線画を下絵にして
+    inpaint で描き直す。左の肩の膨らみは元の輪郭の内側にあり、塗りでは消えなかった"""
+    import numpy as np
+    import torch
+    from diffusers import StableDiffusionControlNetInpaintPipeline
+    from PIL import Image, ImageFilter
+    from scipy import ndimage
+    t = time.time()
+    seg = np.asarray(parts)
+    sp = src_parts.resize(img.size, Image.NEAREST) if src_parts.size != img.size else src_parts
+    A, B = np.asarray(sp) > 0, seg > 0
+    f = img.width / 768
+    dA, dB = ndimage.distance_transform_edt(~A), ndimage.distance_transform_edt(~B)
+    off = (A & ~B & (dB > least * f)) | (B & ~A & (dA > least * f) & ~np.isin(seg, (2, 11)))
+    if not off.any():
+        return img, 0
+    lab, n = ndimage.label(ndimage.binary_dilation(off, iterations=max(4, round(10 * f))))
+    srcimg = src.resize(img.size, Image.LANCZOS)
+    out = img.copy()
+    inp = StableDiffusionControlNetInpaintPipeline(**{k: v for k, v in pipe.components.items() if k != "controlnet"}, controlnet=nets)
+    inp.set_progress_bar_config(disable=True)
+    done = 0
+    for i in range(1, n + 1):
+        comp = lab == i
+        ys, xs = np.nonzero(comp)
+        pad = int(40 * f)
+        side = max(xs.max() - xs.min(), ys.max() - ys.min()) + 2 * pad
+        side = min(side, img.width, img.height)
+        cx, cy = (xs.min() + xs.max()) / 2, (ys.min() + ys.max()) / 2
+        x0 = int(min(max(cx - side / 2, 0), img.width - side))
+        y0 = int(min(max(cy - side / 2, 0), img.height - side))
+        box = (x0, y0, x0 + side, y0 + side)
+        px = 512
+        crop = out.crop(box).resize((px, px), Image.LANCZOS)
+        li = lineart(srcimg.crop(box).resize((px, px), Image.LANCZOS))       # 元の絵の輪郭の線
+        mk = Image.fromarray((comp * 255).astype(np.uint8)).crop(box).resize((px, px), Image.NEAREST).filter(ImageFilter.GaussianBlur(5))
+        r = inp(a.prompt, negative_prompt=a.negative, image=crop, mask_image=mk, control_image=[crop, li], strength=0.6,
+                controlnet_conditioning_scale=[0.4, 1.0], num_inference_steps=a.steps, guidance_scale=a.guidance,
+                generator=torch.Generator().manual_seed(a.seed + 600 + i), width=px, height=px).images[0]
+        out.paste(r.resize((side, side), Image.LANCZOS), box[:2], mk.resize((side, side), Image.LANCZOS))
+        done += int(comp.sum())
+    log("shoulder_s", round(time.time() - t, 1))
+    return out, done
+
+
 def recut_to_source(img, parts, src_parts):
     """描いた人物が元の絵の体の輪郭からはみ出した所（髪と顔を除く）を、背景で埋める（元の輪郭で切り抜き直す）。
     左の肩が元の輪郭の外へ膨らんでいた。欠けを肌で埋めるだけでは膨らみは消えなかった"""
@@ -1388,12 +1491,20 @@ def resume(a, im, parts, log, stem, t):
         r2.save(a.out / f"{stem}-5-face-{a.face_mode}-f{a.face}-s{a.seed}.png")
     pn = _parts_of(r2)
     if a.leg_soften > 0:
-        # 太腿の内側の陰の境目が硬く線のように見えたので、脚の中だけ大きな明るさの段をならす（粒を重ねる前）
-        segn = np.asarray(pn)
-        legs = Image.fromarray(np.where(np.isin(segn, (12, 13)), segn, 0).astype(np.uint8))
-        r2 = deshade(r2, legs, a.leg_soften)
-    r2, xpx = recut_to_source(r2, pn, parts)
-    log("recut_px", xpx)
+        # 太腿の内側の陰の境目が硬く線のように見えたので、脚の中の段だけをぼかす（粒を重ねる前）
+        r2, spx = soften_leg_steps(r2, pn, a.leg_soften)
+        log("leg_step_px", spx)
+    if a.shoulder:
+        r2, shpx = shoulder_redraw(pipe, nets, r2, pn, im, parts, a, log)
+        log("shoulder_px", shpx)
+        pn = _parts_of(r2)
+    if a.feet > 0:
+        r2 = feet_redraw(pipe, nets, r2, pn, a, log)
+        pn = _parts_of(r2)
+        import measure
+        seen, _ = measure.body_light_deg(np.asarray(r2, np.float32) / 255, np.asarray(pn))
+        r2 = cast_shadow(clear_floor(r2, pn), pn, None, seen or a.light_deg, a.cast)   # 接地の影は描き直したあとに掛け直す
+        r2.save(a.out / f"{stem}-5a-feet-s{a.seed}.png")
     if a.grain > 0:
         t1 = time.time()
         r2 = skin_grain(r2, _parts_of(r2), a.grain, a.seed)
@@ -1464,6 +1575,8 @@ def parse(argv):
     ap.add_argument("--asian", action="store_true", help="東アジアの顔に寄せる言葉を足す（顔の描き直しにも同じ言葉を使う）")
     ap.add_argument("--face-px", type=int, default=768, help="顔を描く大きさ")
     ap.add_argument("--grain", type=float, default=0, help="実写の肌の粒を重ねる量（styles/skin-texture.json の強さを 1 とする、0 ならしない）")
+    ap.add_argument("--feet", type=float, default=0, help="足を inpaint で描き直す強さ（0 ならしない）")
+    ap.add_argument("--shoulder", action="store_true", help="輪郭が元の絵から大きくずれた所を、元の線画で描き直す")
     ap.add_argument("--leg-soften", type=float, default=0, help="脚の陰の境目をならす幅（768 幅の画素、0 ならしない）")
     ap.add_argument("--sdxl-skin", type=float, default=0, help="SDXL の写実の模型で肌だけを描き直す強さ（0 ならしない）")
     ap.add_argument("--s1-hf", type=float, default=0, help="最後に 1 段目の高い周波数を体に戻す幅（0 ならしない）")

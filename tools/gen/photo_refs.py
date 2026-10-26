@@ -126,13 +126,14 @@ def main(argv=None) -> int:
             import qc
             mo = qc.mouth_check(np.asarray(im), seg)
             tex = skin_spectrum(im, seg)
-            ftex = skin_spectrum(im, seg, (11,))          # 口の面積の比の基準を実写から決めるため
+            ftex = skin_spectrum(im, seg, (11,))
+            sh["skin_tex"] = measure.skin_texture(np.asarray(im, np.float32) / 255, seg)   # 手本それぞれの値（基準の分布）          # 口の面積の比の基準を実写から決めるため
             fails = [f["path"] for f in measure.judge_shadow(sh)]
             rows.append({**c, "size": im.size, "shadow": sh, "mouth": mo, "skin_tex": tex, "face_tex": ftex, "fails": fails, "s": round(time.time() - t, 1)})
             print(json.dumps(rows[-1], ensure_ascii=False), flush=True)
     (a.out / "refs.json").write_text(json.dumps(rows, indent=1, ensure_ascii=False))
     dist = {}
-    for k in ("bimodal", "step_frac", "spread", "normal_corr", "ratio", "soft"):
+    for k in ("skin_tex", "bimodal", "step_frac", "spread", "normal_corr", "ratio", "soft"):
         v = [r["shadow"][k] for r in rows if r["shadow"].get(k) is not None]
         if v:
             dist[k] = {q: round(float(np.percentile(v, q)), 3) for q in (0, 10, 50, 90, 100)}
