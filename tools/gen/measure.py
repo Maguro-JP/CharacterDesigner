@@ -745,6 +745,23 @@ def stray_blob(rgb) -> float:
         return 0.0
     return float(np.bincount(lab.ravel())[1:].max() / m.size * 100)
 
+
+def garment_saturation(rgb, parts) -> float:
+    """部位分け（edit.LABELS）の服の画素の彩度の中央値。白い水着を頼んだ絵で、水着そのものの色違いを見る。
+
+    水着が丸ごと桃色・水色になった絵は、色が面で広がるので stray_color と stray_blob が拾わない（身体 回69〜89）。
+    写実 15 枚で、白か灰の水着は 0.133 以下、色の付いた水着は 0.182 以上だった。服の画素が無ければ 0。
+    """
+    import numpy as np
+    a = np.asarray(rgb, dtype=np.float32)
+    if a.max() > 1.0:
+        a = a / 255.0
+    m = np.isin(np.asarray(parts), [4, 5, 6, 7])
+    if not m.any():
+        return 0.0
+    mx, mn = a[m].max(-1), a[m].min(-1)
+    return float(np.median((mx - mn) / np.maximum(mx, 1e-6)))
+
 def measure(src, hair_color: str = "", points=None, prompt: str | None = None, tags: dict | None = None) -> dict:
     """prompt と tags は、呼ぶ側（qc.auto_check）が持っていれば渡す。タグの模型を2度走らせないため"""
     from PIL import Image
