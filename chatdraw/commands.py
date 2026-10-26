@@ -269,11 +269,24 @@ def looks_like_command(text: str) -> bool:
     return by_words(text)[0] is not None
 
 
-def handle(w, text: str) -> str | None:
-    """text が操作の頼みなら、その操作をして、チャットに出す言葉を返す。絵を描く頼みなら None"""
+_ASK = object()
+
+
+def needs_model(text: str, words) -> bool:
+    """この頼みを言葉の模型に聞くか。聞くなら、画面の糸ではなく裏で聞く（読み込みと推論に数秒〜数十秒かかる）"""
+    return looks_like_command(text) and words is not None and hasattr(words, "ask") \
+        and bool(getattr(words, "ready", lambda: False)())
+
+
+def handle(w, text: str, picked=_ASK) -> str | None:
+    """text が操作の頼みなら、その操作をして、チャットに出す言葉を返す。絵を描く頼みなら None。
+
+    picked は裏で by_model に聞いた答え。渡さなければここで聞く（試験と、模型の無いとき用）
+    """
     if not looks_like_command(text):
         return None
-    picked = by_model(text, getattr(getattr(w, "studio", None), "words", None))
+    if picked is _ASK:
+        picked = by_model(text, getattr(getattr(w, "studio", None), "words", None))
     c, arg = picked if picked is not None else by_words(text)
     if c is None:
         return None

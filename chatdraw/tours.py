@@ -6,7 +6,7 @@
 """
 from __future__ import annotations
 
-from chatdraw.tour import Step
+from chatdraw.tour import Step, Tour
 
 
 def _tool(w, key):
@@ -92,21 +92,40 @@ def enabled(w) -> bool:
     return bool(int(w.layout_store.value("feature_tours", 1)))
 
 
+def _shows(w, key: str, force: bool) -> bool:
+    """いまこの機能の案内を出すか。ほかの案内が開いている間は重ねない"""
+    if catalog(w).get(key) is None or not force and (seen(w, key) or not enabled(w)):
+        return False
+    t = getattr(w, "tour", None)
+    return not (t is not None and t.isVisible() and not getattr(t, "done", False))
+
+
+def _open(w, key: str, then):
+    w.layout_store.setValue(f"tours/{key}", 1)
+    w.tour = Tour(w, catalog(w)[key][1], on_close=then)
+    w.tour.start()
+
+
 def show(w, key: str, then=None, force: bool = False) -> bool:
     """key の機能のツアーを、初めてなら出す。出したら閉じたあとに then を呼ぶ。出さなければすぐ then を呼ぶ"""
-    from chatdraw.tour import Tour
-    steps = catalog(w).get(key)
-    if steps is None or (not force and (seen(w, key) or not enabled(w))) or getattr(w, "tour", None) is not None and w.tour.isVisible():
+    if not _shows(w, key, force):
         if then:
             then()
         return False
-    w.layout_store.setValue(f"tours/{key}", 1)
+    _open(w, key, then)
+    return True
 
-    def closed():
-        if then:
-            then()
-    w.tour = Tour(w, steps[1], on_close=closed)
-    w.tour.start()
+
+def first(w, key: str, then) -> bool:
+    """初めてなら案内を出し、閉じたあとに then を呼んで True を返す。出さなければ then を呼ばずに False。
+
+    「案内を出したら戻る、出さなければ続ける」と書く呼び手（then に自分を渡す）のためのもの。
+    show に自分を渡すと、案内が出ないときに then → 自分 → show → then … と限りなく呼び合い、
+    RecursionError で窓が開かなかった（模型の管理・開く・保存）。
+    """
+    if not _shows(w, key, False):
+        return False
+    _open(w, key, then)
     return True
 
 
