@@ -476,7 +476,8 @@ def project_shadow(body, light_deg, squash=0.45, lean=0.6, seg=None):
     foot, _ = feet_line(body)
     pivot = np.full(len(ys), float(foot))
     if seg is not None:   # 脚の下半分（足の列の範囲の画素）は、その足の裏を支点にする
-        knee = foot - 0.25 * (foot - ys.min())
+        # 足首より下だけ、その足の裏を支点にする。膝から下まで分けると、胴の写しとの継ぎ目に影の抜けた横の筋が出た
+        knee = foot - 0.06 * (foot - ys.min())
         for ft in feet(seg):
             sel = (xs >= ft["x0"]) & (xs <= ft["x1"]) & (ys >= knee)
             pivot[sel] = ft["bottom"]
@@ -488,7 +489,10 @@ def project_shadow(body, light_deg, squash=0.45, lean=0.6, seg=None):
     m = np.zeros((H, W), bool)
     m[sy[ok], sx[ok]] = True
     f = W / 768
-    return ndimage.binary_closing(m, iterations=max(2, round(3 * f)))
+    # 脚（足の裏が支点）と胴（下端が支点）の写し方の継ぎ目に、影の抜けた横の筋が出たので、穴を埋める
+    m = ndimage.binary_closing(m, iterations=max(2, round(3 * f)))
+    m = ndimage.binary_closing(m, structure=np.ones((max(3, round(9 * f)), 1), bool))
+    return ndimage.binary_fill_holes(m)
 
 
 def body_light_deg(rgb, seg, least=0.01):
