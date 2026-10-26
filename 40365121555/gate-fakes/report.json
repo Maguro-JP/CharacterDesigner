@@ -1,0 +1,476 @@
+[
+ {
+  "step": "relight",
+  "accepted": false,
+  "tries": 1,
+  "worse": {
+   "leg_de": [
+    7.26,
+    10.94
+   ],
+   "halo_feet": [
+    0.039,
+    0.1
+   ],
+   "blown_skin": [
+    0.0093,
+    0.025
+   ]
+  },
+  "before": {
+   "contour_dev": 14.0,
+   "contour_extra": 6.4,
+   "hair_loss": 0.054,
+   "leg_de": 7.26,
+   "skin_vstep": 2.65,
+   "halo": 0.136,
+   "halo_feet": 0.039,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.0093,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "after": null,
+  "s": 20.4
+ },
+ {
+  "step": "deblow",
+  "accepted": true,
+  "tries": 1,
+  "worse": {},
+  "before": {
+   "contour_dev": 14.0,
+   "contour_extra": 6.4,
+   "hair_loss": 0.054,
+   "leg_de": 7.26,
+   "skin_vstep": 2.65,
+   "halo": 0.136,
+   "halo_feet": 0.039,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.0093,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "after": {
+   "contour_dev": 14.0,
+   "contour_extra": 6.4,
+   "hair_loss": 0.055,
+   "leg_de": 7.25,
+   "skin_vstep": 2.65,
+   "halo": 0.122,
+   "halo_feet": 0.04,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.0058,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "s": 10.9
+ },
+ {
+  "step": "match_legs",
+  "accepted": true,
+  "tries": 1,
+  "worse": {},
+  "before": {
+   "contour_dev": 14.0,
+   "contour_extra": 6.4,
+   "hair_loss": 0.055,
+   "leg_de": 7.25,
+   "skin_vstep": 2.65,
+   "halo": 0.122,
+   "halo_feet": 0.04,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.0058,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "after": {
+   "contour_dev": 14.0,
+   "contour_extra": 6.4,
+   "hair_loss": 0.053,
+   "leg_de": 1.41,
+   "skin_vstep": 2.54,
+   "halo": 0.122,
+   "halo_feet": 0.029,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.0057,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "s": 10.6
+ },
+ {
+  "step": "dehalo",
+  "accepted": false,
+  "tries": 1,
+  "worse": {
+   "dark_blob_px": [
+    0,
+    345
+   ]
+  },
+  "before": {
+   "contour_dev": 14.0,
+   "contour_extra": 6.4,
+   "hair_loss": 0.053,
+   "leg_de": 1.41,
+   "skin_vstep": 2.54,
+   "halo": 0.122,
+   "halo_feet": 0.029,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.0057,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "after": null,
+  "s": 11.4
+ },
+ {
+  "step": "cast",
+  "accepted": false,
+  "tries": 1,
+  "worse": {
+   "halo_feet": [
+    0.029,
+    0.141
+   ]
+  },
+  "before": {
+   "contour_dev": 14.0,
+   "contour_extra": 6.4,
+   "hair_loss": 0.053,
+   "leg_de": 1.41,
+   "skin_vstep": 2.54,
+   "halo": 0.122,
+   "halo_feet": 0.029,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.0057,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "after": null,
+  "s": 12.2
+ },
+ {
+  "step": "face",
+  "accepted": false,
+  "tries": 3,
+  "worse": {
+   "hair_loss": [
+    0.053,
+    0.08
+   ]
+  },
+  "before": {
+   "contour_dev": 14.0,
+   "contour_extra": 6.4,
+   "hair_loss": 0.053,
+   "leg_de": 1.41,
+   "skin_vstep": 2.54,
+   "halo": 0.122,
+   "halo_feet": 0.029,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.0057,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "after": null,
+  "s": 6912.8
+ },
+ {
+  "step": "leg_soften",
+  "accepted": true,
+  "tries": 1,
+  "worse": {},
+  "before": {
+   "contour_dev": 14.0,
+   "contour_extra": 6.4,
+   "hair_loss": 0.053,
+   "leg_de": 1.41,
+   "skin_vstep": 2.54,
+   "halo": 0.122,
+   "halo_feet": 0.029,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.0057,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "after": {
+   "contour_dev": 14.0,
+   "contour_extra": 6.4,
+   "hair_loss": 0.055,
+   "leg_de": 1.32,
+   "skin_vstep": 2.24,
+   "halo": 0.121,
+   "halo_feet": 0.032,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.006,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "s": 9.7
+ },
+ {
+  "step": "shoulder",
+  "accepted": true,
+  "tries": 1,
+  "worse": {},
+  "before": {
+   "contour_dev": 14.0,
+   "contour_extra": 6.4,
+   "hair_loss": 0.055,
+   "leg_de": 1.32,
+   "skin_vstep": 2.24,
+   "halo": 0.121,
+   "halo_feet": 0.032,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.006,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "after": {
+   "contour_dev": 12.0,
+   "contour_extra": 6.1,
+   "hair_loss": 0.055,
+   "leg_de": 1.31,
+   "skin_vstep": 2.24,
+   "halo": 0.121,
+   "halo_feet": 0.032,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.006,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "s": 319.3
+ },
+ {
+  "step": "feet",
+  "accepted": false,
+  "tries": 3,
+  "worse": {
+   "contour_extra": [
+    6.1,
+    15.8
+   ],
+   "halo_feet": [
+    0.032,
+    0.14
+   ]
+  },
+  "before": {
+   "contour_dev": 12.0,
+   "contour_extra": 6.1,
+   "hair_loss": 0.055,
+   "leg_de": 1.31,
+   "skin_vstep": 2.24,
+   "halo": 0.121,
+   "halo_feet": 0.032,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.006,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "after": null,
+  "s": 1151.3
+ },
+ {
+  "step": "grain",
+  "accepted": true,
+  "tries": 1,
+  "worse": {},
+  "before": {
+   "contour_dev": 12.0,
+   "contour_extra": 6.1,
+   "hair_loss": 0.055,
+   "leg_de": 1.31,
+   "skin_vstep": 2.24,
+   "halo": 0.121,
+   "halo_feet": 0.032,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.006,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "after": {
+   "contour_dev": 12.0,
+   "contour_extra": 6.1,
+   "hair_loss": 0.058,
+   "leg_de": 1.33,
+   "skin_vstep": 2.22,
+   "halo": 0.122,
+   "halo_feet": 0.033,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.006,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "s": 13.7
+ },
+ {
+  "step": "shape",
+  "accepted": true,
+  "tries": 1,
+  "worse": {},
+  "before": {
+   "contour_dev": 12.0,
+   "contour_extra": 6.1,
+   "hair_loss": 0.058,
+   "leg_de": 1.33,
+   "skin_vstep": 2.22,
+   "halo": 0.122,
+   "halo_feet": 0.033,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.006,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "after": {
+   "contour_dev": 12.0,
+   "contour_extra": 5.4,
+   "hair_loss": 0.058,
+   "leg_de": 1.33,
+   "skin_vstep": 2.22,
+   "halo": 0.121,
+   "halo_feet": 0.033,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.006,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "s": 18.2
+ },
+ {
+  "step": "fake_swell",
+  "accepted": false,
+  "tries": 1,
+  "worse": {
+   "contour_extra": [
+    5.4,
+    31.1
+   ]
+  },
+  "before": {
+   "contour_dev": 12.0,
+   "contour_extra": 5.4,
+   "hair_loss": 0.058,
+   "leg_de": 1.33,
+   "skin_vstep": 2.22,
+   "halo": 0.121,
+   "halo_feet": 0.033,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.006,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "after": null,
+  "s": 13.2
+ },
+ {
+  "step": "fake_nohair",
+  "accepted": false,
+  "tries": 1,
+  "worse": {
+   "contour_dev": [
+    12.0,
+    20.1
+   ],
+   "hair_loss": [
+    0.058,
+    0.244
+   ]
+  },
+  "before": {
+   "contour_dev": 12.0,
+   "contour_extra": 5.4,
+   "hair_loss": 0.058,
+   "leg_de": 1.33,
+   "skin_vstep": 2.22,
+   "halo": 0.121,
+   "halo_feet": 0.033,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.006,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "after": null,
+  "s": 13.2
+ },
+ {
+  "step": "fake_whiteedge",
+  "accepted": false,
+  "tries": 1,
+  "worse": {
+   "contour_extra": [
+    5.4,
+    9.4
+   ],
+   "halo": [
+    0.121,
+    0.67
+   ],
+   "halo_feet": [
+    0.033,
+    0.639
+   ],
+   "blown_skin": [
+    0.006,
+    0.0998
+   ]
+  },
+  "before": {
+   "contour_dev": 12.0,
+   "contour_extra": 5.4,
+   "hair_loss": 0.058,
+   "leg_de": 1.33,
+   "skin_vstep": 2.22,
+   "halo": 0.121,
+   "halo_feet": 0.033,
+   "cast_iou": 0.068,
+   "contact": 0.0,
+   "dark_blob_px": 0,
+   "blown_skin": 0.006,
+   "face_bad": 1,
+   "mouth_bad": 1
+  },
+  "after": null,
+  "s": 13.2
+ }
+]
