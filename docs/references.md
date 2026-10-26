@@ -124,3 +124,4 @@ OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じ
 | CLIP ViT-B/32 | huggingface.co/openai/clip-vit-base-patch32 | MIT | 顔の似ている度合い |
 | 実写の手本 14 枚 | Wikimedia Commons（題名・URL は `tests/fixtures/photoreal_refs.json`） | CC0 | 影の基準を決める。写真は置かず数字だけ |
 | IP-Adapter（SD1.5 plus-face） | huggingface.co/h94/IP-Adapter（models/ip-adapter-plus-face_sd15.safetensors 98MB、models/image_encoder 2.5GB） | Apache-2.0 | 元のアニメの顔を渡して、写実の模型で顔を描かせる |
+| RealVisXL V5.0 | huggingface.co/SG161222/RealVisXL_V5.0（fp16 の分け置き、約 6.9GB） | openrail++（使い方の制限あり、絵の商用利用は可） | 肌だけを弱く描き直す比べ |

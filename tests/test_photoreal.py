@@ -385,3 +385,17 @@ class LipsAndContourTest(unittest.TestCase):
         out, px = photoreal.restore_contour(Image.fromarray(img), Image.fromarray(now), Image.fromarray(src))
         self.assertGreater(px, 0)
         self.assertGreater(np.asarray(out)[80, 60].mean(), 170)
+
+
+class SkinGrainTest(unittest.TestCase):
+    def test_grain_breaks_flat_skin_keeps_color(self):
+        import measure
+        seg = np.zeros((256, 256), np.uint8)
+        seg[30:230, 60:200] = 12
+        img = np.full((256, 256, 3), 120, np.uint8)
+        img[seg > 0] = (220, 180, 160)
+        out = np.asarray(photoreal.skin_grain(Image.fromarray(img), Image.fromarray(seg), 0.3, 1)).astype(float)
+        inner = seg > 0
+        self.assertGreater(out[inner].std(axis=0).mean(), 1.0)          # 平らな塗りでなくなる
+        self.assertLess(np.abs(out[inner].mean(0) - (220, 180, 160)).max(), 2)   # 平均の色は変えない
+        self.assertTrue((out[seg == 0] == 120).all())                     # 背景には掛けない

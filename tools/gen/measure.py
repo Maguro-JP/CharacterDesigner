@@ -572,7 +572,7 @@ def skin_vstep(rgb, seg):
     from scipy import ndimage
     legs = ndimage.binary_erosion(np.isin(seg, (12, 13)), iterations=4)
     H = seg.shape[0]
-    lab_ = lab(ndimage.gaussian_filter(rgb[..., :3], (0.5, 2, 0)))
+    lab_ = lab(ndimage.gaussian_filter(rgb[..., :3], (1.5, 3, 0)))   # 肌の粒（毛穴）を段に数えない
     k = 3
     both = legs[2 * k:] & legs[:-2 * k]
     d = np.linalg.norm(lab_[2 * k:] - lab_[:-2 * k], axis=-1)

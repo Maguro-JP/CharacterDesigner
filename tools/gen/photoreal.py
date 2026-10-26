@@ -1116,45 +1116,84 @@ def restore_contour(img, parts, src_parts, least=12):
     return Image.fromarray(np.clip(a * (1 - w) + near * w, 0, 255).astype(np.uint8)), int(dent.sum())
 
 
-def skin_redraw(pipe, img, parts, a, log):
-    """肌の部位だけを、768 のタイルに切って tile の ControlNet で描き直し（strength a.skin）、肌の部位の中だけ大きくぼかして戻す。
-    高い周波数を戻すやり方では、肌の平らな面が 10 周以上 0.06 前後から動かなかった"""
+SKIN_TEX = Path(__file__).resolve().parents[2] / "styles" / "skin-texture.json"
+SDXL_SKIN = "SG161222/RealVisXL_V5.0"   # openrail++（使い方の制限あり、絵の商用利用は可）
+
+
+def skin_grain(img, parts, amount=1.0, seed=0):
+    """実写の肌の粒（毛穴ときめ）を重ねる。実写の手本の肌の、周波数ごとの強さ（styles/skin-texture.json）に合わせた雑音を作り、
+    肌の部位の明るさに掛ける。光の当たる所は強く、陰では弱くする（陰では肌理が見えにくい）。模型を使わないので速く、ぶれない。
+    肌の部位を tile で描き直す方法は、肌をかえってならした（16 周目、肌の平らな面 0.062 → 0.082）"""
+    import json
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+    tex = json.loads(SKIN_TEX.read_text(encoding="utf-8"))
+    H, W = img.height, img.width
+    # 周波数は手本の画素のまま使う（手本は人物が小さく写り、絵の幅で伸ばすと粒が大きな斑になった）
+    scale = 1.0
+    fy = np.fft.fftfreq(H)[:, None]
+    fx = np.fft.fftfreq(W)[None, :]
+    r = np.hypot(fy, fx) * 2 * scale                    # 手本の切り抜きの半径（0〜1 がナイキスト）
+    pw = np.array(tex["power"])
+    centers = (np.arange(len(pw)) + 0.5) / len(pw)
+    amp = np.sqrt(np.interp(r, centers, pw, left=pw[0], right=0))
+    rng = np.random.default_rng(seed)
+    n = np.real(np.fft.ifft2(np.fft.fft2(rng.normal(size=(H, W))) * amp))
+    n = n / max(n.std(), 1e-6) * tex["std"] * amount
+    seg = np.asarray(parts)
+    skin = np.isin(seg, SKIN)
+    a = np.asarray(img).astype(np.float32) / 255
+    L = a.mean(2)
+    lit = np.clip(L / max(float(np.median(L[skin])) if skin.any() else 0.5, 1e-3), 0.3, 1.3)   # 明るい所ほど強く
+    w = ndimage.gaussian_filter(skin.astype(np.float32), 2) * lit * skin   # 肌の外（背景）には掛けない
+    o = a + (n * w)[..., None]                            # 明るさに足す（色相は変えない）
+    return Image.fromarray(np.clip(o * 255, 0, 255).astype(np.uint8))
+
+
+def skin_sdxl(img, parts, a, log):
+    """SDXL の写実の模型（RealVisXL V5）で、肌の部位だけを弱く（a.sdxl_skin）描き直す。1024 のタイルに切り、肌の部位の中だけ
+    大きくぼかして戻す。CPU の機械（16GB）に乗せるため、SD1.5 の模型を捨ててから bf16 で読む（fp32 では約 14GB で乗らない）"""
     import numpy as np
     import torch
+    from diffusers import StableDiffusionXLImg2ImgPipeline
     from PIL import Image
     from scipy import ndimage
     t = time.time()
+    pipe = StableDiffusionXLImg2ImgPipeline.from_pretrained(SDXL_SKIN, torch_dtype=torch.bfloat16, variant="fp16", use_safetensors=True)
+    pipe.set_progress_bar_config(disable=True)
+    log("sdxl_load_s", round(time.time() - t, 1))
+    log("sdxl_rss_gb", round(rss_gb(), 2))
     seg = np.asarray(parts)
-    skin = np.isin(seg, SKIN) & (seg != 11)                  # 顔は IP-Adapter で描いたまま
+    skin = np.isin(seg, SKIN) & (seg != 11)
     W, H = img.size
-    T, ov = 768, 128
-    acc = np.asarray(img).astype(np.float32).copy()
-    wsum = np.zeros((H, W, 1), np.float32)
+    T, ov = 1024, 192
+    acc = np.asarray(img).astype(np.float32)
     out = np.zeros_like(acc)
+    wsum = np.zeros((H, W, 1), np.float32)
     ramp = np.minimum(np.minimum(np.arange(T), np.arange(T)[::-1]) / ov, 1) + 1e-3
     wt = (ramp[None, :] * ramp[:, None])[..., None]
     n = 0
-    prompt = a.prompt + ", skin pores, natural skin texture, subsurface scattering, fine skin detail"
     for y in tiles(H, T, ov):
         for x in tiles(W, T, ov):
             if skin[y:y + T, x:x + T].mean() < 0.03:
                 continue
+            t1 = time.time()
             c = img.crop((x, y, x + T, y + T))
-            r = pipe(prompt, negative_prompt=a.negative + ", smooth skin, airbrushed, plastic skin", image=c, control_image=c,
-                     strength=a.skin, controlnet_conditioning_scale=0.8, num_inference_steps=a.steps, guidance_scale=a.guidance,
-                     generator=torch.Generator().manual_seed(a.seed + 300 + n), width=T, height=T).images[0]
-            out[y:y + T, x:x + T] += np.asarray(r).astype(np.float32) * wt
+            r = pipe(a.prompt + ", skin pores, natural skin texture, photo", negative_prompt=a.negative + ", smooth skin, plastic skin",
+                     image=c, strength=a.sdxl_skin, num_inference_steps=a.steps, guidance_scale=5.0,
+                     generator=torch.Generator().manual_seed(a.seed + 400 + n)).images[0]
+            out[y:y + T, x:x + T] += np.asarray(r.resize((T, T))).astype(np.float32) * wt
             wsum[y:y + T, x:x + T] += wt
             n += 1
-            print("skin tile", n, round(time.time() - t), flush=True)
+            log(f"sdxl_tile{n}_s", round(time.time() - t1, 1))
     done = wsum[..., 0] > 0
     drawn = np.where(done[..., None], out / np.maximum(wsum, 1e-6), acc)
     f = W / 768
     w = ndimage.gaussian_filter((ndimage.binary_erosion(skin, iterations=max(2, round(4 * f))) & done).astype(np.float32), 6 * f)[..., None]
-    res = drawn * w + acc * (1 - w)
-    log("skin_tiles", n)
-    log("skin_s", round(time.time() - t, 1))
-    return Image.fromarray(np.clip(res, 0, 255).astype(np.uint8))
+    log("sdxl_s", round(time.time() - t, 1))
+    log("sdxl_rss_gb_end", round(rss_gb(), 2))
+    return Image.fromarray(np.clip(drawn * w + acc * (1 - w), 0, 255).astype(np.uint8))
 
 
 def deblow(img, parts):
@@ -1301,12 +1340,17 @@ def resume(a, im, parts, log, stem, t):
     if a.face > 0:
         r2 = face_ipadapter(pipe, nets, r2, im, a, log) if a.face_mode == "ipadapter" else face_inpaint(pipe, nets, r2, a, log)
         r2.save(a.out / f"{stem}-5-face-{a.face_mode}-f{a.face}-s{a.seed}.png")
-    if a.skin > 0:
-        r2 = skin_redraw(pipe, r2, _parts_of(r2), a, log)
-        r2.save(a.out / f"{stem}-5b-skin-{a.skin}-s{a.seed}.png")
-        if a.check:
-            check(im, r2, parts, log, "skin", ref=r1_color)
-        textured = r2                                     # 最後の高い周波数の戻しは、描き直した肌から取る
+    if a.grain > 0:
+        t1 = time.time()
+        r2 = skin_grain(r2, _parts_of(r2), a.grain, a.seed)
+        log("grain_s", round(time.time() - t1, 1))
+        r2.save(a.out / f"{stem}-5b-grain-{a.grain}-s{a.seed}.png")
+    if a.sdxl_skin > 0:
+        del pipe, nets
+        import gc
+        gc.collect()
+        r2 = skin_sdxl(r2, _parts_of(r2), a, log)
+        r2.save(a.out / f"{stem}-5b-sdxl-{a.sdxl_skin}-s{a.seed}.png")
     r2, cpx = restore_contour(r2, _parts_of(r2), parts)
     log("contour_fix_px", cpx)
     r2.save(a.out / f"{stem}-8-final-s{a.seed}.png")
@@ -1365,7 +1409,8 @@ def parse(argv):
     ap.add_argument("--model", choices=sorted(CHECKPOINTS), default="rv", help="写実の模型")
     ap.add_argument("--asian", action="store_true", help="東アジアの顔に寄せる言葉を足す（顔の描き直しにも同じ言葉を使う）")
     ap.add_argument("--face-px", type=int, default=768, help="顔を描く大きさ")
-    ap.add_argument("--skin", type=float, default=0, help="肌の部位だけを tile で描き直す強さ（0 ならしない）")
+    ap.add_argument("--grain", type=float, default=0, help="実写の肌の粒を重ねる量（styles/skin-texture.json の強さを 1 とする、0 ならしない）")
+    ap.add_argument("--sdxl-skin", type=float, default=0, help="SDXL の写実の模型で肌だけを描き直す強さ（0 ならしない）")
     ap.add_argument("--s1-hf", type=float, default=0, help="最後に 1 段目の高い周波数を体に戻す幅（0 ならしない）")
     ap.add_argument("--face-mode", choices=("ipadapter", "uncover"), default="ipadapter", help="顔の描き直し方")
     ap.add_argument("--ip-scale", type=float, default=0.6, help="IP-Adapter に渡す元の顔の強さ")
