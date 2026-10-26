@@ -20,9 +20,13 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-# 前より悪いとみなす差。測り方の揺れ（同じ絵を描き直したときの差）より大きく取る
-TOL = {"contour_dev": 2.0, "contour_extra": 2.0, "hair_loss": 0.02, "face_bad": 0.5, "mouth_bad": 0.5, "leg_de": 0.5, "skin_vstep": 0.3,
-       "halo": 0.01, "halo_feet": 0.01, "dark_blob_px": 50, "blown_skin": 0.002, "cast_iou": 0.03, "contact": 0.05}
+# 前より悪いとみなす差。部位分けの模型の読み違いの揺れ（崩さない変化を掛けて読み直したときの幅、`gate.py jitter` で測る）の上に置く。
+# 輪郭の 2 つを 2 画素にしていたときは、肌の粒を重ねただけではみ出しが 3.6 → 8.1 になり、描き直しの工程が全部戻されていた
+# 2026-10-27 に測った幅（元のアニメの絵 stand-s12、粒 4・8、明るさ ±8%、JPEG 70・85）: contour_dev 12.4、contour_extra 8.9、hair_loss 0.028、
+# leg_de 1.61、skin_vstep 0.57、halo 0.03、halo_feet 0.014、dark_blob_px 40、blown_skin 0.013。許す差はおよそその 1.5 倍。
+# わざと崩す偽の工程（輪郭を 25 画素膨らませる、髪を消す、縁を白くする）は、この差でも戻る（tests/test_gate.py）
+TOL = {"contour_dev": 18.0, "contour_extra": 13.0, "hair_loss": 0.04, "face_bad": 0.5, "mouth_bad": 0.5, "leg_de": 2.5, "skin_vstep": 0.8,
+       "halo": 0.045, "halo_feet": 0.02, "dark_blob_px": 60, "blown_skin": 0.02, "cast_iou": 0.03, "contact": 0.05}
 HIGHER_BETTER = {"cast_iou", "contact"}
 
 
@@ -144,3 +148,55 @@ class Gate:
                 (r["worse"] or {}).get("error", "")
             lines.append(f"| {r['step']} | {'受け入れ' if r['accepted'] else '戻した'} | {r['tries']} | {why} | {r['s']} |")
         (out_dir / "report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def harmless_variants(img):
+    """崩さない変化（粒、明るさ、JPEG）。人の目では同じ絵で、関所が受け入れるべきもの"""
+    import io
+    from PIL import Image, ImageEnhance
+    a = np.asarray(img).astype(np.float32)
+    rng = np.random.default_rng(0)
+    out = {}
+    for s in (4, 8):
+        out[f"grain{s}"] = Image.fromarray(np.clip(a + rng.normal(0, s, a.shape), 0, 255).astype(np.uint8))
+    for b in (0.92, 1.08):
+        out[f"bright{b}"] = ImageEnhance.Brightness(img).enhance(b)
+    for q in (70, 85):
+        buf = io.BytesIO()
+        img.save(buf, "JPEG", quality=q)
+        out[f"jpeg{q}"] = Image.open(io.BytesIO(buf.getvalue())).convert("RGB")
+    return out
+
+
+def jitter(img, src_seg, parts_fn=default_parts):
+    """同じ絵に崩さない変化を掛けて測り直し、各数字の揺れの幅（元の絵の値からの、悪くなる向きの最大）を返す"""
+    g = Gate(src_seg, log=lambda *x: None, parts_fn=parts_fn, face_fn=None)
+    base = g.measure(img)
+    width, rows = {}, {}
+    for name, v in harmless_variants(img).items():
+        m = g.measure(v)
+        rows[name] = m
+        for k in TOL:
+            if base.get(k) is None or m.get(k) is None:
+                continue
+            d = (base[k] - m[k]) if k in HIGHER_BETTER else (m[k] - base[k])
+            width[k] = round(max(width.get(k, 0.0), float(d)), 4)
+    return base, rows, width
+
+
+if __name__ == "__main__":
+    import argparse
+    from PIL import Image
+    ap = argparse.ArgumentParser(description="部位分けの読み違いの揺れを測る（許す差を決め直すとき）")
+    ap.add_argument("cmd", choices=["jitter"])
+    ap.add_argument("imgs", nargs="+", type=Path, help="測る絵。最初の絵の隣の .parts.png を元の部位分けにする")
+    a = ap.parse_args()
+    src_seg = None
+    for p in a.imgs:
+        im = Image.open(p).convert("RGB")
+        im = im.resize((768, round(im.height * 768 / im.width)), Image.LANCZOS) if im.width != 768 else im
+        if src_seg is None:
+            src_seg = default_parts(im)
+        t = time.time()
+        base, rows, width = jitter(im, src_seg)
+        print(json.dumps({"img": str(p), "base": base, "width": width, "s": round(time.time() - t, 1)}, ensure_ascii=False, default=float))

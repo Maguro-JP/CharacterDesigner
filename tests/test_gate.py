@@ -59,5 +59,22 @@ class GateTest(unittest.TestCase):
         self.assertEqual(g.rows[0]["tries"], 3)
 
 
+    def test_harmless_variants_keep_contour(self):
+        # 粒と JPEG で輪郭の数字が戻す側に振れないこと（前の周は粒だけで contour_extra が 3.6 → 8.1 になり全部戻された）。
+        # 偽の部位分けは色で決めるので明るさの変化は読めず、平らな絵は skin_vstep が粒で動くため、輪郭の数字だけを見る
+        before = self.g.measure(self.img)
+        for name, v in gate.harmless_variants(self.img).items():
+            if name.startswith("bright"):
+                continue
+            bad = self.g.worse(before, self.g.measure(v))
+            self.assertFalse({"contour_dev", "contour_extra", "hair_loss"} & set(bad), (name, bad))
+
+    def test_tolerance_above_measured_jitter(self):
+        measured = {"contour_dev": 12.4, "contour_extra": 8.9, "hair_loss": 0.028, "leg_de": 1.61, "skin_vstep": 0.57,
+                    "halo": 0.03, "halo_feet": 0.014, "dark_blob_px": 40, "blown_skin": 0.013}
+        for k, w in measured.items():
+            self.assertGreater(gate.TOL[k], w, k)
+
+
 if __name__ == "__main__":
     unittest.main()
