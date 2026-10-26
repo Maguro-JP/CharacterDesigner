@@ -725,6 +725,26 @@ def stray_color(rgb) -> float:
     sat = (mx - mn) / np.maximum(mx, 1e-6)
     return float(((sat > 0.5) & (mx > 0.25)).mean() * 100)
 
+
+def stray_blob(rgb) -> float:
+    """鮮やかな色の画素がつながった塊のうち、一番大きいものが絵に占める割合（%）。
+
+    stray_color は鮮やかな画素の合計しか見ないので、小さくまとまった色の板（回73 の赤い長方形、0.93%）を
+    合計 1.53% で見逃した。塊で見ると、身体 回40〜73 の写実 20 枚で、崩れの無い絵は 0.61% 以下、
+    色の板や布が出た 3 枚は 0.73% 以上だった。
+    """
+    import numpy as np
+    from scipy import ndimage
+    a = np.asarray(rgb, dtype=np.float32)
+    if a.max() > 1.0:
+        a = a / 255.0
+    mx, mn = a.max(-1), a.min(-1)
+    m = ((mx - mn) / np.maximum(mx, 1e-6) > 0.5) & (mx > 0.25)
+    lab, n = ndimage.label(m)
+    if not n:
+        return 0.0
+    return float(np.bincount(lab.ravel())[1:].max() / m.size * 100)
+
 def measure(src, hair_color: str = "", points=None, prompt: str | None = None, tags: dict | None = None) -> dict:
     """prompt と tags は、呼ぶ側（qc.auto_check）が持っていれば渡す。タグの模型を2度走らせないため"""
     from PIL import Image
