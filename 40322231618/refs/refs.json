@@ -1,0 +1,844 @@
+[
+ {
+  "title": "File:Woman-sherbrooke (Unsplash).jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Woman-sherbrooke_(Unsplash).jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/78/Woman-sherbrooke_%28Unsplash%29.jpg/960px-Woman-sherbrooke_%28Unsplash%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1352
+  ],
+  "shadow": {
+   "soft": 0.359,
+   "step_frac": 0.757,
+   "steps": 2,
+   "bimodal": 0.176,
+   "ratio": 0.221,
+   "spread": 2.7,
+   "cast": 0.674,
+   "cast_gap": 0.001,
+   "normal_corr": -0.059,
+   "normal_light_deg": 150,
+   "skin_tex": 0.715
+  },
+  "mouth": {
+   "readable": true,
+   "found": false,
+   "area": 0.0,
+   "sym": 0.0,
+   "bad": true
+  },
+  "skin_tex": {
+   "power": [
+    28.419552,
+    18.91374,
+    11.077734,
+    3.553652,
+    1.452181,
+    0.586777,
+    0.372366,
+    0.241402,
+    0.206123,
+    0.160114,
+    0.087282,
+    0.059959,
+    0.042635,
+    0.041248,
+    0.04237,
+    0.031191
+   ],
+   "std": 0.01678,
+   "patches": 3,
+   "width": 960
+  },
+  "face_tex": null,
+  "fails": [],
+  "s": 18.8
+ },
+ {
+  "title": "File:Woman in swimsuit posing (Unsplash).jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Woman_in_swimsuit_posing_(Unsplash).jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e1/Woman_in_swimsuit_posing_%28Unsplash%29.jpg/960px-Woman_in_swimsuit_posing_%28Unsplash%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   960
+  ],
+  "shadow": {
+   "soft": 0.392,
+   "step_frac": 0.738,
+   "steps": 1,
+   "bimodal": 0.123,
+   "ratio": 0.67,
+   "spread": 113.7,
+   "cast": 0.069,
+   "cast_gap": 0.173,
+   "normal_corr": 0.325,
+   "normal_light_deg": 270,
+   "skin_tex": null
+  },
+  "mouth": {
+   "readable": true,
+   "found": false,
+   "area": 0.0,
+   "sym": 0.0,
+   "bad": true
+  },
+  "skin_tex": null,
+  "face_tex": {
+   "power": [
+    4.431278,
+    2.22253,
+    3.138508,
+    1.562049,
+    1.360084,
+    0.71214,
+    0.783172,
+    0.629006,
+    0.601224,
+    0.991291,
+    0.593699,
+    0.409126,
+    0.36039,
+    0.245476,
+    0.199266,
+    0.170636
+   ],
+   "std": 0.01467,
+   "patches": 1,
+   "width": 960
+  },
+  "fails": [],
+  "s": 6.6
+ },
+ {
+  "title": "File:Pexels-andrea-piacquadio-774909.jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Pexels-andrea-piacquadio-774909.jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2f/Pexels-andrea-piacquadio-774909.jpg/960px-Pexels-andrea-piacquadio-774909.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1440
+  ],
+  "shadow": {
+   "soft": 0.51,
+   "step_frac": 0.356,
+   "steps": 3,
+   "bimodal": 0.026,
+   "ratio": 0.33,
+   "spread": 0.0,
+   "cast": 0.17,
+   "cast_gap": 0.001,
+   "normal_corr": 0.397,
+   "normal_light_deg": 180,
+   "skin_tex": null
+  },
+  "mouth": {
+   "readable": true,
+   "found": true,
+   "area": 0.0061,
+   "sym": 0.298,
+   "bleed": 0.391,
+   "bad": true
+  },
+  "skin_tex": null,
+  "face_tex": {
+   "power": [
+    0.402019,
+    1.320402,
+    0.67534,
+    0.837467,
+    0.939926,
+    0.899665,
+    0.812152,
+    0.663289,
+    0.719721,
+    0.565939,
+    0.45417,
+    0.367151,
+    0.276599,
+    0.170481,
+    0.157686,
+    0.099775
+   ],
+   "std": 0.01254,
+   "patches": 3,
+   "width": 960
+  },
+  "fails": [],
+  "s": 7.9
+ },
+ {
+  "title": "File:Pexels-christina-morillo-1181498.jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Pexels-christina-morillo-1181498.jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1e/Pexels-christina-morillo-1181498.jpg/960px-Pexels-christina-morillo-1181498.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1438
+  ],
+  "shadow": {
+   "soft": 0.379,
+   "step_frac": 0.647,
+   "steps": 2,
+   "bimodal": 0.011,
+   "ratio": 0.257,
+   "spread": 132.4,
+   "cast": 0.729,
+   "cast_gap": 0.001,
+   "normal_corr": 0.258,
+   "normal_light_deg": 210,
+   "skin_tex": null
+  },
+  "mouth": {
+   "readable": true,
+   "found": true,
+   "area": 0.0016,
+   "sym": 0.556,
+   "bleed": 0.269,
+   "bad": true
+  },
+  "skin_tex": {
+   "power": [
+    32.369873,
+    90.033386,
+    63.367699,
+    29.15662,
+    21.261553,
+    14.930464,
+    10.619992,
+    6.916237,
+    4.282977,
+    3.257362,
+    2.328043,
+    1.598273,
+    0.982589,
+    0.672732,
+    0.564095,
+    0.357016
+   ],
+   "std": 0.04768,
+   "patches": 1,
+   "width": 960
+  },
+  "face_tex": null,
+  "fails": [],
+  "s": 7.8
+ },
+ {
+  "title": "File:Woman Wearing Bikini on Seashore.jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Woman_Wearing_Bikini_on_Seashore.jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/43/Woman_Wearing_Bikini_on_Seashore.jpg/960px-Woman_Wearing_Bikini_on_Seashore.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1397
+  ],
+  "shadow": {
+   "soft": 0.537,
+   "step_frac": 0.137,
+   "steps": 4,
+   "bimodal": 0.624,
+   "ratio": 0.223,
+   "spread": 174.2,
+   "cast": -0.01,
+   "cast_gap": 0.26,
+   "normal_corr": 0.391,
+   "normal_light_deg": 0,
+   "skin_tex": 2.145
+  },
+  "mouth": {
+   "readable": true,
+   "found": true,
+   "area": 0.0003,
+   "sym": 1.0,
+   "bleed": 0.154,
+   "bad": false
+  },
+  "skin_tex": {
+   "power": [
+    20.748283,
+    12.855263,
+    5.041523,
+    2.763068,
+    3.905134,
+    3.234766,
+    2.845438,
+    2.204287,
+    2.141416,
+    2.82683,
+    3.011258,
+    3.317367,
+    3.165213,
+    2.733636,
+    2.248499,
+    2.122477
+   ],
+   "std": 0.03543,
+   "patches": 5,
+   "width": 960
+  },
+  "face_tex": null,
+  "fails": [
+   "bimodal"
+  ],
+  "s": 7.7
+ },
+ {
+  "title": "File:Woman afro glasses blue top.jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Woman_afro_glasses_blue_top.jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b8/Woman_afro_glasses_blue_top.jpg/960px-Woman_afro_glasses_blue_top.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1440
+  ],
+  "shadow": {
+   "soft": 0.452,
+   "step_frac": 0.496,
+   "steps": 1,
+   "bimodal": 0.011,
+   "ratio": 0.438,
+   "spread": 151.8,
+   "cast": 0.54,
+   "cast_gap": 0.001,
+   "normal_corr": 0.058,
+   "normal_light_deg": 120,
+   "skin_tex": 2.278
+  },
+  "mouth": {
+   "readable": true,
+   "found": true,
+   "area": 0.0001,
+   "sym": 1.0,
+   "bleed": 0.315,
+   "bad": true
+  },
+  "skin_tex": {
+   "power": [
+    47.99832,
+    92.290962,
+    72.947924,
+    41.688072,
+    24.299764,
+    17.2386,
+    8.787899,
+    5.649966,
+    3.180497,
+    1.93433,
+    1.059108,
+    0.565906,
+    0.372922,
+    0.232898,
+    0.222086,
+    0.158567
+   ],
+   "std": 0.04947,
+   "patches": 8,
+   "width": 960
+  },
+  "face_tex": null,
+  "fails": [],
+  "s": 7.9
+ },
+ {
+  "title": "File:Woman in cardigan.jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Woman_in_cardigan.jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/71/Woman_in_cardigan.jpg/960px-Woman_in_cardigan.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1440
+  ],
+  "shadow": {
+   "soft": 0.478,
+   "step_frac": 0.431,
+   "steps": 1,
+   "bimodal": 0.0,
+   "ratio": 0.615,
+   "spread": 163.5,
+   "cast": 0.748,
+   "cast_gap": 0.001,
+   "normal_corr": 0.236,
+   "normal_light_deg": 300,
+   "skin_tex": null
+  },
+  "mouth": {
+   "readable": true,
+   "found": true,
+   "area": 0.0005,
+   "sym": 0.255,
+   "bleed": 0.264,
+   "bad": true
+  },
+  "skin_tex": null,
+  "face_tex": {
+   "power": [
+    0.347108,
+    0.483667,
+    0.930134,
+    1.14396,
+    1.11003,
+    1.16355,
+    1.554886,
+    1.482759,
+    1.550721,
+    1.414022,
+    0.888269,
+    0.684595,
+    0.451981,
+    0.225458,
+    0.134931,
+    0.131075
+   ],
+   "std": 0.01625,
+   "patches": 3,
+   "width": 960
+  },
+  "fails": [],
+  "s": 7.9
+ },
+ {
+  "title": "File:Woman in red t-shirt smiling and looking down.jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Woman_in_red_t-shirt_smiling_and_looking_down.jpg",
+  "thumb": "https://upload.wikimedia.org/wikipedia/commons/f/fa/Woman_in_red_t-shirt_smiling_and_looking_down.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+  "size": [
+   867,
+   1300
+  ],
+  "shadow": {
+   "soft": 0.408,
+   "step_frac": 0.598,
+   "steps": 2,
+   "bimodal": 0.066,
+   "ratio": 0.676,
+   "spread": 121.2,
+   "cast": 0.189,
+   "cast_gap": 0.001,
+   "normal_corr": 0.419,
+   "normal_light_deg": 30,
+   "skin_tex": 0.6
+  },
+  "mouth": {
+   "readable": true,
+   "found": true,
+   "area": 0.0206,
+   "sym": 0.926,
+   "bleed": 0.207,
+   "bad": true
+  },
+  "skin_tex": {
+   "power": [
+    2.359231,
+    1.493092,
+    0.929342,
+    0.498263,
+    0.318904,
+    0.173379,
+    0.107528,
+    0.072447,
+    0.062942,
+    0.037427,
+    0.034447,
+    0.026903,
+    0.031998,
+    0.018282,
+    0.018715,
+    0.017278
+   ],
+   "std": 0.00607,
+   "patches": 2,
+   "width": 867
+  },
+  "face_tex": null,
+  "fails": [],
+  "s": 7.5
+ },
+ {
+  "title": "File:Woman mechanic working on engine (cropped).jpeg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Woman_mechanic_working_on_engine_(cropped).jpeg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/75/Woman_mechanic_working_on_engine_%28cropped%29.jpeg/960px-Woman_mechanic_working_on_engine_%28cropped%29.jpeg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1445
+  ],
+  "shadow": {
+   "soft": 0.684,
+   "step_frac": 0.061,
+   "steps": 2,
+   "bimodal": 0.033,
+   "ratio": 0.411,
+   "spread": 75.4,
+   "cast": 0.052,
+   "normal_corr": 0.182,
+   "normal_light_deg": 150,
+   "skin_tex": 0.337
+  },
+  "mouth": {
+   "readable": true,
+   "found": true,
+   "area": 0.0042,
+   "sym": 0.123,
+   "bleed": 0.15,
+   "bad": true
+  },
+  "skin_tex": {
+   "power": [
+    0.251976,
+    0.099323,
+    0.549419,
+    0.695616,
+    0.393509,
+    0.355136,
+    0.345943,
+    0.251011,
+    0.210561,
+    0.141896,
+    0.092951,
+    0.04957,
+    0.031411,
+    0.024013,
+    0.021366,
+    0.017872
+   ],
+   "std": 0.00696,
+   "patches": 1,
+   "width": 960
+  },
+  "face_tex": null,
+  "fails": [
+   "skin_tex"
+  ],
+  "s": 8.0
+ },
+ {
+  "title": "File:Woman pink and blue dress (crop hands).jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Woman_pink_and_blue_dress_(crop_hands).jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ee/Woman_pink_and_blue_dress_%28crop_hands%29.jpg/960px-Woman_pink_and_blue_dress_%28crop_hands%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1522
+  ],
+  "shadow": {
+   "soft": 0.569,
+   "step_frac": 0.249,
+   "steps": 1,
+   "bimodal": 0.1,
+   "ratio": 0.448,
+   "spread": 0.0,
+   "cast": -1.088,
+   "cast_gap": 0.001,
+   "normal_corr": 0.199,
+   "normal_light_deg": 90,
+   "skin_tex": 0.967
+  },
+  "mouth": {
+   "readable": true,
+   "found": true,
+   "area": 0.0171,
+   "sym": 0.511,
+   "bleed": 0.009,
+   "bad": false
+  },
+  "skin_tex": {
+   "power": [
+    7.021951,
+    12.64825,
+    11.573229,
+    5.463445,
+    5.771891,
+    2.230819,
+    1.762187,
+    1.087725,
+    0.84257,
+    0.654254,
+    0.557563,
+    0.389454,
+    0.262691,
+    0.179436,
+    0.12887,
+    0.091806
+   ],
+   "std": 0.02019,
+   "patches": 6,
+   "width": 960
+  },
+  "face_tex": null,
+  "fails": [],
+  "s": 8.3
+ },
+ {
+  "title": "File:Woman pink and blue dress (crop waist).jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Woman_pink_and_blue_dress_(crop_waist).jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/dc/Woman_pink_and_blue_dress_%28crop_waist%29.jpg/960px-Woman_pink_and_blue_dress_%28crop_waist%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1279
+  ],
+  "shadow": {
+   "soft": 0.484,
+   "step_frac": 0.401,
+   "steps": 1,
+   "bimodal": 0.177,
+   "ratio": 0.415,
+   "spread": 0.0,
+   "cast": 0.044,
+   "cast_gap": 0.001,
+   "normal_corr": 0.202,
+   "normal_light_deg": 90,
+   "skin_tex": 2.03
+  },
+  "mouth": {
+   "readable": true,
+   "found": false,
+   "area": 0.0,
+   "sym": 0.0,
+   "bad": true
+  },
+  "skin_tex": {
+   "power": [
+    26.237643,
+    43.906796,
+    49.244844,
+    26.534993,
+    16.590972,
+    7.272165,
+    5.003185,
+    3.689771,
+    2.781687,
+    1.900508,
+    1.391847,
+    0.539251,
+    0.461575,
+    0.224993,
+    0.182164,
+    0.134632
+   ],
+   "std": 0.04004,
+   "patches": 8,
+   "width": 960
+  },
+  "face_tex": {
+   "power": [
+    1.739364,
+    0.366178,
+    0.525059,
+    0.681761,
+    0.641025,
+    0.683853,
+    0.87982,
+    0.83087,
+    0.784931,
+    0.742548,
+    0.373448,
+    0.208323,
+    0.120713,
+    0.067523,
+    0.060963,
+    0.051706
+   ],
+   "std": 0.01137,
+   "patches": 1,
+   "width": 960
+  },
+  "fails": [],
+  "s": 7.5
+ },
+ {
+  "title": "File:Young woman in Brazil sitting on steps (cropped).jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Young_woman_in_Brazil_sitting_on_steps_(cropped).jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f1/Young_woman_in_Brazil_sitting_on_steps_%28cropped%29.jpg/960px-Young_woman_in_Brazil_sitting_on_steps_%28cropped%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   947
+  ],
+  "shadow": {
+   "soft": 0.563,
+   "step_frac": 0.206,
+   "steps": 1,
+   "bimodal": 0.03,
+   "ratio": 0.457,
+   "spread": 133.6,
+   "cast": -0.158,
+   "cast_gap": 0.001,
+   "normal_corr": 0.071,
+   "normal_light_deg": 300,
+   "skin_tex": 0.471
+  },
+  "mouth": {
+   "readable": true,
+   "found": true,
+   "area": 0.0001,
+   "sym": 1.0,
+   "bleed": 0.098,
+   "bad": true
+  },
+  "skin_tex": {
+   "power": [
+    0.731034,
+    0.801144,
+    0.98588,
+    0.935949,
+    0.890136,
+    0.75916,
+    0.721943,
+    0.654833,
+    0.539833,
+    0.405625,
+    0.26462,
+    0.139598,
+    0.10302,
+    0.064825,
+    0.050645,
+    0.042992
+   ],
+   "std": 0.0107,
+   "patches": 16,
+   "width": 960
+  },
+  "face_tex": {
+   "power": [
+    0.471524,
+    0.52873,
+    0.766934,
+    0.780176,
+    0.890654,
+    0.732253,
+    0.474848,
+    0.406179,
+    0.454485,
+    0.314192,
+    0.183595,
+    0.116353,
+    0.071264,
+    0.048467,
+    0.034264,
+    0.031315
+   ],
+   "std": 0.0092,
+   "patches": 4,
+   "width": 960
+  },
+  "fails": [],
+  "s": 7.0
+ },
+ {
+  "title": "File:Man in hood stretching hand (Unsplash).jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Man_in_hood_stretching_hand_(Unsplash).jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/Man_in_hood_stretching_hand_%28Unsplash%29.jpg/960px-Man_in_hood_stretching_hand_%28Unsplash%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1440
+  ],
+  "shadow": {
+   "soft": 0.523,
+   "step_frac": 0.235,
+   "steps": 2,
+   "bimodal": 0.161,
+   "ratio": 0.399,
+   "spread": 143.6,
+   "cast": 0.321,
+   "cast_gap": 0.001,
+   "normal_corr": 0.531,
+   "normal_light_deg": 30,
+   "skin_tex": null
+  },
+  "mouth": {
+   "readable": true,
+   "found": false,
+   "area": 0.0,
+   "sym": 0.0,
+   "bad": true
+  },
+  "skin_tex": {
+   "power": [
+    26.070713,
+    24.038462,
+    15.180068,
+    6.31829,
+    4.452467,
+    2.134134,
+    2.096005,
+    1.467124,
+    1.427203,
+    1.173506,
+    0.934636,
+    0.784498,
+    0.827409,
+    0.587113,
+    0.571866,
+    0.353722
+   ],
+   "std": 0.02552,
+   "patches": 1,
+   "width": 960
+  },
+  "face_tex": null,
+  "fails": [],
+  "s": 7.8
+ },
+ {
+  "title": "File:Man rolling sleeves (Unsplash).jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Man_rolling_sleeves_(Unsplash).jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e7/Man_rolling_sleeves_%28Unsplash%29.jpg/960px-Man_rolling_sleeves_%28Unsplash%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1440
+  ],
+  "shadow": {
+   "soft": 0.453,
+   "step_frac": 0.498,
+   "steps": 3,
+   "bimodal": 0.361,
+   "ratio": 0.254,
+   "spread": 0.0,
+   "cast": -0.432,
+   "cast_gap": 0.03,
+   "normal_corr": 0.327,
+   "normal_light_deg": 60,
+   "skin_tex": 5.353
+  },
+  "mouth": {
+   "readable": true,
+   "found": false,
+   "area": 0.0,
+   "sym": 0.0,
+   "bad": true
+  },
+  "skin_tex": {
+   "power": [
+    43.559425,
+    33.902687,
+    74.547783,
+    32.690315,
+    15.372632,
+    10.99407,
+    9.891231,
+    7.248635,
+    4.669928,
+    4.020535,
+    3.622588,
+    2.206644,
+    1.590309,
+    1.256102,
+    1.192733,
+    0.873584
+   ],
+   "std": 0.04825,
+   "patches": 11,
+   "width": 960
+  },
+  "face_tex": null,
+  "fails": [
+   "skin_tex"
+  ],
+  "s": 7.9
+ }
+]
