@@ -2122,3 +2122,118 @@ class EditFamilyTest(unittest.TestCase):
             p.paint("a woman", 1, base=Image.new("RGB", (32, 32)), reference=Image.new("RGB", (32, 32)), size=(64, 64))
         self.assertEqual(len(seen["image"]), 2)                    # ラフと参考画像の 2 枚
         self.assertIn("rough sketch", seen["prompt"])
+
+
+class FreezeTest(unittest.TestCase):
+    """固まる・開かない不具合の再発を見る（模型の管理、操作の言葉、ツアー、落ちた印）"""
+    def setUp(self):
+        from tempfile import mktemp
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Window
+        self.app = QApplication.instance() or QApplication([])
+        self.w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
+        self.w.layout_store = QSettings(mktemp(suffix=".ini"), QSettings.IniFormat)
+
+    def test_manager_opens_after_tour_and_every_time(self):
+        from unittest import mock
+        import chatdraw.manager
+        opened = []
+        with mock.patch.object(chatdraw.manager.ModelManager, "exec", lambda _self: opened.append(1) or 0):
+            self.w.manage_models()                 # 初めては案内を出す
+            self.assertEqual(opened, [])
+            self.w.tour.next.click()               # 閉じると管理の窓が開く（前は RecursionError）
+            self.assertEqual(opened, [1])
+            self.w.manage_models()                 # 2 回目からはすぐ開く
+            self.assertEqual(opened, [1, 1])
+            self.w.layout_store.setValue("feature_tours", 0)
+            self.w.manage_models()
+            self.assertEqual(opened, [1, 1, 1])
+
+    def test_open_and_save_do_not_recurse(self):
+        from unittest import mock
+        from chatdraw import app as appmod
+        asked = []
+        with mock.patch.object(appmod.QFileDialog, "getOpenFileName", lambda *a, **k: asked.append("open") or ("", "")), \
+                mock.patch.object(appmod.QFileDialog, "getSaveFileName", lambda *a, **k: asked.append("save") or ("", "")):
+            for _ in range(2):
+                self.w.open_image()
+                if getattr(self.w, "tour", None) is not None and not getattr(self.w.tour, "done", True):
+                    self.w.tour.finish()
+            self.assertEqual(asked, ["open", "open"])
+            self.w.canvas.new_canvas(64, 64) if hasattr(self.w.canvas, "new_canvas") else None
+            for _ in range(2):
+                self.w.save_project(ask=True)
+                if not getattr(self.w.tour, "done", True):
+                    self.w.tour.finish()
+            self.assertEqual(asked.count("save"), 2)
+
+    def test_tour_overlay_goes_away_even_if_on_close_fails(self):
+        from chatdraw.tour import Step, Tour
+        calls = []
+
+        def boom():
+            calls.append(1)
+            raise RuntimeError("x")
+        t = Tour(self.w, [Step(lambda: None, "t", "x")], on_close=boom)
+        t.start()
+        with self.assertRaises(RuntimeError):
+            t.finish()
+        self.assertTrue(t.testAttribute(Qt.WA_TransparentForMouseEvents))   # 後ろの部品を押せる
+        self.assertFalse(t.isVisible())
+        t.finish()                                                         # 2 回目は何もしない
+        self.assertEqual(calls, [1])
+
+    def test_command_words_ask_model_off_gui_thread(self):
+        import threading
+        import time
+
+        class Slow(FakeWords):
+            def ask(self, system, text, max_tokens=96):
+                self.thread = threading.current_thread()
+                time.sleep(1.5)                    # 模型の読み込みと推論の代わり
+                return '{"command": "eraser", "arg": ""}'
+        slow = Slow()
+        self.w.studio.words = slow
+        self.w.entry.setText("消しゴムにして")
+        t0 = time.time()
+        self.w.send()
+        self.assertLess(time.time() - t0, 0.5)     # 画面の糸は止めない
+        while time.time() - t0 < 10 and getattr(self.w, "asking", False):
+            self.app.processEvents()
+            time.sleep(0.01)
+        self.app.processEvents()
+        self.assertIsNot(slow.thread, threading.main_thread())
+        self.assertFalse(self.w.asking)
+        self.assertEqual(self.w.entry.text(), "")  # 操作をして書く欄を空けた
+
+    def test_prompt_pipeline_is_fast_for_any_words(self):
+        import time
+        from chatdraw import commands, jaterms
+        from chatdraw.engine import Words, refused
+        words = Words(Path(""))
+        texts = ["", " ", "赤いスカーフの女の子", "あ" * 5000, "((((" * 500, "\\" * 2000, "🙂" * 1000, "a" * 20000,
+                 "長い黒髪の剣士、鎧、夕焼け、" * 200, "#ff0000" * 500, "、" * 5000]
+        for t in texts:
+            t0 = time.time()
+            jaterms.tags_from(t)
+            jaterms.leftover(t)
+            refused(t)
+            words.to_prompt(t)
+            commands.by_words(t)
+            self.assertLess(time.time() - t0, 1.0, t[:20])
+
+    def test_crash_marker_is_pid_and_stale_safe(self):
+        import os
+        from chatdraw.app import crashed_before
+        s = self.w.layout_store
+        s.setValue("running", 0)
+        self.assertFalse(crashed_before(s))
+        s.setValue("running", 1)                   # 昔の印
+        self.assertTrue(crashed_before(s))
+        s.setValue("running", 2 ** 22 + 12345)     # もう居ないプロセス
+        self.assertTrue(crashed_before(s))
+        s.setValue("running", os.getppid())        # 今も動いているプロセス（2 つ目の起動）
+        self.assertFalse(crashed_before(s))
+        self.w.offer_restore()
+        self.assertEqual(int(s.value("running")), os.getpid())

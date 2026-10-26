@@ -25,6 +25,7 @@ class Tour(QWidget):
     def __init__(self, window, steps: list[Step], on_close=None):
         super().__init__(window)
         self.window_, self.steps, self.i, self.on_close = window, steps, 0, on_close
+        self.done = False
         self.setAttribute(Qt.WA_NoSystemBackground)
         self.setAttribute(Qt.WA_TranslucentBackground)
         self.card = QFrame(self)
@@ -144,8 +145,17 @@ class Tour(QWidget):
             self.show_step(self.i - 1)
 
     def finish(self):
+        """閉じる。後ろの部品を先に押せるようにしてから on_close を呼ぶ。
+
+        on_close が例外を出しても、暗い幕は必ず消す。前は on_close のあとで消していたので、
+        on_close が落ちると幕が残り、押した所を全部受け止めて、アプリが固まったように見えた。
+        """
+        if self.done:
+            return   # 「閉じる」と Esc が続いても、on_close は 1 回だけ
+        self.done = True
         self.window_.removeEventFilter(self)
-        if self.on_close:
-            self.on_close()
+        self.setAttribute(Qt.WA_TransparentForMouseEvents)
         from chatdraw.motion import fade_out
         fade_out(self, then=self.deleteLater)
+        if self.on_close:
+            self.on_close()   # 幕は上で消し始めたので、ここで落ちても残らない
