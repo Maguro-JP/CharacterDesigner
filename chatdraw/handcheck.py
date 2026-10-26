@@ -192,11 +192,38 @@ def check(image, fetch: bool = True, asked: str = "") -> dict:
         out["readable"] = out["readable"] or seen
         if seen:
             out["bad"] += [f"手 {i}: {x}" for x in bad]
+    _add_missed_hands(out, im)
     out["feet"], bad, why = check_feet(im, fetch)
     out["bad"] += bad
     if why:
         out["feet_reason"] = why
     return _add_face(out, im, asked)
+
+
+def _add_missed_hands(out: dict, im) -> None:
+    """体の点で手首と肘が見えているのに、手の模型が手を見つけなかった所を、崩れた手として足す。
+    指がくっついた手、透けてぼやけた手は手の模型に見つからず、検品にも直しにも回らないまま通っていた（Windows の描画で 2 枚）"""
+    kp = _keypoints(im)
+    w, h = im.size
+    for side in ("left", "right"):
+        if f"{side}_wrist" not in kp or f"{side}_elbow" not in kp:
+            continue
+        (wx, wy), (ex, ey) = kp[f"{side}_wrist"], kp[f"{side}_elbow"]
+        sh = [kp[k] for k in ("left_shoulder", "right_shoulder") if k in kp]
+        hips = [kp[k][1] for k in ("left_hip", "right_hip") if k in kp]
+        if len(sh) == 2 and hips and min(p[0] for p in sh) < wx < max(p[0] for p in sh) and min(p[1] for p in sh) < wy < max(hips):
+            continue   # 手首が胴の前か後ろ。背中に回した腕の手は見えなくて当たり前なので、崩れにしない
+        fore = max(((wx - ex) ** 2 + (wy - ey) ** 2) ** 0.5, min(w, h) * 0.04)
+        # 手は手首から前腕の向きに、前腕の半分ほど先にある
+        cx, cy = wx + (wx - ex) / fore * fore * 0.4, wy + (wy - ey) / fore * fore * 0.4
+        if any(x0 - fore * 0.3 <= cx <= x1 + fore * 0.3 and y0 - fore * 0.3 <= cy <= y1 + fore * 0.3
+               for x0, y0, x1, y1 in (hd["box"] for hd in out["hands"])):
+            continue
+        r = fore * 0.9   # 手首の点はずれやすい（1 枚で手の中心から 100 画素）ので、枠は広めに取る
+        box = [int(max(0, cx - r)), int(max(0, cy - r)), int(min(w, cx + r)), int(min(h, cy + r))]
+        why = "手の形が読めない（指がくっついたか、ぼやけている）"
+        out["hands"].append({"box": box, "angle": 0.0, "measure": {}, "bad": [why], "seen": True, "missed": True})
+        out["bad"].append(f"手 {len(out['hands'])}: {why}")
 
 
 def _add_face(out: dict, im, asked: str) -> dict:
