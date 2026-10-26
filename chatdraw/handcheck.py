@@ -144,8 +144,12 @@ def ensure_feet_model(fetch: bool = True) -> bool:
     return True
 
 
-def check_feet(im, fetch: bool = True) -> tuple[list[dict], list[str], str]:
-    """足の指を数える。返す: 足ごとの結果、bad に足す説明、読めなかった訳（読めたら空）"""
+COVERED_FEET = ("shoes", "boots", "socks", "sneakers", "heels", "loafers", "thighhighs", "pantyhose", "kneehighs", "footwear")
+
+
+def check_feet(im, fetch: bool = True, asked: str = "") -> tuple[list[dict], list[str], str]:
+    """足の指を数える。返す: 足ごとの結果、bad に足す説明、読めなかった訳（読めたら空）。
+    指を数えられなかった足は、靴を頼んでいない限り崩れとして返す（読めない足を通すと、つぶれた指が検品を逃れた）"""
     try:
         ensure_feet_model(fetch)
         import feet
@@ -158,6 +162,9 @@ def check_feet(im, fetch: bool = True) -> tuple[list[dict], list[str], str]:
         f["bad"] = []
         if n is not None and n != 5:
             f["bad"] = [f"指が{'多い' if n > 5 else '足りない'}（{n} 本。5 本のはず）"]   # 直す所の一覧（bad_regions）に入れる
+        elif n is None and not any(c in asked.lower() for c in COVERED_FEET):
+            f["bad"] = ["指を数えられない（つぶれているか、ぼやけている）"]
+        if f["bad"]:
             bad.append(f"足 {i}: " + f["bad"][0])
     return found, bad, ""
 
@@ -176,7 +183,7 @@ def check(image, fetch: bool = True, asked: str = "") -> dict:
         boxes = find_hands(hands, im)
     except Exception as e:   # 部品か模型が無い。描いた絵は止めず、検品が無いことを返す
         res = {"readable": False, "bad": [], "hands": [], "reason": f"検品の部品がありません（{e}）"}
-        res["feet"], res["bad"], why = check_feet(im, fetch)
+        res["feet"], res["bad"], why = check_feet(im, fetch, asked)
         if why:
             res["feet_reason"] = why
         return _add_face(res, im, asked)
@@ -190,10 +197,13 @@ def check(image, fetch: bool = True, asked: str = "") -> dict:
         seen = not any(str(x).startswith("読めない") for x in bad)
         out["hands"].append({"box": [x0, y0, x1, y1], "angle": float(ang), "measure": m, "bad": bad, "seen": seen})
         out["readable"] = out["readable"] or seen
-        if seen:
-            out["bad"] += [f"手 {i}: {x}" for x in bad]
+        if not seen:
+            # 見つけた手を測れないのは、指がくっついたかぼやけているとき。読めない手を通すと崩れが検品を逃れた
+            bad = ["手の形が読めない（指がくっついたか、ぼやけている）"]
+            out["hands"][-1].update(bad=bad, seen=True, unreadable=True)
+        out["bad"] += [f"手 {i}: {x}" for x in bad]
     _add_missed_hands(out, im)
-    out["feet"], bad, why = check_feet(im, fetch)
+    out["feet"], bad, why = check_feet(im, fetch, asked)
     out["bad"] += bad
     if why:
         out["feet_reason"] = why

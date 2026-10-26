@@ -30,3 +30,18 @@ class MissedHands(unittest.TestCase):
         self.assertTrue(out["hands"][1]["missed"])
         self.assertEqual(handcheck.bad_regions(out)[0][1], "hand")
         self.assertEqual(len(out["bad"]), 1)
+
+
+class UnreadableIsBad(unittest.TestCase):
+    """読めない足は、靴を頼んでいない限り崩れとして返す（つぶれた指が検品を逃れた）"""
+
+    def test_unreadable_foot_is_bad_unless_shoes_asked(self):
+        import sys
+        import types
+        from unittest import mock
+        fake = types.SimpleNamespace(count_toes=lambda im: [{"box": [0, 0, 9, 9], "count": None}], public=lambda f: f)
+        with mock.patch.object(handcheck, "ensure_feet_model", return_value=True), mock.patch.dict(sys.modules, {"feet": fake}):
+            _f, bad, _ = handcheck.check_feet(None, asked="1girl, bikini, barefoot")
+            self.assertEqual(len(bad), 1)
+            _f, bad, _ = handcheck.check_feet(None, asked="1girl, boots")
+            self.assertEqual(bad, [])

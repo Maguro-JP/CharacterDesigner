@@ -705,10 +705,14 @@ class Studio:
         if hasattr(self.painter, "avoid"):
             self.painter.avoid = avoid0
         image, left, seed = best
+        # 検品できなかった絵（部品が無い、止めてある）は、崩れが無いのではなく見ていないだけなので、通ったことにしない
+        checked = bool(self.hand_rounds) and asked["readable"]
         if left:   # 通らなかった絵を、出来た絵として渡さない。残った崩れを先に見せる
             say(f"検品を通る絵が {len(redraws)} 回描いても出ませんでした（途中）。残った崩れ: " + "、".join(left[:5]))
+        elif not checked:
+            say("検品できなかったので、通ったかは分かりません（途中）")
         path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model,
-                                            hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws, passed=not left))
+                                            hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws, passed=checked and not left))
         self._inspect(path, say)
         return prompt, path
 
@@ -778,7 +782,7 @@ class Studio:
         from chatdraw import handcheck
         for r in range(self.FIX_ROUNDS + 1):
             say(f"検品しています（手と指・{r + 1} 回目）")
-            res = handcheck.check(image)
+            res = handcheck.check(image, asked=prompt)
             self.hand_rounds.append({"round": r, "bad": res["bad"]})
             regions = handcheck.bad_regions(res)   # 手・足・顔のうち、崩れの見つかった所
             if not regions and not getattr(self, "_detail_done", False) and not getattr(self.painter, "stop", False):
@@ -795,7 +799,7 @@ class Studio:
                         d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
                     words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in detail))
                     tried = self.painter.redraw(f"{prompt}, {words}, detailed", seed + 991, image, mask, strength=0.4)
-                    again = handcheck.check(tried)
+                    again = handcheck.check(tried, asked=prompt)
                     self.hand_rounds.append({"round": r, "detail": True, "bad": again["bad"]})
                     if not again["bad"]:
                         image = tried
