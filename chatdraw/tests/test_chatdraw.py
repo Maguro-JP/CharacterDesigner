@@ -2055,12 +2055,14 @@ class HandRoundsTest(unittest.TestCase):
             {"readable": True, "bad": ["手 1: 指が多い"], "hands": [{"box": [10, 10, 40, 40], "seen": True, "bad": ["指が多い"]}]},
             {"readable": True, "bad": ["手 1: 指が多い"], "hands": [{"box": [10, 10, 40, 40], "seen": True, "bad": ["指が多い"]}]},
             {"readable": True, "bad": [], "hands": [{"box": [10, 10, 40, 40], "seen": True, "bad": []}]},
+            {"readable": True, "bad": [], "hands": [{"box": [10, 10, 40, 40], "seen": True, "bad": []}]},   # 細部の描き直しのあと
         ])
         calls = []
         with mock.patch.dict(os.environ, {"CD_CHECK": "on"}), mock.patch.object(handcheck, "check", side_effect=lambda im: next(results)), \
                 mock.patch.object(s.painter, "redraw", side_effect=lambda p, seed, im, mask, strength: calls.append(seed) or im):
             s._fix_hands(Image.new("RGB", (64, 64)), "1girl", 7, lambda m: None)
-        self.assertEqual(len(calls), 2)                                  # 2 回直して、3 回目の検品で崩れが消えた
+        self.assertEqual(len(calls), 3)          # 2 回直して崩れが消え、通ったあとも細部を 1 回描き直した
+        self.assertTrue(s.hand_rounds[-1].get("detail"))
         self.assertEqual([r["bad"] for r in s.hand_rounds][-1], [])
 
 

@@ -240,6 +240,17 @@ FIX_WORDS = {"hand": "detailed hand, five fingers, correct hand anatomy",
              "face": "detailed face, beautiful detailed eyes, clear eyes"}
 
 
+def detail_regions(res: dict) -> list[tuple[list[int], str]]:
+    """崩れの有無によらず、見つかった手・足・顔すべての枠と種類。検品が見逃す細部（くっついた指、薄く出た指、
+    つぶれた足の指）があるので、検品を通った絵でも細部はもう一度描かせる"""
+    out = []
+    for key, kind in (("hands", "hand"), ("feet", "foot"), ("faces", "face")):
+        for h in res.get(key, []):
+            if h.get("seen", True) and h.get("box"):
+                out.append((list(h["box"]), kind))
+    return out
+
+
 def bad_regions(res: dict) -> list[tuple[list[int], str]]:
     """検品で崩れの見つかった所の枠と種類（hand / foot / face）。AI が自分で直す所の一覧にする"""
     out = []
