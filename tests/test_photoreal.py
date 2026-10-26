@@ -343,3 +343,13 @@ class FloorAndBlobTest(unittest.TestCase):
         band[400:, :] += 5 / 255                      # 12 行かけずに 5 階調上がる段
         self.assertLess(measure.floor_step(smooth, seg, 135), 0.008)
         self.assertGreater(measure.floor_step(band, seg, 135), 0.008)
+
+
+class MouthRefsTest(unittest.TestCase):
+    def test_photo_mouths_pass(self):
+        import qc
+        rows = json.loads((ROOT / "tests" / "fixtures" / "photoreal_refs.json").read_text())["rows"]
+        found = [r["mouth"] for r in rows if r.get("mouth") and r["mouth"].get("found")]
+        ok = [m for m in found if qc.MOUTH_AREA[0] <= m["area"] <= qc.MOUTH_AREA[1] and m["sym"] >= qc.MOUTH_SYM]
+        self.assertGreaterEqual(len(ok), len(found) * 0.7)
+        self.assertTrue(qc.MOUTH_AREA[0] <= 0.0017 <= qc.MOUTH_AREA[1])   # 13 周目の閉じた口は通る

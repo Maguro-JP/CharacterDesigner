@@ -1,5 +1,5 @@
 {
- "about": "実写の手本（Wikimedia Commons、CC0 か Public domain）を tools/gen/photo_refs.py で測った数字と出典。写真そのものは置かない。run 40228080756",
+ "about": "実写の手本（Wikimedia Commons、CC0 か Public domain）を tools/gen/photo_refs.py で測った数字と出典。写真そのものは置かない。run 40228080756。口（mouth）は run 40293783747",
  "rows": [
   {
    "title": "File:Woman-sherbrooke (Unsplash).jpg",
@@ -12,6 +12,13 @@
     "ratio": 0.221,
     "normal_corr": -0.059,
     "soft": 0.359
+   },
+   "mouth": {
+    "readable": true,
+    "found": false,
+    "area": 0.0,
+    "sym": 0.0,
+    "bad": true
    }
   },
   {
@@ -25,6 +32,13 @@
     "ratio": 0.67,
     "normal_corr": 0.325,
     "soft": 0.392
+   },
+   "mouth": {
+    "readable": true,
+    "found": false,
+    "area": 0.0,
+    "sym": 0.0,
+    "bad": true
    }
   },
   {
@@ -38,6 +52,13 @@
     "ratio": 0.33,
     "normal_corr": 0.397,
     "soft": 0.51
+   },
+   "mouth": {
+    "readable": true,
+    "found": true,
+    "area": 0.0061,
+    "sym": 0.298,
+    "bad": true
    }
   },
   {
@@ -51,6 +72,13 @@
     "ratio": 0.257,
     "normal_corr": 0.258,
     "soft": 0.379
+   },
+   "mouth": {
+    "readable": true,
+    "found": true,
+    "area": 0.0016,
+    "sym": 0.556,
+    "bad": true
    }
   },
   {
@@ -64,6 +92,13 @@
     "ratio": 0.223,
     "normal_corr": 0.391,
     "soft": 0.537
+   },
+   "mouth": {
+    "readable": true,
+    "found": true,
+    "area": 0.0003,
+    "sym": 1.0,
+    "bad": true
    }
   },
   {
@@ -77,6 +112,13 @@
     "ratio": 0.438,
     "normal_corr": 0.058,
     "soft": 0.452
+   },
+   "mouth": {
+    "readable": true,
+    "found": true,
+    "area": 0.0001,
+    "sym": 1.0,
+    "bad": true
    }
   },
   {
@@ -90,6 +132,13 @@
     "ratio": 0.615,
     "normal_corr": 0.236,
     "soft": 0.478
+   },
+   "mouth": {
+    "readable": true,
+    "found": true,
+    "area": 0.0005,
+    "sym": 0.255,
+    "bad": true
    }
   },
   {
@@ -103,6 +152,13 @@
     "ratio": 0.676,
     "normal_corr": 0.419,
     "soft": 0.408
+   },
+   "mouth": {
+    "readable": true,
+    "found": true,
+    "area": 0.0206,
+    "sym": 0.926,
+    "bad": false
    }
   },
   {
@@ -116,6 +172,13 @@
     "ratio": 0.411,
     "normal_corr": 0.182,
     "soft": 0.684
+   },
+   "mouth": {
+    "readable": true,
+    "found": true,
+    "area": 0.0042,
+    "sym": 0.123,
+    "bad": true
    }
   },
   {
@@ -129,6 +192,13 @@
     "ratio": 0.448,
     "normal_corr": 0.199,
     "soft": 0.569
+   },
+   "mouth": {
+    "readable": true,
+    "found": true,
+    "area": 0.0171,
+    "sym": 0.511,
+    "bad": false
    }
   },
   {
@@ -142,6 +212,13 @@
     "ratio": 0.415,
     "normal_corr": 0.202,
     "soft": 0.484
+   },
+   "mouth": {
+    "readable": true,
+    "found": false,
+    "area": 0.0,
+    "sym": 0.0,
+    "bad": true
    }
   },
   {
@@ -155,6 +232,13 @@
     "ratio": 0.457,
     "normal_corr": 0.071,
     "soft": 0.563
+   },
+   "mouth": {
+    "readable": true,
+    "found": true,
+    "area": 0.0001,
+    "sym": 1.0,
+    "bad": true
    }
   },
   {
@@ -168,6 +252,13 @@
     "ratio": 0.399,
     "normal_corr": 0.531,
     "soft": 0.523
+   },
+   "mouth": {
+    "readable": true,
+    "found": false,
+    "area": 0.0,
+    "sym": 0.0,
+    "bad": true
    }
   },
   {
@@ -181,6 +272,13 @@
     "ratio": 0.254,
     "normal_corr": 0.327,
     "soft": 0.453
+   },
+   "mouth": {
+    "readable": true,
+    "found": false,
+    "area": 0.0,
+    "sym": 0.0,
+    "bad": true
    }
   }
  ]

@@ -1277,8 +1277,8 @@ if __name__ == "__main__":
     main()
 
 
-MOUTH_AREA = (0.002, 0.06)   # 顔の部位に対する口の面積の比。写実に描き直した顔 6 枚で 0.0013〜0.0134（にじんだ唇は対称で落ちる）。仮の範囲
-MOUTH_SYM = 0.35             # 口を顔の真ん中で左右に折り返したときの重なり（IoU）の下限
+MOUTH_AREA = (0.0001, 0.0178)   # 顔の部位に対する口の面積の比。実写の手本 14 枚（CC0、tests/fixtures/photoreal_refs.json）の 10〜90 パーセンタイル。閉じた口は 0.0016 前後
+MOUTH_SYM = 0.229             # 口を左右に折り返したときの重なり（IoU）の下限。実写の手本の 10 パーセンタイル
 
 
 def mouth_check(rgb, seg, face_label: int = 11) -> dict:
