@@ -815,6 +815,76 @@ class FitSizeTest(unittest.TestCase):
         self.assertLess(abs(w * h - 832 * 1216) / (832 * 1216), 0.1)
 
 
+class VpredModelTest(unittest.TestCase):
+    """推奨の絵の模型（NoobAI XL V-Pred 1.0）の設定が札どおりに渡るか"""
+
+    def test_entry_matches_model_card(self):
+        from chatdraw.engine import IMAGE_MODEL
+        from chatdraw.models import image_model
+        from chatdraw import windraw
+        m = image_model("Laxhar/noobai-XL-Vpred-1.0")
+        self.assertEqual((m.family, m.vpred, m.rescale, m.steps, m.guidance), ("sdxl", True, 0.7, 28, 5.0))
+        self.assertIn("bad hands", m.negative)
+        self.assertTrue(m.prefix.startswith("masterpiece, best quality"))
+        self.assertTrue(m.commercial)
+        self.assertEqual(windraw.MODEL, m.repo)
+        if not os.environ.get("CD_IMAGE_MODEL"):
+            self.assertEqual(IMAGE_MODEL, m.repo)
+        self.assertEqual(image_model("cagliostrolab/animagine-xl-4.0").score, 85)   # 古い模型も残す
+        self.assertFalse(image_model("cagliostrolab/animagine-xl-4.0").vpred)
+
+    def test_prompt_args_use_card_negative_and_rescale(self):
+        import types
+        from unittest import mock
+        gen = types.SimpleNamespace(manual_seed=lambda s: s)
+        with mock.patch.dict(sys.modules, {"torch": types.SimpleNamespace(Generator=lambda d: gen)}):
+            self._check_args()
+
+    def _check_args(self):
+        from chatdraw.engine import prompt_args
+        from chatdraw.models import family, image_model
+        m = image_model("Laxhar/noobai-XL-Vpred-1.0")
+
+        class Pipe:
+            device = "cpu"
+
+            def __call__(self, prompt=None, negative_prompt=None, num_inference_steps=None, guidance_scale=None,
+                         guidance_rescale=None, generator=None):
+                pass
+        a = prompt_args(m, family("sdxl"), "1girl, waving", "hat", 28, 5.0, 1, Pipe())
+        self.assertEqual(a["prompt"].count("masterpiece"), 1)
+        self.assertEqual(a["guidance_rescale"], 0.7)
+        self.assertTrue(a["negative_prompt"].startswith("nsfw, worst quality") and a["negative_prompt"].endswith(", hat"))
+        old = prompt_args(image_model("cagliostrolab/animagine-xl-4.0"), family("sdxl"), "1girl", "", 24, 5.0, 1, Pipe())
+        self.assertNotIn("guidance_rescale", old)
+        self.assertTrue(old["prompt"].endswith("masterpiece, best quality"))
+
+    def test_scheduler_switches_to_vpred(self):
+        import types
+        from unittest import mock
+        from chatdraw.engine import use_vpred
+        from chatdraw.models import image_model
+
+        class Euler:
+            def __init__(self, config):
+                self.config = config
+
+            @classmethod
+            def from_config(cls, config, **kw):
+                return cls({**config, **kw})
+
+        class Pipe:
+            scheduler = Euler({"prediction_type": "epsilon", "rescale_betas_zero_snr": False})   # 置いてある設定は epsilon のまま
+        with mock.patch.dict(sys.modules, {"diffusers": types.SimpleNamespace(EulerDiscreteScheduler=Euler)}):
+            p = Pipe()
+            self.assertTrue(use_vpred(p, image_model("Laxhar/noobai-XL-Vpred-1.0")))
+            self.assertEqual(p.scheduler.config["prediction_type"], "v_prediction")
+            self.assertTrue(p.scheduler.config["rescale_betas_zero_snr"])
+            q = Pipe()
+            self.assertFalse(use_vpred(q, image_model("cagliostrolab/animagine-xl-4.0")))
+            self.assertEqual(q.scheduler.config["prediction_type"], "epsilon")
+
+
 class ChooseTest(unittest.TestCase):
     def test_auto_picks_from_installed_only(self):
         from chatdraw.choose import choose_image

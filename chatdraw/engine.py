@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 from chatdraw.paths import HOME, HUB  # noqa: E402
-IMAGE_MODEL = os.environ.get("CD_IMAGE_MODEL", "cagliostrolab/animagine-xl-4.0")
+IMAGE_MODEL = os.environ.get("CD_IMAGE_MODEL", "Laxhar/noobai-XL-Vpred-1.0")
 # ラフ（線の下描き）の形に沿って描かせる部品。元の絵を描き直す img2img では、ラフの線がそのまま残って絵にならなかった
 SKETCH_ADAPTER = "TencentARC/t2i-adapter-sketch-sdxl-1.0"
 SKETCH_FILES = dict(allow_patterns=["*.json", "*.fp16.safetensors"])
@@ -112,14 +112,33 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
     import inspect
     import torch
     text = f"{info.prefix}{prompt}"
-    if f.tags:
+    if f.tags and "masterpiece" not in info.prefix:
         text += ", masterpiece, best quality"
     args = {"prompt": text, "num_inference_steps": steps, f.cfg_key: guidance,
             "generator": torch.Generator(getattr(pipe, "device", "cpu")).manual_seed(seed), **f.extra}
     if f.negative:
-        args["negative_prompt"] = "lowres, worst quality, low quality" + (f", {avoid}" if avoid else "")
+        args["negative_prompt"] = negative_for(info, avoid)
+    if getattr(info, "rescale", 0.0):
+        args["guidance_rescale"] = info.rescale
     accepted = inspect.signature(pipe.__call__).parameters
     return {k: v for k, v in args.items() if k in accepted}   # 部品が受けない引数は渡さない（版の違いで落ちないように）
+
+
+def negative_for(info, avoid: str = "") -> str:
+    """描かない物。模型の札に推奨があればそれを使う（模型ごとに学んだ質の言葉が違う）"""
+    base = getattr(info, "negative", "") or "lowres, worst quality, low quality"
+    return base + (f", {avoid}" if avoid else "")
+
+
+def use_vpred(pipe, info) -> bool:
+    """v-prediction の模型は、置いてある scheduler の設定が epsilon のまま（NoobAI V-Pred 1.0 の札）なので、
+    読んだ後に Euler を v_prediction と zero terminal SNR に替える。替えないと色の抜けた崩れた絵になる"""
+    if not getattr(info, "vpred", False) or getattr(pipe, "scheduler", None) is None:
+        return False
+    from diffusers import EulerDiscreteScheduler
+    pipe.scheduler = EulerDiscreteScheduler.from_config(pipe.scheduler.config, prediction_type="v_prediction",
+                                                        rescale_betas_zero_snr=True)
+    return True
 
 
 ASK_SENTENCE = ("Translate the Japanese drawing request into one English sentence that describes the image for a text-to-image model. "
@@ -466,6 +485,7 @@ class Painter:
             else:
                 self._pipe = AutoPipelineForText2Image.from_pretrained(self.model, torch_dtype=dtype, variant=variant,
                                                                        cache_dir=str(HUB), **extra)
+            use_vpred(self._pipe, image_model(self.model))
             self._place(self._pipe)
         return self._pipe
 
@@ -601,9 +621,11 @@ class Painter:
         base.paste(image.convert("RGB"), (0, 0))
         mask_in = Image.new("L", base.size, 0)
         mask_in.paste(mask, (0, 0))
-        args = dict(prompt=f"{info.prefix}{prompt}, masterpiece, best quality", negative_prompt="lowres, worst quality, low quality" + (f", {self.avoid}" if self.avoid else ""),
+        args = dict(prompt=f"{info.prefix}{prompt}, masterpiece, best quality", negative_prompt=negative_for(info, self.avoid),
                     num_inference_steps=self.steps, guidance_scale=self.guidance, strength=strength,
                     generator=torch.Generator(pipe.device).manual_seed(seed))
+        if info.rescale:
+            args["guidance_rescale"] = info.rescale
         total = max(1, int(self.steps * strength))
 
         def step(p, i, _t, kw):

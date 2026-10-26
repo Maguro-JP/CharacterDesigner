@@ -1,5 +1,23 @@
 [
  {
+  "repo": "Laxhar/noobai-XL-Vpred-1.0",
+  "name": "NoobAI XL V-Pred 1.0",
+  "good": "アニメ絵。頼んだ通りに描きやすく、手・足・顔の形が崩れにくい",
+  "family": "sdxl",
+  "format": "full",
+  "gb": 7.1,
+  "prefix": "masterpiece, best quality, newest, absurdres, highres, safe, ",
+  "negative": "nsfw, worst quality, old, early, low quality, lowres, signature, username, logo, bad hands, mutated hands, mammal, anthro, furry, ambiguous form, feral, semi-anthro",
+  "vpred": true,
+  "rescale": 0.7,
+  "en": "anime illustration, strong prompt adherence, good hands and anatomy",
+  "steps": 28,
+  "guidance": 5.0,
+  "score": 0,
+  "note": "2026-10-26: 公式の札の設定（Euler、v_prediction と rescale_betas_zero_snr、CFG 4〜5、工程 28〜35）で載せた。Windows の実機の描画で確かめるまで点は 0",
+  "commercial": "商用不可（fair-ai-public-license-1.0-sd に NoobAI の追加条項。描いた絵の商用利用も禁止）"
+ },
+ {
   "repo": "cagliostrolab/animagine-xl-4.0",
   "name": "Animagine XL 4.0",
   "good": "アニメ絵。線と塗りが整っていて、キャラクターに強い",

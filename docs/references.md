@@ -110,3 +110,12 @@ OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じ
 
 博物館（メトロポリタン美術館、V&A、京都服飾文化研究財団、大英博物館、国立民族学博物館など）の所蔵品の記録と解説、百科事典（ブリタニカ、Encyclopaedia Iranica、コトバンクなど）、
 学術論文、一次史料の訳、各国政府・ユネスコの資料の 450 件。章ごとの末尾に、題名・媒体・公開年・URL と何の根拠に使ったかを書いた。画像は置かず、言葉と数字だけを読んだ。
+
+## 絵の模型の選び直し（2026-10-26）
+
+- NoobAI XL V-Pred 1.0 の札（設定、v-prediction の読み方、ライセンスの追加条項）: https://huggingface.co/Laxhar/noobai-XL-Vpred-1.0
+- NoobAI XL 1.1（epsilon 版）: https://huggingface.co/Laxhar/noobai-XL-1.1
+- fair-ai-public-license-1.0-sd: https://freedevproject.org/faipl-1.0-sd/
+- Illustrious XL 2.0: https://huggingface.co/OnomaAIResearch/Illustrious-XL-v2.0
+- WAI Illustrious（diffusers の形の写し）: https://huggingface.co/Ine007/waiIllustriousSDXL_v160
+- Animagine XL 4.0: https://huggingface.co/cagliostrolab/animagine-xl-4.0

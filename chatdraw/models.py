@@ -81,6 +81,9 @@ class ImageModel:
     family: str = "sdxl"   # 世代（FAMILIES の名前）。描く部品、描く大きさ、使える機能が変わる
     prefix: str = ""       # 頼みの頭に足す言葉（模型が決まり文句を要るとき）
     commercial: str = ""   # 商用の可否（模型のライセンスの表示から。画面の札に出す）
+    negative: str = ""     # 描かない物（模型の札の推奨）。空なら世代の決まり文句を使う
+    vpred: bool = False    # v-prediction で学んだ模型。読む時に Euler を v_prediction と zero terminal SNR に替える
+    rescale: float = 0.0   # guidance_rescale（v-prediction の白飛び・色の濁りを抑える）。0 は渡さない
 
 
 @dataclass(frozen=True)
@@ -105,7 +108,8 @@ def _load_images() -> tuple[ImageModel, ...]:
     return tuple(ImageModel(m["repo"], m["name"], m["good"], "", m["gb"], m["steps"], m["guidance"],
                             variant="fp16" if m["format"] == "half" else None, files=FILES[m["format"]],
                             en=m["en"], score=m["score"], family=m["family"], prefix=m.get("prefix", ""),
-                            commercial=m.get("commercial", ""))
+                            commercial=m.get("commercial", ""), negative=m.get("negative", ""),
+                            vpred=m.get("vpred", False), rescale=m.get("rescale", 0.0))
                  for m in items)
 
 
