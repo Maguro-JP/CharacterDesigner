@@ -1465,81 +1465,99 @@ def resume(a, im, parts, log, stem, t):
     pipe, multi = load(log, depth=False, model=a.model)
     nets = list(multi.controlnet.nets[:2])
     del multi
-    t1 = time.time()
-    p2 = _parts_of(r2)
-    d2 = depth_map(r2)
-    if a.post_relight > 0:
-        r2 = relight(r2, p2, d2, a.light_deg, amount=a.post_relight)
-    r2, blown_px = deblow(r2, p2)
-    log("blown_px", blown_px)
-    r2 = dehalo(match_legs(r2, p2), p2)
-    if a.cast > 0:
-        import measure
-        seen, diff = measure.body_light_deg(np.asarray(r2, np.float32) / 255, np.asarray(p2))
-        deg = seen if seen is not None else a.light_deg      # 影は体の陰から読んだ光の逆へ
-        log("cast_light", {"deg": deg, "lr_diff": diff})
-        r2 = cast_shadow(clear_floor(r2, p2), p2, d2, deg, a.cast)
-    # 床を埋めたあとに、浮いた暗い塊（腰の横の髪の先）を消す。床を埋める前は周りが暗く、塊として読めなかった
-    r2, bpx2 = fill_blobs(r2)
-    log("post_blob_px", bpx2)
-    r2.save(a.out / f"{stem}-4-light-r{a.post_relight}-c{a.cast}-s{a.seed}.png")
-    log("post_light_s", round(time.time() - t1, 1))
-    if a.check:
-        check(im, r2, parts, log, "light", ref=r1_color)
-    textured = r2
-    if a.face > 0:
-        r2 = face_ipadapter(pipe, nets, r2, im, a, log) if a.face_mode == "ipadapter" else face_inpaint(pipe, nets, r2, a, log)
-        r2.save(a.out / f"{stem}-5-face-{a.face_mode}-f{a.face}-s{a.seed}.png")
-    pn = _parts_of(r2)
-    if a.leg_soften > 0:
-        # 太腿の内側の陰の境目が硬く線のように見えたので、脚の中の段だけをぼかす（粒を重ねる前）
-        r2, spx = soften_leg_steps(r2, pn, a.leg_soften)
-        log("leg_step_px", spx)
-    if a.shoulder:
-        r2, shpx = shoulder_redraw(pipe, nets, r2, pn, im, parts, a, log)
-        log("shoulder_px", shpx)
-        pn = _parts_of(r2)
-    if a.feet > 0:
-        r2 = feet_redraw(pipe, nets, r2, pn, a, log)
-        pn = _parts_of(r2)
-        import measure
-        seen, _ = measure.body_light_deg(np.asarray(r2, np.float32) / 255, np.asarray(pn))
-        r2 = cast_shadow(clear_floor(r2, pn), pn, None, seen or a.light_deg, a.cast)   # 接地の影は描き直したあとに掛け直す
-        r2.save(a.out / f"{stem}-5a-feet-s{a.seed}.png")
-    if a.grain > 0:
-        t1 = time.time()
-        r2 = skin_grain(r2, _parts_of(r2), a.grain, a.seed)
-        log("grain_s", round(time.time() - t1, 1))
-        r2.save(a.out / f"{stem}-5b-grain-{a.grain}-s{a.seed}.png")
-    if a.sdxl_skin > 0:
-        del pipe, nets
-        import gc
-        gc.collect()
-        r2 = skin_sdxl(r2, _parts_of(r2), a, log)
-        r2.save(a.out / f"{stem}-5b-sdxl-{a.sdxl_skin}-s{a.seed}.png")
-    r2, cpx = restore_contour(r2, _parts_of(r2), parts)
-    log("contour_fix_px", cpx)
-    r2.save(a.out / f"{stem}-8-final-s{a.seed}.png")
-    if a.final_hf > 0:
-        keep = np.asarray(_parts_of(r2)) == 11
-        mm = np.asarray(hfmix(textured, r2, a.final_hf, 1.0)).copy()
-        mm[keep] = np.asarray(r2)[keep]
-        r2 = Image.fromarray(mm)
-        r2.save(a.out / f"{stem}-6-finalhf-g{a.final_hf}-s{a.seed}.png")
-    if a.s1_hf > 0:
-        # 1 段目の高い周波数（肌理）を体にもう一度戻す（顔は IP-Adapter で描いた肌理のまま）。2 段目と光の付け直しで
-        # 肌が平らに戻り、肌の平らな面が 0.05 前後から下がらなかった
-        p3 = np.asarray(_parts_of(r2))
-        body = np.isin(p3, SKIN) & (p3 != 11)
-        mixed = np.asarray(hfmix(r1_color, r2, a.s1_hf, 1.0))
-        from scipy import ndimage
-        w = ndimage.gaussian_filter(body.astype(np.float32), 2)[..., None]
-        r2 = Image.fromarray(np.clip(mixed * w + np.asarray(r2) * (1 - w), 0, 255).astype(np.uint8))
-        r2.save(a.out / f"{stem}-7-s1hf-g{a.s1_hf}-s{a.seed}.png")
-    if a.check:
-        check(im, r2, parts, log, "final", ref=r1_color)
+    import gate as gatemod
+    g = gatemod.Gate(np.asarray(parts), log, retries=a.gate_retries)
+    post_steps(a, im, parts, r2, r1_color, pipe, nets, log, g, stem)
+    g.write(a.out)
     log("total_s", round(time.time() - t, 1))
     return 0
+
+
+def lock_shape(img, src_parts):
+    """形は元の絵から固定する。描いた人物が元の体の輪郭からはみ出した所は背景で埋め、大きく欠けた所は元の輪郭まで肌で埋める。
+    模型には形を決めさせない（肩が膨らむ、髪の先が浮くなどの崩れを、工程ごとに元の形へ戻す）"""
+    pn = _parts_of(img)
+    img, _ = recut_to_source(img, pn, src_parts)
+    img, _ = restore_contour(img, _parts_of(img), src_parts)
+    return img
+
+
+def post_steps(a, im, parts, r2, r1_color, pipe, nets, log, g, stem):
+    """2 段目の後の工程を、1 つずつ関所（gate.Gate）に通す。悪くした工程は前の絵に戻る。描く工程は種を替えて描き直す"""
+    import numpy as np
+    import measure
+    seed0 = a.seed
+
+    def at_seed(k):
+        a.seed = seed0 + 31 * k
+
+    p2 = _parts_of(r2)
+    d2 = depth_map(r2) if (a.post_relight > 0 or a.cast > 0) else None
+    if a.post_relight > 0:
+        r2 = g.step("relight", r2, lambda k: relight(r2, p2, d2, a.light_deg, amount=a.post_relight))
+    r2 = g.step("deblow", r2, lambda k: deblow(r2, p2)[0])
+    r2 = g.step("match_legs", r2, lambda k: match_legs(r2, p2))
+    r2 = g.step("dehalo", r2, lambda k: dehalo(r2, p2))
+    if a.cast > 0:
+        def cast(k):
+            seen, _ = measure.body_light_deg(np.asarray(r2, np.float32) / 255, np.asarray(p2))
+            return fill_blobs(cast_shadow(clear_floor(r2, p2), p2, d2, seen or a.light_deg, a.cast))[0]
+        r2 = g.step("cast", r2, cast)
+    r2.save(a.out / f"{stem}-4-light-s{seed0}.png")
+    if a.face > 0:
+        def face(k):
+            at_seed(k)
+            out = face_ipadapter(pipe, nets, r2, im, a, log) if a.face_mode == "ipadapter" else face_inpaint(pipe, nets, r2, a, log)
+            return lock_shape(out, parts)
+        r2 = g.step("face", r2, face, retry=True)
+        r2.save(a.out / f"{stem}-5-face-s{seed0}.png")
+    if a.leg_soften > 0:
+        pn = _parts_of(r2)
+        r2 = g.step("leg_soften", r2, lambda k: soften_leg_steps(r2, pn, a.leg_soften)[0])
+    if a.shoulder:
+        def shoulder(k):
+            at_seed(k)
+            return lock_shape(shoulder_redraw(pipe, nets, r2, _parts_of(r2), im, parts, a, log)[0], parts)
+        r2 = g.step("shoulder", r2, shoulder, retry=True)
+    if a.feet > 0:
+        def feet(k):
+            at_seed(k)
+            out = feet_redraw(pipe, nets, r2, _parts_of(r2), a, log)
+            pn = _parts_of(out)
+            seen, _ = measure.body_light_deg(np.asarray(out, np.float32) / 255, np.asarray(pn))
+            return cast_shadow(clear_floor(out, pn), pn, None, seen or a.light_deg, a.cast)   # 接地の影は描き直したあとに掛け直す
+        r2 = g.step("feet", r2, feet, retry=True)
+    if a.grain > 0:
+        r2 = g.step("grain", r2, lambda k: skin_grain(r2, _parts_of(r2), a.grain, seed0))
+    r2 = g.step("shape", r2, lambda k: lock_shape(r2, parts))
+    for fake in a.fake_break:                      # 試験用: わざと崩す工程（関所が戻すことを確かめる）
+        r2 = g.step(f"fake_{fake}", r2, lambda k, fk=fake: fake_break(r2, _parts_of(r2), fk))
+    a.seed = seed0
+    r2.save(a.out / f"{stem}-8-final-s{seed0}.png")
+    if a.check:
+        check(im, r2, parts, log, "final", ref=r1_color)
+    return r2
+
+
+def fake_break(img, parts, kind):
+    """わざと崩す偽の工程（関所の試験用）。swell: 体の輪郭を膨らませる、nohair: 髪を消す、whiteedge: 縁を白くする"""
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+    seg = np.asarray(parts)
+    a = np.asarray(img).copy()
+    body = seg > 0
+    f = img.width / 768
+    if kind == "swell":
+        grow = ndimage.binary_dilation(body, iterations=max(6, round(25 * f))) & ~body
+        a[grow] = np.median(a[np.isin(seg, SKIN)], axis=0) if np.isin(seg, SKIN).any() else (220, 180, 160)
+    elif kind == "nohair":
+        hair = seg == 2
+        a[hair] = (128, 128, 128)
+    elif kind == "whiteedge":
+        edge = ndimage.binary_dilation(body, iterations=max(3, round(5 * f))) & ~ndimage.binary_erosion(body, iterations=max(2, round(3 * f)))
+        a[edge] = (250, 250, 250)
+    return Image.fromarray(a)
 
 
 def parse(argv):
@@ -1576,6 +1594,9 @@ def parse(argv):
     ap.add_argument("--asian", action="store_true", help="東アジアの顔に寄せる言葉を足す（顔の描き直しにも同じ言葉を使う）")
     ap.add_argument("--face-px", type=int, default=768, help="顔を描く大きさ")
     ap.add_argument("--grain", type=float, default=0, help="実写の肌の粒を重ねる量（styles/skin-texture.json の強さを 1 とする、0 ならしない）")
+    ap.add_argument("--gate-retries", type=int, default=2, help="関所で戻された描く工程を、種を替えて描き直す回数")
+    ap.add_argument("--fake-break", action="append", default=[], choices=("swell", "nohair", "whiteedge"),
+                    help="試験用: わざと崩す工程を最後に足す（関所が戻すことを確かめる）")
     ap.add_argument("--feet", type=float, default=0, help="足を inpaint で描き直す強さ（0 ならしない）")
     ap.add_argument("--shoulder", action="store_true", help="輪郭が元の絵から大きくずれた所を、元の線画で描き直す")
     ap.add_argument("--leg-soften", type=float, default=0, help="脚の陰の境目をならす幅（768 幅の画素、0 ならしない）")
@@ -1639,79 +1660,36 @@ def main(argv=None) -> int:
         check(im, clean, parts, log, "input")
     pipe, multi = load(log, depth=a.depth_scale > 0, model=a.model)
     import numpy as np
-    from PIL import Image
+    import gate as gatemod
+    g = gatemod.Gate(np.asarray(parts), log, retries=a.gate_retries)
     hair = np.asarray(parts) == 2 if a.hair_strength >= 0 else None   # 2 は髪（edit.LABELS）
-    r1 = stage1(multi, clean, li, a, log, dep, hair)
+    seed0 = a.seed
+
+    def s1(k):
+        a.seed = seed0 + 31 * k                 # 描き直すたびに種を替える
+        return lock_shape(stage1(multi, clean, li, a, log, dep, hair), parts)
+    r1 = g.step("stage1", clean, s1, retry=True)
+    a.seed = seed0
     r1.save(a.out / f"{stem}-1-photoreal-st{a.strength}-s{a.seed}.png")
     r1_color = r1                                  # 色の検品の基準（描き直しの後の工程は 1 段目の色を保つ）
-    if a.check:
-        check(im, r1, parts, log, "stage1")
     # tile と lineart（顔の描き直しで使い回す）。ModuleList のまま渡すと、pipe が複数の ControlNet の組と見なさず check_inputs で落ちた
     nets = list(multi.controlnet.nets[:2]) if hasattr(multi.controlnet, "nets") else list(multi.controlnet)
     del multi
     if a.iclight > 0:
-        raw, r1 = iclight(pipe, r1, parts, a, log)
-        raw.save(a.out / f"{stem}-1b-iclight-raw.png")
-        r1.save(a.out / f"{stem}-1b-iclight.png")
-        if a.check:
-            check(im, r1, parts, log, "iclight", ref=r1_color)
+        r1 = g.step("iclight", r1, lambda k: iclight(pipe, r1, parts, a, log)[1])
+    r2 = r1
     if a.scale > 0:
-        r2 = stage2(pipe, r1, a, log)
+        def s2(k):
+            a.seed = seed0 + 31 * k
+            return lock_shape(stage2(pipe, r1, a, log), parts)
+        r2 = g.step("stage2", r1, s2, retry=True)
+        a.seed = seed0
         r2.save(a.out / f"{stem}-2-tile-x{a.scale}-s{a.seed}.png")
-        if a.check:
-            check(im, r2, parts, log, "stage2", ref=r1_color)
         if a.hf_sigma > 0:
-            r3 = hfmix(r1, r2, a.hf_sigma, a.hf_amount)
-            r3.save(a.out / f"{stem}-3-hf-g{a.hf_sigma}-s{a.seed}.png")
-            r2 = r3
-            if a.check:
-                check(im, r2, parts, log, "hf", ref=r1_color)
-    else:
-        r2 = r1
-    if a.post_relight > 0 or a.cast > 0:
-        t1 = time.time()
-        p2 = _parts_of(r2)
-        d2 = depth_map(r2)
-        if a.post_relight > 0:
-            r2 = relight(r2, p2, d2, a.light_deg, amount=a.post_relight)
-        if a.cast > 0:
-            import measure
-            r2 = dehalo(match_legs(r2, p2), p2)
-            seen, diff = measure.body_light_deg(np.asarray(r2, np.float32) / 255, np.asarray(p2))
-            log("cast_light", {"deg": seen if seen is not None else a.light_deg, "lr_diff": diff})
-            r2 = cast_shadow(clear_floor(r2, p2), p2, d2, seen if seen is not None else a.light_deg, a.cast)
-        r2, bpx2 = fill_blobs(r2)
-        log("post_blob_px", bpx2)
-        r2.save(a.out / f"{stem}-4-light-r{a.post_relight}-c{a.cast}-s{a.seed}.png")
-        log("post_light_s", round(time.time() - t1, 1))
-        if a.check:
-            check(im, r2, parts, log, "light", ref=r1_color)
-    textured = r2
-    if a.face > 0:
-        r2 = face_inpaint(pipe, nets, r2, a, log)
-        r2.save(a.out / f"{stem}-5-face-f{a.face}-s{a.seed}.png")
-        if a.check:
-            check(im, r2, parts, log, "face", ref=r1_color)
-    if a.final_hf > 0:
-        # 工程の最後にも高い周波数を戻す。光の付け直し・顔の描き直しは低い周波数を変えるが、肌理は 2 段目の後の絵から取る
-        keep = np.asarray(_parts_of(r2)) == 11
-        mixed = hfmix(textured, r2, a.final_hf, 1.0)
-        mm = np.asarray(mixed).copy()
-        mm[keep] = np.asarray(r2)[keep]          # 顔は描き直した絵の肌理を使う
-        r2 = Image.fromarray(mm)
-        r2.save(a.out / f"{stem}-6-finalhf-g{a.final_hf}-s{a.seed}.png")
-    if a.s1_hf > 0:
-        # 1 段目の高い周波数（肌理）を体にもう一度戻す（顔は IP-Adapter で描いた肌理のまま）。2 段目と光の付け直しで
-        # 肌が平らに戻り、肌の平らな面が 0.05 前後から下がらなかった
-        p3 = np.asarray(_parts_of(r2))
-        body = np.isin(p3, SKIN) & (p3 != 11)
-        mixed = np.asarray(hfmix(r1_color, r2, a.s1_hf, 1.0))
-        from scipy import ndimage
-        w = ndimage.gaussian_filter(body.astype(np.float32), 2)[..., None]
-        r2 = Image.fromarray(np.clip(mixed * w + np.asarray(r2) * (1 - w), 0, 255).astype(np.uint8))
-        r2.save(a.out / f"{stem}-7-s1hf-g{a.s1_hf}-s{a.seed}.png")
-    if a.check:
-        check(im, r2, parts, log, "final", ref=r1_color)
+            r2 = g.step("hf", r2, lambda k: hfmix(r1, r2, a.hf_sigma, a.hf_amount))
+            r2.save(a.out / f"{stem}-3-hf-g{a.hf_sigma}-s{a.seed}.png")
+    r2 = post_steps(a, im, parts, r2, r1_color, pipe, nets, log, g, stem)
+    g.write(a.out)
     log("total_s", round(time.time() - t, 1))
     return 0
 

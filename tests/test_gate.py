@@ -1,0 +1,63 @@
+"""関所（tools/gen/gate.py）が、わざと崩す工程を戻し、崩さない工程を受け入れるかの試験。模型は読まず、部位分けは色で決める偽物"""
+import sys
+import tempfile
+import unittest
+from pathlib import Path
+
+import numpy as np
+from PIL import Image
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "tools" / "gen"))
+import gate  # noqa: E402
+import photoreal  # noqa: E402
+
+SKIN = (222, 182, 160)
+HAIR = (25, 22, 22)
+
+
+def fake_parts(img):
+    a = np.asarray(img).astype(int)
+    seg = np.zeros(a.shape[:2], np.uint8)
+    seg[(np.abs(a - SKIN).sum(-1) < 40)] = 12
+    seg[(a.max(-1) < 60)] = 2
+    return seg
+
+
+def figure():
+    a = np.full((1152, 768, 3), 150, np.uint8)
+    a[300:1100, 300:460] = SKIN                    # 体（脚）
+    a[150:300, 320:440] = HAIR                     # 髪
+    return Image.fromarray(a)
+
+
+class GateTest(unittest.TestCase):
+    def setUp(self):
+        self.img = figure()
+        self.g = gate.Gate(fake_parts(self.img), log=lambda *x: None, parts_fn=fake_parts, face_fn=None, retries=0)
+
+    def test_fakes_are_reverted(self):
+        for kind in ("swell", "nohair", "whiteedge"):
+            out = self.g.step(kind, self.img, lambda k, kd=kind: photoreal.fake_break(self.img, Image.fromarray(fake_parts(self.img)), kd))
+            self.assertIs(out, self.img, kind)
+        self.assertEqual([r["accepted"] for r in self.g.rows], [False, False, False])
+        self.assertIn("contour_extra", self.g.rows[0]["worse"])
+        self.assertIn("hair_loss", self.g.rows[1]["worse"])
+        self.assertTrue({"halo", "halo_feet"} & set(self.g.rows[2]["worse"]))
+
+    def test_harmless_step_is_accepted_and_report_written(self):
+        out = self.g.step("same", self.img, lambda k: self.img.copy())
+        self.assertIsNot(out, self.img)
+        with tempfile.TemporaryDirectory() as d:
+            self.g.write(Path(d))
+            self.assertIn("受け入れ", (Path(d) / "report.md").read_text(encoding="utf-8"))
+
+    def test_retry_until_good(self):
+        g = gate.Gate(fake_parts(self.img), log=lambda *x: None, parts_fn=fake_parts, face_fn=None, retries=2)
+        bad = photoreal.fake_break(self.img, Image.fromarray(fake_parts(self.img)), "nohair")
+        out = g.step("draw", self.img, lambda k: bad if k < 2 else self.img.copy(), retry=True)
+        self.assertIsNot(out, self.img)
+        self.assertEqual(g.rows[0]["tries"], 3)
+
+
+if __name__ == "__main__":
+    unittest.main()
