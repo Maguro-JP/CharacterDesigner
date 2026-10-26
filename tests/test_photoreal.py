@@ -180,7 +180,8 @@ class CastShadowTest(unittest.TestCase):
         img = Image.new("RGB", (W, H), (180, 180, 180))
         depth = Image.fromarray((seg > 0).astype(np.uint8) * 200)
         o = np.asarray(photoreal.cast_shadow(img, Image.fromarray(seg), depth, 135, 0.5)).astype(int)
-        self.assertTrue((o[seg > 0] == 180).all())        # 人物は暗くしない
+        from scipy import ndimage
+        self.assertTrue((o[ndimage.binary_erosion(seg > 0, iterations=3)] == 180).all())   # 人物は暗くしない（縁は 1〜2 画素ぼかして重ねる）
         right, left = o[300:350, 200:290].mean(), o[300:350, 10:100].mean()
         self.assertLess(right, left - 3)                  # 左上の光なら影は右へ
         self.assertLess(o[352, 150, 0], 170)              # 足元の接地の影
@@ -238,9 +239,23 @@ class CastCheckTest(unittest.TestCase):
     def test_round6_floor_shadow_fails(self):
         import measure
         # 6 周目の rv-asian の最後の絵（run 40233249025）を cast_check で測った数字。影は左右の塊で、縁に白いにじみがある。
-        # 足の真下は元の絵の塊で暗いので、接地（contact 0.78）では落ちない。形・向き・はみ出し・にじみで落ちる
-        bad = {"cast_iou": 0.386, "contact": 0.78, "cast_side": 0.79, "cast_spill": 0.372, "halo": 0.128}
-        self.assertEqual({f["path"] for f in measure.judge_shadow(bad)}, {"cast_iou", "cast_side", "cast_spill", "halo"})
+        # 接地は、足の下の暗さだけで測ると 0.78 で通った。写した影とのつながりで測ると 0.0
+        bad = {"cast_iou": 0.386, "contact": 0.0, "cast_side": 0.79, "cast_spill": 0.372, "halo": 0.128}
+        self.assertEqual({f["path"] for f in measure.judge_shadow(bad)}, set(bad))
+
+    def test_blob_under_feet_is_not_contact(self):
+        import measure
+        # 足の下を暗くする塊（人物の形をしない楕円）は、接地に数えない
+        H, W = 600, 400
+        seg = np.zeros((H, W), np.uint8)
+        seg[150:520, 180:200] = 12
+        seg[150:520, 210:230] = 13
+        a = np.full((H, W, 3), 0.6, np.float32)
+        yy, xx = np.mgrid[:H, :W]
+        blob = ((xx - 205) / 170) ** 2 + ((yy - 515) / 30) ** 2 <= 1
+        a[blob & (seg == 0)] = 0.4
+        m = measure.cast_check(a, seg, 135)
+        self.assertLess(m["contact"], 0.6)
 
     def test_projected_shadow_with_contact_passes(self):
         import measure

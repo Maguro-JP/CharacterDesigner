@@ -452,7 +452,7 @@ def cast_check(rgb, seg, light_deg):
     6 周目の絵は、影が脚の形をしない左右の塊で、足の裏から離れ、体の陰と逆の向きに伸びていたのに、
     足元の暗さだけを見る検品（cast）が通した。
     cast_iou: 写した形（人物の外）と、実際の影（背景の見込みより 10% 以上暗い所）の重なり
-    contact: 足の裏の真下 1〜2% の帯で影になっている割合（接地の影。無ければ足が浮いて見える）
+    contact: 足の裏の真下 1% の帯のうち、写した形と重なる（IoU 0.5 以上の）影のひと続きの塊に入る割合（接地の影）
     cast_side: 実際の影のうち、足の裏から見て光と逆の側にある割合（体の陰の向きと影の向きの一致）
     cast_spill: 実際の影のうち、写した形（少し広げたもの）の外にはみ出た割合（脚の形をしない塊）
     halo: 人物の縁のすぐ外（1〜6 画素）が、少し外（10〜24 画素）の背景より明るい割合（白いにじみ）"""
@@ -474,7 +474,18 @@ def cast_check(rgb, seg, light_deg):
         yy = np.clip(sy + dy, 0, H - 1)
         below[yy, sx] = True
     below &= ~body
-    out["contact"] = round(float((L[below] < 0.85 * ref[below]).mean()), 3) if below.any() else 0.0
+    # 接地: 足の裏の真下の影が、人物の形を写した影とひと続きか。足の下が暗いだけでは数えない
+    # （6 周目の絵は元のアニメの影の塊が足の下を暗くしていて、暗さだけの測り方では 0.78 で通った）
+    sh2 = shade | (below & (L < 0.85 * ref))
+    # 人物のすぐ外（3 画素）は影の判定から外しているので、そこをまたいでつなぐ
+    lab, n = ndimage.label(ndimage.binary_dilation(sh2, iterations=max(3, round(4 * f)) + 1))
+    good = np.zeros(n + 1, bool)
+    for i in np.unique(lab[below & sh2]):
+        if i == 0:
+            continue
+        comp = lab == i
+        good[i] = (comp & exp).sum() / max((comp | exp).sum(), 1) >= 0.5
+    out["contact"] = round(float((sh2[below] & good[lab[below]]).mean()), 3) if below.any() else 0.0
     if shade.sum() > 50:
         fx = float(sx.mean()) if len(sx) else W / 2
         want = -np.sign(np.cos(np.radians(light_deg)))

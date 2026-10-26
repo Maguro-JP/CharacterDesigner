@@ -32,10 +32,11 @@ jobs:
       matrix:
         # 影の直し方を並べて比べる（同じ種・同じ絵）。どれも段ごとに影の検品と肌・髪・線を測る（--check）
         include:
-          - variant: rv-asian-s2-015
-            extra: "--model rv --asian --strength2 0.15 --iclight 0.6 --post-relight 0.6 --cast 0.45 --face 0.6 --final-hf 2.5"
-          - variant: rv-asian-s2-020
-            extra: "--model rv --asian --strength2 0.2 --iclight 0.6 --post-relight 0.6 --cast 0.45 --face 0.6 --final-hf 2.5"
+          # 2 段目 0.15 の絵（run 40248087657）から、光・床の影・縁・顔だけを掛け直す。顔を描く大きさ 768 と 640 を比べる
+          - variant: s2-015-face768
+            extra: "--model rv --asian --strength2 0.15 --post-relight 0.6 --cast 0.45 --face 0.6 --face-px 768 --final-hf 2.5 --resume draw-results:40248087657/rv-asian-s2-015/stage1-bikini-white-stand-s12-3-hf-g2.5-s12.png"
+          - variant: s2-015-face640
+            extra: "--model rv --asian --strength2 0.15 --post-relight 0.6 --cast 0.45 --face 0.6 --face-px 640 --final-hf 2.5 --resume draw-results:40248087657/rv-asian-s2-015/stage1-bikini-white-stand-s12-3-hf-g2.5-s12.png"
     steps:
       - uses: actions/checkout@v4
       - name: 置き場を空ける

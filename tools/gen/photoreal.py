@@ -689,7 +689,7 @@ def uncover_eye(img, seg, eyes, hair_label=2):
     return out, disk, dist
 
 
-def face_inpaint(pipe, nets, img, a, log, tries=5, side_px=768):
+def face_inpaint(pipe, nets, img, a, log, tries=5, side_px=None):
     """顔を切り出して 2〜3 倍に拡大し（骨格の点の顔の枠を side_px に）、顔の部位だけを inpaint で描き直して戻す。
     前髪が目にかかっていれば、見えている目を反転した下絵を描き入れ、その目の周りは髪ごと描き直させ、
     描いた後に元の線画（前髪の毛筋）を上から重ねて前髪を戻す。顔の検品（face_qc: 目・余分な目・口）を通るまで
@@ -719,13 +719,16 @@ def face_inpaint(pipe, nets, img, a, log, tries=5, side_px=768):
     if eyes is not None:
         base, hidden, dist = uncover_eye(img, seg, eyes)
         (lx, ly), (rx, ry) = eyes
-        cx, cy, side = (lx + rx) / 2, (ly + ry) / 2 + dist * 0.35, int(dist * 2.6)   # 目の間の距離から顔の枠
+        # 頭の全体を枠にする（目の間の 5.5 倍、髪の上まで）。目の間の 2.6 倍では 147 画素と狭く、5.2 倍に拡大していた
+        cx, cy, side = (lx + rx) / 2, (ly + ry) / 2 + dist * 0.2, int(dist * 5.5)
     else:
         b = closeup._bbox(seg == 11)
         if b is None:
             return img
         cx, cy, side = (b[0] + b[2]) / 2, (b[1] + b[3]) / 2, int(max(b[2] - b[0], b[3] - b[1]) * 1.3)
     side = max(min(side, img.width, img.height), 64)
+    if side_px is None:   # 拡大は 2〜3 倍に収め、描く大きさの上限は a.face_px（8 の倍数）
+        side_px = int(min(max(side * 2, 512), a.face_px)) // 8 * 8
     left = int(min(max(cx - side / 2, 0), img.width - side))
     top = int(min(max(cy - side / 2, 0), img.height - side))
     box = (left, top, left + side, top + side)
@@ -776,9 +779,28 @@ def face_inpaint(pipe, nets, img, a, log, tries=5, side_px=768):
     return best[1]
 
 
+def floor_fit(a, known, lower):
+    """床の色を、見えている床（known）から x, y の 2 次式で当てはめた面（明るさの傾きを保つ）。lower は当てはめる範囲"""
+    import numpy as np
+    H, W = known.shape
+    ys, xs = np.nonzero(known & lower)
+    if len(ys) < 200:
+        ys, xs = np.nonzero(known)
+    step = max(1, len(ys) // 40000)
+    ys, xs = ys[::step], xs[::step]
+    def basis(y, x):
+        y, x = y / H, x / W
+        return np.stack([np.ones_like(x), x, y, x * x, x * y, y * y], -1)
+    A = basis(ys.astype(np.float32), xs.astype(np.float32))
+    coef = np.linalg.lstsq(A, a[ys, xs], rcond=None)[0]
+    gy, gx = np.mgrid[:H, :W].astype(np.float32)
+    return basis(gy, gx) @ coef
+
+
 def clear_floor(img, parts):
-    """元の絵の床の影を消す（背景の行ごとの色で埋める）。元のアニメの絵の影は脚の形をしない左右の塊で、写真に描き直しても
-    その形のまま残り、足が浮いて見えた。正しい影は cast_shadow で付け直す"""
+    """元の絵の床の影を消す。元の影の暗い所を少し広げた範囲を、見えている床から当てはめた面（明るさの傾きを保つ）で埋める。
+    元のアニメの絵の影は脚の形をしない左右の塊で、写真に描き直してもその形のまま残った。行ごとの中央値で埋めると横の筋が残り、
+    暗さ 5% の閾値では影の縁の跡が薄く残った"""
     import numpy as np
     from PIL import Image
     from scipy import ndimage
@@ -786,40 +808,39 @@ def clear_floor(img, parts):
     a = np.asarray(img).astype(np.float32)
     body = np.asarray(parts) != BACKGROUND
     f = img.width / 768
+    H, W = body.shape
     bg = ~ndimage.binary_dilation(body, iterations=max(2, round(2 * f)))
-    L = a.mean(2) / 255
-    ref = measure.floor_ref(L, bg)
     foot, _ = measure.feet_line(body)
-    H = a.shape[0]
-    dark = bg & (L < 0.97 * ref) & (np.arange(H)[:, None] > foot - 0.3 * H)
-    dark = ndimage.binary_dilation(ndimage.binary_opening(dark, iterations=2), iterations=max(3, round(8 * f))) & bg
-    known = bg & ~dark
-    fill = a.copy()
-    w = known.astype(np.float32)
-    k = np.ones((7, 7), np.float32)
-    small = max(1, int(round(4 * f)))                    # 縮めて埋めて戻す（大きな塊を 1 画素ずつ埋めると遅い）
-    fs, ws = fill[::small, ::small] * w[::small, ::small, None], w[::small, ::small]
-    rem = dark[::small, ::small].copy()
-    while rem.any():
-        num = np.stack([ndimage.convolve(fs[..., c], k, mode="nearest") for c in range(3)], -1)
-        den = ndimage.convolve(ws, k, mode="nearest")
-        new = rem & (den > 0)
-        if not new.any():
-            break
-        fs[new] = num[new] / den[new][:, None]
-        ws[new] = 1
-        rem &= ~new
-    fs = np.stack([ndimage.gaussian_filter(fs[..., c], 2) for c in range(3)], -1)
-    up = np.asarray(Image.fromarray(np.clip(fs, 0, 255).astype(np.uint8)).resize((a.shape[1], a.shape[0]), Image.BILINEAR)).astype(np.float32)
-    wm = ndimage.gaussian_filter(dark.astype(np.float32), 2 * f)[..., None] * bg[..., None]
-    o = a * (1 - wm) + up * wm
+    lower = np.arange(H)[:, None] > foot - 0.3 * H
+    L = a.mean(2)
+    plane0 = floor_fit(L, bg, lower)
+    dark = bg & lower & (np.abs(L - plane0) > 4)              # 当てはめた床から 4 階調以上ずれた所（影と、その縁の明るい筋）
+    dark = ndimage.binary_opening(dark, iterations=2)
+    dark = ndimage.binary_dilation(dark, iterations=max(4, round(14 * f))) & ~body
+    fit = floor_fit(a, bg & ~dark, lower)
+    noise = a - ndimage.gaussian_filter(a, (2, 2, 0))          # 床の細かい粒は元のまま
+    fill = fit + noise * 0.5
+    w = ndimage.gaussian_filter(dark.astype(np.float32), 3 * f)[..., None] * (~body)[..., None]
+    o = a * (1 - w) + fill * w
+    return Image.fromarray(np.clip(o, 0, 255).astype(np.uint8))
+
+
+def composite_person(scene, person, parts, feather=1.5):
+    """人物の切り抜きを、縁を 1〜2 画素ぼかして背景（影を付けた床）の上に重ねる。影を人物の上に塗らず、縁に黒い線を作らない"""
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+    body = (np.asarray(parts) != BACKGROUND).astype(np.float32)
+    al = np.clip(ndimage.gaussian_filter(body, feather * scene.width / 768), 0, 1) * body.max()
+    al = np.maximum(al, ndimage.binary_erosion(body > 0, iterations=2))[..., None]
+    o = np.asarray(person).astype(np.float32) * al + np.asarray(scene).astype(np.float32) * (1 - al)
     return Image.fromarray(np.clip(o, 0, 255).astype(np.uint8))
 
 
 def cast_shadow(img, parts, depth=None, deg=135.0, opacity=0.45):
     """床に落ち影を付ける。人物の切り抜きを、光（deg、体の陰を付けた光）と逆の向きへ床に写し（measure.project_shadow）、
-    足から離れるほどぼかして薄くする。足の裏の真下には濃く小さい接地の影を必ず置く（無いと足が浮いて見えた）。
-    人物の上には塗らない"""
+    足から離れるほどぼかして薄くする。足の裏の真下には濃く小さい接地の影を置く（無いと足が浮いて見えた）。
+    影は床にだけ付け、人物の切り抜きを上に重ねる（composite_person）。接地の影を横に広げると、足の縁を黒い線が囲んだ"""
     import numpy as np
     from PIL import Image
     from scipy import ndimage
@@ -832,44 +853,57 @@ def cast_shadow(img, parts, depth=None, deg=135.0, opacity=0.45):
     foot, sole = measure.feet_line(body)
     sh = measure.project_shadow(body, deg).astype(np.float32)
     yy = np.arange(H)[:, None] * np.ones((1, W))
-    far = np.clip((foot - yy) / max(0.25 * H, 1), 0, 1)               # 足から奥へ離れるほど 1
+    far = np.clip((foot - yy) / max(0.25 * H, 1), 0, 1)
     s = ndimage.gaussian_filter(sh, 2 * f) * (1 - far) + ndimage.gaussian_filter(sh, 10 * f) * far
     s *= 1 - 0.5 * far
-    # 接地の影: 足（下から 5% の帯）の列ごとの一番下の画素の真下に、薄い帯を置いて少しぼかす（爪先だけでなく踵の下にも付く）
     contact = np.zeros((H, W), np.float32)
     feet = body & (np.arange(H)[:, None] >= foot - 0.05 * H)
     cols = np.nonzero(feet.any(0))[0]
     bottom = H - 1 - np.argmax(feet[::-1, cols], axis=0)
     depth_px = max(3, int(0.012 * H))
     for x, yb in zip(cols, bottom):
-        contact[yb:min(yb + depth_px, H), x] = 1
-    contact = ndimage.gaussian_filter(contact, (1.5 * f, 2.5 * f))
+        if yb >= foot - 0.02 * H:          # 床に着いている所（足の裏の近く）だけ。脛の横には付けない
+            contact[yb:min(yb + depth_px, H), x] = np.linspace(1, 0.3, min(yb + depth_px, H) - yb)
+    contact = ndimage.gaussian_filter(contact, (1.2 * f, 1.5 * f))
     a = np.asarray(img).astype(np.float32)
-    dark = np.maximum(opacity * s, 0.6 * np.clip(contact * 1.6, 0, 1)) * ~body
-    return Image.fromarray(np.clip(a * (1 - dark[..., None]), 0, 255).astype(np.uint8))
+    dark = np.maximum(opacity * s, 0.65 * np.clip(contact * 1.4, 0, 1))
+    scene = Image.fromarray(np.clip(a * (1 - dark[..., None]), 0, 255).astype(np.uint8))
+    return composite_person(scene, img, parts)
 
 
-def dehalo(img, parts):
-    """人物の縁のすぐ外の白いにじみ（ハロー）を、少し外の背景の色で埋める。光の付け直しと 2 段目の描き直しで、縁の外に
-    明るい帯と白い塊が残った"""
+def dehalo(img, parts, band=3):
+    """縁の白いにじみ（ハロー）を消す。切り抜きの縁の内側 band 画素を、さらに内側の色（一番近い内側の画素）で塗り直し、
+    縁のすぐ外の白い画素は床の色で埋める。光の付け直しと 2 段目の描き直しで、縁と手の周りに白い帯が残った"""
     import numpy as np
     from PIL import Image
     from scipy import ndimage
     body = np.asarray(parts) != BACKGROUND
     f = img.width / 768
     a = np.asarray(img).astype(np.float32)
-    # 部位分けは白いにじみを人物に含めることが多いので、縁の内側 4 画素も見る。肌は彩度があり、にじみは白い（彩度が低い）
-    near = ndimage.binary_dilation(body, iterations=max(2, round(8 * f))) & ~ndimage.binary_erosion(body, iterations=max(2, round(4 * f)))
+    k = max(1, round(band * f))
+    inner = ndimage.binary_erosion(body, iterations=k + 1)
+    edge = body & ~inner
+    mx, mn = a.max(2), a.min(2)
+    white = ((mx - mn) / np.maximum(mx, 1) < 0.18) & (a.mean(2) > 150)
+    idx = ndimage.distance_transform_edt(~inner, return_distances=False, return_indices=True)
+    inside = a[idx[0], idx[1]]
+    o = a.copy()
+    # 肌の部位は縁から 10 画素まで見る（部位分けが手の周りのにじみを腕に含めた）。白い服（水着）は塗り直さない
+    skin = np.isin(np.asarray(parts), SKIN)
+    skin_in = ndimage.binary_erosion(skin, iterations=max(2, round(10 * f)) + 1)
+    sidx = ndimage.distance_transform_edt(~skin_in, return_distances=False, return_indices=True)
+    hot_s = skin & ~skin_in & white
+    o[hot_s] = a[sidx[0], sidx[1]][hot_s]
+    hot = edge & white & ~skin
+    o[hot] = inside[hot]
+    out_ring = ndimage.binary_dilation(body, iterations=max(3, round(16 * f))) & ~body   # 手の周りのにじみは 15 画素ほど広い
     far = ndimage.binary_dilation(body, iterations=max(4, round(28 * f))) & ~ndimage.binary_dilation(body, iterations=max(3, round(12 * f)))
     sg = max(3, round(14 * f))
     den = np.maximum(ndimage.gaussian_filter(far.astype(np.float32), sg), 1e-3)
     ref = np.stack([ndimage.gaussian_filter(a[..., c] * far, sg) / den for c in range(3)], -1)
-    mx, mn = a.max(2), a.min(2)
-    sat = (mx - mn) / np.maximum(mx, 1)
-    hot = near & (a.mean(2) > ref.mean(2) + 0.04 * 255) & (sat < 0.15)
-    hot = ndimage.binary_dilation(hot, iterations=1) & near
-    w = ndimage.gaussian_filter(hot.astype(np.float32), 1.0 * f)[..., None]
-    o = a * (1 - w) + ref * w
+    hot2 = out_ring & ((mx - mn) / np.maximum(mx, 1) < 0.18) & (a.mean(2) > ref.mean(2) + 5)
+    w = ndimage.gaussian_filter(hot2.astype(np.float32), 1.5 * f)[..., None] * (~body)[..., None]
+    o = o * (1 - w) + ref * w
     return Image.fromarray(np.clip(o, 0, 255).astype(np.uint8))
 
 
@@ -905,6 +939,57 @@ def stage2(pipe, src, a, log):
     return Image.fromarray(np.clip(acc / wsum, 0, 255).astype(np.uint8))
 
 
+def _read_any(path):
+    """リポジトリの絵か、draw-results:<実行の番号>/<名前> の絵を読む（Actions で前の実行の絵から続ける）"""
+    import io
+    import subprocess
+    from PIL import Image
+    if path.startswith("draw-results:"):
+        subprocess.run(["git", "fetch", "-q", "origin", "draw-results"], check=True)
+        data = subprocess.run(["git", "show", "origin/" + path], check=True, capture_output=True).stdout
+        return Image.open(io.BytesIO(data)).convert("RGB")
+    return Image.open(path).convert("RGB")
+
+
+def resume(a, im, parts, log, stem, t):
+    """2 段目の後の絵から、光の付け直し・床の影・縁のにじみ・顔の描き直し・最後の高い周波数の戻しだけを掛け直す。
+    1 段目と 2 段目（約 40 分）を描き直さずに、後の工程だけを比べるため。色の検品の基準は同じ実行の 1 段目の絵"""
+    import numpy as np
+    from PIL import Image
+    r2 = _read_any(a.resume)
+    r1_color = _read_any(a.resume.replace(f"-3-hf-g{a.hf_sigma}", f"-1-photoreal-st{a.strength}"))
+    r2.save(a.out / f"{stem}-3-resumed.png")
+    pipe, multi = load(log, depth=False, model=a.model)
+    nets = list(multi.controlnet.nets[:2])
+    del multi
+    t1 = time.time()
+    p2 = _parts_of(r2)
+    d2 = depth_map(r2)
+    if a.post_relight > 0:
+        r2 = relight(r2, p2, d2, a.light_deg, amount=a.post_relight)
+    r2 = dehalo(r2, p2)
+    if a.cast > 0:
+        r2 = cast_shadow(clear_floor(r2, p2), p2, d2, a.light_deg, a.cast)
+    r2.save(a.out / f"{stem}-4-light-r{a.post_relight}-c{a.cast}-s{a.seed}.png")
+    log("post_light_s", round(time.time() - t1, 1))
+    if a.check:
+        check(im, r2, parts, log, "light", ref=r1_color)
+    textured = r2
+    if a.face > 0:
+        r2 = face_inpaint(pipe, nets, r2, a, log)
+        r2.save(a.out / f"{stem}-5-face-f{a.face}-px{a.face_px}-s{a.seed}.png")
+    if a.final_hf > 0:
+        keep = np.asarray(_parts_of(r2)) == 11
+        mm = np.asarray(hfmix(textured, r2, a.final_hf, 1.0)).copy()
+        mm[keep] = np.asarray(r2)[keep]
+        r2 = Image.fromarray(mm)
+        r2.save(a.out / f"{stem}-6-finalhf-g{a.final_hf}-s{a.seed}.png")
+    if a.check:
+        check(im, r2, parts, log, "final", ref=r1_color)
+    log("total_s", round(time.time() - t, 1))
+    return 0
+
+
 def parse(argv):
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("src", type=Path, help="入力の絵（隣に <絵>.parts.png が要る）")
@@ -937,6 +1022,8 @@ def parse(argv):
     ap.add_argument("--face", type=float, default=0, help="最後に顔を inpaint で描き直す強さ（0 ならしない）")
     ap.add_argument("--model", choices=sorted(CHECKPOINTS), default="rv", help="写実の模型")
     ap.add_argument("--asian", action="store_true", help="東アジアの顔に寄せる言葉を足す（顔の描き直しにも同じ言葉を使う）")
+    ap.add_argument("--face-px", type=int, default=768, help="顔を描く大きさの上限")
+    ap.add_argument("--resume", default="", help="この絵（2 段目と高い周波数の戻しの後、-3-hf）から光と影と顔だけを掛け直す。draw-results:<path> も受ける")
     ap.add_argument("--final-hf", type=float, default=0, help="工程の最後に高い周波数を戻す幅（0 ならしない）")
     ap.add_argument("--check", action="store_true", help="段ごとに影の検品と肌・髪・線の保ち方を測る（部位分けの模型を読む）")
     ap.add_argument("--dry-run", action="store_true", help="模型を読まず、帯消しと lineart だけ書き出す")
@@ -976,6 +1063,8 @@ def main(argv=None) -> int:
     log("clean_s", round(time.time() - t, 2))
     if a.dry_run:
         return 0
+    if a.resume:
+        return resume(a, im, parts, log, stem, t)
     dep = None
     if a.depth_scale > 0 or a.relight > 0:
         t1 = time.time()
