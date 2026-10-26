@@ -45,5 +45,20 @@ class StrayBlobTest(unittest.TestCase):
         self.assertGreater(measure.stray_blob(a), 0.7)
 
 
+class GarmentSaturationTest(unittest.TestCase):
+    def _suit(self, color):
+        a = picture()
+        parts = np.zeros(a.shape[:2], dtype=np.uint8)
+        a[60:90, 30:70] = color
+        parts[60:90, 30:70] = 4
+        return a, parts
+
+    def test_white_suit(self):
+        self.assertLess(measure.garment_saturation(*self._suit((235, 232, 228))), 0.15)
+
+    def test_pink_suit(self):
+        self.assertGreater(measure.garment_saturation(*self._suit((230, 150, 160))), 0.15)
+
+
 if __name__ == "__main__":
     unittest.main()
