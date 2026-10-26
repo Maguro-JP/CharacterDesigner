@@ -25,5 +25,25 @@ class StrayColorTest(unittest.TestCase):
         self.assertGreater(measure.stray_color(picture(40)), 2.0)
 
 
+try:
+    import scipy  # noqa: F401
+    HAS_SCIPY = True
+except ImportError:
+    HAS_SCIPY = False
+
+
+@unittest.skipUnless(HAS_SCIPY, "scipy が要る")
+class StrayBlobTest(unittest.TestCase):
+    def test_scattered_dots_are_small(self):
+        a = picture()
+        a[::10, ::10] = (230, 30, 30)  # 散らばった小さな点は塊にならない
+        self.assertLess(measure.stray_blob(a), 0.7)
+
+    def test_red_board(self):
+        a = picture()
+        a[100:150, 72:76] = (230, 30, 30)  # 体の前に出た赤い板（絵の 1%）
+        self.assertGreater(measure.stray_blob(a), 0.7)
+
+
 if __name__ == "__main__":
     unittest.main()
