@@ -269,7 +269,7 @@ def fix_hands(pipe, image, prompt: str, negative: str, seed: int, steps: int, gu
     inpaint = None
     rounds = []
     for r in range(FIX_ROUNDS + 1):
-        res = handcheck.check(image)
+        res = handcheck.check(image, asked=prompt)
         rounds.append({"round": r, "bad": res["bad"], "readable": res["readable"]})
         print(f"仕上げの検品 {r}回目: {handcheck.summary(res)}", flush=True)
         regions = handcheck.bad_regions(res)   # 手・足・顔のうち、崩れの見つかった所

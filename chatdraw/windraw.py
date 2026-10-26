@@ -93,7 +93,7 @@ def main():
 
     def judge():
         from chatdraw import handcheck, requestcheck
-        hands = handcheck.check(state["path"])
+        hands = handcheck.check(state["path"], asked=state["prompt"])
         asked = requestcheck.check(state["path"], state["prompt"], fetch=True)
         res = {"hands": handcheck.summary(hands), "asked": requestcheck.summary(asked), "missing": asked.get("missing", []),
                "extra": asked.get("extra", []), "bad": hands["bad"],
