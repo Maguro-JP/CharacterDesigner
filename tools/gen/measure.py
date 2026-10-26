@@ -565,6 +565,26 @@ def floor_step(rgb, seg, light_deg=None):
     return round(best, 4)
 
 
+def skin_vstep(rgb, seg):
+    """体の縦の方向の肌の色の段（Lab の ΔE）。脚の肌の画素ごとに、3 画素上と 3 画素下の色の差を取り、行ごとの中央値の最大。
+    行の全体に渡る横の帯（太腿の付け根の高さで上が白っぽく下が赤い。脚の色をそろえる処理の上の端で切っていた）は行の中央値に
+    出るが、膝や陰の境は行の一部にしか無いので中央値には出にくい。行ごとの平均の色の段で測ると、膝の陰と見分けられなかった"""
+    from scipy import ndimage
+    legs = ndimage.binary_erosion(np.isin(seg, (12, 13)), iterations=4)
+    H = seg.shape[0]
+    lab_ = lab(ndimage.gaussian_filter(rgb[..., :3], (0.5, 2, 0)))
+    k = 3
+    both = legs[2 * k:] & legs[:-2 * k]
+    d = np.linalg.norm(lab_[2 * k:] - lab_[:-2 * k], axis=-1)
+    ys = np.nonzero(seg > 0)[0]
+    lo, hi = ys.max() - 0.08 * (ys.max() - ys.min()), ys.min()     # 足（下から 8%）は指の間の色の差が大きいので除く
+    best = 0.0
+    for y in range(len(d)):
+        if both[y].sum() > 40 and y + k < lo:
+            best = max(best, float(np.median(d[y][both[y]])))
+    return round(best, 2)
+
+
 def cast_check(rgb, seg, light_deg=None):
     """床の落ち影の検品。体の陰から読んだ光の向き（light_deg、0° が右、90° が上）で人物の形を床に写したものと比べる。
     6 周目の絵は、影が脚の形をしない左右の塊で、足の裏から離れ、体の陰と逆の向きに伸びていたのに、

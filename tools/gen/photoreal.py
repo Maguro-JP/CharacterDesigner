@@ -352,6 +352,9 @@ def check(src, out_img, src_parts, log, tag, ref=None, light_deg=135.0):
     r = ref or src
     rs = np.asarray(src_parts) if ref is None else np.asarray(_parts_of(ref))
     km["leg_de"] = measure.leg_color(rgb, seg)
+    km["skin_vstep"] = measure.skin_vstep(rgb, seg)
+    mx_, mn_ = rgb.max(-1), rgb.min(-1)
+    km["blown_skin"] = round(float(((mn_ > 225 / 255) & ((mx_ - mn_) / np.maximum(mx_, 1e-3) < 0.08))[np.isin(seg, SKIN) & (seg != 11)].mean()), 4)
     km["dark_blob_px"] = int(find_blobs(rgb * 255).sum())   # 体から離れて浮いた暗い塊
     km.update(measure.color_keep(np.asarray(r).astype(np.float32) / 255, rgb, rs, seg, edit.LABELS))
     try:
@@ -929,7 +932,10 @@ def face_ipadapter(pipe, nets, img, anime, a, log, tries=3):
     ref = anime.resize(img.size, Image.LANCZOS).crop(box).resize((224, 224), Image.LANCZOS)
     cs = np.asarray(Image.fromarray(seg).crop(box).resize((px, px), Image.NEAREST))
     m = ndimage.binary_dilation(cs == 11, iterations=8) | ndimage.binary_dilation((cs == 2) & ndimage.binary_dilation(cs == 11, iterations=20), iterations=2)
-    mask = Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(6))
+    # 枠の境目で髪が途中で切れたので、描き直す範囲を大きくぼかし、枠の縁（外側 15%）に向けて 0 に落とす
+    ramp = np.minimum.outer(*(np.clip(np.minimum(np.arange(px), np.arange(px)[::-1]) / (0.15 * px), 0, 1),) * 2)
+    mm = ndimage.gaussian_filter(m.astype(np.float32), 14 * px / 768) * ramp
+    mask = Image.fromarray((np.clip(mm, 0, 1) * 255).astype(np.uint8))
     inp = StableDiffusionControlNetInpaintPipeline(**{k: v for k, v in pipe.components.items() if k != "controlnet"}, controlnet=nets[0])
     t1 = time.time()
     inp.load_ip_adapter(IPADAPTER[0], subfolder=IPADAPTER[1], weight_name=IPADAPTER[2])
@@ -1057,7 +1063,7 @@ def match_legs(img, parts, strength=1.0):
     top, foot = ys.min(), ys.max()
     H, W = seg.shape
     f = W / 768
-    legs = np.isin(seg, (12, 13)) & (np.arange(H)[:, None] > foot - 0.5 * (foot - top))
+    legs = np.isin(seg, (12, 13)) & (np.arange(H)[:, None] > foot - 0.6 * (foot - top))
     cx = float(xs.mean())
     xx = np.arange(W)[None, :]
     a = np.asarray(img).astype(np.float32) / 255
@@ -1070,9 +1076,37 @@ def match_legs(img, parts, strength=1.0):
     out = lab.copy()
     for m, mu in zip(sides, means):
         d = (target - mu) * np.array([0.8, 1.0, 1.0]) * strength
-        w = ndimage.gaussian_filter(m.astype(np.float32), 4 * f)[..., None] * legs[..., None]
+        # 上の端（太腿の付け根）へ向けて寄せ方を 0 に落とす。端で切ると、付け根の高さに肌の色の横の帯が出た
+        yy = np.arange(H)[:, None] * np.ones((1, W))
+        top_y = foot - 0.6 * (foot - top)
+        vr = np.clip((yy - top_y) / (0.15 * (foot - top)), 0, 1)
+        w = (ndimage.gaussian_filter(m.astype(np.float32), 4 * f) * vr)[..., None] * legs[..., None]
         out += w * d
     return Image.fromarray((lab2rgb(out) * 255).clip(0, 255).astype(np.uint8))
+
+
+def deblow(img, parts):
+    """肌の白飛び（肩と腕の白いにじみ）を、近くの白飛びしていない肌の色に戻す。部位分けで見ると、白いにじみは腕の部位の中の
+    ほぼ白い画素（RGB 240 以上、彩度 0.08 未満）で、縁の外の背景ではなかった。縁を塗り直すやり方では 3 周続けて消えなかった"""
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+    seg = np.asarray(parts)
+    f = img.width / 768
+    a = np.asarray(img).astype(np.float32)
+    skin = np.isin(seg, SKIN) & (seg != 11)
+    mx, mn = a.max(2), a.min(2)
+    blown = skin & (mn > 225) & ((mx - mn) / np.maximum(mx, 1) < 0.08)
+    blown = ndimage.binary_dilation(blown, iterations=max(1, round(2 * f))) & skin
+    good = skin & ~blown
+    if not blown.any() or good.sum() < 100:
+        return img, 0
+    sg = max(4, round(12 * f))
+    den = np.maximum(ndimage.gaussian_filter(good.astype(np.float32), sg), 1e-3)
+    ref = np.stack([ndimage.gaussian_filter(a[..., c] * good, sg) / den for c in range(3)], -1)
+    w = ndimage.gaussian_filter(blown.astype(np.float32), 2 * f)[..., None] * skin[..., None]
+    o = a * (1 - w) + ref * w
+    return Image.fromarray(np.clip(o, 0, 255).astype(np.uint8)), int(blown.sum())
 
 
 def dehalo(img, parts, band=3):
@@ -1172,6 +1206,8 @@ def resume(a, im, parts, log, stem, t):
     d2 = depth_map(r2)
     if a.post_relight > 0:
         r2 = relight(r2, p2, d2, a.light_deg, amount=a.post_relight)
+    r2, blown_px = deblow(r2, p2)
+    log("blown_px", blown_px)
     r2 = dehalo(match_legs(r2, p2), p2)
     if a.cast > 0:
         import measure
@@ -1196,6 +1232,16 @@ def resume(a, im, parts, log, stem, t):
         mm[keep] = np.asarray(r2)[keep]
         r2 = Image.fromarray(mm)
         r2.save(a.out / f"{stem}-6-finalhf-g{a.final_hf}-s{a.seed}.png")
+    if a.s1_hf > 0:
+        # 1 段目の高い周波数（肌理）を体にもう一度戻す（顔は IP-Adapter で描いた肌理のまま）。2 段目と光の付け直しで
+        # 肌が平らに戻り、肌の平らな面が 0.05 前後から下がらなかった
+        p3 = np.asarray(_parts_of(r2))
+        body = np.isin(p3, SKIN) & (p3 != 11)
+        mixed = np.asarray(hfmix(r1_color, r2, a.s1_hf, 1.0))
+        from scipy import ndimage
+        w = ndimage.gaussian_filter(body.astype(np.float32), 2)[..., None]
+        r2 = Image.fromarray(np.clip(mixed * w + np.asarray(r2) * (1 - w), 0, 255).astype(np.uint8))
+        r2.save(a.out / f"{stem}-7-s1hf-g{a.s1_hf}-s{a.seed}.png")
     if a.check:
         check(im, r2, parts, log, "final", ref=r1_color)
     log("total_s", round(time.time() - t, 1))
@@ -1235,6 +1281,7 @@ def parse(argv):
     ap.add_argument("--model", choices=sorted(CHECKPOINTS), default="rv", help="写実の模型")
     ap.add_argument("--asian", action="store_true", help="東アジアの顔に寄せる言葉を足す（顔の描き直しにも同じ言葉を使う）")
     ap.add_argument("--face-px", type=int, default=768, help="顔を描く大きさ")
+    ap.add_argument("--s1-hf", type=float, default=0, help="最後に 1 段目の高い周波数を体に戻す幅（0 ならしない）")
     ap.add_argument("--face-mode", choices=("ipadapter", "uncover"), default="ipadapter", help="顔の描き直し方")
     ap.add_argument("--ip-scale", type=float, default=0.6, help="IP-Adapter に渡す元の顔の強さ")
     ap.add_argument("--no-bangs", dest="bangs", action="store_false", help="描いた顔に前髪の毛筋を重ね戻さない（切り分け用）")
@@ -1354,6 +1401,16 @@ def main(argv=None) -> int:
         mm[keep] = np.asarray(r2)[keep]          # 顔は描き直した絵の肌理を使う
         r2 = Image.fromarray(mm)
         r2.save(a.out / f"{stem}-6-finalhf-g{a.final_hf}-s{a.seed}.png")
+    if a.s1_hf > 0:
+        # 1 段目の高い周波数（肌理）を体にもう一度戻す（顔は IP-Adapter で描いた肌理のまま）。2 段目と光の付け直しで
+        # 肌が平らに戻り、肌の平らな面が 0.05 前後から下がらなかった
+        p3 = np.asarray(_parts_of(r2))
+        body = np.isin(p3, SKIN) & (p3 != 11)
+        mixed = np.asarray(hfmix(r1_color, r2, a.s1_hf, 1.0))
+        from scipy import ndimage
+        w = ndimage.gaussian_filter(body.astype(np.float32), 2)[..., None]
+        r2 = Image.fromarray(np.clip(mixed * w + np.asarray(r2) * (1 - w), 0, 255).astype(np.uint8))
+        r2.save(a.out / f"{stem}-7-s1hf-g{a.s1_hf}-s{a.seed}.png")
     if a.check:
         check(im, r2, parts, log, "final", ref=r1_color)
     log("total_s", round(time.time() - t, 1))

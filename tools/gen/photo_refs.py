@@ -89,8 +89,10 @@ def main(argv=None) -> int:
                 continue
             sh = measure.shadow(np.asarray(im, np.float32) / 255, seg, edit.LABELS)
             sh["normal_corr"], sh["normal_light_deg"] = photoreal.normal_corr(im, photoreal.depth_map(im), seg)
+            import qc
+            mo = qc.mouth_check(np.asarray(im), seg)          # 口の面積の比の基準を実写から決めるため
             fails = [f["path"] for f in measure.judge_shadow(sh)]
-            rows.append({**c, "size": im.size, "shadow": sh, "fails": fails, "s": round(time.time() - t, 1)})
+            rows.append({**c, "size": im.size, "shadow": sh, "mouth": mo, "fails": fails, "s": round(time.time() - t, 1)})
             print(json.dumps(rows[-1], ensure_ascii=False), flush=True)
     (a.out / "refs.json").write_text(json.dumps(rows, indent=1, ensure_ascii=False))
     dist = {}
@@ -98,6 +100,10 @@ def main(argv=None) -> int:
         v = [r["shadow"][k] for r in rows if r["shadow"].get(k) is not None]
         if v:
             dist[k] = {q: round(float(np.percentile(v, q)), 3) for q in (0, 10, 50, 90, 100)}
+    mv = [r["mouth"]["area"] for r in rows if r["mouth"].get("found")]
+    if mv:
+        dist["mouth_area"] = {q: round(float(np.percentile(mv, q)), 4) for q in (0, 10, 50, 90, 100)}
+        dist["mouth_sym"] = {q: round(float(np.percentile([r["mouth"]["sym"] for r in rows if r["mouth"].get("found")], q)), 3) for q in (0, 10, 50, 90, 100)}
     (a.out / "dist.json").write_text(json.dumps(dist, indent=1))
     print("dist", json.dumps(dist))
     print("measured", len(rows), "passed", sum(not r["fails"] for r in rows))
