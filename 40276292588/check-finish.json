@@ -1,0 +1,4258 @@
+{
+ "1-composition.png": {
+  "readable": true,
+  "bad": [
+   "手 1: pinky 0.92（0.55〜0.85）",
+   "手 1: indexの手の色 0.33（0.85〜1.01）",
+   "手 1: ringの手の色 0.79（0.85〜1.01）",
+   "手 2: thumb 1.4（0.8〜1.12）",
+   "手 2: palm 1.69（0.85〜1.35）",
+   "手 2: thumbの手の色 0.62（0.85〜1.01）"
+  ],
+  "hands": [
+   {
+    "box": [
+     410,
+     661,
+     597,
+     848
+    ],
+    "angle": -81.0,
+    "measure": {
+     "presence": 1.0,
+     "palm": 0.86,
+     "thumb": 0.81,
+     "index": 0.95,
+     "ring": 1.02,
+     "pinky": 0.92,
+     "cover": {
+      "thumb": 0.96,
+      "index": 0.33,
+      "middle": 0.92,
+      "ring": 0.79,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       4,
+       4,
+       4,
+       3,
+       3
+      ],
+      "reason": "切った線ごとに数が揺れる（4 本と同じ線が 3 本）"
+     }
+    },
+    "bad": [
+     "pinky 0.92（0.55〜0.85）",
+     "indexの手の色 0.33（0.85〜1.01）",
+     "ringの手の色 0.79（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     290,
+     -10,
+     481,
+     181
+    ],
+    "angle": 42.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 1.69,
+     "thumb": 1.4,
+     "index": 1.0,
+     "ring": 1.1,
+     "pinky": 0.98,
+     "cover": {
+      "thumb": 0.62,
+      "index": 0.88,
+      "middle": 0.5,
+      "ring": 0.38,
+      "pinky": 0.5
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "曲げた指がある"
+     }
+    },
+    "bad": [
+     "thumb 1.4（0.8〜1.12）",
+     "palm 1.69（0.85〜1.35）",
+     "thumbの手の色 0.62（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     478,
+     108,
+     615,
+     246
+    ],
+    "angle": -34.0,
+    "measure": {
+     "presence": 0.01,
+     "palm": 1.49,
+     "thumb": 1.38,
+     "index": 1.0,
+     "ring": 0.86,
+     "pinky": 0.77,
+     "cover": {
+      "thumb": 0.79,
+      "index": 0.29,
+      "middle": 0.25,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       1,
+       1,
+       1,
+       0,
+       1
+      ],
+      "reason": "指が 1 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.01"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     413,
+     509,
+     571,
+     666
+    ],
+    "angle": 105.0,
+    "measure": {
+     "presence": 0.08,
+     "palm": 0.66,
+     "thumb": 1.06,
+     "index": 0.94,
+     "ring": 0.95,
+     "pinky": 0.72,
+     "cover": {
+      "thumb": 1.0,
+      "index": 0.29,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "指先が付け根より上に無い"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.08"
+    ],
+    "seen": false
+   }
+  ],
+  "feet": [],
+  "faces": [
+   {
+    "box": [
+     243,
+     0,
+     606,
+     352
+    ],
+    "bad": [],
+    "seen": true
+   }
+  ],
+  "face": {
+   "box": [
+    243,
+    0,
+    606,
+    352
+   ],
+   "readable": true,
+   "bad": [],
+   "tags": {
+    "purple eyes": 0.938,
+    "half-closed eyes": 0.105,
+    "shading eyes": 0.311
+   },
+   "eye_dark": 0.3673
+  }
+ },
+ "3-pose-depth-refined-s10513-fix1.png": {
+  "readable": true,
+  "bad": [
+   "手 1: thumb 0.79（0.8〜1.12）",
+   "手 1: palm 0.62（0.85〜1.35）",
+   "手 1: indexの手の色 0.62（0.85〜1.01）",
+   "手 1: middleの手の色 0.62（0.85〜1.01）",
+   "手 1: ringの手の色 0.71（0.85〜1.01）",
+   "手 1: pinkyの手の色 0.79（0.85〜1.01）",
+   "手 2: pinky 0.91（0.55〜0.85）",
+   "手 5: thumb 1.2（0.8〜1.12）",
+   "手 5: ring 1.03（0.85〜1.02）",
+   "手 5: pinky 1.0（0.55〜0.85）",
+   "手 5: pinkyの手の色 0.67（0.85〜1.01）"
+  ],
+  "hands": [
+   {
+    "box": [
+     358,
+     568,
+     631,
+     842
+    ],
+    "angle": -45.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 0.62,
+     "thumb": 0.79,
+     "index": 0.87,
+     "ring": 0.92,
+     "pinky": 0.66,
+     "cover": {
+      "thumb": 0.96,
+      "index": 0.62,
+      "middle": 0.62,
+      "ring": 0.71,
+      "pinky": 0.79
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       4,
+       4,
+       5,
+       5,
+       7
+      ],
+      "reason": "切った線ごとに数が揺れる（5 本と同じ線が 2 本）"
+     }
+    },
+    "bad": [
+     "thumb 0.79（0.8〜1.12）",
+     "palm 0.62（0.85〜1.35）",
+     "indexの手の色 0.62（0.85〜1.01）",
+     "middleの手の色 0.62（0.85〜1.01）",
+     "ringの手の色 0.71（0.85〜1.01）",
+     "pinkyの手の色 0.79（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     270,
+     11,
+     485,
+     226
+    ],
+    "angle": 69.0,
+    "measure": {
+     "presence": 0.97,
+     "palm": 1.1,
+     "thumb": 0.95,
+     "index": 0.9,
+     "ring": 1.02,
+     "pinky": 0.91,
+     "cover": {
+      "thumb": 0.96,
+      "index": 1.0,
+      "middle": 0.96,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       3,
+       2,
+       2,
+       2,
+       3
+      ],
+      "reason": "指が 2 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "pinky 0.91（0.55〜0.85）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     485,
+     615,
+     569,
+     700
+    ],
+    "angle": -160.0,
+    "measure": {
+     "presence": 0.03,
+     "palm": 0.82,
+     "thumb": 0.6,
+     "index": 0.86,
+     "ring": 1.01,
+     "pinky": 0.92,
+     "cover": {
+      "thumb": 1.0,
+      "index": 1.0,
+      "middle": 0.83,
+      "ring": 0.79,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       5,
+       4,
+       4,
+       6,
+       6
+      ],
+      "reason": "切った線ごとに数が揺れる（4 本と同じ線が 2 本）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.03"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     388,
+     711,
+     533,
+     855
+    ],
+    "angle": 33.0,
+    "measure": {
+     "presence": 0.07,
+     "palm": 1.28,
+     "thumb": 1.37,
+     "index": 1.0,
+     "ring": 0.89,
+     "pinky": 0.8,
+     "cover": {
+      "thumb": 0.79,
+      "index": 0.62,
+      "middle": 0.62,
+      "ring": 0.5,
+      "pinky": 0.5
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       0,
+       0,
+       1,
+       0,
+       0
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.07"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     481,
+     699,
+     606,
+     823
+    ],
+    "angle": -33.0,
+    "measure": {
+     "presence": 0.98,
+     "palm": 1.26,
+     "thumb": 1.2,
+     "index": 0.97,
+     "ring": 1.03,
+     "pinky": 1.0,
+     "cover": {
+      "thumb": 0.96,
+      "index": 0.92,
+      "middle": 0.96,
+      "ring": 0.92,
+      "pinky": 0.67
+     },
+     "fingers": {
+      "count": 4,
+      "rows": [
+       4,
+       4,
+       4,
+       4,
+       4
+      ],
+      "reason": "",
+      "width": 36.5,
+      "apart": 1.29
+     }
+    },
+    "bad": [
+     "thumb 1.2（0.8〜1.12）",
+     "ring 1.03（0.85〜1.02）",
+     "pinky 1.0（0.55〜0.85）",
+     "pinkyの手の色 0.67（0.85〜1.01）"
+    ],
+    "seen": true
+   }
+  ],
+  "feet": [],
+  "faces": [
+   {
+    "box": [
+     218,
+     0,
+     627,
+     376
+    ],
+    "bad": [],
+    "seen": true
+   }
+  ],
+  "face": {
+   "box": [
+    218,
+    0,
+    627,
+    376
+   ],
+   "readable": true,
+   "bad": [],
+   "tags": {
+    "brown eyes": 0.738,
+    "black eyes": 0.102,
+    "grey eyes": 0.061,
+    "eyelashes": 0.12,
+    "shading eyes": 0.799
+   },
+   "eye_dark": 0.2016
+  }
+ },
+ "3-pose-depth-refined-s10513-fix2.png": {
+  "readable": true,
+  "bad": [
+   "手 1: thumb 0.78（0.8〜1.12）",
+   "手 1: palm 0.69（0.85〜1.35）",
+   "手 1: thumbの手の色 0.79（0.85〜1.01）",
+   "手 1: indexの手の色 0.08（0.85〜1.01）",
+   "手 1: middleの手の色 0.46（0.85〜1.01）",
+   "手 1: ringの手の色 0.21（0.85〜1.01）",
+   "手 1: pinkyの手の色 0.42（0.85〜1.01）",
+   "手 1: 指が足りない（親指の外に 3 本。4 本のはず）",
+   "手 2: thumbの手の色 0.67（0.85〜1.01）",
+   "手 2: indexの手の色 0.58（0.85〜1.01）",
+   "手 2: middleの手の色 0.71（0.85〜1.01）",
+   "手 2: ringの手の色 0.25（0.85〜1.01）",
+   "手 2: pinkyの手の色 0.0（0.85〜1.01）"
+  ],
+  "hands": [
+   {
+    "box": [
+     369,
+     590,
+     635,
+     855
+    ],
+    "angle": -51.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 0.69,
+     "thumb": 0.78,
+     "index": 0.84,
+     "ring": 0.95,
+     "pinky": 0.7,
+     "cover": {
+      "thumb": 0.79,
+      "index": 0.08,
+      "middle": 0.46,
+      "ring": 0.21,
+      "pinky": 0.42
+     },
+     "fingers": {
+      "count": 3,
+      "rows": [
+       3,
+       3,
+       3,
+       3,
+       2
+      ],
+      "reason": "",
+      "width": 21.7,
+      "apart": 1.39
+     }
+    },
+    "bad": [
+     "thumb 0.78（0.8〜1.12）",
+     "palm 0.69（0.85〜1.35）",
+     "thumbの手の色 0.79（0.85〜1.01）",
+     "indexの手の色 0.08（0.85〜1.01）",
+     "middleの手の色 0.46（0.85〜1.01）",
+     "ringの手の色 0.21（0.85〜1.01）",
+     "pinkyの手の色 0.42（0.85〜1.01）",
+     "指が足りない（親指の外に 3 本。4 本のはず）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     266,
+     8,
+     494,
+     236
+    ],
+    "angle": 73.0,
+    "measure": {
+     "presence": 0.96,
+     "palm": 1.05,
+     "thumb": 0.98,
+     "index": 0.9,
+     "ring": 0.97,
+     "pinky": 0.78,
+     "cover": {
+      "thumb": 0.67,
+      "index": 0.58,
+      "middle": 0.71,
+      "ring": 0.25,
+      "pinky": 0.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       2,
+       2,
+       1,
+       1,
+       2
+      ],
+      "reason": "指が 1 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "thumbの手の色 0.67（0.85〜1.01）",
+     "indexの手の色 0.58（0.85〜1.01）",
+     "middleの手の色 0.71（0.85〜1.01）",
+     "ringの手の色 0.25（0.85〜1.01）",
+     "pinkyの手の色 0.0（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     471,
+     759,
+     590,
+     878
+    ],
+    "angle": 63.0,
+    "measure": {
+     "presence": 0.02,
+     "palm": 1.77,
+     "thumb": 1.34,
+     "index": 0.92,
+     "ring": 1.21,
+     "pinky": 0.95,
+     "cover": {
+      "thumb": 0.08,
+      "index": 1.0,
+      "middle": 1.0,
+      "ring": 0.83,
+      "pinky": 0.12
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "指先が付け根より上に無い"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.02"
+    ],
+    "seen": false
+   }
+  ],
+  "feet": [],
+  "faces": [
+   {
+    "box": [
+     220,
+     0,
+     634,
+     376
+    ],
+    "bad": [],
+    "seen": true
+   }
+  ],
+  "face": {
+   "box": [
+    220,
+    0,
+    634,
+    376
+   ],
+   "readable": true,
+   "bad": [],
+   "tags": {
+    "red eyes": 0.056,
+    "brown eyes": 0.836,
+    "eyelashes": 0.102,
+    "shading eyes": 0.828
+   },
+   "eye_dark": 0.1593
+  }
+ },
+ "3-pose-depth-refined-s10513-fix3.png": {
+  "readable": true,
+  "bad": [
+   "手 1: indexの手の色 0.71（0.85〜1.01）",
+   "手 1: middleの手の色 0.79（0.85〜1.01）",
+   "手 1: ringの手の色 0.46（0.85〜1.01）",
+   "手 3: palm 0.57（0.85〜1.35）",
+   "手 3: indexの手の色 0.58（0.85〜1.01）",
+   "手 3: 指が多い（親指の外に 5 本。4 本のはず）"
+  ],
+  "hands": [
+   {
+    "box": [
+     249,
+     21,
+     452,
+     224
+    ],
+    "angle": 58.0,
+    "measure": {
+     "presence": 0.98,
+     "palm": 0.91,
+     "thumb": 1.0,
+     "index": 0.85,
+     "ring": 0.92,
+     "pinky": 0.71,
+     "cover": {
+      "thumb": 1.0,
+      "index": 0.71,
+      "middle": 0.79,
+      "ring": 0.46,
+      "pinky": 0.88
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       6,
+       5,
+       6,
+       4,
+       3
+      ],
+      "reason": "切った線ごとに数が揺れる（5 本と同じ線が 1 本）"
+     }
+    },
+    "bad": [
+     "indexの手の色 0.71（0.85〜1.01）",
+     "middleの手の色 0.79（0.85〜1.01）",
+     "ringの手の色 0.46（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     467,
+     131,
+     586,
+     251
+    ],
+    "angle": 25.0,
+    "measure": {
+     "presence": 0.01,
+     "palm": 1.64,
+     "thumb": 1.54,
+     "index": 1.1,
+     "ring": 0.87,
+     "pinky": 0.65,
+     "cover": {
+      "thumb": 0.04,
+      "index": 0.5,
+      "middle": 0.5,
+      "ring": 0.33,
+      "pinky": 0.38
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       1,
+       1,
+       1,
+       1,
+       1
+      ],
+      "reason": "指が 1 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.01"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     456,
+     630,
+     600,
+     774
+    ],
+    "angle": -61.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 0.57,
+     "thumb": 0.81,
+     "index": 0.87,
+     "ring": 0.91,
+     "pinky": 0.8,
+     "cover": {
+      "thumb": 0.92,
+      "index": 0.58,
+      "middle": 0.88,
+      "ring": 0.96,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": 5,
+      "rows": [
+       5,
+       5,
+       5,
+       5,
+       4
+      ],
+      "reason": "",
+      "width": 42.6,
+      "apart": 1.18
+     }
+    },
+    "bad": [
+     "palm 0.57（0.85〜1.35）",
+     "indexの手の色 0.58（0.85〜1.01）",
+     "指が多い（親指の外に 5 本。4 本のはず）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     381,
+     662,
+     518,
+     799
+    ],
+    "angle": 46.0,
+    "measure": {
+     "presence": 0.1,
+     "palm": 1.39,
+     "thumb": 1.01,
+     "index": 0.81,
+     "ring": 0.95,
+     "pinky": 0.79,
+     "cover": {
+      "thumb": 1.0,
+      "index": 1.0,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.1"
+    ],
+    "seen": false
+   }
+  ],
+  "feet": [],
+  "faces": [
+   {
+    "box": [
+     224,
+     0,
+     634,
+     366
+    ],
+    "bad": [],
+    "seen": true
+   }
+  ],
+  "face": {
+   "box": [
+    224,
+    0,
+    634,
+    366
+   ],
+   "readable": true,
+   "bad": [],
+   "tags": {
+    "red eyes": 0.124,
+    "brown eyes": 0.852,
+    "eyelashes": 0.119,
+    "shading eyes": 0.603
+   },
+   "eye_dark": 0.1848
+  }
+ },
+ "3-pose-depth-refined-s10513-fix4.png": {
+  "readable": true,
+  "bad": [
+   "手 2: indexの手の色 0.71（0.85〜1.01）",
+   "手 2: middleの手の色 0.62（0.85〜1.01）",
+   "手 2: ringの手の色 0.83（0.85〜1.01）",
+   "手 4: thumb 0.75（0.8〜1.12）",
+   "手 4: palm 0.69（0.85〜1.35）",
+   "手 4: middleの手の色 0.71（0.85〜1.01）",
+   "手 4: ringの手の色 0.42（0.85〜1.01）",
+   "手 4: pinkyの手の色 0.42（0.85〜1.01）",
+   "手 9: thumb 0.79（0.8〜1.12）",
+   "手 9: thumbの手の色 0.38（0.85〜1.01）",
+   "手 9: indexの手の色 0.04（0.85〜1.01）",
+   "手 9: middleの手の色 0.25（0.85〜1.01）",
+   "手 9: ringの手の色 0.25（0.85〜1.01）",
+   "手 9: pinkyの手の色 0.33（0.85〜1.01）"
+  ],
+  "hands": [
+   {
+    "box": [
+     446,
+     554,
+     707,
+     815
+    ],
+    "angle": 46.0,
+    "measure": {
+     "presence": 0.92,
+     "palm": 0.37,
+     "thumb": 0.81,
+     "index": 0.87,
+     "ring": 0.99,
+     "pinky": 0.8,
+     "cover": {
+      "thumb": 0.46,
+      "index": 0.88,
+      "middle": 0.58,
+      "ring": 1.0,
+      "pinky": 0.29
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "指先が付け根より上に無い"
+     }
+    },
+    "bad": [
+     "読めない: 点がつぶれた（手のひら 0.37）"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     261,
+     21,
+     455,
+     215
+    ],
+    "angle": 61.0,
+    "measure": {
+     "presence": 0.98,
+     "palm": 1.05,
+     "thumb": 0.86,
+     "index": 0.89,
+     "ring": 0.95,
+     "pinky": 0.77,
+     "cover": {
+      "thumb": 0.92,
+      "index": 0.71,
+      "middle": 0.62,
+      "ring": 0.83,
+      "pinky": 0.92
+     },
+     "fingers": {
+      "count": 4,
+      "rows": [
+       4,
+       4,
+       4,
+       4,
+       4
+      ],
+      "reason": "",
+      "width": 23.3,
+      "apart": 0.95
+     }
+    },
+    "bad": [
+     "indexの手の色 0.71（0.85〜1.01）",
+     "middleの手の色 0.62（0.85〜1.01）",
+     "ringの手の色 0.83（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     376,
+     -3,
+     538,
+     157
+    ],
+    "angle": -60.0,
+    "measure": {
+     "presence": 0.05,
+     "palm": 0.16,
+     "thumb": 0.52,
+     "index": 0.9,
+     "ring": 0.94,
+     "pinky": 0.72,
+     "cover": {
+      "thumb": 0.33,
+      "index": 0.46,
+      "middle": 0.21,
+      "ring": 0.08,
+      "pinky": 0.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "指先が付け根より上に無い"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.05"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     427,
+     624,
+     586,
+     783
+    ],
+    "angle": -58.0,
+    "measure": {
+     "presence": 1.0,
+     "palm": 0.69,
+     "thumb": 0.75,
+     "index": 0.87,
+     "ring": 0.95,
+     "pinky": 0.75,
+     "cover": {
+      "thumb": 1.0,
+      "index": 0.21,
+      "middle": 0.71,
+      "ring": 0.42,
+      "pinky": 0.42
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       4,
+       3,
+       4,
+       5,
+       5
+      ],
+      "reason": "切った線ごとに数が揺れる（3 本と同じ線が 1 本）"
+     }
+    },
+    "bad": [
+     "thumb 0.75（0.8〜1.12）",
+     "palm 0.69（0.85〜1.35）",
+     "middleの手の色 0.71（0.85〜1.01）",
+     "ringの手の色 0.42（0.85〜1.01）",
+     "pinkyの手の色 0.42（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     466,
+     594,
+     602,
+     730
+    ],
+    "angle": 167.0,
+    "measure": {
+     "presence": 0.04,
+     "palm": 1.53,
+     "thumb": 1.44,
+     "index": 1.02,
+     "ring": 0.92,
+     "pinky": 0.72,
+     "cover": {
+      "thumb": 0.58,
+      "index": 0.71,
+      "middle": 0.79,
+      "ring": 0.5,
+      "pinky": 0.08
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "曲げた指がある"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.04"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     396,
+     662,
+     528,
+     793
+    ],
+    "angle": 52.0,
+    "measure": {
+     "presence": 0.47,
+     "palm": 0.89,
+     "thumb": 1.27,
+     "index": 0.99,
+     "ring": 0.9,
+     "pinky": 0.8,
+     "cover": {
+      "thumb": 0.5,
+      "index": 0.17,
+      "middle": 0.92,
+      "ring": 0.88,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       2,
+       4,
+       3,
+       2,
+       2
+      ],
+      "reason": "指が 2 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.47"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     476,
+     571,
+     583,
+     679
+    ],
+    "angle": -151.0,
+    "measure": {
+     "presence": 0.02,
+     "palm": 0.91,
+     "thumb": 0.98,
+     "index": 0.99,
+     "ring": 0.94,
+     "pinky": 0.73,
+     "cover": {
+      "thumb": 0.88,
+      "index": 0.92,
+      "middle": 0.83,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       0,
+       0,
+       0,
+       0,
+       3
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.02"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     419,
+     738,
+     578,
+     896
+    ],
+    "angle": 76.0,
+    "measure": {
+     "presence": 0.13,
+     "palm": 2.14,
+     "thumb": 1.48,
+     "index": 0.84,
+     "ring": 0.82,
+     "pinky": 0.59,
+     "cover": {
+      "thumb": 0.83,
+      "index": 0.88,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 0.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "指先が付け根より上に無い"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.13"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     466,
+     709,
+     557,
+     800
+    ],
+    "angle": -45.0,
+    "measure": {
+     "presence": 0.89,
+     "palm": 0.98,
+     "thumb": 0.79,
+     "index": 0.93,
+     "ring": 0.92,
+     "pinky": 0.72,
+     "cover": {
+      "thumb": 0.38,
+      "index": 0.04,
+      "middle": 0.25,
+      "ring": 0.25,
+      "pinky": 0.33
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       3,
+       1,
+       1,
+       1,
+       1
+      ],
+      "reason": "指が 1 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "thumb 0.79（0.8〜1.12）",
+     "thumbの手の色 0.38（0.85〜1.01）",
+     "indexの手の色 0.04（0.85〜1.01）",
+     "middleの手の色 0.25（0.85〜1.01）",
+     "ringの手の色 0.25（0.85〜1.01）",
+     "pinkyの手の色 0.33（0.85〜1.01）"
+    ],
+    "seen": true
+   }
+  ],
+  "feet": [],
+  "faces": [
+   {
+    "box": [
+     217,
+     0,
+     631,
+     369
+    ],
+    "bad": [],
+    "seen": true
+   }
+  ],
+  "face": {
+   "box": [
+    217,
+    0,
+    631,
+    369
+   ],
+   "readable": true,
+   "bad": [],
+   "tags": {
+    "red eyes": 0.088,
+    "brown eyes": 0.834,
+    "orange eyes": 0.05,
+    "eyelashes": 0.074,
+    "shading eyes": 0.576
+   },
+   "eye_dark": 0.2708
+  }
+ },
+ "3-pose-depth-refined-s10513-fix5.png": {
+  "readable": true,
+  "bad": [
+   "手 1: thumbの手の色 0.29（0.85〜1.01）",
+   "手 1: indexの手の色 0.75（0.85〜1.01）",
+   "手 1: middleの手の色 0.79（0.85〜1.01）",
+   "手 1: 指が多い（親指の外に 6 本。4 本のはず）",
+   "手 5: thumb 0.75（0.8〜1.12）",
+   "手 5: palm 0.65（0.85〜1.35）",
+   "手 5: indexの手の色 0.21（0.85〜1.01）",
+   "手 5: middleの手の色 0.71（0.85〜1.01）"
+  ],
+  "hands": [
+   {
+    "box": [
+     269,
+     25,
+     439,
+     195
+    ],
+    "angle": 51.0,
+    "measure": {
+     "presence": 0.9,
+     "palm": 1.1,
+     "thumb": 1.11,
+     "index": 0.95,
+     "ring": 0.92,
+     "pinky": 0.69,
+     "cover": {
+      "thumb": 0.29,
+      "index": 0.75,
+      "middle": 0.79,
+      "ring": 0.92,
+      "pinky": 0.88
+     },
+     "fingers": {
+      "count": 6,
+      "rows": [
+       6,
+       6,
+       6,
+       6,
+       6
+      ],
+      "reason": "",
+      "width": 21.1,
+      "apart": 1.7
+     }
+    },
+    "bad": [
+     "thumbの手の色 0.29（0.85〜1.01）",
+     "indexの手の色 0.75（0.85〜1.01）",
+     "middleの手の色 0.79（0.85〜1.01）",
+     "指が多い（親指の外に 6 本。4 本のはず）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     467,
+     131,
+     586,
+     251
+    ],
+    "angle": 25.0,
+    "measure": {
+     "presence": 0.01,
+     "palm": 1.64,
+     "thumb": 1.54,
+     "index": 1.1,
+     "ring": 0.87,
+     "pinky": 0.65,
+     "cover": {
+      "thumb": 0.04,
+      "index": 0.5,
+      "middle": 0.5,
+      "ring": 0.33,
+      "pinky": 0.42
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       1,
+       1,
+       1,
+       1,
+       1
+      ],
+      "reason": "指が 1 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.01"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     281,
+     609,
+     419,
+     747
+    ],
+    "angle": -152.0,
+    "measure": {
+     "presence": 0.3,
+     "palm": 0.78,
+     "thumb": 0.95,
+     "index": 0.97,
+     "ring": 0.93,
+     "pinky": 0.74,
+     "cover": {
+      "thumb": 1.0,
+      "index": 0.79,
+      "middle": 0.75,
+      "ring": 0.79,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.3"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     350,
+     270,
+     501,
+     421
+    ],
+    "angle": -38.0,
+    "measure": {
+     "presence": 0.02,
+     "palm": 2.11,
+     "thumb": 2.52,
+     "index": 1.65,
+     "ring": 0.81,
+     "pinky": 1.19,
+     "cover": {
+      "thumb": 0.79,
+      "index": 0.0,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "曲げた指がある"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.02"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     436,
+     635,
+     580,
+     779
+    ],
+    "angle": -66.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 0.65,
+     "thumb": 0.75,
+     "index": 0.85,
+     "ring": 0.96,
+     "pinky": 0.69,
+     "cover": {
+      "thumb": 1.0,
+      "index": 0.21,
+      "middle": 0.71,
+      "ring": 1.0,
+      "pinky": 0.92
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       4,
+       3,
+       3,
+       4,
+       6
+      ],
+      "reason": "切った線ごとに数が揺れる（3 本と同じ線が 2 本）"
+     }
+    },
+    "bad": [
+     "thumb 0.75（0.8〜1.12）",
+     "palm 0.65（0.85〜1.35）",
+     "indexの手の色 0.21（0.85〜1.01）",
+     "middleの手の色 0.71（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     431,
+     591,
+     573,
+     734
+    ],
+    "angle": -165.0,
+    "measure": {
+     "presence": 0.31,
+     "palm": 1.36,
+     "thumb": 1.03,
+     "index": 1.36,
+     "ring": 1.05,
+     "pinky": 0.88,
+     "cover": {
+      "thumb": 0.0,
+      "index": 0.12,
+      "middle": 0.12,
+      "ring": 0.08,
+      "pinky": 0.38
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "曲げた指がある"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.31"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     476,
+     408,
+     651,
+     582
+    ],
+    "angle": 31.0,
+    "measure": {
+     "presence": 0.08,
+     "palm": 0.4,
+     "thumb": 0.5,
+     "index": 1.01,
+     "ring": 0.88,
+     "pinky": 0.72,
+     "cover": {
+      "thumb": 0.33,
+      "index": 0.21,
+      "middle": 0.0,
+      "ring": 0.25,
+      "pinky": 0.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "指先が付け根より上に無い"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.08"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     430,
+     552,
+     562,
+     686
+    ],
+    "angle": -144.0,
+    "measure": {
+     "presence": 0.4,
+     "palm": 0.76,
+     "thumb": 1.02,
+     "index": 0.95,
+     "ring": 0.94,
+     "pinky": 0.73,
+     "cover": {
+      "thumb": 0.0,
+      "index": 0.08,
+      "middle": 0.29,
+      "ring": 0.58,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.4"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     389,
+     690,
+     550,
+     851
+    ],
+    "angle": 53.0,
+    "measure": {
+     "presence": 0.35,
+     "palm": 1.15,
+     "thumb": 1.55,
+     "index": 1.08,
+     "ring": 1.53,
+     "pinky": 0.96,
+     "cover": {
+      "thumb": 1.0,
+      "index": 1.0,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "指先が付け根より上に無い"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.35"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     477,
+     712,
+     603,
+     837
+    ],
+    "angle": -9.0,
+    "measure": {
+     "presence": 0.07,
+     "palm": 0.98,
+     "thumb": 0.98,
+     "index": 1.0,
+     "ring": 0.95,
+     "pinky": 0.76,
+     "cover": {
+      "thumb": 0.83,
+      "index": 0.08,
+      "middle": 0.17,
+      "ring": 0.21,
+      "pinky": 0.25
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       3,
+       2,
+       1,
+       0,
+       0
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.07"
+    ],
+    "seen": false
+   }
+  ],
+  "feet": [],
+  "faces": [
+   {
+    "box": [
+     233,
+     0,
+     638,
+     361
+    ],
+    "bad": [],
+    "seen": true
+   }
+  ],
+  "face": {
+   "box": [
+    233,
+    0,
+    638,
+    361
+   ],
+   "readable": true,
+   "bad": [],
+   "tags": {
+    "brown eyes": 0.843,
+    "eyelashes": 0.156,
+    "shading eyes": 0.709
+   },
+   "eye_dark": 0.1799
+  }
+ },
+ "3-pose-depth-refined-s10513-fix6.png": {
+  "readable": true,
+  "bad": [
+   "手 1: indexの手の色 0.54（0.85〜1.01）",
+   "手 1: middleの手の色 0.38（0.85〜1.01）",
+   "手 1: pinkyの手の色 0.42（0.85〜1.01）",
+   "手 3: presence 0.77（0.8〜1.01）",
+   "手 3: thumb 0.67（0.8〜1.12）",
+   "手 3: palm 0.66（0.85〜1.35）",
+   "手 3: thumbの手の色 0.75（0.85〜1.01）",
+   "手 3: middleの手の色 0.25（0.85〜1.01）",
+   "手 3: ringの手の色 0.5（0.85〜1.01）",
+   "手 6: thumb 0.76（0.8〜1.12）",
+   "手 6: index 0.75（0.8〜1.0）",
+   "手 6: thumbの手の色 0.58（0.85〜1.01）",
+   "手 6: ringの手の色 0.79（0.85〜1.01）",
+   "手 6: pinkyの手の色 0.46（0.85〜1.01）"
+  ],
+  "hands": [
+   {
+    "box": [
+     235,
+     -2,
+     452,
+     213
+    ],
+    "angle": 64.0,
+    "measure": {
+     "presence": 0.96,
+     "palm": 0.88,
+     "thumb": 0.89,
+     "index": 0.9,
+     "ring": 0.96,
+     "pinky": 0.62,
+     "cover": {
+      "thumb": 0.88,
+      "index": 0.54,
+      "middle": 0.38,
+      "ring": 1.0,
+      "pinky": 0.42
+     },
+     "fingers": {
+      "count": 3,
+      "rows": [
+       5,
+       3,
+       3,
+       3,
+       3
+      ],
+      "reason": "",
+      "width": 30.8,
+      "apart": 0.58
+     }
+    },
+    "bad": [
+     "indexの手の色 0.54（0.85〜1.01）",
+     "middleの手の色 0.38（0.85〜1.01）",
+     "pinkyの手の色 0.42（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     281,
+     608,
+     416,
+     743
+    ],
+    "angle": -148.0,
+    "measure": {
+     "presence": 0.42,
+     "palm": 0.96,
+     "thumb": 1.05,
+     "index": 0.97,
+     "ring": 0.92,
+     "pinky": 0.74,
+     "cover": {
+      "thumb": 1.0,
+      "index": 1.0,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.42"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     432,
+     623,
+     591,
+     782
+    ],
+    "angle": -151.0,
+    "measure": {
+     "presence": 0.77,
+     "palm": 0.66,
+     "thumb": 0.67,
+     "index": 0.85,
+     "ring": 0.9,
+     "pinky": 0.66,
+     "cover": {
+      "thumb": 0.75,
+      "index": 0.96,
+      "middle": 0.25,
+      "ring": 0.5,
+      "pinky": 0.88
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       5,
+       5,
+       6,
+       6,
+       6
+      ],
+      "reason": "切った線ごとに数が揺れる（6 本と同じ線が 3 本）"
+     }
+    },
+    "bad": [
+     "presence 0.77（0.8〜1.01）",
+     "thumb 0.67（0.8〜1.12）",
+     "palm 0.66（0.85〜1.35）",
+     "thumbの手の色 0.75（0.85〜1.01）",
+     "middleの手の色 0.25（0.85〜1.01）",
+     "ringの手の色 0.5（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     451,
+     578,
+     581,
+     709
+    ],
+    "angle": -168.0,
+    "measure": {
+     "presence": 0.18,
+     "palm": 1.4,
+     "thumb": 1.45,
+     "index": 0.99,
+     "ring": 0.89,
+     "pinky": 0.76,
+     "cover": {
+      "thumb": 0.67,
+      "index": 0.88,
+      "middle": 0.88,
+      "ring": 0.46,
+      "pinky": 0.21
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       2,
+       3,
+       0,
+       0,
+       2
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.18"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     414,
+     670,
+     533,
+     789
+    ],
+    "angle": 46.0,
+    "measure": {
+     "presence": 0.12,
+     "palm": 0.94,
+     "thumb": 1.01,
+     "index": 0.96,
+     "ring": 0.97,
+     "pinky": 0.83,
+     "cover": {
+      "thumb": 0.67,
+      "index": 0.12,
+      "middle": 0.12,
+      "ring": 0.21,
+      "pinky": 0.21
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       1,
+       0,
+       0,
+       0,
+       4
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.12"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     468,
+     681,
+     588,
+     802
+    ],
+    "angle": -82.0,
+    "measure": {
+     "presence": 0.94,
+     "palm": 0.87,
+     "thumb": 0.76,
+     "index": 0.75,
+     "ring": 1.02,
+     "pinky": 0.81,
+     "cover": {
+      "thumb": 0.58,
+      "index": 0.92,
+      "middle": 0.96,
+      "ring": 0.79,
+      "pinky": 0.46
+     },
+     "fingers": {
+      "count": 3,
+      "rows": [
+       2,
+       3,
+       3,
+       3,
+       3
+      ],
+      "reason": "",
+      "width": 34.4,
+      "apart": 0.78
+     }
+    },
+    "bad": [
+     "thumb 0.76（0.8〜1.12）",
+     "index 0.75（0.8〜1.0）",
+     "thumbの手の色 0.58（0.85〜1.01）",
+     "ringの手の色 0.79（0.85〜1.01）",
+     "pinkyの手の色 0.46（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     393,
+     715,
+     555,
+     876
+    ],
+    "angle": 50.0,
+    "measure": {
+     "presence": 0.42,
+     "palm": 0.51,
+     "thumb": 2.08,
+     "index": 1.29,
+     "ring": 1.53,
+     "pinky": 1.49,
+     "cover": {
+      "thumb": 1.0,
+      "index": 1.0,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.42"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     481,
+     719,
+     603,
+     841
+    ],
+    "angle": -4.0,
+    "measure": {
+     "presence": 0.03,
+     "palm": 1.04,
+     "thumb": 1.24,
+     "index": 0.93,
+     "ring": 0.85,
+     "pinky": 0.71,
+     "cover": {
+      "thumb": 0.0,
+      "index": 0.96,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.03"
+    ],
+    "seen": false
+   }
+  ],
+  "feet": [],
+  "faces": [
+   {
+    "box": [
+     214,
+     0,
+     623,
+     362
+    ],
+    "bad": [],
+    "seen": true
+   }
+  ],
+  "face": {
+   "box": [
+    214,
+    0,
+    623,
+    362
+   ],
+   "readable": true,
+   "bad": [],
+   "tags": {
+    "brown eyes": 0.876,
+    "eyelashes": 0.097,
+    "shading eyes": 0.795
+   },
+   "eye_dark": 0.2917
+  }
+ },
+ "3-pose-depth-s10013-fix0.png": {
+  "readable": true,
+  "bad": [
+   "手 1: ringの手の色 0.38（0.85〜1.01）",
+   "手 2: thumb 0.77（0.8〜1.12）",
+   "手 2: palm 0.64（0.85〜1.35）",
+   "手 2: thumbの手の色 0.67（0.85〜1.01）",
+   "手 3: palm 0.62（0.85〜1.35）",
+   "手 3: thumbの手の色 0.75（0.85〜1.01）",
+   "手 3: indexの手の色 0.46（0.85〜1.01）"
+  ],
+  "hands": [
+   {
+    "box": [
+     271,
+     -10,
+     486,
+     204
+    ],
+    "angle": 59.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 0.94,
+     "thumb": 1.07,
+     "index": 0.95,
+     "ring": 0.93,
+     "pinky": 0.79,
+     "cover": {
+      "thumb": 1.0,
+      "index": 1.0,
+      "middle": 0.88,
+      "ring": 0.38,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       4,
+       4,
+       3,
+       3,
+       4
+      ],
+      "reason": "切った線ごとに数が揺れる（3 本と同じ線が 2 本）"
+     }
+    },
+    "bad": [
+     "ringの手の色 0.38（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     338,
+     633,
+     585,
+     880
+    ],
+    "angle": -93.0,
+    "measure": {
+     "presence": 1.0,
+     "palm": 0.64,
+     "thumb": 0.77,
+     "index": 0.81,
+     "ring": 0.92,
+     "pinky": 0.7,
+     "cover": {
+      "thumb": 0.67,
+      "index": 1.0,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": 4,
+      "rows": [
+       4,
+       4,
+       4,
+       4,
+       5
+      ],
+      "reason": "",
+      "width": 32.6,
+      "apart": 0.93
+     }
+    },
+    "bad": [
+     "thumb 0.77（0.8〜1.12）",
+     "palm 0.64（0.85〜1.35）",
+     "thumbの手の色 0.67（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     452,
+     699,
+     581,
+     829
+    ],
+    "angle": -114.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 0.62,
+     "thumb": 0.8,
+     "index": 0.8,
+     "ring": 0.95,
+     "pinky": 0.79,
+     "cover": {
+      "thumb": 0.75,
+      "index": 0.46,
+      "middle": 1.0,
+      "ring": 0.96,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       4,
+       4,
+       3,
+       3,
+       3
+      ],
+      "reason": "切った線ごとに数が揺れる（3 本と同じ線が 3 本）"
+     }
+    },
+    "bad": [
+     "palm 0.62（0.85〜1.35）",
+     "thumbの手の色 0.75（0.85〜1.01）",
+     "indexの手の色 0.46（0.85〜1.01）"
+    ],
+    "seen": true
+   }
+  ],
+  "feet": [],
+  "faces": [
+   {
+    "box": [
+     207,
+     0,
+     622,
+     368
+    ],
+    "bad": [],
+    "seen": true
+   }
+  ],
+  "face": {
+   "box": [
+    207,
+    0,
+    622,
+    368
+   ],
+   "readable": true,
+   "bad": [],
+   "tags": {
+    "brown eyes": 0.904,
+    "eyelashes": 0.066,
+    "half-closed eyes": 0.054,
+    "shading eyes": 0.625
+   },
+   "eye_dark": 0.1624
+  }
+ },
+ "3-pose-depth-s10013-fix1.png": {
+  "readable": true,
+  "bad": [
+   "手 1: pinky 0.94（0.55〜0.85）",
+   "手 1: ringの手の色 0.12（0.85〜1.01）",
+   "手 3: presence 0.64（0.8〜1.01）",
+   "手 3: thumb 1.41（0.8〜1.12）",
+   "手 4: palm 0.6（0.85〜1.35）",
+   "手 4: thumbの手の色 0.0（0.85〜1.01）",
+   "手 4: indexの手の色 0.67（0.85〜1.01）",
+   "手 4: middleの手の色 0.79（0.85〜1.01）",
+   "手 4: ringの手の色 0.75（0.85〜1.01）"
+  ],
+  "hands": [
+   {
+    "box": [
+     272,
+     -10,
+     484,
+     201
+    ],
+    "angle": 57.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 1.19,
+     "thumb": 1.12,
+     "index": 0.88,
+     "ring": 1.0,
+     "pinky": 0.94,
+     "cover": {
+      "thumb": 0.92,
+      "index": 0.96,
+      "middle": 1.0,
+      "ring": 0.12,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       4,
+       5,
+       5,
+       4,
+       4
+      ],
+      "reason": "切った線ごとに数が揺れる（4 本と同じ線が 3 本）"
+     }
+    },
+    "bad": [
+     "pinky 0.94（0.55〜0.85）",
+     "ringの手の色 0.12（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     365,
+     558,
+     681,
+     874
+    ],
+    "angle": 38.0,
+    "measure": {
+     "presence": 0.98,
+     "palm": 0.36,
+     "thumb": 0.57,
+     "index": 0.8,
+     "ring": 0.97,
+     "pinky": 0.77,
+     "cover": {
+      "thumb": 0.42,
+      "index": 0.79,
+      "middle": 0.92,
+      "ring": 0.79,
+      "pinky": 0.96
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "指先が付け根より上に無い"
+     }
+    },
+    "bad": [
+     "読めない: 点がつぶれた（手のひら 0.36）"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     401,
+     661,
+     512,
+     772
+    ],
+    "angle": -162.0,
+    "measure": {
+     "presence": 0.64,
+     "palm": 1.1,
+     "thumb": 1.41,
+     "index": 1.0,
+     "ring": 0.96,
+     "pinky": 0.84,
+     "cover": {
+      "thumb": 0.88,
+      "index": 1.0,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "presence 0.64（0.8〜1.01）",
+     "thumb 1.41（0.8〜1.12）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     459,
+     691,
+     592,
+     825
+    ],
+    "angle": -93.0,
+    "measure": {
+     "presence": 1.0,
+     "palm": 0.6,
+     "thumb": 0.8,
+     "index": 0.83,
+     "ring": 0.98,
+     "pinky": 0.84,
+     "cover": {
+      "thumb": 0.0,
+      "index": 0.67,
+      "middle": 0.79,
+      "ring": 0.75,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       3,
+       4,
+       3,
+       4,
+       4
+      ],
+      "reason": "切った線ごとに数が揺れる（3 本と同じ線が 2 本）"
+     }
+    },
+    "bad": [
+     "palm 0.6（0.85〜1.35）",
+     "thumbの手の色 0.0（0.85〜1.01）",
+     "indexの手の色 0.67（0.85〜1.01）",
+     "middleの手の色 0.79（0.85〜1.01）",
+     "ringの手の色 0.75（0.85〜1.01）"
+    ],
+    "seen": true
+   }
+  ],
+  "feet": [],
+  "faces": [
+   {
+    "box": [
+     202,
+     0,
+     626,
+     373
+    ],
+    "bad": [],
+    "seen": true
+   }
+  ],
+  "face": {
+   "box": [
+    202,
+    0,
+    626,
+    373
+   ],
+   "readable": true,
+   "bad": [],
+   "tags": {
+    "brown eyes": 0.87,
+    "eyelashes": 0.098,
+    "shading eyes": 0.514
+   },
+   "eye_dark": 0.2021
+  }
+ },
+ "3-pose-depth-s10013-fix2.png": {
+  "readable": true,
+  "bad": [
+   "手 1: index 1.01（0.8〜1.0）",
+   "手 1: pinkyの手の色 0.79（0.85〜1.01）",
+   "手 2: palm 0.64（0.85〜1.35）",
+   "手 2: thumbの手の色 0.38（0.85〜1.01）",
+   "手 2: middleの手の色 0.79（0.85〜1.01）"
+  ],
+  "hands": [
+   {
+    "box": [
+     271,
+     22,
+     461,
+     211
+    ],
+    "angle": 59.0,
+    "measure": {
+     "presence": 0.98,
+     "palm": 1.02,
+     "thumb": 1.1,
+     "index": 1.01,
+     "ring": 0.82,
+     "pinky": 0.57,
+     "cover": {
+      "thumb": 0.96,
+      "index": 0.88,
+      "middle": 0.92,
+      "ring": 0.42,
+      "pinky": 0.79
+     },
+     "fingers": {
+      "count": 4,
+      "rows": [
+       4,
+       5,
+       4,
+       4,
+       4
+      ],
+      "reason": "",
+      "width": 27.0,
+      "apart": 1.13
+     }
+    },
+    "bad": [
+     "index 1.01（0.8〜1.0）",
+     "pinkyの手の色 0.79（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     313,
+     589,
+     580,
+     855
+    ],
+    "angle": -61.0,
+    "measure": {
+     "presence": 1.0,
+     "palm": 0.64,
+     "thumb": 0.82,
+     "index": 0.95,
+     "ring": 0.91,
+     "pinky": 0.73,
+     "cover": {
+      "thumb": 0.38,
+      "index": 0.71,
+      "middle": 0.79,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       3,
+       3,
+       3,
+       6,
+       6
+      ],
+      "reason": "切った線ごとに数が揺れる（3 本と同じ線が 3 本）"
+     }
+    },
+    "bad": [
+     "palm 0.64（0.85〜1.35）",
+     "thumbの手の色 0.38（0.85〜1.01）",
+     "middleの手の色 0.79（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     475,
+     687,
+     622,
+     834
+    ],
+    "angle": 131.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 0.31,
+     "thumb": 0.36,
+     "index": 0.79,
+     "ring": 0.8,
+     "pinky": 0.36,
+     "cover": {
+      "thumb": 0.67,
+      "index": 1.0,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 0.5
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "指先が付け根より上に無い"
+     }
+    },
+    "bad": [
+     "読めない: 点がつぶれた（手のひら 0.31）"
+    ],
+    "seen": false
+   }
+  ],
+  "feet": [],
+  "faces": [
+   {
+    "box": [
+     210,
+     0,
+     617,
+     364
+    ],
+    "bad": [],
+    "seen": true
+   }
+  ],
+  "face": {
+   "box": [
+    210,
+    0,
+    617,
+    364
+   ],
+   "readable": true,
+   "bad": [],
+   "tags": {
+    "red eyes": 0.171,
+    "brown eyes": 0.811,
+    "eyelashes": 0.085,
+    "shading eyes": 0.301
+   },
+   "eye_dark": 0.2538
+  }
+ },
+ "3-pose-depth-s10013-fix3.png": {
+  "readable": true,
+  "bad": [
+   "手 2: presence 0.77（0.8〜1.01）",
+   "手 2: thumbの手の色 0.54（0.85〜1.01）",
+   "手 4: index 0.79（0.8〜1.0）",
+   "手 4: thumbの手の色 0.75（0.85〜1.01）",
+   "手 4: indexの手の色 0.67（0.85〜1.01）",
+   "手 4: ringの手の色 0.79（0.85〜1.01）",
+   "手 4: pinkyの手の色 0.71（0.85〜1.01）"
+  ],
+  "hands": [
+   {
+    "box": [
+     267,
+     5,
+     472,
+     210
+    ],
+    "angle": 58.0,
+    "measure": {
+     "presence": 0.97,
+     "palm": 0.98,
+     "thumb": 0.91,
+     "index": 0.85,
+     "ring": 0.89,
+     "pinky": 0.66,
+     "cover": {
+      "thumb": 1.0,
+      "index": 1.0,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 0.92
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       4,
+       5,
+       4,
+       5,
+       5
+      ],
+      "reason": "切った線ごとに数が揺れる（4 本と同じ線が 2 本）"
+     }
+    },
+    "bad": [],
+    "seen": true
+   },
+   {
+    "box": [
+     275,
+     578,
+     627,
+     930
+    ],
+    "angle": 61.0,
+    "measure": {
+     "presence": 0.77,
+     "palm": 1.21,
+     "thumb": 0.92,
+     "index": 0.86,
+     "ring": 0.93,
+     "pinky": 0.69,
+     "cover": {
+      "thumb": 0.54,
+      "index": 0.33,
+      "middle": 0.33,
+      "ring": 0.17,
+      "pinky": 0.25
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "指先が付け根より上に無い"
+     }
+    },
+    "bad": [
+     "presence 0.77（0.8〜1.01）",
+     "thumbの手の色 0.54（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     477,
+     482,
+     736,
+     742
+    ],
+    "angle": -179.0,
+    "measure": {
+     "presence": 0.65,
+     "palm": 0.38,
+     "thumb": 0.86,
+     "index": 1.02,
+     "ring": 0.93,
+     "pinky": 0.77,
+     "cover": {
+      "thumb": 0.79,
+      "index": 0.83,
+      "middle": 0.21,
+      "ring": 0.38,
+      "pinky": 0.62
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       2,
+       1,
+       1,
+       1,
+       1
+      ],
+      "reason": "指が 1 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 点がつぶれた（手のひら 0.38）"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     449,
+     683,
+     603,
+     838
+    ],
+    "angle": -88.0,
+    "measure": {
+     "presence": 0.97,
+     "palm": 0.96,
+     "thumb": 0.86,
+     "index": 0.79,
+     "ring": 0.99,
+     "pinky": 0.82,
+     "cover": {
+      "thumb": 0.75,
+      "index": 0.67,
+      "middle": 0.92,
+      "ring": 0.79,
+      "pinky": 0.71
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       4,
+       3,
+       5,
+       5,
+       4
+      ],
+      "reason": "切った線ごとに数が揺れる（4 本と同じ線が 2 本）"
+     }
+    },
+    "bad": [
+     "index 0.79（0.8〜1.0）",
+     "thumbの手の色 0.75（0.85〜1.01）",
+     "indexの手の色 0.67（0.85〜1.01）",
+     "ringの手の色 0.79（0.85〜1.01）",
+     "pinkyの手の色 0.71（0.85〜1.01）"
+    ],
+    "seen": true
+   }
+  ],
+  "feet": [],
+  "faces": [
+   {
+    "box": [
+     203,
+     0,
+     627,
+     383
+    ],
+    "bad": [],
+    "seen": true
+   }
+  ],
+  "face": {
+   "box": [
+    203,
+    0,
+    627,
+    383
+   ],
+   "readable": true,
+   "bad": [],
+   "tags": {
+    "brown eyes": 0.869,
+    "one eye closed": 0.948,
+    "eyelashes": 0.067,
+    "shading eyes": 0.587
+   },
+   "eye_dark": 0.283
+  }
+ },
+ "3-pose-depth-s10013-fix4.png": {
+  "readable": true,
+  "bad": [
+   "手 1: thumb 0.79（0.8〜1.12）",
+   "手 1: palm 0.54（0.85〜1.35）",
+   "手 1: thumbの手の色 0.62（0.85〜1.01）",
+   "手 1: indexの手の色 0.25（0.85〜1.01）",
+   "手 1: middleの手の色 0.5（0.85〜1.01）",
+   "手 1: ringの手の色 0.62（0.85〜1.01）",
+   "手 2: indexの手の色 0.75（0.85〜1.01）",
+   "手 2: pinkyの手の色 0.79（0.85〜1.01）",
+   "手 3: palm 0.8（0.85〜1.35）",
+   "手 3: thumbの手の色 0.71（0.85〜1.01）",
+   "手 3: middleの手の色 0.79（0.85〜1.01）",
+   "手 3: ringの手の色 0.71（0.85〜1.01）",
+   "手 3: pinkyの手の色 0.46（0.85〜1.01）"
+  ],
+  "hands": [
+   {
+    "box": [
+     387,
+     637,
+     591,
+     841
+    ],
+    "angle": -81.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 0.54,
+     "thumb": 0.79,
+     "index": 0.89,
+     "ring": 0.96,
+     "pinky": 0.74,
+     "cover": {
+      "thumb": 0.62,
+      "index": 0.25,
+      "middle": 0.5,
+      "ring": 0.62,
+      "pinky": 0.92
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       4,
+       4,
+       3,
+       3,
+       3
+      ],
+      "reason": "切った線ごとに数が揺れる（3 本と同じ線が 3 本）"
+     }
+    },
+    "bad": [
+     "thumb 0.79（0.8〜1.12）",
+     "palm 0.54（0.85〜1.35）",
+     "thumbの手の色 0.62（0.85〜1.01）",
+     "indexの手の色 0.25（0.85〜1.01）",
+     "middleの手の色 0.5（0.85〜1.01）",
+     "ringの手の色 0.62（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     271,
+     0,
+     480,
+     209
+    ],
+    "angle": 58.0,
+    "measure": {
+     "presence": 0.95,
+     "palm": 1.03,
+     "thumb": 0.93,
+     "index": 0.83,
+     "ring": 0.88,
+     "pinky": 0.67,
+     "cover": {
+      "thumb": 1.0,
+      "index": 0.75,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 0.79
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       4,
+       4,
+       5,
+       4,
+       6
+      ],
+      "reason": "切った線ごとに数が揺れる（5 本と同じ線が 1 本）"
+     }
+    },
+    "bad": [
+     "indexの手の色 0.75（0.85〜1.01）",
+     "pinkyの手の色 0.79（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     499,
+     502,
+     736,
+     738
+    ],
+    "angle": 164.0,
+    "measure": {
+     "presence": 0.95,
+     "palm": 0.8,
+     "thumb": 1.01,
+     "index": 0.88,
+     "ring": 0.93,
+     "pinky": 0.77,
+     "cover": {
+      "thumb": 0.71,
+      "index": 0.88,
+      "middle": 0.79,
+      "ring": 0.71,
+      "pinky": 0.46
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       7,
+       6,
+       6,
+       3,
+       5
+      ],
+      "reason": "切った線ごとに数が揺れる（4 本と同じ線が 0 本）"
+     }
+    },
+    "bad": [
+     "palm 0.8（0.85〜1.35）",
+     "thumbの手の色 0.71（0.85〜1.01）",
+     "middleの手の色 0.79（0.85〜1.01）",
+     "ringの手の色 0.71（0.85〜1.01）",
+     "pinkyの手の色 0.46（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     458,
+     579,
+     582,
+     703
+    ],
+    "angle": -150.0,
+    "measure": {
+     "presence": 0.1,
+     "palm": 0.95,
+     "thumb": 1.04,
+     "index": 0.98,
+     "ring": 0.89,
+     "pinky": 0.78,
+     "cover": {
+      "thumb": 0.75,
+      "index": 0.67,
+      "middle": 0.25,
+      "ring": 0.71,
+      "pinky": 0.96
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       1,
+       2,
+       1,
+       1,
+       3
+      ],
+      "reason": "指が 1 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.1"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     365,
+     710,
+     513,
+     856
+    ],
+    "angle": 31.0,
+    "measure": {
+     "presence": 0.31,
+     "palm": 0.81,
+     "thumb": 0.69,
+     "index": 0.92,
+     "ring": 0.98,
+     "pinky": 0.84,
+     "cover": {
+      "thumb": 0.83,
+      "index": 0.67,
+      "middle": 0.88,
+      "ring": 0.58,
+      "pinky": 0.79
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       1,
+       2,
+       4,
+       6,
+       5
+      ],
+      "reason": "切った線ごとに数が揺れる（4 本と同じ線が 1 本）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.31"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     553,
+     797,
+     693,
+     937
+    ],
+    "angle": 73.0,
+    "measure": {
+     "presence": 0.02,
+     "palm": 1.87,
+     "thumb": 2.22,
+     "index": 1.1,
+     "ring": 0.82,
+     "pinky": 0.84,
+     "cover": {
+      "thumb": 0.88,
+      "index": 0.62,
+      "middle": 0.83,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       0,
+       1,
+       1,
+       1,
+       2
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.02"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     365,
+     756,
+     503,
+     894
+    ],
+    "angle": -2.0,
+    "measure": {
+     "presence": 0.05,
+     "palm": 1.23,
+     "thumb": 1.45,
+     "index": 1.09,
+     "ring": 0.86,
+     "pinky": 0.67,
+     "cover": {
+      "thumb": 0.33,
+      "index": 0.0,
+      "middle": 0.17,
+      "ring": 0.83,
+      "pinky": 0.88
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       1,
+       1,
+       1,
+       1,
+       1
+      ],
+      "reason": "指が 1 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.05"
+    ],
+    "seen": false
+   }
+  ],
+  "feet": [],
+  "faces": [
+   {
+    "box": [
+     204,
+     0,
+     627,
+     383
+    ],
+    "bad": [],
+    "seen": true
+   }
+  ],
+  "face": {
+   "box": [
+    204,
+    0,
+    627,
+    383
+   ],
+   "readable": true,
+   "bad": [],
+   "tags": {
+    "brown eyes": 0.885,
+    "one eye closed": 0.938,
+    "eyelashes": 0.067,
+    "shading eyes": 0.568
+   },
+   "eye_dark": 0.2815
+  }
+ },
+ "3-pose-depth-s10013-fix5.png": {
+  "readable": true,
+  "bad": [
+   "手 1: thumb 0.77（0.8〜1.12）",
+   "手 1: index 0.79（0.8〜1.0）",
+   "手 1: ring 1.05（0.85〜1.02）",
+   "手 1: palm 0.8（0.85〜1.35）",
+   "手 1: thumbの手の色 0.83（0.85〜1.01）",
+   "手 1: indexの手の色 0.5（0.85〜1.01）",
+   "手 2: thumbの手の色 0.42（0.85〜1.01）",
+   "手 2: indexの手の色 0.79（0.85〜1.01）",
+   "手 2: middleの手の色 0.75（0.85〜1.01）",
+   "手 2: pinkyの手の色 0.25（0.85〜1.01）",
+   "手 4: presence 0.76（0.8〜1.01）",
+   "手 4: thumb 0.78（0.8〜1.12）",
+   "手 4: palm 0.59（0.85〜1.35）",
+   "手 4: thumbの手の色 0.5（0.85〜1.01）",
+   "手 4: pinkyの手の色 0.38（0.85〜1.01）"
+  ],
+  "hands": [
+   {
+    "box": [
+     163,
+     581,
+     534,
+     953
+    ],
+    "angle": -90.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 0.8,
+     "thumb": 0.77,
+     "index": 0.79,
+     "ring": 1.05,
+     "pinky": 0.84,
+     "cover": {
+      "thumb": 0.83,
+      "index": 0.5,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 0.96
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       4,
+       4,
+       5,
+       6,
+       6
+      ],
+      "reason": "切った線ごとに数が揺れる（5 本と同じ線が 1 本）"
+     }
+    },
+    "bad": [
+     "thumb 0.77（0.8〜1.12）",
+     "index 0.79（0.8〜1.0）",
+     "ring 1.05（0.85〜1.02）",
+     "palm 0.8（0.85〜1.35）",
+     "thumbの手の色 0.83（0.85〜1.01）",
+     "indexの手の色 0.5（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     258,
+     48,
+     433,
+     224
+    ],
+    "angle": 69.0,
+    "measure": {
+     "presence": 0.96,
+     "palm": 0.94,
+     "thumb": 0.97,
+     "index": 0.9,
+     "ring": 0.98,
+     "pinky": 0.81,
+     "cover": {
+      "thumb": 0.42,
+      "index": 0.79,
+      "middle": 0.75,
+      "ring": 1.0,
+      "pinky": 0.25
+     },
+     "fingers": {
+      "count": 4,
+      "rows": [
+       4,
+       4,
+       4,
+       3,
+       4
+      ],
+      "reason": "",
+      "width": 31.5,
+      "apart": 0.73
+     }
+    },
+    "bad": [
+     "thumbの手の色 0.42（0.85〜1.01）",
+     "indexの手の色 0.79（0.85〜1.01）",
+     "middleの手の色 0.75（0.85〜1.01）",
+     "pinkyの手の色 0.25（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     320,
+     230,
+     588,
+     497
+    ],
+    "angle": 37.0,
+    "measure": {
+     "presence": 0.23,
+     "palm": 1.1,
+     "thumb": 1.03,
+     "index": 0.9,
+     "ring": 1.0,
+     "pinky": 0.8,
+     "cover": {
+      "thumb": 0.83,
+      "index": 1.0,
+      "middle": 0.79,
+      "ring": 0.58,
+      "pinky": 0.75
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       0,
+       0,
+       0,
+       1,
+       1
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.23"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     444,
+     695,
+     557,
+     808
+    ],
+    "angle": -140.0,
+    "measure": {
+     "presence": 0.76,
+     "palm": 0.59,
+     "thumb": 0.78,
+     "index": 0.89,
+     "ring": 0.95,
+     "pinky": 0.76,
+     "cover": {
+      "thumb": 0.5,
+      "index": 1.0,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 0.38
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "presence 0.76（0.8〜1.01）",
+     "thumb 0.78（0.8〜1.12）",
+     "palm 0.59（0.85〜1.35）",
+     "thumbの手の色 0.5（0.85〜1.01）",
+     "pinkyの手の色 0.38（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     552,
+     797,
+     698,
+     943
+    ],
+    "angle": 81.0,
+    "measure": {
+     "presence": 0.02,
+     "palm": 2.4,
+     "thumb": 2.61,
+     "index": 1.19,
+     "ring": 0.83,
+     "pinky": 0.8,
+     "cover": {
+      "thumb": 1.0,
+      "index": 0.75,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 0.83
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.02"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     531,
+     671,
+     732,
+     870
+    ],
+    "angle": 58.0,
+    "measure": {
+     "presence": 0.02,
+     "palm": 4.05,
+     "thumb": 4.66,
+     "index": 1.25,
+     "ring": 1.02,
+     "pinky": 0.64,
+     "cover": {
+      "thumb": 0.54,
+      "index": 0.54,
+      "middle": 1.0,
+      "ring": 0.12,
+      "pinky": 0.58
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "指先が付け根より上に無い"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.02"
+    ],
+    "seen": false
+   }
+  ],
+  "feet": [],
+  "faces": [
+   {
+    "box": [
+     239,
+     0,
+     631,
+     368
+    ],
+    "bad": [],
+    "seen": true
+   }
+  ],
+  "face": {
+   "box": [
+    239,
+    0,
+    631,
+    368
+   ],
+   "readable": true,
+   "bad": [],
+   "tags": {
+    "brown eyes": 0.832,
+    "one eye closed": 0.769,
+    "eyelashes": 0.096,
+    "shading eyes": 0.587
+   },
+   "eye_dark": 0.1289
+  }
+ },
+ "3-pose-depth-s10013-fix6.png": {
+  "readable": true,
+  "bad": [
+   "手 1: indexの手の色 0.42（0.85〜1.01）",
+   "手 1: middleの手の色 0.58（0.85〜1.01）",
+   "手 1: ringの手の色 0.67（0.85〜1.01）",
+   "手 1: pinkyの手の色 0.5（0.85〜1.01）",
+   "手 2: thumb 1.17（0.8〜1.12）",
+   "手 2: pinky 0.91（0.55〜0.85）",
+   "手 2: thumbの手の色 0.79（0.85〜1.01）",
+   "手 2: indexの手の色 0.62（0.85〜1.01）",
+   "手 2: middleの手の色 0.67（0.85〜1.01）",
+   "手 2: ringの手の色 0.67（0.85〜1.01）",
+   "手 2: pinkyの手の色 0.75（0.85〜1.01）",
+   "手 6: palm 0.8（0.85〜1.35）",
+   "手 6: indexの手の色 0.75（0.85〜1.01）",
+   "手 6: middleの手の色 0.42（0.85〜1.01）",
+   "手 6: ringの手の色 0.46（0.85〜1.01）",
+   "手 6: pinkyの手の色 0.62（0.85〜1.01）"
+  ],
+  "hands": [
+   {
+    "box": [
+     372,
+     629,
+     607,
+     864
+    ],
+    "angle": -79.0,
+    "measure": {
+     "presence": 1.0,
+     "palm": 0.88,
+     "thumb": 0.86,
+     "index": 0.87,
+     "ring": 0.95,
+     "pinky": 0.78,
+     "cover": {
+      "thumb": 1.0,
+      "index": 0.42,
+      "middle": 0.58,
+      "ring": 0.67,
+      "pinky": 0.5
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       4,
+       3,
+       3,
+       5,
+       6
+      ],
+      "reason": "切った線ごとに数が揺れる（3 本と同じ線が 2 本）"
+     }
+    },
+    "bad": [
+     "indexの手の色 0.42（0.85〜1.01）",
+     "middleの手の色 0.58（0.85〜1.01）",
+     "ringの手の色 0.67（0.85〜1.01）",
+     "pinkyの手の色 0.5（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     265,
+     15,
+     473,
+     222
+    ],
+    "angle": 67.0,
+    "measure": {
+     "presence": 0.91,
+     "palm": 1.33,
+     "thumb": 1.17,
+     "index": 0.92,
+     "ring": 0.99,
+     "pinky": 0.91,
+     "cover": {
+      "thumb": 0.79,
+      "index": 0.62,
+      "middle": 0.67,
+      "ring": 0.67,
+      "pinky": 0.75
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       3,
+       4,
+       5,
+       6,
+       5
+      ],
+      "reason": "切った線ごとに数が揺れる（5 本と同じ線が 2 本）"
+     }
+    },
+    "bad": [
+     "thumb 1.17（0.8〜1.12）",
+     "pinky 0.91（0.55〜0.85）",
+     "thumbの手の色 0.79（0.85〜1.01）",
+     "indexの手の色 0.62（0.85〜1.01）",
+     "middleの手の色 0.67（0.85〜1.01）",
+     "ringの手の色 0.67（0.85〜1.01）",
+     "pinkyの手の色 0.75（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     421,
+     630,
+     548,
+     757
+    ],
+    "angle": -141.0,
+    "measure": {
+     "presence": 0.45,
+     "palm": 0.66,
+     "thumb": 1.02,
+     "index": 0.78,
+     "ring": 0.95,
+     "pinky": 0.74,
+     "cover": {
+      "thumb": 0.67,
+      "index": 0.62,
+      "middle": 0.71,
+      "ring": 0.58,
+      "pinky": 0.58
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       5,
+       4,
+       4,
+       5,
+       4
+      ],
+      "reason": "切った線ごとに数が揺れる（4 本と同じ線が 3 本）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.45"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     476,
+     731,
+     572,
+     827
+    ],
+    "angle": -37.0,
+    "measure": {
+     "presence": 0.36,
+     "palm": 1.08,
+     "thumb": 1.2,
+     "index": 0.92,
+     "ring": 1.09,
+     "pinky": 0.98,
+     "cover": {
+      "thumb": 0.54,
+      "index": 0.25,
+      "middle": 0.33,
+      "ring": 0.33,
+      "pinky": 0.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       1,
+       1,
+       1,
+       1,
+       1
+      ],
+      "reason": "指が 1 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.36"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     532,
+     787,
+     663,
+     917
+    ],
+    "angle": 16.0,
+    "measure": {
+     "presence": 0.03,
+     "palm": 0.73,
+     "thumb": 0.81,
+     "index": 0.78,
+     "ring": 0.94,
+     "pinky": 0.74,
+     "cover": {
+      "thumb": 1.0,
+      "index": 0.92,
+      "middle": 0.92,
+      "ring": 0.96,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       1,
+       0,
+       0,
+       0,
+       0
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.03"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     475,
+     693,
+     581,
+     798
+    ],
+    "angle": -54.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 0.8,
+     "thumb": 0.88,
+     "index": 0.87,
+     "ring": 0.97,
+     "pinky": 0.79,
+     "cover": {
+      "thumb": 1.0,
+      "index": 0.75,
+      "middle": 0.42,
+      "ring": 0.46,
+      "pinky": 0.62
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "指先が付け根より上に無い"
+     }
+    },
+    "bad": [
+     "palm 0.8（0.85〜1.35）",
+     "indexの手の色 0.75（0.85〜1.01）",
+     "middleの手の色 0.42（0.85〜1.01）",
+     "ringの手の色 0.46（0.85〜1.01）",
+     "pinkyの手の色 0.62（0.85〜1.01）"
+    ],
+    "seen": true
+   }
+  ],
+  "feet": [],
+  "faces": [
+   {
+    "box": [
+     235,
+     0,
+     637,
+     362
+    ],
+    "bad": [],
+    "seen": true
+   }
+  ],
+  "face": {
+   "box": [
+    235,
+    0,
+    637,
+    362
+   ],
+   "readable": true,
+   "bad": [],
+   "tags": {
+    "brown eyes": 0.837,
+    "one eye closed": 0.892,
+    "eyelashes": 0.092,
+    "shading eyes": 0.78
+   },
+   "eye_dark": 0.1237
+  }
+ },
+ "3-pose-depth-s10013-refined.png": {
+  "readable": true,
+  "bad": [
+   "手 1: palm 0.82（0.85〜1.35）",
+   "手 1: indexの手の色 0.46（0.85〜1.01）",
+   "手 1: pinkyの手の色 0.54（0.85〜1.01）",
+   "手 2: thumbの手の色 0.83（0.85〜1.01）",
+   "手 2: indexの手の色 0.71（0.85〜1.01）",
+   "手 2: middleの手の色 0.75（0.85〜1.01）",
+   "手 2: ringの手の色 0.83（0.85〜1.01）",
+   "手 2: pinkyの手の色 0.21（0.85〜1.01）",
+   "手 3: palm 0.59（0.85〜1.35）",
+   "手 3: thumbの手の色 0.79（0.85〜1.01）",
+   "手 3: indexの手の色 0.75（0.85〜1.01）",
+   "手 4: ring 1.04（0.85〜1.02）",
+   "手 4: pinky 0.92（0.55〜0.85）",
+   "手 4: palm 0.66（0.85〜1.35）",
+   "手 4: indexの手の色 0.5（0.85〜1.01）",
+   "手 4: pinkyの手の色 0.17（0.85〜1.01）"
+  ],
+  "hands": [
+   {
+    "box": [
+     346,
+     632,
+     608,
+     894
+    ],
+    "angle": -91.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 0.82,
+     "thumb": 0.8,
+     "index": 0.92,
+     "ring": 0.96,
+     "pinky": 0.74,
+     "cover": {
+      "thumb": 0.88,
+      "index": 0.46,
+      "middle": 0.96,
+      "ring": 0.96,
+      "pinky": 0.54
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       4,
+       4,
+       5,
+       6,
+       5
+      ],
+      "reason": "切った線ごとに数が揺れる（5 本と同じ線が 2 本）"
+     }
+    },
+    "bad": [
+     "palm 0.82（0.85〜1.35）",
+     "indexの手の色 0.46（0.85〜1.01）",
+     "pinkyの手の色 0.54（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     266,
+     13,
+     471,
+     218
+    ],
+    "angle": 57.0,
+    "measure": {
+     "presence": 0.98,
+     "palm": 0.98,
+     "thumb": 0.8,
+     "index": 0.87,
+     "ring": 0.95,
+     "pinky": 0.73,
+     "cover": {
+      "thumb": 0.83,
+      "index": 0.71,
+      "middle": 0.75,
+      "ring": 0.83,
+      "pinky": 0.21
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       3,
+       5,
+       4,
+       4,
+       4
+      ],
+      "reason": "切った線ごとに数が揺れる（3 本と同じ線が 1 本）"
+     }
+    },
+    "bad": [
+     "thumbの手の色 0.83（0.85〜1.01）",
+     "indexの手の色 0.71（0.85〜1.01）",
+     "middleの手の色 0.75（0.85〜1.01）",
+     "ringの手の色 0.83（0.85〜1.01）",
+     "pinkyの手の色 0.21（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     442,
+     654,
+     577,
+     790
+    ],
+    "angle": -86.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 0.59,
+     "thumb": 0.8,
+     "index": 0.87,
+     "ring": 0.98,
+     "pinky": 0.72,
+     "cover": {
+      "thumb": 0.79,
+      "index": 0.75,
+      "middle": 0.96,
+      "ring": 0.92,
+      "pinky": 0.96
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       3,
+       3,
+       4,
+       5,
+       5
+      ],
+      "reason": "切った線ごとに数が揺れる（4 本と同じ線が 1 本）"
+     }
+    },
+    "bad": [
+     "palm 0.59（0.85〜1.35）",
+     "thumbの手の色 0.79（0.85〜1.01）",
+     "indexの手の色 0.75（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     465,
+     710,
+     551,
+     796
+    ],
+    "angle": -72.0,
+    "measure": {
+     "presence": 0.96,
+     "palm": 0.66,
+     "thumb": 1.01,
+     "index": 0.94,
+     "ring": 1.04,
+     "pinky": 0.92,
+     "cover": {
+      "thumb": 1.0,
+      "index": 0.5,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 0.17
+     },
+     "fingers": {
+      "count": 3,
+      "rows": [
+       3,
+       3,
+       3,
+       3,
+       3
+      ],
+      "reason": "",
+      "width": 47.4,
+      "apart": 0.73
+     }
+    },
+    "bad": [
+     "ring 1.04（0.85〜1.02）",
+     "pinky 0.92（0.55〜0.85）",
+     "palm 0.66（0.85〜1.35）",
+     "indexの手の色 0.5（0.85〜1.01）",
+     "pinkyの手の色 0.17（0.85〜1.01）"
+    ],
+    "seen": true
+   }
+  ],
+  "feet": [],
+  "faces": [
+   {
+    "box": [
+     230,
+     0,
+     631,
+     354
+    ],
+    "bad": [],
+    "seen": true
+   }
+  ],
+  "face": {
+   "box": [
+    230,
+    0,
+    631,
+    354
+   ],
+   "readable": true,
+   "bad": [],
+   "tags": {
+    "brown eyes": 0.866,
+    "one eye closed": 0.082,
+    "eyelashes": 0.104,
+    "half-closed eyes": 0.342,
+    "half-closed eye": 0.073,
+    "shading eyes": 0.918
+   },
+   "eye_dark": 0.0721
+  }
+ },
+ "3-pose-depth-s10013.png": {
+  "readable": true,
+  "bad": [
+   "手 1: indexの手の色 0.54（0.85〜1.01）",
+   "手 1: middleの手の色 0.38（0.85〜1.01）",
+   "手 1: pinkyの手の色 0.42（0.85〜1.01）",
+   "手 3: presence 0.77（0.8〜1.01）",
+   "手 3: thumb 0.67（0.8〜1.12）",
+   "手 3: palm 0.66（0.85〜1.35）",
+   "手 3: thumbの手の色 0.75（0.85〜1.01）",
+   "手 3: middleの手の色 0.25（0.85〜1.01）",
+   "手 3: ringの手の色 0.5（0.85〜1.01）",
+   "手 6: thumb 0.76（0.8〜1.12）",
+   "手 6: index 0.75（0.8〜1.0）",
+   "手 6: thumbの手の色 0.58（0.85〜1.01）",
+   "手 6: ringの手の色 0.79（0.85〜1.01）",
+   "手 6: pinkyの手の色 0.46（0.85〜1.01）"
+  ],
+  "hands": [
+   {
+    "box": [
+     235,
+     -2,
+     452,
+     213
+    ],
+    "angle": 64.0,
+    "measure": {
+     "presence": 0.96,
+     "palm": 0.88,
+     "thumb": 0.89,
+     "index": 0.9,
+     "ring": 0.96,
+     "pinky": 0.62,
+     "cover": {
+      "thumb": 0.88,
+      "index": 0.54,
+      "middle": 0.38,
+      "ring": 1.0,
+      "pinky": 0.42
+     },
+     "fingers": {
+      "count": 3,
+      "rows": [
+       5,
+       3,
+       3,
+       3,
+       3
+      ],
+      "reason": "",
+      "width": 30.8,
+      "apart": 0.58
+     }
+    },
+    "bad": [
+     "indexの手の色 0.54（0.85〜1.01）",
+     "middleの手の色 0.38（0.85〜1.01）",
+     "pinkyの手の色 0.42（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     281,
+     608,
+     416,
+     743
+    ],
+    "angle": -148.0,
+    "measure": {
+     "presence": 0.42,
+     "palm": 0.96,
+     "thumb": 1.05,
+     "index": 0.97,
+     "ring": 0.92,
+     "pinky": 0.74,
+     "cover": {
+      "thumb": 1.0,
+      "index": 1.0,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.42"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     432,
+     623,
+     591,
+     782
+    ],
+    "angle": -151.0,
+    "measure": {
+     "presence": 0.77,
+     "palm": 0.66,
+     "thumb": 0.67,
+     "index": 0.85,
+     "ring": 0.9,
+     "pinky": 0.66,
+     "cover": {
+      "thumb": 0.75,
+      "index": 0.96,
+      "middle": 0.25,
+      "ring": 0.5,
+      "pinky": 0.88
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       5,
+       5,
+       6,
+       6,
+       6
+      ],
+      "reason": "切った線ごとに数が揺れる（6 本と同じ線が 3 本）"
+     }
+    },
+    "bad": [
+     "presence 0.77（0.8〜1.01）",
+     "thumb 0.67（0.8〜1.12）",
+     "palm 0.66（0.85〜1.35）",
+     "thumbの手の色 0.75（0.85〜1.01）",
+     "middleの手の色 0.25（0.85〜1.01）",
+     "ringの手の色 0.5（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     451,
+     578,
+     581,
+     709
+    ],
+    "angle": -168.0,
+    "measure": {
+     "presence": 0.18,
+     "palm": 1.4,
+     "thumb": 1.45,
+     "index": 0.99,
+     "ring": 0.89,
+     "pinky": 0.76,
+     "cover": {
+      "thumb": 0.67,
+      "index": 0.88,
+      "middle": 0.88,
+      "ring": 0.46,
+      "pinky": 0.21
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       2,
+       3,
+       0,
+       0,
+       2
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.18"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     414,
+     670,
+     533,
+     789
+    ],
+    "angle": 46.0,
+    "measure": {
+     "presence": 0.12,
+     "palm": 0.94,
+     "thumb": 1.01,
+     "index": 0.96,
+     "ring": 0.97,
+     "pinky": 0.83,
+     "cover": {
+      "thumb": 0.67,
+      "index": 0.12,
+      "middle": 0.12,
+      "ring": 0.21,
+      "pinky": 0.21
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       1,
+       0,
+       0,
+       0,
+       4
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.12"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     468,
+     681,
+     588,
+     802
+    ],
+    "angle": -82.0,
+    "measure": {
+     "presence": 0.94,
+     "palm": 0.87,
+     "thumb": 0.76,
+     "index": 0.75,
+     "ring": 1.02,
+     "pinky": 0.81,
+     "cover": {
+      "thumb": 0.58,
+      "index": 0.92,
+      "middle": 0.96,
+      "ring": 0.79,
+      "pinky": 0.46
+     },
+     "fingers": {
+      "count": 3,
+      "rows": [
+       2,
+       3,
+       3,
+       3,
+       3
+      ],
+      "reason": "",
+      "width": 34.4,
+      "apart": 0.78
+     }
+    },
+    "bad": [
+     "thumb 0.76（0.8〜1.12）",
+     "index 0.75（0.8〜1.0）",
+     "thumbの手の色 0.58（0.85〜1.01）",
+     "ringの手の色 0.79（0.85〜1.01）",
+     "pinkyの手の色 0.46（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     393,
+     715,
+     555,
+     876
+    ],
+    "angle": 50.0,
+    "measure": {
+     "presence": 0.42,
+     "palm": 0.51,
+     "thumb": 2.08,
+     "index": 1.29,
+     "ring": 1.53,
+     "pinky": 1.49,
+     "cover": {
+      "thumb": 1.0,
+      "index": 1.0,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.42"
+    ],
+    "seen": false
+   },
+   {
+    "box": [
+     481,
+     719,
+     603,
+     841
+    ],
+    "angle": -4.0,
+    "measure": {
+     "presence": 0.03,
+     "palm": 1.04,
+     "thumb": 1.24,
+     "index": 0.93,
+     "ring": 0.85,
+     "pinky": 0.71,
+     "cover": {
+      "thumb": 0.0,
+      "index": 0.96,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       0,
+       0,
+       0,
+       0,
+       0
+      ],
+      "reason": "指が 0 本にしか見えない（重なって隠れている）"
+     }
+    },
+    "bad": [
+     "読めない: 手らしさ 0.03"
+    ],
+    "seen": false
+   }
+  ],
+  "feet": [],
+  "faces": [
+   {
+    "box": [
+     214,
+     0,
+     623,
+     362
+    ],
+    "bad": [],
+    "seen": true
+   }
+  ],
+  "face": {
+   "box": [
+    214,
+    0,
+    623,
+    362
+   ],
+   "readable": true,
+   "bad": [],
+   "tags": {
+    "brown eyes": 0.876,
+    "eyelashes": 0.097,
+    "shading eyes": 0.795
+   },
+   "eye_dark": 0.2917
+  }
+ }
+}
