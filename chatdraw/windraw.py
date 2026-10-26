@@ -1,6 +1,6 @@
 """利用者の Windows と同じ経路で、本物の模型を使って 1 枚描き、頼みが模型に伝わったかと出来を確かめる（Actions の Windows の機械で流す）。
 
-    python -E -s -m chatdraw.windraw <出力の置き場> "<日本語の頼み>"
+    python -E -s -m chatdraw.windraw <出力の置き場> "<日本語の頼み>" [種]
 
 Setup.exe で入れたアプリの Python で動かす。手元の Linux で通っても、利用者の Windows では動かないことがあったため、
 描く確かめは Windows を本番にする。順は利用者が踏む順と同じにする。
@@ -25,6 +25,7 @@ MODEL = "cagliostrolab/animagine-xl-4.0"
 def main():
     out = Path(sys.argv[1] if len(sys.argv) > 1 else "windraw-out")
     text = sys.argv[2] if len(sys.argv) > 2 else "白いビキニの女性が海で手を振っている 全身"
+    seed = int(sys.argv[3]) if len(sys.argv) > 3 else 7   # Actions では種を変えて何本も同時に描く
     out.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     report: dict = {"request": text, "steps": []}
@@ -69,10 +70,15 @@ def main():
         from chatdraw.engine import Words
         w = Words(Path(""))   # 言葉の模型を入れていない利用者と同じ（語の表で直す）
         tags = w.to_prompt(text, tags=True)
+        from chatdraw.jaterms import leftover
+        lost = leftover(text)
         state["tags"] = tags
-        (out / "prompt.json").write_text(json.dumps({"request": text, "tags": tags}, ensure_ascii=False, indent=1), encoding="utf-8")
+        (out / "prompt.json").write_text(json.dumps({"request": text, "tags": tags, "lost": lost}, ensure_ascii=False, indent=1),
+                                         encoding="utf-8")
         if tags == text:
             raise RuntimeError("日本語の頼みが、そのまま模型に渡っている（描く言葉に直っていない）")
+        if lost:
+            raise RuntimeError("模型に伝わらない言葉がある: " + "、".join(lost))
         return {"tags": tags}
 
     def draw():
@@ -81,16 +87,17 @@ def main():
         studio = Studio(Words(Path("")), Painter(MODEL, steps=m.steps, guidance=m.guidance), out)
         studio.way = "one"
         said = []
-        prompt, path = studio.draw(text, 7, on_status=lambda s: (said.append(s), print(s, flush=True)))
+        prompt, path = studio.draw(text, seed, on_status=lambda s: (said.append(s), print(s, flush=True)))
         state["path"], state["prompt"] = path, prompt
         return {"file": str(path), "prompt": prompt, "redraws": json.loads(Path(path).with_suffix(".json").read_text(encoding="utf-8")).get("redraws")}
 
     def judge():
         from chatdraw import handcheck, requestcheck
-        hands = handcheck.check(state["path"])
+        hands = handcheck.check(state["path"], asked=state["prompt"])
         asked = requestcheck.check(state["path"], state["prompt"], fetch=True)
         res = {"hands": handcheck.summary(hands), "asked": requestcheck.summary(asked), "missing": asked.get("missing", []),
-               "bad": hands["bad"], "passed": hands["readable"] and not hands["bad"] and not asked.get("missing")}
+               "extra": asked.get("extra", []), "bad": hands["bad"],
+               "passed": hands["readable"] and not hands["bad"] and not asked.get("missing") and not asked.get("extra")}
         (out / "result.json").write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
         return res
 

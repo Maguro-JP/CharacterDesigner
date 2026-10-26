@@ -1200,6 +1200,59 @@ def _prompt_of(src) -> str:
     return ""
 
 
+
+def stray_color(rgb) -> float:
+    """白い水着と灰の背景を頼んだ写実の絵の中で、鮮やかな色の画素が占める割合（%）。
+
+    写実の段の模型は、頼んでいない光の漏れ・色のにじみ・小物を鮮やかな色で描いた。肌（彩度 0.36 前後）と
+    灰の背景は彩度が低いので、彩度 0.5 を超える画素の多さで、頼んでいない色の物を数えられる。
+    身体 回32〜42 の写実 11 枚では、崩れた 8 枚が 2.14% 以上、崩れの無い 3 枚が 1.72% 以下だった。
+    """
+    import numpy as np
+    a = np.asarray(rgb, dtype=np.float32)
+    if a.max() > 1.0:
+        a = a / 255.0
+    mx, mn = a.max(-1), a.min(-1)
+    sat = (mx - mn) / np.maximum(mx, 1e-6)
+    return float(((sat > 0.5) & (mx > 0.25)).mean() * 100)
+
+
+def stray_blob(rgb) -> float:
+    """鮮やかな色の画素がつながった塊のうち、一番大きいものが絵に占める割合（%）。
+
+    stray_color は鮮やかな画素の合計しか見ないので、小さくまとまった色の板（回73 の赤い長方形、0.93%）を
+    合計 1.53% で見逃した。塊で見ると、身体 回40〜73 の写実 20 枚で、崩れの無い絵は 0.61% 以下、
+    色の板や布が出た 3 枚は 0.73% 以上だった。
+    """
+    import numpy as np
+    from scipy import ndimage
+    a = np.asarray(rgb, dtype=np.float32)
+    if a.max() > 1.0:
+        a = a / 255.0
+    mx, mn = a.max(-1), a.min(-1)
+    m = ((mx - mn) / np.maximum(mx, 1e-6) > 0.5) & (mx > 0.25)
+    lab, n = ndimage.label(m)
+    if not n:
+        return 0.0
+    return float(np.bincount(lab.ravel())[1:].max() / m.size * 100)
+
+
+def garment_saturation(rgb, parts) -> float:
+    """部位分け（edit.LABELS）の服の画素の彩度の中央値。白い水着を頼んだ絵で、水着そのものの色違いを見る。
+
+    水着が丸ごと桃色・水色になった絵は、色が面で広がるので stray_color と stray_blob が拾わない（身体 回69〜89）。
+    写実 15 枚で、白か灰の水着は 0.133 以下、色の付いた水着は 0.182 以上だった。服の画素が無ければ 0。
+    """
+    import numpy as np
+    a = np.asarray(rgb, dtype=np.float32)
+    if a.max() > 1.0:
+        a = a / 255.0
+    m = np.isin(np.asarray(parts), [4, 5, 6, 7])
+    if not m.any():
+        return 0.0
+    mx, mn = a[m].max(-1), a[m].min(-1)
+    return float(np.median((mx - mn) / np.maximum(mx, 1e-6)))
+
 def measure(src, hair_color: str = "", points=None, prompt: str | None = None, tags: dict | None = None) -> dict:
     """prompt と tags は、呼ぶ側（qc.auto_check）が持っていれば渡す。タグの模型を2度走らせないため"""
     from PIL import Image

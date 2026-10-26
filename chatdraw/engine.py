@@ -387,6 +387,9 @@ class Painter:
         return image_model(self.model).family
 
     def sketch_ready(self, family: str | None = None) -> bool:
+        from chatdraw.models import family as fam
+        if fam(family or self.family).edit:
+            return True   # 絵を頼みと一緒に渡す世代は、別の部品が要らない
         try:
             from huggingface_hub import snapshot_download
             repo, files, _ = SKETCH[family or self.family]
@@ -397,6 +400,9 @@ class Painter:
 
     def reference_ready(self, family: str | None = None) -> bool:
         """参考画像の部品が手元にあるか（取りに行かずに確かめる）"""
+        from chatdraw.models import family as fam
+        if fam(family or self.family).edit:
+            return True
         try:
             from huggingface_hub import snapshot_download
             repo, sub, weight, enc = REFERENCE[family or self.family]
@@ -517,6 +523,21 @@ class Painter:
             raise Unsupported(f"{f.name} の模型は、ラフから描く部品がまだありません。「新規」で描くか、SDXL の模型に替えてください")
         if reference is not None and not f.reference:
             raise Unsupported(f"{f.name} の模型は、参考画像をまだ使えません。参考画像を外すか、SDXL の模型に替えてください")
+        if f.edit and (base is not None or reference is not None):
+            # 絵を頼みと一緒に渡す世代（FLUX.2 klein）。ラフは「この下描きを清書する」、参考画像は「この絵の絵柄で描く」と文で伝える
+            w, h = size
+            total = steps
+            pics = [p.convert("RGB").resize((w, h)) for p in (base, reference) if p is not None]
+            lead = []
+            if base is not None:
+                lead.append("Turn the first image, a rough sketch, into a finished illustration that keeps its pose and composition")
+            if reference is not None:
+                lead.append("Use the art style and colors of the " + ("second" if base is not None else "given") + " image")
+            args["prompt"] = ". ".join(lead + [args.get("prompt", prompt)])
+            out = pipe(image=pics if len(pics) > 1 else pics[0], width=w, height=h, **args).images[0]
+            if self.stop:
+                raise Stopped("止めました")
+            return out
         if base is not None:
             if self._sketch is None:
                 from diffusers import StableDiffusionAdapterPipeline, StableDiffusionXLAdapterPipeline, T2IAdapter
@@ -642,6 +663,11 @@ class Studio:
         if two is not None:
             return self._draw_two(text, seed, two, style, size, say, meta)
         say("頼みを描く言葉に直しています")
+        from chatdraw.jaterms import leftover
+        lost = leftover(text) if has_japanese(text) and not self.words.ready() else []
+        if lost:   # 模型に伝わらない言葉を隠さない（伝わらないまま描くと、頼みと違う絵になる）
+            say("模型に伝わらない言葉があります: " + "、".join(lost) + "（英語で書くか、言葉の模型を入れると伝わります）")
+        self.last_lost = lost
         prompt = self.words.to_prompt(text, tags=fam(image_model(getattr(self.painter, "model", "")).family).tags)
         if style:   # AI の欄で選んだ作風。頼みの言葉の後ろに足す（頼みの方を先に効かせる）
             prompt = f"{prompt}, {style}"
@@ -652,7 +678,11 @@ class Studio:
         # 描けるまで描き直す。手を直しても検品を通らなければ、種を変えて描き直す（REDRAW_TRIES 回まで）。
         # 通らなかったときは、崩れの一番少ない絵を渡す（どの回の崩れも .json の redraws に残す）
         best, redraws = None, []
+        # 頼んでいない物が描かれたら、次の回はそれを描かない物に足す（描き終えたら元に戻す）
+        avoid0, unasked = getattr(self.painter, "avoid", ""), []
         for k in range(self.REDRAW_TRIES):
+            if unasked:
+                self.painter.avoid = ", ".join([a for a in [avoid0] + unasked if a])
             s_k = seed + 1000 * k
             if k:
                 say(f"検品を通らなかったので、種を変えて描き直しています（{k + 1}/{self.REDRAW_TRIES} 回目）")
@@ -665,14 +695,24 @@ class Studio:
             if asked["readable"]:
                 say(requestcheck.summary(asked))
                 left += [f"描かれていない: {m}" for m in asked["missing"]]
+                left += [f"頼んでいない: {e}" for e in asked.get("extra", [])]
+                unasked += [e for e in asked.get("extra", []) if e not in unasked]
             redraws.append({"seed": s_k, "bad": left})
             if best is None or len(left) < len(best[1]):
                 best = (image, left, s_k)
             if not left or getattr(self.painter, "stop", False) or (not self.hand_rounds and not asked["readable"]):
                 break
-        image, _left, seed = best
+        if hasattr(self.painter, "avoid"):
+            self.painter.avoid = avoid0
+        image, left, seed = best
+        # 検品できなかった絵（部品が無い、止めてある）は、崩れが無いのではなく見ていないだけなので、通ったことにしない
+        checked = bool(self.hand_rounds) and asked["readable"]
+        if left:   # 通らなかった絵を、出来た絵として渡さない。残った崩れを先に見せる
+            say(f"検品を通る絵が {len(redraws)} 回描いても出ませんでした（途中）。残った崩れ: " + "、".join(left[:5]))
+        elif not checked:
+            say("検品できなかったので、通ったかは分かりません（途中）")
         path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model,
-                                            hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws))
+                                            hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws, passed=checked and not left))
         self._inspect(path, say)
         return prompt, path
 
@@ -725,11 +765,13 @@ class Studio:
         return tags, saved
 
     last_check: dict | None = None
-    FIX_ROUNDS = 3     # 描いたあと、崩れた手を直して検品し直す回数の上限
-    REDRAW_TRIES = 3   # 直しても検品を通らないとき、種を変えて描き直す回数の上限
+    # 質が先で、速さは後。時間がかかっても、崩れが消えるまで直して描き直す（3 回ずつでは崩れの残った絵を渡していた）。
+    # 上限は、検品が読み違え続けたときに止まらなくなるのを避けるためだけに置く
+    FIX_ROUNDS = 6     # 描いたあと、崩れた所を直して検品し直す回数の上限
+    REDRAW_TRIES = 12  # 直しても検品を通らないとき、種を変えて描き直す回数の上限
 
     def _fix_hands(self, image, prompt: str, seed: int, say):
-        """1 回描いて終わりにしない。描いた絵の手を検品し、崩れた手の所だけを直して、もう一度検品する。
+        """1 回描いて終わりにしない。描いた絵の手・足・顔を検品し、崩れた所だけを直して、もう一度検品する。
         崩れが消えるか FIX_ROUNDS 回で止める。直すのは手の枠の中だけで、枠の外は元の絵のまま（Painter.redraw）"""
         import os
         from chatdraw.models import family as fam, image_model
@@ -740,19 +782,41 @@ class Studio:
         from chatdraw import handcheck
         for r in range(self.FIX_ROUNDS + 1):
             say(f"検品しています（手と指・{r + 1} 回目）")
-            res = handcheck.check(image)
+            res = handcheck.check(image, asked=prompt)
             self.hand_rounds.append({"round": r, "bad": res["bad"]})
-            boxes = [h["box"] for h in res["hands"] if h["seen"] and h["bad"]]
-            if not boxes or r == self.FIX_ROUNDS or self.painter.stop:
+            regions = handcheck.bad_regions(res)   # 手・足・顔のうち、崩れの見つかった所
+            if not regions and not getattr(self, "_detail_done", False) and not getattr(self.painter, "stop", False):
+                # 検品を通っても終わりにしない。人は細部を必ず見るので、手・足・顔の枠の中だけをもう一度丁寧に描かせ、
+                # 検品し直して崩れが増えなければ使う（検品は、くっついた指や薄く出た指をまだ見逃す）
+                self._detail_done = True
+                detail = handcheck.detail_regions(res)
+                if detail:
+                    say(f"細部を描き直しています（手・足・顔 {len(detail)} か所）")
+                    mask = Image.new("L", image.size, 0)
+                    d = ImageDraw.Draw(mask)
+                    for (x0, y0, x1, y1), _kind in detail:
+                        cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, y1 - y0) * 0.6
+                        d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
+                    words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in detail))
+                    tried = self.painter.redraw(f"{prompt}, {words}, detailed", seed + 991, image, mask, strength=0.4)
+                    again = handcheck.check(tried, asked=prompt)
+                    self.hand_rounds.append({"round": r, "detail": True, "bad": again["bad"]})
+                    if not again["bad"]:
+                        image = tried
+                    else:
+                        say("細部の描き直しで崩れが出たので、前の絵を使います: " + "、".join(again["bad"][:3]))
+            if not regions or r == self.FIX_ROUNDS or getattr(self.painter, "stop", False):
+                self._detail_done = False
                 return image
-            say(f"崩れた手を直しています（{len(boxes)} か所・{r + 1} 回目）: " + "、".join(res["bad"][:3]))
+            say(f"崩れた所を直しています（{len(regions)} か所・{r + 1} 回目）: " + "、".join(res["bad"][:3]))
             mask = Image.new("L", image.size, 0)
             d = ImageDraw.Draw(mask)
-            for x0, y0, x1, y1 in boxes:
-                cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, (x1 - x0) * 0.6
+            for (x0, y0, x1, y1), _kind in regions:
+                cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, y1 - y0) * 0.6
                 d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
-            image = self.painter.redraw(f"{prompt}, detailed hand, five fingers, correct hand anatomy", seed + 77 * (r + 1),
-                                        image, mask, strength=0.6)
+            words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in regions))
+            # 回を重ねるほど強く描き直す（弱いままだと崩れた指の形をなぞり、何回直しても同じ崩れが残った）
+            image = self.painter.redraw(f"{prompt}, {words}", seed + 77 * (r + 1), image, mask, strength=(0.55, 0.65, 0.75, 0.85, 0.9, 0.95)[min(r, 5)])
         return image
 
     def _inspect(self, path: Path, say):

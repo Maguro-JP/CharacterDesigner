@@ -35,7 +35,7 @@ def _tagger(fetch: bool):
 def check(image, tags: str, fetch: bool = False) -> dict:
     """image（道か PIL）から読めなかった頼みのタグ（missing）。模型か部品が無ければ readable を False にして理由を返す"""
     if os.environ.get("CD_CHECK") == "off":
-        return {"readable": False, "missing": [], "reason": "検品を止めています（CD_CHECK=off）"}
+        return {"readable": False, "missing": [], "extra": [], "reason": "検品を止めています（CD_CHECK=off）"}
     try:
         import onnxruntime  # noqa: F401
         tg = _tagger(fetch)
@@ -45,14 +45,19 @@ def check(image, tags: str, fetch: bool = False) -> dict:
             image.save(tmp)
             image = tmp
         got = tg.read(str(image))
-        return {"readable": True, "missing": tg.missing(tags, got), "read": got}
+        return {"readable": True, "missing": tg.missing(tags, got), "extra": tg.extras(tags, got), "read": got}
     except Exception as e:   # 部品か模型が無い。描いた絵は止めず、検品が無いことを返す
-        return {"readable": False, "missing": [], "reason": f"頼んだ物の検品の部品がありません（{e}）"}
+        return {"readable": False, "missing": [], "extra": [], "reason": f"頼んだ物の検品の部品がありません（{e}）"}
 
 
 def summary(res: dict) -> str:
     if not res["readable"]:
         return f"検品: {res.get('reason', '頼んだ物を読めませんでした')}"
+    parts = []
     if res["missing"]:
-        return "検品: 頼んだのに描かれていない物 " + str(len(res["missing"])) + " 件（" + "、".join(res["missing"]) + "）"
+        parts.append("頼んだのに描かれていない物 " + str(len(res["missing"])) + " 件（" + "、".join(res["missing"]) + "）")
+    if res.get("extra"):
+        parts.append("頼んでいない物 " + str(len(res["extra"])) + " 件（" + "、".join(res["extra"]) + "）")
+    if parts:
+        return "検品: " + "、".join(parts)
     return "検品: 頼んだ物はすべて描かれていました"

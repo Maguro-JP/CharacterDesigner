@@ -238,8 +238,8 @@ def contact_shadow(char_layer, ambient):
     a = np.asarray(char_layer.getchannel("A")) > 128
     ys, xs = np.nonzero(a)
     foot_y = ys.max()
-    feet = xs[ys > foot_y - (ys.max() - ys.min()) * 0.06]
-    cx, rw = (feet.min() + feet.max()) / 2, (feet.max() - feet.min()) * 0.9 + 30
+    foot_xs = xs[ys > foot_y - (ys.max() - ys.min()) * 0.06]
+    cx, rw = (foot_xs.min() + foot_xs.max()) / 2, (foot_xs.max() - foot_xs.min()) * 0.9 + 30
     m = Image.new("L", SIZE, 0)
     from PIL import ImageDraw
     ImageDraw.Draw(m).ellipse((cx - rw, foot_y - 14, cx + rw, foot_y + 18), fill=150)
@@ -453,9 +453,9 @@ def local_blend(flat, char_layer, effects, prompt, strength, seed, band=29, keep
     for e in effects:
         m = ImageChops.lighter(m, e.getchannel("A").point(lambda v: 255 if v > 10 else 0).filter(ImageFilter.MaxFilter(15)))
     ys = np.nonzero(np.asarray(a).max(axis=1))[0]
-    feet = Image.new("L", SIZE, 0)
-    feet.paste(255, (0, int(ys.max() - (ys.max() - ys.min()) * 0.08), SIZE[0], min(SIZE[1], int(ys.max() + 40))))
-    m = ImageChops.lighter(m, ImageChops.multiply(feet, a.filter(ImageFilter.MaxFilter(61))))
+    foot_band = Image.new("L", SIZE, 0)
+    foot_band.paste(255, (0, int(ys.max() - (ys.max() - ys.min()) * 0.08), SIZE[0], min(SIZE[1], int(ys.max() + 40))))
+    m = ImageChops.lighter(m, ImageChops.multiply(foot_band, a.filter(ImageFilter.MaxFilter(61))))
     m = m.filter(ImageFilter.GaussianBlur(8))
     if keep is not None:
         # 前景（人物より手前の物）は描き直さない。描き直すと、葉の後ろに隠した足が葉の上に描き戻された
@@ -576,8 +576,8 @@ def inspect_composite(final, bg, char_layer, reflect=None, hz=None, ground=None)
     if ground == "plants":
         top, bottom, x0, x1 = feet_region(char_layer, below=0)
         shown = float(np.mean(np.abs(f[top:bottom, max(0, x0):x1] - g[top:bottom, max(0, x0):x1]).sum(axis=2) > 40)) if bottom > top else 0
-        feet = am[top:bottom, max(0, x0):x1]
-        vis = float((np.abs(f - g).sum(axis=2) > 40)[top:bottom, max(0, x0):x1][feet].mean()) if feet.any() else 0.0
+        foot_mask = am[top:bottom, max(0, x0):x1]
+        vis = float((np.abs(f - g).sum(axis=2) > 40)[top:bottom, max(0, x0):x1][foot_mask].mean()) if foot_mask.any() else 0.0
         out["feet_visible_on_plants"] = round(vis, 4)
         if vis > 0.5:
             reasons.append(f"花や草の上に立っている（足の {vis:.0%} が手前の物に隠れていない）")
@@ -837,8 +837,8 @@ def build(design_png, outdir, scene, light_side="front", seed=7, height=None, x=
             c2, h2 = place_at(float(f))
             fg2, _ = foreground(bg, c2)
             top, bottom, x0, x1 = feet_region(c2, below=0)
-            feet = np.asarray(c2.getchannel("A"))[top:bottom, max(0, x0):x1] > 128
-            hidden = float((np.asarray(fg2.getchannel("A"))[top:bottom, max(0, x0):x1] > 128)[feet].mean()) if feet.any() else 0
+            foot_mask = np.asarray(c2.getchannel("A"))[top:bottom, max(0, x0):x1] > 128
+            hidden = float((np.asarray(fg2.getchannel("A"))[top:bottom, max(0, x0):x1] > 128)[foot_mask].mean()) if foot_mask.any() else 0
             if hidden >= 0.6:
                 char, h_used, foot = c2, h2, float(f)
                 break

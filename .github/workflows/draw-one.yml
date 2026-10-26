@@ -26,7 +26,8 @@ permissions:
   contents: write   # 描いた絵を draw-results ブランチに置くため（作業の機械は artifact の置き場に届かない）
   actions: write    # bf16 の遅い機械に当たったとき、この頼みを出し直すため（.github/scripts/cpu-reroll.sh）
 concurrency:
-  group: draw-one-${{ github.ref }}
+  # 種ごとに別の組にする。同じ組だと 1 本ずつしか回らず、種を変えた描き直しを同時に回せなかった
+  group: draw-one-${{ github.ref }}-${{ inputs.seed || 'default' }}-${{ inputs.tries || '0' }}-${{ inputs.attempt || '1' }}
   cancel-in-progress: false   # 出し直した実行が、出し直した元を止めないように
 jobs:
   compose:

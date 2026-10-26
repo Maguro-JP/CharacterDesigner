@@ -22,7 +22,9 @@ def main():
         import os
         from chatdraw.twostage import draw
         stage = os.environ.get("DRAW_STAGE", "all")
-        comp = os.environ.get("DRAW_COMPOSITION") or None
+        # 頼みの composition に、立体の人形（関節の可動域を検査した姿勢）を撮った絵を書けば、構図の模型をとばして
+        # その骨格で縛って仕上げる。言葉だけの構図は、手の置き場所と腕の数を守らなかった（docs/knowledge/learning/illustration-composition.md）
+        comp = os.environ.get("DRAW_COMPOSITION") or req.get("composition") or None
         t = time.time()
         seed = int(os.environ.get("DRAW_SEED") or req.get("seed", 7))   # 検品を通るまで、種を変えて描き直す（draw-one.yml）
         draw(req["prompt"], req["tags"], seed, req["compose"], req["render"], size=tuple(req.get("size", (832, 1216))),

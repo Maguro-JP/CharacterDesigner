@@ -39,13 +39,16 @@ class Family:
     sketch: bool = False      # ラフから描ける（T2I-Adapter がある）
     inpaint: bool = False     # 範囲の直しができる
     reference: bool = False   # 参考画像（IP-Adapter）が使える
+    edit: bool = False        # 絵を頼みと一緒に渡せる（FLUX.2 klein の image）。ラフも参考画像もこの入口で渡す
     extra: dict = field(default_factory=dict)
 
 
 FAMILIES = {
     "sdxl": Family("SDXL", "StableDiffusionXLPipeline", (832, 1216), 64, sketch=True, inpaint=True, reference=True),
     "sd15": Family("SD1.5", "StableDiffusionPipeline", (512, 768), 64, sketch=True, inpaint=True, reference=True),
-    "flux2": Family("FLUX.2", "Flux2KleinPipeline", (1024, 1024), 16, tags=False, negative=False),
+    # FLUX.2 klein は絵を頼みと一緒に受け取って描き直せる（公式の札の「image editing」）。ラフと参考画像はこの入口で渡す
+    "flux2": Family("FLUX.2", "Flux2KleinPipeline", (1024, 1024), 16, tags=False, negative=False, sketch=True, reference=True,
+                    edit=True),
     "flux1": Family("FLUX.1", "FluxPipeline", (1024, 1024), 16, tags=False, negative=False, extra={"max_sequence_length": 256}),
     "chroma": Family("Chroma", "ChromaPipeline", (1024, 1024), 16, tags=False),
     "zimage": Family("Z-Image", "ZImagePipeline", (1024, 1024), 16, tags=False, negative=False),
