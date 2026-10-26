@@ -322,3 +322,24 @@ class LegsAndFeetEdgeTest(unittest.TestCase):
         after = measure.leg_color(np.asarray(out, np.float32) / 255, seg)
         self.assertGreater(before, 8)
         self.assertLess(after, 4)
+
+
+class FloorAndBlobTest(unittest.TestCase):
+    def test_round11_fails_floor_step_and_blob(self):
+        import measure
+        # 11 周目の最後の絵（run 40277881690）: 床の途中に横の段、腰の横に浮いた髪の先
+        bad = {"floor_step": 0.0184, "dark_blob_px": 894}
+        self.assertEqual({f["path"] for f in measure.judge_shadow(bad)}, set(bad))
+
+    def test_floor_step_sees_band(self):
+        import measure
+        H, W = 600, 400
+        seg = np.zeros((H, W), np.uint8)
+        seg[100:500, 250:300] = 12                    # 人物は右寄り、光は左から（左の床を測る）
+        seg[100:500, 250:270] = 13
+        L = np.tile(np.linspace(0.5, 0.6, H)[:, None], (1, W))
+        smooth = np.repeat(L[..., None], 3, 2).astype(np.float32)
+        band = smooth.copy()
+        band[400:, :] += 5 / 255                      # 12 行かけずに 5 階調上がる段
+        self.assertLess(measure.floor_step(smooth, seg, 135), 0.008)
+        self.assertGreater(measure.floor_step(band, seg, 135), 0.008)

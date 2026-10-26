@@ -123,3 +123,4 @@ OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じ
 | Depth Anything V2 Small | huggingface.co/depth-anything/Depth-Anything-V2-Small-hf | Apache-2.0 | 奥行きと面の向き |
 | CLIP ViT-B/32 | huggingface.co/openai/clip-vit-base-patch32 | MIT | 顔の似ている度合い |
 | 実写の手本 14 枚 | Wikimedia Commons（題名・URL は `tests/fixtures/photoreal_refs.json`） | CC0 | 影の基準を決める。写真は置かず数字だけ |
+| IP-Adapter（SD1.5 plus-face） | huggingface.co/h94/IP-Adapter（models/ip-adapter-plus-face_sd15.safetensors 98MB、models/image_encoder 2.5GB） | Apache-2.0 | 元のアニメの顔を渡して、写実の模型で顔を描かせる |

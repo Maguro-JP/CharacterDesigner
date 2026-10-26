@@ -530,6 +530,37 @@ def leg_color(rgb, seg):
     return round(float(np.linalg.norm(lab_[lm].mean(0) - lab_[rm].mean(0))), 2)
 
 
+def floor_step(rgb, seg, light_deg=None):
+    """床の行ごとの明るさの段（0〜1）。人物の左と右の外側の背景で、行ごとの中央値を取り、12 行離れた行どうしの差から
+    なだらかな傾き（σ40 行でならしたもの）の分を引いた値の、下 55% の行での最大。測るのは光の側（落ち影の無い側）。
+    元の影を消して床を当てはめた範囲の上の端で、床の途中に横の段（12 行で 5 階調）が出たのを測る。
+    隣の行どうしの差では 1 行 0.4 階調に薄まり、人物の左右をまとめると影の縁が混ざって測れなかった"""
+    from scipy import ndimage
+    L = rgb[..., :3].mean(-1)
+    body = seg > 0
+    H, W = L.shape
+    xs = np.nonzero(body)[1]
+    if not len(xs):
+        return 0.0
+    g = int(20 * W / 768)
+    best = 0.0
+    xx = np.arange(W)[None, :]
+    if light_deg is None:
+        light_deg = body_light_deg(rgb, seg)[0] or 135.0
+    sides = [xx < xs.min() - g] if np.cos(np.radians(light_deg)) < 0 else [xx > xs.max() + g]   # 影の縁を段に数えない
+    for side in sides:
+        side = np.broadcast_to(side, L.shape)
+        if side[0].sum() < 20:
+            continue
+        m = np.array([np.median(L[y][side[y]]) for y in range(H)])
+        sm = ndimage.gaussian_filter1d(m, 2)
+        tr = ndimage.gaussian_filter1d(m, 40)
+        k = 6
+        d = np.abs((sm[2 * k:] - sm[:-2 * k]) - (tr[2 * k:] - tr[:-2 * k]))
+        best = max(best, float(d[int(0.45 * H):].max()))
+    return round(best, 4)
+
+
 def cast_check(rgb, seg, light_deg=None):
     """床の落ち影の検品。体の陰から読んだ光の向き（light_deg、0° が右、90° が上）で人物の形を床に写したものと比べる。
     6 周目の絵は、影が脚の形をしない左右の塊で、足の裏から離れ、体の陰と逆の向きに伸びていたのに、
@@ -553,7 +584,8 @@ def cast_check(rgb, seg, light_deg=None):
     shade = bg & (L < 0.9 * ref) & (np.arange(H)[:, None] > foot - 0.35 * H)
     shade = ndimage.binary_opening(shade, iterations=2)
     exp = project_shadow(body, light_deg, seg=seg) & ~body
-    out = {"cast_iou": round(float((shade & exp).sum() / max((shade | exp).sum(), 1)), 3),
+    out = {"floor_step": floor_step(rgb, seg, light_deg),
+           "cast_iou": round(float((shade & exp).sum() / max((shade | exp).sum(), 1)), 3),
            "light_deg": light_deg, "light_lr_diff": diff}
     # 接地: 左右の足ごとに、足の裏の真下 1% の帯が、写した形と重なる（IoU 0.5 以上の）影のひと続きの塊に入る割合。
     # 低い方を contact にする（8 周目の絵は片足にだけ影が付き、もう片足は浮いていた）

@@ -352,6 +352,7 @@ def check(src, out_img, src_parts, log, tag, ref=None, light_deg=135.0):
     r = ref or src
     rs = np.asarray(src_parts) if ref is None else np.asarray(_parts_of(ref))
     km["leg_de"] = measure.leg_color(rgb, seg)
+    km["dark_blob_px"] = int(find_blobs(rgb * 255).sum())   # 体から離れて浮いた暗い塊
     km.update(measure.color_keep(np.asarray(r).astype(np.float32) / 255, rgb, rs, seg, edit.LABELS))
     try:
         km["face_sim"] = face_sim(src, out_img, src_parts)   # 元のアニメの顔と比べる（別人になっていないか）
@@ -872,16 +873,18 @@ def clear_floor(img, parts):
     H, W = body.shape
     bg = ~ndimage.binary_dilation(body, iterations=max(2, round(2 * f)))
     foot, _ = measure.feet_line(body)
-    lower = np.arange(H)[:, None] > foot - 0.3 * H
+    lower = np.arange(H)[:, None] > foot - 0.45 * H
     L = a.mean(2)
-    plane0 = floor_fit(L, bg, lower)
+    every = np.ones_like(bg)
+    plane0 = floor_fit(L, bg, every)                            # 絵の全体の背景の傾きで当てはめる
     dark = bg & lower & (np.abs(L - plane0) > 4)              # 当てはめた床から 4 階調以上ずれた所（影と、その縁の明るい筋）
     dark = ndimage.binary_opening(dark, iterations=2)
     dark = ndimage.binary_dilation(dark, iterations=max(4, round(14 * f))) & ~body
-    fit = floor_fit(a, bg & ~dark, lower)
+    fit = floor_fit(a, bg & ~dark, every)
     noise = a - ndimage.gaussian_filter(a, (2, 2, 0))          # 床の細かい粒は元のまま
     fill = fit + noise * 0.5
-    w = ndimage.gaussian_filter(dark.astype(np.float32), 3 * f)[..., None] * (~body)[..., None]
+    # 埋める範囲の境目は大きくぼかす。範囲の上の端で床の途中に横の段が出た（範囲を足元から 30% の高さで切っていた）
+    w = ndimage.gaussian_filter(dark.astype(np.float32), 15 * f)[..., None] * (~body)[..., None]
     o = a * (1 - w) + fill * w
     return Image.fromarray(np.clip(o, 0, 255).astype(np.uint8))
 
@@ -898,6 +901,84 @@ def composite_person(scene, person, parts, feather=1.5):
     al = np.clip((ndimage.gaussian_filter(body, feather * scene.width / 768) - 0.5) * 2, 0, 1)[..., None]
     o = np.asarray(person).astype(np.float32) * al + np.asarray(scene).astype(np.float32) * (1 - al)
     return Image.fromarray(np.clip(o, 0, 255).astype(np.uint8))
+
+
+IPADAPTER = ("h94/IP-Adapter", "models", "ip-adapter-plus-face_sd15.safetensors")   # Apache-2.0、98MB（画像の読み手 2.5GB）
+
+
+def face_ipadapter(pipe, nets, img, anime, a, log, tries=3):
+    """顔を、元のアニメの顔を IP-Adapter（SD1.5 plus-face）に渡して、写実の模型で顔の部位だけ新しく描く。
+    前髪の線を消して描き直すやり方は、6〜11 周目まで同じ崩れ（前髪が目を横切る、目が読めない）で落ち続けたので替えた。
+    線画は渡さず（アニメの目の大きさに引っぱられる）、tile を弱く（0.35）掛けて顔の向きと位置だけを保つ。
+    描いたあと、元の髪の部位を上から重ね、目の上だけは髪を薄く（4 割）する"""
+    import numpy as np
+    import torch
+    from diffusers import StableDiffusionControlNetInpaintPipeline
+    from PIL import Image, ImageFilter
+    from scipy import ndimage
+    import closeup
+    t = time.time()
+    seg = np.asarray(_parts_of(img))
+    b = closeup._bbox(seg == 11)
+    if b is None:
+        return img
+    box = closeup.square(b, img.width, img.height, margin=0.3)
+    side = box[2] - box[0]
+    px = a.face_px // 8 * 8
+    crop = img.crop(box).resize((px, px), Image.LANCZOS)
+    ref = anime.resize(img.size, Image.LANCZOS).crop(box).resize((224, 224), Image.LANCZOS)
+    cs = np.asarray(Image.fromarray(seg).crop(box).resize((px, px), Image.NEAREST))
+    m = ndimage.binary_dilation(cs == 11, iterations=8) | ndimage.binary_dilation((cs == 2) & ndimage.binary_dilation(cs == 11, iterations=20), iterations=2)
+    mask = Image.fromarray((m * 255).astype(np.uint8)).filter(ImageFilter.GaussianBlur(6))
+    inp = StableDiffusionControlNetInpaintPipeline(**{k: v for k, v in pipe.components.items() if k != "controlnet"}, controlnet=nets[0])
+    t1 = time.time()
+    inp.load_ip_adapter(IPADAPTER[0], subfolder=IPADAPTER[1], weight_name=IPADAPTER[2])
+    inp.set_ip_adapter_scale(a.ip_scale)
+    inp.set_progress_bar_config(disable=True)
+    log("ipadapter_load_s", round(time.time() - t1, 1))
+    eyes = None
+    try:
+        eyes = eye_points(img)
+    except Exception as e:
+        log("face_eyes_error", f"{type(e).__name__}: {e}")
+    best = None
+    for k in range(tries):
+        t2 = time.time()
+        r = inp(a.prompt + ", detailed natural face, realistic eye size, natural lips, both eyes visible",
+                negative_prompt=a.negative + ", anime eyes, big eyes, large eyes, hair over eyes, deformed face, asymmetric eyes",
+                image=crop, mask_image=mask, control_image=crop, ip_adapter_image=ref, strength=a.face,
+                controlnet_conditioning_scale=0.35, num_inference_steps=a.steps, guidance_scale=a.guidance,
+                generator=torch.Generator().manual_seed(a.seed + 200 + k), width=px, height=px).images[0]
+        draw_s = round(time.time() - t2, 1)
+        if k == 0:
+            r.save(a.out / "face-ip-try0-raw.png")
+        # 元の髪を上から重ねる。目の上だけ髪を薄くする
+        oc = np.asarray(img.crop(box).resize((px, px), Image.LANCZOS)).astype(np.float32)
+        rr = np.asarray(r).astype(np.float32)
+        hair = ndimage.gaussian_filter((cs == 2).astype(np.float32), 1.5)
+        if eyes is not None:
+            sc = px / side
+            yy, xx = np.mgrid[:px, :px]
+            (lx, ly), (rx, ry) = eyes
+            dist = float(np.hypot(rx - lx, ry - ly)) * sc
+            for ex, ey in ((lx, ly), (rx, ry)):
+                d2 = (xx - (ex - box[0]) * sc) ** 2 + ((yy - (ey - box[1]) * sc) * 1.6) ** 2
+                hair = np.where(d2 <= (dist * 0.45) ** 2, hair * 0.4, hair)
+        rr = rr * (1 - hair[..., None]) + oc * hair[..., None]
+        r = Image.fromarray(np.clip(rr, 0, 255).astype(np.uint8))
+        out = img.copy()
+        out.paste(r.resize((side, side), Image.LANCZOS), box[:2], mask.resize((side, side), Image.LANCZOS))
+        ok, q = face_qc(out)
+        log(f"face_try{k}", {"ok": ok, **q, "draw_s": draw_s})
+        score = q["eyes"].get("area_ratio", 99) if q["eyes"].get("readable") else 99
+        if best is None or ok or score < best[0]:
+            best = (-1 if ok else score, out)
+        if ok:
+            break
+    inp.unload_ip_adapter()
+    log("face_box", {"box": list(box), "scale": round(px / side, 2)})
+    log("face_s", round(time.time() - t, 1))
+    return best[1]
 
 
 def cast_shadow(img, parts, depth=None, deg=135.0, opacity=0.45):
@@ -947,14 +1028,15 @@ def cast_shadow(img, parts, depth=None, deg=135.0, opacity=0.45):
     # 接地の影は足の裏の下にだけ置く（足の周りに遮られた暗さを回すと、輪郭に沿った暗い帯になった）
     dark = np.maximum(opacity * s, 0.5 * np.clip(contact * 1.3, 0, 1))
     scene = Image.fromarray(np.clip(floor * (1 - dark[..., None]), 0, 255).astype(np.uint8))
-    # 足の縁の内側 3 画素の灰色の画素（部位分けが足に含めた床の縁）を、内側の肌の色で塗り直す。そのまま重ねると、
-    # 暗い接地の影と肌の間に明るい灰色の縁が光った
-    low = np.arange(H)[:, None] >= foot - 0.08 * H
+    # 体の全体の輪郭の内側 3 画素の灰色・白の画素（部位分けが人物に含めた背景の縁）を、内側の色で塗り直す。肌の部位だけ
+    # （白い水着や黒い髪の縁は塗り直さない）。そのままだと影と肌の間、肩と腕の外に明るい灰色や白の縁が光った
+    skin = np.isin(seg, SKIN)
     inner = ndimage.binary_erosion(body, iterations=max(3, round(3 * f)) + 1)
     mx, mn = a.max(2), a.min(2)
-    rim = body & ~inner & low & ((mx - mn) / np.maximum(mx, 1) < 0.15)
-    if rim.any() and (inner & low).any():
-        idx = ndimage.distance_transform_edt(~(inner & low), return_distances=False, return_indices=True)
+    rim = skin & ~inner & ((mx - mn) / np.maximum(mx, 1) < 0.15)
+    src_in = inner & skin
+    if rim.any() and src_in.any():
+        idx = ndimage.distance_transform_edt(~src_in, return_distances=False, return_indices=True)
         a2 = a.copy()
         a2[rim] = a[idx[0], idx[1]][rim]
         img = Image.fromarray(np.clip(a2, 0, 255).astype(np.uint8))
@@ -1097,14 +1179,17 @@ def resume(a, im, parts, log, stem, t):
         deg = seen if seen is not None else a.light_deg      # 影は体の陰から読んだ光の逆へ
         log("cast_light", {"deg": deg, "lr_diff": diff})
         r2 = cast_shadow(clear_floor(r2, p2), p2, d2, deg, a.cast)
+    # 床を埋めたあとに、浮いた暗い塊（腰の横の髪の先）を消す。床を埋める前は周りが暗く、塊として読めなかった
+    r2, bpx2 = fill_blobs(r2)
+    log("post_blob_px", bpx2)
     r2.save(a.out / f"{stem}-4-light-r{a.post_relight}-c{a.cast}-s{a.seed}.png")
     log("post_light_s", round(time.time() - t1, 1))
     if a.check:
         check(im, r2, parts, log, "light", ref=r1_color)
     textured = r2
     if a.face > 0:
-        r2 = face_inpaint(pipe, nets, r2, a, log)
-        r2.save(a.out / f"{stem}-5-face-f{a.face}-px{a.face_px}-s{a.seed}.png")
+        r2 = face_ipadapter(pipe, nets, r2, im, a, log) if a.face_mode == "ipadapter" else face_inpaint(pipe, nets, r2, a, log)
+        r2.save(a.out / f"{stem}-5-face-{a.face_mode}-f{a.face}-s{a.seed}.png")
     if a.final_hf > 0:
         keep = np.asarray(_parts_of(r2)) == 11
         mm = np.asarray(hfmix(textured, r2, a.final_hf, 1.0)).copy()
@@ -1150,6 +1235,8 @@ def parse(argv):
     ap.add_argument("--model", choices=sorted(CHECKPOINTS), default="rv", help="写実の模型")
     ap.add_argument("--asian", action="store_true", help="東アジアの顔に寄せる言葉を足す（顔の描き直しにも同じ言葉を使う）")
     ap.add_argument("--face-px", type=int, default=768, help="顔を描く大きさ")
+    ap.add_argument("--face-mode", choices=("ipadapter", "uncover"), default="ipadapter", help="顔の描き直し方")
+    ap.add_argument("--ip-scale", type=float, default=0.6, help="IP-Adapter に渡す元の顔の強さ")
     ap.add_argument("--no-bangs", dest="bangs", action="store_false", help="描いた顔に前髪の毛筋を重ね戻さない（切り分け用）")
     ap.add_argument("--resume", default="", help="この絵（2 段目と高い周波数の戻しの後、-3-hf）から光と影と顔だけを掛け直す。draw-results:<path> も受ける")
     ap.add_argument("--final-hf", type=float, default=0, help="工程の最後に高い周波数を戻す幅（0 ならしない）")
@@ -1247,6 +1334,8 @@ def main(argv=None) -> int:
             seen, diff = measure.body_light_deg(np.asarray(r2, np.float32) / 255, np.asarray(p2))
             log("cast_light", {"deg": seen if seen is not None else a.light_deg, "lr_diff": diff})
             r2 = cast_shadow(clear_floor(r2, p2), p2, d2, seen if seen is not None else a.light_deg, a.cast)
+        r2, bpx2 = fill_blobs(r2)
+        log("post_blob_px", bpx2)
         r2.save(a.out / f"{stem}-4-light-r{a.post_relight}-c{a.cast}-s{a.seed}.png")
         log("post_light_s", round(time.time() - t1, 1))
         if a.check:
