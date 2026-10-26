@@ -57,14 +57,20 @@ BINS = 16
 PATCH = 48
 
 
-def skin_spectrum(im, seg):
+def skin_spectrum(im, seg, labels=(12, 13, 14, 15)):
     """肌の高い周波数の成分の、周波数ごとの強さ（48 画素の切り抜きの、明るさの 2 次元のパワーの、半径ごとの平均）と標準偏差。
     肌の部位の中に収まる切り抜きだけを使う。写真は置かず、この数字だけを残して、写真級の絵の肌に重ねる粒を作る"""
     import numpy as np
     from scipy import ndimage
     L = np.asarray(im.convert("L")).astype(np.float32) / 255
     hp = L - ndimage.gaussian_filter(L, 3)
-    skin = ndimage.binary_erosion(np.isin(seg, (11, 12, 13, 14, 15)), iterations=3)
+    skin = ndimage.binary_erosion(np.isin(seg, labels), iterations=3)
+    if labels == (11,):   # 顔は目・眉・唇を除く（暗い所と赤い所）
+        a = np.asarray(im).astype(np.float32)
+        Lf = a.mean(2)
+        red = a[..., 0] - a[..., 1]
+        if skin.any():
+            skin &= (Lf > np.median(Lf[skin]) * 0.8) & (red < np.median(red[skin]) + 15)
     yy, xx = np.mgrid[:PATCH, :PATCH] - PATCH // 2
     rad = np.hypot(yy, xx) / (PATCH / 2)
     pows, stds = [], []
@@ -119,9 +125,10 @@ def main(argv=None) -> int:
             sh["normal_corr"], sh["normal_light_deg"] = photoreal.normal_corr(im, photoreal.depth_map(im), seg)
             import qc
             mo = qc.mouth_check(np.asarray(im), seg)
-            tex = skin_spectrum(im, seg)          # 口の面積の比の基準を実写から決めるため
+            tex = skin_spectrum(im, seg)
+            ftex = skin_spectrum(im, seg, (11,))          # 口の面積の比の基準を実写から決めるため
             fails = [f["path"] for f in measure.judge_shadow(sh)]
-            rows.append({**c, "size": im.size, "shadow": sh, "mouth": mo, "skin_tex": tex, "fails": fails, "s": round(time.time() - t, 1)})
+            rows.append({**c, "size": im.size, "shadow": sh, "mouth": mo, "skin_tex": tex, "face_tex": ftex, "fails": fails, "s": round(time.time() - t, 1)})
             print(json.dumps(rows[-1], ensure_ascii=False), flush=True)
     (a.out / "refs.json").write_text(json.dumps(rows, indent=1, ensure_ascii=False))
     dist = {}
@@ -133,10 +140,14 @@ def main(argv=None) -> int:
     if mv:
         dist["mouth_area"] = {q: round(float(np.percentile(mv, q)), 4) for q in (0, 10, 50, 90, 100)}
         dist["mouth_sym"] = {q: round(float(np.percentile([r["mouth"]["sym"] for r in rows if r["mouth"].get("found")], q)), 3) for q in (0, 10, 50, 90, 100)}
-    tx = [r["skin_tex"] for r in rows if r.get("skin_tex")]
-    if tx:
-        dist["skin_tex"] = {"power": [round(float(v), 6) for v in np.median([t["power"] for t in tx], 0)],
-                            "std": round(float(np.median([t["std"] for t in tx])), 5), "refs": len(tx), "patch": PATCH, "bins": BINS}
+    for key in ("skin_tex", "face_tex"):
+        tx = [r[key] for r in rows if r.get(key)]
+        if not tx:
+            continue
+        dist[key] = {"power": [round(float(v), 6) for v in np.median([t["power"] for t in tx], 0)],
+                     "std": round(float(np.median([t["std"] for t in tx])), 5), "refs": len(tx), "patch": PATCH, "bins": BINS,
+                     "power_p10": [round(float(v), 6) for v in np.percentile([t["power"] for t in tx], 10, 0)],
+                     "power_p90": [round(float(v), 6) for v in np.percentile([t["power"] for t in tx], 90, 0)]}
     (a.out / "dist.json").write_text(json.dumps(dist, indent=1))
     print("dist", json.dumps(dist))
     print("measured", len(rows), "passed", sum(not r["fails"] for r in rows))
