@@ -47,6 +47,7 @@ Call `guide` first; it returns the workflow and every tool's arguments.
 
 - Python 3.10+, Node.js 20.19+, curl
 - About 9 GB of disk (image model ~7 GB, language model ~1.1 GB, packages ~1 GB). Uses an NVIDIA or Apple GPU automatically when present; runs on CPU otherwise (about 5 minutes per image)
+- The models the app can run (image models and language models) with size, strengths and commercial-use terms are listed in [docs/models.md](docs/models.md)
 
 ## Setup
 

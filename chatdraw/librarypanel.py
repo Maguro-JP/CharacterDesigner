@@ -151,8 +151,20 @@ class LibraryPanel(QWidget):
             if not ok:
                 return
         words = [t for t in text.replace("、", ",").split(",")]
-        self.w.library.set_tags(item_id, [self.w.studio.words.to_prompt(t) if _has_ja(t) else t for t in words])
-        self.refresh()
+        tr = self.w.studio.words
+
+        def work():
+            return [tr.to_prompt(t) if _has_ja(t) else t for t in words]
+
+        def done(tags):
+            if isinstance(tags, BaseException):
+                tags = words   # 訳せなければ書いた言葉のまま残す
+            self.w.library.set_tags(item_id, tags)
+            self.refresh()
+        if any(_has_ja(t) for t in words) and hasattr(tr, "ask") and hasattr(self.w, "in_background"):
+            self.w.in_background(work, done)   # 言葉の模型で訳すのは裏で（画面の糸で訳すと数秒固まる）
+        else:
+            done(work())
 
     def add_doc(self, path: str | None = None, note: str | None = None):
         if path is None:

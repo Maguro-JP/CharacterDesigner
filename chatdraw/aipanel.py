@@ -27,7 +27,10 @@ STYLE_TAGS = {name: tags for name, tags, _ in STYLES}
 SIZES = {"縦": (832, 1216), "横": (1216, 832), "正方形": (1024, 1024)}
 
 # AI プリセット: (名前, ひとこと, 描き方 0=新規 1=ラフから, 大きさ, 画風, ラフに沿う強さ%)
+# 先頭の「標準」は最初の状態。どのプリセットを選んだあとでも、押せば元に戻せる
+DEFAULT_PRESET = "標準"
 PRESETS: list[tuple[str, str, int, str, str, int]] = [
+    (DEFAULT_PRESET, "最初の設定に戻す", 0, "縦", "おまかせ", 100),
     ("キャラデザ", "全身の立ち絵を縦長で", 0, "縦", "アニメ", 100),
     ("ラフを清書", "キャンバスの線を清書", 1, "縦", "アニメ", 100),
     ("ラフから自由に", "ラフを元に AI が整える", 1, "縦", "厚塗り", 60),
@@ -44,7 +47,7 @@ class AiPanel(QWidget):
     def __init__(self, w):
         super().__init__()
         self.w = w
-        self.preset = ""
+        self.preset = DEFAULT_PRESET
         self.style = "おまかせ"
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 6, 8, 8)
@@ -267,6 +270,11 @@ class AiPanel(QWidget):
         self.w.size_pick.setCurrentIndex(list(SIZES).index(data.get("size", "縦")))
         self.w.strength.setValue(int(data.get("strength", 100)))
         self.set_style(data.get("style", "おまかせ"))
+        if name == DEFAULT_PRESET:   # 標準に戻すときは、枚数・種・参考画像も最初の状態にする
+            self.count_buttons[1][0].setChecked(True)
+            self.seed_lock.setChecked(False)
+            self.use_ref.setChecked(False)
+            self.ref_scale.setValue(60)
         for b in self.preset_group.buttons():
             b.setChecked(b.text() == name)
         self.w.entry.setFocus()

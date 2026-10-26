@@ -125,3 +125,12 @@ OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じ
 | 実写の手本 14 枚 | Wikimedia Commons（題名・URL は `tests/fixtures/photoreal_refs.json`） | CC0 | 影の基準を決める。写真は置かず数字だけ |
 | IP-Adapter（SD1.5 plus-face） | huggingface.co/h94/IP-Adapter（models/ip-adapter-plus-face_sd15.safetensors 98MB、models/image_encoder 2.5GB） | Apache-2.0 | 元のアニメの顔を渡して、写実の模型で顔を描かせる |
 | RealVisXL V5.0 | huggingface.co/SG161222/RealVisXL_V5.0（fp16 の分け置き、約 6.9GB） | openrail++（使い方の制限あり、絵の商用利用は可） | 肌だけを弱く描き直す比べ |
+
+## 絵の模型の選び直し（2026-10-26）
+
+- NoobAI XL V-Pred 1.0 の札（設定、v-prediction の読み方、ライセンスの追加条項）: https://huggingface.co/Laxhar/noobai-XL-Vpred-1.0
+- NoobAI XL 1.1（epsilon 版）: https://huggingface.co/Laxhar/noobai-XL-1.1
+- fair-ai-public-license-1.0-sd: https://freedevproject.org/faipl-1.0-sd/
+- Illustrious XL 2.0: https://huggingface.co/OnomaAIResearch/Illustrious-XL-v2.0
+- WAI Illustrious（diffusers の形の写し）: https://huggingface.co/Ine007/waiIllustriousSDXL_v160
+- Animagine XL 4.0: https://huggingface.co/cagliostrolab/animagine-xl-4.0
