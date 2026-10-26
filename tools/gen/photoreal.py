@@ -1124,13 +1124,12 @@ SKIN_TEX = Path(__file__).resolve().parents[2] / "styles" / "skin-texture.json"
 SDXL_SKIN = "SG161222/RealVisXL_V5.0"   # openrail++（使い方の制限あり、絵の商用利用は可）
 
 
-def _grain_noise(H, W, part_tex, seed, sc=1.0):
-    """手本の周波数ごとの強さに合わせた雑音（標準偏差 1）。手本の強さは顔の幅を measure.FACE_W にそろえた大きさで測ってあるので、
-    絵の周波数を同じ大きさに直して（sc はその倍率）読む"""
+def _grain_noise(H, W, part_tex, seed):
+    """手本の周波数ごとの強さに合わせた雑音（標準偏差 1）"""
     import numpy as np
     fy = np.fft.fftfreq(H)[:, None]
     fx = np.fft.fftfreq(W)[None, :]
-    r = np.hypot(fy, fx) * 2 / sc
+    r = np.hypot(fy, fx) * 2     # 周波数は手本の画素のまま（絵の幅で伸ばすと粒が大きな斑になった）
     pw = np.array(part_tex["power"])
     centers = (np.arange(len(pw)) + 0.5) / len(pw)
     amp = np.sqrt(np.interp(r, centers, pw, left=pw[0], right=0))
@@ -1158,13 +1157,11 @@ def skin_grain(img, parts, amount=1.0, seed=0, face_amount=0.5):
         red = a[..., 0] - a[..., 1]
         feat = (L < np.median(L[face]) * 0.8) | (red > np.median(red[face]) + 15 / 255)
         face = face & ~ndimage.binary_dilation(feat & face, iterations=max(2, round(3 * W / 768)))
-    import measure
-    sc = measure.skin_scale(seg) or 1.0
     add = np.zeros((H, W), np.float32)
     for mask, key, k in ((body, "body", amount), (face, "face", amount * face_amount)):
         if not mask.any() or key not in tex:
             continue
-        n = _grain_noise(H, W, tex[key], seed + (7 if key == "face" else 0), sc) * tex[key]["std"] * k
+        n = _grain_noise(H, W, tex[key], seed + (7 if key == "face" else 0)) * tex[key]["std"] * k
         lit = np.clip(L / max(float(np.median(L[mask])), 1e-3), 0.3, 1.3)   # 明るい所ほど強く
         w = ndimage.gaussian_filter(mask.astype(np.float32), 2) * lit * mask  # 部位の外（背景）には掛けない
         add += n * w
