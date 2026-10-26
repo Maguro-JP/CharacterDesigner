@@ -1,0 +1,268 @@
+{
+ "readable": true,
+ "bad": [],
+ "hands": [
+  {
+   "box": [
+    486,
+    -24,
+    629,
+    118
+   ],
+   "angle": 23.0,
+   "measure": {
+    "presence": 0.99,
+    "palm": 0.86,
+    "thumb": 0.89,
+    "index": 0.8,
+    "ring": 0.89,
+    "pinky": 0.72,
+    "cover": {
+     "thumb": 1.0,
+     "index": 1.0,
+     "middle": 1.0,
+     "ring": 1.0,
+     "pinky": 1.0
+    },
+    "fingers": {
+     "count": null,
+     "rows": [
+      5,
+      4,
+      3,
+      5,
+      3
+     ],
+     "reason": "切った線ごとに数が揺れる（3 本と同じ線が 2 本）"
+    }
+   },
+   "bad": [],
+   "seen": true
+  },
+  {
+   "box": [
+    389,
+    894,
+    552,
+    1058
+   ],
+   "angle": 164.0,
+   "measure": {
+    "presence": 0.05,
+    "palm": 1.21,
+    "thumb": 1.07,
+    "index": 0.91,
+    "ring": 0.93,
+    "pinky": 0.68,
+    "cover": {
+     "thumb": 0.38,
+     "index": 0.96,
+     "middle": 0.96,
+     "ring": 1.0,
+     "pinky": 0.96
+    },
+    "fingers": {
+     "count": null,
+     "rows": [
+      1,
+      2,
+      2,
+      2,
+      2
+     ],
+     "reason": "指が 2 本にしか見えない（重なって隠れている）"
+    }
+   },
+   "bad": [
+    "読めない: 手らしさ 0.05"
+   ],
+   "seen": false
+  },
+  {
+   "box": [
+    356,
+    274,
+    470,
+    388
+   ],
+   "angle": 17.0,
+   "measure": {
+    "presence": 0.04,
+    "palm": 0.5,
+    "thumb": 1.62,
+    "index": 1.61,
+    "ring": 0.97,
+    "pinky": 0.93,
+    "cover": {
+     "thumb": 1.0,
+     "index": 1.0,
+     "middle": 1.0,
+     "ring": 1.0,
+     "pinky": 1.0
+    },
+    "fingers": {
+     "count": null,
+     "rows": [],
+     "reason": "指先が付け根より上に無い"
+    }
+   },
+   "bad": [
+    "読めない: 手らしさ 0.04"
+   ],
+   "seen": false
+  },
+  {
+   "box": [
+    440,
+    258,
+    531,
+    348
+   ],
+   "angle": 12.0,
+   "measure": {
+    "presence": 0.09,
+    "palm": 1.96,
+    "thumb": 1.74,
+    "index": 0.93,
+    "ring": 0.98,
+    "pinky": 0.84,
+    "cover": {
+     "thumb": 0.96,
+     "index": 1.0,
+     "middle": 1.0,
+     "ring": 0.96,
+     "pinky": 1.0
+    },
+    "fingers": {
+     "count": null,
+     "rows": [],
+     "reason": "指先が付け根より上に無い"
+    }
+   },
+   "bad": [
+    "読めない: 手らしさ 0.09"
+   ],
+   "seen": false
+  },
+  {
+   "box": [
+    -138,
+    101,
+    163,
+    403
+   ],
+   "angle": -76.0,
+   "measure": {
+    "presence": 0.03,
+    "palm": 1.03,
+    "thumb": 1.08,
+    "index": 1.01,
+    "ring": 0.97,
+    "pinky": 0.77,
+    "cover": {
+     "thumb": 1.0,
+     "index": 1.0,
+     "middle": 1.0,
+     "ring": 1.0,
+     "pinky": 1.0
+    },
+    "fingers": {
+     "count": null,
+     "rows": [
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "reason": "指が 0 本にしか見えない（重なって隠れている）"
+    }
+   },
+   "bad": [
+    "読めない: 手らしさ 0.03"
+   ],
+   "seen": false
+  },
+  {
+   "box": [
+    329,
+    195,
+    485,
+    351
+   ],
+   "angle": -114.0,
+   "measure": {
+    "presence": 0.44,
+    "palm": 1.05,
+    "thumb": 1.28,
+    "index": 1.3,
+    "ring": 0.76,
+    "pinky": 0.53,
+    "cover": {
+     "thumb": 1.0,
+     "index": 0.92,
+     "middle": 0.92,
+     "ring": 1.0,
+     "pinky": 1.0
+    },
+    "fingers": {
+     "count": null,
+     "rows": [
+      0,
+      0,
+      0,
+      1,
+      2
+     ],
+     "reason": "指が 0 本にしか見えない（重なって隠れている）"
+    }
+   },
+   "bad": [
+    "読めない: 手らしさ 0.44"
+   ],
+   "seen": false
+  },
+  {
+   "box": [
+    409,
+    820,
+    534,
+    945
+   ],
+   "angle": 142.0,
+   "measure": {
+    "presence": 0.09,
+    "palm": 1.68,
+    "thumb": 1.2,
+    "index": 1.02,
+    "ring": 0.98,
+    "pinky": 0.9,
+    "cover": {
+     "thumb": 1.0,
+     "index": 1.0,
+     "middle": 1.0,
+     "ring": 1.0,
+     "pinky": 1.0
+    },
+    "fingers": {
+     "count": null,
+     "rows": [],
+     "reason": "指先が付け根より上に無い"
+    }
+   },
+   "bad": [
+    "読めない: 手らしさ 0.09"
+   ],
+   "seen": false
+  }
+ ],
+ "feet": [],
+ "feet_reason": "足の検品の部品がありません（No module named 'feet'）",
+ "faces": [],
+ "face": {
+  "box": null,
+  "readable": false,
+  "bad": [],
+  "reason": "顔の検品の部品がありません（No module named 'facecheck'）"
+ }
+}

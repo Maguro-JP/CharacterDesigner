@@ -1,0 +1,58 @@
+{
+ "text": "白いビキニの女性が海で手を振っている 全身",
+ "prompt": "white bikini, 1girl, solo, adult woman, mature female, beach, ocean, waving, full body",
+ "seed": 100007,
+ "style": "",
+ "model": "cagliostrolab/animagine-xl-4.0",
+ "hand_rounds": [
+  {
+   "round": 0,
+   "bad": [
+    "手 1: thumb 1.15（0.8〜1.12）",
+    "手 1: ringの手の色 0.75（0.85〜1.01）",
+    "手 3: middleの手の色 0.83（0.85〜1.01）",
+    "手 3: ringの手の色 0.83（0.85〜1.01）",
+    "手 3: pinkyの手の色 0.83（0.85〜1.01）",
+    "手 4: thumb 1.26（0.8〜1.12）",
+    "手 4: index 0.7（0.8〜1.0）",
+    "手 4: pinky 1.2（0.55〜0.85）",
+    "手 4: palm 1.67（0.85〜1.35）",
+    "手 4: indexの手の色 0.46（0.85〜1.01）"
+   ]
+  },
+  {
+   "round": 1,
+   "bad": [
+    "手 1: index 0.77（0.8〜1.0）",
+    "手 1: ring 1.05（0.85〜1.02）",
+    "手 1: ringの手の色 0.75（0.85〜1.01）",
+    "手 6: index 1.02（0.8〜1.0）",
+    "手 6: indexの手の色 0.21（0.85〜1.01）",
+    "手 6: ringの手の色 0.75（0.85〜1.01）",
+    "手 6: pinkyの手の色 0.79（0.85〜1.01）"
+   ]
+  },
+  {
+   "round": 2,
+   "bad": [
+    "手 5: pinkyの手の色 0.46（0.85〜1.01）"
+   ]
+  },
+  {
+   "round": 3,
+   "bad": []
+  },
+  {
+   "round": 3,
+   "detail": true,
+   "bad": []
+  }
+ ],
+ "redraws": [
+  {
+   "seed": 100007,
+   "bad": []
+  }
+ ],
+ "passed": true
+}

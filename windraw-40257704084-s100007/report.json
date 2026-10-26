@@ -1,0 +1,63 @@
+{
+ "request": "白いビキニの女性が海で手を振っている 全身",
+ "steps": [
+  {
+   "name": "描く部品と模型を取る",
+   "ok": true,
+   "seconds": 181.1,
+   "detail": {
+    "messages": [
+     "絵を描く部品を入れています（数分かかります）",
+     "絵を描く部品の続きを入れています（数分かかります）",
+     "絵を描く部品を入れています"
+    ]
+   }
+  },
+  {
+   "name": "検品の模型を取る",
+   "ok": true,
+   "seconds": 9.0,
+   "detail": {
+    "bf16_fast": true,
+    "ram_gb": 17
+   }
+  },
+  {
+   "name": "頼みを描く言葉に直す（模型に何が渡るか）",
+   "ok": true,
+   "seconds": 0.1,
+   "detail": {
+    "tags": "white bikini, 1girl, solo, adult woman, mature female, beach, ocean, waving, full body"
+   }
+  },
+  {
+   "name": "描く（検品と直しと描き直しを含む）",
+   "ok": true,
+   "seconds": 3295.1,
+   "detail": {
+    "file": "D:\\a\\_temp\\windraw\\20261026-031214-100007.png",
+    "prompt": "white bikini, 1girl, solo, adult woman, mature female, beach, ocean, waving, full body",
+    "redraws": [
+     {
+      "seed": 100007,
+      "bad": []
+     }
+    ]
+   }
+  },
+  {
+   "name": "出来を確かめる",
+   "ok": true,
+   "seconds": 2.2,
+   "detail": {
+    "hands": "検品: 手 1 つで、指の数と形に崩れは見つかりませんでした",
+    "asked": "検品: 頼んだ物はすべて描かれていました",
+    "missing": [],
+    "extra": [],
+    "bad": [],
+    "passed": true
+   }
+  }
+ ],
+ "ok": true
+}
