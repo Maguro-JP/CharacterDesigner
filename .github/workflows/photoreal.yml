@@ -35,7 +35,7 @@ jobs:
           # 2 段目 0.15 の絵（run 40248087657）から、光・床の影・縁・顔だけを掛け直す。顔は 7 周目の作り方で、前髪の毛筋を戻すか比べる
           # 肌の質感は実写の肌の粒を重ねる（17 周目の比べで SDXL の描き直しより良かった）
           - variant: skin-grain
-            extra: "--model rv --asian --strength2 0.15 --post-relight 0.6 --cast 0.45 --face 0.75 --face-mode ipadapter --ip-scale 0.5 --final-hf 0 --leg-soften 6 --grain 0.3 --resume draw-results:40248087657/rv-asian-s2-015/stage1-bikini-white-stand-s12-3-hf-g2.5-s12.png"
+            extra: "--model rv --asian --strength2 0.15 --post-relight 0.6 --cast 0.45 --face 0.75 --face-mode ipadapter --ip-scale 0.5 --final-hf 0 --leg-soften 4 --shoulder --feet 0.35 --grain 0.3 --resume draw-results:40248087657/rv-asian-s2-015/stage1-bikini-white-stand-s12-3-hf-g2.5-s12.png"
     steps:
       - uses: actions/checkout@v4
       - name: 置き場を空ける
