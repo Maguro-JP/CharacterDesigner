@@ -585,6 +585,17 @@ def skin_vstep(rgb, seg):
     return round(best, 2)
 
 
+def contour_dev(src_seg, seg):
+    """描いた後の体の輪郭が、元の絵の体の輪郭からどれだけ欠けたか（元の体の中で、描いた後に体でなくなった所の、
+    描いた体からの距離の最大、画素）。左の肩の輪郭が欠けて膨らみと切れ込みになったのを測る"""
+    from scipy import ndimage
+    A, B = src_seg > 0, seg > 0
+    miss = A & ~B
+    if not miss.any():
+        return 0.0
+    return round(float(ndimage.distance_transform_edt(~B)[miss].max()), 1)
+
+
 def cast_check(rgb, seg, light_deg=None):
     """床の落ち影の検品。体の陰から読んだ光の向き（light_deg、0° が右、90° が上）で人物の形を床に写したものと比べる。
     6 周目の絵は、影が脚の形をしない左右の塊で、足の裏から離れ、体の陰と逆の向きに伸びていたのに、

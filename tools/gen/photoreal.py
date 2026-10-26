@@ -340,6 +340,7 @@ def check(src, out_img, src_parts, log, tag, ref=None, light_deg=135.0):
     """影の検品（measure.shadow と styles/photoreal-norms.json）と、肌・髪・線・色の保ち方を並べて記録する。
     色は ref（1 段目の絵。無ければ元の絵）と比べる"""
     import numpy as np
+    from PIL import Image
     import edit
     import measure
     t = time.time()
@@ -352,6 +353,7 @@ def check(src, out_img, src_parts, log, tag, ref=None, light_deg=135.0):
     r = ref or src
     rs = np.asarray(src_parts) if ref is None else np.asarray(_parts_of(ref))
     km["leg_de"] = measure.leg_color(rgb, seg)
+    km["contour_dev"] = measure.contour_dev(np.asarray(Image.fromarray(np.asarray(src_parts)).resize(out_img.size, Image.NEAREST)), seg)
     km["skin_vstep"] = measure.skin_vstep(rgb, seg)
     mx_, mn_ = rgb.max(-1), rgb.min(-1)
     km["blown_skin"] = round(float(((mn_ > 225 / 255) & ((mx_ - mn_) / np.maximum(mx_, 1e-3) < 0.08))[np.isin(seg, SKIN) & (seg != 11)].mean()), 4)
@@ -1039,7 +1041,7 @@ def cast_shadow(img, parts, depth=None, deg=135.0, opacity=0.45):
     skin = np.isin(seg, SKIN)
     inner = ndimage.binary_erosion(body, iterations=max(3, round(3 * f)) + 1)
     mx, mn = a.max(2), a.min(2)
-    rim = skin & ~inner & ((mx - mn) / np.maximum(mx, 1) < 0.15)
+    rim = skin & ~inner & ((mx - mn) / np.maximum(mx, 1) < 0.2)
     src_in = inner & skin
     if rim.any() and src_in.any():
         idx = ndimage.distance_transform_edt(~src_in, return_distances=False, return_indices=True)
@@ -1083,6 +1085,76 @@ def match_legs(img, parts, strength=1.0):
         w = (ndimage.gaussian_filter(m.astype(np.float32), 4 * f) * vr)[..., None] * legs[..., None]
         out += w * d
     return Image.fromarray((lab2rgb(out) * 255).clip(0, 255).astype(np.uint8))
+
+
+def restore_contour(img, parts, src_parts, least=12):
+    """元の絵の体の輪郭から大きく欠けた所（描いた体から least 画素より離れる欠け）だけを、近くの描いた体の色で埋めて
+    元の輪郭に戻す。左の肩が欠けて、膨らみと切れ込みになった"""
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+    seg = np.asarray(parts)
+    src = np.asarray(src_parts.resize(img.size, Image.NEAREST)) if src_parts.size != img.size else np.asarray(src_parts)
+    A, B = src > 0, seg > 0
+    d = ndimage.distance_transform_edt(~B)
+    miss = A & ~B
+    lab, n = ndimage.label(miss)
+    dent = np.zeros_like(miss)
+    for i in range(1, n + 1):
+        comp = lab == i
+        if d[comp].max() > least * img.width / 768:
+            dent |= comp
+    if not dent.any():
+        return img, 0
+    skin = np.isin(seg, SKIN) & (seg != 11)
+    srcpx = skin if skin.any() else B
+    idx = ndimage.distance_transform_edt(~srcpx, return_distances=False, return_indices=True)
+    a = np.asarray(img).astype(np.float32)
+    near = a[idx[0], idx[1]]
+    near = np.stack([ndimage.gaussian_filter(near[..., c], 3) for c in range(3)], -1)
+    w = ndimage.gaussian_filter(dent.astype(np.float32), 1.5)[..., None]
+    return Image.fromarray(np.clip(a * (1 - w) + near * w, 0, 255).astype(np.uint8)), int(dent.sum())
+
+
+def skin_redraw(pipe, img, parts, a, log):
+    """肌の部位だけを、768 のタイルに切って tile の ControlNet で描き直し（strength a.skin）、肌の部位の中だけ大きくぼかして戻す。
+    高い周波数を戻すやり方では、肌の平らな面が 10 周以上 0.06 前後から動かなかった"""
+    import numpy as np
+    import torch
+    from PIL import Image
+    from scipy import ndimage
+    t = time.time()
+    seg = np.asarray(parts)
+    skin = np.isin(seg, SKIN) & (seg != 11)                  # 顔は IP-Adapter で描いたまま
+    W, H = img.size
+    T, ov = 768, 128
+    acc = np.asarray(img).astype(np.float32).copy()
+    wsum = np.zeros((H, W, 1), np.float32)
+    out = np.zeros_like(acc)
+    ramp = np.minimum(np.minimum(np.arange(T), np.arange(T)[::-1]) / ov, 1) + 1e-3
+    wt = (ramp[None, :] * ramp[:, None])[..., None]
+    n = 0
+    prompt = a.prompt + ", skin pores, natural skin texture, subsurface scattering, fine skin detail"
+    for y in tiles(H, T, ov):
+        for x in tiles(W, T, ov):
+            if skin[y:y + T, x:x + T].mean() < 0.03:
+                continue
+            c = img.crop((x, y, x + T, y + T))
+            r = pipe(prompt, negative_prompt=a.negative + ", smooth skin, airbrushed, plastic skin", image=c, control_image=c,
+                     strength=a.skin, controlnet_conditioning_scale=0.8, num_inference_steps=a.steps, guidance_scale=a.guidance,
+                     generator=torch.Generator().manual_seed(a.seed + 300 + n), width=T, height=T).images[0]
+            out[y:y + T, x:x + T] += np.asarray(r).astype(np.float32) * wt
+            wsum[y:y + T, x:x + T] += wt
+            n += 1
+            print("skin tile", n, round(time.time() - t), flush=True)
+    done = wsum[..., 0] > 0
+    drawn = np.where(done[..., None], out / np.maximum(wsum, 1e-6), acc)
+    f = W / 768
+    w = ndimage.gaussian_filter((ndimage.binary_erosion(skin, iterations=max(2, round(4 * f))) & done).astype(np.float32), 6 * f)[..., None]
+    res = drawn * w + acc * (1 - w)
+    log("skin_tiles", n)
+    log("skin_s", round(time.time() - t, 1))
+    return Image.fromarray(np.clip(res, 0, 255).astype(np.uint8))
 
 
 def deblow(img, parts):
@@ -1229,6 +1301,15 @@ def resume(a, im, parts, log, stem, t):
     if a.face > 0:
         r2 = face_ipadapter(pipe, nets, r2, im, a, log) if a.face_mode == "ipadapter" else face_inpaint(pipe, nets, r2, a, log)
         r2.save(a.out / f"{stem}-5-face-{a.face_mode}-f{a.face}-s{a.seed}.png")
+    if a.skin > 0:
+        r2 = skin_redraw(pipe, r2, _parts_of(r2), a, log)
+        r2.save(a.out / f"{stem}-5b-skin-{a.skin}-s{a.seed}.png")
+        if a.check:
+            check(im, r2, parts, log, "skin", ref=r1_color)
+        textured = r2                                     # 最後の高い周波数の戻しは、描き直した肌から取る
+    r2, cpx = restore_contour(r2, _parts_of(r2), parts)
+    log("contour_fix_px", cpx)
+    r2.save(a.out / f"{stem}-8-final-s{a.seed}.png")
     if a.final_hf > 0:
         keep = np.asarray(_parts_of(r2)) == 11
         mm = np.asarray(hfmix(textured, r2, a.final_hf, 1.0)).copy()
@@ -1284,6 +1365,7 @@ def parse(argv):
     ap.add_argument("--model", choices=sorted(CHECKPOINTS), default="rv", help="写実の模型")
     ap.add_argument("--asian", action="store_true", help="東アジアの顔に寄せる言葉を足す（顔の描き直しにも同じ言葉を使う）")
     ap.add_argument("--face-px", type=int, default=768, help="顔を描く大きさ")
+    ap.add_argument("--skin", type=float, default=0, help="肌の部位だけを tile で描き直す強さ（0 ならしない）")
     ap.add_argument("--s1-hf", type=float, default=0, help="最後に 1 段目の高い周波数を体に戻す幅（0 ならしない）")
     ap.add_argument("--face-mode", choices=("ipadapter", "uncover"), default="ipadapter", help="顔の描き直し方")
     ap.add_argument("--ip-scale", type=float, default=0.6, help="IP-Adapter に渡す元の顔の強さ")

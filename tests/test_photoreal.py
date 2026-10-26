@@ -353,3 +353,35 @@ class MouthRefsTest(unittest.TestCase):
         ok = [m for m in found if qc.MOUTH_AREA[0] <= m["area"] <= qc.MOUTH_AREA[1] and m["sym"] >= qc.MOUTH_SYM]
         self.assertGreaterEqual(len(ok), len(found) * 0.7)
         self.assertTrue(qc.MOUTH_AREA[0] <= 0.0017 <= qc.MOUTH_AREA[1])   # 13 周目の閉じた口は通る
+
+
+class LipsAndContourTest(unittest.TestCase):
+    def test_bleeding_lips_fail_closed_mouth_passes(self):
+        import qc
+        # にじんだ唇（run 40221392503 の iclight-face の顔）と、15 周目の閉じた口を測った数字
+        self.assertGreater(0.39, qc.MOUTH_BLEED)
+        self.assertLess(0.038, qc.MOUTH_BLEED)
+        rgb = np.full((200, 200, 3), (225, 185, 165), np.uint8)
+        seg = np.zeros((200, 200), np.uint8)
+        yy, xx = np.mgrid[:200, :200]
+        seg[(xx - 100) ** 2 / 70 ** 2 + (yy - 100) ** 2 / 90 ** 2 <= 1] = 11
+        lips = (np.abs(xx - 100) <= 14) & (np.abs(yy - 160) <= 4)
+        rgb[lips] = (170, 60, 70)
+        self.assertFalse(qc.mouth_check(rgb, seg)["bad"])
+        rgb2 = rgb.copy()
+        halo = ((xx - 100) ** 2 / 26 ** 2 + (yy - 160) ** 2 / 12 ** 2 <= 1) & ~lips
+        rgb2[halo] = (215, 160, 150)                  # 唇の赤が頬へにじむ
+        self.assertTrue(qc.mouth_check(rgb2, seg)["bad"])
+
+    def test_contour_dent_measured_and_restored(self):
+        import measure
+        src = np.zeros((300, 200), np.uint8)
+        src[50:280, 50:150] = 14
+        now = src.copy()
+        now[60:100, 50:80] = 0                          # 肩が欠けた
+        img = np.full((300, 200, 3), 120, np.uint8)
+        img[now > 0] = (220, 180, 160)
+        self.assertGreater(measure.contour_dev(src, now), 12)
+        out, px = photoreal.restore_contour(Image.fromarray(img), Image.fromarray(now), Image.fromarray(src))
+        self.assertGreater(px, 0)
+        self.assertGreater(np.asarray(out)[80, 60].mean(), 170)

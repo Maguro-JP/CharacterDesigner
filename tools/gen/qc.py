@@ -1278,6 +1278,7 @@ if __name__ == "__main__":
 
 
 MOUTH_AREA = (0.0001, 0.0178)   # 顔の部位に対する口の面積の比。実写の手本 14 枚（CC0、tests/fixtures/photoreal_refs.json）の 10〜90 パーセンタイル。閉じた口は 0.0016 前後
+MOUTH_BLEED = 0.2             # 唇の外へのにじみの上限（にじんだ唇 0.39、15 周目の閉じた口 0.038）
 MOUTH_SYM = 0.229             # 口を左右に折り返したときの重なり（IoU）の下限。実写の手本の 10 パーセンタイル
 
 
@@ -1313,5 +1314,9 @@ def mouth_check(rgb, seg, face_label: int = 11) -> dict:
     mir = np.zeros_like(m)
     mir[my[ok], fx[ok]] = True
     sym = float((m & mir).sum() / max((m | mir).sum(), 1))
-    bad = not (MOUTH_AREA[0] <= area <= MOUTH_AREA[1]) or sym < MOUTH_SYM
-    return {"readable": True, "found": True, "area": round(area, 4), "sym": round(sym, 3), "bad": bad}
+    # 口の外へのにじみ: 唇の外 3〜10 画素の顔の画素のうち、赤み（a）が顔の中央値より 5 以上強い割合。
+    # 面積と対称だけでは、頬へにじんだ唇（6 周目）を通した
+    ring = ndimage.binary_dilation(m, iterations=10) & ~ndimage.binary_dilation(m, iterations=3) & face
+    bleed = float((a[ring] > np.median(a[face]) + 5).mean()) if ring.any() else 0.0
+    bad = not (MOUTH_AREA[0] <= area <= MOUTH_AREA[1]) or sym < MOUTH_SYM or bleed > MOUTH_BLEED
+    return {"readable": True, "found": True, "area": round(area, 4), "sym": round(sym, 3), "bleed": round(bleed, 3), "bad": bad}
