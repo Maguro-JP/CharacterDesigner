@@ -1,0 +1,339 @@
+[
+ {
+  "title": "File:Woman-sherbrooke (Unsplash).jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Woman-sherbrooke_(Unsplash).jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/78/Woman-sherbrooke_%28Unsplash%29.jpg/960px-Woman-sherbrooke_%28Unsplash%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1352
+  ],
+  "shadow": {
+   "soft": 0.359,
+   "step_frac": 0.757,
+   "steps": 2,
+   "bimodal": 0.176,
+   "ratio": 0.221,
+   "spread": 2.7,
+   "cast": 0.674,
+   "cast_gap": 0.001,
+   "normal_corr": -0.059,
+   "normal_light_deg": 150
+  },
+  "fails": [],
+  "s": 9.9
+ },
+ {
+  "title": "File:Woman in swimsuit posing (Unsplash).jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Woman_in_swimsuit_posing_(Unsplash).jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e1/Woman_in_swimsuit_posing_%28Unsplash%29.jpg/960px-Woman_in_swimsuit_posing_%28Unsplash%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   960
+  ],
+  "shadow": {
+   "soft": 0.392,
+   "step_frac": 0.738,
+   "steps": 1,
+   "bimodal": 0.123,
+   "ratio": 0.67,
+   "spread": 113.7,
+   "cast": 0.069,
+   "cast_gap": 0.173,
+   "normal_corr": 0.325,
+   "normal_light_deg": 270
+  },
+  "fails": [],
+  "s": 6.1
+ },
+ {
+  "title": "File:Pexels-andrea-piacquadio-774909.jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Pexels-andrea-piacquadio-774909.jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/2/2f/Pexels-andrea-piacquadio-774909.jpg/960px-Pexels-andrea-piacquadio-774909.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1440
+  ],
+  "shadow": {
+   "soft": 0.51,
+   "step_frac": 0.356,
+   "steps": 3,
+   "bimodal": 0.026,
+   "ratio": 0.33,
+   "spread": 0.0,
+   "cast": 0.17,
+   "cast_gap": 0.001,
+   "normal_corr": 0.397,
+   "normal_light_deg": 180
+  },
+  "fails": [],
+  "s": 7.2
+ },
+ {
+  "title": "File:Pexels-christina-morillo-1181498.jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Pexels-christina-morillo-1181498.jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/1/1e/Pexels-christina-morillo-1181498.jpg/960px-Pexels-christina-morillo-1181498.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1438
+  ],
+  "shadow": {
+   "soft": 0.379,
+   "step_frac": 0.647,
+   "steps": 2,
+   "bimodal": 0.011,
+   "ratio": 0.257,
+   "spread": 132.4,
+   "cast": 0.729,
+   "cast_gap": 0.001,
+   "normal_corr": 0.258,
+   "normal_light_deg": 210
+  },
+  "fails": [],
+  "s": 6.9
+ },
+ {
+  "title": "File:Woman Wearing Bikini on Seashore.jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Woman_Wearing_Bikini_on_Seashore.jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/4/43/Woman_Wearing_Bikini_on_Seashore.jpg/960px-Woman_Wearing_Bikini_on_Seashore.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1397
+  ],
+  "shadow": {
+   "soft": 0.537,
+   "step_frac": 0.137,
+   "steps": 4,
+   "bimodal": 0.624,
+   "ratio": 0.223,
+   "spread": 174.2,
+   "cast": -0.01,
+   "cast_gap": 0.26,
+   "normal_corr": 0.391,
+   "normal_light_deg": 0
+  },
+  "fails": [
+   "bimodal"
+  ],
+  "s": 6.8
+ },
+ {
+  "title": "File:Woman afro glasses blue top.jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Woman_afro_glasses_blue_top.jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/b/b8/Woman_afro_glasses_blue_top.jpg/960px-Woman_afro_glasses_blue_top.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1440
+  ],
+  "shadow": {
+   "soft": 0.452,
+   "step_frac": 0.496,
+   "steps": 1,
+   "bimodal": 0.011,
+   "ratio": 0.438,
+   "spread": 151.8,
+   "cast": 0.54,
+   "cast_gap": 0.001,
+   "normal_corr": 0.058,
+   "normal_light_deg": 120
+  },
+  "fails": [],
+  "s": 7.1
+ },
+ {
+  "title": "File:Woman in cardigan.jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Woman_in_cardigan.jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/71/Woman_in_cardigan.jpg/960px-Woman_in_cardigan.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1440
+  ],
+  "shadow": {
+   "soft": 0.478,
+   "step_frac": 0.431,
+   "steps": 1,
+   "bimodal": 0.0,
+   "ratio": 0.615,
+   "spread": 163.5,
+   "cast": 0.748,
+   "cast_gap": 0.001,
+   "normal_corr": 0.236,
+   "normal_light_deg": 300
+  },
+  "fails": [],
+  "s": 7.0
+ },
+ {
+  "title": "File:Woman in red t-shirt smiling and looking down.jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Woman_in_red_t-shirt_smiling_and_looking_down.jpg",
+  "thumb": "https://upload.wikimedia.org/wikipedia/commons/f/fa/Woman_in_red_t-shirt_smiling_and_looking_down.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail_unscaled",
+  "size": [
+   867,
+   1300
+  ],
+  "shadow": {
+   "soft": 0.408,
+   "step_frac": 0.598,
+   "steps": 2,
+   "bimodal": 0.066,
+   "ratio": 0.676,
+   "spread": 121.2,
+   "cast": 0.189,
+   "cast_gap": 0.001,
+   "normal_corr": 0.419,
+   "normal_light_deg": 30
+  },
+  "fails": [],
+  "s": 7.2
+ },
+ {
+  "title": "File:Woman mechanic working on engine (cropped).jpeg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Woman_mechanic_working_on_engine_(cropped).jpeg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/7/75/Woman_mechanic_working_on_engine_%28cropped%29.jpeg/960px-Woman_mechanic_working_on_engine_%28cropped%29.jpeg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1445
+  ],
+  "shadow": {
+   "soft": 0.684,
+   "step_frac": 0.061,
+   "steps": 2,
+   "bimodal": 0.033,
+   "ratio": 0.411,
+   "spread": 75.4,
+   "cast": 0.052,
+   "normal_corr": 0.182,
+   "normal_light_deg": 150
+  },
+  "fails": [],
+  "s": 7.1
+ },
+ {
+  "title": "File:Woman pink and blue dress (crop hands).jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Woman_pink_and_blue_dress_(crop_hands).jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/ee/Woman_pink_and_blue_dress_%28crop_hands%29.jpg/960px-Woman_pink_and_blue_dress_%28crop_hands%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1522
+  ],
+  "shadow": {
+   "soft": 0.569,
+   "step_frac": 0.249,
+   "steps": 1,
+   "bimodal": 0.1,
+   "ratio": 0.448,
+   "spread": 0.0,
+   "cast": -1.088,
+   "cast_gap": 0.001,
+   "normal_corr": 0.199,
+   "normal_light_deg": 90
+  },
+  "fails": [],
+  "s": 7.3
+ },
+ {
+  "title": "File:Woman pink and blue dress (crop waist).jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Woman_pink_and_blue_dress_(crop_waist).jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/d/dc/Woman_pink_and_blue_dress_%28crop_waist%29.jpg/960px-Woman_pink_and_blue_dress_%28crop_waist%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1279
+  ],
+  "shadow": {
+   "soft": 0.484,
+   "step_frac": 0.401,
+   "steps": 1,
+   "bimodal": 0.177,
+   "ratio": 0.415,
+   "spread": 0.0,
+   "cast": 0.044,
+   "cast_gap": 0.001,
+   "normal_corr": 0.202,
+   "normal_light_deg": 90
+  },
+  "fails": [],
+  "s": 7.0
+ },
+ {
+  "title": "File:Young woman in Brazil sitting on steps (cropped).jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Young_woman_in_Brazil_sitting_on_steps_(cropped).jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/f/f1/Young_woman_in_Brazil_sitting_on_steps_%28cropped%29.jpg/960px-Young_woman_in_Brazil_sitting_on_steps_%28cropped%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   947
+  ],
+  "shadow": {
+   "soft": 0.563,
+   "step_frac": 0.206,
+   "steps": 1,
+   "bimodal": 0.03,
+   "ratio": 0.457,
+   "spread": 133.6,
+   "cast": -0.158,
+   "cast_gap": 0.001,
+   "normal_corr": 0.071,
+   "normal_light_deg": 300
+  },
+  "fails": [],
+  "s": 6.2
+ },
+ {
+  "title": "File:Man in hood stretching hand (Unsplash).jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Man_in_hood_stretching_hand_(Unsplash).jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/3/34/Man_in_hood_stretching_hand_%28Unsplash%29.jpg/960px-Man_in_hood_stretching_hand_%28Unsplash%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1440
+  ],
+  "shadow": {
+   "soft": 0.523,
+   "step_frac": 0.235,
+   "steps": 2,
+   "bimodal": 0.161,
+   "ratio": 0.399,
+   "spread": 143.6,
+   "cast": 0.321,
+   "cast_gap": 0.001,
+   "normal_corr": 0.531,
+   "normal_light_deg": 30
+  },
+  "fails": [],
+  "s": 7.1
+ },
+ {
+  "title": "File:Man rolling sleeves (Unsplash).jpg",
+  "license": "CC0",
+  "url": "https://commons.wikimedia.org/wiki/File:Man_rolling_sleeves_(Unsplash).jpg",
+  "thumb": "https://thumb.wikimedia.org/wikipedia/commons/thumb/e/e7/Man_rolling_sleeves_%28Unsplash%29.jpg/960px-Man_rolling_sleeves_%28Unsplash%29.jpg?utm_source=commons.wikimedia.org&utm_campaign=imageinfo&utm_content=thumbnail",
+  "size": [
+   960,
+   1440
+  ],
+  "shadow": {
+   "soft": 0.453,
+   "step_frac": 0.498,
+   "steps": 3,
+   "bimodal": 0.361,
+   "ratio": 0.254,
+   "spread": 0.0,
+   "cast": -0.432,
+   "cast_gap": 0.03,
+   "normal_corr": 0.327,
+   "normal_light_deg": 60
+  },
+  "fails": [],
+  "s": 7.2
+ }
+]
