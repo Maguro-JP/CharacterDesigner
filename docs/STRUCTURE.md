@@ -39,6 +39,7 @@ CharacterDesigner/
 | `tools/` `app/` `packaging/` `templates/` | 道具（プログラム、アプリ、配布物の作り方、ほかのリポジトリへ配るひな型） | 絵、知見の文章 |
 | `styles/` | 道具が読む数字の決まり（作風、ジャンルの頭身、学んだ基準、模型の癖） | 文章の説明（それは `docs/knowledge/`） |
 | `config/` | 利用者ごとの設定の見本（`*.example.json`）と既定 | 利用者の実際の設定（git に入れない） |
+| `config/poses/` | 道具が読む姿勢の既定（立体の人形から起こした姿勢の絵） | 描いた絵や比べ図（それは `library/`） |
 | `bible/` | 設定資料集（人物 `characters/`、世界観 `worlds/`）と、その人物の通った絵 | ほかの人物の比べ図 |
 | `casts/` | 描く題材の一覧（作品ごとの登場人物、言葉の札、体の設計図、ポーズ、体型、描き分けのパターン） | 絵 |
 | `characters/` | 箱庭ドットの職業の部品（`parts.json`、`sprite.json`） | イラストの人物（それは `bible/`） |
