@@ -351,6 +351,7 @@ def check(src, out_img, src_parts, log, tag, ref=None, light_deg=135.0):
     km = keep_metrics(src, out_img, src_parts)
     r = ref or src
     rs = np.asarray(src_parts) if ref is None else np.asarray(_parts_of(ref))
+    km["leg_de"] = measure.leg_color(rgb, seg)
     km.update(measure.color_keep(np.asarray(r).astype(np.float32) / 255, rgb, rs, seg, edit.LABELS))
     try:
         km["face_sim"] = face_sim(src, out_img, src_parts)   # 元のアニメの顔と比べる（別人になっていないか）
@@ -772,6 +773,21 @@ def face_inpaint(pipe, nets, img, a, log, tries=5, side_px=None):
             w = ndimage.gaussian_filter(blob.astype(np.float32), 3)[..., None]
             crop = Image.fromarray(np.clip(c * (1 - w) + fillc * w, 0, 255).astype(np.uint8))
             log("face_blob_px", int(blob.sum()))
+    if core is not None:
+        # 目の枠の中の前髪の毛筋を消してから描く。消さないと前髪の 1 本が片目を横切ったまま描かれた。
+        # 毛筋は、目の枠の外の前髪の塊とつながった暗い画素とする（目の縁の線や瞳は前髪とつながらないので残る）
+        c = np.asarray(crop).astype(np.float32)
+        mx_, mn_ = c.max(2), c.min(2)
+        darkp = (c.mean(2) < 75) & ((mx_ - mn_) / np.maximum(mx_, 1) < 0.3)
+        lab_, n_ = ndimage.label(darkp)
+        outside = np.unique(lab_[darkp & (cs == 2) & ~near])
+        # 消すのは目そのものの枠（core）の中だけ。目の周りの前髪の塊まで消すと、額に肌色の穴が開いた
+        strand = ndimage.binary_dilation(np.isin(lab_, outside[outside > 0]) & core, iterations=2) & core
+        skin_c = np.median(c[(cs == 11) & ~near], axis=0) if ((cs == 11) & ~near).sum() > 100 else c[near].mean(0)
+        w = ndimage.gaussian_filter(strand.astype(np.float32), 2)[..., None]
+        c = c * (1 - w) + skin_c * w
+        crop = Image.fromarray(np.clip(c, 0, 255).astype(np.uint8))
+        log("face_strand_px", int(strand.sum()))
     li = lineart(crop)
     if eyes is not None:
         # 目の周りの前髪の線を線画から除く（前髪のかかった絵から線画を取ると、描いた顔に前髪の黒い線が残った）
@@ -877,12 +893,6 @@ def composite_person(scene, person, parts, feather=1.5):
     from scipy import ndimage
     body = (np.asarray(parts) != BACKGROUND)
     f = scene.width / 768
-    # 足の周り（下から 8%）は、部位分けが縁の明るい灰色の帯まで足に含めていたので、縁を 2〜3 画素削ってから重ねる
-    H = body.shape[0]
-    ys = np.nonzero(body)[0]
-    if len(ys):
-        low = np.arange(H)[:, None] >= ys.max() - 0.08 * H
-        body = np.where(low, ndimage.binary_erosion(body, iterations=max(2, round(2 * f))), body)
     body = body.astype(np.float32)
     # 内側へだけぼかす（外へ広げると、人物の絵の側の明るい床が影の上に重なって縁が白く光った）
     al = np.clip((ndimage.gaussian_filter(body, feather * scene.width / 768) - 0.5) * 2, 0, 1)[..., None]
@@ -917,7 +927,8 @@ def cast_shadow(img, parts, depth=None, deg=135.0, opacity=0.45):
     den = np.maximum(ndimage.gaussian_filter(bg.astype(np.float32), sg), 1e-3)
     local = np.stack([ndimage.gaussian_filter(a[..., c] * bg, sg) / den for c in range(3)], -1)
     floor[under] = local[under]
-    sh = measure.project_shadow(body, deg, seg=seg).astype(np.float32)
+    # 足（下から 2%）の画素は写さない。足の影は足の真下に落ちて接地の影が受け持ち、写すと足の輪郭に沿った暗い帯になった
+    sh = measure.project_shadow(body & (np.arange(H)[:, None] < foot - 0.02 * H), deg, seg=seg).astype(np.float32)
     yy = np.arange(H)[:, None] * np.ones((1, W))
     far = np.clip((foot - yy) / max(0.25 * H, 1), 0, 1)
     s = ndimage.gaussian_filter(sh, 2 * f) * (1 - far) + ndimage.gaussian_filter(sh, 10 * f) * far
@@ -932,12 +943,55 @@ def cast_shadow(img, parts, depth=None, deg=135.0, opacity=0.45):
                 n = min(yb + depth_px, H) - yb
                 contact[yb:yb + n, x] = np.linspace(1, 0.3, n)
     contact = ndimage.gaussian_filter(contact, (2 * f, 2.5 * f))
-    # 足の周りの遮られた暗さ（足に近い床ほど光が届かない）。無いと、足の横の床が影より明るい縁になって光って見えた
-    low = body & (np.arange(H)[:, None] >= foot - 0.06 * H)
-    ao = ndimage.gaussian_filter(low.astype(np.float32), 10 * f)
-    dark = np.maximum.reduce([opacity * s, 0.5 * np.clip(contact * 1.3, 0, 1), 0.4 * np.clip(ao * 2, 0, 1)])
+    contact *= np.arange(H)[:, None] >= np.where(body.any(0), H - 1 - np.argmax(body[::-1], axis=0), H)[None, :]   # 足の列の下端より下だけ（横へ回り込ませない）
+    # 接地の影は足の裏の下にだけ置く（足の周りに遮られた暗さを回すと、輪郭に沿った暗い帯になった）
+    dark = np.maximum(opacity * s, 0.5 * np.clip(contact * 1.3, 0, 1))
     scene = Image.fromarray(np.clip(floor * (1 - dark[..., None]), 0, 255).astype(np.uint8))
+    # 足の縁の内側 3 画素の灰色の画素（部位分けが足に含めた床の縁）を、内側の肌の色で塗り直す。そのまま重ねると、
+    # 暗い接地の影と肌の間に明るい灰色の縁が光った
+    low = np.arange(H)[:, None] >= foot - 0.08 * H
+    inner = ndimage.binary_erosion(body, iterations=max(3, round(3 * f)) + 1)
+    mx, mn = a.max(2), a.min(2)
+    rim = body & ~inner & low & ((mx - mn) / np.maximum(mx, 1) < 0.15)
+    if rim.any() and (inner & low).any():
+        idx = ndimage.distance_transform_edt(~(inner & low), return_distances=False, return_indices=True)
+        a2 = a.copy()
+        a2[rim] = a[idx[0], idx[1]][rim]
+        img = Image.fromarray(np.clip(a2, 0, 255).astype(np.uint8))
     return composite_person(scene, img, parts)
+
+def match_legs(img, parts, strength=1.0):
+    """左右の脚の肌の色をそろえる。体の真ん中で左右に分けた脚の Lab の平均を、両脚の平均に寄せる（明るさの差は陰なので残し、
+    赤みと黄みの a,b を寄せ、明るさは差の 8 割を寄せる）。境はぼかす。描き直しで片脚だけが赤く暗くなった"""
+    import numpy as np
+    from PIL import Image
+    from scipy import ndimage
+    import measure
+    seg = np.asarray(parts)
+    body = seg > 0
+    ys, xs = np.nonzero(body)
+    if not len(ys):
+        return img
+    top, foot = ys.min(), ys.max()
+    H, W = seg.shape
+    f = W / 768
+    legs = np.isin(seg, (12, 13)) & (np.arange(H)[:, None] > foot - 0.5 * (foot - top))
+    cx = float(xs.mean())
+    xx = np.arange(W)[None, :]
+    a = np.asarray(img).astype(np.float32) / 255
+    lab = measure.lab(a)
+    sides = [legs & (xx < cx), legs & (xx > cx)]
+    if min(m.sum() for m in sides) < 200:
+        return img
+    means = [lab[m].mean(0) for m in sides]
+    target = (means[0] + means[1]) / 2
+    out = lab.copy()
+    for m, mu in zip(sides, means):
+        d = (target - mu) * np.array([0.8, 1.0, 1.0]) * strength
+        w = ndimage.gaussian_filter(m.astype(np.float32), 4 * f)[..., None] * legs[..., None]
+        out += w * d
+    return Image.fromarray((lab2rgb(out) * 255).clip(0, 255).astype(np.uint8))
+
 
 def dehalo(img, parts, band=3):
     """縁の白いにじみ（ハロー）を消す。切り抜きの縁の内側 band 画素を、さらに内側の色（一番近い内側の画素）で塗り直し、
@@ -1036,7 +1090,7 @@ def resume(a, im, parts, log, stem, t):
     d2 = depth_map(r2)
     if a.post_relight > 0:
         r2 = relight(r2, p2, d2, a.light_deg, amount=a.post_relight)
-    r2 = dehalo(r2, p2)
+    r2 = dehalo(match_legs(r2, p2), p2)
     if a.cast > 0:
         import measure
         seen, diff = measure.body_light_deg(np.asarray(r2, np.float32) / 255, np.asarray(p2))
@@ -1189,7 +1243,7 @@ def main(argv=None) -> int:
             r2 = relight(r2, p2, d2, a.light_deg, amount=a.post_relight)
         if a.cast > 0:
             import measure
-            r2 = dehalo(r2, p2)
+            r2 = dehalo(match_legs(r2, p2), p2)
             seen, diff = measure.body_light_deg(np.asarray(r2, np.float32) / 255, np.asarray(p2))
             log("cast_light", {"deg": seen if seen is not None else a.light_deg, "lr_diff": diff})
             r2 = cast_shadow(clear_floor(r2, p2), p2, d2, seen if seen is not None else a.light_deg, a.cast)

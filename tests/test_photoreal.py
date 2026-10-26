@@ -300,3 +300,25 @@ class BodyLightTest(unittest.TestCase):
         self.assertEqual(measure.body_light_deg(a, seg)[0], 135.0)
         a[seg == 12], a[seg == 13] = 0.55, 0.8
         self.assertEqual(measure.body_light_deg(a, seg)[0], 45.0)
+
+
+class LegsAndFeetEdgeTest(unittest.TestCase):
+    def test_round9_and_10_fail_leg_color_and_feet_edge(self):
+        import measure
+        # 9 周目（run 40263107601）と 10 周目（run 40270474064）の最後の絵の数字。片脚が赤く暗く、足の縁に明るい灰色の縁がある
+        for m in ({"leg_de": 10.09, "halo_feet": 0.095}, {"leg_de": 10.06, "halo_feet": 0.062}):
+            self.assertEqual({f["path"] for f in measure.judge_shadow(m)}, {"leg_de", "halo_feet"})
+
+    def test_match_legs_evens_color(self):
+        import measure
+        seg = np.zeros((300, 200), np.uint8)
+        seg[50:280, 60:95] = 12
+        seg[50:280, 105:140] = 13
+        a = np.full((300, 200, 3), 0.5, np.float32)
+        a[seg == 12] = (0.85, 0.55, 0.5)              # 赤い脚
+        a[seg == 13] = (0.9, 0.75, 0.68)
+        before = measure.leg_color(a, seg)
+        out = photoreal.match_legs(Image.fromarray((a * 255).astype(np.uint8)), Image.fromarray(seg))
+        after = measure.leg_color(np.asarray(out, np.float32) / 255, seg)
+        self.assertGreater(before, 8)
+        self.assertLess(after, 4)

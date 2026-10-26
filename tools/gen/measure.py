@@ -512,6 +512,24 @@ def body_light_deg(rgb, seg, least=0.01):
     return (45.0 if d > 0 else 135.0), round(d, 4)
 
 
+def leg_color(rgb, seg):
+    """左右の脚の肌の平均の色の差（Lab の ΔE）。脚の部位（12・13）の、人物の下 45% の画素を、体の真ん中で左右に分けて比べる。
+    部位の番号では左右の脚を分けられない（片脚の番号が両脚を覆った）。描き直しで片脚だけが赤く暗くなった"""
+    body = seg > 0
+    ys, xs = np.nonzero(body)
+    if not len(ys):
+        return None
+    top, foot = ys.min(), ys.max()
+    legs = np.isin(seg, (12, 13)) & (np.arange(seg.shape[0])[:, None] > foot - 0.45 * (foot - top))
+    cx = float(xs.mean())
+    xx = np.arange(seg.shape[1])[None, :]
+    lm, rm = legs & (xx < cx), legs & (xx > cx)
+    if lm.sum() < 200 or rm.sum() < 200:
+        return None
+    lab_ = lab(rgb[..., :3])
+    return round(float(np.linalg.norm(lab_[lm].mean(0) - lab_[rm].mean(0))), 2)
+
+
 def cast_check(rgb, seg, light_deg=None):
     """床の落ち影の検品。体の陰から読んだ光の向き（light_deg、0° が右、90° が上）で人物の形を床に写したものと比べる。
     6 周目の絵は、影が脚の形をしない左右の塊で、足の裏から離れ、体の陰と逆の向きに伸びていたのに、
@@ -591,8 +609,15 @@ def cast_check(rgb, seg, light_deg=None):
         Lf = ndimage.gaussian_filter(L * far, sg) / np.maximum(ndimage.gaussian_filter(far.astype(np.float32), sg), 1e-3)   # 少し外の背景の明るさを縁まで広げる
         hl = (L > Lf + 0.06) & white
         out["halo"] = round(float(hl[near].mean()), 3)
-        fnear = near & (np.arange(H)[:, None] >= foot - 0.08 * H)        # 足の周り（下から 8%）
-        out["halo_feet"] = round(float(hl[fnear].mean()), 3) if fnear.any() else 0.0
+        # 足の周り（下から 8%）: 縁の内外 1〜3 画素の灰色の画素が、近くの床（外 4〜9 画素の暗い方）より 0.08 以上明るい割合。
+        # 足の周りは床が接地の影で暗く、遠くの背景と比べる測り方では、影と肌の間の明るい灰色の縁を拾えなかった（9 周目 0.004）
+        low = np.arange(H)[:, None] >= foot - 0.08 * H
+        di, do = ndimage.distance_transform_edt(body), ndimage.distance_transform_edt(~body)
+        fedge = (((di >= 1) & (di <= 3)) | ((do >= 1) & (do <= 3))) & low
+        outr = (do >= 4) & (do <= 9)
+        fref = ndimage.minimum_filter(np.where(outr, L, 1.0), size=max(3, round(9 * f)))
+        gray = (mx - mn) / np.maximum(mx, 1e-3) < 0.15
+        out["halo_feet"] = round(float((gray & (L > fref + 0.08))[fedge].mean()), 3) if fedge.any() else 0.0
     return out
 
 
