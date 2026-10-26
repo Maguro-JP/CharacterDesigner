@@ -279,6 +279,497 @@ def light3d(src, rgb, seg, regions):
             "inverted_regions": inverted}
 
 
+def bimodal(L, seg, labels, f=1.0):
+    """肌の部位ごとに、明るさの分布が 2 つの山に分かれるか（セルの塗りの特徴）。山の間の谷の深さ（1 − 谷 ÷ 低い方の山）を、
+    部位の画素数で重みづけして平均する。セルの塗りは明るい面と影の面の 2 つの山の間がほぼ空き 1 に近く、
+    実写の陰はなだらかに続いて谷が浅い。境の急さ（段の割合）は実写の輪郭や服の縁でも高く出て、見分けられなかった"""
+    from scipy import ndimage
+    Lb = ndimage.gaussian_filter(L, 1 * f)
+    tot, acc = 0, 0.0
+    for name in ("face", "left_arm", "right_arm", "left_leg", "right_leg"):
+        m = ndimage.binary_erosion(seg == labels[name], iterations=max(2, round(4 * f)))
+        if m.sum() < 400:
+            continue
+        v = Lb[m]
+        lo, hi = np.percentile(v, [1, 99])
+        if hi - lo < 0.04:
+            continue
+        h, _ = np.histogram(v, 48, (lo, hi))
+        h = ndimage.gaussian_filter1d(h.astype(float), 1.2)
+        i = int(np.argmax(h))
+        cand = [j for j in range(1, len(h) - 1) if abs(j - i) >= 6 and h[j] >= h[j - 1] and h[j] >= h[j + 1]]
+        d = 0.0
+        if cand:
+            j = max(cand, key=lambda k: h[k])
+            a, b = sorted((i, j))
+            d = 1 - h[a:b + 1].min() / max(h[j], 1e-6)
+        tot += m.sum()
+        acc += d * m.sum()
+    return round(float(acc / tot), 3) if tot else None
+
+
+def shadow(rgb, seg, labels):
+    """影の自然さを測る（写真級の描き直しの検品）。アニメの塗りを写真に描き直すと、セルの影の段差が残り、
+    部位ごとに陰の側が食い違い、床に落ちる影が浮いた（足から離れた）。人はそれを一目で「不自然」と見る。
+    - soft: 影の境の柔らかさ。大きな明るさの境（σ4 の傾きの上位 5%）で、σ4 と σ1 の傾きの比の中央値。
+      段のような境は σ を大きくすると傾きが下がり（0.3 前後）、なだらかな陰はほとんど下がらない（1 に近い）
+    - steps: 肌の明るさの山の数（ならした分布の、高さ 5% 以上の山）。セルの影は 2〜3 の段に分かれる
+    - spread: 部位ごとの光の向き（measure.light）の最大のずれ。光が 1 つならそろう
+    - ratio: 肌の陰と光の明るさの比（10 と 90 パーセンタイル）。1 に近いほど平らな光
+    - cast: 足元の床の暗さ（足の下 4% の高さの帯の背景 ÷ 背景の中央値を 1 から引く）と、
+      背景の暗い最大の塊が体から離れている距離（高さに対する割合）。浮いた影は離れて出る"""
+    from scipy import ndimage
+    f = rgb.shape[1] / 768
+    L = rgb[..., :3].mean(-1)
+    g1 = np.hypot(*np.gradient(ndimage.gaussian_filter(L, 1 * f)))
+    g4 = np.hypot(*np.gradient(ndimage.gaussian_filter(L, 4 * f)))
+    skin = np.isin(seg, [labels[k] for k in ("face", "left_arm", "right_arm", "left_leg", "right_leg")])
+    body = seg > 0
+    out = {}
+    si = ndimage.binary_erosion(skin, iterations=max(2, round(6 * f)))   # 肌の輪郭と服との境を数えない
+    if si.sum() > 500:
+        sel = si & (g4 >= np.percentile(g4[si], 95))
+        # 段の上では σ1 の傾きが段の線だけに立つので、近く（σ4 の幅）の σ1 の傾きの最大と比べる
+        line = ndimage.binary_dilation(ndimage.grey_closing(L, size=max(3, round(5 * f))) - L > 0.06, iterations=max(2, round(3 * f)))
+        g1m = ndimage.maximum_filter(np.where(line, 0, g1), size=max(3, round(8 * f)))   # 線（へそ、輪郭の描き線）は段に数えない
+        sel &= ~line
+        r = g4[sel] / np.maximum(g1m[sel], 1e-6)
+        out["soft"] = round(float(np.median(r)), 3)
+        out["step_frac"] = round(float((r < 0.45).mean()), 3)   # 段のような境の割合
+    if si.sum() > 500:
+        h, _ = np.histogram(L[si], 64, (0, 1))
+        h = ndimage.gaussian_filter1d(h.astype(float), 1.5)
+        pk = [i for i in range(1, 63) if h[i] >= h[i - 1] and h[i] > h[i + 1] and h[i] >= 0.05 * h.max()]
+        out["steps"] = len(pk)
+        out["bimodal"] = bimodal(L, seg, labels, f)
+        lo, hi = np.percentile(L[si], [10, 90])
+        out["ratio"] = round(float(lo / max(hi, 1e-6)), 3)
+    regions = {"face": [labels["face"]], "arms": [labels["left_arm"], labels["right_arm"]],
+               "legs": [labels["left_leg"], labels["right_leg"]],
+               "clothes": [labels["upper"], labels["dress"], labels["skirt"], labels["pants"]]}
+    out["spread"] = light(rgb, seg, labels, regions)["max_spread_deg"]
+    bg = seg == 0
+    ys, xs = np.nonzero(body)
+    if bg.sum() > 1000 and len(ys):
+        med = float(np.median(L[bg]))
+        H = rgb.shape[0]
+        foot = ys.max()
+        band = np.zeros_like(bg)
+        x0, x1 = np.percentile(xs[ys > foot - 0.08 * H], [0, 100]).astype(int) if (ys > foot - 0.08 * H).any() else (xs.min(), xs.max())
+        pad = int(0.06 * H)
+        band[max(foot - int(0.04 * H), 0):min(foot + int(0.04 * H), H), max(x0 - pad, 0):x1 + pad] = True
+        band &= bg
+        out["cast"] = round(1 - float(L[band].mean()) / max(med, 1e-6), 3) if band.any() else 0.0
+        dark = ndimage.binary_opening(bg & (L < 0.85 * med), iterations=2)
+        lab, n = ndimage.label(dark)
+        if n:
+            big = lab == 1 + int(np.argmax(ndimage.sum(dark, lab, range(1, n + 1))))
+            if big.sum() > 0.002 * bg.size:
+                dist = ndimage.distance_transform_edt(~body)
+                out["cast_gap"] = round(float(dist[big].min()) / H, 3)
+    return out
+
+
+def lab(rgb):
+    """sRGB（0〜1）を CIE Lab（D65）にする"""
+    c = np.where(rgb > 0.04045, ((rgb + 0.055) / 1.055) ** 2.4, rgb / 12.92)
+    xyz = c @ np.array([[0.4124, 0.2126, 0.0193], [0.3576, 0.7152, 0.1192], [0.1805, 0.0722, 0.9505]])
+    xyz /= np.array([0.95047, 1.0, 1.08883])
+    f = np.where(xyz > 0.008856, np.cbrt(xyz), 7.787 * xyz + 16 / 116)
+    return np.stack([116 * f[..., 1] - 16, 500 * (f[..., 0] - f[..., 1]), 200 * (f[..., 1] - f[..., 2])], -1)
+
+
+def color_keep(ref, rgb, ref_seg, seg, labels):
+    """描き直しで色が保てているか（基準の絵＝1 段目と比べる）。IC-Light の後に絵が灰色に抜け、黒髪が白くなった。
+    sat_ratio: 人物の平均の彩度（Lab の a,b の長さ）の比。灰色に抜けると下がる
+    color_dab: 肌・服の部位ごとの平均色の a,b の差の最大（明るさは光の付け直しで変わってよいので除く）
+    hair_de: 髪の平均色の ΔE（明るさも含める。黒髪が白くなるのは明るさの変わり方）"""
+    from scipy import ndimage
+    from PIL import Image
+    if ref.shape != rgb.shape:
+        ref = np.asarray(Image.fromarray((ref * 255).astype(np.uint8)).resize(rgb.shape[1::-1], Image.LANCZOS)).astype(np.float32) / 255
+        ref_seg = np.asarray(Image.fromarray(ref_seg).resize(rgb.shape[1::-1], Image.NEAREST))
+    f = rgb.shape[1] / 768
+    A = lab(ndimage.gaussian_filter(rgb, (2 * f, 2 * f, 0)))
+    B = lab(ndimage.gaussian_filter(ref, (2 * f, 2 * f, 0)))
+    out = {}
+    body, rbody = seg > 0, ref_seg > 0
+    if body.any() and rbody.any():
+        out["sat_ratio"] = round(float(np.hypot(A[..., 1], A[..., 2])[body].mean() / max(np.hypot(B[..., 1], B[..., 2])[rbody].mean(), 1e-3)), 3)
+    groups = {"skin": [labels[k] for k in ("face", "left_arm", "right_arm", "left_leg", "right_leg")],
+              "clothes": [labels[k] for k in ("upper", "dress", "skirt", "pants")]}
+    dab = []
+    for ids in groups.values():
+        m, r = np.isin(seg, ids), np.isin(ref_seg, ids)
+        if m.sum() > 200 and r.sum() > 200:
+            dab.append(float(np.hypot(*(A[m].mean(0)[1:] - B[r].mean(0)[1:]))))
+    if dab:
+        out["color_dab"] = round(max(dab), 2)
+    m, r = seg == labels["hair"], ref_seg == labels["hair"]
+    if m.sum() > 200 and r.sum() > 200:
+        out["hair_de"] = round(float(np.linalg.norm(A[m].mean(0) - B[r].mean(0))), 2)
+    return out
+
+
+def floor_ref(L, bg):
+    """背景（床と壁）の明るさの見込み。行ごとの背景の中央値（撮影の背景は上下にだけなだらかに変わる）。落ち影はこれより暗い所"""
+    rows = np.array([np.median(L[y][bg[y]]) if bg[y].sum() > 20 else np.nan for y in range(L.shape[0])])
+    idx = np.arange(len(rows))
+    ok = ~np.isnan(rows)
+    rows = np.interp(idx, idx[ok], rows[ok]) if ok.any() else np.full(len(rows), float(L.mean()))
+    return rows[:, None] * np.ones((1, L.shape[1]))
+
+
+def feet_line(body):
+    """足の裏の行（人物の一番下）と、足の裏の画素（下から 1.5% の帯）"""
+    ys, xs = np.nonzero(body)
+    foot = int(ys.max())
+    H = body.shape[0]
+    sole = body & (np.arange(H)[:, None] >= foot - max(3, int(0.015 * H)))
+    return foot, sole
+
+
+def feet(seg, labels=None):
+    """左右の足ごとの、足の裏の行（bottom）、足の裏の画素（sole）、足の列の範囲（x0, x1）。
+    列ごとの人物の下端の山を足とし、離れた（幅の 3% 以上）2 つまでを取る。部位分けの脚の番号（12・13）は、
+    片脚が両足の下まで覆うことがあり、足を分けるのに使えなかった"""
+    from scipy import ndimage
+    body = seg > 0
+    H, W = body.shape
+    ys, _ = np.nonzero(body)
+    top, foot = ys.min(), ys.max()
+    cols = body.any(0)
+    b = np.where(cols, H - 1 - np.argmax(body[::-1], axis=0), -1).astype(np.float32)
+    low = foot - 0.1 * (foot - top)
+    b[b < low] = -1                                   # 下の 10% に届かない列（手など）は足でない
+    bs = ndimage.maximum_filter1d(b, size=3)
+    gap = max(3, int(0.03 * W))
+    order = np.argsort(-bs)
+    peaks = []
+    for x in order:
+        if bs[x] < 0 or len(peaks) == 2:
+            break
+        if all(abs(x - p) > gap * 2 for p in peaks) and bs[x] >= foot - 0.05 * H:
+            peaks.append(int(x))
+    out = []
+    for p in sorted(peaks):
+        x0 = p
+        while x0 > 0 and b[x0 - 1] >= low and not any(q != p and abs(x0 - 1 - q) < abs(x0 - 1 - p) for q in peaks):
+            x0 -= 1
+        x1 = p
+        while x1 < W - 1 and b[x1 + 1] >= low and not any(q != p and abs(x1 + 1 - q) < abs(x1 + 1 - p) for q in peaks):
+            x1 += 1
+        bottom = int(b[p])
+        sole = np.zeros_like(body)
+        sole[:, x0:x1 + 1] = body[:, x0:x1 + 1] & (np.arange(H)[:, None] >= bottom - max(3, int(0.03 * H)))
+        out.append({"label": len(out) + 1, "bottom": bottom, "sole": sole, "x0": x0, "x1": x1, "cx": float(p)})
+    return out
+
+
+def project_shadow(body, light_deg, squash=0.45, lean=0.6, seg=None):
+    """人物の切り抜きの全体（両脚と胴）を、光と逆の向きの床へ倒して写した形（真偽の配列）。高さ h の点を、
+    横へ h×lean、奥へ h×squash だけ動かす（床は奥ほど上に写る）。脚の画素は、その脚の足の裏を支点にする（片足が上がって
+    いても、その足から影が出る）。奥へ 0.22・横へ 0.9 で倒すと、脚 2 本と胴の幅が潰れて細い尾のような影になった"""
+    from scipy import ndimage
+    H, W = body.shape
+    ys, xs = np.nonzero(body)
+    foot, _ = feet_line(body)
+    pivot = np.full(len(ys), float(foot))
+    if seg is not None:   # 脚の下半分（足の列の範囲の画素）は、その足の裏を支点にする
+        # 足首より下だけ、その足の裏を支点にする。膝から下まで分けると、胴の写しとの継ぎ目に影の抜けた横の筋が出た
+        knee = foot - 0.06 * (foot - ys.min())
+        for ft in feet(seg):
+            sel = (xs >= ft["x0"]) & (xs <= ft["x1"]) & (ys >= knee)
+            pivot[sel] = ft["bottom"]
+    h = np.clip(pivot - ys, 0, None).astype(np.float32)
+    dx = -np.cos(np.radians(light_deg))
+    sx = np.round(xs + dx * h * lean).astype(int)
+    sy = np.round(pivot - h * squash).astype(int)
+    ok = (sx >= 0) & (sx < W) & (sy >= 0) & (sy < H)
+    m = np.zeros((H, W), bool)
+    m[sy[ok], sx[ok]] = True
+    f = W / 768
+    # 脚（足の裏が支点）と胴（下端が支点）の写し方の継ぎ目に、影の抜けた横の筋が出たので、穴を埋める
+    m = ndimage.binary_closing(m, iterations=max(2, round(3 * f)))
+    m = ndimage.binary_closing(m, structure=np.ones((max(3, round(9 * f)), 1), bool))
+    return ndimage.binary_fill_holes(m)
+
+
+def body_light_deg(rgb, seg, least=0.01):
+    """体の陰から光の左右を読む。手足の、体の真ん中より右の画素と左の画素の明るさの平均を比べ、明るい側から光が来ているとする。
+    返すのは光の向き（右上 45° か左上 135°）と、明るさの差（右が明るいと正）。差が least より小さければ None。
+    手足の切り口ごとの左右で比べると、脚の内側の陰どうしが打ち消して、片脚がまるごと暗い（光が反対から来ている）のを読めなかった。
+    光の向きを決め打ちにすると、体の陰と逆の向きに影を落とした"""
+    L = rgb[..., :3].mean(-1)
+    limb = np.isin(seg, (12, 13, 14, 15))
+    body = seg > 0
+    if limb.sum() < 200:
+        return None, 0.0
+    cx = float(np.nonzero(body)[1].mean())
+    xx = np.arange(seg.shape[1])[None, :]
+    r, l = limb & (xx > cx), limb & (xx < cx)
+    if r.sum() < 100 or l.sum() < 100:
+        return None, 0.0
+    d = float(L[r].mean() - L[l].mean())
+    if abs(d) < least:
+        return None, round(d, 4)
+    return (45.0 if d > 0 else 135.0), round(d, 4)
+
+
+def leg_color(rgb, seg):
+    """左右の脚の肌の平均の色の差（Lab の ΔE）。脚の部位（12・13）の、人物の下 45% の画素を、体の真ん中で左右に分けて比べる。
+    部位の番号では左右の脚を分けられない（片脚の番号が両脚を覆った）。描き直しで片脚だけが赤く暗くなった"""
+    body = seg > 0
+    ys, xs = np.nonzero(body)
+    if not len(ys):
+        return None
+    top, foot = ys.min(), ys.max()
+    legs = np.isin(seg, (12, 13)) & (np.arange(seg.shape[0])[:, None] > foot - 0.45 * (foot - top))
+    cx = float(xs.mean())
+    xx = np.arange(seg.shape[1])[None, :]
+    lm, rm = legs & (xx < cx), legs & (xx > cx)
+    if lm.sum() < 200 or rm.sum() < 200:
+        return None
+    lab_ = lab(rgb[..., :3])
+    return round(float(np.linalg.norm(lab_[lm].mean(0) - lab_[rm].mean(0))), 2)
+
+
+def floor_step(rgb, seg, light_deg=None):
+    """床の行ごとの明るさの段（0〜1）。人物の左と右の外側の背景で、行ごとの中央値を取り、12 行離れた行どうしの差から
+    なだらかな傾き（σ40 行でならしたもの）の分を引いた値の、下 55% の行での最大。測るのは光の側（落ち影の無い側）。
+    元の影を消して床を当てはめた範囲の上の端で、床の途中に横の段（12 行で 5 階調）が出たのを測る。
+    隣の行どうしの差では 1 行 0.4 階調に薄まり、人物の左右をまとめると影の縁が混ざって測れなかった"""
+    from scipy import ndimage
+    L = rgb[..., :3].mean(-1)
+    body = seg > 0
+    H, W = L.shape
+    xs = np.nonzero(body)[1]
+    if not len(xs):
+        return 0.0
+    g = int(20 * W / 768)
+    best = 0.0
+    xx = np.arange(W)[None, :]
+    if light_deg is None:
+        light_deg = body_light_deg(rgb, seg)[0] or 135.0
+    sides = [xx < xs.min() - g] if np.cos(np.radians(light_deg)) < 0 else [xx > xs.max() + g]   # 影の縁を段に数えない
+    for side in sides:
+        side = np.broadcast_to(side, L.shape)
+        if side[0].sum() < 20:
+            continue
+        m = np.array([np.median(L[y][side[y]]) for y in range(H)])
+        sm = ndimage.gaussian_filter1d(m, 2)
+        tr = ndimage.gaussian_filter1d(m, 40)
+        k = 6
+        d = np.abs((sm[2 * k:] - sm[:-2 * k]) - (tr[2 * k:] - tr[:-2 * k]))
+        best = max(best, float(d[int(0.45 * H):].max()))
+    return round(best, 4)
+
+
+def skin_vstep(rgb, seg):
+    """体の縦の方向の肌の色の段（Lab の ΔE）。脚の肌の画素ごとに、3 画素上と 3 画素下の色の差を取り、行ごとの中央値の最大。
+    行の全体に渡る横の帯（太腿の付け根の高さで上が白っぽく下が赤い。脚の色をそろえる処理の上の端で切っていた）は行の中央値に
+    出るが、膝や陰の境は行の一部にしか無いので中央値には出にくい。行ごとの平均の色の段で測ると、膝の陰と見分けられなかった"""
+    from scipy import ndimage
+    legs = ndimage.binary_erosion(np.isin(seg, (12, 13)), iterations=4)
+    H = seg.shape[0]
+    lab_ = lab(ndimage.gaussian_filter(rgb[..., :3], (1.5, 3, 0)))   # 肌の粒（毛穴）を段に数えない
+    k = 3
+    both = legs[2 * k:] & legs[:-2 * k]
+    d = np.linalg.norm(lab_[2 * k:] - lab_[:-2 * k], axis=-1)
+    ys = np.nonzero(seg > 0)[0]
+    lo, hi = ys.max() - 0.08 * (ys.max() - ys.min()), ys.min()     # 足（下から 8%）は指の間の色の差が大きいので除く
+    best = 0.0
+    for y in range(len(d)):
+        if both[y].sum() > 40 and y + k < lo:
+            best = max(best, float(np.median(d[y][both[y]])))
+    return round(best, 2)
+
+
+def contour_dev(src_seg, seg):
+    """描いた後の体の輪郭が、元の絵の体の輪郭からどれだけ欠けたか（元の体の中で、描いた後に体でなくなった所の、
+    描いた体からの距離の最大、画素）。左の肩の輪郭が欠けて膨らみと切れ込みになったのを測る"""
+    from scipy import ndimage
+    A, B = src_seg > 0, seg > 0
+    miss = A & ~B
+    if not miss.any():
+        return 0.0
+    return round(float(ndimage.distance_transform_edt(~B)[miss].max()), 1)
+
+
+def leg_shade_width(rgb, seg):
+    """脚の陰の境目の幅（画素、幅 768 にそろえて）。脚の中の明るさの大きな境（σ4 の傾きの上位 5%）で、明るさの差 ÷ 傾きの
+    最大（境を横切るのにかかる幅）の中央値。セルの塗りの段が残る硬い境は 2〜3 画素、なだらかな陰は 10 画素以上になる。
+    太腿の内側の陰の境目が線のように硬く見えた"""
+    from scipy import ndimage
+    f = rgb.shape[1] / 768
+    L = rgb[..., :3].mean(-1)
+    legs = ndimage.binary_erosion(np.isin(seg, (12, 13)), iterations=max(3, round(6 * f)))
+    if legs.sum() < 500:
+        return None
+    g1 = np.hypot(*np.gradient(ndimage.gaussian_filter(L, 1 * f)))
+    g4 = np.hypot(*np.gradient(ndimage.gaussian_filter(L, 4 * f)))
+    sel = legs & (g4 >= np.percentile(g4[legs], 95))
+    d = ndimage.gaussian_filter(L, 8 * f)
+    span = ndimage.maximum_filter(d, size=max(5, round(16 * f))) - ndimage.minimum_filter(d, size=max(5, round(16 * f)))
+    gmax = ndimage.maximum_filter(g1, size=max(3, round(6 * f)))
+    w = span[sel] / np.maximum(gmax[sel], 1e-4) / f
+    return round(float(np.median(w)), 2)
+
+
+def skin_texture(rgb, seg, part="body"):
+    """絵の肌の、周波数ごとの強さを、実写の手本の分布（styles/skin-texture.json）と比べる。絵を手本と同じ幅 768 に縮め、
+    同じ測り方（48 画素の切り抜きの、3 画素のぼかしとの差のパワーを半径 16 段で平均）で測る。返すのは、高い方の 10 段
+    （毛穴ときめの大きさ）での、絵のパワー ÷ 手本の中央値の比の中央値。1 で手本と同じ、小さいと平らな塗り、大きいと粒が多すぎる。
+    肌の平らな面の割合は、粒を足すだけで下がり、多すぎる粒を落とせなかった"""
+    import json
+    from PIL import Image
+    from scipy import ndimage
+    tex = json.loads((ROOT / "styles" / "skin-texture.json").read_text(encoding="utf-8"))
+    W = tex["ref_width"]
+    H = round(rgb.shape[0] * W / rgb.shape[1])
+    im = Image.fromarray((np.clip(rgb[..., :3], 0, 1) * 255).astype(np.uint8)).resize((W, H), Image.LANCZOS)
+    sg = np.asarray(Image.fromarray(seg).resize((W, H), Image.NEAREST))
+    labels = (11,) if part == "face" else (12, 13, 14, 15)
+    L = np.asarray(im.convert("L")).astype(np.float32) / 255
+    hp = L - ndimage.gaussian_filter(L, 3)
+    skin = ndimage.binary_erosion(np.isin(sg, labels), iterations=3)
+    if part == "face" and skin.any():
+        a = np.asarray(im).astype(np.float32)
+        red = a[..., 0] - a[..., 1]
+        skin &= (a.mean(2) > np.median(a.mean(2)[skin]) * 0.8) & (red < np.median(red[skin]) + 15)
+    P_, B = tex["patch"], tex["bins"]
+    yy, xx = np.mgrid[:P_, :P_] - P_ // 2
+    rad = np.hypot(yy, xx) / (P_ / 2)
+    pows = []
+    step = P_ // 2 if part == "face" else P_
+    for y in range(0, H - P_, step):
+        for x in range(0, W - P_, step):
+            if skin[y:y + P_, x:x + P_].mean() > 0.95:
+                q = hp[y:y + P_, x:x + P_]
+                Pw = np.abs(np.fft.fftshift(np.fft.fft2(q - q.mean()))) ** 2
+                pows.append([float(Pw[(rad >= i / B) & (rad < (i + 1) / B)].mean()) for i in range(B)])
+    if not pows:
+        return None
+    mine = np.median(pows, 0)
+    ref = np.array(tex[part]["power"])
+    return round(float(np.median((mine / np.maximum(ref, 1e-9))[B - 10:])), 3)
+
+
+def cast_check(rgb, seg, light_deg=None):
+    """床の落ち影の検品。体の陰から読んだ光の向き（light_deg、0° が右、90° が上）で人物の形を床に写したものと比べる。
+    6 周目の絵は、影が脚の形をしない左右の塊で、足の裏から離れ、体の陰と逆の向きに伸びていたのに、
+    足元の暗さだけを見る検品（cast）が通した。
+    cast_iou: 写した形（人物の外）と、実際の影（背景の見込みより 10% 以上暗い所）の重なり
+    contact: 足の裏の真下 1% の帯のうち、写した形と重なる（IoU 0.5 以上の）影のひと続きの塊に入る割合（接地の影）
+    cast_side: 実際の影のうち、足の裏から見て光と逆の側にある割合（体の陰の向きと影の向きの一致）
+    cast_spill: 実際の影のうち、写した形（少し広げたもの）の外にはみ出た割合（脚の形をしない塊）
+    halo: 人物の縁のすぐ外（1〜6 画素）が、少し外（10〜24 画素）の背景より明るい割合（白いにじみ）"""
+    from scipy import ndimage
+    H, W = seg.shape
+    f = W / 768
+    # 光の向きは渡された値ではなく、絵の体の陰から読む（描いた側が決めた光の向きで測ると、体の陰と逆の影を通した）
+    seen, diff = body_light_deg(rgb, seg)
+    light_deg = seen if seen is not None else (light_deg if light_deg is not None else 135.0)
+    L = rgb[..., :3].mean(-1)
+    body = seg > 0
+    bg = ~ndimage.binary_dilation(body, iterations=max(2, round(3 * f)))
+    ref = floor_ref(L, bg)
+    foot, sole = feet_line(body)
+    shade = bg & (L < 0.9 * ref) & (np.arange(H)[:, None] > foot - 0.35 * H)
+    shade = ndimage.binary_opening(shade, iterations=2)
+    # 足（下から 2%）は写さない（作る側と同じ。足の影は接地の影が受け持つ）
+    exp = project_shadow(body & (np.arange(H)[:, None] < foot - 0.02 * H), light_deg, seg=seg) & ~body
+    out = {"floor_step": floor_step(rgb, seg, light_deg),
+           "cast_iou": round(float((shade & exp).sum() / max((shade | exp).sum(), 1)), 3),
+           "light_deg": light_deg, "light_lr_diff": diff}
+    # 接地: 左右の足ごとに、足の裏の真下 1% の帯が、写した形と重なる（IoU 0.5 以上の）影のひと続きの塊に入る割合。
+    # 低い方を contact にする（8 周目の絵は片足にだけ影が付き、もう片足は浮いていた）
+    sh2 = shade.copy()
+    belows = []
+    for ft in feet(seg):
+        bl = np.zeros_like(body)
+        fy, fx_ = np.nonzero(ft["sole"])
+        cols = np.unique(fx_)
+        for x in cols:
+            yb = fy[fx_ == x].max()
+            bl[yb + 1:min(yb + max(3, int(0.01 * H)), H), x] = True
+        bl &= ~body
+        belows.append((ft, bl))
+        sh2 |= bl & (L < 0.85 * ref)
+    lab, n = ndimage.label(ndimage.binary_dilation(sh2, iterations=max(4, round(6 * f)) + 2))
+    good = np.zeros(n + 1, bool)
+    for i in np.unique(lab[sh2]):
+        if i:
+            comp = (lab == i) & sh2          # つなぐために広げた分は重なりに数えない
+            good[i] = (comp & exp).sum() / max((comp | exp).sum(), 1) >= 0.5
+    per = {}
+    for ft, bl in belows:
+        per[ft["label"]] = round(float((sh2[bl] & good[lab[bl]]).mean()), 3) if bl.any() else 0.0
+    out["contact_feet"] = per
+    out["contact"] = min(per.values()) if per else 0.0
+    sy, sx = np.nonzero(sole)
+    # 影の太さ: 影の短い向きの幅（主成分の短い軸の ±2σ）÷ 人物の幅（腰から膝の行の幅の中央値）
+    if shade.sum() > 50:
+        py, px = np.nonzero(shade)
+        cov = np.cov(np.stack([px, py]).astype(np.float64))
+        minor = 4 * np.sqrt(max(np.linalg.eigvalsh(cov)[0], 0))
+        rows = [r for r in range(int(0.45 * H), int(0.75 * H)) if body[r].any()]
+        widths = [np.ptp(np.nonzero(body[r])[0]) + 1 for r in rows] or [1]
+        out["cast_thick"] = round(float(minor / max(np.median(widths), 1)), 3)
+    else:
+        out["cast_thick"] = 0.0
+    if shade.sum() > 50:
+        fx = float(sx.mean()) if len(sx) else W / 2
+        want = -np.sign(np.cos(np.radians(light_deg)))
+        side = np.sign(np.nonzero(shade)[1] - fx)
+        out["cast_side"] = round(float((side == want).mean()), 3) if want else 1.0   # 光と逆の側にある影の割合
+        out["cast_spill"] = round(float((shade & ~ndimage.binary_dilation(exp, iterations=max(3, round(12 * f)))).sum() / shade.sum()), 3)
+    else:
+        out["cast_side"], out["cast_spill"] = 0.0, 1.0
+    # 縁の内側も見る（部位分けは白いにじみを人物に含める）。にじみは白い（彩度が低い）
+    mx, mn = rgb[..., :3].max(-1), rgb[..., :3].min(-1)
+    white = (mx - mn) / np.maximum(mx, 1e-3) < 0.15
+    near = ndimage.binary_dilation(body, iterations=max(2, round(6 * f))) & ~ndimage.binary_erosion(body, iterations=max(2, round(4 * f)))
+    far = ndimage.binary_dilation(body, iterations=max(4, round(24 * f))) & ~ndimage.binary_dilation(body, iterations=max(3, round(10 * f)))
+    if near.any() and far.any():
+        sg = max(3, round(12 * f))
+        Lf = ndimage.gaussian_filter(L * far, sg) / np.maximum(ndimage.gaussian_filter(far.astype(np.float32), sg), 1e-3)   # 少し外の背景の明るさを縁まで広げる
+        hl = (L > Lf + 0.06) & white
+        out["halo"] = round(float(hl[near].mean()), 3)
+        # 足の周り（下から 8%）: 縁の内外 1〜3 画素の灰色の画素が、近くの床（外 4〜9 画素の暗い方）より 0.08 以上明るい割合。
+        # 足の周りは床が接地の影で暗く、遠くの背景と比べる測り方では、影と肌の間の明るい灰色の縁を拾えなかった（9 周目 0.004）
+        low = np.arange(H)[:, None] >= foot - 0.08 * H
+        di, do = ndimage.distance_transform_edt(body), ndimage.distance_transform_edt(~body)
+        fedge = (((di >= 1) & (di <= 3)) | ((do >= 1) & (do <= 3))) & low
+        outr = (do >= 4) & (do <= 9)
+        fref = ndimage.minimum_filter(np.where(outr, L, 1.0), size=max(3, round(9 * f)))
+        gray = (mx - mn) / np.maximum(mx, 1e-3) < 0.15
+        out["halo_feet"] = round(float((gray & (L > fref + 0.08))[fedge].mean()), 3) if fedge.any() else 0.0
+    return out
+
+
+PHOTO_NORMS = ROOT / "styles" / "photoreal-norms.json"
+
+
+def judge_shadow(m: dict, norms: dict | None = None) -> list[dict]:
+    """写真級の絵の影と肌・線の数字（shadow と photoreal.keep_metrics）を、styles/photoreal-norms.json の範囲で判定する。
+    アニメの基準（anime-norms.json）には入れない。セルの影の段はアニメでは正しい"""
+    norms = norms or json.loads(PHOTO_NORMS.read_text(encoding="utf-8"))
+    out = []
+    for c in norms["checks"]:
+        v = m.get(c["path"])
+        if v is None:
+            continue
+        if isinstance(v, bool):
+            if v != c.get("equals", True):
+                out.append({"path": c["path"], "value": v, "equals": c.get("equals", True), "means": c["means"]})
+            continue
+        lo, hi = c.get("min"), c.get("max")
+        if (lo is not None and v < lo) or (hi is not None and v > hi):
+            out.append({"path": c["path"], "value": v, "min": lo, "max": hi, "means": c["means"]})
+    return out
+
+
 def face_spots(lum, fm):
     """顔の中の、肌に囲まれた白い点を探す。返すのは（最大の点の面積 ÷ 顔の面積、点の全部の範囲）。
     目のハイライトは暗い瞳に囲まれるので数えない（点の周り 3 画素の暗い側が、顔の明るさの中央値の 0.85 倍未満なら目とみなす。

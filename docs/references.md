@@ -111,6 +111,21 @@ OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じ
 博物館（メトロポリタン美術館、V&A、京都服飾文化研究財団、大英博物館、国立民族学博物館など）の所蔵品の記録と解説、百科事典（ブリタニカ、Encyclopaedia Iranica、コトバンクなど）、
 学術論文、一次史料の訳、各国政府・ユネスコの資料の 450 件。章ごとの末尾に、題名・媒体・公開年・URL と何の根拠に使ったかを書いた。画像は置かず、言葉と数字だけを読んだ。
 
+## 写真級の描き直しの模型と手本（`tools/gen/photoreal.py`、2026-10-25 に公開元で確認）
+
+| 物 | 出典 | 許諾 | 使い方 |
+|---|---|---|---|
+| Realistic Vision V6.0 B1 | huggingface.co/SG161222/Realistic_Vision_V6.0_B1_noVAE、civitai.com/models/4201 | creativeml-openrail-m。CivitAI の表示: 絵の商用利用・貸し出しは可、模型の販売は不可、改変可、名前の表示が要る | 既定の写実の模型 |
+| majicMIX realistic v7 | huggingface.co/digiplay/majicMIX_realistic_v7（CivitAI の写し）、civitai.com/models/43331 | CivitAI の表示: 絵の商用利用・貸し出しは可、模型の販売は不可、改変可 | 東アジアの顔と比べる模型 |
+| Beautiful Realistic Asians | civitai.com/models/25494 | CivitAI の表示: 絵の商用利用は可、模型の貸し出し・販売は不可 | 商用の制限が上の 2 つより強いので使わない |
+| ControlNet tile・lineart・depth（SD1.5 v1.1） | huggingface.co/lllyasviel | openrail | 形と線を押さえる |
+| IC-Light（SD1.5 fc） | huggingface.co/lllyasviel/ic-light | Apache-2.0（倉庫の表示） | 光の付け直し（明るさだけ使う） |
+| Depth Anything V2 Small | huggingface.co/depth-anything/Depth-Anything-V2-Small-hf | Apache-2.0 | 奥行きと面の向き |
+| CLIP ViT-B/32 | huggingface.co/openai/clip-vit-base-patch32 | MIT | 顔の似ている度合い |
+| 実写の手本 14 枚 | Wikimedia Commons（題名・URL は `tests/fixtures/photoreal_refs.json`） | CC0 | 影の基準を決める。写真は置かず数字だけ |
+| IP-Adapter（SD1.5 plus-face） | huggingface.co/h94/IP-Adapter（models/ip-adapter-plus-face_sd15.safetensors 98MB、models/image_encoder 2.5GB） | Apache-2.0 | 元のアニメの顔を渡して、写実の模型で顔を描かせる |
+| RealVisXL V5.0 | huggingface.co/SG161222/RealVisXL_V5.0（fp16 の分け置き、約 6.9GB） | openrail++（使い方の制限あり、絵の商用利用は可） | 肌だけを弱く描き直す比べ |
+
 ## 絵の模型の選び直し（2026-10-26）
 
 - NoobAI XL V-Pred 1.0 の札（設定、v-prediction の読み方、ライセンスの追加条項）: https://huggingface.co/Laxhar/noobai-XL-Vpred-1.0

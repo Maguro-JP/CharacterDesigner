@@ -1,0 +1,94 @@
+# 絵 1 枚を写真級に描き直す（tools/gen/photoreal.py）。手元は空きが足りず 1 枚 46 分かかるので Actions で回す。
+# 頼みは config/photoreal-request.json（src はリポジトリ内の絵、隣に .parts.png が要る。args は台本の引数）。
+# リポジトリは公開しているので Actions の枠を気にしない。結果は draw-results ブランチの <実行の番号>/ に置く。
+name: photoreal
+on:
+  push:
+    paths:
+      - "config/photoreal-request.json"
+  workflow_dispatch:
+    inputs:
+      src:
+        description: "入力の絵（空なら頼みの src）"
+        default: ""
+      args:
+        description: "台本の引数（空なら頼みの args）"
+        default: ""
+      only:
+        description: "refs なら実写の手本の計測だけを回す（基準を決め直すとき）"
+        default: ""
+permissions:
+  contents: write   # 結果を draw-results ブランチに置くため
+concurrency:
+  group: photoreal-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  photoreal:
+    if: inputs.only != 'refs'
+    runs-on: ubuntu-latest
+    timeout-minutes: 330
+    strategy:
+      fail-fast: false
+      matrix:
+        # 影の直し方を並べて比べる（同じ種・同じ絵）。どれも段ごとに影の検品と肌・髪・線を測る（--check）
+        include:
+          # 2 段目 0.15 の絵（run 40248087657）から、光・床の影・縁・顔だけを掛け直す。顔は 7 周目の作り方で、前髪の毛筋を戻すか比べる
+          # 工程ごとの関所（tools/gen/gate.py）を通して、模型 2 つで最初から描く。崩れの数字が元の絵より悪くならないことを確かめる
+          - variant: gate-rv
+            extra: "--model rv --strength2 0.15 --asian --post-relight 0.6 --cast 0.45 --face 0.75 --face-mode ipadapter --ip-scale 0.5 --leg-soften 4 --shoulder --feet 0.35 --grain 0.3 --final-hf 0 --hf-sigma 0"
+          - variant: gate-majicmix
+            extra: "--model majicmix --strength2 0.15 --asian --post-relight 0.6 --cast 0.45 --face 0.75 --face-mode ipadapter --ip-scale 0.5 --leg-soften 4 --shoulder --feet 0.35 --grain 0.3 --final-hf 0 --hf-sigma 0"
+          # わざと崩す工程を足して、関所が戻すことを確かめる（後の工程だけ）
+          - variant: gate-fakes
+            extra: "--model rv --strength2 0.15 --asian --post-relight 0.6 --cast 0.45 --face 0.75 --face-mode ipadapter --ip-scale 0.5 --leg-soften 4 --shoulder --feet 0.35 --grain 0.3 --final-hf 0 --hf-sigma 0 --fake-break swell --fake-break nohair --fake-break whiteedge --hf-sigma 2.5 --resume draw-results:40248087657/rv-asian-s2-015/stage1-bikini-white-stand-s12-3-hf-g2.5-s12.png"
+    steps:
+      - uses: actions/checkout@v4
+      - name: 置き場を空ける
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1; free -g; nproc
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 部品
+        run: |
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy onnxruntime
+      - name: 描く
+        env:
+          CD_HOME: ${{ runner.temp }}/cd
+          CD_FETCH: "1"
+          IN_SRC: ${{ inputs.src }}
+          IN_ARGS: ${{ inputs.args }}
+        run: |
+          src="$IN_SRC"; [ -n "$src" ] || src=$(python3 -c "import json;print(json.load(open('config/photoreal-request.json'))['src'])")
+          if [ -n "$IN_ARGS" ]; then args="$IN_ARGS"
+          else args=$(python3 -c "import json,shlex;print(shlex.join(json.load(open('config/photoreal-request.json')).get('args',[])))"); fi
+          echo "src=$src args=$args"
+          eval "set -- $args"
+          python tools/gen/tagger.py setup || true   # 顔の検品の余分な目のタグに使う
+          python -u tools/gen/photoreal.py "$src" "out/${{ matrix.variant }}" "$@" ${{ matrix.extra }} --check
+          df -h / | tail -1
+      - name: draw-results に置く
+        if: always()
+        run: sh .github/scripts/draw-results.sh out
+
+  refs:
+    # 実写の手本（CC0・Public domain）で、影の検品が写真の境目を崩れと取り違えないかを確かめる。数字と出典だけを置く
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 部品
+        run: |
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy onnxruntime
+      - name: 測る
+        env:
+          CD_HOME: ${{ runner.temp }}/cd
+          CD_FETCH: "1"
+        run: python -u tools/gen/photo_refs.py out/refs --n 14
+      - name: draw-results に置く
+        if: always()
+        run: sh .github/scripts/draw-results.sh out

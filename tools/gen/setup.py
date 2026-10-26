@@ -68,6 +68,20 @@ def fetch(url: str, dest: Path) -> None:
     tmp.replace(dest)
 
 
+def fetch_pose() -> Path:
+    """骨格の点を読む模型（RTMPose）を取る。配布は zip で、中の .onnx だけを置く。写真級の描き直し（Actions）も呼ぶ"""
+    if not POSE[1].exists():
+        say("RTMPose の重み（約 54MB）")
+        with tempfile.TemporaryDirectory() as t:
+            z = Path(t) / "m.zip"
+            fetch(POSE[0], z)
+            with zipfile.ZipFile(z) as f:
+                name = next(n for n in f.namelist() if n.endswith(".onnx"))
+                POSE[1].parent.mkdir(parents=True, exist_ok=True)
+                POSE[1].write_bytes(f.read(name))
+    return POSE[1]
+
+
 def main() -> None:
     LIB.mkdir(parents=True, exist_ok=True)
     if not (LIB / "torch").exists():
@@ -96,15 +110,7 @@ def main() -> None:
     if not UPSCALE_PHOTO[1].exists():
         say("Real-ESRGAN の写真用の重み（約 64MB）")
         fetch(*UPSCALE_PHOTO)
-    if not POSE[1].exists():
-        say("RTMPose の重み（約 54MB）")
-        with tempfile.TemporaryDirectory() as t:
-            z = Path(t) / "m.zip"
-            fetch(POSE[0], z)
-            with zipfile.ZipFile(z) as f:
-                name = next(n for n in f.namelist() if n.endswith(".onnx"))
-                POSE[1].parent.mkdir(parents=True, exist_ok=True)
-                POSE[1].write_bytes(f.read(name))
+    fetch_pose()
     if not WHOLE[1].exists():
         say("DWPose の全身の点の重み（約 134MB）")
         fetch(*WHOLE)
