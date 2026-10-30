@@ -1,0 +1,512 @@
+{
+ "args": {
+  "src": "library/feedback/check/2026-10-18/stage1-bikini-white/stage1-bikini-white-stand-s12.jpg",
+  "out": "out/gate-rv",
+  "width": "768",
+  "height": "1152",
+  "prompt": "RAW photo, a 27 year old woman, plain white bikini, standing, hand on hip, grey studio backdrop, natural skin texture, soft studio lighting, 85mm, sharp focus, high detail, japanese woman, east asian face",
+  "negative": "anime, cartoon, illustration, painting, 3d, cgi, plastic skin, airbrushed, lowres, bad anatomy, bad hands, extra fingers, child, teen, western, caucasian, european face",
+  "seed": "12",
+  "steps": "25",
+  "guidance": "6.0",
+  "strength": "0.7",
+  "tile_scale": "0.6",
+  "lineart_scale": "1.0",
+  "scale": "1.5",
+  "strength2": "0.15",
+  "hf_sigma": "0.0",
+  "hf_amount": "1.0",
+  "tile2_scale": "0.8",
+  "tile": "768",
+  "overlap": "128",
+  "deshade": "0",
+  "depth_scale": "0",
+  "relight": "0",
+  "light_deg": "135",
+  "hair_strength": "0.35",
+  "iclight": "0",
+  "post_relight": "0.6",
+  "cast": "0.45",
+  "face": "0.75",
+  "model": "rv",
+  "asian": "True",
+  "face_px": "768",
+  "grain": "0.3",
+  "gate_retries": "2",
+  "fake_break": "[]",
+  "feet": "0.35",
+  "shoulder": "True",
+  "leg_soften": "4.0",
+  "sdxl_skin": "0",
+  "s1_hf": "0",
+  "face_mode": "ipadapter",
+  "ip_scale": "0.5",
+  "bangs": "True",
+  "resume": "",
+  "final_hf": "0.0",
+  "check": "True",
+  "dry_run": "False"
+ },
+ "band_px": 0,
+ "blob_px": 1835,
+ "clean_s": 0.81,
+ "input_shadow": {
+  "soft": 0.62,
+  "step_frac": 0.29,
+  "steps": 2,
+  "bimodal": 0.701,
+  "ratio": 0.677,
+  "spread": 164.5,
+  "cast": 0.079,
+  "cast_gap": 0.001,
+  "normal_corr": 0.347,
+  "normal_light_deg": 30,
+  "floor_step": 0.069,
+  "cast_iou": 0.048,
+  "light_deg": 45.0,
+  "light_lr_diff": 0.0998,
+  "contact_feet": {
+   "1": 0.0,
+   "2": 0.0
+  },
+  "contact": 0.0,
+  "cast_thick": 0.641,
+  "cast_side": 0.441,
+  "cast_spill": 0.78,
+  "halo": 0.05,
+  "halo_feet": 0.001
+ },
+ "input_keep": {
+  "flat_skin": 0.3569,
+  "hair_iou": 0.951,
+  "line_f": 0.977,
+  "leg_de": 13.12,
+  "skin_tex": 0.487,
+  "face_tex": 0.037,
+  "leg_shade_width": 1.63,
+  "contour_dev": 15.0,
+  "skin_vstep": 4.28,
+  "blown_skin": 0.0,
+  "dark_blob_px": 0,
+  "sat_ratio": 1.003,
+  "color_dab": 0.41,
+  "hair_de": 0.11,
+  "face_sim": 0.9917,
+  "face_ok": false,
+  "face_qc": {
+   "eyes": {
+    "readable": true,
+    "mismatch": false,
+    "area_ratio": 1.4,
+    "limit": 2.68
+   },
+   "extra_eyes": 0.0,
+   "mouth": {
+    "readable": true,
+    "found": true,
+    "area": 0.0495,
+    "sym": 0.166,
+    "bleed": 0.403,
+    "bad": true
+   }
+  }
+ },
+ "input_fails": [
+  {
+   "path": "bimodal",
+   "value": 0.701,
+   "min": null,
+   "max": 0.4,
+   "means": "肌の部位の明るさの分布が 2 つの山に分かれる深さ。セルの塗りが残っている"
+  },
+  {
+   "path": "cast_iou",
+   "value": 0.048,
+   "min": 0.6,
+   "max": null,
+   "means": "床の影と、人物の形を光と逆の向きの床へ写した形の重なり。影が体の形をしていない"
+  },
+  {
+   "path": "contact",
+   "value": 0.0,
+   "min": 0.6,
+   "max": null,
+   "means": "左右の足それぞれで、足の裏の真下が人物の形を写した影とひと続きの割合の低い方。片足でも浮いていれば落ちる"
+  },
+  {
+   "path": "cast_side",
+   "value": 0.441,
+   "min": 0.85,
+   "max": null,
+   "means": "影のうち、体の陰から決めた光と逆の側にある割合。影の向きが体の陰と合わない"
+  },
+  {
+   "path": "cast_spill",
+   "value": 0.78,
+   "min": null,
+   "max": 0.2,
+   "means": "影のうち、写した形の外にはみ出た割合。脚の形をしない左右の塊"
+  },
+  {
+   "path": "leg_de",
+   "value": 13.12,
+   "min": null,
+   "max": 4,
+   "means": "左右の脚の肌の平均の色の差（Lab の ΔE）。片脚だけ赤く暗い"
+  },
+  {
+   "path": "floor_step",
+   "value": 0.069,
+   "min": null,
+   "max": 0.008,
+   "means": "床の行ごとの明るさの段（光の側の床）。床を埋めた範囲の端で、床の途中に横の境目が出ている"
+  },
+  {
+   "path": "skin_vstep",
+   "value": 4.28,
+   "min": null,
+   "max": 3.0,
+   "means": "脚の肌の縦の方向の色の段（行ごとの 3 画素上下の ΔE の中央値の最大）。横の帯のように肌の色が変わる"
+  },
+  {
+   "path": "contour_dev",
+   "value": 15.0,
+   "min": null,
+   "max": 12,
+   "means": "元の絵の体の輪郭から欠けた所の、描いた体からの距離の最大（画素）。肩の輪郭が欠けて膨らみと切れ込みになった"
+  },
+  {
+   "path": "skin_tex",
+   "value": 0.487,
+   "min": 0.6,
+   "max": 1.5,
+   "means": "体の肌の毛穴ときめの大きさの強さ ÷ 実写の手本の中央値。範囲 0.6〜1.5 は手本の分布からではなく、粒なし（0.52）・量 0.3（0.68）・量 1.0（2.08、元の大きさで汚れの斑に見えた）を目で見た判断に合わせた作業用の値。手本 9 枚それぞれの値は 0.34〜5.35 と散り、顔の幅でそろえても使える手本が 3 枚に減って 0.07〜8.9 に散ったので、分布からは決められなかった"
+  },
+  {
+   "path": "leg_shade_width",
+   "value": 1.63,
+   "min": 2.5,
+   "max": null,
+   "means": "脚の陰の境目の幅（768 幅の画素）。セルの塗りの段が残り、境目が線のように硬い"
+  }
+ ],
+ "input_check_s": 18.3,
+ "load_s": 17.8,
+ "stage1_s": 1679.0,
+ "stage1_rss_gb": 12.23,
+ "gate_stage1": {
+  "accepted": true,
+  "tries": 1,
+  "worse": {}
+ },
+ "stage2_tiles": 6,
+ "stage2_s": 1032.1,
+ "stage2_rss_gb": 12.23,
+ "gate_stage2": {
+  "accepted": true,
+  "tries": 1,
+  "worse": {}
+ },
+ "gate_relight": {
+  "accepted": true,
+  "tries": 1,
+  "worse": {}
+ },
+ "gate_deblow": {
+  "accepted": false,
+  "tries": 1,
+  "worse": {
+   "digits_bad": [
+    3,
+    4
+   ]
+  }
+ },
+ "gate_match_legs": {
+  "accepted": false,
+  "tries": 1,
+  "worse": {
+   "digits_bad": [
+    3,
+    4
+   ]
+  }
+ },
+ "gate_dehalo": {
+  "accepted": false,
+  "tries": 1,
+  "worse": {
+   "face_bad": [
+    0,
+    1
+   ],
+   "dark_blob_px": [
+    0,
+    489
+   ]
+  }
+ },
+ "gate_cast": {
+  "accepted": false,
+  "tries": 1,
+  "worse": {
+   "face_bad": [
+    0,
+    1
+   ]
+  }
+ },
+ "ipadapter_load_s": 0.5,
+ "face_try0": {
+  "ok": false,
+  "eyes": {
+   "readable": true,
+   "mismatch": false,
+   "area_ratio": 1.87,
+   "limit": 3.24
+  },
+  "extra_eyes": 0.0,
+  "mouth": {
+   "readable": true,
+   "found": true,
+   "area": 0.0049,
+   "sym": 0.081,
+   "bleed": 0.34,
+   "bad": true
+  },
+  "draw_s": 806.7
+ },
+ "face_try1": {
+  "ok": false,
+  "eyes": {
+   "readable": true,
+   "mismatch": true,
+   "area_ratio": 3.77,
+   "limit": 3.18
+  },
+  "extra_eyes": 0.0,
+  "mouth": {
+   "readable": true,
+   "found": true,
+   "area": 0.0237,
+   "sym": 0.05,
+   "bleed": 0.379,
+   "bad": true
+  },
+  "draw_s": 807.0
+ },
+ "face_try2": {
+  "ok": false,
+  "eyes": {
+   "readable": true,
+   "mismatch": false,
+   "area_ratio": 1.62,
+   "limit": 2.52
+  },
+  "extra_eyes": 0.0,
+  "mouth": {
+   "readable": true,
+   "found": true,
+   "area": 0.0008,
+   "sym": 0.398,
+   "bleed": 0.824,
+   "bad": true
+  },
+  "draw_s": 804.3
+ },
+ "face_box": {
+  "box": [
+   0,
+   0,
+   1070,
+   1070
+  ],
+  "scale": 0.72
+ },
+ "face_s": 2448.6,
+ "gate_face": {
+  "accepted": false,
+  "tries": 3,
+  "worse": {
+   "digits_bad": [
+    3,
+    4
+   ]
+  }
+ },
+ "gate_leg_soften": {
+  "accepted": false,
+  "tries": 1,
+  "worse": {
+   "digits_bad": [
+    3,
+    4
+   ]
+  }
+ },
+ "shoulder_s": 316.3,
+ "gate_shoulder": {
+  "accepted": true,
+  "tries": 1,
+  "worse": {}
+ },
+ "feet_box": [
+  409,
+  1431,
+  706,
+  1728
+ ],
+ "feet_s": 397.9,
+ "gate_feet": {
+  "accepted": false,
+  "tries": 3,
+  "worse": {
+   "face_bad": [
+    0,
+    1
+   ],
+   "halo_feet": [
+    0.0,
+    0.03
+   ]
+  }
+ },
+ "gate_grain": {
+  "accepted": true,
+  "tries": 1,
+  "worse": {}
+ },
+ "gate_shape": {
+  "accepted": true,
+  "tries": 1,
+  "worse": {}
+ },
+ "final_shadow": {
+  "soft": 0.485,
+  "step_frac": 0.377,
+  "steps": 2,
+  "bimodal": 0.454,
+  "ratio": 0.687,
+  "spread": 172.0,
+  "cast": 0.068,
+  "cast_gap": 0.001,
+  "normal_corr": 0.561,
+  "normal_light_deg": 90,
+  "floor_step": 0.0593,
+  "cast_iou": 0.05,
+  "light_deg": 45.0,
+  "light_lr_diff": 0.0504,
+  "contact_feet": {
+   "1": 0.0,
+   "2": 0.0
+  },
+  "contact": 0.0,
+  "cast_thick": 0.69,
+  "cast_side": 0.403,
+  "cast_spill": 0.791,
+  "halo": 0.034,
+  "halo_feet": 0.002
+ },
+ "final_keep": {
+  "flat_skin": 0.0173,
+  "hair_iou": 0.901,
+  "line_f": 0.932,
+  "leg_de": 7.88,
+  "skin_tex": 0.626,
+  "face_tex": 0.848,
+  "leg_shade_width": 3.08,
+  "contour_dev": 12.0,
+  "skin_vstep": 3.0,
+  "blown_skin": 0.0123,
+  "dark_blob_px": 0,
+  "sat_ratio": 0.99,
+  "color_dab": 0.27,
+  "hair_de": 1.56,
+  "face_sim": 0.8562,
+  "face_ok": false,
+  "face_qc": {
+   "eyes": {
+    "readable": true,
+    "mismatch": false,
+    "area_ratio": 1.14,
+    "limit": 2.63
+   },
+   "extra_eyes": 0.0,
+   "mouth": {
+    "readable": true,
+    "found": true,
+    "area": 0.0032,
+    "sym": 0.744,
+    "bleed": 0.502,
+    "bad": true
+   }
+  }
+ },
+ "final_fails": [
+  {
+   "path": "bimodal",
+   "value": 0.454,
+   "min": null,
+   "max": 0.4,
+   "means": "肌の部位の明るさの分布が 2 つの山に分かれる深さ。セルの塗りが残っている"
+  },
+  {
+   "path": "ratio",
+   "value": 0.687,
+   "min": 0.22,
+   "max": 0.68,
+   "means": "肌の陰と光の明るさの比。高すぎると平らな光、低すぎると影が黒くつぶれる"
+  },
+  {
+   "path": "cast_iou",
+   "value": 0.05,
+   "min": 0.6,
+   "max": null,
+   "means": "床の影と、人物の形を光と逆の向きの床へ写した形の重なり。影が体の形をしていない"
+  },
+  {
+   "path": "contact",
+   "value": 0.0,
+   "min": 0.6,
+   "max": null,
+   "means": "左右の足それぞれで、足の裏の真下が人物の形を写した影とひと続きの割合の低い方。片足でも浮いていれば落ちる"
+  },
+  {
+   "path": "cast_side",
+   "value": 0.403,
+   "min": 0.85,
+   "max": null,
+   "means": "影のうち、体の陰から決めた光と逆の側にある割合。影の向きが体の陰と合わない"
+  },
+  {
+   "path": "cast_spill",
+   "value": 0.791,
+   "min": null,
+   "max": 0.2,
+   "means": "影のうち、写した形の外にはみ出た割合。脚の形をしない左右の塊"
+  },
+  {
+   "path": "leg_de",
+   "value": 7.88,
+   "min": null,
+   "max": 4,
+   "means": "左右の脚の肌の平均の色の差（Lab の ΔE）。片脚だけ赤く暗い"
+  },
+  {
+   "path": "floor_step",
+   "value": 0.0593,
+   "min": null,
+   "max": 0.008,
+   "means": "床の行ごとの明るさの段（光の側の床）。床を埋めた範囲の端で、床の途中に横の境目が出ている"
+  },
+  {
+   "path": "blown_skin",
+   "value": 0.0123,
+   "min": null,
+   "max": 0.01,
+   "means": "肌（顔を除く）のうち白飛びした画素の割合。肩や腕の白いにじみ"
+  }
+ ],
+ "final_check_s": 24.2,
+ "total_s": 11940.6
+}
