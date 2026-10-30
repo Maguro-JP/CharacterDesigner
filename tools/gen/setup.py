@@ -82,6 +82,21 @@ def fetch_pose() -> Path:
     return POSE[1]
 
 
+def fetch_digits() -> None:
+    """指を数える模型（足の指: DWPose の全身の点、手の指: MediaPipe の手）を取る。写真級の描き直しの関所（Actions）が呼ぶ"""
+    if not WHOLE[1].exists():
+        say("DWPose の全身の点の重み（約 134MB）")
+        fetch(*WHOLE)
+    if not HANDS[1].exists() or not (HANDS[1].parent / "hand_detector.tflite").exists():
+        with tempfile.TemporaryDirectory() as t:
+            z = Path(t) / "h.task"
+            fetch(HANDS[0], z)
+            with zipfile.ZipFile(z) as f:
+                HANDS[1].parent.mkdir(parents=True, exist_ok=True)
+                HANDS[1].write_bytes(f.read(HANDS[1].name))
+                (HANDS[1].parent / "hand_detector.tflite").write_bytes(f.read("hand_detector.tflite"))
+
+
 def main() -> None:
     LIB.mkdir(parents=True, exist_ok=True)
     if not (LIB / "torch").exists():

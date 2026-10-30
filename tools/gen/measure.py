@@ -740,10 +740,13 @@ def cast_check(rgb, seg, light_deg=None):
         # 足の周りは床が接地の影で暗く、遠くの背景と比べる測り方では、影と肌の間の明るい灰色の縁を拾えなかった（9 周目 0.004）
         low = np.arange(H)[:, None] >= foot - 0.08 * H
         di, do = ndimage.distance_transform_edt(body), ndimage.distance_transform_edt(~body)
-        fedge = (((di >= 1) & (di <= 3)) | ((do >= 1) & (do <= 3))) & low
+        # 縁の 1 画素目は数えない。肌と暗い影の境の 1 画素は両方の混ざった色（肌 1/3・影 2/3 で (121,113,111)）で、灰色に見えて
+        # 床より明るく、影を足に付けるたびに縁として数えた（10/27 の周、人物の形の影が 0.009 → 0.137 で戻された）。灰色も彩度 0.08
+        # 未満に絞る。陰の側の足の肌（(147,133,128)、彩度 0.13）を灰色の縁と取り違えた。床と白いにじみの彩度は 0.03 前後
+        fedge = (((di >= 2) & (di <= 3)) | ((do >= 2) & (do <= 3))) & low
         outr = (do >= 4) & (do <= 9)
         fref = ndimage.minimum_filter(np.where(outr, L, 1.0), size=max(3, round(9 * f)))
-        gray = (mx - mn) / np.maximum(mx, 1e-3) < 0.15
+        gray = (mx - mn) / np.maximum(mx, 1e-3) < 0.08
         out["halo_feet"] = round(float((gray & (L > fref + 0.08))[fedge].mean()), 3) if fedge.any() else 0.0
     return out
 
