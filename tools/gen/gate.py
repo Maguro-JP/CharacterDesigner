@@ -7,7 +7,7 @@
 崩れの数字（どれも小さいほど良い。cast_iou と contact は大きいほど良い）:
 contour_dev（元の絵の体の輪郭からの欠け、画素）、contour_extra（元の輪郭の外へのはみ出し、画素）、hair_loss（元の絵の髪の部位との重なりの欠け）、face_bad と mouth_bad（顔と口の検品に落ちた）、
 leg_de（左右の脚の色の差）、skin_vstep（脚の縦の色の段）、halo と halo_feet（縁の白い・灰色のにじみ）、dark_blob_px（浮いた暗い塊）、
-blown_skin（肌の白飛び）、cast_iou と contact（床の影の形と接地）。
+blown_skin（肌の白飛び）、cast_iou と contact（床の影の形と接地）、digits_bad（指の数が 5 本と読めない手と足の数。読めない手と足も崩れに数える）。
 """
 from __future__ import annotations
 
@@ -26,13 +26,40 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 # leg_de 1.61、skin_vstep 0.57、halo 0.03、halo_feet 0.014、dark_blob_px 40、blown_skin 0.013。許す差はおよそその 1.5 倍。
 # わざと崩す偽の工程（輪郭を 25 画素膨らませる、髪を消す、縁を白くする）は、この差でも戻る（tests/test_gate.py）
 TOL = {"contour_dev": 18.0, "contour_extra": 13.0, "hair_loss": 0.04, "face_bad": 0.5, "mouth_bad": 0.5, "leg_de": 2.5, "skin_vstep": 0.8,
-       "halo": 0.045, "halo_feet": 0.02, "dark_blob_px": 60, "blown_skin": 0.02, "cast_iou": 0.03, "contact": 0.05}
+       "halo": 0.045, "halo_feet": 0.02, "dark_blob_px": 60, "blown_skin": 0.02, "cast_iou": 0.03, "contact": 0.05,
+       "digits_bad": 0.5}
 HIGHER_BETTER = {"cast_iou", "contact"}
 
 
 def default_parts(img):
     import photoreal
     return np.asarray(photoreal._parts_of(img))
+
+
+def default_digits(img):
+    """手の指（hands.measure）と足の指（feet.count_toes）を数え、崩れた手と足の数を返す。読めない手と足も崩れに数える
+    （読めないのは崩れが無いことではない）。数える部品が両方とも読めないときは None（測らない）"""
+    import os
+    if os.environ.get("CD_FETCH") == "1":
+        import setup   # Actions では模型が無いので取る
+        setup.fetch_digits()
+    bad, read = 0, False
+    try:
+        import feet
+        bad += sum(1 for f in feet.count_toes(img) if f.get("count") != 5)
+        read = True
+    except Exception as e:
+        print("digits_feet", type(e).__name__, e, flush=True)
+    try:
+        import hands
+        for h in hands.detect_palms(img) or []:
+            box, _, rot = h.partition(":")
+            _, why, _ = hands.measure(hands.best_crop(img, tuple(int(v) for v in box.split(",")), float(rot or 0)))
+            bad += 1 if why else 0
+        read = True
+    except Exception as e:
+        print("digits_hands", type(e).__name__, e, flush=True)
+    return bad if read else None
 
 
 def default_face(img):
@@ -45,11 +72,12 @@ class Gate:
     """src は元のアニメの絵、src_seg はその部位分け（絵の大きさは描いた絵にそろえる）。
     parts_fn と face_fn は試験で偽物に替えられる（模型を読まずに関所の動きを確かめるため）"""
 
-    def __init__(self, src_seg, log=print, parts_fn=default_parts, face_fn=default_face, retries=2):
+    def __init__(self, src_seg, log=print, parts_fn=default_parts, face_fn=default_face, retries=2, digits_fn=default_digits):
         self.src_seg = np.asarray(src_seg)
         self.log = log
         self.parts_fn = parts_fn
         self.face_fn = face_fn
+        self.digits_fn = digits_fn
         self.retries = retries
         self.rows = []
         self._cache = {}
@@ -92,11 +120,17 @@ class Gate:
         mx, mn = rgb.max(-1), rgb.min(-1)
         sk = np.isin(seg, photoreal.SKIN) & (seg != 11)
         m["blown_skin"] = round(float(((mn > 225 / 255) & ((mx - mn) / np.maximum(mx, 1e-3) < 0.08))[sk].mean()), 4) if sk.any() else 0.0
+        # 顔と指は元の大きさで測る。幅 768 に縮めた絵では目の読みが揺れ、顔に触れない工程（縁、床の影）でも face_bad が 0 → 1 に
+        # 振れて戻された。IP-Adapter の顔も、元の大きさでは目が読めて釣り合う（10/27 の周、面積比 1.13〜1.78）のに縮めて落ちた
         if self.face_fn is not None:
-            q = self.face_fn(img)
+            q = self.face_fn(orig)
             if q is not None:
                 m["face_bad"] = 0 if (q["eyes"].get("readable") and not q["eyes"].get("mismatch")) else 1
                 m["mouth_bad"] = 1 if q.get("mouth", {}).get("bad", False) else 0
+        if self.digits_fn is not None:
+            d = self.digits_fn(orig)
+            if d is not None:
+                m["digits_bad"] = d
         self._cache[key] = (orig, m)      # 絵を持っておく（id の使い回しを防ぐ）
         return m
 
@@ -123,7 +157,7 @@ class Gate:
             except Exception as e:     # 工程が落ちたら、前の絵のまま続ける
                 last = {"error": f"{type(e).__name__}: {e}"}
                 continue
-            after = self.measure(new)
+            after = self._carry(prev, new, before, self.measure(new))
             bad = self.worse(before, after)
             if not bad:
                 self._row(name, True, k + 1, {}, before, after, t)
@@ -131,6 +165,28 @@ class Gate:
             last = bad
         self._row(name, False, tries, last, before, None, t)
         return prev
+
+    def _carry(self, prev, new, before, after):
+        """顔・手・足に触れない工程は、その数字を前の値のまま引き継ぐ。目と指の読みは周りの床や縁の変化でも揺れ、
+        顔を変えない工程（縁のにじみ消し、床の影）が face_bad 0 → 1 で戻された（10/27 の周）"""
+        if prev.size != new.size:
+            return after
+        seg = self._src_at(prev.size)
+        H = seg.shape[0]
+        d = np.abs(np.asarray(prev, np.int16) - np.asarray(new, np.int16)).max(-1) > 3
+        from scipy import ndimage
+        regions = {("face_bad", "mouth_bad"): seg == 11,
+                   ("digits_bad",): np.isin(seg, (14, 15)) | (np.isin(seg, (12, 13)) & (np.arange(H)[:, None] > 0.85 * H))}
+        out = dict(after)
+        for keys, reg in regions.items():
+            if not reg.any():
+                continue
+            reg = ndimage.binary_dilation(reg, iterations=max(4, prev.width // 100))
+            if not d[reg].any():
+                for k in keys:
+                    if k in before:
+                        out[k] = before[k]
+        return out
 
     def _row(self, name, ok, tries, why, before, after, t):
         row = {"step": name, "accepted": ok, "tries": tries, "worse": why, "before": before, "after": after,
@@ -170,7 +226,7 @@ def harmless_variants(img):
 
 def jitter(img, src_seg, parts_fn=default_parts):
     """同じ絵に崩さない変化を掛けて測り直し、各数字の揺れの幅（元の絵の値からの、悪くなる向きの最大）を返す"""
-    g = Gate(src_seg, log=lambda *x: None, parts_fn=parts_fn, face_fn=None)
+    g = Gate(src_seg, log=lambda *x: None, parts_fn=parts_fn, face_fn=None, digits_fn=None)
     base = g.measure(img)
     width, rows = {}, {}
     for name, v in harmless_variants(img).items():

@@ -49,7 +49,7 @@ jobs:
       - name: 部品
         run: |
           pip install -q torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy onnxruntime
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy onnxruntime ai-edge-litert
       - name: 描く
         env:
           CD_HOME: ${{ runner.temp }}/cd
@@ -81,7 +81,7 @@ jobs:
       - name: 部品
         run: |
           pip install -q torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy onnxruntime
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy onnxruntime ai-edge-litert
       - name: 測る
         env:
           CD_HOME: ${{ runner.temp }}/cd

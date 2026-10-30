@@ -33,7 +33,7 @@ def figure():
 class GateTest(unittest.TestCase):
     def setUp(self):
         self.img = figure()
-        self.g = gate.Gate(fake_parts(self.img), log=lambda *x: None, parts_fn=fake_parts, face_fn=None, retries=0)
+        self.g = gate.Gate(fake_parts(self.img), log=lambda *x: None, parts_fn=fake_parts, face_fn=None, digits_fn=None, retries=0)
 
     def test_fakes_are_reverted(self):
         for kind in ("swell", "nohair", "whiteedge"):
@@ -52,7 +52,7 @@ class GateTest(unittest.TestCase):
             self.assertIn("受け入れ", (Path(d) / "report.md").read_text(encoding="utf-8"))
 
     def test_retry_until_good(self):
-        g = gate.Gate(fake_parts(self.img), log=lambda *x: None, parts_fn=fake_parts, face_fn=None, retries=2)
+        g = gate.Gate(fake_parts(self.img), log=lambda *x: None, parts_fn=fake_parts, face_fn=None, digits_fn=None, retries=2)
         bad = photoreal.fake_break(self.img, Image.fromarray(fake_parts(self.img)), "nohair")
         out = g.step("draw", self.img, lambda k: bad if k < 2 else self.img.copy(), retry=True)
         self.assertIsNot(out, self.img)
@@ -74,6 +74,31 @@ class GateTest(unittest.TestCase):
                     "halo": 0.03, "halo_feet": 0.014, "dark_blob_px": 40, "blown_skin": 0.013}
         for k, w in measured.items():
             self.assertGreater(gate.TOL[k], w, k)
+
+
+    def test_untouched_face_keeps_face_value(self):
+        # 顔に触れない工程で目の読みが揺れても、face_bad は前の値のまま（10/27 の周、縁と床の影の工程が face_bad 0 → 1 で戻された）
+        seg = fake_parts(self.img).copy()
+        seg[200:280, 340:420] = 11
+        calls = iter([0, 1, 1])
+        g = gate.Gate(seg, log=lambda *x: None, parts_fn=fake_parts, retries=0, digits_fn=None,
+                      face_fn=lambda im: {"eyes": {"readable": next(calls) == 0}})
+        a = np.asarray(self.img).copy()
+        a[1120:1150, 0:100] = 140                  # 床の隅だけ変える
+        self.assertIsNot(g.step("floor", self.img, lambda k: Image.fromarray(a)), self.img)
+        b = np.asarray(self.img).copy()
+        b[230:250, 360:400] = 200                  # 顔を変える
+        self.assertIs(g.step("face", self.img, lambda k: Image.fromarray(b)), self.img)
+        self.assertIn("face_bad", g.rows[1]["worse"])
+
+    def test_more_broken_digits_are_reverted(self):
+        n = iter([0, 1])
+        g = gate.Gate(fake_parts(self.img), log=lambda *x: None, parts_fn=fake_parts, face_fn=None, retries=0,
+                      digits_fn=lambda im: next(n))
+        b = np.asarray(self.img).copy()
+        b[1050:1100, 300:460] = (230, 190, 170)    # 足を変える
+        self.assertIs(g.step("feet", self.img, lambda k: Image.fromarray(b)), self.img)
+        self.assertIn("digits_bad", g.rows[0]["worse"])
 
 
 if __name__ == "__main__":
