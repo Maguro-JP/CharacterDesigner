@@ -572,6 +572,40 @@ class ManagerTest(unittest.TestCase):
                     manager.delete(manager.Item("words", "x", Path(d) / "other" / "a.gguf", 0, ""))
 
 
+    def test_shows_every_model_filters_and_adds_by_name(self):
+        from unittest import mock
+        from PySide6.QtCore import QSettings
+        from PySide6.QtWidgets import QApplication, QLabel
+        from chatdraw import manager, models
+        from chatdraw.settings import Settings
+        QApplication.instance() or QApplication([])
+        with TemporaryDirectory() as d, mock.patch.dict(os.environ, {"CD_HOME": d}), \
+                mock.patch.object(manager, "HUB", Path(d) / "hub"), mock.patch.object(manager, "GGUF", Path(d) / "g"), \
+                mock.patch.object(manager, "OWN_LLM", Path(d) / "none"):
+            dlg = manager.ModelManager(Settings(QSettings(str(Path(d) / "s.ini"), QSettings.IniFormat)))
+
+            def cards():
+                return [dlg.list.itemAt(i).widget() for i in range(dlg.list.count())
+                        if dlg.list.itemAt(i).widget() and dlg.list.itemAt(i).widget().objectName() == "card"]
+            every = [c for c in cards() if "Hugging Face:" in c.toolTip()]
+            self.assertEqual(len(every), len(models.IMAGES))                  # 既定で目録の全部を出す
+            metas = " ".join(lb.text() for c in every for lb in c.findChildren(QLabel))
+            self.assertIn("未確認", metas)
+            self.assertIn("確かめ済み", metas)
+            dlg.filter.setCurrentText("推奨（確かめ済み）")
+            rec = [c for c in cards() if "Hugging Face:" in c.toolTip()]
+            self.assertEqual(len(rec), len([m for m in models.IMAGES if m.score >= models.PASS]))
+            dlg.filter.setCurrentText("すべて")
+            entry = dict(repo="me/mine", name="mine", good="自分で足した模型", family="sdxl", format="full", gb=6.9, steps=24,
+                         guidance=5.0, score=0)
+            dlg._probed(None, "見つかりません")
+            self.assertEqual(dlg.status.text(), "見つかりません")
+            dlg._probed(entry, "")
+            self.assertIn("未確認", dlg.status.text())
+            self.assertEqual(len([c for c in cards() if "Hugging Face:" in c.toolTip()]), len(models.IMAGES) + 1)
+            models._USER.clear()
+
+
 class TabsTest(unittest.TestCase):
     def test_panels_switch_with_tabs_and_history_goes_back(self):
         from PySide6.QtCore import QPointF
@@ -854,7 +888,8 @@ class VpredModelTest(unittest.TestCase):
         a = prompt_args(m, family("sdxl"), "1girl, waving", "hat", 28, 5.0, 1, Pipe())
         self.assertEqual(a["prompt"].count("masterpiece"), 1)
         self.assertEqual(a["guidance_rescale"], 0.7)
-        self.assertTrue(a["negative_prompt"].startswith("nsfw, worst quality") and a["negative_prompt"].endswith(", hat"))
+        self.assertTrue(a["negative_prompt"].startswith("nsfw, worst quality") and ", hat, " in a["negative_prompt"])
+        self.assertIn("mature female", a["negative_prompt"])   # 女性は利用者の基準の体で描く（chatdraw/body.py）
         old = prompt_args(image_model("cagliostrolab/animagine-xl-4.0"), family("sdxl"), "1girl", "", 24, 5.0, 1, Pipe())
         self.assertNotIn("guidance_rescale", old)
         self.assertTrue(old["prompt"].endswith("masterpiece, best quality"))

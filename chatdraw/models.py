@@ -23,6 +23,7 @@ BIN = dict(allow_patterns=["*.json", "*.txt", "unet/*.bin", "vae/*.bin", "text_e
 DIT = dict(allow_patterns=["*.json", "*.txt", "*.model", "*.jinja", "scheduler/*", "tokenizer/*", "tokenizer_2/*",
                            "text_encoder/*", "text_encoder_2/*", "transformer/*", "vae/*"])
 FILES = {"full": FULL, "half": HALF, "bin": BIN, "dit": DIT}
+# 1 つのファイル（.safetensors）だけで配られている模型は、そのファイルだけを取る（files は _entry で作る）
 
 
 @dataclass(frozen=True)
@@ -84,6 +85,14 @@ class ImageModel:
     negative: str = ""     # 描かない物（模型の札の推奨）。空なら世代の決まり文句を使う
     vpred: bool = False    # v-prediction で学んだ模型。読む時に Euler を v_prediction と zero terminal SNR に替える
     rescale: float = 0.0   # guidance_rescale（v-prediction の白飛び・色の濁りを抑える）。0 は渡さない
+    file: str = ""         # 1 つのファイルで配られている模型のファイル名。repo は「持ち主/名前/ファイル名」にして、同じ置き場の別の版と分ける
+    user: bool = False     # 利用者が Hugging Face の名前で足した模型
+    note: str = ""         # 載せた経緯（説明の吹き出しに出す）
+
+    @property
+    def hub(self) -> str:
+        """Hugging Face の置き場の名前（持ち主/名前）"""
+        return "/".join(self.repo.split("/")[:2]) if self.file else self.repo
 
 
 @dataclass(frozen=True)
@@ -101,16 +110,24 @@ class WordsModel:
         return f"https://huggingface.co/{self.repo}/resolve/main/{self.file}"
 
 
+def _entry(m: dict, user: bool = False) -> ImageModel:
+    """目録の 1 行（catalog.json と利用者の目録で同じ形）を模型にする"""
+    single = m["format"] == "single"
+    repo = f"{m['repo']}/{m['file']}" if single else m["repo"]
+    files = dict(allow_patterns=[m["file"]]) if single else FILES[m["format"]]
+    return ImageModel(repo, m["name"], m["good"], "", m["gb"], m["steps"], m["guidance"],
+                      variant="fp16" if m["format"] == "half" else None, files=files,
+                      en=m.get("en", ""), score=m.get("score", 0), family=m["family"], prefix=m.get("prefix", ""),
+                      commercial=m.get("commercial", ""), negative=m.get("negative", ""),
+                      vpred=m.get("vpred", False), rescale=m.get("rescale", 0.0), file=m.get("file", "") if single else "",
+                      user=user, note=m.get("note", ""))
+
+
 def _load_images() -> tuple[ImageModel, ...]:
     """絵の模型の一覧（catalog.json）。点（score）は確かめた結果で、0 は確かめていない物"""
     import json
     items = json.loads((Path(__file__).with_name("catalog.json")).read_text(encoding="utf-8"))
-    return tuple(ImageModel(m["repo"], m["name"], m["good"], "", m["gb"], m["steps"], m["guidance"],
-                            variant="fp16" if m["format"] == "half" else None, files=FILES[m["format"]],
-                            en=m["en"], score=m["score"], family=m["family"], prefix=m.get("prefix", ""),
-                            commercial=m.get("commercial", ""), negative=m.get("negative", ""),
-                            vpred=m.get("vpred", False), rescale=m.get("rescale", 0.0))
-                 for m in items)
+    return tuple(_entry(m) for m in items)
 
 
 IMAGES = _load_images()
@@ -154,6 +171,29 @@ def is_local(repo: str) -> bool:
     return p.is_absolute() and (p.is_dir() and (p / "model_index.json").exists() or p.is_file() and p.suffix == ".safetensors")
 
 
+def family_from_class(name: str) -> str:
+    """model_index.json の部品の名前（_class_name）から世代を決める。見分けられない物は unknown"""
+    for key, f in FAMILIES.items():
+        if name == f.pipeline:
+            return key
+    if name.startswith("StableDiffusionXL"):
+        return "sdxl"
+    if name.startswith("StableDiffusion") and "3" not in name:
+        return "sd15"
+    return "unknown"
+
+
+def family_from_keys(keys: list[str]) -> str:
+    """1 つの .safetensors の重みの名前から世代を決める"""
+    if any(k.startswith("conditioner.embedders.1") for k in keys):
+        return "sdxl"
+    if any(k.startswith("cond_stage_model.") for k in keys) or any(k.startswith("model.diffusion_model.input_blocks") for k in keys):
+        return "sd15"
+    if any(k.startswith(("double_blocks.", "model.diffusion_model.double_blocks.")) for k in keys):
+        return "flux1"
+    return "unknown"
+
+
 def local_family(path: Path) -> str:
     """手で置いた模型の世代。フォルダーは model_index.json の部品の名前（_class_name）を世代の表と突き合わせ、
     1 つのファイルは中の重みの名前で見分ける（大きさだけで決めると、7GB を超える FLUX を SDXL として読んで落ちた）。
@@ -164,22 +204,8 @@ def local_family(path: Path) -> str:
             name = json.loads((path / "model_index.json").read_text(encoding="utf-8")).get("_class_name", "")
         except (OSError, ValueError):
             name = ""
-        for key, f in FAMILIES.items():
-            if name == f.pipeline:
-                return key
-        if name.startswith("StableDiffusionXL"):
-            return "sdxl"
-        if name.startswith("StableDiffusion") and "3" not in name:
-            return "sd15"
-        return "unknown"
-    keys = safetensors_keys(path)
-    if any(k.startswith("conditioner.embedders.1") for k in keys):
-        return "sdxl"
-    if any(k.startswith("cond_stage_model.") for k in keys) or any(k.startswith("model.diffusion_model.input_blocks") for k in keys):
-        return "sd15"
-    if any(k.startswith(("double_blocks.", "model.diffusion_model.double_blocks.")) for k in keys):
-        return "flux1"
-    return "unknown"
+        return family_from_class(name)
+    return family_from_keys(safetensors_keys(path))
 
 
 def safetensors_keys(path: Path) -> list[str]:
@@ -215,14 +241,107 @@ def manual_images() -> list[ImageModel]:
     return [local_model(str(f)) for f in found]
 
 
+def user_catalog_file() -> Path:
+    """利用者が Hugging Face の名前で足した模型の目録。リポジトリではなくアプリのデータの置き場に持つ"""
+    from chatdraw.paths import data_home
+    return data_home() / "user_models.json"
+
+
+_USER: dict = {}   # 読んだ目録（道と更新の時刻が同じ間は読み直さない。描くたびに image_model から引かれるため）
+
+
+def user_entries() -> list[dict]:
+    import json
+    f = user_catalog_file()
+    try:
+        stamp = (str(f), f.stat().st_mtime_ns)
+    except OSError:
+        return []
+    if _USER.get("stamp") != stamp:
+        try:
+            items = json.loads(f.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            items = []
+        _USER.update(stamp=stamp, items=items if isinstance(items, list) else [])
+    return list(_USER["items"])
+
+
+def user_images() -> list[ImageModel]:
+    """利用者が足した模型。一覧に同じ物がある物は出さない"""
+    known = {m.repo for m in IMAGES}
+    out = []
+    for e in user_entries():
+        try:
+            m = _entry(e, user=True)
+        except (KeyError, TypeError):
+            continue   # 壊れた行は飛ばす（目録全体を読めなくしない）
+        if m.repo not in known:
+            out.append(m)
+    return out
+
+
+def add_user_entry(entry: dict) -> ImageModel:
+    """利用者の目録に 1 行足す（同じ物があれば置き換える）"""
+    import json
+    m = _entry(entry, user=True)
+    items = [e for e in user_entries() if _entry_key(e) != m.repo] + [entry]
+    f = user_catalog_file()
+    f.parent.mkdir(parents=True, exist_ok=True)
+    f.write_text(json.dumps(items, ensure_ascii=False, indent=1), encoding="utf-8")
+    _USER.clear()
+    return m
+
+
+def _entry_key(e: dict) -> str:
+    return f"{e.get('repo')}/{e.get('file')}" if e.get("format") == "single" else str(e.get("repo"))
+
+
+def catalog_images() -> list[ImageModel]:
+    """取れる模型の全部（一覧と、利用者が足した物）"""
+    return list(IMAGES) + user_images()
+
+
 def all_images() -> list[ImageModel]:
-    """一覧の模型と、手で置いた模型"""
-    return list(IMAGES) + manual_images()
+    """一覧の模型、利用者が足した模型、手で置いた模型"""
+    return catalog_images() + manual_images()
+
+
+NEW = ("flux2", "flux1", "chroma", "zimage", "qwenimage", "lumina2")   # 新しい世代（DiT）
+
+
+def style(m: ImageModel) -> str:
+    """絞り込みの分け方。目録の英語の説明から決める（anime / real / other）"""
+    en = m.en.lower()
+    if any(w in en for w in ("photo", "realistic")) and "semi-realistic" not in en:
+        return "real"
+    if any(w in en for w in ("anime", "cartoon", "chibi", "manga", "illustration")):
+        return "anime"
+    return "other"
+
+
+FILTERS = {   # 模型の管理の絞り込み。名前と、その名前で残す物
+    "すべて": lambda m: True,
+    "推奨（確かめ済み）": lambda m: m.score >= PASS,
+    "確かめ済み": lambda m: m.score > 0,
+    "アニメ・イラスト": lambda m: style(m) == "anime",
+    "リアル": lambda m: style(m) == "real",
+    "新しい世代": lambda m: m.family in NEW,
+    "自分で足した": lambda m: m.user,
+}
+SORTS = {
+    "確かめ済みが先": lambda m: (-m.score, m.name.lower()),
+    "名前": lambda m: m.name.lower(),
+    "小さい順": lambda m: (m.gb, m.name.lower()),
+}
+
+
+def pick(models, filter_name: str = "すべて", sort_name: str = "確かめ済みが先") -> list[ImageModel]:
+    return sorted((m for m in models if FILTERS[filter_name](m)), key=SORTS[sort_name])
 
 
 def image_model(repo: str) -> ImageModel:
     """一覧に無い模型は、手で置いた物ならその形で、Hugging Face の名前ならふつうの形で取る"""
-    found = next((m for m in IMAGES if m.repo == repo), None)
+    found = next((m for m in catalog_images() if m.repo == repo), None)
     if found is not None:
         return found
     if is_local(repo):

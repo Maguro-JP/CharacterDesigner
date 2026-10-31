@@ -2,6 +2,7 @@
 
 描く処理は layers.background を使い回す（no humans を先頭に置き、目の高さ・地平線を中ほどに描かせる）。
 人物が混ざっていないかは、部位分けより軽い絵のタグ（tagger.read）で見る。1girl・solo などが出たら描き直す。
+パース（消失点に線が集まるか、柱が傾いていないか）は perspective.measure で測り、qc.json の perspective に残す。
 地平線の高さを記録しておくと、合成のときに足元と地平線から人物の大きさが決まる（layers.perspective_height）。
 
 使い方:
@@ -43,6 +44,30 @@ def person_tags(tags: dict, threshold: float = PERSON_THRESHOLD) -> dict:
     return {t: p for t, p in tags.items() if p >= threshold and (t in PERSON_TAGS or COUNTED.match(t))}
 
 
+# パースの崩れの目安。citadel の門と広間で測った値（傾き 1.0 と 7.8 度、集まる割合 0.51 と 0.41）から決めた。
+# まだ 2 枚でしか測っていないので、通す・戻すには使わず、気づいた所として qc.json に残すだけにする
+TILT_WARN = 5.0          # 縦の線の傾き（度）
+GAP_WARN = 0.1           # 2 つの消失点の高さの差（画面の高さの割合）
+CONVERGE_WARN = 0.3      # 消失点に集まる奥行きの線の割合
+
+
+def perspective_check(im) -> dict:
+    """背景のパースを測り（perspective.measure）、目安を外れた所を warnings に書く"""
+    import perspective
+    try:
+        m = perspective.measure(im)
+    except Exception as e:      # skimage が無い環境でも検品の結果は残す
+        return {"error": str(e)}
+    w = []
+    if m["vertical_tilt"] is not None and m["vertical_tilt"] > TILT_WARN:
+        w.append(f"縦の線が傾いている（{m['vertical_tilt']} 度）")
+    if m["horizon_gap"] is not None and m["horizon_gap"] > GAP_WARN:
+        w.append(f"消失点の高さがそろわない（差 {m['horizon_gap']}）")
+    if m["converge"] is not None and m["converge"] < CONVERGE_WARN:
+        w.append(f"奥へ向かう線が消失点に集まらない（{m['converge']}）")
+    return {**m, "warnings": w}
+
+
 def write_qc(png: Path, tags: dict, horizon, meta: dict) -> Path:
     found = person_tags(tags)
     qc = {"pass": not found, "reasons": [f"人物のタグ {t}（{p}）" for t, p in sorted(found.items())],
@@ -77,7 +102,8 @@ def draw(world: str, location: str, outdir: str, count: int = 1, seed: int = 7, 
         except Exception as e:      # 奥行きの模型が無い環境でも検品の結果は残す
             print(f"地平線を測れなかった: {e}", file=sys.stderr)
             hz = None
-        meta = {"world": world, "location": location, "seed": s, "size": list(size), "prompt": scene, "negative": negative}
+        meta = {"world": world, "location": location, "seed": s, "size": list(size), "prompt": scene, "negative": negative,
+                "perspective": perspective_check(im)}
         results.append({"image": str(png), "qc": str(write_qc(png, last.get("tags", {}), hz, meta))})
     return results
 

@@ -9,13 +9,15 @@ from __future__ import annotations
 
 import re
 
+from chatdraw.body import WOMAN
+
 COLORS = {"赤": "red", "青": "blue", "黒": "black", "白": "white", "金": "blonde", "銀": "silver", "緑": "green", "茶": "brown",
           "ピンク": "pink", "紫": "purple", "黄": "yellow", "オレンジ": "orange", "水色": "light blue", "紺": "navy blue", "灰": "grey"}
 
 TERMS = {
     # 人
-    "女性": "1girl, solo, adult woman, mature female", "女の人": "1girl, solo, adult woman, mature female",
-    "大人の女性": "1girl, solo, adult woman, mature female", "お姉さん": "1girl, solo, adult woman, mature female",
+    "女性": WOMAN, "女の人": WOMAN,
+    "大人の女性": WOMAN, "お姉さん": WOMAN,
     "女の子": "1girl, solo", "少女": "1girl, solo", "男性": "1boy, solo, adult man", "男の人": "1boy, solo, adult man",
     "男の子": "1boy, solo", "少年": "1boy, solo", "老人": "old man, elderly", "おばあさん": "old woman, elderly",
     "騎士": "knight, armor", "女騎士": "1girl, solo, adult woman, knight, armor", "魔法使い": "mage, robe", "メイド": "maid, maid headdress",

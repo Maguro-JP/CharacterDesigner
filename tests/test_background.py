@@ -46,7 +46,10 @@ class Draw(unittest.TestCase):
             background=lambda scene, seed, size, negative, check: (lambda im: (check(im), im)[1])(Image.new("RGB", size, "gray")),
             horizon=lambda im: 0.4567)
         fake_tagger = types.SimpleNamespace(read=lambda p: {"scenery": 0.9, "1girl": 0.6})
-        with tempfile.TemporaryDirectory() as d, mock.patch.dict(sys.modules, {"layers": fake_layers, "tagger": fake_tagger}), \
+        # パースの測り方は skimage を読む。patch.dict は中で読んだ模組を後で消し、後の試験の numpy を壊したので、ここでは差し替える
+        fake_persp = types.SimpleNamespace(measure=lambda im: {"vertical_tilt": 7.0, "horizon_gap": None, "converge": 0.5})
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.dict(sys.modules, {"layers": fake_layers, "tagger": fake_tagger, "perspective": fake_persp}), \
                 mock.patch("bible.load", return_value=WORLD):
             res = background.draw("citadel", "gate", d, count=2, seed=3)
             self.assertEqual(len(res), 2)
@@ -56,6 +59,7 @@ class Draw(unittest.TestCase):
             self.assertEqual(qc["person_tags"], {"1girl": 0.6})
             self.assertEqual(qc["horizon"], 0.4567)
             self.assertEqual(qc["size"], [1216, 832])
+            self.assertEqual(qc["perspective"]["warnings"], ["縦の線が傾いている（7.0 度）"])
             self.assertEqual(Image.open(res[0]["image"]).size, (1216, 832))
 
 
