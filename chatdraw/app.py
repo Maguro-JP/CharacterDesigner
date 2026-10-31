@@ -1332,7 +1332,7 @@ class Window(QMainWindow):
         st = check(getattr(self.studio, "painter", None), getattr(self.studio, "words", None)) if isinstance(self.studio, Studio) else \
             {"torch": True, "image": True, "words": True, "reason": ""}
         if st["image"]:
-            self.ai_label.setText("AI: 使えます" + ("" if st["words"] else "（言葉の模型なし。日本語はそのまま渡します）"))
+            self.ai_label.setText("AI: 使えます" + ("" if st["words"] else "（言葉の模型なし。日本語は語の表で英語に直します）"))
             self.ai_label.setStyleSheet("color:#8fd18f")
         else:
             self.ai_label.setText("AI: 使えません")

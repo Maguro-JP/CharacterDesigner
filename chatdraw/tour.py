@@ -65,8 +65,16 @@ class Tour(QWidget):
         self.show_step(0)
 
     def hole(self) -> QRect | None:
-        w = self.steps[self.i].target()
-        if w is None or not w.isVisible():
+        """明るく抜く所。部品がまだ無い・もう消えたときは None（真ん中に説明だけ出す）。
+
+        前は部品を引く所の例外をそのまま上げていた。案内の幕は出たあとなので、幕が残って押した所を全部受け止め、
+        描き直すたびに同じ例外が出て、アプリが固まったまま戻らなかった（赤ペンの指示の欄を作る前の案内など）。
+        """
+        try:
+            w = self.steps[self.i].target()
+            if w is None or not w.isVisible():
+                return None
+        except (AttributeError, RuntimeError, KeyError, IndexError):
             return None
         top_left = w.mapTo(self.window_, w.rect().topLeft())
         return QRect(top_left.x(), top_left.y(), w.width(), w.height()).adjusted(-4, -4, 4, 4)   # キャンバスの size は筆の太さ
@@ -78,7 +86,10 @@ class Tour(QWidget):
         self.i = max(0, i)
         step = self.steps[self.i]
         if step.before:
-            step.before()
+            try:
+                step.before()
+            except (AttributeError, RuntimeError, KeyError, IndexError):
+                pass   # 開けなくても案内は続ける（落ちると幕だけが残って固まった）
         self.raise_()   # 開いた欄が前に出るので、案内をその上に戻す
         self.count.setText(f"{self.i + 1} / {len(self.steps)}")
         self.title.setText(step.title)

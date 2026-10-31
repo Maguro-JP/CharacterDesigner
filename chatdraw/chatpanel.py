@@ -102,8 +102,10 @@ class ChatPanel(QWidget):
         self.scroll.setWidget(inner)
         bar = self.scroll.verticalScrollBar()
         self._follow = True   # いちばん下を見ているときだけ、新しい吹き出しで下へ送る（読み返している所を動かさない）
-        bar.valueChanged.connect(lambda v: setattr(self, "_follow", v >= bar.maximum() - 4))
-        bar.rangeChanged.connect(lambda _lo, hi: self._follow and bar.setValue(hi))
+        # 自分の関数につなぐ。前は bar を閉じ込めた lambda で、欄を閉じたあとも呼ばれて
+        # 「QScrollBar already deleted」の例外を出し続けた（自分の関数なら、欄と一緒に切れる）
+        bar.valueChanged.connect(self._scrolled)
+        bar.rangeChanged.connect(self._grown)
         lay.addWidget(self.scroll, 1)
         row = QHBoxLayout()
         self.input = EnterEdit("AI に話しかける（使い方の質問、絵の相談、「ペンにして」などの操作）", lines=2)
@@ -136,6 +138,13 @@ class ChatPanel(QWidget):
             del self.turns[:-20]
         self._follow = True
         return b
+
+    def _scrolled(self, v: int):
+        self._follow = v >= self.scroll.verticalScrollBar().maximum() - 4
+
+    def _grown(self, _lo: int, hi: int):
+        if self._follow:
+            self.scroll.verticalScrollBar().setValue(hi)
 
     def send(self):
         text = self.input.text().strip()

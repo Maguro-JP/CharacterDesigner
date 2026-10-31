@@ -5,6 +5,7 @@
 from __future__ import annotations
 
 import os
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -173,6 +174,7 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
     描かない物を受けない模型には渡さず、頼みの効きは模型ごとの名前（guidance_scale か true_cfg_scale）で渡す"""
     import inspect
     import torch
+    prompt = english_only(prompt)
     text = f"{info.prefix}{prompt}"
     if f.tags and "masterpiece" not in info.prefix:
         text += ", masterpiece, best quality"
@@ -200,6 +202,7 @@ def woman(prompt: str) -> bool:
 def negative_for(info, avoid: str = "") -> str:
     """描かない物。模型の札に推奨があればそれを使う（模型ごとに学んだ質の言葉が違う）"""
     base = getattr(info, "negative", "") or "lowres, worst quality, low quality"
+    avoid = english_only(avoid or "")
     return base + (f", {avoid}" if avoid else "")
 
 
@@ -239,6 +242,24 @@ def has_japanese(text: str) -> bool:
     return any("぀" <= ch <= "ヿ" or "一" <= ch <= "鿿" for ch in text)
 
 
+def english_only(text: str) -> str:
+    """絵の模型に渡す言葉から日本語を除く。区切り（, 、）ごとに見て、日本語の字だけを落とし、残った英語は残す。
+
+    絵の模型（SD 系の CLIP、T5）は日本語を読めず、読めない字は別の物を描く元になった。
+    言葉の模型も表も直せなかった頼み、直せなかった禁止ワード、日本語の名前の作風が、どの経路からでもそのまま渡らないよう、
+    模型に渡す直前（prompt_args、negative_for、直すときの頼み）でここを通す。
+    """
+    if not has_japanese(text):
+        return text
+    out = []
+    for part in re.split(r"[,、，]", text):
+        part = "".join(" " if ("぀" <= ch <= "ヿ" or "一" <= ch <= "鿿" or ch in "。・「」（）") else ch for ch in part)
+        part = re.sub(r"\s+", " ", part).strip()
+        if part and part not in out:
+            out.append(part)
+    return ", ".join(out)
+
+
 def physical_cores() -> int:
     """物理コアの数。llama.cpp は論理コア（ハイパースレッド）まで使うと、かえって遅くなる"""
     try:
@@ -262,6 +283,11 @@ def physical_cores() -> int:
     return max(1, (os.cpu_count() or 2) // 2)
 
 
+def decode_threads(cores: int) -> int:
+    """言葉の模型が 1 語ずつ出すときの糸の数。4 コア以上なら半分、それより少なければ全部"""
+    return max(1, cores // 2 if cores >= 4 else cores)
+
+
 # 読んだ言葉の模型（道 → Llama）。設定を替えて Words を作り直しても、同じ模型は読み直さない（1 回の読み込みに 100 秒以上かかった）。
 # 持つのは 1 つだけにし、別の模型に替えたら前の物は捨ててメモリを空ける
 _LOADED: dict[str, object] = {}
@@ -273,7 +299,12 @@ def _llm_for(path: Path):
         _LOADED.clear()
         from llama_cpp import Llama
         # 頼みは短い（指示と頼みで 200 トークン前後）。n_ctx を 2048 から 512 にすると、KV の置き場が 1/4 になる
-        _LOADED[key] = Llama(model_path=key, n_ctx=512, n_batch=512, n_threads=physical_cores(), verbose=False)
+        # 1 語ずつ出す所（decode）は、物理コアの半分の糸にする。全部の糸を使うと、ほかの処理が CPU を使っている間に
+        # 糸どうしの待ち合わせで止まり、Qwen3.5 2B で 7 語に 24〜50 秒かかった（4 コアの機械、2 糸なら 0.9 秒）。
+        # 大きい模型ほど 1 語の計算が重く、この遅れが大きく出た。頼みを読む所（prefill）はまとめて計算するので全部の糸を使う
+        cores = physical_cores()
+        _LOADED[key] = Llama(model_path=key, n_ctx=512, n_batch=512, n_threads=decode_threads(cores), n_threads_batch=cores,
+                             verbose=False)
     return _LOADED[key]
 
 
@@ -355,14 +386,14 @@ class Words:
             # 言葉の模型が無いときは表で拾った語だけで描く。日本語のまま渡すと、SDXL の模型は読めず全く違う絵になった
             self.untranslated = leftover(text)
             if not picked:
-                return text
+                return english_only(text)   # 拾えなければ英語の所だけ。日本語のまま渡すと読めずに別の物を描いた
             return ", ".join(picked) if tags else sentence(picked)
         if not tags:
             out = self.ask(ASK_SENTENCE, text, max_tokens=96)
             if has_japanese(out):
                 self.untranslated = [out]
                 out = ""
-            return out or (sentence(picked) if picked else text)
+            return out or (sentence(picked) if picked else english_only(text))
         keep, neg, ja = _clean_tags(self.ask(ASK, text))
         self.untranslated = ja
         for n in neg:
@@ -406,21 +437,25 @@ def latent_preview(latents, sdxl: bool = True):
 
 def check(painter=None, words=None) -> dict:
     """AI が使えるかを確かめる（描く前と起動のたびに呼ぶ）。描く部品・絵の模型・言葉の模型のそろい具合と、使えない理由を返す"""
+    # 部品は読まずに、置いてあるかだけを見る。画面の糸で呼ばれるので、diffusers と torch を読むと（この機械で 4.6 秒、
+    # CUDA 版の Windows ではもっと）模型の管理を閉じたあとや描く前に、アプリが固まって見えた。読めない部品は描くときに知らせる
+    import importlib.util
+    import sys
     out = {"torch": False, "image": False, "words": False, "reason": ""}
     try:
-        import diffusers  # noqa: F401
-        import torch  # noqa: F401
-        out["torch"] = True
-    except Exception as e:
-        out["reason"] = f"描く部品が読めません（{e}）"
+        missing = [n for n in ("diffusers", "torch") if n not in sys.modules and importlib.util.find_spec(n) is None]
+    except (ImportError, ValueError) as e:
+        missing = [str(e)]
+    if missing:
+        out["reason"] = f"描く部品が読めません（{', '.join(missing)} がありません）"
         return out
+    out["torch"] = True
     painter = painter or Painter()
     words = words or Words()
     out["image"] = painter.ready()
     try:
-        import llama_cpp  # noqa: F401
-        out["words"] = words.ready()
-    except Exception:
+        out["words"] = ("llama_cpp" in sys.modules or importlib.util.find_spec("llama_cpp") is not None) and words.ready()
+    except (ImportError, ValueError):
         out["words"] = False
     if not out["image"]:
         out["reason"] = f"絵の模型（{painter.model}）が手元にありません。「ファイル」の「模型を取る」から取ってください"
@@ -833,7 +868,7 @@ class Painter:
         self.stop = False
         if clean:
             image = erase(image, mask)
-        args = dict(prompt=f"{info.prefix}{prompt}, masterpiece, best quality", negative_prompt=negative_for(info, self.avoid),
+        args = dict(prompt=f"{info.prefix}{english_only(prompt)}, masterpiece, best quality", negative_prompt=negative_for(info, self.avoid),
                     num_inference_steps=self.steps, guidance_scale=self.guidance, strength=strength,
                     generator=torch.Generator("cpu").manual_seed(seed))
         if info.rescale:
@@ -1021,6 +1056,7 @@ class Studio:
         tags = self.words.to_prompt(text, tags=True)
         if style:
             tags = f"{tags}, {style}"
+        sentence, tags = english_only(sentence), english_only(tags)   # 2 段の模型は prompt_args を通らないので、ここで日本語を除く
         if refused(sentence) or refused(tags):
             raise ValueError("子どもを性的に描く頼みは描きません")
         self.painter._pipe = None   # 1 つの模型で読んだ物は捨てて、段の処理にメモリを渡す
