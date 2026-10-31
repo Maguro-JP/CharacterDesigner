@@ -500,7 +500,7 @@ class SetupDialog(QDialog):
         if getattr(self, "local", None) is not None:
             image = None   # 手で置いた模型は取らない
         elif image == AUTO:
-            image = None if any(has_image(m) for m in IMAGES) else offered_images()[0]
+            image = None if any(has_image(m) for m in IMAGES) else (offered_images() or list(IMAGES))[0]
         if words is not None and has_words(words):
             words = None
         return image, words

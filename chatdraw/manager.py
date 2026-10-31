@@ -2,6 +2,7 @@
 
 見せるのは、名前・点（1 つの数）・大きさ・世代・商用の可否・得意なこと（1 行）・タグだけにする（点の細目や置き場の道は見せない）。
 点は利用者が付けた点があればそれ、無ければ目録の点（ratings）。既定の並びは点の高い順。
+手元にある模型はどの絞り込みでも先頭に出し、その中で ★（お気に入り）を先にする。非表示にした物は「非表示にした模型」にだけ出す。
 ボタンが増えて並びが混まないように、まれにしか使わない操作（点・タグ・削除、ディレクトリ）はドロップダウンにまとめる。
 まだ確かめていない模型も取って使えるが、「未確認」と書いて分ける。
 消すのは、利用者がこの画面で選んで確かめたときだけ。使っている模型は消せない。
@@ -17,7 +18,7 @@ from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import (QComboBox, QDialog, QFrame, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMenu, QMessageBox,
                                QProgressBar, QPushButton, QToolButton, QVBoxLayout, QWidget)
 
-from chatdraw.models import FILTERS, FITS, SORTS, WORDS, ImageModel, catalog_images, family, fits, heavy, machine, pick, run_mode, verified_words
+from chatdraw.models import FILTERS, FITS, HIDDEN, SORTS, WORDS, ImageModel, catalog_images, family, fits, heavy, machine, pick, run_mode, verified_words
 from chatdraw.paths import GGUF, HUB, OWN_LLM
 from chatdraw.setup import AUTO, Fetcher, folder_gb
 
@@ -183,17 +184,23 @@ class ModelManager(QDialog):
         head = QLabel("絵の模型")
         head.setObjectName("dialogTitle")
         self.list.addWidget(head)
-        shown = pick(catalog_images(), self.filter.currentText(), self.sort.currentText(), self.chosen_tags)
-        for m in shown:
-            self.list.addWidget(self._image_row(m, mine.get(m.repo)))
-        known = {m.repo for m in catalog_images()}
-        if self.filter.currentText() == "すべて" and not self.chosen_tags:
-            for it in (it for it in mine.values() if it.key not in known):   # 目録に無い、前に取った物
-                self.list.addWidget(self._row(it.name, f"{it.gb:.1f}GB", *self._image_actions(it.key, it)))
+        hiding = self.filter.currentText() == HIDDEN
+        if not hiding:   # おまかせも 1 つの選び方として出す（描くたびに手元の模型から頼みに合う物を選ぶ）
+            auto = self.settings.get("image_model") == AUTO
+            self.list.addWidget(self._row("おまかせ", "手元の模型から、頼みに合い点の高い物を描くたびに選びます",
+                                          "使用中" if auto else "使う", None if auto else self.use_auto))
+        catalog = catalog_images()
+        shown = pick(catalog, self.filter.currentText(), self.sort.currentText(), self.chosen_tags, have=mine)
+        known = {m.repo for m in catalog}
+        if not hiding:   # 手元にある物は、どの絞り込みでも先頭に出す（目録に無い、前に取った物と手で置いた物も）
+            for it in (it for it in mine.values() if it.key not in known):
+                self.list.addWidget(self._row(it.name, f"{it.gb:.1f}GB・取得済み", *self._image_actions(it.key, it)))
             for it in [x for x in have if x.kind == "manual"]:
                 use = (lambda _=False, it=it: self.pick_file(it.key))
                 self.list.addWidget(self._row(it.name, f"{it.gb:.1f}GB・手で置いた模型", "使用中" if self.settings.get("image_model") == it.key
                                               else "使う", None if self.settings.get("image_model") == it.key else use))
+        for m in shown:
+            self.list.addWidget(self._image_row(m, mine.get(m.repo)))
         if not shown:
             self.list.addWidget(QLabel("ありません"))
         head = QLabel("言葉の模型")
@@ -217,14 +224,41 @@ class ModelManager(QDialog):
         return "使う", (lambda _=False, key=key, m=m: self.use(key, m)), "削除", (lambda _=False, it=it: self.ask_delete(it))
 
     def _more(self, m: ImageModel, actions: tuple) -> QMenu:
-        """「…」のドロップダウン。自分の点、自分のタグ、削除（取ってある物だけ）"""
+        """「…」のドロップダウン。自分の点、自分のタグ、非表示（戻す）、削除（取ってある物だけ）"""
+        from chatdraw.ratings import is_hidden
         menu = QMenu(self)
         menu.addAction("自分の点を付ける…", lambda m=m: self.ask_rating(m))
         menu.addAction("自分のタグ…", lambda m=m: self.ask_tags(m))
+        if is_hidden(m.repo):
+            menu.addAction("表示に戻す", lambda m=m: self.set_hidden(m, False))
+        else:
+            menu.addAction("非表示にする", lambda m=m: self.set_hidden(m, True))
         if len(actions) > 2 and actions[3] is not None:
             menu.addSeparator()
             menu.addAction(actions[2], actions[3])
         return menu
+
+    def set_hidden(self, m: ImageModel, on: bool):
+        from chatdraw.ratings import set_hidden
+        set_hidden(m.repo, on)
+        self.status.setText(f"{m.name} を" + ("非表示にしました。「非表示にした模型」の絞り込みから戻せます" if on else "表示に戻しました"))
+        self.refresh()
+
+    def toggle_favorite(self, m: ImageModel):
+        from chatdraw.ratings import is_favorite, set_favorite
+        set_favorite(m.repo, not is_favorite(m.repo))
+        self.refresh()
+
+    def use_auto(self):
+        self.settings.set("image_model", AUTO)
+        self.status.setText("おまかせにしました。描くたびに、手元の模型から頼みに合う物を選びます")
+        self._changed()
+
+    def _changed(self):
+        """一覧を作り直し、AI のメニューにも知らせる"""
+        from chatdraw.ratings import changed
+        self.refresh()
+        changed()
 
     def ask_rating(self, m: ImageModel):
         from chatdraw.ratings import set_user_rating, user_rating
@@ -275,7 +309,9 @@ class ModelManager(QDialog):
                                      "まだ動かして確かめていない模型です。崩れが多いことがあります" if m.score <= 0 else "", m.note) if x)
         actions = self._image_actions(m.repo, it, m)
         sub = m.good + ("\n" + " ".join(f"#{t}" for t in tags(m)) if tags(m) else "")
-        box = self._row(m.name, meta, *actions[:2], sub=sub, more=self._more(m, actions))
+        if it is not None:
+            meta = "取得済み・" + meta
+        box = self._row(m.name, meta, *actions[:2], sub=sub, more=self._more(m, actions), star=m)
         box.setToolTip(tip)
         return box
 
@@ -285,7 +321,7 @@ class ModelManager(QDialog):
             self.settings.set("steps", m.steps)
             self.settings.set("guidance", m.guidance)
         self.status.setText(f"{m.name if m else key} を使います" + ("（未確認の模型です）" if m is not None and m.score <= 0 else ""))
-        self.refresh()
+        self._changed()
 
     def add_by_name(self):
         name = self.hf_name.text().strip()
@@ -305,7 +341,7 @@ class ModelManager(QDialog):
         m = add_user_entry(entry)
         self.hf_name.clear()
         self.status.setText(f"{m.name} を一覧に足しました（{family(m.family).name}、約 {m.gb:.1f}GB、未確認）。「取る」で取れます")
-        self.refresh()
+        self._changed()
 
     def open_manual_dir(self):
         """手で置く模型の置き場を作って開く（エクスプローラー）"""
@@ -339,11 +375,24 @@ class ModelManager(QDialog):
         self.status.setText(f"{m.name} を使います（{fam(m.family).name} として読みます）")
         self.refresh()
 
-    def _row(self, name: str, size: str, action: str, fn, action2: str = "", fn2=None, sub: str = "", more: QMenu | None = None) -> QWidget:
+    def _row(self, name: str, size: str, action: str, fn, action2: str = "", fn2=None, sub: str = "", more: QMenu | None = None,
+             star: ImageModel | None = None) -> QWidget:
         box = QFrame()
         box.setObjectName("card")
         row = QHBoxLayout(box)
         row.setContentsMargins(12, 6, 8, 6)
+        if star is not None:   # ★ を押すと、お気に入りを付ける・外す
+            from chatdraw.ratings import is_favorite
+            fav = is_favorite(star.repo)
+            b = QToolButton()
+            b.setText("★" if fav else "☆")
+            b.setCheckable(True)
+            b.setChecked(fav)
+            b.setAutoRaise(True)
+            b.setToolTip("お気に入りを外します" if fav else "お気に入りにします。★ の模型は手元の模型の中で先頭に出ます")
+            b.clicked.connect(lambda _=False, m=star: self.toggle_favorite(m))
+            box.star = b
+            row.addWidget(b)
         text = QVBoxLayout()
         text.setSpacing(0)
         text.addWidget(QLabel(name))
@@ -364,7 +413,7 @@ class ModelManager(QDialog):
             b = QToolButton()
             b.setText("…")
             b.setPopupMode(QToolButton.InstantPopup)
-            b.setToolTip("自分の点・自分のタグ・削除")
+            b.setToolTip("自分の点・自分のタグ・非表示・削除")
             b.setMenu(more)
             box.more = more
             row.addWidget(b)
@@ -381,7 +430,7 @@ class ModelManager(QDialog):
             self.status.setText(f"{it.name} を消しました")
         except Exception as e:
             self.status.setText(f"消せませんでした: {e}")
-        self.refresh()
+        self._changed()
 
     def fetch(self, m):
         self.bar.setVisible(True)
@@ -406,7 +455,7 @@ class ModelManager(QDialog):
     def _fetched(self, err: str):
         self.bar.setVisible(False)
         self.status.setText(err or "終わりました")
-        self.refresh()
+        self._changed()
 
 
 class Prober(QObject):
