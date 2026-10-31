@@ -42,20 +42,28 @@ class Family:
     reference: bool = False   # 参考画像（IP-Adapter）が使える
     edit: bool = False        # 絵を頼みと一緒に渡せる（FLUX.2 klein の image）。ラフも参考画像もこの入口で渡す
     extra: dict = field(default_factory=dict)
+    bf16: bool = False        # GPU でも bfloat16 で読む。新しい世代（DiT）は float16 だと値があふれて黒い絵や崩れた絵になる（札は全部 bf16）
+    vram: float = 6.0         # 目録に重さが無いときの目安。GPU で描くのに要る VRAM（GB、使う部品だけ GPU に載せる形で）
+    ram: float = 16.0         # 同じく、メモリ（GB）。CPU で描くときも、部品を GPU に出し入れするときも、この分を使う
 
 
 FAMILIES = {
     "sdxl": Family("SDXL", "StableDiffusionXLPipeline", (832, 1216), 64, sketch=True, inpaint=True, reference=True),
-    "sd15": Family("SD1.5", "StableDiffusionPipeline", (512, 768), 64, sketch=True, inpaint=True, reference=True),
+    "sd15": Family("SD1.5", "StableDiffusionPipeline", (512, 768), 64, sketch=True, inpaint=True, reference=True, vram=4, ram=8),
     # FLUX.2 klein は絵を頼みと一緒に受け取って描き直せる（公式の札の「image editing」）。ラフと参考画像はこの入口で渡す
     "flux2": Family("FLUX.2", "Flux2KleinPipeline", (1024, 1024), 16, tags=False, negative=False, sketch=True, reference=True,
-                    edit=True),
-    "flux1": Family("FLUX.1", "FluxPipeline", (1024, 1024), 16, tags=False, negative=False, extra={"max_sequence_length": 256}),
-    "chroma": Family("Chroma", "ChromaPipeline", (1024, 1024), 16, tags=False),
-    "zimage": Family("Z-Image", "ZImagePipeline", (1024, 1024), 16, tags=False, negative=False),
-    "qwenimage": Family("Qwen-Image", "QwenImagePipeline", (1024, 1024), 16, tags=False, cfg_key="true_cfg_scale"),
+                    edit=True, bf16=True, vram=8, ram=24),
+    "flux1": Family("FLUX.1", "FluxPipeline", (1024, 1024), 16, tags=False, negative=False, extra={"max_sequence_length": 256},
+                    bf16=True, vram=12, ram=40),
+    "chroma": Family("Chroma", "ChromaPipeline", (1024, 1024), 16, tags=False, bf16=True, vram=12, ram=32),
+    "zimage": Family("Z-Image", "ZImagePipeline", (1024, 1024), 16, tags=False, negative=False, bf16=True, vram=12, ram=32),
+    "qwenimage": Family("Qwen-Image", "QwenImagePipeline", (1024, 1024), 16, tags=False, cfg_key="true_cfg_scale",
+                        bf16=True, vram=24, ram=64),
     "lumina2": Family("Lumina 2", "Lumina2Pipeline", (1024, 1024), 16, tags=True,
-                      extra={"cfg_trunc_ratio": 0.25, "cfg_normalization": True}),
+                      extra={"cfg_trunc_ratio": 0.25, "cfg_normalization": True}, bf16=True, vram=8, ram=24),
+    # SD3.5 は手で置いた模型と Hugging Face の名前で足した模型を読むために持つ（目録には載せていない。アニメ絵は SDXL 系より弱い）
+    "sd3": Family("SD3.5", "StableDiffusion3Pipeline", (1024, 1024), 16, tags=False, extra={"max_sequence_length": 256},
+                  bf16=True, vram=10, ram=32),
 }
 
 
@@ -88,6 +96,8 @@ class ImageModel:
     file: str = ""         # 1 つのファイルで配られている模型のファイル名。repo は「持ち主/名前/ファイル名」にして、同じ置き場の別の版と分ける
     user: bool = False     # 利用者が Hugging Face の名前で足した模型
     note: str = ""         # 載せた経緯（説明の吹き出しに出す）
+    vram: float = 0.0      # 重さ: GPU で描くのに要る VRAM（GB）。0 は世代の目安を使う
+    ram: float = 0.0       # 重さ: 要るメモリ（GB）。0 は世代の目安を使う
 
     @property
     def hub(self) -> str:
@@ -120,7 +130,7 @@ def _entry(m: dict, user: bool = False) -> ImageModel:
                       en=m.get("en", ""), score=m.get("score", 0), family=m["family"], prefix=m.get("prefix", ""),
                       commercial=m.get("commercial", ""), negative=m.get("negative", ""),
                       vpred=m.get("vpred", False), rescale=m.get("rescale", 0.0), file=m.get("file", "") if single else "",
-                      user=user, note=m.get("note", ""))
+                      user=user, note=m.get("note", ""), vram=m.get("vram", 0.0), ram=m.get("ram", 0.0))
 
 
 def _load_images() -> tuple[ImageModel, ...]:
@@ -191,6 +201,8 @@ def family_from_keys(keys: list[str]) -> str:
         return "sd15"
     if any(k.startswith(("double_blocks.", "model.diffusion_model.double_blocks.")) for k in keys):
         return "flux1"
+    if any(k.startswith(("joint_blocks.", "model.diffusion_model.joint_blocks.")) for k in keys):
+        return "sd3"
     return "unknown"
 
 
@@ -306,7 +318,7 @@ def all_images() -> list[ImageModel]:
     return catalog_images() + manual_images()
 
 
-NEW = ("flux2", "flux1", "chroma", "zimage", "qwenimage", "lumina2")   # 新しい世代（DiT）
+NEW = ("flux2", "flux1", "chroma", "zimage", "qwenimage", "lumina2", "sd3")   # 新しい世代（DiT）
 
 
 def style(m: ImageModel) -> str:
@@ -367,3 +379,37 @@ def verified_images() -> list[ImageModel]:
 
 def verified_words() -> list[WordsModel]:
     return sorted((m for m in WORDS if m.score > 0), key=lambda m: -m.score)
+
+
+def heavy(m: ImageModel) -> tuple[float, float]:
+    """模型の重さ（要る VRAM、要るメモリ、どちらも GB）。目録に無ければ世代の目安"""
+    f = family(m.family)
+    return (m.vram or f.vram, m.ram or f.ram)
+
+
+def machine() -> tuple[float, float]:
+    """この PC の GPU の VRAM と、メモリの合計（GB）。NVIDIA の GPU が無ければ VRAM は 0"""
+    vram = 0.0
+    try:
+        import torch
+        if torch.cuda.is_available():
+            vram = torch.cuda.get_device_properties(0).total_memory / 1e9
+    except Exception:
+        pass
+    from chatdraw.engine import total_ram_gb
+    return vram, total_ram_gb()
+
+
+def fits(m: ImageModel, vram: float, ram: float) -> str:
+    """この PC で動くか。gpu（GPU で動く）、cpu（CPU で動くが遅い）、no（メモリが足りない）、unknown（測れない）"""
+    need_vram, need_ram = heavy(m)
+    if ram <= 0:
+        return "unknown"
+    if vram >= need_vram and ram >= need_ram * 0.75:   # GPU に載せる分はメモリに置かなくてよい
+        return "gpu"
+    if ram >= need_ram:
+        return "cpu"
+    return "no"
+
+
+FITS = {"gpu": "この PC の GPU で動く", "cpu": "この PC では CPU で動く（遅い）", "no": "この PC ではメモリが足りない", "unknown": ""}

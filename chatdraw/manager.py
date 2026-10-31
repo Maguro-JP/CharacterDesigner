@@ -15,7 +15,7 @@ from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import (QComboBox, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QProgressBar, QPushButton,
                                QVBoxLayout, QWidget)
 
-from chatdraw.models import FILTERS, SORTS, WORDS, ImageModel, catalog_images, family, pick, verified_words
+from chatdraw.models import FILTERS, FITS, SORTS, WORDS, ImageModel, catalog_images, family, fits, heavy, machine, pick, verified_words
 from chatdraw.paths import GGUF, HUB, OWN_LLM
 from chatdraw.setup import AUTO, Fetcher, folder_gb
 
@@ -197,8 +197,14 @@ class ModelManager(QDialog):
     def _image_row(self, m: ImageModel, it: "Item | None") -> QWidget:
         sure = "確かめ済み" if m.score > 0 else "未確認"
         deal = (m.commercial or "札を確かめる").split("（")[0]
-        meta = f"{m.gb:.1f}GB・{family(m.family).name}・{sure}・{deal}"
+        if not hasattr(self, "_pc"):
+            self._pc = machine()   # この PC の VRAM とメモリ（1 回だけ測る）
+        can = fits(m, *self._pc)
+        need_vram, need_ram = heavy(m)
+        meta = "・".join(x for x in (f"{m.gb:.1f}GB", family(m.family).name, sure, deal, FITS[can]) if x)
+        pc = (f"この PC: VRAM {self._pc[0]:.0f}GB、メモリ {self._pc[1]:.0f}GB" if self._pc[0] else f"この PC: GPU なし、メモリ {self._pc[1]:.0f}GB")
         tip = "\n".join(x for x in (f"Hugging Face: {m.hub}" + (f" の {m.file}" if m.file else ""), m.good, f"商用: {m.commercial or '札を確かめる'}",
+                                     f"重さ: GPU で描くには VRAM {need_vram:g}GB 以上、メモリ {need_ram:g}GB 以上（{pc}）",
                                      "まだ動かして確かめていない模型です。崩れが多いことがあります" if m.score <= 0 else "", m.note) if x)
         box = self._row(m.name, meta, *self._image_actions(m.repo, it, m), sub=m.good)
         box.setToolTip(tip)

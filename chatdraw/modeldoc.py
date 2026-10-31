@@ -8,7 +8,7 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from chatdraw.models import FAMILIES, IMAGES, WORDS
+from chatdraw.models import FAMILIES, IMAGES, WORDS, heavy
 
 DOC = Path(__file__).resolve().parents[1] / "docs" / "models.md"
 BEGIN, END = "<!-- modeldoc:begin -->", "<!-- modeldoc:end -->"
@@ -23,10 +23,11 @@ def table() -> str:
              "この一覧は `python3 -m chatdraw.modeldoc` で目録（`chatdraw/catalog.json`、`chatdraw/models.py`）から作っています。",
              "点は実際に描かせて確かめた結果で、0 はまだ確かめていない模型です。推奨として選べるのは点の付いた模型だけです。", "",
              "### 絵を描く模型", "",
-             "| 模型 | 取る所（Hugging Face） | 世代 | 大きさ | 速さ（CPU で 1 枚） | 点 | 得意なこと | 商用 |", "|---|---|---|---|---|---|---|---|"]
+             "| 模型 | 取る所（Hugging Face） | 世代 | 大きさ | 重さ（VRAM・メモリ） | 速さ（CPU で 1 枚） | 点 | 得意なこと | 商用 |",
+             "|---|---|---|---|---|---|---|---|---|"]
     for m in IMAGES:
         fam = FAMILIES.get(m.family)
-        lines.append(f"| {m.name} | [{m.repo}](https://huggingface.co/{m.hub}) | {fam.name if fam else m.family} | {m.gb:g} GB | {m.speed or '－'} | {m.score} | {m.good} | "
+        lines.append(f"| {m.name} | [{m.repo}](https://huggingface.co/{m.hub}) | {fam.name if fam else m.family} | {m.gb:g} GB | {'{:g}・{:g} GB'.format(*heavy(m))} | {m.speed or '－'} | {m.score} | {m.good} | "
                      f"{getattr(m, 'commercial', '') or '札を確かめる'} |")
     lines += ["", "### 世代ごとにできること", "",
               "| 世代 | 頼み方 | ラフから描く | 範囲の直し | 参考画像 |", "|---|---|---|---|---|"]

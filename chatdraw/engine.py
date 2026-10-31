@@ -79,6 +79,26 @@ def cpu_dtype(gb_half: float):
     return torch.bfloat16
 
 
+def gpu_dtype(family: str):
+    """GPU で模型を読む型。新しい世代（DiT）は bfloat16（札の例は全部 bf16。float16 では値があふれ、黒い絵や砂嵐になる）。
+    bf16 を持たない古い GPU（RTX 20 系より前）では float16 にする（崩れることがある。確かめていない）。SD 系は float16"""
+    import torch
+    from chatdraw.models import family as fam
+    if fam(family).bf16 and torch.cuda.is_bf16_supported():
+        return torch.bfloat16
+    return torch.float16
+
+
+def placement(free_gb: float, need_gb: float, min_gb: float) -> str:
+    """GPU への置き方。全部が入れば cuda、使う部品だけ載せて入れば model（enable_model_cpu_offload）、
+    それも入らなければ sequential（enable_sequential_cpu_offload。層ごとに出し入れするので遅いが、VRAM は数 GB で済む）"""
+    if free_gb >= need_gb:
+        return "cuda"
+    if free_gb >= min_gb:
+        return "model"
+    return "sequential"
+
+
 def dtype_note(dtype) -> str:
     """進みの欄に出す一言。遅くなる理由を利用者が分かるように"""
     import torch
@@ -553,14 +573,15 @@ class Painter:
             from diffusers import AutoPipelineForText2Image
             # GPU では float16。CPU では、bf16 の速さとメモリの量で決める（cpu_dtype）
             from chatdraw.models import image_model
-            dtype = torch.float16 if torch.cuda.is_available() else cpu_dtype(image_model(self.model).gb or 7)
+            info0 = image_model(self.model)
+            dtype = gpu_dtype(info0.family) if torch.cuda.is_available() else cpu_dtype(info0.gb or 7)
             self.dtype = dtype
             variant = image_model(self.model).variant
             extra = {"safety_checker": None, "requires_safety_checker": False} if image_model(self.model).family == "sd15" else {}
             from chatdraw.models import is_local
             fam_name = image_model(self.model).family
             if fam_name == "unknown":
-                raise Unsupported("手で置いた模型の形を見分けられませんでした。SDXL・SD1.5・FLUX.1 の .safetensors か、"
+                raise Unsupported("手で置いた模型の形を見分けられませんでした。SDXL・SD1.5・FLUX.1・SD3.5 の .safetensors か、"
                                   "model_index.json のある diffusers のフォルダーを置いてください")
             if is_local(self.model) and Path(self.model).is_file():
                 # 手で置いた 1 つのファイル（.safetensors）。見分けた世代の部品で読む
@@ -602,14 +623,19 @@ class Painter:
         模型が GPU のメモリに収まれば全部を載せ、収まらなければ、部品を使う間だけ載せる（enable_model_cpu_offload）。
         どちらでも、最後に絵にする所（VAE）は分けて作り、メモリの山を下げる"""
         import torch
-        from chatdraw.models import image_model
+        from chatdraw.models import heavy, image_model
+        self.placed = "cpu"
         if torch.cuda.is_available():
             free, _total = torch.cuda.mem_get_info()
-            need = image_model(self.model).gb * 1e9 * 1.2   # 描く途中の分を 2 割足す
-            if free >= need:
+            info = image_model(self.model)
+            # 取る量（gb）は 16 ビットの重みの大きさ。fp32 で置かれた模型（SD 系の full）は読むと半分になるが、多めに見て置く
+            self.placed = placement(free / 1e9, info.gb * 1.2, heavy(info)[0] * 0.9)   # 描く途中の分を 2 割足す
+            if self.placed == "cuda":
                 pipe.to("cuda")
-            else:
+            elif self.placed == "model":
                 pipe.enable_model_cpu_offload()
+            else:
+                pipe.enable_sequential_cpu_offload()
         vae = getattr(pipe, "vae", None)
         for name in ("enable_tiling", "enable_slicing"):
             if vae is not None and hasattr(vae, name):
@@ -632,7 +658,8 @@ class Painter:
                 p._interrupt = True
             if on_step:
                 on_step(i + 1, total)
-            if on_preview is not None and "latents" in kw:
+            lat = kw.get("latents")
+            if on_preview is not None and getattr(lat, "ndim", 0) == 4 and lat.shape[1] == 4:   # SD 系の形だけ（DiT の詰めた形は色に直せない）
                 try:
                     on_preview(latent_preview(kw["latents"], sdxl=hasattr(p, "text_encoder_2")))
                 except Exception:
