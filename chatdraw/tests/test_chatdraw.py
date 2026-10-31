@@ -854,7 +854,8 @@ class VpredModelTest(unittest.TestCase):
         a = prompt_args(m, family("sdxl"), "1girl, waving", "hat", 28, 5.0, 1, Pipe())
         self.assertEqual(a["prompt"].count("masterpiece"), 1)
         self.assertEqual(a["guidance_rescale"], 0.7)
-        self.assertTrue(a["negative_prompt"].startswith("nsfw, worst quality") and a["negative_prompt"].endswith(", hat"))
+        self.assertTrue(a["negative_prompt"].startswith("nsfw, worst quality") and ", hat, " in a["negative_prompt"])
+        self.assertIn("mature female", a["negative_prompt"])   # 女性は利用者の基準の体で描く（chatdraw/body.py）
         old = prompt_args(image_model("cagliostrolab/animagine-xl-4.0"), family("sdxl"), "1girl", "", 24, 5.0, 1, Pipe())
         self.assertNotIn("guidance_rescale", old)
         self.assertTrue(old["prompt"].endswith("masterpiece, best quality"))

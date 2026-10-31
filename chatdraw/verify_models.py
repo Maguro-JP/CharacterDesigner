@@ -12,15 +12,17 @@ import json
 import resource
 import sys
 import time
+
+from chatdraw.body import NEGATIVE as BODY_NEGATIVE, WOMAN
 import traceback
 from pathlib import Path
 
 # 描く試験の題材は、すべてビキニの大人の女性にそろえる（模型どうし・描き方どうしを同じ題材で比べるため）
 PROMPTS = [
-    ("bikini", "1girl, solo, adult woman, mature female, red bikini, beach, smile, full body, standing"),
-    ("bikini-pose", "1girl, solo, adult woman, mature female, white bikini, beach, looking back, hands on own hips, full body"),
+    ("bikini", WOMAN + ", red bikini, beach, smile, full body, standing"),
+    ("bikini-pose", WOMAN + ", white bikini, beach, looking back, hands on own hips, full body"),
 ]
-ROUGH = ("rough", "1girl, solo, adult woman, mature female, blue bikini, waving hand, full body, simple background, white background")
+ROUGH = ("rough", WOMAN + ", blue bikini, waving hand, full body, simple background, white background")
 SEED = 7
 
 
