@@ -2481,3 +2481,103 @@ class WordsSpeedTest(unittest.TestCase):
         w = Words(Path(__file__))
         self.fake.Llama.create_completion = lambda self, prompt, **kw: {"choices": [{"text": "<think>the user wants"}], "usage": {}}
         self.assertEqual(w.ask("s", "t"), "")
+
+
+class LoadOptionsTest(unittest.TestCase):
+    """模型を読む型、GPU への置き方、世代ごとの引数（torch の GPU と diffusers の部品は偽物）"""
+
+    def setUp(self):
+        try:
+            import torch  # noqa: F401
+        except ImportError:
+            self.skipTest("torch が無い")
+
+    def test_gpu_dtype_per_family(self):
+        import torch
+        from unittest import mock
+        from chatdraw import engine
+        with mock.patch("torch.cuda.is_bf16_supported", return_value=True):
+            for fam in ("flux1", "flux2", "chroma", "zimage", "qwenimage", "lumina2", "sd3"):
+                self.assertEqual(engine.gpu_dtype(fam), torch.bfloat16, fam)   # DiT は fp16 だと黒い絵になる
+            self.assertEqual(engine.gpu_dtype("sdxl"), torch.float16)
+        with mock.patch("torch.cuda.is_bf16_supported", return_value=False):
+            self.assertEqual(engine.gpu_dtype("flux1"), torch.float16)        # bf16 の無い古い GPU
+
+    def test_placement_by_vram(self):
+        from chatdraw.engine import placement
+        self.assertEqual(placement(24, 20, 12), "cuda")
+        self.assertEqual(placement(16, 40, 12), "model")
+        self.assertEqual(placement(6, 40, 12), "sequential")
+
+    def test_place_calls_offload(self):
+        from unittest import mock
+        from chatdraw.engine import Painter
+
+        class Pipe:
+            def __init__(self):
+                self.calls = []
+                self.vae = mock.Mock()
+
+            def to(self, d):
+                self.calls.append(("to", d))
+
+            def enable_model_cpu_offload(self):
+                self.calls.append("model")
+
+            def enable_sequential_cpu_offload(self):
+                self.calls.append("sequential")
+        p = Painter("lodestones/Chroma1-HD")   # 目録の Chroma（27.5GB、VRAM の目安 12GB）
+        for free, want in ((48e9, ("to", "cuda")), (16e9, "model"), (8e9, "sequential")):
+            pipe = Pipe()
+            with mock.patch("torch.cuda.is_available", return_value=True), \
+                    mock.patch("torch.cuda.mem_get_info", return_value=(free, 48e9)):
+                p._place(pipe)
+            self.assertEqual(pipe.calls, [want], free)
+            pipe.vae.enable_tiling.assert_called_once()
+        pipe = Pipe()
+        with mock.patch("torch.cuda.is_available", return_value=False):
+            p._place(pipe)
+        self.assertEqual((pipe.calls, p.placed), ([], "cpu"))
+
+    def test_prompt_args_per_family(self):
+        from chatdraw.engine import prompt_args
+        from chatdraw.models import family, image_model
+
+        def call(prompt, negative_prompt=None, num_inference_steps=1, guidance_scale=1.0, true_cfg_scale=1.0,
+                 generator=None, max_sequence_length=512, cfg_trunc_ratio=1.0, cfg_normalization=False, guidance_rescale=0.0):
+            pass
+        pipe = type("P", (), {"__call__": staticmethod(call), "device": "cpu"})()
+        cases = {"black-forest-labs/FLUX.1-schnell": ("guidance_scale", False), "lodestones/Chroma1-HD": ("guidance_scale", True),
+                 "Qwen/Qwen-Image-2512": ("true_cfg_scale", True), "Tongyi-MAI/Z-Image-Turbo": ("guidance_scale", False),
+                 "VirtualAddressExtension/Neta-Lumina-v1.0-diffusers": ("guidance_scale", True)}
+        for repo, (cfg, neg) in cases.items():
+            info = image_model(repo)
+            f = family(info.family)
+            a = prompt_args(info, f, "a girl", "", info.steps, info.guidance, 1, pipe)
+            self.assertIn(cfg, a, repo)
+            self.assertEqual("negative_prompt" in a, neg, repo)
+            if not f.tags:
+                self.assertNotIn("masterpiece", a["prompt"], repo)   # 文で頼む世代に質のタグを足さない
+        a = prompt_args(image_model("black-forest-labs/FLUX.1-schnell"), family("flux1"), "x", "", 4, 0, 1, pipe)
+        self.assertEqual(a["max_sequence_length"], 256)
+
+    def test_native_size_multiples(self):
+        from chatdraw.engine import native_size
+        for fam in ("flux1", "flux2", "chroma", "zimage", "qwenimage", "lumina2", "sd3"):
+            w, h = native_size((832, 1216), fam)
+            self.assertEqual((w % 16, h % 16), (0, 0), fam)
+            self.assertLess(abs(w * h - 1024 * 1024) / (1024 * 1024), 0.05, fam)
+
+    def test_fits_and_heavy(self):
+        from chatdraw.models import fits, heavy, image_model
+        qwen, sdxl = image_model("Qwen/Qwen-Image-2512"), image_model("cagliostrolab/animagine-xl-4.0")
+        self.assertEqual(heavy(qwen), (24, 64))
+        self.assertEqual(fits(sdxl, 8, 16), "gpu")
+        self.assertEqual(fits(qwen, 8, 32), "no")
+        self.assertEqual(fits(qwen, 0, 64), "cpu")
+        self.assertEqual(fits(sdxl, 0, 0), "unknown")
+
+    def test_sd3_recognized(self):
+        from chatdraw.models import family_from_class, family_from_keys
+        self.assertEqual(family_from_class("StableDiffusion3Pipeline"), "sd3")
+        self.assertEqual(family_from_keys(["model.diffusion_model.joint_blocks.0.x"]), "sd3")
