@@ -77,6 +77,9 @@ def run_pip(args: list[str], say=lambda msg, pct: None, msg: str = "", pct: int 
         raise RuntimeError(f"部品を入れられませんでした（pip の終了コード {r.returncode}）。記録: {log}\n" + "\n".join(tail))
 
 
+DIFFUSERS = "diffusers>=0.37.0"   # 新しい世代の部品（Flux2Klein、ZImage、QwenImage、Chroma、Lumina2）が全部そろう版
+
+
 def install_engine(say=lambda msg, pct: None):
     """絵を描く部品を、データの置き場（HOME/gen/lib）に入れる。NVIDIA の GPU があれば GPU 版、無ければ CPU 版の torch を取る。
     インストーラーに入れないのは、torch の版が機械の GPU で変わり（CUDA 版 約 2.5GB、CPU 版 約 200MB）、合わない方を配ると無駄になるため"""
@@ -94,7 +97,8 @@ def install_engine(say=lambda msg, pct: None):
     ver = re.search(r"__version__\s*=\s*['\"]([^'\"]+)", (lib / "torch" / "version.py").read_text()).group(1)
     say("絵を描く部品の続きを入れています（数分かかります）", -1)
     # ai-edge-litert と onnxruntime は、描いた絵を検品する模型を読む部品（chatdraw/handcheck.py、requestcheck.py）
-    run_pip(pip + ["diffusers", "transformers", "accelerate", "huggingface_hub", "safetensors", "ai-edge-litert", "onnxruntime", f"torch=={ver}",
+    # diffusers は FLUX.2 klein（Flux2KleinPipeline）が入った 0.37 以上。古いと新しい世代の模型を読めない
+    run_pip(pip + [DIFFUSERS, "transformers", "accelerate", "huggingface_hub", "safetensors", "ai-edge-litert", "onnxruntime", f"torch=={ver}",
                    "--extra-index-url", index])
     say("絵を描く部品を入れています", 90)
     if str(lib) not in sys.path:

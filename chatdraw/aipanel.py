@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import (QCheckBox, QSlider, QSpinBox, QButtonGroup, QGridLayout, QHBoxLayout, QInputDialog, QLabel, QMenu, QPushButton,
+from PySide6.QtWidgets import (QCheckBox, QLineEdit, QSlider, QSpinBox, QButtonGroup, QGridLayout, QHBoxLayout, QInputDialog, QLabel, QMenu, QPushButton,
                                QSizePolicy, QToolButton, QVBoxLayout, QWidget)
 
 # 画風: (名前, 描く言葉に足すタグ, ヒント)。タグは英語のまま模型に渡す
@@ -41,6 +41,52 @@ PRESETS: list[tuple[str, str, int, str, str, int]] = [
 PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background", "アイコン": "portrait, upper body, looking at viewer"}
 
 
+# 区切り: (名前, ヒント, 初めに開くか)
+SECTIONS = [
+    ("描く内容", "描きたい絵と、描かない物を書きます", True),
+    ("作風とプリセット", "押すだけで描き方・大きさ・画風がそろいます", True),
+    ("模型", "絵を描く模型を選びます", False),
+    ("詳しい設定", "枚数・種・参考画像・ラフに沿う強さ", False),
+    ("加工", "出来た絵から作ります。元の絵は残し、新しいレイヤーに重ねます", False),
+]
+
+
+class Section(QWidget):
+    """見出しを押すと開け閉めできる区切り"""
+    toggled = Signal(bool)
+
+    def __init__(self, title: str, tip: str, open_: bool):
+        super().__init__()
+        lay = QVBoxLayout(self)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(4)
+        self.head = QToolButton()
+        self.head.setObjectName("sectionToggle")
+        self.head.setText(title)
+        self.head.setToolTip(tip + "\n押すと開け閉めします")
+        self.head.setCheckable(True)
+        self.head.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
+        self.head.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.head.toggled.connect(self.set_open)
+        lay.addWidget(self.head)
+        self.box = QWidget()
+        self.body = QVBoxLayout(self.box)
+        self.body.setContentsMargins(0, 0, 0, 6)
+        self.body.setSpacing(8)
+        lay.addWidget(self.box)
+        self.head.setChecked(open_)
+        self.set_open(open_)
+
+    def is_open(self) -> bool:
+        return self.head.isChecked()
+
+    def set_open(self, on: bool):
+        self.head.setChecked(on)
+        self.head.setArrowType(Qt.DownArrow if on else Qt.RightArrow)
+        self.box.setVisible(on)
+        self.toggled.emit(on)
+
+
 class AiPanel(QWidget):
     changed = Signal()
 
@@ -49,10 +95,36 @@ class AiPanel(QWidget):
         self.w = w
         self.preset = DEFAULT_PRESET
         self.style = "おまかせ"
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(8, 6, 8, 8)
-        lay.setSpacing(8)
+        outer = QVBoxLayout(self)
+        outer.setContentsMargins(8, 6, 8, 8)
+        outer.setSpacing(2)
+        # 項目が多いので、畳める区切りに分ける。初めは描く内容と作風だけを開き、模型・詳しい設定・加工は畳んでおく
+        self.sections: dict[str, Section] = {}
+        for name, tip, open_ in SECTIONS:
+            sec = Section(name, tip, self._section_open(name, open_))
+            sec.toggled.connect(lambda on, n=name: self.w.layout_store.setValue(f"ai_sections/{n}", int(on)))
+            self.sections[name] = sec
+            outer.addWidget(sec)
 
+        # 描く内容: 頼み（チャットの欄から移した）、模型に渡る言葉の目安、禁止ワード。頼みの欄と描くボタンは窓の側で足す
+        lay = self.sections["描く内容"].body
+        self.preview = QLabel("")
+        self.preview.setObjectName("hint")
+        self.preview.setWordWrap(True)
+        self.preview.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.preview.setToolTip("描く内容のうち、絵の模型に渡る言葉の目安です。言葉の模型が入っていれば、描くときにさらに整えます")
+        self.negative = QLineEdit()
+        self.negative.setPlaceholderText("禁止ワード（描かない物。例: 帽子、文字、hat）")
+        self.negative.setToolTip("描かせたくない物を書きます。読点か , で区切ります。日本語は表で英語に直します。\n"
+                                 "模型の決まった禁止ワードと、描く内容の「〜なし」に足して渡します")
+        self.negative.textChanged.connect(lambda _t: self.preview_timer.start())
+        from PySide6.QtCore import QTimer
+        self.preview_timer = QTimer(self)
+        self.preview_timer.setSingleShot(True)
+        self.preview_timer.setInterval(250)   # 打つたびに表を引かない
+        self.preview_timer.timeout.connect(self.update_preview)
+
+        lay = self.sections["作風とプリセット"].body
         lay.addWidget(self._head("AI プリセット", "押すと描き方・大きさ・画風がそろいます"))
         self.preset_box = QGridLayout()
         self.preset_box.setSpacing(6)
@@ -89,6 +161,7 @@ class AiPanel(QWidget):
         w.size_pick.currentIndexChanged.connect(self.sync)
 
         # 枚数・種・参考画像。どれも頼まなければ今までどおり（1 枚、毎回違う種、参考画像なし）
+        lay = self.sections["詳しい設定"].body
         lay.addWidget(self._head("枚数と種", "何枚描くか。種を固定すると、同じ頼みで同じ絵になります"))
         self.count_buttons = self._segment(["1 枚", "2 枚", "4 枚"], lambda i: None)
         self.count_buttons[1][0].setChecked(True)
@@ -123,7 +196,7 @@ class AiPanel(QWidget):
         row.addWidget(self.again)
         row.addWidget(self.save_button)
         lay.addLayout(row)
-        lay.addWidget(self._head("加工", "出来た絵から作ります。元の絵は残し、新しいレイヤーに重ねます"))
+        lay = self.sections["加工"].body
         fx = QHBoxLayout()
         self.chibi_button = QPushButton("ちびキャラに")
         self.chibi_button.setToolTip("頭の大きなデフォルメに、AI が描き直します")
@@ -150,10 +223,52 @@ class AiPanel(QWidget):
         """ボタンの文字の長さで欄の幅が決まらないようにする（狭い欄では 1 列に並べ替える）"""
         from PySide6.QtWidgets import QAbstractButton, QSpinBox
         for b in self.findChildren(QAbstractButton) + self.findChildren(QSpinBox):
+            if b.maximumWidth() < 200 or b.objectName() in ("suggest", "sectionToggle"):
+                continue   # 幅を決めたボタン（■・☆）と、横に流す言葉のボタンは縮めない（幅が 0 になって消えた）
             b.setMinimumWidth(0)
             sp = b.sizePolicy()
             sp.setHorizontalPolicy(QSizePolicy.Ignored)
             b.setSizePolicy(sp)
+
+    def _section_open(self, name: str, default: bool) -> bool:
+        try:
+            return bool(int(self.w.layout_store.value(f"ai_sections/{name}", int(default))))
+        except (TypeError, ValueError):
+            return default
+
+    def avoid_words(self) -> list[str]:
+        """禁止ワードの欄の言葉を、模型に渡す英語にする。日本語は表で直し、直せない言葉はそのまま渡す"""
+        import re
+        from chatdraw.jaterms import tags_from
+        out = []
+        for word in (x.strip() for x in re.split(r"[,、，\n]", self.negative.text())):
+            if not word:
+                continue
+            got = tags_from(word) if re.search(r"[぀-ヿ一-鿿]", word) else []
+            out += [t for t in (got or [word]) if t not in out]
+        return out
+
+    def update_preview(self):
+        """模型に渡る言葉の目安を出す。表だけで引く（言葉の模型は描くときに 1 回だけ使う）"""
+        import re
+        from chatdraw.jaterms import leftover, negatives, tags_from
+        text = self.w.entry.text().strip() if hasattr(self.w, "entry") else ""
+        lines = []
+        if text:
+            if re.search(r"[぀-ヿ一-鿿]", text):
+                tags, lost, neg = tags_from(text), leftover(text), negatives(text)
+            else:
+                tags, lost, neg = [text], [], []
+            lines.append("模型に渡る言葉: " + (", ".join(tags) or "（表で拾えた言葉はありません）"))
+            if lost:
+                lines.append("英語にならない言葉: " + "、".join(lost))
+        else:
+            neg = []
+        avoid = neg + [a for a in self.avoid_words() if a not in neg]
+        if avoid:
+            lines.append("描かない物: " + ", ".join(avoid))
+        self.preview.setText("\n".join(lines))
+        self.preview.setVisible(bool(lines))
 
     # ---- 部品 ----
     def _head(self, title: str, tip: str) -> QLabel:

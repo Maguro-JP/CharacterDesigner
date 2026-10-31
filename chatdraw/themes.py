@@ -117,6 +117,11 @@ QProgressBar::chunk {{ border-radius: 6px; background: qlineargradient(x1:0, y1:
 QLabel#stateTitle {{ font-size: 15px; font-weight: 700; color: {strong}; }}
 QLabel#stateDetail {{ color: {soft}; }}
 QLabel#sectionHead {{ font-weight: 600; color: {soft}; padding-top: 6px; }}
+QToolButton#sectionToggle {{ font-weight: 600; color: {soft}; border: none; background: transparent; padding: 6px 0 2px 0; text-align: left; }}
+QToolButton#sectionToggle:hover {{ color: {strong}; }}
+QFrame#bubbleMe {{ background: {sel}; border-radius: 10px; }}
+QFrame#bubbleAi {{ background: {field}; border: 1px solid {line}; border-radius: 10px; }}
+QLabel#hint {{ color: {muted}; font-size: 11px; }}
 QLabel#step {{ border-radius: 2px; padding: 0; background: {field}; color: {dim}; }}
 QLabel#step[state="done"] {{ background: {sel}; color: {done}; }}
 QLabel#step[state="now"] {{ color: {on}; background: qlineargradient(x1:0, y1:0, x2:1, y2:1, stop:0 {a1}, stop:1 {a2}); }}

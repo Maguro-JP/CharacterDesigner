@@ -88,7 +88,7 @@ class AddByNameTest(unittest.TestCase):
             ("a/b", fake({}, error=404), "見つかりません"),
             ("a/b", fake({"gated": "auto", "siblings": []}), "同意"),
             ("a/b", fake({"siblings": [{"rfilename": "x.safetensors"}, {"rfilename": "y.safetensors"}]}), "複数"),
-            ("a/b", fake({"siblings": [{"rfilename": "model_index.json"}]}, {"model_index.json": b'{"_class_name": "StableDiffusion3Pipeline"}'}),
+            ("a/b", fake({"siblings": [{"rfilename": "model_index.json"}]}, {"model_index.json": b'{"_class_name": "HunyuanDiTPipeline"}'}),
              "読めません"),
             ("a/b", fake({"siblings": [{"rfilename": "m.safetensors", "size": 1}]}, {"m.safetensors": header(["foo"])}), "見分けられません"),
         ]

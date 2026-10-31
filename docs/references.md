@@ -134,3 +134,15 @@ OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じ
 - Illustrious XL 2.0: https://huggingface.co/OnomaAIResearch/Illustrious-XL-v2.0
 - WAI Illustrious（diffusers の形の写し）: https://huggingface.co/Ine007/waiIllustriousSDXL_v160
 - Animagine XL 4.0: https://huggingface.co/cagliostrolab/animagine-xl-4.0
+
+## 新しい世代の模型の読み方（2026-10-31）
+
+- Neta Lumina の札（工程 30、CFG 4〜5.5、VRAM 8GB 以上、Apache-2.0）: https://huggingface.co/neta-art/Neta-Lumina
+- FLUX.2 klein 4B: https://huggingface.co/black-forest-labs/FLUX.2-klein-4B
+- FLUX.1 schnell: https://huggingface.co/black-forest-labs/FLUX.1-schnell
+- Chroma1-HD: https://huggingface.co/lodestones/Chroma1-HD
+- Qwen-Image-2512: https://huggingface.co/Qwen/Qwen-Image-2512
+- Z-Image-Turbo: https://huggingface.co/Tongyi-MAI/Z-Image-Turbo
+- Stable Diffusion 3.5 Large: https://huggingface.co/stabilityai/stable-diffusion-3.5-large
+- HiDream-I1: https://huggingface.co/HiDream-ai/HiDream-I1-Full
+- diffusers の省メモリの方法（CPU への出し入れ、VAE の分割）: https://huggingface.co/docs/diffusers/optimization/memory

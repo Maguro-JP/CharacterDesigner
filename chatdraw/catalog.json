@@ -15,7 +15,9 @@
   "guidance": 5.0,
   "score": 0,
   "note": "2026-10-26: 公式の札の設定（Euler、v_prediction と rescale_betas_zero_snr、CFG 4〜5、工程 28〜35）で載せた。Windows の実機の描画で確かめるまで点は 0",
-  "commercial": "商用不可（fair-ai-public-license-1.0-sd に NoobAI の追加条項。描いた絵の商用利用も禁止）"
+  "commercial": "商用不可（fair-ai-public-license-1.0-sd に NoobAI の追加条項。描いた絵の商用利用も禁止）",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "cagliostrolab/animagine-xl-4.0",
@@ -30,7 +32,9 @@
   "guidance": 5.0,
   "score": 85,
   "note": "2026-10-24: 新規とラフから（棒人間・線画）の 3 枚。崩れなく描け、ラフの形に沿った",
-  "commercial": "条件付きで商用可（openrail++）"
+  "commercial": "条件付きで商用可（openrail++）",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "cagliostrolab/animagine-xl-3.1",
@@ -44,7 +48,9 @@
   "steps": 24,
   "guidance": 5.0,
   "score": 0,
-  "note": "2026-10-31 検証が時間切れで 2 枚だけ。頼んでいない白髪で描いた。点は付けない"
+  "note": "2026-10-31 検証が時間切れで 2 枚だけ。頼んでいない白髪で描いた。点は付けない",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "cagliostrolab/animagine-xl-3.0",
@@ -57,7 +63,9 @@
   "en": "anime illustration, older soft style",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 0,
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "OnomaAIResearch/Illustrious-xl-early-release-v0",
@@ -70,7 +78,9 @@
   "en": "anime, knows many existing characters and outfits",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 0,
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "Jommarn/Illustrious-XL-v2.0",
@@ -83,7 +93,9 @@
   "en": "anime, many characters and outfits, fine detail",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 0,
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "Laxhar/noobai-XL-1.1",
@@ -97,7 +109,9 @@
   "steps": 24,
   "guidance": 5.0,
   "score": 0,
-  "commercial": "ライセンスの本文を読む必要あり"
+  "commercial": "ライセンスの本文を読む必要あり",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "John6666/hassaku-xl-illustrious-v31-sdxl",
@@ -110,7 +124,9 @@
   "en": "anime, crisp lines, bright colors",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 0,
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "John6666/prefect-illustrious-xl-v3-sdxl",
@@ -123,7 +139,9 @@
   "en": "anime, volumetric shading",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 0,
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "Ine007/waiIllustriousSDXL_v160",
@@ -137,7 +155,9 @@
   "steps": 24,
   "guidance": 5.0,
   "score": 50,
-  "note": "2026-10-31 3 枚を見た。頼んだ水着・姿勢・手を振るは描けた。1 枚目の左手が握りつぶれ、サンダルの足の指がぼやけた。推奨には届かない"
+  "note": "2026-10-31 3 枚を見た。頼んだ水着・姿勢・手を振るは描けた。1 枚目の左手が握りつぶれ、サンダルの足の指がぼやけた。推奨には届かない",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "cagliostrolab/animagine-xl-4.0",
@@ -154,7 +174,9 @@
   "score": 0,
   "note": "2026-10-31: Hugging Face の API で置き場と重みのファイルを確かめて載せた。描いて確かめるまで点は 0",
   "commercial": "条件付きで商用可（openrail++）",
-  "file": "animagine-xl-4.0-opt.safetensors"
+  "file": "animagine-xl-4.0-opt.safetensors",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "cagliostrolab/animagine-xl-4.0-zero",
@@ -170,7 +192,9 @@
   "guidance": 5.0,
   "score": 0,
   "note": "2026-10-31: Hugging Face の API で置き場と重みのファイルを確かめて載せた。描いて確かめるまで点は 0",
-  "commercial": "条件付きで商用可（openrail++）"
+  "commercial": "条件付きで商用可（openrail++）",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "OnomaAIResearch/Illustrious-XL-v1.0",
@@ -187,7 +211,9 @@
   "score": 0,
   "note": "2026-10-31: Hugging Face の API で置き場と重みのファイルを確かめて載せた。描いて確かめるまで点は 0",
   "commercial": "札を確かめる（sdxl-license）",
-  "file": "Illustrious-XL-v1.0.safetensors"
+  "file": "Illustrious-XL-v1.0.safetensors",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "OnomaAIResearch/Illustrious-XL-v1.1",
@@ -204,7 +230,9 @@
   "score": 0,
   "note": "2026-10-31: Hugging Face の API で置き場と重みのファイルを確かめて載せた。描いて確かめるまで点は 0",
   "commercial": "札を確かめる（sdxl-license）",
-  "file": "Illustrious-XL-v1.1.safetensors"
+  "file": "Illustrious-XL-v1.1.safetensors",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "OnomaAIResearch/Illustrious-XL-v2.0",
@@ -221,7 +249,9 @@
   "score": 0,
   "note": "2026-10-31: Hugging Face の API で置き場と重みのファイルを確かめて載せた。描いて確かめるまで点は 0",
   "commercial": "条件付きで商用可（creativeml-openrail-m）",
-  "file": "Illustrious-XL-v2.0.safetensors"
+  "file": "Illustrious-XL-v2.0.safetensors",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "Laxhar/noobai-XL-1.0",
@@ -237,7 +267,9 @@
   "guidance": 5.5,
   "score": 0,
   "note": "2026-10-31: Hugging Face の API で置き場と重みのファイルを確かめて載せた。描いて確かめるまで点は 0",
-  "commercial": "商用不可（fair-ai-public-license-1.0-sd に NoobAI の追加条項）"
+  "commercial": "商用不可（fair-ai-public-license-1.0-sd に NoobAI の追加条項）",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "yodayo-ai/holodayo-xl-2.1",
@@ -253,7 +285,9 @@
   "guidance": 5.5,
   "score": 0,
   "note": "2026-10-31: Hugging Face の API で置き場と重みのファイルを確かめて載せた。描いて確かめるまで点は 0",
-  "commercial": "商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる）"
+  "commercial": "商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる）",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "yodayo-ai/clandestine-xl-1.0",
@@ -269,7 +303,9 @@
   "guidance": 5.5,
   "score": 0,
   "note": "2026-10-31: Hugging Face の API で置き場と重みのファイルを確かめて載せた。描いて確かめるまで点は 0",
-  "commercial": "商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる）"
+  "commercial": "商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる）",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "John6666/nova-anime-xl-il-v90-sdxl",
@@ -285,7 +321,9 @@
   "guidance": 5.5,
   "score": 0,
   "note": "2026-10-31: Hugging Face の API で置き場と重みのファイルを確かめて載せた。描いて確かめるまで点は 0",
-  "commercial": "商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる）"
+  "commercial": "商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる）",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "John6666/obsession-illustriousxl-v31-sdxl",
@@ -301,7 +339,9 @@
   "guidance": 5.5,
   "score": 0,
   "note": "2026-10-31: Hugging Face の API で置き場と重みのファイルを確かめて載せた。描いて確かめるまで点は 0",
-  "commercial": "商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる）"
+  "commercial": "商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる）",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "John6666/amanatsu-illustrious-v11-sdxl",
@@ -317,7 +357,9 @@
   "guidance": 5.5,
   "score": 0,
   "note": "2026-10-31: Hugging Face の API で置き場と重みのファイルを確かめて載せた。描いて確かめるまで点は 0",
-  "commercial": "商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる）"
+  "commercial": "商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる）",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "John6666/illumiyume-anime-style-noobai-xl-nai-xl-v10-sdxl",
@@ -333,7 +375,9 @@
   "guidance": 5.5,
   "score": 0,
   "note": "2026-10-31: Hugging Face の API で置き場と重みのファイルを確かめて載せた。描いて確かめるまで点は 0",
-  "commercial": "商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる）"
+  "commercial": "商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる）",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "Eugeoter/artiwaifu-diffusion-2.0",
@@ -349,7 +393,9 @@
   "guidance": 5.5,
   "score": 0,
   "note": "2026-10-31: Hugging Face の API で置き場と重みのファイルを確かめて載せた。描いて確かめるまで点は 0",
-  "commercial": "商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる）"
+  "commercial": "商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる）",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "KBlueLeaf/Kohaku-XL-Epsilon-rev3",
@@ -365,7 +411,9 @@
   "guidance": 5.5,
   "score": 0,
   "note": "2026-10-31: Hugging Face の API で置き場と重みのファイルを確かめて載せた。描いて確かめるまで点は 0",
-  "commercial": "商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる）"
+  "commercial": "商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる）",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "Lykon/AAM_XL_AnimeMix",
@@ -379,7 +427,9 @@
   "steps": 24,
   "guidance": 5.0,
   "score": 0,
-  "note": "2026-10-31 検証が時間切れで 2 枚だけ。頼んでいない白髪で、振り返りが描けていない。点は付けない"
+  "note": "2026-10-31 検証が時間切れで 2 枚だけ。頼んでいない白髪で、振り返りが描けていない。点は付けない",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "KBlueLeaf/Kohaku-XL-Zeta",
@@ -392,7 +442,9 @@
   "en": "anime, artbook style",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 0,
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "GHArt/blue_pencil-XL_V1.0_xl_fp16",
@@ -405,7 +457,9 @@
   "en": "anime, pale colors, soft lines",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 0,
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "Raelina/Raehoshi-illust-XL-11",
@@ -418,7 +472,9 @@
   "en": "anime, dramatic lighting",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 0,
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "Koolchh/AnimeBoysXL-v3.0",
@@ -431,7 +487,9 @@
   "en": "anime, male characters",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 0,
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "John6666/true-pencil-xl-v100-sdxl",
@@ -444,7 +502,9 @@
   "en": "pencil drawing, sketch, lineart",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 0,
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "Runware/Pony_Diffusion_V6_XL",
@@ -457,7 +517,9 @@
   "en": "cartoon, chibi, deformed, western cartoon",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 0,
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "Lykon/dreamshaper-xl-lightning",
@@ -471,7 +533,9 @@
   "steps": 24,
   "guidance": 5.0,
   "score": 75,
-  "note": "2026-10-24: 新規とラフからの 2 枚。崩れなし、ラフに沿う。写実寄りの塗り。工程 24、効き 5.0 で確かめた"
+  "note": "2026-10-24: 新規とラフからの 2 枚。崩れなし、ラフに沿う。写実寄りの塗り。工程 24、効き 5.0 で確かめた",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "Lykon/dreamshaper-xl-1-0",
@@ -484,7 +548,9 @@
   "en": "semi-realistic, general illustration",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 0,
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "stabilityai/stable-diffusion-xl-base-1.0",
@@ -498,7 +564,9 @@
   "steps": 24,
   "guidance": 5.0,
   "score": 0,
-  "commercial": "条件付きで商用可（openrail++）"
+  "commercial": "条件付きで商用可（openrail++）",
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "SG161222/RealVisXL_V5.0",
@@ -511,7 +579,9 @@
   "en": "photorealistic, photo",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 0,
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "RunDiffusion/Juggernaut-XL-v9",
@@ -524,7 +594,9 @@
   "en": "photorealistic, cinematic photo",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 0,
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "playgroundai/playground-v2.5-1024px-aesthetic",
@@ -537,7 +609,9 @@
   "en": "vivid, aesthetic, general",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 0,
+  "vram": 6,
+  "ram": 16
  },
  {
   "repo": "Lykon/dreamshaper-8",
@@ -550,7 +624,9 @@
   "en": "old model, semi-realistic",
   "steps": 24,
   "guidance": 7.0,
-  "score": 0
+  "score": 0,
+  "vram": 4,
+  "ram": 8
  },
  {
   "repo": "gsdf/Counterfeit-V2.5",
@@ -563,7 +639,9 @@
   "en": "old anime model, detailed backgrounds",
   "steps": 24,
   "guidance": 7.0,
-  "score": 0
+  "score": 0,
+  "vram": 4,
+  "ram": 8
  },
  {
   "repo": "genai-archive/anything-v5",
@@ -576,7 +654,9 @@
   "en": "old classic anime model",
   "steps": 24,
   "guidance": 7.0,
-  "score": 0
+  "score": 0,
+  "vram": 4,
+  "ram": 8
  },
  {
   "repo": "digiplay/MeinaMix_v11",
@@ -589,7 +669,9 @@
   "en": "old anime model, cute faces",
   "steps": 24,
   "guidance": 7.0,
-  "score": 0
+  "score": 0,
+  "vram": 4,
+  "ram": 8
  },
  {
   "repo": "stablediffusionapi/revanimated",
@@ -602,7 +684,9 @@
   "en": "2.5D, storybook, game art",
   "steps": 24,
   "guidance": 7.0,
-  "score": 0
+  "score": 0,
+  "vram": 4,
+  "ram": 8
  },
  {
   "repo": "sam749/AWPainting-v1-2",
@@ -615,7 +699,9 @@
   "en": "anime, thick painting",
   "steps": 24,
   "guidance": 7.0,
-  "score": 0
+  "score": 0,
+  "vram": 4,
+  "ram": 8
  },
  {
   "repo": "dreamlike-art/dreamlike-anime-1.0",
@@ -628,7 +714,9 @@
   "en": "anime, fantasy colors",
   "steps": 24,
   "guidance": 7.0,
-  "score": 0
+  "score": 0,
+  "vram": 4,
+  "ram": 8
  },
  {
   "repo": "xiaolxl/GuoFeng3",
@@ -641,7 +729,9 @@
   "en": "chinese style, thick painting",
   "steps": 24,
   "guidance": 7.0,
-  "score": 0
+  "score": 0,
+  "vram": 4,
+  "ram": 8
  },
  {
   "repo": "frankjoshua/toonyou_beta6",
@@ -654,7 +744,9 @@
   "en": "cartoon",
   "steps": 24,
   "guidance": 7.0,
-  "score": 0
+  "score": 0,
+  "vram": 4,
+  "ram": 8
  },
  {
   "repo": "SG161222/Realistic_Vision_V5.1_noVAE",
@@ -667,7 +759,9 @@
   "en": "old photorealistic model",
   "steps": 24,
   "guidance": 7.0,
-  "score": 0
+  "score": 0,
+  "vram": 4,
+  "ram": 8
  },
  {
   "repo": "stable-diffusion-v1-5/stable-diffusion-v1-5",
@@ -680,7 +774,9 @@
   "en": "old base model",
   "steps": 24,
   "guidance": 7.0,
-  "score": 0
+  "score": 0,
+  "vram": 4,
+  "ram": 8
  },
  {
   "repo": "black-forest-labs/FLUX.2-klein-4B",
@@ -694,7 +790,9 @@
   "guidance": 1.0,
   "score": 0,
   "commercial": "商用可（Apache-2.0）",
-  "prefix": ""
+  "prefix": "",
+  "vram": 8,
+  "ram": 24
  },
  {
   "repo": "Tongyi-MAI/Z-Image-Turbo",
@@ -708,7 +806,9 @@
   "guidance": 0.0,
   "score": 0,
   "commercial": "商用可（Apache-2.0）",
-  "prefix": ""
+  "prefix": "",
+  "vram": 12,
+  "ram": 32
  },
  {
   "repo": "Qwen/Qwen-Image-2512",
@@ -722,7 +822,9 @@
   "guidance": 4.0,
   "score": 0,
   "commercial": "商用可（Apache-2.0）",
-  "prefix": ""
+  "prefix": "",
+  "vram": 24,
+  "ram": 64
  },
  {
   "repo": "VirtualAddressExtension/Neta-Lumina-v1.0-diffusers",
@@ -732,11 +834,13 @@
   "format": "dit",
   "gb": 21.2,
   "en": "anime illustration, new architecture",
-  "steps": 50,
+  "steps": 30,
   "guidance": 4.0,
   "score": 0,
   "commercial": "商用可（Apache-2.0）",
-  "prefix": ""
+  "prefix": "",
+  "vram": 8,
+  "ram": 24
  },
  {
   "repo": "lodestones/Chroma1-HD",
@@ -750,7 +854,9 @@
   "guidance": 3.0,
   "score": 0,
   "commercial": "商用可（Apache-2.0）",
-  "prefix": ""
+  "prefix": "",
+  "vram": 12,
+  "ram": 32
  },
  {
   "repo": "black-forest-labs/FLUX.1-schnell",
@@ -764,6 +870,8 @@
   "guidance": 0.0,
   "score": 0,
   "commercial": "商用可（Apache-2.0）",
-  "prefix": ""
+  "prefix": "",
+  "vram": 12,
+  "ram": 40
  }
 ]
