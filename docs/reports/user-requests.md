@@ -58,14 +58,14 @@
 
 | # | 依頼 | 状態 | 根拠 | 残り |
 |---|---|---|---|---|
-| 34 | 全体的に使いやすく。優れた UI を学び、このツールに最適な UI と足りない機能を考える（10-25 以前、10-31） | 一部 | chatdraw/layouts.py、chatdraw/aipanel.py | 考えた結果の設計が文書に無い |
+| 34 | 全体的に使いやすく。優れた UI を学び、このツールに最適な UI と足りない機能を考える（10-25 以前、10-31） | 一部 | docs/knowledge/ui-design.md の「4. 決めた上位の変更」、chatdraw/layouts.py | 4 の形を画面全体（言葉の欄・結果の帯）へ広げるのは途中 |
 | 35 | 進みは上の帯でなくポップアップ（右下など）に（10-25 以前） | 済み | chatdraw/notice.py:1、chatdraw/layouts.py:95 | 無し |
 | 36 | 進捗のポップアップが出なくなる不具合（10-31） | 未着手 | 無い | 再現と修正 |
 | 37 | ボタンの説明はツールチップに。AI タブは枠を取りすぎない（10-25 以前） | 済み | chatdraw/aipanel.py:222（fit_narrow）、setToolTip 各所 | 無し |
 | 38 | 右ボタンでつかんで動かす。右クリックの機能を充実（10-25 以前） | 済み | chatdraw/canvas.py:146、745、chatdraw/app.py:398 | 無し |
 | 39 | カーソルが邪魔にならない。デザインツールの配置はペン、ほかは手（10-25 以前） | 済み | chatdraw/layouts.py:89、chatdraw/canvas.py:128 | 無し |
 | 40 | 描いたあと選び直さないと新しい絵が出ない。表示の選択・固定・解除（10-25 以前） | 済み | chatdraw/app.py:858、1527、1987-1989 | 無し |
-| 41 | 完成した絵が表示されない（10-31） | 一部 | chatdraw/app.py:1989（キャンバスを置き換える） | 不具合の再現をしていない |
+| 41 | 完成した絵が表示されない（10-31） | 一部 | chatdraw/app.py の show_final、chatdraw/tests/test_uifix.py の FinalImageTest | 本物の模型で描いて確かめていない |
 | 42 | デフォルトのプリセット、選んだあとリセット出来るように（10-26） | 済み | chatdraw/aipanel.py:29-30、96 | 無し |
 | 43 | スクロールでシード値などが変わってしまう（10-26） | 済み | chatdraw/wheelguard.py:15 | 無し |
 | 44 | ツアーなどでフリーズする（10-26） | 未着手 | 無い | 再現と修正 |
@@ -73,7 +73,7 @@
 | 46 | 全体表示のタブに今の表示領域を出し、動かせるように（10-26） | 済み | chatdraw/app.py:232-320（Navigator の view_rect と _center_at） | 無し |
 | 47 | 模型の管理が開けない（10-26） | 一部 | chatdraw/manager.py | 開けない原因の修正の根拠を確かめていない |
 | 48 | 関係するディレクトリを開くボタン（10-31） | 済み | chatdraw/folders.py:27、chatdraw/app.py:648 | 無し |
-| 49 | 増えた機能はプルダウンで整理（10-31） | 一部 | chatdraw/manager.py:5、chatdraw/aipanel.py:47（開け閉めの区切り） | ハブ全体の整理は途中 |
+| 49 | 増えた機能はプルダウンで整理（10-31） | 一部 | chatdraw/layerpanel.py（「…」のプルダウン）、chatdraw/aipanel.py:47 | ハブ全体の整理は途中 |
 | 50 | 音声入力を用意（10-25 以前） | 一部 | chatdraw/app.py:572-576、1104 | Windows の実機で確かめていない |
 
 ## チャット
@@ -82,7 +82,7 @@
 |---|---|---|---|---|
 | 51 | チャットの下に頼んだ言葉の履歴を残す（直近の言葉のボタン）（10-25 以前） | 済み | chatdraw/app.py:570 | 無し |
 | 52 | お気に入りの言葉・指示を固定・保存（10-25 以前） | 済み | chatdraw/app.py:570、581 | 無し |
-| 53 | チャットが見づらい。チャットとして使えるよう設計（10-26、10-31） | 一部 | chatdraw/chatpanel.py:1、chatdraw/assistant.py:1 | 利用者は「早く直して」と言っている。使い勝手は確かめていない |
+| 53 | チャットが見づらい。チャットとして使えるよう設計（10-26、10-31） | 一部 | chatdraw/chatpanel.py、chatdraw/tests/test_uifix.py の ChatPanelTest | 利用者が使って確かめていない |
 | 54 | 描く言葉の指示を AI タブに統合、禁止ワードの欄を足す（10-31） | 済み | chatdraw/aipanel.py:239（avoid_words）、CHANGELOG.md 0.5.1 | 無し |
 
 ## レイヤー
@@ -90,13 +90,13 @@
 | # | 依頼 | 状態 | 根拠 | 残り |
 |---|---|---|---|---|
 | 55 | 真ん中の画像が重なる（10-25 以前） | 済み | chatdraw/app.py:1987-1989 | 無し |
-| 56 | レイヤーの使い方が意図した動きでない（10-25 以前、10-31） | 一部 | chatdraw/app.py:1539-1553 | 直し・ちびキャラは今もレイヤーに重ねる。意図した動きの設計が無い |
+| 56 | レイヤーの使い方が意図した動きでない（10-25 以前、10-31） | 一部 | chatdraw/layerpanel.py、chatdraw/canvas.py、chatdraw/tests/test_uifix.py の LayerTest | 利用者が使って確かめていない |
 
 ## ライブラリ
 
 | # | 依頼 | 状態 | 根拠 | 残り |
 |---|---|---|---|---|
-| 57 | ライブラリが開けなくなった（10-31） | 未着手 | 無い（chatdraw/librarypanel.py に修正の跡が無い） | 再現と修正 |
+| 57 | ライブラリが開けなくなった（10-31） | 済み | chatdraw/app.py の toggle_panel、chatdraw/tests/test_uifix.py の LibraryOpenTest | 無し |
 | 58 | 履歴から SNS 連携。連携していなければオフ（10-25 以前） | 一部 | chatdraw/share.py:1、chatdraw/settings.py:32 | Windows の実機で確かめていない |
 | 59 | タイムラプス、録画・GIF を見られるように（10-25 以前） | 一部 | chatdraw/timelapse.py:63-122（GIF の書き出し） | 録画（動画）が無い。「機能していない」の直しは確かめていない |
 

@@ -40,7 +40,7 @@ class LibraryPanel(QWidget):
         self.works = _grid()
         self.works.setToolTip("描いた絵。右クリックで「好き」「いまいち」を付けると、好みを学びます")
         self.works.customContextMenuRequested.connect(lambda pos: self._menu(self.works, pos))
-        self.works.itemDoubleClicked.connect(lambda it: self.w.canvas.add_image_layer(it.data(Qt.UserRole + 1), "ライブラリーの絵"))
+        self.works.itemDoubleClicked.connect(lambda it: self.w.layer_from_file(it.data(Qt.UserRole + 1), "ライブラリーの絵"))
         self.tabs.addTab(self.works, "作品")
 
         docs_page = QWidget()
@@ -137,7 +137,7 @@ class LibraryPanel(QWidget):
             m.addAction("この設定で描き直す", lambda: self.w.redo_from(path))
         else:
             m.addAction("参考画像にする", lambda: (self.w.reference.load(path), self.w.ai_panel.use_ref.setChecked(True)))
-        m.addAction("今の絵に重ねる", lambda: self.w.canvas.add_image_layer(path, "ライブラリーの絵"))
+        m.addAction("今の絵に重ねる", lambda: self.w.layer_from_file(path, "ライブラリーの絵"))
         m.addAction("言葉を付ける…", lambda: self.tag(item_id))
         m.addSeparator()
         m.addAction("一覧から外す", lambda: (lib.remove(item_id), self.refresh()))

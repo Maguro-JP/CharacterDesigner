@@ -142,11 +142,13 @@ class LayoutTest(unittest.TestCase):
         ys = [w.panels[k][0].y() for k in ("view", "chat", "history")]
         self.assertEqual(ys, sorted(ys))                                 # 右は上から表示・AI・履歴
         self.assertEqual(w.corner(_Qt.BottomLeftCorner), _Qt.LeftDockWidgetArea)   # 上下の欄は真ん中だけ
-        w.panels["history"][0].toggleViewAction().trigger()             # 欄の帯のアイコンで隠す・出す
+        w.panels["history"][0].raise_()
+        QApplication.processEvents()
+        w.panel_actions["history"].trigger()                            # 欄の帯のアイコンで隠す・出す
         self.assertTrue(w.panels["history"][0].isHidden())
-        w.panels["history"][0].toggleViewAction().trigger()
+        w.panel_actions["history"].trigger()
         self.assertFalse(w.panels["history"][0].isHidden())
-        self.assertIn(w.panels["history"][0].toggleViewAction(), w.panel_bar.actions())
+        self.assertIn(w.panel_actions["history"], w.panel_bar.actions())
         w.place_bar(w.panel_bar, _Qt.BottomToolBarArea)                 # 帯は下にも置ける
         self.assertEqual(w.toolBarArea(w.panel_bar), _Qt.BottomToolBarArea)
         title = w.panels["layers"][0].titleBarWidget()
@@ -185,7 +187,12 @@ class PreviewTest(unittest.TestCase):
         QApplication.instance() or QApplication([])
         with TemporaryDirectory() as d:
             w = Window(Studio(FakeWords(), FakePainter(), Path(d)))
+            w.thread = None
+            w.show_preview(Image.new("RGB", (25, 25), "red"))   # 描いていないときの途中の絵は出さない
+            self.assertFalse(getattr(w.canvas, "overlay", None) and w.canvas.overlay.isVisible())
+            w.thread = object()   # 描いている途中
             w.show_preview(Image.new("RGB", (25, 25), "red"))
+            w.thread = None
             self.assertTrue(w.canvas.overlay.isVisible())
             w.fail("止めました")
             self.assertFalse(w.canvas.overlay.isVisible())
