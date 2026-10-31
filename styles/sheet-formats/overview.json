@@ -10,12 +10,12 @@
  "areas": [
   "hero hero hero head head head head head sw sw sw sw",
   "hero hero hero turn turn turn turn expr expr expr expr expr",
-  "hero hero hero note note note note note note note note note"
+  "hero hero hero turn turn turn turn note note note note note"
  ],
  "rows": [
   "auto",
-  "1fr",
-  "auto"
+  "1.15fr",
+  "1fr"
  ],
  "margin": 0.04,
  "panels": [
@@ -37,15 +37,14 @@
    "kind": "notes",
    "area": "note",
    "title": "注記",
-   "brief": true,
-   "columns": 2
+   "brief": true
   },
   {
    "kind": "expressions",
    "area": "expr",
    "title": "表情",
    "cols": 3,
-   "max": 6
+   "max": 3
   },
   {
    "kind": "swatches",

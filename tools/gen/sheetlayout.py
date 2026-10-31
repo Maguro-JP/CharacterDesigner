@@ -180,6 +180,8 @@ body{background:var(--page);color:var(--ink);font-family:var(--font);font-weight
 .sleg .chip i{width:calc(var(--t-note) * 1.1);height:calc(var(--t-note) * 1.1)}
 .strip{display:flex;height:calc(var(--t-body) * 0.9);border-radius:99px;overflow:hidden}
 .calls{display:grid;grid-template-columns:1fr 1.6fr;gap:var(--fg)}
+.calls{grid-template-columns:auto 1fr !important}
+.call:first-child .im{aspect-ratio:1}
 .call .im{height:var(--callh);background:var(--tile);border-radius:var(--radius);overflow:hidden}
 .call img{width:100%;height:100%;object-fit:cover;mix-blend-mode:multiply;display:block}
 .call p{font-size:var(--t-note);color:var(--sub);margin-top:.5em;letter-spacing:.1em}
@@ -192,8 +194,9 @@ JS = r"""
   for (const box of document.querySelectorAll('.fit')) {
     const img = box.querySelector('img'); if (!img) continue;
     const W = box.clientWidth, H = box.clientHeight - (box.dataset.cap ? parseFloat(getComputedStyle(document.body).getPropertyValue('--t-note')) * 2.8 : 0);
-    const s = Math.min(W / img.naturalWidth, H / img.naturalHeight);
-    const w = img.naturalWidth * s, h = img.naturalHeight * s, x = (W - w) / 2, y = H - h;
+    const L = box.dataset.guides ? 56 : 0;   // 高さの線の名前を置く幅。人物と重ならないよう左に空けておく
+    const s = Math.min((W - L) / img.naturalWidth, H / img.naturalHeight);
+    const w = img.naturalWidth * s, h = img.naturalHeight * s, x = L + (W - L - w) / 2, y = H - h;
     Object.assign(img.style, {left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px'});
     if (box.dataset.shadow) {
       const sh = document.createElement('div'); sh.className = 'shadow';
@@ -210,7 +213,7 @@ JS = r"""
       for (const [name, t] of [['頭の上', 0], ['半分', 0.5], ['足の下', 1]]) {
         // 線は人物の左右に少し出すだけにする。区画の幅いっぱいに引くと、2人だけの図で左右の空きが目立った
         const g = document.createElement('div'); g.className = t === 1 ? 'guide up' : 'guide'; g.style.top = (y + h * t) + 'px';
-        g.style.left = Math.max(0, x - 70) + 'px'; g.style.right = Math.max(0, W - x - w - 24) + 'px';
+        g.style.left = Math.max(0, x - 64) + 'px'; g.style.right = Math.max(0, W - x - w - 24) + 'px';
         g.innerHTML = `<span>${name}</span>`; box.insertBefore(g, img);
       }
     }
@@ -293,10 +296,11 @@ def _panel_html(pn, ctx):
         notes = ctx["notes"]
         if pn.get("brief"):   # 総覧では各注記の最初の一文だけにする。全文は作画用の版に載せる（狭い欄に全文を詰めると欄からあふれた）
             notes = [t.split("。")[0] for t in notes]
+            notes = [t if len(t) <= 24 else t[:23] + "…" for t in notes]
         lis = "".join(f'<li><span><b>{e(t.split(": ", 1)[0])}</b>　{e(t.split(": ", 1)[1] if ": " in t else "")}</span></li>' for t in notes)
         if pn.get("columns"):
-            # 2段に組み、長い注記（60字より長い）だけ全幅の1段にする。段組みに流すと左右の段の行数が偏った
-            lis = "".join(f'<li{" class=wide" if len(t) > 60 else ""}><span><b>{e(t.split(": ", 1)[0])}</b>　{e(t.split(": ", 1)[1] if ": " in t else "")}</span></li>'
+            # 2段に組み、長い注記（40字より長い）と、2項目以下のときは全幅の1段にする。段組みに流すと左右の段の行数が偏った
+            lis = "".join(f'<li{" class=wide" if len(t) > 40 or len(notes) <= 2 else ""}><span><b>{e(t.split(": ", 1)[0])}</b>　{e(t.split(": ", 1)[1] if ": " in t else "")}</span></li>'
                           for t in notes)
             return lab(pn.get("title", "")) + f'<ol class="notes" style="display:grid;grid-template-columns:repeat({pn["columns"]},1fr);column-gap:var(--g)">{lis}</ol>'
         return lab(pn.get("title", "")) + f'<ol class="notes">{lis}</ol>'
@@ -318,7 +322,7 @@ def _panel_html(pn, ctx):
     raise ValueError(f"欄の種類 {k} は組めません")
 
 
-def _row(figs, gap=0.32):
+def _row(figs, gap=0.5):
     """人物を同じ縮尺のまま横一列に並べた1枚と、各人物の中心の横位置（幅に対する割合）を返す。
     1枚にまとめるのは、区画に収めるときに全員を同じ倍率で縮めるため（別々に収めると縮尺がずれた）"""
     from PIL import Image
