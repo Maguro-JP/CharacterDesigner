@@ -1,0 +1,76 @@
+{
+ "id": "slim-suit-2000",
+ "name": "2000〜01 年の細身の男性の形",
+ "model": "SG161222/RealVisXL_V5.0",
+ "seed": 0,
+ "steps": 30,
+ "prompt": "high-end fashion editorial lookbook photograph, professional fashion photography, full body, standing, whole body from head to shoes in frame, facing the camera, plain off-white studio background, soft even studio lighting, 85mm lens, sharp focus, natural skin texture, photorealistic, high detail fabric texture, young man, messy short dark hair, brown eyes, wearing very slim black wool suit with narrow shoulders, skinny tie, white shirt, skinny trousers, elongated vertical silhouette",
+ "negative": "anime, illustration, drawing, cartoon, painting, 3d render, cgi, doll, cropped, out of frame, cut off feet, extra fingers, missing fingers, fused fingers, deformed hands, extra arms, extra legs, bad anatomy, two people, text, logo, brand logo, watermark, signature, nsfw, cleavage, see-through, logo, brand logo, text",
+ "views": {
+  "front": {
+   "file": "slim-suit-2000-s0-front.png",
+   "sec": 2316
+  },
+  "back": {
+   "file": "slim-suit-2000-s0-back.png",
+   "sec": 2387
+  }
+ },
+ "details": [
+  {
+   "part": "head",
+   "file": "slim-suit-2000-s0-detail-head.png",
+   "box": [
+    0,
+    0,
+    832,
+    194
+   ],
+   "words": "close-up of the hair and headwear"
+  },
+  {
+   "part": "collar",
+   "file": "slim-suit-2000-s0-detail-collar.png",
+   "box": [
+    0,
+    145,
+    832,
+    462
+   ],
+   "words": "close-up of the collar, neckline, buttons and fabric texture"
+  },
+  {
+   "part": "waist",
+   "file": "slim-suit-2000-s0-detail-waist.png",
+   "box": [
+    0,
+    413,
+    832,
+    705
+   ],
+   "words": "close-up of the waist, belt, pockets and seams"
+  },
+  {
+   "part": "hem",
+   "file": "slim-suit-2000-s0-detail-hem.png",
+   "box": [
+    0,
+    668,
+    832,
+    1033
+   ],
+   "words": "close-up of the hem, pleats and fabric folds"
+  },
+  {
+   "part": "feet",
+   "file": "slim-suit-2000-s0-detail-feet.png",
+   "box": [
+    0,
+    997,
+    832,
+    1216
+   ],
+   "words": "close-up of the shoes and socks"
+  }
+ ]
+}
