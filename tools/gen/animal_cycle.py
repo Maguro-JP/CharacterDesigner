@@ -191,10 +191,10 @@ def draw_one(out, name, feat, styles=STYLES):
                             "--negative", ", ".join(x for x in (NEGATIVE, NOT.get(name, "")) if x)],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         print(key, seed, "exit", r.returncode, flush=True)
-    # 写実の 1 枚ができたら、同じ形のまま全部の加工を掛けて図鑑の画風を増やす（模型なし、数秒）
+    # 写実の 1 枚ができたら、同じ形のまま目録（catalog.py）の全部の加工を掛けて図鑑の画風を増やす（模型なし、768×512 の 1 枚に 64 種で 30 秒ほど）
     real = d / "23-real-1.png"
     if any(k == "23-real" for k, _ in styles) and real.exists():
-        r = subprocess.run([sys.executable, str(ROOT / "tools/gen/stylize.py"), str(real), str(d / "stylize")],
+        r = subprocess.run([sys.executable, str(ROOT / "tools/gen/catalog.py"), str(real), str(d / "stylize")],
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         print("stylize exit", r.returncode, flush=True)
 

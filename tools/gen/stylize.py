@@ -100,6 +100,7 @@ def mono(im):
 
 
 def sepia(im):
+    """セピア。明るさを茶色の濃淡に置き換え、古い写真の色にする"""
     g = _gray(_arr(ImageOps.autocontrast(im.convert("RGB"), cutoff=1)))
     tone = np.stack([g * 1.07 + 0.08, g * 0.87 + 0.06, g * 0.62 + 0.03], -1)
     h, w = g.shape
@@ -386,19 +387,9 @@ def anime(im):
 
 
 def manga(im):
-    """漫画。白黒の主線と、網点（スクリーントーン）の影"""
-    g = np.asarray(ImageOps.autocontrast(im.convert("L"), cutoff=2), dtype=np.float32) / 255.0
-    h, w = g.shape
-    p = max(4, min(h, w) // 120)
-    yy, xx = np.mgrid[0:h, 0:w]
-    # 45 度の網点。暗い所ほど点が大きい
-    u = ((xx + yy) % p) / p - 0.5
-    v = ((xx - yy) % p) / p - 0.5
-    dot = np.hypot(u, v)
-    tone = np.where(g < 0.18, 0.0, np.where(g < 0.68, (dot > (0.68 - g) * 0.9).astype(np.float32), 1.0))
-    line = _line(im)
-    out = tone * (1 - line)
-    return _img(np.repeat(out[..., None], 3, -1))
+    """漫画（少年漫画の型）。主線・ベタ・トーンの組み方は manga.py に 1 か所だけ置き、ここはそれを呼ぶ"""
+    import manga as _manga
+    return _manga.shonen(im)
 
 
 def ukiyoe(im):
