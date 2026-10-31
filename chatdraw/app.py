@@ -473,11 +473,12 @@ class Window(QMainWindow):
         self.canvas.hide_cursor_after = 1500 if self.settings.get("cursor_hide") == "止まったら隠す" else 0
 
         # 左: 頼み（チャット）
-        self.chat = QTextEdit()
-        self.chat.setReadOnly(True)
-        self.entry = QLineEdit()
-        self.entry.setPlaceholderText("描きたい絵か、してほしい操作を書く（例: 猫耳の少女 / ペンにして）")
-        self.entry.setToolTip("描いてほしい絵を日本語か英語で書き、Enter か「描く」で描きます。\n「赤にして」「レイヤーを足して」のような操作も AI がします")
+        # チャットは相談と操作の場、描く内容は AI の欄に書く（1 行の欄に描く頼み・操作・質問が混ざり、会話として読めなかった）
+        from chatdraw.chatpanel import ChatPanel, EnterEdit
+        self.chat = ChatPanel()
+        self.chat.sent.connect(self.chat_send)
+        self.entry = EnterEdit("描きたい絵を書く（例: 赤いマフラーの女の子 全身）", lines=3)
+        self.entry.setToolTip("描いてほしい絵を日本語か英語で書き、Enter か「描く」で描きます（Shift+Enter で改行）")
         self.entry.returnPressed.connect(self.send)
         self.button = QPushButton(icon("ai", "#ffffff"), " 描く")
         self.button.setToolTip("AI で描く（Enter）")
@@ -488,7 +489,6 @@ class Window(QMainWindow):
         self.stop_button.setFixedWidth(40)
         self.stop_button.setEnabled(False)
         self.stop_button.clicked.connect(self.stop)
-        self.entry.setMinimumHeight(34)
         self.entry.setMinimumWidth(120)
         row = QHBoxLayout()
         row.addWidget(self.button, 1)
@@ -521,16 +521,17 @@ class Window(QMainWindow):
         ask.setContentsMargins(0, 0, 0, 0)
         self.ai_panel = AiPanel(self)
         ask.addWidget(self.ai_panel)
-        follow.setContentsMargins(8, 0, 8, 0)
-        ask.addLayout(follow)
+        follow.setContentsMargins(0, 0, 0, 0)
+        self.ai_panel.sections["詳しい設定"].body.addWidget(QLabel("ラフに沿う強さ"))
+        self.ai_panel.sections["詳しい設定"].body.addLayout(follow)
         self.model_label = QPushButton()
         self.model_label.setObjectName("modelButton")
         self.model_label.setToolTip("絵の模型。押すと切り替えられます")
         self.model_label.clicked.connect(lambda: self.ai_menu.exec(self.model_label.mapToGlobal(self.model_label.rect().bottomLeft())))
         model_row = QHBoxLayout()
-        model_row.setContentsMargins(8, 0, 8, 8)
+        model_row.setContentsMargins(0, 0, 0, 0)
         model_row.addWidget(self.model_label)
-        ask.addLayout(model_row)
+        self.ai_panel.sections["模型"].body.addLayout(model_row)
         ask.addStretch()
         ask_page = QWidget()
         ask_page.setLayout(ask)
@@ -551,16 +552,20 @@ class Window(QMainWindow):
         dock.setFeatures(PANEL)
         self.addDockWidget(Qt.LeftDockWidgetArea, dock)
 
-        # 真ん中の下: チャット。会話の流れと、頼みを書く欄と「描く」
-        talk_box = QWidget()
-        tl = QVBoxLayout(talk_box)
-        tl.setContentsMargins(8, 4, 8, 8)
-        tl.addWidget(self.chat, 1)
+        # AI の欄の「描く内容」: 頼みを書く欄、模型に渡る言葉の目安、禁止ワード、「描く」と止める、直近の言葉
+        tl = self.ai_panel.sections["描く内容"].body
+        tl.addWidget(self.entry)
+        tl.addWidget(self.ai_panel.preview)
+        neg_head = QLabel("禁止ワード")
+        neg_head.setObjectName("sectionHead")
+        neg_head.setToolTip(self.ai_panel.negative.toolTip())
+        tl.addWidget(neg_head)
+        tl.addWidget(self.ai_panel.negative)
+        self.entry.textChanged.connect(self.ai_panel.preview_timer.start)
+        self.ai_panel.update_preview()
         line = QHBoxLayout()
-        line.addWidget(self.entry, 1)
-        line.addWidget(self.button)
+        line.addWidget(self.button, 1)
         line.addWidget(self.stop_button)
-        self.button.setMinimumWidth(110)
         tl.addLayout(line)
         # 書く欄の下のボタン。お気に入り（★、固定）を先に、そのあとに直近に頼んだ言葉を新しい順に並べる。
         # 押すと書く欄に入り、ダブルクリックでそのまま描く。右クリックで固定・外す・消す。書く欄で ↑↓ でも呼び出せる
@@ -577,7 +582,8 @@ class Window(QMainWindow):
         self.fav_button.setToolTip("書く欄の言葉をお気に入りに固定する")
         self.fav_button.setFixedWidth(40)
         self.fav_button.clicked.connect(self._toggle_fav)
-        self.entry.textChanged.connect(lambda t: self.fav_button.setText("★" if t.strip() and t.strip() in self.favorite_prompts() else "☆"))
+        self.entry.textChanged.connect(lambda: self.fav_button.setText(
+            "★" if (t := self.entry.text().strip()) and t in self.favorite_prompts() else "☆"))
         line.addWidget(self.fav_button)
         self.tips = QHBoxLayout()
         self.tips.setSpacing(4)
@@ -594,8 +600,9 @@ class Window(QMainWindow):
         self._load_prompts()
         tips_scroll.setFixedHeight(QPushButton("あ").sizeHint().height() + 14)
         tl.addWidget(tips_scroll)
+        # 真ん中の下: チャット。吹き出しの会話と、複数行の書く欄
         talk = QDockWidget("チャット", self)
-        talk.setWidget(talk_box)
+        talk.setWidget(self.chat)
         talk.setObjectName("talk")
         talk.setFeatures(PANEL)
         self.addDockWidget(Qt.BottomDockWidgetArea, talk)
@@ -1119,7 +1126,8 @@ class Window(QMainWindow):
     def _entry_keys(self, obj, e) -> bool:
         """書く欄で ↑ を押すと前に頼んだ言葉、↓ で新しい方へ戻る"""
         from PySide6.QtCore import QEvent
-        if obj is getattr(self, "entry", None) and e.type() == QEvent.KeyPress and e.key() in (Qt.Key_Up, Qt.Key_Down):
+        if obj is getattr(self, "entry", None) and e.type() == QEvent.KeyPress and e.key() in (Qt.Key_Up, Qt.Key_Down) \
+                and "\n" not in self.entry.text():   # 複数行のときは、↑↓ で行を動かす
             texts = getattr(self, "chip_texts", [])
             if texts:
                 self._prompt_pos = min(self._prompt_pos + 1, len(texts) - 1) if e.key() == Qt.Key_Up else self._prompt_pos - 1
@@ -1197,7 +1205,78 @@ class Window(QMainWindow):
         themes.remove_custom(self.layout_store, name)
 
     def say(self, text: str, who: str = "CharacterDesigner"):
-        self.chat.append(f"<b>{who}</b>: {text}")
+        """チャットに吹き出しを出す。描く途中の知らせは、言葉の模型に渡す会話には入れない"""
+        return self.chat.add("user" if who == "あなた" else "ai", text, remember=False)
+
+    def chat_send(self, text: str):
+        """チャットに書かれた一言に答える。操作ならして、「〜を描いて」なら描く内容に入れて描き、
+        それ以外は言葉の模型に裏で聞く（画面の糸で聞くと、読み込みと推論の間アプリが固まる）"""
+        from chatdraw import assistant, commands
+        self.chat.add("user", text)
+        if getattr(self, "asking", False):
+            self.say("前の答えを待っています。少し待ってからもう一度送ってください")
+            return
+        words = getattr(getattr(self, "studio", None), "words", None)
+        self.asking = True
+        self.chat.set_busy(True)
+
+        def picked(p):
+            p = None if isinstance(p, BaseException) else p
+            reply = commands.handle(self, text, picked=p)
+            if reply:
+                self.asking = False
+                self.chat.set_busy(False)
+                self.chat.add("ai", reply)
+                self.feature_tour("ai_commands")
+                return
+            body = assistant.draw_request(text)
+            if body:
+                self.asking = False
+                self.chat.set_busy(False)
+                self.chat.add("ai", f"AI の欄の描く内容に「{body}」と入れて描きます")
+                self.entry.setText(body)
+                self.send()
+                return
+            if self.thread is not None and getattr(words, "ready", lambda: False)():
+                self.asking = False   # 描いている間は言葉の模型を描く側が使う。同時に使うと落ちることがある
+                self.chat.set_busy(False)
+                self.chat.add("ai", "描いている間は答えられません。描き終わってからもう一度送ってください")
+                return
+            turns, prompt = list(self.chat.turns[:-1]), self.entry.text().strip()
+            self.in_background(lambda: assistant.answer(words, turns, text, prompt), answered)
+
+        def answered(got):
+            self.asking = False
+            self.chat.set_busy(False)
+            if isinstance(got, BaseException):
+                self.chat.add("ai", f"答えられませんでした: {got}")
+                return
+            reply, new = got
+            self.offer_prompt(self.chat.add("ai", reply), new)
+
+        if commands.needs_model(text, words):
+            self.in_background(lambda: commands.by_model(text, words), picked)
+        else:
+            picked(None)
+
+    def offer_prompt(self, bubble, new: str | None):
+        """答えの吹き出しに、描く内容の案を AI の欄へ入れるボタンを付ける"""
+        if not new:
+            return
+        bubble.text += f"\n\n描く内容の案: {new}"
+        bubble.label.setText(bubble.text)
+
+        def fill():
+            self.entry.setText(new)
+            dock = self.panels["chat"][0] if hasattr(self, "panels") else None
+            if dock is not None:
+                dock.show()
+                dock.raise_()
+            self.ai_panel.sections["描く内容"].set_open(True)
+            self.ai_tabs.setCurrentIndex(0)
+        bubble.add_button("AI の欄に入れる", "この案を AI の欄の「描く内容」に入れます（描きはしません）", fill)
+        bubble.add_button("入れて描く", "この案を「描く内容」に入れて、すぐ描きます", lambda: (fill(), self.send()))
+        self.chat._fit(bubble)
 
     def _show_model(self):
         from chatdraw.models import image_model
@@ -1300,10 +1379,9 @@ class Window(QMainWindow):
         if not st["image"]:
             self.say(st["reason"] or "AI が使えません")
             return
-        self.entry.clear()
         self.last_text = text
         self._remember_prompt(text)
-        self.say(text, "あなた")
+        self.say(f"描きます: {text}")
         self.button.setEnabled(False)
         self.stop_button.setEnabled(True)
         self.feature_tour("draw")
@@ -1329,7 +1407,9 @@ class Window(QMainWindow):
         self.job_kind = "fix" if mode == 2 else "draw"
         meta = dict(mode=self.mode.currentText(), preset=self.ai_panel.preset, style_name=self.ai_panel.style,
                     size=list(self.size_pick.currentData()), strength=self.strength.value())
-        self.studio.painter.avoid = ", ".join(self.ai_panel.taste()["avoid"])
+        avoid = list(self.ai_panel.taste()["avoid"])
+        avoid += [a for a in self.ai_panel.avoid_words() if a not in avoid]   # 禁止ワードの欄。模型の決まりと「〜なし」には engine が足す
+        self.studio.painter.avoid = ", ".join(avoid)
         self.thread = QThread()
         self.job = Job(self.studio, text, seeds, base=base, strength=self.strength.value() / 100,
                        style=self.ai_panel.style_tags(), regions=regions, reference=self.ai_panel.reference(),
@@ -2134,7 +2214,7 @@ class Window(QMainWindow):
             p["chat"][0].show()
             p["chat"][0].raise_()
             self.mode.setCurrentIndex(mode)
-            p["talk"][0].show()
+            self.ai_panel.sections["描く内容"].set_open(True)
             self.entry.setFocus()
         r.add_page("AI", [
             ("描く", [act("ai", "頼んで描く", lambda: ai(0), "描きたい絵を書いて AI に描かせる"),
@@ -2184,8 +2264,10 @@ class Window(QMainWindow):
             return lambda: (p[key][0].show(), p[key][0].raise_())
         return [
             Step(lambda: None, "CharacterDesigner へようこそ", "AI に頼んで描かせ、自分でも描き足せます。主な所を順に案内します。"),
-            Step(lambda: p["talk"][0], "チャット", "描きたい絵を書いて「描く」を押します。\nAI とのやり取りはここに残ります。", show("talk")),
-            Step(lambda: p["chat"][0], "AI の設定", "「新規」か「ラフから」、絵の大きさ、ラフに沿う強さ、絵の模型を選びます。", show("chat")),
+            Step(lambda: p["chat"][0], "AI の欄", "「描く内容」に描きたい絵を、「禁止ワード」に描かない物を書いて「描く」を押します。\n"
+                 "作風・模型・詳しい設定は見出しを押すと開きます。", show("chat")),
+            Step(lambda: p["talk"][0], "チャット", "AI に使い方を聞いたり、絵の相談をしたりできます。\n"
+                 "答えに出た描く内容の案は、吹き出しのボタンで AI の欄に入れられます。「ペンにして」のような操作もします。", show("talk")),
             Step(lambda: self.progress_popup, "進み", "AI が描いている間は、右下に工程と進みが出ます。\n描き終わっても × で閉じるまで消えません。タイトルとデスクトップの通知にも出します。",
                  lambda: self.progress_popup.pop()),
             Step(lambda: self.canvas, "キャンバス", "描いている途中の絵がここに出ます。\nホイールで拡大、Space を押しながらドラッグで動かせます。"),
