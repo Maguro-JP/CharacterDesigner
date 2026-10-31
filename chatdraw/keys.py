@@ -16,10 +16,14 @@ PREFIX = "keys/"
 def collect(window) -> dict[str, QAction]:
     """割り当てを変えられる操作。メニューの中の操作と、道具の操作"""
     found: dict[str, QAction] = {}
+    # メニューの見出しの操作から中のメニューを引くのに QAction.menu() を使わない。PySide6 6.9 では、呼ぶと別の包みが作られ、
+    # 窓が持っていたメニューの包み（self.ai_menu、self.theme_menu など）が「消えた」扱いになった。開くたびに作り直す中身が
+    # 作れず（RuntimeError）、AI のメニューの模型の一覧が起動の時のまま古くなった。窓の子のメニューから、見出しの操作で引く
+    menus = {m.menuAction(): m for m in window.findChildren(QMenu)}
 
     def walk(menu: QMenu, path: str):
         for act in menu.actions():
-            sub = act.menu()
+            sub = menus.get(act)
             text = act.text().replace("&", "").strip()
             if sub is not None:
                 walk(sub, f"{path}/{text}" if path else text)
@@ -27,8 +31,8 @@ def collect(window) -> dict[str, QAction]:
                 name = text if text not in found else f"{path}/{text}"
                 found.setdefault(name, act)
     for top in window.menuBar().actions():
-        if top.menu() is not None:
-            walk(top.menu(), top.text().replace("&", "").strip())
+        if top in menus:
+            walk(menus[top], top.text().replace("&", "").strip())
     for key, act in getattr(window, "tool_actions", {}).items():
         found.setdefault(f"道具/{act.text()}", act)
     for act in getattr(window, "extra_key_actions", []):

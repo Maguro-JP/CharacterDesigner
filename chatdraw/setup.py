@@ -100,6 +100,11 @@ def install_engine(say=lambda msg, pct: None):
     # diffusers は FLUX.2 klein（Flux2KleinPipeline）が入った 0.37 以上。古いと新しい世代の模型を読めない
     run_pip(pip + [DIFFUSERS, "transformers", "accelerate", "huggingface_hub", "safetensors", "ai-edge-litert", "onnxruntime", f"torch=={ver}",
                    "--extra-index-url", index])
+    if gpu:   # 大きい模型（FLUX、Qwen-Image など）の本体を 4 ビットに縮めて GPU に載せる部品。入らなくても縮めずに描ける
+        try:
+            run_pip(pip + ["bitsandbytes", f"torch=={ver}", "--extra-index-url", index])
+        except RuntimeError:
+            pass
     say("絵を描く部品を入れています", 90)
     if str(lib) not in sys.path:
         sys.path.insert(0, str(lib))
@@ -115,8 +120,90 @@ def folder_gb(d: Path) -> float:
     return sum(f.stat().st_size for f in seen) / 1e9
 
 
+class NoRoom(Exception):
+    """置き場の空きが足りない"""
+
+
+def free_gb(d: Path) -> float:
+    """d（無ければ、ある所まで親をたどる）のある置き場の空き（GB）"""
+    p = Path(d)
+    while not p.exists() and p != p.parent:
+        p = p.parent
+    try:
+        return shutil.disk_usage(p).free / 1e9
+    except OSError:
+        return float("inf")
+
+
+def repo_dir(hub: str) -> Path:
+    """Hugging Face の置き場（HUB）の中の、その模型のフォルダー"""
+    return HUB / ("models--" + hub.replace("/", "--"))
+
+
+def check_room(name: str, need_gb: float, have_gb: float = 0.0, where: Path = HUB):
+    """取る前に空きを見る。途中で一杯になると、数十 GB を取った後で落ち、置き場も一杯のまま残った"""
+    left = max(0.0, need_gb - have_gb)
+    free = free_gb(where)
+    if left > 0 and free < left + 1.0:   # 1GB は描く時の一時ファイルの分
+        raise NoRoom(f"{name} を取るには、置き場（{where}）に約 {left + 1:.1f}GB の空きが要ります（今の空き {free:.1f}GB）。"
+                     "要らない模型を「模型の管理」で消すか、置き場を空いているドライブに移してください")
+
+
+NO_WEIGHTS = ("Tokenizer", "Scheduler", "FeatureExtractor", "ImageProcessor", "Processor")
+
+
+def parts(index: dict) -> list[str]:
+    """model_index.json に書かれた、重みの要る部品の名前（tokenizer や scheduler は重みが無いので外す）"""
+    out = []
+    for k, v in index.items():
+        if k.startswith("_") or not isinstance(v, (list, tuple)) or len(v) < 2 or v[1] is None:
+            continue
+        if any(w in str(v[1]) for w in NO_WEIGHTS):   # T5TokenizerFast のように後ろに付く名前もある
+            continue
+        out.append(k)
+    return out
+
+
+def missing_parts(folder: Path, index: dict) -> list[str]:
+    """取った模型のフォルダーで、重みのファイルが 1 つも無い部品。取る型（allow_patterns）に当たらなかった部品がここに出る"""
+    out = []
+    for k in parts(index):
+        d = folder / k
+        if not d.is_dir() or not any(f.suffix in (".safetensors", ".bin", ".gguf", ".pt") for f in d.iterdir()):
+            out.append(k)
+    return out
+
+
+def part_files(names: list[str], part: str, variant: str | None) -> list[str]:
+    """部品の重みのうち取る物。fp16 を選んだ模型は fp16 を、無ければ safetensors を、それも無ければ .bin を取る（同じ重みを 2 度取らない）"""
+    mine = [n for n in names if n.startswith(part + "/")]
+    conf = [n for n in mine if n.endswith((".json", ".txt", ".model"))]
+    st = [n for n in mine if n.endswith(".safetensors")]
+    half = [n for n in st if ".fp16." in n]
+    full = [n for n in st if ".fp16." not in n]
+    weights = (half if variant == "fp16" and half else full or half) or [n for n in mine if n.endswith(".bin")]
+    return conf + weights
+
+
+def friendly(e: Exception, hub: str) -> str:
+    """取れなかった理由。同意の要る模型（gated）と、無い模型は、何をすればよいかを書く"""
+    name = type(e).__name__
+    if isinstance(e, NoRoom):
+        return str(e)
+    if "Gated" in name or "401" in str(e) or "403" in str(e):
+        return (f"{hub} は Hugging Face で利用の同意が要る模型です。https://huggingface.co/{hub} で同意し、"
+                "Hugging Face のトークンを設定（環境変数 HF_TOKEN）してから取り直してください")
+    if "RepositoryNotFound" in name or "404" in str(e):
+        return f"{hub} が Hugging Face に見つかりません（名前の誤りか、消された模型）"
+    if isinstance(e, (ConnectionError, TimeoutError, OSError)) and "space" in str(e).lower():
+        return f"置き場の空きが足りなくなりました: {e}"
+    from chatdraw.engine import explain
+    return explain(e)
+
+
 class Fetcher(QObject):
-    """選んだ模型を取る。update=True なら、手元にあっても新しい版があるかを見て、あれば取り直す"""
+    """選んだ模型を、描くのに要る部品まで全部取る。update=True なら、手元にあっても新しい版があるかを見て、あれば取り直す。
+    途中で止まっても、取った分は残り、次は続きから取る（Hugging Face の取り方が続きから取る）"""
     progress = Signal(str, int)
     finished = Signal(str)
 
@@ -130,11 +217,14 @@ class Fetcher(QObject):
             if words is not None:
                 self._words(words, update)
             self.finished.emit("")
-        except Exception as e:  # 取れなかった理由をそのまま見せる
-            self.finished.emit(f"取れませんでした: {e}")
+        except Exception as e:  # 取れなかった理由を、何をすればよいか分かる形で見せる
+            hub = image.hub if image is not None else words.repo if words is not None else ""
+            self.finished.emit(f"取れませんでした: {friendly(e, hub)}")
 
     def _image(self, m: ImageModel):
         from huggingface_hub import snapshot_download
+        from chatdraw.models import SINGLE_BASE, single_base_files
+        check_room(m.name, m.gb, folder_gb(repo_dir(m.hub)))
         start = folder_gb(HUB)
         done = threading.Event()
 
@@ -145,12 +235,41 @@ class Fetcher(QObject):
         threading.Thread(target=watch, daemon=True).start()
         try:
             # 取ってある分は飛ばし、新しい版があればその差分だけを取る
-            snapshot_download(m.hub, cache_dir=str(HUB), **m.files)
+            folder = Path(snapshot_download(m.hub, cache_dir=str(HUB), **m.files))
+            if m.file:
+                # 1 つのファイルの模型は、部品の設定（と新しい世代では言葉の部品・VAE）を元の模型から借りて読む。先に取っておく
+                base = SINGLE_BASE.get(m.family)
+                if base:
+                    self.progress.emit(f"{m.name} を読むための部品（{base}）を取っています", -1)
+                    snapshot_download(base, cache_dir=str(HUB), **single_base_files(m.family))
+            else:
+                self._parts(m, folder)
             if m.family in SKETCH:   # ラフから描く部品は SD 系だけにある
                 repo, files, _ = SKETCH[m.family]
                 snapshot_download(repo, cache_dir=str(HUB), **files)   # ラフから描く部品（約 0.15〜0.3GB）
         finally:
             done.set()
+
+    def _parts(self, m: ImageModel, folder: Path):
+        """model_index.json の部品が全部そろったかを見て、取る型に当たらずに抜けた部品を足して取る。
+        抜けたまま描くと、読む時に「no file named ...」で落ちた（.bin だけの部品、text_encoder_3 など）"""
+        import json
+        from huggingface_hub import HfApi, snapshot_download
+        try:
+            index = json.loads((folder / "model_index.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return
+        lack = missing_parts(folder, index)
+        if not lack:
+            return
+        names = HfApi().list_repo_files(m.hub)
+        want = [f for p in lack for f in part_files(names, p, m.variant)]
+        if want:
+            self.progress.emit(f"{m.name} の足りない部品（{'、'.join(lack)}）を取っています", -1)
+            snapshot_download(m.hub, cache_dir=str(HUB), allow_patterns=want)
+        still = missing_parts(folder, index)
+        if still:
+            raise FileNotFoundError(f"{m.name} の部品 {'、'.join(still)} の重みが Hugging Face に見つかりません")
 
     def _words(self, m: WordsModel, update: bool):
         lib = LLM / "lib"
@@ -166,14 +285,22 @@ class Fetcher(QObject):
             return   # 同じ大きさなら同じ版とみなして取り直さない
         dest.parent.mkdir(parents=True, exist_ok=True)
         part = dest.with_suffix(".part")
-        with urllib.request.urlopen(m.url) as r, open(part, "wb") as f:
-            total, got = int(r.headers.get("Content-Length") or 0), 0
-            while chunk := r.read(1 << 20):
-                f.write(chunk)
-                got += len(chunk)
-                if total:
-                    self.progress.emit(f"{m.name} を取っています（{got / 1e9:.1f} / {total / 1e9:.1f}GB）", got * 100 // total)
-        part.replace(dest)   # 取り終わってから入れ替える。途中で止まっても前の版は使える
+        got = part.stat().st_size if part.exists() else 0
+        if remote and got >= remote:
+            got = 0   # 前の版の途中の物。始めから取る
+        check_room(m.name, (remote - got) / 1e9 if remote else m.gb, 0.0, dest.parent)
+        req = urllib.request.Request(m.url, headers={"Range": f"bytes={got}-"} if got else {})
+        with urllib.request.urlopen(req) as r:
+            resumed = got and r.status == 206   # 続きから取れた。206 でなければ配り元が続きを受けないので始めから
+            got = got if resumed else 0
+            total = remote or got + int(r.headers.get("Content-Length") or 0)
+            with open(part, "ab" if resumed else "wb") as f:
+                while chunk := r.read(1 << 20):
+                    f.write(chunk)
+                    got += len(chunk)
+                    if total:
+                        self.progress.emit(f"{m.name} を取っています（{got / 1e9:.1f} / {total / 1e9:.1f}GB）", got * 100 // total)
+        part.replace(dest)   # 取り終わってから入れ替える。途中で止まっても前の版は使え、次は続きから取る
 
 
 def card(radio: QRadioButton, good: str, meta: str, have: bool, recommended: bool) -> QFrame:
@@ -221,6 +348,8 @@ class SetupDialog(QDialog):
         self.fetcher = Fetcher()
         self.fetcher.progress.connect(self._progress, Qt.QueuedConnection)
         self.fetcher.finished.connect(self._finished, Qt.QueuedConnection)
+        if hasattr(parent, "watch_fetch"):   # 窓の右下の進みにも出す
+            parent.watch_fetch(self.fetcher)
 
     # ---- 1 枚目: 選ぶ ----
     def _choose_page(self) -> QWidget:
@@ -371,7 +500,7 @@ class SetupDialog(QDialog):
         if getattr(self, "local", None) is not None:
             image = None   # 手で置いた模型は取らない
         elif image == AUTO:
-            image = None if any(has_image(m) for m in IMAGES) else offered_images()[0]
+            image = None if any(has_image(m) for m in IMAGES) else (offered_images() or list(IMAGES))[0]
         if words is not None and has_words(words):
             words = None
         return image, words
