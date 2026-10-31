@@ -295,6 +295,31 @@ def overlay(image, feet, out):
     im.save(out)
 
 
+def sharpness(image, box) -> float:
+    """枠の中の線の鋭さ。明るさの横と縦の差の大きさの上位 1 割の平均（線画の線の強さ）。
+    ぼやけてつぶれた指は線が弱く、指の境の線も指先の山も読めない。数えられないだけでは「読めない」としか言えなかったので、
+    絵全体の鋭さと比べて、ぼやけているかを数字で言えるようにする"""
+    im = Image.open(image).convert("L") if isinstance(image, (str, Path)) else image.convert("L")
+    w, h = im.size
+    x0, y0, x1, y1 = (int(v) for v in box)
+    g = np.asarray(im.crop((max(0, x0), max(0, y0), min(w, x1), min(h, y1))), np.float32)
+    if g.shape[0] < 4 or g.shape[1] < 4:
+        return 0.0
+    d = np.hypot(np.diff(g, axis=1)[:-1], np.diff(g, axis=0)[:, :-1]).ravel()
+    k = max(1, d.size // 10)
+    return float(np.sort(d)[-k:].mean())
+
+
+def sharp_reference(image, side: int) -> float:
+    """絵の中の線のはっきりした所の鋭さ。一辺 side の区画ごとに sharpness を測り、上から 2 割の区画の値を取る。
+    絵全体で測ると平らな背景で薄まり、どの足も絵全体の 1.3〜3.5 倍と出て、ぼやけた足と分けられなかった"""
+    im = Image.open(image).convert("L") if isinstance(image, (str, Path)) else image.convert("L")
+    w, h = im.size
+    side = max(16, int(side))
+    vals = [sharpness(im, (x, y, x + side, y + side)) for y in range(0, max(1, h - side + 1), side) for x in range(0, max(1, w - side + 1), side)]
+    return float(np.percentile(vals, 80)) if vals else 0.0
+
+
 def public(feet) -> list[dict]:
     """重ね描き用の内部の値（_ で始まる）を外した結果"""
     return [{k: v for k, v in f.items() if not k.startswith("_")} for f in feet]

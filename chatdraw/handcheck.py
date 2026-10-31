@@ -144,6 +144,7 @@ def ensure_feet_model(fetch: bool = True) -> bool:
     return True
 
 
+BLUR_FEET = 0.6   # 足の枠の線の鋭さが絵全体のこの倍より低ければ、ぼやけた指とする（決め方は ai-drawing-notes の 2026-10-31）
 COVERED_FEET = ("shoes", "boots", "socks", "sneakers", "heels", "loafers", "thighhighs", "pantyhose", "kneehighs", "footwear")
 
 
@@ -157,12 +158,23 @@ def check_feet(im, fetch: bool = True, asked: str = "") -> tuple[list[dict], lis
     except Exception as e:   # 模型か部品が無い。手の検品は続ける
         return [], [], f"足の検品の部品がありません（{e}）"
     bad = []
+    covered = any(c in asked.lower() for c in COVERED_FEET)
+    side = int(sum(f["box"][2] - f["box"][0] for f in found) / len(found)) if found else 64
+    try:
+        ref = feet.sharp_reference(im, side) or 1.0
+    except Exception:   # 絵か鋭さの測り方が無い（模型の読みを差し替えた試験）。指の数だけで見る
+        ref = None
     for i, f in enumerate(found, 1):
         n = f["count"]
         f["bad"] = []
+        f["sharp"] = round(feet.sharpness(im, f["box"]) / ref, 2) if ref else None
+        if not covered and f["sharp"] is not None and f["sharp"] < BLUR_FEET:
+            f["bad"] = [f"指がぼやけている（線の鋭さが絵のはっきりした所の {f['sharp']} 倍）"]
+            bad.append(f"足 {i}: " + f["bad"][0])
+            continue
         if n is not None and n != 5:
             f["bad"] = [f"指が{'多い' if n > 5 else '足りない'}（{n} 本。5 本のはず）"]   # 直す所の一覧（bad_regions）に入れる
-        elif n is None and not any(c in asked.lower() for c in COVERED_FEET):
+        elif n is None and not covered:
             f["bad"] = ["指を数えられない（つぶれているか、ぼやけている）"]
         if f["bad"]:
             bad.append(f"足 {i}: " + f["bad"][0])
