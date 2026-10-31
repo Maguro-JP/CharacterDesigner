@@ -141,6 +141,10 @@ def measure(img):
     # 横から見た手や重ねた手は指が隠れるので、3 本に見えても崩れとは限らない（腰に当てた手、重ねた両手）
     elif n["count"] is not None and n["count"] < 4 and not bent and n.get("apart", 0) >= 1.0:
         bad.append(f"指が足りない（親指の外に {n['count']} 本。4 本のはず）")
+    if n.get("fused") and not bent:
+        bad.append("指がくっついている（指 2 本分の幅の塊）")
+    if n.get("ghost"):
+        bad.append(f"指の間に薄い指がある（{n['ghost']} 本。余分な指が透けて描かれている）")
     return m, bad, _overlay(sq, lm)
 
 
@@ -246,6 +250,12 @@ def count_fingers(a, lm, palm_col, tol: float = 120.0) -> dict:
         return out
     width = float(np.median([np.mean(ch["w"]) for ch in fingers]))
     agree = sum(len(r) == n for r in rows)
+    # くっついた指: 3 本に見え、そのうち 1 本だけが残りの指の 1.6〜3 倍の幅（指 2 本と間の隙間）で、付け根から先まで続く。
+    # 指 2 本が 1 本の塊になった形で、これまでは「広い手の色がある」として数えずに通していた
+    ws = sorted(float(np.mean(ch["w"])) for ch in fingers)
+    if n == 3 and agree >= 4 and 1.6 * ws[1] <= ws[2] <= 3.0 * ws[1] and len(fingers[int(np.argmax([np.mean(ch["w"]) for ch in fingers]))]["w"]) >= 4:
+        out.update(reason="指がくっついている（指 2 本分の幅の塊）", fused=True, width=round(ws[1], 1))
+        return out
     # 5 本の線のうち 4 本で同じ数が出たときだけ数える。3 本で通すと、崩れて読めない手（腕が絡んだ絵）を 3 本、5 本と言い切った
     if agree < 4:
         out["reason"] = f"切った線ごとに数が揺れる（{n} 本と同じ線が {agree} 本）"
@@ -258,7 +268,41 @@ def count_fingers(a, lm, palm_col, tol: float = 120.0) -> dict:
     # 指の点どうしの一番狭い間（真ん中で切った所）。指 1 本の幅より広く離れていれば、指どうしは重なっていない
     mid = np.array([lm[k] + (lm[k + 3] - lm[k]) * 0.5 for k in FAN])
     out["apart"] = round(float(np.linalg.norm(np.diff(mid, axis=0), axis=1).min()) / (width or 1.0), 2)
+    out["ghost"] = ghost_fingers(a, lm, palm_col, fingers, perp, width)
     return out
+
+
+def ghost_fingers(a, lm, palm_col, fingers, perp, width) -> int:
+    """数えた指の間に、薄く出た余分な指（下の色が透けた指）がいくつあるか。
+    指の間の隙間のうち、指 1 本の幅の 0.6 倍より広い所の真ん中の色を、切った線ごとに見る。
+    隙間の色が、手の色と扇の外（背景）の色の間（手の色への近さが背景の 3〜8 割）にある線が 3 本以上なら、薄い指とする。
+    5 本と数えた手の指の間に、6 本目が薄く描かれた絵は、指の数でも形でも検品を逃れていた"""
+    cs = sorted(ch["c"] for ch in fingers)
+    if len(cs) < 2:
+        return 0
+    pts0 = np.array([lm[k] + (lm[k + 3] - lm[k]) * 0.5 for k in FAN])
+    out_pts = np.array([pts0[0] + (pts0[0] - pts0[1]) * 1.2, pts0[3] + (pts0[3] - pts0[2]) * 1.2])
+    bg = _sample(a, out_pts).mean(0)
+    d_bg = float(np.abs(bg - palm_col).sum())
+    if d_bg < 60:   # 扇の外も手の色に近い（体の肌の前の手）。薄い指と見分けられない
+        return 0
+    n = 0
+    for c0, c1 in zip(cs, cs[1:]):
+        if c1 - c0 < 1.6 * width:   # 隙間が指 0.6 本分に満たない
+            continue
+        hits = 0
+        for t in CUTS:
+            pts = np.array([lm[k] + (lm[k + 3] - lm[k]) * t for k in FAN])
+            proj = pts @ perp
+            # 切った線の上で、隙間の真ん中（c0 と c1 の中点）に当たる位置を、指の点の並びから補う
+            order = np.argsort(proj)
+            mid = (c0 + c1) / 2
+            xy = np.array([np.interp(mid, proj[order], pts[order, 0]), np.interp(mid, proj[order], pts[order, 1])])
+            col = _sample(a, xy[None])[0]
+            r = float(np.abs(col - palm_col).sum()) / d_bg
+            hits += 0.3 <= r <= 0.8
+        n += hits >= 3
+    return n
 
 
 def _overlay(sq, lm):

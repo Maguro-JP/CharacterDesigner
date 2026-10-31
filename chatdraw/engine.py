@@ -502,6 +502,8 @@ class Painter:
         self._sketch = None
         self._inpaint = None
         self._ref = False   # 参考画像の部品を読んでいるか
+        # 直すときに絵全体を広げる倍率（hires_inpaint）。画素の数は 2.25 倍になるので、1 回の直しの時間もおよそそれだけ延びる
+        self.upscale = 1.5
         self.avoid = ""     # 利用者の好みから読み取った、避ける言葉（描かない物に足す）
         self.stop = False
 
@@ -731,7 +733,7 @@ class Painter:
                ref_scale: float = 0.6, clean: bool = False):
         """image（PIL）の mask（PIL の L、白が直す所）の中だけを、元の絵を土台に少しだけ直して返す（微調整）。
 
-        元の絵は縮めも広げもせず、そのままの大きさで模型に渡す。直す所の外の画素は 1 つも変えない。
+        絵全体を upscale 倍（既定 1.5 倍）に広げて描かせ、元の大きさに戻して直す所だけを重ねる（hires_inpaint）。直す所の外の画素は 1 つも変えない。
         直す所を切り出して別に描いて貼る形も、絵全体を描き直す形もとらない（どちらも元の絵が崩れた）。
         strength が小さいほど元の絵に近いまま直す。足りなければ同じ所をもう一度直す。
         clean なら、描く前に直す所を消しゴムで消す（元の線が薄く残って二重になるのを防ぐ。開いた目を閉じるなど形を変えるとき）。
@@ -749,13 +751,6 @@ class Painter:
         self.stop = False
         if clean:
             image = erase(image, mask)
-        w, h = image.size
-        # 模型は 8 の倍数の大きさしか受けないので、右と下の端を写して足すだけにする（縮めも広げもしない）
-        base = Image.new("RGB", (w + (-w % 8), h + (-h % 8)))
-        base.paste(image.convert("RGB").resize(base.size, Image.NEAREST))
-        base.paste(image.convert("RGB"), (0, 0))
-        mask_in = Image.new("L", base.size, 0)
-        mask_in.paste(mask, (0, 0))
         args = dict(prompt=f"{info.prefix}{prompt}, masterpiece, best quality", negative_prompt=negative_for(info, self.avoid),
                     num_inference_steps=self.steps, guidance_scale=self.guidance, strength=strength,
                     generator=torch.Generator(pipe.device).manual_seed(seed))
@@ -771,14 +766,38 @@ class Painter:
             return kw
         args["callback_on_step_end"] = step
         self._use_reference(self._inpaint, reference, ref_scale, args)
-        out = self._inpaint(image=base, mask_image=mask_in, width=base.width, height=base.height, **args).images[0]
-        if self.stop:
-            raise Stopped("止めました")
-        out = out.crop((0, 0, w, h))
-        # 直す所の外は元の画素のまま残す。境目は直す所の内側でだけなじませる（外へはにじませない）
-        from PIL import ImageChops, ImageFilter
-        inner = ImageChops.multiply(mask.filter(ImageFilter.MinFilter(9)).filter(ImageFilter.GaussianBlur(3)), mask)
-        return Image.composite(out, image.convert("RGB"), inner)
+
+        def run(base, mask_in):
+            out = self._inpaint(image=base, mask_image=mask_in, width=base.width, height=base.height, **args).images[0]
+            if self.stop:
+                raise Stopped("止めました")
+            return out
+        return hires_inpaint(image, mask, run, self.upscale)
+
+
+def hires_inpaint(image, mask, run, scale: float = 1.5):
+    """絵全体を scale 倍に広げて run(広げた絵, 広げた mask) で直す所を描かせ、元の大きさに戻して、mask の中の画素だけを元の絵に重ねる。
+
+    元の大きさのままでは、全身の絵の手（150 画素ほど）を模型が細かく描けず、直した指もつぶれた。
+    切り出して描いて貼る形は、周りとの釣り合いが崩れたのでとらない（絵全体を広げ、周りを見ながら描かせる）。
+    mask の外の画素は、広げて戻した画素ではなく元の画素をそのまま使うので、1 画素も変わらない（試験で確かめる）。"""
+    from PIL import Image, ImageChops, ImageFilter
+    src = image.convert("RGB")
+    w, h = src.size
+    sw, sh = int(round(w * scale)), int(round(h * scale))
+    # 模型は 8 の倍数の大きさしか受けないので、右と下の端を写して足す
+    big = src.resize((sw, sh), Image.LANCZOS) if scale != 1 else src
+    base = Image.new("RGB", (sw + (-sw % 8), sh + (-sh % 8)))
+    base.paste(big.resize(base.size, Image.NEAREST))
+    base.paste(big, (0, 0))
+    mask_in = Image.new("L", base.size, 0)
+    mask_in.paste(mask.resize((sw, sh), Image.NEAREST) if scale != 1 else mask, (0, 0))
+    out = run(base, mask_in).crop((0, 0, sw, sh))
+    if scale != 1:
+        out = out.resize((w, h), Image.LANCZOS)
+    # 直す所の外は元の画素のまま残す。境目は直す所の内側でだけなじませる（外へはにじませない）
+    inner = ImageChops.multiply(mask.filter(ImageFilter.MinFilter(9)).filter(ImageFilter.GaussianBlur(3)), mask)
+    return Image.composite(out, src, inner)
 
 
 class Studio:
@@ -858,6 +877,12 @@ class Studio:
                 left += [f"描かれていない: {m}" for m in asked["missing"]]
                 left += [f"頼んでいない: {e}" for e in asked.get("extra", [])]
                 unasked += [e for e in asked.get("extra", []) if e not in unasked]
+                # 頼んでいない 2 人目と、基準の体から外れた体は、種を変えて描き直す理由にし、次の回は描かない物に足す
+                left += [f"人数が違う: {p}" for p in asked.get("people", [])]
+                left += list(asked.get("body", []))
+                unasked += [w for w in ("multiple girls", "2girls", "multiple views") if asked.get("people") and w not in unasked]
+                unasked += [b.split("（")[1].rsplit(" ", 1)[0] for b in asked.get("body", []) if "（" in b
+                            and b.split("（")[1].rsplit(" ", 1)[0] not in unasked]
             redraws.append({"seed": s_k, "bad": left})
             if best is None or len(left) < len(best[1]):
                 best = (image, left, s_k)

@@ -1316,7 +1316,7 @@ class FixAndBatchTest(unittest.TestCase):
         self.assertTrue(self.w.studio.last_flaws)
 
     def test_redraw_keeps_picture_outside_marks(self):
-        """直すのは囲んだ所の中だけ。元の絵は縮めも広げもせず、外の画素は 1 つも変えない"""
+        """直すのは囲んだ所の中だけ。絵全体を 1.5 倍に広げて描かせ、元の大きさに戻し、外の画素は 1 つも変えない"""
         from types import SimpleNamespace
         from PIL import Image, ImageChops
         from chatdraw.engine import Painter
@@ -1332,11 +1332,33 @@ class FixAndBatchTest(unittest.TestCase):
         m.paste(255, (60, 40, 140, 120))
         out = p.redraw("smile", 1, img, m)
         self.assertEqual(out.size, img.size)
-        self.assertEqual(seen["size"], (208, 160))                    # 8 の倍数へは端を足すだけ
+        self.assertEqual(seen["size"], (304, 240))                    # 絵全体を 1.5 倍（304x236）にし、8 の倍数へは端を足す
         self.assertLess(seen["strength"], 0.5)                        # 既定は少しだけ直す
         outside = ImageChops.multiply(ImageChops.difference(out, img).convert("L"), Image.eval(m, lambda v: 255 - v))
         self.assertEqual(outside.getbbox(), None)                     # 外は元のまま
         self.assertEqual(out.getpixel((100, 80)), (255, 0, 0))        # 中は直っている
+
+    def test_hires_inpaint_outside_mask_byte_identical(self):
+        """広げて描いて戻しても、mask の外の画素はバイト単位で元と同じ（広げて戻した画素を外に使わない）"""
+        import numpy as np
+        from PIL import Image
+        from chatdraw.engine import hires_inpaint
+        img = Image.effect_noise((211, 163), 80).convert("RGB")
+        m = Image.new("L", img.size, 0)
+        m.paste(255, (50, 30, 150, 110))
+        for scale in (1, 1.5, 2):
+            sizes = []
+
+            def run(base, mask_in):
+                sizes.append((base.size, mask_in.size))
+                return Image.effect_noise(base.size, 90).convert("RGB")   # 中も外もでたらめに描く模型
+            out = hires_inpaint(img, m, run, scale)
+            a, b, k = np.asarray(out), np.asarray(img), np.asarray(m) == 0
+            self.assertEqual(out.size, img.size)
+            self.assertTrue((a[k] == b[k]).all(), scale)              # 外は 1 バイトも変わらない
+            self.assertFalse((a[~k] == b[~k]).all(), scale)           # 中は描き直っている
+            self.assertEqual(sizes[0][0], sizes[0][1])
+            self.assertGreaterEqual(sizes[0][0][0], int(211 * scale)) # 広げた大きさで描かせている
 
     @unittest.skipUnless(__import__("chatdraw.upscale", fromlist=["ready"]).ready(), "拡大の重みが手元に無い")
     def test_upscale_doubles_canvas(self):
