@@ -129,8 +129,9 @@ class Job(QObject):
                                                     on_preview=self.preview.emit, style=self.style, meta=self.meta, **extra)
                     self.one.emit(prompt, str(path))
             self.done.emit()
-        except Exception as e:  # 描けなかった理由をそのまま会話に出す
-            self.failed.emit(f"描けませんでした: {e}")
+        except Exception as e:  # 描けなかった理由を、次に何をすればよいか分かる日本語で会話に出す
+            from chatdraw.engine import explain
+            self.failed.emit(f"描けませんでした: {explain(e)}")
 
 
 class Task(QObject):
@@ -147,7 +148,8 @@ class Task(QObject):
         try:
             self.done.emit(self.fn(lambda i, n: self.status.emit(f"描いています（{i}/{n}）")))
         except Exception as e:
-            self.failed.emit(f"できませんでした: {e}")
+            from chatdraw.engine import explain
+            self.failed.emit(f"できませんでした: {explain(e)}")
 
 
 def pid_alive(pid: int) -> bool:
@@ -532,6 +534,7 @@ class Window(QMainWindow):
         model_row.setContentsMargins(0, 0, 0, 0)
         model_row.addWidget(self.model_label)
         self.ai_panel.sections["模型"].body.addLayout(model_row)
+        self._lora_row()
         ask.addStretch()
         ask_page = QWidget()
         ask_page.setLayout(ask)
@@ -862,9 +865,13 @@ class Window(QMainWindow):
         from chatdraw import themes
         self.theme_menu = view.addMenu("テーマ")
         self.theme_menu.aboutToShow.connect(self._fill_theme_menu)
-        self.ai_menu = self.menuBar().addMenu("AI")
+        from PySide6.QtWidgets import QMenu
+        self.ai_menu = QMenu("AI", self)   # 窓を親にして作る（文字だけで足すと、作り直しの知らせの前に消えていた）
+        self.menuBar().addMenu(self.ai_menu)
         self.ai_menu.aboutToShow.connect(self._fill_ai_menu)
         self._fill_ai_menu()
+        from chatdraw import ratings
+        ratings.on_change(self._models_changed)
         setting_menu = self.menuBar().addMenu("設定")
         setting_menu.addAction(QAction("設定…", self, shortcut="Ctrl+,", triggered=self.open_settings))
         setting_menu.addAction(QAction("キーの設定…", self, triggered=self.open_keys))
@@ -1287,7 +1294,14 @@ class Window(QMainWindow):
         from chatdraw.models import image_model
         from chatdraw.setup import AUTO
         key = self.settings.get("image_model")
-        self.model_label.setText("絵の模型: おまかせ" if key == AUTO else f"絵の模型: {image_model(key).name}")
+        if key == AUTO:   # おまかせで選んだ模型を出す（選ぶ前は、今読んでいる模型）
+            chosen = getattr(getattr(self, "studio", None), "chosen", None)
+            painter = getattr(getattr(self, "studio", None), "painter", None)
+            name = chosen[0] if chosen else image_model(painter.model).name if getattr(painter, "model", "") else ""
+            self.model_label.setText("絵の模型: おまかせ" + (f"（{name}）" if name else ""))
+            self.model_label.setToolTip(f"おまかせで選んだ理由: {chosen[1]}" if chosen else "描くときに、手元の模型から頼みに合う物を選びます")
+        else:
+            self.model_label.setText(f"絵の模型: {image_model(key).name}")
 
     def _fit_features(self):
         """選んだ模型の世代で使えない機能（ラフから、直す、参考画像）のボタンを止め、理由を出す"""
@@ -1329,6 +1343,10 @@ class Window(QMainWindow):
     def send(self):
         text = self.entry.text().strip()
         pen = self.canvas.redpen
+        if self.thread and text:   # 描いている間の頼みは受けない。黙って捨てると、押しても何も起きないように見えた
+            self.progress_popup.pop()
+            self.statusBar().showMessage("描いている途中です。終わってから頼んでください（止めるときは「止める」）", 6000)
+            return
         if self.thread or not text and not (pen.marks and all(pen.texts)):   # 絵の上に全部書いてあれば、チャットは空でよい
             return
         if not text:
@@ -1383,6 +1401,7 @@ class Window(QMainWindow):
         st = self.check_ai()
         if not st["image"]:
             self.say(st["reason"] or "AI が使えません")
+            self.progress_popup.tell("描けません", st["reason"] or "AI が使えません")   # 描く前に止まったことも右下に出す
             return
         self.last_text = text
         self._remember_prompt(text)
@@ -1537,6 +1556,7 @@ class Window(QMainWindow):
         self.library_panel.add(self.library.add_work(path))   # 描いた絵はライブラリーにも入る（好き・いまいちを付けて好みを育てる）
 
     def finish(self):
+        self._show_model()   # おまかせで選んだ模型を出す
         n = len(self.batch)
         fixed = self.job_kind in ("fix", "chibi")
         bad = getattr(self.studio, "last_flaws", []) if self.job_kind == "fix" else []
@@ -1679,6 +1699,45 @@ class Window(QMainWindow):
         self.button.setEnabled(False)
         self.thread.start()
 
+    def _lora_row(self):
+        """AI の欄の「模型」に、自分の作風の LoRA を選ぶ欄と強さを足す。初めは「なし」"""
+        from PySide6.QtWidgets import QComboBox, QSlider
+        from chatdraw import ownstyle
+        self.lora_pick = QComboBox()
+        self.lora_pick.setToolTip("自分の作風の LoRA を絵の模型に重ねます。置き場は " + str(ownstyle.lora_dir()))
+        self.lora_pick.addItem("LoRA なし", "")
+        for p in ownstyle.loras():
+            self.lora_pick.addItem(p.stem, str(p))
+        self.lora_pick.setCurrentIndex(max(0, self.lora_pick.findData(str(self.layout_store.value("lora", "") or ""))))
+        self.lora_strength = QSlider(Qt.Horizontal)
+        self.lora_strength.setRange(0, 150)
+        self.lora_strength.setValue(int(self.layout_store.value("lora_scale", 80)))
+        self.lora_strength.setToolTip("LoRA の強さ。大きいほど自分の作風に寄せる")
+        self.lora_pick.currentIndexChanged.connect(lambda _i: self._lora_changed())
+        self.lora_strength.valueChanged.connect(lambda _v: self._lora_changed())
+        body = self.ai_panel.sections["模型"].body
+        body.addWidget(self.lora_pick)
+        body.addWidget(self.lora_strength)
+
+    def _lora_changed(self):
+        path, scale = self.lora_pick.currentData() or "", self.lora_strength.value()
+        self.layout_store.setValue("lora", path)
+        self.layout_store.setValue("lora_scale", scale)
+        painter = getattr(getattr(self, "studio", None), "painter", None)
+        if painter is not None:
+            painter.lora, painter.lora_scale = path, scale / 100
+
+    def collect_favorites(self):
+        """★ の絵を学習用のデータ（絵と説明の .txt）に書き出し、置き場を知らせる"""
+        from chatdraw import ownstyle
+        if not ownstyle.favorites():
+            self.statusBar().showMessage("★ の絵がありません。履歴かライブラリーの絵を右クリックして ★ を付けてください", 8000)
+            return None
+        res = ownstyle.collect()
+        self.statusBar().showMessage(f"学習用に {len(res['images'])} 枚を集めました: {res['dir']}"
+                                     + (f"（見つからない絵 {len(res['missing'])} 枚）" if res["missing"] else ""), 12000)
+        return res
+
     def _history_menu(self, pos):
         from PySide6.QtWidgets import QMenu
         it = self.history.itemAt(pos)
@@ -1695,6 +1754,9 @@ class Window(QMainWindow):
         m.addAction("この設定で描き直す", lambda: self.redo_from(path))
         m.addAction("頼みの言葉を書く欄に入れる", lambda: self._prompt_from(path))
         m.addAction("お気に入りの言葉にする", lambda: self._prompt_from(path, pin=True))
+        from chatdraw import ownstyle
+        m.addAction("★ お気に入りを外す" if ownstyle.is_favorite(path) else "★ お気に入りにする", lambda: ownstyle.toggle(path))
+        m.addAction("学習用に集める", self.collect_favorites)
         m.addSeparator()
         m.addAction("絵をコピー", lambda: self.copy_image(path))
         m.addAction("保存した場所を開く", lambda: self.open_folder(path))
@@ -1815,14 +1877,16 @@ class Window(QMainWindow):
         g = self.settings.get
         image, words = g("image_model"), g("words_model")
         if image == AUTO:
-            have = [m for m in all_images() if has_image(m)]
-            first = max(have, key=lambda m: m.score) if have else IMAGES[0]
+            from chatdraw.choose import choose_image
+            first = choose_image("", "", have=[m for m in all_images() if has_image(m)])[0] or IMAGES[0]
             image, steps, guidance = first.repo, first.steps, first.guidance
         else:
             steps, guidance = g("steps"), g("guidance")
         old = getattr(self, "studio", None)
         painter = old.painter if old is not None and getattr(old.painter, "model", None) == image else Painter(image)
         painter.steps, painter.guidance = steps, guidance
+        painter.lora = str(self.layout_store.value("lora", "") or "")
+        painter.lora_scale = int(self.layout_store.value("lora_scale", 80)) / 100
         studio = Studio(Words(None if words == AUTO else Path(words)), painter, Path(g("output_dir")))
         studio.image_auto, studio.words_auto = g("image_model") == AUTO, words == AUTO
         studio.way = {"1つの模型で描く": "one", "構図と仕上げを分けて描く": "two"}.get(g("draw_way"), "auto")
@@ -1903,34 +1967,54 @@ class Window(QMainWindow):
         import threading
         self.upgrader = Fetcher()
         self.upgrader.finished.connect(switch, Qt.QueuedConnection)
+        self.watch_fetch(self.upgrader, "言葉の模型")
         self.statusBar().showMessage(f"新しい言葉の模型 {new.name} を裏で取っています", 6000)
         threading.Thread(target=self.upgrader.run, args=(None, new), daemon=True).start()
 
     # ---- AI のメニュー: 模型の切り替え ----
     def _fill_ai_menu(self):
-        """開くたびに作り直す（取った・取っていないが変わるため）"""
-        from chatdraw.models import catalog_images, offered_images
+        """模型の一覧を作り直す。開くときと、取った・消した・点・★・非表示が変わったとき（ratings.changed）に呼ぶ"""
+        from chatdraw.models import catalog_images, manual_images, pick
+        from chatdraw.ratings import is_favorite, rating_text, set_favorite
         from chatdraw.setup import AUTO, has_image
         menu = self.ai_menu
         menu.clear()
         now_image = self.settings.get("image_model")
-        # 出すのは、確かめて推奨に届いた模型と、手元にある模型だけ（ほかは「模型の管理」で推奨の絞りを外すと出る）
-        from chatdraw.models import manual_images
-        from chatdraw.ratings import rating_text, sort_key
-        listed = sorted((m for m in catalog_images() if m in offered_images() or has_image(m)), key=sort_key)
-        rate = {m.repo: rating_text(m) for m in listed}   # 点は 1 つの数だけ（未確認は「未確認」）
+        # 出すのは、推奨に届いた模型と手元にある模型（手元の物と ★ が先）。非表示にした物は出さない
+        catalog = catalog_images()
+        have = {m.repo for m in catalog if has_image(m)}
+        listed = pick(catalog, "推奨（確かめ済み）", have=have)
         images = listed + manual_images()
         menu.addSection("絵の模型")
         group = QActionGroup(menu)
-        for key, name, have in [(AUTO, "おまかせ", True)] + [(m.repo, m.name, has_image(m)) for m in images]:
-            label = f"{name}　{rate[key]}" if key in rate else name
-            act = QAction(label if have else f"{label}（未取得）", menu, checkable=True)
+        auto = QAction("おまかせ", menu, checkable=True)
+        auto.setToolTip("描くときに、手元の模型から頼みに合い点の高い物を選びます")
+        entries = [(AUTO, auto)]
+        for m in images:
+            label = ("★ " if is_favorite(m.repo) else "") + m.name + (f"　{rating_text(m)}" if m in listed else "")
+            ok = m.repo in have or m not in listed
+            entries.append((m.repo, QAction(label if ok else f"{label}（未取得）", menu, checkable=True)))
+        for key, act in entries:
             act.setChecked(key == now_image)
             act.triggered.connect(lambda _=False, k=key: self.switch_model("絵の模型", k))
             group.addAction(act)
             menu.addAction(act)
+        stars = menu.addMenu("★ お気に入り")
+        stars.setToolTipsVisible(True)
+        for m in listed:
+            a = QAction(m.name, menu, checkable=True)   # 親はメニュー（作り直すと一緒に消える）
+            stars.addAction(a)
+            a.setChecked(is_favorite(m.repo))
+            a.setToolTip("★ を付けた模型は一覧の先頭に出て、おまかせでも選ばれやすくなります")
+            a.toggled.connect(lambda on, r=m.repo: set_favorite(r, on))
         menu.addSeparator()
         menu.addAction(QAction("模型の管理…", self, triggered=self.manage_models))
+
+    def _models_changed(self):
+        """模型の一覧が変わったら、AI のメニューと模型の表示を作り直す（開いたままの古い一覧を残さない）"""
+        if not self.ai_menu.isVisible():   # 開いているメニューの中身を、押している最中に消さない
+            self._fill_ai_menu()
+        self._show_model()
 
     def manage_models(self):
         if self.tour_first("manager", self.manage_models):
@@ -1939,6 +2023,7 @@ class Window(QMainWindow):
         ModelManager(self.settings, self).exec()
         self.studio = self._studio_from_settings()
         self.check_ai()
+        self._fill_ai_menu()
 
     def switch_model(self, kind: str, key: str):
         self.feature_tour("model")
@@ -1973,6 +2058,7 @@ class Window(QMainWindow):
             self.settings.set("words_model", key if key in (AUTO, "") else str(words_path(m)))
         self.studio = self._studio_from_settings()
         self.check_ai()
+        self._fill_ai_menu()
         self.notify(f"{kind}を替えました", "ok")
 
     def show_preview(self, img):
@@ -2012,6 +2098,8 @@ class Window(QMainWindow):
         self.say(why)
         if self.activity.started is not None:
             self.activity.end("止めました" if "止め" in why else "描けませんでした")
+        # 進みの欄の 1 回分の外で落ちたときも、理由を右下に出す（出さないと何も起きなかったように見えた）
+        self.progress_popup.tell("止めました" if "止め" in why else "描けませんでした", why)
         self.notify("止めました" if "止め" in why else "描けませんでした", "info" if "止め" in why else "error",
                     "" if "止め" in why else why)
         self._end(why)
@@ -2580,6 +2668,12 @@ class Window(QMainWindow):
 
     def hide_progress_if_idle(self, ms: int = 4000):
         """進みの欄は自分では隠さない。描き終わると消えて、結果も今の状態も分からなかった。閉じるのは利用者だけ"""
+
+    def watch_fetch(self, fetcher, what: str = "模型"):
+        """模型を取る進みを、描く進みと同じ右下のポップアップに出す。模型の管理を閉じたあとも、取り終わるまで進みが見える"""
+        fetcher.progress.connect(lambda msg, pct: self.progress_popup.tell(f"{what}を取っています", msg, pct), Qt.QueuedConnection)
+        fetcher.finished.connect(lambda err: self.progress_popup.tell("取れませんでした" if err else "取りました",
+                                                                      err or f"{what}を取り終わりました"), Qt.QueuedConnection)
 
     def show_progress(self, text: str, pct: int):
         """進みをウィンドウの外にも出す。タイトル（タスクバーに出る）、通知の領域のアイコン、終わったときの知らせ"""

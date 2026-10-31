@@ -76,7 +76,8 @@ class LibraryPanel(QWidget):
 
     # ---- 見せる ----
     def _item(self, it: dict) -> QListWidgetItem:
-        item = QListWidgetItem(MARK.get(it["rating"], "") if it["kind"] == "work" else (it["note"] or Path(it["path"]).name)[:10])
+        star = "★" if it["kind"] == "work" and it["path"] in self._favs else ""
+        item = QListWidgetItem(star + MARK.get(it["rating"], "") if it["kind"] == "work" else (it["note"] or Path(it["path"]).name)[:10])
         pm = QPixmap(it["path"])
         if not pm.isNull():
             item.setIcon(QIcon(pm.scaled(176, 240, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
@@ -93,6 +94,8 @@ class LibraryPanel(QWidget):
         (self.works if item["kind"] == "work" else self.docs).insertItem(0, self._item(item))
 
     def refresh(self):
+        from chatdraw.ownstyle import favorites
+        self._favs = set(favorites())   # 1 回だけ読み、並べる絵ごとに読み直さない
         lib = self.w.library
         for view, rows in ((self.works, lib.works()), (self.docs, lib.docs())):
             view.clear()
@@ -126,6 +129,10 @@ class LibraryPanel(QWidget):
             m.addAction("♥ 好き", lambda: self.rate(item_id, LIKE))
             m.addAction("× いまいち", lambda: self.rate(item_id, DISLIKE))
             m.addAction("評価を外す", lambda: self.rate(item_id, NONE))
+            from chatdraw import ownstyle
+            m.addAction("★ お気に入りを外す" if ownstyle.is_favorite(path) else "★ お気に入りにする",
+                        lambda: (ownstyle.toggle(path), self.refresh()))
+            m.addAction("学習用に集める", self.w.collect_favorites)
             m.addSeparator()
             m.addAction("この設定で描き直す", lambda: self.w.redo_from(path))
         else:

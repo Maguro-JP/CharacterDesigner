@@ -1,7 +1,7 @@
 """模型の点とタグ。目録（catalog.json）の点とタグに、利用者が自分で付けた点とタグを重ねる。
 
 目録の点は毎週の確かめ直しで書き換わるので、画面は毎回目録から読む（写しを持たない）。
-利用者の点とタグはアプリのデータの置き場（model_prefs.json）に持ち、目録の更新で消えないようにする。
+利用者の点とタグ、お気に入り（★）と非表示はアプリのデータの置き場（model_prefs.json）に持ち、目録の更新で消えないようにする。
 見せる点 = 利用者が付けた点があればそれ、無ければ目録の点。0 は「未確認」と書く。
 """
 from __future__ import annotations
@@ -48,6 +48,7 @@ def set_user_rating(repo: str, value: int):
     else:
         entry.pop("rating", None)
     _save(data)
+    changed()
 
 
 def user_tags(repo: str) -> list[str]:
@@ -64,6 +65,7 @@ def set_user_tags(repo: str, tags: list[str]):
             clean.append(t)
     data.setdefault(repo, {})["tags"] = clean
     _save(data)
+    changed()
 
 
 def rating(m) -> int:
@@ -99,5 +101,57 @@ def has_tags(m, wanted) -> bool:
 
 
 def sort_key(m):
-    """点の高い順、同じ点なら確かめ済みが先、あとは名前"""
-    return (-rating(m), 0 if getattr(m, "score", 0) > 0 else 1, m.name.lower())
+    """★ が先、次に点の高い順、同じ点なら確かめ済みが先、あとは名前"""
+    return (0 if is_favorite(m.repo) else 1, -rating(m), 0 if getattr(m, "score", 0) > 0 else 1, m.name.lower())
+
+
+# ---- お気に入り（★）と非表示。点と同じ model_prefs.json に持つ ----
+LOW = 40   # これより低い点の模型は推奨に出さない（「すべて」には出す）
+
+
+def _flag(repo: str, key: str) -> bool:
+    return bool(_load().get(repo, {}).get(key, False))
+
+
+def _set_flag(repo: str, key: str, on: bool):
+    data = _load()
+    entry = data.setdefault(repo, {})
+    if on:
+        entry[key] = True
+    else:
+        entry.pop(key, None)
+    _save(data)
+    changed()
+
+
+def is_favorite(repo: str) -> bool:
+    return _flag(repo, "favorite")
+
+
+def set_favorite(repo: str, on: bool):
+    _set_flag(repo, "favorite", on)
+
+
+def is_hidden(repo: str) -> bool:
+    return _flag(repo, "hidden")
+
+
+def set_hidden(repo: str, on: bool):
+    _set_flag(repo, "hidden", on)
+
+
+# ---- 模型の一覧が変わったことを知らせる（取った・消した・点・★・非表示）。AI のメニューと模型の表示を作り直すため ----
+_LISTENERS: list = []
+
+
+def on_change(fn):
+    if fn not in _LISTENERS:
+        _LISTENERS.append(fn)
+
+
+def changed():
+    for fn in list(_LISTENERS):
+        try:
+            fn()
+        except RuntimeError:   # 窓が先に閉じて Qt の部品が消えていたら、その知らせ先を外す
+            _LISTENERS.remove(fn)

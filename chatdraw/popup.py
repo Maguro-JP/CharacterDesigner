@@ -69,10 +69,14 @@ class ProgressPopup(QFrame):
         return QPoint(g.right() - self.width() - MARGIN, g.bottom() - self.height() - MARGIN)
 
     def pop(self):
-        """下からせり上がって出る。もう出ているときは場所だけ合わせる"""
+        """下からせり上がって出る。もう出ているときは場所を合わせて一番上に出し直す。
+        出ているときに場所だけ合わせていたので、あとから付け直した欄（浮かせて戻した欄、作り直した AI の欄）や
+        案内の幕の下に隠れたままになり、「出なくなった」ように見えた。毎回いちばん上に出す"""
         end = self.target()
-        if self.isVisible():
-            self.move(end)
+        if self.isVisible() and not self.isHidden():
+            if self.anim.state() != QPropertyAnimation.Running:
+                self.move(end)
+            self.raise_()
             return
         self.move(end.x(), self.w.height())
         self.show()
@@ -83,9 +87,25 @@ class ProgressPopup(QFrame):
         self.anim.start()
 
     def close_popup(self):
+        """× で閉じる。閉じるのはこの 1 回分だけで、次に描く・取るときはまた出る"""
         self.anim.stop()
         self.pulse.stop()
         self.hide()
+
+    def tell(self, title: str, text: str, pct: int = -2):
+        """描く・取る以外の知らせ（描けなかった理由、模型を取る進み）を同じ場所に出す。
+        描く前に止まったとき（AI が使えない、模型が無い）と、模型を取っている間に何も出なかった"""
+        self.text.setText(text)
+        self.title.setText(title)
+        if pct >= 0:
+            self.pulse.stop()
+            self.bar.setValue(pct)
+        elif pct == -1:
+            self.pulse.start()
+        else:
+            self.pulse.stop()
+            self.bar.setValue(100)
+        self.pop()
 
     def place(self):
         """ウィンドウの大きさが変わったら、右下に付け直す"""
