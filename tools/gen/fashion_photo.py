@@ -28,7 +28,7 @@ MODEL = "SG161222/RealVisXL_V5.0"   # openrail++（使い方の制限あり、�
 # アニメ絵のタグで、写真の言葉にすると人数や画風を引っ張るもの
 ANIME_WORDS = re.compile(r"\b(1girl|1boy|solo|male focus|anime style|cel shading|clean lineart)\b,?\s*", re.I)
 PHOTO = ("full body fashion photograph, standing, whole body from head to shoes in frame, facing the camera, "
-         "plain light grey studio background, soft even studio lighting, 85mm lens, sharp focus, "
+         "plain off-white studio background, soft even studio lighting, 85mm lens, sharp focus, "
          "natural skin texture, photorealistic, high detail fabric texture")
 NEGATIVE = ("anime, illustration, drawing, cartoon, painting, 3d render, cgi, doll, cropped, out of frame, cut off feet, "
             "extra fingers, missing fingers, fused fingers, deformed hands, extra arms, extra legs, bad anatomy, "
@@ -42,7 +42,11 @@ def prompt_of(c: dict) -> tuple[str, str]:
     return pos, neg
 
 
-VIEWS = {"front": "front view", "back": "back view, from behind, showing the back of the outfit"}
+# 向きの言葉と、その向きで打ち消す言葉。後ろ姿は言葉を後ろに足すだけでは正面を描いた（サークルスカート、2026-10-31）ので、
+# 頭に置き、顔と正面を打ち消す
+VIEWS = {"front": ("front view", ""),
+         "back": ("photographed from behind, back view, the person faces away from the camera, back of the head and back of the outfit visible",
+                  "face, looking at viewer, front view, facing camera")}
 # 細部の範囲（人物の外接枠の高さに対する割合、上端と下端）と、描き足すときの言葉
 DETAILS = [("head", 0.00, 0.16, "close-up of the hair and headwear"),
            ("collar", 0.12, 0.38, "close-up of the collar, neckline, buttons and fabric texture"),
@@ -109,8 +113,9 @@ def main():
         name = f"{ident}-s{a.seed}"
         rec = {"id": ident, "name": c.get("name", ""), "model": MODEL, "seed": a.seed, "steps": a.steps,
                "prompt": pos, "negative": neg, "views": {}, "details": []}
-        for view, words in VIEWS.items():
-            pe, ne, pp, np_ = design.encode_xl(pipe, f"{pos}, {words}", neg)
+        for view, (words, away) in VIEWS.items():
+            text = f"{words}, {pos}" if view == "back" else f"{pos}, {words}"
+            pe, ne, pp, np_ = design.encode_xl(pipe, text, ", ".join(x for x in (neg, away) if x))
             t = time.time()
             im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
                       negative_pooled_prompt_embeds=np_, num_inference_steps=a.steps, guidance_scale=5.0,
