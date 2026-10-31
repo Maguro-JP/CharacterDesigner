@@ -642,6 +642,11 @@ class Window(QMainWindow):
         out = file.addMenu("書き出す")
         out.addAction(QAction("PNG（重ねた 1 枚）…", self, shortcut="Ctrl+E", triggered=self.save_as))
         out.addAction(QAction("PSD（レイヤーごと）…", self, triggered=self.export_psd))
+        # 置き場はボタンを並べず、1 つの下の段にまとめる（開くたびに作り直し、保存先を変えたらすぐ合うようにする）
+        from chatdraw import folders
+        self.folder_menu = file.addMenu("ディレクトリを開く")
+        self.folder_menu.aboutToShow.connect(lambda: folders.fill_menu(self.folder_menu, self.settings, self))
+        folders.fill_menu(self.folder_menu, self.settings, self)
         file.addSeparator()
         file.addAction(QAction("終了", self, shortcut="Ctrl+Q", triggered=self.close))
         edit = self.menuBar().addMenu("編集")
@@ -1829,10 +1834,8 @@ class Window(QMainWindow):
 
     def open_logs(self):
         """記録（chatdraw.log、setup.log）の置き場を開く。困ったときに中を見たり、渡したりするため"""
-        from PySide6.QtCore import QUrl
-        from PySide6.QtGui import QDesktopServices
-        DATA.mkdir(parents=True, exist_ok=True)
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(DATA)))
+        from chatdraw.folders import open_folder
+        open_folder(DATA)
 
     def open_keys(self):
         from chatdraw.keys import KeyDialog
@@ -1913,11 +1916,15 @@ class Window(QMainWindow):
         now_image = self.settings.get("image_model")
         # 出すのは、確かめて推奨に届いた模型と、手元にある模型だけ（ほかは「模型の管理」で推奨の絞りを外すと出る）
         from chatdraw.models import manual_images
-        images = [m for m in catalog_images() if m in offered_images() or has_image(m)] + manual_images()
+        from chatdraw.ratings import rating_text, sort_key
+        listed = sorted((m for m in catalog_images() if m in offered_images() or has_image(m)), key=sort_key)
+        rate = {m.repo: rating_text(m) for m in listed}   # 点は 1 つの数だけ（未確認は「未確認」）
+        images = listed + manual_images()
         menu.addSection("絵の模型")
         group = QActionGroup(menu)
         for key, name, have in [(AUTO, "おまかせ", True)] + [(m.repo, m.name, has_image(m)) for m in images]:
-            act = QAction(name if have else f"{name}（未取得）", menu, checkable=True)
+            label = f"{name}　{rate[key]}" if key in rate else name
+            act = QAction(label if have else f"{label}（未取得）", menu, checkable=True)
             act.setChecked(key == now_image)
             act.triggered.connect(lambda _=False, k=key: self.switch_model("絵の模型", k))
             group.addAction(act)

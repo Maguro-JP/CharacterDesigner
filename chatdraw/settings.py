@@ -35,6 +35,12 @@ FIELDS = [
 ]
 
 
+def _open(path: str):
+    if path:
+        from chatdraw.folders import open_folder
+        open_folder(path)
+
+
 def local_models() -> list[str]:
     """手元に取ってある、絵を描ける模型（model_index.json がある物）"""
     hub = HUB
@@ -138,8 +144,12 @@ class SettingsDialog(QDialog):
             edit = QLineEdit(str(value))
             pick = QPushButton("選ぶ…")
             pick.clicked.connect(lambda: (d := QFileDialog.getExistingDirectory(self, "保存先", edit.text())) and edit.setText(d))
+            show = QPushButton("開く")
+            show.setToolTip("このディレクトリをエクスプローラーで開きます。無ければ作ってから開きます")
+            show.clicked.connect(lambda: _open(edit.text().strip()))
             row.addWidget(edit)
             row.addWidget(pick)
+            row.addWidget(show)
             box.edit = edit
             return box
         return QLineEdit(str(value))
