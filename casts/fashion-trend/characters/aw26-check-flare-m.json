@@ -1,0 +1,24 @@
+{
+ "id": "aw26-check-flare-m",
+ "name": "チェックシャツとフレアデニム（2026 秋冬、男子）",
+ "age": "",
+ "height": "",
+ "role": "今の日本の流行の装いの見本（docs/knowledge/fashion/trend-2026aw.md の 2 章）",
+ "personality": "",
+ "backstory": "",
+ "look": "young Japanese man, early 20s, light brown medium hair with tight curly perm, brown eyes",
+ "eyes": {
+  "tags": "open eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "red and brown plaid flannel shirt worn open over a white long-sleeve T-shirt, slim flare jeans, white low-top sneakers",
+ "turnaround": {},
+ "negative": "logo, brand logo, text, miniskirt, short skirt",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": ""
+}

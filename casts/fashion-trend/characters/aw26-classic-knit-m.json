@@ -1,0 +1,24 @@
+{
+ "id": "aw26-classic-knit-m",
+ "name": "柄ニットとダッフル（2026 秋冬、男子）",
+ "age": "",
+ "height": "",
+ "role": "今の日本の流行の装いの見本（docs/knowledge/fashion/trend-2026aw.md の 2 章）",
+ "personality": "",
+ "backstory": "",
+ "look": "young Japanese man, mid 20s, dark brown short hair with long bangs, brown eyes",
+ "eyes": {
+  "tags": "open eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "navy duffle coat with toggles, Fair Isle crew-neck sweater, grey slim straight trousers, red socks, brown leather loafers",
+ "turnaround": {},
+ "negative": "logo, brand logo, text, miniskirt, short skirt",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": ""
+}

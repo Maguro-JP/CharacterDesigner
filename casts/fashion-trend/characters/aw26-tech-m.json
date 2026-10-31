@@ -1,0 +1,24 @@
+{
+ "id": "aw26-tech-m",
+ "name": "テックの街着（2026 秋冬、男子）",
+ "age": "",
+ "height": "",
+ "role": "今の日本の流行の装いの見本（docs/knowledge/fashion/trend-2026aw.md の 2 章）",
+ "personality": "",
+ "backstory": "",
+ "look": "young Japanese man, around 20, muted olive beige high-tone short hair with matte texture, brown eyes",
+ "eyes": {
+  "tags": "open eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "black fleece zip-up jacket, grey crew-neck sweatshirt, black nylon technical pants with drawcord hem, black running sneakers, black backpack",
+ "turnaround": {},
+ "negative": "logo, brand logo, text, miniskirt, short skirt",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": ""
+}

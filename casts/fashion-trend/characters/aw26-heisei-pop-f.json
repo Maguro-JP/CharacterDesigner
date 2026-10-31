@@ -1,0 +1,24 @@
+{
+ "id": "aw26-heisei-pop-f",
+ "name": "平成女児と 2016 年のポップ（2026 秋冬、女子）",
+ "age": "",
+ "height": "",
+ "role": "今の日本の流行の装いの見本（docs/knowledge/fashion/trend-2026aw.md の 2 章）",
+ "personality": "",
+ "backstory": "",
+ "look": "young Japanese woman, 19, long dark brown hair with straight bangs, brown eyes",
+ "eyes": {
+  "tags": "open eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "oversized white T-shirt with a large colorful graphic print, pastel pink tank top layered over the T-shirt, black midi skirt with white polka dots, white sneakers, pink backpack with tin badges and a small plush charm",
+ "turnaround": {},
+ "negative": "logo, brand logo, text, miniskirt, short skirt",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": ""
+}

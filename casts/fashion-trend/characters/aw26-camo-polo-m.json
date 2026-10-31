@@ -1,0 +1,24 @@
+{
+ "id": "aw26-camo-polo-m",
+ "name": "迷彩カーゴとポロニット（2026 秋冬、男子）",
+ "age": "",
+ "height": "",
+ "role": "今の日本の流行の装いの見本（docs/knowledge/fashion/trend-2026aw.md の 2 章）",
+ "personality": "",
+ "backstory": "",
+ "look": "young Japanese man, around 20, black medium wolf cut with see-through bangs and loose perm, brown eyes",
+ "eyes": {
+  "tags": "open eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "navy long-sleeve knit polo shirt with contrast line on the collar, loose olive camouflage cargo pants, thin silver chain necklace, black running sneakers",
+ "turnaround": {},
+ "negative": "logo, brand logo, text, miniskirt, short skirt",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": ""
+}

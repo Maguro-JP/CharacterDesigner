@@ -100,7 +100,7 @@ class ZukanTest(unittest.TestCase):
             self.assertNotIn("**", s, p.name)
 
     def test_zukan_figures_are_bible_shaped(self):
-        for p in (ROOT / "casts" / "fashion-zukan" / "characters").glob("*.json"):
+        for p in [*(ROOT / "casts" / "fashion-zukan" / "characters").glob("*.json"), *(ROOT / "casts" / "fashion-trend" / "characters").glob("*.json")]:
             c = json.loads(p.read_text(encoding="utf-8"))
             self.assertEqual(c["id"], p.stem)
             for key in ("look", "outfit", "turnaround", "negative"):
