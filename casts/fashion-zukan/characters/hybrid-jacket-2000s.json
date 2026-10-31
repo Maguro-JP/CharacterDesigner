@@ -1,0 +1,24 @@
+{
+ "id": "hybrid-jacket-2000s",
+ "name": "2000 年代〜の違う服を継いだ上着",
+ "age": "",
+ "height": "",
+ "role": "評価された装いの見本（docs/knowledge/fashion/acclaimed.md の 2-21）",
+ "personality": "",
+ "backstory": "",
+ "look": "1boy, young man, short black hair, dark brown eyes",
+ "eyes": {
+  "tags": "open eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "hybrid jacket spliced from a beige cotton gabardine trench coat upper and an olive nylon flight bomber lower half, two contrasting volumes",
+ "turnaround": {},
+ "negative": "logo, brand logo, text",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": ""
+}

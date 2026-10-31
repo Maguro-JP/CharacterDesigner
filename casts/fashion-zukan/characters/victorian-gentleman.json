@@ -3,7 +3,7 @@
  "name": "19世紀の紳士（フロックコートとシルクハット）",
  "age": "",
  "height": "",
- "role": "服装の図鑑の見本（04-19th-century.md の 7）",
+ "role": "服装の図鑑の見本（04-19th-century.md の 7）。服は docs/knowledge/fashion/acclaimed.md の 4 章に合わせた",
  "personality": "",
  "backstory": "",
  "look": "1boy, solo, adult man, short brown hair, side part, brown eyes",
@@ -11,7 +11,7 @@
   "tags": "open eyes, brown eyes, both eyes same color",
   "notes": ""
  },
- "outfit": "victorian gentleman, black frock coat, knee-length coat, grey waistcoat, white shirt, high collar, black cravat, grey striped trousers, black leather shoes, black top hat",
+ "outfit": "sharply tailored black wool frock coat with strong shoulders and nipped waist, Harris tweed waistcoat, grey striped slim straight trousers, white high-collar shirt, black cravat, black top hat",
  "turnaround": {
   "top": "30,30,35",
   "bottom": "110,110,115",

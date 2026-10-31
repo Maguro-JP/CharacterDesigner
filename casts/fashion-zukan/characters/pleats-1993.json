@@ -1,0 +1,24 @@
+{
+ "id": "pleats-1993",
+ "name": "1993 年〜のプリーツ",
+ "age": "",
+ "height": "",
+ "role": "評価された装いの見本（docs/knowledge/fashion/acclaimed.md の 2-13）",
+ "personality": "",
+ "backstory": "",
+ "look": "1girl, young woman, short black hair, dark brown eyes",
+ "eyes": {
+  "tags": "open eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "permanently micro-pleated polyester column top and matching pleated trousers, fine horizontal accordion pleats, stepped tiered sleeves",
+ "turnaround": {},
+ "negative": "logo, brand logo, text",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": ""
+}

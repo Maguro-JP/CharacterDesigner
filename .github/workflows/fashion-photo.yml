@@ -25,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        id: [flapper-1920s, jogakusei-hakama, victorian-gentleman, circle-skirt-1950s, mods-1960s, hiphop-1990s]
+        id: [bar-suit-1947, circle-skirt-1950s, flapper-1920s, hiphop-1990s, hybrid-jacket-2000s, jogakusei-hakama, le-smoking-1966, mods-1960s, mondrian-1965, pleats-1993, slim-suit-2000, unstructured-1970s, victorian-gentleman, wrapped-black-1983]
     steps:
       - uses: actions/checkout@v4
       - name: 置き場を空ける

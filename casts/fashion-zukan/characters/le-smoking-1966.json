@@ -1,0 +1,24 @@
+{
+ "id": "le-smoking-1966",
+ "name": "1966 年の女性のタキシード",
+ "age": "",
+ "height": "",
+ "role": "評価された装いの見本（docs/knowledge/fashion/acclaimed.md の 2-7）",
+ "personality": "",
+ "backstory": "",
+ "look": "1girl, young woman, slicked back short brown hair, brown eyes",
+ "eyes": {
+  "tags": "open eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "black wool tuxedo jacket with satin peak lapels tailored to a woman's figure, straight black trousers with satin side stripe, white silk blouse, slender vertical line",
+ "turnaround": {},
+ "negative": "logo, brand logo, text",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": ""
+}

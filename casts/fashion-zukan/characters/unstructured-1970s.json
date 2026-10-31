@@ -1,0 +1,24 @@
+{
+ "id": "unstructured-1970s",
+ "name": "1970 年代半ばの芯の無い上着",
+ "age": "",
+ "height": "",
+ "role": "評価された装いの見本（docs/knowledge/fashion/acclaimed.md の 2-8）",
+ "personality": "",
+ "backstory": "",
+ "look": "1boy, young man, short wavy brown hair, brown eyes",
+ "eyes": {
+  "tags": "open eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "unstructured single-breasted jacket with soft natural sloping shoulders, no padding, relaxed drape, wool-cashmere twill in pale khaki, matching straight-leg trousers",
+ "turnaround": {},
+ "negative": "logo, brand logo, text",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": ""
+}

@@ -1,0 +1,24 @@
+{
+ "id": "bar-suit-1947",
+ "name": "1947 年の Bar スーツ（New Look）",
+ "age": "",
+ "height": "",
+ "role": "評価された装いの見本（docs/knowledge/fashion/acclaimed.md の 2-1）",
+ "personality": "",
+ "backstory": "",
+ "look": "1girl, young woman, dark brown hair in a low chignon, brown eyes",
+ "eyes": {
+  "tags": "open eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "cream silk tailored jacket with rounded natural shoulders, nipped-in waist, padded peplum flaring over the hips, long full pleated black wool skirt to mid-calf, hourglass silhouette",
+ "turnaround": {},
+ "negative": "logo, brand logo, text",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": ""
+}

@@ -3,7 +3,7 @@
  "name": "1920年代のフラッパー",
  "age": "20 歳",
  "height": "160cm",
- "role": "服装の図鑑の見本（05-1900-1945.md のフラッパー）",
+ "role": "服装の図鑑の見本（05-1900-1945.md のフラッパー）。服は docs/knowledge/fashion/acclaimed.md の 4 章に合わせた",
  "personality": "",
  "backstory": "",
  "look": "1girl, solo, young adult woman, black hair, short bob cut, finger waves, brown eyes",
@@ -11,7 +11,7 @@
   "tags": "open eyes, brown eyes, both eyes same color",
   "notes": ""
  },
- "outfit": "1920s flapper dress, dropped waist, straight loose silhouette, knee-length hem, beaded fringe, sleeveless, cloche hat, long pearl necklace, t-strap shoes, white stockings",
+ "outfit": "straight loose navy wool jersey dress with dropped waist, knee-length hem, contrast braided trim at neckline, cloche hat, single long pearl necklace, t-strap shoes",
  "turnaround": {
   "top": "200,170,120",
   "bottom": "200,170,120",

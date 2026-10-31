@@ -27,7 +27,7 @@ FIGURES = ROOT / "casts" / "fashion-zukan" / "characters"
 MODEL = "SG161222/RealVisXL_V5.0"   # openrail++（使い方の制限あり、絵の商用利用は可。docs/references.md）
 # アニメ絵のタグで、写真の言葉にすると人数や画風を引っ張るもの
 ANIME_WORDS = re.compile(r"\b(1girl|1boy|solo|male focus|anime style|cel shading|clean lineart)\b,?\s*", re.I)
-PHOTO = ("full body fashion photograph, standing, whole body from head to shoes in frame, facing the camera, "
+PHOTO = ("high-end fashion editorial lookbook photograph, professional fashion photography, full body, standing, whole body from head to shoes in frame, facing the camera, "
          "plain off-white studio background, soft even studio lighting, 85mm lens, sharp focus, "
          "natural skin texture, photorealistic, high detail fabric texture")
 NEGATIVE = ("anime, illustration, drawing, cartoon, painting, 3d render, cgi, doll, cropped, out of frame, cut off feet, "

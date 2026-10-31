@@ -1,0 +1,24 @@
+{
+ "id": "wrapped-black-1983",
+ "name": "1983 年ごろの布を巻くように裁った黒の服",
+ "age": "",
+ "height": "",
+ "role": "評価された装いの見本（docs/knowledge/fashion/acclaimed.md の 2-12）",
+ "personality": "",
+ "backstory": "",
+ "look": "1girl, young woman, straight black hair to the chin, dark brown eyes",
+ "eyes": {
+  "tags": "open eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "loose asymmetric black wrapped coat-dress cut like layered kimono panels, draped folds, ankle-length, flat shoes",
+ "turnaround": {},
+ "negative": "logo, brand logo, text",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": ""
+}

@@ -1,0 +1,24 @@
+{
+ "id": "slim-suit-2000",
+ "name": "2000〜01 年の細身の男性の形",
+ "age": "",
+ "height": "",
+ "role": "評価された装いの見本（docs/knowledge/fashion/acclaimed.md の 2-20）",
+ "personality": "",
+ "backstory": "",
+ "look": "1boy, young man, messy short dark hair, brown eyes",
+ "eyes": {
+  "tags": "open eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "very slim black wool suit with narrow shoulders, skinny tie, white shirt, skinny trousers, elongated vertical silhouette",
+ "turnaround": {},
+ "negative": "logo, brand logo, text",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": ""
+}

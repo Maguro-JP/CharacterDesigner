@@ -3,7 +3,7 @@
  "name": "明治・大正の女学生（矢絣の着物に袴）",
  "age": "",
  "height": "",
- "role": "服装の図鑑の見本（05-1900-1945.md の女学生の袴）",
+ "role": "服装の図鑑の見本（05-1900-1945.md の女学生の袴）。服は docs/knowledge/fashion/acclaimed.md の 4 章に合わせた",
  "personality": "",
  "backstory": "",
  "look": "1girl, solo, young woman, long black hair, half updo, large hair ribbon, brown eyes",
@@ -11,7 +11,7 @@
   "tags": "open eyes, brown eyes, both eyes same color",
   "notes": ""
  },
- "outfit": "japanese clothes, purple kimono with white yagasuri arrow feather pattern, maroon pleated hakama skirt worn over the kimono from the waist to the ankles, brown lace-up ankle boots, taishou era schoolgirl",
+ "outfit": "matte silk crepe kimono with purple and white yagasuri arrow pattern, maroon hakama with crisp evenly spaced knife pleats tied high at the waist, maroon hair ribbon, brown lace-up ankle boots",
  "turnaround": {
   "top": "120,70,140",
   "bottom": "110,30,40",
