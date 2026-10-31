@@ -20,9 +20,24 @@ HALF = dict(allow_patterns=["*.json", "*.txt", "unet/*.fp16.safetensors", "vae/*
 # safetensors の無い古い模型（.bin だけ）
 BIN = dict(allow_patterns=["*.json", "*.txt", "unet/*.bin", "vae/*.bin", "text_encoder*/*.bin"], ignore_patterns=["*.fp16.*"])
 # 新しい世代（DiT）の模型。部品のフォルダーだけを取り、根に置かれた 1 つにまとめた重みは取らない（同じ物を 2 度取らない）
-DIT = dict(allow_patterns=["*.json", "*.txt", "*.model", "*.jinja", "scheduler/*", "tokenizer/*", "tokenizer_2/*",
-                           "text_encoder/*", "text_encoder_2/*", "transformer/*", "vae/*"])
+# SD3.5 の 3 つ目の言葉の部品（T5）と、絵を読む部品（processor、image_encoder）を持つ模型もあるので、それも取る
+DIT = dict(allow_patterns=["*.json", "*.txt", "*.model", "*.jinja", "scheduler/*", "tokenizer/*", "tokenizer_2/*", "tokenizer_3/*",
+                           "text_encoder/*", "text_encoder_2/*", "text_encoder_3/*", "transformer/*", "vae/*", "processor/*",
+                           "image_encoder/*", "image_processor/*"])
 FILES = {"full": FULL, "half": HALF, "bin": BIN, "dit": DIT}
+# 1 つのファイルで配られた模型を読むときに、部品の設定（model_index.json、tokenizer）を借りる元の模型。
+# SD 系は 1 つのファイルに言葉の部品と VAE も入っているので設定だけを借り、新しい世代は本体（transformer）しか入っていないことが多いので
+# 言葉の部品と VAE も借りる。借りる物を先に取っておかないと、描く時にネットから取りに行き、つながらないと読めなかった
+SINGLE_BASE = {"sdxl": "stabilityai/stable-diffusion-xl-base-1.0", "sd15": "stable-diffusion-v1-5/stable-diffusion-v1-5",
+               "flux1": "black-forest-labs/FLUX.1-schnell", "chroma": "lodestones/Chroma1-HD", "zimage": "Tongyi-MAI/Z-Image-Turbo",
+               "sd3": "stabilityai/stable-diffusion-3.5-medium"}
+
+
+def single_base_files(family_name: str) -> dict:
+    """1 つのファイルの模型を読むのに借りる、元の模型のファイル。SD 系は設定と tokenizer だけ、新しい世代は本体の重み以外の全部"""
+    if family_name in ("sdxl", "sd15"):
+        return dict(allow_patterns=["*.json", "*.txt", "*.model", "tokenizer*/*"])
+    return dict(allow_patterns=[p for p in DIT["allow_patterns"] if p != "transformer/*"] + ["transformer/*.json"])
 # 1 つのファイル（.safetensors）だけで配られている模型は、そのファイルだけを取る（files は _entry で作る）
 
 
@@ -420,6 +435,15 @@ def fits(m: ImageModel, vram: float, ram: float) -> str:
     if ram >= need_ram:
         return "cpu"
     return "no"
+
+
+def run_mode(m: ImageModel, vram: float, ram: float = 0.0) -> str:
+    """描くときの置き方を、利用者に見せる言葉で返す。GPU（全部を GPU に載せる）、分けて GPU（使う部品だけ載せる・層ごとに出し入れする）、
+    CPU（GPU が無い）。決め方は描く時（engine.Painter._place）と同じ placement を使う"""
+    from chatdraw.engine import placement
+    if vram <= 0:
+        return "CPU"
+    return "GPU" if placement(vram, m.gb * 1.2, heavy(m)[0] * 0.9) == "cuda" else "分けて GPU"
 
 
 FITS = {"gpu": "この PC の GPU で動く", "cpu": "この PC では CPU で動く（遅い）", "no": "この PC ではメモリが足りない", "unknown": ""}

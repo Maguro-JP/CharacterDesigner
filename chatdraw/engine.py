@@ -116,11 +116,53 @@ def native_size(size, family: str):
     if family == "sd15":
         return (max(256, round(w * 0.625 / 64) * 64), max(256, round(h * 0.625 / 64) * 64))
     f = fam(family)
-    if family == "sdxl":
-        return size
+    if family == "sdxl":   # 学んだ大きさのまま。ただし倍数にそろえる（キャンバスの大きさが 8 の倍数でないと模型が落ちた）
+        m = f.multiple
+        return (max(256, round(w / m) * m), max(256, round(h / m) * m))
     k = (f.size[0] * f.size[1] / (w * h)) ** 0.5
     m = f.multiple
     return (max(256, round(w * k / m) * m), max(256, round(h * k / m) * m))
+
+QUANT_SHARE = 0.45   # 本体（transformer）を 4 ビットに縮めたときの、模型全体の大きさの目安（言葉の部品はそのまま）
+
+
+def quant_config(info, dtype):
+    """GPU のメモリに入らない大きい模型（FLUX、Qwen-Image、Z-Image、Chroma など 16〜60GB）の本体を 4 ビット（NF4）に縮めて読む設定。
+    bitsandbytes が無い、GPU に全部入る、diffusers が対応していないときは None（縮めずに、分けて GPU に載せる）"""
+    try:
+        import torch
+        if not torch.cuda.is_available():
+            return None
+        free = torch.cuda.mem_get_info()[0] / 1e9
+        if free >= info.gb * 1.2:
+            return None
+        import bitsandbytes  # noqa: F401
+        from diffusers import PipelineQuantizationConfig
+    except Exception:
+        return None
+    return PipelineQuantizationConfig(quant_backend="bitsandbytes_4bit",
+                                      quant_kwargs={"load_in_4bit": True, "bnb_4bit_quant_type": "nf4", "bnb_4bit_compute_dtype": dtype},
+                                      components_to_quantize=["transformer"])
+
+
+def explain(e: BaseException) -> str:
+    """描けなかった理由を、利用者が次に何をすればよいか分かる日本語にする。英語の例外や空の文のまま出すと、何も起きなかったように見えた"""
+    name, text = type(e).__name__, str(e)
+    low = text.lower()
+    if any("\u3040" <= c <= "\u9fff" for c in text) and not ("OutOfMemory" in name):
+        return text   # もう日本語で理由を書いた例外（Unsupported など）
+    if "OutOfMemory" in name or "out of memory" in low:
+        return "GPU のメモリが足りませんでした。小さい模型（SDXL 系）に替えるか、描く大きさを小さくしてください"
+    if isinstance(e, MemoryError) or "not enough memory" in low or "defaultcpuallocator" in low:
+        return "メモリが足りませんでした。ほかのアプリを閉じるか、小さい模型（SDXL 系）に替えてください"
+    if "Gated" in name or "gated" in low or "401" in text:
+        return "この模型は Hugging Face で利用の同意が要ります。模型のページで同意し、トークンを設定してから取り直してください"
+    if "EntryNotFound" in name or "no file named" in low or "does not appear to have a file" in low or isinstance(e, FileNotFoundError):
+        return "模型のファイルが足りません。「模型の管理」で取り直してください（" + (text.splitlines()[0][:120] if text else name) + "）"
+    if isinstance(e, (ConnectionError, TimeoutError)) or "connection" in low:
+        return "ネットにつながらず、模型の部品を取れませんでした。つながってからもう一度描いてください"
+    return f"{text.splitlines()[0][:200] if text else '理由の文が無い例外'}（{name}）"
+
 
 class Unsupported(Exception):
     """選んだ模型の世代では、まだ使えない機能（ラフから、参考画像、範囲の直し）"""
@@ -135,9 +177,11 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
     if f.tags and "masterpiece" not in info.prefix:
         text += ", masterpiece, best quality"
     args = {"prompt": text, "num_inference_steps": steps, f.cfg_key: guidance,
-            "generator": torch.Generator(getattr(pipe, "device", "cpu")).manual_seed(seed), **f.extra}
+            # 種は CPU の乱数で作る。部品を GPU に出し入れする置き方（offload）では pipe.device が meta や cpu になり、
+            # その device の乱数を作ると落ちた。CPU の乱数なら、どの置き方でも同じ種で同じ絵になる
+            "generator": torch.Generator("cpu").manual_seed(seed), **f.extra}
     if f.negative:
-        if "1girl" in prompt or "adult woman" in prompt:   # 女性は利用者の基準の体で描く（年配の太った体にしない。chatdraw/body.py）
+        if woman(prompt):   # 女性は利用者の基準の体で描く（年配の太った体にしない。chatdraw/body.py）
             from chatdraw.body import NEGATIVE as BODY_NEGATIVE
             avoid = ", ".join(a for a in (avoid, BODY_NEGATIVE) if a)
         args["negative_prompt"] = negative_for(info, avoid)
@@ -145,6 +189,12 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
         args["guidance_rescale"] = info.rescale
     accepted = inspect.signature(pipe.__call__).parameters
     return {k: v for k, v in args.items() if k in accepted}   # 部品が受けない引数は渡さない（版の違いで落ちないように）
+
+
+def woman(prompt: str) -> bool:
+    """頼みに女性が描かれるか。タグ（1girl）でも文（a woman in ...）でも見る。文で頼む模型では 1girl が無く、基準の体の禁止が付かなかった"""
+    import re
+    return bool(re.search(r"\b(1girl|\d?girls?|woman|women|female|lady)\b", prompt.lower()))
 
 
 def negative_for(info, avoid: str = "") -> str:
@@ -306,13 +356,13 @@ class Words:
             self.untranslated = leftover(text)
             if not picked:
                 return text
-            return ", ".join(picked) if tags else "An anime illustration of " + ", ".join(picked)
+            return ", ".join(picked) if tags else sentence(picked)
         if not tags:
             out = self.ask(ASK_SENTENCE, text, max_tokens=96)
             if has_japanese(out):
                 self.untranslated = [out]
                 out = ""
-            return out or ("An anime illustration of " + ", ".join(picked) if picked else text)
+            return out or (sentence(picked) if picked else text)
         keep, neg, ja = _clean_tags(self.ask(ASK, text))
         self.untranslated = ja
         for n in neg:
@@ -321,6 +371,17 @@ class Words:
         bad = {n.lower() for n in self.negative}
         keep = [t for t in keep if t.lower() not in bad]   # 打ち消した物を、模型が描く言葉に入れていても外す
         return merge(", ".join(keep), [t for t in picked if t.lower() not in bad])
+
+
+def sentence(picked: list[str]) -> str:
+    """表で拾ったタグを、文で頼む模型（FLUX など）向けの 1 文にする。1girl や solo のようなタグの決まり文句は文の模型に通じないので言葉に替える"""
+    words = {"1girl": "a woman", "1boy": "a man", "2girls": "two women", "solo": ""}
+    out = []
+    for t in picked:
+        t = words.get(t.strip().lower(), t.strip())
+        if t and t not in out:
+            out.append(t)
+    return "An anime illustration of " + ", ".join(out) + "."
 
 
 # 途中の絵（latents）をそのまま色に直す係数。VAE で戻すより何百倍も速く、描いている様子を見せるのに足りる
@@ -517,6 +578,11 @@ class Painter:
             from chatdraw.models import image_model
             info = image_model(self.model)
             snapshot_download(info.hub, cache_dir=str(HUB), local_files_only=True, **info.files)
+            if info.file:   # 1 つのファイルの模型は、借りる部品の設定もそろって初めて読める（無いと描く時にネットへ取りに行った）
+                from chatdraw.models import SINGLE_BASE, single_base_files
+                if info.family in SINGLE_BASE:
+                    snapshot_download(SINGLE_BASE[info.family], cache_dir=str(HUB), local_files_only=True,
+                                      **single_base_files(info.family))
             return True
         except Exception:
             return False
@@ -571,54 +637,62 @@ class Painter:
 
     def load(self):
         if self._pipe is None:
-            import torch
-            from diffusers import AutoPipelineForText2Image
-            # GPU では float16。CPU では、bf16 の速さとメモリの量で決める（cpu_dtype）
+            self._pipe = self._read()
             from chatdraw.models import image_model
-            info0 = image_model(self.model)
-            dtype = gpu_dtype(info0.family) if torch.cuda.is_available() else cpu_dtype(info0.gb or 7)
-            self.dtype = dtype
-            variant = image_model(self.model).variant
-            extra = {"safety_checker": None, "requires_safety_checker": False} if image_model(self.model).family == "sd15" else {}
-            from chatdraw.models import is_local
-            fam_name = image_model(self.model).family
-            if fam_name == "unknown":
-                raise Unsupported("手で置いた模型の形を見分けられませんでした。SDXL・SD1.5・FLUX.1・SD3.5 の .safetensors か、"
-                                  "model_index.json のある diffusers のフォルダーを置いてください")
-            if is_local(self.model) and Path(self.model).is_file():
-                # 手で置いた 1 つのファイル（.safetensors）。見分けた世代の部品で読む
-                import diffusers
-                from chatdraw.models import family as fam
-                cls = getattr(diffusers, fam(fam_name).pipeline)
-                self._pipe = cls.from_single_file(self.model, torch_dtype=dtype,
-                                                  **extra)
-            elif image_model(self.model).file:
-                # Hugging Face に 1 つのファイルで置かれた模型。取ったファイルを、見分けた世代の部品で読む
-                import diffusers
-                from huggingface_hub import hf_hub_download
-                from chatdraw.models import family as fam
-                info = image_model(self.model)
-                cls = getattr(diffusers, fam(fam_name).pipeline)
-                self._pipe = cls.from_single_file(hf_hub_download(info.hub, info.file, cache_dir=str(HUB)), torch_dtype=dtype,
-                                                  **extra)
-            elif is_local(self.model):
-                import diffusers
-                cls = AutoPipelineForText2Image if fam_name in ("sdxl", "sd15") else diffusers.DiffusionPipeline
-                self._pipe = cls.from_pretrained(self.model, torch_dtype=dtype,
-                                                 **extra)
-            elif fam_name not in ("sdxl", "sd15"):
-                # 新しい世代（FLUX、Z-Image、Qwen-Image、Lumina 2 など）は、模型の札にある部品で読む。
-                # 重みが大きい（16〜58GB）ので、CPU でも bf16 で読む（fp32 では家庭の機械のメモリに入らない）
-                import diffusers
-                from chatdraw.models import family as fam
-                cls = getattr(diffusers, fam(image_model(self.model).family).pipeline, None) or diffusers.DiffusionPipeline
-                self._pipe = cls.from_pretrained(self.model, torch_dtype=dtype, cache_dir=str(HUB))
-            else:
-                self._pipe = AutoPipelineForText2Image.from_pretrained(self.model, torch_dtype=dtype, variant=variant,
-                                                                       cache_dir=str(HUB), **extra)
             use_vpred(self._pipe, image_model(self.model))
             self._place(self._pipe)
         return self._pipe
+
+    def _read(self):
+        """模型を読む。形（1 つのファイル、Hugging Face の部品のフォルダー、手で置いたフォルダー）と世代で、部品と引数を決める"""
+        import torch
+        import diffusers
+        from chatdraw.models import SINGLE_BASE, NEW, family as fam, image_model, is_local
+        info = image_model(self.model)
+        fam_name = info.family
+        if fam_name == "unknown":
+            raise Unsupported("手で置いた模型の形を見分けられませんでした。SDXL・SD1.5・FLUX.1・SD3.5 の .safetensors か、"
+                              "model_index.json のある diffusers のフォルダーを置いてください")
+        f = fam(fam_name)
+        gpu = torch.cuda.is_available()
+        # GPU では世代に合う型（SD 系は float16、新しい世代は bf16）。CPU では、bf16 の速さとメモリの量で決める（cpu_dtype）
+        dtype = gpu_dtype(fam_name) if gpu else cpu_dtype(info.gb or 7)
+        self.dtype = dtype
+        self.quantized = False
+        extra = {"safety_checker": None, "requires_safety_checker": False} if fam_name == "sd15" else {}
+        cls = getattr(diffusers, f.pipeline, None)
+        if cls is None:
+            raise Unsupported(f"{f.name} の模型を読む部品（diffusers の {f.pipeline}）がありません。"
+                              "絵を描く部品（diffusers）が古いので、入れ直してください")
+        local = is_local(self.model)
+        if (local and Path(self.model).is_file()) or info.file:
+            # 1 つのファイル（.safetensors）。見分けた世代の部品で読み、部品の設定は元の模型から借りる（SINGLE_BASE）。
+            # cache_dir を渡さないと、借りた設定が利用者の家の既定の置き場に別に入り、模型の置き場（HUB）にそろわなかった
+            if not hasattr(cls, "from_single_file"):
+                raise Unsupported(f"{f.name} の模型は 1 つのファイルの形では読めません。部品のフォルダー（diffusers の形）の模型を使ってください")
+            if local:
+                path = self.model
+            else:
+                from huggingface_hub import hf_hub_download
+                path = hf_hub_download(info.hub, info.file, cache_dir=str(HUB))
+            kw = dict(torch_dtype=dtype, cache_dir=str(HUB), **extra)
+            if fam_name in SINGLE_BASE:
+                kw["config"] = SINGLE_BASE[fam_name]
+            return cls.from_single_file(path, **kw)
+        # 部品のフォルダー。読む間のメモリの山を下げる（low_cpu_mem_usage）。大きい模型は GPU に入らなければ本体を 4 ビットに縮めて読む
+        kw = dict(torch_dtype=dtype, low_cpu_mem_usage=True, **extra)
+        if not local:
+            kw["cache_dir"] = str(HUB)
+        if fam_name in ("sdxl", "sd15"):
+            if info.variant and not local:
+                kw["variant"] = info.variant
+            cls = diffusers.AutoPipelineForText2Image
+        elif fam_name in NEW and gpu:
+            q = quant_config(info, dtype)
+            if q is not None:
+                kw["quantization_config"] = q
+                self.quantized = True
+        return cls.from_pretrained(self.model, **kw)
 
     def _place(self, pipe):
         """GPU のメモリに合わせて置き方を決める（diffusers の公式の方法）。
@@ -631,7 +705,10 @@ class Painter:
             free, _total = torch.cuda.mem_get_info()
             info = image_model(self.model)
             # 取る量（gb）は 16 ビットの重みの大きさ。fp32 で置かれた模型（SD 系の full）は読むと半分になるが、多めに見て置く
-            self.placed = placement(free / 1e9, info.gb * 1.2, heavy(info)[0] * 0.9)   # 描く途中の分を 2 割足す
+            need = info.gb * (QUANT_SHARE if getattr(self, "quantized", False) else 1.0)
+            self.placed = placement(free / 1e9, need * 1.2, heavy(info)[0] * 0.9)   # 描く途中の分を 2 割足す
+            if self.placed == "sequential" and getattr(self, "quantized", False):
+                self.placed = "model"   # 4 ビットに縮めた部品は層ごとの出し入れができない（bitsandbytes）。部品ごとに出し入れする
             if self.placed == "cuda":
                 pipe.to("cuda")
             elif self.placed == "model":
@@ -710,9 +787,9 @@ class Painter:
                     self._sketch = StableDiffusionXLAdapterPipeline(**parts, adapter=adapter.to(pipe.device))
             w, h = size
             sketch = sketch_lines(base, (w, h))
-            args["negative_prompt"] += ", sketch, lineart, monochrome"
+            args["negative_prompt"] = args.get("negative_prompt", negative_for(info, self.avoid)) + ", sketch, lineart, monochrome"
             total = steps
-            args.pop("callback_on_step_end")
+            args.pop("callback_on_step_end", None)
 
             def old_step(i, t, latents):   # この描き方は古い形の途中報告だけを受ける。止めるときは例外で抜ける
                 if self.stop:
@@ -753,7 +830,7 @@ class Painter:
             image = erase(image, mask)
         args = dict(prompt=f"{info.prefix}{prompt}, masterpiece, best quality", negative_prompt=negative_for(info, self.avoid),
                     num_inference_steps=self.steps, guidance_scale=self.guidance, strength=strength,
-                    generator=torch.Generator(pipe.device).manual_seed(seed))
+                    generator=torch.Generator("cpu").manual_seed(seed))
         if info.rescale:
             args["guidance_rescale"] = info.rescale
         total = max(1, int(self.steps * strength))
@@ -833,7 +910,9 @@ class Studio:
             m, why = choose_image(text, text, self.words, have=have)
             if m is not None:
                 if m.repo != self.painter.model:
+                    avoid = getattr(self.painter, "avoid", "")
                     self.painter = Painter(m.repo, m.steps, guidance=m.guidance)   # 前の模型は捨ててメモリを空ける
+                    self.painter.avoid = avoid   # AI の欄の禁止ワードを引き継ぐ（替えた模型で禁止ワードが消えていた）
                 say(f"絵の模型: {m.name}（{why}）")
         two = self._two_stage_models(base, reference, say)
         if two is not None:

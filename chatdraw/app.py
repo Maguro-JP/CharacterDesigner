@@ -129,8 +129,9 @@ class Job(QObject):
                                                     on_preview=self.preview.emit, style=self.style, meta=self.meta, **extra)
                     self.one.emit(prompt, str(path))
             self.done.emit()
-        except Exception as e:  # 描けなかった理由をそのまま会話に出す
-            self.failed.emit(f"描けませんでした: {e}")
+        except Exception as e:  # 描けなかった理由を、次に何をすればよいか分かる日本語で会話に出す
+            from chatdraw.engine import explain
+            self.failed.emit(f"描けませんでした: {explain(e)}")
 
 
 class Task(QObject):
@@ -147,7 +148,8 @@ class Task(QObject):
         try:
             self.done.emit(self.fn(lambda i, n: self.status.emit(f"描いています（{i}/{n}）")))
         except Exception as e:
-            self.failed.emit(f"できませんでした: {e}")
+            from chatdraw.engine import explain
+            self.failed.emit(f"できませんでした: {explain(e)}")
 
 
 def pid_alive(pid: int) -> bool:
@@ -1329,6 +1331,10 @@ class Window(QMainWindow):
     def send(self):
         text = self.entry.text().strip()
         pen = self.canvas.redpen
+        if self.thread and text:   # 描いている間の頼みは受けない。黙って捨てると、押しても何も起きないように見えた
+            self.progress_popup.pop()
+            self.statusBar().showMessage("描いている途中です。終わってから頼んでください（止めるときは「止める」）", 6000)
+            return
         if self.thread or not text and not (pen.marks and all(pen.texts)):   # 絵の上に全部書いてあれば、チャットは空でよい
             return
         if not text:
@@ -1383,6 +1389,7 @@ class Window(QMainWindow):
         st = self.check_ai()
         if not st["image"]:
             self.say(st["reason"] or "AI が使えません")
+            self.progress_popup.tell("描けません", st["reason"] or "AI が使えません")   # 描く前に止まったことも右下に出す
             return
         self.last_text = text
         self._remember_prompt(text)
@@ -1903,6 +1910,7 @@ class Window(QMainWindow):
         import threading
         self.upgrader = Fetcher()
         self.upgrader.finished.connect(switch, Qt.QueuedConnection)
+        self.watch_fetch(self.upgrader, "言葉の模型")
         self.statusBar().showMessage(f"新しい言葉の模型 {new.name} を裏で取っています", 6000)
         threading.Thread(target=self.upgrader.run, args=(None, new), daemon=True).start()
 
@@ -2012,6 +2020,8 @@ class Window(QMainWindow):
         self.say(why)
         if self.activity.started is not None:
             self.activity.end("止めました" if "止め" in why else "描けませんでした")
+        # 進みの欄の 1 回分の外で落ちたときも、理由を右下に出す（出さないと何も起きなかったように見えた）
+        self.progress_popup.tell("止めました" if "止め" in why else "描けませんでした", why)
         self.notify("止めました" if "止め" in why else "描けませんでした", "info" if "止め" in why else "error",
                     "" if "止め" in why else why)
         self._end(why)
@@ -2580,6 +2590,12 @@ class Window(QMainWindow):
 
     def hide_progress_if_idle(self, ms: int = 4000):
         """進みの欄は自分では隠さない。描き終わると消えて、結果も今の状態も分からなかった。閉じるのは利用者だけ"""
+
+    def watch_fetch(self, fetcher, what: str = "模型"):
+        """模型を取る進みを、描く進みと同じ右下のポップアップに出す。模型の管理を閉じたあとも、取り終わるまで進みが見える"""
+        fetcher.progress.connect(lambda msg, pct: self.progress_popup.tell(f"{what}を取っています", msg, pct), Qt.QueuedConnection)
+        fetcher.finished.connect(lambda err: self.progress_popup.tell("取れませんでした" if err else "取りました",
+                                                                      err or f"{what}を取り終わりました"), Qt.QueuedConnection)
 
     def show_progress(self, text: str, pct: int):
         """進みをウィンドウの外にも出す。タイトル（タスクバーに出る）、通知の領域のアイコン、終わったときの知らせ"""

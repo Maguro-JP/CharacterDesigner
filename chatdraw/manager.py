@@ -17,7 +17,7 @@ from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import (QComboBox, QDialog, QFrame, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMenu, QMessageBox,
                                QProgressBar, QPushButton, QToolButton, QVBoxLayout, QWidget)
 
-from chatdraw.models import FILTERS, FITS, SORTS, WORDS, ImageModel, catalog_images, family, fits, heavy, machine, pick, verified_words
+from chatdraw.models import FILTERS, FITS, SORTS, WORDS, ImageModel, catalog_images, family, fits, heavy, machine, pick, run_mode, verified_words
 from chatdraw.paths import GGUF, HUB, OWN_LLM
 from chatdraw.setup import AUTO, Fetcher, folder_gb
 
@@ -160,6 +160,8 @@ class ModelManager(QDialog):
         self.fetcher = Fetcher()
         self.fetcher.progress.connect(lambda msg, pct: (self.status.setText(msg), self.bar.setValue(pct)), Qt.QueuedConnection)
         self.fetcher.finished.connect(self._fetched, Qt.QueuedConnection)
+        if hasattr(parent, "watch_fetch"):   # 窓の右下の進みにも出す（この窓を閉じても進みが見える）
+            parent.watch_fetch(self.fetcher)
         self.prober = Prober()
         self.prober.done.connect(self._probed, Qt.QueuedConnection)
         self.refresh()
@@ -265,7 +267,8 @@ class ModelManager(QDialog):
             self._pc = machine()   # この PC の VRAM とメモリ（1 回だけ測る）
         can = fits(m, *self._pc)
         need_vram, need_ram = heavy(m)
-        meta = "・".join(x for x in (sure, f"{m.gb:.1f}GB", family(m.family).name, deal, FITS[can]) if x)
+        how = "動き方: " + run_mode(m, *self._pc) if can != "no" else ""   # GPU か、分けて GPU か、CPU か
+        meta = "・".join(x for x in (sure, f"{m.gb:.1f}GB", family(m.family).name, deal, FITS[can], how) if x)
         pc = (f"この PC: VRAM {self._pc[0]:.0f}GB、メモリ {self._pc[1]:.0f}GB" if self._pc[0] else f"この PC: GPU なし、メモリ {self._pc[1]:.0f}GB")
         tip = "\n".join(x for x in (f"Hugging Face: {m.hub}" + (f" の {m.file}" if m.file else ""), m.good, f"商用: {m.commercial or '札を確かめる'}",
                                      f"重さ: GPU で描くには VRAM {need_vram:g}GB 以上、メモリ {need_ram:g}GB 以上（{pc}）",
