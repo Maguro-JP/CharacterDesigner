@@ -263,15 +263,20 @@ def fix_hands(pipe, image, prompt: str, negative: str, seed: int, steps: int, gu
     """仕上げた絵の手を検品し、崩れた手の所だけを直して、もう一度検品する。崩れが消えるか FIX_ROUNDS 回で止める。
     直すのは手の枠の中だけで、枠の外は 1 画素も変えない（直した絵の枠の外を、元の絵の画素に戻す）。どの回も残す"""
     import torch
-    from PIL import Image, ImageDraw, ImageFilter
+    from PIL import Image, ImageChops, ImageDraw, ImageFilter
     from diffusers import StableDiffusionXLInpaintPipeline
     from chatdraw import handcheck
     inpaint = None
     rounds = []
+    best = None   # (崩れの数, 絵, 検品の結果)。直しで崩れが増えた絵は使わず、崩れの一番少ない絵から直し直す
     for r in range(FIX_ROUNDS + 1):
         res = handcheck.check(image, asked=prompt)
         rounds.append({"round": r, "bad": res["bad"], "readable": res["readable"]})
         print(f"仕上げの検品 {r}回目: {handcheck.summary(res)}", flush=True)
+        if best is None or len(res["bad"]) < best[0]:
+            best = (len(res["bad"]), image, res)
+        elif len(res["bad"]) > best[0]:
+            image, res = best[1], best[2]
         regions = handcheck.bad_regions(res)   # 手・足・顔のうち、崩れの見つかった所
         if not regions or r == FIX_ROUNDS:
             break
@@ -284,7 +289,8 @@ def fix_hands(pipe, image, prompt: str, negative: str, seed: int, steps: int, gu
         for (x0, y0, x1, y1), _kind in regions:
             cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, y1 - y0) * 0.6
             d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
-        soft = mask.filter(ImageFilter.GaussianBlur(4))
+        # なじませるのは囲みの内側だけ。囲みをぼかして外へ広げると、囲みの外の画素まで変わった
+        soft = ImageChops.multiply(mask.filter(ImageFilter.MinFilter(9)).filter(ImageFilter.GaussianBlur(4)), mask)
         words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in regions))
         out = inpaint(prompt=f"{prompt}, {words}",
                       negative_prompt=negative + ", extra fingers, missing fingers, fused fingers, extra toes, faceless, empty eyes",
@@ -293,8 +299,19 @@ def fix_hands(pipe, image, prompt: str, negative: str, seed: int, steps: int, gu
                       generator=torch.Generator("cpu").manual_seed(seed + 77 * (r + 1))).images[0].resize(image.size)
         image = Image.composite(out, image, soft)   # 枠の外は元の絵のまま
         image.save(keep / f"3-{name}-s{seed}-fix{r + 1}.png")
+    if best is not None and best[1] is not image:
+        image = best[1]   # 最後に見た絵より崩れの少ない絵があれば、そちらを使う
+        rounds.append({"round": "best", "bad": best[2]["bad"]})
     (keep / f"fix-rounds-{name}.json").write_text(json.dumps(rounds, ensure_ascii=False, indent=1), encoding="utf-8")
     return image
+
+
+def read_result(keep: Path, name: str) -> dict:
+    """仕上げの検品の結果（finish が残す result-<name>.json）。無ければ、検品していないことを返す"""
+    try:
+        return json.loads((Path(keep) / f"result-{name}.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {"passed": False, "checked": False, "bad": [], "missing": []}
 
 
 def finish(tags: str, seed: int, render_model: str, size, composition_path, keep: Path, variants=None):
@@ -325,8 +342,11 @@ def finish(tags: str, seed: int, render_model: str, size, composition_path, keep
         res = handcheck.check(out, asked=tags)
         asked = requestcheck.check(out, tags, fetch=True)
         passed = res["readable"] and not res["bad"] and not asked["missing"] and not asked.get("extra")
+        # checked: 検品の部品がそろって読めたか。そろっていなければ、描き直しても検品を通らないので描き直さない
+        checked = not res.get("reason") and asked.get("readable", False)
         (keep / f"result-{v['name']}.json").write_text(json.dumps({"passed": passed, "seed": seed, "bad": res["bad"],
-                                                                   "missing": asked["missing"], "readable": res["readable"]},
+                                                                   "missing": asked["missing"], "readable": res["readable"],
+                                                                   "checked": checked},
                                                                   ensure_ascii=False, indent=1), encoding="utf-8")
         print(f"仕上げの結果: {'検品を通りました' if passed else '検品を通りません'}（{handcheck.summary(res)}　"
               f"{requestcheck.summary(asked)}）", flush=True)

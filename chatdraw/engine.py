@@ -882,6 +882,61 @@ def hires_inpaint(image, mask, run, scale: float = 1.5):
     return Image.composite(out, src, inner)
 
 
+# 背景を頼まれなかったときに足す場面。頼みに背景の言葉が無いと、模型はいつも同じ無地か同じ浜辺を描き、
+# 絵がワンパターンで魅力が無かった。種で 1 つ選ぶので、同じ種なら同じ背景で描き直せる。
+# (タグの模型に渡す言葉, 文で頼む模型に渡す言葉)
+BACKGROUNDS = [
+    ("outdoors, park, cherry blossoms, falling petals, blue sky", "in a park under blooming cherry trees with falling petals and a blue sky"),
+    ("indoors, cafe, window, sunlight, plants", "inside a sunlit cafe with large windows and potted plants"),
+    ("outdoors, city street, evening, street lights, bokeh", "on a city street in the evening with glowing street lights and soft bokeh"),
+    ("outdoors, forest, sunbeam, light rays, grass", "in a forest with sunbeams falling through the leaves onto the grass"),
+    ("outdoors, rooftop, sunset, orange sky, clouds", "on a rooftop at sunset under an orange sky with clouds"),
+    ("indoors, library, bookshelf, warm lighting", "in a library between tall bookshelves with warm lighting"),
+    ("outdoors, flower field, wind, blue sky, clouds", "in a flower field on a windy day under a blue sky with clouds"),
+    ("indoors, classroom, window, afternoon, curtains", "in a classroom in the afternoon with sunlight through the curtains"),
+    ("outdoors, night, starry sky, city lights, scenery", "at night under a starry sky with distant city lights"),
+    ("outdoors, shrine, torii, autumn leaves", "at a shrine with a torii gate surrounded by autumn leaves"),
+    ("outdoors, seaside, harbor, boats, summer", "at a seaside harbor with boats on a bright summer day"),
+    ("indoors, greenhouse, plants, glass roof, soft light", "inside a greenhouse full of plants under a glass roof with soft light"),
+]
+# これらの言葉が頼みにあれば、背景は頼まれたものとして足さない（「白い背景」の simple background も含む）
+BACKGROUND_WORDS = ("background", "outdoors", "indoors", "scenery", "landscape", "sky", "room", "street", "city", "forest", "beach",
+                    "sea", "ocean", "park", "garden", "field", "classroom", "cafe", "library", "shrine", "temple", "castle", "mountain",
+                    "river", "lake", "night", "sunset", "stage", "interior", "school", "office", "bedroom", "kitchen", "station",
+                    "underwater", "space", "desert", "snow", "rain", "cherry blossoms", "bokeh", "背景")
+
+
+def has_background(prompt: str) -> bool:
+    """頼みに背景・場所の言葉があるか"""
+    import re
+    low = prompt.lower()
+    return any(re.search(r"(?<![a-z])" + re.escape(w) + r"(?![a-z])", low) for w in BACKGROUND_WORDS)
+
+
+def vary_background(prompt: str, seed: int, tags: bool = True) -> str:
+    """背景を頼まれていなければ、種で選んだ場面を後ろに足す（頼みの言葉を先に効かせる）。頼まれていればそのまま返す"""
+    import random
+    if not prompt.strip() or has_background(prompt):
+        return prompt
+    tag, words = BACKGROUNDS[random.Random(seed).randrange(len(BACKGROUNDS))]
+    if tags:
+        return f"{prompt}, {tag}"
+    return f"{prompt.rstrip(' .')}, {words}."
+
+
+def emphasize(prompt: str, missing: list[str]) -> str:
+    """頼んだのに描かれなかったタグを、描く言葉の前に出す。模型は前の言葉ほど強く効かせるので、
+    後ろに埋もれた頼み（持ち物、服の色）は種を変えても描かれないままだった。人数のタグ（1girl, solo）は先頭に残す"""
+    items = [t.strip() for t in prompt.split(",") if t.strip()]
+    want = {m.strip().lower() for m in missing}
+    lead = [t for t in items if t.lower() in ("1girl", "1boy", "1other", "solo")]
+    moved = [t for t in items if t.lower() in want and t not in lead]
+    if not moved:
+        return prompt
+    rest = [t for t in items if t not in lead and t not in moved]
+    return ", ".join(lead + moved + rest)
+
+
 class Studio:
     """チャットの 1 回分: 頼み → 描く言葉 → 絵 → 保存"""
 
@@ -926,7 +981,12 @@ class Studio:
         if two is not None:
             return self._draw_two(text, seed, two, style, size, say, meta)
         say("頼みを描く言葉に直しています")
-        prompt = self.words.to_prompt(text, tags=fam(image_model(getattr(self.painter, "model", "")).family).tags)
+        as_tags = fam(image_model(getattr(self.painter, "model", "")).family).tags
+        prompt = self.words.to_prompt(text, tags=as_tags)
+        # 頼んだ物の検品は頼みの言葉だけで見る（足した背景は頼みではないので、描かれなくても描き直しの理由にしない）
+        asked_prompt = prompt
+        if base is None and reference is None:   # ラフや参考画像の絵は、その絵の背景を活かす
+            prompt = vary_background(prompt, seed, tags=as_tags)
         lost = list(getattr(self.words, "untranslated", []) or [])
         if lost:   # 模型に伝わらない言葉を隠さない（伝わらないまま描くと、頼みと違う絵になる）
             say("模型に伝わらない言葉があります: " + "、".join(lost) + "（英語で書くか、言葉の模型を入れると伝わります）")
@@ -944,7 +1004,7 @@ class Studio:
         # 通らなかったときは、崩れの一番少ない絵を渡す（どの回の崩れも .json の redraws に残す）
         best, redraws = None, []
         # 頼んでいない物が描かれたら、次の回はそれを描かない物に足す（描き終えたら元に戻す）
-        avoid0, unasked = getattr(self.painter, "avoid", ""), []
+        avoid0, unasked, missing_all = getattr(self.painter, "avoid", ""), [], []
         if negative and hasattr(self.painter, "avoid"):   # 「帽子なし」の帽子は、描かない物に入れて描かせない
             self.painter.avoid = ", ".join([a for a in [avoid0] + negative if a])
         for k in range(self.REDRAW_TRIES):
@@ -953,15 +1013,18 @@ class Studio:
             s_k = seed + 1000 * k
             if k:
                 say(f"検品を通らなかったので、種を変えて描き直しています（{k + 1}/{self.REDRAW_TRIES} 回目）")
+            if missing_all:   # 前の回で描かれなかった頼みを、描く言葉の前に出す
+                prompt = emphasize(prompt, missing_all)
             image = self.painter.paint(prompt, s_k, on_step=lambda i, n: say(f"描いています（{i}/{n}）"),
                                        base=base, strength=strength, size=size, on_preview=on_preview, **extra)
             image = self._fix_hands(image, prompt, s_k, say)
             left = list(self.hand_rounds[-1]["bad"] if self.hand_rounds else [])
             from chatdraw import requestcheck
-            asked = requestcheck.check(image, prompt)
+            asked = requestcheck.check(image, asked_prompt)
             if asked["readable"]:
                 say(requestcheck.summary(asked))
                 left += [f"描かれていない: {m}" for m in asked["missing"]]
+                missing_all += [m for m in asked["missing"] if m not in missing_all]
                 left += [f"頼んでいない: {e}" for e in asked.get("extra", [])]
                 unasked += [e for e in asked.get("extra", []) if e not in unasked]
                 # 頼んでいない 2 人目と、基準の体から外れた体は、種を変えて描き直す理由にし、次の回は描かない物に足す
@@ -1026,14 +1089,36 @@ class Studio:
         self.painter._pipe = None   # 1 つの模型で読んだ物は捨てて、段の処理にメモリを渡す
         import gc
         gc.collect()
-        keep = self.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}"
         self.painter.stop = False
-        path = twostage.run_stages(sentence, tags, seed, comp.repo, render.repo, tuple(size or (832, 1216)), keep, twostage.VARIANTS[0],
-                                   say=say, stopped=lambda: self.painter.stop)
+        sentence0, tags0 = sentence, tags
+        # 構図も仕上げも 1 回で終えない。仕上げの検品（result-*.json）を通らなければ、種を変えて構図から描き直す。
+        # 通らなかったときは崩れの一番少ない回の絵を渡し、どの回の崩れも .json の redraws に残す
+        variant = twostage.VARIANTS[0]
+        best, redraws, missing_all = None, [], []
+        for k in range(self.REDRAW_TRIES):
+            s_k = seed + 1000 * k
+            if k:
+                say(f"検品を通らなかったので、種を変えて構図から描き直しています（{k + 1}/{self.REDRAW_TRIES} 回目）")
+            sentence, tags = vary_background(sentence0, s_k, tags=False), emphasize(vary_background(tags0, s_k), missing_all)
+            keep = self.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{s_k}"
+            path = twostage.run_stages(sentence, tags, s_k, comp.repo, render.repo, tuple(size or (832, 1216)), keep, variant,
+                                       say=say, stopped=lambda: self.painter.stop)
+            result = twostage.read_result(keep, variant["name"])
+            left = list(result.get("bad", [])) + [f"描かれていない: {m}" for m in result.get("missing", [])]
+            missing_all += [m for m in result.get("missing", []) if m not in missing_all]
+            redraws.append({"seed": s_k, "bad": left, "stages": str(keep)})
+            if best is None or len(left) < len(best[1]):
+                best = (path, left, s_k, keep, tags, sentence, result)
+            if result.get("passed") or getattr(self.painter, "stop", False) or not result.get("checked", True):
+                break
+        path, left, seed, keep, tags, sentence, result = best
+        if left:
+            say(f"検品を通る絵が {len(redraws)} 回描いても出ませんでした（途中）。残った崩れ: " + "、".join(left[:5]))
         from PIL import Image
         image = Image.open(path)
         saved = self._save(image, seed, dict(meta or {}, text=text, prompt=tags, sentence=sentence, seed=seed, style=style,
-                                             model=render.repo, compose_model=comp.repo, way="two", stages=str(keep)))
+                                             model=render.repo, compose_model=comp.repo, way="two", stages=str(keep),
+                                             redraws=redraws, passed=bool(result.get("passed"))))
         self._inspect(saved, say)
         return tags, saved
 
@@ -1053,10 +1138,28 @@ class Studio:
             return image
         from PIL import Image, ImageDraw
         from chatdraw import handcheck
+        best = None   # (崩れの数, 絵, 崩れ, 検品の結果)。直しで崩れが増えた回の絵は使わない（直すたびに別の所が崩れることがあった）
+
+        def done(img):
+            # 最後の回の絵ではなく、崩れの一番少なかった回の絵を返す。engine.draw は hand_rounds の最後を残った崩れとして読む
+            self._detail_done = False
+            if best is None:
+                return img
+            if best[1] is not img:
+                say(f"崩れの一番少ない回の絵（崩れ {best[0]} 件）を使います")
+            if self.hand_rounds[-1]["bad"] != best[2]:
+                self.hand_rounds.append({"round": "best", "bad": best[2]})
+            return best[1]
         for r in range(self.FIX_ROUNDS + 1):
             say(f"検品しています（手と指・{r + 1} 回目）")
             res = handcheck.check(image, asked=prompt)
             self.hand_rounds.append({"round": r, "bad": res["bad"]})
+            if best is None or len(res["bad"]) < best[0]:
+                best = (len(res["bad"]), image, list(res["bad"]), res)
+            elif len(res["bad"]) > best[0]:
+                # 崩れが増えた直しは消しゴムで消す: 崩れの一番少ない絵に戻し、その絵の崩れた所を種を変えて直し直す
+                say(f"直しで崩れが増えた（{best[0]} → {len(res['bad'])} 件）ので、前の絵に戻して直し直します")
+                image, res = best[1], best[3]
             regions = handcheck.bad_regions(res)   # 手・足・顔のうち、崩れの見つかった所
             if not regions and not getattr(self, "_detail_done", False) and not getattr(self.painter, "stop", False):
                 # 検品を通っても終わりにしない。人は細部を必ず見るので、手・足・顔の枠の中だけをもう一度丁寧に描かせ、
@@ -1076,11 +1179,11 @@ class Studio:
                     self.hand_rounds.append({"round": r, "detail": True, "bad": again["bad"]})
                     if not again["bad"]:
                         image = tried
+                        best = (0, image, [], again)
                     else:
                         say("細部の描き直しで崩れが出たので、前の絵を使います: " + "、".join(again["bad"][:3]))
             if not regions or r == self.FIX_ROUNDS or getattr(self.painter, "stop", False):
-                self._detail_done = False
-                return image
+                return done(image)
             say(f"崩れた所を直しています（{len(regions)} か所・{r + 1} 回目）: " + "、".join(res["bad"][:3]))
             mask = Image.new("L", image.size, 0)
             d = ImageDraw.Draw(mask)
@@ -1090,7 +1193,7 @@ class Studio:
             words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in regions))
             # 回を重ねるほど強く描き直す（弱いままだと崩れた指の形をなぞり、何回直しても同じ崩れが残った）
             image = self.painter.redraw(f"{prompt}, {words}", seed + 77 * (r + 1), image, mask, strength=(0.55, 0.65, 0.75, 0.85, 0.9, 0.95)[min(r, 5)])
-        return image
+        return done(image)
 
     def _inspect(self, path: Path, say):
         """描いた絵の手と指を検品し、結果を絵の隣の .check.json に残す（chatdraw/handcheck.py）"""

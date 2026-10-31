@@ -143,6 +143,13 @@ def measure(img):
         bad.append(f"指が足りない（親指の外に {n['count']} 本。4 本のはず）")
     if n.get("fused") and not bent:
         bad.append("指がくっついている（指 2 本分の幅の塊）")
+    # 足りないとは言い切れない 3 本以下（指どうしが近い）と、伸ばした指を数えられない手も、崩れとして直す。
+    # 読めない手を「崩れが無い」として通すと、4 本指の手やくっついた指が検品を逃れた。握った手（折った指）は数えないのが正しいので外す
+    elif n["count"] is not None and n["count"] < 4 and not bent:
+        if not any(b.startswith("指が足りない") for b in bad):
+            bad.append(f"指を数えきれない（親指の外に {n['count']} 本しか見えない。指が足りないか重なっている）")
+    elif n["count"] is None and not bent and not n.get("fused") and "曲げた指" not in n.get("reason", ""):
+        bad.append(f"指を数えられない（{n.get('reason') or '読めない'}）")
     if n.get("ghost"):
         bad.append(f"指の間に薄い指がある（{n['ghost']} 本。余分な指が透けて描かれている）")
     return m, bad, _overlay(sq, lm)
@@ -220,10 +227,12 @@ def count_fingers(a, lm, palm_col, tol: float = 120.0) -> dict:
     a = np.asarray(a, float)
     palm_col = np.asarray(palm_col, float)
     out = {"count": None, "rows": [], "reason": ""}
-    tip_y = float(np.mean([lm[k + 3][1] for k in FAN]))
-    base_y = float(np.mean([lm[k][1] for k in FAN]))
-    if tip_y >= base_y - 8:
-        out["reason"] = "指先が付け根より上に無い"
+    # 指の向きは問わない（切る線は指の軸に直角に取る）。上向きの手だけを数えていたので、下に垂らした手・横に伸ばした手の
+    # 指は数えられないまま通っていた。指先が付け根から手首と反対の向きに離れていない手（点がつぶれた読み）だけを外す
+    tips = np.mean([lm[k + 3] for k in FAN], axis=0)
+    bases = np.mean([lm[k] for k in FAN], axis=0)
+    if np.linalg.norm(tips - bases) < 8 or float((tips - bases) @ (bases - lm[0])) <= 0:
+        out["reason"] = "指先が付け根から伸びていない"
         return out
     if min(straightness(lm)) < 0.8:
         out["reason"] = "曲げた指がある"

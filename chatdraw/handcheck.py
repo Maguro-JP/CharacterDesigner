@@ -251,7 +251,7 @@ def _add_missed_hands(out: dict, im) -> None:
 def _add_face(out: dict, im, asked: str) -> dict:
     f = _face(im, asked)
     # 直す所の一覧（bad_regions）が手や足と同じ形で読めるよう、枠と崩れを並べる
-    out["faces"] = [{"box": f["box"], "bad": f.get("bad", []), "seen": bool(f.get("readable"))}] if f.get("box") else []
+    out["faces"] = [{"box": f["box"], "bad": f.get("bad", []), "seen": bool(f.get("readable") or f.get("bad"))}] if f.get("box") else []
     out["face"] = f
     out["bad"] += f.get("bad", [])
     return out
@@ -275,6 +275,9 @@ def summary(res: dict) -> str:
     feet_bad = [b for b in res["bad"] if b.startswith("足 ")]
     if res.get("reason"):
         return f"検品: {res['reason']}" + (("。崩れ " + "、".join(feet_bad)) if feet_bad else tail)
+    hand_bad = [b for b in res["bad"] if b.startswith("手 ")]
+    if not res["readable"] and hand_bad:   # 見つけたのに形を読めなかった手は崩れ。「読めなかった」の 1 行で隠さない
+        return "検品: 崩れ " + str(len(res["bad"])) + " 件。" + "、".join(res["bad"])
     if not res["readable"]:
         head = "検品: 手を読めませんでした（手が写っていないか、隠れています）。目で確かめてください"
         return head + (("。崩れ " + "、".join(feet_bad)) if feet_bad else tail)
