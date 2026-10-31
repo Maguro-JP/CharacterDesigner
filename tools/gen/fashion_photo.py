@@ -51,7 +51,7 @@ def prompt_of(c: dict) -> tuple[str, str]:
 VIEWS = {"front": ("front view, facing the camera", ""),
          "back": ("(view from behind:1.4), (back of the head:1.3), the person faces away from the camera, back of the outfit visible",
                   "(face:1.4), (looking back:1.3), looking over shoulder, profile, eyes, nose, front view, facing camera")}
-BACK_IP_SCALE = 0.3
+BACK_IP_SCALE = 0.4   # 2 回目（0.3）は前後で靴・髪・裾が食い違った人が 10 人を超えた。顔は検査で落とせるようになったので手本を強める
 TRIES = 3   # 1 つの向きで描き直す回数の上限（1 枚 約 40 分。2 つの向きで 6 枚まで描いてもジョブの上限 6 時間に収まる）
 # 細部の範囲（人物の外接枠の高さに対する割合、上端と下端）と、描き足すときの言葉
 DETAILS = [("head", 0.00, 0.16, "close-up of the hair and headwear"),
@@ -72,22 +72,61 @@ def figure_box(im):
     return int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1
 
 
+YUNET = "CD_YUNET"   # 顔の検出の模型 YuNet（OpenCV の模型集、MIT）の置き場を渡す環境変数。Actions が取る（fashion-photo.yml）
+
+
 def faces(im) -> int:
-    """頭のあたり（上から 27%）に写った顔（正面と横顔）の数を、OpenCV の Haar 検出で数える。OpenCV が無ければ -1。
-    1 回目の 14 人の背面で、検品担当が振り返ったとした 12 人のうち 10 人を見つけ、後ろ姿の 2 人は 0 だった。
-    絵の全体で探すと、服の柄を顔と取り違えた"""
+    """頭のあたり（上から 30%）に写った顔の数。YuNet があればそれで、無ければ OpenCV の Haar 検出（正面と横顔）で数える。
+    OpenCV が無ければ -1。2 回目の背面で、検品担当が顔ありとした 10 枚を、Haar は 5 枚（真横の横顔）見逃し、
+    YuNet は 1・2 回目の 22 枚をすべて見つけた（顔の無い 5 枚のうち 2 枚を顔ありと取り違えた。取り違えは描き直しが 1 回増えるだけ）"""
+    import os
     try:
         import cv2
         import numpy as np
     except ImportError:
         return -1
-    g = cv2.cvtColor(np.asarray(im.convert("RGB")), cv2.COLOR_RGB2GRAY)[: int(im.height * 0.27)]
+    rgb = np.asarray(im.convert("RGB"))[: int(im.height * 0.30)]
+    model = os.environ.get(YUNET, "")
+    if model and os.path.exists(model):
+        det = cv2.FaceDetectorYN.create(model, "", (rgb.shape[1], rgb.shape[0]), 0.7, 0.3, 50)
+        _, found = det.detect(cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR))
+        return 0 if found is None else len(found)
+    g = cv2.cvtColor(rgb, cv2.COLOR_RGB2GRAY)
     n = 0
     for name in ("haarcascade_frontalface_default.xml", "haarcascade_profileface.xml"):
         det = cv2.CascadeClassifier(cv2.data.haarcascades + name)
         for img in (g, cv2.flip(g, 1)) if "profile" in name else (g,):   # 横顔の検出は片向きだけなので左右を返しても見る
             n += len(det.detectMultiScale(img, scaleFactor=1.05, minNeighbors=4, minSize=(30, 30)))
     return n
+
+
+# 服の最初の品の色が、暗い色か明るい色かの言葉。黒のスーツを頼んで灰色や白が描かれた（slim-suit、le-smoking、2026-10-31）
+DARK = {"black", "navy", "charcoal", "dark"}
+LIGHT = {"white", "cream", "ivory", "off-white"}
+OTHER = {"red", "brown", "blue", "green", "beige", "khaki", "grey", "gray", "pink", "purple", "olive", "yellow", "orange",
+         "burgundy", "maroon", "oatmeal", "camel", "tan", "lavender", "mint", "pastel", "indigo", "denim", "plaid", "striped", "check"}
+
+
+def expected_tone(outfit: str) -> str:
+    """outfit の最初の品（読点まで、with より前）に出る最初の色の言葉から、胴が暗いか明るいかを返す。分からなければ空"""
+    head = outfit.split(",")[0].split(" with ")[0].split(" over ")[0].lower()
+    for w in head.replace("-", " ").split():
+        if w in OTHER:   # 最初の色がほかの色や柄なら、明るさでは見ない
+            return ""
+        if w in DARK:
+            return "dark"
+        if w in LIGHT or w == "off":
+            return "light"
+    return ""
+
+
+def torso_luma(im) -> float:
+    """胴のあたり（高さ 25〜45%、幅の真ん中 30%）の明るさの中央値（0〜255）"""
+    import numpy as np
+    a = np.asarray(im.convert("RGB")).astype(float)
+    h, w = a.shape[:2]
+    band = a[int(h * 0.25):int(h * 0.45), int(w * 0.35):int(w * 0.65)].reshape(-1, 3)
+    return float(np.median(band @ [0.299, 0.587, 0.114]))
 
 
 def bottom_cut(im) -> float:
@@ -104,10 +143,17 @@ def bottom_cut(im) -> float:
     return out
 
 
-def check_view(im, view: str) -> list[str]:
+def check_view(im, view: str, outfit: str = "") -> list[str]:
     """描いた全身を数字で見る。見つかった崩れを返す（空なら通す）。
-    全身を頼んでも 14 人のうち 5 人が膝や腿で切れ、靴が無かった。背面は 12 人が振り返った（2026-10-31）"""
+    全身を頼んでも 14 人のうち 5 人が膝や腿で切れ、靴が無かった。背面は 12 人が振り返った（2026-10-31）。
+    胴の明るさは、2 回目の 13 人で、頼んだ暗い服 4 人が 69〜76、頼んだ明るい服 2 人が 195〜211、黒を頼んで白が描かれた 2 人が 188〜203 だった"""
     bad = []
+    tone = expected_tone(outfit)
+    luma = torso_luma(im) if tone else 0.0
+    if tone == "dark" and luma > 110:
+        bad.append(f"暗い色を頼んだ服が明るい（胴の明るさ {luma:.0f}）")
+    if tone == "light" and luma < 150:
+        bad.append(f"明るい色を頼んだ服が暗い（胴の明るさ {luma:.0f}）")
     if bottom_cut(im) > 0.1:
         bad.append("足元が枠の下で切れている")
     if view == "back" and faces(im) > 0:
@@ -180,7 +226,7 @@ def main():
                           negative_pooled_prompt_embeds=np_, num_inference_steps=a.steps, guidance_scale=5.0,
                           width=a.width, height=a.height, ip_adapter_image=ref,
                           generator=torch.Generator().manual_seed(a.seed + k)).images[0]
-                bad = check_view(im, view)
+                bad = check_view(im, view, c["outfit"])
                 tries.append({"seed": a.seed + k, "sec": round(time.time() - t), "bad": bad})
                 print(f"{name}-{view} 種 {a.seed + k} {time.time() - t:.0f} 秒 {bad or '通す'}", flush=True)
                 if not bad:

@@ -135,3 +135,17 @@ class PhotoCheckTest(unittest.TestCase):
         ImageDraw.Draw(cut).rectangle((60, 40, 140, 399), fill=(20, 20, 20))
         self.assertEqual(fashion_photo.check_view(whole, "front"), [])
         self.assertIn("足元が枠の下で切れている", fashion_photo.check_view(cut, "front"))
+
+    def test_tone_of_first_item(self):
+        import sys
+        import types
+        from PIL import Image
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        sys.modules.setdefault("design", types.ModuleType("design"))
+        import fashion_photo
+        self.assertEqual(fashion_photo.expected_tone("very slim black wool suit, white shirt"), "dark")
+        self.assertEqual(fashion_photo.expected_tone("striped rugby shirt with white collar, navy skirt"), "")
+        self.assertEqual(fashion_photo.expected_tone("red and brown plaid shirt worn open over a white T-shirt"), "")
+        white = Image.new("RGB", (200, 400), (235, 235, 235))
+        self.assertTrue(any("明るい" in b for b in fashion_photo.check_view(white, "front", "black wool tuxedo jacket")))
+        self.assertFalse(any("明るい" in b for b in fashion_photo.check_view(white, "front", "cream silk blouse")))
