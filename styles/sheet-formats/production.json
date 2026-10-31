@@ -29,12 +29,6 @@
    "guides": true
   },
   {
-   "kind": "notes",
-   "area": "side",
-   "title": "注記",
-   "sub": "数・左右・大きさ"
-  },
-  {
    "kind": "swatches",
    "area": "sw",
    "style": "chips"
@@ -43,6 +37,12 @@
    "kind": "callouts",
    "area": "side",
    "title": "拡大"
+  },
+  {
+   "kind": "notes",
+   "area": "side",
+   "title": "注記",
+   "sub": "数・左右・大きさ"
   }
  ],
  "callout_h": 0.11

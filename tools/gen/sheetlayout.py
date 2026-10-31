@@ -296,7 +296,14 @@ def _panel_html(pn, ctx):
         notes = ctx["notes"]
         if pn.get("brief"):   # 総覧では各注記の最初の一文だけにする。全文は作画用の版に載せる（狭い欄に全文を詰めると欄からあふれた）
             notes = [t.split("。")[0] for t in notes]
-            notes = [t if len(t) <= 24 else t[:23] + "…" for t in notes]
+            # 長い文は最初の読点までにし、それでも長ければ項目名だけにする（「…」で切ると文の途中で切れて見えた）
+            def cut(t):
+                k, _, v = t.partition(": ")
+                if len(v) <= 24:
+                    return t
+                head = v.split("、")[0]
+                return f"{k}: {head}" if len(head) <= 24 else k
+            notes = [cut(t) for t in notes]
         lis = "".join(f'<li><span><b>{e(t.split(": ", 1)[0])}</b>　{e(t.split(": ", 1)[1] if ": " in t else "")}</span></li>' for t in notes)
         if pn.get("columns"):
             # 2段に組み、長い注記（40字より長い）と、2項目以下のときは全幅の1段にする。段組みに流すと左右の段の行数が偏った
