@@ -1,0 +1,97 @@
+{
+ "id": "victorian-gentleman",
+ "name": "19世紀の紳士（フロックコートとシルクハット）",
+ "model": "SG161222/RealVisXL_V5.0",
+ "seed": 0,
+ "steps": 30,
+ "prompt": "adult man, short brown hair, side part, brown eyes, wearing sharply tailored black wool frock coat with strong shoulders and nipped waist, Harris tweed waistcoat, grey striped slim straight trousers, white high-collar shirt, black cravat, black top hat, (full body shot:1.2), entire figure from head to shoes in frame, (shoes visible:1.2), small figure with empty space above the head and below the feet, fashion editorial lookbook photograph, plain off-white studio background, soft even studio lighting, sharp focus, photorealistic, high detail fabric texture",
+ "negative": "anime, illustration, drawing, cartoon, painting, 3d render, cgi, doll, cropped, out of frame, cut off feet, cropped legs, legs cut off, close-up, extra fingers, missing fingers, fused fingers, deformed hands, extra arms, extra legs, bad anatomy, two people, text, logo, brand logo, watermark, signature, nsfw, cleavage, see-through, modern clothes, sneakers, jeans, logo, text, steampunk goggles, (tweed coat:1.2), pocket square, bare head",
+ "views": {
+  "front": {
+   "file": "victorian-gentleman-s0-front.png",
+   "tries": [
+    {
+     "seed": 0,
+     "sec": 1810,
+     "bad": []
+    }
+   ],
+   "passed": true
+  },
+  "back": {
+   "file": "victorian-gentleman-s0-back.png",
+   "tries": [
+    {
+     "seed": 0,
+     "sec": 1814,
+     "bad": [
+      "背面に顔が写っている"
+     ]
+    },
+    {
+     "seed": 1,
+     "sec": 1841,
+     "bad": []
+    }
+   ],
+   "passed": true
+  }
+ },
+ "details": [
+  {
+   "part": "head",
+   "file": "victorian-gentleman-s0-detail-head.png",
+   "box": [
+    0,
+    0,
+    832,
+    194
+   ],
+   "words": "close-up of the hair and headwear"
+  },
+  {
+   "part": "collar",
+   "file": "victorian-gentleman-s0-detail-collar.png",
+   "box": [
+    0,
+    145,
+    832,
+    462
+   ],
+   "words": "close-up of the collar, neckline, buttons and fabric texture"
+  },
+  {
+   "part": "waist",
+   "file": "victorian-gentleman-s0-detail-waist.png",
+   "box": [
+    0,
+    413,
+    832,
+    705
+   ],
+   "words": "close-up of the waist, belt, pockets and seams"
+  },
+  {
+   "part": "hem",
+   "file": "victorian-gentleman-s0-detail-hem.png",
+   "box": [
+    0,
+    668,
+    832,
+    1033
+   ],
+   "words": "close-up of the hem, pleats and fabric folds"
+  },
+  {
+   "part": "feet",
+   "file": "victorian-gentleman-s0-detail-feet.png",
+   "box": [
+    0,
+    997,
+    832,
+    1216
+   ],
+   "words": "close-up of the shoes and socks"
+  }
+ ]
+}
