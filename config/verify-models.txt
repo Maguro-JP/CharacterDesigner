@@ -1,9 +1,10 @@
 # Actions（model-verify.yml）で動かして確かめる絵の模型。1 行 1 つ。この表を変えて push すると流れる
-cagliostrolab/animagine-xl-3.1
+# 点がまだ 0 の模型から順に入れる。30GB を超える模型は Actions の機械の置き場に入らないので入れない（docs/knowledge/illustration-models-2026.md）
+Laxhar/noobai-XL-Vpred-1.0
 OnomaAIResearch/Illustrious-xl-early-release-v0
 Laxhar/noobai-XL-1.1
 John6666/hassaku-xl-illustrious-v31-sdxl
 John6666/prefect-illustrious-xl-v3-sdxl
-Ine007/waiIllustriousSDXL_v160
 KBlueLeaf/Kohaku-XL-Zeta
+cagliostrolab/animagine-xl-3.1
 Lykon/AAM_XL_AnimeMix

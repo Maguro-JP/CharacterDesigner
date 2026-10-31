@@ -43,7 +43,8 @@
   "en": "anime illustration, soft coloring",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 0,
+  "note": "2026-10-31 検証が時間切れで 2 枚だけ。頼んでいない白髪で描いた。点は付けない"
  },
  {
   "repo": "cagliostrolab/animagine-xl-3.0",
@@ -135,7 +136,8 @@
   "en": "anime, polished faces, vivid colors",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 50,
+  "note": "2026-10-31 3 枚を見た。頼んだ水着・姿勢・手を振るは描けた。1 枚目の左手が握りつぶれ、サンダルの足の指がぼやけた。推奨には届かない"
  },
  {
   "repo": "Lykon/AAM_XL_AnimeMix",
@@ -148,7 +150,8 @@
   "en": "anime with detailed backgrounds",
   "steps": 24,
   "guidance": 5.0,
-  "score": 0
+  "score": 0,
+  "note": "2026-10-31 検証が時間切れで 2 枚だけ。頼んでいない白髪で、振り返りが描けていない。点は付けない"
  },
  {
   "repo": "KBlueLeaf/Kohaku-XL-Zeta",
