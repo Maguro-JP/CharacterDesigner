@@ -97,6 +97,7 @@ def main():
     ap.add_argument("--height", type=int, default=1216)
     a = ap.parse_args()
     import torch
+    from PIL import Image
     from diffusers import DPMSolverMultistepScheduler, StableDiffusionXLPipeline
     out = Path(a.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -113,20 +114,29 @@ def main():
         name = f"{ident}-s{a.seed}"
         rec = {"id": ident, "name": c.get("name", ""), "model": MODEL, "seed": a.seed, "steps": a.steps,
                "prompt": pos, "negative": neg, "views": {}, "details": []}
+        # 背面は正面の絵を手本（IP-Adapter）にして描く。言葉だけで描くと、前と後ろで上着の色や丈が変わった（19 世紀の紳士）
+        pipe.load_ip_adapter("h94/IP-Adapter", subfolder="sdxl_models", weight_name="ip-adapter_sdxl_vit-h.safetensors",
+                             image_encoder_folder="models/image_encoder")
+        front = None
         for view, (words, away) in VIEWS.items():
             text = f"{words}, {pos}" if view == "back" else f"{pos}, {words}"
             pe, ne, pp, np_ = design.encode_xl(pipe, text, ", ".join(x for x in (neg, away) if x))
+            pipe.set_ip_adapter_scale(0.0 if front is None else 0.5)
+            ref = front if front is not None else Image.new("RGB", (224, 224), "white")
             t = time.time()
             im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
                       negative_pooled_prompt_embeds=np_, num_inference_steps=a.steps, guidance_scale=5.0,
-                      width=a.width, height=a.height, generator=torch.Generator().manual_seed(a.seed)).images[0]
+                      width=a.width, height=a.height, ip_adapter_image=ref,
+                      generator=torch.Generator().manual_seed(a.seed)).images[0]
             im.save(out / f"{name}-{view}.png")
             rec["views"][view] = {"file": f"{name}-{view}.png", "sec": round(time.time() - t)}
             print(f"{name}-{view}.png {time.time() - t:.0f} 秒", flush=True)
-            if view == "front":
-                t = time.time()
-                rec["details"] = details(img2img, im, pos, neg, a.seed, out, name)
-                print(f"細部 {len(rec['details'])} 枚 {time.time() - t:.0f} 秒", flush=True)
+            if front is None:
+                front = im
+        pipe.unload_ip_adapter()   # 細部の描き直し（img2img）は手本なしで描く
+        t = time.time()
+        rec["details"] = details(img2img, front, pos, neg, a.seed, out, name)
+        print(f"細部 {len(rec['details'])} 枚 {time.time() - t:.0f} 秒", flush=True)
         (out / f"{name}.json").write_text(json.dumps(rec, ensure_ascii=False, indent=1), encoding="utf-8")
 
 if __name__ == "__main__":
