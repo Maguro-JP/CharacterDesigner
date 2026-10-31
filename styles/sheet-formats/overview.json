@@ -44,8 +44,8 @@
    "kind": "expressions",
    "area": "expr",
    "title": "表情",
-   "cols": 2,
-   "max": 4
+   "cols": 3,
+   "max": 6
   },
   {
    "kind": "swatches",

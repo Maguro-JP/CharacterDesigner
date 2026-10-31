@@ -96,7 +96,7 @@ def _callouts(ident, c):
     f = cs.FACE_CROP
     # 目は顔の切り抜きの中の割合で取る。胸から上の絵の割合（EYE_CROP）は絵によって顔の高さが違い、騎士では鼻と口を切り出した
     fw, fh = f[2] - f[0], f[3] - f[1]
-    eye = (f[0] + fw * 0.08, f[1] + fh * 0.40, f[0] + fw * 0.92, f[1] + fh * 0.66)
+    eye = (f[0] + fw * 0.08, f[1] + fh * 0.30, f[0] + fw * 0.92, f[1] + fh * 0.58)
     return [("顔", crop(f)), ("目", crop(eye))]
 
 
@@ -144,7 +144,7 @@ body{background:var(--page);color:var(--ink);font-family:var(--font);font-weight
 .fit{flex:1;position:relative;min-height:0}
 .fit img{position:absolute;display:block}
 .shadow{position:absolute;border-radius:50%;background:radial-gradient(closest-side, color-mix(in srgb, var(--ink) 18%, transparent), transparent)}
-.guide{position:absolute;left:0;right:0;height:0;border-top:1px dashed color-mix(in srgb, var(--accent) 45%, transparent)}
+.guide{position:absolute;height:0;border-top:1px dashed color-mix(in srgb, var(--accent) 45%, transparent)}
 .guide.up span{top:auto;bottom:4px}
 .guide span{position:absolute;left:0;top:4px;font-size:var(--t-note);color:var(--sub);letter-spacing:.06em}
 .cap{position:absolute;font-size:var(--t-note);color:var(--sub);letter-spacing:.12em;transform:translateX(-50%);white-space:nowrap}
@@ -157,6 +157,7 @@ body{background:var(--page);color:var(--ink);font-family:var(--font);font-weight
 .notes li{counter-increment:n;display:grid;grid-template-columns:1.8em 1fr;margin-bottom:.55em}
 .notes li::before{content:counter(n,decimal-leading-zero);color:var(--accent);font-weight:700;font-size:var(--t-note);padding-top:.25em;letter-spacing:.04em}
 .notes b{font-weight:700}
+.notes li.wide{grid-column:1 / -1}
 .chips{display:flex;flex-wrap:wrap;gap:calc(var(--t-body) * .7) calc(var(--t-body) * 1.4)}
 .chip{display:flex;align-items:center;gap:.55em;font-size:var(--t-note);color:color-mix(in srgb, var(--ink) 68%, var(--page));line-height:1.3}
 .chip i{width:calc(var(--t-body) * 1.6);height:calc(var(--t-body) * 1.6);border-radius:50%;flex:none;
@@ -207,7 +208,9 @@ JS = r"""
     }
     if (box.dataset.guides) {
       for (const [name, t] of [['頭の上', 0], ['半分', 0.5], ['足の下', 1]]) {
+        // 線は人物の左右に少し出すだけにする。区画の幅いっぱいに引くと、2人だけの図で左右の空きが目立った
         const g = document.createElement('div'); g.className = t === 1 ? 'guide up' : 'guide'; g.style.top = (y + h * t) + 'px';
+        g.style.left = Math.max(0, x - 70) + 'px'; g.style.right = Math.max(0, W - x - w - 24) + 'px';
         g.innerHTML = `<span>${name}</span>`; box.insertBefore(g, img);
       }
     }
@@ -291,8 +294,12 @@ def _panel_html(pn, ctx):
         if pn.get("brief"):   # 総覧では各注記の最初の一文だけにする。全文は作画用の版に載せる（狭い欄に全文を詰めると欄からあふれた）
             notes = [t.split("。")[0] for t in notes]
         lis = "".join(f'<li><span><b>{e(t.split(": ", 1)[0])}</b>　{e(t.split(": ", 1)[1] if ": " in t else "")}</span></li>' for t in notes)
-        colstyle = f' style="column-count:{pn["columns"]};column-gap:var(--g)"' if pn.get("columns") else ""
-        return lab(pn.get("title", "")) + f'<ol class="notes"{colstyle}>{lis}</ol>'
+        if pn.get("columns"):
+            # 2段に組み、長い注記（60字より長い）だけ全幅の1段にする。段組みに流すと左右の段の行数が偏った
+            lis = "".join(f'<li{" class=wide" if len(t) > 60 else ""}><span><b>{e(t.split(": ", 1)[0])}</b>　{e(t.split(": ", 1)[1] if ": " in t else "")}</span></li>'
+                          for t in notes)
+            return lab(pn.get("title", "")) + f'<ol class="notes" style="display:grid;grid-template-columns:repeat({pn["columns"]},1fr);column-gap:var(--g)">{lis}</ol>'
+        return lab(pn.get("title", "")) + f'<ol class="notes">{lis}</ol>'
     if k in ("sharebar", "strip"):
         sw = sorted(ctx["sw"], key=lambda s: -s["share"])
         tot = sum(s["share"] for s in sw) or 1
@@ -300,7 +307,8 @@ def _panel_html(pn, ctx):
         # 帯の中に名前を書くと細い区画で名前がぶつかったので、名前と割合は帯の下に並べる
         leg = "".join(f'<div class="chip"><i style="background:{s["hex"]}"></i><div>{e(s["name"])} {s["share"] / tot * 100:.0f}%</div></div>' for s in sw)
         bar = "strip" if k == "strip" else "sbar"
-        return lab(pn.get("title", ""), pn.get("sub", "")) + f'<div class="{bar}">{segs}</div><div class="chips sleg">{leg}</div>'
+        per = len(sw) if len(sw) <= 6 or k == "strip" else -(-len(sw) // 2)   # 2行になるときは行ごとの数をそろえる（2行目が1つだけになった）
+        return lab(pn.get("title", ""), pn.get("sub", "")) + f'<div class="{bar}">{segs}</div><div class="chips sleg" style="display:grid;grid-template-columns:repeat({per},auto);justify-content:start">{leg}</div>'
     if k == "callouts":
         cl = _callouts(ctx["ident"], c)
         if not cl:
@@ -316,6 +324,8 @@ def _row(figs, gap=0.32):
     from PIL import Image
     H = max(im.height for _, im in figs)
     same = all(n in ("正面", "背面", "右向き", "左向き") for n, _ in figs)   # 四面図の人物は元の縮尺のまま、ポーズと混ぜるときは高さをそろえる
+    figs = [(n, im.crop(im.getchannel("A").point(lambda v: 255 if v > 60 else 0).getbbox())) for n, im in figs]   # 薄い縁で足の位置がずれた
+    H = max(im.height for _, im in figs)
     scaled = [im if same or im.height == H else im.resize((round(im.width * H / im.height), H)) for _, im in figs]
     sp = int(sum(im.width for im in scaled) / len(scaled) * gap)
     W = sum(im.width for im in scaled) + sp * (len(scaled) - 1)
