@@ -1,0 +1,47 @@
+# 服装の図鑑の人物を、写実の模型（RealVisXL V5）で全身のファッション写真のように描く（tools/gen/fashion_photo.py）。
+# 手元は空きが足りず、SDXL を CPU で回すと 1 枚 数十分かかるので Actions で回す。リポジトリは公開しているので Actions の枠を気にしない。
+# 人物ごとに別のジョブにして同時に描く。結果は draw-results ブランチの <実行の番号>/ に置く。
+name: fashion-photo
+on:
+  push:
+    paths:
+      - "tools/gen/fashion_photo.py"
+      - "casts/fashion-zukan/characters/**"
+      - ".github/workflows/fashion-photo.yml"
+  workflow_dispatch:
+    inputs:
+      seed:
+        description: "種"
+        default: "0"
+permissions:
+  contents: write   # 描いた絵を draw-results ブランチに置くため
+concurrency:
+  group: fashion-photo-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  photo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    strategy:
+      fail-fast: false
+      matrix:
+        id: [flapper-1920s, jogakusei-hakama, victorian-gentleman, circle-skirt-1950s, mods-1960s, hiphop-1990s]
+    steps:
+      - uses: actions/checkout@v4
+      - name: 置き場を空ける
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1; free -g; nproc
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 部品
+        run: |
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy
+      - name: 描く
+        env:
+          CD_HOME: ${{ runner.temp }}/cd
+          CD_FETCH: "1"
+        run: python -u tools/gen/fashion_photo.py out/${{ matrix.id }} ${{ matrix.id }} --seed ${{ inputs.seed || '0' }}
+      - name: draw-results に置く
+        if: always()
+        run: sh .github/scripts/draw-results.sh out
