@@ -141,3 +141,16 @@
 - 推す案: A。見逃しが増える方が、崩れていない手を戻すより害が大きい（決定 2026-10-20 と同じ考え）
 - 止まっているもの: 手の検品の誤りの減らし方
 - 答え:
+
+## 14. 整理で残した道具をアプリ（chatdraw）に入れるか（2026-10-31）
+- 決めてほしいこと: 下の道具を 1 つずつ、アプリに入れるか。入れないものはリポジトリに残したまま試験で動かし続ける。一覧と中身は [cleanup-20261031.md](cleanup-20261031.md)
+- 作画監督の数字の検品（tools/gen/measure.py、qc.py、faceform.py、occlusion.py）: ユーザーの判断待ち
+- 学習（tools/gen/normlearn.py）: ユーザーの判断待ち
+- 仕上げの補正と描く板の補助（tools/gen/retouch.py、inking.py、materials.py、atmosphere.py）: ユーザーの判断待ち
+- 描き直しと拡大（tools/gen/hires.py、detail.py、upscale.py）: ユーザーの判断待ち
+- 言葉の模型で頼みを描く言葉に直す（tools/gen/free_text.py、local_llm.py、tools/llm/setup.sh）: ユーザーの判断待ち
+- 設定資料集と三面図（tools/gen/bible.py、settei.py、charsheet.py と bible/・casts/）: ユーザーの判断待ち
+- Blender・MakeHuman の人形と下絵（tools/engine/）: ユーザーの判断待ち
+- ドット絵の道具（tools/build.py、check.py、render.py、sprite.py と characters/・styles/）: ユーザーの判断待ち
+- 模型の確かめ（model-verify.yml）と写真級の描き直し（photoreal.yml、tools/gen/photoreal.py）: ユーザーの判断待ち
+- 答え:
