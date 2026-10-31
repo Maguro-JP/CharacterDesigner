@@ -29,8 +29,8 @@ OPEN_BELOW = 0.3      # 目の色のタグの最大がこれ未満のときだ�
 NO_EYES_AT = 0.4
 
 
-def face_box(keypoints: dict, size: tuple[int, int]):
-    """顔の点から、髪の生え際から顎までが入る正方形の枠。点が 2 つ未満か小さすぎれば None"""
+def face_box(keypoints: dict, size: tuple[int, int], least: int = MIN_FACE):
+    """顔の点から、髪の生え際から顎までが入る正方形の枠。点が 2 つ未満か least より小さければ None"""
     pts = [keypoints[k] for k in FACE_POINTS if k in keypoints]
     if len(pts) < 2 or "nose" not in keypoints or not ("left_eye" in keypoints or "right_eye" in keypoints):
         return None
@@ -42,7 +42,7 @@ def face_box(keypoints: dict, size: tuple[int, int]):
     half = 1.3 * span
     w, h = size
     box = [max(0, int(cx - half)), max(0, int(cy - half * 1.1)), min(w, int(cx + half)), min(h, int(cy + half * 0.9))]
-    if box[2] - box[0] < MIN_FACE or box[3] - box[1] < MIN_FACE:
+    if box[2] - box[0] < least or box[3] - box[1] < least:
         return None
     return box
 
@@ -84,12 +84,19 @@ def judge(tags: dict, asked: str = "") -> list[str]:
     return []
 
 
+def readable_eyes(tags: dict) -> bool:
+    """顔の切り出しのタグに、目の色か閉じた目か目の無い顔が読めたか（目について何か言えるか）"""
+    eye = max([p for t, p in tags.items() if t.endswith(" eyes") and t.split(" ")[0] in COLORS] or [0.0])
+    return eye >= OPEN_BELOW or tags.get("closed eyes", 0.0) >= CLOSED_AT or max(tags.get(t, 0.0) for t in NO_EYES) >= NO_EYES_AT
+
+
 COLORS = ("brown", "black", "blue", "red", "green", "grey", "purple", "pink", "yellow", "orange", "aqua", "white",
           "silver", "gold", "amber", "golden", "multicolored", "heterochromia")
 
 
 def check_face(image, keypoints: dict | None = None, asked: str = "") -> dict:
-    """絵（PIL か道）の顔を測る。box は顔の枠、readable が False なら顔を読めなかった（崩れとは言わない）"""
+    """絵（PIL か道）の顔を測る。box は顔の枠、readable が False なら顔を読めなかった。
+    鼻と目の点があるのに小さくて目を読めない顔は、bad に崩れとして返す（読めない顔を通さない）"""
     from PIL import Image
     im = Image.open(image).convert("RGB") if isinstance(image, (str, Path)) else image.convert("RGB")
     out = {"box": None, "readable": False, "bad": [], "tags": {}, "eye_dark": None}
@@ -100,10 +107,25 @@ def check_face(image, keypoints: dict | None = None, asked: str = "") -> dict:
             keypoints = twostage.keypoints(im)
         box = face_box(keypoints, im.size)
         if box is None:
-            out["reason"] = "顔が写っていないか、小さすぎます"
-            return out
+            small = face_box(keypoints, im.size, least=1)
+            if small is None:
+                out["reason"] = "顔が写っていないか、小さすぎます"
+                return out
+            # 鼻と目の点はあるのに顔が小さい。読めない顔を「崩れが無い」として通すと、全身の絵の小さな顔の崩れ
+            # （目の消えた顔、溶けた目）が検品を逃れた。広げて読み、目が読めなければ崩れとして顔の枠の中を描き直させる
+            crop = im.crop(small)
+            crop = crop.resize((MIN_FACE * 4, MIN_FACE * 4), Image.LANCZOS)
+            tags = _read_tags(crop)
+            if not readable_eyes(tags):
+                out.update(box=small, reason="顔が小さくて目を読めません", tags={t: p for t, p in tags.items() if "eye" in t},
+                           bad=["顔: 小さくて目を読めない（読めない顔は崩れとして直す）"])
+                return out
+            box = small
+        else:
+            tags = None
         out["box"] = box
-        tags = _read_tags(im.crop(box))
+        if tags is None:
+            tags = _read_tags(im.crop(box))
     except Exception as e:   # 部品か模型が無い。描いた絵は止めず、検品が無いことを返す
         out["reason"] = f"顔の検品の部品がありません（{e}）"
         return out
