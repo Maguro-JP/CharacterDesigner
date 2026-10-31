@@ -41,10 +41,16 @@ jobs:
         run: |
           pip install -q torch --index-url https://download.pytorch.org/whl/cpu
           pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy "opencv-python-headless<5"   # 5 では顔の検出（CascadeClassifier）が外された
+      - name: 顔の検出の模型（YuNet、OpenCV の模型集、MIT）
+        run: |
+          mkdir -p "$RUNNER_TEMP/yunet"
+          curl -sSL -o "$RUNNER_TEMP/yunet/yunet.onnx" https://media.githubusercontent.com/media/opencv/opencv_zoo/main/models/face_detection_yunet/face_detection_yunet_2023mar.onnx
+          echo "8f2383e4dd3cfbb4553ea8718107fc0423210dc964f9f4280604804ed2552fa4  $RUNNER_TEMP/yunet/yunet.onnx" | sha256sum -c -
       - name: 描く
         env:
           CD_HOME: ${{ runner.temp }}/cd
           CD_FETCH: "1"
+          CD_YUNET: ${{ runner.temp }}/yunet/yunet.onnx
         run: python -u tools/gen/fashion_photo.py out/${{ matrix.id }} ${{ matrix.id }} --seed 0 --figures casts/fashion-trend/characters
       - name: draw-results に置く
         if: always()
