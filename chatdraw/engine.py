@@ -117,6 +117,9 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
     args = {"prompt": text, "num_inference_steps": steps, f.cfg_key: guidance,
             "generator": torch.Generator(getattr(pipe, "device", "cpu")).manual_seed(seed), **f.extra}
     if f.negative:
+        if "1girl" in prompt or "adult woman" in prompt:   # 女性は利用者の基準の体で描く（年配の太った体にしない。chatdraw/body.py）
+            from chatdraw.body import NEGATIVE as BODY_NEGATIVE
+            avoid = ", ".join(a for a in (avoid, BODY_NEGATIVE) if a)
         args["negative_prompt"] = negative_for(info, avoid)
     if getattr(info, "rescale", 0.0):
         args["guidance_rescale"] = info.rescale
