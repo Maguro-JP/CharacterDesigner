@@ -91,62 +91,62 @@
 
 ### 絵を描く模型
 
-| 模型 | 取る所（Hugging Face） | 世代 | 大きさ | 重さ（VRAM・メモリ） | 速さ（CPU で 1 枚） | 点 | 得意なこと | 商用 |
-|---|---|---|---|---|---|---|---|---|
-| NoobAI XL V-Pred 1.0 | [Laxhar/noobai-XL-Vpred-1.0](https://huggingface.co/Laxhar/noobai-XL-Vpred-1.0) | SDXL | 7.1 GB | 6・16 GB | － | 0 | アニメ絵。頼んだ通りに描きやすく、手・足・顔の形が崩れにくい | 商用不可（fair-ai-public-license-1.0-sd に NoobAI の追加条項。描いた絵の商用利用も禁止） |
-| Animagine XL 4.0 | [cagliostrolab/animagine-xl-4.0](https://huggingface.co/cagliostrolab/animagine-xl-4.0) | SDXL | 6.9 GB | 6・16 GB | － | 85 | アニメ絵。線と塗りが整っていて、キャラクターに強い | 条件付きで商用可（openrail++） |
-| Animagine XL 3.1 | [cagliostrolab/animagine-xl-3.1](https://huggingface.co/cagliostrolab/animagine-xl-3.1) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。4.0 より柔らかい塗り | 札を確かめる |
-| Animagine XL 3.0 | [cagliostrolab/animagine-xl-3.0](https://huggingface.co/cagliostrolab/animagine-xl-3.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。少し前の塗りの雰囲気 | 札を確かめる |
-| Illustrious XL 0.1 | [OnomaAIResearch/Illustrious-xl-early-release-v0](https://huggingface.co/OnomaAIResearch/Illustrious-xl-early-release-v0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。キャラクターや服の種類に詳しい | 札を確かめる |
-| Illustrious XL 2.0 | [Jommarn/Illustrious-XL-v2.0](https://huggingface.co/Jommarn/Illustrious-XL-v2.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。Illustrious の新しい版で、細部が細かい | 札を確かめる |
-| NoobAI XL 1.1 | [Laxhar/noobai-XL-1.1](https://huggingface.co/Laxhar/noobai-XL-1.1) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。絵柄の幅が広く、作家風の指定が効く | ライセンスの本文を読む必要あり |
-| Hassaku XL | [John6666/hassaku-xl-illustrious-v31-sdxl](https://huggingface.co/John6666/hassaku-xl-illustrious-v31-sdxl) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。くっきりした線と明るい塗り | 札を確かめる |
-| Prefect Illustrious XL | [John6666/prefect-illustrious-xl-v3-sdxl](https://huggingface.co/John6666/prefect-illustrious-xl-v3-sdxl) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。立体感のある塗り | 札を確かめる |
-| WAI Illustrious | [Ine007/waiIllustriousSDXL_v160](https://huggingface.co/Ine007/waiIllustriousSDXL_v160) | SDXL | 6.9 GB | 6・16 GB | － | 50 | アニメ絵。整った顔と鮮やかな色 | 札を確かめる |
-| Animagine XL 4.0 Opt | [cagliostrolab/animagine-xl-4.0/animagine-xl-4.0-opt.safetensors](https://huggingface.co/cagliostrolab/animagine-xl-4.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。4.0 を磨いた版で、体の形と色が安定している | 条件付きで商用可（openrail++） |
-| Animagine XL 4.0 Zero | [cagliostrolab/animagine-xl-4.0-zero](https://huggingface.co/cagliostrolab/animagine-xl-4.0-zero) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。4.0 の土台の版で、追加の学びの元に向く | 条件付きで商用可（openrail++） |
-| Illustrious XL 1.0 | [OnomaAIResearch/Illustrious-XL-v1.0/Illustrious-XL-v1.0.safetensors](https://huggingface.co/OnomaAIResearch/Illustrious-XL-v1.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。Illustrious の公式の 1.0。大きな絵でも崩れにくい | 札を確かめる（sdxl-license） |
-| Illustrious XL 1.1 | [OnomaAIResearch/Illustrious-XL-v1.1/Illustrious-XL-v1.1.safetensors](https://huggingface.co/OnomaAIResearch/Illustrious-XL-v1.1) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。1.0 より文の頼みが通りやすい | 札を確かめる（sdxl-license） |
-| Illustrious XL 2.0（公式） | [OnomaAIResearch/Illustrious-XL-v2.0/Illustrious-XL-v2.0.safetensors](https://huggingface.co/OnomaAIResearch/Illustrious-XL-v2.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。Illustrious の公式の 2.0。細部が細かい | 条件付きで商用可（creativeml-openrail-m） |
-| NoobAI XL 1.0 | [Laxhar/noobai-XL-1.0](https://huggingface.co/Laxhar/noobai-XL-1.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。作家風と細かいタグがよく効く | 商用不可（fair-ai-public-license-1.0-sd に NoobAI の追加条項） |
-| Holodayo XL 2.1 | [yodayo-ai/holodayo-xl-2.1](https://huggingface.co/yodayo-ai/holodayo-xl-2.1) | SDXL | 7.1 GB | 6・16 GB | － | 0 | アニメ絵。配信者風の明るいキャラクターに強い | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
-| Clandestine XL 1.0 | [yodayo-ai/clandestine-xl-1.0](https://huggingface.co/yodayo-ai/clandestine-xl-1.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。落ち着いた色と柔らかい陰影 | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
-| Nova Anime XL | [John6666/nova-anime-xl-il-v90-sdxl](https://huggingface.co/John6666/nova-anime-xl-il-v90-sdxl) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。くっきりした線と鮮やかな塗り | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
-| Obsession Illustrious XL | [John6666/obsession-illustriousxl-v31-sdxl](https://huggingface.co/John6666/obsession-illustriousxl-v31-sdxl) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。顔が整い、光の表現が豊か | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
-| Amanatsu Illustrious | [John6666/amanatsu-illustrious-v11-sdxl](https://huggingface.co/John6666/amanatsu-illustrious-v11-sdxl) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。淡い色の柔らかい絵柄 | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
-| IllumiYume XL | [John6666/illumiyume-anime-style-noobai-xl-nai-xl-v10-sdxl](https://huggingface.co/John6666/illumiyume-anime-style-noobai-xl-nai-xl-v10-sdxl) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。アニメの画面のような塗り | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
-| ArtiWaifu Diffusion 2.0 | [Eugeoter/artiwaifu-diffusion-2.0](https://huggingface.co/Eugeoter/artiwaifu-diffusion-2.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。作家風の指定が効き、絵が整う | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
-| Kohaku XL Epsilon | [KBlueLeaf/Kohaku-XL-Epsilon-rev3](https://huggingface.co/KBlueLeaf/Kohaku-XL-Epsilon-rev3) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。画集のような整った絵柄 | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
-| AAM XL AnimeMix | [Lykon/AAM_XL_AnimeMix](https://huggingface.co/Lykon/AAM_XL_AnimeMix) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。背景まで描き込む | 札を確かめる |
-| Kohaku XL Zeta | [KBlueLeaf/Kohaku-XL-Zeta](https://huggingface.co/KBlueLeaf/Kohaku-XL-Zeta) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。イラスト集のような落ち着いた塗り | 札を確かめる |
-| blue pencil XL | [GHArt/blue_pencil-XL_V1.0_xl_fp16](https://huggingface.co/GHArt/blue_pencil-XL_V1.0_xl_fp16) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。淡い色と柔らかい線 | 札を確かめる |
-| Raehoshi illust XL | [Raelina/Raehoshi-illust-XL-11](https://huggingface.co/Raelina/Raehoshi-illust-XL-11) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。光の表現が華やか | 札を確かめる |
-| AnimeBoys XL | [Koolchh/AnimeBoysXL-v3.0](https://huggingface.co/Koolchh/AnimeBoysXL-v3.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。男性キャラクターに強い | 札を確かめる |
-| True Pencil XL | [John6666/true-pencil-xl-v100-sdxl](https://huggingface.co/John6666/true-pencil-xl-v100-sdxl) | SDXL | 6.9 GB | 6・16 GB | － | 0 | 鉛筆画や線画の風合い | 札を確かめる |
-| Pony Diffusion V6 XL | [Runware/Pony_Diffusion_V6_XL](https://huggingface.co/Runware/Pony_Diffusion_V6_XL) | SDXL | 17.6 GB | 6・16 GB | － | 0 | アニメ絵とカートゥーン。デフォルメに強い | 札を確かめる |
-| DreamShaper XL Lightning | [Lykon/dreamshaper-xl-lightning](https://huggingface.co/Lykon/dreamshaper-xl-lightning) | SDXL | 6.9 GB | 6・16 GB | － | 75 | 速い。写実寄りからイラストまで幅広い | 札を確かめる |
-| DreamShaper XL | [Lykon/dreamshaper-xl-1-0](https://huggingface.co/Lykon/dreamshaper-xl-1-0) | SDXL | 7.1 GB | 6・16 GB | － | 0 | 写実寄りからイラストまで幅広い | 札を確かめる |
-| SDXL 1.0 | [stabilityai/stable-diffusion-xl-base-1.0](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | 元になった基本の模型。素直な絵 | 条件付きで商用可（openrail++） |
-| RealVisXL 5.0 | [SG161222/RealVisXL_V5.0](https://huggingface.co/SG161222/RealVisXL_V5.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | 写真のような写実 | 札を確かめる |
-| Juggernaut XL 9 | [RunDiffusion/Juggernaut-XL-v9](https://huggingface.co/RunDiffusion/Juggernaut-XL-v9) | SDXL | 6.9 GB | 6・16 GB | － | 0 | 写実。映画のような光 | 札を確かめる |
-| Playground 2.5 | [playgroundai/playground-v2.5-1024px-aesthetic](https://huggingface.co/playgroundai/playground-v2.5-1024px-aesthetic) | SDXL | 6.9 GB | 6・16 GB | － | 0 | 鮮やかで見栄えのする絵 | 札を確かめる |
-| DreamShaper 8 | [Lykon/dreamshaper-8](https://huggingface.co/Lykon/dreamshaper-8) | SD1.5 | 2.1 GB | 4・8 GB | － | 0 | 古い世代。軽くて速い。写実からイラストまで | 札を確かめる |
-| Counterfeit 2.5 | [gsdf/Counterfeit-V2.5](https://huggingface.co/gsdf/Counterfeit-V2.5) | SD1.5 | 4.3 GB | 4・8 GB | － | 0 | 古い世代のアニメ絵。背景がきれい | 札を確かめる |
-| Anything V5 | [genai-archive/anything-v5](https://huggingface.co/genai-archive/anything-v5) | SD1.5 | 4.3 GB | 4・8 GB | － | 0 | 古い世代のアニメ絵の定番 | 札を確かめる |
-| MeinaMix 11 | [digiplay/MeinaMix_v11](https://huggingface.co/digiplay/MeinaMix_v11) | SD1.5 | 2.1 GB | 4・8 GB | － | 0 | 古い世代のアニメ絵。かわいい顔 | 札を確かめる |
-| ReV Animated | [stablediffusionapi/revanimated](https://huggingface.co/stablediffusionapi/revanimated) | SD1.5 | 4.3 GB | 4・8 GB | － | 0 | 古い世代。絵本やゲームの絵のような 2.5D | 札を確かめる |
-| AWPainting | [sam749/AWPainting-v1-2](https://huggingface.co/sam749/AWPainting-v1-2) | SD1.5 | 4.3 GB | 4・8 GB | － | 0 | 古い世代のアニメ絵。厚塗りの風合い | 札を確かめる |
-| Dreamlike Anime | [dreamlike-art/dreamlike-anime-1.0](https://huggingface.co/dreamlike-art/dreamlike-anime-1.0) | SD1.5 | 2.1 GB | 4・8 GB | － | 0 | 古い世代のアニメ絵。幻想的な色 | 札を確かめる |
-| GuoFeng 3 | [xiaolxl/GuoFeng3](https://huggingface.co/xiaolxl/GuoFeng3) | SD1.5 | 4.3 GB | 4・8 GB | － | 0 | 古い世代。中華風の厚塗り | 札を確かめる |
-| ToonYou | [frankjoshua/toonyou_beta6](https://huggingface.co/frankjoshua/toonyou_beta6) | SD1.5 | 4.3 GB | 4・8 GB | － | 0 | 古い世代。カートゥーンの絵 | 札を確かめる |
-| Realistic Vision 5.1 | [SG161222/Realistic_Vision_V5.1_noVAE](https://huggingface.co/SG161222/Realistic_Vision_V5.1_noVAE) | SD1.5 | 4.3 GB | 4・8 GB | － | 0 | 古い世代の写実 | 札を確かめる |
-| SD 1.5 | [stable-diffusion-v1-5/stable-diffusion-v1-5](https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5) | SD1.5 | 2.1 GB | 4・8 GB | － | 0 | 古い世代の基本の模型 | 札を確かめる |
-| FLUX.2 klein 4B | [black-forest-labs/FLUX.2-klein-4B](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B) | FLUX.2 | 16 GB | 8・24 GB | － | 0 | 文で頼める新しい世代。4 工程で速い。写真も絵も描く | 商用可（Apache-2.0） |
-| Z-Image Turbo | [Tongyi-MAI/Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo) | Z-Image | 32.8 GB | 12・32 GB | － | 0 | 文で頼める。8 工程で速い。写真と字が得意 | 商用可（Apache-2.0） |
-| Qwen-Image 2512 | [Qwen/Qwen-Image-2512](https://huggingface.co/Qwen/Qwen-Image-2512) | Qwen-Image | 57.7 GB | 24・64 GB | － | 0 | 文で頼める大きな模型。字と細かい指示に強い。GPU が大きくないと重い | 商用可（Apache-2.0） |
-| Neta Lumina 1.0 | [VirtualAddressExtension/Neta-Lumina-v1.0-diffusers](https://huggingface.co/VirtualAddressExtension/Neta-Lumina-v1.0-diffusers) | Lumina 2 | 21.2 GB | 8・24 GB | － | 0 | 新しい世代のアニメ向け。タグと文の両方で頼める | 商用可（Apache-2.0） |
-| Chroma1-HD | [lodestones/Chroma1-HD](https://huggingface.co/lodestones/Chroma1-HD) | Chroma | 27.5 GB | 12・32 GB | － | 0 | FLUX 系の土台の模型。味付けが無く、何でも描く | 商用可（Apache-2.0） |
-| FLUX.1 schnell | [black-forest-labs/FLUX.1-schnell](https://huggingface.co/black-forest-labs/FLUX.1-schnell) | FLUX.1 | 33.7 GB | 12・40 GB | － | 0 | 文で頼める。4 工程で速い。取るには Hugging Face での同意が要る | 商用可（Apache-2.0） |
+| 模型 | 取る所（Hugging Face） | 世代 | 大きさ | 重さ（VRAM・メモリ） | 速さ（CPU で 1 枚） | 点 | 得意なこと | タグ | 商用 |
+|---|---|---|---|---|---|---|---|---|---|
+| NoobAI XL V-Pred 1.0 | [Laxhar/noobai-XL-Vpred-1.0](https://huggingface.co/Laxhar/noobai-XL-Vpred-1.0) | SDXL | 7.1 GB | 6・16 GB | － | 0 | アニメ絵。頼んだ通りに描きやすく、手・足・顔の形が崩れにくい | アニメ、イラスト | 商用不可（fair-ai-public-license-1.0-sd に NoobAI の追加条項。描いた絵の商用利用も禁止） |
+| Animagine XL 4.0 | [cagliostrolab/animagine-xl-4.0](https://huggingface.co/cagliostrolab/animagine-xl-4.0) | SDXL | 6.9 GB | 6・16 GB | － | 85 | アニメ絵。線と塗りが整っていて、キャラクターに強い | アニメ、イラスト、線が細い、商用可 | 条件付きで商用可（openrail++） |
+| Animagine XL 3.1 | [cagliostrolab/animagine-xl-3.1](https://huggingface.co/cagliostrolab/animagine-xl-3.1) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。4.0 より柔らかい塗り | アニメ、イラスト、淡い色 | 札を確かめる |
+| Animagine XL 3.0 | [cagliostrolab/animagine-xl-3.0](https://huggingface.co/cagliostrolab/animagine-xl-3.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。少し前の塗りの雰囲気 | アニメ、イラスト、古い世代 | 札を確かめる |
+| Illustrious XL 0.1 | [OnomaAIResearch/Illustrious-xl-early-release-v0](https://huggingface.co/OnomaAIResearch/Illustrious-xl-early-release-v0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。キャラクターや服の種類に詳しい | アニメ、イラスト | 札を確かめる |
+| Illustrious XL 2.0 | [Jommarn/Illustrious-XL-v2.0](https://huggingface.co/Jommarn/Illustrious-XL-v2.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。Illustrious の新しい版で、細部が細かい | アニメ、イラスト | 札を確かめる |
+| NoobAI XL 1.1 | [Laxhar/noobai-XL-1.1](https://huggingface.co/Laxhar/noobai-XL-1.1) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。絵柄の幅が広く、作家風の指定が効く | アニメ、イラスト | ライセンスの本文を読む必要あり |
+| Hassaku XL | [John6666/hassaku-xl-illustrious-v31-sdxl](https://huggingface.co/John6666/hassaku-xl-illustrious-v31-sdxl) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。くっきりした線と明るい塗り | アニメ、イラスト、線が細い | 札を確かめる |
+| Prefect Illustrious XL | [John6666/prefect-illustrious-xl-v3-sdxl](https://huggingface.co/John6666/prefect-illustrious-xl-v3-sdxl) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。立体感のある塗り | アニメ、イラスト、厚塗り | 札を確かめる |
+| WAI Illustrious | [Ine007/waiIllustriousSDXL_v160](https://huggingface.co/Ine007/waiIllustriousSDXL_v160) | SDXL | 6.9 GB | 6・16 GB | － | 50 | アニメ絵。整った顔と鮮やかな色 | アニメ、イラスト | 札を確かめる |
+| Animagine XL 4.0 Opt | [cagliostrolab/animagine-xl-4.0/animagine-xl-4.0-opt.safetensors](https://huggingface.co/cagliostrolab/animagine-xl-4.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。4.0 を磨いた版で、体の形と色が安定している | アニメ、イラスト、商用可 | 条件付きで商用可（openrail++） |
+| Animagine XL 4.0 Zero | [cagliostrolab/animagine-xl-4.0-zero](https://huggingface.co/cagliostrolab/animagine-xl-4.0-zero) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。4.0 の土台の版で、追加の学びの元に向く | アニメ、イラスト、商用可 | 条件付きで商用可（openrail++） |
+| Illustrious XL 1.0 | [OnomaAIResearch/Illustrious-XL-v1.0/Illustrious-XL-v1.0.safetensors](https://huggingface.co/OnomaAIResearch/Illustrious-XL-v1.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。Illustrious の公式の 1.0。大きな絵でも崩れにくい | アニメ、イラスト | 札を確かめる（sdxl-license） |
+| Illustrious XL 1.1 | [OnomaAIResearch/Illustrious-XL-v1.1/Illustrious-XL-v1.1.safetensors](https://huggingface.co/OnomaAIResearch/Illustrious-XL-v1.1) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。1.0 より文の頼みが通りやすい | アニメ、イラスト | 札を確かめる（sdxl-license） |
+| Illustrious XL 2.0（公式） | [OnomaAIResearch/Illustrious-XL-v2.0/Illustrious-XL-v2.0.safetensors](https://huggingface.co/OnomaAIResearch/Illustrious-XL-v2.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。Illustrious の公式の 2.0。細部が細かい | アニメ、イラスト、商用可 | 条件付きで商用可（creativeml-openrail-m） |
+| NoobAI XL 1.0 | [Laxhar/noobai-XL-1.0](https://huggingface.co/Laxhar/noobai-XL-1.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。作家風と細かいタグがよく効く | アニメ、イラスト | 商用不可（fair-ai-public-license-1.0-sd に NoobAI の追加条項） |
+| Holodayo XL 2.1 | [yodayo-ai/holodayo-xl-2.1](https://huggingface.co/yodayo-ai/holodayo-xl-2.1) | SDXL | 7.1 GB | 6・16 GB | － | 0 | アニメ絵。配信者風の明るいキャラクターに強い | アニメ、イラスト | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
+| Clandestine XL 1.0 | [yodayo-ai/clandestine-xl-1.0](https://huggingface.co/yodayo-ai/clandestine-xl-1.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。落ち着いた色と柔らかい陰影 | アニメ、イラスト、淡い色 | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
+| Nova Anime XL | [John6666/nova-anime-xl-il-v90-sdxl](https://huggingface.co/John6666/nova-anime-xl-il-v90-sdxl) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。くっきりした線と鮮やかな塗り | アニメ、イラスト、線が細い、アニメ塗り | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
+| Obsession Illustrious XL | [John6666/obsession-illustriousxl-v31-sdxl](https://huggingface.co/John6666/obsession-illustriousxl-v31-sdxl) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。顔が整い、光の表現が豊か | アニメ、イラスト、厚塗り | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
+| Amanatsu Illustrious | [John6666/amanatsu-illustrious-v11-sdxl](https://huggingface.co/John6666/amanatsu-illustrious-v11-sdxl) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。淡い色の柔らかい絵柄 | アニメ、イラスト、淡い色 | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
+| IllumiYume XL | [John6666/illumiyume-anime-style-noobai-xl-nai-xl-v10-sdxl](https://huggingface.co/John6666/illumiyume-anime-style-noobai-xl-nai-xl-v10-sdxl) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。アニメの画面のような塗り | アニメ、イラスト、アニメ塗り | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
+| ArtiWaifu Diffusion 2.0 | [Eugeoter/artiwaifu-diffusion-2.0](https://huggingface.co/Eugeoter/artiwaifu-diffusion-2.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。作家風の指定が効き、絵が整う | アニメ、イラスト | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
+| Kohaku XL Epsilon | [KBlueLeaf/Kohaku-XL-Epsilon-rev3](https://huggingface.co/KBlueLeaf/Kohaku-XL-Epsilon-rev3) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。画集のような整った絵柄 | アニメ、イラスト | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
+| AAM XL AnimeMix | [Lykon/AAM_XL_AnimeMix](https://huggingface.co/Lykon/AAM_XL_AnimeMix) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。背景まで描き込む | アニメ、イラスト | 札を確かめる |
+| Kohaku XL Zeta | [KBlueLeaf/Kohaku-XL-Zeta](https://huggingface.co/KBlueLeaf/Kohaku-XL-Zeta) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。イラスト集のような落ち着いた塗り | アニメ、イラスト | 札を確かめる |
+| blue pencil XL | [GHArt/blue_pencil-XL_V1.0_xl_fp16](https://huggingface.co/GHArt/blue_pencil-XL_V1.0_xl_fp16) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。淡い色と柔らかい線 | アニメ、イラスト、線が細い、淡い色 | 札を確かめる |
+| Raehoshi illust XL | [Raelina/Raehoshi-illust-XL-11](https://huggingface.co/Raelina/Raehoshi-illust-XL-11) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。光の表現が華やか | アニメ、イラスト、厚塗り | 札を確かめる |
+| AnimeBoys XL | [Koolchh/AnimeBoysXL-v3.0](https://huggingface.co/Koolchh/AnimeBoysXL-v3.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。男性キャラクターに強い | アニメ、イラスト | 札を確かめる |
+| True Pencil XL | [John6666/true-pencil-xl-v100-sdxl](https://huggingface.co/John6666/true-pencil-xl-v100-sdxl) | SDXL | 6.9 GB | 6・16 GB | － | 0 | 鉛筆画や線画の風合い | 線が細い | 札を確かめる |
+| Pony Diffusion V6 XL | [Runware/Pony_Diffusion_V6_XL](https://huggingface.co/Runware/Pony_Diffusion_V6_XL) | SDXL | 17.6 GB | 6・16 GB | － | 0 | アニメ絵とカートゥーン。デフォルメに強い | ちびキャラ向き、GPU向き | 札を確かめる |
+| DreamShaper XL Lightning | [Lykon/dreamshaper-xl-lightning](https://huggingface.co/Lykon/dreamshaper-xl-lightning) | SDXL | 6.9 GB | 6・16 GB | － | 75 | 速い。写実寄りからイラストまで幅広い | イラスト、写実寄り | 札を確かめる |
+| DreamShaper XL | [Lykon/dreamshaper-xl-1-0](https://huggingface.co/Lykon/dreamshaper-xl-1-0) | SDXL | 7.1 GB | 6・16 GB | － | 0 | 写実寄りからイラストまで幅広い | イラスト、写実寄り | 札を確かめる |
+| SDXL 1.0 | [stabilityai/stable-diffusion-xl-base-1.0](https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | 元になった基本の模型。素直な絵 | イラスト、商用可 | 条件付きで商用可（openrail++） |
+| RealVisXL 5.0 | [SG161222/RealVisXL_V5.0](https://huggingface.co/SG161222/RealVisXL_V5.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | 写真のような写実 | リアル | 札を確かめる |
+| Juggernaut XL 9 | [RunDiffusion/Juggernaut-XL-v9](https://huggingface.co/RunDiffusion/Juggernaut-XL-v9) | SDXL | 6.9 GB | 6・16 GB | － | 0 | 写実。映画のような光 | リアル | 札を確かめる |
+| Playground 2.5 | [playgroundai/playground-v2.5-1024px-aesthetic](https://huggingface.co/playgroundai/playground-v2.5-1024px-aesthetic) | SDXL | 6.9 GB | 6・16 GB | － | 0 | 鮮やかで見栄えのする絵 | イラスト | 札を確かめる |
+| DreamShaper 8 | [Lykon/dreamshaper-8](https://huggingface.co/Lykon/dreamshaper-8) | SD1.5 | 2.1 GB | 4・8 GB | － | 0 | 古い世代。軽くて速い。写実からイラストまで | 写実寄り、古い世代、軽い | 札を確かめる |
+| Counterfeit 2.5 | [gsdf/Counterfeit-V2.5](https://huggingface.co/gsdf/Counterfeit-V2.5) | SD1.5 | 4.3 GB | 4・8 GB | － | 0 | 古い世代のアニメ絵。背景がきれい | アニメ、イラスト、古い世代、軽い | 札を確かめる |
+| Anything V5 | [genai-archive/anything-v5](https://huggingface.co/genai-archive/anything-v5) | SD1.5 | 4.3 GB | 4・8 GB | － | 0 | 古い世代のアニメ絵の定番 | アニメ、イラスト、古い世代、軽い | 札を確かめる |
+| MeinaMix 11 | [digiplay/MeinaMix_v11](https://huggingface.co/digiplay/MeinaMix_v11) | SD1.5 | 2.1 GB | 4・8 GB | － | 0 | 古い世代のアニメ絵。かわいい顔 | アニメ、イラスト、古い世代、軽い | 札を確かめる |
+| ReV Animated | [stablediffusionapi/revanimated](https://huggingface.co/stablediffusionapi/revanimated) | SD1.5 | 4.3 GB | 4・8 GB | － | 0 | 古い世代。絵本やゲームの絵のような 2.5D | イラスト、写実寄り、古い世代、軽い | 札を確かめる |
+| AWPainting | [sam749/AWPainting-v1-2](https://huggingface.co/sam749/AWPainting-v1-2) | SD1.5 | 4.3 GB | 4・8 GB | － | 0 | 古い世代のアニメ絵。厚塗りの風合い | アニメ、イラスト、厚塗り、古い世代、軽い | 札を確かめる |
+| Dreamlike Anime | [dreamlike-art/dreamlike-anime-1.0](https://huggingface.co/dreamlike-art/dreamlike-anime-1.0) | SD1.5 | 2.1 GB | 4・8 GB | － | 0 | 古い世代のアニメ絵。幻想的な色 | アニメ、イラスト、古い世代、軽い | 札を確かめる |
+| GuoFeng 3 | [xiaolxl/GuoFeng3](https://huggingface.co/xiaolxl/GuoFeng3) | SD1.5 | 4.3 GB | 4・8 GB | － | 0 | 古い世代。中華風の厚塗り | 厚塗り、古い世代、軽い | 札を確かめる |
+| ToonYou | [frankjoshua/toonyou_beta6](https://huggingface.co/frankjoshua/toonyou_beta6) | SD1.5 | 4.3 GB | 4・8 GB | － | 0 | 古い世代。カートゥーンの絵 | ちびキャラ向き、古い世代、軽い | 札を確かめる |
+| Realistic Vision 5.1 | [SG161222/Realistic_Vision_V5.1_noVAE](https://huggingface.co/SG161222/Realistic_Vision_V5.1_noVAE) | SD1.5 | 4.3 GB | 4・8 GB | － | 0 | 古い世代の写実 | リアル、古い世代、軽い | 札を確かめる |
+| SD 1.5 | [stable-diffusion-v1-5/stable-diffusion-v1-5](https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5) | SD1.5 | 2.1 GB | 4・8 GB | － | 0 | 古い世代の基本の模型 | 古い世代、軽い | 札を確かめる |
+| FLUX.2 klein 4B | [black-forest-labs/FLUX.2-klein-4B](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B) | FLUX.2 | 16 GB | 8・24 GB | － | 0 | 文で頼める新しい世代。4 工程で速い。写真も絵も描く | イラスト、新しい世代、GPU向き、商用可 | 商用可（Apache-2.0） |
+| Z-Image Turbo | [Tongyi-MAI/Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo) | Z-Image | 32.8 GB | 12・32 GB | － | 0 | 文で頼める。8 工程で速い。写真と字が得意 | イラスト、リアル、新しい世代、GPU向き、商用可 | 商用可（Apache-2.0） |
+| Qwen-Image 2512 | [Qwen/Qwen-Image-2512](https://huggingface.co/Qwen/Qwen-Image-2512) | Qwen-Image | 57.7 GB | 24・64 GB | － | 0 | 文で頼める大きな模型。字と細かい指示に強い。GPU が大きくないと重い | イラスト、新しい世代、GPU向き、商用可 | 商用可（Apache-2.0） |
+| Neta Lumina 1.0 | [VirtualAddressExtension/Neta-Lumina-v1.0-diffusers](https://huggingface.co/VirtualAddressExtension/Neta-Lumina-v1.0-diffusers) | Lumina 2 | 21.2 GB | 8・24 GB | － | 0 | 新しい世代のアニメ向け。タグと文の両方で頼める | アニメ、イラスト、新しい世代、GPU向き、商用可 | 商用可（Apache-2.0） |
+| Chroma1-HD | [lodestones/Chroma1-HD](https://huggingface.co/lodestones/Chroma1-HD) | Chroma | 27.5 GB | 12・32 GB | － | 0 | FLUX 系の土台の模型。味付けが無く、何でも描く | イラスト、新しい世代、GPU向き、商用可 | 商用可（Apache-2.0） |
+| FLUX.1 schnell | [black-forest-labs/FLUX.1-schnell](https://huggingface.co/black-forest-labs/FLUX.1-schnell) | FLUX.1 | 33.7 GB | 12・40 GB | － | 0 | 文で頼める。4 工程で速い。取るには Hugging Face での同意が要る | イラスト、新しい世代、GPU向き、商用可 | 商用可（Apache-2.0） |
 
 ### 世代ごとにできること
 

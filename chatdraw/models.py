@@ -1,6 +1,6 @@
 """選べる模型の一覧。初回の設定と模型の管理で、候補として見せる。
 
-score は内部の点数（0〜100）で、利用者には見せない。動かして確かめた結果から付け、確かめていない模型は 0 にする。
+score は確かめた点（0〜100）。画面には利用者の点（ratings）と合わせた 1 つの数だけを出し、細目は出さない。動かして確かめた結果から付け、確かめていない模型は 0 にする。
 候補に出すのは PASS 点以上の物だけで、いちばん点の高い物を「おすすめ」にする。
 確かめ方: 絵の模型は頼み 1 件をラフあり・なしで描かせて見る。言葉の模型は日本語の頼み 5 件を描く言葉に直させ、細部まで正しい件数で付ける。
 
@@ -98,6 +98,7 @@ class ImageModel:
     note: str = ""         # 載せた経緯（説明の吹き出しに出す）
     vram: float = 0.0      # 重さ: GPU で描くのに要る VRAM（GB）。0 は世代の目安を使う
     ram: float = 0.0       # 重さ: 要るメモリ（GB）。0 は世代の目安を使う
+    tags: tuple = ()       # 好みで探すためのタグ（アニメ、厚塗り、軽い など）。利用者のタグは ratings で重ねる
 
     @property
     def hub(self) -> str:
@@ -130,7 +131,8 @@ def _entry(m: dict, user: bool = False) -> ImageModel:
                       en=m.get("en", ""), score=m.get("score", 0), family=m["family"], prefix=m.get("prefix", ""),
                       commercial=m.get("commercial", ""), negative=m.get("negative", ""),
                       vpred=m.get("vpred", False), rescale=m.get("rescale", 0.0), file=m.get("file", "") if single else "",
-                      user=user, note=m.get("note", ""), vram=m.get("vram", 0.0), ram=m.get("ram", 0.0))
+                      user=user, note=m.get("note", ""), vram=m.get("vram", 0.0), ram=m.get("ram", 0.0),
+                      tags=tuple(m.get("tags", ())))
 
 
 def _load_images() -> tuple[ImageModel, ...]:
@@ -340,15 +342,23 @@ FILTERS = {   # 模型の管理の絞り込み。名前と、その名前で残�
     "新しい世代": lambda m: m.family in NEW,
     "自分で足した": lambda m: m.user,
 }
-SORTS = {
+SORTS = {   # 先頭が既定。点は利用者の点があればそれ、無ければ目録の点（ratings）
+    "点の高い順": lambda m: _rating_key(m),
     "確かめ済みが先": lambda m: (-m.score, m.name.lower()),
     "名前": lambda m: m.name.lower(),
     "小さい順": lambda m: (m.gb, m.name.lower()),
 }
 
 
-def pick(models, filter_name: str = "すべて", sort_name: str = "確かめ済みが先") -> list[ImageModel]:
-    return sorted((m for m in models if FILTERS[filter_name](m)), key=SORTS[sort_name])
+def _rating_key(m):
+    from chatdraw.ratings import sort_key
+    return sort_key(m)
+
+
+def pick(models, filter_name: str = "すべて", sort_name: str = "点の高い順", tags=()) -> list[ImageModel]:
+    """絞り込み（名前）と、選んだタグを全部持つ物だけを、並べ方の順に返す"""
+    from chatdraw.ratings import has_tags
+    return sorted((m for m in models if FILTERS[filter_name](m) and has_tags(m, tags)), key=SORTS[sort_name])
 
 
 def image_model(repo: str) -> ImageModel:

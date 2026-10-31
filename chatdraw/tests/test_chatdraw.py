@@ -591,7 +591,7 @@ class ManagerTest(unittest.TestCase):
             self.assertEqual(len(every), len(models.IMAGES))                  # 既定で目録の全部を出す
             metas = " ".join(lb.text() for c in every for lb in c.findChildren(QLabel))
             self.assertIn("未確認", metas)
-            self.assertIn("確かめ済み", metas)
+            self.assertIn("85 点", metas)                                     # 点は 1 つの数だけ出す
             dlg.filter.setCurrentText("推奨（確かめ済み）")
             rec = [c for c in cards() if "Hugging Face:" in c.toolTip()]
             self.assertEqual(len(rec), len([m for m in models.IMAGES if m.score >= models.PASS]))

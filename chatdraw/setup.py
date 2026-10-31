@@ -282,8 +282,8 @@ class SetupDialog(QDialog):
             self.image_group.addButton(r)
             self.image_radios[m.repo] = r
             from chatdraw.models import family as fam
-            meta = f"{fam(m.family).name}・{m.gb:.0f}GB" + (f"・{m.commercial}" if m.commercial else "") + \
-                ("" if m.score > 0 else "・まだ確かめていない")
+            from chatdraw.ratings import rating_text
+            meta = f"{rating_text(m)}・{fam(m.family).name}・{m.gb:.0f}GB" + (f"・{m.commercial}" if m.commercial else "")
             cards.append((card(r, m.good, meta, has_image(m), best), m.score >= PASS))
         self.sections.append((grid, cards))
 

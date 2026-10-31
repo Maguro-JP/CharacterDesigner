@@ -1,6 +1,8 @@
 """模型の管理。目録の絵の模型を全部並べ、絞り込みと並べ替え、取得・使う・削除・更新と、Hugging Face の名前で足す入口を持つ。
 
-見せるのは、名前・大きさ・世代・確かめたか・商用の可否・得意なこと（1 行）だけにする（内部の点数や置き場の道は見せない）。
+見せるのは、名前・点（1 つの数）・大きさ・世代・商用の可否・得意なこと（1 行）・タグだけにする（点の細目や置き場の道は見せない）。
+点は利用者が付けた点があればそれ、無ければ目録の点（ratings）。既定の並びは点の高い順。
+ボタンが増えて並びが混まないように、まれにしか使わない操作（点・タグ・削除、ディレクトリ）はドロップダウンにまとめる。
 まだ確かめていない模型も取って使えるが、「未確認」と書いて分ける。
 消すのは、利用者がこの画面で選んで確かめたときだけ。使っている模型は消せない。
 """
@@ -12,8 +14,8 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, Signal
-from PySide6.QtWidgets import (QComboBox, QDialog, QFrame, QHBoxLayout, QLabel, QLineEdit, QMessageBox, QProgressBar, QPushButton,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QComboBox, QDialog, QFrame, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMenu, QMessageBox,
+                               QProgressBar, QPushButton, QToolButton, QVBoxLayout, QWidget)
 
 from chatdraw.models import FILTERS, FITS, SORTS, WORDS, ImageModel, catalog_images, family, fits, heavy, machine, pick, verified_words
 from chatdraw.paths import GGUF, HUB, OWN_LLM
@@ -83,8 +85,18 @@ class ModelManager(QDialog):
         self.sort.setToolTip("並べ方")
         self.filter.currentTextChanged.connect(self.refresh)
         self.sort.currentTextChanged.connect(self.refresh)
+        # タグはいくつでも選べるドロップダウン。選んだタグを全部持つ模型だけを出す
+        self.tag_button = QToolButton()
+        self.tag_button.setText("タグ")
+        self.tag_button.setPopupMode(QToolButton.InstantPopup)
+        self.tag_button.setToolTip("好みのタグで絞ります（いくつでも選べます）。自分のタグは各模型の「…」から足せます")
+        self.tag_menu = QMenu(self.tag_button)
+        self.tag_menu.aboutToShow.connect(self._fill_tags)
+        self.tag_button.setMenu(self.tag_menu)
+        self.chosen_tags: list[str] = []
         tools.addWidget(self.filter)
         tools.addWidget(self.sort)
+        tools.addWidget(self.tag_button)
         tools.addStretch()
         self.body.addLayout(tools)
         # 模型が多いので、並びだけを窓の中で流す（窓が画面より縦に長くならないように）
@@ -117,22 +129,30 @@ class ModelManager(QDialog):
         add.addWidget(self.hf_name, 1)
         add.addWidget(self.add_button)
         self.body.addLayout(add)
-        hand = QHBoxLayout()
-        open_dir = QPushButton("手で置く模型の置き場を開く")
-        open_dir.setToolTip("ここに .safetensors か、model_index.json のあるフォルダーを置くと、一覧に出ます")
-        open_dir.clicked.connect(self.open_manual_dir)
+        row = QHBoxLayout()
+        # ディレクトリは 1 つのドロップダウンにまとめる（模型の置き場と、手で置く模型の置き場）
+        self.folder_button = QToolButton()
+        self.folder_button.setText("ディレクトリを開く")
+        self.folder_button.setPopupMode(QToolButton.InstantPopup)
+        self.folder_button.setToolTip("模型の置き場をエクスプローラーで開きます。無ければ作ってから開きます")
+        folder_menu = QMenu(self.folder_button)
+        folder_menu.setToolTipsVisible(True)
+        from chatdraw.paths import LLM_HOME
+        a = folder_menu.addAction("模型の置き場", lambda: self.open_dir(LLM_HOME))
+        a.setToolTip("絵と言葉の模型を置く所。ほかの自作アプリと共有します")
+        a = folder_menu.addAction("手で置く模型", self.open_manual_dir)
+        a.setToolTip("ここに .safetensors か、model_index.json のあるディレクトリを置くと、一覧に出ます")
+        self.folder_button.setMenu(folder_menu)
         pick = QPushButton("ファイルを選んで使う…")
         pick.setToolTip("手元の絵の模型（.safetensors）を選んで、そのまま使います。ファイルは動かしません")
         pick.clicked.connect(self.pick_file)
-        hand.addWidget(open_dir)
-        hand.addWidget(pick)
-        hand.addStretch()
-        self.body.addLayout(hand)
-        row = QHBoxLayout()
         self.update_button = QPushButton("更新を確かめる")
+        self.update_button.setToolTip("手元にある確かめ済みの模型に新しい版があれば取ります")
         self.update_button.clicked.connect(self.update_all)
         close = QPushButton("閉じる")
         close.clicked.connect(self.accept)
+        row.addWidget(self.folder_button)
+        row.addWidget(pick)
         row.addWidget(self.update_button)
         row.addStretch()
         row.addWidget(close)
@@ -161,11 +181,11 @@ class ModelManager(QDialog):
         head = QLabel("絵の模型")
         head.setObjectName("dialogTitle")
         self.list.addWidget(head)
-        shown = pick(catalog_images(), self.filter.currentText(), self.sort.currentText())
+        shown = pick(catalog_images(), self.filter.currentText(), self.sort.currentText(), self.chosen_tags)
         for m in shown:
             self.list.addWidget(self._image_row(m, mine.get(m.repo)))
         known = {m.repo for m in catalog_images()}
-        if self.filter.currentText() == "すべて":
+        if self.filter.currentText() == "すべて" and not self.chosen_tags:
             for it in (it for it in mine.values() if it.key not in known):   # 目録に無い、前に取った物
                 self.list.addWidget(self._row(it.name, f"{it.gb:.1f}GB", *self._image_actions(it.key, it)))
             for it in [x for x in have if x.kind == "manual"]:
@@ -187,26 +207,72 @@ class ModelManager(QDialog):
                 self.list.addWidget(self._row(m.name, f"{m.gb:.1f}GB", "取る", lambda _=False, m=m: self.fetch(m)))
 
     def _image_actions(self, key: str, it: "Item | None", m: ImageModel | None = None):
-        """ボタンの組（名前と働き）。取っていなければ「取る」、取ってあれば「使う」と「削除」、使っている物は「使用中」"""
+        """ボタン（名前と働き）。取っていなければ「取る」、取ってあれば「使う」、使っている物は「使用中」。削除は「…」の中"""
         if it is None:
             return "取る", (lambda _=False, m=m: self.fetch(m))
         if self.settings.get("image_model") == key:
             return "使用中", None
         return "使う", (lambda _=False, key=key, m=m: self.use(key, m)), "削除", (lambda _=False, it=it: self.ask_delete(it))
 
+    def _more(self, m: ImageModel, actions: tuple) -> QMenu:
+        """「…」のドロップダウン。自分の点、自分のタグ、削除（取ってある物だけ）"""
+        menu = QMenu(self)
+        menu.addAction("自分の点を付ける…", lambda m=m: self.ask_rating(m))
+        menu.addAction("自分のタグ…", lambda m=m: self.ask_tags(m))
+        if len(actions) > 2 and actions[3] is not None:
+            menu.addSeparator()
+            menu.addAction(actions[2], actions[3])
+        return menu
+
+    def ask_rating(self, m: ImageModel):
+        from chatdraw.ratings import set_user_rating, user_rating
+        value, ok = QInputDialog.getInt(self, "自分の点", f"{m.name} の点（0〜100。0 にすると確かめた点に戻ります）",
+                                        user_rating(m.repo), 0, 100)
+        if ok:
+            set_user_rating(m.repo, value)
+            self.refresh()
+
+    def ask_tags(self, m: ImageModel):
+        from chatdraw.ratings import set_user_tags, user_tags
+        text, ok = QInputDialog.getText(self, "自分のタグ", f"{m.name} に付けるタグ（、で区切る）", text="、".join(user_tags(m.repo)))
+        if ok:
+            set_user_tags(m.repo, [t for t in text.replace(",", "、").split("、")])
+            self.refresh()
+
+    def _fill_tags(self):
+        from chatdraw.ratings import all_tags
+        self.tag_menu.clear()
+        clear = self.tag_menu.addAction("絞らない", lambda: self.set_tags([]))
+        clear.setEnabled(bool(self.chosen_tags))
+        self.tag_menu.addSeparator()
+        for t in all_tags(catalog_images()):
+            a = self.tag_menu.addAction(t)
+            a.setCheckable(True)
+            a.setChecked(t in self.chosen_tags)
+            a.toggled.connect(lambda on, t=t: self.set_tags([x for x in self.chosen_tags if x != t] + ([t] if on else [])))
+
+    def set_tags(self, tags: list[str]):
+        self.chosen_tags = list(tags)
+        self.tag_button.setText("タグ" + (f"（{len(tags)}）" if tags else ""))
+        self.tag_button.setToolTip("選んでいるタグ: " + "、".join(tags) if tags else "好みのタグで絞ります（いくつでも選べます）")
+        self.refresh()
+
     def _image_row(self, m: ImageModel, it: "Item | None") -> QWidget:
-        sure = "確かめ済み" if m.score > 0 else "未確認"
+        from chatdraw.ratings import rating_text, tags, user_rating
+        sure = rating_text(m) + ("（自分の点）" if user_rating(m.repo) else "")
         deal = (m.commercial or "札を確かめる").split("（")[0]
         if not hasattr(self, "_pc"):
             self._pc = machine()   # この PC の VRAM とメモリ（1 回だけ測る）
         can = fits(m, *self._pc)
         need_vram, need_ram = heavy(m)
-        meta = "・".join(x for x in (f"{m.gb:.1f}GB", family(m.family).name, sure, deal, FITS[can]) if x)
+        meta = "・".join(x for x in (sure, f"{m.gb:.1f}GB", family(m.family).name, deal, FITS[can]) if x)
         pc = (f"この PC: VRAM {self._pc[0]:.0f}GB、メモリ {self._pc[1]:.0f}GB" if self._pc[0] else f"この PC: GPU なし、メモリ {self._pc[1]:.0f}GB")
         tip = "\n".join(x for x in (f"Hugging Face: {m.hub}" + (f" の {m.file}" if m.file else ""), m.good, f"商用: {m.commercial or '札を確かめる'}",
                                      f"重さ: GPU で描くには VRAM {need_vram:g}GB 以上、メモリ {need_ram:g}GB 以上（{pc}）",
                                      "まだ動かして確かめていない模型です。崩れが多いことがあります" if m.score <= 0 else "", m.note) if x)
-        box = self._row(m.name, meta, *self._image_actions(m.repo, it, m), sub=m.good)
+        actions = self._image_actions(m.repo, it, m)
+        sub = m.good + ("\n" + " ".join(f"#{t}" for t in tags(m)) if tags(m) else "")
+        box = self._row(m.name, meta, *actions[:2], sub=sub, more=self._more(m, actions))
         box.setToolTip(tip)
         return box
 
@@ -240,13 +306,13 @@ class ModelManager(QDialog):
 
     def open_manual_dir(self):
         """手で置く模型の置き場を作って開く（エクスプローラー）"""
-        from PySide6.QtCore import QUrl
-        from PySide6.QtGui import QDesktopServices
         from chatdraw.models import manual_dir
-        d = manual_dir()
-        d.mkdir(parents=True, exist_ok=True)
-        QDesktopServices.openUrl(QUrl.fromLocalFile(str(d)))
+        d = self.open_dir(manual_dir())
         self.status.setText(f"{d} に置いたら、この窓を開き直すと一覧に出ます")
+
+    def open_dir(self, path) -> Path:
+        from chatdraw.folders import open_folder
+        return open_folder(path)
 
     def pick_file(self, path: str | None = None):
         from PySide6.QtWidgets import QFileDialog
@@ -257,12 +323,12 @@ class ModelManager(QDialog):
                 return
         path = str(Path(path).resolve())
         if not is_local(path):
-            self.status.setText("使えない形です。.safetensors のファイルか、model_index.json のあるフォルダーを選んでください")
+            self.status.setText("使えない形です。.safetensors のファイルか、model_index.json のあるディレクトリを選んでください")
             return
         m = local_model(path)
         from chatdraw.models import family as fam
         if m.family == "unknown":
-            self.status.setText("形を見分けられませんでした。SDXL・SD1.5・FLUX.1 の .safetensors か、diffusers のフォルダーを選んでください")
+            self.status.setText("形を見分けられませんでした。SDXL・SD1.5・FLUX.1 の .safetensors か、diffusers のディレクトリを選んでください")
             return
         self.settings.set("image_model", m.repo)
         self.settings.set("steps", m.steps)
@@ -270,7 +336,7 @@ class ModelManager(QDialog):
         self.status.setText(f"{m.name} を使います（{fam(m.family).name} として読みます）")
         self.refresh()
 
-    def _row(self, name: str, size: str, action: str, fn, action2: str = "", fn2=None, sub: str = "") -> QWidget:
+    def _row(self, name: str, size: str, action: str, fn, action2: str = "", fn2=None, sub: str = "", more: QMenu | None = None) -> QWidget:
         box = QFrame()
         box.setObjectName("card")
         row = QHBoxLayout(box)
@@ -280,6 +346,7 @@ class ModelManager(QDialog):
         text.addWidget(QLabel(name))
         meta = QLabel(size + (f"\n{sub}" if sub else ""))
         meta.setObjectName("cardMeta")
+        meta.setWordWrap(True)   # 長い説明で横に流れて「…」が窓の外に出ないように
         text.addWidget(meta)
         row.addLayout(text, 1)
         for label, f in ((action, fn), (action2, fn2)):
@@ -289,6 +356,14 @@ class ModelManager(QDialog):
             b.setEnabled(f is not None)
             if f is not None:
                 b.clicked.connect(f)
+            row.addWidget(b)
+        if more is not None:
+            b = QToolButton()
+            b.setText("…")
+            b.setPopupMode(QToolButton.InstantPopup)
+            b.setToolTip("自分の点・自分のタグ・削除")
+            b.setMenu(more)
+            box.more = more
             row.addWidget(b)
         return box
 
