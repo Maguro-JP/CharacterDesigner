@@ -1,44 +1,32 @@
 {
  "name": "retro-sf",
- "title": "レトロSF",
- "mood": "紺の宇宙に生成りの計器盤。方眼と走査線を地に入れ、見出しは角の丸い札に番号。宇宙・ロボット・操縦士に合う",
+ "title": "昔の宇宙",
+ "mood": "クリーム色の地に紺と橙。方眼を薄く敷く。宇宙・機械・探検に合う",
+ "colors": {
+  "page": "#f2ecdc",
+  "card": "#e4dcc6",
+  "ink": "#1f2a44",
+  "sub": "#5f6780",
+  "accent": "#e05a2a",
+  "rule": "#cfc6ae"
+ },
+ "motif": "grid",
+ "font": "sans",
  "fits": [
   "space",
-  "pilot",
   "robot",
-  "sci-fi",
+  "pilot",
   "rocket",
-  "astronaut",
-  "android",
-  "helmet",
+  "mechanic",
   "宇宙",
-  "ロボット",
-  "操縦"
+  "機械",
+  "操縦",
+  "探検"
  ],
- "colors": {
-  "page": "#14213d",
-  "page2": "#0b1428",
-  "card": "#f1e9d2",
-  "ink": "#14213d",
-  "sub": "#4a5a78",
-  "rule": "#9fb0c8",
-  "accent": "#f28c28",
-  "accent2": "#2a9d8f",
-  "band_text": "#14213d",
-  "guide": "#f28c28",
-  "page_ink": "#f1e9d2",
-  "page_sub": "#9fb0c8"
- },
- "texture": "grid",
- "texture_strength": 0.5,
- "motif": "stars",
- "motif_alpha": 0.5,
- "frame": "corners",
+ "texture": "plain",
+ "frame": "none",
  "heading": {
-  "style": "pill",
-  "number": "arabic"
+  "style": "label"
  },
- "title_font": "pixel",
- "card_radius": 26,
- "card_shadow": false
+ "card_radius": 4
 }

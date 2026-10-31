@@ -6,53 +6,42 @@
   2400,
   1256
  ],
- "ratio": "1.91:1（横長）",
+ "ratio": "1.91:1（横）",
+ "areas": [
+  "hero hero hero hero head head head head head head head head",
+  "hero hero hero hero expr expr expr expr expr expr expr expr",
+  "hero hero hero hero strip strip strip strip strip strip strip strip"
+ ],
+ "rows": [
+  "auto",
+  "1fr",
+  "auto"
+ ],
+ "margin": 0.05,
+ "type": {
+  "name": 84,
+  "head": 17,
+  "body": 16,
+  "note": 13
+ },
  "panels": [
   {
-   "kind": "poses",
-   "box": [
-    0.03,
-    0.04,
-    0.34,
-    0.92
-   ],
-   "title": "",
-   "count": 1,
-   "hero": true,
-   "fill_front": true
+   "kind": "hero",
+   "area": "hero"
   },
   {
    "kind": "header",
-   "box": [
-    0.4,
-    0.07,
-    0.57,
-    0.18
-   ],
-   "big": true
+   "area": "head"
   },
   {
    "kind": "expressions",
-   "box": [
-    0.4,
-    0.29,
-    0.57,
-    0.4
-   ],
-   "title": "",
+   "area": "expr",
    "cols": 3,
-   "rows": 1
+   "max": 3
   },
   {
    "kind": "strip",
-   "box": [
-    0.4,
-    0.73,
-    0.57,
-    0.22
-   ],
-   "title": "色"
+   "area": "strip"
   }
- ],
- "text_scale": 1.6
+ ]
 }

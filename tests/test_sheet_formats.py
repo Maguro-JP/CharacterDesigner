@@ -1,5 +1,5 @@
 """設定画集の版（styles/sheet-formats/*.json）とテーマ（styles/sheet-themes/*.json）が読めること、
-版とテーマを組み合わせて出せること、欄が版面からはみ出さないこと"""
+版とテーマを組み合わせて出せること、欄が区画からはみ出さないこと、中身の無い区画を作らないこと"""
 import json
 import sys
 from pathlib import Path
@@ -22,12 +22,14 @@ def test_formats_list_has_one_default():
 
 
 @pytest.mark.parametrize("name", NAMES)
-def test_format_loads_and_panels_inside_page(name):
+def test_format_grid_is_12_columns(name):
     fm = charsheet.load_format(name)
     assert fm["name"] == name and fm["purpose"] and fm["ratio"]
-    for pn in fm.get("panels", []):
-        x, y, w, h = pn["box"]
-        assert 0 <= x and 0 <= y and x + w <= 1.0001 and y + h <= 1.0001, pn
+    rows = [r.split() for r in fm["areas"]]
+    assert all(len(r) == 12 for r in rows) and len(fm["rows"]) == len(rows)
+    named = {a for r in rows for a in r}
+    for pn in fm["panels"]:
+        assert pn["area"] in named, pn
 
 
 @pytest.mark.parametrize("name", NAMES)
@@ -35,7 +37,10 @@ def test_sample_renders_without_overflow(name, tmp_path):
     r = charsheet.sheet_format("sheep-girl", name, str(tmp_path / f"{name}.png"))
     W, H = r["size"]
     assert (tmp_path / f"{name}.png").exists()
-    assert r["outside_panel"] == 0
+    assert r["outside_panel"] == 0, r["over"]
+    assert r["empty"] == []
+    from PIL import Image
+    assert Image.open(tmp_path / f"{name}.png").size == tuple(r["size"])
     for _, _, d in r["drawn"]:
         assert d[0] >= 0 and d[1] >= 0 and d[2] <= W and d[3] <= H, d
 
@@ -51,8 +56,10 @@ def test_themes_load_and_one_default():
     assert sum(bool(t.get("default")) for t in ts) == 1
     for t in ts:
         th = charsheet.load_theme(t["name"])
-        for k in ("page", "card", "ink", "accent", "rule"):
+        for k in ("page", "card", "ink", "sub", "accent"):
             assert k in th["colors"], (t["name"], k)
+        # 地・文字・補助・差し色（と表情の台）に絞る。色が増えるほど、主役の絵の色と競った
+        assert len(set(th["colors"].values())) <= 6, t["name"]
 
 
 @pytest.mark.parametrize("theme", THEMES)
@@ -60,7 +67,7 @@ def test_themes_load_and_one_default():
 def test_theme_and_format_combine_without_overflow(theme, name, tmp_path):
     r = charsheet.sheet_format("sheep-girl", name, str(tmp_path / "s.png"), theme=theme)
     W, H = r["size"]
-    assert r["theme"] == theme and r["outside_panel"] == 0
+    assert r["theme"] == theme and r["outside_panel"] == 0 and r["empty"] == []
     for _, _, d in r["drawn"]:
         assert d[0] >= 0 and d[1] >= 0 and d[2] <= W and d[3] <= H, d
 

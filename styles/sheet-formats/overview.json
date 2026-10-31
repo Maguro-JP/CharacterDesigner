@@ -6,73 +6,51 @@
   2400,
   1350
  ],
- "ratio": "16:9",
+ "ratio": "16:9（横）",
+ "areas": [
+  "hero hero hero head head head head head head side side side",
+  "hero hero hero turn turn turn turn turn turn side side side",
+  "hero hero hero expr expr expr expr expr expr side side side"
+ ],
+ "rows": [
+  "auto",
+  "1fr",
+  "0.8fr"
+ ],
+ "margin": 0.04,
  "panels": [
   {
-   "kind": "header",
-   "box": [
-    0.025,
-    0.03,
-    0.95,
-    0.075
-   ]
+   "kind": "hero",
+   "area": "hero"
   },
   {
-   "kind": "poses",
-   "box": [
-    0.025,
-    0.13,
-    0.25,
-    0.85
-   ],
-   "title": "",
-   "count": 1,
-   "hero": true,
-   "fill_front": true
+   "kind": "header",
+   "area": "head"
   },
   {
    "kind": "turnaround",
-   "box": [
-    0.295,
-    0.13,
-    0.45,
-    0.52
-   ],
+   "area": "turn",
    "title": "四面図",
    "guides": true
   },
   {
+   "kind": "notes",
+   "area": "side",
+   "title": "注記",
+   "brief": true
+  },
+  {
    "kind": "expressions",
-   "box": [
-    0.295,
-    0.67,
-    0.45,
-    0.31
-   ],
+   "area": "expr",
    "title": "表情",
    "cols": 6,
-   "rows": 1
+   "max": 6
   },
   {
    "kind": "swatches",
-   "box": [
-    0.765,
-    0.13,
-    0.21,
-    0.4
-   ],
-   "title": "色",
-   "style": "list"
-  },
-  {
-   "kind": "notes",
-   "box": [
-    0.765,
-    0.55,
-    0.21,
-    0.43
-   ],
-   "title": "注記"
+   "area": "side",
+   "style": "chips",
+   "title": "色"
   }
  ]
 }

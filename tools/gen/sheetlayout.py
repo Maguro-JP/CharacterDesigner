@@ -1,0 +1,397 @@
+"""設定画集の1枚を HTML と CSS で組み、Chromium で PNG に書き出す。
+
+版（styles/sheet-formats/<名前>.json）は 12 列の格子の区画（grid-template-areas）と、区画に入れる欄を持つ。
+テーマ（styles/sheet-themes/<名前>.json）は 3〜4 色と地の模様と書体を持つ。
+
+PIL で直接描いていたときは、字間・行間・書体の太さと、欄の間隔をそろえる調整が描画の処理ごとに分かれ、
+見出しの帯や台紙の枠で区切るしかなかった。CSS grid なら格子と余白を数字で決められ、文字組みもブラウザに任せられる。
+数字の根拠は docs/knowledge/learning/design-sheet-layout.md の実例の表。
+
+  CSS の大きさは出力の半分で組み、device_scale_factor 2 で書き出す（文字と細い線を2倍の解像度で描くため）。
+"""
+from __future__ import annotations
+
+import base64
+import html
+import io
+import json
+import os
+import tempfile
+from pathlib import Path
+
+import bible
+import charsheet as cs
+
+FONTS = bible.ROOT / ".cache" / "fonts"
+CHROME = os.environ.get("SHEET_CHROME", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
+# 横の向きの名前。四面図の絵は 正面・右向き・左向き・背面 の順に描いてある
+VIEW_NAMES = {4: ["正面", "右向き", "左向き", "背面"], 2: ["正面", "背面"], 1: ["正面"]}
+TILE_CROP = (0.10, 0.0, 0.90, 0.50)   # 表情の絵から頭と肩を切る割合。顔だけ（FACE_CROP）だと髪型と襟が切れて別人に見えた
+
+
+def _uri(im, fmt="PNG") -> str:
+    buf = io.BytesIO()
+    im.save(buf, fmt, quality=92) if fmt == "JPEG" else im.save(buf, fmt, optimize=False)
+    return f"data:image/{fmt.lower()};base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def _cut_rgba(im):
+    im = im.convert("RGB")
+    from PIL import ImageFilter
+    # 縁を2画素削る。白い背景の縁取りが残ると、暗い地のテーマで人物の周りに白い線が出た
+    m = cs._cutout(im).point(lambda v: 255 if v > 200 else 0).filter(ImageFilter.MinFilter(5)).filter(ImageFilter.GaussianBlur(0.8))
+    out = im.convert("RGBA")
+    out.putalpha(m)
+    return out
+
+
+def _figures(c):
+    """四面図の人物を1人ずつ透かして切り出す。返り値は (名前, 画像) の並び。全員を同じ上端・下端で切るので縮尺がそろう"""
+    from PIL import Image
+    p = c.get("images", {}).get("turnaround")
+    if not p:
+        return []
+    im = Image.open(bible.ROOT / p).convert("RGB")
+    spans, top, bot = cs._figures(im)
+    cut = _cut_rgba(im)
+    names = VIEW_NAMES.get(len(spans), [""] * len(spans))
+    pad = 6
+    return [(n, cut.crop((max(0, a - pad), max(0, top - pad), min(im.width, b + pad), min(im.height, bot + pad))))
+            for n, (a, b) in zip(names, spans)]
+
+
+def _hero(c, figs):
+    """主役の立ち姿: 背景を透かせるポーズの絵で最も大きいもの、無ければ四面図の正面。
+    場面つきの絵（背景を透かせない）は地の上に立たせられないので使わない"""
+    from PIL import Image
+    for _, p in cs._pose_list(c):
+        im = Image.open(bible.ROOT / p).convert("RGB")
+        cut = _cut_rgba(im)
+        if cut.getchannel("A").getextrema()[0] == 0:   # 透けた所がある = 背景を外せた
+            return cut.crop(cut.getchannel("A").getbbox()), "立ち姿"
+    if figs:
+        return figs[0][1], "基準の正面"
+    return None, ""
+
+
+def _faces(ident, c, n):
+    from PIL import Image
+    out = []
+    for name, p in cs._expr_list(ident, c)[:n]:
+        im = Image.open(bible.ROOT / p).convert("RGB")
+        x0, y0, x1, y1 = TILE_CROP
+        out.append((name, im.crop((int(x0 * im.width), int(y0 * im.height), int(x1 * im.width), int(y1 * im.height)))))
+    return out
+
+
+def _callouts(ident, c):
+    from PIL import Image
+    ex = cs._expr_list(ident, c)
+    if not ex:
+        return []
+    im = Image.open(bible.ROOT / ex[0][1]).convert("RGB")
+    def crop(r):
+        return im.crop((int(r[0] * im.width), int(r[1] * im.height), int(r[2] * im.width), int(r[3] * im.height)))
+    return [("顔", crop(cs.FACE_CROP)), ("目", crop(cs.EYE_CROP))]
+
+
+def _font_css():
+    faces = []
+    for fam, files in (("Noto Sans JP", ("noto-sans-jp", (400, 500, 700, 900))), ("Noto Serif JP", ("noto-serif-jp", (400, 600, 700, 900)))):
+        stem, ws = files
+        for w in ws:
+            for sub in (f"{stem}-latin-{w}", f"{stem}-{w}"):
+                f = FONTS / f"{sub}.woff2"
+                if f.exists():
+                    faces.append(f"@font-face{{font-family:'{fam}';font-weight:{w};src:url('{f.as_uri()}') format('woff2');}}")
+    return "\n".join(faces)
+
+
+PATTERNS = {
+    "none": "none",
+    "dots": "radial-gradient(color-mix(in srgb, var(--ink) 9%, transparent) 1px, transparent 1.4px) 0 0 / 18px 18px",
+    "lines": "repeating-linear-gradient(0deg, color-mix(in srgb, var(--ink) 5%, transparent) 0 1px, transparent 1px 28px)",
+    "grid": "linear-gradient(color-mix(in srgb, var(--ink) 5%, transparent) 1px, transparent 1px) 0 0 / 32px 32px,"
+            " linear-gradient(90deg, color-mix(in srgb, var(--ink) 5%, transparent) 1px, transparent 1px) 0 0 / 32px 32px",
+}
+
+CSS = """
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{width:var(--W);height:var(--H);overflow:hidden}
+body{background:var(--page);color:var(--ink);font-family:var(--font);font-weight:400;
+  -webkit-font-smoothing:antialiased;font-feature-settings:"palt"}
+.bg{position:absolute;inset:0;background:var(--pattern);pointer-events:none}
+.page{position:absolute;inset:var(--m);display:grid;grid-template-columns:repeat(12,1fr);
+  column-gap:var(--g);row-gap:var(--rg);grid-template-areas:var(--areas);grid-template-rows:var(--rows)}
+.cell{min-width:0;min-height:0;display:flex;flex-direction:column;gap:calc(var(--rg) * .75)}
+.panel{flex:none;display:flex;flex-direction:column}
+.panel.grow{flex:1;min-height:0}
+.panel.fill{flex:1;min-height:0}
+.panel.fill .swt{flex:1}
+.lab{font-size:var(--t-head);font-weight:700;letter-spacing:.12em;color:var(--accent);
+  display:flex;align-items:baseline;gap:.6em;margin-bottom:calc(var(--t-head) * .6);line-height:1}
+.lab small{font-size:var(--t-note);font-weight:400;letter-spacing:.06em;color:var(--sub)}
+.lab::after{content:"";flex:1;height:1px;background:color-mix(in srgb, var(--sub) 35%, transparent);align-self:center}
+.name{font-family:var(--title-font);font-size:var(--t-name);font-weight:var(--name-w);line-height:1.05;letter-spacing:.04em}
+.kana{font-size:var(--t-note);letter-spacing:.32em;color:var(--sub);margin-top:calc(var(--t-note) * .9);text-transform:uppercase}
+.meta{font-size:var(--t-body);color:var(--sub);margin-top:calc(var(--t-body) * .6);line-height:1.6}
+.meta b{color:var(--ink);font-weight:500}
+.fit{flex:1;position:relative;min-height:0}
+.fit img{position:absolute;display:block}
+.shadow{position:absolute;border-radius:50%;background:radial-gradient(closest-side, color-mix(in srgb, var(--ink) 18%, transparent), transparent)}
+.guide{position:absolute;left:0;right:0;height:0;border-top:1px dashed color-mix(in srgb, var(--accent) 45%, transparent)}
+.guide span{position:absolute;left:0;top:3px;font-size:var(--t-note);color:var(--sub);letter-spacing:.06em}
+.cap{position:absolute;font-size:var(--t-note);color:var(--sub);letter-spacing:.12em;transform:translateX(-50%);white-space:nowrap}
+.faces{flex:1;display:grid;gap:var(--fg);min-height:0}
+.face{display:flex;flex-direction:column;min-height:0}
+.face .im{flex:1;min-height:0;background:var(--tile);border-radius:var(--radius);overflow:hidden;position:relative}
+.face img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 12%;mix-blend-mode:multiply}
+.face p{font-size:var(--t-note);letter-spacing:.14em;color:var(--sub);text-align:center;margin-top:.55em;line-height:1}
+.notes{list-style:none;font-size:var(--t-body);line-height:1.75;counter-reset:n}
+.notes li{counter-increment:n;display:grid;grid-template-columns:1.8em 1fr;break-inside:avoid;margin-bottom:.55em}
+.notes li::before{content:counter(n,decimal-leading-zero);color:var(--accent);font-weight:700;font-size:var(--t-note);padding-top:.25em;letter-spacing:.04em}
+.notes b{font-weight:700}
+.chips{display:flex;flex-wrap:wrap;gap:calc(var(--t-body) * .7) calc(var(--t-body) * 1.4)}
+.chip{display:flex;align-items:center;gap:.55em;font-size:var(--t-note);color:var(--sub);line-height:1.25}
+.chip i{width:calc(var(--t-body) * 1.6);height:calc(var(--t-body) * 1.6);border-radius:50%;flex:none;
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--ink) 14%, transparent)}
+.chip b{display:block;color:var(--ink);font-weight:500;font-size:var(--t-body)}
+.swl{display:grid;grid-template-columns:repeat(var(--swc,1),1fr);column-gap:var(--g);row-gap:calc(var(--t-body) * .8)}
+.swt{width:100%;border-collapse:collapse;font-size:var(--t-body)}
+.swt td{padding:calc(var(--t-body) * .62) 0;border-bottom:1px solid color-mix(in srgb, var(--sub) 25%, transparent);vertical-align:middle}
+.swt td.k{width:calc(var(--t-body) * 3.4)}
+.swt i{display:block;width:calc(var(--t-body) * 2.6);height:calc(var(--t-body) * 2.6);border-radius:var(--radius);
+  box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--ink) 14%, transparent)}
+.swt .r{color:var(--sub);font-size:var(--t-note);letter-spacing:.08em}
+.swt .h{font-family:ui-monospace,"DejaVu Sans Mono",monospace;font-size:var(--t-note);color:var(--sub)}
+.swt .bar{width:30%}
+.swt .bar div{height:6px;background:color-mix(in srgb, var(--sub) 18%, transparent);border-radius:3px;overflow:hidden}
+.swt .bar span{display:block;height:100%;background:var(--accent)}
+.swt .p{text-align:right;font-size:var(--t-note);color:var(--sub);width:4em}
+.sbar{display:flex;height:calc(var(--t-body) * 2.2);border-radius:var(--radius);overflow:hidden}
+.sleg{display:flex;font-size:var(--t-note);color:var(--sub);margin-top:.5em;line-height:1.3}
+.sleg div{overflow:hidden;white-space:nowrap;text-overflow:clip;padding-right:4px}
+.strip{display:flex;height:calc(var(--t-body) * 0.9);border-radius:99px;overflow:hidden}
+.calls{display:grid;grid-template-columns:1fr 1fr;gap:var(--fg)}
+.call .im{aspect-ratio:1;background:var(--tile);border-radius:var(--radius);overflow:hidden}
+.call img{width:100%;height:100%;object-fit:cover;mix-blend-mode:multiply;display:block}
+.call p{font-size:var(--t-note);color:var(--sub);margin-top:.5em;letter-spacing:.1em}
+.call p b{color:var(--accent);margin-right:.5em}
+"""
+
+# 寸法を決めたあとに、絵を区画に収める（縦横の比を保ち、足を下にそろえる）。四面図の高さの線と名前もここで置く
+JS = r"""
+() => {
+  for (const box of document.querySelectorAll('.fit')) {
+    const img = box.querySelector('img'); if (!img) continue;
+    const W = box.clientWidth, H = box.clientHeight - (box.dataset.cap ? parseFloat(getComputedStyle(document.body).getPropertyValue('--t-note')) * 2.8 : 0);
+    const s = Math.min(W / img.naturalWidth, H / img.naturalHeight);
+    const w = img.naturalWidth * s, h = img.naturalHeight * s, x = (W - w) / 2, y = H - h;
+    Object.assign(img.style, {left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px'});
+    if (box.dataset.shadow) {
+      const sh = document.createElement('div'); sh.className = 'shadow';
+      Object.assign(sh.style, {left: (x + w * 0.5 - w * 0.36) + 'px', width: (w * 0.72) + 'px', top: (y + h - h * 0.032) + 'px', height: (h * 0.036) + 'px'});
+      box.insertBefore(sh, img);
+    }
+    if (box.dataset.caps) {
+      for (const [name, cx] of JSON.parse(box.dataset.caps)) {
+        const p = document.createElement('div'); p.className = 'cap'; p.textContent = name;
+        Object.assign(p.style, {left: (x + w * cx) + 'px', top: (y + h + 10) + 'px'}); box.appendChild(p);
+      }
+    }
+    if (box.dataset.guides) {
+      for (const [name, t] of [['頭の上', 0], ['半分', 0.5], ['足の下', 1]]) {
+        const g = document.createElement('div'); g.className = 'guide'; g.style.top = (y + h * t) + 'px';
+        g.innerHTML = `<span>${name}</span>`; box.insertBefore(g, img);
+      }
+    }
+  }
+  const out = {drawn: [], over: [], empty: []};
+  const r = e => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom].map(v => Math.round(v * 2)); };
+  for (const cell of document.querySelectorAll('.cell')) {
+    const cb = r(cell), area = cell.dataset.area;
+    const items = cell.querySelectorAll('img, .name, .meta, .notes li, .chip, .face p, .cap, .guide span, .swt tr, .sbar, .strip, .lab, .call p');
+    if (!items.length) out.empty.push(area);
+    for (const it of items) {
+      const b = r(it); out.drawn.push([area, cb, b]);
+      if (b[0] < cb[0] - 2 || b[1] < cb[1] - 2 || b[2] > cb[2] + 2 || b[3] > cb[3] + 2) out.over.push([area, it.className || it.tagName, cb, b]);
+    }
+  }
+  return out;
+}
+"""
+
+
+def _swatch_html(sw, style):
+    e = html.escape
+    if style == "table":
+        rows = "".join(
+            f'<tr><td class="k"><i style="background:{s["hex"]}"></i></td><td><b>{e(s["name"])}</b><br><span class="r">{e(s["role"])}</span></td>'
+            f'<td class="h">{s["hex"]}</td><td class="bar"><div><span style="width:{min(100, s["share"] * 250):.0f}%"></span></div></td>'
+            f'<td class="p">{s["share"] * 100:.0f}%</td></tr>' for s in sw)
+        return f'<table class="swt">{rows}</table>'
+    cls = "chips" if style == "chips" else "swl"
+    return f'<div class="{cls}">' + "".join(
+        f'<div class="chip"><i style="background:{s["hex"]}"></i><div><b>{e(s["name"])}</b>{e(s["role"])} · {s["hex"]}</div></div>'
+        for s in sw) + "</div>"
+
+
+def _panel_html(pn, ctx):
+    e = html.escape
+    k, c = pn["kind"], ctx["c"]
+    lab = lambda t, sub="": (f'<div class="lab">{e(t)}{f"<small>{e(sub)}</small>" if sub else ""}</div>' if t else "")
+    if k == "header":
+        items = "・".join(i["name"] for i in c.get("items", [])[:3])
+        meta = f'<div class="meta">持ち物 <b>{e(items)}</b></div>' if items and pn.get("meta", True) else ""
+        return (f'<div class="name">{e(c["name"])}</div><div class="kana">{e(ctx["ident"])} — {e(ctx["fm"]["title"])}</div>{meta}')
+    if k == "hero":
+        im, cap = ctx["hero"]
+        return f'<div class="fit" data-shadow="1"><img src="{_uri(im)}"></div>' if im else ""
+    if k == "turnaround":
+        figs = ctx["figs"]
+        if not figs:
+            return ""
+        im, centers = ctx["turn"]
+        title = pn.get("title", "四面図")
+        if "四面図" in title and len(figs) == 2:   # 2人だけの絵に「四面図」と書くと、足りない向きが読めない
+            title = title.replace("四面図", "正面・背面図")
+        caps = html.escape(json.dumps([[n, x] for (n, _), x in zip(figs, centers)], ensure_ascii=False))
+        g = ' data-guides="1"' if pn.get("guides") else ""
+        return lab(title, pn.get("sub", "")) + f'<div class="fit" data-cap="1" data-caps="{caps}"{g}><img src="{_uri(im)}"></div>'
+    if k == "expressions":
+        faces = _faces(ctx["ident"], c, pn.get("max", 6))
+        if not faces:
+            return ""
+        cols = pn.get("cols", 3)
+        # 最後の行が欠けると空いたますが目立つので、指定の列数の前後で余りの少ない列数を選ぶ
+        cols = min((cols, cols + 1, cols - 1), key=lambda k: (-len(faces) % k if k > 0 else 99, abs(k - pn.get("cols", 3))))
+        tiles = "".join(f'<div class="face"><div class="im"><img src="{_uri(f, "JPEG")}"></div><p>{e(n)}</p></div>' for n, f in faces)
+        rows = -(-len(faces) // cols)
+        return lab(pn.get("title", "")) + f'<div class="faces" style="grid-template-columns:repeat({cols},1fr);grid-template-rows:repeat({rows},1fr)">{tiles}</div>'
+    if k == "poses":
+        cells = [(n, _cut_rgba(__import__("PIL.Image", fromlist=["Image"]).open(bible.ROOT / p))) for n, p in cs._pose_list(c)]
+        cells = [(n, im.crop(im.getchannel("A").getbbox())) for n, im in cells]
+        if len(cells) < 2:   # ポーズの絵が足りない所は四面図の正面と背面で埋める（欄の半分が空くより、基準の立ち姿がある方が使える）
+            cells += [f for f in ctx["figs"] if f[0] in ("正面", "背面")][:2 - len(cells) + 1]
+        im, centers = _row(cells)
+        caps = html.escape(json.dumps([[n, x] for (n, _), x in zip(cells, centers)], ensure_ascii=False))
+        return lab(pn.get("title", "")) + f'<div class="fit" data-cap="1" data-caps="{caps}"><img src="{_uri(im)}"></div>'
+    if k == "swatches":
+        return lab(pn.get("title", "")) + _swatch_html(ctx["sw"], pn.get("style", "list"))
+    if k == "notes":
+        if not ctx["notes"]:
+            return ""
+        notes = ctx["notes"]
+        if pn.get("brief"):   # 総覧では各注記の最初の一文だけにする。全文は作画用の版に載せる（狭い欄に全文を詰めると欄からあふれた）
+            notes = [t.split("。")[0] for t in notes]
+        lis = "".join(f'<li><span><b>{e(t.split(": ", 1)[0])}</b>　{e(t.split(": ", 1)[1] if ": " in t else "")}</span></li>' for t in notes)
+        colstyle = f' style="column-count:{pn["columns"]};column-gap:var(--g)"' if pn.get("columns") else ""
+        return lab(pn.get("title", "")) + f'<ol class="notes"{colstyle}>{lis}</ol>'
+    if k in ("sharebar", "strip"):
+        sw = sorted(ctx["sw"], key=lambda s: -s["share"])
+        tot = sum(s["share"] for s in sw) or 1
+        segs = "".join(f'<div style="flex:{s["share"] / tot:.4f};background:{s["hex"]}"></div>' for s in sw)
+        if k == "strip":
+            return lab(pn.get("title", "")) + f'<div class="strip">{segs}</div>'
+        leg = "".join(f'<div style="flex:{s["share"] / tot:.4f}">{e(s["name"]) if s["share"] / tot >= 0.07 else ""}</div>' for s in sw)
+        return lab(pn.get("title", ""), pn.get("sub", "")) + f'<div class="sbar">{segs}</div><div class="sleg">{leg}</div>'
+    if k == "callouts":
+        cl = _callouts(ctx["ident"], c)
+        if not cl:
+            return ""
+        t = "".join(f'<div class="call"><div class="im"><img src="{_uri(im, "JPEG")}"></div><p><b>{i + 1:02d}</b>{e(n)}</p></div>' for i, (n, im) in enumerate(cl))
+        return lab(pn.get("title", "")) + f'<div class="calls">{t}</div>'
+    raise ValueError(f"欄の種類 {k} は組めません")
+
+
+def _row(figs, gap=0.32):
+    """人物を同じ縮尺のまま横一列に並べた1枚と、各人物の中心の横位置（幅に対する割合）を返す。
+    1枚にまとめるのは、区画に収めるときに全員を同じ倍率で縮めるため（別々に収めると縮尺がずれた）"""
+    from PIL import Image
+    H = max(im.height for _, im in figs)
+    same = all(n in ("正面", "背面", "右向き", "左向き") for n, _ in figs)   # 四面図の人物は元の縮尺のまま、ポーズと混ぜるときは高さをそろえる
+    scaled = [im if same or im.height == H else im.resize((round(im.width * H / im.height), H)) for _, im in figs]
+    sp = int(sum(im.width for im in scaled) / len(scaled) * gap)
+    W = sum(im.width for im in scaled) + sp * (len(scaled) - 1)
+    out = Image.new("RGBA", (W, H), (0, 0, 0, 0))
+    x, centers = 0, []
+    for im in scaled:
+        out.paste(im, (x, H - im.height), im)
+        centers.append((x + im.width / 2) / W)
+        x += im.width + sp
+    return out, centers
+
+
+def _theme_vars(th, c, W, H, fm):
+    col = dict(th["colors"])
+    if col.get("accent") == "character":
+        col["accent"] = "#%02x%02x%02x" % cs._char_accent(c)
+    u = W / 2 / 1200   # 文字と余白の段は CSS 幅 1200 を基準に決め、版の幅に合わせて伸ばす
+    t = {**{"name": 56, "head": 17, "body": 15, "note": 11.5}, **fm.get("type", {})}
+    m = fm.get("margin", 0.045) * W / 2
+    serif = "'Noto Serif JP','IPAPMincho',serif"
+    sans = "'Noto Sans JP','IPAPGothic',sans-serif"
+    v = {
+        "--W": f"{W / 2}px", "--H": f"{H / 2}px", "--m": f"{m:.1f}px",
+        "--g": f"{fm.get('gutter', 0.02) * W / 2:.1f}px", "--rg": f"{fm.get('row_gap', 0.028) * W / 2:.1f}px",
+        "--fg": f"{fm.get('face_gap', 0.012) * W / 2:.1f}px",
+        "--page": col["page"], "--ink": col["ink"], "--sub": col["sub"], "--accent": col["accent"], "--tile": col["card"],
+        "--pattern": PATTERNS.get(th.get("motif", "none"), "none"),
+        "--font": serif if th.get("font") == "serif" else sans,
+        "--title-font": serif if th.get("title_font", th.get("font")) == "serif" else sans,
+        "--name-w": str(th.get("name_weight", 700)), "--radius": f"{th.get('card_radius', 4)}px",
+    }
+    for k, px in t.items():
+        v[f"--t-{k}"] = f"{px * u:.2f}px"
+    return v
+
+
+def render(ident: str, fm: dict, th: dict, out_png: str, out_html: str | None = None) -> dict:
+    from playwright.sync_api import sync_playwright
+    c = bible.load("characters", ident)
+    W, H = fm["size"]
+    if W % 2 or H % 2:
+        raise ValueError(f"{fm['name']}: 大きさは偶数にする（半分の CSS 寸法を 2 倍で書き出すため）")
+    figs = _figures(c)
+    ctx = {"c": c, "ident": ident, "fm": fm, "figs": figs, "hero": _hero(c, figs), "sw": cs._swatches(c), "notes": cs._notes(c),
+           "turn": _row(figs) if figs else (None, [])}
+    # 区画ごとに欄を積む。素材の無い欄は外し、区画が空になったら absorb の区画に面積を渡して格子を組み直す
+    cells, used = {}, []
+    for pn in fm["panels"]:
+        body = _panel_html(pn, ctx)
+        if body:
+            grow = " grow" if pn["kind"] in ("hero", "turnaround", "expressions", "poses") else (" fill" if pn.get("style") == "table" else "")
+            cells.setdefault(pn["area"], []).append(f'<div class="panel{grow}" data-kind="{pn["kind"]}">{body}</div>')
+            used.append(pn["kind"])
+    rows = [r.split() for r in fm["areas"]]
+    for pn in fm["panels"]:
+        if pn["area"] not in cells:
+            to = pn.get("absorb") or "."
+            rows = [[to if a == pn["area"] else a for a in r] for r in rows]
+    for r in rows:
+        if len(r) != 12:
+            raise ValueError(f"{fm['name']}: 区画の行は 12 列にする: {r}")
+    v = _theme_vars(th, c, W, H, fm)
+    v["--areas"] = " ".join(f'"{" ".join(r)}"' for r in rows)
+    v["--rows"] = " ".join(fm["rows"])
+    style = ":root{" + ";".join(f"{k}:{val}" for k, val in v.items()) + "}"
+    body = "".join(f'<div class="cell" data-area="{a}" style="grid-area:{a}">{"".join(p)}</div>' for a, p in cells.items())
+    doc = (f'<!doctype html><html lang="ja"><meta charset="utf-8"><title>{html.escape(c["name"])} {html.escape(fm["title"])}</title>'
+           f'<style>{_font_css()}\n{style}\n{CSS}</style><body><div class="bg"></div><div class="page">{body}</div></body></html>')
+    with tempfile.TemporaryDirectory() as td:
+        src = Path(td) / "sheet.html"
+        src.write_text(doc, encoding="utf-8")
+        with sync_playwright() as pw:
+            b = pw.chromium.launch(executable_path=CHROME if Path(CHROME).exists() else None,
+                                   args=["--allow-file-access-from-files"])
+            pg = b.new_page(viewport={"width": W // 2, "height": H // 2}, device_scale_factor=2)
+            pg.goto(src.as_uri())
+            pg.evaluate("document.fonts.ready")
+            res = pg.evaluate(JS)
+            Path(out_png).parent.mkdir(parents=True, exist_ok=True)
+            pg.screenshot(path=out_png, full_page=False)
+            b.close()
+    if out_html:
+        Path(out_html).write_text(doc, encoding="utf-8")
+    return {"size": [W, H], "panels": used, "drawn": res["drawn"], "outside_panel": len(res["over"]), "over": res["over"],
+            "empty": res["empty"]}

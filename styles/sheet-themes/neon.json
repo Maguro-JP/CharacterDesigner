@@ -1,44 +1,33 @@
 {
  "name": "neon",
- "title": "ネオン近未来",
- "mood": "夜の街の黒紫に桃と水色の光る線。斜めの格子を地に、欄は光る縁で囲む。電脳・都市・夜の人物に合う",
+ "title": "夜の街",
+ "mood": "紺の夜の地に白い文字と桃色1色。サイバー・都会・歌い手に合う",
+ "colors": {
+  "page": "#15172a",
+  "card": "#e9e8f0",
+  "ink": "#eeeef6",
+  "sub": "#8d91aa",
+  "accent": "#ff4f9a",
+  "rule": "#3a3d5c"
+ },
+ "motif": "dots",
+ "font": "sans",
  "fits": [
   "cyber",
   "neon",
-  "hacker",
   "city",
-  "night",
+  "idol",
+  "hacker",
   "headphones",
-  "hoodie",
-  "electric",
-  "電脳",
-  "都市",
-  "夜"
+  "サイバー",
+  "都会",
+  "歌",
+  "ネオン"
  ],
- "colors": {
-  "page": "#120d24",
-  "page2": "#06040f",
-  "card": "#f4f1fb",
-  "ink": "#120d24",
-  "sub": "#5b5478",
-  "rule": "#ff3ea5",
-  "accent": "#ff3ea5",
-  "accent2": "#2de2e6",
-  "band_text": "#120d24",
-  "guide": "#ff3ea5",
-  "page_ink": "#f4f1fb",
-  "page_sub": "#2de2e6"
- },
- "texture": "scan",
- "texture_strength": 0.5,
- "motif": "diagonal",
- "motif_alpha": 0.1,
- "frame": "neon",
+ "texture": "plain",
+ "frame": "none",
  "heading": {
-  "style": "pill",
-  "number": "arabic"
+  "style": "label"
  },
- "title_font": "gothic",
- "card_radius": 14,
- "card_shadow": false
+ "card_radius": 4
 }

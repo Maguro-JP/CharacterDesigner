@@ -7,41 +7,38 @@
   2400
  ],
  "ratio": "3:4（縦）",
+ "areas": [
+  "head head head head head head head head head head head head",
+  "expr expr expr expr expr expr expr expr expr expr expr expr",
+  "pose pose pose pose pose pose pose pose pose pose pose pose"
+ ],
+ "rows": [
+  "auto",
+  "1.4fr",
+  "1.15fr"
+ ],
+ "type": {
+  "name": 60,
+  "head": 19,
+  "body": 17,
+  "note": 13
+ },
  "panels": [
   {
    "kind": "header",
-   "box": [
-    0.04,
-    0.02,
-    0.92,
-    0.05
-   ]
+   "area": "head"
   },
   {
    "kind": "expressions",
-   "box": [
-    0.04,
-    0.09,
-    0.92,
-    0.48
-   ],
+   "area": "expr",
    "title": "表情",
    "cols": 3,
-   "rows": 2,
-   "large": true
+   "max": 9
   },
   {
    "kind": "poses",
-   "box": [
-    0.04,
-    0.59,
-    0.92,
-    0.39
-   ],
-   "title": "ポーズ",
-   "count": 2,
-   "hero": true,
-   "fill_front": true
+   "area": "pose",
+   "title": "ポーズ"
   }
  ]
 }

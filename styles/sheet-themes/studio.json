@@ -1,31 +1,23 @@
 {
  "name": "studio",
- "title": "白い作業台",
+ "title": "無地の画室",
+ "mood": "明るい灰白の地に墨と1色。何にでも合う既定",
  "default": true,
- "mood": "既定。どの人物にも当たる明るい地。色はキャラクターの持ち色から1つだけ借りて帯に使う",
- "fits": [],
  "colors": {
-  "page": "#f6f4ef",
-  "page2": "#ebe7df",
-  "card": "#fffefb",
-  "ink": "#1d1b1a",
-  "sub": "#6b645d",
-  "rule": "#d8d2c8",
+  "page": "#f3f1ec",
+  "card": "#e7e3db",
+  "ink": "#1e1d1f",
+  "sub": "#6d6a66",
   "accent": "character",
-  "accent2": "#1d1b1a",
-  "band_text": "#ffffff",
-  "guide": "#d23a26"
+  "rule": "#c9c4ba"
  },
- "texture": "grain",
- "texture_strength": 0.25,
- "motif": "dots",
- "motif_alpha": 0.1,
+ "motif": "none",
+ "font": "sans",
+ "fits": [],
+ "texture": "plain",
  "frame": "none",
  "heading": {
-  "style": "tab",
-  "number": "arabic"
+  "style": "label"
  },
- "title_font": "gothic",
- "card_radius": 18,
- "card_shadow": true
+ "card_radius": 4
 }

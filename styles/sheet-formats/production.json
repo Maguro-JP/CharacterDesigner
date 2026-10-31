@@ -1,88 +1,48 @@
 {
  "name": "production",
  "title": "作画用の詳細型",
- "purpose": "描く人に渡す。四面図に高さの線と全身の目盛り、部位の拡大を引き出し線でつなぎ、数と位置の注記を並べる",
+ "purpose": "描く人に渡す。四面図に高さの線を引き、顔と目の拡大、数と位置の注記、色を並べる",
  "size": [
   2400,
-  1697
+  1698
  ],
- "ratio": "A判の横（1.414:1）",
+ "ratio": "√2:1（A判の横）",
+ "areas": [
+  "head head head head head sw sw sw side side side side",
+  "turn turn turn turn turn turn turn turn side side side side"
+ ],
+ "rows": [
+  "auto",
+  "1fr"
+ ],
+ "margin": 0.04,
  "panels": [
   {
    "kind": "header",
-   "box": [
-    0.025,
-    0.025,
-    0.95,
-    0.06
-   ]
+   "area": "head"
   },
   {
    "kind": "turnaround",
-   "box": [
-    0.025,
-    0.11,
-    0.63,
-    0.52
-   ],
-   "title": "四面図（同じ縮尺・足をそろえる）",
-   "guides": true,
-   "ruler": 8
+   "area": "turn",
+   "title": "四面図",
+   "sub": "同じ縮尺・足をそろえる",
+   "guides": true
   },
   {
    "kind": "callouts",
-   "box": [
-    0.025,
-    0.65,
-    0.63,
-    0.33
-   ],
-   "title": "部位の拡大",
-   "face": true,
-   "items": true,
-   "max": 4
-  },
-  {
-   "kind": "slots",
-   "box": [
-    0.675,
-    0.11,
-    0.3,
-    0.25
-   ],
-   "title": "斜めの向き",
-   "optional": true,
-   "slots": [
-    [
-     "view-34",
-     "斜め前"
-    ],
-    [
-     "view-34back",
-     "斜め後ろ"
-    ]
-   ]
+   "area": "side",
+   "title": "拡大"
   },
   {
    "kind": "notes",
-   "box": [
-    0.675,
-    0.11,
-    0.3,
-    0.5
-   ],
-   "title": "注記（数・左右・大きさ）"
+   "area": "side",
+   "title": "注記",
+   "sub": "数・左右・大きさ"
   },
   {
    "kind": "swatches",
-   "box": [
-    0.675,
-    0.63,
-    0.3,
-    0.35
-   ],
-   "title": "色",
-   "style": "grid"
+   "area": "sw",
+   "style": "chips"
   }
  ]
 }

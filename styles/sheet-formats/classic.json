@@ -1,79 +1,63 @@
 {
  "name": "classic",
  "title": "縦流しの基本版",
- "purpose": "既定。主役の立ち姿を左に大きく、右に四面図と表情、下に色と注記を置く。迷ったらこれ",
+ "purpose": "既定。主役の立ち姿を左に大きく、右に名前・色・四面図・表情、下に注記を置く。迷ったらこれ",
  "default": true,
  "size": [
   2400,
   3000
  ],
  "ratio": "4:5（縦）",
+ "areas": [
+  "hero hero hero hero hero head head head head head head head",
+  "hero hero hero hero hero sw sw sw sw sw sw sw",
+  "hero hero hero hero hero turn turn turn turn turn turn turn",
+  "hero hero hero hero hero expr expr expr expr expr expr expr",
+  "note note note note note note note note note note note note"
+ ],
+ "rows": [
+  "auto",
+  "auto",
+  "1fr",
+  "1.05fr",
+  "auto"
+ ],
+ "type": {
+  "name": 64
+ },
  "panels": [
   {
    "kind": "header",
-   "box": [
-    0.04,
-    0.025,
-    0.92,
-    0.06
-   ]
+   "area": "head"
   },
   {
-   "kind": "poses",
-   "box": [
-    0.04,
-    0.11,
-    0.36,
-    0.56
-   ],
-   "title": "立ち姿",
-   "count": 1,
-   "hero": true,
-   "fill_front": true
+   "kind": "hero",
+   "area": "hero"
+  },
+  {
+   "kind": "swatches",
+   "area": "sw",
+   "title": "色",
+   "style": "chips"
   },
   {
    "kind": "turnaround",
-   "box": [
-    0.42,
-    0.11,
-    0.54,
-    0.27
-   ],
+   "area": "turn",
    "title": "四面図",
    "guides": true
   },
   {
    "kind": "expressions",
-   "box": [
-    0.42,
-    0.4,
-    0.54,
-    0.27
-   ],
+   "area": "expr",
    "title": "表情",
    "cols": 3,
-   "rows": 2
-  },
-  {
-   "kind": "swatches",
-   "box": [
-    0.04,
-    0.7,
-    0.36,
-    0.275
-   ],
-   "title": "色",
-   "style": "list"
+   "max": 6
   },
   {
    "kind": "notes",
-   "box": [
-    0.42,
-    0.7,
-    0.54,
-    0.275
-   ],
-   "title": "注記"
+   "area": "note",
+   "title": "注記",
+   "columns": 2
   }
  ]
 }

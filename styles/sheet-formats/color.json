@@ -1,53 +1,49 @@
 {
  "name": "color",
  "title": "色指定型",
- "purpose": "塗る人に渡す。色の値・役・面積の割合だけに絞り、影色とハイライトの欄を並べる",
+ "purpose": "塗る人に渡す。色の値・役・面積の割合だけに絞る",
  "size": [
   2000,
   2000
  ],
  "ratio": "1:1",
+ "areas": [
+  "hero hero hero hero hero head head head head head head head",
+  "hero hero hero hero hero sw sw sw sw sw sw sw",
+  "hero hero hero hero hero bar bar bar bar bar bar bar"
+ ],
+ "rows": [
+  "auto",
+  "1fr",
+  "auto"
+ ],
+ "type": {
+  "name": 60,
+  "head": 19,
+  "body": 17,
+  "note": 13
+ },
  "panels": [
   {
-   "kind": "header",
-   "box": [
-    0.04,
-    0.025,
-    0.92,
-    0.06
-   ]
+   "kind": "hero",
+   "area": "hero"
   },
   {
-   "kind": "figure",
-   "box": [
-    0.04,
-    0.11,
-    0.36,
-    0.87
-   ],
-   "title": "基準の正面",
-   "hero": true
+   "kind": "header",
+   "area": "head",
+   "meta": false
   },
   {
    "kind": "swatches",
-   "box": [
-    0.43,
-    0.11,
-    0.53,
-    0.6
-   ],
-   "title": "色指定（ふつう・影・ハイライト）",
+   "area": "sw",
+   "title": "色指定",
    "style": "table"
   },
   {
    "kind": "sharebar",
-   "box": [
-    0.43,
-    0.74,
-    0.53,
-    0.235
-   ],
-   "title": "面積の割合（四面図で測った値）"
+   "area": "bar",
+   "title": "面積の割合",
+   "sub": "四面図で測った値"
   }
  ]
 }

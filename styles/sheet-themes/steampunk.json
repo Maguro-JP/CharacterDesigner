@@ -1,46 +1,35 @@
 {
  "name": "steampunk",
- "title": "真鍮と歯車",
- "mood": "煤けた焦げ茶に真鍮と銅。歯車の輪郭を地に薄く置き、欄の角に鋲を打つ。整備士・発明家・蒸気の街に合う",
+ "title": "真鍮の工房",
+ "mood": "焦げ茶の地に生成りの文字と真鍮色。明朝の名前。蒸気・機械仕掛け・技師に合う",
+ "colors": {
+  "page": "#2b231d",
+  "card": "#efe4cf",
+  "ink": "#f1e6d0",
+  "sub": "#b09a7a",
+  "accent": "#cf9a45",
+  "rule": "#54463a"
+ },
+ "motif": "none",
+ "font": "sans",
+ "title_font": "serif",
  "fits": [
-  "mechanic",
-  "wrench",
+  "steam",
+  "brass",
   "gear",
   "goggles",
   "engineer",
-  "workshop",
-  "steam",
-  "overalls",
-  "tool",
-  "整備",
-  "工具",
+  "mechanic",
+  "蒸気",
+  "真鍮",
   "歯車",
-  "発明"
+  "技師",
+  "ゴーグル"
  ],
- "colors": {
-  "page": "#2a1f17",
-  "page2": "#1a130e",
-  "card": "#eadcbf",
-  "ink": "#2a1f17",
-  "sub": "#6b5440",
-  "rule": "#a8845a",
-  "accent": "#c39b4e",
-  "accent2": "#a0522d",
-  "band_text": "#2a1f17",
-  "guide": "#a0522d",
-  "page_ink": "#eadcbf",
-  "page_sub": "#c39b4e"
- },
- "texture": "grain",
- "texture_strength": 0.5,
- "motif": "gears",
- "motif_alpha": 0.16,
- "frame": "rivets",
+ "texture": "plain",
+ "frame": "none",
  "heading": {
-  "style": "band",
-  "number": "arabic"
+  "style": "label"
  },
- "title_font": "gothic",
- "card_radius": 8,
- "card_shadow": true
+ "card_radius": 4
 }

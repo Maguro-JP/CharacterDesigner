@@ -1,44 +1,33 @@
 {
  "name": "washi",
- "title": "和紙と墨",
- "mood": "生成りの和紙に墨と朱。繊維の筋を地に入れ、見出しは筆の太い払い、番号は漢数字。和装・神社・侍に合う",
- "fits": [
-  "kimono",
-  "hakama",
-  "shrine",
-  "miko",
-  "samurai",
-  "katana",
-  "japanese",
-  "yukata",
-  "着物",
-  "袴",
-  "巫女",
-  "刀",
-  "和"
- ],
+ "title": "和紙と朱",
+ "mood": "生成りの和紙に墨と朱。明朝で組む。和装・巫女・侍に合う",
  "colors": {
   "page": "#f4efe4",
-  "page2": "#ebe3d2",
-  "card": "#faf7f0",
-  "ink": "#1b1b1d",
-  "sub": "#5d5a55",
-  "rule": "#cfc6b6",
-  "accent": "#c0392b",
-  "accent2": "#1b1b1d",
-  "band_text": "#faf7f0",
-  "guide": "#c0392b"
+  "card": "#e8e0cf",
+  "ink": "#222018",
+  "sub": "#71685a",
+  "accent": "#b0392b",
+  "rule": "#d1c6b0"
  },
- "texture": "washi",
- "texture_strength": 0.7,
- "motif": "waves",
- "motif_alpha": 0.07,
- "frame": "corners",
+ "motif": "none",
+ "font": "serif",
+ "fits": [
+  "kimono",
+  "shrine",
+  "samurai",
+  "katana",
+  "miko",
+  "和",
+  "着物",
+  "巫女",
+  "刀",
+  "神社"
+ ],
+ "texture": "plain",
+ "frame": "none",
  "heading": {
-  "style": "brush",
-  "number": "kanji"
+  "style": "label"
  },
- "title_font": "gothic",
- "card_radius": 0,
- "card_shadow": false
+ "card_radius": 4
 }
