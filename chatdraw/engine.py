@@ -834,7 +834,10 @@ class Studio:
             if m is not None:
                 if m.repo != self.painter.model:
                     self.painter = Painter(m.repo, m.steps, guidance=m.guidance)   # 前の模型は捨ててメモリを空ける
+                self.chosen = (m.name, why)   # 画面の「絵の模型: おまかせ（…）」に出す
                 say(f"絵の模型: {m.name}（{why}）")
+            else:
+                say("おまかせで選べる絵の模型が手元にありません。今の模型で描きます")
         two = self._two_stage_models(base, reference, say)
         if two is not None:
             return self._draw_two(text, seed, two, style, size, say, meta)

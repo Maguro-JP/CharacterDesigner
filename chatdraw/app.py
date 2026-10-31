@@ -862,9 +862,13 @@ class Window(QMainWindow):
         from chatdraw import themes
         self.theme_menu = view.addMenu("テーマ")
         self.theme_menu.aboutToShow.connect(self._fill_theme_menu)
-        self.ai_menu = self.menuBar().addMenu("AI")
+        from PySide6.QtWidgets import QMenu
+        self.ai_menu = QMenu("AI", self)   # 窓を親にして作る（文字だけで足すと、作り直しの知らせの前に消えていた）
+        self.menuBar().addMenu(self.ai_menu)
         self.ai_menu.aboutToShow.connect(self._fill_ai_menu)
         self._fill_ai_menu()
+        from chatdraw import ratings
+        ratings.on_change(self._models_changed)
         setting_menu = self.menuBar().addMenu("設定")
         setting_menu.addAction(QAction("設定…", self, shortcut="Ctrl+,", triggered=self.open_settings))
         setting_menu.addAction(QAction("キーの設定…", self, triggered=self.open_keys))
@@ -1287,7 +1291,14 @@ class Window(QMainWindow):
         from chatdraw.models import image_model
         from chatdraw.setup import AUTO
         key = self.settings.get("image_model")
-        self.model_label.setText("絵の模型: おまかせ" if key == AUTO else f"絵の模型: {image_model(key).name}")
+        if key == AUTO:   # おまかせで選んだ模型を出す（選ぶ前は、今読んでいる模型）
+            chosen = getattr(getattr(self, "studio", None), "chosen", None)
+            painter = getattr(getattr(self, "studio", None), "painter", None)
+            name = chosen[0] if chosen else image_model(painter.model).name if getattr(painter, "model", "") else ""
+            self.model_label.setText("絵の模型: おまかせ" + (f"（{name}）" if name else ""))
+            self.model_label.setToolTip(f"おまかせで選んだ理由: {chosen[1]}" if chosen else "描くときに、手元の模型から頼みに合う物を選びます")
+        else:
+            self.model_label.setText(f"絵の模型: {image_model(key).name}")
 
     def _fit_features(self):
         """選んだ模型の世代で使えない機能（ラフから、直す、参考画像）のボタンを止め、理由を出す"""
@@ -1537,6 +1548,7 @@ class Window(QMainWindow):
         self.library_panel.add(self.library.add_work(path))   # 描いた絵はライブラリーにも入る（好き・いまいちを付けて好みを育てる）
 
     def finish(self):
+        self._show_model()   # おまかせで選んだ模型を出す
         n = len(self.batch)
         fixed = self.job_kind in ("fix", "chibi")
         bad = getattr(self.studio, "last_flaws", []) if self.job_kind == "fix" else []
@@ -1815,8 +1827,8 @@ class Window(QMainWindow):
         g = self.settings.get
         image, words = g("image_model"), g("words_model")
         if image == AUTO:
-            have = [m for m in all_images() if has_image(m)]
-            first = max(have, key=lambda m: m.score) if have else IMAGES[0]
+            from chatdraw.choose import choose_image
+            first = choose_image("", "", have=[m for m in all_images() if has_image(m)])[0] or IMAGES[0]
             image, steps, guidance = first.repo, first.steps, first.guidance
         else:
             steps, guidance = g("steps"), g("guidance")
@@ -1908,29 +1920,48 @@ class Window(QMainWindow):
 
     # ---- AI のメニュー: 模型の切り替え ----
     def _fill_ai_menu(self):
-        """開くたびに作り直す（取った・取っていないが変わるため）"""
-        from chatdraw.models import catalog_images, offered_images
+        """模型の一覧を作り直す。開くときと、取った・消した・点・★・非表示が変わったとき（ratings.changed）に呼ぶ"""
+        from chatdraw.models import catalog_images, manual_images, pick
+        from chatdraw.ratings import is_favorite, rating_text, set_favorite
         from chatdraw.setup import AUTO, has_image
         menu = self.ai_menu
         menu.clear()
         now_image = self.settings.get("image_model")
-        # 出すのは、確かめて推奨に届いた模型と、手元にある模型だけ（ほかは「模型の管理」で推奨の絞りを外すと出る）
-        from chatdraw.models import manual_images
-        from chatdraw.ratings import rating_text, sort_key
-        listed = sorted((m for m in catalog_images() if m in offered_images() or has_image(m)), key=sort_key)
-        rate = {m.repo: rating_text(m) for m in listed}   # 点は 1 つの数だけ（未確認は「未確認」）
+        # 出すのは、推奨に届いた模型と手元にある模型（手元の物と ★ が先）。非表示にした物は出さない
+        catalog = catalog_images()
+        have = {m.repo for m in catalog if has_image(m)}
+        listed = pick(catalog, "推奨（確かめ済み）", have=have)
         images = listed + manual_images()
         menu.addSection("絵の模型")
         group = QActionGroup(menu)
-        for key, name, have in [(AUTO, "おまかせ", True)] + [(m.repo, m.name, has_image(m)) for m in images]:
-            label = f"{name}　{rate[key]}" if key in rate else name
-            act = QAction(label if have else f"{label}（未取得）", menu, checkable=True)
+        auto = QAction("おまかせ", menu, checkable=True)
+        auto.setToolTip("描くときに、手元の模型から頼みに合い点の高い物を選びます")
+        entries = [(AUTO, auto)]
+        for m in images:
+            label = ("★ " if is_favorite(m.repo) else "") + m.name + (f"　{rating_text(m)}" if m in listed else "")
+            ok = m.repo in have or m not in listed
+            entries.append((m.repo, QAction(label if ok else f"{label}（未取得）", menu, checkable=True)))
+        for key, act in entries:
             act.setChecked(key == now_image)
             act.triggered.connect(lambda _=False, k=key: self.switch_model("絵の模型", k))
             group.addAction(act)
             menu.addAction(act)
+        stars = menu.addMenu("★ お気に入り")
+        stars.setToolTipsVisible(True)
+        for m in listed:
+            a = QAction(m.name, menu, checkable=True)   # 親はメニュー（作り直すと一緒に消える）
+            stars.addAction(a)
+            a.setChecked(is_favorite(m.repo))
+            a.setToolTip("★ を付けた模型は一覧の先頭に出て、おまかせでも選ばれやすくなります")
+            a.toggled.connect(lambda on, r=m.repo: set_favorite(r, on))
         menu.addSeparator()
         menu.addAction(QAction("模型の管理…", self, triggered=self.manage_models))
+
+    def _models_changed(self):
+        """模型の一覧が変わったら、AI のメニューと模型の表示を作り直す（開いたままの古い一覧を残さない）"""
+        if not self.ai_menu.isVisible():   # 開いているメニューの中身を、押している最中に消さない
+            self._fill_ai_menu()
+        self._show_model()
 
     def manage_models(self):
         if self.tour_first("manager", self.manage_models):
@@ -1939,6 +1970,7 @@ class Window(QMainWindow):
         ModelManager(self.settings, self).exec()
         self.studio = self._studio_from_settings()
         self.check_ai()
+        self._fill_ai_menu()
 
     def switch_model(self, kind: str, key: str):
         self.feature_tour("model")
@@ -1973,6 +2005,7 @@ class Window(QMainWindow):
             self.settings.set("words_model", key if key in (AUTO, "") else str(words_path(m)))
         self.studio = self._studio_from_settings()
         self.check_ai()
+        self._fill_ai_menu()
         self.notify(f"{kind}を替えました", "ok")
 
     def show_preview(self, img):

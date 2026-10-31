@@ -2603,3 +2603,164 @@ class LoadOptionsTest(unittest.TestCase):
         from chatdraw.models import family_from_class, family_from_keys
         self.assertEqual(family_from_class("StableDiffusion3Pipeline"), "sd3")
         self.assertEqual(family_from_keys(["model.diffusion_model.joint_blocks.0.x"]), "sd3")
+
+
+class ModelListTest(unittest.TestCase):
+    """模型の一覧: ★・非表示・手元の物を先頭・推奨から低い点を外す・おまかせ・AI のメニューの作り直し・確かめる順"""
+
+    def tearDown(self):
+        from chatdraw import ratings
+        ratings._LISTENERS.clear()
+
+    def models(self):
+        from chatdraw.models import ImageModel
+        a = ImageModel("a/a", "A", "", "", 1, 20, 5, en="anime illustration", score=85, tags=("アニメ",))
+        b = ImageModel("b/b", "B", "", "", 1, 20, 5, en="photorealistic, photo", score=0, tags=("リアル",))
+        c = ImageModel("c/c", "C", "", "", 1, 20, 5, en="anime, many characters and outfits", score=70, tags=("アニメ",))
+        return a, b, c
+
+    def test_favorite_hidden_persist_and_notify(self):
+        from unittest import mock
+        from chatdraw import ratings
+        with TemporaryDirectory() as d, mock.patch.dict(os.environ, {"CD_HOME": d}):
+            seen = []
+            ratings.on_change(lambda: seen.append(1))
+            ratings.set_favorite("b/b", True)
+            ratings.set_hidden("c/c", True)
+            self.assertTrue(ratings.is_favorite("b/b") and ratings.is_hidden("c/c"))
+            self.assertIn('"favorite": true', ratings.prefs_file().read_text(encoding="utf-8"))   # 点と同じファイル
+            self.assertEqual(len(seen), 2)                                                      # 変わるたびに知らせる
+            a, b, c = self.models()
+            self.assertEqual([m.name for m in sorted([a, b, c], key=ratings.sort_key)], ["B", "A", "C"])
+
+    def test_pick_installed_first_hidden_and_low(self):
+        from unittest import mock
+        from chatdraw import models, ratings
+        with TemporaryDirectory() as d, mock.patch.dict(os.environ, {"CD_HOME": d}):
+            a, b, c = self.models()
+            self.assertEqual([m.name for m in models.pick([a, b, c], "推奨（確かめ済み）")], ["A", "C"])
+            self.assertEqual([m.name for m in models.pick([a, b, c], "推奨（確かめ済み）", have={"b/b"})], ["B", "A", "C"])  # 取得済みは先頭
+            ratings.set_user_rating("c/c", 30)                                                  # 低い点は推奨に出さない
+            self.assertEqual([m.name for m in models.pick([a, b, c], "推奨（確かめ済み）")], ["A"])
+            self.assertIn(c, models.pick([a, b, c], "すべて"))                                   # すべてには出す
+            ratings.set_favorite("c/c", True)
+            self.assertEqual([m.name for m in models.pick([a, b, c], "すべて", have={"a/a", "c/c"})][:2], ["C", "A"])  # 手元の中で ★ が先
+            ratings.set_hidden("a/a", True)
+            ratings.set_hidden("b/b", True)
+            self.assertEqual([m.name for m in models.pick([a, b, c], "すべて", have={"a/a"})], ["C"])
+            self.assertEqual([m.name for m in models.pick([a, b, c], "取得済み", have={"a/a"})], ["A"])   # 取得済みでは隠さない
+            self.assertEqual({m.name for m in models.pick([a, b, c], "非表示にした模型")}, {"A", "B"})
+            ratings.set_hidden("b/b", False)
+            self.assertIn(b, models.pick([a, b, c], "すべて"))
+
+    def test_auto_choice_uses_rating_favorite_and_request(self):
+        from unittest import mock
+        from chatdraw import ratings
+        from chatdraw.choose import choose_image
+        with TemporaryDirectory() as d, mock.patch.dict(os.environ, {"CD_HOME": d}):
+            a, b, c = self.models()
+            self.assertEqual(choose_image("騎士", "", None, [a, b, c])[0], a)                   # 点の高いアニメの模型
+            self.assertEqual(choose_image("街の写真", "", None, [a, b, c])[0], b)               # 写実の頼みは写実の模型
+            self.assertEqual(choose_image("制服の女の子", "", None, [a, b, c])[0], c)
+            ratings.set_user_rating("a/a", 20)                                                  # 自分で低い点を付けた物は選ばない
+            self.assertEqual(choose_image("騎士", "", None, [a, b, c])[0], c)
+            ratings.set_user_rating("a/a", 0)
+            ratings.set_hidden("a/a", True)
+            self.assertEqual(choose_image("騎士", "", None, [a, b, c])[0], c)
+
+    def test_studio_auto_switches_painter_and_tells_choice(self):
+        from unittest import mock
+        with TemporaryDirectory() as d, mock.patch.dict(os.environ, {"CD_HOME": d}):
+            a, b, c = self.models()
+            st = Studio(FakeWords(), FakePainter(), Path(d))
+            st.image_auto = True
+            with mock.patch("chatdraw.choose.installed_images", return_value=[a, b]), \
+                    mock.patch("chatdraw.engine.Painter", side_effect=lambda repo, *x, **k: type("P", (FakePainter,), {})()) as made:
+                said = []
+                try:
+                    st.draw("街の写真", 1, on_status=said.append)
+                except Exception:
+                    pass   # 描く所は試験の外。選んで替えるまでを見る
+            self.assertEqual(made.call_args[0][0], "b/b")
+            self.assertEqual(st.chosen, ("B", "写実の頼み"))
+            self.assertIn("絵の模型: B（写実の頼み）", said)
+
+    def test_manager_offers_auto_star_and_hide(self):
+        from unittest import mock
+        from PySide6.QtWidgets import QApplication, QLabel, QPushButton
+        from chatdraw import manager
+        from chatdraw.setup import AUTO
+        QApplication.instance() or QApplication([])
+
+        class S:
+            def __init__(self):
+                self.v = {"image_model": "x/x"}
+
+            def get(self, k):
+                return self.v.get(k, "")
+
+            def set(self, k, v):
+                self.v[k] = v
+        a, b, c = self.models()
+        with TemporaryDirectory() as d, mock.patch.dict(os.environ, {"CD_HOME": d}), \
+                mock.patch.object(manager, "installed", return_value=[]), \
+                mock.patch.object(manager, "catalog_images", return_value=[a, b, c]), \
+                mock.patch.object(manager, "machine", return_value=(0.0, 16.0)):
+            s = S()
+            dlg = manager.ModelManager(s)
+
+            def rows():
+                return [dlg.list.itemAt(i).widget() for i in range(dlg.list.count()) if dlg.list.itemAt(i).widget() is not None]
+            first = rows()[1]
+            self.assertIn("おまかせ", [w.text() for w in first.findChildren(QLabel)])
+            [x for x in first.findChildren(QPushButton) if x.text() == "使う"][0].click()
+            self.assertEqual(s.v["image_model"], AUTO)
+            [r for r in rows() if hasattr(r, "star")][0].star.click()
+            self.assertEqual(len([r for r in rows() if hasattr(r, "star") and r.star.text() == "★"]), 1)
+            dlg.set_hidden(c, True)
+            names = [w.text() for r in rows() for w in r.findChildren(QLabel)]
+            self.assertNotIn("C", names)
+            dlg.filter.setCurrentText("非表示にした模型")
+            row = [r for r in rows() if hasattr(r, "more")][0]
+            self.assertIn("表示に戻す", [x.text() for x in row.more.actions()])
+            dlg.close()
+
+    def test_ai_menu_rebuilds_on_change(self):
+        from unittest import mock
+        from PySide6.QtWidgets import QApplication
+        from chatdraw import ratings
+        from chatdraw.app import Window
+        QApplication.instance() or QApplication([])
+        with TemporaryDirectory() as d, mock.patch.dict(os.environ, {"CD_HOME": d}):
+            w = Window(Studio(FakeWords(), FakePainter(), Path(d)))
+
+            def texts():
+                return [x.text() for x in w.ai_menu.actions()]
+            self.assertIn("おまかせ", texts())
+            name = next(t for t in texts() if "Animagine XL 4.0" in t)
+            self.assertFalse(name.startswith("★"))
+            ratings.set_favorite("cagliostrolab/animagine-xl-4.0", True)                         # 開き直さなくても作り直す
+            self.assertTrue(any(t.startswith("★ Animagine XL 4.0") for t in texts()))
+            ratings.set_hidden("cagliostrolab/animagine-xl-4.0", True)
+            self.assertFalse(any("Animagine XL 4.0" in t for t in texts()))
+            w.close()
+
+    def test_verify_order_by_popularity(self):
+        from chatdraw import popular
+        counts = {"Laxhar/noobai-XL-1.1": (500, 1), "KBlueLeaf/Kohaku-XL-Zeta": (90, 9),
+                  "cagliostrolab/animagine-xl-4.0": (9999, 9), "Lykon/AAM_XL_AnimeMix": (90, 30)}
+
+        def fake(repo):
+            if repo not in counts:
+                raise OSError("no network")
+            return {"downloads": counts[repo][0], "likes": counts[repo][1]}
+        rows = popular.order(["KBlueLeaf/Kohaku-XL-Zeta", "Lykon/AAM_XL_AnimeMix", "cagliostrolab/animagine-xl-4.0",
+                              "Laxhar/noobai-XL-1.1", "Qwen/Qwen-Image-2512", "x/unknown"], fetch=fake)
+        # 点のある物（animagine-xl-4.0）と 30GB を超える物（Qwen-Image）は外す。取れない物は最後
+        self.assertEqual([r for r, _, _ in rows], ["Laxhar/noobai-XL-1.1", "Lykon/AAM_XL_AnimeMix", "KBlueLeaf/Kohaku-XL-Zeta", "x/unknown"])
+        with TemporaryDirectory() as d:
+            f = Path(d) / "v.txt"
+            f.write_text("# 見出し\nb/b\na/a\n", encoding="utf-8")
+            head, repos = popular.read_list(f)
+            popular.write_list(head, list(reversed(repos)), f)
+            self.assertEqual(f.read_text(encoding="utf-8"), "# 見出し\na/a\nb/b\n")

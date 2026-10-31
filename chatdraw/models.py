@@ -335,13 +335,30 @@ def style(m: ImageModel) -> str:
 
 FILTERS = {   # 模型の管理の絞り込み。名前と、その名前で残す物
     "すべて": lambda m: True,
-    "推奨（確かめ済み）": lambda m: m.score >= PASS,
+    "推奨（確かめ済み）": lambda m: _recommended(m),
+    "取得済み": lambda m: False,      # 手元にある物だけ（pick の have で足す）
+    "★ お気に入り": lambda m: _fav(m),
     "確かめ済み": lambda m: m.score > 0,
     "アニメ・イラスト": lambda m: style(m) == "anime",
     "リアル": lambda m: style(m) == "real",
     "新しい世代": lambda m: m.family in NEW,
     "自分で足した": lambda m: m.user,
+    "非表示にした模型": lambda m: True,   # 非表示にした物だけ（pick で分ける）。ここから戻せる
 }
+HIDDEN = "非表示にした模型"
+HAVE = "取得済み"
+
+
+def _recommended(m) -> bool:
+    """推奨は、確かめて点の届いた物。利用者が低い点（ratings.LOW 未満）を付けた物は出さない"""
+    from chatdraw.ratings import LOW, rating
+    r = rating(m)
+    return m.score >= PASS and r >= max(LOW, PASS) if r else False
+
+
+def _fav(m) -> bool:
+    from chatdraw.ratings import is_favorite
+    return is_favorite(m.repo)
 SORTS = {   # 先頭が既定。点は利用者の点があればそれ、無ければ目録の点（ratings）
     "点の高い順": lambda m: _rating_key(m),
     "確かめ済みが先": lambda m: (-m.score, m.name.lower()),
@@ -355,10 +372,20 @@ def _rating_key(m):
     return sort_key(m)
 
 
-def pick(models, filter_name: str = "すべて", sort_name: str = "点の高い順", tags=()) -> list[ImageModel]:
-    """絞り込み（名前）と、選んだタグを全部持つ物だけを、並べ方の順に返す"""
-    from chatdraw.ratings import has_tags
-    return sorted((m for m in models if FILTERS[filter_name](m) and has_tags(m, tags)), key=SORTS[sort_name])
+def pick(models, filter_name: str = "すべて", sort_name: str = "点の高い順", tags=(), have=()) -> list[ImageModel]:
+    """絞り込み（名前）と、選んだタグを全部持つ物だけを、並べ方の順に返す。
+    手元にある物（have の repo）はどの絞り込みでも出して先頭に置き、その中でも ★ を先にする（取った物を探させないため）。
+    非表示にした物は「非表示にした模型」の絞り込みにだけ出す。ただし手元にある物は「取得済み」では隠さない"""
+    from chatdraw.ratings import has_tags, is_favorite, is_hidden
+    have = set(have)
+    if filter_name == HIDDEN:
+        out = [m for m in models if is_hidden(m.repo)]
+    else:
+        out = [m for m in models
+               if (m.repo in have and (filter_name == HAVE or not is_hidden(m.repo)))
+               or (not is_hidden(m.repo) and FILTERS[filter_name](m) and has_tags(m, tags))]
+    key = SORTS[sort_name]
+    return sorted(out, key=lambda m: (m.repo not in have, not is_favorite(m.repo), key(m)))
 
 
 def image_model(repo: str) -> ImageModel:
@@ -375,7 +402,9 @@ PASS = 60   # 候補に出す点の下限
 
 
 def offered_images() -> list[ImageModel]:
-    return sorted((m for m in IMAGES if m.score >= PASS), key=lambda m: -m.score)
+    """推奨の模型（非表示にした物と、利用者が低い点を付けた物は除く）"""
+    from chatdraw.ratings import is_hidden
+    return sorted((m for m in IMAGES if _recommended(m) and not is_hidden(m.repo)), key=lambda m: -m.score)
 
 
 def offered_words() -> list[WordsModel]:
