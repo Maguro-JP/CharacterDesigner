@@ -5,7 +5,7 @@
 ```
 CharacterDesigner/
 ├── README.md / README.en.md   使い方（最初に読む）
-├── app/                       ローカルアプリ（画面 web/、窓口 server/、MCP mcp/）
+├── chatdraw/                  製品のデスクトップアプリ（PySide6。開発はすべてここ）
 ├── tools/
 │   ├── gen/                   描く・検品する・学ぶ道具（イラストの本体）
 │   ├── engine/                Blender・MakeHuman の人形と下絵
@@ -36,7 +36,7 @@ CharacterDesigner/
 
 | 置き場 | 置くもの | 置かないもの |
 |---|---|---|
-| `tools/` `app/` `packaging/` `templates/` | 道具（プログラム、アプリ、配布物の作り方、ほかのリポジトリへ配るひな型） | 絵、知見の文章 |
+| `chatdraw/` `tools/` `packaging/` `templates/` | 道具（プログラム、アプリ、配布物の作り方、ほかのリポジトリへ配るひな型） | 絵、知見の文章 |
 | `styles/` | 道具が読む数字の決まり（作風、ジャンルの頭身、学んだ基準、模型の癖） | 文章の説明（それは `docs/knowledge/`） |
 | `config/` | 利用者ごとの設定の見本（`*.example.json`）と既定 | 利用者の実際の設定（git に入れない） |
 | `config/poses/` | 道具が読む姿勢の既定（立体の人形から起こした姿勢の絵） | 描いた絵や比べ図（それは `library/`） |

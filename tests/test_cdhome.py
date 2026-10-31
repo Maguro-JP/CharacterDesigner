@@ -8,12 +8,12 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 # 部品を入れる前に動く起動台本と、tools/gen を読まない engine は同じ式を自分で持つ
-SAME_RULE = {"tools/gen/cdhome.py", "app/launch.py", "tools/engine/human.py"}
+SAME_RULE = {"tools/gen/cdhome.py", "tools/engine/human.py"}
 
 
 class CdHomeTest(unittest.TestCase):
     def test_only_one_place_builds_cache(self):
-        files = subprocess.run(["git", "ls-files", "tools", "app"], cwd=ROOT, capture_output=True, text=True).stdout.split()
+        files = subprocess.run(["git", "ls-files", "tools"], cwd=ROOT, capture_output=True, text=True).stdout.split()
         bad = [f for f in files if f.endswith(".py") and "/tests/" not in f and f not in SAME_RULE
                and re.search(r'/ "\.cache"', (ROOT / f).read_text(encoding="utf-8"))]
         self.assertEqual(bad, [])
