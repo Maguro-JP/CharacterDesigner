@@ -1,0 +1,46 @@
+{
+ "name": "forest",
+ "title": "森の小径",
+ "mood": "若葉の淡い緑に苔と木の実の色。葉の形を地に散らし、見出しは丸い札。羊飼い・森・魔女・動物の耳の人物に合う",
+ "fits": [
+  "sheep",
+  "wool",
+  "horn",
+  "shepherd",
+  "forest",
+  "flower",
+  "witch",
+  "herb",
+  "animal ears",
+  "basket",
+  "羊",
+  "森",
+  "花",
+  "魔女",
+  "籠"
+ ],
+ "colors": {
+  "page": "#e9efdf",
+  "page2": "#d9e3c8",
+  "card": "#fbfcf6",
+  "ink": "#26331f",
+  "sub": "#5f6e55",
+  "rule": "#c3d0b0",
+  "accent": "#5b7c3a",
+  "accent2": "#b5534a",
+  "band_text": "#fbfcf6",
+  "guide": "#b5534a"
+ },
+ "texture": "grain",
+ "texture_strength": 0.3,
+ "motif": "leaves",
+ "motif_alpha": 0.16,
+ "frame": "none",
+ "heading": {
+  "style": "tab",
+  "number": "arabic"
+ },
+ "title_font": "gothic",
+ "card_radius": 28,
+ "card_shadow": true
+}

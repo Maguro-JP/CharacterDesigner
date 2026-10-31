@@ -1,9 +1,79 @@
 {
  "name": "classic",
  "title": "縦流しの基本版",
- "purpose": "既定。四面図・表情・ポーズ・色見本・注記を上から順に流す。素材の数に合わせて縦に伸びる",
+ "purpose": "既定。主役の立ち姿を左に大きく、右に四面図と表情、下に色と注記を置く。迷ったらこれ",
  "default": true,
- "engine": "classic",
- "size": [2400, 0],
- "ratio": "幅2400で縦は素材の数しだい"
+ "size": [
+  2400,
+  3000
+ ],
+ "ratio": "4:5（縦）",
+ "panels": [
+  {
+   "kind": "header",
+   "box": [
+    0.04,
+    0.025,
+    0.92,
+    0.06
+   ]
+  },
+  {
+   "kind": "poses",
+   "box": [
+    0.04,
+    0.11,
+    0.36,
+    0.56
+   ],
+   "title": "立ち姿",
+   "count": 1,
+   "hero": true,
+   "optional": true
+  },
+  {
+   "kind": "turnaround",
+   "box": [
+    0.42,
+    0.11,
+    0.54,
+    0.27
+   ],
+   "title": "四面図",
+   "guides": true
+  },
+  {
+   "kind": "expressions",
+   "box": [
+    0.42,
+    0.4,
+    0.54,
+    0.27
+   ],
+   "title": "表情",
+   "cols": 3,
+   "rows": 2
+  },
+  {
+   "kind": "swatches",
+   "box": [
+    0.04,
+    0.7,
+    0.36,
+    0.275
+   ],
+   "title": "色",
+   "style": "list"
+  },
+  {
+   "kind": "notes",
+   "box": [
+    0.42,
+    0.7,
+    0.54,
+    0.275
+   ],
+   "title": "注記"
+  }
+ ]
 }

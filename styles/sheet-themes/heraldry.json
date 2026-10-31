@@ -1,0 +1,45 @@
+{
+ "name": "heraldry",
+ "title": "灯火の紋章",
+ "mood": "古い羊皮紙に深紅と金。紋章の菱を地に敷き、二重の罫で囲む。騎士・王国・中世の幻想に合う",
+ "fits": [
+  "knight",
+  "armor",
+  "plate",
+  "cape",
+  "lantern",
+  "sword",
+  "castle",
+  "medieval",
+  "kingdom",
+  "騎士",
+  "鎧",
+  "剣",
+  "王国",
+  "ランタン"
+ ],
+ "colors": {
+  "page": "#e9dcc0",
+  "page2": "#d6c39d",
+  "card": "#f6eedb",
+  "ink": "#2a1b14",
+  "sub": "#6e5643",
+  "rule": "#b89a6a",
+  "accent": "#8c2a2a",
+  "accent2": "#b8893a",
+  "band_text": "#f6eedb",
+  "guide": "#8c2a2a"
+ },
+ "texture": "parchment",
+ "texture_strength": 0.6,
+ "motif": "diamonds",
+ "motif_alpha": 0.12,
+ "frame": "double",
+ "heading": {
+  "style": "band",
+  "number": "roman"
+ },
+ "title_font": "gothic",
+ "card_radius": 4,
+ "card_shadow": false
+}

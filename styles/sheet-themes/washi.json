@@ -1,0 +1,44 @@
+{
+ "name": "washi",
+ "title": "和紙と墨",
+ "mood": "生成りの和紙に墨と朱。繊維の筋を地に入れ、見出しは筆の太い払い、番号は漢数字。和装・神社・侍に合う",
+ "fits": [
+  "kimono",
+  "hakama",
+  "shrine",
+  "miko",
+  "samurai",
+  "katana",
+  "japanese",
+  "yukata",
+  "着物",
+  "袴",
+  "巫女",
+  "刀",
+  "和"
+ ],
+ "colors": {
+  "page": "#f4efe4",
+  "page2": "#ebe3d2",
+  "card": "#faf7f0",
+  "ink": "#1b1b1d",
+  "sub": "#5d5a55",
+  "rule": "#cfc6b6",
+  "accent": "#c0392b",
+  "accent2": "#1b1b1d",
+  "band_text": "#faf7f0",
+  "guide": "#c0392b"
+ },
+ "texture": "washi",
+ "texture_strength": 0.7,
+ "motif": "waves",
+ "motif_alpha": 0.07,
+ "frame": "corners",
+ "heading": {
+  "style": "brush",
+  "number": "kanji"
+ },
+ "title_font": "gothic",
+ "card_radius": 0,
+ "card_shadow": false
+}

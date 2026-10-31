@@ -1,0 +1,44 @@
+{
+ "name": "retro-sf",
+ "title": "レトロSF",
+ "mood": "紺の宇宙に生成りの計器盤。方眼と走査線を地に入れ、見出しは角の丸い札に番号。宇宙・ロボット・操縦士に合う",
+ "fits": [
+  "space",
+  "pilot",
+  "robot",
+  "sci-fi",
+  "rocket",
+  "astronaut",
+  "android",
+  "helmet",
+  "宇宙",
+  "ロボット",
+  "操縦"
+ ],
+ "colors": {
+  "page": "#14213d",
+  "page2": "#0b1428",
+  "card": "#f1e9d2",
+  "ink": "#14213d",
+  "sub": "#4a5a78",
+  "rule": "#9fb0c8",
+  "accent": "#f28c28",
+  "accent2": "#2a9d8f",
+  "band_text": "#14213d",
+  "guide": "#f28c28",
+  "page_ink": "#f1e9d2",
+  "page_sub": "#9fb0c8"
+ },
+ "texture": "grid",
+ "texture_strength": 0.5,
+ "motif": "stars",
+ "motif_alpha": 0.5,
+ "frame": "corners",
+ "heading": {
+  "style": "pill",
+  "number": "arabic"
+ },
+ "title_font": "pixel",
+ "card_radius": 26,
+ "card_shadow": false
+}

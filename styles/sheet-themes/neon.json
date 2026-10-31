@@ -1,0 +1,44 @@
+{
+ "name": "neon",
+ "title": "ネオン近未来",
+ "mood": "夜の街の黒紫に桃と水色の光る線。斜めの格子を地に、欄は光る縁で囲む。電脳・都市・夜の人物に合う",
+ "fits": [
+  "cyber",
+  "neon",
+  "hacker",
+  "city",
+  "night",
+  "headphones",
+  "hoodie",
+  "electric",
+  "電脳",
+  "都市",
+  "夜"
+ ],
+ "colors": {
+  "page": "#120d24",
+  "page2": "#06040f",
+  "card": "#f4f1fb",
+  "ink": "#120d24",
+  "sub": "#5b5478",
+  "rule": "#ff3ea5",
+  "accent": "#ff3ea5",
+  "accent2": "#2de2e6",
+  "band_text": "#120d24",
+  "guide": "#ff3ea5",
+  "page_ink": "#f4f1fb",
+  "page_sub": "#2de2e6"
+ },
+ "texture": "scan",
+ "texture_strength": 0.5,
+ "motif": "diagonal",
+ "motif_alpha": 0.1,
+ "frame": "neon",
+ "heading": {
+  "style": "pill",
+  "number": "arabic"
+ },
+ "title_font": "gothic",
+ "card_radius": 14,
+ "card_shadow": false
+}

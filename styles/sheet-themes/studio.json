@@ -1,0 +1,31 @@
+{
+ "name": "studio",
+ "title": "白い作業台",
+ "default": true,
+ "mood": "既定。どの人物にも当たる明るい地。色はキャラクターの持ち色から1つだけ借りて帯に使う",
+ "fits": [],
+ "colors": {
+  "page": "#f6f4ef",
+  "page2": "#ebe7df",
+  "card": "#fffefb",
+  "ink": "#1d1b1a",
+  "sub": "#6b645d",
+  "rule": "#d8d2c8",
+  "accent": "character",
+  "accent2": "#1d1b1a",
+  "band_text": "#ffffff",
+  "guide": "#d23a26"
+ },
+ "texture": "grain",
+ "texture_strength": 0.25,
+ "motif": "dots",
+ "motif_alpha": 0.1,
+ "frame": "none",
+ "heading": {
+  "style": "tab",
+  "number": "arabic"
+ },
+ "title_font": "gothic",
+ "card_radius": 18,
+ "card_shadow": true
+}

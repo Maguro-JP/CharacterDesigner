@@ -2,14 +2,77 @@
  "name": "overview",
  "title": "総覧型",
  "purpose": "人物の全体を1枚で把握する。企画の打ち合わせや資料の表紙に使う",
- "size": [2400, 1350],
+ "size": [
+  2400,
+  1350
+ ],
  "ratio": "16:9",
  "panels": [
-  {"kind": "header", "box": [0.025, 0.02, 0.95, 0.07]},
-  {"kind": "turnaround", "box": [0.025, 0.11, 0.58, 0.52], "title": "四面図", "guides": true},
-  {"kind": "poses", "box": [0.625, 0.11, 0.35, 0.52], "title": "ポーズ", "count": 2},
-  {"kind": "expressions", "box": [0.025, 0.66, 0.58, 0.32], "title": "表情", "cols": 6, "rows": 1},
-  {"kind": "swatches", "box": [0.625, 0.66, 0.16, 0.32], "title": "色", "style": "list"},
-  {"kind": "notes", "box": [0.80, 0.66, 0.175, 0.32], "title": "注記"}
+  {
+   "kind": "header",
+   "box": [
+    0.025,
+    0.03,
+    0.95,
+    0.075
+   ]
+  },
+  {
+   "kind": "poses",
+   "box": [
+    0.025,
+    0.13,
+    0.25,
+    0.85
+   ],
+   "title": "",
+   "count": 1,
+   "hero": true,
+   "optional": true
+  },
+  {
+   "kind": "turnaround",
+   "box": [
+    0.295,
+    0.13,
+    0.45,
+    0.52
+   ],
+   "title": "四面図",
+   "guides": true
+  },
+  {
+   "kind": "expressions",
+   "box": [
+    0.295,
+    0.67,
+    0.45,
+    0.31
+   ],
+   "title": "表情",
+   "cols": 6,
+   "rows": 1
+  },
+  {
+   "kind": "swatches",
+   "box": [
+    0.765,
+    0.13,
+    0.21,
+    0.4
+   ],
+   "title": "色",
+   "style": "list"
+  },
+  {
+   "kind": "notes",
+   "box": [
+    0.765,
+    0.55,
+    0.21,
+    0.43
+   ],
+   "title": "注記"
+  }
  ]
 }

@@ -59,3 +59,34 @@
 - https://www.clipstudio.net/how-to-draw/archives/164740 — 6種の設定画（構造・頭部の向き・全身の向き・色・表情・ポーズ）、表情は約6つ、ポーズは4〜5つ
 - https://blog.cg-wire.com/character-sheet-animation — 向き・色・表情・ポーズの各版と注記
 - https://cgcookie.com/projects/character-sheet-template-head-measurements — 頭の高さを単位にした目盛り
+
+## 魅力的に見せる構成（2026-10-31 に調べた）
+
+白地に同じ大きさの枠を並べただけの版は、情報は揃っていても目が止まる所が無かった。資料集・公式の紹介ページ・参考シートの見せ方の解説を読み、次を決まりに落とした。
+
+分かったこと:
+- 主役を1つ決めて大きくする。紹介の画面では、話している人物を大きくし背景を落として視線を集める作りが見られた。版でも全身の立ち姿1枚を最大にし、他の欄はそれより小さくする
+- 枠からはみ出させる。人物の一部が枠の線に重なると、重なった方が手前に見える（重なりは奥行きの手がかり）。半端にはみ出すと「場所が足りなかった」ように見えるので、はみ出すなら頭まではっきり出す
+- 地は単色より、一段明るい／暗い台紙を欄ごとに敷く。参考シートの多くは「ほぼ単色の地に、明るいか暗い四角を区画ごとに置く」形だった。地そのものには世界の手がかり（模様・質感）を薄く敷き、絵と文字は無地の台紙に載せる
+- 見出しは「見せる」もの、本文は「読む」もの。役が違うので大きさと書体を変え、名前を最も大きく、欄の見出し、本文、注の順に段をはっきり付ける。文字の飾り（影、縁取り）を多用すると安っぽく見える
+- 見出しは罫や帯で欄の幅いっぱいに区切ると見やすい。番号を付けると読む順が決まる
+- 余白は版全体で同じ幅にそろえる。版面の端（裁ち落とし・綴じ）の近くに顔や大事な物を置かない
+- 色は人物の持ち色から借りると、版と人物がまとまって見える。一方で地の色が強すぎると人物の色が読めなくなるので、地は人物より彩度を落とす
+
+この道具での形:
+- 版（構成）とは別に、テーマ（配色・地の質感・地の模様・縁の飾り・見出しの様式・書体）を `styles/sheet-themes/<名前>.json` に持つ。`charsheet.py sheet <id> <出力.png> --format <版> --theme <テーマ>`。一覧は `charsheet.py themes`、キャラクターに合う候補は `charsheet.py themes <id>`
+- 主役の欄（`"hero": true`）は台紙の上端を欄の 16% 下げ、絵は欄の上端から描く。頭が台紙の外に出る
+- 白い背景は縁につながる白だけを透かして貼る（囲まれた白い服や目の光は残す）。透かさずに貼ると、色の付いた地の上に白い四角が出た
+- 素材の無い欄は `"optional": true` なら版から外す。外さない欄は点線の小さな空欄にする。ポーズが足りない演技型は四面図の正面で埋める（`"fill_front": true`）
+
+出典（2026-10-31 に見た）:
+- https://www.instructables.com/How-to-Make-a-Reference-Sheet — 参考シートの地はほぼ単色で、区画ごとに明るい／暗い四角を置く
+- https://audtrico.substack.com/p/small-guide-for-oc-reference-sheets — 段の並べ方（上に全身、中に表情と服の差分、下に色・小物・注記）、細部を絞る
+- https://creativepro.com/design-how-to-images-that-break-boundaries — 絵を枠から出す切り抜き方
+- https://www.pressreader.com/australia/imaginefx/20151009/282303908953561 — 枠を破るなら中途半端にしない
+- https://world.hey.com/oliver.servin/creating-depth-in-designs-through-layering-9f91c4a2 — 重なりが奥行きの手がかりになる
+- https://muffingroup.com/blog/gaming-website-design/ — 紹介画面で人物を大きくし背景を落とす作り、豊かな背景と整った文字の塊と余白
+- https://www.adobe.com/jp/creativecloud/roc/blog/design/quiz-challenge/image-assets.html — 見出しは見せる、本文は読ませる
+- https://getnavi.jp/lifestyle/68171/ 、https://news.mynavi.jp/article/Wordomoidori-17/ — 見出しを罫で幅いっぱいに囲む、文字の効果を多用しない
+- https://photographyicon.com/photo-book-design/ — 余白を通してそろえる、端に大事な物を置かない
+- 個別の作品の版面・アートブックの頁は写していない（確かめたのは解説記事だけで、一次の資料集の頁は見ていない）

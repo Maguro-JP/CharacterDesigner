@@ -141,3 +141,16 @@ OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じ
 - Character Sheets: The Blueprint for Consistent Animation（CGWire）https://blog.cg-wire.com/character-sheet-animation
 - Character sheet template head measurements（CG Cookie）https://cgcookie.com/projects/character-sheet-template-head-measurements
 - 個別の作品の版面は写していない。版は目的（総覧・作画用・演技・色指定・紹介）から設計した。`docs/knowledge/learning/design-sheet-layout.md`
+
+## 設定画集を魅力的に見せる構成とテーマ（`styles/sheet-themes/`、2026-10-31）
+
+- How to Make a Reference Sheet（Instructables）https://www.instructables.com/How-to-Make-a-Reference-Sheet
+- Small Guide For OC Reference Sheets https://audtrico.substack.com/p/small-guide-for-oc-reference-sheets
+- Design How-To: Images that Break Boundaries（CreativePro）https://creativepro.com/design-how-to-images-that-break-boundaries
+- Breaking borders（ImagineFX）https://www.pressreader.com/australia/imaginefx/20151009/282303908953561
+- Creating depth in designs through layering https://world.hey.com/oliver.servin/creating-depth-in-designs-through-layering-9f91c4a2
+- Gaming Website Design Examples https://muffingroup.com/blog/gaming-website-design/
+- Adobe「画像素材」の記事 https://www.adobe.com/jp/creativecloud/roc/blog/design/quiz-challenge/image-assets.html
+- GetNavi 罫線の記事 https://getnavi.jp/lifestyle/68171/ 、マイナビ Word の記事 https://news.mynavi.jp/article/Wordomoidori-17/
+- Photo Book Design https://photographyicon.com/photo-book-design/
+- テーマ7種（studio、heraldry、washi、retro-sf、steampunk、forest、neon）はどれも既存の作品の画面を写さずに組んだ
