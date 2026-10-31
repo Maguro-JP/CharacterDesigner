@@ -103,6 +103,20 @@
 | Hassaku XL | [John6666/hassaku-xl-illustrious-v31-sdxl](https://huggingface.co/John6666/hassaku-xl-illustrious-v31-sdxl) | SDXL | 6.9 GB | － | 0 | アニメ絵。くっきりした線と明るい塗り | 札を確かめる |
 | Prefect Illustrious XL | [John6666/prefect-illustrious-xl-v3-sdxl](https://huggingface.co/John6666/prefect-illustrious-xl-v3-sdxl) | SDXL | 6.9 GB | － | 0 | アニメ絵。立体感のある塗り | 札を確かめる |
 | WAI Illustrious | [Ine007/waiIllustriousSDXL_v160](https://huggingface.co/Ine007/waiIllustriousSDXL_v160) | SDXL | 6.9 GB | － | 50 | アニメ絵。整った顔と鮮やかな色 | 札を確かめる |
+| Animagine XL 4.0 Opt | [cagliostrolab/animagine-xl-4.0/animagine-xl-4.0-opt.safetensors](https://huggingface.co/cagliostrolab/animagine-xl-4.0) | SDXL | 6.9 GB | － | 0 | アニメ絵。4.0 を磨いた版で、体の形と色が安定している | 条件付きで商用可（openrail++） |
+| Animagine XL 4.0 Zero | [cagliostrolab/animagine-xl-4.0-zero](https://huggingface.co/cagliostrolab/animagine-xl-4.0-zero) | SDXL | 6.9 GB | － | 0 | アニメ絵。4.0 の土台の版で、追加の学びの元に向く | 条件付きで商用可（openrail++） |
+| Illustrious XL 1.0 | [OnomaAIResearch/Illustrious-XL-v1.0/Illustrious-XL-v1.0.safetensors](https://huggingface.co/OnomaAIResearch/Illustrious-XL-v1.0) | SDXL | 6.9 GB | － | 0 | アニメ絵。Illustrious の公式の 1.0。大きな絵でも崩れにくい | 札を確かめる（sdxl-license） |
+| Illustrious XL 1.1 | [OnomaAIResearch/Illustrious-XL-v1.1/Illustrious-XL-v1.1.safetensors](https://huggingface.co/OnomaAIResearch/Illustrious-XL-v1.1) | SDXL | 6.9 GB | － | 0 | アニメ絵。1.0 より文の頼みが通りやすい | 札を確かめる（sdxl-license） |
+| Illustrious XL 2.0（公式） | [OnomaAIResearch/Illustrious-XL-v2.0/Illustrious-XL-v2.0.safetensors](https://huggingface.co/OnomaAIResearch/Illustrious-XL-v2.0) | SDXL | 6.9 GB | － | 0 | アニメ絵。Illustrious の公式の 2.0。細部が細かい | 条件付きで商用可（creativeml-openrail-m） |
+| NoobAI XL 1.0 | [Laxhar/noobai-XL-1.0](https://huggingface.co/Laxhar/noobai-XL-1.0) | SDXL | 6.9 GB | － | 0 | アニメ絵。作家風と細かいタグがよく効く | 商用不可（fair-ai-public-license-1.0-sd に NoobAI の追加条項） |
+| Holodayo XL 2.1 | [yodayo-ai/holodayo-xl-2.1](https://huggingface.co/yodayo-ai/holodayo-xl-2.1) | SDXL | 7.1 GB | － | 0 | アニメ絵。配信者風の明るいキャラクターに強い | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
+| Clandestine XL 1.0 | [yodayo-ai/clandestine-xl-1.0](https://huggingface.co/yodayo-ai/clandestine-xl-1.0) | SDXL | 6.9 GB | － | 0 | アニメ絵。落ち着いた色と柔らかい陰影 | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
+| Nova Anime XL | [John6666/nova-anime-xl-il-v90-sdxl](https://huggingface.co/John6666/nova-anime-xl-il-v90-sdxl) | SDXL | 6.9 GB | － | 0 | アニメ絵。くっきりした線と鮮やかな塗り | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
+| Obsession Illustrious XL | [John6666/obsession-illustriousxl-v31-sdxl](https://huggingface.co/John6666/obsession-illustriousxl-v31-sdxl) | SDXL | 6.9 GB | － | 0 | アニメ絵。顔が整い、光の表現が豊か | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
+| Amanatsu Illustrious | [John6666/amanatsu-illustrious-v11-sdxl](https://huggingface.co/John6666/amanatsu-illustrious-v11-sdxl) | SDXL | 6.9 GB | － | 0 | アニメ絵。淡い色の柔らかい絵柄 | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
+| IllumiYume XL | [John6666/illumiyume-anime-style-noobai-xl-nai-xl-v10-sdxl](https://huggingface.co/John6666/illumiyume-anime-style-noobai-xl-nai-xl-v10-sdxl) | SDXL | 6.9 GB | － | 0 | アニメ絵。アニメの画面のような塗り | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
+| ArtiWaifu Diffusion 2.0 | [Eugeoter/artiwaifu-diffusion-2.0](https://huggingface.co/Eugeoter/artiwaifu-diffusion-2.0) | SDXL | 6.9 GB | － | 0 | アニメ絵。作家風の指定が効き、絵が整う | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
+| Kohaku XL Epsilon | [KBlueLeaf/Kohaku-XL-Epsilon-rev3](https://huggingface.co/KBlueLeaf/Kohaku-XL-Epsilon-rev3) | SDXL | 6.9 GB | － | 0 | アニメ絵。画集のような整った絵柄 | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
 | AAM XL AnimeMix | [Lykon/AAM_XL_AnimeMix](https://huggingface.co/Lykon/AAM_XL_AnimeMix) | SDXL | 6.9 GB | － | 0 | アニメ絵。背景まで描き込む | 札を確かめる |
 | Kohaku XL Zeta | [KBlueLeaf/Kohaku-XL-Zeta](https://huggingface.co/KBlueLeaf/Kohaku-XL-Zeta) | SDXL | 6.9 GB | － | 0 | アニメ絵。イラスト集のような落ち着いた塗り | 札を確かめる |
 | blue pencil XL | [GHArt/blue_pencil-XL_V1.0_xl_fp16](https://huggingface.co/GHArt/blue_pencil-XL_V1.0_xl_fp16) | SDXL | 6.9 GB | － | 0 | アニメ絵。淡い色と柔らかい線 | 札を確かめる |

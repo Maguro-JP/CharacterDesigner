@@ -141,7 +141,7 @@ class Fetcher(QObject):
         threading.Thread(target=watch, daemon=True).start()
         try:
             # 取ってある分は飛ばし、新しい版があればその差分だけを取る
-            snapshot_download(m.repo, cache_dir=str(HUB), **m.files)
+            snapshot_download(m.hub, cache_dir=str(HUB), **m.files)
             if m.family in SKETCH:   # ラフから描く部品は SD 系だけにある
                 repo, files, _ = SKETCH[m.family]
                 snapshot_download(repo, cache_dir=str(HUB), **files)   # ラフから描く部品（約 0.15〜0.3GB）

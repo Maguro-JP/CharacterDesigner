@@ -1826,14 +1826,14 @@ class Window(QMainWindow):
     # ---- AI のメニュー: 模型の切り替え ----
     def _fill_ai_menu(self):
         """開くたびに作り直す（取った・取っていないが変わるため）"""
-        from chatdraw.models import IMAGES, offered_images
+        from chatdraw.models import catalog_images, offered_images
         from chatdraw.setup import AUTO, has_image
         menu = self.ai_menu
         menu.clear()
         now_image = self.settings.get("image_model")
         # 出すのは、確かめて推奨に届いた模型と、手元にある模型だけ（ほかは「模型の管理」で推奨の絞りを外すと出る）
         from chatdraw.models import manual_images
-        images = [m for m in IMAGES if m in offered_images() or has_image(m)] + manual_images()
+        images = [m for m in catalog_images() if m in offered_images() or has_image(m)] + manual_images()
         menu.addSection("絵の模型")
         group = QActionGroup(menu)
         for key, name, have in [(AUTO, "おまかせ", True)] + [(m.repo, m.name, has_image(m)) for m in images]:
