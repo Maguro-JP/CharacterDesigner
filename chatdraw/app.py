@@ -532,6 +532,7 @@ class Window(QMainWindow):
         model_row.setContentsMargins(0, 0, 0, 0)
         model_row.addWidget(self.model_label)
         self.ai_panel.sections["模型"].body.addLayout(model_row)
+        self._lora_row()
         ask.addStretch()
         ask_page = QWidget()
         ask_page.setLayout(ask)
@@ -1679,6 +1680,45 @@ class Window(QMainWindow):
         self.button.setEnabled(False)
         self.thread.start()
 
+    def _lora_row(self):
+        """AI の欄の「模型」に、自分の作風の LoRA を選ぶ欄と強さを足す。初めは「なし」"""
+        from PySide6.QtWidgets import QComboBox, QSlider
+        from chatdraw import ownstyle
+        self.lora_pick = QComboBox()
+        self.lora_pick.setToolTip("自分の作風の LoRA を絵の模型に重ねます。置き場は " + str(ownstyle.lora_dir()))
+        self.lora_pick.addItem("LoRA なし", "")
+        for p in ownstyle.loras():
+            self.lora_pick.addItem(p.stem, str(p))
+        self.lora_pick.setCurrentIndex(max(0, self.lora_pick.findData(str(self.layout_store.value("lora", "") or ""))))
+        self.lora_strength = QSlider(Qt.Horizontal)
+        self.lora_strength.setRange(0, 150)
+        self.lora_strength.setValue(int(self.layout_store.value("lora_scale", 80)))
+        self.lora_strength.setToolTip("LoRA の強さ。大きいほど自分の作風に寄せる")
+        self.lora_pick.currentIndexChanged.connect(lambda _i: self._lora_changed())
+        self.lora_strength.valueChanged.connect(lambda _v: self._lora_changed())
+        body = self.ai_panel.sections["模型"].body
+        body.addWidget(self.lora_pick)
+        body.addWidget(self.lora_strength)
+
+    def _lora_changed(self):
+        path, scale = self.lora_pick.currentData() or "", self.lora_strength.value()
+        self.layout_store.setValue("lora", path)
+        self.layout_store.setValue("lora_scale", scale)
+        painter = getattr(getattr(self, "studio", None), "painter", None)
+        if painter is not None:
+            painter.lora, painter.lora_scale = path, scale / 100
+
+    def collect_favorites(self):
+        """★ の絵を学習用のデータ（絵と説明の .txt）に書き出し、置き場を知らせる"""
+        from chatdraw import ownstyle
+        if not ownstyle.favorites():
+            self.statusBar().showMessage("★ の絵がありません。履歴かライブラリーの絵を右クリックして ★ を付けてください", 8000)
+            return None
+        res = ownstyle.collect()
+        self.statusBar().showMessage(f"学習用に {len(res['images'])} 枚を集めました: {res['dir']}"
+                                     + (f"（見つからない絵 {len(res['missing'])} 枚）" if res["missing"] else ""), 12000)
+        return res
+
     def _history_menu(self, pos):
         from PySide6.QtWidgets import QMenu
         it = self.history.itemAt(pos)
@@ -1695,6 +1735,9 @@ class Window(QMainWindow):
         m.addAction("この設定で描き直す", lambda: self.redo_from(path))
         m.addAction("頼みの言葉を書く欄に入れる", lambda: self._prompt_from(path))
         m.addAction("お気に入りの言葉にする", lambda: self._prompt_from(path, pin=True))
+        from chatdraw import ownstyle
+        m.addAction("★ お気に入りを外す" if ownstyle.is_favorite(path) else "★ お気に入りにする", lambda: ownstyle.toggle(path))
+        m.addAction("学習用に集める", self.collect_favorites)
         m.addSeparator()
         m.addAction("絵をコピー", lambda: self.copy_image(path))
         m.addAction("保存した場所を開く", lambda: self.open_folder(path))
@@ -1823,6 +1866,8 @@ class Window(QMainWindow):
         old = getattr(self, "studio", None)
         painter = old.painter if old is not None and getattr(old.painter, "model", None) == image else Painter(image)
         painter.steps, painter.guidance = steps, guidance
+        painter.lora = str(self.layout_store.value("lora", "") or "")
+        painter.lora_scale = int(self.layout_store.value("lora_scale", 80)) / 100
         studio = Studio(Words(None if words == AUTO else Path(words)), painter, Path(g("output_dir")))
         studio.image_auto, studio.words_auto = g("image_model") == AUTO, words == AUTO
         studio.way = {"1つの模型で描く": "one", "構図と仕上げを分けて描く": "two"}.get(g("draw_way"), "auto")
