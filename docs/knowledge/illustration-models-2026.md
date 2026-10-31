@@ -80,3 +80,15 @@ Qwen-Image 2.1 は、記事によると研究用のライセンス（商用不�
 - [neta-art/Neta-Lumina の README](https://huggingface.co/neta-art/Neta-Lumina/blob/main/README.md)
 - [Best Anime and Stylized Checkpoints for Local Image Generation (2026)](https://insiderllm.com/guides/best-anime-stylized-checkpoints-local-image-generation/)
 - [Best Local Anime Image Model: Illustrious vs NoobAI](https://localaimaster.com/blog/best-local-anime-image-model)
+
+## Actions で確かめない模型（2026-10-31）
+
+GitHub Actions の機械は、置き場を空けても約 30GB しか使えません。次の模型は 30GB を超えるので、model-verify に入れていません。
+
+| 模型 | 大きさ |
+|---|---|
+| Tongyi-MAI/Z-Image-Turbo | 32.8 GB |
+| black-forest-labs/FLUX.1-schnell | 33.7 GB |
+| Qwen/Qwen-Image-2512 | 57.7 GB |
+
+2026-10-25 の model-verify は、8 つのうち 7 つが 150 分の上限で打ち切られました（1 工程 約 39 秒の遅い機械で、3 枚を描き終わらなかった）。上限を 330 分に上げて流し直します。
