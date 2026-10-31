@@ -16,9 +16,9 @@
 | 4 | 頼んでいない物（白いシャツなど）を描かせない | 済み | chatdraw/engine.py:859-880 | 無し |
 | 5 | 標準的な体型で描く（太った体・年配の体にしない。10-31） | 済み | chatdraw/body.py:4、chatdraw/bodycheck.py:1 | 無し（0.5.0 で入った） |
 | 6 | 背景がワンパターンで魅力が無い（10-25 以前） | 未着手 | 無い | 背景を変える仕組み |
+| 7 | 日本語の頼みをそのまま絵の模型に渡さない | 一部 | claude/FIX-freeze-20261031（engine.english_only を模型に渡す直前に通す） | Windows の実機では確かめていない |
 | 8 | 2D の次に 3D のキャラデザも出来るようにする（10-25） | 一部 | chatdraw/to3d.py（履歴の右クリック「3D に進む…」、厚みのある板の模型 OBJ と Blender で開く・取りに行く） | 最初の一歩だけ。Blender での作り込みは無い。Windows の実機で確かめていない |
-| 7 | 日本語の頼みをそのまま絵の模型に渡さない | 作業中 | claude/FIX-freeze-20261031（engine.english_only を模型に渡す直前に通す） | Windows の実機では確かめていない |
-| 9 | フリーズする言葉がある（10-26） | 作業中 | claude/FIX-freeze-20261031（commands.looks_like_command） | 「PNG のアイコン」のように描く物を表で拾えない頼みは、まだ操作に取る |
+| 9 | フリーズする言葉がある（10-26） | 一部 | claude/FIX-freeze-20261031（commands.looks_like_command） | 「PNG のアイコン」のように描く物を表で拾えない頼みは、まだ操作に取る |
 
 ## 検品
 
@@ -51,7 +51,7 @@
 | 29 | 追加ダウンロードが要る模型が動かない（10-31） | 未着手 | 無い | 部品の追加取得 |
 | 30 | 大容量の模型も動くように（10-31） | 一部 | chatdraw/engine.py:93-99（CPU との出し入れ） | 実機で大きな模型が動くかは確かめていない |
 | 31 | 模型によって絵が描けなくなる不具合（10-31） | 未着手 | 無い | 再現と修正 |
-| 32 | 高性能な言語模型の方が時間がかかる（10-26） | 作業中 | claude/FIX-freeze-20261031（engine.decode_threads） | 4B は測っていない。Qwen3.5 は頼みのたびに指示を読み直す（2B で約 6 秒） |
+| 32 | 高性能な言語模型の方が時間がかかる（10-26） | 一部 | claude/FIX-freeze-20261031（engine.decode_threads） | 4B は測っていない。Qwen3.5 は頼みのたびに指示を読み直す（2B で約 6 秒） |
 | 33 | 好みの絵をオリジナルの学習モデルのように使える設計（10-31、いずれ） | 未着手 | 無い | 設計から |
 
 ## UI
@@ -68,10 +68,10 @@
 | 41 | 完成した絵が表示されない（10-31） | 一部 | chatdraw/app.py の show_final、chatdraw/tests/test_uifix.py の FinalImageTest | 本物の模型で描いて確かめていない |
 | 42 | デフォルトのプリセット、選んだあとリセット出来るように（10-26） | 済み | chatdraw/aipanel.py:29-30、96 | 無し |
 | 43 | スクロールでシード値などが変わってしまう（10-26） | 済み | chatdraw/wheelguard.py:15 | 無し |
-| 44 | ツアーなどでフリーズする（10-26） | 作業中 | claude/FIX-freeze-20261031（tour.Tour.hole） | Windows の実機では確かめていない |
+| 44 | ツアーなどでフリーズする（10-26） | 一部 | claude/FIX-freeze-20261031（tour.Tour.hole） | Windows の実機では確かめていない |
 | 45 | フリーズのあと 1 度正しく閉じないと戻らない（10-26） | 済み | chatdraw/app.py:176-190（crashed_before） | 無し |
 | 46 | 全体表示のタブに今の表示領域を出し、動かせるように（10-26） | 済み | chatdraw/app.py:232-320（Navigator の view_rect と _center_at） | 無し |
-| 47 | 模型の管理が開けない（10-26） | 作業中 | claude/FIX-freeze-20261031（models.machine と engine.check が torch を読まない） | CUDA 版の Windows での秒数は測っていない |
+| 47 | 模型の管理が開けない（10-26） | 一部 | claude/FIX-freeze-20261031（models.machine と engine.check が torch を読まない） | CUDA 版の Windows での秒数は測っていない |
 | 48 | 関係するディレクトリを開くボタン（10-31） | 済み | chatdraw/folders.py:27、chatdraw/app.py:648 | 無し |
 | 49 | 増えた機能はプルダウンで整理（10-31） | 一部 | chatdraw/layerpanel.py（「…」のプルダウン）、chatdraw/aipanel.py:47 | ハブ全体の整理は途中 |
 | 50 | 音声入力を用意（10-25 以前） | 一部 | chatdraw/voice.py、chatdraw/app.py の voice_input | キーの送り方は試験で確かめた。Windows の実機で確かめていない |
