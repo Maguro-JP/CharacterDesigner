@@ -26,7 +26,7 @@ def table() -> str:
              "| 模型 | 取る所（Hugging Face） | 世代 | 大きさ | 速さ（CPU で 1 枚） | 点 | 得意なこと | 商用 |", "|---|---|---|---|---|---|---|---|"]
     for m in IMAGES:
         fam = FAMILIES.get(m.family)
-        lines.append(f"| {m.name} | [{m.repo}](https://huggingface.co/{m.repo}) | {fam.name if fam else m.family} | {m.gb:g} GB | {m.speed or '－'} | {m.score} | {m.good} | "
+        lines.append(f"| {m.name} | [{m.repo}](https://huggingface.co/{m.hub}) | {fam.name if fam else m.family} | {m.gb:g} GB | {m.speed or '－'} | {m.score} | {m.good} | "
                      f"{getattr(m, 'commercial', '') or '札を確かめる'} |")
     lines += ["", "### 世代ごとにできること", "",
               "| 世代 | 頼み方 | ラフから描く | 範囲の直し | 参考画像 |", "|---|---|---|---|---|"]

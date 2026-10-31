@@ -2,6 +2,8 @@
 import unittest
 
 from chatdraw import modeldoc
+# 目録の試験も、決まった試験の組（.claude/hooks/test.sh）で流れるようにここから読む
+from chatdraw.tests.test_catalog import AddByNameTest, CatalogTest, FilterTest  # noqa: F401
 
 
 class ModelDocTest(unittest.TestCase):
