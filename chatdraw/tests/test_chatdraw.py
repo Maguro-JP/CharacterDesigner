@@ -59,9 +59,12 @@ class EngineTest(unittest.TestCase):
             painter = FakePainter()
             said = []
             prompt, path = Studio(FakeWords(), painter, Path(d)).draw("赤いマフラーの子", 7, said.append)
-            self.assertEqual(prompt, "1girl, red scarf")
+            # 背景を頼んでいないので、種で選んだ場面が後ろに足される（engine.vary_background）
+            from chatdraw.engine import vary_background
+            self.assertEqual(prompt, vary_background("1girl, red scarf", 7))
+            self.assertTrue(prompt.startswith("1girl, red scarf, "))
             self.assertTrue(path.exists())
-            self.assertEqual(painter.calls, [("1girl, red scarf", 7)])
+            self.assertEqual(painter.calls, [(prompt, 7)])
             self.assertIn("描いています（1/1）", said)
 
     def test_only_minor_and_sexual_together_is_refused(self):
@@ -142,11 +145,13 @@ class LayoutTest(unittest.TestCase):
         ys = [w.panels[k][0].y() for k in ("view", "chat", "history")]
         self.assertEqual(ys, sorted(ys))                                 # 右は上から表示・AI・履歴
         self.assertEqual(w.corner(_Qt.BottomLeftCorner), _Qt.LeftDockWidgetArea)   # 上下の欄は真ん中だけ
-        w.panels["history"][0].toggleViewAction().trigger()             # 欄の帯のアイコンで隠す・出す
+        w.panels["history"][0].raise_()
+        QApplication.processEvents()
+        w.panel_actions["history"].trigger()                            # 欄の帯のアイコンで隠す・出す
         self.assertTrue(w.panels["history"][0].isHidden())
-        w.panels["history"][0].toggleViewAction().trigger()
+        w.panel_actions["history"].trigger()
         self.assertFalse(w.panels["history"][0].isHidden())
-        self.assertIn(w.panels["history"][0].toggleViewAction(), w.panel_bar.actions())
+        self.assertIn(w.panel_actions["history"], w.panel_bar.actions())
         w.place_bar(w.panel_bar, _Qt.BottomToolBarArea)                 # 帯は下にも置ける
         self.assertEqual(w.toolBarArea(w.panel_bar), _Qt.BottomToolBarArea)
         title = w.panels["layers"][0].titleBarWidget()
@@ -185,7 +190,12 @@ class PreviewTest(unittest.TestCase):
         QApplication.instance() or QApplication([])
         with TemporaryDirectory() as d:
             w = Window(Studio(FakeWords(), FakePainter(), Path(d)))
+            w.thread = None
+            w.show_preview(Image.new("RGB", (25, 25), "red"))   # 描いていないときの途中の絵は出さない
+            self.assertFalse(getattr(w.canvas, "overlay", None) and w.canvas.overlay.isVisible())
+            w.thread = object()   # 描いている途中
             w.show_preview(Image.new("RGB", (25, 25), "red"))
+            w.thread = None
             self.assertTrue(w.canvas.overlay.isVisible())
             w.fail("止めました")
             self.assertFalse(w.canvas.overlay.isVisible())
@@ -429,7 +439,8 @@ class SetupTest(unittest.TestCase):
         self.assertFalse(Words(Path("")).ready())
         # 言葉の模型が無いときも、日本語をそのまま渡さず、表で拾った語で描く（そのまま渡すと全く違う絵が出た）
         self.assertEqual(Words(Path("")).to_prompt("騎士"), "knight, armor")
-        self.assertEqual(Words(Path("")).to_prompt("ぴょぴょ"), "ぴょぴょ")   # 拾えない時だけそのまま
+        self.assertEqual(Words(Path("")).to_prompt("ぴょぴょ"), "")   # 拾えなくても日本語は渡さない（英語の所だけ残す）
+        self.assertEqual(Words(Path("")).to_prompt("ぴょぴょ anime"), "anime")
 
 
 class PathsTest(unittest.TestCase):
@@ -1885,7 +1896,7 @@ class TwoStageAppTest(unittest.TestCase):
             keep.mkdir(parents=True)
             p = keep / f"3-{variant['name']}-s{seed}.png"
             Image.new("RGB", (8, 8)).save(p)
-            self.assertEqual((sentence, tags), ("A woman smiling.", "1girl, smile"))
+            self.assertTrue(sentence.startswith("A woman smiling, ") and tags.startswith("1girl, smile, "), (sentence, tags))
             return p
         with mock.patch.object(twostage, "pick", return_value=two), mock.patch.object(twostage, "parts_ready", return_value=True), \
                 mock.patch.object(twostage, "run_stages", side_effect=fake), \
@@ -2493,7 +2504,8 @@ class WordsSpeedTest(unittest.TestCase):
             Words(p).to_prompt("赤いビキニの女性が浜辺に立つ")
         self.assertEqual(len(self.made), 1)
         self.assertEqual(self.made[0]["n_ctx"], 512)
-        self.assertEqual(self.made[0]["n_threads"], self.engine.physical_cores())
+        self.assertEqual(self.made[0]["n_threads"], self.engine.decode_threads(self.engine.physical_cores()))
+        self.assertEqual(self.made[0]["n_threads_batch"], self.engine.physical_cores())
         self.assertIn("\n", self.kw["stop"])            # 1 行目で止める
         self.assertLessEqual(self.kw["max_tokens"], 64)
         self.assertTrue(self.prompt.endswith("<think>\n\n</think>\n\n"))   # 考える模型に考えさせない

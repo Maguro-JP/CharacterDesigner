@@ -28,9 +28,18 @@ class Layer:
     image: QImage
     visible: bool = True
     opacity: float = 1.0
+    locked: bool = False   # ロックしたレイヤーには描けない（AI の絵を線で汚さないため）
 
     def copy(self) -> "Layer":
-        return Layer(self.name, self.image.copy(), self.visible, self.opacity)
+        return Layer(self.name, self.image.copy(), self.visible, self.opacity, self.locked)
+
+
+def _load(path: str) -> QImage:
+    """絵を読む。読めない絵で置き換えると 0×0 のキャンバスになり、何も出なくなったので先に止める"""
+    img = QImage(str(path))
+    if img.isNull():
+        raise ValueError(f"絵を読めません: {path}")
+    return img.convertToFormat(QImage.Format_ARGB32_Premultiplied)
 
 
 def blank(w: int, h: int, color: QColor | None = None) -> QImage:
@@ -68,6 +77,7 @@ class Canvas(QGraphicsView):
     zoomed = Signal(float)
     brush_changed = Signal(int)
     history_changed = Signal()  # 元に戻すの積み重ねが変わった（操作の履歴の欄を描き直す）
+    refused = Signal(str)       # 描けなかった理由（隠した・ロックしたレイヤー）。黙って描けないと壊れて見えた
     moved = Signal(int, int)    # カーソルのキャンバス上の位置（下の帯の座標に出す）
     used_color = Signal()       # 描く色で描き始めた（最近使った色に足す）
     marked = Signal()           # 赤ペンで印を付けた（AI の欄を「直す」にする）
@@ -181,7 +191,7 @@ class Canvas(QGraphicsView):
     def replace_with_image(self, path: str, name: str = "AI の絵"):
         """AI が新しく描いた絵に、キャンバスを置き換える。絵を下に、描くための空のレイヤーを上に置く。
         前の絵の上に重ねると、大きさの違う絵が重なって見分けられなかった。前の状態は「元に戻す」で戻せる"""
-        img = QImage(path).convertToFormat(QImage.Format_ARGB32_Premultiplied)
+        img = _load(path)
         if not self.layers:
             self._reset([Layer(name, img), Layer("レイヤー 1", blank(img.width(), img.height()))], 1)
             return
@@ -193,7 +203,7 @@ class Canvas(QGraphicsView):
         self.fit()
 
     def add_image_layer(self, path: str, name: str = "絵"):
-        img = QImage(path).convertToFormat(QImage.Format_ARGB32_Premultiplied)
+        img = _load(path)
         if not self.layers:
             self._reset([Layer(name, img)], 0)
             return
@@ -269,10 +279,20 @@ class Canvas(QGraphicsView):
         self.overlay.setVisible(True)
 
     # ---- レイヤー ----
+    def _new_name(self) -> str:
+        """使っていない「レイヤー n」。数を len で決めると、消したあとに同じ名前が 2 つできた"""
+        used = {layer.name for layer in self.layers}
+        n = 1
+        while f"レイヤー {n}" in used:
+            n += 1
+        return f"レイヤー {n}"
+
     def add_layer(self):
+        if not self.layers:
+            return
         w, h = self.size_px()
         self.snapshot_all()
-        self.layers.insert(self.current + 1, Layer(f"レイヤー {len(self.layers)}", blank(w, h)))
+        self.layers.insert(self.current + 1, Layer(self._new_name(), blank(w, h)))
         self.current += 1
         self.rebuild()
 
@@ -298,8 +318,21 @@ class Canvas(QGraphicsView):
             self.changed.emit()
 
     def set_visible(self, i: int, on: bool):
-        self.layers[i].visible = on
-        self.items[i].update()
+        if 0 <= i < len(self.layers):
+            self.layers[i].visible = on
+            self.items[i].update()
+
+    def set_locked(self, i: int, on: bool):
+        if 0 <= i < len(self.layers):
+            self.layers[i].locked = on
+
+    def rename_layer(self, i: int, name: str):
+        """名前を変える（元に戻すで戻せる）。空の名前にはしない"""
+        name = name.strip()
+        if 0 <= i < len(self.layers) and name and name != self.layers[i].name:
+            self.snapshot_all()
+            self.layers[i].name = name
+            self.changed.emit()
 
     def set_opacity(self, value: float):
         self.layers[self.current].opacity = value
@@ -704,8 +737,14 @@ class Canvas(QGraphicsView):
             self.redpen.begin(pos)
             self.marked.emit()
             return True
-        if not self.layers or not self.layers[self.current].visible:
+        if not self.layers:
             return False
+        if self.tool not in ("eyedropper", "zoom", "select"):
+            layer = self.layers[self.current]
+            if not layer.visible or layer.locked:
+                self.refused.emit(f"「{layer.name}」は{'隠して' if not layer.visible else 'ロックして'}いるので描けません。"
+                                  "レイヤーの欄で出すか、ロックを外すか、ほかのレイヤーを選んでください")
+                return True
         if self.tool == "eyedropper":
             self.pick(pos)
             return True

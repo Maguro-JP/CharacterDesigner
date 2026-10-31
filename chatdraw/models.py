@@ -441,17 +441,46 @@ def heavy(m: ImageModel) -> tuple[float, float]:
     return (m.vram or f.vram, m.ram or f.ram)
 
 
+_MACHINE: tuple[float, float] | None = None
+
+
 def machine() -> tuple[float, float]:
-    """この PC の GPU の VRAM と、メモリの合計（GB）。NVIDIA の GPU が無ければ VRAM は 0"""
+    """この PC の GPU の VRAM と、メモリの合計（GB）。NVIDIA の GPU が無ければ VRAM は 0。1 回だけ測る。
+
+    前は VRAM を測るために torch を読んでいた。模型の管理は画面の糸で開くので、torch の読み込み（この機械で 2.8 秒、
+    CUDA 版の Windows ではそれより長い）の間、窓が開かず固まって見えた。torch をまだ読んでいなければ nvidia-smi に聞く。
+    """
+    global _MACHINE
+    if _MACHINE is not None:
+        return _MACHINE
+    import sys
     vram = 0.0
     try:
-        import torch
-        if torch.cuda.is_available():
-            vram = torch.cuda.get_device_properties(0).total_memory / 1e9
+        torch = sys.modules.get("torch")
+        if torch is not None:
+            if torch.cuda.is_available():
+                vram = torch.cuda.get_device_properties(0).total_memory / 1e9
+        else:
+            vram = _smi_vram()
     except Exception:
         pass
     from chatdraw.engine import total_ram_gb
-    return vram, total_ram_gb()
+    _MACHINE = (vram, total_ram_gb())
+    return _MACHINE
+
+
+def _smi_vram() -> float:
+    """nvidia-smi で 1 枚目の GPU の VRAM（GB）。無ければ 0。待つのは長くて 5 秒"""
+    import shutil
+    import subprocess
+    exe = shutil.which("nvidia-smi")
+    if not exe:
+        return 0.0
+    flags = getattr(subprocess, "CREATE_NO_WINDOW", 0)   # Windows で黒い窓を出さない
+    out = subprocess.run([exe, "--query-gpu=memory.total", "--format=csv,noheader,nounits"], capture_output=True,
+                         text=True, timeout=5, creationflags=flags).stdout
+    first = out.strip().splitlines()[0] if out.strip() else ""
+    return float(first) * 1024 * 1024 / 1e9 if first else 0.0   # MiB
 
 
 def fits(m: ImageModel, vram: float, ram: float) -> str:

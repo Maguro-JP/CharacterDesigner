@@ -577,7 +577,8 @@ class Window(QMainWindow):
         self.mic_button.setFixedWidth(40)
         self.mic_button.setToolTip("声で頼む（Windows の音声入力 Win+H を開きます）")
         self.mic_button.clicked.connect(self.voice_input)
-        if sys.platform != "win32":
+        from chatdraw import voice
+        if not voice.available():
             self.mic_button.setEnabled(False)
             self.mic_button.setToolTip("声で頼む（Windows で使えます）")
         line.addWidget(self.mic_button)
@@ -616,7 +617,7 @@ class Window(QMainWindow):
         # ダブルクリックは今の絵に重ねる（今の絵を閉じない）。右クリックで開く・同じ設定で描き直す
         # 押すとその絵をキャンバスに出す（元に戻すで戻せる）。ダブルクリックは今の絵に重ねる
         self.history.itemClicked.connect(lambda it: it.data(Qt.UserRole) and self.show_history_image(it.data(Qt.UserRole)))
-        self.history.itemDoubleClicked.connect(lambda it: it.data(Qt.UserRole) and self.canvas.add_image_layer(it.data(Qt.UserRole), "AI の絵"))
+        self.history.itemDoubleClicked.connect(lambda it: it.data(Qt.UserRole) and self.layer_from_file(it.data(Qt.UserRole), "AI の絵"))
         self.history.setContextMenuPolicy(Qt.CustomContextMenu)
         self.history.customContextMenuRequested.connect(self._history_menu)
         hist = QDockWidget("履歴", self)
@@ -780,29 +781,12 @@ class Window(QMainWindow):
         self.canvas.brush_changed.connect(self.size_box.setValue)
         self.build_status()
 
-        # 右下: レイヤー
-        self.layer_list = QListWidget()
-        self.layer_list.itemChanged.connect(self._layer_toggled)
-        self.layer_list.currentRowChanged.connect(self._layer_selected)
-        self.layer_opacity = QSlider(Qt.Horizontal)
-        self.layer_opacity.setRange(0, 100)
-        self.layer_opacity.valueChanged.connect(lambda v: self.canvas.set_opacity(v / 100))
-        buttons = QHBoxLayout()
-        for label, fn in (("＋", self.canvas.add_layer), ("－", self.canvas.delete_layer),
-                          ("↑", lambda: self.canvas.move_layer(1)), ("↓", lambda: self.canvas.move_layer(-1))):
-            b = QPushButton(label)
-            b.setFixedWidth(34)
-            b.clicked.connect(fn)
-            buttons.addWidget(b)
-        lay = QVBoxLayout()
-        lay.addWidget(self.layer_list)
-        row2 = QHBoxLayout()
-        self.layer_opacity.setToolTip("レイヤーの不透明度")
-        row2.addWidget(self.layer_opacity)
-        lay.addLayout(row2)
-        lay.addLayout(buttons)
-        lbox = QWidget()
-        lbox.setLayout(lay)
+        # 右下: レイヤー（縮小図・表示・ロック・名前・並べ替え。chatdraw/layerpanel.py）
+        from chatdraw.layerpanel import LayerPanel
+        self.layer_panel = LayerPanel(self.canvas)
+        self.layer_list, self.layer_opacity = self.layer_panel.list, self.layer_panel.opacity
+        self.canvas.refused.connect(lambda why: self.statusBar().showMessage(why, 6000))
+        lbox = self.layer_panel
         self.navigator = Navigator(self.canvas)
         self.layer_tabs = QTabWidget()
         self.layer_tabs.addTab(lbox, "レイヤー")
@@ -823,7 +807,6 @@ class Window(QMainWindow):
         ldock.setObjectName("layers")
         ldock.setFeatures(PANEL)
         self.addDockWidget(Qt.RightDockWidgetArea, ldock)
-        self.canvas.changed.connect(self._refresh_layers)
         self.canvas.marked.connect(lambda: self.mode.setCurrentIndex(2))   # 赤ペンで囲んだら、AI の欄を「直す」にする
         self.canvas.note_wanted.connect(self.edit_note)
         # 自動保存: 変わってから 2 分ごとに書く
@@ -834,7 +817,6 @@ class Window(QMainWindow):
         self.autosave_timer.setInterval(120_000)
         self.autosave_timer.timeout.connect(self.autosave)
         self.autosave_timer.start()
-        self._refresh_layers()
         # 操作の履歴（履歴の欄の「操作」のタブ）
         self.canvas.history_changed.connect(lambda: show_ops(self.activity.ops, self.canvas))
         self.activity.ops.currentRowChanged.connect(lambda r: r >= 0 and self.canvas.go_to(r))
@@ -857,6 +839,7 @@ class Window(QMainWindow):
         view.addAction(self.tl_action)
         view.addAction(QAction("タイムラプスを見る…", self, shortcut="Ctrl+Shift+T", triggered=self.open_timelapse))
         view.addAction(QAction("タイムラプスを消す", self, triggered=self.recorder.clear))
+        view.addAction(QAction("GIF・動画を開く…", self, triggered=self.open_player))
         view.addSeparator()
         self.pin_action = QAction("表示する絵を固定する", self, checkable=True)
         self.pin_action.setToolTip("固定すると、AI が新しく描いた絵はキャンバスに出さず履歴に入れます。外すと最新の絵を出します")
@@ -892,6 +875,9 @@ class Window(QMainWindow):
         from chatdraw.librarypanel import LibraryPanel
         self.library = Library(None if studio is None else Path(self.studio.out) / ".library")
         self.library_panel = LibraryPanel(self)
+        # チャットの会話は閉じても残す（ライブラリーと同じく、試験では出力の置き場の中に作る）
+        self.chat.decorate = self.offer_prompt
+        self.chat.set_store((DATA if studio is None else Path(self.studio.out)) / "chat.json")
         libdock = QDockWidget("ライブラリー", self)
         libdock.setWidget(self.library_panel)
         libdock.setObjectName("library")
@@ -942,13 +928,20 @@ class Window(QMainWindow):
                 "progress": "F11", "library": "F12"}
         icons = {"color": "palette", "brushes": "brush", "chat": "ai", "history": "history", "layers": "layers", "view": "view",
                  "talk": "chat", "progress": "progress", "library": "library"}
+        self.panel_actions = {}
         for k in PANEL_ORDER:
             d = self.panels[k][0]
-            act = d.toggleViewAction()   # チェックが付いていれば表示中
+            # Qt の toggleViewAction は、タブの裏に隠れた欄も「出ている」と数え、押すと隠した。
+            # ライブラリーは履歴・表示とタブで重なっているので、F12 や欄の帯で押しても前に出ず、開けなくなっていた。
+            # 裏に隠れている欄は前に出し、前に出ている欄だけを隠す
+            act = QAction(d.windowTitle(), self, checkable=True)   # チェックが付いていれば表示中
+            act.setChecked(not d.isHidden())
             act.setShortcut(keys[k])
             act.setIcon(icon(icons[k]))
             act.setToolTip(f"{d.windowTitle()}（{keys[k]}）")
-            act.triggered.connect(lambda on, k=k: on and self.feature_tour(k))
+            act.triggered.connect(lambda _on, k=k: self.toggle_panel(k))
+            d.visibilityChanged.connect(lambda _on, d=d, act=act: act.setChecked(not d.isHidden()))
+            self.panel_actions[k] = act
             win.addAction(act)
             bar.addAction(act)
         tact = tools.toggleViewAction()
@@ -1110,15 +1103,10 @@ class Window(QMainWindow):
 
     def voice_input(self):
         """書く欄に移ってから Win+H を送り、Windows の音声入力を開く"""
+        from chatdraw import voice
         self.entry.setFocus()
-        if sys.platform != "win32":
-            return
-        import ctypes
-        user32 = ctypes.windll.user32
-        win, h, up = 0x5B, 0x48, 0x0002
-        for key, flag in ((win, 0), (h, 0), (h, up), (win, up)):
-            user32.keybd_event(key, 0, flag, 0)
-        self.statusBar().showMessage("話してください。言葉が書く欄に入ります（止めるときはもう一度 Win+H）", 5000)
+        if voice.start():
+            self.statusBar().showMessage("話してください。言葉が書く欄に入ります（止めるときはもう一度 Win+H）", 5000)
 
     def _toggle_fav(self):
         text = self.entry.text().strip() or self.last_text
@@ -1271,12 +1259,13 @@ class Window(QMainWindow):
         else:
             picked(None)
 
-    def offer_prompt(self, bubble, new: str | None):
-        """答えの吹き出しに、描く内容の案を AI の欄へ入れるボタンを付ける"""
+    def offer_prompt(self, bubble, new: str | None, restored: bool = False):
+        """答えの吹き出しに、描く内容の案を AI の欄へ入れるボタンを付ける。読み戻した会話の案にも付ける"""
         if not new:
             return
-        bubble.text += f"\n\n描く内容の案: {new}"
-        bubble.label.setText(bubble.text)
+        if not restored:
+            bubble.set_text(bubble.text + f"\n\n描く内容の案: {new}")
+        bubble.proposal = new
 
         def fill():
             self.entry.setText(new)
@@ -1289,6 +1278,8 @@ class Window(QMainWindow):
         bubble.add_button("AI の欄に入れる", "この案を AI の欄の「描く内容」に入れます（描きはしません）", fill)
         bubble.add_button("入れて描く", "この案を「描く内容」に入れて、すぐ描きます", lambda: (fill(), self.send()))
         self.chat._fit(bubble)
+        if not restored:
+            self.chat.save()
 
     def _show_model(self):
         from chatdraw.models import image_model
@@ -1332,7 +1323,7 @@ class Window(QMainWindow):
         st = check(getattr(self.studio, "painter", None), getattr(self.studio, "words", None)) if isinstance(self.studio, Studio) else \
             {"torch": True, "image": True, "words": True, "reason": ""}
         if st["image"]:
-            self.ai_label.setText("AI: 使えます" + ("" if st["words"] else "（言葉の模型なし。日本語はそのまま渡します）"))
+            self.ai_label.setText("AI: 使えます" + ("" if st["words"] else "（言葉の模型なし。日本語は語の表で英語に直します）"))
             self.ai_label.setStyleSheet("color:#8fd18f")
         else:
             self.ai_label.setText("AI: 使えません")
@@ -1520,9 +1511,35 @@ class Window(QMainWindow):
         self.activity.status(msg, *(int(m.group(1)), int(m.group(2))) if m else (None, None))
 
     def on_one(self, prompt: str, path: str):
-        """1 枚できるたびに呼ばれる。初めの 1 枚はキャンバスに置き、ほかは履歴に並べて選べるようにする"""
+        """1 枚できるたびに呼ばれる。初めの 1 枚はキャンバスに置き、ほかは履歴に並べて選べるようにする。
+        絵を置くのを先にする。前は検品の知らせを先に出していて、そこで落ちると絵が置かれず、途中の絵か何も無いままだった"""
         self.images.append(path)
         self.canvas.show_overlay(None)
+        first = not self.batch
+        self.batch.append(path)
+        bad = getattr(self.studio, "last_flaws", []) if self.job_kind == "fix" else []
+        try:
+            if self.job_kind == "chibi":
+                self.canvas.add_image_layer(path, "ちびキャラ")
+            elif self.job_kind == "fix":
+                self.canvas.add_image_layer(path, f"AI の直し {len(self.images)}" + ("（崩れあり）" if bad else ""))
+                if bad:   # 崩れの見つかった直しは見えなくして重ねる。元の絵を壊さず、見るか消すかは利用者が決める
+                    self.canvas.set_visible(self.canvas.current, False)
+                    self._refresh_layers()
+                else:
+                    self.canvas.redpen.clear()   # 崩れが見つからなければ、印は役目を終える
+            elif first and self.pin_action.isChecked() and self.mode.currentIndex() == 0:
+                self.say("表示する絵を固定しているので、新しい絵は履歴に入れました（押すと出ます）")
+            elif first:
+                self.activity.status("キャンバスに置いています")
+                self.place(path)
+        except (OSError, ValueError) as e:
+            self.say(f"絵をキャンバスに置けませんでした（{e}）。履歴から押すと出せます")
+        self.batch_items.append(self.activity.add(path, prompt))
+        if first and not self.pin_action.isChecked():
+            self.history.setCurrentRow(0)   # 選んでいた古い絵ではなく、出した新しい絵を選んだ形にする
+        for f in bad:
+            self.say(f"崩れ: {f}")
         if prompt and prompt != self.last_text:
             self.say(f"絵の模型に渡した言葉: {prompt}")   # 頼みとずれた絵が出たとき、どこでずれたかを見られるように
         if getattr(self.studio, "last_lost", None) and self.job_kind == "draw":
@@ -1530,33 +1547,30 @@ class Window(QMainWindow):
         check = getattr(self.studio, "last_check", None)
         if check is not None and self.job_kind == "draw":
             from chatdraw.handcheck import summary
-            self.say(summary(check))   # 検品の結果は、絵ごとに先に出す（崩れを見落としたまま使わないように）
-        if self.job_kind == "chibi":
-            self.canvas.add_image_layer(path, "ちびキャラ")
-        elif self.job_kind == "fix":
-            bad = getattr(self.studio, "last_flaws", [])
-            self.canvas.add_image_layer(path, f"AI の直し {len(self.images)}" + ("（崩れあり）" if bad else ""))
-            if bad:   # 崩れの見つかった直しは見えなくして重ねる。元の絵を壊さず、見るか消すかは利用者が決める
-                self.canvas.set_visible(self.canvas.current, False)
-                self._refresh_layers()
-                for f in bad:
-                    self.say(f"崩れ: {f}")
-            else:
-                self.canvas.redpen.clear()   # 崩れが見つからなければ、印は役目を終える
-        elif not self.batch and self.pin_action.isChecked() and self.mode.currentIndex() == 0:
-            self.say("表示する絵を固定しているので、新しい絵は履歴に入れました（押すと出ます）")
-        elif not self.batch:
-            self.activity.status("キャンバスに置いています")
-            self.place(path)
-        self.batch.append(path)
-        self.batch_items.append(self.activity.add(path, prompt))
-        if len(self.batch) == 1 and not self.pin_action.isChecked():
-            self.history.setCurrentRow(0)   # 選んでいた古い絵ではなく、出した新しい絵を選んだ形にする
+            try:
+                self.say(summary(check))   # 検品の結果は、絵ごとに先に出す（崩れを見落としたまま使わないように）
+            except (KeyError, TypeError) as e:
+                self.say(f"検品の結果を読めませんでした（{e}）。目で確かめてください")
         self._record()
         self.library_panel.add(self.library.add_work(path))   # 描いた絵はライブラリーにも入る（好き・いまいちを付けて好みを育てる）
 
+    def show_final(self):
+        """描き終えたら、1 枚目の絵をキャンバスに出して履歴で選ぶ。途中の絵（重ねた下描き）は必ず消す。
+        途中の絵の知らせが絵の知らせより後に届くと、仕上がった絵の上に途中の絵が残り、出来た絵が見えなかった"""
+        self.canvas.show_overlay(None)
+        if not self.batch or self.job_kind != "draw" or self.pin_action.isChecked():
+            return
+        path = self.batch[0]
+        if getattr(self, "_placed", None) != path:
+            self.place(path)
+        for row in range(self.history.count()):
+            if self.history.item(row).data(Qt.UserRole) == path:
+                self.history.setCurrentRow(row)
+                break
+
     def finish(self):
         self._show_model()   # おまかせで選んだ模型を出す
+        self.show_final()
         n = len(self.batch)
         fixed = self.job_kind in ("fix", "chibi")
         bad = getattr(self.studio, "last_flaws", []) if self.job_kind == "fix" else []
@@ -1569,8 +1583,8 @@ class Window(QMainWindow):
         self.notify(result if fixed else "描けました", "error" if bad else "ok",
                     (f"崩れ {len(bad)} 件。レイヤーを隠して重ねました。見て決めてください" if bad else
                      "新しいレイヤーに重ねました。見て決めてください") if fixed else
-                    (f"1 枚目を重ねました。ほかの {n - 1} 枚は履歴をダブルクリックで重ねられます" if n > 1
-                     else "レイヤーとして重ねました。押すと履歴を開きます"),
+                    (f"1 枚目をキャンバスに出しました。ほかの {n - 1} 枚は履歴を押すと出ます" if n > 1
+                     else "キャンバスに出しました（元に戻すで前の絵に戻せます）"),
                     on_click=lambda: (self.panels["history"][0].show(), self.activity.tabs.setCurrentIndex(0)))
         self._end("できました")
 
@@ -1749,7 +1763,7 @@ class Window(QMainWindow):
         m.addAction("この絵を出して固定する", lambda: (self.show_history_image(path), self.pin_action.setChecked(True)))
         if self.pin_action.isChecked():
             m.addAction("固定を外す（最新の絵を出す）", lambda: self.pin_action.setChecked(False))
-        m.addAction("今の絵に重ねる", lambda: self.canvas.add_image_layer(path, "AI の絵"))
+        m.addAction("今の絵に重ねる", lambda: self.layer_from_file(path, "AI の絵"))
         m.addSeparator()
         m.addAction("この設定で描き直す", lambda: self.redo_from(path))
         m.addAction("頼みの言葉を書く欄に入れる", lambda: self._prompt_from(path))
@@ -1760,6 +1774,7 @@ class Window(QMainWindow):
         m.addSeparator()
         m.addAction("絵をコピー", lambda: self.copy_image(path))
         m.addAction("保存した場所を開く", lambda: self.open_folder(path))
+        m.addAction("3D に進む…", lambda: self.open_3d(path)).setToolTip("この絵から 3D のキャラデザに進む（最初の一歩: 厚みのある板の模型）")
         from chatdraw import share
         sns = m.addMenu("SNS に送る")
         for name in share.SERVICES:
@@ -1798,8 +1813,21 @@ class Window(QMainWindow):
 
     def show_history_image(self, path: str):
         """履歴で選んだ絵をキャンバスに出す。出した絵は「固定」すると、新しく描いても入れ替わらない"""
-        self.canvas.replace_with_image(path, "AI の絵")
+        try:
+            self.canvas.replace_with_image(path, "AI の絵")
+        except ValueError as e:
+            self.notify("絵を出せません", "error", f"{e}（消したか、動かした絵です）")
+            return
         self._record()
+
+    def layer_from_file(self, path: str, name: str) -> bool:
+        """絵をレイヤーとして重ねる。読めない絵（消した・動かした）は知らせて止める"""
+        try:
+            self.canvas.add_image_layer(path, name)
+        except ValueError as e:
+            self.notify("絵を重ねられません", "error", f"{e}（消したか、動かした絵です）")
+            return False
+        return True
 
     def _set_pinned(self, on: bool):
         """固定を外したら、いちばん新しい絵を出す（固定の間に描いた絵が出ないままにしない）"""
@@ -1819,6 +1847,14 @@ class Window(QMainWindow):
     def open_timelapse(self):
         from chatdraw.timelapse import TimelapseDialog
         TimelapseDialog(self.recorder, self, Path(self.settings.get("output_dir"))).show()
+
+    def open_player(self):
+        from chatdraw.timelapse import open_player
+        open_player(self, Path(self.settings.get("output_dir")))
+
+    def open_3d(self, path: str):
+        from chatdraw.to3d import To3DDialog
+        To3DDialog(path, self).show()
 
     def canvas_menu(self, gpos):
         """絵の上の右クリック（右ボタンを動かさずに離したとき）。よく使う操作をまとめる"""
@@ -2062,7 +2098,10 @@ class Window(QMainWindow):
         self.notify(f"{kind}を替えました", "ok")
 
     def show_preview(self, img):
-        """AI が描いている途中の絵を、工程ごとにキャンバスの上に重ねて見せ、タイムラプスにも残す"""
+        """AI が描いている途中の絵を、工程ごとにキャンバスの上に重ねて見せ、タイムラプスにも残す。
+        描き終えたあとに遅れて届いた途中の絵は捨てる（仕上がった絵を隠さない）"""
+        if self.thread is None:
+            return
         self.canvas.show_overlay(qimage_from_pil(img))
         self.recorder.add(img)
 
@@ -2075,6 +2114,7 @@ class Window(QMainWindow):
             self.canvas.replace_with_image(path, f"AI の絵 {len(self.images)}")
         else:
             self.canvas.add_image_layer(path, f"AI の絵 {len(self.images)}")
+        self._placed = path
 
     def stop(self):
         self.studio.painter.stop = True
@@ -2321,7 +2361,7 @@ class Window(QMainWindow):
             ("キャンバス", [act("fit", "全体", self.canvas.fit, "全体を表示（Ctrl+0）"),
                           act("zoom", "100%", self.canvas.actual, "等倍で表示（Ctrl+1）"),
                           act("rotate", "回す", lambda: self.canvas.rotate_view(15), "右に回す（Ctrl+]）")]),
-            ("欄", [p[k][0].toggleViewAction() for k in PANEL_ORDER]),
+            ("欄", [self.panel_actions[k] for k in PANEL_ORDER]),
             ("配置", [act("layout", "おすすめ", lambda: self.apply_layout(__import__("chatdraw.layouts", fromlist=["x"]).recommended),
                          "おすすめの配置に戻す"),
                      act("layout", "配置…", lambda: self.layout_menu.exec(self.cursor().pos()), "決まった配置・寄せ・等分・保存")]),
@@ -2401,6 +2441,31 @@ class Window(QMainWindow):
         if not int(self.layout_store.value("tour_done", 0)):
             self.start_tour()
 
+    def panel_in_front(self, key: str) -> bool:
+        """欄が出ていて、タブの裏に隠れていないか"""
+        d = self.panels[key][0]
+        if d.isHidden():
+            return False
+        if d.isFloating():
+            return d.isVisible()
+        return d.isVisible() and not d.visibleRegion().isEmpty()
+
+    def toggle_panel(self, key: str):
+        """欄の帯・ウィンドウのメニュー・F キーで押したとき。隠れていれば出して前に出し、前に出ていれば隠す"""
+        d = self.panels[key][0]
+        if self.panel_in_front(key):
+            d.hide()
+        else:
+            was_hidden = d.isHidden()
+            d.show()
+            d.raise_()
+            title = d.titleBarWidget()
+            if getattr(title, "collapsed", False):
+                title.toggle()   # 畳んだままだと出しても中身が見えない
+            if was_hidden:
+                self.feature_tour(key)
+        self.panel_actions[key].setChecked(not d.isHidden())
+
     def _appear(self, d: QDockWidget, on: bool):
         """隠していた欄を出したときだけ、中身をふわっと出す（タブの切り替えでは動かさない）"""
         from chatdraw.motion import fade_in
@@ -2471,36 +2536,12 @@ class Window(QMainWindow):
         super().closeEvent(e)
 
     def _refresh_layers(self):
-        # 上にあるレイヤーを上に並べる（作画ソフトと同じ順）
-        self.layer_list.blockSignals(True)
-        self.layer_list.clear()
-        for i in reversed(range(len(self.canvas.layers))):
-            layer = self.canvas.layers[i]
-            item = QListWidgetItem(layer.name)
-            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Checked if layer.visible else Qt.Unchecked)
-            item.setData(Qt.UserRole, i)
-            self.layer_list.addItem(item)
-            if i == self.canvas.current:
-                self.layer_list.setCurrentItem(item)
-        if self.canvas.layers:
-            self.layer_opacity.blockSignals(True)
-            self.layer_opacity.setValue(int(self.canvas.layers[self.canvas.current].opacity * 100))
-            self.layer_opacity.blockSignals(False)
-        self.layer_list.blockSignals(False)
-
-    def _layer_selected(self, row: int):
-        item = self.layer_list.item(row)
-        if item is not None:
-            self.canvas.select(item.data(Qt.UserRole))
-
-    def _layer_toggled(self, item: QListWidgetItem):
-        self.canvas.set_visible(item.data(Qt.UserRole), item.checkState() == Qt.Checked)
+        self.layer_panel.refresh()
 
     def import_layer(self):
         path, _ = QFileDialog.getOpenFileName(self, "画像をレイヤーとして読み込む", "", "画像 (*.png *.jpg *.jpeg *.webp)")
         if path:
-            self.canvas.add_image_layer(path, Path(path).stem)
+            self.layer_from_file(path, Path(path).stem)
 
     def open_image(self):
         if self.tour_first("open", self.open_image):

@@ -111,7 +111,8 @@ def recommended(w):
     w.panels["talk"][0].show()
     side = min(320, max(260, int(max(w.width(), 1200) * 0.19)))
     _widths(w, ["color"], ["chat"], side)
-    w.resizeDocks([w.panels["talk"][0]], [200], Qt.Vertical)
+    # チャットは会話を読み返せる高さにする（200 のままだと 1080 の高さでも吹き出しが 2 つしか見えなかった。低い画面では絵の場所を残す）
+    w.resizeDocks([w.panels["talk"][0]], [200 if w.height() < 900 else int(w.height() * 0.3)], Qt.Vertical)
     _progress_idle(w)
     _first_tool(w, "hand")
 
