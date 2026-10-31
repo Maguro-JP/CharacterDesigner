@@ -1,0 +1,76 @@
+{
+ "id": "circle-skirt-1950s",
+ "name": "1950年代のサークルスカート",
+ "model": "SG161222/RealVisXL_V5.0",
+ "seed": 0,
+ "steps": 30,
+ "prompt": "high-end fashion editorial lookbook photograph, professional fashion photography, full body, standing, whole body from head to shoes in frame, facing the camera, plain off-white studio background, soft even studio lighting, 85mm lens, sharp focus, natural skin texture, photorealistic, high detail fabric texture, young woman, high ponytail, chiffon scarf in hair, brown hair, brown eyes, wearing fitted cream silk blouse with small rounded collar, cinched waist with narrow black belt, mid-calf full circle skirt in plain pale pink wool felt, hourglass silhouette, black low-heeled pumps",
+ "negative": "anime, illustration, drawing, cartoon, painting, 3d render, cgi, doll, cropped, out of frame, cut off feet, extra fingers, missing fingers, fused fingers, deformed hands, extra arms, extra legs, bad anatomy, two people, text, logo, brand logo, watermark, signature, nsfw, cleavage, see-through, short skirt, logo, text, modern clothes",
+ "views": {
+  "front": {
+   "file": "circle-skirt-1950s-s0-front.png",
+   "sec": 2375
+  },
+  "back": {
+   "file": "circle-skirt-1950s-s0-back.png",
+   "sec": 2433
+  }
+ },
+ "details": [
+  {
+   "part": "head",
+   "file": "circle-skirt-1950s-s0-detail-head.png",
+   "box": [
+    0,
+    0,
+    832,
+    194
+   ],
+   "words": "close-up of the hair and headwear"
+  },
+  {
+   "part": "collar",
+   "file": "circle-skirt-1950s-s0-detail-collar.png",
+   "box": [
+    0,
+    145,
+    832,
+    462
+   ],
+   "words": "close-up of the collar, neckline, buttons and fabric texture"
+  },
+  {
+   "part": "waist",
+   "file": "circle-skirt-1950s-s0-detail-waist.png",
+   "box": [
+    0,
+    413,
+    832,
+    705
+   ],
+   "words": "close-up of the waist, belt, pockets and seams"
+  },
+  {
+   "part": "hem",
+   "file": "circle-skirt-1950s-s0-detail-hem.png",
+   "box": [
+    0,
+    668,
+    832,
+    1033
+   ],
+   "words": "close-up of the hem, pleats and fabric folds"
+  },
+  {
+   "part": "feet",
+   "file": "circle-skirt-1950s-s0-detail-feet.png",
+   "box": [
+    0,
+    997,
+    832,
+    1216
+   ],
+   "words": "close-up of the shoes and socks"
+  }
+ ]
+}
