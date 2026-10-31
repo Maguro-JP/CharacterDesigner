@@ -4,9 +4,9 @@
  "purpose": "塗る人に渡す。色の値・役・面積の割合だけに絞る",
  "size": [
   2000,
-  2000
+  1500
  ],
- "ratio": "1:1",
+ "ratio": "4:3（横）",
  "areas": [
   "hero hero hero hero hero head head head head head head head",
   "hero hero hero hero hero sw sw sw sw sw sw sw",
@@ -14,14 +14,14 @@
  ],
  "rows": [
   "auto",
-  "1fr",
-  "auto"
+  "auto",
+  "1fr"
  ],
  "type": {
   "name": 60,
-  "head": 19,
-  "body": 17,
-  "note": 13
+  "head": 18,
+  "body": 15.5,
+  "note": 12.5
  },
  "panels": [
   {
@@ -30,8 +30,7 @@
   },
   {
    "kind": "header",
-   "area": "head",
-   "meta": false
+   "area": "head"
   },
   {
    "kind": "swatches",

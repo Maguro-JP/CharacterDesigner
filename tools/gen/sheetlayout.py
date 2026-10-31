@@ -20,9 +20,10 @@ import tempfile
 from pathlib import Path
 
 import bible
+import cdhome
 import charsheet as cs
 
-FONTS = bible.ROOT / ".cache" / "fonts"
+FONTS = cdhome.HOME / "fonts"
 CHROME = os.environ.get("SHEET_CHROME", "/opt/pw-browsers/chromium-1194/chrome-linux/chrome")
 # 横の向きの名前。四面図の絵は 正面・右向き・左向き・背面 の順に描いてある
 VIEW_NAMES = {4: ["正面", "右向き", "左向き", "背面"], 2: ["正面", "背面"], 1: ["正面"]}
@@ -92,7 +93,11 @@ def _callouts(ident, c):
     im = Image.open(bible.ROOT / ex[0][1]).convert("RGB")
     def crop(r):
         return im.crop((int(r[0] * im.width), int(r[1] * im.height), int(r[2] * im.width), int(r[3] * im.height)))
-    return [("顔", crop(cs.FACE_CROP)), ("目", crop(cs.EYE_CROP))]
+    f = cs.FACE_CROP
+    # 目は顔の切り抜きの中の割合で取る。胸から上の絵の割合（EYE_CROP）は絵によって顔の高さが違い、騎士では鼻と口を切り出した
+    fw, fh = f[2] - f[0], f[3] - f[1]
+    eye = (f[0] + fw * 0.08, f[1] + fh * 0.40, f[0] + fw * 0.92, f[1] + fh * 0.66)
+    return [("顔", crop(f)), ("目", crop(eye))]
 
 
 def _font_css():
@@ -119,7 +124,7 @@ CSS = """
 *{box-sizing:border-box;margin:0;padding:0}
 html,body{width:var(--W);height:var(--H);overflow:hidden}
 body{background:var(--page);color:var(--ink);font-family:var(--font);font-weight:400;
-  -webkit-font-smoothing:antialiased;font-feature-settings:"palt"}
+  -webkit-font-smoothing:antialiased;font-feature-settings:"palt";word-break:auto-phrase;line-break:strict}
 .bg{position:absolute;inset:0;background:var(--pattern);pointer-events:none}
 .page{position:absolute;inset:var(--m);display:grid;grid-template-columns:repeat(12,1fr);
   column-gap:var(--g);row-gap:var(--rg);grid-template-areas:var(--areas);grid-template-rows:var(--rows)}
@@ -140,25 +145,26 @@ body{background:var(--page);color:var(--ink);font-family:var(--font);font-weight
 .fit img{position:absolute;display:block}
 .shadow{position:absolute;border-radius:50%;background:radial-gradient(closest-side, color-mix(in srgb, var(--ink) 18%, transparent), transparent)}
 .guide{position:absolute;left:0;right:0;height:0;border-top:1px dashed color-mix(in srgb, var(--accent) 45%, transparent)}
-.guide span{position:absolute;left:0;top:3px;font-size:var(--t-note);color:var(--sub);letter-spacing:.06em}
+.guide.up span{top:auto;bottom:4px}
+.guide span{position:absolute;left:0;top:4px;font-size:var(--t-note);color:var(--sub);letter-spacing:.06em}
 .cap{position:absolute;font-size:var(--t-note);color:var(--sub);letter-spacing:.12em;transform:translateX(-50%);white-space:nowrap}
 .faces{flex:1;display:grid;gap:var(--fg);min-height:0}
 .face{display:flex;flex-direction:column;min-height:0}
 .face .im{flex:1;min-height:0;background:var(--tile);border-radius:var(--radius);overflow:hidden;position:relative}
-.face img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 12%;mix-blend-mode:multiply}
-.face p{font-size:var(--t-note);letter-spacing:.14em;color:var(--sub);text-align:center;margin-top:.55em;line-height:1}
+.face img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 25%;mix-blend-mode:multiply}
+.face p{font-size:calc(var(--t-note) * 1.15);color:color-mix(in srgb, var(--ink) 70%, var(--page)) !important;letter-spacing:.14em;color:var(--sub);text-align:center;margin-top:.55em;line-height:1}
 .notes{list-style:none;font-size:var(--t-body);line-height:1.75;counter-reset:n}
-.notes li{counter-increment:n;display:grid;grid-template-columns:1.8em 1fr;break-inside:avoid;margin-bottom:.55em}
+.notes li{counter-increment:n;display:grid;grid-template-columns:1.8em 1fr;margin-bottom:.55em}
 .notes li::before{content:counter(n,decimal-leading-zero);color:var(--accent);font-weight:700;font-size:var(--t-note);padding-top:.25em;letter-spacing:.04em}
 .notes b{font-weight:700}
 .chips{display:flex;flex-wrap:wrap;gap:calc(var(--t-body) * .7) calc(var(--t-body) * 1.4)}
-.chip{display:flex;align-items:center;gap:.55em;font-size:var(--t-note);color:var(--sub);line-height:1.25}
+.chip{display:flex;align-items:center;gap:.55em;font-size:var(--t-note);color:color-mix(in srgb, var(--ink) 68%, var(--page));line-height:1.3}
 .chip i{width:calc(var(--t-body) * 1.6);height:calc(var(--t-body) * 1.6);border-radius:50%;flex:none;
   box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--ink) 14%, transparent)}
 .chip b{display:block;color:var(--ink);font-weight:500;font-size:var(--t-body)}
 .swl{display:grid;grid-template-columns:repeat(var(--swc,1),1fr);column-gap:var(--g);row-gap:calc(var(--t-body) * .8)}
 .swt{width:100%;border-collapse:collapse;font-size:var(--t-body)}
-.swt td{padding:calc(var(--t-body) * .62) 0;border-bottom:1px solid color-mix(in srgb, var(--sub) 25%, transparent);vertical-align:middle}
+.swt td{padding:calc(var(--t-body) * .42) 0;border-bottom:1px solid color-mix(in srgb, var(--sub) 25%, transparent);vertical-align:middle}
 .swt td.k{width:calc(var(--t-body) * 3.4)}
 .swt i{display:block;width:calc(var(--t-body) * 2.6);height:calc(var(--t-body) * 2.6);border-radius:var(--radius);
   box-shadow:inset 0 0 0 1px color-mix(in srgb, var(--ink) 14%, transparent)}
@@ -169,11 +175,11 @@ body{background:var(--page);color:var(--ink);font-family:var(--font);font-weight
 .swt .bar span{display:block;height:100%;background:var(--accent)}
 .swt .p{text-align:right;font-size:var(--t-note);color:var(--sub);width:4em}
 .sbar{display:flex;height:calc(var(--t-body) * 2.2);border-radius:var(--radius);overflow:hidden}
-.sleg{display:flex;font-size:var(--t-note);color:var(--sub);margin-top:.5em;line-height:1.3}
-.sleg div{overflow:hidden;white-space:nowrap;text-overflow:clip;padding-right:4px}
+.sleg{margin-top:calc(var(--t-body) * .8);gap:calc(var(--t-body) * .5) calc(var(--t-body) * 1.1)}
+.sleg .chip i{width:calc(var(--t-note) * 1.1);height:calc(var(--t-note) * 1.1)}
 .strip{display:flex;height:calc(var(--t-body) * 0.9);border-radius:99px;overflow:hidden}
-.calls{display:grid;grid-template-columns:1fr 1fr;gap:var(--fg)}
-.call .im{aspect-ratio:1;background:var(--tile);border-radius:var(--radius);overflow:hidden}
+.calls{display:grid;grid-template-columns:1fr 1.6fr;gap:var(--fg)}
+.call .im{height:var(--callh);background:var(--tile);border-radius:var(--radius);overflow:hidden}
 .call img{width:100%;height:100%;object-fit:cover;mix-blend-mode:multiply;display:block}
 .call p{font-size:var(--t-note);color:var(--sub);margin-top:.5em;letter-spacing:.1em}
 .call p b{color:var(--accent);margin-right:.5em}
@@ -201,7 +207,7 @@ JS = r"""
     }
     if (box.dataset.guides) {
       for (const [name, t] of [['頭の上', 0], ['半分', 0.5], ['足の下', 1]]) {
-        const g = document.createElement('div'); g.className = 'guide'; g.style.top = (y + h * t) + 'px';
+        const g = document.createElement('div'); g.className = t === 1 ? 'guide up' : 'guide'; g.style.top = (y + h * t) + 'px';
         g.innerHTML = `<span>${name}</span>`; box.insertBefore(g, img);
       }
     }
@@ -291,10 +297,10 @@ def _panel_html(pn, ctx):
         sw = sorted(ctx["sw"], key=lambda s: -s["share"])
         tot = sum(s["share"] for s in sw) or 1
         segs = "".join(f'<div style="flex:{s["share"] / tot:.4f};background:{s["hex"]}"></div>' for s in sw)
-        if k == "strip":
-            return lab(pn.get("title", "")) + f'<div class="strip">{segs}</div>'
-        leg = "".join(f'<div style="flex:{s["share"] / tot:.4f}">{e(s["name"]) if s["share"] / tot >= 0.07 else ""}</div>' for s in sw)
-        return lab(pn.get("title", ""), pn.get("sub", "")) + f'<div class="sbar">{segs}</div><div class="sleg">{leg}</div>'
+        # 帯の中に名前を書くと細い区画で名前がぶつかったので、名前と割合は帯の下に並べる
+        leg = "".join(f'<div class="chip"><i style="background:{s["hex"]}"></i><div>{e(s["name"])} {s["share"] / tot * 100:.0f}%</div></div>' for s in sw)
+        bar = "strip" if k == "strip" else "sbar"
+        return lab(pn.get("title", ""), pn.get("sub", "")) + f'<div class="{bar}">{segs}</div><div class="chips sleg">{leg}</div>'
     if k == "callouts":
         cl = _callouts(ctx["ident"], c)
         if not cl:
@@ -334,7 +340,7 @@ def _theme_vars(th, c, W, H, fm):
     v = {
         "--W": f"{W / 2}px", "--H": f"{H / 2}px", "--m": f"{m:.1f}px",
         "--g": f"{fm.get('gutter', 0.02) * W / 2:.1f}px", "--rg": f"{fm.get('row_gap', 0.028) * W / 2:.1f}px",
-        "--fg": f"{fm.get('face_gap', 0.012) * W / 2:.1f}px",
+        "--fg": f"{fm.get('face_gap', 0.012) * W / 2:.1f}px", "--callh": f"{fm.get('callout_h', 0.09) * W / 2:.1f}px",
         "--page": col["page"], "--ink": col["ink"], "--sub": col["sub"], "--accent": col["accent"], "--tile": col["card"],
         "--pattern": PATTERNS.get(th.get("motif", "none"), "none"),
         "--font": serif if th.get("font") == "serif" else sans,

@@ -8,14 +8,14 @@
  ],
  "ratio": "16:9（横）",
  "areas": [
-  "hero hero hero head head head head head head side side side",
-  "hero hero hero turn turn turn turn turn turn side side side",
-  "hero hero hero expr expr expr expr expr expr side side side"
+  "hero hero hero head head head head head sw sw sw sw",
+  "hero hero hero turn turn turn turn expr expr expr expr expr",
+  "hero hero hero note note note note note note note note note"
  ],
  "rows": [
   "auto",
   "1fr",
-  "0.8fr"
+  "auto"
  ],
  "margin": 0.04,
  "panels": [
@@ -35,22 +35,22 @@
   },
   {
    "kind": "notes",
-   "area": "side",
+   "area": "note",
    "title": "注記",
-   "brief": true
+   "brief": true,
+   "columns": 2
   },
   {
    "kind": "expressions",
    "area": "expr",
    "title": "表情",
-   "cols": 6,
-   "max": 6
+   "cols": 2,
+   "max": 4
   },
   {
    "kind": "swatches",
-   "area": "side",
-   "style": "chips",
-   "title": "色"
+   "area": "sw",
+   "style": "chips"
   }
  ]
 }

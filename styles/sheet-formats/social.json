@@ -8,9 +8,9 @@
  ],
  "ratio": "1.91:1（横）",
  "areas": [
-  "hero hero hero hero head head head head head head head head",
-  "hero hero hero hero expr expr expr expr expr expr expr expr",
-  "hero hero hero hero strip strip strip strip strip strip strip strip"
+  "hero hero hero head head head head head head head head head",
+  "hero hero hero expr expr expr expr expr expr expr expr expr",
+  "hero hero hero strip strip strip strip strip strip strip strip strip"
  ],
  "rows": [
   "auto",

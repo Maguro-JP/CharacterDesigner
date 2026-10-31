@@ -10,6 +10,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "tools" / "gen"))
 import charsheet  # noqa: E402
 
+# 書き出しは Chromium（Playwright）で行う。入っていない環境では書き出しの試験だけを飛ばす
+needs_browser = pytest.mark.skipif(__import__('importlib').util.find_spec('playwright') is None, reason='playwright が無い')
+
 NAMES = [p.stem for p in sorted((ROOT / "styles" / "sheet-formats").glob("*.json"))]
 THEMES = [p.stem for p in sorted((ROOT / "styles" / "sheet-themes").glob("*.json"))]
 
@@ -32,6 +35,7 @@ def test_format_grid_is_12_columns(name):
         assert pn["area"] in named, pn
 
 
+@needs_browser
 @pytest.mark.parametrize("name", NAMES)
 def test_sample_renders_without_overflow(name, tmp_path):
     r = charsheet.sheet_format("sheep-girl", name, str(tmp_path / f"{name}.png"))
@@ -62,6 +66,7 @@ def test_themes_load_and_one_default():
         assert len(set(th["colors"].values())) <= 6, t["name"]
 
 
+@needs_browser
 @pytest.mark.parametrize("theme", THEMES)
 @pytest.mark.parametrize("name", ["overview", "social"])
 def test_theme_and_format_combine_without_overflow(theme, name, tmp_path):
