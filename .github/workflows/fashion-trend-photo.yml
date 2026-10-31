@@ -1,0 +1,51 @@
+# 今の日本の流行の装い（casts/fashion-trend/characters）を、写実の模型で全身のファッション写真のように描く（tools/gen/fashion_photo.py）。
+# 図鑑の人物（fashion-photo.yml）とは別の流れにして、片方の push でもう片方の描画が打ち切られないようにする。
+# 人物は置き場の json から数えて、1 人 1 ジョブで同時に描く。結果は draw-results ブランチの <実行の番号>/ に置く。
+name: fashion-trend-photo
+on:
+  push:
+    paths:
+      - "casts/fashion-trend/characters/**"
+      - ".github/workflows/fashion-trend-photo.yml"
+permissions:
+  contents: write   # 描いた絵を draw-results ブランチに置くため
+concurrency:
+  group: fashion-trend-photo-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  list:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      ids: ${{ steps.ids.outputs.ids }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: ids
+        run: echo "ids=$(python3 -c 'import json,pathlib;print(json.dumps(sorted(p.stem for p in pathlib.Path("casts/fashion-trend/characters").glob("*.json"))))')" >> "$GITHUB_OUTPUT"
+  photo:
+    needs: list
+    runs-on: ubuntu-latest
+    timeout-minutes: 350   # 描き直し（1 つの向きで 3 回まで）を入れたので、6 時間の上限の手前まで取る
+    strategy:
+      fail-fast: false
+      matrix:
+        id: ${{ fromJson(needs.list.outputs.ids) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 置き場を空ける
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1; free -g; nproc
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 部品
+        run: |
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy "opencv-python-headless<5"   # 5 では顔の検出（CascadeClassifier）が外された
+      - name: 描く
+        env:
+          CD_HOME: ${{ runner.temp }}/cd
+          CD_FETCH: "1"
+        run: python -u tools/gen/fashion_photo.py out/${{ matrix.id }} ${{ matrix.id }} --seed 0 --figures casts/fashion-trend/characters
+      - name: draw-results に置く
+        if: always()
+        run: sh .github/scripts/draw-results.sh out

@@ -1,6 +1,6 @@
 """服装の図鑑の人物を、写実の模型で全身のファッション写真のように描く（図鑑の見本は資料なので、アニメ調より実写風が読み取りやすい）。
 
-  CD_FETCH=1 python3 tools/gen/fashion_photo.py <出力> <id>... [--seed 0] [--steps 30]
+  CD_FETCH=1 python3 tools/gen/fashion_photo.py <出力> <id>... [--seed 0] [--steps 30] [--figures casts/fashion-trend/characters]
 
 1 人につき、服の全体が分かる正面と背面の全身と、細部（頭、襟と胸元、腰、裾、足元）の拡大を残す。
 細部は正面の全身から切り出して 2 倍にし、弱い描き直し（img2img、強さ 0.3）で布目と縫い目を描き足す。
@@ -141,6 +141,7 @@ def main():
     ap.add_argument("out")
     ap.add_argument("ids", nargs="+")
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--figures", default=str(FIGURES), help="人物の設定の置き場（図鑑は casts/fashion-zukan/characters、今の流行は casts/fashion-trend/characters）")
     ap.add_argument("--steps", type=int, default=30)
     ap.add_argument("--width", type=int, default=832)
     ap.add_argument("--height", type=int, default=1216)
@@ -158,7 +159,7 @@ def main():
     from diffusers import StableDiffusionXLImg2ImgPipeline
     img2img = StableDiffusionXLImg2ImgPipeline(**pipe.components)   # 同じ部品を使い回す（模型は 1 回だけ読む）
     for ident in a.ids:
-        c = json.loads((FIGURES / f"{ident}.json").read_text(encoding="utf-8"))
+        c = json.loads((Path(a.figures) / f"{ident}.json").read_text(encoding="utf-8"))
         pos, neg = prompt_of(c)
         name = f"{ident}-s{a.seed}"
         rec = {"id": ident, "name": c.get("name", ""), "model": MODEL, "seed": a.seed, "steps": a.steps,
