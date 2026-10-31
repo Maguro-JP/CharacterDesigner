@@ -102,7 +102,7 @@
 | NoobAI XL 1.1 | [Laxhar/noobai-XL-1.1](https://huggingface.co/Laxhar/noobai-XL-1.1) | SDXL | 6.9 GB | － | 0 | アニメ絵。絵柄の幅が広く、作家風の指定が効く | ライセンスの本文を読む必要あり |
 | Hassaku XL | [John6666/hassaku-xl-illustrious-v31-sdxl](https://huggingface.co/John6666/hassaku-xl-illustrious-v31-sdxl) | SDXL | 6.9 GB | － | 0 | アニメ絵。くっきりした線と明るい塗り | 札を確かめる |
 | Prefect Illustrious XL | [John6666/prefect-illustrious-xl-v3-sdxl](https://huggingface.co/John6666/prefect-illustrious-xl-v3-sdxl) | SDXL | 6.9 GB | － | 0 | アニメ絵。立体感のある塗り | 札を確かめる |
-| WAI Illustrious | [Ine007/waiIllustriousSDXL_v160](https://huggingface.co/Ine007/waiIllustriousSDXL_v160) | SDXL | 6.9 GB | － | 0 | アニメ絵。整った顔と鮮やかな色 | 札を確かめる |
+| WAI Illustrious | [Ine007/waiIllustriousSDXL_v160](https://huggingface.co/Ine007/waiIllustriousSDXL_v160) | SDXL | 6.9 GB | － | 50 | アニメ絵。整った顔と鮮やかな色 | 札を確かめる |
 | AAM XL AnimeMix | [Lykon/AAM_XL_AnimeMix](https://huggingface.co/Lykon/AAM_XL_AnimeMix) | SDXL | 6.9 GB | － | 0 | アニメ絵。背景まで描き込む | 札を確かめる |
 | Kohaku XL Zeta | [KBlueLeaf/Kohaku-XL-Zeta](https://huggingface.co/KBlueLeaf/Kohaku-XL-Zeta) | SDXL | 6.9 GB | － | 0 | アニメ絵。イラスト集のような落ち着いた塗り | 札を確かめる |
 | blue pencil XL | [GHArt/blue_pencil-XL_V1.0_xl_fp16](https://huggingface.co/GHArt/blue_pencil-XL_V1.0_xl_fp16) | SDXL | 6.9 GB | － | 0 | アニメ絵。淡い色と柔らかい線 | 札を確かめる |
