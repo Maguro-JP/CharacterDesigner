@@ -134,3 +134,10 @@ OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じ
 - Illustrious XL 2.0: https://huggingface.co/OnomaAIResearch/Illustrious-XL-v2.0
 - WAI Illustrious（diffusers の形の写し）: https://huggingface.co/Ine007/waiIllustriousSDXL_v160
 - Animagine XL 4.0: https://huggingface.co/cagliostrolab/animagine-xl-4.0
+
+## 設定画集の版の並べ方（`styles/sheet-formats/`、2026-10-31）
+
+- Model Sheets for Character Designers（CLIP STUDIO の講座）https://www.clipstudio.net/how-to-draw/archives/164740
+- Character Sheets: The Blueprint for Consistent Animation（CGWire）https://blog.cg-wire.com/character-sheet-animation
+- Character sheet template head measurements（CG Cookie）https://cgcookie.com/projects/character-sheet-template-head-measurements
+- 個別の作品の版面は写していない。版は目的（総覧・作画用・演技・色指定・紹介）から設計した。`docs/knowledge/learning/design-sheet-layout.md`

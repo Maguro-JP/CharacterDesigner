@@ -179,3 +179,9 @@
 - 2026-10-26 推奨の絵の模型を NoobAI XL V-Pred 1.0（Laxhar/noobai-XL-Vpred-1.0）にする。Animagine XL 4.0 は頼んだ物を落とし、手・足・顔が崩れることが多かったため。NoobAI は Illustrious を元に Danbooru と e621 の全量で学び直し、タグの効きと体の形の評判が今ある SDXL のアニメ模型で最も良く、diffusers の形で置かれていて札のない取り方で取れる。設定は札どおり Euler を v_prediction と zero terminal SNR に替え、工程 28、CFG 5、guidance_rescale 0.7、札の頭の質の言葉と描かない物。選ばなかった案: Illustrious XL 2.0（公式は diffusers の形が無い）、WAI Illustrious（混ぜた模型で出どころとライセンスの表示が無い）、Animagine XL 4.0 のまま。描いた絵の商用利用が禁止なので画面の札に出す。Animagine XL 4.0 は一覧に残す。触る場所: chatdraw/catalog.json、chatdraw/engine.py の use_vpred と negative_for、chatdraw/windraw.py の MODEL
 - 2026-10-27: 関所（tools/gen/gate.py）の許す差は、部位分けの読み違いの揺れ（`gate.py jitter` で測る）の上に置く。揺れより小さい差では、崩さない工程まで戻され、絵が元のアニメの絵のまま残った
 - 2026-10-31: 関所は顔と指を元の大きさで測り、顔・手・足の画素に触れない工程はその数字を前の値のまま引き継ぐ。手と足の指の数（hands.measure、feet.count_toes）を関所の数字 digits_bad に足し、読めない手と足も崩れに数える。縮めた絵では目の読みが揺れ、顔を変えない工程と顔の描き直しが face_bad で戻され、床の影と顔の直しが既定で効かなかったため。触る場所: tools/gen/gate.py、tools/gen/measure.py の halo_feet
+- 2026-10-31: 設定画集の版（フォーマット）はデータ（`styles/sheet-formats/<名前>.json`、欄の種類と版面に対する割合の位置）で持ち、`charsheet.py sheet --format <名前>` で出し分ける。版を足すたびに描画の処理を分けないため
+- 2026-10-31: 既定の版は classic（今までの縦流しの1枚）。版を選ばれなければ classic を使う。今までの出力を変えないため
+- 2026-10-31: 版は目的で分ける（総覧 overview 16:9、作画用 production A判横、演技 acting 3:4、色指定 color 1:1、紹介 social 1.91:1）。比率は見せる先から決めた。既存の作品の版面は写さない
+- 2026-10-31: 素材の無い欄は斜線の空欄と「未作成」で残し、欄を詰めない。何が足りないかを版の上で見せるため
+- 2026-10-31: 影とハイライトの色は作って埋めず空欄にする。描いた絵から決めていない色を載せると決まりに見えるため。頭身の目盛りは頭の高さを測る処理が無いので、全身の 8 等分の目盛りで代え、頭身とは書かない
+- 2026-10-31: 欄の中で描いた物の矩形を記録し、欄の外に出た数（outside_panel）を試験で 0 に保つ。文字は欄の幅で「…」で切る。引き出し線だけは欄をまたぐ役目なので版面の中かだけを見る

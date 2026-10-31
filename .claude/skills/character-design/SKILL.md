@@ -80,6 +80,7 @@ description: 「○○なキャラクターを作って」「○○風のキャ�
 - キャラデザモード（AI が描くときは必ずここから）: 設定（見た目・服・色・持ち物）→ 目と表情（face-designer）→ 持ち物（prop-designer）→ 三面図（`bible.py turnaround`）→ 顔の拡大と表情差分（`bible.py expressions`）→ checker が 1 枚ずつ元の大きさで検品 → 通した三面図と表情差分を `bible.py add-image <id> turnaround|expressions` で登録。`bible.py design-status <id>` が ready になるまで、イラストに描かない
 - 背景に人物を入れるときは、キャラデザを貼り付けない。貼った絵は位置と大きさを決める下書きまでで、完成は下書きを土台にキャラデザを参考画像として読ませ、場面の光・向き・ポーズに合わせて描き直させた絵（`bible.py draw <id> <出力> --base <下書き> --strength 0.55`）
 - イラストレーターモード: 人が参考資料を付けて描くよう指示したとき。`bible.py draw <id> <出力> --reference <画像>` で、設計がそろっていなくても描く
+- 設定画（設定画集）を頼まれたら、描く前に版の一覧を示して選んでもらう。`python3 tools/gen/charsheet.py formats` が名前・用途・比率・見本の画像（`library/sheets/formats/<名前>.png`）を出すので、その名前・用途・見本のパスをそのまま見せる。選ばれた版で `python3 tools/gen/charsheet.py sheet <id> <出力.png> --format <名前>` を出す。選ばれなければ既定の classic（`charsheet.py sheet <id> <出力.html> <出力.png>`）。素材の無い欄は「未作成」の空欄になるので、出した後に足りない欄を伝える
 
 
 1. まずアニメ風のデザインを描いて見せる。種を変えて数枚出し、選んでもらう
