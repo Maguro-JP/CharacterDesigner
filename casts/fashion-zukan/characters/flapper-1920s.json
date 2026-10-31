@@ -22,7 +22,7 @@
   "hair_color": "30,25,25",
   "boots_height": "0.05"
  },
- "negative": "trousers, pants, modern clothes, cleavage, short skirt, see-through, logo, text",
+ "negative": "trousers, pants, modern clothes, cleavage, short skirt, see-through, logo, text, (beret:1.3), bracelet, pumps",
  "items": [],
  "images": {},
  "outfit_parts": {},

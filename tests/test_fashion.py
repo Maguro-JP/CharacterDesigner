@@ -117,3 +117,21 @@ class BibleSwitchTest(unittest.TestCase):
         env = {**os.environ, "CD_BIBLE": "casts/fashion-zukan"}
         out = subprocess.run([sys.executable, "-c", code], cwd=ROOT, env=env, capture_output=True, text=True)
         self.assertEqual(out.stdout.strip(), "casts/fashion-zukan", out.stderr)
+
+
+class PhotoCheckTest(unittest.TestCase):
+    """写実の全身の検査（tools/gen/fashion_photo.py の check_view）。足元が枠の下で切れた絵を落とし、収まった絵を通す"""
+
+    def test_bottom_cut(self):
+        import sys
+        import types
+        from PIL import Image, ImageDraw
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        sys.modules.setdefault("design", types.ModuleType("design"))   # 模型の部品を読まずに検査だけ試す
+        import fashion_photo
+        whole = Image.new("RGB", (200, 400), (240, 238, 232))
+        ImageDraw.Draw(whole).rectangle((80, 40, 120, 360), fill=(20, 20, 20))
+        cut = Image.new("RGB", (200, 400), (240, 238, 232))
+        ImageDraw.Draw(cut).rectangle((60, 40, 140, 399), fill=(20, 20, 20))
+        self.assertEqual(fashion_photo.check_view(whole, "front"), [])
+        self.assertIn("足元が枠の下で切れている", fashion_photo.check_view(cut, "front"))

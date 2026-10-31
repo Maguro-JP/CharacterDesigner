@@ -1,24 +1,26 @@
-# 服装の図鑑の人物を写実で描いた絵（途中）
+# 服装の図鑑の人物を写実で描いた絵（途中、1 回目）
 
-写実の模型 RealVisXL V5.0 で、図鑑の人物 14 人を描いた。種は 0、30 歩、832×1216。描いた道具は `tools/gen/fashion_photo.py`（Actions の fashion-photo、実行 41209457557）。
-1 人につき 7 枚: 正面（front）、背面（back、正面の絵を IP-Adapter 0.5 の手本にした）、細部 5 枚（head 頭、collar 襟と胸元、waist 腰、hem 裾、feet 足元。正面から切り出して 1024 に広げ、img2img 強さ 0.3 で布目を描き足した）。
-判定と崩れは検品担当の結果を書く（検品中）。
+写実の模型 RealVisXL V5.0 で、図鑑の人物 14 人を描いた。種は 0、30 歩、832×1216。道具は `tools/gen/fashion_photo.py`（Actions の fashion-photo、実行 41209457557）。
+1 人につき 7 枚: 正面（`-front`）、背面（`-back`、正面の絵を IP-Adapter 0.5 の手本にした）、細部 5 枚（`-detail-head` 頭、`-detail-collar` 襟と胸元、`-detail-waist` 腰、`-detail-hem` 裾、`-detail-feet` 足元。正面から切り出して長い辺 1024 に広げ、img2img 強さ 0.3 で布目を描き足した）。
+描いた言葉は、人物の設定 `casts/fashion-zukan/characters/<id>.json` の look と outfit に写真の言葉を足したもの（全文は道具が絵の隣に書く `<id>-s0.json`）。
 
-| 人物 | 頼んだ服（outfit の頭） | 絵 | 判定 | 崩れ |
+検品担当の判定は 14 人とも「戻す」。崩れの数: 背面が振り返るか正面向き 12 人、足元が枠の下で切れる 5 人、前後で服・髪・靴が食い違う 10 人、頼んだ品目がありふれた品にすり替わる 13 人。
+
+| 人物 | 絵（`photo-<id>-s0-…`） | 判定 | 頼んだ装いとの違い | 崩れ |
 |---|---|---|---|---|
-| 1947 年の Bar スーツ（New Look） | cream silk tailored jacket with rounded natural shoulders | `photo-bar-suit-1947-s0-front.jpg` ほか 6 枚 | 検品中 | 検品中 |
-| 1950年代のサークルスカート | fitted cream silk blouse with small rounded collar | `photo-circle-skirt-1950s-s0-front.jpg` ほか 6 枚 | 検品中 | 検品中 |
-| 1920年代のフラッパー | straight loose navy wool jersey dress with dropped waist | `photo-flapper-1920s-s0-front.jpg` ほか 6 枚 | 検品中 | 検品中 |
-| 1990年代のヒップホップ | oversized red and navy color-block nylon track jacket | `photo-hiphop-1990s-s0-front.jpg` ほか 6 枚 | 検品中 | 検品中 |
-| 2000 年代〜の違う服を継いだ上着 | hybrid jacket spliced from a beige cotton gabardine trench coat upper and an olive nylon flight bomber lower half | `photo-hybrid-jacket-2000s-s0-front.jpg` ほか 6 枚 | 検品中 | 検品中 |
-| 明治・大正の女学生（矢絣の着物に袴） | matte silk crepe kimono with purple and white yagasuri arrow pattern | `photo-jogakusei-hakama-s0-front.jpg` ほか 6 枚 | 検品中 | 検品中 |
-| 1966 年の女性のタキシード | black wool tuxedo jacket with satin peak lapels tailored to a woman's figure | `photo-le-smoking-1966-s0-front.jpg` ほか 6 枚 | 検品中 | 検品中 |
-| 1960年代のモッズ | slim three-button navy mohair-wool suit with narrow shoulders and short jacket | `photo-mods-1960s-s0-front.jpg` ほか 6 枚 | 検品中 | 検品中 |
-| 1965 年のモンドリアンの服 | sleeveless knee-length straight shift dress | `photo-mondrian-1965-s0-front.jpg` ほか 6 枚 | 検品中 | 検品中 |
-| 1993 年〜のプリーツ | permanently micro-pleated polyester column top and matching pleated trousers | `photo-pleats-1993-s0-front.jpg` ほか 6 枚 | 検品中 | 検品中 |
-| 2000〜01 年の細身の男性の形 | very slim black wool suit with narrow shoulders | `photo-slim-suit-2000-s0-front.jpg` ほか 6 枚 | 検品中 | 検品中 |
-| 1970 年代半ばの芯の無い上着 | unstructured single-breasted jacket with soft natural sloping shoulders | `photo-unstructured-1970s-s0-front.jpg` ほか 6 枚 | 検品中 | 検品中 |
-| 19世紀の紳士（フロックコートとシルクハット） | sharply tailored black wool frock coat with strong shoulders and nipped waist | `photo-victorian-gentleman-s0-front.jpg` ほか 6 枚 | 検品中 | 検品中 |
-| 1983 年ごろの布を巻くように裁った黒の服 | loose asymmetric black wrapped coat-dress cut like layered kimono panels | `photo-wrapped-black-1983-s0-front.jpg` ほか 6 枚 | 検品中 | 検品中 |
+| 1947 年の Bar スーツ | `photo-bar-suit-1947-s0-front.jpg` ほか 6 枚 | 戻す | スカートが膝丈（頼んだのはふくらはぎの中ほど）。ペプラムと砂時計の形は出た | 正面・背面とも脛で切れ、脚と靴が無い。細部の足元もスカートだけ |
+| 1950 年代のサークルスカート | `photo-circle-skirt-1950s-s0-front.jpg` ほか 6 枚 | 戻す | 髪のスカーフが首のボウになり、丸い小襟が無い。スカートは円形でなく箱ひだ。黒い靴が無い | 背面が正面向き。前後でスカーフの色とベルトが違う。膝下で切れている |
+| 1920 年代のフラッパー | `photo-flapper-1920s-s0-front.jpg` ほか 6 枚 | 戻す | 帽子がベレー。落ちた腰の線と襟の縁取りが無い。靴がパンプス。設定に無い真珠の腕輪 | 背面が振り返り顔が見える。前後で帽子と首飾りが違う |
+| 1990 年代のヒップホップ | `photo-hiphop-1990s-s0-front.jpg` ほか 6 枚 | 戻す | 上着がクリームと紺。帽子が野球帽。金の鎖が無い | 背面が正面向きで別の装い。背面の右目に白い滲み |
+| 2000 年代〜の継いだ上着 | `photo-hybrid-jacket-2000s-s0-front.jpg` ほか 6 枚 | 戻す | トレンチとボンバーの継ぎ合わせが無く、オリーブ一色のトレンチ | 背面が振り返る。脛で切れて靴が無い。背面だけ衿が黒いリブ |
+| 明治・大正の女学生 | `photo-jogakusei-hakama-s0-front.jpg` ほか 6 枚 | 戻す | 袴が無く帯を巻いた長衣。柄がジグザグ。髪のリボンが無い。靴がヒールのブーツ | 前後で髪が違う。背面が振り返る |
+| 1966 年の女性のタキシード | `photo-le-smoking-1966-s0-front.jpg` ほか 6 枚 | 戻す | 上着が白。サテンの襟と側章が無い。髪がボブ | 前後で衿と袖のボタンの色が違う。背面の裾の切れ込みが背中の中ほどまで裂ける。脛で切れて靴が無い |
+| 1960 年代のモッズ | `photo-mods-1960s-s0-front.jpg` ほか 6 枚 | 戻す | タイが赤。チーフが赤一色。ボタンダウンでない。髪がマッシュルームでない | 背面が振り返る。前後で靴の色が違う |
+| 1965 年のモンドリアンの服 | `photo-mondrian-1965-s0-front.jpg` ほか 6 枚 | 戻す | 黄と黒の仕切り線が無い | 背面は後ろ姿。ただし頭に 2 つの髪型が重なる。前後で裾の色と靴が違う |
+| 1993 年〜のプリーツ | `photo-pleats-1993-s0-front.jpg` ほか 6 枚 | 戻す | ひだが縦。袖が段でなくフレア。上がペプラムで柱の形でない | 前後で髪と靴が違う。背面が振り返る |
+| 2000〜01 年の細身の男性の形 | `photo-slim-suit-2000-s0-front.jpg` ほか 6 枚 | 戻す | スーツが黒でなく灰色。細いタイが無くシャツが開く。茶のベルトと靴が足された | 背面が振り返る |
+| 1970 年代半ばの芯の無い上着 | `photo-unstructured-1970s-s0-front.jpg` ほか 6 枚 | 戻す | 品目と色はほぼ設定どおり | 正面の前合わせが乱れる（ボタンの無いボタン穴、縁に並ぶボタン）。襟先に文字のような印。背面が別人の顔 |
+| 19 世紀の紳士 | `photo-victorian-gentleman-s0-front.jpg` ほか 6 枚 | 戻す | シルクハットが無い。コートがツイード。ズボンが縦縞でない。設定に無いポケットチーフ | 腿で切れて靴が無い。背面の上着が腰丈で正面と違う。背面が振り返る |
+| 1983 年ごろの巻くように裁った黒の服 | `photo-wrapped-black-1983-s0-front.jpg` ほか 6 枚 | 戻す | 中のドレスが白。丈が膝。靴がヒール。髪が長い | 背面が斜め向き。前後で靴が違う |
 
-描いた言葉の全文は、人物の設定 `casts/fashion-zukan/characters/<id>.json` の look と outfit に、道具の写真の言葉を足したもの。
+2 回目に向けて道具を直した所: 服の言葉を写真の言葉より前に置く、背面の手本を 0.3 に下げて言葉を強める、足元の切れと背面の顔を数字で見て種を替えて描き直す（`check_view`）、すり替わった品を人物ごとの打ち消しに足す。

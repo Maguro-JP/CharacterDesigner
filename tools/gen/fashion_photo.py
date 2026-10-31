@@ -27,26 +27,32 @@ FIGURES = ROOT / "casts" / "fashion-zukan" / "characters"
 MODEL = "SG161222/RealVisXL_V5.0"   # openrail++（使い方の制限あり、絵の商用利用は可。docs/references.md）
 # アニメ絵のタグで、写真の言葉にすると人数や画風を引っ張るもの
 ANIME_WORDS = re.compile(r"\b(1girl|1boy|solo|male focus|anime style|cel shading|clean lineart)\b,?\s*", re.I)
-PHOTO = ("high-end fashion editorial lookbook photograph, professional fashion photography, full body, standing, whole body from head to shoes in frame, facing the camera, "
-         "plain off-white studio background, soft even studio lighting, 85mm lens, sharp focus, "
-         "natural skin texture, photorealistic, high detail fabric texture")
+# 写真の言葉は服の後ろに置く。前に置くと、SDXL の要約（pooled、最初の 75 トークンの区切りから取る）が写真の言葉だけになり、
+# 14 人のうち 13 人で色や特徴のある品目（黒、袴、帽子、横ひだ）がありふれた品（灰色、ワンピース、縦ひだ）にすり替わった（2026-10-31）
+PHOTO = ("(full body shot:1.2), entire figure from head to shoes in frame, (shoes visible:1.2), small figure with empty space above the head and below the feet, "
+         "fashion editorial lookbook photograph, plain off-white studio background, soft even studio lighting, sharp focus, photorealistic, high detail fabric texture")
 NEGATIVE = ("anime, illustration, drawing, cartoon, painting, 3d render, cgi, doll, cropped, out of frame, cut off feet, "
+            "cropped legs, legs cut off, close-up, "
             "extra fingers, missing fingers, fused fingers, deformed hands, extra arms, extra legs, bad anatomy, "
             "two people, text, logo, brand logo, watermark, signature, nsfw, cleavage, see-through")
 
 
 def prompt_of(c: dict) -> tuple[str, str]:
     look = ANIME_WORDS.sub("", c["look"]).strip(" ,")
-    pos = f"{PHOTO}, {look}, wearing {c['outfit']}"
+    pos = f"{look}, wearing {c['outfit']}, {PHOTO}"
     neg = ", ".join(x for x in (NEGATIVE, c.get("negative", "")) if x)
     return pos, neg
 
 
 # 向きの言葉と、その向きで打ち消す言葉。後ろ姿は言葉を後ろに足すだけでは正面を描いた（サークルスカート、2026-10-31）ので、
 # 頭に置き、顔と正面を打ち消す
-VIEWS = {"front": ("front view", ""),
-         "back": ("photographed from behind, back view, the person faces away from the camera, back of the head and back of the outfit visible",
-                  "face, looking at viewer, front view, facing camera")}
+# IP-Adapter（正面の絵の手本）を 0.5 にしても、14 人のうち 12 人が振り返るか正面を向いた（2026-10-31）。手本は顔ごと引っ張るので 0.3 に下げ、
+# 言葉を強め、描いたあとに顔が写っていないかを見て、写っていれば種を替えて描き直す（check_view）
+VIEWS = {"front": ("front view, facing the camera", ""),
+         "back": ("(view from behind:1.4), (back of the head:1.3), the person faces away from the camera, back of the outfit visible",
+                  "(face:1.4), (looking back:1.3), looking over shoulder, profile, eyes, nose, front view, facing camera")}
+BACK_IP_SCALE = 0.3
+TRIES = 3   # 1 つの向きで描き直す回数の上限（1 枚 約 40 分。2 つの向きで 6 枚まで描いてもジョブの上限 6 時間に収まる）
 # 細部の範囲（人物の外接枠の高さに対する割合、上端と下端）と、描き足すときの言葉
 DETAILS = [("head", 0.00, 0.16, "close-up of the hair and headwear"),
            ("collar", 0.12, 0.38, "close-up of the collar, neckline, buttons and fabric texture"),
@@ -64,6 +70,49 @@ def figure_box(im):
     if len(xs) == 0:
         return 0, 0, im.width, im.height
     return int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1
+
+
+def faces(im) -> int:
+    """頭のあたり（上から 27%）に写った顔（正面と横顔）の数を、OpenCV の Haar 検出で数える。OpenCV が無ければ -1。
+    1 回目の 14 人の背面で、検品担当が振り返ったとした 12 人のうち 10 人を見つけ、後ろ姿の 2 人は 0 だった。
+    絵の全体で探すと、服の柄を顔と取り違えた"""
+    try:
+        import cv2
+        import numpy as np
+    except ImportError:
+        return -1
+    g = cv2.cvtColor(np.asarray(im.convert("RGB")), cv2.COLOR_RGB2GRAY)[: int(im.height * 0.27)]
+    n = 0
+    for name in ("haarcascade_frontalface_default.xml", "haarcascade_profileface.xml"):
+        det = cv2.CascadeClassifier(cv2.data.haarcascades + name)
+        for img in (g, cv2.flip(g, 1)) if "profile" in name else (g,):   # 横顔の検出は片向きだけなので左右を返しても見る
+            n += len(det.detectMultiScale(img, scaleFactor=1.05, minNeighbors=4, minSize=(30, 30)))
+    return n
+
+
+def bottom_cut(im) -> float:
+    """下の端の行で、背景（その行の左右 1 割の色）と違う画素の割合。人物が枠の下で切れると大きくなる。
+    1 回目の 28 枚で、切れた 9 枚は 0.32〜0.80、切れていない 19 枚は 0.01 以下だった。
+    四隅の色から人物の外接枠を取るやり方は、床の影と背景の濃淡を人物と取り違え、28 枚すべてを切れたとした"""
+    import numpy as np
+    a = np.asarray(im.convert("RGB")).astype(int)
+    out = 0.0
+    for row in (a[-1], a[-4]):
+        w = len(row) // 10
+        bg = np.median(np.concatenate([row[:w], row[-w:]]), axis=0)
+        out = max(out, float((np.abs(row - bg).sum(axis=1) > 60).mean()))
+    return out
+
+
+def check_view(im, view: str) -> list[str]:
+    """描いた全身を数字で見る。見つかった崩れを返す（空なら通す）。
+    全身を頼んでも 14 人のうち 5 人が膝や腿で切れ、靴が無かった。背面は 12 人が振り返った（2026-10-31）"""
+    bad = []
+    if bottom_cut(im) > 0.1:
+        bad.append("足元が枠の下で切れている")
+    if view == "back" and faces(im) > 0:
+        bad.append("背面に顔が写っている")
+    return bad
 
 
 def details(img2img, im, pos, neg, seed, out: Path, name: str) -> list[dict]:
@@ -121,16 +170,23 @@ def main():
         for view, (words, away) in VIEWS.items():
             text = f"{words}, {pos}" if view == "back" else f"{pos}, {words}"
             pe, ne, pp, np_ = design.encode_xl(pipe, text, ", ".join(x for x in (neg, away) if x))
-            pipe.set_ip_adapter_scale(0.0 if front is None else 0.5)
+            pipe.set_ip_adapter_scale(0.0 if front is None else BACK_IP_SCALE)
             ref = front if front is not None else Image.new("RGB", (224, 224), "white")
-            t = time.time()
-            im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
-                      negative_pooled_prompt_embeds=np_, num_inference_steps=a.steps, guidance_scale=5.0,
-                      width=a.width, height=a.height, ip_adapter_image=ref,
-                      generator=torch.Generator().manual_seed(a.seed)).images[0]
+            tries = []
+            for k in range(TRIES):   # 検品に落ちたら種を替えて描き直す。落ちた絵も -try<k> で残す
+                t = time.time()
+                im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
+                          negative_pooled_prompt_embeds=np_, num_inference_steps=a.steps, guidance_scale=5.0,
+                          width=a.width, height=a.height, ip_adapter_image=ref,
+                          generator=torch.Generator().manual_seed(a.seed + k)).images[0]
+                bad = check_view(im, view)
+                tries.append({"seed": a.seed + k, "sec": round(time.time() - t), "bad": bad})
+                print(f"{name}-{view} 種 {a.seed + k} {time.time() - t:.0f} 秒 {bad or '通す'}", flush=True)
+                if not bad:
+                    break
+                im.save(out / f"{name}-{view}-try{k}.png")
             im.save(out / f"{name}-{view}.png")
-            rec["views"][view] = {"file": f"{name}-{view}.png", "sec": round(time.time() - t)}
-            print(f"{name}-{view}.png {time.time() - t:.0f} 秒", flush=True)
+            rec["views"][view] = {"file": f"{name}-{view}.png", "tries": tries, "passed": not tries[-1]["bad"]}
             if front is None:
                 front = im
         pipe.unload_ip_adapter()   # 細部の描き直し（img2img）は手本なしで描く

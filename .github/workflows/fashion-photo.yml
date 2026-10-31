@@ -21,7 +21,7 @@ concurrency:
 jobs:
   photo:
     runs-on: ubuntu-latest
-    timeout-minutes: 180
+    timeout-minutes: 350   # 描き直し（1 つの向きで 3 回まで）を入れたので、6 時間の上限の手前まで取る
     strategy:
       fail-fast: false
       matrix:
@@ -36,7 +36,7 @@ jobs:
       - name: 部品
         run: |
           pip install -q torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy "opencv-python-headless<5"   # 5 では顔の検出（CascadeClassifier）が外された
       - name: 描く
         env:
           CD_HOME: ${{ runner.temp }}/cd

@@ -13,7 +13,7 @@
  },
  "outfit": "black wool tuxedo jacket with satin peak lapels tailored to a woman's figure, straight black trousers with satin side stripe, white silk blouse, slender vertical line",
  "turnaround": {},
- "negative": "logo, brand logo, text",
+ "negative": "logo, brand logo, text, (white jacket:1.3), long hair, bob haircut",
  "items": [],
  "images": {},
  "outfit_parts": {},
