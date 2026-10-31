@@ -436,7 +436,8 @@ class SetupTest(unittest.TestCase):
         self.assertFalse(Words(Path("")).ready())
         # 言葉の模型が無いときも、日本語をそのまま渡さず、表で拾った語で描く（そのまま渡すと全く違う絵が出た）
         self.assertEqual(Words(Path("")).to_prompt("騎士"), "knight, armor")
-        self.assertEqual(Words(Path("")).to_prompt("ぴょぴょ"), "ぴょぴょ")   # 拾えない時だけそのまま
+        self.assertEqual(Words(Path("")).to_prompt("ぴょぴょ"), "")   # 拾えなくても日本語は渡さない（英語の所だけ残す）
+        self.assertEqual(Words(Path("")).to_prompt("ぴょぴょ anime"), "anime")
 
 
 class PathsTest(unittest.TestCase):
@@ -2500,7 +2501,8 @@ class WordsSpeedTest(unittest.TestCase):
             Words(p).to_prompt("赤いビキニの女性が浜辺に立つ")
         self.assertEqual(len(self.made), 1)
         self.assertEqual(self.made[0]["n_ctx"], 512)
-        self.assertEqual(self.made[0]["n_threads"], self.engine.physical_cores())
+        self.assertEqual(self.made[0]["n_threads"], self.engine.decode_threads(self.engine.physical_cores()))
+        self.assertEqual(self.made[0]["n_threads_batch"], self.engine.physical_cores())
         self.assertIn("\n", self.kw["stop"])            # 1 行目で止める
         self.assertLessEqual(self.kw["max_tokens"], 64)
         self.assertTrue(self.prompt.endswith("<think>\n\n</think>\n\n"))   # 考える模型に考えさせない

@@ -265,8 +265,20 @@ def by_model(text: str, words) -> tuple[Command | None, str] | None:
 
 
 def looks_like_command(text: str) -> bool:
-    """操作の頼みらしいか。短く、描く対象（人や物）を言っていない頼みだけを操作の候補にする（絵の頼みを取り違えない）"""
-    return by_words(text)[0] is not None
+    """操作の頼みらしいか。操作の言葉を除いた残りに、描く対象（人・物・場所）が無い頼みだけを操作の候補にする。
+
+    前は操作の言葉が 1 つでも入っていれば操作にした。「シンプルな背景の女の子」で配置が替わって欄が消え、
+    「使い方の分からない機械と少年」で案内の幕が出て、「保存食を持つ騎士」で保存の窓が開き、どれも絵は描かれず、
+    押しても何も起きない・固まったように見えた。操作の言葉を除いて表で拾える物が残れば、絵の頼みとして描く。
+    """
+    c = by_words(text)[0]
+    if c is None:
+        return False
+    from chatdraw.jaterms import tags_from
+    rest = text
+    for w in sorted(c.words, key=len, reverse=True):
+        rest = rest.replace(w, " ")
+    return not tags_from(rest)
 
 
 _ASK = object()
