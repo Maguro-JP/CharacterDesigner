@@ -1,0 +1,76 @@
+{
+ "id": "victorian-gentleman",
+ "name": "19世紀の紳士（フロックコートとシルクハット）",
+ "model": "SG161222/RealVisXL_V5.0",
+ "seed": 0,
+ "steps": 30,
+ "prompt": "full body fashion photograph, standing, whole body from head to shoes in frame, facing the camera, plain light grey studio background, soft even studio lighting, 85mm lens, sharp focus, natural skin texture, photorealistic, high detail fabric texture, adult man, short brown hair, side part, brown eyes, wearing victorian gentleman, black frock coat, knee-length coat, grey waistcoat, white shirt, high collar, black cravat, grey striped trousers, black leather shoes, black top hat",
+ "negative": "anime, illustration, drawing, cartoon, painting, 3d render, cgi, doll, cropped, out of frame, cut off feet, extra fingers, missing fingers, fused fingers, deformed hands, extra arms, extra legs, bad anatomy, two people, text, logo, brand logo, watermark, signature, nsfw, cleavage, see-through, modern clothes, sneakers, jeans, logo, text, steampunk goggles",
+ "views": {
+  "front": {
+   "file": "victorian-gentleman-s0-front.png",
+   "sec": 2529
+  },
+  "back": {
+   "file": "victorian-gentleman-s0-back.png",
+   "sec": 2493
+  }
+ },
+ "details": [
+  {
+   "part": "head",
+   "file": "victorian-gentleman-s0-detail-head.png",
+   "box": [
+    0,
+    0,
+    832,
+    194
+   ],
+   "words": "close-up of the hair and headwear"
+  },
+  {
+   "part": "collar",
+   "file": "victorian-gentleman-s0-detail-collar.png",
+   "box": [
+    0,
+    145,
+    832,
+    462
+   ],
+   "words": "close-up of the collar, neckline, buttons and fabric texture"
+  },
+  {
+   "part": "waist",
+   "file": "victorian-gentleman-s0-detail-waist.png",
+   "box": [
+    0,
+    413,
+    832,
+    705
+   ],
+   "words": "close-up of the waist, belt, pockets and seams"
+  },
+  {
+   "part": "hem",
+   "file": "victorian-gentleman-s0-detail-hem.png",
+   "box": [
+    0,
+    668,
+    832,
+    1033
+   ],
+   "words": "close-up of the hem, pleats and fabric folds"
+  },
+  {
+   "part": "feet",
+   "file": "victorian-gentleman-s0-detail-feet.png",
+   "box": [
+    0,
+    997,
+    832,
+    1216
+   ],
+   "words": "close-up of the shoes and socks"
+  }
+ ]
+}
