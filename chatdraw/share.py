@@ -12,6 +12,7 @@ from urllib.parse import quote
 SERVICES = {
     "X（Twitter）": "https://x.com/intent/post?text={text}",
     "Bluesky": "https://bsky.app/intent/compose?text={text}",
+    "Misskey": "https://misskey.io/share?text={text}",
 }
 
 

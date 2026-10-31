@@ -2,7 +2,9 @@
 
 線を 1 本引くたび、AI の絵を置くたび、AI が描いている途中の工程ごとに、キャンバスの写しを撮る。
 写しは縮めてメモリに持ち（1 枚 長い辺 640 画素、最大 1200 枚。超えたら半分に間引く）、同じ写しは足さない。
-「タイムラプスを見る」で、アプリの中で再生でき、そのまま GIF に書き出せる。
+「タイムラプスを見る」で、アプリの中で再生でき、そのまま GIF か動画（MP4）に書き出せる。
+書き出した GIF・動画は「開く」でアプリの中で見られる（外のプレーヤーを探させない）。
+動画の書き出しは imageio-ffmpeg が要る。数十 MB あるのでアプリに同梱せず、入っているときだけ使う。
 """
 from __future__ import annotations
 
@@ -50,6 +52,71 @@ class Recorder:
         frames[0].save(path, save_all=True, append_images=frames[1:], duration=durations, loop=0, optimize=True)
         return len(frames)
 
+    def export_video(self, path: str | Path, seconds: float = 15.0) -> int:
+        """MP4 に書き出す。書いた枚数を返す。imageio-ffmpeg が無ければ RuntimeError"""
+        if not self.frames:
+            return 0
+        if not video_available():
+            raise RuntimeError("動画の書き出しには imageio-ffmpeg が要ります（pip install imageio-ffmpeg）")
+        import imageio_ffmpeg
+        size = self.frames[-1].size
+        w, h = size[0] // 2 * 2, size[1] // 2 * 2   # H.264 は偶数の大きさしか受けない
+        fps = max(1, min(30, round(len(self.frames) / seconds)))
+        tail = [self.frames[-1]] * (fps * 2)   # 最後の絵で 2 秒止める
+        writer = imageio_ffmpeg.write_frames(str(path), (w, h), fps=fps, macro_block_size=1)
+        writer.send(None)
+        n = 0
+        for f in self.frames + tail:
+            writer.send((f if f.size == (w, h) else f.resize((w, h))).tobytes())
+            n += 1
+        writer.close()
+        return n
+
+
+def video_available() -> bool:
+    try:
+        import imageio_ffmpeg  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+class PlayerDialog(QDialog):
+    """書き出した GIF・動画をアプリの中で見る。GIF は QMovie、動画は QtMultimedia で再生する"""
+
+    def __init__(self, path: str | Path, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(Path(path).name)
+        self.setAttribute(Qt.WA_DeleteOnClose)
+        lay = QVBoxLayout(self)
+        self.path, self.movie, self.player = Path(path), None, None
+        if self.path.suffix.lower() == ".gif":
+            from PySide6.QtGui import QMovie
+            self.view = QLabel(alignment=Qt.AlignCenter)
+            self.movie = QMovie(str(self.path))
+            self.view.setMovie(self.movie)
+            self.movie.start()
+        else:
+            from PySide6.QtMultimedia import QMediaPlayer
+            from PySide6.QtMultimediaWidgets import QVideoWidget
+            from PySide6.QtCore import QUrl
+            self.view = QVideoWidget()
+            self.player = QMediaPlayer(self)
+            self.player.setVideoOutput(self.view)
+            self.player.setSource(QUrl.fromLocalFile(str(self.path)))
+            self.player.setLoops(QMediaPlayer.Infinite)
+            self.player.play()
+        self.view.setMinimumSize(320, 320)
+        lay.addWidget(self.view, 1)
+        self.resize(560, 600)
+
+
+def open_player(parent, start: Path | None = None):
+    """GIF・動画を選んで、アプリの中で見る"""
+    src, _ = QFileDialog.getOpenFileName(parent, "GIF・動画を開く", str(start or Path.home()), "GIF・動画 (*.gif *.mp4)")
+    if src:
+        PlayerDialog(src, parent).show()
+
 
 def _qpix(im: Image.Image) -> QPixmap:
     data = im.convert("RGBA").tobytes("raw", "RGBA")
@@ -80,9 +147,21 @@ class TimelapseDialog(QDialog):
         save = QPushButton("GIF に書き出す")
         save.setToolTip("描いた過程を GIF に書き出す（約 15 秒）")
         save.clicked.connect(self.save)
+        self.video = QPushButton("動画に書き出す")
+        self.video.clicked.connect(self.save_video)
+        if video_available():
+            self.video.setToolTip("描いた過程を動画（MP4、約 15 秒）に書き出す")
+        else:
+            self.video.setEnabled(False)
+            self.video.setToolTip("動画の書き出しには imageio-ffmpeg が要ります（同梱していません）")
+        see = QPushButton("開く")
+        see.setToolTip("書き出した GIF・動画をアプリの中で見る")
+        see.clicked.connect(lambda: open_player(self, self.out_dir))
         self.count = QLabel(f"{len(recorder.frames)} 枚")
         row.addWidget(self.play)
         row.addWidget(save)
+        row.addWidget(self.video)
+        row.addWidget(see)
         row.addStretch()
         row.addWidget(self.count)
         lay.addLayout(row)
@@ -122,4 +201,13 @@ class TimelapseDialog(QDialog):
         dst, _ = QFileDialog.getSaveFileName(self, "タイムラプスを書き出す", start, "GIF (*.gif)")
         if dst:
             n = self.rec.export(dst)
+            self.count.setText(f"{n} 枚を書き出しました")
+
+    def save_video(self):
+        if not self.rec.frames:
+            return
+        start = str((self.out_dir or Path.home()) / "timelapse.mp4")
+        dst, _ = QFileDialog.getSaveFileName(self, "タイムラプスを動画に書き出す", start, "MP4 (*.mp4)")
+        if dst:
+            n = self.rec.export_video(dst)
             self.count.setText(f"{n} 枚を書き出しました")
