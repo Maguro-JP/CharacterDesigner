@@ -577,7 +577,8 @@ class Window(QMainWindow):
         self.mic_button.setFixedWidth(40)
         self.mic_button.setToolTip("声で頼む（Windows の音声入力 Win+H を開きます）")
         self.mic_button.clicked.connect(self.voice_input)
-        if sys.platform != "win32":
+        from chatdraw import voice
+        if not voice.available():
             self.mic_button.setEnabled(False)
             self.mic_button.setToolTip("声で頼む（Windows で使えます）")
         line.addWidget(self.mic_button)
@@ -838,6 +839,7 @@ class Window(QMainWindow):
         view.addAction(self.tl_action)
         view.addAction(QAction("タイムラプスを見る…", self, shortcut="Ctrl+Shift+T", triggered=self.open_timelapse))
         view.addAction(QAction("タイムラプスを消す", self, triggered=self.recorder.clear))
+        view.addAction(QAction("GIF・動画を開く…", self, triggered=self.open_player))
         view.addSeparator()
         self.pin_action = QAction("表示する絵を固定する", self, checkable=True)
         self.pin_action.setToolTip("固定すると、AI が新しく描いた絵はキャンバスに出さず履歴に入れます。外すと最新の絵を出します")
@@ -1101,15 +1103,10 @@ class Window(QMainWindow):
 
     def voice_input(self):
         """書く欄に移ってから Win+H を送り、Windows の音声入力を開く"""
+        from chatdraw import voice
         self.entry.setFocus()
-        if sys.platform != "win32":
-            return
-        import ctypes
-        user32 = ctypes.windll.user32
-        win, h, up = 0x5B, 0x48, 0x0002
-        for key, flag in ((win, 0), (h, 0), (h, up), (win, up)):
-            user32.keybd_event(key, 0, flag, 0)
-        self.statusBar().showMessage("話してください。言葉が書く欄に入ります（止めるときはもう一度 Win+H）", 5000)
+        if voice.start():
+            self.statusBar().showMessage("話してください。言葉が書く欄に入ります（止めるときはもう一度 Win+H）", 5000)
 
     def _toggle_fav(self):
         text = self.entry.text().strip() or self.last_text
@@ -1777,6 +1774,7 @@ class Window(QMainWindow):
         m.addSeparator()
         m.addAction("絵をコピー", lambda: self.copy_image(path))
         m.addAction("保存した場所を開く", lambda: self.open_folder(path))
+        m.addAction("3D に進む…", lambda: self.open_3d(path)).setToolTip("この絵から 3D のキャラデザに進む（最初の一歩: 厚みのある板の模型）")
         from chatdraw import share
         sns = m.addMenu("SNS に送る")
         for name in share.SERVICES:
@@ -1849,6 +1847,14 @@ class Window(QMainWindow):
     def open_timelapse(self):
         from chatdraw.timelapse import TimelapseDialog
         TimelapseDialog(self.recorder, self, Path(self.settings.get("output_dir"))).show()
+
+    def open_player(self):
+        from chatdraw.timelapse import open_player
+        open_player(self, Path(self.settings.get("output_dir")))
+
+    def open_3d(self, path: str):
+        from chatdraw.to3d import To3DDialog
+        To3DDialog(path, self).show()
 
     def canvas_menu(self, gpos):
         """絵の上の右クリック（右ボタンを動かさずに離したとき）。よく使う操作をまとめる"""

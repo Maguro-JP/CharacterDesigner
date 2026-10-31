@@ -17,7 +17,7 @@
 | 5 | 標準的な体型で描く（太った体・年配の体にしない。10-31） | 済み | chatdraw/body.py:4、chatdraw/bodycheck.py:1 | 無し（0.5.0 で入った） |
 | 6 | 背景がワンパターンで魅力が無い（10-25 以前） | 未着手 | 無い | 背景を変える仕組み |
 | 7 | 日本語の頼みをそのまま絵の模型に渡さない | 一部 | chatdraw/jaterms.py | 全部の経路で訳しているかは確かめていない |
-| 8 | 2D の次に 3D のキャラデザも出来るようにする（10-25） | 未着手 | 無い | 後の加工として予定に置く |
+| 8 | 2D の次に 3D のキャラデザも出来るようにする（10-25） | 一部 | chatdraw/to3d.py（履歴の右クリック「3D に進む…」、厚みのある板の模型 OBJ と Blender で開く・取りに行く） | 最初の一歩だけ。Blender での作り込みは無い。Windows の実機で確かめていない |
 | 9 | フリーズする言葉がある（10-26） | 未着手 | 無い | 原因の言葉の特定と対処 |
 
 ## 検品
@@ -74,7 +74,7 @@
 | 47 | 模型の管理が開けない（10-26） | 一部 | chatdraw/manager.py | 開けない原因の修正の根拠を確かめていない |
 | 48 | 関係するディレクトリを開くボタン（10-31） | 済み | chatdraw/folders.py:27、chatdraw/app.py:648 | 無し |
 | 49 | 増えた機能はプルダウンで整理（10-31） | 一部 | chatdraw/layerpanel.py（「…」のプルダウン）、chatdraw/aipanel.py:47 | ハブ全体の整理は途中 |
-| 50 | 音声入力を用意（10-25 以前） | 一部 | chatdraw/app.py:572-576、1104 | Windows の実機で確かめていない |
+| 50 | 音声入力を用意（10-25 以前） | 一部 | chatdraw/voice.py、chatdraw/app.py の voice_input | キーの送り方は試験で確かめた。Windows の実機で確かめていない |
 
 ## チャット
 
@@ -97,8 +97,8 @@
 | # | 依頼 | 状態 | 根拠 | 残り |
 |---|---|---|---|---|
 | 57 | ライブラリが開けなくなった（10-31） | 済み | chatdraw/app.py の toggle_panel、chatdraw/tests/test_uifix.py の LibraryOpenTest | 無し |
-| 58 | 履歴から SNS 連携。連携していなければオフ（10-25 以前） | 一部 | chatdraw/share.py:1、chatdraw/settings.py:32 | Windows の実機で確かめていない |
-| 59 | タイムラプス、録画・GIF を見られるように（10-25 以前） | 一部 | chatdraw/timelapse.py:63-122（GIF の書き出し） | 録画（動画）が無い。「機能していない」の直しは確かめていない |
+| 58 | 履歴から SNS 連携。連携していなければオフ（10-25 以前） | 一部 | chatdraw/share.py（X、Bluesky、Misskey）、chatdraw/settings.py | オフで止まる・オンで投稿の画面を開くのを試験で確かめた。Windows の実機で確かめていない |
+| 59 | タイムラプス、録画・GIF を見られるように（10-25 以前） | 一部 | chatdraw/timelapse.py（GIF と MP4 の書き出し、PlayerDialog でアプリの中で再生） | MP4 は imageio-ffmpeg がある時だけ。Windows の実機で確かめていない |
 
 ## リリースと検証
 

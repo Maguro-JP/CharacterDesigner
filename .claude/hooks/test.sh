@@ -13,6 +13,6 @@ lib=""; [ -d .cache/gen/lib/scipy ] && lib=".cache/gen/lib"
 out="$(PYTHONPATH=$lib python3 -m unittest discover -s tests -q 2>&1)" || { echo "$out" | tail -30 >&2; exit 2; }
 # 描画アプリ（chatdraw）の試験。ここに入れていなかったため、「描く」を押すと落ちる不具合を通したままマージした
 if [ -d .cache/simple/lib/PySide6 ]; then
-  out="$(QT_QPA_PLATFORM=offscreen PYTHONPATH=.cache/simple/lib:$lib python3 -m unittest chatdraw.tests.test_chatdraw chatdraw.tests.test_presetui chatdraw.tests.test_modeldoc chatdraw.tests.test_drawbugs chatdraw.tests.test_ownstyle chatdraw.tests.test_uifix 2>&1)" || { echo "$out" | tail -30 >&2; exit 2; }
+  out="$(QT_QPA_PLATFORM=offscreen PYTHONPATH=.cache/simple/lib:$lib python3 -m unittest chatdraw.tests.test_chatdraw chatdraw.tests.test_presetui chatdraw.tests.test_modeldoc chatdraw.tests.test_drawbugs chatdraw.tests.test_ownstyle chatdraw.tests.test_uifix chatdraw.tests.test_features 2>&1)" || { echo "$out" | tail -30 >&2; exit 2; }
 fi
 exit 0
