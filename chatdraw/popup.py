@@ -66,7 +66,10 @@ class ProgressPopup(QFrame):
         g = c.geometry() if c is not None and c.isVisible() else self.w.rect()
         self.setFixedWidth(max(120, min(WIDTH, g.width() - 2 * MARGIN)))   # 絵の欄が狭いときは縮める
         self.adjustSize()
-        return QPoint(g.right() - self.width() - MARGIN, g.bottom() - self.height() - MARGIN)
+        # 絵の欄が低い・狭いときも欄の外（上のツールバーやチャット）にはみ出さないよう、左上の端で止める
+        x = max(g.left(), g.right() - self.width() - MARGIN)
+        y = max(g.top(), g.bottom() - self.height() - MARGIN)
+        return QPoint(x, y)
 
     def pop(self):
         """下からせり上がって出る。もう出ているときは場所を合わせて一番上に出し直す。
