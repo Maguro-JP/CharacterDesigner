@@ -567,6 +567,9 @@ class Painter:
         self.upscale = 1.5
         self.avoid = ""     # 利用者の好みから読み取った、避ける言葉（描かない物に足す）
         self.stop = False
+        self.lora, self.lora_scale = "", 0.8   # 自分の作風の LoRA（模型の置き場の lora の .safetensors）。空なら重ねない
+        self._lora_state: dict = {}
+        self.lora_note = None
 
     def ready(self) -> bool:
         """模型が手元にそろっているか（取りに行かずに確かめる）"""
@@ -729,6 +732,8 @@ class Painter:
         reference（PIL）を渡すと、その絵の絵柄や雰囲気を借りる。ref_scale が大きいほど寄せる"""
         import torch
         pipe = self.load()
+        from chatdraw.ownstyle import apply as apply_lora
+        self.lora_note = apply_lora(pipe, self.lora, self.lora_scale, self._lora_state)
         self.stop = False
         steps = self.steps
 
