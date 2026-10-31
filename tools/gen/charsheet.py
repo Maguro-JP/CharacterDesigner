@@ -824,6 +824,10 @@ def _panel(pg, pn, ident, c, sw, notes):
     if not _has_material(pn, ident, c) and pn.get("optional"):
         return
     title = pn.get("title", "")
+    if k == "turnaround" and imgs.get("turnaround") and "四面図" in title:
+        n = len(_figures(Image.open(bible.ROOT / imgs["turnaround"]).convert("RGB"))[0])
+        if n == 2:   # 横の向きが無い絵に「四面図」と書くと、足りない向きがあることが読めない
+            title = title.replace("四面図", "正面・背面図")
     ts = max(18, int(min(W, H) * 0.024 * pg.scale))   # 小さく表示される版（紹介型）は text_scale で文字を大きくする
     if title:
         used = pg.heading(x, y, w, title, ts)
@@ -865,7 +869,8 @@ def _panel(pg, pn, ident, c, sw, notes):
                 pg.d.line([(rx, yy), (rx + (14 if i % 2 == 0 else 8), yy)], fill=col["guide"], width=2)
             pg.d.line([(rx, r[1]), (rx, r[3])], fill=col["guide"], width=2)
             pg.mark((rx, r[1], rx + 14, r[3]))
-        names = ["正面", "横（右向き）", "横（左向き）", "背面"] if len(spans) == 4 else [""] * len(spans)
+        # 横の向きが検品を通らず正面と背面だけの四面図もある（2人なら正面・背面）
+        names = {4: ["正面", "横（右向き）", "横（左向き）", "背面"], 2: ["正面", "背面"]}.get(len(spans), [""] * len(spans))
         for (cx, _, b), nm in zip(pg.anchors["figures"], names):
             tw = pg.d.textlength(nm, font=pg.font(lab))
             pg.text((max(ix, cx - tw / 2), b + 6), nm, lab, col["sub"])
@@ -879,18 +884,20 @@ def _panel(pg, pn, ident, c, sw, notes):
             # ポーズの絵が足りないときは四面図の正面で埋める（欄の半分が空くより、基準の立ち姿がある方が使える）
             if pn.get("fill_front") and len(cells) < n and imgs.get("turnaround"):
                 cells.append(("基準の正面", "__front__"))
+                if len(cells) < n:
+                    cells.append(("背面", "__back__"))
             cells = cells or [("ポーズ", None)]
         n = len(cells)
         gap = 24
         cw = (iw - gap * (n - 1)) // n
         for i, (nm, path) in enumerate(cells):
             box = (ix + i * (cw + gap), iy, cw, ih - (lab * 2 if nm and k == "poses" else 0))
-            if (k == "figure" or path == "__front__") and imgs.get("turnaround"):
+            if (k == "figure" or path in ("__front__", "__back__")) and imgs.get("turnaround"):
                 t = Image.open(bible.ROOT / imgs["turnaround"]).convert("RGB")
                 spans, top, bot = _figures(t)
-                a, b = spans[0]
+                a, b = spans[-1] if path == "__back__" else spans[0]
                 r, _ = pg.paste(t.crop((a - 4, top, b + 4, bot + 1)), box, "bottom")
-                if path == "__front__":
+                if path in ("__front__", "__back__"):
                     tw = min(cw, pg.d.textlength(nm, font=pg.font(lab)))
                     pg.text((max(box[0], (r[0] + r[2] - tw) / 2), box[1] + box[3] + 6), nm, lab, col["sub"], maxw=cw)
             elif path:
@@ -915,7 +922,10 @@ def _panel(pg, pn, ident, c, sw, notes):
         oy = iy + (ih - (rows * (cell + int(lb * 1.7)) + gap * (rows - 1))) // 2
         tint = _mix(col["card"], col["accent"], 0.12)
         for i, (nm, path) in enumerate(ex):
-            cx, cy = ox + (i % cols) * (cell + gap), oy + (i // cols) * (cell + int(lb * 1.7) + gap)
+            # 最後の段が埋まらないときは、その段だけ中央に寄せる（左に寄ると右下が空いて見えた）
+            inrow = min(cols, len(ex) - (i // cols) * cols)
+            cx = ox + (cols - inrow) * (cell + gap) // 2 + (i % cols) * (cell + gap)
+            cy = oy + (i // cols) * (cell + int(lb * 1.7) + gap)
             pg.d.rounded_rectangle([cx, cy, cx + cell - 1, cy + cell - 1], int(cell * 0.12), fill=tint)
             pg.paste(_crop_face(Image.open(bible.ROOT / path).convert("RGB")), (cx, cy, cell, cell))
             tw = pg.d.textlength(nm, font=pg.font(lb))

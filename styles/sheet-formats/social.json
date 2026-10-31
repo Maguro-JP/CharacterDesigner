@@ -18,7 +18,8 @@
    ],
    "title": "",
    "count": 1,
-   "hero": true
+   "hero": true,
+   "fill_front": true
   },
   {
    "kind": "header",

@@ -28,7 +28,7 @@
    "title": "",
    "count": 1,
    "hero": true,
-   "optional": true
+   "fill_front": true
   },
   {
    "kind": "turnaround",

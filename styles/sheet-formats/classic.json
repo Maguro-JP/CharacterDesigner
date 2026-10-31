@@ -29,7 +29,7 @@
    "title": "立ち姿",
    "count": 1,
    "hero": true,
-   "optional": true
+   "fill_front": true
   },
   {
    "kind": "turnaround",
