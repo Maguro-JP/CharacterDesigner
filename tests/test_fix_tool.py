@@ -59,9 +59,18 @@ class BoxTest(unittest.TestCase):
             fix.parse_box("100,50,10,60")
 
 
+def _child_env() -> dict:
+    """子の処理の環境。PYTHONPATH の相対の道を絶対の道にする（子は tools/gen で動くので、相対のままだと部品が見つからなかった）"""
+    env = {k: v for k, v in os.environ.items() if k not in ("HF_HUB_OFFLINE", "CD_FETCH")}
+    if env.get("PYTHONPATH"):
+        env["PYTHONPATH"] = os.pathsep.join(str((ROOT / p).resolve()) if p and not os.path.isabs(p) else p
+                                            for p in env["PYTHONPATH"].split(os.pathsep))
+    return env
+
+
 class OfflineDefaultTest(unittest.TestCase):
     def test_models_are_not_fetched_by_default(self):
-        env = {k: v for k, v in os.environ.items() if k not in ("HF_HUB_OFFLINE", "CD_FETCH")}
+        env = _child_env()
         for mod, want, extra in (("design", "1", {}), ("people", "1", {}), ("fix", "1", {}),
                                  ("design", "0", {"CD_FETCH": "1"})):
             r = subprocess.run([sys.executable, "-c", f"import {mod}, os; print(os.environ['HF_HUB_OFFLINE'])"],
@@ -70,7 +79,7 @@ class OfflineDefaultTest(unittest.TestCase):
 
     def test_fix_sets_cache_before_diffusers(self):
         # fix.py は diffusers を読む前に置き場所を決める。後だと手元の模型が見つからず、取りに行った
-        env = {k: v for k, v in os.environ.items() if k not in ("HF_HUB_OFFLINE", "HF_HOME", "CD_FETCH")}
+        env = {k: v for k, v in _child_env().items() if k != "HF_HOME"}
         r = subprocess.run([sys.executable, "-c", "import fix, os; print(os.environ['HF_HOME'])"],
                            cwd=ROOT / "tools" / "gen", env=env, capture_output=True, text=True)
         self.assertEqual(r.stdout.strip(), str(ROOT / ".cache" / "gen" / "hf"), r.stderr[-300:])
