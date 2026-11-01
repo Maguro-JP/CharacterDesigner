@@ -976,7 +976,7 @@ class ChooseTest(unittest.TestCase):
             with mock.patch("chatdraw.choose.installed_images", return_value=[IMAGES[0], fast]), \
                     mock.patch("chatdraw.engine.Painter", Made):
                 st.draw("写実的な街の写真", 1, said.append)
-            self.assertEqual(made, [fast.repo])
+            self.assertEqual(made[0], fast.repo)   # 構図は写実の頼みに合う模型から（落ちたら次の模型で描き直す: chatdraw/omakase.py）
             self.assertTrue(any("DreamShaper" in m for m in said))
 
 
@@ -2694,9 +2694,9 @@ class ModelListTest(unittest.TestCase):
                     st.draw("街の写真", 1, on_status=said.append)
                 except Exception:
                     pass   # 描く所は試験の外。選んで替えるまでを見る
-            self.assertEqual(made.call_args[0][0], "b/b")
-            self.assertEqual(st.chosen, ("B", "写実の頼み"))
-            self.assertIn("絵の模型: B（写実の頼み）", said)
+            self.assertEqual(made.call_args_list[0][0][0], "b/b")   # 構図は写実の模型から（おまかせは工程ごとに選ぶ: chatdraw/omakase.py）
+            self.assertTrue(any(m.startswith("構図: B（") for m in said))
+            self.assertTrue(any(m.startswith("おまかせの段取り: 構図: B") for m in said))
 
     def test_manager_offers_auto_star_and_hide(self):
         from unittest import mock

@@ -117,7 +117,13 @@ def folder_gb(d: Path) -> float:
     if not d.exists():
         return 0.0
     seen = {f.resolve() for f in d.rglob("*") if f.is_file()}
-    return sum(f.stat().st_size for f in seen) / 1e9
+    total = 0
+    for f in seen:
+        try:
+            total += f.stat().st_size
+        except FileNotFoundError:
+            pass   # 取っている最中は、錠（.lock）や途中のファイルが数えている間に消える。消えた物は数えない
+    return total / 1e9
 
 
 class NoRoom(Exception):
@@ -212,6 +218,10 @@ class Fetcher(QObject):
             ensure_shared()
             if not engine_ready():
                 install_engine(self.progress.emit)
+            from chatdraw.ratings import is_blocked
+            if image is not None and is_blocked(image.repo):   # ブロックした模型は、どの道からも取らない
+                self.finished.emit(f"{image.name} はブロックしています。模型の管理の「…」から解除できます")
+                return
             if image is not None:
                 self._image(image)
             if words is not None:

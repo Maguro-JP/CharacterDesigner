@@ -122,6 +122,11 @@ class ImageModel:
     clip_skip: int = 0     # 札の CLIP skip（A1111 の数え方。2 は最後から 2 つ目の層）。0 は札に書いていない
     scheduler: str = ""    # 札の例が替える描き方（dpm = DPMSolverMultistep）。空は模型に置いてある物のまま
     call: tuple = ()       # 札の例が描く部品に渡す引数（(名前, 値) の組。Neta Lumina の system_prompt など）
+    # 得意・不得意・描けない物（ASPECTS の名前）。確かめた結果（検品・点）で付けた物だけを目録に書く。空は根拠が無いだけで、苦手という意味ではない。
+    # 配布元の説明（en）と世代の機能から読める物は abilities() が足す
+    strong: tuple = ()
+    weak: tuple = ()
+    cannot: tuple = ()
 
     @property
     def hub(self) -> str:
@@ -156,7 +161,8 @@ def _entry(m: dict, user: bool = False) -> ImageModel:
                       vpred=m.get("vpred", False), rescale=m.get("rescale", 0.0), file=m.get("file", "") if single else "",
                       user=user, note=m.get("note", ""), vram=m.get("vram", 0.0), ram=m.get("ram", 0.0),
                       tags=tuple(m.get("tags", ())), quality=m.get("quality"), clip_skip=m.get("clip_skip", 0),
-                      scheduler=m.get("scheduler", ""), call=tuple(sorted(m.get("call", {}).items())))
+                      scheduler=m.get("scheduler", ""), call=tuple(sorted(m.get("call", {}).items())),
+                      strong=tuple(m.get("strong", ())), weak=tuple(m.get("weak", ())), cannot=tuple(m.get("cannot", ())))
 
 
 def _load_images() -> tuple[ImageModel, ...]:
@@ -514,3 +520,34 @@ def run_mode(m: ImageModel, vram: float, ram: float = 0.0) -> str:
 
 
 FITS = {"gpu": "この PC の GPU で動く", "cpu": "この PC では CPU で動く（遅い）", "no": "この PC ではメモリが足りない", "unknown": ""}
+
+
+# おまかせが工程ごとに模型を選ぶときの見どころ。直す工程の hand / face / foot は handcheck.bad_regions の種類に合わせる
+ASPECTS = ("構図", "人物", "手", "顔", "足", "背景", "文字", "写実", "アニメ", "線画", "ちび")
+KIND_ASPECT = {"hand": "手", "face": "顔", "foot": "足"}
+# 配布元の説明（目録の en、Hugging Face の札の要約）の言葉と、そこから読める得意。言葉が無ければ付けない（推して付けない）
+EN_STRONG = (
+    ("prompt adherence", ("構図",)), ("complex prompts", ("構図",)), ("natural language prompts", ("構図",)),
+    ("good hands", ("手",)), ("anatomy", ("人物", "手")), ("polished faces", ("顔",)), ("cute faces", ("顔",)),
+    ("detailed backgrounds", ("背景",)), ("text rendering", ("文字",)), ("photorealistic", ("写実",)), ("photo", ("写実",)),
+    ("anime", ("アニメ",)), ("many characters", ("人物",)), ("pencil", ("線画",)), ("lineart", ("線画",)), ("chibi", ("ちび",)),
+)
+
+
+def abilities(m: ImageModel) -> dict:
+    """模型の得意・不得意・描けない物と、その根拠。{"strong": {見どころ: 根拠}, "weak": {...}, "cannot": {...}}。
+    根拠は 3 つだけ: 目録に書いた確かめた結果、配布元の説明（en）、世代の機能（FAMILIES）。どれにも無い見どころは空のまま"""
+    out = {"strong": {}, "weak": {}, "cannot": {}}
+    for key in out:
+        for a in getattr(m, key, ()):
+            out[key][a] = "確かめた結果"
+    en = m.en.lower()
+    for word, aspects in EN_STRONG:
+        if word in en:
+            for a in aspects:
+                if a not in out["weak"] and a not in out["cannot"]:
+                    out["strong"].setdefault(a, f"配布元の説明（{word}）")
+    f = FAMILIES.get(m.family)
+    if f is not None and not f.inpaint:
+        out["cannot"].setdefault("部分の直し", f"{f.name} は囲んだ所だけを直す部品が無い")
+    return out

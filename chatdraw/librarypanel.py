@@ -138,6 +138,7 @@ class LibraryPanel(QWidget):
         else:
             m.addAction("参考画像にする", lambda: (self.w.reference.load(path), self.w.ai_panel.use_ref.setChecked(True)))
         m.addAction("今の絵に重ねる", lambda: self.w.layer_from_file(path, "ライブラリーの絵"))
+        m.addAction("編集する（囲んで直す）", lambda: self.w.edit_image(path))
         m.addAction("言葉を付ける…", lambda: self.tag(item_id))
         m.addSeparator()
         m.addAction("一覧から外す", lambda: (lib.remove(item_id), self.refresh()))

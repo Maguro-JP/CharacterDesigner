@@ -146,3 +146,34 @@ OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じ
 - Stable Diffusion 3.5 Large: https://huggingface.co/stabilityai/stable-diffusion-3.5-large
 - HiDream-I1: https://huggingface.co/HiDream-ai/HiDream-I1-Full
 - diffusers の省メモリの方法（CPU への出し入れ、VAE の分割）: https://huggingface.co/docs/diffusers/optimization/memory
+
+## 既製の道具の調べ（`docs/knowledge/tool-survey.md`、2026-11-01）
+
+- ComfyUI: https://github.com/Comfy-Org/ComfyUI
+- ComfyUI Impact Pack（FaceDetailer）: https://github.com/ltdrdata/ComfyUI-Impact-Pack
+- Fooocus: https://github.com/lllyasviel/Fooocus
+- InvokeAI: https://github.com/invoke-ai/InvokeAI
+- Stable Diffusion WebUI Forge: https://github.com/lllyasviel/stable-diffusion-webui-forge
+- ADetailer: https://github.com/Bing-su/adetailer
+- Krita AI Diffusion: https://github.com/Acly/krita-ai-diffusion
+- SwarmUI: https://github.com/mcmonkeyprojects/SwarmUI
+- NovelAI の画像の文書: https://docs.novelai.net/en/image/
+- Midjourney Omni Reference: https://docs.midjourney.com/hc/en-us/articles/36285124473997
+- Midjourney Vary Region: https://docs.midjourney.com/vary-region
+- Midjourney Style Reference: https://docs.midjourney.com/docs/style-reference
+- Leonardo.Ai Universal Upscaler: https://intercom.help/leonardo-ai/en/articles/8756274-universal-upscaler
+- Leonardo.Ai の後処理: https://intercom.help/leonardo-ai/en/articles/8952396-post-process-images-with-ai
+- CLIP STUDIO PAINT の AI の機能: https://tips.clip-studio.com/en-us/articles/2434
+- CLIP STUDIO PAINT ポーズスキャナー: https://celsys.com/en/topic/20190228
+- CLIP STUDIO PAINT 画像生成のパレットの見直し: https://www.clipstudio.net/ja/news/202211/29_01/
+## 仕上げ（綺麗化）の道具の目録（`chatdraw/finishers.py`、2026-11-01）
+
+目録に入れるのは、許諾が配布に合う物だけ。重みは同梱せず、模型の管理か初めて使うときに共有の置き場へ取る。
+
+| 道具 | 中身 | 許諾 | 出典 |
+|---|---|---|---|
+| 塗りのむらを均す | 中央値で平らな所を均し、輪郭は元の画素を戻す | このリポジトリのコード | `chatdraw/finishers.py` |
+| アニメ向けに拡大して整える | RealESRGAN_x4plus_anime_6B（18MB） | BSD-3-Clause | https://github.com/xinntao/Real-ESRGAN |
+| 顔を整える・低い強さで描き直して仕上げる | 取得済みの直しに使える絵の模型で、強さ 0.25〜0.3 の範囲の描き直し | 使う絵の模型の許諾（CreativeML OpenRAIL++-M など） | 上の表の模型 |
+
+CodeFormer（S-Lab License 1.0、商用不可）は配布に合わないので目録に入れない。

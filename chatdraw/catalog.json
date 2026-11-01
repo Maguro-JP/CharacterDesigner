@@ -26,6 +26,7 @@
  {
   "repo": "cagliostrolab/animagine-xl-4.0",
   "name": "Animagine XL 4.0",
+  "weak": ["構図", "手", "足", "顔"],
   "good": "アニメ絵。線と塗りが整っていて、キャラクターに強い",
   "family": "sdxl",
   "format": "full",
