@@ -1725,10 +1725,17 @@ class Window(QMainWindow):
         self.task.moveToThread(self.thread)
         self.thread.started.connect(self.task.run)
         self.task.status.connect(self.on_status)
-        self.task.done.connect(then)
+        # lambda をそのままつなぐと、終わりの処理が裏の糸で走って画面を触る。Window の関数を通して画面の糸に戻す
+        self._task_then = then
+        self.task.done.connect(self._task_done)
         self.task.failed.connect(self.fail)
         self.button.setEnabled(False)
         self.thread.start()
+
+    def _task_done(self, result):
+        then, self._task_then = getattr(self, "_task_then", None), None
+        if then is not None:
+            then(result)
 
     def _lora_row(self):
         """AI の欄の「模型」に、自分の作風の LoRA を選ぶ欄と強さを足す。初めは「なし」"""
@@ -1908,7 +1915,7 @@ class Window(QMainWindow):
         grow = m.addMenu("絵の外へ広げる")
         grow.setToolTipsVisible(True)
         for label, sides in (("左右に広げる", (1, 0, 1, 0)), ("上下に広げる", (0, 1, 0, 1)), ("四方に広げる", (1, 1, 1, 1))):
-            act = grow.addAction(label, lambda s=sides: self.outpaint_canvas(*[v * 128 for v in s]))
+            act = grow.addAction(label, lambda s=sides: self.outpaint_canvas(*[v * 128 for v in s], background=True))
             act.setToolTip("広げた所だけを AI に描かせます（128 画素ずつ）。元の絵の画素は変えません")
         m.exec(gpos)
 
@@ -2681,11 +2688,11 @@ class Window(QMainWindow):
         menu.setToolTipsVisible(True)
         finishers.use_painter(getattr(self.studio, "painter", None))
         for f in finishers.available():
-            act = menu.addAction(f["label"], lambda n=f["name"]: self.finish_with(n))
+            act = menu.addAction(f["label"], lambda n=f["name"]: self.finish_with(n, background=True))
             act.setToolTip(f["tip"] if f["ready"] else f["reason"])
             act.setEnabled(f["ready"])
 
-    def finish_with(self, name: str):
+    def finish_with(self, name: str, background: bool = False):
         """仕上げの道具を今の絵に掛け、結果を新しいレイヤーとして重ねる。囲み（赤ペン・選択）があれば囲みの中だけ変える。
         使えないときは止めずに理由を出す。返すのは保存した置き場（出来なければ None）"""
         from PIL import ImageChops
@@ -2699,6 +2706,15 @@ class Window(QMainWindow):
         for m in masks:
             mask = m.convert("L") if mask is None else ImageChops.lighter(mask, m.convert("L"))
         finishers.use_painter(getattr(self.studio, "painter", None))
+        if background:   # 模型を使う道具は数十秒かかる。画面の糸で回すと、その間アプリが固まる
+            ok, why = self._finisher_ready(name)
+            if not ok:
+                self.notify("綺麗にできませんでした", "info", why)
+                return None
+            self.activity.begin("絵を綺麗にする", "綺麗にする")
+            self._run_task(lambda _step: finishers.run(name, base, mask),
+                           lambda out: (self._place_finished(name, base, out), self._end("綺麗にしました")))
+            return None
         try:
             out = finishers.run(name, base, mask)
         except finishers.Unavailable as e:
@@ -2708,6 +2724,17 @@ class Window(QMainWindow):
             from chatdraw.engine import explain
             self.notify("綺麗にできませんでした", "error", explain(e))
             return None
+        return self._place_finished(name, base, out)
+
+    def _finisher_ready(self, name: str):
+        from chatdraw import finishers
+        for f in finishers.available():
+            if f.get("name") == name:
+                return bool(f.get("ready")), f.get("reason", "")
+        return False, "その道具はありません"
+
+    def _place_finished(self, name: str, base, out):
+        """仕上げた絵を保存し、同じ大きさなら新しいレイヤー、拡大なら置き換えで置く"""
         out_dir = Path(self.settings.get("output_dir"))
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / f"{time.strftime('%Y%m%d-%H%M%S')}-{name}.png"
@@ -2719,15 +2746,25 @@ class Window(QMainWindow):
         self.notify("綺麗にしました（新しいレイヤー）", "ok", "見比べて、使うか消すかを決めてください")
         return path
 
-    def outpaint_canvas(self, left: int, top: int, right: int, bottom: int):
+    def outpaint_canvas(self, left: int, top: int, right: int, bottom: int, background: bool = False):
         """絵の外へ広げる。広げた絵でキャンバスを置き換える（元に戻すで戻せる）。使えないときは理由を出して止めない"""
         from chatdraw import finishers
         base = qimage_to_pil(self.canvas.flatten()).convert("RGB")
         prompt = (getattr(self, "edit_meta", None) or {}).get("prompt", "") or self.studio.words.to_prompt(self.last_text) \
             if self.last_text else ""
+        painter, seed = getattr(self.studio, "painter", None), self.ai_panel.seed.value()
+        if background:   # 描くのは模型なので裏の糸で回す（画面の糸で回すと描き終えるまで固まる）
+            if painter is None:
+                self.notify("広げられませんでした", "info", "絵の模型がまだ読めていません。AI の欄で模型を選んでください")
+                return None
+            self.activity.begin("絵の外へ広げる", "広げる")
+            self._run_task(lambda _step: finishers.outpaint(base, left, top, right, bottom, painter=painter,
+                                                            prompt=prompt, seed=seed),
+                           lambda out: (self._place_outpaint(out, prompt, left, top, right, bottom),
+                                        self._end("絵の外へ広げました")))
+            return None
         try:
-            out = finishers.outpaint(base, left, top, right, bottom, painter=getattr(self.studio, "painter", None),
-                                     prompt=prompt, seed=self.ai_panel.seed.value())
+            out = finishers.outpaint(base, left, top, right, bottom, painter=painter, prompt=prompt, seed=seed)
         except finishers.Unavailable as e:
             self.notify("広げられませんでした", "info", str(e))
             return None
@@ -2735,6 +2772,10 @@ class Window(QMainWindow):
             from chatdraw.engine import explain
             self.notify("広げられませんでした", "error", explain(e))
             return None
+        return self._place_outpaint(out, prompt, left, top, right, bottom)
+
+    def _place_outpaint(self, out, prompt, left, top, right, bottom):
+        from chatdraw import finishers
         out_dir = Path(self.settings.get("output_dir"))
         out_dir.mkdir(parents=True, exist_ok=True)
         path = out_dir / f"{time.strftime('%Y%m%d-%H%M%S')}-outpaint.png"

@@ -161,6 +161,27 @@ class FinishersTest(unittest.TestCase):
             self.assertEqual(len(w.canvas.layers), n + 1)   # 元の絵は残し、新しいレイヤーに置く
             w.close()
 
+    def test_menu_finish_runs_in_background(self):
+        """メニューから押した仕上げは裏の糸で回る。画面の糸を止めずに、終わったら新しいレイヤーに置く"""
+        import time as _t
+        from chatdraw.app import Window
+        qa = app()
+        with TemporaryDirectory() as d:
+            src = Path(d) / "a.png"
+            figure().save(src)
+            w = Window(Studio(FakeWords(), FakePainter(), Path(d)))
+            w.settings.set("output_dir", str(Path(d) / "out"))
+            w.edit_image(str(src))
+            n = len(w.canvas.layers)
+            self.assertIsNone(w.finish_with("clean", background=True))   # すぐ戻る
+            end = _t.time() + 20
+            while len(w.canvas.layers) == n and _t.time() < end:
+                qa.processEvents()
+                _t.sleep(0.02)
+            self.assertEqual(len(w.canvas.layers), n + 1)
+            self.assertIsNone(w.thread)   # 裏の糸は片付いている
+            w.close()
+
     def test_inpaint_models_only(self):
         from chatdraw import finishers
         from chatdraw.models import all_images, family
