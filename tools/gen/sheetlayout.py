@@ -42,7 +42,9 @@ def _cut_rgba(im, src=None):
     im = im.convert("RGB")
     from PIL import ImageFilter
     # 縁を2画素削る。白い背景の縁取りが残ると、暗い地のテーマで人物の周りに白い線が出た
-    m = cs._cutout(im, src).point(lambda v: 255 if v > 200 else 0).filter(ImageFilter.MinFilter(5)).filter(ImageFilter.GaussianBlur(0.8))
+    m = cs._cutout(im, src)
+    if src is None or not Path(str(src) + ".matte.png").exists():   # ViTMatte で抜いた覆いは縁の透けを持つので、そのまま使う
+        m = m.point(lambda v: 255 if v > 200 else 0).filter(ImageFilter.MinFilter(5)).filter(ImageFilter.GaussianBlur(0.8))
     out = im.convert("RGBA")
     out.putalpha(m)
     return out

@@ -19,3 +19,4 @@ library/**/*.qc.json
 library/**/*.parts.png
 *.sam.png
 *.hero.png
+*.matte.png

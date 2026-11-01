@@ -576,6 +576,19 @@ def _cutout(im, src=None):
                     continue
                 keep[sl] |= comp
             fg = ndimage.binary_fill_holes(keep) & (fg | person)
+            # 髪と腕の間など、人の形に囲まれた白い背景は縁につながらず残った。人の形の外の白は背景として抜く
+            # 白に近い（明るく色の薄い）画素。生成の地は真っ白でなく、薄い灰や黄みがかった白で残った
+            # SAM の人の形は粗く、髪の間の白い隙間まで人に含めた。地の色に近い白の塊は、服・顔・腕の部位
+            # （白いブラウス、肌の明るい所）に入っていなければ、人の形の内でも背景として抜く
+            mx, mn = a.max(axis=2), a.min(axis=2)
+            white = ((mn > 222) & (mx - mn < 14)) | (np.abs(a - ref).max(axis=2) < 26)   # 地の色そのものに近い薄い黄みの縁も含める
+            import edit
+            seg = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST))
+            keepw = ndimage.binary_erosion(np.isin(seg, [4, 5, 6, 7, 11, 14, 15, 17]), iterations=2)
+            wl, wn = ndimage.label(white & ~keepw)
+            if wn:
+                ws = ndimage.sum(white, wl, range(1, wn + 1))
+                fg &= ~np.isin(wl, [i + 1 for i, v in enumerate(ws) if v >= 25])
             # 本体から離れた小さな欠片（抜け残りの赤い点）は外す
             lab2, n2 = ndimage.label(fg)
             if n2 > 1:
@@ -584,7 +597,49 @@ def _cutout(im, src=None):
     elif (~fg).mean() < 0.15:
         return Image.new("L", im.size, 255)
     m = Image.fromarray((fg * 255).astype("uint8"))
+    if src is not None:
+        mt = _matte(im, fg, a, src)
+        if mt is not None:
+            return mt
     return m.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.GaussianBlur(1.2))
+
+
+_VM = None
+
+
+def _matte(im, fg, a, src):
+    """覆いの縁を ViTMatte（覆いの内・外・保留の3値から、縁の透け具合を絵から推す模型）で抜き直す。
+    覆いを広げてぼかすだけでは、髪の毛先の間に地の白が残り、白い縁や白い塊に見えた。
+    白っぽい所は保留にして模型に判定させ、0.3 より不透明な所は完全に不透明にそろえる（顔や手が薄く透けた）"""
+    import numpy as np
+    from pathlib import Path
+    from PIL import Image
+    from scipy import ndimage
+    out = Path(str(src) + ".matte.png")
+    if out.exists() and out.stat().st_mtime >= Path(src).stat().st_mtime:
+        mt = Image.open(out)
+        return mt if mt.size == im.size else None
+    try:
+        import torch
+        from transformers import VitMatteImageProcessor, VitMatteForImageMatting
+        global _VM
+        if _VM is None:
+            name = "hustvl/vitmatte-small-composition-1k"
+            _VM = (VitMatteImageProcessor.from_pretrained(name), VitMatteForImageMatting.from_pretrained(name))
+        proc, model = _VM
+        whiteish = (a.min(axis=2) > 215) & ((a.max(axis=2) - a.min(axis=2)) < 30)
+        core = ndimage.binary_erosion(fg, iterations=6) & ~ndimage.binary_dilation(whiteish, iterations=3)
+        unk = ndimage.binary_dilation(fg, iterations=8)
+        tri = np.where(core, 255, np.where(unk, 128, 0)).astype("uint8")
+        inp = proc(images=im.convert("RGB"), trimaps=Image.fromarray(tri), return_tensors="pt")
+        with torch.no_grad():
+            al = model(**inp).alphas[0, 0].numpy()[:im.height, :im.width]
+        al = np.clip((al - 0.05) / 0.25, 0, 1)   # 顔・手・白い服は模型が半分ほどの透けと見たので、0.3 より上は不透明にする
+    except Exception:
+        return None
+    mt = Image.fromarray((al * 255).astype("uint8"))
+    mt.save(out)
+    return mt
 
 
 def _crop_face(im):

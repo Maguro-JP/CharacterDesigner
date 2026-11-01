@@ -161,30 +161,37 @@ def _theme(c):
 
 
 def page_cover(ident, c, th, hero, out):
-    """扉: 一枚絵（場面つきの色の絵があればそれ）を版面いっぱいに、名前を大きく"""
+    """扉: 全身を頭から足まで欠けずに大きく立たせ、左の余白に名前を置く。
+    一枚絵を枠いっぱいに広げると左右が切れ、全身像が欠けた。全身は収め、空いた所は余白として名前と線に使う"""
     from PIL import Image
-    # 扉の一枚絵は、検品を通ったポーズの絵を先に使う。色の絵は設定と違う服で描かれていることがある（羊娘で黒いシャツ）
     poses = cs._pose_list(c)
-    p = poses[0][1] if poses else c.get("images", {}).get("color")
-    art = Image.open(bible.ROOT / p).convert("RGB") if p else None
+    fig = None
+    if poses:
+        im = Image.open(bible.ROOT / poses[0][1])
+        fig = sl._cut_rgba(im, bible.ROOT / poses[0][1])
+        bb = fig.getchannel("A").getbbox()
+        fig = fig.crop(bb) if bb else None
+    fig = fig or hero
     name = html.escape(c["name"])
     items = "・".join(i["name"] for i in c.get("items", [])[:3])
-    if art is not None:
-        pic = f'<img class=art src="{sl._uri(art, "JPEG")}">'
-    else:
-        pic = f'<img class=art src="{sl._uri(hero)}" style="object-fit:contain">'
-    body = f"""{pic}<div class=veil></div>
-<div class=t><b>CHARACTER DESIGN</b><h1>{name}</h1><i>{html.escape(ident.upper())}</i>
-<p>持ち物 {html.escape(items)}</p></div><div class=folio>01 — 扉</div>"""
-    css = """.art{position:absolute;right:0;top:0;height:100%;width:62%;object-fit:cover;object-position:50% 20%}
-.veil{position:absolute;left:0;top:0;width:44%;height:100%;background:linear-gradient(90deg,var(--p) 70%,transparent)}
-.t{position:absolute;left:64px;top:50%;transform:translateY(-50%);width:460px}
+    fh = H - 60
+    s = min(fh / fig.height, (W * 0.52) / fig.width)
+    fw, fhh = fig.width * s, fig.height * s
+    fx = W * 0.70 - fw / 2
+    body = f"""<div class=band></div>
+<div class=t><b>CHARACTER DESIGN</b><h1>{name}</h1><i>{html.escape(ident.upper())}</i><hr>
+<p>持ち物　{html.escape(items)}</p></div>
+<img class=fig src="{sl._uri(fig)}" style="left:{fx:.0f}px;top:{H - 30 - fhh:.0f}px;width:{fw:.0f}px;height:{fhh:.0f}px">
+<div class=folio>01 — 扉</div>"""
+    css = """.band{position:absolute;left:0;top:0;width:10px;height:100%;background:ACCENT}
+.t{position:absolute;left:84px;top:50%;transform:translateY(-50%);width:420px}
 .t b{font-size:12px;letter-spacing:.45em;color:ACCENT}
-.t h1{font-family:'Noto Serif JP';font-weight:900;font-size:76px;line-height:1.1;margin:14px 0 10px}
+.t h1{font-family:'Noto Serif JP';font-weight:900;font-size:80px;line-height:1.1;margin:18px 0 12px}
 .t i{font-style:normal;font-size:13px;letter-spacing:.6em;color:SUBC}
-.t p{margin-top:28px;font-size:15px;line-height:1.9}"""
-    doc = _page(th, body, css).replace("var(--p)", th.get("page", "#f2efe8"))
-    _render(doc, out)
+.t hr{border:0;border-top:1px solid ACCENT;width:64px;margin:36px 0 18px}
+.t p{font-size:15px;line-height:1.9}
+.fig{position:absolute;filter:drop-shadow(10px 14px 18px rgba(0,0,0,.12))}"""
+    _render(_page(th, body, css), out)
 
 
 def page_design(ident, c, th, hero, src, out):
