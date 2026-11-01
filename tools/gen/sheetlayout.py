@@ -63,6 +63,26 @@ def _figures(c):
             for n, (a, b) in zip(names, spans)]
 
 
+def _sharp(c, fig):
+    """小さい四面図の人物を AI の拡大（Real-ESRGAN のアニメ絵用）で4倍にする。そのまま引き伸ばすと、
+    騎士（幅220画素）でぼけて縁がぎざぎざになった。拡大した絵は四面図の隣に置き、2回目からは読む"""
+    from PIL import Image
+    p = bible.ROOT / c["images"]["turnaround"]
+    out = Path(str(p) + ".hero.png")
+    if out.exists() and out.stat().st_mtime >= p.stat().st_mtime:
+        return Image.open(out)
+    try:
+        import upscale
+        bg = Image.new("RGB", fig.size, "white")
+        bg.paste(fig, mask=fig.getchannel("A"))
+        big = upscale.x4(bg).convert("RGBA")
+        big.putalpha(fig.getchannel("A").resize(big.size, Image.LANCZOS))
+    except Exception:
+        return fig
+    big.save(out)
+    return big
+
+
 def _hero(c, figs):
     """主役の立ち姿: 背景を透かせるポーズの絵で最も大きいもの、無ければ四面図の正面。
     場面つきの絵（背景を透かせない）は地の上に立たせられないので使わない"""
@@ -72,15 +92,18 @@ def _hero(c, figs):
         cut = _cut_rgba(im)
         if cut.getchannel("A").getextrema()[0] == 0:   # 透けた所がある = 背景を外せた
             return cut.crop(cut.getchannel("A").getbbox()), "立ち姿"
-    # 四面図の正面は小さく（騎士で高さ300画素ほど）、大きく置くとぼける。1人だけを大きく描いた色の絵があれば先に使う
-    if figs and figs[0][1].height >= 700:
-        return figs[0][1], "基準の正面"
+    # 四面図の正面は小さく（騎士で幅220画素ほど）、大きく置くとぼけて縁がぎざぎざになった。
+    # 1人だけを大きく描いた色の絵があり、そちらの人物が大きければ先に使う
     p = c.get("images", {}).get("color")
     if p and (bible.ROOT / p).exists():
         cut = _cut_rgba(Image.open(bible.ROOT / p), bible.ROOT / p)
         bb = cut.getchannel("A").getbbox()
-        if bb:
+        scene = (cut.getchannel("A").point(lambda v: v > 127 and 255).histogram()[255] / (cut.width * cut.height)) > 0.6
+        # 場面ごと描いた絵（城の中など）は抜けず、服も四面図と違うことがあるので主役にしない
+        if bb and not scene and (not figs or (bb[3] - bb[1]) > figs[0][1].height * 1.2):
             return cut.crop(bb), "色の基準"
+    if figs and figs[0][1].height < 1200:
+        return _sharp(c, figs[0][1]), "基準の正面"
     if figs:
         return figs[0][1], "基準の正面"
     return None, ""

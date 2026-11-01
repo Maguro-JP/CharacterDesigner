@@ -18,3 +18,4 @@ config/norms.user.json
 library/**/*.qc.json
 library/**/*.parts.png
 *.sam.png
+*.hero.png
