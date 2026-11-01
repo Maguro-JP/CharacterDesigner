@@ -1098,7 +1098,7 @@ class Window(QMainWindow):
         win.addAction(QAction("欄を隠す・出す（絵だけを見る）", self, shortcut="Tab", triggered=self.toggle_all))
         win.addSeparator()
         # 初めの並びに戻すのはここの 1 か所（前は「設定」にも同じ働きの項目があった）
-        win.addAction(QAction("並びを初めの形に戻す（欄と AI の欄のタブ）", self, triggered=self.reset_layout))
+        win.addAction(QAction("並びを初めの形に戻す", self, triggered=self.reset_layout))
         win.addAction(QAction("すべて別ウィンドウにする", self, triggered=self.float_all))
         win.addAction(QAction("自由配置（欄をドラッグして好きな所に置く）", self, triggered=self.free_layout))
         self.build_ribbon()
