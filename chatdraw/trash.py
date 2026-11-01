@@ -181,7 +181,17 @@ def open_dialog(w):
     row.addWidget(close)
     lay.addLayout(row)
     view.itemDoubleClicked.connect(lambda _it: back())
+
+    def picked():
+        # 選ぶ前は押しても何も起きなかったので、選ぶまで押せない形にする（理由はツールチップ）
+        on = bool(view.selectedItems())
+        restore.setEnabled(on)
+        gone.setEnabled(on)
+        restore.setToolTip("選んだ絵を、消す前の場所と一覧に戻します" if on else "戻す絵を一覧から選ぶと押せます")
+        gone.setToolTip("選んだ絵をごみ箱からも消します（戻せません）" if on else "消す絵を一覧から選ぶと押せます")
+    view.itemSelectionChanged.connect(picked)
     fill()
+    picked()
     dlg.resize(560, 420)
     dlg.fill = fill   # 開いたまま別の所で消したときに並べ直す
     w._trash_dialog = dlg

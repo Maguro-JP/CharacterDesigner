@@ -1684,7 +1684,7 @@ class Window(QMainWindow):
         """今の絵を、ちびキャラ（頭の大きなデフォルメ）に描き直して、新しいレイヤーに重ねる"""
         from PIL import Image
         from chatdraw import postfx
-        if self.thread:
+        if self.busy("ちびキャラ"):
             return
         st = self.check_ai()
         if not st["image"]:
@@ -1768,7 +1768,7 @@ class Window(QMainWindow):
     def upscale_canvas(self):
         """今の絵を、レイヤーを分けたまま 2 倍の大きさにする（元に戻すの履歴は消えるので、先に保存を勧める）"""
         from chatdraw import upscale
-        if self.thread:
+        if self.busy("2 倍に拡大"):
             return
         if self.canvas.undo_stack:
             box = QMessageBox(QMessageBox.Question, "絵を 2 倍に拡大",
@@ -1815,7 +1815,17 @@ class Window(QMainWindow):
         self.notify("拡大しました", "ok", f"{w}×{h}・レイヤー {len(layers)} 枚のまま")
         self._end("拡大しました")
 
+    def busy(self, what: str) -> bool:
+        """裏で描いている間なら、押した物を始めずに理由を出して True。
+        描いている糸を新しい糸で上書きすると、動いている QThread が消されてアプリごと落ちた（綺麗にする・広げる・三面図）"""
+        if self.thread is None:
+            return False
+        self.notify(f"{what}は、今の絵を描き終えてから押してください", "info", "描いている間は、ほかの AI の作業を始めません。止めるなら「止める」を押します")
+        return True
+
     def _run_task(self, fn, then):
+        if self.busy("この作業"):   # 呼び手が見落としても、動いている糸を上書きしない
+            return False
         self.thread = QThread()
         self.task = Task(fn)
         self.task.moveToThread(self.thread)
@@ -2996,6 +3006,8 @@ class Window(QMainWindow):
         mask = self._region_mask()
         finishers.use_painter(getattr(self.studio, "painter", None))
         if background:   # 模型を使う道具は数十秒かかる。画面の糸で回すと、その間アプリが固まる
+            if self.busy("綺麗にする"):
+                return None
             ok, why = self._finisher_ready(name)
             if not ok:
                 self.notify("綺麗にできませんでした", "info", why)
@@ -3094,6 +3106,8 @@ class Window(QMainWindow):
 
     def chara_turnaround(self):
         from chatdraw import charadesign
+        if self.busy("三面図"):
+            return
         painter, ident = self._chara_painter(), getattr(self, "chara_id", "")
         if painter is None or not ident:
             return
@@ -3104,6 +3118,8 @@ class Window(QMainWindow):
 
     def chara_expressions(self, only=("smile", "angry", "sad", "surprised")):
         from chatdraw import charadesign
+        if self.busy("表情差分"):
+            return
         painter, ident = self._chara_painter(), getattr(self, "chara_id", "")
         if painter is None or not ident:
             return
@@ -3188,9 +3204,12 @@ class Window(QMainWindow):
         last, words = self.last_text, self.studio.words
 
         def to_prompt():   # 言葉の模型に聞くので、裏の糸で呼ぶ（画面の糸で読むと数秒〜数十秒固まる）
-            return known or words.to_prompt(last) if last else ""
+            # 括弧が無いと「(known or 訳) if last else ""」と読まれ、開いて直す絵（頼みが無く、言葉だけ残る）で言葉を捨てた
+            return known or (words.to_prompt(last) if last else "")
         painter, seed = getattr(self.studio, "painter", None), self.ai_panel.seed.value()
         if background:   # 描くのは模型なので裏の糸で回す（画面の糸で回すと描き終えるまで固まる）
+            if self.busy("絵の外へ広げる"):
+                return None
             if painter is None:
                 self.notify("広げられませんでした", "info", "絵の模型がまだ読めていません。AI の欄で模型を選んでください")
                 return None
@@ -3359,10 +3378,21 @@ class Window(QMainWindow):
         self.layout_store.setValue("update_checked", today)
         self.update_bridge = Bridge()
         self.update_bridge.got.connect(lambda info: self._update_found(info, manual))
-        threading.Thread(target=lambda: self.update_bridge.got.emit(updater.check()), daemon=True).start()
+
+        def run():
+            try:
+                info = updater.check(quiet=False)
+            except Exception as e:   # noqa: BLE001  確かめられなかったことを画面の糸に返す
+                info = {"error": str(e) or type(e).__name__}
+            self.update_bridge.got.emit(info)
+        threading.Thread(target=run, daemon=True).start()
 
     def _update_found(self, info, manual: bool):
         from chatdraw import updater
+        if info and info.get("error"):
+            if manual:   # 自分で押したときだけ知らせる（起動時の確かめは黙る）
+                self.notify("更新を確かめられませんでした", "error", "ネットに届きませんでした: " + info["error"][:120])
+            return
         if not info:
             if manual:
                 self.notify("今の版が最新です", "ok", f"版 {updater.current()}")

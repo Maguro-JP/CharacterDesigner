@@ -158,6 +158,11 @@ class TimelapseDialog(QDialog):
         see.setToolTip("書き出した GIF・動画をアプリの中で見る")
         see.clicked.connect(lambda: open_player(self, self.out_dir))
         self.count = QLabel(f"{len(recorder.frames)} 枚")
+        if not recorder.frames:   # 記録が無いと、押しても何も起きなかった。押せない形にして、記録の仕方をツールチップに出す
+            why = "まだ記録がありません。「表示」→「タイムラプスを記録する」を入れて、線を引くか AI で描くと記録されます"
+            for b in (self.play, save, self.video):
+                b.setEnabled(False)
+                b.setToolTip(why)
         row.addWidget(self.play)
         row.addWidget(save)
         row.addWidget(self.video)

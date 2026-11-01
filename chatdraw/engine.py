@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import math
 import os
 import re
 from pathlib import Path
@@ -350,6 +351,7 @@ def decode_threads(cores: int) -> int:
 # 読んだ言葉の模型（道 → Llama）。設定を替えて Words を作り直しても、同じ模型は読み直さない（1 回の読み込みに 100 秒以上かかった）。
 # 持つのは 1 つだけにし、別の模型に替えたら前の物は捨ててメモリを空ける
 _LOADED: dict[str, object] = {}
+CTX = 2048   # 言葉の模型に一度に渡せるトークンの数（指示・頼み・答えの合計）
 
 
 def _llm_for(path: Path):
@@ -357,12 +359,14 @@ def _llm_for(path: Path):
     if key not in _LOADED:
         _LOADED.clear()
         from llama_cpp import Llama
-        # 頼みは短い（指示と頼みで 200 トークン前後）。n_ctx を 2048 から 512 にすると、KV の置き場が 1/4 になる
+        # n_ctx は 2048。512 にしたら、訳す頼み（200 トークン前後）は通ったが、チャットで操作を選ばせる問い（操作の一覧で
+        # 約 1,300 トークン）と会話（assistant.py、2048 前後を見込む）が「exceed context window of 512」で毎回落ち、
+        # 言葉の決まりに黙って回っていた
         # 1 語ずつ出す所（decode）は、物理コアの半分の糸にする。全部の糸を使うと、ほかの処理が CPU を使っている間に
         # 糸どうしの待ち合わせで止まり、Qwen3.5 2B で 7 語に 24〜50 秒かかった（4 コアの機械、2 糸なら 0.9 秒）。
         # 大きい模型ほど 1 語の計算が重く、この遅れが大きく出た。頼みを読む所（prefill）はまとめて計算するので全部の糸を使う
         cores = physical_cores()
-        _LOADED[key] = Llama(model_path=key, n_ctx=512, n_batch=512, n_threads=decode_threads(cores), n_threads_batch=cores,
+        _LOADED[key] = Llama(model_path=key, n_ctx=CTX, n_batch=512, n_threads=decode_threads(cores), n_threads_batch=cores,
                              verbose=False)
     return _LOADED[key]
 
@@ -945,16 +949,20 @@ class Painter:
         self.stop = False
         if clean:
             image = erase(image, mask)
+        # 工程の数 × 強さが 1 に届かないと、diffusers は「the number of pipelinesteps is 0」で止まる。
+        # 工程の少ない模型（2 工程）や設定で工程を減らしたとき、顔を整える（0.3）・低い強さで仕上げる（0.25）が毎回落ちたので、
+        # 直す工程が少なくとも 1 つ残る数まで増やす
+        steps = max(self.steps, math.ceil(1 / strength)) if strength > 0 else self.steps
         # 描くときと同じ札の頼み方（質のタグ、CLIP の長さ、CLIP skip）で直す。直しだけ別の頼み方にすると、絵柄がずれた
         args = dict(prompt=fit_tokens(getattr(pipe, "tokenizer", None), info.prefix, english_only(prompt), quality_tags(info, fam(info.family))),
                     negative_prompt=negative_for(info, self.avoid),
-                    num_inference_steps=self.steps, guidance_scale=self.guidance, strength=strength,
+                    num_inference_steps=steps, guidance_scale=self.guidance, strength=strength,
                     generator=torch.Generator("cpu").manual_seed(seed))
         if info.rescale:
             args["guidance_rescale"] = info.rescale
         if clip_skip_arg(info, info.family):
             args["clip_skip"] = clip_skip_arg(info, info.family)
-        total = max(1, int(self.steps * strength))
+        total = max(1, int(steps * strength))
 
         def step(p, i, _t, kw):
             if self.stop:
