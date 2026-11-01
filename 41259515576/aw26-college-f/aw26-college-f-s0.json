@@ -1,0 +1,125 @@
+{
+ "id": "aw26-college-f",
+ "name": "カレッジコア（2026 秋冬、女子）",
+ "model": "SG161222/RealVisXL_V5.0",
+ "seed": 0,
+ "steps": 30,
+ "prompt": "young Japanese woman, around 20, dark brown medium-length hair with face-framing layers and see-through bangs, natural makeup, brown eyes, wearing navy and white striped rugby shirt with white collar, oversized with sleeves pushed up, front hem loosely tucked into a navy pleated skirt above the knee, black opaque tights, black bit loafers, black round glasses, brown leather satchel as the only accent, navy white and black, heavy cotton rugby against wool pleats, (full body shot:1.2), entire figure from head to shoes in frame, (shoes visible:1.2), small figure with empty space above the head and below the feet, fashion editorial lookbook photograph, plain off-white studio background, soft even studio lighting, sharp focus, photorealistic, high detail fabric texture",
+ "negative": "anime, illustration, drawing, cartoon, painting, 3d render, cgi, doll, cropped, out of frame, cut off feet, cropped legs, legs cut off, close-up, extra fingers, missing fingers, fused fingers, deformed hands, extra arms, extra legs, bad anatomy, two people, text, logo, brand logo, watermark, signature, nsfw, cleavage, see-through, logo, brand logo, text, miniskirt, short skirt, caucasian, western face, blonde hair, blue eyes",
+ "views": {
+  "front": {
+   "file": "aw26-college-f-s0-front.png",
+   "tries": [
+    {
+     "seed": 0,
+     "sec": 1859,
+     "bad": [
+      "足元が枠の下で切れている"
+     ]
+    },
+    {
+     "seed": 1,
+     "sec": 1848,
+     "bad": [
+      "足元が枠の下で切れている"
+     ]
+    },
+    {
+     "seed": 2,
+     "sec": 1798,
+     "bad": [
+      "足元が枠の下で切れている"
+     ]
+    }
+   ],
+   "passed": false
+  },
+  "back": {
+   "file": "aw26-college-f-s0-back.png",
+   "tries": [
+    {
+     "seed": 0,
+     "sec": 1893,
+     "bad": [
+      "足元が枠の下で切れている",
+      "背面に顔が写っている"
+     ]
+    },
+    {
+     "seed": 1,
+     "sec": 1854,
+     "bad": [
+      "足元が枠の下で切れている",
+      "背面に顔が写っている"
+     ]
+    },
+    {
+     "seed": 2,
+     "sec": 1882,
+     "bad": [
+      "足元が枠の下で切れている",
+      "背面に顔が写っている"
+     ]
+    }
+   ],
+   "passed": false
+  }
+ },
+ "details": [
+  {
+   "part": "head",
+   "file": "aw26-college-f-s0-detail-head.png",
+   "box": [
+    0,
+    0,
+    832,
+    194
+   ],
+   "words": "close-up of the hair and headwear"
+  },
+  {
+   "part": "collar",
+   "file": "aw26-college-f-s0-detail-collar.png",
+   "box": [
+    0,
+    145,
+    832,
+    462
+   ],
+   "words": "close-up of the collar, neckline, buttons and fabric texture"
+  },
+  {
+   "part": "waist",
+   "file": "aw26-college-f-s0-detail-waist.png",
+   "box": [
+    0,
+    413,
+    832,
+    705
+   ],
+   "words": "close-up of the waist, belt, pockets and seams"
+  },
+  {
+   "part": "hem",
+   "file": "aw26-college-f-s0-detail-hem.png",
+   "box": [
+    0,
+    668,
+    832,
+    1033
+   ],
+   "words": "close-up of the hem, pleats and fabric folds"
+  },
+  {
+   "part": "feet",
+   "file": "aw26-college-f-s0-detail-feet.png",
+   "box": [
+    0,
+    997,
+    832,
+    1216
+   ],
+   "words": "close-up of the shoes and socks"
+  }
+ ]
+}
