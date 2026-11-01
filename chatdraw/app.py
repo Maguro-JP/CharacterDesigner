@@ -3984,6 +3984,8 @@ class Window(QMainWindow):
 
     def watch_fetch(self, fetcher, what: str = "模型"):
         """模型を取る進みを、描く進みと同じ右下のポップアップに出す。模型の管理を閉じたあとも、取り終わるまで進みが見える"""
+        # 取り始めは新しい 1 回分。前の 1 回分を × で閉じたままだと、取る進みが一度も出なかった
+        self.progress_popup._new_run()
         fetcher.progress.connect(lambda msg, pct: self.progress_popup.tell(f"{what}を取っています", msg, pct), Qt.QueuedConnection)
         fetcher.finished.connect(lambda err: self.progress_popup.tell("取れませんでした" if err else "取りました",
                                                                       err or f"{what}を取り終わりました"), Qt.QueuedConnection)
