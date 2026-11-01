@@ -58,20 +58,18 @@ def _clean_apply(image):
 
 
 def _upscale_ready() -> bool:
+    """torch があれば使える。重み（18MB）は初めて使うときに upscale が取る（「絵を 2 倍に拡大」と同じ）。
+    前は重みが無いと押せず、「模型の管理から取ってください」と出したが、模型の管理に取る所が無く、先へ進めなかった"""
     try:
-        from chatdraw import upscale
+        from chatdraw import upscale  # noqa: F401
         import torch  # noqa: F401
     except ImportError:
         return False
-    return upscale.ready()
+    return True
 
 
 def _upscale_why() -> str:
-    try:
-        import torch  # noqa: F401
-    except ImportError:
-        return "画像生成の部品（torch）がまだ入っていません。模型の管理から絵の模型を取ると入ります"
-    return "アニメ向けの拡大の重み（18MB）がまだありません。模型の管理から取ってください"
+    return "画像生成の部品（torch）がまだ入っていません。模型の管理から絵の模型を取ると入ります"
 
 
 def _upscale_apply(image):
@@ -118,7 +116,8 @@ register(Finisher(
     "このリポジトリのコード", "chatdraw/finishers.py", lambda: True, lambda: "", _clean_apply))
 register(Finisher(
     "upscale_anime", "アニメ向けに拡大して整える",
-    "Real-ESRGAN のアニメ絵用の重みで 2 倍にします。囲んだときは、囲みの中だけ拡大で整えた画素に替えます",
+    "Real-ESRGAN のアニメ絵用の重みで 2 倍にします。囲んだときは、囲みの中だけ拡大で整えた画素に替えます。"
+    "初めて使うときに重み（18MB）を取ります",
     "BSD-3-Clause", "https://github.com/xinntao/Real-ESRGAN（RealESRGAN_x4plus_anime_6B）",
     lambda: _upscale_ready(), lambda: _upscale_why(), lambda im: _upscale_apply(im), heavy=True, group="enlarge"))   # 名前で引く（差し替えられるように）
 register(Finisher(

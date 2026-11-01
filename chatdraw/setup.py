@@ -458,7 +458,7 @@ class SetupDialog(QDialog):
         """手元の絵の模型を選んで使う。ファイルは動かさない。ラフの部品と言葉の模型は、取れるときだけ取る"""
         from PySide6.QtWidgets import QFileDialog, QMessageBox
         from chatdraw.models import is_local, local_model
-        if path is None:
+        if not isinstance(path, (str, Path)):   # ボタンからは clicked の真偽（False）が来る。前はそれを道として読み、押すたびに落ちた
             path, _ = QFileDialog.getOpenFileName(self, "絵の模型を選ぶ", "", "絵の模型 (*.safetensors);;model_index.json (model_index.json)")
             if not path:
                 return
