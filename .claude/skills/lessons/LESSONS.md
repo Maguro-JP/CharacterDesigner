@@ -518,3 +518,9 @@
 - 起きたこと: VERSION だけを 0.2.0 にした PR をマージし、app/web/package.json と CHANGELOG.md が 0.1.0 のままで tests/test_version.py が落ちた
 - 判定の誤り: 小さな変更なので試験は要らないと決めた
 - 次から: マージの前に必ず `bash .claude/hooks/test.sh </dev/null` を流し、通ってからマージする。版を上げるときは VERSION・app/web/package.json・package-lock.json・CHANGELOG.md を一緒に変える
+
+### 統合のブランチにまとめた作業ブランチが残った
+- 場面: 担当ごとの作業ブランチを統合のブランチにまとめ、統合の方だけを PR にしてマージしたとき
+- 起きたこと: 作業ブランチは自分の PR が無いので「マージ後に自動で消す」が効かず、GitHub に残った。クラウドからの `git push --delete` はプロキシが止める
+- 判定の誤り: 消せないのは環境のせいだと決め、今までの消し方（Actions の GITHUB_TOKEN で消す）を確かめなかった
+- 次から: マージのあと tidy-releases（workflow_dispatch）を流し、マージ済みの PR に含まれる作業ブランチを Actions で消す。消えたことを `git ls-remote --heads origin` で見てから報告する
