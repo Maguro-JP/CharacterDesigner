@@ -113,7 +113,9 @@ class OmakaseTest(unittest.TestCase):
         self.assertEqual(image.getpixel((0, 0)), (180, 180, 180))             # 囲みの外は直す前の絵のまま
         self.assertEqual(image.getpixel((15, 15)), (10, 10, 10))
         stages = [(s["stage"], s.get("model")) for s in meta["omakase"]["steps"] if s["stage"] != "検品"]
-        self.assertEqual(stages, [("構図", "c/compose"), ("広げて描き直し", "c/compose"), ("手の直し", "h/hands")])
+        # 検品を通ったあとに、形を変えない仕上げ（塗りのむらを均す）だけが掛かる
+        self.assertEqual(stages, [("構図", "c/compose"), ("広げて描き直し", "c/compose"), ("手の直し", "h/hands"),
+                                  ("仕上げ", "clean")])
         self.assertTrue(meta["passed"])
         self.assertTrue(any(m.startswith("手の直し: H/HANDS") for m in said))
 
@@ -136,7 +138,8 @@ class OmakaseTest(unittest.TestCase):
 
     def test_finishers_run_when_present(self):
         fake = mock.Mock()
-        fake.available.return_value = ["clean"]
+        fake.available.return_value = [dict(name="clean", ready=True), dict(name="face", ready=True),
+                                       dict(name="upscale_anime", ready=False)]   # finishers.available() の形
         fake.run.side_effect = lambda name, image, mask=None: image
         with mock.patch.object(omakase, "finishers", return_value=fake):
             _log, st, _ = self.run_draw([COMPOSE], [OK])

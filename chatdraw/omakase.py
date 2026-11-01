@@ -111,6 +111,21 @@ class Plan:
         return "、".join(line)
 
 
+# おまかせが検品を通った絵に黙って掛けてよい仕上げ。形を変えず、大きさも変えない物だけ。
+# 描き直す仕上げ（顔を整える、仕上げの描き直し）は検品を通った絵を崩しうるので、利用者が選んだときだけ使う
+AUTO_FINISH = ("clean",)
+
+
+def auto_finish(tools) -> list:
+    """available() の返り（名前か、name・ready を持つ辞書）から、おまかせで掛ける道具の名前を選ぶ"""
+    names = []
+    for t in tools or []:
+        name, ready = (t.get("name"), t.get("ready", True)) if isinstance(t, dict) else (t, True)
+        if ready and name in AUTO_FINISH:
+            names.append(name)
+    return names
+
+
 def finishers():
     """仕上げの部品（chatdraw/finishers.py）。まだ無ければ None で、仕上げを飛ばす"""
     try:
@@ -128,7 +143,7 @@ def plan(text: str, have: list[ImageModel]) -> Plan:
     f = finishers()
     if f is not None:
         try:
-            p.finish = list(f.available())
+            p.finish = auto_finish(f.available())
         except Exception:
             p.finish = []
     return p
