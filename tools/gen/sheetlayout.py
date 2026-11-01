@@ -38,11 +38,11 @@ def _uri(im, fmt="PNG") -> str:
     return f"data:image/{fmt.lower()};base64," + base64.b64encode(buf.getvalue()).decode()
 
 
-def _cut_rgba(im):
+def _cut_rgba(im, src=None):
     im = im.convert("RGB")
     from PIL import ImageFilter
     # 縁を2画素削る。白い背景の縁取りが残ると、暗い地のテーマで人物の周りに白い線が出た
-    m = cs._cutout(im).point(lambda v: 255 if v > 200 else 0).filter(ImageFilter.MinFilter(5)).filter(ImageFilter.GaussianBlur(0.8))
+    m = cs._cutout(im, src).point(lambda v: 255 if v > 200 else 0).filter(ImageFilter.MinFilter(5)).filter(ImageFilter.GaussianBlur(0.8))
     out = im.convert("RGBA")
     out.putalpha(m)
     return out
@@ -72,6 +72,15 @@ def _hero(c, figs):
         cut = _cut_rgba(im)
         if cut.getchannel("A").getextrema()[0] == 0:   # 透けた所がある = 背景を外せた
             return cut.crop(cut.getchannel("A").getbbox()), "立ち姿"
+    # 四面図の正面は小さく（騎士で高さ300画素ほど）、大きく置くとぼける。1人だけを大きく描いた色の絵があれば先に使う
+    if figs and figs[0][1].height >= 700:
+        return figs[0][1], "基準の正面"
+    p = c.get("images", {}).get("color")
+    if p and (bible.ROOT / p).exists():
+        cut = _cut_rgba(Image.open(bible.ROOT / p), bible.ROOT / p)
+        bb = cut.getchannel("A").getbbox()
+        if bb:
+            return cut.crop(bb), "色の基準"
     if figs:
         return figs[0][1], "基準の正面"
     return None, ""
@@ -120,6 +129,16 @@ PATTERNS = {
     "lines": "repeating-linear-gradient(0deg, color-mix(in srgb, var(--ink) 5%, transparent) 0 1px, transparent 1px 28px)",
     "grid": "linear-gradient(color-mix(in srgb, var(--ink) 5%, transparent) 1px, transparent 1px) 0 0 / 32px 32px,"
             " linear-gradient(90deg, color-mix(in srgb, var(--ink) 5%, transparent) 1px, transparent 1px) 0 0 / 32px 32px",
+}
+
+SPARSE = {
+    "areas": ["hero hero hero hero hero head head head head head head head",
+              "hero hero hero hero hero line line line sw sw sw sw",
+              "hero hero hero hero hero line line line note note note note"],
+    "rows": ["auto", "auto", "1fr"],
+    "panels": [{"kind": "lineart", "area": "line", "title": "線画", "grow": True},
+               {"kind": "swatches", "area": "sw", "style": "chips"},
+               {"kind": "notes", "area": "note", "title": "注記"}],
 }
 
 CSS = """
@@ -206,6 +225,21 @@ JS = r"""
     // 拡大した主役は頭を区画の上にそろえ、はみ出した下（足）は版面の端で切る
     const w = img.naturalWidth * s, h = img.naturalHeight * s, x = L + (W - L - w) / 2, y = top ? H * 0.02 : H - h;
     Object.assign(img.style, {left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px'});
+    // 主役は人物ごとに幅が違う（腕を上げる、外套が広がる）。隣の欄の文字にかぶるときは、かぶらなくなるまで縮め、
+    // それでも足りなければ版面の端の側へ寄せる。区画の線で切ると腕や髪が直線で欠けるので、切らずに大きさで合わせる
+    if (box.closest('[data-kind="hero"]')) {
+      const texts = [...document.querySelectorAll('.name, .kana, .meta, .lab, .guide span, .cap, .chip, .notes li, .face, .swt, .strip, .sbar, .call')]
+        .filter(t => !box.contains(t) && !t.matches('.name.huge'));
+      const hit = () => { const a = img.getBoundingClientRect();
+        return texts.some(t => { const b = t.getBoundingClientRect(); return a.left < b.right - 2 && a.right > b.left + 2 && a.top < b.bottom - 2 && a.bottom > b.top + 2; }); };
+      let ss = s, xx = x;
+      for (let i = 0; i < 24 && hit(); i++) {
+        if (i % 2 === 0 && ss > s * 0.62) ss *= 0.94; else xx -= W * 0.03;
+        const ww = img.naturalWidth * ss, hh = img.naturalHeight * ss;
+        Object.assign(img.style, {left: xx + 'px', top: (top ? H * 0.02 : H - hh) + 'px', width: ww + 'px', height: hh + 'px'});
+      }
+      box.dataset.fit = (ss / s).toFixed(2);
+    }
     if (box.dataset.shadow) {
       const sh = document.createElement('div'); sh.className = 'shadow';
       Object.assign(sh.style, {left: (x + w * 0.5 - w * 0.36) + 'px', width: (w * 0.72) + 'px', top: (y + h - h * 0.032) + 'px', height: (h * 0.036) + 'px'});
@@ -284,6 +318,15 @@ def _panel_html(pn, ctx):
         ins = " ".join("0" if sd in pn.get("clip", []) else "-100vw" for sd in ("top", "right", "bottom", "left"))
         clip = f' style="clip-path:inset({ins})"' if pn.get("clip") else ""
         return f'<div class="fit" data-scale="{sc}" data-anchor="{anchor}"{shadow}{clip}>{wm}<img src="{_uri(im)}"></div>'
+    if k == "lineart":
+        p = c.get("images", {}).get("lineart")
+        if not p or not (bible.ROOT / p).exists():
+            return ""
+        from PIL import Image
+        cut = _cut_rgba(Image.open(bible.ROOT / p), bible.ROOT / p)
+        bb = cut.getchannel("A").getbbox()
+        img = f'<img src="{_uri(cut.crop(bb))}">' if bb else ""
+        return lab(pn.get("title", "線画"), "") + f'<div class="fit">{img}</div>'
     if k == "turnaround":
         figs = ctx["figs"]
         if not figs:
@@ -408,6 +451,18 @@ def render(ident: str, fm: dict, th: dict, out_png: str, out_html: str | None = 
     if W % 2 or H % 2:
         raise ValueError(f"{fm['name']}: 大きさは偶数にする（半分の CSS 寸法を 2 倍で書き出すため）")
     figs = _figures(c)
+    # 四面図も表情も無い人物は、版の区画の半分以上が空いた。主役を大きくし、線画・色・注記で組む版に替える
+    if not figs and not cs._expr_list(ident, c) and fm["name"] != "color":
+        fm = {**fm, "areas": SPARSE["areas"], "rows": SPARSE["rows"],
+              "panels": [{"kind": "hero"}] + [p for p in fm["panels"] if p["kind"] == "header"] + SPARSE["panels"]}
+        if fm["size"][1] > fm["size"][0]:   # 縦長の版は素材が少ないと下半分が空いたので、横長にする
+            fm["size"] = [2400, 1350]
+        W, H = fm["size"]
+        for p in fm["panels"]:
+            if p["kind"] == "hero":
+                p.update(area="hero", scale=1.25, anchor="top", bleed=["bottom", "left"], overlap=True)
+            if p["kind"] == "header":
+                p.update(area="head", huge=False, pull=0)
     ctx = {"c": c, "ident": ident, "fm": fm, "figs": figs, "hero": _hero(c, figs), "sw": cs._swatches(c), "notes": cs._notes(c),
            "turn": _row(figs) if figs else (None, [])}
     # 区画ごとに欄を積む。素材の無い欄は外し、区画が空になったら absorb の区画に面積を渡して格子を組み直す
@@ -419,7 +474,7 @@ def render(ident: str, fm: dict, th: dict, out_png: str, out_html: str | None = 
             f = free.setdefault(pn["area"], {"bleed": set(), "overlap": False})
             f["bleed"] |= set(pn.get("bleed", []))
             f["overlap"] |= bool(pn.get("overlap"))
-            grow = " grow" if pn["kind"] in ("hero", "turnaround", "expressions", "poses") else (" fill" if pn.get("style") == "table" else "")
+            grow = " grow" if pn["kind"] in ("hero", "turnaround", "expressions", "poses", "lineart") else (" fill" if pn.get("style") == "table" else "")
             cells.setdefault(pn["area"], []).append(f'<div class="panel{grow}" data-kind="{pn["kind"]}">{body}</div>')
             used.append(pn["kind"])
     rows = [r.split() for r in fm["areas"]]

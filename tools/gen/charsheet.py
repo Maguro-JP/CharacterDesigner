@@ -215,13 +215,44 @@ def _swatches(c: dict) -> list[dict]:
                                  if isinstance(c.get("turnaround", {}).get(k), str)}
     named = {k: tuple(int(v) for v in str(x).split(",")) for k, x in src.items()}
     shares = {}
-    if c.get("images", {}).get("turnaround"):
+    if not named and c.get("images", {}).get("color"):
+        named, shares = _measure_parts(bible.ROOT / c["images"]["color"])
+    elif c.get("images", {}).get("turnaround"):
         shares = color_shares(Image.open(bible.ROOT / c["images"]["turnaround"]), named)
     base = ("髪", "肌")
     order = [k for k in sorted(named, key=lambda k: -shares.get(k, 0)) if k not in base]
     roles = {k: r for k, r in zip(order, ("主", "副", "アクセント"))}
     return [{"key": k, "name": k, "hex": "#%02x%02x%02x" % named[k], "share": shares.get(k, 0.0),
              "role": roles.get(k, "髪・肌" if k in base else "その他")} for k in named]
+
+
+PART_JA = {"hat": "帽子", "hair": "髪", "upper": "上着", "skirt": "スカート", "pants": "ズボン", "dress": "服", "belt": "ベルト",
+           "left_shoe": "靴", "right_shoe": "靴", "face": "肌", "bag": "鞄", "scarf": "襟巻"}
+
+
+def _measure_parts(src) -> tuple[dict, dict]:
+    """決まりの色を持たない人物は、色の絵を部位分けし、部位ごとの中央の色と面積を測る。
+    色見本が空だと、その欄が抜けて版の半分が空いた"""
+    import numpy as np
+    from PIL import Image
+    import edit
+    im = Image.open(src).convert("RGB")
+    a = np.asarray(im).reshape(-1, 3)
+    seg = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST)).reshape(-1)
+    inv = {v: k for k, v in edit.LABELS.items()}
+    person = seg > 0
+    named, shares = {}, {}
+    for v in np.unique(seg[person]):
+        ja = PART_JA.get(inv.get(int(v), ""))
+        if not ja:
+            continue
+        px = a[seg == v]
+        n = shares.get(ja, 0) + len(px) / max(1, person.sum())
+        if n < 0.02:
+            continue
+        named[ja] = tuple(int(x) for x in np.median(px, axis=0))
+        shares[ja] = n
+    return named, shares
 
 
 def _notes(c: dict) -> list[str]:
@@ -458,20 +489,49 @@ def _char_accent(c: dict):
     return best
 
 
-def _cutout(im):
-    """白い背景（縁につながる白）を透かす覆いを作る。囲まれた白（白い服、目の光）は残す。
-    覆い無しで貼ると、色の付いた地の上に白い四角が出た"""
+def _cutout(im, src=None):
+    """背景を透かす覆いを作る。囲まれた所（白い服、目の光）は残す。覆い無しで貼ると、色の付いた地の上に四角が出た。
+    縁の色（白に限らない）を背景とし、src があれば人の部位分けで、人に付いていない塊（機械、背景の模様）を外す。
+    手に持つ物（スパナ、杖、剣）は人の部位に入らないので、人に触れていて細長い塊は残す"""
     import numpy as np
     from PIL import Image, ImageFilter
     from scipy import ndimage
     a = np.asarray(im.convert("RGB")).astype(int)
-    white = a.min(axis=2) > 232
-    lab, _ = ndimage.label(white)
+    border = np.concatenate([a[0], a[-1], a[:, 0], a[:, -1]])
+    ref = np.median(border, axis=0)
+    near = np.abs(a - ref).max(axis=2) < 30
+    lab, _ = ndimage.label(near)
     edge = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
-    bg = np.isin(lab, list(edge))
-    if bg.mean() < 0.15:   # 背景が白くない絵（場面つき）は四角のまま貼る
+    fg = ~np.isin(lab, list(edge))
+    if src is not None:
+        import edit
+        seg = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST))
+        person = ndimage.binary_closing(seg > 0, iterations=3)
+        if person.sum() > 500:
+            touch = ndimage.binary_dilation(person, iterations=4)
+            ys, xs = np.nonzero(person)
+            pad = int((xs.max() - xs.min()) * 0.25)
+            box = np.zeros_like(person)
+            box[:, max(0, xs.min() - pad):xs.max() + pad] = True
+            rest, n = ndimage.label(fg & ~person)
+            keep = person.copy()
+            for k, sl in enumerate(ndimage.find_objects(rest), 1):
+                comp = rest[sl] == k
+                area = comp.sum()
+                if not (touch[sl] & comp).any():
+                    continue   # 人に触れていない塊は背景
+                solid = area / comp.size
+                # 大きく詰まった塊（機械の車輪）は背景、細長い・まばらな塊（持ち物）は残す
+                if area > 0.05 * person.sum() and solid > 0.35:
+                    continue
+                # 人の横幅から大きく外れて広がる塊（背後の機械）は背景。持ち物は人の幅の近くに収まる
+                if (box[sl] & comp).sum() < 0.7 * area:
+                    continue
+                keep[sl] |= comp
+            fg = ndimage.binary_fill_holes(keep) & (fg | person)
+    elif (~fg).mean() < 0.15:
         return Image.new("L", im.size, 255)
-    m = Image.fromarray(((~bg) * 255).astype("uint8"))
+    m = Image.fromarray((fg * 255).astype("uint8"))
     return m.filter(ImageFilter.MaxFilter(3)).filter(ImageFilter.GaussianBlur(1.2))
 
 
