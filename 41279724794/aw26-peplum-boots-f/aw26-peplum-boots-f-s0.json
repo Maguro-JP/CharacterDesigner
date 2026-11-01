@@ -1,0 +1,115 @@
+{
+ "id": "aw26-peplum-boots-f",
+ "name": "ペプラムとロングブーツ（2026 秋冬、女子）",
+ "model": "SG161222/RealVisXL_V5.0",
+ "seed": 0,
+ "steps": 30,
+ "prompt": "(ivory peplum blouse:1.3), (black ribbon tie at the neck:1.3), (black knee-high boots:1.3), young Japanese woman, early 20s, dark lavender brown collarbone-length hair with soft waves and see-through bangs, glossy finish, brown eyes, wearing ivory peplum blouse with a large ruffle flaring over the hips and a black ribbon tie at the neck, sleeves pushed up, fitted black knee-length tight skirt, black leather knee-high boots meeting the hem, small black handbag, ivory and black only, airy ruffles against smooth leather, soft full top and sharp narrow bottom, (full body shot:1.2), entire figure from head to shoes in frame, (shoes visible:1.2), small figure with empty space above the head and below the feet, fashion editorial lookbook photograph, plain off-white studio background, soft even studio lighting, sharp focus, photorealistic, high detail fabric texture",
+ "negative": "anime, illustration, drawing, cartoon, painting, 3d render, cgi, doll, cropped, out of frame, cut off feet, cropped legs, legs cut off, close-up, extra fingers, missing fingers, fused fingers, deformed hands, extra arms, extra legs, bad anatomy, two people, text, logo, brand logo, watermark, signature, nsfw, cleavage, see-through, logo, brand logo, text, miniskirt, short skirt, caucasian, western face, blonde hair, blue eyes",
+ "views": {
+  "front": {
+   "file": "aw26-peplum-boots-f-s0-front.png",
+   "prompt": "(ivory peplum blouse:1.3), (black ribbon tie at the neck:1.3), (black knee-high boots:1.3), young Japanese woman, early 20s, dark lavender brown collarbone-length hair with soft waves and see-through bangs, glossy finish, brown eyes, wearing ivory peplum blouse with a large ruffle flaring over the hips and a black ribbon tie at the neck, sleeves pushed up, fitted black knee-length tight skirt, black leather knee-high boots meeting the hem, small black handbag, ivory and black only, airy ruffles against smooth leather, soft full top and sharp narrow bottom, (full body shot:1.2), entire figure from head to shoes in frame, (shoes visible:1.2), small figure with empty space above the head and below the feet, fashion editorial lookbook photograph, plain off-white studio background, soft even studio lighting, sharp focus, photorealistic, high detail fabric texture, front view, facing the camera",
+   "tries": [
+    {
+     "seed": 0,
+     "sec": 2354,
+     "bad": []
+    }
+   ],
+   "passed": true
+  },
+  "back": {
+   "file": "aw26-peplum-boots-f-s0-back.png",
+   "prompt": "(view from behind:1.4), (back of the head:1.3), the person faces away from the camera, back of the outfit visible, (ivory peplum blouse:1.3), (black ribbon tie at the neck:1.3), (black knee-high boots:1.3), young Japanese woman, early 20s, dark lavender brown collarbone-length hair, glossy finish, wearing ivory peplum blouse with a large ruffle flaring over the hips and a black ribbon tie at the neck, sleeves pushed up, fitted black knee-length tight skirt, black leather knee-high boots meeting the hem, small black handbag, ivory and black only, airy ruffles against smooth leather, soft full top and sharp narrow bottom, (full body shot:1.2), entire figure from head to shoes in frame, (shoes visible:1.2), small figure with empty space above the head and below the feet, fashion editorial lookbook photograph, plain off-white studio background, soft even studio lighting, sharp focus, photorealistic, high detail fabric texture",
+   "tries": [
+    {
+     "seed": 0,
+     "sec": 2415,
+     "bad": [
+      "背面に顔が写っている"
+     ]
+    },
+    {
+     "seed": 1,
+     "sec": 2402,
+     "bad": [
+      "背面に顔が写っている"
+     ]
+    },
+    {
+     "seed": 2,
+     "sec": 2373,
+     "bad": [
+      "背面に顔が写っている"
+     ]
+    },
+    {
+     "seed": 3,
+     "sec": 2373,
+     "bad": [
+      "背面に顔が写っている"
+     ]
+    }
+   ],
+   "passed": false
+  }
+ },
+ "details": [
+  {
+   "part": "head",
+   "file": "aw26-peplum-boots-f-s0-detail-head.png",
+   "box": [
+    0,
+    0,
+    832,
+    194
+   ],
+   "words": "close-up of the hair and headwear"
+  },
+  {
+   "part": "collar",
+   "file": "aw26-peplum-boots-f-s0-detail-collar.png",
+   "box": [
+    0,
+    145,
+    832,
+    462
+   ],
+   "words": "close-up of the collar, neckline, buttons and fabric texture"
+  },
+  {
+   "part": "waist",
+   "file": "aw26-peplum-boots-f-s0-detail-waist.png",
+   "box": [
+    0,
+    413,
+    832,
+    705
+   ],
+   "words": "close-up of the waist, belt, pockets and seams"
+  },
+  {
+   "part": "hem",
+   "file": "aw26-peplum-boots-f-s0-detail-hem.png",
+   "box": [
+    0,
+    668,
+    832,
+    1033
+   ],
+   "words": "close-up of the hem, pleats and fabric folds"
+  },
+  {
+   "part": "feet",
+   "file": "aw26-peplum-boots-f-s0-detail-feet.png",
+   "box": [
+    0,
+    997,
+    832,
+    1216
+   ],
+   "words": "close-up of the shoes and socks"
+  }
+ ]
+}
