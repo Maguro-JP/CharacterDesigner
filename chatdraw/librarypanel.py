@@ -25,6 +25,7 @@ def _grid() -> QListWidget:
     v.setResizeMode(QListView.Adjust)
     v.setMovement(QListView.Static)
     v.setContextMenuPolicy(Qt.CustomContextMenu)
+    v.setSelectionMode(QListWidget.ExtendedSelection)   # Ctrl や Shift で何枚か選んでまとめて消せる
     return v
 
 
@@ -72,6 +73,11 @@ class LibraryPanel(QWidget):
         tl.addWidget(self.use)
         tl.addWidget(make)
         self.tabs.addTab(taste, "好み")
+        from PySide6.QtGui import QAction
+        for view in (self.works, self.docs):   # 選んだ絵を Delete キーで消す（確かめてからごみ箱へ）
+            act = QAction("消す（ごみ箱へ）", view, shortcut="Delete", shortcutContext=Qt.WidgetWithChildrenShortcut)
+            act.triggered.connect(lambda _=False, v=view: self.w.delete_images([it.data(Qt.UserRole + 1) for it in v.selectedItems()]))
+            view.addAction(act)
         self.refresh()
 
     # ---- 見せる ----
@@ -118,7 +124,7 @@ class LibraryPanel(QWidget):
         self.summary.setText(text)
 
     # ---- 操作 ----
-    def _menu(self, view: QListWidget, pos):
+    def _menu(self, view: QListWidget, pos, run: bool = True):
         it = view.itemAt(pos)
         if not it:
             return
@@ -141,8 +147,18 @@ class LibraryPanel(QWidget):
         m.addAction("編集する（囲んで直す）", lambda: self.w.edit_image(path))
         m.addAction("言葉を付ける…", lambda: self.tag(item_id))
         m.addSeparator()
-        m.addAction("一覧から外す", lambda: (lib.remove(item_id), self.refresh()))
+        if entry and entry["kind"] == "work":
+            m.addAction("一覧から外す（絵は残す）", lambda: (lib.remove(item_id), self.refresh()))
+        # 資料の写しも作品の絵も、すぐには消さずごみ箱へ移す（「ファイル」→「ごみ箱…」から戻せる）
+        m.addAction("消す（ごみ箱へ）…", lambda: self.w.delete_images(self._chosen(view, path)))
+        if not run:
+            return m
         m.exec(view.mapToGlobal(pos))
+
+    def _chosen(self, view: QListWidget, path: str) -> list[str]:
+        """右クリックした絵と、一緒に選んでいる絵"""
+        picked = [it.data(Qt.UserRole + 1) for it in view.selectedItems()]
+        return picked if path in picked else [path]
 
     def rate(self, item_id: str, rating: int):
         self.w.library.rate(item_id, rating)

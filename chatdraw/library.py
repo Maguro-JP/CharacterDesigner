@@ -101,6 +101,22 @@ class Library:
             Path(item["path"]).unlink(missing_ok=True)
         self.save()
 
+    def take(self, paths: list[str]) -> list[dict]:
+        """その絵の記録を一覧から外して返す（ごみ箱へ移すとき。戻すときに put_back で戻せるように記録ごと返す）"""
+        want = {str(p) for p in paths}
+        gone = [i for i in self.items if i["path"] in want]
+        if gone:
+            self.items = [i for i in self.items if i["path"] not in want]
+            self.save()
+        return gone
+
+    def put_back(self, items: list[dict]):
+        """ごみ箱から戻した記録を一覧に戻す。新しい順の並びを保つため、足した時刻で並べ直す"""
+        have = {i["id"] for i in self.items}
+        self.items.extend(i for i in items if i["id"] not in have)
+        self.items.sort(key=lambda i: i.get("added", ""), reverse=True)
+        self.save()
+
     def works(self) -> list[dict]:
         return [i for i in self.items if i["kind"] == "work"]
 

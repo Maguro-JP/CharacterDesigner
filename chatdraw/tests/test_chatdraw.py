@@ -98,7 +98,7 @@ class WindowTest(unittest.TestCase):
             self.assertEqual(len(w.images), 1)
             self.assertTrue(Path(w.images[0]).exists())
             item = w.history.item(0)                       # 描いた絵の欄の履歴に、結果と頼みが残る
-            self.assertIn("描けました", item.toolTip())          # 詳しい言葉はカーソルを重ねたときに出す
+            self.assertNotIn("描けました", item.toolTip())       # 絵を見れば分かる結果は出さない（崩れがあったときだけ出す）
             self.assertIn("雪の城の前の騎士", item.toolTip())
             self.assertEqual(item.text(), "")                     # 見た目は絵だけ
             self.assertEqual(w.activity.state.text(), "待機中")

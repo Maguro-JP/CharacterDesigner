@@ -39,3 +39,27 @@ def install(app: QApplication | None = None) -> WheelGuard:
             if _guarded(w):
                 w.setFocusPolicy(Qt.StrongFocus)
     return guard
+
+
+class _SideWheel(QObject):
+    def __init__(self, area: QAbstractScrollArea):
+        super().__init__(area)
+        self.area = area
+
+    def eventFilter(self, obj, e):
+        if e.type() == QEvent.Wheel:
+            d = e.angleDelta()
+            step = d.x() or d.y()
+            bar = self.area.horizontalScrollBar()
+            if step and bar.maximum() > 0:
+                bar.setValue(bar.value() - step // 2)
+                return True
+        return False
+
+
+def side_wheel(area: QAbstractScrollArea):
+    """横に並べた物（棒を隠した横の流し）を、ホイールの上下で横に流す"""
+    f = _SideWheel(area)
+    area.viewport().installEventFilter(f)
+    area._side_wheel = f
+    return f
