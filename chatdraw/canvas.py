@@ -232,6 +232,30 @@ class Canvas(QGraphicsView):
         self.rebuild()
         self.fit()
 
+    def place_result(self, path: str, name: str, replace: bool = False):
+        """AI が描いた・直した・加工した結果を、一番上の新しいレイヤーに置いて選ぶ。
+        前は結果を一番下に入れて空のレイヤーを上に選んでいたため、結果が出たことに気づけなかった。
+        replace は新しく描いた絵・大きさの変わる結果（拡大・広げる）で、キャンバスを結果 1 枚に置き換える
+        （大きさの違う前の絵とは重ねられない）。どちらも前の状態は「元に戻す」で戻せる"""
+        img = _load(path)
+        if not self.layers:
+            self._reset([Layer(name, img)], 0)
+            return
+        resized = (img.width(), img.height()) != self.size_px()
+        if not replace and resized:
+            return self.add_image_layer(path, name)   # 大きさだけ違う結果は、キャンバスに合わせて一番上に重ねる
+        self.snapshot_all()
+        if replace:
+            self.layers = [Layer(name, img)]
+        else:
+            self.layers.append(Layer(name, img))
+        self.current = len(self.layers) - 1
+        if replace:
+            self.set_selection(None)
+        self.rebuild()
+        if replace and resized:
+            self.fit()
+
     def add_image_layer(self, path: str, name: str = "絵"):
         img = _load(path)
         if not self.layers:

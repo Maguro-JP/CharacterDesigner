@@ -1706,10 +1706,10 @@ class Window(QMainWindow):
         bad = getattr(getattr(self, "job_studio", None) or self.studio, "last_flaws", []) if self.job_kind == "fix" else []
         try:
             if self.job_kind == "chibi":
-                self.canvas.add_image_layer(path, "ちびキャラ")
+                self.put_result(path, "ちびキャラ")
             elif self.job_kind == "fix":
-                self.canvas.add_image_layer(path, f"AI の直し {len(self.images)}" + ("（崩れあり）" if bad else ""))
-                if bad:   # 崩れの見つかった直しは見えなくして重ねる。元の絵を壊さず、見るか消すかは利用者が決める
+                placed = self.put_result(path, f"AI の直し {len(self.images)}" + ("（崩れあり）" if bad else ""))
+                if bad and placed:   # 崩れの見つかった直しは見えなくして重ねる。元の絵を壊さず、見るか消すかは利用者が決める
                     self.canvas.set_visible(self.canvas.current, False)
                     self._refresh_layers()
                 else:
@@ -1816,7 +1816,7 @@ class Window(QMainWindow):
             if isinstance(err, BaseException):
                 self.notify("線画にできませんでした", "error", str(err))
                 return
-            self.canvas.add_image_layer(str(path), "線画")
+            self.put_result(str(path), "線画")
             self.activity.add(str(path), "線画")
             self.notify("線画にしました", "ok", "新しいレイヤーに重ねました。元の絵は下に残っています")
         self.statusBar().showMessage("線画にしています…")
@@ -1844,7 +1844,7 @@ class Window(QMainWindow):
                 self.notify("ドット絵にできませんでした", "error", str(got))
                 return
             dw, dh = got
-            self.canvas.add_image_layer(str(big), "ドット絵")
+            self.put_result(str(big), "ドット絵")
             self.activity.add(str(small), f"ドット絵 {dw}×{dh}・{colors} 色")
             self.notify("ドット絵にしました", "ok", f"{dw}×{dh} ドット・{colors} 色。元の大きさの絵は履歴にあります")
         self.statusBar().showMessage("ドット絵にしています…")
@@ -2702,16 +2702,32 @@ class Window(QMainWindow):
         self.canvas.show_overlay(qimage_from_pil(img))
         self.recorder.add(img)
 
+    def put_result(self, path: str, name: str, replace: bool = False) -> bool:
+        """AI の結果を置く。設定「AI の結果の置き場」が「別ファイル」なら新しい作業ファイル（別のウィンドウ）で開き、
+        今のキャンバスには触らない。既定の「上のレイヤー」なら一番上の新しいレイヤーに置いて選ぶ。キャンバスに置いたら True"""
+        if self.settings.get("result_place") == "別ファイル":
+            self.open_in_new_file(path)
+            return False
+        self.canvas.place_result(path, name, replace=replace)
+        return True
+
+    def open_in_new_file(self, path: str):
+        """絵を新しい作業ファイルとして、別のウィンドウで開く。今の作業ファイルはそのまま残る"""
+        from PySide6.QtCore import QProcess
+        args = ["--open", str(path)] if getattr(sys, "frozen", False) else [str(Path(__file__).resolve()), "--open", str(path)]
+        if not QProcess.startDetached(sys.executable, args):
+            self.notify("別ファイルで開けませんでした", "error", str(path))
+
     def place(self, path: str):
         """描けた絵を置く。新しく描いて、まだ何も描いていないキャンバスなら絵を開く。
         キャンバスを元に描いたときと、描いている途中なら、元の絵を残して新しいレイヤーとして重ねる"""
         if self.mode.currentIndex() == 0:
             # 新しく描いた絵は、いつも同じ形で置く（キャンバスを置き換え、前の状態は元に戻すで戻せる）。
             # 前は、キャンバスの状態で置き換えたり上に重ねたりが変わり、大きさの違う絵が重なった
-            self.canvas.replace_with_image(path, f"AI の絵 {len(self.images)}")
+            self.put_result(path, f"AI の絵 {len(self.images)}", replace=True)
         else:
-            self.canvas.add_image_layer(path, f"AI の絵 {len(self.images)}")
-            self.canvas.fit()   # 描けた絵は全体表示で見せる
+            self.put_result(path, f"AI の絵 {len(self.images)}")
+            self.canvas.fit()   # 結果は全体表示で見せる
         self._placed = path
 
     def stop(self):
@@ -3553,16 +3569,16 @@ class Window(QMainWindow):
             layer.save(path)
             from chatdraw.canvas import preload
             preload(path)
-            self.canvas.add_image_layer(str(path), f"エフェクト: {f.label}")
+            self.canvas.place_result(str(path), f"エフェクト: {f.label}")   # エフェクトはいつも今の絵の一番上のレイヤー
             s = finishers.LAST_STRENGTH.get("strength")
             self.notify("エフェクトを新しいレイヤーに置きました", "ok",
                         (f"この絵に合わせた強さ {s}。" if s else "") + "レイヤーの欄で表示・不透明度を変えたり、消したりできます")
             return path
         if out.size == base.size:
-            self.canvas.add_image_layer(str(path), "綺麗にした絵")   # 元の絵は下に残す
-            self.canvas.fit()
+            self.put_result(str(path), "綺麗にした絵")   # 元の絵は下に残す
+            self.canvas.fit()   # 結果は全体表示で見せる
         else:
-            self.canvas.replace_with_image(str(path), "綺麗にした絵")   # 拡大した絵（元に戻すで戻せる）
+            self.put_result(str(path), "綺麗にした絵（拡大）", replace=True)   # 拡大した絵（元に戻すで戻せる）
         self.notify("綺麗にしました（新しいレイヤー）", "ok", "見比べて、使うか消すかを決めてください")
         return path
 
@@ -3611,7 +3627,7 @@ class Window(QMainWindow):
             path = self._finished_path("outpaint")
             self._save_out(out, path, dict(getattr(self, "edit_meta", None) or {}, text=self.last_text, prompt=prompt,
                                            mode="広げる", grow=[left, top, right, bottom]))
-        self.canvas.replace_with_image(str(path), "広げた絵")
+        self.put_result(str(path), "広げた絵", replace=True)
         self.notify("絵の外へ広げました", "ok", "元の絵の画素はそのままです。広げた所を見て、使うか元に戻すかを決めてください")
         return path
 
@@ -3940,7 +3956,11 @@ def main():
     w.ask_words_once()
     w.upgrade_models()
     w.check_ai()
-    w.offer_restore()
+    opened = sys.argv[sys.argv.index("--open") + 1] if "--open" in sys.argv[:-1] else None
+    if opened:
+        w.open_path(opened)   # AI の結果を別ファイルで開くとき。自動保存から戻すかは聞かない
+    else:
+        w.offer_restore()
     # closeEvent を通らずに終わる道（更新を入れて閉じるなど）でも、正しく閉じた印を残す
     app.aboutToQuit.connect(lambda: (w.layout_store.setValue("running", 0), w.layout_store.sync()))
     w.maybe_tour()
