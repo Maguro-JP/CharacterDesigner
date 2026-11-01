@@ -577,6 +577,7 @@ class Window(QMainWindow):
         neg_head.setToolTip(self.ai_panel.negative.toolTip())
         tl.addWidget(neg_head)
         tl.addWidget(self.ai_panel.negative)
+        self.ai_panel.negative.textChanged.connect(lambda _t: self._apply_avoid())
         self.entry.textChanged.connect(self.ai_panel.preview_timer.start)
         # 模型に渡る言葉の目安は欄に常に出さず、書く欄にカーソルを合わせたときだけ出す。
         # 目安の札（aipanel の preview）は隠した入れ物に入れ、出し入れされても画面には出ない
@@ -598,10 +599,9 @@ class Window(QMainWindow):
         self.mic_button.setToolTip("声で頼む（Windows の音声入力 Win+H を開きます）")
         self.mic_button.clicked.connect(self.voice_input)
         from chatdraw import voice
-        if not voice.available():
-            self.mic_button.setEnabled(False)
-            self.mic_button.setToolTip("声で頼む（Windows で使えます）")
+        # 使えない所（Windows の外）では出さない。押せないボタンを並べると、欄が狭くなるだけだった
         line.addWidget(self.mic_button)
+        self.mic_button.setVisible(voice.available())
         self.fav_button = QPushButton("☆")
         self.fav_button.setToolTip("書く欄の言葉をお気に入りに固定する")
         self.fav_button.setFixedWidth(40)
@@ -877,10 +877,13 @@ class Window(QMainWindow):
         self.tl_action = QAction("タイムラプスを記録する", self, checkable=True, checked=self.recorder.enabled)
         self.tl_action.setToolTip("線を引くたび、AI が描く工程ごとに写しを撮り、描いた過程を残します")
         self.tl_action.toggled.connect(self._set_timelapse)
-        view.addAction(self.tl_action)
-        view.addAction(QAction("タイムラプスを見る…", self, shortcut="Ctrl+Shift+T", triggered=self.open_timelapse))
-        view.addAction(QAction("タイムラプスを消す", self, triggered=self.recorder.clear))
-        view.addAction(QAction("GIF・動画を開く…", self, triggered=self.open_player))
+        # タイムラプスの 4 つは 1 つの小さなメニューにまとめる（表示のメニューが長く、絵の見え方の項目が埋もれた）
+        tl = view.addMenu("タイムラプス")
+        tl.setToolTipsVisible(True)
+        tl.addAction(self.tl_action)
+        tl.addAction(QAction("タイムラプスを見る…", self, shortcut="Ctrl+Shift+T", triggered=self.open_timelapse))
+        tl.addAction(QAction("タイムラプスを消す", self, triggered=self.recorder.clear))
+        tl.addAction(QAction("GIF・動画を開く…", self, triggered=self.open_player))
         view.addSeparator()
         self.pin_action = QAction("表示する絵を固定する", self, checkable=True)
         self.pin_action.setToolTip("固定すると、AI が新しく描いた絵はキャンバスに出さず履歴に入れます。外すと最新の絵を出します")
@@ -892,7 +895,9 @@ class Window(QMainWindow):
         from PySide6.QtWidgets import QMenu
         self.ai_menu = QMenu("AI", self)   # 窓を親にして作る（文字だけで足すと、作り直しの知らせの前に消えていた）
         self.menuBar().addMenu(self.ai_menu)
-        self.ai_menu.aboutToShow.connect(self._fill_ai_menu)
+        # 開くたびに手元の模型を数え直してから作る。開いている間に変わった分は、閉じたあとに作り直す
+        self.ai_menu.aboutToShow.connect(self._open_ai_menu)
+        self.ai_menu.aboutToHide.connect(self._ai_menu_hidden)
         self._have_images: set[str] | None = None   # 手元にある絵の模型。裏の糸で数え、メニューを開くたびには数えない
         self._fill_ai_menu()
         self.rescan_models()
@@ -905,7 +910,6 @@ class Window(QMainWindow):
         setting_menu = self.menuBar().addMenu("設定")
         setting_menu.addAction(QAction("設定…", self, shortcut="Ctrl+,", triggered=self.open_settings))
         setting_menu.addAction(QAction("キーの設定…", self, triggered=self.open_keys))
-        setting_menu.addAction(QAction("並びを初めの形に戻す", self, triggered=self.reset_layout))
         sel = self.menuBar().addMenu("選択範囲")
         sel.addAction(QAction("すべてを選択", self, shortcut="Ctrl+A", triggered=self.canvas.select_all))
         sel.addAction(QAction("選択を解除", self, shortcut="Ctrl+D", triggered=lambda: self.canvas.set_selection(None)))
@@ -1026,7 +1030,8 @@ class Window(QMainWindow):
         # Tab は出す・隠すを入れ替える。隠すだけだと、もう一度押しても戻らず、帯も消えて操作できなくなった
         win.addAction(QAction("欄を隠す・出す（絵だけを見る）", self, shortcut="Tab", triggered=self.toggle_all))
         win.addSeparator()
-        win.addAction(QAction("整列（初期の配置に戻す）", self, triggered=self.arrange))
+        # 初めの並びに戻すのはここの 1 か所（前は「設定」にも同じ働きの項目があった）
+        win.addAction(QAction("並びを初めの形に戻す", self, triggered=self.reset_layout))
         win.addAction(QAction("すべて別ウィンドウにする", self, triggered=self.float_all))
         win.addAction(QAction("自由配置（欄をドラッグして好きな所に置く）", self, triggered=self.free_layout))
         self.build_ribbon()
@@ -1048,12 +1053,12 @@ class Window(QMainWindow):
         each = help_menu.addMenu("機能ごとの案内")
         for key, (name, _steps) in tours.catalog(self).items():
             each.addAction(QAction(name, self, triggered=lambda _=False, k=key: tours.show(self, k, force=True)))
-        help_menu.addSeparator()
+        each.addSeparator()   # 案内の出し方も「機能ごとの案内」の中にまとめる
         auto = QAction("機能を初めて使うときに案内を出す", self, checkable=True)
         auto.setChecked(tours.enabled(self))
         auto.toggled.connect(lambda on: self.layout_store.setValue("feature_tours", int(on)))
-        help_menu.addAction(auto)
-        help_menu.addAction(QAction("機能の案内をもう一度出す", self, triggered=lambda: (tours.reset(self),
+        each.addAction(auto)
+        each.addAction(QAction("機能の案内をもう一度出す", self, triggered=lambda: (tours.reset(self),
                                                                                        self.notify("次に使うときに、また案内します", "ok"))))
         self._ribbon_toggle.addAction(self.ribbon_bar.toggleViewAction())
         self._bars_menu.addAction(self.bottom_bar.toggleViewAction())
@@ -1193,6 +1198,16 @@ class Window(QMainWindow):
             self.send()
             return True
         return False
+
+    def _apply_avoid(self):
+        """AI の欄の禁止ワードを絵の模型に渡す。描く・直す・ちびキャラ・広げる・綺麗にするのどの経路も painter.avoid を読む。
+        描くときだけ渡すと、書き換えたあとに描かずに広げた・ちびキャラにしたときに前の禁止ワードのままだった"""
+        painter = getattr(getattr(self, "studio", None), "painter", None)
+        if painter is None:
+            return
+        avoid = list(self.ai_panel.taste()["avoid"])
+        avoid += [a for a in self.ai_panel.avoid_words() if a not in avoid]   # 模型の決まりと「〜なし」には engine が足す
+        painter.avoid = ", ".join(avoid)
 
     def draw_again(self):
         """前と同じ頼みを、別の種で描き直す"""
@@ -1506,9 +1521,7 @@ class Window(QMainWindow):
         self.job_kind = "fix" if mode == 2 else "draw"
         meta = dict(mode=self.mode.currentText(), preset=self.ai_panel.preset, style_name=self.ai_panel.style,
                     size=list(self.size_pick.currentData()), strength=self.strength.value())
-        avoid = list(self.ai_panel.taste()["avoid"])
-        avoid += [a for a in self.ai_panel.avoid_words() if a not in avoid]   # 禁止ワードの欄。模型の決まりと「〜なし」には engine が足す
-        self.studio.painter.avoid = ", ".join(avoid)
+        self._apply_avoid()
         self.thread = QThread()
         self.job_studio = self._fix_studio() if mode == 2 else self.studio
         self.job = Job(self.job_studio, text, seeds, base=base, strength=self.strength.value() / 100,
@@ -1853,8 +1866,16 @@ class Window(QMainWindow):
         body = self.ai_panel.sections["模型"].body
         body.addWidget(self.lora_pick)
         body.addWidget(self.lora_strength)
+        Window._lora_shown(self)   # 試験は名前空間で呼ぶので、窓の側の関数を直接呼ぶ
+
+    def _lora_shown(self):
+        """LoRA を置いていなければ選ぶ欄を出さず、「なし」のときは強さを出さない（動かしても何も変わらない部品を並べない）。
+        選んだ値と設定の鍵（lora、lora_scale）はそのまま残す"""
+        self.lora_pick.setVisible(self.lora_pick.count() > 1)
+        self.lora_strength.setVisible(bool(self.lora_pick.currentData()))
 
     def _lora_changed(self):
+        Window._lora_shown(self)   # 試験は名前空間で呼ぶので、窓の側の関数を直接呼ぶ
         path, scale = self.lora_pick.currentData() or "", self.lora_strength.value()
         self.layout_store.setValue("lora", path)
         self.layout_store.setValue("lora_scale", scale)
@@ -2284,8 +2305,8 @@ class Window(QMainWindow):
                 return
             changed = have != self._have_images
             self._have_images = have
-            if changed and not self.ai_menu.isVisible():
-                self._fill_ai_menu()
+            if changed:
+                self._refresh_ai_menu()
             if self._rescan_again:
                 self.rescan_models()
         self.in_background(lambda: {m.repo for m in every if has_image(m)}, done)
@@ -2347,10 +2368,28 @@ class Window(QMainWindow):
         self._fill_fix_menu(fix_menu)
         menu.addAction(QAction("模型の管理…", self, triggered=self.manage_models))
 
-    def _models_changed(self):
-        """模型の一覧が変わったら、AI のメニューと模型の表示を作り直す（開いたままの古い一覧を残さない）"""
-        if not self.ai_menu.isVisible():   # 開いているメニューの中身を、押している最中に消さない
+    def _open_ai_menu(self):
+        """AI のメニューを開くとき。取った・消した直後でも古い一覧を出さないよう、手元の模型をその場で数え直す"""
+        self._have_images = None
+        self._ai_menu_stale = False
+        self._fill_ai_menu()
+
+    def _refresh_ai_menu(self):
+        """模型の一覧を作り直す。開いているメニューの中身は押している最中に消さず、閉じたあとに作り直す"""
+        if self.ai_menu.isVisible():
+            self._ai_menu_stale = True
+        else:
             self._fill_ai_menu()
+
+    def _ai_menu_hidden(self):
+        if getattr(self, "_ai_menu_stale", False):
+            self._ai_menu_stale = False
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(0, self._fill_ai_menu)
+
+    def _models_changed(self):
+        """模型の一覧が変わったら（取得・削除・ブロック・非表示・評価・★）、AI のメニューと模型の表示を作り直す"""
+        self._refresh_ai_menu()
         self._show_model()
         self.rescan_models()   # 取った・消したあとの手元の模型は裏で数え直し、変わっていればメニューを作り直す
 
@@ -2422,6 +2461,7 @@ class Window(QMainWindow):
             self.canvas.replace_with_image(path, f"AI の絵 {len(self.images)}")
         else:
             self.canvas.add_image_layer(path, f"AI の絵 {len(self.images)}")
+            self.canvas.fit()   # 描けた絵は全体表示で見せる
         self._placed = path
 
     def stop(self):
@@ -3175,6 +3215,7 @@ class Window(QMainWindow):
             self._save_out(out, path)
         if out.size == base.size:
             self.canvas.add_image_layer(str(path), "綺麗にした絵")   # 元の絵は下に残す
+            self.canvas.fit()
         else:
             self.canvas.replace_with_image(str(path), "綺麗にした絵")   # 拡大した絵（元に戻すで戻せる）
         self.notify("綺麗にしました（新しいレイヤー）", "ok", "見比べて、使うか消すかを決めてください")

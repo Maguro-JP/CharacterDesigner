@@ -126,6 +126,10 @@ class Canvas(QGraphicsView):
         page = self.mapFromScene(self.sceneRect()).boundingRect()
         self.viewport().update(QRegion(self.viewport().rect()).subtracted(QRegion(page)))
 
+    # 全体表示のままか。初めは全体表示にし、窓の大きさが変わっても絵の全体が収まるように合わせ直す。
+    # 利用者が自分で拡大・縮小したら外し、窓の大きさが変わっても勝手に全体へ戻さない
+    auto_fit = True
+
     def __init__(self):
         super().__init__()
         self.setScene(QGraphicsScene(self))
@@ -430,11 +434,21 @@ class Canvas(QGraphicsView):
 
     # ---- 表示 ----
     def fit(self):
+        """絵の全体が窓に収まる大きさで出す。以後、窓の大きさが変わっても全体表示を保つ"""
+        self.auto_fit = True
         if self.layers:
             self.fitInView(self.scene().sceneRect(), Qt.KeepAspectRatio)
             self.zoomed.emit(self.zoom())
 
+    def resizeEvent(self, e):
+        # 起動したときは窓が出る前に絵を開くので、そのときの大きさで合わせると小さすぎた。窓が決まってから合わせ直す
+        super().resizeEvent(e)
+        if self.auto_fit and self.layers:
+            self.fitInView(self.scene().sceneRect(), Qt.KeepAspectRatio)
+            self.zoomed.emit(self.zoom())
+
     def actual(self):
+        self.auto_fit = False
         self.resetTransform()
         self.angle = 0.0
         self.zoomed.emit(1.0)
@@ -446,6 +460,7 @@ class Canvas(QGraphicsView):
     def set_zoom(self, z: float):
         """拡大率を z（1.0 で等倍）にする。回転はそのまま"""
         cur = self.zoom()
+        self.auto_fit = False
         if cur > 0:
             f = z / cur
             self.scale(f, f)
@@ -460,6 +475,7 @@ class Canvas(QGraphicsView):
         self.angle = 0.0
 
     def wheelEvent(self, e):
+        self.auto_fit = False
         f = 1.15 if e.angleDelta().y() > 0 else 1 / 1.15
         self.scale(f, f)
         self.zoomed.emit(self.zoom())
@@ -779,6 +795,7 @@ class Canvas(QGraphicsView):
             return True
         if self.tool == "zoom":
             f = 1 / 1.25 if self.zoom_out else 1.25
+            self.auto_fit = False
             self.scale(f, f)
             self.zoomed.emit(self.zoom())
             return True
