@@ -158,7 +158,8 @@ class ActivityPanel(QWidget):
         item.setSizeHint(QSize(92, 132))
         item.setIcon(QIcon(QPixmap(path).scaledToHeight(184, Qt.SmoothTransformation)))
         item.setData(Qt.UserRole, path)
-        item.setToolTip(f"{time.strftime('%H:%M')}　{self.mode}\n{self.text}\n{prompt}\n右クリックで同じ設定で描き直せます")
+        # 出すのは時刻と頼み（利用者の言葉）だけ。絵の模型に渡した英語の言葉は、書く欄にカーソルを合わせたときに出す
+        item.setToolTip(f"{time.strftime('%H:%M')}　{self.text}" if self.text else time.strftime("%H:%M"))
         self.list.insertItem(0, item)
         return item
 
@@ -173,7 +174,7 @@ class ActivityPanel(QWidget):
             if path:
                 item.setIcon(QIcon(QPixmap(path).scaledToHeight(184, Qt.SmoothTransformation)))
                 item.setData(Qt.UserRole, path)
-            item.setToolTip(f"{stamp}　{result}　{took}\n{self.mode}\n{self.text}")
+            item.setToolTip(f"{stamp}　{result}" + (f"\n{self.text}" if self.text else ""))
             self.list.insertItem(0, item)
         self.tick.stop()
         self._busy(False)

@@ -40,7 +40,20 @@ def _clean_apply(image):
     from PIL import ImageChops, ImageFilter
     smooth = image.filter(ImageFilter.MedianFilter(3))
     edges = image.convert("L").filter(ImageFilter.FIND_EDGES).point(lambda v: 255 if v > 40 else 0)
-    return ImageChops.composite(image, smooth, edges)   # 輪郭の画素は元のまま、平らな所だけ均す
+    out = ImageChops.composite(image, smooth, edges)   # 輪郭の画素は元のまま、平らな所だけ均す
+    try:
+        import numpy as np
+        from scipy.ndimage import binary_dilation
+        from PIL import Image
+        a = np.asarray(image.convert("RGB")).astype(float)
+        b = np.asarray(out.convert("RGB")).astype(float).copy()
+        # 中央値は主線の縁の薄い画素（縁の検出の 40 に届かない所）を削り、10 枚とも線の面積を 2% 超えて変えた。
+        # 主線とその 1 画素の周りは元のまま残し、出来た崩れの画素も戻す
+        line = binary_dilation(_gen("cleanup").line_mask(a), iterations=1)
+        b[line] = a[line]
+        return Image.fromarray(np.clip(repair(a, b), 0, 255).astype("uint8"))
+    except ImportError:   # 部品が無いときは元の均し方のまま
+        return out
 
 
 def _upscale_ready() -> bool:
@@ -119,6 +132,179 @@ register(Finisher(
     extra=dict(redraw=_redraw_with("masterpiece, clean lineart, clean coloring", 0.25))))
 
 
+# ---- このリポジトリで作ってきた仕上げ（tools/gen の retouch・inking・atmosphere・materials） ----
+# 模型を使わず数秒で済む。どれも絵全体を渡して結果を囲みで合わせるので、囲みの外は変わらない（run の keep_outside）。
+# retouch は工程ごとに「自分の数字が良くなり、形が変わりすぎず、線が切れない」ときだけ採るので、悪くする工程は掛からない
+
+def _gen_dir() -> Path:
+    return Path(__file__).resolve().parents[1] / "tools" / "gen"
+
+
+def _gen(name: str):
+    """tools/gen の台本を読む。無ければ ImportError（配布に入っていない、部品が無い）"""
+    import sys
+    d = str(_gen_dir())
+    if d not in sys.path:
+        sys.path.append(d)   # 後ろに足す（chatdraw の同じ名前の部品を隠さないように）
+    import importlib
+    return importlib.import_module(name)
+
+
+def _has(*mods: str) -> bool:
+    import importlib.util
+    return all(importlib.util.find_spec(m) is not None for m in mods)
+
+
+def _own_ready(mod: str, *needs: str):
+    def ready() -> bool:
+        return (_gen_dir() / f"{mod}.py").exists() and _has(*needs)
+    return ready
+
+
+def _own_why(mod: str, *needs: str):
+    def why() -> str:
+        if not (_gen_dir() / f"{mod}.py").exists():
+            return f"仕上げの部品（tools/gen/{mod}.py）が入っていません。アプリを入れ直してください"
+        lack = [m for m in needs if not _has(m)]
+        return ("仕上げに使う部品（" + "、".join(lack) + "）がまだ入っていません。模型の管理から絵の模型を取ると入ります") if lack else ""
+    return why
+
+
+# 線と塗りを整える工程。どの工程も、出来た崩れの画素を元に戻してから（repair）、崩れが増えず線が切れないときだけ採る。
+# おまかせに入れるのは顔の細い線に触らない工程だけ。バリ取り・ジャギー消しは顔を部位分けで守れるときだけ使う決まりなので「全部」にだけ入れる
+RETOUCH_SAFE = ("heal", "defringe", "levels", "sharpen")
+RETOUCH_FULL = ("heal", "defringe", "deburr", "dejag", "levels", "sharpen")
+
+
+def flaws(a) -> int:
+    """崩れの数: 線から離れた黒い粒と、輪郭の小さな出っ張り・欠けの数（tools/gen/retouch.py の specks と burrs）"""
+    rt = _gen("retouch")
+    return int(rt.specks(a)) + int(rt.burrs(a))
+LAST_REPORT: dict = {}   # 直前の retouch の工程ごとの採否（画面と試験が読む）
+
+
+def flaw_pixels(a):
+    """崩れの画素: 線から離れた小さな黒い粒（cleanup.SPECK 未満の主線の塊）と、輪郭の細い出っ張り・切れ込み"""
+    import numpy as np
+    from scipy.ndimage import binary_closing, binary_opening, label
+    rt = _gen("retouch")
+    cleanup = _gen("cleanup")
+    m = cleanup.line_mask(a)
+    lab, _ = label(m, structure=np.ones((3, 3)))
+    sizes = np.bincount(lab.ravel())
+    sizes[0] = cleanup.SPECK
+    speck = sizes[lab] < cleanup.SPECK
+    fig = rt._figure(a)
+    r = max(2, round(min(a.shape[:2]) / 400))
+    k = np.ones((2 * r + 1, 2 * r + 1), bool)
+    return speck | (fig & ~binary_opening(fig, k)) | (binary_closing(fig, k) & ~fig)
+
+
+def repair(a, b, rounds: int = 3):
+    """b（直した絵）に新しく出来た崩れの画素だけを、a（直す前）の画素に戻す。消しゴムで間違えた所だけを消すのと同じで、
+    ほかの所の直しは残す。シャープは縁の際に粒と出っ張りを作り（10 枚で崩れ +1923）、絵ごと採らないと線の締まりも失った"""
+    import numpy as np
+    from scipy.ndimage import binary_dilation
+    old = flaw_pixels(a)
+    b = b.copy()
+    for _ in range(rounds):
+        new = flaw_pixels(b) & ~old
+        if not new.any():
+            break
+        back = binary_dilation(new, iterations=2)
+        b[back] = a[back]
+    return b
+
+
+def step(a, name: str):
+    """retouch の工程を 1 つ掛け、出来た崩れを戻してから、良くなったときだけ採る。返りは (絵, 報告)"""
+    import numpy as np
+    rt = _gen("retouch")
+    fn = rt.OPS[name]
+    b = np.clip(fn(a, None) if name in rt.PROTECTED else fn(a), 0, 255)
+    b = repair(a, b)
+    before, after = rt.METRIC[name](a), rt.METRIC[name](b)
+    f0, f1 = flaws(a), flaws(b)
+    d, dm = rt.drift(a, b), rt.damage(a, b)
+    broken = rt.line_broken(a, b, thickness=name != "sharpen")
+    why = ("数字が良くならない" if after >= before else f"形が変わりすぎる（{d:.3f}）" if d > rt.DRIFT
+           else f"一部が壊れる（{dm:.1f}）" if dm > rt.LOCAL else broken or (f"崩れが増える（{f0} → {f1}）" if f1 > f0 else ""))
+    rep = dict(step=name, before=round(float(before), 4), after=round(float(after), 4), flaws=[f0, f1], used=not why)
+    if why:
+        rep["why"] = why
+    return (a if why else b), rep
+
+
+def _retouch(steps):
+    def run(image):
+        import numpy as np
+        from PIL import Image
+        a = np.asarray(image.convert("RGB")).astype(float)
+        rep = []
+        for name in steps:
+            a, r = step(a, name)
+            rep.append(r)
+        LAST_REPORT.clear()
+        LAST_REPORT.update(steps=rep)
+        return Image.fromarray(np.clip(a, 0, 255).astype("uint8"))
+    return run
+
+
+def _ink(image):
+    """線の清書。描いた線（白い地の暗い線）を 1 本の線にまとめ、白い地に置いて返す"""
+    import tempfile
+    from PIL import Image
+    ik = _gen("inking")
+    with tempfile.TemporaryDirectory() as d:
+        src, out = Path(d) / "in.png", Path(d) / "out.png"
+        image.convert("RGB").save(src)
+        ik.ink(str(src), str(out))
+        lines = Image.open(out).convert("RGBA")
+        lines.load()
+    white = Image.new("RGBA", lines.size, (255, 255, 255, 255))
+    return Image.alpha_composite(white, lines).convert("RGB")
+
+
+def _mood(mood: str):
+    def run(image):
+        return _gen("atmosphere").apply(image.convert("RGB"), mood, 0.6).convert("RGB")
+    return run
+
+
+def _material(kind: str):
+    def run(image):
+        from PIL import Image
+        layer = _gen("materials").apply(image.convert("RGBA"), kind, 0.6)
+        return Image.alpha_composite(image.convert("RGBA"), layer).convert("RGB")
+    return run
+
+
+_OWN = "このリポジトリのコード"
+register(Finisher(
+    "retouch", "線と塗りを整える（形は変えません）",
+    "AI の描き残しの黒い粒・線の縁の色のにじみを消し、明るさの幅と線の締まりを整えます。工程ごとに数字が良くなった時だけ掛けます",
+    _OWN, "tools/gen/retouch.py", _own_ready("retouch", "scipy"), _own_why("retouch", "scipy"),
+    _retouch(RETOUCH_SAFE)))
+register(Finisher(
+    "retouch_full", "輪郭のバリとジャギーも取る",
+    "線と塗りを整えたうえで、輪郭の毛羽と線の階段も直します。顔の細い線に掛かることがあるので、囲んで使うと安心です",
+    _OWN, "tools/gen/retouch.py", _own_ready("retouch", "scipy", "skimage"), _own_why("retouch", "scipy", "skimage"),
+    _retouch(RETOUCH_FULL)))
+register(Finisher(
+    "ink", "ラフの線を清書する", "重ねた線・途切れた線を 1 本の線にまとめ、太さをそろえます（白い地の線画にします）",
+    _OWN, "tools/gen/inking.py", _own_ready("inking", "scipy", "skimage"), _own_why("inking", "scipy", "skimage"), _ink))
+for _m, _label, _tip in (("holy", "空気感: 神々しい光", "光の筋と光の粒、暖かい白金のにじみを重ねます"),
+                         ("komorebi", "空気感: 木漏れ日", "木漏れ日の光の斑点と細い筋を重ねます"),
+                         ("haze", "空気感: 霞と遠近", "上ほど空の色で覆い、奥行きを出します")):
+    register(Finisher(f"air_{_m}", _label, _tip + "。線と形は変えません", _OWN, "tools/gen/atmosphere.py",
+                      _own_ready("atmosphere"), _own_why("atmosphere"), _mood(_m)))
+for _k, _label, _tip in (("metal", "質感: 金属", "明暗の段差と映り込みの帯、強い照り返しを足します"),
+                         ("gem", "質感: 宝石", "面の分かれの明暗と内側の透け、きらめきを足します"),
+                         ("slime", "質感: 透明感", "内側ほど透かし、縁の光と照り返しを足します")):
+    register(Finisher(f"mat_{_k}", _label, _tip + "。囲んだ所だけに掛けてください", _OWN, "tools/gen/materials.py",
+                      _own_ready("materials", "scipy"), _own_why("materials", "scipy"), _material(_k)))
+
+
 def available() -> list[dict]:
     """目録の道具ごとに、使えるか・使えない理由を返す。使えない道具も並べ、理由を見せる"""
     return [dict(name=f.name, label=f.label, tip=f.tip, ready=f.ready(), reason="" if f.ready() else f.why_not(),
@@ -174,15 +360,20 @@ def embed(path: str | Path, meta: dict):
         im.load()
         info = PngImagePlugin.PngInfo()
         info.add_itxt(KEY, json.dumps(meta, ensure_ascii=False))
-        im.save(path, pnginfo=info)
+        part = path.with_name(path.name + ".part")   # 書きかけを読まれないよう、別名に書いてから替える
+        im.save(part, format="PNG", pnginfo=info)
+    try:
+        part.replace(path)
+    except OSError:
+        part.unlink(missing_ok=True)   # 読んでいる途中で替えられない（Windows）。埋めるのは諦め、.json に任せる
 
 
 def embedded(path: str | Path) -> dict:
     """PNG に埋めた頼み・種・設定を読む。無ければ空"""
     from PIL import Image
     try:
-        with Image.open(path) as im:
-            text = (getattr(im, "text", None) or {}).get(KEY) or im.info.get(KEY)
+        with Image.open(path) as im:   # embed は欄を絵の前に書くので、絵を戻さずに読める info で足りる（im.text は絵を戻し 20 ミリ秒）
+            text = im.info.get(KEY)
         data = json.loads(text) if text else {}
     except (OSError, ValueError, TypeError):
         return {}

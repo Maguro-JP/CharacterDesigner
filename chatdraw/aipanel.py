@@ -9,7 +9,7 @@ import json
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QLineEdit, QSlider, QSpinBox, QButtonGroup, QGridLayout, QHBoxLayout, QInputDialog, QLabel, QMenu, QPushButton,
-                               QSizePolicy, QToolButton, QVBoxLayout, QWidget)
+                               QScrollArea, QSizePolicy, QTabWidget, QToolButton, QVBoxLayout, QWidget)
 
 # 画風: (名前, 描く言葉に足すタグ, ヒント)。タグは英語のまま模型に渡す
 STYLES: list[tuple[str, str, str]] = [
@@ -41,50 +41,44 @@ PRESETS: list[tuple[str, str, int, str, str, int]] = [
 PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background", "アイコン": "portrait, upper body, looking at viewer"}
 
 
-# 区切り: (名前, ヒント, 初めに開くか)
+# タブ: (名前, ヒント)。初めに開くのは先頭の「描く内容」
 SECTIONS = [
-    ("描く内容", "描きたい絵と、描かない物を書きます", True),
-    ("作風とプリセット", "押すだけで描き方・大きさ・画風がそろいます", True),
-    ("模型", "絵を描く模型を選びます", False),
-    ("詳しい設定", "枚数・種・参考画像・ラフに沿う強さ", False),
-    ("加工", "出来た絵から作ります。元の絵は残し、新しいレイヤーに重ねます", False),
+    ("描く内容", "描きたい絵と、描かない物を書きます"),
+    ("作風", "AI プリセットと画風。押すだけで描き方・大きさ・画風がそろいます"),
+    ("模型", "絵を描く模型を選びます"),
+    ("詳しい設定", "枚数・種・参考画像・ラフに沿う強さ"),
+    ("加工", "出来た絵から作ります。元の絵は残し、新しいレイヤーに重ねます"),
 ]
 
 
-class Section(QWidget):
-    """見出しを押すと開け閉めできる区切り"""
-    toggled = Signal(bool)
+class Section(QScrollArea):
+    """AI の欄のタブ 1 枚。中身が長いときはタブの中だけを縦に流す（描くボタンはタブの外にあり、隠れない）"""
 
-    def __init__(self, title: str, tip: str, open_: bool):
+    def __init__(self, tabs: QTabWidget, title: str):
         super().__init__()
-        lay = QVBoxLayout(self)
-        lay.setContentsMargins(0, 0, 0, 0)
-        lay.setSpacing(4)
-        self.head = QToolButton()
-        self.head.setObjectName("sectionToggle")
-        self.head.setText(title)
-        self.head.setToolTip(tip + "\n押すと開け閉めします")
-        self.head.setCheckable(True)
-        self.head.setToolButtonStyle(Qt.ToolButtonTextBesideIcon)
-        self.head.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
-        self.head.toggled.connect(self.set_open)
-        lay.addWidget(self.head)
+        self.tabs = tabs
+        self.title = title
+        self.setWidgetResizable(True)
+        self.setFrameShape(QScrollArea.NoFrame)
+        self.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self.box = QWidget()
-        self.body = QVBoxLayout(self.box)
-        self.body.setContentsMargins(0, 0, 0, 6)
+        self.box.setObjectName("scrollInner")
+        outer = QVBoxLayout(self.box)
+        outer.setContentsMargins(2, 6, 2, 6)
+        outer.setSpacing(8)
+        self.body = QVBoxLayout()
         self.body.setSpacing(8)
-        lay.addWidget(self.box)
-        self.head.setChecked(open_)
-        self.set_open(open_)
+        outer.addLayout(self.body)
+        outer.addStretch()
+        self.setWidget(self.box)
 
     def is_open(self) -> bool:
-        return self.head.isChecked()
+        return self.tabs.currentWidget() is self
 
-    def set_open(self, on: bool):
-        self.head.setChecked(on)
-        self.head.setArrowType(Qt.DownArrow if on else Qt.RightArrow)
-        self.box.setVisible(on)
-        self.toggled.emit(on)
+    def set_open(self, on: bool = True):
+        """このタブを前に出す（開け閉めの区切りだった頃の呼び方を残す）"""
+        if on:
+            self.tabs.setCurrentWidget(self)
 
 
 class AiPanel(QWidget):
@@ -96,15 +90,26 @@ class AiPanel(QWidget):
         self.preset = DEFAULT_PRESET
         self.style = "おまかせ"
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(8, 6, 8, 8)
-        outer.setSpacing(2)
-        # 項目が多いので、畳める区切りに分ける。初めは描く内容と作風だけを開き、模型・詳しい設定・加工は畳んでおく
+        outer.setContentsMargins(6, 6, 6, 6)
+        outer.setSpacing(6)
+        # 項目が多いので、タブに分ける。初めに開くのは描く内容。描くボタンはタブの外（下）に置き、どのタブからも押せる
+        self.tabs = QTabWidget()
+        self.tabs.setObjectName("aiTabs")
+        self.tabs.setDocumentMode(True)
+        self.tabs.setUsesScrollButtons(True)
+        self.tabs.tabBar().setExpanding(False)
         self.sections: dict[str, Section] = {}
-        for name, tip, open_ in SECTIONS:
-            sec = Section(name, tip, self._section_open(name, open_))
-            sec.toggled.connect(lambda on, n=name: self.w.layout_store.setValue(f"ai_sections/{n}", int(on)))
+        for name, tip in SECTIONS:
+            sec = Section(self.tabs, name)
+            i = self.tabs.addTab(sec, name)
+            self.tabs.setTabToolTip(i, tip)
             self.sections[name] = sec
-            outer.addWidget(sec)
+        outer.addWidget(self.tabs, 1)
+        # 描くボタンの帯。窓の側で「描く」「止める」などを入れる
+        self.draw_bar = QHBoxLayout()
+        self.draw_bar.setSpacing(4)
+        outer.addLayout(self.draw_bar)
+        self.tabs.setCurrentIndex(0)
 
         # 描く内容: 頼み（チャットの欄から移した）、模型に渡る言葉の目安、禁止ワード。頼みの欄と描くボタンは窓の側で足す
         lay = self.sections["描く内容"].body
@@ -124,7 +129,7 @@ class AiPanel(QWidget):
         self.preview_timer.setInterval(250)   # 打つたびに表を引かない
         self.preview_timer.timeout.connect(self.update_preview)
 
-        lay = self.sections["作風とプリセット"].body
+        lay = self.sections["作風"].body
         lay.addWidget(self._head("AI プリセット", "押すと描き方・大きさ・画風がそろいます"))
         self.preset_box = QGridLayout()
         self.preset_box.setSpacing(6)
@@ -221,20 +226,16 @@ class AiPanel(QWidget):
 
     def fit_narrow(self):
         """ボタンの文字の長さで欄の幅が決まらないようにする（狭い欄では 1 列に並べ替える）"""
-        from PySide6.QtWidgets import QAbstractButton, QSpinBox
+        from PySide6.QtWidgets import QAbstractButton, QSpinBox, QTabBar
         for b in self.findChildren(QAbstractButton) + self.findChildren(QSpinBox):
-            if b.maximumWidth() < 200 or b.objectName() in ("suggest", "sectionToggle"):
+            if isinstance(b.parent(), QTabBar):
+                continue   # タブの送りボタンは Qt の大きさのまま
+            if b.maximumWidth() < 200 or b.objectName() == "suggest":
                 continue   # 幅を決めたボタン（■・☆）と、横に流す言葉のボタンは縮めない（幅が 0 になって消えた）
             b.setMinimumWidth(0)
             sp = b.sizePolicy()
             sp.setHorizontalPolicy(QSizePolicy.Ignored)
             b.setSizePolicy(sp)
-
-    def _section_open(self, name: str, default: bool) -> bool:
-        try:
-            return bool(int(self.w.layout_store.value(f"ai_sections/{name}", int(default))))
-        except (TypeError, ValueError):
-            return default
 
     def avoid_words(self) -> list[str]:
         """禁止ワードの欄の言葉を、模型に渡す英語にする。日本語は表で直し、直せない言葉はそのまま渡す"""

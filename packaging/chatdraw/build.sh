@@ -23,7 +23,8 @@ if [ -n "$(git status --porcelain --untracked-files=normal -- chatdraw packaging
 fi
 
 echo "== chatdraw（HEAD）"
-git archive HEAD chatdraw VERSION LICENSE tools/gen/hands.py tools/gen/cdhome.py tools/gen/tagger.py | tar -x -C "$SRC"   # 検品の測り方（tools/gen/hands.py）も入れる
+git archive HEAD chatdraw VERSION LICENSE tools/gen/hands.py tools/gen/cdhome.py tools/gen/tagger.py tools/gen/retouch.py tools/gen/cleanup.py tools/gen/inking.py tools/gen/atmosphere.py tools/gen/materials.py tools/gen/bible.py | tar -x -C "$SRC"   # 検品の測り方（tools/gen/hands.py）も入れる
+# 仕上げ（chatdraw/finishers.py）とキャラクターデザイン（chatdraw/charadesign.py）が読む tools/gen の台本も入れる
 rm -rf "$SRC/chatdraw/tests"
 
 echo "== Python $PYVER（埋め込み版）"

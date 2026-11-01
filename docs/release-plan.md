@@ -51,7 +51,7 @@ C は画面だけをサーバーに置きたくなった時に足す。E は配�
 
 1. 置き場所を入れた場所から切り離す（ROOT/.cache をやめ、利用者のキャッシュと環境変数で決める）
    - [x] 段 1: Python の置き場所の組み立てを `tools/gen/cdhome.py` の 1 か所に寄せ、環境変数 `CD_HOME` で替えられるようにした（既定は今の .cache のまま。21 ファイル。`tests/test_cdhome.py` が見る）
-   - [x] 段 2: 取る台本（`app/start.sh`、`tools/llm/setup.sh`、`tools/engine/setup.sh`）を CD_HOME に合わせた。既定では同じ置き場所を使い、取り直しが起きないことを、外へ出ない身代わりの命令で通して確かめた。Setup.exe は組む中身の置き場所なので変えない
+   - [x] 段 2: 取る台本（app の start.sh（今は無い）、`tools/llm/setup.sh`、`tools/engine/setup.sh`）を CD_HOME に合わせた。既定では同じ置き場所を使い、取り直しが起きないことを、外へ出ない身代わりの命令で通して確かめた。Setup.exe は組む中身の置き場所なので変えない
    - [ ] 段 3: 既定を利用者のキャッシュへ移し、今の .cache から移す手順（控えを先に取る）を付ける
 2. [x] GPU の自動選択（tools/gen/device.py。GPU の実機では確かめていない）
 3. `pyproject.toml` とコマンドの入口（serve、mcp、measure、learn、draw、setup）

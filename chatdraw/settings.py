@@ -1,4 +1,8 @@
-"""設定。値は利用者ごとに残し（QSettings）、設定ウィンドウで変える。設定を足すときは FIELDS に 1 行足す。"""
+"""設定。値は利用者ごとに残し（QSettings）、設定ウィンドウで変える。設定を足すときは FIELDS に 1 行足す。
+
+模型（絵の模型・言葉の模型・模型の置き場）は設定ウィンドウに出さない。模型の管理（chatdraw/manager.py）の 1 か所で選ぶ。
+設定と管理の 2 か所に入口があると、片方で選んだ物がもう片方に古いまま残って食い違ったため。値は同じ QSettings に置く（MODEL_FIELDS）。
+"""
 from __future__ import annotations
 
 from pathlib import Path
@@ -8,12 +12,14 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
                                QLineEdit, QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget)
 
 from chatdraw.engine import IMAGE_MODEL
-from chatdraw.paths import HUB, llm_dirs
 
 # (キー, 見出し, 欄の名前, 種類, 既定値, 補足)。種類で入力の部品が決まる
+MODEL_FIELDS = [
+    ("image_model", "絵の模型", "模型", "image_model", IMAGE_MODEL, ""),
+    ("words_model", "言葉の模型", "模型", "words_model", "", ""),   # "" は未選択、NO_WORDS は「使わない」
+    ("model_dir", "模型の置き場", "模型", "model_dir", "", ""),
+]
 FIELDS = [
-    ("image_model", "絵の模型", "模型", "image_model", IMAGE_MODEL, "絵を描く模型。手元に取ってある物から選ぶか、Hugging Face の名前を書く"),
-    ("words_model", "言葉の模型", "模型", "words_model", "", "日本語の頼みを描く言葉に直す模型（.gguf）"),
     ("draw_way", "描き方", "描き方", "choice:おまかせ,1つの模型で描く,構図と仕上げを分けて描く", "おまかせ",
      "構図と仕上げを分けて描く: 文で頼める模型（FLUX.2 klein など）が構図を描き、その骨組みと奥行きに沿って SDXL のアニメの模型が"
      "白紙から描き直す。手足や姿勢が崩れにくいが、1 枚に数倍の時間がかかる。おまかせは、要る模型と部品がそろっていれば分けて描く"),
@@ -21,8 +27,6 @@ FIELDS = [
     ("guidance", "頼みの効き", "描き方", "float:1:15", 5.0, "大きいほど頼みの言葉に寄せる"),
     ("rough_follow", "ラフに沿う強さ", "描き方", "float:0.3:1", 1.0, "大きいほどラフの線の形に沿う。小さいほど AI が形を変える"),
     ("output_dir", "描いた絵の保存先", "保存", "dir", str(Path.home() / "Pictures" / "CharacterDesigner"), ""),
-    ("model_dir", "模型の置き場", "保存", "model_dir", "", "絵と言葉の模型を置く所。空なら既定（Windows は C:\\LLM）。変えると次の起動から効く。"
-     "前の置き場の模型は動かさないので、要るなら自分で移す"),
     ("notify", "知らせ", "操作", "choice:デスクトップにも出す,画面の中だけ", "デスクトップにも出す",
      "ほかのウィンドウを見ている間に描き終わったら、デスクトップの通知とタスクバーの点滅で知らせる"),
     ("first_tool", "起動したときの道具", "操作", "choice:手,ペン", "手", "起動したときに持つ道具。手は絵を動かして見る。右ボタンのドラッグでは、どの道具でも絵を動かせる"),
@@ -41,23 +45,12 @@ def _open(path: str):
         open_folder(path)
 
 
-def local_models() -> list[str]:
-    """手元に取ってある、絵を描ける模型（model_index.json がある物）"""
-    hub = HUB
-    out = []
-    for d in sorted(hub.glob("models--*")):
-        if any(s.joinpath("model_index.json").exists() for s in d.glob("snapshots/*")):
-            out.append(d.name[len("models--"):].replace("--", "/"))
-    from chatdraw.models import manual_images
-    return out + [m.repo for m in manual_images()]   # 手で置いた模型は道で書く
-
-
 class Settings:
     def __init__(self, store: QSettings | None = None):
         self.store = store or QSettings("CharacterDesigner", "chatdraw-settings")
 
     def get(self, key: str):
-        field = next(f for f in FIELDS if f[0] == key)
+        field = next(f for f in FIELDS + MODEL_FIELDS if f[0] == key)
         if key == "model_dir":
             from chatdraw.paths import chosen_model_dir
             return chosen_model_dir()
@@ -103,18 +96,6 @@ class SettingsDialog(QDialog):
         lay.addWidget(buttons)
 
     def _input(self, kind: str, value):
-        if kind == "image_model":
-            w = QComboBox()
-            w.setEditable(True)
-            w.addItems(local_models())
-            w.setCurrentText(value)
-            return w
-        if kind == "words_model":
-            w = QComboBox()
-            w.setEditable(True)
-            w.addItems([str(p) for d in llm_dirs() for p in sorted(d.glob("*.gguf"))])
-            w.setCurrentText(value)
-            return w
         if kind.startswith("int"):
             _, lo, hi = kind.split(":")
             w = QSpinBox()
@@ -137,7 +118,7 @@ class SettingsDialog(QDialog):
             w.addItems(kind.split(":", 1)[1].split(","))
             w.setCurrentText(str(value))
             return w
-        if kind in ("dir", "model_dir"):
+        if kind == "dir":
             box = QWidget()
             row = QHBoxLayout(box)
             row.setContentsMargins(0, 0, 0, 0)
@@ -162,24 +143,11 @@ class SettingsDialog(QDialog):
             return int(w.isChecked())
         if isinstance(w, (QSpinBox, QDoubleSpinBox)):
             return w.value()
-        if kind in ("dir", "model_dir"):
+        if kind == "dir":
             return w.edit.text().strip()
         return w.text().strip()
 
     def save(self):
-        from chatdraw.paths import chosen_model_dir, set_model_dir
         for key in self.inputs:
-            if key == "model_dir":
-                new = self.value(key)
-                if new != chosen_model_dir():
-                    try:
-                        set_model_dir(new)   # 模型の置き場は起動の最初に読むので、QSettings ではなくファイルに書く
-                    except OSError as e:
-                        from PySide6.QtWidgets import QMessageBox
-                        QMessageBox.warning(self, "模型の置き場を変えられません",
-                                            f"設定のファイルに書けませんでした。\n{e}\n\nほかの設定は保存します。")
-                        continue
-                    self.model_dir_changed = True
-                continue
             self.settings.set(key, self.value(key))
         self.accept()

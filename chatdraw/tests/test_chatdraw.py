@@ -98,7 +98,7 @@ class WindowTest(unittest.TestCase):
             self.assertEqual(len(w.images), 1)
             self.assertTrue(Path(w.images[0]).exists())
             item = w.history.item(0)                       # 描いた絵の欄の履歴に、結果と頼みが残る
-            self.assertIn("描けました", item.toolTip())          # 詳しい言葉はカーソルを重ねたときに出す
+            self.assertNotIn("描けました", item.toolTip())       # 絵を見れば分かる結果は出さない（崩れがあったときだけ出す）
             self.assertIn("雪の城の前の騎士", item.toolTip())
             self.assertEqual(item.text(), "")                     # 見た目は絵だけ
             self.assertEqual(w.activity.state.text(), "待機中")
@@ -213,10 +213,9 @@ class SettingsTest(unittest.TestCase):
             self.assertEqual(st.get("steps"), 24)
             dlg = SettingsDialog(st)
             dlg.inputs["steps"][1].setValue(30)
-            dlg.inputs["image_model"][1].setCurrentText("Lykon/dreamshaper-xl-lightning")
+            self.assertNotIn("image_model", dlg.inputs)   # 模型は模型の管理の 1 か所で選ぶ
             dlg.save()
             self.assertEqual(st.get("steps"), 30)
-            self.assertEqual(st.get("image_model"), "Lykon/dreamshaper-xl-lightning")
 
 
 class DrawTest(unittest.TestCase):
@@ -598,13 +597,13 @@ class ManagerTest(unittest.TestCase):
             def cards():
                 return [dlg.list.itemAt(i).widget() for i in range(dlg.list.count())
                         if dlg.list.itemAt(i).widget() and dlg.list.itemAt(i).widget().objectName() == "card"]
-            every = [c for c in cards() if "Hugging Face:" in c.toolTip()]
+            every = [c for c in cards() if hasattr(c, "model")]
             self.assertEqual(len(every), len(models.IMAGES))                  # 既定で目録の全部を出す
             metas = " ".join(lb.text() for c in every for lb in c.findChildren(QLabel))
             self.assertIn("未確認", metas)
             self.assertIn("85 点", metas)                                     # 点は 1 つの数だけ出す
             dlg.filter.setCurrentText("推奨（確かめ済み）")
-            rec = [c for c in cards() if "Hugging Face:" in c.toolTip()]
+            rec = [c for c in cards() if hasattr(c, "model")]
             self.assertEqual(len(rec), len([m for m in models.IMAGES if m.score >= models.PASS]))
             dlg.filter.setCurrentText("すべて")
             entry = dict(repo="me/mine", name="mine", good="自分で足した模型", family="sdxl", format="full", gb=6.9, steps=24,
@@ -613,7 +612,7 @@ class ManagerTest(unittest.TestCase):
             self.assertEqual(dlg.status.text(), "見つかりません")
             dlg._probed(entry, "")
             self.assertIn("未確認", dlg.status.text())
-            self.assertEqual(len([c for c in cards() if "Hugging Face:" in c.toolTip()]), len(models.IMAGES) + 1)
+            self.assertEqual(len([c for c in cards() if hasattr(c, "model")]), len(models.IMAGES) + 1)
             models._USER.clear()
 
 
@@ -1128,6 +1127,16 @@ def wait_idle(app, w, limit: float = 300.0):
     app.processEvents()
 
 
+def wait_bg(app, w, limit: float = 60.0):
+    """裏の糸の保存・読み込み・加工が、画面に答えを返し終えるまで待つ"""
+    import time as _t
+    end = _t.time() + limit
+    while getattr(w, "bg_pending", 0) and _t.time() < end:
+        app.processEvents()
+        _t.sleep(0.005)
+    app.processEvents()
+
+
 class FixAndBatchTest(unittest.TestCase):
     """赤ペン先生・範囲の描き直し・枚数・種・参考画像・拡大"""
     def setUp(self):
@@ -1456,6 +1465,7 @@ class SystemTest(unittest.TestCase):
         project.save(self.w.canvas, path)
         self.w.canvas.new_canvas(50, 50)
         self.w.open_path(str(path))
+        wait_bg(self.app, self.w)   # 読むのは裏の糸
         self.assertEqual(self.w.canvas.size_px(), (200, 160))
         self.assertEqual(self.w.canvas.layers[1].name, "赤")
         self.assertEqual(self.w.canvas.layers[1].image.pixelColor(15, 15).name(), "#ff0000")
@@ -1478,6 +1488,7 @@ class SystemTest(unittest.TestCase):
         with mock.patch("chatdraw.project.autosave_path", return_value=auto):
             self.w.dirty = True
             self.w.autosave()
+            wait_bg(self.app, self.w)
             self.assertTrue(auto.exists())
             self.w.layout_store.setValue("running", 0)
             self.assertFalse(self.w.offer_restore())                   # 正しく閉じていれば聞かない
@@ -1499,6 +1510,7 @@ class SystemTest(unittest.TestCase):
     def test_pixel_and_chibi(self):
         n = len(self.w.canvas.layers)
         self.w.make_pixel(long=32, colors=8)
+        wait_bg(self.app, self.w)
         self.assertEqual(self.w.canvas.layers[-1].name if self.w.canvas.current == len(self.w.canvas.layers) - 1
                          else self.w.canvas.layers[self.w.canvas.current].name, "ドット絵")
         self.assertEqual(len(self.w.canvas.layers), n + 1)

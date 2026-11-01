@@ -97,8 +97,10 @@ def install_engine(say=lambda msg, pct: None):
     ver = re.search(r"__version__\s*=\s*['\"]([^'\"]+)", (lib / "torch" / "version.py").read_text()).group(1)
     say("絵を描く部品の続きを入れています（数分かかります）", -1)
     # ai-edge-litert と onnxruntime は、描いた絵を検品する模型を読む部品（chatdraw/handcheck.py、requestcheck.py）
+    # scipy は数字の作画監督（chatdraw/origqc.py）も使う。scipy と scikit-image は、模型を使わない仕上げ（chatdraw/finishers.py の retouch・ink・質感）が使う部品
     # diffusers は FLUX.2 klein（Flux2KleinPipeline）が入った 0.37 以上。古いと新しい世代の模型を読めない
-    run_pip(pip + [DIFFUSERS, "transformers", "accelerate", "huggingface_hub", "safetensors", "ai-edge-litert", "onnxruntime", f"torch=={ver}",
+    run_pip(pip + [DIFFUSERS, "transformers", "accelerate", "huggingface_hub", "safetensors", "ai-edge-litert", "onnxruntime",
+                   "scipy", "scikit-image", f"torch=={ver}",
                    "--extra-index-url", index])
     if gpu:   # 大きい模型（FLUX、Qwen-Image など）の本体を 4 ビットに縮めて GPU に載せる部品。入らなくても縮めずに描ける
         try:
@@ -587,7 +589,8 @@ class SetupDialog(QDialog):
             self.settings.set("image_model", image.repo)
             self.settings.set("steps", image.steps)
             self.settings.set("guidance", image.guidance)
-        self.settings.set("words_model", str(words_path(words)) if words else "")
+        if not int(self.settings.store.value("words_chosen", 0) or 0):   # 利用者が選んだ言葉の模型は書き換えない
+            self.settings.set("words_model", str(words_path(words)) if words else "")
         self.settings.set("setup_done", 1)
 
     # ---- 3 枚目: 案内 ----

@@ -18,8 +18,23 @@ def _keep(widget: QWidget, anim):
     return anim
 
 
+def _settle(widget: QWidget):
+    """前の動きが途中なら止める。畳む（薄くして隠す）途中で広げたとき、遅れて終わった畳む動きが
+    中身を隠し、欄が見出しだけになって消えたように見えないようにする"""
+    prev = getattr(widget, "_motion", None)
+    if prev is not None:
+        try:
+            prev.finished.disconnect()
+        except (RuntimeError, TypeError):
+            pass
+        prev.stop()
+        widget._motion = None
+    widget.setGraphicsEffect(None)
+
+
 def fade_in(widget: QWidget, ms: int = NORMAL):
     """透明から見えるまで。終わったら効果を外す（外さないと、中の部品の描画が遅くなる）"""
+    _settle(widget)
     if not MOTION:
         widget.show()
         return None
@@ -37,6 +52,7 @@ def fade_in(widget: QWidget, ms: int = NORMAL):
 
 
 def fade_out(widget: QWidget, ms: int = FAST, then=None):
+    _settle(widget)
     if not MOTION:
         widget.hide()
         if then:

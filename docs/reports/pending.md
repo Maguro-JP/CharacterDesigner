@@ -144,8 +144,8 @@
 
 ## 14. 整理で残した道具をアプリ（chatdraw）に入れるか（2026-10-31）
 - 決めてほしいこと: 下の道具を 1 つずつ、アプリに入れるか。入れないものはリポジトリに残したまま試験で動かし続ける。一覧と中身は [cleanup-20261031.md](cleanup-20261031.md)
-- 作画監督の数字の検品（tools/gen/measure.py、qc.py、faceform.py、occlusion.py）: ユーザーの判断待ち
-- 学習（tools/gen/normlearn.py）: ユーザーの判断待ち
+- 作画監督の数字の検品（tools/gen/measure.py、qc.py、faceform.py、occlusion.py）: 入れる（measure.py と faceform.py。下の答え）
+- 学習（tools/gen/normlearn.py）: 入れる（下の答え）
 - 仕上げの補正と描く板の補助（tools/gen/retouch.py、inking.py、materials.py、atmosphere.py）: ユーザーの判断待ち
 - 描き直しと拡大（tools/gen/hires.py、detail.py、upscale.py）: ユーザーの判断待ち
 - 言葉の模型で頼みを描く言葉に直す（tools/gen/free_text.py、local_llm.py、tools/llm/setup.sh）: ユーザーの判断待ち
@@ -153,4 +153,4 @@
 - Blender・MakeHuman の人形と下絵（tools/engine/）: ユーザーの判断待ち
 - ドット絵の道具（tools/build.py、check.py、render.py、sprite.py と characters/・styles/）: ユーザーの判断待ち
 - 模型の確かめ（model-verify.yml）と写真級の描き直し（photoreal.yml、tools/gen/photoreal.py）: ユーザーの判断待ち
-- 答え:
+- 答え: 作画監督の数字の検品と学習は、アプリに入れる（2026-11-01）。CharacterDesigner の独自の検品として、おまかせの検品に足し、見つけた崩れは直す所として返して直したあとで検品し直す。★ の判定から基準を学び直し、次のおまかせに効かせる（chatdraw/origqc.py）。前と後の数字は [original-qc.md](../knowledge/original-qc.md)。qc.py と occlusion.py は骨格の点が要るので、まだ入れていない。ほかの道具はこの答えに含めない

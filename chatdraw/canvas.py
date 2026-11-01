@@ -34,8 +34,34 @@ class Layer:
         return Layer(self.name, self.image.copy(), self.visible, self.opacity, self.locked)
 
 
+_PRELOADED: dict[str, tuple[int, QImage]] = {}
+
+
+def preload(path) -> None:
+    """絵を裏の糸で先に読んでおく（PNG を戻すのに 832×1216 で 25〜50 ミリ秒かかり、置くたびに画面が止まった）。
+    次に同じ絵を _load で読むときに使う。ファイルが替わっていれば使わない"""
+    import os
+    try:
+        stamp = os.stat(path).st_mtime_ns
+    except OSError:
+        return
+    img = QImage(str(path))
+    if not img.isNull():
+        _PRELOADED[str(path)] = (stamp, img.convertToFormat(QImage.Format_ARGB32_Premultiplied))
+        while len(_PRELOADED) > 4:   # 置かれなかった絵で覚えが膨らまないように、古い物から捨てる
+            _PRELOADED.pop(next(iter(_PRELOADED)))
+
+
 def _load(path: str) -> QImage:
     """絵を読む。読めない絵で置き換えると 0×0 のキャンバスになり、何も出なくなったので先に止める"""
+    import os
+    got = _PRELOADED.pop(str(path), None)
+    if got is not None:
+        try:
+            if os.stat(path).st_mtime_ns == got[0]:
+                return got[1]
+        except OSError:
+            pass
     img = QImage(str(path))
     if img.isNull():
         raise ValueError(f"絵を読めません: {path}")

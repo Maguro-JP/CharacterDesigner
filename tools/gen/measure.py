@@ -108,6 +108,30 @@ def iris_delta(rgb, left, right):
     return None if a is None or b is None else round(float(np.abs(a - b).max()), 3)
 
 
+EYE_TALL = 1.8      # 目の塊の高さ÷幅がこれを超えたら目でない（髪の筋・耳飾り・首の影）
+EYE_TILT = 0.5      # 両目の高さの差÷間隔がこれを超えたら（27° より傾く）目の組でない
+EYE_AREA = 3.5      # 両目の面積の比がこれを超えたら目の組でない
+MIN_FACE_PX = 64    # 元の絵での顔の幅（画素）がこれ未満なら、目が 5 画素ほどで瞳の色も点も読めない
+
+
+def eye_doubt(e: dict, face_px: float) -> str:
+    """両目の点が確かでない理由（確かなら空）。確かでない点で測った瞳の色と顔の形は数字にならないので、
+    測れなかった扱い（eyes.unsure）にして顔の囲みで描き直しに回す。
+    通した手本では、首の影・耳飾り・髪の筋を目と取り、顔の幅 24〜55 画素の絵では 5 画素の目の色を比べて外れていた"""
+    if e.get("found") != 2:
+        return ""
+    if face_px < MIN_FACE_PX:
+        return f"顔が小さい（元の絵で幅 {int(face_px)} 画素）"
+    a, b = e["left"], e["right"]
+    if max(a["h"] / max(a["w"], 1), b["h"] / max(b["w"], 1)) > EYE_TALL:
+        return "目の塊が縦に細長い（髪の筋か耳飾り）"
+    if abs(b["cy"] - a["cy"]) > EYE_TILT * max(b["cx"] - a["cx"], 1):
+        return "両目の高さが離れすぎている"
+    if max(a["area"], b["area"]) / max(min(a["area"], b["area"]), 1) > EYE_AREA:
+        return "両目の大きさが違いすぎる"
+    return ""
+
+
 def eyes(rgb, seg, labels, hint=None):
     """顔の中の暗い塊のうち大きい2つを目とみなして測る。hint（骨格の点の両目の位置、この絵の座標）があれば、
     それぞれに一番近い塊を目とする。斜めの顔では遠い目が小さく、顔の縁の髪の筋（幅 12、高さ 37）を左目として拾い、
@@ -1270,6 +1294,16 @@ def measure(src, hair_color: str = "", points=None, prompt: str | None = None, t
     hrgb, hseg = faceform.head_view(src, rgb, seg, view)
     lm = faceform.landmarks(hrgb, hseg, L)
     face = faceform.fit(lm["points"], json.loads(faceform.TEMPLATE.read_text())["points"]) if "points" in lm and faceform.TEMPLATE.exists() else lm
+    e = eyes(hrgb, hseg, L, _eye_hint(points, view))
+    fm = face_mask(seg, L)
+    fx = np.nonzero(fm.any(0))[0]
+    doubt = eye_doubt(e, float(fx.max() - fx.min() + 1) if len(fx) else 0.0)
+    if doubt:
+        # 確かでない点の数字で外れを出さない。代わりに eyes.unsure を外れにし、顔の囲みで描き直す（崩れとして逃がさない）
+        e = {**e, "unsure": 1, "reason": doubt, "iris_delta": None}
+        face = {"reason": doubt}
+    elif e.get("found") == 2:
+        e["unsure"] = 0
     if prompt is None:
         prompt = _prompt_of(src)
     if tags is None:
@@ -1278,7 +1312,7 @@ def measure(src, hair_color: str = "", points=None, prompt: str | None = None, t
             tags = tagger.read(src, 0.0)
         except Exception:   # タグの模型が無い環境（sh tools/gen/setup.sh 前）でも、ほかの数字は出す
             tags = None
-    return {"size": list(rgb.shape[1::-1]), "eyes": eyes(hrgb, hseg, L, _eye_hint(points, view)), "face": face, "light": light3d(src, rgb, seg, regions),
+    return {"size": list(rgb.shape[1::-1]), "eyes": e, "face": face, "light": light3d(src, rgb, seg, regions),
             "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "pairs": pairs(rgb, seg, L), "limbs": limbs(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color),
             "background": background(rgb, prompt), "style": style(tags), "colors": colors(prompt, tags),
             "pose": hands_pose(points, prompt), "body": proportion(points, seg, prompt), "skeleton": skeleton(points), "hands": hands_seen(points, seg, prompt)}

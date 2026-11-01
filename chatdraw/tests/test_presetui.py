@@ -223,23 +223,20 @@ class AiTabTest(unittest.TestCase):
             self.assertIn("hat", negative_for(None, painter.seen_avoid))   # 模型の決まった禁止ワードに足して渡る
             w.close()
 
-    def test_sections_collapse_and_remember(self):
+    def test_sections_are_tabs(self):
         with TemporaryDirectory() as d:
             w = window(d)
             secs = w.ai_panel.sections
-            self.assertEqual(list(secs), ["描く内容", "作風とプリセット", "模型", "詳しい設定", "加工"])
-            self.assertTrue(secs["描く内容"].is_open())
-            self.assertFalse(secs["詳しい設定"].is_open())                 # 詳しい所は初めは畳む
-            self.assertTrue(secs["詳しい設定"].box.isHidden())
+            self.assertEqual(list(secs), ["描く内容", "作風", "模型", "詳しい設定", "加工"])
+            self.assertTrue(secs["描く内容"].is_open())                   # 初めに開くのは描く内容
+            self.assertFalse(secs["詳しい設定"].is_open())
             self.assertTrue(secs["描く内容"].isAncestorOf(w.entry))
-            self.assertTrue(secs["描く内容"].isAncestorOf(w.button))
+            self.assertFalse(secs["描く内容"].isAncestorOf(w.button))     # 描くボタンはタブの外
             self.assertTrue(secs["詳しい設定"].isAncestorOf(w.ai_panel.seed))
             self.assertTrue(secs["詳しい設定"].isAncestorOf(w.strength))
             self.assertTrue(secs["模型"].isAncestorOf(w.model_label))
-            secs["詳しい設定"].head.click()
+            secs["詳しい設定"].set_open(True)
             self.assertTrue(secs["詳しい設定"].is_open())
-            self.assertEqual(int(w.layout_store.value("ai_sections/詳しい設定")), 1)
-            secs["詳しい設定"].head.click()
             w.close()
 
 

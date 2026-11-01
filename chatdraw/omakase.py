@@ -113,7 +113,7 @@ class Plan:
 
 # おまかせが検品を通った絵に黙って掛けてよい仕上げ。形を変えず、大きさも変えない物だけ。
 # 描き直す仕上げ（顔を整える、仕上げの描き直し）は検品を通った絵を崩しうるので、利用者が選んだときだけ使う
-AUTO_FINISH = ("clean",)
+AUTO_FINISH = ("clean", "retouch")   # retouch は形を変えない工程だけ（崩れが増える工程は採らない。docs/knowledge/retouch.md）
 
 
 def auto_finish(tools) -> list:
@@ -161,14 +161,18 @@ def _mask(size, boxes):
 
 
 def _default_check(image, prompt):
-    """検品（手・足・顔は handcheck、頼んだ物は requestcheck）。返すのは {readable, bad, regions}"""
-    from chatdraw import handcheck, requestcheck
+    """検品（手・足・顔は handcheck、頼んだ物は requestcheck、数字の作画監督は origqc）。返すのは {readable, bad, regions}"""
+    from chatdraw import handcheck, origqc, requestcheck
     res = handcheck.check(image, asked=prompt)
     asked = requestcheck.check(image, prompt)
     bad = list(res.get("bad", [])) + [f"描かれていない: {m}" for m in asked.get("missing", [])]
     bad += [f"人数が違う: {x}" for x in asked.get("people", [])]
-    return {"readable": bool(res.get("readable", True)) and bool(asked.get("readable")), "bad": bad,
-            "regions": handcheck.bad_regions(res), "detail": handcheck.detail_regions(res)}
+    # CharacterDesigner 独自の作画監督（tools/gen/measure.py の数字と、利用者の判定から学んだ基準）。顔の外れは顔の囲みを直す所にする
+    own = origqc.check(image, prompt)
+    bad += own["bad"]
+    regions = handcheck.bad_regions(res) + [r for r in own["regions"] if r not in handcheck.bad_regions(res)]
+    return {"readable": bool(res.get("readable", True)) and bool(asked.get("readable")) and own["readable"], "bad": bad,
+            "regions": regions, "detail": handcheck.detail_regions(res), "notes": own.get("notes", [])}
 
 
 SMALL = 0.67      # 構図を描く大きさ（仕上がりの何倍か）。小さく描くと人と物の配置がまとまり、手足の数が崩れにくい
@@ -237,7 +241,8 @@ class Omakase:
         self._note(say, f"{KIND_ASPECT[kind]}の{stage}", m, why)
         painter = self.painter_for(m)
         mask = _mask(image.size, boxes)
-        words = handcheck.FIX_WORDS.get(kind, "")
+        from chatdraw import origqc
+        words = handcheck.FIX_WORDS.get(kind) or origqc.FIX_WORDS.get(kind, "")
         out = painter.redraw(f"{self._prompt(prompt_text, m)}, {words}", seed, image, mask, strength=strength)
         # 囲みの外は 1 画素も変えない（模型の直しが外へ漏れても、元の絵を戻す）
         return Image.composite(out.convert(image.mode), image, mask), m
@@ -271,6 +276,8 @@ class Omakase:
                 self._note(say, "構図", m, why, seed=s_k)
                 image = self.hires(painter, m, prompt, s_k, size, say)
             res = self.check(image, prompt)
+            for note in res.get("notes", []) if k == 0 else []:
+                say(note)
             for r in range(rounds):
                 if not res["bad"] or not res.get("regions") or getattr(painter, "stop", False):
                     break
