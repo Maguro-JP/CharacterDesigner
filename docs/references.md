@@ -183,3 +183,8 @@ CodeFormer（S-Lab License 1.0、商用不可）は配布に合わないので�
 - LINE Creators Market 制作ガイドライン（スタンプ 最大 370×320、メイン 240×240、タブ 96×74、余白 10px ぐらい、PNG、背景は透過、1 個 1MB 以下、個数 8・16・24・32・40）: https://creator.line.me/ja/guideline/sticker/
 - Telegram の Stickers（片方の辺がちょうど 512px、もう片方は 512px 以下、PNG か WEBP）: https://core.telegram.org/stickers
 - Discord のスタンプの頁は取れなかった（403）。SPECS には入れていない
+
+## アプリのアイコンの作り方（`docs/knowledge/app-icon-design.md`、2026-11-01）
+
+- Microsoft「Design guidelines for Windows app icons」 https://learn.microsoft.com/en-us/windows/apps/design/style/iconography/app-icon-design
+- Apple「Human Interface Guidelines: App icons」 https://developer.apple.com/design/human-interface-guidelines/app-icons

@@ -1,20 +1,10 @@
 {
- "mode": "twostage",
- "compose": "black-forest-labs/FLUX.2-klein-4B",
- "render": "cagliostrolab/animagine-xl-4.0",
- "prompt": "An adult woman in a red bikini standing on a sunny beach, smiling, one hand raised to shade her eyes, the other hand on her hip, long brown hair, full body, anime illustration style",
- "tags": "1girl, solo, adult woman, slender body, soft body, toned, slim waist, wide hips, slender legs, medium breasts, cleavage, long legs, healthy, red bikini, beach, sunny, smile, hand up, shading eyes, hand on own hip, long hair, brown hair, full body",
- "seed": 7,
- "size": [
-  832,
-  1216
- ],
- "variants": [
-  {
-   "name": "pose-depth",
-   "pose": 0.7,
-   "depth": 0.4,
-   "end": 0.7
-  }
- ]
+ "mode": "logo",
+ "kind": "icon",
+ "repo": "black-forest-labs/FLUX.2-klein-4B",
+ "palettes": ["black-red-white", "black-orange-white", "red-white-black", "white-black-orange"],
+ "symbols": ["head-nib", "head-nib", "head-nib", "head-nib", "visor-head", "visor-head", "visor-head", "visor-head"],
+ "seeds": [21, 22, 23, 24, 25, 26, 27, 28],
+ "tries": 2,
+ "size": [1024, 1024]
 }

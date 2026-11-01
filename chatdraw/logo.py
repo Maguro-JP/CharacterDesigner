@@ -342,6 +342,146 @@ def make_ico(png, ico) -> Path:
     return ico
 
 
+# ---- アプリのアイコンを描かせる ----
+# 前の候補（2026-11-01、紫・桃色・白、絵筆と鉛筆と顔）は 4 枚とも戻された。言葉に意図が無く（「symbol inspired by CharacterDesigner」）、
+# 象徴が 3 つ（筆・鉛筆・顔）あって重なり、色は好みに無い紫と桃色で、地にグラデーションが出た。
+# 要点と出典は docs/knowledge/app-icon-design.md。ここでは意図・1 つの象徴・色の組・禁止を言葉と設定で持ち、描いたあとに数字で検品する。
+
+# 意図: CharacterDesigner はキャラクターを描いて仕上げる道具。象徴は 1 つにする（Fluent の手引き: 1 つの比喩が最もよい）
+ICON_INTENT = "app icon for a tool that draws and finishes anime characters"
+ICON_SYMBOLS = {
+    # 顔の横顔とペン先を 1 つの形にまとめる。顔だけ・ペンだけでは「キャラクターを描く」が伝わらない
+    "head-nib": "one single bold symbol: a stylized anime character head in side profile whose hair tip becomes a fountain pen nib, "
+                "one merged silhouette",
+    "visor-head": "one single bold symbol: a stylized anime character head in side profile wearing a retro sci-fi visor, "
+                  "one merged silhouette",
+}
+# 好みの色は白・黒・赤・オレンジ、好みのテーマは SF・近未来・レトロ。色はこの中から 2〜3 色で組む。ground は地の色
+ICON_COLORS = {"white": (245, 245, 240), "black": (20, 20, 22), "red": (220, 40, 40), "orange": (245, 130, 30)}
+ICON_PALETTES = {
+    "black-red-white": dict(ground="black", ink=["red", "white"]),
+    "black-orange-white": dict(ground="black", ink=["orange", "white"]),
+    "red-white-black": dict(ground="red", ink=["white", "black"]),
+    "white-black-orange": dict(ground="white", ink=["black", "orange"]),
+}
+ICON_STYLE = "flat vector icon, solid flat color fills, thick bold shapes, few shapes, retro-futuristic sci-fi poster style, " \
+             "mid-century retro graphic, centered, generous empty margin around the symbol, straight-on front view, crisp edges"
+ICON_AVOID = "gradient, gradient background, color gradient, shading, glow, lens flare, texture, noise, grain, photo, photorealistic, " \
+             "realistic, 3d render, drop shadow, fine details, thin lines, intricate, sketch, hatching, text, letters, words, typography, " \
+             "watermark, signature, multiple objects, multiple characters, pencil, paintbrush, frame, border, rounded square tile, " \
+             "purple, violet, pink, blue, green, busy background, pattern background"
+# 検品の境。数字は検品の試験（chatdraw/tests/test_logo.py）の、通る絵と落ちる絵の作りから決めた
+ICON_LIMITS = dict(ground_share=0.97, palette_dist=90, center_off=0.08, margin_min=0.06, fill_min=0.08,
+                   fill_max=0.6, small_iou=0.7, edge_max=0.14)
+
+
+def icon_prompt(palette: str = "black-red-white", symbol: str = "head-nib") -> tuple[str, str]:
+    """アプリのアイコンを描かせる言葉と禁止ワード。意図・1 つの象徴・形の決め・色の組をすべて言葉にする"""
+    pal = ICON_PALETTES[palette]
+    ink = " and ".join(pal["ink"])
+    words = [ICON_INTENT, ICON_SYMBOLS[symbol], f"symbol colored only {ink}", f"solid plain flat {pal['ground']} background filling the whole image",
+             f"strict limited palette of {pal['ground']}, {ink} only", ICON_STYLE]
+    return ", ".join(words), ICON_AVOID
+
+
+def icon_check(img: Image.Image, palette: str = "black-red-white", limits: dict | None = None) -> dict:
+    """アイコンの検品（数字）。地が無地か、色数、色の組に入っているか、中心と余白、16 画素に縮めても形が残るか、細かい描き込み。
+    ok が False の物は描き直させる"""
+    lim = dict(ICON_LIMITS, **(limits or {}))
+    rgb = img.convert("RGB").resize((256, 256), Image.LANCZOS)
+    W = 256
+    ground = ICON_COLORS[ICON_PALETTES[palette]["ground"]]
+    allowed = [ICON_COLORS[c] for c in [ICON_PALETTES[palette]["ground"]] + ICON_PALETTES[palette]["ink"]]
+
+    def dist(a, b):
+        return sum((x - y) ** 2 for x, y in zip(a, b)) ** 0.5
+
+    px = rgb.load()
+    ring = [px[x, y] for y in range(W) for x in range(W) if min(x, y, W - 1 - x, W - 1 - y) < 8]
+    bg = tuple(sorted(c[i] for c in ring)[len(ring) // 2] for i in range(3))
+    ground_share = sum(dist(c, bg) <= 40 for c in ring) / len(ring)
+    # 色: 1 画素ずつ色の組の一番近い色に分ける。どれからも遠い画素（組に無い色、グラデーションの途中の色）が 3% を超えたら落とす。
+    # 8 色に減らして数える形は、地の黒が多いと赤と白が 1 色にまとまり、数を誤った
+    share = {c: 0 for c in range(len(allowed))}
+    far = 0
+    for c in rgb.getdata():
+        d = [dist(c, a) for a in allowed]
+        k = min(range(len(d)), key=d.__getitem__)
+        if d[k] > lim["palette_dist"]:
+            far += 1
+        else:
+            share[k] += 1
+    ink = [k for k in range(1, len(allowed)) if share[k] >= 0.008 * W * W]
+    far_share = far / (W * W)
+    off_palette = far_share > 0.03
+    # 形（地と違う所）
+    diff = ImageChops.difference(rgb, Image.new("RGB", rgb.size, bg)).convert("L").point(lambda d: 255 if d > 60 else 0)
+    box = diff.getbbox()
+    fill = sum(1 for v in diff.getdata() if v) / (W * W)
+    if box:
+        cx, cy = (box[0] + box[2]) / 2 / W, (box[1] + box[3]) / 2 / W
+        center_off = max(abs(cx - 0.5), abs(cy - 0.5))
+        margin = min(box[0], box[1], W - box[2], W - box[3]) / W
+    else:
+        center_off, margin = 1.0, 0.0
+    # 小さくしても読めるか: 形を 16 画素に縮めて戻し、元の形と重なる割合（IoU）を見る
+    small = diff.resize((16, 16), Image.BOX).point(lambda v: 255 if v >= 128 else 0).resize((W, W), Image.NEAREST)
+    a, b = list(diff.getdata()), list(small.getdata())
+    inter = sum(1 for x, y in zip(a, b) if x and y)
+    union = sum(1 for x, y in zip(a, b) if x or y) or 1
+    small_iou = inter / union
+    # 細かい描き込み: 明るさの境の画素の割合（太い形なら少ない）
+    edges = rgb.convert("L").filter(ImageFilter.FIND_EDGES).point(lambda v: 255 if v > 40 else 0)
+    edge = sum(1 for v in edges.getdata() if v) / (W * W)
+    res = dict(ground=list(bg), ground_share=round(ground_share, 3), ground_ok=dist(bg, ground) <= lim["palette_dist"],
+               colors=len(ink), off_palette=round(far_share, 3), fill=round(fill, 3), center_off=round(center_off, 3),
+               margin=round(margin, 3), small_iou=round(small_iou, 3), edge=round(edge, 3))
+    faults = []
+    if ground_share < lim["ground_share"]:
+        faults.append("地が無地でない（グラデーションか模様）")
+    if not res["ground_ok"]:
+        faults.append("地の色が色の組と違う")
+    if not ink:
+        faults.append("色の組の色で塗られた形が無い")
+    if off_palette:
+        faults.append("色の組に無い色がある")
+    if not lim["fill_min"] <= fill <= lim["fill_max"]:
+        faults.append(f"形の大きさが {fill:.2f}（{lim['fill_min']}〜{lim['fill_max']}）")
+    if center_off > lim["center_off"]:
+        faults.append("中心から外れている")
+    if margin < lim["margin_min"]:
+        faults.append("余白が足りない（縁に付いている）")
+    if small_iou < lim["small_iou"]:
+        faults.append("16 画素に縮めると形が崩れる")
+    if edge > lim["edge_max"]:
+        faults.append("細かい描き込みが多い")
+    res.update(faults=faults, ok=not faults)
+    return res
+
+
+def draw_icon(painter, palette: str = "black-red-white", symbol: str = "head-nib", seed: int = 7, tries: int = 3,
+              size=(1024, 1024), say=None):
+    """アイコンを描かせ、検品を通るまで種を変えて描き直す（tries 回まで）。(絵, 検品, 使った種, 落ちた検品の列) を返す。
+    地は無地で全面に塗らせる（OS が角の丸めをかけるので、角の丸い四角は描かせない）"""
+    prompt, avoid = icon_prompt(palette, symbol)
+    old = getattr(painter, "avoid", "")
+    painter.avoid = ", ".join(a for a in (old, avoid) if a)
+    failed = []
+    try:
+        for k in range(tries):
+            s = seed + 1000 * k
+            if say:
+                say(f"アイコンを描いています（{k + 1} 回目、種 {s}）")
+            im = painter.paint(prompt, s, size=size)
+            res = icon_check(im, palette)
+            if res["ok"]:
+                return im, res, s, failed
+            failed.append(dict(seed=s, faults=res["faults"]))
+    finally:
+        painter.avoid = old
+    return im, res, s, failed
+
+
 # ---- 右クリック ----
 
 def menu_items(window) -> list[tuple[str, object, str]]:

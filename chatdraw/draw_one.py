@@ -78,6 +78,24 @@ def logo_candidates(req: dict, out: Path, painter=None):
         painter = Painter(m.repo, steps=req.get("steps", m.steps), size=tuple(req.get("size", (1024, 1024))),
                           guidance=req.get("guidance", m.guidance))
     done = []
+    if req.get("kind") == "icon":
+        # アプリのアイコン: 意図・象徴・色の組を言葉にして描き、数字の検品を通った物だけを icon- で置く。落ちた物は fail- で残す
+        # 色の組と象徴は palettes・symbols の列から種ごとに順に回す（1 回の実行で組を見比べられるように）
+        pals = req.get("palettes") or [req.get("palette", "black-red-white")]
+        syms = req.get("symbols") or [req.get("symbol", "head-nib")]
+        for i, seed in enumerate(req.get("seeds", [7])):
+            t = time.time()
+            pal, sym = pals[i % len(pals)], syms[i % len(syms)]
+            im, res, used, failed = logo.draw_icon(painter, pal, sym, seed,
+                                                    req.get("tries", 3), size=tuple(req.get("size", (1024, 1024))),
+                                                    say=lambda m: print(m, flush=True))
+            name = f"{'icon' if res['ok'] else 'fail'}-{pal}-{sym}-s{used}.png"
+            im.save(out / name)
+            done.append(dict(file=name, seed=used, palette=pal, symbol=sym, prompt=logo.icon_prompt(pal, sym)[0], check=res, failed=failed, seconds=round(time.time() - t)))
+            print(f"{name}: {'通った' if res['ok'] else '落ちた ' + '、'.join(res['faults'])} {time.time() - t:.0f} 秒", flush=True)
+        (out / "request.json").write_text(json.dumps(dict(req, avoid=logo.ICON_AVOID, done=done), ensure_ascii=False, indent=1),
+                                          encoding="utf-8")
+        return done
     for seed in req.get("seeds", [7]):
         t = time.time()
         mark = logo.draw_logo(painter, req.get("name", ""), req.get("mood", ""), req.get("colors", ""), seed,
