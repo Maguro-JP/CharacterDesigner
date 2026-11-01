@@ -520,7 +520,7 @@ def render(ident: str, fm: dict, th: dict, out_png: str, out_html: str | None = 
         W, H = fm["size"]
         for p in fm["panels"]:
             if p["kind"] == "hero":
-                p.update(area="hero", scale=1.25, anchor="top", bleed=["bottom", "left"], overlap=True)
+                p.update(area="hero", scale=1, anchor="bottom", overlap=True)   # 全身像は頭から足まで見せる
             if p["kind"] == "header":
                 p.update(area="head", huge=False, pull=0)
     ctx = {"c": c, "ident": ident, "fm": fm, "figs": figs, "hero": _hero(c, figs), "sw": cs._swatches(c), "notes": cs._notes(c),

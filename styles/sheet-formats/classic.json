@@ -33,10 +33,9 @@
   {
    "kind": "hero",
    "area": "hero",
-   "scale": 1.55,
-   "anchor": "top",
+   "scale": 1,
+   "anchor": "bottom",
    "bleed": [
-    "bottom",
     "left"
    ],
    "overlap": true

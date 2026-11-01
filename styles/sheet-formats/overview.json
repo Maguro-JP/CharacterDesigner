@@ -22,11 +22,8 @@
   {
    "kind": "hero",
    "area": "hero",
-   "scale": 1.75,
-   "anchor": "top",
-   "bleed": [
-    "bottom"
-   ],
+   "scale": 1,
+   "anchor": "bottom",
    "overlap": true
   },
   {

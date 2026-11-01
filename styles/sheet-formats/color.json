@@ -27,7 +27,9 @@
  "panels": [
   {
    "kind": "hero",
-   "area": "hero"
+   "area": "hero",
+   "scale": 1,
+   "anchor": "bottom"
   },
   {
    "kind": "header",
