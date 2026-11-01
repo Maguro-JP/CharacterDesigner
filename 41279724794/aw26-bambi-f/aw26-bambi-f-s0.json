@@ -1,0 +1,115 @@
+{
+ "id": "aw26-bambi-f",
+ "name": "バンビ柄と部分ファー（2026 秋冬、女子）",
+ "model": "SG161222/RealVisXL_V5.0",
+ "seed": 0,
+ "steps": 30,
+ "prompt": "(beige knit with a small fawn pattern:1.3), (cream jacket with a faux fur collar:1.3), (dark brown knee-high boots:1.3), young Japanese woman, late teens, long dark brown hair with soft see-through bangs and loose waves, warm beige makeup, brown eyes, wearing beige knit sweater with a small fawn pattern, fitted, under a cream short jacket with a fluffy faux fur collar worn open, dark brown wool midi skirt, dark brown leather knee-high boots under the hem, cream beige and dark brown in one warm tone, fluffy fur against smooth knit, short top and long skirt, (full body shot:1.2), entire figure from head to shoes in frame, (shoes visible:1.2), small figure with empty space above the head and below the feet, fashion editorial lookbook photograph, plain off-white studio background, soft even studio lighting, sharp focus, photorealistic, high detail fabric texture",
+ "negative": "anime, illustration, drawing, cartoon, painting, 3d render, cgi, doll, cropped, out of frame, cut off feet, cropped legs, legs cut off, close-up, extra fingers, missing fingers, fused fingers, deformed hands, extra arms, extra legs, bad anatomy, two people, text, logo, brand logo, watermark, signature, nsfw, cleavage, see-through, logo, brand logo, text, miniskirt, short skirt, caucasian, western face, blonde hair, blue eyes",
+ "views": {
+  "front": {
+   "file": "aw26-bambi-f-s0-front.png",
+   "prompt": "(beige knit with a small fawn pattern:1.3), (cream jacket with a faux fur collar:1.3), (dark brown knee-high boots:1.3), young Japanese woman, late teens, long dark brown hair with soft see-through bangs and loose waves, warm beige makeup, brown eyes, wearing beige knit sweater with a small fawn pattern, fitted, under a cream short jacket with a fluffy faux fur collar worn open, dark brown wool midi skirt, dark brown leather knee-high boots under the hem, cream beige and dark brown in one warm tone, fluffy fur against smooth knit, short top and long skirt, (full body shot:1.2), entire figure from head to shoes in frame, (shoes visible:1.2), small figure with empty space above the head and below the feet, fashion editorial lookbook photograph, plain off-white studio background, soft even studio lighting, sharp focus, photorealistic, high detail fabric texture, front view, facing the camera",
+   "tries": [
+    {
+     "seed": 0,
+     "sec": 2359,
+     "bad": []
+    }
+   ],
+   "passed": true
+  },
+  "back": {
+   "file": "aw26-bambi-f-s0-back.png",
+   "prompt": "(view from behind:1.4), (back of the head:1.3), the person faces away from the camera, back of the outfit visible, (beige knit with a small fawn pattern:1.3), (cream jacket with a faux fur collar:1.3), (dark brown knee-high boots:1.3), young Japanese woman, late teens, long dark brown hair, wearing beige knit sweater with a small fawn pattern, fitted, under a cream short jacket with a fluffy faux fur collar worn open, dark brown wool midi skirt, dark brown leather knee-high boots under the hem, cream beige and dark brown in one warm tone, fluffy fur against smooth knit, short top and long skirt, (full body shot:1.2), entire figure from head to shoes in frame, (shoes visible:1.2), small figure with empty space above the head and below the feet, fashion editorial lookbook photograph, plain off-white studio background, soft even studio lighting, sharp focus, photorealistic, high detail fabric texture",
+   "tries": [
+    {
+     "seed": 0,
+     "sec": 2420,
+     "bad": [
+      "背面に顔が写っている"
+     ]
+    },
+    {
+     "seed": 1,
+     "sec": 2381,
+     "bad": [
+      "背面に顔が写っている"
+     ]
+    },
+    {
+     "seed": 2,
+     "sec": 2335,
+     "bad": [
+      "背面に顔が写っている"
+     ]
+    },
+    {
+     "seed": 3,
+     "sec": 2320,
+     "bad": [
+      "背面に顔が写っている"
+     ]
+    }
+   ],
+   "passed": false
+  }
+ },
+ "details": [
+  {
+   "part": "head",
+   "file": "aw26-bambi-f-s0-detail-head.png",
+   "box": [
+    0,
+    0,
+    832,
+    194
+   ],
+   "words": "close-up of the hair and headwear"
+  },
+  {
+   "part": "collar",
+   "file": "aw26-bambi-f-s0-detail-collar.png",
+   "box": [
+    0,
+    145,
+    832,
+    462
+   ],
+   "words": "close-up of the collar, neckline, buttons and fabric texture"
+  },
+  {
+   "part": "waist",
+   "file": "aw26-bambi-f-s0-detail-waist.png",
+   "box": [
+    0,
+    413,
+    832,
+    705
+   ],
+   "words": "close-up of the waist, belt, pockets and seams"
+  },
+  {
+   "part": "hem",
+   "file": "aw26-bambi-f-s0-detail-hem.png",
+   "box": [
+    0,
+    668,
+    832,
+    1033
+   ],
+   "words": "close-up of the hem, pleats and fabric folds"
+  },
+  {
+   "part": "feet",
+   "file": "aw26-bambi-f-s0-detail-feet.png",
+   "box": [
+    0,
+    997,
+    832,
+    1216
+   ],
+   "words": "close-up of the shoes and socks"
+  }
+ ]
+}
