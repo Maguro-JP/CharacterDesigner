@@ -1,0 +1,24 @@
+{
+ "id": "aw26-jirai-f",
+ "name": "地雷系（2026 秋冬、女子）",
+ "age": "",
+ "height": "",
+ "role": "今の日本の流行の装いの見本（docs/knowledge/fashion/trend-2026aw.md の 2-2 の日本で続いている系統）",
+ "personality": "",
+ "backstory": "",
+ "look": "young Japanese woman, around 20, black hair in twin tails with pink hair ribbons, straight bangs, pink eye makeup, brown eyes",
+ "eyes": {
+  "tags": "open eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "black frilled long-sleeve blouse with a pink ribbon bow at the collar, black high-waisted long skirt, black ribbon choker, white frilled socks, black thick-soled platform mary janes, small black heart-shaped shoulder bag",
+ "turnaround": {},
+ "negative": "logo, brand logo, text, miniskirt, short skirt, caucasian, western face, blonde hair, blue eyes",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": ""
+}

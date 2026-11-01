@@ -1,0 +1,24 @@
+{
+ "id": "aw26-furugi-m",
+ "name": "古着の混ぜ方（2026 秋冬、男子）",
+ "age": "",
+ "height": "",
+ "role": "今の日本の流行の装いの見本（docs/knowledge/fashion/trend-2026aw.md の 2-2 の日本で続いている系統）",
+ "personality": "",
+ "backstory": "",
+ "look": "young Japanese man, around 20, messy dark brown center-parted hair, brown eyes",
+ "eyes": {
+  "tags": "open eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "vintage brown corduroy jacket over a faded navy sweatshirt, loose faded indigo jeans, white canvas sneakers, black knit beanie",
+ "turnaround": {},
+ "negative": "logo, brand logo, text, miniskirt, short skirt, caucasian, western face, blonde hair, blue eyes",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": ""
+}
