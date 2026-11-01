@@ -63,7 +63,7 @@
 | 靴 | ウエスタンのブーツは履き込んだようなくたっとした柔らかい物が今季。黒の装いには黒、ディテールを抑えた焦げ茶は大人のカジュアルに | [6] |
 | | 装飾を削ったスリッポンを、ローファーやパンプスの代わりに履く | [6] |
 | | パンプスに靴下を重ねる。靴と同じ色の靴下でつなぐか、色の靴下を差し色にする | [5] |
-| 髪 | 女子は暗めの髪色に透け感とツヤ（モカブラウン、ラベンダーブラウン、ラベンダーグレージュ） | [12]（既存[21]） |
+| 髪 | 女子は暗めの髪色に透け感とツヤ（モカブラウン、ラベンダーブラウン、ラベンダーグレージュ） | [12]（既存[38]） |
 
 実物から数で出たもの（5 章の 43 枚。女子 21 枚、男子 22 枚）:
 
@@ -96,196 +96,198 @@
 
 ## 3. 品目ごとの着こなし
 
-各項目の [番号] は根拠。何も付いていない組み合わせは作例。
+各項目の [番号] は根拠。何も付いていない組み合わせは作例。既存[番号] は trend-2026aw.md（2026-11 版）の 5. 出典の番号。
 
 ### aw26-napoleon-f ナポレオンジャケット
 
-- 合わせる物: ゆったりしたデニム、ワイドパンツ、タイトスカート [2][3]。白いボウタイのブラウス [2]（既存[5]）。スカートやワンピースで甘さとの差を出す [3]
+- 合わせる物: ゆったりしたデニム、ワイドパンツ、タイトスカート [2][3]。白いボウタイのブラウス [2]（既存[9]）。スーパーワイドのデニム（既存[12]）。スカートやワンピースで甘さとの差を出す [3]
 - 丈と量感: ジャケットは短い丈 [2][3]。下を長く広く（上は短く下は長い、5 章の S1・S8 と同じ組み方）
-- 色の配分: 落ち着いた色で暗い装いにもなじむ [3]。主役の紺に白と淡いデニムの 3 色、靴と鞄は紺か黒でつなぐ（作例、2 章の実物の決まり 1・2）
+- 色の配分: 落ち着いた色で暗い装いにもなじむ [3]。主役の紺に白と淡いデニムの 3 色、靴は紺でジャケットとつなぐ（作例、2 章の実物の決まり 1・2）
 - 素材: デニムや洗い加工の綿で気負わない [2]。ブラウスの綿とデニムの対比（作例）
 - 着方: 前を開けて中をのぞかせる、長袖の Tシャツを裾と袖口からのぞかせる [2]
-- 靴と鞄と小物: 記事に具体的な提案は無い [2][3]。作例は紺か黒のローファーと小さい肩掛け
-- 髪: 暗めのモカブラウン、透けた前髪、ツヤ [12]
+- 靴と鞄と小物: 記事に具体的な提案は無い [2][3]。作例は紺のローファー
+- 髪: 暗めのモカブラウン、透けた前髪、ツヤ [12]（既存[38]）
 - 今っぽく見せる要点: 軍服らしさ（立ち襟、2 列の金ボタン）は残し、飾りは控えめ [2]。下はカジュアルに崩す [3]
 - 古く見える・避けたい合わせ: 全身をクラシックな品でそろえる（ボウタイ、きれいめのスラックス、パンプスまで全部）[3]。装飾の多い上と重ねる [3]
 
-### aw26-college-f カレッジコア
+### aw26-college-f カレッジ・プレッピー
 
-- 合わせる物: ラガーシャツやラインの入ったアイビー調のニットに、プリーツやティアードのスカート [1]
-- 丈と量感: 男物のようなラガーシャツをゆったり着て、体が泳ぐ大きさにし、下は短い丈 [1]。描く言葉は膝上丈と黒いタイツ。上だけ大きく下は短い組み方は実物の S6・S21 と同じ
-- 色の配分: 紺の地に白 [1]、小物は黒でそろえる [1]。派手な色のニットで変化を付ける例もある [1]
-- 素材: 厚い綿のラガーとウールのプリーツ（作例）
-- 着方: ゆったりした上の前だけをゆるく入れる、袖をまくる（作例）
-- 靴と鞄と小物: ビットローファー、サッチェルバッグ、眼鏡（ブロウ型）[1]
-- 髪: 暗い茶、顔まわりのレイヤー、透けた前髪 [12]
-- 今っぽく見せる要点: スクールの調子で仕上げ、黒小物で締める [1]
+- 合わせる物: ラガーシャツやラインの入ったアイビー調のニット [1]。ラガーシャツの下に白いシャツを入れ、ひざ丈のハーフパンツで脚を出す（既存[13]）。ひざ丈のボトム（既存[16]）
+- 丈と量感: 男物のようなラガーシャツをゆったり着て、体が泳ぐ大きさにする [1]。下はひざ丈で短くまっすぐ（既存[13]）。上だけ大きく下は短い組み方は実物の S6・S21 と同じ
+- 色の配分: 紺の地に白 [1]。ラガーシャツの紺をハーフパンツでくり返す（作例）
+- 素材: 厚い綿のラガーとウールのハーフパンツ（作例）
+- 着方: 白いシャツの襟と裾をラガーシャツからのぞかせる（既存[13]）
+- 靴と鞄と小物: ビットローファー、眼鏡 [1]（既存[11]）。白い靴下（作例）
+- 髪: 暗い茶、顔まわりのレイヤー、透けた前髪 [12]（既存[38]）
+- 今っぽく見せる要点: 男物らしい品をひざ丈の下と白いシャツで可愛く落とし込む（既存[13]）。スクールの調子で仕上げる [1]
 - 古く見える・避けたい合わせ: 制服そのもの（ブレザー、紺の膝下の靴下、校章）に寄せる（作例。子どもっぽく見えるのを避ける [1] の言い方を描く側に移した）。小物の色をばらばらにする [1]
 
-### aw26-melomi-french-f メロみフレンチ
+### aw26-dotcollar-f ドット衿のカーディガン
 
-- 合わせる物: 花びらのようなフリルのペプラムの上に、体に沿うタイトなスカート [1]
-- 丈と量感: ペプラムが腰回りを覆い、上に量感、下は細く [1]。描く言葉は膝丈と黒いタイツ
-- 色の配分: カーキや茶のくすんだ色を合わせると洗練される [1]。カーキ・焦げ茶・黒の 3 色（作例）
-- 素材: ひらひらした薄い生地と、革のブーツの対比（作例）
+- 合わせる物: 紺の地にドットの衿のシャツ風のカーディガン（既存[12]）。黒のロングスカート（既存[2]）。衿付きのニット（既存[18]）
+- 丈と量感: カーディガンは体に沿わせて入れ、下は足首までのロング（スカートの約 3 分の 2 がロング、既存[2]）。上は小さく下は長い
+- 色の配分: 衿付きのカーデが子どもっぽく転ばないよう、全体の色を落ち着かせる（既存[12]）。紺・黒・白の 3 色に茶の鞄を差し色 1 点（作例）
+- 素材: 柔らかいニットと、光沢のある薄手のスカート（光沢の薄手は既存[2]、組み合わせは作例）
+- 着方: カーディガンの前を留めて 1 枚で着て、スカートに入れる（作例）
+- 靴と鞄と小物: 黒のローファーに白い靴下、小さい茶の手提げ（作例）
+- 髪: 未確認。作例は黒、鎖骨の長さ、厚めの前髪
+- 今っぽく見せる要点: ドットは今季の柄（既存[2][7][22]）なので衿だけに入れて上半身を映えさせる（既存[12]）
+- 古く見える・避けたい合わせ: 衿付きのカーデにショートパンツや甘い小物を重ねて子どもっぽくする（既存[12] の注意を裏返した作例）。ボリュームのあるフリルのミニに寄せる（ミニはひだの少ない形へ移った、既存[2]）
+
+### aw26-grey-red-f グレーのテーラードと赤
+
+- 合わせる物: 短い丈のグレーのテーラードと、同じグレーのワイドスラックス（グレーのジャケットと揃いは既存[20]、テーラードは既存[16]）。赤のニット（既存[20]）
+- 丈と量感: ジャケットは短く、肩入りですっきり（既存[16]）。スラックスは程よくゆとりのあるワイドで長い丈（既存[20]）
+- 色の配分: グレーを地に赤を 1 点（赤とグレーは今季の 2 色、既存[20]。グレーへの転換は既存[1]）。合わせる物は基本の色でそろえ赤を際立たせる（既存[20]）
+- 素材: なめらかなウールと、肉厚のニット（肉厚のニットは既存[20]、組み合わせは作例）
+- 着方: ジャケットの前を開けて赤を見せる（作例）。ベルトで印を付ける（既存[20]）
+- 靴と鞄と小物: 黒のローファーと黒のベルト（作例）
+- 髪: 未確認。作例は暗いアッシュブラウン、顎の長さのボブ
+- 今っぽく見せる要点: 揃いのスーツの装いを若い品（短い丈）で崩す（既存[16][20]）
+- 古く見える・避けたい合わせ: ベージュ・白・アイボリーを地にする（グレーへの転換、既存[1]）。赤を上下の両方に広く使う（作例。赤は 1 点という 2 章の決まりから）
+
+### aw26-peplum-boots-f ペプラムとロングブーツ
+
+- 合わせる物: 腰で広がるペプラムのブラウス（既存[11][16][18][19]）。首元の大きなリボン（既存[18]）。タイトですっきりした下（既存[18]）。ロングブーツ（既存[13][16]）
+- 丈と量感: 上は腰で広がる量感、下は細くひざ丈（ペプラムは体に沿う下と、既存[11]）。ブーツは体に沿う形（既存[16]）
+- 色の配分: 生成りと黒の 2 色（作例。[1] のくすんだ色の勧めは前の版の装いのもので、今回は黒で締めた）
+- 素材: ひらひらした薄い生地と、革のブーツの対比。ペプラムをハードに寄せる（既存[16]）
 - 着方: 袖を軽くまくる（作例）
-- 靴と鞄と小物: ウエスタンのブーツで足元に量感 [1]、くたっとした柔らかい物 [6]。鞄は茶の小さい肩掛け（作例）
-- 髪: ラベンダーブラウン、鎖骨下、ゆるい波、透けた前髪 [12]
-- 今っぽく見せる要点: こなれた甘さの大人のガーリー [1]。甘い上を、くすんだ色と硬い靴で落ち着かせる
-- 古く見える・避けたい合わせ: 甘さを足し続ける（パステル、レース、リボンを重ねる）（作例。[1] がくすんだ色を勧める理由の裏）。ウエスタンのブーツを硬く新しい形で選ぶ [6]
+- 靴と鞄と小物: 黒の革のロングブーツ（既存[16]）、小さい黒の手提げ（小さいハンドバッグは既存[17]、1 誌の見立て）
+- 髪: ラベンダーブラウン、鎖骨下、ゆるい波、透けた前髪 [12]（既存[38]）
+- 今っぽく見せる要点: 甘い上を、ロングブーツの硬さで締める（既存[16]）
+- 古く見える・避けたい合わせ: 甘さを足し続ける（パステル、レース、リボンを重ねる）（作例。[1] がくすんだ色を勧める理由の裏）。下も広がる形にして上下とも量感を出す（作例。2 章の決まり）
 
-### aw26-suede-burgundy-f スエードとボルドー
+### aw26-bambi-f バンビ柄と部分ファー
 
-- 合わせる物: 無地のスエードのジャケットと台形のスカートの揃い [1]
-- 丈と量感: 小さく短いジャケットと台形の短いスカートで腰の位置を高く [1]。描く言葉は膝上丈と黒いタイツ
-- 色の配分: キャメルの揃いに、ボルドーの鞄を合わせる [1]。赤・ボルドー・茶とチェックが売れている（既存[22]）。差し色はボルドー 1 点にする（[4] の「一点投入」を女子にも当てた作例）
-- 素材: スエードで秋らしさ [1]。中はリブ編みのニット（作例）
-- 着方: 上着は前を開け、ニットを入れて腰の位置を見せる（作例）
-- 靴と鞄と小物: ボルドーの鞄 [1]。靴は焦げ茶のローファー（作例）
-- 髪: ラベンダーグレージュのミディアムボブ、透けた前髪 [12]
-- 今っぽく見せる要点: 素材と色で季節を出す [1]
-- 古く見える・避けたい合わせ: 差し色を 2 つ以上（赤のチェックの襟巻きとボルドーの鞄など）にする（作例。2 章の決まりから）
-
-### aw26-heisei-pop-f 平成女児と 2016 のポップ
-
-- 合わせる物: 英字の大きなプリントの Tシャツ（既存[1]）、Tシャツの上にタンクトップを重ねる（既存[15]）、ドット柄（既存[7][9]）
-- 丈と量感: 大きい Tシャツに、下は細い膝下丈（作例。実物の上だけ大きい組み方 S6・S21 に合わせた）
-- 色の配分: 白・ピンク・黒の 3 色（作例）。カラフルな品が 2016 年の手がかり（既存[1]）だが、実物の 40/43 が 3 色以内なので色数は絞った
-- 素材: 未確認
-- 着方: タンクトップを Tシャツの上に重ね、前だけ入れる（重ねは既存[15]、入れるのは作例）
-- 靴と鞄と小物: バックパック（既存[15]）、缶バッジ（既存[2]）。ぬいぐるみの飾りを鞄に下げる実物がある（S15）
-- 髪: 未確認（少女漫画の人物の髪型を取り入れる、とだけある、既存[2]）
-- 今っぽく見せる要点: 平成女児はギャル寄りではない若い方へ寄っている（既存[2]）
-- 古く見える・避けたい合わせ: ギャル寄りの Y2K として描く（既存[2]、trend-2026aw.md の 3 章）
-
-### aw26-bambi-f バンビコア
-
-- 合わせる物: 小鹿を思わせる柄のファーの小物かコートを差す（既存[14]）
-- 丈と量感: ファーの短いコートを上の量感にし、下はまっすぐな膝下丈（作例）
-- 色の配分: ベージュや茶の暖色でまとめる（既存[14]）
+- 合わせる物: 小鹿を思わせる柄のファーの小物かコートを差す（既存[22]）。バンビ柄の品（既存[18]）。部分ファー（既存[16]）。ロングブーツ（既存[13][16]）
+- 丈と量感: ファーの衿の短い上着を上の量感にし、下はミドル丈のスカート（ミドル丈とロングブーツは既存[13]）
+- 色の配分: ベージュや茶の暖色でまとめる（既存[22]）
 - 素材: ふわふわのファーと平らなニットの対比（作例）
-- 着方: コートを前を開けて着る（作例）
-- 靴と鞄と小物: 未確認。作例は茶のローファーにベージュの靴下、無地の革の肩掛け
+- 着方: 上着を前を開けて着る（作例）
+- 靴と鞄と小物: 焦げ茶の革のロングブーツ（既存[13][16]）。鞄は持たない（作例）
 - 髪: 未確認。作例は長い暗い茶、柔らかい透けた前髪
-- 今っぽく見せる要点: 茶系の 1 つのトーンにまとめ、ファーは 1 点（作例）
+- 今っぽく見せる要点: 茶系の 1 つのトーンにまとめ、ファーは 1 点（部分ファーで盛る、既存[16]）
 - 古く見える・避けたい合わせ: ファーを上着と鞄と帽子に重ねる（作例。差しは 1 点という 2 章の決まりから）
 
 ### aw26-henley-m ヘンリーネック
 
-- 合わせる物: ワッフル素材のヘンリーネック（既存[10][11]）。秋も続く（[10] 見出し）。ワンタックのワイドパンツ（既存[10]）、銀の鎖のネックレス（既存[10][11]）
-- 丈と量感: 上は体に沿わせて入れ、下はワイド（作例。実物の上は細く下は太い S27・S30 と同じ組み方）
-- 色の配分: オートミール・炭・黒の 3 色（作例）
-- 素材: ワッフルの凹凸とウールの平らさ（作例）
-- 着方: 上のボタンを外す、袖をまくる、裾を入れる（作例。入れるは [4] の細身のパンツの着方を広げた）
-- 靴と鞄と小物: 銀の鎖（既存[11]）。靴は黒のローファー（作例。実物の革靴 13/22）
-- 髪: センターパート、長めの前髪（既存[20]）
-- 今っぽく見せる要点: 秋の仕様（[10] 見出し）。本文は有料で中身は未確認
+- 合わせる物: ワッフル素材のヘンリーネック（既存[8]）。秋も続く（既存[6] 見出し）。銀の鎖のネックレス（既存[8][26]）。バレルのデニム（既存[3]）
+- 丈と量感: 上は体に沿わせ、下はひざで丸く広がるバレル（作例。実物の上は細く下は太い S27・S30 と同じ組み方）
+- 色の配分: オートミール・薄い青・黒の 3 色、ベルトと靴の黒でつなぐ（作例）
+- 素材: ワッフルの凹凸とデニム（作例）
+- 着方: 上のボタンを外す、袖をまくる（作例）。首元の開け具合で抜け感を出す（既存[8]）
+- 靴と鞄と小物: 銀の鎖（既存[8]）。靴は黒の革靴（作例。実物の革靴 13/22）
+- 髪: 未確認（既存[39] は期間外）。作例はセンターパート、長めの前髪
+- 今っぽく見せる要点: 秋の仕様（既存[6] 見出し）。本文は有料で中身は未確認
 - 古く見える・避けたい合わせ: 未確認
 
 ### aw26-classic-knit-m 柄ニットとダッフル
 
-- 合わせる物: フェアアイル・アーガイル・ノルディックの柄のニットに、端正なスラックス・革のパンツ・スカーフ [4]。ダッフルコート [4]
-- 丈と量感: ダッフルは大胆なプロポーション [4]。細身のストレートは余白を残し、細く長い線で縦に長く [4]
-- 色の配分: 装いのトーンを統一する [4]。赤は靴下か帽子で一点 [4]、グレー・茶・紺と合う [4]
+- 合わせる物: フェアアイル・アーガイル・ノルディックの柄のニットに、端正なスラックス・革のパンツ・スカーフ [4]（既存[28]）。ダッフルコート [4]（既存[28][46]）
+- 丈と量感: ダッフルは大胆なプロポーション [4]。下は長い丈のストレート（作例。細身は予測のみ、既存[30]）
+- 色の配分: 装いのトーンを統一する [4]。紺・生成り・炭の 3 色（作例）
 - 素材: クラフト感のある編み地 [4]。下と羽織に端正な素材 [4]
 - 着方: ダッフルは前を開けて柄を見せる（作例）
-- 靴と鞄と小物: 赤い靴下 [4]。靴は黒のローファー（作例）
-- 髪: 長めの前髪のショート（既存[20]）
+- 靴と鞄と小物: 靴は黒のローファー（作例）
+- 髪: 未確認（既存[39] は期間外）。作例は長めの前髪のショート
 - 今っぽく見せる要点: 柄のニットを都会的に、端正な素材で引き立てる [4]
 - 古く見える・避けたい合わせ: 昔ながらのスクールライクなダッフル [4]。体に吸い付くスキニー [4]
 
-### aw26-preppy-denim-m デニムのプレッピー
+### aw26-preppy-denim-m ニットベストとネクタイのプレッピー
 
-- 合わせる物: デニムのプレッピー（既存[19] 見出し）。襟と袖の色が違うクレリックシャツ（既存[18]）、ネクタイをニットやカジュアルな羽織と合わせる [4]
-- 丈と量感: 上は入れて整え、デニムは少し太いストレートの長い丈（作例。実物 S39 の襟付きのニットを入れて太いデニムの組み方）
-- 色の配分: 藍と紺の濃淡に水色、靴は黒（作例）
-- 素材: 綿のシャツと生のデニム（作例）
+- 合わせる物: デニムのプレッピー（既存[27] 見出し）。ストライプのシャツとニットベスト（既存[30][46]）、ネクタイをニットやカジュアルな羽織と合わせる [4]（既存[28]）
+- 丈と量感: 上は入れて整え、デニムは少し太いストレートの長い丈（作例。実物 S39 の襟付きのニットを入れて太いデニムの組み方）。整ったサイズ（既存[30]）
+- 色の配分: 生成りに水色、藍と紺の濃淡（作例）。深い色（既存[27][30]）
+- 素材: ケーブルのニットと綿のシャツと生のデニム（ケーブルのベストは既存[19]、組み合わせは作例）
 - 着方: シャツを入れ、ネクタイはゆるく結ぶ（作例。自由に楽しむ [4] から）
-- 靴と鞄と小物: 黒の丸眼鏡（既存[19] 見出し「眼鏡」）、黒のローファー（作例）
-- 髪: 刈り上げないベリーショート、前髪ありのブラントカット（既存[20]）
-- 今っぽく見せる要点: ネクタイをルールにとらわれない小物として使う [4]
+- 靴と鞄と小物: 丸眼鏡（既存[27] 見出し「メガネ」）、紺のローファー（作例）
+- 髪: 未確認（既存[39] は期間外）。作例は黒、自然なセンターパート、長めの前髪
+- 今っぽく見せる要点: ネクタイをルールにとらわれない小物として使う [4]。街ではベストの重ね着（既存[29]）
 - 古く見える・避けたい合わせ: ネクタイを端正なスーツのためだけに使う [4]。ブレザーとローファーと紺の靴下で制服に寄せる（作例）
 
-### aw26-check-flare-m チェックシャツとフレアデニム
+### aw26-check-red-m タータンのシャツと赤い靴下
 
-- 合わせる物: チェックシャツ（既存[19] 見出し）、フレアのデニム（既存[11]）。チェックシャツにすっきりしたフレアデニムを合わせ、胸元を開けて裾からベルトをのぞかせる [7]
-- 丈と量感: 上は小さく、下は裾で広がる（[7] と実物 S40）
-- 色の配分: 赤茶のチェック、白、藍の 3 色。ベルトと靴の茶でチェックとつなぐ（作例）
-- 素材: ネルと革のベルト・靴（作例）
-- 着方: シャツを前を開けて羽織り、中の Tシャツは入れる（羽織るのは既存[19] の作例、入れるのは実物 S40）
-- 靴と鞄と小物: クラシックな革靴 [7]
-- 髪: 強めのくるくるのパーマ（既存[20]）
-- 今っぽく見せる要点: 首元から白い Tシャツをのぞかせる [7]。小物で品を足す [7]
-- 古く見える・避けたい合わせ: 裾の極端に広いフレア（既存[26]、米国の見方）。[7] の掲載の人は 30 代で、10 代〜20 代での避けたい合わせは未確認
+- 合わせる物: チェックシャツ（既存[27] 見出し）。タータン（既存[30][31]）。赤い靴下（既存[28][29]）。濃い藍のデニム（既存[27]）
+- 丈と量感: シャツを羽織って上はゆるく、デニムはワイドストレートで長い丈（作例）
+- 色の配分: 紺と緑のチェック、白、藍。赤は靴下で 1 点だけ [4]（既存[28]）。靴の紺でシャツとつなぐ（作例）
+- 素材: 柔らかいネルと硬いデニム（作例）
+- 着方: シャツを前を開けて羽織り、中の Tシャツは入れる（作例。入れるのは実物 S40）。首元から白い Tシャツをのぞかせる [7]
+- 靴と鞄と小物: 赤い靴下（既存[28][29]）、紺のローファー（作例）
+- 髪: 未確認。作例は暗い茶、ゆるいパーマ、透けた前髪
+- 今っぽく見せる要点: チェックを都会的に、ロゴを抑えて柄で見せる（既存[30][31]）。赤は 1 点 [4]
+- 古く見える・避けたい合わせ: 赤を大きな面積で重ねる（作例。赤は 1 点という [4] の裏）。裾の極端に広いフレアにする（フレアは 1 出典で今回は使わない、trend-2026aw.md の 1 章）
 
-### aw26-tech-m テックの街着
+### aw26-camo-hoodie-m 迷彩カーゴとフーディー
 
-- 合わせる物: テック系（既存[10]）、フリースの上着（既存[9]、女子の数字）、ランニングのスニーカー（既存[11]）
-- 丈と量感: 上は短く、下はワイドで裾をドローコードで絞る（作例。実物 S25・S28 はナイロンの上着とワイドのカーゴ）
-- 色の配分: 黒・灰・銀（作例。実物 S28 は銀のランニングのスニーカー）
-- 素材: フリースとナイロン（作例）
-- 着方: ジップを半分開ける（作例）
-- 靴と鞄と小物: 銀灰のランニングのスニーカー（実物 S28）、小さい斜め掛け（作例）
-- 髪: くすんだハイトーン、マット（既存[20]）
-- 今っぽく見せる要点: 未確認（記事の本文で着方まで書いたものは見つからなかった）
-- 古く見える・避けたい合わせ: 未確認
-
-### aw26-camo-polo-m 迷彩カーゴとポロニット
-
-- 合わせる物: 襟にラインのあるポロニット、迷彩のゆるいカーゴ、ランニングのスニーカー（既存[11]）
-- 丈と量感: ポロニットは体に沿わせて入れ、カーゴはゆるく長い丈（作例。実物 S39 は襟付きのニットを入れて太いデニム）
-- 色の配分: 紺・オリーブ・黒の 3 色（作例）
-- 素材: 平らなニットと厚い綿（作例）
-- 着方: ニットを入れてベルトを見せる（実物 S37・S39・S40）
-- 靴と鞄と小物: 実物に合わせて黒の革靴（革靴 13/22）。記事の売れ筋はランニングのスニーカー（既存[11]）で、どちらでもよい
-- 髪: ミディアムウルフ、透けた前髪、ゆるいパーマ（既存[20]）
+- 合わせる物: 迷彩のゆるいカーゴ（既存[1][8]）。スウェットのフーディー（既存[3]）。フリースのベスト（既存[33]）
+- 丈と量感: 上はフーディーを体に沿わせ、ベストは短く箱形、カーゴはゆるく足首で絞る（作例）
+- 色の配分: オリーブ・グレー・黒の 3 色、ベストと靴の黒でつなぐ（作例）
+- 素材: 柔らかいフリースと厚い綿（作例）
+- 着方: フードを外に出し、ベストのジップを半分開ける（作例）
+- 靴と鞄と小物: 黒のスニーカー（作例。ランニングのスニーカーは 1 出典、既存[8]）
+- 髪: 未確認（既存[39] は期間外）。作例はミディアムウルフ、透けた前髪、ゆるいパーマ
 - 今っぽく見せる要点: 未確認
-- 古く見える・避けたい合わせ: 未確認
+- 古く見える・避けたい合わせ: 上下ともに大きくして色を増やす（作例。男子は下にゆとりで、上が大きければ色を 1〜2 色に絞る、2 章の実物の決まり）
+
+### aw26-leather-cardigan-m レザーブルゾンと襟付きカーディガン
+
+- 合わせる物: 短い丈のレザーのブルゾン（既存[30]）。襟付きのカーディガンをきれいめのパンツと（既存[30]）。レザーの上着にワイドスラックス（既存[46]）
+- 丈と量感: 上着は短く、下はワイドの長い丈。ゆとりを残して整ったサイズ（既存[30]）
+- 色の配分: 黒・茶・炭の 3 色（深いニュアンスの色、既存[30]）
+- 素材: なめらかな革と柔らかいニット（革とニットの組は作例。レザーは主役の素材、既存[30]）
+- 着方: ブルゾンの前を開け、カーディガンは前を留める（作例）
+- 靴と鞄と小物: 黒の革靴（作例）
+- 髪: 未確認（既存[39] は期間外）。作例はくすんだアッシュブラウン、センターパート
+- 今っぽく見せる要点: クラシックに今のカジュアルさと心地よさを足す（既存[30]）
+- 古く見える・避けたい合わせ: 上下とも大きいオーバーサイズにする（オーバーサイズから整ったサイズへ、既存[30]）
 
 ---
 
 ## 4. 描く言葉に落とした装い
 
-- outfit の句は "wearing ..." に続けて使う。主役の品と色を先頭に置き、丈・量感・色の配分・着方の語を入れた。語数は英語で数えた。
+- 装いは `docs/knowledge/fashion/trend-2026aw.md` の 2 章（2026-11 版）の 12 と同じ。品目はそこで「確か」にしたものだけ。
+- outfit の句は "wearing ..." に続けて使う。主役の品と色を先頭に置き、丈・量感・色の配分・着方・素材の対比の語を入れた。語数は英語で数えた（読点で区切った語の数）。
 - look の句は casts/fashion.json の決まりに合わせ、最後に目の色を書く。
-- trend-2026aw.md の 2 章の句から変えた所: 色を 3 色以内に絞った（スエードの赤いチェックの襟巻きを外し、ボルドーの鞄だけにした、など）、着方の語を足した、下の丈を書いた、ファーを 1 点にした、男子の靴を実物に合わせて革に寄せた（テックはランニングのスニーカーのまま）。
+- trend-2026aw.md の 2 章の句から足したもの: 着方（worn open、tucked in、layered over、half zipped、sleeves pushed up）、下の丈（full length、knee-length、midi、ankle）、量感の対（short top and long bottom など）、色の配分（only、as the only accent）、素材の対比。色のつながり（C5）のために、靴を上と同じ色にした所がある（紺のローファー、黒のベルト）。これは作例。
+- 3 章の項は 12 の装いと同じ id。前の版の装いのうち外した 6 つ（aw26-melomi-french-f、aw26-suede-burgundy-f、aw26-heisei-pop-f、aw26-check-flare-m、aw26-tech-m、aw26-camo-polo-m）の項は消した。
 
-| id | outfit の句 | 語数 | look の句 |
-|---|---|---|---|
-| aw26-napoleon-f | navy cropped napoleon jacket with stand collar and gold buttons, worn open over a white bow-tie blouse with the cuffs peeking out, faded light-blue wide-leg denim jeans to the ankle, crisp cotton against soft denim, short top and long roomy bottom, navy white and denim blue only, navy leather loafers, small navy shoulder bag | 54 | young Japanese woman, early 20s, dark mocha brown shoulder-length hair with see-through bangs and glossy finish, natural matte skin, soft brown eyeshadow, brown eyes |
-| aw26-college-f | navy and white striped rugby shirt with white collar, oversized with sleeves pushed up, front hem loosely tucked into a navy pleated skirt above the knee, black opaque tights, black bit loafers, black round glasses, brown leather satchel as the only accent, navy white and black, heavy cotton rugby against wool pleats | 52 | young Japanese woman, around 20, dark brown medium-length hair with face-framing layers and see-through bangs, natural makeup, brown eyes |
-| aw26-melomi-french-f | khaki blouse with a large petal-like ruffled peplum flaring over the hips, sleeves gently pushed up, fitted dark brown knee-length pencil skirt, black opaque tights, slouchy dark brown leather western boots, small dark brown shoulder bag, khaki dark brown and black only, airy ruffles against smooth leather | 47 | young Japanese woman, early 20s, dark lavender brown collarbone-length hair with soft waves and see-through bangs, glossy finish, muted rosy makeup, brown eyes |
-| aw26-suede-burgundy-f | camel suede cropped jacket worn open over a fitted ivory rib knit tucked into a matching camel suede A-line skirt above the knee, high waist, black opaque tights, dark brown leather loafers, burgundy leather shoulder bag as the only accent, camel ivory and black | 44 | young Japanese woman, mid 20s, dark lavender greige medium bob with see-through bangs, glossy finish, warm natural makeup, brown eyes |
-| aw26-heisei-pop-f | oversized white T-shirt with large black English lettering print, pastel pink rib tank top layered over it, front hem tucked into a straight black polka dot midi skirt, white crew socks, chunky white sneakers, pink backpack with tin badges, white pink and black only, loose top and slim skirt | 49 | Japanese teenage girl, 18, long dark brown hair with straight full bangs and a small hair clip, light pink cheeks, brown eyes |
-| aw26-bambi-f | cream faux fur short coat worn open over a fitted light brown knit with a small fawn pattern, beige wool midi skirt in a straight line, beige socks with brown leather loafers, plain brown leather shoulder bag, cream beige and brown in one warm tone, fluffy fur against smooth knit | 50 | Japanese teenage girl, 18, long dark brown hair with soft see-through bangs and loose waves, warm beige makeup, brown eyes |
-| aw26-henley-m | oatmeal waffle-knit long-sleeve henley shirt, fitted, top buttons open, sleeves pushed up, front hem tucked into charcoal one-tuck wide-leg trousers in full length, thin silver chain necklace, black leather loafers, oatmeal charcoal and black only, slim top and roomy trousers, textured waffle against smooth wool | 45 | young Japanese man, early 20s, black center-parted short hair with long bangs, natural texture, brown eyes |
-| aw26-classic-knit-m | navy wool duffle coat in a roomy oversized shape, worn open over a navy and grey Fair Isle crew-neck sweater, grey slim straight full-length trousers, red socks as the only accent, black leather loafers, navy and grey base, chunky knit against smooth wool | 43 | young Japanese man, mid 20s, dark brown short hair with long bangs, natural texture, brown eyes |
-| aw26-preppy-denim-m | dark indigo straight jeans, slightly wide, full length, light blue shirt with white collar tucked in, loosely knotted navy narrow tie, navy V-neck knit vest, black leather loafers, black round glasses, indigo navy light blue and black, neat top and relaxed denim, crisp cotton against raw denim | 47 | young Japanese man, around 20, black very short hair with blunt bangs, no undercut, brown eyes |
-| aw26-check-flare-m | red and brown plaid flannel shirt worn open over a fitted white long-sleeve T-shirt tucked in with a dark brown leather belt, dark indigo flare jeans covering the shoes, dark brown leather shoes, red brown white and indigo only, compact top and flared hem | 44 | young Japanese man, early 20s, light brown medium hair with tight curly perm, brown eyes |
-| aw26-tech-m | black fleece zip jacket in a short cropped cut, half zipped over a grey crew-neck sweatshirt, black nylon wide technical pants with drawcord hem gathered at the ankle, silver grey running sneakers, small black crossbody bag, black grey and silver only, soft fleece against crisp nylon | 46 | young Japanese man, around 20, muted olive beige high-tone short hair with matte texture, brown eyes |
-| aw26-camo-polo-m | navy long-sleeve knit polo with a contrast line on the collar, fitted and tucked into loose olive camouflage cargo pants in full length, black leather belt, thin silver chain necklace, black leather shoes, navy olive and black only, smooth knit against rugged cotton | 43 | young Japanese man, late teens, black medium wolf cut with see-through bangs and loose perm, brown eyes |
-
-### 点検表の採点（前と後）
-
-前は trend-2026aw.md の 2 章の outfit の句、後は上の表の句。句の文面を 1 章の C1〜C10 で採点したもので、描いた絵の採点ではない。採点したのはこの資料を書いた側で、別の人の確認はまだ無い。
-
-| id | 前 | 前に落ちた点検 | 後 | 後に落ちた点検 |
+| id | 主役の品 | outfit の句 | 語数 | look の句 |
 |---|---|---|---|---|
-| aw26-napoleon-f | 5/10 | C3 C4 C5 C6 C7 | 10/10 | なし |
-| aw26-college-f | 6/10 | C1 C2 C6 C7 | 10/10 | なし |
-| aw26-melomi-french-f | 8/10 | C6 C7 | 10/10 | なし |
-| aw26-suede-burgundy-f | 6/10 | C2 C4 C6 C9 | 10/10 | なし |
-| aw26-heisei-pop-f | 7/10 | C2 C7 C8 | 9/10 | C7 |
-| aw26-bambi-f | 7/10 | C2 C6 C9 | 10/10 | なし |
-| aw26-henley-m | 5/10 | C2 C3 C5 C6 C7 | 10/10 | なし |
-| aw26-classic-knit-m | 4/10 | C2 C3 C5 C6 C7 C9 | 10/10 | なし |
-| aw26-preppy-denim-m | 3/10 | C1 C2 C3 C4 C6 C7 C9 | 10/10 | なし |
-| aw26-check-flare-m | 5/10 | C2 C3 C5 C7 C9 | 10/10 | なし |
-| aw26-tech-m | 6/10 | C2 C3 C6 C9 | 10/10 | なし |
-| aw26-camo-polo-m | 4/10 | C2 C3 C5 C6 C7 C9 | 10/10 | なし |
-| 計 | 66/120 | | 119/120 | |
+| aw26-napoleon-f | ナポレオンジャケット、ボウタイのブラウス、スーパーワイドのデニム | navy cropped napoleon jacket with stand collar, double gold buttons and braided trim, worn open over a white bow-tie blouse with the bow hanging loose, light blue super wide-leg jeans in full length pooling over navy leather loafers, short structured top and long roomy bottom, navy white and light blue only, crisp cotton against soft denim | 56 | young Japanese woman, early 20s, dark mocha brown shoulder-length hair with see-through bangs and glossy finish, natural makeup, brown eyes |
+| aw26-college-f | ラガーシャツ、白いシャツの重ね、ひざ丈のハーフパンツ、眼鏡 | navy and green wide-striped rugby shirt, oversized, layered over a white collared shirt with the collar and hem peeking out, navy wool knee-length shorts, white crew socks with dark brown loafers, thin round glasses, navy green and white only, heavy cotton jersey against smooth wool, roomy top and short straight bottom | 51 | young Japanese woman, around 20, dark brown medium-length hair in a low ponytail with see-through bangs, natural makeup, brown eyes |
+| aw26-dotcollar-f | 衿付きカーディガン、ドット柄、黒のロングスカート | navy knit cardigan with a white polka dot shirt collar, buttoned up and fitted, tucked into a softly flared black satin long skirt falling to the ankle, compact top and flowing long bottom, black leather loafers with white socks, small brown leather handbag as the only accent, navy black and white, soft knit against glossy satin | 56 | young Japanese woman, early 20s, black straight collarbone-length hair with full bangs, rosy natural makeup, dark brown eyes |
+| aw26-grey-red-f | 短い丈のグレーのテーラード、赤いニット、グレーのワイドスラックス | grey cropped tailored jacket with padded shoulders, worn open over a red crew-neck knit, matching grey wide-leg slacks in full length with a center crease, black leather loafers and black belt, grey suit with red as the only color, short jacket and long roomy trousers, smooth wool against chunky knit | 50 | young Japanese woman, mid 20s, dark ash brown chin-length bob with see-through bangs, matte skin, soft red lips, brown eyes |
+| aw26-peplum-boots-f | ペプラムのブラウス、首元のリボン、タイトスカート、ロングブーツ | ivory peplum blouse with a large ruffle flaring over the hips and a black ribbon tie at the neck, sleeves pushed up, fitted black knee-length tight skirt, black leather knee-high boots meeting the hem, small black handbag, ivory and black only, airy ruffles against smooth leather, soft full top and sharp narrow bottom | 53 | young Japanese woman, early 20s, dark lavender brown collarbone-length hair with soft waves and see-through bangs, glossy finish, brown eyes |
+| aw26-bambi-f | バンビ柄のニット、ファーの衿の短い上着、ロングブーツ | beige knit sweater with a small fawn pattern, fitted, under a cream short jacket with a fluffy faux fur collar worn open, dark brown wool midi skirt, dark brown leather knee-high boots under the hem, cream beige and dark brown in one warm tone, fluffy fur against smooth knit, short top and long skirt | 54 | young Japanese woman, late teens, long dark brown hair with soft see-through bangs and loose waves, warm beige makeup, brown eyes |
+| aw26-preppy-denim-m | ニットベスト、ストライプのシャツ、細いネクタイ、デニム | cream cable knit vest over a light blue striped shirt with a loosely knotted navy narrow tie, shirt tucked in, dark indigo straight jeans slightly wide in full length, navy leather loafers, thin round glasses, cream light blue and indigo with navy, chunky knit against crisp cotton, neat top and relaxed denim | 52 | young Japanese man, around 20, black short hair with a natural center part and long bangs, brown eyes |
+| aw26-henley-m | ヘンリーネック、銀のネックレス、バレルのデニム | oatmeal waffle-knit long-sleeve henley shirt, slim fit with the top buttons open and sleeves pushed up, thin silver chain necklace, faded light blue barrel jeans curving out at the knee and tapering to the ankle, black leather belt and shoes, oatmeal light blue and black only, fitted top and rounded roomy legs | 52 | young Japanese man, early 20s, black center-parted short hair with long bangs, natural texture, brown eyes |
+| aw26-check-red-m | タータンチェックのシャツ、赤い靴下、デニム | navy and green tartan flannel shirt worn open over a white long-sleeve T-shirt tucked in, dark indigo wide straight jeans in full length, red socks as the only accent, navy leather loafers, navy green and white with indigo denim, soft flannel against stiff denim, open relaxed top and straight wide legs | 51 | young Japanese man, around 20, dark brown medium hair with a loose perm and see-through bangs, brown eyes |
+| aw26-classic-knit-m | ダッフルコート、フェアアイルのニット、ストレートのスラックス | navy wool duffle coat in a roomy shape with toggles, worn open over a cream and navy Fair Isle crew-neck sweater, charcoal straight wool slacks in full length, black leather loafers, navy cream and charcoal only, chunky knit against smooth melton, roomy long coat over a fitted knit and straight trousers | 51 | young Japanese man, mid 20s, dark brown short hair with long bangs, natural texture, brown eyes |
+| aw26-camo-hoodie-m | 迷彩のカーゴ、グレーのフーディー、フリースのベスト | olive camouflage cargo pants, loose with big thigh pockets and a drawcord hem gathered at the ankle, fitted grey sweat hoodie with the hood out, short boxy black fleece vest half zipped over it, black sneakers, olive grey and black only, soft fleece against rugged cotton, compact top and roomy cargo | 51 | young Japanese man, late teens, black medium wolf cut with see-through bangs and loose perm, brown eyes |
+| aw26-leather-cardigan-m | 短い丈のレザーブルゾン、襟付きのカーディガン、ワイドスラックス | black cropped leather blouson worn open over a brown collared knit cardigan buttoned up, charcoal wide-leg slacks in full length with a center crease, black leather shoes, black brown and charcoal only, smooth leather against soft knit, short jacket and long roomy trousers | 43 | young Japanese man, early 20s, muted ash brown short hair with a center part and matte texture, brown eyes |
 
-前の句で最も多く落ちたのは C6（着方の語が無い、10/12）と C2（量感が上下のどちらか分からない、9/12）と C7（素材の対比が無い、9/12）。品目の名前は並んでいても、どう着るかが句に無かった。
+### 点検表の採点
+
+上の表の句の文面を 1 章の C1〜C10 で採点したもので、描いた絵の採点ではない。採点したのはこの資料を書いた側で、別の人の確認はまだ無い。C4 は紺と藍を同じ青の系統として数えた（aw26-preppy-denim-m、aw26-check-red-m）。C9 は 3 章のその項の「古く見える・避けたい合わせ」で見た。aw26-henley-m は避けたい合わせが未確認なので、trend-2026aw.md の 3 章（下火になったもの）で見た。
+
+| id | 点 | 落ちた点検 | C9 を見た所 |
+|---|---|---|---|
+| aw26-napoleon-f | 10/10 | なし | 3 章の項 |
+| aw26-college-f | 10/10 | なし | 3 章の項 |
+| aw26-dotcollar-f | 10/10 | なし | 3 章の項 |
+| aw26-grey-red-f | 10/10 | なし | 3 章の項 |
+| aw26-peplum-boots-f | 10/10 | なし | 3 章の項 |
+| aw26-bambi-f | 10/10 | なし | 3 章の項 |
+| aw26-preppy-denim-m | 10/10 | なし | 3 章の項 |
+| aw26-henley-m | 10/10 | なし | trend-2026aw.md の 3 章（3 章の項の避けたい合わせは未確認） |
+| aw26-check-red-m | 10/10 | なし | 3 章の項 |
+| aw26-classic-knit-m | 10/10 | なし | 3 章の項 |
+| aw26-camo-hoodie-m | 10/10 | なし | 3 章の項 |
+| aw26-leather-cardigan-m | 10/10 | なし | 3 章の項 |
+| 計 | 120/120 | | |
+
+前の版（2026-10）の句は 119/120 で、落ちたのは平成女児の C7 だった。その装いは根拠が 1 出典になり、今回は外した。
 
 ---
 
@@ -367,9 +369,9 @@
 | 9 | 224倍増のナポレオンJKで秋をクラシックに　「ゾゾタウン」でZ世代が探したアイテムは？（2026年9月、ウイメンズ） | WWDJAPAN（業界紙。有料記事） | 2026-10 | https://www.wwdjapan.com/articles/2535083 | 見出しのみ。合わせ方は有料部分で未確認 |
 | 10 | ヘンリーネックは秋仕様でさらに継続　「ゾゾタウン」でZ世代が探したアイテムは？（2026年9月、メンズ） | WWDJAPAN（業界紙。有料記事） | 2026-10 | https://www.wwdjapan.com/articles/2535084 | 見出しのみ（秋も続く）。着方は有料部分で未確認 |
 | 11 | Street Style 東京（43 枚、5 章の S1〜S43） | FASHIONSNAP（業界ニュースのストリートスナップ） | 2026-09〜2026-10 | https://www.fashionsnap.com/streetstyle/ | 量感、色の数、靴、着方の数（2 章） |
-| 12 | 2026年秋冬のトレンドカラーまとめ｜透け感とツヤが共存する【暗髪カラー】で美肌見せ | Oggi.jp（女性誌のウェブ） | 2026-10 | https://oggi.jp/7949794 | 女子の髪の色・長さ・前髪（trend-2026aw.md の既存[21] と同じ） |
+| 12 | 2026年秋冬のトレンドカラーまとめ｜透け感とツヤが共存する【暗髪カラー】で美肌見せ | Oggi.jp（女性誌のウェブ） | 2026-10 | https://oggi.jp/7949794 | 女子の髪の色・長さ・前髪（trend-2026aw.md の既存[38] と同じ） |
 
-既存[番号] は `docs/knowledge/fashion/trend-2026aw.md` の 5. 出典の番号。
+既存[番号] は `docs/knowledge/fashion/trend-2026aw.md`（2026-11 版）の 5. 出典の番号。
 
 使わなかったもの（理由）:
 
