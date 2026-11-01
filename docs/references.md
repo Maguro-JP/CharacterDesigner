@@ -177,3 +177,9 @@ OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じ
 | 顔を整える・低い強さで描き直して仕上げる | 取得済みの直しに使える絵の模型で、強さ 0.25〜0.3 の範囲の描き直し | 使う絵の模型の許諾（CreativeML OpenRAIL++-M など） | 上の表の模型 |
 
 CodeFormer（S-Lab License 1.0、商用不可）は配布に合わないので目録に入れない。
+
+## スタンプの大きさ（`chatdraw/logo.py` の SPECS、2026-11-01）
+
+- LINE Creators Market 制作ガイドライン（スタンプ 最大 370×320、メイン 240×240、タブ 96×74、余白 10px ぐらい、PNG、背景は透過、1 個 1MB 以下、個数 8・16・24・32・40）: https://creator.line.me/ja/guideline/sticker/
+- Telegram の Stickers（片方の辺がちょうど 512px、もう片方は 512px 以下、PNG か WEBP）: https://core.telegram.org/stickers
+- Discord のスタンプの頁は取れなかった（403）。SPECS には入れていない

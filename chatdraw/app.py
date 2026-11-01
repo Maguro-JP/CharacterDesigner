@@ -900,6 +900,10 @@ class Window(QMainWindow):
         self.menuBar().addMenu(self.chara_menu)
         self.chara_menu.aboutToShow.connect(self._fill_chara_menu)
         self._fill_chara_menu()
+        self.logo_menu = QMenu("ロゴ・スタンプ", self)   # キャラクターとは別の物（ロゴ・マーク、スタンプ）を作る。chatdraw/logo.py
+        self.menuBar().addMenu(self.logo_menu)
+        self.logo_menu.aboutToShow.connect(self._fill_logo_menu)
+        self._fill_logo_menu()
         from chatdraw import ratings
         ratings.on_change(self._models_changed)
         setting_menu = self.menuBar().addMenu("設定")
@@ -3130,6 +3134,111 @@ class Window(QMainWindow):
         self.notify(msg, "ok", f"{len(out)} 枚を設定資料に置きました。「設定資料を開く」で並べて見られます")
         self._end(msg)
 
+    # ---- ロゴ・スタンプ（chatdraw/logo.py）。項目は logo.menu_items が返し、メニューバーと右クリックで同じ物を使う ----
+
+    def _fill_logo_menu(self, m=None):
+        from chatdraw import logo
+        m = m if m is not None else self.logo_menu
+        m.clear()
+        m.setToolTipsVisible(True)
+        busy = getattr(self, "thread", None) is not None
+        for label, fn, tip in logo.menu_items(self):
+            act = m.addAction(label, fn)
+            act.setToolTip(tip)
+            act.setEnabled(not busy)
+        return m
+
+    def _logo_folder(self, kind: str) -> Path:
+        return Path(self.settings.get("output_dir")) / kind / time.strftime("%Y%m%d-%H%M%S")
+
+    def logo_make(self, name=None, mood: str = "", colors: str = ""):
+        """頼み（名前、雰囲気、色）からロゴのマークを AI に描かせ、整えた版を書き出す"""
+        from chatdraw import logo
+        if not isinstance(name, str):
+            from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLineEdit
+            d = QDialog(self)
+            d.setWindowTitle("ロゴ・マークを作る")
+            form = QFormLayout(d)
+            fields = []
+            for label, tip in (("名前", "ロゴに重ねる文字。文字は AI に描かせず、フォントで書きます"),
+                               ("雰囲気", "例: かわいい、和風、猫"), ("色", "例: 青と白")):
+                e = QLineEdit()
+                e.setToolTip(tip)
+                form.addRow(label, e)
+                fields.append(e)
+            box = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            box.accepted.connect(d.accept)
+            box.rejected.connect(d.reject)
+            form.addRow(box)
+            if d.exec() != QDialog.Accepted:
+                return
+            name, mood, colors = (e.text().strip() for e in fields)
+        painter = self._chara_painter()
+        if painter is None:
+            return
+        words = getattr(self.studio, "words", None)
+        folder, seed = self._logo_folder("logo"), int(time.time()) % 100000
+        self.activity.begin("ロゴ・マークを描く", "ロゴ・スタンプ")
+
+        def work(_step):
+            mark = logo.draw_logo(painter, name, mood, colors, seed, words=words, say=self.task.status.emit)
+            return logo.export_logo(mark, folder, text=name)
+        self._run_task(work, lambda out: self._logo_done("ロゴを書き出しました", out))
+
+    def logo_from_canvas(self, text=None):
+        from chatdraw import logo
+        if not isinstance(text, str):
+            from PySide6.QtWidgets import QInputDialog
+            text, ok = QInputDialog.getText(self, "今の絵をロゴに整える", "横長の版に重ねる文字（空なら文字なし）")
+            if not ok:
+                return
+        image, folder = qimage_to_pil(self.canvas.flatten()), self._logo_folder("logo")
+        self.activity.begin("ロゴに整える", "ロゴ・スタンプ")
+        self._run_task(lambda _step: logo.export_logo(logo.remove_background(image), folder, text=text),
+                       lambda out: self._logo_done("ロゴを書き出しました", out))
+
+    def _pick_spec(self, spec):
+        from chatdraw import logo
+        if isinstance(spec, str) and spec in logo.SPECS:
+            return spec
+        from PySide6.QtWidgets import QInputDialog
+        keys = ("line", "telegram")
+        names = [logo.SPECS[k]["name"] for k in keys]
+        got, ok = QInputDialog.getItem(self, "スタンプ", "形", names, 0, False)
+        return keys[names.index(got)] if ok else None
+
+    def stamp_from_canvas(self, spec=None):
+        from chatdraw import logo
+        spec = self._pick_spec(spec)
+        if spec is None:
+            return
+        image, folder = qimage_to_pil(self.canvas.flatten()), self._logo_folder("stamp")
+        self.activity.begin("スタンプにする", "ロゴ・スタンプ")
+        self._run_task(lambda _step: logo.export_stamps([image], folder, spec),
+                       lambda out: self._logo_done("スタンプを書き出しました", out))
+
+    def stamp_from_expressions(self, spec=None):
+        from chatdraw import logo
+        ident = getattr(self, "chara_id", "")
+        files = logo.expressions(ident) if ident else []
+        if not files:
+            self.notify("スタンプにできませんでした", "info",
+                        "表情差分がまだありません。キャラクターデザインのメニューで「表情差分を描く」を先に押してください")
+            return
+        spec = self._pick_spec(spec)
+        if spec is None:
+            return
+        folder = self._logo_folder("stamp")
+        self.activity.begin("表情差分をスタンプにする", "ロゴ・スタンプ")
+        self._run_task(lambda _step: logo.export_stamps(files, folder, spec, stem=ident),
+                       lambda out: self._logo_done("スタンプを書き出しました", out))
+
+    def _logo_done(self, msg: str, out: list):
+        self.activity.end(msg, None, record=False)
+        self.logo_out = out
+        where = str(Path(out[0]).parent) if out else ""
+        self.notify(msg, "ok", f"{len(out)} 個のファイルを {where} に置きました")
+
     def chara_sheet(self):
         from chatdraw import charadesign
         ident = getattr(self, "chara_id", "")
@@ -3528,6 +3637,10 @@ def main():
     dark(app)
     from chatdraw import fit
     fit.install(app)
+    from chatdraw import logo
+    if logo.icon_png() is not None:   # 選ばれたアイコンがあるときだけ替える。無い間は今のまま
+        from PySide6.QtGui import QIcon
+        app.setWindowIcon(QIcon(str(logo.icon_png())))
     w = Window()
     w.show()
     w.ask_models()
