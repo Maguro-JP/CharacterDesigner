@@ -56,8 +56,13 @@ def prompt_of(c: dict, view: str = "front") -> tuple[str, str]:
     look = ANIME_WORDS.sub("", c["look"]).strip(" ,")
     if view == "back":
         look = back_look(look)
-    pos = f"{look}, wearing {c['outfit']}, {PHOTO}"
-    neg = ", ".join(x for x in (NEGATIVE, c.get("negative", "")) if x)
+    # 主役の品は重みを付けて先頭に置く。流行の 10 人で、模型が流行の形を定番に寄せた（ズボンが細身で裾を折り返す 6 人、小物が抜ける 7 人、2026-11-01）
+    key = ", ".join(f"({k}:1.3)" for k in c.get("key", []))
+    pos = ", ".join(x for x in (key, look, f"wearing {c['outfit']}", PHOTO) if x)
+    extra = ""
+    if any(w in c["outfit"] for w in ("full length", "wide", "flare", "covering the shoes")):
+        extra = "(rolled-up hem:1.3), cuffed trousers, skinny pants, tapered pants"
+    neg = ", ".join(x for x in (NEGATIVE, c.get("negative", ""), extra) if x)
     return pos, neg
 
 
@@ -190,6 +195,17 @@ def check_view(im, view: str, outfit: str = "") -> list[str]:
     return bad
 
 
+def without_head(im):
+    """背面の手本にする正面の絵から、頭のあたり（上から 22%）を背景の色で塗りつぶす。
+    手本の顔ごと引っ張られて、流行の 10 人の背面 30 枚すべてに顔か横顔が描かれた（2026-11-01）。服だけを手本にする"""
+    import numpy as np
+    from PIL import Image
+    a = np.asarray(im.convert("RGB")).copy()
+    bg = np.median(np.concatenate([a[:8, :8], a[:8, -8:]]).reshape(-1, 3), axis=0).astype(a.dtype)
+    a[: int(a.shape[0] * 0.22)] = bg
+    return Image.fromarray(a)
+
+
 def details(img2img, im, pos, neg, seed, out: Path, name: str) -> list[dict]:
     import torch
     from PIL import Image
@@ -248,7 +264,7 @@ def main():
             text = f"{words}, {vpos}" if view == "back" else f"{vpos}, {words}"
             pe, ne, pp, np_ = design.encode_xl(pipe, text, ", ".join(x for x in (neg, away) if x))
             pipe.set_ip_adapter_scale(0.0 if front is None else BACK_IP_SCALE)
-            ref = front if front is not None else Image.new("RGB", (224, 224), "white")
+            ref = without_head(front) if front is not None else Image.new("RGB", (224, 224), "white")
             tries = []
             for k in range(TRIES[view]):   # 検品に落ちたら種を替えて描き直す。落ちた絵も -try<k> で残す
                 t = time.time()
@@ -262,7 +278,8 @@ def main():
                 if not bad:
                     break
                 im.save(out / f"{name}-{view}-try{k}.png")
-            im.save(out / f"{name}-{view}.png")
+            if not bad or view == "front":   # 落ちた背面は最終にしない（前後が食い違ったまま残った）。-try<k> だけ残る
+                im.save(out / f"{name}-{view}.png")
             rec["views"][view] = {"file": f"{name}-{view}.png", "prompt": text, "tries": tries, "passed": not tries[-1]["bad"]}
             if front is None:
                 front = im
