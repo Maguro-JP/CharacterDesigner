@@ -21,7 +21,14 @@
  "panels": [
   {
    "kind": "hero",
-   "area": "hero"
+   "area": "hero",
+   "scale": 1.2,
+   "anchor": "top",
+   "bleed": [
+    "bottom"
+   ],
+   "watermark": true,
+   "overlap": true
   },
   {
    "kind": "header",

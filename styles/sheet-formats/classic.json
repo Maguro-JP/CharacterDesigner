@@ -32,7 +32,15 @@
   },
   {
    "kind": "hero",
-   "area": "hero"
+   "area": "hero",
+   "scale": 1.12,
+   "anchor": "top",
+   "bleed": [
+    "bottom",
+    "left"
+   ],
+   "watermark": true,
+   "overlap": true
   },
   {
    "kind": "swatches",

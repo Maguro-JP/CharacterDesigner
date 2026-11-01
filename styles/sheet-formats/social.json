@@ -27,17 +27,28 @@
  "panels": [
   {
    "kind": "hero",
-   "area": "hero"
+   "area": "hero",
+   "scale": 1.55,
+   "anchor": "top",
+   "bleed": [
+    "bottom",
+    "left"
+   ],
+   "overlap": true
   },
   {
    "kind": "header",
-   "area": "head"
+   "area": "head",
+   "huge": true,
+   "pull": 0.07,
+   "overlap": true
   },
   {
    "kind": "expressions",
    "area": "expr",
    "cols": 3,
-   "max": 3
+   "max": 3,
+   "crop": "tight"
   },
   {
    "kind": "strip",

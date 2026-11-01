@@ -26,7 +26,8 @@
    "area": "turn",
    "title": "四面図",
    "sub": "同じ縮尺・足をそろえる",
-   "guides": true
+   "guides": true,
+   "watermark": true
   },
   {
    "kind": "swatches",

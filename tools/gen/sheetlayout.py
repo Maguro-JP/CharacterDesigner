@@ -28,6 +28,8 @@ CHROME = os.environ.get("SHEET_CHROME", "/opt/pw-browsers/chromium-1194/chrome-l
 # 横の向きの名前。四面図の絵は 正面・右向き・左向き・背面 の順に描いてある
 VIEW_NAMES = {4: ["正面", "右向き", "左向き", "背面"], 2: ["正面", "背面"], 1: ["正面"]}
 TILE_CROP = (0.10, 0.0, 0.90, 0.50)   # 表情の絵から頭と肩を切る割合。顔だけ（FACE_CROP）だと髪型と襟が切れて別人に見えた
+# 顔の大写し: 額と顎を枠で切る。実例の紹介頁は顔を大胆に切って目を大きく見せていた。表情の差は目と口に出るので、そこを残す
+TIGHT_CROP = (0.27, 0.12, 0.74, 0.36)
 
 
 def _uri(im, fmt="PNG") -> str:
@@ -75,12 +77,12 @@ def _hero(c, figs):
     return None, ""
 
 
-def _faces(ident, c, n):
+def _faces(ident, c, n, crop="bust"):
     from PIL import Image
     out = []
     for name, p in cs._expr_list(ident, c)[:n]:
         im = Image.open(bible.ROOT / p).convert("RGB")
-        x0, y0, x1, y1 = TILE_CROP
+        x0, y0, x1, y1 = TILE_CROP if crop == "bust" else TIGHT_CROP
         out.append((name, im.crop((int(x0 * im.width), int(y0 * im.height), int(x1 * im.width), int(y1 * im.height)))))
     return out
 
@@ -142,7 +144,11 @@ body{background:var(--page);color:var(--ink);font-family:var(--font);font-weight
 .meta{font-size:var(--t-body);color:var(--sub);margin-top:calc(var(--t-body) * .6);line-height:1.6}
 .meta b{color:var(--ink);font-weight:500}
 .fit{flex:1;position:relative;min-height:0}
-.fit img{position:absolute;display:block}
+.fit img{position:absolute;display:block;z-index:1}
+.fit{container-type:size}
+.wm{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;writing-mode:vertical-rl;font-family:var(--title-font);font-weight:900;
+  font-size:min(var(--t-wm), 92cqw, calc(96cqh / var(--wmn)));line-height:1;letter-spacing:.02em;color:color-mix(in srgb, var(--accent) 13%, transparent);white-space:nowrap;z-index:0}
+.name.huge{font-size:var(--t-huge);line-height:.95;letter-spacing:-.01em;position:relative;z-index:0}
 .shadow{position:absolute;border-radius:50%;background:radial-gradient(closest-side, color-mix(in srgb, var(--ink) 18%, transparent), transparent)}
 .guide{position:absolute;height:0;border-top:1px dashed color-mix(in srgb, var(--accent) 45%, transparent)}
 .guide.up span{top:auto;bottom:4px}
@@ -195,8 +201,10 @@ JS = r"""
     const img = box.querySelector('img'); if (!img) continue;
     const W = box.clientWidth, H = box.clientHeight - (box.dataset.cap ? parseFloat(getComputedStyle(document.body).getPropertyValue('--t-note')) * 2.8 : 0);
     const L = box.dataset.guides ? 56 : 0;   // 高さの線の名前を置く幅。人物と重ならないよう左に空けておく
-    const s = Math.min((W - L) / img.naturalWidth, H / img.naturalHeight);
-    const w = img.naturalWidth * s, h = img.naturalHeight * s, x = L + (W - L - w) / 2, y = H - h;
+    const k = parseFloat(box.dataset.scale || 1), top = box.dataset.anchor === 'top';
+    const s = Math.min((W - L) / img.naturalWidth, H / img.naturalHeight) * k;
+    // 拡大した主役は頭を区画の上にそろえ、はみ出した下（足）は版面の端で切る
+    const w = img.naturalWidth * s, h = img.naturalHeight * s, x = L + (W - L - w) / 2, y = top ? H * 0.02 : H - h;
     Object.assign(img.style, {left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px'});
     if (box.dataset.shadow) {
       const sh = document.createElement('div'); sh.className = 'shadow';
@@ -221,11 +229,12 @@ JS = r"""
   const out = {drawn: [], over: [], empty: []};
   const r = e => { const b = e.getBoundingClientRect(); return [b.left, b.top, b.right, b.bottom].map(v => Math.round(v * 2)); };
   for (const cell of document.querySelectorAll('.cell')) {
-    const cb = r(cell), area = cell.dataset.area;
+    const cb = r(cell), area = cell.dataset.area, free = !!(cell.dataset.bleed || cell.dataset.overlap);
     const items = cell.querySelectorAll('img, .name, .meta, .notes li, .chip, .face p, .cap, .guide span, .swt tr, .sbar, .strip, .lab, .call p');
     if (!items.length) out.empty.push(area);
     for (const it of items) {
-      const b = r(it); out.drawn.push([area, cb, b]);
+      const b = r(it); out.drawn.push([area, cb, b, free]);
+      if (free) { out.free = (out.free || 0) + ((b[0] < cb[0] - 2 || b[1] < cb[1] - 2 || b[2] > cb[2] + 2 || b[3] > cb[3] + 2) ? 1 : 0); continue; }
       if (b[0] < cb[0] - 2 || b[1] < cb[1] - 2 || b[2] > cb[2] + 2 || b[3] > cb[3] + 2) out.over.push([area, it.className || it.tagName, cb, b]);
     }
   }
@@ -248,6 +257,12 @@ def _swatch_html(sw, style):
         for s in sw) + "</div>"
 
 
+def _wm(c):
+    """人物の後ろに敷く名前の大きな文字（縦書き）。区画の高さに字数が収まる大きさにする"""
+    n = c["name"]
+    return f'<div class="wm" style="--wmn:{len(n)}">{html.escape(n)}</div>'
+
+
 def _panel_html(pn, ctx):
     e = html.escape
     k, c = pn["kind"], ctx["c"]
@@ -255,10 +270,17 @@ def _panel_html(pn, ctx):
     if k == "header":
         items = "・".join(i["name"] for i in c.get("items", [])[:3])
         meta = f'<div class="meta">持ち物 <b>{e(items)}</b></div>' if items and pn.get("meta", True) else ""
-        return (f'<div class="name">{e(c["name"])}</div><div class="kana">{e(ctx["ident"])} — {e(ctx["fm"]["title"])}</div>{meta}')
+        pull = f' style="margin-left:calc(-{pn["pull"] * 100:.1f}vw)"' if pn.get("pull") else ""   # 名前を主役の下へ引き込み、人物が文字にかぶさるようにする
+        return (f'<div class="name{" huge" if pn.get("huge") else ""}"{pull}>{e(c["name"])}</div><div class="kana">{e(ctx["ident"])} — {e(ctx["fm"]["title"])}</div>{meta}')
     if k == "hero":
         im, cap = ctx["hero"]
-        return f'<div class="fit" data-shadow="1"><img src="{_uri(im)}"></div>' if im else ""
+        if not im:
+            return ""
+        sc, anchor = pn.get("scale", 1), pn.get("anchor", "bottom")
+        shadow = ' data-shadow="1"' if sc <= 1 and anchor == "bottom" else ""   # 足が切れるときは影を置かない
+        # 名前の大きな文字を人物の後ろに敷く（実例では人物が名前や大きな文字にかぶさる作りがあった）
+        wm = _wm(c) if pn.get("watermark") else ""
+        return f'<div class="fit" data-scale="{sc}" data-anchor="{anchor}"{shadow}>{wm}<img src="{_uri(im)}"></div>'
     if k == "turnaround":
         figs = ctx["figs"]
         if not figs:
@@ -269,9 +291,10 @@ def _panel_html(pn, ctx):
             title = title.replace("四面図", "正面・背面図")
         caps = html.escape(json.dumps([[n, x] for (n, _), x in zip(figs, centers)], ensure_ascii=False))
         g = ' data-guides="1"' if pn.get("guides") else ""
-        return lab(title, pn.get("sub", "")) + f'<div class="fit" data-cap="1" data-caps="{caps}"{g}><img src="{_uri(im)}"></div>'
+        wm = _wm(c) if pn.get("watermark") else ""
+        return lab(title, pn.get("sub", "")) + f'<div class="fit" data-cap="1" data-caps="{caps}"{g}>{wm}<img src="{_uri(im)}"></div>'
     if k == "expressions":
-        faces = _faces(ctx["ident"], c, pn.get("max", 6))
+        faces = _faces(ctx["ident"], c, pn.get("max", 6), pn.get("crop", "bust"))
         if not faces:
             return ""
         cols = pn.get("cols", 3)
@@ -368,6 +391,8 @@ def _theme_vars(th, c, W, H, fm):
         "--title-font": serif if th.get("title_font", th.get("font")) == "serif" else sans,
         "--name-w": str(th.get("name_weight", 700)), "--radius": f"{th.get('card_radius', 4)}px",
     }
+    t.setdefault("wm", t["name"] * 3.2)
+    t.setdefault("huge", t["name"] * 1.9)
     for k, px in t.items():
         v[f"--t-{k}"] = f"{px * u:.2f}px"
     return v
@@ -383,10 +408,14 @@ def render(ident: str, fm: dict, th: dict, out_png: str, out_html: str | None = 
     ctx = {"c": c, "ident": ident, "fm": fm, "figs": figs, "hero": _hero(c, figs), "sw": cs._swatches(c), "notes": cs._notes(c),
            "turn": _row(figs) if figs else (None, [])}
     # 区画ごとに欄を積む。素材の無い欄は外し、区画が空になったら absorb の区画に面積を渡して格子を組み直す
-    cells, used = {}, []
+    cells, used, free = {}, [], {}
     for pn in fm["panels"]:
         body = _panel_html(pn, ctx)
         if body:
+            # 印（bleed: 版面の端で切ってよい辺、overlap: 隣の区画に重ねてよい）は区画ごとに集める。印の無い区画のはみ出しだけを崩れとして数える
+            f = free.setdefault(pn["area"], {"bleed": set(), "overlap": False})
+            f["bleed"] |= set(pn.get("bleed", []))
+            f["overlap"] |= bool(pn.get("overlap"))
             grow = " grow" if pn["kind"] in ("hero", "turnaround", "expressions", "poses") else (" fill" if pn.get("style") == "table" else "")
             cells.setdefault(pn["area"], []).append(f'<div class="panel{grow}" data-kind="{pn["kind"]}">{body}</div>')
             used.append(pn["kind"])
@@ -402,7 +431,13 @@ def render(ident: str, fm: dict, th: dict, out_png: str, out_html: str | None = 
     v["--areas"] = " ".join(f'"{" ".join(r)}"' for r in rows)
     v["--rows"] = " ".join(fm["rows"])
     style = ":root{" + ";".join(f"{k}:{val}" for k, val in v.items()) + "}"
-    body = "".join(f'<div class="cell" data-area="{a}" style="grid-area:{a}">{"".join(p)}</div>' for a, p in cells.items())
+    def cell(a, p):
+        f = free.get(a, {"bleed": set(), "overlap": False})
+        st = f"grid-area:{a}" + "".join(f";margin-{side}:calc(-1 * var(--m))" for side in sorted(f["bleed"]))
+        mark = (" data-bleed=\"" + " ".join(sorted(f["bleed"])) + "\"" if f["bleed"] else "") + (" data-overlap=\"1\"" if f["overlap"] else "")
+        z = ";z-index:2" if f["overlap"] or f["bleed"] else ""
+        return f'<div class="cell" data-area="{a}"{mark} style="{st}{z}">{"".join(p)}</div>'
+    body = "".join(cell(a, p) for a, p in cells.items())
     doc = (f'<!doctype html><html lang="ja"><meta charset="utf-8"><title>{html.escape(c["name"])} {html.escape(fm["title"])}</title>'
            f'<style>{_font_css()}\n{style}\n{CSS}</style><body><div class="bg"></div><div class="page">{body}</div></body></html>')
     with tempfile.TemporaryDirectory() as td:
@@ -420,5 +455,5 @@ def render(ident: str, fm: dict, th: dict, out_png: str, out_html: str | None = 
             b.close()
     if out_html:
         Path(out_html).write_text(doc, encoding="utf-8")
-    return {"size": [W, H], "panels": used, "drawn": res["drawn"], "outside_panel": len(res["over"]), "over": res["over"],
+    return {"size": [W, H], "panels": used, "drawn": res["drawn"], "outside_panel": len(res["over"]), "over": res["over"], "intended": res.get("free", 0),
             "empty": res["empty"]}

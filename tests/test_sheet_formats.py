@@ -1,5 +1,6 @@
 """設定画集の版（styles/sheet-formats/*.json）とテーマ（styles/sheet-themes/*.json）が読めること、
-版とテーマを組み合わせて出せること、欄が区画からはみ出さないこと、中身の無い区画を作らないこと"""
+版とテーマを組み合わせて出せること、印の無い区画からはみ出さないこと、中身の無い区画を作らないこと、
+各版が魅せる手（端で切る・重ねる・顔の大写し・名前の上に人物）を少なくとも1つ使うこと"""
 import json
 import sys
 from pathlib import Path
@@ -45,7 +46,9 @@ def test_sample_renders_without_overflow(name, tmp_path):
     assert r["empty"] == []
     from PIL import Image
     assert Image.open(tmp_path / f"{name}.png").size == tuple(r["size"])
-    for _, _, d in r["drawn"]:
+    for _, _, d, free in r["drawn"]:
+        if free:   # bleed / overlap の印のある区画は、端で切れたり隣に重なったりしてよい
+            continue
         assert d[0] >= 0 and d[1] >= 0 and d[2] <= W and d[3] <= H, d
 
 
@@ -73,7 +76,9 @@ def test_theme_and_format_combine_without_overflow(theme, name, tmp_path):
     r = charsheet.sheet_format("sheep-girl", name, str(tmp_path / "s.png"), theme=theme)
     W, H = r["size"]
     assert r["theme"] == theme and r["outside_panel"] == 0 and r["empty"] == []
-    for _, _, d in r["drawn"]:
+    for _, _, d, free in r["drawn"]:
+        if free:   # bleed / overlap の印のある区画は、端で切れたり隣に重なったりしてよい
+            continue
         assert d[0] >= 0 and d[1] >= 0 and d[2] <= W and d[3] <= H, d
 
 
@@ -91,3 +96,12 @@ def test_suggest_puts_matching_theme_first():
 def test_unknown_theme_fails():
     with pytest.raises(SystemExit):
         charsheet.load_theme("no-such-theme")
+
+
+@pytest.mark.parametrize("name", NAMES)
+def test_each_format_uses_a_bold_device(name):
+    # 区画からはみ出さない決まりだけでは、主役が台紙に収まった平板な版になった
+    fm = charsheet.load_format(name)
+    marks = [k for pn in fm["panels"] for k in ("bleed", "overlap", "watermark", "huge") if pn.get(k)]
+    marks += ["tight" for pn in fm["panels"] if pn.get("crop") == "tight"]
+    assert marks, name
