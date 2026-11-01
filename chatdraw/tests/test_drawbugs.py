@@ -412,7 +412,7 @@ class FetchTest(unittest.TestCase):
                 def __exit__(self, *a):
                     return False
             with mock.patch.object(setup, "words_path", return_value=dest), mock.patch.object(setup, "llm_lib_ready", return_value=True), \
-                    mock.patch("urllib.request.urlopen", side_effect=lambda req: Resp(req)), \
+                    mock.patch("urllib.request.urlopen", side_effect=lambda req, timeout=None: Resp(req)), \
                     mock.patch.object(setup, "free_gb", return_value=500.0):
                 setup.Fetcher()._words(WORDS[0], False)
             self.assertEqual(dest.read_bytes(), body)

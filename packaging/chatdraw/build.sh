@@ -18,13 +18,16 @@ command -v makensis >/dev/null || { echo "makensis が無い（apt install nsis�
 rm -rf "$B"; mkdir -p "$SRC" "$OUT/download"
 cd "$ROOT"
 # 中身は HEAD から取る。コミットしていない変更は入らないので、残っていれば止める
-if [ -n "$(git status --porcelain --untracked-files=normal -- chatdraw packaging/chatdraw VERSION)" ]; then
-  echo "コミットしていない変更がある。コミットしてから組む:" >&2; git status --short -- chatdraw packaging/chatdraw >&2; exit 1
+if [ -n "$(git status --porcelain --untracked-files=normal -- chatdraw packaging/chatdraw VERSION tools styles casts config)" ]; then
+  echo "コミットしていない変更がある。コミットしてから組む:" >&2; git status --short -- chatdraw packaging/chatdraw tools styles casts config >&2; exit 1
 fi
 
 echo "== chatdraw（HEAD）"
-git archive HEAD chatdraw VERSION LICENSE tools/gen/hands.py tools/gen/cdhome.py tools/gen/tagger.py tools/gen/retouch.py tools/gen/cleanup.py tools/gen/inking.py tools/gen/atmosphere.py tools/gen/materials.py tools/gen/bible.py | tar -x -C "$SRC"   # 検品の測り方（tools/gen/hands.py）も入れる
-# 仕上げ（chatdraw/finishers.py）とキャラクターデザイン（chatdraw/charadesign.py）が読む tools/gen の台本も入れる
+# 入れる物は chatdraw/ から import と道の文字列を辿って集める（bundle_list.py）。手で並べた一覧では tools/gen の台本と
+# styles・casts の設定が抜け、配った版で検品・おまかせ・仕上げ・キャラクターデザインが import で落ちた。
+# 配る中身だけで入口が呼べるかは tests/test_bundle.py が見る
+python3 "$ROOT/packaging/chatdraw/bundle_list.py" > "$B/files.txt"
+git archive HEAD $(cat "$B/files.txt") | tar -x -C "$SRC"
 rm -rf "$SRC/chatdraw/tests"
 
 echo "== Python $PYVER（埋め込み版）"
