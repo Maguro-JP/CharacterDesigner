@@ -39,11 +39,29 @@ def is_favorite(path: str) -> bool:
     return str(path) in favorites()
 
 
-def set_favorite(path: str, on: bool = True):
+def set_favorite(path: str, on: bool = True, learn: bool = True):
     favs = [p for p in favorites() if p != str(path)]
     if on:
         favs.insert(0, str(path))
     _save(favs)
+    if on and learn:
+        learn_from(path, "pass")
+
+
+def learn_from(path, value: str, reason: str = ""):
+    """利用者の判定（★ は通す、戻すは戻す）から作画監督の基準を学び直す（chatdraw/origqc.py）。
+    測るのに数秒かかるので、画面を止めないよう裏で行う。学べなくても ★ そのものは付ける"""
+    import threading
+
+    def work():
+        try:
+            from chatdraw import origqc
+            origqc.verdict(path, value, reason)
+        except Exception:
+            pass
+    t = threading.Thread(target=work, daemon=True)
+    t.start()
+    return t
 
 
 def toggle(path: str) -> bool:

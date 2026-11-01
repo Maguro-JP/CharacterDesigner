@@ -97,7 +97,7 @@ def install_engine(say=lambda msg, pct: None):
     ver = re.search(r"__version__\s*=\s*['\"]([^'\"]+)", (lib / "torch" / "version.py").read_text()).group(1)
     say("絵を描く部品の続きを入れています（数分かかります）", -1)
     # ai-edge-litert と onnxruntime は、描いた絵を検品する模型を読む部品（chatdraw/handcheck.py、requestcheck.py）
-    # scipy と scikit-image は、模型を使わない仕上げ（chatdraw/finishers.py の retouch・ink・質感）が使う部品
+    # scipy は数字の作画監督（chatdraw/origqc.py）も使う。scipy と scikit-image は、模型を使わない仕上げ（chatdraw/finishers.py の retouch・ink・質感）が使う部品
     # diffusers は FLUX.2 klein（Flux2KleinPipeline）が入った 0.37 以上。古いと新しい世代の模型を読めない
     run_pip(pip + [DIFFUSERS, "transformers", "accelerate", "huggingface_hub", "safetensors", "ai-edge-litert", "onnxruntime",
                    "scipy", "scikit-image", f"torch=={ver}",
