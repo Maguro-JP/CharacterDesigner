@@ -409,6 +409,10 @@ class Words:
 
     def ask(self, system: str, text: str, max_tokens: int = 64, one_line: bool = True) -> str:
         """1 回の問い。one_line なら 1 行目で止める（使うのは 1 行目だけなので、残りを作らせない）"""
+        return self.chat([{"role": "system", "content": system}, {"role": "user", "content": text}], max_tokens, one_line)
+
+    def chat(self, messages: list[dict], max_tokens: int = 200, one_line: bool = False) -> str:
+        """会話の問い。履歴は利用者と模型の発言に分けて渡す（1 つの文にまとめると、小さい模型は前の発言を今の頼みと取り違えた）"""
         import re
         llm = _llm_for(self.path)
         sampling = dict(temperature=0.2, max_tokens=max_tokens,
@@ -420,13 +424,12 @@ class Words:
             # Qwen の形を自分で組む。考える模型（Qwen3.5）は、何もしないと <think> の中で数百トークン考えてから答え、
             # max_tokens を使い切ると答えが空になった。考える欄を空で閉じてから答えさせる。
             # 指示の部分は毎回同じなので、llama.cpp が前回の KV を使い回し、読み直すのは頼みの分だけになる
-            prompt = (f"<|im_start|>system\n{system}<|im_end|>\n<|im_start|>user\n{text}<|im_end|>\n<|im_start|>assistant\n"
+            prompt = ("".join(f"<|im_start|>{m['role']}\n{m['content']}<|im_end|>\n" for m in messages) + "<|im_start|>assistant\n"
                       + ("<think>\n\n</think>\n\n" if "think" in template else ""))
             out = llm.create_completion(prompt, stop=stop, **sampling)
             reply = out["choices"][0]["text"]
         else:
-            out = llm.create_chat_completion(messages=[{"role": "system", "content": system}, {"role": "user", "content": text}],
-                                             stop=stop, **sampling)
+            out = llm.create_chat_completion(messages=messages, stop=stop, **sampling)
             reply = out["choices"][0]["message"]["content"] or ""
         self.tokens = (out.get("usage") or {}).get("completion_tokens", 0)
         reply = re.sub(r"<think>.*?(</think>|$)", "", reply, flags=re.S)   # 閉じていない考えも捨てる

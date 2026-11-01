@@ -1,6 +1,9 @@
 """模型の管理。目録の絵の模型を全部並べ、絞り込みと並べ替え、取得・使う・削除・更新と、Hugging Face の名前で足す入口を持つ。
 
-見せるのは、名前・点（1 つの数）・大きさ・世代・商用の可否・得意なこと（1 行）・タグだけにする（点の細目や置き場の道は見せない）。
+行に出すのは、名前・点（1 つの数）・大きさ・取得済みか・得意なこと（1 行）だけにする。詳しいこと（商用の可否など）はカーソルを
+合わせたときのツールチップにまとめる（tip / words_tip）。道・型番・Hugging Face の名前・世代の名前は利用者に要らないので出さない。
+模型を選ぶ入口はこの画面の 1 か所だけ（設定の窓には出さない）。言葉の模型の「使う」「使わない」もここで選び、選んだ物は覚えて
+起動のたびに聞かない（words_chosen）。
 点は利用者が付けた点があればそれ、無ければ目録の点（ratings）。既定の並びは点の高い順。
 手元にある模型はどの絞り込みでも先頭に出し、その中で ★（お気に入り）を先にする。非表示にした物は「非表示にした模型」にだけ出す。
 ボタンが増えて並びが混まないように、まれにしか使わない操作（点・タグ・削除、ディレクトリ）はドロップダウンにまとめる。
@@ -18,7 +21,7 @@ from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import (QComboBox, QDialog, QFrame, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMenu, QMessageBox,
                                QProgressBar, QPushButton, QToolButton, QVBoxLayout, QWidget)
 
-from chatdraw.models import FILTERS, FITS, HIDDEN, SORTS, WORDS, ImageModel, catalog_images, family, fits, heavy, machine, pick, run_mode, verified_words
+from chatdraw.models import FILTERS, HIDDEN, SORTS, WORDS, ImageModel, catalog_images, family, fits, machine, pick, verified_words
 from chatdraw.paths import GGUF, HUB, OWN_LLM
 from chatdraw.setup import AUTO, Fetcher, folder_gb
 
@@ -57,6 +60,45 @@ def installed() -> list[Item]:
             seen.add(f.name)
             items.append(Item("words", files.get(f.name, f.stem), f, f.stat().st_size / 1e9, str(f)))
     return items
+
+
+NO_WORDS_TIP = "言葉の模型を使いません。日本語の頼みは語の表で英語に直し、チャットは操作だけに答えます"
+
+
+def license_gist(m) -> str:
+    """ライセンスの要点（「商用可」「商用不可」など、括弧の前だけ）"""
+    return (getattr(m, "commercial", "") or "札を確かめる").split("（")[0]
+
+
+def tip(m: ImageModel, have: bool, pc: tuple[float, float] | None = None) -> str:
+    """絵の模型のツールチップ。名前・評価の数 1 つ・得意な物・大きさ・取得済みか・ライセンスの要点。動かない PC のときだけそれも書く"""
+    from chatdraw.ratings import rating_text
+    lines = [m.name, f"評価: {rating_text(m)}",
+             f"得意: {m.good}" if m.good else "", f"大きさ: {m.gb:.1f}GB", "取得済み" if have else "まだ取っていません",
+             f"商用: {license_gist(m)}"]
+    if pc is not None and fits(m, *pc) == "no":
+        lines.append("この PC ではメモリが足りません")
+    return "\n".join(x for x in lines if x)
+
+
+def words_tip(m, have: bool) -> str:
+    """言葉の模型のツールチップ（m は WordsModel。目録に無い .gguf は名前と大きさだけ）"""
+    lines = [m.name, f"評価: {m.score} 点" if getattr(m, "score", 0) else "", f"得意: {m.good}" if getattr(m, "good", "") else "",
+             f"大きさ: {m.gb:.1f}GB", "取得済み" if have else "まだ取っていません"]
+    return "\n".join(x for x in lines if x)
+
+
+def words_chosen(settings) -> bool:
+    """言葉の模型を利用者が選んだ（「使わない」を含む）か。選んだら起動のたびには聞かない"""
+    store = getattr(settings, "store", None)
+    value = store.value("words_chosen", 0) if store is not None else settings.get("words_chosen")
+    return bool(int(value or 0))
+
+
+def choose_words(settings, path: str):
+    """言葉の模型を選んで覚える。空なら「使わない」"""
+    settings.set("words_model", path)
+    settings.set("words_chosen", 1)
 
 
 def delete(item: Item):
@@ -143,6 +185,8 @@ class ModelManager(QDialog):
         a.setToolTip("絵と言葉の模型を置く所。ほかの自作アプリと共有します")
         a = folder_menu.addAction("手で置く模型", self.open_manual_dir)
         a.setToolTip("ここに .safetensors か、model_index.json のあるディレクトリを置くと、一覧に出ます")
+        a = folder_menu.addAction("模型の置き場を変える…", self.change_model_dir)
+        a.setToolTip("絵と言葉の模型を置く所を変えます。次の起動から効きます。前の置き場の模型は動かしません")
         self.folder_button.setMenu(folder_menu)
         pick = QPushButton("ファイルを選んで使う…")
         pick.setToolTip("手元の絵の模型（.safetensors）を選んで、そのまま使います。ファイルは動かしません")
@@ -169,7 +213,7 @@ class ModelManager(QDialog):
 
     def in_use(self, item: Item) -> bool:
         key = self.settings.get("image_model" if item.kind == "image" else "words_model")
-        if key == AUTO:
+        if key in (AUTO, ""):
             return False
         return key == item.key if item.kind == "image" else Path(key).name == item.path.name
 
@@ -207,13 +251,35 @@ class ModelManager(QDialog):
         head.setObjectName("dialogTitle")
         self.list.addWidget(head)
         words = [it for it in have if it.kind == "words"]
+        none = words_chosen(self.settings) and not self.settings.get("words_model")
+        box = self._row("使わない", "", "使用中" if none else "使う", None if none else self.use_no_words)
+        box.setToolTip(NO_WORDS_TIP)
+        self.list.addWidget(box)
+        known = {m.file: m for m in WORDS}
         for it in words:
-            self.list.addWidget(self._row(it.name, f"{it.gb:.1f}GB", "使用中" if self.in_use(it) else "削除",
-                                          None if self.in_use(it) else (lambda _=False, it=it: self.ask_delete(it))))
+            used = self.in_use(it)
+            box = self._row(it.name, f"{it.gb:.1f}GB・取得済み", "使用中" if used else "使う",
+                            None if used else (lambda _=False, it=it: self.use_words(it.key)),
+                            "" if used else "削除", None if used else (lambda _=False, it=it: self.ask_delete(it)))
+            m = known.get(it.path.name)
+            box.setToolTip(words_tip(m, True) if m else words_tip(it, True))
+            self.list.addWidget(box)
         names = {it.name for it in words}
         for m in verified_words():
             if m.name not in names:
-                self.list.addWidget(self._row(m.name, f"{m.gb:.1f}GB", "取る", lambda _=False, m=m: self.fetch(m)))
+                box = self._row(m.name, f"{m.gb:.1f}GB", "取る", lambda _=False, m=m: self.fetch(m))
+                box.setToolTip(words_tip(m, False))
+                self.list.addWidget(box)
+
+    def use_words(self, path: str):
+        choose_words(self.settings, path)
+        self.status.setText(f"言葉の模型に {Path(path).stem} を使います。次からは聞きません")
+        self._changed()
+
+    def use_no_words(self):
+        choose_words(self.settings, "")
+        self.status.setText("言葉の模型を使いません。使うときはここで選びます")
+        self._changed()
 
     def _image_actions(self, key: str, it: "Item | None", m: ImageModel | None = None):
         """ボタン（名前と働き）。取っていなければ「取る」、取ってあれば「使う」、使っている物は「使用中」。削除は「…」の中"""
@@ -337,25 +403,15 @@ class ModelManager(QDialog):
         self.refresh()
 
     def _image_row(self, m: ImageModel, it: "Item | None") -> QWidget:
-        from chatdraw.ratings import rating_text, tags, user_rating
-        sure = rating_text(m) + ("（自分の点）" if user_rating(m.repo) else "")
-        deal = (m.commercial or "札を確かめる").split("（")[0]
+        from chatdraw.ratings import rating_text, user_rating
         if not hasattr(self, "_pc"):
             self._pc = machine()   # この PC の VRAM とメモリ（1 回だけ測る）
-        can = fits(m, *self._pc)
-        need_vram, need_ram = heavy(m)
-        how = "動き方: " + run_mode(m, *self._pc) if can != "no" else ""   # GPU か、分けて GPU か、CPU か
-        meta = "・".join(x for x in (sure, f"{m.gb:.1f}GB", family(m.family).name, deal, FITS[can], how) if x)
-        pc = (f"この PC: VRAM {self._pc[0]:.0f}GB、メモリ {self._pc[1]:.0f}GB" if self._pc[0] else f"この PC: GPU なし、メモリ {self._pc[1]:.0f}GB")
-        tip = "\n".join(x for x in (f"Hugging Face: {m.hub}" + (f" の {m.file}" if m.file else ""), m.good, f"商用: {m.commercial or '札を確かめる'}",
-                                     f"重さ: GPU で描くには VRAM {need_vram:g}GB 以上、メモリ {need_ram:g}GB 以上（{pc}）",
-                                     "まだ動かして確かめていない模型です。崩れが多いことがあります" if m.score <= 0 else "", m.note) if x)
+        sure = rating_text(m) + ("（自分の点）" if user_rating(m.repo) else "")
+        meta = "・".join(x for x in ("取得済み" if it is not None else "", sure, f"{m.gb:.1f}GB") if x)
         actions = self._image_actions(m.repo, it, m)
-        sub = m.good + ("\n" + " ".join(f"#{t}" for t in tags(m)) if tags(m) else "")
-        if it is not None:
-            meta = "取得済み・" + meta
-        box = self._row(m.name, meta, *actions[:2], sub=sub, more=self._more(m, actions), star=m)
-        box.setToolTip(tip)
+        box = self._row(m.name, meta, *actions[:2], sub=m.good, more=self._more(m, actions), star=m)
+        box.model = m   # 試験と右クリックで、どの模型の行かを引く
+        box.setToolTip(tip(m, it is not None, self._pc))
         return box
 
     def use(self, key: str, m: ImageModel | None):
@@ -385,6 +441,23 @@ class ModelManager(QDialog):
         self.hf_name.clear()
         self.status.setText(f"{m.name} を一覧に足しました（{family(m.family).name}、約 {m.gb:.1f}GB、未確認）。「取る」で取れます")
         self._changed()
+
+    def change_model_dir(self, path: str | None = None):
+        """模型の置き場を変える（設定の窓から移した）。起動の最初に読むので、QSettings ではなくファイルに書く"""
+        from chatdraw.paths import chosen_model_dir, set_model_dir
+        if path is None:
+            from PySide6.QtWidgets import QFileDialog
+            path = QFileDialog.getExistingDirectory(self, "模型の置き場", chosen_model_dir())
+            if not path:
+                return
+        if path == chosen_model_dir():
+            return
+        try:
+            set_model_dir(path)
+        except OSError as e:
+            self.status.setText(f"模型の置き場を変えられませんでした: {e}")
+            return
+        self.status.setText("模型の置き場を変えました。次の起動から使います。前の置き場の模型は動かしていません")
 
     def open_manual_dir(self):
         """手で置く模型の置き場を作って開く（エクスプローラー）"""

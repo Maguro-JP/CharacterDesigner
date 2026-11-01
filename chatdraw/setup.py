@@ -590,7 +590,8 @@ class SetupDialog(QDialog):
             self.settings.set("image_model", image.repo)
             self.settings.set("steps", image.steps)
             self.settings.set("guidance", image.guidance)
-        self.settings.set("words_model", str(words_path(words)) if words else "")
+        if not int(self.settings.store.value("words_chosen", 0) or 0):   # 利用者が選んだ言葉の模型は書き換えない
+            self.settings.set("words_model", str(words_path(words)) if words else "")
         self.settings.set("setup_done", 1)
 
     # ---- 3 枚目: 案内 ----

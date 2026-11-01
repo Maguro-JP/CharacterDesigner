@@ -870,7 +870,6 @@ class Window(QMainWindow):
         setting_menu.addAction(QAction("設定…", self, shortcut="Ctrl+,", triggered=self.open_settings))
         setting_menu.addAction(QAction("キーの設定…", self, triggered=self.open_keys))
         setting_menu.addAction(QAction("並びを初めの形に戻す", self, triggered=self.reset_layout))
-        setting_menu.addAction(QAction("模型の管理（入れ替え・更新）…", self, triggered=lambda: self.ask_models(force=True)))
         sel = self.menuBar().addMenu("選択範囲")
         sel.addAction(QAction("すべてを選択", self, shortcut="Ctrl+A", triggered=self.canvas.select_all))
         sel.addAction(QAction("選択を解除", self, shortcut="Ctrl+D", triggered=lambda: self.canvas.set_selection(None)))
@@ -1995,8 +1994,6 @@ class Window(QMainWindow):
         dlg = SettingsDialog(self.settings, self)
         if dlg.exec():
             g = self.settings.get
-            if getattr(dlg, "model_dir_changed", False):
-                self.notify("模型の置き場を変えました", "info", "次に起動したときから新しい置き場を使います。前の置き場の模型は動かしていません")
             self.studio = self._studio_from_settings()
             self.strength.setValue(int(g("rough_follow") * 100))
             self.check_ai()
@@ -2018,6 +2015,9 @@ class Window(QMainWindow):
         from chatdraw.models import SUPERSEDED, WORDS, offered_words
         from chatdraw.setup import Fetcher, has_words, words_path
         # 言葉の模型は利用者に選ばせず、確かめていちばん点の高い物を使う。利用者が自分で置いた模型（一覧に無い物）はそのまま
+        from chatdraw.manager import words_chosen
+        if words_chosen(self.settings):   # 利用者が選んだ物（「使わない」を含む）は勝手に替えない
+            return
         now = self.settings.get("words_model")
         best = offered_words()
         new = best[0] if best else None
@@ -2041,6 +2041,44 @@ class Window(QMainWindow):
         self.watch_fetch(self.upgrader, "言葉の模型")
         self.statusBar().showMessage(f"新しい言葉の模型 {new.name} を裏で取っています", 6000)
         threading.Thread(target=self.upgrader.run, args=(None, new), daemon=True).start()
+
+    def ask_words_once(self, pick=None):
+        """言葉の模型を一度だけ選んでもらう。選んだ物（「使わない」を含む）は覚え、次の起動からは聞かない。
+        変えるのは模型の管理から。pick は試験で窓の代わりに答えを返す関数（items を受けて 1 つ返す。None はやめた）"""
+        from chatdraw.manager import choose_words, words_chosen
+        from chatdraw.models import offered_words
+        from chatdraw.setup import has_words, words_path
+        if words_chosen(self.settings):
+            return
+        offered = offered_words()
+        if not offered:
+            return   # 選べる物が無いうちは聞かない（聞いても「使わない」しか無い）
+        labels = [f"{m.name}（{m.gb:.1f}GB{'・取得済み' if has_words(m) else ''}）" for m in offered] + ["使わない"]
+        now = Path(self.settings.get("words_model") or "").name
+        first = next((i for i, m in enumerate(offered) if m.file == now), 0)
+        if pick is None:
+            from PySide6.QtWidgets import QInputDialog
+            got, ok = QInputDialog.getItem(self, "言葉の模型", "日本語の頼みとチャットに使う模型を選んでください。\n"
+                                           "選んだ物を覚え、次からは聞きません。あとで「模型の管理」から変えられます。",
+                                           labels, first, False)
+            got = got if ok else None
+        else:
+            got = pick(labels)
+        if got is None or got == "使わない":
+            choose_words(self.settings, "")
+            self.statusBar().showMessage("言葉の模型を使いません。使うときは「模型の管理」から選びます", 6000)
+        else:
+            m = offered[labels.index(got)]
+            choose_words(self.settings, str(words_path(m)))
+            if not has_words(m):
+                import threading
+                from chatdraw.setup import Fetcher
+                self.words_fetcher = Fetcher()
+                self.words_fetcher.finished.connect(lambda _err="": (setattr(self, "studio", self._studio_from_settings()),
+                                                                   self.check_ai()), Qt.QueuedConnection)
+                self.watch_fetch(self.words_fetcher, "言葉の模型")
+                threading.Thread(target=self.words_fetcher.run, args=(None, m), daemon=True).start()
+        self.studio = self._studio_from_settings()
 
     # ---- AI のメニュー: 模型の切り替え ----
     def _fill_ai_menu(self):
@@ -2114,7 +2152,8 @@ class Window(QMainWindow):
             need = m is not None and not has_words(m) or key == AUTO and not any(has_words(x) for x in WORDS)
             if m is None and key not in (AUTO, ""):
                 from chatdraw.paths import find_gguf
-                self.settings.set("words_model", str(find_gguf(key) or key))   # 利用者が自分で置いた模型
+                from chatdraw.manager import choose_words
+                choose_words(self.settings, str(find_gguf(key) or key))   # 利用者が自分で置いた模型
                 self.studio = self._studio_from_settings()
                 self.check_ai()
                 return
@@ -2130,7 +2169,8 @@ class Window(QMainWindow):
                 self.settings.set("steps", m.steps)
                 self.settings.set("guidance", m.guidance)
         else:
-            self.settings.set("words_model", key if key in (AUTO, "") else str(words_path(m)))
+            from chatdraw.manager import choose_words
+            choose_words(self.settings, key if key in (AUTO, "") else str(words_path(m)))
         self.studio = self._studio_from_settings()
         self.check_ai()
         self._fill_ai_menu()
@@ -3022,6 +3062,7 @@ def main():
     w = Window()
     w.show()
     w.ask_models()
+    w.ask_words_once()
     w.upgrade_models()
     w.check_ai()
     w.offer_restore()

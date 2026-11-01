@@ -84,7 +84,7 @@ class RatingsTest(unittest.TestCase):
 
             def cards():
                 return [w for w in (dlg.list.itemAt(i).widget() for i in range(dlg.list.count()))
-                        if w and w.objectName() == "card" and "Hugging Face:" in w.toolTip()]
+                        if w and w.objectName() == "card" and hasattr(w, "model")]
 
             def title(c):
                 return c.findChildren(QLabel)[0].text()

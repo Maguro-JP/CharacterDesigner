@@ -213,10 +213,9 @@ class SettingsTest(unittest.TestCase):
             self.assertEqual(st.get("steps"), 24)
             dlg = SettingsDialog(st)
             dlg.inputs["steps"][1].setValue(30)
-            dlg.inputs["image_model"][1].setCurrentText("Lykon/dreamshaper-xl-lightning")
+            self.assertNotIn("image_model", dlg.inputs)   # 模型は模型の管理の 1 か所で選ぶ
             dlg.save()
             self.assertEqual(st.get("steps"), 30)
-            self.assertEqual(st.get("image_model"), "Lykon/dreamshaper-xl-lightning")
 
 
 class DrawTest(unittest.TestCase):
@@ -598,13 +597,13 @@ class ManagerTest(unittest.TestCase):
             def cards():
                 return [dlg.list.itemAt(i).widget() for i in range(dlg.list.count())
                         if dlg.list.itemAt(i).widget() and dlg.list.itemAt(i).widget().objectName() == "card"]
-            every = [c for c in cards() if "Hugging Face:" in c.toolTip()]
+            every = [c for c in cards() if hasattr(c, "model")]
             self.assertEqual(len(every), len(models.IMAGES))                  # 既定で目録の全部を出す
             metas = " ".join(lb.text() for c in every for lb in c.findChildren(QLabel))
             self.assertIn("未確認", metas)
             self.assertIn("85 点", metas)                                     # 点は 1 つの数だけ出す
             dlg.filter.setCurrentText("推奨（確かめ済み）")
-            rec = [c for c in cards() if "Hugging Face:" in c.toolTip()]
+            rec = [c for c in cards() if hasattr(c, "model")]
             self.assertEqual(len(rec), len([m for m in models.IMAGES if m.score >= models.PASS]))
             dlg.filter.setCurrentText("すべて")
             entry = dict(repo="me/mine", name="mine", good="自分で足した模型", family="sdxl", format="full", gb=6.9, steps=24,
@@ -613,7 +612,7 @@ class ManagerTest(unittest.TestCase):
             self.assertEqual(dlg.status.text(), "見つかりません")
             dlg._probed(entry, "")
             self.assertIn("未確認", dlg.status.text())
-            self.assertEqual(len([c for c in cards() if "Hugging Face:" in c.toolTip()]), len(models.IMAGES) + 1)
+            self.assertEqual(len([c for c in cards() if hasattr(c, "model")]), len(models.IMAGES) + 1)
             models._USER.clear()
 
 
