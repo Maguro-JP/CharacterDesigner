@@ -29,7 +29,7 @@ CHROME = os.environ.get("SHEET_CHROME", "/opt/pw-browsers/chromium-1194/chrome-l
 VIEW_NAMES = {4: ["正面", "右向き", "左向き", "背面"], 2: ["正面", "背面"], 1: ["正面"]}
 TILE_CROP = (0.10, 0.0, 0.90, 0.50)   # 表情の絵から頭と肩を切る割合。顔だけ（FACE_CROP）だと髪型と襟が切れて別人に見えた
 # 顔の大写し: 額と顎を枠で切る。実例の紹介頁は顔を大胆に切って目を大きく見せていた。表情の差は目と口に出るので、そこを残す
-TIGHT_CROP = (0.27, 0.12, 0.74, 0.36)
+TIGHT_CROP = (0.22, 0.09, 0.79, 0.38)   # 角や髪飾りのある頭で、角が切れて頭の形が読めないほどには寄らない
 
 
 def _uri(im, fmt="PNG") -> str:
@@ -280,7 +280,10 @@ def _panel_html(pn, ctx):
         shadow = ' data-shadow="1"' if sc <= 1 and anchor == "bottom" else ""   # 足が切れるときは影を置かない
         # 名前の大きな文字を人物の後ろに敷く（実例では人物が名前や大きな文字にかぶさる作りがあった）
         wm = _wm(c) if pn.get("watermark") else ""
-        return f'<div class="fit" data-scale="{sc}" data-anchor="{anchor}"{shadow}>{wm}<img src="{_uri(im)}"></div>'
+        # clip の辺は区画の線で切る。拡大した人物が隣の図の文字（高さの線の名前など）にかぶるのを防ぐ
+        ins = " ".join("0" if sd in pn.get("clip", []) else "-100vw" for sd in ("top", "right", "bottom", "left"))
+        clip = f' style="clip-path:inset({ins})"' if pn.get("clip") else ""
+        return f'<div class="fit" data-scale="{sc}" data-anchor="{anchor}"{shadow}{clip}>{wm}<img src="{_uri(im)}"></div>'
     if k == "turnaround":
         figs = ctx["figs"]
         if not figs:
@@ -319,13 +322,13 @@ def _panel_html(pn, ctx):
         notes = ctx["notes"]
         if pn.get("brief"):   # 総覧では各注記の最初の一文だけにする。全文は作画用の版に載せる（狭い欄に全文を詰めると欄からあふれた）
             notes = [t.split("。")[0] for t in notes]
-            # 長い文は最初の読点までにし、それでも長ければ項目名だけにする（「…」で切ると文の途中で切れて見えた）
+            # 長い文は最初の読点までにする（「…」で切ると文の途中で切れて見え、項目名だけにすると見出しの羅列に見えた）
             def cut(t):
                 k, _, v = t.partition(": ")
                 if len(v) <= 24:
                     return t
                 head = v.split("、")[0]
-                return f"{k}: {head}" if len(head) <= 24 else k
+                return f"{k}: {head}"
             notes = [cut(t) for t in notes]
         lis = "".join(f'<li><span><b>{e(t.split(": ", 1)[0])}</b>　{e(t.split(": ", 1)[1] if ": " in t else "")}</span></li>' for t in notes)
         if pn.get("columns"):
@@ -431,11 +434,14 @@ def render(ident: str, fm: dict, th: dict, out_png: str, out_html: str | None = 
     v["--areas"] = " ".join(f'"{" ".join(r)}"' for r in rows)
     v["--rows"] = " ".join(fm["rows"])
     style = ":root{" + ";".join(f"{k}:{val}" for k, val in v.items()) + "}"
+    hero_areas = {pn["area"] for pn in fm["panels"] if pn["kind"] == "hero"}
+
     def cell(a, p):
         f = free.get(a, {"bleed": set(), "overlap": False})
         st = f"grid-area:{a}" + "".join(f";margin-{side}:calc(-1 * var(--m))" for side in sorted(f["bleed"]))
         mark = (" data-bleed=\"" + " ".join(sorted(f["bleed"])) + "\"" if f["bleed"] else "") + (" data-overlap=\"1\"" if f["overlap"] else "")
-        z = ";z-index:2" if f["overlap"] or f["bleed"] else ""
+        # 主役の区画を最も手前に置く。名前に重ねるときは、名前（overlap の印だけの区画）より人物を上にする
+        z = ";z-index:3" if a in hero_areas else (";z-index:1" if f["overlap"] or f["bleed"] else "")
         return f'<div class="cell" data-area="{a}"{mark} style="{st}{z}">{"".join(p)}</div>'
     body = "".join(cell(a, p) for a, p in cells.items())
     doc = (f'<!doctype html><html lang="ja"><meta charset="utf-8"><title>{html.escape(c["name"])} {html.escape(fm["title"])}</title>'

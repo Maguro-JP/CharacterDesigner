@@ -21,18 +21,18 @@
   "name": 60,
   "head": 18,
   "body": 15.5,
-  "note": 12.5
+  "note": 12.5,
+  "huge": 92
  },
  "panels": [
   {
    "kind": "hero",
-   "area": "hero",
-   "watermark": true,
-   "overlap": true
+   "area": "hero"
   },
   {
    "kind": "header",
-   "area": "head"
+   "area": "head",
+   "huge": true
   },
   {
    "kind": "swatches",

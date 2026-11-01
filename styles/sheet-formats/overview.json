@@ -14,21 +14,23 @@
  ],
  "rows": [
   "auto",
-  "1.15fr",
-  "1fr"
+  "1fr",
+  "1.15fr"
  ],
  "margin": 0.04,
  "panels": [
   {
    "kind": "hero",
    "area": "hero",
-   "scale": 1.2,
+   "scale": 1.75,
    "anchor": "top",
    "bleed": [
     "bottom"
    ],
-   "watermark": true,
-   "overlap": true
+   "overlap": true,
+   "clip": [
+    "right"
+   ]
   },
   {
    "kind": "header",
@@ -58,5 +60,9 @@
    "area": "sw",
    "style": "chips"
   }
- ]
+ ],
+ "type": {
+  "body": 14,
+  "note": 11
+ }
 }

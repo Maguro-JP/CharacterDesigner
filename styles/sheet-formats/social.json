@@ -40,7 +40,7 @@
    "kind": "header",
    "area": "head",
    "huge": true,
-   "pull": 0.07,
+   "pull": 0.13,
    "overlap": true
   },
   {

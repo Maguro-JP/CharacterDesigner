@@ -26,8 +26,7 @@
    "area": "turn",
    "title": "四面図",
    "sub": "同じ縮尺・足をそろえる",
-   "guides": true,
-   "watermark": true
+   "guides": true
   },
   {
    "kind": "swatches",
@@ -37,7 +36,8 @@
   {
    "kind": "callouts",
    "area": "side",
-   "title": "拡大"
+   "title": "拡大",
+   "crop": "tight"
   },
   {
    "kind": "notes",
