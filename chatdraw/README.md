@@ -71,7 +71,8 @@
 | `paths.py`、`migrate.py` | 置き場と、前の版からの移行 |
 | `activity.py` | 工程・進み・履歴の欄（緊急停止、最後に進んだ時刻、裏の処理） |
 | `tabdock.py` | AI の欄のタブの並べ替え・欄の外へ出す・並びの保存 |
-| `finishers.py` | 仕上げ（綺麗にする）の道具。tools/gen の retouch・inking・atmosphere・materials を囲みの中だけに掛ける |
+| `finishers.py` | 仕上げの道具（綺麗にする・描き直して整える・拡大・質感・空気感・清書）。tools/gen の retouch・inking・atmosphere・materials を囲みの中だけに掛ける |
+| `shortcuts.py` | 右クリックのショートカット。加工と登録した指示を、★・よく使う順・処理の種類ごとに並べる |
 | `charadesign.py` | キャラクターデザインのメニュー（設定資料集・三面図・表情差分）。tools/gen/bible.py の資料の形を使う |
 | `fit.py`、`keys.py` | 窓を画面に収める、キーの割り当て |
 | `help/`、`helpview.py` | 手順書と操作方法、アプリの中で読む窓 |
