@@ -42,12 +42,13 @@ PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background", "�
 
 
 # タブ: (名前, ヒント)。初めに開くのは先頭の「描く内容」
+# 描く人の流れ（頼む → 描き方を選ぶ → 描く → 見る → 直す・仕上げる）の順に並べる。細かい設定は最後に置き、初めは開かない
 SECTIONS = [
     ("描く内容", "描きたい絵と、描かない物を書きます"),
     ("作風", "AI プリセットと画風。押すだけで描き方・大きさ・画風がそろいます"),
     ("模型", "絵を描く模型を選びます"),
+    ("直す・仕上げ", "描けた絵を直す・綺麗にする・外へ広げる・拡大する・加工する。元の絵は元に戻すで戻せます"),
     ("詳しい設定", "枚数・種・参考画像・ラフに沿う強さ"),
-    ("加工", "出来た絵から作ります。元の絵は残し、新しいレイヤーに重ねます"),
 ]
 
 
@@ -188,20 +189,35 @@ class AiPanel(QWidget):
         self.ref_scale.setValue(60)
         self.ref_scale.setToolTip("寄せる強さ")
         self.use_ref.toggled.connect(lambda on: on and self.w.feature_tour("reference_ai"))
+        self.ref_scale.setEnabled(False)   # 寄せないときの強さは何も変えないので、押せない形にする
+        self.use_ref.toggled.connect(self.ref_scale.setEnabled)
         ref_row.addWidget(self.use_ref)
         ref_row.addWidget(self.ref_scale, 1)
         lay.addLayout(ref_row)
+        # 設定の保存は作風のタブの末尾（プリセットと同じ所）に置く。詳しい設定に置くと探せなかった
+        self.save_button = QPushButton("今の設定を保存")
+        self.save_button.setToolTip("今の描き方・大きさ・画風を、自分の AI プリセットとして残します")
+        self.save_button.clicked.connect(self.save_current)
+        self.sections["作風"].body.addWidget(self.save_button)
+
+        # 直す・仕上げ: 見る → 直す → 綺麗にする → 広げる・拡大 → 加工 の順。入口は 1 つずつ（右クリックの絵のメニューと同じ処理を呼ぶ）
+        lay = self.sections["直す・仕上げ"].body
+        lay.addWidget(self._head("直す", "描けた絵が気に入らないときに使います"))
         row = QHBoxLayout()
         self.again = QPushButton("もう一度描く")
         self.again.setToolTip("前と同じ頼みを、別の種で描き直します")
         self.again.clicked.connect(w.draw_again)
-        self.save_button = QPushButton("今の設定を保存")
-        self.save_button.setToolTip("今の描き方・大きさ・画風を、自分の AI プリセットとして残します")
-        self.save_button.clicked.connect(self.save_current)
         row.addWidget(self.again)
-        row.addWidget(self.save_button)
         lay.addLayout(row)
-        lay = self.sections["加工"].body
+        # 囲んだ所の直しは、赤ペンで囲むと描き方が「直す」に替わる（作風のタブの描き方と同じ値）。ここに 2 つ目の入口は置かない
+        self.again.setToolTip(self.again.toolTip() + "\n一部だけ直すときは、赤ペンで囲んでから「描く」を押します")
+        # 綺麗にする・外へ広げるは、キャンバスの右クリックのメニューにある（並べ方は右クリックのメニューの側で決める）
+        lay.addWidget(self._head("仕上げ", "綺麗にする・外へ広げるは、キャンバスの右クリックから選びます。元の絵は元に戻すで戻せます"))
+        self.upscale_button = QPushButton("絵を 2 倍に拡大")
+        self.upscale_button.setToolTip("線と塗りを保ったまま、今の絵を 2 倍の大きさにします")
+        self.upscale_button.clicked.connect(w.upscale_canvas)
+        lay.addWidget(self.upscale_button)
+        lay.addWidget(self._head("加工", "出来た絵から作ります。元の絵は残し、新しいレイヤーに重ねます"))
         fx = QHBoxLayout()
         self.chibi_button = QPushButton("ちびキャラに")
         self.chibi_button.setToolTip("頭の大きなデフォルメに、AI が描き直します")
@@ -216,10 +232,6 @@ class AiPanel(QWidget):
         fx.addWidget(self.chibi_button)
         fx.addWidget(self.pixel_button)
         lay.addLayout(fx)
-        self.upscale_button = QPushButton("絵を 2 倍に拡大")
-        self.upscale_button.setToolTip("線と塗りを保ったまま、今の絵を 2 倍の大きさにします")
-        self.upscale_button.clicked.connect(w.upscale_canvas)
-        lay.addWidget(self.upscale_button)
         self.set_style("おまかせ")
         self.sync()
         self.fit_narrow()
