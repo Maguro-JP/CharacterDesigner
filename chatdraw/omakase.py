@@ -105,6 +105,7 @@ class Plan:
         for kind, ms in self.fix.items():
             if ms:
                 line.append(f"{KIND_ASPECT[kind]}の直し: {ms[0][0].name}")
+        line.append("小さく描いて広げる、顔と手の描き込みを通す")
         if self.finish:
             line.append("仕上げ: " + "、".join(self.finish))
         return "、".join(line)
@@ -152,7 +153,19 @@ def _default_check(image, prompt):
     bad = list(res.get("bad", [])) + [f"描かれていない: {m}" for m in asked.get("missing", [])]
     bad += [f"人数が違う: {x}" for x in asked.get("people", [])]
     return {"readable": bool(res.get("readable", True)) and bool(asked.get("readable")), "bad": bad,
-            "regions": handcheck.bad_regions(res)}
+            "regions": handcheck.bad_regions(res), "detail": handcheck.detail_regions(res)}
+
+
+SMALL = 0.67      # 構図を描く大きさ（仕上がりの何倍か）。小さく描くと人と物の配置がまとまり、手足の数が崩れにくい
+HIRES_STRENGTH = 0.35   # 広げたあとの描き直しの強さ。構図は残し、線と細部だけを描き込ませる
+DETAIL_STRENGTH = 0.4   # 顔・手・足の描き込みの強さ（Studio._fix_hands の細部の描き直しと同じ）
+
+
+def small_size(size, m: ImageModel):
+    """構図を描く小さい大きさ。世代の倍数にそろえる"""
+    w, h = size or fam(m.family).size
+    k = fam(m.family).multiple
+    return (max(k, int(w * SMALL) // k * k), max(k, int(h * SMALL) // k * k)), (w, h)
 
 
 class Omakase:
@@ -166,6 +179,8 @@ class Omakase:
         self._prompts = {}
         self.style = ""   # AI の欄の画風。頼みの後ろに足す
         self.log = []   # 工程ごとの記録（.json の omakase.steps）
+        self.two = None   # 2 段の模型 (構図, 仕上げ)。部品がそろっているときだけ Studio が渡す
+        self.compose_two = None
 
     def _painter(self, m: ImageModel):
         """模型を読む。読んである物はそのまま使い、替えるときは前の物を捨てる（模型は 1 つ数 GB）"""
@@ -194,7 +209,8 @@ class Omakase:
         self.log.append(dict(stage=stage, model=m.repo if m else "", name=m.name if m else "", why=why, **extra))
         say(f"{stage}: {m.name if m else '（模型なし）'}（{why}）")
 
-    def fix_region(self, image, kind: str, boxes, prompt_text: str, seed: int, avoid_repo: str, say):
+    def fix_region(self, image, kind: str, boxes, prompt_text: str, seed: int, avoid_repo: str, say,
+                   strength: float = 0.6, stage: str = "直し"):
         """落ちた部位を、その部位が得意な模型で囲みの中だけ直す。描いた模型とは別の物を先に試す"""
         from PIL import Image
         from chatdraw import handcheck
@@ -203,11 +219,11 @@ class Omakase:
         if not cands:
             return image, None
         m, why = cands[0]
-        self._note(say, f"{KIND_ASPECT[kind]}の直し", m, why)
+        self._note(say, f"{KIND_ASPECT[kind]}の{stage}", m, why)
         painter = self.painter_for(m)
         mask = _mask(image.size, boxes)
         words = handcheck.FIX_WORDS.get(kind, "")
-        out = painter.redraw(f"{self._prompt(prompt_text, m)}, {words}", seed, image, mask, strength=0.6)
+        out = painter.redraw(f"{self._prompt(prompt_text, m)}, {words}", seed, image, mask, strength=strength)
         # 囲みの外は 1 画素も変えない（模型の直しが外へ漏れても、元の絵を戻す）
         return Image.composite(out.convert(image.mode), image, mask), m
 
@@ -225,8 +241,20 @@ class Omakase:
                 say(f"検品を通らなかったので、構図を描き直しています（{k + 1}/{tries} 回目）")
             painter = self.painter_for(m) if m is not None else self.studio.painter
             prompt = self._prompt(text, m) if m is not None else self.studio.words.to_prompt(text)
-            self._note(say, "構図", m, why, seed=s_k)
-            image = painter.paint(prompt, s_k, size=size)
+            image = None
+            if self.two is not None and k == 0:
+                # 構図と仕上げを分ける 2 段の部品がそろっていれば、最初の構図はそれで描く（chatdraw/twostage.py）
+                try:
+                    comp, render = self.two
+                    self._note(say, "構図（2 段）", comp, f"文で頼める模型で構図、{render.name} で仕上げ", seed=s_k)
+                    image, prompt = self.compose_two(text, s_k, size, say)
+                    m = render
+                except Exception as e:
+                    say(f"2 段の構図で止まったので、1 つの模型で描きます（{e}）")
+                    image = None
+            if image is None:
+                self._note(say, "構図", m, why, seed=s_k)
+                image = self.hires(painter, m, prompt, s_k, size, say)
             res = self.check(image, prompt)
             for r in range(rounds):
                 if not res["bad"] or not res.get("regions") or getattr(painter, "stop", False):
@@ -243,6 +271,8 @@ class Omakase:
                     say("直しで崩れが増えたので、前の絵に戻します")
                     break
                 image, res = tried, again
+            if not res["bad"] and res.get("detail") and not getattr(painter, "stop", False):
+                image, res = self.detail(image, res, text, s_k, m.repo if m else "", prompt, say)
             self.log.append(dict(stage="検品", seed=s_k, bad=list(res["bad"]), readable=res["readable"]))
             if best is None or len(res["bad"]) < len(best[2]):
                 best = (image, prompt, list(res["bad"]), res["readable"], s_k, m)
@@ -252,6 +282,44 @@ class Omakase:
         if not left and readable:
             image = self.finish(image, say)
         return image, prompt, left, readable, s_k, m
+
+    def hires(self, painter, m, prompt, seed, size, say):
+        """小さく描いて広げ、弱く描き直す（hires fix と同じ 2 段）。描き直せない世代は、仕上がりの大きさで 1 回描く"""
+        from PIL import Image
+        if m is None or not fam(m.family).inpaint or not hasattr(painter, "redraw"):
+            return painter.paint(prompt, seed, size=size)
+        small, full = small_size(size, m)
+        say(f"小さく描いてから広げて描き直します（{small[0]}×{small[1]} → {full[0]}×{full[1]}）")
+        image = painter.paint(prompt, seed, size=small).convert("RGB").resize(full, Image.LANCZOS)
+        whole = Image.new("L", full, 255)
+        up = getattr(painter, "upscale", None)
+        if up is not None:
+            painter.upscale = 1.0   # もう広げてあるので、直しの中でさらに 1.5 倍にしない（時間が 2 倍以上になる）
+        try:
+            out = painter.redraw(prompt, seed + 1, image, whole, strength=HIRES_STRENGTH)
+        finally:
+            if up is not None:
+                painter.upscale = up
+        self.log.append(dict(stage="広げて描き直し", model=m.repo, size=list(full), small=list(small)))
+        return out
+
+    def detail(self, image, res, text, seed, avoid_repo, prompt, say):
+        """検品を通った絵も、見つかった顔・手・足の所だけをもう一度描き込ませる（ADetailer、tools/gen/detail.py と同じ考え方）。
+        検品が見逃す細部（くっついた指、目の左右の食い違い）があるため。描き込んで崩れが出たら、前の絵に戻す"""
+        by_kind = {}
+        for box, kind in res["detail"]:
+            by_kind.setdefault(kind, []).append(box)
+        say(f"顔と手を見つけて描き込んでいます（{sum(map(len, by_kind.values()))} か所）")
+        tried = image
+        for kind, boxes in by_kind.items():
+            tried, _m = self.fix_region(tried, kind, boxes, text, seed + 991, avoid_repo, say,
+                                        strength=DETAIL_STRENGTH, stage="描き込み")
+        again = self.check(tried, prompt)
+        self.log.append(dict(stage="検品", detail=True, bad=list(again["bad"])))
+        if again["bad"] or not again["readable"]:
+            say("描き込みで崩れが出たので、前の絵を使います: " + "、".join(again["bad"][:3]))
+            return image, res
+        return tried, again
 
     def finish(self, image, say):
         """仕上げ（綺麗化）。finishers が無い・落ちたときは、仕上げずに渡す"""
@@ -268,6 +336,21 @@ class Omakase:
         return image
 
 
+def _compose_two(studio, text, seed, two, size, say):
+    """2 段（構図の模型 → SDXL の仕上げ）で描いた絵と、その頼みの言葉。検品と直しはおまかせの側で行う"""
+    import time
+    from PIL import Image
+    from chatdraw import twostage
+    from chatdraw.engine import english_only
+    comp, render = two
+    sentence = english_only(studio.words.to_prompt(text, tags=False))
+    tags = english_only(studio.words.to_prompt(text, tags=True))
+    keep = studio.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}"
+    path = twostage.run_stages(sentence, tags, seed, comp.repo, render.repo, tuple(size or (832, 1216)), keep,
+                               twostage.VARIANTS[0], say=say, stopped=lambda: getattr(studio.painter, "stop", False))
+    return Image.open(path).convert("RGB"), tags
+
+
 def draw(studio, text: str, seed: int, say, size=None, meta: dict | None = None, have: list[ImageModel] | None = None,
          painter_for=None, check=None, style: str = ""):
     """Studio.draw のおまかせの入口。描いて保存し、(頼みの言葉, 置き場) を返す"""
@@ -280,6 +363,10 @@ def draw(studio, text: str, seed: int, say, size=None, meta: dict | None = None,
     have = [m for m in have if not ratings.is_hidden(m.repo)] or list(have)
     o = Omakase(studio, have, painter_for, check)
     o.style = style
+    two = studio._two_stage_models(None, None, say) if hasattr(studio, "_two_stage_models") else None
+    if two is not None:
+        o.two = two
+        o.compose_two = lambda text, seed, size, say: _compose_two(studio, text, seed, two, size, say)
     image, prompt, left, readable, s_k, m = o.run(text, seed, say, size=size, tries=studio.REDRAW_TRIES, rounds=studio.FIX_ROUNDS)
     if left:
         say(f"検品を通る絵が出ませんでした（途中）。残った崩れ: " + "、".join(left[:5]))
