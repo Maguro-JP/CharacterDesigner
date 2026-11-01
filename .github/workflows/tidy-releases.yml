@@ -20,3 +20,31 @@ jobs:
             gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id" && echo "消した: $tag"
             gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$tag" || true
           done
+  branches:
+    # 取り込み済みの作業ブランチを消す。統合のブランチにまとめてから PR にした作業ブランチは、
+    # 自分の PR が無いので「マージ後に自動で消す」が効かず残る。マージ済みの PR の head に
+    # 全部含まれているブランチだけを消し、開いている PR のブランチと main は残す
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 取り込み済みのブランチを消す
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          git fetch -q origin '+refs/heads/*:refs/remotes/origin/*'
+          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls?state=closed&per_page=100" --jq '.[] | select(.merged_at) | .number' > merged.txt
+          gh api --paginate "repos/$GITHUB_REPOSITORY/pulls?state=open&per_page=100" --jq '.[].head.ref' > open.txt
+          for n in $(cat merged.txt); do git fetch -q origin "+refs/pull/$n/head:refs/pr/$n" || true; done
+          for b in $(git for-each-ref --format='%(refname:strip=3)' refs/remotes/origin/ | grep -v '^HEAD$'); do
+            [ "$b" = main ] && continue
+            grep -qx "$b" open.txt && continue
+            for n in $(cat merged.txt); do
+              if git merge-base --is-ancestor "origin/$b" "refs/pr/$n" 2>/dev/null; then
+                gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/heads/$b" && echo "消した: $b（#$n に含まれる）"
+                break
+              fi
+            done
+          done
