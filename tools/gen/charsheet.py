@@ -489,6 +489,52 @@ def _char_accent(c: dict):
     return best
 
 
+_SAM = None
+
+
+def _person_mask(src, size):
+    """人の形の覆い。服の部位分けの外形を枠にして SAM で切り出す（2回目からは絵の隣の .sam.png を読む）。
+    部位分けだけでは、人の縁がぎざぎざになり、腕を背景の機械と取り違えた。SAM が背景の側を選んだときは反転する"""
+    import numpy as np
+    from pathlib import Path
+    from PIL import Image
+    import edit
+    out = Path(str(src) + ".sam.png")
+    if out.exists() and out.stat().st_mtime >= Path(src).stat().st_mtime:
+        return np.asarray(Image.open(out).resize(size, Image.NEAREST)) > 127
+    im = Image.open(src).convert("RGB")
+    seg = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST)) > 0
+    ys, xs = np.nonzero(seg)
+    if not len(xs):
+        return seg
+    try:
+        import torch
+        from transformers import SamModel, SamProcessor
+        global _SAM
+        if _SAM is None:
+            _SAM = (SamModel.from_pretrained("facebook/sam-vit-base"), SamProcessor.from_pretrained("facebook/sam-vit-base"))
+        model, proc = _SAM
+        box = [[int(xs.min()), int(ys.min()), int(xs.max()), int(ys.max())]]
+        inp = proc(im, input_boxes=[box], return_tensors="pt")
+        with torch.no_grad():
+            o = model(**inp, multimask_output=True)
+        masks = proc.image_processor.post_process_masks(o.pred_masks, inp["original_sizes"], inp["reshaped_input_sizes"])[0][0].numpy()
+        # 部位分けと最も重なる面を選ぶ（点数の最大は、魔女で背景の側を選んだ）
+        best = None
+        for mk in masks:
+            border = np.concatenate([mk[0], mk[-1], mk[:, 0], mk[:, -1]]).mean()
+            if border > 0.5:
+                mk = ~mk
+            iou = (mk & seg).sum() / max(1, (mk | seg).sum())
+            if best is None or iou > best[0]:
+                best = (iou, mk)
+        mask = best[1] | seg
+    except Exception:
+        mask = seg
+    Image.fromarray((mask * 255).astype("uint8")).save(out)
+    return np.asarray(Image.fromarray((mask * 255).astype("uint8")).resize(size, Image.NEAREST)) > 127
+
+
 def _cutout(im, src=None):
     """背景を透かす覆いを作る。囲まれた所（白い服、目の光）は残す。覆い無しで貼ると、色の付いた地の上に四角が出た。
     縁の色（白に限らない）を背景とし、src があれば人の部位分けで、人に付いていない塊（機械、背景の模様）を外す。
@@ -504,11 +550,13 @@ def _cutout(im, src=None):
     edge = set(np.unique(np.concatenate([lab[0], lab[-1], lab[:, 0], lab[:, -1]]))) - {0}
     fg = ~np.isin(lab, list(edge))
     if src is not None:
-        import edit
-        seg = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST))
-        person = ndimage.binary_closing(seg > 0, iterations=3)
+        person = _person_mask(src, im.size)
         if person.sum() > 500:
-            touch = ndimage.binary_dilation(person, iterations=4)
+            # 持ち物は手に触れている。腕の部位（14, 15）の近くに触れない塊は、人の後ろの物（機械）として外す
+            import edit
+            seg = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST))
+            arms = np.isin(seg, [14, 15])
+            touch = ndimage.binary_dilation(arms if arms.any() else person, iterations=8)
             ys, xs = np.nonzero(person)
             pad = int((xs.max() - xs.min()) * 0.25)
             box = np.zeros_like(person)
@@ -523,6 +571,8 @@ def _cutout(im, src=None):
                 solid = area / comp.size
                 # 大きく詰まった塊（機械の車輪）は背景、細長い・まばらな塊（持ち物）は残す
                 if area > 0.05 * person.sum() and solid > 0.35:
+                    continue
+                if area > 0.10 * person.sum():   # 持ち物より大きい塊（人の後ろの機械）は背景
                     continue
                 # 人の横幅から大きく外れて広がる塊（背後の機械）は背景。持ち物は人の幅の近くに収まる
                 if (box[sl] & comp).sum() < 0.7 * area:

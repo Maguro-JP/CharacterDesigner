@@ -225,6 +225,28 @@ JS = r"""
     // 拡大した主役は頭を区画の上にそろえ、はみ出した下（足）は版面の端で切る
     const w = img.naturalWidth * s, h = img.naturalHeight * s, x = L + (W - L - w) / 2, y = top ? H * 0.02 : H - h;
     Object.assign(img.style, {left: x + 'px', top: y + 'px', width: w + 'px', height: h + 'px'});
+    // 版はひな形で、欄の位置は人物に合わせてずらす。主役の右の輪郭から一定の間を空けて、右の欄の左端を決める。
+    // 細い人物なら欄を寄せて余白を詰め、腕や杖が広がる人物なら欄を押し出す
+    if (box.closest('[data-kind="hero"]') && box.dataset.prof) {
+      const prof = JSON.parse(box.dataset.prof), ib = img.getBoundingClientRect(), gap = W * 0.06;
+      const heroCell = box.closest('.cell');
+      for (const cell of document.querySelectorAll('.cell')) {
+        if (cell === heroCell) continue;
+        const cb = cell.getBoundingClientRect();
+        // 主役の区画のすぐ右の欄だけを動かす。離れた列まで動かすと、隣の列に重なった
+        const hb = heroCell.getBoundingClientRect();
+        if (cb.left < hb.right - 2 || cb.left - hb.right > W * 0.08) continue;
+        let right = -1;
+        for (let i = 0; i < prof.length; i++) {
+          const y0 = ib.top + ib.height * i / prof.length, y1 = ib.top + ib.height * (i + 1) / prof.length;
+          if (y1 < cb.top || y0 > cb.bottom || !prof[i]) continue;
+          right = Math.max(right, ib.left + ib.width * prof[i]);
+        }
+        if (right < 0) continue;
+        const dx = Math.max(-cb.width * 0.25, Math.min(cb.width * 0.45, right + gap - cb.left));
+        cell.style.marginLeft = (parseFloat(cell.style.marginLeft || 0) + dx) + 'px';
+      }
+    }
     // 主役は人物ごとに幅が違う（腕を上げる、外套が広がる）。隣の欄の文字にかぶるときは、かぶらなくなるまで縮め、
     // それでも足りなければ版面の端の側へ寄せる。区画の線で切ると腕や髪が直線で欠けるので、切らずに大きさで合わせる
     if (box.closest('[data-kind="hero"]')) {
@@ -317,7 +339,16 @@ def _panel_html(pn, ctx):
         # clip の辺は区画の線で切る。拡大した人物が隣の図の文字（高さの線の名前など）にかぶるのを防ぐ
         ins = " ".join("0" if sd in pn.get("clip", []) else "-100vw" for sd in ("top", "right", "bottom", "left"))
         clip = f' style="clip-path:inset({ins})"' if pn.get("clip") else ""
-        return f'<div class="fit" data-scale="{sc}" data-anchor="{anchor}"{shadow}{clip}>{wm}<img src="{_uri(im)}"></div>'
+        # 人物の右の輪郭（高さ2%ごとの右端の位置）。右の欄をこの輪郭に沿って寄せたり離したりする
+        import numpy as np
+        al = np.asarray(im.getchannel("A")) > 40
+        prof = []
+        for i in range(50):
+            band = al[int(i * al.shape[0] / 50):int((i + 1) * al.shape[0] / 50)]
+            cols = np.nonzero(band.any(axis=0))[0]
+            prof.append(round(float(cols.max() + 1) / al.shape[1], 3) if len(cols) else 0)
+        return (f'<div class="fit" data-scale="{sc}" data-anchor="{anchor}" data-prof="{json.dumps(prof)}"{shadow}{clip}>'
+                f'{wm}<img src="{_uri(im)}"></div>')
     if k == "lineart":
         p = c.get("images", {}).get("lineart")
         if not p or not (bible.ROOT / p).exists():
