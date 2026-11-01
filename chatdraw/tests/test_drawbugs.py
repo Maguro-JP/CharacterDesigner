@@ -432,6 +432,9 @@ class PopupTest(unittest.TestCase):
         cls.w = Window(engine.Studio(FakeWords(), FakePainter(), Path(cls.tmp.name)))
         cls.w.resize(1400, 900)
         cls.w.show()
+        # 前の試験が進みの欄を出したまま閉じると、その配置が戻る。欄が見えている間はポップアップを二重に出さない決まりなので、
+        # ここで見るポップアップの動きのために欄を隠しておく
+        cls.w.panels["progress"][0].hide()
         cls.spin()
 
     @classmethod
