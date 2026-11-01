@@ -1,0 +1,41 @@
+{
+ "mode": "logo",
+ "repo": "black-forest-labs/FLUX.2-klein-4B",
+ "name": "CharacterDesigner",
+ "mood": "app icon for an anime character design tool, paintbrush and pencil, friendly character face silhouette, rounded square",
+ "colors": "violet, pink and white",
+ "seeds": [
+  11,
+  12,
+  13,
+  14
+ ],
+ "size": [
+  1024,
+  1024
+ ],
+ "prompt": "logo mark, simple flat vector emblem, bold clean shapes, centered, single icon, solid plain white background, minimal, high contrast, crisp edges, no text, symbol inspired by CharacterDesigner, app icon for an anime character design tool, paintbrush and pencil, friendly character face silhouette, rounded square, violet, pink and white color scheme",
+ "avoid": "text, letters, words, typography, watermark, signature, garbled text, photo, photorealistic, realistic, detailed background, busy background, scenery, texture, noise, gradient background, 3d render, drop shadow, blurry, multiple logos, frame, border",
+ "done": [
+  {
+   "file": "icon-s11.png",
+   "seed": 11,
+   "seconds": 173
+  },
+  {
+   "file": "icon-s12.png",
+   "seed": 12,
+   "seconds": 165
+  },
+  {
+   "file": "icon-s13.png",
+   "seed": 13,
+   "seconds": 170
+  },
+  {
+   "file": "icon-s14.png",
+   "seed": 14,
+   "seconds": 162
+  }
+ ]
+}
