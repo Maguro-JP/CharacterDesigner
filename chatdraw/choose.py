@@ -66,6 +66,7 @@ def choose_image(text: str, prompt: str, words=None, have: list[ImageModel] | No
     """手元の模型から、頼みに合い点の高い物を選ぶ。返すのは (模型, 理由)。非表示にした物は、ほかに無いときだけ使う"""
     from chatdraw.ratings import is_hidden
     have = installed_images() if have is None else have
+    have = [m for m in have if not __import__("chatdraw.ratings").ratings.is_blocked(m.repo)]
     have = [m for m in have if not is_hidden(m.repo)] or list(have)
     if not have:
         return None, "手元に絵の模型がありません"

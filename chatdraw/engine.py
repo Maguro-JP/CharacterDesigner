@@ -732,6 +732,21 @@ class Painter:
         pipe.set_ip_adapter_scale(scale)
         args["ip_adapter_image"] = reference.convert("RGB")
 
+    def loaded(self) -> bool:
+        return any(x is not None for x in (self._pipe, self._sketch, self._inpaint))
+
+    def unload(self):
+        """読んだ模型をメモリから降ろす。次に描くときに読み直す"""
+        self._pipe = self._sketch = self._inpaint = None
+        self._ref = False
+        self._lora_state = {}
+        import gc
+        gc.collect()
+        import sys
+        torch = sys.modules.get("torch")   # 読んでいなければ torch も読まない
+        if torch is not None and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
     def load(self):
         if self._pipe is None:
             self._pipe = self._read()

@@ -120,6 +120,7 @@ class Job(QObject):
                 prompts, path = self.studio.fix(self.base, self.regions, self.seeds[0], on_status=self.status.emit,
                                                 style=self.style, strength=self.strength, reference=self.reference,
                                                 ref_scale=self.ref_scale, check=self.check)
+                self._stopped()
                 self.one.emit(" / ".join(prompts), str(path))
             else:
                 for seed in self.seeds:
@@ -127,11 +128,18 @@ class Job(QObject):
                     prompt, path = self.studio.draw(self.text, seed, on_status=self.status.emit,
                                                     base=self.base, strength=self.strength, size=self.size,
                                                     on_preview=self.preview.emit, style=self.style, meta=self.meta, **extra)
+                    self._stopped()
                     self.one.emit(prompt, str(path))
             self.done.emit()
         except Exception as e:  # 描けなかった理由を、次に何をすればよいか分かる日本語で会話に出す
             from chatdraw.engine import explain
             self.failed.emit(f"描けませんでした: {explain(e)}")
+
+    def _stopped(self):
+        """止められたあとに返ってきた絵（直しの途中で抜けた物など）は置かずに捨てる。キャンバスは元のまま"""
+        if getattr(self.studio.painter, "stop", False):
+            from chatdraw.engine import Stopped
+            raise Stopped("止めました")
 
 
 class Task(QObject):
@@ -1929,6 +1937,9 @@ class Window(QMainWindow):
         from chatdraw.setup import AUTO, has_image
         g = self.settings.get
         image, words = g("image_model"), g("words_model")
+        from chatdraw.ratings import is_blocked
+        if is_blocked(image):   # ブロックした模型は、設定に残っていても使わない
+            image = AUTO
         if image == AUTO:
             from chatdraw.choose import choose_image
             first = choose_image("", "", have=[m for m in all_images() if has_image(m)])[0] or IMAGES[0]
@@ -2028,7 +2039,7 @@ class Window(QMainWindow):
     def _fill_ai_menu(self):
         """模型の一覧を作り直す。開くときと、取った・消した・点・★・非表示が変わったとき（ratings.changed）に呼ぶ"""
         from chatdraw.models import catalog_images, manual_images, pick
-        from chatdraw.ratings import is_favorite, rating_text, set_favorite
+        from chatdraw.ratings import is_blocked, is_favorite, rating_text, set_favorite
         from chatdraw.setup import AUTO, has_image
         menu = self.ai_menu
         menu.clear()
@@ -2037,7 +2048,7 @@ class Window(QMainWindow):
         catalog = catalog_images()
         have = {m.repo for m in catalog if has_image(m)}
         listed = pick(catalog, "推奨（確かめ済み）", have=have)
-        images = listed + manual_images()
+        images = listed + [m for m in manual_images() if not is_blocked(m.repo)]
         menu.addSection("絵の模型")
         group = QActionGroup(menu)
         auto = QAction("おまかせ", menu, checkable=True)
@@ -2140,6 +2151,21 @@ class Window(QMainWindow):
     def stop(self):
         self.studio.painter.stop = True
         self.statusBar().showMessage("止めています")
+
+    def drawing(self) -> bool:
+        return self.thread is not None
+
+    def unload_model(self, repo: str | None = None) -> str:
+        """読んだ絵の模型をメモリから降ろす。描いている途中なら止めて、終わってから降ろす"""
+        painter = self.studio.painter
+        if repo is not None and painter.model != repo:
+            return "その模型は読んでいません"
+        if self.drawing():
+            self._unload_after = True
+            self.stop()
+            return "止めてから、メモリから降ろします"
+        painter.unload()
+        return "メモリから降ろしました。次に描くときに読み直します"
 
     def _mode_changed(self, i: int):
         if i == 1 and hasattr(self, "layout_store"):
@@ -2927,6 +2953,9 @@ class Window(QMainWindow):
             self.thread = None
         self.button.setEnabled(True)
         self.hide_progress_if_idle()
+        if getattr(self, "_unload_after", False):
+            self._unload_after = False
+            self.studio.painter.unload()
 
 
 from chatdraw.themes import qss as _qss

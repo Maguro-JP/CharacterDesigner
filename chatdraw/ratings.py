@@ -133,11 +133,22 @@ def set_favorite(repo: str, on: bool):
 
 
 def is_hidden(repo: str) -> bool:
-    return _flag(repo, "hidden")
+    """一覧と推奨に出さないか。ブロックした物も隠す（ブロックは非表示を含む）"""
+    return _flag(repo, "hidden") or _flag(repo, "blocked")
 
 
 def set_hidden(repo: str, on: bool):
     _set_flag(repo, "hidden", on)
+
+
+def is_blocked(name: str) -> bool:
+    """ブロックした模型か。ブロックした物は、おまかせ・推奨・AI のメニューのどこからも選ばれず、取りにも行かない"""
+    return _flag(name, "blocked")
+
+
+def set_blocked(name: str, on: bool):
+    """解除すると、ブロックの前の非表示の印（hidden）だけが残る"""
+    _set_flag(name, "blocked", on)
 
 
 # ---- 模型の一覧が変わったことを知らせる（取った・消した・点・★・非表示）。AI のメニューと模型の表示を作り直すため ----
