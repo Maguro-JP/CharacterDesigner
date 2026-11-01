@@ -1318,8 +1318,7 @@ class Studio:
         return done(image)
 
     def _inspect(self, path: Path, say):
-        """描いた絵の手と指を検品し、結果を絵の隣の .check.json に残す（chatdraw/handcheck.py）"""
-        import json
+        """描いた絵の手と指を検品し、結果をアプリのデータの置き場の記録に残す（chatdraw/handcheck.py。保存先には書かない）"""
         say("検品しています（手と指）")
         try:
             from chatdraw import handcheck
@@ -1327,19 +1326,21 @@ class Studio:
         except Exception as e:   # 検品で落ちても、描いた絵は渡す
             res = {"readable": False, "bad": [], "hands": [], "reason": f"検品で止まりました（{e}）"}
         self.last_check = res
-        try:
-            path.with_suffix(".check.json").write_text(json.dumps(res, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
-        except OSError:
-            pass
+        from chatdraw import finishers
+        finishers.write_record(path, "check.json", res)
 
     def _save(self, image, seed: int, meta: dict) -> Path:
-        """絵と、同じ名前の .json（頼み・描く言葉・種・作風・模型）を残す。履歴から同じ設定で描き直すため"""
+        """絵を残し、頼み・描く言葉・種・作風・模型を PNG の文字の欄に埋める。履歴から同じ設定で描き直すため。
+        保存先には絵だけを置く（隣に .json を書くと、利用者には中身の分からないファイルが絵の数だけ並んだ）"""
         import json
         import time
+        from PIL import PngImagePlugin
+        from chatdraw.finishers import KEY
         self.out.mkdir(parents=True, exist_ok=True)
         path = self.out / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}.png"   # 種を固定して描き直しても前の絵を消さない
-        image.save(path)
-        path.with_suffix(".json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
+        info = PngImagePlugin.PngInfo()
+        info.add_itxt(KEY, json.dumps(meta, ensure_ascii=False, default=str))
+        image.save(path, pnginfo=info)
         return path
 
     def _fix_once(self, before, mask, prompt, seed, strength, k, count, say, reference, ref_scale):

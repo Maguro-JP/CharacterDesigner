@@ -14,6 +14,7 @@ sys.path.insert(0, str(ROOT))
 from chatdraw.engine import Studio, has_japanese  # noqa: E402
 from PySide6.QtCore import Qt  # noqa: E402
 import chatdraw.motion  # noqa: E402
+from chatdraw import finishers  # noqa: E402
 
 chatdraw.motion.MOTION = False   # 試験は動きを切って、結果だけを見る（動きは MotionTest で見る）
 
@@ -1220,7 +1221,7 @@ class FixAndBatchTest(unittest.TestCase):
         self.assertEqual(len(seeds), 4)
         self.assertEqual(seeds, list(range(seeds[0], seeds[0] + 4)))  # 種は続けて使う
         self.assertEqual(self.w.history.count(), 4)
-        meta = json.loads(Path(self.w.images[0]).with_suffix(".json").read_text(encoding="utf-8"))
+        meta = finishers.sidecar(Path(self.w.images[0]))
         self.assertEqual((meta["text"], meta["seed"]), ("雪の城の前の騎士", seeds[0]))
         self.w.entry.clear()
         self.w.redo_from(self.w.images[2])                            # 履歴から同じ設定に戻す
@@ -1914,7 +1915,7 @@ class TwoStageAppTest(unittest.TestCase):
                 mock.patch.object(twostage, "run_stages", side_effect=fake), \
                 mock.patch("chatdraw.choose.installed_images", return_value=[]):
             prompt, path = s.draw("笑う女の人", 3)
-        meta = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+        meta = finishers.sidecar(path)
         self.assertEqual((meta["way"], meta["compose_model"]), ("two", "black-forest-labs/FLUX.2-klein-4B"))
 
     def test_run_stages_reports_where_it_stopped(self):
@@ -2234,7 +2235,7 @@ class RequestCheckTest(unittest.TestCase):
         with mock.patch.object(requestcheck, "check", side_effect=lambda im, t: next(asked)):
             prompt, path = s.draw("1girl, hand up", 7)
         import json
-        meta = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+        meta = finishers.sidecar(path)
         self.assertEqual([r["bad"] for r in meta["redraws"]], [["描かれていない: hand up"], []])   # 描かれるまで描き直した
 
 

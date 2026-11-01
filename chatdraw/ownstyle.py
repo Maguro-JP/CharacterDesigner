@@ -85,11 +85,9 @@ def _caption(path: Path, tagger) -> str:
         except Exception:
             tags = []
     if not tags:
-        try:
-            meta = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
-            tags = [t.strip() for t in str(meta.get("prompt", "")).split(",") if t.strip()]
-        except (OSError, ValueError):
-            tags = []
+        from chatdraw.finishers import sidecar
+        meta = sidecar(path)   # PNG に埋めた頼み。前の版の絵は隣の .json
+        tags = [t.strip() for t in str(meta.get("prompt", "")).split(",") if t.strip()]
     return ", ".join(tags)
 
 

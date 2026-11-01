@@ -350,7 +350,7 @@ KEY = "chatdraw"   # PNG の文字の欄の名前
 
 
 def embed(path: str | Path, meta: dict):
-    """頼み・種・設定を PNG の文字の欄に埋める。.json が離れても、絵だけで続きから直せるように。
+    """頼み・種・設定を PNG の文字の欄に埋める。保存先には絵だけを置き、頼みは絵の中に持つ。
     画素は読み直して同じ値のまま書くので、絵は変わらない"""
     from PIL import Image, PngImagePlugin
     path = Path(path)
@@ -365,7 +365,7 @@ def embed(path: str | Path, meta: dict):
     try:
         part.replace(path)
     except OSError:
-        part.unlink(missing_ok=True)   # 読んでいる途中で替えられない（Windows）。埋めるのは諦め、.json に任せる
+        part.unlink(missing_ok=True)   # 読んでいる途中で替えられない（Windows）。描いたときに埋めた物が残る
 
 
 def embedded(path: str | Path) -> dict:
@@ -381,14 +381,85 @@ def embedded(path: str | Path) -> dict:
 
 
 def sidecar(path: str | Path) -> dict:
-    """前に描いた絵の頼み・模型・種を読む。.json を先に、無ければ PNG に埋めた物を読む。どちらも無ければ空"""
+    """描いた絵の頼み・模型・種を読む。PNG に埋めた物を先に読み、無ければ前の版が絵の隣に書いた .json を読む
+    （前の版の .json は利用者のデータなので消さずに読む。新しくは書かない）。どちらも無ければ空"""
+    data = embedded(path)
+    if data:
+        return data
     try:
         data = json.loads(Path(path).with_suffix(".json").read_text(encoding="utf-8"))
         if isinstance(data, dict):
             return data
     except (OSError, ValueError):
         pass
-    return embedded(path)
+    return {}
+
+
+def record_dir(path: str | Path) -> Path:
+    """PNG に入らない大きな記録（検品の結果、部位分けの絵など）の置き場。保存先には絵だけを置き、記録はアプリの
+    データの置き場の records に、絵の場所ごとに 1 つのディレクトリで持つ（保存先に .json が並ぶと、利用者には中身の分からないゴミに見えた）"""
+    import hashlib
+    from chatdraw.paths import data_home
+    try:
+        key = str(Path(path).resolve())
+    except OSError:
+        key = str(Path(path).absolute())
+    return data_home() / "records" / hashlib.sha1(key.encode("utf-8")).hexdigest()[:20]
+
+
+def write_record(path: str | Path, name: str, data) -> Path | None:
+    """絵の記録を 1 つ書く。dict は JSON、bytes はそのまま、PIL の絵は PNG で書く。書けなければ None（描いた絵は渡す）"""
+    d = record_dir(path)
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+        out = d / name
+        if isinstance(data, (bytes, bytearray)):
+            out.write_bytes(data)
+        elif hasattr(data, "save"):
+            data.save(out)
+        else:
+            out.write_text(json.dumps(data, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+        (d / "source.txt").write_text(str(Path(path).resolve()), encoding="utf-8")   # どの絵の記録か、人が見て分かるように
+        return out
+    except OSError:
+        return None
+
+
+def read_record(path: str | Path, name: str):
+    """絵の記録の場所。.json なら中身を dict で返す。無ければ、前の版が絵の隣に置いた物（a.check.json、a.png.parts.png）を見る"""
+    p = Path(path)
+    cands = [record_dir(p) / name]
+    if name.endswith(".json"):
+        cands.append(p.with_suffix("." + name))
+    else:
+        cands.append(Path(str(p) + "." + name))
+    for c in cands:
+        if c.exists():
+            if name.endswith(".json"):
+                try:
+                    data = json.loads(c.read_text(encoding="utf-8"))
+                    return data if isinstance(data, dict) else None
+                except (OSError, ValueError):
+                    continue
+            return c
+    return None
+
+
+def move_records(src: str | Path, dst: str | Path) -> bool:
+    """絵を動かしたときに、記録も新しい場所の物として付け替える"""
+    import shutil
+    a, b = record_dir(src), record_dir(dst)
+    if not a.is_dir() or a == b:
+        return False
+    if b.exists():
+        shutil.rmtree(b, ignore_errors=True)
+    b.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(a), str(b))
+    try:
+        (b / "source.txt").write_text(str(Path(dst).resolve()), encoding="utf-8")
+    except OSError:
+        pass
+    return True
 
 
 def outpaint(image, left: int = 0, top: int = 0, right: int = 0, bottom: int = 0, painter=None, prompt: str = "",

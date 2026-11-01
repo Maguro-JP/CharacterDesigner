@@ -1640,10 +1640,10 @@ class Window(QMainWindow):
                 self.say(f"検品の結果を読めませんでした（{e}）。目で確かめてください")
         self._record()
         self.library_panel.add(self.library.add_work(path))
-        # 頼み・種・設定を PNG にも埋める（.json が離れても、絵だけで続きから直せるように）。PNG を書き直すので
-        # 1 枚 0.1 秒ほどかかる。置いたあとに裏の糸で書く（埋めるのは別名に書いてから替えるので、読む側は壊れた絵を見ない）
+        # 頼み・種・設定は描いたときに PNG に埋めてある。埋まっていない絵（前の版で描き、隣に .json だけがある物）だけ、
+        # 裏の糸で埋める（PNG を書き直すので 1 枚 0.1 秒ほどかかる。別名に書いてから替えるので、読む側は壊れた絵を見ない）
         from chatdraw import finishers
-        self.run_io(lambda: finishers.embed(path, finishers.sidecar(path)), lambda _v: None)   # 描いた絵はライブラリーにも入る（好き・いまいちを付けて好みを育てる）
+        self.run_io(lambda: finishers.embedded(path) or finishers.embed(path, finishers.sidecar(path)), lambda _v: None)
 
     def show_final(self):
         """描き終えたら、1 枚目の絵をキャンバスに出して履歴で選ぶ。途中の絵（重ねた下描き）は必ず消す。
@@ -1991,11 +1991,8 @@ class Window(QMainWindow):
         open_dialog(self)
 
     def _prompt_text(self, path: str) -> str:
-        import json
-        try:
-            return json.loads(Path(path).with_suffix(".json").read_text(encoding="utf-8")).get("text", "")
-        except (OSError, ValueError):
-            return ""
+        from chatdraw import finishers
+        return str(finishers.sidecar(path).get("text", ""))
 
     def _prompt_from(self, path: str, pin: bool = False):
         text = self._prompt_text(path)
@@ -2106,11 +2103,9 @@ class Window(QMainWindow):
 
     def redo_from(self, path: str):
         """履歴の絵と同じ頼み・種・画風を、AI の欄とチャットに戻す。押せば同じ設定で描ける"""
-        import json
-        meta_path = Path(path).with_suffix(".json")
-        try:
-            meta = json.loads(meta_path.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+        from chatdraw import finishers
+        meta = finishers.sidecar(path)   # PNG に埋めた頼み。前の版の絵は隣の .json
+        if not meta:
             self.notify("設定が残っていません", "info", "この絵には描いたときの設定が残っていません")
             return
         self.entry.setText(meta.get("text", ""))
