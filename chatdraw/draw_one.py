@@ -78,6 +78,23 @@ def logo_candidates(req: dict, out: Path, painter=None):
         painter = Painter(m.repo, steps=req.get("steps", m.steps), size=tuple(req.get("size", (1024, 1024))),
                           guidance=req.get("guidance", m.guidance))
     done = []
+    if req.get("kind") == "prompts":
+        # 言葉を組ごとにそのまま渡して描く（利用者が構図を決めたアイコンなど）。文字と角の丸めは描いたあとにフォントと切り抜きで重ねる
+        for item in req["items"]:
+            for seed in req.get("seeds", [7]):
+                t = time.time()
+                old = getattr(painter, "avoid", "")
+                painter.avoid = ", ".join(a for a in (old, item.get("avoid", req.get("avoid", ""))) if a)
+                try:
+                    im = painter.paint(item["prompt"], seed, size=tuple(req.get("size", (1024, 1024))))
+                finally:
+                    painter.avoid = old
+                name = f"{item['name']}-s{seed}.png"
+                im.save(out / name)
+                done.append(dict(file=name, seed=seed, prompt=item["prompt"], seconds=round(time.time() - t)))
+                print(f"描いた: {name} {time.time() - t:.0f} 秒", flush=True)
+        (out / "request.json").write_text(json.dumps(dict(req, done=done), ensure_ascii=False, indent=1), encoding="utf-8")
+        return done
     if req.get("kind") == "icon":
         # アプリのアイコン: 意図・象徴・色の組を言葉にして描き、数字の検品を通った物だけを icon- で置く。落ちた物は fail- で残す
         # 色の組と象徴は palettes・symbols の列から種ごとに順に回す（1 回の実行で組を見比べられるように）

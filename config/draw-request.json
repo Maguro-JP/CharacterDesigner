@@ -1,10 +1,31 @@
 {
  "mode": "logo",
- "kind": "icon",
+ "kind": "prompts",
  "repo": "black-forest-labs/FLUX.2-klein-4B",
- "palettes": ["black-red-white", "black-orange-white", "red-white-black", "white-black-orange"],
- "symbols": ["head-nib", "head-nib", "head-nib", "head-nib", "visor-head", "visor-head", "visor-head", "visor-head"],
- "seeds": [21, 22, 23, 24, 25, 26, 27, 28],
- "tries": 2,
- "size": [1024, 1024]
+ "seeds": [
+  31
+ ],
+ "size": [
+  1024,
+  1024
+ ],
+ "avoid": "text, letters, words, typography, watermark, signature, gradient background, busy background, pattern, photo, photorealistic, 3d render, frame, border, rounded square tile, multiple characters, hand holding pen, fingers, blurry, noise, texture",
+ "items": [
+  {
+   "name": "profile-white-red-orange",
+   "prompt": "app icon artwork, flat vector illustration, a beautiful anime girl's head and neck in side profile facing left, her face on the left side of the image slightly left of center, long flowing hair behind her, on the right side a slim digital pen tablet stylus pen placed diagonally like a slash from lower left to upper right, right of center, clean bold shapes, smooth confident outlines, flat solid color fills with one soft cel shade, elegant stylish minimal design, empty lower right corner, solid plain flat white background, color palette of white, red and orange only"
+  },
+  {
+   "name": "profile-black-orange",
+   "prompt": "app icon artwork, flat vector illustration, a beautiful anime girl's head and neck in side profile facing left, her face on the left side of the image slightly left of center, long flowing hair behind her, on the right side a slim digital pen tablet stylus pen placed diagonally like a slash from lower left to upper right, right of center, clean bold shapes, smooth confident outlines, flat solid color fills with one soft cel shade, elegant stylish minimal design, empty lower right corner, solid plain flat black background, color palette of black, orange and white only"
+  },
+  {
+   "name": "profile-navy-teal",
+   "prompt": "app icon artwork, flat vector illustration, a beautiful anime girl's head and neck in side profile facing left, her face on the left side of the image slightly left of center, long flowing hair behind her, on the right side a slim digital pen tablet stylus pen placed diagonally like a slash from lower left to upper right, right of center, clean bold shapes, smooth confident outlines, flat solid color fills with one soft cel shade, elegant stylish minimal design, empty lower right corner, solid plain flat dark navy blue background, color palette of navy blue, teal and white only"
+  },
+  {
+   "name": "profile-red-white",
+   "prompt": "app icon artwork, flat vector illustration, a beautiful anime girl's head and neck in side profile facing left, her face on the left side of the image slightly left of center, long flowing hair behind her, on the right side a slim digital pen tablet stylus pen placed diagonally like a slash from lower left to upper right, right of center, clean bold shapes, smooth confident outlines, flat solid color fills with one soft cel shade, elegant stylish minimal design, empty lower right corner, solid plain flat red background, color palette of red, white and black only"
+  }
+ ]
 }
