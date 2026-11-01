@@ -19,12 +19,8 @@ TASK = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_lan
 
 def _hands():
     """tools/gen/hands.py を読む。模型の置き場（CD_HOME）は、アプリのデータの置き場にする（Program Files は書けない）"""
-    if "CD_HOME" not in os.environ:
-        from chatdraw.paths import data_home
-        os.environ["CD_HOME"] = str(data_home() / "cd")
-    gen = ROOT / "tools" / "gen"
-    if str(gen) not in sys.path:
-        sys.path.insert(0, str(gen))
+    from chatdraw.paths import use_tools_gen
+    use_tools_gen()   # CD_HOME を書き換えない。書き換えると利用者の設定（★・非表示など）の置き場がずれた
     import hands
     return hands
 

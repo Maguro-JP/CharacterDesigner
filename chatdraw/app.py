@@ -3524,6 +3524,11 @@ def dark(app: QApplication, name: str | None = None):
 
 
 def main():
+    from chatdraw.paths import adopt_stray
+    try:
+        adopt_stray()   # 前の版がずれた置き場（cd）に書いた ★・非表示などを、本来の置き場へ合わせる
+    except OSError:
+        pass
     app = QApplication(sys.argv)
     dark(app)
     from chatdraw import fit

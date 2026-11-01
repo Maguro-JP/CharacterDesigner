@@ -58,15 +58,9 @@ def chosen_model_dir() -> str:
 
 def set_model_dir(path: str):
     """模型の置き場を変える。次の起動から効く。空にすると既定の置き場に戻す"""
-    import json
-    f = config_file()
-    f.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        data = json.loads(f.read_text(encoding="utf-8"))
-    except (OSError, ValueError):
-        data = {}
+    data = read_json(config_file(), dict, {})   # 読めないファイルは控えを残す
     data["model_dir"] = path
-    f.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    write_json(config_file(), data)
 
 
 def default_model_dir() -> Path:
@@ -134,3 +128,120 @@ def ensure_shared():
     readme = LLM_HOME / "README.txt"
     if (WINDOWS or os.environ.get("LLM_HOME")) and not readme.exists():
         readme.write_text(README, encoding="utf-8")
+
+
+# ---- 利用者の設定のファイル（model_prefs.json、favorites.json、places.json、learn）を版をまたいで守る ----
+# 置き場は data_home() の 1 か所。前の版は、手の検品と言葉の読み取りが CD_HOME を「data_home()/cd」に書き換えていたため、
+# それ以降の読み書きが cd の下へずれ、★・非表示・ブロック・点・タグ・絵の ★・模型の置き場・学んだ基準が消えたように見えた。
+# 部品（tools/gen）の置き場は cdhome.HOME を直接向け、環境変数は変えない。
+STRAY = "cd"   # 前の版がずれて書いた所（data_home() の下）
+
+
+def use_tools_gen():
+    """tools/gen の部品を読めるようにし、その置き場（cdhome.HOME）をアプリのデータの置き場の cd に向ける。
+    環境変数 CD_HOME は書き換えない（書き換えると data_home() がずれ、利用者の設定が読めなくなる）"""
+    gen = ROOT / "tools" / "gen"
+    if str(gen) not in sys.path:
+        sys.path.insert(0, str(gen))
+    import cdhome
+    if not os.environ.get("CD_HOME"):
+        cdhome.HOME = data_home() / STRAY
+    return cdhome
+
+
+def keep_broken(path: Path) -> Path | None:
+    """読めないファイルを消さずに控えを残す（<名前>.broken-<日時>）。次に書くときに上書きされて失うのを避ける"""
+    import shutil
+    import time
+    try:
+        backup = path.with_name(f"{path.name}.broken-{time.strftime('%Y%m%d-%H%M%S')}")
+        if not backup.exists():
+            shutil.copy2(path, backup)
+        return backup
+    except OSError:
+        return None
+
+
+def read_json(path: Path, kind: type, default):
+    """利用者の設定の JSON を読む。無ければ default。読めない・形が違うときは控えを残してから default を返す"""
+    import json
+    try:
+        text = path.read_text(encoding="utf-8-sig")
+    except OSError:
+        return default
+    try:
+        data = json.loads(text)
+    except ValueError:
+        keep_broken(path)
+        return default
+    if not isinstance(data, kind):
+        keep_broken(path)
+        return default
+    return data
+
+
+def write_json(path: Path, data):
+    """書きかけで切れても前のファイルが残るよう、別名に書いてから置き換える"""
+    import json
+    path.parent.mkdir(parents=True, exist_ok=True)
+    part = path.with_name(path.name + ".part")
+    part.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    part.replace(path)
+
+
+def adopt_stray(home: Path | None = None) -> list[str]:
+    """前の版が cd の下へずれて書いた設定を、本来の置き場へ合わせる。起動のたびに呼んでよい（合わせた物は .adopted に名前を替える）"""
+    home = Path(home) if home is not None else data_home()
+    stray = home / STRAY
+    done: list[str] = []
+    if not stray.is_dir():
+        return done
+
+    def retire(p: Path):
+        try:
+            p.replace(p.with_name(p.name + ".adopted"))
+        except OSError:
+            pass
+
+    src = stray / "model_prefs.json"
+    if src.is_file():
+        new = read_json(src, dict, {})
+        cur = read_json(home / "model_prefs.json", dict, {})
+        for repo, entry in new.items():
+            if isinstance(entry, dict):
+                base = cur.get(repo) if isinstance(cur.get(repo), dict) else {}
+                cur[repo] = {**base, **entry}   # ずれた方が後で付けた印
+        write_json(home / "model_prefs.json", cur)
+        retire(src)
+        done.append("model_prefs.json")
+    src = stray / "favorites.json"
+    if src.is_file():
+        new = [str(p) for p in read_json(src, list, [])]
+        cur = [str(p) for p in read_json(home / "favorites.json", list, [])]
+        write_json(home / "favorites.json", new + [p for p in cur if p not in new])
+        retire(src)
+        done.append("favorites.json")
+    src = stray / "places.json"
+    if src.is_file():
+        new = read_json(src, dict, {})
+        cur = read_json(home / "places.json", dict, {})
+        write_json(home / "places.json", {**cur, **{k: v for k, v in new.items() if v}})
+        retire(src)
+        done.append("places.json")
+    learn = stray / "learn"
+    if learn.is_dir():
+        import shutil
+        for f in learn.rglob("*"):
+            if not f.is_file():
+                continue
+            dst = home / "learn" / f.relative_to(learn)
+            dst.parent.mkdir(parents=True, exist_ok=True)
+            if f.name == "records.jsonl" and dst.exists():
+                with open(dst, "a", encoding="utf-8") as out:   # 手本の記録は足し合わせる
+                    text = f.read_text(encoding="utf-8")
+                    out.write(text if text.endswith("\n") or not text else text + "\n")
+            elif not dst.exists():
+                shutil.copy2(f, dst)
+        retire(learn)
+        done.append("learn")
+    return done
