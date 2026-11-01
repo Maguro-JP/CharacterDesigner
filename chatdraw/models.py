@@ -27,9 +27,11 @@ DIT = dict(allow_patterns=["*.json", "*.txt", "*.model", "*.jinja", "scheduler/*
 FILES = {"full": FULL, "half": HALF, "bin": BIN, "dit": DIT}
 # 1 つのファイルで配られた模型を読むときに、部品の設定（model_index.json、tokenizer）を借りる元の模型。
 # SD 系は 1 つのファイルに言葉の部品と VAE も入っているので設定だけを借り、新しい世代は本体（transformer）しか入っていないことが多いので
-# 言葉の部品と VAE も借りる。借りる物を先に取っておかないと、描く時にネットから取りに行き、つながらないと読めなかった
+# 言葉の部品と VAE も借りる。借りる物を先に取っておかないと、描く時にネットから取りに行き、つながらないと読めなかった。
+# FLUX.1 の借り先は、同意（gated）の要らない写し（Apache-2.0 なので写しを置いてよい）にする。元の置き場は同意が要り、
+# トークンの無い利用者は 1 つのファイルの FLUX.1 を読めなかった（SD3.5 は写しを置いてよいライセンスではないので元のまま）
 SINGLE_BASE = {"sdxl": "stabilityai/stable-diffusion-xl-base-1.0", "sd15": "stable-diffusion-v1-5/stable-diffusion-v1-5",
-               "flux1": "black-forest-labs/FLUX.1-schnell", "chroma": "lodestones/Chroma1-HD", "zimage": "Tongyi-MAI/Z-Image-Turbo",
+               "flux1": "unsloth/FLUX.1-schnell", "chroma": "lodestones/Chroma1-HD", "zimage": "Tongyi-MAI/Z-Image-Turbo",
                "sd3": "stabilityai/stable-diffusion-3.5-medium"}
 
 
@@ -72,7 +74,8 @@ FAMILIES = {
                     bf16=True, vram=12, ram=40),
     "chroma": Family("Chroma", "ChromaPipeline", (1024, 1024), 16, tags=False, bf16=True, vram=12, ram=32),
     "zimage": Family("Z-Image", "ZImagePipeline", (1024, 1024), 16, tags=False, negative=False, bf16=True, vram=12, ram=32),
-    "qwenimage": Family("Qwen-Image", "QwenImagePipeline", (1024, 1024), 16, tags=False, cfg_key="true_cfg_scale",
+    # Qwen-Image は札の例の大きさ（1:1 で 1328×1328、縦横比ごとに同じ画素の数）で学んでいる
+    "qwenimage": Family("Qwen-Image", "QwenImagePipeline", (1328, 1328), 16, tags=False, cfg_key="true_cfg_scale",
                         bf16=True, vram=24, ram=64),
     "lumina2": Family("Lumina 2", "Lumina2Pipeline", (1024, 1024), 16, tags=True,
                       extra={"cfg_trunc_ratio": 0.25, "cfg_normalization": True}, bf16=True, vram=8, ram=24),
@@ -114,6 +117,11 @@ class ImageModel:
     vram: float = 0.0      # 重さ: GPU で描くのに要る VRAM（GB）。0 は世代の目安を使う
     ram: float = 0.0       # 重さ: 要るメモリ（GB）。0 は世代の目安を使う
     tags: tuple = ()       # 好みで探すためのタグ（アニメ、厚塗り、軽い など）。利用者のタグは ratings で重ねる
+    # 以下は模型の札（Hugging Face の README）の頼み方。照らした表は docs/knowledge/model-prompting.md
+    quality: str | None = None   # 頼みの後ろに足す質のタグ。None はタグで頼む世代の決まり文句（masterpiece, best quality）、"" は足さない
+    clip_skip: int = 0     # 札の CLIP skip（A1111 の数え方。2 は最後から 2 つ目の層）。0 は札に書いていない
+    scheduler: str = ""    # 札の例が替える描き方（dpm = DPMSolverMultistep）。空は模型に置いてある物のまま
+    call: tuple = ()       # 札の例が描く部品に渡す引数（(名前, 値) の組。Neta Lumina の system_prompt など）
 
     @property
     def hub(self) -> str:
@@ -147,7 +155,8 @@ def _entry(m: dict, user: bool = False) -> ImageModel:
                       commercial=m.get("commercial", ""), negative=m.get("negative", ""),
                       vpred=m.get("vpred", False), rescale=m.get("rescale", 0.0), file=m.get("file", "") if single else "",
                       user=user, note=m.get("note", ""), vram=m.get("vram", 0.0), ram=m.get("ram", 0.0),
-                      tags=tuple(m.get("tags", ())))
+                      tags=tuple(m.get("tags", ())), quality=m.get("quality"), clip_skip=m.get("clip_skip", 0),
+                      scheduler=m.get("scheduler", ""), call=tuple(sorted(m.get("call", {}).items())))
 
 
 def _load_images() -> tuple[ImageModel, ...]:

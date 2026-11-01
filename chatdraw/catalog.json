@@ -38,13 +38,15 @@
    "線が細い",
    "商用可"
   ],
-  "steps": 24,
+  "steps": 28,
   "guidance": 5.0,
   "score": 85,
   "note": "2026-10-24: 新規とラフから（棒人間・線画）の 3 枚。崩れなく描け、ラフの形に沿った",
   "commercial": "条件付きで商用可（openrail++）",
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "quality": "masterpiece, high score, great score, absurdres",
+  "negative": "lowres, bad anatomy, bad hands, text, error, missing finger, extra digits, fewer digits, cropped, worst quality, low quality, low score, bad score, average score, signature, watermark, username, blurry"
  },
  {
   "repo": "cagliostrolab/animagine-xl-3.1",
@@ -53,19 +55,20 @@
   "family": "sdxl",
   "format": "full",
   "gb": 6.9,
-  "prefix": "",
+  "prefix": "masterpiece, best quality, very aesthetic, absurdres, ",
   "en": "anime illustration, soft coloring",
   "tags": [
    "アニメ",
    "イラスト",
    "淡い色"
   ],
-  "steps": 24,
-  "guidance": 5.0,
+  "steps": 28,
+  "guidance": 7.0,
   "score": 0,
   "note": "2026-10-31 検証が時間切れで 2 枚だけ。頼んでいない白髪で描いた。点は付けない",
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "negative": "nsfw, lowres, bad, text, error, fewer, extra, missing, worst quality, jpeg artifacts, low quality, watermark, unfinished, displeasing, oldest, early, chromatic aberration, signature, extra digits, artistic error, username, scan, abstract"
  },
  {
   "repo": "cagliostrolab/animagine-xl-3.0",
@@ -74,18 +77,19 @@
   "family": "sdxl",
   "format": "full",
   "gb": 6.9,
-  "prefix": "",
+  "prefix": "masterpiece, best quality, ",
   "en": "anime illustration, older soft style",
   "tags": [
    "アニメ",
    "イラスト",
    "古い世代"
   ],
-  "steps": 24,
-  "guidance": 5.0,
+  "steps": 28,
+  "guidance": 7.0,
   "score": 0,
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "negative": "nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name"
  },
  {
   "repo": "OnomaAIResearch/Illustrious-xl-early-release-v0",
@@ -100,11 +104,12 @@
    "アニメ",
    "イラスト"
   ],
-  "steps": 24,
+  "steps": 28,
   "guidance": 5.0,
   "score": 0,
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "negative": "worst quality, comic, multiple views, bad quality, low quality, lowres, displeasing, very displeasing, bad anatomy, bad hands, scan artifacts, monochrome, greyscale, signature, twitter username, jpeg artifacts, 2koma, 4koma"
  },
  {
   "repo": "Jommarn/Illustrious-XL-v2.0",
@@ -132,18 +137,19 @@
   "family": "sdxl",
   "format": "full",
   "gb": 6.9,
-  "prefix": "",
+  "prefix": "masterpiece, best quality, newest, absurdres, highres, safe, ",
   "en": "anime, wide range of artist styles",
   "tags": [
    "アニメ",
    "イラスト"
   ],
-  "steps": 24,
-  "guidance": 5.0,
+  "steps": 28,
+  "guidance": 5.5,
   "score": 0,
   "commercial": "ライセンスの本文を読む必要あり",
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "negative": "nsfw, worst quality, old, early, low quality, lowres, signature, username, logo, bad hands, mutated hands, mammal, anthro, furry, ambiguous form, feral, semi-anthro"
  },
  {
   "repo": "John6666/hassaku-xl-illustrious-v31-sdxl",
@@ -213,7 +219,7 @@
   "format": "single",
   "gb": 6.9,
   "prefix": "",
-  "negative": "",
+  "negative": "lowres, bad anatomy, bad hands, text, error, missing finger, extra digits, fewer digits, cropped, worst quality, low quality, low score, bad score, average score, signature, watermark, username, blurry",
   "en": "anime illustration, improved anatomy and color, original characters",
   "tags": [
    "アニメ",
@@ -227,7 +233,8 @@
   "commercial": "条件付きで商用可（openrail++）",
   "file": "animagine-xl-4.0-opt.safetensors",
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "quality": "masterpiece, high score, great score, absurdres"
  },
  {
   "repo": "cagliostrolab/animagine-xl-4.0-zero",
@@ -237,7 +244,7 @@
   "format": "full",
   "gb": 6.9,
   "prefix": "",
-  "negative": "",
+  "negative": "lowres, bad anatomy, bad hands, text, error, missing finger, extra digits, fewer digits, cropped, worst quality, low quality, low score, bad score, average score, signature, watermark, username, blurry",
   "en": "anime illustration, base model for fine-tuning",
   "tags": [
    "アニメ",
@@ -250,7 +257,8 @@
   "note": "2026-10-31: Hugging Face の API で置き場と重みのファイルを確かめて載せた。描いて確かめるまで点は 0",
   "commercial": "条件付きで商用可（openrail++）",
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "quality": "masterpiece, high score, great score, absurdres"
  },
  {
   "repo": "OnomaAIResearch/Illustrious-XL-v1.0",
@@ -330,7 +338,7 @@
   "format": "full",
   "gb": 6.9,
   "prefix": "masterpiece, best quality, newest, absurdres, highres, safe, ",
-  "negative": "worst quality, low quality, lowres, bad anatomy, bad hands, extra digits, fewer digits, signature, watermark",
+  "negative": "nsfw, worst quality, old, early, low quality, lowres, signature, username, logo, bad hands, mutated hands, mammal, anthro, furry, ambiguous form, feral, semi-anthro",
   "en": "anime, wide range of artist styles, detailed tags",
   "tags": [
    "アニメ",
@@ -660,7 +668,9 @@
   "guidance": 5.0,
   "score": 0,
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "quality": "",
+  "clip_skip": 2
  },
  {
   "repo": "Lykon/dreamshaper-xl-lightning",
@@ -675,12 +685,14 @@
    "イラスト",
    "写実寄り"
   ],
-  "steps": 24,
-  "guidance": 5.0,
+  "steps": 4,
+  "guidance": 2.0,
   "score": 75,
   "note": "2026-10-24: 新規とラフからの 2 枚。崩れなし、ラフに沿う。写実寄りの塗り。工程 24、効き 5.0 で確かめた",
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "scheduler": "dpm",
+  "quality": ""
  },
  {
   "repo": "Lykon/dreamshaper-xl-1-0",
@@ -699,7 +711,8 @@
   "guidance": 5.0,
   "score": 0,
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "quality": ""
  },
  {
   "repo": "stabilityai/stable-diffusion-xl-base-1.0",
@@ -719,7 +732,8 @@
   "score": 0,
   "commercial": "条件付きで商用可（openrail++）",
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "quality": ""
  },
  {
   "repo": "SG161222/RealVisXL_V5.0",
@@ -733,11 +747,12 @@
   "tags": [
    "リアル"
   ],
-  "steps": 24,
+  "steps": 30,
   "guidance": 5.0,
   "score": 0,
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "quality": ""
  },
  {
   "repo": "RunDiffusion/Juggernaut-XL-v9",
@@ -751,11 +766,12 @@
   "tags": [
    "リアル"
   ],
-  "steps": 24,
+  "steps": 35,
   "guidance": 5.0,
   "score": 0,
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "quality": ""
  },
  {
   "repo": "playgroundai/playground-v2.5-1024px-aesthetic",
@@ -769,11 +785,12 @@
   "tags": [
    "イラスト"
   ],
-  "steps": 24,
-  "guidance": 5.0,
+  "steps": 50,
+  "guidance": 3.0,
   "score": 0,
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "quality": ""
  },
  {
   "repo": "Lykon/dreamshaper-8",
@@ -789,11 +806,12 @@
    "古い世代",
    "軽い"
   ],
-  "steps": 24,
+  "steps": 25,
   "guidance": 7.0,
   "score": 0,
   "vram": 4,
-  "ram": 8
+  "ram": 8,
+  "quality": ""
  },
  {
   "repo": "gsdf/Counterfeit-V2.5",
@@ -810,11 +828,13 @@
    "古い世代",
    "軽い"
   ],
-  "steps": 24,
-  "guidance": 7.0,
+  "steps": 20,
+  "guidance": 10.0,
   "score": 0,
   "vram": 4,
-  "ram": 8
+  "ram": 8,
+  "scheduler": "dpm",
+  "negative": "lowres, worst quality, low quality, extra fingers, fewer fingers"
  },
  {
   "repo": "genai-archive/anything-v5",
@@ -831,11 +851,13 @@
    "古い世代",
    "軽い"
   ],
-  "steps": 24,
+  "steps": 20,
   "guidance": 7.0,
   "score": 0,
   "vram": 4,
-  "ram": 8
+  "ram": 8,
+  "clip_skip": 2,
+  "scheduler": "euler_a"
  },
  {
   "repo": "digiplay/MeinaMix_v11",
@@ -980,7 +1002,8 @@
   "guidance": 7.0,
   "score": 0,
   "vram": 4,
-  "ram": 8
+  "ram": 8,
+  "quality": ""
  },
  {
   "repo": "stable-diffusion-v1-5/stable-diffusion-v1-5",
@@ -999,7 +1022,8 @@
   "guidance": 7.0,
   "score": 0,
   "vram": 4,
-  "ram": 8
+  "ram": 8,
+  "quality": ""
  },
  {
   "repo": "black-forest-labs/FLUX.2-klein-4B",
@@ -1066,7 +1090,8 @@
   "commercial": "商用可（Apache-2.0）",
   "prefix": "",
   "vram": 24,
-  "ram": 64
+  "ram": 64,
+  "negative": "low resolution, low quality, deformed limbs, deformed fingers, oversaturated, waxy skin, faces without detail, overly smooth, AI look, chaotic composition, blurry distorted text"
  },
  {
   "repo": "VirtualAddressExtension/Neta-Lumina-v1.0-diffusers",
@@ -1083,13 +1108,16 @@
    "GPU向き",
    "商用可"
   ],
-  "steps": 30,
+  "steps": 50,
   "guidance": 4.0,
   "score": 0,
   "commercial": "商用可（Apache-2.0）",
   "prefix": "",
   "vram": 8,
-  "ram": 24
+  "ram": 24,
+  "call": {
+   "system_prompt": "You are an assistant designed to generate anime images based on textual prompts."
+  }
  },
  {
   "repo": "lodestones/Chroma1-HD",
@@ -1111,7 +1139,8 @@
   "commercial": "商用可（Apache-2.0）",
   "prefix": "",
   "vram": 12,
-  "ram": 32
+  "ram": 32,
+  "negative": "low quality, ugly, unfinished, out of focus, deformed, disfigure, blurry, smudged, restricted palette, flat colors"
  },
  {
   "repo": "black-forest-labs/FLUX.1-schnell",
