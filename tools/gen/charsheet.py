@@ -33,6 +33,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bible  # noqa: E402
+import design  # noqa: E402,F401  SAM を読む前に模型の置き場所の既定を効かせる
 
 # 区分: (キー, 見出し, 文字の欄, 絵の役割の決まり)。絵の役割の決まりは (接頭辞, 最少の枚数, 説明)
 SECTIONS = [
