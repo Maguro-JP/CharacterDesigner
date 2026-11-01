@@ -609,13 +609,14 @@ class Window(QMainWindow):
         self._lora_row()
         ask_page = QWidget()
         ask_page.setLayout(ask)
-        self.ai_tabs = QTabWidget()
+        # 外の入れ物（描き方）は ai_pages。ai_tabs は AI の欄のタブを出し入れする TabDocks が使う
+        self.ai_pages = QTabWidget()
         # 中身の縦の流れは AI の欄のタブごとに持つ（描くボタンをタブの外に出し、流しても隠れないようにする）
         ask_scroll = ask_page
-        self.ai_tabs.addTab(ask_scroll, "描き方")
-        self.ai_tabs.setTabBarAutoHide(True)   # タブが 1 つのときは見出しだけで足りる
+        self.ai_pages.addTab(ask_scroll, "描き方")
+        self.ai_pages.setTabBarAutoHide(True)   # タブが 1 つのときは見出しだけで足りる
         dock = QDockWidget("AI", self)
-        dock.setWidget(self.ai_tabs)
+        dock.setWidget(self.ai_pages)
         dock.setObjectName("chat")
         dock.setFeatures(PANEL)
         self.addDockWidget(Qt.LeftDockWidgetArea, dock)
@@ -1418,7 +1419,7 @@ class Window(QMainWindow):
                 dock.show()
                 dock.raise_()
             self.ai_panel.sections["描く内容"].set_open(True)
-            self.ai_tabs.setCurrentIndex(0)
+            self.ai_pages.setCurrentIndex(0)
         bubble.add_button("AI の欄に入れる", "この案を AI の欄の「描く内容」に入れます（描きはしません）", fill)
         bubble.add_button("入れて描く", "この案を「描く内容」に入れて、すぐ描きます", lambda: (fill(), self.send()))
         self.chat._fit(bubble)

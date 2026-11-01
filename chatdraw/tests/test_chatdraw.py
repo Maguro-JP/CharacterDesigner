@@ -624,7 +624,7 @@ class TabsTest(unittest.TestCase):
         from chatdraw.app import Window
         QApplication.instance() or QApplication([])
         w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
-        self.assertEqual([w.ai_tabs.tabText(i) for i in range(w.ai_tabs.count())], ["描き方"])
+        self.assertEqual([w.ai_pages.tabText(i) for i in range(w.ai_pages.count())], ["描き方"])
         self.assertEqual([w.view_tabs.tabText(i) for i in range(w.view_tabs.count())], ["全体", "参考画像"])
         r = w.ribbon
         self.assertEqual([r.tabText(i) for i in range(r.count())], ["ホーム", "描く", "AI", "表示"])
