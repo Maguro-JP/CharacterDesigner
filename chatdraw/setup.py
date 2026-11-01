@@ -212,6 +212,10 @@ class Fetcher(QObject):
             ensure_shared()
             if not engine_ready():
                 install_engine(self.progress.emit)
+            from chatdraw.ratings import is_blocked
+            if image is not None and is_blocked(image.repo):   # ブロックした模型は、どの道からも取らない
+                self.finished.emit(f"{image.name} はブロックしています。模型の管理の「…」から解除できます")
+                return
             if image is not None:
                 self._image(image)
             if words is not None:
