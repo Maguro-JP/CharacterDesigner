@@ -83,6 +83,7 @@ def main():
         return {"tags": tags}
 
     def draw():
+        from chatdraw import finishers
         from chatdraw.engine import Painter, Studio, Words
         m = image_model(MODEL)
         studio = Studio(Words(Path("")), Painter(MODEL, steps=m.steps, guidance=m.guidance), out)
@@ -90,7 +91,7 @@ def main():
         said = []
         prompt, path = studio.draw(text, seed, on_status=lambda s: (said.append(s), print(s, flush=True)))
         state["path"], state["prompt"] = path, prompt
-        return {"file": str(path), "prompt": prompt, "redraws": json.loads(Path(path).with_suffix(".json").read_text(encoding="utf-8")).get("redraws")}
+        return {"file": str(path), "prompt": prompt, "redraws": finishers.sidecar(path).get("redraws")}
 
     def judge():
         from chatdraw import handcheck, requestcheck

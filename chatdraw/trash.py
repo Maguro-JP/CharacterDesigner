@@ -6,6 +6,7 @@ OS のごみ箱へ送ると、アプリから戻す道が無い（Windows のご
 
 絵と一緒に置いた付属のファイル（頼みと設定の .json、部位分けの .parts.png など、同じ名前で始まる物）も一緒に動かす。
 絵だけを動かすと、戻したときに「この設定で描き直す」が使えなくなる。
+アプリのデータの置き場に持つ絵の記録（検品の結果など、chatdraw/finishers.py の record_dir）も、絵と一緒にごみ箱へ移して戻す。
 """
 from __future__ import annotations
 
@@ -40,7 +41,9 @@ class Trash:
             for f in companions(p):
                 if f not in files:
                     files.append(f)
-        if not files and not library_items:
+        from chatdraw.finishers import record_dir
+        records = [(p, record_dir(p)) for p in paths if record_dir(p).is_dir()]
+        if not files and not library_items and not records:
             return None
         key = time.strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:6]
         box = self.root / key
@@ -50,7 +53,12 @@ class Trash:
             dst = box / f"{i:03d}-{f.name}"
             shutil.move(str(f), dst)
             moved.append({"from": str(f), "stored": dst.name})
-        manifest = {"when": time.strftime("%Y-%m-%d %H:%M"), "label": label or (Path(paths[0]).name if paths else ""),
+        kept = []
+        for i, (p, rd) in enumerate(records):
+            dst = box / f"records-{i:03d}"
+            shutil.move(str(rd), dst)
+            kept.append({"image": str(p), "stored": dst.name})
+        manifest = {"records": kept, "when": time.strftime("%Y-%m-%d %H:%M"), "label": label or (Path(paths[0]).name if paths else ""),
                     "images": [str(p) for p in paths], "files": moved, "library": library_items or []}
         (box / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False, indent=1), encoding="utf-8")
         return key
@@ -89,6 +97,14 @@ class Trash:
                 renamed[str(dst)] = str(new)
                 dst = new
             shutil.move(str(src), dst)
+        from chatdraw.finishers import record_dir
+        for r in m.get("records", []):
+            src, dst = box / r["stored"], record_dir(renamed.get(r["image"], r["image"]))
+            if src.is_dir():
+                if dst.exists():
+                    shutil.rmtree(dst, ignore_errors=True)
+                dst.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(src), dst)
         m["images"] = [renamed.get(p, p) for p in m["images"]]
         for it in m.get("library", []):
             it["path"] = renamed.get(it.get("path", ""), it.get("path", ""))

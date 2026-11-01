@@ -30,6 +30,7 @@ from PIL import Image, ImageDraw  # noqa: E402
 
 from chatdraw import engine, handcheck, twostage  # noqa: E402
 import hands  # noqa: E402
+from chatdraw import finishers  # noqa: E402
 
 SDXL = "Laxhar/noobai-XL-Vpred-1.0"   # 範囲の直しができる世代（sdxl）の模型
 LIB = ROOT / "library" / "feedback"
@@ -164,7 +165,7 @@ class TwoStageRedraws(unittest.TestCase):
             studio = engine.Studio(painter=FakePainter(), out=Path(t))
             with mock.patch.object(twostage, "run_stages", side_effect=run), mock.patch.object(studio, "_inspect"):
                 tags, saved = studio._draw_two("1girl, smile, red dress", 10, (comp, render), "", None, lambda m: None, None)
-            meta = json.loads(saved.with_suffix(".json").read_text(encoding="utf-8"))
+            meta = finishers.sidecar(saved)
         self.assertEqual(len(calls), 2)
         self.assertEqual([c[2] for c in calls], [10, 1010])
         self.assertTrue(calls[1][1].startswith("1girl, red dress, smile"), calls[1][1])

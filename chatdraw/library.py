@@ -50,10 +50,8 @@ class Library:
         """描いた絵を作品として足す（絵はその場に置いたまま、場所だけ覚える）"""
         meta = meta or {}
         if not meta:
-            try:
-                meta = json.loads(Path(path).with_suffix(".json").read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                meta = {}
+            from chatdraw.finishers import sidecar
+            meta = sidecar(path)   # PNG に埋めた頼み。前の版の絵は隣の .json
         item = {"id": uuid.uuid4().hex[:12], "kind": "work", "path": str(path), "added": time.strftime("%Y-%m-%d %H:%M"),
                 "text": meta.get("text", ""), "prompt": meta.get("prompt", ""), "style": meta.get("style_name", ""),
                 "model": meta.get("model", ""), "seed": meta.get("seed"), "rating": NONE, "tags": [], "note": ""}

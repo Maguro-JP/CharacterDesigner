@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from PySide6.QtCore import Qt  # noqa: E402
 from chatdraw.tests.test_uifix import draw, shown, spin  # noqa: E402
+from chatdraw import finishers  # noqa: E402
 
 
 def fresh(tmp: str, size=(1280, 720)):
@@ -302,7 +303,7 @@ class TooltipTest(unittest.TestCase):
         with TemporaryDirectory() as tmp:
             w = fresh(tmp)
             draw(w, "雪の城の前の騎士")
-            prompt = json.loads(Path(w.images[0]).with_suffix(".json").read_text(encoding="utf-8")).get("prompt", "")
+            prompt = finishers.sidecar(Path(w.images[0])).get("prompt", "")
             self.assertTrue(prompt)
             tip = w.history.item(0).toolTip()
             self.assertIn("雪の城の前の騎士", tip)
@@ -373,8 +374,9 @@ class TrashTest(unittest.TestCase):
             w = fresh(tmp)
             draw(w)
             path = w.images[0]
-            side = Path(path).with_suffix(".json")
+            side = finishers.record_dir(path)                     # 検品の結果などの記録（保存先には置かない）
             self.assertTrue(side.exists())
+            self.assertFalse(Path(path).with_suffix(".json").exists())
             # 確かめで「やめる」を選ぶと何も動かない
             with mock.patch.object(QMessageBox, "exec", return_value=0), \
                     mock.patch.object(QMessageBox, "clickedButton", return_value=None):
@@ -384,7 +386,7 @@ class TrashTest(unittest.TestCase):
             key = w.delete_images([path], ask=False)
             self.assertTrue(key)
             self.assertFalse(Path(path).exists())
-            self.assertFalse(side.exists())                       # 付属の .json も一緒に動く
+            self.assertFalse(side.exists())                       # 記録も一緒に動く
             self.assertEqual(w.history.count(), n_hist - 1)
             self.assertEqual(w.library_panel.works.count(), n_lib - 1)
             self.assertNotIn(path, w.images)
