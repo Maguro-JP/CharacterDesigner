@@ -1,0 +1,118 @@
+{
+ "id": "aw26-preppy-denim-m",
+ "name": "ニットベストとネクタイのプレッピー（2026 秋冬、男子）",
+ "model": "SG161222/RealVisXL_V5.0",
+ "seed": 0,
+ "steps": 30,
+ "prompt": "(cream cable knit vest:1.3), (light blue striped shirt:1.3), (navy narrow tie:1.3), young Japanese man, around 20, black short hair with a natural center part and long bangs, brown eyes, wearing cream cable knit vest over a light blue striped shirt with a loosely knotted navy narrow tie, shirt tucked in, dark indigo straight jeans slightly wide in full length, navy leather loafers, thin round glasses, cream light blue and indigo with navy, chunky knit against crisp cotton, neat top and relaxed denim, (full body shot:1.2), entire figure from head to shoes in frame, (shoes visible:1.2), small figure with empty space above the head and below the feet, fashion editorial lookbook photograph, plain off-white studio background, soft even studio lighting, sharp focus, photorealistic, high detail fabric texture",
+ "negative": "anime, illustration, drawing, cartoon, painting, 3d render, cgi, doll, cropped, out of frame, cut off feet, cropped legs, legs cut off, close-up, extra fingers, missing fingers, fused fingers, deformed hands, extra arms, extra legs, bad anatomy, two people, text, logo, brand logo, watermark, signature, nsfw, cleavage, see-through, logo, brand logo, text, miniskirt, short skirt, caucasian, western face, blonde hair, blue eyes, (rolled-up hem:1.3), cuffed trousers, skinny pants, tapered pants",
+ "views": {
+  "front": {
+   "file": "aw26-preppy-denim-m-s0-front.png",
+   "prompt": "(cream cable knit vest:1.3), (light blue striped shirt:1.3), (navy narrow tie:1.3), young Japanese man, around 20, black short hair with a natural center part and long bangs, brown eyes, wearing cream cable knit vest over a light blue striped shirt with a loosely knotted navy narrow tie, shirt tucked in, dark indigo straight jeans slightly wide in full length, navy leather loafers, thin round glasses, cream light blue and indigo with navy, chunky knit against crisp cotton, neat top and relaxed denim, (full body shot:1.2), entire figure from head to shoes in frame, (shoes visible:1.2), small figure with empty space above the head and below the feet, fashion editorial lookbook photograph, plain off-white studio background, soft even studio lighting, sharp focus, photorealistic, high detail fabric texture, front view, facing the camera",
+   "tries": [
+    {
+     "seed": 0,
+     "sec": 2536,
+     "bad": []
+    }
+   ],
+   "passed": true
+  },
+  "back": {
+   "file": "aw26-preppy-denim-m-s0-back.png",
+   "prompt": "(view from behind:1.4), (back of the head:1.3), the person faces away from the camera, back of the outfit visible, (cream cable knit vest:1.3), (light blue striped shirt:1.3), (navy narrow tie:1.3), young Japanese man, around 20, black short hair, wearing cream cable knit vest over a light blue striped shirt with a loosely knotted navy narrow tie, shirt tucked in, dark indigo straight jeans slightly wide in full length, navy leather loafers, thin round glasses, cream light blue and indigo with navy, chunky knit against crisp cotton, neat top and relaxed denim, (full body shot:1.2), entire figure from head to shoes in frame, (shoes visible:1.2), small figure with empty space above the head and below the feet, fashion editorial lookbook photograph, plain off-white studio background, soft even studio lighting, sharp focus, photorealistic, high detail fabric texture",
+   "tries": [
+    {
+     "seed": 0,
+     "sec": 2596,
+     "bad": [
+      "足元が枠の下で切れている",
+      "背面に顔が写っている"
+     ]
+    },
+    {
+     "seed": 1,
+     "sec": 2591,
+     "bad": [
+      "背面に顔が写っている"
+     ]
+    },
+    {
+     "seed": 2,
+     "sec": 2587,
+     "bad": [
+      "足元が枠の下で切れている",
+      "背面に顔が写っている"
+     ]
+    },
+    {
+     "seed": 3,
+     "sec": 2584,
+     "bad": [
+      "足元が枠の下で切れている",
+      "背面に顔が写っている"
+     ]
+    }
+   ],
+   "passed": false
+  }
+ },
+ "details": [
+  {
+   "part": "head",
+   "file": "aw26-preppy-denim-m-s0-detail-head.png",
+   "box": [
+    0,
+    0,
+    832,
+    194
+   ],
+   "words": "close-up of the hair and headwear"
+  },
+  {
+   "part": "collar",
+   "file": "aw26-preppy-denim-m-s0-detail-collar.png",
+   "box": [
+    0,
+    145,
+    832,
+    462
+   ],
+   "words": "close-up of the collar, neckline, buttons and fabric texture"
+  },
+  {
+   "part": "waist",
+   "file": "aw26-preppy-denim-m-s0-detail-waist.png",
+   "box": [
+    0,
+    413,
+    832,
+    705
+   ],
+   "words": "close-up of the waist, belt, pockets and seams"
+  },
+  {
+   "part": "hem",
+   "file": "aw26-preppy-denim-m-s0-detail-hem.png",
+   "box": [
+    0,
+    668,
+    832,
+    1033
+   ],
+   "words": "close-up of the hem, pleats and fabric folds"
+  },
+  {
+   "part": "feet",
+   "file": "aw26-preppy-denim-m-s0-detail-feet.png",
+   "box": [
+    0,
+    997,
+    832,
+    1216
+   ],
+   "words": "close-up of the shoes and socks"
+  }
+ ]
+}
