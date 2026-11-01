@@ -18,7 +18,7 @@ The app's UI is in Japanese; entry names are given as they appear.
 - Draw: the AI panel with tabs (描く内容, 作風, 模型, 詳しい設定, 加工), presets and painting styles, count, seed and reference image, voice input (🎤). おまかせ in the AI menu picks the best-rated local model and loops draw, inspect and fix
 - New drawings replace the canvas (undo restores it); requests stay in the history and can be re-run from its right-click menu
 - Character design menu (キャラクターデザイン): save a character sheet, turnaround (三面図), expression sheet (表情差分)
-- Fix and extend: circle an area with the red pen and only that area is redrawn; open an existing image to fix it (画像を開いて直す…); clean up (綺麗にする) and outpaint (絵の外へ広げる) from the canvas right-click menu; chibi, line art, pixel art and 2x upscale from the 加工 tab; go to 3D (3D に進む…)
+- Fix and extend: circle an area with the red pen and only that area is redrawn; open an existing image to fix it (画像を開いて直す…); canvas right-click shortcuts grouped by kind (clean up 綺麗にする, redraw, upscale, texture, atmosphere, inking, effects, outpaint 広げる), with starred and frequently used ones on top, plus your own fix requests registered under 指示で直す; chibi, line art, pixel art and 2x upscale from the 加工 tab; go to 3D (3D に進む…)
 - Art director: hands, feet, faces, requested items and CharacterDesigner's own numeric checks run inside the おまかせ flow (`chatdraw/omakase.py`, `chatdraw/origqc.py`)
 - Models: favorites, the fix model, and the model manager (模型の管理…) to fetch, update, delete, add by Hugging Face name, hide, block or stop models
 - Painting: brushes, colors, layers, selection, themes, saved layouts, timelapse with GIF and video export

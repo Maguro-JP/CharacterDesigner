@@ -86,9 +86,17 @@ class Bubble(QFrame):
         QGuiApplication.clipboard().setText(self.text)
 
     def _menu(self, pos):
+        m = self.menu()
+        m.exec(self.mapToGlobal(pos))
+
+    def menu(self):
         m = QMenu(self)
         m.addAction("文をコピー", self.copy)
-        m.exec(self.mapToGlobal(pos))
+        w = self.window()
+        if hasattr(w, "common_menu"):   # どこで右クリックしても、使える操作を出す
+            m.addSeparator()
+            w.common_menu(m)
+        return m
 
     def add_button(self, label: str, tip: str, fn) -> QPushButton:
         b = QPushButton(label)

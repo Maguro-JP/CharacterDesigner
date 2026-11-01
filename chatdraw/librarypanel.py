@@ -126,8 +126,12 @@ class LibraryPanel(QWidget):
     # ---- 操作 ----
     def _menu(self, view: QListWidget, pos, run: bool = True):
         it = view.itemAt(pos)
-        if not it:
-            return
+        if not it:   # 絵の無い所でも、使えるメニューを出す
+            m = self.w.area_menu("library")
+            if not run:
+                return m
+            m.exec(view.mapToGlobal(pos))
+            return None
         lib, item_id, path = self.w.library, it.data(Qt.UserRole), it.data(Qt.UserRole + 1)
         entry = lib.get(item_id)
         m = QMenu(self)
