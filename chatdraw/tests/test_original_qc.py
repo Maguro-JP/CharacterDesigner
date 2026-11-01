@@ -107,6 +107,42 @@ class OmakaseFixesFoundFaultsTest(unittest.TestCase):
         self.assertTrue(meta["passed"])
 
 
+class EyeDoubtTest(unittest.TestCase):
+    """目と口の点が確かでないときは、瞳の色と顔の形の外れを出さず、測れなかった崩れ（eyes.unsure）として顔の囲みで直す"""
+
+    def setUp(self):
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        import measure
+        self.m = measure
+
+    @staticmethod
+    def pair(lw=20, lh=10, rw=20, rh=10, dy=0, la=150, ra=150):
+        return {"found": 2, "left": {"cx": 100, "cy": 100, "w": lw, "h": lh, "area": la},
+                "right": {"cx": 160, "cy": 100 + dy, "w": rw, "h": rh, "area": ra}}
+
+    def test_sure_pair_is_measured(self):
+        self.assertEqual(self.m.eye_doubt(self.pair(), 120), "")
+        self.assertEqual(self.m.eye_doubt({"found": 1}, 20), "")      # 両目が読めないのは eyes.found が見る
+
+    def test_doubtful_pairs(self):
+        self.assertIn("小さい", self.m.eye_doubt(self.pair(), 26))               # 元の絵で顔の幅 26 画素
+        self.assertIn("縦に細長い", self.m.eye_doubt(self.pair(rw=9, rh=82), 120))  # 髪の筋を目と取った
+        self.assertIn("高さ", self.m.eye_doubt(self.pair(dy=-45), 120))          # 耳飾りとあごの影
+        self.assertIn("大きさ", self.m.eye_doubt(self.pair(la=80, ra=590), 120))
+
+    def test_unsure_is_a_face_fault_not_iris_or_form(self):
+        m = {"eyes": {"found": 2, "unsure": 1, "iris_delta": None}, "face": {"reason": "顔が小さい"}}
+        outs = self.m.judge(m, json.loads(self.m.NORMS.read_text(encoding="utf-8")))
+        self.assertEqual([o["path"] for o in outs], ["eyes.unsure"])            # 崩れとして逃がさない
+        res = origqc.from_outliers(outs, {"face": (1, 2, 3, 4), "body": (0, 0, 9, 9)}, (10, 10))
+        self.assertEqual(res["regions"], [((1, 2, 3, 4), "face")])              # 顔の囲みで描き直す
+
+    def test_sure_pair_keeps_iris_check(self):
+        m = {"eyes": {"found": 2, "unsure": 0, "iris_delta": 0.2}, "face": {"rms": 0.03}}
+        outs = self.m.judge(m, json.loads(self.m.NORMS.read_text(encoding="utf-8")))
+        self.assertEqual([o["path"] for o in outs], ["eyes.iris_delta"])
+
+
 class LearnTest(unittest.TestCase):
     """利用者の判定（★、戻す）から学んだ基準が、次の検品の判定に効く"""
 
