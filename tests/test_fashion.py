@@ -151,3 +151,12 @@ class PhotoCheckTest(unittest.TestCase):
         self.assertFalse(any("明るい" in b for b in fashion_photo.check_view(white, "front", "cream silk blouse")))
         self.assertEqual(fashion_photo.expected_tone("navy cropped jacket with gold buttons, worn open over a white blouse"), "")
         self.assertEqual(fashion_photo.expected_tone("dark indigo straight jeans, light blue shirt"), "")
+
+    def test_back_look_drops_face_words(self):
+        import sys
+        import types
+        sys.path.insert(0, str(ROOT / "tools" / "gen"))
+        sys.modules.setdefault("design", types.ModuleType("design"))
+        import fashion_photo
+        look = "young Japanese woman, early 20s, dark brown hair with see-through bangs, natural makeup, brown eyes"
+        self.assertEqual(fashion_photo.back_look(look), "young Japanese woman, early 20s, dark brown hair")

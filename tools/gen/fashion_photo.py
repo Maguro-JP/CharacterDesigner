@@ -37,8 +37,25 @@ NEGATIVE = ("anime, illustration, drawing, cartoon, painting, 3d render, cgi, do
             "two people, text, logo, brand logo, watermark, signature, nsfw, cleavage, see-through")
 
 
-def prompt_of(c: dict) -> tuple[str, str]:
+# 顔の言葉（目、化粧、前髪、肌、頬）。背面では外す。残すと、流行の 10 人の背面 30 枚すべてで振り返った顔や横顔が描かれた（2026-11-01）
+FACE_WORDS = re.compile(r"\b(eyes?|eyeshadow|makeup|bangs|skin|cheeks?|lips?|glasses)\b", re.I)
+
+
+def back_look(look: str) -> str:
+    """look から顔の言葉を含む句を外す（後ろ姿では顔が見えないので、描かせる理由が無い）"""
+    out = []
+    for x in (x.strip() for x in look.split(",")):
+        if "hair" in x:   # 髪は後ろからも見える。前髪などの飾りの句（with 以降）だけ外す
+            x = x.split(" with ")[0]
+        if x and not FACE_WORDS.search(x):
+            out.append(x)
+    return ", ".join(out)
+
+
+def prompt_of(c: dict, view: str = "front") -> tuple[str, str]:
     look = ANIME_WORDS.sub("", c["look"]).strip(" ,")
+    if view == "back":
+        look = back_look(look)
     pos = f"{look}, wearing {c['outfit']}, {PHOTO}"
     neg = ", ".join(x for x in (NEGATIVE, c.get("negative", "")) if x)
     return pos, neg
@@ -52,7 +69,7 @@ VIEWS = {"front": ("front view, facing the camera", ""),
          "back": ("(view from behind:1.4), (back of the head:1.3), the person faces away from the camera, back of the outfit visible",
                   "(face:1.4), (looking back:1.3), looking over shoulder, profile, eyes, nose, front view, facing camera")}
 BACK_IP_SCALE = 0.4   # 2 回目（0.3）は前後で靴・髪・裾が食い違った人が 10 人を超えた。顔は検査で落とせるようになったので手本を強める
-TRIES = 3   # 1 つの向きで描き直す回数の上限（1 枚 約 40 分。2 つの向きで 6 枚まで描いてもジョブの上限 6 時間に収まる）
+TRIES = {"front": 2, "back": 4}   # 向きごとの描き直しの上限（1 枚 約 40 分。合わせて 6 枚でジョブの上限 6 時間に収まる）。正面は 2 回目までにほぼ通り、背面が落ちやすい
 # 細部の範囲（人物の外接枠の高さに対する割合、上端と下端）と、描き足すときの言葉
 DETAILS = [("head", 0.00, 0.16, "close-up of the hair and headwear"),
            ("collar", 0.12, 0.38, "close-up of the collar, neckline, buttons and fabric texture"),
@@ -227,12 +244,13 @@ def main():
                              image_encoder_folder="models/image_encoder")
         front = None
         for view, (words, away) in VIEWS.items():
-            text = f"{words}, {pos}" if view == "back" else f"{pos}, {words}"
+            vpos = prompt_of(c, view)[0]
+            text = f"{words}, {vpos}" if view == "back" else f"{vpos}, {words}"
             pe, ne, pp, np_ = design.encode_xl(pipe, text, ", ".join(x for x in (neg, away) if x))
             pipe.set_ip_adapter_scale(0.0 if front is None else BACK_IP_SCALE)
             ref = front if front is not None else Image.new("RGB", (224, 224), "white")
             tries = []
-            for k in range(TRIES):   # 検品に落ちたら種を替えて描き直す。落ちた絵も -try<k> で残す
+            for k in range(TRIES[view]):   # 検品に落ちたら種を替えて描き直す。落ちた絵も -try<k> で残す
                 t = time.time()
                 im = pipe(prompt_embeds=pe, negative_prompt_embeds=ne, pooled_prompt_embeds=pp,
                           negative_pooled_prompt_embeds=np_, num_inference_steps=a.steps, guidance_scale=5.0,
@@ -245,7 +263,7 @@ def main():
                     break
                 im.save(out / f"{name}-{view}-try{k}.png")
             im.save(out / f"{name}-{view}.png")
-            rec["views"][view] = {"file": f"{name}-{view}.png", "tries": tries, "passed": not tries[-1]["bad"]}
+            rec["views"][view] = {"file": f"{name}-{view}.png", "prompt": text, "tries": tries, "passed": not tries[-1]["bad"]}
             if front is None:
                 front = im
         pipe.unload_ip_adapter()   # 細部の描き直し（img2img）は手本なしで描く
