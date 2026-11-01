@@ -1,6 +1,7 @@
 """チャットで頼むと絵ができるか。絵の模型と言葉の模型は偽物に替えて、流れだけを確かめる"""
 import os
 import sys
+import time
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -92,9 +93,12 @@ class WindowTest(unittest.TestCase):
             w.send()
             for _ in range(400):
                 app.processEvents()
-                if w.images and not w.thread:   # 描き終わり（finish）まで待つ。1 枚できた直後は結果の言葉がまだ付いていない
+                # 描き終わり（finish）と、裏の処理（模型を調べる・ライブラリーへ保存）の終わりまで待つ。
+                # 裏で動いている間は「裏の処理中」と出るのが正しい
+                if w.images and not w.thread and not w.activity.background:
                     break
                 w.thread and w.thread.wait(10)
+                time.sleep(0.01)
             self.assertEqual(len(w.images), 1)
             self.assertTrue(Path(w.images[0]).exists())
             item = w.history.item(0)                       # 描いた絵の欄の履歴に、結果と頼みが残る
