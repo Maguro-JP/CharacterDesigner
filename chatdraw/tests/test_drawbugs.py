@@ -387,7 +387,7 @@ class FetchTest(unittest.TestCase):
     def test_words_download_resumes(self):
         from chatdraw import setup
         from chatdraw.models import WORDS
-        body = b"0123456789" * 10
+        body = b"GGUF" + b"0123456789" * 10   # 取れた物は GGUF の頭を持つ（fetchfile が中身を確かめる）
         with TemporaryDirectory() as d:
             dest = Path(d) / "w.gguf"
             dest.with_suffix(".part").write_bytes(body[:40])

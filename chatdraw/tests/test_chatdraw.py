@@ -973,7 +973,9 @@ class ChooseTest(unittest.TestCase):
             from chatdraw.models import image_model
             fast = image_model("Lykon/dreamshaper-xl-lightning")
             with mock.patch("chatdraw.choose.installed_images", return_value=[IMAGES[0], fast]), \
-                    mock.patch("chatdraw.engine.Painter", Made):
+                    mock.patch("chatdraw.engine.Painter", Made), \
+                    mock.patch("chatdraw.omakase._default_check",   # 本物の検品の模型を CPU で回さない（この試験は模型の選び方だけを見る）
+                               return_value={"readable": True, "bad": [], "regions": [], "detail": [], "notes": []}):
                 st.draw("写実的な街の写真", 1, said.append)
             self.assertEqual(made[0], fast.repo)   # 構図は写実の頼みに合う模型から（落ちたら次の模型で描き直す: chatdraw/omakase.py）
             self.assertTrue(any("DreamShaper" in m for m in said))
