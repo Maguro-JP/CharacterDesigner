@@ -651,8 +651,40 @@ class Stopped(Exception):
     """利用者が「止める」を押した"""
 
 
+# 止める旗は 1 つだけにする。前は Painter ごとの旗で、描く処理の頭で旗を戻していたため、
+# 模型の読み込み中・言葉の模型の答え待ちに押した「止める」が消え、最後まで描いてキャンバスに置いた。
+# おまかせで Painter を作り直したときと、直しの模型（別の Studio）でも、同じ旗を見る
+import threading  # noqa: E402
+
+STOP = threading.Event()
+# 裏の 1 回分は同時に 1 つだけ。止めたあと後片付け中の前の回と、次の回が模型を取り合わない
+WORK = threading.Lock()
+
+
+def check_stop():
+    """止める旗が立っていれば Stopped を出す。工程の区切り（状態の知らせ）ごとに呼ぶ"""
+    if STOP.is_set():
+        raise Stopped("止めました")
+
+
+def kill_thread(ident: int | None) -> bool:
+    """その糸に Stopped を投げ込む。旗を見ない重い処理（模型の読み込み、言葉の模型の答え待ち、検品）でも、
+    次に Python の行へ戻った所で止まる。torch の計算や読み込みは短い C の呼び出しの繰り返しなので、1 秒もかからず届く"""
+    if not ident:
+        return False
+    import ctypes
+    n = ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(ident), ctypes.py_object(Stopped))
+    if n > 1:   # 投げ込み先を間違えたときは取り消す
+        ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(ident), None)
+        return False
+    return n == 1
+
+
 class Painter:
     """絵の模型で描く。模型は最初の 1 枚のときに 1 回だけ読む。キャンバスの絵を元に描き直すこともできる"""
+
+    # 止める旗は全体で 1 つ（STOP）。立てるのは利用者の「止める」、戻すのは裏の 1 回分を始めるときだけ
+    stop = property(lambda self: STOP.is_set(), lambda self, on: STOP.set() if on else None)
 
     def __init__(self, model: str = IMAGE_MODEL, steps: int = 24, size: tuple[int, int] = (832, 1216), guidance: float = 5.0):
         self.model, self.steps, self.size, self.guidance = model, steps, size, guidance
@@ -663,7 +695,6 @@ class Painter:
         # 直すときに絵全体を広げる倍率（hires_inpaint）。画素の数は 2.25 倍になるので、1 回の直しの時間もおよそそれだけ延びる
         self.upscale = 1.5
         self.avoid = ""     # 利用者の好みから読み取った、避ける言葉（描かない物に足す）
-        self.stop = False
         self.lora, self.lora_scale = "", 0.8   # 自分の作風の LoRA（模型の置き場の lora の .safetensors）。空なら重ねない
         self._lora_state: dict = {}
         self.lora_note = None
@@ -846,7 +877,6 @@ class Painter:
         pipe = self.load()
         from chatdraw.ownstyle import apply as apply_lora
         self.lora_note = apply_lora(pipe, self.lora, self.lora_scale, self._lora_state)
-        self.stop = False
         steps = self.steps
 
         def step(p, i, _t, kw):
@@ -942,7 +972,6 @@ class Painter:
         if self._inpaint is None:
             from diffusers import AutoPipelineForInpainting
             self._inpaint = AutoPipelineForInpainting.from_pipe(pipe)   # 読んだ模型の部品をそのまま使う
-        self.stop = False
         if clean:
             image = erase(image, mask)
         # 描くときと同じ札の頼み方（質のタグ、CLIP の長さ、CLIP skip）で直す。直しだけ別の頼み方にすると、絵柄がずれた
@@ -1211,7 +1240,6 @@ class Studio:
         self.painter._pipe = None   # 1 つの模型で読んだ物は捨てて、段の処理にメモリを渡す
         import gc
         gc.collect()
-        self.painter.stop = False
         sentence0, tags0 = sentence, tags
         # 構図も仕上げも 1 回で終えない。仕上げの検品（result-*.json）を通らなければ、種を変えて構図から描き直す。
         # 通らなかったときは崩れの一番少ない回の絵を渡し、どの回の崩れも .json の redraws に残す
