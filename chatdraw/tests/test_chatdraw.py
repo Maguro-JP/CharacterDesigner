@@ -2521,7 +2521,7 @@ class WordsSpeedTest(unittest.TestCase):
         for _ in range(3):   # 設定を替えて Words を作り直しても、読み直さない
             Words(p).to_prompt("赤いビキニの女性が浜辺に立つ")
         self.assertEqual(len(self.made), 1)
-        self.assertEqual(self.made[0]["n_ctx"], 512)
+        self.assertEqual(self.made[0]["n_ctx"], self.engine.CTX)   # 2048。512 ではチャットの問いと会話が溢れた
         self.assertEqual(self.made[0]["n_threads"], self.engine.decode_threads(self.engine.physical_cores()))
         self.assertEqual(self.made[0]["n_threads_batch"], self.engine.physical_cores())
         self.assertIn("\n", self.kw["stop"])            # 1 行目で止める
