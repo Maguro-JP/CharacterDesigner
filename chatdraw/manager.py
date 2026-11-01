@@ -224,16 +224,38 @@ class ModelManager(QDialog):
         return "使う", (lambda _=False, key=key, m=m: self.use(key, m)), "削除", (lambda _=False, it=it: self.ask_delete(it))
 
     def _more(self, m: ImageModel, actions: tuple) -> QMenu:
-        """「…」のドロップダウン。自分の点、自分のタグ、非表示（戻す）、削除（取ってある物だけ）"""
-        from chatdraw.ratings import is_hidden
+        """「…」のドロップダウン（行の右クリックでも同じ物）。自分の点、自分のタグ、非表示・ブロック（解除）、停止、削除"""
+        from chatdraw.ratings import is_blocked, is_hidden
         menu = QMenu(self)
-        menu.addAction("自分の点を付ける…", lambda m=m: self.ask_rating(m))
-        menu.addAction("自分のタグ…", lambda m=m: self.ask_tags(m))
-        if is_hidden(m.repo):
-            menu.addAction("表示に戻す", lambda m=m: self.set_hidden(m, False))
+        menu.setToolTipsVisible(True)
+
+        def add(label, fn, tip, enabled=True):
+            a = menu.addAction(label, fn)
+            a.setToolTip(tip)
+            a.setEnabled(enabled)
+            return a
+        add("自分の点を付ける…", lambda m=m: self.ask_rating(m), "0〜100 の自分の点。目録の点より先に使います")
+        add("自分のタグ…", lambda m=m: self.ask_tags(m), "好みで探すためのタグを足します")
+        menu.addSeparator()
+        blocked = is_blocked(m.repo)
+        if blocked:
+            add("ブロックを解除", lambda m=m: self.set_blocked(m, False), "おまかせ・推奨・AI のメニューに戻し、取れるようにします")
         else:
-            menu.addAction("非表示にする", lambda m=m: self.set_hidden(m, True))
-        if len(actions) > 2 and actions[3] is not None:
+            if is_hidden(m.repo):
+                add("表示に戻す", lambda m=m: self.set_hidden(m, False), "一覧と推奨に戻します")
+            else:
+                add("非表示にする", lambda m=m: self.set_hidden(m, True),
+                    "一覧と推奨に出しません。取ってある物は「非表示にした模型」の絞り込みで出せます")
+            add("ブロックする", lambda m=m: self.set_blocked(m, True),
+                "非表示に加えて、おまかせ・推奨・AI のメニューのどこからも選ばず、取りにも行きません")
+        menu.addSeparator()
+        w = self.parent()
+        mine = getattr(getattr(getattr(w, "studio", None), "painter", None), "model", None) == m.repo
+        add("描いている処理を止める", self.stop_drawing, "いま描いている処理を止めます。途中の絵は捨て、キャンバスは元のままです",
+            bool(mine and getattr(w, "drawing", lambda: False)()))
+        add("メモリから降ろす", lambda m=m: self.unload(m), "読み込んだこの模型をメモリから降ろします。次に描くときに読み直します",
+            bool(mine and w.studio.painter.loaded()))
+        if len(actions) > 2 and actions[3] is not None and not blocked:
             menu.addSeparator()
             menu.addAction(actions[2], actions[3])
         return menu
@@ -242,6 +264,27 @@ class ModelManager(QDialog):
         from chatdraw.ratings import set_hidden
         set_hidden(m.repo, on)
         self.status.setText(f"{m.name} を" + ("非表示にしました。「非表示にした模型」の絞り込みから戻せます" if on else "表示に戻しました"))
+        self.refresh()
+
+    def set_blocked(self, m: ImageModel, on: bool):
+        from chatdraw.ratings import set_blocked
+        from chatdraw.setup import AUTO
+        if on and self.settings.get("image_model") == m.repo:   # 使っている模型をブロックしたら、おまかせに戻す
+            self.settings.set("image_model", AUTO)
+        set_blocked(m.repo, on)
+        self.status.setText(f"{m.name} を" + ("ブロックしました。「非表示にした模型」の絞り込みから解除できます" if on else "ブロックを解除しました"))
+        self.refresh()
+
+    def stop_drawing(self):
+        w = self.parent()
+        if hasattr(w, "stop"):
+            w.stop()
+            self.status.setText("止めています。途中の絵は捨て、キャンバスは元のままです")
+
+    def unload(self, m: ImageModel):
+        w = self.parent()
+        if hasattr(w, "unload_model"):
+            self.status.setText(w.unload_model(m.repo))
         self.refresh()
 
     def toggle_favorite(self, m: ImageModel):
@@ -413,9 +456,11 @@ class ModelManager(QDialog):
             b = QToolButton()
             b.setText("…")
             b.setPopupMode(QToolButton.InstantPopup)
-            b.setToolTip("自分の点・自分のタグ・非表示・削除")
+            b.setToolTip("自分の点・自分のタグ・非表示・ブロック・停止・削除。行の右クリックでも出ます")
             b.setMenu(more)
             box.more = more
+            box.setContextMenuPolicy(Qt.CustomContextMenu)
+            box.customContextMenuRequested.connect(lambda pos, box=box: box.more.popup(box.mapToGlobal(pos)))
             row.addWidget(b)
         return box
 
@@ -433,6 +478,10 @@ class ModelManager(QDialog):
         self._changed()
 
     def fetch(self, m):
+        from chatdraw.ratings import is_blocked
+        if isinstance(m, ImageModel) and is_blocked(m.repo):
+            self.status.setText(f"{m.name} はブロックしています。「…」から解除すると取れます")
+            return
         self.bar.setVisible(True)
         image = m if isinstance(m, ImageModel) else None
         words = m if m in WORDS else None
@@ -442,7 +491,8 @@ class ModelManager(QDialog):
         """手元にある確かめ済みの模型に新しい版があれば取る"""
         from chatdraw.setup import has_image, has_words
         self.bar.setVisible(True)
-        images = [m for m in catalog_images() if has_image(m)]
+        from chatdraw.ratings import is_blocked
+        images = [m for m in catalog_images() if has_image(m) and not is_blocked(m.repo)]
         words = [m for m in WORDS if has_words(m)]
 
         def run():

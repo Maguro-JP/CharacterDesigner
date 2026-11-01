@@ -732,6 +732,21 @@ class Painter:
         pipe.set_ip_adapter_scale(scale)
         args["ip_adapter_image"] = reference.convert("RGB")
 
+    def loaded(self) -> bool:
+        return any(x is not None for x in (self._pipe, self._sketch, self._inpaint))
+
+    def unload(self):
+        """読んだ模型をメモリから降ろす。次に描くときに読み直す"""
+        self._pipe = self._sketch = self._inpaint = None
+        self._ref = False
+        self._lora_state = {}
+        import gc
+        gc.collect()
+        import sys
+        torch = sys.modules.get("torch")   # 読んでいなければ torch も読まない
+        if torch is not None and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
     def load(self):
         if self._pipe is None:
             self._pipe = self._read()
@@ -1058,6 +1073,11 @@ class Studio:
             if path is not None and path != getattr(self.words, "path", None):
                 self.words = Words(path)
         from chatdraw.models import family as fam, image_model
+        if self.image_auto and base is None and reference is None and self.way == "auto":
+            # おまかせ: 工程ごとに得意な模型を選び、落ちた部位は別の模型で直して描き上げる（chatdraw/omakase.py）。
+            # ラフ・参考画像は、その機能のある模型 1 つで描く下の道を通る
+            from chatdraw import omakase
+            return omakase.draw(self, text, seed, say, size=size, meta=meta, style=style)
         if self.image_auto:
             # 模型を先に選ぶ。頼みの形（タグか文か）は選んだ模型の世代で決まるので、直したあとに替えると食い違った。
             # ラフや参考画像を使うときは、その機能のある世代の模型だけから選ぶ
