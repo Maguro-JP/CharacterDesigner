@@ -1,0 +1,120 @@
+{
+ "id": "aw26-dotcollar-f",
+ "name": "ドット衿のカーディガン（2026 秋冬、女子）",
+ "model": "SG161222/RealVisXL_V5.0",
+ "seed": 0,
+ "steps": 30,
+ "prompt": "(navy cardigan with a white polka dot collar:1.3), (black satin long skirt:1.3), young Japanese woman, early 20s, black straight collarbone-length hair with full bangs, rosy natural makeup, dark brown eyes, wearing navy knit cardigan with a white polka dot shirt collar, buttoned up and fitted, tucked into a softly flared black satin long skirt falling to the ankle, compact top and flowing long bottom, black leather loafers with white socks, small brown leather handbag as the only accent, navy black and white, soft knit against glossy satin, (full body shot:1.2), entire figure from head to shoes in frame, (shoes visible:1.2), small figure with empty space above the head and below the feet, fashion editorial lookbook photograph, plain off-white studio background, soft even studio lighting, sharp focus, photorealistic, high detail fabric texture",
+ "negative": "anime, illustration, drawing, cartoon, painting, 3d render, cgi, doll, cropped, out of frame, cut off feet, cropped legs, legs cut off, close-up, extra fingers, missing fingers, fused fingers, deformed hands, extra arms, extra legs, bad anatomy, two people, text, logo, brand logo, watermark, signature, nsfw, cleavage, see-through, logo, brand logo, text, miniskirt, short skirt, caucasian, western face, blonde hair, blue eyes, (rolled-up hem:1.3), cuffed trousers, skinny pants, tapered pants",
+ "views": {
+  "front": {
+   "file": "aw26-dotcollar-f-s0-front.png",
+   "prompt": "(navy cardigan with a white polka dot collar:1.3), (black satin long skirt:1.3), young Japanese woman, early 20s, black straight collarbone-length hair with full bangs, rosy natural makeup, dark brown eyes, wearing navy knit cardigan with a white polka dot shirt collar, buttoned up and fitted, tucked into a softly flared black satin long skirt falling to the ankle, compact top and flowing long bottom, black leather loafers with white socks, small brown leather handbag as the only accent, navy black and white, soft knit against glossy satin, (full body shot:1.2), entire figure from head to shoes in frame, (shoes visible:1.2), small figure with empty space above the head and below the feet, fashion editorial lookbook photograph, plain off-white studio background, soft even studio lighting, sharp focus, photorealistic, high detail fabric texture, front view, facing the camera",
+   "tries": [
+    {
+     "seed": 0,
+     "sec": 1827,
+     "bad": [
+      "足元が枠の下で切れている"
+     ]
+    },
+    {
+     "seed": 1,
+     "sec": 1829,
+     "bad": []
+    }
+   ],
+   "passed": true
+  },
+  "back": {
+   "file": "aw26-dotcollar-f-s0-back.png",
+   "prompt": "(view from behind:1.4), (back of the head:1.3), the person faces away from the camera, back of the outfit visible, (navy cardigan with a white polka dot collar:1.3), (black satin long skirt:1.3), young Japanese woman, early 20s, black straight collarbone-length hair, wearing navy knit cardigan with a white polka dot shirt collar, buttoned up and fitted, tucked into a softly flared black satin long skirt falling to the ankle, compact top and flowing long bottom, black leather loafers with white socks, small brown leather handbag as the only accent, navy black and white, soft knit against glossy satin, (full body shot:1.2), entire figure from head to shoes in frame, (shoes visible:1.2), small figure with empty space above the head and below the feet, fashion editorial lookbook photograph, plain off-white studio background, soft even studio lighting, sharp focus, photorealistic, high detail fabric texture",
+   "tries": [
+    {
+     "seed": 0,
+     "sec": 1858,
+     "bad": [
+      "背面に顔が写っている"
+     ]
+    },
+    {
+     "seed": 1,
+     "sec": 1832,
+     "bad": [
+      "背面に顔が写っている"
+     ]
+    },
+    {
+     "seed": 2,
+     "sec": 1802,
+     "bad": [
+      "背面に顔が写っている"
+     ]
+    },
+    {
+     "seed": 3,
+     "sec": 1833,
+     "bad": []
+    }
+   ],
+   "passed": true
+  }
+ },
+ "details": [
+  {
+   "part": "head",
+   "file": "aw26-dotcollar-f-s0-detail-head.png",
+   "box": [
+    0,
+    0,
+    832,
+    194
+   ],
+   "words": "close-up of the hair and headwear"
+  },
+  {
+   "part": "collar",
+   "file": "aw26-dotcollar-f-s0-detail-collar.png",
+   "box": [
+    0,
+    145,
+    832,
+    462
+   ],
+   "words": "close-up of the collar, neckline, buttons and fabric texture"
+  },
+  {
+   "part": "waist",
+   "file": "aw26-dotcollar-f-s0-detail-waist.png",
+   "box": [
+    0,
+    413,
+    832,
+    705
+   ],
+   "words": "close-up of the waist, belt, pockets and seams"
+  },
+  {
+   "part": "hem",
+   "file": "aw26-dotcollar-f-s0-detail-hem.png",
+   "box": [
+    0,
+    668,
+    832,
+    1033
+   ],
+   "words": "close-up of the hem, pleats and fabric folds"
+  },
+  {
+   "part": "feet",
+   "file": "aw26-dotcollar-f-s0-detail-feet.png",
+   "box": [
+    0,
+    997,
+    832,
+    1216
+   ],
+   "words": "close-up of the shoes and socks"
+  }
+ ]
+}
