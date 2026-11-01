@@ -19,6 +19,27 @@ import chatdraw.motion  # noqa: E402
 chatdraw.motion.MOTION = False   # 試験は動きを切って、結果だけを見る（動きは MotionTest で見る）
 
 
+def sweep_windows():
+    """前の試験が開いたまま残したウィンドウを片付ける。テーマはアプリ全体の見た目（setStyleSheet）を替えるので、
+    残ったウィンドウが 100 枚近くあると 1 回の切り替えに何分もかかり、一式が時間切れで止まった"""
+    from PySide6.QtCore import QCoreApplication, QEvent, QThread
+    from PySide6.QtWidgets import QApplication
+    from chatdraw.app import Window
+    app = QApplication.instance()
+    if app is None:
+        return
+    for w in [x for x in app.topLevelWidgets() if isinstance(x, Window)]:
+        t = getattr(w, "thread", None)
+        if isinstance(t, QThread):
+            t.quit()
+            t.wait(5000)
+        if hasattr(w, "wait_io"):
+            w.wait_io(5)
+        w.hide()
+        w.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+
+
 class FakeWords:
     def ready(self):
         return True
@@ -1027,6 +1048,7 @@ class ThemeTest(unittest.TestCase):
         from PySide6.QtWidgets import QApplication
         from chatdraw.app import Window
         self.app = QApplication.instance() or QApplication([])
+        sweep_windows()
         self.w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
 
     def test_every_theme_icons_contrast(self):
@@ -1075,6 +1097,7 @@ class ThemeLookTest(unittest.TestCase):
         from PySide6.QtWidgets import QApplication
         from chatdraw.app import Window
         self.app = QApplication.instance() or QApplication([])
+        sweep_windows()
         self.w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
         self.w.layout_store = QSettings(mktemp(suffix=".ini"), QSettings.IniFormat)
         self.w.layout_store.setValue("feature_tours", 0)
