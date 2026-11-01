@@ -70,6 +70,8 @@
 | `setup.py`、`manager.py`、`choose.py` | 初回の設定、模型の管理、おまかせの選び方 |
 | `paths.py`、`migrate.py` | 置き場と、前の版からの移行 |
 | `activity.py` | 工程・進み・履歴の欄 |
+| `finishers.py` | 仕上げ（綺麗にする）の道具。tools/gen の retouch・inking・atmosphere・materials を囲みの中だけに掛ける |
+| `charadesign.py` | キャラクターデザインのメニュー（設定資料集・三面図・表情差分）。tools/gen/bible.py の資料の形を使う |
 | `fit.py`、`keys.py` | 窓を画面に収める、キーの割り当て |
 | `help/`、`helpview.py` | 手順書と操作方法、アプリの中で読む窓 |
 | `verify_models.py` | 絵の模型を動かして確かめる（Actions の model-verify で流す） |

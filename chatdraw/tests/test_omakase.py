@@ -111,11 +111,12 @@ class OmakaseTest(unittest.TestCase):
         self.assertEqual(log, [("paint", "c/compose"), ("redraw", "h/hands")])
         image, meta = st.saved
         self.assertEqual(image.getpixel((0, 0)), (180, 180, 180))             # 囲みの外は直す前の絵のまま
-        self.assertEqual(image.getpixel((15, 15)), (10, 10, 10))
+        # 仕上げのレベル補正（retouch の levels）が絵全体の明るさの幅を 1 段ずらすことがあるので、2 までの差は許す
+        self.assertTrue(all(abs(v - 10) <= 2 for v in image.getpixel((15, 15))))
         stages = [(s["stage"], s.get("model")) for s in meta["omakase"]["steps"] if s["stage"] != "検品"]
-        # 検品を通ったあとに、形を変えない仕上げ（塗りのむらを均す）だけが掛かる
-        self.assertEqual(stages, [("構図", "c/compose"), ("広げて描き直し", "c/compose"), ("手の直し", "h/hands"),
-                                  ("仕上げ", "clean")])
+        # 検品を通ったあとに、形を変えない仕上げ（塗りのむらを均す、線と塗りを整える）だけが掛かる
+        self.assertEqual(stages[:3], [("構図", "c/compose"), ("広げて描き直し", "c/compose"), ("手の直し", "h/hands")])
+        self.assertTrue(set(stages[3:]) <= {("仕上げ", "clean"), ("仕上げ", "retouch")} and ("仕上げ", "clean") in stages)
         self.assertTrue(meta["passed"])
         self.assertTrue(any(m.startswith("手の直し: H/HANDS") for m in said))
 
