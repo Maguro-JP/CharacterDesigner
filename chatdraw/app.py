@@ -864,6 +864,10 @@ class Window(QMainWindow):
         self.menuBar().addMenu(self.ai_menu)
         self.ai_menu.aboutToShow.connect(self._fill_ai_menu)
         self._fill_ai_menu()
+        self.chara_menu = QMenu("キャラクターデザイン", self)
+        self.menuBar().addMenu(self.chara_menu)
+        self.chara_menu.aboutToShow.connect(self._fill_chara_menu)
+        self._fill_chara_menu()
         from chatdraw import ratings
         ratings.on_change(self._models_changed)
         setting_menu = self.menuBar().addMenu("設定")
@@ -2695,16 +2699,9 @@ class Window(QMainWindow):
     def finish_with(self, name: str, background: bool = False):
         """仕上げの道具を今の絵に掛け、結果を新しいレイヤーとして重ねる。囲み（赤ペン・選択）があれば囲みの中だけ変える。
         使えないときは止めずに理由を出す。返すのは保存した置き場（出来なければ None）"""
-        from PIL import ImageChops
         from chatdraw import finishers
         base = qimage_to_pil(self.canvas.flatten()).convert("RGB")
-        masks = [gray_to_pil(m) for m in self.canvas.redpen.masks()]
-        sel = self.canvas.selection_mask()
-        if sel is not None:
-            masks.append(gray_to_pil(sel))
-        mask = None
-        for m in masks:
-            mask = m.convert("L") if mask is None else ImageChops.lighter(mask, m.convert("L"))
+        mask = self._region_mask()
         finishers.use_painter(getattr(self.studio, "painter", None))
         if background:   # 模型を使う道具は数十秒かかる。画面の糸で回すと、その間アプリが固まる
             ok, why = self._finisher_ready(name)
@@ -2725,6 +2722,136 @@ class Window(QMainWindow):
             self.notify("綺麗にできませんでした", "error", explain(e))
             return None
         return self._place_finished(name, base, out)
+
+    def _region_mask(self):
+        """赤ペンの囲みと選択範囲を合わせた囲み（PIL の L）。どちらも無ければ None"""
+        from PIL import ImageChops
+        masks = [gray_to_pil(m) for m in self.canvas.redpen.masks()]
+        sel = self.canvas.selection_mask()
+        if sel is not None:
+            masks.append(gray_to_pil(sel))
+        mask = None
+        for m in masks:
+            mask = m.convert("L") if mask is None else ImageChops.lighter(mask, m.convert("L"))
+        return mask
+
+    # ---- キャラクターデザイン（設定資料集・三面図・表情差分。chatdraw/charadesign.py） ----
+
+    def _fill_chara_menu(self):
+        from chatdraw import charadesign
+        m = self.chara_menu
+        m.clear()
+        m.setToolTipsVisible(True)
+        m.addAction("描いた人物を設定資料に保存…", self.chara_save).setToolTip(
+            "今の絵を色の手本にして、頼んだ言葉と色見本と一緒に設定資料に残します。三面図と表情差分はこの資料から描きます")
+        try:
+            saved = charadesign.characters()
+        except OSError:
+            saved = []
+        now = getattr(self, "chara_id", "") or (saved[0]["id"] if saved else "")
+        self.chara_id = now
+        if saved:
+            pick = m.addMenu("使う人物")
+            for c in saved[:20]:
+                act = pick.addAction(c["name"], lambda i=c["id"]: setattr(self, "chara_id", i))
+                act.setCheckable(True)
+                act.setChecked(c["id"] == now)
+        busy = getattr(self, "thread", None) is not None
+        for label, fn, tip in (
+                ("三面図を描く", self.chara_turnaround, "正面・横・後ろを同じ種で 1 枚ずつ描き、設定資料に置きます"),
+                ("表情差分を描く", lambda: self.chara_expressions(),
+                 "今の絵の顔の中だけを、笑顔・怒り・悲しみ・驚きに描き直します。顔の外は変えません。顔を囲むと、その囲みを使います"),
+                ("設定資料を開く", self.chara_sheet, "設定資料のページ（絵を埋め込んだ 1 つのファイル）を書き、置き場を開きます")):
+            act = m.addAction(label, fn)
+            act.setToolTip(tip)
+            act.setEnabled(bool(now) and not busy)
+
+    def chara_save(self, name: str | None = None):
+        """今の絵を設定資料に保存する。返すのは保存した id（やめたときは空）"""
+        from chatdraw import charadesign
+        if not isinstance(name, str):   # メニューから呼ぶと checked の真偽が来る
+            from PySide6.QtWidgets import QInputDialog
+            name, ok = QInputDialog.getText(self, "設定資料に保存", "人物の名前")
+            if not ok:
+                return ""
+        name = (name or "").strip() or "名前のない人物"
+        text = self.last_text or ""
+        look = text
+        try:
+            words = getattr(self.studio, "words", None)
+            look = words.to_prompt(text, tags=True) if (words is not None and text) else text
+        except Exception:   # 言葉の模型が使えないときは頼みの言葉のまま残す
+            look = text
+        image = qimage_to_pil(self.canvas.flatten()).convert("RGB")
+        try:
+            c = charadesign.save_character(name, look, image, notes=text)
+        except (charadesign.NotReady, OSError) as e:
+            self.notify("設定資料に保存できませんでした", "error", str(e))
+            return ""
+        self.chara_id = c["id"]
+        self.notify("設定資料に保存しました", "ok", f"{name}（色見本 {len(c['palette'])} 色）")
+        return c["id"]
+
+    def _chara_painter(self):
+        painter = getattr(self.studio, "painter", None)
+        if painter is None or not getattr(painter, "ready", lambda: False)():
+            self.notify("描けませんでした", "info", "絵の模型がまだありません。AI のメニューで模型を取ってください")
+            return None
+        return painter
+
+    def chara_turnaround(self):
+        from chatdraw import charadesign
+        painter, ident = self._chara_painter(), getattr(self, "chara_id", "")
+        if painter is None or not ident:
+            return
+        self.activity.begin("三面図を描く", "キャラクターデザイン")
+        seed = int(time.time()) % 100000
+        self._run_task(lambda _step: charadesign.draw_turnaround(painter, ident, seed, say=self.task.status.emit),
+                       lambda out: self._chara_done("三面図を描きました", out))
+
+    def chara_expressions(self, only=("smile", "angry", "sad", "surprised")):
+        from chatdraw import charadesign
+        painter, ident = self._chara_painter(), getattr(self, "chara_id", "")
+        if painter is None or not ident:
+            return
+        base = qimage_to_pil(self.canvas.flatten()).convert("RGB")
+        mask = self._region_mask()
+        if mask is None:   # 囲みが無ければ、検品の顔の枠を使う
+            try:
+                from chatdraw import handcheck
+                boxes = [f["box"] for f in handcheck.check(base, fetch=False).get("faces", [])]
+            except Exception:
+                boxes = []
+            mask = charadesign.face_mask(base, boxes) if boxes else None
+        if mask is None:
+            self.notify("表情差分を描けませんでした", "info", "顔が見つかりませんでした。顔を選択範囲か赤ペンで囲んでください")
+            return
+        self.activity.begin("表情差分を描く", "キャラクターデザイン")
+        seed = int(time.time()) % 100000
+        self._run_task(lambda _step: charadesign.draw_expressions(painter, ident, base, mask, seed, list(only),
+                                                                  say=self.task.status.emit),
+                       lambda out: self._chara_done("表情差分を描きました", out))
+
+    def _chara_done(self, msg: str, out: dict):
+        self.activity.end(msg, None, record=False)
+        self.notify(msg, "ok", f"{len(out)} 枚を設定資料に置きました。「設定資料を開く」で並べて見られます")
+        self._end(msg)
+
+    def chara_sheet(self):
+        from chatdraw import charadesign
+        ident = getattr(self, "chara_id", "")
+        if not ident:
+            return None
+        try:
+            path = charadesign.write_sheet(ident)
+        except (charadesign.NotReady, OSError, SystemExit) as e:
+            self.notify("設定資料を開けませんでした", "error", str(e))
+            return None
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(path.parent)))
+        self.notify("設定資料を書きました", "ok", str(path))
+        return path
 
     def _finisher_ready(self, name: str):
         from chatdraw import finishers

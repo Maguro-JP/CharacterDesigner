@@ -113,7 +113,7 @@ class Plan:
 
 # おまかせが検品を通った絵に黙って掛けてよい仕上げ。形を変えず、大きさも変えない物だけ。
 # 描き直す仕上げ（顔を整える、仕上げの描き直し）は検品を通った絵を崩しうるので、利用者が選んだときだけ使う
-AUTO_FINISH = ("clean",)
+AUTO_FINISH = ("clean", "retouch")   # retouch は形を変えない工程だけ（崩れが増える工程は採らない。docs/knowledge/retouch.md）
 
 
 def auto_finish(tools) -> list:
