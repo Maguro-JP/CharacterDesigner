@@ -18,6 +18,7 @@ VERSION = 1
 
 def _reset(w):
     """欄をいったん全部くっつけ直す（別ウィンドウや畳んだ物も戻す）"""
+    w.__dict__.pop("_fit_cols", None)
     for d, _ in w.panels.values():
         d.setFloating(False)
         title = d.titleBarWidget()
@@ -46,6 +47,77 @@ def _column(w, area, keys: list[str], sizes: list[int] | None = None):
     return docks
 
 
+def need(w, key: str) -> int:
+    """欄の中身が流す棒（スクロールバー）を出さずに収まる高さ（見出しを含む）"""
+    d = w.panels[key][0]
+    body = d.widget()
+    inner = body.widget() if hasattr(body, "widget") and body.widget() is not None else body
+    title = d.titleBarWidget()
+    head = title.sizeHint().height() if title is not None else 24
+    if w.tabifiedDockWidgets(d):   # タブで重ねた欄は、タブの見出しの分も要る
+        head += d.fontMetrics().height() + 14
+    return inner.minimumSizeHint().height() + head + 12
+
+
+def _group(w, d) -> list:
+    """d と、d にタブで重ねた欄"""
+    return [d] + [t for t in w.tabifiedDockWidgets(d) if not t.isHidden()]
+
+
+def _front(w, d):
+    """タブで重ねた欄のうち、前に出ている欄（裏の欄の高さは前の配置のままで当てにならない）"""
+    return next((t for t in _group(w, d) if t.isVisible() and not t.visibleRegion().isEmpty()), d)
+
+
+def fit_heights(w, keys: list[str], final: bool = False):
+    """縦に積んだ欄の高さを、中身が収まる高さから先に配る。余りは最後の欄（一覧など伸びて役に立つ欄）に回す。
+    比（5:5 など）で配ると、中身の多い欄（色）だけが足りず、欄の中に流す棒が出た。
+    並べた直後（final でない）は欄の高さが前の配置のままなので、並べ終わったあと（settle）に final で配り直す"""
+    if len(keys) < 2:
+        return
+    cols = w.__dict__.setdefault("_fit_cols", [])
+    if not final and keys not in cols:
+        cols.append(list(keys))
+    docks = [_front(w, w.panels[k][0]) for k in keys]
+    keys_of = {id(d): k for k, (d, _) in w.panels.items()}
+    want = [max(need(w, keys_of[id(t)]) for t in _group(w, d)) for d in docks]
+    room = sum(d.height() for d in docks)
+    if sum(want) > room:
+        if final:
+            # 全部は収まらない。比で削ると、どの欄にも流す棒が出た。収まらない欄はタブにまとめて、1 つずつ広く見せる
+            for d in docks[1:]:
+                if d not in w.tabifiedDockWidgets(docks[0]):
+                    w.tabifyDockWidget(docks[0], d)
+            docks[0].raise_()
+        return
+    want[-1] += room - sum(want)
+    w.resizeDocks(docks, want, Qt.Vertical)
+
+
+def settle(w):
+    """並べ終わったあとと、ウィンドウの大きさが変わったあとに、中身が収まらない欄のある列だけ高さを配り直す。
+    ウィンドウを広げると Qt は増えた高さを今の比で配り、色の欄のように中身の多い欄が足りないまま残った。
+    収まっている列は動かさない（利用者が境目をドラッグして決めた高さを崩さない）"""
+    for keys in list(w.__dict__.get("_fit_cols", [])):
+        docks = [w.panels[k][0] for k in keys]
+        if not all(not d.isHidden() and not d.isFloating() for d in docks):
+            continue
+        fronts = [_front(w, d) for d in docks]
+        if any(f.height() < need(w, k) - 4 for f, k in zip(fronts, keys) if f is w.panels[k][0]):
+            fit_heights(w, keys, final=True)
+    # 左右の欄の幅も、中身より狭くなった欄だけ広げる
+    for k, (d, _) in w.panels.items():
+        if d.isHidden() or d.isFloating() or d.visibleRegion().isEmpty() or w.dockWidgetArea(d) not in (L, R):
+            continue
+        if d.width() < need_width(w, k) - 4:
+            w.resizeDocks([d], [need_width(w, k)], Qt.Horizontal)
+
+
+def fit_talk(w, wish: int):
+    """下のチャットの高さ。望む高さと、書く欄と吹き出し 1 つが収まる高さの大きい方"""
+    w.resizeDocks([w.panels["talk"][0]], [max(wish, need(w, "talk"))], Qt.Vertical)
+
+
 def _tabs(w, keys: list[str]):
     """keys の欄を 1 か所にタブで重ねる。最初の欄を前に出す"""
     docks = [w.panels[k][0] for k in keys]
@@ -60,11 +132,19 @@ def _hide(w, keys):
         w.panels[k][0].hide()
 
 
+def need_width(w, key: str) -> int:
+    """欄の中身が横に流す棒を出さずに収まる幅（縦の流す棒と枠の分を含む）"""
+    body = w.panels[key][0].widget()
+    inner = body.widget() if hasattr(body, "widget") and body.widget() is not None else body
+    return inner.minimumSizeHint().width() + 60
+
+
 def _widths(w, left: list, right: list, side: int):
-    if left:
-        w.resizeDocks([w.panels[left[0]][0]], [side], Qt.Horizontal)
-    if right:
-        w.resizeDocks([w.panels[right[0]][0]], [side], Qt.Horizontal)
+    """左右の欄の幅。決めた幅より中身が広い欄があれば、その幅まで広げる（表示の欄が 300 で横に流す棒を出した）"""
+    for keys in (left, right):
+        if keys:
+            width = max([side] + [need_width(w, k) for k in keys if not w.panels[k][0].isHidden()])
+            w.resizeDocks([w.panels[keys[0]][0]], [width], Qt.Horizontal)
 
 
 # よく使う道具。おすすめの配置では、これだけを道具の帯に出す（ほかはクリエイター向けの配置か、AI に頼めば使える）
@@ -110,9 +190,10 @@ def recommended(w):
     w.addDockWidget(B, w.panels["talk"][0])
     w.panels["talk"][0].show()
     side = min(320, max(260, int(max(w.width(), 1200) * 0.19)))
-    _widths(w, ["color"], ["chat"], side)
+    _widths(w, ["color", "layers"], ["chat", "history", "view", "library"], side)
     # チャットは会話を読み返せる高さにする（200 のままだと 1080 の高さでも吹き出しが 2 つしか見えなかった。低い画面では絵の場所を残す）
-    w.resizeDocks([w.panels["talk"][0]], [200 if w.height() < 900 else int(w.height() * 0.3)], Qt.Vertical)
+    fit_talk(w, 200 if w.height() < 900 else int(w.height() * 0.3))
+    fit_heights(w, ["color", "layers"])
     _progress_idle(w)
     _first_tool(w, "hand")
 
@@ -129,8 +210,10 @@ def creator(w):
     w.addDockWidget(T, w.panels["progress"][0])
     w.addDockWidget(B, w.panels["talk"][0])
     w.panels["talk"][0].show()
-    _widths(w, ["color"], ["view"], 300)
-    w.resizeDocks([w.panels["talk"][0]], [130], Qt.Vertical)
+    _widths(w, ["color", "brushes", "layers"], ["view", "history", "chat", "library"], 300)
+    fit_talk(w, 130)
+    fit_heights(w, ["color", "layers"])
+    fit_heights(w, ["view", "history"])
     _progress_idle(w)
     _first_tool(w, "pen")
 
@@ -146,8 +229,9 @@ def ai_focus(w):
     w.addDockWidget(B, w.panels["talk"][0])
     w.panels["talk"][0].show()
     _hide(w, ["color", "brushes", "layers"])
-    _widths(w, ["chat"], ["view"], 320)
-    w.resizeDocks([w.panels["talk"][0]], [260], Qt.Vertical)
+    _widths(w, ["chat"], ["view", "history", "library"], 320)
+    fit_talk(w, 260)
+    fit_heights(w, ["view", "history"])
     _progress_idle(w)
     _first_tool(w, "hand")
 
@@ -161,7 +245,7 @@ def simple(w):
     w.panels["talk"][0].show()
     _hide(w, ["brushes", "layers", "history", "view", "chat", "progress", "library"])
     _widths(w, ["color"], [], 260)
-    w.resizeDocks([w.panels["talk"][0]], [160], Qt.Vertical)
+    fit_talk(w, 160)
     _first_tool(w, "hand")
 
 
@@ -180,7 +264,8 @@ def drawing_focus(w):
     _tabs(w, ["color", "brushes"])   # 3 つ縦に積むと、ノートの画面（高さ 720）に収まらなかった
     _column(w, R, ["view"])
     _hide(w, ["chat", "history", "progress", "talk", "library"])
-    _widths(w, ["color"], ["view"], 280)
+    _widths(w, ["color", "brushes", "layers"], ["view"], 280)
+    fit_heights(w, ["color", "layers"])
 
 
 PRESETS = {"おすすめ": recommended, "クリエイター向け": creator, "AI 特化": ai_focus, "作画中心": drawing_focus,
@@ -233,6 +318,10 @@ def restore(w, data: dict) -> bool:
     ok = w.restoreState(QByteArray(base64.b64decode(data["state"])))
     if data.get("geometry"):
         w.restoreGeometry(QByteArray(base64.b64decode(data["geometry"])))
+    # 別の大きさの画面で保存した配置だと、別ウィンドウの欄が画面の外に出て見えなくなった
+    for d, _ in w.panels.values():
+        if d.isFloating() and hasattr(w, "keep_on_screen"):
+            w.keep_on_screen(d)
     return bool(ok)
 
 

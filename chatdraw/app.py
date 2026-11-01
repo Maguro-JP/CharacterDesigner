@@ -419,11 +419,15 @@ class PanelTitle(QWidget):
         """畳む・広げる。中身を薄くしてから畳み、広げたら中身を濃くしていく（どこが畳まれたかを目で追える）。
         高さそのものは動かさない。中身の最小の高さより低くできず、動きの途中で止まった"""
         from chatdraw.motion import fade_in, fade_out
+        if not self.collapsed and self.dock.isFloating():
+            return   # 別ウィンドウは畳まない（見出しだけの細い窓になり、どこにあるか分からなくなった）。窓の最小化を使う
         self.collapsed = not self.collapsed
         body = self.dock.widget()
         head = self.height() + 4
         if self.collapsed:
             def done():
+                if not self.collapsed:
+                    return   # 畳む途中で広げた
                 self.dock.setMinimumHeight(0)   # 欄の最小の高さが中身の分（例: 256）に上がっていて、畳めなかった
                 self.dock.setMaximumHeight(head)
             if body is not None:
@@ -436,6 +440,12 @@ class PanelTitle(QWidget):
             if body is not None:
                 fade_in(body)
         self.collapse_button.setText("▔" if self.collapsed else "▁")
+
+    def expand(self):
+        """畳んでいれば広げる。置き場所を変えた・別ウィンドウにした・タブにした欄が、見出しだけの細い帯のまま
+        残ると、同じ所の欄（タブの相手）まで高さを奪われ、欄が消えたように見えた"""
+        if self.collapsed:
+            self.toggle()
 
     def float_(self):
         self.dock.setFloating(not self.dock.isFloating())
@@ -566,14 +576,21 @@ class Window(QMainWindow):
         # AI の欄の「描く内容」: 頼みを書く欄、模型に渡る言葉の目安、禁止ワード、「描く」と止める、直近の言葉
         tl = self.ai_panel.sections["描く内容"].body
         tl.addWidget(self.entry)
-        tl.addWidget(self.ai_panel.preview)
         neg_head = QLabel("禁止ワード")
         neg_head.setObjectName("sectionHead")
         neg_head.setToolTip(self.ai_panel.negative.toolTip())
         tl.addWidget(neg_head)
         tl.addWidget(self.ai_panel.negative)
         self.entry.textChanged.connect(self.ai_panel.preview_timer.start)
+        # 模型に渡る言葉の目安は欄に常に出さず、書く欄にカーソルを合わせたときだけ出す。
+        # 目安の札（aipanel の preview）は隠した入れ物に入れ、出し入れされても画面には出ない
+        self._preview_hold = QWidget(self)
+        self._preview_hold.hide()
+        self.ai_panel.preview.setParent(self._preview_hold)
+        self.last_model_prompt = ""
+        self.ai_panel.preview_timer.timeout.connect(self._entry_tip)
         self.ai_panel.update_preview()
+        self._entry_tip()
         line = QHBoxLayout()
         line.addWidget(self.button, 1)
         line.addWidget(self.stop_button)
@@ -606,11 +623,15 @@ class Window(QMainWindow):
         tips_scroll.setWidgetResizable(True)
         tips_scroll.setFrameShape(QScrollArea.NoFrame)
         tips_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        # 横の流す棒は出さない（棒がボタンの下に出て欄がはみ出して見えた）。ホイールで横に流す
+        tips_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        from chatdraw.wheelguard import side_wheel
+        side_wheel(tips_scroll)
         tips_box.setObjectName("scrollInner")
         self.tips_scroll = tips_scroll
         self.entry.installEventFilter(self)
         self._load_prompts()
-        tips_scroll.setFixedHeight(QPushButton("あ").sizeHint().height() + 14)
+        tips_scroll.setFixedHeight(QPushButton("あ").sizeHint().height() + 4)
         tl.addWidget(tips_scroll)
         # 真ん中の下: チャット。吹き出しの会話と、複数行の書く欄
         talk = QDockWidget("チャット", self)
@@ -628,6 +649,10 @@ class Window(QMainWindow):
         self.history.itemDoubleClicked.connect(lambda it: it.data(Qt.UserRole) and self.layer_from_file(it.data(Qt.UserRole), "AI の絵"))
         self.history.setContextMenuPolicy(Qt.CustomContextMenu)
         self.history.customContextMenuRequested.connect(self._history_menu)
+        # 履歴で選んだ絵を Delete キーで消す（確かめてからごみ箱へ）。キャンバスの Delete（選んだ所を消す）とぶつからないよう履歴の中だけで効かせる
+        hist_del = QAction("消す（ごみ箱へ）", self.history, shortcut="Delete", shortcutContext=Qt.WidgetWithChildrenShortcut)
+        hist_del.triggered.connect(lambda: self.delete_images([it.data(Qt.UserRole) for it in self.history.selectedItems()]))
+        self.history.addAction(hist_del)
         hist = QDockWidget("履歴", self)
         hist.setWidget(self.activity)
         hist.setObjectName("history")
@@ -662,6 +687,10 @@ class Window(QMainWindow):
         self.folder_menu = file.addMenu("ディレクトリを開く")
         self.folder_menu.aboutToShow.connect(lambda: folders.fill_menu(self.folder_menu, self.settings, self))
         folders.fill_menu(self.folder_menu, self.settings, self)
+        file.addSeparator()
+        trash_act = QAction("ごみ箱…", self, triggered=self.open_trash)
+        trash_act.setToolTip("消した絵を見て、元に戻すか本当に消します")
+        file.addAction(trash_act)
         file.addSeparator()
         file.addAction(QAction("終了", self, shortcut="Ctrl+Q", triggered=self.close))
         edit = self.menuBar().addMenu("編集")
@@ -885,6 +914,9 @@ class Window(QMainWindow):
         from chatdraw.library import Library
         from chatdraw.librarypanel import LibraryPanel
         self.library = Library(None if studio is None else Path(self.studio.out) / ".library")
+        from chatdraw.paths import HOME
+        from chatdraw.trash import Trash
+        self.trash = Trash(HOME / "trash" if studio is None else Path(self.studio.out) / ".trash")
         self.library_panel = LibraryPanel(self)
         # チャットの会話は閉じても残す（ライブラリーと同じく、試験では出力の置き場の中に作る）
         self.chat.decorate = self.offer_prompt
@@ -920,12 +952,14 @@ class Window(QMainWindow):
             # 欄の境目をドラッグして上下左右に広げ縮めできる。狭めすぎて中身が潰れない大きさだけ決める
             d.setMinimumSize(160, 80)
             d.topLevelChanged.connect(lambda floating, d=d: self._as_window(d, floating))
+            d.dockLocationChanged.connect(lambda _area, d=d: d.titleBarWidget().expand())
             d.visibilityChanged.connect(lambda on, d=d: self._appear(d, on))
         self.tools = tools
         self.setDockNestingEnabled(True)
         self.setDockOptions(QMainWindow.AllowNestedDocks | QMainWindow.AllowTabbedDocks | QMainWindow.AnimatedDocks)
         # 欄どうしを重ねるとタブになる（欄の見出しを別の欄の上へドラッグ）。タブは上に出す
         self.setTabPosition(Qt.AllDockWidgetAreas, QTabWidget.North)
+        self.tabifiedDockWidgetActivated.connect(lambda d: isinstance(d.titleBarWidget(), PanelTitle) and d.titleBarWidget().expand())
         # 欄の帯: 欄ごとのアイコン。押すと欄を出す・隠す。初めは右の端に置き、上下左右のどこへでも動かせる
         bar = QToolBar("欄の帯", self)
         bar.setObjectName("panelbar")
@@ -1557,8 +1591,10 @@ class Window(QMainWindow):
             self.history.setCurrentRow(0)   # 選んでいた古い絵ではなく、出した新しい絵を選んだ形にする
         for f in bad:
             self.say(f"崩れ: {f}")
-        if prompt and prompt != self.last_text:
-            self.say(f"絵の模型に渡した言葉: {prompt}")   # 頼みとずれた絵が出たとき、どこでずれたかを見られるように
+        if prompt:
+            # 絵の模型に渡した言葉は会話に毎回出さず、書く欄にカーソルを合わせたときだけ出す（頼みとずれた絵が出たときに見られる）
+            self.last_model_prompt = prompt
+            self._entry_tip()
         if getattr(self.studio, "last_lost", None) and self.job_kind == "draw":
             self.say("模型に伝わらなかった言葉: " + "、".join(self.studio.last_lost))
         check = getattr(self.studio, "last_check", None)
@@ -1593,8 +1629,9 @@ class Window(QMainWindow):
         bad = getattr(getattr(self, "job_studio", None) or self.studio, "last_flaws", []) if self.job_kind == "fix" else []
         result = ("直しを重ねました（崩れあり・隠しています）" if bad else "直しを重ねました") if fixed else \
             f"{n} 枚描きました" if n > 1 else "描けました"
-        for it in self.batch_items:
-            it.setToolTip(f"{result}\n{it.toolTip()}")
+        if bad:   # 崩れがあったときだけ絵の説明に足す（「描けました」は絵を見れば分かる）
+            for it in self.batch_items:
+                it.setToolTip(f"{result}\n{it.toolTip()}")
         self.activity.end(result, None, record=False)
         self.say(result if fixed else f"{n} 枚描きました。履歴から選べます" if n > 1 else "描きました")
         self.notify(result if fixed else "描けました", "error" if bad else "ok",
@@ -1776,7 +1813,7 @@ class Window(QMainWindow):
                                      + (f"（見つからない絵 {len(res['missing'])} 枚）" if res["missing"] else ""), 12000)
         return res
 
-    def _history_menu(self, pos):
+    def _history_menu(self, pos, run: bool = True):
         from PySide6.QtWidgets import QMenu
         it = self.history.itemAt(pos)
         path = it.data(Qt.UserRole) if it else None
@@ -1808,7 +1845,90 @@ class Window(QMainWindow):
         if not any(share.enabled(self.settings, n) for n in share.SERVICES):
             sns.setToolTip("設定の「SNS 連携」で選ぶと使えます")
             sns.setEnabled(False)
+        m.addSeparator()
+        m.addAction("消す（ごみ箱へ）…", lambda: self.delete_images([path]))
+        if not run:
+            return m
         m.exec(self.history.mapToGlobal(pos))
+
+    ENTRY_TIP = "描いてほしい絵を日本語か英語で書き、Enter か「描く」で描きます（Shift+Enter で改行）"
+
+    def _entry_tip(self):
+        """書く欄のツールチップ。使い方に、模型に渡る言葉の目安と、前に絵の模型に渡した言葉を足す"""
+        lines = [self.ENTRY_TIP]
+        guess = self.ai_panel.preview.text().strip()
+        if guess:
+            lines += ["", guess]
+        if getattr(self, "last_model_prompt", ""):
+            lines += ["", "前に絵の模型に渡した言葉: " + self.last_model_prompt]
+        # 長い英語の言葉で横に広がり画面からはみ出さないよう、折り返す形（リッチテキスト）で出す
+        import html
+        self.entry.setToolTip("<qt>" + "<br>".join(html.escape(t) for t in lines) + "</qt>")
+
+    # ---- 消す・ごみ箱 ----
+    def delete_images(self, paths: list[str], ask: bool = True) -> str | None:
+        """絵と付属のファイルをアプリのごみ箱へ移し、履歴とライブラリーから外す。消す前に確かめる。
+        すぐには消さない（ごみ箱から戻せる）。移した 1 回分の名前を返す"""
+        paths = [str(p) for p in paths if p]
+        if not paths:
+            return None
+        if ask:
+            n = len(paths)
+            box = QMessageBox(QMessageBox.Question, "絵を消す",
+                              ("この絵" if n == 1 else f"{n} 枚の絵") + "をごみ箱へ移します。付属のファイル（頼みと設定）も一緒に移します。\n"
+                              "「ファイル」→「ごみ箱…」から戻せます。", parent=self)
+            yes = box.addButton("ごみ箱へ移す", QMessageBox.AcceptRole)
+            box.addButton("やめる", QMessageBox.RejectRole)
+            box.exec()
+            if box.clickedButton() is not yes:
+                return None
+        items = self.library.take(paths)
+        try:
+            key = self.trash.put(paths, items)
+        except OSError as e:
+            self.library.put_back(items)
+            self.notify("消せませんでした", "error", str(e))
+            return None
+        gone = set(paths)
+        for row in reversed(range(self.history.count())):
+            if self.history.item(row).data(Qt.UserRole) in gone:
+                self.history.takeItem(row)
+        self.images = [p for p in self.images if p not in gone]
+        self.library_panel.refresh()
+        self._trash_changed()
+        self.notify("ごみ箱へ移しました", "ok", "押すと戻します", on_click=lambda: self.restore_trash(key))
+        return key
+
+    def restore_trash(self, key: str) -> bool:
+        """ごみ箱から元の場所へ戻し、履歴とライブラリーにも戻す"""
+        m = self.trash.restore(key)
+        if m is None:
+            return False
+        if m.get("library"):
+            self.library.put_back(m["library"])
+            self.library_panel.refresh()
+        for p in m["images"]:
+            if Path(p).exists() and not any(it.get("kind") == "doc" and it["path"] == p for it in m.get("library", [])):
+                self.activity.add(p, "")
+                if p not in self.images:
+                    self.images.append(p)
+        self.statusBar().showMessage("ごみ箱から戻しました", 4000)
+        self._trash_changed()
+        return True
+
+    def _trash_changed(self):
+        """ごみ箱の画面を開いたままなら並べ直す"""
+        dlg = getattr(self, "_trash_dialog", None)
+        if dlg is not None and dlg.isVisible() and not getattr(dlg, "_filling", False):
+            dlg._filling = True
+            try:
+                dlg.fill()
+            finally:
+                dlg._filling = False
+
+    def open_trash(self):
+        from chatdraw.trash import open_dialog
+        open_dialog(self)
 
     def _prompt_text(self, path: str) -> str:
         import json
@@ -2246,13 +2366,18 @@ class Window(QMainWindow):
         self.panel_bar.show()
         self.addToolBar(Qt.BottomToolBarArea, self.bottom_bar)
         self.bottom_bar.show()
-        from chatdraw.layouts import recommended
+        from PySide6.QtCore import QTimer
+        from chatdraw.layouts import recommended, settle
         recommended(self)
+        QTimer.singleShot(0, lambda: settle(self))
 
     def apply_layout(self, fn, *args):
         """配置を当て、絵を新しい大きさに合わせる"""
+        self._all_hidden = False   # Tab で隠したあとに配置を選んだとき、次の Tab で出したばかりの欄が隠れないように
         fn(self, *args)
         from PySide6.QtCore import QTimer
+        from chatdraw.layouts import settle
+        QTimer.singleShot(0, lambda: settle(self))
         QTimer.singleShot(0, self.canvas.fit)
 
     def build_layout_menu(self):
@@ -2434,6 +2559,7 @@ class Window(QMainWindow):
         """欄を左・右・下・上のどこかへ移す。移した先で中身をふわっと出す"""
         from chatdraw.motion import fade_in
         self.feature_tour("panel_place")
+        dock.titleBarWidget().expand()
         dock.setFloating(False)
         self.addDockWidget(area, dock)
         dock.show()
@@ -2529,9 +2655,29 @@ class Window(QMainWindow):
 
     def _as_window(self, d: QDockWidget, floating: bool):
         """別ウィンドウにした欄を、ふつうのウィンドウの枠にする。上下左右と四隅の端をつかんで大きさを変えられ、最大化もできる"""
+        title = d.titleBarWidget()
+        if isinstance(title, PanelTitle):
+            title.expand()
         if floating:
             d.setWindowFlags(Qt.Window | Qt.WindowTitleHint | Qt.WindowCloseButtonHint | Qt.WindowMinMaxButtonsHint)
             d.show()
+            self.keep_on_screen(d)
+
+    def keep_on_screen(self, d: QDockWidget):
+        """別ウィンドウの欄を画面の中に収める。保存した配置を別の画面の大きさで読んだときや、
+        すべて別ウィンドウにして並べたときに、画面の外に出て見えなくなった"""
+        screen = (self.screen() or QApplication.primaryScreen())
+        if screen is None:
+            return
+        area = screen.availableGeometry()
+        g = d.frameGeometry()
+        w, h = min(max(g.width(), 200), area.width()), min(max(g.height(), 160), area.height())
+        x = min(max(g.x(), area.left()), area.right() - w + 1)
+        y = min(max(g.y(), area.top()), area.bottom() - h + 1)
+        if (w, h) != (g.width(), g.height()):
+            d.resize(w, h)
+        if (x, y) != (g.x(), g.y()):
+            d.move(x, y)
 
     def _collapse_all(self, on: bool):
         for d, _area in self.panels.values():
@@ -2564,6 +2710,7 @@ class Window(QMainWindow):
             self._as_window(d, True)   # 前の並びで既に外に出ていると topLevelChanged が来ず、窓の枠にならなかった
             d.resize(360, 520)
             d.move(x - i * 40, y + i * 40)
+            self.keep_on_screen(d)
 
     def free_layout(self):
         """欄の見出しをドラッグすると、左右上下のどこにでも置け、重ねるとタブになる"""
@@ -2942,6 +3089,15 @@ class Window(QMainWindow):
         super().resizeEvent(e)
         if hasattr(self, "progress_popup"):
             self.progress_popup.place()
+        if not getattr(self, "_settle_queued", False):   # 大きさが変わったら、収まらなくなった欄の高さを配り直す
+            self._settle_queued = True
+            from PySide6.QtCore import QTimer
+
+            def again():
+                self._settle_queued = False
+                from chatdraw.layouts import settle
+                settle(self)
+            QTimer.singleShot(0, again)
 
     def hide_progress_if_idle(self, ms: int = 4000):
         """進みの欄は自分では隠さない。描き終わると消えて、結果も今の状態も分からなかった。閉じるのは利用者だけ"""
