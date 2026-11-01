@@ -524,7 +524,7 @@ FITS = {"gpu": "この PC の GPU で動く", "cpu": "この PC では CPU で�
 
 # おまかせが工程ごとに模型を選ぶときの見どころ。直す工程の hand / face / foot は handcheck.bad_regions の種類に合わせる
 ASPECTS = ("構図", "人物", "手", "顔", "足", "背景", "文字", "写実", "アニメ", "線画", "ちび")
-KIND_ASPECT = {"hand": "手", "face": "顔", "foot": "足"}
+KIND_ASPECT = {"hand": "手", "face": "顔", "foot": "足", "hair": "髪", "body": "人物"}   # 髪と人物は数字の作画監督（chatdraw/origqc.py）の直す所
 # 配布元の説明（目録の en、Hugging Face の札の要約）の言葉と、そこから読める得意。言葉が無ければ付けない（推して付けない）
 EN_STRONG = (
     ("prompt adherence", ("構図",)), ("complex prompts", ("構図",)), ("natural language prompts", ("構図",)),

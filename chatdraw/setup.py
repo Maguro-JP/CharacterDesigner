@@ -96,9 +96,9 @@ def install_engine(say=lambda msg, pct: None):
     import re
     ver = re.search(r"__version__\s*=\s*['\"]([^'\"]+)", (lib / "torch" / "version.py").read_text()).group(1)
     say("絵を描く部品の続きを入れています（数分かかります）", -1)
-    # ai-edge-litert と onnxruntime は、描いた絵を検品する模型を読む部品（chatdraw/handcheck.py、requestcheck.py）
+    # ai-edge-litert と onnxruntime は、描いた絵を検品する模型を読む部品（chatdraw/handcheck.py、requestcheck.py）。scipy は数字の作画監督（chatdraw/origqc.py）
     # diffusers は FLUX.2 klein（Flux2KleinPipeline）が入った 0.37 以上。古いと新しい世代の模型を読めない
-    run_pip(pip + [DIFFUSERS, "transformers", "accelerate", "huggingface_hub", "safetensors", "ai-edge-litert", "onnxruntime", f"torch=={ver}",
+    run_pip(pip + [DIFFUSERS, "transformers", "accelerate", "huggingface_hub", "safetensors", "ai-edge-litert", "onnxruntime", "scipy", f"torch=={ver}",
                    "--extra-index-url", index])
     if gpu:   # 大きい模型（FLUX、Qwen-Image など）の本体を 4 ビットに縮めて GPU に載せる部品。入らなくても縮めずに描ける
         try:
