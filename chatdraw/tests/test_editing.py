@@ -171,5 +171,63 @@ class FinishersTest(unittest.TestCase):
         self.assertEqual(finishers.inpaint_models(every, []), [])
 
 
+class EmbedAndOutpaintTest(unittest.TestCase):
+    def test_png_embed_restores_without_json(self):
+        from chatdraw import finishers
+        from chatdraw.app import Window
+        app()
+        with TemporaryDirectory() as d:
+            src = Path(d) / "lone.png"
+            im = figure()
+            im.save(src)
+            finishers.embed(src, dict(text="青い髪の魔法使い", seed=9, model="x/y"))
+            self.assertFalse(src.with_suffix(".json").exists())
+            self.assertIsNone(ImageChops.difference(im, Image.open(src).convert("RGB")).getbbox())   # 画素は同じ
+            self.assertEqual(finishers.sidecar(src)["seed"], 9)
+            w = Window(Studio(FakeWords(), FakePainter(), Path(d) / "out"))
+            w.edit_image(str(src))
+            self.assertEqual(w.entry.text(), "青い髪の魔法使い")
+            self.assertEqual(w.ai_panel.seed.value(), 9)
+            w.close()
+
+    def test_no_embed_gives_empty(self):
+        from chatdraw import finishers
+        with TemporaryDirectory() as d:
+            src = Path(d) / "plain.png"
+            figure().save(src)
+            self.assertEqual(finishers.sidecar(src), {})
+
+    def test_outpaint_keeps_original_pixels(self):
+        from chatdraw import finishers
+        im = figure()
+        out = finishers.outpaint(im, 16, 8, 24, 0, painter=FakePainter())
+        self.assertEqual(out.size, (im.width + 40, im.height + 8))
+        self.assertIsNone(ImageChops.difference(out.crop((16, 8, 16 + im.width, 8 + im.height)), im).getbbox())
+
+    def test_outpaint_without_model_says_why(self):
+        from chatdraw import finishers
+        finishers.use_painter(None)
+        with self.assertRaises(finishers.Unavailable) as e:
+            finishers.outpaint(figure(), 8, 0, 8, 0)
+        self.assertTrue(str(e.exception))
+        with self.assertRaises(ValueError):
+            finishers.outpaint(figure(), painter=FakePainter())
+
+    def test_app_outpaint_replaces_canvas(self):
+        from chatdraw.app import Window
+        app()
+        with TemporaryDirectory() as d:
+            src = Path(d) / "a.png"
+            figure().save(src)
+            w = Window(Studio(FakeWords(), FakePainter(), Path(d)))
+            w.settings.set("output_dir", str(Path(d) / "out"))
+            w.edit_image(str(src))
+            path = w.outpaint_canvas(64, 0, 64, 0)
+            self.assertIsNotNone(path)
+            self.assertEqual(w.canvas.size_px(), (96 + 128, 128))
+            self.assertEqual(Path(path).suffix, ".png")
+            w.close()
+
+
 if __name__ == "__main__":
     unittest.main()

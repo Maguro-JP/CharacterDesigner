@@ -160,13 +160,66 @@ def run(name: str, image, mask=None):
 
 # ---- 既存の絵をあとから直す部品 ----
 
-def sidecar(path: str | Path) -> dict:
-    """前に描いた絵の .json（頼み・模型・種）を読む。無い・読めないときは空"""
+KEY = "chatdraw"   # PNG の文字の欄の名前
+
+
+def embed(path: str | Path, meta: dict):
+    """頼み・種・設定を PNG の文字の欄に埋める。.json が離れても、絵だけで続きから直せるように。
+    画素は読み直して同じ値のまま書くので、絵は変わらない"""
+    from PIL import Image, PngImagePlugin
+    path = Path(path)
+    if path.suffix.lower() != ".png" or not meta:
+        return
+    with Image.open(path) as im:
+        im.load()
+        info = PngImagePlugin.PngInfo()
+        info.add_itxt(KEY, json.dumps(meta, ensure_ascii=False))
+        im.save(path, pnginfo=info)
+
+
+def embedded(path: str | Path) -> dict:
+    """PNG に埋めた頼み・種・設定を読む。無ければ空"""
+    from PIL import Image
     try:
-        data = json.loads(Path(path).with_suffix(".json").read_text(encoding="utf-8"))
-    except (OSError, ValueError):
+        with Image.open(path) as im:
+            text = (getattr(im, "text", None) or {}).get(KEY) or im.info.get(KEY)
+        data = json.loads(text) if text else {}
+    except (OSError, ValueError, TypeError):
         return {}
     return data if isinstance(data, dict) else {}
+
+
+def sidecar(path: str | Path) -> dict:
+    """前に描いた絵の頼み・模型・種を読む。.json を先に、無ければ PNG に埋めた物を読む。どちらも無ければ空"""
+    try:
+        data = json.loads(Path(path).with_suffix(".json").read_text(encoding="utf-8"))
+        if isinstance(data, dict):
+            return data
+    except (OSError, ValueError):
+        pass
+    return embedded(path)
+
+
+def outpaint(image, left: int = 0, top: int = 0, right: int = 0, bottom: int = 0, painter=None, prompt: str = "",
+             seed: int = 0):
+    """絵の外へ広げる。広げた所だけを描き（painter.redraw）、元の絵の画素は 1 つも変えない。
+    painter が無いときは Unavailable。広げた所の下地は絵を引き伸ばした色にする（白い帯から描くと継ぎ目が出やすい）"""
+    from PIL import Image
+    if min(left, top, right, bottom) < 0 or not any((left, top, right, bottom)):
+        raise ValueError("広げる幅を 1 画素以上にしてください")
+    painter = painter if painter is not None else _PAINTER[0]
+    if painter is None:
+        raise Unavailable("絵の外へ広げるには、直しに使える絵の模型が要ります。AI のメニューで模型を取ってください")
+    src = image.convert("RGB")
+    w, h = src.width + left + right, src.height + top + bottom
+    base = src.resize((w, h), Image.BILINEAR)
+    base.paste(src, (left, top))
+    mask = Image.new("L", (w, h), 255)
+    mask.paste(0, (left, top, left + src.width, top + src.height))
+    out = painter.redraw(prompt, seed, base, mask, strength=1.0)
+    out = keep_outside(base, out, mask)
+    out.paste(src, (left, top))   # 元の絵の所は必ず元の画素
+    return out
 
 
 def inpaint_models(models, have) -> list:

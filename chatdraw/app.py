@@ -1518,6 +1518,11 @@ class Window(QMainWindow):
         """1 枚できるたびに呼ばれる。初めの 1 枚はキャンバスに置き、ほかは履歴に並べて選べるようにする。
         絵を置くのを先にする。前は検品の知らせを先に出していて、そこで落ちると絵が置かれず、途中の絵か何も無いままだった"""
         self.images.append(path)
+        try:   # 頼み・種・設定を PNG にも埋める（.json が離れても、絵だけで続きから直せるように）
+            from chatdraw import finishers
+            finishers.embed(path, finishers.sidecar(path))
+        except (OSError, ValueError):
+            pass
         self.canvas.show_overlay(None)
         first = not self.batch
         self.batch.append(path)
@@ -1892,6 +1897,11 @@ class Window(QMainWindow):
         m.addAction("タイムラプスを見る…", self.open_timelapse)
         m.addSeparator()
         self._finish_menu(m.addMenu("綺麗にする"))
+        grow = m.addMenu("絵の外へ広げる")
+        grow.setToolTipsVisible(True)
+        for label, sides in (("左右に広げる", (1, 0, 1, 0)), ("上下に広げる", (0, 1, 0, 1)), ("四方に広げる", (1, 1, 1, 1))):
+            act = grow.addAction(label, lambda s=sides: self.outpaint_canvas(*[v * 128 for v in s]))
+            act.setToolTip("広げた所だけを AI に描かせます（128 画素ずつ）。元の絵の画素は変えません")
         m.exec(gpos)
 
     def redo_from(self, path: str):
@@ -2681,6 +2691,32 @@ class Window(QMainWindow):
         else:
             self.canvas.replace_with_image(str(path), "綺麗にした絵")   # 拡大した絵（元に戻すで戻せる）
         self.notify("綺麗にしました（新しいレイヤー）", "ok", "見比べて、使うか消すかを決めてください")
+        return path
+
+    def outpaint_canvas(self, left: int, top: int, right: int, bottom: int):
+        """絵の外へ広げる。広げた絵でキャンバスを置き換える（元に戻すで戻せる）。使えないときは理由を出して止めない"""
+        from chatdraw import finishers
+        base = qimage_to_pil(self.canvas.flatten()).convert("RGB")
+        prompt = (getattr(self, "edit_meta", None) or {}).get("prompt", "") or self.studio.words.to_prompt(self.last_text) \
+            if self.last_text else ""
+        try:
+            out = finishers.outpaint(base, left, top, right, bottom, painter=getattr(self.studio, "painter", None),
+                                     prompt=prompt, seed=self.ai_panel.seed.value())
+        except finishers.Unavailable as e:
+            self.notify("広げられませんでした", "info", str(e))
+            return None
+        except Exception as e:  # 道具の中の失敗も、止めずに理由を出す
+            from chatdraw.engine import explain
+            self.notify("広げられませんでした", "error", explain(e))
+            return None
+        out_dir = Path(self.settings.get("output_dir"))
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f"{time.strftime('%Y%m%d-%H%M%S')}-outpaint.png"
+        out.save(path)
+        finishers.embed(path, dict(getattr(self, "edit_meta", None) or {}, text=self.last_text, prompt=prompt,
+                                   mode="広げる", grow=[left, top, right, bottom]))
+        self.canvas.replace_with_image(str(path), "広げた絵")
+        self.notify("絵の外へ広げました", "ok", "元の絵の画素はそのままです。広げた所を見て、使うか元に戻すかを決めてください")
         return path
 
     def open_path(self, path: str):
