@@ -279,28 +279,19 @@ class Fetcher(QObject):
             run_pip(["install", "-q", "--disable-pip-version-check", "--target", str(lib), "--only-binary", "llama-cpp-python",
                      "--extra-index-url", "https://abetlen.github.io/llama-cpp-python/whl/cpu", "llama-cpp-python>=0.3.16"])
         dest = have = words_path(m)
-        with urllib.request.urlopen(urllib.request.Request(m.url, method="HEAD")) as r:
+        with urllib.request.urlopen(urllib.request.Request(m.url, method="HEAD"), timeout=30) as r:
             remote = int(r.headers.get("Content-Length") or 0)
         if have.exists() and (not update or have.stat().st_size == remote):
             return   # 同じ大きさなら同じ版とみなして取り直さない
         dest.parent.mkdir(parents=True, exist_ok=True)
         part = dest.with_suffix(".part")
         got = part.stat().st_size if part.exists() else 0
-        if remote and got >= remote:
-            got = 0   # 前の版の途中の物。始めから取る
-        check_room(m.name, (remote - got) / 1e9 if remote else m.gb, 0.0, dest.parent)
-        req = urllib.request.Request(m.url, headers={"Range": f"bytes={got}-"} if got else {})
-        with urllib.request.urlopen(req) as r:
-            resumed = got and r.status == 206   # 続きから取れた。206 でなければ配り元が続きを受けないので始めから
-            got = got if resumed else 0
-            total = remote or got + int(r.headers.get("Content-Length") or 0)
-            with open(part, "ab" if resumed else "wb") as f:
-                while chunk := r.read(1 << 20):
-                    f.write(chunk)
-                    got += len(chunk)
-                    if total:
-                        self.progress.emit(f"{m.name} を取っています（{got / 1e9:.1f} / {total / 1e9:.1f}GB）", got * 100 // total)
-        part.replace(dest)   # 取り終わってから入れ替える。途中で止まっても前の版は使え、次は続きから取る
+        check_room(m.name, (remote - got) / 1e9 if remote and got < remote else m.gb, 0.0, dest.parent)
+        from chatdraw.fetchfile import fetch_resumable
+        # 切れたら続きから取り直し、黙り込んだら打ち切る（chatdraw/fetchfile.py）
+        fetch_resumable(m.url, dest, remote,
+                        progress=lambda g, t: t and self.progress.emit(f"{m.name} を取っています（{g / 1e9:.1f} / {t / 1e9:.1f}GB）", g * 100 // t),
+                        note=lambda s: self.progress.emit(s, -1))
 
 
 def card(radio: QRadioButton, good: str, meta: str, have: bool, recommended: bool) -> QFrame:
