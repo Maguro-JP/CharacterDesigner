@@ -557,7 +557,7 @@ def _cutout(im, src=None):
             import edit
             seg = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST))
             arms = np.isin(seg, [14, 15])
-            touch = ndimage.binary_dilation(arms if arms.any() else person, iterations=8)
+            touch = ndimage.binary_dilation(person, iterations=8)
             ys, xs = np.nonzero(person)
             pad = int((xs.max() - xs.min()) * 0.25)
             box = np.zeros_like(person)
@@ -571,15 +571,16 @@ def _cutout(im, src=None):
                     continue   # 人に触れていない塊は背景
                 solid = area / comp.size
                 # 大きく詰まった塊（機械の車輪）は背景、細長い・まばらな塊（持ち物）は残す
-                if area > 0.05 * person.sum() and solid > 0.35:
-                    continue
-                if area > 0.10 * person.sum():   # 持ち物より大きい塊（人の後ろの機械）は背景
-                    continue
                 # 人の横幅から大きく外れて広がる塊（背後の機械）は背景。持ち物は人の幅の近くに収まる
                 if (box[sl] & comp).sum() < 0.7 * area:
                     continue
                 keep[sl] |= comp
             fg = ndimage.binary_fill_holes(keep) & (fg | person)
+            # 本体から離れた小さな欠片（抜け残りの赤い点）は外す
+            lab2, n2 = ndimage.label(fg)
+            if n2 > 1:
+                sizes = ndimage.sum(fg, lab2, range(1, n2 + 1))
+                fg = np.isin(lab2, [i + 1 for i, v in enumerate(sizes) if v >= 0.004 * person.sum()])
     elif (~fg).mean() < 0.15:
         return Image.new("L", im.size, 255)
     m = Image.fromarray((fg * 255).astype("uint8"))
