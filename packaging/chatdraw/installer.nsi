@@ -24,6 +24,16 @@ InstallDirRegKey HKLM "Software\${APP}" "InstallDir"
 RequestExecutionLevel admin
 SetCompressor /SOLID lzma
 
+; アプリのアイコン。build.sh が chatdraw/icon/app.png（利用者が選んだ絵）から .ico を作ったときだけ ICON を渡す。
+; 無い間は今まで通り pythonw.exe のアイコンのまま
+!ifdef ICON
+  !define MUI_ICON "${ICON}"
+  !define MUI_UNICON "${ICON}"
+  !define LNK_ICON "$INSTDIR\chatdraw\icon\app.ico"
+!else
+  !define LNK_ICON "$INSTDIR\python\pythonw.exe"
+!endif
+
 !define MUI_FINISHPAGE_RUN "$INSTDIR\python\pythonw.exe"
 !define MUI_FINISHPAGE_RUN_PARAMETERS "-E -s -m chatdraw.app"
 !define MUI_FINISHPAGE_RUN_TEXT "CharacterDesigner を起動する"
@@ -77,13 +87,14 @@ Section "Install"
   SetShellVarContext all
   SetOutPath "$INSTDIR"
   CreateDirectory "$SMPROGRAMS\${APP}"
-  CreateShortcut "$SMPROGRAMS\${APP}\${APP}.lnk" "$INSTDIR\python\pythonw.exe" "-E -s -m chatdraw.app" "$INSTDIR\python\pythonw.exe"
+  CreateShortcut "$SMPROGRAMS\${APP}\${APP}.lnk" "$INSTDIR\python\pythonw.exe" "-E -s -m chatdraw.app" "${LNK_ICON}"
   CreateShortcut "$SMPROGRAMS\${APP}\Uninstall.lnk" "$INSTDIR\Uninstall.exe"
-  CreateShortcut "$DESKTOP\${APP}.lnk" "$INSTDIR\python\pythonw.exe" "-E -s -m chatdraw.app" "$INSTDIR\python\pythonw.exe"
+  CreateShortcut "$DESKTOP\${APP}.lnk" "$INSTDIR\python\pythonw.exe" "-E -s -m chatdraw.app" "${LNK_ICON}"
 
   WriteRegStr HKLM "Software\${APP}" "InstallDir" "$INSTDIR"
   WriteRegStr HKLM "${UNINST}" "DisplayName" "${APP}"
   WriteRegStr HKLM "${UNINST}" "DisplayVersion" "${VERSION}"
+  WriteRegStr HKLM "${UNINST}" "DisplayIcon" "${LNK_ICON}"
   WriteRegStr HKLM "${UNINST}" "InstallLocation" "$INSTDIR"
   WriteRegStr HKLM "${UNINST}" "UninstallString" '"$INSTDIR\Uninstall.exe"'
   WriteRegDWORD HKLM "${UNINST}" "NoModify" 1

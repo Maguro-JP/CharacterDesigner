@@ -53,6 +53,14 @@ for f in VERSION python/python.exe python/pythonw.exe chatdraw/app.py chatdraw/h
 done
 [ -z "$missing" ] || { echo "欠けている:$missing" >&2; exit 1; }
 
+echo "== アプリのアイコン（chatdraw/icon/app.png があるときだけ。選ばれるまでは今のまま）"
+ICONDEF=""
+if [ -f "$SRC/chatdraw/icon/app.png" ]; then
+  (cd "$ROOT" && python3 -c "import sys; from chatdraw.logo import make_ico; make_ico(sys.argv[1], sys.argv[2])" \
+    "$SRC/chatdraw/icon/app.png" "$SRC/chatdraw/icon/app.ico")
+  ICONDEF="-DICON=$SRC/chatdraw/icon/app.ico"
+fi
+
 echo "== Setup.exe"
-makensis -V2 -DSRC="$SRC" -DOUT="$OUT/CharacterDesigner-Setup.exe" -DVERSION="$VERSION" "$ROOT/packaging/chatdraw/installer.nsi"
+makensis -V2 $ICONDEF -DSRC="$SRC" -DOUT="$OUT/CharacterDesigner-Setup.exe" -DVERSION="$VERSION" "$ROOT/packaging/chatdraw/installer.nsi"
 ls -la "$OUT/CharacterDesigner-Setup.exe"
