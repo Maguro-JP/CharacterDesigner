@@ -2,12 +2,8 @@
 # 手元は空きが足りず、SDXL を CPU で回すと 1 枚 数十分かかるので Actions で回す。リポジトリは公開しているので Actions の枠を気にしない。
 # 人物ごとに別のジョブにして同時に描く。結果は draw-results ブランチの <実行の番号>/ に置く。
 name: fashion-photo
+# 時代服は過去を語る頼みのときだけ描く（docs/knowledge/decisions.md、2026-11-01）。push では動かさず、頼まれたときに手で動かす
 on:
-  push:
-    paths:
-      - "tools/gen/fashion_photo.py"
-      - "casts/fashion-zukan/characters/**"
-      - ".github/workflows/fashion-photo.yml"
   workflow_dispatch:
     inputs:
       seed:
