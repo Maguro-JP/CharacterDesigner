@@ -100,6 +100,9 @@ def check(image, prompt: str = "", hair: str = "") -> dict:
     if lack:
         return {"readable": True, "bad": [], "regions": [], "measured": False,
                 "notes": [f"数字の検品をしていません（部品が無い: {', '.join(lack)}）"]}
+    if min(image.size) < MIN_SIDE:   # 顔も目も数画素で、測っても数字にならない（描いた絵は 512 画素以上）
+        return {"readable": True, "bad": [], "regions": [], "measured": False,
+                "notes": [f"数字の検品をしていません（絵が小さい: {image.size[0]}×{image.size[1]}）"]}
     measure, _nl = _setup()
     with tempfile.TemporaryDirectory() as d:
         src = Path(d) / "image.png"

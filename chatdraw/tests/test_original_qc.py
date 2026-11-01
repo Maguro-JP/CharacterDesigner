@@ -48,15 +48,22 @@ class OutliersTest(unittest.TestCase):
         self.assertEqual(res["bad"], [])
         self.assertIn("scipy", res["notes"][0])                  # 測っていないことを隠さない
 
+    def test_tiny_image_is_not_measured_and_says_so(self):
+        with mock.patch.object(origqc, "missing", lambda: []), \
+             mock.patch.object(origqc, "_setup", side_effect=AssertionError("測らない")):
+            res = origqc.check(Image.new("RGB", (64, 64)), "1girl")
+        self.assertFalse(res["measured"])
+        self.assertIn("小さい", res["notes"][0])
+
     def test_unmeasurable_image_is_a_fault(self):
         fake = mock.Mock()
         fake.measure.side_effect = RuntimeError("顔が無い")
         with mock.patch.object(origqc, "missing", lambda: []), \
              mock.patch.object(origqc, "_setup", lambda: (fake, None)):
-            res = origqc.check(Image.new("RGB", (64, 64)), "1girl")
+            res = origqc.check(Image.new("RGB", (256, 256)), "1girl")
         self.assertFalse(res["readable"])                         # 読めない物は崩れ
         self.assertTrue(res["bad"])
-        self.assertEqual(res["regions"], [((0, 0, 64, 64), "body")])   # 崩れとして直す所も返す
+        self.assertEqual(res["regions"], [((0, 0, 256, 256), "body")])   # 崩れとして直す所も返す
 
 
 class OmakaseUsesOriginalQcTest(unittest.TestCase):
