@@ -224,7 +224,7 @@ class LayoutTest(unittest.TestCase):
             self.assertEqual(w2.ai_tabs.order(), [n for n in moved if n != "模型"])
             w2.ai_tabs.docks["模型"].close()                     # 閉じると AI の欄のタブに戻る
             self.assertIn("模型", w2.ai_tabs.order())
-            w2.ai_tabs.pull_out("加工", QPoint(100, 100))
+            self.assertIsNotNone(w2.ai_tabs.pull_out("直す・仕上げ", QPoint(100, 100)))   # タブの名前は描く順の並べ直しで変わった
             w2.reset_layout()                                  # 配置を初期に戻す
             self.assertEqual(w2.ai_tabs.order(), first)
             self.assertEqual(w2.ai_tabs.docks, {})
