@@ -106,11 +106,37 @@ class OutpaintPromptTest(unittest.TestCase):
             w.deleteLater()
 
 
+_KEEP = []
+
+
+from PySide6.QtGui import QAction  # noqa: E402
+
+
+def find_action(acts, text, emit=True):
+    """その段と、下の段（開くたびに作る段は開いたことにして）から、名前の合う項目を探す。
+    emit=False は、もう出来上がった段だけを辿る（開いたことにすると作り直されて、先に見つけた項目が消える段がある）"""
+    from shiboken6 import isValid
+    acts = [a for a in acts if isValid(a)]   # 作り直しで消えた項目は飛ばす
+    for a in acts:
+        if a.text().replace("&", "") == text:
+            return a
+    for a in acts:
+        m = a.menu()
+        if m is not None:
+            _KEEP.append(m)   # 段を手放すと、親の無い段は項目ごと消える。探し終えるまで持っておく
+            if emit:
+                m.aboutToShow.emit()
+            hit = find_action(m.actions(), text, emit) if m.actions() else None
+            if hit is not None:
+                return hit
+    return None
+
+
 def menu_action(w, *names):
     """メニューの道（「ヘルプ」→「更新を確かめる」）で動作を引く。開くたびに作る段は、開いたことにしてから引く"""
     acts = w.menuBar().actions()
     for n in names:
-        hit = next(a for a in acts if a.text().replace("&", "") == n)
+        hit = find_action(acts, n)   # 段にまとめた項目（「タイムラプス」の下など）も探す
         if hit.menu() is None:
             return hit
         hit.menu().aboutToShow.emit()
@@ -335,9 +361,7 @@ class UpscaleFinisherTest(unittest.TestCase):
                 state = {}
 
                 def press(m):
-                    holder = next(a for a in m.actions() if a.text() == "綺麗にする")   # 項目を持ったまま段を引く
-                    fin = holder.menu()
-                    act = next(a for a in fin.actions() if a.text() == "アニメ向けに拡大して整える")
+                    act = next(a for a in m.findChildren(QAction) if a.objectName().endswith("upscale_anime"))   # 右クリックの段の並べ方に頼らず、道具の名前で探す
                     state["enabled"], state["tip"] = act.isEnabled(), act.toolTip()
                     act.trigger()
                 in_canvas_menu(w, press)
