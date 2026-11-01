@@ -2026,9 +2026,9 @@ class UsabilityFixTest(unittest.TestCase):
             self._draw(app, w, "1girl")
             self._draw(app, w, "1girl, smile")
             names = [l.name for l in w.canvas.layers]
-            self.assertEqual(len(names), 2)                     # 絵 1 枚と描くためのレイヤー。前の絵は重ならない
+            self.assertEqual(len(names), 1)                     # キャンバスは新しい絵 1 枚に置き換わる。前の絵は重ならない
             self.assertTrue(names[0].startswith("AI の絵"))
-            self.assertEqual(w.canvas.current, 1)               # 次の線は空のレイヤーに描く
+            self.assertEqual(w.canvas.current, 0)               # 結果は一番上のレイヤーで、選んだ状態（気づけるように）
             first = w.canvas.layers[0].name
             w.canvas.undo()
             self.assertNotEqual(w.canvas.layers[0].name, first)  # 元に戻すで前の絵に戻る
