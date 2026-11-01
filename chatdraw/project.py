@@ -25,27 +25,40 @@ def _png(img: QImage) -> bytes:
     return bytes(data)
 
 
-def save(canvas, path: str | Path, extra: dict | None = None):
-    """canvas のレイヤー・今のレイヤー・赤ペンの印を path に保存する。途中で落ちても前のファイルを壊さないよう、別名に書いてから替える"""
-    path = Path(path)
+def snapshot(canvas, extra: dict | None = None) -> dict:
+    """保存する中身を写し取る（画面の糸で呼ぶ。画素は写しなので、このあと描き続けても保存の中身は変わらない）。
+    PNG に縮めて書くのは write で、裏の糸で回せる"""
     w, h = canvas.size_px()
     pen = canvas.redpen
     manifest = {"version": VERSION, "app": "CharacterDesigner", "size": [w, h], "current": canvas.current,
                 "layers": [], "marks": [[[p.x(), p.y()] for p in pts] for pts in pen.marks], "notes": list(pen.texts),
                 **(extra or {})}
+    images = []
+    for i, layer in enumerate(canvas.layers):
+        name = f"layers/{i:03d}.png"
+        images.append((name, layer.image.copy()))
+        manifest["layers"].append({"name": layer.name, "visible": layer.visible, "opacity": layer.opacity, "file": name})
+    return {"manifest": manifest, "images": images}
+
+
+def write(snap: dict, path: str | Path):
+    """snapshot の中身を path に書く。途中で落ちても前のファイルを壊さないよう、別名に書いてから替える"""
+    path = Path(path)
     part = path.with_name(path.name + ".part")
     with zipfile.ZipFile(part, "w", zipfile.ZIP_DEFLATED) as z:
-        for i, layer in enumerate(canvas.layers):
-            name = f"layers/{i:03d}.png"
-            z.writestr(name, _png(layer.image))
-            manifest["layers"].append({"name": layer.name, "visible": layer.visible, "opacity": layer.opacity, "file": name})
-        z.writestr("manifest.json", json.dumps(manifest, ensure_ascii=False, indent=1))
+        for name, img in snap["images"]:
+            z.writestr(name, _png(img))
+        z.writestr("manifest.json", json.dumps(snap["manifest"], ensure_ascii=False, indent=1))
     part.replace(path)
 
 
-def load(canvas, path: str | Path) -> dict:
-    """path の作業ファイルを canvas に開く。返すのは manifest（作業ファイルに残した設定）"""
-    from chatdraw.canvas import Layer
+def save(canvas, path: str | Path, extra: dict | None = None):
+    """canvas のレイヤー・今のレイヤー・赤ペンの印を path に保存する"""
+    write(snapshot(canvas, extra), path)
+
+
+def read(path: str | Path) -> tuple[dict, list]:
+    """作業ファイルを読んで、manifest と（名前, 絵, 表示, 不透明度）の並びを返す。画面に触らないので裏の糸で回せる"""
     with zipfile.ZipFile(path) as z:
         manifest = json.loads(z.read("manifest.json"))
         if manifest.get("app") != "CharacterDesigner":
@@ -53,7 +66,15 @@ def load(canvas, path: str | Path) -> dict:
         layers = []
         for info in manifest["layers"]:
             img = QImage.fromData(z.read(info["file"]), "PNG").convertToFormat(QImage.Format_ARGB32_Premultiplied)
-            layers.append(Layer(info["name"], img, bool(info.get("visible", True)), float(info.get("opacity", 1.0))))
+            layers.append((info["name"], img, bool(info.get("visible", True)), float(info.get("opacity", 1.0))))
+    return manifest, layers
+
+
+def apply(canvas, got: tuple[dict, list]) -> dict:
+    """read の結果を canvas に置く（画面の糸で呼ぶ）"""
+    from chatdraw.canvas import Layer
+    manifest, parts = got
+    layers = [Layer(name, img, visible, opacity) for name, img, visible, opacity in parts]
     canvas._reset(layers, min(int(manifest.get("current", 0)), len(layers) - 1))
     pen = canvas.redpen
     for pts, note in zip(manifest.get("marks", []), manifest.get("notes", [])):
@@ -61,6 +82,11 @@ def load(canvas, path: str | Path) -> dict:
         pen.texts.append(note)
     pen.update()
     return manifest
+
+
+def load(canvas, path: str | Path) -> dict:
+    """path の作業ファイルを canvas に開く。返すのは manifest（作業ファイルに残した設定）"""
+    return apply(canvas, read(path))
 
 
 # ---- PSD ----
@@ -90,9 +116,21 @@ def _planes(img: QImage) -> list[bytes]:
 
 def export_psd(canvas, path: str | Path):
     """レイヤーを分けたまま PSD に書き出す（圧縮なし）。下のレイヤーから順に並べる"""
+    write_psd(psd_snapshot(canvas), path)
+
+
+def psd_snapshot(canvas) -> dict:
+    """PSD に書く中身の写し（画面の糸で呼ぶ）。書くのは write_psd で、裏の糸で回せる"""
+    from types import SimpleNamespace
     w, h = canvas.size_px()
+    layers = [SimpleNamespace(name=l.name, visible=l.visible, opacity=l.opacity, image=l.image.copy()) for l in canvas.layers]
+    return {"size": (w, h), "layers": layers, "merged": canvas.flatten().copy()}
+
+
+def write_psd(snap: dict, path: str | Path):
+    w, h = snap["size"]
     records, data = b"", b""
-    for layer in canvas.layers:
+    for layer in snap["layers"]:
         r, g, b, a = _planes(layer.image)
         size = len(r) + 2
         records += struct.pack(">iiiiH", 0, 0, h, w, 4)
@@ -104,12 +142,11 @@ def export_psd(canvas, path: str | Path):
         records += struct.pack(">I", len(extra)) + extra
         for plane in (a, r, g, b):
             data += struct.pack(">H", 0) + plane
-    info = struct.pack(">h", len(canvas.layers)) + records + data
+    info = struct.pack(">h", len(snap["layers"])) + records + data
     info += b"\0" * (len(info) % 2)
     layer_info = struct.pack(">I", len(info)) + info
     section = layer_info + struct.pack(">I", 0)
-    merged = canvas.flatten()
-    r, g, b, _a = _planes(merged)
+    r, g, b, _a = _planes(snap["merged"])
     with open(path, "wb") as f:
         f.write(b"8BPS" + struct.pack(">H6xHIIHH", 1, 3, h, w, 8, 3))
         f.write(struct.pack(">I", 0))              # 色の表（RGB では空）

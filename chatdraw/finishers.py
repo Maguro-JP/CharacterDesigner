@@ -174,15 +174,20 @@ def embed(path: str | Path, meta: dict):
         im.load()
         info = PngImagePlugin.PngInfo()
         info.add_itxt(KEY, json.dumps(meta, ensure_ascii=False))
-        im.save(path, pnginfo=info)
+        part = path.with_name(path.name + ".part")   # 書きかけを読まれないよう、別名に書いてから替える
+        im.save(part, format="PNG", pnginfo=info)
+    try:
+        part.replace(path)
+    except OSError:
+        part.unlink(missing_ok=True)   # 読んでいる途中で替えられない（Windows）。埋めるのは諦め、.json に任せる
 
 
 def embedded(path: str | Path) -> dict:
     """PNG に埋めた頼み・種・設定を読む。無ければ空"""
     from PIL import Image
     try:
-        with Image.open(path) as im:
-            text = (getattr(im, "text", None) or {}).get(KEY) or im.info.get(KEY)
+        with Image.open(path) as im:   # embed は欄を絵の前に書くので、絵を戻さずに読める info で足りる（im.text は絵を戻し 20 ミリ秒）
+            text = im.info.get(KEY)
         data = json.loads(text) if text else {}
     except (OSError, ValueError, TypeError):
         return {}

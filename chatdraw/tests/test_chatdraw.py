@@ -1128,6 +1128,16 @@ def wait_idle(app, w, limit: float = 300.0):
     app.processEvents()
 
 
+def wait_bg(app, w, limit: float = 60.0):
+    """裏の糸の保存・読み込み・加工が、画面に答えを返し終えるまで待つ"""
+    import time as _t
+    end = _t.time() + limit
+    while getattr(w, "bg_pending", 0) and _t.time() < end:
+        app.processEvents()
+        _t.sleep(0.005)
+    app.processEvents()
+
+
 class FixAndBatchTest(unittest.TestCase):
     """赤ペン先生・範囲の描き直し・枚数・種・参考画像・拡大"""
     def setUp(self):
@@ -1456,6 +1466,7 @@ class SystemTest(unittest.TestCase):
         project.save(self.w.canvas, path)
         self.w.canvas.new_canvas(50, 50)
         self.w.open_path(str(path))
+        wait_bg(self.app, self.w)   # 読むのは裏の糸
         self.assertEqual(self.w.canvas.size_px(), (200, 160))
         self.assertEqual(self.w.canvas.layers[1].name, "赤")
         self.assertEqual(self.w.canvas.layers[1].image.pixelColor(15, 15).name(), "#ff0000")
@@ -1478,6 +1489,7 @@ class SystemTest(unittest.TestCase):
         with mock.patch("chatdraw.project.autosave_path", return_value=auto):
             self.w.dirty = True
             self.w.autosave()
+            wait_bg(self.app, self.w)
             self.assertTrue(auto.exists())
             self.w.layout_store.setValue("running", 0)
             self.assertFalse(self.w.offer_restore())                   # 正しく閉じていれば聞かない
@@ -1499,6 +1511,7 @@ class SystemTest(unittest.TestCase):
     def test_pixel_and_chibi(self):
         n = len(self.w.canvas.layers)
         self.w.make_pixel(long=32, colors=8)
+        wait_bg(self.app, self.w)
         self.assertEqual(self.w.canvas.layers[-1].name if self.w.canvas.current == len(self.w.canvas.layers) - 1
                          else self.w.canvas.layers[self.w.canvas.current].name, "ドット絵")
         self.assertEqual(len(self.w.canvas.layers), n + 1)
