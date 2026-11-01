@@ -27,10 +27,7 @@
    "bleed": [
     "bottom"
    ],
-   "overlap": true,
-   "clip": [
-    "right"
-   ]
+   "overlap": true
   },
   {
    "kind": "header",

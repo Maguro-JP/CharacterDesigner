@@ -39,10 +39,7 @@
     "bottom",
     "left"
    ],
-   "overlap": true,
-   "clip": [
-    "right"
-   ]
+   "overlap": true
   },
   {
    "kind": "swatches",
