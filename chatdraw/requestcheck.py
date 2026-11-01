@@ -7,7 +7,6 @@
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -16,12 +15,8 @@ FILES = ["model.onnx", "selected_tags.csv"]
 
 
 def _tagger(fetch: bool):
-    if "CD_HOME" not in os.environ:
-        from chatdraw.paths import data_home
-        os.environ["CD_HOME"] = str(data_home() / "cd")
-    gen = ROOT / "tools" / "gen"
-    if str(gen) not in sys.path:
-        sys.path.insert(0, str(gen))
+    from chatdraw.paths import use_tools_gen
+    use_tools_gen()   # CD_HOME を書き換えない。書き換えると利用者の設定（★・非表示など）の置き場がずれた
     import tagger
     from huggingface_hub import hf_hub_download
     from chatdraw.paths import HUB

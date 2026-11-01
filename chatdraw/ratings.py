@@ -6,7 +6,6 @@
 """
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 UNRATED = "未確認"
@@ -18,17 +17,14 @@ def prefs_file() -> Path:
 
 
 def _load() -> dict:
-    try:
-        data = json.loads(prefs_file().read_text(encoding="utf-8"))
-        return data if isinstance(data, dict) else {}
-    except (OSError, ValueError):
-        return {}
+    """読めないファイルは控え（.broken-<日時>）を残してから空として扱う。次の保存で印を失わないように"""
+    from chatdraw.paths import read_json
+    return read_json(prefs_file(), dict, {})
 
 
 def _save(data: dict):
-    f = prefs_file()
-    f.parent.mkdir(parents=True, exist_ok=True)
-    f.write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
+    from chatdraw.paths import write_json
+    write_json(prefs_file(), data)
 
 
 def user_rating(repo: str) -> int:

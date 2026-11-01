@@ -8,7 +8,7 @@
 ;
 ; 入れる: 前の版（%LOCALAPPDATA%\Programs\CharacterDesigner）があれば、模型と描いた物を新しい置き場へ移してから、前の版を消す
 ; 更新: 同じ場所に入れ直す。前のプログラムを消してから置くので、古いファイルが残らない。部品・模型・描いた絵はそのまま
-; 消す: プログラム、ショートカット、登録、設定を消す。部品（ProgramData）は聞いてから消す。模型と描いた絵は消さない
+; 消す: プログラム、ショートカット、登録を消す。部品（ProgramData）は聞いてから消す。利用者の設定（QSettings と ProgramData の設定のファイル）、模型、描いた絵は消さない
 Target amd64-unicode
 Unicode true
 !include "MUI2.nsh"
@@ -112,11 +112,26 @@ Section "Uninstall"
   Delete "$DESKTOP\${APP}.lnk"
   DeleteRegKey HKLM "${UNINST}"
   DeleteRegKey HKLM "Software\${APP}"
-  ; 窓の並びと設定（QSettings が HKCU\Software\CharacterDesigner に書く）
-  DeleteRegKey HKCU "Software\${APP}"
-  ; 部品（torch など 数 GB）と記録。取り直せる物だけなので、既定は消す
-  MessageBox MB_YESNO|MB_ICONQUESTION "絵を描く部品と記録（$COMMONPROGRAMDATA\${APP}）も消しますか？$\r$\n部品は、入れ直したときに取り直せます。描いた絵と模型はここには入っていません。" /SD IDYES IDNO keep_data
-    RMDir /r "$COMMONPROGRAMDATA\${APP}"
+  ; 窓の並びと設定（QSettings が HKCU\Software\CharacterDesigner に書く）は消さない。入れ直したときに引き継ぐ
+  ; 部品（torch など 数 GB）は取り直せるので、聞いてから消す。利用者の設定（★・非表示・ブロック・点・タグ・絵の ★・
+  ; 模型の置き場・学んだ基準・ごみ箱）は消さずに残す。黙って消す（/S）ときは何も消さない
+  MessageBox MB_YESNO|MB_ICONQUESTION "絵を描く部品（$COMMONPROGRAMDATA\${APP}）も消しますか？$\r$\n部品は、入れ直したときに取り直せます。お気に入りや非表示などの設定は消さずに残します。描いた絵と模型はここには入っていません。" /SD IDNO IDNO keep_data
+    StrCpy $1 "$COMMONPROGRAMDATA\${APP}"
+    StrCpy $2 "$COMMONPROGRAMDATA\${APP}.keep"
+    RMDir /r "$2"
+    CreateDirectory "$2"
+    Rename "$1\model_prefs.json" "$2\model_prefs.json"
+    Rename "$1\favorites.json" "$2\favorites.json"
+    Rename "$1\places.json" "$2\places.json"
+    Rename "$1\learn" "$2\learn"
+    Rename "$1\trash" "$2\trash"
+    CreateDirectory "$2\cd"
+    Rename "$1\cd\model_prefs.json" "$2\cd\model_prefs.json"
+    Rename "$1\cd\favorites.json" "$2\cd\favorites.json"
+    Rename "$1\cd\places.json" "$2\cd\places.json"
+    Rename "$1\cd\learn" "$2\cd\learn"
+    RMDir /r "$1"
+    Rename "$2" "$1"
   keep_data:
   MessageBox MB_OK|MB_ICONINFORMATION "アンインストールしました。$\r$\n$\r$\n次の物は残してあります。$\r$\n描いた絵: ピクチャの ${APP} フォルダー$\r$\n模型: C:\LLM（ほかの自作アプリも使うため。要らなければフォルダーごと消せます）" /SD IDOK
 SectionEnd
