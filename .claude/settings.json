@@ -97,6 +97,11 @@
             "type": "command",
             "command": "python3 .claude/skills/user-terms/hooks/terms_check.py",
             "timeout": 15
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/skills/verify-before-done/hooks/reread_check.py",
+            "timeout": 15
           }
         ]
       }
@@ -109,6 +114,11 @@
             "type": "command",
             "command": ".claude/hooks/check.sh",
             "timeout": 120
+          },
+          {
+            "type": "command",
+            "command": "python3 .claude/skills/ui-design/hooks/ui_nudge.py",
+            "timeout": 10
           }
         ]
       },
