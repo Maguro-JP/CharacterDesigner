@@ -149,3 +149,5 @@ class PhotoCheckTest(unittest.TestCase):
         white = Image.new("RGB", (200, 400), (235, 235, 235))
         self.assertTrue(any("明るい" in b for b in fashion_photo.check_view(white, "front", "black wool tuxedo jacket")))
         self.assertFalse(any("明るい" in b for b in fashion_photo.check_view(white, "front", "cream silk blouse")))
+        self.assertEqual(fashion_photo.expected_tone("navy cropped jacket with gold buttons, worn open over a white blouse"), "")
+        self.assertEqual(fashion_photo.expected_tone("dark indigo straight jeans, light blue shirt"), "")

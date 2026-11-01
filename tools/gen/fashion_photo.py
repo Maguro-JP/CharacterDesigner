@@ -103,6 +103,8 @@ def faces(im) -> int:
 # 服の最初の品の色が、暗い色か明るい色かの言葉。黒のスーツを頼んで灰色や白が描かれた（slim-suit、le-smoking、2026-10-31）
 DARK = {"black", "navy", "charcoal", "dark"}
 LIGHT = {"white", "cream", "ivory", "off-white"}
+TOPS = {"jacket", "coat", "shirt", "blouse", "knit", "sweater", "t", "polo", "dress", "cardigan", "hoodie", "fleece", "suit",
+        "henley", "vest", "top", "sweatshirt", "blazer", "parka", "tuxedo"}
 OTHER = {"red", "brown", "blue", "green", "beige", "khaki", "grey", "gray", "pink", "purple", "olive", "yellow", "orange",
          "burgundy", "maroon", "oatmeal", "camel", "tan", "lavender", "mint", "pastel", "indigo", "denim", "plaid", "striped", "check"}
 
@@ -110,9 +112,19 @@ OTHER = {"red", "brown", "blue", "green", "beige", "khaki", "grey", "gray", "pin
 def expected_tone(outfit: str) -> str:
     """outfit の最初の品（読点まで、with より前）に出る最初の色の言葉から、胴が暗いか明るいかを返す。分からなければ空"""
     head = outfit.split(",")[0].split(" with ")[0].split(" over ")[0].lower()
-    for w in head.replace("-", " ").split():
+    words = head.replace("-", " ").split()
+    first_two = " ".join(outfit.lower().split(",")[:2])
+    if "open" in first_two or " over " in first_two:   # 前を開けた上着や重ね着は、胴の真ん中に中の服が見える
+        return ""
+    if any(w in outfit.lower().split(",")[0] for w in ("print", "pattern", "stripe", "check", "plaid")):
+        return ""    # 柄の入った服は、地の色と明るさが合わない
+    if not TOPS & set(words):   # 最初の品が上半身の服でなければ（ジーンズが先頭など）、胴の明るさでは見ない
+        return ""
+    for k, w in enumerate(words):
         if w in OTHER:   # 最初の色がほかの色や柄なら、明るさでは見ない
             return ""
+        if (w in DARK or w in LIGHT or w == "off") and k + 1 < len(words) and words[k + 1] == "and":
+            return ""    # 「紺と白の縞」のように 2 色なら、明るさでは見ない
         if w in DARK:
             return "dark"
         if w in LIGHT or w == "off":
