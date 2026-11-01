@@ -641,6 +641,9 @@ class Window(QMainWindow):
         file = self.menuBar().addMenu("ファイル")
         file.addAction(QAction("新規キャンバス", self, shortcut="Ctrl+N", triggered=lambda: self.canvas.new_canvas()))
         file.addAction(QAction("開く…", self, shortcut="Ctrl+O", triggered=self.open_image))
+        edit_open = QAction("画像を開いて直す…", self, triggered=self.open_to_edit)
+        edit_open.setToolTip("手元の絵を開き、赤ペンで囲んだ所だけを AI に直させます。囲みの外は変えません")
+        file.addAction(edit_open)
         file.addAction(QAction("保存", self, shortcut="Ctrl+S", triggered=self.save_project))
         file.addAction(QAction("名前を付けて保存…", self, shortcut="Ctrl+Shift+S", triggered=lambda: self.save_project(ask=True)))
         out = file.addMenu("書き出す")
@@ -1426,7 +1429,8 @@ class Window(QMainWindow):
         avoid += [a for a in self.ai_panel.avoid_words() if a not in avoid]   # 禁止ワードの欄。模型の決まりと「〜なし」には engine が足す
         self.studio.painter.avoid = ", ".join(avoid)
         self.thread = QThread()
-        self.job = Job(self.studio, text, seeds, base=base, strength=self.strength.value() / 100,
+        self.job_studio = self._fix_studio() if mode == 2 else self.studio
+        self.job = Job(self.job_studio, text, seeds, base=base, strength=self.strength.value() / 100,
                        style=self.ai_panel.style_tags(), regions=regions, reference=self.ai_panel.reference(),
                        ref_scale=self.ai_panel.ref_scale.value() / 100, meta=meta,
                        size=fit_size(*self.canvas.size_px()) if base is not None else self.size_pick.currentData())
@@ -1514,10 +1518,15 @@ class Window(QMainWindow):
         """1 枚できるたびに呼ばれる。初めの 1 枚はキャンバスに置き、ほかは履歴に並べて選べるようにする。
         絵を置くのを先にする。前は検品の知らせを先に出していて、そこで落ちると絵が置かれず、途中の絵か何も無いままだった"""
         self.images.append(path)
+        try:   # 頼み・種・設定を PNG にも埋める（.json が離れても、絵だけで続きから直せるように）
+            from chatdraw import finishers
+            finishers.embed(path, finishers.sidecar(path))
+        except (OSError, ValueError):
+            pass
         self.canvas.show_overlay(None)
         first = not self.batch
         self.batch.append(path)
-        bad = getattr(self.studio, "last_flaws", []) if self.job_kind == "fix" else []
+        bad = getattr(getattr(self, "job_studio", None) or self.studio, "last_flaws", []) if self.job_kind == "fix" else []
         try:
             if self.job_kind == "chibi":
                 self.canvas.add_image_layer(path, "ちびキャラ")
@@ -1573,7 +1582,7 @@ class Window(QMainWindow):
         self.show_final()
         n = len(self.batch)
         fixed = self.job_kind in ("fix", "chibi")
-        bad = getattr(self.studio, "last_flaws", []) if self.job_kind == "fix" else []
+        bad = getattr(getattr(self, "job_studio", None) or self.studio, "last_flaws", []) if self.job_kind == "fix" else []
         result = ("直しを重ねました（崩れあり・隠しています）" if bad else "直しを重ねました") if fixed else \
             f"{n} 枚描きました" if n > 1 else "描けました"
         for it in self.batch_items:
@@ -1764,6 +1773,7 @@ class Window(QMainWindow):
         if self.pin_action.isChecked():
             m.addAction("固定を外す（最新の絵を出す）", lambda: self.pin_action.setChecked(False))
         m.addAction("今の絵に重ねる", lambda: self.layer_from_file(path, "AI の絵"))
+        m.addAction("編集する（囲んで直す）", lambda: self.edit_image(path))
         m.addSeparator()
         m.addAction("この設定で描き直す", lambda: self.redo_from(path))
         m.addAction("頼みの言葉を書く欄に入れる", lambda: self._prompt_from(path))
@@ -1885,6 +1895,13 @@ class Window(QMainWindow):
         pin.setChecked(self.pin_action.isChecked())
         pin.toggled.connect(self.pin_action.setChecked)
         m.addAction("タイムラプスを見る…", self.open_timelapse)
+        m.addSeparator()
+        self._finish_menu(m.addMenu("綺麗にする"))
+        grow = m.addMenu("絵の外へ広げる")
+        grow.setToolTipsVisible(True)
+        for label, sides in (("左右に広げる", (1, 0, 1, 0)), ("上下に広げる", (0, 1, 0, 1)), ("四方に広げる", (1, 1, 1, 1))):
+            act = grow.addAction(label, lambda s=sides: self.outpaint_canvas(*[v * 128 for v in s]))
+            act.setToolTip("広げた所だけを AI に描かせます（128 画素ずつ）。元の絵の画素は変えません")
         m.exec(gpos)
 
     def redo_from(self, path: str):
@@ -2044,6 +2061,10 @@ class Window(QMainWindow):
             a.setToolTip("★ を付けた模型は一覧の先頭に出て、おまかせでも選ばれやすくなります")
             a.toggled.connect(lambda on, r=m.repo: set_favorite(r, on))
         menu.addSeparator()
+        fix_menu = menu.addMenu("直しに使う模型")
+        fix_menu.setToolTipsVisible(True)
+        fix_menu.aboutToShow.connect(lambda: self._fill_fix_menu(fix_menu))
+        self._fill_fix_menu(fix_menu)
         menu.addAction(QAction("模型の管理…", self, triggered=self.manage_models))
 
     def _models_changed(self):
@@ -2549,6 +2570,154 @@ class Window(QMainWindow):
         path, _ = QFileDialog.getOpenFileName(self, "開く", "", "作業ファイルと画像 (*.cdproj *.png *.jpg *.jpeg *.webp)")
         if path:
             self.open_path(path)
+
+    # ---- 既存の絵をあとから直す ----
+    def open_to_edit(self):
+        path, _ = QFileDialog.getOpenFileName(self, "直す絵を開く", "", "画像 (*.png *.jpg *.jpeg *.webp)")
+        if path:
+            self.edit_image(path)
+
+    def edit_image(self, path: str):
+        """手元の絵・ライブラリー・履歴の絵をキャンバスに開き、赤ペンで囲んで直せる形にする。
+        キャンバスは置き換える（前の状態は元に戻すで戻せる）。前に描いた絵の .json があれば、頼み・種・模型を戻して続きから直す"""
+        from chatdraw import finishers
+        if not Path(path).is_file():
+            self.notify("開けませんでした", "error", f"絵が見つかりません: {path}")
+            return
+        self.canvas.replace_with_image(path, Path(path).stem)
+        self.project_path = None
+        self.mode.setCurrentIndex(2)   # 直す
+        if "redpen" in self.tool_actions:
+            self.tool_actions["redpen"].trigger()
+        meta = finishers.sidecar(path)
+        if meta.get("text"):
+            self.entry.setText(meta["text"])
+            self.last_text = meta["text"]
+        try:
+            if "seed" in meta:
+                self.ai_panel.seed.setValue(int(meta["seed"]))
+        except (TypeError, ValueError):
+            pass
+        if meta.get("style_name"):
+            self.ai_panel.set_style(meta["style_name"])
+        if meta.get("model"):
+            self.fix_model = meta["model"]   # 描いた模型で続きを直す（取得していなければ今の模型で直す）
+        self.edit_meta = meta
+        self.notify("直す形で開きました", "ok",
+                    "赤ペンで直す所を囲み、指示を書いて「描く」を押してください。囲みの外は変えません"
+                    + ("（前の頼みと種を戻しました）" if meta else ""))
+
+    def _fix_studio(self):
+        """直しに使う模型を選んでいれば、その模型で直す Studio を作る。おまかせか、使えない模型なら今の Studio"""
+        from chatdraw import finishers
+        from chatdraw.models import all_images
+        from chatdraw.setup import has_image
+        key = getattr(self, "fix_model", finishers.AUTO)
+        if not key or key == finishers.AUTO or key == getattr(self.studio.painter, "model", None):
+            return self.studio
+        every = all_images()
+        m = next((m for m in finishers.inpaint_models(every, [x.repo for x in every if has_image(x)]) if m.repo == key), None)
+        if m is None:
+            self.say("直しに選んだ模型が使えないので、今の模型で直します")
+            return self.studio
+        old = getattr(self, "_fix_cache", None)
+        if old is not None and old.painter.model == m.repo:
+            return old   # 同じ模型を 2 度読まない
+        painter = Painter(m.repo, m.steps, guidance=m.guidance)
+        painter.avoid = getattr(self.studio.painter, "avoid", "")
+        self._fix_cache = Studio(self.studio.words, painter, Path(self.settings.get("output_dir")))
+        return self._fix_cache
+
+    def _fill_fix_menu(self, menu):
+        from chatdraw import finishers
+        from chatdraw.models import all_images
+        from chatdraw.setup import has_image
+        menu.clear()
+        now = getattr(self, "fix_model", finishers.AUTO)
+        group = QActionGroup(menu)
+        auto = QAction(finishers.AUTO, menu, checkable=True)
+        auto.setToolTip("囲んだ所を、今の絵の模型で直します")
+        entries = [(finishers.AUTO, auto)]
+        every = all_images()
+        for m in finishers.inpaint_models(every, [x.repo for x in every if has_image(x)]):
+            act = QAction(m.name, menu, checkable=True)
+            act.setToolTip("囲んだ所を、この模型で直します（取得済みで、範囲の直しができる模型だけを出しています）")
+            entries.append((m.repo, act))
+        for key, act in entries:
+            act.setChecked(key == now)
+            act.triggered.connect(lambda _=False, k=key: setattr(self, "fix_model", k))
+            group.addAction(act)
+            menu.addAction(act)
+
+    def _finish_menu(self, menu):
+        """綺麗にする道具の一覧。使えない物は押せない形で並べ、理由をツールチップに出す"""
+        from chatdraw import finishers
+        menu.setToolTipsVisible(True)
+        finishers.use_painter(getattr(self.studio, "painter", None))
+        for f in finishers.available():
+            act = menu.addAction(f["label"], lambda n=f["name"]: self.finish_with(n))
+            act.setToolTip(f["tip"] if f["ready"] else f["reason"])
+            act.setEnabled(f["ready"])
+
+    def finish_with(self, name: str):
+        """仕上げの道具を今の絵に掛け、結果を新しいレイヤーとして重ねる。囲み（赤ペン・選択）があれば囲みの中だけ変える。
+        使えないときは止めずに理由を出す。返すのは保存した置き場（出来なければ None）"""
+        from PIL import ImageChops
+        from chatdraw import finishers
+        base = qimage_to_pil(self.canvas.flatten()).convert("RGB")
+        masks = [gray_to_pil(m) for m in self.canvas.redpen.masks()]
+        sel = self.canvas.selection_mask()
+        if sel is not None:
+            masks.append(gray_to_pil(sel))
+        mask = None
+        for m in masks:
+            mask = m.convert("L") if mask is None else ImageChops.lighter(mask, m.convert("L"))
+        finishers.use_painter(getattr(self.studio, "painter", None))
+        try:
+            out = finishers.run(name, base, mask)
+        except finishers.Unavailable as e:
+            self.notify("綺麗にできませんでした", "info", str(e))
+            return None
+        except Exception as e:  # 道具の中の失敗も、止めずに理由を出す
+            from chatdraw.engine import explain
+            self.notify("綺麗にできませんでした", "error", explain(e))
+            return None
+        out_dir = Path(self.settings.get("output_dir"))
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f"{time.strftime('%Y%m%d-%H%M%S')}-{name}.png"
+        out.save(path)
+        if out.size == base.size:
+            self.canvas.add_image_layer(str(path), "綺麗にした絵")   # 元の絵は下に残す
+        else:
+            self.canvas.replace_with_image(str(path), "綺麗にした絵")   # 拡大した絵（元に戻すで戻せる）
+        self.notify("綺麗にしました（新しいレイヤー）", "ok", "見比べて、使うか消すかを決めてください")
+        return path
+
+    def outpaint_canvas(self, left: int, top: int, right: int, bottom: int):
+        """絵の外へ広げる。広げた絵でキャンバスを置き換える（元に戻すで戻せる）。使えないときは理由を出して止めない"""
+        from chatdraw import finishers
+        base = qimage_to_pil(self.canvas.flatten()).convert("RGB")
+        prompt = (getattr(self, "edit_meta", None) or {}).get("prompt", "") or self.studio.words.to_prompt(self.last_text) \
+            if self.last_text else ""
+        try:
+            out = finishers.outpaint(base, left, top, right, bottom, painter=getattr(self.studio, "painter", None),
+                                     prompt=prompt, seed=self.ai_panel.seed.value())
+        except finishers.Unavailable as e:
+            self.notify("広げられませんでした", "info", str(e))
+            return None
+        except Exception as e:  # 道具の中の失敗も、止めずに理由を出す
+            from chatdraw.engine import explain
+            self.notify("広げられませんでした", "error", explain(e))
+            return None
+        out_dir = Path(self.settings.get("output_dir"))
+        out_dir.mkdir(parents=True, exist_ok=True)
+        path = out_dir / f"{time.strftime('%Y%m%d-%H%M%S')}-outpaint.png"
+        out.save(path)
+        finishers.embed(path, dict(getattr(self, "edit_meta", None) or {}, text=self.last_text, prompt=prompt,
+                                   mode="広げる", grow=[left, top, right, bottom]))
+        self.canvas.replace_with_image(str(path), "広げた絵")
+        self.notify("絵の外へ広げました", "ok", "元の絵の画素はそのままです。広げた所を見て、使うか元に戻すかを決めてください")
+        return path
 
     def open_path(self, path: str):
         from chatdraw import project
