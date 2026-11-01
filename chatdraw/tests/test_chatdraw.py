@@ -903,7 +903,7 @@ class VpredModelTest(unittest.TestCase):
         self.assertIn("mature female", a["negative_prompt"])   # 女性は利用者の基準の体で描く（chatdraw/body.py）
         old = prompt_args(image_model("cagliostrolab/animagine-xl-4.0"), family("sdxl"), "1girl", "", 24, 5.0, 1, Pipe())
         self.assertNotIn("guidance_rescale", old)
-        self.assertTrue(old["prompt"].endswith("masterpiece, best quality"))
+        self.assertTrue(old["prompt"].endswith("masterpiece, high score, great score, absurdres"))   # Animagine 4.0 の札の質のタグ
 
     def test_scheduler_switches_to_vpred(self):
         import types
@@ -2597,10 +2597,11 @@ class LoadOptionsTest(unittest.TestCase):
 
     def test_native_size_multiples(self):
         from chatdraw.engine import native_size
-        for fam in ("flux1", "flux2", "chroma", "zimage", "qwenimage", "lumina2", "sd3"):
+        for fam, side in (("flux1", 1024), ("flux2", 1024), ("chroma", 1024), ("zimage", 1024), ("qwenimage", 1328),
+                          ("lumina2", 1024), ("sd3", 1024)):
             w, h = native_size((832, 1216), fam)
             self.assertEqual((w % 16, h % 16), (0, 0), fam)
-            self.assertLess(abs(w * h - 1024 * 1024) / (1024 * 1024), 0.05, fam)
+            self.assertLess(abs(w * h - side * side) / (side * side), 0.05, fam)
 
     def test_fits_and_heavy(self):
         from chatdraw.models import fits, heavy, image_model

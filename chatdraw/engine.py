@@ -169,19 +169,61 @@ class Unsupported(Exception):
     """選んだ模型の世代では、まだ使えない機能（ラフから、参考画像、範囲の直し）"""
 
 
+QUALITY = "masterpiece, best quality"   # タグで頼む世代の、札に指定の無い模型に足す質のタグ
+
+
+def quality_tags(info, f) -> str:
+    """頼みの後ろに足す質のタグ。模型の札に指定があればそれ（Animagine 4.0 は high score, great score）。
+    頭の決まり文句（prefix）に質のタグが入っている模型と、文で頼む世代には足さない"""
+    q = getattr(info, "quality", None)
+    if q is not None:
+        return q
+    if not f.tags or "masterpiece" in getattr(info, "prefix", ""):
+        return ""
+    return QUALITY
+
+
+def clip_skip_arg(info, family_name: str) -> int | None:
+    """札の CLIP skip（A1111 の数え方）を diffusers の clip_skip に直す。
+    SD1.5 の diffusers は既定で最後の層を使うので、札の 2 は clip_skip=1。SDXL の diffusers は既定で最後から 2 つ目を使うので、
+    札の 2 は既定のまま（足すと 3 つ目になり、頼みの効きが変わる）"""
+    n = getattr(info, "clip_skip", 0) or 0
+    if family_name == "sd15" and n >= 2:
+        return n - 1
+    return None
+
+
+def fit_tokens(tokenizer, prefix: str, body: str, suffix: str, limit: int = 75) -> str:
+    """CLIP（SD 系）は頼みの 75 語片より後ろを捨てる。頭の決まり文句と質のタグで頼みの後ろが切れ、頼んだ物が描かれなかった。
+    収まらないときは、質のタグ、頭の決まり文句の順に外して、頼みそのものを残す"""
+    def n(text):
+        try:
+            return len(tokenizer(text, add_special_tokens=False)["input_ids"])
+        except Exception:
+            return 0
+    tail = f", {suffix}" if suffix else ""
+    for text in (f"{prefix}{body}{tail}", f"{prefix}{body}", body):
+        if n(text) <= limit:
+            return text
+    return body
+
+
 def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, seed: int, pipe) -> dict:
-    """世代に合う頼みの形を作る。SD 系はタグに質の言葉と描かない物を足す。新しい世代は札の例どおり、
-    描かない物を受けない模型には渡さず、頼みの効きは模型ごとの名前（guidance_scale か true_cfg_scale）で渡す"""
+    """世代と模型の札に合う頼みの形を作る。SD 系はタグに札の質のタグと描かない物を足し、CLIP の長さに収める。
+    新しい世代は札の例どおり、描かない物を受けない模型には渡さず、頼みの効きは模型ごとの名前（guidance_scale か true_cfg_scale）で渡す"""
     import inspect
     import torch
     prompt = english_only(prompt)
-    text = f"{info.prefix}{prompt}"
-    if f.tags and "masterpiece" not in info.prefix:
-        text += ", masterpiece, best quality"
+    suffix = quality_tags(info, f)
+    tokenizer = getattr(pipe, "tokenizer", None)
+    if f.tags and tokenizer is not None and getattr(pipe, "text_encoder", None) is not None and info.family in ("sdxl", "sd15"):
+        text = fit_tokens(tokenizer, info.prefix, prompt, suffix)
+    else:
+        text = f"{info.prefix}{prompt}" + (f", {suffix}" if suffix else "")
     args = {"prompt": text, "num_inference_steps": steps, f.cfg_key: guidance,
             # 種は CPU の乱数で作る。部品を GPU に出し入れする置き方（offload）では pipe.device が meta や cpu になり、
             # その device の乱数を作ると落ちた。CPU の乱数なら、どの置き方でも同じ種で同じ絵になる
-            "generator": torch.Generator("cpu").manual_seed(seed), **f.extra}
+            "generator": torch.Generator("cpu").manual_seed(seed), **f.extra, **dict(getattr(info, "call", ()) or ())}
     if f.negative:
         if woman(prompt):   # 女性は利用者の基準の体で描く（年配の太った体にしない。chatdraw/body.py）
             from chatdraw.body import NEGATIVE as BODY_NEGATIVE
@@ -189,6 +231,9 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
         args["negative_prompt"] = negative_for(info, avoid)
     if getattr(info, "rescale", 0.0):
         args["guidance_rescale"] = info.rescale
+    skip = clip_skip_arg(info, info.family)
+    if skip:
+        args["clip_skip"] = skip
     accepted = inspect.signature(pipe.__call__).parameters
     return {k: v for k, v in args.items() if k in accepted}   # 部品が受けない引数は渡さない（版の違いで落ちないように）
 
@@ -214,6 +259,20 @@ def use_vpred(pipe, info) -> bool:
     from diffusers import EulerDiscreteScheduler
     pipe.scheduler = EulerDiscreteScheduler.from_config(pipe.scheduler.config, prediction_type="v_prediction",
                                                         rescale_betas_zero_snr=True)
+    return True
+
+
+def use_scheduler(pipe, info) -> bool:
+    """札の例が描き方（scheduler）を替える模型は、読んだ後に同じ物に替える。
+    DreamShaper XL Lightning は札の例が DPMSolverMultistep で、置いてある Euler のまま 4〜6 工程で描くと崩れた"""
+    name = getattr(info, "scheduler", "")
+    if not name or getattr(pipe, "scheduler", None) is None:
+        return False
+    import diffusers
+    cls = {"dpm": "DPMSolverMultistepScheduler", "euler_a": "EulerAncestralDiscreteScheduler"}.get(name)
+    if cls is None or not hasattr(diffusers, cls):
+        return False
+    pipe.scheduler = getattr(diffusers, cls).from_config(pipe.scheduler.config)
     return True
 
 
@@ -677,7 +736,7 @@ class Painter:
         if self._pipe is None:
             self._pipe = self._read()
             from chatdraw.models import image_model
-            use_vpred(self._pipe, image_model(self.model))
+            use_vpred(self._pipe, image_model(self.model)) or use_scheduler(self._pipe, image_model(self.model))
             self._place(self._pipe)
         return self._pipe
 
@@ -868,11 +927,15 @@ class Painter:
         self.stop = False
         if clean:
             image = erase(image, mask)
-        args = dict(prompt=f"{info.prefix}{english_only(prompt)}, masterpiece, best quality", negative_prompt=negative_for(info, self.avoid),
+        # 描くときと同じ札の頼み方（質のタグ、CLIP の長さ、CLIP skip）で直す。直しだけ別の頼み方にすると、絵柄がずれた
+        args = dict(prompt=fit_tokens(getattr(pipe, "tokenizer", None), info.prefix, english_only(prompt), quality_tags(info, fam(info.family))),
+                    negative_prompt=negative_for(info, self.avoid),
                     num_inference_steps=self.steps, guidance_scale=self.guidance, strength=strength,
                     generator=torch.Generator("cpu").manual_seed(seed))
         if info.rescale:
             args["guidance_rescale"] = info.rescale
+        if clip_skip_arg(info, info.family):
+            args["clip_skip"] = clip_skip_arg(info, info.family)
         total = max(1, int(self.steps * strength))
 
         def step(p, i, _t, kw):
