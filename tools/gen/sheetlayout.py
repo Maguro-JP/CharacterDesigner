@@ -204,6 +204,8 @@ body{background:var(--page);color:var(--ink);font-family:var(--font);font-weight
 .cap{position:absolute;font-size:var(--t-note);color:var(--sub);letter-spacing:.12em;transform:translateX(-50%);white-space:nowrap}
 .faces{flex:1;display:grid;gap:var(--fg);min-height:0}
 .face{display:flex;flex-direction:column;min-height:0}
+.faces.sq{flex:none}
+.sq .face .im{flex:none;aspect-ratio:1/1}
 .face .im{flex:1;min-height:0;background:var(--tile);border-radius:var(--radius);overflow:hidden;position:relative}
 .face img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 25%;mix-blend-mode:multiply}
 .face p{font-size:calc(var(--t-note) * 1.15);color:color-mix(in srgb, var(--ink) 70%, var(--page)) !important;letter-spacing:.14em;color:var(--sub);text-align:center;margin-top:.55em;line-height:1}
@@ -408,7 +410,8 @@ def _panel_html(pn, ctx):
         cols = min((cols, cols + 1, cols - 1), key=lambda k: (-len(faces) % k if k > 0 else 99, abs(k - pn.get("cols", 3))))
         tiles = "".join(f'<div class="face"><div class="im"><img src="{_uri(f, "JPEG")}"></div><p>{e(n)}</p></div>' for n, f in faces)
         rows = -(-len(faces) // cols)
-        return lab(pn.get("title", "")) + f'<div class="faces" style="grid-template-columns:repeat({cols},1fr);grid-template-rows:repeat({rows},1fr)">{tiles}</div>'
+        sq = " sq" if pn.get("square") else ""   # 小さく添える表情は正方形の札にする。行の高さに合わせて潰すと、細い帯になって顔が読めなかった
+        return lab(pn.get("title", "")) + f'<div class="faces{sq}" style="grid-template-columns:repeat({cols},1fr);grid-template-rows:repeat({rows},{"auto" if sq else "1fr"})">{tiles}</div>'
     if k == "poses":
         cells = [(n, _cut_rgba(__import__("PIL.Image", fromlist=["Image"]).open(bible.ROOT / p))) for n, p in cs._pose_list(c)]
         cells = [(n, im.crop(im.getchannel("A").getbbox())) for n, im in cells]
@@ -422,7 +425,7 @@ def _panel_html(pn, ctx):
     if k == "notes":
         if not ctx["notes"]:
             return ""
-        notes = ctx["notes"]
+        notes = ctx["notes"][:pn["max"]] if pn.get("max") else ctx["notes"]   # 総覧は持ち物を先に、欄に収まる数だけ載せる
         if pn.get("brief"):   # 総覧では各注記の最初の一文だけにする。全文は作画用の版に載せる（狭い欄に全文を詰めると欄からあふれた）
             notes = [t.split("。")[0] for t in notes]
             # 長い文は最初の読点までにする（「…」で切ると文の途中で切れて見え、項目名だけにすると見出しの羅列に見えた）

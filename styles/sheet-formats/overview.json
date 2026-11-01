@@ -8,14 +8,14 @@
  ],
  "ratio": "16:9（横）",
  "areas": [
-  "hero hero hero head head head head head sw sw sw sw",
-  "hero hero hero turn turn turn turn expr expr expr expr expr",
-  "hero hero hero turn turn turn turn note note note note note"
+  "hero hero hero head head head head head note note note note",
+  "hero hero hero turn turn turn turn turn expr expr expr expr",
+  "hero hero hero turn turn turn turn turn sw sw sw sw"
  ],
  "rows": [
   "auto",
-  "1fr",
-  "1.15fr"
+  "auto",
+  "1fr"
  ],
  "margin": 0.04,
  "panels": [
@@ -40,14 +40,16 @@
    "kind": "notes",
    "area": "note",
    "title": "注記",
-   "brief": true
+   "brief": true,
+   "max": 2
   },
   {
    "kind": "expressions",
    "area": "expr",
    "title": "表情",
    "cols": 3,
-   "max": 3
+   "max": 3,
+   "square": true
   },
   {
    "kind": "swatches",

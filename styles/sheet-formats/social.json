@@ -1,25 +1,25 @@
 {
  "name": "social",
  "title": "紹介型",
- "purpose": "SNS やページの見出しで人物を紹介する。全身1つ、表情3つ、色の帯だけにして、小さく表示されても読める",
+ "purpose": "SNS やページの見出しで人物を紹介する。全身と四面図で姿を見せ、色の帯を添える。表情は総覧型と演技型に任せる",
  "size": [
   2400,
   1256
  ],
  "ratio": "1.91:1（横）",
  "areas": [
-  "hero hero hero head head head head head head head head head",
-  "hero hero hero expr expr expr expr expr expr expr expr expr",
-  "hero hero hero strip strip strip strip strip strip strip strip strip"
+  "hero hero hero hero head head head head head head head head",
+  "hero hero hero hero turn turn turn turn turn turn turn turn",
+  "hero hero hero hero strip strip strip strip strip strip strip strip"
  ],
  "rows": [
   "auto",
-  "1fr",
+  "minmax(0,1fr)",
   "auto"
  ],
  "margin": 0.05,
  "type": {
-  "name": 84,
+  "name": 60,
   "head": 17,
   "body": 16,
   "note": 13
@@ -38,16 +38,14 @@
   {
    "kind": "header",
    "area": "head",
-   "huge": true,
-   "pull": 0.13,
+   "huge": false,
    "overlap": true
   },
   {
-   "kind": "expressions",
-   "area": "expr",
-   "cols": 3,
-   "max": 3,
-   "crop": "tight"
+   "kind": "turnaround",
+   "area": "turn",
+   "title": "",
+   "guides": false
   },
   {
    "kind": "strip",
