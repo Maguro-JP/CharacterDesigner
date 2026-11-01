@@ -113,11 +113,22 @@ class Job(QObject):
         self.base, self.strength, self.size = base, strength, size
         self.regions, self.reference, self.ref_scale, self.meta = regions, reference, ref_scale, meta or {}
         self.check = check
+        self.tid = None   # 走っている裏の糸の番号。緊急停止がここへ Stopped を投げ込む
+        fresh_stop(studio)
+
+    def _say(self, msg: str):
+        """工程の知らせ。止める旗が立っていれば、ここで止める（旗を見ない工程の区切りでも止まる）"""
+        from chatdraw.engine import check_stop
+        check_stop()
+        self.status.emit(msg)
 
     def run(self):
+        guarded(self, self._run)
+
+    def _run(self):
         try:
             if self.regions is not None:
-                prompts, path = self.studio.fix(self.base, self.regions, self.seeds[0], on_status=self.status.emit,
+                prompts, path = self.studio.fix(self.base, self.regions, self.seeds[0], on_status=self._say,
                                                 style=self.style, strength=self.strength, reference=self.reference,
                                                 ref_scale=self.ref_scale, check=self.check)
                 self._stopped()
@@ -126,7 +137,7 @@ class Job(QObject):
             else:
                 for seed in self.seeds:
                     extra = dict(reference=self.reference, ref_scale=self.ref_scale) if self.reference is not None else {}
-                    prompt, path = self.studio.draw(self.text, seed, on_status=self.status.emit,
+                    prompt, path = self.studio.draw(self.text, seed, on_status=self._say,
                                                     base=self.base, strength=self.strength, size=self.size,
                                                     on_preview=self.preview.emit, style=self.style, meta=self.meta, **extra)
                     self._stopped()
@@ -139,9 +150,39 @@ class Job(QObject):
 
     def _stopped(self):
         """止められたあとに返ってきた絵（直しの途中で抜けた物など）は置かずに捨てる。キャンバスは元のまま"""
-        if getattr(self.studio.painter, "stop", False):
-            from chatdraw.engine import Stopped
+        from chatdraw.engine import STOP, Stopped
+        if STOP.is_set() or getattr(self.studio.painter, "stop", False) is True:
             raise Stopped("止めました")
+
+
+def fresh_stop(studio=None):
+    """裏の 1 回分を始める前に、止める旗を戻す（戻すのはここだけ）"""
+    from chatdraw.engine import STOP
+    STOP.clear()
+    painter = getattr(studio, "painter", None)
+    if painter is not None and "stop" in vars(painter):
+        painter.stop = False   # 試験の偽の模型など、自分の旗を持つ物
+
+
+def guarded(obj, body):
+    """裏の 1 回分を、1 つずつ・止められる形で走らせる。前の回が止めたあとの後片付け中なら終わるのを待つ。
+    緊急停止が投げ込む Stopped は、どこで届いても failed で返す"""
+    import threading
+    from chatdraw.engine import WORK, Stopped
+    try:
+        if not WORK.acquire(blocking=False):
+            obj.status.emit("前の処理の後片付けを待っています")
+            WORK.acquire()
+        try:
+            obj.tid = threading.get_ident()
+            body()
+        finally:
+            obj.tid = None
+            WORK.release()
+    except Stopped:
+        obj.failed.emit("止めました")
+    except BaseException as e:   # noqa: BLE001  落ちても画面に必ず返す
+        obj.failed.emit(f"できませんでした: {e}")
 
 
 class Task(QObject):
@@ -153,10 +194,20 @@ class Task(QObject):
     def __init__(self, fn):
         super().__init__()
         self.fn = fn
+        self.tid = None
+        fresh_stop()
+
+    def _step(self, i, n):
+        from chatdraw.engine import check_stop
+        check_stop()
+        self.status.emit(f"描いています（{i}/{n}）")
 
     def run(self):
+        guarded(self, self._run)
+
+    def _run(self):
         try:
-            self.done.emit(self.fn(lambda i, n: self.status.emit(f"描いています（{i}/{n}）")))
+            self.done.emit(self.fn(self._step))
         except Exception as e:
             from chatdraw.engine import explain
             self.failed.emit(f"できませんでした: {explain(e)}")
@@ -661,6 +712,20 @@ class Window(QMainWindow):
         prog.setObjectName("progress")
         prog.setFeatures(PANEL)
         self.addDockWidget(Qt.TopDockWidgetArea, prog)
+        # 緊急停止。いつでも見える所（上の帯と進みの欄）に置き、押したら必ず止める。帯は閉じられない（隠すと止められなくなる）
+        self.emergency_stop = QAction("■ 緊急停止", self)
+        self.emergency_stop.setObjectName("emergencyStop")
+        self.emergency_stop.setShortcut("Shift+Esc")
+        self.emergency_stop.setShortcutContext(Qt.ApplicationShortcut)
+        self.emergency_stop.setToolTip("動いている AI の処理を今すぐ止めます（Shift+Esc）。キャンバスは元のままです")
+        self.emergency_stop.triggered.connect(self.stop)
+        sbar = QToolBar("緊急停止", self)
+        sbar.setObjectName("stopbar")
+        sbar.addAction(self.emergency_stop)
+        sbar.toggleViewAction().setEnabled(False)
+        self.addToolBar(Qt.TopToolBarArea, sbar)
+        self.stop_bar = sbar
+        self.activity.stop_tool.setDefaultAction(self.emergency_stop)
 
         # 下: 進み
         self.progress = self.activity.bar   # 進みは描いた絵の欄に出す
@@ -962,7 +1027,9 @@ class Window(QMainWindow):
             d.visibilityChanged.connect(lambda on, d=d: self._appear(d, on))
         self.tools = tools
         self.setDockNestingEnabled(True)
-        self.setDockOptions(QMainWindow.AllowNestedDocks | QMainWindow.AllowTabbedDocks | QMainWindow.AnimatedDocks)
+        # GroupedDragging: タブにまとめた欄を、まとめたまま動かせる（1 枚ずつはタブを引いて外へ出す）
+        self.setDockOptions(QMainWindow.AllowNestedDocks | QMainWindow.AllowTabbedDocks | QMainWindow.AnimatedDocks
+                            | QMainWindow.GroupedDragging)
         # 欄どうしを重ねるとタブになる（欄の見出しを別の欄の上へドラッグ）。タブは上に出す
         self.setTabPosition(Qt.AllDockWidgetAreas, QTabWidget.North)
         self.tabifiedDockWidgetActivated.connect(lambda d: isinstance(d.titleBarWidget(), PanelTitle) and d.titleBarWidget().expand())
@@ -1026,7 +1093,7 @@ class Window(QMainWindow):
         # Tab は出す・隠すを入れ替える。隠すだけだと、もう一度押しても戻らず、帯も消えて操作できなくなった
         win.addAction(QAction("欄を隠す・出す（絵だけを見る）", self, shortcut="Tab", triggered=self.toggle_all))
         win.addSeparator()
-        win.addAction(QAction("整列（初期の配置に戻す）", self, triggered=self.arrange))
+        win.addAction(QAction("配置を初期に戻す（欄と AI の欄のタブ）", self, triggered=self.reset_layout))
         win.addAction(QAction("すべて別ウィンドウにする", self, triggered=self.float_all))
         win.addAction(QAction("自由配置（欄をドラッグして好きな所に置く）", self, triggered=self.free_layout))
         self.build_ribbon()
@@ -1061,6 +1128,10 @@ class Window(QMainWindow):
             sub = self._where.addMenu(name)
             for label, area in (("上", Qt.TopToolBarArea), ("下", Qt.BottomToolBarArea)):
                 sub.addAction(QAction(label, self, triggered=lambda _=False, tb=tb, area=area: self.place_bar(tb, area)))
+        # AI の欄のタブの順と、外へ出したタブの欄。欄の位置を戻す（restoreState）より先に欄を作る
+        from chatdraw.tabdock import TabDocks
+        self.ai_tabs = TabDocks(self, self.ai_panel, self.layout_store)
+        self.ai_tabs.restore()
         state = self.layout_store.value("state9")   # 欄の並びを変えたら名前を変え、古い並びを読まない
         if state is not None:
             self.restoreGeometry(self.layout_store.value("geometry9"))
@@ -1294,7 +1365,7 @@ class Window(QMainWindow):
                 self.chat.add("ai", "描いている間は答えられません。描き終わってからもう一度送ってください")
                 return
             turns, prompt = list(self.chat.turns[:-1]), self.entry.text().strip()
-            self.in_background(lambda: assistant.answer(words, turns, text, prompt), answered)
+            self.in_background(lambda: assistant.answer(words, turns, text, prompt), answered, "言葉の模型の答え待ち")
 
         def answered(got):
             self.asking = False
@@ -1306,7 +1377,7 @@ class Window(QMainWindow):
             self.offer_prompt(self.chat.add("ai", reply), new)
 
         if commands.needs_model(text, words):
-            self.in_background(lambda: commands.by_model(text, words), picked)
+            self.in_background(lambda: commands.by_model(text, words), picked, "言葉の模型の答え待ち")
         else:
             picked(None)
 
@@ -1403,18 +1474,22 @@ class Window(QMainWindow):
             self.asking = True
             self.button.setEnabled(False)
 
+            token = self._ask_token = getattr(self, "_ask_token", 0) + 1
+
             def got(picked):
+                if token != self._ask_token:
+                    return   # 止めた回の答え
                 self.asking = False
                 self.button.setEnabled(True)
                 self._send_after(text, None if isinstance(picked, BaseException) else picked)
-            self.in_background(lambda: commands.by_model(text, words), got)
+            self.in_background(lambda: commands.by_model(text, words), got, "言葉の模型の答え待ち")
             return
         self._send_after(text, None)   # 模型に聞けないときは言葉の決まりで選ぶ
 
-    def in_background(self, work, done):
+    def in_background(self, work, done, name: str = "裏の処理"):
         """work を裏の糸で動かし、答えを画面の糸の done に渡す。work が例外を出したら、その例外を渡す"""
         import threading
-        key = self._bg_register(done)
+        key = self._bg_register(done, name)
 
         def run():
             try:
@@ -1424,7 +1499,7 @@ class Window(QMainWindow):
             self._bg_emit(key, v)
         threading.Thread(target=run, daemon=True).start()
 
-    def _bg_register(self, done) -> int:
+    def _bg_register(self, done, name: str = "裏の処理") -> int:
         """答えの受け手を画面の糸で覚え、番号を返す。裏の糸には番号だけを渡す。
         前は呼ぶたびに Bridge（QObject）を作って裏の糸に渡していた。裏の糸がその最後の参照を手放すと、
         Python の側の後片付けが裏の糸で走り、画面の糸で落ちた（Shiboken の runDeletionInMainThread で Segmentation fault）"""
@@ -1435,6 +1510,7 @@ class Window(QMainWindow):
             self._next_key = 0
         self._next_key += 1
         self._waiting[self._next_key] = done
+        self.activity.bg_begin(self._next_key, name)   # 進みの欄に、裏で動いている物を出す
         self.bg_pending = getattr(self, "bg_pending", 0) + 1
         self.gc_guard()
         return self._next_key
@@ -1515,6 +1591,7 @@ class Window(QMainWindow):
                        style=self.ai_panel.style_tags(), regions=regions, reference=self.ai_panel.reference(),
                        ref_scale=self.ai_panel.ref_scale.value() / 100, meta=meta,
                        size=fit_size(*self.canvas.size_px()) if base is not None else self.size_pick.currentData())
+        self._worker = self.job
         self.job.moveToThread(self.thread)
         self.thread.started.connect(self.job.run)
         self.job.status.connect(self.on_status)
@@ -1592,12 +1669,16 @@ class Window(QMainWindow):
         return regions
 
     def on_status(self, msg: str):
+        if self._stale():
+            return
         m = re.search(r"（(\d+)/(\d+)）", msg)
         self.activity.status(msg, *(int(m.group(1)), int(m.group(2))) if m else (None, None))
 
     def on_one(self, prompt: str, path: str):
         """1 枚できるたびに呼ばれる。初めの 1 枚はキャンバスに置き、ほかは履歴に並べて選べるようにする。
         絵を置くのを先にする。前は検品の知らせを先に出していて、そこで落ちると絵が置かれず、途中の絵か何も無いままだった"""
+        if self._stale():
+            return
         self.images.append(path)
         self.canvas.show_overlay(None)
         first = not self.batch
@@ -1643,7 +1724,7 @@ class Window(QMainWindow):
         # 頼み・種・設定を PNG にも埋める（.json が離れても、絵だけで続きから直せるように）。PNG を書き直すので
         # 1 枚 0.1 秒ほどかかる。置いたあとに裏の糸で書く（埋めるのは別名に書いてから替えるので、読む側は壊れた絵を見ない）
         from chatdraw import finishers
-        self.run_io(lambda: finishers.embed(path, finishers.sidecar(path)), lambda _v: None)   # 描いた絵はライブラリーにも入る（好き・いまいちを付けて好みを育てる）
+        self.run_io(lambda: finishers.embed(path, finishers.sidecar(path)), lambda _v: None, "ライブラリーへ保存")   # 描いた絵はライブラリーにも入る（好き・いまいちを付けて好みを育てる）
 
     def show_final(self):
         """描き終えたら、1 枚目の絵をキャンバスに出して履歴で選ぶ。途中の絵（重ねた下描き）は必ず消す。
@@ -1660,6 +1741,8 @@ class Window(QMainWindow):
                 break
 
     def finish(self):
+        if self._stale():
+            return
         self._show_model()   # おまかせで選んだ模型を出す
         self.show_final()
         n = len(self.batch)
@@ -1754,7 +1837,7 @@ class Window(QMainWindow):
         self.activity.begin(label, kind)
         self.batch, self.batch_items, self.job_kind = [], [], kind
         self.thread = QThread()
-        self.job = job
+        self.job = self._worker = job
         job.moveToThread(self.thread)
         self.thread.started.connect(job.run)
         job.status.connect(self.on_status)
@@ -1817,7 +1900,8 @@ class Window(QMainWindow):
 
     def _run_task(self, fn, then):
         self.thread = QThread()
-        self.task = Task(fn)
+        self.task = self._worker = Task(fn)
+        self.stop_button.setEnabled(True)
         self.task.moveToThread(self.thread)
         self.thread.started.connect(self.task.run)
         self.task.status.connect(self.on_status)
@@ -1830,6 +1914,8 @@ class Window(QMainWindow):
         self.thread.start()
 
     def _task_done(self, result):
+        if self._stale():
+            return
         then, self._task_then = getattr(self, "_task_then", None), None
         if then is not None:
             then(result)
@@ -2166,6 +2252,8 @@ class Window(QMainWindow):
         """欄と帯を初めの並びに戻し、ウィンドウを画面に収める（並びが崩れて操作できなくなったときの戻り道）"""
         from chatdraw.fit import fit
         self._all_hidden = False
+        if getattr(self, "ai_tabs", None) is not None:
+            self.ai_tabs.reset()   # 外へ出した AI の欄のタブも戻し、タブの順も初めの形にする
         self._show_all(True)
         for d, _area in self.panels.values():
             d.setFloating(False)
@@ -2288,7 +2376,7 @@ class Window(QMainWindow):
                 self._fill_ai_menu()
             if self._rescan_again:
                 self.rescan_models()
-        self.in_background(lambda: {m.repo for m in every if has_image(m)}, done)
+        self.in_background(lambda: {m.repo for m in every if has_image(m)}, done, "模型を調べる")
 
     def installed_images(self, models) -> set[str]:
         """models のうち手元にある物。まだ一度も数えていなければ（起動の初めだけ）その場で数える"""
@@ -2425,8 +2513,81 @@ class Window(QMainWindow):
         self._placed = path
 
     def stop(self):
-        self.studio.painter.stop = True
-        self.statusBar().showMessage("止めています")
+        """緊急停止。押したら必ず止まる。
+        1. 止める旗を立てる（工程の区切りで止まる）
+        2. 旗を見ない重い工程（模型の読み込み、言葉の模型の答え待ち、検品、仕上げ）の裏の糸へ Stopped を投げ込む
+        3. 裏の糸の終わりを待たずに、画面をすぐ待機に戻す。止めた回の答えは捨てる（キャンバスは元のまま）
+        4. 裏の糸が終わったら、メモリを返す（_reap）"""
+        from chatdraw import engine
+        t0 = time.time()
+        engine.STOP.set()
+        for st in (self.studio, getattr(self, "job_studio", None)):
+            painter = getattr(st, "painter", None)
+            if painter is not None:
+                try:
+                    painter.stop = True
+                except AttributeError:
+                    pass
+        if getattr(self, "asking", False):   # 言葉の模型に頼みの種類を聞いている途中
+            self.asking = False
+            self._ask_token = getattr(self, "_ask_token", 0) + 1   # 返ってきた答えは捨てる
+            self.button.setEnabled(True)
+        worker, obj = self.thread, getattr(self, "_worker", None)
+        if worker is None:
+            self.statusBar().showMessage("止めました" if getattr(self, "asking", None) is False else "動いている処理はありません", 3000)
+            self.activity.idle_check()
+            return
+        engine.kill_thread(getattr(obj, "tid", None))
+        if obj is not None:
+            obj.failed.connect(worker.quit)
+            obj.done.connect(worker.quit)
+        self._zombies = getattr(self, "_zombies", [])
+        self._zombies.append((worker, obj, t0))
+        worker.finished.connect(self._reap)
+        if not worker.isRunning():
+            worker.quit()
+        self.thread, self._worker = None, None
+        self.canvas.show_overlay(None)
+        if self.activity.started is not None:
+            self.activity.end("止めました")
+        self.stop_button.setEnabled(False)
+        self.button.setEnabled(True)
+        self.progress_popup.tell("止めました", "キャンバスは元のままです")
+        self.notify("止めました", "info", "")
+        self.hide_progress_if_idle()
+        self.last_stop_ui = time.time() - t0
+        self.statusBar().showMessage(f"止めました（{self.last_stop_ui:.2f} 秒）", 4000)
+
+    def _stale(self) -> bool:
+        """止めた回の裏の処理から遅れて届いた知らせか。止めた回の絵はキャンバスに置かない"""
+        src = self.sender()
+        return src is not None and isinstance(src, (Job, Task)) and src is not getattr(self, "_worker", None)
+
+    def _reap(self):
+        """止めた回の裏の糸が終わった。糸を片付け、描きかけの物を捨ててメモリを返す"""
+        import gc
+        left = []
+        for worker, obj, t0 in getattr(self, "_zombies", []):
+            if worker.isRunning():
+                left.append((worker, obj, t0))
+                continue
+            self.last_stop_secs = time.time() - t0
+            worker.deleteLater()
+            if obj is not None:
+                obj.deleteLater()
+        self._zombies = left
+        gc.collect()
+        torch = sys.modules.get("torch")
+        if torch is not None:
+            try:
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except Exception:   # noqa: BLE001  返せなくても止めたことは変わらない
+                pass
+        self.gc_guard()
+        if getattr(self, "_unload_after", False) and not left:
+            self._unload_after = False
+            self.studio.painter.unload()
 
     def drawing(self) -> bool:
         return self.thread is not None
@@ -2457,6 +2618,8 @@ class Window(QMainWindow):
                                  "ラフに沿う強さ。大きいほどラフの線の形どおりに描く")
 
     def fail(self, why: str):
+        if self._stale():
+            return
         self.canvas.show_overlay(None)
         self.say(why)
         if self.activity.started is not None:
@@ -2884,6 +3047,8 @@ class Window(QMainWindow):
         # 次に開いたときも同じ並びにする
         self.layout_store.setValue("geometry9", self.saveGeometry())
         self.layout_store.setValue("state9", self.saveState())
+        if getattr(self, "ai_tabs", None) is not None:
+            self.ai_tabs.save()
         super().closeEvent(e)
 
     def _refresh_layers(self):
@@ -3237,7 +3402,7 @@ class Window(QMainWindow):
                 project.apply(self.canvas, got)
                 # 自動保存から戻したときは、自動保存の場所に上書き保存しない
                 self.project_path, self.dirty = (None, True) if restore else (path, False)
-            self.run_io(lambda: project.read(path), done)
+            self.run_io(lambda: project.read(path), done, "読み込み")
             return
         else:
             self.canvas.show_image(path)
@@ -3278,10 +3443,10 @@ class Window(QMainWindow):
                 self.notify("保存できませんでした", "error", str(err))
                 return
             self.notify("保存しました", "ok", Path(path).name)
-        self.run_io(lambda: project.write(snap, path), done)
+        self.run_io(lambda: project.write(snap, path), done, "保存")
         return True
 
-    def run_io(self, work, done):
+    def run_io(self, work, done, name: str = "保存・読み込み"):
         """保存・読み込みなどの書き物を裏の糸で回す。同じ置き場に重ねて書かないよう、1 本の列に並べて順に書く"""
         import queue
         import threading
@@ -3299,13 +3464,14 @@ class Window(QMainWindow):
                     self._bg_emit(key, v)
                     q.task_done()
             threading.Thread(target=loop, args=(self._io_queue,), daemon=True).start()
-        self._io_queue.put((work, self._bg_register(done)))
+        self._io_queue.put((work, self._bg_register(done, name)))
 
     def _bg_done(self, got):
         """裏の糸の答えを画面の糸で受ける。done が落ちても数は戻す（数が残ると、試験と閉じる前の待ちが終わらない）"""
         key, v = got
         done = self._waiting.pop(key, None)
         self.bg_pending -= 1
+        self.activity.bg_end(key)
         if done is not None:
             done(v)
 

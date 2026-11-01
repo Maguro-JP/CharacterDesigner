@@ -94,6 +94,8 @@ class AiPanel(QWidget):
         outer.setSpacing(6)
         # 項目が多いので、タブに分ける。初めに開くのは描く内容。描くボタンはタブの外（下）に置き、どのタブからも押せる
         self.tabs = QTabWidget()
+        from chatdraw.tabdock import DragOutTabBar
+        self.tabs.setTabBar(DragOutTabBar(self.tabs))   # タブを足す前に替える。並べ替えと、欄の外へ出すドラッグ
         self.tabs.setObjectName("aiTabs")
         self.tabs.setDocumentMode(True)
         self.tabs.setUsesScrollButtons(True)

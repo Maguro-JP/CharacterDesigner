@@ -25,6 +25,12 @@ class ProgressPopup(QFrame):
         self.title = QLabel("AI")
         self.title.setObjectName("sectionHead")
         head.addWidget(self.title, 1)
+        stop = getattr(window, "emergency_stop", None)
+        if stop is not None:   # 緊急停止は進みの表示の中にも置く（押したら必ず止まる）
+            self.stop = QToolButton()
+            self.stop.setObjectName("emergencyStop")
+            self.stop.setDefaultAction(stop)
+            head.addWidget(self.stop)
         close = QToolButton()
         close.setText("×")
         close.setToolTip("閉じる（描いている間はまた出ます）")
@@ -40,6 +46,12 @@ class ProgressPopup(QFrame):
         self.bar.setFixedHeight(8)
         self.bar.setRange(0, 100)
         lay.addWidget(self.bar)
+        # 経過時間・残りの目安・最後に進んだ時刻・裏の処理（動いているか固まっているかが一目で分かるように）
+        self.alive = QLabel("")
+        self.alive.setObjectName("hint")
+        self.alive.setWordWrap(True)
+        lay.addWidget(self.alive)
+        window.activity.tick.timeout.connect(self.show_alive)
         self.setFixedWidth(WIDTH)
         self.hide()
         # 工程の数が分からない間は、帯を自分で動かす（見た目の設定（QSS）を当てると Qt の動く帯は止まって見えた）
@@ -51,6 +63,9 @@ class ProgressPopup(QFrame):
         self.anim.setEasingCurve(QEasingCurve.OutCubic)
         self.anim.finished.connect(self.place)   # 出てくる途中に絵の欄の大きさが変わったときも、止まった所で付け直す
         window.activity.changed.connect(self.update_state)
+        # × で閉じたら、その 1 回分が終わるまで出し直さない（前は次の進みの知らせのたびにまた出た）。次の 1 回で戻す
+        self.dismissed = False
+        window.activity.begun.connect(self._new_run)
         if window.centralWidget() is not None:   # 欄を動かして絵の欄の大きさが変わったら付け直す
             window.centralWidget().installEventFilter(self)
 
@@ -89,8 +104,17 @@ class ProgressPopup(QFrame):
         self.anim.setEndValue(end)
         self.anim.start()
 
+    def _new_run(self):
+        self.dismissed = False
+
+    def panel_shown(self) -> bool:
+        """進みの欄が見えているか。見えていれば進みはそちらに出し、ポップアップには二重に出さない"""
+        d = getattr(self.w, "panels", {}).get("progress", (None,))[0]
+        return d is not None and d.isVisible() and not d.visibleRegion().isEmpty()
+
     def close_popup(self):
         """× で閉じる。閉じるのはこの 1 回分だけで、次に描く・取るときはまた出る"""
+        self.dismissed = True
         self.anim.stop()
         self.pulse.stop()
         self.hide()
@@ -108,6 +132,10 @@ class ProgressPopup(QFrame):
         else:
             self.pulse.stop()
             self.bar.setValue(100)
+        # 終わりの知らせ（描けなかった理由・止めた・取り終えた）は閉じていても出す。進みの途中は閉じたまま・欄に出ていれば出さない
+        if pct != -2 and (self.dismissed or self.panel_shown()):
+            return
+        self.dismissed = False
         self.pop()
 
     def place(self):
@@ -117,6 +145,7 @@ class ProgressPopup(QFrame):
 
     def update_state(self, text: str, pct: int):
         self.text.setText(text)
+        self.show_alive()
         if pct == -2:   # 終わった。結果を出したまま残す
             self.title.setText("終わりました")
             self.pulse.stop()
@@ -128,4 +157,14 @@ class ProgressPopup(QFrame):
             self.pulse.stop()
             self.title.setText(f"AI が描いています　{pct}%")
             self.bar.setValue(pct)
-        self.pop()
+        if self.panel_shown():   # 進みの欄に出ているので二重に出さない
+            if self.isVisible():
+                self.anim.stop()
+                self.hide()
+            return
+        if not self.dismissed:
+            self.pop()
+
+    def show_alive(self):
+        act = self.w.activity
+        self.alive.setText("\n".join(t for t in (act.time.text(), act.alive.text()) if t))
