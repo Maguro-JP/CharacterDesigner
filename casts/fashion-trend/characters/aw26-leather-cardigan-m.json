@@ -1,0 +1,29 @@
+{
+ "id": "aw26-leather-cardigan-m",
+ "name": "レザーブルゾンと襟付きカーディガン（2026 秋冬、男子）",
+ "age": "",
+ "height": "",
+ "role": "今の日本の流行の装いの見本（docs/knowledge/fashion/trend-2026aw.md の 2 章、2026-11 版。句は docs/knowledge/learning/fashion-trend-styling.md の 4 章）",
+ "personality": "",
+ "backstory": "",
+ "look": "young Japanese man, early 20s, muted ash brown short hair with a center part and matte texture, brown eyes",
+ "eyes": {
+  "tags": "open eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "black cropped leather blouson worn open over a brown collared knit cardigan buttoned up, charcoal wide-leg slacks in full length with a center crease, black leather shoes, black brown and charcoal only, smooth leather against soft knit, short jacket and long roomy trousers",
+ "key": [
+  "black cropped leather blouson",
+  "brown collared knit cardigan",
+  "charcoal wide-leg slacks"
+ ],
+ "turnaround": {},
+ "negative": "logo, brand logo, text, miniskirt, short skirt, caucasian, western face, blonde hair, blue eyes",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": "主役の品: 短い丈のレザーブルゾン、襟付きのカーディガン、ワイドスラックス"
+}

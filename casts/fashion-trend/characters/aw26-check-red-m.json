@@ -1,0 +1,28 @@
+{
+ "id": "aw26-check-red-m",
+ "name": "タータンのシャツと赤い靴下（2026 秋冬、男子）",
+ "age": "",
+ "height": "",
+ "role": "今の日本の流行の装いの見本（docs/knowledge/fashion/trend-2026aw.md の 2 章、2026-11 版。句は docs/knowledge/learning/fashion-trend-styling.md の 4 章）",
+ "personality": "",
+ "backstory": "",
+ "look": "young Japanese man, around 20, dark brown medium hair with a loose perm and see-through bangs, brown eyes",
+ "eyes": {
+  "tags": "open eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "navy and green tartan flannel shirt worn open over a white long-sleeve T-shirt tucked in, dark indigo wide straight jeans in full length, red socks as the only accent, navy leather loafers, navy green and white with indigo denim, soft flannel against stiff denim, open relaxed top and straight wide legs",
+ "key": [
+  "navy and green tartan flannel shirt worn open",
+  "red socks"
+ ],
+ "turnaround": {},
+ "negative": "logo, brand logo, text, miniskirt, short skirt, caucasian, western face, blonde hair, blue eyes",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": "主役の品: タータンチェックのシャツ、赤い靴下、デニム"
+}

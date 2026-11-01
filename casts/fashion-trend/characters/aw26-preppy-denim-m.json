@@ -1,17 +1,22 @@
 {
  "id": "aw26-preppy-denim-m",
- "name": "デニムのプレッピー（2026 秋冬、男子）",
+ "name": "ニットベストとネクタイのプレッピー（2026 秋冬、男子）",
  "age": "",
  "height": "",
- "role": "今の日本の流行の装いの見本（docs/knowledge/learning/fashion-trend-styling.md の 4 章、実物の着こなしから組んだ句）",
+ "role": "今の日本の流行の装いの見本（docs/knowledge/fashion/trend-2026aw.md の 2 章、2026-11 版。句は docs/knowledge/learning/fashion-trend-styling.md の 4 章）",
  "personality": "",
  "backstory": "",
- "look": "young Japanese man, around 20, black very short hair with blunt bangs, no undercut, brown eyes",
+ "look": "young Japanese man, around 20, black short hair with a natural center part and long bangs, brown eyes",
  "eyes": {
   "tags": "open eyes, both eyes same color",
   "notes": ""
  },
- "outfit": "dark indigo straight jeans, slightly wide, full length, light blue shirt with white collar tucked in, loosely knotted navy narrow tie, navy V-neck knit vest, black leather loafers, black round glasses, indigo navy light blue and black, neat top and relaxed denim, crisp cotton against raw denim",
+ "outfit": "cream cable knit vest over a light blue striped shirt with a loosely knotted navy narrow tie, shirt tucked in, dark indigo straight jeans slightly wide in full length, navy leather loafers, thin round glasses, cream light blue and indigo with navy, chunky knit against crisp cotton, neat top and relaxed denim",
+ "key": [
+  "cream cable knit vest",
+  "light blue striped shirt",
+  "navy narrow tie"
+ ],
  "turnaround": {},
  "negative": "logo, brand logo, text, miniskirt, short skirt, caucasian, western face, blonde hair, blue eyes",
  "items": [],
@@ -20,10 +25,5 @@
  "colors": {},
  "rules": [],
  "palette": [],
- "notes": "",
- "key": [
-  "navy V-neck knit vest",
-  "light blue shirt with white collar",
-  "navy narrow tie"
- ]
+ "notes": "主役の品: ニットベスト、ストライプのシャツ、細いネクタイ、デニム"
 }

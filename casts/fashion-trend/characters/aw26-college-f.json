@@ -1,17 +1,23 @@
 {
  "id": "aw26-college-f",
- "name": "カレッジコア（2026 秋冬、女子）",
+ "name": "カレッジ・プレッピー（2026 秋冬、女子）",
  "age": "",
  "height": "",
- "role": "今の日本の流行の装いの見本（docs/knowledge/learning/fashion-trend-styling.md の 4 章、実物の着こなしから組んだ句）",
+ "role": "今の日本の流行の装いの見本（docs/knowledge/fashion/trend-2026aw.md の 2 章、2026-11 版。句は docs/knowledge/learning/fashion-trend-styling.md の 4 章）",
  "personality": "",
  "backstory": "",
- "look": "young Japanese woman, around 20, dark brown medium-length hair with face-framing layers and see-through bangs, natural makeup, brown eyes",
+ "look": "young Japanese woman, around 20, dark brown medium-length hair in a low ponytail with see-through bangs, natural makeup, brown eyes",
  "eyes": {
   "tags": "open eyes, both eyes same color",
   "notes": ""
  },
- "outfit": "navy and white striped rugby shirt with white collar, oversized with sleeves pushed up, front hem loosely tucked into a navy pleated skirt above the knee, black opaque tights, black bit loafers, black round glasses, brown leather satchel as the only accent, navy white and black, heavy cotton rugby against wool pleats",
+ "outfit": "navy and green wide-striped rugby shirt, oversized, layered over a white collared shirt with the collar and hem peeking out, navy wool knee-length shorts, white crew socks with dark brown loafers, thin round glasses, navy green and white only, heavy cotton jersey against smooth wool, roomy top and short straight bottom",
+ "key": [
+  "navy and green wide-striped rugby shirt",
+  "white collar peeking out",
+  "navy knee-length shorts",
+  "round glasses"
+ ],
  "turnaround": {},
  "negative": "logo, brand logo, text, miniskirt, short skirt, caucasian, western face, blonde hair, blue eyes",
  "items": [],
@@ -20,10 +26,5 @@
  "colors": {},
  "rules": [],
  "palette": [],
- "notes": "",
- "key": [
-  "navy and white striped rugby shirt",
-  "navy pleated skirt",
-  "black opaque tights"
- ]
+ "notes": "主役の品: ラガーシャツ、白いシャツの重ね、ひざ丈のハーフパンツ、眼鏡"
 }

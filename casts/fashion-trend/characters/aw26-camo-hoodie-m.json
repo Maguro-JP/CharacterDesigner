@@ -1,0 +1,29 @@
+{
+ "id": "aw26-camo-hoodie-m",
+ "name": "迷彩カーゴとフーディー（2026 秋冬、男子）",
+ "age": "",
+ "height": "",
+ "role": "今の日本の流行の装いの見本（docs/knowledge/fashion/trend-2026aw.md の 2 章、2026-11 版。句は docs/knowledge/learning/fashion-trend-styling.md の 4 章）",
+ "personality": "",
+ "backstory": "",
+ "look": "young Japanese man, late teens, black medium wolf cut with see-through bangs and loose perm, brown eyes",
+ "eyes": {
+  "tags": "open eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "olive camouflage cargo pants, loose with big thigh pockets and a drawcord hem gathered at the ankle, fitted grey sweat hoodie with the hood out, short boxy black fleece vest half zipped over it, black sneakers, olive grey and black only, soft fleece against rugged cotton, compact top and roomy cargo",
+ "key": [
+  "olive camouflage cargo pants",
+  "grey sweat hoodie",
+  "black fleece vest"
+ ],
+ "turnaround": {},
+ "negative": "logo, brand logo, text, miniskirt, short skirt, caucasian, western face, blonde hair, blue eyes",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": "主役の品: 迷彩のカーゴ、グレーのフーディー、フリースのベスト"
+}

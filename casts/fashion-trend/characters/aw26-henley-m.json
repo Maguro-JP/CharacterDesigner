@@ -1,9 +1,9 @@
 {
  "id": "aw26-henley-m",
- "name": "ヘンリーネックのきれいめ（2026 秋冬、男子）",
+ "name": "ヘンリーネックとバレルデニム（2026 秋冬、男子）",
  "age": "",
  "height": "",
- "role": "今の日本の流行の装いの見本（docs/knowledge/learning/fashion-trend-styling.md の 4 章、実物の着こなしから組んだ句）",
+ "role": "今の日本の流行の装いの見本（docs/knowledge/fashion/trend-2026aw.md の 2 章、2026-11 版。句は docs/knowledge/learning/fashion-trend-styling.md の 4 章）",
  "personality": "",
  "backstory": "",
  "look": "young Japanese man, early 20s, black center-parted short hair with long bangs, natural texture, brown eyes",
@@ -11,7 +11,12 @@
   "tags": "open eyes, both eyes same color",
   "notes": ""
  },
- "outfit": "oatmeal waffle-knit long-sleeve henley shirt, fitted, top buttons open, sleeves pushed up, front hem tucked into charcoal one-tuck wide-leg trousers in full length, thin silver chain necklace, black leather loafers, oatmeal charcoal and black only, slim top and roomy trousers, textured waffle against smooth wool",
+ "outfit": "oatmeal waffle-knit long-sleeve henley shirt, slim fit with the top buttons open and sleeves pushed up, thin silver chain necklace, faded light blue barrel jeans curving out at the knee and tapering to the ankle, black leather belt and shoes, oatmeal light blue and black only, fitted top and rounded roomy legs",
+ "key": [
+  "oatmeal waffle-knit henley shirt",
+  "silver chain necklace",
+  "light blue barrel jeans"
+ ],
  "turnaround": {},
  "negative": "logo, brand logo, text, miniskirt, short skirt, caucasian, western face, blonde hair, blue eyes",
  "items": [],
@@ -20,11 +25,5 @@
  "colors": {},
  "rules": [],
  "palette": [],
- "notes": "",
- "key": [
-  "front hem tucked in",
-  "sleeves pushed up",
-  "charcoal wide-leg trousers",
-  "silver chain necklace"
- ]
+ "notes": "主役の品: ヘンリーネック、銀のネックレス、バレルのデニム"
 }

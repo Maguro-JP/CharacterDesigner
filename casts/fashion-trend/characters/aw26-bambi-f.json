@@ -1,17 +1,22 @@
 {
  "id": "aw26-bambi-f",
- "name": "バンビコア（2026 秋冬、女子）",
+ "name": "バンビ柄と部分ファー（2026 秋冬、女子）",
  "age": "",
  "height": "",
- "role": "今の日本の流行の装いの見本（docs/knowledge/learning/fashion-trend-styling.md の 4 章、実物の着こなしから組んだ句）",
+ "role": "今の日本の流行の装いの見本（docs/knowledge/fashion/trend-2026aw.md の 2 章、2026-11 版。句は docs/knowledge/learning/fashion-trend-styling.md の 4 章）",
  "personality": "",
  "backstory": "",
- "look": "young Japanese woman, 19, long dark brown hair with soft see-through bangs and loose waves, warm beige makeup, brown eyes",
+ "look": "young Japanese woman, late teens, long dark brown hair with soft see-through bangs and loose waves, warm beige makeup, brown eyes",
  "eyes": {
   "tags": "open eyes, both eyes same color",
   "notes": ""
  },
- "outfit": "cream faux fur short coat worn open over a fitted light brown knit with a small fawn pattern, beige wool midi skirt in a straight line, beige socks with brown leather loafers, plain brown leather shoulder bag, cream beige and brown in one warm tone, fluffy fur against smooth knit",
+ "outfit": "beige knit sweater with a small fawn pattern, fitted, under a cream short jacket with a fluffy faux fur collar worn open, dark brown wool midi skirt, dark brown leather knee-high boots under the hem, cream beige and dark brown in one warm tone, fluffy fur against smooth knit, short top and long skirt",
+ "key": [
+  "beige knit with a small fawn pattern",
+  "cream jacket with a faux fur collar",
+  "dark brown knee-high boots"
+ ],
  "turnaround": {},
  "negative": "logo, brand logo, text, miniskirt, short skirt, caucasian, western face, blonde hair, blue eyes",
  "items": [],
@@ -20,10 +25,5 @@
  "colors": {},
  "rules": [],
  "palette": [],
- "notes": "",
- "key": [
-  "cream faux fur short coat",
-  "beige wool midi skirt",
-  "brown leather shoulder bag"
- ]
+ "notes": "主役の品: バンビ柄のニット、ファーの衿の短い上着、ロングブーツ"
 }

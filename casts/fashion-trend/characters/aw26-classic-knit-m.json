@@ -3,7 +3,7 @@
  "name": "柄ニットとダッフル（2026 秋冬、男子）",
  "age": "",
  "height": "",
- "role": "今の日本の流行の装いの見本（docs/knowledge/learning/fashion-trend-styling.md の 4 章、実物の着こなしから組んだ句）",
+ "role": "今の日本の流行の装いの見本（docs/knowledge/fashion/trend-2026aw.md の 2 章、2026-11 版。句は docs/knowledge/learning/fashion-trend-styling.md の 4 章）",
  "personality": "",
  "backstory": "",
  "look": "young Japanese man, mid 20s, dark brown short hair with long bangs, natural texture, brown eyes",
@@ -11,7 +11,11 @@
   "tags": "open eyes, both eyes same color",
   "notes": ""
  },
- "outfit": "navy wool duffle coat in a roomy oversized shape, worn open over a navy and grey Fair Isle crew-neck sweater, grey slim straight full-length trousers, red socks as the only accent, black leather loafers, navy and grey base, chunky knit against smooth wool",
+ "outfit": "navy wool duffle coat in a roomy shape with toggles, worn open over a cream and navy Fair Isle crew-neck sweater, charcoal straight wool slacks in full length, black leather loafers, navy cream and charcoal only, chunky knit against smooth melton, roomy long coat over a fitted knit and straight trousers",
+ "key": [
+  "navy duffle coat with toggles",
+  "Fair Isle crew-neck sweater"
+ ],
  "turnaround": {},
  "negative": "logo, brand logo, text, miniskirt, short skirt, caucasian, western face, blonde hair, blue eyes",
  "items": [],
@@ -20,10 +24,5 @@
  "colors": {},
  "rules": [],
  "palette": [],
- "notes": "",
- "key": [
-  "navy duffle coat with toggles",
-  "Fair Isle crew-neck sweater",
-  "black leather loafers"
- ]
+ "notes": "主役の品: ダッフルコート、フェアアイルのニット、ストレートのスラックス"
 }

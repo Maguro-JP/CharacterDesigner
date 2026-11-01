@@ -1,0 +1,29 @@
+{
+ "id": "aw26-peplum-boots-f",
+ "name": "ペプラムとロングブーツ（2026 秋冬、女子）",
+ "age": "",
+ "height": "",
+ "role": "今の日本の流行の装いの見本（docs/knowledge/fashion/trend-2026aw.md の 2 章、2026-11 版。句は docs/knowledge/learning/fashion-trend-styling.md の 4 章）",
+ "personality": "",
+ "backstory": "",
+ "look": "young Japanese woman, early 20s, dark lavender brown collarbone-length hair with soft waves and see-through bangs, glossy finish, brown eyes",
+ "eyes": {
+  "tags": "open eyes, both eyes same color",
+  "notes": ""
+ },
+ "outfit": "ivory peplum blouse with a large ruffle flaring over the hips and a black ribbon tie at the neck, sleeves pushed up, fitted black knee-length tight skirt, black leather knee-high boots meeting the hem, small black handbag, ivory and black only, airy ruffles against smooth leather, soft full top and sharp narrow bottom",
+ "key": [
+  "ivory peplum blouse",
+  "black ribbon tie at the neck",
+  "black knee-high boots"
+ ],
+ "turnaround": {},
+ "negative": "logo, brand logo, text, miniskirt, short skirt, caucasian, western face, blonde hair, blue eyes",
+ "items": [],
+ "images": {},
+ "outfit_parts": {},
+ "colors": {},
+ "rules": [],
+ "palette": [],
+ "notes": "主役の品: ペプラムのブラウス、首元のリボン、タイトスカート、ロングブーツ"
+}

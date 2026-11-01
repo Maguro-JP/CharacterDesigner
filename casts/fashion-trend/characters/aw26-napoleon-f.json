@@ -1,17 +1,22 @@
 {
  "id": "aw26-napoleon-f",
- "name": "ナポレオンジャケットのクラシック（2026 秋冬、女子）",
+ "name": "ナポレオンジャケット（2026 秋冬、女子）",
  "age": "",
  "height": "",
- "role": "今の日本の流行の装いの見本（docs/knowledge/learning/fashion-trend-styling.md の 4 章、実物の着こなしから組んだ句）",
+ "role": "今の日本の流行の装いの見本（docs/knowledge/fashion/trend-2026aw.md の 2 章、2026-11 版。句は docs/knowledge/learning/fashion-trend-styling.md の 4 章）",
  "personality": "",
  "backstory": "",
- "look": "young Japanese woman, early 20s, dark mocha brown shoulder-length hair with see-through bangs and glossy finish, natural matte skin, soft brown eyeshadow, brown eyes",
+ "look": "young Japanese woman, early 20s, dark mocha brown shoulder-length hair with see-through bangs and glossy finish, natural makeup, brown eyes",
  "eyes": {
   "tags": "open eyes, both eyes same color",
   "notes": ""
  },
- "outfit": "navy cropped napoleon jacket with stand collar and gold buttons, worn open over a white bow-tie blouse with the cuffs peeking out, faded light-blue wide-leg denim jeans to the ankle, crisp cotton against soft denim, short top and long roomy bottom, navy white and denim blue only, navy leather loafers, small navy shoulder bag",
+ "outfit": "navy cropped napoleon jacket with stand collar, double gold buttons and braided trim, worn open over a white bow-tie blouse with the bow hanging loose, light blue super wide-leg jeans in full length pooling over navy leather loafers, short structured top and long roomy bottom, navy white and light blue only, crisp cotton against soft denim",
+ "key": [
+  "navy cropped napoleon jacket with gold buttons",
+  "white bow-tie blouse",
+  "light blue super wide-leg jeans"
+ ],
  "turnaround": {},
  "negative": "logo, brand logo, text, miniskirt, short skirt, caucasian, western face, blonde hair, blue eyes",
  "items": [],
@@ -20,9 +25,5 @@
  "colors": {},
  "rules": [],
  "palette": [],
- "notes": "",
- "key": [
-  "navy cropped napoleon jacket with gold buttons",
-  "light-blue wide-leg jeans"
- ]
+ "notes": "主役の品: ナポレオンジャケット、ボウタイのブラウス、スーパーワイドのデニム"
 }
