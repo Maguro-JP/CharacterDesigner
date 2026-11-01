@@ -58,9 +58,15 @@ def _figures(c):
     spans, top, bot = cs._figures(im)
     cut = _cut_rgba(im)
     names = VIEW_NAMES.get(len(spans), [""] * len(spans))
-    pad = 6
-    return [(n, cut.crop((max(0, a - pad), max(0, top - pad), min(im.width, b + pad), min(im.height, bot + pad))))
-            for n, (a, b) in zip(names, spans)]
+    # 切る幅は隣の人物との間の真ん中まで広げる。人物の列の幅で切ると、外套や襟巻の端が縦にまっすぐ欠けた
+    out = []
+    for i, (n, (a, b)) in enumerate(zip(names, spans)):
+        lo = 0 if i == 0 else (spans[i - 1][1] + a) // 2
+        hi = im.width if i == len(spans) - 1 else (b + spans[i + 1][0]) // 2
+        piece = cut.crop((lo, max(0, top - 6), hi, min(im.height, bot + 6)))
+        bb = piece.getchannel("A").getbbox() or (0, 0, piece.width, piece.height)
+        out.append((n, piece.crop((bb[0], 0, bb[2], piece.height))))
+    return out
 
 
 def _sharp(c, fig):
