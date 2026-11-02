@@ -41,7 +41,8 @@ class LibraryPanel(QWidget):
         self.works = _grid()
         self.works.setToolTip("描いた絵。右クリックで「好き」「いまいち」を付けると、好みを学びます")
         self.works.customContextMenuRequested.connect(lambda pos: self._menu(self.works, pos))
-        self.works.itemDoubleClicked.connect(lambda it: self.w.layer_from_file(it.data(Qt.UserRole + 1), "ライブラリーの絵"))
+        # ダブルクリックは開くだけ（レイヤーに足すと勝手に増えた）。重ねるのは右クリックの「今の絵に重ねる」
+        self.works.itemDoubleClicked.connect(lambda it: self.w.open_path(it.data(Qt.UserRole + 1)))
         self.tabs.addTab(self.works, "作品")
 
         docs_page = QWidget()
