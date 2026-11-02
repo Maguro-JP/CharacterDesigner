@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import math
 import os
 import re
 from pathlib import Path
@@ -350,6 +351,7 @@ def decode_threads(cores: int) -> int:
 # 読んだ言葉の模型（道 → Llama）。設定を替えて Words を作り直しても、同じ模型は読み直さない（1 回の読み込みに 100 秒以上かかった）。
 # 持つのは 1 つだけにし、別の模型に替えたら前の物は捨ててメモリを空ける
 _LOADED: dict[str, object] = {}
+CTX = 2048   # 言葉の模型に一度に渡せるトークンの数（指示・頼み・答えの合計）
 
 
 def _llm_for(path: Path):
@@ -357,12 +359,14 @@ def _llm_for(path: Path):
     if key not in _LOADED:
         _LOADED.clear()
         from llama_cpp import Llama
-        # 頼みは短い（指示と頼みで 200 トークン前後）。n_ctx を 2048 から 512 にすると、KV の置き場が 1/4 になる
+        # n_ctx は 2048。512 にしたら、訳す頼み（200 トークン前後）は通ったが、チャットで操作を選ばせる問い（操作の一覧で
+        # 約 1,300 トークン）と会話（assistant.py、2048 前後を見込む）が「exceed context window of 512」で毎回落ち、
+        # 言葉の決まりに黙って回っていた
         # 1 語ずつ出す所（decode）は、物理コアの半分の糸にする。全部の糸を使うと、ほかの処理が CPU を使っている間に
         # 糸どうしの待ち合わせで止まり、Qwen3.5 2B で 7 語に 24〜50 秒かかった（4 コアの機械、2 糸なら 0.9 秒）。
         # 大きい模型ほど 1 語の計算が重く、この遅れが大きく出た。頼みを読む所（prefill）はまとめて計算するので全部の糸を使う
         cores = physical_cores()
-        _LOADED[key] = Llama(model_path=key, n_ctx=512, n_batch=512, n_threads=decode_threads(cores), n_threads_batch=cores,
+        _LOADED[key] = Llama(model_path=key, n_ctx=CTX, n_batch=512, n_threads=decode_threads(cores), n_threads_batch=cores,
                              verbose=False)
     return _LOADED[key]
 
@@ -651,8 +655,40 @@ class Stopped(Exception):
     """利用者が「止める」を押した"""
 
 
+# 止める旗は 1 つだけにする。前は Painter ごとの旗で、描く処理の頭で旗を戻していたため、
+# 模型の読み込み中・言葉の模型の答え待ちに押した「止める」が消え、最後まで描いてキャンバスに置いた。
+# おまかせで Painter を作り直したときと、直しの模型（別の Studio）でも、同じ旗を見る
+import threading  # noqa: E402
+
+STOP = threading.Event()
+# 裏の 1 回分は同時に 1 つだけ。止めたあと後片付け中の前の回と、次の回が模型を取り合わない
+WORK = threading.Lock()
+
+
+def check_stop():
+    """止める旗が立っていれば Stopped を出す。工程の区切り（状態の知らせ）ごとに呼ぶ"""
+    if STOP.is_set():
+        raise Stopped("止めました")
+
+
+def kill_thread(ident: int | None) -> bool:
+    """その糸に Stopped を投げ込む。旗を見ない重い処理（模型の読み込み、言葉の模型の答え待ち、検品）でも、
+    次に Python の行へ戻った所で止まる。torch の計算や読み込みは短い C の呼び出しの繰り返しなので、1 秒もかからず届く"""
+    if not ident:
+        return False
+    import ctypes
+    n = ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(ident), ctypes.py_object(Stopped))
+    if n > 1:   # 投げ込み先を間違えたときは取り消す
+        ctypes.pythonapi.PyThreadState_SetAsyncExc(ctypes.c_ulong(ident), None)
+        return False
+    return n == 1
+
+
 class Painter:
     """絵の模型で描く。模型は最初の 1 枚のときに 1 回だけ読む。キャンバスの絵を元に描き直すこともできる"""
+
+    # 止める旗は全体で 1 つ（STOP）。立てるのは利用者の「止める」、戻すのは裏の 1 回分を始めるときだけ
+    stop = property(lambda self: STOP.is_set(), lambda self, on: STOP.set() if on else None)
 
     def __init__(self, model: str = IMAGE_MODEL, steps: int = 24, size: tuple[int, int] = (832, 1216), guidance: float = 5.0):
         self.model, self.steps, self.size, self.guidance = model, steps, size, guidance
@@ -663,7 +699,6 @@ class Painter:
         # 直すときに絵全体を広げる倍率（hires_inpaint）。画素の数は 2.25 倍になるので、1 回の直しの時間もおよそそれだけ延びる
         self.upscale = 1.5
         self.avoid = ""     # 利用者の好みから読み取った、避ける言葉（描かない物に足す）
-        self.stop = False
         self.lora, self.lora_scale = "", 0.8   # 自分の作風の LoRA（模型の置き場の lora の .safetensors）。空なら重ねない
         self._lora_state: dict = {}
         self.lora_note = None
@@ -846,7 +881,6 @@ class Painter:
         pipe = self.load()
         from chatdraw.ownstyle import apply as apply_lora
         self.lora_note = apply_lora(pipe, self.lora, self.lora_scale, self._lora_state)
-        self.stop = False
         steps = self.steps
 
         def step(p, i, _t, kw):
@@ -942,19 +976,22 @@ class Painter:
         if self._inpaint is None:
             from diffusers import AutoPipelineForInpainting
             self._inpaint = AutoPipelineForInpainting.from_pipe(pipe)   # 読んだ模型の部品をそのまま使う
-        self.stop = False
         if clean:
             image = erase(image, mask)
+        # 工程の数 × 強さが 1 に届かないと、diffusers は「the number of pipelinesteps is 0」で止まる。
+        # 工程の少ない模型（2 工程）や設定で工程を減らしたとき、顔を整える（0.3）・低い強さで仕上げる（0.25）が毎回落ちたので、
+        # 直す工程が少なくとも 1 つ残る数まで増やす
+        steps = max(self.steps, math.ceil(1 / strength)) if strength > 0 else self.steps
         # 描くときと同じ札の頼み方（質のタグ、CLIP の長さ、CLIP skip）で直す。直しだけ別の頼み方にすると、絵柄がずれた
         args = dict(prompt=fit_tokens(getattr(pipe, "tokenizer", None), info.prefix, english_only(prompt), quality_tags(info, fam(info.family))),
                     negative_prompt=negative_for(info, self.avoid),
-                    num_inference_steps=self.steps, guidance_scale=self.guidance, strength=strength,
+                    num_inference_steps=steps, guidance_scale=self.guidance, strength=strength,
                     generator=torch.Generator("cpu").manual_seed(seed))
         if info.rescale:
             args["guidance_rescale"] = info.rescale
         if clip_skip_arg(info, info.family):
             args["clip_skip"] = clip_skip_arg(info, info.family)
-        total = max(1, int(self.steps * strength))
+        total = max(1, int(steps * strength))
 
         def step(p, i, _t, kw):
             if self.stop:
@@ -1211,7 +1248,6 @@ class Studio:
         self.painter._pipe = None   # 1 つの模型で読んだ物は捨てて、段の処理にメモリを渡す
         import gc
         gc.collect()
-        self.painter.stop = False
         sentence0, tags0 = sentence, tags
         # 構図も仕上げも 1 回で終えない。仕上げの検品（result-*.json）を通らなければ、種を変えて構図から描き直す。
         # 通らなかったときは崩れの一番少ない回の絵を渡し、どの回の崩れも .json の redraws に残す
@@ -1318,8 +1354,7 @@ class Studio:
         return done(image)
 
     def _inspect(self, path: Path, say):
-        """描いた絵の手と指を検品し、結果を絵の隣の .check.json に残す（chatdraw/handcheck.py）"""
-        import json
+        """描いた絵の手と指を検品し、結果をアプリのデータの置き場の記録に残す（chatdraw/handcheck.py。保存先には書かない）"""
         say("検品しています（手と指）")
         try:
             from chatdraw import handcheck
@@ -1327,19 +1362,21 @@ class Studio:
         except Exception as e:   # 検品で落ちても、描いた絵は渡す
             res = {"readable": False, "bad": [], "hands": [], "reason": f"検品で止まりました（{e}）"}
         self.last_check = res
-        try:
-            path.with_suffix(".check.json").write_text(json.dumps(res, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
-        except OSError:
-            pass
+        from chatdraw import finishers
+        finishers.write_record(path, "check.json", res)
 
     def _save(self, image, seed: int, meta: dict) -> Path:
-        """絵と、同じ名前の .json（頼み・描く言葉・種・作風・模型）を残す。履歴から同じ設定で描き直すため"""
+        """絵を残し、頼み・描く言葉・種・作風・模型を PNG の文字の欄に埋める。履歴から同じ設定で描き直すため。
+        保存先には絵だけを置く（隣に .json を書くと、利用者には中身の分からないファイルが絵の数だけ並んだ）"""
         import json
         import time
+        from PIL import PngImagePlugin
+        from chatdraw.finishers import KEY
         self.out.mkdir(parents=True, exist_ok=True)
         path = self.out / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}.png"   # 種を固定して描き直しても前の絵を消さない
-        image.save(path)
-        path.with_suffix(".json").write_text(json.dumps(meta, ensure_ascii=False, indent=1), encoding="utf-8")
+        info = PngImagePlugin.PngInfo()
+        info.add_itxt(KEY, json.dumps(meta, ensure_ascii=False, default=str))
+        image.save(path, pnginfo=info)
         return path
 
     def _fix_once(self, before, mask, prompt, seed, strength, k, count, say, reference, ref_scale):

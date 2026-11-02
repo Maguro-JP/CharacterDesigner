@@ -126,8 +126,12 @@ class LibraryPanel(QWidget):
     # ---- 操作 ----
     def _menu(self, view: QListWidget, pos, run: bool = True):
         it = view.itemAt(pos)
-        if not it:
-            return
+        if not it:   # 絵の無い所でも、使えるメニューを出す
+            m = self.w.area_menu("library")
+            if not run:
+                return m
+            m.exec(view.mapToGlobal(pos))
+            return None
         lib, item_id, path = self.w.library, it.data(Qt.UserRole), it.data(Qt.UserRole + 1)
         entry = lib.get(item_id)
         m = QMenu(self)
@@ -191,7 +195,7 @@ class LibraryPanel(QWidget):
             done(work())
 
     def add_doc(self, path: str | None = None, note: str | None = None):
-        if path is None:
+        if not isinstance(path, (str, Path)):   # ボタンからは clicked の真偽（False）が来る。前はそれを道として読み、押すたびに落ちた
             path, _ = QFileDialog.getOpenFileName(self, "資料を足す", "", "画像 (*.png *.jpg *.jpeg *.webp)")
             if not path:
                 return

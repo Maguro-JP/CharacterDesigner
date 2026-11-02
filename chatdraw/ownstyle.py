@@ -20,19 +20,13 @@ def fav_file() -> Path:
 
 
 def favorites() -> list[str]:
-    try:
-        data = json.loads(fav_file().read_text(encoding="utf-8"))
-        return [str(p) for p in data] if isinstance(data, list) else []
-    except (OSError, ValueError):
-        return []
+    from chatdraw.paths import read_json   # 読めないファイルは控えを残す（次の保存で ★ を失わないように）
+    return [str(p) for p in read_json(fav_file(), list, [])]
 
 
 def _save(paths: list[str]):
-    f = fav_file()
-    f.parent.mkdir(parents=True, exist_ok=True)
-    part = f.with_suffix(".part")
-    part.write_text(json.dumps(paths, ensure_ascii=False, indent=1), encoding="utf-8")
-    part.replace(f)
+    from chatdraw.paths import write_json
+    write_json(fav_file(), paths)
 
 
 def is_favorite(path: str) -> bool:
@@ -85,11 +79,9 @@ def _caption(path: Path, tagger) -> str:
         except Exception:
             tags = []
     if not tags:
-        try:
-            meta = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
-            tags = [t.strip() for t in str(meta.get("prompt", "")).split(",") if t.strip()]
-        except (OSError, ValueError):
-            tags = []
+        from chatdraw.finishers import sidecar
+        meta = sidecar(path)   # PNG に埋めた頼み。前の版の絵は隣の .json
+        tags = [t.strip() for t in str(meta.get("prompt", "")).split(",") if t.strip()]
     return ", ".join(tags)
 
 

@@ -33,6 +33,7 @@ class Finisher:
     apply: Callable       # (image RGB) -> image RGB。大きさが変わってもよい
     heavy: bool = False   # 重みを取る物（模型の管理から取る）
     extra: dict = field(default_factory=dict)
+    group: str = "clean"  # 処理の種類（chatdraw/shortcuts.py の GROUPS）。右クリックでまとまりごとに並べる
 
 
 def _clean_apply(image):
@@ -57,20 +58,18 @@ def _clean_apply(image):
 
 
 def _upscale_ready() -> bool:
+    """torch があれば使える。重み（18MB）は初めて使うときに upscale が取る（「絵を 2 倍に拡大」と同じ）。
+    前は重みが無いと押せず、「模型の管理から取ってください」と出したが、模型の管理に取る所が無く、先へ進めなかった"""
     try:
-        from chatdraw import upscale
+        from chatdraw import upscale  # noqa: F401
         import torch  # noqa: F401
     except ImportError:
         return False
-    return upscale.ready()
+    return True
 
 
 def _upscale_why() -> str:
-    try:
-        import torch  # noqa: F401
-    except ImportError:
-        return "画像生成の部品（torch）がまだ入っていません。模型の管理から絵の模型を取ると入ります"
-    return "アニメ向けの拡大の重み（18MB）がまだありません。模型の管理から取ってください"
+    return "画像生成の部品（torch）がまだ入っていません。模型の管理から絵の模型を取ると入ります"
 
 
 def _upscale_apply(image):
@@ -117,19 +116,20 @@ register(Finisher(
     "このリポジトリのコード", "chatdraw/finishers.py", lambda: True, lambda: "", _clean_apply))
 register(Finisher(
     "upscale_anime", "アニメ向けに拡大して整える",
-    "Real-ESRGAN のアニメ絵用の重みで 2 倍にします。囲んだときは、囲みの中だけ拡大で整えた画素に替えます",
+    "Real-ESRGAN のアニメ絵用の重みで 2 倍にします。囲んだときは、囲みの中だけ拡大で整えた画素に替えます。"
+    "初めて使うときに重み（18MB）を取ります",
     "BSD-3-Clause", "https://github.com/xinntao/Real-ESRGAN（RealESRGAN_x4plus_anime_6B）",
-    lambda: _upscale_ready(), lambda: _upscale_why(), lambda im: _upscale_apply(im), heavy=True))   # 名前で引く（差し替えられるように）
+    lambda: _upscale_ready(), lambda: _upscale_why(), lambda im: _upscale_apply(im), heavy=True, group="enlarge"))   # 名前で引く（差し替えられるように）
 register(Finisher(
     "face", "顔を整える", "囲んだ顔を、低い強さ（0.3）で描き直して整えます。囲みの外は変えません",
     "使う絵の模型の許諾（CreativeML OpenRAIL++-M など）", "取得済みの直しに使える絵の模型",
     lambda: _redraw_ready(), lambda: _redraw_why(), None, heavy=True,
-    extra=dict(redraw=_redraw_with("detailed face, clean lineart, symmetrical eyes", 0.3))))
+    extra=dict(redraw=_redraw_with("detailed face, clean lineart, symmetrical eyes", 0.3)), group="redraw"))
 register(Finisher(
     "refine", "低い強さで描き直して仕上げる", "形を変えない強さ（0.25）で描き直し、線と塗りを整えます",
     "使う絵の模型の許諾（CreativeML OpenRAIL++-M など）", "取得済みの直しに使える絵の模型",
     lambda: _redraw_ready(), lambda: _redraw_why(), None, heavy=True,
-    extra=dict(redraw=_redraw_with("masterpiece, clean lineart, clean coloring", 0.25))))
+    extra=dict(redraw=_redraw_with("masterpiece, clean lineart, clean coloring", 0.25)), group="redraw"))
 
 
 # ---- このリポジトリで作ってきた仕上げ（tools/gen の retouch・inking・atmosphere・materials） ----
@@ -265,16 +265,47 @@ def _ink(image):
     return Image.alpha_composite(white, lines).convert("RGB")
 
 
+def measure(image) -> dict:
+    """強さを決めるための絵の数字: 明るさの平均（0〜1）、明るさの幅（標準偏差）、色の鮮やかさの平均（0〜1）"""
+    import numpy as np
+    a = np.asarray(image.convert("RGB")).astype(float) / 255
+    luma = a @ np.array([0.299, 0.587, 0.114])
+    sat = a.max(axis=2) - a.min(axis=2)
+    return dict(bright=float(luma.mean()), spread=float(luma.std()), sat=float(sat.mean()))
+
+
+def strength_for(image, kind: str) -> float:
+    """加工の強さを絵に合わせて決める（固定の 0.6 では、明るい絵は白く飛び、暗い絵は効きが見えなかった）。
+    空気感: 光を足す加工なので、明るい絵ほど弱く、暗く平らな絵ほど強くする。
+    質感: 照り返しと映り込みを足す加工なので、鮮やかで明暗の幅がある絵ほど弱くし、くすんだ平らな絵ほど強くする。
+    どちらも 0.3〜0.8 に収める"""
+    m = measure(image)
+    if kind == "air":
+        v = 0.85 - 0.5 * m["bright"] + 0.3 * (0.25 - m["spread"])
+    else:
+        v = 0.75 - 0.4 * m["sat"] - 0.4 * m["spread"]
+    return round(min(0.8, max(0.3, v)), 3)
+
+
+LAST_STRENGTH: dict = {}   # 直前に決めた強さ（画面の知らせと試験が読む）
+
+
 def _mood(mood: str):
     def run(image):
-        return _gen("atmosphere").apply(image.convert("RGB"), mood, 0.6).convert("RGB")
+        s = strength_for(image, "air")
+        LAST_STRENGTH.clear()
+        LAST_STRENGTH.update(kind=mood, strength=s)
+        return _gen("atmosphere").apply(image.convert("RGB"), mood, s).convert("RGB")
     return run
 
 
 def _material(kind: str):
     def run(image):
         from PIL import Image
-        layer = _gen("materials").apply(image.convert("RGBA"), kind, 0.6)
+        s = strength_for(image, "texture")
+        LAST_STRENGTH.clear()
+        LAST_STRENGTH.update(kind=kind, strength=s)
+        layer = _gen("materials").apply(image.convert("RGBA"), kind, s)
         return Image.alpha_composite(image.convert("RGBA"), layer).convert("RGB")
     return run
 
@@ -283,32 +314,88 @@ _OWN = "このリポジトリのコード"
 register(Finisher(
     "retouch", "線と塗りを整える（形は変えません）",
     "AI の描き残しの黒い粒・線の縁の色のにじみを消し、明るさの幅と線の締まりを整えます。工程ごとに数字が良くなった時だけ掛けます",
-    _OWN, "tools/gen/retouch.py", _own_ready("retouch", "scipy"), _own_why("retouch", "scipy"),
-    _retouch(RETOUCH_SAFE)))
+    _OWN, "tools/gen/retouch.py", _own_ready("retouch", "numpy", "scipy"), _own_why("retouch", "numpy", "scipy"),
+    _retouch(RETOUCH_SAFE), extra=dict(needs=("numpy", "scipy"))))
 register(Finisher(
     "retouch_full", "輪郭のバリとジャギーも取る",
     "線と塗りを整えたうえで、輪郭の毛羽と線の階段も直します。顔の細い線に掛かることがあるので、囲んで使うと安心です",
-    _OWN, "tools/gen/retouch.py", _own_ready("retouch", "scipy", "skimage"), _own_why("retouch", "scipy", "skimage"),
-    _retouch(RETOUCH_FULL)))
+    _OWN, "tools/gen/retouch.py", _own_ready("retouch", "numpy", "scipy", "skimage"), _own_why("retouch", "numpy", "scipy", "skimage"),
+    _retouch(RETOUCH_FULL), extra=dict(needs=("numpy", "scipy", "skimage"))))
 register(Finisher(
     "ink", "ラフの線を清書する", "重ねた線・途切れた線を 1 本の線にまとめ、太さをそろえます（白い地の線画にします）",
-    _OWN, "tools/gen/inking.py", _own_ready("inking", "scipy", "skimage"), _own_why("inking", "scipy", "skimage"), _ink))
-for _m, _label, _tip in (("holy", "空気感: 神々しい光", "光の筋と光の粒、暖かい白金のにじみを重ねます"),
-                         ("komorebi", "空気感: 木漏れ日", "木漏れ日の光の斑点と細い筋を重ねます"),
-                         ("haze", "空気感: 霞と遠近", "上ほど空の色で覆い、奥行きを出します")):
+    _OWN, "tools/gen/inking.py", _own_ready("inking", "numpy", "scipy", "skimage"), _own_why("inking", "numpy", "scipy", "skimage"), _ink, group="ink",
+    extra=dict(needs=("numpy", "scipy", "skimage"))))
+for _m, _label, _tip in (("holy", "神々しい光", "光の筋と光の粒、暖かい白金のにじみを重ねます"),
+                         ("komorebi", "木漏れ日", "木漏れ日の光の斑点と細い筋を重ねます"),
+                         ("haze", "霞と遠近", "上ほど空の色で覆い、奥行きを出します")):
     register(Finisher(f"air_{_m}", _label, _tip + "。線と形は変えません", _OWN, "tools/gen/atmosphere.py",
-                      _own_ready("atmosphere"), _own_why("atmosphere"), _mood(_m)))
-for _k, _label, _tip in (("metal", "質感: 金属", "明暗の段差と映り込みの帯、強い照り返しを足します"),
-                         ("gem", "質感: 宝石", "面の分かれの明暗と内側の透け、きらめきを足します"),
-                         ("slime", "質感: 透明感", "内側ほど透かし、縁の光と照り返しを足します")):
+                      _own_ready("atmosphere", "numpy"), _own_why("atmosphere", "numpy"), _mood(_m), group="air",
+                      extra=dict(needs=("numpy",), effect=True)))
+for _k, _label, _tip in (("metal", "金属", "明暗の段差と映り込みの帯、強い照り返しを足します"),
+                         ("gem", "宝石", "面の分かれの明暗と内側の透け、きらめきを足します"),
+                         ("slime", "透明感", "内側ほど透かし、縁の光と照り返しを足します")):
     register(Finisher(f"mat_{_k}", _label, _tip + "。囲んだ所だけに掛けてください", _OWN, "tools/gen/materials.py",
-                      _own_ready("materials", "scipy"), _own_why("materials", "scipy"), _material(_k)))
+                      _own_ready("materials", "numpy", "scipy"), _own_why("materials", "numpy", "scipy"), _material(_k),
+                      group="texture", extra=dict(needs=("numpy", "scipy"), effect=True)))
+
+
+# 押したときに取りに行ける部品（模型の要らない仕上げの部品。合わせて 100MB ほど）。名前は import の名前 → pip の名前
+FETCHABLE = {"numpy": "numpy", "scipy": "scipy", "skimage": "scikit-image"}
+
+
+def lacking(name: str) -> list[str]:
+    """仕上げ name に足りない部品（import の名前）。台本（tools/gen）が無いときは取っても使えないので空にしない"""
+    f = REGISTRY[name]
+    return [m for m in f.extra.get("needs", ()) if not _has(m)]
+
+
+def fetchable(name: str) -> bool:
+    """足りないのが取りに行ける部品だけで、台本はある（押せば取ってから続けて掛けられる）"""
+    f = REGISTRY[name]
+    script = f.source.startswith("tools/gen/") and (_gen_dir().parent.parent / f.source).exists()
+    need = lacking(name)
+    return bool(need) and script and all(m in FETCHABLE for m in need)
+
+
+def fetch_parts(names, say=lambda msg, pct: None):
+    """足りない部品を、データの置き場の部品の置き場（gen/lib）に取る。取れたら読める形にする"""
+    import importlib
+    import sys
+    from chatdraw.paths import HOME
+    from chatdraw.setup import run_pip
+    lib = HOME / "gen" / "lib"
+    lib.mkdir(parents=True, exist_ok=True)
+    pkgs = sorted({FETCHABLE[n] for n in names})
+    say("仕上げの部品（" + "、".join(pkgs) + "）を取っています", -1)
+    run_pip(["install", "-q", "--disable-pip-version-check", "--no-cache-dir", "--target", str(lib), *pkgs])
+    if str(lib) not in sys.path:
+        sys.path.insert(0, str(lib))
+    importlib.invalidate_caches()
+    say("仕上げの部品を取りました", 100)
 
 
 def available() -> list[dict]:
     """目録の道具ごとに、使えるか・使えない理由を返す。使えない道具も並べ、理由を見せる"""
-    return [dict(name=f.name, label=f.label, tip=f.tip, ready=f.ready(), reason="" if f.ready() else f.why_not(),
-                 license=f.license, source=f.source) for f in REGISTRY.values()]
+    out = []
+    for f in REGISTRY.values():
+        ok = f.ready()
+        fetch = not ok and fetchable(f.name)
+        out.append(dict(name=f.name, label=f.label, tip=f.tip + ("（押すと、初めに足りない部品を取ってから掛けます）" if fetch else ""),
+                        ready=ok, fetch=fetch, reason="" if ok else f.why_not(), license=f.license, source=f.source,
+                        effect=bool(f.extra.get("effect"))))
+    return out
+
+
+def effect_layer(base, out):
+    """エフェクトの分だけのレイヤー（RGBA）。変わった画素は out の色で不透明、変わらない画素は透明。
+    元の絵の上に重ねると out と同じに見え、隠すと元の絵に戻る"""
+    from PIL import ImageChops
+    b, o = base.convert("RGB"), out.convert("RGB")
+    r, g, bl = ImageChops.difference(b, o).split()
+    diff = ImageChops.lighter(ImageChops.lighter(r, g), bl).point(lambda v: 255 if v > 0 else 0)
+    layer = o.convert("RGBA")
+    layer.putalpha(diff)
+    return layer
 
 
 def binary(mask, size):
@@ -350,7 +437,7 @@ KEY = "chatdraw"   # PNG の文字の欄の名前
 
 
 def embed(path: str | Path, meta: dict):
-    """頼み・種・設定を PNG の文字の欄に埋める。.json が離れても、絵だけで続きから直せるように。
+    """頼み・種・設定を PNG の文字の欄に埋める。保存先には絵だけを置き、頼みは絵の中に持つ。
     画素は読み直して同じ値のまま書くので、絵は変わらない"""
     from PIL import Image, PngImagePlugin
     path = Path(path)
@@ -365,7 +452,7 @@ def embed(path: str | Path, meta: dict):
     try:
         part.replace(path)
     except OSError:
-        part.unlink(missing_ok=True)   # 読んでいる途中で替えられない（Windows）。埋めるのは諦め、.json に任せる
+        part.unlink(missing_ok=True)   # 読んでいる途中で替えられない（Windows）。描いたときに埋めた物が残る
 
 
 def embedded(path: str | Path) -> dict:
@@ -381,14 +468,85 @@ def embedded(path: str | Path) -> dict:
 
 
 def sidecar(path: str | Path) -> dict:
-    """前に描いた絵の頼み・模型・種を読む。.json を先に、無ければ PNG に埋めた物を読む。どちらも無ければ空"""
+    """描いた絵の頼み・模型・種を読む。PNG に埋めた物を先に読み、無ければ前の版が絵の隣に書いた .json を読む
+    （前の版の .json は利用者のデータなので消さずに読む。新しくは書かない）。どちらも無ければ空"""
+    data = embedded(path)
+    if data:
+        return data
     try:
         data = json.loads(Path(path).with_suffix(".json").read_text(encoding="utf-8"))
         if isinstance(data, dict):
             return data
     except (OSError, ValueError):
         pass
-    return embedded(path)
+    return {}
+
+
+def record_dir(path: str | Path) -> Path:
+    """PNG に入らない大きな記録（検品の結果、部位分けの絵など）の置き場。保存先には絵だけを置き、記録はアプリの
+    データの置き場の records に、絵の場所ごとに 1 つのディレクトリで持つ（保存先に .json が並ぶと、利用者には中身の分からないゴミに見えた）"""
+    import hashlib
+    from chatdraw.paths import data_home
+    try:
+        key = str(Path(path).resolve())
+    except OSError:
+        key = str(Path(path).absolute())
+    return data_home() / "records" / hashlib.sha1(key.encode("utf-8")).hexdigest()[:20]
+
+
+def write_record(path: str | Path, name: str, data) -> Path | None:
+    """絵の記録を 1 つ書く。dict は JSON、bytes はそのまま、PIL の絵は PNG で書く。書けなければ None（描いた絵は渡す）"""
+    d = record_dir(path)
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+        out = d / name
+        if isinstance(data, (bytes, bytearray)):
+            out.write_bytes(data)
+        elif hasattr(data, "save"):
+            data.save(out)
+        else:
+            out.write_text(json.dumps(data, ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+        (d / "source.txt").write_text(str(Path(path).resolve()), encoding="utf-8")   # どの絵の記録か、人が見て分かるように
+        return out
+    except OSError:
+        return None
+
+
+def read_record(path: str | Path, name: str):
+    """絵の記録の場所。.json なら中身を dict で返す。無ければ、前の版が絵の隣に置いた物（a.check.json、a.png.parts.png）を見る"""
+    p = Path(path)
+    cands = [record_dir(p) / name]
+    if name.endswith(".json"):
+        cands.append(p.with_suffix("." + name))
+    else:
+        cands.append(Path(str(p) + "." + name))
+    for c in cands:
+        if c.exists():
+            if name.endswith(".json"):
+                try:
+                    data = json.loads(c.read_text(encoding="utf-8"))
+                    return data if isinstance(data, dict) else None
+                except (OSError, ValueError):
+                    continue
+            return c
+    return None
+
+
+def move_records(src: str | Path, dst: str | Path) -> bool:
+    """絵を動かしたときに、記録も新しい場所の物として付け替える"""
+    import shutil
+    a, b = record_dir(src), record_dir(dst)
+    if not a.is_dir() or a == b:
+        return False
+    if b.exists():
+        shutil.rmtree(b, ignore_errors=True)
+    b.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(a), str(b))
+    try:
+        (b / "source.txt").write_text(str(Path(dst).resolve()), encoding="utf-8")
+    except OSError:
+        pass
+    return True
 
 
 def outpaint(image, left: int = 0, top: int = 0, right: int = 0, bottom: int = 0, painter=None, prompt: str = "",

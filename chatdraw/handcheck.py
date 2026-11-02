@@ -19,12 +19,8 @@ TASK = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_lan
 
 def _hands():
     """tools/gen/hands.py を読む。模型の置き場（CD_HOME）は、アプリのデータの置き場にする（Program Files は書けない）"""
-    if "CD_HOME" not in os.environ:
-        from chatdraw.paths import data_home
-        os.environ["CD_HOME"] = str(data_home() / "cd")
-    gen = ROOT / "tools" / "gen"
-    if str(gen) not in sys.path:
-        sys.path.insert(0, str(gen))
+    from chatdraw.paths import use_tools_gen
+    use_tools_gen()   # CD_HOME を書き換えない。書き換えると利用者の設定（★・非表示など）の置き場がずれた
     import hands
     return hands
 
@@ -82,6 +78,9 @@ def find_hands(hands, im) -> list[str]:
 _KP: dict = {}
 
 
+KP_ERROR = ""   # 体の点を読めなかった最後の訳
+
+
 def _keypoints(im) -> dict:
     """体の点を 1 枚につき 1 回だけ読む（手の振り分けと顔の検品で同じ点を使う。VitPose の読み込みは数秒かかる）"""
     key = (id(im), im.size)
@@ -90,7 +89,9 @@ def _keypoints(im) -> dict:
             from chatdraw.twostage import keypoints
             _KP.clear()
             _KP[key] = keypoints(im)
-        except Exception:
+        except Exception as e:   # 体の点の模型か部品が無い。手の振り分けは点なしで続け、訳は残す
+            global KP_ERROR
+            KP_ERROR = f"{type(e).__name__}: {e}"
             return {}
     return _KP[key]
 
@@ -265,8 +266,22 @@ def _feet_line(res: dict) -> str:
     return "足の指 " + "・".join(f"{f['count']} 本" if f["count"] is not None else "読めない" for f in feet)
 
 
+def _lost(res: dict) -> str:
+    """足と顔の検品が部品の無さで飛んだときの訳。飛んだことを書かないと、足と顔を見ていないのに見たように読めた"""
+    why = [res.get("feet_reason", "")]
+    face = res.get("face") or {}
+    if not face.get("readable") and not face.get("bad"):
+        why.append(face.get("reason", ""))
+    return "。".join(w for w in why if "部品" in w)
+
+
 def summary(res: dict) -> str:
     """会話に出す 1 行"""
+    lost = _lost(res)
+    return _summary(res) + (f"。{lost}" if lost else "")
+
+
+def _summary(res: dict) -> str:
     face = [b for b in res.get("bad", []) if b.startswith("顔")]
     if face and (res.get("reason") or not res["readable"]):   # 手を読めなくても、顔の崩れは隠さない
         return "検品: 崩れ " + str(len(face)) + " 件。" + "、".join(face)

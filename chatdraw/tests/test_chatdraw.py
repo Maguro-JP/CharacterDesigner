@@ -1,6 +1,7 @@
 """チャットで頼むと絵ができるか。絵の模型と言葉の模型は偽物に替えて、流れだけを確かめる"""
 import os
 import sys
+import time
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -14,8 +15,30 @@ sys.path.insert(0, str(ROOT))
 from chatdraw.engine import Studio, has_japanese  # noqa: E402
 from PySide6.QtCore import Qt  # noqa: E402
 import chatdraw.motion  # noqa: E402
+from chatdraw import finishers  # noqa: E402
 
 chatdraw.motion.MOTION = False   # 試験は動きを切って、結果だけを見る（動きは MotionTest で見る）
+
+
+def sweep_windows():
+    """前の試験が開いたまま残したウィンドウを片付ける。テーマはアプリ全体の見た目（setStyleSheet）を替えるので、
+    残ったウィンドウが 100 枚近くあると 1 回の切り替えに何分もかかり、一式が時間切れで止まった"""
+    from PySide6.QtCore import QCoreApplication, QEvent, QThread
+    from PySide6.QtWidgets import QApplication
+    from chatdraw.app import Window
+    app = QApplication.instance()
+    if app is None:
+        return
+    for w in [x for x in app.topLevelWidgets() if isinstance(x, Window)]:
+        t = getattr(w, "thread", None)
+        if isinstance(t, QThread):
+            t.quit()
+            t.wait(5000)
+        if hasattr(w, "wait_io"):
+            w.wait_io(5)
+        w.hide()
+        w.deleteLater()
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
 
 
 class FakeWords:
@@ -92,9 +115,12 @@ class WindowTest(unittest.TestCase):
             w.send()
             for _ in range(400):
                 app.processEvents()
-                if w.images and not w.thread:   # 描き終わり（finish）まで待つ。1 枚できた直後は結果の言葉がまだ付いていない
+                # 描き終わり（finish）と、裏の処理（模型を調べる・ライブラリーへ保存）の終わりまで待つ。
+                # 裏で動いている間は「裏の処理中」と出るのが正しい
+                if w.images and not w.thread and not w.activity.background:
                     break
                 w.thread and w.thread.wait(10)
+                time.sleep(0.01)
             self.assertEqual(len(w.images), 1)
             self.assertTrue(Path(w.images[0]).exists())
             item = w.history.item(0)                       # 描いた絵の欄の履歴に、結果と頼みが残る
@@ -624,7 +650,7 @@ class TabsTest(unittest.TestCase):
         from chatdraw.app import Window
         QApplication.instance() or QApplication([])
         w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
-        self.assertEqual([w.ai_tabs.tabText(i) for i in range(w.ai_tabs.count())], ["描き方"])
+        self.assertEqual([w.ai_pages.tabText(i) for i in range(w.ai_pages.count())], ["描き方"])
         self.assertEqual([w.view_tabs.tabText(i) for i in range(w.view_tabs.count())], ["全体", "参考画像"])
         r = w.ribbon
         self.assertEqual([r.tabText(i) for i in range(r.count())], ["ホーム", "描く", "AI", "表示"])
@@ -973,7 +999,9 @@ class ChooseTest(unittest.TestCase):
             from chatdraw.models import image_model
             fast = image_model("Lykon/dreamshaper-xl-lightning")
             with mock.patch("chatdraw.choose.installed_images", return_value=[IMAGES[0], fast]), \
-                    mock.patch("chatdraw.engine.Painter", Made):
+                    mock.patch("chatdraw.engine.Painter", Made), \
+                    mock.patch("chatdraw.omakase._default_check",   # 本物の検品の模型を CPU で回さない（この試験は模型の選び方だけを見る）
+                               return_value={"readable": True, "bad": [], "regions": [], "detail": [], "notes": []}):
                 st.draw("写実的な街の写真", 1, said.append)
             self.assertEqual(made[0], fast.repo)   # 構図は写実の頼みに合う模型から（落ちたら次の模型で描き直す: chatdraw/omakase.py）
             self.assertTrue(any("DreamShaper" in m for m in said))
@@ -1021,6 +1049,7 @@ class ThemeTest(unittest.TestCase):
         from PySide6.QtWidgets import QApplication
         from chatdraw.app import Window
         self.app = QApplication.instance() or QApplication([])
+        sweep_windows()
         self.w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
 
     def test_every_theme_icons_contrast(self):
@@ -1069,6 +1098,7 @@ class ThemeLookTest(unittest.TestCase):
         from PySide6.QtWidgets import QApplication
         from chatdraw.app import Window
         self.app = QApplication.instance() or QApplication([])
+        sweep_windows()
         self.w = Window(Studio(FakeWords(), FakePainter(), Path("/tmp")))
         self.w.layout_store = QSettings(mktemp(suffix=".ini"), QSettings.IniFormat)
         self.w.layout_store.setValue("feature_tours", 0)
@@ -1220,7 +1250,7 @@ class FixAndBatchTest(unittest.TestCase):
         self.assertEqual(len(seeds), 4)
         self.assertEqual(seeds, list(range(seeds[0], seeds[0] + 4)))  # 種は続けて使う
         self.assertEqual(self.w.history.count(), 4)
-        meta = json.loads(Path(self.w.images[0]).with_suffix(".json").read_text(encoding="utf-8"))
+        meta = finishers.sidecar(Path(self.w.images[0]))
         self.assertEqual((meta["text"], meta["seed"]), ("雪の城の前の騎士", seeds[0]))
         self.w.entry.clear()
         self.w.redo_from(self.w.images[2])                            # 履歴から同じ設定に戻す
@@ -1914,7 +1944,7 @@ class TwoStageAppTest(unittest.TestCase):
                 mock.patch.object(twostage, "run_stages", side_effect=fake), \
                 mock.patch("chatdraw.choose.installed_images", return_value=[]):
             prompt, path = s.draw("笑う女の人", 3)
-        meta = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+        meta = finishers.sidecar(path)
         self.assertEqual((meta["way"], meta["compose_model"]), ("two", "black-forest-labs/FLUX.2-klein-4B"))
 
     def test_run_stages_reports_where_it_stopped(self):
@@ -2024,9 +2054,9 @@ class UsabilityFixTest(unittest.TestCase):
             self._draw(app, w, "1girl")
             self._draw(app, w, "1girl, smile")
             names = [l.name for l in w.canvas.layers]
-            self.assertEqual(len(names), 2)                     # 絵 1 枚と描くためのレイヤー。前の絵は重ならない
+            self.assertEqual(len(names), 1)                     # キャンバスは新しい絵 1 枚に置き換わる。前の絵は重ならない
             self.assertTrue(names[0].startswith("AI の絵"))
-            self.assertEqual(w.canvas.current, 1)               # 次の線は空のレイヤーに描く
+            self.assertEqual(w.canvas.current, 0)               # 結果は一番上のレイヤーで、選んだ状態（気づけるように）
             first = w.canvas.layers[0].name
             w.canvas.undo()
             self.assertNotEqual(w.canvas.layers[0].name, first)  # 元に戻すで前の絵に戻る
@@ -2234,7 +2264,7 @@ class RequestCheckTest(unittest.TestCase):
         with mock.patch.object(requestcheck, "check", side_effect=lambda im, t: next(asked)):
             prompt, path = s.draw("1girl, hand up", 7)
         import json
-        meta = json.loads(path.with_suffix(".json").read_text(encoding="utf-8"))
+        meta = finishers.sidecar(path)
         self.assertEqual([r["bad"] for r in meta["redraws"]], [["描かれていない: hand up"], []])   # 描かれるまで描き直した
 
 
@@ -2515,7 +2545,7 @@ class WordsSpeedTest(unittest.TestCase):
         for _ in range(3):   # 設定を替えて Words を作り直しても、読み直さない
             Words(p).to_prompt("赤いビキニの女性が浜辺に立つ")
         self.assertEqual(len(self.made), 1)
-        self.assertEqual(self.made[0]["n_ctx"], 512)
+        self.assertEqual(self.made[0]["n_ctx"], self.engine.CTX)   # 2048。512 ではチャットの問いと会話が溢れた
         self.assertEqual(self.made[0]["n_threads"], self.engine.decode_threads(self.engine.physical_cores()))
         self.assertEqual(self.made[0]["n_threads_batch"], self.engine.physical_cores())
         self.assertIn("\n", self.kw["stop"])            # 1 行目で止める

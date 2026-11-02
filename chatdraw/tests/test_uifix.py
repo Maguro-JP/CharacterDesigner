@@ -144,8 +144,8 @@ class LayerTest(unittest.TestCase):
             c = w.canvas
             before = c.size_px()
             draw(w)
-            self.assertEqual([l.name for l in c.layers], ["AI の絵 1", "レイヤー 1"])
-            self.assertEqual(c.current, 1)   # 線は AI の絵の上の空のレイヤーに描く
+            self.assertEqual([l.name for l in c.layers], ["AI の絵 1"])
+            self.assertEqual(c.current, 0)   # 結果は一番上で選んだ状態（下に入れると気づけなかった: test_toplayer）
             self.assertNotEqual(c.size_px(), before)
             c.undo()
             self.assertEqual(c.size_px(), before)

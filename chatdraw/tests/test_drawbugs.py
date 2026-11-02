@@ -387,7 +387,7 @@ class FetchTest(unittest.TestCase):
     def test_words_download_resumes(self):
         from chatdraw import setup
         from chatdraw.models import WORDS
-        body = b"0123456789" * 10
+        body = b"GGUF" + b"0123456789" * 10   # 取れた物は GGUF の頭を持つ（fetchfile が中身を確かめる）
         with TemporaryDirectory() as d:
             dest = Path(d) / "w.gguf"
             dest.with_suffix(".part").write_bytes(body[:40])
@@ -412,7 +412,7 @@ class FetchTest(unittest.TestCase):
                 def __exit__(self, *a):
                     return False
             with mock.patch.object(setup, "words_path", return_value=dest), mock.patch.object(setup, "llm_lib_ready", return_value=True), \
-                    mock.patch("urllib.request.urlopen", side_effect=lambda req: Resp(req)), \
+                    mock.patch("urllib.request.urlopen", side_effect=lambda req, timeout=None: Resp(req)), \
                     mock.patch.object(setup, "free_gb", return_value=500.0):
                 setup.Fetcher()._words(WORDS[0], False)
             self.assertEqual(dest.read_bytes(), body)
@@ -432,6 +432,9 @@ class PopupTest(unittest.TestCase):
         cls.w = Window(engine.Studio(FakeWords(), FakePainter(), Path(cls.tmp.name)))
         cls.w.resize(1400, 900)
         cls.w.show()
+        # 前の試験が進みの欄を出したまま閉じると、その配置が戻る。欄が見えている間はポップアップを二重に出さない決まりなので、
+        # ここで見るポップアップの動きのために欄を隠しておく
+        cls.w.panels["progress"][0].hide()
         cls.spin()
 
     @classmethod

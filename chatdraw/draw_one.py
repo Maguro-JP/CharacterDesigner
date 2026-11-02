@@ -41,6 +41,10 @@ def main():
                                                    encoding="utf-8")
         print("exit=0")
         return
+    if req.get("mode") == "logo":
+        logo_candidates(req, out)
+        print("exit=0")
+        return
     from huggingface_hub import snapshot_download
     from chatdraw.models import image_model
     from chatdraw.paths import HUB
@@ -58,6 +62,34 @@ def main():
                                       encoding="utf-8")
     print(f"描いた: {name} {im.size} {time.time() - t:.0f} 秒")
     print("exit=0")
+
+
+def logo_candidates(req: dict, out: Path, painter=None):
+    """ロゴの候補を種ごとに 1 枚ずつ描く（アプリのアイコンの候補など）。アプリの「ロゴ・マークを作る」と同じ chatdraw/logo.py の経路。
+    頼みの形: {"mode": "logo", "repo": 模型, "name", "mood", "colors", "seeds": [..], "size": [w, h]}"""
+    from chatdraw import logo
+    if painter is None:
+        from huggingface_hub import snapshot_download
+        from chatdraw.engine import Painter
+        from chatdraw.models import image_model
+        from chatdraw.paths import HUB
+        m = image_model(req["repo"])
+        snapshot_download(m.repo, cache_dir=str(HUB), **m.files)
+        painter = Painter(m.repo, steps=req.get("steps", m.steps), size=tuple(req.get("size", (1024, 1024))),
+                          guidance=req.get("guidance", m.guidance))
+    done = []
+    for seed in req.get("seeds", [7]):
+        t = time.time()
+        mark = logo.draw_logo(painter, req.get("name", ""), req.get("mood", ""), req.get("colors", ""), seed,
+                              size=tuple(req.get("size", (1024, 1024))), say=lambda m: print(m, flush=True))
+        name = f"icon-s{seed}.png"
+        logo.square(mark, 1024, 48).save(out / name)
+        done.append(dict(file=name, seed=seed, seconds=round(time.time() - t)))
+        print(f"描いた: {name} {time.time() - t:.0f} 秒", flush=True)
+    prompt, avoid = logo.logo_prompt(req.get("name", ""), req.get("mood", ""), req.get("colors", ""))
+    (out / "request.json").write_text(json.dumps(dict(req, prompt=prompt, avoid=avoid, done=done), ensure_ascii=False, indent=1),
+                                      encoding="utf-8")
+    return done
 
 
 if __name__ == "__main__":

@@ -472,7 +472,7 @@ class ModelManager(QDialog):
     def pick_file(self, path: str | None = None):
         from PySide6.QtWidgets import QFileDialog
         from chatdraw.models import is_local, local_model
-        if path is None:
+        if not isinstance(path, (str, Path)):   # ボタンからは clicked の真偽（False）が来る。前はそれを道として読み、毎回落ちた
             path, _ = QFileDialog.getOpenFileName(self, "絵の模型を選ぶ", "", "絵の模型 (*.safetensors)")
             if not path:
                 return

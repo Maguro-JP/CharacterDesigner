@@ -99,6 +99,7 @@ class Plan:
     compose: list = field(default_factory=list)   # [(模型, 理由)] 構図を描く順（落ちたら次へ）
     fix: dict = field(default_factory=dict)       # {"hand": [(模型, 理由)], ...} 部位ごとに直す順
     finish: list = field(default_factory=list)    # 仕上げの名前
+    notes: list = field(default_factory=list)     # 段取りから外した物と、その訳（黙って外さず、利用者に見せる）
 
     def summary(self) -> str:
         line = [f"構図: {self.compose[0][0].name}" if self.compose else "構図: 今の模型"]
@@ -108,7 +109,7 @@ class Plan:
         line.append("小さく描いて広げる、顔と手の描き込みを通す")
         if self.finish:
             line.append("仕上げ: " + "、".join(self.finish))
-        return "、".join(line)
+        return "、".join(line + self.notes)
 
 
 # おまかせが検品を通った絵に黙って掛けてよい仕上げ。形を変えず、大きさも変えない物だけ。
@@ -126,11 +127,16 @@ def auto_finish(tools) -> list:
     return names
 
 
+FINISH_ERROR = ""   # 仕上げの部品を読めなかった訳（段取りの 1 行に出す）
+
+
 def finishers():
-    """仕上げの部品（chatdraw/finishers.py）。まだ無ければ None で、仕上げを飛ばす"""
+    """仕上げの部品（chatdraw/finishers.py）。読めなければ None で仕上げを飛ばし、訳を FINISH_ERROR に残す"""
+    global FINISH_ERROR
     try:
         from chatdraw import finishers as f
-    except ImportError:
+    except ImportError as e:
+        FINISH_ERROR = f"仕上げの部品を読めないので仕上げを飛ばします（{e}）"
         return None
     return f if hasattr(f, "available") and hasattr(f, "run") else None
 
@@ -141,11 +147,19 @@ def plan(text: str, have: list[ImageModel]) -> Plan:
     for kind, aspect in KIND_ASPECT.items():
         p.fix[kind] = rank(have, [aspect, STYLE_ASPECT.get(parts["style"], "アニメ")], parts["style"], need_inpaint=True)
     f = finishers()
-    if f is not None:
+    if f is None:
+        p.notes.append(FINISH_ERROR or "仕上げの部品が無いので仕上げを飛ばします")
+    else:
         try:
-            p.finish = auto_finish(f.available())
-        except Exception:
+            tools = f.available()
+            p.finish = auto_finish(tools)
+        except Exception as e:   # 黙って仕上げを外すと、仕上げが効かない訳が利用者に分からなかった
             p.finish = []
+            p.notes.append(f"仕上げを選べないので飛ばします（{type(e).__name__}: {e}）")
+        else:
+            # おまかせで掛けるはずの道具が使えないときは、その訳を出す（入れ忘れた部品は「入れ直して」と出る）
+            p.notes += [f"{t['label']}を飛ばします: {t['reason']}" for t in tools
+                        if isinstance(t, dict) and t.get("name") in AUTO_FINISH and not t.get("ready", True) and t.get("reason")]
     return p
 
 

@@ -126,6 +126,10 @@ class Canvas(QGraphicsView):
         page = self.mapFromScene(self.sceneRect()).boundingRect()
         self.viewport().update(QRegion(self.viewport().rect()).subtracted(QRegion(page)))
 
+    # 全体表示のままか。初めは全体表示にし、窓の大きさが変わっても絵の全体が収まるように合わせ直す。
+    # 利用者が自分で拡大・縮小したら外し、窓の大きさが変わっても勝手に全体へ戻さない
+    auto_fit = True
+
     def __init__(self):
         super().__init__()
         self.setScene(QGraphicsScene(self))
@@ -227,6 +231,30 @@ class Canvas(QGraphicsView):
         self.set_selection(None)
         self.rebuild()
         self.fit()
+
+    def place_result(self, path: str, name: str, replace: bool = False):
+        """AI が描いた・直した・加工した結果を、一番上の新しいレイヤーに置いて選ぶ。
+        前は結果を一番下に入れて空のレイヤーを上に選んでいたため、結果が出たことに気づけなかった。
+        replace は新しく描いた絵・大きさの変わる結果（拡大・広げる）で、キャンバスを結果 1 枚に置き換える
+        （大きさの違う前の絵とは重ねられない）。どちらも前の状態は「元に戻す」で戻せる"""
+        img = _load(path)
+        if not self.layers:
+            self._reset([Layer(name, img)], 0)
+            return
+        resized = (img.width(), img.height()) != self.size_px()
+        if not replace and resized:
+            return self.add_image_layer(path, name)   # 大きさだけ違う結果は、キャンバスに合わせて一番上に重ねる
+        self.snapshot_all()
+        if replace:
+            self.layers = [Layer(name, img)]
+        else:
+            self.layers.append(Layer(name, img))
+        self.current = len(self.layers) - 1
+        if replace:
+            self.set_selection(None)
+        self.rebuild()
+        if replace and resized:
+            self.fit()
 
     def add_image_layer(self, path: str, name: str = "絵"):
         img = _load(path)
@@ -430,11 +458,21 @@ class Canvas(QGraphicsView):
 
     # ---- 表示 ----
     def fit(self):
+        """絵の全体が窓に収まる大きさで出す。以後、窓の大きさが変わっても全体表示を保つ"""
+        self.auto_fit = True
         if self.layers:
             self.fitInView(self.scene().sceneRect(), Qt.KeepAspectRatio)
             self.zoomed.emit(self.zoom())
 
+    def resizeEvent(self, e):
+        # 起動したときは窓が出る前に絵を開くので、そのときの大きさで合わせると小さすぎた。窓が決まってから合わせ直す
+        super().resizeEvent(e)
+        if self.auto_fit and self.layers:
+            self.fitInView(self.scene().sceneRect(), Qt.KeepAspectRatio)
+            self.zoomed.emit(self.zoom())
+
     def actual(self):
+        self.auto_fit = False
         self.resetTransform()
         self.angle = 0.0
         self.zoomed.emit(1.0)
@@ -446,6 +484,7 @@ class Canvas(QGraphicsView):
     def set_zoom(self, z: float):
         """拡大率を z（1.0 で等倍）にする。回転はそのまま"""
         cur = self.zoom()
+        self.auto_fit = False
         if cur > 0:
             f = z / cur
             self.scale(f, f)
@@ -460,6 +499,7 @@ class Canvas(QGraphicsView):
         self.angle = 0.0
 
     def wheelEvent(self, e):
+        self.auto_fit = False
         f = 1.15 if e.angleDelta().y() > 0 else 1 / 1.15
         self.scale(f, f)
         self.zoomed.emit(self.zoom())
@@ -779,6 +819,7 @@ class Canvas(QGraphicsView):
             return True
         if self.tool == "zoom":
             f = 1 / 1.25 if self.zoom_out else 1.25
+            self.auto_fit = False
             self.scale(f, f)
             self.zoomed.emit(self.zoom())
             return True

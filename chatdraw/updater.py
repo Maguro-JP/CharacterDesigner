@@ -35,13 +35,17 @@ def newer(latest: str, mine: str) -> bool:
     return _tuple(latest) > _tuple(mine)
 
 
-def check(url: str = URL, timeout: float = 8.0) -> dict | None:
-    """新しい版があれば {version, setup, page, notes} を返す。無い・確かめられないなら None"""
+def check(url: str = URL, timeout: float = 8.0, quiet: bool = True) -> dict | None:
+    """新しい版があれば {version, setup, page, notes} を返す。無い・確かめられないなら None。
+    quiet=False なら、確かめられないときは例外のまま返す（自分で押した「更新を確かめる」で、
+    ネットに届かないのに「今の版が最新です」と出していたのを避ける）"""
     try:
         req = urllib.request.Request(url, headers={"Accept": "application/vnd.github+json", "User-Agent": "CharacterDesigner"})
         with urllib.request.urlopen(req, timeout=timeout) as r:
             data = json.loads(r.read().decode("utf-8"))
     except Exception:
+        if not quiet:
+            raise
         return None
     version = str(data.get("tag_name") or data.get("version") or "")
     if not version or not newer(version, current()):

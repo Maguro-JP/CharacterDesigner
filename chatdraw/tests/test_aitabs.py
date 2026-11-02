@@ -50,7 +50,7 @@ class TabsTest(unittest.TestCase):
         with TemporaryDirectory() as d:
             w = window(d)
             p = w.ai_panel
-            self.assertEqual([p.tabs.tabText(i) for i in range(p.tabs.count())], ["描く内容", "作風", "模型", "詳しい設定", "加工"])
+            self.assertEqual([p.tabs.tabText(i) for i in range(p.tabs.count())], ["描く内容", "作風", "模型", "直す・仕上げ", "詳しい設定"])
             self.assertEqual(p.tabs.currentIndex(), 0)                      # 初めに開くのは描く内容
             for i in range(p.tabs.count()):
                 self.assertTrue(p.tabs.tabToolTip(i))                      # 説明はツールチップ
@@ -59,7 +59,7 @@ class TabsTest(unittest.TestCase):
                 self.assertTrue(p.isAncestorOf(w.button))
                 self.assertTrue(p.isAncestorOf(w.stop_button))
             self.assertTrue(p.sections["作風"].isAncestorOf(p.style_buttons["アニメ"]))
-            self.assertTrue(p.sections["加工"].isAncestorOf(p.pixel_button))
+            self.assertTrue(p.sections["直す・仕上げ"].isAncestorOf(p.pixel_button))
             p.sections["描く内容"].set_open(True)                             # 前の呼び方でタブが前に出る
             self.assertEqual(p.tabs.currentIndex(), 0)
             w.close()
