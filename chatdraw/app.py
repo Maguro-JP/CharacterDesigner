@@ -602,11 +602,6 @@ class Window(QMainWindow):
         self.model_label.setObjectName("modelButton")
         self.model_label.setToolTip("絵の模型。押すと切り替えられます")
         self.model_label.clicked.connect(lambda: self.ai_menu.exec(self.model_label.mapToGlobal(self.model_label.rect().bottomLeft())))
-        model_row = QHBoxLayout()
-        model_row.setContentsMargins(0, 0, 0, 0)
-        model_row.addWidget(self.model_label)
-        self.ai_panel.sections["模型"].body.addLayout(model_row)
-        self._lora_row()
         ask_page = QWidget()
         ask_page.setLayout(ask)
         # 外の入れ物（描き方）は ai_pages。ai_tabs は AI の欄のタブを出し入れする TabDocks が使う
@@ -629,6 +624,19 @@ class Window(QMainWindow):
         neg_head.setToolTip(self.ai_panel.negative.toolTip())
         tl.addWidget(neg_head)
         tl.addWidget(self.ai_panel.negative)
+        # 頼みと禁止ワードは並べて置く。見出しや欄が縦に伸びて、間に空きが出来ていた
+        from PySide6.QtWidgets import QSizePolicy
+        for wdg in (neg_head, self.ai_panel.negative):
+            wdg.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        model_head = QLabel("模型")
+        model_head.setObjectName("sectionHead")
+        model_head.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        tl.addWidget(model_head)
+        model_row = QHBoxLayout()
+        model_row.setContentsMargins(0, 0, 0, 0)
+        model_row.addWidget(self.model_label)
+        tl.addLayout(model_row)
+        self._lora_row()
         self.ai_panel.negative.textChanged.connect(lambda _t: self._apply_avoid())
         self.entry.textChanged.connect(self.ai_panel.preview_timer.start)
         # 模型に渡る言葉の目安は欄に常に出さず、書く欄にカーソルを合わせたときだけ出す。
@@ -2207,19 +2215,27 @@ class Window(QMainWindow):
         from chatdraw import shortcuts
         c = self.canvas
         m = QMenu(self)
+        m.setToolTipsVisible(True)
+        # よく使う物を上に、1 回で押せる所に置く（赤ペンを「道具」の奥に入れていたら見つからなかった）
+        if "redpen" in self.tool_actions:
+            m.addAction("赤ペンで直す所を囲む（T）", self.tool_actions["redpen"].trigger).setToolTip(
+                "囲んで指示を書き、「描く」を押すと囲んだ所だけを AI が直します")
+        if c.redpen.marks:
+            m.addAction("赤ペンの印を消す", c.redpen.clear)
         m.addAction("元に戻す", c.undo).setEnabled(bool(c.undo_stack))
         m.addAction("やり直す", c.redo).setEnabled(bool(c.redo_stack))
         m.addSeparator()
+        shortcuts.fill_menu(self, m, self.shortcut_store())   # ★・よく使う物を上に、残りは処理の種類ごと
+        m.addSeparator()
         tools = m.addMenu("道具")
-        for key, label in (("hand", "手（画面を動かす）"), ("pen", "ペン"), ("eraser", "消しゴム"), ("eyedropper", "スポイト"),
-                           ("select", "四角の選択"), ("redpen", "赤ペン（AI に直す所を示す）")):
+        for key, label in (("pen", "ペン"), ("eraser", "消しゴム"), ("eyedropper", "スポイト"), ("select", "四角の選択"),
+                           ("hand", "手（画面を動かす）"), ("redpen", "赤ペン（AI に直す所を示す）")):
             if key in self.tool_actions:
                 tools.addAction(label, self.tool_actions[key].trigger)
-        m.addSeparator()
-        m.addAction("全体を表示", c.fit)
-        m.addAction("100%", c.actual)
-        m.addAction("回転を戻す", c.reset_rotation)
-        m.addSeparator()
+        view = m.addMenu("表示")
+        view.addAction("全体を表示", c.fit)
+        view.addAction("100%", c.actual)
+        view.addAction("回転を戻す", c.reset_rotation)
         m.addAction("レイヤーを足す", c.add_layer)
         if c.selection is not None:
             m.addAction("選択を外す", lambda: c.set_selection(None))
@@ -2231,8 +2247,6 @@ class Window(QMainWindow):
         pin.setChecked(self.pin_action.isChecked())
         pin.toggled.connect(self.pin_action.setChecked)
         m.addAction("タイムラプスを見る…", self.open_timelapse)
-        m.addSeparator()
-        shortcuts.fill_menu(self, m, self.shortcut_store())   # ★・よく使う物を上に、残りは処理の種類ごと
         m.addSeparator()
         m.addAction("新しいキャンバス", c.new_canvas)
         m.addAction("画像を開く…", self.open_image)
@@ -2250,6 +2264,8 @@ class Window(QMainWindow):
         m.addAction("新しいキャンバス", self.canvas.new_canvas).setToolTip("白い新しいキャンバスにします（元に戻すで戻せます）")
         m.addAction("画像を開く…", self.open_image).setToolTip("作業ファイルか絵を開きます")
         m.addAction("画像を開いて直す…", self.open_to_edit).setToolTip("手元の絵を開き、赤ペンで囲んで直せる形にします")
+        if "redpen" in getattr(self, "tool_actions", {}):
+            m.addAction("赤ペンで直す所を囲む（T）", self.tool_actions["redpen"].trigger).setToolTip("絵の上で囲んで指示を書き、「描く」で囲んだ所だけを直します")
         shortcuts.fill_menu(self, m.addMenu("ショートカット"), self.shortcut_store())
         return m
 
@@ -2263,6 +2279,9 @@ class Window(QMainWindow):
             m.addAction("レイヤーを足す", self.canvas.add_layer)
         elif key == "talk":
             m.addAction("書く欄へ", self.entry.setFocus)
+        elif key == "library":
+            from chatdraw import folders
+            m.addAction("ディレクトリを開く", lambda: folders.open_folder(self.library.root)).setToolTip("ライブラリーの絵と資料の置き場を開きます")
         if m.actions():
             m.addSeparator()
         self.common_menu(m)

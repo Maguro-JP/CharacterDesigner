@@ -106,7 +106,7 @@ class AiPanelOrderTest(unittest.TestCase):
             w = window(d)
             p = w.ai_panel
             names = [p.tabs.tabText(i) for i in range(p.tabs.count())]
-            self.assertEqual(names, ["描く内容", "作風", "模型", "直す・仕上げ", "詳しい設定"])   # 頼む → 描く → 直す → 仕上げ
+            self.assertEqual(names, ["指示", "作風", "直す・仕上げ", "詳しい設定"])   # 頼む → 描く → 直す → 仕上げ
             fin = p.sections["直す・仕上げ"]
             for b in (p.again, p.upscale_button, p.chibi_button, p.lineart_button, p.pixel_button):
                 self.assertTrue(fin.isAncestorOf(b))
