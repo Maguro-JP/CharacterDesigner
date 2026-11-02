@@ -145,6 +145,7 @@ class LibraryPanel(QWidget):
             m.addAction("学習用に集める", self.w.collect_favorites)
             m.addSeparator()
             m.addAction("この設定で描き直す", lambda: self.w.redo_from(path))
+            m.addAction("描いた設定を見る…", lambda: self.w.show_draw_info(path))
         else:
             m.addAction("参考画像にする", lambda: (self.w.reference.load(path), self.w.ai_panel.use_ref.setChecked(True)))
         m.addAction("今の絵に重ねる", lambda: self.w.layer_from_file(path, "ライブラリーの絵"))

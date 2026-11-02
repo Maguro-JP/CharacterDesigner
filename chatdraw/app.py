@@ -2063,6 +2063,7 @@ class Window(QMainWindow):
         m.addAction("この設定で描き直す", lambda: self.redo_from(path))
         m.addAction("頼みの言葉を書く欄に入れる", lambda: self._prompt_from(path))
         m.addAction("お気に入りの言葉にする", lambda: self._prompt_from(path, pin=True))
+        m.addAction("描いた設定を見る…", lambda: self.show_draw_info(path))
         from chatdraw import ownstyle
         m.addAction("★ お気に入りを外す" if ownstyle.is_favorite(path) else "★ お気に入りにする", lambda: ownstyle.toggle(path))
         m.addAction("学習用に集める", self.collect_favorites)
@@ -2187,6 +2188,12 @@ class Window(QMainWindow):
         from PySide6.QtCore import QUrl
         from PySide6.QtGui import QDesktopServices
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(path).parent)))
+
+    def show_draw_info(self, path: str):
+        """描いた模型・頼み・禁止ワード・種・大きさ・日時を、コピーできる小さな窓で出す（chatdraw/drawinfo.py）"""
+        from chatdraw import drawinfo
+        self._draw_info = drawinfo.show(self, path)   # 持っておかないと、開いた窓がすぐ消える
+        return self._draw_info
 
     def show_history_image(self, path: str):
         """履歴で選んだ絵をキャンバスに出す。出した絵は「固定」すると、新しく描いても入れ替わらない"""

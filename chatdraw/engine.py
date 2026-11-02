@@ -252,6 +252,23 @@ def negative_for(info, avoid: str = "") -> str:
     return base + (f", {avoid}" if avoid else "")
 
 
+def negative_record(repo: str, prompt: str, avoid: str) -> str:
+    """絵に残す禁止ワード。prompt_args が模型に渡すのと同じ組み立て（模型の推奨・利用者の禁止ワード・基準の体）にする。
+    禁止ワードを受けない模型では空（渡していない物を記録に書かない）"""
+    try:
+        from chatdraw.models import family as fam
+        from chatdraw.models import image_model
+        info = image_model(repo)
+        if not fam(info.family).negative:
+            return ""
+    except Exception:
+        return ""
+    if woman(english_only(prompt)):
+        from chatdraw.body import NEGATIVE as BODY_NEGATIVE
+        avoid = ", ".join(a for a in (avoid, BODY_NEGATIVE) if a)
+    return negative_for(info, avoid)
+
+
 def use_vpred(pipe, info) -> bool:
     """v-prediction の模型は、置いてある scheduler の設定が epsilon のまま（NoobAI V-Pred 1.0 の札）なので、
     読んだ後に Euler を v_prediction と zero terminal SNR に替える。替えないと色の抜けた崩れた絵になる"""
@@ -1196,6 +1213,7 @@ class Studio:
                 best = (image, left, s_k)
             if not left or getattr(self.painter, "stop", False) or (not self.hand_rounds and not asked["readable"]):
                 break
+        negative = negative_record(getattr(self.painter, "model", ""), prompt, getattr(self.painter, "avoid", ""))
         if hasattr(self.painter, "avoid"):
             self.painter.avoid = avoid0
         image, left, seed = best
@@ -1205,7 +1223,7 @@ class Studio:
             say(f"検品を通る絵が {len(redraws)} 回描いても出ませんでした（途中）。残った崩れ: " + "、".join(left[:5]))
         elif not checked:
             say("検品できなかったので、通ったかは分かりません（途中）")
-        path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model,
+        path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model, negative=negative,
                                             hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws, passed=checked and not left))
         self._inspect(path, say)
         return prompt, path
@@ -1374,6 +1392,7 @@ class Studio:
         from chatdraw.finishers import KEY
         self.out.mkdir(parents=True, exist_ok=True)
         path = self.out / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}.png"   # 種を固定して描き直しても前の絵を消さない
+        meta = dict(meta, drawn=meta.get("drawn") or time.strftime("%Y-%m-%d %H:%M:%S"))   # 描いた日時（このパソコンの時計）
         info = PngImagePlugin.PngInfo()
         info.add_itxt(KEY, json.dumps(meta, ensure_ascii=False, default=str))
         image.save(path, pnginfo=info)
