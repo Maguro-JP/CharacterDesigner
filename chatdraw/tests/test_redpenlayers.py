@@ -55,7 +55,7 @@ class RedPenLayersTest(unittest.TestCase):
         self.app.processEvents()
         self.assertFalse(self.w.note_edit.isHidden())               # 囲むとすぐ指示の欄が出る
         self.w.note_edit.clear()
-        QTest.keyClicks(self.w.note_edit, note)
+        self.w.note_edit.insert(note)   # 日本語は入力メソッドから入るので、打った後の文を欄に入れる（QTest のキーは ASCII だけ）
         QTest.keyClick(self.w.note_edit, Qt.Key_Return)
         self.app.processEvents()
 
@@ -115,8 +115,15 @@ class RedPenLayersTest(unittest.TestCase):
         self.assertEqual(len(rows), 1)
         self.assertTrue(rows[0].text().startswith("赤ペン 1"))
         self.assertIn("帽子を青に", rows[0].toolTip())               # 残った印が 1 番に繰り上がる
-        self.assertTrue(self.w.canvas.undo())                         # 元に戻すで戻せる
-        self.assertEqual(len(self.rows()), 2)
+        self.w.canvas.undo()                                          # 元に戻すで、消した印が同じ番号に戻る
+        self.app.processEvents()
+        rows = self.rows()
+        self.assertEqual(len(rows), 2)
+        self.assertIn("手を直して", rows[0].toolTip())
+        self.assertIn("帽子を青に", rows[1].toolTip())
+        self.w.canvas.redo()                                          # やり直すで、また消える
+        self.app.processEvents()
+        self.assertEqual([r.text() for r in self.rows()], ["赤ペン 1　帽子を青に"])
 
     def test_hide_and_reorder_rows(self):
         pen = self.w.canvas.redpen

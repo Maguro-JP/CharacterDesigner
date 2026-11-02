@@ -1756,8 +1756,7 @@ class Window(QMainWindow):
                 if bad and placed:   # 崩れの見つかった直しは見えなくして重ねる。元の絵を壊さず、見るか消すかは利用者が決める
                     self.canvas.set_visible(self.canvas.current, False)
                 # 直しが済んだら印は消す（残ると、いつまでも絵の上に赤い線が残った）。消した印は元に戻すで戻せる
-                for _ in range(len(self.canvas.redpen.marks)):
-                    self.canvas.redpen.undo()
+                self.canvas.redpen.take_all()
                 self._refresh_layers()
             elif first and self.pin_action.isChecked() and self.mode.currentIndex() == 0:
                 self.say("表示する絵を固定しているので、新しい絵は履歴に入れました（押すと出ます）")

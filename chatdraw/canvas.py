@@ -968,6 +968,7 @@ class Canvas(QGraphicsView):
             self.redpen.end()
             if short:
                 self.redpen.undo()   # 押しただけ（ダブルクリックの 1 回目など）は印にしない
+                self.redpen.undone.clear()   # 押しただけの点は、やり直すでも出さない
             else:
                 self.note_wanted.emit(len(self.redpen.marks))   # 囲んだらすぐ、その横に指示を書ける
             return

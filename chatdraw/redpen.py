@@ -34,7 +34,10 @@ class RedPen(QGraphicsItem):
         self.hover = 0    # カーソルを合わせている番号の丸。この印も札を出す
         self.drawing: list[QPointF] | None = None
         self.size = (0, 0)
-        self.undone: list[tuple[list[QPointF], str]] = []   # 元に戻した印（やり直すで戻す）
+        # 元に戻す・やり直すの記録。("add",) は書いた印、("remove", 位置, 印) は消した印。
+        # 前は元に戻すが「最後の印を外す」だけで、行を選んで消したあとに元に戻すと、消した印ではなく別の印が消えた
+        self.ops: list[tuple] = []
+        self.undone: list[tuple] = []   # 元に戻した操作（やり直すで戻す）
         self.on_change = None   # 印が増えた・消えたときに呼ぶ（レイヤーの欄に「赤ペン」を出し入れする）
         self.setZValue(1e9 - 2)
 
@@ -62,6 +65,7 @@ class RedPen(QGraphicsItem):
 
     def end(self):
         self.drawing = None
+        self.ops.append(("add",))
         self.undone.clear()
         self.update()
         self._changed()
@@ -95,10 +99,15 @@ class RedPen(QGraphicsItem):
         self.hidden.insert(i, hide)
 
     def undo(self) -> bool:
-        """最後の印を外す（やり直すで戻せる）"""
-        if not self.marks:
-            return False
-        self.undone.append(self._take(len(self.marks) - 1))
+        """最後の操作を戻す。書いた印なら外し、消した印なら元の番号に戻す（やり直すで戻せる）"""
+        op = self.ops.pop() if self.ops else ("add",)
+        if op[0] == "remove":
+            self._put(op[2], op[1])
+            self.undone.append(("remove", op[1]))
+        else:
+            if not self.marks:
+                return False
+            self.undone.append(("add", self._take(len(self.marks) - 1)))
         self.update()
         self._changed()
         return True
@@ -106,15 +115,23 @@ class RedPen(QGraphicsItem):
     def redo(self) -> bool:
         if not self.undone:
             return False
-        self._put(self.undone.pop())
+        op = self.undone.pop()
+        if op[0] == "remove":
+            if op[1] >= len(self.marks):
+                return False
+            self.ops.append(("remove", op[1], self._take(op[1])))
+        else:
+            self._put(op[1])
+            self.ops.append(("add",))
         self.update()
         self._changed()
         return True
 
     def remove(self, n: int):
-        """番号 n（1 から）の印だけを消す。元に戻すで戻せる"""
+        """番号 n（1 から）の印だけを消す。元に戻すで同じ番号に戻せる"""
         if 1 <= n <= len(self.marks):
-            self.undone.append(self._take(n - 1))
+            self.ops.append(("remove", n - 1, self._take(n - 1)))
+            self.undone.clear()
             if self.active == n:
                 self.active = 0
             elif self.active > n:
@@ -122,11 +139,22 @@ class RedPen(QGraphicsItem):
             self.update()
             self._changed()
 
+    def take_all(self):
+        """印を全部外す（直しが済んだとき）。やり直すで戻せる"""
+        while self.marks:
+            self.undone.append(("add", self._take(len(self.marks) - 1)))
+        self.ops.clear()
+        self.active = self.hover = 0
+        self.update()
+        self._changed()
+
     def move(self, n: int, to: int):
         """番号 n の印を to 番にする（レイヤーの欄の並べ替え）。番号は並びの順に振り直す"""
         if 1 <= n <= len(self.marks) and 1 <= to <= len(self.marks) and n != to:
             keep = self.marks[self.active - 1] if 1 <= self.active <= len(self.marks) else None
             self._put(self._take(n - 1), to - 1)
+            self.ops.clear()   # 並べ替えたあとは位置の記録が合わないので、それより前へは戻さない
+            self.undone.clear()
             if keep is not None:   # 選んでいた印は、番号が変わっても同じ印を選んだままにする
                 self.active = next(i for i, pts in enumerate(self.marks, 1) if pts is keep)
             self.update()
@@ -167,6 +195,7 @@ class RedPen(QGraphicsItem):
         self.marks.clear()
         self.texts.clear()
         self.hidden.clear()
+        self.ops.clear()
         self.active = self.hover = 0
         self.drawing = None
         self.update()
