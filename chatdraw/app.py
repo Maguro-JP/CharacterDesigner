@@ -522,6 +522,17 @@ PANEL_ORDER = ("talk", "chat", "view", "history", "library", "progress", "layers
 PANEL = QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable | QDockWidget.DockWidgetClosable
 
 
+def app_title() -> str:
+    """ウィンドウのタイトル。β版（1.0 より前）の間は、どの版を使っているかが一目で分かるよう版を横に出す。
+    版は根の VERSION（更新の確認と同じ値）から毎回読むので、版を上げれば表示も変わる"""
+    from chatdraw import updater
+    ver = updater.current()
+    if ver in ("", "0"):
+        return "CharacterDesigner"
+    beta = updater._tuple(ver)[:1] < (1,)
+    return f"CharacterDesigner {ver}" + (" β" if beta else "")
+
+
 class Window(QMainWindow):
     """作画ソフトの並び: 左に頼みの欄、真ん中に絵、右に描いた絵の一覧、下に進み"""
 
@@ -533,7 +544,7 @@ class Window(QMainWindow):
         self.layout_store = QSettings("CharacterDesigner", "chatdraw")   # 配置・テーマ・AI プリセット・ツアーの済み
         self.last_text = ""
         self.studio = studio or self._studio_from_settings()
-        self.setWindowTitle("CharacterDesigner")
+        self.setWindowTitle(app_title())
         self.resize(1400, 900)
         self.images: list[str] = []
         self.thread: QThread | None = None
@@ -4159,7 +4170,7 @@ class Window(QMainWindow):
 
     def show_progress(self, text: str, pct: int):
         """進みをウィンドウの外にも出す。タイトル（タスクバーに出る）、通知の領域のアイコン、終わったときの知らせ"""
-        base = "CharacterDesigner"
+        base = app_title()
         if pct == -2:
             self.setWindowTitle(base)
         else:

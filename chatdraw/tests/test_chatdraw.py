@@ -1679,7 +1679,8 @@ class UsableTest(unittest.TestCase):
         self.assertGreater(p.y() + p.height(), g.bottom() - 80)     # 下の端に寄っている
         p.close_popup()
         self.assertFalse(p.isVisible())                             # × で閉じられる
-        self.assertEqual(self.w.windowTitle(), "CharacterDesigner")
+        from chatdraw.app import app_title
+        self.assertEqual(self.w.windowTitle(), app_title())   # 終われば版つきの元のタイトルに戻る
         self.assertEqual(seen[0], -1)
         self.assertEqual(seen[-1], -2)
 
