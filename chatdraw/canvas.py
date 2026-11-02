@@ -286,6 +286,36 @@ class Canvas(QGraphicsView):
         self.redpen.set_size(w, h)
         self.fit()
 
+    def merge_visible(self, name: str = "結合した絵"):
+        """見えているレイヤーを 1 枚に結合する（隠したレイヤーは捨てる）。元に戻すで戻せる"""
+        if not self.layers:
+            return
+        img = self.flatten()
+        self.snapshot_all()
+        self.layers = [Layer(name, img)]
+        self.current = 0
+        self.rebuild()
+        self.changed.emit()
+
+    def merge_down(self):
+        """選んでいるレイヤーを下のレイヤーに結合する。元に戻すで戻せる"""
+        i = self.current
+        if i <= 0 or i >= len(self.layers):
+            return
+        upper, lower = self.layers[i], self.layers[i - 1]
+        self.snapshot_all()
+        img = QImage(lower.image)
+        p = QPainter(img)
+        if upper.visible:
+            p.setOpacity(upper.opacity)
+            p.drawImage(0, 0, upper.image)
+        p.end()
+        lower.image = img
+        del self.layers[i]
+        self.current = i - 1
+        self.rebuild()
+        self.changed.emit()
+
     def flatten(self) -> QImage:
         w, h = self.size_px()
         out = blank(w, h)

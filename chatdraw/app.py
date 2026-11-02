@@ -772,6 +772,7 @@ class Window(QMainWindow):
         edit = self.menuBar().addMenu("編集")
         edit.addAction(QAction("元に戻す", self, shortcut="Ctrl+Z", triggered=self.canvas.undo))
         edit.addAction(QAction("やり直す", self, shortcut="Ctrl+Y", triggered=self.canvas.redo))
+        edit.addAction(QAction("赤ペンの印を全部消す", self, shortcut="Ctrl+Shift+Backspace", triggered=self.canvas.redpen.clear))
 
         # 左端: 道具
         tools = QToolBar("道具", self)
@@ -1003,6 +1004,10 @@ class Window(QMainWindow):
         layer_menu.addAction(QAction("新しいレイヤー", self, shortcut="Ctrl+Shift+N", triggered=self.canvas.add_layer))
         layer_menu.addAction(QAction("レイヤーを消す", self, triggered=self.canvas.delete_layer))
         layer_menu.addAction(QAction("画像をレイヤーとして読み込む…", self, triggered=self.import_layer))
+        layer_menu.addSeparator()
+        layer_menu.addAction(QAction("下のレイヤーと結合", self, triggered=self.canvas.merge_down))
+        layer_menu.addAction(QAction("見えているレイヤーを結合", self, shortcut="Ctrl+Shift+E", triggered=self.canvas.merge_visible))
+        layer_menu.addAction(QAction("結合して元の画像に上書き保存…", self, triggered=self.merge_and_overwrite))
 
         # ウィンドウ: 欄ごとの表示と、並べ方（整列・別ウィンドウ・自由配置）
         # ライブラリー: 作品・資料・好み。試験（描く仕組みを渡したとき）は、その出力の置き場の中に作って本物を汚さない
@@ -1752,9 +1757,10 @@ class Window(QMainWindow):
                 placed = self._put_fix(path, f"AI の直し {len(self.images)}" + ("（崩れあり）" if bad else ""))
                 if bad and placed:   # 崩れの見つかった直しは見えなくして重ねる。元の絵を壊さず、見るか消すかは利用者が決める
                     self.canvas.set_visible(self.canvas.current, False)
-                    self._refresh_layers()
-                else:
-                    self.canvas.redpen.clear()   # 崩れが見つからなければ、印は役目を終える
+                # 直しが済んだら印は消す（残ると、いつまでも絵の上に赤い線が残った）。消した印は元に戻すで戻せる
+                for _ in range(len(self.canvas.redpen.marks)):
+                    self.canvas.redpen.undo()
+                self._refresh_layers()
             elif first and self.pin_action.isChecked() and self.mode.currentIndex() == 0:
                 self.say("表示する絵を固定しているので、新しい絵は履歴に入れました（押すと出ます）")
             elif first:
@@ -3389,6 +3395,7 @@ class Window(QMainWindow):
             return
         self.canvas.replace_with_image(path, Path(path).stem)
         self.project_path = None
+        self.source_path = str(path)   # 「結合して元の画像に上書き保存」で書き戻す先
         self.mode.setCurrentIndex(2)   # 直す
         if "redpen" in self.tool_actions:
             self.tool_actions["redpen"].trigger()
@@ -3826,6 +3833,29 @@ class Window(QMainWindow):
         self.notify("絵の外へ広げました", "ok", "元の絵の画素はそのままです。広げた所を見て、使うか元に戻すかを決めてください")
         return path
 
+    def merge_and_overwrite(self):
+        """見えているレイヤーを結合し、開いた元の画像に上書きで保存する。上書きの前に元の画像の控えを取る"""
+        import shutil
+        import time
+        from PySide6.QtWidgets import QMessageBox
+        from chatdraw.paths import HOME
+        src = getattr(self, "source_path", None)
+        if not src or not Path(src).is_file():
+            self.notify("上書きする元の画像がありません", "info", "画像を開いてから使います。作業ファイルは「保存」で保存します")
+            return
+        if QMessageBox.question(self, "元の画像に上書き", f"見えているレイヤーを結合して、\n{src}\nに上書きします。\n"
+                                "元の画像の控えをアプリのデータの backup に残します。") != QMessageBox.Yes:
+            return
+        backup = HOME / "backup" / f"{Path(src).stem}-{time.strftime('%Y%m%d-%H%M%S')}{Path(src).suffix}"
+        backup.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, backup)
+        self.canvas.merge_visible(Path(src).stem)
+        if not self.canvas.flatten().save(src):
+            self.notify("上書きできませんでした", "error", f"控えは {backup} にあります")
+            return
+        self.dirty = False
+        self.statusBar().showMessage(f"上書きしました。元の画像の控え: {backup}", 8000)
+
     def open_path(self, path: str, restore: bool = False):
         from chatdraw import project
         if path.endswith(project.SUFFIX):
@@ -3842,6 +3872,7 @@ class Window(QMainWindow):
         else:
             self.canvas.show_image(path)
             self.project_path = None
+            self.source_path = str(path)
         self.dirty = False
 
     def save_project(self, ask: bool = False, wait: bool = False) -> bool:
