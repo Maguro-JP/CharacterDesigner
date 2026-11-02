@@ -135,6 +135,7 @@ def probe(files: list[str]) -> dict:
         libs = list(dict.fromkeys(str(b / p) for b in (ROOT, common) for p in (".cache/gen/lib", ".cache/simple/lib")
                                   if (b / p).is_dir()))
         env = {k: v for k, v in os.environ.items() if not k.startswith("PYTHON")}
+        env["TMPDIR"] = d   # probe の mkdtemp（約 140MB の部品の置き場）を d の中に作り、終わりに一緒に消す。/tmp に残って空きを食い潰した
         r = subprocess.run([sys.executable, "-I", str(script), str(app), json.dumps(local), str(out), *libs],
                            cwd=d, env=env, capture_output=True, text=True, timeout=600)
         if not out.exists():
