@@ -88,7 +88,9 @@ class TabDocks:
     def _read(self, key) -> list[str]:
         try:
             v = json.loads(self.store.value(key) or "[]")
-            return [n for n in v if n in self.panel.sections]
+            old = getattr(self.panel.sections, "OLD", {})   # 前の名前（描く内容・模型）で残した並びは「指示」として読む
+            v = [old.get(n, n) for n in v]
+            return [n for i, n in enumerate(v) if n in self.panel.sections and n not in v[:i]]
         except (TypeError, ValueError):
             return []
 

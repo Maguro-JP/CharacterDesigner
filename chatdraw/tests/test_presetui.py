@@ -227,7 +227,7 @@ class AiTabTest(unittest.TestCase):
         with TemporaryDirectory() as d:
             w = window(d)
             secs = w.ai_panel.sections
-            self.assertEqual(list(secs), ["描く内容", "作風", "模型", "直す・仕上げ", "詳しい設定"])   # 描く順
+            self.assertEqual(list(secs), ["指示", "作風", "直す・仕上げ", "詳しい設定"])   # 前の名前（描く内容・模型）は一覧に出さない   # 描く順
             self.assertTrue(secs["描く内容"].is_open())                   # 初めに開くのは描く内容
             self.assertFalse(secs["詳しい設定"].is_open())
             self.assertTrue(secs["描く内容"].isAncestorOf(w.entry))

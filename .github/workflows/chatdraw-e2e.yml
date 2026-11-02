@@ -21,7 +21,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
-      - run: sudo apt-get update -q && sudo apt-get install -y -q nsis
+      - run: sudo apt-get update -q && sudo apt-get install -y -q nsis python3-pil  # build.sh がアイコンの .ico を作るのに使う
       - run: sh packaging/chatdraw/build.sh
       - uses: actions/upload-artifact@v4
         with:
@@ -58,7 +58,8 @@ jobs:
           $p = Start-Process -FilePath "C:\Program Files\CharacterDesigner\Uninstall.exe" -ArgumentList '/S' -Wait -PassThru
           # アンインストーラーは自分を一時の場所に写して動くので、終わるまで待つ
           for ($i = 0; $i -lt 60 -and (Test-Path "C:\Program Files\CharacterDesigner"); $i++) { Start-Sleep 2 }
-          $left = @("C:\Program Files\CharacterDesigner", "C:\ProgramData\CharacterDesigner",
+          # ユーザーのデータと設定（C:\ProgramData\CharacterDesigner）は、更新や入れ直しで消さないため残す決まり
+          $left = @("C:\Program Files\CharacterDesigner",
                     "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\CharacterDesigner",
                     "C:\Users\Public\Desktop\CharacterDesigner.lnk") | Where-Object { Test-Path $_ }
           "残った物: $($left -join ', ')"

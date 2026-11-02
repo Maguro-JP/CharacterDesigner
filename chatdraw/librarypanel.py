@@ -151,6 +151,7 @@ class LibraryPanel(QWidget):
         m.addAction("編集する（囲んで直す）", lambda: self.w.edit_image(path))
         m.addAction("言葉を付ける…", lambda: self.tag(item_id))
         m.addSeparator()
+        m.addAction("ディレクトリを開く", lambda: self.w.open_folder(path)).setToolTip("この絵の置いてあるディレクトリを開きます")
         if entry and entry["kind"] == "work":
             m.addAction("一覧から外す（絵は残す）", lambda: (lib.remove(item_id), self.refresh()))
         # 資料の写しも作品の絵も、すぐには消さずごみ箱へ移す（「ファイル」→「ごみ箱…」から戻せる）

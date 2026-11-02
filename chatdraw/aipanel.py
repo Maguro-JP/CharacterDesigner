@@ -41,15 +41,24 @@ PRESETS: list[tuple[str, str, int, str, str, int]] = [
 PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background", "アイコン": "portrait, upper body, looking at viewer"}
 
 
-# タブ: (名前, ヒント)。初めに開くのは先頭の「描く内容」
+# タブ: (名前, ヒント)。初めに開くのは先頭の「指示」（描く内容と模型を 1 枚にまとめた。行き来が要らない）
 # 描く人の流れ（頼む → 描き方を選ぶ → 描く → 見る → 直す・仕上げる）の順に並べる。細かい設定は最後に置き、初めは開かない
 SECTIONS = [
-    ("描く内容", "描きたい絵と、描かない物を書きます"),
+    ("指示", "描きたい絵・描かない物と、描く模型を選びます"),
     ("作風", "AI プリセットと画風。押すだけで描き方・大きさ・画風がそろいます"),
-    ("模型", "絵を描く模型を選びます"),
     ("直す・仕上げ", "描けた絵を直す・綺麗にする・外へ広げる・拡大する・加工する。元の絵は元に戻すで戻せます"),
     ("詳しい設定", "枚数・種・参考画像・ラフに沿う強さ"),
 ]
+
+
+class _Sections(dict):
+    """タブの一覧。前の名前（描く内容・模型）で引くと、まとめた「指示」のタブを返す。一覧には出さない"""
+    OLD = {"描く内容": "指示", "模型": "指示"}
+
+    def __missing__(self, key):
+        if key in self.OLD:
+            return self[self.OLD[key]]
+        raise KeyError(key)
 
 
 class Section(QScrollArea):
@@ -101,7 +110,7 @@ class AiPanel(QWidget):
         self.tabs.setDocumentMode(True)
         self.tabs.setUsesScrollButtons(True)
         self.tabs.tabBar().setExpanding(False)
-        self.sections: dict[str, Section] = {}
+        self.sections: dict[str, Section] = _Sections()
         for name, tip in SECTIONS:
             sec = Section(self.tabs, name)
             i = self.tabs.addTab(sec, name)
@@ -383,6 +392,10 @@ class AiPanel(QWidget):
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
+        # 縦長の欄では書く欄を高くし、横長（低い欄）では 3 行に戻す。下に空きを残さず、低い欄で描くボタンを押し出さない
+        entry = getattr(self.w, "entry", None)
+        if entry is not None:
+            entry.setFixedHeight(max(60, min(200, int(self.height() * 0.22))))
         cols = self._cols()
         if cols != getattr(self, "_laid_cols", None):
             self._laid_cols = cols
