@@ -4191,6 +4191,10 @@ class Window(QMainWindow):
 
     def _end(self, msg: str):
         self.statusBar().showMessage(msg, 4000)
+        # 加工などで始めた進みの表示も終える。終えないと「確認中」のまま止まって見えた
+        act = getattr(self, "activity", None)
+        if act is not None and getattr(act, "started", None):
+            act.end(msg, None, record=False)
         self.stop_button.setEnabled(False)
         if self.thread is not None:
             self.thread.quit()

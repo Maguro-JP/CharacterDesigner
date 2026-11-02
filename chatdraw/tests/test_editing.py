@@ -180,6 +180,7 @@ class FinishersTest(unittest.TestCase):
                 _t.sleep(0.02)
             self.assertEqual(len(w.canvas.layers), n + 1)
             self.assertIsNone(w.thread)   # 裏の糸は片付いている
+            self.assertIsNone(w.activity.started)   # 進みの表示も終わっている（「確認中」のまま残らない）
             w.close()
 
     def test_inpaint_models_only(self):
