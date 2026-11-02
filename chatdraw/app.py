@@ -1184,6 +1184,7 @@ class Window(QMainWindow):
         self.select_tool("pen" if self.settings.get("first_tool") == "ペン" else "hand")
 
     PROMPT_KEY, FAV_KEY, PROMPT_MAX = "prompts/history", "prompts/favorites", 20
+    RECENT_CHIPS = 10   # ボタンに出す直近の言葉の数。古い言葉は ↑↓ で呼び出す（ボタンが並びすぎて探せなくならないように）
     EXAMPLES = ("赤いマフラーの女の子", "鎧の騎士 全身", "猫耳の少女 笑顔", "夕暮れの街", "レイヤーを足して")
 
     def _list(self, key: str) -> list[str]:
@@ -1197,7 +1198,7 @@ class Window(QMainWindow):
         return self._list(self.FAV_KEY)
 
     def _load_prompts(self):
-        """書く欄の下のボタンを作り直す。お気に入り、直近の言葉の順。どちらも無いときだけ頼みの例を出す"""
+        """書く欄の下のボタンを作り直す。お気に入りは全部、直近の言葉は新しい順に RECENT_CHIPS 個だけ。どちらも無いときだけ頼みの例を出す"""
         while self.tips.count():
             it = self.tips.takeAt(0)
             if it.widget():
@@ -1205,7 +1206,7 @@ class Window(QMainWindow):
         favs = self.favorite_prompts()
         recent = [t for t in self.recent_prompts() if t not in favs]
         self.chip_texts = favs + recent   # ↑↓ で呼び出す順
-        rows = [(t, True) for t in favs] + [(t, False) for t in recent] or [(t, None) for t in self.EXAMPLES]
+        rows = [(t, True) for t in favs] + [(t, False) for t in recent[:self.RECENT_CHIPS]] or [(t, None) for t in self.EXAMPLES]
         for text, fav in rows:
             chip = QPushButton(("★ " if fav else "") + (text if len(text) <= 24 else text[:23] + "…"))
             chip.setObjectName("suggest")

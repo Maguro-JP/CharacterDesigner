@@ -2040,12 +2040,18 @@ class UsabilityFixTest(unittest.TestCase):
             for i in range(30):
                 w._remember_prompt(f"言葉 {i}")
             self.assertIn("★ 海の女性", self._chips(w))                       # 直近が増えてもお気に入りは消えない
+            self.assertEqual(self._chips(w), ["★ 海の女性"] + [f"言葉 {i}" for i in range(29, 29 - w.RECENT_CHIPS, -1)])  # 直近は新しい順に 10 個だけ
+            self.assertEqual(w.chip_texts[1:], [t for t in w.recent_prompts() if t != "海の女性"])  # ↑↓ は 10 個より古い言葉も呼べる
             self.assertEqual(len(w.recent_prompts()), w.PROMPT_MAX)
             w.entry.clear()
             w.eventFilter(w.entry, QKeyEvent(QEvent.KeyPress, Qt.Key_Up, Qt.NoModifier))
             self.assertEqual(w.entry.text(), "海の女性")                       # ↑ はお気に入りから
             w.forget_prompt("海の女性")
             self.assertNotIn("★ 海の女性", self._chips(w))
+            for i in range(12):
+                w.pin_prompt(f"固定 {i}")
+            self.assertEqual(sum(c.startswith("★ ") for c in self._chips(w)), 12)  # お気に入りは数を限らず全部出す
+            self.assertEqual(len(self._chips(w)), 12 + w.RECENT_CHIPS)
             w.settings.store.remove(w.PROMPT_KEY)
             w.settings.store.remove(w.FAV_KEY)
 
