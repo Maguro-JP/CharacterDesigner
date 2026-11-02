@@ -200,7 +200,7 @@ class MenuTest(Base):
     def test_every_builtin_is_pressed_in_these_tests(self):
         """アプリにある項目を足したら、押して流す試験にも足す（押して確かめていない項目を出さない）"""
         from chatdraw import shortcuts
-        pressed = set(PIXEL_CHANGES) | set(RETOUCH) | set(MODEL_ITEMS)
+        pressed = set(PIXEL_CHANGES) | set(RETOUCH) | set(MODEL_ITEMS) | {"app:transparent"}
         self.assertEqual({s.id for s in shortcuts.builtins(self.w)}, pressed)
 
     def test_no_model_disables_model_items_with_reason(self):
@@ -283,6 +283,19 @@ class ModelFreeTest(Base):
                 self.assertEqual(len(self.w.canvas.layers), n + 1)
                 want = finishers.RETOUCH_FULL if sid.endswith("full") else finishers.RETOUCH_SAFE
                 self.assertEqual([r["step"] for r in finishers.LAST_REPORT["steps"]], list(want))
+
+    def test_transparent_puts_cut_on_new_top_layer(self):
+        """透過は元の絵を残し、透明の地の絵を一番上の新しいレイヤーに置く（切り抜きの部品が無い所では地の色を抜く）"""
+        from unittest import mock
+        self.w.edit_image(str(self.src))
+        n = len(self.w.canvas.layers)
+        with mock.patch("chatdraw.paths.use_tools_gen", side_effect=ImportError("no rembg")):
+            self.press("app:transparent")
+        self.assertEqual(len(self.w.canvas.layers), n + 1)
+        top = self.w.canvas.layers[-1]
+        self.assertEqual(top.name, "透過")
+        self.assertEqual(top.image.pixelColor(0, 0).alpha(), 0)
+        self.assertEqual(top.image.pixelColor(48, 64).alpha(), 255)
 
     def test_remove_background_makes_corners_clear_and_keeps_figure(self):
         self.press("app:nobg")

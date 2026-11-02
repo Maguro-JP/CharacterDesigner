@@ -212,18 +212,18 @@ class LayoutTest(unittest.TestCase):
             tabs.bar.moveTab(0, 2)                            # ドラッグでの並べ替えと同じ呼び方
             moved = tabs.order()
             self.assertNotEqual(moved, first)
-            dock = tabs.pull_out("模型", QPoint(200, 200))      # 欄の外へ出す
+            dock = tabs.pull_out("作風", QPoint(200, 200))      # 欄の外へ出す
             self.assertIsNotNone(dock)
-            self.assertNotIn("模型", tabs.order())
+            self.assertNotIn("作風", tabs.order())
             self.assertTrue(dock.isFloating())
             w.tabifyDockWidget(w.panels["layers"][0], dock)   # 別の欄に入れる（重ねてタブにまとめる）
             w.close()
             # 次の起動で戻る
             w2 = Window(Studio(FakeWords(), FakePainter(), Path(d)))
-            self.assertIn("模型", w2.ai_tabs.docks)
-            self.assertEqual(w2.ai_tabs.order(), [n for n in moved if n != "模型"])
-            w2.ai_tabs.docks["模型"].close()                     # 閉じると AI の欄のタブに戻る
-            self.assertIn("模型", w2.ai_tabs.order())
+            self.assertIn("作風", w2.ai_tabs.docks)
+            self.assertEqual(w2.ai_tabs.order(), [n for n in moved if n != "作風"])
+            w2.ai_tabs.docks["作風"].close()                     # 閉じると AI の欄のタブに戻る
+            self.assertIn("作風", w2.ai_tabs.order())
             self.assertIsNotNone(w2.ai_tabs.pull_out("直す・仕上げ", QPoint(100, 100)))   # タブの名前は描く順の並べ直しで変わった
             w2.reset_layout()                                  # 配置を初期に戻す
             self.assertEqual(w2.ai_tabs.order(), first)
