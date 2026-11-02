@@ -209,6 +209,22 @@ class ActivityPanel(QWidget):
         item.setData(Qt.UserRole, path)
         # 出すのは時刻と頼み（利用者の言葉）だけ。絵の模型に渡した英語の言葉は、書く欄にカーソルを合わせたときに出す
         item.setToolTip(f"{time.strftime('%H:%M')}　{self.text}" if self.text else time.strftime("%H:%M"))
+        # 使った模型・種・大きさは、絵に埋めた記録から足す（後から同じ設定で描き直せるように）
+        try:
+            from chatdraw.finishers import sidecar
+            meta = dict(sidecar(path))
+            if meta.get("model"):
+                from chatdraw.models import image_model
+                try:
+                    meta["model"] = image_model(meta["model"]).name   # 型番ではなく、模型の管理に出る名前で見せる
+                except Exception:
+                    pass
+            info = [f"{k}: {meta[key]}" for k, key in (("模型", "model"), ("種", "seed"), ("大きさ", "size"), ("作風", "style"))
+                    if meta.get(key) not in (None, "")]
+            if info:
+                item.setToolTip(item.toolTip() + "\n" + "\n".join(info))
+        except Exception:   # 記録が読めなくても履歴には出す
+            pass
         self.list.insertItem(0, item)
         return item
 

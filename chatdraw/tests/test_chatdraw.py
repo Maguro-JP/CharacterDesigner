@@ -1224,12 +1224,13 @@ class FixAndBatchTest(unittest.TestCase):
         self.assertEqual(layer.getpixel((5, 150))[3], 0)              # 直していない所は透かす（下のレイヤーを隠さない）
         self.assertEqual(layer.getpixel((50, 50))[3], 255)
 
-    def test_fix_without_marks_does_nothing(self):
+    def test_fix_without_marks_draws_new(self):
+        """直す所が無いのに「直す」のままの頼みは、止めずに新しく描く（赤ペンに引っ張られ続けないように）"""
         self.w.mode.setCurrentIndex(2)
         self.w.entry.setText("直して")
         self.w.send()
-        self.assertIsNone(self.w.thread)
-        self.assertEqual(self.painter.calls, [])
+        self.assertEqual(self.w.mode.currentIndex(), 0)
+        self.assertIsNotNone(self.w.thread)
 
     def test_selection_fix(self):
         from PySide6.QtCore import QRect
