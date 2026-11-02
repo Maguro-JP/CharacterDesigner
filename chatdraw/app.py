@@ -1750,8 +1750,8 @@ class Window(QMainWindow):
         self.batch.append(path)
         bad = getattr(getattr(self, "job_studio", None) or self.studio, "last_flaws", []) if self.job_kind == "fix" else []
         try:
-            if self.job_kind == "chibi":
-                self.put_result(path, "ちびキャラ")
+            if self.job_kind == "chibi":   # 加工なので、置き場の設定によらず今の絵の一番上のレイヤー（履歴にはこの下で足す）
+                self.canvas.place_result(path, "ちびキャラ", grow=True)
             elif self.job_kind == "fix":
                 placed = self._put_fix(path, f"AI の直し {len(self.images)}" + ("（崩れあり）" if bad else ""))
                 if bad and placed:   # 崩れの見つかった直しは見えなくして重ねる。元の絵を壊さず、見るか消すかは利用者が決める
@@ -1862,8 +1862,7 @@ class Window(QMainWindow):
             if isinstance(err, BaseException):
                 self.notify("線画にできませんでした", "error", str(err))
                 return
-            self.put_result(str(path), "線画")
-            self.activity.add(str(path), "線画")
+            self.put_processed(str(path), "線画")
             self.notify("線画にしました", "ok", "新しいレイヤーに重ねました。元の絵は下に残っています")
         self.statusBar().showMessage("線画にしています…")
         self.in_background(work, done)
@@ -1890,8 +1889,7 @@ class Window(QMainWindow):
                 self.notify("ドット絵にできませんでした", "error", str(got))
                 return
             dw, dh = got
-            self.put_result(str(big), "ドット絵")
-            self.activity.add(str(small), f"ドット絵 {dw}×{dh}・{colors} 色")
+            self.put_processed(str(big), "ドット絵", history=str(small), label=f"ドット絵 {dw}×{dh}・{colors} 色")
             self.notify("ドット絵にしました", "ok", f"{dw}×{dh} ドット・{colors} 色。元の大きさの絵は履歴にあります")
         self.statusBar().showMessage("ドット絵にしています…")
         self.in_background(work, done)
@@ -2054,6 +2052,16 @@ class Window(QMainWindow):
             m.exec(self.history.mapToGlobal(pos))
             return None
         m = QMenu(self)
+        from chatdraw import project
+        if str(path).endswith(project.SUFFIX):   # 切り替える前に残した作業。絵ではないので、開く・置き場だけ出す
+            m.addAction("この作業をレイヤーごと開く", lambda: self.show_history_image(path))
+            m.addAction("保存した場所を開く", lambda: self.open_folder(path))
+            m.addSeparator()
+            m.addAction("消す（ごみ箱へ）…", lambda: self.delete_images([path]))
+            if not run:
+                return m
+            m.exec(self.history.mapToGlobal(pos))
+            return None
         m.addAction("この絵を出す", lambda: self.show_history_image(path))
         m.addAction("この絵を出して固定する", lambda: (self.show_history_image(path), self.pin_action.setChecked(True)))
         if self.pin_action.isChecked():
@@ -2190,13 +2198,62 @@ class Window(QMainWindow):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(path).parent)))
 
     def show_history_image(self, path: str):
-        """履歴で選んだ絵をキャンバスに出す。出した絵は「固定」すると、新しく描いても入れ替わらない"""
+        """履歴で選んだ絵をキャンバスに出す。出した絵は「固定」すると、新しく描いても入れ替わらない。
+        出す前に今の作業（レイヤーごと）を履歴に残す。作業ファイルの履歴なら、そのレイヤーのまま開く"""
+        from chatdraw import project
+        if str(path).endswith(project.SUFFIX):
+            if not Path(path).is_file():
+                self.notify("作業を開けません", "error", f"{path}（消したか、動かした作業です）")
+                return
+            self.keep_work()
+            self.open_path(str(path))
+            self._record()
+            return
+        self.keep_work()
         try:
             self.canvas.replace_with_image(path, "AI の絵")
         except ValueError as e:
             self.notify("絵を出せません", "error", f"{e}（消したか、動かした絵です）")
             return
         self._record()
+
+    def keep_work(self) -> str | None:
+        """別の絵に切り替える前に、今の作業をレイヤーごと作業ファイルにして履歴の先頭に残す。返すのは残した置き場。
+        絵 1 枚と空のレイヤーだけ（絵そのものが履歴か元のファイルにある）か、前に残してから何も変えていなければ残さない。
+        前は履歴やライブラリーで別の絵を選ぶと、加工したレイヤーが消え、フォルダーを開かないと戻せなかった"""
+        from chatdraw import project
+        from chatdraw.canvas import blank
+        c = self.canvas
+        if len(c.layers) < 2:
+            return None
+        w, h = c.size_px()
+        empty = blank(w, h)
+        same = lambda im: (im if im.format() == empty.format() else im.convertToFormat(empty.format())) == empty  # noqa: E731
+        if all(same(l.image) for l in c.layers[1:]):   # 比べるのは Qt の中（832×1216 で数ミリ秒）
+            return None
+        sig = (len(c.undo_stack), id(c.undo_stack[-1]) if c.undo_stack else None, len(c.layers), id(c.layers[-1]))
+        if sig == getattr(self, "_kept_sig", None):
+            return None
+        self._kept_sig = sig
+        out = Path(self.settings.get("output_dir"))
+        stamp = time.strftime("%Y%m%d-%H%M%S")
+        path = out / f"{stamp}-work{project.SUFFIX}"
+        n = 1
+        while path.exists():   # 同じ秒に 2 回残しても上書きしない
+            n += 1
+            path = out / f"{stamp}-work-{n}{project.SUFFIX}"
+        snap = project.snapshot(c)
+        self.activity.add(str(path), label=f"切り替える前の作業（レイヤー {len(c.layers)} 枚）", icon=c.flatten())
+
+        def write():   # PNG に縮めて書くのは裏の糸。中身は写し取り済みなので、このあと描いても変わらない
+            out.mkdir(parents=True, exist_ok=True)
+            project.write(snap, path)
+
+        def done(err):
+            if isinstance(err, BaseException):
+                self.notify("切り替える前の作業を残せませんでした", "error", str(err))
+        self.run_io(write, done, "保存")
+        return str(path)
 
     def layer_from_file(self, path: str, name: str) -> bool:
         """絵をレイヤーとして重ねる。読めない絵（消した・動かした）は知らせて止める"""
@@ -2438,14 +2495,13 @@ class Window(QMainWindow):
                 self.notify("透過できませんでした", "error", str(got))
                 return
             path, how = got
-            self.put_result(str(path), "透過")
-            self.dirty = True
+            self.put_processed(str(path), "透過")
             self.notify(how, "ok", "元の絵は下のレイヤーに残しています。下のレイヤーを隠すと透過の絵だけになります")
         self.statusBar().showMessage("透過しています（初めは切り抜きの模型を取ります）…")
         self.in_background(work, done, "透過")
 
     def remove_background(self):
-        """四隅から続く背景の色を透明にした絵で、キャンバスを置き換える（元に戻すで戻せる）。囲みがあれば囲みの中だけ消す"""
+        """四隅から続く背景の色を透明にした絵を、今の絵の一番上の新しいレイヤーに置く（元に戻すで戻せる）。囲みがあれば囲みの中だけ消す"""
         from chatdraw import postfx
         from PIL import ImageChops
         src = qimage_to_pil(self.canvas.flatten()).convert("RGBA")
@@ -2466,9 +2522,8 @@ class Window(QMainWindow):
             if isinstance(got, BaseException):
                 self.notify("背景を消せませんでした", "error", str(got))
                 return
-            self.canvas.replace_with_image(str(got), "背景を消した絵")
-            self.dirty = True
-            self.notify("背景を消しました", "ok", "元に戻すで戻せます")
+            self.put_processed(str(got), "背景を消した絵")
+            self.notify("背景を消しました", "ok", "新しいレイヤーに置きました。下のレイヤーを隠すと背景を消した絵だけになります")
         self.statusBar().showMessage("背景を消しています…")
         self.in_background(work, done)
 
@@ -2806,6 +2861,16 @@ class Window(QMainWindow):
             self.open_in_new_file(path)
             return False
         self.canvas.place_result(path, name, replace=replace)
+        return True
+
+    def put_processed(self, path: str, name: str, history: str | None = None, label: str = "") -> bool:
+        """加工（綺麗にする・仕上げ・透過・背景を消す・エフェクト・線画・ドット絵）の結果を、今の絵の一番上の新しいレイヤーに
+        置いて選び、履歴にも足す。設定「AI の結果の置き場」が「別ファイル」でも新しいウィンドウにしない。大きさの違う結果
+        （拡大）も今のレイヤーを残したまま重ねる。前は別のウィンドウやキャンバスの置き換えになり、加工した絵が今の絵の
+        レイヤーに入らず、別の絵を選ぶと消えて、フォルダーを開かないと戻せなかった。history は履歴に出す絵（既定は path）"""
+        self.canvas.place_result(path, name, grow=True)
+        self.dirty = True
+        self.activity.add(history or path, label=label or name)
         return True
 
     def _put_fix(self, path: str, name: str) -> bool:
@@ -3444,6 +3509,7 @@ class Window(QMainWindow):
         if not Path(path).is_file():
             self.notify("開けませんでした", "error", f"絵が見つかりません: {path}")
             return
+        self.keep_work()   # 切り替える前の作業は履歴に残す
         self.canvas.replace_with_image(path, Path(path).stem)
         self.project_path = None
         self.source_path = str(path)   # 「結合して元の画像に上書き保存」で書き戻す先
@@ -3818,21 +3884,24 @@ class Window(QMainWindow):
         f = finishers.REGISTRY.get(name)
         if f is not None and f.extra.get("effect") and out.size == base.size:
             # エフェクトは変わった画素だけのレイヤーに置く。元の絵の画素は変えず、表示の切り替え・不透明度・消すで扱える
-            layer = finishers.effect_layer(base, out)
-            layer.save(path)
+            # 履歴には掛けた後の絵全体（path）を残し、レイヤーには変わった画素だけの絵（別のファイル）を置く
+            layer_path = path.with_name(path.stem + "-layer.png")
+            finishers.effect_layer(base, out).save(layer_path)
             from chatdraw.canvas import preload
-            preload(path)
-            self.canvas.place_result(str(path), f"エフェクト: {f.label}")   # エフェクトはいつも今の絵の一番上のレイヤー
+            preload(layer_path)
+            self.put_processed(str(layer_path), f"エフェクト: {f.label}", history=str(path))   # エフェクトはいつも今の絵の一番上のレイヤー
             s = finishers.LAST_STRENGTH.get("strength")
             self.notify("エフェクトを新しいレイヤーに置きました", "ok",
                         (f"この絵に合わせた強さ {s}。" if s else "") + "レイヤーの欄で表示・不透明度を変えたり、消したりできます")
             return path
+        label = f.label if f is not None else name
         if out.size == base.size:
-            self.put_result(str(path), "綺麗にした絵")   # 元の絵は下に残す
-            self.canvas.fit()   # 結果は全体表示で見せる
+            self.put_processed(str(path), "綺麗にした絵", label=label)   # 元の絵は下に残す
         else:
-            self.put_result(str(path), "綺麗にした絵（拡大）", replace=True)   # 拡大した絵（元に戻すで戻せる）
-        self.notify("綺麗にしました（新しいレイヤー）", "ok", "見比べて、使うか消すかを決めてください")
+            # 拡大した絵も今の絵のレイヤーに重ねる。下のレイヤーは同じ大きさに広げて残す（元に戻すで前の大きさに戻せる）
+            self.put_processed(str(path), "綺麗にした絵（拡大）", label=label)
+        self.canvas.fit()   # 結果は全体表示で見せる
+        self.notify("綺麗にしました（新しいレイヤー）", "ok", "見比べて、使うか消すかを決めてください。履歴の「描いた絵」にも入れました")
         return path
 
     def outpaint_canvas(self, left: int, top: int, right: int, bottom: int, background: bool = False):
@@ -3909,6 +3978,8 @@ class Window(QMainWindow):
 
     def open_path(self, path: str, restore: bool = False):
         from chatdraw import project
+        if not restore:   # 開く前に、今の作業をレイヤーごと履歴に残す（ライブラリー・開くで別の絵にしても失わない）
+            self.keep_work()
         if path.endswith(project.SUFFIX):
             # 読んで PNG を戻すのは裏の糸。置くのは画面の糸（レイヤーが多いと 0.1 秒を超えた）
             def done(got):
@@ -3921,7 +3992,14 @@ class Window(QMainWindow):
             self.run_io(lambda: project.read(path), done, "読み込み")
             return
         else:
-            self.canvas.show_image(path)
+            if self.canvas.layers:   # 今の絵から開くときは置き換え（元に戻すで戻せる）。前は元に戻すの履歴ごと消えた
+                try:
+                    self.canvas.replace_with_image(path, "絵")
+                except ValueError as e:
+                    self.notify("開けませんでした", "error", str(e))
+                    return
+            else:
+                self.canvas.show_image(path)
             self.project_path = None
             self.source_path = str(path)
         self.dirty = False

@@ -232,16 +232,32 @@ class Canvas(QGraphicsView):
         self.rebuild()
         self.fit()
 
-    def place_result(self, path: str, name: str, replace: bool = False):
+    def _grow_and_place(self, img: QImage, name: str):
+        """大きさの違う加工の結果（拡大など）を、今のレイヤーを結果の大きさに合わせて残したまま一番上に置いて選ぶ。
+        キャンバスを結果 1 枚に置き換えると、それまでのレイヤーが消えて新しい絵に見えた。元に戻すで前の大きさに戻せる"""
+        w, h = img.width(), img.height()
+        self.snapshot_all()
+        grown = [Layer(l.name, l.image.scaled(w, h, Qt.IgnoreAspectRatio, Qt.SmoothTransformation), l.visible, l.opacity, l.locked)
+                 for l in self.layers]
+        self.layers = grown + [Layer(name, img)]
+        self.current = len(self.layers) - 1
+        self.set_selection(None)
+        self.rebuild()
+        self.fit()
+
+    def place_result(self, path: str, name: str, replace: bool = False, grow: bool = False):
         """AI が描いた・直した・加工した結果を、一番上の新しいレイヤーに置いて選ぶ。
         前は結果を一番下に入れて空のレイヤーを上に選んでいたため、結果が出たことに気づけなかった。
         replace は新しく描いた絵・大きさの変わる結果（拡大・広げる）で、キャンバスを結果 1 枚に置き換える
-        （大きさの違う前の絵とは重ねられない）。どちらも前の状態は「元に戻す」で戻せる"""
+        （大きさの違う前の絵とは重ねられない）。grow は加工の結果で、大きさが違っても置き換えず、今のレイヤーを結果の大きさに
+        合わせて残したまま一番上に置く。どちらも前の状態は「元に戻す」で戻せる"""
         img = _load(path)
         if not self.layers:
             self._reset([Layer(name, img)], 0)
             return
         resized = (img.width(), img.height()) != self.size_px()
+        if grow and not replace and resized:
+            return self._grow_and_place(img, name)
         if not replace and resized:
             return self.add_image_layer(path, name)   # 大きさだけ違う結果は、キャンバスに合わせて一番上に重ねる
         self.snapshot_all()

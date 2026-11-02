@@ -201,14 +201,17 @@ class ActivityPanel(QWidget):
     def idle_check(self):
         self._show_alive()
 
-    def add(self, path: str, prompt: str = "") -> QListWidgetItem:
-        """できた 1 枚を履歴の先頭に足す（何枚もまとめて描くときは 1 枚ずつ）"""
+    def add(self, path: str, prompt: str = "", label: str = "", icon=None) -> QListWidgetItem:
+        """できた 1 枚を履歴の先頭に足す（何枚もまとめて描くときは 1 枚ずつ）。label は加工の名前など、頼みの代わりに出す言葉。
+        icon は絵ではないもの（作業ファイル）の見本の QImage"""
         item = QListWidgetItem("")
         item.setSizeHint(QSize(92, 132))
-        item.setIcon(QIcon(QPixmap(path).scaledToHeight(184, Qt.SmoothTransformation)))
+        pix = QPixmap.fromImage(icon) if icon is not None else QPixmap(path)
+        item.setIcon(QIcon(pix.scaledToHeight(184, Qt.SmoothTransformation)))
         item.setData(Qt.UserRole, path)
         # 出すのは時刻と頼み（利用者の言葉）だけ。絵の模型に渡した英語の言葉は、書く欄にカーソルを合わせたときに出す
-        item.setToolTip(f"{time.strftime('%H:%M')}　{self.text}" if self.text else time.strftime("%H:%M"))
+        words = label or self.text
+        item.setToolTip(f"{time.strftime('%H:%M')}　{words}" if words else time.strftime("%H:%M"))
         # 使った模型・種・大きさは、絵に埋めた記録から足す（後から同じ設定で描き直せるように）
         try:
             from chatdraw.finishers import sidecar
