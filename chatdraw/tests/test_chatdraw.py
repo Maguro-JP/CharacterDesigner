@@ -2035,15 +2035,15 @@ class UsabilityFixTest(unittest.TestCase):
             self.assertEqual(self._chips(w), ["ビキニの女性", "海の女性"])    # 例の所が直近の言葉になる（新しい順、重ねない）
             w.entry.setText("海の女性")
             w._toggle_fav()                                                  # ☆ で固定
-            self.assertEqual(self._chips(w), ["★ 海の女性", "ビキニの女性"])  # お気に入りが先頭
+            self.assertEqual(self._chips(w), ["★ 海の女性", "ビキニの女性"])  # 登録した言葉が先頭
             self.assertEqual(w.fav_button.text(), "★")
             for i in range(30):
                 w._remember_prompt(f"言葉 {i}")
-            self.assertIn("★ 海の女性", self._chips(w))                       # 直近が増えてもお気に入りは消えない
+            self.assertIn("★ 海の女性", self._chips(w))                       # 直近が増えても登録した言葉は消えない
             self.assertEqual(len(w.recent_prompts()), w.PROMPT_MAX)
             w.entry.clear()
             w.eventFilter(w.entry, QKeyEvent(QEvent.KeyPress, Qt.Key_Up, Qt.NoModifier))
-            self.assertEqual(w.entry.text(), "海の女性")                       # ↑ はお気に入りから
+            self.assertEqual(w.entry.text(), "海の女性")                       # ↑ は登録した言葉から
             w.forget_prompt("海の女性")
             self.assertNotIn("★ 海の女性", self._chips(w))
             w.settings.store.remove(w.PROMPT_KEY)

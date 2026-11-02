@@ -36,7 +36,8 @@ class NoJsonTest(unittest.TestCase):
 
     def test_no_json_in_output(self):
         path = self._draw()
-        self.assertEqual([p.name for p in self.out.iterdir()], [path.name])   # 保存先には絵だけ
+        self.assertEqual([p.name for p in self.out.iterdir()], [path.parent.name])   # 保存先には日付のフォルダだけ
+        self.assertEqual([p.name for p in path.parent.iterdir()], [path.name])      # その中は絵だけ
         from chatdraw import finishers
         self.assertTrue((finishers.record_dir(path) / "check.json").exists())
         self.assertTrue(str(finishers.record_dir(path)).startswith(str(self.home)))

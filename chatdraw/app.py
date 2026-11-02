@@ -635,8 +635,8 @@ class Window(QMainWindow):
         line = self.ai_panel.draw_bar   # 描くボタンはタブの外。どのタブからも押せる
         line.addWidget(self.button, 1)
         line.addWidget(self.stop_button)
-        # 書く欄の下のボタン。お気に入り（★、固定）を先に、そのあとに直近に頼んだ言葉を新しい順に並べる。
-        # 押すと書く欄に入り、ダブルクリックでそのまま描く。右クリックで固定・外す・消す。書く欄で ↑↓ でも呼び出せる
+        # 書く欄の下のボタン。登録した言葉（★）を先に、そのあとに直近に頼んだ言葉を新しい順に並べる。
+        # 押すと書く欄に入り、ダブルクリックでそのまま描く。右クリックで登録・外す・消す。書く欄で ↑↓ でも呼び出せる
         # 音声入力。Windows の音声入力（Win+H）を書く欄で開く。話した言葉が書く欄に入る（模型を足さずに済む）
         self.mic_button = QPushButton("🎤")
         self.mic_button.setFixedWidth(40)
@@ -647,54 +647,59 @@ class Window(QMainWindow):
         line.addWidget(self.mic_button)
         self.mic_button.setVisible(voice.available())
         self.fav_button = QPushButton("☆")
-        self.fav_button.setToolTip("書く欄の言葉をお気に入りに固定する")
+        self.fav_button.setToolTip("書く欄の言葉を描くワードに登録する（もう一度押すと外す）")
         self.fav_button.setFixedWidth(40)
         self.fav_button.clicked.connect(self._toggle_fav)
         self.entry.textChanged.connect(lambda: self.fav_button.setText(
             "★" if (t := self.entry.text().strip()) and t in self.favorite_prompts() else "☆"))
         line.addWidget(self.fav_button)
-        self.tips = QHBoxLayout()
-        self.tips.setSpacing(4)
+        from chatdraw.flowlayout import FlowLayout
+        from PySide6.QtWidgets import QSizePolicy
+        # 登録・履歴のボタンは欄の横幅で折り返して並べる（横 1 行だと欄からはみ出し、奥のボタンが見えなかった）
+        self.tips = FlowLayout()
         tips_box = QWidget()
         tips_box.setLayout(self.tips)
-        from PySide6.QtWidgets import QScrollArea
-        tips_scroll = QScrollArea()   # ボタンは横に流す。狭い画面でチャットの欄の幅を広げさせない
-        tips_scroll.setWidget(tips_box)
-        tips_scroll.setWidgetResizable(True)
-        tips_scroll.setFrameShape(QScrollArea.NoFrame)
-        tips_scroll.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        # 横の流す棒は出さない（棒がボタンの下に出て欄がはみ出して見えた）。ホイールで横に流す
-        tips_scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        from chatdraw.wheelguard import side_wheel
-        side_wheel(tips_scroll)
         tips_box.setObjectName("scrollInner")
-        self.tips_scroll = tips_scroll
+        self.tips_scroll = tips_box
         self.entry.installEventFilter(self)
         self._load_prompts()
-        tips_scroll.setFixedHeight(QPushButton("あ").sizeHint().height() + 4)
-        # 指示のタブの並び: 模型、描くワード、描くワードのお気に入り、禁止ワード、禁止ワードの固定値
-        from PySide6.QtWidgets import QSizePolicy
+        # 禁止ワードの登録。描くワードの登録と同じく、押すと禁止ワードの欄に入る。設定に残すので更新でも消えない
+        self.neg_fav_button = QPushButton("☆")
+        self.neg_fav_button.setFixedWidth(40)
+        self.neg_fav_button.setToolTip("禁止ワードの欄の言葉を登録する（もう一度押すと外す）")
+        self.neg_fav_button.clicked.connect(self._toggle_neg_fav)
+        self.ai_panel.negative.textChanged.connect(lambda _t: self.neg_fav_button.setText(
+            "★" if (t := self.ai_panel.negative.text().strip()) and t in self.negative_presets() else "☆"))
+        self.neg_tips = FlowLayout()
+        neg_box = QWidget()
+        neg_box.setLayout(self.neg_tips)
+        neg_box.setObjectName("scrollInner")
+        self.neg_tips_box = neg_box
+        self._load_negatives()
+        # 指示のタブの並び: 模型、描くワード、描くワードの登録、禁止ワード、禁止ワードの登録
         model_head = QLabel("模型")
         model_head.setObjectName("sectionHead")
         model_row = QHBoxLayout()
         model_row.setContentsMargins(0, 0, 0, 0)
         model_row.addWidget(self.model_label)
-        self.fixed_negative = QLabel("")
-        self.fixed_negative.setObjectName("hint")
-        self.fixed_negative.setWordWrap(True)
-        self.fixed_negative.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.fixed_negative.setToolTip("模型ごとに必ず足す禁止ワードです。上の欄の言葉はこれに足して渡します")
-        for wdg in (model_head, neg_head, self.ai_panel.negative, self.fixed_negative):
+        word_head = QLabel("描くワード")
+        word_head.setObjectName("sectionHead")
+        word_head.setToolTip("描きたい絵を言葉で書きます。下のボタンは登録した言葉と、前に頼んだ言葉です")
+        neg_row = QHBoxLayout()
+        neg_row.setContentsMargins(0, 0, 0, 0)
+        neg_row.addWidget(self.ai_panel.negative, 1)
+        neg_row.addWidget(self.neg_fav_button)
+        for wdg in (model_head, word_head, neg_head, self.ai_panel.negative):
             wdg.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         tl.addWidget(model_head)
         tl.addLayout(model_row)
         self._lora_row()
+        tl.addWidget(word_head)
         tl.addWidget(self.entry)
-        tl.addWidget(tips_scroll)
+        tl.addWidget(tips_box)
         tl.addWidget(neg_head)
-        tl.addWidget(self.ai_panel.negative)
-        tl.addWidget(self.fixed_negative)
-        self._show_fixed_negative()
+        tl.addLayout(neg_row)
+        tl.addWidget(neg_box)
         # 真ん中の下: チャット。吹き出しの会話と、複数行の書く欄
         talk = QDockWidget("チャット", self)
         talk.setWidget(self.chat)
@@ -1197,7 +1202,7 @@ class Window(QMainWindow):
         return self._list(self.FAV_KEY)
 
     def _load_prompts(self):
-        """書く欄の下のボタンを作り直す。お気に入り、直近の言葉の順。どちらも無いときだけ頼みの例を出す"""
+        """書く欄の下のボタンを作り直す。登録した言葉、直近の言葉の順。どちらも無いときだけ頼みの例を出す"""
         while self.tips.count():
             it = self.tips.takeAt(0)
             if it.widget():
@@ -1211,21 +1216,20 @@ class Window(QMainWindow):
             chip.setObjectName("suggest")
             chip.setCursor(Qt.PointingHandCursor)
             chip.setProperty("prompt", text)
-            chip.setToolTip(text + ("\n押すと書く欄に入り、ダブルクリックでもう一度描きます。右クリックで固定・消す" if fav is not None else ""))
+            chip.setToolTip(text + ("\n押すと書く欄に入り、ダブルクリックでもう一度描きます。右クリックで登録・外す・消す" if fav is not None else ""))
             chip.clicked.connect(lambda _=False, t=text: (self.entry.setText(t), self.entry.setFocus()))
             if fav is not None:
                 chip.setContextMenuPolicy(Qt.CustomContextMenu)
                 chip.customContextMenuRequested.connect(lambda pos, c=chip, t=text, f=fav: self._chip_menu(c, pos, t, f))
                 chip.installEventFilter(self)
             self.tips.addWidget(chip)
-        self.tips.addStretch()
         self.fav_button.setText("★" if self.entry.text().strip() in favs and self.entry.text().strip() else "☆")
         self._prompt_pos = -1
 
     def _chip_menu(self, chip, pos, text: str, fav: bool):
         from PySide6.QtWidgets import QMenu
         m = QMenu(self)
-        m.addAction("お気に入りから外す" if fav else "お気に入りに固定する", lambda: (self.unpin_prompt(text) if fav else self.pin_prompt(text)))
+        m.addAction("登録から外す" if fav else "描くワードに登録する", lambda: (self.unpin_prompt(text) if fav else self.pin_prompt(text)))
         m.addAction("この言葉ですぐ描く", lambda: (self.entry.setText(text), self.send()))
         m.addAction("一覧から消す", lambda: self.forget_prompt(text))
         m.exec(chip.mapToGlobal(pos))
@@ -1239,14 +1243,14 @@ class Window(QMainWindow):
         self._save(self.PROMPT_KEY, [text] + [t for t in self.recent_prompts() if t != text], self.PROMPT_MAX)
 
     def pin_prompt(self, text: str):
-        """お気に入りに固定する。お気に入りは数を限らず、消すまで残す"""
+        """描くワードに登録する。登録は数を限らず、外すまで残す"""
         if not text:
-            self.notify("固定する言葉がありません", "info", "書く欄に言葉を書いてから ☆ を押します")
+            self.notify("登録する言葉がありません", "info", "書く欄に言葉を書いてから ☆ を押します")
             return
         favs = self.favorite_prompts()
         if text not in favs:
             self._save(self.FAV_KEY, favs + [text])
-            self.statusBar().showMessage(f"お気に入りに固定しました: {text}", 4000)
+            self.statusBar().showMessage(f"描くワードに登録しました: {text}", 4000)
 
     def select_tool(self, key: str):
         """道具を持ち替える（初めの道具や配置を変えたとき）。利用者が押したときと違い、初めて使うときの案内は出さない"""
@@ -1299,25 +1303,69 @@ class Window(QMainWindow):
             return True
         return False
 
-    def _show_fixed_negative(self):
-        """禁止ワードの固定値（今の模型が必ず足す言葉）を、禁止ワードの欄の下に出す"""
-        lab = getattr(self, "fixed_negative", None)
-        if lab is None:
+    NEG_KEY = "prompts/negatives"
+
+    def negative_presets(self) -> list[str]:
+        return self._list(self.NEG_KEY)
+
+    def _load_negatives(self):
+        """禁止ワードの欄の下のボタン（登録した禁止ワード）を作り直す"""
+        while self.neg_tips.count():
+            it = self.neg_tips.takeAt(0)
+            if it.widget():
+                it.widget().deleteLater()
+        for text in self.negative_presets():
+            chip = QPushButton("★ " + (text if len(text) <= 24 else text[:23] + "…"))
+            chip.setObjectName("suggest")
+            chip.setCursor(Qt.PointingHandCursor)
+            chip.setProperty("negative", text)
+            chip.setToolTip(text + "\n押すと禁止ワードの欄に足します。右クリックで外す・この言葉だけにする")
+            chip.clicked.connect(lambda _=False, t=text: self._use_negative(t))
+            chip.setContextMenuPolicy(Qt.CustomContextMenu)
+            chip.customContextMenuRequested.connect(lambda pos, c=chip, t=text: self._neg_chip_menu(c, pos, t))
+            self.neg_tips.addWidget(chip)
+        self.neg_tips_box.setVisible(bool(self.negative_presets()))
+        t = self.ai_panel.negative.text().strip()
+        self.neg_fav_button.setText("★" if t and t in self.negative_presets() else "☆")
+
+    def _use_negative(self, text: str):
+        """登録した禁止ワードを欄に足す。もう入っている言葉は重ねない"""
+        cur = self.ai_panel.negative.text().strip()
+        if not cur:
+            self.ai_panel.negative.setText(text)
+        elif text not in cur:
+            self.ai_panel.negative.setText(cur + "、" + text)
+        self.ai_panel.negative.setFocus()
+
+    def _neg_chip_menu(self, chip, pos, text: str):
+        from PySide6.QtWidgets import QMenu
+        m = QMenu(self)
+        m.addAction("禁止ワードの欄に足す", lambda: self._use_negative(text))
+        m.addAction("この言葉だけにする", lambda: self.ai_panel.negative.setText(text))
+        m.addAction("登録から外す", lambda: self.unpin_negative(text))
+        m.exec(chip.mapToGlobal(pos))
+
+    def pin_negative(self, text: str):
+        """禁止ワードを登録する。数を限らず、外すまで残す"""
+        if not text:
+            self.notify("登録する禁止ワードがありません", "info", "禁止ワードの欄に言葉を書いてから ☆ を押します")
             return
-        try:
-            from chatdraw.engine import negative_for
-            from chatdraw.models import image_model
-            from chatdraw.setup import AUTO
-            key = self.settings.get("image_model")
-            if key == AUTO or not key:   # おまかせは今読んでいる模型の値を出す
-                key = getattr(getattr(getattr(self, "studio", None), "painter", None), "model", "")
-            info = image_model(key) if key else None
-            base = negative_for(info, "")
-        except Exception:   # 模型の札が読めないときも欄は出す（何も出ないと固定値が無いように見える）
-            base = "lowres, worst quality, low quality"
-        # 長いので欄には頭だけを出し、全部はカーソルを合わせたときに出す（欄を縦に取りすぎない）
-        lab.setText("固定: " + (base if len(base) <= 48 else base[:48].rsplit(",", 1)[0] + " …"))
-        lab.setToolTip("模型ごとに必ず足す禁止ワードです。上の欄の言葉はこれに足して渡します。\n" + base)
+        presets = self.negative_presets()
+        if text not in presets:
+            self.settings.store.setValue(self.NEG_KEY, presets + [text])
+            self.statusBar().showMessage(f"禁止ワードを登録しました: {text}", 4000)
+        self._load_negatives()
+
+    def unpin_negative(self, text: str):
+        self.settings.store.setValue(self.NEG_KEY, [t for t in self.negative_presets() if t != text])
+        self._load_negatives()
+
+    def _toggle_neg_fav(self):
+        text = self.ai_panel.negative.text().strip()
+        if text and text in self.negative_presets():
+            self.unpin_negative(text)
+        else:
+            self.pin_negative(text)
 
     def _apply_avoid(self):
         """AI の欄の禁止ワードを絵の模型に渡す。描く・直す・ちびキャラ・広げる・綺麗にするのどの経路も painter.avoid を読む。
@@ -1479,7 +1527,6 @@ class Window(QMainWindow):
             self.model_label.setToolTip(f"おまかせで選んだ理由: {chosen[1]}" if chosen else "描くときに、手元の模型から頼みに合う物を選びます")
         else:
             self.model_label.setText(f"絵の模型: {image_model(key).name}")
-        self._show_fixed_negative()
 
     def _fit_features(self):
         """選んだ模型の世代で使えない機能（ラフから、直す、参考画像）のボタンを止め、理由を出す"""
@@ -1851,7 +1898,7 @@ class Window(QMainWindow):
         from chatdraw import postfx
         self.feature_tour("lineart")
         src = qimage_to_pil(self.canvas.flatten())
-        out = Path(self.settings.get("output_dir"))
+        out = Path(self.settings.get("output_dir")) / time.strftime("%Y-%m-%d")
         path = out / f"{time.strftime('%Y%m%d-%H%M%S')}-lineart.png"
 
         def work():   # 線を取り出して書くのは裏の糸（832×1216 で 0.4 秒ほど固まった）
@@ -1873,7 +1920,7 @@ class Window(QMainWindow):
         from chatdraw import postfx
         self.feature_tour("pixel")
         img = qimage_to_pil(self.canvas.flatten())
-        out = Path(self.settings.get("output_dir"))
+        out = Path(self.settings.get("output_dir")) / time.strftime("%Y-%m-%d")
         stamp = time.strftime("%Y%m%d-%H%M%S")
         small = out / f"{stamp}-pixel.png"
         big = out / f"{stamp}-pixel-view.png"
@@ -2063,7 +2110,7 @@ class Window(QMainWindow):
         m.addSeparator()
         m.addAction("この設定で描き直す", lambda: self.redo_from(path))
         m.addAction("頼みの言葉を書く欄に入れる", lambda: self._prompt_from(path))
-        m.addAction("お気に入りの言葉にする", lambda: self._prompt_from(path, pin=True))
+        m.addAction("頼みの言葉を描くワードに登録する", lambda: self._prompt_from(path, pin=True))
         from chatdraw import ownstyle
         m.addAction("★ お気に入りを外す" if ownstyle.is_favorite(path) else "★ お気に入りにする", lambda: ownstyle.toggle(path))
         m.addAction("学習用に集める", self.collect_favorites)
@@ -3681,7 +3728,7 @@ class Window(QMainWindow):
         return m
 
     def _logo_folder(self, kind: str) -> Path:
-        return Path(self.settings.get("output_dir")) / kind / time.strftime("%Y%m%d-%H%M%S")
+        return Path(self.settings.get("output_dir")) / time.strftime("%Y-%m-%d") / kind / time.strftime("%Y%m%d-%H%M%S")
 
     def logo_make(self, name=None, mood: str = "", colors: str = ""):
         """頼み（名前、雰囲気、色）からロゴのマークを AI に描かせ、整えた版を書き出す"""
@@ -3795,7 +3842,10 @@ class Window(QMainWindow):
         return False, "その道具はありません"
 
     def _finished_path(self, name: str) -> Path:
-        return Path(self.settings.get("output_dir")) / f"{time.strftime('%Y%m%d-%H%M%S')}-{name}.png"
+        # 日付ごとのフォルダに分ける（1 つのフォルダに絵が溜まり続け、探せなくなった）。前に保存した絵は動かさない
+        day = Path(self.settings.get("output_dir")) / time.strftime("%Y-%m-%d")
+        day.mkdir(parents=True, exist_ok=True)
+        return day / f"{time.strftime('%Y%m%d-%H%M%S')}-{name}.png"
 
     @staticmethod
     def _save_out(out, path: Path, meta: dict | None = None):

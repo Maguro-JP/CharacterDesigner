@@ -1372,8 +1372,9 @@ class Studio:
         import time
         from PIL import PngImagePlugin
         from chatdraw.finishers import KEY
-        self.out.mkdir(parents=True, exist_ok=True)
-        path = self.out / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}.png"   # 種を固定して描き直しても前の絵を消さない
+        day = self.out / time.strftime("%Y-%m-%d")   # 日付ごとのフォルダに分ける。前に保存した絵は動かさない
+        day.mkdir(parents=True, exist_ok=True)
+        path = day / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}.png"   # 種を固定して描き直しても前の絵を消さない
         info = PngImagePlugin.PngInfo()
         info.add_itxt(KEY, json.dumps(meta, ensure_ascii=False, default=str))
         image.save(path, pnginfo=info)

@@ -276,24 +276,20 @@ class OverflowTest(unittest.TestCase):
                     self.assertIsInstance(box, QScrollArea)
                     self.assertFalse(box.verticalScrollBar().isVisible(), (name, k, d.height(), layouts.need(w, k)))
 
-    def test_prompt_buttons_scroll_sideways_without_bar(self):
-        from PySide6.QtCore import QPoint, QPointF
-        from PySide6.QtGui import QWheelEvent
-        from PySide6.QtWidgets import QApplication
+    def test_prompt_buttons_wrap_in_panel(self):
+        """書く欄の下のボタンは横に流さず、欄の横幅で折り返して全部見せる"""
+        from PySide6.QtWidgets import QPushButton
         with TemporaryDirectory() as tmp:
             w = fresh(tmp)
             for i in range(12):
                 w._remember_prompt(f"長い頼みの言葉 その {i} 赤いマフラーの女の子")
             w._load_prompts()
-            w.tips_scroll.resize(200, w.tips_scroll.height())
             spin(5)
-            bar = w.tips_scroll.horizontalScrollBar()
-            self.assertGreater(bar.maximum(), 0)
-            self.assertFalse(bar.isVisible())
-            ev = QWheelEvent(QPointF(10, 10), QPointF(10, 10), QPoint(), QPoint(0, -120), Qt.NoButton, Qt.NoModifier,
-                             Qt.NoScrollPhase, False)
-            QApplication.sendEvent(w.tips_scroll.viewport(), ev)
-            self.assertGreater(bar.value(), 0)
+            box = w.tips_scroll
+            for i in range(w.tips.count()):
+                g = w.tips.itemAt(i).geometry()
+                self.assertLessEqual(g.right(), box.width(), i)
+            self.assertGreater(box.height(), QPushButton("あ").sizeHint().height() * 2)
             for i in range(12):   # 利用者の設定に残さない
                 w.forget_prompt(f"長い頼みの言葉 その {i} 赤いマフラーの女の子")
 
