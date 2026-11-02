@@ -167,6 +167,9 @@ def builtins(w) -> list[Shortcut]:
         Shortcut("app:nobg", "背景を消す", "convert",
                  "四隅から続く背景の色を透明にします。囲んだときは囲みの中だけ消します（模型は使いません）",
                  True, "", w.remove_background),
+        Shortcut("app:transparent", "透過（人物を切り抜く）", "convert",
+                 "背景を透明にして人物だけを切り抜き、新しいレイヤーに重ねます。髪の房まで抜けます（切り抜きの模型 約 176MB を初めに取ります）",
+                 True, "", w.make_transparent),
         Shortcut("app:chibi", "ちびキャラにする", "convert", "AI が今の絵をちびキャラに描き直し、新しいレイヤーに重ねます",
                  model_ok, model_why, w.make_chibi),
     ]

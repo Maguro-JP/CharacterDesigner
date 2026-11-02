@@ -2406,6 +2406,45 @@ class Window(QMainWindow):
         self._shortcut_dialog = dlg
         return dlg
 
+    def make_transparent(self):
+        """透過。人物を切り抜いた透明の地の絵を、一番上の新しいレイヤーに置く（元の絵は残す）。
+        切り抜きはアニメの切り抜きの模型（tools/gen/layers.anime_cut、isnet-anime）で行う。部品が無いときは、
+        四隅から続く地の色を透明にする方法に替えて、替えたことを知らせる"""
+        import tempfile
+        src = qimage_to_pil(self.canvas.flatten()).convert("RGB")
+        fd, tmp = tempfile.mkstemp(suffix=".png")
+        os.close(fd)
+        src.save(tmp)
+        out = self._finished_path("transparent")
+
+        def work():
+            how = "人物を切り抜きました"
+            try:
+                from chatdraw import paths
+                paths.use_tools_gen()
+                import layers as gen_layers
+                cut = gen_layers.anime_cut(tmp)
+            except ImportError:
+                from chatdraw import logo
+                cut = logo.remove_background(src)
+                how = "切り抜きの部品が無いので、四隅から続く地の色を透明にしました"
+            finally:
+                Path(tmp).unlink(missing_ok=True)
+            out.parent.mkdir(parents=True, exist_ok=True)
+            cut.save(out)
+            return out, how
+
+        def done(got):
+            if isinstance(got, BaseException):
+                self.notify("透過できませんでした", "error", str(got))
+                return
+            path, how = got
+            self.put_result(str(path), "透過")
+            self.dirty = True
+            self.notify(how, "ok", "元の絵は下のレイヤーに残しています。下のレイヤーを隠すと透過の絵だけになります")
+        self.statusBar().showMessage("透過しています（初めは切り抜きの模型を取ります）…")
+        self.in_background(work, done, "透過")
+
     def remove_background(self):
         """四隅から続く背景の色を透明にした絵で、キャンバスを置き換える（元に戻すで戻せる）。囲みがあれば囲みの中だけ消す"""
         from chatdraw import postfx
