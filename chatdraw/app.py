@@ -2253,6 +2253,10 @@ class Window(QMainWindow):
         if "redpen" in self.tool_actions:
             m.addAction("赤ペンで直す所を囲む（T）", self.tool_actions["redpen"].trigger).setToolTip(
                 "囲んで指示を書き、「描く」を押すと囲んだ所だけを AI が直します")
+        ok, why = self.redpen_fix_state()
+        fix = m.addAction("赤ペンの所を直す", self.fix_redpen)
+        fix.setEnabled(ok)   # 印か指示が無いときは押せない形にして、理由をツールチップに出す（押しても何も起きない物を作らない）
+        fix.setToolTip("囲んだ所だけを、書いた指示で AI が直します。結果は一番上の新しいレイヤーに置きます" if ok else why)
         if c.redpen.marks:
             m.addAction("赤ペンの印を消す", c.redpen.clear)
         # 番号の丸の上で右クリックしたら、その印だけを直す・消す
@@ -2357,6 +2361,29 @@ class Window(QMainWindow):
             return None
         store.count(sid)
         return s.run()
+
+    def redpen_fix_state(self) -> tuple[bool, str]:
+        """赤ペンの所を直せるか、直せないならその理由。印と指示（書く欄か、印ごとの指示）がそろえば直せる"""
+        pen = self.canvas.redpen
+        if not pen.marks:
+            return False, "赤ペンの印がありません。赤ペン（T）で直す所を囲んでください"
+        if not self.entry.text().strip() and not all(t.strip() for t in pen.texts):
+            return False, "指示がありません。書く欄か、印の横の欄にどう直すかを書いてください"
+        if self.thread or getattr(self, "asking", False):
+            return False, "描いている途中です。終わってから押してください"
+        painter = getattr(self.studio, "painter", None)
+        if painter is None or not getattr(painter, "ready", lambda: False)():
+            return False, "直すには絵の模型が要ります。AI のメニューで模型を取ってください"
+        return True, ""
+
+    def fix_redpen(self):
+        """右クリックから、今の赤ペンの印と指示で直す。「囲んだ所を直す」を押したときと同じ道（send）を通す"""
+        ok, why = self.redpen_fix_state()
+        if not ok:
+            self.notify("赤ペンの所を直せません", "info", why)
+            return
+        self.mode.setCurrentIndex(2)
+        self.send()
 
     def fix_with_text(self, text: str):
         """指示の言葉で今の絵を直す。囲み（赤ペン・選択）があれば囲みの中、無ければ絵全体を直す。

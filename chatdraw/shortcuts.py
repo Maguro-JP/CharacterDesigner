@@ -173,6 +173,10 @@ def builtins(w) -> list[Shortcut]:
         Shortcut("app:chibi", "ちびキャラにする", "convert", "AI が今の絵をちびキャラに描き直し、新しいレイヤーに重ねます",
                  model_ok, model_why, w.make_chibi),
     ]
+    pen_ok, pen_why = w.redpen_fix_state() if hasattr(w, "redpen_fix_state") else (False, "")
+    out.append(Shortcut("app:redpenfix", "赤ペンの所を直す", "user",
+                        "赤ペンで囲んだ所だけを、書いた指示で AI が直します。結果は一番上の新しいレイヤーに置きます",
+                        pen_ok, pen_why, lambda: w.fix_redpen()))
     for sid, label, sides in (("grow:lr", "左右に広げる", (1, 0, 1, 0)), ("grow:tb", "上下に広げる", (0, 1, 0, 1)),
                               ("grow:all", "四方に広げる", (1, 1, 1, 1))):
         out.append(Shortcut(sid, label, "grow", "広げた所だけを AI に描かせます（128 画素ずつ）。元の絵の画素は変えません",

@@ -200,7 +200,7 @@ class MenuTest(Base):
     def test_every_builtin_is_pressed_in_these_tests(self):
         """アプリにある項目を足したら、押して流す試験にも足す（押して確かめていない項目を出さない）"""
         from chatdraw import shortcuts
-        pressed = set(PIXEL_CHANGES) | set(RETOUCH) | set(MODEL_ITEMS) | {"app:transparent"}
+        pressed = set(PIXEL_CHANGES) | set(RETOUCH) | set(MODEL_ITEMS) | {"app:transparent", "app:redpenfix"}
         self.assertEqual({s.id for s in shortcuts.builtins(self.w)}, pressed)
 
     def test_no_model_disables_model_items_with_reason(self):
@@ -399,6 +399,73 @@ class PromptTest(Base):
         self.assertEqual(self.w.shortcut_store().prompts(), [])
         self.assertNotIn(sid, self.actions())
         dlg.close()
+
+
+class RedpenTest(Base):
+    """赤ペンの所を直すを、右クリック（絵の上の項目と、ショートカットの指示で直す）から押して最後まで流す"""
+
+    def circle(self, cx, cy, r):
+        import math
+        from PySide6.QtCore import QPointF
+        pen = self.w.canvas.redpen
+        pen.begin(QPointF(cx + r, cy))
+        for k in range(1, 41):
+            a = 2 * math.pi * k / 40
+            pen.add(QPointF(cx + r * math.cos(a), cy + r * math.sin(a)))
+        pen.end()
+
+    def canvas_item(self):
+        self._menu = self.w.build_canvas_menu()
+        self._keep = [self._menu.actions()]
+        return next(a for a in self._keep[0] if a.text() == "赤ペンの所を直す")
+
+    def test_disabled_without_marks_or_note(self):
+        a = self.canvas_item()
+        self.assertFalse(a.isEnabled())
+        self.assertIn("印がありません", a.toolTip())
+        self.assertFalse(self.actions()["app:redpenfix"].isEnabled())
+        self.circle(48, 64, 20)
+        self.w.entry.clear()
+        a = self.canvas_item()
+        self.assertFalse(a.isEnabled())
+        self.assertIn("指示がありません", a.toolTip())
+        self.assertIn("指示がありません", self.actions()["app:redpenfix"].toolTip())
+        self.assertIsNone(self.w.run_shortcut("app:redpenfix"))   # 押せても止めずに理由を出す
+        self.assertEqual(self.painter.calls, [])
+
+    def check_fixed(self, layers, before):
+        c = self.w.canvas
+        fixes = [x for x in self.painter.calls if x[0] == "redraw"]
+        self.assertEqual(len(fixes), 1)                                   # 印の所を 1 回直す
+        self.assertEqual(len(c.layers), layers + 1)                      # 結果は新しいレイヤー
+        self.assertEqual(c.current, len(c.layers) - 1)                   # 一番上に置いて選ぶ
+        self.assertEqual(c.redpen.marks, [])
+        box = ImageChops.difference(before, self.base().convert("RGB")).getbbox()
+        self.assertIsNotNone(box)
+        self.assertTrue(box[0] >= 26 and box[1] >= 42 and box[2] <= 70 and box[3] <= 86, box)   # 囲みの外は変えない
+        self.assertEqual(self.w.activity.state.text(), "待機中")        # 進みの表示が出て、終わったら閉じる
+        self.assertFalse(self.w.progress_popup.isHidden())
+
+    def test_canvas_menu_item_fixes_inside_marks(self):
+        self.circle(48, 64, 20)
+        self.w.entry.setText("笑顔に")
+        layers, before = len(self.w.canvas.layers), self.base().convert("RGB")
+        a = self.canvas_item()
+        self.assertTrue(a.isEnabled(), a.toolTip())
+        begun = []
+        self.w.activity.begun.connect(lambda: begun.append(1))
+        a.trigger()
+        self.assertTrue(begun)                                            # 押したらすぐ進みの表示が始まる
+        self.wait()
+        self.check_fixed(layers, before)
+
+    def test_shortcut_item_uses_notes_on_marks(self):
+        self.circle(48, 64, 20)
+        self.w.canvas.redpen.texts[0] = "笑顔に"                         # 印の横の欄に書いた指示だけで直せる
+        self.w.entry.clear()
+        layers, before = len(self.w.canvas.layers), self.base().convert("RGB")
+        self.press("app:redpenfix")
+        self.check_fixed(layers, before)
 
 
 class EffectLayerTest(Base):
