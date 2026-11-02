@@ -22,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: NSIS
-        run: sudo apt-get update -q && sudo apt-get install -y -q nsis
+        run: sudo apt-get update -q && sudo apt-get install -y -q nsis python3-pil  # python3-pil は build.sh がアイコンの .ico を作るのに使う
       - name: Setup.exe を組む
         run: sh packaging/chatdraw/build.sh
       # 作業ブランチの版は Release に置かず、7 日で消える artifact に置く（ブランチごとの試す版が Release の一覧に溜まったため）
