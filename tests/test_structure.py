@@ -22,7 +22,7 @@ class StructureTest(unittest.TestCase):
         self.assertEqual(found, ["docs/knowledge/decisions.md"])
 
     def test_images_in_their_places(self):
-        ok = ("library/", "bible/", "designs/", "characters/", "docs/images/", "app/", "templates/", "tools/", "packaging/", "config/poses/")
+        ok = ("library/", "bible/", "designs/", "characters/", "docs/images/", "app/", "templates/", "tools/", "packaging/", "config/poses/", "chatdraw/icon/")
         bad = [f for f in tracked() if f.lower().endswith(IMAGES) and not f.startswith(ok)]
         self.assertEqual(bad, [], "絵は library/（見本・作例・比べ）か docs/images/（案内の画面）などの決まった場所へ")
 
