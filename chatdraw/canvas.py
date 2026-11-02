@@ -911,6 +911,10 @@ class Canvas(QGraphicsView):
         self.setFocus()   # 絵の上に来たらキー（Space、Alt、[ ]）を受ける
         super().enterEvent(e)
 
+    def leaveEvent(self, e):
+        self.redpen.set_hover(0)   # 絵の外へ出たら、カーソルで出した札をしまう
+        super().leaveEvent(e)
+
     def mouseDoubleClickEvent(self, e):
         """赤ペンの番号の丸をダブルクリックすると、その印の指示を書き直す"""
         n = self.redpen.number_at(self.mapToScene(e.position().toPoint()), self.zoom())
@@ -936,6 +940,8 @@ class Canvas(QGraphicsView):
         pos = self.mapToScene(e.position().toPoint())
         self._ring(pos)
         self.moved.emit(int(pos.x()), int(pos.y()))
+        if self.redpen.marks and not e.buttons():   # 番号の丸に合わせた間だけ、その印の指示を札で出す
+            self.redpen.set_hover(self.redpen.number_at(pos, self.zoom()))
         if self.drag_start is not None:
             self.drag(self.drag_start, pos)
             return

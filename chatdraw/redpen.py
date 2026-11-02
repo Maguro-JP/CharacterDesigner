@@ -3,6 +3,10 @@
 赤ペンの印は絵とは別に持ち、保存する絵にも AI に渡す絵にも入れない（印ごと描き直されないように）。
 1 本の線が 1 か所で、描いた順に番号が付く。囲んだ線は中まで直す所にする（丸で囲めば中身ごと直す）。
 指示は「1: 手を直して」「2 帽子を青に」のように番号で書き分ける。番号の無い文は、すべての所に効く。
+
+印はレイヤーの欄に 1 つずつ「赤ペン 1」「赤ペン 2」… の行で出し、指示はその行のコメントとして持つ。
+前は指示を絵の上の赤い札でいつも出していて、絵が見えず邪魔だった。札は、その印の行を選んでいるときか、
+番号の丸にカーソルを合わせたときだけ出す。隠した印は線を見せないが、直すときは使う（隠すのは見た目だけ）。
 """
 from __future__ import annotations
 
@@ -25,6 +29,9 @@ class RedPen(QGraphicsItem):
         super().__init__()
         self.marks: list[list[QPointF]] = []
         self.texts: list[str] = []   # 印ごとに絵の上へ直接書いた指示（空ならチャットの文を使う）
+        self.hidden: list[bool] = []   # 印ごとに隠しているか（レイヤーの欄のチェック）
+        self.active = 0   # レイヤーの欄で選んでいる印の番号（1 から。0 は選んでいない）。この印だけ札を出す
+        self.hover = 0    # カーソルを合わせている番号の丸。この印も札を出す
         self.drawing: list[QPointF] | None = None
         self.size = (0, 0)
         self.undone: list[tuple[list[QPointF], str]] = []   # 元に戻した印（やり直すで戻す）
@@ -41,9 +48,11 @@ class RedPen(QGraphicsItem):
 
     # ---- 描く ----
     def begin(self, pos: QPointF):
+        self._sync()
         self.drawing = [QPointF(pos)]
         self.marks.append(self.drawing)
         self.texts.append("")
+        self.hidden.append(False)
         self.update()
 
     def add(self, pos: QPointF):
@@ -58,14 +67,38 @@ class RedPen(QGraphicsItem):
         self._changed()
 
     def _changed(self):
+        self._sync()
+        if self.active > len(self.marks):
+            self.active = 0
+        if self.hover > len(self.marks):
+            self.hover = 0
         if self.on_change is not None:
             self.on_change()
+
+    def _sync(self):
+        """隠す印の並びを印の数にそろえる（保存した絵を開いたときなど、印と指示だけを足す所がある）"""
+        n = len(self.marks)
+        for seq, empty in ((self.hidden, False), (self.texts, "")):   # 並びは作り直さず、その場で足し引きする
+            seq.extend([empty] * (n - len(seq)))
+            del seq[n:]
+
+    def _take(self, i: int):
+        self._sync()
+        return self.marks.pop(i), self.texts.pop(i), self.hidden.pop(i)
+
+    def _put(self, item, i: int | None = None):
+        pts, note, hide = (tuple(item) + (False,))[:3]
+        self._sync()
+        i = len(self.marks) if i is None else i
+        self.marks.insert(i, pts)
+        self.texts.insert(i, note)
+        self.hidden.insert(i, hide)
 
     def undo(self) -> bool:
         """最後の印を外す（やり直すで戻せる）"""
         if not self.marks:
             return False
-        self.undone.append((self.marks.pop(), self.texts.pop()))
+        self.undone.append(self._take(len(self.marks) - 1))
         self.update()
         self._changed()
         return True
@@ -73,9 +106,7 @@ class RedPen(QGraphicsItem):
     def redo(self) -> bool:
         if not self.undone:
             return False
-        pts, note = self.undone.pop()
-        self.marks.append(pts)
-        self.texts.append(note)
+        self._put(self.undone.pop())
         self.update()
         self._changed()
         return True
@@ -83,13 +114,60 @@ class RedPen(QGraphicsItem):
     def remove(self, n: int):
         """番号 n（1 から）の印だけを消す。元に戻すで戻せる"""
         if 1 <= n <= len(self.marks):
-            self.undone.append((self.marks.pop(n - 1), self.texts.pop(n - 1)))
+            self.undone.append(self._take(n - 1))
+            if self.active == n:
+                self.active = 0
+            elif self.active > n:
+                self.active -= 1
             self.update()
             self._changed()
+
+    def move(self, n: int, to: int):
+        """番号 n の印を to 番にする（レイヤーの欄の並べ替え）。番号は並びの順に振り直す"""
+        if 1 <= n <= len(self.marks) and 1 <= to <= len(self.marks) and n != to:
+            keep = self.marks[self.active - 1] if 1 <= self.active <= len(self.marks) else None
+            self._put(self._take(n - 1), to - 1)
+            if keep is not None:   # 選んでいた印は、番号が変わっても同じ印を選んだままにする
+                self.active = next(i for i, pts in enumerate(self.marks, 1) if pts is keep)
+            self.update()
+            self._changed()
+
+    def set_hidden(self, n: int, hide: bool):
+        self._sync()
+        if 1 <= n <= len(self.marks) and self.hidden[n - 1] != hide:
+            self.hidden[n - 1] = hide
+            self.update()
+            self._changed()
+
+    def set_note(self, n: int, note: str):
+        """番号 n の印の指示（レイヤーの行のコメント）を書き直す"""
+        self._sync()
+        if 1 <= n <= len(self.marks):
+            self.texts[n - 1] = note.strip()
+            self.update()
+            self._changed()
+
+    def set_active(self, n: int):
+        if n != self.active:
+            self.active = n if 1 <= n <= len(self.marks) else 0
+            self.update()
+
+    def set_hover(self, n: int):
+        if n != self.hover:
+            self.hover = n
+            self.update()
+
+    def shown_notes(self) -> list[int]:
+        """絵の上に札を出している印の番号（選んでいる印と、カーソルを合わせた印だけ）"""
+        self._sync()
+        return [n for n in sorted({self.active, self.hover})
+                if 1 <= n <= len(self.marks) and self.texts[n - 1] and not self.hidden[n - 1]]
 
     def clear(self):
         self.marks.clear()
         self.texts.clear()
+        self.hidden.clear()
+        self.active = self.hover = 0
         self.drawing = None
         self.update()
         self._changed()
@@ -106,7 +184,11 @@ class RedPen(QGraphicsItem):
         f.setBold(True)
         f.setPixelSize(max(8, int(18 / scale)))
         p.setFont(f)
+        self._sync()
+        labels = self.shown_notes()
         for n, pts in enumerate(self.marks, 1):
+            if self.hidden[n - 1]:
+                continue
             p.setPen(pen)
             p.setBrush(Qt.NoBrush)
             p.drawPath(_path(pts))
@@ -117,8 +199,8 @@ class RedPen(QGraphicsItem):
             p.drawEllipse(c, r, r)
             p.setPen(QColor("white"))
             p.drawText(QRectF(c.x() - r, c.y() - r, 2 * r, 2 * r), Qt.AlignCenter, str(n))
-            note = self.texts[n - 1] if n - 1 < len(self.texts) else ""
-            if note:   # 絵の上に書いた指示を、番号の横に赤い札で見せる
+            note = self.texts[n - 1] if n in labels else ""
+            if note:   # 選んでいる印・カーソルを合わせた印だけ、指示を番号の横に赤い札で見せる
                 fm = p.fontMetrics()
                 box = QRectF(c.x() + r * 1.3, c.y() - r, fm.horizontalAdvance(note) + 12 / scale, 2 * r)
                 p.setPen(Qt.NoPen)
@@ -130,7 +212,10 @@ class RedPen(QGraphicsItem):
     def number_at(self, pos: QPointF, scale: float = 1.0) -> int:
         """pos にある番号の丸（1 から）。無ければ 0。丸をダブルクリックすると指示を書き直せる"""
         r = 13 / max(0.05, scale)
+        self._sync()
         for n, pts in enumerate(self.marks, 1):
+            if self.hidden[n - 1]:
+                continue
             c = pts[0] + QPointF(-r, -r)
             if (pos - c).manhattanLength() <= r * 1.6:
                 return n

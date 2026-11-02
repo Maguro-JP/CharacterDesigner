@@ -1709,8 +1709,7 @@ class Window(QMainWindow):
     def _note_done(self):
         pen = self.canvas.redpen
         if 1 <= self.note_n <= len(pen.texts):
-            pen.texts[self.note_n - 1] = self.note_edit.text().strip()
-            pen.update()
+            pen.set_note(self.note_n, self.note_edit.text())   # レイヤーの欄の「赤ペン N」の行にも出す
         self.note_edit.hide()
         self.canvas.setFocus()
 

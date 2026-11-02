@@ -32,6 +32,7 @@ def snapshot(canvas, extra: dict | None = None) -> dict:
     pen = canvas.redpen
     manifest = {"version": VERSION, "app": "CharacterDesigner", "size": [w, h], "current": canvas.current,
                 "layers": [], "marks": [[[p.x(), p.y()] for p in pts] for pts in pen.marks], "notes": list(pen.texts),
+                "hidden_marks": [bool(h) for h in (pen.hidden + [False] * len(pen.marks))[:len(pen.marks)]],
                 **(extra or {})}
     images = []
     for i, layer in enumerate(canvas.layers):
@@ -80,6 +81,8 @@ def apply(canvas, got: tuple[dict, list]) -> dict:
     for pts, note in zip(manifest.get("marks", []), manifest.get("notes", [])):
         pen.marks.append([QPointF(x, y) for x, y in pts])
         pen.texts.append(note)
+    pen.hidden[:] = [bool(h) for h in manifest.get("hidden_marks", [])]
+    pen._changed()   # 隠す印の並びを印の数にそろえ、レイヤーの欄に印の行を出す
     pen.update()
     return manifest
 
