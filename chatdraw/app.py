@@ -618,25 +618,9 @@ class Window(QMainWindow):
 
         # AI の欄の「描く内容」: 頼みを書く欄、模型に渡る言葉の目安、禁止ワード、「描く」と止める、直近の言葉
         tl = self.ai_panel.sections["描く内容"].body
-        tl.addWidget(self.entry)
         neg_head = QLabel("禁止ワード")
         neg_head.setObjectName("sectionHead")
         neg_head.setToolTip(self.ai_panel.negative.toolTip())
-        tl.addWidget(neg_head)
-        tl.addWidget(self.ai_panel.negative)
-        # 頼みと禁止ワードは並べて置く。見出しや欄が縦に伸びて、間に空きが出来ていた
-        from PySide6.QtWidgets import QSizePolicy
-        for wdg in (neg_head, self.ai_panel.negative):
-            wdg.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-        model_head = QLabel("模型")
-        model_head.setObjectName("sectionHead")
-        model_head.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
-        tl.addWidget(model_head)
-        model_row = QHBoxLayout()
-        model_row.setContentsMargins(0, 0, 0, 0)
-        model_row.addWidget(self.model_label)
-        tl.addLayout(model_row)
-        self._lora_row()
         self.ai_panel.negative.textChanged.connect(lambda _t: self._apply_avoid())
         self.entry.textChanged.connect(self.ai_panel.preview_timer.start)
         # 模型に渡る言葉の目安は欄に常に出さず、書く欄にカーソルを合わせたときだけ出す。
@@ -688,7 +672,29 @@ class Window(QMainWindow):
         self.entry.installEventFilter(self)
         self._load_prompts()
         tips_scroll.setFixedHeight(QPushButton("あ").sizeHint().height() + 4)
+        # 指示のタブの並び: 模型、描くワード、描くワードのお気に入り、禁止ワード、禁止ワードの固定値
+        from PySide6.QtWidgets import QSizePolicy
+        model_head = QLabel("模型")
+        model_head.setObjectName("sectionHead")
+        model_row = QHBoxLayout()
+        model_row.setContentsMargins(0, 0, 0, 0)
+        model_row.addWidget(self.model_label)
+        self.fixed_negative = QLabel("")
+        self.fixed_negative.setObjectName("hint")
+        self.fixed_negative.setWordWrap(True)
+        self.fixed_negative.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.fixed_negative.setToolTip("模型ごとに必ず足す禁止ワードです。上の欄の言葉はこれに足して渡します")
+        for wdg in (model_head, neg_head, self.ai_panel.negative, self.fixed_negative):
+            wdg.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        tl.addWidget(model_head)
+        tl.addLayout(model_row)
+        self._lora_row()
+        tl.addWidget(self.entry)
         tl.addWidget(tips_scroll)
+        tl.addWidget(neg_head)
+        tl.addWidget(self.ai_panel.negative)
+        tl.addWidget(self.fixed_negative)
+        self._show_fixed_negative()
         # 真ん中の下: チャット。吹き出しの会話と、複数行の書く欄
         talk = QDockWidget("チャット", self)
         talk.setWidget(self.chat)
@@ -1286,6 +1292,26 @@ class Window(QMainWindow):
             return True
         return False
 
+    def _show_fixed_negative(self):
+        """禁止ワードの固定値（今の模型が必ず足す言葉）を、禁止ワードの欄の下に出す"""
+        lab = getattr(self, "fixed_negative", None)
+        if lab is None:
+            return
+        try:
+            from chatdraw.engine import negative_for
+            from chatdraw.models import image_model
+            from chatdraw.setup import AUTO
+            key = self.settings.get("image_model")
+            if key == AUTO or not key:   # おまかせは今読んでいる模型の値を出す
+                key = getattr(getattr(getattr(self, "studio", None), "painter", None), "model", "")
+            info = image_model(key) if key else None
+            base = negative_for(info, "")
+        except Exception:   # 模型の札が読めないときも欄は出す（何も出ないと固定値が無いように見える）
+            base = "lowres, worst quality, low quality"
+        # 長いので欄には頭だけを出し、全部はカーソルを合わせたときに出す（欄を縦に取りすぎない）
+        lab.setText("固定: " + (base if len(base) <= 48 else base[:48].rsplit(",", 1)[0] + " …"))
+        lab.setToolTip("模型ごとに必ず足す禁止ワードです。上の欄の言葉はこれに足して渡します。\n" + base)
+
     def _apply_avoid(self):
         """AI の欄の禁止ワードを絵の模型に渡す。描く・直す・ちびキャラ・広げる・綺麗にするのどの経路も painter.avoid を読む。
         描くときだけ渡すと、書き換えたあとに描かずに広げた・ちびキャラにしたときに前の禁止ワードのままだった"""
@@ -1446,6 +1472,7 @@ class Window(QMainWindow):
             self.model_label.setToolTip(f"おまかせで選んだ理由: {chosen[1]}" if chosen else "描くときに、手元の模型から頼みに合う物を選びます")
         else:
             self.model_label.setText(f"絵の模型: {image_model(key).name}")
+        self._show_fixed_negative()
 
     def _fit_features(self):
         """選んだ模型の世代で使えない機能（ラフから、直す、参考画像）のボタンを止め、理由を出す"""
@@ -2842,6 +2869,11 @@ class Window(QMainWindow):
         return "メモリから降ろしました。次に描くときに読み直します"
 
     def _mode_changed(self, i: int):
+        # 直すとき（赤ペン）は描くボタンの文字を替え、押せば囲んだ所を直すと分かるようにする
+        if hasattr(self, "button"):
+            self.button.setText(" 囲んだ所を直す" if i == 2 else " 描く")
+            self.button.setToolTip("赤ペンで囲んだ所だけを、書いた指示どおりに直します（Enter）。囲みの外は変えません" if i == 2
+                                   else "AI で描く（Enter）")
         if i == 1 and hasattr(self, "layout_store"):
             self.feature_tour("rough")
         if i == 2 and hasattr(self, "layout_store"):
