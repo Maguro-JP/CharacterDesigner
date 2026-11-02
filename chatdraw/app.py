@@ -925,7 +925,7 @@ class Window(QMainWindow):
         ldock.setFeatures(PANEL)
         self.addDockWidget(Qt.RightDockWidgetArea, ldock)
         self.canvas.marked.connect(lambda: self.mode.setCurrentIndex(2))
-        self.canvas.redpen.on_change = lambda: hasattr(self, "layer_panel") and self._refresh_layers()   # 赤ペンで囲んだら、AI の欄を「直す」にする
+        self.canvas.redpen.on_change = self._redpen_changed   # 赤ペンで囲んだら、AI の欄を「直す」にする
         self.canvas.note_wanted.connect(self.edit_note)
         # 自動保存: 変わってから 2 分ごとに書く
         self.dirty = False
@@ -1614,9 +1614,7 @@ class Window(QMainWindow):
         if self.canvas.redpen.marks and self.mode.currentIndex() != 2:
             self.mode.setCurrentIndex(2)   # 赤ペンの印があるときの頼みは、印の所を直す頼みとして受ける
         if self.mode.currentIndex() == 2 and not self.canvas.redpen.marks and self.canvas.selection_mask() is None:
-            self.notify("直す所がありません", "info", "赤ペンで直す所を囲むか、四角の選択で選んでから頼んでください")
-            self.feature_tour("redpen")
-            return
+            self.mode.setCurrentIndex(0)   # 直す所が無いときは、止めずに新しく描く頼みとして受ける（直すのままで止まっていた）
         st = self.check_ai()
         if not st["image"]:
             self.say(st["reason"] or "AI が使えません")
@@ -2951,6 +2949,19 @@ class Window(QMainWindow):
             return "止めてから、メモリから降ろします"
         painter.unload()
         return "メモリから降ろしました。次に描くときに読み直します"
+
+    def _redpen_changed(self):
+        """赤ペンの印が増えた・消えたとき。印が無くなったら「直す」をやめて新しく描くに戻し、道具もペンに戻す。
+        印が無いのに「直す」のままだと、次の頼みまで直しとして扱われ、再起動するまで赤ペンに引っ張られた"""
+        if hasattr(self, "layer_panel"):
+            self._refresh_layers()
+        c = self.canvas
+        if c.redpen.marks or c.selection is not None:
+            return
+        if self.mode.currentIndex() == 2:
+            self.mode.setCurrentIndex(0)
+        if c.tool == "redpen" and "pen" in self.tool_actions:
+            self.tool_actions["pen"].trigger()
 
     def _mode_changed(self, i: int):
         # 直すとき（赤ペン）は描くボタンの文字を替え、押せば囲んだ所を直すと分かるようにする
