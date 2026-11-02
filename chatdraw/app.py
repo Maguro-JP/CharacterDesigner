@@ -923,7 +923,8 @@ class Window(QMainWindow):
         ldock.setObjectName("layers")
         ldock.setFeatures(PANEL)
         self.addDockWidget(Qt.RightDockWidgetArea, ldock)
-        self.canvas.marked.connect(lambda: self.mode.setCurrentIndex(2))   # 赤ペンで囲んだら、AI の欄を「直す」にする
+        self.canvas.marked.connect(lambda: self.mode.setCurrentIndex(2))
+        self.canvas.redpen.on_change = lambda: hasattr(self, "layer_panel") and self._refresh_layers()   # 赤ペンで囲んだら、AI の欄を「直す」にする
         self.canvas.note_wanted.connect(self.edit_note)
         # 自動保存: 変わってから 2 分ごとに書く
         self.dirty = False
@@ -1748,7 +1749,7 @@ class Window(QMainWindow):
             if self.job_kind == "chibi":
                 self.put_result(path, "ちびキャラ")
             elif self.job_kind == "fix":
-                placed = self.put_result(path, f"AI の直し {len(self.images)}" + ("（崩れあり）" if bad else ""))
+                placed = self._put_fix(path, f"AI の直し {len(self.images)}" + ("（崩れあり）" if bad else ""))
                 if bad and placed:   # 崩れの見つかった直しは見えなくして重ねる。元の絵を壊さず、見るか消すかは利用者が決める
                     self.canvas.set_visible(self.canvas.current, False)
                     self._refresh_layers()
@@ -2234,9 +2235,9 @@ class Window(QMainWindow):
 
     def canvas_menu(self, gpos):
         """絵の上の右クリック（右ボタンを動かさずに離したとき）。よく使う操作をまとめる"""
-        self.build_canvas_menu().exec(gpos)
+        self.build_canvas_menu(gpos).exec(gpos)
 
-    def build_canvas_menu(self):
+    def build_canvas_menu(self, gpos=None):
         """右クリックのメニューを作って返す（試験はこれを開かずに押す）"""
         from PySide6.QtWidgets import QMenu
         from chatdraw import shortcuts
@@ -2249,8 +2250,14 @@ class Window(QMainWindow):
                 "囲んで指示を書き、「描く」を押すと囲んだ所だけを AI が直します")
         if c.redpen.marks:
             m.addAction("赤ペンの印を消す", c.redpen.clear)
-        m.addAction("元に戻す", c.undo).setEnabled(bool(c.undo_stack))
-        m.addAction("やり直す", c.redo).setEnabled(bool(c.redo_stack))
+        # 番号の丸の上で右クリックしたら、その印だけを直す・消す
+        n = c.redpen.number_at(c.mapToScene(c.viewport().mapFromGlobal(gpos)), c.zoom()) if gpos is not None else 0
+        if n:
+            m.addAction(f"印 {n} の指示を書き直す", lambda: self.edit_note(n))
+            m.addAction(f"印 {n} を消す", lambda: c.redpen.remove(n)).setToolTip("元に戻すで戻せます")
+            m.addSeparator()
+        m.addAction("元に戻す（Ctrl+Z）", c.undo).setEnabled(bool(c.undo_stack) or (c.tool == "redpen" and bool(c.redpen.marks)))
+        m.addAction("やり直す（Ctrl+Y）", c.redo).setEnabled(bool(c.redo_stack) or (c.tool == "redpen" and bool(c.redpen.undone)))
         m.addSeparator()
         shortcuts.fill_menu(self, m, self.shortcut_store())   # ★・よく使う物を上に、残りは処理の種類ごと
         m.addSeparator()
@@ -2756,6 +2763,38 @@ class Window(QMainWindow):
             return False
         self.canvas.place_result(path, name, replace=replace)
         return True
+
+    def _put_fix(self, path: str, name: str) -> bool:
+        """囲んだ所の直しは、直した所だけのレイヤーにして置く。絵全体の写しを重ねると、
+        囲みの外まで同じ絵のレイヤーが積み重なり、邪魔で見分けにくかった"""
+        import os
+        import tempfile
+        from PySide6.QtGui import QImage, QPainter
+        if self.settings.get("result_place") == "別ファイル":
+            return self.put_result(path, name)
+        masks = list(self.canvas.redpen.masks())
+        sel = self.canvas.selection_mask()
+        if sel is not None:
+            masks.append(sel)
+        img = QImage(path)
+        if not masks or img.isNull():
+            return self.put_result(path, name)
+        img = img.convertToFormat(QImage.Format_ARGB32)
+        alpha = QImage(img.size(), QImage.Format_Grayscale8)
+        alpha.fill(0)
+        q = QPainter(alpha)
+        q.setCompositionMode(QPainter.CompositionMode_Lighten)
+        for m in masks:   # 印ごとの直す所を重ねる（白が直す所）
+            q.drawImage(0, 0, m.scaled(img.size()))
+        q.end()
+        img.setAlphaChannel(alpha)
+        fd, tmp = tempfile.mkstemp(suffix=".png")
+        os.close(fd)
+        try:
+            img.save(tmp)
+            return self.put_result(tmp, name)
+        finally:
+            Path(tmp).unlink(missing_ok=True)
 
     def open_in_new_file(self, path: str):
         """絵を新しい作業ファイルとして、別のウィンドウで開く。今の作業ファイルはそのまま残る"""

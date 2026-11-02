@@ -438,12 +438,19 @@ class Canvas(QGraphicsView):
             self.rebuild()
 
     def undo(self):
+        # 赤ペンで描いている間の元に戻すは、最後の印を外す（絵の元に戻すと混ぜない）
+        if self.tool == "redpen" and self.redpen.undo():
+            self.history_changed.emit()
+            return
         if self.undo_stack:
             self._apply(self.undo_stack.pop(), self.redo_stack)
             self.redo_names.append(self.undo_names.pop())
             self.history_changed.emit()
 
     def redo(self):
+        if self.tool == "redpen" and self.redpen.redo():
+            self.history_changed.emit()
+            return
         if self.redo_stack:
             self._apply(self.redo_stack.pop(), self.undo_stack)
             self.undo_names.append(self.redo_names.pop())

@@ -56,7 +56,7 @@ class LayerPanel(QWidget):
         row.setSpacing(2)
         for key, label, tip, fn in (
                 ("add", "＋", "新しいレイヤーを選んでいるレイヤーの上に足します（Ctrl+Shift+N）", canvas.add_layer),
-                ("delete", "－", "選んでいるレイヤーを消します（元に戻すで戻せます）", canvas.delete_layer)):
+                ("delete", "－", "選んでいるレイヤーを消します（元に戻すで戻せます）", self._delete)):
             bt = QPushButton(label)
             bt.setFixedWidth(34)
             bt.setToolTip(tip)
@@ -103,6 +103,16 @@ class LayerPanel(QWidget):
         c = self.canvas
         self.list.blockSignals(True)
         self.list.clear()
+        pen = getattr(c, "redpen", None)
+        if pen is not None and pen.marks:   # 赤ペンの印は絵とは別の、一番上のレイヤーとして出す（隠す・消すができる）
+            item = QListWidgetItem(f"赤ペン（{len(pen.marks)} か所）")
+            item.setFlags((item.flags() | Qt.ItemIsUserCheckable) & ~Qt.ItemIsEditable)
+            item.setCheckState(Qt.Checked if pen.isVisible() else Qt.Unchecked)
+            item.setData(ROLE_INDEX, -1)
+            item.setForeground(QColor("#ff2d2d"))
+            item.setToolTip("AI に直してほしい所の印です。保存する絵には入りません。\n"
+                            "チェックで隠す・出す、選んで「－」で全部消す。1 つだけ消すときは絵の上の番号を右クリック")
+            self.list.addItem(item)
         for i in reversed(range(len(c.layers))):
             layer = c.layers[i]
             on = i == c.current
@@ -126,18 +136,21 @@ class LayerPanel(QWidget):
             self.buttons["lock"].setChecked(layer.locked)
             state = "（ロック中）" if layer.locked else "（隠しています）" if not layer.visible else ""
             self.active.setText(f"✎ 描くレイヤー: {layer.name}{state}")
-        self.buttons["delete"].setEnabled(len(c.layers) > 1)
+        self.buttons["delete"].setEnabled(len(c.layers) > 1 or bool(pen is not None and pen.marks))
         self.buttons["up"].setEnabled(c.current < len(c.layers) - 1)
         self.buttons["down"].setEnabled(c.current > 0)
         self.list.blockSignals(False)
 
     def _selected(self, row: int):
         item = self.list.item(row)
-        if item is not None:
+        if item is not None and item.data(ROLE_INDEX) != -1:
             self.canvas.select(item.data(ROLE_INDEX))
 
     def _changed(self, item: QListWidgetItem):
         i = item.data(ROLE_INDEX)
+        if i == -1:
+            self.canvas.redpen.setVisible(item.checkState() == Qt.Checked)
+            return
         if i is None or not 0 <= i < len(self.canvas.layers):
             return
         layer = self.canvas.layers[i]
@@ -150,6 +163,14 @@ class LayerPanel(QWidget):
             QTimer.singleShot(0, lambda: self.canvas.rename_layer(i, name))
         else:
             QTimer.singleShot(0, self.refresh)
+
+    def _delete(self):
+        """「－」。赤ペンを選んでいれば印を全部消し、ほかは選んでいるレイヤーを消す"""
+        item = self.list.currentItem()
+        if item is not None and item.data(ROLE_INDEX) == -1:
+            self.canvas.redpen.clear()
+            return
+        self.canvas.delete_layer()
 
     def rename_current(self):
         item = self.list.item(self.row_of(self.canvas.current))

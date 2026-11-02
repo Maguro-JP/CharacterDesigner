@@ -27,6 +27,8 @@ class RedPen(QGraphicsItem):
         self.texts: list[str] = []   # 印ごとに絵の上へ直接書いた指示（空ならチャットの文を使う）
         self.drawing: list[QPointF] | None = None
         self.size = (0, 0)
+        self.undone: list[tuple[list[QPointF], str]] = []   # 元に戻した印（やり直すで戻す）
+        self.on_change = None   # 印が増えた・消えたときに呼ぶ（レイヤーの欄に「赤ペン」を出し入れする）
         self.setZValue(1e9 - 2)
 
     def boundingRect(self) -> QRectF:
@@ -51,19 +53,46 @@ class RedPen(QGraphicsItem):
 
     def end(self):
         self.drawing = None
+        self.undone.clear()
         self.update()
+        self._changed()
 
-    def undo(self):
-        if self.marks:
-            self.marks.pop()
-            self.texts.pop()
+    def _changed(self):
+        if self.on_change is not None:
+            self.on_change()
+
+    def undo(self) -> bool:
+        """最後の印を外す（やり直すで戻せる）"""
+        if not self.marks:
+            return False
+        self.undone.append((self.marks.pop(), self.texts.pop()))
+        self.update()
+        self._changed()
+        return True
+
+    def redo(self) -> bool:
+        if not self.undone:
+            return False
+        pts, note = self.undone.pop()
+        self.marks.append(pts)
+        self.texts.append(note)
+        self.update()
+        self._changed()
+        return True
+
+    def remove(self, n: int):
+        """番号 n（1 から）の印だけを消す。元に戻すで戻せる"""
+        if 1 <= n <= len(self.marks):
+            self.undone.append((self.marks.pop(n - 1), self.texts.pop(n - 1)))
             self.update()
+            self._changed()
 
     def clear(self):
         self.marks.clear()
         self.texts.clear()
         self.drawing = None
         self.update()
+        self._changed()
 
     # ---- 見せる ----
     def paint(self, p: QPainter, option, widget=None):
