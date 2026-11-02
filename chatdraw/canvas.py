@@ -20,6 +20,8 @@ TOOL_NAMES = {"redpen": "赤ペン", "eraser": "消しゴム", "blur": "ぼか�
 CURSOR_STYLES = ("十字と筆の輪", "点と筆の輪", "筆の輪だけ", "矢印")   # 設定の「カーソル」で選ぶ形
 BRUSH_TOOLS = ("pen", "eraser", "blur")                       # なぞって描く道具（筆の輪を出す）
 DRAG_TOOLS = ("line", "rect", "ellipse", "gradient", "move", "select")   # 押した所から離した所までで決まる道具
+REDPEN = "redpen"   # レイヤーの並び（stack）の中で、赤ペンの印の場所を示す印
+FIRST_LAYER = "レイヤー 1"   # キャンバスの一番下に置く透明のレイヤー
 
 
 @dataclass
@@ -114,10 +116,34 @@ class Canvas(QGraphicsView):
     def drawBackground(self, painter, rect):
         """絵の周りはテーマの模様。画面に貼り付けて描く（拡大や移動で模様が流れない）"""
         if self.backdrop is None:
-            return super().drawBackground(painter, rect)
+            super().drawBackground(painter, rect)
+        else:
+            painter.save()
+            painter.resetTransform()
+            self.backdrop(painter, self.viewport().rect())
+            painter.restore()
+        self._draw_paper(painter, rect)
+
+    def _draw_paper(self, painter, rect):
+        """紙の所に薄い市松を敷く。一番下のレイヤー 1 は透明なので、敷かないと暗い周りが透けて黒い線が見えなかった。
+        市松は画面だけで、保存する絵にも AI に渡す絵にも入らない"""
+        page = self.sceneRect().intersected(QRectF(rect))
+        if page.isEmpty():
+            return
+        cell = 16 / max(0.05, self.zoom())   # 拡大しても升目は画面の上で同じ大きさ
         painter.save()
-        painter.resetTransform()
-        self.backdrop(painter, self.viewport().rect())
+        painter.fillRect(page, QColor("#ffffff"))
+        light = QColor("#ececec")
+        y0 = int(page.top() // cell)
+        x0 = int(page.left() // cell)
+        y = y0
+        while y * cell < page.bottom():
+            x = x0
+            while x * cell < page.right():
+                if (x + y) % 2:
+                    painter.fillRect(QRectF(x * cell, y * cell, cell, cell).intersected(page), light)
+                x += 1
+            y += 1
         painter.restore()
 
     def update_margins(self):
@@ -180,8 +206,14 @@ class Canvas(QGraphicsView):
         self.sel_item.setVisible(False)
         self.scene().addItem(self.sel_item)
         from chatdraw.redpen import RedPen
-        self.redpen = RedPen()   # 赤ペン先生の印。レイヤーとは別に持ち、保存する絵にも AI に渡す絵にも入れない
+        self.redpen = RedPen()   # 赤ペン先生の印。保存する絵にも AI に渡す絵にも入れない
         self.scene().addItem(self.redpen)
+        # 赤ペンはレイヤーの並びの 1 枚として扱う（選ぶ・隠す・消す・並べ替える・結合する）。
+        # 印の線は絵の画素ではないので self.layers には入れず、並びの中の場所（下にある絵のレイヤーの数）だけを持つ
+        self.redpen_pos = 0
+        self.redpen_current = False   # レイヤーの欄で赤ペンを選んでいる
+        self._redpen_shown = False    # 赤ペンが並びに入っている（印が 1 つ以上ある）
+        self.redpen.on_layers = self._redpen_layers
         self.set_tool("pen")
         # 右ボタンでつかんで動かす。押して動かさずに離したら右クリックのメニュー
         self.pan_from: QPoint | None = None
@@ -210,24 +242,32 @@ class Canvas(QGraphicsView):
     def size_px(self) -> tuple[int, int]:
         return (self.layers[0].image.width(), self.layers[0].image.height()) if self.layers else (0, 0)
 
+    # レイヤーの重ね方: 一番下に透明の「レイヤー 1」、その上に AI の絵（開いた絵）、その上に利用者が足すレイヤー・
+    # 加工の結果・赤ペンを足した順に重ねる。前は白い「背景」や AI の絵が一番下で、空のレイヤーが上に来ていた
     def new_canvas(self, w: int = 1200, h: int = 1600):
-        self._reset([Layer("背景", blank(w, h, QColor("white"))), Layer("レイヤー 1", blank(w, h))], 1)
+        self._reset([Layer(FIRST_LAYER, blank(w, h))], 0)
+
+    def _base_with(self, name: str, img: QImage) -> list[Layer]:
+        """透明のレイヤー 1 を一番下に、その上に絵を置いた並び"""
+        return [Layer(FIRST_LAYER, blank(img.width(), img.height())), Layer(name, img)]
 
     def show_image(self, path: str):
-        """絵を開く。絵を下に置き、その上に描くための空のレイヤーを足す"""
+        """絵を開く。透明のレイヤー 1 の上に絵を置いて選ぶ"""
         img = QImage(path).convertToFormat(QImage.Format_ARGB32_Premultiplied)
-        self._reset([Layer("絵", img), Layer("レイヤー 1", blank(img.width(), img.height()))], 1)
+        self._reset(self._base_with("絵", img), 1)
 
     def replace_with_image(self, path: str, name: str = "AI の絵"):
-        """AI が新しく描いた絵に、キャンバスを置き換える。絵を下に、描くための空のレイヤーを上に置く。
+        """AI が新しく描いた絵に、キャンバスを置き換える。透明のレイヤー 1 の上に絵を置いて選ぶ。
         前の絵の上に重ねると、大きさの違う絵が重なって見分けられなかった。前の状態は「元に戻す」で戻せる"""
         img = _load(path)
         if not self.layers:
-            self._reset([Layer(name, img), Layer("レイヤー 1", blank(img.width(), img.height()))], 1)
+            self._reset(self._base_with(name, img), 1)
             return
         self.snapshot_all()
-        self.layers = [Layer(name, img), Layer("レイヤー 1", blank(img.width(), img.height()))]
+        self.layers = self._base_with(name, img)
         self.current = 1
+        self.redpen_pos = len(self.layers)   # 残っている赤ペンの印は、新しい絵の上に置く
+        self.redpen_current = False
         self.set_selection(None)
         self.rebuild()
         self.fit()
@@ -239,17 +279,19 @@ class Canvas(QGraphicsView):
         （大きさの違う前の絵とは重ねられない）。どちらも前の状態は「元に戻す」で戻せる"""
         img = _load(path)
         if not self.layers:
-            self._reset([Layer(name, img)], 0)
+            self._reset(self._base_with(name, img), 1)
             return
         resized = (img.width(), img.height()) != self.size_px()
         if not replace and resized:
             return self.add_image_layer(path, name)   # 大きさだけ違う結果は、キャンバスに合わせて一番上に重ねる
         self.snapshot_all()
         if replace:
-            self.layers = [Layer(name, img)]
+            self.layers = self._base_with(name, img)
+            self.redpen_pos = len(self.layers)
         else:
-            self.layers.append(Layer(name, img))
+            self.layers.append(Layer(name, img))   # 赤ペンより上に、足した順に重ねる
         self.current = len(self.layers) - 1
+        self.redpen_current = False
         if replace:
             self.set_selection(None)
         self.rebuild()
@@ -259,7 +301,7 @@ class Canvas(QGraphicsView):
     def add_image_layer(self, path: str, name: str = "絵"):
         img = _load(path)
         if not self.layers:
-            self._reset([Layer(name, img)], 0)
+            self._reset(self._base_with(name, img), 1)
             return
         w, h = self.size_px()
         self.snapshot_all()
@@ -270,10 +312,12 @@ class Canvas(QGraphicsView):
         # 一番上に重ねる。選んでいたレイヤーの真上に差し込むと、利用者の線の下に入ったり、次の線が AI の絵に描かれたりした
         self.layers.append(Layer(name, layer))
         self.current = len(self.layers) - 1
+        self.redpen_current = False
         self.rebuild()
 
     def _reset(self, layers: list[Layer], current: int):
         self.layers, self.current = layers, current
+        self.redpen_pos, self.redpen_current = len(layers), False
         self.set_selection(None)
         self.undo_stack.clear()
         self.redo_stack.clear()
@@ -294,13 +338,20 @@ class Canvas(QGraphicsView):
         self.snapshot_all()
         self.layers = [Layer(name, img)]
         self.current = 0
+        self.redpen_pos, self.redpen_current = 1, False   # 赤ペンは AI への指示なので絵に焼き込まず、上に残す
         self.rebuild()
         self.changed.emit()
 
     def merge_down(self):
-        """選んでいるレイヤーを下のレイヤーに結合する。元に戻すで戻せる"""
+        """選んでいるレイヤーを下のレイヤーに結合する。元に戻すで戻せる。
+        赤ペンを選んでいれば、見えている印を下のレイヤーに描き込む。すぐ下が赤ペンなら結合しない（印は絵の画素ではない）"""
+        if self.redpen_current and self.redpen.marks:
+            return self.merge_redpen_down()
         i = self.current
         if i <= 0 or i >= len(self.layers):
+            return
+        if self.redpen.marks and self.redpen_pos == i:
+            self.refused.emit("すぐ下が「赤ペン」なので結合できません。赤ペンを上か下へ動かしてから結合してください")
             return
         upper, lower = self.layers[i], self.layers[i - 1]
         self.snapshot_all()
@@ -312,9 +363,28 @@ class Canvas(QGraphicsView):
         p.end()
         lower.image = img
         del self.layers[i]
+        if i < self.redpen_pos:   # 赤ペンより下のレイヤーが 1 枚減った
+            self.redpen_pos -= 1
         self.current = i - 1
         self.rebuild()
         self.changed.emit()
+
+    def merge_redpen_down(self):
+        """赤ペンの印を、すぐ下のレイヤーに赤い線として描き込み、赤ペンを並びから外す。元に戻すで戻せる"""
+        pos = self.redpen_pos
+        if not self.redpen.marks or pos <= 0 or pos > len(self.layers):
+            return
+        self.snapshot_all(marks=True)
+        lower = self.layers[pos - 1]
+        if self.redpen.isVisible():
+            img = QImage(lower.image)
+            p = QPainter(img)
+            self.redpen.paint(p, None)
+            p.end()
+            lower.image = img
+        self.current, self.redpen_current = pos - 1, False
+        self.redpen.clear()
+        self.rebuild()
 
     def flatten(self) -> QImage:
         w, h = self.size_px()
@@ -344,7 +414,74 @@ class Canvas(QGraphicsView):
         if self.scene().sceneRect() != QRectF(0, 0, w, h):   # 元に戻すで大きさの違う絵に戻ったとき
             self.scene().setSceneRect(QRectF(0, 0, w, h))
             self.redpen.set_size(w, h)
+        self._place_redpen()
         self.changed.emit()
+
+    # ---- 赤ペン（並びの 1 枚） ----
+    def _place_redpen(self):
+        """赤ペンを、並びの場所のレイヤーの間に重ねる（下のレイヤーの z は 0, 1, …）"""
+        self.redpen_pos = max(0, min(self.redpen_pos, len(self.layers)))
+        self.redpen.setZValue(self.redpen_pos - 0.5)
+
+    def _redpen_layers(self):
+        """印が増えた・消えたとき。初めの印で赤ペンを一番上に足し、印が無くなったら並びから外す"""
+        if self.redpen.marks:
+            if not self._redpen_shown:
+                self._redpen_shown = True
+                self.redpen_pos = len(self.layers)
+        else:
+            self._redpen_shown = False
+            self.redpen_current = False
+        self._place_redpen()
+        self.changed.emit()
+
+    def stack(self) -> list:
+        """下から上へのレイヤーの並び。赤ペンに印があれば、その場所に REDPEN を入れる"""
+        s: list = list(self.layers)
+        if self.redpen.marks:
+            s.insert(max(0, min(self.redpen_pos, len(s))), REDPEN)
+        return s
+
+    def _index_of(self, layer: Layer) -> int:
+        return next(i for i, x in enumerate(self.layers) if x is layer)
+
+    def current_pos(self) -> int:
+        """選んでいるもの（レイヤーか赤ペン）の、並びの中の場所"""
+        s = self.stack()
+        if self.redpen_current and REDPEN in s:
+            return s.index(REDPEN)
+        if not self.layers:
+            return 0
+        cur = self.layers[self.current]
+        return next(i for i, x in enumerate(s) if x is cur)
+
+    def _set_stack(self, s: list, chosen):
+        """並べ替えた並びを、絵のレイヤーと赤ペンの場所に戻す。chosen は選ぶもの（Layer か REDPEN）"""
+        self.layers = [x for x in s if x is not REDPEN]
+        if any(x is REDPEN for x in s):
+            self.redpen_pos = next(i for i, x in enumerate(s) if x is REDPEN)
+        if chosen is REDPEN:
+            self.redpen_current = True
+        else:
+            self.redpen_current = False
+            self.current = self._index_of(chosen)
+
+    def select_redpen(self):
+        if self.redpen.marks:
+            self.redpen_current = True
+            self.changed.emit()
+
+    def set_redpen_visible(self, on: bool):
+        self.redpen.setVisible(on)
+        self.changed.emit()
+
+    def clear_redpen(self):
+        """赤ペンの印を全部消し、並びから外す。元に戻すで戻せる"""
+        if not self.redpen.marks:
+            return
+        self.snapshot_all(marks=True)
+        self.redpen.clear()
+        self.rebuild()
 
     # ---- AI が描いている途中の絵 ----
     def show_overlay(self, img: QImage | None):
@@ -376,41 +513,58 @@ class Canvas(QGraphicsView):
             return
         w, h = self.size_px()
         self.snapshot_all()
-        self.layers.insert(self.current + 1, Layer(self._new_name(), blank(w, h)))
-        self.current += 1
+        # 一番上に、足した順に重ねる。選んでいるレイヤーの真上に差し込むと、足したレイヤーが赤ペンや結果の下に隠れた
+        self.layers.append(Layer(self._new_name(), blank(w, h)))
+        self.current = len(self.layers) - 1
+        self.redpen_current = False
         self.rebuild()
 
     def delete_layer(self):
+        """選んでいるレイヤーを消す。赤ペンを選んでいれば印を全部消す。元に戻すで戻せる"""
+        if self.redpen_current and self.redpen.marks:
+            return self.clear_redpen()
         if len(self.layers) <= 1:
             return
         self.snapshot_all()
-        del self.layers[self.current]
-        self.current = max(0, self.current - 1)
+        s = self.stack()
+        i = self.current_pos()
+        del s[i]
+        below = next((x for x in reversed(s[:i]) if x is not REDPEN), None)
+        above = next((x for x in s[i:] if x is not REDPEN), None)
+        self._set_stack(s, below or above)
         self.rebuild()
 
     def move_layer(self, step: int):
-        j = self.current + step
-        if 0 <= j < len(self.layers):
-            self.snapshot_all()
-            self.layers[self.current], self.layers[j] = self.layers[j], self.layers[self.current]
-            self.current = j
-            self.rebuild()
+        """選んでいるもの（レイヤーか赤ペン）を並びの中で step だけ動かす。+1 が上"""
+        i = self.current_pos()
+        self.move_entry_to(i, i + step)
 
-    def move_layer_to(self, i: int, j: int):
-        """レイヤー i を j の位置へ動かす（ドラッグでの並べ替え）。元に戻すで戻せる"""
-        n = len(self.layers)
+    def move_entry_to(self, i: int, j: int):
+        """並び（stack）の i 番目を j 番目へ動かす（ドラッグでの並べ替え）。元に戻すで戻せる"""
+        s = self.stack()
+        n = len(s)
         if not (0 <= i < n and 0 <= j < n) or i == j:
             return
         self.snapshot_all()
-        layer = self.layers.pop(i)
-        self.layers.insert(j, layer)
-        self.current = j
+        item = s.pop(i)
+        s.insert(j, item)
+        self._set_stack(s, item)
         self.rebuild()
-        self.changed.emit()
+
+    def move_layer_to(self, i: int, j: int):
+        """絵のレイヤー i を、レイヤー j のあった場所へ動かす。元に戻すで戻せる"""
+        n = len(self.layers)
+        if not (0 <= i < n and 0 <= j < n) or i == j:
+            return
+        s = self.stack()
+        src = next(k for k, x in enumerate(s) if x is self.layers[i])
+        dst = next(k for k, x in enumerate(s) if x is self.layers[j])
+        self.move_entry_to(src, dst)
 
     def select(self, i: int):
         if 0 <= i < len(self.layers):
             self.current = i
+            self.redpen_current = False
             self.changed.emit()
 
     def set_visible(self, i: int, on: bool):
@@ -439,8 +593,15 @@ class Canvas(QGraphicsView):
     def snapshot(self):
         self._push(("one", self.current, self.layers[self.current].image.copy()))
 
-    def snapshot_all(self):
-        self._push(("all", [layer.copy() for layer in self.layers], self.current))
+    def _redpen_state(self, marks: bool) -> dict:
+        state = {"pos": self.redpen_pos, "sel": self.redpen_current}
+        if marks:   # 赤ペンを消す・結合する操作だけ、印そのものも覚える（印を足す操作は赤ペンの元に戻すが持つ）
+            state.update(marks=[list(m) for m in self.redpen.marks], texts=list(self.redpen.texts),
+                         visible=self.redpen.isVisible())
+        return state
+
+    def snapshot_all(self, marks: bool = False):
+        self._push(("all", [layer.copy() for layer in self.layers], self.current, self._redpen_state(marks)))
 
     def _push(self, entry):
         self.undo_stack.append(entry)
@@ -474,10 +635,23 @@ class Canvas(QGraphicsView):
             self.items[i].update()
             self.changed.emit()
         else:
-            _, layers, cur = entry
-            other.append(("all", [layer.copy() for layer in self.layers], self.current))
+            _, layers, cur, *rest = entry
+            state = rest[0] if rest else {}
+            other.append(("all", [layer.copy() for layer in self.layers], self.current,
+                          self._redpen_state("marks" in state)))
             self.layers, self.current = layers, cur
+            if "marks" in state:
+                pen = self.redpen
+                pen.marks, pen.texts = [list(m) for m in state["marks"]], list(state["texts"])
+                pen.drawing = None
+                pen.setVisible(state["visible"])
+                self._redpen_shown = bool(pen.marks)
+                pen.update()
+            self.redpen_pos = state.get("pos", self.redpen_pos)
+            self.redpen_current = bool(state.get("sel")) and bool(self.redpen.marks)
             self.rebuild()
+            if "marks" in state:
+                self.redpen._changed()   # AI の欄（直す）と赤ペンの並びを、戻した印に合わせる
 
     def undo(self):
         # 赤ペンで描いている間の元に戻すは、最後の印を外す（絵の元に戻すと混ぜない）
@@ -670,7 +844,9 @@ class Canvas(QGraphicsView):
         x, y = int(pos.x()), int(pos.y())
         if 0 <= x < img.width() and 0 <= y < img.height():
             c = img.pixelColor(x, y)
-            c.setAlpha(255)
+            a = c.alphaF()   # 透明の所は紙の白に重ねた色を取る（一番下のレイヤー 1 は透明なので、そのままだと黒になった）
+            c = QColor(round(c.red() * a + 255 * (1 - a)), round(c.green() * a + 255 * (1 - a)),
+                       round(c.blue() * a + 255 * (1 - a)))
             self.color = c
             self.color_picked.emit(c)
 
@@ -849,11 +1025,19 @@ class Canvas(QGraphicsView):
     # ---- マウスとペンタブレット ----
     def _press(self, pos: QPointF, pressure: float):
         if self.tool == "redpen" and self.layers:
+            if not self.redpen.isVisible():   # 隠した赤ペンに描くと印が見えないので、出してから描く
+                self.set_redpen_visible(True)
+            if not self.redpen.marks:   # 初めの印は、描いている間から一番上に重ねる
+                self._redpen_shown, self.redpen_pos = True, len(self.layers)
+                self._place_redpen()
             self.redpen.begin(pos)
             self.marked.emit()
             return True
         if not self.layers:
             return False
+        if self.redpen_current and self.redpen.marks and self.tool not in ("eyedropper", "zoom", "select"):
+            self.refused.emit("「赤ペン」のレイヤーには線を描けません。赤ペン（T）で囲むか、ほかのレイヤーを選んでください")
+            return True
         if self.tool not in ("eyedropper", "zoom", "select"):
             layer = self.layers[self.current]
             if not layer.visible or layer.locked:

@@ -285,11 +285,16 @@ def qimage_to_pil_rgba(img):
 
 
 def qimage_to_pil(img):
-    """キャンバスの絵（QImage）を描く模型に渡せる形（PIL）にする"""
+    """キャンバスの絵（QImage）を描く模型に渡せる形（PIL、RGB）にする。透明の所は白にする。
+    一番下のレイヤー 1 は透明なので、そのまま RGB にすると描いていない所が黒くなって模型に渡った"""
     from PySide6.QtGui import QImage
     img = img.convertToFormat(QImage.Format_RGBA8888)
-    return Image.frombuffer("RGBA", (img.width(), img.height()), bytes(img.constBits()), "raw", "RGBA",
-                            img.bytesPerLine(), 1).convert("RGB")
+    rgba = Image.frombuffer("RGBA", (img.width(), img.height()), bytes(img.constBits()), "raw", "RGBA",
+                            img.bytesPerLine(), 1)
+    if rgba.getextrema()[3][0] == 255:
+        return rgba.convert("RGB")
+    paper = Image.new("RGBA", rgba.size, (255, 255, 255, 255))
+    return Image.alpha_composite(paper, rgba).convert("RGB")
 
 
 class Navigator(QLabel):

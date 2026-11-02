@@ -19,7 +19,7 @@ CIRCLED = "①②③④⑤⑥⑦⑧⑨⑩⑪⑫⑬⑭⑮⑯⑰⑱⑲⑳"
 
 
 class RedPen(QGraphicsItem):
-    """赤ペンの印（線の並び）。キャンバスのいちばん上に重ねて見せる"""
+    """赤ペンの印（線の並び）。キャンバスのレイヤーの並びの 1 枚として重ねる（場所はキャンバスが決める）"""
 
     def __init__(self):
         super().__init__()
@@ -29,6 +29,7 @@ class RedPen(QGraphicsItem):
         self.size = (0, 0)
         self.undone: list[tuple[list[QPointF], str]] = []   # 元に戻した印（やり直すで戻す）
         self.on_change = None   # 印が増えた・消えたときに呼ぶ（レイヤーの欄に「赤ペン」を出し入れする）
+        self.on_layers = None   # 同じときにキャンバスが呼ぶ（レイヤーの並びに赤ペンを出し入れする）
         self.setZValue(1e9 - 2)
 
     def boundingRect(self) -> QRectF:
@@ -58,6 +59,8 @@ class RedPen(QGraphicsItem):
         self._changed()
 
     def _changed(self):
+        if self.on_layers is not None:
+            self.on_layers()
         if self.on_change is not None:
             self.on_change()
 
