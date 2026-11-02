@@ -708,7 +708,8 @@ class Window(QMainWindow):
         # ダブルクリックは今の絵に重ねる（今の絵を閉じない）。右クリックで開く・同じ設定で描き直す
         # 押すとその絵をキャンバスに出す（元に戻すで戻せる）。ダブルクリックは今の絵に重ねる
         self.history.itemClicked.connect(lambda it: it.data(Qt.UserRole) and self.show_history_image(it.data(Qt.UserRole)))
-        self.history.itemDoubleClicked.connect(lambda it: it.data(Qt.UserRole) and self.layer_from_file(it.data(Qt.UserRole), "AI の絵"))
+        # ダブルクリックはその絵を見せるだけ（レイヤーに足すと勝手に増えた）。重ねるのは右クリックの「今の絵に重ねる」
+        self.history.itemDoubleClicked.connect(lambda it: it.data(Qt.UserRole) and self.show_history_image(it.data(Qt.UserRole)))
         self.history.setContextMenuPolicy(Qt.CustomContextMenu)
         self.history.customContextMenuRequested.connect(self._history_menu)
         # 履歴で選んだ絵を Delete キーで消す（確かめてからごみ箱へ）。キャンバスの Delete（選んだ所を消す）とぶつからないよう履歴の中だけで効かせる

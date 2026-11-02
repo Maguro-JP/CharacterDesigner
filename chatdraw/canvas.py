@@ -396,6 +396,18 @@ class Canvas(QGraphicsView):
             self.current = j
             self.rebuild()
 
+    def move_layer_to(self, i: int, j: int):
+        """レイヤー i を j の位置へ動かす（ドラッグでの並べ替え）。元に戻すで戻せる"""
+        n = len(self.layers)
+        if not (0 <= i < n and 0 <= j < n) or i == j:
+            return
+        self.snapshot_all()
+        layer = self.layers.pop(i)
+        self.layers.insert(j, layer)
+        self.current = j
+        self.rebuild()
+        self.changed.emit()
+
     def select(self, i: int):
         if 0 <= i < len(self.layers):
             self.current = i

@@ -41,6 +41,13 @@ class LayerPanel(QWidget):
         self.list.setToolTip("押すと選び、そのレイヤーに描きます。印で表示を切り替え、ダブルクリックで名前を変えます")
         self.list.setEditTriggers(QListWidget.DoubleClicked | QListWidget.EditKeyPressed)
         self.list.itemChanged.connect(self._changed)
+        # ドラッグで並べ替える。右クリックで消す・上下へ・名前・結合。Delete キーで消す
+        self.list.setDragDropMode(QListWidget.InternalMove)
+        self.list.model().rowsMoved.connect(self._moved)
+        self.list.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.list.customContextMenuRequested.connect(self._menu)
+        from PySide6.QtGui import QKeySequence, QShortcut
+        QShortcut(QKeySequence.Delete, self.list, activated=self._delete)
         self.list.currentRowChanged.connect(self._selected)
         self.active = QLabel()
         self.active.setToolTip("線を描くレイヤー")
@@ -56,7 +63,9 @@ class LayerPanel(QWidget):
         row.setSpacing(2)
         for key, label, tip, fn in (
                 ("add", "＋", "新しいレイヤーを選んでいるレイヤーの上に足します（Ctrl+Shift+N）", canvas.add_layer),
-                ("delete", "－", "選んでいるレイヤーを消します（元に戻すで戻せます）", self._delete)):
+                ("delete", "－", "選んでいるレイヤーを消します（Delete。元に戻すで戻せます）", self._delete),
+                ("up_b", "▲", "選んでいるレイヤーを 1 つ上へ（ドラッグでも並べ替えられます）", lambda: canvas.move_layer(1)),
+                ("down_b", "▼", "選んでいるレイヤーを 1 つ下へ", lambda: canvas.move_layer(-1))):
             bt = QPushButton(label)
             bt.setFixedWidth(34)
             bt.setToolTip(tip)
@@ -138,6 +147,8 @@ class LayerPanel(QWidget):
             self.active.setText(f"✎ 描くレイヤー: {layer.name}{state}")
         self.buttons["delete"].setEnabled(len(c.layers) > 1 or bool(pen is not None and pen.marks))
         self.buttons["up"].setEnabled(c.current < len(c.layers) - 1)
+        self.buttons["up_b"].setEnabled(c.current < len(c.layers) - 1)
+        self.buttons["down_b"].setEnabled(c.current > 0)
         self.buttons["down"].setEnabled(c.current > 0)
         self.list.blockSignals(False)
 
@@ -163,6 +174,38 @@ class LayerPanel(QWidget):
             QTimer.singleShot(0, lambda: self.canvas.rename_layer(i, name))
         else:
             QTimer.singleShot(0, self.refresh)
+
+    def _moved(self, _parent, start, _end, _dest, row):
+        """ドラッグで並べ替えたとき。一覧の行（上が一番上のレイヤー）をキャンバスの順に直す"""
+        item_rows = [self.list.item(r).data(ROLE_INDEX) for r in range(self.list.count())]
+        layer_rows = [i for i in item_rows if i is not None and i >= 0]
+        n = len(self.canvas.layers)
+        moved = self.list.item(row if row < start else row - 1)
+        i = moved.data(ROLE_INDEX) if moved is not None else None
+        if i is None or i < 0 or i not in layer_rows:
+            QTimer.singleShot(0, self.refresh)
+            return
+        j = n - 1 - layer_rows.index(i)
+        QTimer.singleShot(0, lambda: self.canvas.move_layer_to(i, j))
+
+    def _menu(self, pos):
+        from PySide6.QtWidgets import QMenu
+        item = self.list.itemAt(pos)
+        m = QMenu(self)
+        m.addAction("新しいレイヤー", self.canvas.add_layer)
+        if item is not None:
+            if item.data(ROLE_INDEX) == -1:
+                m.addAction("赤ペンの印を全部消す", self.canvas.redpen.clear)
+            else:
+                self.canvas.select(item.data(ROLE_INDEX))
+                m.addAction("このレイヤーを消す（Delete）", self._delete).setEnabled(len(self.canvas.layers) > 1)
+                m.addAction("1 つ上へ", lambda: self.canvas.move_layer(1))
+                m.addAction("1 つ下へ", lambda: self.canvas.move_layer(-1))
+                m.addAction("下のレイヤーと結合", self.canvas.merge_down)
+                m.addAction("名前を変える", self.rename_current)
+                m.addAction("ロックを切り替える", self.toggle_lock)
+        m.addAction("見えているレイヤーを結合", self.canvas.merge_visible)
+        m.exec(self.list.viewport().mapToGlobal(pos))
 
     def _delete(self):
         """「－」。赤ペンを選んでいれば印を全部消し、ほかは選んでいるレイヤーを消す"""
