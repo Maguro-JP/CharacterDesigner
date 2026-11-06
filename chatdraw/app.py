@@ -747,14 +747,17 @@ class Window(QMainWindow):
         self.progress = self.activity.bar   # 進みは描いた絵の欄に出す
 
 
-        # 上: メニュー
+        # 上: メニュー。メニュー・リボン・帯・欄の右クリックで同じ働きの物は、同じ QAction を使う
+        # （別々に作ると、片方だけキーや働きが変わり、名前が同じで違う動きになった。リボンの「保存」は PNG の書き出しだった）
+        self.build_shared_actions()
+        S = self.shared
         file = self.menuBar().addMenu("ファイル")
-        file.addAction(QAction("新規キャンバス", self, shortcut="Ctrl+N", triggered=lambda: self.canvas.new_canvas()))
-        file.addAction(QAction("開く…", self, shortcut="Ctrl+O", triggered=self.open_image))
+        file.addAction(S["new"])
+        file.addAction(S["open"])
         edit_open = QAction("画像を開いて直す…", self, triggered=self.open_to_edit)
         edit_open.setToolTip("手元の絵を開き、赤ペンで囲んだ所だけを AI に直させます。囲みの外は変えません")
         file.addAction(edit_open)
-        file.addAction(QAction("保存", self, shortcut="Ctrl+S", triggered=self.save_project))
+        file.addAction(S["save"])
         file.addAction(QAction("名前を付けて保存…", self, shortcut="Ctrl+Shift+S", triggered=lambda: self.save_project(ask=True)))
         out = file.addMenu("書き出す")
         out.addAction(QAction("PNG（重ねた 1 枚）…", self, shortcut="Ctrl+E", triggered=self.save_as))
@@ -765,15 +768,13 @@ class Window(QMainWindow):
         self.folder_menu.aboutToShow.connect(lambda: folders.fill_menu(self.folder_menu, self.settings, self))
         folders.fill_menu(self.folder_menu, self.settings, self)
         file.addSeparator()
-        trash_act = QAction("ごみ箱…", self, triggered=self.open_trash)
-        trash_act.setToolTip("消した絵を見て、元に戻すか本当に消します")
-        file.addAction(trash_act)
+        file.addAction(S["trash"])
         file.addSeparator()
         file.addAction(QAction("終了", self, shortcut="Ctrl+Q", triggered=self.close))
         edit = self.menuBar().addMenu("編集")
-        edit.addAction(QAction("元に戻す", self, shortcut="Ctrl+Z", triggered=self.canvas.undo))
-        edit.addAction(QAction("やり直す", self, shortcut="Ctrl+Y", triggered=self.canvas.redo))
-        edit.addAction(QAction("赤ペンの印を全部消す", self, shortcut="Ctrl+Shift+Backspace", triggered=self.canvas.redpen.clear))
+        edit.addAction(S["undo"])
+        edit.addAction(S["redo"])
+        edit.addAction(S["redpen_clear"])
 
         # 左端: 道具
         tools = QToolBar("道具", self)
@@ -947,11 +948,8 @@ class Window(QMainWindow):
         show_ops(self.activity.ops, self.canvas)
 
         view = self.menuBar().addMenu("表示")
-        view.addAction(QAction("全体を表示", self, shortcut="Ctrl+0", triggered=self.canvas.fit))
-        view.addAction(QAction("100%", self, shortcut="Ctrl+1", triggered=self.canvas.actual))
-        view.addAction(QAction("左に回す", self, shortcut="Ctrl+[", triggered=lambda: self.canvas.rotate_view(-15)))
-        view.addAction(QAction("右に回す", self, shortcut="Ctrl+]", triggered=lambda: self.canvas.rotate_view(15)))
-        view.addAction(QAction("回転を戻す", self, shortcut="Ctrl+\\", triggered=self.canvas.reset_rotation))
+        for k in ("fit", "actual", "rotate_left", "rotate_right", "rotate_reset"):
+            view.addAction(S[k])
         view.addSeparator()
         from chatdraw.timelapse import Recorder
         self.recorder = Recorder()
@@ -998,11 +996,11 @@ class Window(QMainWindow):
         setting_menu.addAction(QAction("設定…", self, shortcut="Ctrl+,", triggered=self.open_settings))
         setting_menu.addAction(QAction("キーの設定…", self, triggered=self.open_keys))
         sel = self.menuBar().addMenu("選択範囲")
-        sel.addAction(QAction("すべてを選択", self, shortcut="Ctrl+A", triggered=self.canvas.select_all))
-        sel.addAction(QAction("選択を解除", self, shortcut="Ctrl+D", triggered=lambda: self.canvas.set_selection(None)))
+        sel.addAction(S["select_all"])
+        sel.addAction(S["deselect"])
         sel.addAction(QAction("選択範囲の中を消す", self, triggered=self.canvas.clear_selection_area))
         layer_menu = self.menuBar().addMenu("レイヤー")
-        layer_menu.addAction(QAction("新しいレイヤー", self, shortcut="Ctrl+Shift+N", triggered=self.canvas.add_layer))
+        layer_menu.addAction(S["add_layer"])
         layer_menu.addAction(QAction("レイヤーを消す", self, triggered=self.canvas.delete_layer))
         layer_menu.addAction(QAction("画像をレイヤーとして読み込む…", self, triggered=self.import_layer))
         layer_menu.addSeparator()
@@ -1132,6 +1130,18 @@ class Window(QMainWindow):
         win.addAction(QAction("自由配置（欄をドラッグして好きな所に置く）", self, triggered=self.free_layout))
         self.build_ribbon()
         self.build_bottom()
+        self.build_quick_bar()
+        win.addAction(self.quick_bar.toggleViewAction())
+        win.addSeparator()
+        self.edit_menus_action = QAction("メニューを編集…", self, triggered=lambda: self.edit_menus().exec())
+        self.edit_menus_action.setToolTip("メニューの項目を隠す・出す・並べ替える")
+        self.edit_bars_action = QAction("帯を編集…", self, triggered=lambda: self.edit_bars().exec())
+        self.edit_bars_action.setToolTip("帯に操作を足す・外す、区切りを入れる、並べ替える")
+        self.lock_bars_action = QAction("帯を固定する", self, checkable=True)
+        self.lock_bars_action.setToolTip("帯とリボンのタブをドラッグで動かせなくします")
+        self.lock_bars_action.toggled.connect(lambda on: self.bars_editor.set_locked(on))
+        for a in (self.edit_menus_action, self.edit_bars_action, self.lock_bars_action):
+            win.addAction(a)
         self.build_layout_menu()
         from chatdraw import themes
         from chatdraw.look import Look
@@ -1140,7 +1150,7 @@ class Window(QMainWindow):
         self._look(themes.current)
         self._show_model()
         help_menu = self.menuBar().addMenu("ヘルプ")
-        help_menu.addAction(QAction(icon("help"), "使い方ツアー", self, shortcut="F1", triggered=self.start_tour))
+        help_menu.addAction(S["tour"])
         help_menu.addAction(QAction("操作方法", self, triggered=lambda: self.open_help("manual")))
         help_menu.addAction(QAction("手順書（入れ方・模型の置き方・困ったとき）", self, triggered=lambda: self.open_help("install")))
         help_menu.addAction(QAction("記録の置き場を開く", self, triggered=self.open_logs))
@@ -1180,6 +1190,7 @@ class Window(QMainWindow):
             self.layout_store.remove(old)
         from chatdraw import keys
         keys.apply(self, self.layout_store)
+        self.setup_customizing()
         # 起動したときの道具。初めは手（絵を動かして見る）。描くときにペンを選ぶ。設定でペンにもできる
         self.select_tool("pen" if self.settings.get("first_tool") == "ペン" else "hand")
 
@@ -3039,6 +3050,9 @@ class Window(QMainWindow):
         self.addToolBarBreak(Qt.TopToolBarArea)
         self.addToolBar(Qt.TopToolBarArea, self.options)
         self.options.show()
+        if hasattr(self, "quick_bar"):
+            self.addToolBar(Qt.TopToolBarArea, self.quick_bar)
+            self.quick_bar.show()
         self.addToolBar(Qt.RightToolBarArea, self.panel_bar)
         self.panel_bar.show()
         self.addToolBar(Qt.BottomToolBarArea, self.bottom_bar)
@@ -3066,9 +3080,8 @@ class Window(QMainWindow):
 
         def fill():
             menu.clear()
-            for name, fn in L.PRESETS.items():
-                menu.addAction(QAction(name, self, triggered=lambda _=False, fn=fn: self.feature_tour(
-                    "layout", lambda fn=fn: self.apply_layout(fn))))
+            for name in L.PRESETS:
+                menu.addAction(self.shared[f"layout:{name}"])   # リボンの「おすすめ」と同じ操作
             menu.addSeparator()
             for label, where in (("左に寄せる", "left"), ("右に寄せる", "right"), ("真ん中に寄せる（絵を中央に）", "center")):
                 menu.addAction(QAction(label, self, triggered=lambda _=False, w=where: self.apply_layout(L.align, w)))
@@ -3152,10 +3165,11 @@ class Window(QMainWindow):
         bar = QToolBar("下の帯", self)
         bar.setObjectName("bottombar")
         bar.setIconSize(QSize(18, 18))
-        for key, label, fn in (("undo", "元に戻す", self.canvas.undo), ("redo", "やり直す", self.canvas.redo)):
-            bar.addAction(QAction(icon(key), label, self, triggered=fn))
+        S = self.shared
+        bar.addAction(S["undo"])
+        bar.addAction(S["redo"])
         bar.addSeparator()
-        bar.addAction(QAction(icon("fit"), "全体を表示", self, triggered=self.canvas.fit))
+        bar.addAction(S["fit"])
         self.zoom_slider = _S(Qt.Horizontal)
         self.zoom_slider.setRange(5, 800)
         self.zoom_slider.setValue(100)
@@ -3164,11 +3178,103 @@ class Window(QMainWindow):
         self.zoom_slider.valueChanged.connect(lambda v: self.canvas.set_zoom(v / 100))
         self.canvas.zoomed.connect(lambda z: (self.zoom_slider.blockSignals(True), self.zoom_slider.setValue(int(z * 100)),
                                               self.zoom_slider.blockSignals(False)))
-        bar.addWidget(self.zoom_slider)
-        bar.addAction(QAction(icon("rotate"), "右に回す", self, triggered=lambda: self.canvas.rotate_view(15)))
-        bar.addAction(QAction("回転を戻す", self, triggered=self.canvas.reset_rotation))
+        from PySide6.QtWidgets import QWidgetAction
+        zoom = QWidgetAction(self)   # 帯の編集で外して戻せるよう、操作として持つ
+        zoom.setText("拡大率")
+        zoom.setDefaultWidget(self.zoom_slider)
+        S["zoom_slider"] = zoom
+        bar.addAction(zoom)
+        bar.addAction(S["rotate_right"])
+        bar.addAction(S["rotate_reset"])
         self.addToolBar(Qt.BottomToolBarArea, bar)
         self.bottom_bar = bar
+
+    def build_shared_actions(self):
+        """メニュー・リボン・帯・右クリックで共に使う操作。1 つの QAction を、出す所ごとに足す"""
+        c = self.canvas
+        rows = (("new", "new", "新規キャンバス", lambda: c.new_canvas(), "Ctrl+N", "白い新しいキャンバスにします（元に戻すで戻せます）"),
+                ("open", "open", "開く…", self.open_image, "Ctrl+O", "作業ファイルか絵を開きます"),
+                ("save", "save", "保存", self.save_project, "Ctrl+S", "作業ファイルに保存します"),
+                ("trash", "trash", "ごみ箱…", self.open_trash, "", "消した絵を見て、元に戻すか本当に消します"),
+                ("undo", "undo", "元に戻す", c.undo, "Ctrl+Z", ""),
+                ("redo", "redo", "やり直す", c.redo, "Ctrl+Y", ""),
+                ("redpen_clear", "", "赤ペンの印を全部消す", c.redpen.clear, "Ctrl+Shift+Backspace", ""),
+                ("select_all", "select", "すべてを選択", c.select_all, "Ctrl+A", ""),
+                ("deselect", "", "選択を解除", lambda: c.set_selection(None), "Ctrl+D", ""),
+                ("fit", "fit", "全体を表示", c.fit, "Ctrl+0", ""),
+                ("actual", "zoom", "100%", c.actual, "Ctrl+1", "等倍で表示"),
+                ("rotate_left", "", "左に回す", lambda: c.rotate_view(-15), "Ctrl+[", ""),
+                ("rotate_right", "rotate", "右に回す", lambda: c.rotate_view(15), "Ctrl+]", ""),
+                ("rotate_reset", "", "回転を戻す", c.reset_rotation, "Ctrl+\\", ""),
+                ("add_layer", "layers", "新しいレイヤー", c.add_layer, "Ctrl+Shift+N", ""),
+                ("tour", "help", "使い方ツアー", self.start_tour, "F1", ""),
+                ("draw", "ai", "描く", self.send, "", "書いた内容で AI に描かせます"))
+        self.shared: dict[str, QAction] = {}
+        for key, ic, label, fn, short, tip in rows:
+            a = QAction(label, self)
+            if ic:
+                a.setIcon(icon(ic))
+            if short:
+                a.setShortcut(short)
+            a.triggered.connect(lambda _=False, fn=fn: fn())
+            a.setToolTip((tip or label) + (f"（{short}）" if short else ""))
+            self.shared[key] = a
+        self.shared["stop"] = self.emergency_stop
+        from chatdraw import layouts as L
+        for name, fn in L.PRESETS.items():
+            a = QAction(name, self, triggered=lambda _=False, fn=fn: self.feature_tour("layout", lambda fn=fn: self.apply_layout(fn)))
+            a.setToolTip(f"「{name}」の配置にします")
+            if name == "おすすめ":
+                a.setIcon(icon("layout"))
+            self.shared[f"layout:{name}"] = a
+
+    def build_quick_bar(self):
+        """よく使う帯。元に戻す・やり直す・赤ペン・描く・止める を、絵のすぐ上の手の届く所に小さく並べる"""
+        bar = QToolBar("よく使う帯", self)
+        bar.setObjectName("quickbar")
+        bar.setIconSize(QSize(18, 18))
+        S = self.shared
+        for k in ("undo", "redo"):
+            bar.addAction(S[k])
+        bar.addSeparator()
+        if "redpen" in self.tool_actions:
+            bar.addAction(self.tool_actions["redpen"])
+        bar.addAction(S["draw"])
+        bar.addAction(S["stop"])
+        self.addToolBar(Qt.TopToolBarArea, bar)
+        self.quick_bar = bar
+
+    def all_actions(self) -> dict[str, QAction]:
+        """帯に置ける操作の一覧。帯の並びはこの名前で覚える"""
+        out = dict(self.shared)
+        out.update({f"tool:{k}": a for k, a in self.tool_actions.items()})
+        out.update({f"panel:{k}": a for k, a in self.panel_actions.items()})
+        return out
+
+    def setup_customizing(self):
+        """メニューと帯の並べ替え・出し入れ・固定を、覚えた形で当てる（版を上げても利用者の形を残す）"""
+        from chatdraw import menuedit
+        self.bars_editor = menuedit.Bars(self, self.layout_store, {
+            "よく使う帯": self.quick_bar, "道具の帯": self.tools, "欄の帯": self.panel_bar, "下の帯": self.bottom_bar},
+            self.all_actions())
+        self.menus_editor = menuedit.Menus(self, self.layout_store)
+
+    def edit_menus(self):
+        from chatdraw.menuedit import MenuEditor
+        return MenuEditor(self, self.menus_editor)
+
+    def edit_bars(self):
+        from chatdraw.menuedit import BarEditor
+        return BarEditor(self, self.bars_editor)
+
+    def createPopupMenu(self):
+        """帯やメニューの帯の右クリック。出し入れの一覧に、帯とメニューの編集と固定を足す"""
+        m = super().createPopupMenu() or __import__("PySide6.QtWidgets", fromlist=["QMenu"]).QMenu(self)
+        m.addSeparator()
+        m.addAction(self.edit_bars_action)
+        m.addAction(self.edit_menus_action)
+        m.addAction(self.lock_bars_action)
+        return m
 
     def notify(self, text: str, kind: str = "info", detail: str = "", on_click=None):
         """右下に短い知らせを出す（数秒で消える。作業は止めない）"""
@@ -3184,15 +3290,12 @@ class Window(QMainWindow):
             a.setToolTip(tip or label)
             return a
         p = self.panels
+        S = self.shared
         r = Ribbon()
         r.add_page("ホーム", [
-            ("ファイル", [act("new", "新規", lambda: self.canvas.new_canvas(), "新しいキャンバス（Ctrl+N）"),
-                         act("open", "開く", self.open_image, "絵を開く（Ctrl+O）"),
-                         act("save", "保存", self.save_as, "名前を付けて保存（Ctrl+S）")]),
-            ("編集", [act("undo", "戻す", self.canvas.undo, "元に戻す（Ctrl+Z）"),
-                     act("redo", "やり直す", self.canvas.redo, "やり直す（Ctrl+Y）")]),
-            ("選択", [act("select", "すべて", self.canvas.select_all, "すべてを選択（Ctrl+A）"),
-                     act("fit", "解除", lambda: self.canvas.set_selection(None), "選択を解除（Ctrl+D）")]),
+            ("ファイル", [S["new"], S["open"], S["save"]]),
+            ("編集", [S["undo"], S["redo"]]),
+            ("選択", [S["select_all"], S["deselect"]]),
         ])
         t = self.tool_actions
         r.add_page("描く", [
@@ -3208,22 +3311,30 @@ class Window(QMainWindow):
             self.ai_panel.sections["描く内容"].set_open(True)
             self.entry.setFocus()
         r.add_page("AI", [
-            ("描く", [act("ai", "頼んで描く", lambda: ai(0), "描きたい絵を書いて AI に描かせる"),
+            ("描く", [S["draw"], act("ai", "頼んで描く", lambda: ai(0), "描きたい絵を書いて AI に描かせる"),
                      act("rough", "ラフから", lambda: ai(1), "キャンバスの線に沿って AI に描かせる")]),
             ("模型", [act("models", "絵の模型", lambda: self.ai_menu.exec(self.cursor().pos()), "絵の模型を切り替える"),
                      act("settings", "管理", self.manage_models, "模型の一覧・取得・更新・削除")]),
         ])
         r.add_page("表示", [
-            ("キャンバス", [act("fit", "全体", self.canvas.fit, "全体を表示（Ctrl+0）"),
-                          act("zoom", "100%", self.canvas.actual, "等倍で表示（Ctrl+1）"),
-                          act("rotate", "回す", lambda: self.canvas.rotate_view(15), "右に回す（Ctrl+]）")]),
+            ("キャンバス", [S["fit"], S["actual"], S["rotate_right"]]),
             ("欄", [self.panel_actions[k] for k in PANEL_ORDER]),
-            ("配置", [act("layout", "おすすめ", lambda: self.apply_layout(__import__("chatdraw.layouts", fromlist=["x"]).recommended),
-                         "おすすめの配置に戻す"),
+            ("配置", [S["layout:おすすめ"],
                      act("layout", "配置…", lambda: self.layout_menu.exec(self.cursor().pos()), "決まった配置・寄せ・等分・保存")]),
-            ("ヘルプ", [act("help", "使い方", self.start_tour, "使い方ツアー（F1）")]),
+            ("ヘルプ", [S["tour"]]),
         ])
-        r.setCurrentIndex(1)   # 初めは「描く」を開いておく
+        # タブはドラッグで並べ替えられ、並びを覚える（「帯を固定する」で動かなくなる）
+        r.tabBar().setMovable(True)
+        order = self.layout_store.value("ribbon/order")
+        if order:
+            names = str(order).split("\t")
+            for i, name in enumerate(names):
+                j = next((k for k in range(r.count()) if r.tabText(k) == name), -1)
+                if j >= 0 and j != i and i < r.count():
+                    r.tabBar().moveTab(j, i)
+        r.tabBar().tabMoved.connect(lambda *_: self.layout_store.setValue(
+            "ribbon/order", "\t".join(r.tabText(k) for k in range(r.count()))))
+        r.setCurrentIndex(next((k for k in range(r.count()) if r.tabText(k) == "描く"), 0))   # 初めは「描く」を開いておく
         bar = QToolBar("リボン", self)
         bar.setObjectName("ribbonbar")
         bar.setMovable(False)

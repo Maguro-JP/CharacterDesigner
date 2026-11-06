@@ -117,6 +117,10 @@ class TabDocks:
         d.setFeatures(PANEL)
         d.setWidget(sec)
         sec.show()
+        # 外へ出したタブの欄も、中のどこを右クリックしても AI の欄と同じメニューを出す（出した欄だけ何も出なかった）
+        d.setContextMenuPolicy(Qt.CustomContextMenu)
+        if hasattr(self.w, "area_menu"):
+            d.customContextMenuRequested.connect(lambda pos, d=d: self.w.area_menu("chat").exec(d.mapToGlobal(pos)))
         self.docks[name] = d
         self.w.addDockWidget(Qt.RightDockWidgetArea, d)
         if at is not None:
