@@ -1142,6 +1142,7 @@ class Window(QMainWindow):
         help_menu = self.menuBar().addMenu("ヘルプ")
         help_menu.addAction(QAction(icon("help"), "使い方ツアー", self, shortcut="F1", triggered=self.start_tour))
         help_menu.addAction(QAction("操作方法", self, triggered=lambda: self.open_help("manual")))
+        help_menu.addAction(QAction("落ちた記録を開く", self, triggered=self.open_crashlog))
         help_menu.addAction(QAction("手順書（入れ方・模型の置き方・困ったとき）", self, triggered=lambda: self.open_help("install")))
         help_menu.addAction(QAction("記録の置き場を開く", self, triggered=self.open_logs))
         help_menu.addAction(QAction("更新を確かめる", self, triggered=lambda: self.check_update(manual=True)))
@@ -2183,6 +2184,17 @@ class Window(QMainWindow):
         from PySide6.QtWidgets import QApplication
         QApplication.clipboard().setImage(QImage(path) if path else self.canvas.flatten())
         self.statusBar().showMessage("絵をコピーしました", 3000)
+
+    def open_crashlog(self):
+        """落ちたときの記録（crash.log）を開く。無ければ無いと知らせる"""
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        from chatdraw import crashlog
+        p = crashlog.path()
+        if not p.exists():
+            self.notify("落ちた記録はありません", "info", str(p))
+            return
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(p)))
 
     def open_folder(self, path: str):
         from PySide6.QtCore import QUrl
@@ -4224,7 +4236,9 @@ def dark(app: QApplication, name: str | None = None):
 
 
 def main():
+    from chatdraw import crashlog
     from chatdraw.paths import adopt_stray
+    crashlog.install()
     try:
         adopt_stray()   # 前の版がずれた置き場（cd）に書いた ★・非表示などを、本来の置き場へ合わせる
     except OSError:
@@ -4250,6 +4264,17 @@ def main():
         w.offer_restore()
     # closeEvent を通らずに終わる道（更新を入れて閉じるなど）でも、正しく閉じた印を残す
     app.aboutToQuit.connect(lambda: (w.layout_store.setValue("running", 0), w.layout_store.sync()))
+    # 前の回が落ちていたら、記録の場所を知らせる（次に直すときの手がかりにする）
+    try:
+        prev = int(w.layout_store.value("crashlog_size", 0) or 0)
+    except (TypeError, ValueError):
+        prev = 0
+    if crashlog.last_crash(prev):
+        w.notify("前に落ちたときの記録があります", "error", f"記録: {crashlog.path()}（ヘルプの「落ちた記録を開く」で開けます）")
+    try:
+        w.layout_store.setValue("crashlog_size", crashlog.path().stat().st_size)
+    except OSError:
+        pass
     w.maybe_tour()
     from PySide6.QtCore import QTimer
     QTimer.singleShot(5000, w.check_update)   # 起動の邪魔をしないよう、少し待ってから確かめる
