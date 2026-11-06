@@ -1044,7 +1044,7 @@ class Window(QMainWindow):
         setting_menu = self.menuBar().addMenu("設定")
         setting_menu.addAction(QAction("設定…", self, shortcut="Ctrl+,", triggered=self.open_settings))
         setting_menu.addAction(QAction("キーの設定…", self, triggered=self.open_keys))
-        setting_menu.addAction(QAction("お気に入りの作風…", self, triggered=self.open_favorites,
+        setting_menu.addAction(QAction("作風の登録…", self, triggered=self.open_favorites,
                                        toolTip="好きな作家・作品の言葉を名前で残し、描くときに足します"))
         setting_menu.addAction(QAction("参考画像を探す…", self, triggered=self.ask_reference_search))
         setting_menu.addAction(QAction("予約の一覧", self, triggered=lambda: self.say(self.scheduler.summary())))
@@ -1585,7 +1585,7 @@ class Window(QMainWindow):
             words = (m.group(2) or "").strip(" 、。") or self.entry.text().strip()
             words = self._FAV_ADD.sub(" ", words).strip(" 、。して")
             self.favorites().put(m.group(1), words)
-            self.chat.add("ai", f"お気に入りの作風「{m.group(1)}」に「{words}」を残しました。「{m.group(1)}で描いて」で使えます")
+            self.chat.add("ai", f"登録した作風「{m.group(1)}」に「{words}」を残しました。「{m.group(1)}で描いて」で使えます")
             return True
         try:
             # 一覧の見出しだけを使う。available() は使えるかを確かめるので 1 秒余りかかり、画面の糸で呼ぶとチャットが固まった

@@ -18,7 +18,7 @@ EN = {
     "欄の位置": "Panel Position", "帯の位置": "Toolbar Position", "機能ごとの案内": "Feature Guides",
     "設定…": "Settings…", "キーの設定…": "Key Bindings…", "使い方ツアー": "Guided Tour", "操作方法": "How to Use",
     "手順書（入れ方・模型の置き方・困ったとき）": "Manual (install, models, troubleshooting)", "記録の置き場を開く": "Open Log Folder",
-    "更新を確かめる": "Check for Updates", "お気に入りの作風…": "Favorite Styles…", "予約の一覧": "Scheduled Requests",
+    "更新を確かめる": "Check for Updates", "作風の登録…": "Favorite Styles…", "予約の一覧": "Scheduled Requests",
     "予約を全部消す": "Clear All Scheduled", "参考画像を探す…": "Find Reference Images…",
     "新規": "New", "開く…": "Open…", "保存": "Save", "名前を付けて保存…": "Save As…", "終了": "Quit",
     "元に戻す": "Undo", "やり直す": "Redo", "切り取り": "Cut", "コピー": "Copy", "貼り付け": "Paste",

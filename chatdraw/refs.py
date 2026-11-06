@@ -1,6 +1,6 @@
-"""参考資料: 好きな作家・作品の言葉（お気に入りの作風）と、手元の参考画像の検索。
+"""参考資料: 好きな作家・作品の言葉（登録した作風）と、手元の参考画像の検索。
 
-お気に入りの作風は、利用者が自分で書いた言葉を名前と組で残す（利用者ごとの QSettings。リポジトリにも作品の画像にも触らない）。
+登録した作風は、利用者が自分で書いた言葉を名前と組で残す（利用者ごとの QSettings。リポジトリにも作品の画像にも触らない）。
 描くときに「お気に入りの○○で」と頼むか、一覧で選ぶと、その言葉を描く頼みの後ろに足す。日本語のまま書いた言葉は、
 絵の模型に渡す前に english_only が落とすので、英語で書くよう一覧の欄で案内する。
 
@@ -126,11 +126,11 @@ def find_images(query: str, items: list[dict] = (), folders: list[str] = (), lim
 
 
 class FavoritesDialog(QDialog):
-    """お気に入りの作風の一覧。足す・直す・消す。選んで「使う」と、AI の欄の描く内容の後ろに言葉を足す"""
+    """登録した作風の一覧。足す・直す・消す。選んで「使う」と、AI の欄の描く内容の後ろに言葉を足す"""
 
     def __init__(self, favorites: Favorites, parent=None, on_use=None):
         super().__init__(parent)
-        self.setWindowTitle("お気に入りの作風")
+        self.setWindowTitle("登録した作風")
         self.resize(460, 360)
         self.fav = favorites
         self.on_use = on_use

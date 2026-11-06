@@ -158,6 +158,7 @@ class LoadPathTest(unittest.TestCase):
                                            "bitsandbytes": types.ModuleType("bitsandbytes")}), \
                 mock.patch("chatdraw.models.user_entries", return_value=user), \
                 mock.patch.object(engine, "cpu_dtype", return_value="bfloat16"), \
+                mock.patch.object(engine, "free_ram_gb", return_value=0.0), \
                 mock.patch("huggingface_hub.hf_hub_download", side_effect=lambda hub, f, **kw: f"/hub/{hub}/{f}"):
             p = engine.Painter(repo, steps=4)
             p.avoid = "watermark"
