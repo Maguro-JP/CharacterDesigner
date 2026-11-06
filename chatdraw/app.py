@@ -693,6 +693,12 @@ class Window(QMainWindow):
             wdg.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         tl.addWidget(model_head)
         tl.addLayout(model_row)
+        count_row = QHBoxLayout()   # 作成枚数。詳しい設定の 1・2・4 枚のボタンと同じ値
+        count_row.setContentsMargins(0, 0, 0, 0)
+        count_row.addWidget(QLabel("作成枚数"))
+        count_row.addWidget(self.ai_panel.count_spin)
+        count_row.addStretch()
+        tl.addLayout(count_row)
         self._lora_row()
         tl.addWidget(word_head)
         tl.addWidget(self.entry)
@@ -1010,6 +1016,8 @@ class Window(QMainWindow):
         layer_menu.addAction(QAction("新しいレイヤー", self, shortcut="Ctrl+Shift+N", triggered=self.canvas.add_layer))
         layer_menu.addAction(QAction("レイヤーを消す", self, triggered=self.canvas.delete_layer))
         layer_menu.addAction(QAction("画像をレイヤーとして読み込む…", self, triggered=self.import_layer))
+        layer_menu.addAction(QAction("レイヤーを PNG で保存…", self, triggered=self.save_layer_png))
+        layer_menu.addAction(QAction("全部のレイヤーを PNG で書き出す…", self, triggered=self.export_layers_png))
         layer_menu.addSeparator()
         layer_menu.addAction(QAction("下のレイヤーと結合", self, triggered=self.canvas.merge_down))
         layer_menu.addAction(QAction("見えているレイヤーを結合", self, shortcut="Ctrl+Shift+E", triggered=self.canvas.merge_visible))
@@ -1731,6 +1739,46 @@ class Window(QMainWindow):
                                 "取らないときは、1 つの模型で描きます。") == QMessageBox.Yes:
             self.studio.fetch_two_parts = True   # 取るのは描く裏の処理で行う（画面を止めない）
 
+    def save_layer_png(self, path: str | None = None) -> str:
+        """選んでいるレイヤーだけを、透明を残したまま PNG で保存する"""
+        c = self.canvas
+        if not c.layers:
+            return ""
+        layer = c.layers[c.current]
+        if path is None:
+            path, _ = QFileDialog.getSaveFileName(self, "レイヤーを PNG で保存", str(Path(self.settings.get("output_dir")) / f"{layer.name}.png"), "PNG (*.png)")
+            if not path:
+                return ""
+        if not layer.image.save(path, "PNG"):
+            QMessageBox.warning(self, "レイヤーを保存", f"保存できませんでした: {path}")
+            return ""
+        self.statusBar().showMessage(f"{layer.name} を保存しました: {path}", 6000)
+        return path
+
+    def export_layers_png(self, folder: str | None = None) -> list[str]:
+        """全部のレイヤーを 1 枚ずつ PNG で書き出す。名前は下からの番号と名前（並びが分かり、同じ名前でも上書きしない）"""
+        import re
+        c = self.canvas
+        if not c.layers:
+            return []
+        if folder is None:
+            folder = QFileDialog.getExistingDirectory(self, "レイヤーを書き出すフォルダー", str(self.settings.get("output_dir")))
+            if not folder:
+                return []
+        out = []
+        for i, layer in enumerate(c.layers, 1):
+            safe = re.sub(r'[\\/:*?"<>|]', "_", layer.name).strip() or "layer"
+            path = str(Path(folder) / f"{i:02d}-{safe}.png")
+            if layer.image.save(path, "PNG"):
+                out.append(path)
+        self.statusBar().showMessage(f"{len(out)} 枚のレイヤーを書き出しました: {folder}", 6000)
+        return out
+
+    def fix_marked(self):
+        """赤ペンで囲んだ所を直す。AI の欄を「直す」にして「描く」と同じ send() を呼ぶ"""
+        self.mode.setCurrentIndex(2)
+        self.send()
+
     def edit_note(self, n: int):
         """赤ペンの n 番の印の横に、指示を書く欄を出す。Enter で絵の上に残し、Esc でやめる"""
         from PySide6.QtCore import QPoint
@@ -1756,8 +1804,9 @@ class Window(QMainWindow):
     def _note_done(self):
         pen = self.canvas.redpen
         if 1 <= self.note_n <= len(pen.texts):
-            pen.texts[self.note_n - 1] = self.note_edit.text().strip()
-            pen.update()
+            pen.set_text(self.note_n, self.note_edit.text())
+            if hasattr(self, "layer_panel"):   # 指示はレイヤーの欄の「赤ペン n」の行にも出す
+                self._refresh_layers()
         self.note_edit.hide()
         self.canvas.setFocus()
 
@@ -1774,7 +1823,8 @@ class Window(QMainWindow):
         """直す所と指示の並び。赤ペンの印は絵の上に書いた指示か番号ごとの指示、四角の選択は文全体を指示にする"""
         from chatdraw.redpen import merge
         marks = self.canvas.redpen.masks()
-        regions = [(gray_to_pil(m), n) for m, n in zip(marks, merge(self.canvas.redpen.texts, text))]
+        shown = self.canvas.redpen.shown()   # 欄で隠した印は直さない
+        regions = [(gray_to_pil(m), n) for i, (m, n) in enumerate(zip(marks, merge(self.canvas.redpen.texts, text)), 1) if i in shown]
         sel = self.canvas.selection_mask()
         if sel is not None:
             regions.append((gray_to_pil(sel), text))
@@ -2300,6 +2350,9 @@ class Window(QMainWindow):
         if "redpen" in self.tool_actions:
             m.addAction("赤ペンで直す所を囲む（T）", self.tool_actions["redpen"].trigger).setToolTip(
                 "囲んで指示を書き、「描く」を押すと囲んだ所だけを AI が直します")
+        if c.redpen.marks or c.selection is not None:
+            # 「描く」を直すにして押すのと同じ道を通す（右クリックから仕上げと同じ手数で直せるように）
+            m.addAction("囲んだ所を直す", self.fix_marked).setEnabled(not self.thread)
         if c.redpen.marks:
             m.addAction("赤ペンの印を消す", c.redpen.clear)
         # 番号の丸の上で右クリックしたら、その印だけを直す・消す

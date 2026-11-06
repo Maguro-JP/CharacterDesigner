@@ -80,6 +80,7 @@ def apply(canvas, got: tuple[dict, list]) -> dict:
     for pts, note in zip(manifest.get("marks", []), manifest.get("notes", [])):
         pen.marks.append([QPointF(x, y) for x, y in pts])
         pen.texts.append(note)
+        pen.hidden.append(False)
     pen.update()
     return manifest
 

@@ -144,8 +144,8 @@ class LayerTest(unittest.TestCase):
             c = w.canvas
             before = c.size_px()
             draw(w)
-            self.assertEqual([l.name for l in c.layers], ["AI の絵 1"])
-            self.assertEqual(c.current, 0)   # 結果は一番上で選んだ状態（下に入れると気づけなかった: test_toplayer）
+            self.assertEqual([l.name for l in c.layers], ["レイヤー 1", "AI の絵 1"])   # 一番下は透明の土台
+            self.assertEqual(c.current, 1)   # 結果は一番上で選んだ状態（下に入れると気づけなかった: test_toplayer）
             self.assertNotEqual(c.size_px(), before)
             c.undo()
             self.assertEqual(c.size_px(), before)
@@ -166,7 +166,7 @@ class FinalImageTest(unittest.TestCase):
             w.thread = None
             w.finish()
             self.assertFalse(w.canvas.overlay.isVisible())
-            self.assertEqual(w.canvas.layers[0].image.pixelColor(5, 5), QColor("red"))
+            self.assertEqual(w.canvas.layers[-1].image.pixelColor(5, 5), QColor("red"))
             self.assertEqual(w.history.currentItem().data(Qt.UserRole), str(path))
             w.show_preview(Image.new("RGB", (8, 8), "blue"))   # 描き終えたあとの途中の絵は出さない
             self.assertFalse(w.canvas.overlay.isVisible())
@@ -180,7 +180,7 @@ class FinalImageTest(unittest.TestCase):
             path = Path(d) / "final.png"
             Image.new("RGB", (64, 96), "red").save(path)
             w.on_one("p", str(path))
-            self.assertEqual(w.canvas.layers[0].image.pixelColor(5, 5), QColor("red"))
+            self.assertEqual(w.canvas.layers[-1].image.pixelColor(5, 5), QColor("red"))
 
     def test_missing_file_does_not_blank_canvas(self):
         with TemporaryDirectory() as d:

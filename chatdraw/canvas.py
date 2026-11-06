@@ -219,14 +219,15 @@ class Canvas(QGraphicsView):
         self._reset([Layer("絵", img), Layer("レイヤー 1", blank(img.width(), img.height()))], 1)
 
     def replace_with_image(self, path: str, name: str = "AI の絵"):
-        """AI が新しく描いた絵に、キャンバスを置き換える。絵を下に、描くための空のレイヤーを上に置く。
+        """AI が新しく描いた絵に、キャンバスを置き換える。一番下に透明の「レイヤー 1」、その上に AI の絵を置く。
+        足したレイヤーは選んだ AI の絵の上に入る（下から 土台・AI の絵・足したレイヤー、赤ペンはいつも一番上）。
         前の絵の上に重ねると、大きさの違う絵が重なって見分けられなかった。前の状態は「元に戻す」で戻せる"""
         img = _load(path)
         if not self.layers:
-            self._reset([Layer(name, img), Layer("レイヤー 1", blank(img.width(), img.height()))], 1)
+            self._reset([Layer("レイヤー 1", blank(img.width(), img.height())), Layer(name, img)], 1)
             return
         self.snapshot_all()
-        self.layers = [Layer(name, img), Layer("レイヤー 1", blank(img.width(), img.height()))]
+        self.layers = [Layer("レイヤー 1", blank(img.width(), img.height())), Layer(name, img)]
         self.current = 1
         self.set_selection(None)
         self.rebuild()
@@ -239,14 +240,14 @@ class Canvas(QGraphicsView):
         （大きさの違う前の絵とは重ねられない）。どちらも前の状態は「元に戻す」で戻せる"""
         img = _load(path)
         if not self.layers:
-            self._reset([Layer(name, img)], 0)
+            self._reset([Layer("レイヤー 1", blank(img.width(), img.height())), Layer(name, img)], 1)
             return
         resized = (img.width(), img.height()) != self.size_px()
         if not replace and resized:
             return self.add_image_layer(path, name)   # 大きさだけ違う結果は、キャンバスに合わせて一番上に重ねる
         self.snapshot_all()
-        if replace:
-            self.layers = [Layer(name, img)]
+        if replace:   # 一番下は透明の土台、その上に結果（replace_with_image と同じ並び）
+            self.layers = [Layer("レイヤー 1", blank(img.width(), img.height())), Layer(name, img)]
         else:
             self.layers.append(Layer(name, img))
         self.current = len(self.layers) - 1
@@ -381,11 +382,18 @@ class Canvas(QGraphicsView):
         self.rebuild()
 
     def delete_layer(self):
-        if len(self.layers) <= 1:
+        """選んでいるレイヤーを、絵ごと消す。消したレイヤーの絵は手元の覚えから捨て（元に戻す用の写しだけ残る）、
+        読み込んだ元のファイルからは読み直さない。1 枚だけのときは消せないので、絵を消して透明にする
+        （前は何も起きず、押しても絵が残った）"""
+        if not self.layers:
             return
         self.snapshot_all()
-        del self.layers[self.current]
-        self.current = max(0, self.current - 1)
+        if len(self.layers) <= 1:
+            self.layers[0].image.fill(Qt.transparent)
+        else:
+            gone = self.layers.pop(self.current)
+            gone.image = QImage()   # 画面の項目が古い絵を持ち続けないように、中身を手放す
+            self.current = max(0, self.current - 1)
         self.rebuild()
 
     def move_layer(self, step: int):
