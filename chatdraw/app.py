@@ -114,7 +114,18 @@ class Job(QObject):
         self.regions, self.reference, self.ref_scale, self.meta = regions, reference, ref_scale, meta or {}
         self.check = check
         self.tid = None   # 走っている裏の糸の番号。緊急停止がここへ Stopped を投げ込む
+        self._last_preview = 0.0
         fresh_stop(studio)
+
+    PREVIEW_GAP = 0.4   # 途中の絵を画面に渡す間（秒）
+
+    def _preview(self, img):
+        """途中の絵は工程ごとに届く。全部を画面の糸に積むと、速い模型では置く処理が溜まって画面とメモリを圧迫したので、間を空けて渡す"""
+        now = time.monotonic()
+        if now - self._last_preview < self.PREVIEW_GAP:
+            return
+        self._last_preview = now
+        self.preview.emit(img)
 
     def _say(self, msg: str):
         """工程の知らせ。止める旗が立っていれば、ここで止める（旗を見ない工程の区切りでも止まる）"""
@@ -139,7 +150,7 @@ class Job(QObject):
                     extra = dict(reference=self.reference, ref_scale=self.ref_scale) if self.reference is not None else {}
                     prompt, path = self.studio.draw(self.text, seed, on_status=self._say,
                                                     base=self.base, strength=self.strength, size=self.size,
-                                                    on_preview=self.preview.emit, style=self.style, meta=self.meta, **extra)
+                                                    on_preview=self._preview, style=self.style, meta=self.meta, **extra)
                     self._stopped()
                     preload(path)   # 置くときに画面の糸で絵を読まないよう、ここ（裏の糸）で先に読む
                     self.one.emit(prompt, str(path))
@@ -1651,8 +1662,9 @@ class Window(QMainWindow):
         meta = dict(mode=self.mode.currentText(), preset=self.ai_panel.preset, style_name=self.ai_panel.style,
                     size=list(self.size_pick.currentData()), strength=self.strength.value())
         self._apply_avoid()
-        self.thread = QThread()
         self.job_studio = self._fix_studio() if mode == 2 else self.studio
+        self.before_heavy(self.job_studio.painter)
+        self.thread = QThread()
         self.job = Job(self.job_studio, text, seeds, base=base, strength=self.strength.value() / 100,
                        style=self.ai_panel.style_tags(), regions=regions, reference=self.ai_panel.reference(),
                        ref_scale=self.ai_panel.ref_scale.value() / 100, meta=meta,
@@ -1903,6 +1915,7 @@ class Window(QMainWindow):
         self.stop_button.setEnabled(True)
         self.activity.begin(label, kind)
         self.batch, self.batch_items, self.job_kind = [], [], kind
+        self.before_heavy(getattr(getattr(job, "studio", None), "painter", None))
         self.thread = QThread()
         self.job = self._worker = job
         job.moveToThread(self.thread)
@@ -1973,9 +1986,29 @@ class Window(QMainWindow):
         self.notify(f"{what}は、今の絵を描き終えてから押してください", "info", "描いている間は、ほかの AI の作業を始めません。止めるなら「止める」を押します")
         return True
 
+    def before_heavy(self, keep=None):
+        """AI の重い作業を始める前に、落ちても失わないよう作業を自動保存し、使わない絵の模型をメモリから降ろす。
+        描いている途中にアプリごと落ちる報告があった。落ちる前に保存しておけば、次の起動で戻すかを聞ける（offer_restore）。
+        今の模型と直しの模型（_fix_cache）が両方メモリに残ると、2 つの模型の分だけメモリを使い、足りなくなった"""
+        try:
+            self.autosave()
+        except Exception:   # noqa: BLE001  保存できなくても描くのは止めない
+            pass
+        for st in (getattr(self, "studio", None), getattr(self, "_fix_cache", None)):
+            p = getattr(st, "painter", None)
+            if p is None or p is keep or getattr(p, "model", None) == getattr(keep, "model", object()):
+                continue
+            loaded = getattr(p, "loaded", None)
+            if callable(loaded) and loaded():
+                p.unload()
+
     def _run_task(self, fn, then):
         if self.busy("この作業"):   # 呼び手が見落としても、動いている糸を上書きしない
             return False
+        try:
+            self.autosave()   # 落ちても失わないように（before_heavy と同じ理由）
+        except Exception:   # noqa: BLE001
+            pass
         self.thread = QThread()
         self.task = self._worker = Task(fn)
         self.stop_button.setEnabled(True)
@@ -2517,6 +2550,9 @@ class Window(QMainWindow):
         else:
             steps, guidance = g("steps"), g("guidance")
         old = getattr(self, "studio", None)
+        if old is not None and getattr(old.painter, "model", None) != image and not getattr(self, "thread", None) \
+                and callable(getattr(old.painter, "unload", None)):
+            old.painter.unload()   # 模型を替えたら、前の模型を降ろしてから次を読む（2 つを同時にメモリに置かない）
         painter = old.painter if old is not None and getattr(old.painter, "model", None) == image else Painter(image)
         painter.steps, painter.guidance = steps, guidance
         painter.lora = str(self.layout_store.value("lora", "") or "")
@@ -2916,6 +2952,23 @@ class Window(QMainWindow):
         self.hide_progress_if_idle()
         self.last_stop_ui = time.time() - t0
         self.statusBar().showMessage(f"止めました（{self.last_stop_ui:.2f} 秒）", 4000)
+
+    def finish_threads_before_close(self, wait_ms: int = 5000) -> bool:
+        """描いている途中に閉じたら、止めて裏の糸の終わりを待つ。動いている QThread を消すと、Qt がアプリごと落とす
+        （QThread: Destroyed while thread is still running）。待っても終わらなければ窓だけ隠し、終わってから閉じ直す。閉じてよければ True"""
+        if self.thread is not None:
+            self.stop()
+        left = [w for w, _o, _t in getattr(self, "_zombies", []) if w.isRunning()]
+        for w in left:
+            w.wait(wait_ms)
+        left = [w for w in left if w.isRunning()]
+        if not left:
+            return True
+        self.closing_checked = True   # 保存を聞くのは 1 回だけ
+        self.hide()
+        for w in left:
+            w.finished.connect(self.close, Qt.QueuedConnection)
+        return False
 
     def _stale(self) -> bool:
         """止めた回の裏の処理から遅れて届いた知らせか。止めた回の絵はキャンバスに置かない"""
@@ -3419,6 +3472,9 @@ class Window(QMainWindow):
             if box.clickedButton() is save and not self.save_project(wait=True) or box.clickedButton() not in (save, drop):
                 e.ignore()
                 return
+        if not self.finish_threads_before_close():
+            e.ignore()
+            return
         self.wait_io()   # 裏で書いている保存を書き終えてから閉じる（書きかけの作業ファイルを残さない）
         self.layout_store.setValue("running", 0)   # 正しく閉じた印（次の起動で戻すかを聞かない）
         # 次に開いたときも同じ並びにする
