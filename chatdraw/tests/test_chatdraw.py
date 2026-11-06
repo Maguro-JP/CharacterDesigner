@@ -2055,12 +2055,14 @@ class UsabilityFixTest(unittest.TestCase):
             self._draw(app, w, "1girl")
             self._draw(app, w, "1girl, smile")
             names = [l.name for l in w.canvas.layers]
-            self.assertEqual(len(names), 1)                     # キャンバスは新しい絵 1 枚に置き換わる。前の絵は重ならない
-            self.assertTrue(names[0].startswith("AI の絵"))
-            self.assertEqual(w.canvas.current, 0)               # 結果は一番上のレイヤーで、選んだ状態（気づけるように）
-            first = w.canvas.layers[0].name
+            ai = [n for n in names if n.startswith("AI の絵")]
+            self.assertEqual(len(ai), 1)                        # AI の絵は新しい 1 枚に置き換わる。前の絵は重ならない
+            self.assertFalse(names[0].startswith("AI の絵"))    # 一番下は透明の土台のレイヤー、その上に AI の絵
+            self.assertTrue(names[-1].startswith("AI の絵"))
+            self.assertEqual(w.canvas.current, len(names) - 1)  # 結果は一番上のレイヤーで、選んだ状態（気づけるように）
+            first = names[-1]
             w.canvas.undo()
-            self.assertNotEqual(w.canvas.layers[0].name, first)  # 元に戻すで前の絵に戻る
+            self.assertNotEqual(w.canvas.layers[-1].name, first)  # 元に戻すで前の絵に戻る
             w.settings.store.remove(w.PROMPT_KEY)
 
     def test_layer_added_on_top_not_under_strokes(self):
