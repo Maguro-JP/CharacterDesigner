@@ -1482,7 +1482,8 @@ class Window(QMainWindow):
             self.chat.add("ai", f"お気に入りの作風「{m.group(1)}」に「{words}」を残しました。「{m.group(1)}で描いて」で使えます")
             return True
         try:
-            entries = finishers.available()
+            # 一覧の見出しだけを使う。available() は使えるかを確かめるので 1 秒余りかかり、画面の糸で呼ぶとチャットが固まった
+            entries = [{"name": n, "label": f.label} for n, f in finishers.REGISTRY.items()]
         except Exception:   # noqa: BLE001  仕上げの一覧が読めなくても、ほかの段取りは読む
             entries = []
         plan = chatplan.parse(text, entries)

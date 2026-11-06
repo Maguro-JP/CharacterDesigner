@@ -56,7 +56,7 @@ TERMS = {
 # 役柄と生き物。表に無いと、言葉の模型が無いときに落ちて、ただの人物が描かれた
 for _k, _v in {"魔女": "witch, witch hat", "天使": "angel, angel wings, halo", "悪魔": "demon, demon horns", "吸血鬼": "vampire",
                "侍": "samurai, katana", "忍者": "ninja", "巫女": "miko", "アイドル": "idol", "看護師": "nurse", "警察官": "police uniform",
-               "海賊": "pirate", "魔法少女": "magical girl", "メカ": "mecha", "ロボット": "robot", "ドラゴン": "dragon",
+               "海賊": "pirate", "魔法少女": "magical girl", "メカ": "mecha", "ロボット": "robot",
                "猫": "cat", "犬": "dog", "鳥": "bird", "狼": "wolf", "うさ耳": "rabbit ears", "角": "horns", "翼": "wings", "尻尾": "tail",
                "雨傘": "umbrella", "ヘッドホン": "headphones", "ギター": "guitar", "カメラ": "camera", "星空": "starry sky",
                "月": "moon", "炎": "fire", "水中": "underwater", "宇宙": "space"}.items():

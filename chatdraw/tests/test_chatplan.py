@@ -141,10 +141,11 @@ class RefsTest(unittest.TestCase):
 class LanguageTest(unittest.TestCase):
     def test_translate_menus(self):
         QApplication.instance() or QApplication([])
-        from PySide6.QtWidgets import QMenuBar
+        from PySide6.QtWidgets import QMenu, QMenuBar
         from chatdraw import i18n
         bar = QMenuBar()
-        f = bar.addMenu("ファイル")
+        f = QMenu("ファイル", bar)
+        bar.addMenu(f)
         f.addAction("名前の無い項目")
         bar.addMenu("ヘルプ").addAction("使い方ツアー")
         self.assertEqual(i18n.translate_menus(bar, "日本語"), 0)
