@@ -113,9 +113,9 @@ def register(f: Finisher):
 
 register(Finisher(
     "clean", "塗りのむらを均す", "線はそのままに、平らな所の細かいざらつきだけを均します（模型は使いません）",
-    "このリポジトリのコード", "chatdraw/finishers.py", lambda: True, lambda: "", _clean_apply))
+    "このリポジトリのコード", "chatdraw/finishers.py", lambda: True, lambda: "", _clean_apply, extra=dict(scale="tile")))
 register(Finisher(
-    "upscale_anime", "アニメ向けに拡大して整える",
+    "upscale_anime", "アニメ向けに 2 倍に拡大",
     "Real-ESRGAN のアニメ絵用の重みで 2 倍にします。囲んだときは、囲みの中だけ拡大で整えた画素に替えます。"
     "初めて使うときに重み（18MB）を取ります",
     "BSD-3-Clause", "https://github.com/xinntao/Real-ESRGAN（RealESRGAN_x4plus_anime_6B）",
@@ -126,7 +126,7 @@ register(Finisher(
     lambda: _redraw_ready(), lambda: _redraw_why(), None, heavy=True,
     extra=dict(redraw=_redraw_with("detailed face, clean lineart, symmetrical eyes", 0.3)), group="redraw"))
 register(Finisher(
-    "refine", "低い強さで描き直して仕上げる", "形を変えない強さ（0.25）で描き直し、線と塗りを整えます",
+    "refine", "軽く描き直して仕上げる", "形を変えない強さ（0.25）で描き直し、線と塗りを整えます",
     "使う絵の模型の許諾（CreativeML OpenRAIL++-M など）", "取得済みの直しに使える絵の模型",
     lambda: _redraw_ready(), lambda: _redraw_why(), None, heavy=True,
     extra=dict(redraw=_redraw_with("masterpiece, clean lineart, clean coloring", 0.25)), group="redraw"))
@@ -312,31 +312,31 @@ def _material(kind: str):
 
 _OWN = "このリポジトリのコード"
 register(Finisher(
-    "retouch", "線と塗りを整える（形は変えません）",
-    "AI の描き残しの黒い粒・線の縁の色のにじみを消し、明るさの幅と線の締まりを整えます。工程ごとに数字が良くなった時だけ掛けます",
+    "retouch", "線と塗りを整える",
+    "AI の描き残しの黒い粒・線の縁の色のにじみを消し、明るさの幅と線の締まりを整えます。形は変えません。工程ごとに数字が良くなった時だけ掛けます",
     _OWN, "tools/gen/retouch.py", _own_ready("retouch", "numpy", "scipy"), _own_why("retouch", "numpy", "scipy"),
-    _retouch(RETOUCH_SAFE), extra=dict(needs=("numpy", "scipy"))))
+    _retouch(RETOUCH_SAFE), extra=dict(needs=("numpy", "scipy"), scale="retouch", steps=RETOUCH_SAFE)))
 register(Finisher(
-    "retouch_full", "輪郭のバリとジャギーも取る",
+    "retouch_full", "バリとジャギーも取る",
     "線と塗りを整えたうえで、輪郭の毛羽と線の階段も直します。顔の細い線に掛かることがあるので、囲んで使うと安心です",
     _OWN, "tools/gen/retouch.py", _own_ready("retouch", "numpy", "scipy", "skimage"), _own_why("retouch", "numpy", "scipy", "skimage"),
-    _retouch(RETOUCH_FULL), extra=dict(needs=("numpy", "scipy", "skimage"))))
+    _retouch(RETOUCH_FULL), extra=dict(needs=("numpy", "scipy", "skimage"), scale="retouch", steps=RETOUCH_FULL)))
 register(Finisher(
-    "ink", "ラフの線を清書する", "重ねた線・途切れた線を 1 本の線にまとめ、太さをそろえます（白い地の線画にします）",
+    "ink", "ラフを清書する", "重ねた線・途切れた線を 1 本の線にまとめ、太さをそろえます（白い地の線画にします）",
     _OWN, "tools/gen/inking.py", _own_ready("inking", "numpy", "scipy", "skimage"), _own_why("inking", "numpy", "scipy", "skimage"), _ink, group="ink",
-    extra=dict(needs=("numpy", "scipy", "skimage"))))
+    extra=dict(needs=("numpy", "scipy", "skimage"), scale="tile")))
 for _m, _label, _tip in (("holy", "神々しい光", "光の筋と光の粒、暖かい白金のにじみを重ねます"),
                          ("komorebi", "木漏れ日", "木漏れ日の光の斑点と細い筋を重ねます"),
                          ("haze", "霞と遠近", "上ほど空の色で覆い、奥行きを出します")):
     register(Finisher(f"air_{_m}", _label, _tip + "。線と形は変えません", _OWN, "tools/gen/atmosphere.py",
                       _own_ready("atmosphere", "numpy"), _own_why("atmosphere", "numpy"), _mood(_m), group="air",
-                      extra=dict(needs=("numpy",), effect=True)))
+                      extra=dict(needs=("numpy",), effect=True, scale="work")))
 for _k, _label, _tip in (("metal", "金属", "明暗の段差と映り込みの帯、強い照り返しを足します"),
                          ("gem", "宝石", "面の分かれの明暗と内側の透け、きらめきを足します"),
                          ("slime", "透明感", "内側ほど透かし、縁の光と照り返しを足します")):
     register(Finisher(f"mat_{_k}", _label, _tip + "。囲んだ所だけに掛けてください", _OWN, "tools/gen/materials.py",
                       _own_ready("materials", "numpy", "scipy"), _own_why("materials", "numpy", "scipy"), _material(_k),
-                      group="texture", extra=dict(needs=("numpy", "scipy"), effect=True)))
+                      group="texture", extra=dict(needs=("numpy", "scipy"), effect=True, scale="work")))
 
 
 # 押したときに取りに行ける部品（模型の要らない仕上げの部品。合わせて 100MB ほど）。名前は import の名前 → pip の名前
@@ -417,18 +417,274 @@ def keep_outside(original, result, mask):
     return Image.composite(res, orig, binary(mask, orig.size))
 
 
-def run(name: str, image, mask=None):
+# ---- 大きな絵（拡大のあと）でも必ず終わる掛け方 ----
+# 拡大のあとの絵に掛けると固まって見えた。測ると 1024 角で 2〜19 秒の加工が、2048 角で 6〜7 倍に伸びた
+# （塗りのむら 2.3 → 13.9 秒、線と塗り 11.7 → 87.4 秒）。絵の面積より速く伸びるので、大きな絵は区画に分けて掛ける。
+# 区画は周りに PAD 画素の糊代を付けて掛け、真ん中だけを戻す。どの加工も手が届くのは数画素なので、糊代の外は結果に効かない。
+# 光・質感を足す加工は絵全体の形（上ほど霞む、光の筋）を見るので区画に分けず、作業の大きさに縮めて掛け、足した分だけを元の大きさに戻して足す
+TILE_FROM = 1536 * 1536   # これより大きな絵だけを区画に分ける（小さな絵は前と同じ掛け方のまま）
+TILE = 1024               # 区画の 1 辺
+PAD = 48                  # 糊代
+WORK_SIDE = 1280          # 光・質感を掛ける作業の大きさ（長い辺）
+DECIDE_SIDE = 1024        # 線と塗りの工程を採るかを決める写しの大きさ（工程の数字を測るのが重いので小さくする）
+
+
+def _tick(say, text: str):
+    """区画の区切りで、止めるの旗を見てから進みを知らせる"""
+    from chatdraw.engine import check_stop
+    check_stop()
+    if say is not None:
+        say(text)
+
+
+def _cells(box):
+    x0, y0, x1, y1 = box
+    return [(x, y, min(x1, x + TILE), min(y1, y + TILE)) for y in range(y0, y1, TILE) for x in range(x0, x1, TILE)]
+
+
+def tiled(fn, image, box=None, say=None, what: str = "加工"):
+    """fn（PIL RGB → 同じ大きさの PIL RGB）を、糊代つきの区画ごとに掛ける。box があればその中の区画だけ"""
+    src = image.convert("RGB")
+    out = src.copy()
+    W, H = src.size
+    cells = _cells(box or (0, 0, W, H))
+    for i, (a, b, c, d) in enumerate(cells):
+        _tick(say, f"{what}を掛けています（{i + 1}/{len(cells)}）")
+        pa, pb, pc, pd = max(0, a - PAD), max(0, b - PAD), min(W, c + PAD), min(H, d + PAD)
+        r = fn(src.crop((pa, pb, pc, pd))).convert("RGB")
+        if r.size != (pc - pa, pd - pb):
+            raise RuntimeError("区画の加工で大きさが変わりました")
+        out.paste(r.crop((a - pa, b - pb, c - pa, d - pb)), (a, b))
+    return out
+
+
+def at_work_size(fn, image, say=None, what: str = "加工"):
+    """作業の大きさに縮めて fn を掛け、足した分（結果 − 縮めた元）だけを元の大きさに戻して元の絵に足す。
+    元の画素を縮めて戻すと線がぼけるので、元の絵はそのままにして、足した光・照り返しの分だけを広げる"""
+    import numpy as np
+    from PIL import Image
+    src = image.convert("RGB")
+    W, H = src.size
+    k = WORK_SIDE / max(W, H)
+    if k >= 1:
+        return fn(src)
+    _tick(say, f"{what}を作業の大きさで掛けています")
+    small = src.resize((max(1, round(W * k)), max(1, round(H * k))), Image.LANCZOS)
+    res = fn(small).convert("RGB")
+    delta = np.asarray(res, np.float32) - np.asarray(small, np.float32)
+    _tick(say, f"{what}を元の大きさに戻しています")
+    up = np.stack([np.asarray(Image.fromarray(delta[..., c], "F").resize((W, H), Image.BILINEAR)) for c in range(3)], 2)
+    a = np.asarray(src, np.float32) + up
+    return Image.fromarray(np.clip(a + 0.5, 0, 255).astype("uint8"))
+
+
+def _retouch_big(steps, image, box=None, say=None, what: str = "線と塗り"):
+    """大きな絵の線と塗りの直し。工程を採るかどうかは、絵全体を作業の大きさに縮めた写しで決める（区画ごとに決めると、
+    隣の区画で明るさの直しの有無が分かれて継ぎ目が出る）。採った工程を、元の大きさで区画ごとに掛ける。
+    明るさの幅（levels）は画素ごとの変換なので、縮めた写しで決めた黒と白の点を絵全体に同じに掛ける"""
+    import numpy as np
+    from PIL import Image
+    rt = _gen("retouch")
+    src = image.convert("RGB")
+    W, H = src.size
+    k = min(1.0, DECIDE_SIDE / max(W, H))
+    size = (max(1, round(W * k)), max(1, round(H * k)))
+    small = np.asarray(src.resize(size, Image.LANCZOS)).astype(float)
+    ref = small
+    rep, used = [], []
+    for name in steps:
+        _tick(say, f"{what}: 掛ける工程を選んでいます（{name}）")
+        small, r = step(small, name)
+        r["decided_at"] = list(size)
+        rep.append(r)
+        if r["used"]:
+            used.append(name)
+    LAST_REPORT.clear()
+    LAST_REPORT.update(steps=rep)
+    out = src
+    for name in used:
+        if name == "levels":
+            L = rt._lum(ref) * 255
+            l0, l1 = np.quantile(L, [0.005, 0.995])
+            if l1 - l0 >= 10:
+                lut = [int(min(255, max(0, round((v - l0) * 255 / (l1 - l0))))) for v in range(256)] * 3
+                lv = out.point(lut)
+                out = lv if box is None else Image.composite(lv, out, _box_mask(out.size, box))
+            continue
+
+        def one(t, name=name):
+            a = np.asarray(t).astype(float)
+            fn = rt.OPS[name]
+            b = np.clip(fn(a, None) if name in rt.PROTECTED else fn(a), 0, 255)
+            return Image.fromarray(np.clip(repair(a, b), 0, 255).astype("uint8"))
+        out = tiled(one, out, box, say, f"{what}（{name}）")
+    return out
+
+
+def _box_mask(size, box):
+    from PIL import Image, ImageDraw
+    m = Image.new("L", size, 0)
+    ImageDraw.Draw(m).rectangle((box[0], box[1], box[2] - 1, box[3] - 1), fill=255)
+    return m
+
+
+def _mask_box(mask, size):
+    """囲みの外接の四角（PAD を足す）。囲みが空なら None"""
+    bb = binary(mask, size).getbbox()
+    if bb is None:
+        return None
+    return (max(0, bb[0] - PAD), max(0, bb[1] - PAD), min(size[0], bb[2] + PAD), min(size[1], bb[3] + PAD))
+
+
+# ---- 加工の崩れの検品（掛けたあとに、元の絵と比べる） ----
+# 加工は絵を描き替える物ではないので、掛けたあとに元の絵と区画（QC_CELL 画素）ごとに比べ、
+# 1. 絵全体の明るさ・色の変え方で説明できない色の変わり（retouch.damage と同じ考え。黒い塊、四角い欠け）
+# 2. 主線の消え（区画の主線の画素の QC_LINE を超えて消えた。顔の細い線・目の線が飛ぶ崩れ）
+# のどちらかが出た区画を、元の絵の画素に戻す。戻す区画が QC_REJECT を超えたら、加工そのものを採らない。
+# 線画にする（清書）と、光・質感を足す（別のレイヤーに置く）は、絵を変えるのが目的なので検品しない
+QC_CELL = 32
+QC_LOCAL = 28.0     # 区画の平均の色の、説明できない変わりの上限（0〜255）。retouch.LOCAL（14）は工程 1 つ分の上限なので倍にした
+QC_LINE = 0.5       # 区画の主線のうち、消えてよい割合
+QC_LINE_MIN = 24    # 主線がこれだけ（画素）ある区画だけ線の消えを見る
+QC_REJECT = 0.25    # 戻す区画がこの割合を超えたら、加工を採らない
+QC_GROUPS = {"clean", "enlarge"}   # 模型の描き直し（redraw）は描き替えるのが仕事で、色の変わりで測ると正しい直しも落とすので、まだ入れない
+LAST_QC: dict = {}
+
+
+def breakage(a, b):
+    """a（元）と b（加工のあと、同じ大きさ）の区画ごとの崩れ（区画の数の bool の配列）と、理由ごとの区画の数"""
+    import numpy as np
+    a = np.asarray(a, np.float32)
+    b = np.asarray(b, np.float32)
+    H, W = a.shape[0] // QC_CELL * QC_CELL, a.shape[1] // QC_CELL * QC_CELL
+    if H == 0 or W == 0:
+        return np.zeros((0, 0), bool), dict(color=0, line=0)
+    shp = (H // QC_CELL, QC_CELL, W // QC_CELL, QC_CELL)
+    res = []
+    for c in range(3):
+        x, y = a[:H, :W, c], b[:H, :W, c]
+        xs, ys = x[::4, ::4].ravel().astype(np.float64), y[::4, ::4].ravel().astype(np.float64)
+        k, c0 = np.polyfit(xs, ys, 1) if xs.std() > 1e-6 else (1.0, float((ys - xs).mean()))
+        res.append(np.abs((y - (k * x + c0)).reshape(shp).mean((1, 3))))
+    color = np.max(res, 0) > QC_LOCAL
+    w = np.float32([0.299, 0.587, 0.114])
+    la = (a[:H, :W] @ w) < 90
+    lb = (b[:H, :W] @ w) < 90
+    have = la.reshape(shp).sum((1, 3))
+    lost = (la & ~lb).reshape(shp).sum((1, 3))
+    line = (have >= QC_LINE_MIN) & (lost > QC_LINE * np.maximum(have, 1))
+    return color | line, dict(color=int(color.sum()), line=int(line.sum()))
+
+
+def guard(name: str, src, out, mask=None):
+    """加工の結果 out を元の src と比べ、崩れた区画を元に戻す。崩れが広すぎれば src（拡大なら src を拡大した物）を返す。
+    結果は LAST_QC に書く（画面が知らせる）。部品（numpy）が無ければ測らず、測っていないと書く"""
+    import time
+    LAST_QC.clear()
+    f = REGISTRY.get(name)
+    if f is None or f.group not in QC_GROUPS:
+        return out
+    t0 = time.time()
+    try:
+        import numpy as np
+        from PIL import Image, ImageFilter
+    except ImportError:
+        LAST_QC.update(name=name, label=f.label, measured=False)
+        return out
+    s = src.convert("RGB")
+    o = out.convert("RGB")
+    same = o.size == s.size
+    bad, why = breakage(s, o if same else o.resize(s.size, Image.LANCZOS))
+    n, nb = int(bad.size), int(bad.sum())
+    if mask is not None and n:   # 囲みの外は変えていないので、囲みに掛かる区画だけを数える
+        H, W = bad.shape
+        m = np.asarray(binary(mask, s.size))[:H * QC_CELL, :W * QC_CELL]
+        inside = m.reshape(H, QC_CELL, W, QC_CELL).max((1, 3)) > 0
+        n, nb = max(1, int(inside.sum())), int((bad & inside).sum())
+    LAST_QC.update(name=name, label=f.label, measured=True, cells=n, broken=nb, rejected=False, **why)
+    back = s if same else s.resize(o.size, Image.LANCZOS)
+    if nb and nb > QC_REJECT * n:
+        LAST_QC.update(rejected=True, seconds=round(time.time() - t0, 2))
+        return back
+    if nb:
+        H, W = bad.shape
+        cell = Image.fromarray((bad * 255).astype("uint8")).resize((W * QC_CELL, H * QC_CELL), Image.NEAREST)
+        full = Image.new("L", s.size, 0)
+        full.paste(cell, (0, 0))
+        full = full.filter(ImageFilter.MaxFilter(5)).filter(ImageFilter.GaussianBlur(3))   # 区画の角が見えないよう縁をぼかす
+        o = Image.composite(back, o, full if same else full.resize(o.size, Image.BILINEAR))
+        if mask is not None:
+            o = keep_outside(s, o, mask) if same else o
+    LAST_QC["seconds"] = round(time.time() - t0, 2)
+    return o
+
+
+def qc_note(q: dict | None = None) -> str:
+    """検品の結果を、利用者に見せる 1 文にする。崩れが無ければ空"""
+    q = LAST_QC if q is None else q
+    if not q:
+        return ""
+    if not q.get("measured"):
+        return "崩れの検品は、部品（numpy）が無いので測っていません。"
+    if q.get("rejected"):
+        return f"{q['label']}で絵が崩れたので（区画 {q['broken']}/{q['cells']}）、掛けずに元の絵のままにしました。"
+    if q.get("broken"):
+        return f"{q['label']}で崩れた所（区画 {q['broken']} か所）は元の絵に戻しました。"
+    return ""
+
+
+def run(name: str, image, mask=None, say=None):
     """仕上げの道具 name を image に掛けた結果の画像を返す。mask があれば囲みの中だけを変える。
-    使えないときは Unavailable（理由つき）。知らない名前は KeyError"""
+    大きな絵は区画に分けて（光・質感は作業の大きさで）掛け、区画の区切りで止めるを見て、say に進みを知らせる。
+    掛けたあとに崩れを検品し、崩れた所は元の絵に戻す（guard）。使えないときは Unavailable（理由つき）。知らない名前は KeyError"""
     f = REGISTRY[name]
     if not f.ready():
         raise Unavailable(f.why_not())
     src = image.convert("RGB")
-    if f.apply is not None:
-        out = f.apply(src)
-    else:
+    mode = f.extra.get("scale")
+    big = src.width * src.height > TILE_FROM
+    box = _mask_box(mask, src.size) if (big and mask is not None) else None
+    if big and mask is not None and box is None:
+        LAST_QC.clear()
+        return src   # 囲みが空なら変える所は無い
+    _tick(say, f"{f.label}を掛けています")
+    if f.apply is None:
         out = f.extra["redraw"](src, mask)
-    return out if mask is None else keep_outside(src, out, mask)
+    elif big and mode == "tile":
+        out = tiled(f.apply, src, box, say, f.label)
+    elif big and mode == "retouch":
+        out = _retouch_big(f.extra["steps"], src, box, say, f.label)
+    elif mode == "work":
+        out = at_work_size(f.apply, src, say, f.label)
+    else:
+        out = f.apply(src)
+    out = out if mask is None else keep_outside(src, out, mask)
+    return guard(name, src, out, mask)
+
+
+LAST_CHAIN: list = []   # 直前の組み合わせの、工程ごとの検品の結果
+
+
+def run_chain(names, image, mask=None, say=None):
+    """加工を順に掛ける（まとめて綺麗にする、自分の組み合わせ）。工程ごとに検品する"""
+    names = list(names)
+    for n in names:
+        if n not in REGISTRY:
+            raise KeyError(n)
+    LAST_CHAIN.clear()
+    out = image.convert("RGB")
+    for i, n in enumerate(names):
+        def tell(text, i=i):
+            if say is not None:
+                say(f"{i + 1}/{len(names)} {text}" if len(names) > 1 else text)
+        out = run(n, out, mask, tell)
+        LAST_CHAIN.append(dict(LAST_QC, name=n))
+    return out
+
+
+def chain_note() -> str:
+    """組み合わせで掛けたときの検品の知らせ（崩れのあった工程だけ）"""
+    return "".join(qc_note(q) for q in LAST_CHAIN)
 
 
 # ---- 既存の絵をあとから直す部品 ----

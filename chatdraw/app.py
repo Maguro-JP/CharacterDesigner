@@ -3617,26 +3617,7 @@ class Window(QMainWindow):
         mask = self._region_mask()
         finishers.use_painter(getattr(self.studio, "painter", None))
         if background:   # 模型を使う道具は数十秒かかる。画面の糸で回すと、その間アプリが固まる
-            if self.busy("綺麗にする"):
-                return None
-            ok, why = self._finisher_ready(name)
-            fetch = not ok and finishers.fetchable(name)
-            if not ok and not fetch:
-                self.notify("綺麗にできませんでした", "info", why)
-                return None
-            label = finishers.REGISTRY[name].label
-            self.activity.begin(label, "加工")
-            path = self._finished_path(name)
-
-            def work(_step):   # 足りない部品は押したときに取り、取れたら続けて掛ける。書くのも裏の糸
-                if fetch:
-                    finishers.fetch_parts(finishers.lacking(name), say=lambda msg, _pct: self.task.status.emit(msg))
-                    if not finishers.REGISTRY[name].ready():
-                        raise finishers.Unavailable(finishers.REGISTRY[name].why_not())
-                self.task.status.emit(f"{label}を掛けています")
-                return self._save_out(finishers.run(name, base, mask), path)
-            self._run_task(work, lambda out: (self._place_finished(name, base, out, path), self._end(f"{label}を掛けました")))
-            return None
+            return self.finish_chain([name], finishers.REGISTRY[name].label, base=base, mask=mask)
         try:
             out = finishers.run(name, base, mask)
         except finishers.Unavailable as e:
@@ -3646,7 +3627,86 @@ class Window(QMainWindow):
             from chatdraw.engine import explain
             self.notify("綺麗にできませんでした", "error", explain(e))
             return None
+        if finishers.LAST_QC.get("rejected"):
+            self.notify("加工で絵が崩れたので、掛けませんでした", "info", finishers.qc_note())
+            return None
         return self._place_finished(name, base, out)
+
+    def finish_chain(self, steps, label: str = "", base=None, mask=None):
+        """加工を順に裏の糸で掛ける（1 つだけの加工も、まとめて綺麗にするも、自分の組み合わせも同じ道）。
+        大きな絵は区画ごとに進みを出し、区画の区切りで「止める」が効く。工程ごとに崩れを検品し、崩れた所は元に戻して知らせる。
+        結果は今の絵の一番上の新しいレイヤーに置く。返すのは None（置くのは終わってから）"""
+        from chatdraw import finishers
+        from chatdraw.engine import check_stop
+        steps = list(steps or [])
+        label = label or (finishers.REGISTRY[steps[0]].label if steps and steps[0] in finishers.REGISTRY else "加工")
+        unknown = [n for n in steps if n not in finishers.REGISTRY]
+        if not steps or unknown:
+            self.notify(f"{label}を掛けられませんでした", "info", "組み合わせの中の加工が見つかりません。組み合わせを作り直してください")
+            return None
+        if self.busy(label):
+            return None
+        if base is None:
+            base = qimage_to_pil(self.canvas.flatten()).convert("RGB")
+            mask = self._region_mask()
+        finishers.use_painter(getattr(self.studio, "painter", None))
+        fetch = []
+        for n in steps:
+            ok, why = self._finisher_ready(n)
+            if not ok:
+                if not finishers.fetchable(n):
+                    self.notify("綺麗にできませんでした" if len(steps) == 1 else f"{label}を掛けられませんでした", "info", why)
+                    return None
+                fetch.append(n)
+        name = steps[0] if len(steps) == 1 else "chain"
+        self.activity.begin(label, "加工")
+        path = self._finished_path(name)
+
+        def say(text):   # 区画の区切りごとに呼ばれる。止めるの旗を見てから進みを出す
+            check_stop()
+            self.task.status.emit(text)
+
+        def work(_step):   # 足りない部品は押したときに取り、取れたら続けて掛ける。書くのも裏の糸
+            if fetch:
+                finishers.fetch_parts(sorted({m for n in fetch for m in finishers.lacking(n)}),
+                                      say=lambda msg, _pct: self.task.status.emit(msg))
+                for n in fetch:
+                    if not finishers.REGISTRY[n].ready():
+                        raise finishers.Unavailable(finishers.REGISTRY[n].why_not())
+            out = finishers.run_chain(steps, base, mask, say)
+            if all(q.get("rejected") for q in finishers.LAST_CHAIN):
+                return None   # どの工程も崩れたので採らない（置かない）
+            return self._save_out(out, path)
+        self._run_task(work, lambda out: self._chain_done(name, label, base, out, path))
+        return None
+
+    def _chain_done(self, name, label, base, out, path):
+        from chatdraw import finishers
+        note = finishers.chain_note()
+        if out is None:
+            self._end(f"{label}は掛けませんでした")
+            self.notify("加工で絵が崩れたので、掛けませんでした", "info", note + "元の絵のままです")
+            return
+        self._place_finished(name, base, out, path)
+        self._end(f"{label}を掛けました")
+        if note:
+            self.notify("崩れた所は元の絵に戻しました", "info", note + "見比べて、使うか消すかを決めてください")
+
+    def add_chain_shortcut(self, steps=None, name: str | None = None) -> str:
+        """加工の組み合わせを、右クリックの「自分の組み合わせ」に登録する。steps が無ければ選ぶ窓を出す。返すのは id（やめたら空）"""
+        from chatdraw import finishers, shortcuts
+        if not isinstance(steps, (list, tuple)):   # メニューから呼ぶと checked の真偽が来る
+            dlg = shortcuts.chain_picker(self)
+            self._chain_picker = dlg
+            if not dlg.exec():
+                return ""
+            steps, name = dlg.picked, dlg.name.text()
+        steps = [n for n in steps if n in finishers.REGISTRY]
+        if not steps:
+            return ""
+        sid = self.shortcut_store().add_chain(name or shortcuts.chain_text(steps)[:24], steps)
+        self.notify("組み合わせを登録しました", "ok", "絵の上の右クリックの「自分の組み合わせ」から選べます")
+        return sid
 
     def _region_mask(self):
         """赤ペンの囲みと選択範囲を合わせた囲み（PIL の L）。どちらも無ければ None"""
