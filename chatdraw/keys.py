@@ -35,6 +35,10 @@ def collect(window) -> dict[str, QAction]:
             walk(menus[top], top.text().replace("&", "").strip())
     for key, act in getattr(window, "tool_actions", {}).items():
         found.setdefault(f"道具/{act.text()}", act)
+    editor = getattr(window, "menus_editor", None)   # メニューの編集で隠した項目も、キーは変えられるようにする
+    for act in (editor.hidden_actions() if editor is not None else []):
+        if act.text() and not act.isSeparator():
+            found.setdefault(act.text().replace("&", "").strip(), act)
     for act in getattr(window, "extra_key_actions", []):
         found.setdefault(act.text(), act)
     return found
