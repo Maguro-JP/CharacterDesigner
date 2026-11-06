@@ -53,6 +53,15 @@ TERMS = {
     "雨": "rain", "雪": "snow", "桜": "cherry blossoms", "白い背景": "simple background, white background",
 }
 
+# 役柄と生き物。表に無いと、言葉の模型が無いときに落ちて、ただの人物が描かれた
+for _k, _v in {"魔女": "witch, witch hat", "天使": "angel, angel wings, halo", "悪魔": "demon, demon horns", "吸血鬼": "vampire",
+               "侍": "samurai, katana", "忍者": "ninja", "巫女": "miko", "アイドル": "idol", "看護師": "nurse", "警察官": "police uniform",
+               "海賊": "pirate", "魔法少女": "magical girl", "メカ": "mecha", "ロボット": "robot", "ドラゴン": "dragon",
+               "猫": "cat", "犬": "dog", "鳥": "bird", "狼": "wolf", "うさ耳": "rabbit ears", "角": "horns", "翼": "wings", "尻尾": "tail",
+               "雨傘": "umbrella", "ヘッドホン": "headphones", "ギター": "guitar", "カメラ": "camera", "星空": "starry sky",
+               "月": "moon", "炎": "fire", "水中": "underwater", "宇宙": "space"}.items():
+    TERMS.setdefault(_k, _v)
+
 # 描く物を変えない言い回し。拾ったことにして、伝わらない言葉の欄に出さない（タグは付けない）
 QUIET = ("かけた", "かけて", "着た", "着て", "着てい", "身につけ", "付けた", "している", "いる", "下で", "の下", "前で", "中で", "姿", "人物", "描いて", "描く",
          "キャラクター", "イラスト", "感じ", "雰囲気", "かぶっ", "かぶる", "かぶり", "被っ", "被る", "締め", "さし", "さす",

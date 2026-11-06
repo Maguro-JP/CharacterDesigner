@@ -169,5 +169,6 @@
 | Qwen3.5 2B | [unsloth/Qwen3.5-2B-GGUF](https://huggingface.co/unsloth/Qwen3.5-2B-GGUF) の `Qwen3.5-2B-Q4_K_M.gguf` | 1.3 GB | 100 | 速さと正確さの釣り合いが良い。細かい指定も落とさない |
 | Qwen3.5 4B | [unsloth/Qwen3.5-4B-GGUF](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF) の `Qwen3.5-4B-Q4_K_M.gguf` | 2.7 GB | 0 | 長い頼みをさらに正確に直す。少し遅い |
 | Qwen3.5 0.8B | [unsloth/Qwen3.5-0.8B-GGUF](https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF) の `Qwen3.5-0.8B-Q4_K_M.gguf` | 0.5 GB | 20 | 最も軽い。短い頼み向き |
+| Gemma 3 4B | [unsloth/gemma-3-4b-it-GGUF](https://huggingface.co/unsloth/gemma-3-4b-it-GGUF) の `gemma-3-4b-it-Q4_K_M.gguf` | 2.5 GB | 0 | 多くの言語の頼みを訳す。日本語以外の頼み向き |
 
 <!-- modeldoc:end -->

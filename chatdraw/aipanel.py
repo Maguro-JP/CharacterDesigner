@@ -37,8 +37,20 @@ PRESETS: list[tuple[str, str, int, str, str, int]] = [
     ("イラスト", "場面の 1 枚を横長で", 0, "横", "厚塗り", 100),
     ("アイコン", "顔まわりを正方形で", 0, "正方形", "アニメ", 100),
     ("赤ペンで直す", "囲んだ所を指示どおりに", 2, "縦", "おまかせ", 45),
+    ("立ち絵（白地）", "透過しやすい白地の全身", 0, "縦", "アニメ", 100),
+    ("表情差分", "顔と表情を正方形で", 0, "正方形", "アニメ", 100),
+    ("背景美術", "人のいない風景を横長で", 0, "横", "厚塗り", 100),
+    ("モノクロ", "白黒の線と影で", 0, "縦", "おまかせ", 100),
+    ("水彩の挿絵", "淡い水彩の 1 枚を横長で", 0, "横", "水彩", 100),
+    ("レトロアニメ", "90 年代のアニメの色で", 0, "縦", "レトロ", 100),
 ]
-PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background", "アイコン": "portrait, upper body, looking at viewer"}
+# プリセットが描く頼みの後ろに足す言葉（英語のタグ。日本語は絵の模型に渡さない）
+PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background", "アイコン": "portrait, upper body, looking at viewer",
+                 "立ち絵（白地）": "full body, standing, simple background, white background",
+                 "表情差分": "portrait, upper body, looking at viewer, simple background, expressive face",
+                 "背景美術": "scenery, no humans, detailed background, wide shot",
+                 "モノクロ": "monochrome, greyscale, lineart, screentone",
+                 "水彩の挿絵": "illustration, soft lighting", "レトロアニメ": "1990s anime screencap"}
 
 
 # タブ: (名前, ヒント)。初めに開くのは先頭の「指示」（描く内容と模型を 1 枚にまとめた。行き来が要らない）

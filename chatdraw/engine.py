@@ -277,9 +277,9 @@ def use_scheduler(pipe, info) -> bool:
     return True
 
 
-ASK_SENTENCE = ("Translate the Japanese drawing request into one English sentence that describes the image for a text-to-image model. "
+ASK_SENTENCE = ("Translate the drawing request (Japanese or any other language) into one English sentence that describes the image for a text-to-image model. "
                 "Reply with the sentence only. Translate every detail, add nothing that is not in the request.")
-ASK = ("Translate the Japanese drawing request into English tags for an anime illustration model. "
+ASK = ("Translate the drawing request (Japanese or any other language) into English tags for an anime illustration model. "
        "Reply with one line of short comma-separated tags only (e.g. red bikini, long hair, beach, waving). "
        "Bind each color to its object. Translate every detail, add nothing that is not in the request. "
        "For things the request says to leave out, write no <thing>.")
@@ -298,8 +298,15 @@ def refused(text: str) -> bool:
         any(w.lower() in low for w in MINOR) and any(w.lower() in low for w in SEXUAL))
 
 
+def _foreign(ch: str) -> bool:
+    """絵の模型（CLIP、T5）が読めない字か。日本語に加え、ハングル・キリル・アラビア・タイなど、ラテン文字の外の字も含める。
+    前は日本語の字だけを見ていたので、ほかの言語の頼みは訳さずにそのまま絵の模型へ渡っていた"""
+    return "぀" <= ch <= "ヿ" or "一" <= ch <= "鿿" or (ch.isalpha() and ord(ch) > 0x24F)
+
+
 def has_japanese(text: str) -> bool:
-    return any("぀" <= ch <= "ヿ" or "一" <= ch <= "鿿" for ch in text)
+    """訳してから絵の模型に渡す字を含むか（名前は前のまま。日本語のほか、ラテン文字の外の字も含む）"""
+    return any(_foreign(ch) for ch in text)
 
 
 def english_only(text: str) -> str:
@@ -313,7 +320,7 @@ def english_only(text: str) -> str:
         return text
     out = []
     for part in re.split(r"[,、，]", text):
-        part = "".join(" " if ("぀" <= ch <= "ヿ" or "一" <= ch <= "鿿" or ch in "。・「」（）") else ch for ch in part)
+        part = "".join(" " if (_foreign(ch) or ch in "。・「」（）") else ch for ch in part)
         part = re.sub(r"\s+", " ", part).strip()
         if part and part not in out:
             out.append(part)
