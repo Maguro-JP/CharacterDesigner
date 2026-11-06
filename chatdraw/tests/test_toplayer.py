@@ -72,7 +72,8 @@ class TopLayerTest(unittest.TestCase):
         self.w.images.append("x")
         self.w.place(self.png("new.png", (64, 64)))
         self.assertTop("AI の絵 1")
-        self.assertNotIn("レイヤー 1", [l.name for l in self.w.canvas.layers])
+        # 下から 透明の土台「レイヤー 1」・AI の絵（足したレイヤーは絵の上に入る）
+        self.assertEqual([l.name for l in self.w.canvas.layers], ["レイヤー 1", "AI の絵 1"])
 
     def test_drawing_on_canvas_is_top(self):
         self.w.mode.setCurrentIndex(1)

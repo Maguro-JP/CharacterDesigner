@@ -37,8 +37,20 @@ PRESETS: list[tuple[str, str, int, str, str, int]] = [
     ("イラスト", "場面の 1 枚を横長で", 0, "横", "厚塗り", 100),
     ("アイコン", "顔まわりを正方形で", 0, "正方形", "アニメ", 100),
     ("赤ペンで直す", "囲んだ所を指示どおりに", 2, "縦", "おまかせ", 45),
+    ("立ち絵（白地）", "透過しやすい白地の全身", 0, "縦", "アニメ", 100),
+    ("表情差分", "顔と表情を正方形で", 0, "正方形", "アニメ", 100),
+    ("背景美術", "人のいない風景を横長で", 0, "横", "厚塗り", 100),
+    ("モノクロ", "白黒の線と影で", 0, "縦", "おまかせ", 100),
+    ("水彩の挿絵", "淡い水彩の 1 枚を横長で", 0, "横", "水彩", 100),
+    ("レトロアニメ", "90 年代のアニメの色で", 0, "縦", "レトロ", 100),
 ]
-PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background", "アイコン": "portrait, upper body, looking at viewer"}
+# プリセットが描く頼みの後ろに足す言葉（英語のタグ。日本語は絵の模型に渡さない）
+PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background", "アイコン": "portrait, upper body, looking at viewer",
+                 "立ち絵（白地）": "full body, standing, simple background, white background",
+                 "表情差分": "portrait, upper body, looking at viewer, simple background, expressive face",
+                 "背景美術": "scenery, no humans, detailed background, wide shot",
+                 "モノクロ": "monochrome, greyscale, lineart, screentone",
+                 "水彩の挿絵": "illustration, soft lighting", "レトロアニメ": "1990s anime screencap"}
 
 
 # タブ: (名前, ヒント)。初めに開くのは先頭の「指示」（描く内容と模型を 1 枚にまとめた。行き来が要らない）
@@ -180,8 +192,14 @@ class AiPanel(QWidget):
         # 枚数・種・参考画像。どれも頼まなければ今までどおり（1 枚、毎回違う種、参考画像なし）
         lay = self.sections["詳しい設定"].body
         lay.addWidget(self._head("枚数と種", "何枚描くか。種を固定すると、同じ頼みで同じ絵になります"))
-        self.count_buttons = self._segment(["1 枚", "2 枚", "4 枚"], lambda i: None)
-        self.count_buttons[1][0].setChecked(True)
+        # 作成枚数は「指示」のタブにも数の欄で出す（窓の側で置く）。ボタンと欄は同じ値を持つ
+        self.count_spin = QSpinBox()
+        self.count_spin.setRange(1, 8)
+        self.count_spin.setSuffix(" 枚")
+        self.count_spin.setToolTip("一度に描く枚数（直すときは 1 枚）")
+        self.count_buttons = self._segment(["1 枚", "2 枚", "4 枚"], lambda i: self.count_spin.setValue((1, 2, 4)[i]))
+        self.count_spin.valueChanged.connect(self._count_changed)
+        self._count_changed(1)
         lay.addLayout(self.count_buttons[0])
         seed_row = QHBoxLayout()
         self.seed = QSpinBox()
@@ -318,11 +336,17 @@ class AiPanel(QWidget):
         return row, buttons
 
     def count(self) -> int:
-        return (1, 2, 4)[next((i for i, b in enumerate(self.count_buttons[1]) if b.isChecked()), 0)]
+        return self.count_spin.value()
 
     def set_count(self, n: int):
+        self.count_spin.setValue(n)
+
+    def _count_changed(self, n: int):
+        group = self.count_buttons[1][0].group()
+        group.setExclusive(False)   # 3 枚などボタンに無い数のときは、どれも押していない形にする
         for b, k in zip(self.count_buttons[1], (1, 2, 4)):
             b.setChecked(k == n)
+        group.setExclusive(True)
 
     def seeds(self) -> list[int]:
         """描く種の並び。固定なら欄の種から、外していれば新しい種から、枚数分を続けて使う"""
@@ -414,7 +438,7 @@ class AiPanel(QWidget):
         self.w.strength.setValue(int(data.get("strength", 100)))
         self.set_style(data.get("style", "おまかせ"))
         if name == DEFAULT_PRESET:   # 標準に戻すときは、枚数・種・参考画像も最初の状態にする
-            self.count_buttons[1][0].setChecked(True)
+            self.count_spin.setValue(1)
             self.seed_lock.setChecked(False)
             self.use_ref.setChecked(False)
             self.ref_scale.setValue(60)
@@ -483,5 +507,6 @@ class AiPanel(QWidget):
         for i, b in enumerate(self.size_buttons[1]):
             b.setChecked(i == self.w.size_pick.currentIndex())
             b.setEnabled(self.w.mode.currentIndex() == 0)   # ラフから・直すはキャンバスの縦横に合わせる
+        self.count_spin.setEnabled(self.w.mode.currentIndex() != 2)
         for b in self.count_buttons[1]:
             b.setEnabled(self.w.mode.currentIndex() != 2)   # 直すときは 1 回だけ

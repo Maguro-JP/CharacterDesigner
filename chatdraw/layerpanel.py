@@ -106,21 +106,26 @@ class LayerPanel(QWidget):
         self.refresh()
 
     def row_of(self, index: int) -> int:
-        return len(self.canvas.layers) - 1 - index
+        pen = getattr(self.canvas, "redpen", None)
+        return len(self.canvas.layers) - 1 - index + (len(pen.marks) if pen is not None else 0)
 
     def refresh(self):
         c = self.canvas
         self.list.blockSignals(True)
         self.list.clear()
         pen = getattr(c, "redpen", None)
-        if pen is not None and pen.marks:   # 赤ペンの印は絵とは別の、一番上のレイヤーとして出す（隠す・消すができる）
-            item = QListWidgetItem(f"赤ペン（{len(pen.marks)} か所）")
-            item.setFlags((item.flags() | Qt.ItemIsUserCheckable) & ~Qt.ItemIsEditable)
-            item.setCheckState(Qt.Checked if pen.isVisible() else Qt.Unchecked)
-            item.setData(ROLE_INDEX, -1)
+        # 赤ペンの印は 1 つずつ別の行にし、一番上に置く（隠す・消す・指示を書き直すを印ごとにできるように）。
+        # 指示は絵の上に札で出しっぱなしにすると絵が隠れるので、行の名前と説明に持つ
+        for n in (reversed(range(1, len(pen.marks) + 1)) if pen is not None else ()):
+            note = pen.texts[n - 1] if n - 1 < len(pen.texts) else ""
+            item = QListWidgetItem(f"赤ペン {n}" + (f": {note}" if note else ""))
+            item.setFlags(item.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsEditable)
+            item.setCheckState(Qt.Unchecked if pen.hidden[n - 1] else Qt.Checked)
+            item.setData(ROLE_INDEX, -n)
             item.setForeground(QColor("#ff2d2d"))
-            item.setToolTip("AI に直してほしい所の印です。保存する絵には入りません。\n"
-                            "チェックで隠す・出す、選んで「－」で全部消す。1 つだけ消すときは絵の上の番号を右クリック")
+            item.setToolTip((f"指示: {note}\n" if note else "指示はまだありません。\n") +
+                            "ダブルクリックで指示を書き直す。チェックで隠す・出す（隠した印は直しません）。「－」か Delete でこの印を消す。\n"
+                            "保存する絵には入りません")
             self.list.addItem(item)
         for i in reversed(range(len(c.layers))):
             layer = c.layers[i]
@@ -154,13 +159,26 @@ class LayerPanel(QWidget):
 
     def _selected(self, row: int):
         item = self.list.item(row)
-        if item is not None and item.data(ROLE_INDEX) != -1:
-            self.canvas.select(item.data(ROLE_INDEX))
+        if item is None:
+            return
+        i = item.data(ROLE_INDEX)
+        pen = getattr(self.canvas, "redpen", None)
+        if pen is not None:
+            pen.set_focus(-i if i is not None and i < 0 else 0)   # 選んだ印だけ、絵の上に指示を出す
+        if i is not None and i >= 0:
+            self.canvas.select(i)
 
     def _changed(self, item: QListWidgetItem):
         i = item.data(ROLE_INDEX)
-        if i == -1:
-            self.canvas.redpen.setVisible(item.checkState() == Qt.Checked)
+        if i is not None and i < 0:
+            pen, n = self.canvas.redpen, -i
+            pen.set_hidden(n, item.checkState() != Qt.Checked)
+            text = item.text()
+            head = f"赤ペン {n}"
+            note = text[len(head):].lstrip(":： ") if text.startswith(head) else text
+            if note.strip() != pen.texts[n - 1]:
+                pen.set_text(n, note)
+            QTimer.singleShot(0, self.refresh)
             return
         if i is None or not 0 <= i < len(self.canvas.layers):
             return
@@ -194,7 +212,10 @@ class LayerPanel(QWidget):
         m = QMenu(self)
         m.addAction("新しいレイヤー", self.canvas.add_layer)
         if item is not None:
-            if item.data(ROLE_INDEX) == -1:
+            if item.data(ROLE_INDEX) < 0:
+                n = -item.data(ROLE_INDEX)
+                m.addAction(f"赤ペン {n} の指示を書き直す", lambda: self.list.editItem(item))
+                m.addAction(f"赤ペン {n} を消す", lambda: self.canvas.redpen.remove(n))
                 m.addAction("赤ペンの印を全部消す", self.canvas.redpen.clear)
             else:
                 self.canvas.select(item.data(ROLE_INDEX))
@@ -208,10 +229,10 @@ class LayerPanel(QWidget):
         m.exec(self.list.viewport().mapToGlobal(pos))
 
     def _delete(self):
-        """「－」。赤ペンを選んでいれば印を全部消し、ほかは選んでいるレイヤーを消す"""
+        """「－」。赤ペンの行を選んでいればその印だけを消し、ほかは選んでいるレイヤーを消す"""
         item = self.list.currentItem()
-        if item is not None and item.data(ROLE_INDEX) == -1:
-            self.canvas.redpen.clear()
+        if item is not None and item.data(ROLE_INDEX) is not None and item.data(ROLE_INDEX) < 0:
+            self.canvas.redpen.remove(-item.data(ROLE_INDEX))
             return
         self.canvas.delete_layer()
 

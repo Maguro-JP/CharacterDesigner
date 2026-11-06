@@ -16,9 +16,11 @@ from chatdraw.brush import PRESETS, Brush, Dabs, stamp
 
 UNDO_BYTES = 1_500_000_000   # 元に戻すに使うメモリの上限（約 1.5GB）
 TOOL_NAMES = {"redpen": "赤ペン", "eraser": "消しゴム", "blur": "ぼかし", "fill": "塗りつぶし", "gradient": "グラデーション", "line": "直線",
-              "rect": "四角", "ellipse": "楕円", "move": "移動", "select": "選択範囲を消す"}
+              "rect": "四角", "ellipse": "楕円", "move": "移動", "select": "選択範囲を消す",
+              "spray": "スプレー", "smudge": "指先", "text": "文字"}
+COLOR_MODES = ("単色", "虹色", "描く色と背景色を行き来")   # ペンの色の出方（色の欄で選ぶ）
 CURSOR_STYLES = ("十字と筆の輪", "点と筆の輪", "筆の輪だけ", "矢印")   # 設定の「カーソル」で選ぶ形
-BRUSH_TOOLS = ("pen", "eraser", "blur")                       # なぞって描く道具（筆の輪を出す）
+BRUSH_TOOLS = ("pen", "eraser", "blur", "spray", "smudge")                     # なぞって描く道具（筆の輪を出す）
 DRAG_TOOLS = ("line", "rect", "ellipse", "gradient", "move", "select")   # 押した所から離した所までで決まる道具
 
 
@@ -104,6 +106,7 @@ class Canvas(QGraphicsView):
     brush_changed = Signal(int)
     history_changed = Signal()  # 元に戻すの積み重ねが変わった（操作の履歴の欄を描き直す）
     refused = Signal(str)       # 描けなかった理由（隠した・ロックしたレイヤー）。黙って描けないと壊れて見えた
+    text_wanted = Signal(QPointF)  # 文字の道具で押した。窓が文字を聞いて place_text で置く
     moved = Signal(int, int)    # カーソルのキャンバス上の位置（下の帯の座標に出す）
     used_color = Signal()       # 描く色で描き始めた（最近使った色に足す）
     marked = Signal()           # 赤ペンで印を付けた（AI の欄を「直す」にする）
@@ -163,6 +166,11 @@ class Canvas(QGraphicsView):
         self.last: QPointF | None = None
         self.pressure = 1.0
         self.angle = 0.0
+        self.stabilizer = 0           # 手ぶれ補正（0 で無し、大きいほど線が遅れてなめらかになる）
+        self.steady: QPointF | None = None
+        self.symmetry = False         # 左右対称。真ん中の縦の線で折り返して同じ線を描く
+        self.color_mode = COLOR_MODES[0]
+        self.stroke_len = 0.0         # 線の始めからの長さ（虹色の色相を進める）
         self.held: str | None = None   # Space や Alt を押している間だけ持ち替える前の道具
         # 筆の輪。白だけだと白い紙の上で見えなかったので、黒い輪の内側に白い輪を重ねる
         self.cursor_ring = QGraphicsEllipseItem()
@@ -179,6 +187,12 @@ class Canvas(QGraphicsView):
         self.sel_item.setZValue(1e9 - 1)
         self.sel_item.setVisible(False)
         self.scene().addItem(self.sel_item)
+        from PySide6.QtWidgets import QGraphicsLineItem
+        self.mirror_item = QGraphicsLineItem()   # 左右対称の折り返しの線
+        self.mirror_item.setPen(QPen(QColor(61, 123, 255, 160), 0, Qt.DashLine))
+        self.mirror_item.setZValue(1e9 - 2)
+        self.mirror_item.setVisible(False)
+        self.scene().addItem(self.mirror_item)
         from chatdraw.redpen import RedPen
         self.redpen = RedPen()   # 赤ペン先生の印。レイヤーとは別に持ち、保存する絵にも AI に渡す絵にも入れない
         self.scene().addItem(self.redpen)
@@ -219,14 +233,15 @@ class Canvas(QGraphicsView):
         self._reset([Layer("絵", img), Layer("レイヤー 1", blank(img.width(), img.height()))], 1)
 
     def replace_with_image(self, path: str, name: str = "AI の絵"):
-        """AI が新しく描いた絵に、キャンバスを置き換える。絵を下に、描くための空のレイヤーを上に置く。
+        """AI が新しく描いた絵に、キャンバスを置き換える。一番下に透明の「レイヤー 1」、その上に AI の絵を置く。
+        足したレイヤーは選んだ AI の絵の上に入る（下から 土台・AI の絵・足したレイヤー、赤ペンはいつも一番上）。
         前の絵の上に重ねると、大きさの違う絵が重なって見分けられなかった。前の状態は「元に戻す」で戻せる"""
         img = _load(path)
         if not self.layers:
-            self._reset([Layer(name, img), Layer("レイヤー 1", blank(img.width(), img.height()))], 1)
+            self._reset([Layer("レイヤー 1", blank(img.width(), img.height())), Layer(name, img)], 1)
             return
         self.snapshot_all()
-        self.layers = [Layer(name, img), Layer("レイヤー 1", blank(img.width(), img.height()))]
+        self.layers = [Layer("レイヤー 1", blank(img.width(), img.height())), Layer(name, img)]
         self.current = 1
         self.set_selection(None)
         self.rebuild()
@@ -239,14 +254,14 @@ class Canvas(QGraphicsView):
         （大きさの違う前の絵とは重ねられない）。どちらも前の状態は「元に戻す」で戻せる"""
         img = _load(path)
         if not self.layers:
-            self._reset([Layer(name, img)], 0)
+            self._reset([Layer("レイヤー 1", blank(img.width(), img.height())), Layer(name, img)], 1)
             return
         resized = (img.width(), img.height()) != self.size_px()
         if not replace and resized:
             return self.add_image_layer(path, name)   # 大きさだけ違う結果は、キャンバスに合わせて一番上に重ねる
         self.snapshot_all()
-        if replace:
-            self.layers = [Layer(name, img)]
+        if replace:   # 一番下は透明の土台、その上に結果（replace_with_image と同じ並び）
+            self.layers = [Layer("レイヤー 1", blank(img.width(), img.height())), Layer(name, img)]
         else:
             self.layers.append(Layer(name, img))
         self.current = len(self.layers) - 1
@@ -381,11 +396,18 @@ class Canvas(QGraphicsView):
         self.rebuild()
 
     def delete_layer(self):
-        if len(self.layers) <= 1:
+        """選んでいるレイヤーを、絵ごと消す。消したレイヤーの絵は手元の覚えから捨て（元に戻す用の写しだけ残る）、
+        読み込んだ元のファイルからは読み直さない。1 枚だけのときは消せないので、絵を消して透明にする
+        （前は何も起きず、押しても絵が残った）"""
+        if not self.layers:
             return
         self.snapshot_all()
-        del self.layers[self.current]
-        self.current = max(0, self.current - 1)
+        if len(self.layers) <= 1:
+            self.layers[0].image.fill(Qt.transparent)
+        else:
+            gone = self.layers.pop(self.current)
+            gone.image = QImage()   # 画面の項目が古い絵を持ち続けないように、中身を手放す
+            self.current = max(0, self.current - 1)
         self.rebuild()
 
     def move_layer(self, step: int):
@@ -599,7 +621,7 @@ class Canvas(QGraphicsView):
         self.brush_changed.emit(self.size)
 
     def _ring(self, pos: QPointF):
-        r = (self.size * (2 if self.tool in ("eraser", "blur") and self.brush.name != "消しゴム" else 1)) / 2
+        r = (self.size * (2 if self.tool in ("eraser", "blur") and self.brush.name != "消しゴム" or self.tool == "spray" else 1)) / 2
         self.cursor_ring.setRect(pos.x() - r, pos.y() - r, r * 2, r * 2)
         k = 1.0 / max(self.zoom(), 1e-6)   # 内側の輪は画面で 1 画素だけ内に置く
         self.cursor_ring_in.setRect(pos.x() - r + k, pos.y() - r + k, max(0.0, r * 2 - 2 * k), max(0.0, r * 2 - 2 * k))
@@ -611,7 +633,8 @@ class Canvas(QGraphicsView):
     def begin_stroke(self):
         """線の描き始め。消しゴムはレイヤーから直接消し、ほかは線用の下書きに描く"""
         self.carry = 0.0
-        if self.tool not in ("eraser", "blur"):
+        self.stroke_len = 0.0
+        if self.tool not in ("eraser", "blur", "smudge"):
             w, h = self.size_px()
             self.buffer = blank(w, h)
             it = self.items[self.current]
@@ -649,21 +672,140 @@ class Canvas(QGraphicsView):
 
     def stroke(self, a: QPointF, b: QPointF, pressure: float = 1.0):
         """a から b まで今のブラシで描く。線の途中でなければ、その 1 区切りだけで線を描き終える"""
-        if self.tool == "blur":
-            self.blur(a, b)
-            return
-        alone = self.buffer is None and self.tool != "eraser"
+        alone = self.buffer is None and self.tool not in ("eraser", "blur", "smudge")
         if alone:
             self.begin_stroke()
-        erase = self.tool == "eraser"
-        target = self.layers[self.current].image if erase else self.buffer
-        brush = self.brushes["消しゴム"] if erase and self.brush.name != "消しゴム" else self.brush
-        size = self.size * (2 if erase and brush is not self.brush else 1)
-        color = QColor(0, 0, 0) if erase else self.color
-        dirty, self.carry = stamp(target, brush, self.dabs, a, b, size, color, pressure, self.carry, erase=erase)
-        self.items[self.current].update(dirty)   # 線を引いた四角だけ描き直す
+        carry = self.carry
+        for i, (a2, b2) in enumerate(self._mirrored(a, b)):
+            if i:
+                self.carry = carry   # 折り返した線も同じ間隔で点を置く
+            if self.tool == "blur":
+                self.blur(a2, b2)
+            elif self.tool == "smudge":
+                self.smudge(a2, b2)
+            else:
+                self._paint(a2, b2, pressure)
+        self.stroke_len += ((b.x() - a.x()) ** 2 + (b.y() - a.y()) ** 2) ** 0.5
         if alone:
             self.end_stroke()
+
+    def _mirrored(self, a: QPointF, b: QPointF) -> list:
+        """左右対称のときは、真ん中の縦の線で折り返した区切りも返す"""
+        if not self.symmetry or not self.layers:
+            return [(a, b)]
+        w = self.size_px()[0]
+        return [(a, b), (QPointF(w - a.x(), a.y()), QPointF(w - b.x(), b.y()))]
+
+    def set_symmetry(self, on: bool):
+        self.symmetry = bool(on)
+        if self.layers:
+            w, h = self.size_px()
+            self.mirror_item.setLine(w / 2, 0, w / 2, h)
+        self.mirror_item.setVisible(self.symmetry and bool(self.layers))
+
+    def stroke_color(self) -> QColor:
+        """今の線の色。虹色は線の長さで色相を回し、行き来は描く色と背景色の間を行き来する（太さの 20 倍の長さで 1 周）"""
+        if self.color_mode not in COLOR_MODES[1:]:
+            return self.color
+        t = self.stroke_len / max(60.0, self.size * 20.0)
+        if self.color_mode == COLOR_MODES[1]:
+            h, s, v, _ = self.color.getHsvF()
+            return QColor.fromHsvF(round((max(h, 0.0) + t) % 1.0, 2), max(s, 0.6), max(v, 0.6))   # 色相は 1% 刻み（点の作り置きを増やしすぎない）
+        k = round(1 - abs((t % 2.0) - 1.0), 2)   # 0→1→0 の三角の波
+        a, b = self.color, self.bg_color
+        return QColor.fromRgbF(a.redF() + (b.redF() - a.redF()) * k, a.greenF() + (b.greenF() - a.greenF()) * k,
+                               a.blueF() + (b.blueF() - a.blueF()) * k)
+
+    def _paint(self, a: QPointF, b: QPointF, pressure: float):
+        erase = self.tool == "eraser"
+        target = self.layers[self.current].image if erase else self.buffer
+        if self.tool == "spray":
+            dirty = self.spray(target, b, pressure)
+        else:
+            brush = self.brushes["消しゴム"] if erase and self.brush.name != "消しゴム" else self.brush
+            size = self.size * (2 if erase and brush is not self.brush else 1)
+            color = QColor(0, 0, 0) if erase else self.stroke_color()
+            dirty, self.carry = stamp(target, brush, self.dabs, a, b, size, color, pressure, self.carry, erase=erase)
+        self.items[self.current].update(dirty)   # 線を引いた四角だけ描き直す
+
+    def spray(self, target: QImage, pos: QPointF, pressure: float = 1.0) -> QRectF:
+        """スプレー。太さを半径にした円の中に細かな点を散らす（中ほど多い）。筆圧が強いほど点が多い"""
+        import math
+        import random
+        r = max(2.0, float(self.size))
+        n = max(6, int(r * 1.5 * max(0.2, pressure)))
+        p = QPainter(target)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setPen(Qt.NoPen)
+        p.setBrush(self.stroke_color())
+        dot = max(0.6, r / 30)
+        for _ in range(n):
+            d = r * random.random() ** 0.8
+            ang = random.random() * 2 * math.pi
+            p.drawEllipse(QPointF(pos.x() + d * math.cos(ang), pos.y() + d * math.sin(ang)), dot, dot)
+        p.end()
+        return QRectF(pos.x() - r - 2, pos.y() - r - 2, r * 2 + 4, r * 2 + 4)
+
+    def smudge(self, a: QPointF, b: QPointF):
+        """指先。a の所の絵をつまんで b へ引きずり、色を伸ばす（ぼかしと同じく、じかにレイヤーを変える）"""
+        img = self.layers[self.current].image
+        r = max(2, self.size // 2)
+        dist = ((b.x() - a.x()) ** 2 + (b.y() - a.y()) ** 2) ** 0.5
+        n = max(1, int(dist / max(1, r / 3)))
+        dirty = QRect()
+        p = QPainter(img)
+        p.setRenderHint(QPainter.Antialiasing)
+        if self.selection is not None:
+            p.setClipRect(self.selection)
+        prev = a
+        for k in range(1, n + 1):
+            t = k / n
+            cur = QPointF(a.x() + (b.x() - a.x()) * t, a.y() + (b.y() - a.y()) * t)
+            part = img.copy(QRect(int(prev.x()) - r, int(prev.y()) - r, r * 2, r * 2))
+            dst = QRect(int(cur.x()) - r, int(cur.y()) - r, r * 2, r * 2)
+            path = QPainterPath()
+            path.addEllipse(QRectF(dst))
+            p.save()
+            p.setClipPath(path, Qt.IntersectClip)
+            p.setOpacity(0.6 * self.brush_opacity)
+            p.drawImage(dst.topLeft(), part)
+            p.restore()
+            dirty = dirty.united(dst)
+            prev = cur
+        p.end()
+        self.items[self.current].update(QRectF(dirty))
+
+    def place_text(self, pos: QPointF, text: str, px: int | None = None):
+        """文字の道具。押した所を左上にして、描く色で文字を置く（大きさは太さの 4 倍、最小 8 画素）"""
+        if not text or not self.layers:
+            return
+        from PySide6.QtGui import QFont
+        self.snapshot()
+        p = QPainter(self.layers[self.current].image)
+        p.setRenderHint(QPainter.Antialiasing)
+        p.setRenderHint(QPainter.TextAntialiasing)
+        if self.selection is not None:
+            p.setClipRect(self.selection)
+        f = QFont()
+        f.setPixelSize(px or max(8, self.size * 4))
+        p.setFont(f)
+        p.setPen(self.color)
+        p.setOpacity(self.brush_opacity)
+        p.drawText(QRectF(pos.x(), pos.y(), 1e5, 1e5), Qt.AlignLeft | Qt.AlignTop, text)
+        p.end()
+        self.items[self.current].update()
+        self.used_color.emit()
+        self.changed.emit()
+        self.stroke_done.emit()
+
+    def steadied(self, pos: QPointF) -> QPointF:
+        """手ぶれ補正。カーソルに少し遅れてついていく点を返す（強さ n で 1/(n+1) ずつ近づく）"""
+        if self.stabilizer <= 0 or self.steady is None:
+            self.steady = QPointF(pos)
+            return pos
+        k = 1.0 / (self.stabilizer + 1)
+        self.steady = QPointF(self.steady.x() + (pos.x() - self.steady.x()) * k, self.steady.y() + (pos.y() - self.steady.y()) * k)
+        return QPointF(self.steady)
 
     def pick(self, pos: QPointF):
         img = self.flatten()
@@ -866,6 +1008,9 @@ class Canvas(QGraphicsView):
         if self.tool == "fill":
             self.fill(pos)
             return True
+        if self.tool == "text":
+            self.text_wanted.emit(pos)
+            return True
         if self.tool == "zoom":
             f = 1 / 1.25 if self.zoom_out else 1.25
             self.auto_fit = False
@@ -885,10 +1030,11 @@ class Canvas(QGraphicsView):
             self.drag_start = pos
             return True
         if self.tool in BRUSH_TOOLS:
-            if self.tool == "pen":
+            if self.tool in ("pen", "spray"):
                 self.used_color.emit()
             self.snapshot()
             self.begin_stroke()
+            self.steady = QPointF(pos)
             self.last = pos
             self.stroke(pos, pos, pressure)
             return True
@@ -943,6 +1089,7 @@ class Canvas(QGraphicsView):
             self.redpen.add(pos)
             return
         if self.last is not None:
+            pos = self.steadied(pos)
             self.stroke(self.last, pos, self.pressure)
             self.last = pos
             return
@@ -999,6 +1146,7 @@ class Canvas(QGraphicsView):
             self.end_drag(self.drag_start, pos)
             self.drag_start = None
         elif t == e.Type.TabletMove and self.last is not None:
+            pos = self.steadied(pos)
             self.stroke(self.last, pos, self.pressure)
             self.last = pos
         elif t == e.Type.TabletRelease:

@@ -2035,15 +2035,15 @@ class UsabilityFixTest(unittest.TestCase):
             self.assertEqual(self._chips(w), ["ビキニの女性", "海の女性"])    # 例の所が直近の言葉になる（新しい順、重ねない）
             w.entry.setText("海の女性")
             w._toggle_fav()                                                  # ☆ で固定
-            self.assertEqual(self._chips(w), ["★ 海の女性", "ビキニの女性"])  # お気に入りが先頭
+            self.assertEqual(self._chips(w), ["★ 海の女性", "ビキニの女性"])  # 登録した言葉が先頭
             self.assertEqual(w.fav_button.text(), "★")
             for i in range(30):
                 w._remember_prompt(f"言葉 {i}")
-            self.assertIn("★ 海の女性", self._chips(w))                       # 直近が増えてもお気に入りは消えない
+            self.assertIn("★ 海の女性", self._chips(w))                       # 直近が増えても登録した言葉は消えない
             self.assertEqual(len(w.recent_prompts()), w.PROMPT_MAX)
             w.entry.clear()
             w.eventFilter(w.entry, QKeyEvent(QEvent.KeyPress, Qt.Key_Up, Qt.NoModifier))
-            self.assertEqual(w.entry.text(), "海の女性")                       # ↑ はお気に入りから
+            self.assertEqual(w.entry.text(), "海の女性")                       # ↑ は登録した言葉から
             w.forget_prompt("海の女性")
             self.assertNotIn("★ 海の女性", self._chips(w))
             w.settings.store.remove(w.PROMPT_KEY)
@@ -2055,12 +2055,14 @@ class UsabilityFixTest(unittest.TestCase):
             self._draw(app, w, "1girl")
             self._draw(app, w, "1girl, smile")
             names = [l.name for l in w.canvas.layers]
-            self.assertEqual(len(names), 1)                     # キャンバスは新しい絵 1 枚に置き換わる。前の絵は重ならない
-            self.assertTrue(names[0].startswith("AI の絵"))
-            self.assertEqual(w.canvas.current, 0)               # 結果は一番上のレイヤーで、選んだ状態（気づけるように）
-            first = w.canvas.layers[0].name
+            ai = [n for n in names if n.startswith("AI の絵")]
+            self.assertEqual(len(ai), 1)                        # AI の絵は新しい 1 枚に置き換わる。前の絵は重ならない
+            self.assertFalse(names[0].startswith("AI の絵"))    # 一番下は透明の土台のレイヤー、その上に AI の絵
+            self.assertTrue(names[-1].startswith("AI の絵"))
+            self.assertEqual(w.canvas.current, len(names) - 1)  # 結果は一番上のレイヤーで、選んだ状態（気づけるように）
+            first = names[-1]
             w.canvas.undo()
-            self.assertNotEqual(w.canvas.layers[0].name, first)  # 元に戻すで前の絵に戻る
+            self.assertNotEqual(w.canvas.layers[-1].name, first)  # 元に戻すで前の絵に戻る
             w.settings.store.remove(w.PROMPT_KEY)
 
     def test_layer_added_on_top_not_under_strokes(self):

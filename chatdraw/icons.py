@@ -248,6 +248,29 @@ def _path(key: str) -> QPainterPath:
         p.lineTo(9, 20)
         p.moveTo(9, 11)
         p.lineTo(21, 11)
+    elif key == "spray":
+        # 缶と、吹き出す点
+        p.addRoundedRect(QRectF(4, 9, 8, 12), 1.5, 1.5)
+        p.addRect(QRectF(6, 6, 4, 3))
+        for x, y in ((16, 6), (19, 4), (19, 8), (22, 6), (17, 10), (21, 11)):
+            p.addEllipse(QPointF(x, y), 0.6, 0.6)
+    elif key == "smudge":
+        # 指先と、伸ばした跡
+        p.moveTo(9, 21)
+        p.lineTo(9, 9)
+        p.cubicTo(9, 6, 13, 6, 13, 9)
+        p.lineTo(13, 21)
+        p.moveTo(15, 14)
+        p.cubicTo(18, 13, 19, 16, 22, 15)
+        p.moveTo(15, 18)
+        p.cubicTo(18, 17, 19, 20, 22, 19)
+    elif key == "text":
+        p.moveTo(5, 5)
+        p.lineTo(19, 5)
+        p.moveTo(12, 5)
+        p.lineTo(12, 20)
+        p.moveTo(9, 20)
+        p.lineTo(15, 20)
     elif key == "redpen":
         # 囲んだ印とペン先（AI に直す所を示す）
         p.moveTo(14, 7)
@@ -334,4 +357,4 @@ def icon(key: str, color: str | None = None, active: str | None = None, size: in
     return QIcon(_Engine(key, color, active))
 
 
-KEYS = ("chat", "progress", "view", "layout", "new", "open", "save", "undo", "redo", "fit", "rotate", "rough", "models", "settings", "palette", "brush", "history", "layers", "help", "move", "select", "pen", "eraser", "blur", "fill", "gradient", "line", "rect", "ellipse", "eyedropper", "hand", "zoom", "redpen", "upscale", "library", "ai")
+KEYS = ("chat", "progress", "view", "layout", "new", "open", "save", "undo", "redo", "fit", "rotate", "rough", "models", "settings", "palette", "brush", "history", "layers", "help", "move", "select", "pen", "eraser", "blur", "spray", "smudge", "text", "fill", "gradient", "line", "rect", "ellipse", "eyedropper", "hand", "zoom", "redpen", "upscale", "library", "ai")

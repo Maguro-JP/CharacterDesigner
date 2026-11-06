@@ -46,6 +46,90 @@ def total_ram_gb() -> float:
         return 0.0
 
 
+def free_ram_gb() -> float:
+    """今すぐ使えるメモリ（GB）。分からなければ 0（0 のときは足りるものとして扱う）"""
+    try:
+        if os.name == "nt":
+            import ctypes
+
+            class Mem(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong), ("ullTotalPhys", ctypes.c_ulonglong),
+                            ("ullAvailPhys", ctypes.c_ulonglong), ("ullTotalPageFile", ctypes.c_ulonglong),
+                            ("ullAvailPageFile", ctypes.c_ulonglong), ("ullTotalVirtual", ctypes.c_ulonglong),
+                            ("ullAvailVirtual", ctypes.c_ulonglong), ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+            m = Mem()
+            m.dwLength = ctypes.sizeof(Mem)
+            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(m))
+            return m.ullAvailPhys / 1e9
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemAvailable:"):
+                    return int(line.split()[1]) * 1024 / 1e9
+    except Exception:
+        pass
+    return 0.0
+
+
+def is_oom(e: BaseException) -> bool:
+    """メモリ不足の例外か（torch の OutOfMemoryError、CUDA の out of memory、CPU の確保の失敗、MemoryError）"""
+    if isinstance(e, MemoryError):
+        return True
+    low = f"{type(e).__name__} {e}".lower()
+    return any(k in low for k in ("outofmemory", "out of memory", "not enough memory", "defaultcpuallocator",
+                                  "cublas_status_alloc_failed", "cudnn_status_alloc_failed"))
+
+
+def release_memory():
+    """捨てた模型のメモリを返す（gc と、CUDA の溜めを空ける）。torch を読んでいなければ torch も読まない"""
+    import gc
+    import sys
+    gc.collect()
+    torch = sys.modules.get("torch")
+    try:
+        if torch is not None and torch.cuda.is_available():
+            torch.cuda.empty_cache()
+    except Exception:   # noqa: BLE001  返せなくても描く邪魔はしない
+        pass
+
+
+LOW_MEMORY_NOTE = "メモリが足りないので、メモリを使わない設定（部品の出し入れ、注意の分割、小さめの大きさ）に切り替えて描きます"
+
+
+def memory_retry(painter, run, say=None):
+    """run() を動かし、メモリ不足で落ちたら、読んだ模型を降ろしてメモリを返し、少ないメモリの設定で 1 回だけやり直す。
+    描いている途中にアプリが落ちる報告があり、原因の候補の 1 つがメモリ不足だった（確かめていない）。メモリを使い切ったまま描き続けると、
+    Windows では torch の中で落ち、例外として捕まえられないことがある。例外で返ってきた分は、ここで捕まえて軽い設定に替える。
+    2 回目も足りなければ、分かる日本語の理由で例外にする（画面は落とさず「描けませんでした」に返す）"""
+    try:
+        return run()
+    except Exception as e:   # MemoryError も Exception の仲間
+        if not is_oom(e):
+            raise
+    # except を抜けてから降ろす（例外が抱える途中の値、大きなテンソルを先に手放す）
+    (say or (lambda m: None))(LOW_MEMORY_NOTE)
+    if hasattr(painter, "unload"):
+        painter.unload()
+    release_memory()
+    try:
+        painter.low_memory = True
+    except AttributeError:
+        pass
+    try:
+        return run()
+    except Exception as e:
+        if is_oom(e):
+            raise MemoryError("メモリが足りず、少ないメモリの設定でも描けませんでした。ほかのアプリを閉じるか、"
+                              "小さい模型（SDXL 系）に替えるか、描く大きさを小さくしてください") from None
+        raise
+
+
+def low_memory_size(size, family: str = "sdxl"):
+    """少ないメモリの設定で描く大きさ。画素の数をおよそ半分にし、64 の倍数にそろえる"""
+    w, h = size
+    k = 0.7
+    return max(512, int(w * k) // 64 * 64), max(512, int(h * k) // 64 * 64)
+
+
 _BF16_FAST: bool | None = None
 
 
@@ -277,9 +361,9 @@ def use_scheduler(pipe, info) -> bool:
     return True
 
 
-ASK_SENTENCE = ("Translate the Japanese drawing request into one English sentence that describes the image for a text-to-image model. "
+ASK_SENTENCE = ("Translate the drawing request (Japanese or any other language) into one English sentence that describes the image for a text-to-image model. "
                 "Reply with the sentence only. Translate every detail, add nothing that is not in the request.")
-ASK = ("Translate the Japanese drawing request into English tags for an anime illustration model. "
+ASK = ("Translate the drawing request (Japanese or any other language) into English tags for an anime illustration model. "
        "Reply with one line of short comma-separated tags only (e.g. red bikini, long hair, beach, waving). "
        "Bind each color to its object. Translate every detail, add nothing that is not in the request. "
        "For things the request says to leave out, write no <thing>.")
@@ -298,8 +382,15 @@ def refused(text: str) -> bool:
         any(w.lower() in low for w in MINOR) and any(w.lower() in low for w in SEXUAL))
 
 
+def _foreign(ch: str) -> bool:
+    """絵の模型（CLIP、T5）が読めない字か。日本語に加え、ハングル・キリル・アラビア・タイなど、ラテン文字の外の字も含める。
+    前は日本語の字だけを見ていたので、ほかの言語の頼みは訳さずにそのまま絵の模型へ渡っていた"""
+    return "぀" <= ch <= "ヿ" or "一" <= ch <= "鿿" or (ch.isalpha() and ord(ch) > 0x24F)
+
+
 def has_japanese(text: str) -> bool:
-    return any("぀" <= ch <= "ヿ" or "一" <= ch <= "鿿" for ch in text)
+    """訳してから絵の模型に渡す字を含むか（名前は前のまま。日本語のほか、ラテン文字の外の字も含む）"""
+    return any(_foreign(ch) for ch in text)
 
 
 def english_only(text: str) -> str:
@@ -313,7 +404,7 @@ def english_only(text: str) -> str:
         return text
     out = []
     for part in re.split(r"[,、，]", text):
-        part = "".join(" " if ("぀" <= ch <= "ヿ" or "一" <= ch <= "鿿" or ch in "。・「」（）") else ch for ch in part)
+        part = "".join(" " if (_foreign(ch) or ch in "。・「」（）") else ch for ch in part)
         part = re.sub(r"\s+", " ", part).strip()
         if part and part not in out:
             out.append(part)
@@ -702,6 +793,29 @@ class Painter:
         self.lora, self.lora_scale = "", 0.8   # 自分の作風の LoRA（模型の置き場の lora の .safetensors）。空なら重ねない
         self._lora_state: dict = {}
         self.lora_note = None
+        self.low_memory = False   # メモリが足りないと分かったら True（部品の出し入れ、注意の分割、小さめの大きさで描く）
+        self.on_note = None       # 利用者に知らせる一言を渡す先（Studio が進みの知らせにつなぐ）
+
+    def _note(self, msg: str):
+        if self.on_note is not None:
+            try:
+                self.on_note(msg)
+            except Exception:   # noqa: BLE001  知らせられなくても描く
+                pass
+
+    def memory_guard(self):
+        """読む前に、空いているメモリと模型の重さを比べる。足りなければ少ないメモリの設定にして、利用者に知らせる"""
+        if self.low_memory:
+            return
+        from chatdraw.models import heavy, image_model
+        try:
+            need = heavy(image_model(self.model))[1]
+        except Exception:   # noqa: BLE001  重さが分からない模型は測らない
+            return
+        free = free_ram_gb()
+        if free and free < need:
+            self.low_memory = True
+            self._note(f"空いているメモリ（{free:.1f}GB）が模型の目安（{need:.0f}GB）より少ないので、" + LOW_MEMORY_NOTE.split("ので、", 1)[1])
 
     def ready(self) -> bool:
         """模型が手元にそろっているか（取りに行かずに確かめる）"""
@@ -778,15 +892,11 @@ class Painter:
         self._pipe = self._sketch = self._inpaint = None
         self._ref = False
         self._lora_state = {}
-        import gc
-        gc.collect()
-        import sys
-        torch = sys.modules.get("torch")   # 読んでいなければ torch も読まない
-        if torch is not None and torch.cuda.is_available():
-            torch.cuda.empty_cache()
+        release_memory()
 
     def load(self):
         if self._pipe is None:
+            self.memory_guard()
             self._pipe = self._read()
             from chatdraw.models import image_model
             use_vpred(self._pipe, image_model(self.model)) or use_scheduler(self._pipe, image_model(self.model))
@@ -857,6 +967,8 @@ class Painter:
             # 取る量（gb）は 16 ビットの重みの大きさ。fp32 で置かれた模型（SD 系の full）は読むと半分になるが、多めに見て置く
             need = info.gb * (QUANT_SHARE if getattr(self, "quantized", False) else 1.0)
             self.placed = placement(free / 1e9, need * 1.2, heavy(info)[0] * 0.9)   # 描く途中の分を 2 割足す
+            if self.low_memory:   # メモリ不足で落ちたあと・足りないと分かったときは、全部を載せず 1 段軽い置き方にする
+                self.placed = {"cuda": "model", "model": "sequential"}.get(self.placed, self.placed)
             if self.placed == "sequential" and getattr(self, "quantized", False):
                 self.placed = "model"   # 4 ビットに縮めた部品は層ごとの出し入れができない（bitsandbytes）。部品ごとに出し入れする
             if self.placed == "cuda":
@@ -872,9 +984,20 @@ class Painter:
                     getattr(vae, name)()
                 except Exception:
                     pass   # 分けられない VAE もある（その時はそのまま）
+        if self.low_memory and hasattr(pipe, "enable_attention_slicing"):
+            try:
+                pipe.enable_attention_slicing()   # 注意の計算を分けて、描く途中のメモリの山を下げる
+            except Exception:   # noqa: BLE001  分けられない描き方もある
+                pass
 
     def paint(self, prompt: str, seed: int, on_step=None, base=None, strength: float = 1.0, size=None, on_preview=None,
               reference=None, ref_scale: float = 0.6):
+        """メモリが足りずに落ちたら、少ないメモリの設定で 1 回だけ描き直す（memory_retry）"""
+        return memory_retry(self, lambda: self._paint(prompt, seed, on_step, base, strength, size, on_preview, reference, ref_scale),
+                            self._note)
+
+    def _paint(self, prompt: str, seed: int, on_step=None, base=None, strength: float = 1.0, size=None, on_preview=None,
+               reference=None, ref_scale: float = 0.6):
         """base（PIL のラフ）を渡すと、その線の形に沿って描く。strength が大きいほどラフに沿う。
         reference（PIL）を渡すと、その絵の絵柄や雰囲気を借りる。ref_scale が大きいほど寄せる"""
         import torch
@@ -900,6 +1023,9 @@ class Painter:
         info = image_model(self.model)
         f = fam(info.family)
         size = native_size(size or self.size, info.family)
+        want = size
+        if self.low_memory and base is None:
+            size = low_memory_size(size, info.family)   # 小さめに描いて、頼んだ大きさに戻す（キャンバスの大きさは変えない）
         args = prompt_args(info, f, prompt, self.avoid, steps, self.guidance, seed, pipe)
         import inspect
         if "callback_on_step_end" in inspect.signature(pipe.__call__).parameters:
@@ -955,10 +1081,18 @@ class Painter:
             out = pipe(width=w, height=h, **args).images[0]
         if self.stop:
             raise Stopped("止めました")
+        if out.size != tuple(want) and base is None and not f.edit:
+            from PIL import Image
+            out = out.resize(tuple(want), Image.LANCZOS)
         return out
 
     def redraw(self, prompt: str, seed: int, image, mask, strength: float = 0.45, on_step=None, reference=None,
                ref_scale: float = 0.6, clean: bool = False):
+        return memory_retry(self, lambda: self._redraw(prompt, seed, image, mask, strength, on_step, reference, ref_scale, clean),
+                            self._note)
+
+    def _redraw(self, prompt: str, seed: int, image, mask, strength: float = 0.45, on_step=None, reference=None,
+                ref_scale: float = 0.6, clean: bool = False):
         """image（PIL）の mask（PIL の L、白が直す所）の中だけを、元の絵を土台に少しだけ直して返す（微調整）。
 
         絵全体を upscale 倍（既定 1.5 倍）に広げて描かせ、元の大きさに戻して直す所だけを重ねる（hires_inpaint）。直す所の外の画素は 1 つも変えない。
@@ -1107,6 +1241,8 @@ class Studio:
         say = on_status or (lambda msg: None)
         if refused(text):
             raise ValueError("子どもを性的に描く頼みは描きません")
+        if hasattr(self.painter, "on_note"):
+            self.painter.on_note = say   # メモリが足りないときの切り替えを、進みの知らせで利用者に伝える
         if self.words_auto:
             from chatdraw.choose import choose_words
             path = choose_words(text)
@@ -1129,6 +1265,8 @@ class Studio:
             if m is not None:
                 if m.repo != self.painter.model:
                     avoid = getattr(self.painter, "avoid", "")
+                    if hasattr(self.painter, "unload"):
+                        self.painter.unload()   # 2 つの模型を同時にメモリに置かない（前の模型を確かに降ろしてから次を読む）
                     self.painter = Painter(m.repo, m.steps, guidance=m.guidance)   # 前の模型は捨ててメモリを空ける
                     self.painter.avoid = avoid   # AI の欄の禁止ワードを引き継ぐ（替えた模型で禁止ワードが消えていた）
                 self.chosen = (m.name, why)   # 画面の「絵の模型: おまかせ（…）」に出す
@@ -1372,8 +1510,9 @@ class Studio:
         import time
         from PIL import PngImagePlugin
         from chatdraw.finishers import KEY
-        self.out.mkdir(parents=True, exist_ok=True)
-        path = self.out / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}.png"   # 種を固定して描き直しても前の絵を消さない
+        day = self.out / time.strftime("%Y-%m-%d")   # 日付ごとのフォルダに分ける。前に保存した絵は動かさない
+        day.mkdir(parents=True, exist_ok=True)
+        path = day / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}.png"   # 種を固定して描き直しても前の絵を消さない
         info = PngImagePlugin.PngInfo()
         info.add_itxt(KEY, json.dumps(meta, ensure_ascii=False, default=str))
         image.save(path, pnginfo=info)
@@ -1402,6 +1541,8 @@ class Studio:
         """赤ペン先生と範囲の描き直し。check を外すと崩れの検査をしない（ちびキャラのように絵全体を描き替える加工）。regions は (mask, 指示の文) の並び。直す所ごとに指示を描く言葉に直し、
         絵全体を順に描き直す。返すのは (描く言葉の並び, 描き直した絵全体の置き場)。直す所だけを貼り合わせない"""
         say = on_status or (lambda msg: None)
+        if hasattr(self.painter, "on_note"):
+            self.painter.on_note = say
         prompts = []
         self.last_flaws = []   # 直したあとに見つけた崩れ（空なら見つからなかった。出来たかどうかは利用者が決める）
         result = image.convert("RGB")

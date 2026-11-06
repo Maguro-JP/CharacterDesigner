@@ -26,6 +26,8 @@ PIXEL_CHANGES = ("fin:clean", "fin:ink", "fin:air_holy", "fin:air_komorebi", "fi
 RETOUCH = ("fin:retouch", "fin:retouch_full")
 # 模型の要る物（偽の模型で流す）と、拡大の重みの要る物（偽の重みで流す）
 MODEL_ITEMS = ("fin:face", "fin:refine", "app:chibi", "grow:lr", "grow:tb", "grow:all", "fin:upscale_anime", "app:upscale2x")
+# まとめて掛ける物（模型を使わない加工を順に掛ける）
+COMBOS = ("combo:tidy", "combo:tidy_color")
 
 
 def app():
@@ -200,7 +202,7 @@ class MenuTest(Base):
     def test_every_builtin_is_pressed_in_these_tests(self):
         """アプリにある項目を足したら、押して流す試験にも足す（押して確かめていない項目を出さない）"""
         from chatdraw import shortcuts
-        pressed = set(PIXEL_CHANGES) | set(RETOUCH) | set(MODEL_ITEMS) | {"app:transparent"}
+        pressed = set(PIXEL_CHANGES) | set(RETOUCH) | set(MODEL_ITEMS) | set(COMBOS) | {"app:transparent"}
         self.assertEqual({s.id for s in shortcuts.builtins(self.w)}, pressed)
 
     def test_no_model_disables_model_items_with_reason(self):
@@ -283,6 +285,56 @@ class ModelFreeTest(Base):
                 self.assertEqual(len(self.w.canvas.layers), n + 1)
                 want = finishers.RETOUCH_FULL if sid.endswith("full") else finishers.RETOUCH_SAFE
                 self.assertEqual([r["step"] for r in finishers.LAST_REPORT["steps"]], list(want))
+
+    def test_combos_run_every_step_in_order(self):
+        """まとめて綺麗にする: 押すと工程を順に掛け、1 枚の新しいレイヤーに置く"""
+        from chatdraw import finishers, shortcuts
+        want = {sid: steps for sid, _l, steps, _t in shortcuts.COMBOS}
+        for sid in COMBOS:
+            with self.subTest(sid=sid):
+                self.w.edit_image(str(self.src))
+                before, n = self.base(), len(self.w.canvas.layers)
+                self.press(sid)
+                self.assertEqual(len(self.w.canvas.layers), n + 1)
+                self.assertEqual([q["name"] for q in finishers.LAST_CHAIN], list(want[sid]))
+                self.assertIsNotNone(ImageChops.difference(before, self.base()).getbbox(alpha_only=False), sid)
+
+    def test_own_chain_add_press_rename_remove(self):
+        """自分の組み合わせ: 選んだ順に登録し、右クリックから押すとその順に掛ける。名前の変更と削除ができ、次の起動にも残る"""
+        from PySide6.QtCore import QSettings
+        from chatdraw import finishers, shortcuts
+        dlg = shortcuts.chain_picker(self.w)
+        dlg.pick(["air_haze", "clean"])
+        self.assertEqual(dlg.picked, ["air_haze", "clean"])   # 印を付けた順が掛ける順
+        self.assertIn("霞と遠近 → 塗りのむらを均す", dlg.order.text())
+        sid = self.w.add_chain_shortcut(dlg.picked, "霞のあと均す")
+        self.assertTrue(sid.startswith("chain:"))
+        acts = self.actions()
+        self.assertEqual(acts[sid].text(), "霞のあと均す")
+        self.assertIn("霞と遠近 → 塗りのむらを均す", acts[sid].toolTip())
+        n = len(self.w.canvas.layers)
+        self.press(sid)
+        self.assertEqual(len(self.w.canvas.layers), n + 1)
+        self.assertEqual([q["name"] for q in finishers.LAST_CHAIN], ["air_haze", "clean"])
+        st = self.w.shortcut_store()
+        st.rename(sid, "霞")
+        again = shortcuts.Store(QSettings(self.ini, QSettings.IniFormat))
+        self.assertEqual(again.chains(), [dict(id=sid, name="霞", steps=["air_haze", "clean"])])
+        d = self.w.open_shortcuts()
+        d.select(sid)
+        self.assertTrue(d.rem.isEnabled() and d.ren.isEnabled())
+        d.remove()
+        self.assertEqual(st.chains(), [])
+        self.assertNotIn(sid, self.actions())
+        with self.assertRaises(ValueError):
+            st.add_chain("空", [])
+
+    def test_chain_with_missing_step_says_why(self):
+        st = self.w.shortcut_store()
+        sid = st.add_chain("古い", ["clean", "no_such_finisher"])
+        act = self.actions()[sid]
+        self.assertFalse(act.isEnabled())
+        self.assertIn("ありません", act.toolTip())
 
     def test_transparent_puts_cut_on_new_top_layer(self):
         """透過は元の絵を残し、透明の地の絵を一番上の新しいレイヤーに置く（切り抜きの部品が無い所では地の色を抜く）"""

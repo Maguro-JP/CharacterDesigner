@@ -5,6 +5,9 @@
 """
 from __future__ import annotations
 
+import sys
+
+from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor, QPalette
 from PySide6.QtWidgets import QWidget
 
@@ -226,6 +229,45 @@ def palette(t: dict) -> QPalette:
     return p
 
 
+def _set_dwm(hwnd: int, attr: int, value: int) -> bool:
+    """Windows の DwmSetWindowAttribute。窓の枠（題の帯）の色を決める"""
+    import ctypes
+    v = ctypes.c_int(value)
+    try:
+        return ctypes.windll.dwmapi.DwmSetWindowAttribute(ctypes.c_void_p(hwnd), attr, ctypes.byref(v), ctypes.sizeof(v)) == 0
+    except (AttributeError, OSError):
+        return False
+
+
+def _colorref(c: str) -> int:
+    q = QColor(c)
+    return q.red() | (q.green() << 8) | (q.blue() << 16)
+
+
+def title_bar(widget, t: dict | None = None) -> bool:
+    """窓の枠（題の帯）もテーマに合わせる。Windows だけ（ほかの OS は枠を OS が描くので触らない）。
+    暗いテーマでは暗い枠にし、Windows 11 では帯と文字の色もテーマの色にする。古い Windows では効かない物は黙って飛ばす"""
+    if sys.platform != "win32" or widget is None or (isinstance(widget, QWidget) and not widget.isWindow()):
+        return False
+    t = t or current
+    hwnd = int(widget.winId())
+    dark = int(QColor(t["bg"]).lightness() < 128)
+    ok = _set_dwm(hwnd, 20, dark) or _set_dwm(hwnd, 19, dark)   # DWMWA_USE_IMMERSIVE_DARK_MODE（19 は古い Windows 10）
+    _set_dwm(hwnd, 35, _colorref(t["bar"]))    # DWMWA_CAPTION_COLOR
+    _set_dwm(hwnd, 36, _colorref(t["text"]))   # DWMWA_TEXT_COLOR
+    return ok
+
+
+def _focused(win):
+    """新しく開いた窓（ダイアログ・別ウィンドウにした欄・設定の窓）が前に出たとき、その枠にもテーマを当てる。
+    アプリ全体の eventFilter で見張ると、すべての知らせで Python を呼び、試験で PySide6 の参照の数え違いの落ち方をした"""
+    if win is not None and win.type() not in (Qt.Popup, Qt.ToolTip):
+        title_bar(win)
+
+
+_hooked = False
+
+
 def apply(app, name: str | dict = DEFAULT) -> dict:
     """アプリ全体をテーマにする。name は名前か、色の組（手で替えている途中の見本）。
     アイコンは描くたびに current を読むので、描き直すだけで色が替わる"""
@@ -237,6 +279,13 @@ def apply(app, name: str | dict = DEFAULT) -> dict:
     app.setStyleSheet(TEMPLATE.format(**t))
     for w in app.allWidgets():
         QWidget.update(w)
+    global _hooked
+    if not _hooked and hasattr(app, "focusWindowChanged"):
+        app.focusWindowChanged.connect(_focused)
+        _hooked = True
+    for w in app.topLevelWidgets():
+        if w.isVisible():
+            title_bar(w, t)
     return t
 
 

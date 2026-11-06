@@ -144,6 +144,116 @@ class AiPanelOrderTest(unittest.TestCase):
             w.close()
 
 
+class InstructTabTest(unittest.TestCase):
+    """指示のタブの並び（模型、描くワード、描くワードの登録、禁止ワード、禁止ワードの登録）と、登録のボタン"""
+
+    def _order(self, w):
+        tl = w.ai_panel.sections["描く内容"].body
+        seen = []
+        for i in range(tl.count()):
+            it = tl.itemAt(i)
+            wdg = it.widget()
+            if wdg is None and it.layout() is not None:   # 横の並びは中の最初の部品で見る
+                inner = it.layout().itemAt(0)
+                wdg = inner.widget() if inner is not None else None
+            if wdg is None:
+                continue
+            for name, target in (("模型", w.model_label), ("描くワード", w.entry), ("描くワードの登録", w.tips_scroll),
+                                 ("禁止ワード", w.ai_panel.negative), ("禁止ワードの登録", w.neg_tips_box)):
+                if wdg is target:
+                    seen.append(name)
+            if isinstance(wdg, __import__("PySide6.QtWidgets", fromlist=["QLabel"]).QLabel) and wdg.objectName() == "sectionHead":
+                seen.append("見出し:" + wdg.text())
+        return seen
+
+    def test_order_and_heads(self):
+        with TemporaryDirectory() as d:
+            w = window(d)
+            self.assertEqual(self._order(w), ["見出し:模型", "模型", "見出し:描くワード", "描くワード", "描くワードの登録",
+                                              "見出し:禁止ワード", "禁止ワード", "禁止ワードの登録"])
+            self.assertFalse(hasattr(w, "fixed_negative"))                    # 固定値の表示は無い
+            w.close()
+
+    def test_no_okiniiri_word_in_prompt_ui(self):
+        with TemporaryDirectory() as d:
+            w = window(d)
+            self.assertNotIn("お気に入り", w.fav_button.toolTip())
+            src = (Path(__file__).resolve().parents[1] / "app.py").read_text(encoding="utf-8")
+            for line in src.splitlines():
+                if "お気に入り" in line and ("addAction" in line or "addMenu" in line or "setToolTip" in line or "showMessage" in line):
+                    self.assertIn("★", line)                                   # 残るのは絵の ★（作品の印）だけ
+            w.close()
+
+    def test_negative_presets(self):
+        with TemporaryDirectory() as d:
+            w = window(d)
+            w.settings.store.remove(w.NEG_KEY)
+            w._load_negatives()
+            self.assertEqual(w.neg_tips.count(), 0)
+            w.ai_panel.negative.setText("帽子、文字")
+            w._toggle_neg_fav()                                                 # ☆ で登録
+            self.assertEqual(w.negative_presets(), ["帽子、文字"])
+            self.assertEqual(w.neg_fav_button.text(), "★")
+            w.ai_panel.negative.setText("眼鏡")
+            w.pin_negative("眼鏡")
+            self.assertEqual(w.neg_tips.count(), 2)
+            w.ai_panel.negative.clear()
+            w.neg_tips.itemAt(0).widget().click()                              # 押すと欄に入る
+            self.assertEqual(w.ai_panel.negative.text(), "帽子、文字")
+            w.neg_tips.itemAt(1).widget().click()                              # 二つ目は足す
+            self.assertEqual(w.ai_panel.negative.text(), "帽子、文字、眼鏡")
+            w.neg_tips.itemAt(1).widget().click()                              # 同じ言葉は重ねない
+            self.assertEqual(w.ai_panel.negative.text(), "帽子、文字、眼鏡")
+            w2 = window(d)                                                      # 設定に残るので開き直しても消えない
+            self.assertEqual(w2.negative_presets(), ["帽子、文字", "眼鏡"])
+            self.assertEqual(w2.neg_tips.count(), 2)
+            w2.close()
+            w.unpin_negative("眼鏡")
+            self.assertEqual(w.negative_presets(), ["帽子、文字"])
+            w.settings.store.remove(w.NEG_KEY)                                  # 利用者の設定に残さない
+            w.close()
+
+    def test_buttons_wrap_to_width(self):
+        """登録・履歴のボタンは横に流さず、欄の横幅で折り返す。高さは中身に合わせる"""
+        from chatdraw.tests.test_panels import spin
+        with TemporaryDirectory() as d:
+            w = window(d)
+            w.show()
+            for i in range(12):
+                w._remember_prompt(f"長い頼みの言葉 その {i} 赤いマフラーの女の子")
+            spin(5)                                                             # 足したボタンが出てから測る
+            box = w.tips_scroll
+            lay = w.tips
+            one = lay.heightForWidth(10000)
+            narrow = lay.heightForWidth(220)
+            self.assertGreater(narrow, one * 3)                                # 狭いと何行にもなる
+            box.resize(220, narrow)
+            lay.setGeometry(box.rect())
+            spin(3)
+            for i in range(lay.count()):
+                g = lay.itemAt(i).geometry()
+                self.assertLessEqual(g.right(), 220, i)                         # 横にはみ出さない
+            for i in range(12):
+                w.forget_prompt(f"長い頼みの言葉 その {i} 赤いマフラーの女の子")
+            w.close()
+
+
+class SaveFolderTest(unittest.TestCase):
+    def test_saved_in_date_folder(self):
+        import time
+        with TemporaryDirectory() as d:
+            w = window(d)
+            day = time.strftime("%Y-%m-%d")
+            p = w._finished_path("nobg")
+            self.assertEqual(p.parent.name, day)
+            self.assertTrue(p.parent.is_dir())
+            self.assertEqual(w._logo_folder("logo").parent.parent.name, day)
+            from PIL import Image
+            saved = w.studio._save(Image.new("RGB", (8, 8)), 7, {})
+            self.assertEqual(saved.parent, w.studio.out / day)
+            w.close()
+
+
 class AiMenuFreshTest(unittest.TestCase):
     def test_menu_recounts_on_open_and_on_change(self):
         """AI のメニューの模型の一覧は、開くたびに数え直し、ブロックなどが変わると作り直す"""
