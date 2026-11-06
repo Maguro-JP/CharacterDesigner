@@ -1,9 +1,13 @@
-"""色の欄。色相の輪の帯・彩度と明度の四角・16 進の入力・描く色と背景色・見本の色・最近使った色を持つ（作画ソフトと同じ並び）"""
+"""色の欄。色相の輪の帯・彩度と明度の四角・色相/彩度/明度の数字・16 進の入力・描く色と背景色・スポイト・
+色の出方（単色・虹色・2 色の行き来）・見本の色・自分のパレット（足す・消す・保存・読み込み）・最近使った色を持つ"""
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen
-from PySide6.QtWidgets import QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QTabWidget, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (QComboBox, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSpinBox, QTabWidget,
+                               QVBoxLayout, QWidget)
+
+from chatdraw.canvas import COLOR_MODES
 
 SWATCHES = ("#000000", "#3a3a3c", "#7a7a7e", "#c7c7cc", "#ffffff", "#f6d7c3", "#e8b79a", "#b97a56",
             "#e5322d", "#ff7a1a", "#ffc93c", "#7ccf5a", "#2fb3a3", "#3d7bff", "#7b5cff", "#e255a1")
@@ -105,11 +109,14 @@ def chip(color: str, size: int = 20) -> QPushButton:
 class ColorPanel(QWidget):
     """描く色を変えたら color_changed を出す。背景色の入れ替え（X）と白黒に戻す（D）は Canvas が持つ"""
     color_changed = Signal(QColor)
+    eyedropper_wanted = Signal()   # スポイトの丸を押した（窓がスポイトの道具に持ち替える）
+    mode_changed = Signal(str)     # 色の出方を変えた
 
     def __init__(self, canvas):
         super().__init__()
         self.canvas = canvas
         self.recent: list[str] = []
+        self.mine: list[str] = []   # 自分のパレット（足した順）
         self.square = SVSquare()
         self.hue = HueBar()
         self.hex = QLineEdit()
@@ -137,6 +144,14 @@ class ColorPanel(QWidget):
         top.addWidget(self.bg)
         top.addWidget(swap)
         top.addWidget(reset)
+        from chatdraw.icons import icon
+        drop = QPushButton()
+        drop.setIcon(icon("eyedropper"))
+        drop.setFixedSize(26, 26)
+        drop.setObjectName("small")
+        drop.setToolTip("スポイト。絵の上で押した所の色を描く色にする（I）")
+        drop.clicked.connect(self.eyedropper_wanted.emit)
+        top.addWidget(drop)
         top.addStretch()
         top.addWidget(self.hex)
         grid = QGridLayout()
@@ -154,6 +169,26 @@ class ColorPanel(QWidget):
         pl.setContentsMargins(0, 4, 0, 0)
         pl.addWidget(self.square, 1)
         pl.addWidget(self.hue)
+        # 数字でも合わせられるように、色相（0〜359）・彩度・明度（0〜100）を並べる
+        nums = QHBoxLayout()
+        nums.setSpacing(4)
+        self.h_box, self.s_box, self.v_box = QSpinBox(), QSpinBox(), QSpinBox()
+        for box, label, top_, tip in ((self.h_box, "色相", 359, "色相（0〜359 度）"), (self.s_box, "彩度", 100, "彩度（0〜100）"),
+                                      (self.v_box, "明度", 100, "明度（0〜100）")):
+            box.setRange(0, top_)
+            box.setToolTip(tip)
+            box.valueChanged.connect(self._from_numbers)
+            nums.addWidget(QLabel(label))
+            nums.addWidget(box)
+        pl.addLayout(nums)
+        self.mode = QComboBox()
+        self.mode.addItems(COLOR_MODES)
+        self.mode.setToolTip("ペンとスプレーの色の出方。虹色は線を引くほど色相が回り、行き来は描く色と背景色の間を行き来する")
+        self.mode.currentTextChanged.connect(self._mode_picked)
+        mrow = QHBoxLayout()
+        mrow.addWidget(QLabel("色の出方"))
+        mrow.addWidget(self.mode, 1)
+        pl.addLayout(mrow)
         pal = QWidget()
         al = QVBoxLayout(pal)
         al.setContentsMargins(0, 6, 0, 0)
@@ -162,6 +197,23 @@ class ColorPanel(QWidget):
         recent.setObjectName("cardMeta")
         al.addWidget(recent)
         al.addLayout(self.recent_row)
+        mine = QLabel("自分のパレット")
+        mine.setObjectName("cardMeta")
+        al.addWidget(mine)
+        self.mine_grid = QGridLayout()
+        self.mine_grid.setSpacing(4)
+        al.addLayout(self.mine_grid)
+        mbar = QHBoxLayout()
+        for text, tip, fn in (("＋", "今の描く色をパレットに足す", self.add_to_palette),
+                              ("保存", "自分のパレットをファイルに保存する", self._save_dialog),
+                              ("読み込み", "保存したパレットのファイルを読み込む", self._load_dialog)):
+            b = QPushButton(text)
+            b.setObjectName("small")
+            b.setToolTip(tip)
+            b.clicked.connect(fn)
+            mbar.addWidget(b)
+        mbar.addStretch()
+        al.addLayout(mbar)
         al.addStretch()
         self.tabs = QTabWidget()
         self.tabs.addTab(pick, "カラー")
@@ -184,6 +236,73 @@ class ColorPanel(QWidget):
         self.canvas.color = c
         self._paint_chips()
         self.color_changed.emit(c)
+
+    def _from_numbers(self):
+        if getattr(self, "_showing", False):
+            return
+        self.set_color(QColor.fromHsv(self.h_box.value(), round(self.s_box.value() * 2.55), round(self.v_box.value() * 2.55)))
+
+    def _mode_picked(self, mode: str):
+        self.canvas.color_mode = mode
+        self.mode_changed.emit(mode)
+
+    # ---- 自分のパレット ----
+    def add_to_palette(self, name: str | None = None):
+        name = QColor(name).name() if name else self.canvas.color.name()
+        if name not in self.mine:
+            self.mine.append(name)
+        self._paint_mine()
+
+    def remove_from_palette(self, name: str):
+        if name in self.mine:
+            self.mine.remove(name)
+        self._paint_mine()
+
+    def _paint_mine(self):
+        while self.mine_grid.count():
+            it = self.mine_grid.takeAt(0)
+            if it.widget():
+                it.widget().deleteLater()
+        for i, n in enumerate(self.mine):
+            b = chip(n, 18)
+            b.setToolTip(f"{n}（右クリックでパレットから消す）")
+            b.clicked.connect(lambda _=False, n=n: self.set_color(QColor(n)))
+            b.setContextMenuPolicy(Qt.CustomContextMenu)
+            b.customContextMenuRequested.connect(lambda _p, n=n: self.remove_from_palette(n))
+            self.mine_grid.addWidget(b, i // 10, i % 10)
+
+    def save_palette(self, path: str):
+        import json
+        from pathlib import Path
+        Path(path).write_text(json.dumps({"colors": self.mine}, ensure_ascii=False, indent=1), encoding="utf-8")
+
+    def load_palette(self, path: str) -> int:
+        """読み込んだ色の数を返す。読めない色は飛ばす（壊れたファイルでパレットを空にしない）"""
+        import json
+        from pathlib import Path
+        data = json.loads(Path(path).read_text(encoding="utf-8"))
+        colors = data.get("colors", []) if isinstance(data, dict) else data
+        got = [QColor(c).name() for c in colors if isinstance(c, str) and QColor(c).isValid()]
+        if got:
+            self.mine = list(dict.fromkeys(got))
+            self._paint_mine()
+        return len(got)
+
+    def _save_dialog(self):
+        from PySide6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getSaveFileName(self, "パレットを保存", "palette.json", "パレット (*.json)")
+        if path:
+            self.save_palette(path)
+
+    def _load_dialog(self):
+        from PySide6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(self, "パレットを読み込む", "", "パレット (*.json)")
+        if path:
+            try:
+                self.load_palette(path)
+            except (OSError, ValueError):
+                from PySide6.QtWidgets import QMessageBox
+                QMessageBox.warning(self, "パレット", "このファイルはパレットとして読めませんでした")
 
     def _hex_entered(self):
         c = QColor(self.hex.text().strip())
@@ -211,6 +330,14 @@ class ColorPanel(QWidget):
         self.fg.setStyleSheet(f"background:{c.name()}; border:2px solid #f2f2f2; border-radius:7px;")
         self.bg.setStyleSheet(f"background:{b.name()}; border:1px solid #5a5a60; border-radius:7px;")
         self.hex.setText(c.name())
+        if hasattr(self, "h_box"):
+            self._showing = True
+            h, s, v, _ = c.getHsv()
+            if h >= 0:
+                self.h_box.setValue(h)
+            self.s_box.setValue(round(s / 2.55))
+            self.v_box.setValue(round(v / 2.55))
+            self._showing = False
 
     def remember(self):
         """描き始めた色を最近使った色に足す（新しい順に 8 色）"""

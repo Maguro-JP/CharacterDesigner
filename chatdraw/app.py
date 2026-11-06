@@ -509,9 +509,10 @@ class PanelTitle(QWidget):
 
 # 左端の道具。None は区切り
 TOOLS = (("move", "移動", "V"), ("select", "四角の選択", "M"), (None, "", ""),
-         ("pen", "ペン", "B"), ("eraser", "消しゴム", "E"), ("blur", "ぼかし", "R"), (None, "", ""),
+         ("pen", "ペン", "B"), ("eraser", "消しゴム", "E"), ("blur", "ぼかし", "R"),
+         ("spray", "スプレー", "K"), ("smudge", "指先（色を伸ばす）", "W"), (None, "", ""),
          ("fill", "塗りつぶし", "G"), ("gradient", "グラデーション", "J"), (None, "", ""),
-         ("line", "直線", "N"), ("rect", "四角", "U"), ("ellipse", "楕円", "O"), (None, "", ""),
+         ("line", "直線", "N"), ("rect", "四角", "U"), ("ellipse", "楕円", "O"), ("text", "文字", "Y"), (None, "", ""),
          ("eyedropper", "スポイト", "I"), ("hand", "手のひら", "H"), ("zoom", "拡大（Shift か右クリックで縮小）", "Z"), (None, "", ""),
          ("redpen", "赤ペン（AI に直す所を囲む）", "T"))
 
@@ -861,6 +862,8 @@ class Window(QMainWindow):
         # 左上: 色（色相・彩度と明度・16 進・描く色と背景色・見本・最近使った色）
         self.color_panel = ColorPanel(self.canvas)
         self.canvas.used_color.connect(self.color_panel.remember)
+        self.color_panel.eyedropper_wanted.connect(lambda: self.tool_actions["eyedropper"].trigger())
+        self.canvas.text_wanted.connect(self.ask_text)
         odock = QDockWidget("カラー", self)
         odock.setObjectName("color")
         odock.setWidget(self.color_panel)
@@ -896,15 +899,39 @@ class Window(QMainWindow):
         bform.addRow("間隔", self.spacing)
         bform.addRow(self.size_pressure)
         bform.addRow(self.opacity_pressure)
+        # 手ぶれ補正と左右対称は、ペン・消しゴム・ぼかし・スプレー・指先のなぞる道具すべてに効く
+        self.stabilizer = QSpinBox()
+        self.stabilizer.setRange(0, 20)
+        self.stabilizer.setToolTip("手ぶれ補正。大きいほど線がカーソルに遅れてついてきて、なめらかになる（0 で切る）")
+        self.stabilizer.valueChanged.connect(lambda v: setattr(self.canvas, "stabilizer", v))
+        bform.addRow("手ぶれ補正", self.stabilizer)
+        self.symmetry = QCheckBox("左右対称")
+        self.symmetry.setToolTip("キャンバスの真ん中の縦の線で折り返して、反対側にも同じ線を描く")
+        self.symmetry.toggled.connect(self.canvas.set_symmetry)
+        bform.addRow(self.symmetry)
         bbox = QWidget()
         bbox.setLayout(bform)
         # タブで「ブラシ」（種類を選ぶ）と「設定」（硬さ・流量・間隔・筆圧）を切り替える
         self.brush_tabs = QTabWidget()
         self.brush_tabs.addTab(self.brush_list, "ブラシ")
         self.brush_tabs.addTab(bbox, "設定")
+        # 見本の線。ブラシ・太さ・色・濃さ・硬さ・間隔・筆圧・色の出方を変えるたびに描き直す
+        from chatdraw.brushpreview import BrushPreview
+        self.brush_preview = BrushPreview(self.canvas)
+        for sig in (self.size_box.valueChanged, self.flow.valueChanged, self.hardness.valueChanged, self.flow_s.valueChanged,
+                    self.spacing.valueChanged, self.size_pressure.toggled, self.opacity_pressure.toggled,
+                    self.color_panel.color_changed, self.canvas.color_picked, self.brush_list.currentTextChanged,
+                    self.canvas.brush_changed, self.color_panel.mode_changed):
+            sig.connect(lambda *_a: self.brush_preview.update())
+        bwrap = QWidget()
+        bl = QVBoxLayout(bwrap)
+        bl.setContentsMargins(6, 4, 6, 4)
+        bl.setSpacing(4)
+        bl.addWidget(self.brush_preview)
+        bl.addWidget(self.brush_tabs, 1)
         bdock = QDockWidget("ブラシ", self)
         bdock.setObjectName("brushes")
-        bdock.setWidget(self.brush_tabs)
+        bdock.setWidget(bwrap)
         bdock.setFeatures(PANEL)
         self.addDockWidget(Qt.LeftDockWidgetArea, bdock)
         self.brush_list.setCurrentRow(0)
@@ -3111,6 +3138,13 @@ class Window(QMainWindow):
         if c.isValid():
             self.color_panel.set_color(c)
 
+    def ask_text(self, pos):
+        """文字の道具で押した所に置く文字を聞く。空なら何もしない"""
+        from PySide6.QtWidgets import QInputDialog
+        text, ok = QInputDialog.getText(self, "文字", "置く文字（描く色・太さの 4 倍の大きさで置きます）")
+        if ok and text:
+            self.canvas.place_text(pos, text)
+
     def _brush_selected(self, name: str):
         if name not in self.canvas.brushes:
             return
@@ -3135,6 +3169,8 @@ class Window(QMainWindow):
         if hasattr(self, "st_tool"):
             self.st_tool.setText(label)
         self.fill_shapes.setVisible(key in ("rect", "ellipse"))
+        if hasattr(self, "brush_preview"):
+            self.brush_preview.update()
 
     def arrange(self):
         """初期の配置。左に道具・色・ブラシ、右に AI・描いた絵と進み・レイヤー、真ん中を広く絵に使う"""
