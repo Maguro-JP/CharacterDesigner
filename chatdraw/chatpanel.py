@@ -17,6 +17,7 @@ from PySide6.QtWidgets import (QFrame, QHBoxLayout, QLabel, QMenu, QPlainTextEdi
                                QSizePolicy, QVBoxLayout, QWidget)
 
 KEEP = 200   # 残す吹き出しの数（多すぎると開くのが遅くなる）
+THUMB = 160  # 結果の絵の縮小の長い辺（画素）
 
 
 class EnterEdit(QPlainTextEdit):
@@ -55,6 +56,7 @@ class Bubble(QFrame):
         self.who, self.text = who, text
         self.stamp = stamp or time.strftime("%m/%d %H:%M")
         self.proposal: str | None = None   # 答えにあった描く内容の案（ボタンで AI の欄に入れる）
+        self.image: str | None = None      # 結果の絵の道（縮小した絵を出し、押すと元の大きさで開く）
         self.setObjectName("bubbleMe" if who == "user" else "bubbleAi")
         lay = QVBoxLayout(self)
         lay.setContentsMargins(10, 6, 10, 6)
@@ -97,6 +99,26 @@ class Bubble(QFrame):
             m.addSeparator()
             w.common_menu(m)
         return m
+
+    def set_image(self, path: str, on_open):
+        """結果の絵を縮小して吹き出しに出す。押すと on_open(path) を呼ぶ"""
+        from PySide6.QtCore import QSize
+        from PySide6.QtGui import QIcon, QPixmap
+        from PySide6.QtWidgets import QToolButton
+        pix = QPixmap(path)
+        if pix.isNull():
+            return None
+        self.image = path
+        pix = pix.scaled(THUMB, THUMB, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+        self.thumb = QToolButton()
+        self.thumb.setObjectName("chatThumb")
+        self.thumb.setIcon(QIcon(pix))
+        self.thumb.setIconSize(QSize(pix.width(), pix.height()))
+        self.thumb.setAutoRaise(True)
+        self.thumb.setToolTip("押すと元の大きさで開きます")
+        self.thumb.clicked.connect(lambda: on_open(path))
+        self.layout().insertWidget(1, self.thumb)
+        return self.thumb
 
     def add_button(self, label: str, tip: str, fn) -> QPushButton:
         b = QPushButton(label)
@@ -141,6 +163,7 @@ class ChatPanel(QWidget):
         self.turns: list[tuple[str, str]] = []   # 言葉の模型に渡す会話（("user"|"ai", 文)）
         self.store: Path | None = None
         self.decorate = None   # 読み戻した案つきの吹き出しにボタンを付ける関数（アプリが渡す）
+        self.open_image = self.view_image   # 結果の絵を押したとき（アプリが差し替える）
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 4, 8, 8)
         lay.setSpacing(4)
@@ -178,6 +201,10 @@ class ChatPanel(QWidget):
         side.setSpacing(2)
         side.addWidget(self.send_button)
         side.addWidget(self.clear_button)
+        from chatdraw import voice
+        self.mic_button = voice.mic_button(self.input, parent=self)   # 話した言葉をチャットの欄に入れる
+        self.mic_button.setFixedWidth(self.send_button.sizeHint().width())
+        side.addWidget(self.mic_button)
         row.addWidget(self.input, 1)
         row.addLayout(side)
         lay.addLayout(row)   # 書く欄は欄の下に固定する（会話の量で上下しない）
@@ -207,6 +234,42 @@ class ChatPanel(QWidget):
         if save:
             self.save()
         return b
+
+    def add_image(self, text: str, path: str) -> Bubble:
+        """結果の絵を縮小して出す吹き出し"""
+        b = self.add("ai", text, remember=False, save=False)
+        b.set_image(path, lambda p: self.open_image(p))
+        self._fit(b)
+        self.save()
+        return b
+
+    def view_image(self, path: str, extra=None):
+        """結果の絵を元の大きさで見る窓。extra は（ボタンの名前、ツールチップ、押したときの関数）"""
+        from PySide6.QtGui import QPixmap
+        from PySide6.QtWidgets import QDialog
+        dlg = QDialog(self.window())
+        dlg.setWindowTitle(Path(path).name)
+        lay = QVBoxLayout(dlg)
+        area = QScrollArea()
+        pic = QLabel()
+        pic.setPixmap(QPixmap(path))
+        area.setWidget(pic)
+        lay.addWidget(area, 1)
+        row = QHBoxLayout()
+        if extra is not None:
+            label, tip, fn = extra
+            b = QPushButton(label)
+            b.setToolTip(tip)
+            b.clicked.connect(lambda: (dlg.accept(), fn(path)))
+            row.addWidget(b)
+        close = QPushButton("閉じる")
+        close.clicked.connect(dlg.accept)
+        row.addWidget(close)
+        lay.addLayout(row)
+        dlg.resize(720, 760)
+        dlg.show()
+        self._viewer = dlg
+        return dlg
 
     def send(self):
         text = self.input.text().strip()
@@ -251,12 +314,15 @@ class ChatPanel(QWidget):
             b = self.add(r["who"], r["text"], remember=bool(r.get("remember", True)), stamp=r.get("time"), save=False)
             if r.get("proposal") and self.decorate is not None:
                 self.decorate(b, r["proposal"], restored=True)
+            if isinstance(r.get("image"), str) and Path(r["image"]).is_file():
+                b.set_image(r["image"], lambda p: self.open_image(p))
 
     def save(self):
         if self.store is None:
             return
         rows = [{"who": b.who, "text": b.text, "time": b.stamp, "remember": getattr(b, "remember", True),
-                 **({"proposal": b.proposal} if b.proposal else {})} for b in self.bubbles()][-KEEP:]
+                 **({"proposal": b.proposal} if b.proposal else {}), **({"image": b.image} if b.image else {})}
+                for b in self.bubbles()][-KEEP:]
         try:
             self.store.parent.mkdir(parents=True, exist_ok=True)
             part = self.store.with_suffix(".part")
@@ -279,6 +345,8 @@ class ChatPanel(QWidget):
         lines = b.label.text().split("\n")
         want = max(b.label.fontMetrics().horizontalAdvance(x) for x in lines) + 26
         want = max(want, b.buttons.sizeHint().width() + 24, b.time.sizeHint().width() + 24)
+        if getattr(b, "thumb", None) is not None:
+            want = max(want, b.thumb.sizeHint().width() + 24)
         width = min(most, want)
         b.setFixedWidth(width)
         # 折り返した文の高さを幅から決める。決めないと、案の行を足したときに前の高さのまま文が重なって読めなかった

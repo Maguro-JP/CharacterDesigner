@@ -563,6 +563,7 @@ class Window(QMainWindow):
         from chatdraw.chatpanel import ChatPanel, EnterEdit
         self.chat = ChatPanel()
         self.chat.sent.connect(self.chat_send)
+        self.chat.open_image = self.open_chat_image
         self.entry = EnterEdit("描きたい絵を書く（例: 赤いマフラーの女の子 全身）", lines=3)
         self.entry.setToolTip("描いてほしい絵を日本語か英語で書き、Enter か「描く」で描きます（Shift+Enter で改行）")
         self.entry.returnPressed.connect(self.send)
@@ -649,15 +650,11 @@ class Window(QMainWindow):
         line.addWidget(self.stop_button)
         # 書く欄の下のボタン。登録した言葉（★）を先に、そのあとに直近に頼んだ言葉を新しい順に並べる。
         # 押すと書く欄に入り、ダブルクリックでそのまま描く。右クリックで登録・外す・消す。書く欄で ↑↓ でも呼び出せる
-        # 音声入力。Windows の音声入力（Win+H）を書く欄で開く。話した言葉が書く欄に入る（模型を足さずに済む）
-        self.mic_button = QPushButton("🎤")
-        self.mic_button.setFixedWidth(40)
-        self.mic_button.setToolTip("声で頼む（Windows の音声入力 Win+H を開きます）")
-        self.mic_button.clicked.connect(self.voice_input)
+        # 音声入力。押して話すと、話した言葉を描くワードの欄に入れる（chatdraw/voice.py。手元の模型 faster-whisper を先に使う）。
+        # 使えない環境でもボタンは出し、何を入れれば使えるかをツールチップと押したときの知らせに出す
         from chatdraw import voice
-        # 使えない所（Windows の外）では出さない。押せないボタンを並べると、欄が狭くなるだけだった
+        self.mic_button = voice.mic_button(self.entry, parent=self)
         line.addWidget(self.mic_button)
-        self.mic_button.setVisible(voice.available())
         self.fav_button = QPushButton("☆")
         self.fav_button.setToolTip("書く欄の言葉を描くワードに登録する（もう一度押すと外す）")
         self.fav_button.setFixedWidth(40)
@@ -1331,11 +1328,8 @@ class Window(QMainWindow):
         self._tool_changed(key)
 
     def voice_input(self):
-        """書く欄に移ってから Win+H を送り、Windows の音声入力を開く"""
-        from chatdraw import voice
-        self.entry.setFocus()
-        if voice.start():
-            self.statusBar().showMessage("話してください。言葉が書く欄に入ります（止めるときはもう一度 Win+H）", 5000)
+        """描くワードの欄のマイクを押すのと同じ"""
+        self.mic_button.press()
 
     def _toggle_fav(self):
         text = self.entry.text().strip() or self.last_text
@@ -1516,6 +1510,7 @@ class Window(QMainWindow):
         それ以外は言葉の模型に裏で聞く（画面の糸で聞くと、読み込みと推論の間アプリが固まる）"""
         from chatdraw import assistant, commands
         self.chat.add("user", text)
+        self.watch_chat_result()   # 絵が変わったら、終わったときに縮小した絵を返す
         if getattr(self, "asking", False):
             self.say("前の答えを待っています。少し待ってからもう一度送ってください")
             return
@@ -1592,6 +1587,18 @@ class Window(QMainWindow):
             entries = [{"name": n, "label": f.label} for n, f in finishers.REGISTRY.items()]
         except Exception:   # noqa: BLE001  仕上げの一覧が読めなくても、ほかの段取りは読む
             entries = []
+        from chatdraw import aipanel
+        prompts = self.shortcut_store().prompts()
+        asked = chatplan.clarify(text, entries, [n for n, *_ in aipanel.STYLES], prompts)
+        if asked is not None:
+            self.offer_choices(*asked)
+            return True
+        called = chatplan.find_prompts(text, prompts)
+        if len(called) == 1:
+            p = called[0]
+            self.chat.add("ai", f"登録した指示「{p['name']}」（{p['text']}）で直します")
+            self.run_shortcut(p["id"])
+            return True
         plan = chatplan.parse(text, entries)
         if not plan.special:
             return False
@@ -1602,6 +1609,50 @@ class Window(QMainWindow):
             return True
         self.run_plan(plan)
         return True
+
+    def offer_choices(self, question: str, choices):
+        """曖昧な頼みに、候補をボタンで出す。押すと、その文をチャットに送ったのと同じに行う"""
+        b = self.chat.add("ai", question)
+        for label, send in choices:
+            b.add_button(label, f"「{send}」と頼みます", lambda _c=False, t=send: self.chat_send(t))
+        self.chat._fit(b)
+        return b
+
+    def watch_chat_result(self):
+        """チャットの頼みで絵が変わったら、処理が終わったときに縮小した絵をチャットに返す。
+        終わりは画面の糸の時計で見る（描く・加工は裏で動き、終わりの知らせの形が処理ごとに違うため）"""
+        from PySide6.QtCore import QTimer
+        if getattr(self, "_chat_watch", None) is not None:
+            return   # 前の頼みを見ている途中。その前の絵と比べる
+        self._chat_watch = self._canvas_key()
+        QTimer.singleShot(400, self._chat_watch_tick)
+
+    def _canvas_key(self) -> str:
+        import hashlib
+        img = self.canvas.flatten()
+        return f"{img.width()}x{img.height()}:" + hashlib.blake2b(bytes(img.constBits()), digest_size=16).hexdigest()
+
+    def _chat_watch_tick(self):
+        from PySide6.QtCore import QTimer
+        if not self._plan_idle() or getattr(self, "_plan_queue", []):
+            QTimer.singleShot(400, self._chat_watch_tick)
+            return
+        before, self._chat_watch = self._chat_watch, None
+        if before is None or self._canvas_key() == before:
+            return
+        folder = Path(self.settings.get("output_dir")) / "chat"
+        try:
+            folder.mkdir(parents=True, exist_ok=True)
+            path = folder / f"{time.strftime('%Y%m%d-%H%M%S')}-{int(time.time() * 1000) % 1000:03d}.png"
+            qimage_to_pil(self.canvas.flatten()).save(path)
+        except OSError as e:
+            self.chat.add("ai", f"結果の絵を残せませんでした: {e}", remember=False)
+            return
+        self.chat.add_image("できました。絵を押すと元の大きさで開きます", str(path))
+
+    def open_chat_image(self, path: str):
+        """チャットの結果の絵を元の大きさで見る。キャンバスに開くこともできる"""
+        return self.chat.view_image(path, ("キャンバスに開く", "この絵をキャンバスに開きます（元に戻すで戻せます）", self.edit_image))
 
     def _scheduled(self, text: str):
         self.chat.add("ai", f"予約の時刻になりました: {text}")
@@ -2600,6 +2651,10 @@ class Window(QMainWindow):
             m.addAction(f"印 {n} の指示を書き直す", lambda: self.edit_note(n))
             m.addAction(f"印 {n} を消す", lambda: c.redpen.remove(n)).setToolTip("元に戻すで戻せます")
             m.addSeparator()
+        # 言葉で指示する。登録した指示は shortcuts.fill_menu が小さなメニューに入れずに上へ並べ、1 回で呼べる
+        m.addAction("言葉で指示…", self.open_text_instruction).setToolTip(
+            "言葉を書いて、今の絵（囲みがあれば囲みの中）を直す・加工する・描くことができます。書いた言葉は登録できます")
+        m.addSeparator()
         m.addAction("元に戻す（Ctrl+Z）", c.undo).setEnabled(bool(c.undo_stack) or (c.tool == "redpen" and bool(c.redpen.marks)))
         m.addAction("やり直す（Ctrl+Y）", c.redo).setEnabled(bool(c.redo_stack) or (c.tool == "redpen" and bool(c.redpen.undone)))
         m.addSeparator()
@@ -2736,6 +2791,89 @@ class Window(QMainWindow):
         sid = self.shortcut_store().add(name, text)
         self.notify("指示を登録しました", "ok", "絵の上の右クリックの「指示で直す」から選べます")
         return sid
+
+    def open_pick_shortcuts(self):
+        """右クリックに出す加工を選ぶ窓"""
+        from chatdraw import shortcuts
+        dlg = shortcuts.picker(self, self.shortcut_store())
+        dlg.show()
+        self._pick_dialog = dlg
+        return dlg
+
+    def open_text_instruction(self):
+        """言葉で指示する窓。書いた言葉で今の絵（囲みがあれば囲みの中）を直す・加工する・描く。名前を付けて登録もできる"""
+        from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
+        from chatdraw import voice
+        from chatdraw.chatpanel import EnterEdit
+        dlg = QDialog(self)
+        dlg.setWindowTitle("言葉で指示")
+        lay = QVBoxLayout(dlg)
+        where = "囲んだ所" if (self.canvas.redpen.marks or self.canvas.selection is not None) else "絵全体"
+        dlg.where = QLabel(f"直す所: {where}")
+        dlg.where.setToolTip("赤ペンか四角の選択で囲んでから開くと、囲んだ所だけを直します")
+        lay.addWidget(dlg.where)
+        row = QHBoxLayout()
+        dlg.edit = EnterEdit("例: 目を大きく / 線画にして / 夕焼けの海辺を描いて", lines=2)
+        dlg.edit.setToolTip("Enter で行います（Shift+Enter で改行）。日本語でも英語でも書けます")
+        dlg.mic = voice.mic_button(dlg.edit, parent=dlg)
+        row.addWidget(dlg.edit, 1)
+        row.addWidget(dlg.mic)
+        lay.addLayout(row)
+        buttons = QHBoxLayout()
+        dlg.run = QPushButton("行う")
+        dlg.run.setObjectName("primary")
+        dlg.run.setToolTip("書いた言葉で、今の絵を直す・加工する・描きます。結果は一番上の新しいレイヤーに置きます（Enter）")
+        dlg.save = QPushButton("登録…")
+        dlg.save.setToolTip("書いた言葉に名前を付けて、右クリックから 1 回で呼べるようにします")
+        close = QPushButton("閉じる")
+        for b in (dlg.run, dlg.save, close):
+            buttons.addWidget(b)
+        lay.addLayout(buttons)
+
+        def run():
+            text = dlg.edit.text().strip()
+            if not text:
+                dlg.edit.setFocus()
+                return
+            dlg.accept()
+            self.text_instruction(text)
+
+        def save():
+            text = dlg.edit.text().strip()
+            if text:
+                dlg.saved = self.add_prompt_shortcut(text)
+        dlg.edit.returnPressed.connect(run)
+        dlg.run.clicked.connect(run)
+        dlg.save.clicked.connect(save)
+        close.clicked.connect(dlg.reject)
+        dlg.resize(460, 160)
+        dlg.show()
+        dlg.edit.setFocus()
+        self._text_dialog = dlg
+        return dlg
+
+    def text_instruction(self, text: str):
+        """言葉の指示を行う。加工の名前があれば加工、「〜を描いて」なら新しく描く、それ以外は今の絵を直す。
+        どれも AI の欄・右クリックと同じ関数を通す（日本語は描く処理の中の言葉の直しを通り、そのまま絵の模型に渡らない）"""
+        from chatdraw import chatplan, finishers
+        from chatdraw.assistant import draw_request
+        text = (text or "").strip()
+        if not text:
+            return
+        if self.thread:
+            self.statusBar().showMessage("描いている途中です。終わってから頼んでください", 6000)
+            return
+        entries = [{"name": n, "label": f.label} for n, f in finishers.REGISTRY.items()]
+        plan = chatplan.parse(text, entries)
+        if any(st not in ("draw", "fix") for st in plan.steps) or plan.repeat > 1 or plan.export is not None:
+            self.run_plan(plan)
+            return
+        if draw_request(text) is not None:
+            self.mode.setCurrentIndex(0)
+            self.entry.setText(plan.body or text)
+            self.send()
+            return
+        self.fix_with_text(text)
 
     def open_shortcuts(self):
         from chatdraw import shortcuts

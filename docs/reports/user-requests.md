@@ -74,7 +74,7 @@
 | 47 | 模型の管理が開けない（10-26） | 一部 | claude/FIX-freeze-20261031（models.machine と engine.check が torch を読まない） | CUDA 版の Windows での秒数は測っていない |
 | 48 | 関係するディレクトリを開くボタン（10-31） | 済み | chatdraw/folders.py:27、chatdraw/app.py:648 | 無し |
 | 49 | 増えた機能はプルダウンで整理（10-31） | 一部 | chatdraw/layerpanel.py（「…」のプルダウン）、chatdraw/aipanel.py:47 | ハブ全体の整理は途中 |
-| 50 | 音声入力を用意（10-25 以前） | 一部 | chatdraw/voice.py、chatdraw/app.py の voice_input | キーの送り方は試験で確かめた。Windows の実機で確かめていない |
+| 50 | 音声入力を用意（10-25 以前） | 一部 | chatdraw/voice.py、chatdraw/tests/test_voicechat.py | 3 つの欄のマイクを偽の聞き手で押して、文字が欄に入るまでを試験で確かめた。本物のマイクと faster-whisper の模型、Windows の実機では確かめていない |
 
 ## チャット
 

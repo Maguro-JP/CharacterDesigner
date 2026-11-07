@@ -42,7 +42,12 @@ CLEAN_ORDER = ("fin:retouch", "fin:clean", "fin:retouch_full")   # ★ の次に
 KEY_PROMPTS = "shortcuts/prompts"       # 登録した指示 [{id, name, text}]
 KEY_FAVORITES = "shortcuts/favorites"   # ★ を付けた物の id の並び
 KEY_USES = "shortcuts/uses"             # id ごとの使った回数 {id: 回数}
+KEY_HIDDEN = "shortcuts/hidden"         # 右クリックに出さない加工の id の並び。無ければ DEFAULT_SHOWN の外を隠す
 KEY_CHAINS = "shortcuts/chains"         # 自分の組み合わせ [{id, name, steps}]。steps は仕上げの名前の並び（掛ける順）
+
+# 初めに右クリックに出す、よく使う加工。ほかは「加工を選ぶ…」で出せる（全部を並べると、初めての人が探せなかった）
+DEFAULT_SHOWN = frozenset(("fin:retouch", "fin:clean", "fin:retouch_full", "combo:tidy", "combo:tidy_color", "fin:face",
+                           "fin:upscale_anime", "app:upscale2x", "app:lineart", "app:nobg", "app:transparent", "grow:all"))
 
 
 @dataclass
@@ -131,6 +136,31 @@ class Store:
         uses = self.uses()
         uses.pop(pid, None)
         self._put(KEY_USES, uses)
+
+    def move(self, pid: str, step: int):
+        """登録した指示・組み合わせを並びの中で step だけ動かす（右クリックの並びになる）"""
+        key, ps = (KEY_CHAINS, self.chains()) if pid.startswith("chain:") else (KEY_PROMPTS, self.prompts())
+        i = next((i for i, p in enumerate(ps) if p["id"] == pid), None)
+        if i is None:
+            return
+        j = max(0, min(len(ps) - 1, i + step))
+        ps.insert(j, ps.pop(i))
+        self._put(key, ps)
+
+    # 右クリックに出す・隠す
+    def hidden(self, ids=None) -> set[str]:
+        """隠す id。利用者が選んでいなければ、ids のうち DEFAULT_SHOWN の外"""
+        raw = self.qs.value(KEY_HIDDEN, "")
+        try:
+            v = json.loads(raw) if raw else None
+        except (TypeError, ValueError):
+            v = None
+        if isinstance(v, list):
+            return {x for x in v if isinstance(x, str)}
+        return {i for i in (ids or ()) if i not in DEFAULT_SHOWN}
+
+    def set_hidden(self, ids):
+        self._put(KEY_HIDDEN, sorted(set(ids)))
 
     # ★ と使った回数
     def favorites(self) -> list[str]:
@@ -249,27 +279,43 @@ def all_items(w, store: Store) -> list[Shortcut]:
     return builtins(w) + user_items(w, store) + chain_items(w, store)
 
 
+def visible_items(w, store: Store) -> list[Shortcut]:
+    """右クリックに出す物。隠した加工は出さない。★ を付けた物と、登録した指示・組み合わせはいつも出す"""
+    items = all_items(w, store)
+    hidden = store.hidden([s.id for s in items if s.group not in ("user", "chain")])
+    favs = set(store.favorites())
+    return [s for s in items if s.id not in hidden or s.id in favs or s.group in ("user", "chain")]
+
+
 def fill_menu(w, menu, store: Store):
-    """右クリックのメニューにショートカットを足す。★ とよく使う物をまとまりの外の上に、残りはまとまりごとの小さなメニューに"""
-    items = store.order(all_items(w, store))
+    """右クリックのメニューにショートカットを足す。★ とよく使う物をまとまりの外の上に、残りはまとまりごとの小さなメニューに。
+    隠した加工は出さず、加工が 1 つも無いまとまりも出さない"""
+    items = store.order(visible_items(w, store))
     favs, uses = set(store.favorites()), store.uses()
     top = [s for s in items if s.id in favs] + [s for s in items if s.id not in favs and uses.get(s.id)][:TOP_USED]
+    # 登録した指示は 1 回で呼べるよう、まとまりの外に全部並べる（「指示で直す」の中にも残す）
+    top += [s for s in items if s.group == "user" and s not in top]
     for s in top:
         _action(w, menu, s, ("★ " if s.id in favs else "") + s.full_label, store)
     if top:
         menu.addSeparator()
     for g, label in GROUPS:
+        inside = [s for s in items if s.group == g]
+        if not inside and g not in ("user", "chain"):
+            continue
         sub = menu.addMenu(label)
         sub.setToolTipsVisible(True)
-        for s in (s for s in items if s.group == g):
+        for s in inside:
             _action(w, sub, s, ("★ " if s.id in favs else "") + s.label, store)
         if g == "user":
             if sub.actions():
                 sub.addSeparator()
+            sub.addAction("言葉で指示…", w.open_text_instruction).setToolTip(
+                "言葉を書いて、今の絵（囲みがあれば囲みの中）を直す・加工する・描くことができます。登録もここからできます")
             sub.addAction("今の指示を登録…", w.add_prompt_shortcut).setToolTip(
                 "書く欄の言葉（空なら尋ねます）を、右クリックから選べる指示として登録します")
             sub.addAction("ショートカットの管理…", w.open_shortcuts).setToolTip(
-                "★ を付ける・外す、登録した指示の名前の変更と削除をします")
+                "★ を付ける・外す、登録した指示の言葉と名前の変更・並べ替え・削除をします")
         if g == "chain":
             if sub.actions():
                 sub.addSeparator()
@@ -277,7 +323,65 @@ def fill_menu(w, menu, store: Store):
                 "加工を選んだ順に並べて、まとめて掛ける組み合わせとして登録します")
             sub.addAction("ショートカットの管理…", w.open_shortcuts).setToolTip(
                 "組み合わせの名前の変更と削除、★ を付ける・外すをします")
+    menu.addAction("加工を選ぶ…", w.open_pick_shortcuts).setToolTip(
+        "右クリックに出す加工と隠す加工を選びます。選んだ形は次に開いたときも残ります")
     menu.setToolTipsVisible(True)
+
+
+def picker(w, store: Store):
+    """右クリックに出す加工を選ぶ窓。印を付けた物を出し、外した物を隠す。「登録」で残す"""
+    from PySide6.QtCore import Qt
+    from PySide6.QtWidgets import QDialog, QDialogButtonBox, QHBoxLayout, QListWidget, QListWidgetItem, QPushButton, QVBoxLayout
+
+    class Picker(QDialog):
+        def __init__(self):
+            super().__init__(w)
+            self.setWindowTitle("加工を選ぶ")
+            lay = QVBoxLayout(self)
+            self.list = QListWidget()
+            self.list.setToolTip("印を付けた加工を右クリックに出します。外した加工は隠します（★ を付けた物はいつも出ます）")
+            items = [s for s in all_items(w, store) if s.group not in ("user", "chain")]
+            hidden = store.hidden([s.id for s in items])
+            for s in items:
+                it = QListWidgetItem(s.full_label)
+                it.setData(Qt.UserRole, s.id)
+                it.setToolTip(s.tip if s.ready else s.reason)
+                it.setFlags(it.flags() | Qt.ItemIsUserCheckable)
+                it.setCheckState(Qt.Unchecked if s.id in hidden else Qt.Checked)
+                self.list.addItem(it)
+            lay.addWidget(self.list)
+            row = QHBoxLayout()
+            for text, tip, fn in (("全部出す", "全部の加工に印を付けます", lambda: self.mark(lambda _i: True)),
+                                  ("よく使う物だけ", "初めの形（よく使う加工だけを出す）に戻します",
+                                   lambda: self.mark(lambda i: i in DEFAULT_SHOWN))):
+                b = QPushButton(text)
+                b.setToolTip(tip)
+                b.clicked.connect(fn)
+                row.addWidget(b)
+            lay.addLayout(row)
+            bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            bb.button(QDialogButtonBox.Ok).setText("決める")
+            bb.button(QDialogButtonBox.Ok).setToolTip("選んだ形を残し、右クリックに使います")
+            bb.accepted.connect(self.save)
+            bb.rejected.connect(self.reject)
+            lay.addWidget(bb)
+            self.resize(380, 520)
+
+        def mark(self, keep):
+            for i in range(self.list.count()):
+                it = self.list.item(i)
+                it.setCheckState(Qt.Checked if keep(it.data(Qt.UserRole)) else Qt.Unchecked)
+
+        def shown(self) -> list[str]:
+            return [self.list.item(i).data(Qt.UserRole) for i in range(self.list.count())
+                    if self.list.item(i).checkState() == Qt.Checked]
+
+        def save(self):
+            ids = [self.list.item(i).data(Qt.UserRole) for i in range(self.list.count())]
+            store.set_hidden(set(ids) - set(self.shown()))
+            self.accept()
+
+    return Picker()
 
 
 def _action(w, menu, s: Shortcut, text: str, store: Store):
@@ -302,7 +406,6 @@ def dialog(w, store: Store):
             self.list = QListWidget()
             lay = QVBoxLayout(self)
             lay.addWidget(self.list)
-            row = QHBoxLayout()
             self.fav = QPushButton("★")
             self.fav.setToolTip("選んだ物に ★ を付ける・外す。★ を付けた物は右クリックの一番上に出ます")
             self.add = QPushButton("指示を足す")
@@ -311,17 +414,31 @@ def dialog(w, store: Store):
             self.ren.setToolTip("登録した指示・組み合わせの名前を変えます")
             self.combo = QPushButton("組み合わせを作る")
             self.combo.setToolTip("加工を選んだ順に並べ、まとめて掛ける組み合わせとして登録します")
+            self.edit = QPushButton("言葉を直す")
+            self.edit.setToolTip("登録した指示の言葉を書き直します")
+            self.up = QPushButton("↑")
+            self.up.setToolTip("登録した指示・組み合わせを並びの上へ動かします（右クリックの並びになります）")
+            self.down = QPushButton("↓")
+            self.down.setToolTip("登録した指示・組み合わせを並びの下へ動かします")
             self.rem = QPushButton("消す")
             self.rem.setToolTip("登録した指示・組み合わせを消します（アプリにある加工は消せません。使わない物は ★ を外したままにしてください）")
             close = QPushButton("閉じる")
-            for b in (self.fav, self.add, self.combo, self.ren, self.rem, close):
+            from chatdraw.flowlayout import FlowLayout
+            from PySide6.QtWidgets import QWidget
+            row = FlowLayout()   # 窓の横幅で折り返す（横 1 行だと奥のボタンが窓の外に出た）
+            box = QWidget()
+            box.setLayout(row)
+            for b in (self.fav, self.add, self.edit, self.ren, self.up, self.down, self.combo, self.rem, close):
                 row.addWidget(b)
-            lay.addLayout(row)
+            lay.addWidget(box)
             self.fav.clicked.connect(lambda: self.toggle())
             self.add.clicked.connect(lambda: self.add_prompt())
             self.combo.clicked.connect(lambda: self.refresh(w.add_chain_shortcut()))
             self.ren.clicked.connect(lambda: self.rename())
             self.rem.clicked.connect(lambda: self.remove())
+            self.edit.clicked.connect(lambda: self.edit_text())
+            self.up.clicked.connect(lambda: self.move(-1))
+            self.down.clicked.connect(lambda: self.move(1))
             close.clicked.connect(self.accept)
             self.list.currentRowChanged.connect(lambda _r: self._buttons())
             self.refresh()
@@ -347,6 +464,9 @@ def dialog(w, store: Store):
             self.fav.setEnabled(bool(sid))
             self.ren.setEnabled(sid.startswith(("user:", "chain:")))
             self.rem.setEnabled(sid.startswith(("user:", "chain:")))
+            self.edit.setEnabled(sid.startswith("user:"))
+            self.up.setEnabled(sid.startswith(("user:", "chain:")))
+            self.down.setEnabled(sid.startswith(("user:", "chain:")))
 
         def select(self, sid: str):
             for i in range(self.list.count()):
@@ -385,6 +505,25 @@ def dialog(w, store: Store):
                     return
             if name.strip():
                 store.rename(sid, name)
+                self.refresh(sid)
+
+        def edit_text(self, text: str | None = None):
+            sid = self.current()
+            if not sid.startswith("user:"):
+                return
+            if text is None:
+                old = next((p["text"] for p in store.prompts() if p["id"] == sid), "")
+                text, ok = QInputDialog.getText(self, "言葉を直す", "直しの頼みの言葉", text=old)
+                if not ok:
+                    return
+            if (text or "").strip():
+                store.set_text(sid, text)
+                self.refresh(sid)
+
+        def move(self, step: int):
+            sid = self.current()
+            if sid.startswith(("user:", "chain:")):
+                store.move(sid, step)
                 self.refresh(sid)
 
         def remove(self):
