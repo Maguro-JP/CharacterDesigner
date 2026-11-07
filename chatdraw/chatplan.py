@@ -108,6 +108,24 @@ def _steps(text: str, finishers=None) -> list[str]:
     return out
 
 
+CLEAN = {"clean", "retouch", "retouch_full"}   # 形を変えない綺麗にする加工
+
+
+def clean_first(steps: list[str], finishers=None) -> list[str]:
+    """「拡大してから綺麗にして」の綺麗にするを拡大の前に回す。拡大のあとの絵は面積が 4 倍で、綺麗にするのに
+    元の大きさの 4〜5 倍の時間がかかった（拡大の前と後で仕上がりの差はまだ測っていない）"""
+    names = {f"finisher:{n}" for n in CLEAN}
+    if "upscale" not in steps:
+        return steps
+    i = steps.index("upscale")
+    moved = [s for s in steps[i + 1:] if s in names]
+    if not moved:
+        return steps
+    rest = [s for s in steps if s not in moved]
+    j = rest.index("upscale")
+    return rest[:j] + moved + rest[j:]
+
+
 def parse(text: str, finishers=None, now: float | None = None) -> Plan:
     p = Plan()
     rest = text
@@ -138,7 +156,7 @@ def parse(text: str, finishers=None, now: float | None = None) -> Plan:
     if m:
         p.export = (m.group(1) or m.group(2) or "").strip()
         rest = rest[:m.start()] + " " + rest[m.end():]
-    p.steps = _steps(rest, finishers)
+    p.steps = clean_first(_steps(rest, finishers), finishers)
     body = rest
     for words in list(ACTIONS.values()) + list(finisher_words(finishers).values()):
         for w in sorted(words, key=len, reverse=True):

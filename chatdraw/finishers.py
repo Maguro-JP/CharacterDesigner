@@ -132,6 +132,39 @@ register(Finisher(
     extra=dict(redraw=_redraw_with("masterpiece, clean lineart, clean coloring", 0.25)), group="redraw"))
 
 
+
+def _restyle_ready() -> bool:
+    if not _redraw_ready():
+        return False
+    try:
+        import diffusers  # noqa: F401
+    except ImportError:
+        return False
+    return True
+
+
+def _restyle_with(kind: str):
+    def run(image, mask=None):
+        from chatdraw import restyle
+        return restyle.restyle(_PAINTER[0], image, kind)
+    return run
+
+
+def _register_styles():
+    from chatdraw.restyle import STYLES
+    for kind, label, tip, _prompt, strength in STYLES:
+        register(Finisher(
+            f"style_{kind}", label,
+            tip + f"。元の線を ControlNet で保ち、低い強さ（{strength}）で描き替えるので、形と構図は変えません。"
+            "崩れたら強さを下げて描き直します。結果は一番上の新しいレイヤーに置きます"
+            "（初めて使うときに線を保つ部品 xinsir/controlnet-union-sdxl-1.0 を取ります）",
+            "使う絵の模型の許諾と、ControlNet Union（Apache-2.0）", "取得済みの絵の模型と xinsir/controlnet-union-sdxl-1.0",
+            lambda: _restyle_ready(), lambda: _redraw_why(), None, heavy=True,
+            extra=dict(redraw=_restyle_with(kind)), group="style"))
+
+
+_register_styles()
+
 # ---- このリポジトリで作ってきた仕上げ（tools/gen の retouch・inking・atmosphere・materials） ----
 # 模型を使わず数秒で済む。どれも絵全体を渡して結果を囲みで合わせるので、囲みの外は変わらない（run の keep_outside）。
 # retouch は工程ごとに「自分の数字が良くなり、形が変わりすぎず、線が切れない」ときだけ採るので、悪くする工程は掛からない
@@ -172,14 +205,29 @@ def _own_why(mod: str, *needs: str):
 
 # 線と塗りを整える工程。どの工程も、出来た崩れの画素を元に戻してから（repair）、崩れが増えず線が切れないときだけ採る。
 # おまかせに入れるのは顔の細い線に触らない工程だけ。バリ取り・ジャギー消しは顔を部位分けで守れるときだけ使う決まりなので「全部」にだけ入れる
-RETOUCH_SAFE = ("heal", "defringe", "levels", "sharpen")
-RETOUCH_FULL = ("heal", "defringe", "deburr", "dejag", "levels", "sharpen")
+# 明るさの幅（levels）は入れない。元の大きさの絵では 3 枚とも落ちた（一部が壊れる・線の太さが変わる）のに、拡大のあとの絵では
+# 縮めた写しで決めるので通り、色が平均 10.7 変わった（描き手の決めた明るさと色を変えるので、元の良さが消える）
+RETOUCH_SAFE = ("heal", "defringe", "sharpen")
+RETOUCH_FULL = ("heal", "defringe", "deburr", "dejag", "sharpen")
+
+
+_MEMO: list = []   # (配列, 種類, 値)。同じ絵の崩れを工程ごとに測り直さない（直した絵は測ったあとに書き換えないので、同じ物を指せば同じ値）
+
+
+def _memo(a, kind: str, fn):
+    for arr, k, v in _MEMO:
+        if arr is a and k == kind:
+            return v
+    v = fn(a)
+    _MEMO.append((a, kind, v))
+    del _MEMO[:-4]
+    return v
 
 
 def flaws(a) -> int:
     """崩れの数: 線から離れた黒い粒と、輪郭の小さな出っ張り・欠けの数（tools/gen/retouch.py の specks と burrs）"""
     rt = _gen("retouch")
-    return int(rt.specks(a)) + int(rt.burrs(a))
+    return _memo(a, "flaws", lambda x: int(rt.specks(x)) + int(rt.burrs(x)))
 LAST_REPORT: dict = {}   # 直前の retouch の工程ごとの採否（画面と試験が読む）
 
 
@@ -205,7 +253,7 @@ def repair(a, b, rounds: int = 3):
     ほかの所の直しは残す。シャープは縁の際に粒と出っ張りを作り（10 枚で崩れ +1923）、絵ごと採らないと線の締まりも失った"""
     import numpy as np
     from scipy.ndimage import binary_dilation
-    old = flaw_pixels(a)
+    old = _memo(a, "flaw_pixels", flaw_pixels)   # a は書き換えないので測った値を使い回す（b は直しながら書き換えるので毎回測る）
     b = b.copy()
     for _ in range(rounds):
         new = flaw_pixels(b) & ~old
@@ -619,6 +667,159 @@ def guard(name: str, src, out, mask=None):
     return o
 
 
+# ---- 綺麗にするの守り（顔を守る印と、前と後の検品で強さを下げる） ----
+# 線から離れた小さな暗い粒を消す工程（heal）は、顔の目・口・鼻の小さな線も粒と取って消した（雪女の絵で顔の線の重なり 0.39、
+# 顔の中の変わり 116）。顔は部位分けの顔（11）の一番大きな塊を少し広げた所とし、綺麗にする加工では元の画素のまま残す。
+# 部位分けの模型が取れていないときは顔を守れないので、守っていないと検品の結果に書く
+FACE_LABEL = 11
+FACE_GROW = 0.06          # 顔の大きさのこの割合だけ広げる（眉と顎の線を含める）
+VERIFY_SSIM = 0.985       # 前と後の明るさの SSIM の下限
+VERIFY_LINE = 0.95        # 主線（明るさ 90 未満）の重なり（IoU）の下限
+VERIFY_STEPS = (0.5, 0.25)   # 検品に落ちたとき、変えた分にこの割合を掛けて混ぜ直す（順に試す）
+SEG_SIDE = 768            # 部位分けに渡す大きさ（模型は 512 で見るので、大きな絵を渡しても細かくならない）
+
+
+_FACES: dict = {}   # 縮めた絵の指紋 → 顔の印。部位分けは CPU で 1 回 5〜30 秒かかるので、同じ絵（拡大したあとの絵も）では測り直さない
+
+
+def face_keep(image):
+    """顔を守る印（L、白が守る所、縁はぼかす）。部位分けの模型が無い・顔が無いときは None"""
+    import hashlib
+    from PIL import Image
+    key = hashlib.md5(image.convert("RGB").resize((64, 64), Image.BOX).point(lambda v: v // 16).tobytes()).hexdigest()
+    if key in _FACES:
+        m = _FACES[key]
+        return None if m is None else m.resize(image.size, Image.BILINEAR)
+    m = _face_keep(image)
+    if len(_FACES) > 16:
+        _FACES.clear()
+    _FACES[key] = m
+    return m
+
+
+def _face_keep(image):
+    try:
+        import tempfile
+        import numpy as np
+        from PIL import Image, ImageFilter
+        from scipy import ndimage
+        from huggingface_hub import try_to_load_from_cache
+        edit = _gen("edit")
+        if not isinstance(try_to_load_from_cache(edit.SEG_MODEL, "config.json"), str):
+            return None   # 守るためだけに 180MB を黙って取りには行かない
+        src = image.convert("RGB")
+        k = min(1.0, SEG_SIDE / max(src.size))
+        small = src.resize((max(1, round(src.width * k)), max(1, round(src.height * k))), Image.LANCZOS) if k < 1 else src
+        with tempfile.TemporaryDirectory() as d:
+            path = Path(d) / "face.png"
+            small.save(path, compress_level=1)
+            seg = np.asarray(edit.parts(str(path)))
+        face = seg == FACE_LABEL
+        lab, n = ndimage.label(face)
+        if n == 0:
+            return None
+        face = lab == (int(np.bincount(lab.ravel())[1:].argmax()) + 1)
+        if face.sum() < 30:
+            return None
+        ys, xs = np.nonzero(face)
+        r = max(2, int(max(np.ptp(ys), np.ptp(xs)) * FACE_GROW))
+        face = ndimage.binary_dilation(face, iterations=r)
+        m = Image.fromarray((face * 255).astype("uint8")).resize(src.size, Image.BILINEAR)
+        return m.filter(ImageFilter.GaussianBlur(max(1, r * src.width // max(1, small.width) // 2)))
+    except Exception:   # 部位分けが動かないときは、守らずに進む（検品の結果に書く）
+        return None
+
+
+def scores(src, out) -> dict:
+    """前と後の差: 明るさの SSIM、主線の重なり、色の変わりの平均（0〜255）"""
+    import numpy as np
+    from PIL import Image
+    a = np.asarray(src.convert("RGB"), np.float32)
+    b = np.asarray(out.convert("RGB").resize(src.size, Image.LANCZOS) if out.size != src.size else out.convert("RGB"), np.float32)
+    w = np.float32([0.299, 0.587, 0.114])
+    la, lb = a @ w, b @ w
+    try:
+        from skimage.metrics import structural_similarity
+        ss = float(structural_similarity(la, lb, data_range=255))
+    except ImportError:
+        ss = None
+    ma, mb = la < 90, lb < 90
+    iou = float((ma & mb).sum() / max(1, (ma | mb).sum()))
+    return dict(ssim=None if ss is None else round(ss, 4), line=round(iou, 4), color=round(float(np.abs(a - b).mean()), 2))
+
+
+LINE_DELTA = 40.0   # 主線とその 2 画素の周りで、元の絵から変えてよい色の上限（0〜255）。線の太さと形を変えないように
+CELL_SSIM = 0.90    # 区画（QC_CELL 画素）ごとの SSIM の下限。下回った区画は形が変わったとして元の絵に戻す
+
+
+def limit(src, out):
+    """壊さない制限: 主線の周りは変わりを LINE_DELTA までに抑え、区画の SSIM が CELL_SSIM を下回った区画は元の絵に戻す。
+    返りは (絵, 数)。顔は soften が先に元の画素に戻している"""
+    import numpy as np
+    from PIL import Image
+    from scipy.ndimage import binary_dilation, uniform_filter
+    a = np.asarray(src, np.float32)
+    b = np.asarray(out, np.float32).copy()
+    from scipy.ndimage import label
+    cleanup = _gen("cleanup")
+    m = cleanup.line_mask(a)
+    lab, _ = label(m, structure=np.ones((3, 3)))
+    sizes = np.bincount(lab.ravel())
+    sizes[0] = 0
+    line = binary_dilation(sizes[lab] >= cleanup.SPECK, iterations=2)   # 粒（消すのが仕事）は線に数えない
+    d = b - a
+    capped = int((line & (np.abs(d).max(2) > LINE_DELTA)).sum())
+    b[line] = a[line] + np.clip(d[line], -LINE_DELTA, LINE_DELTA)
+    w = np.float32([0.299, 0.587, 0.114])
+    x, y = a @ w, b @ w
+    mx, my = uniform_filter(x, 7), uniform_filter(y, 7)
+    vx, vy = uniform_filter(x * x, 7) - mx * mx, uniform_filter(y * y, 7) - my * my
+    cxy = uniform_filter(x * y, 7) - mx * my
+    c1, c2 = (0.01 * 255) ** 2, (0.03 * 255) ** 2
+    ss = ((2 * mx * my + c1) * (2 * cxy + c2)) / ((mx * mx + my * my + c1) * (vx + vy + c2))
+    H, W = ss.shape[0] // QC_CELL * QC_CELL, ss.shape[1] // QC_CELL * QC_CELL
+    back = 0
+    if H and W:
+        cell = ss[:H, :W].reshape(H // QC_CELL, QC_CELL, W // QC_CELL, QC_CELL).mean((1, 3)) < CELL_SSIM
+        back = int(cell.sum())
+        if back:
+            m = np.zeros(ss.shape, bool)
+            m[:H, :W] = np.repeat(np.repeat(cell, QC_CELL, 0), QC_CELL, 1)
+            b[m] = a[m]
+    return Image.fromarray(np.clip(b + 0.5, 0, 255).astype("uint8")), dict(capped=capped, reverted=back)
+
+
+_NO_FACE = object()
+
+
+def soften(src, out, mask=None, face=_NO_FACE):
+    """綺麗にした絵を、顔を元のまま残し、前と後の差が基準を外れたら変えた分を減らして混ぜ直す。返りは (絵, 検品)。
+    face を渡せば部位分けを測り直さない（組み合わせで工程ごとに測ると、同じ顔を工程の数だけ測った）"""
+    from PIL import Image
+    s, o = src.convert("RGB"), out.convert("RGB")
+    face = face_keep(s) if face is _NO_FACE else face
+    if face is not None and face.size != s.size:
+        face = face.resize(s.size, Image.BILINEAR)
+    if face is not None:
+        if mask is not None:
+            face = Image.composite(face, Image.new("L", s.size, 0), binary(mask, s.size))
+        o = Image.composite(s, o, face)
+    o, limited = limit(s, o)
+    q = dict(face=face is not None, **scores(s, o), mix=1.0, **limited)
+    tried = o
+    for k in VERIFY_STEPS:
+        if (q["ssim"] is None or q["ssim"] >= VERIFY_SSIM) and q["line"] >= VERIFY_LINE:
+            return tried, q
+        tried = Image.blend(s, o, k)
+        q.update(scores(s, tried), mix=k)
+    # 一番弱く混ぜても SSIM だけが届かないのは、塗りのざらつきを均したとき（均すのが仕事）なので、その弱さで渡す。
+    # 主線が崩れたままなら、元の絵のままにする
+    if q["line"] >= VERIFY_LINE:
+        return tried, q
+    q["failed"] = True
+    return s, q
+
+
 def qc_note(q: dict | None = None) -> str:
     """検品の結果を、利用者に見せる 1 文にする。崩れが無ければ空"""
     q = LAST_QC if q is None else q
@@ -626,14 +827,20 @@ def qc_note(q: dict | None = None) -> str:
         return ""
     if not q.get("measured"):
         return "崩れの検品は、部品（numpy）が無いので測っていません。"
+    v = q.get("verify") or {}
+    if v.get("failed"):
+        return f"{q['label']}で元の絵から変わりすぎたので（SSIM {v['ssim']}、線の重なり {v['line']}）、掛けずに元の絵のままにしました。"
     if q.get("rejected"):
         return f"{q['label']}で絵が崩れたので（区画 {q['broken']}/{q['cells']}）、掛けずに元の絵のままにしました。"
-    if q.get("broken"):
-        return f"{q['label']}で崩れた所（区画 {q['broken']} か所）は元の絵に戻しました。"
-    return ""
+    note = f"{q['label']}で崩れた所（区画 {q['broken']} か所）は元の絵に戻しました。" if q.get("broken") else ""
+    if v and v.get("mix", 1.0) < 1.0:
+        note += f"{q['label']}は変わりすぎたので、強さを {v['mix']} に下げて混ぜました。"
+    if v and not v.get("face"):
+        note += "顔を守る印は、部位分けの模型が無いか顔が見つからないので使っていません。"
+    return note
 
 
-def run(name: str, image, mask=None, say=None):
+def run(name: str, image, mask=None, say=None, face=_NO_FACE):
     """仕上げの道具 name を image に掛けた結果の画像を返す。mask があれば囲みの中だけを変える。
     大きな絵は区画に分けて（光・質感は作業の大きさで）掛け、区画の区切りで止めるを見て、say に進みを知らせる。
     掛けたあとに崩れを検品し、崩れた所は元の絵に戻す（guard）。使えないときは Unavailable（理由つき）。知らない名前は KeyError"""
@@ -659,7 +866,14 @@ def run(name: str, image, mask=None, say=None):
     else:
         out = f.apply(src)
     out = out if mask is None else keep_outside(src, out, mask)
-    return guard(name, src, out, mask)
+    _MEMO.clear()   # 大きな絵の配列を持ち続けない
+    out = guard(name, src, out, mask)
+    if f.group == "clean" and out.size == src.size and not LAST_QC.get("rejected"):
+        out, v = soften(src, out, mask, face)
+        LAST_QC["verify"] = v
+        if v.get("failed"):
+            LAST_QC["rejected"] = True
+    return out
 
 
 LAST_CHAIN: list = []   # 直前の組み合わせの、工程ごとの検品の結果
@@ -673,11 +887,12 @@ def run_chain(names, image, mask=None, say=None):
             raise KeyError(n)
     LAST_CHAIN.clear()
     out = image.convert("RGB")
+    face = face_keep(out) if any(REGISTRY[n].group == "clean" for n in names) else None
     for i, n in enumerate(names):
         def tell(text, i=i):
             if say is not None:
                 say(f"{i + 1}/{len(names)} {text}" if len(names) > 1 else text)
-        out = run(n, out, mask, tell)
+        out = run(n, out, mask, tell, face)
         LAST_CHAIN.append(dict(LAST_QC, name=n))
     return out
 

@@ -203,7 +203,9 @@ class MenuTest(Base):
     def test_every_builtin_is_pressed_in_these_tests(self):
         """アプリにある項目を足したら、押して流す試験にも足す（押して確かめていない項目を出さない）"""
         from chatdraw import shortcuts
-        pressed = set(PIXEL_CHANGES) | set(RETOUCH) | set(MODEL_ITEMS) | set(COMBOS) | {"app:transparent"}
+        # 画風（fin:style_*）は、試験用の小さな SDXL で test_finish_quality が右クリックの項目を押して流す
+        styles = {f"fin:style_{s[0]}" for s in __import__("chatdraw.restyle", fromlist=["STYLES"]).STYLES}
+        pressed = set(PIXEL_CHANGES) | set(RETOUCH) | set(MODEL_ITEMS) | set(COMBOS) | {"app:transparent"} | styles
         self.assertEqual({s.id for s in shortcuts.builtins(self.w)}, pressed)
 
     def test_no_model_disables_model_items_with_reason(self):
