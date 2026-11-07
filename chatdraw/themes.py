@@ -278,7 +278,10 @@ def apply(app, name: str | dict = DEFAULT) -> dict:
     # （Segmentation fault。窓をたくさん開け閉めしたあとにテーマを替えたとき）。先に消し終えてから替える
     from PySide6.QtCore import QCoreApplication, QEvent
     QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
-    app.setStyle("Fusion")
+    # 見た目の型（Fusion）は初めの 1 回だけ当てる。替えるたびに当てると、開いている窓を全部作り直し、
+    # 窓をたくさん開け閉めしたあとのテーマの切り替えで落ちた（Segmentation fault）。色は palette と stylesheet で替わる
+    if app.style().name().lower() != "fusion":
+        app.setStyle("Fusion")
     app.setPalette(palette(t))
     app.setStyleSheet(TEMPLATE.format(**t))
     for w in app.allWidgets():
