@@ -61,6 +61,7 @@ class Base(unittest.TestCase):
         self.w.settings.set("output_dir", str(d / "out"))
         self.ini = str(d / "s.ini")
         self.w._shortcut_store = shortcuts.Store(QSettings(self.ini, QSettings.IniFormat))
+        self.w._shortcut_store.set_hidden([])   # 試験は全部の加工を出して押す（初めの隠し方は HiddenTest で見る）
         self.w.edit_image(str(self.src))
 
     def tearDown(self):

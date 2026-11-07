@@ -206,6 +206,22 @@ def _extend():
                             lambda w, a: w.make_lineart(), ("線画に",)))
     COMMANDS.append(Command("pixel", "ドット絵にしました", "turn the picture into pixel art",
                             lambda w, a: w.make_pixel(), ("ドット絵に",)))
+    COMMANDS.append(Command("hide_layer", "選んでいるレイヤーを隠しました", "hide the current layer",
+                            lambda w, a: w.canvas.set_visible(w.canvas.current, False), ("レイヤーを隠",)))
+    COMMANDS.append(Command("show_layer", "選んでいるレイヤーを出しました", "show the current layer",
+                            lambda w, a: w.canvas.set_visible(w.canvas.current, True), ("レイヤーを出", "レイヤーを表示")))
+    COMMANDS.append(Command("merge_visible", "見えているレイヤーを結合しました", "merge the visible layers",
+                            lambda w, a: w.canvas.merge_visible(), ("レイヤーを結合", "レイヤーをまとめ")))
+    COMMANDS.append(Command("merge_down", "下のレイヤーと結合しました", "merge the current layer into the one below",
+                            lambda w, a: w.canvas.merge_down(), ("下と結合", "下のレイヤーと結合")))
+    COMMANDS.append(Command("grow_all", "四方に広げます", "extend the picture on all sides with AI",
+                            lambda w, a: w.outpaint_canvas(128, 128, 128, 128, background=True), ("四方に広げ", "絵を広げ")))
+    COMMANDS.append(Command("text_instruction", "言葉で指示する窓を開きました", "open the window to give an instruction in words",
+                            lambda w, a: w.open_text_instruction(), ("言葉で指示",)))
+    COMMANDS.append(Command("pick_shortcuts", "右クリックに出す加工を選ぶ窓を開きました", "choose which effects appear in the right click menu",
+                            lambda w, a: w.open_pick_shortcuts(), ("加工を選ぶ", "加工を選び")))
+    COMMANDS.append(Command("shortcuts", "ショートカットの管理を開きました", "manage registered instructions and favorites",
+                            lambda w, a: w.open_shortcuts(), ("ショートカットの管理", "指示の管理")))
     COMMANDS.append(Command("show_library", "ライブラリーを出しました", "show the library panel (works, documents, taste)",
                             _panel("library"), ("ライブラリー", "好みを見")))
 

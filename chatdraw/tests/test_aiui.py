@@ -129,7 +129,8 @@ class AiPanelOrderTest(unittest.TestCase):
             if not w.lora_pick.currentData():
                 self.assertTrue(w.lora_strength.isHidden())
             from chatdraw import voice
-            self.assertEqual(w.mic_button.isHidden(), not voice.available())
+            self.assertFalse(w.mic_button.isHidden())   # 使えない環境でも出し、何を入れれば使えるかをツールチップに出す
+            self.assertEqual(w.mic_button.toolTip(), voice.tooltip())
             w.close()
 
     def test_negative_reaches_every_path(self):
