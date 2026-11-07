@@ -1040,6 +1040,16 @@ class Painter:
             else:
                 pipe.enable_sequential_cpu_offload()
         self.lighten(pipe, plan)
+        if getattr(self, "channels_last", False):
+            # 畳み込みの多い部品（UNet と VAE）のメモリの並びを替える。計算の中身は同じで、CPU では畳み込みが速くなることがある。
+            # 速くなるかは Actions の測り（chatdraw/perfbench.py）で決める
+            for name in ("unet", "vae"):
+                part = getattr(pipe, name, None)
+                if part is not None and hasattr(part, "to"):
+                    try:
+                        part.to(memory_format=torch.channels_last)
+                    except Exception:   # noqa: BLE001  並びを替えられない部品はそのまま
+                        pass
 
     def lighten(self, pipe, plan=None, slicing=None, tiling=None):
         """計画に合わせて、注意の分割と VAE の分割（区画と 1 枚ずつ）を入れる。品質はほぼ変わらず、山だけが下がる。
