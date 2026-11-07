@@ -22,6 +22,17 @@ def _path(key: str) -> QPainterPath:
                                (17, 20, 12, 20), (9, 20, 4, 20), (4, 17, 4, 12), (4, 9, 4, 4)):
             p.moveTo(x0, y0)
             p.lineTo(x1, y1)
+    elif key == "lasso":
+        # 輪にした縄と、手元に垂れた端
+        p.addEllipse(4, 4, 16, 11)
+        p.moveTo(8, 14)
+        p.cubicTo(6, 18, 9, 20, 12, 21)
+    elif key == "polygon":
+        for (x0, y0), (x1, y1) in (((5, 6), (17, 4)), ((17, 4), (20, 15)), ((20, 15), (10, 20)), ((10, 20), (5, 6))):
+            p.moveTo(x0, y0)
+            p.lineTo(x1, y1)
+        for x, y in ((5, 6), (17, 4), (20, 15), (10, 20)):
+            p.addRect(x - 1.5, y - 1.5, 3, 3)
     elif key == "pen":
         p.moveTo(4, 20)
         p.lineTo(5.5, 15)
@@ -357,4 +368,4 @@ def icon(key: str, color: str | None = None, active: str | None = None, size: in
     return QIcon(_Engine(key, color, active))
 
 
-KEYS = ("chat", "progress", "view", "layout", "new", "open", "save", "undo", "redo", "fit", "rotate", "rough", "models", "settings", "palette", "brush", "history", "layers", "help", "move", "select", "pen", "eraser", "blur", "spray", "smudge", "text", "fill", "gradient", "line", "rect", "ellipse", "eyedropper", "hand", "zoom", "redpen", "upscale", "library", "ai")
+KEYS = ("chat", "progress", "view", "layout", "new", "open", "save", "undo", "redo", "fit", "rotate", "rough", "models", "settings", "palette", "brush", "history", "layers", "help", "move", "select", "lasso", "polygon", "pen", "eraser", "blur", "spray", "smudge", "text", "fill", "gradient", "line", "rect", "ellipse", "eyedropper", "hand", "zoom", "redpen", "upscale", "library", "ai")

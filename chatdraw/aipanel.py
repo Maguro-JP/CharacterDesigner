@@ -11,6 +11,8 @@ from PySide6.QtCore import Qt, Signal
 from PySide6.QtWidgets import (QCheckBox, QLineEdit, QSlider, QSpinBox, QButtonGroup, QGridLayout, QHBoxLayout, QInputDialog, QLabel, QMenu, QPushButton,
                                QScrollArea, QSizePolicy, QTabWidget, QToolButton, QVBoxLayout, QWidget)
 
+from chatdraw.i18n import ja
+
 # 画風: (名前, 描く言葉に足すタグ, ヒント)。タグは英語のまま模型に渡す
 STYLES: list[tuple[str, str, str]] = [
     ("おまかせ", "", "画風を足さず、頼みと絵の模型に任せます"),
@@ -443,7 +445,7 @@ class AiPanel(QWidget):
             self.use_ref.setChecked(False)
             self.ref_scale.setValue(60)
         for b in self.preset_group.buttons():
-            b.setChecked(b.text() == name)
+            b.setChecked(ja(b.text()) == name)   # 英語の画面では見出しが英語になる
         self.w.entry.setFocus()
         self.w.feature_tour("ai_presets")
         self.w.statusBar().showMessage(f"AI プリセット「{name}」にしました")
