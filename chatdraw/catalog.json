@@ -66,7 +66,7 @@
   "steps": 28,
   "guidance": 7.0,
   "score": 0,
-  "note": "2026-10-31 検証が時間切れで 2 枚だけ。頼んでいない白髪で描いた。点は付けない",
+  "note": "2026-11-07 検証 3 枚（実行 41219861161）: 落とした。手を振るで人物が描けず脚 1 本だけ、ビキニがワンピース水着になる、腰に手が描けない",
   "vram": 6,
   "ram": 16,
   "negative": "nsfw, lowres, bad, text, error, fewer, extra, missing, worst quality, jpeg artifacts, low quality, watermark, unfinished, displeasing, oldest, early, chromatic aberration, signature, extra digits, artistic error, username, scan, abstract"
@@ -108,6 +108,7 @@
   "steps": 28,
   "guidance": 5.0,
   "score": 0,
+  "note": "2026-11-07 検証 3 枚（実行 41219861161）: 落とした。浜辺が描けない、振り返りが描けない、横に伸ばした手の指が読めない、足の指が崩れる",
   "vram": 6,
   "ram": 16,
   "negative": "worst quality, comic, multiple views, bad quality, low quality, lowres, displeasing, very displeasing, bad anatomy, bad hands, scan artifacts, monochrome, greyscale, signature, twitter username, jpeg artifacts, 2koma, 4koma"
@@ -147,6 +148,7 @@
   "steps": 28,
   "guidance": 5.5,
   "score": 0,
+  "note": "2026-11-07 検証 3 枚（実行 41197085480）: 落とした。水着で頭の無い 2 体目の胴が出る、手を振るで腕が 3 本、浜辺が描けない",
   "commercial": "ライセンスの本文を読む必要あり",
   "vram": 6,
   "ram": 16,
@@ -169,6 +171,7 @@
   "steps": 24,
   "guidance": 5.0,
   "score": 0,
+  "note": "2026-11-07 検証 3 枚（実行 41219861161）: 落とした。振り返りで頭の無い 2 体目が出る、全身なのに足が切れる、浜辺が壁になる",
   "vram": 6,
   "ram": 16
  },
@@ -551,7 +554,7 @@
   "steps": 24,
   "guidance": 5.0,
   "score": 0,
-  "note": "2026-10-31 検証が時間切れで 2 枚だけ。頼んでいない白髪で、振り返りが描けていない。点は付けない",
+  "note": "2026-11-07 検証 3 枚（実行 41219861161）: 落とした。手を振るで上げた手が 2 つ重なる、実写寄りの塗り、振り返りと腰に手が描けない",
   "vram": 6,
   "ram": 16
  },
@@ -571,6 +574,7 @@
   "steps": 24,
   "guidance": 5.0,
   "score": 0,
+  "note": "2026-11-07 検証 3 枚（実行 41197085480）: 落とした。手を振るで人の形にならない、振り返りで顔と腕が崩れる、腰に手が描けない",
   "vram": 6,
   "ram": 16
  },
