@@ -1,0 +1,53 @@
+# 描く処理の段階ごとの秒と GB を、本物の SDXL で前と後の 2 つの設定について測る（chatdraw/perfbench.py）。
+# 手元の機械は秒のぶれが大きく比べられなかったので、同じ機械で 2 つの設定を続けて描く。結果は artifact の perf.json と絵。
+# 品質の差は、作画監督（tools/gen/measure.py）の外れの数で見る。
+name: perf-draw
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "測る模型"
+        default: "cagliostrolab/animagine-xl-4.0"
+      configs:
+        description: "比べる設定（chatdraw/perfbench.py の CONFIGS、カンマで）"
+        default: "base,channels_last"
+      steps:
+        description: "工程の数"
+        default: "24"
+permissions:
+  contents: read
+concurrency:
+  group: perf-draw-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  measure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - name: 置き場を空ける
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1; free -g; nproc
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 部品
+        run: |
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy scikit-image ai-edge-litert onnxruntime
+      - name: CPU の型の速さ
+        run: |
+          lscpu | grep -E "Model name" || true
+          python -c "from chatdraw.engine import bf16_fast; print('bf16 が速い:', bf16_fast())"
+      - name: 測る
+        env:
+          LLM_HOME: ${{ runner.temp }}/llm
+          CD_HOME: ${{ runner.temp }}/cd
+          PERF_MODEL: ${{ inputs.model }}
+          PERF_CONFIGS: ${{ inputs.configs }}
+          PERF_STEPS: ${{ inputs.steps }}
+        run: python -u -m chatdraw.perfbench perf-out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: perf-draw
+          path: perf-out

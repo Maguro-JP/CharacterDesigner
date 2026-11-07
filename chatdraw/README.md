@@ -66,6 +66,8 @@
 | `app.py` | ウィンドウ、メニュー、欄の配置 |
 | `canvas.py`、`brush.py`、`colorpanel.py`、`icons.py` | 作画 |
 | `engine.py` | 絵の模型と言葉の模型で描く |
+| `membudget.py` | 描く前のメモリの予算（置き方と大きさを先に決める）、模型を 1 つだけ載せる、描く間の見張り、段階ごとの秒と GB |
+| `perfbench.py` | 段階ごとの秒と GB を本物の模型で 2 つの設定について測る（Actions の perf-draw で流す） |
 | `models.py`、`catalog.json` | 模型の一覧と、確かめた結果 |
 | `setup.py`、`manager.py`、`choose.py` | 初回の設定、模型の管理、おまかせの選び方 |
 | `paths.py`、`migrate.py` | 置き場と、前の版からの移行 |

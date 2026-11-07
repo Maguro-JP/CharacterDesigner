@@ -307,3 +307,76 @@ def tile_for(free_ram: float, free_vram: float, cuda: bool) -> int:
     if room >= 1.0:
         return 192
     return 128
+
+
+# ---- 段階ごとの秒と GB を測る ----
+
+def rss_gb() -> float:
+    """この処理が今使っている RAM（GB）。測れなければ 0"""
+    try:
+        with open("/proc/self/statm") as f:
+            import os
+            return int(f.read().split()[1]) * os.sysconf("SC_PAGE_SIZE") / 1e9
+    except Exception:   # noqa: BLE001
+        pass
+    try:
+        import psutil
+        return psutil.Process().memory_info().rss / 1e9
+    except Exception:   # noqa: BLE001
+        return 0.0
+
+
+def vram_used_gb() -> float:
+    import sys
+    torch = sys.modules.get("torch")
+    try:
+        if torch is not None and torch.cuda.is_available():
+            return torch.cuda.max_memory_allocated() / 1e9
+    except Exception:   # noqa: BLE001
+        pass
+    return 0.0
+
+
+class Stages:
+    """描く処理の段階ごとに、かかった秒と RAM・VRAM の山（GB）を残す。遅い所を推測で直さず、大きい所から削るため。
+    RAM の山は裏の糸で 0.05 秒ごとに測る（段階の中の一瞬の山も拾う）"""
+
+    def __init__(self, every: float = 0.05):
+        self.rows: list = []   # (段階, 秒, RAM の山, VRAM の山)
+        self.every = every
+        self._peak = 0.0
+        self._stop = threading.Event()
+        self._t = threading.Thread(target=self._loop, name="stage-meter", daemon=True)
+        self._t.start()
+
+    def _loop(self):
+        while not self._stop.wait(self.every):
+            self._peak = max(self._peak, rss_gb())
+
+    def stage(self, name: str):
+        import contextlib
+        import time
+
+        @contextlib.contextmanager
+        def run():
+            import sys
+            torch = sys.modules.get("torch")
+            try:
+                if torch is not None and torch.cuda.is_available():
+                    torch.cuda.reset_peak_memory_stats()
+            except Exception:   # noqa: BLE001
+                pass
+            self._peak = rss_gb()
+            t = time.perf_counter()
+            try:
+                yield
+            finally:
+                self._peak = max(self._peak, rss_gb())
+                self.rows.append((name, round(time.perf_counter() - t, 2), round(self._peak, 2), round(vram_used_gb(), 2)))
+        return run()
+
+    def close(self):
+        self._stop.set()
+
+    def table(self) -> str:
+        return "\n".join(f"{n}: {s:.2f} 秒、RAM {r:.2f}GB、VRAM {v:.2f}GB" for n, s, r, v in self.rows)

@@ -217,6 +217,24 @@ class WatchTest(unittest.TestCase):
         self.assertTrue(any("予算に近づいた" in n for n in notes), notes)
 
 
+class StagesTest(unittest.TestCase):
+    def test_paint_records_stages(self):
+        """描くたびに、読み込み・描く本体の秒と RAM の山が残る。2 枚目は読んだ模型を使い回す（読み込み 0 秒）"""
+        log = []
+        with mock.patch.dict(sys.modules, {"diffusers": fake_diffusers(log), "torch": fake_torch()}), \
+                mock.patch.object(engine, "cpu_dtype", return_value="bfloat16"), \
+                mock.patch.object(engine, "free_ram_gb", return_value=0.0):
+            p = engine.Painter("cagliostrolab/animagine-xl-4.0", steps=2)
+            p.paint("1girl", 1)
+            names = [r[0] for r in p.stages.rows]
+            self.assertEqual(names[0], "読み込み")
+            self.assertTrue(any(n.startswith("描く本体") for n in names), names)
+            p.paint("1girl", 2)
+            self.assertIn("使い回す", p.stages.rows[0][0])
+            self.assertEqual(len([x for x in log if x[0] == "load"]), 1, "2 枚目で模型を読み直した")
+            self.assertIn("秒", p.stages.table())
+
+
 class UpscaleTilesTest(unittest.TestCase):
     def test_tiles_give_same_picture_and_unload_painter(self):
         try:
