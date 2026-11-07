@@ -25,9 +25,11 @@ PIXEL_CHANGES = ("fin:clean", "fin:ink", "fin:air_holy", "fin:air_komorebi", "fi
 # 工程ごとに良くなった時だけ掛けるので、小さな絵では変わらないこともある。全部の工程を通ったことを確かめる
 RETOUCH = ("fin:retouch", "fin:retouch_full")
 # 模型の要る物（偽の模型で流す）と、拡大の重みの要る物（偽の重みで流す）
-MODEL_ITEMS = ("fin:face", "fin:refine", "app:chibi", "grow:lr", "grow:tb", "grow:all", "fin:upscale_anime", "app:upscale2x")
+MODEL_ITEMS = ("fin:refine", "app:chibi", "grow:lr", "grow:tb", "grow:all", "fin:upscale_anime", "app:upscale2x")
 # まとめて掛ける物（模型を使わない加工を順に掛ける）
 COMBOS = ("combo:tidy", "combo:tidy_color")
+# 整える・指定した箇所の周辺を整える・ディテール追加（模型を使わない。周辺は囲みが無いと理由を出す）
+KEEPERS = ("fin:face", "fin:around", "fin:detail")
 
 
 def app():
@@ -119,10 +121,10 @@ class GroupTest(unittest.TestCase):
     def test_clean_is_split_by_kind(self):
         from chatdraw import finishers, shortcuts
         groups = {f.name: f.group for f in finishers.REGISTRY.values()}
-        self.assertEqual({n for n, g in groups.items() if g == "clean"}, {"retouch", "clean", "retouch_full"})
+        self.assertEqual({n for n, g in groups.items() if g == "clean"}, {"retouch", "clean", "retouch_full", "face", "around"})
         self.assertEqual({n for n, g in groups.items() if g == "texture"}, {"mat_metal", "mat_gem", "mat_slime"})
         self.assertEqual({n for n, g in groups.items() if g == "air"}, {"air_holy", "air_komorebi", "air_haze"})
-        self.assertEqual(groups["face"], "redraw")
+        self.assertEqual(groups["detail"], "detail")
         self.assertEqual(groups["refine"], "redraw")
         self.assertEqual(groups["upscale_anime"], "enlarge")
         self.assertEqual(groups["ink"], "ink")
@@ -205,13 +207,13 @@ class MenuTest(Base):
         from chatdraw import shortcuts
         # 画風（fin:style_*）は、試験用の小さな SDXL で test_finish_quality が右クリックの項目を押して流す
         styles = {f"fin:style_{s[0]}" for s in __import__("chatdraw.restyle", fromlist=["STYLES"]).STYLES}
-        pressed = set(PIXEL_CHANGES) | set(RETOUCH) | set(MODEL_ITEMS) | set(COMBOS) | {"app:transparent"} | styles
+        pressed = set(PIXEL_CHANGES) | set(RETOUCH) | set(MODEL_ITEMS) | set(COMBOS) | set(KEEPERS) | {"app:transparent"} | styles
         self.assertEqual({s.id for s in shortcuts.builtins(self.w)}, pressed)
 
     def test_no_model_disables_model_items_with_reason(self):
         self.painter.ready = lambda: False
         acts = self.actions()
-        for sid in ("fin:face", "fin:refine", "app:chibi", "grow:lr", "grow:tb", "grow:all"):
+        for sid in ("fin:refine", "app:chibi", "grow:lr", "grow:tb", "grow:all"):
             self.assertFalse(acts[sid].isEnabled(), sid)
             self.assertIn("模型", acts[sid].toolTip(), sid)
         sid = self.w.add_prompt_shortcut("目を大きく", "目")
@@ -232,7 +234,7 @@ class MenuTest(Base):
 
     def test_clean_menu_only_has_cleaning(self):
         sub = self.submenu("綺麗にする")
-        self.assertEqual([a.objectName() for a in sub.actions()], ["fin:retouch", "fin:clean", "fin:retouch_full"])
+        self.assertEqual([a.objectName() for a in sub.actions()], ["fin:retouch", "fin:clean", "fin:retouch_full", "fin:face", "fin:around"])
 
 
 class EverywhereTest(Base):
@@ -288,6 +290,19 @@ class ModelFreeTest(Base):
                 self.assertEqual(len(self.w.canvas.layers), n + 1)
                 want = finishers.RETOUCH_FULL if sid.endswith("full") else finishers.RETOUCH_SAFE
                 self.assertEqual([r["step"] for r in finishers.LAST_REPORT["steps"]], list(want))
+
+    def test_keepers_from_the_app(self):
+        """整える・ディテール追加は押すと新しいレイヤーを足す。周辺を整えるは囲みが無いと理由を出し、レイヤーを足さない"""
+        for sid in ("fin:face", "fin:detail"):
+            with self.subTest(sid=sid):
+                self.w.edit_image(str(self.src))
+                n = len(self.w.canvas.layers)
+                self.press(sid)
+                self.assertEqual(len(self.w.canvas.layers), n + 1, sid)
+        self.w.edit_image(str(self.src))
+        n = len(self.w.canvas.layers)
+        self.press("fin:around")
+        self.assertEqual(len(self.w.canvas.layers), n)
 
     def test_combos_run_every_step_in_order(self):
         """まとめて綺麗にする: 押すと工程を順に掛け、1 枚の新しいレイヤーに置く"""
@@ -369,14 +384,15 @@ class ModelFreeTest(Base):
 
 class ModelTest(Base):
     def test_redraw_finishers_with_fake_model(self):
-        for sid in ("fin:face", "fin:refine"):
+        for sid in ("fin:refine",):
             with self.subTest(sid=sid):
                 self.w.edit_image(str(self.src))
                 n = len(self.w.canvas.layers)
                 self.press(sid)
                 self.assertEqual(len(self.w.canvas.layers), n + 1)
                 self.assertEqual(self.painter.calls[-1][0], "redraw")
-                self.assertEqual(self.base().convert("RGB").getpixel((48, 64)), (255, 255, 255))   # 偽の模型は白く塗る
+                # 偽の模型は白く塗る。部位分けの模型があると、白く変わった顔・髪は前と後の検品が元に戻すので、角の地で見る
+                self.assertEqual(self.base().convert("RGB").getpixel((2, 2)), (255, 255, 255))
 
     def test_grow_items(self):
         for sid, size in (("grow:lr", (96 + 256, 128)), ("grow:tb", (96, 128 + 256)), ("grow:all", (96 + 256, 128 + 256))):

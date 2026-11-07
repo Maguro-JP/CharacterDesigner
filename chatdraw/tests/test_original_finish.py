@@ -62,7 +62,8 @@ class OwnFinishers(unittest.TestCase):
             self.assertNotIn(n, omakase.AUTO_FINISH)
         self.assertEqual(omakase.auto_finish([dict(name="retouch", ready=True), dict(name="ink", ready=True)]), ["retouch"])
         self.assertNotIn("deburr", finishers.RETOUCH_SAFE)   # 顔の細い線に掛かりうる工程はおまかせに入れない
-        self.assertIn("sharpen", finishers.RETOUCH_SAFE)
+        for n in ("heal", "sharpen"):   # ボタンを消し、髪の筋に継ぎ目を作ったので既定から外した
+            self.assertNotIn(n, finishers.RETOUCH_SAFE)
 
     @unittest.skipUnless(SCIPY, "scipy が無い")
     def test_repair_returns_only_new_flaw_pixels(self):
@@ -93,7 +94,7 @@ class OwnFinishers(unittest.TestCase):
         self.assertEqual(out.size, im.size)
         self.assertLessEqual(finishers.flaws(b), finishers.flaws(a))
         rt = finishers._gen("retouch")
-        self.assertLess(rt.specks(b), rt.specks(a))   # 線から離れた黒い粒が減った
+        self.assertLessEqual(rt.specks(b), rt.specks(a))   # 粒は増やさない（粒消しはボタンを消したので既定から外した）
         self.assertEqual(rt.line_broken(a, b), "")     # 主線は切れていない
         self.assertTrue(finishers.LAST_REPORT["steps"])
 

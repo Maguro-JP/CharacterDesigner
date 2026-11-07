@@ -124,7 +124,8 @@ class FinishersTest(unittest.TestCase):
         with mock.patch.object(finishers, "_upscale_ready", return_value=False):
             listed = {f["name"]: f for f in finishers.available()}
             self.assertTrue(listed["clean"]["ready"])
-            for name in ("upscale_anime", "face", "refine"):
+            self.assertTrue(listed["face"]["ready"])   # 整えるは模型を使わない
+            for name in ("upscale_anime", "refine"):
                 self.assertFalse(listed[name]["ready"])
                 self.assertTrue(listed[name]["reason"])
             with self.assertRaises(finishers.Unavailable) as e:
