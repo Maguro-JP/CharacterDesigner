@@ -126,6 +126,7 @@ class Canvas(QGraphicsView):
     note_wanted = Signal(int)   # 赤ペンの印に、絵の上で指示を書く（印の番号、1 から）
     menu_wanted = Signal(QPoint)  # 右クリック（動かさずに離した）。画面の位置で右クリックのメニューを出す
     stroke_done = Signal()        # 線・塗り・レイヤーが 1 回変わった（タイムラプスの写しを撮る）
+    view_changed = Signal()       # 表示の回転・左右反転・グリッドが変わった（つまみと印を合わせる）
 
     def drawBackground(self, painter, rect):
         """絵の周りはテーマの模様。画面に貼り付けて描く（拡大や移動で模様が流れない）"""
@@ -570,7 +571,9 @@ class Canvas(QGraphicsView):
         self.auto_fit = False
         self.resetTransform()
         self.angle = 0.0
+        self.flipped = False
         self.zoomed.emit(1.0)
+        self.view_changed.emit()
 
     def zoom(self) -> float:
         t = self.transform()
@@ -586,12 +589,94 @@ class Canvas(QGraphicsView):
             self.zoomed.emit(self.zoom())
 
     def rotate_view(self, deg: float):
-        self.angle = (self.angle + deg) % 360
-        self.rotate(deg)
+        self.set_angle(self.angle + deg)
+
+    def set_angle(self, deg: float):
+        """表示の角度を deg 度にする（-180〜180 にそろえる）。絵そのものは回さない"""
+        deg = (deg + 180) % 360 - 180
+        step = deg - self.angle
+        if abs(step) > 1e-9:
+            # 左右反転で見ているときは向きが逆になるので、見た目の向きで回るよう符号を変える
+            self.rotate(-step if self.flipped else step)
+            self.angle = deg
+        self.view_changed.emit()
 
     def reset_rotation(self):
-        self.rotate(-self.angle)
+        self.set_angle(0.0)
+
+    flipped = False
+
+    def flip_view(self, on: bool | None = None):
+        """左右反転で見る（絵は変えない）。崩れは反転すると見つけやすい"""
+        on = (not self.flipped) if on is None else on
+        if on != self.flipped:
+            c = self.mapToScene(self.viewport().rect().center())
+            self.scale(-1, 1)
+            self.flipped = on
+            self.centerOn(c)
+        self.view_changed.emit()
+
+    def reset_view(self):
+        """表示を初めに戻す（回転・左右反転・拡大・位置）。絵は変えない"""
+        self.resetTransform()
         self.angle = 0.0
+        self.flipped = False
+        self.fit()
+        self.view_changed.emit()
+
+    # ---- グリッド ----
+    grid = False
+    grid_step = 32
+
+    def set_grid(self, on: bool, step: int | None = None):
+        self.grid = bool(on)
+        if step:
+            self.grid_step = max(4, int(step))
+        self.viewport().update()
+        self.view_changed.emit()
+
+    def drawForeground(self, painter, rect):
+        super().drawForeground(painter, rect)
+        if not self.grid or not self.layers:
+            return
+        w, h = self.size_px()
+        area = rect.intersected(QRectF(0, 0, w, h))
+        if area.isEmpty():
+            return
+        step = self.grid_step
+        painter.save()
+        painter.setPen(QPen(QColor(61, 123, 255, 90), 0))
+        x = int(area.left() // step) * step
+        while x <= area.right():
+            if x > 0:
+                painter.drawLine(QPointF(x, area.top()), QPointF(x, area.bottom()))
+            x += step
+        y = int(area.top() // step) * step
+        while y <= area.bottom():
+            if y > 0:
+                painter.drawLine(QPointF(area.left(), y), QPointF(area.right(), y))
+            y += step
+        painter.restore()
+
+    # ---- R を押しながらドラッグで回す ----
+    # R は「ぼかし」の道具のキーでもある。押して離しただけならぼかしに持ち替え（on_r_tap）、
+    # 押したままドラッグしたら表示を回す
+    rotating = False
+    _rot_from = None
+    _rot_used = False
+    on_r_tap = None
+
+    def event(self, e):
+        from PySide6.QtCore import QEvent
+        if e.type() == QEvent.ShortcutOverride and e.key() == Qt.Key_R and not e.modifiers():
+            e.accept()   # 窓のキー（ぼかし）より先に、絵の上の R を受ける
+            return True
+        return super().event(e)
+
+    def _angle_at(self, pt) -> float:
+        import math
+        c = self.viewport().rect().center()
+        return math.degrees(math.atan2(pt.y() - c.y(), pt.x() - c.x()))
 
     def wheelEvent(self, e):
         self.auto_fit = False
@@ -1199,6 +1284,10 @@ class Canvas(QGraphicsView):
     zoom_out = False
 
     def mousePressEvent(self, e):
+        if self.rotating and e.button() == Qt.LeftButton:
+            self._rot_from = (self._angle_at(e.position()), self.angle)
+            self._rot_used = True
+            return
         if e.button() == Qt.RightButton and self.tool != "zoom":
             self.pan_from, self.panned = e.position().toPoint(), False
             return
@@ -1227,6 +1316,11 @@ class Canvas(QGraphicsView):
 
     def mouseMoveEvent(self, e):
         self._wake_cursor()
+        if self.rotating and self._rot_from is not None:
+            a0, base = self._rot_from
+            d = self._angle_at(e.position()) - a0
+            self.set_angle(base + d)   # angle は見た目の角度（反転の向きは set_angle が直す）
+            return
         if self.pan_from is not None:
             now = e.position().toPoint()
             d = now - self.pan_from
@@ -1259,6 +1353,9 @@ class Canvas(QGraphicsView):
         super().mouseMoveEvent(e)
 
     def mouseReleaseEvent(self, e):
+        if self._rot_from is not None and e.button() == Qt.LeftButton:
+            self._rot_from = None
+            return
         if e.button() == Qt.RightButton and self.pan_from is not None:
             moved, self.pan_from = self.panned, None
             self._apply_cursor()
@@ -1323,6 +1420,9 @@ class Canvas(QGraphicsView):
             self.hold("hand")
         elif e.key() == Qt.Key_Alt:
             self.hold("eyedropper")
+        elif e.key() == Qt.Key_R and not e.modifiers():
+            self.rotating, self._rot_used = True, False   # R を押している間、ドラッグで表示を回す
+            self.viewport().setCursor(Qt.SizeAllCursor)
         elif e.key() == Qt.Key_BracketRight:
             self.resize_brush(1.25)
         elif e.key() == Qt.Key_BracketLeft:
@@ -1344,7 +1444,12 @@ class Canvas(QGraphicsView):
     def keyReleaseEvent(self, e):
         if e.isAutoRepeat():
             return
-        if e.key() in (Qt.Key_Space, Qt.Key_Alt):
+        if e.key() == Qt.Key_R and self.rotating:
+            self.rotating, self._rot_from = False, None
+            self._apply_cursor()
+            if not self._rot_used and self.on_r_tap is not None:
+                self.on_r_tap()
+        elif e.key() in (Qt.Key_Space, Qt.Key_Alt):
             self.release()
         else:
             super().keyReleaseEvent(e)

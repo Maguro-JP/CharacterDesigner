@@ -821,6 +821,9 @@ class Window(QMainWindow):
             tools.addAction(act)
             self.tool_actions[key] = act
         self.tool_actions["pen"].setChecked(True)
+        # 絵の上の R は、押して離すとぼかし、押したままドラッグすると表示を回す（canvas.on_r_tap）
+        self.canvas.on_r_tap = self.tool_actions["blur"].trigger
+        self.tool_actions["blur"].setToolTip("ぼかし（R）。絵の上で R を押したままドラッグすると表示を回します")
         self.extra_key_actions = []
         for text, short, fn in (("描く色と背景の色を入れ替える", "X", self.canvas.swap_colors),
                                 ("色を黒と白に戻す", "D", self.canvas.reset_colors)):
@@ -999,8 +1002,9 @@ class Window(QMainWindow):
         show_ops(self.activity.ops, self.canvas)
 
         view = self.menuBar().addMenu("表示")
-        for k in ("fit", "actual", "rotate_left", "rotate_right", "rotate_reset"):
-            view.addAction(S[k])
+        for k in ("fit", "actual", "zoom_in", "zoom_out", "zoom_ask", None, "rotate_left", "rotate_right", "rotate_dial",
+                  "rotate_reset", "flip_view", "view_reset", None, "grid", "op_history"):
+            view.addAction(S[k]) if k else view.addSeparator()
         view.addSeparator()
         from chatdraw.timelapse import Recorder
         self.recorder = Recorder()
@@ -1194,6 +1198,7 @@ class Window(QMainWindow):
         win.addSeparator()
         # 初めの並びに戻すのはここの 1 か所（前は「設定」にも同じ働きの項目があった）
         win.addAction(QAction("並びを初めの形に戻す", self, triggered=self.reset_layout))
+        win.addAction(QAction("リボンの並びを変える…", self, triggered=self.edit_ribbon_order))
         win.addAction(QAction("すべて別ウィンドウにする", self, triggered=self.float_all))
         win.addAction(QAction("自由配置（欄をドラッグして好きな所に置く）", self, triggered=self.free_layout))
         self.build_ribbon()
@@ -2063,18 +2068,28 @@ class Window(QMainWindow):
         if not 1 <= n <= len(pen.marks):
             return
         if getattr(self, "note_edit", None) is None:
-            self.note_edit = QLineEdit(self.canvas.viewport())
+            # 指示の欄の横にマイクを置き、声でも指示を入れられるようにする（chatdraw/voice.py。描くワードの欄と同じ仕組み）
+            from chatdraw import voice
+            self.note_box = QWidget(self.canvas.viewport())
+            self.note_box.setObjectName("noteBox")
+            row = QHBoxLayout(self.note_box)
+            row.setContentsMargins(0, 0, 0, 0)
+            row.setSpacing(2)
+            self.note_edit = QLineEdit(self.note_box)
             self.note_edit.setObjectName("noteEdit")
             self.note_edit.setPlaceholderText("この所をどう直すか（例: 笑顔に）Enter で残す")
             self.note_edit.setMinimumWidth(260)
             self.note_edit.returnPressed.connect(self._note_done)
             self.note_edit.installEventFilter(self)
+            self.note_mic = voice.mic_button(self.note_edit, parent=self.note_box)
+            row.addWidget(self.note_edit, 1)
+            row.addWidget(self.note_mic)
         self.note_n = n
         at = self.canvas.mapFromScene(pen.marks[n - 1][0]) + QPoint(18, -14)
         self.note_edit.setText(pen.texts[n - 1])
-        self.note_edit.move(at)
-        self.note_edit.adjustSize()
-        self.note_edit.show()
+        self.note_box.move(at)
+        self.note_box.adjustSize()
+        self.note_box.show()
         self.note_edit.setFocus()
         self.feature_tour("redpen_note")
 
@@ -2084,7 +2099,7 @@ class Window(QMainWindow):
             pen.set_text(self.note_n, self.note_edit.text())
             if hasattr(self, "layer_panel"):   # 指示はレイヤーの欄の「赤ペン n」の行にも出す
                 self._refresh_layers()
-        self.note_edit.hide()
+        self.note_box.hide()
         self.canvas.setFocus()
 
     def eventFilter(self, obj, e):
@@ -2092,7 +2107,7 @@ class Window(QMainWindow):
         if self._entry_keys(obj, e):
             return True
         if obj is getattr(self, "note_edit", None) and e.type() == QEvent.KeyPress and e.key() == Qt.Key_Escape:
-            self.note_edit.hide()
+            self.note_box.hide()
             return True
         return super().eventFilter(obj, e)
 
@@ -2731,7 +2746,7 @@ class Window(QMainWindow):
             if key in self.tool_actions:
                 tools.addAction(self.tool_actions[key])
         view = m.addMenu("表示")
-        for k in ("fit", "actual", "rotate_reset"):
+        for k in ("fit", "actual", "rotate_left", "rotate_right", "rotate_reset", "flip_view", "view_reset", "grid"):
             view.addAction(self.shared[k])
         m.addAction(self.shared["add_layer"])
         if c.selection is not None:
@@ -3748,8 +3763,46 @@ class Window(QMainWindow):
         zoom.setDefaultWidget(self.zoom_slider)
         S["zoom_slider"] = zoom
         bar.addAction(zoom)
+        # 拡大率は数字でも見て入れられる（つまみだけだと今が何 % か分からなかった）
+        from PySide6.QtWidgets import QSpinBox
+        self.zoom_box = QSpinBox()
+        self.zoom_box.setRange(5, 3200)
+        self.zoom_box.setSuffix(" %")
+        self.zoom_box.setValue(100)
+        self.zoom_box.setToolTip("拡大率。数字を入れて Enter で変わります")
+        self.zoom_box.setKeyboardTracking(False)
+        self.zoom_box.valueChanged.connect(lambda v: abs(self.canvas.zoom() * 100 - v) >= 0.5 and self.canvas.set_zoom(v / 100))
+        self.canvas.zoomed.connect(lambda z: (self.zoom_box.blockSignals(True), self.zoom_box.setValue(round(z * 100)),
+                                              self.zoom_box.blockSignals(False)))
+        zbox = QWidgetAction(self)
+        zbox.setText("拡大率の数字")
+        zbox.setDefaultWidget(self.zoom_box)
+        S["zoom_box"] = zbox
+        bar.addAction(zbox)
+        bar.addAction(S["rotate_left"])
         bar.addAction(S["rotate_right"])
+        # 角度のつまみ（-180〜180 度）。R を押しながら絵の上をドラッグしても回せる
+        self.angle_slider = _S(Qt.Horizontal)
+        self.angle_slider.setRange(-180, 180)
+        self.angle_slider.setFixedWidth(120)
+        self.angle_slider.setToolTip("表示の角度（0 度）。R を押しながら絵の上をドラッグしても回せます")
+        self.angle_slider.valueChanged.connect(lambda v: self.canvas.set_angle(float(v)))
+
+        def sync_angle():
+            v = round(self.canvas.angle)
+            self.angle_slider.blockSignals(True)
+            self.angle_slider.setValue(v)
+            self.angle_slider.blockSignals(False)
+            self.angle_slider.setToolTip(f"表示の角度（{v} 度）。R を押しながら絵の上をドラッグしても回せます")
+        self.canvas.view_changed.connect(sync_angle)
+        ang = QWidgetAction(self)
+        ang.setText("角度")
+        ang.setDefaultWidget(self.angle_slider)
+        S["angle_slider"] = ang
+        bar.addAction(ang)
         bar.addAction(S["rotate_reset"])
+        bar.addAction(S["flip_view"])
+        bar.addAction(S["view_reset"])
         self.addToolBar(Qt.BottomToolBarArea, bar)
         self.bottom_bar = bar
 
@@ -3774,7 +3827,19 @@ class Window(QMainWindow):
                 ("actual", "zoom", "100%", c.actual, "Ctrl+1", "等倍で表示"),
                 ("rotate_left", "", "左に回す", lambda: c.rotate_view(-15), "Ctrl+[", ""),
                 ("rotate_right", "rotate", "右に回す", lambda: c.rotate_view(15), "Ctrl+]", ""),
-                ("rotate_reset", "", "回転を戻す", c.reset_rotation, "Ctrl+\\", ""),
+                ("rotate_reset", "", "回転を戻す", c.reset_rotation, "Ctrl+\\", "表示の角度を 0 度に戻します"),
+                ("view_reset", "fit", "表示をリセット", c.reset_view, "Ctrl+Alt+0",
+                 "回転・左右反転・拡大・位置を初めに戻し、絵の全体を出します（絵は変えません）"),
+                ("rotate_dial", "rotate", "角度を指定…", self.ask_angle, "",
+                 "表示の角度を数字で決めます（R を押しながらドラッグでも回せます）"),
+                ("zoom_in", "zoom", "拡大", lambda: c.set_zoom(c.zoom() * 1.25), "Ctrl+=", ""),
+                ("zoom_out", "", "縮小", lambda: c.set_zoom(c.zoom() / 1.25), "Ctrl+-", ""),
+                ("zoom_ask", "", "拡大率を指定…", self.ask_zoom, "", "拡大率を % の数字で決めます"),
+                ("flip_view", "", "左右反転で表示", lambda: c.flip_view(), "Shift+H",
+                 "絵を左右反転して見ます（絵は変えません）。崩れを見つけやすくなります"),
+                ("grid", "", "グリッド", lambda: c.set_grid(not c.grid), "Ctrl+'", "絵の上に方眼を出します（保存する絵には入りません）"),
+                ("op_history", "history", "操作の履歴…", self.show_op_history, "Ctrl+Alt+Z",
+                 "元に戻すの履歴を出します。選ぶとその操作のあとまで戻ります"),
                 ("add_layer", "layers", "新しいレイヤー", c.add_layer, "Ctrl+Shift+N", ""),
                 ("tour", "help", "使い方ツアー", self.start_tour, "F1", ""),
                 ("draw", "ai", "描く", self.send, "", "書いた内容で AI に描かせます"))
@@ -3788,6 +3853,9 @@ class Window(QMainWindow):
             a.triggered.connect(lambda _=False, fn=fn: fn())
             a.setToolTip((tip or label) + (f"（{short}）" if short else ""))
             self.shared[key] = a
+        for k in ("flip_view", "grid"):
+            self.shared[k].setCheckable(True)
+        c.view_changed.connect(lambda: (self.shared["flip_view"].setChecked(c.flipped), self.shared["grid"].setChecked(c.grid)))
         self.shared["stop"] = self.emergency_stop
         from chatdraw import layouts as L
         for name, fn in L.PRESETS.items():
@@ -3886,7 +3954,9 @@ class Window(QMainWindow):
                      act("settings", "管理", self.manage_models, "模型の一覧・取得・更新・削除")]),
         ])
         r.add_page("表示", [
-            ("キャンバス", [S["fit"], S["actual"], S["rotate_right"]]),
+            ("キャンバス", [S["fit"], S["actual"], S["zoom_ask"]]),
+            ("回転・反転", [S["rotate_left"], S["rotate_right"], S["rotate_dial"], S["flip_view"], S["view_reset"]]),
+            ("補助", [S["grid"], S["op_history"]]),
             ("欄", [self.panel_actions[k] for k in PANEL_ORDER]),
             ("配置", [S["layout:おすすめ"],
                      act("layout", "配置…", lambda: self.layout_menu.exec(self.cursor().pos()), "決まった配置・寄せ・等分・保存")]),
@@ -3904,6 +3974,10 @@ class Window(QMainWindow):
         r.tabBar().tabMoved.connect(lambda *_: self.layout_store.setValue(
             "ribbon/order", "\t".join(i18n.ja(r.tabText(k)) for k in range(r.count()))))   # 英語の画面でも日本語の名前で残す
         r.setCurrentIndex(next((k for k in range(r.count()) if r.tabText(k) == "描く"), 0))   # 初めは「描く」を開いておく
+        # タブを右クリックすると、並びを変える窓を出す（ドラッグのほかに、上へ・下へでも並べ替えられる）
+        r.tabBar().setContextMenuPolicy(Qt.CustomContextMenu)
+        r.tabBar().customContextMenuRequested.connect(
+            lambda pos: self._ribbon_menu().exec(r.tabBar().mapToGlobal(pos)))
         bar = QToolBar("リボン", self)
         bar.setObjectName("ribbonbar")
         bar.setMovable(False)
@@ -4041,6 +4115,37 @@ class Window(QMainWindow):
             title = d.titleBarWidget()
             if isinstance(title, PanelTitle) and title.collapsed != on:
                 title.toggle()
+
+    def _ribbon_menu(self):
+        from PySide6.QtWidgets import QMenu
+        m = QMenu(self)
+        m.addAction("リボンの並びを変える…", self.edit_ribbon_order)
+        return m
+
+    def edit_ribbon_order(self):
+        from chatdraw.ribbon import OrderDialog
+        self.ribbon_order_dialog = OrderDialog(self.ribbon, self)
+        self.ribbon_order_dialog.exec()
+
+    def ask_angle(self):
+        from PySide6.QtWidgets import QInputDialog
+        v, ok = QInputDialog.getInt(self, "表示の角度", "角度（度。右回りが +）", round(self.canvas.angle), -180, 180, 1)
+        if ok:
+            self.canvas.set_angle(float(v))
+
+    def ask_zoom(self):
+        from PySide6.QtWidgets import QInputDialog
+        v, ok = QInputDialog.getInt(self, "拡大率", "拡大率（%）", round(self.canvas.zoom() * 100), 5, 3200, 5)
+        if ok:
+            self.canvas.set_zoom(v / 100)
+
+    def show_op_history(self):
+        """操作の履歴（履歴の欄の「操作」のタブ）を出す"""
+        dock = self.panels["history"][0]
+        dock.show()
+        dock.raise_()
+        tabs = self.activity.tabs
+        tabs.setCurrentIndex(tabs.indexOf(self.activity.ops))
 
     def toggle_all(self):
         # 文字の欄（チャット、描く内容、赤ペンの指示、名前の書き換え）で打った Tab は、欄を隠さずに次の欄へ移る。
