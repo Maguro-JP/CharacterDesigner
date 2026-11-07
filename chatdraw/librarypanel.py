@@ -79,7 +79,37 @@ class LibraryPanel(QWidget):
             act = QAction("消す（ごみ箱へ）", view, shortcut="Delete", shortcutContext=Qt.WidgetWithChildrenShortcut)
             act.triggered.connect(lambda _=False, v=view: self.w.delete_images([it.data(Qt.UserRole + 1) for it in v.selectedItems()]))
             view.addAction(act)
+        # 絵の置き場を見張り、ほかのアプリで消されたら一覧から外す（前は消した絵が空の枠のまま残った）
+        from PySide6.QtCore import QFileSystemWatcher, QTimer
+        self.watcher = QFileSystemWatcher(self)
+        self._prune_timer = QTimer(self, singleShot=True, interval=300)   # 何枚もまとめて消えたときは 1 回だけ並べ直す
+        self._prune_timer.timeout.connect(self.prune)
+        self.watcher.directoryChanged.connect(lambda _d: self._prune_timer.start())
         self.refresh()
+
+    def watch(self, paths):
+        """絵の置かれたディレクトリを見張りに足す（同じディレクトリは 1 回だけ）"""
+        have = set(self.watcher.directories())
+        dirs = {str(Path(p).parent) for p in paths if p}
+        new = [d for d in dirs - have if Path(d).is_dir()]
+        if new:
+            self.watcher.addPaths(new)
+
+    def prune(self):
+        """ファイルの無くなった絵を、ライブラリーと描いた絵の履歴から外す"""
+        for view in (self.works, self.docs):
+            for row in reversed(range(view.count())):
+                p = view.item(row).data(Qt.UserRole + 1)
+                if not p or not Path(p).is_file():
+                    view.takeItem(row)
+        hist = getattr(self.w, "history", None)
+        if hist is not None:
+            for row in reversed(range(hist.count())):
+                p = hist.item(row).data(Qt.UserRole)
+                if not p or not Path(p).is_file():
+                    hist.takeItem(row)
+        if hasattr(self.w, "images"):
+            self.w.images = [p for p in self.w.images if Path(p).is_file()]
 
     # ---- 見せる ----
     def _item(self, it: dict) -> QListWidgetItem:
@@ -97,17 +127,26 @@ class LibraryPanel(QWidget):
         return item
 
     def add(self, item: dict):
-        """足した 1 枚だけを先頭に並べる（全部を読み直さない）"""
+        """足した 1 枚だけを先頭に並べる（全部を読み直さない）。ファイルの無い絵は並べない"""
+        if not _shown(item):
+            return
         (self.works if item["kind"] == "work" else self.docs).insertItem(0, self._item(item))
+        self.watch([item["path"]])
 
     def refresh(self):
+        """並べ直す。ファイルの無い絵（消した・ごみ箱へ移した・ほかのアプリで消した）と、絵の無い記録は出さない。
+        記録は消さずに残す（外付けの置き場を外しているだけのことがあり、戻れば次の並べ直しでまた出る）"""
         from chatdraw.ownstyle import favorites
         self._favs = set(favorites())   # 1 回だけ読み、並べる絵ごとに読み直さない
         lib = self.w.library
+        shown = []
         for view, rows in ((self.works, lib.works()), (self.docs, lib.docs())):
             view.clear()
             for it in rows:
-                view.addItem(self._item(it))
+                if _shown(it):
+                    view.addItem(self._item(it))
+                    shown.append(it["path"])
+        self.watch(shown)
         p = lib.profile()
         if p["rated"] == 0:
             text = "まだ好みを読み取れていません。\n作品を右クリックして「好き」「いまいち」を付けるか、資料に言葉を付けてください。"
@@ -220,6 +259,12 @@ class LibraryPanel(QWidget):
         if p["style"] in STYLE_TAGS:
             data["style"] = p["style"]
         self.w.ai_panel.save_preset("あなたの好み", data)
+
+
+def _shown(it: dict) -> bool:
+    """一覧に出すか。ファイルのある絵だけ（描けなかった記録・消した絵・ファイルの無い絵は出さない）"""
+    p = it.get("path")
+    return bool(p) and Path(p).is_file()
 
 
 def _has_ja(text: str) -> bool:
