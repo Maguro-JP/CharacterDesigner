@@ -84,12 +84,6 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         line = finishers._gen("cleanup").line_mask(a)
         self.assertLessEqual(np.abs(o - a).max(2)[line].max(), finishers.LINE_DELTA + 1)
 
-    def test_face_model_is_released_after_cleaning(self):
-        import sys
-        finishers.run_chain(["clean"], Image.open(SAMPLE).convert("RGB"))
-        edit = sys.modules.get("edit")
-        self.assertTrue(edit is None or edit._SEG is None)   # 綺麗にし終えたら 1.4GB を持ち続けない
-
     def test_real_clean_stays_close_to_original(self):
         src = Image.open(SAMPLE).convert("RGB")
         for name in ("clean", "retouch", "retouch_full"):

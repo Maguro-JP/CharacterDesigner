@@ -730,16 +730,6 @@ def _face_keep(image):
         return None
 
 
-def release_face_model():
-    """部位分けの模型（約 1.4GB）を外す。綺麗にし終えたら呼ぶ。次に使うときは読み直す（4〜6 秒）。顔の印（_FACES）は残す"""
-    import gc
-    import sys
-    edit = sys.modules.get("edit")
-    if edit is not None and getattr(edit, "_SEG", None) is not None:
-        edit._SEG = None
-        gc.collect()
-
-
 def scores(src, out) -> dict:
     """前と後の差: 明るさの SSIM、主線の重なり、色の変わりの平均（0〜255）"""
     import numpy as np
@@ -851,15 +841,6 @@ def qc_note(q: dict | None = None) -> str:
 
 
 def run(name: str, image, mask=None, say=None, face=_NO_FACE):
-    """1 つだけ掛けるときは、終わったら部位分けの模型を外す（組み合わせは run_chain が最後に外す）"""
-    try:
-        return _run(name, image, mask, say, face)
-    finally:
-        if face is _NO_FACE:
-            release_face_model()
-
-
-def _run(name: str, image, mask=None, say=None, face=_NO_FACE):
     """仕上げの道具 name を image に掛けた結果の画像を返す。mask があれば囲みの中だけを変える。
     大きな絵は区画に分けて（光・質感は作業の大きさで）掛け、区画の区切りで止めるを見て、say に進みを知らせる。
     掛けたあとに崩れを検品し、崩れた所は元の絵に戻す（guard）。使えないときは Unavailable（理由つき）。知らない名前は KeyError"""
@@ -911,13 +892,8 @@ def run_chain(names, image, mask=None, say=None):
         def tell(text, i=i):
             if say is not None:
                 say(f"{i + 1}/{len(names)} {text}" if len(names) > 1 else text)
-        try:
-            out = _run(n, out, mask, tell, face)
-        except BaseException:
-            release_face_model()
-            raise
+        out = run(n, out, mask, tell, face)
         LAST_CHAIN.append(dict(LAST_QC, name=n))
-    release_face_model()
     return out
 
 
