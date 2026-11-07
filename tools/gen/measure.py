@@ -1268,6 +1268,68 @@ def stray_blob(rgb) -> float:
     return float(np.bincount(lab.ravel())[1:].max() / m.size * 100)
 
 
+SKIN_GRAIN_MAX = 3.3   # skin_grain の上限。library/feedback の身体 回33〜92 の 22 枚で、粒ありと書いた 15 枚のうち 12 枚が上、粒なしの 7 枚のうち 6 枚が下
+GRAIN_TILE = 64        # skin_grain_boxes の升の大きさ（幅 768 に縮めた絵の画素）
+
+
+def _skin_hp(rgb, W: int = 768):
+    """肌の色の画素（赤 > 緑 > 青、中くらいの彩度）の、線を除いた細かい明るさの揺れ（σ 1.5 画素のぼかしとの差の絶対値）。
+    部位分けの模型を使わない（アプリの描き直しの毎回に呼ぶので）。返すのは (揺れ, 肌の範囲, 縮めた倍率)"""
+    from PIL import Image
+    from scipy import ndimage
+    a = np.asarray(rgb, dtype=np.float32)
+    if a.max() > 1.0:
+        a = a / 255.0
+    im = Image.fromarray((np.clip(a[..., :3], 0, 1) * 255).astype(np.uint8))
+    k = W / im.width
+    a = np.asarray(im.resize((W, max(1, round(im.height * k))), Image.LANCZOS), np.float32) / 255
+    mx, mn = a.max(-1), a.min(-1)
+    sat = (mx - mn) / np.maximum(mx, 1e-6)
+    r, g, b = a[..., 0], a[..., 1], a[..., 2]
+    skin = (r > g) & (g > b) & (sat > 0.12) & (sat < 0.65) & (mx > 0.35) & (r - b > 0.06)
+    skin = ndimage.binary_erosion(skin, iterations=4)
+    L = a.mean(-1)
+    hp = np.abs(L - ndimage.gaussian_filter(L, 1.5))
+    if skin.sum() < 2000:
+        return hp, np.zeros_like(skin), k
+    # 輪郭・影の境の強い所は粒でないので、肌の中で勾配の強い上 3 割を除く（線を粒と数えない）
+    sm = ndimage.gaussian_filter(L, 3)
+    gm = np.hypot(ndimage.sobel(sm, 0), ndimage.sobel(sm, 1))
+    return hp, skin & (gm <= np.percentile(gm[skin], 70)), k
+
+
+def skin_grain(rgb) -> float | None:
+    """肌の粒のざらつき（脚・膝・腹に出る砂のような粒）。肌の平らな所の細かい明るさの揺れの中央値 ×1000。
+    肌が 2000 画素（幅 768 に縮めて）に満たなければ None（測れない）。
+    写実の段の模型は、肌に粒のざらつきを描いた（身体 回33〜92）。skin_texture は部位分けと実写の手本が要り、
+    アプリの描き直しの毎回には重いので、肌の色の画素だけで測る"""
+    hp, m, _k = _skin_hp(rgb)
+    if not m.any():
+        return None
+    return round(float(np.median(hp[m]) * 1000), 2)
+
+
+def skin_grain_boxes(rgb, limit: float = SKIN_GRAIN_MAX, least: float = 0.5) -> list[tuple[int, int, int, int]]:
+    """粒の多い肌の升（GRAIN_TILE 角で、肌が半分以上ある所）を、隣り合う物どうしまとめた囲み（元の絵の座標）。
+    直すのは粒の出た所だけにする（脚の粒を直すのに顔まで描き直さない）"""
+    from scipy import ndimage
+    hp, m, k = _skin_hp(rgb)
+    T = GRAIN_TILE
+    gh, gw = hp.shape[0] // T, hp.shape[1] // T
+    hot = np.zeros((gh, gw), bool)
+    for j in range(gh):
+        for i in range(gw):
+            mm = m[j * T:(j + 1) * T, i * T:(i + 1) * T]
+            if mm.mean() >= least and np.median(hp[j * T:(j + 1) * T, i * T:(i + 1) * T][mm]) * 1000 > limit:
+                hot[j, i] = True
+    lab, n = ndimage.label(hot)
+    out = []
+    for s in ndimage.find_objects(lab):
+        y0, y1, x0, x1 = s[0].start * T, s[0].stop * T, s[1].start * T, s[1].stop * T
+        out.append(tuple(int(round(v / k)) for v in (x0, y0, x1, y1)))
+    return out
+
+
 def garment_saturation(rgb, parts) -> float:
     """部位分け（edit.LABELS）の服の画素の彩度の中央値。白い水着を頼んだ絵で、水着そのものの色違いを見る。
 
@@ -1319,7 +1381,8 @@ def measure(src, hair_color: str = "", points=None, prompt: str | None = None, t
     return {"size": list(rgb.shape[1::-1]), "eyes": e, "face": face, "light": light3d(src, rgb, seg, regions),
             "temperature": temperature(rgb, seg, regions), "scene": scene_light(rgb, seg, L), "pairs": pairs(rgb, seg, L), "limbs": limbs(rgb, seg, L), "hair": hair(rgb, seg, L, hair_color),
             "background": background(rgb, prompt), "style": style(tags), "colors": colors(prompt, tags),
-            "pose": hands_pose(points, prompt), "body": proportion(points, seg, prompt), "skeleton": skeleton(points), "hands": hands_seen(points, seg, prompt)}
+            "pose": hands_pose(points, prompt), "body": proportion(points, seg, prompt), "skeleton": skeleton(points), "hands": hands_seen(points, seg, prompt),
+            "skin": {"grain": skin_grain(rgb)}}
 
 
 def _get(d, path):

@@ -94,8 +94,33 @@ def from_outliers(outliers: list[dict], boxes: dict, size) -> dict:
     return {"bad": bad, "regions": regions}
 
 
+def grain_note(image) -> list[str]:
+    """肌の粒のざらつき（measure.skin_grain）を、崩れではなく注意として書く。library/feedback の 22 枚では
+    合った 18・外れ 4 だったが、粒と書いていない 323 枚のうち 60 枚（写実の段の絵の大半と、金属の鎧）も上限を超えた。
+    外れが多いので絵を落とす判定には入れず、利用者が見る所を示すだけにする"""
+    try:
+        if str(GEN) not in sys.path:
+            sys.path.insert(0, str(GEN))
+        import numpy as np
+        import measure
+        rgb = np.asarray(image.convert("RGB"))
+        v = measure.skin_grain(rgb)
+        if v is None or v <= measure.SKIN_GRAIN_MAX:
+            return []
+        boxes = measure.skin_grain_boxes(rgb)
+        return [f"注意: 肌に粒のざらつきがあるかもしれません（skin.grain = {v}、上限 {measure.SKIN_GRAIN_MAX}、{len(boxes)} か所）"]
+    except Exception as e:   # 注意を書けなくても、ほかの検品は続ける
+        return [f"肌の粒は測っていません（{type(e).__name__}）"]
+
+
 def check(image, prompt: str = "", hair: str = "") -> dict:
     """返すのは {readable, bad, regions, notes, measured}。部品が無ければ measured=False で、notes に理由を書く"""
+    res = _check(image, prompt, hair)
+    res["notes"] = list(res.get("notes", [])) + grain_note(image)
+    return res
+
+
+def _check(image, prompt: str = "", hair: str = "") -> dict:
     lack = missing()
     if lack:
         return {"readable": True, "bad": [], "regions": [], "measured": False,
