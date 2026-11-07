@@ -1080,11 +1080,15 @@ HAIR_STYLE_ASKED_MIN = 0.5
 HAIR_STYLE_WEAK = 0.1
 
 
+HAIR_MODIFIERS = ("dark", "light", "straight", "wavy", "silky", "flowing", "messy", "curly", "shiny", "smooth", "fluffy", "soft")
+
+
 def asked_hair_styles(prompt: str) -> list[str]:
     """頼んだ言葉から髪の長さ・髪型の語を拾う。long black hair のように色が挟まっても long hair として拾う"""
     out = []
     for part in prompt.lower().split(","):
-        words = [w for w in part.replace("-", " ").split() if w not in COLORS and w not in COLOR_ALIAS and w not in ("dark", "light", "straight", "wavy", "silky")]
+        # 飾りの語は外す。long flowing hair を頼んだ絵（アイコンの 4 枚）で、髪型を頼んでいないと読んで照合しなかった
+        words = [w for w in part.replace("-", " ").split() if w not in COLORS and w not in COLOR_ALIAS and w not in HAIR_MODIFIERS]
         text = " ".join(words)
         for a in sorted(HAIR_STYLE_CONFLICT, key=len, reverse=True):
             if re.search(r"\b" + a + r"\b", text):
