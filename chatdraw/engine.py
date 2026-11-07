@@ -48,6 +48,12 @@ def total_ram_gb() -> float:
 
 def free_ram_gb() -> float:
     """今すぐ使えるメモリ（GB）。分からなければ 0（0 のときは足りるものとして扱う）"""
+    assumed = os.environ.get("CD_ASSUME_FREE_RAM_GB")   # 試験の一式で、並べて流す機械の空きに結果を左右させないため
+    if assumed:
+        try:
+            return float(assumed)
+        except ValueError:
+            pass
     try:
         if os.name == "nt":
             import ctypes
