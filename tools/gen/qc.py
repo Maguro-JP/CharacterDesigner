@@ -1070,8 +1070,13 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
             root = str(Path(__file__).resolve().parents[2])
             if root not in sys.path:
                 sys.path.insert(0, root)
-            from chatdraw import sanity
-            odd = sanity.check(src, prompt, tags=all_tags or None)
+            import cdhome
+            home = cdhome.HOME   # chatdraw を読むと部品の置き場がアプリの置き場へ向き替わる。この台本の置き場は元のまま保つ
+            try:
+                from chatdraw import sanity
+                odd = sanity.check(src, prompt, tags=all_tags or None)
+            finally:
+                cdhome.HOME = home
             res["sanity"] = {k: odd.get(k) for k in ("counts", "people", "bad")}
             if odd["bad"]:
                 res["problems"].append({"anatomy": odd["bad"]})
