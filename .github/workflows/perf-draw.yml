@@ -13,7 +13,10 @@ on:
         default: "base,channels_last"
       steps:
         description: "工程の数"
-        default: "24"
+        default: "8"
+      size:
+        description: "大きさ（幅x高さ）"
+        default: "768x768"
 permissions:
   contents: read
 concurrency:
@@ -45,6 +48,7 @@ jobs:
           PERF_MODEL: ${{ inputs.model }}
           PERF_CONFIGS: ${{ inputs.configs }}
           PERF_STEPS: ${{ inputs.steps }}
+          PERF_SIZE: ${{ inputs.size }}
         run: python -u -m chatdraw.perfbench perf-out
       - uses: actions/upload-artifact@v4
         if: always()
