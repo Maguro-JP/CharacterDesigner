@@ -28,6 +28,7 @@ def window(d):
     app()
     w = Window(Studio(FakeWords(), FakePainter(), Path(d)))
     w.settings.set("output_dir", str(Path(d) / "out"))
+    w.ai_panel.count_spin.setValue(1)   # 前の試験が残した作成枚数で、まとめて描く確かめの窓が出て止まらないように
     return w
 
 
