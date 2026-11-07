@@ -1,11 +1,11 @@
-"""色の欄。色相の輪の帯・彩度と明度の四角・色相/彩度/明度の数字・16 進の入力・描く色と背景色・スポイト・
+"""色の欄。色相の輪の帯・彩度と明度の四角・色相/彩度/明度の数字・透明度・16 進の入力・描く色と背景色・スポイト・
 色の出方（単色・虹色・2 色の行き来）・見本の色・自分のパレット（足す・消す・保存・読み込み）・最近使った色を持つ"""
 from __future__ import annotations
 
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
 from PySide6.QtGui import QColor, QLinearGradient, QPainter, QPen
-from PySide6.QtWidgets import (QComboBox, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSpinBox, QTabWidget,
-                               QVBoxLayout, QWidget)
+from PySide6.QtWidgets import (QComboBox, QGridLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QSlider, QSpinBox,
+                               QTabWidget, QVBoxLayout, QWidget)
 
 from chatdraw.canvas import COLOR_MODES
 
@@ -96,6 +96,27 @@ class HueBar(QWidget):
             self._at(e.position())
 
 
+class AlphaPreview(QWidget):
+    """描く色を、市松模様の上に透明度ごと見せる見本（透明度は色の四角だけでは見えないため）"""
+
+    def __init__(self):
+        super().__init__()
+        self.color = QColor("#000000")
+        self.setFixedSize(44, 22)
+        self.setToolTip("今の描く色の見本（市松模様が透けて見えるほど薄い）")
+
+    def paintEvent(self, _e):
+        p = QPainter(self)
+        r = self.rect()
+        k = 6
+        for y in range(0, r.height(), k):
+            for x in range(0, r.width(), k):
+                p.fillRect(x, y, k, k, QColor("#ffffff") if (x // k + y // k) % 2 == 0 else QColor("#c8c8cc"))
+        p.fillRect(r, self.color)
+        p.setPen(QPen(QColor(0, 0, 0, 90), 1))
+        p.drawRect(r.adjusted(0, 0, -1, -1))
+
+
 def chip(color: str, size: int = 20) -> QPushButton:
     b = QPushButton()
     b.setFixedSize(size, size)
@@ -181,6 +202,25 @@ class ColorPanel(QWidget):
             nums.addWidget(QLabel(label))
             nums.addWidget(box)
         pl.addLayout(nums)
+        # 透明度（0 で透明、100 で不透明）。ブラシの濃さとは別に、色そのものの透け方として残す
+        arow = QHBoxLayout()
+        arow.setSpacing(4)
+        arow.addWidget(QLabel("透明度"))
+        self.alpha_slider = QSlider(Qt.Horizontal)
+        self.alpha_slider.setRange(0, 100)
+        self.alpha_slider.setToolTip("描く色の不透明さ（0 で透明、100 で透けない）。ペン・塗りつぶし・形・文字に効きます")
+        self.alpha_box = QSpinBox()
+        self.alpha_box.setRange(0, 100)
+        self.alpha_box.setSuffix("%")
+        self.alpha_box.setToolTip(self.alpha_slider.toolTip())
+        self.alpha_preview = AlphaPreview()
+        self.alpha_slider.valueChanged.connect(self.alpha_box.setValue)
+        self.alpha_box.valueChanged.connect(self.alpha_slider.setValue)
+        self.alpha_box.valueChanged.connect(self._alpha_changed)
+        arow.addWidget(self.alpha_slider, 1)
+        arow.addWidget(self.alpha_box)
+        arow.addWidget(self.alpha_preview)
+        pl.addLayout(arow)
         self.mode = QComboBox()
         self.mode.addItems(COLOR_MODES)
         self.mode.setToolTip("ペンとスプレーの色の出方。虹色は線を引くほど色相が回り、行き来は描く色と背景色の間を行き来する")
@@ -233,6 +273,7 @@ class ColorPanel(QWidget):
         self.square.hue = self.hue.hue
         self.square.update()
         c = QColor.fromHsvF(self.hue.hue, self.square.s, self.square.v)
+        c.setAlpha(self.canvas.color.alpha())   # 色を選び直しても透明度は残す
         self.canvas.color = c
         self._paint_chips()
         self.color_changed.emit(c)
@@ -241,6 +282,15 @@ class ColorPanel(QWidget):
         if getattr(self, "_showing", False):
             return
         self.set_color(QColor.fromHsv(self.h_box.value(), round(self.s_box.value() * 2.55), round(self.v_box.value() * 2.55)))
+
+    def _alpha_changed(self, v: int):
+        if getattr(self, "_showing", False):
+            return
+        c = QColor(self.canvas.color)
+        c.setAlpha(int(v * 255 / 100 + 0.5))
+        self.canvas.color = c
+        self._paint_chips()
+        self.color_changed.emit(c)
 
     def _mode_picked(self, mode: str):
         self.canvas.color_mode = mode
@@ -310,7 +360,11 @@ class ColorPanel(QWidget):
             self.set_color(c)
 
     def set_color(self, c: QColor):
-        self.canvas.color = QColor(c)
+        """見本・16 進・スポイトで選んだ色にする。透けない色が来たら、今の透明度を残す"""
+        c = QColor(c)
+        if c.alpha() == 255:
+            c.setAlpha(self.canvas.color.alpha())
+        self.canvas.color = c
         self.show_color()
         self.color_changed.emit(c)
 
@@ -337,6 +391,9 @@ class ColorPanel(QWidget):
                 self.h_box.setValue(h)
             self.s_box.setValue(round(s / 2.55))
             self.v_box.setValue(round(v / 2.55))
+            self.alpha_box.setValue(int(c.alpha() * 100 / 255 + 0.5))
+            self.alpha_preview.color = QColor(c)
+            self.alpha_preview.update()
             self._showing = False
 
     def remember(self):

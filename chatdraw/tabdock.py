@@ -11,6 +11,8 @@ import json
 from PySide6.QtCore import QPoint, Qt, Signal
 from PySide6.QtWidgets import QDockWidget, QTabBar
 
+from chatdraw.i18n import ja, t as tr
+
 ORDER_KEY = "ai_tab_order1"   # AI の欄の中のタブの順（名前の並び、JSON）
 OUT_KEY = "ai_tab_out1"       # AI の欄の外へ出したタブ（名前の並び、JSON）。欄の位置は state9 に入る
 PULL = 30                     # 見出しの帯からこれだけ離したら外へ出す（画素）
@@ -48,14 +50,15 @@ class TabDock(QDockWidget):
     """外へ出したタブの欄。閉じると AI の欄のタブに戻る"""
 
     def __init__(self, name: str, parent, on_close):
-        super().__init__(name, parent)
+        super().__init__(tr(name), parent)   # 見出しは画面の言語で、名前（保存・引き当て）は日本語のまま持つ
+        self.name = name
         self.setObjectName("aitab_" + name)
         self.setToolTip("ドラッグで別の場所や欄の上へ動かせます。閉じると AI の欄のタブに戻ります")
         self._on_close = on_close
 
     def closeEvent(self, e):
         super().closeEvent(e)
-        self._on_close(self.windowTitle())
+        self._on_close(self.name)
 
 
 class TabDocks:
@@ -65,16 +68,16 @@ class TabDocks:
         self.w, self.panel, self.store = w, panel, store
         self.docks: dict[str, TabDock] = {}
         self.quiet = False
-        self.default = [panel.tabs.tabText(i) for i in range(panel.tabs.count())]
+        self.default = [ja(panel.tabs.tabText(i)) for i in range(panel.tabs.count())]
         bar = panel.tabs.tabBar()   # AiPanel がタブを足す前に DragOutTabBar に替えている
         self.bar = bar
-        bar.pulled_out.connect(lambda i, at: self.pull_out(panel.tabs.tabText(i), at))
+        bar.pulled_out.connect(lambda i, at: self.pull_out(ja(panel.tabs.tabText(i)), at))
         bar.tabMoved.connect(lambda *_: self.save())
 
     # 中のタブの順
     def order(self) -> list[str]:
         t = self.panel.tabs
-        return [t.tabText(i) for i in range(t.count())]
+        return [ja(t.tabText(i)) for i in range(t.count())]   # 英語の画面でも、保存する並びは日本語の名前
 
     def out(self) -> list[str]:
         return list(self.docks)
@@ -141,7 +144,7 @@ class TabDocks:
         # 初めの並びで前にあるタブの後ろに入れる
         before = [n for n in self.default[:at] if n in self.order()]
         idx = self.order().index(before[-1]) + 1 if before else 0
-        self.panel.tabs.insertTab(idx, sec, name)
+        self.panel.tabs.insertTab(idx, sec, tr(name))
         self.w.removeDockWidget(d)
         d.deleteLater()
         if save:

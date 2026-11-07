@@ -426,7 +426,7 @@ class SetupDialog(QDialog):
 
         # 回線を使わずに、手元の模型を使う道。置き方は手順書の 3 章
         hand = QHBoxLayout()
-        note = QLabel("手元に模型（.safetensors か diffusers のフォルダー）があるときは、取らずにそれを使えます。")
+        note = QLabel("手元に模型（.safetensors か diffusers のディレクトリ）があるときは、取らずにそれを使えます。")
         note.setObjectName("cardMeta")
         note.setWordWrap(True)
         use_local = QPushButton("手元の模型を使う…")
@@ -466,12 +466,12 @@ class SetupDialog(QDialog):
                 path = str(Path(path).parent)   # diffusers のフォルダーは、中の model_index.json を選んでもらう
         path = str(Path(path).resolve())
         if not is_local(path):
-            QMessageBox.information(self, "使えない形です", ".safetensors のファイルか、model_index.json のあるフォルダーを選んでください。")
+            QMessageBox.information(self, "使えない形です", ".safetensors のファイルか、model_index.json のあるディレクトリを選んでください。")
             return
         m = local_model(path)
         if m.family == "unknown":
             QMessageBox.information(self, "見分けられない形です", "SDXL・SD1.5・FLUX.1 の .safetensors か、"
-                                    "model_index.json のある diffusers のフォルダーを選んでください。")
+                                    "model_index.json のある diffusers のディレクトリを選んでください。")
             return
         self.local = m
         self.start(update=False)   # 絵の模型は取らず、描く部品と言葉の模型だけを用意する

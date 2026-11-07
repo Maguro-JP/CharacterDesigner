@@ -10,18 +10,20 @@ from dataclasses import dataclass
 
 from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QImage, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
-from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView
+from PySide6.QtGui import QPolygonF
+from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem, QGraphicsPathItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView
 
 from chatdraw.brush import PRESETS, Brush, Dabs, stamp
 
 UNDO_BYTES = 1_500_000_000   # 元に戻すに使うメモリの上限（約 1.5GB）
 TOOL_NAMES = {"redpen": "赤ペン", "eraser": "消しゴム", "blur": "ぼかし", "fill": "塗りつぶし", "gradient": "グラデーション", "line": "直線",
-              "rect": "四角", "ellipse": "楕円", "move": "移動", "select": "選択範囲を消す",
+              "rect": "四角", "ellipse": "楕円", "move": "移動", "select": "四角の選択", "lasso": "投げなわの選択", "polygon": "多角形の選択",
               "spray": "スプレー", "smudge": "指先", "text": "文字"}
 COLOR_MODES = ("単色", "虹色", "描く色と背景色を行き来")   # ペンの色の出方（色の欄で選ぶ）
 CURSOR_STYLES = ("十字と筆の輪", "点と筆の輪", "筆の輪だけ", "矢印")   # 設定の「カーソル」で選ぶ形
 BRUSH_TOOLS = ("pen", "eraser", "blur", "spray", "smudge")                     # なぞって描く道具（筆の輪を出す）
-DRAG_TOOLS = ("line", "rect", "ellipse", "gradient", "move", "select")   # 押した所から離した所までで決まる道具
+DRAG_TOOLS = ("line", "rect", "ellipse", "gradient", "move", "select", "lasso")   # 押した所から離した所までで決まる道具
+SELECT_TOOLS = ("select", "lasso", "polygon")   # 範囲を選ぶ道具。レイヤーを変えないので、隠したレイヤーでも使える
 
 
 @dataclass
@@ -149,7 +151,9 @@ class Canvas(QGraphicsView):
         self.tool = "pen"
         self.color = QColor("#000000")
         self.bg_color = QColor("#ffffff")   # 背景色（X で描く色と入れ替える）
-        self.selection: QRect | None = None   # 四角の選択範囲。あれば描く・消す・塗るはこの中だけに効く
+        self.selection: QRect | None = None   # 選択範囲の外の四角。あれば描く・消す・塗るはこの中だけに効く
+        self.selection_shape: QPainterPath | None = None   # 投げなわ・多角形で選んだ形。None なら四角そのもの
+        self.poly_points: list[QPointF] = []   # 投げなわ・多角形の選択で、置きかけの角
         self.drag_start: QPointF | None = None
         self.fill_shapes = False   # 四角と楕円を塗りつぶすか（線だけか）
         self.size = 6
@@ -187,6 +191,12 @@ class Canvas(QGraphicsView):
         self.sel_item.setZValue(1e9 - 1)
         self.sel_item.setVisible(False)
         self.scene().addItem(self.sel_item)
+        self.sel_path_item = QGraphicsPathItem()   # 投げなわ・多角形の形（四角の枠と同じ色）
+        self.sel_path_item.setPen(pen)
+        self.sel_path_item.setBrush(QColor(255, 122, 26, 18))
+        self.sel_path_item.setZValue(1e9 - 1)
+        self.sel_path_item.setVisible(False)
+        self.scene().addItem(self.sel_path_item)
         from PySide6.QtWidgets import QGraphicsLineItem
         self.mirror_item = QGraphicsLineItem()   # 左右対称の折り返しの線
         self.mirror_item.setPen(QPen(QColor(61, 123, 255, 160), 0, Qt.DashLine))
@@ -340,7 +350,7 @@ class Canvas(QGraphicsView):
                 p.setOpacity(layer.opacity)
                 p.drawImage(0, 0, layer.image)
                 if self.buffer is not None and i == self.current:
-                    p.setOpacity(layer.opacity * self.brush_opacity)
+                    p.setOpacity(layer.opacity * self.paint_opacity())
                     p.drawImage(0, 0, self.buffer)
         p.end()
         return out
@@ -478,6 +488,8 @@ class Canvas(QGraphicsView):
         """操作の履歴に出す名前。並びを変えた操作はレイヤー、ほかは今の道具の名前"""
         if entry[0] == "all":
             return "レイヤー"
+        if self.tool in SELECT_TOOLS:
+            return "選択範囲の中を変える"   # 選ぶ道具はレイヤーを変えない。変えたのは消す・塗る
         return TOOL_NAMES.get(self.tool, "描く") if self.tool != "pen" else self.brush.name
 
     @staticmethod
@@ -579,6 +591,9 @@ class Canvas(QGraphicsView):
     def set_tool(self, tool: str):
         if tool == "pen" and getattr(self, "brush", None) is not None and self.brush.name == "消しゴム":
             self.brush = self.brushes["ペン"]   # ペンに持ち替えたのに消しゴムのブラシのままにしない
+        if tool != self.tool and self.poly_points:
+            self.poly_points = []   # 道具を替えたら置きかけの多角形はやめる
+            self.set_selection(self.selection, self.selection_shape)
         self.tool = tool
         self.setDragMode(QGraphicsView.ScrollHandDrag if tool == "hand" else QGraphicsView.NoDrag)
         self._apply_cursor()
@@ -638,15 +653,15 @@ class Canvas(QGraphicsView):
             w, h = self.size_px()
             self.buffer = blank(w, h)
             it = self.items[self.current]
-            it.buffer, it.buffer_opacity = self.buffer, self.brush_opacity
+            it.buffer, it.buffer_opacity = self.buffer, self.paint_opacity()
 
     def end_stroke(self):
         """手を離したら、下書きの線を濃さを掛けてレイヤーへ重ねる"""
         if self.buffer is not None:
             p = QPainter(self.layers[self.current].image)
             if self.selection is not None:
-                p.setClipRect(self.selection)
-            p.setOpacity(self.brush_opacity)
+                p.setClipPath(self.selection_path())
+            p.setOpacity(self.paint_opacity())
             p.drawImage(0, 0, self.buffer)
             p.end()
             it = self.items[self.current]
@@ -661,8 +676,7 @@ class Canvas(QGraphicsView):
         img = self.layers[self.current].image
         outside = QPainterPath()
         outside.addRect(QRectF(img.rect()))
-        inside = QPainterPath()
-        inside.addRect(QRectF(self.selection))
+        inside = self.selection_path()
         p = QPainter(img)
         p.setClipPath(outside.subtracted(inside))
         p.setCompositionMode(QPainter.CompositionMode_Source)
@@ -706,7 +720,7 @@ class Canvas(QGraphicsView):
     def stroke_color(self) -> QColor:
         """今の線の色。虹色は線の長さで色相を回し、行き来は描く色と背景色の間を行き来する（太さの 20 倍の長さで 1 周）"""
         if self.color_mode not in COLOR_MODES[1:]:
-            return self.color
+            return self.opaque()
         t = self.stroke_len / max(60.0, self.size * 20.0)
         if self.color_mode == COLOR_MODES[1]:
             h, s, v, _ = self.color.getHsvF()
@@ -715,6 +729,16 @@ class Canvas(QGraphicsView):
         a, b = self.color, self.bg_color
         return QColor.fromRgbF(a.redF() + (b.redF() - a.redF()) * k, a.greenF() + (b.greenF() - a.greenF()) * k,
                                a.blueF() + (b.blueF() - a.blueF()) * k)
+
+    def opaque(self) -> QColor:
+        """描く色から透明度を除いた色。透明度は paint_opacity でまとめて掛ける（線の点ごとに掛けると重なりで濃くなる）"""
+        c = QColor(self.color)
+        c.setAlpha(255)
+        return c
+
+    def paint_opacity(self) -> float:
+        """線・形・塗りを重ねるときの濃さ。ブラシの濃さと、色の欄の透明度を掛けた値"""
+        return self.brush_opacity * self.color.alphaF()
 
     def _paint(self, a: QPointF, b: QPointF, pressure: float):
         erase = self.tool == "eraser"
@@ -756,7 +780,7 @@ class Canvas(QGraphicsView):
         p = QPainter(img)
         p.setRenderHint(QPainter.Antialiasing)
         if self.selection is not None:
-            p.setClipRect(self.selection)
+            p.setClipPath(self.selection_path())
         prev = a
         for k in range(1, n + 1):
             t = k / n
@@ -785,12 +809,12 @@ class Canvas(QGraphicsView):
         p.setRenderHint(QPainter.Antialiasing)
         p.setRenderHint(QPainter.TextAntialiasing)
         if self.selection is not None:
-            p.setClipRect(self.selection)
+            p.setClipPath(self.selection_path())
         f = QFont()
         f.setPixelSize(px or max(8, self.size * 4))
         p.setFont(f)
-        p.setPen(self.color)
-        p.setOpacity(self.brush_opacity)
+        p.setPen(self.opaque())
+        p.setOpacity(self.paint_opacity())
         p.drawText(QRectF(pos.x(), pos.y(), 1e5, 1e5), Qt.AlignLeft | Qt.AlignTop, text)
         p.end()
         self.items[self.current].update()
@@ -845,14 +869,13 @@ class Canvas(QGraphicsView):
                     row = near[ny, lx:rx + 1] & ~mask[ny, lx:rx + 1]
                     starts = np.flatnonzero(row & np.concatenate(([True], ~row[:-1])))   # 続きの始まりだけ積む
                     stack.extend((lx + int(k), ny) for k in starts)
-        if self.selection is not None:
-            keep = np.zeros_like(mask)
-            r = self.selection
-            keep[r.top():r.bottom() + 1, r.left():r.right() + 1] = True
+        sel = self.selection_mask()
+        if sel is not None:
+            keep = np.frombuffer(sel.constBits(), np.uint8).reshape(h, sel.bytesPerLine())[:, :w] > 127
             mask &= keep
         self.snapshot()
-        c = QColor(self.color)
-        c.setAlphaF(self.brush_opacity)
+        c = self.opaque()
+        c.setAlphaF(self.paint_opacity())
         paint = np.zeros((h, w, 4), np.uint8)
         paint[mask] = (c.red(), c.green(), c.blue(), c.alpha())
         overlay = QImage(paint.data, w, h, w * 4, QImage.Format_RGBA8888).copy()
@@ -869,7 +892,7 @@ class Canvas(QGraphicsView):
         dirty = QRect()
         p = QPainter(img)
         if self.selection is not None:
-            p.setClipRect(self.selection)
+            p.setClipPath(self.selection_path())
         for k in range(n + 1):
             t = k / n
             x, y = int(a.x() + (b.x() - a.x()) * t), int(a.y() + (b.y() - a.y()) * t)
@@ -891,16 +914,68 @@ class Canvas(QGraphicsView):
         self.items[self.current].update(QRectF(dirty))
 
     # ---- 押して離すまでで決まる道具 ----
-    def set_selection(self, rect: QRect | None):
+    def set_selection(self, rect: QRect | None, shape: QPainterPath | None = None):
+        """選択範囲を決める。shape を渡すと投げなわ・多角形の形にし、rect はその外の四角にする"""
+        w, h = self.size_px()
+        if shape is not None:
+            whole = QPainterPath()
+            whole.addRect(QRectF(0, 0, w, h))
+            shape = shape.intersected(whole)
+            rect = shape.boundingRect().toAlignedRect()
         if rect is not None:
-            w, h = self.size_px()
             rect = rect.normalized().intersected(QRect(0, 0, w, h))
             if rect.width() < 2 or rect.height() < 2:
-                rect = None
+                rect, shape = None, None
         self.selection = rect
-        self.sel_item.setVisible(rect is not None)
-        if rect is not None:
+        self.selection_shape = shape if rect is not None else None
+        self.poly_points = []
+        self.sel_item.setVisible(rect is not None and shape is None)
+        self.sel_path_item.setVisible(rect is not None and shape is not None)
+        if rect is not None and shape is None:
             self.sel_item.setRect(QRectF(rect))
+        if rect is not None and shape is not None:
+            self.sel_path_item.setPath(shape)
+
+    def selection_path(self) -> QPainterPath:
+        """選択範囲の形。四角でも投げなわでも、描く道具はこの形で切り抜く"""
+        if self.selection_shape is not None:
+            return QPainterPath(self.selection_shape)
+        path = QPainterPath()
+        if self.selection is not None:
+            path.addRect(QRectF(self.selection))
+        return path
+
+    @staticmethod
+    def _points_shape(pts: list) -> QPainterPath | None:
+        if len(pts) < 3:
+            return None
+        path = QPainterPath()
+        path.addPolygon(QPolygonF([QPointF(q) for q in pts]))
+        path.closeSubpath()
+        return path
+
+    def finish_polygon(self) -> bool:
+        """多角形の選択を閉じる（ダブルクリック、Enter、始めの角を押す）。角が 3 つ未満なら閉じずに捨てる"""
+        shape = self._points_shape(self.poly_points)
+        self.poly_points = []
+        if shape is None:
+            self.set_selection(self.selection, self.selection_shape)   # 前の選択の見た目に戻す
+            return False
+        self.set_selection(None, shape)
+        self.stroke_done.emit()
+        return self.selection is not None
+
+    def _show_points(self, pts: list, closing: QPointF | None = None):
+        path = QPainterPath()
+        if pts:
+            path.moveTo(pts[0])
+            for q in pts[1:]:
+                path.lineTo(q)
+            if closing is not None:
+                path.lineTo(closing)
+        self.sel_item.setVisible(False)
+        self.sel_path_item.setPath(path)
+        self.sel_path_item.setVisible(True)
 
     def selection_mask(self) -> QImage | None:
         """四角の選択範囲を、直す所の形（白が直す所）にする。選択が無ければ None"""
@@ -910,7 +985,7 @@ class Canvas(QGraphicsView):
         m = QImage(w, h, QImage.Format_Grayscale8)
         m.fill(0)
         q = QPainter(m)
-        q.fillRect(self.selection, QColor("white"))
+        q.fillPath(self.selection_path(), QColor("white"))
         q.end()
         return m
 
@@ -925,9 +1000,53 @@ class Canvas(QGraphicsView):
         self.snapshot()
         p = QPainter(self.layers[self.current].image)
         p.setCompositionMode(QPainter.CompositionMode_Clear)
-        p.fillRect(self.selection, Qt.transparent)
+        p.fillPath(self.selection_path(), Qt.transparent)
         p.end()
         self.items[self.current].update()
+        self.changed.emit()
+
+    def fill_selection(self) -> bool:
+        """選択範囲の中を描く色で塗る（濃さも効く）。範囲が無ければ何もしない"""
+        if self.selection is None or not self.layers:
+            return False
+        self.snapshot()
+        p = QPainter(self.layers[self.current].image)
+        p.setOpacity(self.paint_opacity())
+        p.fillPath(self.selection_path(), self.opaque())
+        p.end()
+        self.items[self.current].update()
+        self.used_color.emit()
+        self.changed.emit()
+        return True
+
+    def selection_image(self) -> QImage | None:
+        """選んだレイヤーの、選択範囲の中だけを切り出した絵（外は透明）。範囲が無ければ None"""
+        if self.selection is None or not self.layers:
+            return None
+        out = QImage(self.selection.size(), QImage.Format_ARGB32_Premultiplied)
+        out.fill(Qt.transparent)
+        p = QPainter(out)
+        p.translate(-QPointF(self.selection.topLeft()))
+        p.setClipPath(self.selection_path())
+        p.drawImage(0, 0, self.layers[self.current].image)
+        p.end()
+        return out
+
+    def paste_image(self, img: QImage, name: str = "貼り付け") -> bool:
+        """絵を一番上の新しいレイヤーに置く。選択範囲があればその左上、無ければ左上に置く（元に戻すで戻せる）"""
+        if img is None or img.isNull() or not self.layers:
+            return False
+        w, h = self.size_px()
+        self.snapshot_all()
+        layer = blank(w, h)
+        p = QPainter(layer)
+        p.drawImage(self.selection.topLeft() if self.selection is not None else QPoint(0, 0), img)
+        p.end()
+        self.layers.append(Layer(name, layer))
+        self.current = len(self.layers) - 1
+        self.rebuild()
+        self.changed.emit()
+        return True
 
     def swap_colors(self):
         self.color, self.bg_color = self.bg_color, self.color
@@ -944,20 +1063,27 @@ class Canvas(QGraphicsView):
             it.setPos(b - a)
             return
         if self.tool == "select":
+            self.sel_path_item.setVisible(False)
             self.sel_item.setVisible(True)
             self.sel_item.setRect(QRectF(a, b).normalized())
+            return
+        if self.tool == "lasso":
+            if not self.poly_points:
+                self.poly_points = [QPointF(a)]
+            self.poly_points.append(QPointF(b))
+            self._show_points(self.poly_points)
             return
         self.buffer.fill(Qt.transparent)
         p = QPainter(self.buffer)
         p.setRenderHint(QPainter.Antialiasing)
         if self.tool == "gradient":
             g = QLinearGradient(a, b)
-            g.setColorAt(0, self.color)
+            g.setColorAt(0, self.opaque())
             g.setColorAt(1, self.bg_color)
             p.fillRect(self.buffer.rect(), QBrush(g))
         else:
-            p.setPen(QPen(self.color, self.size, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
-            p.setBrush(self.color if self.fill_shapes and self.tool != "line" else Qt.NoBrush)
+            p.setPen(QPen(self.opaque(), self.size, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            p.setBrush(self.opaque() if self.fill_shapes and self.tool != "line" else Qt.NoBrush)
             if self.tool == "line":
                 p.drawLine(a, b)
             elif self.tool == "rect":
@@ -986,6 +1112,16 @@ class Canvas(QGraphicsView):
         if self.tool == "select":
             self.set_selection(QRectF(a, b).toAlignedRect())
             return
+        if self.tool == "lasso":
+            pts = self.poly_points + [QPointF(b)]
+            self.poly_points = []
+            shape = self._points_shape(pts)
+            # 押しただけ（なぞっていない）は、四角の選択と同じく選択を外す
+            if shape is None:
+                self.set_selection(None)
+            else:
+                self.set_selection(None, shape)
+            return
         self.end_stroke()
 
     # ---- マウスとペンタブレット ----
@@ -996,7 +1132,15 @@ class Canvas(QGraphicsView):
             return True
         if not self.layers:
             return False
-        if self.tool not in ("eyedropper", "zoom", "select"):
+        if self.tool == "polygon":
+            # 押すたびに角を置く。始めの角の近くを押すと閉じる
+            if len(self.poly_points) >= 3 and (pos - self.poly_points[0]).manhattanLength() < 8 / max(0.01, self.zoom()):
+                self.finish_polygon()
+                return True
+            self.poly_points.append(QPointF(pos))
+            self._show_points(self.poly_points)
+            return True
+        if self.tool not in ("eyedropper", "zoom") + SELECT_TOOLS:
             layer = self.layers[self.current]
             if not layer.visible or layer.locked:
                 self.refused.emit(f"「{layer.name}」は{'隠して' if not layer.visible else 'ロックして'}いるので描けません。"
@@ -1018,15 +1162,15 @@ class Canvas(QGraphicsView):
             self.zoomed.emit(self.zoom())
             return True
         if self.tool in DRAG_TOOLS:
-            if self.tool not in ("move", "select"):
+            if self.tool not in ("move", "select", "lasso"):
                 self.used_color.emit()
-            if self.tool != "select":
+            if self.tool not in ("select", "lasso"):
                 self.snapshot()
-            if self.tool not in ("move", "select"):
+            if self.tool not in ("move", "select", "lasso"):
                 w, h = self.size_px()
                 self.buffer = blank(w, h)
                 it = self.items[self.current]
-                it.buffer, it.buffer_opacity = self.buffer, self.brush_opacity
+                it.buffer, it.buffer_opacity = self.buffer, self.paint_opacity()
             self.drag_start = pos
             return True
         if self.tool in BRUSH_TOOLS:
@@ -1059,6 +1203,9 @@ class Canvas(QGraphicsView):
 
     def mouseDoubleClickEvent(self, e):
         """赤ペンの番号の丸をダブルクリックすると、その印の指示を書き直す"""
+        if self.tool == "polygon" and self.poly_points:
+            self.finish_polygon()   # ダブルクリックで多角形を閉じる
+            return
         n = self.redpen.number_at(self.mapToScene(e.position().toPoint()), self.zoom())
         if n:
             self.redpen.drawing = None
@@ -1085,6 +1232,8 @@ class Canvas(QGraphicsView):
         if self.drag_start is not None:
             self.drag(self.drag_start, pos)
             return
+        if self.tool == "polygon" and self.poly_points:
+            self._show_points(self.poly_points, pos)   # 次の角までの線を見せる
         if self.redpen.drawing is not None:
             self.redpen.add(pos)
             return
@@ -1124,7 +1273,7 @@ class Canvas(QGraphicsView):
             self.stroke_done.emit()
             return
         super().mouseReleaseEvent(e)
-        if e.button() == Qt.LeftButton and self.tool in ("fill", "move", "select", "line", "rect", "ellipse", "gradient"):
+        if e.button() == Qt.LeftButton and self.tool in ("fill", "move", "select", "lasso", "line", "rect", "ellipse", "gradient"):
             self.stroke_done.emit()
 
     def tabletEvent(self, e):
@@ -1166,8 +1315,17 @@ class Canvas(QGraphicsView):
             self.resize_brush(1.25)
         elif e.key() == Qt.Key_BracketLeft:
             self.resize_brush(0.8)
+        elif e.key() in (Qt.Key_Return, Qt.Key_Enter) and self.poly_points:
+            self.finish_polygon()
+        elif e.key() == Qt.Key_Escape and self.poly_points:
+            self.poly_points = []   # 置きかけの多角形をやめる（前の選択は残す）
+            self.set_selection(self.selection, self.selection_shape)
         elif e.key() in (Qt.Key_Delete, Qt.Key_Backspace):
-            self.clear_selection_area()
+            if self.selection is None:
+                # 前は押しても何も起きず、壊れたのか分からなかった。何をすれば消せるかを返す
+                self.refused.emit("消す範囲がありません。四角・投げなわ・多角形の選択で範囲を選んでから Delete を押してください")
+            else:
+                self.clear_selection_area()
         else:
             super().keyPressEvent(e)
 
