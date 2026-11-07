@@ -1299,7 +1299,12 @@ class Canvas(QGraphicsView):
         super().mousePressEvent(e)
 
     def enterEvent(self, e):
-        self.setFocus()   # 絵の上に来たらキー（Space、Alt、[ ]）を受ける
+        # 絵の上に来たらキー（Space、Alt、[ ]）を受ける。ただし文字の欄（赤ペンの指示など）に書いている間は取らない。
+        # 取ると、欄に打った文字がキャンバスに吸われた（指示の欄はキャンバスの上にあるので、マウスが少し動くだけで起きた）
+        from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QLineEdit, QPlainTextEdit, QTextEdit
+        f = QApplication.focusWidget()
+        if not (isinstance(f, (QLineEdit, QTextEdit, QPlainTextEdit, QAbstractSpinBox)) and f.isVisible()):
+            self.setFocus()
         super().enterEvent(e)
 
     def mouseDoubleClickEvent(self, e):

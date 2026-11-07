@@ -1,3 +1,10 @@
 # Actions（model-verify.yml）で動かして確かめる絵の模型。1 行 1 つ。この表を変えて push すると流れる
 # 点がまだ 0 の模型を、よく使われている順（Hugging Face の取得数、python3 -m chatdraw.popular --write）に入れる。30GB を超える模型は Actions の機械の置き場に入らないので入れない（docs/knowledge/illustration-models-2026.md）
-John6666/amanatsu-illustrious-v11-sdxl
+Laxhar/noobai-XL-Vpred-1.0
+John6666/prefect-illustrious-xl-v3-sdxl
+OnomaAIResearch/Illustrious-XL-v2.0
+Laxhar/noobai-XL-1.0
+yodayo-ai/holodayo-xl-2.1
+John6666/nova-anime-xl-il-v90-sdxl
+John6666/obsession-illustriousxl-v31-sdxl
+OnomaAIResearch/Illustrious-XL-v1.1
