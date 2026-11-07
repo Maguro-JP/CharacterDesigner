@@ -68,3 +68,22 @@ def _finish():
 
 
 atexit.register(_finish)   # 後に登録した物が先に走る（設定の一時の場所を消すより前）
+
+
+# 作成枚数は設定に残る。前の試験が 4 枚以上にしたまま残すと、あとの試験の「描く」で、まとめて描く確かめの窓が出て止まった。
+# 窓を開くたびに 1 枚に戻す（まとめて描く試験は、そのあとで枚数を入れる）
+from chatdraw import app as _app  # noqa: E402
+_init = _app.Window.__init__
+
+
+def _window_init(self, *a, **k):
+    from chatdraw.engine import STOP
+    STOP.clear()   # 止める旗は全体に 1 つ。前の試験（test_stop など）が立てたまま残すと、あとの描く試験が 1 枚で止まった
+    _init(self, *a, **k)
+    try:
+        self.ai_panel.count_spin.setValue(1)
+    except Exception:   # noqa: BLE001
+        pass
+
+
+_app.Window.__init__ = _window_init
