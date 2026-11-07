@@ -266,6 +266,7 @@ def _focused(win):
 
 
 _hooked = False
+_styled = False   # 見た目の型を当てたか（当てるのはアプリで 1 回だけ）
 
 
 def apply(app, name: str | dict = DEFAULT) -> dict:
@@ -274,7 +275,16 @@ def apply(app, name: str | dict = DEFAULT) -> dict:
     t = finish(name) if isinstance(name, dict) else colors(name)
     current.clear()
     current.update(t)
-    app.setStyle("Fusion")
+    # 消すと決まった窓（deleteLater の済んでいない物）が残ったまま見た目を替えると、消えかけの窓に当てに行って落ちた
+    # （Segmentation fault。窓をたくさん開け閉めしたあとにテーマを替えたとき）。先に消し終えてから替える
+    from PySide6.QtCore import QCoreApplication, QEvent
+    QCoreApplication.sendPostedEvents(None, QEvent.DeferredDelete)
+    # 見た目の型（Fusion）は初めの 1 回だけ当てる。替えるたびに当てると、開いている窓を全部作り直し、
+    # 窓をたくさん開け閉めしたあとのテーマの切り替えで落ちた（Segmentation fault）。色は palette と stylesheet で替わる
+    global _styled
+    if not _styled:
+        app.setStyle("Fusion")
+        _styled = True
     app.setPalette(palette(t))
     app.setStyleSheet(TEMPLATE.format(**t))
     for w in app.allWidgets():

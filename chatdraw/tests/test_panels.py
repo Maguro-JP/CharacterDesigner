@@ -27,6 +27,7 @@ def fresh(tmp: str, size=(1280, 720)):
     w.setWindowState(Qt.WindowNoState)
     w.reset_layout()
     w.resize(*size)
+    w.ai_panel.count_spin.setValue(1)   # 前の試験が残した作成枚数で、まとめて描く確かめの窓が出て止まらないように
     spin(3)
     return w
 

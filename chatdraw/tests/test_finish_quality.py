@@ -107,6 +107,19 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         self.assertEqual(got.crop((10, 10, 60, 60)).tobytes(), src.crop((10, 10, 60, 60)).tobytes())
         self.assertEqual(got.crop((200, 200, 250, 250)).tobytes(), out.crop((200, 200, 250, 250)).tobytes())
 
+    def test_face_box_is_kept_with_soft_edge_when_no_parts_model(self):
+        from chatdraw import handcheck
+        src = Image.open(SAMPLE).convert("RGB")
+        out = src.point(lambda v: max(0, v - 10))
+        with mock.patch.object(finishers, "face_keep", lambda im: None), \
+                mock.patch.object(handcheck, "_face", lambda im, asked: {"box": [200, 100, 296, 196]}), \
+                mock.patch.object(finishers, "hand_guard", lambda a, b: (b, {})):
+            got, q = finishers.soften(src, out)
+        self.assertTrue(q["face"])
+        self.assertEqual(got.crop((220, 120, 276, 176)).tobytes(), src.crop((220, 120, 276, 176)).tobytes())   # 枠の中は元のまま
+        row = [got.getpixel((x, 148))[0] - out.getpixel((x, 148))[0] for x in range(180, 205)]
+        self.assertTrue(len(set(row)) > 2, row)   # 縁はぼかして移る（一気に変わる継ぎ目にしない）
+
     def test_real_clean_stays_close_to_original(self):
         src = Image.open(SAMPLE).convert("RGB")
         for name in ("clean", "retouch", "retouch_full"):
@@ -138,7 +151,11 @@ def tiny_painter():
     """試験用の小さな SDXL と、その UNet から作った小さな線の ControlNet（重みは乱数。絵の出来は見ない）"""
     from diffusers import ControlNetModel, StableDiffusionXLPipeline
     from chatdraw import restyle
-    pipe = StableDiffusionXLPipeline.from_pretrained(TINY)
+    # 手元にあれば通信しない（通信の揺れで試験が落ちていた）。ほかの試験が HF_HOME を替えても見つかるよう、既定の置き場を先に見る
+    import glob
+    import os
+    local = sorted(glob.glob(os.path.expanduser("~/.cache/huggingface/hub/models--" + TINY.replace("/", "--") + "/snapshots/*/")))
+    pipe = StableDiffusionXLPipeline.from_pretrained(local[-1] if local else TINY)
     restyle._CACHE.clear()
     restyle._CACHE["controlnet"] = ControlNetModel.from_unet(
         pipe.unet, conditioning_embedding_out_channels=(16,) * (int(math.log2(pipe.vae_scale_factor)) + 1))

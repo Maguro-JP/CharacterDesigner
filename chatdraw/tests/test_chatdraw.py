@@ -836,6 +836,12 @@ class LayoutsTest(unittest.TestCase):
 
 class FeatureTourTest(unittest.TestCase):
     def test_every_feature_has_a_tour_shown_once_on_first_use(self):
+        # 案内を閉じてから 60 秒は次の案内を自動で出さない（連鎖を止める）。この試験は 1 つずつ出ることを見るので、待ちを 0 にする
+        from unittest import mock as _mock
+        from chatdraw import tours as _tours
+        _p = _mock.patch.object(_tours, "HOLD_S", 0.0)
+        _p.start()
+        self.addCleanup(_p.stop)
         from PySide6.QtCore import QSettings
         from PySide6.QtWidgets import QApplication
         from chatdraw import tours
@@ -1244,6 +1250,7 @@ class FixAndBatchTest(unittest.TestCase):
     def test_batch_seed_meta_and_redo(self):
         import json
         self.w.ai_panel.set_count(4)
+        self.w.layout_store.setValue("confirm/batch", "go")   # まとめて描く窓は test_confirm で押す
         self.w.entry.setText("雪の城の前の騎士")
         self.w.send()
         wait_idle(self.app, self.w)
@@ -2283,7 +2290,7 @@ class ConveyTest(unittest.TestCase):
             self.assertIn(tag, t)
         self.assertIn("waving", w.to_prompt("女性が海で手を振っている"))        # 「振る」の形が変わっても拾う
         self.assertEqual(leftover("白いビキニの女性が海で手を振っている 全身"), [])
-        self.assertEqual(leftover("ドラゴンに乗った騎士"), ["ドラゴン", "乗"])   # 拾えなかった言葉は利用者に見せる
+        self.assertEqual(leftover("グリフォンを連れた騎士"), ["グリフォン", "連れ"])   # 拾えなかった言葉は利用者に見せる
 
 
 class EditFamilyTest(unittest.TestCase):
@@ -2493,8 +2500,8 @@ class ConveyCasesTest(unittest.TestCase):
     def test_unknown_words_are_shown(self):
         from chatdraw.engine import Words
         w = Words(Path(""))
-        w.to_prompt("ドラゴンに乗った女性")
-        self.assertIn("ドラゴン", w.untranslated)
+        w.to_prompt("グリフォンを連れた女性")
+        self.assertIn("グリフォン", w.untranslated)
 
     def test_model_path_merge(self):
         """言葉の模型の答えを整える: 日本語・打ち消しを描く言葉に残さず、表で拾った語を足す"""
@@ -2732,7 +2739,9 @@ class ModelListTest(unittest.TestCase):
             a, b, c = self.models()
             st = Studio(FakeWords(), FakePainter(), Path(d))
             st.image_auto = True
+            # 検品は本物の部品が手元にあると、偽の絵に何分も掛かる。この試験は模型の選び方と知らせだけを見る
             with mock.patch("chatdraw.choose.installed_images", return_value=[a, b]), \
+                    mock.patch("chatdraw.omakase._default_check", return_value={"readable": True, "bad": [], "regions": []}), \
                     mock.patch("chatdraw.engine.Painter", side_effect=lambda repo, *x, **k: type("P", (FakePainter,), {})()) as made:
                 said = []
                 try:

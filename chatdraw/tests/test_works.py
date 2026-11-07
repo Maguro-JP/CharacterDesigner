@@ -416,12 +416,12 @@ class FewStepsRedrawTest(unittest.TestCase):
         try:
             img = Image.new("RGB", (64, 64), "white")
             mask = Image.new("L", (64, 64), 255)
-            for name in ("face", "refine"):
+            for name in ("refine",):   # 整える（face）は模型で描き直さなくなった
                 out = finishers.run(name, img, mask)
                 self.assertEqual(out.size, img.size)
         finally:
             finishers.use_painter(None)
-        self.assertEqual(len(seen), 2)
+        self.assertEqual(len(seen), 1)
         self.assertTrue(all(int(n * st) >= 1 for n, st in seen), seen)
 
 

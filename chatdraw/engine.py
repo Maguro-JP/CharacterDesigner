@@ -316,6 +316,9 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
             # その device の乱数を作ると落ちた。CPU の乱数なら、どの置き方でも同じ種で同じ絵になる
             "generator": torch.Generator("cpu").manual_seed(seed), **f.extra, **dict(getattr(info, "call", ()) or ())}
     if f.negative:
+        # 余分な腕・脚・頭・体、顔の外の目、物理的にあり得ない形と、頼んでいない黄色い目は、どの頼みでも打ち消す（chatdraw/sanity.py）
+        from chatdraw.sanity import negative as sane_negative
+        avoid = ", ".join(a for a in (avoid, sane_negative(prompt)) if a)
         if woman(prompt):   # 女性は利用者の基準の体で描く（年配の太った体にしない。chatdraw/body.py）
             from chatdraw.body import NEGATIVE as BODY_NEGATIVE
             avoid = ", ".join(a for a in (avoid, BODY_NEGATIVE) if a)
@@ -369,6 +372,8 @@ def use_scheduler(pipe, info) -> bool:
 
 ASK_SENTENCE = ("Translate the drawing request (Japanese or any other language) into one English sentence that describes the image for a text-to-image model. "
                 "Reply with the sentence only. Translate every detail, add nothing that is not in the request.")
+ASK_WORD = ("Translate one word or short phrase from a drawing request (Japanese or any other language) into English tags for an anime "
+            "illustration model. Reply with one to three short comma-separated tags only. If it does not change what is drawn, reply none.")
 ASK = ("Translate the drawing request (Japanese or any other language) into English tags for an anime illustration model. "
        "Reply with one line of short comma-separated tags only (e.g. red bikini, long hair, beach, waving). "
        "Bind each color to its object. Translate every detail, add nothing that is not in the request. "
@@ -558,13 +563,40 @@ class Words:
                 out = ""
             return out or (sentence(picked) if picked else english_only(text))
         keep, neg, ja = _clean_tags(self.ask(ASK, text))
-        self.untranslated = ja
+        # 表で読めなかった語は、1 語ずつ言葉の模型に訳させて確かめる（文ごとの訳では、語が黙って抜けることがあった）。
+        # 訳せた語は利用者の辞書に覚え、次からは表と同じに引く。訳せなかった語は読めなかった語として画面に出す
+        lost = []
+        for word in leftover(text):
+            got = self._word(word)
+            if got is None:
+                lost.append(word)
+            elif got:
+                keep += [t for t in got.split(", ") if t and t.lower() not in (k.lower() for k in keep)]
+        self.untranslated = list(dict.fromkeys(ja + lost))
         for n in neg:
             if n not in self.negative:
                 self.negative.append(n)
         bad = {n.lower() for n in self.negative}
         keep = [t for t in keep if t.lower() not in bad]   # 打ち消した物を、模型が描く言葉に入れていても外す
         return merge(", ".join(keep), [t for t in picked if t.lower() not in bad])
+
+
+    def _word(self, word: str) -> str | None:
+        """1 語を言葉の模型で訳し、辞書に覚える。描く物を変えない語は ""、訳せなかったら None"""
+        try:
+            out = self.ask(ASK_WORD, word, max_tokens=24)
+        except Exception:
+            return None
+        out = out.strip().strip(".")
+        if not out or has_japanese(out):
+            return None
+        tags = "" if out.lower() in ("none", "no", "n/a") else ", ".join(t.strip() for t in out.split(",") if t.strip())[:80]
+        try:
+            from chatdraw import worddict
+            worddict.set_term(word, tags, source="llm")
+        except Exception:
+            pass
+        return tags
 
 
 def sentence(picked: list[str]) -> str:
@@ -867,10 +899,24 @@ class Painter:
                        + " 設定で描きます")
         return plan
 
-    def _check_budget(self, plan):
-        if plan is not None and not plan.ok:
-            from chatdraw.membudget import OverBudget
-            raise OverBudget(plan.reason + "。" + plan.lighter)
+    OVER_OK = 1.5   # 予算（空きの 8 割）のこの倍（空きの 1.2 倍）までは、一番軽い設定で描いてみる
+
+    def _check_budget(self, plan, b=None):
+        """一番軽い形でも予算を少し超えるだけなら止めずに描く。0.5.15 で見積もりが予算を超えたら描く前に止めるようにしたら、
+        空き 8.3GB の予算に 8.6GB の見積もりのような、それまで描けていた模型と大きさも「描けませんでした」になった。
+        見積もりは多めに出て、本当に危ないときは描いている途中の見張り（membudget.Watch）が止めて途中の絵を残す。
+        大きく超える物（12GB の GPU に 60GB 近い模型）は、読むと落ちるので今までどおり読む前に止める"""
+        if plan is None or plan.ok:
+            return
+        from chatdraw import membudget as mb
+        b = b or mb.budget()   # 見積もりに使った予算で比べる（測り直すと、見積もりと違う空きで判定していた）
+        over_ram = plan.ram_peak() > b.ram * self.OVER_OK
+        over_vram = b.vram > 0 and plan.vram_peak() > b.vram * self.OVER_OK
+        if over_ram or over_vram:
+            raise mb.OverBudget(plan.reason + "。" + plan.lighter)
+        self.low_memory = True
+        self._note(f"見積もりではメモリが少し足りませんが、一番軽い設定（{plan.size[0]}×{plan.size[1]}）で描きます。"
+                   "危なくなったら途中で止めて途中の絵を残します")
 
     def ready(self) -> bool:
         """模型が手元にそろっているか（取りに行かずに確かめる）"""
@@ -1351,7 +1397,7 @@ class Painter:
                     self._note(f"メモリの予算に合わせて、直すときに広げる倍率を {self.upscale} から {k} に下げます")
                 return k
         self.redraw_plan = plan
-        self._check_budget(plan)
+        self._check_budget(plan, b)
         return 1.0
 
 
@@ -1416,15 +1462,11 @@ def has_background(prompt: str) -> bool:
     return any(re.search(r"(?<![a-z])" + re.escape(w) + r"(?![a-z])", low) for w in BACKGROUND_WORDS)
 
 
-def vary_background(prompt: str, seed: int, tags: bool = True) -> str:
-    """背景を頼まれていなければ、種で選んだ場面を後ろに足す（頼みの言葉を先に効かせる）。頼まれていればそのまま返す"""
-    import random
-    if not prompt.strip() or has_background(prompt):
-        return prompt
-    tag, words = BACKGROUNDS[random.Random(seed).randrange(len(BACKGROUNDS))]
-    if tags:
-        return f"{prompt}, {tag}"
-    return f"{prompt.rstrip(' .')}, {words}."
+def vary_background(prompt: str, seed: int, tags: bool = True, text: str = "") -> str:
+    """頼みに書かれていない所（背景・ポーズ・髪・服・表情・構図・光）を、種で選んで後ろに足す（chatdraw/variety.py）。
+    背景だけを足していたときは、背景を書いた頼みや同じ立ち姿で似た絵ばかりになった。書かれた項目は利用者の物なので足さない"""
+    from chatdraw.variety import vary
+    return vary(prompt, seed, tags=tags, text=text)
 
 
 def emphasize(prompt: str, missing: list[str]) -> str:
@@ -1499,8 +1541,18 @@ class Studio:
         prompt = self.words.to_prompt(text, tags=as_tags)
         # 頼んだ物の検品は頼みの言葉だけで見る（足した背景は頼みではないので、描かれなくても描き直しの理由にしない）
         asked_prompt = prompt
+        # 学んだ描かれにくさで頼みのタグを並べ替え、通りにくい模型は頼みの効きを少し上げる（chatdraw/wordlearn.py）。
+        # 足しも消しもしない。一定の割合で学びを使わずに描き、学びが好みに偏らないようにする
+        from chatdraw import wordlearn
+        explored, guidance0 = True, getattr(self.painter, "guidance", None)
+        try:
+            prompt, moved, explored = wordlearn.adjust(prompt, getattr(self.painter, "model", ""))
+            if guidance0 is not None and not explored:
+                self.painter.guidance = wordlearn.guidance(getattr(self.painter, "model", ""), guidance0)
+        except Exception as e:   # 記録が読めなくても描く
+            say(f"学んだ記録を読めませんでした（{e}）。学びを使わずに描きます")
         if base is None and reference is None:   # ラフや参考画像の絵は、その絵の背景を活かす
-            prompt = vary_background(prompt, seed, tags=as_tags)
+            prompt = vary_background(prompt, seed, tags=as_tags, text=text)
         lost = list(getattr(self.words, "untranslated", []) or [])
         if lost:   # 模型に伝わらない言葉を隠さない（伝わらないまま描くと、頼みと違う絵になる）
             say("模型に伝わらない言葉があります: " + "、".join(lost) + "（英語で書くか、言葉の模型を入れると伝わります）")
@@ -1547,6 +1599,13 @@ class Studio:
                 unasked += [w for w in ("multiple girls", "2girls", "multiple views") if asked.get("people") and w not in unasked]
                 unasked += [b.split("（")[1].rsplit(" ", 1)[0] for b in asked.get("body", []) if "（" in b
                             and b.split("（")[1].rsplit(" ", 1)[0] not in unasked]
+            # 余分な腕・脚・頭・体、顔の外の目、頼んでいない目の色。手・足・顔の枠の外の崩れなので、種を変えて描き直し、
+            # 次の回は見つけた崩れの言葉を描かない物に足す（chatdraw/sanity.py）
+            from chatdraw import sanity
+            odd = sanity.check(image, asked_prompt, tags=asked.get("read") if asked["readable"] else None)
+            say(sanity.summary(odd))
+            left += odd["bad"]
+            unasked += [w for w in odd["avoid"] if w not in unasked]
             redraws.append({"seed": s_k, "bad": left})
             if best is None or len(left) < len(best[1]):
                 best = (image, left, s_k)
@@ -1554,17 +1613,33 @@ class Studio:
                 break
         if hasattr(self.painter, "avoid"):
             self.painter.avoid = avoid0
+        if guidance0 is not None:
+            self.painter.guidance = guidance0
         image, left, seed = best
         # 検品できなかった絵（部品が無い、止めてある）は、崩れが無いのではなく見ていないだけなので、通ったことにしない
-        checked = bool(self.hand_rounds) and asked["readable"]
+        checked = bool(self.hand_rounds) and asked["readable"] and odd["readable"]
         if left:   # 通らなかった絵を、出来た絵として渡さない。残った崩れを先に見せる
             say(f"検品を通る絵が {len(redraws)} 回描いても出ませんでした（途中）。残った崩れ: " + "、".join(left[:5]))
         elif not checked:
             say("検品できなかったので、通ったかは分かりません（途中）")
         path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model,
                                             hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws, passed=checked and not left))
+        self._learn(path, text, asked_prompt, left, missing_all, checked and not left, explored)
         self._inspect(path, say)
         return prompt, path
+
+    def _learn(self, path, text, asked_prompt, left, missing, passed, explored):
+        """描いた 1 枚を学びの記録と単語辞書に足す（chatdraw/wordlearn.py、chatdraw/worddict.py）。失敗しても描いた絵は渡す"""
+        try:
+            from chatdraw import jaterms, worddict, wordlearn
+            wordlearn.record(path, asked_prompt, getattr(self.painter, "model", ""), len(left), missing, passed, explored)
+            words = {}
+            for row in jaterms.align(text) if has_japanese(text) else []:
+                for t in row["tags"]:
+                    words.setdefault(t, row["word"])
+            worddict.record([t.strip() for t in asked_prompt.split(",")], passed, words)
+        except Exception:
+            pass
 
     def _two_stage_models(self, base, reference, say=lambda m: None):
         """2 段で描くなら (構図の模型, 仕上げの模型)、1 つの模型で描くなら None。
@@ -1586,6 +1661,80 @@ class Studio:
                                  "模型の窓で取ってください")
             return None
         return two
+
+    def draw_anyway(self, text: str, seed: int, on_status=None, size=None, **kw) -> tuple[str, Path]:
+        """描けるまで、軽い設定・小さい大きさ・別の模型・別の種と段を下げて描く。どの段でも描けなかったときだけ、
+        段ごとの理由と次の手を例外にする。前は 1 回落ちただけで「描けませんでした」で止まり、0.5.15 でメモリの見積もりで
+        描く前に止めるようにしてからは、それまで描けていた模型と大きさも止まった"""
+        say = on_status or (lambda msg: None)
+        tried, why = [], []
+        size0 = size or getattr(self.painter, "size", None)
+        size0 = tuple(size0) if isinstance(size0, (tuple, list)) else (832, 1216)
+
+        def attempt(label, **over):
+            args = dict(kw, size=over.pop("size", size))
+            return self.draw(text, over.pop("seed", seed), on_status=on_status, **args)
+
+        def fail(label, e):
+            if isinstance(e, Stopped) or STOP.is_set() or getattr(self.painter, "stop", False) is True:
+                raise e
+            if isinstance(e, ValueError) and "描きません" in str(e):
+                raise e   # 描かない頼みは段を下げても描かない
+            why.append(f"{label}: {explain(e)}")
+            tried.append(label)
+
+        try:
+            return attempt("そのまま")
+        except Exception as e:   # noqa: BLE001  段を下げて描き直す
+            fail("そのまま", e)
+            first = e
+        heavy = is_oom(first) or type(first).__name__ in ("OverBudget", "MemoryDanger")
+        steps = []
+        if heavy or not isinstance(first, Unsupported):
+            steps.append(("軽い設定・小さい大きさ", dict(size=low_memory_size(size0)), True))
+        steps.append(("別の模型", {}, False))
+        steps.append(("別の種", dict(seed=seed + 7919), False))
+        for label, over, light in steps:
+            if label == "別の模型":
+                m = self._fallback_model(kw)
+                if m is None:
+                    continue
+                say(f"{why[-1]}。{m.name} に替えて描きます")
+                avoid = getattr(self.painter, "avoid", "")
+                if hasattr(self.painter, "unload"):
+                    self.painter.unload()
+                self.painter = Painter(m.repo, m.steps, guidance=m.guidance)
+                self.painter.avoid = avoid
+                self.chosen = (m.name, "前の模型で描けなかったので替えた")
+                over = dict(size=low_memory_size(size0)) if heavy else {}
+            else:
+                say(f"{why[-1]}。{label}で描き直します")
+            if light:
+                try:
+                    self.painter.low_memory = True
+                except AttributeError:
+                    pass
+            try:
+                return attempt(label, **over)
+            except Exception as e:   # noqa: BLE001
+                fail(label, e)
+        raise RuntimeError("試した順に: " + " / ".join(why) + "。次の手: ほかのアプリを閉じてメモリを空ける、"
+                           "AI のメニューで軽い模型（SDXL 系）を取る、描く大きさを小さくする")
+
+    def _fallback_model(self, kw):
+        """今の模型の代わりに描ける、手元の模型（点の高い順、軽い物を先に）。ラフ・参考画像はその機能のある世代だけ"""
+        try:
+            from chatdraw.choose import installed_images
+            from chatdraw.models import family as fam
+            from chatdraw import ratings
+            cur = getattr(self.painter, "model", "")
+            have = [m for m in installed_images() if m.repo != cur and not ratings.is_blocked(m.repo)
+                    and (kw.get("base") is None or fam(m.family).sketch)
+                    and (kw.get("reference") is None or fam(m.family).reference)]
+        except Exception:   # noqa: BLE001  一覧が読めなければ模型は替えない
+            return None
+        have.sort(key=lambda m: (getattr(m, "ram", 16) or 16, -float(getattr(m, "score", 0) or 0)))
+        return have[0] if have else None
 
     def _draw_two(self, text, seed, two, style, size, say, meta):
         """構図（文で頼める模型）と仕上げ（SDXL のアニメの模型）を分けて描く（chatdraw/twostage.py）"""

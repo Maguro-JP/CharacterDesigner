@@ -85,8 +85,54 @@ def catalog(w) -> dict[str, tuple[str, list[Step]]]:
         "chibi": ("ちびキャラ", [Step(lambda: w.ai_panel.chibi_button, "ちびキャラにする", "今の絵を、頭の大きなデフォルメに AI が描き直します。元の絵は残り、新しいレイヤーに重なります。", _show(w, "chat"))]),
         "lineart": ("線画", [Step(lambda: w.ai_panel.lineart_button, "線画にする", "今の絵から線だけを取り出し、白地の線画を新しいレイヤーに重ねます。元の絵は残ります。", _show(w, "chat"))]),
         "pixel": ("ドット絵", [Step(lambda: w.ai_panel.pixel_button, "ドット絵にする", "今の絵を縮めて色を減らし、輪郭を付けたドット絵にします。\n1 ドット 1 画素の小さな絵は履歴に残ります。", _show(w, "chat"))]),
+        # ---- はじめのツアーから分けた案内（1 つ 5 枚まで） ----
+        "tour_panels": ("欄の案内", [
+            Step(_panel(w, "talk"), "チャット", "AI に使い方を聞いたり、絵の相談をしたりできます。\n答えに出た描く内容の案は、吹き出しのボタンで AI の欄に入れられます。", _show(w, "talk")),
+            Step(lambda: w.progress_popup, "進み", "AI が描いている間は、右下に工程と進みが出ます。\n× で閉じるまで消えません。", lambda: w.progress_popup.pop()),
+            Step(_panel(w, "view"), "表示", "全体の縮小図と参考画像です。縮小図を押すと、その場所を表示します。", _show(w, "view")),
+            Step(_panel(w, "history"), "履歴", "描いた絵と、キャンバスの操作の履歴です。\n操作を選ぶと、その時点まで戻れます。", _show(w, "history")),
+            Step(_panel(w, "color"), "色・ブラシ・レイヤー", "左には手で描くための欄をまとめています。\nAI の絵はレイヤーとして重なります。", _show(w, "color"))]),
+        "tour_bars": ("帯と配置の案内", [
+            Step(lambda: w.ribbon, "リボン", "よく使う操作をタブごとに並べています。\n開いているタブをもう一度押すと畳めます。"),
+            Step(lambda: w.panel_bar, "欄の帯", "欄を出す・隠すアイコンです。\n帯はドラッグで上下左右へ動かせます。"),
+            Step(lambda: w.bottom_bar, "下の帯とステータスバー", "下の帯で拡大と元に戻すを操作します。\nいちばん下には道具・位置・大きさ・AI の状態が出ます。"),
+            Step(lambda: w.menuBar(), "配置", "「配置」で、決まった配置・寄せ・3 等分や 5 等分に切り替えます。\n欄の境目はドラッグで広げ縮めできます。"),
+            Step(lambda: w.menuBar(), "配置の保存と書き出し", "「今の配置を保存」で名前を付けて残し、「自分の配置」から戻せます。\n「書き出す・読み込む」で配置をファイルにできます。")]),
+        "confirm": ("確かめの窓", [Step(lambda: w.menuBar(), "確かめの窓", "消す・上書き・時間のかかる処理・元の頼みと食い違う直しの前にだけ、確かめの窓が出ます。\n"
+                                      "「次から聞かない」を選ぶと出なくなり、「設定」の「確かめの窓をまた出す」で戻せます。")]),
         "project": ("作業ファイル", [Step(lambda: None, "作業ファイル", "レイヤーと赤ペンの印ごと残します。開き直すと続きから描けます。\nほかの作画ソフトへは「書き出す」の PSD で渡せます。描いている間は 2 分ごとに自動で控えを取ります。")]),
     }
+
+
+# 後から足した案内。まだ見ていない物は「ヘルプ」の「新しいツアー（n）」に印を付け、起動したときに 1 回だけ知らせる。
+# 案内を足したら、ここにも鍵を足す
+NEW = ["tour_panels", "tour_bars", "confirm"]
+MAX_STEPS = 5      # 1 つの案内の枚数の上限（長いと読まれない）
+HOLD_S = 60.0      # 案内を閉じてから、ほかの機能の案内を自動で出さない秒数（続けて出ると連鎖して長い）
+
+
+def unseen_new(w) -> list[str]:
+    return [k for k in NEW if not seen(w, k)]
+
+
+def unnoticed(w) -> list[str]:
+    """まだ見ておらず、起動の知らせもまだ出していない新しい案内"""
+    told = set(str(w.layout_store.value("tours_noticed", "") or "").split("\t"))
+    return [k for k in unseen_new(w) if k not in told]
+
+
+def mark_noticed(w):
+    w.layout_store.setValue("tours_noticed", "\t".join(NEW))
+
+
+def hold(w, s: float | None = None):
+    import time
+    w._tour_hold_until = time.monotonic() + (HOLD_S if s is None else s)   # 秒数は呼ぶたびに読む（試験と設定で替えられる）
+
+
+def held(w) -> bool:
+    import time
+    return time.monotonic() < getattr(w, "_tour_hold_until", 0.0)
 
 
 def seen(w, key: str) -> bool:
@@ -99,15 +145,20 @@ def enabled(w) -> bool:
 
 def _shows(w, key: str, force: bool) -> bool:
     """いまこの機能の案内を出すか。ほかの案内が開いている間は重ねない"""
-    if catalog(w).get(key) is None or not force and (seen(w, key) or not enabled(w)):
-        return False
+    if catalog(w).get(key) is None or not force and (seen(w, key) or not enabled(w) or held(w)):
+        return False   # 出さなかった案内は見たことにしない（あとで使ったときに出る）
     t = getattr(w, "tour", None)
     return not (t is not None and t.isVisible() and not getattr(t, "done", False))
 
 
 def _open(w, key: str, then):
     w.layout_store.setValue(f"tours/{key}", 1)
-    w.tour = Tour(w, catalog(w)[key][1], on_close=then)
+
+    def closed():
+        hold(w)   # 閉じた直後の then が別の機能に触れても、その案内を続けて出さない
+        if then:
+            then()
+    w.tour = Tour(w, catalog(w)[key][1], on_close=closed)
     w.tour.start()
 
 
