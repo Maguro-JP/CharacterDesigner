@@ -898,7 +898,7 @@ class Painter:
 
     OVER_OK = 1.5   # 予算（空きの 8 割）のこの倍（空きの 1.2 倍）までは、一番軽い設定で描いてみる
 
-    def _check_budget(self, plan):
+    def _check_budget(self, plan, b=None):
         """一番軽い形でも予算を少し超えるだけなら止めずに描く。0.5.15 で見積もりが予算を超えたら描く前に止めるようにしたら、
         空き 8.3GB の予算に 8.6GB の見積もりのような、それまで描けていた模型と大きさも「描けませんでした」になった。
         見積もりは多めに出て、本当に危ないときは描いている途中の見張り（membudget.Watch）が止めて途中の絵を残す。
@@ -906,7 +906,7 @@ class Painter:
         if plan is None or plan.ok:
             return
         from chatdraw import membudget as mb
-        b = mb.budget()
+        b = b or mb.budget()   # 見積もりに使った予算で比べる（測り直すと、見積もりと違う空きで判定していた）
         over_ram = plan.ram_peak() > b.ram * self.OVER_OK
         over_vram = b.vram > 0 and plan.vram_peak() > b.vram * self.OVER_OK
         if over_ram or over_vram:
@@ -1394,7 +1394,7 @@ class Painter:
                     self._note(f"メモリの予算に合わせて、直すときに広げる倍率を {self.upscale} から {k} に下げます")
                 return k
         self.redraw_plan = plan
-        self._check_budget(plan)
+        self._check_budget(plan, b)
         return 1.0
 
 

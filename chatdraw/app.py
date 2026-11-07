@@ -150,7 +150,8 @@ class Job(QObject):
                 for seed in self.seeds:
                     extra = dict(reference=self.reference, ref_scale=self.ref_scale) if self.reference is not None else {}
                     # 落ちても止めず、軽い設定・小さい大きさ・別の模型・別の種と段を下げて描く（engine.Studio.draw_anyway）
-                    prompt, path = self.studio.draw_anyway(self.text, seed, on_status=self._say,
+                    draw = getattr(self.studio, "draw_anyway", None) or self.studio.draw   # 段を下げる形を持たない描き手（試験の偽物など）はそのまま描く
+                    prompt, path = draw(self.text, seed, on_status=self._say,
                                                     base=self.base, strength=self.strength, size=self.size,
                                                     on_preview=self._preview, style=self.style, meta=self.meta, **extra)
                     self._stopped()

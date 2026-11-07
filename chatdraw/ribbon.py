@@ -56,7 +56,17 @@ class Ribbon(QTabWidget):
                 lay.addWidget(line)
             lay.addWidget(group(name, acts))
         lay.addStretch()
-        self.addTab(page, title)
+        # 頁が窓より広いときは横に流して見せる（頁の幅がそのまま窓の最小の幅になり、1280 の画面に収まらなかった）
+        from PySide6.QtWidgets import QScrollArea
+        from PySide6.QtCore import Qt
+        area = QScrollArea()
+        area.setWidget(page)
+        area.setWidgetResizable(True)
+        area.setFrameShape(QFrame.NoFrame)
+        area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        area.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        area.setMinimumHeight(page.sizeHint().height())
+        self.addTab(area, title)
 
     def _clicked(self, i: int):
         """開いているタブをもう 1 回押すと畳む。畳んでいるときにタブを押すと広げる"""

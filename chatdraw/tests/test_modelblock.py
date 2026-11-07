@@ -97,6 +97,11 @@ class MenuTest(unittest.TestCase):
 
 
 class StopTest(unittest.TestCase):
+    def tearDown(self):
+        # 止める旗は engine の全体に 1 つしか無い。立てたまま残すと、あとに流す描く試験がみな「止めました」で落ちた
+        from chatdraw.engine import STOP
+        STOP.clear()
+
     def test_unload_frees_pipes(self):
         from chatdraw.engine import Painter
         p = Painter("a/a")
