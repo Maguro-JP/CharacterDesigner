@@ -836,6 +836,12 @@ class LayoutsTest(unittest.TestCase):
 
 class FeatureTourTest(unittest.TestCase):
     def test_every_feature_has_a_tour_shown_once_on_first_use(self):
+        # 案内を閉じてから 60 秒は次の案内を自動で出さない（連鎖を止める）。この試験は 1 つずつ出ることを見るので、待ちを 0 にする
+        from unittest import mock as _mock
+        from chatdraw import tours as _tours
+        _p = _mock.patch.object(_tours, "HOLD_S", 0.0)
+        _p.start()
+        self.addCleanup(_p.stop)
         from PySide6.QtCore import QSettings
         from PySide6.QtWidgets import QApplication
         from chatdraw import tours

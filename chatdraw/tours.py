@@ -125,9 +125,9 @@ def mark_noticed(w):
     w.layout_store.setValue("tours_noticed", "\t".join(NEW))
 
 
-def hold(w, s: float = HOLD_S):
+def hold(w, s: float | None = None):
     import time
-    w._tour_hold_until = time.monotonic() + s
+    w._tour_hold_until = time.monotonic() + (HOLD_S if s is None else s)   # 秒数は呼ぶたびに読む（試験と設定で替えられる）
 
 
 def held(w) -> bool:
