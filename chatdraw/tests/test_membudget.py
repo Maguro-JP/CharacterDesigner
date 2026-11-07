@@ -141,6 +141,28 @@ class PainterBudgetTest(unittest.TestCase):
                 p.redraw_scale((4096, 4096), mb.budget(9.0, 0.0))
 
 
+class CpuDtypeTest(unittest.TestCase):
+    def test_slow_bf16_uses_fp32_only_within_budget(self):
+        """bf16 の遅い CPU では、float32 が予算に収まるときだけ float32。足りなければ bf16 のまま"""
+        try:
+            import torch
+        except ImportError:
+            self.skipTest("torch が無い")
+        from chatdraw.models import image_model
+        p = engine.Painter("cagliostrolab/animagine-xl-4.0")
+        info = image_model(p.model)
+        with mock.patch.object(engine, "bf16_fast", return_value=False):
+            with mock.patch.object(engine, "free_ram_gb", return_value=40.0):
+                self.assertEqual(p._cpu_dtype(info), torch.float32)
+            with mock.patch.object(engine, "free_ram_gb", return_value=14.0):
+                self.assertEqual(p._cpu_dtype(info), torch.bfloat16)
+        with mock.patch.object(engine, "bf16_fast", return_value=True), \
+                mock.patch.object(engine, "free_ram_gb", return_value=40.0):
+            self.assertEqual(p._cpu_dtype(info), torch.bfloat16)
+        p.force_dtype = "float32"
+        self.assertEqual(p._cpu_dtype(info), torch.float32)
+
+
 class OneModelTest(unittest.TestCase):
     def test_loading_one_unloads_others(self):
         downs = []

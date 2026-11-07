@@ -10,7 +10,7 @@ on:
         default: "cagliostrolab/animagine-xl-4.0"
       configs:
         description: "比べる設定（chatdraw/perfbench.py の CONFIGS、カンマで）"
-        default: "base,channels_last"
+        default: "bf16,fp32"
       steps:
         description: "工程の数"
         default: "8"
@@ -49,6 +49,7 @@ jobs:
           PERF_CONFIGS: ${{ inputs.configs }}
           PERF_STEPS: ${{ inputs.steps }}
           PERF_SIZE: ${{ inputs.size }}
+          CD_FETCH: "1"   # 作画監督の部品の模型（部位分けなど）を、初めて使うときに取る（無いと外れの数が測れなかった）
         run: python -u -m chatdraw.perfbench perf-out
       - uses: actions/upload-artifact@v4
         if: always()
