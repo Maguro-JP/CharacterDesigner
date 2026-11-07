@@ -162,15 +162,18 @@ def bf16_fast() -> bool:
     return _BF16_FAST
 
 
-def cpu_dtype(gb_half: float):
+def cpu_dtype(gb_half: float, fits=None):
     """CPU で模型を読む型。gb_half は 16 ビットで読んだときの大きさ（GB）。
-    bf16 が速い CPU は bf16。遅い CPU は、メモリに入れば float32（2 倍の大きさと、描く途中の分）、入らなければ bf16（遅いが動く）"""
+    bf16 が速い CPU は bf16。遅い CPU は、float32（2 倍の大きさと、描く途中の分）がメモリの予算に収まれば float32、
+    収まらなければ bf16（遅いが動く）。fits は予算で決める関数。無ければ RAM の合計で決める（前の決め方）"""
     import torch
     if bf16_fast():
         return torch.bfloat16
-    if total_ram_gb() >= gb_half * 2 * 1.3:
-        return torch.float32
-    return torch.bfloat16
+    try:
+        ok = fits() if fits is not None else total_ram_gb() >= gb_half * 2 * 1.3
+    except Exception:   # noqa: BLE001  見積もれなければ前の決め方
+        ok = total_ram_gb() >= gb_half * 2 * 1.3
+    return torch.float32 if ok else torch.bfloat16
 
 
 def gpu_dtype(family: str):
@@ -869,6 +872,22 @@ class Painter:
                        + " 設定で描きます")
         return plan
 
+    def _cpu_dtype(self, info):
+        """CPU で読む型。bf16 の遅い CPU では、float32 の重み（2 倍）でも予算に収まり、頼んだ大きさのまま描けるときだけ float32 にする。
+        Actions の測りで、bf16 の遅い機械の描く本体は 825 秒、速い機械は 166 秒だった（SDXL、768 角、8 工程）。
+        前は RAM の合計で決めていたので、空きが少ないと float32 で読んで足りなくなり、空きが多くても合計が足りなければ遅い bf16 のままだった。
+        force_dtype（"float32" か "bfloat16"）は測りの比べ（chatdraw/perfbench.py）に使う"""
+        import torch
+        forced = getattr(self, "force_dtype", None)
+        if forced:
+            return getattr(torch, forced)
+        from chatdraw import membudget as mb
+
+        def fits() -> bool:
+            want = native_size(self.size, info.family)
+            return mb.choose(info.gb or 7, want, info.family, mb.budget(), False, fp32=True, allow_shrink=False).ok
+        return cpu_dtype(info.gb or 7, fits)
+
     def _check_budget(self, plan):
         if plan is not None and not plan.ok:
             from chatdraw.membudget import OverBudget
@@ -979,7 +998,7 @@ class Painter:
         f = fam(fam_name)
         gpu = torch.cuda.is_available()
         # GPU では世代に合う型（SD 系は float16、新しい世代は bf16）。CPU では、bf16 の速さとメモリの量で決める（cpu_dtype）
-        dtype = gpu_dtype(fam_name) if gpu else cpu_dtype(info.gb or 7)
+        dtype = gpu_dtype(fam_name) if gpu else self._cpu_dtype(info)
         self.dtype = dtype
         self.quantized = False
         extra = {"safety_checker": None, "requires_safety_checker": False} if fam_name == "sd15" else {}

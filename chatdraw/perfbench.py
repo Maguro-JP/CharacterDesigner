@@ -23,6 +23,8 @@ PROMPT = "1girl, solo, standing, full body, school uniform, looking at viewer, s
 CONFIGS = {
     "base": {},
     "channels_last": {"channels_last": True},
+    "bf16": {"force_dtype": "bfloat16"},
+    "fp32": {"force_dtype": "float32"},
 }
 
 
@@ -52,7 +54,7 @@ def _env():
 def run(out: Path):
     out.mkdir(parents=True, exist_ok=True)
     model, steps, size, seed, count = _env()
-    names = [n for n in os.environ.get("PERF_CONFIGS", "base,channels_last").split(",") if n in CONFIGS]
+    names = [n for n in os.environ.get("PERF_CONFIGS", "bf16,fp32").split(",") if n in CONFIGS]
     from chatdraw.engine import bf16_fast
     result = {"model": model, "steps": steps, "size": list(size), "seed": seed, "bf16_fast": bf16_fast(), "runs": []}
     dump = out / "perf.json"
@@ -75,6 +77,22 @@ def run(out: Path):
         if sub.wait() and not got:
             result["runs"].append({"config": name, "image": 0, "error": err[-600:]})
             save()
+    # 設定どうしの絵の差（最初の設定と比べる）。画素の差の平均と、8 を超えて違う画素の割合
+    try:
+        import numpy as np
+        from PIL import Image
+        first = out / f"{names[0]}-{count}.png"
+        for name in names[1:]:
+            other = out / f"{name}-{count}.png"
+            if first.exists() and other.exists():
+                a = np.asarray(Image.open(first).convert("RGB")).astype(int)
+                b = np.asarray(Image.open(other).convert("RGB")).astype(int)
+                d = abs(a - b)
+                result.setdefault("diff", {})[f"{names[0]}-{name}"] = {"mean": round(float(d.mean()), 3),
+                                                                       "over8": round(float((d > 8).mean()), 4)}
+        save()
+    except Exception as e:   # noqa: BLE001
+        result["diff_error"] = f"{type(e).__name__}: {e}"
     for row in result["runs"]:
         if row.get("image") == count:
             row["quality"] = outliers(out / f"{row['config']}-{count}.png")
