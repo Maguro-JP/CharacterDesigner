@@ -648,6 +648,11 @@ class Window(QMainWindow):
         self.ai_panel.update_preview()
         self._entry_tip()
         line = self.ai_panel.draw_bar   # 描くボタンはタブの外。どのタブからも押せる
+        # 作成枚数は描くボタンのすぐ左に置く（前は指示のタブの中の模型の下にあり、見つからなかった）。
+        # 詳しい設定の 1・2・4 枚のボタンと同じ値
+        self.ai_panel.count_spin.setToolTip("作成枚数。一度に描く枚数です（直すときは 1 枚）")
+        self.ai_panel.count_spin.setAccessibleName("作成枚数")
+        line.addWidget(self.ai_panel.count_spin)
         line.addWidget(self.button, 1)
         line.addWidget(self.stop_button)
         # 書く欄の下のボタン。登録した言葉（★）を先に、そのあとに直近に頼んだ言葉を新しい順に並べる。
@@ -704,12 +709,6 @@ class Window(QMainWindow):
             wdg.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         tl.addWidget(model_head)
         tl.addLayout(model_row)
-        count_row = QHBoxLayout()   # 作成枚数。詳しい設定の 1・2・4 枚のボタンと同じ値
-        count_row.setContentsMargins(0, 0, 0, 0)
-        count_row.addWidget(QLabel("作成枚数"))
-        count_row.addWidget(self.ai_panel.count_spin)
-        count_row.addStretch()
-        tl.addLayout(count_row)
         self._lora_row()
         tl.addWidget(word_head)
         tl.addWidget(self.entry)
@@ -4044,11 +4043,36 @@ class Window(QMainWindow):
                 title.toggle()
 
     def toggle_all(self):
+        # 文字の欄（チャット、描く内容、赤ペンの指示、名前の書き換え）で打った Tab は、欄を隠さずに次の欄へ移る。
+        # 前は文字を打っている途中の Tab で欄が全部消え、打っていた欄も見えなくなった
+        from PySide6.QtWidgets import QAbstractSpinBox, QApplication, QComboBox, QLineEdit, QPlainTextEdit, QTextEdit
+        fw = QApplication.focusWidget()
+        if isinstance(fw, (QLineEdit, QPlainTextEdit, QTextEdit, QAbstractSpinBox)) or (
+                isinstance(fw, QComboBox) and fw.isEditable()):
+            nxt = fw.nextInFocusChain()
+            while nxt is not None and nxt is not fw and not (
+                    nxt.isVisible() and nxt.isEnabled() and nxt.focusPolicy() & Qt.TabFocus):
+                nxt = nxt.nextInFocusChain()
+            if nxt is not None and nxt is not fw:
+                nxt.setFocus(Qt.TabFocusReason)
+            return
         on = not getattr(self, "_all_hidden", False)
-        self._show_all(not on)
+        if on:
+            # 隠す前に見えていた欄と帯だけを覚え、次の Tab でそれだけを出す（前は閉じていた欄まで全部出た）
+            self._shown_before = [w for w in self._all_bars() if w.isVisible()]
+            for w in self._shown_before:
+                w.setVisible(False)
+        else:
+            for w in getattr(self, "_shown_before", None) or self._all_bars():
+                w.setVisible(True)
+            self._shown_before = []
         self._all_hidden = on
         if on:
             self.statusBar().showMessage("欄を隠しました。Tab でまた出します", 6000)
+
+    def _all_bars(self):
+        return [d for d, _area in self.panels.values()] + [self.tools, self.options, self.panel_bar,
+                                                           self.bottom_bar, self.ribbon_bar]
 
     def _show_all(self, on: bool):
         for d, _area in self.panels.values():
