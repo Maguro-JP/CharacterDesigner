@@ -151,7 +151,7 @@ def _seg_dist(xs, ys, a, b):
     return np.hypot(xs - (ax + t * dx), ys - (ay + t * dy))
 
 
-def off_skeleton(seg, kp: dict, labels, chains, far: float = 0.7, least: float = 0.3) -> dict:
+def off_skeleton(seg, kp: dict, labels, chains, far: float = 1.0, least: float = 0.5) -> dict:
     """部位分けの腕（脚）の画素のうち、体の点の骨（肩-肘-手首、腰-膝-足首）のどれからも遠い塊。
     腕が 3 本の絵では、体の点は 2 本の腕にしか骨を引けず、3 本目の腕は骨から離れて残る（どちらの 2 本に骨を引いても、残りの 1 本が離れる）。
     far は骨の長さに対する遠さ、least は 1 本分の面積に対する塊の大きさ"""
@@ -197,7 +197,7 @@ LEG_CHAINS = (("left_hip", "left_knee", "left_ankle"), ("right_hip", "right_knee
 _DET = None
 
 
-def count_people(im, least: float = 0.5) -> int:
+def count_people(im, least: float = 0.5, big: float = 0.3) -> int:
     """RT-DETR で人の枠を数える"""
     global _DET
     import torch
@@ -212,7 +212,13 @@ def count_people(im, least: float = 0.5) -> int:
     with torch.no_grad():
         out = model(**proc(small, return_tensors="pt"))
     res = proc.post_process_object_detection(out, target_sizes=[small.size[::-1]], threshold=least)[0]
-    return sum(model.config.id2label[int(lab)] == "person" for lab in res["labels"])
+    boxes = [b for b, lab in zip(res["boxes"].tolist(), res["labels"]) if model.config.id2label[int(lab)] == "person"]
+    if not boxes:
+        return 0
+    # 背景の通行人（遠くの小さな人影）は余分な体ではない。一番大きい人の枠の big 倍より小さい枠は数えない。
+    # 雨の街の絵（r5-coat）で、背景の人影 3 つを数えて「人 4 人」とした
+    area = [max(0.0, (x1 - x0) * (y1 - y0)) for x0, y0, x1, y1 in boxes]
+    return sum(a >= big * max(area) for a in area)
 
 
 def face_hidden(im, seg):
@@ -305,6 +311,8 @@ def check(image, prompt: str = "", tags: dict | None = None) -> dict:
         try:
             from chatdraw import handcheck
             kp = handcheck._keypoints(im)
+            if not kp:
+                raise RuntimeError("体の点を読めない " + handcheck.KP_ERROR)
             for word, labels, chains in (("腕", ARMS, ARM_CHAINS), ("脚", LEGS, LEG_CHAINS)):
                 o = off_skeleton(seg, kp, labels, chains)
                 res.setdefault("off_skeleton", {})[word] = o

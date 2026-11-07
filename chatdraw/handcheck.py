@@ -84,7 +84,8 @@ KP_ERROR = ""   # 体の点を読めなかった最後の訳
 
 def _keypoints(im) -> dict:
     """体の点を 1 枚につき 1 回だけ読む（手の振り分けと顔の検品で同じ点を使う。VitPose の読み込みは数秒かかる）"""
-    key = (id(im), im.size)
+    # id だけでは、捨てた絵の id を次の絵が使い回したとき、前の絵の点を返した（続けて検品した 2 枚で同じ点）。中身の縮図も鍵に入れる
+    key = (id(im), im.size, im.resize((16, 16)).tobytes())
     if key not in _KP:
         try:
             from chatdraw.twostage import keypoints
