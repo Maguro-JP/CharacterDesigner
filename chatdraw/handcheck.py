@@ -48,7 +48,7 @@ def ensure_models(fetch: bool = True) -> bool:
 LEAST = 0.3   # 手のひらの確からしさの下限。拾った手は measure の手らしさ（0.5 以上）で確かめる
 
 
-def find_hands(hands, im) -> list[str]:
+def find_hands(hands, im, keep: bool = True):
     """絵全体と、重ねて切った区画（一辺 = 短い辺の 6 割）の両方で手のひらを探す。
     手のひらを探す模型は絵を 192 画素に縮めて読むので、全身の絵では手が数画素になり、
     仕上げたビキニの絵では 2 つの手のうち 1 つも見つからなかった。区画で探すと手が大きく写る"""
@@ -72,7 +72,8 @@ def find_hands(hands, im) -> list[str]:
             tile = im.crop((x, y, min(w, x + side), min(h, y + side)))
             for b in hands.detect_palms(tile, LEAST):
                 add(b, x, y)
-    return keep_hands(im, found)
+    # keep=False は (中心 x, 中心 y, 枠) をそのまま返す（手首から離れた手を数える chatdraw/sanity.py が使う）
+    return keep_hands(im, found) if keep else found
 
 
 _KP: dict = {}

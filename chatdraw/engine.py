@@ -316,6 +316,9 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
             # その device の乱数を作ると落ちた。CPU の乱数なら、どの置き方でも同じ種で同じ絵になる
             "generator": torch.Generator("cpu").manual_seed(seed), **f.extra, **dict(getattr(info, "call", ()) or ())}
     if f.negative:
+        # 余分な腕・脚・頭・体、顔の外の目、物理的にあり得ない形と、頼んでいない黄色い目は、どの頼みでも打ち消す（chatdraw/sanity.py）
+        from chatdraw.sanity import negative as sane_negative
+        avoid = ", ".join(a for a in (avoid, sane_negative(prompt)) if a)
         if woman(prompt):   # 女性は利用者の基準の体で描く（年配の太った体にしない。chatdraw/body.py）
             from chatdraw.body import NEGATIVE as BODY_NEGATIVE
             avoid = ", ".join(a for a in (avoid, BODY_NEGATIVE) if a)
@@ -1547,6 +1550,13 @@ class Studio:
                 unasked += [w for w in ("multiple girls", "2girls", "multiple views") if asked.get("people") and w not in unasked]
                 unasked += [b.split("（")[1].rsplit(" ", 1)[0] for b in asked.get("body", []) if "（" in b
                             and b.split("（")[1].rsplit(" ", 1)[0] not in unasked]
+            # 余分な腕・脚・頭・体、顔の外の目、頼んでいない目の色。手・足・顔の枠の外の崩れなので、種を変えて描き直し、
+            # 次の回は見つけた崩れの言葉を描かない物に足す（chatdraw/sanity.py）
+            from chatdraw import sanity
+            odd = sanity.check(image, asked_prompt, tags=asked.get("read") if asked["readable"] else None)
+            say(sanity.summary(odd))
+            left += odd["bad"]
+            unasked += [w for w in odd["avoid"] if w not in unasked]
             redraws.append({"seed": s_k, "bad": left})
             if best is None or len(left) < len(best[1]):
                 best = (image, left, s_k)
@@ -1556,7 +1566,7 @@ class Studio:
             self.painter.avoid = avoid0
         image, left, seed = best
         # 検品できなかった絵（部品が無い、止めてある）は、崩れが無いのではなく見ていないだけなので、通ったことにしない
-        checked = bool(self.hand_rounds) and asked["readable"]
+        checked = bool(self.hand_rounds) and asked["readable"] and odd["readable"]
         if left:   # 通らなかった絵を、出来た絵として渡さない。残った崩れを先に見せる
             say(f"検品を通る絵が {len(redraws)} 回描いても出ませんでした（途中）。残った崩れ: " + "、".join(left[:5]))
         elif not checked:
