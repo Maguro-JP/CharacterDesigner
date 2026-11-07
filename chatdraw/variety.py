@@ -119,9 +119,31 @@ TABLES = {
                      "from side", "from behind", "wide shot", "全身", "上半身", "バストアップ", "アップ", "構図", "アングル")),
     "light": (LIGHTS, ("light", "lighting", "sunlight", "sunset", "moonlight", "night", "dark", "光", "照明", "夕", "夜", "朝")),
 }
-# 人を描かない頼み（背景美術など）には、人の項目を足さない
+# 上の語だけでは、頼んだ場所・動き・役柄の服を「書かれていない」と読み、ぶつかる語を足していた
+# （夜の屋上でギターを弾く少年に beach と sitting, hugging knees、メイドに jacket, jeans、手を振る少女に kneeling）。
+# 頼みの 30 本（chatdraw/tests/test_words.py の SENTENCES）で足した語とぶつかった物を、項目の語に足す
+_MORE = {
+    "place": ("rooftop", "hospital", "hallway", "grassland", "festival", "ship", "boat", "cherry blossoms", "starry sky",
+              "riverside", "train", "church", "ruins", "pool", "bridge", "stairs", "window", "shore", "meadow", "sunset",
+              "屋上", "神社", "草原", "祭", "船", "桜", "星空", "病院", "廊下", "川", "浜", "図書館", "カフェ", "城", "砂漠",
+              "雪", "雨", "山", "駅", "庭", "窓", "屋根"),
+    "pose": ("waving", "reading", "holding", "carrying", "singing", "drinking", "eating", "flying", "riding",
+             "fighting stance", "looking back", "looking up", "looking down", "hand up", "arms up", "shading eyes",
+             "playing instrument", "holding hands", "hug", "dancing", "swimming", "crossed arms", "hand on own hip",
+             "peace sign", "cooking", "writing", "pointing", "stretching", "reaching out", "sleeping", "goldfish scooping",
+             "振", "読", "持", "運", "歌", "飲", "食", "飛", "乗", "構え", "見上げ", "見下ろ", "弾", "抱", "踊", "泳", "ひざまず", "しゃが"),
+    "clothes": ("maid", "knight", "miko", "nurse", "witch", "samurai", "ninja", "idol", "pirate", "vampire", "mage",
+                "yukata", "serafuku", "bikini", "lab coat", "cape", "police", "magical girl", "princess", "nun", "soldier",
+                "detective", "メイド", "騎士", "巫女", "看護師", "魔女", "侍", "忍者", "アイドル", "海賊", "吸血鬼",
+                "魔法使い", "浴衣", "ビキニ", "白衣", "マント", "姫", "シスター", "兵士", "探偵"),
+    "face": ("closed eyes", "sleeping", "sad", "smug", "tears", "眠", "悲"),
+    "hair_color": ("elderly", "old man", "old woman", "老人", "おばあさん"),
+}
+TABLES = {k: (table, words + _MORE.get(k, ())) for k, (table, words) in TABLES.items()}
+
+# 人を描かない頼み（背景美術など）と、人でない物を描く頼み（ロボット、竜）には、人の項目を足さない
 PERSON = ("pose", "hair", "hair_color", "clothes", "face")
-NO_PERSON = ("no humans", "scenery only", "人のいない", "風景だけ")
+NO_PERSON = ("no humans", "scenery only", "人のいない", "風景だけ", "robot", "mecha", "dragon", "ロボット", "メカ", "ドラゴン")
 
 
 def _has(text: str, words) -> bool:
@@ -147,7 +169,15 @@ def pick(seed: int, text: str) -> dict[str, tuple[str, str]]:
     """種から、書かれていない項目の語を 1 つずつ選ぶ。返すのは {項目: (タグ, 文)}"""
     rng = random.Random(f"variety-{seed}")   # 種だけで決まる（種を固定すれば同じ組み合わせ）
     keep = fixed(text)
-    return {k: table[rng.randrange(len(table))] for k, (table, _w) in TABLES.items() if k not in keep}
+    out = {k: table[rng.randrange(len(table))] for k, (table, _w) in TABLES.items() if k not in keep}
+    # 頼んだ動き・持ち物は体と手が入らないと描けない。寄りの構図を足すと、剣を持って立つ騎士が顔だけの絵になった
+    if "pose" in keep and out.get("shot", ("",))[0] in TIGHT:
+        wide = [s for s in SHOTS if s[0] not in TIGHT]
+        out["shot"] = wide[rng.randrange(len(wide))]
+    return out
+
+
+TIGHT = ("close-up", "portrait", "upper body")
 
 
 # タグの模型（SD 系）は CLIP の 75 語片より後ろを捨て、収まらないと頭の決まり文句と質のタグから外す（engine.fit_tokens）。

@@ -2001,7 +2001,7 @@ class UsabilityFixTest(unittest.TestCase):
 
     def test_japanese_terms(self):
         from chatdraw.jaterms import merge, tags_from
-        self.assertEqual(tags_from("白いビキニの女性が海で笑顔")[:2], ["white bikini", "1girl"])
+        self.assertEqual(tags_from("白いビキニの女性が海で笑顔")[:4], ["1girl", "solo", "adult woman", "white bikini"])   # 人数の言葉が先頭、頼んだ語がその次（jaterms.order）
         self.assertIn("red hair", tags_from("赤い髪の女の子"))
         self.assertEqual(merge("1girl, beach", ["1girl", "white bikini"]), "1girl, beach, white bikini")   # 抜けた語だけ足す
 

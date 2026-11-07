@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from chatdraw.body import WOMAN
+from chatdraw.body import TAGS, WOMAN
 
 COLORS = {"赤": "red", "青": "blue", "黒": "black", "白": "white", "金": "blonde", "銀": "silver", "緑": "green", "茶": "brown",
           "ピンク": "pink", "紫": "purple", "黄": "yellow", "オレンジ": "orange", "水色": "light blue", "紺": "navy blue", "灰": "grey"}
@@ -214,7 +214,23 @@ def tags_from(text: str) -> list[str]:
     """日本語の頼みから拾った描く物のタグ（順は頼みの中の順）。打ち消した物は入れない"""
     found, negs, _ = _scan(text)
     neg = set(_flat(negs))
-    return _count(text, [t for t in _flat(found) if t not in neg])
+    return order(_count(text, [t for t in _flat(found) if t not in neg]))
+
+
+_HEAD = ("1girl", "1boy", "1other", "2girls", "3girls", "4girls", "2boys", "3boys", "4boys", "multiple people", "solo")
+# 女性の基準の体の言葉（chatdraw/body.py）。頼みの語より前にあると、CLIP の 75 語片の後ろへ頼みの場所・持ち物・ポーズが押し出され、
+# 弱く効くか切り捨てられた（「白いビキニの女性が砂浜で日よけ」で、beach, hand up, shading eyes が体の 10 語の後ろに並んだ）
+_BODY = tuple(t for t in TAGS.split(", ") if t != "adult woman")
+
+
+def order(tags: list[str]) -> list[str]:
+    """人数の言葉を先頭に、頼んだ語をその次に、基準の体の言葉を最後に並べる。模型は前の語ほど強く効かせる"""
+    head = [t for t in _HEAD if t in tags]
+    if "adult woman" in tags or "adult man" in tags:
+        head += [t for t in ("adult woman", "adult man") if t in tags]
+    body = [t for t in tags if t in _BODY]
+    rest = [t for t in tags if t not in head and t not in body]
+    return head + rest + body
 
 
 def negatives(text: str) -> list[str]:
