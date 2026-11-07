@@ -288,7 +288,8 @@ def check(image, prompt: str = "", tags: dict | None = None) -> dict:
         seg = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST))
         parts = count_parts(seg, people)
         res["counts"] = parts["counts"]
-        res["bad"] += parts["extra"]
+        # 塊の数も記録だけにする。膝に置いた手で腕が 2 つに切れ、外れ 1・当たり 0 だった（library の 44 枚）
+        res["info"] = list(parts["extra"])
         if tg is not None:
             hidden, faces = face_hidden(im, seg)
             if faces:
@@ -316,8 +317,9 @@ def check(image, prompt: str = "", tags: dict | None = None) -> dict:
             for word, labels, chains in (("腕", ARMS, ARM_CHAINS), ("脚", LEGS, LEG_CHAINS)):
                 o = off_skeleton(seg, kp, labels, chains)
                 res.setdefault("off_skeleton", {})[word] = o
+                # 骨から離れた塊は記録だけにする。library の 44 枚で、曲げた脚・膝に置いた手を 1 本と読み、外れ 1・当たり 0 だった
                 if o.get("extra"):
-                    res["bad"].append(f"{word}が多い（骨から離れた{word} {o['extra']} つ）")
+                    res.setdefault("info", []).append(f"{word}: 骨から離れた塊 {o['extra']} つ")
                 for chain in chains:
                     r = bone_ratio(kp, chain)
                     res.setdefault("bone_ratio", {})[chain[0]] = r
@@ -329,8 +331,9 @@ def check(image, prompt: str = "", tags: dict | None = None) -> dict:
         try:
             stray = stray_hands(im)
             res["stray_hands"] = stray
+            # 記録だけにする。library の 44 枚で、物を持つ手・腰に当てた手を手首から離れたと読み、外れ 2・当たり 0 だった
             if stray:
-                res["bad"].append(f"腕が多い（手首から離れた手 {len(stray)} つ）")
+                res.setdefault("info", []).append(f"手首から離れた手 {len(stray)} つ")
         except Exception as e:
             res["why"].append(f"手首から離れた手: {type(e).__name__}: {e}")
     res["readable"] = not res["why"]
