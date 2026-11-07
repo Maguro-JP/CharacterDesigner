@@ -204,7 +204,9 @@ def compose(sentence: str, seed: int, compose_model: str, size, path, tags: str 
     # 崩れの無い構図が出たらそこで止め、出なければ崩れの一番少ない構図を使う。どの回も 1-composition-t<回>.png に残す
     from chatdraw import handcheck, requestcheck
     rounds, best = [], None
-    for k in range(COMPOSE_TRIES):
+    from chatdraw.persist import Persist, counter
+    keep = Persist([None, None, None])   # 種を変えて描き直す。同じ崩れが 3 回続けて変わらなければ止める
+    for k in counter(COMPOSE_TRIES):
         s_k = seed + 1000 * k
 
         def step(p, i, _t, kw, k=k):
@@ -223,13 +225,18 @@ def compose(sentence: str, seed: int, compose_model: str, size, path, tags: str 
             best = (im, bad)
         if res["readable"] and not bad:
             break
+        if not keep.go_on(bad or ["検品できなかった"]):
+            print(f"構図の描き直しを止めました（{keep.reason}）", flush=True)
+            break
     best[0].save(path)
     Path(path).with_name("compose-rounds.json").write_text(json.dumps(rounds, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"構図を保存: {time.time() - t:.0f} 秒（{len(rounds)} 回描いた）", flush=True)
 
 
-COMPOSE_TRIES = 6   # 構図を描き直す回数の上限（速い機械で 1 回 約 4 分）
-FIX_ROUNDS = 6      # 質が先。仕上げのあと、崩れた手を直して検品し直す回数の上限
+# 質が先。回数の上限は置かない（None）。止まるのは、同じ崩れが別の手を一周試しても変わらないときだけ（chatdraw/persist.py）。
+# 数を入れるのは、流れを短く確かめる試験だけ
+COMPOSE_TRIES = None   # 構図を描き直す回数（速い機械で 1 回 約 4 分）
+FIX_ROUNDS = None      # 仕上げのあと、崩れた手を直して検品し直す回数
 
 
 REFINE_SCALE, REFINE_STRENGTH = 1.5, 0.35
@@ -269,7 +276,9 @@ def fix_hands(pipe, image, prompt: str, negative: str, seed: int, steps: int, gu
     inpaint = None
     rounds = []
     best = None   # (崩れの数, 絵, 検品の結果)。直しで崩れが増えた絵は使わず、崩れの一番少ない絵から直し直す
-    for r in range(FIX_ROUNDS + 1):
+    from chatdraw.persist import Persist, counter
+    strengths = Persist([0.55, 0.65, 0.75, 0.85, 0.9, 0.95])   # 回を重ねるほど強く直す。一周同じ崩れなら止める
+    for r in counter(None if FIX_ROUNDS is None else FIX_ROUNDS + 1):
         res = handcheck.check(image, asked=prompt)
         rounds.append({"round": r, "bad": res["bad"], "readable": res["readable"]})
         print(f"仕上げの検品 {r}回目: {handcheck.summary(res)}", flush=True)
@@ -278,7 +287,8 @@ def fix_hands(pipe, image, prompt: str, negative: str, seed: int, steps: int, gu
         elif len(res["bad"]) > best[0]:
             image, res = best[1], best[2]
         regions = handcheck.bad_regions(res)   # 手・足・顔のうち、崩れの見つかった所
-        if not regions or r == FIX_ROUNDS:
+        s_now = strengths.hand()   # この回に試す強さ（go_on で次へ進む前に取る）
+        if not regions or r == FIX_ROUNDS or not strengths.go_on(res["bad"]):
             break
         if inpaint is None:
             parts = {k: v for k, v in pipe.components.items() if k in ("vae", "text_encoder", "text_encoder_2", "tokenizer", "tokenizer_2",
@@ -294,7 +304,7 @@ def fix_hands(pipe, image, prompt: str, negative: str, seed: int, steps: int, gu
         words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in regions))
         out = inpaint(prompt=f"{prompt}, {words}",
                       negative_prompt=negative + ", extra fingers, missing fingers, fused fingers, extra toes, faceless, empty eyes",
-                      image=image, mask_image=soft, width=image.width, height=image.height, strength=(0.55, 0.65, 0.75, 0.85, 0.9, 0.95)[min(r, 5)],
+                      image=image, mask_image=soft, width=image.width, height=image.height, strength=s_now,
                       num_inference_steps=steps, guidance_scale=guidance,
                       generator=torch.Generator("cpu").manual_seed(seed + 77 * (r + 1))).images[0].resize(image.size)
         image = Image.composite(out, image, soft)   # 枠の外は元の絵のまま

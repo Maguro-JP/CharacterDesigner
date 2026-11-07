@@ -261,18 +261,23 @@ class Omakase:
         # 囲みの外は 1 画素も変えない（模型の直しが外へ漏れても、元の絵を戻す）
         return Image.composite(out.convert(image.mode), image, mask), m
 
-    def run(self, text: str, seed: int, say, size=None, tries: int = 12, rounds: int = 6):
+    def run(self, text: str, seed: int, say, size=None, tries: int | None = None, rounds: int | None = None):
         """描く → 検品 → 落ちた部位を別の模型で直す → 検品、を通るまで回す。通らなければ構図を別の模型で描き直す。
+        回数の上限は置かない（tries と rounds は試験で短くするときだけ）。止まるのは止めるボタンと、
+        同じ崩れが別の手（模型と種、直す強さ）を一周試しても変わらないとき（chatdraw/persist.py）。
         返すのは (絵, 頼みの言葉, 残った崩れ, 検品できたか, 種, 構図の模型)"""
+        from chatdraw.persist import Persist, counter
         self.plan = plan(text, self.have)
         say("おまかせの段取り: " + self.plan.summary())
         compose = self.plan.compose or [(None, "取得済みの模型が無いので今の模型")]
         best = None
-        for k in range(tries):
+        # 構図の手は、合う模型を一周、種を替えてもう一周
+        outer = Persist(list(range(2 * len(compose))), stopped=lambda: getattr(self.studio.painter, "stop", False))
+        for k in counter(tries):
             m, why = compose[k % len(compose)]   # 落ちたら次に合う模型で構図から描き直す。一周したら種を変えて最初から
             s_k = seed + 1000 * k
             if k:
-                say(f"検品を通らなかったので、構図を描き直しています（{k + 1}/{tries} 回目）")
+                say(f"検品を通らなかったので、構図を描き直しています（{k + 1} 回目）")
             painter = self.painter_for(m) if m is not None else self.studio.painter
             prompt = self._prompt(text, m) if m is not None else self.studio.words.to_prompt(text)
             image = None
@@ -292,27 +297,34 @@ class Omakase:
             res = self.check(image, prompt)
             for note in res.get("notes", []) if k == 0 else []:
                 say(note)
-            for r in range(rounds):
-                if not res["bad"] or not res.get("regions") or getattr(painter, "stop", False):
+            inner = Persist([0.6, 0.7, 0.8, 0.9], stopped=lambda: getattr(painter, "stop", False))
+            for r in counter(rounds):
+                if not res.get("regions"):
+                    break
+                strength = inner.hand()
+                if not inner.go_on(res["bad"]):
                     break
                 by_kind = {}
                 for box, kind in res["regions"]:
                     by_kind.setdefault(kind, []).append(box)
                 tried = image
                 for kind, boxes in by_kind.items():
-                    tried, _fm = self.fix_region(tried, kind, boxes, text, s_k + 77 * (r + 1), m.repo if m else "", say)
+                    tried, _fm = self.fix_region(tried, kind, boxes, text, s_k + 77 * (r + 1), m.repo if m else "", say,
+                                                 strength=strength)
                 again = self.check(tried, prompt)
                 self.log.append(dict(stage="検品", round=r, bad=list(again["bad"])))
-                if len(again["bad"]) > len(res["bad"]):   # 直しで崩れが増えたら、その直しは消しゴムで消す
-                    say("直しで崩れが増えたので、前の絵に戻します")
-                    break
+                if len(again["bad"]) > len(res["bad"]):   # 直しで崩れが増えたら、その直しは消しゴムで消し、強さを替えて直し直す
+                    say("直しで崩れが増えたので、前の絵に戻して直し直します")
+                    continue
                 image, res = tried, again
             if not res["bad"] and res.get("detail") and not getattr(painter, "stop", False):
                 image, res = self.detail(image, res, text, s_k, m.repo if m else "", prompt, say)
             self.log.append(dict(stage="検品", seed=s_k, bad=list(res["bad"]), readable=res["readable"]))
             if best is None or len(res["bad"]) < len(best[2]):
                 best = (image, prompt, list(res["bad"]), res["readable"], s_k, m)
-            if (not res["bad"] and res["readable"]) or getattr(painter, "stop", False):
+            if not res["bad"] and res["readable"]:
+                break
+            if not outer.go_on(res["bad"] or ["検品できなかった"]):
                 break
         image, prompt, left, readable, s_k, m = best
         if not left and readable:
