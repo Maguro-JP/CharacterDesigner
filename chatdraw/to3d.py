@@ -128,7 +128,7 @@ class To3DDialog:
         lay.addWidget(status)
         row = QHBoxLayout()
         make = QPushButton("模型を作る")
-        make.setToolTip("人物を切り抜き、厚みのある板の模型（OBJ）を絵の隣のフォルダーに作る")
+        make.setToolTip("人物を切り抜き、厚みのある板の模型（OBJ）を絵の隣のディレクトリに作る")
         blender = find_blender()
         go = QPushButton("Blender で開く" if blender else "Blender を取りに行く")
         go.setToolTip("作った模型を Blender で開き、形を起こす" if blender

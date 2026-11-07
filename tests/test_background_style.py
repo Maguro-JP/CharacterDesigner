@@ -94,6 +94,8 @@ class HairStyleTest(unittest.TestCase):
         self.assertEqual(measure.asked_hair_styles(LADY), ["long hair"])
         self.assertEqual(measure.asked_hair_styles("1girl, very long silver hair, hair down"), ["very long hair", "hair down"])
         self.assertEqual(measure.asked_hair_styles("1girl, black bob cut"), ["bob cut"])
+        # 飾りの語（flowing）が挟まっても髪型として拾う（アイコンの 4 枚で拾っていなかった）
+        self.assertEqual(measure.asked_hair_styles("1girl, long flowing hair"), ["long hair"])
 
     def test_bun_and_bob_for_long_flagged(self):
         for tags, seen in (({"long hair": 0.39, "hair bun": 0.385, "ponytail": 0.17}, "hair bun"),         # 506 まとめ髪

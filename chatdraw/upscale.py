@@ -28,7 +28,16 @@ def fetch():
     part.replace(WEIGHTS)
 
 
+def unload():
+    """拡大の模型を降ろす（描く模型を読む前に呼ばれる。模型はいつも 1 つだけ）"""
+    _NET.clear()
+    from chatdraw.membudget import released
+    released("upscale")
+
+
 def _net():
+    from chatdraw.membudget import exclusive
+    exclusive("upscale", unload)   # 描く・加工の模型を降ろしてから使う
     if _NET:
         return _NET[0]
     import torch
@@ -91,31 +100,38 @@ def _net():
     return _NET[0]
 
 
-def x4(img, tile: int = 256, pad: int = 16, on_step=None):
-    """PIL の絵を 4 倍にする。メモリーに収めるため、端を重ねたタイルに分けて回す"""
+def x4(img, tile: int | None = None, pad: int = 16, on_step=None):
+    """PIL の絵を 4 倍にする。メモリーに収めるため、端を重ねたタイルに分けて回す。
+    区画の大きさはメモリの予算で決める（membudget.tile_for）。出来上がりは 8 ビットの配列へ区画ごとに直に書く。
+    前は 4 倍の大きさの 32 ビットの入れ物を先に取り、最後にもう 1 枚 8 ビットへ写していたので、2048 角の絵で約 1GB の山になった"""
     import numpy as np
     import torch
     from PIL import Image
+    from chatdraw import membudget as mb
     net = _net()
-    a = np.asarray(img.convert("RGB"), dtype=np.float32) / 255.0
-    h, w, _ = a.shape
-    t = torch.from_numpy(a).permute(2, 0, 1)[None]
-    out = torch.zeros((1, 3, h * 4, w * 4))
-    tiles = [(y, x) for y in range(0, h, tile) for x in range(0, w, tile)]
     dev = next(net.parameters()).device
     dtype = next(net.parameters()).dtype
+    if tile is None:
+        from chatdraw.engine import free_ram_gb
+        tile = mb.tile_for(free_ram_gb(), mb.free_vram_gb(), dev.type == "cuda")
+    src = np.asarray(img.convert("RGB"))
+    h, w, _ = src.shape
+    out = np.empty((h * 4, w * 4, 3), dtype=np.uint8)
+    tiles = [(y, x) for y in range(0, h, tile) for x in range(0, w, tile)]
     with torch.inference_mode():
         for i, (y, x) in enumerate(tiles, 1):
             y0, x0 = max(0, y - pad), max(0, x - pad)
             y1, x1 = min(h, y + tile + pad), min(w, x + tile + pad)
-            r = net(t[:, :, y0:y1, x0:x1].to(dev, dtype)).float().cpu()
+            part = torch.from_numpy(src[y0:y1, x0:x1].astype(np.float32) / 255.0).permute(2, 0, 1)[None]
+            r = net(part.to(dev, dtype)).float().cpu()
             ty, tx = (y - y0) * 4, (x - x0) * 4
             hh, ww = min(tile, h - y) * 4, min(tile, w - x) * 4
-            out[:, :, y * 4:y * 4 + hh, x * 4:x * 4 + ww] = r[:, :, ty:ty + hh, tx:tx + ww]
+            blk = r[0, :, ty:ty + hh, tx:tx + ww].clamp(0, 1).permute(1, 2, 0).numpy()
+            out[y * 4:y * 4 + hh, x * 4:x * 4 + ww] = (blk * 255.0).round().astype(np.uint8)
+            del r, part, blk
             if on_step:
                 on_step(i, len(tiles))
-    b = (out[0].clamp(0, 1).permute(1, 2, 0).numpy() * 255.0).round().astype(np.uint8)
-    return Image.fromarray(b)
+    return Image.fromarray(out)
 
 
 def upscale(img, scale: int = 2, on_step=None):

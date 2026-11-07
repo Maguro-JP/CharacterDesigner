@@ -383,6 +383,13 @@ class FewStepsRedrawTest(unittest.TestCase):
     前は 工程 2 × 強さ 0.3 が 0 工程になり、diffusers が「the number of pipelinesteps is 0」で止めて、毎回「描けませんでした」だった
     （試験用の小さな SDXL で実際に描いて確かめた）"""
 
+    def setUp(self):
+        # この試験は工程の数を見る。空いているメモリは機械（ほかの試験と並ぶ時）で変わるので、測れない（無限）として扱う
+        from unittest import mock
+        p = mock.patch("chatdraw.engine.free_ram_gb", return_value=0.0)
+        p.start()
+        self.addCleanup(p.stop)
+
     def test_face_and_refine_with_two_steps(self):
         from PIL import Image
         from chatdraw import finishers

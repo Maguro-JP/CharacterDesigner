@@ -108,6 +108,24 @@ def _steps(text: str, finishers=None) -> list[str]:
     return out
 
 
+CLEAN = {"clean", "retouch", "retouch_full"}   # 形を変えない綺麗にする加工
+
+
+def clean_first(steps: list[str], finishers=None) -> list[str]:
+    """「拡大してから綺麗にして」の綺麗にするを拡大の前に回す。拡大のあとの絵は面積が 4 倍で、綺麗にするのに
+    元の大きさの 4〜5 倍の時間がかかった（拡大の前と後で仕上がりの差はまだ測っていない）"""
+    names = {f"finisher:{n}" for n in CLEAN}
+    if "upscale" not in steps:
+        return steps
+    i = steps.index("upscale")
+    moved = [s for s in steps[i + 1:] if s in names]
+    if not moved:
+        return steps
+    rest = [s for s in steps if s not in moved]
+    j = rest.index("upscale")
+    return rest[:j] + moved + rest[j:]
+
+
 def parse(text: str, finishers=None, now: float | None = None) -> Plan:
     p = Plan()
     rest = text
@@ -138,7 +156,7 @@ def parse(text: str, finishers=None, now: float | None = None) -> Plan:
     if m:
         p.export = (m.group(1) or m.group(2) or "").strip()
         rest = rest[:m.start()] + " " + rest[m.end():]
-    p.steps = _steps(rest, finishers)
+    p.steps = clean_first(_steps(rest, finishers), finishers)
     body = rest
     for words in list(ACTIONS.values()) + list(finisher_words(finishers).values()):
         for w in sorted(words, key=len, reverse=True):
@@ -182,3 +200,46 @@ def describe(p: Plan) -> str:
     if p.daily is not None:
         head = f"毎日 {p.daily[0]:02d}:{p.daily[1]:02d} に " + head
     return head
+
+
+# ---- 登録した指示の呼び出しと、曖昧な頼みの候補 ----
+_CALL = re.compile(r"(登録した指示|登録の指示|指示を(呼|使|出)|ショートカットを(呼|使))")
+_CALL_AFTER = ("を使", "で直", "を呼", "を掛", "をかけ")
+_PROCESS = re.compile(r"(何か)?(加工|仕上げ)(を|して|に|で|を掛|をかけ|したい|して)|仕上げて")
+_STYLE = re.compile(r"画風(を|に|で|変|替)")
+MAX_CHOICES = 8   # 候補のボタンの数。多すぎると吹き出しが埋まって読めない
+
+
+def find_prompts(text: str, prompts) -> list[dict]:
+    """文の中で名前を呼ばれた登録した指示。「『夕焼け』を使って」「夕焼けで直して」。名前の長い順に、重なりを除いて返す"""
+    found = []
+    for p in sorted(prompts or (), key=lambda p: -len(p.get("name", ""))):
+        name = (p.get("name") or "").strip()
+        if not name:
+            continue
+        if f"「{name}」" in text or any(name + a in text for a in _CALL_AFTER):
+            if not any(name in f["name"] for f in found):
+                found.append(p)
+    return found
+
+
+def clarify(text: str, finishers=None, styles=(), prompts=()) -> tuple[str, list[tuple[str, str]]] | None:
+    """何をするかが決まらない頼みなら、（聞き返す 1 文、[(ボタンの名前, 押したときに送る文)]）。決まるなら None。
+    ボタンを押すと、その文をチャットに送ったのと同じに行う（ボタン専用の道を作らない）"""
+    called = find_prompts(text, prompts)
+    if _CALL.search(text) and len(called) != 1:
+        pool = called or list(prompts or ())
+        if not pool:
+            return ("登録した指示はまだありません。右クリックの「言葉で指示…」から登録できます", [])
+        return ("どの指示を使いますか", [(p["name"], f"「{p['name']}」を使って") for p in pool[:MAX_CHOICES]])
+    if _STYLE.search(text) and not any(s in text for s in styles):
+        return ("どの画風にしますか", [(s, f"画風を{s}にして") for s in list(styles)[:MAX_CHOICES]])
+    if _PROCESS.search(text) and not _steps(text, finishers):
+        base = [("線画", "線画にして"), ("ドット絵", "ドット絵にして"), ("透過", "透過して"), ("2 倍に拡大", "2倍にして")]
+        more = []
+        for f in finishers or ():
+            label = re.sub(r"（.*?）", "", f.get("label", "")).strip()
+            if len(label) >= 2:
+                more.append((label, label if label.endswith("る") else f"{label}を掛けて"))
+        return ("どの加工をしますか", (base + more)[:MAX_CHOICES])
+    return None

@@ -10,6 +10,8 @@ from PySide6.QtGui import QAction, QKeySequence
 from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QHBoxLayout, QHeaderView, QKeySequenceEdit, QLabel, QLineEdit, QMenu,
                                QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout)
 
+from chatdraw.i18n import ja
+
 PREFIX = "keys/"
 
 
@@ -20,27 +22,32 @@ def collect(window) -> dict[str, QAction]:
     # 窓が持っていたメニューの包み（self.ai_menu、self.theme_menu など）が「消えた」扱いになった。開くたびに作り直す中身が
     # 作れず（RuntimeError）、AI のメニューの模型の一覧が起動の時のまま古くなった。窓の子のメニューから、見出しの操作で引く
     menus = {m.menuAction(): m for m in window.findChildren(QMenu)}
+    seen: set = set()
 
     def walk(menu: QMenu, path: str):
         for act in menu.actions():
             sub = menus.get(act)
-            text = act.text().replace("&", "").strip()
+            text = ja(act.text().replace("&", "").strip())   # 英語の画面でも、残すキーの名前は日本語のまま
             if sub is not None:
                 walk(sub, f"{path}/{text}" if path else text)
-            elif text and not act.isSeparator():
+            elif text and not act.isSeparator() and act not in seen:
+                seen.add(act)   # 同じ操作が 2 つのメニューに入っていても 1 行にする（2 行にすると自分自身と重なって保存できなかった）
                 name = text if text not in found else f"{path}/{text}"
                 found.setdefault(name, act)
     for top in window.menuBar().actions():
         if top in menus:
-            walk(menus[top], top.text().replace("&", "").strip())
+            walk(menus[top], ja(top.text().replace("&", "").strip()))
     for key, act in getattr(window, "tool_actions", {}).items():
-        found.setdefault(f"道具/{act.text()}", act)
+        if act in seen:
+            continue
+        seen.add(act)
+        found.setdefault(f"道具/{ja(act.text())}", act)
     editor = getattr(window, "menus_editor", None)   # メニューの編集で隠した項目も、キーは変えられるようにする
     for act in (editor.hidden_actions() if editor is not None else []):
         if act.text() and not act.isSeparator():
-            found.setdefault(act.text().replace("&", "").strip(), act)
+            found.setdefault(ja(act.text().replace("&", "").strip()), act)
     for act in getattr(window, "extra_key_actions", []):
-        found.setdefault(act.text(), act)
+        found.setdefault(ja(act.text()), act)
     return found
 
 

@@ -13,6 +13,8 @@ from PySide6.QtGui import QAction
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QHBoxLayout, QListWidget, QListWidgetItem, QMenu,
                                QPushButton, QToolBar, QVBoxLayout)
 
+from chatdraw.i18n import ja
+
 MENU_KEY = "menus/prefs"
 BAR_PREFIX = "bars/"
 LOCK_KEY = "bars/locked"
@@ -21,7 +23,7 @@ TOP = "（メニューの並び）"
 
 
 def _text(a: QAction) -> str:
-    return a.text().replace("&", "").strip()
+    return ja(a.text().replace("&", "").strip())   # 英語の画面でも、並びは日本語の名前で残す
 
 
 def _key(a: QAction, i: int) -> str:
