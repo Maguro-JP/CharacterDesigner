@@ -14,7 +14,7 @@ from chatdraw import sanity
 class NegativeTest(unittest.TestCase):
     def test_always_negates_extra_parts(self):
         neg = sanity.negative("1girl, solo, holding a ball")
-        for w in ("extra arms", "extra legs", "extra heads", "extra eyes", "eyes on objects", "physically impossible"):
+        for w in ("extra arms", "extra legs", "extra heads", "extra eyes", "eyes on objects", "impossible anatomy"):
             self.assertIn(w, neg)
 
     def test_eye_color_only_when_not_asked(self):

@@ -15,11 +15,11 @@ import re
 from pathlib import Path
 
 # 描く前に必ず打ち消す物。余分な部位、顔の外の目、物の顔、物理的にあり得ない形
-NEGATIVE = ("extra arms, extra legs, extra limbs, extra hands, extra heads, multiple heads, two heads, extra bodies, "
-            "conjoined, fused bodies, extra eyes, third eye, eyes on body, eyes on clothes, eyes on objects, "
-            "face on object, anthropomorphic object, disembodied limbs, floating limbs, impossible anatomy, physically impossible")
-# 目の色を頼んでいないときだけ打ち消す色。模型はこの色に寄せやすかった
-UNASKED_EYE_COLORS = "yellow eyes, golden eyes, amber eyes, glowing eyes"
+# SDXL の打ち消しは CLIP の 77 語で切れるので、短く、強く効く物だけにする（長くすると後ろの言葉が模型に届かない）
+NEGATIVE = ("extra arms, extra legs, extra heads, extra bodies, conjoined, extra eyes, eyes on body, eyes on objects, "
+            "floating limbs, impossible anatomy")
+# 目の色を頼んでいないときだけ打ち消す色。模型はこの色に寄せやすかった。切れないよう、打ち消しの先頭に置く
+UNASKED_EYE_COLORS = "yellow eyes, golden eyes"
 EYE_COLORS = {"blue", "red", "green", "purple", "yellow", "brown", "black", "grey", "gray", "pink", "orange", "aqua", "white",
               "amber", "golden", "gold", "silver", "violet", "teal", "cyan", "crimson", "emerald", "azure", "hazel", "heterochromia",
               "glowing", "light blue", "dark blue"}
@@ -55,7 +55,7 @@ def negative(prompt: str = "") -> str:
     """描く前の打ち消しに足す言葉。頼んだ言葉にある物（multiple arms の神像、third eye）は外す"""
     words = [w.strip() for w in NEGATIVE.split(",")]
     if not eye_color_asked(prompt):
-        words += [w.strip() for w in UNASKED_EYE_COLORS.split(",")]
+        words = [w.strip() for w in UNASKED_EYE_COLORS.split(",")] + words
     return ", ".join(w for w in words if not _has(prompt, w))
 
 
