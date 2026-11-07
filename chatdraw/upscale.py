@@ -16,7 +16,7 @@ _NET = []
 
 
 def ready() -> bool:
-    return WEIGHTS.exists()
+    return WEIGHTS.exists() or COMPACT.exists()
 
 
 def fetch():
@@ -96,11 +96,68 @@ def _net():
     model.load_state_dict(state, strict=True)
     if torch.cuda.is_available():
         model = model.half().cuda()
+    # channels_last にすると、CPU（4 コア）で 512×768 の 4 倍が 58.8 秒から 44.1〜46.3 秒になった。画素は前と同じ（差の最大 1）
+    model = model.to(memory_format=torch.channels_last)
     _NET.append(model.eval())
     return _NET[0]
 
 
-def x4(img, tile: int | None = None, pad: int = 16, on_step=None):
+# 軽い網（SRVGGNetCompact、Real-ESRGAN の realesr-animevideov3、BSD-3-Clause、2.4MB）。出来と秒を
+# chatdraw/bench_finish.py の upscale で今の網と並べて測るためのもの。既定の網は、出来が下がらず速いと分かるまで替えない
+COMPACT = UPSCALE / "realesr-animevideov3.pth"
+COMPACT_URL = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-animevideov3.pth"
+_COMPACT = []
+
+
+def _compact():
+    if _COMPACT:
+        return _COMPACT[0]
+    import torch
+    import urllib.request
+    from torch import nn
+    import torch.nn.functional as F
+
+    class SRVGG(nn.Module):
+        def __init__(self, nf=64, nc=16, up=4):
+            super().__init__()
+            self.up = up
+            body = [nn.Conv2d(3, nf, 3, 1, 1), nn.PReLU(num_parameters=nf)]
+            for _ in range(nc):
+                body += [nn.Conv2d(nf, nf, 3, 1, 1), nn.PReLU(num_parameters=nf)]
+            body += [nn.Conv2d(nf, 3 * up * up, 3, 1, 1)]
+            self.body = nn.Sequential(*body)
+            self.shuffle = nn.PixelShuffle(up)
+
+        def forward(self, x):
+            return self.shuffle(self.body(x)) + F.interpolate(x, scale_factor=self.up, mode="nearest")
+
+    if not COMPACT.exists():
+        UPSCALE.mkdir(parents=True, exist_ok=True)
+        part = COMPACT.with_suffix(".part")
+        urllib.request.urlretrieve(COMPACT_URL, part)
+        part.replace(COMPACT)
+    state = torch.load(COMPACT, map_location="cpu", weights_only=True)
+    state = state.get("params_ema", state.get("params", state))
+    model = SRVGG()
+    model.load_state_dict(state, strict=True)
+    if torch.cuda.is_available():
+        model = model.half().cuda()
+    model = model.to(memory_format=torch.channels_last)
+    _COMPACT.append(model.eval())
+    return _COMPACT[0]
+
+
+def first():
+    """先に使う網。軽い網（animevideov3）は Actions の機械で、今の網より 10 倍速く（2 枚で 30.9 → 2.9 秒、82.6 → 7.9 秒）、
+    縮め戻した絵と元の絵の SSIM（0.9725 → 0.9839、0.9881 → 0.9952）も線の重なり（0.987 → 0.991、0.907 → 0.951）も上がった。
+    取れないとき（通信が無い）は今の網に戻す"""
+    try:
+        return _compact()
+    except Exception:
+        return _net()
+
+
+def x4(img, tile: int | None = None, pad: int = 16, on_step=None, net=None):
     """PIL の絵を 4 倍にする。メモリーに収めるため、端を重ねたタイルに分けて回す。
     区画の大きさはメモリの予算で決める（membudget.tile_for）。出来上がりは 8 ビットの配列へ区画ごとに直に書く。
     前は 4 倍の大きさの 32 ビットの入れ物を先に取り、最後にもう 1 枚 8 ビットへ写していたので、2048 角の絵で約 1GB の山になった"""
@@ -108,7 +165,7 @@ def x4(img, tile: int | None = None, pad: int = 16, on_step=None):
     import torch
     from PIL import Image
     from chatdraw import membudget as mb
-    net = _net()
+    net = net or _net()
     dev = next(net.parameters()).device
     dtype = next(net.parameters()).dtype
     if tile is None:
@@ -137,7 +194,7 @@ def x4(img, tile: int | None = None, pad: int = 16, on_step=None):
 def upscale(img, scale: int = 2, on_step=None):
     """img を scale 倍（2 か 4）にする。透明な所は、透明度だけを普通の拡大で合わせる"""
     from PIL import Image
-    big = x4(img, on_step=on_step)
+    big = x4(img, on_step=on_step, net=first())
     size = (img.width * scale, img.height * scale)
     if big.size != size:
         big = big.resize(size, Image.LANCZOS)

@@ -56,7 +56,10 @@ class ChatPanelTest(unittest.TestCase):
                 c.add("user" if i % 2 else "ai", "長い文の吹き出し " * 12 + str(i))
             for width in (220, 420, 900):
                 c.resize(width, 420)
-                spin(5)
+                for _ in range(40):   # 並べて流す重い機械では、組み直しが 5 回の処理では終わらないことがある
+                    spin(5)
+                    if all(b.width() <= c.scroll.viewport().width() for b in c.bubbles()):
+                        break
                 self.assertGreater(c.input.geometry().top(), c.scroll.geometry().bottom() - 1)   # 書く欄は会話の下
                 room = c.scroll.viewport().width()
                 for b in c.bubbles():

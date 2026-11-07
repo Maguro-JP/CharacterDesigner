@@ -61,8 +61,62 @@ def one(root: str, stage: str, path: str, scale: int = 1, save: str = "") -> dic
     return {"error": (r.stderr or r.stdout)[-800:]}
 
 
+UPSCALE_CHILD = r"""
+import json, resource, sys, time
+import numpy as np
+sys.path.insert(0, sys.argv[1])
+from PIL import Image
+from chatdraw import upscale as U
+from skimage.metrics import structural_similarity as ssim
+im = Image.open(sys.argv[3]).convert("RGB")
+t = time.time()
+net = U._net() if sys.argv[2] == "anime6b" else U._compact()
+load = time.time() - t
+t = time.time()
+big = U.x4(im, net=net)
+sec = time.time() - t
+big.save(sys.argv[4])
+# 出来: 4 倍の絵を元の大きさに縮めて、元の絵と比べる（拡大が線と形を保っているか）
+back = np.asarray(big.resize(im.size, Image.LANCZOS)).astype(float)
+a = np.asarray(im).astype(float)
+g = lambda x: x @ np.array([0.299, 0.587, 0.114])
+la, lb = g(a) < 90, g(back) < 90
+print("RESULT " + json.dumps(dict(load=round(load, 2), seconds=round(sec, 2),
+      gb=round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6, 3),
+      ssim_back=round(float(ssim(g(a), g(back), data_range=255)), 4),
+      line_back=round(float((la & lb).sum() / max(1, (la | lb).sum())), 4))))
+"""
+
+
+def upscale_rows(path: str) -> list[dict]:
+    """拡大の網を並べる。出来は、縮め戻した絵と元の絵の SSIM・線の重なり、2 つの網の 4 倍の絵どうしの SSIM"""
+    import numpy as np
+    rows, outs = [], {}
+    for name in ("anime6b", "animevideov3"):
+        save = f"/tmp/up-{name}.png"
+        r = subprocess.run([sys.executable, "-c", UPSCALE_CHILD, str(ROOT), name, path, save],
+                           capture_output=True, text=True, cwd=str(ROOT))
+        res = next((json.loads(x[7:]) for x in r.stdout.splitlines() if x.startswith("RESULT ")), {"error": r.stderr[-800:]})
+        if "error" not in res:
+            outs[name] = save
+        rows.append(dict(stage=f"拡大 4 倍（{name}）", **res))
+    if len(outs) == 2:
+        from PIL import Image
+        from skimage.metrics import structural_similarity as ssim
+
+        def g(x):
+            return np.asarray(Image.open(x).convert("L")).astype(float)
+        rows.append(dict(stage="拡大の 2 つの網の 4 倍どうし",
+                         ssim=round(float(ssim(g(outs["anime6b"]), g(outs["animevideov3"]), data_range=255)), 4)))
+    return rows
+
+
 def main():
     import numpy as np
+    if len(sys.argv) > 2 and sys.argv[2] == "--upscale":
+        for r in upscale_rows(str(Path(sys.argv[1]).resolve())):
+            print(json.dumps(r, ensure_ascii=False), flush=True)
+        return
     path = str(Path(sys.argv[1]).resolve())
     old = sys.argv[2] if len(sys.argv) > 2 else ""
     rows = []

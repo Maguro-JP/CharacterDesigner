@@ -84,6 +84,29 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         line = finishers._gen("cleanup").line_mask(a)
         self.assertLessEqual(np.abs(o - a).max(2)[line].max(), finishers.LINE_DELTA + 1)
 
+    def test_changed_or_unreadable_hand_goes_back_to_original(self):
+        from chatdraw import handcheck
+        src = Image.open(SAMPLE).convert("RGB")
+        out = src.point(lambda v: 255 - v)
+
+        class Hands:
+            def _litert(self):
+                pass
+
+            def best_crop(self, im, box, ang):
+                return im.crop(box)
+
+            def measure(self, crop):
+                dark = sum(crop.convert("L").getdata()) / (crop.width * crop.height) < 128
+                return ({"palm": 1.0, "thumb": 1.0 if dark else 1.3, "fingers": {"count": 5}}, [], None)
+        with mock.patch.object(handcheck, "_hands", lambda: Hands()), \
+                mock.patch.object(handcheck, "ensure_models", lambda fetch=True: True), \
+                mock.patch.object(handcheck, "find_hands", lambda h, im: ["10,10,60,60:0", "100,100,150,150:0"]):
+            got, n = finishers.hand_guard(src, out)
+        self.assertEqual(n["hands_back"], 2)   # 指の長さの比が変わった手は、元の画素に戻す
+        self.assertEqual(got.crop((10, 10, 60, 60)).tobytes(), src.crop((10, 10, 60, 60)).tobytes())
+        self.assertEqual(got.crop((200, 200, 250, 250)).tobytes(), out.crop((200, 200, 250, 250)).tobytes())
+
     def test_real_clean_stays_close_to_original(self):
         src = Image.open(SAMPLE).convert("RGB")
         for name in ("clean", "retouch", "retouch_full"):
