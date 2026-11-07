@@ -1071,7 +1071,18 @@ class Painter:
         reference（PIL）を渡すと、その絵の絵柄や雰囲気を借りる。ref_scale が大きいほど寄せる"""
         import torch
         was_loaded = self._pipe is not None
-        pipe = self.load(size)
+        from chatdraw import membudget as mb
+        self.stages = st = mb.Stages()
+        try:
+            with st.stage("読み込み" if not was_loaded else "読み込み（読んだ模型を使い回す）"):
+                pipe = self.load(size)
+            return self._paint_measured(pipe, was_loaded, prompt, seed, on_step, base, strength, size, on_preview,
+                                        reference, ref_scale)
+        finally:
+            st.close()
+
+    def _paint_measured(self, pipe, was_loaded, prompt, seed, on_step, base, strength, size, on_preview, reference, ref_scale):
+        import torch
         # 読んだあとも 1 枚ごとに予算を見直す（ほかのアプリが空きを使ったかもしれない）。置き方は替えず、大きさと軽さを決める。
         # 本体を 4 ビットに縮めたかは読んでから分かるので、縮めた模型は読んだ直後にも見直す
         again = was_loaded or getattr(self, "quantized", False)
@@ -1135,13 +1146,44 @@ class Painter:
         if watch is not None:
             watch.__enter__()
         try:
-            return self._paint_body(pipe, info, f, prompt, args, size, want, base, strength, reference, ref_scale, step, steps)
+            return self._timed_body(pipe, info, f, prompt, args, size, want, base, strength, reference, ref_scale, step, steps)
         except mb.MemoryDanger:
             self._save_partial(want, info)
             raise
         finally:
             if watch is not None:
                 watch.__exit__(None, None, None)
+
+    def _timed_body(self, pipe, info, f, prompt, args, size, want, base, strength, reference, ref_scale, step, steps):
+        """描く本体と VAE の復号を分けて測る。復号の秒と山は、vae.decode を包んで測る（絵は変えない）"""
+        import time
+        st = self.stages
+        vae = getattr(pipe, "vae", None)
+        took = []
+        orig = getattr(vae, "decode", None) if vae is not None else None
+        if callable(orig):
+            def decode(*a, **k):
+                with st.stage("VAE の復号"):
+                    t = time.perf_counter()
+                    try:
+                        return orig(*a, **k)
+                    finally:
+                        took.append(time.perf_counter() - t)
+            vae.decode = decode
+        t0 = time.perf_counter()
+        peak0 = mb_rss()
+        try:
+            out = self._paint_body(pipe, info, f, prompt, args, size, want, base, strength, reference, ref_scale, step, steps)
+        finally:
+            if callable(orig):
+                try:
+                    del vae.decode   # 包みを外す（インスタンスの属性だけを消し、元の関数に戻す）
+                except AttributeError:
+                    vae.decode = orig
+        body = time.perf_counter() - t0 - sum(took)
+        st.rows.insert(len(st.rows) - len(took), ("描く本体（" + f"{size[0]}×{size[1]}、{steps} 工程）", round(body, 2),
+                                                  round(max(peak0, st._peak), 2), 0.0))
+        return out
 
     def _save_partial(self, want, info):
         """危ないところで止めたときの途中の絵（latents を色に直しただけ。VAE は通さない）を出力の置き場に残す"""
@@ -1295,6 +1337,11 @@ class Painter:
         self.redraw_plan = plan
         self._check_budget(plan)
         return 1.0
+
+
+def mb_rss() -> float:
+    from chatdraw.membudget import rss_gb
+    return rss_gb()
 
 
 def hires_inpaint(image, mask, run, scale: float = 1.5):
