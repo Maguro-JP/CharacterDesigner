@@ -674,6 +674,13 @@ class Window(QMainWindow):
         self.tips_scroll = tips_box
         self.entry.installEventFilter(self)
         self._load_prompts()
+        # 単語のお気に入りの段（描くワードの登録の中、文のまとまりの下）と、読めなかった語の段（chatdraw/wordpanel.py）
+        from chatdraw import wordpanel
+        self.word_row = wordpanel.WordRow(self.entry, on_change=self._words_changed)
+        self.lost_row = wordpanel.LostRow(self.entry, on_change=self._words_changed)
+        self.entry.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.entry.customContextMenuRequested.connect(
+            lambda pos: wordpanel.entry_menu(self.entry, self._words_changed).exec(self.entry.mapToGlobal(pos)))
         # 禁止ワードの登録。描くワードの登録と同じく、押すと禁止ワードの欄に入る。設定に残すので更新でも消えない
         self.neg_fav_button = QPushButton("☆")
         self.neg_fav_button.setFixedWidth(40)
@@ -713,7 +720,9 @@ class Window(QMainWindow):
         self._lora_row()
         tl.addWidget(word_head)
         tl.addWidget(self.entry)
+        tl.addWidget(self.lost_row)
         tl.addWidget(tips_box)
+        tl.addWidget(self.word_row)
         tl.addWidget(neg_head)
         tl.addLayout(neg_row)
         tl.addWidget(neg_box)
@@ -1050,6 +1059,8 @@ class Window(QMainWindow):
         setting_menu.addAction(QAction("作風の登録…", self, triggered=self.open_favorites,
                                        toolTip="好きな作家・作品の言葉を名前で残し、描くときに足します"))
         setting_menu.addAction(QAction("参考画像を探す…", self, triggered=self.ask_reference_search))
+        setting_menu.addAction(QAction("単語辞書…", self, triggered=self.open_word_dict,
+                                       toolTip="頼みの語がどのタグになったか、描いて使えた語と訳、学びの様子を見ます"))
         setting_menu.addAction(QAction("予約の一覧", self, triggered=lambda: self.say(self.scheduler.summary())))
         setting_menu.addAction(QAction("予約を全部消す", self, triggered=lambda: (self.scheduler.clear(), self.say("予約を全部消しました"))))
         sel = self.menuBar().addMenu("選択範囲")
@@ -2439,6 +2450,14 @@ class Window(QMainWindow):
                                      + (f"（見つからない絵 {len(res['missing'])} 枚）" if res["missing"] else ""), 12000)
         return res
 
+    def judge(self, path: str, verdict: str) -> bool:
+        """履歴の右クリック → 判定。記録の無い絵（前の版で描いた絵）は知らせる"""
+        from chatdraw import wordlearn
+        ok = wordlearn.set_verdict(path, verdict)
+        self.statusBar().showMessage((f"判定を付けました: {wordlearn.VERDICTS.get(verdict, '消しました')}" if ok else
+                                      "この絵は学びの記録がありません（前の版で描いた絵です）"), 4000)
+        return ok
+
     def _history_menu(self, pos, run: bool = True):
         from PySide6.QtWidgets import QMenu
         it = self.history.itemAt(pos)
@@ -2463,6 +2482,15 @@ class Window(QMainWindow):
         from chatdraw import ownstyle
         m.addAction("★ お気に入りを外す" if ownstyle.is_favorite(path) else "★ お気に入りにする", lambda: ownstyle.toggle(path))
         m.addAction("学習用に集める", self.collect_favorites)
+        # 判定（良い・悪い・直した）は学びの記録に付ける（chatdraw/wordlearn.py）。検品より弱く数え、「良い」はタグを強めない
+        from chatdraw import wordlearn
+        judge = QMenu("判定", m)   # 親をはっきり持たせる（文字だけで足すと、返したメニューから引いたときに消えていた）
+        m.addMenu(judge)
+        judge.setToolTipsVisible(True)
+        now = wordlearn.verdict_of(path)
+        for key, label in list(wordlearn.VERDICTS.items()) + [("", "判定を消す")]:
+            act = judge.addAction(("● " if key and key == now else "") + label, lambda k=key: self.judge(path, k))
+            act.setToolTip("この絵の判定を学びの記録に付けます。次から描くときの通りやすさに弱く数えます")
         m.addSeparator()
         m.addAction("絵をコピー", lambda: self.copy_image(path))
         m.addAction("保存した場所を開く", lambda: self.open_folder(path))
@@ -2484,8 +2512,23 @@ class Window(QMainWindow):
 
     ENTRY_TIP = "描いてほしい絵を日本語か英語で書き、Enter か「描く」で描きます（Shift+Enter で改行）"
 
+    def _words_changed(self):
+        """単語のお気に入り・読めなかった語の直しのあと。目安と段を作り直す"""
+        self.word_row.reload()
+        self.ai_panel.update_preview()
+        self._entry_tip()
+
+    def open_word_dict(self):
+        """設定 → 単語辞書…（描くワードの段の「辞書…」と同じ窓）"""
+        return self.word_row.open_dialog()
+
     def _entry_tip(self):
         """書く欄のツールチップ。使い方に、模型に渡る言葉の目安と、前に絵の模型に渡した言葉を足す"""
+        if hasattr(self, "lost_row"):   # 読めなかった語は、カーソルを合わせなくても見える段に出す（黙って落とさない）
+            from chatdraw.engine import has_japanese
+            from chatdraw.jaterms import leftover
+            text = self.entry.text().strip()
+            self.lost_row.update_words(leftover(text) if text and has_japanese(text) else [])
         lines = [self.ENTRY_TIP]
         guess = self.ai_panel.preview.text().strip()
         if guess:

@@ -369,6 +369,8 @@ def use_scheduler(pipe, info) -> bool:
 
 ASK_SENTENCE = ("Translate the drawing request (Japanese or any other language) into one English sentence that describes the image for a text-to-image model. "
                 "Reply with the sentence only. Translate every detail, add nothing that is not in the request.")
+ASK_WORD = ("Translate one word or short phrase from a drawing request (Japanese or any other language) into English tags for an anime "
+            "illustration model. Reply with one to three short comma-separated tags only. If it does not change what is drawn, reply none.")
 ASK = ("Translate the drawing request (Japanese or any other language) into English tags for an anime illustration model. "
        "Reply with one line of short comma-separated tags only (e.g. red bikini, long hair, beach, waving). "
        "Bind each color to its object. Translate every detail, add nothing that is not in the request. "
@@ -558,13 +560,40 @@ class Words:
                 out = ""
             return out or (sentence(picked) if picked else english_only(text))
         keep, neg, ja = _clean_tags(self.ask(ASK, text))
-        self.untranslated = ja
+        # 表で読めなかった語は、1 語ずつ言葉の模型に訳させて確かめる（文ごとの訳では、語が黙って抜けることがあった）。
+        # 訳せた語は利用者の辞書に覚え、次からは表と同じに引く。訳せなかった語は読めなかった語として画面に出す
+        lost = []
+        for word in leftover(text):
+            got = self._word(word)
+            if got is None:
+                lost.append(word)
+            elif got:
+                keep += [t for t in got.split(", ") if t and t.lower() not in (k.lower() for k in keep)]
+        self.untranslated = list(dict.fromkeys(ja + lost))
         for n in neg:
             if n not in self.negative:
                 self.negative.append(n)
         bad = {n.lower() for n in self.negative}
         keep = [t for t in keep if t.lower() not in bad]   # 打ち消した物を、模型が描く言葉に入れていても外す
         return merge(", ".join(keep), [t for t in picked if t.lower() not in bad])
+
+
+    def _word(self, word: str) -> str | None:
+        """1 語を言葉の模型で訳し、辞書に覚える。描く物を変えない語は ""、訳せなかったら None"""
+        try:
+            out = self.ask(ASK_WORD, word, max_tokens=24)
+        except Exception:
+            return None
+        out = out.strip().strip(".")
+        if not out or has_japanese(out):
+            return None
+        tags = "" if out.lower() in ("none", "no", "n/a") else ", ".join(t.strip() for t in out.split(",") if t.strip())[:80]
+        try:
+            from chatdraw import worddict
+            worddict.set_term(word, tags, source="llm")
+        except Exception:
+            pass
+        return tags
 
 
 def sentence(picked: list[str]) -> str:
@@ -1499,6 +1528,16 @@ class Studio:
         prompt = self.words.to_prompt(text, tags=as_tags)
         # 頼んだ物の検品は頼みの言葉だけで見る（足した背景は頼みではないので、描かれなくても描き直しの理由にしない）
         asked_prompt = prompt
+        # 学んだ描かれにくさで頼みのタグを並べ替え、通りにくい模型は頼みの効きを少し上げる（chatdraw/wordlearn.py）。
+        # 足しも消しもしない。一定の割合で学びを使わずに描き、学びが好みに偏らないようにする
+        from chatdraw import wordlearn
+        explored, guidance0 = True, getattr(self.painter, "guidance", None)
+        try:
+            prompt, moved, explored = wordlearn.adjust(prompt, getattr(self.painter, "model", ""))
+            if guidance0 is not None and not explored:
+                self.painter.guidance = wordlearn.guidance(getattr(self.painter, "model", ""), guidance0)
+        except Exception as e:   # 記録が読めなくても描く
+            say(f"学んだ記録を読めませんでした（{e}）。学びを使わずに描きます")
         if base is None and reference is None:   # ラフや参考画像の絵は、その絵の背景を活かす
             prompt = vary_background(prompt, seed, tags=as_tags)
         lost = list(getattr(self.words, "untranslated", []) or [])
@@ -1554,6 +1593,8 @@ class Studio:
                 break
         if hasattr(self.painter, "avoid"):
             self.painter.avoid = avoid0
+        if guidance0 is not None:
+            self.painter.guidance = guidance0
         image, left, seed = best
         # 検品できなかった絵（部品が無い、止めてある）は、崩れが無いのではなく見ていないだけなので、通ったことにしない
         checked = bool(self.hand_rounds) and asked["readable"]
@@ -1563,8 +1604,22 @@ class Studio:
             say("検品できなかったので、通ったかは分かりません（途中）")
         path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model,
                                             hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws, passed=checked and not left))
+        self._learn(path, text, asked_prompt, left, missing_all, checked and not left, explored)
         self._inspect(path, say)
         return prompt, path
+
+    def _learn(self, path, text, asked_prompt, left, missing, passed, explored):
+        """描いた 1 枚を学びの記録と単語辞書に足す（chatdraw/wordlearn.py、chatdraw/worddict.py）。失敗しても描いた絵は渡す"""
+        try:
+            from chatdraw import jaterms, worddict, wordlearn
+            wordlearn.record(path, asked_prompt, getattr(self.painter, "model", ""), len(left), missing, passed, explored)
+            words = {}
+            for row in jaterms.align(text) if has_japanese(text) else []:
+                for t in row["tags"]:
+                    words.setdefault(t, row["word"])
+            worddict.record([t.strip() for t in asked_prompt.split(",")], passed, words)
+        except Exception:
+            pass
 
     def _two_stage_models(self, base, reference, say=lambda m: None):
         """2 段で描くなら (構図の模型, 仕上げの模型)、1 つの模型で描くなら None。
