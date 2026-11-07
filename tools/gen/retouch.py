@@ -177,18 +177,16 @@ def heal(a: np.ndarray, protect: np.ndarray | None = None) -> np.ndarray:
     from scipy.ndimage import distance_transform_edt
     far = distance_transform_edt(~(m & ~dirt)) > ISOLATED
     dirt &= far
-    # 並んだ粒は細い線の切れ端（点線の一部）なので消さない。狐の絵の髪の縁で、薄い線の切れ端を消して線が点線に切れた。
-    # 粒どうしを CHAIN 画素まで太らせてつながる粒が CHAIN_N 個以上の組は、線の一部として残す
+    # 薄い線の一部の粒は消さない。狐の絵の髪の縁で、薄い線（主線より明るい）の濃い所だけが粒に見え、消すと線が点線に切れた。
+    # 周りより THIN 以上暗い所がつながって THIN_LEN 画素以上ある物を薄い線とし、その上の粒は残す
     if dirt.any():
-        from scipy.ndimage import binary_dilation
-        glab, _ = label(binary_dilation(dirt, iterations=CHAIN), structure=np.ones((3, 3)))
-        plab, _ = label(dirt, structure=np.ones((3, 3)))
-        g = glab[dirt]
-        pieces = {}
-        for gi, pi in zip(g.tolist(), plab[dirt].tolist()):
-            pieces.setdefault(gi, set()).add(pi)
-        chained = np.array([0] + [len(pieces.get(i, ())) >= CHAIN_N for i in range(1, glab.max() + 1)], bool)
-        dirt &= ~chained[glab]
+        from scipy.ndimage import uniform_filter
+        L = _lum(a) * 255
+        thin = (uniform_filter(L, 7) - L) > THIN
+        tl, _ = label(thin, structure=np.ones((3, 3)))
+        ts = np.bincount(tl.ravel())
+        ts[0] = 0
+        dirt &= ~(ts[tl] >= THIN_LEN)
     if protect is not None:
         dirt &= ~protect
     # 中央値は粒の画素でだけ取る（絵全体に 9×9 の中央値を掛けると、拡大のあとの 4M 画素の絵で 1 回 1.3 秒かかり、
@@ -385,8 +383,8 @@ def drift(a: np.ndarray, b: np.ndarray, scale: int = 16) -> float:
     return float(1 - np.corrcoef(x, y)[0, 1])
 
 
-CHAIN = 6           # 粒どうしがこれだけ（画素）の隙間で並ぶと、点線とみなす
-CHAIN_N = 2         # 並んだ粒がこれ以上なら、線の切れ端として残す
+THIN = 8            # 周りよりこれだけ暗い所を薄い線の候補にする（明るさ 0〜255）
+THIN_LEN = 400      # 薄い線とみなす、つながった画素の数
 ISOLATED = 8        # 線からこれだけ離れた粒だけを消す（画素）
 LOCAL = 14.0        # 区画（32 画素）の平均の色が、全体の色の変え方で説明できずに変わってよい上限（0〜255）
 

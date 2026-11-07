@@ -769,6 +769,7 @@ def scores(src, out) -> dict:
 
 
 LINE_DELTA = 40.0   # 主線とその 2 画素の周りで、元の絵から変えてよい色の上限（0〜255）。線の太さと形を変えないように
+DARK_DELTA = 15.0   # 元より暗くしてよい色の上限（0〜255）。40・25・15・10 を比べ、袴の筋が消え、雪女の線の締まり（ぼけの数字の減り）の 9 割が残る 15 にした
 CELL_SSIM = 0.90    # 区画（QC_CELL 画素）ごとの SSIM の下限。下回った区画は形が変わったとして元の絵に戻す
 
 
@@ -806,6 +807,12 @@ def limit(src, out):
         chip = binary_dilation(chip, iterations=1)
         b[chip] = a[chip]
     capped += int(chip.sum())
+    # 元より濃くする上限: 線を締める工程が、主線の外の薄い線を濃い筋にした（狐の絵の袴で元より 84.6 暗い筋）。
+    # 主線の内か外かによらず、暗くする変わりを DARK_DELTA までに抑える
+    d = b - a
+    dark = (d @ np.float32([0.299, 0.587, 0.114])) < -DARK_DELTA
+    capped += int(dark.sum())
+    b = a + np.maximum(d, -DARK_DELTA)
     w = np.float32([0.299, 0.587, 0.114])
     x, y = a @ w, b @ w
     mx, my = uniform_filter(x, 7), uniform_filter(y, 7)
