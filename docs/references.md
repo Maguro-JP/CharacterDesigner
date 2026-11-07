@@ -173,7 +173,7 @@ OpenRAIL-M は、生成物の利用を認め、違法・有害な用途を禁じ
 | 道具 | 中身 | 許諾 | 出典 |
 |---|---|---|---|
 | 塗りのむらを均す | 中央値で平らな所を均し、輪郭は元の画素を戻す | このリポジトリのコード | `chatdraw/finishers.py` |
-| アニメ向けに拡大して整える | RealESRGAN_x4plus_anime_6B（18MB） | BSD-3-Clause | https://github.com/xinntao/Real-ESRGAN |
+| アニメ向けに拡大して整える | realesr-animevideov3（2.4MB、先に使う）、RealESRGAN_x4plus_anime_6B（18MB、取れないとき） | BSD-3-Clause | https://github.com/xinntao/Real-ESRGAN |
 | 顔を整える・低い強さで描き直して仕上げる | 取得済みの直しに使える絵の模型で、強さ 0.25〜0.3 の範囲の描き直し | 使う絵の模型の許諾（CreativeML OpenRAIL++-M など） | 上の表の模型 |
 
 CodeFormer（S-Lab License 1.0、商用不可）は配布に合わないので目録に入れない。
