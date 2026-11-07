@@ -1573,12 +1573,18 @@ class Studio:
         avoid0, unasked, missing_all = getattr(self.painter, "avoid", ""), [], []
         if negative and hasattr(self.painter, "avoid"):   # 「帽子なし」の帽子は、描かない物に入れて描かせない
             self.painter.avoid = ", ".join([a for a in [avoid0] + negative if a])
-        for k in range(self.REDRAW_TRIES):
+        from chatdraw.persist import Persist, counter
+        g0 = getattr(self.painter, "guidance", None)
+        # 種は毎回変える。同じ崩れが続いたら、頼みの効かせ方（guidance）も替えて試す。一周しても同じなら止める
+        keep = Persist([1.0, 0.85, 1.2, 0.7] if g0 is not None else [None], stopped=lambda: getattr(self.painter, "stop", False))
+        for k in counter(self.REDRAW_TRIES):
             if unasked:
                 self.painter.avoid = ", ".join([a for a in [avoid0] + negative + unasked if a])
             s_k = seed + 1000 * k
+            if g0 is not None:
+                self.painter.guidance = g0 * keep.hand()
             if k:
-                say(f"検品を通らなかったので、種を変えて描き直しています（{k + 1}/{self.REDRAW_TRIES} 回目）")
+                say(f"検品を通らなかったので、種を変えて描き直しています（{k + 1} 回目・崩れ {len(best[1])} 件が一番少ない）")
             if missing_all:   # 前の回で描かれなかった頼みを、描く言葉の前に出す
                 prompt = emphasize(prompt, missing_all)
             image = self.painter.paint(prompt, s_k, on_step=lambda i, n: say(f"描いています（{i}/{n}）"),
@@ -1609,8 +1615,14 @@ class Studio:
             redraws.append({"seed": s_k, "bad": left})
             if best is None or len(left) < len(best[1]):
                 best = (image, left, s_k)
-            if not left or getattr(self.painter, "stop", False) or (not self.hand_rounds and not asked["readable"]):
+            if not self.hand_rounds and not asked["readable"]:   # 検品の道具が無い（止めてある）と、回しても何も分からない
                 break
+            if not keep.go_on(left):
+                if left:
+                    say(f"描き直しを止めました（{k + 1} 回描いた・{keep.reason}）")
+                break
+        if g0 is not None:
+            self.painter.guidance = g0
         if hasattr(self.painter, "avoid"):
             self.painter.avoid = avoid0
         if guidance0 is not None:
@@ -1758,10 +1770,12 @@ class Studio:
         # 通らなかったときは崩れの一番少ない回の絵を渡し、どの回の崩れも .json の redraws に残す
         variant = twostage.VARIANTS[0]
         best, redraws, missing_all = None, [], []
-        for k in range(self.REDRAW_TRIES):
+        from chatdraw.persist import Persist, counter
+        tries = Persist([None, None, None], stopped=lambda: self.painter.stop)   # keep は段の置き場の名前に使っている
+        for k in counter(self.REDRAW_TRIES):
             s_k = seed + 1000 * k
             if k:
-                say(f"検品を通らなかったので、種を変えて構図から描き直しています（{k + 1}/{self.REDRAW_TRIES} 回目）")
+                say(f"検品を通らなかったので、種を変えて構図から描き直しています（{k + 1} 回目）")
             sentence, tags = vary_background(sentence0, s_k, tags=False), emphasize(vary_background(tags0, s_k), missing_all)
             keep = self.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{s_k}"
             path = twostage.run_stages(sentence, tags, s_k, comp.repo, render.repo, tuple(size or (832, 1216)), keep, variant,
@@ -1772,7 +1786,7 @@ class Studio:
             redraws.append({"seed": s_k, "bad": left, "stages": str(keep)})
             if best is None or len(left) < len(best[1]):
                 best = (path, left, s_k, keep, tags, sentence, result)
-            if result.get("passed") or getattr(self.painter, "stop", False) or not result.get("checked", True):
+            if result.get("passed") or not result.get("checked", True) or not tries.go_on(left or ["通らなかった"]):
                 break
         path, left, seed, keep, tags, sentence, result = best
         if left:
@@ -1786,10 +1800,11 @@ class Studio:
         return tags, saved
 
     last_check: dict | None = None
-    # 質が先で、速さは後。時間がかかっても、崩れが消えるまで直して描き直す（3 回ずつでは崩れの残った絵を渡していた）。
-    # 上限は、検品が読み違え続けたときに止まらなくなるのを避けるためだけに置く
-    FIX_ROUNDS = 6     # 描いたあと、崩れた所を直して検品し直す回数の上限
-    REDRAW_TRIES = 12  # 直しても検品を通らないとき、種を変えて描き直す回数の上限
+    # 質が先で、速さは後。回数の上限を置かず、崩れが消えるまで直して描き直す（12 回・6 回の上限では崩れの残った絵を渡していた）。
+    # 止まるのは、止めるボタンと、同じ崩れが別の手を一周試しても変わらないときだけ（chatdraw/persist.py）。
+    # None が上限なし。数を入れるのは、流れを短く確かめる試験だけ
+    FIX_ROUNDS = None    # 描いたあと、崩れた所を直して検品し直す回数
+    REDRAW_TRIES = None  # 直しても検品を通らないとき、種を変えて描き直す回数
 
     def _fix_hands(self, image, prompt: str, seed: int, say):
         """1 回描いて終わりにしない。描いた絵の手・足・顔を検品し、崩れた所だけを直して、もう一度検品する。
@@ -1813,7 +1828,11 @@ class Studio:
             if self.hand_rounds[-1]["bad"] != best[2]:
                 self.hand_rounds.append({"round": "best", "bad": best[2]})
             return best[1]
-        for r in range(self.FIX_ROUNDS + 1):
+        from chatdraw.persist import Persist, counter
+        # 試す手: 直す強さと、直す範囲の広さ（崩れの枠の何倍の円で囲むか）。同じ崩れが一周変わらなければ止める
+        keep = Persist([(0.55, 0.6), (0.65, 0.6), (0.75, 0.75), (0.85, 0.75), (0.9, 0.9), (0.95, 0.9)],
+                       stopped=lambda: getattr(self.painter, "stop", False))
+        for r in counter(None if self.FIX_ROUNDS is None else self.FIX_ROUNDS + 1):
             say(f"検品しています（手と指・{r + 1} 回目）")
             res = handcheck.check(image, asked=prompt)
             self.hand_rounds.append({"round": r, "bad": res["bad"]})
@@ -1845,17 +1864,20 @@ class Studio:
                         best = (0, image, [], again)
                     else:
                         say("細部の描き直しで崩れが出たので、前の絵を使います: " + "、".join(again["bad"][:3]))
-            if not regions or r == self.FIX_ROUNDS or getattr(self.painter, "stop", False):
+            strength, reach = keep.hand()   # この回に試す手（go_on で次の手へ進む前に取る）
+            if not regions or r == self.FIX_ROUNDS or not keep.go_on(res["bad"]):
+                if regions and keep.reason:
+                    say(f"手と指の直しを止めました（{r + 1} 回検品した・{keep.reason}）")
                 return done(image)
             say(f"崩れた所を直しています（{len(regions)} か所・{r + 1} 回目）: " + "、".join(res["bad"][:3]))
             mask = Image.new("L", image.size, 0)
             d = ImageDraw.Draw(mask)
             for (x0, y0, x1, y1), _kind in regions:
-                cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, y1 - y0) * 0.6
+                cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, y1 - y0) * reach
                 d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
             words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in regions))
             # 回を重ねるほど強く描き直す（弱いままだと崩れた指の形をなぞり、何回直しても同じ崩れが残った）
-            image = self.painter.redraw(f"{prompt}, {words}", seed + 77 * (r + 1), image, mask, strength=(0.55, 0.65, 0.75, 0.85, 0.9, 0.95)[min(r, 5)])
+            image = self.painter.redraw(f"{prompt}, {words}", seed + 77 * (r + 1), image, mask, strength=strength)
         return done(image)
 
     def _inspect(self, path: Path, say):
@@ -1885,61 +1907,82 @@ class Studio:
         image.save(path, pnginfo=info)
         return path
 
-    def _fix_once(self, before, mask, prompt, seed, strength, k, count, say, reference, ref_scale):
-        """1 回直して、縁に出た継ぎ目だけを元に戻し、残る所を細く描き直す"""
-        from PIL import Image
+    def _fix_once(self, before, mask, prompt, seed, strength, k, count, say, reference, ref_scale, blend: bool = True):
+        """1 回直して、縁に出た継ぎ目だけを元に戻し、境目の色・明るさ・線を元の絵に合わせる（chatdraw/seamfix.py）。
+        前は継ぎ目が残ると継ぎ目の所を模型でもう 1 回描き直していた。模型を回すより、境目の帯だけを数字で合わせる方が
+        速く（模型 1 回分の秒が減る）、元の絵にもつながった"""
+        from PIL import Image, ImageChops
+        from chatdraw import seamfix
         result = self.painter.redraw(prompt, seed, before, mask, strength=strength,
                                      on_step=lambda i, n: say(f"描いています（{i}/{n}・{k}/{count} か所目）"),
                                      reference=reference, ref_scale=ref_scale)
-        for t in range(1, 3):
-            seam = seams(before, result, mask)
-            if seam is None:
-                break
-            if t == 1:
-                say(f"継ぎ目を消しています（{k} か所目）")
-                result = Image.composite(before, result, seam)   # 間違えた線だけを元の絵に戻す（消しゴム）
-                continue
-            result = self.painter.redraw(prompt, seed + 100, result, seam, strength=0.3,
-                                         on_step=lambda i, n: say(f"描いています（{i}/{n}・{k}/{count} か所目の継ぎ目）"))
+        result = Image.composite(result.convert("RGB"), before, mask)   # 囲みの外は 1 画素も変えない（模型の直しが外へ漏れても戻す）
+        seam = seams(before, result, mask)
+        if seam is not None:
+            say(f"継ぎ目を消しています（{k} か所目）")
+            seam = ImageChops.multiply(seam, mask.convert("L"))   # 継ぎ目の帯は囲みの外にもかかるので、囲みの中だけを戻す
+            result = Image.composite(before, result, seam)   # 間違えた線だけを元の絵に戻す（消しゴム）
+        if not blend:   # 絵全体を描き替える加工（ちびキャラ）には境目が無い
+            return result
+        result, tried = seamfix.settle(before, result, mask, say=lambda m: say(f"{m}（{k} か所目）"))
+        self.last_seam.append(dict(region=k, **(tried[-1] if tried else {}), tries=len(tried)))
         return result
 
     def fix(self, image, regions: list[tuple], seed: int, on_status=None, style: str = "", strength: float = 0.75,
             reference=None, ref_scale: float = 0.6, check: bool = True):
         """赤ペン先生と範囲の描き直し。check を外すと崩れの検査をしない（ちびキャラのように絵全体を描き替える加工）。regions は (mask, 指示の文) の並び。直す所ごとに指示を描く言葉に直し、
-        絵全体を順に描き直す。返すのは (描く言葉の並び, 描き直した絵全体の置き場)。直す所だけを貼り合わせない"""
+        絵全体を順に描き直す。返すのは (描く言葉の並び, 描き直した絵全体の置き場)。直す所だけを貼り合わせない。
+
+        囲んだ所は、近くの線と塗りの切れ目まで少しだけ広げてから直す（seamfix.adjust_mask。境目が線の際に来ると目立たない）。
+        直したあとは境目を測り、ずれていれば帯を広げて合わせ直す（seamfix.settle）。回数の上限は置かず、
+        崩れが無くなるか、同じ崩れが別の手（強さ、種、範囲）を一周試しても変わらないか、止めるボタンで止める"""
+        from chatdraw import seamfix
+        from chatdraw.persist import Persist
         say = on_status or (lambda msg: None)
         if hasattr(self.painter, "on_note"):
             self.painter.on_note = say
         prompts = []
         self.last_flaws = []   # 直したあとに見つけた崩れ（空なら見つからなかった。出来たかどうかは利用者が決める）
+        self.last_seam = []    # 境目の数字（色の差、線のずれ、SSIM）。直した所ごと
         result = image.convert("RGB")
         from PIL import Image as _Image, ImageChops as _Chops
         touched = _Image.new("L", image.size, 0)
+        words = {}   # 同じ指示を言葉の模型に 2 度聞かない
         for k, (mask, note) in enumerate(regions, 1):
-            touched = _Chops.lighter(touched, mask.convert("L"))
             if refused(note):
                 raise ValueError("子どもを性的に描く頼みは描きません")
             say(f"頼みを描く言葉に直しています（{k}/{len(regions)} か所目）")
-            prompt = self.words.to_prompt(note) if note else ""
-            prompt = ", ".join(t for t in (prompt, style) if t)
+            if note not in words:
+                words[note] = self.words.to_prompt(note) if note else ""
+            prompt = ", ".join(t for t in (words[note], style) if t)
             if refused(prompt):
                 raise ValueError("子どもを性的に描く頼みは描きません")
             say("絵の模型を読んでいます（初めの 1 回だけ時間がかかります）")
             before = result
-            # 直しきる: 直す → 確かめる、を崩れが見つからなくなるまで、強さと種を変えて繰り返す（4 回まで）。
-            # 毎回、元の絵から直す（崩れた直しの上に重ねない）。見つからなければそこで止め、残れば崩れの少ない物を使う
-            best, best_flaws = None, None
-            tries = [(strength, 0), (min(0.95, strength + 0.15), 1), (min(0.95, strength + 0.3), 2), (min(0.95, strength + 0.15), 3)]
-            for n_try, (s_try, seed_shift) in enumerate(tries, 1):
-                out = self._fix_once(before, mask, prompt, seed + k + 1000 * seed_shift, s_try, k, len(regions), say,
-                                     reference, ref_scale)
-                found = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, out, mask)] if check else []
-                say(f"確かめました（{k} か所目・{n_try} 回目・崩れ {len(found)} 件）")
+            asked = mask.convert("L").point(lambda v: 255 if v > 127 else 0)
+            # 直しきる: 直す → 確かめる、を崩れが見つからなくなるまで、強さ・種・範囲を変えて繰り返す（回数の上限なし）。
+            # 毎回、元の絵から直す（崩れた直しの上に重ねない）。残れば崩れの少ない物を使う
+            best, best_flaws, best_mask = None, None, asked
+            keep = Persist([(strength, 4), (min(0.95, strength + 0.15), 6), (min(0.95, strength + 0.3), 8), (min(0.95, strength + 0.15), 2)],
+                           stopped=lambda: getattr(self.painter, "stop", False))
+            for n_try in keep.rounds():
+                s_try, reach = keep.hand()
+                m_try = seamfix.adjust_mask(before, asked, reach=reach) if check else asked
+                out = self._fix_once(before, m_try, prompt, seed + k + 1000 * n_try, s_try, k, len(regions), say,
+                                     reference, ref_scale, blend=check)
+                found = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, out, m_try)] if check else []
+                if check and not self.last_seam[-1].get("ok", True):
+                    sm = self.last_seam[-1]
+                    found.append(f"{k} か所目: 境目のずれ（色の差 {sm['color']}・線のずれ {sm['shift']} 画素・SSIM {sm['ssim']}）")
+                say(f"確かめました（{k} か所目・{n_try + 1} 回目・崩れ {len(found)} 件）")
                 if best is None or len(found) < len(best_flaws):
-                    best, best_flaws = out, found
-                if not found:
+                    best, best_flaws, best_mask = out, found, m_try
+                if not keep.go_on(found):
+                    if found:
+                        say(f"{k} か所目の直しを止めました（{n_try + 1} 回直した・{keep.reason}）")
                     break
             result = best
+            touched = _Chops.lighter(touched, best_mask)
             prompts.append(prompt)
             self.last_flaws += best_flaws
         if self.last_flaws:
@@ -1948,5 +1991,6 @@ class Studio:
         layer = result.convert("RGBA")
         layer.putalpha(touched.point(lambda v: 255 if v > 0 else 0))
         path = self._save(layer, seed, dict(text=" / ".join(n for _m, n in regions), prompt=" / ".join(prompts), seed=seed,
-                                            style=style, model=self.painter.model, mode="直す", flaws=self.last_flaws))
+                                            style=style, model=self.painter.model, mode="直す", flaws=self.last_flaws,
+                                            seam=self.last_seam))
         return prompts, path

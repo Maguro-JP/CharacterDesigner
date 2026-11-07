@@ -278,6 +278,13 @@ def gray_to_pil(img):
     return Image.frombuffer("L", (img.width(), img.height()), bytes(img.constBits()), "raw", "L", img.bytesPerLine(), 1)
 
 
+def has_clear(img) -> bool:
+    """QImage に透けた画素が 1 つでもあるか"""
+    from PySide6.QtGui import QImage
+    a = img.convertToFormat(QImage.Format_Alpha8)
+    return Image.frombuffer("L", (a.width(), a.height()), bytes(a.constBits()), "raw", "L", a.bytesPerLine(), 1).getextrema()[0] < 255
+
+
 def fit_size(w: int, h: int, area: int = 832 * 1216) -> tuple[int, int]:
     """キャンバスと同じ縦横比で、模型の得意な画素数（約 100 万）に合う大きさ。64 の倍数にする。
     決まった大きさで描くと、ラフと縦横比がずれて、重ねたときに下のラフがはみ出した"""
@@ -3504,6 +3511,10 @@ class Window(QMainWindow):
             masks.append(sel)
         img = QImage(path)
         if not masks or img.isNull():
+            return self.put_result(path, name)
+        if img.hasAlphaChannel() and has_clear(img):
+            # 直しの道具（Studio.fix）が、直した所だけを不透明にしたレイヤーを返した。直した所は、境目を線の際へ寄せるため
+            # 赤ペンの印より少し広いことがある。印で切り直すと、広げた所が消えて境目のずれが戻った
             return self.put_result(path, name)
         img = img.convertToFormat(QImage.Format_ARGB32)
         alpha = QImage(img.size(), QImage.Format_Grayscale8)
