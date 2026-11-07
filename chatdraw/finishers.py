@@ -786,10 +786,26 @@ def limit(src, out):
     lab, _ = label(m, structure=np.ones((3, 3)))
     sizes = np.bincount(lab.ravel())
     sizes[0] = 0
-    line = binary_dilation(sizes[lab] >= cleanup.SPECK, iterations=2)   # 粒（消すのが仕事）は線に数えない
+    big = sizes[lab] >= cleanup.SPECK
+    line = binary_dilation(big, iterations=2)   # 粒（消すのが仕事）は線に数えない
     d = b - a
     capped = int((line & (np.abs(d).max(2) > LINE_DELTA)).sum())
     b[line] = a[line] + np.clip(d[line], -LINE_DELTA, LINE_DELTA)
+    # 線の際の白い欠け: 主線の 4 画素の周りで、元より LINE_DELTA / 2 を超えて明るくなった画素は、バリを取る工程が
+    # 線の縁を削った跡（狐の絵の袴の線の際）なので、その周り 1 画素ごと元の絵に戻す（粒を消した所は主線に数えないので残る）
+    # 主線（暗い線）だけでなく、周りより少し暗い薄い線（袴のしわの線など、主線の 20〜34 画素外）も削られていたので、
+    # 周りより 8 以上暗い所がつながって粒より大きい物（薄い線）も線の際に数える
+    L = a @ np.float32([0.299, 0.587, 0.114])
+    thin = (uniform_filter(L, 7) - L) > 8
+    tl, _ = label(thin, structure=np.ones((3, 3)))
+    ts = np.bincount(tl.ravel())
+    ts[0] = 0
+    near = binary_dilation(big | (ts[tl] >= cleanup.SPECK), iterations=2)
+    chip = near & (((b - a) @ np.float32([0.299, 0.587, 0.114])) > 15)
+    if chip.any():
+        chip = binary_dilation(chip, iterations=1)
+        b[chip] = a[chip]
+    capped += int(chip.sum())
     w = np.float32([0.299, 0.587, 0.114])
     x, y = a @ w, b @ w
     mx, my = uniform_filter(x, 7), uniform_filter(y, 7)
