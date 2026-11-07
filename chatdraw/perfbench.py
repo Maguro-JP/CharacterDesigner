@@ -5,7 +5,7 @@
 通した外れの数で示す。外れの数が後の設定で増えたら、その設定は採らない。
 
   python -m chatdraw.perfbench 出力の置き場
-  環境変数: PERF_MODEL（模型）、PERF_STEPS（工程の数）、PERF_SIZE（幅x高さ）、PERF_SEED、PERF_CONFIGS（設定の名前をカンマで）
+  環境変数: PERF_MODEL（模型）、PERF_STEPS（工程の数）、PERF_SIZE（幅x高さ）、PERF_IMAGES（設定ごとの枚数）、PERF_SEED、PERF_CONFIGS（設定の名前をカンマで）
 """
 from __future__ import annotations
 
@@ -44,16 +44,22 @@ def run(out: Path):
     from chatdraw.engine import Painter
     out.mkdir(parents=True, exist_ok=True)
     model = os.environ.get("PERF_MODEL", "cagliostrolab/animagine-xl-4.0")
-    steps = int(os.environ.get("PERF_STEPS", "24"))
-    w, h = (int(x) for x in os.environ.get("PERF_SIZE", "832x1216").split("x"))
+    steps = int(os.environ.get("PERF_STEPS", "8"))
+    w, h = (int(x) for x in os.environ.get("PERF_SIZE", "768x768").split("x"))
     seed = int(os.environ.get("PERF_SEED", "7"))
     names = [n for n in os.environ.get("PERF_CONFIGS", "base,channels_last").split(",") if n in CONFIGS]
-    result = {"model": model, "steps": steps, "size": [w, h], "seed": seed, "runs": []}
+    count = int(os.environ.get("PERF_IMAGES", "1"))
+    from chatdraw.engine import bf16_fast
+    result = {"model": model, "steps": steps, "size": [w, h], "seed": seed, "bf16_fast": bf16_fast(), "runs": []}
+    dump = out / "perf.json"
+
+    def save():   # 1 枚ごとに書き足す。打ち切られても測れた分が残る（前は全部描き終えてから書き、何も残らなかった）
+        dump.write_text(json.dumps(result, ensure_ascii=False, indent=1))
     for name in names:
         p = Painter(model, steps=steps)
         for k, v in CONFIGS[name].items():
             setattr(p, k, v)
-        for i in (1, 2):   # 1 枚目は読み込みを含む。2 枚目は読んだ模型を使い回す
+        for i in range(1, count + 1):   # 1 枚目は読み込みを含む。2 枚目からは読んだ模型を使い回す
             t = time.perf_counter()
             img = p.paint(PROMPT, seed, size=(w, h))
             total = time.perf_counter() - t
@@ -63,11 +69,12 @@ def run(out: Path):
                    "stages": [dict(stage=n, s=s, ram_gb=r, vram_gb=v) for n, s, r, v in p.stages.rows]}
             print(json.dumps(row, ensure_ascii=False), flush=True)
             result["runs"].append(row)
+            save()
         p.unload()
     for row in result["runs"]:
-        if row["image"] == 2:
-            row["quality"] = outliers(out / f"{row['config']}-2.png")
-    (out / "perf.json").write_text(json.dumps(result, ensure_ascii=False, indent=1))
+        if row["image"] == count:
+            row["quality"] = outliers(out / f"{row['config']}-{count}.png")
+            save()
     print(json.dumps(result, ensure_ascii=False, indent=1))
 
 
