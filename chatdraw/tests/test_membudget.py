@@ -123,9 +123,11 @@ class PainterBudgetTest(unittest.TestCase):
                 with self.subTest(ram=ram, vram=vram):
                     p, log, notes, err = run_paint("cagliostrolab/animagine-xl-4.0", float(ram), float(vram), cuda=vram > 0)
                     if err is None:
+                        # 少し超えるだけなら一番軽い設定で描く（engine.Painter.OVER_OK）。大きく超える計画では描かない
                         b = mb.budget(float(ram), float(vram))
-                        self.assertLessEqual(p.plan.ram_peak(), b.ram)
-                        self.assertLessEqual(p.plan.vram_peak(), b.vram + 1e-9)
+                        k = 1.0 if p.plan.ok else engine.Painter.OVER_OK
+                        self.assertLessEqual(p.plan.ram_peak(), b.ram * k)
+                        self.assertLessEqual(p.plan.vram_peak(), b.vram * k + 1e-9)
                     else:
                         self.assertIsInstance(err, mb.OverBudget)
 

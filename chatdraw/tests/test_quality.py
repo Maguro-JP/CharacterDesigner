@@ -44,7 +44,10 @@ class Background(unittest.TestCase):
 
     def test_keeps_asked_background(self):
         for p in ("1girl, white background", "1girl, simple background", "1girl, beach, sunset", "1girl, indoors"):
-            self.assertEqual(engine.vary_background(p, 3), p)
+            out = engine.vary_background(p, 3)
+            self.assertTrue(out.startswith(p), out)   # 頼んだ背景は残し、場所は足さない（ほかの項目は足す）
+            from chatdraw.variety import PLACES
+            self.assertFalse(any(tag in out for tag, _s in PLACES), out)
 
     def test_varies_by_seed_and_repeats_with_same_seed(self):
         got = {engine.vary_background("1girl", s) for s in range(40)}

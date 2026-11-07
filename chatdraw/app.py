@@ -149,7 +149,8 @@ class Job(QObject):
             else:
                 for seed in self.seeds:
                     extra = dict(reference=self.reference, ref_scale=self.ref_scale) if self.reference is not None else {}
-                    prompt, path = self.studio.draw(self.text, seed, on_status=self._say,
+                    # 落ちても止めず、軽い設定・小さい大きさ・別の模型・別の種と段を下げて描く（engine.Studio.draw_anyway）
+                    prompt, path = self.studio.draw_anyway(self.text, seed, on_status=self._say,
                                                     base=self.base, strength=self.strength, size=self.size,
                                                     on_preview=self._preview, style=self.style, meta=self.meta, **extra)
                     self._stopped()
@@ -158,7 +159,8 @@ class Job(QObject):
             self.done.emit()
         except Exception as e:  # 描けなかった理由を、次に何をすればよいか分かる日本語で会話に出す
             from chatdraw.engine import explain
-            self.failed.emit(f"描けませんでした: {explain(e)}")
+            from chatdraw.engine import Stopped
+            self.failed.emit(explain(e) if isinstance(e, Stopped) else f"段を下げても描けませんでした。{explain(e)}")
 
     def _stopped(self):
         """止められたあとに返ってきた絵（直しの途中で抜けた物など）は置かずに捨てる。キャンバスは元のまま"""
@@ -1954,7 +1956,8 @@ class Window(QMainWindow):
             self.progress_popup.tell("描けません", st["reason"] or "AI が使えません")   # 描く前に止まったことも右下に出す
             return
         self.last_text = text
-        self._remember_prompt(text)
+        if self.mode.currentIndex() != 2:   # 赤ペン・選択範囲の直しの指示は、描くワードの履歴に入れない（その絵の 1 か所だけの言葉）
+            self._remember_prompt(text)
         self.say(f"描きます: {text}")
         self.button.setEnabled(False)
         self.stop_button.setEnabled(True)

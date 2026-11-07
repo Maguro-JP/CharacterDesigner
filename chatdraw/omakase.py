@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import re
+import random
 from dataclasses import dataclass, field
 
 from chatdraw.models import KIND_ASPECT, ImageModel, abilities, family as fam
@@ -141,9 +142,26 @@ def finishers():
     return f if hasattr(f, "available") and hasattr(f, "run") else None
 
 
-def plan(text: str, have: list[ImageModel]) -> Plan:
+EXPLORE = 0.15   # 点の高い順に選びつつ、この割合で下の方の模型も試す（いつも同じ模型にしない）
+
+
+def explore(ranked: list, seed: int | None) -> list:
+    """合う順の並びから、描くたびに先頭を選び直す。上位 3 つを点の順の重み（3:2:1）で、EXPLORE の割合でそれより下から選ぶ。
+    いつも 1 位の模型だけで描くと、おまかせなのに模型が固定され、同じ絵柄ばかりになった。選んだ物以外は元の順で後ろに続く"""
+    if seed is None or len(ranked) < 2:
+        return list(ranked)
+    rng = random.Random(f"omakase-{seed}")
+    top = ranked[:3]
+    if len(ranked) > 3 and rng.random() < EXPLORE:
+        i = 3 + rng.randrange(len(ranked) - 3)
+    else:
+        i = rng.choices(range(len(top)), weights=[3, 2, 1][:len(top)])[0]
+    return [ranked[i]] + [r for j, r in enumerate(ranked) if j != i]
+
+
+def plan(text: str, have: list[ImageModel], seed: int | None = None) -> Plan:
     parts = split(text)
-    p = Plan(parts, compose=rank(have, compose_needs(parts), parts["style"]))
+    p = Plan(parts, compose=explore(rank(have, compose_needs(parts), parts["style"]), seed))
     for kind, aspect in KIND_ASPECT.items():
         p.fix[kind] = rank(have, [aspect, STYLE_ASPECT.get(parts["style"], "アニメ")], parts["style"], need_inpaint=True)
     f = finishers()
@@ -264,7 +282,7 @@ class Omakase:
     def run(self, text: str, seed: int, say, size=None, tries: int = 12, rounds: int = 6):
         """描く → 検品 → 落ちた部位を別の模型で直す → 検品、を通るまで回す。通らなければ構図を別の模型で描き直す。
         返すのは (絵, 頼みの言葉, 残った崩れ, 検品できたか, 種, 構図の模型)"""
-        self.plan = plan(text, self.have)
+        self.plan = plan(text, self.have, seed)
         say("おまかせの段取り: " + self.plan.summary())
         compose = self.plan.compose or [(None, "取得済みの模型が無いので今の模型")]
         best = None
@@ -275,8 +293,13 @@ class Omakase:
                 say(f"検品を通らなかったので、構図を描き直しています（{k + 1}/{tries} 回目）")
             painter = self.painter_for(m) if m is not None else self.studio.painter
             prompt = self._prompt(text, m) if m is not None else self.studio.words.to_prompt(text)
+            # 書かれていない所（背景・ポーズ・髪・服・表情・構図・光）を種で選んで足す。足さないと毎回同じ無地の立ち絵になった
+            from chatdraw.engine import vary_background
+            prompt = vary_background(prompt, seed, tags=fam(m.family).tags if m is not None else True, text=text)
             image = None
-            if self.two is not None and k == 0:
+            # 2 段の部品も候補の 1 つ。毎回 2 段で描くと構図の模型が固定されたので、ほかの模型があれば半分は 1 つの模型で描く
+            use_two = self.two is not None and k == 0 and (len(compose) < 2 or random.Random(f"two-{seed}").random() < 0.5)
+            if use_two:
                 # 構図と仕上げを分ける 2 段の部品がそろっていれば、最初の構図はそれで描く（chatdraw/twostage.py）
                 try:
                     comp, render = self.two
@@ -310,7 +333,10 @@ class Omakase:
             if not res["bad"] and res.get("detail") and not getattr(painter, "stop", False):
                 image, res = self.detail(image, res, text, s_k, m.repo if m else "", prompt, say)
             self.log.append(dict(stage="検品", seed=s_k, bad=list(res["bad"]), readable=res["readable"]))
-            if best is None or len(res["bad"]) < len(best[2]):
+            # 検品できなかった絵は崩れが無いのではなく見ていないだけなので、崩れ 1 つとして数えて比べる。
+            # 前は読めない絵（崩れ 0）が、読めて崩れが 1 つの絵より先に選ばれ、崩れを逃がした
+            flaws = len(res["bad"]) + (0 if res["readable"] else 1)
+            if best is None or flaws < len(best[2]) + (0 if best[3] else 1):
                 best = (image, prompt, list(res["bad"]), res["readable"], s_k, m)
             if (not res["bad"] and res["readable"]) or getattr(painter, "stop", False):
                 break
@@ -377,10 +403,10 @@ def _compose_two(studio, text, seed, two, size, say):
     import time
     from PIL import Image
     from chatdraw import twostage
-    from chatdraw.engine import english_only
+    from chatdraw.engine import english_only, vary_background
     comp, render = two
-    sentence = english_only(studio.words.to_prompt(text, tags=False))
-    tags = english_only(studio.words.to_prompt(text, tags=True))
+    sentence = vary_background(english_only(studio.words.to_prompt(text, tags=False)), seed, tags=False, text=text)
+    tags = vary_background(english_only(studio.words.to_prompt(text, tags=True)), seed, text=text)
     keep = studio.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}"
     path = twostage.run_stages(sentence, tags, seed, comp.repo, render.repo, tuple(size or (832, 1216)), keep,
                                twostage.VARIANTS[0], say=say, stopped=lambda: getattr(studio.painter, "stop", False))

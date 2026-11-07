@@ -867,10 +867,24 @@ class Painter:
                        + " 設定で描きます")
         return plan
 
+    OVER_OK = 1.5   # 予算（空きの 8 割）のこの倍（空きの 1.2 倍）までは、一番軽い設定で描いてみる
+
     def _check_budget(self, plan):
-        if plan is not None and not plan.ok:
-            from chatdraw.membudget import OverBudget
-            raise OverBudget(plan.reason + "。" + plan.lighter)
+        """一番軽い形でも予算を少し超えるだけなら止めずに描く。0.5.15 で見積もりが予算を超えたら描く前に止めるようにしたら、
+        空き 8.3GB の予算に 8.6GB の見積もりのような、それまで描けていた模型と大きさも「描けませんでした」になった。
+        見積もりは多めに出て、本当に危ないときは描いている途中の見張り（membudget.Watch）が止めて途中の絵を残す。
+        大きく超える物（12GB の GPU に 60GB 近い模型）は、読むと落ちるので今までどおり読む前に止める"""
+        if plan is None or plan.ok:
+            return
+        from chatdraw import membudget as mb
+        b = mb.budget()
+        over_ram = plan.ram_peak() > b.ram * self.OVER_OK
+        over_vram = b.vram > 0 and plan.vram_peak() > b.vram * self.OVER_OK
+        if over_ram or over_vram:
+            raise mb.OverBudget(plan.reason + "。" + plan.lighter)
+        self.low_memory = True
+        self._note(f"見積もりではメモリが少し足りませんが、一番軽い設定（{plan.size[0]}×{plan.size[1]}）で描きます。"
+                   "危なくなったら途中で止めて途中の絵を残します")
 
     def ready(self) -> bool:
         """模型が手元にそろっているか（取りに行かずに確かめる）"""
@@ -1416,15 +1430,11 @@ def has_background(prompt: str) -> bool:
     return any(re.search(r"(?<![a-z])" + re.escape(w) + r"(?![a-z])", low) for w in BACKGROUND_WORDS)
 
 
-def vary_background(prompt: str, seed: int, tags: bool = True) -> str:
-    """背景を頼まれていなければ、種で選んだ場面を後ろに足す（頼みの言葉を先に効かせる）。頼まれていればそのまま返す"""
-    import random
-    if not prompt.strip() or has_background(prompt):
-        return prompt
-    tag, words = BACKGROUNDS[random.Random(seed).randrange(len(BACKGROUNDS))]
-    if tags:
-        return f"{prompt}, {tag}"
-    return f"{prompt.rstrip(' .')}, {words}."
+def vary_background(prompt: str, seed: int, tags: bool = True, text: str = "") -> str:
+    """頼みに書かれていない所（背景・ポーズ・髪・服・表情・構図・光）を、種で選んで後ろに足す（chatdraw/variety.py）。
+    背景だけを足していたときは、背景を書いた頼みや同じ立ち姿で似た絵ばかりになった。書かれた項目は利用者の物なので足さない"""
+    from chatdraw.variety import vary
+    return vary(prompt, seed, tags=tags, text=text)
 
 
 def emphasize(prompt: str, missing: list[str]) -> str:
@@ -1500,7 +1510,7 @@ class Studio:
         # 頼んだ物の検品は頼みの言葉だけで見る（足した背景は頼みではないので、描かれなくても描き直しの理由にしない）
         asked_prompt = prompt
         if base is None and reference is None:   # ラフや参考画像の絵は、その絵の背景を活かす
-            prompt = vary_background(prompt, seed, tags=as_tags)
+            prompt = vary_background(prompt, seed, tags=as_tags, text=text)
         lost = list(getattr(self.words, "untranslated", []) or [])
         if lost:   # 模型に伝わらない言葉を隠さない（伝わらないまま描くと、頼みと違う絵になる）
             say("模型に伝わらない言葉があります: " + "、".join(lost) + "（英語で書くか、言葉の模型を入れると伝わります）")
@@ -1586,6 +1596,80 @@ class Studio:
                                  "模型の窓で取ってください")
             return None
         return two
+
+    def draw_anyway(self, text: str, seed: int, on_status=None, size=None, **kw) -> tuple[str, Path]:
+        """描けるまで、軽い設定・小さい大きさ・別の模型・別の種と段を下げて描く。どの段でも描けなかったときだけ、
+        段ごとの理由と次の手を例外にする。前は 1 回落ちただけで「描けませんでした」で止まり、0.5.15 でメモリの見積もりで
+        描く前に止めるようにしてからは、それまで描けていた模型と大きさも止まった"""
+        say = on_status or (lambda msg: None)
+        tried, why = [], []
+        size0 = size or getattr(self.painter, "size", None)
+        size0 = tuple(size0) if isinstance(size0, (tuple, list)) else (832, 1216)
+
+        def attempt(label, **over):
+            args = dict(kw, size=over.pop("size", size))
+            return self.draw(text, over.pop("seed", seed), on_status=on_status, **args)
+
+        def fail(label, e):
+            if isinstance(e, Stopped) or STOP.is_set() or getattr(self.painter, "stop", False) is True:
+                raise e
+            if isinstance(e, ValueError) and "描きません" in str(e):
+                raise e   # 描かない頼みは段を下げても描かない
+            why.append(f"{label}: {explain(e)}")
+            tried.append(label)
+
+        try:
+            return attempt("そのまま")
+        except Exception as e:   # noqa: BLE001  段を下げて描き直す
+            fail("そのまま", e)
+            first = e
+        heavy = is_oom(first) or type(first).__name__ in ("OverBudget", "MemoryDanger")
+        steps = []
+        if heavy or not isinstance(first, Unsupported):
+            steps.append(("軽い設定・小さい大きさ", dict(size=low_memory_size(size0)), True))
+        steps.append(("別の模型", {}, False))
+        steps.append(("別の種", dict(seed=seed + 7919), False))
+        for label, over, light in steps:
+            if label == "別の模型":
+                m = self._fallback_model(kw)
+                if m is None:
+                    continue
+                say(f"{why[-1]}。{m.name} に替えて描きます")
+                avoid = getattr(self.painter, "avoid", "")
+                if hasattr(self.painter, "unload"):
+                    self.painter.unload()
+                self.painter = Painter(m.repo, m.steps, guidance=m.guidance)
+                self.painter.avoid = avoid
+                self.chosen = (m.name, "前の模型で描けなかったので替えた")
+                over = dict(size=low_memory_size(size0)) if heavy else {}
+            else:
+                say(f"{why[-1]}。{label}で描き直します")
+            if light:
+                try:
+                    self.painter.low_memory = True
+                except AttributeError:
+                    pass
+            try:
+                return attempt(label, **over)
+            except Exception as e:   # noqa: BLE001
+                fail(label, e)
+        raise RuntimeError("試した順に: " + " / ".join(why) + "。次の手: ほかのアプリを閉じてメモリを空ける、"
+                           "AI のメニューで軽い模型（SDXL 系）を取る、描く大きさを小さくする")
+
+    def _fallback_model(self, kw):
+        """今の模型の代わりに描ける、手元の模型（点の高い順、軽い物を先に）。ラフ・参考画像はその機能のある世代だけ"""
+        try:
+            from chatdraw.choose import installed_images
+            from chatdraw.models import family as fam
+            from chatdraw import ratings
+            cur = getattr(self.painter, "model", "")
+            have = [m for m in installed_images() if m.repo != cur and not ratings.is_blocked(m.repo)
+                    and (kw.get("base") is None or fam(m.family).sketch)
+                    and (kw.get("reference") is None or fam(m.family).reference)]
+        except Exception:   # noqa: BLE001  一覧が読めなければ模型は替えない
+            return None
+        have.sort(key=lambda m: (getattr(m, "ram", 16) or 16, -float(getattr(m, "score", 0) or 0)))
+        return have[0] if have else None
 
     def _draw_two(self, text, seed, two, style, size, say, meta):
         """構図（文で頼める模型）と仕上げ（SDXL のアニメの模型）を分けて描く（chatdraw/twostage.py）"""
