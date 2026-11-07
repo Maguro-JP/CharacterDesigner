@@ -1070,6 +1070,12 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
             # 床に届く脚の先だけを数えるので、前で折れて床に届かない脚は入らない。検品担当が 8 本と通した 1 枚を 6 と読んだ。
             # 崩れには数えず、参考として残す（床に届かない脚を数える方法ができたら崩れに入れる）
             res["info"] = {"spider_legs": spider_legs(rgb.astype(np.float32) / 255.0, alpha)}
+        import legcount
+        if legcount.is_quadruped(prompt):
+            # 四足の脚の数。後ろ足が 1 本欠けた猫（脚 3 本）を数字では拾えなかった（ROADMAP 0.55 の 19）
+            q = legcount.quadruped_judge(im)
+            if not q["readable"]:
+                res["unreadable"].append({"quadruped_legs": q})
         if any(w in prompt.lower() for w in NON_HUMAN_LOWER):
             legs = human_legs(points, im.height)
             if not legs["readable"]:

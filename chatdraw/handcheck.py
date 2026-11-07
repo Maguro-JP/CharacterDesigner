@@ -249,7 +249,25 @@ def _add_missed_hands(out: dict, im) -> None:
         out["bad"].append(f"手 {len(out['hands'])}: {why}")
 
 
+def _add_legs(out: dict, im, asked: str) -> None:
+    """四足の動物を頼んだときは脚の本数を数える（tools/gen/legcount.py。作画監督と同じ測り方）。
+    4 本読めなければ崩れとして bad に足す（重なりか欠けかは利用者が目で見る。読めない足を通さない）"""
+    _hands()   # tools/gen の道を整える
+    try:
+        import legcount
+        if not legcount.is_quadruped(asked):
+            return
+        q = legcount.quadruped_judge(im)
+    except Exception as e:   # 背景を抜く部品が無い。手と顔の検品は続ける
+        out["legs_reason"] = f"脚の検品の部品がありません（{e}）"
+        return
+    out["legs"] = q
+    if not q["ok"]:
+        out["bad"].append("脚: " + q["reason"])
+
+
 def _add_face(out: dict, im, asked: str) -> dict:
+    _add_legs(out, im, asked)
     f = _face(im, asked)
     # 直す所の一覧（bad_regions）が手や足と同じ形で読めるよう、枠と崩れを並べる
     out["faces"] = [{"box": f["box"], "bad": f.get("bad", []), "seen": bool(f.get("readable") or f.get("bad"))}] if f.get("box") else []
