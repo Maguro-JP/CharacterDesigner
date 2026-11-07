@@ -96,6 +96,14 @@ def release_memory():
             torch.cuda.empty_cache()
     except Exception:   # noqa: BLE001  返せなくても描く邪魔はしない
         pass
+    # 降ろした模型の分を OS に返す。Actions の測りで、模型を降ろしたあとも RAM が 11GB から戻らず、
+    # 次の模型を読む予算が足りなくなった（glibc は解放した山を手元に持ったままにする）
+    try:
+        if sys.platform.startswith("linux"):
+            import ctypes
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:   # noqa: BLE001
+        pass
 
 
 LOW_MEMORY_NOTE = "メモリが足りないので、メモリを使わない設定（部品の出し入れ、注意の分割、小さめの大きさ）に切り替えて描きます"

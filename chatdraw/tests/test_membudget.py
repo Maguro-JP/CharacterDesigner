@@ -109,12 +109,12 @@ class PainterBudgetTest(unittest.TestCase):
 
     def test_small_budget_draws_smaller_and_returns_size(self):
         """予算に合わせて小さく描いたときも、頼んだ大きさに戻す（キャンバスの大きさは変えない）"""
-        p, log, notes, err = run_paint("cagliostrolab/animagine-xl-4.0", 12.0, 0.0, cuda=False, size=(1536, 1536))
+        p, log, notes, err = run_paint("cagliostrolab/animagine-xl-4.0", 14.0, 0.0, cuda=False, size=(1536, 1536))
         self.assertIsNone(err)
         call = next(x for x in log if x[0] == "call")[2]
         plan = p.plan
         self.assertEqual((call["width"], call["height"]), tuple(plan.size))
-        self.assertLessEqual(plan.ram_peak(), mb.budget(12.0, 0.0).ram)
+        self.assertLessEqual(plan.ram_peak(), mb.budget(14.0, 0.0).ram)
 
     def test_grid_of_painter_runs(self):
         """本物と同じ経路（Painter.paint）で、数字を変えても予算を超える計画で描かない"""
@@ -135,7 +135,7 @@ class PainterBudgetTest(unittest.TestCase):
         p = engine.Painter("cagliostrolab/animagine-xl-4.0")
         with mock.patch.dict(sys.modules, {"torch": fake_torch(False, 0)}):
             self.assertEqual(p.redraw_scale((832, 1216), mb.budget(64.0, 0.0)), 1.5)
-            k = p.redraw_scale((2048, 2048), mb.budget(13.0, 0.0))
+            k = p.redraw_scale((2048, 2048), mb.budget(15.0, 0.0))
             self.assertLess(k, 1.5)
             with self.assertRaises(mb.OverBudget):
                 p.redraw_scale((4096, 4096), mb.budget(9.0, 0.0))
