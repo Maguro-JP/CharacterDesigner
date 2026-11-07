@@ -2732,7 +2732,9 @@ class ModelListTest(unittest.TestCase):
             a, b, c = self.models()
             st = Studio(FakeWords(), FakePainter(), Path(d))
             st.image_auto = True
+            # 検品は本物の部品が手元にあると、偽の絵に何分も掛かる。この試験は模型の選び方と知らせだけを見る
             with mock.patch("chatdraw.choose.installed_images", return_value=[a, b]), \
+                    mock.patch("chatdraw.omakase._default_check", return_value={"readable": True, "bad": [], "regions": []}), \
                     mock.patch("chatdraw.engine.Painter", side_effect=lambda repo, *x, **k: type("P", (FakePainter,), {})()) as made:
                 said = []
                 try:
