@@ -1244,6 +1244,7 @@ class FixAndBatchTest(unittest.TestCase):
     def test_batch_seed_meta_and_redo(self):
         import json
         self.w.ai_panel.set_count(4)
+        self.w.layout_store.setValue("confirm/batch", "go")   # まとめて描く窓は test_confirm で押す
         self.w.entry.setText("雪の城の前の騎士")
         self.w.send()
         wait_idle(self.app, self.w)
