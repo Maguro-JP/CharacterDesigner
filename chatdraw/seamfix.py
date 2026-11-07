@@ -190,6 +190,8 @@ def settle(before, after, mask, say=None):
     m = np.asarray(mask.convert("L")) > 127
     if not m.any():
         return after, []
+    if m.mean() > 0.98:   # 絵全体を直したときは境目が無い。合わせると直した所を元の絵の色へ戻してしまう
+        return after, []
     deepest = int(depth(m, 4096).max())
     tries, best = [], None
     band, lines = 4, 0.8
