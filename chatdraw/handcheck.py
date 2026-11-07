@@ -110,23 +110,23 @@ def _face(im, asked: str) -> dict:
 
 def keep_hands(im, found) -> list[str]:
     """見つけた手のひらから、足を外す。手のひらの模型は足の指を手の指と読み、手らしさ 0.9 以上で通した（ビキニの絵の両足）。
-    体の点（VitPose）の手首が読めれば、手首の近く（肘から手首の長さの 1.2 倍以内）の物だけを手とする。
-    読めなければ、足首の高さより下（読めなければ絵の下 15%）の物を外す"""
+    体の点（VitPose）の手首が読めれば、手首の近く（肘から手首の長さの 1.2 倍以内）の物を手とする。
+    足首の高さより上（足首が読めなければ絵の下 15% より上）の物も手として残す。
+    手首の近くだけに絞ると、手首の点がずれた絵（傘の絵の 6 枚目）で読めない手 3 つのうち 2 つを捨て、崩れが検品を逃れた。
+    どちらかの見方で手とした物は、手として測る（読めなければ崩れにする）"""
     w, h = im.size
     kp = _keypoints(im)
     wrists = [(kp[f"{s}_wrist"], kp.get(f"{s}_elbow")) for s in ("left", "right") if f"{s}_wrist" in kp]
-    if wrists:
-        out = []
-        for cx, cy, b in found:
-            for (wx, wy), el in wrists:
-                reach = 1.2 * (((wx - el[0]) ** 2 + (wy - el[1]) ** 2) ** 0.5 if el else min(w, h) * 0.12)
-                if ((cx - wx) ** 2 + (cy - wy) ** 2) ** 0.5 <= max(reach, min(w, h) * 0.08):
-                    out.append(b)
-                    break
-        return out
     ankles = [kp[k][1] for k in ("left_ankle", "right_ankle") if k in kp]
     floor = min(ankles) - 0.03 * h if ankles else 0.85 * h
-    return [b for cx, cy, b in found if cy < floor]
+
+    def near_wrist(cx, cy):
+        for (wx, wy), el in wrists:
+            reach = 1.2 * (((wx - el[0]) ** 2 + (wy - el[1]) ** 2) ** 0.5 if el else min(w, h) * 0.12)
+            if ((cx - wx) ** 2 + (cy - wy) ** 2) ** 0.5 <= max(reach, min(w, h) * 0.08):
+                return True
+        return False
+    return [b for cx, cy, b in found if cy < floor or near_wrist(cx, cy)]
 
 
 def ensure_feet_model(fetch: bool = True) -> bool:
