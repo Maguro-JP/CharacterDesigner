@@ -3,6 +3,11 @@
 # CPU で 1 枚 10 分ほどかかるので、30 本を 10 の組に分け、前と後で 20 のジョブにする。リポジトリは公開しているので Actions の枠を使う。
 name: adhere-bench
 on:
+  # workflow_dispatch は main に置いてからでないと起動できないので、この台を直して push したときにも流す
+  push:
+    paths:
+      - ".github/workflows/adhere-bench.yml"
+      - "chatdraw/adherebench.py"
   workflow_dispatch:
     inputs:
       before:
@@ -36,7 +41,7 @@ jobs:
       - name: 描く版を置く
         run: |
           mkdir -p "$RUNNER_TEMP/tree"
-          ref="${{ matrix.side == 'before' && inputs.before || github.sha }}"
+          ref="${{ matrix.side == 'before' && (inputs.before || 'main') || github.sha }}"
           git rev-parse "origin/$ref" >/dev/null 2>&1 && ref="origin/$ref"
           git worktree add "$RUNNER_TEMP/tree" "$ref"
           git -C "$RUNNER_TEMP/tree" log -1 --format='%h %s'
@@ -56,7 +61,7 @@ jobs:
           LLM_HOME: ${{ runner.temp }}/llm
           CD_HOME: ${{ runner.temp }}/cd
           CD_ASSUME_FREE_RAM_GB: "14"
-        run: python -u -m chatdraw.adherebench draw "$GITHUB_WORKSPACE/out" "${{ inputs.model }}" ${{ matrix.shard }} 10 ${{ inputs.seed }}
+        run: python -u -m chatdraw.adherebench draw "$GITHUB_WORKSPACE/out" "${{ inputs.model || 'cagliostrolab/animagine-xl-4.0' }}" ${{ matrix.shard }} 10 ${{ inputs.seed || '7' }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
