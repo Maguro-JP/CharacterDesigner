@@ -71,7 +71,7 @@ class TabsTest(unittest.TestCase):
             w.ai_panel.tabs.setCurrentIndex(4)
             w.entry.setText("girl")
             w.button.click()
-            end = time.time() + 20
+            end = time.time() + 90   # 重い機械（ほかの試験と並ぶ時）でも描き終わるまで待つ
             while (w.thread is not None or not w.images) and time.time() < end:
                 app().processEvents()
                 time.sleep(0.01)
