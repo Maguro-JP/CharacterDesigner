@@ -4061,7 +4061,7 @@ class Window(QMainWindow):
         self._place_finished(name, base, out, path)
         self._end(f"{label}を掛けました")
         if note:
-            self.notify("崩れた所は元の絵に戻しました", "info", note + "見比べて、使うか消すかを決めてください")
+            self.notify("加工の検品の結果", "info", note + "見比べて、使うか消すかを決めてください")
 
     def add_chain_shortcut(self, steps=None, name: str | None = None) -> str:
         """加工の組み合わせを、右クリックの「自分の組み合わせ」に登録する。steps が無ければ選ぶ窓を出す。返すのは id（やめたら空）"""
@@ -4360,6 +4360,11 @@ class Window(QMainWindow):
             s = finishers.LAST_STRENGTH.get("strength")
             self.notify("エフェクトを新しいレイヤーに置きました", "ok",
                         (f"この絵に合わせた強さ {s}。" if s else "") + "レイヤーの欄で表示・不透明度を変えたり、消したりできます")
+            return path
+        if f is not None and f.group == "style" and out.size == base.size:
+            from chatdraw import restyle
+            self.put_result(str(path), f"画風: {f.label}")   # 一番上の新しいレイヤーに置いて選ぶ。元の絵は下に残す
+            self.notify(f"{f.label}に描き替えました（新しいレイヤー）", "ok", restyle.note() + "見比べて、使うか消すかを決めてください")
             return path
         if out.size == base.size:
             self.put_result(str(path), "綺麗にした絵")   # 元の絵は下に残す

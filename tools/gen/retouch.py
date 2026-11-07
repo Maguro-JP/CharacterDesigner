@@ -167,7 +167,7 @@ def measure(a: np.ndarray) -> dict:
 def heal(a: np.ndarray, protect: np.ndarray | None = None) -> np.ndarray:
     """線から離れた小さな暗い粒を、周りの塗りの中央値で埋める（スポット修復）"""
     import cleanup
-    from scipy.ndimage import label, median_filter
+    from scipy.ndimage import label
     m = cleanup.line_mask(a)
     lab, _ = label(m, structure=np.ones((3, 3)))
     sizes = np.bincount(lab.ravel())
@@ -179,9 +179,16 @@ def heal(a: np.ndarray, protect: np.ndarray | None = None) -> np.ndarray:
     dirt &= far
     if protect is not None:
         dirt &= ~protect
-    fill = np.stack([median_filter(a[..., c], size=9) for c in range(3)], -1)
+    # 中央値は粒の画素でだけ取る（絵全体に 9×9 の中央値を掛けると、拡大のあとの 4M 画素の絵で 1 回 1.3 秒かかり、
+    # 線と塗りを整えるの時間の 3 割を占めた）。scipy の median_filter（端は reflect）と同じ値になる
     out = a.copy()
-    out[dirt] = fill[dirt]
+    ys, xs = np.nonzero(dirt)
+    if len(ys):
+        pad = np.pad(a, ((4, 4), (4, 4), (0, 0)), mode="symmetric")
+        for i in range(0, len(ys), 200000):
+            y, x = ys[i:i + 200000], xs[i:i + 200000]
+            win = np.stack([pad[y + dy, x + dx] for dy in range(9) for dx in range(9)], 0)
+            out[y, x] = np.median(win, 0)
     return out
 
 

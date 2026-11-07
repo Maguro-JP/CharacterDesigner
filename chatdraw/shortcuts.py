@@ -18,6 +18,7 @@ GROUPS = (
     ("combo", "まとめて"),
     ("redraw", "描き直して整える"),
     ("enlarge", "拡大"),
+    ("style", "画風"),
     ("texture", "質感"),
     ("air", "空気感"),
     ("ink", "清書"),
