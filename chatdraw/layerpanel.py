@@ -111,9 +111,14 @@ class LayerPanel(QWidget):
 
     def refresh(self):
         c = self.canvas
+        # 赤ペンの行を選んでいたら、作り直したあとも同じ行を選ぶ。前は描くレイヤーの行に戻り、
+        # 「－」を押すと選んだ印ではなくレイヤーが消えた
+        old = self.list.currentItem()
+        keep = old.data(ROLE_INDEX) if old is not None else None
         self.list.blockSignals(True)
         self.list.clear()
         pen = getattr(c, "redpen", None)
+        keep_item = None
         # 赤ペンの印は 1 つずつ別の行にし、一番上に置く（隠す・消す・指示を書き直すを印ごとにできるように）。
         # 指示は絵の上に札で出しっぱなしにすると絵が隠れるので、行の名前と説明に持つ
         for n in (reversed(range(1, len(pen.marks) + 1)) if pen is not None else ()):
@@ -127,6 +132,8 @@ class LayerPanel(QWidget):
                             "ダブルクリックで指示を書き直す。チェックで隠す・出す（隠した印は直しません）。「－」か Delete でこの印を消す。\n"
                             "保存する絵には入りません")
             self.list.addItem(item)
+            if keep == -n:
+                keep_item = item
         for i in reversed(range(len(c.layers))):
             layer = c.layers[i]
             on = i == c.current
@@ -140,8 +147,10 @@ class LayerPanel(QWidget):
             marks = ("✎ " if on else "") + ("ロック中 " if layer.locked else "")
             item.setToolTip(marks + layer.name + ("（隠しています）" if not layer.visible else ""))
             self.list.addItem(item)
-            if on:
+            if on and keep_item is None:
                 self.list.setCurrentItem(item)
+        if keep_item is not None:
+            self.list.setCurrentItem(keep_item)
         if c.layers:
             layer = c.layers[c.current]
             self.opacity.blockSignals(True)
@@ -207,6 +216,10 @@ class LayerPanel(QWidget):
         QTimer.singleShot(0, lambda: self.canvas.move_layer_to(i, j))
 
     def _menu(self, pos):
+        self.context_menu(pos).exec(self.list.viewport().mapToGlobal(pos))
+
+    def context_menu(self, pos):
+        """右クリックの窓の中身（試験からも同じ項目を押せるよう、開くのと分ける）"""
         from PySide6.QtWidgets import QMenu
         item = self.list.itemAt(pos)
         m = QMenu(self)
@@ -226,7 +239,7 @@ class LayerPanel(QWidget):
                 m.addAction("名前を変える", self.rename_current)
                 m.addAction("ロックを切り替える", self.toggle_lock)
         m.addAction("見えているレイヤーを結合", self.canvas.merge_visible)
-        m.exec(self.list.viewport().mapToGlobal(pos))
+        return m
 
     def _delete(self):
         """「－」。赤ペンの行を選んでいればその印だけを消し、ほかは選んでいるレイヤーを消す"""

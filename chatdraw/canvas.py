@@ -86,9 +86,20 @@ class LayerItem(QGraphicsItem):
         self.layer = layer
         self.buffer: QImage | None = None   # 描いている途中の線（手を離すとレイヤーへ重ねる）
         self.buffer_opacity = 1.0
+        # 大きさは作ったときに覚える。layer.image を差し替えて大きさが変わったまま場面から外すと、
+        # 場面の索引が古い四角で項目を探せず、消したあとの描き直しで落ちた（レイヤーを消すとクラッシュ）
+        self._rect = QRectF(0, 0, layer.image.width(), layer.image.height())
+
+    def sync(self):
+        """layer.image の大きさが変わったら、場面に知らせてから四角を直す"""
+        r = QRectF(0, 0, self.layer.image.width(), self.layer.image.height())
+        if r != self._rect:
+            self.prepareGeometryChange()
+            self._rect = r
+        self.update()
 
     def boundingRect(self) -> QRectF:
-        return QRectF(0, 0, self.layer.image.width(), self.layer.image.height())
+        return self._rect
 
     def paint(self, p: QPainter, option, widget=None):
         if not self.layer.visible:
@@ -415,9 +426,10 @@ class Canvas(QGraphicsView):
         if len(self.layers) <= 1:
             self.layers[0].image.fill(Qt.transparent)
         else:
-            gone = self.layers.pop(self.current)
-            gone.image = QImage()   # 画面の項目が古い絵を持ち続けないように、中身を手放す
+            self.layers.pop(self.current)
             self.current = max(0, self.current - 1)
+        # 前は消したレイヤーの絵を空にしてから場面を作り直しており、場面の索引が壊れて落ちた。
+        # 消したレイヤーは元に戻す用の写しにだけ残り、項目を外せば手放される
         self.rebuild()
 
     def move_layer(self, step: int):
@@ -505,7 +517,7 @@ class Canvas(QGraphicsView):
             self.layers[i].image = img
             self.current = i
             self.items[i].layer = self.layers[i]
-            self.items[i].update()
+            self.items[i].sync()
             self.changed.emit()
         else:
             _, layers, cur = entry
