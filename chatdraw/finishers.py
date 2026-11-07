@@ -690,11 +690,30 @@ def face_keep(image):
     if key in _FACES:
         m = _FACES[key]
         return None if m is None else m.resize(image.size, Image.BILINEAR)
+    _LAST_SEG[0] = None
     m = _face_keep(image)
     if len(_FACES) > 16:
         _FACES.clear()
+        _SEGS.clear()
     _FACES[key] = m
+    _SEGS[key] = _LAST_SEG[0]
     return m
+
+
+_SEGS: dict = {}       # 指紋 → 部位分けの番号（縮めた大きさ）。手の検品が、手でない所（髪・顔）を外すのに使う
+_LAST_SEG: list = [None]
+
+
+def seg_of(image):
+    """face_keep が測った部位分けの番号を、image の大きさで返す（測っていなければ None）"""
+    import hashlib
+    from PIL import Image
+    key = hashlib.md5(image.convert("RGB").resize((64, 64), Image.BOX).point(lambda v: v // 16).tobytes()).hexdigest()
+    seg = _SEGS.get(key)
+    if seg is None:
+        return None
+    import numpy as np
+    return np.asarray(Image.fromarray(seg).resize(image.size, Image.NEAREST))
 
 
 def _face_keep(image):
@@ -714,6 +733,7 @@ def _face_keep(image):
             path = Path(d) / "face.png"
             small.save(path, compress_level=1)
             seg = np.asarray(edit.parts(str(path)))
+        _LAST_SEG[0] = seg.astype("uint8")
         face = seg == FACE_LABEL
         lab, n = ndimage.label(face)
         if n == 0:
@@ -789,6 +809,9 @@ def limit(src, out):
     return Image.fromarray(np.clip(b + 0.5, 0, 255).astype("uint8")), dict(capped=capped, reverted=back)
 
 
+ARM_LABELS = (14, 15)        # 部位分けの左腕・右腕（手は腕に入る）
+HEAD_LABELS = (1, 2, FACE_LABEL)   # 帽子・髪・顔
+NOT_HAND_HEAD = 0.35         # 腕が 3% 未満で、頭（帽子・髪・顔）がこの割合を超える枠は、手でない（髪の房や顔を手と見た）
 HAND_RATIO = 0.05   # 指の長さの比（手のひらに対する親指〜小指）が、これより変わったら手が崩れたとする
 FINGERS = ("palm", "thumb", "index", "ring", "pinky")
 
@@ -797,6 +820,7 @@ def hand_guard(src, out):
     """手を別々に検品する。元の絵の手を MediaPipe の手の点で見つけ、綺麗にしたあとの同じ枠で測り直す。
     指の数・指の長さの比・関節の向き（手らしさの枠の角度）が変わった手、どちらかで読めない手は崩れとして、
     その枠を元の画素に戻す（綺麗にするのは手の形を直す道具ではないので、読めない手は触らない）。返りは (絵, 数)"""
+    import numpy as np
     try:
         from chatdraw import handcheck
         hands = handcheck._hands()
@@ -807,10 +831,16 @@ def hand_guard(src, out):
     except Exception:
         return out, dict(hands_measured=False)
     o = out.copy()
-    back = 0
+    back = skipped = 0
+    seg = seg_of(src)
     for b in boxes:
         box, ang = b.split(":")
         x0, y0, x1, y1 = (int(v) for v in box.split(","))
+        if seg is not None:
+            c = seg[max(0, y0):max(0, y1), max(0, x0):max(0, x1)]
+            if c.size and (np.isin(c, ARM_LABELS).mean() < 0.03 and np.isin(c, HEAD_LABELS).mean() > NOT_HAND_HEAD):
+                skipped += 1
+                continue
         m0, bad0, _ = hands.measure(hands.best_crop(src, (x0, y0, x1, y1), float(ang)))
         m1, bad1, _ = hands.measure(hands.best_crop(out, (x0, y0, x1, y1), float(ang)))
         unread = any(str(x).startswith("読めない") for x in list(bad0) + list(bad1))
@@ -821,10 +851,28 @@ def hand_guard(src, out):
             if box[2] > box[0] and box[3] > box[1]:
                 o.paste(src.crop(box), box[:2])
                 back += 1
-    return o, dict(hands_measured=True, hands=len(boxes), hands_back=back)
+    return o, dict(hands_measured=True, hands=len(boxes) - skipped, not_hands=skipped, hands_back=back)
 
 
 _NO_FACE = object()
+
+
+def face_box_keep(image):
+    """部位分けの模型が無いときの顔の印: handcheck の顔の枠を、縁をぼかした四角にする（継ぎ目が出ないように、
+    枠の内側でだけ元の画素から綺麗にした画素へ移る）。顔が読めなければ None"""
+    try:
+        from PIL import Image, ImageDraw, ImageFilter
+        from chatdraw import handcheck
+        box = (handcheck._face(image, "") or {}).get("box")
+        if not box:
+            return None
+        x0, y0, x1, y1 = (int(v) for v in box)
+        r = max(2, (x1 - x0) // 12)
+        m = Image.new("L", image.size, 0)
+        ImageDraw.Draw(m).rectangle((x0 - r, y0 - r, x1 + r, y1 + r), fill=255)
+        return m.filter(ImageFilter.GaussianBlur(r))
+    except Exception:
+        return None
 
 
 def soften(src, out, mask=None, face=_NO_FACE):
@@ -835,6 +883,8 @@ def soften(src, out, mask=None, face=_NO_FACE):
     face = face_keep(s) if face is _NO_FACE else face
     if face is not None and face.size != s.size:
         face = face.resize(s.size, Image.BILINEAR)
+    if face is None:
+        face = face_box_keep(s)
     if face is not None:
         if mask is not None:
             face = Image.composite(face, Image.new("L", s.size, 0), binary(mask, s.size))
