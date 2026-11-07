@@ -789,6 +789,41 @@ def limit(src, out):
     return Image.fromarray(np.clip(b + 0.5, 0, 255).astype("uint8")), dict(capped=capped, reverted=back)
 
 
+HAND_RATIO = 0.05   # 指の長さの比（手のひらに対する親指〜小指）が、これより変わったら手が崩れたとする
+FINGERS = ("palm", "thumb", "index", "ring", "pinky")
+
+
+def hand_guard(src, out):
+    """手を別々に検品する。元の絵の手を MediaPipe の手の点で見つけ、綺麗にしたあとの同じ枠で測り直す。
+    指の数・指の長さの比・関節の向き（手らしさの枠の角度）が変わった手、どちらかで読めない手は崩れとして、
+    その枠を元の画素に戻す（綺麗にするのは手の形を直す道具ではないので、読めない手は触らない）。返りは (絵, 数)"""
+    try:
+        from chatdraw import handcheck
+        hands = handcheck._hands()
+        hands._litert()
+        if not handcheck.ensure_models(fetch=False):
+            return out, dict(hands_measured=False)
+        boxes = handcheck.find_hands(hands, src)
+    except Exception:
+        return out, dict(hands_measured=False)
+    o = out.copy()
+    back = 0
+    for b in boxes:
+        box, ang = b.split(":")
+        x0, y0, x1, y1 = (int(v) for v in box.split(","))
+        m0, bad0, _ = hands.measure(hands.best_crop(src, (x0, y0, x1, y1), float(ang)))
+        m1, bad1, _ = hands.measure(hands.best_crop(out, (x0, y0, x1, y1), float(ang)))
+        unread = any(str(x).startswith("読めない") for x in list(bad0) + list(bad1))
+        c0, c1 = (m0.get("fingers") or {}).get("count"), (m1.get("fingers") or {}).get("count")
+        ratio = max((abs((m1.get(k) or 0) - (m0.get(k) or 0)) / max(1e-6, abs(m0.get(k) or 1)) for k in FINGERS), default=0)
+        if unread or c0 != c1 or ratio > HAND_RATIO or len(bad1) > len(bad0):
+            box = (max(0, x0), max(0, y0), min(src.width, x1), min(src.height, y1))
+            if box[2] > box[0] and box[3] > box[1]:
+                o.paste(src.crop(box), box[:2])
+                back += 1
+    return o, dict(hands_measured=True, hands=len(boxes), hands_back=back)
+
+
 _NO_FACE = object()
 
 
@@ -805,6 +840,8 @@ def soften(src, out, mask=None, face=_NO_FACE):
             face = Image.composite(face, Image.new("L", s.size, 0), binary(mask, s.size))
         o = Image.composite(s, o, face)
     o, limited = limit(s, o)
+    o, hand = hand_guard(s, o)
+    limited.update(hand)
     q = dict(face=face is not None, **scores(s, o), mix=1.0, **limited)
     tried = o
     for k in VERIFY_STEPS:
