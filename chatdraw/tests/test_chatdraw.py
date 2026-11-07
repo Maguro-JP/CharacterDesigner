@@ -2256,6 +2256,30 @@ class HandRoundsTest(unittest.TestCase):
         self.assertEqual([r["bad"] for r in s.hand_rounds][-1], [])
 
 
+class HandRoundsUseOwnQcTest(unittest.TestCase):
+    """作画監督（origqc）の顔の崩れも、Studio._fix_hands の描き直しの理由になるか。人物全体の囲みは描き直さない"""
+
+    def test_face_fault_is_redrawn(self):
+        import tempfile
+        from unittest import mock
+        from PIL import Image
+        from chatdraw import handcheck, origqc
+        from chatdraw.engine import Painter
+        s = Studio(FakeWords(), Painter("cagliostrolab/animagine-xl-4.0"), Path(tempfile.mkdtemp()))
+        clean = {"readable": True, "bad": [], "hands": []}
+        own = iter([{"bad": ["数字の検品: 左右の瞳の色が違う"], "regions": [((5, 5, 30, 30), "face"), ((0, 0, 64, 64), "body")]}]
+                   + [{"bad": [], "regions": []}] * 5)
+        masks = []
+        with mock.patch.dict(os.environ, {"CD_CHECK": "on"}), mock.patch.object(handcheck, "check", side_effect=lambda im, **k: clean), \
+                mock.patch.object(origqc, "check", side_effect=lambda im, p: next(own)), \
+                mock.patch.object(s.painter, "redraw", side_effect=lambda p, seed, im, mask, strength: masks.append((p, mask)) or im):
+            s._fix_hands(Image.new("RGB", (64, 64)), "1girl", 7, lambda m: None)
+        self.assertEqual(len(masks), 1)
+        self.assertIn("detailed face", masks[0][0])
+        self.assertEqual(masks[0][1].getpixel((0, 63)), 0)        # 人物全体の囲みは描き直さない
+        self.assertEqual(s.hand_rounds[0]["bad"], ["数字の検品: 左右の瞳の色が違う"])
+
+
 class RequestCheckTest(unittest.TestCase):
     """頼んだ物が描かれたかの検品（chatdraw/requestcheck.py）"""
 
