@@ -216,14 +216,21 @@ class LoadPathTest(unittest.TestCase):
         self.assertEqual(pipe.scheduler.config["prediction_type"], "v_prediction")
 
     def test_big_model_is_quantized_and_split_on_small_gpu(self):
-        """60GB 近い模型（Qwen-Image）を 12GB の GPU で読むと、本体を 4 ビットに縮め、部品ごとに GPU へ出し入れする"""
-        p, log, _ = self.run_case("Qwen/Qwen-Image-2512", [], cuda=True, free=12.0)
+        """60GB 近い模型（Qwen-Image）を 24GB の GPU で読むと、本体を 4 ビットに縮め、部品ごとに GPU へ出し入れする。
+        12GB の GPU では、縮めない言葉の部品（約 16GB）が載らないので、描く前に予算で止める（前は描き始めてから落ちた）"""
+        p, log, _ = self.run_case("Qwen/Qwen-Image-2512", [], cuda=True, free=24.0)
         kw = next(x for x in log if x[0] == "load")[4]
         self.assertEqual(kw["quantization_config"][0], "quant")
         self.assertIn(("place", "model"), log)
+        from chatdraw.membudget import OverBudget
+        with self.assertRaises(OverBudget):
+            self.run_case("Qwen/Qwen-Image-2512", [], cuda=True, free=12.0)
         p, log, _ = self.run_case("cagliostrolab/animagine-xl-4.0", [], cuda=True, free=24.0)
-        self.assertIn(("place", "cuda"), log)                          # 入る模型は全部 GPU に載せ、縮めない
-        self.assertNotIn("quantization_config", next(x for x in log if x[0] == "load")[4])
+        load = next(x for x in log if x[0] == "load")[4]
+        # 入る模型は全部 GPU に載せ、縮めない。部品のフォルダーは GPU へ直に読む（RAM に模型全体を並べない）
+        self.assertEqual(p.placed, "cuda")
+        self.assertTrue(("place", "cuda") in log or load.get("device_map") == "cuda", log)
+        self.assertNotIn("quantization_config", load)
 
     def test_run_mode_for_manager(self):
         from chatdraw.models import image_model, run_mode
@@ -262,8 +269,10 @@ class RequestReachesModelTest(unittest.TestCase):
         for fam, repo in sorted(reps.items()):
             with self.subTest(fam), TemporaryDirectory() as d:
                 log = []
+                # この試験は頼みが模型に届くかを見る。メモリの予算はこの機械の空きに寄らないよう、測れない（無限）にする
                 with mock.patch.dict(sys.modules, {"diffusers": fake_diffusers(log), "torch": fake_torch()}), \
                         mock.patch("chatdraw.models.user_entries", return_value=user), \
+                        mock.patch.object(engine, "free_ram_gb", return_value=0.0), \
                         mock.patch.object(engine, "cpu_dtype", return_value="bfloat16"):
                     painter = engine.Painter(repo, steps=4)
                     painter.avoid = "watermark"   # AI の欄の禁止ワード

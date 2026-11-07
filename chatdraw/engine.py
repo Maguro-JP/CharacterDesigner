@@ -775,6 +775,10 @@ def kill_thread(ident: int | None) -> bool:
     return n == 1
 
 
+DANGER_NOTE = ("描いている途中にメモリが危ないところまで来たので、落ちる前に止めました。作業は自動保存しています。"
+               "途中の絵は出力の置き場に残しました。ほかのアプリを閉じるか、描く大きさを小さくしてください")
+
+
 class Painter:
     """絵の模型で描く。模型は最初の 1 枚のときに 1 回だけ読む。キャンバスの絵を元に描き直すこともできる"""
 
@@ -795,6 +799,9 @@ class Painter:
         self.lora_note = None
         self.low_memory = False   # メモリが足りないと分かったら True（部品の出し入れ、注意の分割、小さめの大きさで描く）
         self.on_note = None       # 利用者に知らせる一言を渡す先（Studio が進みの知らせにつなぐ）
+        self.plan = None          # 描く前のメモリの予算の計画（chatdraw/membudget.py）
+        self.placed = None        # 読んだ模型の置き場（cuda / model / sequential / cpu）。読む前は None
+        self.partial_dir = None   # メモリが危なくて止めたときに途中の絵を残す所
 
     def _note(self, msg: str):
         if self.on_note is not None:
@@ -803,19 +810,61 @@ class Painter:
             except Exception:   # noqa: BLE001  知らせられなくても描く
                 pass
 
-    def memory_guard(self):
-        """読む前に、空いているメモリと模型の重さを比べる。足りなければ少ないメモリの設定にして、利用者に知らせる"""
-        if self.low_memory:
-            return
-        from chatdraw.models import heavy, image_model
+    def _weights(self):
+        """(重みの GB, 世代, 1 つのファイルか, CPU で 32 ビットか)。予算の見積もりに使う"""
+        from chatdraw.models import heavy, image_model, is_local
+        info = image_model(self.model)
+        gb = info.gb or heavy(info)[0]
+        if getattr(self, "quantized", False):
+            gb *= QUANT_SHARE
+        single = bool(info.file) or (is_local(self.model) and Path(self.model).is_file())
+        dt = getattr(self, "dtype", None)
+        fp32 = dt is not None and "float32" in str(dt)
+        return gb, info.family, single, fp32
+
+    def plan_for(self, size=None, b=None, allow_shrink: bool = True):
+        """描く前のメモリの予算から、置き方・大きさ・軽くする設定を決める（chatdraw/membudget.py）。
+        読んだあとは置き方を替えず、重みは空きから引かれているので数えない"""
+        from chatdraw import membudget as mb
+        from chatdraw.models import family as fam, image_model
+        gb, family, single, fp32 = self._weights()
+        cuda = mb.has_cuda()
+        b = b or mb.budget()
+        want = native_size(size or self.size, family)
+        loaded_as = getattr(self, "placed", None) if self._pipe is not None else None
+        return mb.choose(gb, want, family, b, cuda, loaded_as=loaded_as, single_file=single, fp32=fp32,
+                         light=self.low_memory, step=getattr(fam(family), "multiple", 64),
+                         allow_shrink=allow_shrink, quantized=getattr(self, "quantized", False))
+
+    def memory_guard(self, size=None):
+        """読む前に、RAM と VRAM の予算に収まる置き方と大きさを決める。前は空いている RAM だけを見て、GPU に収まる模型でも
+        部品の出し入れに替え、かえって RAM を多く使った。今は置き方ごとに RAM と VRAM を別に見積もる。
+        軽くした設定を選んだときは利用者に知らせる。どれも収まらなければ plan.ok が False（描く前に止める）"""
         try:
-            need = heavy(image_model(self.model))[1]
+            plan = self.plan_for(size)
         except Exception:   # noqa: BLE001  重さが分からない模型は測らない
-            return
-        free = free_ram_gb()
-        if free and free < need:
+            self.plan = None
+            return None
+        self.plan = plan
+        if not plan.ok:
+            from chatdraw import membudget as mb
             self.low_memory = True
-            self._note(f"空いているメモリ（{free:.1f}GB）が模型の目安（{need:.0f}GB）より少ないので、" + LOW_MEMORY_NOTE.split("ので、", 1)[1])
+            self._note(f"空いているメモリ（{mb.budget().free_ram:.1f}GB）では、" + plan.reason)
+            return plan
+        if plan.light or plan.placement in ("model", "sequential"):
+            from chatdraw import membudget as mb
+            free = mb.budget().free_ram
+            self._note(f"空いているメモリ（{free:.1f}GB）に合わせて、{mb.PLACEMENT_NAME[plan.placement]}"
+                       + ("・注意を分ける" if plan.slicing else "") + ("・VAE を分ける" if plan.tiling else "")
+                       + ("" if plan.preview else "・途中の絵を出さない")
+                       + (f"・{plan.size[0]}×{plan.size[1]} で描いて頼んだ大きさに戻す" if tuple(plan.size) != tuple(plan.want) else "")
+                       + " 設定で描きます")
+        return plan
+
+    def _check_budget(self, plan):
+        if plan is not None and not plan.ok:
+            from chatdraw.membudget import OverBudget
+            raise OverBudget(plan.reason + "。" + plan.lighter)
 
     def ready(self) -> bool:
         """模型が手元にそろっているか（取りに行かずに確かめる）"""
@@ -892,11 +941,17 @@ class Painter:
         self._pipe = self._sketch = self._inpaint = None
         self._ref = False
         self._lora_state = {}
+        self.placed = None
+        from chatdraw.membudget import released
+        released(("painter", id(self)))
         release_memory()
 
-    def load(self):
+    def load(self, size=None):
         if self._pipe is None:
-            self.memory_guard()
+            plan = self.memory_guard(size)
+            self._check_budget(plan)   # 収まらないなら、読む前に止める（読んでから足りないと分かると、もう山の途中）
+            from chatdraw.membudget import exclusive
+            exclusive(("painter", id(self)), self.unload)   # 模型はいつも 1 つだけ。ほかの模型を降ろしてから読む
             self._pipe = self._read()
             from chatdraw.models import image_model
             use_vpred(self._pipe, image_model(self.model)) or use_scheduler(self._pipe, image_model(self.model))
@@ -943,6 +998,10 @@ class Painter:
         kw = dict(torch_dtype=dtype, low_cpu_mem_usage=True, **extra)
         if not local:
             kw["cache_dir"] = str(HUB)
+        plan = getattr(self, "plan", None)
+        self._direct = bool(gpu and plan is not None and plan.placement == "cuda")
+        if self._direct:
+            kw["device_map"] = "cuda"   # 全部を GPU に載せるときは GPU へ直に読む（RAM に模型全体を並べない）
         if fam_name in ("sdxl", "sd15"):
             if info.variant and not local:
                 kw["variant"] = info.variant
@@ -959,32 +1018,42 @@ class Painter:
         模型が GPU のメモリに収まれば全部を載せ、収まらなければ、部品を使う間だけ載せる（enable_model_cpu_offload）。
         どちらでも、最後に絵にする所（VAE）は分けて作り、メモリの山を下げる"""
         import torch
-        from chatdraw.models import heavy, image_model
+        plan = getattr(self, "plan", None)
         self.placed = "cpu"
         if torch.cuda.is_available():
-            free, _total = torch.cuda.mem_get_info()
-            info = image_model(self.model)
-            # 取る量（gb）は 16 ビットの重みの大きさ。fp32 で置かれた模型（SD 系の full）は読むと半分になるが、多めに見て置く
-            need = info.gb * (QUANT_SHARE if getattr(self, "quantized", False) else 1.0)
-            self.placed = placement(free / 1e9, need * 1.2, heavy(info)[0] * 0.9)   # 描く途中の分を 2 割足す
-            if self.low_memory:   # メモリ不足で落ちたあと・足りないと分かったときは、全部を載せず 1 段軽い置き方にする
-                self.placed = {"cuda": "model", "model": "sequential"}.get(self.placed, self.placed)
+            # 置き方は描く前の予算の計画（memory_guard）で決めてある。計画が無い（重さの分からない模型）ときだけ前の決め方を使う
+            if plan is not None and plan.ok:
+                self.placed = plan.placement if plan.placement != "cpu" else "sequential"
+            else:
+                from chatdraw.models import heavy, image_model
+                free, _total = torch.cuda.mem_get_info()
+                info = image_model(self.model)
+                need = info.gb * (QUANT_SHARE if getattr(self, "quantized", False) else 1.0)
+                self.placed = placement(free / 1e9, need * 1.2, heavy(info)[0] * 0.9)
             if self.placed == "sequential" and getattr(self, "quantized", False):
                 self.placed = "model"   # 4 ビットに縮めた部品は層ごとの出し入れができない（bitsandbytes）。部品ごとに出し入れする
             if self.placed == "cuda":
-                pipe.to("cuda")
+                if not getattr(self, "_direct", False):
+                    pipe.to("cuda")
             elif self.placed == "model":
                 pipe.enable_model_cpu_offload()
             else:
                 pipe.enable_sequential_cpu_offload()
+        self.lighten(pipe, plan)
+
+    def lighten(self, pipe, plan=None, slicing=None, tiling=None):
+        """計画に合わせて、注意の分割と VAE の分割（区画と 1 枚ずつ）を入れる。品質はほぼ変わらず、山だけが下がる。
+        要らないときは入れない（分けると遅くなる）"""
+        slicing = (plan.slicing if plan is not None else self.low_memory) if slicing is None else slicing
+        tiling = (plan.tiling if plan is not None else True) if tiling is None else tiling
         vae = getattr(pipe, "vae", None)
-        for name in ("enable_tiling", "enable_slicing"):
+        for name in ("enable_tiling", "enable_slicing") if tiling else ():
             if vae is not None and hasattr(vae, name):
                 try:
                     getattr(vae, name)()
                 except Exception:
                     pass   # 分けられない VAE もある（その時はそのまま）
-        if self.low_memory and hasattr(pipe, "enable_attention_slicing"):
+        if slicing and hasattr(pipe, "enable_attention_slicing"):
             try:
                 pipe.enable_attention_slicing()   # 注意の計算を分けて、描く途中のメモリの山を下げる
             except Exception:   # noqa: BLE001  分けられない描き方もある
@@ -1001,10 +1070,26 @@ class Painter:
         """base（PIL のラフ）を渡すと、その線の形に沿って描く。strength が大きいほどラフに沿う。
         reference（PIL）を渡すと、その絵の絵柄や雰囲気を借りる。ref_scale が大きいほど寄せる"""
         import torch
-        pipe = self.load()
+        was_loaded = self._pipe is not None
+        pipe = self.load(size)
+        # 読んだあとも 1 枚ごとに予算を見直す（ほかのアプリが空きを使ったかもしれない）。置き方は替えず、大きさと軽さを決める。
+        # 本体を 4 ビットに縮めたかは読んでから分かるので、縮めた模型は読んだ直後にも見直す
+        again = was_loaded or getattr(self, "quantized", False)
+        plan = self.memory_guard(size) if (again and self.placed is not None) else getattr(self, "plan", None)
+        self._check_budget(plan)
+        if plan is not None:
+            self.lighten(pipe, plan)
+            if not plan.preview:
+                on_preview = None   # 途中の絵をやめる
+        from chatdraw import membudget as mb
+        watch = mb.Watch(mb.budget()) if plan is not None else None
+        self._danger = False
+        self._last_latents = None
         from chatdraw.ownstyle import apply as apply_lora
         self.lora_note = apply_lora(pipe, self.lora, self.lora_scale, self._lora_state)
         steps = self.steps
+        total = steps
+        lightened = []
 
         def step(p, i, _t, kw):
             if self.stop:
@@ -1012,6 +1097,17 @@ class Painter:
             if on_step:
                 on_step(i + 1, total)
             lat = kw.get("latents")
+            level = watch.level if watch is not None else "ok"
+            if level == "danger":   # 危ないところまで来た。VAE の復号（次の山）に進まず、ここで抜けて途中の絵を残す
+                self._danger = True
+                self._last_latents = lat
+                raise mb.MemoryDanger(DANGER_NOTE)
+            if level == "near" and not lightened:   # 予算に近づいた。次の段階（残りの工程と VAE の復号）の前に軽い設定へ落とす
+                lightened.append(1)
+                self.lighten(p, None, slicing=True, tiling=True)
+                self._note("メモリが予算に近づいたので、注意と VAE を分け、途中の絵を止めて描き続けます")
+            if level != "ok":
+                return kw
             if on_preview is not None and getattr(lat, "ndim", 0) == 4 and lat.shape[1] == 4:   # SD 系の形だけ（DiT の詰めた形は色に直せない）
                 try:
                     on_preview(latent_preview(kw["latents"], sdxl=hasattr(p, "text_encoder_2")))
@@ -1024,8 +1120,10 @@ class Painter:
         f = fam(info.family)
         size = native_size(size or self.size, info.family)
         want = size
-        if self.low_memory and base is None:
-            size = low_memory_size(size, info.family)   # 小さめに描いて、頼んだ大きさに戻す（キャンバスの大きさは変えない）
+        if plan is not None and base is None and not f.edit:
+            size = tuple(plan.size)   # 予算に収まる大きさで描いて、頼んだ大きさに戻す（キャンバスの大きさは変えない）
+        elif self.low_memory and base is None:
+            size = low_memory_size(size, info.family)
         args = prompt_args(info, f, prompt, self.avoid, steps, self.guidance, seed, pipe)
         import inspect
         if "callback_on_step_end" in inspect.signature(pipe.__call__).parameters:
@@ -1034,6 +1132,35 @@ class Painter:
             raise Unsupported(f"{f.name} の模型は、ラフから描く部品がまだありません。「新規」で描くか、SDXL の模型に替えてください")
         if reference is not None and not f.reference:
             raise Unsupported(f"{f.name} の模型は、参考画像をまだ使えません。参考画像を外すか、SDXL の模型に替えてください")
+        if watch is not None:
+            watch.__enter__()
+        try:
+            return self._paint_body(pipe, info, f, prompt, args, size, want, base, strength, reference, ref_scale, step, steps)
+        except mb.MemoryDanger:
+            self._save_partial(want, info)
+            raise
+        finally:
+            if watch is not None:
+                watch.__exit__(None, None, None)
+
+    def _save_partial(self, want, info):
+        """危ないところで止めたときの途中の絵（latents を色に直しただけ。VAE は通さない）を出力の置き場に残す"""
+        lat = getattr(self, "_last_latents", None)
+        where = getattr(self, "partial_dir", None)
+        if lat is None or where is None or getattr(lat, "ndim", 0) != 4 or lat.shape[1] != 4:
+            return None
+        try:
+            from PIL import Image
+            img = latent_preview(lat, sdxl=info.family != "sd15").resize(tuple(want), Image.LANCZOS)
+            Path(where).mkdir(parents=True, exist_ok=True)
+            path = Path(where) / "memory-stop-partial.png"
+            img.save(path)
+            return path
+        except Exception:   # noqa: BLE001  残せなくても止めるのは止める
+            return None
+
+    def _paint_body(self, pipe, info, f, prompt, args, size, want, base, strength, reference, ref_scale, step, steps):
+        total = steps
         if f.edit and (base is not None or reference is not None):
             # 絵を頼みと一緒に渡す世代（FLUX.2 klein）。ラフは「この下描きを清書する」、参考画像は「この絵の絵柄で描く」と文で伝える
             w, h = size
@@ -1141,7 +1268,33 @@ class Painter:
             if self.stop:
                 raise Stopped("止めました")
             return out
-        return hires_inpaint(image, mask, run, self.upscale)
+        scale = self.redraw_scale(image.size)
+        self.lighten(self._inpaint, getattr(self, "redraw_plan", None))
+        return hires_inpaint(image, mask, run, scale)
+
+    def redraw_scale(self, size, b=None):
+        """直すときに絵全体を広げる倍率を、予算に収まる所まで下げる（1.5 → 1.25 → 1.0）。
+        直す所を切り出して貼り戻す形は元の絵が崩れたのでとらない。絵全体を渡したまま、広げる量で山を抑える。
+        1.0 でも収まらなければ、描く前に止める"""
+        from chatdraw import membudget as mb
+        gb, family, single, fp32 = self._weights()
+        b = b or mb.budget()
+        cuda = mb.has_cuda()
+        loaded_as = getattr(self, "placed", None) if self._pipe is not None else None
+        plan = None
+        for k in sorted({self.upscale, min(self.upscale, 1.25), 1.0}, reverse=True):
+            sw, sh = int(round(size[0] * k)), int(round(size[1] * k))
+            sz = (sw + (-sw % 8), sh + (-sh % 8))
+            plan = mb.choose(gb, sz, family, b, cuda, loaded_as=loaded_as, single_file=single, fp32=fp32,
+                             light=self.low_memory, allow_shrink=False, quantized=getattr(self, "quantized", False))
+            if plan.ok:
+                self.redraw_plan = plan
+                if k != self.upscale:
+                    self._note(f"メモリの予算に合わせて、直すときに広げる倍率を {self.upscale} から {k} に下げます")
+                return k
+        self.redraw_plan = plan
+        self._check_budget(plan)
+        return 1.0
 
 
 def hires_inpaint(image, mask, run, scale: float = 1.5):
@@ -1243,6 +1396,7 @@ class Studio:
             raise ValueError("子どもを性的に描く頼みは描きません")
         if hasattr(self.painter, "on_note"):
             self.painter.on_note = say   # メモリが足りないときの切り替えを、進みの知らせで利用者に伝える
+            self.painter.partial_dir = self.out   # メモリが危なくて止めたときの途中の絵の置き場
         if self.words_auto:
             from chatdraw.choose import choose_words
             path = choose_words(text)
@@ -1269,6 +1423,7 @@ class Studio:
                         self.painter.unload()   # 2 つの模型を同時にメモリに置かない（前の模型を確かに降ろしてから次を読む）
                     self.painter = Painter(m.repo, m.steps, guidance=m.guidance)   # 前の模型は捨ててメモリを空ける
                     self.painter.avoid = avoid   # AI の欄の禁止ワードを引き継ぐ（替えた模型で禁止ワードが消えていた）
+                    self.painter.on_note, self.painter.partial_dir = say, self.out
                 self.chosen = (m.name, why)   # 画面の「絵の模型: おまかせ（…）」に出す
                 say(f"絵の模型: {m.name}（{why}）")
             else:
