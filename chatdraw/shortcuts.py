@@ -184,7 +184,7 @@ def builtins(w) -> list[Shortcut]:
     out.sort(key=lambda s: (rank[s.group], CLEAN_ORDER.index(s.id) if s.id in CLEAN_ORDER else len(CLEAN_ORDER)))
     torch_ok = finishers._has("torch")
     out.append(Shortcut("app:upscale2x", "レイヤーのまま 2 倍に拡大", "enlarge",
-                        "レイヤーを分けたまま、絵全体を 2 倍の大きさにします（アニメ向けの拡大の重み 18MB を初めに取ります）",
+                        "レイヤーを分けたまま、絵全体を 2 倍の大きさにします（アニメ向けの拡大の重み 2.4MB を初めに取ります）",
                         torch_ok, "" if torch_ok else "画像生成の部品（torch）がまだ入っていません。模型の管理から絵の模型を取ると入ります",
                         w.upscale_canvas))
     out += [

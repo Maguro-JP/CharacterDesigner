@@ -117,8 +117,8 @@ register(Finisher(
 register(Finisher(
     "upscale_anime", "アニメ向けに 2 倍に拡大",
     "Real-ESRGAN のアニメ絵用の重みで 2 倍にします。囲んだときは、囲みの中だけ拡大で整えた画素に替えます。"
-    "初めて使うときに重み（18MB）を取ります",
-    "BSD-3-Clause", "https://github.com/xinntao/Real-ESRGAN（RealESRGAN_x4plus_anime_6B）",
+    "初めて使うときに重み（2.4MB）を取ります",
+    "BSD-3-Clause", "https://github.com/xinntao/Real-ESRGAN（realesr-animevideov3、取れないときは RealESRGAN_x4plus_anime_6B）",
     lambda: _upscale_ready(), lambda: _upscale_why(), lambda im: _upscale_apply(im), heavy=True, group="enlarge"))   # 名前で引く（差し替えられるように）
 register(Finisher(
     "face", "顔を整える", "囲んだ顔を、低い強さ（0.3）で描き直して整えます。囲みの外は変えません",

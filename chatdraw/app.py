@@ -2241,7 +2241,7 @@ class Window(QMainWindow):
         current = self.canvas.current
         self.feature_tour("upscale")
         self.activity.begin("絵を 2 倍に拡大", "拡大")
-        self.activity.status("描いています" + ("" if upscale.ready() else "（初めに拡大の部品 18MB を取ります）"))
+        self.activity.status("描いています" + ("" if upscale.ready() else "（初めに拡大の部品 2.4MB を取ります）"))
 
         def work(on_step):
             from PIL import Image
