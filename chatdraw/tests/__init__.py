@@ -13,6 +13,16 @@ _CONFIG = tempfile.mkdtemp(prefix="chatdraw-test-config-")
 os.environ["XDG_CONFIG_HOME"] = _CONFIG
 atexit.register(shutil.rmtree, _CONFIG, True)
 
+# 描いた記録（学び）と単語辞書も、試験の間は一時の場所に書く。開発の .cache に溜まった前の回の記録で、
+# 学びが頼みの並びを変え、順番によって試験が落ちた（AskedComesFirst）
+_DATA = tempfile.mkdtemp(prefix="chatdraw-test-data-")
+atexit.register(shutil.rmtree, _DATA, True)
+from pathlib import Path as _Path  # noqa: E402
+from chatdraw import wordlearn as _wl, worddict as _wd  # noqa: E402
+_home = lambda: _Path(os.environ.get("CD_HOME") or _DATA)   # 試験が CD_HOME を替えたときはそちらに従う
+_wl.log_file = lambda: _home() / "draw_log.jsonl"
+_wd.dict_file = lambda: _home() / "words.json"
+
 
 
 # 始めた QThread を弱い参照で覚えておく。強く持つと、終わりの片付けの順が変わって Segmentation fault になった
