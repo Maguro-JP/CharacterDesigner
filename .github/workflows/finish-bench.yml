@@ -7,6 +7,9 @@ on:
       old:
         description: 前の版（コミット）
         default: "82b4135a^"
+      only_upscale:
+        description: 拡大だけを測る（1）
+        default: "1"
   push:
     branches: ["claude/FIX-finish2-*"]
     paths:
@@ -33,7 +36,8 @@ jobs:
       - run: |
           for p in library/daily/2026-10-13/05-yukionna.png library/women/2026-10-18/pockets-20261018229.png; do
             echo "== $p"
-            python -m chatdraw.bench_finish "$p" "$(cd ../old && pwd)"
+            python -m chatdraw.bench_finish "$p" --upscale
+            [ "${{ github.event.inputs.only_upscale || '1' }}" = "1" ] || python -m chatdraw.bench_finish "$p" "$(cd ../old && pwd)"
           done | tee bench.txt
       - uses: actions/upload-artifact@v4
         with:

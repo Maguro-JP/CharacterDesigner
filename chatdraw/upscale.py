@@ -93,12 +93,57 @@ def _net():
     return _NET[0]
 
 
-def x4(img, tile: int = 256, pad: int = 16, on_step=None):
-    """PIL の絵を 4 倍にする。メモリーに収めるため、端を重ねたタイルに分けて回す"""
+# 軽い網（SRVGGNetCompact、Real-ESRGAN の realesr-animevideov3、BSD-3-Clause、2.4MB）。出来と秒を
+# chatdraw/bench_finish.py の upscale で今の網と並べて測るためのもの。既定の網は、出来が下がらず速いと分かるまで替えない
+COMPACT = UPSCALE / "realesr-animevideov3.pth"
+COMPACT_URL = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.5.0/realesr-animevideov3.pth"
+_COMPACT = []
+
+
+def _compact():
+    if _COMPACT:
+        return _COMPACT[0]
+    import torch
+    import urllib.request
+    from torch import nn
+    import torch.nn.functional as F
+
+    class SRVGG(nn.Module):
+        def __init__(self, nf=64, nc=16, up=4):
+            super().__init__()
+            self.up = up
+            body = [nn.Conv2d(3, nf, 3, 1, 1), nn.PReLU(num_parameters=nf)]
+            for _ in range(nc):
+                body += [nn.Conv2d(nf, nf, 3, 1, 1), nn.PReLU(num_parameters=nf)]
+            body += [nn.Conv2d(nf, 3 * up * up, 3, 1, 1)]
+            self.body = nn.Sequential(*body)
+            self.shuffle = nn.PixelShuffle(up)
+
+        def forward(self, x):
+            return self.shuffle(self.body(x)) + F.interpolate(x, scale_factor=self.up, mode="nearest")
+
+    if not COMPACT.exists():
+        UPSCALE.mkdir(parents=True, exist_ok=True)
+        part = COMPACT.with_suffix(".part")
+        urllib.request.urlretrieve(COMPACT_URL, part)
+        part.replace(COMPACT)
+    state = torch.load(COMPACT, map_location="cpu", weights_only=True)
+    state = state.get("params_ema", state.get("params", state))
+    model = SRVGG()
+    model.load_state_dict(state, strict=True)
+    if torch.cuda.is_available():
+        model = model.half().cuda()
+    model = model.to(memory_format=torch.channels_last)
+    _COMPACT.append(model.eval())
+    return _COMPACT[0]
+
+
+def x4(img, tile: int = 256, pad: int = 16, on_step=None, net=None):
+    """PIL の絵を 4 倍にする。メモリーに収めるため、端を重ねたタイルに分けて回す。net を渡せばその網で（比べるとき）"""
     import numpy as np
     import torch
     from PIL import Image
-    net = _net()
+    net = net or _net()
     a = np.asarray(img.convert("RGB"), dtype=np.float32) / 255.0
     h, w, _ = a.shape
     t = torch.from_numpy(a).permute(2, 0, 1)[None]
