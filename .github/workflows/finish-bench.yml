@@ -18,6 +18,8 @@ jobs:
   bench:
     runs-on: ubuntu-latest
     timeout-minutes: 60
+    env:
+      CD_FETCH: "1"   # tools/gen/edit.py は既定で取りに行かない。部位分けの模型をこの機械で取る
     steps:
       - uses: actions/checkout@v4
         with:
