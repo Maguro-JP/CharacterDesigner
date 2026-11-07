@@ -22,6 +22,7 @@ def collect(window) -> dict[str, QAction]:
     # 窓が持っていたメニューの包み（self.ai_menu、self.theme_menu など）が「消えた」扱いになった。開くたびに作り直す中身が
     # 作れず（RuntimeError）、AI のメニューの模型の一覧が起動の時のまま古くなった。窓の子のメニューから、見出しの操作で引く
     menus = {m.menuAction(): m for m in window.findChildren(QMenu)}
+    seen: set = set()
 
     def walk(menu: QMenu, path: str):
         for act in menu.actions():
@@ -29,13 +30,17 @@ def collect(window) -> dict[str, QAction]:
             text = ja(act.text().replace("&", "").strip())   # 英語の画面でも、残すキーの名前は日本語のまま
             if sub is not None:
                 walk(sub, f"{path}/{text}" if path else text)
-            elif text and not act.isSeparator():
+            elif text and not act.isSeparator() and act not in seen:
+                seen.add(act)   # 同じ操作が 2 つのメニューに入っていても 1 行にする（2 行にすると自分自身と重なって保存できなかった）
                 name = text if text not in found else f"{path}/{text}"
                 found.setdefault(name, act)
     for top in window.menuBar().actions():
         if top in menus:
             walk(menus[top], ja(top.text().replace("&", "").strip()))
     for key, act in getattr(window, "tool_actions", {}).items():
+        if act in seen:
+            continue
+        seen.add(act)
         found.setdefault(f"道具/{ja(act.text())}", act)
     editor = getattr(window, "menus_editor", None)   # メニューの編集で隠した項目も、キーは変えられるようにする
     for act in (editor.hidden_actions() if editor is not None else []):
