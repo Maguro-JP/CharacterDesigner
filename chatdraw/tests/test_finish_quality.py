@@ -151,7 +151,11 @@ def tiny_painter():
     """試験用の小さな SDXL と、その UNet から作った小さな線の ControlNet（重みは乱数。絵の出来は見ない）"""
     from diffusers import ControlNetModel, StableDiffusionXLPipeline
     from chatdraw import restyle
-    pipe = StableDiffusionXLPipeline.from_pretrained(TINY)
+    # 手元にあれば通信しない（通信の揺れで試験が落ちていた）。ほかの試験が HF_HOME を替えても見つかるよう、既定の置き場を先に見る
+    import glob
+    import os
+    local = sorted(glob.glob(os.path.expanduser("~/.cache/huggingface/hub/models--" + TINY.replace("/", "--") + "/snapshots/*/")))
+    pipe = StableDiffusionXLPipeline.from_pretrained(local[-1] if local else TINY)
     restyle._CACHE.clear()
     restyle._CACHE["controlnet"] = ControlNetModel.from_unet(
         pipe.unet, conditioning_embedding_out_channels=(16,) * (int(math.log2(pipe.vae_scale_factor)) + 1))
