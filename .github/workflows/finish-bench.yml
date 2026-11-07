@@ -1,0 +1,40 @@
+# 綺麗にする加工の段階ごとの秒と最大メモリを、前の版と今の版、部位分けの設定を並べて、同じ機械で測る（chatdraw/bench_finish.py）。
+# 手元の機械はほかの作業と共用で、秒が ±5 秒揺れて差を決められなかった。負荷の無い Actions の機械で並べて比べる。
+name: finish-bench
+on:
+  workflow_dispatch:
+    inputs:
+      old:
+        description: 前の版（コミット）
+        default: "82b4135a^"
+  push:
+    branches: ["claude/FIX-finish2-*"]
+    paths:
+      - "chatdraw/bench_finish.py"
+      - ".github/workflows/finish-bench.yml"
+permissions:
+  contents: read
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -q --index-url https://download.pytorch.org/whl/cpu torch && pip install -q numpy scipy scikit-image pillow transformers huggingface_hub
+      - run: git worktree add ../old "${{ github.event.inputs.old || '82b4135a^' }}"
+      - run: lscpu | grep -E "Model name|^CPU\(s\)|Flags" | cut -c1-200
+      - run: |
+          for p in library/daily/2026-10-13/05-yukionna.png library/women/2026-10-18/pockets-20261018229.png; do
+            echo "== $p"
+            python -m chatdraw.bench_finish "$p" "$(cd ../old && pwd)"
+          done | tee bench.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: finish-bench
+          path: bench.txt
+          retention-days: 7
