@@ -2283,7 +2283,7 @@ class ConveyTest(unittest.TestCase):
             self.assertIn(tag, t)
         self.assertIn("waving", w.to_prompt("女性が海で手を振っている"))        # 「振る」の形が変わっても拾う
         self.assertEqual(leftover("白いビキニの女性が海で手を振っている 全身"), [])
-        self.assertEqual(leftover("ドラゴンに乗った騎士"), ["ドラゴン", "乗"])   # 拾えなかった言葉は利用者に見せる
+        self.assertEqual(leftover("グリフォンを連れた騎士"), ["グリフォン", "連れ"])   # 拾えなかった言葉は利用者に見せる
 
 
 class EditFamilyTest(unittest.TestCase):
@@ -2493,8 +2493,8 @@ class ConveyCasesTest(unittest.TestCase):
     def test_unknown_words_are_shown(self):
         from chatdraw.engine import Words
         w = Words(Path(""))
-        w.to_prompt("ドラゴンに乗った女性")
-        self.assertIn("ドラゴン", w.untranslated)
+        w.to_prompt("グリフォンを連れた女性")
+        self.assertIn("グリフォン", w.untranslated)
 
     def test_model_path_merge(self):
         """言葉の模型の答えを整える: 日本語・打ち消しを描く言葉に残さず、表で拾った語を足す"""

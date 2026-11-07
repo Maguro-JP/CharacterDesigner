@@ -62,6 +62,35 @@ for _k, _v in {"魔女": "witch, witch hat", "天使": "angel, angel wings, halo
                "月": "moon", "炎": "fire", "水中": "underwater", "宇宙": "space"}.items():
     TERMS.setdefault(_k, _v)
 
+# 頼みの 30 本の試験（chatdraw/tests/test_words.py）で落ちた語と、その周りのよく使う語。表に無いと、言葉の模型が無いときに
+# 黙って捨てられ、頼みと違う絵が出た（紅茶を運ぶメイドが、何も持たないメイドになった）
+for _k, _v in {"紅茶": "tea, teacup", "お茶": "tea", "コーヒー": "coffee, coffee cup", "ケーキ": "cake", "パン": "bread",
+               "りんご": "apple", "アイス": "ice cream", "お弁当": "bento", "運ん": "carrying", "運ぶ": "carrying",
+               "弾く": "playing instrument", "弾い": "playing instrument", "ピアノ": "piano", "バイオリン": "violin",
+               "弓使い": "archer", "構え": "fighting stance", "構える": "fighting stance", "窓際": "window, by the window", "窓": "window",
+               "手をつな": "holding hands", "手を繋": "holding hands", "抱きしめ": "hug", "羽織": "", "巻い": "", "巻く": "", "巻": "",
+               "屋根": "rooftop", "刀": "katana", "川辺": "riverside, river", "病院": "hospital", "廊下": "hallway", "見て": "looking at viewer",
+               "見る": "looking", "見つめ": "staring", "乗っ": "riding", "乗る": "riding", "乗": "riding", "祭り": "festival", "夏祭り": "summer festival",
+               "金魚すくい": "goldfish scooping", "金魚": "goldfish", "船": "ship, boat", "電車": "train", "車": "car", "自転車": "bicycle",
+               "前": "", "上": "", "辺": "", "使い": "", "の上": "", "の前": "", "横": "", "隣": "", "中": "",
+               "ベッド": "bed", "椅子": "chair", "机": "desk", "階段": "stairs", "橋": "bridge", "庭": "garden", "台所": "kitchen",
+               "学校": "school", "遊園地": "amusement park", "水族館": "aquarium", "ステージ": "stage", "教会": "church", "廃墟": "ruins",
+               "雲": "cloud", "虹": "rainbow", "雷": "lightning", "風": "wind", "霧": "fog", "光": "light rays", "影": "shadow",
+               "春": "spring (season)", "秋": "autumn", "冬": "winter", "紅葉": "autumn leaves", "向日葵": "sunflower", "ひまわり": "sunflower", "薔薇": "rose", "バラ": "rose",
+               "泣き顔": "crying", "驚く": "surprised", "驚い": "surprised", "悲しい": "sad", "眠そう": "sleepy", "真剣": "serious",
+               "ドヤ顔": "smug", "舌を出": "tongue out", "頬杖": "head rest", "手を伸ば": "reaching out", "指さ": "pointing", "指差": "pointing",
+               "ジャンプ": "jumping", "寝転": "lying", "伸び": "stretching", "書い": "writing", "描い": "drawing", "撮っ": "taking picture",
+               "子猫": "kitten", "うさぎ": "rabbit", "ドラゴン": "dragon", "妖精": "fairy", "人魚": "mermaid", "獣耳": "animal ears",
+               "王女": "princess", "姫": "princess", "王子": "prince", "王様": "king", "女王": "queen", "シスター": "nun", "探偵": "detective",
+               "学生": "student", "先生": "teacher", "医者": "doctor", "兵士": "soldier", "冒険者": "adventurer", "弓": "bow (weapon)",
+               "髪飾り": "hair ornament", "カチューシャ": "hairband", "ヘアピン": "hairclip", "靴": "shoes", "サンダル": "sandals",
+               "ニーソ": "thighhighs", "タイツ": "pantyhose", "ワンピース": "dress", "ローブ": "robe", "フード": "hood", "和服": "kimono",
+               "ゴスロリ": "gothic lolita", "チャイナドレス": "china dress", "体操服": "gym uniform", "パジャマ": "pajamas",
+               "赤髪": "red hair", "茶髪": "brown hair", "青髪": "blue hair", "白髪": "white hair", "銀髪": "silver hair", "金髪": "blonde hair",
+               "黒髪": "black hair", "ピンク髪": "pink hair", "オッドアイ": "heterochromia", "そばかす": "freckles", "八重歯": "fang",
+               "笑": "smile", "微笑": "light smile", "怒っ": "angry", "照れ": "blush"}.items():
+    TERMS.setdefault(_k, _v)
+
 # 描く物を変えない言い回し。拾ったことにして、伝わらない言葉の欄に出さない（タグは付けない）
 QUIET = ("かけた", "かけて", "着た", "着て", "着てい", "身につけ", "付けた", "している", "いる", "下で", "の下", "前で", "中で", "姿", "人物", "描いて", "描く",
          "キャラクター", "イラスト", "感じ", "雰囲気", "かぶっ", "かぶる", "かぶり", "被っ", "被る", "締め", "さし", "さす",
@@ -89,10 +118,21 @@ _FEMALE = ("女性", "女の人", "お姉さん", "女の子", "少女", "女騎
 _MALE = ("男性", "男の人", "男の子", "少年", "男")
 
 
-def _scan(text: str) -> tuple[list[tuple[int, str]], list[tuple[int, str]], list[bool]]:
-    """頼みを左から読み、(位置, タグ) の描く物・描かない物と、拾った字の印を返す"""
-    found: list[tuple[int, str]] = []
-    negs: list[tuple[int, str]] = []
+_STEM_END = "るうくぐすつぬぶむ"
+
+
+def user_terms() -> dict[str, str]:
+    """利用者が画面で直した語（読めなかった語に付けたタグ）と、言葉の模型が 1 語ずつ訳した語。表より先に引く"""
+    try:
+        from chatdraw import worddict
+        return worddict.terms()
+    except Exception:   # 置き場が読めなくても表だけで読む
+        return {}
+
+
+def _spans(text: str, extra: dict[str, str] | None = None) -> tuple[list[tuple[int, int, str, bool]], list[bool]]:
+    """頼みを左から読み、拾った語の (始め, 終わり, タグ, 打ち消しか) と、拾った字の印を返す"""
+    spans: list[tuple[int, int, str, bool]] = []
     taken = [False] * len(text)
 
     def take(start: int, end: int, tag: str):
@@ -103,8 +143,11 @@ def _scan(text: str) -> tuple[list[tuple[int, str]], list[tuple[int, str]], list
             end += m.end()
         for i in range(start, end):
             taken[i] = True
-        if tag:
-            (negs if m else found).append((start, tag))
+        spans.append((start, end, tag, bool(m)))
+    # 利用者が直した語を先に引く（表の語より長くても短くても、利用者の読みを正にする）
+    for ja, en in sorted((extra if extra is not None else user_terms()).items(), key=lambda kv: -len(kv[0])):
+        for m in re.finditer(re.escape(ja), text):
+            take(m.start(), m.end(), en)
     # 色と物の組（赤い髪、青い目、白いビキニ）を先に拾う
     for cj, ce in sorted(COLORS.items(), key=lambda kv: -len(kv[0])):
         for wj, we in sorted(_COLOR_WORDS.items(), key=lambda kv: -len(kv[0])):
@@ -114,11 +157,28 @@ def _scan(text: str) -> tuple[list[tuple[int, str]], list[tuple[int, str]], list
         for m in re.finditer(f"{lj}(?=[^、。 ]{{0,3}}髪)", text):
             take(m.start(), m.end(), le)
     for ja, en in sorted(TERMS.items(), key=lambda kv: -len(kv[0])):
-        # 動きの言葉は終わりの形を変えて書かれる（振る・振っている・振って）。「る」で終わる語は語幹でも拾う
-        keys = [ja] + ([ja[:-1]] if ja.endswith("る") and len(ja) >= 3 else [])
+        # 動きの言葉は終わりの形を変えて書かれる（振る・振っている・振って、寝る・寝ている）。終わりの 1 字を除いた語幹でも拾う。
+        # 語幹が仮名だけで 1 字になるもの（「いる」の「い」）は、ほかの語の字を取ってしまうので拾わない
+        keys = [ja]
+        if ja[-1] in _STEM_END and len(ja) >= 2 and (len(ja) >= 3 or re.match(r"[一-鿿]", ja[0])):
+            keys.append(ja[:-1])
         for key in keys:
             for m in re.finditer(re.escape(key), text):
                 take(m.start(), m.end(), en)
+    # 日本語の頼みに混ぜた英語のタグ（単語のお気に入りから足した語、「猫耳の少女、red scarf」）はそのまま描く物にする（表の語の後に拾い、Tシャツの T を取らない）。
+    # 前は日本語の語だけを表で拾い、混ぜた英語は黙って落ちていた
+    for m in re.finditer(r"[A-Za-z][A-Za-z0-9 ()'_.:-]*", text):
+        word = m.group().strip(" .:-")
+        if word:
+            take(m.start(), m.start() + len(word), word)
+    return sorted(spans), taken
+
+
+def _scan(text: str) -> tuple[list[tuple[int, str]], list[tuple[int, str]], list[bool]]:
+    """頼みを左から読み、(位置, タグ) の描く物・描かない物と、拾った字の印を返す"""
+    spans, taken = _spans(text)
+    found = [(a, tag) for a, _b, tag, neg in spans if tag and not neg]
+    negs = [(a, tag) for a, _b, tag, neg in spans if tag and neg]
     return found, negs, taken
 
 
@@ -165,20 +225,43 @@ def negatives(text: str) -> list[str]:
 _FILLER = set("のがをにでとはもへやてっいるたなだですますしたいる、。・ 　!！?？")
 
 
-def leftover(text: str) -> list[str]:
-    """表で拾えなかった言葉（つなぎの字を除いた残り）。模型に伝わらない言葉として利用者に見せる"""
-    taken = _scan(text)[2]
-    out, cur = [], ""
-    for ch, t in zip(text, taken):
+def _gaps(text: str, taken: list[bool]) -> list[tuple[int, str]]:
+    """拾えなかった字のまとまり（つなぎの字を除く）を (位置, 語) で返す"""
+    out, cur, at = [], "", 0
+    for i, (ch, t) in enumerate(zip(text, taken)):
         if t or ch in _FILLER or not re.match(r"[぀-ヿ一-鿿]", ch):
             if len(cur) >= 2 or re.search(r"[一-鿿]", cur):   # 漢字は 1 字でも意味がある（乗った、持った）
-                out.append(cur)
+                out.append((at, cur))
             cur = ""
         else:
+            if not cur:
+                at = i
             cur += ch
     if len(cur) >= 2 or re.search(r"[一-鿿]", cur):
-        out.append(cur)
+        out.append((at, cur))
     return out
+
+
+def leftover(text: str) -> list[str]:
+    """表で拾えなかった言葉（つなぎの字を除いた残り）。模型に伝わらない言葉として利用者に見せる"""
+    return [w for _a, w in _gaps(text, _spans(text)[1])]
+
+
+def align(text: str) -> list[dict]:
+    """頼みを語ごとに分け、どの語がどのタグになったかを頼みの順で返す。
+    kind は draw（描く物）、neg（描かない物）、quiet（描く物を変えない言い回し）、lost（読めなかった語）。
+    読めなかった語は捨てずに返し、画面で利用者が直せるようにする（黙って落とすと、頼みと違う絵になった）"""
+    spans, taken = _spans(text)
+    rows = [(a, {"word": text[a:b], "tags": [t for t in tag.split(", ") if t],
+                 "kind": "neg" if neg else ("draw" if tag else "quiet")}) for a, b, tag, neg in spans]
+    rows += [(a, {"word": w, "tags": [], "kind": "lost"}) for a, w in _gaps(text, taken)]
+    return [r for _a, r in sorted(rows, key=lambda x: x[0])]
+
+
+def coverage(text: str) -> tuple[int, int]:
+    """(語の数, 読めなかった語の数)。言い回し（quiet）は語に数えない"""
+    rows = [r for r in align(text) if r["kind"] != "quiet"]
+    return len(rows), sum(r["kind"] == "lost" for r in rows)
 
 
 def merge(prompt: str, tags: list[str]) -> str:
