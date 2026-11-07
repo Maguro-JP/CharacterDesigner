@@ -52,9 +52,53 @@ def _clean_apply(image):
         # 主線とその 1 画素の周りは元のまま残し、出来た崩れの画素も戻す
         line = binary_dilation(_gen("cleanup").line_mask(a), iterations=1)
         b[line] = a[line]
+        # 中央値は主線に数えない 1〜2 画素の細い線（袴のひだ、服の縁の線）も消し、線が途切れた（見本の全身・背景つきで目で見た）。
+        # 塗りのむらは小さな揺れなので CLEAN_CAP までしか動かさない。CLEAN_STRUCT より大きく変わる画素のうち、
+        # つながって CLEAN_LINE 画素以上ある物は細い線として元のまま残し、それより小さな孤立した点はざらつきとして均す
+        from scipy.ndimage import label
+        d = b - a
+        big = np.abs(d).max(2) > CLEAN_STRUCT
+        lab, _ = label(big, structure=np.ones((3, 3)))
+        sizes = np.bincount(lab.ravel())
+        sizes[0] = 0
+        struct = sizes[lab] >= CLEAN_LINE
+        d[struct] = 0
+        small = ~big
+        d[small] = np.clip(d[small], -CLEAN_CAP, CLEAN_CAP)
+        b = a + d
         return Image.fromarray(np.clip(repair(a, b), 0, 255).astype("uint8"))
     except ImportError:   # 部品が無いときは元の均し方のまま
         return out
+
+
+def _tidy_apply(image):
+    """整える: 線と塗りを整える既定の工程（RETOUCH_SAFE）を崩れを戻しながら掛けてから、塗りのむらを均す"""
+    return _clean_apply(_retouch(RETOUCH_SAFE)(image))
+
+
+DETAIL_SIGMA = 1.6    # 足す細部の細かさ（ぼかしの幅、画素）
+DETAIL_AMOUNT = 0.7   # 細部の明暗を何倍足すか
+DETAIL_CAP = 18.0     # 1 画素で変えてよい明るさの上限（0〜255）。形と色を変えないように
+
+
+def _detail_apply(image):
+    """ディテール追加: 明るさの細かい起伏（髪の毛の流れ、布のしわ、質感）だけを強める。色は変えず（明るさに足した分を
+    RGB に同じだけ足す）、主線とその周り・平らな塗りには足さない（線が太り、平らな所にざらつきが出るので）"""
+    import numpy as np
+    from PIL import Image
+    from scipy.ndimage import binary_dilation, gaussian_filter
+    a = np.asarray(image.convert("RGB"), np.float32)
+    L = a @ np.float32([0.299, 0.587, 0.114])
+    hi = L - gaussian_filter(L, DETAIL_SIGMA)
+    texture = gaussian_filter(np.abs(hi), 3) > 1.5        # もともと細部のある所だけ
+    line = binary_dilation(_gen("cleanup").line_mask(a), iterations=2)
+    add = np.clip(DETAIL_AMOUNT * hi, -DETAIL_CAP, DETAIL_CAP) * (texture & ~line)
+    return Image.fromarray(np.clip(a + add[..., None] + 0.5, 0, 255).astype("uint8"))
+
+
+CLEAN_STRUCT = 16.0   # 塗りのむらを均すとき、これより変わる画素は細い線・模様（形）として触らない（0〜255）
+CLEAN_CAP = 6.0       # 塗りのむらを均すとき、小さな揺れで 1 画素に動かす色の上限
+CLEAN_LINE = 6        # 大きく変わる画素がこれだけつながっていたら、ざらつきでなく細い線として残す
 
 
 def _upscale_ready() -> bool:
@@ -120,11 +164,27 @@ register(Finisher(
     "初めて使うときに重み（2.4MB）を取ります",
     "BSD-3-Clause", "https://github.com/xinntao/Real-ESRGAN（realesr-animevideov3、取れないときは RealESRGAN_x4plus_anime_6B）",
     lambda: _upscale_ready(), lambda: _upscale_why(), lambda im: _upscale_apply(im), heavy=True, group="enlarge"))   # 名前で引く（差し替えられるように）
+# 前の「顔を整える」は顔を強さ 0.3 で描き直し、どの絵も同じ顔・同じ目の色になった（元の絵の人物が消えた）。
+# 整えるは模型で描き直さず、線と塗りだけを整える。顔は元の画素のまま残し（soften）、目の色・目の位置・髪の色を前と後で測って、
+# 変わった所は元に戻す（chatdraw/facefeat.py）。低い強さの描き直しでも目の色は守れないので、模型は使わない
 register(Finisher(
-    "face", "顔を整える", "囲んだ顔を、低い強さ（0.3）で描き直して整えます。囲みの外は変えません",
-    "使う絵の模型の許諾（CreativeML OpenRAIL++-M など）", "取得済みの直しに使える絵の模型",
-    lambda: _redraw_ready(), lambda: _redraw_why(), None, heavy=True,
-    extra=dict(redraw=_redraw_with("detailed face, clean lineart, symmetrical eyes", 0.3)), group="redraw"))
+    "face", "整える",
+    "線の縁のにじみと塗りのざらつきを整えます。顔・目の色・髪の色は元の絵のまま残します。"
+    "模型は使わず、囲んだときは囲みの中だけを変えます",
+    "このリポジトリのコード", "chatdraw/finishers.py", lambda: _own_ready("retouch", "numpy", "scipy")(),
+    lambda: _own_why("retouch", "numpy", "scipy")(), lambda im: _tidy_apply(im), extra=dict(scale="tile")))
+register(Finisher(
+    "around", "指定した箇所の周辺を整える",
+    "選んだ範囲か赤ペンで囲んだ所の中だけを整えます。囲みの外は 1 画素も変えません。顔・目の色・髪の色は元のまま残します",
+    "このリポジトリのコード", "chatdraw/finishers.py", lambda: _own_ready("retouch", "numpy", "scipy")(),
+    lambda: _own_why("retouch", "numpy", "scipy")(), lambda im: _tidy_apply(im), extra=dict(scale="tile", needs_mask=True)))
+register(Finisher(
+    "detail", "ディテール追加",
+    "元の形と色を保ったまま、髪の毛の流れ・布のしわ・小物の質感の細かい明暗を立てます。顔と主線は変えません。"
+    "結果は一番上の新しいレイヤーに置きます",
+    "このリポジトリのコード", "chatdraw/finishers.py", lambda: _own_ready("cleanup", "numpy", "scipy")(),
+    lambda: _own_why("cleanup", "numpy", "scipy")(), lambda im: _detail_apply(im), extra=dict(scale="tile", effect=True),
+    group="detail"))
 register(Finisher(
     "refine", "軽く描き直して仕上げる", "形を変えない強さ（0.25）で描き直し、線と塗りを整えます",
     "使う絵の模型の許諾（CreativeML OpenRAIL++-M など）", "取得済みの直しに使える絵の模型",
@@ -207,8 +267,12 @@ def _own_why(mod: str, *needs: str):
 # おまかせに入れるのは顔の細い線に触らない工程だけ。バリ取り・ジャギー消しは顔を部位分けで守れるときだけ使う決まりなので「全部」にだけ入れる
 # 明るさの幅（levels）は入れない。元の大きさの絵では 3 枚とも落ちた（一部が壊れる・線の太さが変わる）のに、拡大のあとの絵では
 # 縮めた写しで決めるので通り、色が平均 10.7 変わった（描き手の決めた明るさと色を変えるので、元の良さが消える）
-RETOUCH_SAFE = ("heal", "defringe", "sharpen")
-RETOUCH_FULL = ("heal", "defringe", "deburr", "dejag", "sharpen")
+# 粒消し（heal）とシャープ（sharpen）は既定から外した。見本の 3 枚（顔の寄り・全身・背景つき）に掛けて元の大きさで見ると、
+# 粒消しはシャツのボタン（小さな暗い丸）を消して輪に変え、シャープは髪の明るい筋の際に暗い継ぎ目を作った。
+# どちらも数字（粒の数、縁の急さ）は良くなるので工程の採否では止まらなかった。
+# バリ取り（deburr）も外した。全身の見本で着物の白い花の縁を削り、ぎざぎざにした
+RETOUCH_SAFE = ("defringe",)
+RETOUCH_FULL = ("defringe", "dejag")
 
 
 _MEMO: list = []   # (配列, 種類, 値)。同じ絵の崩れを工程ごとに測り直さない（直した絵は測ったあとに書き換えないので、同じ物を指せば同じ値）
@@ -361,12 +425,12 @@ def _material(kind: str):
 _OWN = "このリポジトリのコード"
 register(Finisher(
     "retouch", "線と塗りを整える",
-    "AI の描き残しの黒い粒・線の縁の色のにじみを消し、明るさの幅と線の締まりを整えます。形は変えません。工程ごとに数字が良くなった時だけ掛けます",
+    "線の縁の紫・緑の色のにじみを消します。形と色は変えません。数字が良くなった時だけ掛けます",
     _OWN, "tools/gen/retouch.py", _own_ready("retouch", "numpy", "scipy"), _own_why("retouch", "numpy", "scipy"),
     _retouch(RETOUCH_SAFE), extra=dict(needs=("numpy", "scipy"), scale="retouch", steps=RETOUCH_SAFE)))
 register(Finisher(
-    "retouch_full", "バリとジャギーも取る",
-    "線と塗りを整えたうえで、輪郭の毛羽と線の階段も直します。顔の細い線に掛かることがあるので、囲んで使うと安心です",
+    "retouch_full", "ジャギーも取る",
+    "線と塗りを整えたうえで、線の階段も直します。顔の細い線に掛かることがあるので、囲んで使うと安心です",
     _OWN, "tools/gen/retouch.py", _own_ready("retouch", "numpy", "scipy", "skimage"), _own_why("retouch", "numpy", "scipy", "skimage"),
     _retouch(RETOUCH_FULL), extra=dict(needs=("numpy", "scipy", "skimage"), scale="retouch", steps=RETOUCH_FULL)))
 register(Finisher(
@@ -595,8 +659,11 @@ QC_LOCAL = 28.0     # 区画の平均の色の、説明できない変わりの�
 QC_LINE = 0.5       # 区画の主線のうち、消えてよい割合
 QC_LINE_MIN = 24    # 主線がこれだけ（画素）ある区画だけ線の消えを見る
 QC_REJECT = 0.25    # 戻す区画がこの割合を超えたら、加工を採らない
-QC_GROUPS = {"clean", "enlarge"}   # 模型の描き直し（redraw）は描き替えるのが仕事で、色の変わりで測ると正しい直しも落とすので、まだ入れない
+QC_GROUPS = {"clean", "enlarge", "detail"}   # 模型の描き直し（redraw）は描き替えるのが仕事で、色の変わりで測ると正しい直しも落とすので、まだ入れない
 LAST_QC: dict = {}
+# 前と後で目の色・目の位置・髪の色を測り、変わった所を元に戻す加工の種類（chatdraw/facefeat.py）。
+# 画風を変える加工（style）は色を変えるのが仕事なので入れない
+KEEP_GROUPS = {"clean", "detail", "redraw"}   # 清書（ink）は線画に変えるのが仕事なので入れない
 
 
 def breakage(a, b):
@@ -676,7 +743,6 @@ FACE_GROW = 0.06          # 顔の大きさのこの割合だけ広げる（眉�
 VERIFY_SSIM = 0.985       # 前と後の明るさの SSIM の下限
 VERIFY_LINE = 0.95        # 主線（明るさ 90 未満）の重なり（IoU）の下限
 VERIFY_STEPS = (0.5, 0.25)   # 検品に落ちたとき、変えた分にこの割合を掛けて混ぜ直す（順に試す）
-SEG_SIDE = 768            # 部位分けに渡す大きさ（模型は 512 で見るので、大きな絵を渡しても細かくならない）
 
 
 _FACES: dict = {}   # 縮めた絵の指紋 → 顔の印。部位分けは CPU で 1 回 5〜30 秒かかるので、同じ絵（拡大したあとの絵も）では測り直さない
@@ -717,23 +783,18 @@ def seg_of(image):
 
 
 def _face_keep(image):
+    """部位分けは chatdraw/facefeat.py の物を使い回す（前と後の顔の特徴の検品と同じ絵を 2 度測らない）"""
     try:
-        import tempfile
         import numpy as np
         from PIL import Image, ImageFilter
         from scipy import ndimage
-        from huggingface_hub import try_to_load_from_cache
-        edit = _gen("edit")
-        if not isinstance(try_to_load_from_cache(edit.SEG_MODEL, "config.json"), str):
-            return None   # 守るためだけに 180MB を黙って取りには行かない
+        from chatdraw import facefeat
         src = image.convert("RGB")
-        k = min(1.0, SEG_SIDE / max(src.size))
-        small = src.resize((max(1, round(src.width * k)), max(1, round(src.height * k))), Image.LANCZOS) if k < 1 else src
-        with tempfile.TemporaryDirectory() as d:
-            path = Path(d) / "face.png"
-            small.save(path, compress_level=1)
-            seg = np.asarray(edit.parts(str(path)))
-        _LAST_SEG[0] = seg.astype("uint8")
+        small = facefeat.seg_small(src)
+        if small is None:
+            return None   # 部位分けの模型が無い（守るためだけに 180MB を黙って取りには行かない）
+        seg = np.asarray(small)
+        _LAST_SEG[0] = seg.astype("uint8")   # 手の検品が手でない枠を外すのに使い回す
         face = seg == FACE_LABEL
         lab, n = ndimage.label(face)
         if n == 0:
@@ -947,6 +1008,8 @@ def qc_note(q: dict | None = None) -> str:
         note += f"{q['label']}は変わりすぎたので、強さを {v['mix']} に下げて混ぜました。"
     if v and not v.get("face"):
         note += "顔を守る印は、部位分けの模型が無いか顔が見つからないので使っていません。"
+    from chatdraw import facefeat
+    note += facefeat.note(q.get("features") or {}, q.get("label", "加工"))
     return note
 
 
@@ -957,6 +1020,8 @@ def run(name: str, image, mask=None, say=None, face=_NO_FACE):
     f = REGISTRY[name]
     if not f.ready():
         raise Unavailable(f.why_not())
+    if f.extra.get("needs_mask") and (mask is None or _mask_box(mask, image.size) is None):
+        raise Unavailable("整える所を、選択範囲か赤ペンで囲んでから選んでください")
     src = image.convert("RGB")
     mode = f.extra.get("scale")
     big = src.width * src.height > TILE_FROM
@@ -978,11 +1043,17 @@ def run(name: str, image, mask=None, say=None, face=_NO_FACE):
     out = out if mask is None else keep_outside(src, out, mask)
     _MEMO.clear()   # 大きな絵の配列を持ち続けない
     out = guard(name, src, out, mask)
-    if f.group == "clean" and out.size == src.size and not LAST_QC.get("rejected"):
+    if f.group in ("clean", "detail") and out.size == src.size and not LAST_QC.get("rejected"):
         out, v = soften(src, out, mask, face)
         LAST_QC["verify"] = v
         if v.get("failed"):
             LAST_QC["rejected"] = True
+    if f.group in KEEP_GROUPS and out.size == src.size and not LAST_QC.get("rejected"):
+        from chatdraw import facefeat
+        out, fr = facefeat.keep(src, out, mask)
+        LAST_QC.setdefault("name", name)
+        LAST_QC.setdefault("label", f.label)
+        LAST_QC["features"] = fr
     return out
 
 

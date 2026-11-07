@@ -16,6 +16,7 @@ from typing import Callable
 GROUPS = (
     ("clean", "綺麗にする"),
     ("combo", "まとめて"),
+    ("detail", "ディテール"),
     ("redraw", "描き直して整える"),
     ("enlarge", "拡大"),
     ("style", "画風"),
@@ -29,10 +30,12 @@ GROUPS = (
 )
 # まとめて掛ける組み合わせ（アプリにある物）。細かい項目を 1 つずつ押す手間を省く。並びが掛ける順
 COMBOS = (
-    ("combo:tidy", "まとめて綺麗にする", ("clean", "retouch", "ink"),
-     "塗りのむらを均す → 線と塗りを整える → ラフを清書する、を順に掛けます（白い地の線画になります）"),
+    # 前は最後に「ラフを清書する」（白い地の線画にする）を掛け、色の付いた絵が線画に変わった（見本 3 枚で SSIM 0.29〜0.67、
+    # 目の色の差 61〜114）。綺麗にするは絵を変える物ではないので、清書は組み合わせから外した（清書は 1 つで選べる）
+    ("combo:tidy", "まとめて綺麗にする", ("clean", "retouch"),
+     "塗りのむらを均す → 線と塗りを整える、を順に掛けます。色・顔・目の色・髪の色は変えません"),
     ("combo:tidy_color", "まとめて整える（塗りを残す）", ("clean", "retouch_full"),
-     "塗りのむらを均す → 線と塗りを整えてバリとジャギーも取る、を順に掛けます。色と塗りは残します"),
+     "塗りのむらを均す → 線と塗りを整えて線の階段も取る、を順に掛けます。色と塗りは残します"),
 )
 GROUP_LABEL = dict(GROUPS)
 TOP_USED = 5
@@ -48,6 +51,7 @@ KEY_CHAINS = "shortcuts/chains"         # 自分の組み合わせ [{id, name, s
 
 # 初めに右クリックに出す、よく使う加工。ほかは「加工を選ぶ…」で出せる（全部を並べると、初めての人が探せなかった）
 DEFAULT_SHOWN = frozenset(("fin:retouch", "fin:clean", "fin:retouch_full", "combo:tidy", "combo:tidy_color", "fin:face",
+                           "fin:around", "fin:detail",
                            "fin:upscale_anime", "app:upscale2x", "app:lineart", "app:nobg", "app:transparent", "grow:all"))
 
 

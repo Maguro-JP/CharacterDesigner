@@ -4257,7 +4257,11 @@ class Window(QMainWindow):
         if finishers.LAST_QC.get("rejected"):
             self.notify("加工で絵が崩れたので、掛けませんでした", "info", finishers.qc_note())
             return None
-        return self._place_finished(name, base, out)
+        note = finishers.qc_note()   # 元に戻した所（目の色・髪の色・崩れた区画）を知らせる。黙って戻さない
+        path = self._place_finished(name, base, out)
+        if note and path is not None:
+            self.notify("加工の検品の結果", "info", note + "見比べて、使うか消すかを決めてください")
+        return path
 
     def finish_chain(self, steps, label: str = "", base=None, mask=None):
         """加工を順に裏の糸で掛ける（1 つだけの加工も、まとめて綺麗にするも、自分の組み合わせも同じ道）。
