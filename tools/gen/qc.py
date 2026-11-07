@@ -1064,6 +1064,21 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
             res["unreadable"].append({"hands": hand})
         elif hand["bad"]:
             res["problems"].append({"hands": hand})
+        # 余分な腕・脚・頭・体（人の数と部位分けの塊の数）、顔の外の目、頼んでいない黄色い目（chatdraw/sanity.py）。
+        # 手・足・顔の検品は枠の中しか見ず、腕が 3 本の絵（library/feedback/body/2026-10-20/r21）を通していた
+        try:
+            root = str(Path(__file__).resolve().parents[2])
+            if root not in sys.path:
+                sys.path.insert(0, root)
+            from chatdraw import sanity
+            odd = sanity.check(src, prompt, tags=all_tags or None)
+            res["sanity"] = {k: odd.get(k) for k in ("counts", "people", "bad")}
+            if odd["bad"]:
+                res["problems"].append({"anatomy": odd["bad"]})
+            if not odd["readable"]:
+                res["unreadable"].append({"anatomy": odd.get("reason", "")})
+        except Exception as e:
+            res["unreadable"].append({"anatomy": f"{type(e).__name__}: {e}"})
         if any(w in prompt.lower() for w in SPIDER_WORDS):
             import design
             alpha = np.asarray(design.cut_background(im).getchannel("A")) > 0
@@ -1094,14 +1109,14 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
 
 
 # 崩れの重さ（100 点から引く）。体のつながりや人そのものの崩れは直せないので重く、部分の直しで直せる崩れは軽くする
-PENALTY = {"fixed_restriction": 100, "person": 60, "human_legs": 40, "edge_cut": 25, "eyes": 15, "extra_eyes": 15, "floating": 15, "hands": 15, "occlusion": 15, "legs_fused": 25, "not_solo": 40,
+PENALTY = {"fixed_restriction": 100, "person": 60, "human_legs": 40, "edge_cut": 25, "eyes": 15, "extra_eyes": 15, "floating": 15, "hands": 15, "occlusion": 15, "legs_fused": 25, "not_solo": 40, "anatomy": 40,
            "seams": 10, "measure": 8}
 
 
 # 顔を描き直す（imgproc.face_fix）と直る崩れ。目の左右の色・大きさの違い、余分な目、正面に戻すと歪む顔
 FACE_FIX = {"eyes", "extra_eyes", "eyes.iris_delta", "eyes.found", "face.rms"}
 # 構図そのものの崩れ（人がいない・2人目、体が画面の端で切れた）。部分の描き直しでは直らないが、絵は捨てずに印だけ付ける
-LAYOUT = {"edge_cut", "person"}
+LAYOUT = {"edge_cut", "person", "anatomy"}   # anatomy（余分な部位・顔の外の目）は種を変えて描き直す
 
 
 def marks(res: dict) -> list[dict]:
