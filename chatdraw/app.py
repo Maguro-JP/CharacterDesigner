@@ -536,6 +536,25 @@ PANEL_ORDER = ("talk", "chat", "view", "history", "library", "progress", "layers
 PANEL = QDockWidget.DockWidgetMovable | QDockWidget.DockWidgetFloatable | QDockWidget.DockWidgetClosable
 
 
+class NoteEdit(QLineEdit):
+    """赤ペンの指示を書く欄。キャンバスの上に置くので、打ったキーを欄の外へ逃がさない。
+    1 文字のショートカット（B、E、T など）、Space の手のひら、Delete、Ctrl+Z、Tab に文字を取られ、書けなかった"""
+
+    def event(self, e):
+        from PySide6.QtCore import QEvent
+        if e.type() == QEvent.ShortcutOverride:
+            if not (e.key() == Qt.Key_Escape and e.modifiers() & Qt.ShiftModifier):   # 非常停止（Shift+Esc）だけは効かせる
+                e.accept()   # 受けると、帯やメニューのショートカットより先に、この欄にキーが来る
+                return True
+        if e.type() == QEvent.KeyPress and e.key() in (Qt.Key_Tab, Qt.Key_Backtab):
+            return True   # Tab で欄を離れない
+        return super().event(e)
+
+    def keyPressEvent(self, e):
+        super().keyPressEvent(e)
+        e.accept()   # 欄が使わなかったキーも、親のキャンバス（Space で手のひら、Delete で消す）へ渡さない
+
+
 class Window(QMainWindow):
     """作画ソフトの並び: 左に頼みの欄、真ん中に絵、右に描いた絵の一覧、下に進み"""
 
@@ -2064,7 +2083,7 @@ class Window(QMainWindow):
         if not 1 <= n <= len(pen.marks):
             return
         if getattr(self, "note_edit", None) is None:
-            self.note_edit = QLineEdit(self.canvas.viewport())
+            self.note_edit = NoteEdit(self.canvas.viewport())
             self.note_edit.setObjectName("noteEdit")
             self.note_edit.setPlaceholderText("この所をどう直すか（例: 笑顔に）Enter で残す")
             self.note_edit.setMinimumWidth(260)
@@ -3519,8 +3538,9 @@ class Window(QMainWindow):
         return "メモリから降ろしました。次に描くときに読み直します"
 
     def _redpen_changed(self):
-        """赤ペンの印が増えた・消えたとき。印が無くなったら「直す」をやめて新しく描くに戻し、道具もペンに戻す。
-        印が無いのに「直す」のままだと、次の頼みまで直しとして扱われ、再起動するまで赤ペンに引っ張られた"""
+        """赤ペンの印が増えた・消えたとき。印が無くなったら「直す」をやめて新しく描くに戻す。
+        印が無いのに「直す」のままだと、次の頼みまで直しとして扱われた。
+        道具はここでは替えない。印を付けたあと・直したあとに勝手にペンへ戻ると、続けて囲めなかった"""
         if hasattr(self, "layer_panel"):
             self._refresh_layers()
         c = self.canvas
@@ -3528,8 +3548,6 @@ class Window(QMainWindow):
             return
         if self.mode.currentIndex() == 2:
             self.mode.setCurrentIndex(0)
-        if c.tool == "redpen" and "pen" in self.tool_actions:
-            self.tool_actions["pen"].trigger()
 
     def _mode_changed(self, i: int):
         # 直すとき（赤ペン）は描くボタンの文字を替え、押せば囲んだ所を直すと分かるようにする
