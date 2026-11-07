@@ -780,10 +780,18 @@ class Window(QMainWindow):
         edit_open.setToolTip("手元の絵を開き、赤ペンで囲んだ所だけを AI に直させます。囲みの外は変えません")
         file.addAction(edit_open)
         file.addAction(S["save"])
-        file.addAction(QAction("名前を付けて保存…", self, shortcut="Ctrl+Shift+S", triggered=lambda: self.save_project(ask=True)))
+        file.addAction(S["save_as"])
         out = file.addMenu("書き出す")
-        out.addAction(QAction("PNG（重ねた 1 枚）…", self, shortcut="Ctrl+E", triggered=self.save_as))
-        out.addAction(QAction("PSD（レイヤーごと）…", self, triggered=self.export_psd))
+        out.setToolTipsVisible(True)
+        out.addAction(S["export_flat"])
+        out.addAction(S["export_view"])
+        psd = QAction("PSD（レイヤーごと）…", self, triggered=self.export_psd)
+        psd.setToolTip("レイヤーを分けたまま PSD で書き出します。CLIP STUDIO と Photoshop で開けます")
+        out.addAction(psd)
+        ora = QAction("ORA（レイヤーごと）…", self, triggered=self.export_ora)
+        ora.setToolTip("レイヤーを分けたまま OpenRaster で書き出します。Krita と GIMP で開けます")
+        out.addAction(ora)
+        file.setToolTipsVisible(True)
         # 置き場はボタンを並べず、1 つの下の段にまとめる（開くたびに作り直し、保存先を変えたらすぐ合うようにする）
         from chatdraw import folders
         self.folder_menu = file.addMenu("ディレクトリを開く")
@@ -1086,6 +1094,9 @@ class Window(QMainWindow):
         from chatdraw.trash import Trash
         self.trash = Trash(HOME / "trash" if studio is None else Path(self.studio.out) / ".trash")
         self.library_panel = LibraryPanel(self)
+        # 描いた絵の履歴に並べた絵の置き場も見張り、ファイルが消えたら外す
+        self.history.model().rowsInserted.connect(
+            lambda _p, a, b: self.library_panel.watch([self.history.item(r).data(Qt.UserRole) for r in range(a, b + 1)]))
         # チャットの会話は閉じても残す（ライブラリーと同じく、試験では出力の置き場の中に作る）
         self.chat.decorate = self.offer_prompt
         self.chat.set_store((DATA if studio is None else Path(self.studio.out)) / "chat.json")
@@ -2752,7 +2763,11 @@ class Window(QMainWindow):
         m.addAction("タイムラプスを見る…", self.open_timelapse)
         m.addSeparator()
         m.addAction(self.shared["new"])
-        m.addAction("画像を開く…", self.open_image).setToolTip("作業ファイルか絵を開きます")
+        m.addAction("画像を開く…", self.open_image).setToolTip("作業ファイル・PSD・ORA・絵を開きます")
+        save = m.addMenu("保存・書き出し")
+        save.setToolTipsVisible(True)
+        for k in ("save", "save_as", "export_flat", "export_view"):
+            save.addAction(self.shared[k])
         return m
 
     # ---- どこで右クリックしても出るメニュー ----
@@ -3759,7 +3774,14 @@ class Window(QMainWindow):
         c = self.canvas
         rows = (("new", "new", "新規キャンバス", lambda: c.new_canvas(), "Ctrl+N", "白い新しいキャンバスにします（元に戻すで戻せます）"),
                 ("open", "open", "開く…", self.open_image, "Ctrl+O", "作業ファイルか絵を開きます"),
-                ("save", "save", "保存", self.save_project, "Ctrl+S", "作業ファイルに保存します"),
+                ("save", "save", "保存", self.save_project, "Ctrl+S",
+                 "保存します。初めては形を選べます（レイヤーのある絵は PSD、1 枚の絵は PNG を初めに選びます）"),
+                ("save_as", "", "名前を付けて保存…", lambda: self.save_project(ask=True), "Ctrl+Shift+S",
+                 "形（PSD・ORA・PNG・JPG・作業ファイル）を選んで保存します。PSD と ORA はレイヤーごとに残ります"),
+                ("export_flat", "", "重ねた絵を画像で書き出す…", self.save_as, "Ctrl+E",
+                 "見えているレイヤーを重ねた 1 枚を、PNG か JPG で書き出します（レイヤーはそのまま）"),
+                ("export_view", "", "今の表示を画像で書き出す…", self.export_view, "Ctrl+Alt+E",
+                 "キャンバスに今見えている物（赤ペンの印や選択の枠も含む）を、そのままの大きさの 1 枚で書き出します。拡大と回転は入れません"),
                 ("trash", "trash", "ごみ箱…", self.open_trash, "", "消した絵を見て、元に戻すか本当に消します"),
                 ("undo", "undo", "元に戻す", c.undo, "Ctrl+Z", ""),
                 ("redo", "redo", "やり直す", c.redo, "Ctrl+Y", ""),
@@ -4111,7 +4133,7 @@ class Window(QMainWindow):
     def open_image(self):
         if self.tour_first("open", self.open_image):
             return
-        path, _ = QFileDialog.getOpenFileName(self, "開く", "", "作業ファイルと画像 (*.cdproj *.png *.jpg *.jpeg *.webp)")
+        path, _ = QFileDialog.getOpenFileName(self, "開く", "", "作業ファイル・イラスト・画像 (*.cdproj *.psd *.ora *.png *.jpg *.jpeg *.webp)")
         if path:
             self.open_path(path)
 
@@ -4661,8 +4683,9 @@ class Window(QMainWindow):
 
     def open_path(self, path: str, restore: bool = False):
         from chatdraw import project
-        if path.endswith(project.SUFFIX):
+        if path.lower().endswith(project.LAYERED):
             # 読んで PNG を戻すのは裏の糸。置くのは画面の糸（レイヤーが多いと 0.1 秒を超えた）
+            # PSD と ORA もレイヤーごとに戻し、保存は同じファイルへ書き戻す
             def done(got):
                 if isinstance(got, BaseException):
                     self.notify("開けませんでした", "error", str(got))
@@ -4670,7 +4693,7 @@ class Window(QMainWindow):
                 project.apply(self.canvas, got)
                 # 自動保存から戻したときは、自動保存の場所に上書き保存しない
                 self.project_path, self.dirty = (None, True) if restore else (path, False)
-            self.run_io(lambda: project.read(path), done, "読み込み")
+            self.run_io(lambda: project.read_any(path), done, "読み込み")
             return
         else:
             self.canvas.show_image(path)
@@ -4679,7 +4702,8 @@ class Window(QMainWindow):
         self.dirty = False
 
     def save_project(self, ask: bool = False, wait: bool = False) -> bool:
-        """作業ファイル（レイヤー・赤ペンの印ごと）に保存する。初めてか ask なら置き場を聞く。
+        """保存する。形は名前の拡張子で決まる: PSD・ORA はレイヤーごと、PNG・JPG は重ねた 1 枚、.cdproj は赤ペンの印ごと。
+        初めてか ask なら置き場と形を聞く（中身のあるレイヤーが 2 枚以上なら PSD、1 枚なら PNG を初めに選ぶ）。
         書くのは裏の糸（PNG に縮めるのに 1 枚 0.1〜0.3 秒かかり、その間描けなかった）。wait なら書き終えるまで待つ
         （閉じる前・拡大の前など、保存できたかで次を決めるとき）。書き始めたか書けたら True"""
         from chatdraw import project
@@ -4687,16 +4711,22 @@ class Window(QMainWindow):
         if ask or not path:
             if self.tour_first("project", lambda: self.save_project(ask)):
                 return False
-            path, _ = QFileDialog.getSaveFileName(self, "作業ファイルを保存", "drawing" + project.SUFFIX,
-                                                  f"作業ファイル (*{project.SUFFIX})")
+            layered = project.has_layers(self.canvas)
+            names = project.filters()
+            first = names[0] if layered else names[2]
+            stem = Path(getattr(self, "source_path", "") or "drawing").stem
+            path, chosen = QFileDialog.getSaveFileName(self, "名前を付けて保存", stem + (".psd" if layered else ".png"),
+                                                       ";;".join(names), first)
             if not path:
                 return False
-            if not path.endswith(project.SUFFIX):
-                path += project.SUFFIX
-        snap = project.snapshot(self.canvas)
+            path = project.suffix_for(path, chosen or "")
+        snap = project.layered_snapshot(self.canvas)
+        if path.lower().endswith(project.FLAT) and project.has_layers(self.canvas):
+            # 1 枚の画像に選んだときは、レイヤーを重ねて書く。ファイルにはレイヤーが残らないことを横に出す
+            self.statusBar().showMessage("レイヤーを重ねた 1 枚で保存します。レイヤーごとに残すには PSD か ORA を選んでください", 8000)
         if wait:
             try:
-                project.write(snap, path)
+                project.write_any(snap, path)
             except OSError as e:
                 self.notify("保存できませんでした", "error", f"{e}\n保存先に書き込めるか、ディスクに空きがあるかを確かめてください")
                 return False
@@ -4712,7 +4742,7 @@ class Window(QMainWindow):
                 self.notify("保存できませんでした", "error", f"{err}\n保存先に書き込めるか、ディスクに空きがあるかを確かめてください")
                 return
             self.notify("保存しました", "ok", Path(path).name)
-        self.run_io(lambda: project.write(snap, path), done, "保存")
+        self.run_io(lambda: project.write_any(snap, path), done, "保存")
         return True
 
     def run_io(self, work, done, name: str = "保存・読み込み"):
@@ -4761,6 +4791,59 @@ class Window(QMainWindow):
         self.run_io(lambda: project.write_psd(snap, dst),
                     lambda err: self.notify("書き出せませんでした", "error", f"{err}\n書き出す先に書き込めるかを確かめてください") if isinstance(err, BaseException)
                     else self.notify("書き出しました", "ok", f"{Path(dst).name}（レイヤー {n} 枚）"))
+
+    def export_ora(self):
+        """レイヤーを分けたまま ORA（OpenRaster）で書き出す。作業中のファイルの置き場は替えない"""
+        from chatdraw import project
+        if not self.canvas.layers:
+            return
+        dst, _ = QFileDialog.getSaveFileName(self, "ORA で書き出す", "drawing.ora", "ORA (*.ora)")
+        if not dst:
+            return
+        if not dst.lower().endswith(".ora"):
+            dst += ".ora"
+        snap, n = project.psd_snapshot(self.canvas), len(self.canvas.layers)
+        self.run_io(lambda: project.write_ora(snap, dst),
+                    lambda err: self.notify("書き出せませんでした", "error", f"{err}\n書き出す先に書き込めるかを確かめてください") if isinstance(err, BaseException)
+                    else self.notify("書き出しました", "ok", f"{Path(dst).name}（レイヤー {n} 枚）"))
+
+    def view_image(self):
+        """今の表示を 1 枚にする。キャンバスの中身（レイヤー・赤ペンの印・選択の枠など）を元の大きさで写し、拡大と回転は入れない。
+        筆の輪は絵ではないので外す"""
+        from PySide6.QtCore import QRectF
+        from PySide6.QtGui import QImage, QPainter
+        c = self.canvas
+        w, h = c.size_px()
+        out = QImage(w, h, QImage.Format_ARGB32_Premultiplied)
+        out.fill(0)
+        ring = c.cursor_ring.isVisible()
+        c.cursor_ring.setVisible(False)
+        p = QPainter(out)
+        p.setRenderHint(QPainter.Antialiasing)
+        c.scene().render(p, QRectF(0, 0, w, h), QRectF(0, 0, w, h))
+        p.end()
+        c.cursor_ring.setVisible(ring)
+        return out
+
+    def _export_image(self, img, title: str, name: str) -> str:
+        """1 枚の絵を PNG か JPG で書き出す。書けた置き場を返す（やめた・書けなかったら空）"""
+        from chatdraw import project
+        names = project.filters((".png", ".jpg"))
+        dst, chosen = QFileDialog.getSaveFileName(self, title, name, ";;".join(names), names[0])
+        if not dst:
+            return ""
+        if not dst.lower().endswith(project.FLAT):
+            dst += ".jpg" if (chosen or "").startswith("JPG") else ".png"
+        ok = project.write_flat(img, dst)
+        self.notify("書き出しました" if ok else "書き出せませんでした", "ok" if ok else "error",
+                    Path(dst).name if ok else f"{dst}\n書き出す先に書き込めるかを確かめてください")
+        return dst if ok else ""
+
+    def export_view(self) -> str:
+        """今の表示（キャンバスの中身）を 1 枚の画像で書き出す"""
+        if not self.canvas.layers:
+            return ""
+        return self._export_image(self.view_image(), "今の表示を画像で書き出す", "view.png")
 
     def autosave(self):
         """変わっていれば、決まった置き場に作業ファイルを書く。落ちたときに次の起動で戻せるように"""
@@ -4877,12 +4960,8 @@ class Window(QMainWindow):
             return False
         if self.tour_first("save", self.save_as):
             return False
-        dst, _ = QFileDialog.getSaveFileName(self, "名前を付けて保存", "drawing.png", "PNG (*.png)")
-        if not dst:
-            return False
-        ok = self.canvas.flatten().save(dst)
-        self.notify("保存しました" if ok else "保存できませんでした", "ok" if ok else "error", Path(dst).name)
-        return bool(ok)
+        # 見えているレイヤーを重ねた 1 枚を書き出す。作業中のファイル（PSD など）とレイヤーはそのまま
+        return bool(self._export_image(self.canvas.flatten(), "重ねた絵を画像で書き出す", "drawing.png"))
 
     def resizeEvent(self, e):
         super().resizeEvent(e)
