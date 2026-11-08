@@ -125,12 +125,12 @@ class CharaDesign(unittest.TestCase):
             self.assertEqual(charadesign.slug("Akari", home=d), "akari-2")   # 同じ名前でも上書きしない
             self.assertEqual([x["id"] for x in charadesign.characters(home=d)], ["akari"])
             plan = charadesign.turnaround_plan("akari", home=d)
-            self.assertEqual([p["view"] for p in plan], ["front", "side", "back"])
+            self.assertEqual([p["view"] for p in plan], ["front", "left", "back"])
             self.assertTrue(all("red hair" in p["prompt"] and "school uniform" in p["prompt"] for p in plan))
             self.assertIn("back view", plan[2]["prompt"])
             painter = FakePainter()
             turn = charadesign.draw_turnaround(painter, "akari", 3, home=d)
-            self.assertEqual(set(turn), {"front", "side", "back"})
+            self.assertEqual(set(turn), {"front", "left", "back"})
             base = figure()
             mask = charadesign.face_mask(base, [(50, 20, 110, 80)])
             seen = []

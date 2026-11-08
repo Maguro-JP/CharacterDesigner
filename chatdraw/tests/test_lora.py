@@ -283,12 +283,14 @@ class SheetTest(Base):
             act.trigger()
             out = self.d / "home" / "bible" / "characters" / f"{c['id']}-sheet.psd"
             self.assertTrue(out.is_file())
-            self.wait(lambda: [l.name for l in w.canvas.layers][-1:] == ["表情 笑顔"])
+            self.assertTrue(out.with_suffix(".png").is_file())   # まとめた 1 枚も隣に置く
+            self.wait(lambda: "表情差分" in [l.name for l in w.canvas.layers])
             names = [l.name for l in w.canvas.layers]
-            self.assertEqual(names, ["背景", "三面図 正面", "三面図 横", "三面図 後ろ", "表情 笑顔"])
+            # 前の版の名前（turn-*）の絵も、今の名前で読んで並べる。区画ごとに 1 枚のレイヤー
+            self.assertEqual(names, ["背景", "名前と設定", "色の見本", "三面図", "目の拡大", "表情差分"])
             _man, layers = project.read_psd(out)
-            self.assertEqual(len(layers), 5)
-            self.assertEqual(w.canvas.size_px(), (24 * 4 + 512 * 3, 24 * 3 + 768 + 384))
+            self.assertEqual(len(layers), 6)
+            self.assertEqual(w.canvas.size_px()[0], 2400)
         finally:
             w.dirty = False
             w.close()

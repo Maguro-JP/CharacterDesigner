@@ -40,6 +40,10 @@ PRESETS: list[tuple[str, str, int, str, str, int]] = [
     ("アイコン", "顔まわりを正方形で", 0, "正方形", "アニメ", 100),
     ("背景美術", "人のいない風景を横長で", 0, "横", "厚塗り", 100),
     ("モノクロ", "白黒の線と影で", 0, "縦", "おまかせ", 100),
+    # ロゴ・エンブレム・スタンプのモードの物（chatdraw/modes.py）。背景を抜きやすいよう白地で、正方形に描く
+    ("ロゴ", "マークを正方形で", 0, "正方形", "おまかせ", 100),
+    ("エンブレム", "紋章を正方形で", 0, "正方形", "おまかせ", 100),
+    ("スタンプ", "スタンプの絵を正方形で", 0, "正方形", "アニメ", 100),
 ]
 # まとめたプリセットの前の名前 → (今のプリセット, 上から当てる画風)。声や AI の頼み、覚えた選択から前の名前で呼ばれても動く。
 # 中身が他のプリセットか画風と同じだった物をまとめた（並びが長いと、どれを押せばよいか分からない）
@@ -52,7 +56,10 @@ MERGED = {"立ち絵（白地）": ("キャラデザ", None),   # キャラデ�
 PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background, white background",
                  "アイコン": "portrait, upper body",
                  "背景美術": "scenery, no humans, detailed background, wide shot",
-                 "モノクロ": "monochrome, greyscale"}
+                 "モノクロ": "monochrome, greyscale",
+                 "ロゴ": "logo, flat design, simple shapes, vector style, white background",
+                 "エンブレム": "emblem, crest, symmetrical, flat design, white background",
+                 "スタンプ": "sticker, chibi, thick outline, simple background, white background"}
 
 
 # タブ: (名前, ヒント)。初めに開くのは先頭の「指示」（描く内容と模型を 1 枚にまとめた。行き来が要らない）
@@ -404,7 +411,9 @@ class AiPanel(QWidget):
             if item.widget():
                 self.preset_group.removeButton(item.widget())
                 item.widget().deleteLater()
-        cards = [(name, sub, dict(mode=m, size=s, style=st, strength=k), False) for name, sub, m, s, st, k in PRESETS]
+        keep = getattr(self, "mode_presets", None)   # モード（chatdraw/modes.py）で出すプリセット。None は全部
+        cards = [(name, sub, dict(mode=m, size=s, style=st, strength=k), False) for name, sub, m, s, st, k in PRESETS
+                 if keep is None or name in keep]
         cards += [(n, "自分のプリセット", d, True) for n, d in self.own_presets().items()]
         for i, (name, sub, data, own) in enumerate(cards):
             b = self._card(name, sub, own)

@@ -177,12 +177,12 @@ class AppFlowTest(Base):
                 act.trigger()
             self.wait(lambda: getattr(w, "chara_design_result", None) is not None, 1800)
             res = w.chara_design_result
-            self.assertEqual(sorted(res["turn"]), ["back", "front", "side"])
+            self.assertEqual(sorted(res["turn"]), ["back", "front", "left"])
             self.assertEqual(len(res["expressions"]), 8)
             self.assertEqual(len(res["log"]), 7)
             self.assertTrue(res["missing"])   # 四面図・ポーズなどはまだ無い（design-status と同じ判定）
             self.assertTrue(Path(res["sheet"]).is_file())
-            self.wait(lambda: any(l.name == "三面図 正面" for l in w.canvas.layers))
+            self.wait(lambda: any(l.name == "三面図" for l in w.canvas.layers))
             saved = Path(res["path"])
             self.assertTrue(saved.is_file())
             before = charafile.load(saved)
