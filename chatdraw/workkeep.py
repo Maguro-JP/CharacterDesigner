@@ -46,6 +46,24 @@ def is_redpen_result(path: str | Path) -> bool:
     return embedded(path).get("mode") == "直す"
 
 
+def old_redpen_files(roots) -> list[Path]:
+    """0.5.19 までの版が出力の置き場に書いた、赤ペンの直しだけの絵（直した所のほかは透明）を探す。
+    レイヤーを消しても、この絵が出力の置き場・ライブラリーに残り、消したはずの直しがゴミとして見えていた。
+    ごみ箱（.trash）とアプリの置き場（. で始まるディレクトリ）の中は見ない"""
+    found = []
+    for root in roots:
+        root = Path(root)
+        if not root.is_dir():
+            continue
+        for p in sorted(root.rglob("*.png")):
+            rel = p.relative_to(root).parts
+            if any(part.startswith(".") for part in rel[:-1]) or p.name.endswith(".parts.png") or p in found:
+                continue
+            if is_redpen_result(p):
+                found.append(p)
+    return found
+
+
 def discard_unused_redpen(canvas) -> int:
     """使っていない赤ペンの直しのレイヤー（隠したもの）を捨て、元に戻した直しの入ったやり直すの記録も捨てる。
     描いて残したレイヤーには触らない。捨てた枚数を返す"""
