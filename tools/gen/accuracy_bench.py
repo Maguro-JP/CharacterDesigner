@@ -1,0 +1,82 @@
+"""全部の機能の精度の台（chatdraw/accuracy.py）を流し、docs/knowledge/accuracy.md の表を書き直す。
+
+    python tools/gen/accuracy_bench.py [--heavy] [--only 機能,機能] [--write] [--json 出力.json]
+
+表の「前の数字」は、書き直す前の表の「数字」。下がった物には ▼ を付ける（目立たせて、入れる前に気づくため）。
+--heavy は拡大の模型と数字の検品も流す（重いので GitHub Actions の accuracy.yml で流す）。
+流さなかった機能の行は前のまま残す。
+"""
+from __future__ import annotations
+
+import argparse
+import datetime as dt
+import json
+import sys
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+DOC = ROOT / "docs" / "knowledge" / "accuracy.md"
+HEAD = """# 機能ごとの精度
+
+`tools/gen/accuracy_bench.py` が `chatdraw/accuracy.py` の台を流して書く表。数字は 0〜100 で、高いほど良い。
+前の数字より下がった物には ▼ を付ける。直す順番は、この表で一番低い機能から。測る物と正解は `chatdraw/accuracy.py` の各関数に書く。
+
+| 機能 | 数字 | 前の数字 | 日付（日本時間） |
+|---|---|---|---|
+"""
+
+
+def read_table(text: str) -> dict:
+    rows = {}
+    for line in text.splitlines():
+        c = [x.strip() for x in line.strip().strip("|").split("|")]
+        if len(c) == 4 and c[0] not in ("機能", "---") and not c[0].startswith("-"):
+            try:
+                rows[c[0]] = dict(score=float(c[1].replace("▼", "").strip()), prev=c[2], date=c[3])
+            except ValueError:
+                continue
+    return rows
+
+
+def render(old: dict, new: dict, when: str) -> str:
+    order = list(dict.fromkeys(list(new) + list(old)))
+    lines = []
+    for k in order:
+        if k in new:
+            s = new[k]["score"]
+            p = old.get(k, {}).get("score")
+            mark = " ▼" if p is not None and s < p else ""
+            lines.append(f"| {k} | {s}{mark} | {'' if p is None else p} | {when} |")
+        else:
+            o = old[k]
+            lines.append(f"| {k} | {o['score']} | {o['prev']} | {o['date']} |")
+    return HEAD + "\n".join(lines) + "\n"
+
+
+def main(argv=None) -> int:
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--heavy", action="store_true")
+    ap.add_argument("--only", default="")
+    ap.add_argument("--write", action="store_true")
+    ap.add_argument("--json", default="")
+    a = ap.parse_args(argv)
+    from chatdraw import accuracy
+    names = [x for x in a.only.split(",") if x] or None
+    res = accuracy.run(names, heavy=a.heavy)
+    for k, v in res.items():
+        print(f"{k}: {v['score']}  " + json.dumps({x: y for x, y in v.items() if x != "score"}, ensure_ascii=False)[:400], flush=True)
+    if a.json:
+        Path(a.json).write_text(json.dumps(res, ensure_ascii=False, indent=1), encoding="utf-8")
+    old = read_table(DOC.read_text(encoding="utf-8")) if DOC.exists() else {}
+    when = dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).strftime("%Y-%m-%d %H:%M")
+    down = [k for k, v in res.items() if k in old and v["score"] < old[k]["score"]]
+    if a.write:
+        DOC.write_text(render(old, res, when), encoding="utf-8")
+    if down:
+        print("▼ 下がった: " + "、".join(down))
+    return 1 if down else 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
