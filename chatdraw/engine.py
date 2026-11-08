@@ -1668,6 +1668,10 @@ class Studio:
         two = self._two_stage_models(base, reference, say)
         if two is not None:
             return self._draw_two(text, seed, two, style, size, say, meta)
+        from chatdraw import director
+        plan = director.Plan(text, say)   # 担当編集者: 工程の計画と記録（chatdraw/director.py）
+        self.plan = plan
+        plan.enter("読み解く")
         say("頼みを描く言葉に直しています")
         as_tags = fam(image_model(getattr(self.painter, "model", "")).family).tags
         prompt = self._with_character(self.words.to_prompt(text, tags=as_tags))
@@ -1696,6 +1700,9 @@ class Studio:
             prompt = f"{prompt}, {style}"
         if refused(prompt):
             raise ValueError("子どもを性的に描く頼みは描きません")
+        plan.done("読み解く", text)
+        plan.enter("言葉を組む")
+        plan.done("言葉を組む", prompt)
         say("絵の模型を読んでいます（初めの 1 回だけ時間がかかります）")
         extra = dict(reference=reference, ref_scale=ref_scale) if reference is not None else {}
         # 描けるまで描き直す。手を直しても検品を通らなければ、種を変えて描き直す（REDRAW_TRIES 回まで）。
@@ -1716,15 +1723,37 @@ class Studio:
             if g0 is not None:
                 self.painter.guidance = g0 * keep.hand()
             if k:
+                hand = "種を替えて" + (f"、頼みの効きを {keep.hand()} 倍にして" if g0 is not None and keep.hand() != 1.0 else "") + \
+                       ("、描かれなかった物を前に出して" if missing_all else "") + "描き直します"
+                plan.redo(redraws[-1]["bad"], hand)
                 say(f"検品を通らなかったので、種を変えて描き直しています（{k + 1} 回目・崩れ {len(best[1])} 件が一番少ない）")
             if missing_all:   # 前の回で描かれなかった頼みを、描く言葉の前に出す
                 prompt = emphasize(prompt, missing_all)
+            plan.enter("描く", f"{k + 1} 回目を模型に描かせています")
+            plan.sent("描く", prompt, getattr(self.painter, "avoid", ""))
             image = self.painter.paint(prompt, s_k, on_step=lambda i, n: say(f"描いています（{i}/{n}）"),
                                        base=base, strength=strength, size=size, on_preview=on_preview, **extra)
+            plan.done("描く", f"{k + 1} 回目の絵が返った")
+            plan.enter("検品", f"{k + 1} 回目の絵を検品しています")
+            # サボりの検品を先に通す。形も線も無い絵は手や顔を探しても意味が無いので、描き直しに回す
+            lazy = director.slack(image)
+            if lazy["bad"]:
+                say("担当編集者: " + "、".join(lazy["bad"]) + "。描き直させます")
+                left = list(lazy["bad"])
+                redraws.append({"seed": s_k, "bad": left, "slack": lazy["stats"]})
+                plan.done("検品", f"崩れ {len(left)} 件")
+                if best is None or len(left) < len(best[1]):
+                    best = (image, left, s_k)
+                asked, odd = {"readable": False}, {"readable": False}
+                if not keep.go_on(left):
+                    say(f"描き直しを止めました（{k + 1} 回描いた・{keep.reason}）")
+                    break
+                continue
             image = self._fix_hands(image, prompt, s_k, say)
             left = list(self.hand_rounds[-1]["bad"] if self.hand_rounds else [])
             from chatdraw import requestcheck
             asked = requestcheck.check(image, asked_prompt)
+            left += director.no_person(asked_prompt, asked)
             if not asked["readable"] and os.environ.get("CD_CHECK") != "off":
                 left.append(unchecked("頼んだ物と人数", asked.get("reason", "")))
             if asked["readable"]:
@@ -1748,7 +1777,8 @@ class Studio:
             if not odd["readable"] and os.environ.get("CD_CHECK") != "off":
                 left.append(unchecked("体の数と目", odd.get("reason", "")))
             unasked += [w for w in odd["avoid"] if w not in unasked]
-            redraws.append({"seed": s_k, "bad": left})
+            redraws.append({"seed": s_k, "bad": left, "slack": lazy["stats"]})
+            plan.done("検品", f"崩れ {len(left)} 件" if left else "崩れ 0 件")
             if best is None or len(left) < len(best[1]):
                 best = (image, left, s_k)
             if not self.hand_rounds and not asked["readable"]:   # 検品の道具が無い（止めてある）と、回しても何も分からない
@@ -1770,8 +1800,10 @@ class Studio:
             say(f"検品を通る絵が {len(redraws)} 回描いても出ませんでした（途中）。残った崩れ: " + "、".join(left[:5]))
         elif not checked:
             say("検品できなかったので、通ったかは分かりません（途中）")
+        plan.finish(f"{len(redraws)} 回描いた・" + ("検品を通った" if checked and not left else f"残った崩れ {len(left)} 件（途中）"))
         path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model,
-                                            hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws, passed=checked and not left))
+                                            hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws, passed=checked and not left,
+                                            director=plan.record()))
         self._learn(path, text, asked_prompt, left, missing_all, checked and not left, explored)
         self._inspect(path, say)
         return prompt, path
@@ -2161,6 +2193,10 @@ class Studio:
         from PIL import Image as _Image, ImageChops as _Chops
         touched = _Image.new("L", image.size, 0)
         words = {}   # 同じ指示を言葉の模型に 2 度聞かない
+        from chatdraw import director
+        plan = director.Plan(" / ".join(n for _m, n in regions), say, kind="直す")
+        self.plan = plan
+        plan.enter("読み解く", f"直す所 {len(regions)} か所を読んでいます")
         for k, (mask, note) in enumerate(regions, 1):
             if refused(note):
                 raise ValueError("子どもを性的に描く頼みは描きません")
@@ -2181,13 +2217,21 @@ class Studio:
             for n_try in keep.rounds():
                 s_try, reach = keep.hand()
                 m_try = seamfix.adjust_mask(before, asked, reach=reach) if check else asked
+                (plan.redo(found, f"強さ {s_try}・範囲 {reach} で直し直します") if n_try else plan.enter("描く", f"{k} か所目を直させています"))
+                plan.sent("描く", prompt, getattr(self.painter, "avoid", ""))
                 out = self._fix_once(before, m_try, prompt, seed + k + 1000 * n_try, s_try, k, len(regions), say,
                                      reference, ref_scale, blend=check)
                 found = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, out, m_try)] if check else []
+                # サボりの検品: 直していない・外を変えた・絵になっていない（加工で絵全体を描き替えるときは外を問わない）
+                from chatdraw import director
+                plan.enter("検品", f"{k} か所目の {n_try + 1} 回目を検品しています")
+                lazy = director.slack(out, before, m_try if check else None)
+                found += [f"{k} か所目: {b}" for b in lazy["bad"]]
                 if check and not self.last_seam[-1].get("ok", True):
                     sm = self.last_seam[-1]
                     found.append(f"{k} か所目: 境目のずれ（色の差 {sm['color']}・線のずれ {sm['shift']} 画素・SSIM {sm['ssim']}）")
                 say(f"確かめました（{k} か所目・{n_try + 1} 回目・崩れ {len(found)} 件）")
+                plan.done("検品", f"崩れ {len(found)} 件")
                 if best is None or len(found) < len(best_flaws):
                     best, best_flaws, best_mask = out, found, m_try
                 if not keep.go_on(found):
@@ -2200,10 +2244,11 @@ class Studio:
             self.last_flaws += best_flaws
         if self.last_flaws:
             say("崩れが見つかりました: " + " / ".join(self.last_flaws))
+        plan.finish("直した・" + (f"残った崩れ {len(self.last_flaws)} 件（途中）" if self.last_flaws else "見つけた崩れ 0 件"))
         # 重ねるレイヤーは直した所だけを見せる（外は元と同じ画素なので、下のレイヤーに描き足しても隠さない）
         layer = result.convert("RGBA")
         layer.putalpha(touched.point(lambda v: 255 if v > 0 else 0))
         path = (self._save if keep_file else self._save_temp)(layer, seed, dict(text=" / ".join(n for _m, n in regions), prompt=" / ".join(prompts), seed=seed,
                                             style=style, model=self.painter.model, mode="直す", flaws=self.last_flaws,
-                                            seam=self.last_seam))
+                                            seam=self.last_seam, director=plan.record()))
         return prompts, path
