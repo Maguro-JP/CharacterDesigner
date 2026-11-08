@@ -2203,6 +2203,41 @@ class Window(QMainWindow):
         self.statusBar().showMessage(f"{len(out)} 枚のレイヤーを書き出しました: {folder}", 6000)
         return out
 
+    def fix_here(self, pos, size: int = 0):
+        """右クリックした所の周りを選択範囲にして、囲んだ所を直すと同じ道で直す。大きさは絵の短い辺の 4 分の 1"""
+        from PySide6.QtCore import QRect
+        c = self.canvas
+        if not c.layers:
+            return
+        w, h = c.size_px()
+        r = size or max(32, min(w, h) // 4)
+        c.set_selection(QRect(int(pos.x()) - r // 2, int(pos.y()) - r // 2, r, r))
+        if c.selection is None:
+            self.notify("直す所を決められませんでした", "info", "絵の上で右クリックしてください")
+            return
+        self.fix_marked()
+
+    # ---- 右クリックの編集（chatdraw/menuedit.py の Menus が並びと隠す物を覚える） ----
+    def context_builders(self) -> dict:
+        """編集できる右クリック。名前 → 作る関数（編集の窓が中身を見るために作る）"""
+        from PySide6.QtCore import QPoint
+        lp = self.layer_panel
+        return {"キャンバス": lambda: self.build_canvas_menu(),
+                "レイヤー": lambda: lp.context_menu(lp.list.visualItemRect(lp.list.item(lp.row_of(self.canvas.current))).center())
+                if lp.list.count() else lp.context_menu(QPoint(-5, -5))}
+
+    def arrange_context(self, name: str, m):
+        ed = getattr(self, "menus_editor", None)
+        if ed is not None:
+            ed.arrange_context(name, m)
+        return m
+
+    def edit_context_menu(self, name: str):
+        dlg = self.edit_menus()
+        dlg.pick.setCurrentText("右クリック: " + name)
+        dlg.exec()
+        return dlg
+
     def fix_marked(self):
         """赤ペンで囲んだ所を直す。AI の欄を「直す」にして「描く」と同じ send() を呼ぶ"""
         self.mode.setCurrentIndex(2)
@@ -2958,8 +2993,14 @@ class Window(QMainWindow):
             a = m.addAction("囲んだ所を直す", self.fix_marked)
             a.setEnabled(not self.thread)
             a.setToolTip(busy if self.thread else "囲んだ所の中だけを AI が直します。外は変えません")
+        here = c.mapToScene(c.viewport().mapFromGlobal(gpos)) if gpos is not None else None
+        if here is not None and not c.redpen.marks and c.selection is None:
+            # 囲まなくても、右クリックした所の周りを囲んで直せる（囲む手間を 1 手にする）
+            a = m.addAction("ここを AI で直す", lambda: self.fix_here(here))
+            a.setEnabled(bool(c.layers) and not self.thread)
+            a.setToolTip(busy if self.thread else ("右クリックした所の周りだけを AI が直します。外は変えません" if c.layers else "絵がありません"))
         # 番号の丸の上で右クリックしたら、その印の指示を書き直せる（消すのは下の区切りの下）
-        n = c.redpen.number_at(c.mapToScene(c.viewport().mapFromGlobal(gpos)), c.zoom()) if gpos is not None else 0
+        n = c.redpen.number_at(here, c.zoom()) if here is not None else 0
         if n:
             m.addAction(f"赤ペン {n} の指示を書き直す", lambda: self.edit_note(n))
         # 言葉で指示する。登録した指示は shortcuts.fill_menu が小さなメニューに入れずに上へ並べ、1 回で呼べる
@@ -2986,16 +3027,30 @@ class Window(QMainWindow):
         m.addMenu(view)
         for k in ("fit", "actual", "rotate_left", "rotate_right", "rotate_reset", "flip_view", "view_reset", "grid"):
             view.addAction(self.shared[k])
-        m.addAction(self.shared["add_layer"])
-        if c.selection is not None:
-            sm = QMenu("選択範囲", m)
-            m.addMenu(sm)
-            for k in ("sel_clear", "sel_fill", "copy", "cut"):
-                sm.addAction(self.shared[k])
-            sm.addAction(self.shared["deselect"])
-        else:
-            m.addAction("絵をコピー", self.copy_image)
+        m.addAction(self.shared["copy"])
         m.addAction(self.shared["paste"])
+        if here is not None:
+            a = m.addAction("色を拾う", lambda: c.pick(here))
+            a.setEnabled(bool(c.layers))
+            a.setToolTip("右クリックした所の色を描く色にします（スポイト、I）" if c.layers else "絵がありません")
+        sm = QMenu("選択範囲", m)
+        m.addMenu(sm)
+        sm.setToolTipsVisible(True)
+        sel = c.selection is not None
+        for label, fn, why in (("選択を反転", c.invert_selection, "選んでいない所を選びます"),
+                               ("レイヤーに切り出す", c.selection_to_layer, "選んだ所を、同じ位置の新しいレイヤーに写します")):
+            a = sm.addAction(label, fn)
+            a.setEnabled(sel)
+            a.setToolTip(why if sel else "選択範囲がありません。四角か投げなわで選んでください")
+        sm.addAction(self.shared["select_all"])
+        if sel:
+            for k in ("sel_fill", "cut", "deselect", "sel_clear"):
+                sm.addAction(self.shared[k])
+        rot = QMenu("表示を回す", m)
+        m.addMenu(rot)
+        for k in ("rotate_left", "rotate_right", "rotate_reset", "flip_view", "view_reset"):
+            rot.addAction(self.shared[k])
+        m.addAction(self.shared["add_layer"])
         m.addSeparator()
         a = m.addAction("もう一度描く", self.draw_again)
         a.setEnabled(bool(self.last_text) and not self.thread)
@@ -3013,7 +3068,10 @@ class Window(QMainWindow):
         save.setToolTipsVisible(True)
         for k in ("save", "save_as", "export_flat", "export_view"):
             save.addAction(self.shared[k])
-        # 消す物は一番下、区切り線の下（押し間違えない所）
+        m.addAction("この右クリックを編集…", lambda: self.edit_context_menu("キャンバス")).setToolTip(
+            "項目を出す・隠す・並べ替える、言葉の指示を項目として足す")
+        self.arrange_context("キャンバス", m)
+        # 消す物は一番下、区切り線の下（押し間違えない所）。並べ替えの外に置き、いつも一番下に出す
         if c.redpen.marks:
             m.addSeparator()
             if n:

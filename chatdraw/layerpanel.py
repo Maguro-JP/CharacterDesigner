@@ -256,7 +256,14 @@ class LayerPanel(QWidget):
                 a = m.addAction(label, fn)
                 a.setEnabled(ok)
                 a.setToolTip("" if ok else why)
+            m.addAction("複製", c.duplicate_layer).setToolTip("このレイヤーを写して真上に置きます")
             m.addAction("名前を変える", self.rename_current)
+            op = QMenu("不透明度", m)
+            m.addMenu(op)
+            now = round(c.layers[i].opacity * 100) if c.layers else 100
+            for v in (100, 75, 50, 25):
+                a = op.addAction(("● " if v == now else "") + f"{v}%", lambda v=v: self.opacity.setValue(v))
+            
             lock = m.addAction("ロック", self.toggle_lock)
             lock.setCheckable(True)
             lock.setChecked(bool(c.layers and c.layers[i].locked))
@@ -265,6 +272,10 @@ class LayerPanel(QWidget):
         a = m.addAction("見えているレイヤーを結合", c.merge_visible)
         a.setEnabled(vis >= 2)
         a.setToolTip("隠したレイヤーは捨てます。元に戻すで戻せます" if vis >= 2 else "見えているレイヤーが 2 枚以上ありません")
+        if self.w is not None:
+            m.addAction("この右クリックを編集…", lambda: self.w.edit_context_menu("レイヤー")).setToolTip(
+                "項目を出す・隠す・並べ替える")
+            self.w.arrange_context("レイヤー", m)
         if item is not None:
             m.addSeparator()
             m.addAction("レイヤーを消す…", self.delete_layer).setToolTip(

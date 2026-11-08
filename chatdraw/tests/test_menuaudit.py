@@ -92,7 +92,7 @@ class Base(unittest.TestCase):
         self.tmp.cleanup()
 
     def pump(self):
-        wait_idle(self.qapp, self.w, 120)
+        wait_idle(self.qapp, self.w, 300)
         wait_bg(self.qapp, self.w, 30)
         self.qapp.processEvents()
 
@@ -112,6 +112,23 @@ class Base(unittest.TestCase):
 
 class EveryMenuItemTest(Base):
     """右クリックの項目を全部押す。押すたびにメニューを作り直す（押した項目が欄を作り直し、前の項目が消えるため）"""
+
+    def setUp(self):
+        super().setUp()
+        # 加工の項目（綺麗にする・拡大など）は、押したときの確かめ（使えるか、処理の途中か、回数を数える）までは本物の
+        # run_shortcut を通し、加工そのもの（姿勢の模型などを読む重い処理）だけを止める。加工の中身は test_shortcuts が流す
+        from chatdraw import shortcuts
+        real = shortcuts.all_items
+        self.ran = []
+
+        def items(w, store):
+            out = real(w, store)
+            for s in out:
+                s.run = (lambda sid=s.id: self.ran.append(sid))
+            return out
+        p = mock.patch.object(shortcuts, "all_items", items)
+        p.start()
+        self.addCleanup(p.stop)
 
     def press_all(self, name, build, setup=None):
         if setup:
@@ -148,6 +165,7 @@ class EveryMenuItemTest(Base):
                 self.mark()
         n = self.press_all("キャンバス", lambda: self.w.build_canvas_menu(), setup)
         self.assertGreater(n, 20)
+        self.assertTrue(self.ran, "加工の項目を押しても run_shortcut まで届いていない")
 
     def test_canvas_menu_with_selection(self):
         from PySide6.QtCore import QRectF
@@ -290,6 +308,78 @@ class LayerDeleteConfirmTest(Base):
         self.assertEqual(len(c.layers), n)
         c.undo()
         self.assertEqual(len(c.layers), n + 1)   # 元に戻すで戻せる
+
+
+class RichMenuTest(Base):
+    """普通の絵のアプリにある項目が右クリックにあり、押すと効く"""
+
+    def test_canvas_items(self):
+        from PySide6.QtCore import QRect
+        self.w.edit_image(str(self.src))
+        self.pump()
+        c = self.w.canvas
+        g = c.viewport().mapToGlobal(c.mapFromScene(QPointF(20, 20)))
+        m = self.w.build_canvas_menu(g)
+        texts = [p for p, _ in walk(m)]
+        for want in (("コピー",), ("貼り付け",), ("色を拾う",), ("ここを AI で直す",), ("言葉で指示…",),
+                     ("選択範囲", "選択を反転"), ("選択範囲", "レイヤーに切り出す"), ("表示を回す", "右に回す"),
+                     ("表示を回す", "回転を戻す")):
+            self.assertIn(want, texts)
+        self.assertFalse(find(m, ("選択範囲", "選択を反転")).isEnabled())   # 選んでいないときは押せない
+        c.set_selection(QRect(5, 5, 20, 20))
+        n = len(c.layers)
+        self.assertTrue(c.selection_to_layer())
+        self.assertEqual(len(c.layers), n + 1)
+        self.assertTrue(c.invert_selection())
+        self.assertIsNotNone(c.selection_shape)
+        c.set_selection(None)
+        with mock.patch.object(self.w, "send") as send:
+            find(self.w.build_canvas_menu(g), ("ここを AI で直す",)).trigger()
+        send.assert_called_once()
+        self.assertEqual(self.w.mode.currentIndex(), 2)
+        self.assertIsNotNone(c.selection)
+
+    def test_layer_items(self):
+        self.w.edit_image(str(self.src))
+        self.pump()
+        lp, c = self.w.layer_panel, self.w.canvas
+        m = lp.context_menu(lp.list.visualItemRect(lp.list.item(lp.row_of(c.current))).center())
+        n = len(c.layers)
+        find(m, ("複製",)).trigger()
+        self.assertEqual(len(c.layers), n + 1)
+        self.assertTrue(c.layers[c.current].name.endswith("の写し"))
+        m = lp.context_menu(lp.list.visualItemRect(lp.list.item(lp.row_of(c.current))).center())
+        find(m, ("不透明度", "50%")).trigger()
+        self.assertAlmostEqual(c.layers[c.current].opacity, 0.5, places=2)
+        for want in (("下と結合",), ("名前を変える",)):
+            self.assertIsNotNone(find(m, want))
+
+
+class EditContextMenuTest(Base):
+    """右クリックの項目を、設定から隠す・並べ替える・言葉の指示を足す"""
+
+    def test_hide_reorder_and_add_prompt(self):
+        from chatdraw.menuedit import CTX
+        ed = self.w.menus_editor
+        self.assertIn(CTX + "キャンバス", ed.context_names())
+        entries = ed.entries(CTX + "キャンバス")
+        keys = [k for k, _t, _on in entries]
+        self.assertIn("言葉で指示…", keys)
+        order = ["タイムラプスを見る…"] + [k for k in keys if k != "タイムラプスを見る…"]
+        ed.set(CTX + "キャンバス", order, ["言葉で指示…"])
+        top = [a.text() for a in self.w.build_canvas_menu().actions() if not a.isSeparator()]
+        self.assertEqual(top[0], "タイムラプスを見る…")
+        self.assertNotIn("言葉で指示…", top)
+        with no_dialogs(), mock.patch("PySide6.QtWidgets.QInputDialog.getText", return_value=("目だけ", True)):
+            self.w.entry.setText("目を大きく")
+            dlg = self.w.edit_menus()
+            dlg.pick.setCurrentText(CTX + "キャンバス")
+            self.assertTrue(dlg.add_prompt.isVisibleTo(dlg))
+            dlg.add_prompt.click()
+        self.assertIn("目だけ", [a.text() for a in self.w.build_canvas_menu().actions()])
+        ed.reset()
+        top = [a.text() for a in self.w.build_canvas_menu().actions()]
+        self.assertIn("言葉で指示…", top)
 
 
 class PresetTest(Base):

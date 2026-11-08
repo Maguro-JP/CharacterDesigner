@@ -417,6 +417,19 @@ class Canvas(QGraphicsView):
         self.current += 1
         self.rebuild()
 
+    def duplicate_layer(self) -> bool:
+        """選んでいるレイヤーを写して真上に置く（元に戻すで戻せる）"""
+        if not self.layers:
+            return False
+        self.snapshot_all()
+        dup = self.layers[self.current].copy()
+        dup.name = dup.name + " の写し"
+        self.layers.insert(self.current + 1, dup)
+        self.current += 1
+        self.rebuild()
+        self.changed.emit()
+        return True
+
     def delete_layer(self):
         """選んでいるレイヤーを、絵ごと消す。消したレイヤーの絵は手元の覚えから捨て（元に戻す用の写しだけ残る）、
         読み込んだ元のファイルからは読み直さない。1 枚だけのときは消せないので、絵を消して透明にする
@@ -1128,6 +1141,33 @@ class Canvas(QGraphicsView):
         p.drawImage(0, 0, self.layers[self.current].image)
         p.end()
         return out
+
+    def invert_selection(self) -> bool:
+        """選択範囲を反転する（選んでいない所を選ぶ）。範囲が無ければ何もしない"""
+        if self.selection is None:
+            return False
+        w, h = self.size_px()
+        whole = QPainterPath()
+        whole.addRect(QRectF(0, 0, w, h))
+        self.set_selection(QRect(0, 0, w, h), whole.subtracted(self.selection_path()))
+        return self.selection is not None
+
+    def selection_to_layer(self) -> bool:
+        """選択範囲の中を、同じ位置の新しいレイヤーに写す（元のレイヤーは変えない。元に戻すで戻せる）"""
+        img = self.selection_image()
+        if img is None:
+            return False
+        w, h = self.size_px()
+        self.snapshot_all()
+        layer = blank(w, h)
+        p = QPainter(layer)
+        p.drawImage(self.selection.topLeft(), img)
+        p.end()
+        self.layers.insert(self.current + 1, Layer("切り出し", layer))
+        self.current += 1
+        self.rebuild()
+        self.changed.emit()
+        return True
 
     def paste_image(self, img: QImage, name: str = "貼り付け") -> bool:
         """絵を一番上の新しいレイヤーに置く。選択範囲があればその左上、無ければ左上に置く（元に戻すで戻せる）"""
