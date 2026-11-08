@@ -1,0 +1,51 @@
+# library/feedback の全部の絵で、人の枠の模型（chatdraw/sanity.py の PERSON_MODEL）が見つけた人の枠を記録する。
+# 背景の人を「余分な体」と数える外れを、1 人と分かっている組で数えて、数え方の値を決めるため。
+# 手元の CPU では 502 枚が 25 分で終わらなかったので、Actions の機械で流す。
+name: people-count
+on:
+  workflow_dispatch:
+  push:
+    branches: ["claude/FIX-qc2-*"]
+    paths:
+      - ".github/workflows/people-count.yml"
+permissions:
+  contents: read
+jobs:
+  count:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -q --index-url https://download.pytorch.org/whl/cpu torch && pip install -q pillow transformers timm huggingface_hub
+      - name: 人の枠を数える
+        run: |
+          python - <<'EOF'
+          import glob, json, re, time
+          import torch
+          from PIL import Image
+          from transformers import AutoImageProcessor, RTDetrForObjectDetection
+          src = open("chatdraw/sanity.py", encoding="utf-8").read()
+          name = re.search(r'PERSON_MODEL = "([^"]+)"', src).group(1)
+          proc = AutoImageProcessor.from_pretrained(name)
+          model = RTDetrForObjectDetection.from_pretrained(name).eval()
+          out, t0 = {}, time.time()
+          for p in sorted(glob.glob("library/feedback/**/*.jpg", recursive=True)):
+              im = Image.open(p).convert("RGB")
+              im.thumbnail((640, 640))
+              with torch.no_grad():
+                  o = model(**proc(im, return_tensors="pt"))
+              r = proc.post_process_object_detection(o, target_sizes=[im.size[::-1]], threshold=0.3)[0]
+              out[p] = {"size": im.size, "boxes": [[round(v, 1) for v in b] + [round(float(s), 3)]
+                        for b, s, l in zip(r["boxes"].tolist(), r["scores"], r["labels"])
+                        if model.config.id2label[int(l)] == "person"]}
+          json.dump(out, open("people.json", "w"))
+          print(len(out), "枚", round(time.time() - t0), "秒")
+          EOF
+      - uses: actions/upload-artifact@v4
+        with:
+          name: people-count
+          path: people.json
+          retention-days: 7
