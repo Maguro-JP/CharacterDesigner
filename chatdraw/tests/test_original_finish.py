@@ -125,12 +125,12 @@ class CharaDesign(unittest.TestCase):
             self.assertEqual(charadesign.slug("Akari", home=d), "akari-2")   # 同じ名前でも上書きしない
             self.assertEqual([x["id"] for x in charadesign.characters(home=d)], ["akari"])
             plan = charadesign.turnaround_plan("akari", home=d)
-            self.assertEqual([p["view"] for p in plan], ["front", "side", "back"])
+            self.assertEqual([p["view"] for p in plan], ["front", "left", "back"])
             self.assertTrue(all("red hair" in p["prompt"] and "school uniform" in p["prompt"] for p in plan))
             self.assertIn("back view", plan[2]["prompt"])
             painter = FakePainter()
             turn = charadesign.draw_turnaround(painter, "akari", 3, home=d)
-            self.assertEqual(set(turn), {"front", "side", "back"})
+            self.assertEqual(set(turn), {"front", "left", "back"})
             base = figure()
             mask = charadesign.face_mask(base, [(50, 20, 110, 80)])
             seen = []
@@ -185,15 +185,17 @@ class CharaMenu(unittest.TestCase):
             w._fill_chara_menu()
             acts = {a.text(): a for a in w.chara_menu.actions()}
             self.assertIn("描いた人物を設定資料に保存…", acts)
-            self.assertFalse(acts["三面図を描く"].isEnabled())   # 保存した人物が無いうちは押せない
-            self.assertTrue(all(a.toolTip() for a in acts.values() if a.text()))
+            # 人物が無くても押せる（前は無効のままで、メニューを選べないように見えた）。押すと作るか開くかを聞く
+            extra = {a.text(): a for a in w.chara_extra_menu.actions()}
+            self.assertTrue(extra["三面図"].isEnabled())
+            self.assertTrue(all(a.toolTip() for a in acts.values() if a.text() and a.menu() is None))
             w.last_text = "red hair girl"
             ident = w.chara_save("Hana")
             self.assertEqual(ident, "hana")
             self.assertTrue((Path(d) / "bible" / "characters" / "hana.json").exists())
             w._fill_chara_menu()
-            acts = {a.text(): a for a in w.chara_menu.actions()}
-            self.assertTrue(acts["三面図を描く"].isEnabled())
+            self.assertEqual(w.chara_id, "hana")
+            self.assertTrue({a.text(): a for a in w.chara_extra_menu.actions()}["三面図"].isEnabled())
             w.close()
 
 
