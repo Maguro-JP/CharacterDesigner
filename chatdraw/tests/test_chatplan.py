@@ -175,7 +175,7 @@ class WordsTest(unittest.TestCase):
         from chatdraw.aipanel import PRESETS, PROMPT_SUFFIX
         from chatdraw.engine import has_japanese
         names = [p[0] for p in PRESETS]
-        self.assertGreaterEqual(len(names), 12)
+        self.assertGreaterEqual(len(names), 8)   # 中身の同じ 4 つをまとめた（aipanel.MERGED）
         self.assertEqual(len(names), len(set(names)))
         for v in PROMPT_SUFFIX.values():
             self.assertFalse(has_japanese(v))

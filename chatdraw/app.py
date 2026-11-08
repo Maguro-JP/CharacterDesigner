@@ -4823,6 +4823,13 @@ class Window(QMainWindow):
             return
         self.work_save()   # 今の絵の作業を残す（開き直して同じ絵を出せば元のとおりに戻る）
         self.wait_io()   # 裏で書いている保存を書き終えてから閉じる（書きかけの作業ファイルを残さない）
+        # アプリ全体で効くキー（緊急停止、操作を探す）は、閉じた窓の分を外す。残すと、閉じた窓の動作が
+        # キーの一覧に残り続け、窓を何度も開け閉めしたあとにキーを押すとアプリごと落ちた
+        from PySide6.QtGui import QKeySequence
+        for a in (getattr(self, "emergency_stop", None), getattr(self, "palette_action", None)):
+            if a is not None:
+                a.setShortcut(QKeySequence())
+                a.setEnabled(False)
         if getattr(self, "_io_queue", None) is not None:   # 保存の糸を終える（窓ごとに残ると増え続けた）
             self._io_closed = True
             self._io_queue.put(None)

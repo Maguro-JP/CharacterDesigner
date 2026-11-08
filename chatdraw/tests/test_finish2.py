@@ -206,7 +206,7 @@ class StyleFromMenuTest(unittest.TestCase):
             self.skipTest("試験用の小さな SDXL が取れません")
         finishers.use_painter(painter)
         with TemporaryDirectory() as d, \
-                mock.patch.object(restyle, "check", lambda a, b: dict(drift=0.0, line_kept=1.0, why="")), \
+                mock.patch.object(restyle, "check", lambda *a, **k: dict(drift=0.0, line_kept=1.0, why="")), \
                 mock.patch.object(restyle, "WORK_SIDE", 48):
             d = Path(d)
             Image.open(SAMPLE).convert("RGB").resize((32, 48), Image.LANCZOS).save(d / "a.png")
