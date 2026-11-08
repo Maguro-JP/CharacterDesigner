@@ -35,23 +35,24 @@ PRESETS: list[tuple[str, str, int, str, str, int]] = [
     (DEFAULT_PRESET, "最初の設定に戻す", 0, "縦", "おまかせ", 100),
     ("キャラデザ", "全身の立ち絵を縦長で", 0, "縦", "アニメ", 100),
     ("ラフを清書", "キャンバスの線を清書", 1, "縦", "アニメ", 100),
-    ("ラフから自由に", "ラフを元に AI が整える", 1, "縦", "厚塗り", 60),
+    ("ラフから自由に", "ラフを元に AI が整える", 1, "縦", "おまかせ", 60),
     ("イラスト", "場面の 1 枚を横長で", 0, "横", "厚塗り", 100),
     ("アイコン", "顔まわりを正方形で", 0, "正方形", "アニメ", 100),
-    ("立ち絵（白地）", "透過しやすい白地の全身", 0, "縦", "アニメ", 100),
-    ("表情差分", "顔と表情を正方形で", 0, "正方形", "アニメ", 100),
     ("背景美術", "人のいない風景を横長で", 0, "横", "厚塗り", 100),
     ("モノクロ", "白黒の線と影で", 0, "縦", "おまかせ", 100),
-    ("水彩の挿絵", "淡い水彩の 1 枚を横長で", 0, "横", "水彩", 100),
-    ("レトロアニメ", "90 年代のアニメの色で", 0, "縦", "レトロ", 100),
 ]
-# プリセットが描く頼みの後ろに足す言葉（英語のタグ。日本語は絵の模型に渡さない）
-PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background", "アイコン": "portrait, upper body, looking at viewer",
-                 "立ち絵（白地）": "full body, standing, simple background, white background",
-                 "表情差分": "portrait, upper body, looking at viewer, simple background, expressive face",
+# まとめたプリセットの前の名前 → (今のプリセット, 上から当てる画風)。声や AI の頼み、覚えた選択から前の名前で呼ばれても動く。
+# 中身が他のプリセットか画風と同じだった物をまとめた（並びが長いと、どれを押せばよいか分からない）
+MERGED = {"立ち絵（白地）": ("キャラデザ", None),   # キャラデザに白地を足して 1 つにした
+          "表情差分": ("アイコン", None),         # 表情を描き分けない。本当の表情差分は「キャラクターデザイン」のメニュー
+          "レトロアニメ": (DEFAULT_PRESET, "レトロ"),   # 画風「レトロ」と同じ
+          "水彩の挿絵": ("イラスト", "水彩")}         # イラストに画風「水彩」と同じ
+# プリセットが描く頼みの後ろに足す言葉（英語のタグ。日本語は絵の模型に渡さない）。
+# 頼みの中身（人・物・表情・色）を決める言葉は入れない。形（全身・顔まわり・風景・白黒）だけを決める
+PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background, white background",
+                 "アイコン": "portrait, upper body",
                  "背景美術": "scenery, no humans, detailed background, wide shot",
-                 "モノクロ": "monochrome, greyscale, lineart, screentone",
-                 "水彩の挿絵": "illustration, soft lighting", "レトロアニメ": "1990s anime screencap"}
+                 "モノクロ": "monochrome, greyscale"}
 
 
 # タブ: (名前, ヒント)。初めに開くのは先頭の「指示」（描く内容と模型を 1 枚にまとめた。行き来が要らない）
@@ -452,6 +453,12 @@ class AiPanel(QWidget):
         self.changed.emit()
 
     def apply_name(self, name: str) -> bool:
+        if name in MERGED and name not in self.own_presets():
+            to, style = MERGED[name]
+            self.apply_name(to)
+            if style:
+                self.set_style(style)
+            return True
         for n, _sub, m, s, st, k in PRESETS:
             if n == name:
                 self.apply(n, dict(mode=m, size=s, style=st, strength=k))
@@ -480,9 +487,17 @@ class AiPanel(QWidget):
         self.w.notify("AI プリセットを保存しました", "ok", f"「{name}」は AI の欄にいつでも出ます")
 
     def _own_menu(self, name: str, button):
+        self.own_menu(name).exec(button.mapToGlobal(button.rect().bottomLeft()))
+
+    def own_menu(self, name: str):
+        """自分のプリセットの右クリック。当てるを上、消すは区切り線の下"""
         m = QMenu(self)
-        m.addAction("消す", lambda: (self.w.layout_store.remove(f"ai_presets/{name}"), self.fill_presets()))
-        m.exec(button.mapToGlobal(button.rect().bottomLeft()))
+        m.addAction("このプリセットにする", lambda: self.apply_name(name))
+        m.addAction("今の設定で上書き", lambda: self.save_preset(name, self.current()))
+        m.addSeparator()
+        m.addAction("消す…", lambda: self.w.ask_forget(f"自分の AI プリセット「{name}」を消します。",
+                                                     lambda: (self.w.layout_store.remove(f"ai_presets/{name}"), self.fill_presets())))
+        return m
 
     # ---- 画風と同期 ----
     def set_style(self, name: str):

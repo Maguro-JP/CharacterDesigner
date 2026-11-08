@@ -35,10 +35,12 @@ class CanvasFixTest(unittest.TestCase):
         self.d = Path(self.tmp.name)
         self.w = Window(Studio(FakeWords(), FakePainter(), self.d))
         self.w.settings.set("output_dir", str(self.d / "out"))
+        self.w.layout_store.setValue("confirm/delete_marks", "yes")   # 消す前の窓は答えを覚えた形にする
         self.src = self.d / "a.png"
         figure().save(self.src)
 
     def tearDown(self):
+        self.w.layout_store.remove("confirm/delete_marks")
         self.w.close()
         self.tmp.cleanup()
 

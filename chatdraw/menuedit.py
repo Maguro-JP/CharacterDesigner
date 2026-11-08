@@ -20,6 +20,7 @@ BAR_PREFIX = "bars/"
 LOCK_KEY = "bars/locked"
 SEP = "|"            # 帯の区切りの印
 TOP = "（メニューの並び）"
+CTX = "右クリック: "   # 右クリックのメニューの名前の頭。開くたびに作るので、作ったあとに arrange_context で並べる
 
 
 def _text(a: QAction) -> str:
@@ -119,8 +120,39 @@ class Menus:
                 continue
             self.apply_menu(name, m)
 
+    def context_names(self) -> list[str]:
+        builders = getattr(self.w, "context_builders", None)
+        return [CTX + n for n in builders()] if builders else []
+
+    def arrange_context(self, name: str, m: QMenu):
+        """右クリックのメニュー name（頭の付かない名前）を、覚えた並びにし、隠した物を外す"""
+        pref = (self.prefs.get("items") or {}).get(CTX + name)
+        if not pref:
+            return m
+        acts = list(m.actions())
+        shown, _hidden = self._arrange(acts, pref)
+        for a in acts:
+            m.removeAction(a)
+        prev_sep = True
+        for a in shown:
+            if a.isSeparator() and prev_sep:
+                continue   # 隠したせいで続いた区切りは 1 つにする
+            m.addAction(a)
+            prev_sep = a.isSeparator()
+        return m
+
     def entries(self, name: str) -> list[tuple[str, str, bool]]:
         """編集の窓に出す (覚える名前, 見せる文字, 出す) の並び"""
+        if name.startswith(CTX):
+            built = self.w.context_builders()[name[len(CTX):]]()
+            self._ctx_keep = built   # 窓を閉じるまで手放さない（手放すと項目が先に消えた）
+            pref = (self.prefs.get("items") or {}).get(name) or {}
+            raw = list(built.actions())
+            # 編集の窓には並べ替える前の物を出す（並べ替えたあとの物を出すと、区切りの番号がずれた）
+            shown, hidden = self._arrange(raw, pref)
+            idx = {id(a): i for i, a in enumerate(raw)}
+            return [(_key(a, idx[id(a)]), "―― 区切り ――" if a.isSeparator() else _text(a), a in shown)
+                    for a in shown + hidden if not (a.text().endswith("消す…"))]
         if name == TOP:
             acts, pref = list(self.default_top), self.prefs.get("top") or {}
         else:
@@ -255,7 +287,7 @@ class MenuEditor(QDialog):
         self.menus = menus
         lay = QVBoxLayout(self)
         self.pick = QComboBox()
-        self.pick.addItems([TOP] + list(menus.top_menus()))
+        self.pick.addItems([TOP] + list(menus.top_menus()) + menus.context_names())
         self.pick.setToolTip("並べ替えるメニューを選びます")
         lay.addWidget(self.pick)
         row = QHBoxLayout()
@@ -264,6 +296,8 @@ class MenuEditor(QDialog):
         side = QVBoxLayout()
         side.addWidget(_button("▲", "上へ", lambda: _move(self.list, -1)))
         side.addWidget(_button("▼", "下へ", lambda: _move(self.list, 1)))
+        self.add_prompt = _button("言葉の指示を足す…", "直しの頼みの言葉を、右クリックから選べる項目として登録します", self._add_prompt)
+        side.addWidget(self.add_prompt)
         side.addStretch()
         side.addWidget(_button("初めに戻す", "すべてのメニューを初めの並びに戻します", self._reset))
         row.addLayout(side)
@@ -293,6 +327,7 @@ class MenuEditor(QDialog):
     def _show(self, name: str):
         self._keep()
         self._name = name
+        self.add_prompt.setVisible(name.startswith(CTX))
         self.list.clear()
         saved = self._edits.get(name)
         entries = self.menus.entries(name)
@@ -305,6 +340,13 @@ class MenuEditor(QDialog):
             it.setFlags(it.flags() | Qt.ItemIsUserCheckable | Qt.ItemIsDragEnabled)
             it.setCheckState(Qt.Checked if on else Qt.Unchecked)
             self.list.addItem(it)
+
+    def _add_prompt(self):
+        """言葉の指示を登録する（書く欄に言葉があればそれ、無ければ尋ねる）。足した物は右クリックの上の方に出る"""
+        self._keep()
+        self.menus.w.add_prompt_shortcut()
+        self._name = None
+        self._show(self.pick.currentText())
 
     def _reset(self):
         self._edits.clear()

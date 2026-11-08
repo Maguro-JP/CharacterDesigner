@@ -175,10 +175,13 @@ class LibraryPanel(QWidget):
         lib, item_id, path = self.w.library, it.data(Qt.UserRole), it.data(Qt.UserRole + 1)
         entry = lib.get(item_id)
         m = QMenu(self)
+        m.setToolTipsVisible(True)
         if entry and entry["kind"] == "work":
             m.addAction("♥ 好き", lambda: self.rate(item_id, LIKE))
             m.addAction("× いまいち", lambda: self.rate(item_id, DISLIKE))
-            m.addAction("評価を外す", lambda: self.rate(item_id, NONE))
+            a = m.addAction("評価を外す", lambda: self.rate(item_id, NONE))
+            a.setEnabled(entry.get("rating", NONE) != NONE)
+            a.setToolTip("" if a.isEnabled() else "まだ評価していません")
             from chatdraw import ownstyle
             m.addAction("★ お気に入りを外す" if ownstyle.is_favorite(path) else "★ お気に入りにする",
                         lambda: (ownstyle.toggle(path), self.refresh()))
@@ -188,12 +191,14 @@ class LibraryPanel(QWidget):
         else:
             m.addAction("参考画像にする", lambda: (self.w.reference.load(path), self.w.ai_panel.use_ref.setChecked(True)))
         m.addAction("今の絵に重ねる", lambda: self.w.layer_from_file(path, "ライブラリーの絵"))
-        m.addAction("編集する（囲んで直す）", lambda: self.w.edit_image(path))
+        m.addAction("囲んで直す", lambda: self.w.edit_image(path)).setToolTip("この絵をキャンバスに開き、赤ペンで囲んで直せる形にします")
         m.addAction("言葉を付ける…", lambda: self.tag(item_id))
         m.addSeparator()
         m.addAction("ディレクトリを開く", lambda: self.w.open_folder(path)).setToolTip("この絵の置いてあるディレクトリを開きます")
+        m.addSeparator()
         if entry and entry["kind"] == "work":
-            m.addAction("一覧から外す（絵は残す）", lambda: (lib.remove(item_id), self.refresh()))
+            m.addAction("一覧から外す…", lambda: self.w.ask_forget("この絵をライブラリーの一覧から外します。絵のファイルは残します。",
+                                                              lambda: (lib.remove(item_id), self.refresh()))).setToolTip("絵のファイルは残します")
         # 資料の写しも作品の絵も、すぐには消さずごみ箱へ移す（「ファイル」→「ごみ箱…」から戻せる）
         m.addAction("消す（ごみ箱へ）…", lambda: self.w.delete_images(self._chosen(view, path)))
         if not run:

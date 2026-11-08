@@ -175,3 +175,76 @@ def write_sheet(ident: str, home=None) -> Path:
     out = b.BIBLE / "characters" / f"{ident}.html"
     b.sheet(ident, str(out))
     return out
+
+
+SHEET_TURN_H = 768    # キャラクターシートの三面図の段の高さ
+SHEET_EXPR_H = 384    # 表情差分の段の高さ
+SHEET_GAP = 24
+
+
+def sheet_parts(ident: str, home=None) -> list[tuple[str, str]]:
+    """シートに並べる絵（レイヤーの名前, 置き場）。三面図（無ければ色の手本）、表情差分の順"""
+    b = bible(home)
+    c = b.load("characters", ident)
+    imgs = c.get("images", {})
+    turn = [(f"三面図 {VIEW_JA[v]}", imgs[f"turn-{v}"]) for v in TURN_VIEWS if f"turn-{v}" in imgs]
+    if not turn and "color" in imgs:
+        turn = [("色の手本", imgs["color"])]
+    names = {e["id"]: e["name"] for e in b.expressions_of(ident)}
+    expr = [(f"表情 {names.get(k[5:], k[5:])}", v) for k, v in imgs.items() if k.startswith("expr-")]
+    return turn + expr
+
+
+def compose_sheet(ident: str, home=None) -> dict:
+    """三面図と表情差分を 1 枚に並べ、絵ごとに 1 枚のレイヤーにした写し（project.write_psd に渡す形）。
+    文字は焼き込まない（名前はレイヤーの名前に持つ）"""
+    from types import SimpleNamespace
+    from PIL import Image
+    root = _home(home)
+    parts = sheet_parts(ident, home)
+    if not parts:
+        raise NotReady("この人物にはまだ絵がありません。三面図か表情差分を描いてから作ってください")
+    rows = [[(n, p) for n, p in parts if not n.startswith("表情")], [(n, p) for n, p in parts if n.startswith("表情")]]
+    placed = []
+    for r, h in zip(rows, (SHEET_TURN_H, SHEET_EXPR_H)):
+        line = []
+        for n, p in r:
+            with Image.open(root / p) as im:
+                im = im.convert("RGBA")
+            line.append((n, im.resize((max(1, round(im.width * h / im.height)), h), Image.LANCZOS)))
+        if line:
+            placed.append(line)
+    w = max(sum(im.width for _n, im in line) + SHEET_GAP * (len(line) + 1) for line in placed)
+    h = sum(line[0][1].height for line in placed) + SHEET_GAP * (len(placed) + 1)
+    layers = [SimpleNamespace(name="背景", visible=True, opacity=1.0, image=Image.new("RGBA", (w, h), "white"))]
+    y = SHEET_GAP
+    for line in placed:
+        x = SHEET_GAP
+        for n, im in line:
+            layer = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+            layer.paste(im, (x, y))
+            layers.append(SimpleNamespace(name=n, visible=True, opacity=1.0, image=layer))
+            x += im.width + SHEET_GAP
+        y += line[0][1].height + SHEET_GAP
+    merged = layers[0].image.copy()
+    for l in layers[1:]:
+        merged.alpha_composite(l.image)
+    return {"size": (w, h), "layers": layers, "merged": merged}
+
+
+def write_sheet_psd(ident: str, out=None, home=None) -> Path:
+    """キャラクターシートをレイヤーの PSD で書く（既定は設定資料の隣の <id>-sheet.psd）"""
+    from chatdraw.project import write_psd
+    from PySide6.QtGui import QImage
+    snap = compose_sheet(ident, home)
+
+    def q(im):
+        im = im.convert("RGBA")
+        return QImage(im.tobytes(), im.width, im.height, im.width * 4, QImage.Format_RGBA8888).copy()
+    for l in snap["layers"]:
+        l.image = q(l.image)
+    snap["merged"] = q(snap["merged"])
+    out = Path(out) if out else bible(home).BIBLE / "characters" / f"{ident}-sheet.psd"
+    out.parent.mkdir(parents=True, exist_ok=True)
+    write_psd(snap, out)
+    return out

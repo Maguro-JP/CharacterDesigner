@@ -487,7 +487,10 @@ class PanelTitle(QWidget):
                             ("下に置く", Qt.BottomDockWidgetArea), ("上に置く", Qt.TopDockWidgetArea)):
             menu.addAction(label, lambda area=area: mw.move_panel(self.dock, area))
         menu.addSeparator()
-        menu.addAction("別ウィンドウにする", lambda: self.dock.setFloating(True))
+        a = menu.addAction("別ウィンドウにする", lambda: self.dock.setFloating(True))
+        a.setEnabled(not self.dock.isFloating())
+        a.setToolTip("もう別ウィンドウです。上の置き場所を選ぶと戻ります" if self.dock.isFloating() else "")
+        menu.setToolTipsVisible(True)
         return menu
 
     def toggle(self):
@@ -1014,6 +1017,7 @@ class Window(QMainWindow):
         # 右下: レイヤー（縮小図・表示・ロック・名前・並べ替え。chatdraw/layerpanel.py）
         from chatdraw.layerpanel import LayerPanel
         self.layer_panel = LayerPanel(self.canvas)
+        self.layer_panel.w = self   # 消す前の確かめの窓に使う
         self.layer_list, self.layer_opacity = self.layer_panel.list, self.layer_panel.opacity
         self.canvas.refused.connect(lambda why: self.statusBar().showMessage(why, 6000))
         lbox = self.layer_panel
@@ -1136,7 +1140,7 @@ class Window(QMainWindow):
                               toolTip="選択範囲の中だけを、指示の欄の言葉で AI が直します"))
         layer_menu = self.menuBar().addMenu("レイヤー")
         layer_menu.addAction(S["add_layer"])
-        layer_menu.addAction(QAction("レイヤーを消す", self, triggered=self.canvas.delete_layer))
+        layer_menu.addAction(QAction("レイヤーを消す", self, triggered=lambda: self.layer_panel.delete_layer()))
         layer_menu.addAction(QAction("画像をレイヤーとして読み込む…", self, triggered=self.import_layer))
         layer_menu.addAction(QAction("レイヤーを PNG で保存…", self, triggered=self.save_layer_png))
         layer_menu.addAction(QAction("全部のレイヤーを PNG で書き出す…", self, triggered=self.export_layers_png))
@@ -1395,11 +1399,33 @@ class Window(QMainWindow):
 
     def _chip_menu(self, chip, pos, text: str, fav: bool):
         from PySide6.QtWidgets import QMenu
+        self.build_chip_menu(text, fav).exec(chip.mapToGlobal(pos))
+
+    def build_chip_menu(self, text: str, fav: bool):
+        """頼んだ言葉の帯の右クリック。すぐ描くを上、消す物は区切り線の下"""
+        from PySide6.QtWidgets import QMenu
         m = QMenu(self)
-        m.addAction("登録から外す" if fav else "描くワードに登録する", lambda: (self.unpin_prompt(text) if fav else self.pin_prompt(text)))
-        m.addAction("この言葉ですぐ描く", lambda: (self.entry.setText(text), self.send()))
-        m.addAction("一覧から消す", lambda: self.forget_prompt(text))
-        m.exec(chip.mapToGlobal(pos))
+        m.setToolTipsVisible(True)
+        a = m.addAction("この言葉で描く", lambda: (self.entry.setText(text), self.send()))
+        a.setEnabled(not self.thread)
+        a.setToolTip("ほかの処理の途中です。終わってから押してください" if self.thread else text)
+        m.addAction("書く欄に入れる", lambda: self.entry.setText(text))
+        m.addSeparator()
+        if fav:
+            m.addAction("登録から外す", lambda: self.unpin_prompt(text))
+        else:
+            m.addAction("描くワードに登録", lambda: self.pin_prompt(text))
+            m.addAction("一覧から消す…", lambda: self.ask_forget(f"「{text}」を頼んだ言葉の一覧から消します。",
+                                                             lambda: self.forget_prompt(text)))
+        return m
+
+    def ask_forget(self, text: str, then) -> bool:
+        """一覧・辞書・プリセットから消す前の確かめの窓（「次から聞かない」で出さなくできる）"""
+        from chatdraw import confirm
+        if confirm.ask(self, "forget", "一覧から消す", text, [("yes", "消す")]) != "yes":
+            return False
+        then()
+        return True
 
     def _save(self, key: str, items: list[str], limit: int | None = None):
         self.settings.store.setValue(key, items[:limit] if limit else items)
@@ -1503,11 +1529,16 @@ class Window(QMainWindow):
 
     def _neg_chip_menu(self, chip, pos, text: str):
         from PySide6.QtWidgets import QMenu
+        self.build_neg_chip_menu(text).exec(chip.mapToGlobal(pos))
+
+    def build_neg_chip_menu(self, text: str):
+        from PySide6.QtWidgets import QMenu
         m = QMenu(self)
-        m.addAction("禁止ワードの欄に足す", lambda: self._use_negative(text))
+        m.addAction("禁止ワードに足す", lambda: self._use_negative(text))
         m.addAction("この言葉だけにする", lambda: self.ai_panel.negative.setText(text))
+        m.addSeparator()
         m.addAction("登録から外す", lambda: self.unpin_negative(text))
-        m.exec(chip.mapToGlobal(pos))
+        return m
 
     def pin_negative(self, text: str):
         """禁止ワードを登録する。数を限らず、外すまで残す"""
@@ -2177,6 +2208,41 @@ class Window(QMainWindow):
         self.statusBar().showMessage(f"{len(out)} 枚のレイヤーを書き出しました: {folder}", 6000)
         return out
 
+    def fix_here(self, pos, size: int = 0):
+        """右クリックした所の周りを選択範囲にして、囲んだ所を直すと同じ道で直す。大きさは絵の短い辺の 4 分の 1"""
+        from PySide6.QtCore import QRect
+        c = self.canvas
+        if not c.layers:
+            return
+        w, h = c.size_px()
+        r = size or max(32, min(w, h) // 4)
+        c.set_selection(QRect(int(pos.x()) - r // 2, int(pos.y()) - r // 2, r, r))
+        if c.selection is None:
+            self.notify("直す所を決められませんでした", "info", "絵の上で右クリックしてください")
+            return
+        self.fix_marked()
+
+    # ---- 右クリックの編集（chatdraw/menuedit.py の Menus が並びと隠す物を覚える） ----
+    def context_builders(self) -> dict:
+        """編集できる右クリック。名前 → 作る関数（編集の窓が中身を見るために作る）"""
+        from PySide6.QtCore import QPoint
+        lp = self.layer_panel
+        return {"キャンバス": lambda: self.build_canvas_menu(),
+                "レイヤー": lambda: lp.context_menu(lp.list.visualItemRect(lp.list.item(lp.row_of(self.canvas.current))).center())
+                if lp.list.count() else lp.context_menu(QPoint(-5, -5))}
+
+    def arrange_context(self, name: str, m):
+        ed = getattr(self, "menus_editor", None)
+        if ed is not None:
+            ed.arrange_context(name, m)
+        return m
+
+    def edit_context_menu(self, name: str):
+        dlg = self.edit_menus()
+        dlg.pick.setCurrentText("右クリック: " + name)
+        dlg.exec()
+        return dlg
+
     def fix_marked(self):
         """赤ペンで囲んだ所を直す。AI の欄を「直す」にして「描く」と同じ send() を呼ぶ"""
         self.mode.setCurrentIndex(2)
@@ -2530,25 +2596,52 @@ class Window(QMainWindow):
             then(result)
 
     def _lora_row(self):
-        """AI の欄の「模型」に、自分の作風の LoRA を選ぶ欄と強さを足す。初めは「なし」"""
+        """AI の欄の「模型」に、LoRA を選ぶ欄と強さ（0〜1.5）を足す。初めは「なし」"""
         from PySide6.QtWidgets import QComboBox, QSlider
         from chatdraw import ownstyle
         self.lora_pick = QComboBox()
-        self.lora_pick.setToolTip("自分の作風の LoRA を絵の模型に重ねます。置き場は " + str(ownstyle.lora_dir()))
-        self.lora_pick.addItem("LoRA なし", "")
-        for p in ownstyle.loras():
-            self.lora_pick.addItem(p.stem, str(p))
-        self.lora_pick.setCurrentIndex(max(0, self.lora_pick.findData(str(self.layout_store.value("lora", "") or ""))))
+        self.lora_pick.setToolTip("LoRA を絵の模型に重ねます。足すのは「模型の管理」の「LoRA…」から。置き場は " + str(ownstyle.lora_dir()))
+        Window._lora_fill(self)
         self.lora_strength = QSlider(Qt.Horizontal)
         self.lora_strength.setRange(0, 150)
         self.lora_strength.setValue(int(self.layout_store.value("lora_scale", 80)))
-        self.lora_strength.setToolTip("LoRA の強さ。大きいほど自分の作風に寄せる")
+        self.lora_strength.setToolTip("LoRA の強さ（0〜1.5）。大きいほど LoRA の作風に寄せます")
         self.lora_pick.currentIndexChanged.connect(lambda _i: self._lora_changed())
         self.lora_strength.valueChanged.connect(lambda _v: self._lora_changed())
         body = self.ai_panel.sections["模型"].body
         body.addWidget(self.lora_pick)
         body.addWidget(self.lora_strength)
         Window._lora_shown(self)   # 試験は名前空間で呼ぶので、窓の側の関数を直接呼ぶ
+
+    def _lora_fill(self, model_family: str | None = None):
+        """置き場の LoRA を並べ直す。今の模型と系統の合わない物は選べなくし、理由をツールチップに出す"""
+        from PySide6.QtCore import Qt as _Qt
+        from chatdraw import lora as loralib
+        if model_family is None:
+            try:
+                from chatdraw.models import image_model
+                model_family = image_model(getattr(getattr(getattr(self, "studio", None), "painter", None), "model", "") or "").family
+            except Exception:
+                model_family = ""
+        keep = str(self.layout_store.value("lora", "") or "")
+        self.lora_pick.blockSignals(True)
+        self.lora_pick.clear()
+        self.lora_pick.addItem("LoRA なし", "")
+        for p in loralib.loras():
+            ok, why = loralib.compatible(loralib.family_of(p), model_family) if model_family else (True, "")
+            words = ", ".join(loralib.trigger_words(p))
+            self.lora_pick.addItem(loralib.label(p), str(p))
+            i = self.lora_pick.count() - 1
+            tip = "\n".join(x for x in (why, f"きっかけの言葉: {words}（描くときに頼みの前に足します）" if words else "") if x)
+            self.lora_pick.setItemData(i, tip or loralib.FAMILY_JA.get(loralib.family_of(p), ""), _Qt.ToolTipRole)
+            if not ok:
+                item = self.lora_pick.model().item(i)
+                item.setEnabled(False)
+        i = self.lora_pick.findData(keep)
+        if i > 0 and not self.lora_pick.model().item(i).isEnabled():
+            i = 0
+        self.lora_pick.setCurrentIndex(max(0, i))
+        self.lora_pick.blockSignals(False)
 
     def _lora_shown(self):
         """LoRA を置いていなければ選ぶ欄を出さず、「なし」のときは強さを出さない（動かしても何も変わらない部品を並べない）。
@@ -2615,17 +2708,20 @@ class Window(QMainWindow):
             m.exec(self.history.mapToGlobal(pos))
             return None
         m = QMenu(self)
+        m.setToolTipsVisible(True)
         m.addAction("この絵を出す", lambda: self.show_history_image(path))
         m.addAction(self.compare_action)
-        m.addAction("この絵を出して固定する", lambda: (self.show_history_image(path), self.pin_action.setChecked(True)))
         if self.pin_action.isChecked():
-            m.addAction("固定を外す（最新の絵を出す）", lambda: self.pin_action.setChecked(False))
+            m.addAction("固定を外す", lambda: self.pin_action.setChecked(False)).setToolTip("いちばん新しい絵を出します")
+        else:
+            m.addAction("この絵を出して固定", lambda: (self.show_history_image(path), self.pin_action.setChecked(True))).setToolTip(
+                "AI が新しく描いた絵はキャンバスに出さず、履歴に入れます")
         m.addAction("今の絵に重ねる", lambda: self.layer_from_file(path, "AI の絵"))
-        m.addAction("編集する（囲んで直す）", lambda: self.edit_image(path))
+        m.addAction("囲んで直す", lambda: self.edit_image(path)).setToolTip("この絵をキャンバスに開き、赤ペンで囲んで直せる形にします")
         m.addSeparator()
         m.addAction("この設定で描き直す", lambda: self.redo_from(path))
-        m.addAction("頼みの言葉を書く欄に入れる", lambda: self._prompt_from(path))
-        m.addAction("頼みの言葉を描くワードに登録する", lambda: self._prompt_from(path, pin=True))
+        m.addAction("頼みを書く欄へ", lambda: self._prompt_from(path)).setToolTip("この絵を描いたときの頼みの言葉を、書く欄に入れます")
+        m.addAction("頼みを描くワードに登録", lambda: self._prompt_from(path, pin=True))
         from chatdraw import ownstyle
         m.addAction("★ お気に入りを外す" if ownstyle.is_favorite(path) else "★ お気に入りにする", lambda: ownstyle.toggle(path))
         m.addAction("学習用に集める", self.collect_favorites)
@@ -2640,19 +2736,22 @@ class Window(QMainWindow):
             act.setToolTip("この絵の判定を学びの記録に付けます。次から描くときの通りやすさに弱く数えます")
         m.addSeparator()
         m.addAction("絵をコピー", lambda: self.copy_image(path))
-        m.addAction("保存した場所を開く", lambda: self.open_folder(path))
+        m.addAction("ディレクトリを開く", lambda: self.open_folder(path)).setToolTip("この絵の置いてあるディレクトリを開きます")
         m.addAction("3D に進む…", lambda: self.open_3d(path)).setToolTip("この絵から 3D のキャラデザに進む（最初の一歩: 厚みのある板の模型）")
         from chatdraw import share
-        sns = m.addMenu("SNS に送る")
+        sns = QMenu("SNS に送る", m)
+        m.addMenu(sns)
         for name in share.SERVICES:
             act = sns.addAction(f"{name} に送る", lambda n=name: share.post(self, n, path, self._prompt_text(path)))
             act.setEnabled(share.enabled(self.settings, name))
         if not any(share.enabled(self.settings, n) for n in share.SERVICES):
             sns.setToolTip("設定の「SNS 連携」で選ぶと使えます")
             sns.setEnabled(False)
+        other = QMenu("そのほか", m)
+        m.addMenu(other)
+        self.common_menu(other)
         m.addSeparator()
-        m.addAction("消す（ごみ箱へ）…", lambda: self.delete_images([path]))
-        self.common_menu(m.addMenu("そのほか"))
+        m.addAction("消す（ごみ箱へ）…", lambda: self.delete_images([path])).setToolTip("ごみ箱から戻せます")
         if not run:
             return m
         m.exec(self.history.mapToGlobal(pos))
@@ -2889,50 +2988,79 @@ class Window(QMainWindow):
         c = self.canvas
         m = QMenu(self)
         m.setToolTipsVisible(True)
+        busy = "ほかの処理の途中です。終わってから押してください"
         # よく使う物を上に、1 回で押せる所に置く（赤ペンを「道具」の奥に入れていたら見つからなかった）
         if "redpen" in self.tool_actions:
-            m.addAction("赤ペンで直す所を囲む（T）", self.tool_actions["redpen"].trigger).setToolTip(
+            m.addAction("赤ペンで囲む（T）", self.tool_actions["redpen"].trigger).setToolTip(
                 "囲んで指示を書き、「描く」を押すと囲んだ所だけを AI が直します")
         if c.redpen.marks or c.selection is not None:
             # 「描く」を直すにして押すのと同じ道を通す（右クリックから仕上げと同じ手数で直せるように）
-            m.addAction("囲んだ所を直す", self.fix_marked).setEnabled(not self.thread)
-        if c.redpen.marks:
-            m.addAction("赤ペンの印を消す", c.redpen.clear)
-        # 番号の丸の上で右クリックしたら、その印だけを直す・消す
-        n = c.redpen.number_at(c.mapToScene(c.viewport().mapFromGlobal(gpos)), c.zoom()) if gpos is not None else 0
+            a = m.addAction("囲んだ所を直す", self.fix_marked)
+            a.setEnabled(not self.thread)
+            a.setToolTip(busy if self.thread else "囲んだ所の中だけを AI が直します。外は変えません")
+        here = c.mapToScene(c.viewport().mapFromGlobal(gpos)) if gpos is not None else None
+        if here is not None and not c.redpen.marks and c.selection is None:
+            # 囲まなくても、右クリックした所の周りを囲んで直せる（囲む手間を 1 手にする）
+            a = m.addAction("ここを AI で直す", lambda: self.fix_here(here))
+            a.setEnabled(bool(c.layers) and not self.thread)
+            a.setToolTip(busy if self.thread else ("右クリックした所の周りだけを AI が直します。外は変えません" if c.layers else "絵がありません"))
+        # 番号の丸の上で右クリックしたら、その印の指示を書き直せる（消すのは下の区切りの下）
+        n = c.redpen.number_at(here, c.zoom()) if here is not None else 0
         if n:
-            m.addAction(f"印 {n} の指示を書き直す", lambda: self.edit_note(n))
-            m.addAction(f"印 {n} を消す", lambda: c.redpen.remove(n)).setToolTip("元に戻すで戻せます")
-            m.addSeparator()
+            m.addAction(f"赤ペン {n} の指示を書き直す", lambda: self.edit_note(n))
         # 言葉で指示する。登録した指示は shortcuts.fill_menu が小さなメニューに入れずに上へ並べ、1 回で呼べる
         m.addAction("言葉で指示…", self.open_text_instruction).setToolTip(
             "言葉を書いて、今の絵（囲みがあれば囲みの中）を直す・加工する・描くことができます。書いた言葉は登録できます")
         m.addSeparator()
-        m.addAction("元に戻す（Ctrl+Z）", c.undo).setEnabled(bool(c.undo_stack) or (c.tool == "redpen" and bool(c.redpen.marks)))
-        m.addAction("やり直す（Ctrl+Y）", c.redo).setEnabled(bool(c.redo_stack) or (c.tool == "redpen" and bool(c.redpen.undone)))
+        can_undo = bool(c.undo_stack) or (c.tool == "redpen" and bool(c.redpen.marks))
+        can_redo = bool(c.redo_stack) or (c.tool == "redpen" and bool(c.redpen.undone))
+        for label, fn, ok, why in (("元に戻す（Ctrl+Z）", c.undo, can_undo, "戻す操作がありません"),
+                                   ("やり直す（Ctrl+Y）", c.redo, can_redo, "やり直す操作がありません")):
+            a = m.addAction(label, fn)
+            a.setEnabled(ok)
+            a.setToolTip("" if ok else why)
         m.addSeparator()
         shortcuts.fill_menu(self, m, self.shortcut_store())   # ★・よく使う物を上に、残りは処理の種類ごと
         m.addSeparator()
         # 道具・表示・選択は左端の帯やメニューと同じ操作を足す（名前もキーも、今の道具の印もそろう）
-        tools = m.addMenu("道具")
+        tools = QMenu("道具", m)
+        m.addMenu(tools)
         for key in ("pen", "eraser", "eyedropper", "select", "lasso", "polygon", "hand", "redpen"):
             if key in self.tool_actions:
                 tools.addAction(self.tool_actions[key])
-        view = m.addMenu("表示")
+        view = QMenu("表示", m)
+        m.addMenu(view)
         for k in ("fit", "actual", "rotate_left", "rotate_right", "rotate_reset", "flip_view", "view_reset", "grid"):
             view.addAction(self.shared[k])
-        m.addAction(self.shared["add_layer"])
-        if c.selection is not None:
-            sm = m.addMenu("選択範囲")
-            for k in ("sel_clear", "sel_fill", "copy", "cut"):
-                sm.addAction(self.shared[k])
-            sm.addAction(self.shared["deselect"])
-        else:
-            m.addAction("絵をコピー", self.copy_image)
+        m.addAction(self.shared["copy"])
         m.addAction(self.shared["paste"])
+        if here is not None:
+            a = m.addAction("色を拾う", lambda: c.pick(here))
+            a.setEnabled(bool(c.layers))
+            a.setToolTip("右クリックした所の色を描く色にします（スポイト、I）" if c.layers else "絵がありません")
+        sm = QMenu("選択範囲", m)
+        m.addMenu(sm)
+        sm.setToolTipsVisible(True)
+        sel = c.selection is not None
+        for label, fn, why in (("選択を反転", c.invert_selection, "選んでいない所を選びます"),
+                               ("レイヤーに切り出す", c.selection_to_layer, "選んだ所を、同じ位置の新しいレイヤーに写します")):
+            a = sm.addAction(label, fn)
+            a.setEnabled(sel)
+            a.setToolTip(why if sel else "選択範囲がありません。四角か投げなわで選んでください")
+        sm.addAction(self.shared["select_all"])
+        if sel:
+            for k in ("sel_fill", "cut", "deselect", "sel_clear"):
+                sm.addAction(self.shared[k])
+        rot = QMenu("表示を回す", m)
+        m.addMenu(rot)
+        for k in ("rotate_left", "rotate_right", "rotate_reset", "flip_view", "view_reset"):
+            rot.addAction(self.shared[k])
+        m.addAction(self.shared["add_layer"])
         m.addSeparator()
-        m.addAction("この絵を AI で描き直す（もう一度描く）", self.draw_again).setEnabled(bool(self.last_text) and not self.thread)
-        pin = m.addAction("表示する絵を固定する")
+        a = m.addAction("もう一度描く", self.draw_again)
+        a.setEnabled(bool(self.last_text) and not self.thread)
+        a.setToolTip(busy if self.thread else ("前の頼みで AI がもう一度描きます" if self.last_text else "まだ AI で描いていません"))
+        pin = m.addAction("表示する絵を固定")
         pin.setCheckable(True)
         pin.setChecked(self.pin_action.isChecked())
         pin.toggled.connect(self.pin_action.setChecked)
@@ -2940,10 +3068,20 @@ class Window(QMainWindow):
         m.addSeparator()
         m.addAction(self.shared["new"])
         m.addAction("画像を開く…", self.open_image).setToolTip("作業ファイル・PSD・ORA・絵を開きます")
-        save = m.addMenu("保存・書き出し")
+        save = QMenu("保存・書き出し", m)
+        m.addMenu(save)
         save.setToolTipsVisible(True)
         for k in ("save", "save_as", "export_flat", "export_view"):
             save.addAction(self.shared[k])
+        m.addAction("この右クリックを編集…", lambda: self.edit_context_menu("キャンバス")).setToolTip(
+            "項目を出す・隠す・並べ替える、言葉の指示を項目として足す")
+        self.arrange_context("キャンバス", m)
+        # 消す物は一番下、区切り線の下（押し間違えない所）。並べ替えの外に置き、いつも一番下に出す
+        if c.redpen.marks:
+            m.addSeparator()
+            if n:
+                m.addAction(f"赤ペン {n} を消す…", lambda: self.layer_panel.remove_mark(n)).setToolTip("元に戻すで戻せます")
+            m.addAction("赤ペンの印を全部消す…", self.layer_panel.clear_marks).setToolTip("元に戻すでは戻せません")
         return m
 
     # ---- どこで右クリックしても出るメニュー ----
@@ -2952,15 +3090,18 @@ class Window(QMainWindow):
 
     def common_menu(self, m):
         """どの欄の右クリックにも出す操作。新しく描く・開く・ショートカット"""
+        from PySide6.QtWidgets import QMenu
         from chatdraw import shortcuts
         m.setToolTipsVisible(True)
-        m.addAction("新しく描く（書く欄へ）", self.start_new_drawing).setToolTip("書く欄に移ります。描いてほしい絵を書いて Enter で描きます")
+        m.addAction("新しく描く", self.start_new_drawing).setToolTip("書く欄に移ります。描いてほしい絵を書いて Enter で描きます")
         m.addAction(self.shared["new"])
         m.addAction("画像を開く…", self.open_image).setToolTip("作業ファイルか絵を開きます")
         m.addAction("画像を開いて直す…", self.open_to_edit).setToolTip("手元の絵を開き、赤ペンで囲んで直せる形にします")
         if "redpen" in getattr(self, "tool_actions", {}):
-            m.addAction("赤ペンで直す所を囲む（T）", self.tool_actions["redpen"].trigger).setToolTip("絵の上で囲んで指示を書き、「描く」で囲んだ所だけを直します")
-        shortcuts.fill_menu(self, m.addMenu("ショートカット"), self.shortcut_store())
+            m.addAction("赤ペンで囲む（T）", self.tool_actions["redpen"].trigger).setToolTip("絵の上で囲んで指示を書き、「描く」で囲んだ所だけを直します")
+        sc = QMenu("ショートカット", m)
+        m.addMenu(sc)
+        shortcuts.fill_menu(self, sc, self.shortcut_store())
         return m
 
     def area_menu(self, key: str):
@@ -2970,7 +3111,7 @@ class Window(QMainWindow):
         if key == "history":
             m.addAction("ごみ箱…", self.open_trash).setToolTip("消した絵を戻す・本当に消す")
         elif key == "layers":
-            m.addAction("レイヤーを足す", self.canvas.add_layer)
+            m.addAction(self.shared["add_layer"])
         elif key == "talk":
             m.addAction("書く欄へ", self.entry.setFocus)
         elif key == "library":
@@ -2980,8 +3121,14 @@ class Window(QMainWindow):
             m.addSeparator()
         self.common_menu(m)
         if key in self.AREA_NAMES and hasattr(self, "panels") and key in self.panels:
-            m.addSeparator()
             d = self.panels[key][0]
+            bar = d.titleBarWidget()
+            if hasattr(bar, "place_menu"):   # 欄の見出しの右クリックでも置き場所を変えられる（⧉ の横のボタンと同じ）
+                place = bar.place_menu()
+                place.setTitle("置き場所")
+                place.setParent(m, place.windowFlags())
+                m.addMenu(place)
+            m.addSeparator()
             m.addAction(f"「{self.AREA_NAMES[key]}」の欄を隠す", d.hide).setToolTip("表示メニューからまた出せます")
         return m
 
@@ -3495,6 +3642,9 @@ class Window(QMainWindow):
         ModelManager(self.settings, self).exec()
         self._have_images = None   # 取った・消した物があるかもしれないので、数え直すまで覚えを使わない
         self.studio = self._studio_from_settings()
+        if hasattr(self, "lora_pick"):   # 足した LoRA と、替えた模型の系統に合わせて並べ直す
+            Window._lora_fill(self)
+            Window._lora_changed(self)
         self.check_ai()
         self._fill_ai_menu()
         self.rescan_models()
@@ -3534,6 +3684,9 @@ class Window(QMainWindow):
             from chatdraw.manager import choose_words
             choose_words(self.settings, key if key in (AUTO, "") else str(words_path(m)))
         self.studio = self._studio_from_settings()
+        if hasattr(self, "lora_pick"):   # 足した LoRA と、替えた模型の系統に合わせて並べ直す
+            Window._lora_fill(self)
+            Window._lora_changed(self)
         self.check_ai()
         self._fill_ai_menu()
         self.rescan_models()
@@ -4010,7 +4163,7 @@ class Window(QMainWindow):
                 ("trash", "trash", "ごみ箱…", self.open_trash, "", "消した絵を見て、元に戻すか本当に消します"),
                 ("undo", "undo", "元に戻す", c.undo, "Ctrl+Z", ""),
                 ("redo", "redo", "やり直す", c.redo, "Ctrl+Y", ""),
-                ("redpen_clear", "", "赤ペンの印を全部消す", c.redpen.clear, "Ctrl+Shift+Backspace", ""),
+                ("redpen_clear", "", "赤ペンの印を全部消す", lambda: self.layer_panel.clear_marks(), "Ctrl+Shift+Backspace", ""),
                 ("select_all", "select", "すべてを選択", c.select_all, "Ctrl+A", ""),
                 ("deselect", "", "選択を解除", lambda: c.set_selection(None), "Ctrl+D", ""),
                 ("sel_clear", "eraser", "選択範囲の中を消す", self.selection_clear, "", "選んだレイヤーの、選択範囲の中を消します（絵の上で Delete でも消せます。元に戻すで戻せます）"),
@@ -4676,10 +4829,15 @@ class Window(QMainWindow):
                 ("三面図を描く", self.chara_turnaround, "正面・横・後ろを同じ種で 1 枚ずつ描き、設定資料に置きます"),
                 ("表情差分を描く", lambda: self.chara_expressions(),
                  "今の絵の顔の中だけを、笑顔・怒り・悲しみ・驚きに描き直します。顔の外は変えません。顔を囲むと、その囲みを使います"),
-                ("設定資料を開く", self.chara_sheet, "設定資料のページ（絵を埋め込んだ 1 つのファイル）を書き、置き場を開きます")):
+                ("設定資料を開く", self.chara_sheet, "設定資料のページ（絵を埋め込んだ 1 つのファイル）を書き、置き場を開きます"),
+                ("キャラクターシートを作る", self.chara_sheet_psd,
+                 "三面図と表情差分を 1 枚に並べ、絵ごとのレイヤーにしてキャンバスに開きます。PSD でも保存します")):
             act = m.addAction(label, fn)
             act.setToolTip(tip)
             act.setEnabled(bool(now) and not busy)
+        m.addSeparator()
+        m.addAction("学習セット…", self.open_refsets).setToolTip(
+            "模型ごと・キャラクターごとに参考画像の組を残します。描くときは参考画像（IP-Adapter）で見た目を寄せます")
 
     def chara_save(self, name: str | None = None):
         """今の絵を設定資料に保存する。返すのは保存した id（やめたときは空）"""
@@ -4750,6 +4908,34 @@ class Window(QMainWindow):
         self._run_task(lambda _step: charadesign.draw_expressions(painter, ident, base, mask, seed, list(only),
                                                                   say=self.task.status.emit),
                        lambda out: self._chara_done("表情差分を描きました", out))
+
+    def chara_sheet_psd(self, ident: str | None = None) -> str:
+        """キャラクターシート（三面図と表情差分を並べた 1 枚）を PSD に書き、レイヤーのままキャンバスに開く"""
+        from chatdraw import charadesign
+        ident = ident if isinstance(ident, str) else getattr(self, "chara_id", "")
+        if not ident:
+            self.notify("キャラクターシートを作れませんでした", "info", "先に「描いた人物を設定資料に保存…」で人物を残してください")
+            return ""
+        try:
+            out = charadesign.write_sheet_psd(ident)
+        except (charadesign.NotReady, OSError, SystemExit) as e:
+            self.notify("キャラクターシートを作れませんでした", "info", str(e))
+            return ""
+        self.open_path(str(out))
+        self.notify("キャラクターシートを作りました", "ok", f"レイヤーごとの PSD を保存しました: {out}")
+        return str(out)
+
+    def open_refsets(self):
+        from chatdraw import refs
+        kind, target = ("character", getattr(self, "chara_id", "")) if getattr(self, "chara_id", "") else \
+            ("model", str(self.settings.get("image_model") or ""))
+
+        def use(path, d):
+            self.reference.load(path)
+            if hasattr(self.ai_panel, "use_ref"):
+                self.ai_panel.use_ref.setChecked(True)
+        self.refset_dialog = refs.RefSetDialog(refs.RefSets(), self, on_use=use, target=target, kind=kind)
+        self.refset_dialog.exec()
 
     def _chara_done(self, msg: str, out: dict):
         self.activity.end(msg, None, record=False)
