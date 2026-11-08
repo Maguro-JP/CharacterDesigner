@@ -11,6 +11,7 @@ from PySide6.QtCore import QSettings
 from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, QDoubleSpinBox, QFileDialog, QFormLayout, QHBoxLayout,
                                QLineEdit, QPushButton, QSpinBox, QTabWidget, QVBoxLayout, QWidget)
 
+from chatdraw import debuglog
 from chatdraw.engine import IMAGE_MODEL
 
 # (キー, 見出し, 欄の名前, 種類, 既定値, 補足)。種類で入力の部品が決まる
@@ -26,6 +27,9 @@ FIELDS = [
     ("steps", "描く工程の数", "描き方", "int:4:80", 24, "多いほど細かく描けて、時間がかかる"),
     ("guidance", "頼みの効き", "描き方", "float:1:15", 5.0, "大きいほど頼みの言葉に寄せる"),
     ("rough_follow", "ラフに沿う強さ", "描き方", "float:0.3:1", 1.0, "大きいほどラフの線の形に沿う。小さいほど AI が形を変える"),
+    ("mem_mode", "メモリの使い方", "描き方", "choice:自動,優先して動かす,控えめに動かす", "自動",
+     "自動: 空きの 8 割を目安に、足りなければ軽い設定に落として描く。優先して動かす: 空きをほぼ使い切って描く（ほかのアプリが重くなることがある）。"
+     "控えめに動かす: 空きの 6 割までにとどめ、ほかのアプリに余裕を残す。どれでも危なくなったら途中の絵を残して止まり、アプリは落とさない"),
     ("output_dir", "描いた絵の保存先", "保存", "dir", str(Path.home() / "Pictures" / "CharacterDesigner"), ""),
     ("notify", "知らせ", "操作", "choice:デスクトップにも出す,画面の中だけ", "デスクトップにも出す",
      "ほかのウィンドウを見ている間に描き終わったら、デスクトップの通知とタスクバーの点滅で知らせる"),
@@ -39,7 +43,11 @@ FIELDS = [
      "AI が描いた・直した・加工した結果を置く所。上のレイヤーは一番上の新しいレイヤーに置いて選ぶ。別ファイルは新しい作業ファイルとして別のウィンドウで開く"),
     ("language", "言語", "操作", "choice:日本語,English", "日本語", "画面の言葉の言語（メニュー・ボタン・欄・ツールチップ・ダイアログ）。次に開いたときから変わる（訳の無い言葉は日本語のまま）"),
     ("cursor", "カーソル", "操作", "choice:十字と筆の輪,点と筆の輪,筆の輪だけ,矢印", "十字と筆の輪", "絵の上で描くときのカーソルの形"),
-]
+    ("debug", "デバッグモード", "デバッグ", "bool", 0,
+     "下に「記録」の欄を出し、工程・模型に渡した言葉・検品の結果・例外の全文・空きメモリを流す。記録は HOME の logs にも残し、"
+     "7 日より古い物は消す。落ちたとき・描けなかったときは理由の全文を窓で出す。子どもを性的に描く頼みを止める決まりは外せない"),
+] + [(f"debug_{k}", f"外す: {label}", "デバッグ", "bool", 0, tip + "（デバッグモードがオンのときだけ効く）")
+     for k, label, tip in debuglog.LIFTS]
 
 
 def _open(path: str):
@@ -85,6 +93,8 @@ class SettingsDialog(QDialog):
                 page = QWidget()
                 forms[tab] = QFormLayout(page)
                 tabs.addTab(page, tab)
+            if key == "steps":
+                kind = "int:1:1000" if debuglog.lifted("steps") else kind   # デバッグモードで工程の上限を外したとき
             w = self._input(kind, settings.get(key))
             w.setToolTip(tip)
             forms[tab].addRow(label, w)
@@ -153,4 +163,11 @@ class SettingsDialog(QDialog):
     def save(self):
         for key in self.inputs:
             self.settings.set(key, self.value(key))
+        apply_debug(self.settings)
         self.accept()
+
+
+def apply_debug(settings: Settings) -> None:
+    """設定のデバッグモードと外す制限を、裏の処理（chatdraw/debuglog.py）に渡す"""
+    debuglog.configure(bool(settings.get("debug")),
+                       [k for k, *_ in debuglog.LIFTS if settings.get(f"debug_{k}")])

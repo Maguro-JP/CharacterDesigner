@@ -58,6 +58,12 @@ class LibraryPanel(QWidget):
         dl.addWidget(add)
         self.tabs.addTab(docs_page, "資料")
 
+        # キャラクター: ライブラリーの置き場の .chara（chatdraw/charafile.py）。ダブルクリックで開き、その人物で描く
+        self.characters = _grid()
+        self.characters.setToolTip("キャラクターファイル。ダブルクリックで開くと、その人物の設定・目・色・参考画像・LoRA で描きます")
+        self.characters.itemDoubleClicked.connect(lambda it: self.w.charafile_open(it.data(Qt.UserRole + 1)))
+        self.tabs.addTab(self.characters, "キャラクター")
+
         taste = QWidget()
         tl = QVBoxLayout(taste)
         self.summary = QLabel()
@@ -147,6 +153,7 @@ class LibraryPanel(QWidget):
                     view.addItem(self._item(it))
                     shown.append(it["path"])
         self.watch(shown)
+        self.refresh_characters()
         p = lib.profile()
         if p["rated"] == 0:
             text = "まだ好みを読み取れていません。\n作品を右クリックして「好き」「いまいち」を付けるか、資料に言葉を付けてください。"
@@ -163,6 +170,27 @@ class LibraryPanel(QWidget):
             text = "\n".join(lines)
         self.summary.setText(text)
 
+    def refresh_characters(self):
+        """キャラクターのタブを並べ直す。小さな絵は .chara の中の thumb.png（無ければ名前だけ）"""
+        import zipfile
+        from chatdraw import charafile
+        self.characters.clear()
+        for path in charafile.files_in_library():
+            try:
+                with zipfile.ZipFile(path) as z:
+                    import json
+                    man = json.loads(z.read("manifest.json").decode("utf-8"))
+                    raw = z.read("thumb.png") if "thumb.png" in z.namelist() else b""
+            except (OSError, KeyError, ValueError, zipfile.BadZipFile):
+                continue
+            item = QListWidgetItem(str(man.get("name", path.stem))[:10])
+            pm = QPixmap()
+            if raw and pm.loadFromData(raw):
+                item.setIcon(QIcon(pm.scaled(176, 240, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
+            item.setData(Qt.UserRole + 1, str(path))
+            item.setToolTip(f"{man.get('name', '')}\n{man.get('profile', {}).get('look', '')}\n更新 {man.get('updated', '')}")
+            self.characters.addItem(item)
+
     # ---- 操作 ----
     def _menu(self, view: QListWidget, pos, run: bool = True):
         it = view.itemAt(pos)
@@ -175,10 +203,13 @@ class LibraryPanel(QWidget):
         lib, item_id, path = self.w.library, it.data(Qt.UserRole), it.data(Qt.UserRole + 1)
         entry = lib.get(item_id)
         m = QMenu(self)
+        m.setToolTipsVisible(True)
         if entry and entry["kind"] == "work":
             m.addAction("♥ 好き", lambda: self.rate(item_id, LIKE))
             m.addAction("× いまいち", lambda: self.rate(item_id, DISLIKE))
-            m.addAction("評価を外す", lambda: self.rate(item_id, NONE))
+            a = m.addAction("評価を外す", lambda: self.rate(item_id, NONE))
+            a.setEnabled(entry.get("rating", NONE) != NONE)
+            a.setToolTip("" if a.isEnabled() else "まだ評価していません")
             from chatdraw import ownstyle
             m.addAction("★ お気に入りを外す" if ownstyle.is_favorite(path) else "★ お気に入りにする",
                         lambda: (ownstyle.toggle(path), self.refresh()))
@@ -188,12 +219,12 @@ class LibraryPanel(QWidget):
         else:
             m.addAction("参考画像にする", lambda: (self.w.reference.load(path), self.w.ai_panel.use_ref.setChecked(True)))
         m.addAction("今の絵に重ねる", lambda: self.w.layer_from_file(path, "ライブラリーの絵"))
-        m.addAction("編集する（囲んで直す）", lambda: self.w.edit_image(path))
+        m.addAction("囲んで直す", lambda: self.w.edit_image(path)).setToolTip("この絵をキャンバスに開き、赤ペンで囲んで直せる形にします")
         m.addAction("言葉を付ける…", lambda: self.tag(item_id))
         m.addSeparator()
         m.addAction("ディレクトリを開く", lambda: self.w.open_folder(path)).setToolTip("この絵の置いてあるディレクトリを開きます")
-        if entry and entry["kind"] == "work":
-            m.addAction("一覧から外す（絵は残す）", lambda: (lib.remove(item_id), self.refresh()))
+        m.addSeparator()
+        # ライブラリーには「一覧から外す」を置かない。消すときに並んで邪魔だった（履歴の右クリックには残す）
         # 資料の写しも作品の絵も、すぐには消さずごみ箱へ移す（「ファイル」→「ごみ箱…」から戻せる）
         m.addAction("消す（ごみ箱へ）…", lambda: self.w.delete_images(self._chosen(view, path)))
         if not run:

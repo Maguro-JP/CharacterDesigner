@@ -1,0 +1,39 @@
+# 全部の機能の精度の台（chatdraw/accuracy.py）の重い物（拡大の模型、数字の検品の部位分け）を流す。
+# 軽い物は手元の試験（chatdraw/tests/test_accuracy.py）で流す。リポジトリは公開しているので重い物は Actions の枠を使う。
+name: accuracy
+on:
+  workflow_dispatch:
+  push:
+    branches: ["claude/FIX-accuracy-*"]
+    paths:
+      - "chatdraw/accuracy.py"
+      - "tools/gen/accuracy_bench.py"
+      - ".github/workflows/accuracy.yml"
+permissions:
+  contents: read
+concurrency:
+  group: accuracy-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  heavy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      CD_FETCH: "1"   # 部位分けと拡大の重みをこの機械で取る
+      QT_QPA_PLATFORM: offscreen
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install -q --index-url https://download.pytorch.org/whl/cpu torch && pip install -q numpy scipy scikit-image pillow transformers huggingface_hub PySide6
+      - name: 重い物を流す
+        run: python tools/gen/accuracy_bench.py --heavy --only 拡大,検品 --json accuracy.json | tee accuracy.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: accuracy
+          path: |
+            accuracy.txt
+            accuracy.json
+          retention-days: 7

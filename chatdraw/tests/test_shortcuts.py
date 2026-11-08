@@ -250,7 +250,7 @@ class EverywhereTest(Base):
             with self.subTest(key=key):
                 self.assertEqual(d.contextMenuPolicy(), Qt.CustomContextMenu)
                 t = self.texts(self.w.area_menu(key))
-                for want in ("新しく描く（書く欄へ）", "画像を開く…", "ショートカット"):
+                for want in ("新しく描く", "画像を開く…", "ショートカット"):
                     self.assertIn(want, t)
 
     def test_empty_history_and_library_and_chat(self):
@@ -267,7 +267,7 @@ class EverywhereTest(Base):
     def test_new_drawing_from_menu(self):
         m = self.w.area_menu("history")
         self._keep = [m, m.actions()]
-        next(a for a in self._keep[1] if a.text() == "新しく描く（書く欄へ）").trigger()
+        next(a for a in self._keep[1] if a.text() == "新しく描く").trigger()
         self.assertEqual(self.w.mode.currentIndex(), 0)
 
 
@@ -394,10 +394,17 @@ class ModelTest(Base):
                 # 偽の模型は白く塗る。部位分けの模型があると、白く変わった顔・髪は前と後の検品が元に戻すので、角の地で見る
                 self.assertEqual(self.base().convert("RGB").getpixel((2, 2)), (255, 255, 255))
 
+    def fresh_copy(self, name: str) -> str:
+        """手を付けていない元の絵。同じ絵を開き直すと前の作業（広げた・拡大したキャンバス）が戻るので、別の名前の写しを開く"""
+        import shutil
+        p = self.src.with_name(name + ".png")
+        shutil.copy(self.src, p)
+        return str(p)
+
     def test_grow_items(self):
         for sid, size in (("grow:lr", (96 + 256, 128)), ("grow:tb", (96, 128 + 256)), ("grow:all", (96 + 256, 128 + 256))):
             with self.subTest(sid=sid):
-                self.w.edit_image(str(self.src))
+                self.w.edit_image(self.fresh_copy(sid.replace(":", "_")))
                 self.press(sid)
                 self.assertEqual(self.w.canvas.size_px(), size)
 
@@ -419,7 +426,7 @@ class ModelTest(Base):
                 mock.patch.object(upscale, "upscale", side_effect=fake), mock.patch.object(upscale, "ready", return_value=True):
             self.press("fin:upscale_anime")
             self.assertEqual(self.w.canvas.size_px(), (192, 256))
-            self.w.edit_image(str(self.src))
+            self.w.edit_image(self.fresh_copy("up2x"))
             self.w.canvas.undo_stack.clear()   # 拡大の前の「保存しますか」を出さない
             self.press("app:upscale2x")
             self.assertEqual(self.w.canvas.size_px(), (192, 256))

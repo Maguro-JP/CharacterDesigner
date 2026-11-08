@@ -1,5 +1,4 @@
 """似た絵ばかりにしない: 書かれていない所を種で選ぶ、おまかせの模型を固定しない、落ちても段を下げて描く"""
-import itertools
 import random
 import unittest
 from pathlib import Path
@@ -10,30 +9,26 @@ from chatdraw import omakase, variety
 from chatdraw.engine import Studio, vary_background
 
 
-def overlap(prompts):
-    """頼みの言葉どうしの重なり（タグの Jaccard の平均）。1 なら毎回同じ言葉"""
-    sets = [{t.strip() for t in p.split(",") if t.strip()} for p in prompts]
-    pairs = list(itertools.combinations(sets, 2))
-    return sum(len(a & b) / len(a | b) for a, b in pairs) / len(pairs)
-
-
 class VarietyTest(unittest.TestCase):
     def test_tables_are_large_enough(self):
         for k, (table, _w) in variety.TABLES.items():
             self.assertGreaterEqual(len(table), 16, k)
             self.assertEqual(len(set(table)), len(table), k)
 
-    def test_same_request_gives_different_prompts(self):
-        seeds = [random.randrange(2 ** 31) for _ in range(20)]
-        got = [vary_background("1girl, solo", s, text="女の子") for s in seeds]
-        self.assertLess(overlap(got), 0.2)   # 前は背景だけで 0.30、おまかせは 1.0（毎回同じ言葉）
+    def test_same_request_gives_different_places(self):
+        # 足すのは場所だけ（構図・髪・服・表情を足すと頼みと質から絵が引っ張られた。chatdraw/tests/test_quality2.py）
+        seeds = range(40)
+        # 読み解ける頼みは、その場面の場所の中から種で変える。読み解けない頼みは無地か簡単な背景（でたらめな場所を足さない）
+        got = {vary_background("1girl, solo", s, text="剣を持った騎士の女の子") for s in seeds}
+        self.assertEqual(len(got), 3, got)
+        plain = {vary_background("1girl, solo", s, text="女の子") for s in seeds}
+        self.assertTrue(all("simple background" in p for p in plain), plain)
 
     def test_written_items_are_kept(self):
         out = vary_background("1girl, solo, beach, smile, ponytail", 3, text="浜辺で笑うポニーテールの女の子")
-        self.assertTrue(out.startswith("1girl, solo, beach, smile, ponytail, "), out)
+        self.assertEqual(out, "1girl, solo, beach, smile, ponytail")   # 場所を書いたので何も足さない
         chosen = variety.pick(3, "浜辺で笑うポニーテールの女の子\n1girl, solo, beach, smile, ponytail")
         self.assertFalse({"place", "face", "hair"} & set(chosen), chosen)
-        self.assertIn("pose", chosen)   # 書かれていない項目は足す
 
     def test_no_person_items_for_scenery(self):
         self.assertTrue(set(variety.PERSON) <= variety.fixed("scenery, no humans"))
@@ -44,15 +39,9 @@ class VarietyTest(unittest.TestCase):
 
 
 class ExploreTest(unittest.TestCase):
-    def test_first_model_changes_by_seed_but_prefers_top(self):
+    def test_keeps_best_first(self):
         ranked = [(f"m{i}", "") for i in range(6)]
-        firsts = [omakase.explore(ranked, s)[0][0] for s in range(600)]
-        counts = {m: firsts.count(m) for m in set(firsts)}
-        self.assertGreater(counts["m0"], counts["m1"])
-        self.assertGreater(counts["m1"], counts["m2"])
-        self.assertGreater(sum(v for m, v in counts.items() if m in ("m3", "m4", "m5")), 30)   # 外れも少し混ぜる
-        self.assertLess(counts["m0"], 400)
-        self.assertEqual(sorted(omakase.explore(ranked, 9)), sorted(ranked))   # 並びは減らさない
+        self.assertTrue(all(omakase.explore(ranked, s) == ranked for s in range(100)))
 
 
 class Boom(Exception):
@@ -76,7 +65,7 @@ class DrawAnywayTest(unittest.TestCase):
                 self.assertEqual(st.draw_anyway("女の子", 1, said.append, size=(832, 1216))[0], "p")
             self.assertEqual(len(calls), 3)
             self.assertLess(calls[1][1][0], 832)   # 2 回目は小さく描く
-            self.assertEqual(calls[2][0], 1 + 7919)   # 3 回目は別の種
+            self.assertLess(calls[2][1][0], calls[1][1][0])   # 3 回目はもっと小さく描く（上限で止めずに段を下げ続ける）
 
     def test_reports_reasons_only_when_all_fail(self):
         st = Studio(painter=mock.Mock(model="a", stop=False, avoid=""), out=Path("."))

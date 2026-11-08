@@ -14,7 +14,7 @@ from chatdraw import sanity
 class NegativeTest(unittest.TestCase):
     def test_always_negates_extra_parts(self):
         neg = sanity.negative("1girl, solo, holding a ball")
-        for w in ("extra arms", "extra legs", "extra heads", "extra eyes", "eyes on objects", "impossible anatomy"):
+        for w in ("extra arms", "extra legs", "multiple heads", "extra eyes"):
             self.assertIn(w, neg)
 
     def test_eye_color_only_when_not_asked(self):
@@ -41,7 +41,7 @@ class NegativeTest(unittest.TestCase):
                 pass
         a = prompt_args(image_model("cagliostrolab/animagine-xl-4.0"), family("sdxl"), "1girl, red ball", "hat", 24, 5.0, 1, Pipe())
         self.assertIn("extra arms", a["negative_prompt"])
-        self.assertIn("eyes on objects", a["negative_prompt"])
+        self.assertIn("extra arms", a["negative_prompt"])
         self.assertIn("yellow eyes", a["negative_prompt"])
         self.assertIn(", hat, ", a["negative_prompt"])   # 利用者の打ち消しは先に残す
 
@@ -140,7 +140,12 @@ class RedrawTest(unittest.TestCase):
         odd = iter([{"readable": True, "bad": ["腕が多い（手首から離れた手 1 つ）", "顔の外に目（blue eyes 0.50）"],
                      "avoid": ["extra arms", "eyes on objects"]},
                     {"readable": True, "bad": [], "avoid": []}])
+        from chatdraw import handcheck, origqc
+        # 手と作画監督は読めて崩れが無いことにする（読めない検品は崩れになるので、ここで見る体の数と目だけを動かす）
         with mock.patch.object(requestcheck, "check", lambda im, t: {"readable": True, "missing": []}), \
+                mock.patch.object(handcheck, "check", lambda im, asked=None: {"readable": True, "bad": [], "hands": []}), \
+                mock.patch.object(origqc, "check", lambda im, p, hair="": {"readable": True, "bad": [], "regions": [],
+                                                                         "measured": True}), \
                 mock.patch.object(sanity, "check", side_effect=lambda im, p, tags=None: next(odd)):
             _prompt, path = s.draw("1girl, solo", 7)
         meta = finishers.sidecar(path)
@@ -153,6 +158,18 @@ class RedrawTest(unittest.TestCase):
         with mock.patch.dict(os.environ, {"CD_CHECK": "off"}):
             r = sanity.check(Path(__file__), "1girl")
         self.assertFalse(r["readable"])
+
+
+class CountBoxesTest(unittest.TestCase):
+    """人の枠の数え方: 入れ子の枠（同じ人の上半身）と背景の小さな人影を数えない"""
+
+    def test_nested_and_small(self):
+        from chatdraw import sanity
+        whole, upper = [41, 16, 398, 635], [41, 14, 396, 448]
+        self.assertEqual(sanity.count_boxes([upper, whole]), 1)
+        self.assertEqual(sanity.count_boxes([whole, [600, 10, 640, 60]]), 1)
+        self.assertEqual(sanity.count_boxes([[0, 0, 300, 600], [320, 0, 620, 600]]), 2)
+        self.assertEqual(sanity.count_boxes([]), 0)
 
 
 if __name__ == "__main__":

@@ -191,6 +191,10 @@ class ModelManager(QDialog):
         pick = QPushButton("ファイルを選んで使う…")
         pick.setToolTip("手元の絵の模型（.safetensors）を選んで、そのまま使います。ファイルは動かしません")
         pick.clicked.connect(self.pick_file)
+        lora_button = QPushButton("LoRA…")
+        lora_button.setToolTip("LoRA を手元のファイルか、Civitai・Hugging Face の URL から足します。描くときは AI の欄の「模型」で選びます")
+        lora_button.clicked.connect(self.open_loras)
+        self.lora_button = lora_button
         self.update_button = QPushButton("更新を確かめる")
         self.update_button.setToolTip("手元にある確かめ済みの模型に新しい版があれば取ります")
         self.update_button.clicked.connect(self.update_all)
@@ -198,6 +202,7 @@ class ModelManager(QDialog):
         close.clicked.connect(self.accept)
         row.addWidget(self.folder_button)
         row.addWidget(pick)
+        row.addWidget(lora_button)
         row.addWidget(self.update_button)
         row.addStretch()
         row.addWidget(close)
@@ -210,6 +215,16 @@ class ModelManager(QDialog):
         self.prober = Prober()
         self.prober.done.connect(self._probed, Qt.QueuedConnection)
         self.refresh()
+
+    def open_loras(self):
+        from chatdraw.loradialog import LoraDialog
+        from chatdraw.models import image_model
+        try:
+            fam = image_model(self.settings.get("image_model") or "").family
+        except Exception:
+            fam = ""
+        self.lora_dialog = LoraDialog(self, fam)
+        self.lora_dialog.exec()
 
     def in_use(self, item: Item) -> bool:
         key = self.settings.get("image_model" if item.kind == "image" else "words_model")

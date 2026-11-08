@@ -139,14 +139,13 @@ class AppSurvivesTest(unittest.TestCase):
         w.dirty = False
         w.close()
 
-    def test_oom_twice_fails_gracefully(self):
+    def test_oom_many_times_keeps_drawing(self):
+        """メモリ不足が何度続いても「描けませんでした」で終えず、軽い設定・小さい大きさに替えて描き切る。落ちない"""
         a, w = self.run_draw(OOMPainter(fails=9, error=RuntimeError("CUDA out of memory")))
         self.assertIsNone(w.thread)
-        self.assertEqual(len(w.images), 0)
-        self.assertTrue(w.button.isEnabled(), "落ちたあとに次の操作ができない")
-        failed = [x for x in w.told if x and x[0] == "描けませんでした"]
-        self.assertTrue(failed, w.told)
-        self.assertIn("メモリが足りず", " ".join(map(str, failed[0])))
+        self.assertEqual(len(w.images), 1)
+        self.assertTrue(w.button.isEnabled(), "描いたあとに次の操作ができない")
+        self.assertFalse([x for x in w.told if x and x[0] == "描けませんでした"], w.told)
         w.dirty = False
         w.close()
 
@@ -192,8 +191,8 @@ class AppSurvivesTest(unittest.TestCase):
             w.show()
             w.entry.setText("騎士")
             w.send()
-            end = time.time() + 1.0
-            while time.time() < end:
+            end = time.time() + 5.0   # 描き始める（裏の糸ができる）まで待つ。決めた秒だけ待つと、混んだ機械で間に合わなかった
+            while time.time() < end and (getattr(w, "thread", None) is None or not w.thread.isRunning()):
                 a.processEvents()
                 time.sleep(0.01)
             worker = w.thread

@@ -119,6 +119,11 @@ class Swimsuit(unittest.TestCase):
         self.assertIn("plain white bikini", pos)
         self.assertNotIn("plain white bikini", free_text.full_prompt("1girl, adult woman, black one-piece swimsuit")[0])
 
-    def test_minor_and_swimsuit_still_blocked(self):
+    def test_minor_and_swimsuit_is_drawn(self):
+        import sys
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+        from chatdraw import childsafe
+        """水着の高校生は止めない（漫画や設定資料に普通に出る。2026-11-08 の決定）。性的な語と並んだときだけ止める"""
+        free_text.full_prompt("1girl, high school student, swimsuit")
         with self.assertRaises(ValueError):
-            free_text.full_prompt("1girl, high school student, swimsuit")
+            free_text.full_prompt(f"{childsafe.MINOR[0]} {childsafe.SEXUAL[0]}")

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from chatdraw.body import WOMAN
+from chatdraw.body import TAGS, WOMAN
 
 COLORS = {"赤": "red", "青": "blue", "黒": "black", "白": "white", "金": "blonde", "銀": "silver", "緑": "green", "茶": "brown",
           "ピンク": "pink", "紫": "purple", "黄": "yellow", "オレンジ": "orange", "水色": "light blue", "紺": "navy blue", "灰": "grey"}
@@ -40,7 +40,7 @@ TERMS = {
     "日よけ": "hand up, shading eyes", "腰に手": "hand on own hip", "腰に当て": "hand on own hip", "手を上げ": "hand up",
     "両手を上げ": "arms up", "手を組": "own hands clasped", "見上げ": "looking up", "見下ろ": "looking down", "歩": "walking",
     "跳": "jumping", "飛ぶ": "flying", "飛ん": "flying", "泳": "swimming", "ほうき": "broom", "箒": "broom", "傘": "umbrella",
-    "剣": "sword", "銃": "gun", "弓": "bow (weapon)", "盾": "shield", "カップ": "cup", "スマホ": "smartphone", "鞄": "bag", "バッグ": "bag", "杖": "staff", "花": "flower", "本": "book", "しゃがむ": "squatting", "しゃが": "squatting", "持つ": "holding", "泣い": "crying, tears", "腕を組": "crossed arms", "ひざまず": "kneeling", "抱え": "holding", "持っ": "holding",
+    "剣": "sword", "銃": "gun", "弓": "bow (weapon)", "盾": "shield", "カップ": "cup", "スマホ": "smartphone", "鞄": "bag", "バッグ": "bag", "杖": "staff", "花": "flower", "本": "book", "しゃがむ": "squatting", "しゃが": "squatting", "持つ": "holding", "泣い": "crying, tears", "腕を組": "crossed arms", "ひざまず": "kneeling", "抱え": "holding", "抱い": "holding", "抱く": "holding", "抱っこ": "holding", "傘をさ": "umbrella, holding umbrella", "傘を差": "umbrella, holding umbrella", "メイド服": "maid, maid headdress", "持っ": "holding",
     "読ん": "reading", "読む": "reading", "食べ": "eating", "飲ん": "drinking", "飲む": "drinking", "歌っ": "singing", "歌う": "singing",
     "踊": "dancing", "料理": "cooking", "戦っ": "fighting", "戦う": "fighting", "眠": "sleeping", "ウインク": "wink", "目を閉じ": "closed eyes",
     "正面": "facing viewer, looking at viewer", "横顔": "profile", "後ろ姿": "from behind", "背中": "from behind",
@@ -50,7 +50,7 @@ TERMS = {
     "教室": "classroom", "部屋": "indoors, room", "空": "sky", "夜": "night", "夕焼け": "sunset", "夕日": "sunset",
     "図書館": "library", "カフェ": "cafe", "公園": "park", "城": "castle", "神社": "shrine", "屋上": "rooftop", "駅": "train station",
     "山": "mountain", "川": "river", "室内": "indoors", "屋外": "outdoors", "朝": "morning", "昼": "day", "砂漠": "desert", "草原": "grassland",
-    "雨": "rain", "雪": "snow", "桜": "cherry blossoms", "白い背景": "simple background, white background",
+    "寝室": "bedroom", "廊下": "hallway", "台所": "kitchen", "キッチン": "kitchen", "温室": "greenhouse", "雨": "rain", "雪": "snow", "桜": "cherry blossoms", "白い背景": "simple background, white background",
 }
 
 # 役柄と生き物。表に無いと、言葉の模型が無いときに落ちて、ただの人物が描かれた
@@ -156,15 +156,21 @@ def _spans(text: str, extra: dict[str, str] | None = None) -> tuple[list[tuple[i
     for lj, le in _LENGTH.items():
         for m in re.finditer(f"{lj}(?=[^、。 ]{{0,3}}髪)", text):
             take(m.start(), m.end(), le)
-    for ja, en in sorted(TERMS.items(), key=lambda kv: -len(kv[0])):
-        # 動きの言葉は終わりの形を変えて書かれる（振る・振っている・振って、寝る・寝ている）。終わりの 1 字を除いた語幹でも拾う。
-        # 語幹が仮名だけで 1 字になるもの（「いる」の「い」）は、ほかの語の字を取ってしまうので拾わない
-        keys = [ja]
+    # 動きの言葉は終わりの形を変えて書かれる（振る・振っている・振って、寝る・寝ている）。終わりの 1 字を除いた語幹でも拾う。
+    # 語幹が仮名だけで 1 字になるもの（「いる」の「い」）は、ほかの語の字を取ってしまうので拾わない。
+    # 語幹も表の語と一緒に長い順に引く。語幹を元の語のすぐあとに引くと、「寝る」の語幹「寝」が「寝室」の字を先に取り、寝室が lying になった
+    keys = []
+    for ja, en in TERMS.items():
+        keys.append((ja, en))
         if ja[-1] in _STEM_END and len(ja) >= 2 and (len(ja) >= 3 or re.match(r"[一-鿿]", ja[0])):
-            keys.append(ja[:-1])
-        for key in keys:
-            for m in re.finditer(re.escape(key), text):
-                take(m.start(), m.end(), en)
+            keys.append((ja[:-1], en))
+    for key, en in sorted(keys, key=lambda kv: -len(kv[0])):
+        for m in re.finditer(re.escape(key), text):
+            take(m.start(), m.end(), en)
+    # 「長い髪」の「髪」は、長さ（long hair）を拾ったあとも字が残り、抜けた語に数えられた。長さの語のすぐ後ろの髪は読んだ字にする
+    for m in re.finditer("髪", text):
+        if not taken[m.start()] and any(t in ("long hair", "short hair") and e <= m.start() <= e + 3 for _, e, t, _ in spans):
+            taken[m.start()] = True
     # 日本語の頼みに混ぜた英語のタグ（単語のお気に入りから足した語、「猫耳の少女、red scarf」）はそのまま描く物にする（表の語の後に拾い、Tシャツの T を取らない）。
     # 前は日本語の語だけを表で拾い、混ぜた英語は黙って落ちていた
     for m in re.finditer(r"[A-Za-z][A-Za-z0-9 ()'_.:-]*", text):
@@ -214,12 +220,52 @@ def tags_from(text: str) -> list[str]:
     """日本語の頼みから拾った描く物のタグ（順は頼みの中の順）。打ち消した物は入れない"""
     found, negs, _ = _scan(text)
     neg = set(_flat(negs))
-    return _count(text, [t for t in _flat(found) if t not in neg])
+    return order(_count(text, [t for t in _flat(found) if t not in neg]))
+
+
+_HEAD = ("1girl", "1boy", "1other", "2girls", "3girls", "4girls", "2boys", "3boys", "4boys", "multiple people", "solo")
+# 女性の基準の体の言葉（chatdraw/body.py）。頼みの語より前にあると、CLIP の 75 語片の後ろへ頼みの場所・持ち物・ポーズが押し出され、
+# 弱く効くか切り捨てられた（「白いビキニの女性が砂浜で日よけ」で、beach, hand up, shading eyes が体の 10 語の後ろに並んだ）
+_BODY = tuple(t for t in TAGS.split(", ") if t != "adult woman")
+
+
+def order(tags: list[str]) -> list[str]:
+    """人数の言葉を先頭に、頼んだ語をその次に、基準の体の言葉を最後に並べる。模型は前の語ほど強く効かせる"""
+    head = [t for t in _HEAD if t in tags]
+    if "adult woman" in tags or "adult man" in tags:
+        head += [t for t in ("adult woman", "adult man") if t in tags]
+    body = [t for t in tags if t in _BODY]
+    rest = [t for t in tags if t not in head and t not in body]
+    return head + _held(rest) + body
+
+
+_HOLD = ("holding", "carrying")
+
+
+def _held(tags: list[str]) -> list[str]:
+    """「剣を持って」は sword, holding と並ぶ。持つ物と持つ動きが離れたタグだと、模型は物を背景に置き、手は空のままにした。
+    すぐ前の物と組んだ Danbooru のタグ（holding sword）を足す。物の語も残す"""
+    out = []
+    for t in tags:
+        if t in _HOLD and out and out[-1] not in _HOLD and not out[-1].startswith(_HOLD):
+            out += [f"{t} {out[-1]}", t]   # 素の holding も残す（持つ頼みかを見る所が、この語で見ている）
+        else:
+            out.append(t)
+    return out
 
 
 def negatives(text: str) -> list[str]:
-    """打ち消した物（帽子なし → hat）。描かない物（negative prompt）に足す"""
-    return _flat(_scan(text)[1])
+    """打ち消した物（帽子なし → hat）。描かない物（negative prompt）に足す。
+    同じ頼みで描く物に同じ語が入る物（帽子なしで麦わら帽子を持つ → straw hat）は、描かない物を「身に着けた物」に狭める。
+    hat のまま打ち消すと、描く物の straw hat まで打ち消し合い、持たせた帽子が消えた"""
+    found, negs, _ = _scan(text)
+    want = [t.lower() for t in _flat(found)]
+    out = []
+    for n in _flat(negs):
+        if any(re.search(r"(?<![a-z])" + re.escape(n.lower()) + r"(?![a-z])", w) for w in want if w != n.lower()):
+            n = f"wearing {n}"
+        out.append(n)
+    return out
 
 
 _FILLER = set("のがをにでとはもへやてっいるたなだですますしたいる、。・ 　!！?？")

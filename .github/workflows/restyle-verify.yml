@@ -1,0 +1,50 @@
+# 画風の加工（chatdraw/restyle.py）を、本物の絵の模型と線の ControlNet（Union）で見本の絵に掛け、
+# 試した強さごとの形の変わり・元の線の残り・目の色の差を出す（chatdraw/restyle_verify.py）。
+# 手元の試験は小さな模型（重みが乱数）なので、画風が掛かるか・止めの境目が正しいかはここでしか測れない
+name: restyle-verify
+on:
+  workflow_dispatch:
+    inputs:
+      kinds:
+        description: 掛ける画風（空白で区切る。空なら 5 つ全部）
+        default: "anime"
+      side:
+        description: 描く大きさの長い辺
+        default: "768"
+  push:
+    branches: ["claude/FIX-fixfx-*"]
+    paths:
+      - "chatdraw/restyle.py"
+      - "chatdraw/restyle_verify.py"
+      - ".github/workflows/restyle-verify.yml"
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      CD_FETCH: "1"   # 目の色を測る部位分けの模型をこの機械で取る
+      CD_RESTYLE_SIDE: ${{ inputs.side || '768' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: 置き場を空ける
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1; free -g
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 部品
+        run: |
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy scikit-image ai-edge-litert onnxruntime
+      - name: 画風を掛ける
+        env:
+          CD_HOME: ${{ runner.temp }}/cd
+          LLM_HOME: ${{ runner.temp }}/llm
+        run: python -u -m chatdraw.restyle_verify library/daily/2026-10-13/05-yukionna.png out ${{ inputs.kinds || 'anime' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: restyle-verify
+          path: out
+          retention-days: 7

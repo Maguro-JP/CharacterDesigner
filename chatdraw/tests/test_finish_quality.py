@@ -213,7 +213,7 @@ class RestyleTest(unittest.TestCase):
 
     def test_restyle_draws_with_tiny_model(self):
         from chatdraw import restyle
-        with mock.patch.object(restyle, "check", lambda a, b: dict(drift=0.0, line_kept=1.0, why="")):
+        with mock.patch.object(restyle, "check", lambda *a, **k: dict(drift=0.0, line_kept=1.0, why="")):
             out = finishers.run("style_anime", self.src)
         self.assertEqual(out.size, self.src.size)
         self.assertEqual(restyle.LAST["strength"], restyle.STYLES[0][4])
@@ -222,7 +222,7 @@ class RestyleTest(unittest.TestCase):
         from chatdraw import restyle
         calls = []
 
-        def bad(a, b):
+        def bad(a, b, kind=""):
             calls.append(1)
             return dict(drift=0.5, line_kept=0.1, why="形が変わりすぎる（0.500）")
         with mock.patch.object(restyle, "check", bad):
@@ -240,7 +240,7 @@ class RestyleTest(unittest.TestCase):
         from chatdraw.tests.test_editing import app
         qapp = app()
         with TemporaryDirectory() as d, \
-                mock.patch.object(restyle, "check", lambda a, b: dict(drift=0.0, line_kept=1.0, why="")), \
+                mock.patch.object(restyle, "check", lambda *a, **k: dict(drift=0.0, line_kept=1.0, why="")), \
                 mock.patch.object(restyle, "WORK_SIDE", 48):   # キャンバスは広いので、小さな模型で描く大きさを絞る（試験の時間とメモリ）
             d = Path(d)
             w = Window(Studio(FakeWords(), self.painter, d))

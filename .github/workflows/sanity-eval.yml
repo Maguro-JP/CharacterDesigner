@@ -1,0 +1,65 @@
+# 矛盾の検品（chatdraw/sanity.py）の当たりと外れを、library の判定の付いた絵で前の版と今の版で数える（tools/gen/sanity_eval.py）。
+# 部位分け・人の枠・体の点・タグの模型を全部の絵に通すので、手元の CPU では重い。リポジトリは公開しているので Actions の枠を使う。
+name: sanity-eval
+on:
+  push:
+    branches: ["claude/FIX-qc3-*"]
+    paths:
+      - ".github/workflows/sanity-eval.yml"
+      - "chatdraw/sanity.py"
+      - "tools/gen/sanity_eval.py"
+  workflow_dispatch:
+    inputs:
+      before:
+        description: "前の版（ブランチかコミット）"
+        default: "claude/FIX-integ5-20261108"
+permissions:
+  contents: read
+concurrency:
+  group: sanity-eval-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  eval:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        side: [before, after]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 測る版を置く
+        run: |
+          ref="${{ matrix.side == 'before' && (inputs.before || 'claude/FIX-integ5-20261108') || github.sha }}"
+          git rev-parse "origin/$ref" >/dev/null 2>&1 && ref="origin/$ref"
+          git worktree add "$RUNNER_TEMP/tree" "$ref"
+          cp tools/gen/sanity_eval.py "$RUNNER_TEMP/tree/tools/gen/sanity_eval.py"   # 測る台は今の版の物を使う
+          rm -rf "$RUNNER_TEMP/tree/library" && cp -r library "$RUNNER_TEMP/tree/library"   # 測る絵は同じ物
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 部品
+        run: |
+          pip install -q torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          pip install -q transformers huggingface_hub pillow numpy scipy onnxruntime ai-edge-litert timm
+      - name: 模型を取る
+        working-directory: ${{ runner.temp }}/tree
+        env:
+          CD_FETCH: "1"   # tools/gen/edit.py は既定で取りに行かない（HF_HUB_OFFLINE=1）。初めの 1 枚で取らせる
+        run: |
+          python3 tools/gen/tagger.py setup
+          python3 -c "import sys; sys.path.insert(0, '.'); from chatdraw import handcheck; handcheck.ensure_models(True); from chatdraw import requestcheck; requestcheck._tagger(True)"
+          # 人の枠の模型（RT-DETR）は sanity.count_people が取りに行かずに読むので、部位分けと同じ置き場（edit.py の HF_HOME）に先に取る
+          python3 -c "import sys; sys.path[:0] = ['.', 'tools/gen']; import edit; from huggingface_hub import snapshot_download; from chatdraw.sanity import PERSON_MODEL; snapshot_download(PERSON_MODEL)"
+      - name: 数える
+        working-directory: ${{ runner.temp }}/tree
+        env:
+          CD_FETCH: "1"
+        run: python3 tools/gen/sanity_eval.py full --out "$GITHUB_WORKSPACE/sanity-${{ matrix.side }}.json" 2>&1 | tail -40
+      - uses: actions/upload-artifact@v4
+        with:
+          name: sanity-${{ matrix.side }}
+          path: sanity-${{ matrix.side }}.json
+          retention-days: 7

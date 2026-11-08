@@ -10,6 +10,8 @@
 - 少ない回数のタグは弱く数える（PRIOR 回分の「外れていない」を前に置いてから割る）
 - 一定の割合（EXPLORE）で、学びを使わない描き方も試す。その回の記録は explored として残す
 - 頼みに無い語を学びから足さない。並べ替えるだけなので、頼みの語は 1 つも落ちない
+- 並べ替えるのは質の言葉だけ（chatdraw/prefclass.py）。構図・姿勢・色・服・背景・人数・髪型・明るさの語を学びで前に出すと、
+  頼みの釣り合いが崩れて絵がその語へ引っ張られた。頼みの効き（guidance）も学びでは動かさない（上げると色が濃く硬くなった）
 - 利用者の判定（良い・悪い・直した）は検品より弱く数え（VERDICT_WEIGHT）、「良い」はどのタグも強めない
 """
 from __future__ import annotations
@@ -134,13 +136,14 @@ def adjust(prompt: str, model: str = "", rng: random.Random | None = None) -> tu
         return prompt, [], True
     st = stats()
     scored = sorted(((weight(t, st), t) for t in _tags(prompt)), reverse=True)
-    move = [t for w, t in scored if w >= MIN_WEIGHT][:MAX_MOVE]
+    from chatdraw.prefclass import is_quality
+    move = [t for w, t in scored if w >= MIN_WEIGHT and is_quality(t)][:MAX_MOVE]
     return (emphasize(prompt, move) if move else prompt), move, False
 
 
 def guidance(model: str, base: float) -> float:
-    """通りにくい模型ほど頼みの効きを少し上げる（MAX_NUDGE まで）"""
-    return round(base + MAX_NUDGE * model_fail(model), 2)
+    """頼みの効きは学びで動かさない。上げると色と明るさが変わり、好みが質の外へ効いた（chatdraw/prefclass.py）"""
+    return base
 
 
 def summary() -> str:
