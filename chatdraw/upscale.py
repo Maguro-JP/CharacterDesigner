@@ -191,6 +191,15 @@ def x4(img, tile: int | None = None, pad: int = 16, on_step=None, net=None):
     return Image.fromarray(out)
 
 
+# 拡大の言葉はここにそろえる（ボタン・メニュー・右クリックで同じ物を出す）。何倍か、どれくらいかかるか、元の絵がどうなるかを書く。
+# 秒は CPU で 512×768 の絵を測った目安（23 秒。GPU ならもっと速い）
+UPSCALE_TIME = "512×768 の絵で CPU なら 30 秒ほど"
+UPSCALE_TIP = ("今の絵を縦横 2 倍にします。レイヤーは分けたまま全部 2 倍にし、元の大きさの絵は置き換わります"
+               f"（元に戻すの履歴は消えるので、先に保存を勧めます）。目安: {UPSCALE_TIME}")
+ENLARGE_TIP = ("1 枚にまとめた今の絵を縦横 2 倍にし、キャンバスを置き換えます（元に戻すで戻せます）。"
+               f"囲んだときは囲みの中だけ拡大で整えた画素に替えます。目安: {UPSCALE_TIME}")
+
+
 def upscale(img, scale: int = 2, on_step=None):
     """img を scale 倍（2 か 4）にする。透明な所は、透明度だけを普通の拡大で合わせる"""
     from PIL import Image
