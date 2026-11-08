@@ -159,11 +159,11 @@ class LayerCrashTest(unittest.TestCase):
         for key in ("up", "down", "lock", "lock"):
             self.lp.buttons[key].trigger()
             self.pump()
-        self.menu(self.lp.row_of(self.c.current), "下のレイヤーと結合")
+        self.menu(self.lp.row_of(self.c.current), "下と結合")
         self.assertEqual(len(self.c.layers), self.n0 + 2)
         self.menu(self.lp.row_of(self.c.current), "1 つ上へ")
         self.menu(self.lp.row_of(self.c.current), "1 つ下へ")
-        self.menu(self.lp.row_of(self.c.current), "ロックを切り替える")
+        self.menu(self.lp.row_of(self.c.current), "ロック")
         item = self.lp.list.item(self.lp.row_of(1))
         item.setCheckState(Qt.Unchecked)
         self.pump()
