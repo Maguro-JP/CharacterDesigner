@@ -159,8 +159,9 @@ register(Finisher(
     "clean", "塗りのむらを均す", "線はそのままに、平らな所の細かいざらつきだけを均します（模型は使いません）",
     "このリポジトリのコード", "chatdraw/finishers.py", lambda: True, lambda: "", _clean_apply, extra=dict(scale="tile")))
 register(Finisher(
-    "upscale_anime", "アニメ向けに 2 倍に拡大",
-    "Real-ESRGAN のアニメ絵用の重みで 2 倍にします。囲んだときは、囲みの中だけ拡大で整えた画素に替えます。"
+    "upscale_anime", "1 枚にして 2 倍に拡大（アニメ向け）",
+    "1 枚にまとめた今の絵を縦横 2 倍にし、キャンバスを置き換えます（元に戻すで戻せます）。"
+    "囲んだときは囲みの中だけ拡大で整えた画素に替えます。目安: 512×768 の絵で CPU なら 30 秒ほど。"
     "初めて使うときに重み（2.4MB）を取ります",
     "BSD-3-Clause", "https://github.com/xinntao/Real-ESRGAN（realesr-animevideov3、取れないときは RealESRGAN_x4plus_anime_6B）",
     lambda: _upscale_ready(), lambda: _upscale_why(), lambda im: _upscale_apply(im), heavy=True, group="enlarge"))   # 名前で引く（差し替えられるように）
@@ -657,6 +658,7 @@ def _mask_box(mask, size):
 QC_CELL = 32
 QC_LOCAL = 28.0     # 区画の平均の色の、説明できない変わりの上限（0〜255）。retouch.LOCAL（14）は工程 1 つ分の上限なので倍にした
 QC_LINE = 0.5       # 区画の主線のうち、消えてよい割合
+QC_LIFT = 12.0      # 主線の画素が、これより明るくなったときだけ消えたと数える（0〜255）
 QC_LINE_MIN = 24    # 主線がこれだけ（画素）ある区画だけ線の消えを見る
 QC_REJECT = 0.25    # 戻す区画がこの割合を超えたら、加工を採らない
 QC_GROUPS = {"clean", "enlarge", "detail"}   # 模型の描き直し（redraw）は描き替えるのが仕事で、色の変わりで測ると正しい直しも落とすので、まだ入れない
@@ -683,10 +685,12 @@ def breakage(a, b):
         res.append(np.abs((y - (k * x + c0)).reshape(shp).mean((1, 3))))
     color = np.max(res, 0) > QC_LOCAL
     w = np.float32([0.299, 0.587, 0.114])
-    la = (a[:H, :W] @ w) < 90
-    lb = (b[:H, :W] @ w) < 90
+    ya, yb = a[:H, :W] @ w, b[:H, :W] @ w
+    la = ya < 90
+    # 消えた線は、明るさ 90 を越えただけでなく QC_LIFT より明るくなった画素だけを数える。暗い平らな塗り（明るさ 88〜90）が
+    # 塗りのむらを均す 6 の揺れで 90 を越えただけで、線が消えたと数え、外套の暗い地の 14 区画を元に戻していた
+    lost = (la & (yb >= 90) & (yb - ya > QC_LIFT)).reshape(shp).sum((1, 3))
     have = la.reshape(shp).sum((1, 3))
-    lost = (la & ~lb).reshape(shp).sum((1, 3))
     line = (have >= QC_LINE_MIN) & (lost > QC_LINE * np.maximum(have, 1))
     return color | line, dict(color=int(color.sum()), line=int(line.sum()))
 
@@ -900,6 +904,20 @@ HAND_RATIO = 0.05   # 指の長さの比（手のひらに対する親指〜小�
 FINGERS = ("palm", "thumb", "index", "ring", "pinky")
 
 
+_HANDS: dict = {}   # 縮めた絵の指紋 → 手の枠。組み合わせの次の工程（形を変えない）で手を探し直さない
+
+
+def _hand_boxes(handcheck, hands, src):
+    import hashlib
+    from PIL import Image
+    key = hashlib.md5(src.convert("RGB").resize((64, 64), Image.BOX).point(lambda v: v // 16).tobytes()).hexdigest()
+    if key not in _HANDS:
+        if len(_HANDS) > 16:
+            _HANDS.clear()
+        _HANDS[key] = handcheck.find_hands(hands, src)
+    return _HANDS[key]
+
+
 def hand_guard(src, out):
     """手を別々に検品する。元の絵の手を MediaPipe の手の点で見つけ、綺麗にしたあとの同じ枠で測り直す。
     指の数・指の長さの比・関節の向き（手らしさの枠の角度）が変わった手、どちらかで読めない手は崩れとして、
@@ -911,7 +929,7 @@ def hand_guard(src, out):
         hands._litert()
         if not handcheck.ensure_models(fetch=False):
             return out, dict(hands_measured=False)
-        boxes = handcheck.find_hands(hands, src)
+        boxes = _hand_boxes(handcheck, hands, src)
     except Exception:
         return out, dict(hands_measured=False)
     o = out.copy()
@@ -1103,6 +1121,8 @@ def _reuse_parts(orig, step):
     fk0, fk1 = facefeat._key(orig), facefeat._key(step)
     if fk0 in facefeat._SEG:
         facefeat._SEG[fk1] = facefeat._SEG[fk0]
+    if k0 in _HANDS:
+        _HANDS[k1] = _HANDS[k0]
     if k0 in _FACES:
         _FACES[k1] = _FACES[k0]
         _SEGS[k1] = _SEGS.get(k0)

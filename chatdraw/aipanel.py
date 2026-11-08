@@ -243,8 +243,9 @@ class AiPanel(QWidget):
         self.again.setToolTip(self.again.toolTip() + "\n一部だけ直すときは、赤ペンで囲んでから「描く」を押します")
         # 綺麗にする・外へ広げるは、キャンバスの右クリックのメニューにある（並べ方は右クリックのメニューの側で決める）
         lay.addWidget(self._head("仕上げ", "綺麗にする・外へ広げるは、キャンバスの右クリックから選びます。元の絵は元に戻すで戻せます"))
+        from chatdraw.upscale import UPSCALE_TIP
         self.upscale_button = QPushButton("絵を 2 倍に拡大")
-        self.upscale_button.setToolTip("線と塗りを保ったまま、今の絵を 2 倍の大きさにします")
+        self.upscale_button.setToolTip(UPSCALE_TIP)
         self.upscale_button.clicked.connect(w.upscale_canvas)
         lay.addWidget(self.upscale_button)
         lay.addWidget(self._head("加工", "出来た絵から作ります。元の絵は残し、新しいレイヤーに重ねます"))
