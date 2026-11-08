@@ -50,8 +50,9 @@ class Background(unittest.TestCase):
             self.assertFalse(any(tag in out for tag, _s in PLACES), out)
 
     def test_varies_by_seed_and_repeats_with_same_seed(self):
-        got = {engine.vary_background("1girl", s) for s in range(40)}
-        self.assertGreaterEqual(len(got), 8, got)   # 12 の場面のうち、種 40 個で 8 以上が出る
+        # 場所は頼みから読み解いた場面の中から種で選ぶ（chatdraw/tests/test_redlayer.py）。騎士なら草原・城・戦場
+        got = {engine.vary_background("1girl, knight, armor, sword", s) for s in range(40)}
+        self.assertEqual(len(got), 3, got)
         self.assertEqual(engine.vary_background("1girl", 5), engine.vary_background("1girl", 5))
 
     def test_sentence_form(self):

@@ -85,7 +85,10 @@ class AskedWordsFirstTest(unittest.TestCase):
         added_long = len(variety.vary(long_, 3, text="x").split(",")) - len(long_.split(","))
         added_short = len(short.split(",")) - 2
         self.assertLessEqual(variety.room_for(long_), 1)   # 足すのは場所だけ（test_quality2）
-        self.assertGreaterEqual(added_short, added_long)
+        # 足すのは場所 1 つだけ。場所は頼みから読む（傘なら雨の街）ので、語の数は場所ごとに違う
+        most = max(len(t.split(",")) for t, _s in list(variety.S.values()) + variety.PLACES + variety.SIMPLE)
+        self.assertLessEqual(added_long, most)
+        self.assertLessEqual(added_short, most)
 
 
 class ParseTest(unittest.TestCase):
