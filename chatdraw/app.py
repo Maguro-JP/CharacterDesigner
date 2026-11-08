@@ -2525,25 +2525,52 @@ class Window(QMainWindow):
             then(result)
 
     def _lora_row(self):
-        """AI の欄の「模型」に、自分の作風の LoRA を選ぶ欄と強さを足す。初めは「なし」"""
+        """AI の欄の「模型」に、LoRA を選ぶ欄と強さ（0〜1.5）を足す。初めは「なし」"""
         from PySide6.QtWidgets import QComboBox, QSlider
         from chatdraw import ownstyle
         self.lora_pick = QComboBox()
-        self.lora_pick.setToolTip("自分の作風の LoRA を絵の模型に重ねます。置き場は " + str(ownstyle.lora_dir()))
-        self.lora_pick.addItem("LoRA なし", "")
-        for p in ownstyle.loras():
-            self.lora_pick.addItem(p.stem, str(p))
-        self.lora_pick.setCurrentIndex(max(0, self.lora_pick.findData(str(self.layout_store.value("lora", "") or ""))))
+        self.lora_pick.setToolTip("LoRA を絵の模型に重ねます。足すのは「模型の管理」の「LoRA…」から。置き場は " + str(ownstyle.lora_dir()))
+        Window._lora_fill(self)
         self.lora_strength = QSlider(Qt.Horizontal)
         self.lora_strength.setRange(0, 150)
         self.lora_strength.setValue(int(self.layout_store.value("lora_scale", 80)))
-        self.lora_strength.setToolTip("LoRA の強さ。大きいほど自分の作風に寄せる")
+        self.lora_strength.setToolTip("LoRA の強さ（0〜1.5）。大きいほど LoRA の作風に寄せます")
         self.lora_pick.currentIndexChanged.connect(lambda _i: self._lora_changed())
         self.lora_strength.valueChanged.connect(lambda _v: self._lora_changed())
         body = self.ai_panel.sections["模型"].body
         body.addWidget(self.lora_pick)
         body.addWidget(self.lora_strength)
         Window._lora_shown(self)   # 試験は名前空間で呼ぶので、窓の側の関数を直接呼ぶ
+
+    def _lora_fill(self, model_family: str | None = None):
+        """置き場の LoRA を並べ直す。今の模型と系統の合わない物は選べなくし、理由をツールチップに出す"""
+        from PySide6.QtCore import Qt as _Qt
+        from chatdraw import lora as loralib
+        if model_family is None:
+            try:
+                from chatdraw.models import image_model
+                model_family = image_model(getattr(getattr(getattr(self, "studio", None), "painter", None), "model", "") or "").family
+            except Exception:
+                model_family = ""
+        keep = str(self.layout_store.value("lora", "") or "")
+        self.lora_pick.blockSignals(True)
+        self.lora_pick.clear()
+        self.lora_pick.addItem("LoRA なし", "")
+        for p in loralib.loras():
+            ok, why = loralib.compatible(loralib.family_of(p), model_family) if model_family else (True, "")
+            words = ", ".join(loralib.trigger_words(p))
+            self.lora_pick.addItem(loralib.label(p), str(p))
+            i = self.lora_pick.count() - 1
+            tip = "\n".join(x for x in (why, f"きっかけの言葉: {words}（描くときに頼みの前に足します）" if words else "") if x)
+            self.lora_pick.setItemData(i, tip or loralib.FAMILY_JA.get(loralib.family_of(p), ""), _Qt.ToolTipRole)
+            if not ok:
+                item = self.lora_pick.model().item(i)
+                item.setEnabled(False)
+        i = self.lora_pick.findData(keep)
+        if i > 0 and not self.lora_pick.model().item(i).isEnabled():
+            i = 0
+        self.lora_pick.setCurrentIndex(max(0, i))
+        self.lora_pick.blockSignals(False)
 
     def _lora_shown(self):
         """LoRA を置いていなければ選ぶ欄を出さず、「なし」のときは強さを出さない（動かしても何も変わらない部品を並べない）。
@@ -3490,6 +3517,9 @@ class Window(QMainWindow):
         ModelManager(self.settings, self).exec()
         self._have_images = None   # 取った・消した物があるかもしれないので、数え直すまで覚えを使わない
         self.studio = self._studio_from_settings()
+        if hasattr(self, "lora_pick"):   # 足した LoRA と、替えた模型の系統に合わせて並べ直す
+            Window._lora_fill(self)
+            Window._lora_changed(self)
         self.check_ai()
         self._fill_ai_menu()
         self.rescan_models()
@@ -3529,6 +3559,9 @@ class Window(QMainWindow):
             from chatdraw.manager import choose_words
             choose_words(self.settings, key if key in (AUTO, "") else str(words_path(m)))
         self.studio = self._studio_from_settings()
+        if hasattr(self, "lora_pick"):   # 足した LoRA と、替えた模型の系統に合わせて並べ直す
+            Window._lora_fill(self)
+            Window._lora_changed(self)
         self.check_ai()
         self._fill_ai_menu()
         self.rescan_models()
@@ -4671,10 +4704,15 @@ class Window(QMainWindow):
                 ("三面図を描く", self.chara_turnaround, "正面・横・後ろを同じ種で 1 枚ずつ描き、設定資料に置きます"),
                 ("表情差分を描く", lambda: self.chara_expressions(),
                  "今の絵の顔の中だけを、笑顔・怒り・悲しみ・驚きに描き直します。顔の外は変えません。顔を囲むと、その囲みを使います"),
-                ("設定資料を開く", self.chara_sheet, "設定資料のページ（絵を埋め込んだ 1 つのファイル）を書き、置き場を開きます")):
+                ("設定資料を開く", self.chara_sheet, "設定資料のページ（絵を埋め込んだ 1 つのファイル）を書き、置き場を開きます"),
+                ("キャラクターシートを作る", self.chara_sheet_psd,
+                 "三面図と表情差分を 1 枚に並べ、絵ごとのレイヤーにしてキャンバスに開きます。PSD でも保存します")):
             act = m.addAction(label, fn)
             act.setToolTip(tip)
             act.setEnabled(bool(now) and not busy)
+        m.addSeparator()
+        m.addAction("学習セット…", self.open_refsets).setToolTip(
+            "模型ごと・キャラクターごとに参考画像の組を残します。描くときは参考画像（IP-Adapter）で見た目を寄せます")
 
     def chara_save(self, name: str | None = None):
         """今の絵を設定資料に保存する。返すのは保存した id（やめたときは空）"""
@@ -4745,6 +4783,34 @@ class Window(QMainWindow):
         self._run_task(lambda _step: charadesign.draw_expressions(painter, ident, base, mask, seed, list(only),
                                                                   say=self.task.status.emit),
                        lambda out: self._chara_done("表情差分を描きました", out))
+
+    def chara_sheet_psd(self, ident: str | None = None) -> str:
+        """キャラクターシート（三面図と表情差分を並べた 1 枚）を PSD に書き、レイヤーのままキャンバスに開く"""
+        from chatdraw import charadesign
+        ident = ident if isinstance(ident, str) else getattr(self, "chara_id", "")
+        if not ident:
+            self.notify("キャラクターシートを作れませんでした", "info", "先に「描いた人物を設定資料に保存…」で人物を残してください")
+            return ""
+        try:
+            out = charadesign.write_sheet_psd(ident)
+        except (charadesign.NotReady, OSError, SystemExit) as e:
+            self.notify("キャラクターシートを作れませんでした", "info", str(e))
+            return ""
+        self.open_path(str(out))
+        self.notify("キャラクターシートを作りました", "ok", f"レイヤーごとの PSD を保存しました: {out}")
+        return str(out)
+
+    def open_refsets(self):
+        from chatdraw import refs
+        kind, target = ("character", getattr(self, "chara_id", "")) if getattr(self, "chara_id", "") else \
+            ("model", str(self.settings.get("image_model") or ""))
+
+        def use(path, d):
+            self.reference.load(path)
+            if hasattr(self.ai_panel, "use_ref"):
+                self.ai_panel.use_ref.setChecked(True)
+        self.refset_dialog = refs.RefSetDialog(refs.RefSets(), self, on_use=use, target=target, kind=kind)
+        self.refset_dialog.exec()
 
     def _chara_done(self, msg: str, out: dict):
         self.activity.end(msg, None, record=False)

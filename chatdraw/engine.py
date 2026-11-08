@@ -1007,8 +1007,15 @@ class Painter:
         if "ip_adapter_image" not in inspect.signature(pipe.__call__).parameters:
             return   # この描き方（ラフから）は参考画像を受け取れない
         if not self._ref:
+            if self.family not in REFERENCE or not hasattr(pipe, "load_ip_adapter"):
+                self._note("この模型には参考画像の部品（IP-Adapter）がありません。参考画像なしで描きます")
+                return
             repo, sub, weight, enc = REFERENCE[self.family]
-            pipe.load_ip_adapter(repo, subfolder=sub, weight_name=weight, image_encoder_folder=enc, cache_dir=str(HUB))
+            try:
+                pipe.load_ip_adapter(repo, subfolder=sub, weight_name=weight, image_encoder_folder=enc, cache_dir=str(HUB))
+            except Exception as e:   # 取れない・読めない（通信なし、置き場に無い）。描くのは止めない
+                self._note(f"参考画像の部品（IP-Adapter）を読めませんでした（{type(e).__name__}）。参考画像なしで描きます")
+                return
             self._ref = True
         pipe.set_ip_adapter_scale(scale)
         args["ip_adapter_image"] = reference.convert("RGB")
@@ -1186,8 +1193,13 @@ class Painter:
         watch = mb.Watch(mb.budget()) if plan is not None else None
         self._danger = False
         self._last_latents = None
-        from chatdraw.ownstyle import apply as apply_lora
-        self.lora_note = apply_lora(pipe, self.lora, self.lora_scale, self._lora_state)
+        from chatdraw import lora as loralib
+        from chatdraw.models import image_model as _im
+        self.lora_note = loralib.apply(pipe, self.lora, self.lora_scale, self._lora_state, _im(self.model).family)
+        if self.lora_note:
+            self._note(self.lora_note)
+        elif self.lora and self._lora_state.get("lora"):
+            prompt = loralib.with_trigger(prompt, self.lora)   # きっかけの言葉が無いと効かない LoRA がある
         steps = self.steps
         total = steps
         lightened = []
@@ -1232,7 +1244,9 @@ class Painter:
         if base is not None and not f.sketch:
             raise Unsupported(f"{f.name} の模型は、ラフから描く部品がまだありません。「新規」で描くか、SDXL の模型に替えてください")
         if reference is not None and not f.reference:
-            raise Unsupported(f"{f.name} の模型は、参考画像をまだ使えません。参考画像を外すか、SDXL の模型に替えてください")
+            # 部品が無い世代でも描くのは止めない。無いことを知らせて、参考画像なしで描く
+            self._note(f"{f.name} の模型には参考画像の部品（IP-Adapter）がありません。参考画像なしで描きます")
+            reference = None
         if watch is not None:
             watch.__enter__()
         try:
