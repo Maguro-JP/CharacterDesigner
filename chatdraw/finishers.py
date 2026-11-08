@@ -426,9 +426,11 @@ def _material(kind: str):
 _OWN = "このリポジトリのコード"
 register(Finisher(
     "retouch", "線と塗りを整える",
-    "線の縁の紫・緑の色のにじみを消します。形と色は変えません。数字が良くなった時だけ掛けます",
+    "線の縁の紫・緑の色のにじみを消し、平らな塗りの細かいざらつきを均します。形と色は変えません。"
+    "線の工程は数字が良くなった時だけ掛けます",
     _OWN, "tools/gen/retouch.py", _own_ready("retouch", "numpy", "scipy"), _own_why("retouch", "numpy", "scipy"),
-    _retouch(RETOUCH_SAFE), extra=dict(needs=("numpy", "scipy"), scale="retouch", steps=RETOUCH_SAFE)))
+    # 線の工程（にじみ消し）だけでは、にじみの無い絵で 1 画素も変わらず、押しても何も起きないように見えた。塗りのむらも均す
+    lambda im: _clean_apply(_retouch(RETOUCH_SAFE)(im)), extra=dict(needs=("numpy", "scipy"), scale="retouch", steps=RETOUCH_SAFE, clean=True)))
 register(Finisher(
     "retouch_full", "ジャギーも取る",
     "線と塗りを整えたうえで、線の階段も直します。顔の細い線に掛かることがあるので、囲んで使うと安心です",
@@ -1061,6 +1063,8 @@ def run(name: str, image, mask=None, say=None, face=_NO_FACE):
         out = tiled(f.apply, src, box, say, f.label)
     elif big and mode == "retouch":
         out = _retouch_big(f.extra["steps"], src, box, say, f.label)
+        if f.extra.get("clean"):
+            out = tiled(_clean_apply, out, box, say, f.label)
     elif mode == "work":
         out = at_work_size(f.apply, src, say, f.label)
     else:
@@ -1073,6 +1077,8 @@ def run(name: str, image, mask=None, say=None, face=_NO_FACE):
         LAST_QC["verify"] = v
         if v.get("failed"):
             LAST_QC["rejected"] = True
+    if f.group in FACE_HOLD_GROUPS and out.size == src.size:
+        out = hold_face(src, out, face)
     if f.group in KEEP_GROUPS and out.size == src.size and not LAST_QC.get("rejected"):
         from chatdraw import facefeat
         out, fr = facefeat.keep(src, out, mask)
@@ -1080,6 +1086,30 @@ def run(name: str, image, mask=None, say=None, face=_NO_FACE):
         LAST_QC.setdefault("label", f.label)
         LAST_QC["features"] = fr
     return out
+
+
+# 細部・質感・空気感を足す加工は、顔（目・眉・口）の画素を元のまま残す。facefeat.keep は加工のあとの目を元の絵の部位分けで
+# 測るので差が小さく出て（ディテールで 2.1）戻さなかったが、加工のあとの絵を部位分けし直して測ると目の色が 80〜96 動いていた
+# （顔の縁の明暗が変わり、部位分けの顔の形がずれる）。顔の中を初めから変えなければ、どちらで測っても目は動かない
+FACE_HOLD_GROUPS = {"detail", "texture", "air"}
+FACE_HOLD_GROW = 0.1   # 顔の囲みをこの割合だけ広げて残す（部位分けの顔の縁が加工の前と後でずれても、目の帯が外に出ないように）
+
+
+def hold_face(src, out, face=_NO_FACE):
+    """out の顔（部位分けの顔を少し広げた所）を src の画素に戻す。部位分けが使えないときは out のまま"""
+    from PIL import Image
+    m = face_keep(src) if face is _NO_FACE else face
+    if m is None:
+        return out
+    from PIL import ImageDraw
+    m = m.resize(src.size, Image.BILINEAR).point(lambda v: 255 if v >= 8 else 0)   # ぼかした縁の薄い所まで元に戻す
+    box = m.getbbox()
+    if box is not None:
+        # 目の色は顔の囲みの帯の中で測る（facefeat.features）。顔の形の外でも囲みの中の画素は目に数えるので、囲みごと残す
+        x0, y0, x1, y1 = box
+        g = round(max(x1 - x0, y1 - y0) * FACE_HOLD_GROW)
+        ImageDraw.Draw(m).rectangle((x0 - g, y0 - g, x1 + g, y1 + g), fill=255)
+    return Image.composite(src.convert("RGB"), out.convert("RGB"), m)
 
 
 LAST_CHAIN: list = []   # 直前の組み合わせの、工程ごとの検品の結果
