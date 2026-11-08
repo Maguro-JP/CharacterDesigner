@@ -60,14 +60,16 @@ def family_from_keys(keys: list[str]) -> str:
         return "flux1"
     if re.search(r"lora_te2_|text_encoder_2\.|te2\.|input_blocks_\d+_1_transformer_blocks|add_embedding", ks):
         return "sdxl"
-    # diffusers の形の UNet だけの LoRA: SD1.5 は一番上の段（down_blocks.0）にも注意があり、SDXL には無い。
-    # SDXL の深い段は transformer_blocks が 2 つ以上ある
-    if re.search(r"transformer_blocks[._]([2-9])[._]", ks):
+    # diffusers の形の UNet だけの LoRA: SD1.5 の注意の段は transformer_blocks が 1 つ（.0）だけで、一番上の段（down_blocks.0）にも注意がある。
+    # SDXL は transformer_blocks が 2 つ以上あり、一番上の段には注意が無い
+    if re.search(r"transformer_blocks[._]([1-9])[._]", ks):
         return "sdxl"
     if re.search(r"down_blocks[._]0[._]attentions", ks):
         return "sd15"
-    if re.search(r"down_blocks|up_blocks|lora_unet_|lora_te_|text_encoder\.", ks):
-        return "sdxl" if re.search(r"down_blocks[._]2[._]attentions", ks) and not re.search(r"down_blocks[._]3", ks) else "sd15"
+    if re.search(r"(down|up)_blocks[._]\d+[._]attentions", ks):
+        return "sdxl"
+    if re.search(r"lora_unet_|lora_te_|text_encoder\.", ks):
+        return "sd15"
     return ""
 
 

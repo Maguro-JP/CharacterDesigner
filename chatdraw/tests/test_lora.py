@@ -217,9 +217,9 @@ class FakeIPPipe:
 class ReferenceFallbackTest(unittest.TestCase):
     def test_no_ip_adapter_draws_without_reference(self):
         from chatdraw.engine import Painter
-        p = Painter.__new__(Painter)
-        p._ref, p.family, notes = False, "flux1", []
-        p._note = notes.append
+        from types import SimpleNamespace
+        notes = []
+        p = SimpleNamespace(_ref=False, family="flux1", _note=notes.append)
         args = {}
         Painter._use_reference(p, FakeIPPipe(), Image.new("RGB", (8, 8)), 0.6, args)
         self.assertNotIn("ip_adapter_image", args)
