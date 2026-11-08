@@ -139,14 +139,13 @@ class AppSurvivesTest(unittest.TestCase):
         w.dirty = False
         w.close()
 
-    def test_oom_twice_fails_gracefully(self):
+    def test_oom_many_times_keeps_drawing(self):
+        """メモリ不足が何度続いても「描けませんでした」で終えず、軽い設定・小さい大きさに替えて描き切る。落ちない"""
         a, w = self.run_draw(OOMPainter(fails=9, error=RuntimeError("CUDA out of memory")))
         self.assertIsNone(w.thread)
-        self.assertEqual(len(w.images), 0)
-        self.assertTrue(w.button.isEnabled(), "落ちたあとに次の操作ができない")
-        failed = [x for x in w.told if x and x[0] == "描けませんでした"]
-        self.assertTrue(failed, w.told)
-        self.assertIn("メモリが足りず", " ".join(map(str, failed[0])))
+        self.assertEqual(len(w.images), 1)
+        self.assertTrue(w.button.isEnabled(), "描いたあとに次の操作ができない")
+        self.assertFalse([x for x in w.told if x and x[0] == "描けませんでした"], w.told)
         w.dirty = False
         w.close()
 

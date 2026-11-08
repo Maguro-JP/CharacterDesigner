@@ -38,7 +38,14 @@ def keep_for_text(key, mods) -> bool:
 
 
 class TypeGuard(QObject):
+    # マウスの戻る・進むボタン。作画ソフトと同じく、元に戻す・やり直すに当てる。窓が on_mouse_back / on_mouse_forward を持てば呼ぶ
     def eventFilter(self, obj, e):
+        if e.type() == QEvent.MouseButtonPress and e.button() in (Qt.BackButton, Qt.ForwardButton):
+            win = obj.window() if hasattr(obj, "window") else None
+            fn = getattr(win, "on_mouse_back" if e.button() == Qt.BackButton else "on_mouse_forward", None)
+            if fn is not None:
+                fn()
+                return True
         if e.type() == QEvent.ShortcutOverride and is_text_input(obj):
             k = e.key()
             if Qt.Key_F1 <= k <= Qt.Key_F35:

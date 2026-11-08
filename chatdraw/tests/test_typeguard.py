@@ -130,3 +130,38 @@ class CountFieldTest(unittest.TestCase):
             finally:
                 w.closing_checked = True
                 w.close()
+
+
+class MouseSideButtonTest(unittest.TestCase):
+    """マウスの戻る・進むボタンで、絵の元に戻す・やり直すが効き、打っている欄では欄の元に戻すになること"""
+
+    def test_back_forward(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from chatdraw.app import Window
+        from chatdraw.engine import Studio
+        from chatdraw.tests.test_chatdraw import FakePainter, FakeWords
+        from chatdraw.tests.test_editing import app
+        app()
+        with TemporaryDirectory() as tmp:
+            w = Window(Studio(FakeWords(), FakePainter(), Path(tmp)))
+            w.resize(1200, 800); w.show(); QTest.qWait(30)
+            try:
+                got = []
+                w.shared["undo"].triggered.connect(lambda *_: got.append("undo"))
+                w.shared["redo"].triggered.connect(lambda *_: got.append("redo"))
+                w.shared["undo"].setEnabled(True); w.shared["redo"].setEnabled(True)
+                vp = w.canvas.viewport()
+                w.canvas.setFocus(); QApplication.processEvents()
+                QTest.mousePress(vp, Qt.BackButton, Qt.NoModifier, vp.rect().center())
+                QTest.mousePress(vp, Qt.ForwardButton, Qt.NoModifier, vp.rect().center())
+                self.assertEqual(got, ["undo", "redo"])
+                w.entry.setFocus(); QApplication.processEvents()
+                QTest.keyClicks(w.entry, "abc")
+                QTest.mousePress(w.entry.viewport() if hasattr(w.entry, "viewport") else w.entry, Qt.BackButton)
+                text = w.entry.toPlainText() if hasattr(w.entry, "toPlainText") else w.entry.text()
+                self.assertNotEqual(text, "abc")
+                self.assertEqual(got, ["undo", "redo"])   # 欄の中では絵の元に戻すを呼ばない
+            finally:
+                w.closing_checked = True
+                w.close()

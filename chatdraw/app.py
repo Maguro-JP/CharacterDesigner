@@ -683,6 +683,9 @@ class Window(QMainWindow):
         self.ai_panel.preview_timer.timeout.connect(self._entry_tip)
         self.ai_panel.update_preview()
         self._entry_tip()
+        for w in self._tip_watch():
+            if w is not self.entry:
+                w.installEventFilter(self)   # 欄（と中の表示面）にカーソルを合わせたら、言葉を作り直して出す
         line = self.ai_panel.draw_bar   # 描くボタンはタブの外。どのタブからも押せる
         # 作成枚数は描くボタンのすぐ左に置く（前は指示のタブの中の模型の下にあり、見つからなかった）。
         # 詳しい設定の 1・2・4 枚のボタンと同じ値
@@ -1110,6 +1113,12 @@ class Window(QMainWindow):
         self.menuBar().addMenu(self.logo_menu)
         self.logo_menu.aboutToShow.connect(self._fill_logo_menu)
         self._fill_logo_menu()
+        # 加工（綺麗にする・ディテール・拡大・画風など）。右クリックと同じ項目を、メニューバーからも選べるようにする。
+        # 右クリックは隠した物・よく使う物で並びが変わるが、ここは全部を処理の種類ごとに出す（探せば必ずある所）
+        self.finish_menu = QMenu("加工", self)
+        self.menuBar().addMenu(self.finish_menu)
+        self.finish_menu.aboutToShow.connect(self._fill_finish_menu)
+        self._fill_finish_menu()
         from chatdraw import ratings
         ratings.on_change(self._models_changed)
         setting_menu = self.menuBar().addMenu("設定")
@@ -1714,6 +1723,8 @@ class Window(QMainWindow):
             self.favorites().put(m.group(1), words)
             self.chat.add("ai", f"登録した作風「{m.group(1)}」に「{words}」を残しました。「{m.group(1)}で描いて」で使えます")
             return True
+        if self._chat_intent(text):   # 設定を変える（枚数・大きさ・画風）、加工する（綺麗にする・画風を掛ける）
+            return True
         try:
             # 一覧の見出しだけを使う。available() は使えるかを確かめるので 1 秒余りかかり、画面の糸で呼ぶとチャットが固まった
             entries = [{"name": n, "label": f.label} for n, f in finishers.REGISTRY.items()]
@@ -1741,6 +1752,52 @@ class Window(QMainWindow):
             return True
         self.run_plan(plan)
         return True
+
+    def _has_picture(self) -> bool:
+        """キャンバスに絵があるか。新しいキャンバスは白一色なので、一色でなければ絵があると見る"""
+        im = qimage_to_pil(self.canvas.flatten())
+        return any(lo != hi for lo, hi in im.getextrema())
+
+    def _chat_intent(self, text: str) -> bool:
+        """チャットの一言を設定・加工の操作に読んで行い、決めたことを 1 行で返す（chatdraw/chatintent.py）。読めなければ False"""
+        from chatdraw import chatintent
+        it = chatintent.parse(text, has_image=self._has_picture())
+        if it is None:
+            return False
+        if it.kind == "count":
+            self.ai_panel.set_count(it.arg)
+        elif it.kind == "size":
+            from chatdraw.aipanel import SIZES
+            self.ai_panel._pick_size(list(SIZES).index(it.arg))
+        elif it.kind == "style":
+            self.ai_panel.set_style(it.arg)
+        elif it.kind == "finisher":
+            self.chat.add("ai", it.reply)
+            self.finish_with(it.arg, background=True)
+            return True
+        self.chat.add("ai", it.reply)
+        return True
+
+    def _fix_without_region(self) -> bool:
+        """直す頼みなのに囲んだ所が無い。黙って新しく描くと、頼みと違う解釈（今の絵を捨てて描き直す）になるので窓で聞く。
+        描き続けるなら True"""
+        if self.canvas.redpen.marks or self.canvas.selection_mask() is not None or not self._has_picture():
+            return True
+        from chatdraw import confirm
+        picked = confirm.ask(self, "fix_no_region", "直す所が囲まれていません",
+                             "直す所が囲まれていません。囲みの外は変えないので、どこを直すかを先に囲みます。",
+                             [("redpen", "赤ペンで囲む"), ("new", "新しく描く")])
+        if picked == "redpen":
+            self.mode.setCurrentIndex(2)
+            from chatdraw import commands
+            commands._tool("redpen")(self, "")
+            self.chat.add("ai", "赤ペンにしました。直す所を囲んで、もう一度送ってください")
+            return False
+        if picked == "new":
+            self.chat.add("ai", "囲みが無いので、新しく描きます")
+            return True
+        self.chat.add("ai", "やめました")
+        return False
 
     def offer_choices(self, question: str, choices):
         """曖昧な頼みに、候補をボタンで出す。押すと、その文をチャットに送ったのと同じに行う"""
@@ -1833,7 +1890,11 @@ class Window(QMainWindow):
 
     def _plan_draw(self, body: str, fix: bool = False):
         if fix:
-            self.mode.setCurrentIndex(2)
+            if not self._fix_without_region():
+                self._plan_queue = []
+                return
+            has = self.canvas.redpen.marks or self.canvas.selection_mask() is not None
+            self.mode.setCurrentIndex(2 if has else 0)
         self.entry.setText(body or self.last_text)
         if not self.entry.text().strip():
             self.chat.add("ai", "何を描くかが分かりませんでした。描く内容を書いてください")
@@ -2289,8 +2350,36 @@ class Window(QMainWindow):
         self.note_box.hide()
         self.canvas.setFocus()
 
+    def _tip_watch(self):
+        out = []
+        for w in (getattr(self, "entry", None), getattr(getattr(self, "chat", None), "input", None)):
+            if w is not None:
+                out.append(w)
+                if hasattr(w, "viewport"):
+                    out.append(w.viewport())
+        return out
+
+    def on_mouse_back(self):
+        """マウスの戻るボタン。打っている欄があればその欄の元に戻す、無ければ絵の元に戻す"""
+        self._mouse_step("undo")
+
+    def on_mouse_forward(self):
+        self._mouse_step("redo")
+
+    def _mouse_step(self, key: str):
+        from chatdraw.typeguard import is_text_input
+        f = QApplication.focusWidget()
+        if is_text_input(f) and hasattr(f, key):
+            getattr(f, key)()
+            return
+        a = self.shared.get(key)
+        if a is not None and a.isEnabled():
+            a.trigger()
+
     def eventFilter(self, obj, e):
         from PySide6.QtCore import QEvent
+        if e.type() == QEvent.ToolTip and obj in self._tip_watch():
+            self._entry_tip()   # カーソルを合わせたときに作り直す（直す・加工のあとにも、最後に渡した言葉を出す）
         if self._entry_keys(obj, e):
             return True
         if obj is getattr(self, "note_edit", None) and e.type() == QEvent.KeyPress and e.key() == Qt.Key_Escape:
@@ -2499,12 +2588,12 @@ class Window(QMainWindow):
         from chatdraw import confirm
         cw, ch = self.canvas.size_px()
         if cw * ch * 4 > confirm.BIG_UPSCALE_PX and confirm.ask(
-                self, "upscale_big", "大きな絵の拡大", f"拡大すると {cw * 2}×{ch * 2} になります。時間がかかり、メモリも多く使います。",
+                self, "upscale_big", "大きな絵の拡大", f"縦横 2 倍の {cw * 2}×{ch * 2} になります。数分かかり、メモリも多く使います。",
                 [("go", "拡大する")]) != "go":
             return
         if self.canvas.undo_stack:
             picked = confirm.ask(self, "upscale", "絵を 2 倍に拡大",
-                                 "レイヤーはそのままで 2 倍にします。拡大すると「元に戻す」の履歴は消えるので、先に保存しておくと戻れます。",
+                                 "レイヤーは分けたまま縦横 2 倍にし、元の大きさの絵は置き換わります。「元に戻す」の履歴は消えるので、先に保存しておくと戻れます。",
                                  [("save", "保存してから拡大"), ("go", "拡大")])
             if picked == "save":
                 if not self.save_project(wait=True):
@@ -2515,7 +2604,7 @@ class Window(QMainWindow):
         current = self.canvas.current
         self.feature_tour("upscale")
         self.activity.begin("絵を 2 倍に拡大", "拡大")
-        self.activity.status("描いています" + ("" if upscale.ready() else "（初めに拡大の部品 2.4MB を取ります）"))
+        self.activity.status(f"縦横 2 倍に拡大しています（{upscale.UPSCALE_TIME}）" + ("" if upscale.ready() else "。初めに拡大の部品 2.4MB を取ります"))
 
         def work(on_step):
             from PIL import Image
@@ -2538,10 +2627,10 @@ class Window(QMainWindow):
                   for name, visible, opacity, big in made]
         self.canvas._reset(layers, current)
         self.dirty = True
-        self.activity.end("拡大しました", None, record=False)
+        self.activity.end("2 倍に拡大しました", None, record=False)
         w, h = self.canvas.size_px()
-        self.notify("拡大しました", "ok", f"{w}×{h}・レイヤー {len(layers)} 枚のまま")
-        self._end("拡大しました")
+        self.notify("2 倍に拡大しました", "ok", f"{w}×{h}・レイヤー {len(layers)} 枚のまま。元の大きさの絵は置き換えました")
+        self._end("2 倍に拡大しました")
 
     def busy(self, what: str) -> bool:
         """裏で描いている間なら、押した物を始めずに理由を出して True。
@@ -2779,11 +2868,19 @@ class Window(QMainWindow):
         guess = self.ai_panel.preview.text().strip()
         if guess:
             lines += ["", guess]
-        if getattr(self, "last_model_prompt", ""):
+        from chatdraw import sent
+        real = sent.tooltip_lines()
+        if real:   # 描く仕組みが足した言葉・切り詰め・打ち消しを含めた、模型が本当に受け取った文
+            lines += [""] + real
+        elif getattr(self, "last_model_prompt", ""):
             lines += ["", "前に絵の模型に渡した言葉: " + self.last_model_prompt]
         # 長い英語の言葉で横に広がり画面からはみ出さないよう、折り返す形（リッチテキスト）で出す
         import html
         self.entry.setToolTip("<qt>" + "<br>".join(html.escape(t) for t in lines) + "</qt>")
+        chat_in = getattr(getattr(self, "chat", None), "input", None)
+        if chat_in is not None:   # チャットの欄にも、模型に本当に渡した言葉を出す
+            chat_lines = ["AI に話しかける欄です。描く・直す・加工する・設定を変える、を頼めます"] + ([""] + real if real else [])
+            chat_in.setToolTip("<qt>" + "<br>".join(html.escape(t) for t in chat_lines) + "</qt>")
 
     # ---- 消す・ごみ箱 ----
     def delete_images(self, paths: list[str], ask: bool = True) -> str | None:
@@ -5047,6 +5144,32 @@ class Window(QMainWindow):
         where = str(Path(out[0]).parent) if out else ""
         self.notify(msg, "ok", f"{len(out)} 個のファイルを {where} に置きました")
 
+    def _fill_finish_menu(self):
+        """メニューバーの「加工」。項目は右クリックのショートカットと同じ物（shortcuts.builtins）で、押すと同じ関数を呼ぶ"""
+        from PySide6.QtWidgets import QMenu
+        from chatdraw import shortcuts
+        m = self.finish_menu
+        for sub in getattr(self, "_finish_subs", []):   # 開くたびに作り直すので、前の小さなメニューは消す
+            sub.deleteLater()
+        m.clear()
+        m.setToolTipsVisible(True)
+        items = shortcuts.builtins(self)
+        # 小さなメニューは窓の側で持つ。addMenu(文字) の返りだけを持つと、Python の側の参照が消えたときに中身ごと消えた
+        self._finish_subs = []
+        for g, label in shortcuts.GROUPS:
+            inside = [s for s in items if s.group == g]
+            if not inside:
+                continue
+            sub = QMenu(label, m)
+            m.addMenu(sub)
+            self._finish_subs.append(sub)
+            sub.setToolTipsVisible(True)
+            for s in inside:
+                act = sub.addAction(s.label, lambda sid=s.id: self.run_shortcut(sid))
+                act.setObjectName("menu-" + s.id)
+                act.setToolTip(s.tip if s.ready else s.reason)
+                act.setEnabled(s.ready)
+
     def chara_sheet(self):
         from chatdraw import charadesign
         ident = getattr(self, "chara_id", "")
@@ -5115,7 +5238,9 @@ class Window(QMainWindow):
             self.put_result(str(path), "綺麗にした絵")   # 元の絵は下に残す
             self.canvas.fit()   # 結果は全体表示で見せる
         else:
-            self.put_result(str(path), "綺麗にした絵（拡大）", replace=True)   # 拡大した絵（元に戻すで戻せる）
+            self.put_result(str(path), "2 倍に拡大した絵", replace=True)   # 拡大した絵（元に戻すで戻せる）
+            self.notify("2 倍に拡大しました", "ok", f"{out.width}×{out.height}。キャンバスを置き換えました。元の絵は「元に戻す」で戻せます")
+            return path
         self.notify("綺麗にしました（新しいレイヤー）", "ok", "見比べて、使うか消すかを決めてください")
         return path
 
