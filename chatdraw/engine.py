@@ -410,6 +410,18 @@ def _foreign(ch: str) -> bool:
     return "぀" <= ch <= "ヿ" or "一" <= ch <= "鿿" or (ch.isalpha() and ord(ch) > 0x24F)
 
 
+def unchecked(what: str, reason: str = "") -> str:
+    """検品できなかったことを崩れの 1 件にする。部品が無い・読めない絵を「崩れが無い」として通さない"""
+    return f"検品できなかった: {what}" + (f"（{reason}）" if reason else "")
+
+
+def hand_unread(res: dict) -> list[str]:
+    """手の検品が読めなかった（部品が無い、手を見つけられない）のに崩れを挙げていなければ、崩れとして 1 件にする"""
+    if res.get("readable") or res.get("bad") or os.environ.get("CD_CHECK") == "off":
+        return []
+    return [unchecked("手と指", res.get("reason", ""))]
+
+
 def has_japanese(text: str) -> bool:
     """訳してから絵の模型に渡す字を含むか（名前は前のまま。日本語のほか、ラテン文字の外の字も含む）"""
     return any(_foreign(ch) for ch in text)
@@ -1635,6 +1647,8 @@ class Studio:
             left = list(self.hand_rounds[-1]["bad"] if self.hand_rounds else [])
             from chatdraw import requestcheck
             asked = requestcheck.check(image, asked_prompt)
+            if not asked["readable"] and os.environ.get("CD_CHECK") != "off":
+                left.append(unchecked("頼んだ物と人数", asked.get("reason", "")))
             if asked["readable"]:
                 say(requestcheck.summary(asked))
                 left += [f"描かれていない: {m}" for m in asked["missing"]]
@@ -1653,6 +1667,8 @@ class Studio:
             odd = sanity.check(image, asked_prompt, tags=asked.get("read") if asked["readable"] else None)
             say(sanity.summary(odd))
             left += odd["bad"]
+            if not odd["readable"] and os.environ.get("CD_CHECK") != "off":
+                left.append(unchecked("体の数と目", odd.get("reason", "")))
             unasked += [w for w in odd["avoid"] if w not in unasked]
             redraws.append({"seed": s_k, "bad": left})
             if best is None or len(left) < len(best[1]):
@@ -1858,7 +1874,10 @@ class Studio:
             own = origqc.check(image, prompt)
         except Exception as e:
             return [f"数字の検品で止まりました（{type(e).__name__}: {e}）"], []
-        return list(own.get("bad", [])), [x for x in own.get("regions", []) if x[1] in ("face", "hair")]
+        bad = list(own.get("bad", []))
+        if not own.get("measured", True) and not bad:   # 部品が無くて測らなかった絵は、崩れが無いのではなく見ていない
+            bad.append(unchecked("数字の作画監督", "；".join(own.get("notes", [])) or "測っていない"))
+        return bad, [x for x in own.get("regions", []) if x[1] in ("face", "hair")]
 
     @staticmethod
     def _own_words(kind: str) -> str:
@@ -1871,10 +1890,18 @@ class Studio:
         import os
         from chatdraw.models import family as fam, image_model
         self.hand_rounds = []
-        if os.environ.get("CD_CHECK") == "off" or not fam(image_model(getattr(self.painter, "model", "")).family).inpaint:
+        if os.environ.get("CD_CHECK") == "off":
             return image
         from PIL import Image, ImageDraw
         from chatdraw import handcheck
+        if not fam(image_model(getattr(self.painter, "model", "")).family).inpaint:
+            # 囲みの中を描き直せない模型でも、検品はする（前は検品ごと飛ばし、手も作画監督も見ないまま通していた）。
+            # 崩れは描き直し（種を変える）の理由になる
+            say("検品しています（手と指・この模型は囲みの直しができないので、崩れたら種を変えて描き直します）")
+            res = handcheck.check(image, asked=prompt)
+            own_bad, _r = self._own_check(image, prompt)
+            self.hand_rounds.append({"round": 0, "bad": list(res["bad"]) + hand_unread(res) + own_bad})
+            return image
         best = None   # (崩れの数, 絵, 崩れ, 検品の結果)。直しで崩れが増えた回の絵は使わない（直すたびに別の所が崩れることがあった）
 
         def done(img):
@@ -1895,7 +1922,7 @@ class Studio:
             say(f"検品しています（手と指・{r + 1} 回目）")
             res = handcheck.check(image, asked=prompt)
             own_bad, own_regions = self._own_check(image, prompt)
-            res = {**res, "bad": list(res["bad"]) + own_bad}
+            res = {**res, "bad": list(res["bad"]) + hand_unread(res) + own_bad}
             self.hand_rounds.append({"round": r, "bad": res["bad"]})
             if best is None or len(res["bad"]) < best[0]:
                 best = (len(res["bad"]), image, list(res["bad"]), res)
