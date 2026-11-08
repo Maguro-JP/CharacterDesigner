@@ -4959,7 +4959,7 @@ class Window(QMainWindow):
                 hm.addAction(S[f"redpen_shape:{key}"])
             hm.addAction(S["redpen_all"])
             how.setMenu(hm)
-            bar.addWidget(how)
+            bar.addWidget(how).setToolTip(how.toolTip())
         bar.addAction(S["draw"])
         bar.addAction(S["stop"])
         self.addToolBar(Qt.TopToolBarArea, bar)
