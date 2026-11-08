@@ -76,7 +76,7 @@ class DrawAnywayTest(unittest.TestCase):
                 self.assertEqual(st.draw_anyway("女の子", 1, said.append, size=(832, 1216))[0], "p")
             self.assertEqual(len(calls), 3)
             self.assertLess(calls[1][1][0], 832)   # 2 回目は小さく描く
-            self.assertEqual(calls[2][0], 1 + 7919)   # 3 回目は別の種
+            self.assertLess(calls[2][1][0], calls[1][1][0])   # 3 回目はもっと小さく描く（上限で止めずに段を下げ続ける）
 
     def test_reports_reasons_only_when_all_fail(self):
         st = Studio(painter=mock.Mock(model="a", stop=False, avoid=""), out=Path("."))

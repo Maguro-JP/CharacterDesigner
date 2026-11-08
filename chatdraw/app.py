@@ -1714,6 +1714,8 @@ class Window(QMainWindow):
             self.favorites().put(m.group(1), words)
             self.chat.add("ai", f"登録した作風「{m.group(1)}」に「{words}」を残しました。「{m.group(1)}で描いて」で使えます")
             return True
+        if self._chat_intent(text):   # 設定を変える（枚数・大きさ・画風）、加工する（綺麗にする・画風を掛ける）
+            return True
         try:
             # 一覧の見出しだけを使う。available() は使えるかを確かめるので 1 秒余りかかり、画面の糸で呼ぶとチャットが固まった
             entries = [{"name": n, "label": f.label} for n, f in finishers.REGISTRY.items()]
@@ -1741,6 +1743,52 @@ class Window(QMainWindow):
             return True
         self.run_plan(plan)
         return True
+
+    def _has_picture(self) -> bool:
+        """キャンバスに絵があるか。新しいキャンバスは白一色なので、一色でなければ絵があると見る"""
+        im = qimage_to_pil(self.canvas.flatten())
+        return any(lo != hi for lo, hi in im.getextrema())
+
+    def _chat_intent(self, text: str) -> bool:
+        """チャットの一言を設定・加工の操作に読んで行い、決めたことを 1 行で返す（chatdraw/chatintent.py）。読めなければ False"""
+        from chatdraw import chatintent
+        it = chatintent.parse(text, has_image=self._has_picture())
+        if it is None:
+            return False
+        if it.kind == "count":
+            self.ai_panel.set_count(it.arg)
+        elif it.kind == "size":
+            from chatdraw.aipanel import SIZES
+            self.ai_panel._pick_size(list(SIZES).index(it.arg))
+        elif it.kind == "style":
+            self.ai_panel.set_style(it.arg)
+        elif it.kind == "finisher":
+            self.chat.add("ai", it.reply)
+            self.finish_with(it.arg, background=True)
+            return True
+        self.chat.add("ai", it.reply)
+        return True
+
+    def _fix_without_region(self) -> bool:
+        """直す頼みなのに囲んだ所が無い。黙って新しく描くと、頼みと違う解釈（今の絵を捨てて描き直す）になるので窓で聞く。
+        描き続けるなら True"""
+        if self.canvas.redpen.marks or self.canvas.selection_mask() is not None or not self._has_picture():
+            return True
+        from chatdraw import confirm
+        picked = confirm.ask(self, "fix_no_region", "直す所が囲まれていません",
+                             "直す所が囲まれていません。囲みの外は変えないので、どこを直すかを先に囲みます。",
+                             [("redpen", "赤ペンで囲む"), ("new", "新しく描く")])
+        if picked == "redpen":
+            self.mode.setCurrentIndex(2)
+            from chatdraw import commands
+            commands._tool("redpen")(self, "")
+            self.chat.add("ai", "赤ペンにしました。直す所を囲んで、もう一度送ってください")
+            return False
+        if picked == "new":
+            self.chat.add("ai", "囲みが無いので、新しく描きます")
+            return True
+        self.chat.add("ai", "やめました")
+        return False
 
     def offer_choices(self, question: str, choices):
         """曖昧な頼みに、候補をボタンで出す。押すと、その文をチャットに送ったのと同じに行う"""
@@ -1833,7 +1881,11 @@ class Window(QMainWindow):
 
     def _plan_draw(self, body: str, fix: bool = False):
         if fix:
-            self.mode.setCurrentIndex(2)
+            if not self._fix_without_region():
+                self._plan_queue = []
+                return
+            has = self.canvas.redpen.marks or self.canvas.selection_mask() is not None
+            self.mode.setCurrentIndex(2 if has else 0)
         self.entry.setText(body or self.last_text)
         if not self.entry.text().strip():
             self.chat.add("ai", "何を描くかが分かりませんでした。描く内容を書いてください")

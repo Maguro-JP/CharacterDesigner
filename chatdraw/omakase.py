@@ -289,6 +289,7 @@ class Omakase:
         say("おまかせの段取り: " + self.plan.summary())
         compose = self.plan.compose or [(None, "取得済みの模型が無いので今の模型")]
         best = None
+        missing_all = []   # 前の回で描かれなかった頼み。次の回は描く言葉の前に出す
         # 構図の手は、合う模型を一周、種を替えてもう一周
         outer = Persist(list(range(2 * len(compose))), stopped=lambda: getattr(self.studio.painter, "stop", False))
         for k in counter(tries):
@@ -300,7 +301,12 @@ class Omakase:
             prompt = self._prompt(text, m) if m is not None else self.studio.words.to_prompt(text)
             # 書かれていない所（背景・ポーズ・髪・服・表情・構図・光）を種で選んで足す。足さないと毎回同じ無地の立ち絵になった
             from chatdraw.engine import vary_background
+            # 頼んだ物の検品は頼みの言葉だけで見る。足した背景や服まで「描かれていない」と数え、頼みでない言葉で描き直していた
+            asked_prompt = prompt
             prompt = vary_background(prompt, seed, tags=fam(m.family).tags if m is not None else True, text=text)
+            if missing_all:   # 描かれなかった頼みを前に出す（模型は前の言葉ほど強く効かせる）
+                from chatdraw.engine import emphasize
+                prompt = emphasize(prompt, missing_all)
             image = None
             # 2 段の部品も候補の 1 つ。毎回 2 段で描くと構図の模型が固定されたので、ほかの模型があれば半分は 1 つの模型で描く
             use_two = self.two is not None and k == 0 and (len(compose) < 2 or random.Random(f"two-{seed}").random() < 0.5)
@@ -317,7 +323,9 @@ class Omakase:
             if image is None:
                 self._note(say, "構図", m, why, seed=s_k)
                 image = self.hires(painter, m, prompt, s_k, size, say)
-            res = self.check(image, prompt)
+            res = self.check(image, asked_prompt)
+            missing_all += [b.split(": ", 1)[1] for b in res["bad"] if b.startswith("描かれていない: ")
+                            and b.split(": ", 1)[1] not in missing_all]
             for note in res.get("notes", []) if k == 0 else []:
                 say(note)
             inner = Persist([0.6, 0.7, 0.8, 0.9], stopped=lambda: getattr(painter, "stop", False))
@@ -334,14 +342,14 @@ class Omakase:
                 for kind, boxes in by_kind.items():
                     tried, _fm = self.fix_region(tried, kind, boxes, text, s_k + 77 * (r + 1), m.repo if m else "", say,
                                                  strength=strength)
-                again = self.check(tried, prompt)
+                again = self.check(tried, asked_prompt)
                 self.log.append(dict(stage="検品", round=r, bad=list(again["bad"])))
                 if len(again["bad"]) > len(res["bad"]):   # 直しで崩れが増えたら、その直しは消しゴムで消し、強さを替えて直し直す
                     say("直しで崩れが増えたので、前の絵に戻して直し直します")
                     continue
                 image, res = tried, again
             if not res["bad"] and res.get("detail") and not getattr(painter, "stop", False):
-                image, res = self.detail(image, res, text, s_k, m.repo if m else "", prompt, say)
+                image, res = self.detail(image, res, text, s_k, m.repo if m else "", asked_prompt, say)
             self.log.append(dict(stage="検品", seed=s_k, bad=list(res["bad"]), readable=res["readable"]))
             # 検品できなかった絵は崩れが無いのではなく見ていないだけなので、崩れ 1 つとして数えて比べる。
             # 前は読めない絵（崩れ 0）が、読めて崩れが 1 つの絵より先に選ばれ、崩れを逃がした

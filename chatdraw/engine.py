@@ -310,6 +310,18 @@ def fit_tokens(tokenizer, prefix: str, body: str, suffix: str, limit: int = 75) 
     return body
 
 
+def lead_quality(prefix: str, suffix: str) -> tuple[str, str]:
+    """頼みを先頭にする。質の決まり文句（masterpiece, best quality など）を頭に置くと、模型は前の語ほど強く効かせるので
+    頼みが 2 番目以降に下がった。決まり文句は質のタグと一緒に後ろへ回す。score_9 のような、頭に無いと効かない札の語だけは頭に残す"""
+    words = [w.strip() for w in (prefix or "").split(",") if w.strip()]
+    head = [w for w in words if w.startswith("score_")]
+    tail = [w for w in words if not w.startswith("score_")]
+    have = {x.strip().lower() for x in (suffix or "").split(",")}
+    tail = [w for w in tail if w.lower() not in have]
+    suffix = ", ".join([x for x in [", ".join(tail), suffix] if x])
+    return (", ".join(head) + ", ") if head else "", suffix
+
+
 def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, seed: int, pipe) -> dict:
     """世代と模型の札に合う頼みの形を作る。SD 系はタグに札の質のタグと描かない物を足し、CLIP の長さに収める。
     新しい世代は札の例どおり、描かない物を受けない模型には渡さず、頼みの効きは模型ごとの名前（guidance_scale か true_cfg_scale）で渡す"""
@@ -318,10 +330,11 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
     prompt = english_only(prompt)
     suffix = quality_tags(info, f)
     tokenizer = getattr(pipe, "tokenizer", None)
+    head, suffix = lead_quality(info.prefix, suffix)
     if f.tags and tokenizer is not None and getattr(pipe, "text_encoder", None) is not None and info.family in ("sdxl", "sd15"):
-        text = fit_tokens(tokenizer, info.prefix, prompt, suffix)
+        text = fit_tokens(tokenizer, head, prompt, suffix)
     else:
-        text = f"{info.prefix}{prompt}" + (f", {suffix}" if suffix else "")
+        text = f"{head}{prompt}" + (f", {suffix}" if suffix else "")
     args = {"prompt": text, "num_inference_steps": steps, f.cfg_key: guidance,
             # 種は CPU の乱数で作る。部品を GPU に出し入れする置き方（offload）では pipe.device が meta や cpu になり、
             # その device の乱数を作ると落ちた。CPU の乱数なら、どの置き方でも同じ種で同じ絵になる
@@ -1717,9 +1730,10 @@ class Studio:
         return two
 
     def draw_anyway(self, text: str, seed: int, on_status=None, size=None, **kw) -> tuple[str, Path]:
-        """描けるまで、軽い設定・小さい大きさ・別の模型・別の種と段を下げて描く。どの段でも描けなかったときだけ、
-        段ごとの理由と次の手を例外にする。前は 1 回落ちただけで「描けませんでした」で止まり、0.5.15 でメモリの見積もりで
-        描く前に止めるようにしてからは、それまで描けていた模型と大きさも止まった"""
+        """描けるまで、軽い設定・小さい大きさ・手元の別の模型（全部）・別の種と段を下げて描く。回数の上限は置かない。
+        前は 3 段を試して「描けませんでした」で止まり、メモリの見積もりが少し超えただけの模型と大きさも描かずに終えた。
+        止めるのは、利用者が止めたとき、描かない頼み（子どもを性的に描く）のとき、メモリに関係の無い同じ失敗が
+        段を全部下げても続くとき（模型の無い・壊れた所は何度試しても同じなので、理由と次の手を返す）"""
         say = on_status or (lambda msg: None)
         tried, why = [], []
         size0 = size or getattr(self.painter, "size", None)
@@ -1737,52 +1751,86 @@ class Studio:
             why.append(f"{label}: {explain(e)}")
             tried.append(label)
 
+        def light():
+            try:
+                self.painter.low_memory = True
+            except AttributeError:
+                pass
+
         try:
             return attempt("そのまま")
         except Exception as e:   # noqa: BLE001  段を下げて描き直す
             fail("そのまま", e)
             first = e
-        heavy = is_oom(first) or type(first).__name__ in ("OverBudget", "MemoryDanger")
-        steps = []
-        if heavy or not isinstance(first, Unsupported):
-            steps.append(("軽い設定・小さい大きさ", dict(size=low_memory_size(size0)), True))
-        steps.append(("別の模型", {}, False))
-        steps.append(("別の種", dict(seed=seed + 7919), False))
-        for label, over, light in steps:
-            if label == "別の模型":
-                m = self._fallback_model(kw)
-                if m is None:
-                    continue
-                say(f"{why[-1]}。{m.name} に替えて描きます")
-                avoid = getattr(self.painter, "avoid", "")
-                if hasattr(self.painter, "unload"):
-                    self.painter.unload()
-                self.painter = Painter(m.repo, m.steps, guidance=m.guidance)
-                self.painter.avoid = avoid
-                self.chosen = (m.name, "前の模型で描けなかったので替えた")
-                over = dict(size=low_memory_size(size0)) if heavy else {}
-            else:
-                say(f"{why[-1]}。{label}で描き直します")
-            if light:
+        heavy = [is_oom(first) or type(first).__name__ in ("OverBudget", "MemoryDanger")]
+        # 大きさの段: 7 割、5 割（512 より小さくしない）
+        sizes = []
+        for k in (0.7, 0.5):
+            w, h = size0
+            s2 = (max(512, int(w * k) // 64 * 64), max(512, int(h * k) // 64 * 64))
+            if s2 not in sizes and s2 != size0:
+                sizes.append(s2)
+        sizes = sizes or [low_memory_size(size0)]
+        if heavy[0] or not isinstance(first, Unsupported):
+            for s2 in sizes:
+                say(f"{why[-1]}。軽い設定・{s2[0]}×{s2[1]} で描き直します")
+                light()
                 try:
-                    self.painter.low_memory = True
-                except AttributeError:
-                    pass
+                    return attempt(f"軽い設定 {s2[0]}×{s2[1]}", size=s2)
+                except Exception as e:   # noqa: BLE001
+                    fail(f"軽い設定 {s2[0]}×{s2[1]}", e)
+                    heavy.append(is_oom(e) or type(e).__name__ in ("OverBudget", "MemoryDanger"))
+        used = {getattr(self.painter, "model", "")}
+        while True:   # 手元の模型を軽い順に全部試す
+            m = self._fallback_model(kw, exclude=used)
+            if m is None:
+                break
+            used.add(m.repo)
+            say(f"{why[-1]}。{m.name} に替えて描きます")
+            avoid = getattr(self.painter, "avoid", "")
+            if hasattr(self.painter, "unload"):
+                self.painter.unload()
+            release_memory()
+            self.painter = Painter(m.repo, m.steps, guidance=m.guidance)
+            self.painter.avoid = avoid
+            self.chosen = (m.name, "前の模型で描けなかったので替えた")
+            over = dict(size=sizes[0]) if any(heavy) else {}
+            if any(heavy):
+                light()
             try:
-                return attempt(label, **over)
+                return attempt(f"別の模型 {m.name}", **over)
             except Exception as e:   # noqa: BLE001
-                fail(label, e)
-        raise RuntimeError("試した順に: " + " / ".join(why) + "。次の手: ほかのアプリを閉じてメモリを空ける、"
-                           "AI のメニューで軽い模型（SDXL 系）を取る、描く大きさを小さくする")
+                fail(f"別の模型 {m.name}", e)
+                heavy.append(is_oom(e) or type(e).__name__ in ("OverBudget", "MemoryDanger"))
+        # 種を替えて、一番小さい大きさで描き続ける。メモリの失敗は空き具合で変わるので、空けながら回し続ける
+        k = 0
+        while True:
+            k += 1
+            s_k = seed + 7919 * k
+            say(f"{why[-1]}。種を替えて（{s_k}）描き直します（{k} 回目）")
+            release_memory()
+            light()
+            try:
+                return attempt(f"別の種 {s_k}", seed=s_k, size=sizes[-1] if any(heavy) else size)
+            except Exception as e:   # noqa: BLE001
+                fail(f"別の種 {s_k}", e)
+                mem = is_oom(e) or type(e).__name__ in ("OverBudget", "MemoryDanger")
+                if not mem and k >= 2 and why[-1].split(": ", 1)[-1] == why[-2].split(": ", 1)[-1]:
+                    break   # メモリに関係の無い同じ失敗が続く。何度描いても同じなので、理由と次の手を返す
+                if mem:
+                    import time as _t
+                    _t.sleep(min(30, 2 * k))   # 裏の糸。ほかのアプリがメモリを返すのを少し待つ
+        raise RuntimeError("試した順に: " + " / ".join(why[-6:]) + "。次の手: AI のメニューで別の模型を取る、"
+                           "頼みの言葉を確かめる")
 
-    def _fallback_model(self, kw):
+    def _fallback_model(self, kw, exclude=()):
         """今の模型の代わりに描ける、手元の模型（点の高い順、軽い物を先に）。ラフ・参考画像はその機能のある世代だけ"""
         try:
             from chatdraw.choose import installed_images
             from chatdraw.models import family as fam
             from chatdraw import ratings
             cur = getattr(self.painter, "model", "")
-            have = [m for m in installed_images() if m.repo != cur and not ratings.is_blocked(m.repo)
+            have = [m for m in installed_images() if m.repo != cur and m.repo not in exclude and not ratings.is_blocked(m.repo)
                     and (kw.get("base") is None or fam(m.family).sketch)
                     and (kw.get("reference") is None or fam(m.family).reference)]
         except Exception:   # noqa: BLE001  一覧が読めなければ模型は替えない
