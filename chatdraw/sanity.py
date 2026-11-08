@@ -46,11 +46,16 @@ MISMATCH_TAGS = {t: 0.45 for t in (
     "single shoe", "single boot", "single thigh boot", "mismatched footwear", "asymmetrical footwear",
     "single earring", "asymmetrical sleeves", "mismatched sleeves", "single sleeve", "single detached sleeve",
     "asymmetrical clothes", "single pauldron", "single gauntlet", "single wrist cuff")}
+# 片方だけの靴・手袋・靴下は、戻した絵で 0.31〜0.55 と読め、通した絵では 0.2 未満だった（library の 137 枚）。
+# 服と袖は通した絵でも 0.28〜0.33 と読めたので、下限を 0.45 のままにする
+MISMATCH_TAGS.update({t: 0.3 for t in MISMATCH_TAGS if t.startswith("single ") and t.split()[-1] in (
+    "boot", "shoe", "glove", "sock", "thighhigh", "kneehigh")})
 # 左右で違う目。頼んでいなければ崩れ
 ODD_EYE_TAGS = {"heterochromia": 0.45, "mismatched pupils": 0.45, "mismatched sclera": 0.45, "uneven eyes": 0.5,
                 "mismatched eyebrows": 0.5}
 # 頼んだ人数と違うと読めるタグ（頼んだのが 1 人のとき）
-MANY_TAGS = {"multiple girls": 0.5, "multiple boys": 0.5, "multiple others": 0.5, "multiple views": 0.5, "multiple persona": 0.5}
+MANY_TAGS = {"multiple girls": 0.5, "multiple boys": 0.5, "multiple others": 0.5, "multiple persona": 0.5}
+# multiple views（三面図）は requestcheck.people が見る（同じ崩れを 2 度数えない）
 UNASKED_COLOR_TAGS = {"yellow eyes": 0.5, "glowing eyes": 0.5}
 # 頼んだ色と違う目の色と読む下限（頼んだ色の確からしさがこれより低く、違う色がこれより高い）
 OTHER_EYE = 0.6
