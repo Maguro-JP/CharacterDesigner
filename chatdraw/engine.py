@@ -1252,6 +1252,8 @@ class Painter:
         elif self.low_memory and base is None:
             size = low_memory_size(size, info.family)
         args = prompt_args(info, f, prompt, self.avoid, steps, self.guidance, seed, pipe)
+        from chatdraw import sent
+        sent.record("描く", args.get("prompt"), args.get("negative_prompt"), prompt_2=args.get("prompt_2"))
         import inspect
         if "callback_on_step_end" in inspect.signature(pipe.__call__).parameters:
             args["callback_on_step_end"] = step
@@ -1410,6 +1412,8 @@ class Painter:
                     generator=torch.Generator("cpu").manual_seed(seed))
         if info.rescale:
             args["guidance_rescale"] = info.rescale
+        from chatdraw import sent
+        sent.record("直す", args.get("prompt"), args.get("negative_prompt"))
         if clip_skip_arg(info, info.family):
             args["clip_skip"] = clip_skip_arg(info, info.family)
         total = max(1, int(steps * strength))

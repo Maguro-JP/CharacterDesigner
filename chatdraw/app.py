@@ -683,6 +683,9 @@ class Window(QMainWindow):
         self.ai_panel.preview_timer.timeout.connect(self._entry_tip)
         self.ai_panel.update_preview()
         self._entry_tip()
+        for w in self._tip_watch():
+            if w is not self.entry:
+                w.installEventFilter(self)   # 欄（と中の表示面）にカーソルを合わせたら、言葉を作り直して出す
         line = self.ai_panel.draw_bar   # 描くボタンはタブの外。どのタブからも押せる
         # 作成枚数は描くボタンのすぐ左に置く（前は指示のタブの中の模型の下にあり、見つからなかった）。
         # 詳しい設定の 1・2・4 枚のボタンと同じ値
@@ -2347,6 +2350,15 @@ class Window(QMainWindow):
         self.note_box.hide()
         self.canvas.setFocus()
 
+    def _tip_watch(self):
+        out = []
+        for w in (getattr(self, "entry", None), getattr(getattr(self, "chat", None), "input", None)):
+            if w is not None:
+                out.append(w)
+                if hasattr(w, "viewport"):
+                    out.append(w.viewport())
+        return out
+
     def on_mouse_back(self):
         """マウスの戻るボタン。打っている欄があればその欄の元に戻す、無ければ絵の元に戻す"""
         self._mouse_step("undo")
@@ -2366,6 +2378,8 @@ class Window(QMainWindow):
 
     def eventFilter(self, obj, e):
         from PySide6.QtCore import QEvent
+        if e.type() == QEvent.ToolTip and obj in self._tip_watch():
+            self._entry_tip()   # カーソルを合わせたときに作り直す（直す・加工のあとにも、最後に渡した言葉を出す）
         if self._entry_keys(obj, e):
             return True
         if obj is getattr(self, "note_edit", None) and e.type() == QEvent.KeyPress and e.key() == Qt.Key_Escape:
@@ -2854,11 +2868,19 @@ class Window(QMainWindow):
         guess = self.ai_panel.preview.text().strip()
         if guess:
             lines += ["", guess]
-        if getattr(self, "last_model_prompt", ""):
+        from chatdraw import sent
+        real = sent.tooltip_lines()
+        if real:   # 描く仕組みが足した言葉・切り詰め・打ち消しを含めた、模型が本当に受け取った文
+            lines += [""] + real
+        elif getattr(self, "last_model_prompt", ""):
             lines += ["", "前に絵の模型に渡した言葉: " + self.last_model_prompt]
         # 長い英語の言葉で横に広がり画面からはみ出さないよう、折り返す形（リッチテキスト）で出す
         import html
         self.entry.setToolTip("<qt>" + "<br>".join(html.escape(t) for t in lines) + "</qt>")
+        chat_in = getattr(getattr(self, "chat", None), "input", None)
+        if chat_in is not None:   # チャットの欄にも、模型に本当に渡した言葉を出す
+            chat_lines = ["AI に話しかける欄です。描く・直す・加工する・設定を変える、を頼めます"] + ([""] + real if real else [])
+            chat_in.setToolTip("<qt>" + "<br>".join(html.escape(t) for t in chat_lines) + "</qt>")
 
     # ---- 消す・ごみ箱 ----
     def delete_images(self, paths: list[str], ask: bool = True) -> str | None:
