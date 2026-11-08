@@ -230,12 +230,36 @@ def order(tags: list[str]) -> list[str]:
         head += [t for t in ("adult woman", "adult man") if t in tags]
     body = [t for t in tags if t in _BODY]
     rest = [t for t in tags if t not in head and t not in body]
-    return head + rest + body
+    return head + _held(rest) + body
+
+
+_HOLD = ("holding", "carrying")
+
+
+def _held(tags: list[str]) -> list[str]:
+    """「剣を持って」は sword, holding と並ぶ。持つ物と持つ動きが離れたタグだと、模型は物を背景に置き、手は空のままにした。
+    すぐ前の物と組んだ Danbooru のタグ（holding sword）を足す。物の語も残す"""
+    out = []
+    for t in tags:
+        if t in _HOLD and out and out[-1] not in _HOLD and not out[-1].startswith(_HOLD):
+            out += [f"{t} {out[-1]}", t]   # 素の holding も残す（持つ頼みかを見る所が、この語で見ている）
+        else:
+            out.append(t)
+    return out
 
 
 def negatives(text: str) -> list[str]:
-    """打ち消した物（帽子なし → hat）。描かない物（negative prompt）に足す"""
-    return _flat(_scan(text)[1])
+    """打ち消した物（帽子なし → hat）。描かない物（negative prompt）に足す。
+    同じ頼みで描く物に同じ語が入る物（帽子なしで麦わら帽子を持つ → straw hat）は、描かない物を「身に着けた物」に狭める。
+    hat のまま打ち消すと、描く物の straw hat まで打ち消し合い、持たせた帽子が消えた"""
+    found, negs, _ = _scan(text)
+    want = [t.lower() for t in _flat(found)]
+    out = []
+    for n in _flat(negs):
+        if any(re.search(r"(?<![a-z])" + re.escape(n.lower()) + r"(?![a-z])", w) for w in want if w != n.lower()):
+            n = f"wearing {n}"
+        out.append(n)
+    return out
 
 
 _FILLER = set("のがをにでとはもへやてっいるたなだですますしたいる、。・ 　!！?？")

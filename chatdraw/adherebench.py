@@ -20,8 +20,13 @@ SEED = 7
 
 
 def sentences() -> list[str]:
-    from chatdraw.tests.test_words import SENTENCES
-    return list(SENTENCES)
+    """試験の頼みの 30 本。試験の組を読むと PySide6 が要るので、文の表だけを読む（Actions の描く機械には画面の部品を入れない）"""
+    import ast
+    src = (Path(__file__).resolve().parent / "tests" / "test_words.py").read_text(encoding="utf-8")
+    for node in ast.parse(src).body:
+        if isinstance(node, ast.Assign) and any(getattr(t, "id", "") == "SENTENCES" for t in node.targets):
+            return list(ast.literal_eval(node.value))
+    raise LookupError("SENTENCES が test_words.py にありません")
 
 
 def draw(out: Path, repo: str, shard: int, shards: int, seed: int = SEED):
