@@ -19,7 +19,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-      - run: pip install -q --index-url https://download.pytorch.org/whl/cpu torch && pip install -q pillow transformers timm huggingface_hub
+      - run: pip install -q --index-url https://download.pytorch.org/whl/cpu torch torchvision && pip install -q pillow transformers huggingface_hub
       - name: 人の枠を数える
         run: |
           python - <<'EOF'
