@@ -308,7 +308,9 @@ def fill_menu(w, menu, store: Store):
         inside = [s for s in items if s.group == g]
         if not inside and g not in ("user", "chain"):
             continue
-        sub = menu.addMenu(label)
+        from PySide6.QtWidgets import QMenu
+        sub = QMenu(label, menu)   # 親をはっきり持たせる（文字だけで足すと、中の項目が先に消えることがあった）
+        menu.addMenu(sub)
         sub.setToolTipsVisible(True)
         for s in inside:
             _action(w, sub, s, ("★ " if s.id in favs else "") + s.label, store)

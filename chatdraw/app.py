@@ -2699,14 +2699,17 @@ class Window(QMainWindow):
         m.addAction("ディレクトリを開く", lambda: self.open_folder(path)).setToolTip("この絵の置いてあるディレクトリを開きます")
         m.addAction("3D に進む…", lambda: self.open_3d(path)).setToolTip("この絵から 3D のキャラデザに進む（最初の一歩: 厚みのある板の模型）")
         from chatdraw import share
-        sns = m.addMenu("SNS に送る")
+        sns = QMenu("SNS に送る", m)
+        m.addMenu(sns)
         for name in share.SERVICES:
             act = sns.addAction(f"{name} に送る", lambda n=name: share.post(self, n, path, self._prompt_text(path)))
             act.setEnabled(share.enabled(self.settings, name))
         if not any(share.enabled(self.settings, n) for n in share.SERVICES):
             sns.setToolTip("設定の「SNS 連携」で選ぶと使えます")
             sns.setEnabled(False)
-        self.common_menu(m.addMenu("そのほか"))
+        other = QMenu("そのほか", m)
+        m.addMenu(other)
+        self.common_menu(other)
         m.addSeparator()
         m.addAction("消す（ごみ箱へ）…", lambda: self.delete_images([path])).setToolTip("ごみ箱から戻せます")
         if not run:
@@ -2974,16 +2977,19 @@ class Window(QMainWindow):
         shortcuts.fill_menu(self, m, self.shortcut_store())   # ★・よく使う物を上に、残りは処理の種類ごと
         m.addSeparator()
         # 道具・表示・選択は左端の帯やメニューと同じ操作を足す（名前もキーも、今の道具の印もそろう）
-        tools = m.addMenu("道具")
+        tools = QMenu("道具", m)
+        m.addMenu(tools)
         for key in ("pen", "eraser", "eyedropper", "select", "lasso", "polygon", "hand", "redpen"):
             if key in self.tool_actions:
                 tools.addAction(self.tool_actions[key])
-        view = m.addMenu("表示")
+        view = QMenu("表示", m)
+        m.addMenu(view)
         for k in ("fit", "actual", "rotate_left", "rotate_right", "rotate_reset", "flip_view", "view_reset", "grid"):
             view.addAction(self.shared[k])
         m.addAction(self.shared["add_layer"])
         if c.selection is not None:
-            sm = m.addMenu("選択範囲")
+            sm = QMenu("選択範囲", m)
+            m.addMenu(sm)
             for k in ("sel_clear", "sel_fill", "copy", "cut"):
                 sm.addAction(self.shared[k])
             sm.addAction(self.shared["deselect"])
@@ -3002,7 +3008,8 @@ class Window(QMainWindow):
         m.addSeparator()
         m.addAction(self.shared["new"])
         m.addAction("画像を開く…", self.open_image).setToolTip("作業ファイル・PSD・ORA・絵を開きます")
-        save = m.addMenu("保存・書き出し")
+        save = QMenu("保存・書き出し", m)
+        m.addMenu(save)
         save.setToolTipsVisible(True)
         for k in ("save", "save_as", "export_flat", "export_view"):
             save.addAction(self.shared[k])
@@ -3020,6 +3027,7 @@ class Window(QMainWindow):
 
     def common_menu(self, m):
         """どの欄の右クリックにも出す操作。新しく描く・開く・ショートカット"""
+        from PySide6.QtWidgets import QMenu
         from chatdraw import shortcuts
         m.setToolTipsVisible(True)
         m.addAction("新しく描く", self.start_new_drawing).setToolTip("書く欄に移ります。描いてほしい絵を書いて Enter で描きます")
@@ -3028,7 +3036,9 @@ class Window(QMainWindow):
         m.addAction("画像を開いて直す…", self.open_to_edit).setToolTip("手元の絵を開き、赤ペンで囲んで直せる形にします")
         if "redpen" in getattr(self, "tool_actions", {}):
             m.addAction("赤ペンで囲む（T）", self.tool_actions["redpen"].trigger).setToolTip("絵の上で囲んで指示を書き、「描く」で囲んだ所だけを直します")
-        shortcuts.fill_menu(self, m.addMenu("ショートカット"), self.shortcut_store())
+        sc = QMenu("ショートカット", m)
+        m.addMenu(sc)
+        shortcuts.fill_menu(self, sc, self.shortcut_store())
         return m
 
     def area_menu(self, key: str):
