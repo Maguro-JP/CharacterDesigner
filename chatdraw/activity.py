@@ -66,6 +66,12 @@ class ActivityPanel(QWidget):
         self.timeline.setObjectName("stateDetail")
         self.timeline.setWordWrap(True)
         self.timeline.setToolTip("工程ごとにかかった時間。止まったときは、止まった工程に「ここで止まりました」と出ます")
+        # 担当編集者の工程と状態（chatdraw/director.py の「担当編集者: 〜」の知らせ）。どの工程で何回目か、何で描き直したかを出す
+        self.editor = QLabel("")
+        self.editor.setObjectName("stateDetail")
+        self.editor.setWordWrap(True)
+        self.editor.setToolTip("担当編集者が進めている工程と、描き直しの理由")
+        self.editor_log: list[str] = []
         self.stage_times: dict[str, float] = {}
         self.stage_key = ""
         self.stage_at: float | None = None
@@ -107,6 +113,7 @@ class ActivityPanel(QWidget):
         top.addWidget(self.bar)
         top.addWidget(self.detail)
         top.addWidget(self.timeline)
+        top.addWidget(self.editor)
         top.addWidget(self.alive)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 6, 8, 8)
@@ -163,11 +170,17 @@ class ActivityPanel(QWidget):
         self.tick.start()
         self._show_time()
         self.stage_times, self.stage_key, self.stage_at, self.stopped_at = {}, "", time.time(), ""
+        self.editor_log = []
+        self.editor.setText("")
         self._enter(STAGES[0][0])
         self.begun.emit()
         self.changed.emit(f"{mode}: 準備中", -1)
 
     def status(self, msg: str, step: int | None = None, total: int | None = None):
+        if msg.startswith("担当編集者:"):
+            self.editor_log.append(msg)
+            self.editor.setText(msg)
+            self.editor.setToolTip("\n".join(self.editor_log[-12:]))
         for i, (_short, head) in enumerate(STAGES):
             if msg.startswith(head) and i != self.stage:
                 self._mark(i)
