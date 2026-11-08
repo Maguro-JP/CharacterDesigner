@@ -43,12 +43,15 @@ def _edge(g) -> float:
 
 def _neighbor(g) -> float:
     """隣の画素との相関（-1〜1）。絵は線も塗りも隣とつながるので高く、ノイズは隣と無関係なので 0 に近い"""
-    import numpy as np
-    x = np.asarray(g, dtype=np.float32)
-    a, b = x[:, :-1].ravel(), x[:, 1:].ravel()
-    if a.std() < 1e-6 or b.std() < 1e-6:
+    # numpy を使わない（描く道の途中で読み込むと、模型の部品を差し替えた試験で二重に読まれた）。
+    # 相関は 分散(a-b) = 分散 a + 分散 b - 2 共分散 から出す。差は 1/2 にして 0〜255 に収める
+    w, h = g.size
+    a, b = g.crop((0, 0, w - 1, h)), g.crop((1, 0, w, h))
+    va, vb = ImageStat.Stat(a).var[0], ImageStat.Stat(b).var[0]
+    if va < 1e-6 or vb < 1e-6:
         return 1.0
-    return round(float(np.corrcoef(a, b)[0, 1]), 3)
+    vd = ImageStat.Stat(ImageChops.subtract(a, b, scale=2.0, offset=128)).var[0] * 4
+    return round((va + vb - vd) / 2 / (va * vb) ** 0.5, 3)
 
 
 def measure(img) -> dict:
@@ -74,10 +77,17 @@ def _mean_diff(a, b, mask=None) -> float:
     return ImageStat.Stat(d, m).mean[0]
 
 
+def _flat(img) -> bool:
+    g = _gray(img)
+    return ImageStat.Stat(g).stddev[0] < LUMA_STD_MIN
+
+
 def slack(img, before=None, mask=None) -> dict:
     """サボりの検品。bad に崩れの言葉、stats に数字。before があれば直しの検品（変わったか、外が変わっていないか）"""
     bad, stats = [], {}
-    if min(img.size) >= MIN_SIDE:
+    # 直しで、元の絵がそもそも白紙（絵になっていない）なら、直したあとの絵全体を絵かどうかで問わない（頼んだのは囲みの中だけ）
+    blank = before is not None and _flat(before)
+    if min(img.size) >= MIN_SIDE and not blank:
         s = stats.update(measure(img)) or stats
         if s["luma_std"] < LUMA_STD_MIN or s["colors"] < COLORS_MIN:
             bad.append("絵になっていない: 単色に近い（形が無い）")
@@ -90,14 +100,17 @@ def slack(img, before=None, mask=None) -> dict:
             inside = _mean_diff(img, before, mask)
             outside = _mean_diff(img, before, ImageChops.invert(mask.convert("L")))
             stats.update(inside=round(inside, 2), outside=round(outside, 2))
-            if inside <= SAME_MAX:
+            # 元の囲みの中が白紙（単色）のときは「変わっていない」を問わない。白紙に白で直したのか、描き忘れたのかを
+            # この数字では分けられない（描き忘れは、直したあとの絵の検品が拾う）
+            region = before.convert("L").crop(mask.convert("L").getbbox() or (0, 0, 1, 1))
+            if inside <= SAME_MAX and ImageStat.Stat(region).stddev[0] >= LUMA_STD_MIN:
                 bad.append("直していない: 頼んだ所が元の絵とほぼ同じ")
             if outside > OUTSIDE_MAX:
                 bad.append("頼んだ所の外が変わった")
         else:
             whole = _mean_diff(img, before)
             stats["changed"] = round(whole, 2)
-            if whole <= SAME_MAX:
+            if whole <= SAME_MAX and not blank:
                 bad.append("直していない: 元の絵とほぼ同じ")
     return {"bad": bad, "stats": stats}
 
@@ -108,7 +121,7 @@ PERSON = ("1girl", "1boy", "girl", "boy", "woman", "man", "person", "solo", "cha
 def no_person(prompt: str, asked: dict) -> list[str]:
     """人を頼んだのに、頼んだ物の検品（requestcheck）が人を 1 人も読まなかった"""
     want = {t.strip().lower() for t in prompt.split(",")}
-    if not asked.get("readable") or not want & set(PERSON):
+    if not asked.get("readable") or "read" not in asked or not want & set(PERSON):
         return []
     got = {str(t).lower() for t in (asked.get("read") or {})}
     return [] if got & set(PERSON) else ["人を頼んだのに人がいない"]

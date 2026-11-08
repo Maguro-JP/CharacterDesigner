@@ -1795,7 +1795,7 @@ class Studio:
             self.painter.guidance = guidance0
         image, left, seed = best
         # 検品できなかった絵（部品が無い、止めてある）は、崩れが無いのではなく見ていないだけなので、通ったことにしない
-        checked = bool(self.hand_rounds) and asked["readable"] and odd["readable"]
+        checked = bool(getattr(self, "hand_rounds", None)) and asked["readable"] and odd["readable"]
         if left:   # 通らなかった絵を、出来た絵として渡さない。残った崩れを先に見せる
             say(f"検品を通る絵が {len(redraws)} 回描いても出ませんでした（途中）。残った崩れ: " + "、".join(left[:5]))
         elif not checked:
@@ -2223,7 +2223,6 @@ class Studio:
                                      reference, ref_scale, blend=check)
                 found = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, out, m_try)] if check else []
                 # サボりの検品: 直していない・外を変えた・絵になっていない（加工で絵全体を描き替えるときは外を問わない）
-                from chatdraw import director
                 plan.enter("検品", f"{k} か所目の {n_try + 1} 回目を検品しています")
                 lazy = director.slack(out, before, m_try if check else None)
                 found += [f"{k} か所目: {b}" for b in lazy["bad"]]
