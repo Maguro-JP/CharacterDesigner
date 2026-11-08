@@ -199,9 +199,26 @@ def vary(prompt: str, seed: int, tags: bool = True, text: str = "") -> str:
     if not chosen:
         return prompt
     if not tags:
-        return prompt.rstrip(" .") + ", " + ", ".join(chosen[k][1] for k in ORDER if k in chosen) + "."
+        keys = [k for k in ORDER if k in chosen][:room_for(prompt)]
+        return prompt.rstrip(" .") + ", " + ", ".join(chosen[k][1] for k in keys) + "."
     out = prompt.rstrip(", ")
+    room = room_for(prompt)
     for k in ORDER:
+        if room <= 0:
+            break
         if k in chosen and pieces(f"{out}, {chosen[k][0]}") <= TAG_BUDGET:
             out = f"{out}, {chosen[k][0]}"
+            room -= 1
     return out
+
+
+def room_for(prompt: str) -> int:
+    """足してよい項目の数。頼みの語が多いほど少なくする。8 項目を毎回足すと、頼んだ語より足した語の方が多くなり、
+    頼み（持ち物、服の色）が薄まって描かれなかった。基準の体の言葉は頼みではないので数えない"""
+    try:
+        from chatdraw.jaterms import _BODY
+    except Exception:   # noqa: BLE001
+        _BODY = ()
+    asked = [t for t in (x.strip() for x in prompt.split(",")) if t and t not in _BODY
+             and t.lower() not in ("1girl", "1boy", "solo", "1other")]
+    return max(1, len(ORDER) - len(asked))
