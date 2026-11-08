@@ -1225,10 +1225,12 @@ class FixAndBatchTest(unittest.TestCase):
         self.assertEqual(len(fixes), 2)                               # 印ごとに 1 回ずつ直す
         self.assertEqual(len(self.w.canvas.layers), layers + 1)      # 直した所は新しいレイヤー
         self.assertEqual(self.w.canvas.redpen.marks, [])             # 直したら印は消える
-        layer = Image.open(self.w.images[-1])
-        self.assertEqual(layer.size, (200, 160))                      # 絵と同じ大きさで重ね、
-        self.assertEqual(layer.getpixel((5, 150))[3], 0)              # 直していない所は透かす（下のレイヤーを隠さない）
-        self.assertEqual(layer.getpixel((50, 50))[3], 255)
+        # 直した結果は画像のファイルにせず、直した所だけのレイヤーにだけ置く（履歴に出さない）
+        top = max(self.w.canvas.layers, key=lambda l: getattr(l, "redpen", False))
+        img = top.image
+        self.assertEqual((img.width(), img.height()), (200, 160))    # 絵と同じ大きさで重ね、
+        self.assertEqual(img.pixelColor(5, 150).alpha(), 0)          # 直していない所は透かす（下のレイヤーを隠さない）
+        self.assertEqual(img.pixelColor(50, 50).alpha(), 255)
 
     def test_fix_without_marks_draws_new(self):
         """直す所が無いのに「直す」のままの頼みは、止めずに新しく描く（赤ペンに引っ張られ続けないように）"""
