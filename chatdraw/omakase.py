@@ -238,7 +238,7 @@ class Omakase:
         tags = fam(m.family).tags
         if tags not in self._prompts:
             from chatdraw.engine import refused
-            p = self.studio.words.to_prompt(text, tags=tags)
+            p = _char(self.studio, self.studio.words.to_prompt(text, tags=tags))
             p = f"{p}, {self.style}" if self.style else p
             if refused(p):
                 raise ValueError("子どもを性的に描く頼みは描きません")
@@ -287,7 +287,7 @@ class Omakase:
             if k:
                 say(f"検品を通らなかったので、構図を描き直しています（{k + 1} 回目）")
             painter = self.painter_for(m) if m is not None else self.studio.painter
-            prompt = self._prompt(text, m) if m is not None else self.studio.words.to_prompt(text)
+            prompt = self._prompt(text, m) if m is not None else _char(self.studio, self.studio.words.to_prompt(text))
             # 書かれていない所（背景・ポーズ・髪・服・表情・構図・光）を種で選んで足す。足さないと毎回同じ無地の立ち絵になった
             from chatdraw.engine import vary_background
             # 頼んだ物の検品は頼みの言葉だけで見る。足した背景や服まで「描かれていない」と数え、頼みでない言葉で描き直していた
@@ -414,8 +414,8 @@ def _compose_two(studio, text, seed, two, size, say):
     from chatdraw import twostage
     from chatdraw.engine import english_only, vary_background
     comp, render = two
-    sentence = vary_background(english_only(studio.words.to_prompt(text, tags=False)), seed, tags=False, text=text)
-    tags = vary_background(english_only(studio.words.to_prompt(text, tags=True)), seed, text=text)
+    sentence = vary_background(english_only(_char(studio, studio.words.to_prompt(text, tags=False))), seed, tags=False, text=text)
+    tags = vary_background(english_only(_char(studio, studio.words.to_prompt(text, tags=True))), seed, text=text)
     keep = studio.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}"
     path = twostage.run_stages(sentence, tags, seed, comp.repo, render.repo, tuple(size or (832, 1216)), keep,
                                twostage.VARIANTS[0], say=say, stopped=lambda: getattr(studio.painter, "stop", False))
@@ -450,3 +450,9 @@ def draw(studio, text: str, seed: int, say, size=None, meta: dict | None = None,
                                          omakase=dict(parts=o.plan.parts, plan=o.plan.summary(), steps=o.log)))
     studio._inspect(path, say)
     return prompt, path
+
+
+def _char(studio, prompt: str) -> str:
+    """開いたキャラクターの設定の言葉を前に足す（engine.Studio._with_character。持たない描き手はそのまま）"""
+    f = getattr(studio, "_with_character", None)
+    return f(prompt) if callable(f) else prompt
