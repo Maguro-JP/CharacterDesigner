@@ -45,10 +45,12 @@ class Library:
         作品ではない。絵のファイルには触らない。1 度見た項目には印を付け、次に開くときは読み直さない"""
         from chatdraw.workkeep import is_redpen_result
         keep, changed = [], False
+        self.dropped_redpen = []   # 外した絵の置き場。アプリがごみ箱へ移す（ファイルは消さない）
         for item in self.items:
             if item.get("kind") == "work" and not item.get("seen"):
                 changed = True
                 if Path(item.get("path", "")).is_file() and is_redpen_result(item["path"]):
+                    self.dropped_redpen.append(item["path"])
                     continue
                 item["seen"] = True
             keep.append(item)
