@@ -4784,6 +4784,10 @@ class Window(QMainWindow):
             return
         self.work_save()   # 今の絵の作業を残す（開き直して同じ絵を出せば元のとおりに戻る）
         self.wait_io()   # 裏で書いている保存を書き終えてから閉じる（書きかけの作業ファイルを残さない）
+        if getattr(self, "_io_queue", None) is not None:   # 保存の糸を終える（窓ごとに残ると増え続けた）
+            self._io_closed = True
+            self._io_queue.put(None)
+            self._io_queue = None
         self.layout_store.setValue("running", 0)   # 正しく閉じた印（次の起動で戻すかを聞かない）
         # 次に開いたときも同じ並びにする
         self.layout_store.setValue("geometry9", self.saveGeometry())
@@ -5677,17 +5681,32 @@ class Window(QMainWindow):
         if getattr(self, "_io_queue", None) is None:
             self._io_queue = queue.Queue()
 
+            import weakref
+            ref = weakref.ref(self)
+
+            # 裏の糸は窓を弱くだけ持つ。強く持つと、閉じた窓が消えずに残り（窓を開くたびに 1 本ずつ増えた）、
+            # 消えた窓へ答えを返そうとしてアプリごと落ちた。閉じたら None を入れて糸を終える
             def loop(q):
                 while True:
-                    fn, key = q.get()
+                    item = q.get()
+                    if item is None:
+                        q.task_done()
+                        return
+                    fn, key = item
                     try:
                         v = fn()
                     except BaseException as e:   # noqa: BLE001  裏で落ちても画面の糸に必ず返す
                         v = e
-                    fn = None   # 次を待つ間、終わった仕事を持ち続けない
-                    self._bg_emit(key, v)
+                    fn = item = None   # 次を待つ間、終わった仕事を持ち続けない
+                    w = ref()
+                    if w is not None and not getattr(w, "_io_closed", False):
+                        try:
+                            w._bg_emit(key, v)
+                        except RuntimeError:   # 窓の C++ の側がもう消えている
+                            pass
+                    w = None
                     q.task_done()
-            threading.Thread(target=loop, args=(self._io_queue,), daemon=True).start()
+            threading.Thread(target=loop, args=(self._io_queue,), name="io", daemon=True).start()
         self._io_queue.put((work, self._bg_register(done, name)))
 
     def _bg_done(self, got):

@@ -184,3 +184,32 @@ class StopWordTest(unittest.TestCase):
         w.stop.assert_not_called()
         commands.handle(w, "止めて", picked=(stop, ""))
         w.stop.assert_called_once()
+
+
+class IoThreadTest(unittest.TestCase):
+    """窓を開いて閉じても、保存の裏の糸が残らないこと（残ると窓ごとに増え、消えた窓へ返してアプリが落ちた）"""
+
+    def test_io_thread_ends_on_close(self):
+        import threading
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from chatdraw.app import Window
+        from chatdraw.engine import Studio
+        from chatdraw.tests.test_chatdraw import FakePainter, FakeWords
+        from chatdraw.tests.test_editing import app
+        app()
+        before = sum(t.name == "io" for t in threading.enumerate())
+        with TemporaryDirectory() as tmp:
+            for _ in range(3):
+                w = Window(Studio(FakeWords(), FakePainter(), Path(tmp)))
+                got = []
+                w.run_io(lambda: 1, got.append)
+                w.wait_io()
+                w.closing_checked = True
+                w.close()
+                QApplication.processEvents()
+        import time
+        end = time.time() + 3
+        while sum(t.name == "io" for t in threading.enumerate()) > before and time.time() < end:
+            time.sleep(0.05)
+        self.assertEqual(sum(t.name == "io" for t in threading.enumerate()), before)
