@@ -1834,6 +1834,23 @@ class Studio:
     FIX_ROUNDS = None    # 描いたあと、崩れた所を直して検品し直す回数
     REDRAW_TRIES = None  # 直しても検品を通らないとき、種を変えて描き直す回数
 
+    @staticmethod
+    def _own_check(image, prompt: str):
+        """作画監督（chatdraw/origqc.py の数字の検品）の崩れと、直す囲み。直す囲みは顔と髪だけにする。
+        人物の囲み（光・影・頭身など）は絵のほとんどを覆い、囲みの中を描き直すと絵全体の描き直しになるので、
+        崩れの数には入れる（一番崩れの少ない回を選ぶのに使う）が、描き直す所にはしない。測れなかった絵は崩れとして数える"""
+        try:
+            from chatdraw import origqc
+            own = origqc.check(image, prompt)
+        except Exception as e:
+            return [f"数字の検品で止まりました（{type(e).__name__}: {e}）"], []
+        return list(own.get("bad", [])), [x for x in own.get("regions", []) if x[1] in ("face", "hair")]
+
+    @staticmethod
+    def _own_words(kind: str) -> str:
+        from chatdraw import origqc
+        return origqc.FIX_WORDS.get(kind, "")
+
     def _fix_hands(self, image, prompt: str, seed: int, say):
         """1 回描いて終わりにしない。描いた絵の手・足・顔を検品し、崩れた所だけを直して、もう一度検品する。
         崩れが消えるか FIX_ROUNDS 回で止める。直すのは手の枠の中だけで、枠の外は元の絵のまま（Painter.redraw）"""
@@ -1863,6 +1880,8 @@ class Studio:
         for r in counter(None if self.FIX_ROUNDS is None else self.FIX_ROUNDS + 1):
             say(f"検品しています（手と指・{r + 1} 回目）")
             res = handcheck.check(image, asked=prompt)
+            own_bad, own_regions = self._own_check(image, prompt)
+            res = {**res, "bad": list(res["bad"]) + own_bad}
             self.hand_rounds.append({"round": r, "bad": res["bad"]})
             if best is None or len(res["bad"]) < best[0]:
                 best = (len(res["bad"]), image, list(res["bad"]), res)
@@ -1871,6 +1890,7 @@ class Studio:
                 say(f"直しで崩れが増えた（{best[0]} → {len(res['bad'])} 件）ので、前の絵に戻して直し直します")
                 image, res = best[1], best[3]
             regions = handcheck.bad_regions(res)   # 手・足・顔のうち、崩れの見つかった所
+            regions += [x for x in own_regions if x not in regions]   # 作画監督（origqc）が見つけた顔・髪の崩れ
             if not regions and not getattr(self, "_detail_done", False) and not getattr(self.painter, "stop", False):
                 # 検品を通っても終わりにしない。人は細部を必ず見るので、手・足・顔の枠の中だけをもう一度丁寧に描かせ、
                 # 検品し直して崩れが増えなければ使う（検品は、くっついた指や薄く出た指をまだ見逃す）
@@ -1903,7 +1923,7 @@ class Studio:
             for (x0, y0, x1, y1), _kind in regions:
                 cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, y1 - y0) * reach
                 d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
-            words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in regions))
+            words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS.get(k) or self._own_words(k) for _b, k in regions))
             # 回を重ねるほど強く描き直す（弱いままだと崩れた指の形をなぞり、何回直しても同じ崩れが残った）
             image = self.painter.redraw(f"{prompt}, {words}", seed + 77 * (r + 1), image, mask, strength=strength)
         return done(image)

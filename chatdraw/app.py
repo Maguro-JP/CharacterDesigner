@@ -83,7 +83,7 @@ import re  # noqa: E402
 
 from PySide6.QtCore import QObject, QSettings, QSize, Qt, QThread, Signal  # noqa: E402
 from PySide6.QtGui import QAction, QActionGroup, QColor, QIcon, QPalette, QPixmap  # noqa: E402
-from PySide6.QtWidgets import (QTabWidget, QApplication, QDockWidget, QFileDialog,  # noqa: E402
+from PySide6.QtWidgets import (QAbstractItemView, QTabWidget, QApplication, QDockWidget, QFileDialog,  # noqa: E402
                                QHBoxLayout, QLineEdit, QListWidget, QListWidgetItem, QMainWindow, QMessageBox,
                                QCheckBox, QColorDialog, QComboBox, QFormLayout, QLabel, QProgressBar, QPushButton, QSlider, QSpinBox, QTextEdit, QToolBar, QVBoxLayout, QWidget)
 
@@ -779,6 +779,8 @@ class Window(QMainWindow):
         hist_del = QAction("消す（ごみ箱へ）", self.history, shortcut="Delete", shortcutContext=Qt.WidgetWithChildrenShortcut)
         hist_del.triggered.connect(lambda: self.delete_images([it.data(Qt.UserRole) for it in self.history.selectedItems()]))
         self.history.addAction(hist_del)
+        # Ctrl や Shift を押しながら選ぶと何枚も選べる（並べて比べる・まとめて消すため）
+        self.history.setSelectionMode(QAbstractItemView.ExtendedSelection)
         hist = QDockWidget("履歴", self)
         hist.setWidget(self.activity)
         hist.setObjectName("history")
@@ -1056,6 +1058,10 @@ class Window(QMainWindow):
                   "rotate_reset", "flip_view", "view_reset", None, "grid", "op_history"):
             view.addAction(S[k]) if k else view.addSeparator()
         view.addSeparator()
+        self.compare_action = QAction("描いた絵を並べて比べる", self, shortcut="Ctrl+Shift+K", triggered=self.compare_images)
+        self.compare_action.setToolTip("履歴で選んだ絵（選んでいなければ新しい 4 枚）を横に並べて比べます（Ctrl+Shift+K）")
+        view.addAction(self.compare_action)
+        view.addSeparator()
         from chatdraw.timelapse import Recorder
         self.recorder = Recorder()
         self.recorder.enabled = self.settings.get("timelapse") == "記録する"
@@ -1280,6 +1286,12 @@ class Window(QMainWindow):
         self._look(themes.current)
         self._show_model()
         help_menu = self.menuBar().addMenu("ヘルプ")
+        # 操作の名前で探して呼ぶ。メニューの奥の操作も、名前の一部を打てば呼べる
+        self.palette_action = QAction("操作を探す…", self, shortcut="Ctrl+K", shortcutContext=Qt.ApplicationShortcut,
+                                      triggered=self.open_palette)
+        self.palette_action.setToolTip("操作の名前の一部を打って、メニューの操作を探して呼びます（Ctrl+K）")
+        help_menu.addAction(self.palette_action)
+        help_menu.addSeparator()
         help_menu.addAction(S["tour"])
         help_menu.addAction(QAction("操作方法", self, triggered=lambda: self.open_help("manual")))
         help_menu.addAction(QAction("落ちた記録を開く", self, triggered=self.open_crashlog))
@@ -2567,6 +2579,26 @@ class Window(QMainWindow):
                                       "この絵は学びの記録がありません（前の版で描いた絵です）"), 4000)
         return ok
 
+    def open_palette(self):
+        from chatdraw.palette import CommandPalette
+        self.cmd_palette = CommandPalette(self)
+        self.cmd_palette.open()
+        return self.cmd_palette
+
+    def compare_images(self):
+        """履歴で選んだ絵を並べる。1 枚以下なら新しい順に 4 枚まで"""
+        from chatdraw.palette import CompareDialog
+        items = [it for it in self.history.selectedItems() if it.data(Qt.UserRole)]
+        if len(items) < 2:
+            items = [self.history.item(r) for r in range(min(4, self.history.count()))]
+            items = [it for it in items if it.data(Qt.UserRole)]
+        if len(items) < 2:
+            self.statusBar().showMessage("比べる絵が 2 枚以上ありません。描くと履歴に並びます", 6000)
+            return None
+        self.compare = CompareDialog(self, [(it.data(Qt.UserRole), it.toolTip()) for it in items[:8]])
+        self.compare.open()
+        return self.compare
+
     def _history_menu(self, pos, run: bool = True):
         from PySide6.QtWidgets import QMenu
         it = self.history.itemAt(pos)
@@ -2579,6 +2611,7 @@ class Window(QMainWindow):
             return None
         m = QMenu(self)
         m.addAction("この絵を出す", lambda: self.show_history_image(path))
+        m.addAction(self.compare_action)
         m.addAction("この絵を出して固定する", lambda: (self.show_history_image(path), self.pin_action.setChecked(True)))
         if self.pin_action.isChecked():
             m.addAction("固定を外す（最新の絵を出す）", lambda: self.pin_action.setChecked(False))

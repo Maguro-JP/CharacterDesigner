@@ -155,5 +155,17 @@ class RedrawTest(unittest.TestCase):
         self.assertFalse(r["readable"])
 
 
+class CountBoxesTest(unittest.TestCase):
+    """人の枠の数え方: 入れ子の枠（同じ人の上半身）と背景の小さな人影を数えない"""
+
+    def test_nested_and_small(self):
+        from chatdraw import sanity
+        whole, upper = [41, 16, 398, 635], [41, 14, 396, 448]
+        self.assertEqual(sanity.count_boxes([upper, whole]), 1)
+        self.assertEqual(sanity.count_boxes([whole, [600, 10, 640, 60]]), 1)
+        self.assertEqual(sanity.count_boxes([[0, 0, 300, 600], [320, 0, 620, 600]]), 2)
+        self.assertEqual(sanity.count_boxes([]), 0)
+
+
 if __name__ == "__main__":
     unittest.main()

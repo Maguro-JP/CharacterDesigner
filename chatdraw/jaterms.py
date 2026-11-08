@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 
-from chatdraw.body import WOMAN
+from chatdraw.body import TAGS, WOMAN
 
 COLORS = {"赤": "red", "青": "blue", "黒": "black", "白": "white", "金": "blonde", "銀": "silver", "緑": "green", "茶": "brown",
           "ピンク": "pink", "紫": "purple", "黄": "yellow", "オレンジ": "orange", "水色": "light blue", "紺": "navy blue", "灰": "grey"}
@@ -214,12 +214,52 @@ def tags_from(text: str) -> list[str]:
     """日本語の頼みから拾った描く物のタグ（順は頼みの中の順）。打ち消した物は入れない"""
     found, negs, _ = _scan(text)
     neg = set(_flat(negs))
-    return _count(text, [t for t in _flat(found) if t not in neg])
+    return order(_count(text, [t for t in _flat(found) if t not in neg]))
+
+
+_HEAD = ("1girl", "1boy", "1other", "2girls", "3girls", "4girls", "2boys", "3boys", "4boys", "multiple people", "solo")
+# 女性の基準の体の言葉（chatdraw/body.py）。頼みの語より前にあると、CLIP の 75 語片の後ろへ頼みの場所・持ち物・ポーズが押し出され、
+# 弱く効くか切り捨てられた（「白いビキニの女性が砂浜で日よけ」で、beach, hand up, shading eyes が体の 10 語の後ろに並んだ）
+_BODY = tuple(t for t in TAGS.split(", ") if t != "adult woman")
+
+
+def order(tags: list[str]) -> list[str]:
+    """人数の言葉を先頭に、頼んだ語をその次に、基準の体の言葉を最後に並べる。模型は前の語ほど強く効かせる"""
+    head = [t for t in _HEAD if t in tags]
+    if "adult woman" in tags or "adult man" in tags:
+        head += [t for t in ("adult woman", "adult man") if t in tags]
+    body = [t for t in tags if t in _BODY]
+    rest = [t for t in tags if t not in head and t not in body]
+    return head + _held(rest) + body
+
+
+_HOLD = ("holding", "carrying")
+
+
+def _held(tags: list[str]) -> list[str]:
+    """「剣を持って」は sword, holding と並ぶ。持つ物と持つ動きが離れたタグだと、模型は物を背景に置き、手は空のままにした。
+    すぐ前の物と組んだ Danbooru のタグ（holding sword）を足す。物の語も残す"""
+    out = []
+    for t in tags:
+        if t in _HOLD and out and out[-1] not in _HOLD and not out[-1].startswith(_HOLD):
+            out += [f"{t} {out[-1]}", t]   # 素の holding も残す（持つ頼みかを見る所が、この語で見ている）
+        else:
+            out.append(t)
+    return out
 
 
 def negatives(text: str) -> list[str]:
-    """打ち消した物（帽子なし → hat）。描かない物（negative prompt）に足す"""
-    return _flat(_scan(text)[1])
+    """打ち消した物（帽子なし → hat）。描かない物（negative prompt）に足す。
+    同じ頼みで描く物に同じ語が入る物（帽子なしで麦わら帽子を持つ → straw hat）は、描かない物を「身に着けた物」に狭める。
+    hat のまま打ち消すと、描く物の straw hat まで打ち消し合い、持たせた帽子が消えた"""
+    found, negs, _ = _scan(text)
+    want = [t.lower() for t in _flat(found)]
+    out = []
+    for n in _flat(negs):
+        if any(re.search(r"(?<![a-z])" + re.escape(n.lower()) + r"(?![a-z])", w) for w in want if w != n.lower()):
+            n = f"wearing {n}"
+        out.append(n)
+    return out
 
 
 _FILLER = set("のがをにでとはもへやてっいるたなだですますしたいる、。・ 　!！?？")

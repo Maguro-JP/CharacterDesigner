@@ -217,8 +217,24 @@ def count_people(im, least: float = 0.5, big: float = 0.3) -> int:
         return 0
     # 背景の通行人（遠くの小さな人影）は余分な体ではない。一番大きい人の枠の big 倍より小さい枠は数えない。
     # 雨の街の絵（r5-coat）で、背景の人影 3 つを数えて「人 4 人」とした
-    area = [max(0.0, (x1 - x0) * (y1 - y0)) for x0, y0, x1, y1 in boxes]
-    return sum(a >= big * max(area) for a in area)
+    return count_boxes(boxes, big)
+
+
+def count_boxes(boxes, big: float = 0.3, inside: float = 0.8) -> int:
+    """人の枠の数。背景の小さな人影（一番大きい枠の big 倍より小さい）と、大きい枠の中に inside 以上入る枠
+    （同じ人の上半身だけを別の枠にした物）は数えない。library/feedback の 502 枚（Actions の people-count）で、
+    入れ子の枠を除くと 1 人の絵で 2 人以上と数えた絵が 4 枚から 3 枚になった（スーツの男性の上半身と全身の枠）。
+    残る 3 枚は動物 2 匹の絵と、三面図の設定資料（何人も描くのが正しい）。inside の 0.8 は私の推測の値"""
+    area = lambda b: max(0.0, (b[2] - b[0]) * (b[3] - b[1]))
+    keep = []
+    for b in sorted(boxes, key=area, reverse=True):
+        if all(max(0.0, min(b[2], k[2]) - max(b[0], k[0])) * max(0.0, min(b[3], k[3]) - max(b[1], k[1]))
+               < inside * max(area(b), 1e-6) for k in keep):
+            keep.append(b)
+    if not keep:
+        return 0
+    most = max(area(b) for b in keep)
+    return sum(area(b) >= big * most for b in keep)
 
 
 def face_hidden(im, seg):

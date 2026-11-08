@@ -1,0 +1,103 @@
+# 頼んだ通りに描けているかを、前の版と今の版で測って並べる（chatdraw/adherebench.py）。
+# 頼みの文 30 本を、catalog.json の点の高い SDXL の模型で 1 枚ずつ描き、描けた語の割合と作画監督の外れを数える。
+# CPU で 1 枚 10 分ほどかかるので、30 本を 10 の組に分け、前と後で 20 のジョブにする。リポジトリは公開しているので Actions の枠を使う。
+name: adhere-bench
+on:
+  # workflow_dispatch は main に置いてからでないと起動できないので、この台を直して push したときにも流す
+  push:
+    paths:
+      - ".github/workflows/adhere-bench.yml"
+      - "chatdraw/adherebench.py"
+  workflow_dispatch:
+    inputs:
+      before:
+        description: "前の版（ブランチかコミット）"
+        default: "main"
+      model:
+        description: "描く模型"
+        default: "cagliostrolab/animagine-xl-4.0"
+      seed:
+        description: "種"
+        default: "7"
+permissions:
+  contents: read
+concurrency:
+  group: adhere-bench-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  draw:
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      fail-fast: false
+      max-parallel: 20
+      matrix:
+        side: [before, after]
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 描く版を置く
+        run: |
+          mkdir -p "$RUNNER_TEMP/tree"
+          ref="${{ matrix.side == 'before' && (inputs.before || 'main') || github.sha }}"
+          git rev-parse "origin/$ref" >/dev/null 2>&1 && ref="origin/$ref"
+          git worktree add "$RUNNER_TEMP/tree" "$ref"
+          git -C "$RUNNER_TEMP/tree" log -1 --format='%h %s'
+          cp chatdraw/adherebench.py "$RUNNER_TEMP/tree/chatdraw/adherebench.py"   # 測る台は今の版の物を使う
+      - name: 置き場を空ける
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1; free -g
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 部品
+        run: |
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy
+      - name: 描く
+        working-directory: ${{ runner.temp }}/tree
+        env:
+          LLM_HOME: ${{ runner.temp }}/llm
+          CD_HOME: ${{ runner.temp }}/cd
+          CD_ASSUME_FREE_RAM_GB: "14"
+        run: python -u -m chatdraw.adherebench draw "$GITHUB_WORKSPACE/out" "${{ inputs.model || 'cagliostrolab/animagine-xl-4.0' }}" ${{ matrix.shard }} 10 ${{ inputs.seed || '7' }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adhere-${{ matrix.side }}-${{ matrix.shard }}
+          path: out/
+          retention-days: 14
+
+  score:
+    needs: draw
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 部品
+        run: |
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q huggingface_hub pillow numpy scipy onnxruntime ai-edge-litert opencv-python-headless
+      - uses: actions/download-artifact@v4
+        with:
+          path: art
+      - name: 数える
+        env:
+          CD_HOME: ${{ runner.temp }}/cd
+        run: |
+          mkdir -p res
+          python -u -m chatdraw.adherebench score art/adhere-before-* && mv score.json res/before.json
+          python -u -m chatdraw.adherebench score art/adhere-after-* && mv score.json res/after.json
+          python -m chatdraw.adherebench table res/before.json res/after.json | tee res/table.md
+          cat res/table.md >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: adhere-score
+          path: res/
+          retention-days: 30

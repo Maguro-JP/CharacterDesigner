@@ -183,3 +183,9 @@ CodeFormer（S-Lab License 1.0、商用不可）は配布に合わないので�
 - LINE Creators Market 制作ガイドライン（スタンプ 最大 370×320、メイン 240×240、タブ 96×74、余白 10px ぐらい、PNG、背景は透過、1 個 1MB 以下、個数 8・16・24・32・40）: https://creator.line.me/ja/guideline/sticker/
 - Telegram の Stickers（片方の辺がちょうど 512px、もう片方は 512px 以下、PNG か WEBP）: https://core.telegram.org/stickers
 - Discord のスタンプの頁は取れなかった（403）。SPECS には入れていない
+
+## 画面の参考（`docs/knowledge/ui-comfyui.md`、2026-11-08）
+
+- ComfyUI の Interface overview（待ち行列、履歴、Assets、Workflows、Templates、Node Library）: https://docs.comfy.org/interface/overview
+- comfyanonymous/ComfyUI の README（キーの表、変わった所だけを動かし直す）: https://github.com/comfyanonymous/ComfyUI
+- Comfy-Org/ComfyUI_frontend の README（v1.2.0 Queue/History の欄、v1.3.7 キーの変更）: https://github.com/Comfy-Org/ComfyUI_frontend

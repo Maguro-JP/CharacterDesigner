@@ -89,8 +89,8 @@ class ReadEveryWordTest(unittest.TestCase):
 
     def test_mixed_english_tags_kept(self):
         with Home():   # 単語のお気に入りから足した英語のタグが、日本語の頼みの中で落ちない
-            self.assertEqual(jaterms.tags_from("猫耳の少女、red scarf, full body"), ["cat ears", "1girl", "solo", "red scarf", "full body"])
-            self.assertEqual(jaterms.tags_from("Tシャツの少女"), ["t-shirt", "1girl", "solo"])
+            self.assertEqual(jaterms.tags_from("猫耳の少女、red scarf, full body"), ["1girl", "solo", "cat ears", "red scarf", "full body"])   # 人数の言葉が先頭（jaterms.order）
+            self.assertEqual(jaterms.tags_from("Tシャツの少女"), ["1girl", "solo", "t-shirt"])
 
     def test_verb_forms(self):
         with Home():
