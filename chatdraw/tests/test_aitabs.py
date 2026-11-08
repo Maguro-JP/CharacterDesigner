@@ -157,3 +157,20 @@ class BackgroundTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class DrawButtonTest(unittest.TestCase):
+    """描くボタンを押すと描くこと（ボタンが渡す真偽値を頼みの文と取り違えて落ちたことがある）"""
+
+    def test_button_click_draws(self):
+        with TemporaryDirectory() as d:
+            w = window(d)
+            w.entry.setText("girl")
+            w.button.click()
+            end = time.time() + 60
+            while (w.thread is not None or not w.images) and time.time() < end:
+                app().processEvents()
+                time.sleep(0.01)
+            self.assertTrue(w.images, "描くボタンで描けなかった")
+            wait_bg(app(), w)
+            w.close()

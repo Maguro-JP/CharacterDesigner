@@ -2218,6 +2218,8 @@ class Window(QMainWindow):
 
     def send(self, once: str | None = None):
         """描く。once を渡すと、描くワードの欄を変えずに、この回だけその言葉で描く（チャットの頼み）"""
+        if not isinstance(once, str):
+            once = None   # ボタンの clicked は押した印（真偽値）を渡す。それを頼みの文と取り違え、描くボタンで落ちていた
         text = (self.entry.text() if once is None else once).strip()
         pen = self.canvas.redpen
         if self.thread and text:   # 描いている間の頼みは受けない。黙って捨てると、押しても何も起きないように見えた
