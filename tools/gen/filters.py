@@ -32,7 +32,16 @@ def _hits(words, text: str) -> list[str]:
 
 
 def fixed(text: str) -> str | None:
-    """固定の制限に当たれば理由。設定では外せない"""
+    """固定の制限に当たれば理由。設定では外せない。アプリと同じ判定（chatdraw/childsafe.py）を使う。
+    前は打ち消し（no nsfw、下着なし）や服の語（水着、制服）まで数え、子どものキャラクターデザインを止めていた"""
+    try:
+        import sys
+        from pathlib import Path
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from chatdraw import childsafe
+        return childsafe.reason(text)
+    except ImportError:
+        pass
     a = _hits(ALWAYS, text)
     if a:
         return f"「{a[0]}」は子どもを性的に描く言葉なので描かない（固定の制限。docs/filters.md）"

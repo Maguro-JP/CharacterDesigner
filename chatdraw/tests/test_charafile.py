@@ -213,11 +213,15 @@ class AppFlowTest(Base):
             sent.clear()
             w.entry.setText("walking in a park")
             w.send()
-            self.wait(lambda: w.thread is None and any(e["where"] == "描く" for e in sent.last()), 900)
+            # 描く仕組みは検品を通るまで描き直し続ける（回数に上限を決めない）ので、小さな模型では糸が終わるのを待たない。
+            # 模型に渡った最初の言葉で確かめ、そのあと止める
+            self.wait(lambda: any(e["where"] == "描く" for e in sent.last()), 900)
             drawn = [e for e in sent.last() if e["where"] == "描く"][-1]
             for word in ("short red hair", "green eyes", "blue hoodie", "emerald iris", "walking"):
                 self.assertIn(word, drawn["prompt"] + " " + drawn.get("prompt_2", ""))
             self.assertIn("extra weapons", drawn["negative"])
+            w.stop()
+            self.wait(lambda: w.thread is None, 600)
         finally:
             self.close(w)
 
