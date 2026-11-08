@@ -1608,7 +1608,8 @@ BACKGROUNDS = [
 BACKGROUND_WORDS = ("background", "outdoors", "indoors", "scenery", "landscape", "sky", "room", "street", "city", "forest", "beach",
                     "sea", "ocean", "park", "garden", "field", "classroom", "cafe", "library", "shrine", "temple", "castle", "mountain",
                     "river", "lake", "night", "sunset", "stage", "interior", "school", "office", "bedroom", "kitchen", "station",
-                    "underwater", "space", "desert", "snow", "rain", "cherry blossoms", "bokeh", "背景")
+                    "underwater", "space", "desert", "snow", "rain", "cherry blossoms", "bokeh", "rooftop", "grassland",
+                    "meadow", "pool", "hallway", "greenhouse", "背景")
 
 
 def has_background(prompt: str) -> bool:

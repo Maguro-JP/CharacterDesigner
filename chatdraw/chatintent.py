@@ -34,7 +34,8 @@ _COUNT_RE = re.compile(r"(\d+|[０-９]+|[一二三四五六七八九十])\s*枚
                        r"|(\d+|[０-９]+|[一二三四五六七八九十])\s*枚(?:で|に)\s*(?:して|する|描くようにして)")
 _SIZE_WORDS = {"縦長": "縦", "縦向き": "縦", "縦に": "縦", "横長": "横", "横向き": "横", "横に": "横", "正方形": "正方形", "真四角": "正方形"}
 _SIZE_RE = re.compile(r"(?:大きさ|サイズ|解像度|画面の形|形)を?\s*(.+?)\s*(?:に|へ)\s*(?:して|する|変えて)|"
-                      r"(縦長|横長|正方形|真四角|縦向き|横向き)(?:の絵)?\s*(?:に|で)\s*(?:して|する|描くようにして)")
+                      r"(縦長|横長|正方形|真四角|縦向き|横向き)(?:の絵)?\s*(?:に|で)\s*(?:して|する|描くようにして)|"
+                      r"^(?:絵を|形を)?(縦|横)(?:長)?(?:に|へ)\s*(?:して|する|変えて)[。！!]?$")
 # 描く対象の言葉。これがあれば設定ではなく描く頼み（「猫を4枚描いて」は 4 回描く）
 _DRAW_RE = re.compile(r"描いて|描く$|かいて")
 
@@ -49,7 +50,7 @@ def parse(text: str, has_image: bool = True) -> Intent | None:
             return Intent("count", n, f"これから 1 回に {n} 枚ずつ描きます（AI の欄の枚数を {n} にしました）")
     m = _SIZE_RE.search(t)
     if m:
-        word = (m.group(1) or m.group(2) or "").strip()
+        word = (m.group(1) or m.group(2) or m.group(3) or "").strip()
         pick = _size_of(word)
         if pick:
             from chatdraw.aipanel import SIZES

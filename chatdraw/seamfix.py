@@ -19,6 +19,7 @@ EDGE = 22.0        # 線とみなす明るさの勾配（0〜255 の段差の半
 COLOR_OK = 4.0     # 境目の色の差の許し（元の絵にもともとある段差を引いたあとの平均、0〜255）
 SHIFT_OK = 1.0     # 線のずれの許し（画素）
 SSIM_OK = 0.80     # 境目の帯の SSIM の許し
+COLOR_GOOD = 1.0   # 許しに入っても、色の差がこれより大きく、帯が直した所の奥の 3 分の 1 に届くまでは帯を広げて合わせ直す
 
 
 def _l(img) -> np.ndarray:
@@ -203,7 +204,9 @@ def settle(before, after, mask, say=None):
         score = got["color"] / COLOR_OK + got["shift"] / SHIFT_OK + max(0.0, SSIM_OK - got["ssim"]) * 10
         if best is None or score < best[0]:
             best = (score, out)
-        if got["ok"] or band >= deepest:
+        # 許しの中でも段差が残る（帯 4 画素で色の差 2.6）ので、直した所の奥の 3 分の 1 までは広げて色の差を詰める。
+        # それより奥まで広げると、直した所が元の絵の色に戻っていく（頼んだ直しが薄まる）
+        if band >= deepest or got["ok"] and (got["color"] <= COLOR_GOOD or band * 1.5 + 1 > deepest / 3):
             break
         if say:
             say(f"境目がずれているので、合わせ直しています（帯 {band} 画素・色の差 {got['color']}・線のずれ {got['shift']}）")

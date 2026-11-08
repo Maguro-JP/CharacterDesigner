@@ -40,7 +40,7 @@ TERMS = {
     "日よけ": "hand up, shading eyes", "腰に手": "hand on own hip", "腰に当て": "hand on own hip", "手を上げ": "hand up",
     "両手を上げ": "arms up", "手を組": "own hands clasped", "見上げ": "looking up", "見下ろ": "looking down", "歩": "walking",
     "跳": "jumping", "飛ぶ": "flying", "飛ん": "flying", "泳": "swimming", "ほうき": "broom", "箒": "broom", "傘": "umbrella",
-    "剣": "sword", "銃": "gun", "弓": "bow (weapon)", "盾": "shield", "カップ": "cup", "スマホ": "smartphone", "鞄": "bag", "バッグ": "bag", "杖": "staff", "花": "flower", "本": "book", "しゃがむ": "squatting", "しゃが": "squatting", "持つ": "holding", "泣い": "crying, tears", "腕を組": "crossed arms", "ひざまず": "kneeling", "抱え": "holding", "持っ": "holding",
+    "剣": "sword", "銃": "gun", "弓": "bow (weapon)", "盾": "shield", "カップ": "cup", "スマホ": "smartphone", "鞄": "bag", "バッグ": "bag", "杖": "staff", "花": "flower", "本": "book", "しゃがむ": "squatting", "しゃが": "squatting", "持つ": "holding", "泣い": "crying, tears", "腕を組": "crossed arms", "ひざまず": "kneeling", "抱え": "holding", "抱い": "holding", "抱く": "holding", "抱っこ": "holding", "傘をさ": "umbrella, holding umbrella", "傘を差": "umbrella, holding umbrella", "メイド服": "maid, maid headdress", "持っ": "holding",
     "読ん": "reading", "読む": "reading", "食べ": "eating", "飲ん": "drinking", "飲む": "drinking", "歌っ": "singing", "歌う": "singing",
     "踊": "dancing", "料理": "cooking", "戦っ": "fighting", "戦う": "fighting", "眠": "sleeping", "ウインク": "wink", "目を閉じ": "closed eyes",
     "正面": "facing viewer, looking at viewer", "横顔": "profile", "後ろ姿": "from behind", "背中": "from behind",
@@ -50,7 +50,7 @@ TERMS = {
     "教室": "classroom", "部屋": "indoors, room", "空": "sky", "夜": "night", "夕焼け": "sunset", "夕日": "sunset",
     "図書館": "library", "カフェ": "cafe", "公園": "park", "城": "castle", "神社": "shrine", "屋上": "rooftop", "駅": "train station",
     "山": "mountain", "川": "river", "室内": "indoors", "屋外": "outdoors", "朝": "morning", "昼": "day", "砂漠": "desert", "草原": "grassland",
-    "雨": "rain", "雪": "snow", "桜": "cherry blossoms", "白い背景": "simple background, white background",
+    "寝室": "bedroom", "廊下": "hallway", "台所": "kitchen", "キッチン": "kitchen", "温室": "greenhouse", "雨": "rain", "雪": "snow", "桜": "cherry blossoms", "白い背景": "simple background, white background",
 }
 
 # 役柄と生き物。表に無いと、言葉の模型が無いときに落ちて、ただの人物が描かれた
@@ -156,15 +156,21 @@ def _spans(text: str, extra: dict[str, str] | None = None) -> tuple[list[tuple[i
     for lj, le in _LENGTH.items():
         for m in re.finditer(f"{lj}(?=[^、。 ]{{0,3}}髪)", text):
             take(m.start(), m.end(), le)
-    for ja, en in sorted(TERMS.items(), key=lambda kv: -len(kv[0])):
-        # 動きの言葉は終わりの形を変えて書かれる（振る・振っている・振って、寝る・寝ている）。終わりの 1 字を除いた語幹でも拾う。
-        # 語幹が仮名だけで 1 字になるもの（「いる」の「い」）は、ほかの語の字を取ってしまうので拾わない
-        keys = [ja]
+    # 動きの言葉は終わりの形を変えて書かれる（振る・振っている・振って、寝る・寝ている）。終わりの 1 字を除いた語幹でも拾う。
+    # 語幹が仮名だけで 1 字になるもの（「いる」の「い」）は、ほかの語の字を取ってしまうので拾わない。
+    # 語幹も表の語と一緒に長い順に引く。語幹を元の語のすぐあとに引くと、「寝る」の語幹「寝」が「寝室」の字を先に取り、寝室が lying になった
+    keys = []
+    for ja, en in TERMS.items():
+        keys.append((ja, en))
         if ja[-1] in _STEM_END and len(ja) >= 2 and (len(ja) >= 3 or re.match(r"[一-鿿]", ja[0])):
-            keys.append(ja[:-1])
-        for key in keys:
-            for m in re.finditer(re.escape(key), text):
-                take(m.start(), m.end(), en)
+            keys.append((ja[:-1], en))
+    for key, en in sorted(keys, key=lambda kv: -len(kv[0])):
+        for m in re.finditer(re.escape(key), text):
+            take(m.start(), m.end(), en)
+    # 「長い髪」の「髪」は、長さ（long hair）を拾ったあとも字が残り、抜けた語に数えられた。長さの語のすぐ後ろの髪は読んだ字にする
+    for m in re.finditer("髪", text):
+        if not taken[m.start()] and any(t in ("long hair", "short hair") and e <= m.start() <= e + 3 for _, e, t, _ in spans):
+            taken[m.start()] = True
     # 日本語の頼みに混ぜた英語のタグ（単語のお気に入りから足した語、「猫耳の少女、red scarf」）はそのまま描く物にする（表の語の後に拾い、Tシャツの T を取らない）。
     # 前は日本語の語だけを表で拾い、混ぜた英語は黙って落ちていた
     for m in re.finditer(r"[A-Za-z][A-Za-z0-9 ()'_.:-]*", text):
