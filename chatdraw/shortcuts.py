@@ -219,21 +219,21 @@ def builtins(w) -> list[Shortcut]:
     torch_ok = finishers._has("torch")
     from chatdraw.upscale import UPSCALE_TIP
     out.append(Shortcut("app:upscale2x", "レイヤーのまま 2 倍に拡大", "enlarge",
-                        UPSCALE_TIP,
+                        UPSCALE_TIP + "。囲んだときは囲みの中だけを拡大の模型で整え、囲みの外は画素を 2 倍に並べるだけで色を変えません",
                         torch_ok, "" if torch_ok else "画像生成の部品（torch）がまだ入っていません。模型の管理から絵の模型を取ると入ります",
                         w.upscale_canvas))
     out += [
-        Shortcut("app:lineart", "線画にする", "convert", "線だけを取り出した線画を、新しいレイヤーに重ねます（模型は使いません）",
+        Shortcut("app:lineart", "線画にする", "convert", "線だけを取り出した線画を、新しいレイヤーに重ねます。囲んだときは囲みの中だけに掛け、囲みの外は変えません（模型は使いません）",
                  True, "", w.make_lineart),
-        Shortcut("app:pixel", "ドット絵にする", "convert", "縮めて色を減らしたドット絵を、新しいレイヤーに重ねます（模型は使いません）",
+        Shortcut("app:pixel", "ドット絵にする", "convert", "縮めて色を減らしたドット絵を、新しいレイヤーに重ねます。囲んだときは囲みの中だけに掛け、囲みの外は変えません（模型は使いません）",
                  True, "", lambda: w.make_pixel()),
         Shortcut("app:nobg", "背景を消す", "convert",
                  "四隅から続く背景の色を透明にします。囲んだときは囲みの中だけ消します（模型は使いません）",
                  True, "", w.remove_background),
         Shortcut("app:transparent", "透過（人物を切り抜く）", "convert",
-                 "背景を透明にして人物だけを切り抜き、新しいレイヤーに重ねます。髪の房まで抜けます（切り抜きの模型 約 176MB を初めに取ります）",
+                 "背景を透明にして人物だけを切り抜き、新しいレイヤーに重ねます。髪の房まで抜けます。囲んだときは囲みの中だけに掛け、囲みの外は変えません（切り抜きの模型 約 176MB を初めに取ります）",
                  True, "", w.make_transparent),
-        Shortcut("app:chibi", "ちびキャラにする", "convert", "AI が今の絵をちびキャラに描き直し、新しいレイヤーに重ねます",
+        Shortcut("app:chibi", "ちびキャラにする", "convert", "AI が今の絵をちびキャラに描き直し、新しいレイヤーに重ねます。囲んだときは囲みの中だけに掛け、囲みの外は変えません",
                  model_ok, model_why, w.make_chibi),
     ]
     for sid, label, sides in (("grow:lr", "左右に広げる", (1, 0, 1, 0)), ("grow:tb", "上下に広げる", (0, 1, 0, 1)),

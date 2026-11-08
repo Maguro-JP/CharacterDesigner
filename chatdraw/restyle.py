@@ -30,6 +30,9 @@ CONTROL_END = 0.9         # 工程のこの割合まで線で縛る（終わり�
 STRENGTH_STEPS = (1.0, 0.75, 0.55)   # 崩れたときに強さに掛ける倍率（順に試す）
 LINE_KEEP = 0.35          # 元の線の画素のうち、描いたあとも線の近く（2 画素）に残る割合の下限
 SHAPE_DRIFT = 0.08        # 縮めた明るさの形の変わり（retouch.drift）の上限。画風は色を変えるので綺麗化（0.02）より緩い
+# 線画の画風は色を除くのが仕事で、黒い髪・濃い服が白くなるので、明るさの形の変わり（drift）は崩れでなくても必ず大きく出る。
+# 線画は形を元の線の残り（LINE_KEEP）だけで見る。ほかの画風の境目は本物の模型で測ってから決め直す（restyle-verify）
+STYLE_DRIFT = {"lineart": None}
 WORK_SIDE = 1024          # 描く大きさの長い辺。大きな絵は縮めて描き、元の大きさに戻す
 
 _CACHE: dict = {}
@@ -103,7 +106,7 @@ def line_kept(a, b) -> float:
     return float((la & binary_dilation(lb, iterations=2)).sum() / la.sum())
 
 
-def check(src, out) -> dict:
+def check(src, out, kind: str = "") -> dict:
     """形と線が元の絵から崩れていないか。崩れていれば why に理由"""
     import numpy as np
     from chatdraw.finishers import _gen
@@ -112,7 +115,8 @@ def check(src, out) -> dict:
     b = np.asarray(out.convert("RGB").resize(src.size)).astype(float)
     d = rt.drift(a, b)
     k = line_kept(src, out.resize(src.size))
-    why = (f"形が変わりすぎる（{d:.3f}）" if d > SHAPE_DRIFT else f"元の線が消える（残り {k:.0%}）" if k < LINE_KEEP else "")
+    limit = STYLE_DRIFT.get(kind, SHAPE_DRIFT)
+    why = (f"形が変わりすぎる（{d:.3f}）" if limit is not None and d > limit else f"元の線が消える（残り {k:.0%}）" if k < LINE_KEEP else "")
     return dict(drift=round(d, 4), line_kept=round(k, 3), why=why)
 
 
@@ -155,7 +159,7 @@ def restyle(painter, image, kind: str, seed: int = 0, say=None):
                    generator=torch.Generator("cpu").manual_seed(seed), callback_on_step_end=step).images[0]
         if getattr(painter, "stop", False):
             raise Stopped("止めました")
-        q = check(small, out)
+        q = check(small, out, kind)
         tries.append(dict(strength=s, **q))
         if not q["why"]:
             LAST.clear()

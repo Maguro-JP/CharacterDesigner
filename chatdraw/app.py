@@ -2043,7 +2043,12 @@ class Window(QMainWindow):
             self.progress_popup.pop()
             self.statusBar().showMessage("描いている途中です。終わってから頼んでください（止めるときは「止める」）", 6000)
             return
-        if self.thread or not text and not (pen.marks and all(pen.texts)):   # 絵の上に全部書いてあれば、チャットは空でよい
+        if self.thread:
+            return
+        if not text and not (pen.marks and all(pen.texts)):   # 絵の上に全部書いてあれば、チャットは空でよい
+            # 囲んだのに指示が無いと、前は黙って返り、押しても何も起きないように見えた
+            if pen.marks or self.canvas.selection_mask() is not None:
+                self._ask_for_fix_text()
             return
         if not text:
             text = " / ".join(f"{i}: {t}" for i, t in enumerate(pen.texts, 1))
@@ -2317,6 +2322,21 @@ class Window(QMainWindow):
         dlg.exec()
         return dlg
 
+    FIX_TEXT_HINT = ("どう直すかが書かれていません。印を右クリックして「言葉で指示…」で印に指示を書くか、"
+                     "AI の欄の「指示」に書いてから、もう一度押してください")
+
+    def _ask_for_fix_text(self):
+        """囲んだ所を直す指示が無いときに、何をすればよいかを出し、指示の欄を開いて書ける所に合わせる"""
+        dock = self.panels["chat"][0] if hasattr(self, "panels") else None
+        if dock is not None:
+            dock.show()
+            dock.raise_()
+        self.ai_panel.sections["指示"].set_open(True)
+        self.ai_pages.setCurrentIndex(0)
+        self.entry.setFocus()
+        self.statusBar().showMessage(self.FIX_TEXT_HINT, 10000)
+        self.notify("どう直すかを書いてください", "info", self.FIX_TEXT_HINT)
+
     def fix_marked(self):
         """赤ペンで囲んだ所を直す。AI の欄を「直す」にして「描く」と同じ send() を呼ぶ"""
         self.mode.setCurrentIndex(2)
@@ -2431,6 +2451,13 @@ class Window(QMainWindow):
         bad = getattr(getattr(self, "job_studio", None) or self.studio, "last_flaws", []) if self.job_kind == "fix" else []
         try:
             if self.job_kind == "chibi":
+                mask = getattr(self, "_chibi_mask", None)
+                if mask is not None:
+                    from PIL import Image
+                    with Image.open(path) as im:
+                        clipped = self._clip_to_region(im, mask)
+                    path = str(Path(path).with_name(Path(path).stem + "-region.png"))
+                    clipped.save(path)
                 self.put_result(path, "ちびキャラ")
             elif self.job_kind == "fix":
                 placed = self._put_fix(path, f"AI の直し {len(self.images)}" + ("（崩れあり）" if bad else ""))
@@ -2550,6 +2577,7 @@ class Window(QMainWindow):
         self.feature_tour("chibi")
         base = qimage_to_pil(self.canvas.flatten())
         full = Image.new("L", base.size, 255)
+        self._chibi_mask = self._region_mask()   # 囲んだときは出来た絵を囲みの中だけのレイヤーにする（on_one）
         self._start_job("ちびキャラにする", "chibi", Job(self.studio, postfx.CHIBI_NOTE, self.ai_panel.seeds()[:1], base=base,
                                                        strength=0.7, style=postfx.CHIBI_TAGS,
                                                        regions=[(full, postfx.CHIBI_NOTE)], check=False))
@@ -2559,12 +2587,14 @@ class Window(QMainWindow):
         from chatdraw import postfx
         self.feature_tour("lineart")
         src = qimage_to_pil(self.canvas.flatten())
+        mask = self._region_mask()   # 囲んだときは囲みの中だけを線画にする（囲みの外は 1 画素も変えない）
         out = Path(self.settings.get("output_dir")) / time.strftime("%Y-%m-%d")
         path = out / f"{time.strftime('%Y%m%d-%H%M%S')}-lineart.png"
 
         def work():   # 線を取り出して書くのは裏の糸（832×1216 で 0.4 秒ほど固まった）
             out.mkdir(parents=True, exist_ok=True)
-            postfx.lineart(src).save(path)
+            line = postfx.lineart(src)
+            (line if mask is None else self._clip_to_region(line, mask)).save(path)
 
         def done(err):
             if isinstance(err, BaseException):
@@ -2581,6 +2611,7 @@ class Window(QMainWindow):
         from chatdraw import postfx
         self.feature_tour("pixel")
         img = qimage_to_pil(self.canvas.flatten())
+        mask = self._region_mask()   # 囲んだときは囲みの中だけをドット絵にする
         out = Path(self.settings.get("output_dir")) / time.strftime("%Y-%m-%d")
         stamp = time.strftime("%Y%m%d-%H%M%S")
         small = out / f"{stamp}-pixel.png"
@@ -2590,7 +2621,8 @@ class Window(QMainWindow):
             dots = postfx.pixel_art(img, long=long, colors=colors)
             out.mkdir(parents=True, exist_ok=True)
             dots.save(small)
-            postfx.enlarge(dots, img.size).save(big)
+            view = postfx.enlarge(dots, img.size)
+            (view if mask is None else self._clip_to_region(view, mask)).save(big)
             return dots.size
 
         def done(got):
@@ -2645,6 +2677,7 @@ class Window(QMainWindow):
                 return
         layers = [(l.name, l.visible, l.opacity, qimage_to_pil_rgba(l.image)) for l in self.canvas.layers]
         current = self.canvas.current
+        mask = self._region_mask()   # 囲んだときは囲みの中だけ拡大の模型で整え、外は画素を 2 倍に並べるだけにする
         self.feature_tour("upscale")
         self.activity.begin("絵を 2 倍に拡大", "拡大")
         self.activity.status(f"縦横 2 倍に拡大しています（{upscale.UPSCALE_TIME}）" + ("" if upscale.ready() else "。初めに拡大の部品 2.4MB を取ります"))
@@ -2658,6 +2691,11 @@ class Window(QMainWindow):
                     big = Image.new("RGBA", size, (0, 0, 0, 0))
                 else:
                     big = upscale.upscale(img, 2, on_step=lambda a, n, i=i: on_step((i - 1) * 100 + a * 100 // n, len(layers) * 100))
+                    if mask is not None:
+                        # 囲みの外は 1 画素を 2×2 に並べるだけ（色を作らない）。縮め戻すと元の画素にそのまま戻る
+                        from chatdraw.finishers import binary
+                        plain = img.resize(size, Image.NEAREST)
+                        big = Image.composite(big.convert("RGBA"), plain, binary(mask, img.size).resize(size, Image.NEAREST))
                 out.append((name, visible, opacity, big))
             return out, current
         self._run_task(work, self._upscaled)
@@ -3489,6 +3527,7 @@ class Window(QMainWindow):
         四隅から続く地の色を透明にする方法に替えて、替えたことを知らせる"""
         import tempfile
         src = qimage_to_pil(self.canvas.flatten()).convert("RGB")
+        mask = self._region_mask()   # 囲んだときは囲みの中だけを切り抜く（囲みの外は下の元の絵のまま）
         fd, tmp = tempfile.mkstemp(suffix=".png")
         os.close(fd)
         src.save(tmp)
@@ -3508,7 +3547,7 @@ class Window(QMainWindow):
             finally:
                 Path(tmp).unlink(missing_ok=True)
             out.parent.mkdir(parents=True, exist_ok=True)
-            cut.save(out)
+            (cut if mask is None else self._clip_to_region(cut, mask)).save(out)
             return out, how
 
         def done(got):
@@ -4996,6 +5035,18 @@ class Window(QMainWindow):
         sid = self.shortcut_store().add_chain(name or shortcuts.chain_text(steps)[:24], steps)
         self.notify("組み合わせを登録しました", "ok", "絵の上の右クリックの「自分の組み合わせ」から選べます")
         return sid
+
+    @staticmethod
+    def _clip_to_region(img, mask):
+        """加工の結果 img（PIL）を囲みの中だけのレイヤーにする（囲みの外は透明）。下の元の絵が透けるので、
+        囲みの外は 1 画素も変わらない。mask が None か大きさが違えば img のまま（RGBA にして返す）"""
+        from chatdraw.finishers import binary
+        from PIL import ImageChops
+        out = img.convert("RGBA")
+        if mask is None:
+            return out
+        out.putalpha(ImageChops.multiply(out.getchannel("A"), binary(mask, out.size)))
+        return out
 
     def _region_mask(self):
         """赤ペンの囲みと選択範囲を合わせた囲み（PIL の L）。どちらも無ければ None"""
