@@ -33,6 +33,9 @@ def pixels(layer) -> str:
 
 class LayerKeepTest(unittest.TestCase):
     def setUp(self):
+        import tempfile
+        # 前の試験の回（止めた回など）が残した仮のファイルは数えない。この回に増えた物だけを見る
+        self._tmp_before = set(Path(tempfile.gettempdir()).glob("cd-redpen-*.png"))
         self.qapp = app()
         self.tmp = TemporaryDirectory()
         self.d = Path(self.tmp.name)
@@ -130,7 +133,9 @@ class LayerKeepTest(unittest.TestCase):
         hist = [w.history.item(i).data(0x0100) for i in range(w.history.count())]
         self.assertEqual([h for h in hist if h and Path(h).name not in ("a.png", "b.png")], [])
         self.assertEqual([i for i in w.library.items if Path(i["path"]).name not in ("a.png", "b.png")], [])
-        self.assertEqual(list(Path(os.environ.get("TMPDIR", "/tmp")).glob("cd-redpen-*.png")), [])
+        import tempfile
+        left = set(Path(tempfile.gettempdir()).glob("cd-redpen-*.png")) - getattr(self, "_tmp_before", set())
+        self.assertEqual(sorted(left), [], "赤ペンの直しの仮のファイルが残った")
 
     def test_switch_and_reopen_keep_layers(self):
         w = self.w
