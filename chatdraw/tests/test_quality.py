@@ -107,7 +107,8 @@ class FixKeepsBest(unittest.TestCase):
                 counts[key] = 2 if not counts else (5 if len(counts) == 1 else 3)
             return hand_result(counts[key])
         first = Image.new("RGB", (64, 64), (9, 9, 9))
-        with mock.patch.dict(os.environ, {"CD_CHECK": "on"}), mock.patch.object(handcheck, "check", side_effect=check):
+        with mock.patch.dict(os.environ, {"CD_CHECK": "on"}), mock.patch.object(handcheck, "check", side_effect=check), \
+                mock.patch.object(engine.Studio, "_own_check", staticmethod(lambda im, p: ([], []))):   # 作画監督は見る絵が小さく測れない
             out = studio._fix_hands(first, "1girl", 1, lambda m: None)
         self.assertIs(out, first)
         self.assertEqual(studio.hand_rounds[-1]["bad"], hand_result(2)["bad"])
@@ -141,6 +142,7 @@ class AskedComesFirst(unittest.TestCase):
                 return image
             with mock.patch.object(studio, "_fix_hands", side_effect=fix), \
                     mock.patch("chatdraw.requestcheck.check", side_effect=lambda *a, **k: next(asked)), \
+                    mock.patch("chatdraw.sanity.check", lambda *a, **k: {"readable": True, "bad": [], "avoid": []}), \
                     mock.patch.object(studio, "_inspect"):
                 studio.draw("1girl, solo, smile, holding umbrella", 4)
         self.assertEqual(len(painter.prompts), 2)

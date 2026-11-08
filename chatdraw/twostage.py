@@ -360,8 +360,18 @@ def finish(tags: str, seed: int, render_model: str, size, composition_path, keep
         res = handcheck.check(out, asked=tags)
         asked = requestcheck.check(out, tags, fetch=True)
         odd = sanity.check(out, tags, tags=asked.get("read"))   # 余分な腕・脚・頭・体、顔の外の目、頼んでいない目の色
-        res["bad"] = res["bad"] + odd["bad"]
-        passed = res["readable"] and odd["readable"] and not res["bad"] and not asked["missing"] and not asked.get("extra")
+        # 2 段の仕上げにも、1 段の描き方と同じ検品を全部通す（前は数字の作画監督・頼んでいない物・人数を見ずに通していた）。
+        # 検品できなかった物は崩れの 1 件にする（読めない絵を通ったことにしない）
+        from chatdraw.engine import Studio, hand_unread, unchecked
+        own_bad, _r = Studio._own_check(out, tags)
+        res["bad"] = (res["bad"] + hand_unread(res) + odd["bad"] + own_bad
+                      + [f"頼んでいない: {e}" for e in asked.get("extra", [])]
+                      + [f"人数が違う: {x}" for x in asked.get("people", [])] + list(asked.get("body", [])))
+        if not asked.get("readable"):
+            res["bad"].append(unchecked("頼んだ物と人数", asked.get("reason", "")))
+        if not odd["readable"]:
+            res["bad"].append(unchecked("体の数と目", odd.get("reason", "")))
+        passed = not res["bad"] and not asked["missing"]
         # checked: 検品の部品がそろって読めたか。そろっていなければ、描き直しても検品を通らないので描き直さない
         checked = not res.get("reason") and asked.get("readable", False) and odd["readable"]
         (keep / f"result-{v['name']}.json").write_text(json.dumps({"passed": passed, "seed": seed, "bad": res["bad"],

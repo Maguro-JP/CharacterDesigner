@@ -140,7 +140,12 @@ class RedrawTest(unittest.TestCase):
         odd = iter([{"readable": True, "bad": ["腕が多い（手首から離れた手 1 つ）", "顔の外に目（blue eyes 0.50）"],
                      "avoid": ["extra arms", "eyes on objects"]},
                     {"readable": True, "bad": [], "avoid": []}])
+        from chatdraw import handcheck, origqc
+        # 手と作画監督は読めて崩れが無いことにする（読めない検品は崩れになるので、ここで見る体の数と目だけを動かす）
         with mock.patch.object(requestcheck, "check", lambda im, t: {"readable": True, "missing": []}), \
+                mock.patch.object(handcheck, "check", lambda im, asked=None: {"readable": True, "bad": [], "hands": []}), \
+                mock.patch.object(origqc, "check", lambda im, p, hair="": {"readable": True, "bad": [], "regions": [],
+                                                                         "measured": True}), \
                 mock.patch.object(sanity, "check", side_effect=lambda im, p, tags=None: next(odd)):
             _prompt, path = s.draw("1girl, solo", 7)
         meta = finishers.sidecar(path)
