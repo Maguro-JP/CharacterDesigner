@@ -322,10 +322,11 @@ def _captioned(im, caption: str, h: int):
     from PIL import Image, ImageDraw
     im = im.convert("RGBA")
     w = max(1, round(im.width * h / im.height))
-    out = Image.new("RGBA", (w, h + CAPTION_PX + 12), (255, 255, 255, 0))
+    px = max(CAPTION_PX, h // 22)   # 高い段は縮めて並べるので、字も段の高さに合わせて大きくする（小さすぎて読めなかった）
+    out = Image.new("RGBA", (w, h + px + 12), (255, 255, 255, 0))
     out.paste(im.resize((w, h), Image.LANCZOS), (0, 0))
     d = ImageDraw.Draw(out)
-    f = _font(CAPTION_PX)
+    f = _font(px)
     tw = d.textlength(caption, font=f)
     d.text(((w - tw) / 2, h + 4), caption, font=f, fill=(40, 40, 40, 255))
     return out
@@ -466,6 +467,10 @@ def write_sheet_psd(ident: str, out=None, home=None, layout: str = SHEET_LAYOUT)
         im = im.convert("RGBA")
         return QImage(im.tobytes(), im.width, im.height, im.width * 4, QImage.Format_RGBA8888).copy()
     for l in snap["layers"]:
+        box = l.image.getchannel("A").getbbox() if l.name != "背景" else None
+        if box:   # 区画の所だけを書く（全面の透明を 8 枚書くと 1 枚のシートが 150MB を超えた）
+            l.left, l.top = box[0], box[1]
+            l.image = l.image.crop(box)
         l.image = q(l.image)
     snap["merged"] = q(snap["merged"])
     write_psd(snap, out)
