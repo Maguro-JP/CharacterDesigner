@@ -25,8 +25,6 @@ jobs:
     timeout-minutes: 300
     env:
       CD_FETCH: "1"   # 目の色を測る部位分けの模型をこの機械で取る
-      CD_HOME: ${{ runner.temp }}/cd
-      LLM_HOME: ${{ runner.temp }}/llm
       CD_RESTYLE_SIDE: ${{ inputs.side || '768' }}
     steps:
       - uses: actions/checkout@v4
@@ -40,6 +38,9 @@ jobs:
           pip install -q torch --index-url https://download.pytorch.org/whl/cpu
           pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy scikit-image ai-edge-litert onnxruntime
       - name: 画風を掛ける
+        env:
+          CD_HOME: ${{ runner.temp }}/cd
+          LLM_HOME: ${{ runner.temp }}/llm
         run: python -u -m chatdraw.restyle_verify library/daily/2026-10-13/05-yukionna.png out ${{ inputs.kinds || 'anime' }}
       - uses: actions/upload-artifact@v4
         if: always()
