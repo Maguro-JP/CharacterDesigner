@@ -136,6 +136,7 @@ class ChatWindowTest(unittest.TestCase):
         return self.w._plan_idle() and not getattr(self.w, "_plan_queue", [])
 
     def draw_one(self):
+        self.w.ai_panel.set_count(1)   # 前の試験が枚数を 4 に変えて残すと、まとめて描く確かめの窓で止まった
         n = len(self.w.images)
         self.w.chat_send("猫耳の少女を描いて")
         self.assertTrue(self.settle(lambda: len(self.w.images) > n and self.idle()))
@@ -150,6 +151,8 @@ class ChatWindowTest(unittest.TestCase):
         self.assertIn("1216×832", self.said[-1])
         w.chat_send("水彩風にして")   # 絵の無いうちは、これから描く画風
         self.assertEqual(w.ai_panel.style, "水彩")
+        w.chat_send("1枚ずつ描くようにして")   # 次の試験に枚数を持ち越さない
+        self.assertEqual(w.ai_panel.count(), 1)
 
     def test_draw_then_process_then_back(self):
         w = self.w
