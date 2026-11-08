@@ -77,8 +77,8 @@ def _tidy_apply(image):
 
 
 DETAIL_SIGMA = 1.6    # 足す細部の細かさ（ぼかしの幅、画素）
-DETAIL_AMOUNT = 0.7   # 細部の明暗を何倍足すか
-DETAIL_CAP = 18.0     # 1 画素で変えてよい明るさの上限（0〜255）。形と色を変えないように
+DETAIL_AMOUNT = 1.6   # 細部の明暗を何倍足すか。0.7 では足した明るさが平均 2.0（0〜255）で、目で見て分からなかった
+DETAIL_CAP = 28.0     # 1 画素で変えてよい明るさの上限（0〜255）。形と色を変えないように
 
 
 def _detail_apply(image):
@@ -959,7 +959,7 @@ def face_box_keep(image):
         return None
 
 
-def soften(src, out, mask=None, face=_NO_FACE):
+def soften(src, out, mask=None, face=_NO_FACE, mixback=True):
     """綺麗にした絵を、顔を元のまま残し、前と後の差が基準を外れたら変えた分を減らして混ぜ直す。返りは (絵, 検品)。
     face を渡せば部位分けを測り直さない（組み合わせで工程ごとに測ると、同じ顔を工程の数だけ測った）"""
     from PIL import Image
@@ -978,6 +978,13 @@ def soften(src, out, mask=None, face=_NO_FACE):
     limited.update(hand)
     q = dict(face=face is not None, **scores(s, o), mix=1.0, **limited)
     tried = o
+    # ディテール追加は細かい明暗を立てるのが仕事で、SSIM は必ず下がる。SSIM で混ぜ戻すと足した分が半分以下になり
+    # （見本で変わりの平均 2.0 → 0.79）、効いていないように見えた。主線の重なりだけで見る
+    if not mixback:
+        if q["line"] >= VERIFY_LINE:
+            return o, q
+        q["failed"] = True
+        return s, q
     for k in VERIFY_STEPS:
         if (q["ssim"] is None or q["ssim"] >= VERIFY_SSIM) and q["line"] >= VERIFY_LINE:
             return tried, q
@@ -1044,7 +1051,7 @@ def run(name: str, image, mask=None, say=None, face=_NO_FACE):
     _MEMO.clear()   # 大きな絵の配列を持ち続けない
     out = guard(name, src, out, mask)
     if f.group in ("clean", "detail") and out.size == src.size and not LAST_QC.get("rejected"):
-        out, v = soften(src, out, mask, face)
+        out, v = soften(src, out, mask, face, mixback=f.group != "detail")
         LAST_QC["verify"] = v
         if v.get("failed"):
             LAST_QC["rejected"] = True
@@ -1075,7 +1082,30 @@ def run_chain(names, image, mask=None, say=None):
                 say(f"{i + 1}/{len(names)} {text}" if len(names) > 1 else text)
         out = run(n, out, mask, tell, face)
         LAST_CHAIN.append(dict(LAST_QC, name=n))
+        if i + 1 < len(names) and out.size == image.size:
+            _reuse_parts(image, out)
     return out
+
+
+def _reuse_parts(orig, step):
+    """組み合わせの次の工程で、前の工程の結果の部位分けを測り直さない。綺麗にする工程は形を変えない（limit と guard が
+    形の変わった所を戻す）ので、元の絵の部位分けをそのまま使える。前は工程ごとに部位分け（CPU で 1 回 30〜40 秒）を
+    測り直し、2 工程の「まとめて綺麗にする」108 秒のうち 80 秒が部位分けだった"""
+    import hashlib
+    from PIL import Image
+    from chatdraw import facefeat
+
+    def key(im):
+        return hashlib.md5(im.convert("RGB").resize((64, 64), Image.BOX).point(lambda v: v // 16).tobytes()).hexdigest()
+    k0, k1 = key(orig), key(step)
+    if k0 == k1:
+        return
+    fk0, fk1 = facefeat._key(orig), facefeat._key(step)
+    if fk0 in facefeat._SEG:
+        facefeat._SEG[fk1] = facefeat._SEG[fk0]
+    if k0 in _FACES:
+        _FACES[k1] = _FACES[k0]
+        _SEGS[k1] = _SEGS.get(k0)
 
 
 def chain_note() -> str:
