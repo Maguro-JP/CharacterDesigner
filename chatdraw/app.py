@@ -572,7 +572,11 @@ class Window(QMainWindow):
         super().__init__()
         from chatdraw import wheelguard
         wheelguard.install()   # 欄のスクロールで種や強さが変わらないようにする
+        from chatdraw import typeguard
+        typeguard.install()    # 打っている欄のキーをショートカットに取られないようにする
         self.settings = Settings()
+        from chatdraw import membudget
+        membudget.set_mode(self.settings.get("mem_mode"))   # メモリの使い方（設定で選ぶ。既定は自動）
         self.layout_store = QSettings("CharacterDesigner", "chatdraw")   # 配置・テーマ・AI プリセット・ツアーの済み
         self.last_text = ""
         self.studio = studio or self._studio_from_settings()
@@ -3252,6 +3256,8 @@ class Window(QMainWindow):
         dlg = SettingsDialog(self.settings, self)
         if dlg.exec():
             g = self.settings.get
+            from chatdraw import membudget
+            membudget.set_mode(g("mem_mode"))   # 次に描く 1 枚から効く
             self.studio = self._studio_from_settings()
             self.strength.setValue(int(g("rough_follow") * 100))
             self.check_ai()

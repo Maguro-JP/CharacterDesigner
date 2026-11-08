@@ -294,3 +294,39 @@ class UpscaleTilesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MemModeTest(unittest.TestCase):
+    """メモリの使い方の 3 つ（自動・優先・控えめ）で予算と許す超え方が変わり、知らない名前は自動に戻ること"""
+
+    def tearDown(self):
+        from chatdraw import membudget as mb
+        mb.set_mode("自動")
+
+    def test_modes(self):
+        from chatdraw import engine, membudget as mb
+        self.assertEqual(mb.set_mode("自動"), "自動")
+        self.assertAlmostEqual(mb.budget(10, 0).ram, 8.0)
+        self.assertEqual(mb.over_ok(), engine.Painter.OVER_OK)
+        mb.set_mode("優先して動かす")
+        self.assertAlmostEqual(mb.budget(10, 0).ram, 9.0)
+        self.assertGreater(mb.over_ok(), 1.5)
+        mb.set_mode("控えめに動かす")
+        self.assertAlmostEqual(mb.budget(10, 0).ram, 6.0)
+        self.assertEqual(mb.over_ok(), 1.0)
+        self.assertEqual(mb.set_mode("壊れた値"), "自動")
+
+    def test_gentle_stops_before_loading_what_auto_tries(self):
+        """控えめでは、自動なら軽くして描く少しの超えを、読む前に止める（落とさず日本語で理由を出す）"""
+        from types import SimpleNamespace
+        from chatdraw import engine, membudget as mb
+        p = engine.Painter.__new__(engine.Painter)
+        p._note = lambda *a, **k: None
+        plan = SimpleNamespace(ok=False, reason="足りない", lighter="小さくしてください", size=(512, 512),
+                               ram_peak=lambda: 9.0, vram_peak=lambda: 0.0)
+        b = mb.Budget(8.0, 0.0, 10.0, 0.0)
+        mb.set_mode("自動")
+        p._check_budget(plan, b)   # 9 < 8×1.5 なので描く
+        mb.set_mode("控えめに動かす")
+        with self.assertRaises(mb.OverBudget):
+            p._check_budget(plan, b)

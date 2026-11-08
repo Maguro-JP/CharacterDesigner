@@ -937,8 +937,9 @@ class Painter:
             return
         from chatdraw import membudget as mb
         b = b or mb.budget()   # 見積もりに使った予算で比べる（測り直すと、見積もりと違う空きで判定していた）
-        over_ram = plan.ram_peak() > b.ram * self.OVER_OK
-        over_vram = b.vram > 0 and plan.vram_peak() > b.vram * self.OVER_OK
+        k = mb.over_ok()   # 設定の「メモリの使い方」で変わる（自動は OVER_OK と同じ 1.5）
+        over_ram = plan.ram_peak() > b.ram * k
+        over_vram = b.vram > 0 and plan.vram_peak() > b.vram * k
         if over_ram or over_vram:
             raise mb.OverBudget(plan.reason + "。" + plan.lighter)
         self.low_memory = True

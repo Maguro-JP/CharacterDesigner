@@ -192,8 +192,8 @@ class AppSurvivesTest(unittest.TestCase):
             w.show()
             w.entry.setText("騎士")
             w.send()
-            end = time.time() + 1.0
-            while time.time() < end:
+            end = time.time() + 5.0   # 描き始める（裏の糸ができる）まで待つ。決めた秒だけ待つと、混んだ機械で間に合わなかった
+            while time.time() < end and (getattr(w, "thread", None) is None or not w.thread.isRunning()):
                 a.processEvents()
                 time.sleep(0.01)
             worker = w.thread

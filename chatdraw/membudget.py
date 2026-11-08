@@ -80,9 +80,36 @@ def has_cuda() -> bool:
         return False
 
 
-def budget(free_ram: float | None = None, free_vram: float | None = None, margin: float = MARGIN) -> Budget:
+# メモリの使い方。利用者が設定で選ぶ。既定は自動。
+# margin: 空きのうち予算に入れない割合。over_ok: 予算のこの倍までは一番軽い設定で描いてみる
+MODES = {
+    "自動": dict(margin=MARGIN, over_ok=1.5),
+    "優先して動かす": dict(margin=0.1, over_ok=2.0),    # 空きをほぼ使い切る。ほかのアプリが重くなることがある
+    "控えめに動かす": dict(margin=0.4, over_ok=1.0),    # 空きの 6 割までにとどめ、超える物は軽くするか止める
+}
+_mode = "自動"
+
+
+def set_mode(name: str) -> str:
+    """知らない名前は自動にする（前の版の設定や打ち間違いで落ちない）"""
+    global _mode
+    _mode = name if name in MODES else "自動"
+    return _mode
+
+
+def mode() -> str:
+    return _mode
+
+
+def over_ok() -> float:
+    return MODES[_mode]["over_ok"]
+
+
+def budget(free_ram: float | None = None, free_vram: float | None = None, margin: float | None = None) -> Budget:
     """空いている RAM と VRAM から余裕を引いた予算。RAM が測れない（0）ときは無限として扱う（前と同じ）"""
     from chatdraw.engine import free_ram_gb
+    if margin is None:
+        margin = MODES[_mode]["margin"]
     fr = free_ram_gb() if free_ram is None else free_ram
     fv = free_vram_gb() if free_vram is None else free_vram
     return Budget(fr * (1 - margin) if fr > 0 else float("inf"), max(0.0, fv * (1 - margin)), fr, fv)
