@@ -1110,6 +1110,12 @@ class Window(QMainWindow):
         self.menuBar().addMenu(self.logo_menu)
         self.logo_menu.aboutToShow.connect(self._fill_logo_menu)
         self._fill_logo_menu()
+        # 加工（綺麗にする・ディテール・拡大・画風など）。右クリックと同じ項目を、メニューバーからも選べるようにする。
+        # 右クリックは隠した物・よく使う物で並びが変わるが、ここは全部を処理の種類ごとに出す（探せば必ずある所）
+        self.finish_menu = QMenu("加工", self)
+        self.menuBar().addMenu(self.finish_menu)
+        self.finish_menu.aboutToShow.connect(self._fill_finish_menu)
+        self._fill_finish_menu()
         from chatdraw import ratings
         ratings.on_change(self._models_changed)
         setting_menu = self.menuBar().addMenu("設定")
@@ -2568,12 +2574,12 @@ class Window(QMainWindow):
         from chatdraw import confirm
         cw, ch = self.canvas.size_px()
         if cw * ch * 4 > confirm.BIG_UPSCALE_PX and confirm.ask(
-                self, "upscale_big", "大きな絵の拡大", f"拡大すると {cw * 2}×{ch * 2} になります。時間がかかり、メモリも多く使います。",
+                self, "upscale_big", "大きな絵の拡大", f"縦横 2 倍の {cw * 2}×{ch * 2} になります。数分かかり、メモリも多く使います。",
                 [("go", "拡大する")]) != "go":
             return
         if self.canvas.undo_stack:
             picked = confirm.ask(self, "upscale", "絵を 2 倍に拡大",
-                                 "レイヤーはそのままで 2 倍にします。拡大すると「元に戻す」の履歴は消えるので、先に保存しておくと戻れます。",
+                                 "レイヤーは分けたまま縦横 2 倍にし、元の大きさの絵は置き換わります。「元に戻す」の履歴は消えるので、先に保存しておくと戻れます。",
                                  [("save", "保存してから拡大"), ("go", "拡大")])
             if picked == "save":
                 if not self.save_project(wait=True):
@@ -2584,7 +2590,7 @@ class Window(QMainWindow):
         current = self.canvas.current
         self.feature_tour("upscale")
         self.activity.begin("絵を 2 倍に拡大", "拡大")
-        self.activity.status("描いています" + ("" if upscale.ready() else "（初めに拡大の部品 2.4MB を取ります）"))
+        self.activity.status(f"縦横 2 倍に拡大しています（{upscale.UPSCALE_TIME}）" + ("" if upscale.ready() else "。初めに拡大の部品 2.4MB を取ります"))
 
         def work(on_step):
             from PIL import Image
@@ -2607,10 +2613,10 @@ class Window(QMainWindow):
                   for name, visible, opacity, big in made]
         self.canvas._reset(layers, current)
         self.dirty = True
-        self.activity.end("拡大しました", None, record=False)
+        self.activity.end("2 倍に拡大しました", None, record=False)
         w, h = self.canvas.size_px()
-        self.notify("拡大しました", "ok", f"{w}×{h}・レイヤー {len(layers)} 枚のまま")
-        self._end("拡大しました")
+        self.notify("2 倍に拡大しました", "ok", f"{w}×{h}・レイヤー {len(layers)} 枚のまま。元の大きさの絵は置き換えました")
+        self._end("2 倍に拡大しました")
 
     def busy(self, what: str) -> bool:
         """裏で描いている間なら、押した物を始めずに理由を出して True。
@@ -5116,6 +5122,32 @@ class Window(QMainWindow):
         where = str(Path(out[0]).parent) if out else ""
         self.notify(msg, "ok", f"{len(out)} 個のファイルを {where} に置きました")
 
+    def _fill_finish_menu(self):
+        """メニューバーの「加工」。項目は右クリックのショートカットと同じ物（shortcuts.builtins）で、押すと同じ関数を呼ぶ"""
+        from PySide6.QtWidgets import QMenu
+        from chatdraw import shortcuts
+        m = self.finish_menu
+        for sub in getattr(self, "_finish_subs", []):   # 開くたびに作り直すので、前の小さなメニューは消す
+            sub.deleteLater()
+        m.clear()
+        m.setToolTipsVisible(True)
+        items = shortcuts.builtins(self)
+        # 小さなメニューは窓の側で持つ。addMenu(文字) の返りだけを持つと、Python の側の参照が消えたときに中身ごと消えた
+        self._finish_subs = []
+        for g, label in shortcuts.GROUPS:
+            inside = [s for s in items if s.group == g]
+            if not inside:
+                continue
+            sub = QMenu(label, m)
+            m.addMenu(sub)
+            self._finish_subs.append(sub)
+            sub.setToolTipsVisible(True)
+            for s in inside:
+                act = sub.addAction(s.label, lambda sid=s.id: self.run_shortcut(sid))
+                act.setObjectName("menu-" + s.id)
+                act.setToolTip(s.tip if s.ready else s.reason)
+                act.setEnabled(s.ready)
+
     def chara_sheet(self):
         from chatdraw import charadesign
         ident = getattr(self, "chara_id", "")
@@ -5184,7 +5216,9 @@ class Window(QMainWindow):
             self.put_result(str(path), "綺麗にした絵")   # 元の絵は下に残す
             self.canvas.fit()   # 結果は全体表示で見せる
         else:
-            self.put_result(str(path), "綺麗にした絵（拡大）", replace=True)   # 拡大した絵（元に戻すで戻せる）
+            self.put_result(str(path), "2 倍に拡大した絵", replace=True)   # 拡大した絵（元に戻すで戻せる）
+            self.notify("2 倍に拡大しました", "ok", f"{out.width}×{out.height}。キャンバスを置き換えました。元の絵は「元に戻す」で戻せます")
+            return path
         self.notify("綺麗にしました（新しいレイヤー）", "ok", "見比べて、使うか消すかを決めてください")
         return path
 

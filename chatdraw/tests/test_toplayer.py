@@ -87,7 +87,7 @@ class TopLayerTest(unittest.TestCase):
         self.w._place_finished("clean", base, base.copy())
         self.assertTop("綺麗にした絵")
         self.w._place_finished("clean", base, base.resize((192, 256)))
-        self.assertTop("綺麗にした絵（拡大）")
+        self.assertTop("2 倍に拡大した絵")
         self.assertEqual(self.w.canvas.size_px(), (192, 256))
 
     def test_outpaint_is_top(self):
