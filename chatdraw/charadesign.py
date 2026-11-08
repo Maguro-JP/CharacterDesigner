@@ -248,3 +248,98 @@ def write_sheet_psd(ident: str, out=None, home=None) -> Path:
     out.parent.mkdir(parents=True, exist_ok=True)
     write_psd(snap, out)
     return out
+
+
+# ---- キャラデザを作る（キャラデザモードの流れを最後まで通す） ----
+
+DESIGN_STEPS = ("設定を書く", "目と表情を決める", "三面図を描く", "表情差分を描く", "検品する", "キャラクターシートに並べる",
+                "キャラクターファイルに保存する")
+PROFILE_KEYS = ("age", "height", "role", "personality", "backstory", "negative", "rules", "colors", "outfit_parts")
+
+
+def guess_face(image):
+    """顔の枠が見つからないときの顔の囲み。三面図の正面（立ち姿の全身）の上の真ん中を頭とみなす。
+    検品の顔の枠が取れた絵では使わない"""
+    w, h = image.size
+    return face_mask(image, [(w * 0.36, h * 0.04, w * 0.64, h * 0.22)])
+
+
+def check_image(path) -> dict:
+    """1 枚を作画監督（handcheck）に通す。読めなかった絵は崩れとして数える（読めない手・顔を「崩れ無し」にしない）"""
+    from chatdraw import handcheck
+    try:
+        r = handcheck.check(str(path), fetch=False)
+    except Exception as e:   # noqa: BLE001  検品が落ちても流れは止めず、読めなかったことを残す
+        r = {"readable": False, "bad": [], "reason": f"検品できませんでした（{e}）"}
+    bad = list(r.get("bad", []))
+    if not r.get("readable"):
+        bad.append("検品できなかった: " + str(r.get("reason", "手・顔を読めませんでした")))
+    return {"bad": bad, "faces": [f["box"] for f in r.get("faces", []) if "box" in f]}
+
+
+def make_design(painter, spec: dict, seed: int = 0, say=lambda msg: None, home=None, expressions=None,
+                size=None, loras=None, out=None) -> dict:
+    """キャラデザモードの流れを順に通す: 設定 → 目と表情 → 三面図 → 表情差分 → 検品 → シート → .chara。
+    spec は name・look・outfit・eyes・eyes_notes・notes と PROFILE_KEYS の欄。expressions は描く表情の id（既定は全部）。
+    返すのは id・.chara の置き場・工程ごとの記録・検品の崩れ・design_status と同じ判定の足りない物"""
+    from chatdraw import charafile
+    if painter is None or not getattr(painter, "ready", lambda: False)():
+        raise NotReady("キャラデザを作るには絵の模型が要ります。AI のメニューで模型を取ってください")
+    if not (spec.get("look") or "").strip():
+        raise NotReady("見た目（髪・目・体つき）の言葉を書いてください。三面図はこの言葉で描きます")
+    b = bible(home)
+    root = _home(home)
+    log = []
+
+    def step(i, msg=""):
+        log.append(DESIGN_STEPS[i] + (f": {msg}" if msg else ""))
+        say(f"キャラデザ {i + 1}/{len(DESIGN_STEPS)}: {DESIGN_STEPS[i]}" + (f"（{msg}）" if msg else ""))
+
+    # 1. 設定を書く
+    ident = spec.get("id") or slug(spec.get("name", ""), home)
+    b.new_character(ident, spec.get("name", "") or ident, spec["look"], spec.get("outfit", ""),
+                    negative=spec.get("negative", ""), notes=spec.get("notes", ""))
+    c = b.load("characters", ident)
+    c.update({k: spec[k] for k in PROFILE_KEYS if spec.get(k)})
+    b.save("characters", c)
+    step(0, ident)
+    # 2. 目と表情を決める（表情は既定の 8 種に、spec の固有の表情を重ねる）
+    if spec.get("eyes"):
+        b.set_eyes(ident, spec["eyes"], spec.get("eyes_notes", ""))
+    for e in spec.get("own_expressions", []):
+        b.add_expression(ident, e["id"], e["name"], e["tags"])
+    step(1, f"表情 {len(b.expressions_of(ident))} 種")
+    # 3. 三面図
+    step(2)
+    turn = draw_turnaround(painter, ident, seed, size=size, say=say, home=home)
+    # 4. 表情差分（三面図の正面の顔の中だけを描き直す）
+    front = root / turn["front"]
+    from PIL import Image
+    base = Image.open(front).convert("RGB")
+    qc_front = check_image(front)
+    mask = face_mask(base, qc_front["faces"]) if qc_front["faces"] else guess_face(base)
+    step(3, "顔の枠は検品から" if qc_front["faces"] else "顔の枠が取れず、頭の位置から囲みました")
+    expr = draw_expressions(painter, ident, base, mask, seed, only=expressions, say=say, home=home)
+    # 5. 検品（三面図と表情差分を 1 枚ずつ）
+    faults = {}
+    for role, rel in [(f"turn-{k}", v) for k, v in turn.items()] + [(f"expr-{k}", v) for k, v in expr.items()]:
+        r = qc_front if role == "turn-front" else check_image(root / rel)
+        if r["bad"]:
+            faults[role] = r["bad"]
+    step(4, f"崩れのある絵 {len(faults)} 枚" if faults else "崩れは見つかりませんでした")
+    c = b.load("characters", ident)
+    c["palette"] = palette(base)
+    c["qc"] = faults
+    if loras is not None:
+        c["loras"] = loras
+    b.save("characters", c)
+    # 6. シート
+    psd = write_sheet_psd(ident, home=home)
+    step(5, psd.name)
+    # 7. .chara
+    status = b.design_status(ident)
+    ch = charafile.from_bible(ident, home)
+    path = charafile.save(ch, out or charafile.library_dir(home) / f"{ident}{charafile.SUFFIX}")
+    step(6, path.name)
+    return {"id": ident, "path": str(path), "sheet": str(psd), "turn": turn, "expressions": expr,
+            "faults": faults, "missing": status["missing"], "ready": status["ready"], "log": log}

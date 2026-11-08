@@ -835,6 +835,17 @@ class Window(QMainWindow):
         file.addAction(edit_open)
         file.addAction(S["save"])
         file.addAction(S["save_as"])
+        file.addSeparator()
+        # キャラクターファイル（.chara。chatdraw/charafile.py）。1 人分の設定・絵・シート・参考画像・LoRA の選び方を 1 つに持つ
+        for label, fn, tip in (
+                ("キャラクターを新しく作る…", self.charafile_new, "名前・見た目・服・性格などの設定を書いて、新しいキャラクターを作ります"),
+                ("キャラクターを開く…", self.charafile_open, "キャラクターファイル（.chara）を開きます。開いた人物の設定・目・色・参考画像・LoRA で描きます"),
+                ("キャラクターを保存", self.charafile_save, "開いている人物を、設定資料と絵ごとキャラクターファイルに保存します"),
+                ("キャラクターを書き出す…", self.charafile_export, "開いている人物を、置き場を選んでキャラクターファイルに書き出します。人に渡すときに使います")):
+            act = QAction(label, self, triggered=lambda _=False, f=fn: f())
+            act.setToolTip(tip)
+            file.addAction(act)
+        file.addSeparator()
         out = file.addMenu("書き出す")
         out.setToolTipsVisible(True)
         out.addAction(S["export_flat"])
@@ -4907,6 +4918,12 @@ class Window(QMainWindow):
         m = self.chara_menu
         m.clear()
         m.setToolTipsVisible(True)
+        m.addAction("キャラデザを作る…", lambda: self.chara_design()).setToolTip(
+            "設定を書く・目と表情を決める・三面図・表情差分・検品・キャラクターシート・キャラクターファイルへの保存を順に通します")
+        if getattr(self, "chara_file", None):
+            m.addAction(f"「{self.chara_file['manifest']['name']}」で描くのをやめる", self.charafile_close).setToolTip(
+                "開いているキャラクターの設定の言葉・参考画像・LoRA を、描く言葉に足すのをやめます")
+        m.addSeparator()
         m.addAction("描いた人物を設定資料に保存…", self.chara_save).setToolTip(
             "今の絵を色の手本にして、頼んだ言葉と色見本と一緒に設定資料に残します。三面図と表情差分はこの資料から描きます")
         try:
@@ -4935,6 +4952,182 @@ class Window(QMainWindow):
         m.addSeparator()
         m.addAction("学習セット…", self.open_refsets).setToolTip(
             "模型ごと・キャラクターごとに参考画像の組を残します。描くときは参考画像（IP-Adapter）で見た目を寄せます")
+
+    # ---- キャラクターファイル（.chara） ----
+
+    def _chara_spec_dialog(self, spec: dict | None = None) -> dict | None:
+        """設定を書く窓。名前と見た目は要る。ほかは空でよい（足りない物はあとで design_status と同じ判定で出す）"""
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLineEdit, QPlainTextEdit
+        spec = dict(spec or {})
+        d = QDialog(self)
+        d.setWindowTitle("キャラクターの設定")
+        form = QFormLayout(d)
+        rows = (("name", "名前", "例: 灯りの騎士"), ("look", "見た目（変えない言葉）", "1girl, long brown hair, brown eyes"),
+                ("outfit", "いつもの服", "silver plate armor, red cape"), ("eyes", "目の設計", "large round eyes, amber iris"),
+                ("age", "年齢", ""), ("height", "身長・頭身", ""), ("role", "役割", ""), ("personality", "性格", ""),
+                ("backstory", "背景設定", ""), ("negative", "禁止ワード", "bare legs, extra weapons"))
+        boxes = {}
+        for key, label, hint in rows:
+            box = QPlainTextEdit() if key == "backstory" else QLineEdit()
+            box.setPlaceholderText(hint)
+            (box.setPlainText if key == "backstory" else box.setText)(spec.get(key, ""))
+            if key == "backstory":
+                box.setMaximumHeight(72)
+            form.addRow(label, box)
+            boxes[key] = box
+        bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        bb.accepted.connect(d.accept)
+        bb.rejected.connect(d.reject)
+        form.addRow(bb)
+        if d.exec() != QDialog.Accepted:
+            return None
+        return {k: (b.toPlainText() if k == "backstory" else b.text()).strip() for k, b in boxes.items()}
+
+    def _use_character(self, ch: dict, path: str = ""):
+        """開いた人物を描く言葉と部品に入れる（studio.character）。設定資料集にも書き戻し、キャラデザの欄の「使う人物」にする"""
+        from chatdraw import charafile
+        self.chara_id = charafile.to_bible(ch)
+        self.chara_file, self.chara_file_path = ch, path or ch.get("path", "")
+        self.studio.character = charafile.for_studio(ch)
+        _chosen, gone = charafile.lora_choice(ch)
+        if gone:
+            self.notify("手元に無い LoRA があります", "info", "「模型の管理」の「LoRA…」で足すと使います: " + "、".join(gone))
+        self.statusBar().showMessage(f"キャラクター: {charafile.summary(ch)}", 8000)
+        if hasattr(getattr(self, "library_panel", None), "refresh_characters"):
+            self.library_panel.refresh_characters()
+
+    def charafile_new(self, spec: dict | None = None) -> str:
+        """設定を書いて新しい人物を作り、ライブラリーの置き場に .chara で保存して開く。返すのは置き場（やめたら空）"""
+        from chatdraw import charadesign, charafile
+        spec = spec if isinstance(spec, dict) else self._chara_spec_dialog()
+        if not spec:
+            return ""
+        if not spec.get("name") or not spec.get("look"):
+            self.notify("キャラクターを作れませんでした", "info", "名前と見た目の言葉を書いてください")
+            return ""
+        ident = charadesign.slug(spec["name"])
+        ch = charafile.new(spec["name"], spec["look"], spec.get("outfit", ""), ident=ident,
+                           **{k: spec[k] for k in charadesign.PROFILE_KEYS if spec.get(k)})
+        ch["manifest"]["eyes"]["tags"] = spec.get("eyes", "")
+        ch["manifest"]["words"]["negative"] = spec.get("negative", "")
+        path = charafile.save(ch, charafile.library_dir() / f"{ident}{charafile.SUFFIX}")
+        self._use_character(ch, str(path))
+        self.notify("キャラクターを作りました", "ok", f"{spec['name']}。「キャラクターデザイン」の「キャラデザを作る…」で三面図と表情差分を描けます")
+        return str(path)
+
+    def charafile_open(self, path: str | None = None) -> bool:
+        from chatdraw import charafile
+        if not isinstance(path, str) or not path:
+            from PySide6.QtWidgets import QFileDialog
+            path, _ = QFileDialog.getOpenFileName(self, "キャラクターを開く", str(charafile.library_dir()),
+                                                  f"キャラクターファイル (*{charafile.SUFFIX})")
+            if not path:
+                return False
+        try:
+            ch = charafile.load(path)
+        except charafile.BadFile as e:
+            self.notify("キャラクターを開けませんでした", "error", str(e))
+            return False
+        self._use_character(ch, path)
+        self.notify("キャラクターを開きました", "ok", charafile.summary(ch) + "。描くとこの人物の設定で描きます")
+        return True
+
+    def _charafile_current(self) -> dict | None:
+        """設定資料集の今の中身から .chara の形を作り直す（三面図や表情差分を描き足した分も入る）"""
+        from chatdraw import charafile
+        ident = getattr(self, "chara_id", "")
+        if not ident:
+            self.notify("保存できませんでした", "info", "先に「キャラクターを新しく作る…」か「キャラクターを開く…」で人物を選んでください")
+            return None
+        old = getattr(self, "chara_file", None)
+        loras = old["manifest"].get("loras") if old else None
+        if not loras:
+            loras = charafile.lora_refs(getattr(self.studio.painter, "lora", ""))
+        ch = charafile.from_bible(ident, loras=loras)
+        if old:
+            ch["manifest"]["created"] = old["manifest"].get("created", ch["manifest"]["created"])
+        return ch
+
+    def charafile_save(self, path: str | None = None) -> str:
+        from chatdraw import charafile
+        ch = self._charafile_current()
+        if ch is None:
+            return ""
+        path = path if isinstance(path, str) and path else (getattr(self, "chara_file_path", "") or
+                                                             str(charafile.library_dir() / f"{ch['manifest']['id']}{charafile.SUFFIX}"))
+        try:
+            out = charafile.save(ch, path)
+        except (OSError, charafile.BadFile) as e:
+            self.notify("保存できませんでした", "error", str(e))
+            return ""
+        self._use_character(ch, str(out))
+        self.notify("キャラクターを保存しました", "ok", f"{charafile.summary(ch)}: {out}")
+        return str(out)
+
+    def charafile_export(self, path: str | None = None) -> str:
+        from chatdraw import charafile
+        if not isinstance(path, str) or not path:
+            from PySide6.QtWidgets import QFileDialog
+            ident = getattr(self, "chara_id", "") or "chara"
+            path, _ = QFileDialog.getSaveFileName(self, "キャラクターを書き出す", str(Path.home() / f"{ident}{charafile.SUFFIX}"),
+                                                  f"キャラクターファイル (*{charafile.SUFFIX})")
+            if not path:
+                return ""
+        ch = self._charafile_current()
+        if ch is None:
+            return ""
+        out = charafile.save(ch, path)
+        self.notify("キャラクターを書き出しました", "ok", str(out))
+        return str(out)
+
+    def charafile_close(self):
+        self.chara_file, self.chara_file_path = None, ""
+        self.studio.character = None
+        self.statusBar().showMessage("キャラクターの設定を描く言葉に足すのをやめました", 6000)
+
+    def chara_design(self, spec: dict | None = None, expressions=None, size=None) -> bool:
+        """キャラデザを作る。設定は開いている人物の物を初めの値にして書いてもらい、残りの工程は裏の糸で通す"""
+        from chatdraw import charadesign, charafile
+        if self.busy("キャラデザ"):
+            return False
+        if not isinstance(spec, dict):
+            init = {}
+            ch = getattr(self, "chara_file", None)
+            if ch:
+                m = ch["manifest"]
+                init = {"name": m["name"], **m.get("profile", {}), "eyes": m.get("eyes", {}).get("tags", ""),
+                        "negative": m.get("words", {}).get("negative", "") or m.get("profile", {}).get("negative", "")}
+            spec = self._chara_spec_dialog(init)
+            if not spec:
+                return False
+        painter = self._chara_painter()
+        if painter is None:
+            return False
+        if getattr(self, "chara_file", None) and spec.get("name") == self.chara_file["manifest"]["name"]:
+            spec = dict(spec, id=self.chara_file["manifest"]["id"])   # 開いている人物を描き直す（別の id を作らない）
+        loras = charafile.lora_refs(getattr(painter, "lora", ""))
+        self.activity.begin("キャラデザを作る", "キャラクターデザイン")
+        seed = int(time.time()) % 100000
+        self._run_task(lambda _step: charadesign.make_design(painter, spec, seed, say=self.task.status.emit,
+                                                             expressions=expressions, size=size, loras=loras),
+                       self._chara_design_done)
+        return True
+
+    def _chara_design_done(self, res: dict):
+        from chatdraw import charafile
+        self.activity.end("キャラデザを作りました", None, record=False)
+        self._use_character(charafile.load(res["path"]), res["path"])
+        self.chara_design_result = res
+        self.open_path(res["sheet"])
+        lines = [f"三面図 {len(res['turn'])} 枚・表情差分 {len(res['expressions'])} 枚をシートに並べ、{Path(res['path']).name} に保存しました"]
+        if res["faults"]:
+            lines.append("検品で崩れが見つかった絵: " + "、".join(f"{k}（{len(v)} 件）" for k, v in res["faults"].items()))
+        if res["missing"]:
+            lines.append(f"設定資料でまだ足りない物 {len(res['missing'])} 件: " + "、".join(res["missing"][:4]) +
+                         ("…" if len(res["missing"]) > 4 else ""))
+        self.notify("キャラデザを作りました（途中）" if (res["faults"] or res["missing"]) else "キャラデザを作りました",
+                    "info" if (res["faults"] or res["missing"]) else "ok", "\n".join(lines))
+        self._end("キャラデザを作りました")
 
     def chara_save(self, name: str | None = None):
         """今の絵を設定資料に保存する。返すのは保存した id（やめたときは空）"""

@@ -1553,8 +1553,43 @@ class Studio:
         self.words_auto = False   # おまかせ: 頼みごとに、手元の言葉の模型から合う物を選ぶ
         # 描き方。"auto" は、構図の模型・SDXL の模型・2 段の部品がそろっていれば 2 段で描く。"one" は 1 つの模型、"two" は必ず 2 段
         self.way = "auto"
+        # 開いたキャラクター（chatdraw/charafile.py の for_studio の形）。描く言葉の前に設定の言葉を足し、
+        # 禁止ワード・参考画像・LoRA もその人物の物を使う。None なら足さない
+        self.character: dict | None = None
+
+    def _with_character(self, prompt: str) -> str:
+        ch = self.character
+        if not ch or not ch.get("words"):
+            return prompt
+        have = {t.strip().lower() for t in prompt.split(",")}
+        add = [t.strip() for t in ch["words"].split(",") if t.strip() and t.strip().lower() not in have]
+        return ", ".join(add + [prompt]) if add else prompt
 
     def draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
+             on_preview=None, style: str = "", reference=None, ref_scale: float = 0.6, meta: dict | None = None) -> tuple[str, Path]:
+        ch = self.character
+        if not ch:
+            return self._draw(text, seed, on_status, base, strength, size, on_preview, style, reference, ref_scale, meta)
+        # 人物の禁止ワードと LoRA は、この 1 回のあいだだけ描き手に入れ、終わったら元に戻す
+        p = self.painter
+        avoid0, lora0 = getattr(p, "avoid", None), getattr(p, "lora", None)
+        if ch.get("negative") and avoid0 is not None:
+            p.avoid = ", ".join(x for x in (avoid0, ch["negative"]) if x)
+        if ch.get("lora") and lora0 is not None and not lora0:
+            p.lora = ch["lora"]
+        if reference is None and ch.get("reference") is not None:
+            from chatdraw.models import family as fam, image_model
+            if fam(image_model(getattr(p, "model", "")).family).reference:
+                reference = ch["reference"]
+        try:
+            return self._draw(text, seed, on_status, base, strength, size, on_preview, style, reference, ref_scale, meta)
+        finally:
+            if avoid0 is not None:
+                p.avoid = avoid0
+            if lora0 is not None:
+                p.lora = lora0
+
+    def _draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
              on_preview=None, style: str = "", reference=None, ref_scale: float = 0.6, meta: dict | None = None) -> tuple[str, Path]:
         say = on_status or (lambda msg: None)
         if refused(text):
@@ -1598,7 +1633,7 @@ class Studio:
             return self._draw_two(text, seed, two, style, size, say, meta)
         say("頼みを描く言葉に直しています")
         as_tags = fam(image_model(getattr(self.painter, "model", "")).family).tags
-        prompt = self.words.to_prompt(text, tags=as_tags)
+        prompt = self._with_character(self.words.to_prompt(text, tags=as_tags))
         # 頼んだ物の検品は頼みの言葉だけで見る（足した背景は頼みではないので、描かれなくても描き直しの理由にしない）
         asked_prompt = prompt
         # 学んだ描かれにくさで頼みのタグを並べ替え、通りにくい模型は頼みの効きを少し上げる（chatdraw/wordlearn.py）。
@@ -1851,7 +1886,8 @@ class Studio:
         say(f"2 段で描きます（構図: {comp.name}、仕上げ: {render.name}）")
         say("頼みを描く言葉に直しています")
         sentence = self.words.to_prompt(text, tags=False)
-        tags = self.words.to_prompt(text, tags=True)
+        tags = self._with_character(self.words.to_prompt(text, tags=True))
+        sentence = self._with_character(sentence)
         if style:
             tags = f"{tags}, {style}"
         sentence, tags = english_only(sentence), english_only(tags)   # 2 段の模型は prompt_args を通らないので、ここで日本語を除く
