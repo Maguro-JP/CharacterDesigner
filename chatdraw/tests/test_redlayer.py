@@ -3,7 +3,6 @@
 直しは本物と同じ経路（赤ペンで囲む → Window.send の直す形 → Studio.fix）で、小さな偽の模型で流す。
 後半は、頼みに場所が無いときに足す場所の言葉（chatdraw/variety.py）が頼みにふさわしいかを表で確かめる"""
 import unittest
-from unittest import mock
 
 from PySide6.QtCore import Qt
 
@@ -50,11 +49,17 @@ class RedLayerDeleteTest(lk.LayerKeepTest):
             next(a for a in menu.actions() if a.text() == "レイヤーを消す").trigger()
         QCoreApplication.processEvents()
 
-    def check(self, how):
+    def check(self, how, saved_first=False):
         w = self.w
         n = self.make_fix(w)
-        with mock.patch("chatdraw.confirm.ask", lambda *a, **k: "yes"):
-            self.route(w, how)
+        if saved_first:   # 直したあとに一度ほかの絵へ移り、作業のファイルに直しのレイヤーが書かれてから消す
+            w.show_history_image(str(self.b))
+            w.show_history_image(str(self.a))
+            w.wait_io()
+            c = w.canvas
+            w.layer_panel.list.setCurrentRow(w.layer_panel.row_of(next(i for i, l in enumerate(c.layers) if l.redpen)))
+        self.press_yes(w)   # 確かめの窓は本物を出し、「消す」を押す
+        self.route(w, how)
         c = w.canvas
         names = [l.name for l in c.layers]
         print(how, "消したあと:", names)
@@ -69,6 +74,25 @@ class RedLayerDeleteTest(lk.LayerKeepTest):
         self.w = w = self.window()
         w.show_history_image(str(self.a))
         self.assertFalse(any(l.redpen for l in w.canvas.layers), [l.name for l in w.canvas.layers])
+
+    def press_yes(self, w):
+        from PySide6.QtCore import QTimer
+        left = [100]   # 窓が出なければ 2 秒であきらめる（タイマーを試験の後まで残さない）
+
+        def push():
+            box = getattr(w, "_confirm_box", None)
+            if box is None:
+                left[0] -= 1
+                if left[0] > 0:
+                    QTimer.singleShot(20, push)
+                return
+            next(b for b in box.buttons() if b.text() == "消す").click()
+        QTimer.singleShot(20, push)
+
+    def test_saved_then_deleted(self):
+        for how in ("minus", "key", "menu", "band"):
+            with self.subTest(how=how):
+                self.check(how, saved_first=True)
 
     def test_minus(self):
         self.check("minus")
