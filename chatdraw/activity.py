@@ -229,16 +229,17 @@ class ActivityPanel(QWidget):
         return item
 
     def end(self, result: str, path: str | None = None, record: bool = True):
-        """1 回分を終える。record なら履歴の先頭に足す（できた絵を add で足したときは足さない）。状態を待ちに戻す"""
+        """1 回分を終える。record で絵があれば履歴の先頭に足す（できた絵を add で足したときは足さない）。状態を待ちに戻す。
+        絵の無い結果（描けませんでした・止めました）は絵の一覧に並べない。並べると絵の無い枠が溜まった。結果は下の文と知らせに出る"""
+        import os
         took = fmt(time.time() - self.started) if self.started else ""
         stamp = time.strftime("%H:%M")
         item = None
-        if record:
-            item = QListWidgetItem("" if path else result)
+        if record and path and os.path.isfile(path):
+            item = QListWidgetItem("")
             item.setSizeHint(QSize(92, 132))
-            if path:
-                item.setIcon(QIcon(QPixmap(path).scaledToHeight(184, Qt.SmoothTransformation)))
-                item.setData(Qt.UserRole, path)
+            item.setIcon(QIcon(QPixmap(path).scaledToHeight(184, Qt.SmoothTransformation)))
+            item.setData(Qt.UserRole, path)
             item.setToolTip(f"{stamp}　{result}" + (f"\n{self.text}" if self.text else ""))
             self.list.insertItem(0, item)
         self._busy(False)

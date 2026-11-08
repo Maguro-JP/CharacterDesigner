@@ -109,12 +109,12 @@ class PainterBudgetTest(unittest.TestCase):
 
     def test_small_budget_draws_smaller_and_returns_size(self):
         """予算に合わせて小さく描いたときも、頼んだ大きさに戻す（キャンバスの大きさは変えない）"""
-        p, log, notes, err = run_paint("cagliostrolab/animagine-xl-4.0", 12.0, 0.0, cuda=False, size=(1536, 1536))
+        p, log, notes, err = run_paint("cagliostrolab/animagine-xl-4.0", 14.0, 0.0, cuda=False, size=(1536, 1536))
         self.assertIsNone(err)
         call = next(x for x in log if x[0] == "call")[2]
         plan = p.plan
         self.assertEqual((call["width"], call["height"]), tuple(plan.size))
-        self.assertLessEqual(plan.ram_peak(), mb.budget(12.0, 0.0).ram)
+        self.assertLessEqual(plan.ram_peak(), mb.budget(14.0, 0.0).ram)
 
     def test_grid_of_painter_runs(self):
         """本物と同じ経路（Painter.paint）で、数字を変えても予算を超える計画で描かない"""
@@ -135,10 +135,32 @@ class PainterBudgetTest(unittest.TestCase):
         p = engine.Painter("cagliostrolab/animagine-xl-4.0")
         with mock.patch.dict(sys.modules, {"torch": fake_torch(False, 0)}):
             self.assertEqual(p.redraw_scale((832, 1216), mb.budget(64.0, 0.0)), 1.5)
-            k = p.redraw_scale((2048, 2048), mb.budget(13.0, 0.0))
+            k = p.redraw_scale((2048, 2048), mb.budget(15.0, 0.0))
             self.assertLess(k, 1.5)
             with self.assertRaises(mb.OverBudget):
                 p.redraw_scale((4096, 4096), mb.budget(9.0, 0.0))
+
+
+class CpuDtypeTest(unittest.TestCase):
+    def test_slow_bf16_uses_fp32_only_within_budget(self):
+        """bf16 の遅い CPU では、float32 が予算に収まるときだけ float32。足りなければ bf16 のまま"""
+        try:
+            import torch
+        except ImportError:
+            self.skipTest("torch が無い")
+        from chatdraw.models import image_model
+        p = engine.Painter("cagliostrolab/animagine-xl-4.0")
+        info = image_model(p.model)
+        with mock.patch.object(engine, "bf16_fast", return_value=False):
+            with mock.patch.object(engine, "free_ram_gb", return_value=40.0):
+                self.assertEqual(p._cpu_dtype(info), torch.float32)
+            with mock.patch.object(engine, "free_ram_gb", return_value=14.0):
+                self.assertEqual(p._cpu_dtype(info), torch.bfloat16)
+        with mock.patch.object(engine, "bf16_fast", return_value=True), \
+                mock.patch.object(engine, "free_ram_gb", return_value=40.0):
+            self.assertEqual(p._cpu_dtype(info), torch.bfloat16)
+        p.force_dtype = "float32"
+        self.assertEqual(p._cpu_dtype(info), torch.float32)
 
 
 class OneModelTest(unittest.TestCase):

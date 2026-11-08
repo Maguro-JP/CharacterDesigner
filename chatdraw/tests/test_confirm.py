@@ -44,9 +44,12 @@ def wait(w, s=60):
     import time
     a = app()
     end = time.time() + s
+    started = time.time() + 3   # 押してから裏の仕事が始まるまでの間に抜けないよう、始まるのを少し待つ
+    seen = False
     while time.time() < end:
         a.processEvents()
-        if w.thread is None:
+        seen = seen or w.thread is not None
+        if w.thread is None and (seen or time.time() > started):
             break
         time.sleep(0.01)
     spin(10)

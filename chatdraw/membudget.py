@@ -26,6 +26,8 @@ ACT_DEFAULT = 1.6   # 新しい世代（DiT）
 VAE_GB_PER_MP = 2.5   # VAE の復号を分けないときの、100 万画素あたりの GB（16 ビット）
 VAE_TILE_GB = 0.7     # VAE を区画に分けて復号するときの山（区画の大きさで決まり、絵の大きさに寄らない）
 PREVIEW_GB_PER_MP = 0.02   # 途中の絵（latents を色に直すだけ。VAE は通さない）
+# 読み込みの RAM の山は、重みの 1.5 倍（Actions の CPU で SDXL 6.9GB を読んだとき、RSS が 11.07GB になった）
+LOAD_RAM_SHARE = 1.5
 SEQ_LAYER_GB = 0.6    # 層ごとに出し入れするときに、一度に GPU に載る分
 COMPONENT_SHARE = 0.8   # 部品ごとに出し入れするときに、一番大きい部品（本体）が模型に占める割合
 # 本体を 4 ビットに縮めた模型では、縮めない言葉の部品が一番大きくなる（Qwen-Image で縮めた全体の 6 割ほど。私の推測）
@@ -127,19 +129,19 @@ def peaks(weights_gb: float, size, family: str, placement: str, slicing: bool, t
     out = {}
     if placement == "cuda":
         # 部品のフォルダーは GPU へ直に読む（device_map）ので、RAM は 1 つずつの重みの写しで済む。1 つのファイルは一度 RAM に並ぶ
-        out["読み込み"] = (O + W * (1.1 if single_file else 0.35), W)
+        out["読み込み"] = (O + W * (LOAD_RAM_SHARE if single_file else 0.35), W)
         out["描く本体"] = (O + prev, W + act)
         out["VAE の復号"] = (O + img, W + vae)
     elif placement == "model":
-        out["読み込み"] = (O + W * 1.1, 0.0)
+        out["読み込み"] = (O + W * LOAD_RAM_SHARE, 0.0)
         out["描く本体"] = (O + W + prev, comp + act)
         out["VAE の復号"] = (O + W + img, 0.2 + vae)
     elif placement == "sequential":
-        out["読み込み"] = (O + W * 1.1, 0.0)
+        out["読み込み"] = (O + W * LOAD_RAM_SHARE, 0.0)
         out["描く本体"] = (O + W + prev, SEQ_LAYER_GB + act)
         out["VAE の復号"] = (O + W + img, SEQ_LAYER_GB + vae)
     else:
-        out["読み込み"] = (O + W * fd * 1.1, 0.0)
+        out["読み込み"] = (O + W * fd * LOAD_RAM_SHARE, 0.0)
         out["描く本体"] = (O + W * fd + act + prev, 0.0)
         out["VAE の復号"] = (O + W * fd + vae + img, 0.0)
     out["頼んだ大きさに戻す"] = (O + img, 0.0)
