@@ -87,9 +87,43 @@ def _load(d: str):
     return _MODEL
 
 
-def sam_mask(image, point=None, box=None, d: str | None = None):
+CHOOSE = "iou"   # 3 つの候補の選び方（iou・large・small）。docs/knowledge/autosel.md の重なりの測りで決める
+
+
+def sam_masks(image, point=None, box=None, d: str | None = None, keep: bool = False):
+    """SAM 2 の 3 つの候補（bool の配列の並び）と、模型の自信（iou）の並び。keep なら模型を降ろさない（測りで使う）"""
+    return _run(image, point, box, d, keep)
+
+
+def sam_mask(image, point=None, box=None, d: str | None = None, choose: str | None = None):
     """SAM 2 で選ぶ。point は (x, y)、box は (x0, y0, x1, y1)、どちらも絵の座標。返すのは bool の配列。
     3 つの候補のうち、模型の自信（iou）が一番高い物を選ぶ。読んだ模型は返す前に降ろす"""
+    masks, scores = _run(image, point, box, d, False)
+    return pick_candidate(masks, scores, choose or CHOOSE)
+
+
+def refine(image, point, masks, scores, d=None, keep=False, choose: str = "iou"):
+    """押した 1 回の答えの外の四角を、押した所と一緒にもう一度渡して選び直す（四角で囲んだときのほうが重なりが高かったため）"""
+    import numpy as np
+    first = pick_candidate(masks, scores, choose)
+    ys, xs = np.nonzero(first)
+    if not len(xs):
+        return first
+    m2, s2 = _run(image, point, (xs.min(), ys.min(), xs.max(), ys.max()), d, keep)
+    return pick_candidate(m2, s2, "iou")
+
+
+def pick_candidate(masks, scores, choose: str):
+    areas = [int(m.sum()) for m in masks]
+    if choose == "large":
+        return masks[max(range(len(masks)), key=lambda i: areas[i])]
+    if choose == "small":
+        ok = [i for i in range(len(masks)) if areas[i] > 0] or [0]
+        return masks[min(ok, key=lambda i: areas[i])]
+    return masks[max(range(len(masks)), key=lambda i: scores[i])]
+
+
+def _run(image, point, box, d, keep):
     import numpy as np
     import torch
     from PIL import Image
@@ -112,12 +146,12 @@ def sam_mask(image, point=None, box=None, d: str | None = None):
             with torch.no_grad():
                 out = m(pixel_values=pv, multimask_output=True, **kw)
         finally:
-            _unload()
-    scores = out.iou_scores[0, 0]
-    k = int(scores.argmax())
-    low = out.pred_masks[0, 0, k][None, None].float()
-    big = torch.nn.functional.interpolate(low, size=(h, w), mode="bilinear", align_corners=False)[0, 0]
-    return (big > 0).numpy()
+            if not keep:
+                _unload()
+    scores = [float(v) for v in out.iou_scores[0, 0]]
+    low = out.pred_masks[0, 0].float()[:, None]
+    big = torch.nn.functional.interpolate(low, size=(h, w), mode="bilinear", align_corners=False)[:, 0]
+    return [(b > 0).numpy() for b in big], scores
 
 
 def parts_mask(image, point=None, box=None):
