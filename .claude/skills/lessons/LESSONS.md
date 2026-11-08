@@ -7,6 +7,12 @@
 
 
 
+
+## 2026-11-08 squash マージの本文に途中のコミットの [skip ci] が入り、Release の組み立てが動かなかった
+場面: マージ、Release、Actions
+起きたこと: 統合のブランチを squash でマージしたら、途中のコミットの「[skip ci]」が本文に入り、main への push の Actions（Setup.exe と Release）が全部起動しなかった
+判定の誤り: [skip ci] は先頭のコミットにだけ付けたつもりで、squash がまとめる本文を読まなかった
+次から: squash マージのときは commit_message を自分で渡し、[skip ci] を含めない。マージのあと、Actions が起動したかを確かめる
 ## 2026-11-08 関数に引数を足し、ボタンの clicked が渡す真偽値で描くボタンが落ちた
 場面: Qt の信号、関数の引数、統合
 起きたこと: send に引数 once を足したら、描くボタンの clicked が押した印（False）を渡し、文として扱って落ちた。担当の試験は send を直接呼んでいたので通った
