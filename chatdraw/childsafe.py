@@ -22,9 +22,9 @@ SEXUAL = ("裸", "全裸", "ヌード", "性的", "性行為", "セックス", "
 # 語そのものが子どもの性的な描写を指す。いつでも止める
 ALWAYS = ("ロリ", "ショタ", "loli", "lolicon", "shota", "shotacon")
 
-_EN_NEG = re.compile(r"(?<![a-z0-9])(?:no|not|without|avoid|never|non)[\s\-]+[a-z0-9_:\- ]*?(?=[,.;()\n]|$)", re.I)
-_EN_FREE = re.compile(r"[a-z0-9_]+-free", re.I)
-_JA_NEG = re.compile(r"[^\s、，,。]+?(?:なし|無し|禁止|を描かない|は描かない|が見えないように|を見せない|を避ける|を避けて|NG)")
+_EN_NEG = re.compile(r"(?<![a-z0-9])(?:no|not|without|avoid|never|non)[\s\-]+[a-z0-9_:\- ]{0,40}?(?=[,.;()\n]|$)", re.I)
+_EN_FREE = re.compile(r"[a-z0-9_]{1,30}-free", re.I)
+_JA_NEG = re.compile(r"[^\s、，,。]{1,20}?(?:なし|無し|禁止|を描かない|は描かない|が見えないように|を見せない|を避ける|を避けて|NG)")
 
 
 def plain(text: str) -> str:
