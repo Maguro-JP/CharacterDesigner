@@ -38,6 +38,26 @@ class Library:
             self.items = json.loads(self.index.read_text(encoding="utf-8"))
         except (OSError, ValueError):
             self.items = []
+        self._drop_redpen_results()
+
+    def _drop_redpen_results(self):
+        """前の版が作品として足した、赤ペンの直しだけの絵（直した所のほかは透明）を外す。直しはレイヤーにだけ置く物で、
+        作品ではない。絵のファイルには触らない。1 度見た項目には印を付け、次に開くときは読み直さない"""
+        from chatdraw.workkeep import is_redpen_result
+        keep, changed = [], False
+        for item in self.items:
+            if item.get("kind") == "work" and not item.get("seen"):
+                changed = True
+                if Path(item.get("path", "")).is_file() and is_redpen_result(item["path"]):
+                    continue
+                item["seen"] = True
+            keep.append(item)
+        self.items = keep
+        if changed:
+            try:
+                self.save()
+            except OSError:
+                pass
 
     def save(self):
         self.root.mkdir(parents=True, exist_ok=True)
@@ -52,9 +72,12 @@ class Library:
         if not meta:
             from chatdraw.finishers import sidecar
             meta = sidecar(path)   # PNG に埋めた頼み。前の版の絵は隣の .json
+        from chatdraw.workkeep import is_redpen_result
+        if meta.get("mode") == "直す" or is_redpen_result(path):
+            return {}   # 赤ペンの直しだけの絵は作品にしない（レイヤーにだけ置く）
         item = {"id": uuid.uuid4().hex[:12], "kind": "work", "path": str(path), "added": time.strftime("%Y-%m-%d %H:%M"),
                 "text": meta.get("text", ""), "prompt": meta.get("prompt", ""), "style": meta.get("style_name", ""),
-                "model": meta.get("model", ""), "seed": meta.get("seed"), "rating": NONE, "tags": [], "note": ""}
+                "model": meta.get("model", ""), "seed": meta.get("seed"), "rating": NONE, "tags": [], "note": "", "seen": True}
         self.items.insert(0, item)
         self.save()
         return item

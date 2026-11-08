@@ -2017,6 +2017,15 @@ class Studio:
         image.save(path, pnginfo=info)
         return path
 
+    def _save_temp(self, image, seed: int, meta: dict) -> Path:
+        """出力の置き場ではなく仮の置き場に書く。受け取った側がレイヤーに読み込んだら消す"""
+        import os
+        import tempfile
+        fd, tmp = tempfile.mkstemp(prefix="cd-redpen-", suffix=".png")
+        os.close(fd)
+        image.save(tmp)
+        return Path(tmp)
+
     def _fix_once(self, before, mask, prompt, seed, strength, k, count, say, reference, ref_scale, blend: bool = True):
         """1 回直して、縁に出た継ぎ目だけを元に戻し、境目の色・明るさ・線を元の絵に合わせる（chatdraw/seamfix.py）。
         前は継ぎ目が残ると継ぎ目の所を模型でもう 1 回描き直していた。模型を回すより、境目の帯だけを数字で合わせる方が
@@ -2039,8 +2048,9 @@ class Studio:
         return result
 
     def fix(self, image, regions: list[tuple], seed: int, on_status=None, style: str = "", strength: float = 0.75,
-            reference=None, ref_scale: float = 0.6, check: bool = True):
-        """赤ペン先生と範囲の描き直し。check を外すと崩れの検査をしない（ちびキャラのように絵全体を描き替える加工）。regions は (mask, 指示の文) の並び。直す所ごとに指示を描く言葉に直し、
+            reference=None, ref_scale: float = 0.6, check: bool = True, keep_file: bool = True):
+        """赤ペン先生と範囲の描き直し。keep_file を外すと、結果を出力の置き場に残さず仮の置き場に書く
+        （赤ペンの直しは直した所だけのレイヤーにしてキャンバスに置くだけで、画像のファイル・履歴・ライブラリーには要らない）。check を外すと崩れの検査をしない（ちびキャラのように絵全体を描き替える加工）。regions は (mask, 指示の文) の並び。直す所ごとに指示を描く言葉に直し、
         絵全体を順に描き直す。返すのは (描く言葉の並び, 描き直した絵全体の置き場)。直す所だけを貼り合わせない。
 
         囲んだ所は、近くの線と塗りの切れ目まで少しだけ広げてから直す（seamfix.adjust_mask。境目が線の際に来ると目立たない）。
@@ -2100,7 +2110,7 @@ class Studio:
         # 重ねるレイヤーは直した所だけを見せる（外は元と同じ画素なので、下のレイヤーに描き足しても隠さない）
         layer = result.convert("RGBA")
         layer.putalpha(touched.point(lambda v: 255 if v > 0 else 0))
-        path = self._save(layer, seed, dict(text=" / ".join(n for _m, n in regions), prompt=" / ".join(prompts), seed=seed,
+        path = (self._save if keep_file else self._save_temp)(layer, seed, dict(text=" / ".join(n for _m, n in regions), prompt=" / ".join(prompts), seed=seed,
                                             style=style, model=self.painter.model, mode="直す", flaws=self.last_flaws,
                                             seam=self.last_seam))
         return prompts, path
