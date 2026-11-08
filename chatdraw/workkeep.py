@@ -94,6 +94,7 @@ def capture(canvas) -> dict:
             "version": VERSION, "app": "CharacterDesigner", "size": list(canvas.size_px()), "current": canvas.current,
             "layers": [{"name": l.name, "locked": l.locked, "redpen": getattr(l, "redpen", False)} for l in canvas.layers],
             "marks": [[[p.x(), p.y()] for p in pts] for pts in pen.marks], "notes": list(pen.texts), "hidden": list(pen.hidden),
+            "shapes": [_path_rows(pen.shape(n)) for n in range(1, len(pen.marks) + 1)],
             "selection": [sel.x(), sel.y(), sel.width(), sel.height()] if sel is not None else None,
             "view": {"zoom": canvas.zoom(), "angle": getattr(canvas, "angle", 0.0), "flipped": bool(getattr(canvas, "flipped", False)),
                      "fit": bool(getattr(canvas, "auto_fit", True))},
@@ -174,10 +175,12 @@ def apply(canvas, state: dict, undo: tuple | None = None):
     canvas._reset(layers, max(0, min(int(info.get("current", 0)), len(layers) - 1)))
     pen = canvas.redpen
     hidden = info.get("hidden", [])
+    shapes = info.get("shapes", [])
     for i, (pts, note) in enumerate(zip(info.get("marks", []), info.get("notes", []))):
         pen.marks.append([QPointF(x, y) for x, y in pts])
         pen.texts.append(note)
         pen.hidden.append(bool(hidden[i]) if i < len(hidden) else False)
+        pen.shapes.append(_rows_path(shapes[i]) if i < len(shapes) else None)
     pen.update()
     pen._changed()
     sel = info.get("selection")
@@ -199,3 +202,23 @@ def apply(canvas, state: dict, undo: tuple | None = None):
 
 def undo_of(canvas) -> tuple:
     return (list(canvas.undo_stack), list(canvas.undo_names), list(canvas.redo_stack), list(canvas.redo_names))
+
+
+def _path_rows(path):
+    """形の印を JSON に書ける形（角の並びの並び）にする。手で描いた印（None）は None"""
+    if path is None:
+        return None
+    return [[[round(p.x(), 2), round(p.y(), 2)] for p in poly] for poly in path.toSubpathPolygons()]
+
+
+def _rows_path(rows):
+    if not rows:
+        return None
+    from PySide6.QtCore import Qt
+    from PySide6.QtGui import QPainterPath, QPolygonF
+    path = QPainterPath()
+    path.setFillRule(Qt.OddEvenFill)   # 穴（自動選択で選んだ物の中の抜け）を穴のまま戻す
+    for poly in rows:
+        path.addPolygon(QPolygonF([QPointF(x, y) for x, y in poly]))
+        path.closeSubpath()
+    return path

@@ -133,6 +133,7 @@ STEPS = (("読み解く", "頼みから描く物・人数・直す所を読む",
          ("描く", "模型に描かせる", "模型が絵を返した"),
          ("検品", "サボり・手・顔・頼んだ物を数字で見る", "崩れが 0 件"),
          ("描き直す", "崩れた理由で手を替えて描き直す", "検品を通った"),
+         ("全体を確かめる", "加工のあとに絵の全体を検品し、崩れた所を直す", "全体の崩れが 0 件か、直せない崩れを書いた"),
          ("仕上げ", "通った絵を保存して渡す", "絵を保存した"))
 
 
@@ -193,3 +194,59 @@ class Plan:
         return {"request": self.request, "kind": self.kind, "stages": self.stages, "hands": self.hands,
                 "sec": round(time.time() - self.started, 2)}
 
+
+
+def final_check(before, after, mask=None, plan=None, say=lambda m: None, keep_face=None) -> tuple:
+    """加工（赤ペンの直し・右クリックの加工・仕上げ・自動選択の範囲の加工）のあとに、絵の全体を確かめて直す。
+
+    自動選択も手で描いた囲みも 100% ではないので、囲みごとの検品のあとにもう一度、絵の全体で次を見る。
+    - サボり（slack）: 絵になっているか、直したか、囲みの外が変わっていないか
+    - 境目（seamfix.measure）: 囲みの縁で色の段差・線のずれが出ていれば、seamfix.settle で帯を広げて合わせ直す
+    - 目と髪の色（facefeat.keep）: keep_face（白が戻してよい所）で目・髪が変わっていたら元の画素へ戻す。
+      頼んで変えた所（赤ペンの囲みの中、線画のように色を変えるのが仕事の加工）は keep_face に入れない
+    - 作画監督（engine.flaws）: 縁の段差・平らな塗り・線の切れ・元の形の残り
+    返すのは (直した絵, 残った崩れの並び, 数字)。plan があれば「全体を確かめる」の工程として記録する"""
+    from chatdraw import seamfix
+    if plan is not None:
+        plan.enter("全体を確かめる", "絵の全体を検品しています")
+    out = after.convert("RGB")
+    src = before.convert("RGB")
+    stats, fixed, left = {}, [], []
+    if out.size != src.size:
+        if plan is not None:
+            plan.done("全体を確かめる", "大きさが変わる加工なので、全体の比べはしていない")
+        return after, [], {"measured": False}
+    m = mask.convert("L").point(lambda v: 255 if v > 127 else 0) if mask is not None else None
+    if m is not None and m.getbbox() is not None:
+        sm = seamfix.measure(src, out, m)
+        stats["seam"] = sm
+        if not sm.get("ok", True):
+            out, tries = seamfix.settle(src, out, m, say=say)
+            stats["seam_after"] = tries[-1] if tries else sm
+            fixed.append("境目")
+            if tries and not tries[-1].get("ok", True):
+                left.append(f"全体: 境目のずれ（色の差 {tries[-1]['color']}・線のずれ {tries[-1]['shift']} 画素）")
+    if keep_face is not None:
+        try:
+            from chatdraw import facefeat
+            out, fr = facefeat.keep(src, out, keep_face)
+            stats["face"] = fr
+            if fr.get("back"):
+                fixed.append("・".join(fr["back"]))
+        except Exception as e:   # noqa: BLE001  部位分けが使えないときは測っていないと書く
+            stats["face"] = {"measured": False, "error": type(e).__name__}
+    lazy = slack(out, src, m)
+    stats["slack"] = lazy["stats"]
+    left += [f"全体: {b}" for b in lazy["bad"]]
+    if m is not None and m.getbbox() is not None:
+        try:
+            from chatdraw.engine import flaws
+            left += [f"全体: {f}" for f in flaws(src, out, m)]
+        except Exception:   # noqa: BLE001
+            pass
+    note = (f"直した所: {'・'.join(fixed)}。" if fixed else "") + (f"残った崩れ {len(left)} 件" if left else "崩れ 0 件")
+    if plan is not None:
+        plan.done("全体を確かめる", note)
+    say(f"全体を確かめました（{note}）")
+    stats.update(fixed=fixed, left=left)
+    return out, left, stats
