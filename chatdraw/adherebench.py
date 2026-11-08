@@ -7,6 +7,7 @@
 
 描く所は、言葉の模型の無いアプリと同じ（jaterms の表 → 書かれていない所を種で足す → Painter.paint）。
 draw は前の版と後の版のリポジトリでそれぞれ流し（作業の置き場をその版にする）、score は同じ版の読み方で両方を数える。
+描く言葉は Painter.paint の中で組む（質の決まり文句を頼みの後ろへ回す engine.lead_quality も通る）ので、前と後の差に頼みの並べ方も入る。
 重い（SDXL を CPU で 1 枚 10 分ほど）ので、手元ではなく GitHub Actions（adhere-bench.yml）で流す。
 """
 from __future__ import annotations
