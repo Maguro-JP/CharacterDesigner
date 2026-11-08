@@ -29,8 +29,33 @@ def _n(s: str) -> int:
 
 
 _N = r"(\d+|[０-９]+|[一二三四五六七八九十])"
-# 繰り返し。「5 枚描いて」「3 回繰り返して」「4 回描き直して」。1・2・4 枚は AI の欄の枚数でも描けるが、文の頼みは順に描いて揃える
-_REPEAT = re.compile(_N + r"\s*(?:枚|回|times|pictures|images)")
+# 頼みの中の枚数の言葉（「10回」「3枚」「5体」「2個ずつ」「3枚ほど」）。描く言葉や文の切れ目の前にあるときだけ枚数に読む。
+# 「3体の竜」「2個のりんご」は描く物の言葉なので読まない。取り除くときは後ろの「を」「も」まで一緒に取り、
+# 前は「10回を描いて」「を描いて」のような残りかすが描く言葉に残った
+_COUNT_WORD = re.compile(r"[、,]?\s*" + _N + r"\s*(?:回|枚|体|個|匹|times|pictures|images)\s*(?:ずつ|づつ)?\s*(?:ほど|くらい|ぐらい|程度)?\s*(?:を|も)?"
+                         r"(?=\s*(?:描|かい|かく|書い|繰り返|くりかえ|お願い|$|[、,。！!\s]))", re.I)
+
+
+def split_count(text: str) -> tuple[int | None, str]:
+    """（枚数、枚数の言葉を取り除いた頼み）。枚数が無ければ (None, 元の頼み)。頼みの残りの言葉は書いたまま変えない"""
+    m = _COUNT_WORD.search(text)
+    if not m or not _n(m.group(1)):
+        return None, text
+    rest = text[:m.start()] + text[m.end():]
+    # 取り除いた跡の頭の区切り（「3枚、赤い服の子を描いて」の「、」）だけを落とす
+    rest = re.sub(r"^\s*[、,]\s*", "", rest) if m.start() == 0 else rest
+    return _n(m.group(1)), re.sub(r"\s{2,}", " ", rest).strip()
+
+
+_DRAW_VERB = re.compile(r"(?:を|に)?\s*(?:(?:描いて|かいて|書いて)(?:ください|下さい|ね|よ)?|描く(?=$|[、,。！!\s]))")
+
+
+def draw_body(text: str) -> str:
+    """頼みから描く言葉を取り出す。描く動詞（を描いて）と文末の記号だけを取り、ほかは書いたまま残す"""
+    body = _DRAW_VERB.sub(" ", text)
+    return re.sub(r"\s+", " ", body).strip(" 、。！!,")
+
+
 _KEEP_BEST = re.compile(r"(良い|よい|いい|一番|いちばん|最も良い|ベスト|best)(の|もの|物|絵)?(を|だけ)?(残|選|取っ|keep|pick)\w*?(して|て)?", re.I)
 # 時刻。「10 分後に」「1 時間後に」「毎晩」「毎朝」「毎日 21 時に」
 _AFTER = re.compile(_N + r"\s*(分|時間)\s*(後|あと)|in\s+(\d+)\s*(minutes?|hours?)", re.I)
@@ -128,11 +153,9 @@ def clean_first(steps: list[str], finishers=None) -> list[str]:
 
 def parse(text: str, finishers=None, now: float | None = None) -> Plan:
     p = Plan()
-    rest = text
-    m = _REPEAT.search(text)
-    if m and _n(m.group(1)) > 1:
-        p.repeat = min(MAX_REPEAT, _n(m.group(1)))
-        rest = rest.replace(m.group(0), " ")
+    n, rest = split_count(text)
+    if n and n > 1:
+        p.repeat = min(MAX_REPEAT, n)
     if _KEEP_BEST.search(text):
         p.keep_best = True
         rest = _KEEP_BEST.sub(" ", rest)
@@ -162,11 +185,11 @@ def parse(text: str, finishers=None, now: float | None = None) -> Plan:
         for w in sorted(words, key=len, reverse=True):
             body = body.replace(w, " ")
     body = re.sub(r"\s+", " ", _JOIN.sub(" ", body)).strip(" 、。")
-    from chatdraw.assistant import draw_request
-    want = draw_request(body)
+    want = draw_body(body) if _DRAW_VERB.search(body) else None
     body = want if want is not None else body
-    body = re.sub(r"(この絵を?|今の絵を?|それを|を?(して|した|する)(ください|下さい)?|ください|^描いて$|[、。！!]+)", " ", body)
-    body = re.sub(r"\s+", " ", body).strip(" をにでと")
+    if p.steps or not want:   # 加工の頼みの残り（「この絵を」「して」）だけを外す。描く頼みの言葉は書いたまま残す
+        body = re.sub(r"(この絵を?|今の絵を?|それを|を?(して|した|する)(ください|下さい)?|ください|[、。！!]+)", " ", body)
+        body = re.sub(r"\s+", " ", body).strip(" をにでと")
     # 「フォルダーに書き出して」だけの頼みは描かない（書き出すだけ）
     if want is not None or "fix" in p.steps or (not p.steps and (body or p.repeat > 1 or p.export is None)):
         p.body = body

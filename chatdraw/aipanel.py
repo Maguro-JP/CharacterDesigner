@@ -196,7 +196,7 @@ class AiPanel(QWidget):
         lay.addWidget(self._head("枚数", "一度に何枚描くか。描くボタンの左の欄でも打てます"))
         # 作成枚数は「指示」のタブにも数の欄で出す（窓の側で置く）。ボタンと欄は同じ値を持つ
         self.count_spin = QSpinBox()
-        self.count_spin.setRange(1, 8)
+        self.count_spin.setRange(1, 20)   # チャットの「10回描いて」も枚数で描く（chatplan.MAX_REPEAT）
         self.count_spin.setSuffix(" 枚")
         self.count_spin.setToolTip("一度に描く枚数（直すときは 1 枚）")
         self.count_buttons = self._segment(["1 枚", "2 枚", "4 枚"], lambda i: self.count_spin.setValue((1, 2, 4)[i]))
