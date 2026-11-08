@@ -622,6 +622,44 @@ class NoteEdit(QLineEdit):
         e.accept()   # 欄が使わなかったキーも、親のキャンバス（Space で手のひら、Delete で消す）へ渡さない
 
 
+_THREADS: list = []   # 描く・加工の裏の糸。アプリが終わる前に終わりを待つ
+
+
+def tracked_thread() -> QThread:
+    """裏の糸を作って覚える。窓を消したあと・アプリを終えたときに動いたままの QThread が消されると、
+    Qt がアプリごと落とす（QThread: Destroyed while thread is still running、終了コード 134）"""
+    t = QThread()
+    _THREADS[:] = [x for x in _THREADS if _alive(x)]
+    _THREADS.append(t)
+    return t
+
+
+def _alive(t) -> bool:
+    try:
+        return t.isRunning()
+    except RuntimeError:   # Qt の側で消えた
+        return False
+
+
+def wait_threads(timeout_ms: int | None = None) -> None:
+    """止める旗を立て、動いている裏の糸の終わりを待つ。アプリの終わり（aboutToQuit と Python の終わり）に呼ぶ"""
+    from chatdraw import engine
+    running = [t for t in _THREADS if _alive(t)]
+    if not running:
+        return
+    engine.STOP.set()
+    for t in running:
+        try:
+            t.quit()
+            t.wait() if timeout_ms is None else t.wait(timeout_ms)
+        except RuntimeError:
+            pass
+
+
+import atexit  # noqa: E402
+atexit.register(wait_threads)
+
+
 class Window(QMainWindow):
     """作画ソフトの並び: 左に頼みの欄、真ん中に絵、右に描いた絵の一覧、下に進み"""
 
@@ -2275,7 +2313,7 @@ class Window(QMainWindow):
         self._apply_avoid()
         self.job_studio = self._fix_studio() if mode == 2 else self.studio
         self.before_heavy(self.job_studio.painter)
-        self.thread = QThread()
+        self.thread = tracked_thread()
         self.job = Job(self.job_studio, text, seeds, base=base, strength=self.strength.value() / 100,
                        style=self.ai_panel.style_tags(), regions=regions, reference=self.ai_panel.reference(),
                        ref_scale=self.ai_panel.ref_scale.value() / 100, meta=meta, keep_file=mode != 2,
@@ -2762,7 +2800,7 @@ class Window(QMainWindow):
         self.activity.begin(label, kind)
         self.batch, self.batch_items, self.job_kind = [], [], kind
         self.before_heavy(getattr(getattr(job, "studio", None), "painter", None))
-        self.thread = QThread()
+        self.thread = tracked_thread()
         self.job = self._worker = job
         job.moveToThread(self.thread)
         self.thread.started.connect(job.run)
@@ -2863,7 +2901,7 @@ class Window(QMainWindow):
             self.autosave()   # 落ちても失わないように（before_heavy と同じ理由）
         except Exception:   # noqa: BLE001
             pass
-        self.thread = QThread()
+        self.thread = tracked_thread()
         self.task = self._worker = Task(fn)
         self.stop_button.setEnabled(True)
         self.task.moveToThread(self.thread)
@@ -6779,6 +6817,7 @@ def main():
         w.offer_restore()
     # closeEvent を通らずに終わる道（更新を入れて閉じるなど）でも、正しく閉じた印を残す
     app.aboutToQuit.connect(lambda: (w.layout_store.setValue("running", 0), w.layout_store.sync()))
+    app.aboutToQuit.connect(wait_threads)   # 描いている途中に閉じても、裏の糸が終わってから消す
     # 前の回が落ちていたら、記録の場所を知らせる（次に直すときの手がかりにする）
     try:
         prev = int(w.layout_store.value("crashlog_size", 0) or 0)
