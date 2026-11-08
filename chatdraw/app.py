@@ -3982,7 +3982,8 @@ class Window(QMainWindow):
             self.button.setEnabled(True)
         worker, obj = self.thread, getattr(self, "_worker", None)
         if worker is None:
-            self.statusBar().showMessage("止めました" if getattr(self, "asking", None) is False else "動いている処理はありません", 3000)
+            # 動いている処理が無いときに「止めました」と出すと、何かを止めたように見えた
+            self.statusBar().showMessage("動いている処理はありません", 3000)
             self.activity.idle_check()
             return
         engine.kill_thread(getattr(obj, "tid", None))

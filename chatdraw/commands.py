@@ -323,5 +323,20 @@ def handle(w, text: str, picked=_ASK) -> str | None:
     c, arg = picked if picked is not None else by_words(text)
     if c is None:
         return None
+    if c.name == "stop" and not is_stop_request(text):
+        # 描く頼みの中の「止め」（髪を留めて、止まっている車など）や、言葉の模型の取り違えで、
+        # 描く前に緊急停止を呼び「止めました」と出していた。止めるのは、止めることだけを頼んだ短い一言のときだけ
+        return None
     c.run(w, arg)
     return c.say
+
+
+STOP_WORDS = ("止めて", "止めろ", "止める", "中止", "ストップ", "やめて", "キャンセル", "stop")
+
+
+def is_stop_request(text: str) -> bool:
+    """止めることだけを頼んだ一言か（「止めて」「中止」「今の止めて」など。句読点と空白は見ない）"""
+    t = re.sub(r"[\s。、.!！?？]", "", text or "").lower()
+    if not t or len(t) > 8:
+        return False
+    return any(w in t for w in STOP_WORDS)

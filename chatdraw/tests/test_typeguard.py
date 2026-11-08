@@ -165,3 +165,22 @@ class MouseSideButtonTest(unittest.TestCase):
             finally:
                 w.closing_checked = True
                 w.close()
+
+
+class StopWordTest(unittest.TestCase):
+    """描く頼みの中の「止め」や、言葉の模型の取り違えで、緊急停止を呼ばないこと"""
+
+    def test_only_short_stop_request_stops(self):
+        from unittest import mock
+        from chatdraw import commands
+        self.assertTrue(commands.is_stop_request("止めて"))
+        self.assertTrue(commands.is_stop_request("今の中止。"))
+        for t in ("髪をピンで止めている女の子を描いて", "止めてある自転車と少女", "雨が止んだ街で傘を閉じる少女"):
+            self.assertFalse(commands.is_stop_request(t), t)
+        w = mock.MagicMock()
+        stop = commands.BY_NAME["stop"]
+        got = commands.handle(w, "止めてある自転車と少女", picked=(stop, ""))
+        self.assertIsNone(got)
+        w.stop.assert_not_called()
+        commands.handle(w, "止めて", picked=(stop, ""))
+        w.stop.assert_called_once()
