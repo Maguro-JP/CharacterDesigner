@@ -1087,6 +1087,14 @@ def run(name: str, image, mask=None, say=None, face=_NO_FACE):
         LAST_QC.setdefault("name", name)
         LAST_QC.setdefault("label", f.label)
         LAST_QC["features"] = fr
+    # 最後に絵の全体を確かめる（境目・サボり・作画監督）。目と髪は KEEP_GROUPS が上で戻しているので、ここでは測るだけ
+    if getattr(out, "mode", "") == "RGB" and out.size == src.size and not LAST_QC.get("rejected"):
+        from chatdraw import director
+        plan = director.Plan(f.label, say or (lambda m: None), kind="加工")
+        out, left, whole = director.final_check(src, out, mask, plan, say or (lambda m: None))
+        if mask is not None:
+            out = keep_outside(src, out, mask)   # 合わせ直しでも囲みの外は 1 画素も変えない
+        LAST_QC["whole"] = dict(left=left, fixed=whole.get("fixed", []), plan=plan.record())
     return out
 
 

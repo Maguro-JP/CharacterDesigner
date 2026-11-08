@@ -2310,6 +2310,14 @@ class Studio:
             touched = _Chops.lighter(touched, best_mask)
             prompts.append(prompt)
             self.last_flaws += best_flaws
+        # 最後に絵の全体を確かめる。囲みを広げた帯（頼んだ囲みの外）で目・髪が変わっていたら戻し、境目を合わせ直す
+        asked_all = _Image.new("L", image.size, 0)
+        for mask, _note in regions:
+            asked_all = _Chops.lighter(asked_all, mask.convert("L").resize(image.size).point(lambda v: 255 if v > 127 else 0))
+        band = _Chops.subtract(touched, asked_all)
+        result, whole_left, self.last_whole = director.final_check(
+            image, result, touched if check else None, plan, say, keep_face=band if (check and band.getbbox()) else None)
+        self.last_flaws += whole_left
         if self.last_flaws:
             say("崩れが見つかりました: " + " / ".join(self.last_flaws))
         plan.finish("直した・" + (f"残った崩れ {len(self.last_flaws)} 件（途中）" if self.last_flaws else "見つけた崩れ 0 件"))

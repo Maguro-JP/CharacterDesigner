@@ -33,6 +33,13 @@ def _path(key: str) -> QPainterPath:
             p.lineTo(x1, y1)
         for x, y in ((5, 6), (17, 4), (20, 15), (10, 20)):
             p.addRect(x - 1.5, y - 1.5, 3, 3)
+    elif key == "autosel":
+        # 魔法の杖と、先の光（押した所の物を AI が選ぶ）
+        p.moveTo(4, 20)
+        p.lineTo(14, 10)
+        for (x0, y0), (x1, y1) in (((17, 3), (17, 9)), ((14, 6), (20, 6)), ((20, 11), (20, 14)), ((18.5, 12.5), (21.5, 12.5))):
+            p.moveTo(x0, y0)
+            p.lineTo(x1, y1)
     elif key == "pen":
         p.moveTo(4, 20)
         p.lineTo(5.5, 15)
@@ -368,4 +375,4 @@ def icon(key: str, color: str | None = None, active: str | None = None, size: in
     return QIcon(_Engine(key, color, active))
 
 
-KEYS = ("chat", "progress", "view", "layout", "new", "open", "save", "undo", "redo", "fit", "rotate", "rough", "models", "settings", "palette", "brush", "history", "layers", "help", "move", "select", "lasso", "polygon", "pen", "eraser", "blur", "spray", "smudge", "text", "fill", "gradient", "line", "rect", "ellipse", "eyedropper", "hand", "zoom", "redpen", "upscale", "library", "ai")
+KEYS = ("chat", "progress", "view", "layout", "new", "open", "save", "undo", "redo", "fit", "rotate", "rough", "models", "settings", "palette", "brush", "history", "layers", "help", "move", "select", "lasso", "polygon", "autosel", "pen", "eraser", "blur", "spray", "smudge", "text", "fill", "gradient", "line", "rect", "ellipse", "eyedropper", "hand", "zoom", "redpen", "upscale", "library", "ai")

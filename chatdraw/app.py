@@ -582,7 +582,8 @@ class PanelTitle(QWidget):
 
 # 左端の道具。None は区切り
 TOOLS = (("move", "移動", "V"), ("select", "四角の選択", "M"), ("lasso", "投げなわの選択（なぞって囲む）", "L"),
-         ("polygon", "多角形の選択（押して角を置き、ダブルクリックか Enter で閉じる）", "Shift+L"), (None, "", ""),
+         ("polygon", "多角形の選択（押して角を置き、ダブルクリックか Enter で閉じる）", "Shift+L"),
+         ("autosel", "自動選択（押した所の物を AI が選ぶ。四角で囲んでもよい）", "A"), (None, "", ""),
          ("pen", "ペン", "B"), ("eraser", "消しゴム", "E"), ("blur", "ぼかし", "R"),
          ("spray", "スプレー", "K"), ("smudge", "指先（色を伸ばす）", "W"), (None, "", ""),
          ("fill", "塗りつぶし", "G"), ("gradient", "グラデーション", "J"), (None, "", ""),
@@ -597,6 +598,10 @@ MARK_OK = frozenset(("fin:retouch", "fin:clean", "fin:retouch_full", "fin:face",
                      "fin:detail", "fin:mat_gem", "fin:air_haze",
                      # 線画とドット絵は目の色を変えるのが仕事なので、目の色では外さない（囲みの外 0 画素は確かめた）
                      "app:lineart", "app:pixel"))
+# 赤ペンの印の取り方（帯・右クリック・道具の設定で選ぶ）
+REDPEN_SHAPES = (("free", "手で描く", "なぞって囲んだ所を印にします"), ("ellipse", "丸", "引いた丸の中を印にします"),
+                 ("rect", "四角", "引いた四角の中を印にします"),
+                 ("auto", "自動選択", "押した所の物（髪・顔・服・持ち物・背景）を AI が選んで印にします。四角で囲んでもよい"))
 PANEL_ORDER = ("talk", "chat", "view", "history", "library", "progress", "layers", "color", "brushes")
 
 # 欄は動かせて、外に出せて、閉じられる（作画ソフトと同じ）
@@ -662,6 +667,7 @@ atexit.register(wait_threads)
 
 class Window(QMainWindow):
     """作画ソフトの並び: 左に頼みの欄、真ん中に絵、右に描いた絵の一覧、下に進み"""
+
 
     def __init__(self, studio: Studio | None = None):
         super().__init__()
@@ -1036,6 +1042,32 @@ class Window(QMainWindow):
         self.fill_shapes.setToolTip("四角と楕円を、線だけでなく中まで塗る")
         self.fill_shapes.toggled.connect(lambda on: setattr(self.canvas, "fill_shapes", on))
         bar.addWidget(self.fill_shapes)
+        # 赤ペンの印の取り方。赤ペンを選んだときだけ出す（帯と右クリックにも同じ操作を置く）
+        from PySide6 import QtWidgets as _qw   # 名前で読むと、この関数の後ろで読む同じ名前とぶつかる
+        S = self.shared
+        shape_group = QActionGroup(self)
+        for key, label, tip in REDPEN_SHAPES:
+            a = QAction(f"赤ペン: {label}", self, checkable=True, triggered=lambda _=False, k=key: self.set_redpen_shape(k))
+            a.setToolTip(tip)
+            a.setIconText(label)
+            shape_group.addAction(a)
+            S[f"redpen_shape:{key}"] = a
+        S["redpen_shape:free"].setChecked(True)
+        S["redpen_all"] = QAction("赤ペン: 全体", self, triggered=self.redpen_all,
+                                  toolTip="絵の全体を赤ペンの印 1 つにします（全体を直す指示を書けます）")
+        S["redpen_all"].setIconText("全体")
+        box = _qw.QWidget()
+        lay = _qw.QHBoxLayout(box)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(2)
+        lay.addWidget(QLabel(" 囲み方 "))
+        for k in [f"redpen_shape:{key}" for key, _l, _t in REDPEN_SHAPES] + ["redpen_all"]:
+            b = _qw.QToolButton()
+            b.setDefaultAction(S[k])
+            b.setToolButtonStyle(Qt.ToolButtonTextOnly)
+            lay.addWidget(b)
+        self.redpen_shape_bar = bar.addWidget(box)
+        self.redpen_shape_bar.setVisible(False)
         for key, _label, _s in TOOLS:
             if key:
                 self.tool_actions[key].triggered.connect(lambda _=False, k=key: self._tool_changed(k))
@@ -1151,6 +1183,7 @@ class Window(QMainWindow):
         self.canvas.marked.connect(lambda: self.mode.setCurrentIndex(2))
         self.canvas.redpen.on_change = self._redpen_changed   # 赤ペンで囲んだら、AI の欄を「直す」にする
         self.canvas.note_wanted.connect(self.edit_note)
+        self.canvas.autosel_wanted.connect(self.run_autosel)
         # 自動保存: 変わってから 2 分ごとに書く
         self.dirty = False
         self.canvas.history_changed.connect(lambda: setattr(self, "dirty", True))
@@ -1262,6 +1295,7 @@ class Window(QMainWindow):
         sel.addAction(self.tool_actions["select"])
         sel.addAction(self.tool_actions["lasso"])
         sel.addAction(self.tool_actions["polygon"])
+        sel.addAction(self.tool_actions["autosel"])
         sel.addSeparator()
         sel.addAction(S["sel_clear"])
         sel.addAction(S["sel_fill"])
@@ -1781,6 +1815,12 @@ class Window(QMainWindow):
         if getattr(self, "asking", False):
             self.say("前の答えを待っています。少し待ってからもう一度送ってください")
             return
+        from chatdraw import chatwords
+        changed = chatwords.parse(text, self.entry.text())
+        if changed is not None:   # 描くワードを変えるのは、チャットでそう頼まれたときだけ（何をどう変えたかを 1 行で返す）
+            self.entry.setText(changed[0])
+            self.chat.add("ai", changed[1])
+            return
         if self.chat_plan(text):   # 文の頼み（繰り返し・予約・書き出し・加工の並び・参考画像・お気に入り）は段取りにして行う
             return
         words = getattr(getattr(self, "studio", None), "words", None)
@@ -1800,6 +1840,8 @@ class Window(QMainWindow):
             n, rest = chatplan.split_count(text)   # 「1枚描いて」の枚数は設定に取り、描く言葉に残さない
             if n is None:
                 body = assistant.draw_request(text)
+                if body is None and re.fullmatch(r"\s*(今の(描くワード|描く内容)で)?\s*(描いて|描く|かいて|描け)(ください|下さい)?\s*[。！!]*\s*", text):
+                    body = self.entry.text().strip() or self.last_text   # 「描いて」だけなら、今の描くワードで描く
             elif chatplan.draw_body(rest) != rest.strip(" 、。！!,"):   # 描く頼み。言葉が無ければ今の描く内容で描く
                 body = chatplan.draw_body(rest) or self.entry.text().strip() or self.last_text
             else:
@@ -1810,9 +1852,13 @@ class Window(QMainWindow):
                 body = self.favorites().apply(body)[0]   # 「お気に入りの水彩で描いて」は、残した言葉を足して描く
                 self.asking = False
                 self.chat.set_busy(False)
-                self.chat.add("ai", f"AI の欄の描く内容に「{body}」と入れて描きます")
-                self.entry.setText(body)
-                self.send()
+                # チャットの文は言語の模型への指示で、描くワードの欄（描画の模型への設定）は書き換えない。
+                # 文に描く内容があればこの回だけ使い、無ければ今の描くワードで描く
+                if body == self.entry.text().strip():
+                    self.chat.add("ai", f"今の描くワード「{body}」で描きます")
+                else:
+                    self.chat.add("ai", f"この回だけ「{body}」で描きます（描くワードの欄は変えません）")
+                self.send(body)
                 return
             if self.thread is not None and getattr(words, "ready", lambda: False)():
                 self.asking = False   # 描いている間は言葉の模型を描く側が使う。同時に使うと落ちることがある
@@ -2038,14 +2084,14 @@ class Window(QMainWindow):
                 return
             has = self.canvas.redpen.marks or self.canvas.selection_mask() is not None
             self.mode.setCurrentIndex(2 if has else 0)
-        self.entry.setText(body or self.entry.text().strip() or self.last_text)   # 「10回描いて」は今の描く内容で描く
-        if not self.entry.text().strip():
+        once = body or self.entry.text().strip() or self.last_text   # 「10回描いて」は今の描く内容で描く（欄は書き換えない）
+        if not once:
             self.chat.add("ai", "何を描くかが分かりませんでした。描く内容を書いてください")
             self._plan_queue = []
             return
         self._batch_asked = batch_ok   # チャットで枚数を言った頼みは、まとめて描く確かめの窓を出さない（もう言われている）
         try:
-            self.send()
+            self.send(once)
         finally:
             self._batch_asked = False
 
@@ -2170,8 +2216,9 @@ class Window(QMainWindow):
             self.ai_label.setToolTip(st["reason"])
         return st
 
-    def send(self):
-        text = self.entry.text().strip()
+    def send(self, once: str | None = None):
+        """描く。once を渡すと、描くワードの欄を変えずに、この回だけその言葉で描く（チャットの頼み）"""
+        text = (self.entry.text() if once is None else once).strip()
         pen = self.canvas.redpen
         if self.thread and text:   # 描いている間の頼みは受けない。黙って捨てると、押しても何も起きないように見えた
             self.progress_popup.pop()
@@ -2203,10 +2250,10 @@ class Window(QMainWindow):
                     return   # 止めた回の答え
                 self.asking = False
                 self.button.setEnabled(True)
-                self._send_after(text, None if isinstance(picked, BaseException) else picked)
+                self._send_after(text, None if isinstance(picked, BaseException) else picked, once is not None)
             self.in_background(lambda: commands.by_model(text, words), got, "言葉の模型の答え待ち")
             return
-        self._send_after(text, None)   # 模型に聞けないときは言葉の決まりで選ぶ
+        self._send_after(text, None, once is not None)   # 模型に聞けないときは言葉の決まりで選ぶ
 
     def in_background(self, work, done, name: str = "裏の処理"):
         """work を裏の糸で動かし、答えを画面の糸の done に渡す。work が例外を出したら、その例外を渡す"""
@@ -2256,11 +2303,12 @@ class Window(QMainWindow):
         except RuntimeError:
             pass   # 窓を閉じたあと
 
-    def _send_after(self, text: str, picked):
+    def _send_after(self, text: str, picked, once: bool = False):
         from chatdraw import commands
         reply = commands.handle(self, text, picked=picked)   # 操作の頼み（道具・色・欄・配置など）はその場で行い、絵は描かない
         if reply:
-            self.entry.clear()
+            if not once:   # 欄に書いた操作の言葉は欄から消す。チャットから来た言葉では欄に触らない
+                self.entry.clear()
             self.say(text, "あなた")
             self.say(reply)
             self.feature_tour("ai_commands")
@@ -2420,6 +2468,57 @@ class Window(QMainWindow):
                 out.append(path)
         self.statusBar().showMessage(f"{len(out)} 枚のレイヤーを書き出しました: {folder}", 6000)
         return out
+
+    # ---- 赤ペンの囲み方と自動選択 ----
+    def set_redpen_shape(self, key: str):
+        """赤ペンの印の取り方を替え、赤ペンに持ち替える"""
+        self.canvas.set_redpen_shape(key)
+        a = self.shared.get(f"redpen_shape:{key}")
+        if a is not None and not a.isChecked():
+            a.setChecked(True)
+        if self.canvas.tool != "redpen" and "redpen" in self.tool_actions:
+            self.tool_actions["redpen"].trigger()
+        label = next((lb for k, lb, _t in REDPEN_SHAPES if k == key), key)
+        self.statusBar().showMessage(f"赤ペンの囲み方: {label}", 4000)
+
+    def redpen_all(self):
+        if not self.canvas.layers:
+            self.statusBar().showMessage("絵がありません", 4000)
+            return
+        if self.canvas.tool != "redpen" and "redpen" in self.tool_actions:
+            self.tool_actions["redpen"].trigger()
+        self.canvas.redpen_all()
+
+    def run_autosel(self, point, box, target: str):
+        """自動選択を裏の糸で回す（模型は 1 回で十数秒かかる）。答えは autosel_done で画面の糸に返す"""
+        if getattr(self, "_autosel_busy", False):
+            self.statusBar().showMessage("自動選択の途中です。終わってから押してください", 4000)
+            return
+        if not self.canvas.layers:
+            return
+        self._autosel_busy = True
+        image = qimage_to_pil(self.canvas.flatten())
+        self.statusBar().showMessage("自動選択: 押した所の物を選んでいます…")
+        self._autosel_last = (point, box, target)
+
+        def work():
+            from chatdraw import autosel
+            return autosel.pick(image, point, box)
+        # 裏の糸から窓へ直に返さず、in_background の橋を通す（裏の糸で画面の部品が片付くと落ちた）
+        self.in_background(work, lambda v: self._autosel_done(v, target), "自動選択")
+
+    def _autosel_done(self, picked, target: str):
+        from chatdraw import autosel
+        self._autosel_busy = False
+        if isinstance(picked, BaseException):
+            self.notify("自動選択できませんでした", "error", str(picked) or type(picked).__name__)
+            return
+        n = self.canvas.apply_pick(picked.mask, target)
+        self.last_autosel = picked
+        msg = autosel.describe(picked) if n else "自動選択: 何も選べませんでした。少しずらして押すか、四角で囲んでください"
+        self.statusBar().showMessage(msg, 8000)
+        if picked.how != "sam" and n:
+            self.say(msg)
 
     def fix_here(self, pos, size: int = 0):
         """右クリックした所の周りを選択範囲にして、囲んだ所を直すと同じ道で直す。大きさは絵の短い辺の 4 分の 1"""
@@ -3428,16 +3527,25 @@ class Window(QMainWindow):
         m = QMenu(self)
         m.setToolTipsVisible(True)
         busy = "ほかの処理の途中です。終わってから押してください"
+        here = c.mapToScene(c.viewport().mapFromGlobal(gpos)) if gpos is not None else None
         # よく使う物を上に、1 回で押せる所に置く（赤ペンを「道具」の奥に入れていたら見つからなかった）
         if "redpen" in self.tool_actions:
             m.addAction("赤ペンで囲む（T）", self.tool_actions["redpen"].trigger).setToolTip(
                 "囲んで指示を書き、「描く」を押すと囲んだ所だけを AI が直します")
+            how = QMenu("赤ペンの囲み方", m)
+            how.setToolTipsVisible(True)
+            m.addMenu(how)
+            for key, _l, _t in REDPEN_SHAPES:
+                how.addAction(self.shared[f"redpen_shape:{key}"])
+            how.addAction(self.shared["redpen_all"])
+            if here is not None and c.layers:
+                a = how.addAction("ここを自動選択で印にする", lambda: self.run_autosel((here.x(), here.y()), None, "redpen"))
+                a.setToolTip("右クリックした所の物を AI が選び、赤ペンの印にします")
         if c.redpen.marks or c.selection is not None:
             # 「描く」を直すにして押すのと同じ道を通す（右クリックから仕上げと同じ手数で直せるように）
             a = m.addAction("囲んだ所を直す", self.fix_marked)
             a.setEnabled(not self.thread)
             a.setToolTip(busy if self.thread else "囲んだ所の中だけを AI が直します。外は変えません")
-        here = c.mapToScene(c.viewport().mapFromGlobal(gpos)) if gpos is not None else None
         if here is not None and not c.redpen.marks and c.selection is None:
             # 囲まなくても、右クリックした所の周りを囲んで直せる（囲む手間を 1 手にする）
             a = m.addAction("ここを AI で直す", lambda: self.fix_here(here))
@@ -3465,7 +3573,7 @@ class Window(QMainWindow):
         # 道具・表示・選択は左端の帯やメニューと同じ操作を足す（名前もキーも、今の道具の印もそろう）
         tools = QMenu("道具", m)
         m.addMenu(tools)
-        for key in ("pen", "eraser", "eyedropper", "select", "lasso", "polygon", "hand", "redpen"):
+        for key in ("pen", "eraser", "eyedropper", "select", "lasso", "polygon", "autosel", "hand", "redpen"):
             if key in self.tool_actions:
                 tools.addAction(self.tool_actions[key])
         view = QMenu("表示", m)
@@ -3682,25 +3790,21 @@ class Window(QMainWindow):
             self._begin_fix_only(mark)
             try:
                 self.mode.setCurrentIndex(2)
-                self.entry.setText(text)
-                self._draw_now(text)
+                self._draw_now(text)   # 指示の言葉はこの回だけ使い、描くワードの欄は書き換えない（前は書いて消していた）
             finally:
                 if self.thread is None:   # 始まらなかった（止めた・確かめでやめた）ときはすぐ戻す
                     self._end_fix_only()
-            self.entry.clear()
             return
         whole = not self.canvas.redpen.marks and self.canvas.selection_mask() is None
         if whole:   # 囲みが無ければ、絵全体を選んだ形で頼み、頼み終えたら選択を戻す
             w, h = self.canvas.size_px()
             self.canvas.set_selection(QRect(0, 0, w, h))
         self.mode.setCurrentIndex(2)
-        self.entry.setText(text)
         try:
-            self._draw_now(text)
+            self._draw_now(text)   # 描くワードの欄は書き換えない
         finally:
             if whole:
                 self.canvas.set_selection(None)
-        self.entry.clear()
 
     def add_prompt_shortcut(self, text: str | None = None, name: str | None = None) -> str:
         """書く欄の言葉（空なら尋ねる）を、右クリックから選べる指示として登録する。返すのは id（やめたら空）"""
@@ -3812,8 +3916,7 @@ class Window(QMainWindow):
             return
         if draw_request(text) is not None:
             self.mode.setCurrentIndex(0)
-            self.entry.setText(plan.body or text)
-            self.send()
+            self.send(plan.body or text)   # 言葉の指示は、描くワードの欄を変えずにこの回だけ描く
             return
         self.fix_with_text(text)
 
@@ -4572,6 +4675,8 @@ class Window(QMainWindow):
         if hasattr(self, "st_tool"):
             self.st_tool.setText(label)
         self.fill_shapes.setVisible(key in ("rect", "ellipse"))
+        if hasattr(self, "redpen_shape_bar"):
+            self.redpen_shape_bar.setVisible(key == "redpen")
         if hasattr(self, "brush_preview"):
             self.brush_preview.update()
 
@@ -4843,6 +4948,18 @@ class Window(QMainWindow):
         bar.addSeparator()
         if "redpen" in self.tool_actions:
             bar.addAction(self.tool_actions["redpen"])
+            from PySide6.QtWidgets import QMenu, QToolButton
+            how = QToolButton()
+            how.setText("囲み方")
+            how.setToolTip("赤ペンの印の取り方を選びます（手で描く・丸・四角・自動選択・全体）")
+            how.setPopupMode(QToolButton.InstantPopup)
+            hm = QMenu(how)
+            hm.setToolTipsVisible(True)
+            for key, _l, _t in REDPEN_SHAPES:
+                hm.addAction(S[f"redpen_shape:{key}"])
+            hm.addAction(S["redpen_all"])
+            how.setMenu(hm)
+            bar.addWidget(how)
         bar.addAction(S["draw"])
         bar.addAction(S["stop"])
         self.addToolBar(Qt.TopToolBarArea, bar)
