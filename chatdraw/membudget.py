@@ -65,7 +65,14 @@ def free_vram_gb() -> float:
     torch = sys.modules.get("torch")
     try:
         if torch is not None and torch.cuda.is_available():
-            return torch.cuda.mem_get_info()[0] / 1e9
+            # torch が溜めているだけの分（reserved − allocated）も空きに数える。数えないと、使っていない溜めで
+            # 空きが少なく見え、描いている途中に「危ない」と判定して止めていた
+            free = torch.cuda.mem_get_info()[0]
+            try:
+                cache = max(0, torch.cuda.memory_reserved() - torch.cuda.memory_allocated())
+            except Exception:   # noqa: BLE001  測れなければ溜めは数えない（前と同じ）
+                cache = 0
+            return (free + cache) / 1e9
     except Exception:   # noqa: BLE001
         pass
     return 0.0
@@ -83,9 +90,10 @@ def has_cuda() -> bool:
 # メモリの使い方。利用者が設定で選ぶ。既定は自動。
 # margin: 空きのうち予算に入れない割合。over_ok: 予算のこの倍までは一番軽い設定で描いてみる
 MODES = {
-    "自動": dict(margin=MARGIN, over_ok=1.5),
-    "優先して動かす": dict(margin=0.1, over_ok=2.0),    # 空きをほぼ使い切る。ほかのアプリが重くなることがある
-    "控えめに動かす": dict(margin=0.4, over_ok=1.0),    # 空きの 6 割までにとどめ、超える物は軽くするか止める
+    # danger: 描き始めの RAM の空きのうち、これを切ったら（メモリを返しても戻らなければ）その 1 回を抜ける割合
+    "自動": dict(margin=MARGIN, over_ok=1.5, danger=0.1),
+    "優先して動かす": dict(margin=0.1, over_ok=2.0, danger=0.05),    # 空きをほぼ使い切る。ほかのアプリが重くなることがある
+    "控えめに動かす": dict(margin=0.4, over_ok=1.0, danger=0.2),     # 空きの 6 割までにとどめ、超える物は軽くするか止める
 }
 _mode = "自動"
 
@@ -276,26 +284,33 @@ class Watch:
     near: 予算に近づいた（次の段階の前に軽い設定へ落とす）。danger: 予算の外の余裕まで食い始めた（絵を保存して止める）。
     測るのは空きの数字だけなので、描く糸は止めない"""
 
-    def __init__(self, start: Budget, every: float = 0.2, sample=None):
+    RAM_FLOOR_GB = 0.5   # これより RAM の空きが減ると、OS がアプリを落とすことがある
+
+    def __init__(self, start: Budget, every: float = 0.2, sample=None, release=None):
         self.start = start
         self.every = every
         self.level = "ok"
         self.low_ram = start.free_ram
         self.low_vram = start.free_vram
         self._sample = sample or _sample
+        self._release = release   # 危ないと見たときに 1 度呼んで、メモリを返してから測り直す
+        self.released = 0
         self._stop = threading.Event()
         self._t = None
 
     def _judge(self, fr: float, fv: float) -> str:
+        """RAM の空きが床を切ったときだけ危ない。VRAM が足りなくなっても OS はアプリを落とさない
+        （torch がメモリ不足の例外を出し、描く側が軽い設定で描き直す）ので、VRAM は近づいた（near）までにする"""
+        m = MODES[_mode]
         lv = "ok"
-        for free0, now in ((self.start.free_ram, fr), (self.start.free_vram, fv)):
-            if free0 <= 0 or now <= 0:
-                continue   # 測れない（GPU が無い、数字が取れない）
-            reserve = free0 * MARGIN   # 予算に入れなかった余裕
-            if now < reserve * 0.5:
+        if self.start.free_ram > 0 and fr > 0:
+            floor = max(self.RAM_FLOOR_GB, self.start.free_ram * m["danger"])
+            if fr < floor:
                 return "danger"
-            if now < reserve * 1.5:
+            if fr < self.start.free_ram * m["margin"] * 1.5:
                 lv = "near"
+        if self.start.free_vram > 0 and fv > 0 and fv < self.start.free_vram * m["margin"] * 1.5:
+            lv = "near"
         return lv
 
     def poll(self) -> str:
@@ -306,6 +321,15 @@ class Watch:
         self.low_ram = min(self.low_ram, fr) if fr > 0 else self.low_ram
         self.low_vram = min(self.low_vram, fv) if fv > 0 else self.low_vram
         lv = self._judge(fr, fv)
+        if lv == "danger" and self._release is not None:
+            # すぐ止めず、まずメモリを返して（gc、CUDA の溜め、malloc_trim）測り直す。戻れば軽い設定で描き続ける
+            try:
+                self._release()
+                self.released += 1
+                fr, fv = self._sample()
+                lv = "near" if self._judge(fr, fv) != "danger" else "danger"
+            except Exception:   # noqa: BLE001
+                pass
         rank = {"ok": 0, "near": 1, "danger": 2}
         if rank[lv] > rank[self.level]:
             self.level = lv   # 一度上がった段は、その 1 枚の間は下げない

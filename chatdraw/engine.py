@@ -837,8 +837,8 @@ def kill_thread(ident: int | None) -> bool:
     return n == 1
 
 
-DANGER_NOTE = ("描いている途中にメモリが危ないところまで来たので、落ちる前に止めました。作業は自動保存しています。"
-               "途中の絵は出力の置き場に残しました。ほかのアプリを閉じるか、描く大きさを小さくしてください")
+DANGER_NOTE = ("描いている途中に RAM の空きが残り少なくなり、メモリを返しても戻らなかったので、この 1 回を抜けました。"
+               "作業は自動保存し、途中の絵も残しています。軽い設定と小さい大きさで描き直します")
 
 
 class Painter:
@@ -1203,7 +1203,8 @@ class Painter:
             if not plan.preview:
                 on_preview = None   # 途中の絵をやめる
         from chatdraw import membudget as mb
-        watch = mb.Watch(mb.budget()) if plan is not None else None
+        release_memory()   # 描き始める前に、前の描画や降ろした模型の分を返してから空きを測る
+        watch = mb.Watch(mb.budget(), release=release_memory) if plan is not None else None
         self._danger = False
         self._last_latents = None
         from chatdraw import lora as loralib

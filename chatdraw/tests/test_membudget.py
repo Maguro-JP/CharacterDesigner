@@ -201,9 +201,31 @@ class WatchTest(unittest.TestCase):
         self.assertEqual(w.poll(), "near")    # 一度上がった段は下げない
         self.assertEqual(w.poll(), "danger")
 
-    def test_vram_is_watched(self):
+    def test_vram_low_lightens_but_does_not_stop(self):
+        """VRAM が足りなくなっても OS はアプリを落とさないので、止めずに軽い設定へ落とす（near）"""
         w = mb.Watch(mb.Budget(80, 16, 100, 20), sample=lambda: (90.0, 1.0))
+        self.assertEqual(w.poll(), "near")
+
+    def test_danger_releases_memory_first(self):
+        """危ないと見たら、まずメモリを返して測り直す。戻れば止めない"""
+        seq = iter([(0.3, 0), (5.0, 0)])
+        called = []
+        w = mb.Watch(mb.Budget(8.0, 0.0, 10.0, 0.0), sample=lambda: next(seq), release=lambda: called.append(1))
+        self.assertEqual(w.poll(), "near")
+        self.assertEqual(called, [1])
+
+    def test_danger_when_release_does_not_help(self):
+        w = mb.Watch(mb.Budget(8.0, 0.0, 10.0, 0.0), sample=lambda: (0.3, 0), release=lambda: None)
         self.assertEqual(w.poll(), "danger")
+        self.assertEqual(w.released, 1)
+
+    def test_cuda_cache_counts_as_free(self):
+        """torch が溜めているだけの VRAM は空きに数える"""
+        t = types.SimpleNamespace(cuda=types.SimpleNamespace(
+            is_available=lambda: True, mem_get_info=lambda: (1e9, 8e9),
+            memory_reserved=lambda: 5e9, memory_allocated=lambda: 2e9))
+        with mock.patch.dict(sys.modules, {"torch": t}):
+            self.assertAlmostEqual(mb.free_vram_gb(), 4.0)
 
     def test_danger_stops_before_decode_and_keeps_partial(self):
         """危ないところまで来たら、VAE の復号に進まずに止め、途中の絵を残す。メモリ不足の描き直しはしない"""
@@ -220,7 +242,7 @@ class WatchTest(unittest.TestCase):
             p.partial_dir = Path(d)
             with self.assertRaises(mb.MemoryDanger) as got:
                 p.paint("1girl", 1)
-            self.assertIn("落ちる前に止めました", engine.explain(got.exception))
+            self.assertIn("この 1 回を抜けました", engine.explain(got.exception))
             self.assertEqual(len([x for x in log if x[0] == "call"]), 1, "止めたあとに描き直した")
 
     def test_near_lightens(self):
