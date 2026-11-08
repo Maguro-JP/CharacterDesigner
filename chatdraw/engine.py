@@ -334,10 +334,17 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
     新しい世代は札の例どおり、描かない物を受けない模型には渡さず、頼みの効きは模型ごとの名前（guidance_scale か true_cfg_scale）で渡す"""
     import inspect
     import torch
+    from chatdraw import debuglog
     prompt = english_only(prompt)
-    suffix = quality_tags(info, f)
+    raw = debuglog.lifted("words")   # デバッグモードで、自動の付け足しと打ち消しを外したとき
+    suffix = "" if raw else quality_tags(info, f)
     tokenizer = getattr(pipe, "tokenizer", None)
-    head, suffix = lead_quality(info.prefix, suffix)
+    head, suffix = ("", "") if raw else lead_quality(info.prefix, suffix)
+    if not raw and not sexual(prompt):
+        # 頼みに性的な言葉が無いときは、模型の safe の札を足し、打ち消しに nsfw などを入れる（頼んでいない性的な絵を描かせない）
+        tag = safe_tag(info, f)
+        if tag and tag.lower() not in {t.strip().lower() for t in (prompt + "," + head + "," + suffix).split(",")}:
+            suffix = ", ".join(x for x in (tag, suffix) if x)   # 質のタグは札どおり一番後ろに残す
     if f.tags and tokenizer is not None and getattr(pipe, "text_encoder", None) is not None and info.family in ("sdxl", "sd15"):
         text = fit_tokens(tokenizer, head, prompt, suffix)
     else:
@@ -351,11 +358,14 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
         # 並びは 利用者の禁止 → 基準の体 → 崩れの打ち消し。SD 系の CLIP は打ち消しも 75 語片で切るので、
         # 前は後ろに付けた基準の体の語が切れて効いていなかった。収まらなければ後ろ（崩れの打ち消し）から外す
         from chatdraw.sanity import negative as sane_negative
-        if woman(prompt):   # 女性は利用者の基準の体で描く（年配の太った体にしない。chatdraw/body.py）
+        if not raw and not sexual(prompt):   # 利用者の禁止ワードの前に置く（CLIP の 75 語片で切れても残るように）
+            avoid = ", ".join(a for a in (SAFE_NEGATIVE, avoid) if a)
+        if not raw and woman(prompt):   # 女性は利用者の基準の体で描く（年配の太った体にしない。chatdraw/body.py）
             from chatdraw.body import NEGATIVE as BODY_NEGATIVE
             avoid = ", ".join(a for a in (avoid, BODY_NEGATIVE) if a)
-        avoid = ", ".join(a for a in (avoid, sane_negative(prompt)) if a)
-        neg = negative_for(info, avoid)
+        if not raw:
+            avoid = ", ".join(a for a in (avoid, sane_negative(prompt)) if a)
+        neg = negative_for(info, avoid, bare=raw)
         if tokenizer is not None and info.family in ("sdxl", "sd15"):
             neg = fit_negative(tokenizer, neg)
         args["negative_prompt"] = neg
@@ -387,8 +397,31 @@ def woman(prompt: str) -> bool:
     return bool(re.search(r"\b(1girl|\d?girls?|woman|women|female|lady)\b", prompt.lower()))
 
 
-def negative_for(info, avoid: str = "") -> str:
-    """描かない物。模型の札に推奨があればそれを使う（模型ごとに学んだ質の言葉が違う）"""
+# 頼みに性的な言葉が無いときに打ち消しへ入れる言葉。前は入れておらず、頼んでいない性的な絵を描くことがあった
+SAFE_NEGATIVE = "nsfw, nude, naked, sexual, explicit, nipples"
+# 模型の札が持つ safe の札。danbooru のタグで学んだ模型（Animagine 3.1 以降、NoobAI、Illustrious）は safe が効く札の言葉。
+# 文で頼む世代（FLUX など）は札の言葉を持たないので文で書く
+SAFE_TAG, SAFE_SENTENCE = "safe", "safe for work"
+
+
+def sexual(prompt: str) -> bool:
+    """頼みに性的な言葉があるか（打ち消した言葉は数えない）"""
+    low = _drop_negated(str(prompt or "").lower())
+    return any(r.search(low) for r in _SEXUAL_RE)
+
+
+def safe_tag(info, f) -> str:
+    """その模型に足す safe の札。札の頭の決まり文句に入っている模型は足さない"""
+    if "safe" in (getattr(info, "prefix", "") or "").lower():
+        return ""
+    return SAFE_TAG if f.tags else SAFE_SENTENCE
+
+
+def negative_for(info, avoid: str = "", bare: bool = False) -> str:
+    """描かない物。模型の札に推奨があればそれを使う（模型ごとに学んだ質の言葉が違う）。
+    bare はデバッグモードで自動の打ち消しを外したとき（利用者の禁止ワードだけ）"""
+    if bare:
+        return english_only(avoid or "")
     base = getattr(info, "negative", "") or "lowres, worst quality, low quality"
     avoid = english_only(avoid or "")
     return base + (f", {avoid}" if avoid else "")
@@ -434,6 +467,27 @@ MINOR = ("子ども", "子供", "幼女", "幼児", "児童", "小学生", "中�
          "child", "kid", "toddler", "underage", "minor", "loli", "shota", "little girl", "little boy", "young girl", "young boy")
 SEXUAL = ("裸", "ヌード", "エロ", "性的", "下着", "セックス", "R18", "nude", "naked", "nsfw", "sex", "sexual", "explicit",
           "lingerie", "underwear", "erotic", "porn", "hentai", "topless", "nipple")
+
+
+def _plain(w: str) -> re.Pattern:
+    """英語の言葉は語の切れ目で比べる（kid が kidney に、sex が essex に当たっていた）。日本語は字の並びで比べる"""
+    if w.isascii():
+        return re.compile(r"(?<![a-z0-9])" + re.escape(w.lower()) + r"(?![a-z0-9])")
+    return re.compile(re.escape(w.lower()))
+
+
+_MINOR_RE = [_plain(w) for w in MINOR + ("children", "kids")]
+_SEXUAL_RE = [_plain(w) for w in SEXUAL + ("sexy", "porn")]
+
+
+def _drop_negated(low: str) -> str:
+    """打ち消した言葉（no underwear、エロくしないで、下着ではなく）を外す。描かない物は描く頼みではない"""
+    low = re.sub(r"\b(?:no|not|without|non|avoid|never)[\s-]+(?:[a-z]+[\s-]+)?(?:" + "|".join(
+        re.escape(w.lower()) for w in SEXUAL + ("sexy",) if w.isascii()) + r")\b", " ", low)
+    for w in SEXUAL:
+        if not w.isascii():
+            low = re.sub(re.escape(w) + r"(?:く|に|な|姿)?(?:は|を)?(?:しないで|せずに|せず|ではなく|じゃなく|無し|なし|禁止|抜き)", " ", low)
+    return low
 
 
 def refused(text: str) -> bool:
@@ -984,6 +1038,11 @@ class Painter:
         見積もりは多めに出て、本当に危ないときは描いている途中の見張り（membudget.Watch）が止めて途中の絵を残す。
         大きく超える物（12GB の GPU に 60GB 近い模型）は、読むと落ちるので今までどおり読む前に止める"""
         if plan is None or plan.ok:
+            return
+        from chatdraw import debuglog
+        if debuglog.lifted("budget"):   # デバッグモードで外したとき。描いている途中の見張り（membudget.Watch）は残る
+            debuglog.log("メモリ", "予算を超える見積もりですが、デバッグモードで止めを外しているので描きます: " + plan.reason, mem=True)
+            self.low_memory = True
             return
         from chatdraw import membudget as mb
         b = b or mb.budget()   # 見積もりに使った予算で比べる（測り直すと、見積もりと違う空きで判定していた）
@@ -1687,7 +1746,8 @@ class Studio:
                 self.painter.guidance = wordlearn.guidance(getattr(self.painter, "model", ""), guidance0)
         except Exception as e:   # 記録が読めなくても描く
             say(f"学んだ記録を読めませんでした（{e}）。学びを使わずに描きます")
-        if base is None and reference is None:   # ラフや参考画像の絵は、その絵の背景を活かす
+        from chatdraw import debuglog
+        if base is None and reference is None and not debuglog.lifted("words"):   # ラフや参考画像の絵は、その絵の背景を活かす
             prompt = vary_background(prompt, seed, tags=as_tags, text=text)
         lost = list(getattr(self.words, "untranslated", []) or [])
         if lost:   # 模型に伝わらない言葉を隠さない（伝わらないまま描くと、頼みと違う絵になる）
@@ -1737,7 +1797,8 @@ class Studio:
             plan.enter("検品", f"{k + 1} 回目の絵を検品しています")
             # サボりの検品を先に通す。形も線も無い絵は手や顔を探しても意味が無いので、描き直しに回す
             lazy = director.slack(image)
-            if lazy["bad"]:
+            from chatdraw import debuglog
+            if lazy["bad"] and not debuglog.lifted("checker"):
                 say("担当編集者: " + "、".join(lazy["bad"]) + "。描き直させます")
                 left = list(lazy["bad"])
                 redraws.append({"seed": s_k, "bad": left, "slack": lazy["stats"]})
@@ -1777,6 +1838,14 @@ class Studio:
             if not odd["readable"] and os.environ.get("CD_CHECK") != "off":
                 left.append(unchecked("体の数と目", odd.get("reason", "")))
             unasked += [w for w in odd["avoid"] if w not in unasked]
+            if asked.get("unsafe"):   # 頼んでいない性的な絵。「描けませんでした」で終えず、打ち消しを強めて種を替えて描き直す
+                left += [f"頼んでいない性的な絵: {u}" for u in asked["unsafe"]]
+                unasked += [w for w in SAFE_NEGATIVE.split(", ") + ["cleavage", "underwear", "revealing clothes"] if w not in unasked]
+            if debuglog.lifted("checker"):   # デバッグモードで作画監督の落としを外したとき。崩れは記録に出し、描き直さない
+                debuglog.log("検品", "崩れ（落としは外しています）: " + ("、".join(left) or "なし"))
+                left = [x for x in left if x.startswith("頼んでいない性的な絵")]
+            else:
+                debuglog.log("検品", f"{k + 1} 回目の崩れ: " + ("、".join(left) or "なし"))
             redraws.append({"seed": s_k, "bad": left, "slack": lazy["stats"]})
             plan.done("検品", f"崩れ {len(left)} 件" if left else "崩れ 0 件")
             if best is None or len(left) < len(best[1]):

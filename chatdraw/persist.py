@@ -44,7 +44,8 @@ class Persist:
         self.same = self.same + 1 if (sig == self.last and not improved) else 0
         self.last = sig
         self.k += 1
-        if self.same >= len(self.hands):
+        from chatdraw import debuglog
+        if self.same >= len(self.hands) and not debuglog.lifted("steps"):   # デバッグモードで工程の上限を外したときは止めない
             self.reason = f"同じ崩れが、別の手を {len(self.hands)} 通り試しても変わらなかった"
             return False
         return True
