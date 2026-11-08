@@ -2335,7 +2335,7 @@ class Window(QMainWindow):
         self.ai_pages.setCurrentIndex(0)
         self.entry.setFocus()
         self.statusBar().showMessage(self.FIX_TEXT_HINT, 10000)
-        self.last_hint = self.FIX_TEXT_HINT
+        self.notify("どう直すかを書いてください", "info", self.FIX_TEXT_HINT)
 
     def fix_marked(self):
         """赤ペンで囲んだ所を直す。AI の欄を「直す」にして「描く」と同じ send() を呼ぶ"""
