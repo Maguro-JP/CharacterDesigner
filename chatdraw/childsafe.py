@@ -11,11 +11,15 @@ from __future__ import annotations
 
 import re
 
-# 子どもを表す語。英語の minor は「小さな」の意味で普通に使うので入れない
+# 子どもを表す語（18 歳未満に見える人物。高校生・制服も含む。2026-10-17 の決定）。英語の minor は「小さな」の意味で普通に使うので入れない
 MINOR = ("子ども", "子供", "こども", "幼女", "幼児", "児童", "小学生", "中学生", "未成年", "少女", "少年", "女の子", "男の子",
-         "child", "children", "kid", "kids", "toddler", "underage", "little girl", "little boy", "young girl", "young boy")
-# 性的な語。水着・下着の服そのものは、性的な語と並ばなければ止めない（子どもの水着の絵は普通に描く）
-SEXUAL = ("裸", "全裸", "半裸", "ヌード", "エロ", "えっち", "エッチ", "性的", "性行為", "セックス", "R18", "R-18", "18禁", "成人向け",
+         "高校生", "女子高生", "男子高校生",
+         "child", "children", "kid", "kids", "toddler", "underage", "little girl", "little boy", "young girl", "young boy",
+         "schoolgirl", "schoolboy", "high school", "high school student", "elementary school")
+# 性的な語と、露出の見せ方（水着・下着・セクシー）。18 歳未満に見える人物とは組み合わせない（2026-10-17・10-18 の決定）。
+# どちらも、子どもを表す語と並んだときだけ止める。片方だけでは止めない（子どものキャラクターデザインは描ける）
+SEXUAL = ("水着", "下着", "ランジェリー", "セクシー", "swimsuit", "bikini", "underwear", "panties", "bra", "sexy", "cleavage",
+          "裸", "全裸", "半裸", "ヌード", "エロ", "えっち", "エッチ", "性的", "性行為", "セックス", "R18", "R-18", "18禁", "成人向け",
           "nude", "naked", "nudity", "nsfw", "sex", "sexual", "explicit", "erotic", "porn", "hentai", "topless", "bottomless",
           "nipple", "nipples", "genitals", "lingerie", "uncensored")
 # 語そのものが子どもの性的な描写を指す。いつでも止める
