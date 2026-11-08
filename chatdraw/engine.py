@@ -344,7 +344,7 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
         # 頼みに性的な言葉が無いときは、模型の safe の札を足し、打ち消しに nsfw などを入れる（頼んでいない性的な絵を描かせない）
         tag = safe_tag(info, f)
         if tag and tag.lower() not in {t.strip().lower() for t in (prompt + "," + head + "," + suffix).split(",")}:
-            suffix = ", ".join(x for x in (suffix, tag) if x)
+            suffix = ", ".join(x for x in (tag, suffix) if x)   # 質のタグは札どおり一番後ろに残す
     if f.tags and tokenizer is not None and getattr(pipe, "text_encoder", None) is not None and info.family in ("sdxl", "sd15"):
         text = fit_tokens(tokenizer, head, prompt, suffix)
     else:
