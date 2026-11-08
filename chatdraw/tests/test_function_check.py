@@ -482,3 +482,34 @@ class FunctionCheck(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+@unittest.skipUnless(os.environ.get("RP_RUN") == "1" and tiny_path(), "RP_RUN=1 と試験用の小さな SDXL が要る重い試験です")
+class MarkMenuCheck(FunctionCheck):
+    """赤ペンの印の右クリックの「赤ペン n の中だけ加工」を、出す・出さないにかかわらず全部の加工で 1 つずつ掛けて測る。
+    メニューに出す物を選ぶための表（docs/knowledge/function-check.md）を作る。囲みは顔のあたり 1 つ（BOX）"""
+    test_menus = None
+
+    def test_mark_menu(self):
+        from PySide6.QtCore import QPointF
+        from chatdraw import shortcuts
+        w, c = self.w, self.w.canvas
+        self.mark()
+        pen = c.redpen
+
+        def build():
+            # 選り分ける前の全部の加工（広げるは囲みと関わらないので外す）を、印の右クリックと同じ関数で押す
+            from PySide6.QtWidgets import QMenu
+            m = QMenu(w)
+            for s in shortcuts.builtins(w):
+                if s.group == "grow":
+                    continue
+                a = m.addAction(f"{shortcuts.GROUP_LABEL[s.group]} > {s.label}", lambda sid=s.id: w.run_shortcut_on_mark(1, sid))
+                a.setEnabled(s.ready)
+            return m
+
+        def setup():
+            if not pen.marks:
+                self.mark()
+        recs = self.press_all("赤ペン 1 の中だけ加工", build, setup)
+        self.assertTrue(recs)

@@ -188,12 +188,15 @@ class RedPen3Test(lk.LayerKeepTest):
         self.qapp.processEvents()
         n1 = pen.marks[0][0] + QPointF(-13 / c.zoom(), -13 / c.zoom())
         gpos = c.viewport().mapToGlobal(c.mapFromScene(n1))
+        w.MARK_SHORTCUTS = {"app:lineart", "fin:clean"}   # 出す物の選り分けは別の試験で見る。ここは囲みの中だけかを見る
+        sid_user = w.shortcut_store().add("目を大きく", "目を大きく")
         m = w.build_canvas_menu(gpos)
         sub = next(a.menu() for a in m.actions() if a.menu() and a.text() == "赤ペン 1 の中だけ加工")
         names = [a.text() for g in sub.actions() if g.menu() for a in g.menu().actions()]
         print("赤ペン 1 の加工:", names)
         self.assertIn("線画にする", names)
         self.assertIn("言葉で指示…", [a.text() for a in sub.actions()])
+        self.assertIn(f"mark1:{sid_user}", [a.objectName() for a in sub.actions()])   # 登録した言葉の指示も並ぶ
         for sid in ("app:lineart", "fin:clean"):
             with self.subTest(sid=sid):
                 act = next((a for g in sub.actions() if g.menu() for a in g.menu().actions() if a.objectName() == f"mark1:{sid}"), None)
@@ -222,6 +225,40 @@ class RedPen3Test(lk.LayerKeepTest):
                 c.current = len(c.layers) - 1
                 c.rebuild()
         self.assertEqual(getattr(w, "_mark_only", 0), 0)
+        w.shortcut_store().remove(sid_user)
+
+    def test_text_fix_only_that_mark(self):
+        """登録した言葉の指示・「言葉で指示…」は、右クリックした印の囲みの中だけを直す（ほかの印は直さず、残す）"""
+        from unittest import mock
+        from chatdraw.app import gray_to_pil, qimage_to_pil_rgba
+        w = self.w
+        w.show_history_image(str(self.a))
+        self.settle(w)
+        c = w.canvas
+        c.set_tool("redpen")
+        pen = c.redpen
+        self.mark(pen, 10, 10, 40, 40)
+        self.mark(pen, 50, 80, 90, 120)
+        pen.set_text(2, "髪を整える")
+        second = gray_to_pil(pen.masks()[1]).convert("L").point(lambda v: 255 if v else 0)
+        w.show()
+        dlg = w.open_text_instruction(1)
+        self.assertIn("赤ペン 1", dlg.where.text())
+        dlg.edit.setText("目を大きく")
+        with mock.patch.object(w, "_keep_original", lambda text: text):
+            dlg.run.click()
+            self.wait(w)
+        self.settle(w)
+        layers = [l for l in c.layers if l.redpen]
+        self.assertEqual(len(layers), 1, [l.name for l in c.layers])
+        alpha = qimage_to_pil_rgba(layers[0].image).getchannel("A")
+        from PIL import ImageChops
+        on_second = ImageChops.multiply(alpha.point(lambda v: 255 if v else 0), second).getbbox()
+        print("直しのレイヤーの画素:", alpha.getbbox(), "赤ペン 2 の所:", on_second, "残った印:", pen.texts, pen.shown())
+        self.assertIsNotNone(alpha.getbbox())
+        self.assertIsNone(on_second, "右クリックしていない印の所まで直した")
+        self.assertEqual(pen.texts, ["髪を整える"], "直した印だけを消し、ほかの印は残す")
+        self.assertEqual(pen.shown(), [1], "隠したほかの印が戻っていない")
 
 
 if __name__ == "__main__":
