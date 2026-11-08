@@ -46,11 +46,15 @@ jobs:
           pip install -q transformers huggingface_hub pillow numpy scipy onnxruntime ai-edge-litert timm
       - name: 模型を取る
         working-directory: ${{ runner.temp }}/tree
+        env:
+          CD_FETCH: "1"   # tools/gen/edit.py は既定で取りに行かない（HF_HUB_OFFLINE=1）。初めの 1 枚で取らせる
         run: |
           python3 tools/gen/tagger.py setup
-          python3 -c "import sys; sys.path.insert(0, '.'); from chatdraw import handcheck; handcheck.ensure_models(True)" || true
+          python3 -c "import sys; sys.path.insert(0, '.'); from chatdraw import handcheck; handcheck.ensure_models(True); from chatdraw import requestcheck; requestcheck._tagger(True)"
       - name: 数える
         working-directory: ${{ runner.temp }}/tree
+        env:
+          CD_FETCH: "1"
         run: python3 tools/gen/sanity_eval.py full --out "$GITHUB_WORKSPACE/sanity-${{ matrix.side }}.json" 2>&1 | tail -40
       - uses: actions/upload-artifact@v4
         with:
