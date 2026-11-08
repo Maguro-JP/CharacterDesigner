@@ -212,7 +212,7 @@ class FinisherFixTest(unittest.TestCase):
         mask = box_mask(im.size, (90, 20, 160, 100))
         f0 = facefeat.features(im)
         for name in ("detail", "mat_gem", "air_haze"):
-            out = finishers.run(name, im, mask)
+            out = finishers.run_chain([name], im, mask)   # 画面は 1 つの加工も run_chain で掛ける
             if finishers.REGISTRY[name].extra.get("effect"):   # 画面と同じく、変わった画素だけのレイヤーを重ねて見る
                 out = Image.alpha_composite(im.convert("RGBA"), finishers.effect_layer(im, out)).convert("RGB")
             ch = changed(im, out)

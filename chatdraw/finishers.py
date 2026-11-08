@@ -1123,7 +1123,9 @@ def run_chain(names, image, mask=None, say=None):
             raise KeyError(n)
     LAST_CHAIN.clear()
     out = image.convert("RGB")
-    face = face_keep(out) if any(REGISTRY[n].group == "clean" for n in names) else None
+    # 顔の印は綺麗にする工程（soften）と、顔を残す細部・質感・空気感（hold_face）が使う。どちらも無い組み合わせでは測らない。
+    # 前は綺麗にする工程だけで測り、ディテール追加を 1 つだけ掛けたとき顔を残せなかった（目の色 80.3）
+    face = face_keep(out) if any(REGISTRY[n].group in {"clean"} | FACE_HOLD_GROUPS for n in names) else None
     for i, n in enumerate(names):
         def tell(text, i=i):
             if say is not None:
