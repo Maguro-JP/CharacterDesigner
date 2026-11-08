@@ -121,7 +121,7 @@ class ChatWindowTest(unittest.TestCase):
         sweep_windows()
         self.tmp.cleanup()
 
-    def settle(self, until, n=4000):
+    def settle(self, until, n=20000):
         for _ in range(n):
             self.app.processEvents()
             if until():
@@ -171,7 +171,8 @@ class ChatWindowTest(unittest.TestCase):
         w = self.w
         self.draw_one()
         n = len(w.images)
-        with mock.patch("chatdraw.confirm.ask", return_value="redpen") as ask:
+        # 偽の描き手の絵は一色なので、絵があるかの判定は本物の絵と同じ答え（ある）にする
+        with mock.patch("chatdraw.confirm.ask", return_value="redpen") as ask, mock.patch.object(w, "_has_picture", return_value=True):
             w.chat_send("髪を赤く直して")
             self.settle(self.idle, n=400)
         self.assertEqual(ask.call_args[0][1], "fix_no_region")

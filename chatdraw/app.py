@@ -1709,11 +1709,9 @@ class Window(QMainWindow):
         return True
 
     def _has_picture(self) -> bool:
-        """キャンバスに絵があるか（どこか 1 画素でも透明でない所があるか）"""
-        img = self.canvas.flatten()
-        from PySide6.QtGui import QImage
-        a = img.convertToFormat(QImage.Format_Alpha8)
-        return any(bytes(a.constBits()))
+        """キャンバスに絵があるか。新しいキャンバスは白一色なので、一色でなければ絵があると見る"""
+        im = qimage_to_pil(self.canvas.flatten())
+        return any(lo != hi for lo, hi in im.getextrema())
 
     def _chat_intent(self, text: str) -> bool:
         """チャットの一言を設定・加工の操作に読んで行い、決めたことを 1 行で返す（chatdraw/chatintent.py）。読めなければ False"""
