@@ -60,7 +60,7 @@ SECTIONS = [
     ("指示", "描きたい絵・描かない物と、描く模型を選びます"),
     ("作風", "AI プリセットと画風。押すだけで描き方・大きさ・画風がそろいます"),
     ("直す・仕上げ", "描けた絵を直す・綺麗にする・外へ広げる・拡大する・加工する。元の絵は元に戻すで戻せます"),
-    ("詳しい設定", "枚数・種・参考画像・ラフに沿う強さ"),
+    ("詳しい設定", "枚数、種、参考画像、ラフに沿う強さ"),
 ]
 
 
@@ -192,7 +192,7 @@ class AiPanel(QWidget):
 
         # 枚数・種・参考画像。どれも頼まなければ今までどおり（1 枚、毎回違う種、参考画像なし）
         lay = self.sections["詳しい設定"].body
-        lay.addWidget(self._head("枚数と種", "何枚描くか。種を固定すると、同じ頼みで同じ絵になります"))
+        lay.addWidget(self._head("枚数", "一度に何枚描くか。描くボタンの左の欄でも打てます"))
         # 作成枚数は「指示」のタブにも数の欄で出す（窓の側で置く）。ボタンと欄は同じ値を持つ
         self.count_spin = QSpinBox()
         self.count_spin.setRange(1, 8)
@@ -202,6 +202,7 @@ class AiPanel(QWidget):
         self.count_spin.valueChanged.connect(self._count_changed)
         self._count_changed(1)
         lay.addLayout(self.count_buttons[0])
+        lay.addWidget(self._head("種", "種を固定すると、同じ頼みと設定で同じ絵になります"))
         seed_row = QHBoxLayout()
         self.seed = QSpinBox()
         self.seed.setRange(0, 2_147_483_647)

@@ -100,3 +100,33 @@ class WindowFieldsTest(unittest.TestCase):
             finally:
                 w.closing_checked = True
                 w.close()
+
+
+class CountFieldTest(unittest.TestCase):
+    """作成枚数は種とまとめず、描くボタンの左に「枚数」の名前つきの欄で出し、打てること"""
+
+    def test_count_field_separate_from_seed(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from chatdraw.app import Window
+        from chatdraw.engine import Studio
+        from chatdraw.tests.test_chatdraw import FakePainter, FakeWords
+        from chatdraw.tests.test_editing import app
+        app()
+        with TemporaryDirectory() as tmp:
+            w = Window(Studio(FakeWords(), FakePainter(), Path(tmp)))
+            w.show(); QTest.qWait(30)
+            try:
+                spin = w.ai_panel.count_spin
+                self.assertTrue(spin.isVisible())
+                self.assertEqual(w.count_label.text(), "枚数")
+                self.assertTrue(w.count_label.isVisible())
+                spin.setFocus(); spin.selectAll()
+                QTest.keyClicks(spin, "3")
+                QTest.keyClick(spin, Qt.Key_Return)
+                self.assertEqual(spin.value(), 3)
+                texts = [l.text() for l in w.ai_panel.findChildren(type(w.count_label))]
+                self.assertFalse(any("枚数と種" in t for t in texts), texts)
+            finally:
+                w.closing_checked = True
+                w.close()

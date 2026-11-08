@@ -685,6 +685,11 @@ class Window(QMainWindow):
         # 詳しい設定の 1・2・4 枚のボタンと同じ値
         self.ai_panel.count_spin.setToolTip("作成枚数。一度に描く枚数です（直すときは 1 枚）")
         self.ai_panel.count_spin.setAccessibleName("作成枚数")
+        count_label = QLabel("枚数")   # 欄だけだと何の数か分からず、見つからなかった
+        count_label.setBuddy(self.ai_panel.count_spin)
+        count_label.setToolTip(self.ai_panel.count_spin.toolTip())
+        self.count_label = count_label
+        line.addWidget(count_label)
         line.addWidget(self.ai_panel.count_spin)
         line.addWidget(self.button, 1)
         line.addWidget(self.stop_button)
