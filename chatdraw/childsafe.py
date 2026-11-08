@@ -16,12 +16,13 @@ MINOR = ("子ども", "子供", "こども", "幼女", "幼児", "児童", "小�
          "高校生", "女子高生", "男子高校生",
          "child", "children", "kid", "kids", "toddler", "underage", "little girl", "little boy", "young girl", "young boy",
          "schoolgirl", "schoolboy", "high school", "high school student", "elementary school")
-# 性的な語と、露出の見せ方（水着・下着・セクシー）。18 歳未満に見える人物とは組み合わせない（2026-10-17・10-18 の決定）。
-# どちらも、子どもを表す語と並んだときだけ止める。片方だけでは止めない（子どものキャラクターデザインは描ける）
-SEXUAL = ("水着", "下着", "ランジェリー", "セクシー", "swimsuit", "bikini", "underwear", "panties", "bra", "sexy", "cleavage",
+# 性的な語。子どもを表す語と並んだときだけ止める。片方だけでは止めない（子どものキャラクターデザインは描ける）。
+# 水着・制服は普通の服なので入れない（漫画や設定資料に水着の高校生や子どもは普通に出る。2026-11-08 の決定）。
+# 英語の sex は性別の意味でも使うので、1 語では入れない（sexual、sex act は入れる）
+SEXUAL = ("下着", "ランジェリー", "セクシー", "underwear", "panties", "lingerie", "sexy", "cleavage",
           "裸", "全裸", "半裸", "ヌード", "エロ", "えっち", "エッチ", "性的", "性行為", "セックス", "R18", "R-18", "18禁", "成人向け",
-          "nude", "naked", "nudity", "nsfw", "sex", "sexual", "explicit", "erotic", "porn", "hentai", "topless", "bottomless",
-          "nipple", "nipples", "genitals", "lingerie", "uncensored")
+          "nude", "naked", "nudity", "nsfw", "sexual", "sex act", "having sex", "explicit", "erotic", "porn", "hentai", "topless",
+          "bottomless", "nipple", "nipples", "genitals", "uncensored")
 # 語そのものが子どもの性的な描写を指す。いつでも止める
 ALWAYS = ("ロリ", "ショタ", "loli", "lolicon", "shota", "shotacon")
 
