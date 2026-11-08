@@ -182,8 +182,16 @@ TIGHT = ("close-up", "portrait", "upper body")
 
 # タグの模型（SD 系）は CLIP の 75 語片より後ろを捨て、収まらないと頭の決まり文句と質のタグから外す（engine.fit_tokens）。
 # 足しすぎて質のタグが落ちると崩れが増えるので、足すのはこの語片の数まで。大事な順（場所 → 構図 → ポーズ → …）に足す
-TAG_BUDGET = 55
-ORDER = ("place", "shot", "pose", "hair_color", "hair", "clothes", "face", "light")
+# 前は場所・構図・ポーズ・髪・髪の色・服・表情・光を 55 語片まで足し、頼みと合わせて 75 を超えると、
+# 頭の質の言葉（masterpiece, best quality, absurdres）が外れて質が落ち、頼んでいない髪型・表情・構図に引っ張られた。
+# 足すのは 0.5.10 と同じ場所（背景）だけにし、頼みと合わせてこの数までに抑える（残りを質の言葉に残す）
+TAG_BUDGET = 40
+ORDER = ("place",)
+
+
+def added_words() -> set[str]:
+    """ここで足しうる場所の語（engine.fit_tokens が、長すぎるときに質の言葉より先に外す）"""
+    return {w.strip().lower() for tag, _s in PLACES for w in tag.split(",")}
 
 
 def pieces(text: str) -> int:
@@ -195,7 +203,7 @@ def vary(prompt: str, seed: int, tags: bool = True, text: str = "") -> str:
     """頼みの言葉の後ろに、書かれていない項目を足す（頼みの方を先に効かせる）。text は利用者の元の頼み"""
     if not prompt.strip():
         return prompt
-    chosen = pick(seed, f"{text}\n{prompt}")
+    chosen = {k: v for k, v in pick(seed, f"{text}\n{prompt}").items() if k in ORDER}
     if not chosen:
         return prompt
     if not tags:

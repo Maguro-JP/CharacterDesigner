@@ -41,7 +41,10 @@ def draw(out: Path, repo: str, shard: int, shards: int, seed: int = SEED):
         if i % shards != shard:
             continue
         prompt = words.to_prompt(text)
-        prompt = vary_background(prompt, seed, tags=fam(m.family).tags, text=text)
+        try:
+            prompt = vary_background(prompt, seed, tags=fam(m.family).tags, text=text)
+        except TypeError:   # 0.5.17 より前の版は text を受けない（前の版と比べるときに落ちないように）
+            prompt = vary_background(prompt, seed, tags=fam(m.family).tags)
         painter.avoid = ", ".join(words.negative)
         t = time.time()
         im = painter.paint(prompt, seed)

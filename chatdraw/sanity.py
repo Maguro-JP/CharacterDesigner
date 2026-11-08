@@ -16,8 +16,9 @@ from pathlib import Path
 
 # 描く前に必ず打ち消す物。余分な部位、顔の外の目、物の顔、物理的にあり得ない形
 # SDXL の打ち消しは CLIP の 77 語で切れるので、短く、強く効く物だけにする（長くすると後ろの言葉が模型に届かない）
-NEGATIVE = ("extra arms, extra legs, extra heads, extra bodies, conjoined, extra eyes, eyes on body, eyes on objects, "
-            "floating limbs, impossible anatomy")
+# 模型が学んだタグ（danbooru の語）だけにする。eyes on body、eyes on objects、floating limbs、impossible anatomy、
+# extra bodies、conjoined はタグに無く、打ち消しの 75 語片を埋めて基準の体の語を切っていた（docs/knowledge/filter-audit.md）
+NEGATIVE = "extra arms, extra legs, extra eyes, multiple heads"
 # 目の色を頼んでいないときだけ打ち消す色。模型はこの色に寄せやすかった。切れないよう、打ち消しの先頭に置く
 UNASKED_EYE_COLORS = "yellow eyes, golden eyes"
 EYE_COLORS = {"blue", "red", "green", "purple", "yellow", "brown", "black", "grey", "gray", "pink", "orange", "aqua", "white",

@@ -41,11 +41,13 @@ jobs:
       - name: 描く版を置く
         run: |
           mkdir -p "$RUNNER_TEMP/tree"
-          ref="${{ matrix.side == 'before' && (inputs.before || 'main') || github.sha }}"
+          ref="${{ matrix.side == 'before' && (inputs.before || 'v0.5.10') || github.sha }}"
           git rev-parse "origin/$ref" >/dev/null 2>&1 && ref="origin/$ref"
           git worktree add "$RUNNER_TEMP/tree" "$ref"
           git -C "$RUNNER_TEMP/tree" log -1 --format='%h %s'
           cp chatdraw/adherebench.py "$RUNNER_TEMP/tree/chatdraw/adherebench.py"   # 測る台は今の版の物を使う
+          mkdir -p "$RUNNER_TEMP/tree/chatdraw/tests"
+          cp chatdraw/tests/test_words.py "$RUNNER_TEMP/tree/chatdraw/tests/test_words.py"   # 頼みの 30 本も同じ物（前の版に無いことがある）
       - name: 置き場を空ける
         run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1; free -g
       - uses: actions/setup-python@v5

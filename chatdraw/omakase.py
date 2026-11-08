@@ -12,7 +12,6 @@
 from __future__ import annotations
 
 import re
-import random
 from dataclasses import dataclass, field
 
 from chatdraw.models import KIND_ASPECT, ImageModel, abilities, family as fam
@@ -142,21 +141,11 @@ def finishers():
     return f if hasattr(f, "available") and hasattr(f, "run") else None
 
 
-EXPLORE = 0.15   # 点の高い順に選びつつ、この割合で下の方の模型も試す（いつも同じ模型にしない）
-
 
 def explore(ranked: list, seed: int | None) -> list:
-    """合う順の並びから、描くたびに先頭を選び直す。上位 3 つを点の順の重み（3:2:1）で、EXPLORE の割合でそれより下から選ぶ。
-    いつも 1 位の模型だけで描くと、おまかせなのに模型が固定され、同じ絵柄ばかりになった。選んだ物以外は元の順で後ろに続く"""
-    if seed is None or len(ranked) < 2:
-        return list(ranked)
-    rng = random.Random(f"omakase-{seed}")
-    top = ranked[:3]
-    if len(ranked) > 3 and rng.random() < EXPLORE:
-        i = 3 + rng.randrange(len(ranked) - 3)
-    else:
-        i = rng.choices(range(len(top)), weights=[3, 2, 1][:len(top)])[0]
-    return [ranked[i]] + [r for j, r in enumerate(ranked) if j != i]
+    """合う順の並びをそのまま返す。前は描くたびに上位 3 つと下の方から選び直していたが、点の低い模型で描く回が増え、
+    一番出来の良い模型で描ける頼みの質が下がった。同じ絵柄になるのは種で変える"""
+    return list(ranked)
 
 
 def plan(text: str, have: list[ImageModel], seed: int | None = None) -> Plan:
@@ -303,7 +292,7 @@ class Omakase:
             prompt = vary_background(prompt, seed, tags=fam(m.family).tags if m is not None else True, text=text)
             image = None
             # 2 段の部品も候補の 1 つ。毎回 2 段で描くと構図の模型が固定されたので、ほかの模型があれば半分は 1 つの模型で描く
-            use_two = self.two is not None and k == 0 and (len(compose) < 2 or random.Random(f"two-{seed}").random() < 0.5)
+            use_two = self.two is not None and k == 0   # 2 段で描ける時は必ず 2 段（半分の確率で 1 段にすると仕上げの質が落ちた）
             if use_two:
                 # 構図と仕上げを分ける 2 段の部品がそろっていれば、最初の構図はそれで描く（chatdraw/twostage.py）
                 try:

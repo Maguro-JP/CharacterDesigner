@@ -304,6 +304,13 @@ def fit_tokens(tokenizer, prefix: str, body: str, suffix: str, limit: int = 75) 
         except Exception:
             return 0
     tail = f", {suffix}" if suffix else ""
+    # 足した背景（chatdraw/variety.py）は、質の言葉より先に外す。背景のために頭の質の言葉が外れ、質が落ちていた
+    from chatdraw.variety import added_words
+    items = [t.strip() for t in body.split(",") if t.strip()]
+    extra = added_words()
+    while items and items[-1].lower() in extra and n(f"{prefix}{', '.join(items)}{tail}") > limit:
+        items.pop()
+    body = ", ".join(items) if items else body
     for text in (f"{prefix}{body}{tail}", f"{prefix}{body}", body):
         if n(text) <= limit:
             return text
@@ -328,12 +335,17 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
             "generator": torch.Generator("cpu").manual_seed(seed), **f.extra, **dict(getattr(info, "call", ()) or ())}
     if f.negative:
         # 余分な腕・脚・頭・体、顔の外の目、物理的にあり得ない形と、頼んでいない黄色い目は、どの頼みでも打ち消す（chatdraw/sanity.py）
+        # 並びは 利用者の禁止 → 基準の体 → 崩れの打ち消し。SD 系の CLIP は打ち消しも 75 語片で切るので、
+        # 前は後ろに付けた基準の体の語が切れて効いていなかった。収まらなければ後ろ（崩れの打ち消し）から外す
         from chatdraw.sanity import negative as sane_negative
-        avoid = ", ".join(a for a in (avoid, sane_negative(prompt)) if a)
         if woman(prompt):   # 女性は利用者の基準の体で描く（年配の太った体にしない。chatdraw/body.py）
             from chatdraw.body import NEGATIVE as BODY_NEGATIVE
             avoid = ", ".join(a for a in (avoid, BODY_NEGATIVE) if a)
-        args["negative_prompt"] = negative_for(info, avoid)
+        avoid = ", ".join(a for a in (avoid, sane_negative(prompt)) if a)
+        neg = negative_for(info, avoid)
+        if tokenizer is not None and info.family in ("sdxl", "sd15"):
+            neg = fit_negative(tokenizer, neg)
+        args["negative_prompt"] = neg
     if getattr(info, "rescale", 0.0):
         args["guidance_rescale"] = info.rescale
     skip = clip_skip_arg(info, info.family)
@@ -341,6 +353,19 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
         args["clip_skip"] = skip
     accepted = inspect.signature(pipe.__call__).parameters
     return {k: v for k, v in args.items() if k in accepted}   # 部品が受けない引数は渡さない（版の違いで落ちないように）
+
+
+def fit_negative(tokenizer, neg: str, limit: int = 75) -> str:
+    """打ち消しを CLIP の 75 語片に収める。後ろの語から外す（重複は先に外す）"""
+    items = list(dict.fromkeys(t.strip() for t in neg.split(",") if t.strip()))
+    def n(text):
+        try:
+            return len(tokenizer(text, add_special_tokens=False)["input_ids"])
+        except Exception:
+            return 0
+    while len(items) > 1 and n(", ".join(items)) > limit:
+        items.pop()
+    return ", ".join(items)
 
 
 def woman(prompt: str) -> bool:
