@@ -51,6 +51,8 @@ jobs:
         run: |
           python3 tools/gen/tagger.py setup
           python3 -c "import sys; sys.path.insert(0, '.'); from chatdraw import handcheck; handcheck.ensure_models(True); from chatdraw import requestcheck; requestcheck._tagger(True)"
+          # 人の枠の模型（RT-DETR）は sanity.count_people が取りに行かずに読むので、部位分けと同じ置き場（edit.py の HF_HOME）に先に取る
+          python3 -c "import sys; sys.path[:0] = ['.', 'tools/gen']; import edit; from huggingface_hub import snapshot_download; from chatdraw.sanity import PERSON_MODEL; snapshot_download(PERSON_MODEL)"
       - name: 数える
         working-directory: ${{ runner.temp }}/tree
         env:
