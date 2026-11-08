@@ -196,9 +196,7 @@ class LibraryPanel(QWidget):
         m.addSeparator()
         m.addAction("ディレクトリを開く", lambda: self.w.open_folder(path)).setToolTip("この絵の置いてあるディレクトリを開きます")
         m.addSeparator()
-        if entry and entry["kind"] == "work":
-            m.addAction("一覧から外す…", lambda: self.w.ask_forget("この絵をライブラリーの一覧から外します。絵のファイルは残します。",
-                                                              lambda: (lib.remove(item_id), self.refresh()))).setToolTip("絵のファイルは残します")
+        # ライブラリーには「一覧から外す」を置かない。消すときに並んで邪魔だった（履歴の右クリックには残す）
         # 資料の写しも作品の絵も、すぐには消さずごみ箱へ移す（「ファイル」→「ごみ箱…」から戻せる）
         m.addAction("消す（ごみ箱へ）…", lambda: self.w.delete_images(self._chosen(view, path)))
         if not run:
