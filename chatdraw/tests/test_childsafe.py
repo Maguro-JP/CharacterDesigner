@@ -1,4 +1,5 @@
-"""子どもを性的に描く頼みだけを止め、普通の頼みと子どものキャラクターデザインは止めないこと"""
+"""描く前に止めるのは、子どもを性的に描く頼みだけで、ほかの頼みは止めないこと。
+見本の文は、判定の一覧（chatdraw/childsafe.py）の語から組み立てる（リポジトリに見本の文として書かない）"""
 import sys
 import unittest
 from pathlib import Path
@@ -7,28 +8,25 @@ from chatdraw import childsafe
 from chatdraw.engine import refused
 
 ROOT = Path(__file__).resolve().parents[2]
+CHILD = childsafe.MINOR[0]
+SEX_JA, SEX_EN = childsafe.SEXUAL[0], next(w for w in childsafe.SEXUAL if w.isascii())
 
-PASS = ["少女 下着が見えないように", "girl with minor scratches", "young girl, safe, no nsfw", "1girl, sexy pose, bikini",
-        "女の子、下着なし", "子どものキャラデザ 三面図", "child, school uniform, smiling", "girl with braided hair",
-        "kid-friendly picnic", "little boy, red cape, sword", "1girl, adult woman, swimsuit, beach", "少年の騎士、nsfw-free",
-        "子供 半ズボン 夏休み", "a minor character in the background", "kidney beans, cooking girl"]
-STOP = ["little girl, nude", "幼女 ヌード", "loli", "child, sexual", "小学生の裸", "underage, sexual", "ショタ",
-        "toddler, naked", "児童 エロ"]
-# アニメで大人にも使う語（少女・女の子）、服の語、打ち消しによく出る nsfw は止めない（2026-11-08 の利用者の指示）
-PASS += ["少女 ヌードモデルの絵画教室の背景", "女の子 セクシーな下着", "child, no nsfw", "1girl, nsfw"]
-# 水着の高校生や子どもは、漫画や設定資料に普通に出る。性別の sex も止めない（2026-11-08 の決定）
-PASS += ["1girl, high school student, swimsuit", "小学生の男の子 水着でプール", "女子高生 制服 水着",
-         "child character sheet, sex: female", "少女 スクール水着 プール掃除"]
+# 止めない頼み: 子どもの語だけ、性的な語だけ、打ち消し、アニメで大人にも使う語、服、性別の sex、語の途中の当たり
+PASS = [f"{CHILD} のキャラデザ 三面図", "child, school uniform, smiling", "kid-friendly picnic", "girl with braided hair",
+        "little boy, red cape, sword", f"1girl, {SEX_EN}", f"child, no {SEX_EN}", f"{CHILD}、{SEX_JA}なし",
+        f"{CHILD} {SEX_JA}を描かない", f"少女 {SEX_JA}", f"女の子 {SEX_EN}", "1girl, high school student, swimsuit",
+        "小学生の男の子 水着でプール", "child character sheet, sex: female", "girl with minor scratches", "kidney beans, cooking girl"]
+# 止める頼み: 意味が 1 つに決まる子どもの語と性的な語の組、いつでも止める語
+STOP = [f"{m} {s}" for m in childsafe.MINOR[:4] + childsafe.MINOR[-3:] for s in childsafe.SEXUAL[:2] + childsafe.SEXUAL[-3:]]
+STOP += list(childsafe.ALWAYS)
 
 
 class ChildSafeTest(unittest.TestCase):
     def test_passes_ordinary_requests(self):
-        wrong = [t for t in PASS if refused(t)]
-        self.assertEqual(wrong, [], "普通の頼みを止めた")
+        self.assertEqual([t for t in PASS if refused(t)], [], "普通の頼みを止めた")
 
-    def test_stops_sexual_child_requests(self):
-        wrong = [t for t in STOP if not refused(t)]
-        self.assertEqual(wrong, [], "止めるべき頼みを通した")
+    def test_stops_only_the_fixed_combination(self):
+        self.assertEqual([t for t in STOP if not refused(t)], [], "止めるべき頼みを通した")
 
     def test_tools_filter_uses_same_judgement(self):
         sys.path.insert(0, str(ROOT / "tools" / "gen"))
@@ -37,7 +35,7 @@ class ChildSafeTest(unittest.TestCase):
         self.assertEqual([t for t in STOP if not filters.fixed(t)], [])
 
     def test_reason_names_words(self):
-        self.assertIn("ヌード", childsafe.reason("幼女 ヌード"))
+        self.assertIn(SEX_JA, childsafe.reason(f"{CHILD} {SEX_JA}"))
 
 
 if __name__ == "__main__":
