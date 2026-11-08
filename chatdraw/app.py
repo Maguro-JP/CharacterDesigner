@@ -1785,6 +1785,10 @@ class Window(QMainWindow):
         elif it.kind == "style":
             self.ai_panel.set_style(it.arg)
         elif it.kind == "finisher":
+            from chatdraw import finishers
+            f = finishers.REGISTRY.get(it.arg)
+            if f is None or not f.ready():
+                return False   # 使えない加工（画風を組めない描き手など）は前からの指示に回す（「線画に」は模型を使わない線画）
             self.chat.add("ai", it.reply)
             self.finish_with(it.arg, background=True)
             return True

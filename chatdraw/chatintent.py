@@ -56,7 +56,9 @@ def parse(text: str, has_image: bool = True) -> Intent | None:
             w, h = SIZES[pick]
             return Intent("size", pick, f"描く大きさを「{pick}」（{w}×{h}）にしました"
                                         + ("" if pick in word or word in _SIZE_WORDS else f"（「{word}」に一番近い形）"))
-    m = _STYLE_RE.search(t)
+    # 「画風を○○に」は、これから描く画風を選ぶ前からの指示（commands の画風の設定、「どの画風にしますか」のボタン）なので、
+    # 今の絵の描き替えに読まない
+    m = None if t.startswith("画風を") else _STYLE_RE.search(t)
     if m:
         fin, draw_style = STYLES[m.group(1)]
         if has_image:

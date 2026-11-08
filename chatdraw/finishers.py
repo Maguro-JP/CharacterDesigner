@@ -197,6 +197,8 @@ register(Finisher(
 def _restyle_ready() -> bool:
     if not _redraw_ready():
         return False
+    if not callable(getattr(_PAINTER[0], "load", None)):
+        return False   # 画風は描き手の読んだ模型の部品（load）から img2img の道を組む。組めない描き手では押しても落ちるだけ
     try:
         import diffusers  # noqa: F401
     except ImportError:

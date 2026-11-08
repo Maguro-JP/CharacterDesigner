@@ -99,6 +99,7 @@ class ParseTest(unittest.TestCase):
         self.assertEqual(chatintent.parse("水彩風にして").arg, "style_watercolor")
         self.assertEqual(chatintent.parse("水彩風にして", has_image=False).kind, "style")
         self.assertEqual(chatintent.parse("綺麗にして").arg, "retouch")
+        self.assertIsNone(chatintent.parse("画風をアニメにして"))   # これから描く画風の設定（commands）に回す。今の絵を描き替えない
         for t in ("猫を2枚描いて", "猫耳の少女を描いて", "髪を赤く直して"):
             self.assertIsNone(chatintent.parse(t), t)
 
