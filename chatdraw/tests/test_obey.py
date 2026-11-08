@@ -185,11 +185,12 @@ class ChatWindowTest(unittest.TestCase):
     def test_fix_inside_selection(self):
         w = self.w
         self.draw_one()
-        n = len(w.images)
+        n = len(w.canvas.layers)
         w.canvas.select_all()
         with mock.patch("chatdraw.confirm.ask") as ask:
             w.chat_send("髪を赤く直して")
-            self.assertTrue(self.settle(lambda: len(w.images) > n and self.idle()))
+            # 直した結果は画像のファイルにせず、直した所だけのレイヤーにだけ置く（履歴の絵は増えない）
+            self.assertTrue(self.settle(lambda: len(w.canvas.layers) > n and self.idle()))
         ask.assert_not_called()   # 囲んであれば聞かずに直す
 
 
