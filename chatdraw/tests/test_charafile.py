@@ -42,6 +42,11 @@ class Base(unittest.TestCase):
             p.start()
 
     def tearDown(self):
+        # 止めた描画の裏の糸が終わるまで待ってから次へ進む。待たないと、裏の糸が描く仕事の鍵（WORK）を持ったまま残り、
+        # 次の試験の直しが「前の処理の後片付けを待っています」のまま終わらなかった
+        from chatdraw import app as appmod, engine
+        appmod.wait_threads(180000)
+        engine.STOP.clear()
         for p in self.patches:
             p.stop()
         self.tmp.cleanup()
