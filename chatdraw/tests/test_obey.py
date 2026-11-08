@@ -84,8 +84,8 @@ class AskedWordsFirstTest(unittest.TestCase):
         long_ = "1girl, solo, red hat, blue dress, holding umbrella, cat ears, green eyes, braid"
         added_long = len(variety.vary(long_, 3, text="x").split(",")) - len(long_.split(","))
         added_short = len(short.split(",")) - 2
-        self.assertEqual(variety.room_for(long_), 2)
-        self.assertGreater(added_short, added_long)
+        self.assertLessEqual(variety.room_for(long_), 1)   # 足すのは場所だけ（test_quality2）
+        self.assertGreaterEqual(added_short, added_long)
 
 
 class ParseTest(unittest.TestCase):

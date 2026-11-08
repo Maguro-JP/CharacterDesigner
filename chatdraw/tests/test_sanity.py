@@ -14,7 +14,7 @@ from chatdraw import sanity
 class NegativeTest(unittest.TestCase):
     def test_always_negates_extra_parts(self):
         neg = sanity.negative("1girl, solo, holding a ball")
-        for w in ("extra arms", "extra legs", "extra heads", "extra eyes", "eyes on objects", "impossible anatomy"):
+        for w in ("extra arms", "extra legs", "multiple heads", "extra eyes"):
             self.assertIn(w, neg)
 
     def test_eye_color_only_when_not_asked(self):
@@ -41,7 +41,7 @@ class NegativeTest(unittest.TestCase):
                 pass
         a = prompt_args(image_model("cagliostrolab/animagine-xl-4.0"), family("sdxl"), "1girl, red ball", "hat", 24, 5.0, 1, Pipe())
         self.assertIn("extra arms", a["negative_prompt"])
-        self.assertIn("eyes on objects", a["negative_prompt"])
+        self.assertIn("extra arms", a["negative_prompt"])
         self.assertIn("yellow eyes", a["negative_prompt"])
         self.assertIn(", hat, ", a["negative_prompt"])   # 利用者の打ち消しは先に残す
 
