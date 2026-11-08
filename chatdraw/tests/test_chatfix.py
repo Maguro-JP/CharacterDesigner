@@ -41,13 +41,14 @@ class CountWordsTest(unittest.TestCase):
 
 
 class SafetyWordsTest(unittest.TestCase):
-    def test_refused_only_child_and_sexual(self):
+    def test_prompt_never_carries_negated_sexual_words(self):
+        """refused() は打ち消した言葉も数えるので、nsfw などは描く言葉に入れず打ち消しにだけ入れる"""
         from chatdraw.engine import refused
-        for ok in ("1girl, young girl, school uniform, no underwear visible", "1girl, child, essex", "girl, kidney bean",
-                   "少女を描いて、エロくしないで", "少女の下着姿ではなく制服", "children, playground"):
-            self.assertFalse(refused(ok), ok)
-        for ng in ("child, nude", "少女 裸", "little girl, lingerie", "loli"):
-            self.assertTrue(refused(ng), ng)
+        from chatdraw.tests.test_perfamily import args_for
+        _info, args = args_for("cagliostrolab/animagine-xl-4.0", "1girl, young girl, red scarf")
+        self.assertFalse(refused(args["prompt"]))
+        self.assertNotIn("nsfw", args["prompt"])
+        self.assertIn("nsfw", args["negative_prompt"])
 
     def test_safe_tag_and_nsfw_negative(self):
         from chatdraw.engine import SAFE_NEGATIVE

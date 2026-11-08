@@ -491,14 +491,9 @@ def _drop_negated(low: str) -> str:
 
 
 def refused(text: str) -> bool:
-    """子どもを性的に描く頼みか。これだけは止める（デバッグモードでも外さない）。
-    前は字の並びで比べ、kid と kidney、sex と essex、打ち消した「no underwear」「エロくしないで」まで性的な頼みに数え、
-    頼んでいない絵が「子どもを性的に描く頼みは描きません」で描けなかった"""
     low = text.lower()
-    if any(w in low for w in ("loli", "shota", "ロリ", "ショタ")):
-        return True
-    low = _drop_negated(low)
-    return any(r.search(low) for r in _MINOR_RE) and any(r.search(low) for r in _SEXUAL_RE)
+    return any(w in low for w in ("loli", "shota", "ロリ", "ショタ")) or (
+        any(w.lower() in low for w in MINOR) and any(w.lower() in low for w in SEXUAL))
 
 
 def _foreign(ch: str) -> bool:
