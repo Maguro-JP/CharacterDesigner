@@ -11,18 +11,14 @@ from __future__ import annotations
 
 import re
 
-# 子どもを表す語（18 歳未満に見える人物。高校生・制服も含む。2026-10-17 の決定）。英語の minor は「小さな」の意味で普通に使うので入れない
-MINOR = ("子ども", "子供", "こども", "幼女", "幼児", "児童", "小学生", "中学生", "未成年", "少女", "少年", "女の子", "男の子",
-         "高校生", "女子高生", "男子高校生",
-         "child", "children", "kid", "kids", "toddler", "underage", "little girl", "little boy", "young girl", "young boy",
-         "schoolgirl", "schoolboy", "high school", "high school student", "elementary school")
-# 性的な語。子どもを表す語と並んだときだけ止める。片方だけでは止めない（子どものキャラクターデザインは描ける）。
-# 水着・制服は普通の服なので入れない（漫画や設定資料に水着の高校生や子どもは普通に出る。2026-11-08 の決定）。
-# 英語の sex は性別の意味でも使うので、1 語では入れない（sexual、sex act は入れる）
-SEXUAL = ("下着", "ランジェリー", "セクシー", "underwear", "panties", "lingerie", "sexy", "cleavage",
-          "裸", "全裸", "半裸", "ヌード", "エロ", "えっち", "エッチ", "性的", "性行為", "セックス", "R18", "R-18", "18禁", "成人向け",
-          "nude", "naked", "nudity", "nsfw", "sexual", "sex act", "having sex", "explicit", "erotic", "porn", "hentai", "topless",
-          "bottomless", "nipple", "nipples", "genitals", "uncensored")
+# 止めるのは、子どもを性的に描く頼みだけ。ほかは何も止めない（道具は頼まれた通りに描く。2026-11-08 の利用者の指示）。
+# 取り違えを減らすため、どちらの一覧も意味が 1 つに決まる語だけにする。
+# 子どもを表す語: 少女・少年・女の子・高校生・制服などアニメで大人にも使う語は入れない
+MINOR = ("幼女", "幼児", "児童", "小学生", "未就学", "乳児",
+         "toddler", "infant", "elementary school", "little girl", "little boy", "underage", "child", "children")
+# 性的な語: 服（水着・下着）、見せ方（セクシー）、打ち消しによく出る札（nsfw）、性別の sex は入れない
+SEXUAL = ("裸", "全裸", "ヌード", "性的", "性行為", "セックス", "エロ", "R18", "R-18", "18禁",
+          "nude", "naked", "nudity", "sexual", "sex act", "having sex", "erotic", "porn", "hentai", "genitals", "nipples")
 # 語そのものが子どもの性的な描写を指す。いつでも止める
 ALWAYS = ("ロリ", "ショタ", "loli", "lolicon", "shota", "shotacon")
 

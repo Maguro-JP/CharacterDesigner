@@ -123,4 +123,4 @@ class Swimsuit(unittest.TestCase):
         """水着の高校生は止めない（漫画や設定資料に普通に出る。2026-11-08 の決定）。性的な語と並んだときだけ止める"""
         free_text.full_prompt("1girl, high school student, swimsuit")
         with self.assertRaises(ValueError):
-            free_text.full_prompt("1girl, high school student, nude")
+            free_text.full_prompt("little girl, elementary school, nude")

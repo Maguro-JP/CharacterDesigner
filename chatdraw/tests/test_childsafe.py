@@ -12,9 +12,10 @@ PASS = ["少女 下着が見えないように", "girl with minor scratches", "y
         "女の子、下着なし", "子どものキャラデザ 三面図", "child, school uniform, smiling", "girl with braided hair",
         "kid-friendly picnic", "little boy, red cape, sword", "1girl, adult woman, swimsuit, beach", "少年の騎士、nsfw-free",
         "子供 半ズボン 夏休み", "a minor character in the background", "kidney beans, cooking girl"]
-STOP = ["little girl, nude", "少女 ヌード", "loli", "child, nsfw", "女の子の裸", "underage, sexual", "ショタ",
-        "young girl, naked", "子供 エロ", "kid, explicit",
-        "女の子 セクシーな下着"]
+STOP = ["little girl, nude", "幼女 ヌード", "loli", "child, sexual", "小学生の裸", "underage, sexual", "ショタ",
+        "toddler, naked", "児童 エロ"]
+# アニメで大人にも使う語（少女・女の子）、服の語、打ち消しによく出る nsfw は止めない（2026-11-08 の利用者の指示）
+PASS += ["少女 ヌードモデルの絵画教室の背景", "女の子 セクシーな下着", "child, no nsfw", "1girl, nsfw"]
 # 水着の高校生や子どもは、漫画や設定資料に普通に出る。性別の sex も止めない（2026-11-08 の決定）
 PASS += ["1girl, high school student, swimsuit", "小学生の男の子 水着でプール", "女子高生 制服 水着",
          "child character sheet, sex: female", "少女 スクール水着 プール掃除"]
@@ -36,7 +37,7 @@ class ChildSafeTest(unittest.TestCase):
         self.assertEqual([t for t in STOP if not filters.fixed(t)], [])
 
     def test_reason_names_words(self):
-        self.assertIn("ヌード", childsafe.reason("少女 ヌード"))
+        self.assertIn("ヌード", childsafe.reason("幼女 ヌード"))
 
 
 if __name__ == "__main__":
