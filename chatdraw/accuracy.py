@@ -40,6 +40,11 @@ WORDS = [
     ("銀髪の長い髪の女の子", ["1girl", "silver hair", "long hair"], []),
     ("泣いている女の子", ["1girl", "crying"], []),
     ("腕を組んだ男の子", ["1boy", "crossed arms"], []),
+    ("傘をさす女の子", ["1girl", "umbrella", "holding umbrella"], []),
+    ("猫を抱いた女の子", ["1girl", "cat", "holding"], []),
+    ("メイド服の女の子", ["1girl", "maid"], []),
+    ("ギターを弾く男の子", ["1boy", "guitar"], []),
+    ("麦わら帽子の少女", ["1girl", "straw hat"], []),
 ]
 
 # ---- 場所の言葉: 場所の頼みから、ふさわしい場所の語を選んだか ----
@@ -76,7 +81,7 @@ def _clamp(v: float) -> float:
 def words() -> dict:
     from chatdraw.engine import Words
     w = Words(Path(""))
-    hit = total = extra = 0
+    hit = total = extra = left = 0
     missed = []
     for text, want, never in WORDS:
         got = [t.strip().lower() for t in w.to_prompt(text).split(",")]
@@ -87,8 +92,11 @@ def words() -> dict:
             else:
                 missed.append(f"{text}: {t}")
         extra += sum(1 for t in never if t in got)
-    score = 100.0 * hit / total - 5 * extra
-    return dict(score=_clamp(score), hit=hit, total=total, extra=extra, missed=missed)
+        lost = [x for x in w.untranslated if x.strip()]   # 抜けた語（模型に届かなかった頼みの字）
+        missed += [f"{text}: 抜けた「{x}」" for x in lost]
+        left += len(lost)
+    score = 100.0 * hit / total - 5 * extra - 2 * left
+    return dict(score=_clamp(score), hit=hit, total=total, extra=extra, left=left, missed=missed)
 
 
 def places() -> dict:
@@ -172,8 +180,13 @@ def redpen() -> dict:
     outside = int((np.abs(b - o).sum(-1)[~m] > 0).sum())
     eye = float(np.abs(b[230:330, 120:400] - o[230:330, 120:400]).mean())   # 目の所（囲みの外）
     got = seamfix.measure(before, out, mask)
-    score = 0.0 if outside or eye else 100 - 8 * got["color"] - 15 * got["shift"] - 200 * max(0.0, 0.95 - got["ssim"])
-    return dict(score=_clamp(score), outside=outside, eye=round(eye, 2), **{k: got[k] for k in ("color", "shift", "ssim")})
+    # 直しの残り: 囲みの奥（縁から 20 画素より内）で、頼んだ直しの変化がどれだけ残ったか。境目を合わせて直しを消したら下がる
+    a = np.asarray(after, np.int16)
+    core = seamfix.depth(np.asarray(asked) > 127, 64) > 20
+    kept = float(np.abs(o - b)[core].mean() / max(1e-6, np.abs(a - b)[core].mean()))
+    score = 0.0 if outside or eye else (100 - 8 * got["color"] - 15 * got["shift"] - 200 * max(0.0, 0.95 - got["ssim"])) * min(1.0, kept)
+    return dict(score=_clamp(score), outside=outside, eye=round(eye, 2), kept=round(kept, 3),
+                **{k: got[k] for k in ("color", "shift", "ssim")})
 
 
 FINISH = ("face", "retouch", "clean", "detail")

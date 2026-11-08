@@ -40,7 +40,7 @@ TERMS = {
     "日よけ": "hand up, shading eyes", "腰に手": "hand on own hip", "腰に当て": "hand on own hip", "手を上げ": "hand up",
     "両手を上げ": "arms up", "手を組": "own hands clasped", "見上げ": "looking up", "見下ろ": "looking down", "歩": "walking",
     "跳": "jumping", "飛ぶ": "flying", "飛ん": "flying", "泳": "swimming", "ほうき": "broom", "箒": "broom", "傘": "umbrella",
-    "剣": "sword", "銃": "gun", "弓": "bow (weapon)", "盾": "shield", "カップ": "cup", "スマホ": "smartphone", "鞄": "bag", "バッグ": "bag", "杖": "staff", "花": "flower", "本": "book", "しゃがむ": "squatting", "しゃが": "squatting", "持つ": "holding", "泣い": "crying, tears", "腕を組": "crossed arms", "ひざまず": "kneeling", "抱え": "holding", "持っ": "holding",
+    "剣": "sword", "銃": "gun", "弓": "bow (weapon)", "盾": "shield", "カップ": "cup", "スマホ": "smartphone", "鞄": "bag", "バッグ": "bag", "杖": "staff", "花": "flower", "本": "book", "しゃがむ": "squatting", "しゃが": "squatting", "持つ": "holding", "泣い": "crying, tears", "腕を組": "crossed arms", "ひざまず": "kneeling", "抱え": "holding", "抱い": "holding", "抱く": "holding", "抱っこ": "holding", "傘をさ": "umbrella, holding umbrella", "傘を差": "umbrella, holding umbrella", "メイド服": "maid, maid headdress", "持っ": "holding",
     "読ん": "reading", "読む": "reading", "食べ": "eating", "飲ん": "drinking", "飲む": "drinking", "歌っ": "singing", "歌う": "singing",
     "踊": "dancing", "料理": "cooking", "戦っ": "fighting", "戦う": "fighting", "眠": "sleeping", "ウインク": "wink", "目を閉じ": "closed eyes",
     "正面": "facing viewer, looking at viewer", "横顔": "profile", "後ろ姿": "from behind", "背中": "from behind",
@@ -167,6 +167,10 @@ def _spans(text: str, extra: dict[str, str] | None = None) -> tuple[list[tuple[i
     for key, en in sorted(keys, key=lambda kv: -len(kv[0])):
         for m in re.finditer(re.escape(key), text):
             take(m.start(), m.end(), en)
+    # 「長い髪」の「髪」は、長さ（long hair）を拾ったあとも字が残り、抜けた語に数えられた。長さの語のすぐ後ろの髪は読んだ字にする
+    for m in re.finditer("髪", text):
+        if not taken[m.start()] and any(t in ("long hair", "short hair") and e <= m.start() <= e + 3 for _, e, t, _ in spans):
+            taken[m.start()] = True
     # 日本語の頼みに混ぜた英語のタグ（単語のお気に入りから足した語、「猫耳の少女、red scarf」）はそのまま描く物にする（表の語の後に拾い、Tシャツの T を取らない）。
     # 前は日本語の語だけを表で拾い、混ぜた英語は黙って落ちていた
     for m in re.finditer(r"[A-Za-z][A-Za-z0-9 ()'_.:-]*", text):

@@ -8,7 +8,7 @@ import unittest
 from chatdraw import accuracy
 from tools.gen import accuracy_bench
 
-FLOOR = {"描く言葉": 100.0, "場所の言葉": 100.0, "チャットの読み取り": 100.0, "担当編集者のサボりの検品": 100.0, "赤ペンの直し": 79.1}
+FLOOR = {"描く言葉": 100.0, "場所の言葉": 100.0, "チャットの読み取り": 100.0, "担当編集者のサボりの検品": 100.0, "赤ペンの直し": 94.2}
 
 
 class AccuracyTest(unittest.TestCase):

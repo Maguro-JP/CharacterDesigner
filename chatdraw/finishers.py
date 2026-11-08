@@ -93,7 +93,10 @@ def _detail_apply(image):
     texture = gaussian_filter(np.abs(hi), 3) > 1.5        # もともと細部のある所だけ
     line = binary_dilation(_gen("cleanup").line_mask(a), iterations=2)
     add = np.clip(DETAIL_AMOUNT * hi, -DETAIL_CAP, DETAIL_CAP) * (texture & ~line)
-    return Image.fromarray(np.clip(a + add[..., None] + 0.5, 0, 255).astype("uint8"))
+    out = np.clip(a + add[..., None] + 0.5, 0, 255).astype("uint8")
+    # 強めた起伏が線の際に粒と出っ張りを作った（背景つきの絵で崩れ 1714 → 2429）。新しく出来た崩れの画素だけを元に戻す
+    # （戻したあとは 1600。足した明るさの 75% が残る）
+    return Image.fromarray(repair(a.astype("uint8"), out))
 
 
 CLEAN_STRUCT = 16.0   # 塗りのむらを均すとき、これより変わる画素は細い線・模様（形）として触らない（0〜255）
@@ -1087,6 +1090,12 @@ def run(name: str, image, mask=None, say=None, face=_NO_FACE):
         LAST_QC.setdefault("name", name)
         LAST_QC.setdefault("label", f.label)
         LAST_QC["features"] = fr
+    if f.group == "detail" and out.size == src.size and not LAST_QC.get("rejected"):
+        # 守りの工程（soften の混ぜ戻し、区画の戻し）の継ぎ目にも粒と出っ張りが出来た（ディテール追加で崩れ +30）。
+        # 最後に、元の絵に無かった崩れの画素だけを元の画素に戻す（元の画素に戻すだけなので、囲みの外は変わらない）
+        import numpy as np
+        from PIL import Image
+        out = Image.fromarray(repair(np.asarray(src), np.asarray(out.convert("RGB"))))
     return out
 
 
