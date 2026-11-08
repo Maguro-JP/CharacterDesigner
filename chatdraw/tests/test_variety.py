@@ -18,8 +18,11 @@ class VarietyTest(unittest.TestCase):
     def test_same_request_gives_different_places(self):
         # 足すのは場所だけ（構図・髪・服・表情を足すと頼みと質から絵が引っ張られた。chatdraw/tests/test_quality2.py）
         seeds = range(40)
-        got = {vary_background("1girl, solo", s, text="女の子") for s in seeds}
-        self.assertGreater(len(got), 8)
+        # 読み解ける頼みは、その場面の場所の中から種で変える。読み解けない頼みは無地か簡単な背景（でたらめな場所を足さない）
+        got = {vary_background("1girl, solo", s, text="剣を持った騎士の女の子") for s in seeds}
+        self.assertEqual(len(got), 3, got)
+        plain = {vary_background("1girl, solo", s, text="女の子") for s in seeds}
+        self.assertTrue(all("simple background" in p for p in plain), plain)
 
     def test_written_items_are_kept(self):
         out = vary_background("1girl, solo, beach, smile, ponytail", 3, text="浜辺で笑うポニーテールの女の子")
