@@ -437,9 +437,9 @@ SEXUAL = ("裸", "ヌード", "エロ", "性的", "下着", "セックス", "R18
 
 
 def refused(text: str) -> bool:
-    low = text.lower()
-    return any(w in low for w in ("loli", "shota", "ロリ", "ショタ")) or (
-        any(w.lower() in low for w in MINOR) and any(w.lower() in low for w in SEXUAL))
+    """子どもを性的に描く頼みか。判定は chatdraw/childsafe.py の 1 か所（打ち消しは数えず、英語は語の切れ目で探す）"""
+    from chatdraw import childsafe
+    return childsafe.reason(text) is not None
 
 
 def _foreign(ch: str) -> bool:
