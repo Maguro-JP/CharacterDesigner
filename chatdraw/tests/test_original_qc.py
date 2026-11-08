@@ -66,6 +66,22 @@ class OutliersTest(unittest.TestCase):
         self.assertEqual(res["regions"], [((0, 0, 256, 256), "body")])   # 崩れとして直す所も返す
 
 
+class SameImageOnceTest(unittest.TestCase):
+    """同じ絵は 2 度測らない（Studio の描き直しで前の絵に戻すと、同じ絵を検品し直す）"""
+
+    def test_cached(self):
+        fake = mock.MagicMock()
+        fake.measure.side_effect = RuntimeError("顔が無い")
+        im = Image.new("RGB", (256, 256), (9, 8, 7))
+        with mock.patch.object(origqc, "missing", lambda: []), \
+             mock.patch.object(origqc, "_setup", lambda: (fake, None)):
+            a = origqc.check(im, "1girl")
+            b = origqc.check(im.copy(), "1girl")
+            origqc.check(Image.new("RGB", (256, 256), (1, 2, 3)), "1girl")
+        self.assertEqual(a, b)
+        self.assertEqual(fake.measure.call_count, 2)
+
+
 class OmakaseUsesOriginalQcTest(unittest.TestCase):
     def test_default_check_adds_original_qc(self):
         hc = {"readable": True, "bad": ["手 1: 指が 6 本"], "hands": []}

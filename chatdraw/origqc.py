@@ -115,9 +115,24 @@ def grain_note(image) -> list[str]:
 
 def check(image, prompt: str = "", hair: str = "") -> dict:
     """返すのは {readable, bad, regions, notes, measured}。部品が無ければ measured=False で、notes に理由を書く"""
-    res = _check(image, prompt, hair)
-    res["notes"] = list(res.get("notes", [])) + grain_note(image)
+    import copy
+    import hashlib
+    rgb = image.convert("RGB")
+    # 測る部品（_setup、missing）が替わったら別の結果にする（試験で偽物に替えたとき、前の結果を返さない）
+    key = (hashlib.md5(rgb.tobytes()).hexdigest(), rgb.size, prompt, hair, id(_setup), id(missing))
+    if key in _SEEN:
+        # 同じ絵は測り直さない。Studio の描き直しは、崩れの増えた回で前の絵に戻すので、同じ絵を何度も検品する
+        # （832×1216 の絵で 1 回 6〜10 秒、初めの 1 回は模型を読んで 24 秒）
+        return copy.deepcopy(_SEEN[key])
+    res = _check(rgb, prompt, hair)
+    res["notes"] = list(res.get("notes", [])) + grain_note(rgb)
+    _SEEN[key] = copy.deepcopy(res)
+    while len(_SEEN) > 16:
+        _SEEN.pop(next(iter(_SEEN)))
     return res
+
+
+_SEEN: dict = {}   # 検品した絵の結果（絵の中身の md5 ごと）。基準を学び直したら verdict が空にする
 
 
 def _check(image, prompt: str = "", hair: str = "") -> dict:
@@ -157,6 +172,7 @@ def verdict(path, value: str, reason: str = "", learn: bool = True) -> dict:
                 return {"recorded": False, "why": f"小さすぎて測れない（{im.size[0]}×{im.size[1]}）"}
     except OSError as e:
         return {"recorded": False, "why": f"絵を開けない（{e}）"}
+    _SEEN.clear()   # 基準が変わるので、前の検品の結果は使わない
     _m, normlearn = _setup()
     rec = normlearn.record(Path(path), value, by="user", reason=reason)
     out = {"recorded": True, **rec}
