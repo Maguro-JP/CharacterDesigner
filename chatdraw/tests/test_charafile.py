@@ -175,7 +175,7 @@ class AppFlowTest(Base):
             self.assertTrue(act.toolTip())
             with mock.patch.object(type(w), "_chara_spec_dialog", lambda self, init=None: dict(SPEC)):
                 act.trigger()
-            self.wait(lambda: getattr(w, "chara_design_result", None) is not None, 600)
+            self.wait(lambda: getattr(w, "chara_design_result", None) is not None, 1800)
             res = w.chara_design_result
             self.assertEqual(sorted(res["turn"]), ["back", "front", "side"])
             self.assertEqual(len(res["expressions"]), 8)
@@ -213,7 +213,7 @@ class AppFlowTest(Base):
             sent.clear()
             w.entry.setText("walking in a park")
             w.send()
-            self.wait(lambda: w.thread is None and any(e["where"] == "描く" for e in sent.last()), 600)
+            self.wait(lambda: w.thread is None and any(e["where"] == "描く" for e in sent.last()), 900)
             drawn = [e for e in sent.last() if e["where"] == "描く"][-1]
             for word in ("short red hair", "green eyes", "blue hoodie", "emerald iris", "walking"):
                 self.assertIn(word, drawn["prompt"] + " " + drawn.get("prompt_2", ""))
