@@ -2953,8 +2953,11 @@ class Window(QMainWindow):
         real = sent.tooltip_lines()
         if real:   # 描く仕組みが足した言葉・切り詰め・打ち消しを含めた、模型が本当に受け取った文
             lines += [""] + real
-        elif getattr(self, "last_model_prompt", ""):
-            lines += ["", "前に絵の模型に渡した言葉: " + self.last_model_prompt]
+        last = getattr(self, "last_model_prompt", "")
+        # 記録は工程ごとの共有の帳面なので、前の仕事の行だけが残り、今の絵の言葉が無いことがある（記録しない描き手、別の窓）。
+        # そのときも今の絵に渡した言葉を必ず出す
+        if last and not any(last in e["prompt"] for e in sent.last(3)):
+            lines += ["", "前に絵の模型に渡した言葉: " + last]
         # 長い英語の言葉で横に広がり画面からはみ出さないよう、折り返す形（リッチテキスト）で出す
         import html
         self.entry.setToolTip("<qt>" + "<br>".join(html.escape(t) for t in lines) + "</qt>")

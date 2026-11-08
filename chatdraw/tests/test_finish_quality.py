@@ -222,7 +222,7 @@ class RestyleTest(unittest.TestCase):
         from chatdraw import restyle
         calls = []
 
-        def bad(a, b):
+        def bad(a, b, kind=""):
             calls.append(1)
             return dict(drift=0.5, line_kept=0.1, why="形が変わりすぎる（0.500）")
         with mock.patch.object(restyle, "check", bad):
