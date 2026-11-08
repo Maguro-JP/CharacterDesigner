@@ -250,7 +250,7 @@ class EverywhereTest(Base):
             with self.subTest(key=key):
                 self.assertEqual(d.contextMenuPolicy(), Qt.CustomContextMenu)
                 t = self.texts(self.w.area_menu(key))
-                for want in ("新しく描く（書く欄へ）", "画像を開く…", "ショートカット"):
+                for want in ("新しく描く", "画像を開く…", "ショートカット"):
                     self.assertIn(want, t)
 
     def test_empty_history_and_library_and_chat(self):
@@ -267,7 +267,7 @@ class EverywhereTest(Base):
     def test_new_drawing_from_menu(self):
         m = self.w.area_menu("history")
         self._keep = [m, m.actions()]
-        next(a for a in self._keep[1] if a.text() == "新しく描く（書く欄へ）").trigger()
+        next(a for a in self._keep[1] if a.text() == "新しく描く").trigger()
         self.assertEqual(self.w.mode.currentIndex(), 0)
 
 
