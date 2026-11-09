@@ -77,5 +77,16 @@ class HandcheckMemoTest(unittest.TestCase):
                 os.environ["CD_CHECK"] = env
 
 
+class ReleaseRateTest(unittest.TestCase):
+    def test_memory_is_returned_at_most_every_30s(self):
+        from chatdraw import membudget as mb
+        calls = []
+        start = mb.Budget(10.0, 0.0, 12.0, 0.0)
+        w = mb.Watch(start, sample=lambda: (0.4, 0.0), release=lambda: calls.append(1))
+        for _ in range(50):          # 0.2 秒ごとの見張りが 50 回、危ないと見ても
+            w.poll()
+        self.assertEqual(len(calls), 1)   # 返すのは 1 度だけ（前は 50 回で、描く 1 工程が 18 倍に延びた）
+
+
 if __name__ == "__main__":
     unittest.main()
