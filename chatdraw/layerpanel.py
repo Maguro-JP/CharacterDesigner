@@ -32,23 +32,10 @@ def thumbnail(image, size: int = THUMB) -> QPixmap:
     return pm
 
 
-def _has_pixels(img) -> bool:
-    """透明でない画素が 1 つでもあるか。何も描いていないレイヤーは消す前に聞かない"""
-    from PySide6.QtGui import QImage
-    if img.isNull():
-        return False
-    if img.format() != QImage.Format_ARGB32_Premultiplied:
-        img = img.convertToFormat(QImage.Format_ARGB32_Premultiplied)
-    import numpy as np
-    a = np.frombuffer(img.constBits(), np.uint8, img.sizeInBytes())
-    return bool(a[3::4].any())
-
-
 class LayerPanel(QWidget):
     def __init__(self, canvas):
         super().__init__()
         self.canvas = canvas
-        self.w = None   # 窓。確かめの窓の覚えた答えを引く（窓の側で入れる）
         self.list = QListWidget()
         self.list.setIconSize(QSize(THUMB, THUMB))
         self.list.setToolTip("押すと選び、そのレイヤーに描きます。印で表示を切り替え、ダブルクリックで名前を変えます")
@@ -92,7 +79,7 @@ class LayerPanel(QWidget):
         menu = QMenu(self.more)
         for key, label, fn in (("up", "1 つ上へ", lambda: canvas.move_layer(1)),
                                ("down", "1 つ下へ", lambda: canvas.move_layer(-1)),
-                               ("lock", "ロック", self.toggle_lock),
+                               ("lock", "ロックする（描けなくする）", self.toggle_lock),
                                ("rename", "名前を変える", self.rename_current)):
             act = QAction(label, menu)
             act.triggered.connect(fn)
@@ -232,91 +219,35 @@ class LayerPanel(QWidget):
         self.context_menu(pos).exec(self.list.viewport().mapToGlobal(pos))
 
     def context_menu(self, pos):
-        """右クリックの窓の中身（試験からも同じ項目を押せるよう、開くのと分ける）。
-        よく使う物を上、消す物は区切り線の下。今使えない項目は押せなくし、理由をカーソルを合わせたときに出す"""
+        """右クリックの窓の中身（試験からも同じ項目を押せるよう、開くのと分ける）"""
         from PySide6.QtWidgets import QMenu
-        c = self.canvas
         item = self.list.itemAt(pos)
         m = QMenu(self)
-        m.setToolTipsVisible(True)
-        m.addAction("新しいレイヤー", c.add_layer).setToolTip("選んでいるレイヤーの上に新しいレイヤーを足します（Ctrl+Shift+N）")
-        if item is not None and item.data(ROLE_INDEX) is not None and item.data(ROLE_INDEX) < 0:
-            n = -item.data(ROLE_INDEX)
-            m.addAction("指示を書き直す", lambda: self.list.editItem(item))
-            m.addSeparator()
-            m.addAction(f"赤ペン {n} を消す…", lambda: self.remove_mark(n)).setToolTip("元に戻すで戻せます")
-            m.addAction("赤ペンの印を全部消す…", self.clear_marks)
-            return m
+        m.addAction("新しいレイヤー", self.canvas.add_layer)
         if item is not None:
-            c.select(item.data(ROLE_INDEX))
-            i, n = c.current, len(c.layers)
-            for label, fn, ok, why in (("1 つ上へ", lambda: c.move_layer(1), i < n - 1, "一番上のレイヤーです"),
-                                       ("1 つ下へ", lambda: c.move_layer(-1), i > 0, "一番下のレイヤーです"),
-                                       ("下と結合", c.merge_down, i > 0, "下にレイヤーがありません")):
-                a = m.addAction(label, fn)
-                a.setEnabled(ok)
-                a.setToolTip("" if ok else why)
-            m.addAction("複製", c.duplicate_layer).setToolTip("このレイヤーを写して真上に置きます")
-            m.addAction("名前を変える", self.rename_current)
-            op = QMenu("不透明度", m)
-            m.addMenu(op)
-            now = round(c.layers[i].opacity * 100) if c.layers else 100
-            for v in (100, 75, 50, 25):
-                a = op.addAction(("● " if v == now else "") + f"{v}%", lambda v=v: self.opacity.setValue(v))
-            
-            lock = m.addAction("ロック", self.toggle_lock)
-            lock.setCheckable(True)
-            lock.setChecked(bool(c.layers and c.layers[i].locked))
-            lock.setToolTip("ロックしたレイヤーには描けません")
-        vis = sum(1 for x in c.layers if x.visible)
-        a = m.addAction("見えているレイヤーを結合", c.merge_visible)
-        a.setEnabled(vis >= 2)
-        a.setToolTip("隠したレイヤーは捨てます。元に戻すで戻せます" if vis >= 2 else "見えているレイヤーが 2 枚以上ありません")
-        if self.w is not None:
-            m.addAction("この右クリックを編集…", lambda: self.w.edit_context_menu("レイヤー")).setToolTip(
-                "項目を出す・隠す・並べ替える")
-            self.w.arrange_context("レイヤー", m)
-        if item is not None:
-            m.addSeparator()
-            m.addAction("レイヤーを消す…", self.delete_layer).setToolTip(
-                "選んでいるレイヤーを消します（Delete）。元に戻すで戻せます" if len(c.layers) > 1 else "1 枚だけなので、絵を消して透明にします")
+            if item.data(ROLE_INDEX) < 0:
+                n = -item.data(ROLE_INDEX)
+                m.addAction(f"赤ペン {n} の指示を書き直す", lambda: self.list.editItem(item))
+                m.addAction(f"赤ペン {n} を消す", lambda: self.canvas.redpen.remove(n))
+                m.addAction("赤ペンの印を全部消す", self.canvas.redpen.clear)
+            else:
+                self.canvas.select(item.data(ROLE_INDEX))
+                m.addAction("このレイヤーを消す（Delete）", self._delete).setEnabled(len(self.canvas.layers) > 1)
+                m.addAction("1 つ上へ", lambda: self.canvas.move_layer(1))
+                m.addAction("1 つ下へ", lambda: self.canvas.move_layer(-1))
+                m.addAction("下のレイヤーと結合", self.canvas.merge_down)
+                m.addAction("名前を変える", self.rename_current)
+                m.addAction("ロックを切り替える", self.toggle_lock)
+        m.addAction("見えているレイヤーを結合", self.canvas.merge_visible)
         return m
 
-    def _ask(self, kind: str, title: str, text: str) -> bool:
-        """消す前の確かめの窓。窓が無い（欄だけで使う）ときは聞かずに進める"""
-        if self.w is None:
-            return True
-        from chatdraw import confirm
-        return confirm.ask(self.w, kind, title, text, [("yes", "消す")]) == "yes"
-
-    def delete_layer(self):
-        """選んでいるレイヤーを消す。何も描いていないレイヤーは聞かずに消す（聞くと邪魔になる）"""
-        c = self.canvas
-        if not c.layers:
-            return
-        layer = c.layers[c.current]
-        if _has_pixels(layer.image) and not self._ask(
-                "delete_layer", "レイヤーを消す", f"「{layer.name}」を消します。元に戻す（Ctrl+Z）で戻せます。"):
-            return
-        c.delete_layer()
-
-    def remove_mark(self, n: int):
-        if self._ask("delete_marks", "赤ペンの印を消す", f"赤ペン {n} の印と指示を消します。元に戻す（Ctrl+Z）で戻せます。"):
-            self.canvas.redpen.remove(n)
-
-    def clear_marks(self):
-        pen = self.canvas.redpen
-        if pen.marks and self._ask("delete_marks", "赤ペンの印を消す",
-                                   f"赤ペンの印 {len(pen.marks)} 個と指示を全部消します。元に戻すでは戻せません。"):
-            pen.clear()
-
     def _delete(self):
-        """「－」と Delete。赤ペンの行を選んでいればその印だけを消し、ほかは選んでいるレイヤーを消す"""
+        """「－」。赤ペンの行を選んでいればその印だけを消し、ほかは選んでいるレイヤーを消す"""
         item = self.list.currentItem()
         if item is not None and item.data(ROLE_INDEX) is not None and item.data(ROLE_INDEX) < 0:
-            self.remove_mark(-item.data(ROLE_INDEX))
+            self.canvas.redpen.remove(-item.data(ROLE_INDEX))
             return
-        self.delete_layer()
+        self.canvas.delete_layer()
 
     def rename_current(self):
         item = self.list.item(self.row_of(self.canvas.current))

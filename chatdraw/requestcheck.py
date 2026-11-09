@@ -45,18 +45,6 @@ def people(tags: str, got: dict) -> list[str]:
     return out
 
 
-# 頼んでいない性的な絵の札（タグ読みの確からしさの下限）。頼みに性的な言葉が無いのに、これを超えたら描き直す
-UNSAFE = {"explicit": 0.35, "questionable": 0.5, "nsfw": 0.5, "nude": 0.5, "completely nude": 0.4, "nipples": 0.5, "sex": 0.4}
-
-
-def unsafe(tags: str, got: dict) -> list[str]:
-    """頼みに性的な言葉が無いのに、絵が性的に読めた札。安全の判定で「描けませんでした」にせず、打ち消しを強めて描き直す理由にする"""
-    from chatdraw.engine import sexual
-    if sexual(tags):
-        return []
-    return [f"{t} {got[t]:.2f}" for t, least in UNSAFE.items() if (got or {}).get(t, 0.0) >= least]
-
-
 def check(image, tags: str, fetch: bool = False) -> dict:
     """image（道か PIL）から読めなかった頼みのタグ（missing）。模型か部品が無ければ readable を False にして理由を返す"""
     if os.environ.get("CD_CHECK") == "off":
@@ -72,7 +60,7 @@ def check(image, tags: str, fetch: bool = False) -> dict:
         got = tg.read(str(image))
         from chatdraw import bodycheck
         return {"readable": True, "missing": tg.missing(tags, got), "extra": tg.extras(tags, got), "read": got,
-                "people": people(tags, got), "body": bodycheck.from_tags(got, tags), "unsafe": unsafe(tags, got)}
+                "people": people(tags, got), "body": bodycheck.from_tags(got, tags)}
     except Exception as e:   # 部品か模型が無い。描いた絵は止めず、検品が無いことを返す
         return {"readable": False, "missing": [], "extra": [], "reason": f"頼んだ物の検品の部品がありません（{e}）"}
 

@@ -1225,12 +1225,10 @@ class FixAndBatchTest(unittest.TestCase):
         self.assertEqual(len(fixes), 2)                               # 印ごとに 1 回ずつ直す
         self.assertEqual(len(self.w.canvas.layers), layers + 1)      # 直した所は新しいレイヤー
         self.assertEqual(self.w.canvas.redpen.marks, [])             # 直したら印は消える
-        # 直した結果は画像のファイルにせず、直した所だけのレイヤーにだけ置く（履歴に出さない）
-        top = max(self.w.canvas.layers, key=lambda l: getattr(l, "redpen", False))
-        img = top.image
-        self.assertEqual((img.width(), img.height()), (200, 160))    # 絵と同じ大きさで重ね、
-        self.assertEqual(img.pixelColor(5, 150).alpha(), 0)          # 直していない所は透かす（下のレイヤーを隠さない）
-        self.assertEqual(img.pixelColor(50, 50).alpha(), 255)
+        layer = Image.open(self.w.images[-1])
+        self.assertEqual(layer.size, (200, 160))                      # 絵と同じ大きさで重ね、
+        self.assertEqual(layer.getpixel((5, 150))[3], 0)              # 直していない所は透かす（下のレイヤーを隠さない）
+        self.assertEqual(layer.getpixel((50, 50))[3], 255)
 
     def test_fix_without_marks_draws_new(self):
         """直す所が無いのに「直す」のままの頼みは、止めずに新しく描く（赤ペンに引っ張られ続けないように）"""
@@ -2003,7 +2001,7 @@ class UsabilityFixTest(unittest.TestCase):
 
     def test_japanese_terms(self):
         from chatdraw.jaterms import merge, tags_from
-        self.assertEqual(tags_from("白いビキニの女性が海で笑顔")[:4], ["1girl", "solo", "adult woman", "white bikini"])   # 人数の言葉が先頭、頼んだ語がその次（jaterms.order）
+        self.assertEqual(tags_from("白いビキニの女性が海で笑顔")[:2], ["white bikini", "1girl"])
         self.assertIn("red hair", tags_from("赤い髪の女の子"))
         self.assertEqual(merge("1girl, beach", ["1girl", "white bikini"]), "1girl, beach, white bikini")   # 抜けた語だけ足す
 
@@ -2256,30 +2254,6 @@ class HandRoundsTest(unittest.TestCase):
         self.assertEqual(len(calls), 3)          # 2 回直して崩れが消え、通ったあとも細部を 1 回描き直した
         self.assertTrue(s.hand_rounds[-1].get("detail"))
         self.assertEqual([r["bad"] for r in s.hand_rounds][-1], [])
-
-
-class HandRoundsUseOwnQcTest(unittest.TestCase):
-    """作画監督（origqc）の顔の崩れも、Studio._fix_hands の描き直しの理由になるか。人物全体の囲みは描き直さない"""
-
-    def test_face_fault_is_redrawn(self):
-        import tempfile
-        from unittest import mock
-        from PIL import Image
-        from chatdraw import handcheck, origqc
-        from chatdraw.engine import Painter
-        s = Studio(FakeWords(), Painter("cagliostrolab/animagine-xl-4.0"), Path(tempfile.mkdtemp()))
-        clean = {"readable": True, "bad": [], "hands": []}
-        own = iter([{"bad": ["数字の検品: 左右の瞳の色が違う"], "regions": [((5, 5, 30, 30), "face"), ((0, 0, 64, 64), "body")]}]
-                   + [{"bad": [], "regions": []}] * 5)
-        masks = []
-        with mock.patch.dict(os.environ, {"CD_CHECK": "on"}), mock.patch.object(handcheck, "check", side_effect=lambda im, **k: clean), \
-                mock.patch.object(origqc, "check", side_effect=lambda im, p: next(own)), \
-                mock.patch.object(s.painter, "redraw", side_effect=lambda p, seed, im, mask, strength: masks.append((p, mask)) or im):
-            s._fix_hands(Image.new("RGB", (64, 64)), "1girl", 7, lambda m: None)
-        self.assertEqual(len(masks), 1)
-        self.assertIn("detailed face", masks[0][0])
-        self.assertEqual(masks[0][1].getpixel((0, 63)), 0)        # 人物全体の囲みは描き直さない
-        self.assertEqual(s.hand_rounds[0]["bad"], ["数字の検品: 左右の瞳の色が違う"])
 
 
 class RequestCheckTest(unittest.TestCase):

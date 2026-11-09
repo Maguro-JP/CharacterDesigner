@@ -28,8 +28,6 @@ class LayerCrashTest(unittest.TestCase):
         self.tmp = TemporaryDirectory()
         self.d = Path(self.tmp.name)
         self.w = Window(Studio(FakeWords(), FakePainter(), self.d))
-        for k in ("delete_layer", "delete_marks"):   # 消す前の窓は答えを覚えた形にする（窓の試験は test_menuaudit）
-            self.w.layout_store.setValue(f"confirm/{k}", "yes")
         self.w.show()
         self.src = self.d / "a.png"
         figure().save(self.src)
@@ -39,8 +37,6 @@ class LayerCrashTest(unittest.TestCase):
         self.n0 = len(self.c.layers)   # 絵を開くと、絵と描く用の 2 枚になる
 
     def tearDown(self):
-        from chatdraw import confirm
-        confirm.forget(self.w)
         self.w.dirty = False
         self.w.close()
         self.tmp.cleanup()
@@ -106,9 +102,9 @@ class LayerCrashTest(unittest.TestCase):
 
     def test_context_menu_delete_selected_and_other(self):
         self.add(3)
-        self.menu(self.lp.row_of(0), "レイヤーを消す")   # 選んでいない一番下の行
+        self.menu(self.lp.row_of(0), "このレイヤーを消す")   # 選んでいない一番下の行
         self.assertEqual(len(self.c.layers), self.n0 + 2)
-        self.menu(self.lp.row_of(self.c.current), "レイヤーを消す")
+        self.menu(self.lp.row_of(self.c.current), "このレイヤーを消す")
         self.assertEqual(len(self.c.layers), self.n0 + 1)
 
     def test_menu_bar_delete(self):
@@ -145,7 +141,7 @@ class LayerCrashTest(unittest.TestCase):
         self.c.add_image_layer(str(self.src), "AI の絵")
         self.pump()
         self.assertEqual(self.c.layers[self.c.current].name, "AI の絵")
-        self.menu(self.lp.row_of(self.c.current), "レイヤーを消す")
+        self.menu(self.lp.row_of(self.c.current), "このレイヤーを消す")
         self.assertNotIn("AI の絵", [x.name for x in self.c.layers])
         self.c.undo()
         self.pump()
@@ -159,11 +155,11 @@ class LayerCrashTest(unittest.TestCase):
         for key in ("up", "down", "lock", "lock"):
             self.lp.buttons[key].trigger()
             self.pump()
-        self.menu(self.lp.row_of(self.c.current), "下と結合")
+        self.menu(self.lp.row_of(self.c.current), "下のレイヤーと結合")
         self.assertEqual(len(self.c.layers), self.n0 + 2)
         self.menu(self.lp.row_of(self.c.current), "1 つ上へ")
         self.menu(self.lp.row_of(self.c.current), "1 つ下へ")
-        self.menu(self.lp.row_of(self.c.current), "ロック")
+        self.menu(self.lp.row_of(self.c.current), "ロックを切り替える")
         item = self.lp.list.item(self.lp.row_of(1))
         item.setCheckState(Qt.Unchecked)
         self.pump()

@@ -12,6 +12,7 @@
 from __future__ import annotations
 
 import re
+import random
 from dataclasses import dataclass, field
 
 from chatdraw.models import KIND_ASPECT, ImageModel, abilities, family as fam
@@ -141,11 +142,21 @@ def finishers():
     return f if hasattr(f, "available") and hasattr(f, "run") else None
 
 
+EXPLORE = 0.15   # 点の高い順に選びつつ、この割合で下の方の模型も試す（いつも同じ模型にしない）
+
 
 def explore(ranked: list, seed: int | None) -> list:
-    """合う順の並びをそのまま返す。前は描くたびに上位 3 つと下の方から選び直していたが、点の低い模型で描く回が増え、
-    一番出来の良い模型で描ける頼みの質が下がった。同じ絵柄になるのは種で変える"""
-    return list(ranked)
+    """合う順の並びから、描くたびに先頭を選び直す。上位 3 つを点の順の重み（3:2:1）で、EXPLORE の割合でそれより下から選ぶ。
+    いつも 1 位の模型だけで描くと、おまかせなのに模型が固定され、同じ絵柄ばかりになった。選んだ物以外は元の順で後ろに続く"""
+    if seed is None or len(ranked) < 2:
+        return list(ranked)
+    rng = random.Random(f"omakase-{seed}")
+    top = ranked[:3]
+    if len(ranked) > 3 and rng.random() < EXPLORE:
+        i = 3 + rng.randrange(len(ranked) - 3)
+    else:
+        i = rng.choices(range(len(top)), weights=[3, 2, 1][:len(top)])[0]
+    return [ranked[i]] + [r for j, r in enumerate(ranked) if j != i]
 
 
 def plan(text: str, have: list[ImageModel], seed: int | None = None) -> Plan:
@@ -238,7 +249,7 @@ class Omakase:
         tags = fam(m.family).tags
         if tags not in self._prompts:
             from chatdraw.engine import refused
-            p = _char(self.studio, self.studio.words.to_prompt(text, tags=tags))
+            p = self.studio.words.to_prompt(text, tags=tags)
             p = f"{p}, {self.style}" if self.style else p
             if refused(p):
                 raise ValueError("子どもを性的に描く頼みは描きません")
@@ -268,37 +279,26 @@ class Omakase:
         # 囲みの外は 1 画素も変えない（模型の直しが外へ漏れても、元の絵を戻す）
         return Image.composite(out.convert(image.mode), image, mask), m
 
-    def run(self, text: str, seed: int, say, size=None, tries: int | None = None, rounds: int | None = None):
+    def run(self, text: str, seed: int, say, size=None, tries: int = 12, rounds: int = 6):
         """描く → 検品 → 落ちた部位を別の模型で直す → 検品、を通るまで回す。通らなければ構図を別の模型で描き直す。
-        回数の上限は置かない（tries と rounds は試験で短くするときだけ）。止まるのは止めるボタンと、
-        同じ崩れが別の手（模型と種、直す強さ）を一周試しても変わらないとき（chatdraw/persist.py）。
         返すのは (絵, 頼みの言葉, 残った崩れ, 検品できたか, 種, 構図の模型)"""
-        from chatdraw.persist import Persist, counter
         self.plan = plan(text, self.have, seed)
         say("おまかせの段取り: " + self.plan.summary())
         compose = self.plan.compose or [(None, "取得済みの模型が無いので今の模型")]
         best = None
-        missing_all = []   # 前の回で描かれなかった頼み。次の回は描く言葉の前に出す
-        # 構図の手は、合う模型を一周、種を替えてもう一周
-        outer = Persist(list(range(2 * len(compose))), stopped=lambda: getattr(self.studio.painter, "stop", False))
-        for k in counter(tries):
+        for k in range(tries):
             m, why = compose[k % len(compose)]   # 落ちたら次に合う模型で構図から描き直す。一周したら種を変えて最初から
             s_k = seed + 1000 * k
             if k:
-                say(f"検品を通らなかったので、構図を描き直しています（{k + 1} 回目）")
+                say(f"検品を通らなかったので、構図を描き直しています（{k + 1}/{tries} 回目）")
             painter = self.painter_for(m) if m is not None else self.studio.painter
-            prompt = self._prompt(text, m) if m is not None else _char(self.studio, self.studio.words.to_prompt(text))
+            prompt = self._prompt(text, m) if m is not None else self.studio.words.to_prompt(text)
             # 書かれていない所（背景・ポーズ・髪・服・表情・構図・光）を種で選んで足す。足さないと毎回同じ無地の立ち絵になった
             from chatdraw.engine import vary_background
-            # 頼んだ物の検品は頼みの言葉だけで見る。足した背景や服まで「描かれていない」と数え、頼みでない言葉で描き直していた
-            asked_prompt = prompt
             prompt = vary_background(prompt, seed, tags=fam(m.family).tags if m is not None else True, text=text)
-            if missing_all:   # 描かれなかった頼みを前に出す（模型は前の言葉ほど強く効かせる）
-                from chatdraw.engine import emphasize
-                prompt = emphasize(prompt, missing_all)
             image = None
             # 2 段の部品も候補の 1 つ。毎回 2 段で描くと構図の模型が固定されたので、ほかの模型があれば半分は 1 つの模型で描く
-            use_two = self.two is not None and k == 0   # 2 段で描ける時は必ず 2 段（半分の確率で 1 段にすると仕上げの質が落ちた）
+            use_two = self.two is not None and k == 0 and (len(compose) < 2 or random.Random(f"two-{seed}").random() < 0.5)
             if use_two:
                 # 構図と仕上げを分ける 2 段の部品がそろっていれば、最初の構図はそれで描く（chatdraw/twostage.py）
                 try:
@@ -312,42 +312,33 @@ class Omakase:
             if image is None:
                 self._note(say, "構図", m, why, seed=s_k)
                 image = self.hires(painter, m, prompt, s_k, size, say)
-            res = self.check(image, asked_prompt)
-            missing_all += [b.split(": ", 1)[1] for b in res["bad"] if b.startswith("描かれていない: ")
-                            and b.split(": ", 1)[1] not in missing_all]
+            res = self.check(image, prompt)
             for note in res.get("notes", []) if k == 0 else []:
                 say(note)
-            inner = Persist([0.6, 0.7, 0.8, 0.9], stopped=lambda: getattr(painter, "stop", False))
-            for r in counter(rounds):
-                if not res.get("regions"):
-                    break
-                strength = inner.hand()
-                if not inner.go_on(res["bad"]):
+            for r in range(rounds):
+                if not res["bad"] or not res.get("regions") or getattr(painter, "stop", False):
                     break
                 by_kind = {}
                 for box, kind in res["regions"]:
                     by_kind.setdefault(kind, []).append(box)
                 tried = image
                 for kind, boxes in by_kind.items():
-                    tried, _fm = self.fix_region(tried, kind, boxes, text, s_k + 77 * (r + 1), m.repo if m else "", say,
-                                                 strength=strength)
-                again = self.check(tried, asked_prompt)
+                    tried, _fm = self.fix_region(tried, kind, boxes, text, s_k + 77 * (r + 1), m.repo if m else "", say)
+                again = self.check(tried, prompt)
                 self.log.append(dict(stage="検品", round=r, bad=list(again["bad"])))
-                if len(again["bad"]) > len(res["bad"]):   # 直しで崩れが増えたら、その直しは消しゴムで消し、強さを替えて直し直す
-                    say("直しで崩れが増えたので、前の絵に戻して直し直します")
-                    continue
+                if len(again["bad"]) > len(res["bad"]):   # 直しで崩れが増えたら、その直しは消しゴムで消す
+                    say("直しで崩れが増えたので、前の絵に戻します")
+                    break
                 image, res = tried, again
             if not res["bad"] and res.get("detail") and not getattr(painter, "stop", False):
-                image, res = self.detail(image, res, text, s_k, m.repo if m else "", asked_prompt, say)
+                image, res = self.detail(image, res, text, s_k, m.repo if m else "", prompt, say)
             self.log.append(dict(stage="検品", seed=s_k, bad=list(res["bad"]), readable=res["readable"]))
             # 検品できなかった絵は崩れが無いのではなく見ていないだけなので、崩れ 1 つとして数えて比べる。
             # 前は読めない絵（崩れ 0）が、読めて崩れが 1 つの絵より先に選ばれ、崩れを逃がした
             flaws = len(res["bad"]) + (0 if res["readable"] else 1)
             if best is None or flaws < len(best[2]) + (0 if best[3] else 1):
                 best = (image, prompt, list(res["bad"]), res["readable"], s_k, m)
-            if not res["bad"] and res["readable"]:
-                break
-            if not outer.go_on(res["bad"] or ["検品できなかった"]):
+            if (not res["bad"] and res["readable"]) or getattr(painter, "stop", False):
                 break
         image, prompt, left, readable, s_k, m = best
         if not left and readable:
@@ -414,8 +405,8 @@ def _compose_two(studio, text, seed, two, size, say):
     from chatdraw import twostage
     from chatdraw.engine import english_only, vary_background
     comp, render = two
-    sentence = vary_background(english_only(_char(studio, studio.words.to_prompt(text, tags=False))), seed, tags=False, text=text)
-    tags = vary_background(english_only(_char(studio, studio.words.to_prompt(text, tags=True))), seed, text=text)
+    sentence = vary_background(english_only(studio.words.to_prompt(text, tags=False)), seed, tags=False, text=text)
+    tags = vary_background(english_only(studio.words.to_prompt(text, tags=True)), seed, text=text)
     keep = studio.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}"
     path = twostage.run_stages(sentence, tags, seed, comp.repo, render.repo, tuple(size or (832, 1216)), keep,
                                twostage.VARIANTS[0], say=say, stopped=lambda: getattr(studio.painter, "stop", False))
@@ -450,9 +441,3 @@ def draw(studio, text: str, seed: int, say, size=None, meta: dict | None = None,
                                          omakase=dict(parts=o.plan.parts, plan=o.plan.summary(), steps=o.log)))
     studio._inspect(path, say)
     return prompt, path
-
-
-def _char(studio, prompt: str) -> str:
-    """開いたキャラクターの設定の言葉を前に足す（engine.Studio._with_character。持たない描き手はそのまま）"""
-    f = getattr(studio, "_with_character", None)
-    return f(prompt) if callable(f) else prompt

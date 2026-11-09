@@ -44,12 +44,9 @@ def wait(w, s=60):
     import time
     a = app()
     end = time.time() + s
-    started = time.time() + 3   # 押してから裏の仕事が始まるまでの間に抜けないよう、始まるのを少し待つ
-    seen = False
     while time.time() < end:
         a.processEvents()
-        seen = seen or w.thread is not None
-        if w.thread is None and (seen or time.time() > started):
+        if w.thread is None:
             break
         time.sleep(0.01)
     spin(10)
@@ -65,11 +62,6 @@ class IntentTest(unittest.TestCase):
         self.assertEqual(conflicts("赤い髪の少女、帽子", "目を大きく"), [])
 
 
-def fixed(w) -> int:
-    """直した回数。直した結果は画像のファイルにせず、直した所だけのレイヤーにだけ置く（履歴の絵は増えない）"""
-    return len(w.canvas.layers)
-
-
 class FixConfirmTest(unittest.TestCase):
     def _fix(self, w, text):
         w.canvas.set_selection(QRect(10, 10, 40, 40))
@@ -83,26 +75,26 @@ class FixConfirmTest(unittest.TestCase):
             w = shown(d)
             draw(w, "赤いマントの騎士、剣")
             self.assertEqual(w.origin_prompt, "赤いマントの騎士、剣")
-            n = fixed(w)
+            n = len(w.images)
             texts = []
             answer(w, "やめる", seen=texts)           # やめる: 何も描かない
             self._fix(w, "マントを青に")
             self.assertIn("赤いマントの騎士", texts[0])
-            self.assertEqual(fixed(w), n)
+            self.assertEqual(len(w.images), n)
             answer(w, "元のまま")                      # 食い違った所だけで頼んだので、直す所が残らず描かない
             self._fix(w, "マントを青に")
-            self.assertEqual(fixed(w), n)
+            self.assertEqual(len(w.images), n)
             answer(w, "元のまま")                      # 食い違わない所だけを直す
             self._fix(w, "剣を消して、笑顔に")
-            self.assertEqual(fixed(w), n + 1)
+            self.assertEqual(len(w.images), n + 1)
             self.assertEqual(w.last_text, "笑顔に")
             answer(w, "新しい頼みにする", again=True)  # 新しい頼み: そのまま直し、元の頼みも替える
             self._fix(w, "マントを青に")
-            self.assertEqual(fixed(w), n + 2)
+            self.assertEqual(len(w.images), n + 2)
             self.assertIn("マントを青に", w.origin_prompt)
             self.assertNotIn("赤いマントの騎士", w.origin_prompt)
             self._fix(w, "剣を斧に")                   # 「次から聞かない」: 窓を出さずに新しい頼みで描く
-            self.assertEqual(fixed(w), n + 3)
+            self.assertEqual(len(w.images), n + 3)
             menu_action(w, "設定", "確かめの窓をまた出す").trigger()   # 設定から戻す
             from chatdraw import confirm
             self.assertEqual(confirm.remembered(w, "intent"), "")
@@ -111,10 +103,10 @@ class FixConfirmTest(unittest.TestCase):
         with TemporaryDirectory() as d:
             w = shown(d)
             draw(w, "赤いマントの騎士")
-            n = fixed(w)
+            n = len(w.images)
             self._fix(w, "目を大きく")
             self.assertIsNone(getattr(w, "_confirm_box", None))
-            self.assertEqual(fixed(w), n + 1)
+            self.assertEqual(len(w.images), n + 1)
 
 
 class BatchConfirmTest(unittest.TestCase):

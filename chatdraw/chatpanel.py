@@ -182,9 +182,6 @@ class ChatPanel(QWidget):
         self.typing.hide()
         self.list.addWidget(self.typing, 0, Qt.AlignLeft)
         self.scroll.setWidget(inner)
-        # 見える幅は、欄の大きさが変わらなくても縦の送り棒が出ると狭まる。そのときも吹き出しの幅を合わせ直す
-        # （欄の大きさの変わりだけで合わせると、あとから出た送り棒の分だけ吹き出しが欄の外にはみ出した）
-        self.scroll.viewport().installEventFilter(self)
         bar = self.scroll.verticalScrollBar()
         self._follow = True   # いちばん下を見ているときだけ、新しい吹き出しで下へ送る（読み返している所を動かさない）
         bar.valueChanged.connect(self._scrolled)
@@ -339,13 +336,6 @@ class ChatPanel(QWidget):
         super().resizeEvent(e)
         for b in self.bubbles():
             self._fit(b)
-
-    def eventFilter(self, obj, e):
-        from PySide6.QtCore import QEvent
-        if e.type() == QEvent.Resize and obj is self.scroll.viewport():
-            for b in self.bubbles():
-                self._fit(b)
-        return super().eventFilter(obj, e)
 
     def _fit(self, b: Bubble):
         """吹き出しの幅を文の長さに合わせ、欄の 85% までにする。欄が狭いときは欄の幅いっぱいまで縮める
