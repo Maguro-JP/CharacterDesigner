@@ -511,6 +511,10 @@ def hand_unread(res: dict) -> list[str]:
     """手の検品が読めなかった（部品が無い、手を見つけられない）のに崩れを挙げていなければ、崩れとして 1 件にする"""
     if res.get("readable") or res.get("bad") or os.environ.get("CD_CHECK") == "off":
         return []
+    # 部品がそろって手を探し、絵に手が 1 つも無かった（胸から上の絵など）のは崩れではない。前はこれも「検品できなかった」にして
+    # 描き直し、手の出ない絵を何度も描き直していた。崩れにするのは、部品が無いときと、見つけた手の形を読めなかったときだけ
+    if not res.get("reason") and not any(not h.get("seen", True) for h in res.get("hands", [])):
+        return []
     return [unchecked("手と指", res.get("reason", ""))]
 
 

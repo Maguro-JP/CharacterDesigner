@@ -284,6 +284,7 @@ class Watch:
     near: 予算に近づいた（次の段階の前に軽い設定へ落とす）。danger: 予算の外の余裕まで食い始めた（絵を保存して止める）。
     測るのは空きの数字だけなので、描く糸は止めない"""
 
+    RELEASE_EVERY = 30.0   # メモリを返す間隔の下限（秒）
     RAM_FLOOR_GB = 0.5   # これより RAM の空きが減ると、OS がアプリを落とすことがある
 
     def __init__(self, start: Budget, every: float = 0.2, sample=None, release=None):
@@ -295,6 +296,8 @@ class Watch:
         self._sample = sample or _sample
         self._release = release   # 危ないと見たときに 1 度呼んで、メモリを返してから測り直す
         self.released = 0
+        self._last_release = float("-inf")
+        self._recovered = False
         self._stop = threading.Event()
         self._t = None
 
@@ -321,15 +324,22 @@ class Watch:
         self.low_ram = min(self.low_ram, fr) if fr > 0 else self.low_ram
         self.low_vram = min(self.low_vram, fv) if fv > 0 else self.low_vram
         lv = self._judge(fr, fv)
+        # メモリを返すのは RELEASE_EVERY 秒に 1 度までにする。前は危ないと見るたび（0.2 秒ごと）に gc と malloc_trim を回せた。
+        # 返した山は torch がすぐ取り直すので、続けて返しても空きは増えず、gc の時間だけがかかる。
+        # 間の回は、前に返して戻った（recovered）なら near として描き続ける
+        import time
         if lv == "danger" and self._release is not None:
-            # すぐ止めず、まずメモリを返して（gc、CUDA の溜め、malloc_trim）測り直す。戻れば軽い設定で描き続ける
-            try:
-                self._release()
-                self.released += 1
-                fr, fv = self._sample()
-                lv = "near" if self._judge(fr, fv) != "danger" else "danger"
-            except Exception:   # noqa: BLE001
-                pass
+            now = time.monotonic()
+            if now - self._last_release >= self.RELEASE_EVERY:
+                try:
+                    self._release()
+                    self.released += 1
+                    self._last_release = now
+                    fr, fv = self._sample()
+                    self._recovered = self._judge(fr, fv) != "danger"
+                except Exception:   # noqa: BLE001
+                    self._recovered = False
+            lv = "near" if self._recovered else "danger"
         rank = {"ok": 0, "near": 1, "danger": 2}
         if rank[lv] > rank[self.level]:
             self.level = lv   # 一度上がった段は、その 1 枚の間は下げない

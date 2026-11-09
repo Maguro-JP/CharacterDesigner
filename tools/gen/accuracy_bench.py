@@ -72,7 +72,10 @@ def main(argv=None) -> int:
     when = dt.datetime.now(dt.timezone(dt.timedelta(hours=9))).strftime("%Y-%m-%d %H:%M")
     down = [k for k, v in res.items() if k in old and v["score"] < old[k]["score"]]
     if a.write:
-        DOC.write_text(render(old, res, when), encoding="utf-8")
+        # 表の下の節（「## 」から後。検品と描き直しの秒など、台の外で測った数字）は書き直さずに残す
+        text = DOC.read_text(encoding="utf-8") if DOC.exists() else ""
+        tail = text[text.index("\n## "):] if "\n## " in text else ""
+        DOC.write_text(render(old, res, when) + tail, encoding="utf-8")
     if down:
         print("▼ 下がった: " + "、".join(down))
     return 1 if down else 0
