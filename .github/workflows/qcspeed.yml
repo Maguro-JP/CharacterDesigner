@@ -36,12 +36,13 @@ jobs:
       - name: 部品
         run: |
           pip install -q torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy scikit-image ai-edge-litert onnxruntime
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy scikit-image ai-edge-litert onnxruntime PySide6
       - name: 測る
         env:
           LLM_HOME: ${{ runner.temp }}/llm
           CD_HOME: ${{ runner.temp }}/cd
           CD_FETCH: "1"
+          QT_QPA_PLATFORM: offscreen
           QC_STEPS: ${{ inputs.steps || '12' }}
           QC_BUDGET_MIN: ${{ inputs.budget_min || '150' }}
         run: |
