@@ -127,7 +127,6 @@ class WordRow(QWidget):
         m = QMenu(self)
         m.addAction("描くワードに足す", lambda: add_word(self.entry, word))
         m.addAction("訳を直す…", lambda: self.edit_translation(word))
-        m.addSeparator()
         m.addAction("お気に入りから外す", lambda: self.remove(word))
         if run:
             m.exec(chip.mapToGlobal(pos))
@@ -291,26 +290,11 @@ class WordDialog(QDialog):
         if it is None:
             return
         tag = self.dict_rows[it.row()]["tag"]
-        self.table_menu(tag).exec(self.table.viewport().mapToGlobal(pos))
-
-    def table_menu(self, tag: str):
         m = QMenu(self)
+        m.addAction("単語のお気に入りを外す" if worddict.is_favorite(tag) else "単語のお気に入りに登録", lambda: self.toggle(tag))
         m.addAction("描くワードに足す", lambda: add_word(self.entry, tag))
-        m.addAction("お気に入りから外す" if worddict.is_favorite(tag) else "お気に入りに登録", lambda: self.toggle(tag))
-        m.addSeparator()
-        m.addAction("辞書から消す…", lambda: self._forget(tag))
-        return m
-
-    def _forget(self, tag: str):
-        from chatdraw import confirm
-        w = self.parentWidget()
-        while w is not None and not hasattr(w, "layout_store"):   # 辞書の窓の親（アプリの窓）の覚えた答えを使う
-            w = w.parentWidget()
-        if w is not None and confirm.ask(w, "forget", "辞書から消す", f"「{tag}」を単語辞書から消します。",
-                                                      [("yes", "消す")]) != "yes":
-            return
-        worddict.forget(tag)
-        self.reload()
+        m.addAction("辞書から消す", lambda: (worddict.forget(tag), self.reload()))
+        m.exec(self.table.viewport().mapToGlobal(pos))
 
     def fix_row(self, i: int, tags: str | None = None):
         word = self.rows[i]["word"]

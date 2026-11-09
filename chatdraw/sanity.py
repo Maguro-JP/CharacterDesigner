@@ -16,9 +16,8 @@ from pathlib import Path
 
 # 描く前に必ず打ち消す物。余分な部位、顔の外の目、物の顔、物理的にあり得ない形
 # SDXL の打ち消しは CLIP の 77 語で切れるので、短く、強く効く物だけにする（長くすると後ろの言葉が模型に届かない）
-# 模型が学んだタグ（danbooru の語）だけにする。eyes on body、eyes on objects、floating limbs、impossible anatomy、
-# extra bodies、conjoined はタグに無く、打ち消しの 75 語片を埋めて基準の体の語を切っていた（docs/knowledge/filter-audit.md）
-NEGATIVE = "extra arms, extra legs, extra eyes, multiple heads"
+NEGATIVE = ("extra arms, extra legs, extra heads, extra bodies, conjoined, extra eyes, eyes on body, eyes on objects, "
+            "floating limbs, impossible anatomy")
 # 目の色を頼んでいないときだけ打ち消す色。模型はこの色に寄せやすかった。切れないよう、打ち消しの先頭に置く
 UNASKED_EYE_COLORS = "yellow eyes, golden eyes"
 EYE_COLORS = {"blue", "red", "green", "purple", "yellow", "brown", "black", "grey", "gray", "pink", "orange", "aqua", "white",
@@ -29,37 +28,7 @@ EYE_COLORS = {"blue", "red", "green", "purple", "yellow", "brown", "black", "gre
 TAG_FLAWS = {"extra arms": ("腕が多い", 0.35), "multiple heads": ("頭が多い", 0.35), "extra faces": ("顔が多い", 0.35),
              "extra eyes": ("目が多い", 0.4), "third eye": ("額に 3 つ目の目", 0.4), "extra mouth": ("口が多い", 0.4),
              "eyeball": ("目玉だけの物", 0.5), "multiple legs": ("脚が多い", 0.5)}
-OLD_TAG_FLAWS = tuple(TAG_FLAWS)   # 矛盾の検品を足す前からあった物（tools/gen/sanity_eval.py が前と後を比べる）
-# 矛盾の検品。数・物理・左右・人数の食い違いを、絵全体のタグで読む。頼んだ言葉にある物は数えない。
-# 下限は library の判定の付いた絵（tools/gen/sanity_eval.py）で、通した絵を落とさない所に置く
-TAG_FLAWS.update({
-    "extra ears": ("耳が多い", 0.5), "multiple legs": ("脚が多い", 0.5), "too many": ("数が多すぎる", 0.5),
-    "bad anatomy": ("体の形があり得ない", 0.5), "bad hands": ("手の形があり得ない", 0.5), "bad feet": ("足の形があり得ない", 0.5),
-    "bad proportions": ("体の釣り合いがあり得ない", 0.5),
-    "disembodied limb": ("体から離れた手足", 0.4), "severed limb": ("途切れた手足", 0.4), "missing limb": ("足りない手足", 0.4),
-    "amputee": ("途切れた手足", 0.5), "disembodied head": ("体から離れた頭", 0.4), "severed head": ("体から離れた頭", 0.4),
-    "floating object": ("宙に浮く持ち物", 0.5), "floating weapon": ("宙に浮く持ち物", 0.5), "floating book": ("宙に浮く持ち物", 0.6),
-})
-# 左右で食い違う服や飾り。頼んだ言葉に同じ語か asymmetrical / single / mismatched があれば数えない
-MISMATCH_TAGS = {t: 0.45 for t in (
-    "mismatched legwear", "asymmetrical legwear", "single thighhigh", "single kneehigh", "single sock", "single leg pantyhose",
-    "single glove", "single elbow glove", "single fingerless glove", "asymmetrical gloves", "mismatched gloves",
-    "single shoe", "single boot", "single thigh boot", "mismatched footwear", "asymmetrical footwear",
-    "single earring", "asymmetrical sleeves", "mismatched sleeves", "single sleeve", "single detached sleeve",
-    "asymmetrical clothes", "single pauldron", "single gauntlet", "single wrist cuff")}
-# 片方だけの靴・手袋・靴下は、戻した絵で 0.31〜0.55 と読め、通した絵では 0.2 未満だった（library の 137 枚）。
-# 服と袖は通した絵でも 0.28〜0.33 と読めたので、下限を 0.45 のままにする
-MISMATCH_TAGS.update({t: 0.3 for t in MISMATCH_TAGS if t.startswith("single ") and t.split()[-1] in (
-    "boot", "shoe", "glove", "sock", "thighhigh", "kneehigh")})
-# 左右で違う目。頼んでいなければ崩れ
-ODD_EYE_TAGS = {"heterochromia": 0.45, "mismatched pupils": 0.45, "mismatched sclera": 0.45, "uneven eyes": 0.5,
-                "mismatched eyebrows": 0.5}
-# 頼んだ人数と違うと読めるタグ（頼んだのが 1 人のとき）
-MANY_TAGS = {"multiple girls": 0.5, "multiple boys": 0.5, "multiple others": 0.5, "multiple persona": 0.5}
-# multiple views（三面図）は requestcheck.people が見る（同じ崩れを 2 度数えない）
 UNASKED_COLOR_TAGS = {"yellow eyes": 0.5, "glowing eyes": 0.5}
-# 頼んだ色と違う目の色と読む下限（頼んだ色の確からしさがこれより低く、違う色がこれより高い）
-OTHER_EYE = 0.6
 # 顔を隠した絵で、目が描かれていると読める下限（顔の外の目）
 OUTSIDE_EYES = 0.35
 
@@ -111,52 +80,7 @@ def from_tags(got: dict, prompt: str) -> list[str]:
         for tag, least in UNASKED_COLOR_TAGS.items():
             if got.get(tag, 0.0) >= least and not _has(prompt, tag):
                 out.append(f"頼んでいない目の色（{tag} {got[tag]:.2f}）")
-    else:
-        out += other_eye_color(got, prompt)
-    low = prompt.lower()
-    free = any(w in low for w in ("asymmetr", "single ", "mismatch", "uneven"))
-    for tag, least in MISMATCH_TAGS.items():
-        if got.get(tag, 0.0) >= least and not free and not _has(prompt, tag):
-            out.append(f"左右で食い違う服や飾り（{tag} {got[tag]:.2f}）")
-    for tag, least in ODD_EYE_TAGS.items():
-        if got.get(tag, 0.0) >= least and not free and not _has(prompt, tag):
-            out.append(f"左右で違う目（{tag} {got[tag]:.2f}）")
-    if asked_people(prompt) == 1:
-        many = [f"{t} {got[t]:.2f}" for t, least in MANY_TAGS.items() if got.get(t, 0.0) >= least and not _has(prompt, t)]
-        if many:
-            out.append("人数が違う（頼んだのは 1 人、" + "、".join(many) + "）")
-    else:
-        n = asked_people(prompt)
-        if n < 9 and got.get("solo", 0.0) >= 0.6:
-            out.append(f"人数が違う（頼んだのは {n} 人、solo {got['solo']:.2f}）")
     return out
-
-
-def asked_eye_colors(prompt: str) -> set[str]:
-    low = prompt.lower()
-    return {c for c in EYE_COLORS if re.search(rf"\b{re.escape(c)}[- ](eyes?|iris|irises|pupils)\b", low)
-            or re.search(rf"\beyes? (are|is) {re.escape(c)}\b", low)}
-
-
-# 近い色は同じと見る（模型とタグの模型で呼び方が揺れる）
-NEAR = {"aqua": {"blue", "light blue", "cyan", "teal", "green"}, "blue": {"aqua", "light blue", "dark blue", "azure", "purple"},
-        "purple": {"violet", "pink", "blue"}, "red": {"crimson", "pink", "orange"}, "yellow": {"golden", "gold", "amber", "orange"},
-        "brown": {"amber", "hazel", "orange", "black"}, "black": {"grey", "gray", "brown"}, "grey": {"silver", "black", "white"},
-        "green": {"emerald", "aqua", "teal"}, "pink": {"red", "purple"}, "orange": {"amber", "red", "yellow", "brown"}}
-
-
-def other_eye_color(got: dict, prompt: str) -> list[str]:
-    """頼んだ目の色と違う色の目（blue eyes を頼んで red eyes が強く読める）"""
-    asked = asked_eye_colors(prompt)
-    if not asked or "heterochromia" in prompt.lower():
-        return []
-    near = set(asked)
-    for c in asked:
-        near |= NEAR.get(c, set())
-    if any(got.get(f"{c} eyes", 0.0) >= 0.35 for c in asked):
-        return []
-    return [f"頼んでいない目の色（頼んだのは {'、'.join(sorted(asked))}、{t} {v:.2f}）" for t, v in got.items()
-            if t.endswith(" eyes") and t[:-5] in EYE_COLORS and t[:-5] not in near and v >= OTHER_EYE]
 
 
 def blobs(mask, least: float, join: int):
@@ -293,24 +217,8 @@ def count_people(im, least: float = 0.5, big: float = 0.3) -> int:
         return 0
     # 背景の通行人（遠くの小さな人影）は余分な体ではない。一番大きい人の枠の big 倍より小さい枠は数えない。
     # 雨の街の絵（r5-coat）で、背景の人影 3 つを数えて「人 4 人」とした
-    return count_boxes(boxes, big)
-
-
-def count_boxes(boxes, big: float = 0.3, inside: float = 0.8) -> int:
-    """人の枠の数。背景の小さな人影（一番大きい枠の big 倍より小さい）と、大きい枠の中に inside 以上入る枠
-    （同じ人の上半身だけを別の枠にした物）は数えない。library/feedback の 502 枚（Actions の people-count）で、
-    入れ子の枠を除くと 1 人の絵で 2 人以上と数えた絵が 4 枚から 3 枚になった（スーツの男性の上半身と全身の枠）。
-    残る 3 枚は動物 2 匹の絵と、三面図の設定資料（何人も描くのが正しい）。inside の 0.8 は私の推測の値"""
-    area = lambda b: max(0.0, (b[2] - b[0]) * (b[3] - b[1]))
-    keep = []
-    for b in sorted(boxes, key=area, reverse=True):
-        if all(max(0.0, min(b[2], k[2]) - max(b[0], k[0])) * max(0.0, min(b[3], k[3]) - max(b[1], k[1]))
-               < inside * max(area(b), 1e-6) for k in keep):
-            keep.append(b)
-    if not keep:
-        return 0
-    most = max(area(b) for b in keep)
-    return sum(area(b) >= big * most for b in keep)
+    area = [max(0.0, (x1 - x0) * (y1 - y0)) for x0, y0, x1, y1 in boxes]
+    return sum(a >= big * max(area) for a in area)
 
 
 def face_hidden(im, seg):
@@ -436,28 +344,8 @@ def check(image, prompt: str = "", tags: dict | None = None) -> dict:
     if any(b.startswith(("腕", "脚", "頭", "体", "顔")) for b in res["bad"]):
         res["avoid"] += ["extra arms", "extra legs", "extra heads", "extra bodies"]
     if any("目の色" in b for b in res["bad"]):
-        res["avoid"] += ["yellow eyes", "golden eyes"] if not eye_color_asked(prompt) else []
-    res["avoid"] += avoid_words(res["bad"])
+        res["avoid"] += ["yellow eyes", "golden eyes"]
     return res
-
-
-def avoid_words(bad: list[str]) -> list[str]:
-    """矛盾の崩れから、次に描くときの打ち消しに足す言葉"""
-    out = []
-    for b in bad:
-        if b.startswith("左右で食い違う"):
-            out += ["asymmetrical clothes", "mismatched legwear", "single glove"]
-        elif b.startswith("左右で違う目"):
-            out += ["heterochromia", "mismatched pupils"]
-        elif b.startswith(("体から離れた", "途切れた", "足りない手足")):
-            out += ["disembodied limb", "severed limb", "missing limb"]
-        elif b.startswith("宙に浮く"):
-            out += ["floating object"]
-        elif b.startswith("人数が違う（頼んだのは 1"):
-            out += ["multiple girls", "multiple views"]
-        elif b.startswith(("体の形", "手の形", "足の形", "体の釣り合い")):
-            out += ["bad anatomy", "bad hands", "bad proportions"]
-    return list(dict.fromkeys(out))
 
 
 def summary(res: dict) -> str:

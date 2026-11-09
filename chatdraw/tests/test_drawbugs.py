@@ -210,7 +210,6 @@ class LoadPathTest(unittest.TestCase):
             self.scheduler = sched
         fake.StableDiffusionXLPipeline.__init__ = init
         with mock.patch.dict(sys.modules, {"diffusers": fake, "torch": fake_torch()}), \
-                mock.patch.object(engine, "free_ram_gb", return_value=0.0), \
                 mock.patch.object(engine, "cpu_dtype", return_value="bfloat16"):
             p = engine.Painter("Laxhar/noobai-XL-Vpred-1.0")
             pipe = p.load()

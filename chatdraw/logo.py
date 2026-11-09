@@ -344,36 +344,6 @@ def make_ico(png, ico) -> Path:
 
 # ---- 右クリック ----
 
-# 書き出しの形を選ぶ窓（ロゴ・エンブレム・スタンプのモード）の既定
-FORM_DEFAULT = dict(transparent=True, mono=False, line=0, square=True, line_stamp=False, size=1024)
-
-
-def export_forms(img: Image.Image, folder, stem: str = "mark", transparent: bool = True, mono_: bool = False, line: int = 0,
-                 square_: bool = True, line_stamp: bool = False, size: int = 1024) -> list[Path]:
-    """選んだ形で書き出す。透過（背景を抜く）、単色（白黒）、線の太さ（縁取りの画素）、正方形、LINE スタンプの大きさ。
-    透過を外すと白い地のまま書く。LINE スタンプは export_stamps の決まり（370×320、メイン 240×240、タブ 96×74、zip）"""
-    folder = Path(folder)
-    folder.mkdir(parents=True, exist_ok=True)
-    im = remove_background(img) if transparent else img.convert("RGBA")
-    if transparent:
-        im = trim(im)
-    if line > 0:
-        im = outline(im, line, (255, 255, 255, 255) if not mono_ else (0, 0, 0, 255))
-    if mono_:
-        im = mono(im)
-    if square_:
-        im = fit(im, (size, size), max(0, size // 16))
-    if not transparent:
-        flat = Image.new("RGBA", im.size, (255, 255, 255, 255))
-        flat.alpha_composite(im)
-        im = flat
-    out = [folder / f"{stem}.png"]
-    im.save(out[0])
-    if line_stamp:
-        out += export_stamps([im], folder / "line", "line", stem=stem)
-    return out
-
-
 def menu_items(window) -> list[tuple[str, object, str]]:
     """「ロゴ・スタンプ」の項目（名前、押したときの関数、ツールチップ）。メニューバーと右クリックで同じ物を使う。
     右クリックへの足し方は docs/knowledge/decisions.md の 2026-11-01 ロゴ・スタンプの行"""
@@ -384,8 +354,6 @@ def menu_items(window) -> list[tuple[str, object, str]]:
          "今の絵の背景を抜き、正方形・横長・色を減らした版・白黒の版を PNG と SVG で書き出します"),
         ("今の絵をスタンプにする…", window.stamp_from_canvas,
          "今の絵の背景を抜き、白い縁取りと余白を付けて、スタンプの大きさで書き出します"),
-        ("書き出しの形を選ぶ…", window.logo_export,
-         "今の絵を、透過・単色・線の太さ・正方形・LINE スタンプの大きさから選んだ形で書き出します"),
         ("表情差分をまとめてスタンプにする…", window.stamp_from_expressions,
          "キャラクターデザインで描いた表情差分を、まとめてスタンプにして zip で書き出します"),
     ]

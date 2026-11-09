@@ -96,14 +96,6 @@ def release_memory():
             torch.cuda.empty_cache()
     except Exception:   # noqa: BLE001  返せなくても描く邪魔はしない
         pass
-    # 降ろした模型の分を OS に返す。Actions の測りで、模型を降ろしたあとも RAM が 11GB から戻らず、
-    # 次の模型を読む予算が足りなくなった（glibc は解放した山を手元に持ったままにする）
-    try:
-        if sys.platform.startswith("linux"):
-            import ctypes
-            ctypes.CDLL("libc.so.6").malloc_trim(0)
-    except Exception:   # noqa: BLE001
-        pass
 
 
 LOW_MEMORY_NOTE = "メモリが足りないので、メモリを使わない設定（部品の出し入れ、注意の分割、小さめの大きさ）に切り替えて描きます"
@@ -168,18 +160,15 @@ def bf16_fast() -> bool:
     return _BF16_FAST
 
 
-def cpu_dtype(gb_half: float, fits=None):
+def cpu_dtype(gb_half: float):
     """CPU で模型を読む型。gb_half は 16 ビットで読んだときの大きさ（GB）。
-    bf16 が速い CPU は bf16。遅い CPU は、float32（2 倍の大きさと、描く途中の分）がメモリの予算に収まれば float32、
-    収まらなければ bf16（遅いが動く）。fits は予算で決める関数。無ければ RAM の合計で決める（前の決め方）"""
+    bf16 が速い CPU は bf16。遅い CPU は、メモリに入れば float32（2 倍の大きさと、描く途中の分）、入らなければ bf16（遅いが動く）"""
     import torch
     if bf16_fast():
         return torch.bfloat16
-    try:
-        ok = fits() if fits is not None else total_ram_gb() >= gb_half * 2 * 1.3
-    except Exception:   # noqa: BLE001  見積もれなければ前の決め方
-        ok = total_ram_gb() >= gb_half * 2 * 1.3
-    return torch.float32 if ok else torch.bfloat16
+    if total_ram_gb() >= gb_half * 2 * 1.3:
+        return torch.float32
+    return torch.bfloat16
 
 
 def gpu_dtype(family: str):
@@ -304,29 +293,10 @@ def fit_tokens(tokenizer, prefix: str, body: str, suffix: str, limit: int = 75) 
         except Exception:
             return 0
     tail = f", {suffix}" if suffix else ""
-    # 足した背景（chatdraw/variety.py）は、質の言葉より先に外す。背景のために頭の質の言葉が外れ、質が落ちていた
-    from chatdraw.variety import added_words
-    items = [t.strip() for t in body.split(",") if t.strip()]
-    extra = added_words()
-    while items and items[-1].lower() in extra and n(f"{prefix}{', '.join(items)}{tail}") > limit:
-        items.pop()
-    body = ", ".join(items) if items else body
     for text in (f"{prefix}{body}{tail}", f"{prefix}{body}", body):
         if n(text) <= limit:
             return text
     return body
-
-
-def lead_quality(prefix: str, suffix: str) -> tuple[str, str]:
-    """頼みを先頭にする。質の決まり文句（masterpiece, best quality など）を頭に置くと、模型は前の語ほど強く効かせるので
-    頼みが 2 番目以降に下がった。決まり文句は質のタグと一緒に後ろへ回す。score_9 のような、頭に無いと効かない札の語だけは頭に残す"""
-    words = [w.strip() for w in (prefix or "").split(",") if w.strip()]
-    head = [w for w in words if w.startswith("score_")]
-    tail = [w for w in words if not w.startswith("score_")]
-    have = {x.strip().lower() for x in (suffix or "").split(",")}
-    tail = [w for w in tail if w.lower() not in have]
-    suffix = ", ".join([x for x in [", ".join(tail), suffix] if x])
-    return (", ".join(head) + ", ") if head else "", suffix
 
 
 def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, seed: int, pipe) -> dict:
@@ -334,41 +304,25 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
     新しい世代は札の例どおり、描かない物を受けない模型には渡さず、頼みの効きは模型ごとの名前（guidance_scale か true_cfg_scale）で渡す"""
     import inspect
     import torch
-    from chatdraw import debuglog
     prompt = english_only(prompt)
-    raw = debuglog.lifted("words")   # デバッグモードで、自動の付け足しと打ち消しを外したとき
-    suffix = "" if raw else quality_tags(info, f)
+    suffix = quality_tags(info, f)
     tokenizer = getattr(pipe, "tokenizer", None)
-    head, suffix = ("", "") if raw else lead_quality(info.prefix, suffix)
-    if not raw and not sexual(prompt):
-        # 頼みに性的な言葉が無いときは、模型の safe の札を足し、打ち消しに nsfw などを入れる（頼んでいない性的な絵を描かせない）
-        tag = safe_tag(info, f)
-        if tag and tag.lower() not in {t.strip().lower() for t in (prompt + "," + head + "," + suffix).split(",")}:
-            suffix = ", ".join(x for x in (tag, suffix) if x)   # 質のタグは札どおり一番後ろに残す
     if f.tags and tokenizer is not None and getattr(pipe, "text_encoder", None) is not None and info.family in ("sdxl", "sd15"):
-        text = fit_tokens(tokenizer, head, prompt, suffix)
+        text = fit_tokens(tokenizer, info.prefix, prompt, suffix)
     else:
-        text = f"{head}{prompt}" + (f", {suffix}" if suffix else "")
+        text = f"{info.prefix}{prompt}" + (f", {suffix}" if suffix else "")
     args = {"prompt": text, "num_inference_steps": steps, f.cfg_key: guidance,
             # 種は CPU の乱数で作る。部品を GPU に出し入れする置き方（offload）では pipe.device が meta や cpu になり、
             # その device の乱数を作ると落ちた。CPU の乱数なら、どの置き方でも同じ種で同じ絵になる
             "generator": torch.Generator("cpu").manual_seed(seed), **f.extra, **dict(getattr(info, "call", ()) or ())}
     if f.negative:
         # 余分な腕・脚・頭・体、顔の外の目、物理的にあり得ない形と、頼んでいない黄色い目は、どの頼みでも打ち消す（chatdraw/sanity.py）
-        # 並びは 利用者の禁止 → 基準の体 → 崩れの打ち消し。SD 系の CLIP は打ち消しも 75 語片で切るので、
-        # 前は後ろに付けた基準の体の語が切れて効いていなかった。収まらなければ後ろ（崩れの打ち消し）から外す
         from chatdraw.sanity import negative as sane_negative
-        if not raw and not sexual(prompt):   # 利用者の禁止ワードの前に置く（CLIP の 75 語片で切れても残るように）
-            avoid = ", ".join(a for a in (SAFE_NEGATIVE, avoid) if a)
-        if not raw and woman(prompt):   # 女性は利用者の基準の体で描く（年配の太った体にしない。chatdraw/body.py）
+        avoid = ", ".join(a for a in (avoid, sane_negative(prompt)) if a)
+        if woman(prompt):   # 女性は利用者の基準の体で描く（年配の太った体にしない。chatdraw/body.py）
             from chatdraw.body import NEGATIVE as BODY_NEGATIVE
             avoid = ", ".join(a for a in (avoid, BODY_NEGATIVE) if a)
-        if not raw:
-            avoid = ", ".join(a for a in (avoid, sane_negative(prompt)) if a)
-        neg = negative_for(info, avoid, bare=raw)
-        if tokenizer is not None and info.family in ("sdxl", "sd15"):
-            neg = fit_negative(tokenizer, neg)
-        args["negative_prompt"] = neg
+        args["negative_prompt"] = negative_for(info, avoid)
     if getattr(info, "rescale", 0.0):
         args["guidance_rescale"] = info.rescale
     skip = clip_skip_arg(info, info.family)
@@ -378,50 +332,14 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
     return {k: v for k, v in args.items() if k in accepted}   # 部品が受けない引数は渡さない（版の違いで落ちないように）
 
 
-def fit_negative(tokenizer, neg: str, limit: int = 75) -> str:
-    """打ち消しを CLIP の 75 語片に収める。後ろの語から外す（重複は先に外す）"""
-    items = list(dict.fromkeys(t.strip() for t in neg.split(",") if t.strip()))
-    def n(text):
-        try:
-            return len(tokenizer(text, add_special_tokens=False)["input_ids"])
-        except Exception:
-            return 0
-    while len(items) > 1 and n(", ".join(items)) > limit:
-        items.pop()
-    return ", ".join(items)
-
-
 def woman(prompt: str) -> bool:
     """頼みに女性が描かれるか。タグ（1girl）でも文（a woman in ...）でも見る。文で頼む模型では 1girl が無く、基準の体の禁止が付かなかった"""
     import re
     return bool(re.search(r"\b(1girl|\d?girls?|woman|women|female|lady)\b", prompt.lower()))
 
 
-# 頼みに性的な言葉が無いときに打ち消しへ入れる言葉。前は入れておらず、頼んでいない性的な絵を描くことがあった
-SAFE_NEGATIVE = "nsfw, nude, naked, sexual, explicit, nipples"
-# 模型の札が持つ safe の札。danbooru のタグで学んだ模型（Animagine 3.1 以降、NoobAI、Illustrious）は safe が効く札の言葉。
-# 文で頼む世代（FLUX など）は札の言葉を持たないので文で書く
-SAFE_TAG, SAFE_SENTENCE = "safe", "safe for work"
-
-
-def sexual(prompt: str) -> bool:
-    """頼みに性的な言葉があるか（打ち消した言葉は数えない）"""
-    low = _drop_negated(str(prompt or "").lower())
-    return any(r.search(low) for r in _SEXUAL_RE)
-
-
-def safe_tag(info, f) -> str:
-    """その模型に足す safe の札。札の頭の決まり文句に入っている模型は足さない"""
-    if "safe" in (getattr(info, "prefix", "") or "").lower():
-        return ""
-    return SAFE_TAG if f.tags else SAFE_SENTENCE
-
-
-def negative_for(info, avoid: str = "", bare: bool = False) -> str:
-    """描かない物。模型の札に推奨があればそれを使う（模型ごとに学んだ質の言葉が違う）。
-    bare はデバッグモードで自動の打ち消しを外したとき（利用者の禁止ワードだけ）"""
-    if bare:
-        return english_only(avoid or "")
+def negative_for(info, avoid: str = "") -> str:
+    """描かない物。模型の札に推奨があればそれを使う（模型ごとに学んだ質の言葉が違う）"""
     base = getattr(info, "negative", "") or "lowres, worst quality, low quality"
     avoid = english_only(avoid or "")
     return base + (f", {avoid}" if avoid else "")
@@ -469,29 +387,8 @@ SEXUAL = ("裸", "ヌード", "エロ", "性的", "下着", "セックス", "R18
           "lingerie", "underwear", "erotic", "porn", "hentai", "topless", "nipple")
 
 
-def _plain(w: str) -> re.Pattern:
-    """英語の言葉は語の切れ目で比べる（kid が kidney に、sex が essex に当たっていた）。日本語は字の並びで比べる"""
-    if w.isascii():
-        return re.compile(r"(?<![a-z0-9])" + re.escape(w.lower()) + r"(?![a-z0-9])")
-    return re.compile(re.escape(w.lower()))
-
-
-_MINOR_RE = [_plain(w) for w in MINOR + ("children", "kids")]
-_SEXUAL_RE = [_plain(w) for w in SEXUAL + ("sexy", "porn")]
-
-
-def _drop_negated(low: str) -> str:
-    """打ち消した言葉（no underwear、エロくしないで、下着ではなく）を外す。描かない物は描く頼みではない"""
-    low = re.sub(r"\b(?:no|not|without|non|avoid|never)[\s-]+(?:[a-z]+[\s-]+)?(?:" + "|".join(
-        re.escape(w.lower()) for w in SEXUAL + ("sexy",) if w.isascii()) + r")\b", " ", low)
-    for w in SEXUAL:
-        if not w.isascii():
-            low = re.sub(re.escape(w) + r"(?:く|に|な|姿)?(?:は|を)?(?:しないで|せずに|せず|ではなく|じゃなく|無し|なし|禁止|抜き)", " ", low)
-    return low
-
-
 def refused(text: str) -> bool:
-    """子どもを性的に描く頼みか。判定は chatdraw/childsafe.py の 1 か所（打ち消しは数えず、英語は語の切れ目で探す）"""
+    """子どもを性的に描く頼みだけを止める。判定は chatdraw/childsafe.py の 1 か所"""
     from chatdraw import childsafe
     return childsafe.reason(text) is not None
 
@@ -500,22 +397,6 @@ def _foreign(ch: str) -> bool:
     """絵の模型（CLIP、T5）が読めない字か。日本語に加え、ハングル・キリル・アラビア・タイなど、ラテン文字の外の字も含める。
     前は日本語の字だけを見ていたので、ほかの言語の頼みは訳さずにそのまま絵の模型へ渡っていた"""
     return "぀" <= ch <= "ヿ" or "一" <= ch <= "鿿" or (ch.isalpha() and ord(ch) > 0x24F)
-
-
-def unchecked(what: str, reason: str = "") -> str:
-    """検品できなかったことを崩れの 1 件にする。部品が無い・読めない絵を「崩れが無い」として通さない"""
-    return f"検品できなかった: {what}" + (f"（{reason}）" if reason else "")
-
-
-def hand_unread(res: dict) -> list[str]:
-    """手の検品が読めなかった（部品が無い、手を見つけられない）のに崩れを挙げていなければ、崩れとして 1 件にする"""
-    if res.get("readable") or res.get("bad") or os.environ.get("CD_CHECK") == "off":
-        return []
-    # 部品がそろって手を探し、絵に手が 1 つも無かった（胸から上の絵など）のは崩れではない。前はこれも「検品できなかった」にして
-    # 描き直し、手の出ない絵を何度も描き直していた。崩れにするのは、部品が無いときと、見つけた手の形を読めなかったときだけ
-    if not res.get("reason") and not any(not h.get("seen", True) for h in res.get("hands", [])):
-        return []
-    return [unchecked("手と指", res.get("reason", ""))]
 
 
 def has_japanese(text: str) -> bool:
@@ -932,8 +813,8 @@ def kill_thread(ident: int | None) -> bool:
     return n == 1
 
 
-DANGER_NOTE = ("描いている途中に RAM の空きが残り少なくなり、メモリを返しても戻らなかったので、この 1 回を抜けました。"
-               "作業は自動保存し、途中の絵も残しています。軽い設定と小さい大きさで描き直します")
+DANGER_NOTE = ("描いている途中にメモリが危ないところまで来たので、落ちる前に止めました。作業は自動保存しています。"
+               "途中の絵は出力の置き場に残しました。ほかのアプリを閉じるか、描く大きさを小さくしてください")
 
 
 class Painter:
@@ -1018,22 +899,6 @@ class Painter:
                        + " 設定で描きます")
         return plan
 
-    def _cpu_dtype(self, info):
-        """CPU で読む型。bf16 の遅い CPU では、float32 の重み（2 倍）でも予算に収まり、頼んだ大きさのまま描けるときだけ float32 にする。
-        Actions の測りで、bf16 の遅い機械の描く本体は 825 秒、速い機械は 166 秒だった（SDXL、768 角、8 工程）。
-        前は RAM の合計で決めていたので、空きが少ないと float32 で読んで足りなくなり、空きが多くても合計が足りなければ遅い bf16 のままだった。
-        force_dtype（"float32" か "bfloat16"）は測りの比べ（chatdraw/perfbench.py）に使う"""
-        import torch
-        forced = getattr(self, "force_dtype", None)
-        if forced:
-            return getattr(torch, forced)
-        from chatdraw import membudget as mb
-
-        def fits() -> bool:
-            want = native_size(self.size, info.family)
-            return mb.choose(info.gb or 7, want, info.family, mb.budget(), False, fp32=True, allow_shrink=False).ok
-        return cpu_dtype(info.gb or 7, fits)
-
     OVER_OK = 1.5   # 予算（空きの 8 割）のこの倍（空きの 1.2 倍）までは、一番軽い設定で描いてみる
 
     def _check_budget(self, plan, b=None):
@@ -1043,16 +908,10 @@ class Painter:
         大きく超える物（12GB の GPU に 60GB 近い模型）は、読むと落ちるので今までどおり読む前に止める"""
         if plan is None or plan.ok:
             return
-        from chatdraw import debuglog
-        if debuglog.lifted("budget"):   # デバッグモードで外したとき。描いている途中の見張り（membudget.Watch）は残る
-            debuglog.log("メモリ", "予算を超える見積もりですが、デバッグモードで止めを外しているので描きます: " + plan.reason, mem=True)
-            self.low_memory = True
-            return
         from chatdraw import membudget as mb
         b = b or mb.budget()   # 見積もりに使った予算で比べる（測り直すと、見積もりと違う空きで判定していた）
-        k = mb.over_ok()   # 設定の「メモリの使い方」で変わる（自動は OVER_OK と同じ 1.5）
-        over_ram = plan.ram_peak() > b.ram * k
-        over_vram = b.vram > 0 and plan.vram_peak() > b.vram * k
+        over_ram = plan.ram_peak() > b.ram * self.OVER_OK
+        over_vram = b.vram > 0 and plan.vram_peak() > b.vram * self.OVER_OK
         if over_ram or over_vram:
             raise mb.OverBudget(plan.reason + "。" + plan.lighter)
         self.low_memory = True
@@ -1120,15 +979,8 @@ class Painter:
         if "ip_adapter_image" not in inspect.signature(pipe.__call__).parameters:
             return   # この描き方（ラフから）は参考画像を受け取れない
         if not self._ref:
-            if self.family not in REFERENCE or not hasattr(pipe, "load_ip_adapter"):
-                self._note("この模型には参考画像の部品（IP-Adapter）がありません。参考画像なしで描きます")
-                return
             repo, sub, weight, enc = REFERENCE[self.family]
-            try:
-                pipe.load_ip_adapter(repo, subfolder=sub, weight_name=weight, image_encoder_folder=enc, cache_dir=str(HUB))
-            except Exception as e:   # 取れない・読めない（通信なし、置き場に無い）。描くのは止めない
-                self._note(f"参考画像の部品（IP-Adapter）を読めませんでした（{type(e).__name__}）。参考画像なしで描きます")
-                return
+            pipe.load_ip_adapter(repo, subfolder=sub, weight_name=weight, image_encoder_folder=enc, cache_dir=str(HUB))
             self._ref = True
         pipe.set_ip_adapter_scale(scale)
         args["ip_adapter_image"] = reference.convert("RGB")
@@ -1171,7 +1023,7 @@ class Painter:
         f = fam(fam_name)
         gpu = torch.cuda.is_available()
         # GPU では世代に合う型（SD 系は float16、新しい世代は bf16）。CPU では、bf16 の速さとメモリの量で決める（cpu_dtype）
-        dtype = gpu_dtype(fam_name) if gpu else self._cpu_dtype(info)
+        dtype = gpu_dtype(fam_name) if gpu else cpu_dtype(info.gb or 7)
         self.dtype = dtype
         self.quantized = False
         extra = {"safety_checker": None, "requires_safety_checker": False} if fam_name == "sd15" else {}
@@ -1303,17 +1155,11 @@ class Painter:
             if not plan.preview:
                 on_preview = None   # 途中の絵をやめる
         from chatdraw import membudget as mb
-        release_memory()   # 描き始める前に、前の描画や降ろした模型の分を返してから空きを測る
-        watch = mb.Watch(mb.budget(), release=release_memory) if plan is not None else None
+        watch = mb.Watch(mb.budget()) if plan is not None else None
         self._danger = False
         self._last_latents = None
-        from chatdraw import lora as loralib
-        from chatdraw.models import image_model as _im
-        self.lora_note = loralib.apply(pipe, self.lora, self.lora_scale, self._lora_state, _im(self.model).family)
-        if self.lora_note:
-            self._note(self.lora_note)
-        elif self.lora and self._lora_state.get("lora"):
-            prompt = loralib.with_trigger(prompt, self.lora)   # きっかけの言葉が無いと効かない LoRA がある
+        from chatdraw.ownstyle import apply as apply_lora
+        self.lora_note = apply_lora(pipe, self.lora, self.lora_scale, self._lora_state)
         steps = self.steps
         total = steps
         lightened = []
@@ -1352,17 +1198,13 @@ class Painter:
         elif self.low_memory and base is None:
             size = low_memory_size(size, info.family)
         args = prompt_args(info, f, prompt, self.avoid, steps, self.guidance, seed, pipe)
-        from chatdraw import sent
-        sent.record("描く", args.get("prompt"), args.get("negative_prompt"), prompt_2=args.get("prompt_2"))
         import inspect
         if "callback_on_step_end" in inspect.signature(pipe.__call__).parameters:
             args["callback_on_step_end"] = step
         if base is not None and not f.sketch:
             raise Unsupported(f"{f.name} の模型は、ラフから描く部品がまだありません。「新規」で描くか、SDXL の模型に替えてください")
         if reference is not None and not f.reference:
-            # 部品が無い世代でも描くのは止めない。無いことを知らせて、参考画像なしで描く
-            self._note(f"{f.name} の模型には参考画像の部品（IP-Adapter）がありません。参考画像なしで描きます")
-            reference = None
+            raise Unsupported(f"{f.name} の模型は、参考画像をまだ使えません。参考画像を外すか、SDXL の模型に替えてください")
         if watch is not None:
             watch.__enter__()
         try:
@@ -1512,8 +1354,6 @@ class Painter:
                     generator=torch.Generator("cpu").manual_seed(seed))
         if info.rescale:
             args["guidance_rescale"] = info.rescale
-        from chatdraw import sent
-        sent.record("直す", args.get("prompt"), args.get("negative_prompt"))
         if clip_skip_arg(info, info.family):
             args["clip_skip"] = clip_skip_arg(info, info.family)
         total = max(1, int(steps * strength))
@@ -1612,8 +1452,7 @@ BACKGROUNDS = [
 BACKGROUND_WORDS = ("background", "outdoors", "indoors", "scenery", "landscape", "sky", "room", "street", "city", "forest", "beach",
                     "sea", "ocean", "park", "garden", "field", "classroom", "cafe", "library", "shrine", "temple", "castle", "mountain",
                     "river", "lake", "night", "sunset", "stage", "interior", "school", "office", "bedroom", "kitchen", "station",
-                    "underwater", "space", "desert", "snow", "rain", "cherry blossoms", "bokeh", "rooftop", "grassland",
-                    "meadow", "pool", "hallway", "greenhouse", "背景")
+                    "underwater", "space", "desert", "snow", "rain", "cherry blossoms", "bokeh", "背景")
 
 
 def has_background(prompt: str) -> bool:
@@ -1654,43 +1493,8 @@ class Studio:
         self.words_auto = False   # おまかせ: 頼みごとに、手元の言葉の模型から合う物を選ぶ
         # 描き方。"auto" は、構図の模型・SDXL の模型・2 段の部品がそろっていれば 2 段で描く。"one" は 1 つの模型、"two" は必ず 2 段
         self.way = "auto"
-        # 開いたキャラクター（chatdraw/charafile.py の for_studio の形）。描く言葉の前に設定の言葉を足し、
-        # 禁止ワード・参考画像・LoRA もその人物の物を使う。None なら足さない
-        self.character: dict | None = None
-
-    def _with_character(self, prompt: str) -> str:
-        ch = self.character
-        if not ch or not ch.get("words"):
-            return prompt
-        have = {t.strip().lower() for t in prompt.split(",")}
-        add = [t.strip() for t in ch["words"].split(",") if t.strip() and t.strip().lower() not in have]
-        return ", ".join(add + [prompt]) if add else prompt
 
     def draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
-             on_preview=None, style: str = "", reference=None, ref_scale: float = 0.6, meta: dict | None = None) -> tuple[str, Path]:
-        ch = self.character
-        if not ch:
-            return self._draw(text, seed, on_status, base, strength, size, on_preview, style, reference, ref_scale, meta)
-        # 人物の禁止ワードと LoRA は、この 1 回のあいだだけ描き手に入れ、終わったら元に戻す
-        p = self.painter
-        avoid0, lora0 = getattr(p, "avoid", None), getattr(p, "lora", None)
-        if ch.get("negative") and avoid0 is not None:
-            p.avoid = ", ".join(x for x in (avoid0, ch["negative"]) if x)
-        if ch.get("lora") and lora0 is not None and not lora0:
-            p.lora = ch["lora"]
-        if reference is None and ch.get("reference") is not None:
-            from chatdraw.models import family as fam, image_model
-            if fam(image_model(getattr(p, "model", "")).family).reference:
-                reference = ch["reference"]
-        try:
-            return self._draw(text, seed, on_status, base, strength, size, on_preview, style, reference, ref_scale, meta)
-        finally:
-            if avoid0 is not None:
-                p.avoid = avoid0
-            if lora0 is not None:
-                p.lora = lora0
-
-    def _draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
              on_preview=None, style: str = "", reference=None, ref_scale: float = 0.6, meta: dict | None = None) -> tuple[str, Path]:
         say = on_status or (lambda msg: None)
         if refused(text):
@@ -1732,13 +1536,9 @@ class Studio:
         two = self._two_stage_models(base, reference, say)
         if two is not None:
             return self._draw_two(text, seed, two, style, size, say, meta)
-        from chatdraw import director
-        plan = director.Plan(text, say)   # 担当編集者: 工程の計画と記録（chatdraw/director.py）
-        self.plan = plan
-        plan.enter("読み解く")
         say("頼みを描く言葉に直しています")
         as_tags = fam(image_model(getattr(self.painter, "model", "")).family).tags
-        prompt = self._with_character(self.words.to_prompt(text, tags=as_tags))
+        prompt = self.words.to_prompt(text, tags=as_tags)
         # 頼んだ物の検品は頼みの言葉だけで見る（足した背景は頼みではないので、描かれなくても描き直しの理由にしない）
         asked_prompt = prompt
         # 学んだ描かれにくさで頼みのタグを並べ替え、通りにくい模型は頼みの効きを少し上げる（chatdraw/wordlearn.py）。
@@ -1751,8 +1551,7 @@ class Studio:
                 self.painter.guidance = wordlearn.guidance(getattr(self.painter, "model", ""), guidance0)
         except Exception as e:   # 記録が読めなくても描く
             say(f"学んだ記録を読めませんでした（{e}）。学びを使わずに描きます")
-        from chatdraw import debuglog
-        if base is None and reference is None and not debuglog.lifted("words"):   # ラフや参考画像の絵は、その絵の背景を活かす
+        if base is None and reference is None:   # ラフや参考画像の絵は、その絵の背景を活かす
             prompt = vary_background(prompt, seed, tags=as_tags, text=text)
         lost = list(getattr(self.words, "untranslated", []) or [])
         if lost:   # 模型に伝わらない言葉を隠さない（伝わらないまま描くと、頼みと違う絵になる）
@@ -1765,9 +1564,6 @@ class Studio:
             prompt = f"{prompt}, {style}"
         if refused(prompt):
             raise ValueError("子どもを性的に描く頼みは描きません")
-        plan.done("読み解く", text)
-        plan.enter("言葉を組む")
-        plan.done("言葉を組む", prompt)
         say("絵の模型を読んでいます（初めの 1 回だけ時間がかかります）")
         extra = dict(reference=reference, ref_scale=ref_scale) if reference is not None else {}
         # 描けるまで描き直す。手を直しても検品を通らなければ、種を変えて描き直す（REDRAW_TRIES 回まで）。
@@ -1777,51 +1573,20 @@ class Studio:
         avoid0, unasked, missing_all = getattr(self.painter, "avoid", ""), [], []
         if negative and hasattr(self.painter, "avoid"):   # 「帽子なし」の帽子は、描かない物に入れて描かせない
             self.painter.avoid = ", ".join([a for a in [avoid0] + negative if a])
-        from chatdraw.persist import Persist, counter
-        g0 = getattr(self.painter, "guidance", None)
-        # 種は毎回変える。同じ崩れが続いたら、頼みの効かせ方（guidance）も替えて試す。一周しても同じなら止める
-        keep = Persist([1.0, 0.85, 1.2, 0.7] if g0 is not None else [None], stopped=lambda: getattr(self.painter, "stop", False))
-        for k in counter(self.REDRAW_TRIES):
+        for k in range(self.REDRAW_TRIES):
             if unasked:
                 self.painter.avoid = ", ".join([a for a in [avoid0] + negative + unasked if a])
             s_k = seed + 1000 * k
-            if g0 is not None:
-                self.painter.guidance = g0 * keep.hand()
             if k:
-                hand = "種を替えて" + (f"、頼みの効きを {keep.hand()} 倍にして" if g0 is not None and keep.hand() != 1.0 else "") + \
-                       ("、描かれなかった物を前に出して" if missing_all else "") + "描き直します"
-                plan.redo(redraws[-1]["bad"], hand)
-                say(f"検品を通らなかったので、種を変えて描き直しています（{k + 1} 回目・崩れ {len(best[1])} 件が一番少ない）")
+                say(f"検品を通らなかったので、種を変えて描き直しています（{k + 1}/{self.REDRAW_TRIES} 回目）")
             if missing_all:   # 前の回で描かれなかった頼みを、描く言葉の前に出す
                 prompt = emphasize(prompt, missing_all)
-            plan.enter("描く", f"{k + 1} 回目を模型に描かせています")
-            plan.sent("描く", prompt, getattr(self.painter, "avoid", ""))
             image = self.painter.paint(prompt, s_k, on_step=lambda i, n: say(f"描いています（{i}/{n}）"),
                                        base=base, strength=strength, size=size, on_preview=on_preview, **extra)
-            plan.done("描く", f"{k + 1} 回目の絵が返った")
-            plan.enter("検品", f"{k + 1} 回目の絵を検品しています")
-            # サボりの検品を先に通す。形も線も無い絵は手や顔を探しても意味が無いので、描き直しに回す
-            lazy = director.slack(image)
-            from chatdraw import debuglog
-            if lazy["bad"] and not debuglog.lifted("checker"):
-                say("担当編集者: " + "、".join(lazy["bad"]) + "。描き直させます")
-                left = list(lazy["bad"])
-                redraws.append({"seed": s_k, "bad": left, "slack": lazy["stats"]})
-                plan.done("検品", f"崩れ {len(left)} 件")
-                if best is None or len(left) < len(best[1]):
-                    best = (image, left, s_k)
-                asked, odd = {"readable": False}, {"readable": False}
-                if not keep.go_on(left):
-                    say(f"描き直しを止めました（{k + 1} 回描いた・{keep.reason}）")
-                    break
-                continue
             image = self._fix_hands(image, prompt, s_k, say)
             left = list(self.hand_rounds[-1]["bad"] if self.hand_rounds else [])
             from chatdraw import requestcheck
             asked = requestcheck.check(image, asked_prompt)
-            left += director.no_person(asked_prompt, asked)
-            if not asked["readable"] and os.environ.get("CD_CHECK") != "off":
-                left.append(unchecked("頼んだ物と人数", asked.get("reason", "")))
             if asked["readable"]:
                 say(requestcheck.summary(asked))
                 left += [f"描かれていない: {m}" for m in asked["missing"]]
@@ -1840,44 +1605,25 @@ class Studio:
             odd = sanity.check(image, asked_prompt, tags=asked.get("read") if asked["readable"] else None)
             say(sanity.summary(odd))
             left += odd["bad"]
-            if not odd["readable"] and os.environ.get("CD_CHECK") != "off":
-                left.append(unchecked("体の数と目", odd.get("reason", "")))
             unasked += [w for w in odd["avoid"] if w not in unasked]
-            if asked.get("unsafe"):   # 頼んでいない性的な絵。「描けませんでした」で終えず、打ち消しを強めて種を替えて描き直す
-                left += [f"頼んでいない性的な絵: {u}" for u in asked["unsafe"]]
-                unasked += [w for w in SAFE_NEGATIVE.split(", ") + ["cleavage", "underwear", "revealing clothes"] if w not in unasked]
-            if debuglog.lifted("checker"):   # デバッグモードで作画監督の落としを外したとき。崩れは記録に出し、描き直さない
-                debuglog.log("検品", "崩れ（落としは外しています）: " + ("、".join(left) or "なし"))
-                left = [x for x in left if x.startswith("頼んでいない性的な絵")]
-            else:
-                debuglog.log("検品", f"{k + 1} 回目の崩れ: " + ("、".join(left) or "なし"))
-            redraws.append({"seed": s_k, "bad": left, "slack": lazy["stats"]})
-            plan.done("検品", f"崩れ {len(left)} 件" if left else "崩れ 0 件")
+            redraws.append({"seed": s_k, "bad": left})
             if best is None or len(left) < len(best[1]):
                 best = (image, left, s_k)
-            if not self.hand_rounds and not asked["readable"]:   # 検品の道具が無い（止めてある）と、回しても何も分からない
+            if not left or getattr(self.painter, "stop", False) or (not self.hand_rounds and not asked["readable"]):
                 break
-            if not keep.go_on(left):
-                if left:
-                    say(f"描き直しを止めました（{k + 1} 回描いた・{keep.reason}）")
-                break
-        if g0 is not None:
-            self.painter.guidance = g0
         if hasattr(self.painter, "avoid"):
             self.painter.avoid = avoid0
         if guidance0 is not None:
             self.painter.guidance = guidance0
         image, left, seed = best
         # 検品できなかった絵（部品が無い、止めてある）は、崩れが無いのではなく見ていないだけなので、通ったことにしない
-        checked = bool(getattr(self, "hand_rounds", None)) and asked["readable"] and odd["readable"]
+        checked = bool(self.hand_rounds) and asked["readable"] and odd["readable"]
         if left:   # 通らなかった絵を、出来た絵として渡さない。残った崩れを先に見せる
             say(f"検品を通る絵が {len(redraws)} 回描いても出ませんでした（途中）。残った崩れ: " + "、".join(left[:5]))
         elif not checked:
             say("検品できなかったので、通ったかは分かりません（途中）")
-        plan.finish(f"{len(redraws)} 回描いた・" + ("検品を通った" if checked and not left else f"残った崩れ {len(left)} 件（途中）"))
         path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model,
-                                            hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws, passed=checked and not left,
-                                            director=plan.record()))
+                                            hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws, passed=checked and not left))
         self._learn(path, text, asked_prompt, left, missing_all, checked and not left, explored)
         self._inspect(path, say)
         return prompt, path
@@ -1917,10 +1663,9 @@ class Studio:
         return two
 
     def draw_anyway(self, text: str, seed: int, on_status=None, size=None, **kw) -> tuple[str, Path]:
-        """描けるまで、軽い設定・小さい大きさ・手元の別の模型（全部）・別の種と段を下げて描く。回数の上限は置かない。
-        前は 3 段を試して「描けませんでした」で止まり、メモリの見積もりが少し超えただけの模型と大きさも描かずに終えた。
-        止めるのは、利用者が止めたとき、描かない頼み（子どもを性的に描く）のとき、メモリに関係の無い同じ失敗が
-        段を全部下げても続くとき（模型の無い・壊れた所は何度試しても同じなので、理由と次の手を返す）"""
+        """描けるまで、軽い設定・小さい大きさ・別の模型・別の種と段を下げて描く。どの段でも描けなかったときだけ、
+        段ごとの理由と次の手を例外にする。前は 1 回落ちただけで「描けませんでした」で止まり、0.5.15 でメモリの見積もりで
+        描く前に止めるようにしてからは、それまで描けていた模型と大きさも止まった"""
         say = on_status or (lambda msg: None)
         tried, why = [], []
         size0 = size or getattr(self.painter, "size", None)
@@ -1938,86 +1683,52 @@ class Studio:
             why.append(f"{label}: {explain(e)}")
             tried.append(label)
 
-        def light():
-            try:
-                self.painter.low_memory = True
-            except AttributeError:
-                pass
-
         try:
             return attempt("そのまま")
         except Exception as e:   # noqa: BLE001  段を下げて描き直す
             fail("そのまま", e)
             first = e
-        heavy = [is_oom(first) or type(first).__name__ in ("OverBudget", "MemoryDanger")]
-        # 大きさの段: 7 割、5 割（512 より小さくしない）
-        sizes = []
-        for k in (0.7, 0.5):
-            w, h = size0
-            s2 = (max(512, int(w * k) // 64 * 64), max(512, int(h * k) // 64 * 64))
-            if s2 not in sizes and s2 != size0:
-                sizes.append(s2)
-        sizes = sizes or [low_memory_size(size0)]
-        if heavy[0] or not isinstance(first, Unsupported):
-            for s2 in sizes:
-                say(f"{why[-1]}。軽い設定・{s2[0]}×{s2[1]} で描き直します")
-                light()
+        heavy = is_oom(first) or type(first).__name__ in ("OverBudget", "MemoryDanger")
+        steps = []
+        if heavy or not isinstance(first, Unsupported):
+            steps.append(("軽い設定・小さい大きさ", dict(size=low_memory_size(size0)), True))
+        steps.append(("別の模型", {}, False))
+        steps.append(("別の種", dict(seed=seed + 7919), False))
+        for label, over, light in steps:
+            if label == "別の模型":
+                m = self._fallback_model(kw)
+                if m is None:
+                    continue
+                say(f"{why[-1]}。{m.name} に替えて描きます")
+                avoid = getattr(self.painter, "avoid", "")
+                if hasattr(self.painter, "unload"):
+                    self.painter.unload()
+                self.painter = Painter(m.repo, m.steps, guidance=m.guidance)
+                self.painter.avoid = avoid
+                self.chosen = (m.name, "前の模型で描けなかったので替えた")
+                over = dict(size=low_memory_size(size0)) if heavy else {}
+            else:
+                say(f"{why[-1]}。{label}で描き直します")
+            if light:
                 try:
-                    return attempt(f"軽い設定 {s2[0]}×{s2[1]}", size=s2)
-                except Exception as e:   # noqa: BLE001
-                    fail(f"軽い設定 {s2[0]}×{s2[1]}", e)
-                    heavy.append(is_oom(e) or type(e).__name__ in ("OverBudget", "MemoryDanger"))
-        used = {getattr(self.painter, "model", "")}
-        while True:   # 手元の模型を軽い順に全部試す
-            m = self._fallback_model(kw, exclude=used)
-            if m is None:
-                break
-            used.add(m.repo)
-            say(f"{why[-1]}。{m.name} に替えて描きます")
-            avoid = getattr(self.painter, "avoid", "")
-            if hasattr(self.painter, "unload"):
-                self.painter.unload()
-            release_memory()
-            self.painter = Painter(m.repo, m.steps, guidance=m.guidance)
-            self.painter.avoid = avoid
-            self.chosen = (m.name, "前の模型で描けなかったので替えた")
-            over = dict(size=sizes[0]) if any(heavy) else {}
-            if any(heavy):
-                light()
+                    self.painter.low_memory = True
+                except AttributeError:
+                    pass
             try:
-                return attempt(f"別の模型 {m.name}", **over)
+                return attempt(label, **over)
             except Exception as e:   # noqa: BLE001
-                fail(f"別の模型 {m.name}", e)
-                heavy.append(is_oom(e) or type(e).__name__ in ("OverBudget", "MemoryDanger"))
-        # 種を替えて、一番小さい大きさで描き続ける。メモリの失敗は空き具合で変わるので、空けながら回し続ける
-        k = 0
-        while True:
-            k += 1
-            s_k = seed + 7919 * k
-            say(f"{why[-1]}。種を替えて（{s_k}）描き直します（{k} 回目）")
-            release_memory()
-            light()
-            try:
-                return attempt(f"別の種 {s_k}", seed=s_k, size=sizes[-1] if any(heavy) else size)
-            except Exception as e:   # noqa: BLE001
-                fail(f"別の種 {s_k}", e)
-                mem = is_oom(e) or type(e).__name__ in ("OverBudget", "MemoryDanger")
-                if not mem and k >= 2 and why[-1].split(": ", 1)[-1] == why[-2].split(": ", 1)[-1]:
-                    break   # メモリに関係の無い同じ失敗が続く。何度描いても同じなので、理由と次の手を返す
-                if mem:
-                    import time as _t
-                    _t.sleep(min(30, 2 * k))   # 裏の糸。ほかのアプリがメモリを返すのを少し待つ
-        raise RuntimeError("試した順に: " + " / ".join(why[-6:]) + "。次の手: AI のメニューで別の模型を取る、"
-                           "頼みの言葉を確かめる")
+                fail(label, e)
+        raise RuntimeError("試した順に: " + " / ".join(why) + "。次の手: ほかのアプリを閉じてメモリを空ける、"
+                           "AI のメニューで軽い模型（SDXL 系）を取る、描く大きさを小さくする")
 
-    def _fallback_model(self, kw, exclude=()):
+    def _fallback_model(self, kw):
         """今の模型の代わりに描ける、手元の模型（点の高い順、軽い物を先に）。ラフ・参考画像はその機能のある世代だけ"""
         try:
             from chatdraw.choose import installed_images
             from chatdraw.models import family as fam
             from chatdraw import ratings
             cur = getattr(self.painter, "model", "")
-            have = [m for m in installed_images() if m.repo != cur and m.repo not in exclude and not ratings.is_blocked(m.repo)
+            have = [m for m in installed_images() if m.repo != cur and not ratings.is_blocked(m.repo)
                     and (kw.get("base") is None or fam(m.family).sketch)
                     and (kw.get("reference") is None or fam(m.family).reference)]
         except Exception:   # noqa: BLE001  一覧が読めなければ模型は替えない
@@ -2033,8 +1744,7 @@ class Studio:
         say(f"2 段で描きます（構図: {comp.name}、仕上げ: {render.name}）")
         say("頼みを描く言葉に直しています")
         sentence = self.words.to_prompt(text, tags=False)
-        tags = self._with_character(self.words.to_prompt(text, tags=True))
-        sentence = self._with_character(sentence)
+        tags = self.words.to_prompt(text, tags=True)
         if style:
             tags = f"{tags}, {style}"
         sentence, tags = english_only(sentence), english_only(tags)   # 2 段の模型は prompt_args を通らないので、ここで日本語を除く
@@ -2048,12 +1758,10 @@ class Studio:
         # 通らなかったときは崩れの一番少ない回の絵を渡し、どの回の崩れも .json の redraws に残す
         variant = twostage.VARIANTS[0]
         best, redraws, missing_all = None, [], []
-        from chatdraw.persist import Persist, counter
-        tries = Persist([None, None, None], stopped=lambda: self.painter.stop)   # keep は段の置き場の名前に使っている
-        for k in counter(self.REDRAW_TRIES):
+        for k in range(self.REDRAW_TRIES):
             s_k = seed + 1000 * k
             if k:
-                say(f"検品を通らなかったので、種を変えて構図から描き直しています（{k + 1} 回目）")
+                say(f"検品を通らなかったので、種を変えて構図から描き直しています（{k + 1}/{self.REDRAW_TRIES} 回目）")
             sentence, tags = vary_background(sentence0, s_k, tags=False), emphasize(vary_background(tags0, s_k), missing_all)
             keep = self.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{s_k}"
             path = twostage.run_stages(sentence, tags, s_k, comp.repo, render.repo, tuple(size or (832, 1216)), keep, variant,
@@ -2064,7 +1772,7 @@ class Studio:
             redraws.append({"seed": s_k, "bad": left, "stages": str(keep)})
             if best is None or len(left) < len(best[1]):
                 best = (path, left, s_k, keep, tags, sentence, result)
-            if result.get("passed") or not result.get("checked", True) or not tries.go_on(left or ["通らなかった"]):
+            if result.get("passed") or getattr(self.painter, "stop", False) or not result.get("checked", True):
                 break
         path, left, seed, keep, tags, sentence, result = best
         if left:
@@ -2078,31 +1786,10 @@ class Studio:
         return tags, saved
 
     last_check: dict | None = None
-    # 質が先で、速さは後。回数の上限を置かず、崩れが消えるまで直して描き直す（12 回・6 回の上限では崩れの残った絵を渡していた）。
-    # 止まるのは、止めるボタンと、同じ崩れが別の手を一周試しても変わらないときだけ（chatdraw/persist.py）。
-    # None が上限なし。数を入れるのは、流れを短く確かめる試験だけ
-    FIX_ROUNDS = None    # 描いたあと、崩れた所を直して検品し直す回数
-    REDRAW_TRIES = None  # 直しても検品を通らないとき、種を変えて描き直す回数
-
-    @staticmethod
-    def _own_check(image, prompt: str):
-        """作画監督（chatdraw/origqc.py の数字の検品）の崩れと、直す囲み。直す囲みは顔と髪だけにする。
-        人物の囲み（光・影・頭身など）は絵のほとんどを覆い、囲みの中を描き直すと絵全体の描き直しになるので、
-        崩れの数には入れる（一番崩れの少ない回を選ぶのに使う）が、描き直す所にはしない。測れなかった絵は崩れとして数える"""
-        try:
-            from chatdraw import origqc
-            own = origqc.check(image, prompt)
-        except Exception as e:
-            return [f"数字の検品で止まりました（{type(e).__name__}: {e}）"], []
-        bad = list(own.get("bad", []))
-        if not own.get("measured", True) and not bad:   # 部品が無くて測らなかった絵は、崩れが無いのではなく見ていない
-            bad.append(unchecked("数字の作画監督", "；".join(own.get("notes", [])) or "測っていない"))
-        return bad, [x for x in own.get("regions", []) if x[1] in ("face", "hair")]
-
-    @staticmethod
-    def _own_words(kind: str) -> str:
-        from chatdraw import origqc
-        return origqc.FIX_WORDS.get(kind, "")
+    # 質が先で、速さは後。時間がかかっても、崩れが消えるまで直して描き直す（3 回ずつでは崩れの残った絵を渡していた）。
+    # 上限は、検品が読み違え続けたときに止まらなくなるのを避けるためだけに置く
+    FIX_ROUNDS = 6     # 描いたあと、崩れた所を直して検品し直す回数の上限
+    REDRAW_TRIES = 12  # 直しても検品を通らないとき、種を変えて描き直す回数の上限
 
     def _fix_hands(self, image, prompt: str, seed: int, say):
         """1 回描いて終わりにしない。描いた絵の手・足・顔を検品し、崩れた所だけを直して、もう一度検品する。
@@ -2110,18 +1797,10 @@ class Studio:
         import os
         from chatdraw.models import family as fam, image_model
         self.hand_rounds = []
-        if os.environ.get("CD_CHECK") == "off":
+        if os.environ.get("CD_CHECK") == "off" or not fam(image_model(getattr(self.painter, "model", "")).family).inpaint:
             return image
         from PIL import Image, ImageDraw
         from chatdraw import handcheck
-        if not fam(image_model(getattr(self.painter, "model", "")).family).inpaint:
-            # 囲みの中を描き直せない模型でも、検品はする（前は検品ごと飛ばし、手も作画監督も見ないまま通していた）。
-            # 崩れは描き直し（種を変える）の理由になる
-            say("検品しています（手と指・この模型は囲みの直しができないので、崩れたら種を変えて描き直します）")
-            res = handcheck.check(image, asked=prompt)
-            own_bad, _r = self._own_check(image, prompt)
-            self.hand_rounds.append({"round": 0, "bad": list(res["bad"]) + hand_unread(res) + own_bad})
-            return image
         best = None   # (崩れの数, 絵, 崩れ, 検品の結果)。直しで崩れが増えた回の絵は使わない（直すたびに別の所が崩れることがあった）
 
         def done(img):
@@ -2134,15 +1813,9 @@ class Studio:
             if self.hand_rounds[-1]["bad"] != best[2]:
                 self.hand_rounds.append({"round": "best", "bad": best[2]})
             return best[1]
-        from chatdraw.persist import Persist, counter
-        # 試す手: 直す強さと、直す範囲の広さ（崩れの枠の何倍の円で囲むか）。同じ崩れが一周変わらなければ止める
-        keep = Persist([(0.55, 0.6), (0.65, 0.6), (0.75, 0.75), (0.85, 0.75), (0.9, 0.9), (0.95, 0.9)],
-                       stopped=lambda: getattr(self.painter, "stop", False))
-        for r in counter(None if self.FIX_ROUNDS is None else self.FIX_ROUNDS + 1):
+        for r in range(self.FIX_ROUNDS + 1):
             say(f"検品しています（手と指・{r + 1} 回目）")
             res = handcheck.check(image, asked=prompt)
-            own_bad, own_regions = self._own_check(image, prompt)
-            res = {**res, "bad": list(res["bad"]) + hand_unread(res) + own_bad}
             self.hand_rounds.append({"round": r, "bad": res["bad"]})
             if best is None or len(res["bad"]) < best[0]:
                 best = (len(res["bad"]), image, list(res["bad"]), res)
@@ -2151,7 +1824,6 @@ class Studio:
                 say(f"直しで崩れが増えた（{best[0]} → {len(res['bad'])} 件）ので、前の絵に戻して直し直します")
                 image, res = best[1], best[3]
             regions = handcheck.bad_regions(res)   # 手・足・顔のうち、崩れの見つかった所
-            regions += [x for x in own_regions if x not in regions]   # 作画監督（origqc）が見つけた顔・髪の崩れ
             if not regions and not getattr(self, "_detail_done", False) and not getattr(self.painter, "stop", False):
                 # 検品を通っても終わりにしない。人は細部を必ず見るので、手・足・顔の枠の中だけをもう一度丁寧に描かせ、
                 # 検品し直して崩れが増えなければ使う（検品は、くっついた指や薄く出た指をまだ見逃す）
@@ -2173,20 +1845,17 @@ class Studio:
                         best = (0, image, [], again)
                     else:
                         say("細部の描き直しで崩れが出たので、前の絵を使います: " + "、".join(again["bad"][:3]))
-            strength, reach = keep.hand()   # この回に試す手（go_on で次の手へ進む前に取る）
-            if not regions or r == self.FIX_ROUNDS or not keep.go_on(res["bad"]):
-                if regions and keep.reason:
-                    say(f"手と指の直しを止めました（{r + 1} 回検品した・{keep.reason}）")
+            if not regions or r == self.FIX_ROUNDS or getattr(self.painter, "stop", False):
                 return done(image)
             say(f"崩れた所を直しています（{len(regions)} か所・{r + 1} 回目）: " + "、".join(res["bad"][:3]))
             mask = Image.new("L", image.size, 0)
             d = ImageDraw.Draw(mask)
             for (x0, y0, x1, y1), _kind in regions:
-                cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, y1 - y0) * reach
+                cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, y1 - y0) * 0.6
                 d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
-            words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS.get(k) or self._own_words(k) for _b, k in regions))
+            words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in regions))
             # 回を重ねるほど強く描き直す（弱いままだと崩れた指の形をなぞり、何回直しても同じ崩れが残った）
-            image = self.painter.redraw(f"{prompt}, {words}", seed + 77 * (r + 1), image, mask, strength=strength)
+            image = self.painter.redraw(f"{prompt}, {words}", seed + 77 * (r + 1), image, mask, strength=(0.55, 0.65, 0.75, 0.85, 0.9, 0.95)[min(r, 5)])
         return done(image)
 
     def _inspect(self, path: Path, say):
@@ -2216,120 +1885,68 @@ class Studio:
         image.save(path, pnginfo=info)
         return path
 
-    def _save_temp(self, image, seed: int, meta: dict) -> Path:
-        """出力の置き場ではなく仮の置き場に書く。受け取った側がレイヤーに読み込んだら消す"""
-        import os
-        import tempfile
-        fd, tmp = tempfile.mkstemp(prefix="cd-redpen-", suffix=".png")
-        os.close(fd)
-        image.save(tmp)
-        return Path(tmp)
-
-    def _fix_once(self, before, mask, prompt, seed, strength, k, count, say, reference, ref_scale, blend: bool = True):
-        """1 回直して、縁に出た継ぎ目だけを元に戻し、境目の色・明るさ・線を元の絵に合わせる（chatdraw/seamfix.py）。
-        前は継ぎ目が残ると継ぎ目の所を模型でもう 1 回描き直していた。模型を回すより、境目の帯だけを数字で合わせる方が
-        速く（模型 1 回分の秒が減る）、元の絵にもつながった"""
-        from PIL import Image, ImageChops
-        from chatdraw import seamfix
+    def _fix_once(self, before, mask, prompt, seed, strength, k, count, say, reference, ref_scale):
+        """1 回直して、縁に出た継ぎ目だけを元に戻し、残る所を細く描き直す"""
+        from PIL import Image
         result = self.painter.redraw(prompt, seed, before, mask, strength=strength,
                                      on_step=lambda i, n: say(f"描いています（{i}/{n}・{k}/{count} か所目）"),
                                      reference=reference, ref_scale=ref_scale)
-        result = Image.composite(result.convert("RGB"), before, mask)   # 囲みの外は 1 画素も変えない（模型の直しが外へ漏れても戻す）
-        seam = seams(before, result, mask)
-        if seam is not None:
-            say(f"継ぎ目を消しています（{k} か所目）")
-            seam = ImageChops.multiply(seam, mask.convert("L"))   # 継ぎ目の帯は囲みの外にもかかるので、囲みの中だけを戻す
-            result = Image.composite(before, result, seam)   # 間違えた線だけを元の絵に戻す（消しゴム）
-        if not blend:   # 絵全体を描き替える加工（ちびキャラ）には境目が無い
-            return result
-        result, tried = seamfix.settle(before, result, mask, say=lambda m: say(f"{m}（{k} か所目）"))
-        self.last_seam.append(dict(region=k, **(tried[-1] if tried else {}), tries=len(tried)))
+        for t in range(1, 3):
+            seam = seams(before, result, mask)
+            if seam is None:
+                break
+            if t == 1:
+                say(f"継ぎ目を消しています（{k} か所目）")
+                result = Image.composite(before, result, seam)   # 間違えた線だけを元の絵に戻す（消しゴム）
+                continue
+            result = self.painter.redraw(prompt, seed + 100, result, seam, strength=0.3,
+                                         on_step=lambda i, n: say(f"描いています（{i}/{n}・{k}/{count} か所目の継ぎ目）"))
         return result
 
     def fix(self, image, regions: list[tuple], seed: int, on_status=None, style: str = "", strength: float = 0.75,
-            reference=None, ref_scale: float = 0.6, check: bool = True, keep_file: bool = True):
-        """赤ペン先生と範囲の描き直し。keep_file を外すと、結果を出力の置き場に残さず仮の置き場に書く
-        （赤ペンの直しは直した所だけのレイヤーにしてキャンバスに置くだけで、画像のファイル・履歴・ライブラリーには要らない）。check を外すと崩れの検査をしない（ちびキャラのように絵全体を描き替える加工）。regions は (mask, 指示の文) の並び。直す所ごとに指示を描く言葉に直し、
-        絵全体を順に描き直す。返すのは (描く言葉の並び, 描き直した絵全体の置き場)。直す所だけを貼り合わせない。
-
-        囲んだ所は、近くの線と塗りの切れ目まで少しだけ広げてから直す（seamfix.adjust_mask。境目が線の際に来ると目立たない）。
-        直したあとは境目を測り、ずれていれば帯を広げて合わせ直す（seamfix.settle）。回数の上限は置かず、
-        崩れが無くなるか、同じ崩れが別の手（強さ、種、範囲）を一周試しても変わらないか、止めるボタンで止める"""
-        from chatdraw import seamfix
-        from chatdraw.persist import Persist
+            reference=None, ref_scale: float = 0.6, check: bool = True):
+        """赤ペン先生と範囲の描き直し。check を外すと崩れの検査をしない（ちびキャラのように絵全体を描き替える加工）。regions は (mask, 指示の文) の並び。直す所ごとに指示を描く言葉に直し、
+        絵全体を順に描き直す。返すのは (描く言葉の並び, 描き直した絵全体の置き場)。直す所だけを貼り合わせない"""
         say = on_status or (lambda msg: None)
         if hasattr(self.painter, "on_note"):
             self.painter.on_note = say
         prompts = []
         self.last_flaws = []   # 直したあとに見つけた崩れ（空なら見つからなかった。出来たかどうかは利用者が決める）
-        self.last_seam = []    # 境目の数字（色の差、線のずれ、SSIM）。直した所ごと
         result = image.convert("RGB")
         from PIL import Image as _Image, ImageChops as _Chops
         touched = _Image.new("L", image.size, 0)
-        words = {}   # 同じ指示を言葉の模型に 2 度聞かない
-        from chatdraw import director
-        plan = director.Plan(" / ".join(n for _m, n in regions), say, kind="直す")
-        self.plan = plan
-        plan.enter("読み解く", f"直す所 {len(regions)} か所を読んでいます")
         for k, (mask, note) in enumerate(regions, 1):
+            touched = _Chops.lighter(touched, mask.convert("L"))
             if refused(note):
                 raise ValueError("子どもを性的に描く頼みは描きません")
             say(f"頼みを描く言葉に直しています（{k}/{len(regions)} か所目）")
-            if note not in words:
-                words[note] = self.words.to_prompt(note) if note else ""
-            prompt = ", ".join(t for t in (words[note], style) if t)
+            prompt = self.words.to_prompt(note) if note else ""
+            prompt = ", ".join(t for t in (prompt, style) if t)
             if refused(prompt):
                 raise ValueError("子どもを性的に描く頼みは描きません")
             say("絵の模型を読んでいます（初めの 1 回だけ時間がかかります）")
             before = result
-            asked = mask.convert("L").point(lambda v: 255 if v > 127 else 0)
-            # 直しきる: 直す → 確かめる、を崩れが見つからなくなるまで、強さ・種・範囲を変えて繰り返す（回数の上限なし）。
-            # 毎回、元の絵から直す（崩れた直しの上に重ねない）。残れば崩れの少ない物を使う
-            best, best_flaws, best_mask = None, None, asked
-            keep = Persist([(strength, 4), (min(0.95, strength + 0.15), 6), (min(0.95, strength + 0.3), 8), (min(0.95, strength + 0.15), 2)],
-                           stopped=lambda: getattr(self.painter, "stop", False))
-            for n_try in keep.rounds():
-                s_try, reach = keep.hand()
-                m_try = seamfix.adjust_mask(before, asked, reach=reach) if check else asked
-                (plan.redo(found, f"強さ {s_try}・範囲 {reach} で直し直します") if n_try else plan.enter("描く", f"{k} か所目を直させています"))
-                plan.sent("描く", prompt, getattr(self.painter, "avoid", ""))
-                out = self._fix_once(before, m_try, prompt, seed + k + 1000 * n_try, s_try, k, len(regions), say,
-                                     reference, ref_scale, blend=check)
-                found = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, out, m_try)] if check else []
-                # サボりの検品: 直していない・外を変えた・絵になっていない（加工で絵全体を描き替えるときは外を問わない）
-                plan.enter("検品", f"{k} か所目の {n_try + 1} 回目を検品しています")
-                lazy = director.slack(out, before, m_try if check else None)
-                found += [f"{k} か所目: {b}" for b in lazy["bad"]]
-                if check and not self.last_seam[-1].get("ok", True):
-                    sm = self.last_seam[-1]
-                    found.append(f"{k} か所目: 境目のずれ（色の差 {sm['color']}・線のずれ {sm['shift']} 画素・SSIM {sm['ssim']}）")
-                say(f"確かめました（{k} か所目・{n_try + 1} 回目・崩れ {len(found)} 件）")
-                plan.done("検品", f"崩れ {len(found)} 件")
+            # 直しきる: 直す → 確かめる、を崩れが見つからなくなるまで、強さと種を変えて繰り返す（4 回まで）。
+            # 毎回、元の絵から直す（崩れた直しの上に重ねない）。見つからなければそこで止め、残れば崩れの少ない物を使う
+            best, best_flaws = None, None
+            tries = [(strength, 0), (min(0.95, strength + 0.15), 1), (min(0.95, strength + 0.3), 2), (min(0.95, strength + 0.15), 3)]
+            for n_try, (s_try, seed_shift) in enumerate(tries, 1):
+                out = self._fix_once(before, mask, prompt, seed + k + 1000 * seed_shift, s_try, k, len(regions), say,
+                                     reference, ref_scale)
+                found = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, out, mask)] if check else []
+                say(f"確かめました（{k} か所目・{n_try} 回目・崩れ {len(found)} 件）")
                 if best is None or len(found) < len(best_flaws):
-                    best, best_flaws, best_mask = out, found, m_try
-                if not keep.go_on(found):
-                    if found:
-                        say(f"{k} か所目の直しを止めました（{n_try + 1} 回直した・{keep.reason}）")
+                    best, best_flaws = out, found
+                if not found:
                     break
             result = best
-            touched = _Chops.lighter(touched, best_mask)
             prompts.append(prompt)
             self.last_flaws += best_flaws
-        # 最後に絵の全体を確かめる。囲みを広げた帯（頼んだ囲みの外）で目・髪が変わっていたら戻し、境目を合わせ直す
-        asked_all = _Image.new("L", image.size, 0)
-        for mask, _note in regions:
-            asked_all = _Chops.lighter(asked_all, mask.convert("L").resize(image.size).point(lambda v: 255 if v > 127 else 0))
-        band = _Chops.subtract(touched, asked_all)
-        result, whole_left, self.last_whole = director.final_check(
-            image, result, touched if check else None, plan, say, keep_face=band if (check and band.getbbox()) else None)
-        self.last_flaws += whole_left
         if self.last_flaws:
             say("崩れが見つかりました: " + " / ".join(self.last_flaws))
-        plan.finish("直した・" + (f"残った崩れ {len(self.last_flaws)} 件（途中）" if self.last_flaws else "見つけた崩れ 0 件"))
         # 重ねるレイヤーは直した所だけを見せる（外は元と同じ画素なので、下のレイヤーに描き足しても隠さない）
         layer = result.convert("RGBA")
         layer.putalpha(touched.point(lambda v: 255 if v > 0 else 0))
-        path = (self._save if keep_file else self._save_temp)(layer, seed, dict(text=" / ".join(n for _m, n in regions), prompt=" / ".join(prompts), seed=seed,
-                                            style=style, model=self.painter.model, mode="直す", flaws=self.last_flaws,
-                                            seam=self.last_seam, director=plan.record()))
+        path = self._save(layer, seed, dict(text=" / ".join(n for _m, n in regions), prompt=" / ".join(prompts), seed=seed,
+                                            style=style, model=self.painter.model, mode="直す", flaws=self.last_flaws))
         return prompts, path

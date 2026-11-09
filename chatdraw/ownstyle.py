@@ -117,16 +117,37 @@ def collect(out: Path | None = None, tagger="default", paths: list[str] | None =
 
 
 def lora_dir() -> Path:
-    from chatdraw import lora
-    return lora.lora_dir()
+    from chatdraw import paths
+    return paths.LLM_HOME / "lora"
 
 
 def loras() -> list[Path]:
-    from chatdraw import lora
-    return lora.loras()
+    d = lora_dir()
+    return sorted(p for p in d.glob("*" + LORA_EXT) if p.is_file()) if d.is_dir() else []
 
 
 def apply(pipe, path: str | None, scale: float, state: dict) -> str | None:
-    """重ね方は chatdraw/lora.py の 1 か所に置く（同じ処理を 2 つ持たない）"""
-    from chatdraw import lora
-    return lora.apply(pipe, path, scale, state)
+    """pipe に LoRA を重ねる（無しなら外す）。state に今読んでいる道を持ち、同じ物を 2 度読まない。
+    読めなかったときは外して理由を返す（描くのは止めない）"""
+    path = str(path) if path else ""
+    try:
+        if state.get("lora") and state["lora"] != path:
+            pipe.unload_lora_weights()
+            state["lora"] = ""
+        if not path:
+            return None
+        if not hasattr(pipe, "load_lora_weights"):
+            return "この模型は LoRA を重ねられません"
+        if state.get("lora") != path:
+            p = Path(path)
+            pipe.load_lora_weights(str(p.parent), weight_name=p.name, adapter_name="own")
+            state["lora"] = path
+        pipe.set_adapters(["own"], adapter_weights=[float(scale)])
+        return None
+    except Exception as e:
+        state["lora"] = ""
+        try:
+            pipe.unload_lora_weights()
+        except Exception:
+            pass
+        return f"LoRA を読めませんでした（{e}）"

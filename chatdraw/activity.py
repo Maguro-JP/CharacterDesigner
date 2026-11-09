@@ -13,22 +13,6 @@ STAGES = (("確かめる", "AI が使えるか"), ("言葉", "頼みを描く言
           ("描く", "描いて"), ("置く", "キャンバスに置"))
 
 
-# 工程ごとの秒を数える区切り。描く工程の中の検品と直しは、状態の言葉の中の語で分ける（engine の言葉はそのまま使う）
-SUB_STAGES = (("検品", ("検品しています", "確かめました")), ("直し", ("直しています", "直して", "描き直して", "継ぎ目を消して")))
-
-
-def stage_key(msg: str, fallback: str, drawing: bool = True) -> str:
-    """状態の言葉から、秒を数える区切りの名前を返す。合わなければ今の区切りのまま。
-    検品と直しは描き始めたあと（drawing）だけ見る。前は「AI が使えるか確かめました」が検品に数えられた"""
-    for key, words in SUB_STAGES:
-        if drawing and any(w in msg for w in words):
-            return key
-    for short, head in STAGES:
-        if msg.startswith(head):
-            return short
-    return fallback
-
-
 STAGE_TITLE = {0: "確認中", 1: "言葉に変換中", 2: "模型を準備中", 3: "描画中", 4: "仕上げ中"}
 
 
@@ -61,21 +45,6 @@ class ActivityPanel(QWidget):
             lb.setObjectName("step")
             self.step_labels.append(lb)
             self.steps.addWidget(lb)
-        # 工程ごとにかかった秒と、止まった所（例: 確かめる 1秒 › 描く 40秒 › 検品 5秒）。どこで時間を使い、どこで止まったかが見える
-        self.timeline = QLabel("")
-        self.timeline.setObjectName("stateDetail")
-        self.timeline.setWordWrap(True)
-        self.timeline.setToolTip("工程ごとにかかった時間。止まったときは、止まった工程に「ここで止まりました」と出ます")
-        # 担当編集者の工程と状態（chatdraw/director.py の「担当編集者: 〜」の知らせ）。どの工程で何回目か、何で描き直したかを出す
-        self.editor = QLabel("")
-        self.editor.setObjectName("stateDetail")
-        self.editor.setWordWrap(True)
-        self.editor.setToolTip("担当編集者が進めている工程と、描き直しの理由")
-        self.editor_log: list[str] = []
-        self.stage_times: dict[str, float] = {}
-        self.stage_key = ""
-        self.stage_at: float | None = None
-        self.stopped_at = ""
         self.bar = QProgressBar()
         self.bar.setTextVisible(False)
         self.bar.setFixedHeight(10)
@@ -112,8 +81,6 @@ class ActivityPanel(QWidget):
         top.addLayout(self.steps)
         top.addWidget(self.bar)
         top.addWidget(self.detail)
-        top.addWidget(self.timeline)
-        top.addWidget(self.editor)
         top.addWidget(self.alive)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 6, 8, 8)
@@ -169,24 +136,14 @@ class ActivityPanel(QWidget):
         self.last_step = time.time()
         self.tick.start()
         self._show_time()
-        self.stage_times, self.stage_key, self.stage_at, self.stopped_at = {}, "", time.time(), ""
-        self.editor_log = []
-        self.editor.setText("")
-        self._enter(STAGES[0][0])
         self.begun.emit()
         self.changed.emit(f"{mode}: 準備中", -1)
 
     def status(self, msg: str, step: int | None = None, total: int | None = None):
-        if msg.startswith("担当編集者:"):
-            self.editor_log.append(msg)
-            self.editor.setText(msg)
-            self.editor.setToolTip("\n".join(self.editor_log[-12:]))
         for i, (_short, head) in enumerate(STAGES):
             if msg.startswith(head) and i != self.stage:
                 self._mark(i)
                 self.step_started = time.time()
-        if self.started is not None:
-            self._enter(stage_key(msg, self.stage_key or STAGES[0][0], self.stage >= 3))
         if step is not None and total:
             self._busy(False)
             self.bar.setRange(0, total)
@@ -200,30 +157,11 @@ class ActivityPanel(QWidget):
         self.progress_view.setToolTip(f"{msg}\n{self.mode}\n{self.text}")
         self._show_time()
 
-    def _enter(self, key: str):
-        """区切りが変わったら、前の区切りの秒を足して次を数え始める"""
-        now = time.time()
-        if self.stage_key and self.stage_at is not None:
-            self.stage_times[self.stage_key] = self.stage_times.get(self.stage_key, 0.0) + now - self.stage_at
-        self.stage_times.setdefault(key, 0.0)
-        self.stage_key, self.stage_at = key, now
-        self._show_timeline()
-
-    def _show_timeline(self):
-        parts = []
-        for key, sec in self.stage_times.items():
-            live = key == self.stage_key and self.stage_at is not None and self.started is not None
-            took = sec + (time.time() - self.stage_at if live else 0)
-            mark = "▶ " if live else "✕ " if key == self.stopped_at else ""
-            parts.append(f"{mark}{key} {fmt(took)}" + ("（ここで止まりました）" if key == self.stopped_at else ""))
-        self.timeline.setText(" › ".join(parts))
-
     def _show_time(self):
         self._show_alive()
         if self.started is None:
             self.time.setText("")
             return
-        self._show_timeline()
         took = time.time() - self.started
         line = "経過 " + fmt(took)
         if self.stage == 3 and getattr(self, "steps_done", 0) > 1 and self.step_started:
@@ -291,27 +229,20 @@ class ActivityPanel(QWidget):
         return item
 
     def end(self, result: str, path: str | None = None, record: bool = True):
-        """1 回分を終える。record で絵があれば履歴の先頭に足す（できた絵を add で足したときは足さない）。状態を待ちに戻す。
-        絵の無い結果（描けませんでした・止めました）は絵の一覧に並べない。並べると絵の無い枠が溜まった。結果は下の文と知らせに出る"""
-        import os
+        """1 回分を終える。record なら履歴の先頭に足す（できた絵を add で足したときは足さない）。状態を待ちに戻す"""
         took = fmt(time.time() - self.started) if self.started else ""
         stamp = time.strftime("%H:%M")
         item = None
-        if record and path and os.path.isfile(path):
-            item = QListWidgetItem("")
+        if record:
+            item = QListWidgetItem("" if path else result)
             item.setSizeHint(QSize(92, 132))
-            item.setIcon(QIcon(QPixmap(path).scaledToHeight(184, Qt.SmoothTransformation)))
-            item.setData(Qt.UserRole, path)
+            if path:
+                item.setIcon(QIcon(QPixmap(path).scaledToHeight(184, Qt.SmoothTransformation)))
+                item.setData(Qt.UserRole, path)
             item.setToolTip(f"{stamp}　{result}" + (f"\n{self.text}" if self.text else ""))
             self.list.insertItem(0, item)
-        if self.started is not None and self.stage_key:
-            self._enter(self.stage_key)   # 最後の区切りの秒を締める
-            if not path and record:   # 絵が出ずに終わった（止めた・描けなかった）。止まった工程に印を付ける
-                self.stopped_at = self.stage_key
-        self.stage_at = None
         self._busy(False)
         self.started = None
-        self._show_timeline()
         self.last_step = None
         if not self.background:
             self.tick.stop()

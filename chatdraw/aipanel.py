@@ -35,31 +35,23 @@ PRESETS: list[tuple[str, str, int, str, str, int]] = [
     (DEFAULT_PRESET, "最初の設定に戻す", 0, "縦", "おまかせ", 100),
     ("キャラデザ", "全身の立ち絵を縦長で", 0, "縦", "アニメ", 100),
     ("ラフを清書", "キャンバスの線を清書", 1, "縦", "アニメ", 100),
-    ("ラフから自由に", "ラフを元に AI が整える", 1, "縦", "おまかせ", 60),
+    ("ラフから自由に", "ラフを元に AI が整える", 1, "縦", "厚塗り", 60),
     ("イラスト", "場面の 1 枚を横長で", 0, "横", "厚塗り", 100),
     ("アイコン", "顔まわりを正方形で", 0, "正方形", "アニメ", 100),
+    ("立ち絵（白地）", "透過しやすい白地の全身", 0, "縦", "アニメ", 100),
+    ("表情差分", "顔と表情を正方形で", 0, "正方形", "アニメ", 100),
     ("背景美術", "人のいない風景を横長で", 0, "横", "厚塗り", 100),
     ("モノクロ", "白黒の線と影で", 0, "縦", "おまかせ", 100),
-    # ロゴ・エンブレム・スタンプのモードの物（chatdraw/modes.py）。背景を抜きやすいよう白地で、正方形に描く
-    ("ロゴ", "マークを正方形で", 0, "正方形", "おまかせ", 100),
-    ("エンブレム", "紋章を正方形で", 0, "正方形", "おまかせ", 100),
-    ("スタンプ", "スタンプの絵を正方形で", 0, "正方形", "アニメ", 100),
+    ("水彩の挿絵", "淡い水彩の 1 枚を横長で", 0, "横", "水彩", 100),
+    ("レトロアニメ", "90 年代のアニメの色で", 0, "縦", "レトロ", 100),
 ]
-# まとめたプリセットの前の名前 → (今のプリセット, 上から当てる画風)。声や AI の頼み、覚えた選択から前の名前で呼ばれても動く。
-# 中身が他のプリセットか画風と同じだった物をまとめた（並びが長いと、どれを押せばよいか分からない）
-MERGED = {"立ち絵（白地）": ("キャラデザ", None),   # キャラデザに白地を足して 1 つにした
-          "表情差分": ("アイコン", None),         # 表情を描き分けない。本当の表情差分は「キャラクターデザイン」のメニュー
-          "レトロアニメ": (DEFAULT_PRESET, "レトロ"),   # 画風「レトロ」と同じ
-          "水彩の挿絵": ("イラスト", "水彩")}         # イラストに画風「水彩」と同じ
-# プリセットが描く頼みの後ろに足す言葉（英語のタグ。日本語は絵の模型に渡さない）。
-# 頼みの中身（人・物・表情・色）を決める言葉は入れない。形（全身・顔まわり・風景・白黒）だけを決める
-PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background, white background",
-                 "アイコン": "portrait, upper body",
+# プリセットが描く頼みの後ろに足す言葉（英語のタグ。日本語は絵の模型に渡さない）
+PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background", "アイコン": "portrait, upper body, looking at viewer",
+                 "立ち絵（白地）": "full body, standing, simple background, white background",
+                 "表情差分": "portrait, upper body, looking at viewer, simple background, expressive face",
                  "背景美術": "scenery, no humans, detailed background, wide shot",
-                 "モノクロ": "monochrome, greyscale",
-                 "ロゴ": "logo, flat design, simple shapes, vector style, white background",
-                 "エンブレム": "emblem, crest, symmetrical, flat design, white background",
-                 "スタンプ": "sticker, chibi, thick outline, simple background, white background"}
+                 "モノクロ": "monochrome, greyscale, lineart, screentone",
+                 "水彩の挿絵": "illustration, soft lighting", "レトロアニメ": "1990s anime screencap"}
 
 
 # タブ: (名前, ヒント)。初めに開くのは先頭の「指示」（描く内容と模型を 1 枚にまとめた。行き来が要らない）
@@ -68,7 +60,7 @@ SECTIONS = [
     ("指示", "描きたい絵・描かない物と、描く模型を選びます"),
     ("作風", "AI プリセットと画風。押すだけで描き方・大きさ・画風がそろいます"),
     ("直す・仕上げ", "描けた絵を直す・綺麗にする・外へ広げる・拡大する・加工する。元の絵は元に戻すで戻せます"),
-    ("詳しい設定", "種、参考画像、ラフに沿う強さ"),
+    ("詳しい設定", "枚数・種・参考画像・ラフに沿う強さ"),
 ]
 
 
@@ -200,18 +192,16 @@ class AiPanel(QWidget):
 
         # 枚数・種・参考画像。どれも頼まなければ今までどおり（1 枚、毎回違う種、参考画像なし）
         lay = self.sections["詳しい設定"].body
+        lay.addWidget(self._head("枚数と種", "何枚描くか。種を固定すると、同じ頼みで同じ絵になります"))
         # 作成枚数は「指示」のタブにも数の欄で出す（窓の側で置く）。ボタンと欄は同じ値を持つ
         self.count_spin = QSpinBox()
-        self.count_spin.setRange(1, 20)   # チャットの「10回描いて」も枚数で描く（chatplan.MAX_REPEAT）
+        self.count_spin.setRange(1, 8)
         self.count_spin.setSuffix(" 枚")
         self.count_spin.setToolTip("一度に描く枚数（直すときは 1 枚）")
         self.count_buttons = self._segment(["1 枚", "2 枚", "4 枚"], lambda i: self.count_spin.setValue((1, 2, 4)[i]))
         self.count_spin.valueChanged.connect(self._count_changed)
         self._count_changed(1)
-        # 作成枚数は描くボタンの左の欄 1 か所にする。詳しい設定にも置くと、どちらで決めるのか迷った
-        for b in self.count_buttons[1]:
-            b.hide()
-        lay.addWidget(self._head("種", "種を固定すると、同じ頼みと設定で同じ絵になります"))
+        lay.addLayout(self.count_buttons[0])
         seed_row = QHBoxLayout()
         self.seed = QSpinBox()
         self.seed.setRange(0, 2_147_483_647)
@@ -253,9 +243,8 @@ class AiPanel(QWidget):
         self.again.setToolTip(self.again.toolTip() + "\n一部だけ直すときは、赤ペンで囲んでから「描く」を押します")
         # 綺麗にする・外へ広げるは、キャンバスの右クリックのメニューにある（並べ方は右クリックのメニューの側で決める）
         lay.addWidget(self._head("仕上げ", "綺麗にする・外へ広げるは、キャンバスの右クリックから選びます。元の絵は元に戻すで戻せます"))
-        from chatdraw.upscale import UPSCALE_TIP
         self.upscale_button = QPushButton("絵を 2 倍に拡大")
-        self.upscale_button.setToolTip(UPSCALE_TIP)
+        self.upscale_button.setToolTip("線と塗りを保ったまま、今の絵を 2 倍の大きさにします")
         self.upscale_button.clicked.connect(w.upscale_canvas)
         lay.addWidget(self.upscale_button)
         lay.addWidget(self._head("加工", "出来た絵から作ります。元の絵は残し、新しいレイヤーに重ねます"))
@@ -283,8 +272,8 @@ class AiPanel(QWidget):
         for b in self.findChildren(QAbstractButton) + self.findChildren(QSpinBox):
             if isinstance(b.parent(), QTabBar):
                 continue   # タブの送りボタンは Qt の大きさのまま
-            if b.maximumWidth() < 200 or b.objectName() == "suggest" or b is getattr(self, "count_spin", None):
-                continue   # 幅を決めたボタン（■・☆）、横に流す言葉のボタン、作成枚数の欄は縮めない（幅が 0 になって消えた）
+            if b.maximumWidth() < 200 or b.objectName() == "suggest":
+                continue   # 幅を決めたボタン（■・☆）と、横に流す言葉のボタンは縮めない（幅が 0 になって消えた）
             b.setMinimumWidth(0)
             sp = b.sizePolicy()
             sp.setHorizontalPolicy(QSizePolicy.Ignored)
@@ -412,9 +401,7 @@ class AiPanel(QWidget):
             if item.widget():
                 self.preset_group.removeButton(item.widget())
                 item.widget().deleteLater()
-        keep = getattr(self, "mode_presets", None)   # モード（chatdraw/modes.py）で出すプリセット。None は全部
-        cards = [(name, sub, dict(mode=m, size=s, style=st, strength=k), False) for name, sub, m, s, st, k in PRESETS
-                 if keep is None or name in keep]
+        cards = [(name, sub, dict(mode=m, size=s, style=st, strength=k), False) for name, sub, m, s, st, k in PRESETS]
         cards += [(n, "自分のプリセット", d, True) for n, d in self.own_presets().items()]
         for i, (name, sub, data, own) in enumerate(cards):
             b = self._card(name, sub, own)
@@ -464,12 +451,6 @@ class AiPanel(QWidget):
         self.changed.emit()
 
     def apply_name(self, name: str) -> bool:
-        if name in MERGED and name not in self.own_presets():
-            to, style = MERGED[name]
-            self.apply_name(to)
-            if style:
-                self.set_style(style)
-            return True
         for n, _sub, m, s, st, k in PRESETS:
             if n == name:
                 self.apply(n, dict(mode=m, size=s, style=st, strength=k))
@@ -498,17 +479,9 @@ class AiPanel(QWidget):
         self.w.notify("AI プリセットを保存しました", "ok", f"「{name}」は AI の欄にいつでも出ます")
 
     def _own_menu(self, name: str, button):
-        self.own_menu(name).exec(button.mapToGlobal(button.rect().bottomLeft()))
-
-    def own_menu(self, name: str):
-        """自分のプリセットの右クリック。当てるを上、消すは区切り線の下"""
         m = QMenu(self)
-        m.addAction("このプリセットにする", lambda: self.apply_name(name))
-        m.addAction("今の設定で上書き", lambda: self.save_preset(name, self.current()))
-        m.addSeparator()
-        m.addAction("消す…", lambda: self.w.ask_forget(f"自分の AI プリセット「{name}」を消します。",
-                                                     lambda: (self.w.layout_store.remove(f"ai_presets/{name}"), self.fill_presets())))
-        return m
+        m.addAction("消す", lambda: (self.w.layout_store.remove(f"ai_presets/{name}"), self.fill_presets()))
+        m.exec(button.mapToGlobal(button.rect().bottomLeft()))
 
     # ---- 画風と同期 ----
     def set_style(self, name: str):

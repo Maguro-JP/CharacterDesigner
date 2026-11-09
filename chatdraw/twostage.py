@@ -169,8 +169,6 @@ def render(pipe, prompt: str, negative: str, shapes: dict, variant: dict, seed: 
         if on_step:
             on_step(i + 1, steps)
         return kw
-    from chatdraw import sent
-    sent.record("構図", prompt, negative)
     return pipe(prompt=prompt, negative_prompt=negative, width=w, height=h, num_inference_steps=steps, guidance_scale=guidance,
                 control_image=[shapes[k].resize(size) for k in kinds], control_mode=[MODES[k] for k in kinds],
                 controlnet_conditioning_scale=[float(variant[k]) for k in kinds], control_guidance_end=float(variant.get("end", 0.6)),
@@ -206,9 +204,7 @@ def compose(sentence: str, seed: int, compose_model: str, size, path, tags: str 
     # 崩れの無い構図が出たらそこで止め、出なければ崩れの一番少ない構図を使う。どの回も 1-composition-t<回>.png に残す
     from chatdraw import handcheck, requestcheck
     rounds, best = [], None
-    from chatdraw.persist import Persist, counter
-    keep = Persist([None, None, None])   # 種を変えて描き直す。同じ崩れが 3 回続けて変わらなければ止める
-    for k in counter(COMPOSE_TRIES):
+    for k in range(COMPOSE_TRIES):
         s_k = seed + 1000 * k
 
         def step(p, i, _t, kw, k=k):
@@ -227,18 +223,13 @@ def compose(sentence: str, seed: int, compose_model: str, size, path, tags: str 
             best = (im, bad)
         if res["readable"] and not bad:
             break
-        if not keep.go_on(bad or ["検品できなかった"]):
-            print(f"構図の描き直しを止めました（{keep.reason}）", flush=True)
-            break
     best[0].save(path)
     Path(path).with_name("compose-rounds.json").write_text(json.dumps(rounds, ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"構図を保存: {time.time() - t:.0f} 秒（{len(rounds)} 回描いた）", flush=True)
 
 
-# 質が先。回数の上限は置かない（None）。止まるのは、同じ崩れが別の手を一周試しても変わらないときだけ（chatdraw/persist.py）。
-# 数を入れるのは、流れを短く確かめる試験だけ
-COMPOSE_TRIES = None   # 構図を描き直す回数（速い機械で 1 回 約 4 分）
-FIX_ROUNDS = None      # 仕上げのあと、崩れた手を直して検品し直す回数
+COMPOSE_TRIES = 6   # 構図を描き直す回数の上限（速い機械で 1 回 約 4 分）
+FIX_ROUNDS = 6      # 質が先。仕上げのあと、崩れた手を直して検品し直す回数の上限
 
 
 REFINE_SCALE, REFINE_STRENGTH = 1.5, 0.35
@@ -261,8 +252,6 @@ def refine(pipe, image, prompt: str, negative: str, seed: int, steps: int, guida
     def step(p, i, _t, kw):
         print(f"清書 {i + 1} {time.time() - t:.0f} 秒", flush=True)
         return kw
-    from chatdraw import sent
-    sent.record("清書", prompt, negative)
     out = i2i(prompt=prompt, negative_prompt=negative, image=big, strength=REFINE_STRENGTH, num_inference_steps=steps,
               guidance_scale=guidance, generator=torch.Generator("cpu").manual_seed(seed + 9),
               callback_on_step_end=step).images[0]
@@ -280,9 +269,7 @@ def fix_hands(pipe, image, prompt: str, negative: str, seed: int, steps: int, gu
     inpaint = None
     rounds = []
     best = None   # (崩れの数, 絵, 検品の結果)。直しで崩れが増えた絵は使わず、崩れの一番少ない絵から直し直す
-    from chatdraw.persist import Persist, counter
-    strengths = Persist([0.55, 0.65, 0.75, 0.85, 0.9, 0.95])   # 回を重ねるほど強く直す。一周同じ崩れなら止める
-    for r in counter(None if FIX_ROUNDS is None else FIX_ROUNDS + 1):
+    for r in range(FIX_ROUNDS + 1):
         res = handcheck.check(image, asked=prompt)
         rounds.append({"round": r, "bad": res["bad"], "readable": res["readable"]})
         print(f"仕上げの検品 {r}回目: {handcheck.summary(res)}", flush=True)
@@ -291,8 +278,7 @@ def fix_hands(pipe, image, prompt: str, negative: str, seed: int, steps: int, gu
         elif len(res["bad"]) > best[0]:
             image, res = best[1], best[2]
         regions = handcheck.bad_regions(res)   # 手・足・顔のうち、崩れの見つかった所
-        s_now = strengths.hand()   # この回に試す強さ（go_on で次へ進む前に取る）
-        if not regions or r == FIX_ROUNDS or not strengths.go_on(res["bad"]):
+        if not regions or r == FIX_ROUNDS:
             break
         if inpaint is None:
             parts = {k: v for k, v in pipe.components.items() if k in ("vae", "text_encoder", "text_encoder_2", "tokenizer", "tokenizer_2",
@@ -306,11 +292,9 @@ def fix_hands(pipe, image, prompt: str, negative: str, seed: int, steps: int, gu
         # なじませるのは囲みの内側だけ。囲みをぼかして外へ広げると、囲みの外の画素まで変わった
         soft = ImageChops.multiply(mask.filter(ImageFilter.MinFilter(9)).filter(ImageFilter.GaussianBlur(4)), mask)
         words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in regions))
-        from chatdraw import sent
-        sent.record("手の直し", f"{prompt}, {words}", negative + ", extra fingers, missing fingers, fused fingers, extra toes, faceless, empty eyes")
         out = inpaint(prompt=f"{prompt}, {words}",
                       negative_prompt=negative + ", extra fingers, missing fingers, fused fingers, extra toes, faceless, empty eyes",
-                      image=image, mask_image=soft, width=image.width, height=image.height, strength=s_now,
+                      image=image, mask_image=soft, width=image.width, height=image.height, strength=(0.55, 0.65, 0.75, 0.85, 0.9, 0.95)[min(r, 5)],
                       num_inference_steps=steps, guidance_scale=guidance,
                       generator=torch.Generator("cpu").manual_seed(seed + 77 * (r + 1))).images[0].resize(image.size)
         image = Image.composite(out, image, soft)   # 枠の外は元の絵のまま
@@ -360,18 +344,8 @@ def finish(tags: str, seed: int, render_model: str, size, composition_path, keep
         res = handcheck.check(out, asked=tags)
         asked = requestcheck.check(out, tags, fetch=True)
         odd = sanity.check(out, tags, tags=asked.get("read"))   # 余分な腕・脚・頭・体、顔の外の目、頼んでいない目の色
-        # 2 段の仕上げにも、1 段の描き方と同じ検品を全部通す（前は数字の作画監督・頼んでいない物・人数を見ずに通していた）。
-        # 検品できなかった物は崩れの 1 件にする（読めない絵を通ったことにしない）
-        from chatdraw.engine import Studio, hand_unread, unchecked
-        own_bad, _r = Studio._own_check(out, tags)
-        res["bad"] = (res["bad"] + hand_unread(res) + odd["bad"] + own_bad
-                      + [f"頼んでいない: {e}" for e in asked.get("extra", [])]
-                      + [f"人数が違う: {x}" for x in asked.get("people", [])] + list(asked.get("body", [])))
-        if not asked.get("readable"):
-            res["bad"].append(unchecked("頼んだ物と人数", asked.get("reason", "")))
-        if not odd["readable"]:
-            res["bad"].append(unchecked("体の数と目", odd.get("reason", "")))
-        passed = not res["bad"] and not asked["missing"]
+        res["bad"] = res["bad"] + odd["bad"]
+        passed = res["readable"] and odd["readable"] and not res["bad"] and not asked["missing"] and not asked.get("extra")
         # checked: 検品の部品がそろって読めたか。そろっていなければ、描き直しても検品を通らないので描き直さない
         checked = not res.get("reason") and asked.get("readable", False) and odd["readable"]
         (keep / f"result-{v['name']}.json").write_text(json.dumps({"passed": passed, "seed": seed, "bad": res["bad"],

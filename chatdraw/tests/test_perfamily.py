@@ -61,17 +61,14 @@ class CardPromptTest(unittest.TestCase):
         for repo, head in (("cagliostrolab/animagine-xl-3.1", "masterpiece, best quality, very aesthetic, absurdres, "),
                            ("cagliostrolab/animagine-xl-3.0", "masterpiece, best quality, ")):
             info, a = args_for(repo)
-            # 質の言葉は頼みの後ろ（engine.lead_quality）。頼みが先頭、札の決まり文句は後ろにそろって残る
-            self.assertTrue(a["prompt"].startswith("1girl, waving"), repo)
-            self.assertIn(head.rstrip(", "), a["prompt"], repo)
+            self.assertTrue(a["prompt"].startswith(head), repo)
             self.assertEqual(a["prompt"].count("masterpiece"), 1, repo)
             self.assertEqual((info.steps, info.guidance), (28, 7.0), repo)
             self.assertNotIn("(", a["negative_prompt"])   # diffusers は A1111 の重み付けの括弧を読まない
 
     def test_noobai_eps_uses_card_prefix(self):
         info, a = args_for("Laxhar/noobai-XL-1.1")
-        self.assertTrue(a["prompt"].startswith("1girl, waving"))   # 頼みが先頭、札の決まり文句は後ろ（engine.lead_quality）
-        self.assertIn("masterpiece, best quality, newest, absurdres, highres, safe", a["prompt"])
+        self.assertTrue(a["prompt"].startswith("masterpiece, best quality, newest, absurdres, highres, safe, 1girl"))
         self.assertTrue(a["negative_prompt"].startswith("nsfw, worst quality, old, early"))
         self.assertEqual(a["prompt"].count("masterpiece"), 1)
 

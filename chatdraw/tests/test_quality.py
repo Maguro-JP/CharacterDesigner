@@ -50,9 +50,8 @@ class Background(unittest.TestCase):
             self.assertFalse(any(tag in out for tag, _s in PLACES), out)
 
     def test_varies_by_seed_and_repeats_with_same_seed(self):
-        # 場所は頼みから読み解いた場面の中から種で選ぶ（chatdraw/tests/test_redlayer.py）。騎士なら草原・城・戦場
-        got = {engine.vary_background("1girl, knight, armor, sword", s) for s in range(40)}
-        self.assertEqual(len(got), 3, got)
+        got = {engine.vary_background("1girl", s) for s in range(40)}
+        self.assertGreaterEqual(len(got), 8, got)   # 12 の場面のうち、種 40 個で 8 以上が出る
         self.assertEqual(engine.vary_background("1girl", 5), engine.vary_background("1girl", 5))
 
     def test_sentence_form(self):
@@ -108,15 +107,11 @@ class FixKeepsBest(unittest.TestCase):
                 counts[key] = 2 if not counts else (5 if len(counts) == 1 else 3)
             return hand_result(counts[key])
         first = Image.new("RGB", (64, 64), (9, 9, 9))
-        with mock.patch.dict(os.environ, {"CD_CHECK": "on"}), mock.patch.object(handcheck, "check", side_effect=check), \
-                mock.patch.object(engine.Studio, "_own_check", staticmethod(lambda im, p: ([], []))):   # 作画監督は見る絵が小さく測れない
+        with mock.patch.dict(os.environ, {"CD_CHECK": "on"}), mock.patch.object(handcheck, "check", side_effect=check):
             out = studio._fix_hands(first, "1girl", 1, lambda m: None)
         self.assertIs(out, first)
         self.assertEqual(studio.hand_rounds[-1]["bad"], hand_result(2)["bad"])
-        # 回数の上限は無い。別の手を persist.PATIENCE 通り試しても良くならなかったので、一番良かった絵で止まる
-        from chatdraw import persist
-        self.assertIsNone(studio.FIX_ROUNDS)
-        self.assertEqual(painter.redraws, persist.PATIENCE)
+        self.assertEqual(painter.redraws, studio.FIX_ROUNDS)
 
     def test_better_fix_is_used(self):
         painter = FakePainter()
@@ -144,7 +139,6 @@ class AskedComesFirst(unittest.TestCase):
                 return image
             with mock.patch.object(studio, "_fix_hands", side_effect=fix), \
                     mock.patch("chatdraw.requestcheck.check", side_effect=lambda *a, **k: next(asked)), \
-                    mock.patch("chatdraw.sanity.check", lambda *a, **k: {"readable": True, "bad": [], "avoid": []}), \
                     mock.patch.object(studio, "_inspect"):
                 studio.draw("1girl, solo, smile, holding umbrella", 4)
         self.assertEqual(len(painter.prompts), 2)
