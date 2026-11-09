@@ -21,7 +21,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        ref: [v0.5.19, HEAD]   # 0.5.19 と今（直す前の b6e75f34 は 1 工程 約 3050 秒で、150 分で 3 工程しか進まなかった）
+        ref: [HEAD]   # 0.5.19 は前の実行（42632277787）で測った
     runs-on: ubuntu-latest
     timeout-minutes: 340
     steps:

@@ -12,6 +12,8 @@ import sys
 import time
 from pathlib import Path
 
+t0 = time.perf_counter()
+
 # 工程の名前 → (模型の置き場, 関数の名前)
 STAGES = {
     "描く": ("chatdraw.engine", "Painter.paint"),
@@ -65,6 +67,20 @@ def run(out: Path, label: str) -> dict:
     out.mkdir(parents=True, exist_ok=True)
     times, counts = {}, {}
     wrap(times, counts)
+    rounds = []   # 描き直し・直しの回ごとの崩れ（止めて保存まで行かなくても残す）
+    try:
+        from chatdraw import persist
+        go = persist.Persist.go_on
+
+        def logged(self, bad):
+            r = go(self, bad)
+            rounds.append({"t": round(time.perf_counter() - t0, 1), "hands": len(self.hands), "bad": [str(b) for b in (bad or [])],
+                           "go_on": r, "reason": self.reason})
+            (out / f"rounds-{label}.json").write_text(json.dumps(rounds, ensure_ascii=False, indent=1), encoding="utf-8")
+            return r
+        persist.Persist.go_on = logged
+    except Exception:   # noqa: BLE001  その版に無い
+        pass
     from chatdraw.engine import Painter, Studio
     model = os.environ.get("QC_MODEL", "cagliostrolab/animagine-xl-4.0")
     steps = int(os.environ.get("QC_STEPS", "12"))
@@ -74,6 +90,7 @@ def run(out: Path, label: str) -> dict:
     seed = int(os.environ.get("QC_SEED", "7"))
     painter = Painter(model, steps=steps, size=(w, h))
     studio = Studio(painter=painter, out=out / "img")
+    global t0
     t0 = time.perf_counter()
     # 測る時間の上限を越えたら、止めるボタンと同じ印を立てる（打ち切られても、測れた分を書く）
     import threading
@@ -102,6 +119,10 @@ def run(out: Path, label: str) -> dict:
     result["redraw_n"] = max(0, len(rd) - 1)
     result["reasons"] = kinds
     result["bad_per_round"] = [len(r.get("bad", [])) for r in rd]
+    result["rounds"] = rounds
+    for r in rounds:
+        for b in r["bad"]:
+            kinds[reason_kind(b)] = kinds.get(reason_kind(b), 0) + 1
     (out / f"qcspeed-{label}.json").write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
     os._exit(0) if result.get("stopped_by_budget") else None   # 止めた後の Timer の糸を待たない
     return result

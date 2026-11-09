@@ -14,6 +14,9 @@ from __future__ import annotations
 import itertools
 
 UNCHECKED = "検品できなかった"
+# 崩れが減らない回を何回まで続けるか（その間は毎回手を替える）。前は手の数（直しは 6）だけ続け、Actions の測りで
+# 1 枚に直しが 6 回ずつ、合わせて 18 回・約 8,200 秒かかっても崩れは減らなかった。3 は私の推測で、測って見直す
+PATIENCE = 3
 
 
 class Persist:
@@ -61,8 +64,8 @@ class Persist:
             self.stale += 1
             self.k += 1     # 減らなかったので手を替える
         from chatdraw import debuglog
-        if self.stale >= len(self.hands) and not debuglog.lifted("steps"):   # デバッグモードで工程の上限を外したときは止めない
-            self.reason = f"崩れの数が、別の手を {len(self.hands)} 通り試しても減らなかった"
+        if self.stale >= min(PATIENCE, len(self.hands)) and not debuglog.lifted("steps"):   # デバッグモードで工程の上限を外したときは止めない
+            self.reason = f"崩れの数が、別の手を {min(PATIENCE, len(self.hands))} 通り試しても減らなかった"
             return False
         return True
 
