@@ -95,8 +95,8 @@ class PersistTest(unittest.TestCase):
             seen.append(p.hand())
             if not p.go_on(["指が 6 本"]):
                 break
-        self.assertEqual(seen, ["a", "b", "c", "a"])   # 3 つの手を全部試し、同じ崩れのままだったので止まる
-        self.assertIn("変わらなかった", p.reason)
+        self.assertEqual(seen, ["a", "a", "b", "c"])   # 1 回目が基準。減らないので手を替え、3 つの手を全部試して止まる
+        self.assertIn("減らなかった", p.reason)
 
     def test_keeps_going_while_improving(self):
         p = Persist(["a"])
