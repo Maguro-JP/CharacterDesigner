@@ -29,8 +29,13 @@ class Persist:
         """0, 1, 2, … と回の番号を出し続ける（止めるのは go_on）"""
         return itertools.count()
 
+    # 良くならない回がこの数だけ続いたら、一番良かった回の絵で終える。描き直しても良くならない絵を何十回も描き直し、
+    # 1 枚に何十倍も時間がかかって、描けなくなっていた（2026-11-09）
+    NO_GAIN = 2
+
     def go_on(self, bad) -> bool:
-        bad = list(bad or [])
+        # 「検品できなかった」は描き直しても直らない（部品が無い・読めない）。知らせには残すが、描き直しの理由にしない
+        bad = [b for b in (bad or []) if not str(b).startswith("検品できなかった")]
         if not bad:
             self.reason = "崩れが無くなった"
             return False
@@ -45,9 +50,14 @@ class Persist:
         self.last = sig
         self.k += 1
         from chatdraw import debuglog
-        if self.same >= len(self.hands) and not debuglog.lifted("steps"):   # デバッグモードで工程の上限を外したときは止めない
-            self.reason = f"同じ崩れが、別の手を {len(self.hands)} 通り試しても変わらなかった"
-            return False
+        self.no_gain = 0 if improved else getattr(self, "no_gain", 0) + 1
+        if not debuglog.lifted("steps"):   # デバッグモードで工程の上限を外したときは止めない
+            if self.same >= len(self.hands):
+                self.reason = f"同じ崩れが、別の手を {len(self.hands)} 通り試しても変わらなかった"
+                return False
+            if self.no_gain >= self.NO_GAIN:
+                self.reason = f"描き直しても {self.NO_GAIN} 回続けて良くならなかったので、一番良かった絵を使う"
+                return False
         return True
 
 

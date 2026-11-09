@@ -113,9 +113,9 @@ class FixKeepsBest(unittest.TestCase):
             out = studio._fix_hands(first, "1girl", 1, lambda m: None)
         self.assertIs(out, first)
         self.assertEqual(studio.hand_rounds[-1]["bad"], hand_result(2)["bad"])
-        # 回数の上限は無い。同じ崩れが、試す手（強さと範囲の 6 通り）を一周しても変わらなかったので止まる
+        # 回数の上限は無い。描き直しても 2 回続けて良くならなかったので、一番良かった絵で止まる（persist.NO_GAIN）
         self.assertIsNone(studio.FIX_ROUNDS)
-        self.assertEqual(painter.redraws, 6)
+        self.assertEqual(painter.redraws, 2)
 
     def test_better_fix_is_used(self):
         painter = FakePainter()

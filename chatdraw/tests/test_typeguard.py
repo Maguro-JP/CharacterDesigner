@@ -213,3 +213,32 @@ class IoThreadTest(unittest.TestCase):
         while sum(t.name == "io" for t in threading.enumerate()) > before and time.time() < end:
             time.sleep(0.05)
         self.assertEqual(sum(t.name == "io" for t in threading.enumerate()), before)
+
+
+class CountFieldVisibleTest(unittest.TestCase):
+    """描くボタンの左の枚数の欄が、幅 0 に潰れずに見えて打てること。模型の欄の書き方"""
+
+    def test_count_has_width_and_model_heading(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from PySide6.QtWidgets import QLabel
+        from chatdraw.app import Window
+        from chatdraw.engine import Studio
+        from chatdraw.tests.test_chatdraw import FakePainter, FakeWords
+        from chatdraw.tests.test_editing import app
+        app()
+        with TemporaryDirectory() as tmp:
+            w = Window(Studio(FakeWords(), FakePainter(), Path(tmp)))
+            w.resize(1600, 1000); w.show(); QTest.qWait(200)
+            try:
+                spin = w.ai_panel.count_spin
+                self.assertGreaterEqual(spin.width(), 50, spin.geometry())
+                self.assertFalse(w.model_label.text().startswith("絵の模型"), w.model_label.text())
+                heads = [l.text() for l in w.findChildren(QLabel) if l.objectName() == "sectionHead"]
+                self.assertIn("絵の模型", heads)
+                w._fill_ai_menu()
+                self.assertNotIn("一括生成…", [a.text() for a in w.ai_menu.actions()])
+                self.assertTrue(w.batch_action.isEnabled())
+            finally:
+                w.closing_checked = True
+                w.close()
