@@ -113,9 +113,10 @@ class FixKeepsBest(unittest.TestCase):
             out = studio._fix_hands(first, "1girl", 1, lambda m: None)
         self.assertIs(out, first)
         self.assertEqual(studio.hand_rounds[-1]["bad"], hand_result(2)["bad"])
-        # 回数の上限は無い。描き直しても 2 回続けて良くならなかったので、一番良かった絵で止まる（persist.NO_GAIN）
+        # 回数の上限は無い。別の手を persist.PATIENCE 通り試しても良くならなかったので、一番良かった絵で止まる
+        from chatdraw import persist
         self.assertIsNone(studio.FIX_ROUNDS)
-        self.assertEqual(painter.redraws, 2)
+        self.assertEqual(painter.redraws, persist.PATIENCE)
 
     def test_better_fix_is_used(self):
         painter = FakePainter()

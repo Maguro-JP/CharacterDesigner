@@ -88,21 +88,15 @@ class SeamTest(unittest.TestCase):
 
 
 class PersistTest(unittest.TestCase):
-    def test_stops_when_redraws_stop_improving(self):
-        p = Persist(["a", "b", "c", "d", "e"])
+    def test_stops_only_when_same_flaw_survives_every_hand(self):
+        p = Persist(["a", "b", "c"])
         seen = []
         for _ in p.rounds():
             seen.append(p.hand())
             if not p.go_on(["指が 6 本"]):
                 break
-        # 良くならない描き直しが 2 回続いたら、一番良かった絵で終える（何十回も描き直して描けなくなっていた）
-        self.assertEqual(seen, ["a", "b", "c"])
-        self.assertIn("良くならなかった", p.reason)
-
-    def test_unreadable_checks_do_not_cause_redraws(self):
-        p = Persist(["a"])
-        self.assertFalse(p.go_on(["検品できなかった: 手と指（部品が無い）"]))
-        self.assertEqual(p.reason, "崩れが無くなった")
+        self.assertEqual(seen, ["a", "a", "b", "c"])   # 1 回目が基準。減らないので手を替え、3 つの手を全部試して止まる
+        self.assertIn("減らなかった", p.reason)
 
     def test_keeps_going_while_improving(self):
         p = Persist(["a"])

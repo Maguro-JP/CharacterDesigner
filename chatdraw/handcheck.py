@@ -184,7 +184,26 @@ def check_feet(im, fetch: bool = True, asked: str = "") -> tuple[list[dict], lis
     return found, bad, ""
 
 
+_MEMO: dict = {}
+
+
 def check(image, fetch: bool = True, asked: str = "") -> dict:
+    """check の結果を、絵の画素と頼みが同じなら使い回す（描いたあとの直しの回と保存のあとの記録で、同じ絵を 2 度測っていた）"""
+    import copy
+    import hashlib
+    from PIL import Image
+    if os.environ.get("CD_CHECK") == "off":
+        return _check(image, fetch, asked)
+    im = Image.open(image).convert("RGB") if isinstance(image, (str, Path)) else image.convert("RGB")
+    key = (hashlib.blake2b(im.tobytes(), digest_size=16).hexdigest(), im.size, bool(fetch), asked)
+    if key not in _MEMO:
+        if len(_MEMO) >= 8:
+            _MEMO.pop(next(iter(_MEMO)))
+        _MEMO[key] = _check(im, fetch, asked)
+    return copy.deepcopy(_MEMO[key])
+
+
+def _check(image, fetch: bool = True, asked: str = "") -> dict:
     """絵（PIL か道）の手を全部測る。bad に崩れの説明を並べる。readable が False なら手を読めなかった。
     顔の検品も通し、顔の崩れは bad の後ろに足し、顔の枠を faces に返す（asked は頼んだタグ。閉じた目を頼んだかを見る）"""
     from PIL import Image
