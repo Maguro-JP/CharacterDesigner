@@ -324,8 +324,8 @@ class Watch:
         self.low_ram = min(self.low_ram, fr) if fr > 0 else self.low_ram
         self.low_vram = min(self.low_vram, fv) if fv > 0 else self.low_vram
         lv = self._judge(fr, fv)
-        # メモリを返すのは RELEASE_EVERY 秒に 1 度までにする。前は危ないと見るたび（0.2 秒ごと）に gc と malloc_trim を回し、
-        # 返した山を torch がすぐ取り直すので、15GB の機械で描く 1 工程が約 165 秒から約 3050 秒に延びた（qcspeed の測り）。
+        # メモリを返すのは RELEASE_EVERY 秒に 1 度までにする。前は危ないと見るたび（0.2 秒ごと）に gc と malloc_trim を回せた。
+        # 返した山は torch がすぐ取り直すので、続けて返しても空きは増えず、gc の時間だけがかかる。
         # 間の回は、前に返して戻った（recovered）なら near として描き続ける
         import time
         if lv == "danger" and self._release is not None:

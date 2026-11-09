@@ -18,10 +18,6 @@ permissions:
   contents: read
 jobs:
   measure:
-    strategy:
-      fail-fast: false
-      matrix:
-        ref: [HEAD]   # 0.5.19 は前の実行（42632277787）で測った
     runs-on: ubuntu-latest
     timeout-minutes: 340
     steps:
@@ -44,16 +40,21 @@ jobs:
           CD_HOME: ${{ runner.temp }}/cd
           CD_FETCH: "1"
           QT_QPA_PLATFORM: offscreen
-          QC_STEPS: ${{ inputs.steps || '12' }}
-          QC_BUDGET_MIN: ${{ inputs.budget_min || '150' }}
+          QC_SIZE: "640x896"
+          QC_STEPS: ${{ inputs.steps || '8' }}
+          QC_BUDGET_MIN: ${{ inputs.budget_min || '120' }}
         run: |
           cp chatdraw/qcspeed.py "$RUNNER_TEMP/qcspeed.py"
-          ref="${{ matrix.ref }}"
-          d="$RUNNER_TEMP/src"; git worktree add -f --detach "$d" "$ref"
-          cp "$RUNNER_TEMP/qcspeed.py" "$d/chatdraw/qcspeed.py"
-          (cd "$d" && timeout $(( QC_BUDGET_MIN * 60 + 900 )) python -u -m chatdraw.qcspeed "$GITHUB_WORKSPACE/qc-out/$ref" "$ref") || echo "$ref が途中で終わった"
+          # 機械ごとに CPU の速さが 20 倍ほど違った（1 工程 17 秒〜3,070 秒）ので、比べる版は同じ機械で続けて流す
+          lscpu | grep -E "Model name" || true
+          python -c "from chatdraw.engine import bf16_fast; print('bf16 が速い:', bf16_fast())" || true
+          for ref in v0.5.19 HEAD; do
+            d="$RUNNER_TEMP/src-$ref"; git worktree add -f --detach "$d" "$ref"
+            cp "$RUNNER_TEMP/qcspeed.py" "$d/chatdraw/qcspeed.py"
+            (cd "$d" && timeout $(( QC_BUDGET_MIN * 60 + 600 )) python -u -m chatdraw.qcspeed "$GITHUB_WORKSPACE/qc-out/$ref" "$ref") || echo "$ref が途中で終わった"
+          done
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: qcspeed-${{ matrix.ref }}
+          name: qcspeed
           path: qc-out

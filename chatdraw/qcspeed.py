@@ -95,6 +95,14 @@ def run(out: Path, label: str) -> dict:
     # 測る時間の上限を越えたら、止めるボタンと同じ印を立てる（打ち切られても、測れた分を書く）
     import threading
     threading.Timer(budget, lambda: setattr(painter, "stop", True)).start()
+
+    def dump():   # 1 工程が数十分の遅い機械では止める印が効く前に打ち切られるので、測れた秒を 1 分ごとに書く
+        while True:
+            time.sleep(60)
+            part = {"label": label, "partial": True, "elapsed_s": round(time.perf_counter() - t0, 1),
+                    "stage_s": {k: round(v, 1) for k, v in times.items()}, "stage_calls": dict(counts)}
+            (out / f"partial-{label}.json").write_text(json.dumps(part, ensure_ascii=False), encoding="utf-8")
+    threading.Thread(target=dump, daemon=True).start()
     result = {"label": label, "model": model, "steps": steps, "size": [w, h], "prompt": prompt, "seed": seed}
     try:
         _text, path = studio.draw(prompt, seed)
