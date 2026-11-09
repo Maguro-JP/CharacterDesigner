@@ -282,8 +282,8 @@ class AiPanel(QWidget):
         for b in self.findChildren(QAbstractButton) + self.findChildren(QSpinBox):
             if isinstance(b.parent(), QTabBar):
                 continue   # タブの送りボタンは Qt の大きさのまま
-            if b.maximumWidth() < 200 or b.objectName() == "suggest":
-                continue   # 幅を決めたボタン（■・☆）と、横に流す言葉のボタンは縮めない（幅が 0 になって消えた）
+            if b.maximumWidth() < 200 or b.objectName() == "suggest" or b is getattr(self, "count_spin", None):
+                continue   # 幅を決めたボタン（■・☆）、横に流す言葉のボタン、作成枚数の欄は縮めない（幅が 0 になって消えた）
             b.setMinimumWidth(0)
             sp = b.sizePolicy()
             sp.setHorizontalPolicy(QSizePolicy.Ignored)

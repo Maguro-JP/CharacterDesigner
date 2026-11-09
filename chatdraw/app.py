@@ -795,6 +795,8 @@ class Window(QMainWindow):
         count_label.setToolTip(self.ai_panel.count_spin.toolTip())
         self.count_label = count_label
         line.addWidget(count_label)
+        # 描くボタンが横に伸びると、数の欄が幅 0 に潰れて見えなくなった。数が読めて打てる幅を必ず取る
+        self.ai_panel.count_spin.setMinimumWidth(self.ai_panel.count_spin.fontMetrics().horizontalAdvance("99 枚") + 40)
         line.addWidget(self.ai_panel.count_spin)
         line.addWidget(self.button, 1)
         line.addWidget(self.stop_button)
@@ -843,7 +845,7 @@ class Window(QMainWindow):
         self.neg_tips_box = neg_box
         self._load_negatives()
         # 指示のタブの並び: 模型、描くワード、描くワードの登録、禁止ワード、禁止ワードの登録
-        model_head = QLabel("模型")
+        model_head = QLabel("絵の模型")
         model_head.setObjectName("sectionHead")
         model_row = QHBoxLayout()
         model_row.setContentsMargins(0, 0, 0, 0)
@@ -927,6 +929,9 @@ class Window(QMainWindow):
         self.build_shared_actions()
         S = self.shared
         file = self.menuBar().addMenu("ファイル")
+        # 一括生成は描く仕事なので、絵の模型の一覧ではなくファイルのメニューに置く（模型の一覧に並ぶと、模型の名前と紛れた）
+        self.batch_action = file.addAction("一括生成…", lambda: self.batch_draw())
+        self.batch_action.setToolTip("頼みの一覧（1 行 1 つ、または CSV）から、枚数と種を付けて順に描き、全部をライブラリーに入れます。止めるは「止める」")
         file.addAction(S["new"])
         file.addAction(S["open"])
         edit_open = QAction("画像を開いて直す…", self, triggered=self.open_to_edit)
@@ -2174,10 +2179,10 @@ class Window(QMainWindow):
             chosen = getattr(getattr(self, "studio", None), "chosen", None)
             painter = getattr(getattr(self, "studio", None), "painter", None)
             name = chosen[0] if chosen else image_model(painter.model).name if getattr(painter, "model", "") else ""
-            self.model_label.setText("絵の模型: おまかせ" + (f"（{name}）" if name else ""))
+            self.model_label.setText("おまかせ" + (f"（{name}）" if name else ""))
             self.model_label.setToolTip(f"おまかせで選んだ理由: {chosen[1]}" if chosen else "描くときに、手元の模型から頼みに合う物を選びます")
         else:
-            self.model_label.setText(f"絵の模型: {image_model(key).name}")
+            self.model_label.setText(image_model(key).name)
 
     def _fit_features(self):
         """選んだ模型の世代で使えない機能（ラフから、直す、参考画像）のボタンを止め、理由を出す"""
@@ -4289,9 +4294,6 @@ class Window(QMainWindow):
         menu = self.ai_menu
         menu.clear()
         menu.setToolTipsVisible(True)
-        menu.addAction("一括生成…", lambda: self.batch_draw()).setToolTip(
-            "頼みの一覧（1 行 1 つ、または CSV）から、枚数と種を付けて順に描き、全部をライブラリーに入れます。止めるは「止める」")
-        menu.addSeparator()
         now_image = self.settings.get("image_model")
         # 出すのは、推奨に届いた模型と手元にある模型（手元の物と ★ が先）。非表示にした物は出さない
         catalog = catalog_images()

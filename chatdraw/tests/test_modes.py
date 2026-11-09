@@ -263,7 +263,7 @@ class BatchTest(Base):
 
     def test_three_lines_one_fails_from_window(self):
         w = self.window()
-        acts = self.acts(w.ai_menu)
+        acts = {"一括生成…": w.batch_action}   # 一括生成はファイルのメニューにある（絵の模型の一覧には置かない）
         self.assertIn("一括生成…", acts)
         self.assertTrue(acts["一括生成…"].toolTip())
         text = "1girl, red scarf\nFAIL on purpose\nknight, snow"
