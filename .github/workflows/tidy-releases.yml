@@ -1,9 +1,14 @@
 # 作業ブランチから置いた試す版（chatdraw-test-* の prerelease）と、その札（tag）を消す。
 # 今はブランチの版を Release に置かず artifact に置くので、残っているのは前の作りで置いた物だけ。
-# 公開している版（v*）は消さない。手で流す（workflow_dispatch）。
+# 公開している版（v*）は、利用者が delete_tag で名指ししたときだけ消す（壊れていた版を取り下げる）。手で流す（workflow_dispatch）。
 name: tidy-releases
 on:
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      delete_tag:
+        description: "取り下げる公開の版の札（例: v0.5.20）。空なら公開の版は消さない"
+        required: false
+        default: ""
 permissions:
   contents: write
 jobs:
@@ -20,6 +25,16 @@ jobs:
             gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id" && echo "消した: $tag"
             gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$tag" || true
           done
+      - name: 名指しした公開の版を取り下げる
+        if: ${{ inputs.delete_tag != '' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.delete_tag }}
+        run: |
+          case "$TAG" in v[0-9]*) ;; *) echo "公開の版の札（v で始まる）だけを消せます: $TAG"; exit 1;; esac
+          id=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$TAG" --jq .id)
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/releases/$id" && echo "取り下げた: $TAG"
+          gh api -X DELETE "repos/$GITHUB_REPOSITORY/git/refs/tags/$TAG" && echo "札を消した: $TAG"
   branches:
     # 取り込み済みの作業ブランチを消す。統合のブランチにまとめてから PR にした作業ブランチは、
     # 自分の PR が無いので「マージ後に自動で消す」が効かず残る。マージ済みの PR の head に
