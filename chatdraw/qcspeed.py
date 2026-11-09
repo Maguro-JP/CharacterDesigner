@@ -82,6 +82,15 @@ def run(out: Path, label: str) -> dict:
     except Exception:   # noqa: BLE001  その版に無い
         pass
     from chatdraw.engine import Painter, Studio
+    import chatdraw.engine as _eng
+    _cd = Painter._cpu_dtype
+    def _cd_logged(self, info):
+        d = _cd(self, info)
+        print("cpu_dtype:", d, "bf16_fast:", _eng.bf16_fast(), "gb:", getattr(info, "gb", None), flush=True)
+        result_dtype[0] = str(d)
+        return d
+    Painter._cpu_dtype = _cd_logged
+    result_dtype = [None]
     model = os.environ.get("QC_MODEL", "cagliostrolab/animagine-xl-4.0")
     steps = int(os.environ.get("QC_STEPS", "12"))
     w, h = (int(x) for x in os.environ.get("QC_SIZE", "768x1024").split("x"))
@@ -117,6 +126,7 @@ def run(out: Path, label: str) -> dict:
         result["error"] = f"{type(e).__name__}: {e}"
     result["total_s"] = round(time.perf_counter() - t0, 1)
     result["stopped_by_budget"] = bool(getattr(painter, "stop", False))
+    result["dtype"] = result_dtype[0]
     result["stage_s"] = {k: round(v, 1) for k, v in times.items()}
     result["stage_calls"] = counts
     rd = result.get("redraws") or []

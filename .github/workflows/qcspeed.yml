@@ -1,19 +1,10 @@
-# 1 枚を描いて直すまでの工程ごとの秒を、前の版と今の版で同じ機械・同じ頼み・同じ種で測る（chatdraw/qcspeed.py）。
-# 測る物差しは今のブランチの chatdraw/qcspeed.py を使い、測られる側の chatdraw は版ごとに checkout した物にする。
+# 0.5.21（main）と 0.5.22 の候補を、同じ機械・同じ頼み・同じ種で続けて流し、工程ごとの秒・型・スワップを測る（測るだけのブランチ）
 name: qcspeed
 on:
   push:
     paths:
       - ".github/workflows/qcspeed.yml"
       - "chatdraw/qcspeed.py"
-      - "chatdraw/persist.py"
-  workflow_dispatch:
-    inputs:
-      steps:
-        default: "12"
-      budget_min:
-        description: "1 版あたりの上限（分）。越えたら止めるボタンと同じに止め、測れた分を書く"
-        default: "150"
 permissions:
   contents: read
 jobs:
@@ -25,7 +16,7 @@ jobs:
         with:
           fetch-depth: 0
       - name: 置き場を空ける
-        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1; free -g; nproc
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1; free -g; nproc; lscpu | grep -E "Model name|Flags" | grep -oE "Model name.*|avx512_bf16|amx_bf16|avx512f |avx2" | sort -u
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -35,26 +26,29 @@ jobs:
           pip install -q torch --index-url https://download.pytorch.org/whl/cpu
           pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy scikit-image ai-edge-litert onnxruntime PySide6
       - name: 測る
+        timeout-minutes: 320
         env:
           LLM_HOME: ${{ runner.temp }}/llm
           CD_HOME: ${{ runner.temp }}/cd
           CD_FETCH: "1"
           QT_QPA_PLATFORM: offscreen
           QC_SIZE: "640x896"
-          QC_STEPS: ${{ inputs.steps || '8' }}
-          QC_BUDGET_MIN: ${{ inputs.budget_min || '120' }}
+          QC_STEPS: "8"
+          QC_BUDGET_MIN: "140"
         run: |
           cp chatdraw/qcspeed.py "$RUNNER_TEMP/qcspeed.py"
-          # 機械ごとに CPU の速さが 20 倍ほど違った（1 工程 17 秒〜3,070 秒）ので、比べる版は同じ機械で続けて流す
-          lscpu | grep -E "Model name" || true
-          python -c "from chatdraw.engine import bf16_fast; print('bf16 が速い:', bf16_fast())" || true
-          for ref in v0.5.19 HEAD; do
+          mkdir -p qc-out
+          (vmstat -t 30 > qc-out/vmstat.txt) &
+          for ref in d41afc0d 3eaae4be; do
             d="$RUNNER_TEMP/src-$ref"; git worktree add -f --detach "$d" "$ref"
             cp "$RUNNER_TEMP/qcspeed.py" "$d/chatdraw/qcspeed.py"
+            echo "== $ref $(date -u +%T)" >> qc-out/vmstat.txt
             (cd "$d" && timeout $(( QC_BUDGET_MIN * 60 + 600 )) python -u -m chatdraw.qcspeed "$GITHUB_WORKSPACE/qc-out/$ref" "$ref") || echo "$ref が途中で終わった"
+            free -m
           done
+          awk 'NR>2 && $7+$8>0' qc-out/vmstat.txt | tail -20; echo "si/so の 0 でない行: $(awk 'NR>2 && ($7+$8)>0' qc-out/vmstat.txt | wc -l) / $(wc -l < qc-out/vmstat.txt)"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: qcspeed
+          name: qcspeed-measure522
           path: qc-out
