@@ -827,6 +827,7 @@ class Window(QMainWindow):
         edit.addAction(S["undo"])
         edit.addAction(S["redo"])
         edit.addAction(S["redpen_clear"])
+        edit.addAction(S["inspect"])
         edit.addSeparator()
         edit.addAction(S["cut"])
         edit.addAction(S["copy"])
@@ -1899,10 +1900,14 @@ class Window(QMainWindow):
             self.progress_popup.pop()
             self.statusBar().showMessage("描いている途中です。終わってから頼んでください（止めるときは「止める」）", 6000)
             return
-        if self.thread or not text and not (pen.marks and all(pen.texts)):   # 絵の上に全部書いてあれば、チャットは空でよい
+        shown = pen.shown()   # 隠した印は直さないので、指示の有無も見ない（隠した印の空の指示で、押しても何も起きなかった）
+        if not self.thread and not text and shown and not all(pen.texts[i - 1] for i in shown):
+            self.inspect_marks_then_fix()   # 指示の空の囲みは、その中を検品し、見つけた崩れを指示にして 1 回だけ直す
+            return
+        if self.thread or not text and not (shown and all(pen.texts[i - 1] for i in shown)):   # 絵の上に全部書いてあれば、チャットは空でよい
             return
         if not text:
-            text = " / ".join(f"{i}: {t}" for i, t in enumerate(pen.texts, 1))
+            text = " / ".join(f"{i}: {pen.texts[i - 1]}" for i in shown)
         from chatdraw import commands
         words = getattr(getattr(self, "studio", None), "words", None)
         if commands.needs_model(text, words):
@@ -2142,6 +2147,127 @@ class Window(QMainWindow):
         """赤ペンで囲んだ所を直す。AI の欄を「直す」にして「描く」と同じ send() を呼ぶ"""
         self.mode.setCurrentIndex(2)
         self.send()
+
+    # ---- 手で呼ぶ検品（chatdraw/qcmanual.py）。検品は印と指示を置くだけで、直すのは利用者が押したときだけ ----
+    def _picture(self):
+        """今の絵を平らにした絵。白一色などの何も描いていない絵なら None"""
+        img = qimage_to_pil(self.canvas.flatten()).convert("RGB")
+        return img if any(lo != hi for lo, hi in img.getextrema()) else None
+
+    def _busy_inspect(self) -> bool:
+        if self.thread or getattr(self, "inspecting", False):
+            self.statusBar().showMessage("描いているか検品している途中です。終わってから押してください", 6000)
+            return True
+        return False
+
+    def add_flaw_mark(self, box, note: str) -> int:
+        """崩れの枠を囲む赤ペンの印を足し、指示の欄に崩れの中身を書く。足した印の番号を返す"""
+        import math
+        from PySide6.QtCore import QPointF
+        pen = self.canvas.redpen
+        x0, y0, x1, y1 = box
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        rx, ry = max(12.0, (x1 - x0) * 0.6), max(12.0, (y1 - y0) * 0.6)
+        pts = [QPointF(cx + rx * math.cos(t * math.pi / 16), cy + ry * math.sin(t * math.pi / 16)) for t in range(33)]
+        pen.begin(pts[0])
+        for q in pts[1:]:
+            pen.add(q)
+        pen.end()
+        n = len(pen.marks)
+        pen.set_text(n, note)
+        return n
+
+    def inspect_now(self):
+        """今の絵（AI が描いていない絵も）を検品し、崩れた所を赤ペンで囲む。直しはしない"""
+        if self._busy_inspect():
+            return
+        img = self._picture()
+        if img is None:
+            self.notify("検品する絵がありません", "info", "絵を描くか開いてから押します")
+            return
+        from chatdraw import qcmanual
+        self.inspecting = True
+        self.statusBar().showMessage("検品しています（手・足・顔）", 6000)
+
+        def done(res):
+            self.inspecting = False
+            self.statusBar().clearMessage()
+            if isinstance(res, BaseException):
+                self.notify("検品で止まりました", "error", str(res))
+                return
+            found, rest, lost = qcmanual.flaws(res), qcmanual.unplaced(res), qcmanual.missed(res)
+            for box, note in found:
+                self.add_flaw_mark(box, note)
+            if found:
+                self.mode.setCurrentIndex(2)   # 「描く」を「囲んだ所を直す」にして、そのまま押せるようにする
+                if hasattr(self, "layer_panel"):
+                    self._refresh_layers()
+            tail = "。".join(([f"場所の分からない崩れ: {'、'.join(rest)}"] if rest else [])
+                             + ([f"検品できなかった所: {'、'.join(lost)}"] if lost else []))
+            if found:
+                self.notify(f"検品: 崩れ {len(found)} か所を赤ペンで囲みました", "info",
+                            "印の指示を見て「囲んだ所を直す」で直せます" + (f"。{tail}" if tail else ""))
+            elif rest:
+                self.notify(f"検品: 崩れ {len(rest)} 件（場所は分かりません）", "info", tail)
+            else:
+                self.notify("検品: 崩れは見つかりませんでした" + ("（検品できなかった所があります）" if lost else ""),
+                            "ok" if not lost else "info", tail)
+        self.in_background(lambda: qcmanual.inspect(img), done, "検品")
+
+    def inspect_marks_then_fix(self):
+        """指示の空の囲みの中だけを検品し、見つけた崩れを指示にして 1 回だけ直す。崩れが無ければ何もしない。
+        直したあとは検品し直さない（描く・検品・直しを繋げて回すと止まらなかった）"""
+        if self._busy_inspect():
+            return
+        img = self._picture()
+        pen = self.canvas.redpen
+        if img is None:
+            self.notify("検品する絵がありません", "info", "絵を描くか開いてから押します")
+            return
+        masks = pen.masks()
+        jobs = []
+        for i in pen.shown():
+            if pen.texts[i - 1]:
+                continue
+            box = gray_to_pil(masks[i - 1]).resize(img.size).getbbox()
+            if box:
+                jobs.append((i, box, img.crop(box)))
+        if not jobs:
+            return
+        from chatdraw import qcmanual
+        self.inspecting = True
+        self.statusBar().showMessage(f"囲みの中を検品しています（{len(jobs)} か所）", 6000)
+        marks = list(pen.marks)
+
+        def done(got):
+            self.inspecting = False
+            self.statusBar().clearMessage()
+            if isinstance(got, BaseException):
+                self.notify("検品で止まりました", "error", str(got))
+                return
+            if list(pen.marks) != marks:   # 検品の間に印を消した・足した。古い番号に指示を書かない
+                self.notify("検品の間に赤ペンの印が変わったので、直しませんでした", "info")
+                return
+            clean, lost = [], []
+            for i, (x0, y0, _x1, _y1), res in got:
+                notes = [t for _b, t in qcmanual.flaws(res, (x0, y0))] + qcmanual.unplaced(res)
+                lost += [f"印 {i} の{w}" for w in qcmanual.missed(res)]
+                if notes:
+                    pen.set_text(i, "、".join(notes))
+                else:
+                    clean.append(i)
+            more = f"検品できなかった所: {'、'.join(lost)}" if lost else ""
+            if len(clean) == len(got):
+                self.notify("囲みの中に崩れは見つからなかったので、直しませんでした", "info", more)
+                return
+            for i in clean:   # 崩れの無い囲みは隠して直さない（レイヤーの欄で出し直せる）
+                pen.set_hidden(i, True)
+            if hasattr(self, "layer_panel"):
+                self._refresh_layers()
+            self.notify(f"囲みの中の崩れを指示にして直します（{len(got) - len(clean)} か所）", "info",
+                        "。".join(x for x in ([f"崩れの無い印 {'・'.join(map(str, clean))} は隠しました"] if clean else []) + [more] if x))
+            self.send()   # 指示が全部そろったので、普段の直しを 1 回だけ通す
+        self.in_background(lambda: [(i, box, qcmanual.inspect(crop)) for i, box, crop in jobs], done, "囲みの中の検品")
 
     def edit_note(self, n: int):
         """赤ペンの n 番の印の横に、指示を書く欄を出す。Enter で絵の上に残し、Esc でやめる"""
@@ -2852,6 +2978,7 @@ class Window(QMainWindow):
         if c.redpen.marks or c.selection is not None:
             # 「描く」を直すにして押すのと同じ道を通す（右クリックから仕上げと同じ手数で直せるように）
             m.addAction("囲んだ所を直す", self.fix_marked).setEnabled(not self.thread)
+        m.addAction(self.shared["inspect"])
         if c.redpen.marks:
             m.addAction("赤ペンの印を消す", c.redpen.clear)
         # 番号の丸の上で右クリックしたら、その印だけを直す・消す
@@ -3952,6 +4079,8 @@ class Window(QMainWindow):
                 ("undo", "undo", "元に戻す", c.undo, "Ctrl+Z", ""),
                 ("redo", "redo", "やり直す", c.redo, "Ctrl+Y", ""),
                 ("redpen_clear", "", "赤ペンの印を全部消す", c.redpen.clear, "Ctrl+Shift+Backspace", ""),
+                ("inspect", "", "検品する", self.inspect_now, "",
+                 "今の絵の手・足・顔を検品し、崩れた所を赤ペンで囲みます。直しはしません（直すのは「囲んだ所を直す」）"),
                 ("select_all", "select", "すべてを選択", c.select_all, "Ctrl+A", ""),
                 ("deselect", "", "選択を解除", lambda: c.set_selection(None), "Ctrl+D", ""),
                 ("sel_clear", "eraser", "選択範囲の中を消す", self.selection_clear, "", "選んだレイヤーの、選択範囲の中を消します（絵の上で Delete でも消せます。元に戻すで戻せます）"),
