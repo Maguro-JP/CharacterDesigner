@@ -1463,10 +1463,9 @@ def has_background(prompt: str) -> bool:
 
 
 def vary_background(prompt: str, seed: int, tags: bool = True, text: str = "") -> str:
-    """頼みに書かれていない所（背景・ポーズ・髪・服・表情・構図・光）を、種で選んで後ろに足す（chatdraw/variety.py）。
-    背景だけを足していたときは、背景を書いた頼みや同じ立ち姿で似た絵ばかりになった。書かれた項目は利用者の物なので足さない"""
-    from chatdraw.variety import vary
-    return vary(prompt, seed, tags=tags, text=text)
+    """頼みに書かれていない所（背景・ポーズ・髪・構図・光）を足さず、頼みをそのまま返す。
+    前は種で選んで足していたため、頼んでいない場所・座り方・髪の色・下からの構図が入り、頼んだ通りに描かれなかった"""
+    return prompt
 
 
 def emphasize(prompt: str, missing: list[str]) -> str:

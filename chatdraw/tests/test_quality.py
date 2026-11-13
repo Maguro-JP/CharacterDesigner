@@ -37,10 +37,8 @@ LIB = ROOT / "library" / "feedback"
 
 
 class Background(unittest.TestCase):
-    def test_adds_scene_when_not_asked(self):
-        out = engine.vary_background("1girl, solo, smile", 7)
-        self.assertTrue(out.startswith("1girl, solo, smile, "), out)
-        self.assertTrue(engine.has_background(out))
+    def test_no_scene_added_when_not_asked(self):
+        self.assertEqual(engine.vary_background("1girl, solo, smile", 7), "1girl, solo, smile")   # 頼みをそのまま渡す
 
     def test_keeps_asked_background(self):
         for p in ("1girl, white background", "1girl, simple background", "1girl, beach, sunset", "1girl, indoors"):
@@ -49,15 +47,12 @@ class Background(unittest.TestCase):
             from chatdraw.variety import PLACES
             self.assertFalse(any(tag in out for tag, _s in PLACES), out)
 
-    def test_varies_by_seed_and_repeats_with_same_seed(self):
-        got = {engine.vary_background("1girl", s) for s in range(40)}
-        self.assertGreaterEqual(len(got), 8, got)   # 12 の場面のうち、種 40 個で 8 以上が出る
+    def test_same_for_every_seed(self):
+        self.assertEqual({engine.vary_background("1girl", s) for s in range(40)}, {"1girl"})
         self.assertEqual(engine.vary_background("1girl", 5), engine.vary_background("1girl", 5))
 
     def test_sentence_form(self):
-        out = engine.vary_background("A girl smiling.", 1, tags=False)
-        self.assertTrue(out.startswith("A girl smiling, "), out)
-        self.assertTrue(out.endswith("."))
+        self.assertEqual(engine.vary_background("A girl smiling.", 1, tags=False), "A girl smiling.")
 
 
 class Emphasize(unittest.TestCase):
@@ -143,7 +138,7 @@ class AskedComesFirst(unittest.TestCase):
                 studio.draw("1girl, solo, smile, holding umbrella", 4)
         self.assertEqual(len(painter.prompts), 2)
         first, second = painter.prompts[0][0], painter.prompts[1][0]
-        self.assertTrue(first.startswith("1girl, solo, smile, holding umbrella, "), first)   # 背景を後ろに足した
+        self.assertEqual(first, "1girl, solo, smile, holding umbrella")   # 頼みをそのまま渡す
         self.assertTrue(second.startswith("1girl, solo, holding umbrella, smile"), second)
         self.assertNotEqual(painter.prompts[0][1], painter.prompts[1][1])
 

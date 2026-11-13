@@ -82,10 +82,7 @@ class EngineTest(unittest.TestCase):
             painter = FakePainter()
             said = []
             prompt, path = Studio(FakeWords(), painter, Path(d)).draw("赤いマフラーの子", 7, said.append)
-            # 背景を頼んでいないので、種で選んだ場面が後ろに足される（engine.vary_background）
-            from chatdraw.engine import vary_background
-            self.assertEqual(prompt, vary_background("1girl, red scarf", 7))
-            self.assertTrue(prompt.startswith("1girl, red scarf, "))
+            self.assertEqual(prompt, "1girl, red scarf")   # 頼んでいない場面を足さない
             self.assertTrue(path.exists())
             self.assertEqual(painter.calls, [(prompt, 7)])
             self.assertIn("描いています（1/1）", said)
@@ -1946,7 +1943,7 @@ class TwoStageAppTest(unittest.TestCase):
             keep.mkdir(parents=True)
             p = keep / f"3-{variant['name']}-s{seed}.png"
             Image.new("RGB", (8, 8)).save(p)
-            self.assertTrue(sentence.startswith("A woman smiling, ") and tags.startswith("1girl, smile, "), (sentence, tags))
+            self.assertTrue(sentence == "A woman smiling." and tags == "1girl, smile", (sentence, tags))
             return p
         with mock.patch.object(twostage, "pick", return_value=two), mock.patch.object(twostage, "parts_ready", return_value=True), \
                 mock.patch.object(twostage, "run_stages", side_effect=fake), \
