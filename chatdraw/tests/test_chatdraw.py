@@ -82,10 +82,7 @@ class EngineTest(unittest.TestCase):
             painter = FakePainter()
             said = []
             prompt, path = Studio(FakeWords(), painter, Path(d)).draw("赤いマフラーの子", 7, said.append)
-            # 背景を頼んでいないので、種で選んだ場面が後ろに足される（engine.vary_background）
-            from chatdraw.engine import vary_background
-            self.assertEqual(prompt, vary_background("1girl, red scarf", 7))
-            self.assertTrue(prompt.startswith("1girl, red scarf, "))
+            self.assertEqual(prompt, "1girl, red scarf")   # 頼んでいない場面を足さない
             self.assertTrue(path.exists())
             self.assertEqual(painter.calls, [(prompt, 7)])
             self.assertIn("描いています（1/1）", said)
@@ -928,13 +925,12 @@ class VpredModelTest(unittest.TestCase):
                          guidance_rescale=None, generator=None):
                 pass
         a = prompt_args(m, family("sdxl"), "1girl, waving", "hat", 28, 5.0, 1, Pipe())
-        self.assertEqual(a["prompt"].count("masterpiece"), 1)
+        self.assertEqual(a["prompt"], "1girl, waving")   # 質のタグも決まり文句も足さない
         self.assertEqual(a["guidance_rescale"], 0.7)
-        self.assertTrue(a["negative_prompt"].startswith("nsfw, worst quality") and ", hat, " in a["negative_prompt"])
-        self.assertIn("mature female", a["negative_prompt"])   # 女性は利用者の基準の体で描く（chatdraw/body.py）
+        self.assertEqual(a["negative_prompt"], "hat")   # 打ち消しはユーザーの禁止ワードだけ
         old = prompt_args(image_model("cagliostrolab/animagine-xl-4.0"), family("sdxl"), "1girl", "", 24, 5.0, 1, Pipe())
         self.assertNotIn("guidance_rescale", old)
-        self.assertTrue(old["prompt"].endswith("masterpiece, high score, great score, absurdres"))   # Animagine 4.0 の札の質のタグ
+        self.assertEqual(old["prompt"], "1girl")   # 札の質のタグも足さない
 
     def test_scheduler_switches_to_vpred(self):
         import types
@@ -1225,10 +1221,13 @@ class FixAndBatchTest(unittest.TestCase):
         self.assertEqual(len(fixes), 2)                               # 印ごとに 1 回ずつ直す
         self.assertEqual(len(self.w.canvas.layers), layers + 1)      # 直した所は新しいレイヤー
         self.assertEqual(self.w.canvas.redpen.marks, [])             # 直したら印は消える
-        layer = Image.open(self.w.images[-1])
-        self.assertEqual(layer.size, (200, 160))                      # 絵と同じ大きさで重ね、
-        self.assertEqual(layer.getpixel((5, 150))[3], 0)              # 直していない所は透かす（下のレイヤーを隠さない）
-        self.assertEqual(layer.getpixel((50, 50))[3], 255)
+        self.assertEqual(self.w.images, [])                           # 直しは描いた絵の履歴に載せない
+        top = self.w.canvas.layers[self.w.canvas.current]
+        self.assertIs(top, self.w.canvas.layers[-1])                  # 一番上を選ぶ
+        layer = top.image
+        self.assertEqual((layer.width(), layer.height()), (200, 160)) # 絵と同じ大きさで重ね、
+        self.assertEqual(layer.pixelColor(5, 150).alpha(), 0)         # 直していない所は透かす（下のレイヤーを隠さない）
+        self.assertEqual(layer.pixelColor(50, 50).alpha(), 255)
 
     def test_fix_without_marks_draws_new(self):
         """直す所が無いのに「直す」のままの頼みは、止めずに新しく描く（赤ペンに引っ張られ続けないように）"""
@@ -1347,7 +1346,7 @@ class FixAndBatchTest(unittest.TestCase):
         ghost = Image.blend(img, erased, 0.55)                          # 元の形が薄く透ける
         self.assertIn("元の形が薄く残る", " ".join(flaws(img, Image.composite(ghost, img, m), m)))
 
-    def test_fix_with_flaws_is_hidden_and_reported(self):
+    def test_fix_with_flaws_is_shown_and_reported(self):
         from PIL import Image
         from chatdraw.engine import erase
 
@@ -1370,8 +1369,9 @@ class FixAndBatchTest(unittest.TestCase):
         wait_idle(self.app, self.w)
         top = self.w.canvas.layers[self.w.canvas.current]
         self.assertIn("崩れあり", top.name)
-        self.assertFalse(top.visible)                                  # 崩れた直しは見えなくして重ねる（元の絵を壊さない）
+        self.assertTrue(top.visible)                                   # 崩れがあっても隠さず一番上に見せ、判断は利用者に渡す
         self.assertTrue(self.w.studio.last_flaws)
+        self.assertEqual(len([c for c in self.w.studio.painter.calls if c[0] == "redraw"]), 1)   # 直し続けない
 
     def test_redraw_keeps_picture_outside_marks(self):
         """直すのは囲んだ所の中だけ。絵全体を 1.5 倍に広げて描かせ、元の大きさに戻し、外の画素は 1 つも変えない"""
@@ -1946,7 +1946,7 @@ class TwoStageAppTest(unittest.TestCase):
             keep.mkdir(parents=True)
             p = keep / f"3-{variant['name']}-s{seed}.png"
             Image.new("RGB", (8, 8)).save(p)
-            self.assertTrue(sentence.startswith("A woman smiling, ") and tags.startswith("1girl, smile, "), (sentence, tags))
+            self.assertTrue(sentence == "A woman smiling." and tags == "1girl, smile", (sentence, tags))
             return p
         with mock.patch.object(twostage, "pick", return_value=two), mock.patch.object(twostage, "parts_ready", return_value=True), \
                 mock.patch.object(twostage, "run_stages", side_effect=fake), \
@@ -2641,7 +2641,8 @@ class LoadOptionsTest(unittest.TestCase):
             f = family(info.family)
             a = prompt_args(info, f, "a girl", "", info.steps, info.guidance, 1, pipe)
             self.assertIn(cfg, a, repo)
-            self.assertEqual("negative_prompt" in a, neg, repo)
+            self.assertEqual(a.get("negative_prompt", ""), "", repo)   # 禁止ワードが空なら打ち消しも空（勝手に足さない）
+            self.assertEqual(a["prompt"], "a girl", repo)
             if not f.tags:
                 self.assertNotIn("masterpiece", a["prompt"], repo)   # 文で頼む世代に質のタグを足さない
         a = prompt_args(image_model("black-forest-labs/FLUX.1-schnell"), family("flux1"), "x", "", 4, 0, 1, pipe)

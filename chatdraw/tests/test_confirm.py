@@ -75,26 +75,26 @@ class FixConfirmTest(unittest.TestCase):
             w = shown(d)
             draw(w, "赤いマントの騎士、剣")
             self.assertEqual(w.origin_prompt, "赤いマントの騎士、剣")
-            n = len(w.images)
+            n = len(w.canvas.layers)
             texts = []
             answer(w, "やめる", seen=texts)           # やめる: 何も描かない
             self._fix(w, "マントを青に")
             self.assertIn("赤いマントの騎士", texts[0])
-            self.assertEqual(len(w.images), n)
+            self.assertEqual(len(w.canvas.layers), n)
             answer(w, "元のまま")                      # 食い違った所だけで頼んだので、直す所が残らず描かない
             self._fix(w, "マントを青に")
-            self.assertEqual(len(w.images), n)
+            self.assertEqual(len(w.canvas.layers), n)
             answer(w, "元のまま")                      # 食い違わない所だけを直す
             self._fix(w, "剣を消して、笑顔に")
-            self.assertEqual(len(w.images), n + 1)
+            self.assertEqual(len(w.canvas.layers), n + 1)
             self.assertEqual(w.last_text, "笑顔に")
             answer(w, "新しい頼みにする", again=True)  # 新しい頼み: そのまま直し、元の頼みも替える
             self._fix(w, "マントを青に")
-            self.assertEqual(len(w.images), n + 2)
+            self.assertEqual(len(w.canvas.layers), n + 2)
             self.assertIn("マントを青に", w.origin_prompt)
             self.assertNotIn("赤いマントの騎士", w.origin_prompt)
             self._fix(w, "剣を斧に")                   # 「次から聞かない」: 窓を出さずに新しい頼みで描く
-            self.assertEqual(len(w.images), n + 3)
+            self.assertEqual(len(w.canvas.layers), n + 3)
             menu_action(w, "設定", "確かめの窓をまた出す").trigger()   # 設定から戻す
             from chatdraw import confirm
             self.assertEqual(confirm.remembered(w, "intent"), "")
@@ -103,10 +103,10 @@ class FixConfirmTest(unittest.TestCase):
         with TemporaryDirectory() as d:
             w = shown(d)
             draw(w, "赤いマントの騎士")
-            n = len(w.images)
+            n = len(w.canvas.layers)
             self._fix(w, "目を大きく")
             self.assertIsNone(getattr(w, "_confirm_box", None))
-            self.assertEqual(len(w.images), n + 1)
+            self.assertEqual(len(w.canvas.layers), n + 1)
 
 
 class BatchConfirmTest(unittest.TestCase):

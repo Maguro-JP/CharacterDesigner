@@ -37,10 +37,8 @@ LIB = ROOT / "library" / "feedback"
 
 
 class Background(unittest.TestCase):
-    def test_adds_scene_when_not_asked(self):
-        out = engine.vary_background("1girl, solo, smile", 7)
-        self.assertTrue(out.startswith("1girl, solo, smile, "), out)
-        self.assertTrue(engine.has_background(out))
+    def test_no_scene_added_when_not_asked(self):
+        self.assertEqual(engine.vary_background("1girl, solo, smile", 7), "1girl, solo, smile")   # 頼みをそのまま渡す
 
     def test_keeps_asked_background(self):
         for p in ("1girl, white background", "1girl, simple background", "1girl, beach, sunset", "1girl, indoors"):
@@ -49,22 +47,18 @@ class Background(unittest.TestCase):
             from chatdraw.variety import PLACES
             self.assertFalse(any(tag in out for tag, _s in PLACES), out)
 
-    def test_varies_by_seed_and_repeats_with_same_seed(self):
-        got = {engine.vary_background("1girl", s) for s in range(40)}
-        self.assertGreaterEqual(len(got), 8, got)   # 12 の場面のうち、種 40 個で 8 以上が出る
+    def test_same_for_every_seed(self):
+        self.assertEqual({engine.vary_background("1girl", s) for s in range(40)}, {"1girl"})
         self.assertEqual(engine.vary_background("1girl", 5), engine.vary_background("1girl", 5))
 
     def test_sentence_form(self):
-        out = engine.vary_background("A girl smiling.", 1, tags=False)
-        self.assertTrue(out.startswith("A girl smiling, "), out)
-        self.assertTrue(out.endswith("."))
+        self.assertEqual(engine.vary_background("A girl smiling.", 1, tags=False), "A girl smiling.")
 
 
 class Emphasize(unittest.TestCase):
     def test_missing_moves_forward_after_people(self):
         p = "1girl, solo, smile, red dress, holding umbrella"
-        self.assertEqual(engine.emphasize(p, ["holding umbrella", "red dress"]),
-                         "1girl, solo, red dress, holding umbrella, smile")
+        self.assertEqual(engine.emphasize(p, ["holding umbrella", "red dress"]), p)   # 頼みの並びを変えない
 
     def test_nothing_missing(self):
         self.assertEqual(engine.emphasize("1girl, smile", []), "1girl, smile")
@@ -143,8 +137,8 @@ class AskedComesFirst(unittest.TestCase):
                 studio.draw("1girl, solo, smile, holding umbrella", 4)
         self.assertEqual(len(painter.prompts), 2)
         first, second = painter.prompts[0][0], painter.prompts[1][0]
-        self.assertTrue(first.startswith("1girl, solo, smile, holding umbrella, "), first)   # 背景を後ろに足した
-        self.assertTrue(second.startswith("1girl, solo, holding umbrella, smile"), second)
+        self.assertEqual(first, "1girl, solo, smile, holding umbrella")   # 頼みをそのまま渡す
+        self.assertEqual(second, "1girl, solo, smile, holding umbrella")   # 頼みの並びを変えない
         self.assertNotEqual(painter.prompts[0][1], painter.prompts[1][1])
 
 
@@ -171,7 +165,7 @@ class TwoStageRedraws(unittest.TestCase):
             meta = finishers.sidecar(saved)
         self.assertEqual(len(calls), 2)
         self.assertEqual([c[2] for c in calls], [10, 1010])
-        self.assertTrue(calls[1][1].startswith("1girl, red dress, smile"), calls[1][1])
+        self.assertEqual(calls[1][1], "1girl, smile, red dress")   # 頼みの並びを変えない
         self.assertTrue(meta["passed"])
         self.assertEqual(len(meta["redraws"]), 2)
 

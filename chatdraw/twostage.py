@@ -323,18 +323,16 @@ def finish(tags: str, seed: int, render_model: str, size, composition_path, keep
     rm = image_model(render_model)
     t = time.time()
     pipe = load_render(render_model)
-    from chatdraw.sanity import negative as sane_negative
-    sane = sane_negative(tags)   # 余分な部位・顔の外の目・頼んでいない黄色い目を、仕上げでも打ち消す
     print(f"仕上げの模型を読む: {time.time() - t:.0f} 秒", flush=True)
     for v in variants or VARIANTS:
         t = time.time()
-        out = render(pipe, f"{tags}, masterpiece, best quality", f"lowres, worst quality, low quality, bad anatomy, bad hands, {sane}",
+        out = render(pipe, tags, "",   # 頼みのまま。質のタグも打ち消しも足さない
+
                      shapes, v, seed, tuple(size), rm.steps, rm.guidance,
                      on_step=lambda i, n, name=v["name"]: print(f"仕上げ {name} {i}/{n} {time.time() - t:.0f} 秒", flush=True))
         out.save(keep / f"3-{v['name']}-s{seed}-fix0.png")
         print(f"仕上げ {v['name']}: {time.time() - t:.0f} 秒", flush=True)
-        prompt = f"{tags}, masterpiece, best quality, highly detailed, clean lineart"
-        negative = f"lowres, worst quality, low quality, bad anatomy, bad hands, blurry, messy lines, jpeg artifacts, {sane}"
+        prompt, negative = tags, ""   # 直しも頼みのまま。言葉を足さない
         out = fix_hands(pipe, out, prompt, negative, seed, rm.steps, rm.guidance, keep, v["name"])
         out = refine(pipe, out, prompt, negative, seed, rm.steps, rm.guidance)
         out.save(keep / f"3-{v['name']}-s{seed}-refined.png")

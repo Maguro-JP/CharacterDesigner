@@ -124,7 +124,7 @@ def memory_retry(painter, run, say=None):
         return run()
     except Exception as e:
         if is_oom(e):
-            raise MemoryError("メモリが足りず、少ないメモリの設定でも描けませんでした。ほかのアプリを閉じるか、"
+            raise MemoryError("メモリが足りず、少ないメモリの設定でも足りませんでした。ほかのアプリを閉じるか、"
                               "小さい模型（SDXL 系）に替えるか、描く大きさを小さくしてください") from None
         raise
 
@@ -266,12 +266,7 @@ QUALITY = "masterpiece, best quality"   # タグで頼む世代の、札に指�
 def quality_tags(info, f) -> str:
     """頼みの後ろに足す質のタグ。模型の札に指定があればそれ（Animagine 4.0 は high score, great score）。
     頭の決まり文句（prefix）に質のタグが入っている模型と、文で頼む世代には足さない"""
-    q = getattr(info, "quality", None)
-    if q is not None:
-        return q
-    if not f.tags or "masterpiece" in getattr(info, "prefix", ""):
-        return ""
-    return QUALITY
+    return ""   # 頼んでいない言葉を足さない（質のタグも足さない）
 
 
 def clip_skip_arg(info, family_name: str) -> int | None:
@@ -308,20 +303,17 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
     suffix = quality_tags(info, f)
     tokenizer = getattr(pipe, "tokenizer", None)
     if f.tags and tokenizer is not None and getattr(pipe, "text_encoder", None) is not None and info.family in ("sdxl", "sd15"):
-        text = fit_tokens(tokenizer, info.prefix, prompt, suffix)
+        text = fit_tokens(tokenizer, "", prompt, suffix)
     else:
-        text = f"{info.prefix}{prompt}" + (f", {suffix}" if suffix else "")
+        text = prompt   # 頭の決まり文句も質のタグも足さず、頼みのまま渡す
     args = {"prompt": text, "num_inference_steps": steps, f.cfg_key: guidance,
             # 種は CPU の乱数で作る。部品を GPU に出し入れする置き方（offload）では pipe.device が meta や cpu になり、
             # その device の乱数を作ると落ちた。CPU の乱数なら、どの置き方でも同じ種で同じ絵になる
             "generator": torch.Generator("cpu").manual_seed(seed), **f.extra, **dict(getattr(info, "call", ()) or ())}
     if f.negative:
         # 余分な腕・脚・頭・体、顔の外の目、物理的にあり得ない形と、頼んでいない黄色い目は、どの頼みでも打ち消す（chatdraw/sanity.py）
-        from chatdraw.sanity import negative as sane_negative
-        avoid = ", ".join(a for a in (avoid, sane_negative(prompt)) if a)
-        if woman(prompt):   # 女性は利用者の基準の体で描く（年配の太った体にしない。chatdraw/body.py）
-            from chatdraw.body import NEGATIVE as BODY_NEGATIVE
-            avoid = ", ".join(a for a in (avoid, BODY_NEGATIVE) if a)
+        # 打ち消しはユーザーが書いた禁止ワードだけ。崩れ・体・質の打ち消しを勝手に足さない。
+        # 空でも渡す（Qwen-Image などは打ち消しが渡らないと頼みの効き true_cfg_scale を使わない）
         args["negative_prompt"] = negative_for(info, avoid)
     if getattr(info, "rescale", 0.0):
         args["guidance_rescale"] = info.rescale
@@ -340,9 +332,7 @@ def woman(prompt: str) -> bool:
 
 def negative_for(info, avoid: str = "") -> str:
     """描かない物。模型の札に推奨があればそれを使う（模型ごとに学んだ質の言葉が違う）"""
-    base = getattr(info, "negative", "") or "lowres, worst quality, low quality"
-    avoid = english_only(avoid or "")
-    return base + (f", {avoid}" if avoid else "")
+    return english_only(avoid or "")   # ユーザーが書いた禁止ワードだけ。模型の推奨の打ち消しも足さない
 
 
 def use_vpred(pipe, info) -> bool:
@@ -1295,7 +1285,7 @@ class Painter:
                     self._sketch = StableDiffusionXLAdapterPipeline(**parts, adapter=adapter.to(pipe.device))
             w, h = size
             sketch = sketch_lines(base, (w, h))
-            args["negative_prompt"] = args.get("negative_prompt", negative_for(info, self.avoid)) + ", sketch, lineart, monochrome"
+            pass   # ラフの線を描かせない打ち消しも、頼んでいないので足さない
             total = steps
             args.pop("callback_on_step_end", None)
 
@@ -1348,7 +1338,7 @@ class Painter:
         # 直す工程が少なくとも 1 つ残る数まで増やす
         steps = max(self.steps, math.ceil(1 / strength)) if strength > 0 else self.steps
         # 描くときと同じ札の頼み方（質のタグ、CLIP の長さ、CLIP skip）で直す。直しだけ別の頼み方にすると、絵柄がずれた
-        args = dict(prompt=fit_tokens(getattr(pipe, "tokenizer", None), info.prefix, english_only(prompt), quality_tags(info, fam(info.family))),
+        args = dict(prompt=fit_tokens(getattr(pipe, "tokenizer", None), "", english_only(prompt), ""),
                     negative_prompt=negative_for(info, self.avoid),
                     num_inference_steps=steps, guidance_scale=self.guidance, strength=strength,
                     generator=torch.Generator("cpu").manual_seed(seed))
@@ -1463,15 +1453,15 @@ def has_background(prompt: str) -> bool:
 
 
 def vary_background(prompt: str, seed: int, tags: bool = True, text: str = "") -> str:
-    """頼みに書かれていない所（背景・ポーズ・髪・服・表情・構図・光）を、種で選んで後ろに足す（chatdraw/variety.py）。
-    背景だけを足していたときは、背景を書いた頼みや同じ立ち姿で似た絵ばかりになった。書かれた項目は利用者の物なので足さない"""
-    from chatdraw.variety import vary
-    return vary(prompt, seed, tags=tags, text=text)
+    """頼みに書かれていない所（背景・ポーズ・髪・構図・光）を足さず、頼みをそのまま返す。
+    前は種で選んで足していたため、頼んでいない場所・座り方・髪の色・下からの構図が入り、頼んだ通りに描かれなかった"""
+    return prompt
 
 
 def emphasize(prompt: str, missing: list[str]) -> str:
     """頼んだのに描かれなかったタグを、描く言葉の前に出す。模型は前の言葉ほど強く効かせるので、
     後ろに埋もれた頼み（持ち物、服の色）は種を変えても描かれないままだった。人数のタグ（1girl, solo）は先頭に残す"""
+    return prompt   # 頼みの並びも変えない
     items = [t.strip() for t in prompt.split(",") if t.strip()]
     want = {m.strip().lower() for m in missing}
     lead = [t for t in items if t.lower() in ("1girl", "1boy", "1other", "solo")]
@@ -1926,20 +1916,11 @@ class Studio:
                 raise ValueError("子どもを性的に描く頼みは描きません")
             say("絵の模型を読んでいます（初めの 1 回だけ時間がかかります）")
             before = result
-            # 直しきる: 直す → 確かめる、を崩れが見つからなくなるまで、強さと種を変えて繰り返す（4 回まで）。
-            # 毎回、元の絵から直す（崩れた直しの上に重ねない）。見つからなければそこで止め、残れば崩れの少ない物を使う
-            best, best_flaws = None, None
-            tries = [(strength, 0), (min(0.95, strength + 0.15), 1), (min(0.95, strength + 0.3), 2), (min(0.95, strength + 0.15), 3)]
-            for n_try, (s_try, seed_shift) in enumerate(tries, 1):
-                out = self._fix_once(before, mask, prompt, seed + k + 1000 * seed_shift, s_try, k, len(regions), say,
-                                     reference, ref_scale)
-                found = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, out, mask)] if check else []
-                say(f"確かめました（{k} か所目・{n_try} 回目・崩れ {len(found)} 件）")
-                if best is None or len(found) < len(best_flaws):
-                    best, best_flaws = out, found
-                if not found:
-                    break
-            result = best
+            # 直しは 1 回で終える。検品が通るまで直し続ける繰り返しは、描けなくなる（終わらない）ので繋げない。
+            # 見つけた崩れは知らせるだけで、直すかどうかは利用者が決める（もう一度囲んで直せる）
+            result = self._fix_once(before, mask, prompt, seed + k, strength, k, len(regions), say, reference, ref_scale)
+            best_flaws = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, result, mask)] if check else []
+            say(f"確かめました（{k} か所目・崩れ {len(best_flaws)} 件）")
             prompts.append(prompt)
             self.last_flaws += best_flaws
         if self.last_flaws:

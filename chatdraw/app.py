@@ -161,7 +161,7 @@ class Job(QObject):
         except Exception as e:  # 描けなかった理由を、次に何をすればよいか分かる日本語で会話に出す
             from chatdraw.engine import explain
             from chatdraw.engine import Stopped
-            self.failed.emit(explain(e) if isinstance(e, Stopped) else f"段を下げても描けませんでした。{explain(e)}")
+            self.failed.emit(explain(e))   # 何が起きたかを 1 行で返す（「描けませんでした」の決まり文句は付けない）
 
     def _stopped(self):
         """止められたあとに返ってきた絵（直しの途中で抜けた物など）は置かずに捨てる。キャンバスは元のまま"""
@@ -2215,22 +2215,17 @@ class Window(QMainWindow):
         絵を置くのを先にする。前は検品の知らせを先に出していて、そこで落ちると絵が置かれず、途中の絵か何も無いままだった"""
         if self._stale():
             return
-        self.images.append(path)
         self.canvas.show_overlay(None)
+        if self.job_kind == "fix":
+            self._on_fixed(path)
+            return
+        self.images.append(path)
         first = not self.batch
         self.batch.append(path)
-        bad = getattr(getattr(self, "job_studio", None) or self.studio, "last_flaws", []) if self.job_kind == "fix" else []
+        bad = []
         try:
             if self.job_kind == "chibi":
                 self.put_result(path, "ちびキャラ")
-            elif self.job_kind == "fix":
-                placed = self._put_fix(path, f"AI の直し {len(self.images)}" + ("（崩れあり）" if bad else ""))
-                if bad and placed:   # 崩れの見つかった直しは見えなくして重ねる。元の絵を壊さず、見るか消すかは利用者が決める
-                    self.canvas.set_visible(self.canvas.current, False)
-                # 直しが済んだら印は消す（残ると、いつまでも絵の上に赤い線が残った）。消した印は元に戻すで戻せる
-                for _ in range(len(self.canvas.redpen.marks)):
-                    self.canvas.redpen.undo()
-                self._refresh_layers()
             elif first and self.pin_action.isChecked() and self.mode.currentIndex() == 0:
                 self.say("表示する絵を固定しているので、新しい絵は履歴に入れました（押すと出ます）")
             elif first:
@@ -2263,6 +2258,27 @@ class Window(QMainWindow):
         from chatdraw import finishers
         self.run_io(lambda: finishers.embedded(path) or finishers.embed(path, finishers.sidecar(path)), lambda _v: None, "ライブラリーへ保存")
 
+    def _on_fixed(self, path: str):
+        """赤ペン・選択範囲の直しの結果は、一番上の新しいレイヤーにだけ置いて選ぶ。描いた絵の履歴・ライブラリーには載せない
+        （レイヤーを消せば何も残らない）。崩れが見つかっても隠さずに見せ、崩れは会話に書いて判断を利用者に渡す"""
+        self.batch.append(path)
+        bad = getattr(getattr(self, "job_studio", None) or self.studio, "last_flaws", [])
+        n = getattr(self, "_fix_count", 0) + 1
+        self._fix_count = n
+        try:
+            self._put_fix(path, f"赤ペンの直し {n}" + ("（崩れあり）" if bad else ""))
+        except (OSError, ValueError) as e:
+            self.say(f"直しをレイヤーに置けませんでした（{e}）")
+        finally:
+            if self.settings.get("result_place") != "別ファイル":   # 別ファイルで開くときは、開く側がこの絵を読む
+                Path(path).unlink(missing_ok=True)   # 置いたあとは保存先にも残さない（絵はレイヤーの中にある）
+        # 直しが済んだら印は消す（残ると、いつまでも絵の上に赤い線が残った）。消した印は元に戻すで戻せる
+        for _ in range(len(self.canvas.redpen.marks)):
+            self.canvas.redpen.undo()
+        self._refresh_layers()
+        for f in bad:
+            self.say(f"崩れ: {f}")
+
     def show_final(self):
         """描き終えたら、1 枚目の絵をキャンバスに出して履歴で選ぶ。途中の絵（重ねた下描き）は必ず消す。
         途中の絵の知らせが絵の知らせより後に届くと、仕上がった絵の上に途中の絵が残り、出来た絵が見えなかった"""
@@ -2285,7 +2301,7 @@ class Window(QMainWindow):
         n = len(self.batch)
         fixed = self.job_kind in ("fix", "chibi")
         bad = getattr(getattr(self, "job_studio", None) or self.studio, "last_flaws", []) if self.job_kind == "fix" else []
-        result = ("直しを重ねました（崩れあり・隠しています）" if bad else "直しを重ねました") if fixed else \
+        result = ("直しを重ねました（崩れあり）" if bad else "直しを重ねました") if fixed else \
             f"{n} 枚描きました" if n > 1 else "描けました"
         if bad:   # 崩れがあったときだけ絵の説明に足す（「描けました」は絵を見れば分かる）
             for it in self.batch_items:
@@ -2293,7 +2309,7 @@ class Window(QMainWindow):
         self.activity.end(result, None, record=False)
         self.say(result if fixed else f"{n} 枚描きました。履歴から選べます" if n > 1 else "描きました")
         self.notify(result if fixed else "描けました", "error" if bad else "ok",
-                    (f"崩れ {len(bad)} 件。レイヤーを隠して重ねました。見て決めてください" if bad else
+                    (f"崩れ {len(bad)} 件。一番上のレイヤーに置きました。見て決めてください" if bad else
                      "新しいレイヤーに重ねました。見て決めてください") if fixed else
                     (f"1 枚目をキャンバスに出しました。ほかの {n - 1} 枚は履歴を押すと出ます" if n > 1
                      else "キャンバスに出しました（元に戻すで前の絵に戻せます）"),
@@ -3503,7 +3519,8 @@ class Window(QMainWindow):
         if sel is not None:
             masks.append(sel)
         img = QImage(path)
-        if not masks or img.isNull():
+        if not masks or img.isNull() or img.hasAlphaChannel():
+            # Studio.fix は直した所だけを不透明にして返す。印で上書きすると、隠した印の所（直していない所）まで出た
             return self.put_result(path, name)
         img = img.convertToFormat(QImage.Format_ARGB32)
         alpha = QImage(img.size(), QImage.Format_Grayscale8)
@@ -3685,13 +3702,14 @@ class Window(QMainWindow):
         if self._stale():
             return
         self.canvas.show_overlay(None)
+        why = (why or "うまくいきませんでした").strip().splitlines()[0]   # 何が起きたかを 1 行で出す（「描けませんでした」の決まり文句は出さない）
+        stop = "止め" in why
         self.say(why)
         if self.activity.started is not None:
-            self.activity.end("止めました" if "止め" in why else "描けませんでした")
+            self.activity.end("止めました" if stop else why)
         # 進みの欄の 1 回分の外で落ちたときも、理由を右下に出す（出さないと何も起きなかったように見えた）
-        self.progress_popup.tell("止めました" if "止め" in why else "描けませんでした", why)
-        self.notify("止めました" if "止め" in why else "描けませんでした", "info" if "止め" in why else "error",
-                    "" if "止め" in why else why)
+        self.progress_popup.tell("止めました" if stop else why, "" if stop else why)
+        self.notify("止めました" if stop else why, "info" if stop else "error", "")
         self._end(why)
 
     def pick_color(self):
@@ -4633,7 +4651,7 @@ class Window(QMainWindow):
     def _chara_painter(self):
         painter = getattr(self.studio, "painter", None)
         if painter is None or not getattr(painter, "ready", lambda: False)():
-            self.notify("描けませんでした", "info", "絵の模型がまだありません。AI のメニューで模型を取ってください")
+            self.notify("絵の模型がまだありません", "info", "AI のメニューで模型を取ってください")
             return None
         return painter
 
@@ -4666,7 +4684,7 @@ class Window(QMainWindow):
                 boxes = []
             mask = charadesign.face_mask(base, boxes) if boxes else None
         if mask is None:
-            self.notify("表情差分を描けませんでした", "info", "顔が見つかりませんでした。顔を選択範囲か赤ペンで囲んでください")
+            self.notify("顔が見つかりませんでした", "info", "顔を選択範囲か赤ペンで囲んでください")
             return
         self.activity.begin("表情差分を描く", "キャラクターデザイン")
         seed = int(time.time()) % 100000

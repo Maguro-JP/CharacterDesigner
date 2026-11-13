@@ -39,11 +39,13 @@ class NegativeTest(unittest.TestCase):
             def __call__(self, prompt=None, negative_prompt=None, num_inference_steps=None, guidance_scale=None,
                          guidance_rescale=None, generator=None):
                 pass
-        a = prompt_args(image_model("cagliostrolab/animagine-xl-4.0"), family("sdxl"), "1girl, red ball", "hat", 24, 5.0, 1, Pipe())
-        self.assertIn("extra arms", a["negative_prompt"])
-        self.assertIn("eyes on objects", a["negative_prompt"])
-        self.assertIn("yellow eyes", a["negative_prompt"])
-        self.assertIn(", hat, ", a["negative_prompt"])   # 利用者の打ち消しは先に残す
+        import sys
+        import types
+        from unittest import mock
+        gen = types.SimpleNamespace(manual_seed=lambda s: s)
+        with mock.patch.dict(sys.modules, {"torch": types.SimpleNamespace(Generator=lambda d: gen)}):
+            a = prompt_args(image_model("cagliostrolab/animagine-xl-4.0"), family("sdxl"), "1girl, red ball", "hat", 24, 5.0, 1, Pipe())
+        self.assertEqual(a["negative_prompt"], "hat")   # 崩れの打ち消しを勝手に足さない
 
 
 class TagRulesTest(unittest.TestCase):

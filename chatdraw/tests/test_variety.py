@@ -23,14 +23,14 @@ class VarietyTest(unittest.TestCase):
             self.assertGreaterEqual(len(table), 16, k)
             self.assertEqual(len(set(table)), len(table), k)
 
-    def test_same_request_gives_different_prompts(self):
-        seeds = [random.randrange(2 ** 31) for _ in range(20)]
-        got = [vary_background("1girl, solo", s, text="女の子") for s in seeds]
-        self.assertLess(overlap(got), 0.2)   # 前は背景だけで 0.30、おまかせは 1.0（毎回同じ言葉）
+    def test_request_is_passed_as_is(self):
+        # 頼んでいない場所・ポーズ・髪・構図・光を足さない（足すと頼んだ通りに描かれなかった）
+        for s in (1, 2, 3, 99):
+            self.assertEqual(vary_background("1girl, solo", s, text="女の子"), "1girl, solo")
 
     def test_written_items_are_kept(self):
         out = vary_background("1girl, solo, beach, smile, ponytail", 3, text="浜辺で笑うポニーテールの女の子")
-        self.assertTrue(out.startswith("1girl, solo, beach, smile, ponytail, "), out)
+        self.assertEqual(out, "1girl, solo, beach, smile, ponytail")
         chosen = variety.pick(3, "浜辺で笑うポニーテールの女の子\n1girl, solo, beach, smile, ponytail")
         self.assertFalse({"place", "face", "hair"} & set(chosen), chosen)
         self.assertIn("pose", chosen)   # 書かれていない項目は足す
