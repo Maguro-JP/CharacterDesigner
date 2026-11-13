@@ -46,7 +46,6 @@ class NegativeTest(unittest.TestCase):
         with mock.patch.dict(sys.modules, {"torch": types.SimpleNamespace(Generator=lambda d: gen)}):
             a = prompt_args(image_model("cagliostrolab/animagine-xl-4.0"), family("sdxl"), "1girl, red ball", "hat", 24, 5.0, 1, Pipe())
         self.assertEqual(a["negative_prompt"], "hat")   # 崩れの打ち消しを勝手に足さない
-        self.assertIn(", hat, ", a["negative_prompt"])   # 利用者の打ち消しは先に残す
 
 
 class TagRulesTest(unittest.TestCase):
