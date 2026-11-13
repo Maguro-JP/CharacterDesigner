@@ -1222,10 +1222,13 @@ class FixAndBatchTest(unittest.TestCase):
         self.assertEqual(len(fixes), 2)                               # 印ごとに 1 回ずつ直す
         self.assertEqual(len(self.w.canvas.layers), layers + 1)      # 直した所は新しいレイヤー
         self.assertEqual(self.w.canvas.redpen.marks, [])             # 直したら印は消える
-        layer = Image.open(self.w.images[-1])
-        self.assertEqual(layer.size, (200, 160))                      # 絵と同じ大きさで重ね、
-        self.assertEqual(layer.getpixel((5, 150))[3], 0)              # 直していない所は透かす（下のレイヤーを隠さない）
-        self.assertEqual(layer.getpixel((50, 50))[3], 255)
+        self.assertEqual(self.w.images, [])                           # 直しは描いた絵の履歴に載せない
+        top = self.w.canvas.layers[self.w.canvas.current]
+        self.assertIs(top, self.w.canvas.layers[-1])                  # 一番上を選ぶ
+        layer = top.image
+        self.assertEqual((layer.width(), layer.height()), (200, 160)) # 絵と同じ大きさで重ね、
+        self.assertEqual(layer.pixelColor(5, 150).alpha(), 0)         # 直していない所は透かす（下のレイヤーを隠さない）
+        self.assertEqual(layer.pixelColor(50, 50).alpha(), 255)
 
     def test_fix_without_marks_draws_new(self):
         """直す所が無いのに「直す」のままの頼みは、止めずに新しく描く（赤ペンに引っ張られ続けないように）"""
@@ -1344,7 +1347,7 @@ class FixAndBatchTest(unittest.TestCase):
         ghost = Image.blend(img, erased, 0.55)                          # 元の形が薄く透ける
         self.assertIn("元の形が薄く残る", " ".join(flaws(img, Image.composite(ghost, img, m), m)))
 
-    def test_fix_with_flaws_is_hidden_and_reported(self):
+    def test_fix_with_flaws_is_shown_and_reported(self):
         from PIL import Image
         from chatdraw.engine import erase
 
@@ -1367,8 +1370,9 @@ class FixAndBatchTest(unittest.TestCase):
         wait_idle(self.app, self.w)
         top = self.w.canvas.layers[self.w.canvas.current]
         self.assertIn("崩れあり", top.name)
-        self.assertFalse(top.visible)                                  # 崩れた直しは見えなくして重ねる（元の絵を壊さない）
+        self.assertTrue(top.visible)                                   # 崩れがあっても隠さず一番上に見せ、判断は利用者に渡す
         self.assertTrue(self.w.studio.last_flaws)
+        self.assertEqual(len([c for c in self.w.studio.painter.calls if c[0] == "redraw"]), 1)   # 直し続けない
 
     def test_redraw_keeps_picture_outside_marks(self):
         """直すのは囲んだ所の中だけ。絵全体を 1.5 倍に広げて描かせ、元の大きさに戻し、外の画素は 1 つも変えない"""

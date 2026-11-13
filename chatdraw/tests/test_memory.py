@@ -144,7 +144,7 @@ class AppSurvivesTest(unittest.TestCase):
         self.assertIsNone(w.thread)
         self.assertEqual(len(w.images), 0)
         self.assertTrue(w.button.isEnabled(), "落ちたあとに次の操作ができない")
-        failed = [x for x in w.told if x and x[0] == "描けませんでした"]
+        failed = [x for x in w.told if x and "メモリが足りず" in str(x[0])]   # 何が起きたかを 1 行で出す
         self.assertTrue(failed, w.told)
         self.assertIn("メモリが足りず", " ".join(map(str, failed[0])))
         w.dirty = False
