@@ -40,8 +40,7 @@ class NegativeTest(unittest.TestCase):
                          guidance_rescale=None, generator=None):
                 pass
         a = prompt_args(image_model("cagliostrolab/animagine-xl-4.0"), family("sdxl"), "1girl, red ball", "hat", 24, 5.0, 1, Pipe())
-        self.assertIn("extra arms", a["negative_prompt"])
-        self.assertIn("eyes on objects", a["negative_prompt"])
+        self.assertEqual(a["negative_prompt"], "hat")   # 崩れの打ち消しを勝手に足さない
         self.assertIn("yellow eyes", a["negative_prompt"])
         self.assertIn(", hat, ", a["negative_prompt"])   # 利用者の打ち消しは先に残す
 

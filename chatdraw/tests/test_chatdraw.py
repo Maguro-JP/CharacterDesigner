@@ -925,13 +925,12 @@ class VpredModelTest(unittest.TestCase):
                          guidance_rescale=None, generator=None):
                 pass
         a = prompt_args(m, family("sdxl"), "1girl, waving", "hat", 28, 5.0, 1, Pipe())
-        self.assertEqual(a["prompt"].count("masterpiece"), 1)
+        self.assertEqual(a["prompt"], "1girl, waving")   # 質のタグも決まり文句も足さない
         self.assertEqual(a["guidance_rescale"], 0.7)
-        self.assertTrue(a["negative_prompt"].startswith("nsfw, worst quality") and ", hat, " in a["negative_prompt"])
-        self.assertIn("mature female", a["negative_prompt"])   # 女性は利用者の基準の体で描く（chatdraw/body.py）
+        self.assertEqual(a["negative_prompt"], "hat")   # 打ち消しはユーザーの禁止ワードだけ
         old = prompt_args(image_model("cagliostrolab/animagine-xl-4.0"), family("sdxl"), "1girl", "", 24, 5.0, 1, Pipe())
         self.assertNotIn("guidance_rescale", old)
-        self.assertTrue(old["prompt"].endswith("masterpiece, high score, great score, absurdres"))   # Animagine 4.0 の札の質のタグ
+        self.assertEqual(old["prompt"], "1girl")   # 札の質のタグも足さない
 
     def test_scheduler_switches_to_vpred(self):
         import types
@@ -2638,7 +2637,8 @@ class LoadOptionsTest(unittest.TestCase):
             f = family(info.family)
             a = prompt_args(info, f, "a girl", "", info.steps, info.guidance, 1, pipe)
             self.assertIn(cfg, a, repo)
-            self.assertEqual("negative_prompt" in a, neg, repo)
+            self.assertNotIn("negative_prompt", a, repo)   # 禁止ワードが空なら打ち消しを渡さない（勝手に足さない）
+            self.assertEqual(a["prompt"], "a girl", repo)
             if not f.tags:
                 self.assertNotIn("masterpiece", a["prompt"], repo)   # 文で頼む世代に質のタグを足さない
         a = prompt_args(image_model("black-forest-labs/FLUX.1-schnell"), family("flux1"), "x", "", 4, 0, 1, pipe)

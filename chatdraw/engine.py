@@ -266,12 +266,7 @@ QUALITY = "masterpiece, best quality"   # タグで頼む世代の、札に指�
 def quality_tags(info, f) -> str:
     """頼みの後ろに足す質のタグ。模型の札に指定があればそれ（Animagine 4.0 は high score, great score）。
     頭の決まり文句（prefix）に質のタグが入っている模型と、文で頼む世代には足さない"""
-    q = getattr(info, "quality", None)
-    if q is not None:
-        return q
-    if not f.tags or "masterpiece" in getattr(info, "prefix", ""):
-        return ""
-    return QUALITY
+    return ""   # 頼んでいない言葉を足さない（質のタグも足さない）
 
 
 def clip_skip_arg(info, family_name: str) -> int | None:
@@ -308,21 +303,18 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
     suffix = quality_tags(info, f)
     tokenizer = getattr(pipe, "tokenizer", None)
     if f.tags and tokenizer is not None and getattr(pipe, "text_encoder", None) is not None and info.family in ("sdxl", "sd15"):
-        text = fit_tokens(tokenizer, info.prefix, prompt, suffix)
+        text = fit_tokens(tokenizer, "", prompt, suffix)
     else:
-        text = f"{info.prefix}{prompt}" + (f", {suffix}" if suffix else "")
+        text = prompt   # 頭の決まり文句も質のタグも足さず、頼みのまま渡す
     args = {"prompt": text, "num_inference_steps": steps, f.cfg_key: guidance,
             # 種は CPU の乱数で作る。部品を GPU に出し入れする置き方（offload）では pipe.device が meta や cpu になり、
             # その device の乱数を作ると落ちた。CPU の乱数なら、どの置き方でも同じ種で同じ絵になる
             "generator": torch.Generator("cpu").manual_seed(seed), **f.extra, **dict(getattr(info, "call", ()) or ())}
     if f.negative:
         # 余分な腕・脚・頭・体、顔の外の目、物理的にあり得ない形と、頼んでいない黄色い目は、どの頼みでも打ち消す（chatdraw/sanity.py）
-        from chatdraw.sanity import negative as sane_negative
-        avoid = ", ".join(a for a in (avoid, sane_negative(prompt)) if a)
-        if woman(prompt):   # 女性は利用者の基準の体で描く（年配の太った体にしない。chatdraw/body.py）
-            from chatdraw.body import NEGATIVE as BODY_NEGATIVE
-            avoid = ", ".join(a for a in (avoid, BODY_NEGATIVE) if a)
-        args["negative_prompt"] = negative_for(info, avoid)
+        # 打ち消しはユーザーが書いた禁止ワードだけ。崩れ・体・質の打ち消しを勝手に足さない
+        if avoid:
+            args["negative_prompt"] = negative_for(info, avoid)
     if getattr(info, "rescale", 0.0):
         args["guidance_rescale"] = info.rescale
     skip = clip_skip_arg(info, info.family)
@@ -340,9 +332,7 @@ def woman(prompt: str) -> bool:
 
 def negative_for(info, avoid: str = "") -> str:
     """描かない物。模型の札に推奨があればそれを使う（模型ごとに学んだ質の言葉が違う）"""
-    base = getattr(info, "negative", "") or "lowres, worst quality, low quality"
-    avoid = english_only(avoid or "")
-    return base + (f", {avoid}" if avoid else "")
+    return english_only(avoid or "")   # ユーザーが書いた禁止ワードだけ。模型の推奨の打ち消しも足さない
 
 
 def use_vpred(pipe, info) -> bool:
@@ -1295,7 +1285,7 @@ class Painter:
                     self._sketch = StableDiffusionXLAdapterPipeline(**parts, adapter=adapter.to(pipe.device))
             w, h = size
             sketch = sketch_lines(base, (w, h))
-            args["negative_prompt"] = args.get("negative_prompt", negative_for(info, self.avoid)) + ", sketch, lineart, monochrome"
+            pass   # ラフの線を描かせない打ち消しも、頼んでいないので足さない
             total = steps
             args.pop("callback_on_step_end", None)
 
@@ -1348,7 +1338,7 @@ class Painter:
         # 直す工程が少なくとも 1 つ残る数まで増やす
         steps = max(self.steps, math.ceil(1 / strength)) if strength > 0 else self.steps
         # 描くときと同じ札の頼み方（質のタグ、CLIP の長さ、CLIP skip）で直す。直しだけ別の頼み方にすると、絵柄がずれた
-        args = dict(prompt=fit_tokens(getattr(pipe, "tokenizer", None), info.prefix, english_only(prompt), quality_tags(info, fam(info.family))),
+        args = dict(prompt=fit_tokens(getattr(pipe, "tokenizer", None), "", english_only(prompt), ""),
                     negative_prompt=negative_for(info, self.avoid),
                     num_inference_steps=steps, guidance_scale=self.guidance, strength=strength,
                     generator=torch.Generator("cpu").manual_seed(seed))
@@ -1471,6 +1461,7 @@ def vary_background(prompt: str, seed: int, tags: bool = True, text: str = "") -
 def emphasize(prompt: str, missing: list[str]) -> str:
     """頼んだのに描かれなかったタグを、描く言葉の前に出す。模型は前の言葉ほど強く効かせるので、
     後ろに埋もれた頼み（持ち物、服の色）は種を変えても描かれないままだった。人数のタグ（1girl, solo）は先頭に残す"""
+    return prompt   # 頼みの並びも変えない
     items = [t.strip() for t in prompt.split(",") if t.strip()]
     want = {m.strip().lower() for m in missing}
     lead = [t for t in items if t.lower() in ("1girl", "1boy", "1other", "solo")]

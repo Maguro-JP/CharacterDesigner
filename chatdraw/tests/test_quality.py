@@ -58,8 +58,7 @@ class Background(unittest.TestCase):
 class Emphasize(unittest.TestCase):
     def test_missing_moves_forward_after_people(self):
         p = "1girl, solo, smile, red dress, holding umbrella"
-        self.assertEqual(engine.emphasize(p, ["holding umbrella", "red dress"]),
-                         "1girl, solo, red dress, holding umbrella, smile")
+        self.assertEqual(engine.emphasize(p, ["holding umbrella", "red dress"]), p)   # 頼みの並びを変えない
 
     def test_nothing_missing(self):
         self.assertEqual(engine.emphasize("1girl, smile", []), "1girl, smile")
@@ -139,7 +138,7 @@ class AskedComesFirst(unittest.TestCase):
         self.assertEqual(len(painter.prompts), 2)
         first, second = painter.prompts[0][0], painter.prompts[1][0]
         self.assertEqual(first, "1girl, solo, smile, holding umbrella")   # 頼みをそのまま渡す
-        self.assertTrue(second.startswith("1girl, solo, holding umbrella, smile"), second)
+        self.assertEqual(second, "1girl, solo, smile, holding umbrella")   # 頼みの並びを変えない
         self.assertNotEqual(painter.prompts[0][1], painter.prompts[1][1])
 
 
@@ -166,7 +165,7 @@ class TwoStageRedraws(unittest.TestCase):
             meta = finishers.sidecar(saved)
         self.assertEqual(len(calls), 2)
         self.assertEqual([c[2] for c in calls], [10, 1010])
-        self.assertTrue(calls[1][1].startswith("1girl, red dress, smile"), calls[1][1])
+        self.assertEqual(calls[1][1], "1girl, smile, red dress")   # 頼みの並びを変えない
         self.assertTrue(meta["passed"])
         self.assertEqual(len(meta["redraws"]), 2)
 

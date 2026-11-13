@@ -6,8 +6,6 @@
 """
 from __future__ import annotations
 
-TAGS = ("adult woman, slender body, soft body, toned, slim waist, wide hips, slender legs, medium breasts, cleavage, "
-        "long legs, healthy")
-NEGATIVE = ("logo, brand logo, emblem, text on clothes, see-through, abs, muscular, six pack, micro bikini, thick thighs, "
-            "mature female, old woman, plump, fat, chubby, huge breasts, gigantic breasts")
+TAGS = "adult woman"   # 「女性」の訳だけ。体つきの言葉は足さない
+NEGATIVE = ""   # 体の打ち消しも足さない
 WOMAN = "1girl, solo, " + TAGS
