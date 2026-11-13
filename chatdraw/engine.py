@@ -124,7 +124,7 @@ def memory_retry(painter, run, say=None):
         return run()
     except Exception as e:
         if is_oom(e):
-            raise MemoryError("メモリが足りず、少ないメモリの設定でも描けませんでした。ほかのアプリを閉じるか、"
+            raise MemoryError("メモリが足りず、少ないメモリの設定でも足りませんでした。ほかのアプリを閉じるか、"
                               "小さい模型（SDXL 系）に替えるか、描く大きさを小さくしてください") from None
         raise
 
@@ -1916,20 +1916,11 @@ class Studio:
                 raise ValueError("子どもを性的に描く頼みは描きません")
             say("絵の模型を読んでいます（初めの 1 回だけ時間がかかります）")
             before = result
-            # 直しきる: 直す → 確かめる、を崩れが見つからなくなるまで、強さと種を変えて繰り返す（4 回まで）。
-            # 毎回、元の絵から直す（崩れた直しの上に重ねない）。見つからなければそこで止め、残れば崩れの少ない物を使う
-            best, best_flaws = None, None
-            tries = [(strength, 0), (min(0.95, strength + 0.15), 1), (min(0.95, strength + 0.3), 2), (min(0.95, strength + 0.15), 3)]
-            for n_try, (s_try, seed_shift) in enumerate(tries, 1):
-                out = self._fix_once(before, mask, prompt, seed + k + 1000 * seed_shift, s_try, k, len(regions), say,
-                                     reference, ref_scale)
-                found = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, out, mask)] if check else []
-                say(f"確かめました（{k} か所目・{n_try} 回目・崩れ {len(found)} 件）")
-                if best is None or len(found) < len(best_flaws):
-                    best, best_flaws = out, found
-                if not found:
-                    break
-            result = best
+            # 直しは 1 回で終える。検品が通るまで直し続ける繰り返しは、描けなくなる（終わらない）ので繋げない。
+            # 見つけた崩れは知らせるだけで、直すかどうかは利用者が決める（もう一度囲んで直せる）
+            result = self._fix_once(before, mask, prompt, seed + k, strength, k, len(regions), say, reference, ref_scale)
+            best_flaws = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, result, mask)] if check else []
+            say(f"確かめました（{k} か所目・崩れ {len(best_flaws)} 件）")
             prompts.append(prompt)
             self.last_flaws += best_flaws
         if self.last_flaws:
