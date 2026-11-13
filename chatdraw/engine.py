@@ -312,9 +312,9 @@ def prompt_args(info, f, prompt: str, avoid: str, steps: int, guidance: float, s
             "generator": torch.Generator("cpu").manual_seed(seed), **f.extra, **dict(getattr(info, "call", ()) or ())}
     if f.negative:
         # 余分な腕・脚・頭・体、顔の外の目、物理的にあり得ない形と、頼んでいない黄色い目は、どの頼みでも打ち消す（chatdraw/sanity.py）
-        # 打ち消しはユーザーが書いた禁止ワードだけ。崩れ・体・質の打ち消しを勝手に足さない
-        if avoid:
-            args["negative_prompt"] = negative_for(info, avoid)
+        # 打ち消しはユーザーが書いた禁止ワードだけ。崩れ・体・質の打ち消しを勝手に足さない。
+        # 空でも渡す（Qwen-Image などは打ち消しが渡らないと頼みの効き true_cfg_scale を使わない）
+        args["negative_prompt"] = negative_for(info, avoid)
     if getattr(info, "rescale", 0.0):
         args["guidance_rescale"] = info.rescale
     skip = clip_skip_arg(info, info.family)

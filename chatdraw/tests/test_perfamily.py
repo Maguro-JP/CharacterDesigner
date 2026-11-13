@@ -49,28 +49,14 @@ def args_for(repo, prompt="1girl, waving", pipe=None, file=""):
 
 
 class CardPromptTest(unittest.TestCase):
-    def test_animagine4_uses_card_quality_and_negative(self):
-        for file in ("", "animagine-xl-4.0-opt.safetensors"):
-            info, a = args_for("cagliostrolab/animagine-xl-4.0", file=file)
-            self.assertTrue(a["prompt"].startswith("1girl, waving") and a["prompt"].endswith("masterpiece, high score, great score, absurdres"))
-            self.assertTrue(a["negative_prompt"].startswith("lowres, bad anatomy, bad hands"))
-            self.assertIn("low score", a["negative_prompt"])
-            self.assertEqual((info.steps, info.guidance), (28, 5.0))
-
-    def test_animagine3_prefix_without_double_quality(self):
-        for repo, head in (("cagliostrolab/animagine-xl-3.1", "masterpiece, best quality, very aesthetic, absurdres, "),
-                           ("cagliostrolab/animagine-xl-3.0", "masterpiece, best quality, ")):
+    def test_card_words_are_not_added(self):
+        # 模型の札の質のタグ・決まり文句・打ち消しを足さない。頼みのまま渡す
+        for repo in ("cagliostrolab/animagine-xl-4.0", "cagliostrolab/animagine-xl-3.1", "Laxhar/noobai-XL-1.1"):
             info, a = args_for(repo)
-            self.assertTrue(a["prompt"].startswith(head), repo)
-            self.assertEqual(a["prompt"].count("masterpiece"), 1, repo)
-            self.assertEqual((info.steps, info.guidance), (28, 7.0), repo)
-            self.assertNotIn("(", a["negative_prompt"])   # diffusers は A1111 の重み付けの括弧を読まない
-
-    def test_noobai_eps_uses_card_prefix(self):
-        info, a = args_for("Laxhar/noobai-XL-1.1")
-        self.assertTrue(a["prompt"].startswith("masterpiece, best quality, newest, absurdres, highres, safe, 1girl"))
-        self.assertTrue(a["negative_prompt"].startswith("nsfw, worst quality, old, early"))
-        self.assertEqual(a["prompt"].count("masterpiece"), 1)
+            self.assertEqual(a["prompt"], "1girl, waving", repo)
+            self.assertEqual(a["negative_prompt"], "", repo)
+        info, _a = args_for("cagliostrolab/animagine-xl-4.0")
+        self.assertEqual((info.steps, info.guidance), (28, 5.0))
 
     def test_no_double_quality_anywhere(self):
         from chatdraw.models import catalog_images
@@ -81,13 +67,11 @@ class CardPromptTest(unittest.TestCase):
             self.assertLessEqual(a["prompt"].count("masterpiece"), 1, m.repo)
             self.assertLessEqual(a["prompt"].count("best quality"), 1, m.repo)
 
-    def test_photoreal_and_pony_get_no_anime_quality_tags(self):
+    def test_photoreal_and_pony_get_no_quality_tags(self):
         for repo in ("RunDiffusion/Juggernaut-XL-v9", "SG161222/RealVisXL_V5.0", "playgroundai/playground-v2.5-1024px-aesthetic",
                      "stabilityai/stable-diffusion-xl-base-1.0", "Runware/Pony_Diffusion_V6_XL", "Lykon/dreamshaper-xl-lightning"):
             _info, a = args_for(repo)
-            self.assertNotIn("masterpiece", a["prompt"], repo)
-        _info, a = args_for("Runware/Pony_Diffusion_V6_XL")
-        self.assertTrue(a["prompt"].startswith("score_9, score_8_up, score_7_up, "))
+            self.assertEqual(a["prompt"], "1girl, waving", repo)
 
     def test_steps_and_cfg_follow_cards(self):
         from chatdraw.models import image_model
@@ -115,9 +99,9 @@ class CardPromptTest(unittest.TestCase):
 
     def test_new_families_use_card_negative(self):
         _info, a = args_for("lodestones/Chroma1-HD", "a girl")
-        self.assertTrue(a["negative_prompt"].startswith("low quality, ugly, unfinished"))
+        self.assertEqual(a["negative_prompt"], "")
         _info, a = args_for("Qwen/Qwen-Image-2512", "a girl")
-        self.assertIn("deformed fingers", a["negative_prompt"])
+        self.assertEqual(a["negative_prompt"], "")   # 空でも渡すので true_cfg_scale が効く
         self.assertIn("true_cfg_scale", a)
 
     def test_card_words_have_no_cjk(self):

@@ -2637,7 +2637,7 @@ class LoadOptionsTest(unittest.TestCase):
             f = family(info.family)
             a = prompt_args(info, f, "a girl", "", info.steps, info.guidance, 1, pipe)
             self.assertIn(cfg, a, repo)
-            self.assertNotIn("negative_prompt", a, repo)   # 禁止ワードが空なら打ち消しを渡さない（勝手に足さない）
+            self.assertEqual(a.get("negative_prompt", ""), "", repo)   # 禁止ワードが空なら打ち消しも空（勝手に足さない）
             self.assertEqual(a["prompt"], "a girl", repo)
             if not f.tags:
                 self.assertNotIn("masterpiece", a["prompt"], repo)   # 文で頼む世代に質のタグを足さない
