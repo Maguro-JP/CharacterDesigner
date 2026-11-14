@@ -3462,7 +3462,8 @@ class Window(QMainWindow):
             return
         self.entry.setText(meta.get("text", ""))
         self.ai_panel.seed.setValue(int(meta.get("seed", 0)))
-        self.ai_panel.seed_lock.setChecked(True)
+        # 頼み直しの種は次の 1 回だけ使う。種を固定のままにすると、そのあと何を頼んでも同じ絵になった
+        self.ai_panel.next_seed = int(meta.get("seed", 0))
         self.ai_panel.set_style(meta.get("style_name", "おまかせ"))
         self.ai_panel.set_count(1)
         if meta.get("mode") in ("新規", "ラフから"):

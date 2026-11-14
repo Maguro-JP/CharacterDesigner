@@ -352,7 +352,12 @@ class AiPanel(QWidget):
     def seeds(self) -> list[int]:
         """描く種の並び。固定なら欄の種から、外していれば新しい種から、枚数分を続けて使う"""
         import random
-        first = self.seed.value() if self.seed_lock.isChecked() else random.randrange(0, 2_000_000_000)
+        once = getattr(self, "next_seed", None)
+        self.next_seed = None
+        if once is not None:   # 履歴から頼み直したときの種は、次の 1 回だけ使う
+            first = once
+        else:
+            first = self.seed.value() if self.seed_lock.isChecked() else random.randrange(0, 2_000_000_000)
         return [first + i for i in range(self.count())]
 
     def reference(self):

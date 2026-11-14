@@ -6,6 +6,6 @@
 """
 from __future__ import annotations
 
-TAGS = "adult woman"   # 「女性」の訳だけ。体つきの言葉は足さない
+TAGS = ""   # 年齢や体つきの言葉は足さない（足すと、いつも同じ年上の女性の顔と体で描かれた）
 NEGATIVE = ""   # 体の打ち消しも足さない
-WOMAN = "1girl, solo, " + TAGS
+WOMAN = "1girl, solo"
