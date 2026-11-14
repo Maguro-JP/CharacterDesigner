@@ -45,6 +45,12 @@ class ActivityPanel(QWidget):
             lb.setObjectName("step")
             self.step_labels.append(lb)
             self.steps.addWidget(lb)
+        # 担当編集者の工程と状態（chatdraw/director.py の「担当編集者: 〜」の知らせ）。どの工程で何回目かを出す
+        self.editor = QLabel("")
+        self.editor.setObjectName("stateDetail")
+        self.editor.setWordWrap(True)
+        self.editor.setToolTip("担当編集者が進めている工程と、検品で見つけたこと")
+        self.editor_log: list[str] = []
         self.bar = QProgressBar()
         self.bar.setTextVisible(False)
         self.bar.setFixedHeight(10)
@@ -81,6 +87,7 @@ class ActivityPanel(QWidget):
         top.addLayout(self.steps)
         top.addWidget(self.bar)
         top.addWidget(self.detail)
+        top.addWidget(self.editor)
         top.addWidget(self.alive)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 6, 8, 8)
@@ -136,10 +143,16 @@ class ActivityPanel(QWidget):
         self.last_step = time.time()
         self.tick.start()
         self._show_time()
+        self.editor_log = []
+        self.editor.setText("")
         self.begun.emit()
         self.changed.emit(f"{mode}: 準備中", -1)
 
     def status(self, msg: str, step: int | None = None, total: int | None = None):
+        if msg.startswith("担当編集者:"):
+            self.editor_log.append(msg)
+            self.editor.setText(msg)
+            self.editor.setToolTip("\n".join(self.editor_log[-12:]))
         for i, (_short, head) in enumerate(STAGES):
             if msg.startswith(head) and i != self.stage:
                 self._mark(i)
