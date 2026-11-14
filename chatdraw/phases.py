@@ -1,4 +1,4 @@
-"""人の描き方の工程に分けて描く（構図 → 線画 → 塗り → 仕上げ）。工程の調べは docs/knowledge/drawing-phases.md。
+"""人の描き方の工程に分けて描く（構図 → 体型と姿勢 → 線画 → 塗り → 仕上げ）。工程の調べは docs/knowledge/drawing-phases.md。
 
 人は 1 回で描き上げず、アタリ・ラフで構図を決めて見直し、下描き・線画で形を決めて見直し、塗りで色を決めて見直し、
 最後に全体を見直して仕上げる。前の工程で決めた物は次の工程で動かさないので、見直す物が工程ごとに少なく済む。
@@ -20,7 +20,8 @@ from pathlib import Path
 
 # 工程の名前、決める物、検品で確かめる物。描き方は draw() の中で工程ごとに分ける
 PHASES = [
-    ("構図", "人数・姿勢・配置（アタリとラフ）", "人数、余分な腕・脚・頭、頼んだ物が描かれているか"),
+    ("構図", "人数・配置（アタリとラフ）", "人数、頼んだ物が描かれているか"),
+    ("体型と姿勢", "骨組み（体の 17 点）と体の比率", "骨組みが読めるか、腕・脚の骨の長さの比、余分な腕・脚・頭"),
     ("線画", "形（顔・手・指・足の形）", "手と指の数と形、足、顔"),
     ("塗り", "色と頼んだ物", "頼んだ色と物が描かれているか、頼んでいない物"),
     ("仕上げ", "全体の崩れ", "手・足・顔と体の崩れの全部"),
@@ -43,6 +44,26 @@ class Checks:
     def body(image, prompt, tags=None):
         from chatdraw import sanity
         return sanity.check(image, prompt, tags=tags)
+
+    @staticmethod
+    def pose(image):
+        """ラフから骨組み（VitPose の体の 17 点）を読み、骨の比を測る。map は骨組みを重ねた絵（工程の絵に残す）"""
+        try:
+            from chatdraw import sanity, twostage
+            kp = twostage.keypoints(image)
+            skel, _n = twostage.pose_map(image)
+        except Exception as e:   # noqa: BLE001  骨組みの部品が無い。見ていない物を通ったことにしない
+            return {"readable": False, "bad": [], "reason": f"骨組みを読めません（{e}）"}
+        bad = []
+        if len(kp) < 10:
+            bad.append(f"骨組みが読めない（体の点 {len(kp)}/17）")
+        for chain in sanity.ARM_CHAINS + sanity.LEG_CHAINS:
+            r = sanity.bone_ratio(kp, chain)
+            if r is not None and (r > sanity.BONE_MOST or r < 1 / sanity.BONE_MOST):
+                bad.append(f"骨の長さの比が外れている（{chain[1]} {r}）")
+        from PIL import Image
+        over = Image.blend(image.convert("RGB"), skel.convert("RGB").resize(image.size), 0.45)
+        return {"readable": True, "bad": bad, "map": over, "points": len(kp)}
 
     @staticmethod
     def hands(image, prompt):
@@ -87,7 +108,7 @@ def _mask(image, regions):
 
 
 def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, on_step=None, checks=Checks) -> dict:
-    """4 つの工程で 1 枚を描く。返り値は {"image": 最後の絵, "phases": 工程ごとの記録, "left": 残った崩れ, "checked": 検品できたか}。
+    """5 つの工程で 1 枚を描く。返り値は {"image": 最後の絵, "phases": 工程ごとの記録, "left": 残った崩れ, "checked": 検品できたか}。
     工程ごとに描くのは 1 回、直すのは崩れが見つかったときに 1 回だけ。どの工程も必ず終わる"""
     from chatdraw.engine import Stopped, emphasize
     from chatdraw import handcheck
@@ -101,7 +122,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
 
     def record(i, image, found, fixed, after, words, t0, note=""):
         name = PHASES[i][0]
-        path = keep / f"{i + 1}-{name}.png"
+        path = keep / f"{i + 1:02d}-{name}.png"   # 順の分かる名前（タイムラプスがこの順につなぐ）
         image.save(path)
         row = {"phase": name, "decides": PHASES[i][1], "checks": PHASES[i][2], "image": str(path), "found": found,
                "fixed": fixed, "after": after, "words": words, "seconds": round(time.time() - t0, 1)}
@@ -135,33 +156,66 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         if isinstance(steps0, int):
             painter.steps = max(4, int(steps0 * ROUGH_STEPS))
         image = painter.paint(prompt, seed, on_step=on_step, size=size)
-        req, body = checks.request(image, prompt), checks.body(image, prompt)
-        found = _composition_flaws(req, body)
+        req = checks.request(image, prompt)
+        found = _composition_flaws(req, {})
         fixed, after, words = False, [], [prompt]
         if found:   # 構図の崩れは枠では直せないので、種を変えて構図だけを 1 回描き直し、崩れの少ない方を使う
             stop()
             say("構図の崩れを直すため、種を変えて構図を 1 回だけ描き直しています")
             words.append(prompt)
             again = painter.paint(prompt, seed + 1, on_step=on_step, size=size)
-            req2, body2 = checks.request(again, prompt), checks.body(again, prompt)
-            after = _composition_flaws(req2, body2)
+            req2 = checks.request(again, prompt)
+            after = _composition_flaws(req2, {})
             fixed = True
             if len(after) < len(found):
-                image, req, body = again, req2, body2
+                image, req = again, req2
             else:
                 after = found
     finally:
         if isinstance(steps0, int):
             painter.steps = steps0
-    checked = checked and bool(req.get("readable")) and bool(body.get("readable"))
+    checked = checked and bool(req.get("readable"))
     record(0, image, found, fixed, after, words, t0)
 
-    # 2. 線画: 構図の線に沿って、形を描き込む。手・指・足・顔の崩れは枠の中だけを 1 回直す
+    # 2. 体型と姿勢: ラフから骨組みを読み、骨の比と余分な腕・脚・頭を確かめる。崩れていれば、骨組みが決まるまで
+    # 描き直すのではなく、種を変えたラフを 1 回だけ描いて崩れの少ない方を線画の土台にする
+    stop()
+    t0 = time.time()
+    words, note = [], ""
+
+    def pose_flaws(img):
+        pz, bd = checks.pose(img), checks.body(img, prompt)
+        return pz, bd, (list(pz.get("bad", [])) if pz.get("readable") else []) + (list(bd.get("bad", [])) if bd.get("readable") else [])
+    pz, body, found = pose_flaws(image)
+    fixed, after = False, []
+    if found:
+        stop()
+        say("体型と姿勢の崩れを直すため、種を変えたラフを 1 回だけ描いています。渡す言葉: " + prompt)
+        words.append(prompt)
+        if isinstance(steps0, int):
+            painter.steps = max(4, int(steps0 * ROUGH_STEPS))
+        try:
+            again = painter.paint(prompt, seed + 2, on_step=on_step, size=size)
+        finally:
+            if isinstance(steps0, int):
+                painter.steps = steps0
+        pz2, body2, after = pose_flaws(again)
+        fixed = True
+        if len(after) < len(found):
+            image, pz, body = again, pz2, body2
+        else:
+            after = found
+    if not pz.get("readable"):
+        note = pz.get("reason", "骨組みを読めませんでした")
+    checked = checked and bool(pz.get("readable")) and bool(body.get("readable"))
+    record(1, pz.get("map") or image, found, fixed, after, words, t0, note)
+
+    # 3. 線画: 体型と姿勢を決めたラフの線に沿って描く。 構図の線に沿って、形を描き込む。手・指・足・顔の崩れは枠の中だけを 1 回直す
     stop()
     t0 = time.time()
     words, note = [], ""
     if can_line:
-        say(f"工程 2/{len(PHASES)}「線画」を描いています（構図の線に沿う）。渡す言葉: {prompt}")
+        say(f"工程 3/{len(PHASES)}「線画」を描いています（構図の線に沿う）。渡す言葉: {prompt}")
         words.append(prompt)
         image = painter.paint(prompt, seed, on_step=on_step, base=image, strength=LINE_STRENGTH, size=size)
     else:
@@ -172,9 +226,9 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
     image, res2, fixed = fix_regions(image, res, seed + 77, words)
     after = list(res2.get("bad", []))
     checked = checked and bool(res.get("readable"))
-    record(1, image, found, fixed, after, words, t0, note)
+    record(2, image, found, fixed, after, words, t0, note)
 
-    # 3. 塗り: 頼んだ色と物を確かめる。描かれていない物があれば、形を残す弱さで 1 回だけ描き直す
+    # 4. 塗り: 頼んだ色と物を確かめる。描かれていない物があれば、形を残す弱さで 1 回だけ描き直す
     stop()
     t0 = time.time()
     words, note = [], ""
@@ -199,9 +253,9 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             say("描き足しで崩れが増えたので、前の絵を次の工程に渡します")
     elif missing:
         note = "この模型は描き直しができないので、描かれていない物を直さずに次へ進みました"
-    record(2, image, found, fixed, after, words, t0, note)
+    record(3, image, found, fixed, after, words, t0, note)
 
-    # 4. 仕上げ: 全体の崩れ（手・足・顔と体）を見直し、手・足・顔は 1 回だけ直す。最後の検品の結果を残った崩れにする
+    # 5. 仕上げ: 全体の崩れ（手・足・顔と体）を見直し、手・足・顔は 1 回だけ直す。最後の検品の結果を残った崩れにする
     stop()
     t0 = time.time()
     words = []
@@ -211,7 +265,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
     image, res2, fixed = fix_regions(image, res, seed + 191, words)
     after = list(res2.get("bad", [])) + (list(body.get("bad", [])) if body.get("readable") else [])
     checked = checked and bool(res.get("readable")) and bool(body.get("readable"))
-    record(3, image, found, fixed, after, words, t0)
+    record(4, image, found, fixed, after, words, t0)
     left = rows[-1]["after"] if rows[-1]["fixed"] else rows[-1]["found"]
     (keep / "phases.json").write_text(json.dumps({"phases": rows, "left": left, "checked": checked}, ensure_ascii=False, indent=1),
                                       encoding="utf-8")

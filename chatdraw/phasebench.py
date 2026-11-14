@@ -49,7 +49,12 @@ def run(out: Path):
     steps = int(os.environ.get("BENCH_STEPS", "20"))
     w, h = (int(x) for x in os.environ.get("BENCH_SIZE", "832x1216").split("x"))
     ways = os.environ.get("BENCH_WAYS", "one,phases").split(",")
-    for fetch in (lambda: requestcheck._tagger(True), lambda: handcheck.ensure_models(True), lambda: handcheck.ensure_feet_model(True)):
+    from huggingface_hub import snapshot_download
+    from chatdraw import twostage
+    from chatdraw.paths import HUB
+    pose_files = dict(twostage.PARTS)[twostage.POSE]
+    for fetch in (lambda: snapshot_download(twostage.POSE, cache_dir=str(HUB), allow_patterns=pose_files),
+                  lambda: requestcheck._tagger(True), lambda: handcheck.ensure_models(True), lambda: handcheck.ensure_feet_model(True)):
         try:
             fetch()   # 検品の部品を先に取る（取らないと検品できず、崩れ 0 と読み違える）
         except Exception as e:   # noqa: BLE001

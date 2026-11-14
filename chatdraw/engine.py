@@ -1482,7 +1482,7 @@ class Studio:
         self.image_auto = False   # おまかせ: 頼みごとに、手元の絵の模型から合う物を選ぶ
         self.words_auto = False   # おまかせ: 頼みごとに、手元の言葉の模型から合う物を選ぶ
         # 描き方。"auto" は、構図の模型・SDXL の模型・2 段の部品がそろっていれば 2 段で描く。"one" は 1 つの模型、"two" は必ず 2 段。
-        # "phases" は 1 つの模型で、構図・線画・塗り・仕上げの工程に分けて描く（chatdraw/phases.py）
+        # "phases" は 1 つの模型で、構図・体型と姿勢・線画・塗り・仕上げの工程に分けて描く（chatdraw/phases.py）
         self.way = "auto"
 
     def draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
@@ -1739,12 +1739,12 @@ class Studio:
     last_phases: list | None = None
 
     def _draw_phases(self, text, seed, style, size, say, on_preview, meta):
-        """構図 → 線画 → 塗り → 仕上げの工程に分けて描く（chatdraw/phases.py）。工程ごとに描く・検品する・1 回だけ直す。
+        """構図 → 体型と姿勢 → 線画 → 塗り → 仕上げの工程に分けて描く（chatdraw/phases.py）。工程ごとに描く・検品する・1 回だけ直す。
         渡す言葉は頼みの訳と作風だけで、背景や構図の言葉は足さない"""
         import time
         from chatdraw import phases
         from chatdraw.models import family as fam, image_model
-        say("工程に分けて描きます（構図 → 線画 → 塗り → 仕上げ）")
+        say("工程に分けて描きます（構図 → 体型と姿勢 → 線画 → 塗り → 仕上げ）")
         say("頼みを描く言葉に直しています")
         as_tags = fam(image_model(getattr(self.painter, "model", "")).family).tags
         prompt = self.words.to_prompt(text, tags=as_tags)

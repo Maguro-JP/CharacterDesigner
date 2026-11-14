@@ -56,6 +56,11 @@ def checks(always_bad: bool):
             return {"readable": True, "bad": ["余分な腕"] if always_bad else [], "avoid": []}
 
         @staticmethod
+        def pose(image):
+            seen["pose"] = seen.get("pose", 0) + 1
+            return {"readable": True, "bad": ["骨の長さの比が外れている"] if always_bad else [], "map": image}
+
+        @staticmethod
         def hands(image, prompt):
             seen["hands"] += 1
             return dict(HAND) if (always_bad or seen["hands"] == 1) else dict(CLEAN_HAND)
@@ -74,13 +79,14 @@ class PhasesTest(unittest.TestCase):
 
     def test_order_and_one_fix_each(self):
         got, painter, seen, said, files = self.run_phases(always_bad=True)
-        self.assertEqual([r["phase"] for r in got["phases"]], ["構図", "線画", "塗り", "仕上げ"])
-        self.assertEqual(files, ["1-構図.png", "2-線画.png", "3-塗り.png", "4-仕上げ.png", "phases.json"])
+        self.assertEqual([r["phase"] for r in got["phases"]], ["構図", "体型と姿勢", "線画", "塗り", "仕上げ"])
+        self.assertEqual(files, ["01-構図.png", "02-体型と姿勢.png", "03-線画.png", "04-塗り.png", "05-仕上げ.png", "phases.json"])
         # 構図: ラフ 1 回 + 種を変えた描き直し 1 回（工程の数は半分）。線画: 線に沿って 1 回。直しは各工程 1 回だけ
         self.assertEqual(painter.log[0], ("paint", 5, 10, False))
         self.assertEqual(painter.log[1], ("paint", 6, 10, False))
-        self.assertEqual(painter.log[2], ("paint", 5, 20, True))
-        self.assertEqual(sum(1 for x in painter.log if x[0] == "paint"), 3)
+        self.assertEqual(painter.log[2], ("paint", 7, 10, False))   # 体型と姿勢: 種を変えたラフ 1 回
+        self.assertEqual(painter.log[3], ("paint", 5, 20, True))    # 線画: ラフの線に沿う
+        self.assertEqual(sum(1 for x in painter.log if x[0] == "paint"), 4)
         self.assertEqual(sum(1 for x in painter.log if x[0] == "redraw"), 3)   # 線画・塗り・仕上げで 1 回ずつ
         self.assertEqual(painter.steps, 20)   # ラフの工程の数を元に戻す
         self.assertTrue(all(r["fixed"] for r in got["phases"]))
@@ -93,7 +99,7 @@ class PhasesTest(unittest.TestCase):
         self.assertTrue(got["checked"])
         # 構図の 1 回目の検品だけが崩れを返す: 構図の描き直し 1 回、線画 1 回。直したあとは崩れが無いので塗り・仕上げは直さない
         self.assertEqual(sum(1 for x in painter.log if x[0] == "paint"), 3)
-        self.assertEqual([r["fixed"] for r in got["phases"]], [True, True, False, False])
+        self.assertEqual([r["fixed"] for r in got["phases"]], [True, False, True, False, False])
 
     def test_no_words_added(self):
         """渡す言葉は頼みの訳と、手・足・顔の直しの言葉だけ"""
@@ -122,7 +128,7 @@ class PhasesTest(unittest.TestCase):
         painter = Painter()
         painter.abilities = (False, False)
         got, painter, *_ = self.run_phases(always_bad=True, painter=painter)
-        self.assertEqual(len(got["phases"]), 4)
+        self.assertEqual(len(got["phases"]), 5)
         self.assertFalse(any(x[0] == "redraw" for x in painter.log))
 
     def test_studio_way_phases(self):
@@ -133,7 +139,7 @@ class PhasesTest(unittest.TestCase):
             prompt, path = s.draw("赤いマフラーの子", 7, lambda m: None)
             self.assertEqual(prompt, "1girl, red scarf")   # 背景や構図の言葉を足さない
             self.assertTrue(path.exists())
-            self.assertEqual([r["phase"] for r in s.last_phases], ["構図", "線画", "塗り", "仕上げ"])
+            self.assertEqual([r["phase"] for r in s.last_phases], ["構図", "体型と姿勢", "線画", "塗り", "仕上げ"])
             s.way = "one"
             s.draw("赤いマフラーの子", 7, lambda m: None)
             self.assertIsNone(s.last_phases)
@@ -150,7 +156,7 @@ class PhaseLayersTest(unittest.TestCase):
             w = Window(Studio(FakeWords(), Painter(), d))
             try:
                 rows = []
-                for i, name in enumerate(["構図", "線画", "塗り", "仕上げ"], 1):
+                for i, name in enumerate(["構図", "体型と姿勢", "線画", "塗り", "仕上げ"], 1):
                     p = d / f"{i}.png"
                     Image.new("RGB", (64, 64), (i * 40, 0, 0)).save(p)
                     rows.append({"phase": name, "image": str(p), "found": ["崩れ"], "fixed": True, "after": [], "seconds": 1.0})
@@ -165,8 +171,8 @@ class PhaseLayersTest(unittest.TestCase):
                 qapp.processEvents()
                 c = w.canvas
                 names = [l.name for l in c.layers]
-                self.assertEqual(names[:4], ["工程 1: 構図", "工程 2: 線画", "工程 3: 塗り", "工程 4: 仕上げ"])
-                self.assertFalse(any(l.visible for l in c.layers[:4]))
+                self.assertEqual(names[:5], ["工程 1: 構図", "工程 2: 体型と姿勢", "工程 3: 線画", "工程 4: 塗り", "工程 5: 仕上げ"])
+                self.assertFalse(any(l.visible for l in c.layers[:5]))
                 self.assertEqual(c.current, len(c.layers) - 1)   # 描いた絵が一番上で選ばれたまま
             finally:
                 w.dirty = False
