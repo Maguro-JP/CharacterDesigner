@@ -199,3 +199,11 @@ CodeFormer（S-Lab License 1.0、商用不可）は配布に合わないので�
 - University of Washington, The Language of Film（寄り・引き、目の高さ・あおり・俯瞰・ダッチアングルの効果）: https://faculty.washington.edu/kgb/345/language.pdf
 - Oklahoma State University, Introduction to Film & TV: Cinematography（カメラの角度の定義）: https://open.library.okstate.edu/introfilmtv/part/cinematography/
 - Eastern Arizona College, Film and Media Studies: Camera Angles（俯瞰は弱く、あおりは強く、傾きは不安）: https://eac.libguides.com/c.php?g=723550&p=5287250
+
+## 人の描き方の工程（`docs/knowledge/drawing-phases.md`、`chatdraw/phases.py`、2026-11-14）
+
+- CLIP STUDIO PAINT の講座、イラストメイキング（下描きで構図・形・シルエットを決め、反転して釣り合いを見る。線画は外を太く内を細く、縮めて見直す。下塗りは塗り残しを見る。影は縮めて全体を見る。最後に色調を整える）: https://www.clipstudio.net/oekaki/archives/153260
+- CLIP STUDIO PAINT の講座、人物の本体（肌・髪・目）を塗る（下塗りのあとに部位ごとに塗る）: https://www.clipstudio.net/oekaki/archives/151587
+- 技術評論社、CLIP STUDIO PAINT の解説の見本（アタリ・下描き → 線画 → 下塗り → 影 → 仕上げの順）: https://gihyo.jp/assets/files/book/2023/978-4-297-13561-4/9784297135614-01.pdf
+- 京都府、コンテンツを学ぶ「勝手読書会」第2回: アニメ制作（絵コンテ → レイアウト → 原画 → 作画監督の修正 → 動画 → 仕上げ）: https://www.pref.kyoto.jp/sangyo-sien/mediastudy002.html
+- 厚生労働省の資料（アニメの制作の工程: 動画 → スキャン → 彩色 → 仕上げ検査）: https://www.mhlw.go.jp/content/11901000/001152417.pdf
