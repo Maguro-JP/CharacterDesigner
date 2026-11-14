@@ -115,7 +115,7 @@ class Base(unittest.TestCase):
 
 class RedPen3Test(Base):
 
-    def settle(self, w, sec=60):
+    def settle(self, w, sec=300):   # 綺麗にするは重い。ほかの試験と同時に流すと 60 秒を超えた
         end = time.time() + sec
         while (w.thread is not None or getattr(w, "bg_pending", 0)) and time.time() < end:
             self.qapp.processEvents()
@@ -351,6 +351,56 @@ class RedPen3Test(Base):
                 c.rebuild()
         self.assertEqual(getattr(w, "_mark_only", 0), 0)
         w.shortcut_store().remove(sid_user)
+
+    def test_mark_menu_instruction_order(self):
+        """印の右クリックで登録した指示を選ぶと、欄に指示が入る → 確定 → 直し 1 回、の順に進む"""
+        from unittest import mock
+        w = self.w
+        w.show_history_image(str(self.a))
+        self.settle(w)
+        c = w.canvas
+        c.set_tool("redpen")
+        pen = c.redpen
+        self.mark(pen, 15, 15, 50, 50)
+        self.mark(pen, 55, 70, 90, 120)
+        w.show()
+        self.qapp.processEvents()
+        sid = w.shortcut_store().add("目を大きく", "目を大きく")
+        order = []
+        real_done, real_fix = w._note_done, w.fix_with_text
+        n1 = pen.marks[0][0] + QPointF(-13 / c.zoom(), -13 / c.zoom())
+        m = w.build_canvas_menu(c.viewport().mapToGlobal(c.mapFromScene(n1)))
+        sub = next(a.menu() for a in m.actions() if a.menu() and a.text() == "赤ペン 1 の中だけ加工")
+        act = next(a for a in sub.actions() if a.objectName() == f"mark1:{sid}")
+
+        def done():
+            order.append(("欄", w.note_edit.text()))
+            real_done()
+            order.append(("確定", pen.texts[0], w.note_box.isVisible()))
+
+        def fix(text, mark=0):
+            order.append(("直し", text, mark))
+            return real_fix(text, mark=mark)
+        w.edit_note(1)   # 欄を作る
+        w.note_box.hide()
+        w.note_ok.clicked.disconnect()
+        w.note_ok.clicked.connect(done)
+        calls = len(w.studio.painter.calls)
+        with mock.patch.object(w, "fix_with_text", fix), mock.patch.object(w, "_keep_original", lambda t: t):
+            act.trigger()
+            self.assertEqual([o[0] for o in order], ["欄", "確定"], "確定の前に直しが始まった")
+            end = time.time() + 30
+            while len(order) < 3 and time.time() < end:
+                self.qapp.processEvents()
+            self.wait(w)
+        print("順序:", order)
+        self.assertEqual(order[0], ("欄", "目を大きく"))
+        self.assertEqual(order[1], ("確定", "目を大きく", False))
+        self.assertEqual(order[2], ("直し", "目を大きく", 1))
+        self.assertEqual(len(order), 3)
+        self.assertEqual(len(w.studio.painter.calls) - calls, 1, "直しが 1 回ではない")
+        self.assertEqual(sum(1 for l in c.layers if l.redpen), 1)
+        w.shortcut_store().remove(sid)
 
     def test_text_fix_only_that_mark(self):
         """登録した言葉の指示・「言葉で指示…」は、右クリックした印の囲みの中だけを直す（ほかの印は直さず、残す）"""

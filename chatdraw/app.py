@@ -3487,7 +3487,7 @@ class Window(QMainWindow):
         if user:
             sub.addSeparator()
             for s in user:
-                a = sub.addAction(s.label, lambda t=prompts.get(s.id, ""): self.fix_with_text(t, mark=n))
+                a = sub.addAction(s.label, lambda t=prompts.get(s.id, ""): self.mark_instruction(n, t))
                 a.setObjectName(f"mark{n}:{s.id}")
                 a.setEnabled(s.ready and not self.thread)
                 a.setToolTip(f"「{prompts.get(s.id, '')}」で赤ペン {n} の囲みの中だけを直します。囲みの外は変えません" if s.ready else s.reason)
@@ -3502,6 +3502,18 @@ class Window(QMainWindow):
             return self.run_shortcut(sid)
         finally:
             self._mark_only = 0
+
+    def mark_instruction(self, n: int, text: str):
+        """赤ペン n の右クリックで選んだ指示を、まずその印の指示の欄に書いて確定し（画面に見えてから）、そのあとで印 n だけを直す"""
+        pen = self.canvas.redpen
+        if not 1 <= n <= len(pen.marks) or not (text or "").strip():
+            return
+        self.edit_note(n)                 # 印の横の指示の欄を出し
+        self.note_edit.setText(text)      # 指示を入れ
+        self.note_ok.click()              # 確定のボタンと同じ道で確定する（欄が閉じ、印とレイヤーの欄に指示が残る）
+        self.canvas.viewport().repaint()  # 確定した指示が絵の上に見えてから直しを始める
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, lambda: self.fix_with_text(pen.texts[n - 1] if n <= len(pen.texts) else text, mark=n))
 
     def run_shortcut(self, sid: str):
         """ショートカットを押したとき。使えなければ理由を出して止めない。使った回数を数えて並びに使う"""
@@ -3651,8 +3663,8 @@ class Window(QMainWindow):
             finally:
                 self._mark_only = 0
             return
-        if mark:   # 赤ペンの印から頼んだときは、新しく描かずに、その印の中を言葉で直す
-            self.fix_with_text(text, mark=mark)
+        if mark:   # 赤ペンの印から頼んだときは、新しく描かずに、その印の指示の欄に書いて確定してから、その印の中を直す
+            self.mark_instruction(mark, text)
             return
         if draw_request(text) is not None:
             self.mode.setCurrentIndex(0)
