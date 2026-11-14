@@ -143,6 +143,7 @@ class WordsModel:
     gb: float
     recommended: bool = False
     score: int = 0
+    replaced_by: str = ""   # 新しい物に置き換わった印（消さない。消すのは利用者が模型の管理で選んだときだけ）
 
     @property
     def url(self) -> str:
@@ -186,7 +187,18 @@ WORDS = (
     # 140 余りの言語で学んだ模型。日本語以外（韓国語・中国語・欧州の言語）の頼みを訳す候補。考える欄が無いので答えが早い。
     # この環境では動かしていない（点 0）。動かして点が届くまでは推奨にしない
     WordsModel("unsloth/gemma-3-4b-it-GGUF", "gemma-3-4b-it-Q4_K_M.gguf", "Gemma 3 4B",
-               "多くの言語の頼みを訳す。日本語以外の頼み向き", 2.5),
+               "多くの言語の頼みを訳す。日本語以外の頼み向き", 2.5, replaced_by="gemma-4-E4B-it-Q4_K_M.gguf"),
+    # 2026-11-14 に足した候補（点 0、確かめていない。表は docs/knowledge/model-review-2026-11.md）。
+    # Gemma 4 は Gemma 3 の後継（Apache-2.0）。Ternary Bonsai 2 は PrismML の 3 値の重み（Qwen3.5 が元、Apache-2.0）で、
+    # Q2_0 だけが元の llama.cpp（b11556 以降）で読める。PTQ1_0 と PQ2_0 は PrismML の fork でしか読めないので載せない
+    WordsModel("unsloth/gemma-4-E2B-it-GGUF", "gemma-4-E2B-it-Q4_K_M.gguf", "Gemma 4 E2B",
+               "多くの言語の頼みを訳す。軽い", 3.1),
+    WordsModel("unsloth/gemma-4-E4B-it-GGUF", "gemma-4-E4B-it-Q4_K_M.gguf", "Gemma 4 E4B",
+               "多くの言語の頼みを訳す。Gemma 3 4B の後継", 5.0),
+    WordsModel("prism-ml/Ternary-Bonsai-2-2B-gguf", "Ternary-Bonsai-2-2B-Q2_0.gguf", "Ternary Bonsai 2 2B",
+               "3 値の重みで小さい（約 0.55GB）。新しい llama.cpp が要る", 0.55),
+    WordsModel("prism-ml/Ternary-Bonsai-2-4B-gguf", "Ternary-Bonsai-2-4B-Q2_0.gguf", "Ternary Bonsai 2 4B",
+               "3 値の重みで 4B を約 1.2GB に収める。新しい llama.cpp が要る", 1.21),
 )
 
 # 新しい模型が完全に上回る古い模型。使っていたら新しい方へ乗り換える（古いファイルは消さない）

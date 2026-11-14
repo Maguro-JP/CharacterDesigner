@@ -51,6 +51,13 @@ jobs:
           Get-Content "$env:RUNNER_TEMP\e2e\report.json"
           if ($code -ne 0) { exit $code }
         working-directory: C:\Program Files\CharacterDesigner
+      - name: 検品の部品が入ったか
+        shell: pwsh
+        run: |
+          $r = Get-Content "$env:RUNNER_TEMP\e2e\report.json" -Raw | ConvertFrom-Json
+          $s = $r.steps | Where-Object { $_.name -eq "検品の部品がそろう" }
+          if (-not $s -or -not $s.ok) { throw "初回の取得で検品の部品が入っていない" }
+          "検品の部品: $($s.detail.parts -join ', ')"
       - name: アンインストールして残りを見る
         if: always()
         shell: pwsh

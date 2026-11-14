@@ -7,13 +7,14 @@ from chatdraw import body, jaterms
 
 class BodyTest(unittest.TestCase):
     def test_no_body_words_added(self):
-        self.assertEqual(body.TAGS, "adult woman")
+        self.assertEqual(body.TAGS, "")
         self.assertEqual(body.NEGATIVE, "")
 
     def test_woman_is_only_translated(self):
         tags = jaterms.tags_from("白いビキニの女性")
         self.assertNotIn("mature female", tags)
         self.assertNotIn("slender body", tags)
+        self.assertNotIn("adult woman", tags)
 
 
 if __name__ == "__main__":

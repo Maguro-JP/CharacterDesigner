@@ -26,7 +26,12 @@
  {
   "repo": "cagliostrolab/animagine-xl-4.0",
   "name": "Animagine XL 4.0",
-  "weak": ["構図", "手", "足", "顔"],
+  "weak": [
+   "構図",
+   "手",
+   "足",
+   "顔"
+  ],
   "good": "アニメ絵。線と塗りが整っていて、キャラクターに強い",
   "family": "sdxl",
   "format": "full",
@@ -61,15 +66,17 @@
   "tags": [
    "アニメ",
    "イラスト",
-   "淡い色"
+   "淡い色",
+   "古い版"
   ],
   "steps": 28,
   "guidance": 7.0,
   "score": 0,
-  "note": "2026-11-07 検証 3 枚（実行 41219861161）: 落とした。手を振るで人物が描けず脚 1 本だけ、ビキニがワンピース水着になる、腰に手が描けない",
+  "note": "2026-11-07 検証 3 枚（実行 41219861161）: 落とした。手を振るで人物が描けず脚 1 本だけ、ビキニがワンピース水着になる、腰に手が描けない / 2026-11-14: 同じ作者の新しい版 Animagine XL 4.0 に置き換わった。消さずに残す",
   "vram": 6,
   "ram": 16,
-  "negative": "nsfw, lowres, bad, text, error, fewer, extra, missing, worst quality, jpeg artifacts, low quality, watermark, unfinished, displeasing, oldest, early, chromatic aberration, signature, extra digits, artistic error, username, scan, abstract"
+  "negative": "nsfw, lowres, bad, text, error, fewer, extra, missing, worst quality, jpeg artifacts, low quality, watermark, unfinished, displeasing, oldest, early, chromatic aberration, signature, extra digits, artistic error, username, scan, abstract",
+  "superseded_by": "cagliostrolab/animagine-xl-4.0"
  },
  {
   "repo": "cagliostrolab/animagine-xl-3.0",
@@ -83,14 +90,17 @@
   "tags": [
    "アニメ",
    "イラスト",
-   "古い世代"
+   "古い世代",
+   "古い版"
   ],
   "steps": 28,
   "guidance": 7.0,
   "score": 0,
   "vram": 6,
   "ram": 16,
-  "negative": "nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name"
+  "negative": "nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name",
+  "superseded_by": "cagliostrolab/animagine-xl-4.0",
+  "note": "2026-11-14: 同じ作者の新しい版 Animagine XL 4.0 に置き換わった。消さずに残す"
  },
  {
   "repo": "OnomaAIResearch/Illustrious-xl-early-release-v0",
@@ -103,15 +113,17 @@
   "en": "anime, knows many existing characters and outfits",
   "tags": [
    "アニメ",
-   "イラスト"
+   "イラスト",
+   "古い版"
   ],
   "steps": 28,
   "guidance": 5.0,
   "score": 0,
-  "note": "2026-11-07 検証 3 枚（実行 41219861161）: 落とした。浜辺が描けない、振り返りが描けない、横に伸ばした手の指が読めない、足の指が崩れる",
+  "note": "2026-11-07 検証 3 枚（実行 41219861161）: 落とした。浜辺が描けない、振り返りが描けない、横に伸ばした手の指が読めない、足の指が崩れる / 2026-11-14: 同じ作者の新しい版 Illustrious XL 2.0 に置き換わった。消さずに残す",
   "vram": 6,
   "ram": 16,
-  "negative": "worst quality, comic, multiple views, bad quality, low quality, lowres, displeasing, very displeasing, bad anatomy, bad hands, scan artifacts, monochrome, greyscale, signature, twitter username, jpeg artifacts, 2koma, 4koma"
+  "negative": "worst quality, comic, multiple views, bad quality, low quality, lowres, displeasing, very displeasing, bad anatomy, bad hands, scan artifacts, monochrome, greyscale, signature, twitter username, jpeg artifacts, 2koma, 4koma",
+  "superseded_by": "OnomaAIResearch/Illustrious-XL-v2.0"
  },
  {
   "repo": "Jommarn/Illustrious-XL-v2.0",
@@ -346,15 +358,17 @@
   "en": "anime, wide range of artist styles, detailed tags",
   "tags": [
    "アニメ",
-   "イラスト"
+   "イラスト",
+   "古い版"
   ],
   "steps": 28,
   "guidance": 5.5,
   "score": 0,
-  "note": "2026-10-31: Hugging Face の API で置き場と重みのファイルを確かめて載せた。描いて確かめるまで点は 0",
+  "note": "2026-10-31: Hugging Face の API で置き場と重みのファイルを確かめて載せた。描いて確かめるまで点は 0 / 2026-11-14: 同じ作者の新しい版 NoobAI XL 1.1 に置き換わった。消さずに残す",
   "commercial": "商用不可（fair-ai-public-license-1.0-sd に NoobAI の追加条項）",
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "superseded_by": "Laxhar/noobai-XL-1.1"
  },
  {
   "repo": "yodayo-ai/holodayo-xl-2.1",
@@ -1087,7 +1101,8 @@
    "イラスト",
    "新しい世代",
    "GPU向き",
-   "商用可"
+   "商用可",
+   "古い版"
   ],
   "steps": 50,
   "guidance": 4.0,
@@ -1096,7 +1111,9 @@
   "prefix": "",
   "vram": 24,
   "ram": 64,
-  "negative": "low resolution, low quality, deformed limbs, deformed fingers, oversaturated, waxy skin, faces without detail, overly smooth, AI look, chaotic composition, blurry distorted text"
+  "negative": "low resolution, low quality, deformed limbs, deformed fingers, oversaturated, waxy skin, faces without detail, overly smooth, AI look, chaotic composition, blurry distorted text",
+  "superseded_by": "Qwen/Qwen-Image-2.1",
+  "note": "2026-11-14: 同じ作者の新しい版 Qwen-Image 2.1 が出た（読む部品 QwenImage21Pipeline の世代がまだ目録に無いので、置き換えは未）。消さずに残す"
  },
  {
   "repo": "VirtualAddressExtension/Neta-Lumina-v1.0-diffusers",
@@ -1159,7 +1176,8 @@
    "イラスト",
    "新しい世代",
    "GPU向き",
-   "商用可"
+   "商用可",
+   "古い版"
   ],
   "steps": 4,
   "guidance": 0.0,
@@ -1167,6 +1185,80 @@
   "commercial": "商用可（Apache-2.0）",
   "prefix": "",
   "vram": 12,
-  "ram": 40
+  "ram": 40,
+  "superseded_by": "black-forest-labs/FLUX.2-klein-4B",
+  "note": "2026-11-14: 同じ作者の新しい世代 FLUX.2 klein 4B（同じ Apache-2.0、半分の大きさ）に置き換わった。消さずに残す"
+ },
+ {
+  "repo": "prism-ml/bonsai-image-ternary-4B-unpacked",
+  "name": "Bonsai Image 3 値 4B",
+  "good": "PrismML が 3 値の重みで学び直した 4B の模型。文で頼める",
+  "family": "flux2",
+  "format": "dit",
+  "gb": 16.0,
+  "en": "general purpose, natural language prompts, fast, ternary weights",
+  "tags": [
+   "イラスト",
+   "新しい世代",
+   "GPU向き",
+   "商用可"
+  ],
+  "steps": 4,
+  "guidance": 1.0,
+  "score": 0,
+  "commercial": "商用可（Apache-2.0）",
+  "prefix": "",
+  "vram": 8,
+  "ram": 24,
+  "note": "2026-11-14 に足した。動かして確かめるまで点は 0（config/verify-models.txt で毎週の model-verify が確かめる）。ここで読むのは diffusers 用に広げた FP16 版で、軽さの利点は無い",
+  "added": "2026-11-14"
+ },
+ {
+  "repo": "prism-ml/bonsai-image-binary-4B-unpacked",
+  "name": "Bonsai Image 2 値 4B",
+  "good": "PrismML が 2 値の重みで学び直した 4B の模型。文で頼める",
+  "family": "flux2",
+  "format": "dit",
+  "gb": 16.0,
+  "en": "general purpose, natural language prompts, fast, binary weights",
+  "tags": [
+   "イラスト",
+   "新しい世代",
+   "GPU向き",
+   "商用可"
+  ],
+  "steps": 4,
+  "guidance": 1.0,
+  "score": 0,
+  "commercial": "商用可（Apache-2.0）",
+  "prefix": "",
+  "vram": 8,
+  "ram": 24,
+  "note": "2026-11-14 に足した。動かして確かめるまで点は 0（config/verify-models.txt で毎週の model-verify が確かめる）。ここで読むのは diffusers 用に広げた FP16 版で、軽さの利点は無い",
+  "added": "2026-11-14"
+ },
+ {
+  "repo": "Tongyi-MAI/Z-Image",
+  "name": "Z-Image",
+  "good": "Turbo 版の元の模型。打ち消しが効き、工程を多く取って細かく描く",
+  "family": "zimage",
+  "format": "dit",
+  "gb": 20.5,
+  "en": "general purpose, natural language prompts, negative prompts",
+  "tags": [
+   "イラスト",
+   "新しい世代",
+   "GPU向き",
+   "商用可"
+  ],
+  "steps": 50,
+  "guidance": 4.0,
+  "score": 0,
+  "commercial": "商用可（Apache-2.0）",
+  "prefix": "",
+  "vram": 16,
+  "ram": 32,
+  "note": "2026-11-14 に足した。動かして確かめるまで点は 0（config/verify-models.txt で毎週の model-verify が確かめる）",
+  "added": "2026-11-14"
  }
 ]

@@ -60,7 +60,7 @@ SECTIONS = [
     ("指示", "描きたい絵・描かない物と、描く模型を選びます"),
     ("作風", "AI プリセットと画風。押すだけで描き方・大きさ・画風がそろいます"),
     ("直す・仕上げ", "描けた絵を直す・綺麗にする・外へ広げる・拡大する・加工する。元の絵は元に戻すで戻せます"),
-    ("詳しい設定", "枚数・種・参考画像・ラフに沿う強さ"),
+    ("詳しい設定", "種・参考画像・ラフに沿う強さ"),
 ]
 
 
@@ -192,7 +192,6 @@ class AiPanel(QWidget):
 
         # 枚数・種・参考画像。どれも頼まなければ今までどおり（1 枚、毎回違う種、参考画像なし）
         lay = self.sections["詳しい設定"].body
-        lay.addWidget(self._head("枚数と種", "何枚描くか。種を固定すると、同じ頼みで同じ絵になります"))
         # 作成枚数は「指示」のタブにも数の欄で出す（窓の側で置く）。ボタンと欄は同じ値を持つ
         self.count_spin = QSpinBox()
         self.count_spin.setRange(1, 8)
@@ -201,7 +200,10 @@ class AiPanel(QWidget):
         self.count_buttons = self._segment(["1 枚", "2 枚", "4 枚"], lambda i: self.count_spin.setValue((1, 2, 4)[i]))
         self.count_spin.valueChanged.connect(self._count_changed)
         self._count_changed(1)
-        lay.addLayout(self.count_buttons[0])
+        # 作成枚数は描くボタンの左の欄 1 か所にする。詳しい設定にも置くと、どちらで決めるのか迷った
+        for b in self.count_buttons[1]:
+            b.hide()
+        lay.addWidget(self._head("種", "種を固定すると、同じ頼みと設定で同じ絵になります"))
         seed_row = QHBoxLayout()
         self.seed = QSpinBox()
         self.seed.setRange(0, 2_147_483_647)
@@ -238,7 +240,21 @@ class AiPanel(QWidget):
         self.again.setToolTip("前と同じ頼みを、別の種で描き直します")
         self.again.clicked.connect(w.draw_again)
         row.addWidget(self.again)
+        # 修正依頼: よく出る崩れの直しの指示を選ぶと、赤ペンの印の指示に書いて 1 回だけ直す（右クリックと同じ chatdraw/fixmenu.py）
+        from chatdraw import fixmenu
+        self.fixreq_button = QPushButton("修正依頼")
+        self.fixreq_button.setToolTip("指を 5 本に・目の高さを揃える などの直しの指示を選びます。\n赤ペンで囲んだ所の指示に書いて、1 回だけ直します")
+        self.fixreq_menu = QMenu(self.fixreq_button)
+        self.fixreq_menu.aboutToShow.connect(lambda: (self.fixreq_menu.clear(), fixmenu.fill_requests(w, self.fixreq_menu)))
+        self.fixreq_button.setMenu(self.fixreq_menu)
+        row.addWidget(self.fixreq_button)
+        self.edit_button = QPushButton("整える・揃える・消す")
+        self.edit_button.setToolTip("模型を使わずに、囲んだ所の線を整える・大きさと高さを揃える・物やゴミの点を消す。元に戻すで戻せます")
+        self.edit_menu = QMenu(self.edit_button)
+        fixmenu.fill_tools(w, self.edit_menu)
+        self.edit_button.setMenu(self.edit_menu)
         lay.addLayout(row)
+        lay.addWidget(self.edit_button)
         # 囲んだ所の直しは、赤ペンで囲むと描き方が「直す」に替わる（作風のタブの描き方と同じ値）。ここに 2 つ目の入口は置かない
         self.again.setToolTip(self.again.toolTip() + "\n一部だけ直すときは、赤ペンで囲んでから「描く」を押します")
         # 綺麗にする・外へ広げるは、キャンバスの右クリックのメニューにある（並べ方は右クリックのメニューの側で決める）
@@ -272,7 +288,7 @@ class AiPanel(QWidget):
         for b in self.findChildren(QAbstractButton) + self.findChildren(QSpinBox):
             if isinstance(b.parent(), QTabBar):
                 continue   # タブの送りボタンは Qt の大きさのまま
-            if b.maximumWidth() < 200 or b.objectName() == "suggest":
+            if b.maximumWidth() < 200 or b.objectName() == "suggest" or b is getattr(self, "count_spin", None):
                 continue   # 幅を決めたボタン（■・☆）と、横に流す言葉のボタンは縮めない（幅が 0 になって消えた）
             b.setMinimumWidth(0)
             sp = b.sizePolicy()
@@ -352,7 +368,12 @@ class AiPanel(QWidget):
     def seeds(self) -> list[int]:
         """描く種の並び。固定なら欄の種から、外していれば新しい種から、枚数分を続けて使う"""
         import random
-        first = self.seed.value() if self.seed_lock.isChecked() else random.randrange(0, 2_000_000_000)
+        once = getattr(self, "next_seed", None)
+        self.next_seed = None
+        if once is not None:   # 履歴から頼み直したときの種は、次の 1 回だけ使う
+            first = once
+        else:
+            first = self.seed.value() if self.seed_lock.isChecked() else random.randrange(0, 2_000_000_000)
         return [first + i for i in range(self.count())]
 
     def reference(self):
