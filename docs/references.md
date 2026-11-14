@@ -199,3 +199,13 @@ CodeFormer（S-Lab License 1.0、商用不可）は配布に合わないので�
 - University of Washington, The Language of Film（寄り・引き、目の高さ・あおり・俯瞰・ダッチアングルの効果）: https://faculty.washington.edu/kgb/345/language.pdf
 - Oklahoma State University, Introduction to Film & TV: Cinematography（カメラの角度の定義）: https://open.library.okstate.edu/introfilmtv/part/cinematography/
 - Eastern Arizona College, Film and Media Studies: Camera Angles（俯瞰は弱く、あおりは強く、傾きは不安）: https://eac.libguides.com/c.php?g=723550&p=5287250
+
+## リボンの道具の系統（`docs/knowledge/ribbon-families.md`、2026-11-14）
+
+- Adobe「Photoshop tools, options, and task bars」 https://helpx.adobe.com/photoshop/using/using-tools.html （三角の付いた道具は押し続けると隠れた道具が出る）
+- Photoshop Essentials「Photoshop Tools and Toolbar Overview」 https://www.photoshopessentials.com/basics/photoshop-tools-toolbar-overview/ （関係する道具を 1 か所にまとめ、最後に選んだ道具を出す）
+
+## 映り込みの矛盾の検品（`docs/knowledge/mirror-check.md`、2026-11-14）
+
+- G. Loy, J.-O. Eklundh「Detecting Symmetry and Symmetric Constellations of Features」ECCV 2006（反転した記述との突き合わせと軸への投票）
+- SmilingWolf/wd-vit-tagger-v3 のタグ一覧（mirror、reflection、reflective water、reflective floor）

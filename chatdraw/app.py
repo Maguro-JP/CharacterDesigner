@@ -4370,6 +4370,7 @@ class Window(QMainWindow):
 
     def build_ribbon(self):
         """上部のリボン。メニューと同じ操作を、タブごとに大きなアイコンで並べる"""
+        from chatdraw import ribbon as ribbon_mod
         from chatdraw.ribbon import Ribbon
 
         def act(key, label, fn, tip=""):
@@ -4385,10 +4386,26 @@ class Window(QMainWindow):
             ("選択", [S["select_all"], S["deselect"]]),
         ])
         t = self.tool_actions
+        # 同じ系統の道具は 1 つのボタンにまとめる（▼か長押しで中を選ぶ）。系統は CLIP STUDIO PAINT の道具と
+        # Photoshop の道具のグループに合わせた（docs/knowledge/ribbon-families.md）。道具を 1 つずつ並べると、
+        # 似た物が横に並んで帯が窓の幅を超え、どれが同じ働きの仲間かも見えなかった
+        F = ribbon_mod.Family
+
+        def tools(*keys):
+            return [t[k] for k in keys]
         r.add_page("描く", [
-            ("道具", [t[k] for k in ("pen", "eraser", "blur", "fill", "gradient")]),
-            ("図形", [t[k] for k in ("line", "rect", "ellipse", "polyshape", "regpoly")]),
+            ("選択", [F("移動", tools("move")), F("選択", tools("select", "lasso", "polygon"), "選択の道具（四角・投げなわ・多角形）")]),
+            ("描く", [F("ペン", tools("pen", "spray"), "ペン系（ペン・スプレー）"),
+                     F("消しゴム", tools("eraser")),
+                     F("色を混ぜる", tools("blur", "smudge"), "色を混ぜる道具（ぼかし・指先）")]),
+            ("塗り", [F("塗り", tools("fill", "gradient"), "塗りの道具（塗りつぶし・グラデーション）")]),
+            ("図形・文字", [F("図形", tools("line", "rect", "ellipse", "polyshape", "regpoly"),
+                            "図形の道具（直線・四角・楕円・多角形・正多角形）"), F("文字", tools("text"))]),
+            ("定規・対称", [F("定規", list(self.ruler_actions.values()), "定規（平行線・同心円・放射・パース）", icon("line")),
+                         F("対称", list(self.symmetry_actions.values()), "対称定規（左右・上下・点対称）", icon("regpoly"))]),
             ("色", [t["eyedropper"], act("palette", "入れ替え", self.canvas.swap_colors, "描く色と背景色を入れ替える（X）")]),
+            ("表示の道具", [F("手のひら・拡大", tools("hand", "zoom"), "表示を動かす道具（手のひら・拡大）")]),
+            ("AI", [F("赤ペン", tools("redpen"))]),
         ])
 
         def ai(mode):
@@ -4404,8 +4421,9 @@ class Window(QMainWindow):
                      act("settings", "管理", self.manage_models, "模型の一覧・取得・更新・削除")]),
         ])
         r.add_page("表示", [
-            ("キャンバス", [S["fit"], S["actual"], S["zoom_ask"]]),
-            ("回転・反転", [S["rotate_left"], S["rotate_right"], S["rotate_dial"], S["flip_view"], S["view_reset"]]),
+            ("キャンバス", [F("拡大率", [S["fit"], S["actual"], S["zoom_ask"]], "表示の大きさ（全体・100%・倍率を入れる）")]),
+            ("回転・反転", [F("回転", [S["rotate_left"], S["rotate_right"], S["rotate_dial"]], "表示の回転（左・右・角度を回す）"),
+                         S["flip_view"], S["view_reset"]]),
             ("補助", [S["grid"], S["op_history"]]),
             ("欄", [self.panel_actions[k] for k in PANEL_ORDER]),
             ("配置", [S["layout:おすすめ"],
