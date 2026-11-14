@@ -575,6 +575,8 @@ class Window(QMainWindow):
         super().__init__()
         from chatdraw import wheelguard
         wheelguard.install()   # 欄のスクロールで種や強さが変わらないようにする
+        from chatdraw import typeguard
+        typeguard.install()    # 打っている欄のキーをショートカットに取られないようにする
         self.settings = Settings()
         self.layout_store = QSettings("CharacterDesigner", "chatdraw")   # 配置・テーマ・AI プリセット・ツアーの済み
         self.last_text = ""
@@ -2375,6 +2377,23 @@ class Window(QMainWindow):
                 self._refresh_layers()
         self.note_box.hide()
         self.canvas.setFocus()
+
+    def on_mouse_back(self):
+        """マウスの戻るボタン。打っている欄があればその欄の元に戻す、無ければ絵の元に戻す"""
+        self._mouse_step("undo")
+
+    def on_mouse_forward(self):
+        self._mouse_step("redo")
+
+    def _mouse_step(self, key: str):
+        from chatdraw.typeguard import is_text_input
+        f = QApplication.focusWidget()
+        if is_text_input(f) and hasattr(f, key):
+            getattr(f, key)()
+            return
+        a = self.shared.get(key)
+        if a is not None and a.isEnabled():
+            a.trigger()
 
     def eventFilter(self, obj, e):
         from PySide6.QtCore import QEvent

@@ -16,7 +16,7 @@
 | B2 | 効いていないフィルターを直すか外す | 作業中 | claude/FIX-quality2-20261108 |
 | B3 | ライブラリーの右クリックから「一覧から外す」を除く（履歴にはあってよい） | 作業中 | claude/FIX-integ5-20261108: librarypanel._menu |
 | B4 | 技能（加工・仕上げ・組み合わせ）が全部効くようにする。効かない物は出さない | 作業中 | claude/FIX-qc3-20261108 |
-| B5 | マウスの戻る・進むボタンを使えるようにする | 作業中 | claude/FIX-integ5-20261108: 戻るで元に戻す、進むでやり直す（test_typeguard.MouseSideButtonTest） |
+| B5 | マウスの戻る・進むボタンを使えるようにする | 作業中 | claude/FIX-backui-20261114: 0.5.18 に戻したときに消えたのを v0.5.22 から戻した。戻るで元に戻す、進むでやり直す、打っている欄ではその欄の元に戻す（test_typeguard.MouseSideButtonTest） |
 | B6 | 絵に矛盾が無いように、まともに効く検品を入れる | 作業中 | claude/FIX-qc3-20261108 |
 | A1 | 枚数と種をまとめない。枚数の入力欄を用意する | 作業中 | claude/FIX-integ5-20261108: 詳しい設定で「枚数」と「種」の見出しを分け、描くボタンの左の欄に「枚数」の名前を付けた（test_typeguard.CountFieldTest） |
 | A2 | ディテール追加が効かない | 作業中 | claude/FIX-finish2-20261108 |
@@ -28,7 +28,7 @@
 | A8 | チャットを有効活用する（チャットで描く・直す・加工する・設定を変える） | 作業中 | claude/FIX-obey-20261108 |
 | A9 | 訳の分からない制限で「描けませんでした」にしない | 作業中 | claude/FIX-obey-20261108 |
 | A10 | 頼んだ指示を模型が無視しない | 作業中 | claude/FIX-obey-20261108、前の版の claude/FIX-adhere-20261108 |
-| A11 | 文字入力中にショートカットに取られない（急ぎ） | 作業中 | claude/FIX-integ5-20261108: chatdraw/typeguard.py（アプリ全体）、test_typeguard |
+| A11 | 文字入力中にショートカットに取られない（急ぎ） | 作業中 | claude/FIX-backui-20261114: v0.5.22 から戻した。chatdraw/typeguard.py（アプリ全体）、test_typeguard.TypeGuardTest・WindowFieldsTest |
 | A12 | 落とさない。メモリの使い方を選ばせる（自動が既定、優先して動かす、控えめに動かす） | 作業中 | claude/FIX-integ5-20261108: membudget.MODES、設定の「メモリの使い方」、test_membudget.MemModeTest |
 | A13 | キャラクターシートと LoRA を入れる。模型ごとの参考画像・学習セット、外部共有サイト（Civitai・Hugging Face）から取る | 作業中 | claude/FIX-lora-20261108 |
 | A14 | ComfyUI を参考に、インテュイティブで見やすい画面にする | 作業中 | claude/FIX-comfyui-20261108（工程ごとの秒、並べて比べる、操作を探す）を integ5 に統合 |
