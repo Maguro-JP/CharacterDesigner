@@ -97,8 +97,10 @@ def has_tags(m, wanted) -> bool:
 
 
 def sort_key(m):
-    """★ が先、次に点の高い順、同じ点なら確かめ済みが先、あとは名前"""
-    return (0 if is_favorite(m.repo) else 1, -rating(m), 0 if getattr(m, "score", 0) > 0 else 1, m.name.lower())
+    """★ が先、次にこの利用者がよく使い良いと判定した模型（chatdraw/userstats.py）、次に点の高い順、
+    同じ点なら確かめ済みが先、あとは名前"""
+    from chatdraw import userstats
+    return (0 if is_favorite(m.repo) else 1, -userstats.model_pref(m.repo), -rating(m), 0 if getattr(m, "score", 0) > 0 else 1, m.name.lower())
 
 
 # ---- お気に入り（★）と非表示。点と同じ model_prefs.json に持つ ----

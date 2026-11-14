@@ -76,24 +76,113 @@ def _tidy_apply(image):
     return _clean_apply(_retouch(RETOUCH_SAFE)(image))
 
 
-DETAIL_SIGMA = 1.6    # 足す細部の細かさ（ぼかしの幅、画素）
-DETAIL_AMOUNT = 0.7   # 細部の明暗を何倍足すか
-DETAIL_CAP = 18.0     # 1 画素で変えてよい明るさの上限（0〜255）。形と色を変えないように
+# ディテール追加。前の作りは、もともと細部のある所の明るさの起伏を 0.7 倍足すだけで（1 画素 18 まで）、そのあと
+# 検品の混ぜ直し（SSIM 0.985 の下限）でさらに薄まった。測ると 1024 角の絵で変わった画素 4.6%、平均の差 0.20、
+# 細かさ（明るさの細かい起伏の平均）1.71 → 1.79 で、目で見て何も変わらなかった。境目に色を重ねただけで、細部は増えていない。
+# 今の作りは、細部を「描き足す」:
+#   1. 模型があれば、低い強さで描き直した絵から細かい成分だけを取り、元の絵の形と色の上に足す（新しい毛先・しわ・質感が入る）
+#   2. 髪の毛先・布のしわ: 明るさの谷（しわ・毛の分かれ目）を暗く、峰（毛束の光）を明るく、2 つの細かさで立てる
+#   3. 光沢: 周りより明るい小さな所を白に寄せる（髪の天使の輪、金物の光）
+#   4. 目のハイライト: 顔の枠の目の帯にある暗い塊（瞳）の上側に、白い点が無ければ小さな白い点を描く
+# 足した分は明るさだけ（色相を変えない）で、主線そのものには足さない。検品は崩れ（guard）と目・髪の色（facefeat）だけで見る。
+# SSIM の混ぜ直しは細部が増えるほど落とす物なので、ディテール追加には掛けない
+DETAIL_FINE, DETAIL_MID = 1.0, 2.6     # 立てる細部の細かさ（ぼかしの幅、画素）
+DETAIL_AMOUNT = (1.6, 0.9)              # 細かい方・中くらいの方を何倍立てるか
+DETAIL_CAP = 42.0                       # 1 画素で変えてよい明るさの上限（0〜255）
+DETAIL_EDGE = 18.0                      # これより明暗の差が大きい所は境目として触らない
+DETAIL_SHINE = 0.45                     # 光沢の所を白にどれだけ寄せるか
+DETAIL_MODEL_STRENGTH = 0.3             # 模型で細部を描かせるときの描き直しの強さ（形は元の絵から取るので、細かい成分しか使わない）
+DETAIL_PROMPT = "highly detailed, detailed hair strands, fabric folds, eye highlights, fine texture"
+LAST_DETAIL: dict = {}
+
+
+def _detail_model(image):
+    """模型で低い強さに描き直した絵の、細かい成分（明るさ）だけを返す。模型が無ければ None"""
+    if not _redraw_ready():
+        return None
+    import numpy as np
+    from PIL import Image
+    from scipy.ndimage import gaussian_filter
+    try:
+        out = _redraw_with(DETAIL_PROMPT, DETAIL_MODEL_STRENGTH)(image)
+    except Unavailable:
+        return None
+    o = np.asarray(out.convert("RGB").resize(image.size, Image.LANCZOS), np.float32) @ np.float32([0.299, 0.587, 0.114])
+    return o - gaussian_filter(o, DETAIL_MID)
+
+
+def _eye_highlights(image, L):
+    """目の帯の暗い塊（瞳）の上側に、白い点が無ければ小さな白い点の明るさの足し分を返す（無ければ 0 の配列）"""
+    import numpy as np
+    add = np.zeros_like(L)
+    try:
+        from scipy.ndimage import label, find_objects
+        from chatdraw import handcheck
+        box = (handcheck._face(image, "") or {}).get("box")
+    except Exception:
+        return add, 0
+    if not box:
+        return add, 0
+    x0, y0, x1, y1 = (int(v) for v in box)
+    fh = max(1, y1 - y0)
+    ya, yb = y0 + int(fh * 0.25), y0 + int(fh * 0.7)
+    band = L[ya:yb, x0:x1]
+    if band.size == 0:
+        return add, 0
+    lab, n = label(band < 70)
+    drawn = 0
+    fw = max(1, x1 - x0)
+    for i, sl in enumerate(find_objects(lab), 1):
+        h, w = sl[0].stop - sl[0].start, sl[1].stop - sl[1].start
+        if not (fw * 0.06 <= w <= fw * 0.35 and fh * 0.05 <= h <= fh * 0.35):
+            continue   # 瞳の大きさでない（細い線、髪の塊）
+        if (lab[sl] == i).mean() < 0.35:
+            continue
+        if band[sl].max() > 225:
+            continue   # もう白い点がある
+        cy = ya + sl[0].start + max(1, h // 3)
+        cx = x0 + sl[1].start + max(1, w // 3)
+        r = max(1.0, min(w, h) * 0.16)
+        yy, xx = np.ogrid[:L.shape[0], :L.shape[1]]
+        dot = np.clip(1.6 - np.sqrt(((yy - cy) / r) ** 2 + ((xx - cx) / r) ** 2), 0, 1)
+        add = np.maximum(add, dot * (250 - L))
+        drawn += 1
+    return add, drawn
 
 
 def _detail_apply(image):
-    """ディテール追加: 明るさの細かい起伏（髪の毛の流れ、布のしわ、質感）だけを強める。色は変えず（明るさに足した分を
-    RGB に同じだけ足す）、主線とその周り・平らな塗りには足さない（線が太り、平らな所にざらつきが出るので）"""
+    """ディテール追加: 髪の毛先・布のしわ・光沢・目のハイライトを描き足す。形と色相は元の絵のまま、明るさだけを足す"""
     import numpy as np
     from PIL import Image
     from scipy.ndimage import binary_dilation, gaussian_filter
     a = np.asarray(image.convert("RGB"), np.float32)
     L = a @ np.float32([0.299, 0.587, 0.114])
-    hi = L - gaussian_filter(L, DETAIL_SIGMA)
-    texture = gaussian_filter(np.abs(hi), 3) > 1.5        # もともと細部のある所だけ
-    line = binary_dilation(_gen("cleanup").line_mask(a), iterations=2)
-    add = np.clip(DETAIL_AMOUNT * hi, -DETAIL_CAP, DETAIL_CAP) * (texture & ~line)
-    return Image.fromarray(np.clip(a + add[..., None] + 0.5, 0, 255).astype("uint8"))
+    fine = L - gaussian_filter(L, DETAIL_FINE)
+    mid = gaussian_filter(L, DETAIL_FINE) - gaussian_filter(L, DETAIL_MID)
+    add = DETAIL_AMOUNT[0] * fine + DETAIL_AMOUNT[1] * mid
+    model = _detail_model(image)
+    LAST_DETAIL.clear()
+    LAST_DETAIL["model"] = model is not None
+    if model is not None:
+        add = add + model
+    flat = gaussian_filter(np.abs(fine) + np.abs(mid), 2) < 1.0      # 平らな所（背景のぼかし）にはざらつきを足さない
+    line = _gen("cleanup").line_mask(a)
+    # 強い境目（人物の輪郭、服と肌の境）には足さない。足すと輪郭の外に白い縁（光輪）が出た（狐の巫女の全身で目で見た）
+    # 境目の近くでは明るくする向きを止め、暗くする向きだけ残す（しわ・毛の分かれ目は暗い側なので残る）
+    edge = binary_dilation(gaussian_filter(np.abs(L - gaussian_filter(L, 3.0)), 1.0) > DETAIL_EDGE, iterations=2)
+    keep = binary_dilation(line, iterations=1)
+    add = np.clip(add, -DETAIL_CAP, DETAIL_CAP) * ~(flat | keep)
+    add = np.where(edge, np.minimum(add, 0), add)
+    keep = keep | edge
+    # 光沢: 周りより明るい小さな所を白へ寄せる
+    peak = (L - gaussian_filter(L, 4.0)) > 10
+    peak &= L > 150
+    add += np.where(peak & ~keep, DETAIL_SHINE * (255 - L), 0)
+    eye, n_eye = _eye_highlights(image, L)
+    add = np.maximum(add, eye) if n_eye else add
+    LAST_DETAIL["eye_highlights"] = n_eye
+    out = a + add[..., None]
+    return Image.fromarray(np.clip(out + 0.5, 0, 255).astype("uint8"))
 
 
 CLEAN_STRUCT = 16.0   # 塗りのむらを均すとき、これより変わる画素は細い線・模様（形）として触らない（0〜255）
@@ -180,8 +269,8 @@ register(Finisher(
     lambda: _own_why("retouch", "numpy", "scipy")(), lambda im: _tidy_apply(im), extra=dict(scale="tile", needs_mask=True)))
 register(Finisher(
     "detail", "ディテール追加",
-    "元の形と色を保ったまま、髪の毛の流れ・布のしわ・小物の質感の細かい明暗を立てます。顔と主線は変えません。"
-    "結果は一番上の新しいレイヤーに置きます",
+    "元の形と色を保ったまま、髪の毛先・服のしわ・光沢・目のハイライトを描き足します。絵の模型があれば、模型が描いた細部も足します。"
+    "主線は変えません。結果は一番上の新しいレイヤーに置きます",
     "このリポジトリのコード", "chatdraw/finishers.py", lambda: _own_ready("cleanup", "numpy", "scipy")(),
     lambda: _own_why("cleanup", "numpy", "scipy")(), lambda im: _detail_apply(im), extra=dict(scale="tile", effect=True),
     group="detail"))
@@ -1043,7 +1132,7 @@ def run(name: str, image, mask=None, say=None, face=_NO_FACE):
     out = out if mask is None else keep_outside(src, out, mask)
     _MEMO.clear()   # 大きな絵の配列を持ち続けない
     out = guard(name, src, out, mask)
-    if f.group in ("clean", "detail") and out.size == src.size and not LAST_QC.get("rejected"):
+    if f.group == "clean" and out.size == src.size and not LAST_QC.get("rejected"):   # ディテール追加には掛けない（上の DETAIL の説明）
         out, v = soften(src, out, mask, face)
         LAST_QC["verify"] = v
         if v.get("failed"):

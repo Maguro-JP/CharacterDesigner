@@ -136,7 +136,8 @@ class TidyTest(FakeSeg):
         out = finishers.run("detail", src, mask)
         self.assertTrue(outside_same(src, out, mask))
         q = finishers.scores(src, out)
-        self.assertGreater(q["ssim"], 0.95)
+        # 細部を描き足すので SSIM は下がる（前の 0.95 は、何も変わらない作りでしか通らなかった）。形が保たれる 0.9 を下限にする
+        self.assertGreater(q["ssim"], 0.9)
         self.assertLess(q["color"], 3.0)
 
 

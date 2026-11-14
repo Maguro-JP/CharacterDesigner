@@ -168,7 +168,10 @@ class AiPanel(QWidget):
         styles.setSpacing(4)
         self.style_group = QButtonGroup(self)
         self.style_buttons: dict[str, QPushButton] = {}
-        for i, (name, _tags, tip) in enumerate(STYLES):
+        # よく使う画風を先に並べる（chatdraw/userstats.py。描く言葉には何も足さない）
+        from chatdraw import userstats
+        by = {n: (n, t, tip) for n, t, tip in STYLES}
+        for i, (name, _tags, tip) in enumerate(by[n] for n in userstats.order_styles(list(by))):
             b = QPushButton(name if len(name) <= 5 else name[:4] + "…")   # 長い名前は詰め、全部はカーソルを合わせたときに出す
             b.setObjectName("chip")
             b.setCheckable(True)

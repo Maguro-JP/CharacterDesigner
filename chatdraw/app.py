@@ -824,6 +824,9 @@ class Window(QMainWindow):
         out = file.addMenu("書き出す")
         out.addAction(QAction("PNG（重ねた 1 枚）…", self, shortcut="Ctrl+E", triggered=self.save_as))
         out.addAction(QAction("PSD（レイヤーごと）…", self, triggered=self.export_psd))
+        # タイムラプスは表示のメニューの奥にしか書き出しが無く、見つからなかった。ファイルの「書き出す」からも出せるようにする
+        out.addAction(QAction("タイムラプスを GIF に…", self, triggered=lambda: self.export_timelapse(False)))
+        out.addAction(QAction("タイムラプスを動画（MP4）に…", self, triggered=lambda: self.export_timelapse(True)))
         # 置き場はボタンを並べず、1 つの下の段にまとめる（開くたびに作り直し、保存先を変えたらすぐ合うようにする）
         from chatdraw import folders
         self.folder_menu = file.addMenu("ディレクトリを開く")
@@ -1330,6 +1333,9 @@ class Window(QMainWindow):
         help_menu.addAction(QAction("落ちた記録を開く", self, triggered=self.open_crashlog))
         help_menu.addAction(QAction("手順書（入れ方・模型の置き方・困ったとき）", self, triggered=lambda: self.open_help("install")))
         help_menu.addAction(QAction("記録の置き場を開く", self, triggered=self.open_logs))
+        stats = QAction("あなたの統計…", self, triggered=self.open_userstats)
+        stats.setToolTip("良い・悪いと判定した絵、よく使う言葉・模型・画風・大きさ、頼み直しの回数を見ます。記録はここで消せます")
+        help_menu.addAction(stats)
         help_menu.addAction(QAction("更新を確かめる", self, triggered=lambda: self.check_update(manual=True)))
         from chatdraw import tours
         self.new_tours_menu = help_menu.addMenu("新しいツアー")   # まだ見ていない新しい案内。数を名前に出す
@@ -2111,6 +2117,7 @@ class Window(QMainWindow):
         self.thread.started.connect(self.job.run)
         self.job.status.connect(self.on_status)
         self.job.preview.connect(self.show_preview)
+        self._record_job(self.job)
         self.job.one.connect(self.on_one)
         self.job.done.connect(self.finish)
         self.job.failed.connect(self.fail)
@@ -2414,6 +2421,8 @@ class Window(QMainWindow):
         self.images.append(path)
         first = not self.batch
         self.batch.append(path)
+        if first and self.job_kind != "chibi":
+            self._record_result(path)
         bad = []
         try:
             if self.job_kind == "chibi":
@@ -2588,6 +2597,7 @@ class Window(QMainWindow):
         self.thread.started.connect(job.run)
         job.status.connect(self.on_status)
         job.preview.connect(self.show_preview)
+        self._record_job(job)
         job.one.connect(self.on_one)
         job.done.connect(self.finish)
         job.failed.connect(self.fail)
@@ -2749,6 +2759,8 @@ class Window(QMainWindow):
         """履歴の右クリック → 判定。記録の無い絵（前の版で描いた絵）は知らせる"""
         from chatdraw import wordlearn
         ok = wordlearn.set_verdict(path, verdict)
+        from chatdraw import userstats
+        userstats.refresh()   # 判定が変わったので、模型の並べ方を測り直す
         self.statusBar().showMessage((f"判定を付けました: {wordlearn.VERDICTS.get(verdict, '消しました')}" if ok else
                                       "この絵は学びの記録がありません（前の版で描いた絵です）"), 4000)
         return ok
@@ -3104,6 +3116,50 @@ class Window(QMainWindow):
             if max(img.width(), img.height()) > MAX_SIDE:
                 img = img.scaled(MAX_SIDE, MAX_SIDE, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             self.recorder.add(qimage_to_pil(img))
+
+    def open_userstats(self):
+        from chatdraw import userstats
+        self._stats_dialog = userstats.open_dialog(self)
+        return self._stats_dialog
+
+    def _record_job(self, job):
+        """AI が描き始めた。工程に分けて描く仕事が工程の絵（phase）を出すなら、それも順に残す"""
+        self.recorder.begin_job()
+        self._tl_before = None
+        if self.recorder.enabled and self.recorder.frames:
+            self._tl_before = self.recorder.frames[-1]
+        phase = getattr(job, "phase", None)
+        if phase is not None and hasattr(phase, "connect"):
+            phase.connect(lambda img: self.recorder.add(img) if hasattr(img, "convert") else None)
+
+    def _record_result(self, path: str):
+        """AI の絵が仕上がった。途中の絵が届かなかった（1 回で描いた）ときは、仕上がった絵から線画→塗り→仕上げを逆算して残す"""
+        if not self.recorder.enabled:
+            return
+        try:
+            from PIL import Image
+            with Image.open(path) as im:
+                self.recorder.end_job(im.convert("RGB"), getattr(self, "_tl_before", None))
+        except OSError:
+            pass
+
+    def export_timelapse(self, video: bool = False):
+        """ファイルのメニューから、タイムラプスを GIF か動画に書き出す"""
+        if not self.recorder.frames:
+            self.notify("タイムラプスの記録がまだありません", "warn", "線を引くか AI で描くと記録されます（「表示」→「タイムラプス」→「タイムラプスを記録する」）")
+            return
+        from PySide6.QtWidgets import QFileDialog
+        base = Path(self.settings.get("output_dir"))
+        if video:
+            dst, _ = QFileDialog.getSaveFileName(self, "タイムラプスを動画に書き出す", str(base / "timelapse.mp4"), "MP4 (*.mp4)")
+            if dst:
+                n, out = self.recorder.export_video(dst)
+                self.notify(f"タイムラプスを {out.name} に書き出しました（{n} 枚）", "ok", str(out))
+        else:
+            dst, _ = QFileDialog.getSaveFileName(self, "タイムラプスを GIF に書き出す", str(base / "timelapse.gif"), "GIF (*.gif)")
+            if dst:
+                n = self.recorder.export(dst)
+                self.notify(f"タイムラプスを GIF に書き出しました（{n} 枚）", "ok", dst)
 
     def _set_timelapse(self, on: bool):
         self.recorder.enabled = on

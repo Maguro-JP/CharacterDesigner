@@ -1620,15 +1620,17 @@ class Studio:
             say("検品できなかったので、通ったかは分かりません（途中）")
         path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model,
                                             hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws, passed=checked and not left))
-        self._learn(path, text, asked_prompt, left, missing_all, checked and not left, explored)
+        self._learn(path, text, asked_prompt, left, missing_all, checked and not left, explored, style=style,
+                    size=getattr(image, "size", None))
         self._inspect(path, say)
         return prompt, path
 
-    def _learn(self, path, text, asked_prompt, left, missing, passed, explored):
+    def _learn(self, path, text, asked_prompt, left, missing, passed, explored, style="", size=None):
         """描いた 1 枚を学びの記録と単語辞書に足す（chatdraw/wordlearn.py、chatdraw/worddict.py）。失敗しても描いた絵は渡す"""
         try:
             from chatdraw import jaterms, worddict, wordlearn
-            wordlearn.record(path, asked_prompt, getattr(self.painter, "model", ""), len(left), missing, passed, explored)
+            wordlearn.record(path, asked_prompt, getattr(self.painter, "model", ""), len(left), missing, passed, explored,
+                             style=style, size=size)
             words = {}
             for row in jaterms.align(text) if has_japanese(text) else []:
                 for t in row["tags"]:

@@ -48,15 +48,21 @@ class TimelapseTest(unittest.TestCase):
             self.assertEqual(tl.slider.maximum(), 4)
             tl.close()
 
-    def test_video_without_encoder_says_so(self):
+    def test_video_without_encoder_writes_webp(self):
+        """MP4 を書く部品が無い環境でも、動画の代わりに動く WebP を書き、ボタンは押せる形のまま理由をツールチップに出す"""
         from chatdraw import timelapse
         rec = timelapse.Recorder()
         rec.add(figure())
-        with mock.patch.object(timelapse, "video_available", return_value=False), TemporaryDirectory() as d:
-            with self.assertRaises(RuntimeError):
-                rec.export_video(Path(d) / "t.mp4")
+        rec.add(figure().rotate(90))
+        with mock.patch.object(timelapse, "video_backend", return_value="webp"), TemporaryDirectory() as d:
+            n, out = rec.export_video(Path(d) / "t.mp4")
+            self.assertEqual(out.suffix, ".webp")
+            self.assertGreater(Image.open(out).n_frames, 1)
             app()
-            self.assertFalse(timelapse.TimelapseDialog(rec).video.isEnabled())
+            dlg = timelapse.TimelapseDialog(rec)
+            self.assertTrue(dlg.video.isEnabled())
+            self.assertIn("WebP", dlg.video.toolTip())
+            dlg.close()
 
 
 class FakeSettings(dict):

@@ -37,10 +37,13 @@ def _tags(prompt: str) -> list[str]:
     return list(dict.fromkeys(t.strip() for t in prompt.split(",") if t.strip()))
 
 
-def record(path: str, prompt: str, model: str, flaws: int, missing: list[str], passed: bool, explored: bool = False):
-    """描いた 1 枚を記録に足す。prompt は頼みのタグ（足した背景や作風は入れない）"""
+def record(path: str, prompt: str, model: str, flaws: int, missing: list[str], passed: bool, explored: bool = False,
+           style: str = "", size=None):
+    """描いた 1 枚を記録に足す。prompt は頼みのタグ（足した背景や作風は入れない）。style（画風のタグ）と size（幅, 高さ）は
+    利用者の統計（chatdraw/userstats.py）に使う。描く言葉には戻さない"""
     row = {"path": str(path), "time": time.strftime("%Y-%m-%d %H:%M"), "tags": _tags(prompt), "model": model or "",
-           "flaws": int(flaws), "missing": [m for m in missing if m], "passed": bool(passed), "explored": bool(explored), "verdict": ""}
+           "flaws": int(flaws), "missing": [m for m in missing if m], "passed": bool(passed), "explored": bool(explored), "verdict": "",
+           "style": style or "", "size": list(size) if size else []}
     f = log_file()
     f.parent.mkdir(parents=True, exist_ok=True)
     with f.open("a", encoding="utf-8") as out:
