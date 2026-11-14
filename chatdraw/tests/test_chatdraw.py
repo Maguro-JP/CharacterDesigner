@@ -2265,7 +2265,7 @@ class RequestCheckTest(unittest.TestCase):
         self.assertIn("すべて", requestcheck.summary({"readable": True, "missing": []}))
         self.assertFalse(requestcheck.check(__file__, "1girl")["readable"])   # CD_CHECK=off では止めて理由を返す
 
-    def test_missing_tags_trigger_redraw(self):
+    def test_missing_tags_do_not_trigger_redraw(self):
         import tempfile
         from unittest import mock
         from chatdraw import handcheck, requestcheck
@@ -2275,7 +2275,7 @@ class RequestCheckTest(unittest.TestCase):
             prompt, path = s.draw("1girl, hand up", 7)
         import json
         meta = finishers.sidecar(path)
-        self.assertEqual([r["bad"] for r in meta["redraws"]], [["描かれていない: hand up"], []])   # 描かれるまで描き直した
+        self.assertEqual([r["bad"] for r in meta["redraws"]], [["描かれていない: hand up"]])   # 描くのは 1 回。描き直しを繋げない
 
 
 class ConveyTest(unittest.TestCase):

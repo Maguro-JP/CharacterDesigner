@@ -1573,8 +1573,9 @@ class Studio:
                 prompt = emphasize(prompt, missing_all)
             image = self.painter.paint(prompt, s_k, on_step=lambda i, n: say(f"描いています（{i}/{n}）"),
                                        base=base, strength=strength, size=size, on_preview=on_preview, **extra)
-            image = self._fix_hands(image, prompt, s_k, say)
-            left = list(self.hand_rounds[-1]["bad"] if self.hand_rounds else [])
+            # 描いたあとに検品して直す流れは繋げない（繋げると直りきらずに回り続け、描けなくなった）。
+            # 検品と直しは、ユーザーが「検品する」と赤ペンの直しで別々に呼ぶ
+            left, self.hand_rounds = [], []
             from chatdraw import requestcheck
             asked = requestcheck.check(image, asked_prompt)
             if asked["readable"]:
@@ -1778,8 +1779,8 @@ class Studio:
     last_check: dict | None = None
     # 質が先で、速さは後。時間がかかっても、崩れが消えるまで直して描き直す（3 回ずつでは崩れの残った絵を渡していた）。
     # 上限は、検品が読み違え続けたときに止まらなくなるのを避けるためだけに置く
-    FIX_ROUNDS = 6     # 描いたあと、崩れた所を直して検品し直す回数の上限
-    REDRAW_TRIES = 12  # 直しても検品を通らないとき、種を変えて描き直す回数の上限
+    FIX_ROUNDS = 6     # _fix_hands を直接呼んだときの、直して検品し直す回数の上限（描く流れからは呼ばない）
+    REDRAW_TRIES = 1   # 描くのは 1 回。検品を通らなくても描き直しを繋げない
 
     def _fix_hands(self, image, prompt: str, seed: int, say):
         """1 回描いて終わりにしない。描いた絵の手・足・顔を検品し、崩れた所だけを直して、もう一度検品する。
