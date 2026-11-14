@@ -34,6 +34,13 @@ def fake(api: dict, files: dict | None = None, error: int | None = None):
 
 
 class FilterTest(unittest.TestCase):
+    def setUp(self):
+        # 並びは ★ と非表示の印（手元の model_prefs.json）で変わる。手元で付けた ★ に左右されないよう、印の無い状態で見る
+        from unittest import mock
+        patcher = mock.patch("chatdraw.ratings._load", return_value={})
+        patcher.start()
+        self.addCleanup(patcher.stop)
+
     def test_all_by_default_and_each_filter_narrows(self):
         every = models.pick(models.IMAGES)
         self.assertEqual(len(every), len(models.IMAGES))                 # 既定は全部（未確認の物も出す）

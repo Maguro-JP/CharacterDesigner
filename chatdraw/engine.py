@@ -2145,21 +2145,13 @@ class Studio:
         return result
 
     def source_words(self, source: str | None, image, say=None) -> str:
-        """元の絵の言葉。その絵を描いたときの頼みの訳（記録の prompt）があれば使い、無ければ（人が描いた絵）絵からタグを読む"""
+        """元の絵の言葉。その絵を描いたときの頼みの訳（記録の prompt）だけを使う。
+        記録の無い絵からタグを読んで足すと、頼んでいない言葉（monochrome、transparent background など）が模型に渡ったので読まない"""
         if source:
             return source
-        try:
-            from chatdraw import requestcheck
-            import tempfile
-            tg = requestcheck._tagger(False)
-            tmp = Path(tempfile.mkdtemp()) / "source.png"
-            image.convert("RGB").save(tmp)
-            got = tg.read(str(tmp))
-            return ", ".join(t for t, _p in sorted(got.items(), key=lambda kv: -kv[1])[:30])
-        except Exception as e:   # 絵を読む部品が無い。止めずに指示の言葉だけで直す
-            if say is not None:
-                say(f"元の絵の言葉が分からないので、指示の言葉だけで直します（絵を読む部品がありません: {e}）")
-            return ""
+        if say is not None:
+            say("元の絵の記録が無いので、指示の言葉だけで直します")
+        return ""
 
     def fix_words(self, note: str, source: str, style: str = "", say=None) -> str:
         """直す所 1 か所の描く言葉 = 指示の訳（前）＋ 元の絵の言葉（指示とぶつかる語を外す）＋ 画風。

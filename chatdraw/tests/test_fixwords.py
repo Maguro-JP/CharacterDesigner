@@ -89,7 +89,8 @@ class FixWordsTest(unittest.TestCase):
         same = [self.passed("髪を赤くして", seed=5)[1] for _ in range(2)]
         self.assertEqual(same[0], same[1], "種を固定したときは同じ種")
 
-    def test_no_record_reads_tags_from_picture(self):
+    def test_no_record_does_not_read_tags_from_picture(self):
+        # 記録の無い絵からタグを読んで足すと、頼んでいない言葉が模型に渡る。指示の言葉だけで直す
         from unittest import mock
         fake = mock.Mock()
         fake.read.return_value = {"1girl": 0.99, "green hair": 0.9, "kimono": 0.8}
@@ -97,8 +98,8 @@ class FixWordsTest(unittest.TestCase):
             prompt, _s, _said = self.passed("髪を赤くして", source=None)
         tags = [t.strip() for t in prompt.split(",")]
         self.assertEqual(tags[0], "red hair")
-        self.assertIn("kimono", tags)
-        self.assertNotIn("green hair", tags)
+        self.assertNotIn("kimono", tags)
+        fake.read.assert_not_called()
 
     def test_finishers_get_source_and_fresh_seed(self):
         finishers.use_painter(self.painter)
