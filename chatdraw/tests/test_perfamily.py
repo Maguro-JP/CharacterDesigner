@@ -151,8 +151,9 @@ class LoadTest(unittest.TestCase):
             self.assertEqual(made[-1], ("DPMSolverMultistepScheduler", {"k": 1}))
             self.assertTrue(use_scheduler(pipe, image_model("genai-archive/anything-v5")))
             self.assertEqual(made[-1][0], "EulerAncestralDiscreteScheduler")
-            self.assertFalse(use_scheduler(pipe, image_model("cagliostrolab/animagine-xl-4.0")))
-        self.assertEqual(len(made), 2)
+            self.assertTrue(use_scheduler(pipe, image_model("cagliostrolab/animagine-xl-4.0")))   # 札の推奨は Euler a
+            self.assertEqual(made[-1][0], "EulerAncestralDiscreteScheduler")
+        self.assertEqual(len(made), 3)
 
     def test_flux1_single_file_borrows_ungated_config(self):
         from chatdraw.models import SINGLE_BASE
