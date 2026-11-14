@@ -19,7 +19,7 @@ GROUPS = (
     ("detail", "ディテール"),
     ("redraw", "描き直して整える"),
     ("enlarge", "拡大"),
-    ("style", "画風"),
+    ("style", "画風の変更"),   # 見本の投稿のように 1 枚の絵の画風を選んで変える。名前は利用者の言った語
     ("texture", "質感"),
     ("air", "空気感"),
     ("ink", "清書"),
@@ -292,7 +292,7 @@ def visible_items(w, store: Store) -> list[Shortcut]:
     return [s for s in items if s.id not in hidden or s.id in favs or s.group in ("user", "chain")]
 
 
-def fill_menu(w, menu, store: Store):
+def fill_menu(w, menu, store: Store, skip=()):
     """右クリックのメニューにショートカットを足す。★ とよく使う物をまとまりの外の上に、残りはまとまりごとの小さなメニューに。
     隠した加工は出さず、加工が 1 つも無いまとまりも出さない"""
     items = store.order(visible_items(w, store))
@@ -305,6 +305,8 @@ def fill_menu(w, menu, store: Store):
     if top:
         menu.addSeparator()
     for g, label in GROUPS:
+        if g in skip:   # 呼ぶ側が自分で全部を並べるまとまり（キャンバスの右クリックの「画風の変更」）
+            continue
         inside = [s for s in items if s.group == g]
         if not inside and g not in ("user", "chain"):
             continue

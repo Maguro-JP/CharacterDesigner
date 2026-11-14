@@ -305,6 +305,89 @@ class RestyleTest(unittest.TestCase):
                 w.dirty = False
                 w.close()
 
+    def test_right_click_style_menu_and_mark_only(self):
+        """キャンバスの右クリックに「画風の変更」があり、画風が全部並ぶ。赤ペンの印の右クリックからは、その囲みの中だけに掛かる"""
+        import numpy as np
+        from PySide6.QtCore import QPoint, QPointF, Qt
+        from PySide6.QtTest import QTest
+        from chatdraw import restyle
+        from chatdraw.app import Window, qimage_to_pil
+        from chatdraw.engine import Studio
+        from chatdraw.tests.test_chatdraw import FakeWords
+        from chatdraw.tests.test_editing import app
+        qapp = app()
+
+        def sub(menu, title):
+            subs = {a.text(): a.menu() for a in menu.actions() if a.menu() is not None}
+            self.assertIn(title, subs)
+            return subs[title]
+
+        def wait_layer(w, n):
+            for _ in range(6000):
+                qapp.processEvents()
+                if len(w.canvas.layers) > n:
+                    return
+                time.sleep(0.01)
+            self.fail("画風のレイヤーが置かれません")
+        with TemporaryDirectory() as d, \
+                mock.patch.object(restyle, "check", lambda a, b: dict(drift=0.0, line_kept=1.0, why="")), \
+                mock.patch.object(restyle, "WORK_SIDE", 48):
+            d = Path(d)
+            w = Window(Studio(FakeWords(), self.painter, d))
+            old = w.settings.store.value("result_place")
+            w.settings.set("result_place", "上のレイヤー")
+            w.settings.set("output_dir", str(d / "out"))
+            try:
+                Image.open(SAMPLE).convert("RGB").resize((160, 240)).save(d / "a.png")
+                w.resize(1200, 800)
+                w.show()
+                w.canvas.replace_with_image(str(d / "a.png"))
+                QTest.qWait(50)
+                c = w.canvas
+                # キャンバスの右クリック: 「画風の変更」の中に、見本の画風と今ある画風が全部並ぶ
+                top = w.build_canvas_menu()   # 親のメニューを持っておく（消えると中の小さなメニューも消える）
+                m = sub(top, "画風の変更")
+                labels = [a.text() for a in m.actions()]
+                for want in ("線画", "鉛筆画", "色鉛筆画", "水彩", "墨絵", "ガッシュ画", "アルコールマーカー画",
+                             "モノクロ漫画風", "フィギュア風", "ドット絵", "アニメの塗り", "厚塗り", "セル画"):
+                    self.assertIn(want, labels)
+                self.assertTrue(all(a.toolTip() for a in m.actions()))   # 説明はボタンの中でなくツールチップ
+                # 赤ペンで囲み、印の番号の丸の上で右クリックする
+                w.tool_actions["redpen"].trigger()
+                vp = c.viewport()
+                start = c.mapFromScene(c.sceneRect().center()) + QPoint(-20, -20)
+                QTest.mousePress(vp, Qt.LeftButton, Qt.NoModifier, start)
+                for i in range(1, 11):
+                    QTest.mouseMove(vp, start + QPoint(4 * i, 4 * i))
+                QTest.mouseRelease(vp, Qt.LeftButton, Qt.NoModifier, start + QPoint(40, 40))
+                QTest.qWait(20)
+                w.note_edit.setText("画風")
+                QTest.keyClick(w.note_edit, Qt.Key_Return)
+                self.assertEqual(len(c.redpen.marks), 1)
+                r = 13 / max(0.05, c.zoom())
+                dot = c.redpen.marks[0][0] + QPointF(-r, -r)
+                gpos = vp.mapToGlobal(c.mapFromScene(dot))
+                mask = np.asarray(qimage_to_pil(c.redpen.masks()[0]).convert("L")) > 0
+                before = np.asarray(qimage_to_pil(c.flatten()).convert("RGB")).astype(int)
+                n = len(c.layers)
+                top2 = w.build_canvas_menu(gpos)
+                item = next(a for a in sub(top2, "印 1 の中の画風の変更").actions() if a.text() == "ドット絵")
+                self.assertTrue(item.isEnabled())
+                item.trigger()
+                wait_layer(w, n)
+                self.assertEqual(c.layers[-1].name, "画風: ドット絵")
+                after = np.asarray(qimage_to_pil(c.flatten()).convert("RGB")).astype(int)
+                self.assertEqual(int(np.abs(after - before)[~mask].max()), 0)   # 囲みの外は 1 画素も変えない
+                self.assertGreater(int(np.abs(after - before)[mask].max()), 0)  # 囲みの中は描き替わった
+            finally:
+                if old is None:
+                    w.settings.store.remove("result_place")
+                else:
+                    w.settings.set("result_place", old)
+                w.dirty = False
+                w.closing_checked = True
+                w.close()
+
 
 if __name__ == "__main__":
     unittest.main()
