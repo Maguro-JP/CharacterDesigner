@@ -1686,6 +1686,12 @@ class Window(QMainWindow):
         if getattr(self, "asking", False):
             self.say("前の答えを待っています。少し待ってからもう一度送ってください")
             return
+        from chatdraw import chatwords
+        changed = chatwords.parse(text, self.entry.text())
+        if changed is not None:   # 描くワードを変えるのは、チャットでそう頼まれたときだけ（何をどう変えたかを 1 行で返す）
+            self.entry.setText(changed[0])
+            self.chat.add("ai", changed[1])
+            return
         if self.chat_plan(text):   # 文の頼み（繰り返し・予約・書き出し・加工の並び・参考画像・お気に入り）は段取りにして行う
             return
         words = getattr(getattr(self, "studio", None), "words", None)
@@ -1702,13 +1708,19 @@ class Window(QMainWindow):
                 self.feature_tour("ai_commands")
                 return
             body = assistant.draw_request(text)
+            if body is None and re.fullmatch(r"\s*(今の(描くワード|描く内容)で)?\s*(描いて|描く|かいて|描け)(ください|下さい)?\s*[。！!]*\s*", text):
+                body = self.entry.text().strip() or self.last_text   # 「描いて」だけなら、今の描くワードで描く
             if body:
                 body = self.favorites().apply(body)[0]   # 「お気に入りの水彩で描いて」は、残した言葉を足して描く
                 self.asking = False
                 self.chat.set_busy(False)
-                self.chat.add("ai", f"AI の欄の描く内容に「{body}」と入れて描きます")
-                self.entry.setText(body)
-                self.send()
+                # チャットの文は言語の模型への指示で、描くワードの欄（描画の模型への設定）は書き換えない。
+                # 文に描く内容があればこの回だけ使い、無ければ今の描くワードで描く
+                if body == self.entry.text().strip():
+                    self.chat.add("ai", f"今の描くワード「{body}」で描きます")
+                else:
+                    self.chat.add("ai", f"この回だけ「{body}」で描きます（描くワードの欄は変えません）")
+                self.send(body)
                 return
             if self.thread is not None and getattr(words, "ready", lambda: False)():
                 self.asking = False   # 描いている間は言葉の模型を描く側が使う。同時に使うと落ちることがある
@@ -2002,8 +2014,11 @@ class Window(QMainWindow):
             self.ai_label.setToolTip(st["reason"])
         return st
 
-    def send(self):
-        text = self.entry.text().strip()
+    def send(self, once: str | None = None):
+        """描く。once を渡すと、描くワードの欄を変えずに、この回だけその言葉で描く（チャットの頼み）"""
+        if not isinstance(once, str):
+            once = None   # ボタンの clicked は押した印（真偽値）を渡す。頼みの文と取り違えないように
+        text = (self.entry.text() if once is None else once).strip()
         pen = self.canvas.redpen
         if self.thread and text:   # 描いている間の頼みは受けない。黙って捨てると、押しても何も起きないように見えた
             self.progress_popup.pop()
@@ -2034,10 +2049,10 @@ class Window(QMainWindow):
                     return   # 止めた回の答え
                 self.asking = False
                 self.button.setEnabled(True)
-                self._send_after(text, None if isinstance(picked, BaseException) else picked)
+                self._send_after(text, None if isinstance(picked, BaseException) else picked, once is not None)
             self.in_background(lambda: commands.by_model(text, words), got, "言葉の模型の答え待ち")
             return
-        self._send_after(text, None)   # 模型に聞けないときは言葉の決まりで選ぶ
+        self._send_after(text, None, once is not None)   # 模型に聞けないときは言葉の決まりで選ぶ
 
     def in_background(self, work, done, name: str = "裏の処理"):
         """work を裏の糸で動かし、答えを画面の糸の done に渡す。work が例外を出したら、その例外を渡す"""
@@ -2087,11 +2102,12 @@ class Window(QMainWindow):
         except RuntimeError:
             pass   # 窓を閉じたあと
 
-    def _send_after(self, text: str, picked):
+    def _send_after(self, text: str, picked, once: bool = False):
         from chatdraw import commands
         reply = commands.handle(self, text, picked=picked)   # 操作の頼み（道具・色・欄・配置など）はその場で行い、絵は描かない
         if reply:
-            self.entry.clear()
+            if not once:   # 欄に書いた操作の言葉は欄から消す。チャットから来た言葉では欄に触らない
+                self.entry.clear()
             self.say(text, "あなた")
             self.say(reply)
             self.feature_tour("ai_commands")

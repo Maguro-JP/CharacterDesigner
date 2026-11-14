@@ -259,6 +259,45 @@ class WindowTest(WindowBase):
         self.assertEqual(studio.last_whole["outside"], 0)
         self.assertEqual(len(studio.painter.calls), 1, "直しを 1 回で終えていない（繰り返しに繋がった）")
 
+    # ---- 3. チャットと描くワード ----
+    def chat(self, w, text):
+        w.chat_send(text)
+        end = time.time() + 30
+        while getattr(w, "asking", False) and time.time() < end:
+            self.qapp.processEvents()
+        self.wait(w)
+
+    def test_chat_draw_keeps_words(self):
+        w = self.w
+        w.layout_store.setValue("confirm/batch", "go")
+        w.entry.setText("赤いマフラーの少女")
+        painter = w.studio.painter
+        painter.calls.clear()
+        with mock.patch.object(w, "_keep_original", lambda text: text):
+            self.chat(w, "海辺の灯台を描いて")
+        self.assertEqual(w.entry.text(), "赤いマフラーの少女", "チャットで描いて描くワードの欄が変わった")
+        self.assertTrue(painter.calls, "描いていない")
+        self.assertIn("この回だけ", w.chat.bubbles()[1].text)
+        painter.calls.clear()
+        with mock.patch.object(w, "_keep_original", lambda text: text):
+            self.chat(w, "描いて")
+        self.assertEqual(w.entry.text(), "赤いマフラーの少女")
+        self.assertTrue(painter.calls, "「描いて」で今の描くワードで描いていない")
+        self.assertTrue(any("今の描くワード" in b.text for b in w.chat.bubbles()))
+
+    def test_chat_changes_words_only_when_asked(self):
+        w = self.w
+        w.entry.setText("赤いマフラーの少女")
+        n = len(w.studio.painter.calls)
+        self.chat(w, "描くワードに青い帽子を足して")
+        self.assertEqual(w.entry.text(), "赤いマフラーの少女、青い帽子")
+        self.assertEqual(w.chat.bubbles()[-1].text, "描くワードに「青い帽子」を足しました（「赤いマフラーの少女、青い帽子」）")
+        self.chat(w, "描くワードから赤いマフラーの少女を消して")
+        self.assertEqual(w.entry.text(), "青い帽子")
+        self.chat(w, "描くワードを「夜の街」に変えて")
+        self.assertEqual(w.entry.text(), "夜の街")
+        self.assertEqual(len(w.studio.painter.calls), n, "描くワードを変えただけで描いた")
+
 
 class WholeCheckTest(unittest.TestCase):
     """加工のあとの全体の確かめ。1 回だけ測って知らせ、絵は変えない"""
@@ -293,6 +332,17 @@ class WholeCheckTest(unittest.TestCase):
         outside = np.asarray(Image.composite(Image.new("RGB", im.size), out.convert("RGB"), mask))
         base = np.asarray(Image.composite(Image.new("RGB", im.size), im, mask))
         self.assertEqual(int((outside != base).any(-1).sum()), 0)
+
+
+class ParseTest(unittest.TestCase):
+    def test_parse(self):
+        from chatdraw import chatwords
+        self.assertIsNone(chatwords.parse("猫を描いて", "犬"))
+        self.assertIsNone(chatwords.parse("髪を長くして", "犬"))
+        self.assertEqual(chatwords.parse("描くワードを猫に変えて", "犬")[0], "猫")
+        self.assertEqual(chatwords.parse("描くワードに帽子を追加して", "")[0], "帽子")
+        self.assertEqual(chatwords.parse("描くワードを空にして", "犬")[0], "")
+        self.assertEqual(chatwords.parse("描くワードから猫を消して", "犬")[0], "犬")
 
 
 if __name__ == "__main__":
