@@ -35,23 +35,27 @@ PRESETS: list[tuple[str, str, int, str, str, int]] = [
     (DEFAULT_PRESET, "最初の設定に戻す", 0, "縦", "おまかせ", 100),
     ("キャラデザ", "全身の立ち絵を縦長で", 0, "縦", "アニメ", 100),
     ("ラフを清書", "キャンバスの線を清書", 1, "縦", "アニメ", 100),
-    ("ラフから自由に", "ラフを元に AI が整える", 1, "縦", "厚塗り", 60),
+    ("ラフから自由に", "ラフを元に AI が整える", 1, "縦", "おまかせ", 60),
     ("イラスト", "場面の 1 枚を横長で", 0, "横", "厚塗り", 100),
     ("アイコン", "顔まわりを正方形で", 0, "正方形", "アニメ", 100),
-    ("立ち絵（白地）", "透過しやすい白地の全身", 0, "縦", "アニメ", 100),
-    ("表情差分", "顔と表情を正方形で", 0, "正方形", "アニメ", 100),
     ("背景美術", "人のいない風景を横長で", 0, "横", "厚塗り", 100),
     ("モノクロ", "白黒の線と影で", 0, "縦", "おまかせ", 100),
-    ("水彩の挿絵", "淡い水彩の 1 枚を横長で", 0, "横", "水彩", 100),
-    ("レトロアニメ", "90 年代のアニメの色で", 0, "縦", "レトロ", 100),
+    # ロゴ・エンブレム・スタンプのモードの物（chatdraw/modes.py）。形（正方形）だけを決め、描く言葉は足さない
+    ("ロゴ", "マーク・紋章を正方形で", 0, "正方形", "おまかせ", 100),
+    ("スタンプ", "スタンプの絵を正方形で", 0, "正方形", "アニメ", 100),
 ]
-# プリセットが描く頼みの後ろに足す言葉（英語のタグ。日本語は絵の模型に渡さない）
-PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background", "アイコン": "portrait, upper body, looking at viewer",
-                 "立ち絵（白地）": "full body, standing, simple background, white background",
-                 "表情差分": "portrait, upper body, looking at viewer, simple background, expressive face",
+# まとめたプリセットの前の名前 → (今のプリセット, 上から当てる画風)。声や AI の頼み、覚えた選択から前の名前で呼ばれても動く。
+# 中身が他のプリセットか画風と同じだった物をまとめた（並びが長いと、どれを押せばよいか分からない）
+MERGED = {"立ち絵（白地）": ("キャラデザ", None),   # キャラデザとほぼ同じ
+          "表情差分": ("アイコン", None),         # 表情を描き分けない。本当の表情差分は「キャラクターデザイン」のメニュー
+          "レトロアニメ": (DEFAULT_PRESET, "レトロ"),   # 画風「レトロ」と同じ
+          "水彩の挿絵": ("イラスト", "水彩"),       # イラストに画風「水彩」と同じ
+          "エンブレム": ("ロゴ", None)}           # 描く言葉を足さないので、ロゴと中身が同じになった
+# プリセットが描く頼みの後ろに足す言葉（英語のタグ。日本語は絵の模型に渡さない）。
+# 頼みの中身（視線・線画・トーン）を決める言葉は外した。形（全身・顔まわり・風景・白黒）だけを残す。新しい言葉は足さない
+PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background", "アイコン": "portrait, upper body",
                  "背景美術": "scenery, no humans, detailed background, wide shot",
-                 "モノクロ": "monochrome, greyscale, lineart, screentone",
-                 "水彩の挿絵": "illustration, soft lighting", "レトロアニメ": "1990s anime screencap"}
+                 "モノクロ": "monochrome, greyscale"}
 
 
 # タブ: (名前, ヒント)。初めに開くのは先頭の「指示」（描く内容と模型を 1 枚にまとめた。行き来が要らない）
@@ -243,8 +247,9 @@ class AiPanel(QWidget):
         self.again.setToolTip(self.again.toolTip() + "\n一部だけ直すときは、赤ペンで囲んでから「描く」を押します")
         # 綺麗にする・外へ広げるは、キャンバスの右クリックのメニューにある（並べ方は右クリックのメニューの側で決める）
         lay.addWidget(self._head("仕上げ", "綺麗にする・外へ広げるは、キャンバスの右クリックから選びます。元の絵は元に戻すで戻せます"))
+        from chatdraw.upscale import UPSCALE_TIP
         self.upscale_button = QPushButton("絵を 2 倍に拡大")
-        self.upscale_button.setToolTip("線と塗りを保ったまま、今の絵を 2 倍の大きさにします")
+        self.upscale_button.setToolTip(UPSCALE_TIP)
         self.upscale_button.clicked.connect(w.upscale_canvas)
         lay.addWidget(self.upscale_button)
         lay.addWidget(self._head("加工", "出来た絵から作ります。元の絵は残し、新しいレイヤーに重ねます"))
@@ -401,7 +406,9 @@ class AiPanel(QWidget):
             if item.widget():
                 self.preset_group.removeButton(item.widget())
                 item.widget().deleteLater()
-        cards = [(name, sub, dict(mode=m, size=s, style=st, strength=k), False) for name, sub, m, s, st, k in PRESETS]
+        keep = getattr(self, "mode_presets", None)   # モード（chatdraw/modes.py）で出すプリセット。None は全部
+        cards = [(name, sub, dict(mode=m, size=s, style=st, strength=k), False) for name, sub, m, s, st, k in PRESETS
+                 if keep is None or name in keep]
         cards += [(n, "自分のプリセット", d, True) for n, d in self.own_presets().items()]
         for i, (name, sub, data, own) in enumerate(cards):
             b = self._card(name, sub, own)
@@ -451,6 +458,12 @@ class AiPanel(QWidget):
         self.changed.emit()
 
     def apply_name(self, name: str) -> bool:
+        if name in MERGED and name not in self.own_presets():
+            to, style = MERGED[name]
+            self.apply_name(to)
+            if style:
+                self.set_style(style)
+            return True
         for n, _sub, m, s, st, k in PRESETS:
             if n == name:
                 self.apply(n, dict(mode=m, size=s, style=st, strength=k))
@@ -479,9 +492,17 @@ class AiPanel(QWidget):
         self.w.notify("AI プリセットを保存しました", "ok", f"「{name}」は AI の欄にいつでも出ます")
 
     def _own_menu(self, name: str, button):
+        self.own_menu(name).exec(button.mapToGlobal(button.rect().bottomLeft()))
+
+    def own_menu(self, name: str):
+        """自分のプリセットの右クリック。当てるを上、消すは区切り線の下"""
         m = QMenu(self)
-        m.addAction("消す", lambda: (self.w.layout_store.remove(f"ai_presets/{name}"), self.fill_presets()))
-        m.exec(button.mapToGlobal(button.rect().bottomLeft()))
+        m.addAction("このプリセットにする", lambda: self.apply_name(name))
+        m.addAction("今の設定で上書き", lambda: self.save_preset(name, self.current()))
+        m.addSeparator()
+        m.addAction("消す…", lambda: self.w.ask_forget(f"自分の AI プリセット「{name}」を消します。",
+                                                     lambda: (self.w.layout_store.remove(f"ai_presets/{name}"), self.fill_presets())))
+        return m
 
     # ---- 画風と同期 ----
     def set_style(self, name: str):
