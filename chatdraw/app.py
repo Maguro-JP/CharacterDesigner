@@ -3718,6 +3718,8 @@ class Window(QMainWindow):
             a.setChecked(is_favorite(m.repo))
             a.setToolTip("★ を付けた模型は一覧の先頭に出て、おまかせでも選ばれやすくなります")
             a.toggled.connect(lambda on, r=m.repo: set_favorite(r, on))
+        menu.addAction(QAction("Civitai から探す…", self, triggered=self.open_civitai,
+                               toolTip="Civitai の模型と LoRA を見本の絵で探して取ります"))
         menu.addAction(QAction("役目ごとの模型…", self, triggered=self.open_role_models,
                                toolTip="構図・仕上げ・顔・手・背景・直しに使う模型を選んで保存します"))
         menu.addSeparator()
@@ -3762,6 +3764,29 @@ class Window(QMainWindow):
         self.check_ai()
         self._fill_ai_menu()
         self.rescan_models()
+
+    def open_civitai(self):
+        """Civitai から模型と LoRA を探して取る窓（chatdraw/civitaipanel.py）。取った物はすぐ一覧に出す"""
+        from chatdraw.civitaipanel import CivitaiDialog
+        dlg = CivitaiDialog(self.layout_store, self)
+        dlg.exec()
+        if dlg.got is not None:
+            self.reload_loras()
+            self._have_images = None
+            self._refresh_ai_menu()
+
+    def reload_loras(self):
+        """LoRA の欄を置き場から数え直す（取ったばかりの LoRA をすぐ選べるように）。選んでいた物は残す"""
+        from chatdraw import ownstyle
+        now = self.lora_pick.currentData()
+        self.lora_pick.blockSignals(True)
+        self.lora_pick.clear()
+        self.lora_pick.addItem("LoRA なし", "")
+        for p in ownstyle.loras():
+            self.lora_pick.addItem(p.stem, str(p))
+        self.lora_pick.setCurrentIndex(max(0, self.lora_pick.findData(now)))
+        self.lora_pick.blockSignals(False)
+        Window._lora_shown(self)
 
     def open_role_models(self):
         """役目ごとのお気に入りの模型を選ぶ窓（chatdraw/favmodels.py）。保存したらお気に入りで描くように替える"""

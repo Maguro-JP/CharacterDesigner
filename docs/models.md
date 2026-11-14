@@ -172,3 +172,5 @@
 | Gemma 3 4B | [unsloth/gemma-3-4b-it-GGUF](https://huggingface.co/unsloth/gemma-3-4b-it-GGUF) の `gemma-3-4b-it-Q4_K_M.gguf` | 2.5 GB | 0 | 多くの言語の頼みを訳す。日本語以外の頼み向き |
 
 <!-- modeldoc:end -->
+
+取得先（Hugging Face、Civitai ほか）の調べは [model-sources.md](knowledge/model-sources.md)。

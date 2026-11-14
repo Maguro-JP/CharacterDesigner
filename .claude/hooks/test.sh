@@ -19,7 +19,7 @@ if [ -d .cache/simple/lib/PySide6 ]; then
     "chatdraw.tests.test_omakase chatdraw.tests.test_editing chatdraw.tests.test_modelblock chatdraw.tests.test_modelmgr chatdraw.tests.test_aitabs chatdraw.tests.test_original_finish chatdraw.tests.test_original_qc chatdraw.tests.test_panels chatdraw.tests.test_keepsettings chatdraw.tests.test_aiui" \
     "chatdraw.tests.test_stop chatdraw.tests.test_shortcuts chatdraw.tests.test_works chatdraw.tests.test_toplayer chatdraw.tests.test_logo chatdraw.tests.test_nojson chatdraw.tests.test_voicechat chatdraw.tests.test_memory chatdraw.tests.test_membudget chatdraw.tests.test_usability" \
     "chatdraw.tests.test_finish_quality chatdraw.tests.test_words chatdraw.tests.test_nobreak chatdraw.tests.test_variety chatdraw.tests.test_layercrash chatdraw.tests.test_tabkey chatdraw.tests.test_confirm chatdraw.tests.test_redpeninput chatdraw.tests.test_sanity chatdraw.tests.test_redpenfix chatdraw.tests.test_qcmanual chatdraw.tests.test_composition" \
-    "chatdraw.tests.test_layertools chatdraw.tests.test_brushtools chatdraw.tests.test_shapeassist chatdraw.tests.test_qcbench chatdraw.tests.test_favmodels"; do
+    "chatdraw.tests.test_layertools chatdraw.tests.test_brushtools chatdraw.tests.test_shapeassist chatdraw.tests.test_qcbench chatdraw.tests.test_favmodels chatdraw.tests.test_civitai"; do
   out="$(CD_ASSUME_FREE_RAM_GB=64 QT_QPA_PLATFORM=offscreen PYTHONPATH=.cache/simple/lib:$lib python3 -m unittest $mods  2>&1)" || { echo "$out" | grep -E -A12 "^(FAIL|ERROR):" | head -80 >&2; echo "$out" | tail -4 >&2; exit 2; }
   done
   # 窓の枠のテーマの試験は、ほかの試験が数百の窓を開け閉めしたあとに流すと Qt の中で落ちる（単独では通る）。窓の状態を持ち越さないよう、別の処理で流す
