@@ -177,6 +177,7 @@ class Job(QObject):
         many = len(self.seeds) > 1
         for i, seed in enumerate(self.seeds, 1):
             debuglog.log("工程", f"{i}/{len(self.seeds)} 枚目を描きます（種 {seed}）", mem=True)
+            self.status.emit(f"{i}/{len(self.seeds)} 枚目を描きます")   # 進みの見出しに何枚目かを出す
             try:
                 self._draw_one(seed)
                 self.drawn += 1
@@ -2125,6 +2126,7 @@ class Window(QMainWindow):
         self.stop_button.setEnabled(True)
         self.feature_tour("draw")
         self.activity.begin(text, self.mode.currentText())
+        self.activity.set_sheet(1, 1 if self.mode.currentIndex() == 2 else self.ai_panel.count())
         self.activity.status("AI が使えるかを確かめました")
         m = re.search(r"([124１２４一二四])\s*枚", text)
         if m:   # 「4 枚描いて」のように枚数を書いたら、その枚数で描く
@@ -2567,6 +2569,11 @@ class Window(QMainWindow):
             return
         self._show_model()   # おまかせで選んだ模型を出す
         self.show_final()
+        if self.job_kind == "draw" and self.mode.currentIndex() == 1:
+            # ラフから描き終えたら「新規」に戻す。キャンバスはもう AI の絵に置き換わっているので、「ラフから」のままだと
+            # 次の頼みが前に描いた絵を下描きにして描かれ、新しい頼みが前の絵に引っ張られた。もう一度ラフから描くときは選び直す
+            self.mode.setCurrentIndex(0)
+            self.say("次の頼みは「新規」で描きます（今の絵を下描きにするときは「ラフから」を選び直します）")
         n = len(self.batch)
         fixed = self.job_kind in ("fix", "chibi")
         bad = getattr(getattr(self, "job_studio", None) or self.studio, "last_flaws", []) if self.job_kind == "fix" else []
@@ -3588,10 +3595,12 @@ class Window(QMainWindow):
                 paths.use_tools_gen()
                 import layers as gen_layers
                 cut = gen_layers.anime_cut(tmp)
-            except ImportError:
+            except Exception as e:   # noqa: BLE001
+                # 部品が無い（ImportError）だけでなく、模型を読めない・取れないときも、地の色を抜く方法で透過する。
+                # 前は ImportError だけを受け、ほかの失敗は「透過できませんでした」で終わっていた
                 from chatdraw import logo
                 cut = logo.remove_background(src)
-                how = "切り抜きの部品が無いので、四隅から続く地の色を透明にしました"
+                how = "切り抜きの模型が使えないので、四隅から続く地の色を透明にしました（" + str(e).splitlines()[0][:60] + "）"
             finally:
                 Path(tmp).unlink(missing_ok=True)
             out.parent.mkdir(parents=True, exist_ok=True)
@@ -3603,9 +3612,13 @@ class Window(QMainWindow):
                 self.notify("透過できませんでした", "error", str(got))
                 return
             path, how = got
-            self.put_result(str(path), "透過")
+            if self.settings.get("result_place") == "別ファイル":
+                self.put_result(str(path), "透過")
+            else:
+                self.canvas.place_result(str(path), "透過", hide_below=True)
+                self._refresh_layers()
             self.dirty = True
-            self.notify(how, "ok", "元の絵は下のレイヤーに残しています。下のレイヤーを隠すと透過の絵だけになります")
+            self.notify(how, "ok", "下のレイヤーは隠して残しています（目の印で戻せます）。PNG で書き出すと透明のまま保存されます")
         self.statusBar().showMessage("透過しています（初めは切り抜きの模型を取ります）…")
         self.in_background(work, done, "透過")
 
@@ -4048,7 +4061,9 @@ class Window(QMainWindow):
         描き終えたあとに遅れて届いた途中の絵は捨てる（仕上がった絵を隠さない）"""
         if self.thread is None:
             return
-        self.canvas.show_overlay(qimage_from_pil(img))
+        q = qimage_from_pil(img)
+        self.canvas.show_overlay(q)
+        self.progress_popup.set_thumb(q)   # 進みのポップアップにも途中の絵を小さく出す
         self.recorder.add(img)
 
     def put_result(self, path: str, name: str, replace: bool = False) -> bool:

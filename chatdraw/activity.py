@@ -126,7 +126,21 @@ class ActivityPanel(QWidget):
             lb.style().unpolish(lb)
             lb.style().polish(lb)
 
+    def set_sheet(self, i: int, n: int):
+        """何枚目を描いているか（i/n）。進みのポップアップの見出しに出す"""
+        self.sheet = (max(1, int(i)), max(1, int(n)))
+
+    def eta(self) -> str:
+        """残りの見込み。描画の工程の速さから出す。まだ測れないときは空"""
+        if self.started is None or self.stage != 3 or getattr(self, "steps_done", 0) < 1 or not getattr(self, "step_started", None):
+            return ""
+        per = (time.time() - self.step_started) / self.steps_done
+        i, n = getattr(self, "sheet", (1, 1))
+        left = per * (self.steps_total - self.steps_done) + per * self.steps_total * (n - i)   # 残りの枚の分も足す
+        return "残り約 " + fmt(left)
+
     def begin(self, text: str, mode: str):
+        self.sheet = (1, 1)
         self.started = time.time()
         self.text, self.mode = text, mode
         self.state.setText("準備中")
@@ -140,6 +154,10 @@ class ActivityPanel(QWidget):
         self.changed.emit(f"{mode}: 準備中", -1)
 
     def status(self, msg: str, step: int | None = None, total: int | None = None):
+        import re
+        m = re.match(r"(\d+)/(\d+) 枚目", msg)
+        if m:
+            self.set_sheet(int(m.group(1)), int(m.group(2)))
         for i, (_short, head) in enumerate(STAGES):
             if msg.startswith(head) and i != self.stage:
                 self._mark(i)

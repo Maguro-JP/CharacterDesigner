@@ -65,7 +65,7 @@ class LibraryPanel(QWidget):
         self.summary.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         self.use = QCheckBox("好みを描く言葉に足す")
         self.use.setToolTip("好きな絵に多い言葉を足し、いまいちな絵に多い言葉を避けて描きます")
-        self.use.setChecked(bool(int(self.w.layout_store.value("use_taste", 1))))
+        self.use.setChecked(bool(int(self.w.layout_store.value("use_taste", 0))))
         self.use.toggled.connect(lambda on: self.w.layout_store.setValue("use_taste", int(on)))
         make = QPushButton("好みを AI プリセットにする")
         make.setToolTip("読み取った好み（画風と言葉）を、自分の AI プリセットとして残します")

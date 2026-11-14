@@ -143,6 +143,22 @@ class Canvas(QGraphicsView):
         painter.resetTransform()
         self.backdrop(painter, self.viewport().rect())
         painter.restore()
+        self._draw_checker(painter)
+
+    def _draw_checker(self, painter):
+        """紙の下に市松模様を敷く。透明の所が模様で見え、透過した絵が透過できたと一目で分かる。
+        前は紙の下が絵の周りと同じ暗い模様で、背景のレイヤーを隠しても透明かどうかが見分けにくかった"""
+        from PySide6.QtGui import QBrush, QPixmap
+        tile = getattr(self, "_checker_tile", None)
+        if tile is None:
+            tile = QPixmap(16, 16)
+            tile.fill(QColor("#ffffff"))
+            q = QPainter(tile)
+            q.fillRect(0, 0, 8, 8, QColor("#d6d6d6"))
+            q.fillRect(8, 8, 8, 8, QColor("#d6d6d6"))
+            q.end()
+            self._checker_tile = tile
+        painter.fillRect(self.sceneRect(), QBrush(tile))
 
     def update_margins(self):
         """紙の外だけを描き直す。動く模様のために、毎回紙の中（レイヤー）まで描き直さない"""
@@ -314,7 +330,7 @@ class Canvas(QGraphicsView):
         self.rebuild()
         self.fit()
 
-    def place_result(self, path: str, name: str, replace: bool = False):
+    def place_result(self, path: str, name: str, replace: bool = False, hide_below: bool = False):
         """AI が描いた・直した・加工した結果を、一番上の新しいレイヤーに置いて選ぶ。
         前は結果を一番下に入れて空のレイヤーを上に選んでいたため、結果が出たことに気づけなかった。
         replace は新しく描いた絵・大きさの変わる結果（拡大・広げる）で、キャンバスを結果 1 枚に置き換える
@@ -330,6 +346,9 @@ class Canvas(QGraphicsView):
         if replace:   # 一番下は透明の土台、その上に結果（replace_with_image と同じ並び）
             self.layers = [Layer("レイヤー 1", blank(img.width(), img.height())), Layer(name, img)]
         else:
+            if hide_below:   # 透過の結果: 下の絵を隠して透明の所を見せる（消さない。目の印で戻せ、元に戻すでも戻る）
+                for layer in self.layers:
+                    layer.visible = False
             self.layers.append(Layer(name, img))
         self.current = len(self.layers) - 1
         if replace:

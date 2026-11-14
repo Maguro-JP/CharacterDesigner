@@ -52,7 +52,8 @@
   "vram": 6,
   "ram": 16,
   "quality": "masterpiece, high score, great score, absurdres",
-  "negative": "lowres, bad anatomy, bad hands, text, error, missing finger, extra digits, fewer digits, cropped, worst quality, low quality, low score, bad score, average score, signature, watermark, username, blurry"
+  "negative": "lowres, bad anatomy, bad hands, text, error, missing finger, extra digits, fewer digits, cropped, worst quality, low quality, low score, bad score, average score, signature, watermark, username, blurry",
+  "scheduler": "euler_a"
  },
  {
   "repo": "cagliostrolab/animagine-xl-3.1",
@@ -76,7 +77,8 @@
   "vram": 6,
   "ram": 16,
   "negative": "nsfw, lowres, bad, text, error, fewer, extra, missing, worst quality, jpeg artifacts, low quality, watermark, unfinished, displeasing, oldest, early, chromatic aberration, signature, extra digits, artistic error, username, scan, abstract",
-  "superseded_by": "cagliostrolab/animagine-xl-4.0"
+  "superseded_by": "cagliostrolab/animagine-xl-4.0",
+  "scheduler": "euler_a"
  },
  {
   "repo": "cagliostrolab/animagine-xl-3.0",
@@ -100,7 +102,8 @@
   "ram": 16,
   "negative": "nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name",
   "superseded_by": "cagliostrolab/animagine-xl-4.0",
-  "note": "2026-11-14: 同じ作者の新しい版 Animagine XL 4.0 に置き換わった。消さずに残す"
+  "note": "2026-11-14: 同じ作者の新しい版 Animagine XL 4.0 に置き換わった。消さずに残す",
+  "scheduler": "euler_a"
  },
  {
   "repo": "OnomaAIResearch/Illustrious-xl-early-release-v0",
@@ -123,7 +126,8 @@
   "vram": 6,
   "ram": 16,
   "negative": "worst quality, comic, multiple views, bad quality, low quality, lowres, displeasing, very displeasing, bad anatomy, bad hands, scan artifacts, monochrome, greyscale, signature, twitter username, jpeg artifacts, 2koma, 4koma",
-  "superseded_by": "OnomaAIResearch/Illustrious-XL-v2.0"
+  "superseded_by": "OnomaAIResearch/Illustrious-XL-v2.0",
+  "scheduler": "euler_a"
  },
  {
   "repo": "Jommarn/Illustrious-XL-v2.0",
@@ -164,7 +168,8 @@
   "commercial": "ライセンスの本文を読む必要あり",
   "vram": 6,
   "ram": 16,
-  "negative": "nsfw, worst quality, old, early, low quality, lowres, signature, username, logo, bad hands, mutated hands, mammal, anthro, furry, ambiguous form, feral, semi-anthro"
+  "negative": "nsfw, worst quality, old, early, low quality, lowres, signature, username, logo, bad hands, mutated hands, mammal, anthro, furry, ambiguous form, feral, semi-anthro",
+  "scheduler": "euler_a"
  },
  {
   "repo": "John6666/hassaku-xl-illustrious-v31-sdxl",
@@ -250,7 +255,8 @@
   "file": "animagine-xl-4.0-opt.safetensors",
   "vram": 6,
   "ram": 16,
-  "quality": "masterpiece, high score, great score, absurdres"
+  "quality": "masterpiece, high score, great score, absurdres",
+  "scheduler": "euler_a"
  },
  {
   "repo": "cagliostrolab/animagine-xl-4.0-zero",
@@ -274,7 +280,8 @@
   "commercial": "条件付きで商用可（openrail++）",
   "vram": 6,
   "ram": 16,
-  "quality": "masterpiece, high score, great score, absurdres"
+  "quality": "masterpiece, high score, great score, absurdres",
+  "scheduler": "euler_a"
  },
  {
   "repo": "OnomaAIResearch/Illustrious-XL-v1.0",
@@ -297,7 +304,8 @@
   "commercial": "札を確かめる（sdxl-license）",
   "file": "Illustrious-XL-v1.0.safetensors",
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "scheduler": "euler_a"
  },
  {
   "repo": "OnomaAIResearch/Illustrious-XL-v1.1",
@@ -320,7 +328,8 @@
   "commercial": "札を確かめる（sdxl-license）",
   "file": "Illustrious-XL-v1.1.safetensors",
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "scheduler": "euler_a"
  },
  {
   "repo": "OnomaAIResearch/Illustrious-XL-v2.0",
@@ -344,7 +353,8 @@
   "commercial": "条件付きで商用可（creativeml-openrail-m）",
   "file": "Illustrious-XL-v2.0.safetensors",
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "scheduler": "euler_a"
  },
  {
   "repo": "Laxhar/noobai-XL-1.0",
@@ -368,7 +378,8 @@
   "commercial": "商用不可（fair-ai-public-license-1.0-sd に NoobAI の追加条項）",
   "vram": 6,
   "ram": 16,
-  "superseded_by": "Laxhar/noobai-XL-1.1"
+  "superseded_by": "Laxhar/noobai-XL-1.1",
+  "scheduler": "euler_a"
  },
  {
   "repo": "yodayo-ai/holodayo-xl-2.1",

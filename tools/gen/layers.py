@@ -80,7 +80,12 @@ def drop_props(src, cut, reach=15, tol=8.0):
     色みは明るさを除いて比べる（髪は光と影で明るさが大きく変わる）。範囲の外に出た毛先は髪の色みから 3 以内（90%）、ひまわりの中央値は 10.5。5 まで締めると、花の色が映った髪が角ばって切れた"""
     import edit
     im = Image.open(src).convert("RGB")
-    lab = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST))
+    try:
+        lab = np.asarray(edit.parts(src).resize(im.size, Image.NEAREST))
+    except Exception:   # noqa: BLE001
+        # 部位分けの模型が無い・読めないときは、物を落とす所だけを飛ばす。前はここで落ち、切り抜き全体が「透過できませんでした」になった
+        cut.info["props_dropped"] = None
+        return cut
     if not (lab == 2).any():
         return cut
     near = np.asarray(Image.fromarray(((lab != 0) * 255).astype("uint8")).filter(ImageFilter.MaxFilter(reach))) > 0

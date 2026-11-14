@@ -216,9 +216,15 @@ def native_size(size, family: str):
     if family == "sd15":
         return (max(256, round(w * 0.625 / 64) * 64), max(256, round(h * 0.625 / 64) * 64))
     f = fam(family)
-    if family == "sdxl":   # 学んだ大きさのまま。ただし倍数にそろえる（キャンバスの大きさが 8 の倍数でないと模型が落ちた）
+    if family == "sdxl":
+        # SDXL は約 100 万画素（832×1216、1024×1024 など）で学んでいる（Animagine 4.0・NoobAI の札の推奨の大きさ）。
+        # キャンバスの大きさのまま渡していたため、小さいキャンバスでは崩れ、大きいキャンバスでは人が 2 人に割れた。
+        # 画素の数が学んだ数から 15% より離れていれば、縦横比のまま学んだ数に合わせる。倍数にもそろえる（8 の倍数でないと落ちた）
         m = f.multiple
-        return (max(256, round(w / m) * m), max(256, round(h / m) * m))
+        k = (f.size[0] * f.size[1] / (w * h)) ** 0.5
+        if 1 / 1.15 <= k * k <= 1.15:
+            k = 1.0
+        return (max(256, round(w * k / m) * m), max(256, round(h * k / m) * m))
     k = (f.size[0] * f.size[1] / (w * h)) ** 0.5
     m = f.multiple
     return (max(256, round(w * k / m) * m), max(256, round(h * k / m) * m))
@@ -989,6 +995,20 @@ class Painter:
         pipe.set_ip_adapter_scale(scale)
         args["ip_adapter_image"] = reference.convert("RGB")
 
+    def clear_extras(self, pipe, reference=None):
+        """描くたびに、前の 1 枚の付け足しを外す。今の頼みで参考画像を渡すときだけ参考画像の部品を残す。
+        読んだ模型は使い回すので、前の回に読んだ参考画像の部品（IP-Adapter）が UNet に残ると、
+        参考画像を外した次の頼み（とくにラフからの描き方。ここは参考画像を見ない）にも前の絵の寄せが残った。
+        LoRA は利用者の設定に合わせて ownstyle.apply が毎回付け外しする。ラフの部品（T2I-Adapter）は別の部品で、読んだ模型には付けない"""
+        if reference is None and self._ref:
+            try:
+                pipe.unload_ip_adapter()
+            except Exception:   # noqa: BLE001  外せない版でも描くのは続ける
+                pass
+            self._ref = False
+        if hasattr(pipe, "_interrupt"):
+            pipe._interrupt = False   # 前の回を止めた旗を部品に残さない（残ると次の回が 1 工程目で抜けうる）
+
     def loaded(self) -> bool:
         return any(x is not None for x in (self._pipe, self._sketch, self._inpaint))
 
@@ -1163,6 +1183,7 @@ class Painter:
         watch = mb.Watch(mb.budget(), release=release_memory) if plan is not None else None
         self._danger = False
         self._last_latents = None
+        self.clear_extras(pipe, reference if base is None else None)
         from chatdraw.ownstyle import apply as apply_lora
         self.lora_note = apply_lora(pipe, self.lora, self.lora_scale, self._lora_state)
         steps = self.steps
@@ -1196,8 +1217,10 @@ class Painter:
         from chatdraw.models import family as fam, image_model
         info = image_model(self.model)
         f = fam(info.family)
-        size = native_size(size or self.size, info.family)
-        want = size
+        asked = tuple(size or self.size)
+        size = native_size(asked, info.family)
+        # SDXL は学んだ大きさで描いて、頼んだ大きさ（キャンバス）に戻す。新しい世代は今までどおり学んだ大きさのまま返す
+        want = asked if info.family == "sdxl" else size
         if plan is not None and base is None and not f.edit:
             size = tuple(plan.size)   # 予算に収まる大きさで描いて、頼んだ大きさに戻す（キャンバスの大きさは変えない）
         elif self.low_memory and base is None:
@@ -1320,7 +1343,7 @@ class Painter:
             out = pipe(width=w, height=h, **args).images[0]
         if self.stop:
             raise Stopped("止めました")
-        if out.size != tuple(want) and base is None and not f.edit:
+        if out.size != tuple(want) and (base is None or info.family == "sdxl") and not f.edit:
             from PIL import Image
             out = out.resize(tuple(want), Image.LANCZOS)
         return out

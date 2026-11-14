@@ -517,9 +517,10 @@ class AiPanel(QWidget):
         return ", ".join(t for t in tags if t)
 
     def taste(self) -> dict:
-        """ライブラリーから読み取った好み。「好みを描く言葉に足す」を外していれば空"""
+        """ライブラリーから読み取った好み。利用者が「好みを描く言葉に足す」を入れたときだけ使う（既定は外す）。
+        既定で入れていたため、前に描いて評価した絵の言葉が毎回の頼みに足され、新しい頼みが前の絵に引っ張られた"""
         lib = getattr(self.w, "library", None)
-        if lib is None or not int(self.w.layout_store.value("use_taste", 1)):
+        if lib is None or not int(self.w.layout_store.value("use_taste", 0)):
             return {"tags": [], "avoid": []}
         return lib.profile()
 
