@@ -58,6 +58,12 @@ class LibraryPanel(QWidget):
         dl.addWidget(add)
         self.tabs.addTab(docs_page, "資料")
 
+        # キャラクター: ライブラリーの置き場の .chara（chatdraw/charafile.py）。ダブルクリックで開き、その人物で描く
+        self.characters = _grid()
+        self.characters.setToolTip("キャラクターファイル。ダブルクリックで開くと、その人物の設定・目・色・参考画像・LoRA で描きます")
+        self.characters.itemDoubleClicked.connect(lambda it: self.w.charafile_open(it.data(Qt.UserRole + 1)))
+        self.tabs.addTab(self.characters, "キャラクター")
+
         taste = QWidget()
         tl = QVBoxLayout(taste)
         self.summary = QLabel()
@@ -108,6 +114,7 @@ class LibraryPanel(QWidget):
             view.clear()
             for it in rows:
                 view.addItem(self._item(it))
+        self.refresh_characters()
         p = lib.profile()
         if p["rated"] == 0:
             text = "まだ好みを読み取れていません。\n作品を右クリックして「好き」「いまいち」を付けるか、資料に言葉を付けてください。"
@@ -123,6 +130,27 @@ class LibraryPanel(QWidget):
                 lines.append("同じ要素が 2 回以上出るまで、言葉は足しません。")
             text = "\n".join(lines)
         self.summary.setText(text)
+
+    def refresh_characters(self):
+        """キャラクターのタブを並べ直す。小さな絵は .chara の中の thumb.png（無ければ名前だけ）"""
+        import json
+        import zipfile
+        from chatdraw import charafile
+        self.characters.clear()
+        for path in charafile.files_in_library():
+            try:
+                with zipfile.ZipFile(path) as z:
+                    man = json.loads(z.read("manifest.json").decode("utf-8"))
+                    raw = z.read("thumb.png") if "thumb.png" in z.namelist() else b""
+            except (OSError, KeyError, ValueError, zipfile.BadZipFile):
+                continue
+            item = QListWidgetItem(str(man.get("name", path.stem))[:10])
+            pm = QPixmap()
+            if raw and pm.loadFromData(raw):
+                item.setIcon(QIcon(pm.scaled(176, 240, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
+            item.setData(Qt.UserRole + 1, str(path))
+            item.setToolTip(f"{man.get('name', '')}\n{man.get('profile', {}).get('look', '')}\n更新 {man.get('updated', '')}")
+            self.characters.addItem(item)
 
     # ---- 操作 ----
     def _menu(self, view: QListWidget, pos, run: bool = True):

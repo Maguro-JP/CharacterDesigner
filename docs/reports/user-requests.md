@@ -132,6 +132,12 @@
 | D1 | 模型に本当に渡した言葉を、頼みの欄とチャットの欄のツールチップに出す（0.5.20 で入れ、0.5.18 に戻したときに消えた） | 作業中 | claude/FIX-backui-20261114: chatdraw/sent.py（記録するだけで言葉は足さない）、test_sent |
 | D2 | デバッグモード（記録の欄と記録のファイル、例外の全文、描けなかった理由の窓、制限を外す項目）（0.5.20 で入れ、0.5.18 に戻したときに消えた） | 作業中 | claude/FIX-backui-20261114: chatdraw/debuglog.py。外せる制限は今の main で効く 2 つ（メモリの予算による止め、工程の上限）だけにした（test_backui.DebugModeTest） |
 | D3 | 描くボタンで落ちない。閉じた窓の裏の糸とアプリ全体のキーを外す（0.5.20 で直し、0.5.18 に戻したときに消えた） | 作業中 | claude/FIX-backui-20261114: 今の main の send は引数を取らないので描くボタンでは落ちない（試験で押して確かめる）。閉じるときに緊急停止のキーと保存の糸を外す（test_backui.CloseTest） |
+| D1 | 起動時にモードを選ぶ（イラストレーター、キャラクターデザイナー、ロゴ・エンブレム・スタンプ）。モードごとのメニュー | 作業中 | claude/FIX-backchara-20261114: chatdraw/modes.py、test_modes.ModeTest |
+| D2 | キャラクターデザインのメニュー（一括生成、キャラクターシートの PSD、追加資料、使う人物） | 作業中 | claude/FIX-backchara-20261114: chatdraw/batch.py・charadesign.py、test_modes |
+| D3 | キャラクターファイル（.chara）とキャラデザを作る流れ | 作業中 | claude/FIX-backchara-20261114: chatdraw/charafile.py、test_charafile |
+| D4 | 担当編集者（サボりの検品と工程の記録）。描き直しには繋げず、記録と知らせだけ | 作業中 | claude/FIX-backchara-20261114: chatdraw/director.py、test_director |
+| D5 | プリセットを編集・作成できるようにし、設定できる項目を増やし、描くワードなどお気に入りの指示をプリセットに固定する | 作業中 | claude/FIX-backchara-20261114: chatdraw/presetdialog.py、test_menuaudit.PresetEditTest |
+| D6 | おまかせがおまかせになっていない（毎回同じ模型になる） | 作業中 | claude/FIX-backchara-20261114: choose.choose_image の種での選び直し、test_omakase.ReselectTest。作風のおまかせは言葉を足さない決まりのため選び直していない |
 | C1 | AI の自動選択（選択と赤ペン）。丸・四角・全選択・自動選択の赤ペン | 作業中 | claude/FIX-autosel-20261108 |
 | C2 | 自動選択の印にも境目の確かめを通し、加工のあとは全体を確かめる | 作業中 | claude/FIX-autosel-20261108 |
 | C1 | AI の自動選択（選択と赤ペン）。丸・四角・全選択・自動選択の赤ペン | 作業中 | claude/FIX-backredpen-20261114: 0.5.23 で消えた物を戻した（chatdraw/autosel.py、帯の「囲み方」、test_autosel） |
@@ -161,6 +167,19 @@
 | A11 | 文字入力中にショートカットに取られない（急ぎ） | 作業中 | claude/FIX-backui-20261114: v0.5.22 から戻した。chatdraw/typeguard.py（アプリ全体）、test_typeguard.TypeGuardTest・WindowFieldsTest |
 | A12 | 落とさない。メモリの使い方を選ばせる（自動が既定、優先して動かす、控えめに動かす） | 作業中 | claude/FIX-backui-20261114: v0.5.22 から戻した。membudget.MODES、設定の「メモリの使い方」、見張りのメモリの解放は 30 秒に 1 回まで（test_membudget.MemModeTest・WatchTest、test_backui.MemModeWindowTest）。読み込みの見積もりの倍率は 0.5.18 の 1.1 のまま |
 | A13 | キャラクターシートと LoRA を入れる。模型ごとの参考画像・学習セット、外部共有サイト（Civitai・Hugging Face）から取る | 作業中 | claude/FIX-lora-20261108 |
+| A1 | 枚数と種をまとめない。枚数の入力欄を用意する | 作業中 | claude/FIX-integ5-20261108: 詳しい設定で「枚数」と「種」の見出しを分け、描くボタンの左の欄に「枚数」の名前を付けた（test_typeguard.CountFieldTest） |
+| A2 | ディテール追加が効かない | 作業中 | claude/FIX-backchara-20261114（0.5.22 から今の main に戻した） |
+| A3 | 画風を加工のメニューに入れる | 作業中 | claude/FIX-backchara-20261114（0.5.22 から今の main に戻した） |
+| A4 | 拡大の文言を直す | 作業中 | claude/FIX-backchara-20261114（0.5.22 から今の main に戻した） |
+| A5 | 奇麗にするを直す（崩さない・速く） | 作業中 | claude/FIX-backchara-20261114（0.5.22 から今の main に戻した） |
+| A6 | 右クリックメニューを編集できるようにする・充実させる・精査する | 作業中 | claude/FIX-backchara-20261114（0.5.22 から今の main に戻した） |
+| A7 | プリセットを精査する | 作業中 | claude/FIX-backchara-20261114（0.5.22 から今の main に戻した） |
+| A8 | チャットを有効活用する（チャットで描く・直す・加工する・設定を変える） | 作業中 | claude/FIX-obey-20261108 |
+| A9 | 訳の分からない制限で「描けませんでした」にしない | 作業中 | claude/FIX-obey-20261108 |
+| A10 | 頼んだ指示を模型が無視しない | 作業中 | claude/FIX-obey-20261108、前の版の claude/FIX-adhere-20261108 |
+| A11 | 文字入力中にショートカットに取られない（急ぎ） | 作業中 | claude/FIX-integ5-20261108: chatdraw/typeguard.py（アプリ全体）、test_typeguard |
+| A12 | 落とさない。メモリの使い方を選ばせる（自動が既定、優先して動かす、控えめに動かす） | 作業中 | claude/FIX-integ5-20261108: membudget.MODES、設定の「メモリの使い方」、test_membudget.MemModeTest |
+| A13 | キャラクターシートと LoRA を入れる。模型ごとの参考画像・学習セット、外部共有サイト（Civitai・Hugging Face）から取る | 作業中 | claude/FIX-backchara-20261114（0.5.22 から今の main に戻した） |
 | A14 | ComfyUI を参考に、インテュイティブで見やすい画面にする | 作業中 | claude/FIX-comfyui-20261108（工程ごとの秒、並べて比べる、操作を探す）を integ5 に統合 |
 | A15 | 作画監督を早く完成させる | 作業中 | claude/FIX-qc2-20261108 を integ5 に統合 |
 | A16 | 機能が足されたら Release、急ぎの直しは急いで Release | 決まり | CLAUDE.md「ユーザーの決めたこと」 |

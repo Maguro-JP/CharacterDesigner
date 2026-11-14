@@ -258,6 +258,10 @@ class LayerPanel(QWidget):
                 m.addAction("名前を変える", self.rename_current)
                 m.addAction("ロックを切り替える", self.toggle_lock)
         m.addAction("見えているレイヤーを結合", self.canvas.merge_visible)
+        w = self.window()   # 欄は窓の中の dock にあるので、上の窓が Window
+        if hasattr(w, "edit_context_menu"):   # 項目を出す・隠す・並べ替える（chatdraw/menuedit.py）
+            m.addAction("この右クリックを編集…", lambda: w.edit_context_menu("レイヤー")).setToolTip("項目を出す・隠す・並べ替える")
+            w.arrange_context("レイヤー", m)
         return m
 
     def _delete(self):
