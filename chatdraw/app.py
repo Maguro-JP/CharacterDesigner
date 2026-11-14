@@ -130,8 +130,10 @@ class Job(QObject):
 
     def _say(self, msg: str):
         """工程の知らせ。止める旗が立っていれば、ここで止める（旗を見ない工程の区切りでも止まる）"""
+        from chatdraw import debuglog
         from chatdraw.engine import check_stop
         check_stop()
+        debuglog.log("工程", msg)
         self.status.emit(msg)
 
     def run(self):
@@ -147,21 +149,47 @@ class Job(QObject):
                 preload(path)
                 self.one.emit(" / ".join(prompts), str(path))
             else:
-                for seed in self.seeds:
-                    extra = dict(reference=self.reference, ref_scale=self.ref_scale) if self.reference is not None else {}
-                    # 落ちても止めず、軽い設定・小さい大きさ・別の模型・別の種と段を下げて描く（engine.Studio.draw_anyway）
-                    draw = getattr(self.studio, "draw_anyway", None) or self.studio.draw   # 段を下げる形を持たない描き手（試験の偽物など）はそのまま描く
-                    prompt, path = draw(self.text, seed, on_status=self._say,
-                                                    base=self.base, strength=self.strength, size=self.size,
-                                                    on_preview=self._preview, style=self.style, meta=self.meta, **extra)
-                    self._stopped()
-                    preload(path)   # 置くときに画面の糸で絵を読まないよう、ここ（裏の糸）で先に読む
-                    self.one.emit(prompt, str(path))
+                self._draw_all()
             self.done.emit()
         except Exception as e:  # 描けなかった理由を、次に何をすればよいか分かる日本語で会話に出す
+            from chatdraw import debuglog
+            self.trace = debuglog.exception("描く・直す", e)
             from chatdraw.engine import explain
             from chatdraw.engine import Stopped
             self.failed.emit(explain(e))   # 何が起きたかを 1 行で返す（「描けませんでした」の決まり文句は付けない）
+
+    def _draw_one(self, seed):
+        extra = dict(reference=self.reference, ref_scale=self.ref_scale) if self.reference is not None else {}
+        # 落ちても止めず、軽い設定・小さい大きさ・別の模型・別の種と段を下げて描く（engine.Studio.draw_anyway）
+        draw = getattr(self.studio, "draw_anyway", None) or self.studio.draw   # 段を下げる形を持たない描き手（試験の偽物など）はそのまま描く
+        prompt, path = draw(self.text, seed, on_status=self._say, base=self.base, strength=self.strength, size=self.size,
+                            on_preview=self._preview, style=self.style, meta=self.meta, **extra)
+        self._stopped()
+        preload(path)   # 置くときに画面の糸で絵を読まないよう、ここ（裏の糸）で先に読む
+        self.one.emit(prompt, str(path))
+
+    def _draw_all(self):
+        """枚数分を描く。1 枚が描けなくても残りを描き続け、描けなかった枚と理由を覚えて最後に知らせる。
+        前は 1 枚の例外が外へ抜けて、まだ描いていない枚まで全部取り消された"""
+        from chatdraw import debuglog
+        from chatdraw.engine import Stopped, explain
+        self.drawn, self.reasons = 0, []
+        many = len(self.seeds) > 1
+        for i, seed in enumerate(self.seeds, 1):
+            debuglog.log("工程", f"{i}/{len(self.seeds)} 枚目を描きます（種 {seed}）", mem=True)
+            try:
+                self._draw_one(seed)
+                self.drawn += 1
+            except Stopped:
+                raise
+            except Exception as e:   # noqa: BLE001  1 枚だけの失敗で、ほかの枚を取り消さない
+                if not many or "描きません" in str(e):
+                    raise   # 1 枚だけの頼みと、描かない頼み（childsafe）は、今までどおり理由を返して終える
+                self.trace = debuglog.exception(f"{i} 枚目", e)
+                self.reasons.append(f"{i} 枚目: {explain(e)}")
+                self.status.emit(f"{i} 枚目は描けませんでした（{explain(e)}）。残りを描きます")
+        if many and not self.drawn:
+            raise RuntimeError("、".join(self.reasons[:3]))
 
     def _stopped(self):
         """止められたあとに返ってきた絵（直しの途中で抜けた物など）は置かずに捨てる。キャンバスは元のまま"""
@@ -197,6 +225,8 @@ def guarded(obj, body):
     except Stopped:
         obj.failed.emit("止めました")
     except BaseException as e:   # noqa: BLE001  落ちても画面に必ず返す
+        from chatdraw import debuglog
+        obj.trace = debuglog.exception("裏の処理", e)
         obj.failed.emit(f"できませんでした: {e}")
 
 
@@ -575,7 +605,11 @@ class Window(QMainWindow):
         super().__init__()
         from chatdraw import wheelguard
         wheelguard.install()   # 欄のスクロールで種や強さが変わらないようにする
+        from chatdraw import typeguard
+        typeguard.install()    # 打っている欄のキーをショートカットに取られないようにする
         self.settings = Settings()
+        from chatdraw import membudget
+        membudget.set_mode(self.settings.get("mem_mode"))   # メモリの使い方（設定で選ぶ。既定は自動）
         self.layout_store = QSettings("CharacterDesigner", "chatdraw")   # 配置・テーマ・AI プリセット・ツアーの済み
         self.last_text = ""
         self.studio = studio or self._studio_from_settings()
@@ -679,11 +713,21 @@ class Window(QMainWindow):
         self.ai_panel.preview_timer.timeout.connect(self._entry_tip)
         self.ai_panel.update_preview()
         self._entry_tip()
+        for w in self._tip_watch():
+            if w is not self.entry:
+                w.installEventFilter(self)   # 欄（と中の表示面）にカーソルを合わせたら、言葉を作り直して出す
         line = self.ai_panel.draw_bar   # 描くボタンはタブの外。どのタブからも押せる
         # 作成枚数は描くボタンのすぐ左に置く（前は指示のタブの中の模型の下にあり、見つからなかった）。
         # 詳しい設定の 1・2・4 枚のボタンと同じ値
         self.ai_panel.count_spin.setToolTip("作成枚数。一度に描く枚数です（直すときは 1 枚）")
         self.ai_panel.count_spin.setAccessibleName("作成枚数")
+        count_label = QLabel("枚数")   # 欄だけだと何の数か分からず、見つからなかった
+        count_label.setBuddy(self.ai_panel.count_spin)
+        count_label.setToolTip(self.ai_panel.count_spin.toolTip())
+        self.count_label = count_label
+        line.addWidget(count_label)
+        # 描くボタンが横に伸びると、数の欄が幅 0 に潰れて見えなくなった。数が読めて打てる幅を必ず取る
+        self.ai_panel.count_spin.setMinimumWidth(self.ai_panel.count_spin.fontMetrics().horizontalAdvance("99 枚") + 40)
         line.addWidget(self.ai_panel.count_spin)
         line.addWidget(self.button, 1)
         line.addWidget(self.stop_button)
@@ -732,7 +776,7 @@ class Window(QMainWindow):
         self.neg_tips_box = neg_box
         self._load_negatives()
         # 指示のタブの並び: 模型、描くワード、描くワードの登録、禁止ワード、禁止ワードの登録
-        model_head = QLabel("模型")
+        model_head = QLabel("絵の模型")
         model_head.setObjectName("sectionHead")
         model_row = QHBoxLayout()
         model_row.setContentsMargins(0, 0, 0, 0)
@@ -814,6 +858,9 @@ class Window(QMainWindow):
         self.build_shared_actions()
         S = self.shared
         file = self.menuBar().addMenu("ファイル")
+        # 一括生成は描く仕事なので、絵の模型の一覧ではなくファイルのメニューに置く（模型の一覧に並ぶと、模型の名前と紛れた）
+        self.batch_action = file.addAction("一括生成…", lambda: self.batch_draw())
+        self.batch_action.setToolTip("頼みの一覧（1 行 1 つ、または CSV）から、枚数と種を付けて順に描き、全部をライブラリーに入れます。止めるは「止める」")
         file.addAction(S["new"])
         file.addAction(S["open"])
         edit_open = QAction("画像を開いて直す…", self, triggered=self.open_to_edit)
@@ -1382,6 +1429,7 @@ class Window(QMainWindow):
         self.setup_customizing()
         # 起動したときの道具。初めは手（絵を動かして見る）。描くときにペンを選ぶ。設定でペンにもできる
         self.select_tool("pen" if self.settings.get("first_tool") == "ペン" else "hand")
+        self.apply_debug_mode()   # デバッグモード（既定はオフ。オンなら下に「記録」の欄を出す）
 
     PROMPT_KEY, FAV_KEY, PROMPT_MAX = "prompts/history", "prompts/favorites", 20
     EXAMPLES = ("赤いマフラーの女の子", "鎧の騎士 全身", "猫耳の少女 笑顔", "夕暮れの街", "レイヤーを足して")
@@ -1917,10 +1965,10 @@ class Window(QMainWindow):
             chosen = getattr(getattr(self, "studio", None), "chosen", None)
             painter = getattr(getattr(self, "studio", None), "painter", None)
             name = chosen[0] if chosen else image_model(painter.model).name if getattr(painter, "model", "") else ""
-            self.model_label.setText("絵の模型: おまかせ" + (f"（{name}）" if name else ""))
+            self.model_label.setText("おまかせ" + (f"（{name}）" if name else ""))
             self.model_label.setToolTip(f"おまかせで選んだ理由: {chosen[1]}" if chosen else "描くときに、手元の模型から頼みに合う物を選びます")
         else:
-            self.model_label.setText(f"絵の模型: {image_model(key).name}")
+            self.model_label.setText(image_model(key).name)
 
     def _fit_features(self):
         """選んだ模型の世代で使えない機能（ラフから、直す、参考画像）のボタンを止め、理由を出す"""
@@ -2376,8 +2424,37 @@ class Window(QMainWindow):
         self.note_box.hide()
         self.canvas.setFocus()
 
+    def on_mouse_back(self):
+        """マウスの戻るボタン。打っている欄があればその欄の元に戻す、無ければ絵の元に戻す"""
+        self._mouse_step("undo")
+
+    def on_mouse_forward(self):
+        self._mouse_step("redo")
+
+    def _mouse_step(self, key: str):
+        from chatdraw.typeguard import is_text_input
+        f = QApplication.focusWidget()
+        if is_text_input(f) and hasattr(f, key):
+            getattr(f, key)()
+            return
+        a = self.shared.get(key)
+        if a is not None and a.isEnabled():
+            a.trigger()
+
+    def _tip_watch(self):
+        """模型に本当に渡した言葉をツールチップに出す欄（頼みの欄とチャットの欄）と、その中の表示面"""
+        out = []
+        for w in (getattr(self, "entry", None), getattr(getattr(self, "chat", None), "input", None)):
+            if w is not None:
+                out.append(w)
+                if hasattr(w, "viewport"):
+                    out.append(w.viewport())
+        return out
+
     def eventFilter(self, obj, e):
         from PySide6.QtCore import QEvent
+        if e.type() == QEvent.ToolTip and obj in self._tip_watch():
+            self._entry_tip()   # カーソルを合わせたときに作り直す（直す・加工のあとにも、最後に渡した言葉を出す）
         if self._entry_keys(obj, e):
             return True
         if obj is getattr(self, "note_edit", None) and e.type() == QEvent.KeyPress and e.key() == Qt.Key_Escape:
@@ -2498,6 +2575,13 @@ class Window(QMainWindow):
         if bad:   # 崩れがあったときだけ絵の説明に足す（「描けました」は絵を見れば分かる）
             for it in self.batch_items:
                 it.setToolTip(f"{result}\n{it.toolTip()}")
+        job = getattr(self, "job", None)
+        asked = len(getattr(job, "seeds", ()) or ())
+        if not fixed and getattr(job, "reasons", None) and asked > 1:
+            # 1 枚が描けなくても残りは描いた。何枚描けたか、描けなかった理由を先に知らせる
+            result = f"{asked} 枚のうち {job.drawn} 枚描きました"
+            self.say(result + "。描けなかった枚: " + "、".join(job.reasons[:3]))
+            self._debug_failure(result, "\n".join(job.reasons), getattr(job, "trace", ""))
         self.activity.end(result, None, record=False)
         self.say(result if fixed else f"{n} 枚描きました。履歴から選べます" if n > 1 else "描きました")
         self.notify(result if fixed else "描けました", "error" if bad else "ok",
@@ -2507,6 +2591,93 @@ class Window(QMainWindow):
                      else "キャンバスに出しました（元に戻すで前の絵に戻せます）"),
                     on_click=lambda: (self.panels["history"][0].show(), self.activity.tabs.setCurrentIndex(0)))
         self._end("できました")
+
+    # ---- 一括生成（chatdraw/batch.py） ----
+
+    def batch_draw(self, text: str | None = None, count: int = 1, seed: int = 0, as_csv=None) -> bool:
+        """頼みの一覧から順に描き、全部をライブラリーに入れる。1 枚が失敗しても残りを描く。止めるは「止める」"""
+        from chatdraw import batch, engine
+        if self.busy("一括生成"):
+            return False
+        if not isinstance(text, str):
+            got = self._batch_dialog()
+            if got is None:
+                return False
+            text, count, seed, as_csv = got
+        jobs, bad = batch.parse(text, count, seed, as_csv)
+        if not jobs:
+            self.notify("一括生成できませんでした", "info", "頼みが 1 行もありません。1 行に 1 つ書くか、CSV を読んでください")
+            return False
+        studio = self.studio
+        n = batch.total(jobs)
+        self.activity.begin(f"一括生成（{n} 枚）", "一括生成")
+
+        def draw(text, seed, negative):
+            p = studio.painter
+            old = getattr(p, "avoid", None)
+            if negative and old is not None:
+                p.avoid = ", ".join(x for x in (old, negative) if x)
+            try:
+                return studio.draw(text, seed, on_status=self.task.status.emit)[1]
+            finally:
+                if negative and old is not None:
+                    p.avoid = old
+
+        def work(_step):
+            res = batch.run(jobs, draw, say=self.task.status.emit, stopped=engine.STOP.is_set)
+            res["failed"] = [(l, t, w) for l, t, w in bad] + res["failed"]
+            return res
+        self._run_task(work, self._batch_done)
+        return True
+
+    def _batch_dialog(self):
+        """一括生成の窓: 頼みの一覧（1 行 1 つ）、ファイルを読む、枚数、種"""
+        from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QPlainTextEdit, QPushButton,
+                                       QSpinBox)
+        d = QDialog(self)
+        d.setWindowTitle("一括生成")
+        form = QFormLayout(d)
+        box = QPlainTextEdit()
+        box.setPlaceholderText("1 行に 1 つ、描く物を書きます。\nCSV なら 1 行目を「頼み,枚数,種」にします")
+        box.setMinimumHeight(140)
+        form.addRow("頼みの一覧", box)
+        state = {"csv": None}
+
+        def load():
+            path, _ = QFileDialog.getOpenFileName(d, "頼みの一覧を読む", str(Path.home()), "頼みの一覧 (*.txt *.csv)")
+            if path:
+                box.setPlainText(Path(path).read_text(encoding="utf-8-sig"))
+                state["csv"] = path.lower().endswith(".csv") or None
+        read = QPushButton("ファイルを読む…")
+        read.setToolTip("1 行 1 つの .txt か、CSV（頼み,枚数,種,禁止ワード）を読みます")
+        read.clicked.connect(load)
+        form.addRow("", read)
+        count = QSpinBox()
+        count.setRange(1, 100)
+        count.setToolTip("1 行ごとに描く枚数（CSV に枚数があれば、そちらを使います）")
+        form.addRow("1 行の枚数", count)
+        seed = QSpinBox()
+        seed.setRange(0, 999999)
+        seed.setToolTip("種の始まり。行ごと・枚ごとに 1 ずつ足します（同じ種なら同じ絵になります）")
+        form.addRow("種", seed)
+        bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        bb.button(QDialogButtonBox.Ok).setText("描く")
+        bb.accepted.connect(d.accept)
+        bb.rejected.connect(d.reject)
+        form.addRow(bb)
+        if d.exec() != QDialog.Accepted:
+            return None
+        return box.toPlainText(), count.value(), seed.value(), state["csv"]
+
+    def _batch_done(self, res: dict):
+        from chatdraw import batch
+        for p in res["done"]:
+            self.library_panel.add(self.library.add_work(p))
+        self.batch_result = res
+        self.activity.end("一括生成を終えました", None, record=False)
+        self.notify("一括生成を終えました", "info" if res["failed"] or res["stopped"] else "ok", batch.summary(res))
+        self.say(batch.summary(res))
+        self._end("一括生成を終えました")
 
     def make_chibi(self):
         """今の絵を、ちびキャラ（頭の大きなデフォルメ）に描き直して、新しいレイヤーに重ねる"""
@@ -2828,11 +2999,22 @@ class Window(QMainWindow):
         guess = self.ai_panel.preview.text().strip()
         if guess:
             lines += ["", guess]
-        if getattr(self, "last_model_prompt", ""):
-            lines += ["", "前に絵の模型に渡した言葉: " + self.last_model_prompt]
+        from chatdraw import sent
+        real = sent.tooltip_lines()
+        if real:   # 長さの切り詰めと打ち消しを含めた、模型が本当に受け取った文
+            lines += [""] + real
+        last = getattr(self, "last_model_prompt", "")
+        # 記録は工程ごとの共有の帳面なので、前の仕事の行だけが残り、今の絵の言葉が無いことがある（記録しない描き手、別の窓）。
+        # そのときも今の絵に渡した言葉を必ず出す
+        if last and not any(last in e["prompt"] for e in sent.last(3)):
+            lines += ["", "前に絵の模型に渡した言葉: " + last]
         # 長い英語の言葉で横に広がり画面からはみ出さないよう、折り返す形（リッチテキスト）で出す
         import html
         self.entry.setToolTip("<qt>" + "<br>".join(html.escape(t) for t in lines) + "</qt>")
+        chat_in = getattr(getattr(self, "chat", None), "input", None)
+        if chat_in is not None:   # チャットの欄にも、模型に本当に渡した言葉を出す
+            chat_lines = ["AI に話しかける欄です。描く・直す・加工する・設定を変える、を頼めます"] + ([""] + real if real else [])
+            chat_in.setToolTip("<qt>" + "<br>".join(html.escape(t) for t in chat_lines) + "</qt>")
 
     # ---- 消す・ごみ箱 ----
     def delete_images(self, paths: list[str], ask: bool = True) -> str | None:
@@ -3538,11 +3720,86 @@ class Window(QMainWindow):
         dlg = SettingsDialog(self.settings, self)
         if dlg.exec():
             g = self.settings.get
+            from chatdraw import membudget
+            membudget.set_mode(g("mem_mode"))   # 次に描く 1 枚から効く
             self.studio = self._studio_from_settings()
             self.strength.setValue(int(g("rough_follow") * 100))
             self.check_ai()
             self.canvas.set_cursor_style(g("cursor"))
+            self.apply_debug_mode()
             self.statusBar().showMessage("設定を保存しました")
+
+    # ---- デバッグモード（chatdraw/debuglog.py） ----
+    def apply_debug_mode(self):
+        """設定のデバッグモードを当てる。オンなら下に「記録」の欄を出し、裏の記録を流す"""
+        from chatdraw import debuglog
+        from chatdraw.settings import apply_debug
+        apply_debug(self.settings)
+        if debuglog.on():
+            self._debug_dock().show()
+        elif getattr(self, "_dbg_dock", None) is not None:
+            self._dbg_dock.hide()
+
+    def _debug_dock(self):
+        from PySide6.QtCore import QObject, Signal
+        from PySide6.QtWidgets import QDockWidget, QPlainTextEdit
+        from chatdraw import debuglog
+        if getattr(self, "_dbg_dock", None) is not None:
+            return self._dbg_dock
+
+        class Bridge(QObject):   # 裏の糸の記録を、画面の糸で欄に足す
+            line = Signal(str)
+        self._dbg_bridge = Bridge()
+        dock = QDockWidget("記録", self)
+        dock.setObjectName("debug_log")
+        box = QWidget()
+        lay = QVBoxLayout(box)
+        lay.setContentsMargins(4, 4, 4, 4)
+        self.debug_view = QPlainTextEdit()
+        self.debug_view.setReadOnly(True)
+        self.debug_view.setMaximumBlockCount(debuglog.RING)
+        self.debug_view.setPlainText("\n".join(debuglog.lines()))
+        row = QHBoxLayout()
+        open_btn = QPushButton("記録のファイルを開く")
+        open_btn.setToolTip(f"今日の記録のファイルを開きます（{debuglog.KEEP_DAYS} 日より古い記録は自動で消えます）")
+        open_btn.clicked.connect(self.open_debug_log)
+        row.addWidget(open_btn)
+        row.addStretch(1)
+        lay.addWidget(self.debug_view)
+        lay.addLayout(row)
+        dock.setWidget(box)
+        self.addDockWidget(Qt.BottomDockWidgetArea, dock)
+        self._dbg_bridge.line.connect(self.debug_view.appendPlainText)
+        debuglog.listen(self._dbg_bridge.line.emit)
+        self._dbg_dock = dock
+        return dock
+
+    def open_debug_log(self):
+        from chatdraw import debuglog
+        f = debuglog.file()
+        try:
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.touch()
+        except OSError:
+            pass
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(f)))
+
+    def _debug_failure(self, title: str, why: str, trace: str = ""):
+        """デバッグモードなら、描けなかった・落ちた理由の全文を窓で出す（記録のファイルを開ける）"""
+        from chatdraw import debuglog
+        if not debuglog.on():
+            return
+        debuglog.log("描けなかった", why)
+        box = QMessageBox(QMessageBox.Warning, title, why, parent=self)
+        box.setDetailedText(trace or why)
+        opener = box.addButton("記録のファイルを開く", QMessageBox.ActionRole)
+        box.addButton(QMessageBox.Close)
+        opener.clicked.connect(self.open_debug_log)
+        box.setModal(False)
+        self.debug_box = box
+        box.show()
 
     def ask_models(self, force: bool = False):
         """初めての起動か、絵の模型が足りなければ、候補を見せて選んでもらう。force なら入れ替えと更新の画面を開く"""
@@ -3997,6 +4254,8 @@ class Window(QMainWindow):
         why = (why or "うまくいきませんでした").strip().splitlines()[0]   # 何が起きたかを 1 行で出す（「描けませんでした」の決まり文句は出さない）
         stop = "止め" in why
         self.say(why)
+        if not stop:
+            self._debug_failure("描けませんでした", why, getattr(self.sender(), "trace", "") or getattr(getattr(self, "job", None), "trace", ""))
         if self.activity.started is not None:
             self.activity.end("止めました" if stop else why)
         # 進みの欄の 1 回分の外で落ちたときも、理由を右下に出す（出さないと何も起きなかったように見えた）
@@ -4690,6 +4949,17 @@ class Window(QMainWindow):
             e.ignore()
             return
         self.wait_io()   # 裏で書いている保存を書き終えてから閉じる（書きかけの作業ファイルを残さない）
+        # アプリ全体で効くキー（緊急停止、操作を探す）は、閉じた窓の分を外す。残すと、閉じた窓の動作が
+        # キーの一覧に残り続け、窓を何度も開け閉めしたあとにキーを押すとアプリごと落ちた
+        from PySide6.QtGui import QKeySequence
+        for a in (getattr(self, "emergency_stop", None), getattr(self, "palette_action", None)):
+            if a is not None:
+                a.setShortcut(QKeySequence())
+                a.setEnabled(False)
+        if getattr(self, "_io_queue", None) is not None:   # 保存の糸を終える（窓ごとに残ると増え続けた）
+            self._io_closed = True
+            self._io_queue.put(None)
+            self._io_queue = None
         self.layout_store.setValue("running", 0)   # 正しく閉じた印（次の起動で戻すかを聞かない）
         # 次に開いたときも同じ並びにする
         self.layout_store.setValue("geometry9", self.saveGeometry())
@@ -5325,17 +5595,32 @@ class Window(QMainWindow):
         if getattr(self, "_io_queue", None) is None:
             self._io_queue = queue.Queue()
 
+            import weakref
+            ref = weakref.ref(self)
+
+            # 裏の糸は窓を弱くだけ持つ。強く持つと、閉じた窓が消えずに残り（窓を開くたびに 1 本ずつ増えた）、
+            # 消えた窓へ答えを返そうとしてアプリごと落ちた。閉じたら None を入れて糸を終える
             def loop(q):
                 while True:
-                    fn, key = q.get()
+                    item = q.get()
+                    if item is None:
+                        q.task_done()
+                        return
+                    fn, key = item
                     try:
                         v = fn()
                     except BaseException as e:   # noqa: BLE001  裏で落ちても画面の糸に必ず返す
                         v = e
-                    fn = None   # 次を待つ間、終わった仕事を持ち続けない
-                    self._bg_emit(key, v)
+                    fn = item = None   # 次を待つ間、終わった仕事を持ち続けない
+                    w = ref()
+                    if w is not None and not getattr(w, "_io_closed", False):
+                        try:
+                            w._bg_emit(key, v)
+                        except RuntimeError:   # 窓の C++ の側がもう消えている
+                            pass
+                    w = None
                     q.task_done()
-            threading.Thread(target=loop, args=(self._io_queue,), daemon=True).start()
+            threading.Thread(target=loop, args=(self._io_queue,), name="io", daemon=True).start()
         self._io_queue.put((work, self._bg_register(done, name)))
 
     def _bg_done(self, got):

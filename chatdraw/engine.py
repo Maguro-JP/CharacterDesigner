@@ -96,6 +96,14 @@ def release_memory():
             torch.cuda.empty_cache()
     except Exception:   # noqa: BLE001  返せなくても描く邪魔はしない
         pass
+    # 降ろした模型の分を OS に返す。Actions の測りで、模型を降ろしたあとも RAM が 11GB から戻らず、
+    # 次の模型を読む予算が足りなくなった（glibc は解放した山を手元に持ったままにする）
+    try:
+        if sys.platform.startswith("linux"):
+            import ctypes
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:   # noqa: BLE001
+        pass
 
 
 LOW_MEMORY_NOTE = "メモリが足りないので、メモリを使わない設定（部品の出し入れ、注意の分割、小さめの大きさ）に切り替えて描きます"
@@ -898,10 +906,16 @@ class Painter:
         大きく超える物（12GB の GPU に 60GB 近い模型）は、読むと落ちるので今までどおり読む前に止める"""
         if plan is None or plan.ok:
             return
+        from chatdraw import debuglog
+        if debuglog.lifted("budget"):   # デバッグモードで外したとき。描いている途中の見張り（membudget.Watch）は残る
+            debuglog.log("メモリ", "予算を超える見積もりですが、デバッグモードで止めを外しているので描きます: " + plan.reason, mem=True)
+            self.low_memory = True
+            return
         from chatdraw import membudget as mb
         b = b or mb.budget()   # 見積もりに使った予算で比べる（測り直すと、見積もりと違う空きで判定していた）
-        over_ram = plan.ram_peak() > b.ram * self.OVER_OK
-        over_vram = b.vram > 0 and plan.vram_peak() > b.vram * self.OVER_OK
+        k = mb.over_ok()   # 設定の「メモリの使い方」で変わる（自動は OVER_OK と同じ 1.5）
+        over_ram = plan.ram_peak() > b.ram * k
+        over_vram = b.vram > 0 and plan.vram_peak() > b.vram * k
         if over_ram or over_vram:
             raise mb.OverBudget(plan.reason + "。" + plan.lighter)
         self.low_memory = True
@@ -1145,7 +1159,8 @@ class Painter:
             if not plan.preview:
                 on_preview = None   # 途中の絵をやめる
         from chatdraw import membudget as mb
-        watch = mb.Watch(mb.budget()) if plan is not None else None
+        release_memory()   # 描き始める前に、前の描画や降ろした模型の分を返してから空きを測る
+        watch = mb.Watch(mb.budget(), release=release_memory) if plan is not None else None
         self._danger = False
         self._last_latents = None
         from chatdraw.ownstyle import apply as apply_lora
@@ -1188,6 +1203,8 @@ class Painter:
         elif self.low_memory and base is None:
             size = low_memory_size(size, info.family)
         args = prompt_args(info, f, prompt, self.avoid, steps, self.guidance, seed, pipe)
+        from chatdraw import sent
+        sent.record("描く", args.get("prompt"), args.get("negative_prompt"), prompt_2=args.get("prompt_2"))
         import inspect
         if "callback_on_step_end" in inspect.signature(pipe.__call__).parameters:
             args["callback_on_step_end"] = step
@@ -1205,6 +1222,7 @@ class Painter:
         finally:
             if watch is not None:
                 watch.__exit__(None, None, None)
+            release_memory()   # 描き終えたら、途中の値（latents、復号の山）の分を返す。返さないと次の 1 枚まで RSS が高いまま残った
 
     def _timed_body(self, pipe, info, f, prompt, args, size, want, base, strength, reference, ref_scale, step, steps):
         """描く本体と VAE の復号を分けて測る。復号の秒と山は、vae.decode を包んで測る（絵は変えない）"""
@@ -1344,6 +1362,8 @@ class Painter:
                     generator=torch.Generator("cpu").manual_seed(seed))
         if info.rescale:
             args["guidance_rescale"] = info.rescale
+        from chatdraw import sent
+        sent.record("直す", args.get("prompt"), args.get("negative_prompt"))
         if clip_skip_arg(info, info.family):
             args["clip_skip"] = clip_skip_arg(info, info.family)
         total = max(1, int(steps * strength))
