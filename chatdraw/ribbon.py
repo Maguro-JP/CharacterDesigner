@@ -6,7 +6,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
-from PySide6.QtCore import QSize, Qt, QTimer
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer
 from PySide6.QtGui import QAction
 from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QTabWidget, QToolButton, QVBoxLayout, QWidget
 
@@ -47,15 +47,33 @@ class FamilyButton(QToolButton):
         self.released.connect(self.hold.stop)
         self.show_action(next((a for a in fam.actions if a.isCheckable() and a.isChecked()), fam.actions[0]))
         for a in fam.actions:
-            # 中の道具を選んだときと、キーで道具が変わったときに、ボタンの顔をその道具にする
-            a.triggered.connect(lambda _=False, a=a: self.show_action(a))
+            # 中の道具を選んだときと、キーで道具が変わったときに、ボタンの顔をその道具にする。
+            # lambda で繋ぐと、窓を閉じてボタンが消えたあとに道具の切り替えが届いて落ちた（Qt の中で 139）。
+            # ボタンの関数に繋ぎ、ボタンが消えると繋ぎも切れるようにする
+            a.triggered.connect(self._picked)
             if a.isCheckable():
-                a.toggled.connect(lambda on, a=a: on and self.show_action(a))
+                a.toggled.connect(self._toggled)
+
+    def _picked(self, _checked=False):
+        a = self.sender()
+        if isinstance(a, QAction):
+            self.show_action(a)
+
+    def _toggled(self, on: bool):
+        if on:
+            self._picked()
+
+    def fit(self):
+        """名前が「全…示」のように切れないよう、名前の幅に合わせる（▼の分を足す）。広げすぎると 1280 の窓で頁が横に流れ、
+        帯の名前が流し棒に隠れたので上限を置く"""
+        extra = 18 if self.popupMode() == QToolButton.MenuButtonPopup else 4
+        self.setMinimumWidth(min(84 + extra, max(52, self.fontMetrics().horizontalAdvance(self.text()) + 12 + extra)))
 
     def show_action(self, a: QAction):
         if self.defaultAction() is not a:
             self.setDefaultAction(a)
             self._retip()
+            self.fit()
 
     def _retip(self):
         a = self.defaultAction()
@@ -67,22 +85,10 @@ class FamilyButton(QToolButton):
 
     def actionEvent(self, e):
         # 道具が変わる（checked が動く）たびに、Qt はボタンの説明を道具の説明だけに戻す。系統の説明を付け直す
+        # 窓を閉じて消すときの ActionRemoved でも付け直すと、消えかけのボタンを触って 139 で落ちた。ActionChanged だけを見る
         super().actionEvent(e)
-        if self.family.icon is None and self.defaultAction() is not None:
+        if e.type() == QEvent.ActionChanged and self.family.icon is None and self.defaultAction() is not None:
             self._retip()
-
-
-def fit_width(b: QToolButton) -> None:
-    """名前が「全…示」のように切れないよう、名前の幅に合わせる（▼の付くボタンは▼の分を足す）。広げすぎると 1280 の窓で頁が横に流れ、帯の名前が流し棒に隠れたので上限を置く"""
-    def fit():
-        extra = 18 if b.popupMode() == QToolButton.MenuButtonPopup else 4
-        b.setMinimumWidth(min(84 + extra, max(52, b.fontMetrics().horizontalAdvance(b.text()) + 12 + extra)))
-    fit()
-    if isinstance(b, FamilyButton):
-        for a in b.family.actions:
-            a.triggered.connect(lambda _=False: fit())
-            if a.isCheckable():
-                a.toggled.connect(lambda _on: fit())
 
 
 def group(title: str, actions: list) -> QWidget:
@@ -103,7 +109,7 @@ def group(title: str, actions: list) -> QWidget:
         b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         b.setIconSize(QSize(22, 22))
         if isinstance(b, FamilyButton):
-            fit_width(b)
+            b.fit()
         else:
             b.setMinimumWidth(52)
         b.setAutoRaise(True)

@@ -36,9 +36,8 @@ class RibbonFamilyTest(unittest.TestCase):
         self.fam = {b.family.name: b for b in r.currentWidget().findChildren(FamilyButton)}
 
     def tearDown(self):
+        self.w.closing_checked = True
         self.w.close()
-        self.w.deleteLater()
-        self.qapp.processEvents()
         self.tmp.cleanup()
 
     def test_families_cover_all_tools(self):
