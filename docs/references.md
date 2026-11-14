@@ -199,3 +199,10 @@ CodeFormer（S-Lab License 1.0、商用不可）は配布に合わないので�
 - University of Washington, The Language of Film（寄り・引き、目の高さ・あおり・俯瞰・ダッチアングルの効果）: https://faculty.washington.edu/kgb/345/language.pdf
 - Oklahoma State University, Introduction to Film & TV: Cinematography（カメラの角度の定義）: https://open.library.okstate.edu/introfilmtv/part/cinematography/
 - Eastern Arizona College, Film and Media Studies: Camera Angles（俯瞰は弱く、あおりは強く、傾きは不安）: https://eac.libguides.com/c.php?g=723550&p=5287250
+
+## 画風の加工（`docs/knowledge/restyle-styles.md`、`chatdraw/restyle.py`、2026-11-14）
+
+- Hugging Face Diffusers, Image-to-image（strength が低いほど元の絵を残す。0.5 なら後ろ半分の工程だけを回す）: https://huggingface.co/docs/diffusers/v0.31.0/en/using-diffusers/img2img
+- ComfyUI の ControlNet の手引き（img2img と ControlNet を組む。構図を保って画風を変えるときの強さの幅）: https://www.mintlify.com/Comfy-Org/ComfyUI/guides/controlnet
+- NovelAI Documentation, Prompting for Unique Artstyles（traditional media と graphite・colored pencil・marker・ink・watercolor の (medium) の組、3d・blender (medium)、pixel art と dithering、monochrome のときは色の語を外す）: https://docs.novelai.net/en/image/tutorial-artstyles
+- nerijs/pixel-art-xl の模型の札（CreativeML OpenRAIL-M。8 分の 1 に最近傍で縮めると格子がそろう）: https://huggingface.co/nerijs/pixel-art-xl

@@ -3716,6 +3716,7 @@ class Window(QMainWindow):
             m.addAction(f"印 {n} の指示を書き直す", lambda: self.edit_note(n))
             m.addAction(f"印 {n} を消す", lambda: c.redpen.remove(n)).setToolTip("元に戻すで戻せます")
             self._mark_menu(m, n)
+            self.fill_style_menu(self._submenu(m, f"印 {n} の中の画風の変更"), n)
             m.addSeparator()
         from chatdraw import fixmenu
         fixmenu.add_to_menu(self, m, n)   # 修正依頼と、模型を使わない整える・揃える・消す（chatdraw/fixmenu.py の 1 か所）
@@ -3731,7 +3732,9 @@ class Window(QMainWindow):
             a.setEnabled(ok)
             a.setToolTip("" if ok else why)   # 押せない理由をカーソルを合わせたときに出す
         m.addSeparator()
-        shortcuts.fill_menu(self, m, self.shortcut_store())   # ★・よく使う物を上に、残りは処理の種類ごと
+        # 画風の変更は、隠す設定によらず画風を全部並べる（見本の投稿のように、1 枚の絵を選んだ画風に変える入口）
+        self.fill_style_menu(self._submenu(m, "画風の変更"))
+        shortcuts.fill_menu(self, m, self.shortcut_store(), skip=("style",))   # ★・よく使う物を上に、残りは処理の種類ごと
         m.addSeparator()
         # 道具・表示・選択は左端の帯やメニューと同じ操作を足す（名前もキーも、今の道具の印もそろう）
         tools = m.addMenu("道具")
@@ -5799,6 +5802,54 @@ class Window(QMainWindow):
             return out
         out.putalpha(ImageChops.multiply(out.getchannel("A"), binary(mask, out.size)))
         return out
+    def _submenu(m, title):
+        """親のメニューが持つ小さなメニュー。Python 側でも親に持たせ、作った関数を抜けても消えないようにする"""
+        from PySide6.QtWidgets import QMenu
+        sm = QMenu(title, m)
+        m.addMenu(sm)
+        m.__dict__.setdefault("_kept", []).append(sm)
+        return sm
+
+    def fill_style_menu(self, menu, mark: int = 0):
+        """画風の一覧（chatdraw/restyle.py の STYLES の並び）を menu に足す。mark が 1 からの印の番号なら、その囲みの中だけに掛ける"""
+        from chatdraw import finishers
+        from chatdraw.restyle import STYLES
+        from PySide6.QtGui import QIcon
+        menu.setToolTipsVisible(True)
+        # 予想図: 見本の 1 枚を本物の絵の模型でその画風に変えた小さな絵（chatdraw/styleprev/）。名前だけでは仕上がりが分からないので横に出す
+        # QMenu は絵の大きさを小さな絵の寸法（16 画素）で描き、スタイルシートの icon-size は効かなかった。その寸法だけを大きくする
+        from PySide6.QtWidgets import QProxyStyle, QStyle
+
+        class Big(QProxyStyle):
+            def pixelMetric(self, metric, option=None, widget=None):
+                return 48 if metric == QStyle.PM_SmallIconSize else super().pixelMetric(metric, option, widget)
+        menu.setStyle(Big(menu.style().name()) if menu.style().name() else Big())
+        menu.__dict__["_style"] = menu.style()   # Python 側でも持つ（手放すとスタイルが消える）
+        prev = Path(__file__).parent / "styleprev"
+        for kind, label, tip, *_ in STYLES:
+            name = f"style_{kind}"
+            ok, why = self._finisher_ready(name) if name in finishers.REGISTRY else (False, "")
+            # 囲み全体（または絵全体）に掛けるときはショートカットと同じ道を通す（使った回数と ★ の並びに入る）
+            act = menu.addAction(label, (lambda name=name: self.style_mark(name, mark)) if mark else (lambda name=name: self.run_shortcut("fin:" + name)))
+            if not mark:
+                act.setObjectName("fin:" + name)
+            if (prev / f"{kind}.jpg").is_file():
+                act.setIcon(QIcon(str(prev / f"{kind}.jpg")))
+            act.setToolTip(tip + "（左の小さな絵は見本の絵での例）" + ("。囲みの中だけを描き替えます" if mark else "") + ("" if ok or finishers.fetchable(name) else f"（{why}）"))
+            act.setEnabled((ok or finishers.fetchable(name)) and not self.thread)
+        return menu
+
+    def style_mark(self, name: str, mark: int = 0):
+        """画風を掛ける。mark があればその印の囲みだけ（ほかの印と選択範囲は使わない）、無ければ今の囲み（無ければ絵全体）"""
+        from chatdraw import finishers
+        if not mark:
+            return self.finish_with(name, background=True)
+        masks = self.canvas.redpen.masks()
+        if not 0 < mark <= len(masks):
+            self.notify("その印はありません", "info", "消したか、番号が変わりました")
+            return None
+        base = qimage_to_pil(self.canvas.flatten()).convert("RGB")
+        return self.finish_chain([name], finishers.REGISTRY[name].label, base=base, mask=gray_to_pil(masks[mark - 1]).convert("L"))
 
     def _region_mask(self):
         """赤ペンの囲みと選択範囲を合わせた囲み（PIL の L）。どちらも無ければ None"""
