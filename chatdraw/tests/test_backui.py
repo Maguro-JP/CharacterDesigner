@@ -153,5 +153,26 @@ class BatchTest(Base):
         self.assertTrue(all(p in lib for p in res["done"]))
 
 
+class MemModeWindowTest(Base):
+    """設定の窓の「メモリの使い方」で選んだものが、保存したときに描く仕組みに効くこと"""
+
+    def test_pick_in_settings(self):
+        from chatdraw import membudget, settings as st
+        w = self.window()
+        self.addCleanup(lambda: (w.settings.set("mem_mode", "自動"), membudget.set_mode("自動")))
+
+        def exec_(dlg):
+            box = dlg.inputs["mem_mode"][1]
+            self.assertEqual([box.itemText(i) for i in range(box.count())], list(membudget.MODES))
+            box.setCurrentText("控えめに動かす")
+            dlg.save()
+            return True
+        with mock.patch.object(st.SettingsDialog, "exec", exec_), \
+                mock.patch.object(type(w), "_studio_from_settings", lambda self: self.studio):
+            w.open_settings()
+        self.assertEqual(membudget.mode(), "控えめに動かす")
+        self.assertAlmostEqual(membudget.budget(10, 0).ram, 6.0)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -179,9 +179,43 @@ class WatchTest(unittest.TestCase):
         self.assertEqual(w.poll(), "near")    # 一度上がった段は下げない
         self.assertEqual(w.poll(), "danger")
 
-    def test_vram_is_watched(self):
+    def test_vram_low_lightens_but_does_not_stop(self):
+        """VRAM が足りなくなっても OS はアプリを落とさないので、止めずに軽い設定へ落とす（near）"""
         w = mb.Watch(mb.Budget(80, 16, 100, 20), sample=lambda: (90.0, 1.0))
+        self.assertEqual(w.poll(), "near")
+
+    def test_danger_releases_memory_first(self):
+        """危ないと見たら、まずメモリを返して測り直す。戻れば止めない"""
+        seq = iter([(0.3, 0), (5.0, 0)])
+        called = []
+        w = mb.Watch(mb.Budget(8.0, 0.0, 10.0, 0.0), sample=lambda: next(seq), release=lambda: called.append(1))
+        self.assertEqual(w.poll(), "near")
+        self.assertEqual(called, [1])
+
+    def test_danger_when_release_does_not_help(self):
+        w = mb.Watch(mb.Budget(8.0, 0.0, 10.0, 0.0), sample=lambda: (0.3, 0), release=lambda: None)
         self.assertEqual(w.poll(), "danger")
+        self.assertEqual(w.released, 1)
+
+    def test_cuda_cache_counts_as_free(self):
+        """torch が溜めているだけの VRAM は空きに数える"""
+        t = types.SimpleNamespace(cuda=types.SimpleNamespace(
+            is_available=lambda: True, mem_get_info=lambda: (1e9, 8e9),
+            memory_reserved=lambda: 5e9, memory_allocated=lambda: 2e9))
+        with mock.patch.dict(sys.modules, {"torch": t}):
+            self.assertAlmostEqual(mb.free_vram_gb(), 4.0)
+
+    def test_release_at_most_every_30_seconds(self):
+        """メモリを返すのは 30 秒に 1 回まで。0.2 秒ごとに返すと gc の時間で 1 工程が約 18 倍遅くなった"""
+        called = []
+        w = mb.Watch(mb.Budget(8.0, 0.0, 10.0, 0.0), sample=lambda: (0.3, 0), release=lambda: called.append(1))
+        for _ in range(50):
+            w.poll()
+        self.assertEqual(called, [1])
+        self.assertEqual(mb.Watch.RELEASE_EVERY, 30.0)
+        w._last_release -= 31
+        w.poll()
+        self.assertEqual(called, [1, 1])
 
     def test_danger_stops_before_decode_and_keeps_partial(self):
         """危ないところまで来たら、VAE の復号に進まずに止め、途中の絵を残す。メモリ不足の描き直しはしない"""
@@ -272,3 +306,39 @@ class UpscaleTilesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MemModeTest(unittest.TestCase):
+    """メモリの使い方の 3 つ（自動・優先・控えめ）で予算と許す超え方が変わり、知らない名前は自動に戻ること"""
+
+    def tearDown(self):
+        from chatdraw import membudget as mb
+        mb.set_mode("自動")
+
+    def test_modes(self):
+        from chatdraw import engine, membudget as mb
+        self.assertEqual(mb.set_mode("自動"), "自動")
+        self.assertAlmostEqual(mb.budget(10, 0).ram, 8.0)
+        self.assertEqual(mb.over_ok(), engine.Painter.OVER_OK)
+        mb.set_mode("優先して動かす")
+        self.assertAlmostEqual(mb.budget(10, 0).ram, 9.0)
+        self.assertGreater(mb.over_ok(), 1.5)
+        mb.set_mode("控えめに動かす")
+        self.assertAlmostEqual(mb.budget(10, 0).ram, 6.0)
+        self.assertEqual(mb.over_ok(), 1.0)
+        self.assertEqual(mb.set_mode("壊れた値"), "自動")
+
+    def test_gentle_stops_before_loading_what_auto_tries(self):
+        """控えめでは、自動なら軽くして描く少しの超えを、読む前に止める（落とさず日本語で理由を出す）"""
+        from types import SimpleNamespace
+        from chatdraw import engine, membudget as mb
+        p = engine.Painter.__new__(engine.Painter)
+        p._note = lambda *a, **k: None
+        plan = SimpleNamespace(ok=False, reason="足りない", lighter="小さくしてください", size=(512, 512),
+                               ram_peak=lambda: 9.0, vram_peak=lambda: 0.0)
+        b = mb.Budget(8.0, 0.0, 10.0, 0.0)
+        mb.set_mode("自動")
+        p._check_budget(plan, b)   # 9 < 8×1.5 なので描く
+        mb.set_mode("控えめに動かす")
+        with self.assertRaises(mb.OverBudget):
+            p._check_budget(plan, b)

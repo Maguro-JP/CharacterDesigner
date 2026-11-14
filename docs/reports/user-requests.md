@@ -29,7 +29,7 @@
 | A9 | 訳の分からない制限で「描けませんでした」にしない | 作業中 | claude/FIX-obey-20261108 |
 | A10 | 頼んだ指示を模型が無視しない | 作業中 | claude/FIX-obey-20261108、前の版の claude/FIX-adhere-20261108 |
 | A11 | 文字入力中にショートカットに取られない（急ぎ） | 作業中 | claude/FIX-backui-20261114: v0.5.22 から戻した。chatdraw/typeguard.py（アプリ全体）、test_typeguard.TypeGuardTest・WindowFieldsTest |
-| A12 | 落とさない。メモリの使い方を選ばせる（自動が既定、優先して動かす、控えめに動かす） | 作業中 | claude/FIX-integ5-20261108: membudget.MODES、設定の「メモリの使い方」、test_membudget.MemModeTest |
+| A12 | 落とさない。メモリの使い方を選ばせる（自動が既定、優先して動かす、控えめに動かす） | 作業中 | claude/FIX-backui-20261114: v0.5.22 から戻した。membudget.MODES、設定の「メモリの使い方」、見張りのメモリの解放は 30 秒に 1 回まで（test_membudget.MemModeTest・WatchTest、test_backui.MemModeWindowTest）。読み込みの見積もりの倍率は 0.5.18 の 1.1 のまま |
 | A13 | キャラクターシートと LoRA を入れる。模型ごとの参考画像・学習セット、外部共有サイト（Civitai・Hugging Face）から取る | 作業中 | claude/FIX-lora-20261108 |
 | A14 | ComfyUI を参考に、インテュイティブで見やすい画面にする | 作業中 | claude/FIX-comfyui-20261108（工程ごとの秒、並べて比べる、操作を探す）を integ5 に統合 |
 | A15 | 作画監督を早く完成させる | 作業中 | claude/FIX-qc2-20261108 を integ5 に統合 |
