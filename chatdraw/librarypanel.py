@@ -126,12 +126,13 @@ class LibraryPanel(QWidget):
 
     # ---- 操作 ----
     def _menu(self, view: QListWidget, pos, run: bool = True):
+        from chatdraw.app import exec_once
         it = view.itemAt(pos)
         if not it:   # 絵の無い所でも、使えるメニューを出す
             m = self.w.area_menu("library")
             if not run:
                 return m
-            m.exec(view.mapToGlobal(pos))
+            exec_once(m, view.mapToGlobal(pos))
             return None
         lib, item_id, path = self.w.library, it.data(Qt.UserRole), it.data(Qt.UserRole + 1)
         entry = lib.get(item_id)
@@ -159,7 +160,7 @@ class LibraryPanel(QWidget):
         m.addAction("消す（ごみ箱へ）…", lambda: self.w.delete_images(self._chosen(view, path)))
         if not run:
             return m
-        m.exec(view.mapToGlobal(pos))
+        exec_once(m, view.mapToGlobal(pos))
 
     def _chosen(self, view: QListWidget, path: str) -> list[str]:
         """右クリックした絵と、一緒に選んでいる絵"""

@@ -123,7 +123,7 @@ class TabDocks:
         # 外へ出したタブの欄も、中のどこを右クリックしても AI の欄と同じメニューを出す（出した欄だけ何も出なかった）
         d.setContextMenuPolicy(Qt.CustomContextMenu)
         if hasattr(self.w, "area_menu"):
-            d.customContextMenuRequested.connect(lambda pos, d=d: self.w.area_menu("chat").exec(d.mapToGlobal(pos)))
+            d.customContextMenuRequested.connect(lambda pos, d=d: _exec_once(self.w.area_menu("chat"), d.mapToGlobal(pos)))
         self.docks[name] = d
         self.w.addDockWidget(Qt.RightDockWidgetArea, d)
         if at is not None:
@@ -161,3 +161,8 @@ class TabDocks:
                 self.bar.moveTab(j, i)
         self.quiet = False
         self.save()
+
+
+def _exec_once(menu, pos):
+    from chatdraw.app import exec_once
+    return exec_once(menu, pos)

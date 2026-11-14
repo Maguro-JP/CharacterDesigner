@@ -105,6 +105,18 @@ class BugHuntTest(unittest.TestCase):
         self.c.undo()   # 描きかけの線も 1 回の元に戻すで消える
         self.pump()
 
+    def test_right_click_menus_do_not_pile_up(self):
+        """右クリックのメニューは閉じたら捨てる（前は 1 回ごとに 20 余りのメニューが窓に溜まった）"""
+        from PySide6.QtCore import QPoint, QTimer
+        from PySide6.QtWidgets import QApplication, QMenu
+        before = len(self.w.findChildren(QMenu))
+        for _ in range(5):
+            QTimer.singleShot(0, lambda: QApplication.activePopupWidget() and QApplication.activePopupWidget().close())
+            self.w.canvas_menu(self.w.mapToGlobal(QPoint(50, 50)))
+            self.qapp.sendPostedEvents(None, QEvent.DeferredDelete)   # deleteLater を済ませる
+            self.pump()
+        self.assertLessEqual(len(self.w.findChildren(QMenu)), before + 2)
+
 
 if __name__ == "__main__":
     unittest.main()
