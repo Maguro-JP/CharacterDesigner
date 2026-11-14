@@ -1,0 +1,33 @@
+[
+ {
+  "note": "髪を赤くして",
+  "seed": 10855650,
+  "strength": 0.75,
+  "seconds": 717.9,
+  "file": "fix-1.png",
+  "said": [
+   "渡した言葉: red hair, 1girl, long hair, solo, snowflakes, japanese clothes, snowflake hair ornament, kimono, purple eyes, sash, very long hair, full body, hair ornament, white kimono, snowflake print, wide sleeves, looking at viewer, obi, long sleeves, standing, smile, gradient background, breasts, ice, hair flower, flower（指示とぶつかるので外した元の語: white hair）"
+  ]
+ },
+ {
+  "note": "髪を黒くして",
+  "seed": 1072475184,
+  "strength": 0.75,
+  "seconds": 689.9,
+  "file": "fix-2.png",
+  "said": [
+   "渡した言葉: black hair, 1girl, long hair, solo, snowflakes, japanese clothes, snowflake hair ornament, kimono, purple eyes, sash, very long hair, full body, hair ornament, white kimono, snowflake print, wide sleeves, looking at viewer, obi, long sleeves, standing, smile, gradient background, breasts, ice, hair flower, flower（指示とぶつかるので外した元の語: white hair）"
+  ]
+ },
+ {
+  "note": "目を閉じて",
+  "seed": 1731853113,
+  "strength": 0.75,
+  "seconds": 689.2,
+  "file": "fix-3.png",
+  "said": [
+   "赤ペンの指示のうち、訳せなかった語: 閉じ（言葉の模型を入れると、この語も絵の模型に伝わります）",
+   "渡した言葉: 1girl, long hair, solo, snowflakes, japanese clothes, snowflake hair ornament, kimono, white hair, purple eyes, sash, very long hair, full body, hair ornament, white kimono, snowflake print, wide sleeves, looking at viewer, obi, long sleeves, standing, smile, gradient background, breasts, ice, hair flower, flower"
+  ]
+ }
+]
