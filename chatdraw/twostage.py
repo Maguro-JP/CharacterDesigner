@@ -169,6 +169,8 @@ def render(pipe, prompt: str, negative: str, shapes: dict, variant: dict, seed: 
         if on_step:
             on_step(i + 1, steps)
         return kw
+    from chatdraw import sent
+    sent.record("構図", prompt, negative)
     return pipe(prompt=prompt, negative_prompt=negative, width=w, height=h, num_inference_steps=steps, guidance_scale=guidance,
                 control_image=[shapes[k].resize(size) for k in kinds], control_mode=[MODES[k] for k in kinds],
                 controlnet_conditioning_scale=[float(variant[k]) for k in kinds], control_guidance_end=float(variant.get("end", 0.6)),
@@ -252,6 +254,8 @@ def refine(pipe, image, prompt: str, negative: str, seed: int, steps: int, guida
     def step(p, i, _t, kw):
         print(f"清書 {i + 1} {time.time() - t:.0f} 秒", flush=True)
         return kw
+    from chatdraw import sent
+    sent.record("清書", prompt, negative)
     out = i2i(prompt=prompt, negative_prompt=negative, image=big, strength=REFINE_STRENGTH, num_inference_steps=steps,
               guidance_scale=guidance, generator=torch.Generator("cpu").manual_seed(seed + 9),
               callback_on_step_end=step).images[0]
@@ -292,6 +296,8 @@ def fix_hands(pipe, image, prompt: str, negative: str, seed: int, steps: int, gu
         # なじませるのは囲みの内側だけ。囲みをぼかして外へ広げると、囲みの外の画素まで変わった
         soft = ImageChops.multiply(mask.filter(ImageFilter.MinFilter(9)).filter(ImageFilter.GaussianBlur(4)), mask)
         words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in regions))
+        from chatdraw import sent
+        sent.record("手の直し", f"{prompt}, {words}", negative + ", extra fingers, missing fingers, fused fingers, extra toes, faceless, empty eyes")
         out = inpaint(prompt=f"{prompt}, {words}",
                       negative_prompt=negative + ", extra fingers, missing fingers, fused fingers, extra toes, faceless, empty eyes",
                       image=image, mask_image=soft, width=image.width, height=image.height, strength=(0.55, 0.65, 0.75, 0.85, 0.9, 0.95)[min(r, 5)],
