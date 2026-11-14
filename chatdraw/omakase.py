@@ -296,6 +296,10 @@ class Omakase:
             # 書かれていない所（背景・ポーズ・髪・服・表情・構図・光）を種で選んで足す。足さないと毎回同じ無地の立ち絵になった
             from chatdraw.engine import vary_background
             prompt = vary_background(prompt, seed, tags=fam(m.family).tags if m is not None else True, text=text)
+            from chatdraw import composition   # 意図の言葉が書かれていたときだけ構図を足す
+            prompt, note = composition.add(text, prompt, tags=fam(m.family).tags if m is not None else True)
+            if note and not k:
+                say(note)
             image = None
             # 2 段の部品も候補の 1 つ。毎回 2 段で描くと構図の模型が固定されたので、ほかの模型があれば半分は 1 つの模型で描く
             use_two = self.two is not None and k == 0 and (len(compose) < 2 or random.Random(f"two-{seed}").random() < 0.5)

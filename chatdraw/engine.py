@@ -1543,6 +1543,11 @@ class Studio:
             say(f"学んだ記録を読めませんでした（{e}）。学びを使わずに描きます")
         if base is None and reference is None:   # ラフや参考画像の絵は、その絵の背景を活かす
             prompt = vary_background(prompt, seed, tags=as_tags, text=text)
+        # 頼みに意図の言葉（迫力、静か など）が書かれていたときだけ、合う構図の言葉を足す（chatdraw/composition.py）
+        from chatdraw import composition
+        prompt, note = composition.add(text, prompt, tags=as_tags)
+        if note:
+            say(note)
         lost = list(getattr(self.words, "untranslated", []) or [])
         if lost:   # 模型に伝わらない言葉を隠さない（伝わらないまま描くと、頼みと違う絵になる）
             say("模型に伝わらない言葉があります: " + "、".join(lost) + "（英語で書くか、言葉の模型を入れると伝わります）")
@@ -1736,6 +1741,11 @@ class Studio:
         say("頼みを描く言葉に直しています")
         sentence = self.words.to_prompt(text, tags=False)
         tags = self.words.to_prompt(text, tags=True)
+        from chatdraw import composition   # 意図の言葉が書かれていたときだけ構図を足す
+        sentence, _ = composition.add(text, sentence, tags=False)
+        tags, note = composition.add(text, tags, tags=True)
+        if note:
+            say(note)
         if style:
             tags = f"{tags}, {style}"
         sentence, tags = english_only(sentence), english_only(tags)   # 2 段の模型は prompt_args を通らないので、ここで日本語を除く
