@@ -147,21 +147,42 @@ class Job(QObject):
                 preload(path)
                 self.one.emit(" / ".join(prompts), str(path))
             else:
-                for seed in self.seeds:
-                    extra = dict(reference=self.reference, ref_scale=self.ref_scale) if self.reference is not None else {}
-                    # 落ちても止めず、軽い設定・小さい大きさ・別の模型・別の種と段を下げて描く（engine.Studio.draw_anyway）
-                    draw = getattr(self.studio, "draw_anyway", None) or self.studio.draw   # 段を下げる形を持たない描き手（試験の偽物など）はそのまま描く
-                    prompt, path = draw(self.text, seed, on_status=self._say,
-                                                    base=self.base, strength=self.strength, size=self.size,
-                                                    on_preview=self._preview, style=self.style, meta=self.meta, **extra)
-                    self._stopped()
-                    preload(path)   # 置くときに画面の糸で絵を読まないよう、ここ（裏の糸）で先に読む
-                    self.one.emit(prompt, str(path))
+                self._draw_all()
             self.done.emit()
         except Exception as e:  # 描けなかった理由を、次に何をすればよいか分かる日本語で会話に出す
             from chatdraw.engine import explain
             from chatdraw.engine import Stopped
             self.failed.emit(explain(e))   # 何が起きたかを 1 行で返す（「描けませんでした」の決まり文句は付けない）
+
+    def _draw_one(self, seed):
+        extra = dict(reference=self.reference, ref_scale=self.ref_scale) if self.reference is not None else {}
+        # 落ちても止めず、軽い設定・小さい大きさ・別の模型・別の種と段を下げて描く（engine.Studio.draw_anyway）
+        draw = getattr(self.studio, "draw_anyway", None) or self.studio.draw   # 段を下げる形を持たない描き手（試験の偽物など）はそのまま描く
+        prompt, path = draw(self.text, seed, on_status=self._say, base=self.base, strength=self.strength, size=self.size,
+                            on_preview=self._preview, style=self.style, meta=self.meta, **extra)
+        self._stopped()
+        preload(path)   # 置くときに画面の糸で絵を読まないよう、ここ（裏の糸）で先に読む
+        self.one.emit(prompt, str(path))
+
+    def _draw_all(self):
+        """枚数分を描く。1 枚が描けなくても残りを描き続け、描けなかった枚と理由を覚えて最後に知らせる。
+        前は 1 枚の例外が外へ抜けて、まだ描いていない枚まで全部取り消された"""
+        from chatdraw.engine import Stopped, explain
+        self.drawn, self.reasons = 0, []
+        many = len(self.seeds) > 1
+        for i, seed in enumerate(self.seeds, 1):
+            try:
+                self._draw_one(seed)
+                self.drawn += 1
+            except Stopped:
+                raise
+            except Exception as e:   # noqa: BLE001  1 枚だけの失敗で、ほかの枚を取り消さない
+                if not many or "描きません" in str(e):
+                    raise   # 1 枚だけの頼みと、描かない頼み（childsafe）は、今までどおり理由を返して終える
+                self.reasons.append(f"{i} 枚目: {explain(e)}")
+                self.status.emit(f"{i} 枚目は描けませんでした（{explain(e)}）。残りを描きます")
+        if many and not self.drawn:
+            raise RuntimeError("、".join(self.reasons[:3]))
 
     def _stopped(self):
         """止められたあとに返ってきた絵（直しの途中で抜けた物など）は置かずに捨てる。キャンバスは元のまま"""
@@ -686,6 +707,13 @@ class Window(QMainWindow):
         # 詳しい設定の 1・2・4 枚のボタンと同じ値
         self.ai_panel.count_spin.setToolTip("作成枚数。一度に描く枚数です（直すときは 1 枚）")
         self.ai_panel.count_spin.setAccessibleName("作成枚数")
+        count_label = QLabel("枚数")   # 欄だけだと何の数か分からず、見つからなかった
+        count_label.setBuddy(self.ai_panel.count_spin)
+        count_label.setToolTip(self.ai_panel.count_spin.toolTip())
+        self.count_label = count_label
+        line.addWidget(count_label)
+        # 描くボタンが横に伸びると、数の欄が幅 0 に潰れて見えなくなった。数が読めて打てる幅を必ず取る
+        self.ai_panel.count_spin.setMinimumWidth(self.ai_panel.count_spin.fontMetrics().horizontalAdvance("99 枚") + 40)
         line.addWidget(self.ai_panel.count_spin)
         line.addWidget(self.button, 1)
         line.addWidget(self.stop_button)
@@ -734,7 +762,7 @@ class Window(QMainWindow):
         self.neg_tips_box = neg_box
         self._load_negatives()
         # 指示のタブの並び: 模型、描くワード、描くワードの登録、禁止ワード、禁止ワードの登録
-        model_head = QLabel("模型")
+        model_head = QLabel("絵の模型")
         model_head.setObjectName("sectionHead")
         model_row = QHBoxLayout()
         model_row.setContentsMargins(0, 0, 0, 0)
@@ -816,6 +844,9 @@ class Window(QMainWindow):
         self.build_shared_actions()
         S = self.shared
         file = self.menuBar().addMenu("ファイル")
+        # 一括生成は描く仕事なので、絵の模型の一覧ではなくファイルのメニューに置く（模型の一覧に並ぶと、模型の名前と紛れた）
+        self.batch_action = file.addAction("一括生成…", lambda: self.batch_draw())
+        self.batch_action.setToolTip("頼みの一覧（1 行 1 つ、または CSV）から、枚数と種を付けて順に描き、全部をライブラリーに入れます。止めるは「止める」")
         file.addAction(S["new"])
         file.addAction(S["open"])
         edit_open = QAction("画像を開いて直す…", self, triggered=self.open_to_edit)
@@ -1919,10 +1950,10 @@ class Window(QMainWindow):
             chosen = getattr(getattr(self, "studio", None), "chosen", None)
             painter = getattr(getattr(self, "studio", None), "painter", None)
             name = chosen[0] if chosen else image_model(painter.model).name if getattr(painter, "model", "") else ""
-            self.model_label.setText("絵の模型: おまかせ" + (f"（{name}）" if name else ""))
+            self.model_label.setText("おまかせ" + (f"（{name}）" if name else ""))
             self.model_label.setToolTip(f"おまかせで選んだ理由: {chosen[1]}" if chosen else "描くときに、手元の模型から頼みに合う物を選びます")
         else:
-            self.model_label.setText(f"絵の模型: {image_model(key).name}")
+            self.model_label.setText(image_model(key).name)
 
     def _fit_features(self):
         """選んだ模型の世代で使えない機能（ラフから、直す、参考画像）のボタンを止め、理由を出す"""
@@ -2517,6 +2548,12 @@ class Window(QMainWindow):
         if bad:   # 崩れがあったときだけ絵の説明に足す（「描けました」は絵を見れば分かる）
             for it in self.batch_items:
                 it.setToolTip(f"{result}\n{it.toolTip()}")
+        job = getattr(self, "job", None)
+        asked = len(getattr(job, "seeds", ()) or ())
+        if not fixed and getattr(job, "reasons", None) and asked > 1:
+            # 1 枚が描けなくても残りは描いた。何枚描けたか、描けなかった理由を先に知らせる
+            result = f"{asked} 枚のうち {job.drawn} 枚描きました"
+            self.say(result + "。描けなかった枚: " + "、".join(job.reasons[:3]))
         self.activity.end(result, None, record=False)
         self.say(result if fixed else f"{n} 枚描きました。履歴から選べます" if n > 1 else "描きました")
         self.notify(result if fixed else "描けました", "error" if bad else "ok",
@@ -2526,6 +2563,93 @@ class Window(QMainWindow):
                      else "キャンバスに出しました（元に戻すで前の絵に戻せます）"),
                     on_click=lambda: (self.panels["history"][0].show(), self.activity.tabs.setCurrentIndex(0)))
         self._end("できました")
+
+    # ---- 一括生成（chatdraw/batch.py） ----
+
+    def batch_draw(self, text: str | None = None, count: int = 1, seed: int = 0, as_csv=None) -> bool:
+        """頼みの一覧から順に描き、全部をライブラリーに入れる。1 枚が失敗しても残りを描く。止めるは「止める」"""
+        from chatdraw import batch, engine
+        if self.busy("一括生成"):
+            return False
+        if not isinstance(text, str):
+            got = self._batch_dialog()
+            if got is None:
+                return False
+            text, count, seed, as_csv = got
+        jobs, bad = batch.parse(text, count, seed, as_csv)
+        if not jobs:
+            self.notify("一括生成できませんでした", "info", "頼みが 1 行もありません。1 行に 1 つ書くか、CSV を読んでください")
+            return False
+        studio = self.studio
+        n = batch.total(jobs)
+        self.activity.begin(f"一括生成（{n} 枚）", "一括生成")
+
+        def draw(text, seed, negative):
+            p = studio.painter
+            old = getattr(p, "avoid", None)
+            if negative and old is not None:
+                p.avoid = ", ".join(x for x in (old, negative) if x)
+            try:
+                return studio.draw(text, seed, on_status=self.task.status.emit)[1]
+            finally:
+                if negative and old is not None:
+                    p.avoid = old
+
+        def work(_step):
+            res = batch.run(jobs, draw, say=self.task.status.emit, stopped=engine.STOP.is_set)
+            res["failed"] = [(l, t, w) for l, t, w in bad] + res["failed"]
+            return res
+        self._run_task(work, self._batch_done)
+        return True
+
+    def _batch_dialog(self):
+        """一括生成の窓: 頼みの一覧（1 行 1 つ）、ファイルを読む、枚数、種"""
+        from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QPlainTextEdit, QPushButton,
+                                       QSpinBox)
+        d = QDialog(self)
+        d.setWindowTitle("一括生成")
+        form = QFormLayout(d)
+        box = QPlainTextEdit()
+        box.setPlaceholderText("1 行に 1 つ、描く物を書きます。\nCSV なら 1 行目を「頼み,枚数,種」にします")
+        box.setMinimumHeight(140)
+        form.addRow("頼みの一覧", box)
+        state = {"csv": None}
+
+        def load():
+            path, _ = QFileDialog.getOpenFileName(d, "頼みの一覧を読む", str(Path.home()), "頼みの一覧 (*.txt *.csv)")
+            if path:
+                box.setPlainText(Path(path).read_text(encoding="utf-8-sig"))
+                state["csv"] = path.lower().endswith(".csv") or None
+        read = QPushButton("ファイルを読む…")
+        read.setToolTip("1 行 1 つの .txt か、CSV（頼み,枚数,種,禁止ワード）を読みます")
+        read.clicked.connect(load)
+        form.addRow("", read)
+        count = QSpinBox()
+        count.setRange(1, 100)
+        count.setToolTip("1 行ごとに描く枚数（CSV に枚数があれば、そちらを使います）")
+        form.addRow("1 行の枚数", count)
+        seed = QSpinBox()
+        seed.setRange(0, 999999)
+        seed.setToolTip("種の始まり。行ごと・枚ごとに 1 ずつ足します（同じ種なら同じ絵になります）")
+        form.addRow("種", seed)
+        bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        bb.button(QDialogButtonBox.Ok).setText("描く")
+        bb.accepted.connect(d.accept)
+        bb.rejected.connect(d.reject)
+        form.addRow(bb)
+        if d.exec() != QDialog.Accepted:
+            return None
+        return box.toPlainText(), count.value(), seed.value(), state["csv"]
+
+    def _batch_done(self, res: dict):
+        from chatdraw import batch
+        for p in res["done"]:
+            self.library_panel.add(self.library.add_work(p))
+        self.batch_result = res
+        self.activity.end("一括生成を終えました", None, record=False)
+        self.notify("一括生成を終えました", "info" if res["failed"] or res["stopped"] else "ok", batch.summary(res))
+        self.say(batch.summary(res))
+        self._end("一括生成を終えました")
 
     def make_chibi(self):
         """今の絵を、ちびキャラ（頭の大きなデフォルメ）に描き直して、新しいレイヤーに重ねる"""
