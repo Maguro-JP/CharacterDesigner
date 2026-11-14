@@ -82,6 +82,16 @@ def _path(key: str) -> QPainterPath:
         p.addRoundedRect(QRectF(4, 6, 16, 12), 1.5, 1.5)
     elif key == "ellipse":
         p.addEllipse(QRectF(3, 6, 18, 12))
+    elif key in ("polyshape", "regpoly"):
+        import math
+        n = 5 if key == "polyshape" else 6
+        pts = [(12 + 9 * math.cos(-math.pi / 2 + 2 * math.pi * i / n), 12 + 9 * math.sin(-math.pi / 2 + 2 * math.pi * i / n)) for i in range(n)]
+        if key == "polyshape":
+            pts[1] = (pts[1][0] - 2, pts[1][1] + 3)   # 不揃いな角で、正多角形と見分ける
+        p.moveTo(*pts[0])
+        for q in pts[1:]:
+            p.lineTo(*q)
+        p.closeSubpath()
     elif key == "eyedropper":
         p.moveTo(4, 20)
         p.lineTo(5, 16)
@@ -368,4 +378,4 @@ def icon(key: str, color: str | None = None, active: str | None = None, size: in
     return QIcon(_Engine(key, color, active))
 
 
-KEYS = ("chat", "progress", "view", "layout", "new", "open", "save", "undo", "redo", "fit", "rotate", "rough", "models", "settings", "palette", "brush", "history", "layers", "help", "move", "select", "lasso", "polygon", "pen", "eraser", "blur", "spray", "smudge", "text", "fill", "gradient", "line", "rect", "ellipse", "eyedropper", "hand", "zoom", "redpen", "upscale", "library", "ai")
+KEYS = ("chat", "progress", "view", "layout", "new", "open", "save", "undo", "redo", "fit", "rotate", "rough", "models", "settings", "palette", "brush", "history", "layers", "help", "move", "select", "lasso", "polygon", "pen", "eraser", "blur", "spray", "smudge", "text", "fill", "gradient", "line", "rect", "ellipse", "polyshape", "regpoly", "eyedropper", "hand", "zoom", "redpen", "upscale", "library", "ai")

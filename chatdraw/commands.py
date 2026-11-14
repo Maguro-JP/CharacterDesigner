@@ -107,6 +107,8 @@ COMMANDS: list[Command] = [
     Command("line", "直線にしました", "switch to the line tool", _tool("line"), ("直線",)),
     Command("rect", "四角にしました", "switch to the rectangle tool", _tool("rect"), ("四角",)),
     Command("ellipse", "楕円にしました", "switch to the ellipse tool", _tool("ellipse"), ("楕円", "円")),
+    Command("polyshape", "多角形にしました", "switch to the polygon shape tool", _tool("polyshape"), ("多角形の図形", "多角形を描")),
+    Command("regpoly", "正多角形にしました", "switch to the regular polygon tool", _tool("regpoly"), ("正多角形", "六角形", "五角形")),
     Command("select", "選択にしました", "switch to the rectangle selection tool", _tool("select"), ("選択の道具",)),
     Command("lasso", "投げなわの選択にしました", "switch to the lasso selection tool", _tool("lasso"), ("投げなわ", "なげなわ")),
     Command("polygon", "多角形の選択にしました", "switch to the polygon selection tool", _tool("polygon"), ("多角形の選択", "多角形")),

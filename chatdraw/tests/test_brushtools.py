@@ -217,8 +217,8 @@ class NewToolsTest(unittest.TestCase):
         from PySide6.QtCore import QPointF
         w = window()
         c = w.canvas
-        w.stabilizer.setValue(5)
-        self.assertEqual(c.stabilizer, 5)
+        w.stabilizer.setValue(25)   # 強さは 0〜100。25 は前の 0〜20 の段の 5 と同じ効き
+        self.assertEqual(c.stabilizer, 25)
         c.steady = QPointF(0, 0)
         p = c.steadied(QPointF(60, 0))
         self.assertAlmostEqual(p.x(), 10.0)                              # 1/6 だけ近づく
