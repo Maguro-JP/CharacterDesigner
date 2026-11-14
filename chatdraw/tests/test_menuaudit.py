@@ -182,5 +182,52 @@ class PresetTest(Base):
                 self.assertNotIn(bad, tags, n)
 
 
+
+class PresetEditTest(Base):
+    """自分のプリセットを作る・直す。描くワード・禁止ワード・枚数・種を固定し、当てると欄に入って、その言葉で描く"""
+
+    def test_make_edit_apply_and_draw(self):
+        p = self.w.ai_panel
+        p.edit_preset  # noqa: B018  作風のタブのボタンから開く窓
+        self.assertTrue(p.new_button.toolTip())
+        dlg = p.edit_preset(run=False)
+        dlg.name.setText("白地の騎士")
+        dlg.size.setCurrentText("横")
+        dlg.count.setValue(2)
+        dlg.seed.setValue(1234)
+        dlg.words.setPlainText("knight, silver armor")
+        dlg.negative.setText("hat")
+        p.finish_edit(dlg)
+        own = p.own_presets()["白地の騎士"]
+        self.assertEqual((own["size"], own["count"], own["seed"], own["words"], own["negative"]),
+                         ("横", 2, 1234, "knight, silver armor", "hat"))
+        # 名前を変えて直す（前の名前は残さない）
+        dlg = p.edit_preset("白地の騎士", run=False)
+        self.assertEqual(dlg.words.toPlainText(), "knight, silver armor")
+        dlg.name.setText("騎士")
+        p.finish_edit(dlg, "白地の騎士")
+        self.assertNotIn("白地の騎士", p.own_presets())
+        self.assertIn("騎士", p.own_presets())
+        self.assertIn("編集…", [a.text() for a in p.own_menu("騎士").actions()])
+        # 当てると欄に入る
+        self.w.entry.setText("")
+        self.assertTrue(p.apply_name("騎士"))
+        self.assertEqual(self.w.entry.text(), "knight, silver armor")
+        self.assertEqual(p.negative.text(), "hat")
+        self.assertEqual(p.count(), 2)
+        self.assertEqual(p.seeds(), [1234, 1235])
+        before = len(self.painter.calls)
+        self.w.send()
+        self.pump()
+        self.assertGreater(len(self.painter.calls), before, "描いていない")
+        self.assertIn("knight", str(self.painter.calls[before]))
+
+    def test_pin_draw_words_to_preset(self):
+        """描くワードの右クリックから、その言葉をプリセットに固定する"""
+        dlg = self.w.preset_from_words("red scarf girl, smiling", run=False)
+        self.assertEqual(dlg.words.toPlainText(), "red scarf girl, smiling")
+        self.w.ai_panel.finish_edit(dlg)
+        self.assertEqual(self.w.ai_panel.own_presets()[dlg.name.text().strip()]["words"], "red scarf girl, smiling")
+
 if __name__ == "__main__":
     unittest.main()

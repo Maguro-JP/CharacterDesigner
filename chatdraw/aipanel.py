@@ -233,6 +233,10 @@ class AiPanel(QWidget):
         self.save_button.setToolTip("今の描き方・大きさ・画風を、自分の AI プリセットとして残します")
         self.save_button.clicked.connect(self.save_current)
         self.sections["作風"].body.addWidget(self.save_button)
+        self.new_button = QPushButton("プリセットを作る…")
+        self.new_button.setToolTip("描き方・大きさ・画風・枚数・種・絵の模型・描くワード・禁止ワードを選んで、自分の AI プリセットを作ります")
+        self.new_button.clicked.connect(lambda: self.edit_preset())
+        self.sections["作風"].body.addWidget(self.new_button)
 
         # 直す・仕上げ: 見る → 直す → 綺麗にする → 広げる・拡大 → 加工 の順。入口は 1 つずつ（右クリックの絵のメニューと同じ処理を呼ぶ）
         lay = self.sections["直す・仕上げ"].body
@@ -445,6 +449,18 @@ class AiPanel(QWidget):
         self.w.size_pick.setCurrentIndex(list(SIZES).index(data.get("size", "縦")))
         self.w.strength.setValue(int(data.get("strength", 100)))
         self.set_style(data.get("style", "おまかせ"))
+        # 自分のプリセットの足した項目（chatdraw/presetdialog.py）。無い項目は今のまま
+        if data.get("count"):
+            self.set_count(int(data["count"]))
+        if data.get("seed"):
+            self.seed.setValue(int(data["seed"]))
+            self.seed_lock.setChecked(True)
+        if data.get("words"):
+            self.w.entry.setText(data["words"])
+        if data.get("negative"):
+            self.negative.setText(data["negative"])
+        if data.get("model") and data["model"] != (self.w.settings.get("image_model") or ""):
+            self.w.switch_model("絵の模型", data["model"])
         if name == DEFAULT_PRESET:   # 標準に戻すときは、枚数・種・参考画像も最初の状態にする
             self.count_spin.setValue(1)
             self.seed_lock.setChecked(False)
@@ -485,6 +501,25 @@ class AiPanel(QWidget):
                 return
         self.save_preset(name.strip(), self.current())
 
+    def edit_preset(self, name: str = "", run: bool = True):
+        """自分のプリセットを作る（name が空）か直す窓。run=False なら窓を返すだけ（試験で中身を入れてから accept する）"""
+        from chatdraw.presetdialog import PresetDialog
+        data = self.own_presets().get(name) if name else dict(self.current(), words=self.w.entry.text().strip(),
+                                                              negative=self.negative.text().strip())
+        favs = self.w.favorite_prompts() if hasattr(self.w, "favorite_prompts") else []
+        dlg = PresetDialog(self, name, data, favs)
+        if not run:
+            return dlg
+        if dlg.exec():
+            self.finish_edit(dlg, name)
+        return dlg
+
+    def finish_edit(self, dlg, old: str = ""):
+        new, data = dlg.result_data()
+        if old and new != old:
+            self.w.layout_store.remove(f"ai_presets/{old}")   # 名前を変えたら前の名前は消す
+        self.save_preset(new, data)
+
     def save_preset(self, name: str, data: dict):
         self.w.layout_store.setValue(f"ai_presets/{name}", json.dumps(data, ensure_ascii=False))
         self.preset = name
@@ -498,7 +533,8 @@ class AiPanel(QWidget):
         """自分のプリセットの右クリック。当てるを上、消すは区切り線の下"""
         m = QMenu(self)
         m.addAction("このプリセットにする", lambda: self.apply_name(name))
-        m.addAction("今の設定で上書き", lambda: self.save_preset(name, self.current()))
+        m.addAction("編集…", lambda: self.edit_preset(name))
+        m.addAction("今の設定で上書き", lambda: self.save_preset(name, dict(self.own_presets().get(name, {}), **self.current())))
         m.addSeparator()
         m.addAction("消す…", lambda: self.w.ask_forget(f"自分の AI プリセット「{name}」を消します。",
                                                      lambda: (self.w.layout_store.remove(f"ai_presets/{name}"), self.fill_presets())))

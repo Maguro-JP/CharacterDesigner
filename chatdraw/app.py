@@ -1465,8 +1465,20 @@ class Window(QMainWindow):
         m = QMenu(self)
         m.addAction("登録から外す" if fav else "描くワードに登録する", lambda: (self.unpin_prompt(text) if fav else self.pin_prompt(text)))
         m.addAction("この言葉ですぐ描く", lambda: (self.entry.setText(text), self.send()))
+        m.addAction("この言葉でプリセットを作る…", lambda: self.preset_from_words(text)).setToolTip(
+            "今の描き方・大きさ・画風とこの描くワードを、自分の AI プリセットに固定します")
         m.addAction("一覧から消す", lambda: self.forget_prompt(text))
         m.exec(chip.mapToGlobal(pos))
+
+    def preset_from_words(self, text: str, run: bool = True):
+        """描くワードをプリセットに固定する窓を開く（中身は今の設定とこの言葉）"""
+        p = self.ai_panel
+        dlg = p.edit_preset(run=False)
+        dlg.words.setPlainText(text)
+        dlg.name.setText(text[:16])
+        if run and dlg.exec():
+            p.finish_edit(dlg)
+        return dlg
 
     def _save(self, key: str, items: list[str], limit: int | None = None):
         self.settings.store.setValue(key, items[:limit] if limit else items)
