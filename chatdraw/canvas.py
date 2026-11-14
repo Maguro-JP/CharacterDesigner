@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, Qt, Signal
+from PySide6.QtCore import QPoint, QPointF, QRect, QRectF, QSize, Qt, Signal
 from PySide6.QtGui import QBrush, QColor, QImage, QLinearGradient, QPainter, QPainterPath, QPen, QPixmap
 from PySide6.QtGui import QPolygonF
 from PySide6.QtWidgets import QGraphicsEllipseItem, QGraphicsItem, QGraphicsPathItem, QGraphicsRectItem, QGraphicsScene, QGraphicsView
@@ -24,6 +24,9 @@ CURSOR_STYLES = ("十字と筆の輪", "点と筆の輪", "筆の輪だけ", "�
 BRUSH_TOOLS = ("pen", "eraser", "blur", "spray", "smudge")                     # なぞって描く道具（筆の輪を出す）
 DRAG_TOOLS = ("line", "rect", "ellipse", "gradient", "move", "select", "lasso")   # 押した所から離した所までで決まる道具
 SELECT_TOOLS = ("select", "lasso", "polygon")   # 範囲を選ぶ道具。レイヤーを変えないので、隠したレイヤーでも使える
+# 対称の形。線対称は左右（縦の軸）・上下（横の軸）・上下左右、点対称は軸の中心の周りに半回転して写す
+SYMMETRY = {"lr": "左右（縦の軸）", "ud": "上下（横の軸）", "both": "上下左右", "point": "点対称（中心の周り）"}
+AXIS_GRIP = 7   # 軸をつかむ丸の半径（画面の画素）
 
 
 @dataclass
@@ -184,7 +187,10 @@ class Canvas(QGraphicsView):
         self.angle = 0.0
         self.stabilizer = 0           # 手ぶれ補正（0 で無し、大きいほど線が遅れてなめらかになる）
         self.steady: QPointF | None = None
-        self.symmetry = False         # 左右対称。真ん中の縦の線で折り返して同じ線を描く
+        self.symmetry = ""            # 対称の形（SYMMETRY の鍵）。"" は切る。描いた線・図形を軸の反対側にも描く
+        self.sym_center: QPointF | None = None   # 対称の軸の中心（絵の座標）。None は絵の真ん中
+        self._axis_drag = False
+        self._over_axis = False
         self.color_mode = COLOR_MODES[0]
         self.stroke_len = 0.0         # 線の始めからの長さ（虹色の色相を進める）
         self.held: str | None = None   # Space や Alt を押している間だけ持ち替える前の道具
@@ -209,12 +215,20 @@ class Canvas(QGraphicsView):
         self.sel_path_item.setZValue(1e9 - 1)
         self.sel_path_item.setVisible(False)
         self.scene().addItem(self.sel_path_item)
-        from PySide6.QtWidgets import QGraphicsLineItem
-        self.mirror_item = QGraphicsLineItem()   # 左右対称の折り返しの線
-        self.mirror_item.setPen(QPen(QColor(61, 123, 255, 160), 0, Qt.DashLine))
+        self.mirror_item = QGraphicsPathItem()   # 対称の軸（左右は縦の線、上下は横の線、点対称は十字）
+        self.mirror_item.setPen(QPen(QColor(61, 123, 255, 200), 0, Qt.DashLine))
         self.mirror_item.setZValue(1e9 - 2)
         self.mirror_item.setVisible(False)
         self.scene().addItem(self.mirror_item)
+        # 軸をつかむ丸。拡大しても同じ大きさで見えるよう、表示の拡大を受けない
+        self.axis_handle = QGraphicsEllipseItem(-AXIS_GRIP, -AXIS_GRIP, 2 * AXIS_GRIP, 2 * AXIS_GRIP)
+        self.axis_handle.setPen(QPen(QColor("white"), 1.5))
+        self.axis_handle.setBrush(QColor(61, 123, 255, 220))
+        self.axis_handle.setFlag(QGraphicsItem.ItemIgnoresTransformations)
+        self.axis_handle.setZValue(1e9 - 2)
+        self.axis_handle.setVisible(False)
+        self.axis_handle.setToolTip("ドラッグで対称の軸を動かします")
+        self.scene().addItem(self.axis_handle)
         from chatdraw.redpen import RedPen
         self.redpen = RedPen()   # 赤ペン先生の印。レイヤーとは別に持ち、保存する絵にも AI に渡す絵にも入れない
         self.scene().addItem(self.redpen)
@@ -311,6 +325,7 @@ class Canvas(QGraphicsView):
 
     def _reset(self, layers: list[Layer], current: int):
         self.layers, self.current = layers, current
+        self.sym_center = None   # 新しい絵では軸を真ん中に戻す
         self.set_selection(None)
         self.undo_stack.clear()
         self.redo_stack.clear()
@@ -340,6 +355,12 @@ class Canvas(QGraphicsView):
         if i <= 0 or i >= len(self.layers):
             return
         upper, lower = self.layers[i], self.layers[i - 1]
+        # 隠した・ロックしたレイヤーへ結合すると、見えている線が消えたり、ロックした絵が変わったりした。
+        # 隠した上のレイヤーを結合すると、その絵が黙って捨てられた。どれも結合せずに理由を出す
+        for layer, where in ((upper, "選んでいるレイヤー"), (lower, "下のレイヤー")):
+            if not layer.visible or layer.locked:
+                self.refused.emit(f"{where}「{layer.name}」を{'隠して' if not layer.visible else 'ロックして'}いるので結合できません")
+                return False
         self.snapshot_all()
         img = QImage(lower.image)
         p = QPainter(img)
@@ -352,6 +373,140 @@ class Canvas(QGraphicsView):
         self.current = i - 1
         self.rebuild()
         self.changed.emit()
+        return True
+
+    # ---- レイヤーのコピー・切り取り・貼り付け・複製（普通の作画ソフトと同じ働き。どれも元に戻すで戻せる） ----
+    def editable(self, i: int | None = None) -> bool:
+        """レイヤー i（既定は選んでいるレイヤー）の絵を変えてよいか。隠した・ロックしたレイヤーは変えずに理由を出す
+        （前は「選択範囲の中を消す」「切り取り」「塗る」がロックしたレイヤーの絵を消していた）"""
+        if not self.layers:
+            return False
+        layer = self.layers[self.current if i is None else i]
+        if layer.locked or not layer.visible:
+            self.refused.emit(f"「{layer.name}」は{'ロックして' if layer.locked else '隠して'}いるので変えられません。"
+                              "レイヤーの欄で出すか、ロックを外してください")
+            return False
+        return True
+
+    def _insert_above(self, layer: Layer):
+        self.layers.insert(self.current + 1, layer)
+        self.current += 1
+        self.rebuild()
+        self.changed.emit()
+
+    def duplicate_layer(self) -> bool:
+        """選んでいるレイヤーを、すぐ上に同じ絵・濃さで複製して選ぶ"""
+        if not self.layers:
+            return False
+        src = self.layers[self.current]
+        self.snapshot_all()
+        dup = src.copy()
+        dup.name, dup.locked = f"{src.name} のコピー", False
+        self._insert_above(dup)
+        return True
+
+    copied_layer: Layer | None = None
+
+    def copy_layer(self) -> Layer | None:
+        """選んでいるレイヤーを、名前・濃さごと覚える（貼るのは paste_layer）"""
+        if not self.layers:
+            return None
+        self.copied_layer = self.layers[self.current].copy()
+        return self.copied_layer
+
+    def cut_layer(self) -> Layer | None:
+        """選んでいるレイヤーを覚えてから消す。ロックしたレイヤーは切り取らない"""
+        if not self.layers:
+            return None
+        if self.layers[self.current].locked:
+            self.refused.emit(f"「{self.layers[self.current].name}」はロックしているので切り取れません")
+            return None
+        layer = self.copy_layer()
+        self.delete_layer()
+        self.changed.emit()
+        return layer
+
+    def paste_layer(self) -> bool:
+        """覚えたレイヤーを、選んでいるレイヤーのすぐ上に新しいレイヤーとして貼って選ぶ。大きさの違う絵には左上に合わせる"""
+        if self.copied_layer is None or not self.layers:
+            return False
+        w, h = self.size_px()
+        src = self.copied_layer
+        img = src.image
+        if img.size() != QSize(w, h):
+            img = blank(w, h)
+            p = QPainter(img)
+            p.drawImage(0, 0, src.image)
+            p.end()
+        self.snapshot_all()
+        used = {layer.name for layer in self.layers}
+        name = src.name if src.name not in used else f"{src.name} のコピー"
+        self._insert_above(Layer(name, img.copy(), True, src.opacity, False))
+        return True
+
+    def layer_via(self, cut: bool = False) -> bool:
+        """選択範囲の中を、同じ位置の新しいレイヤーへ写す（cut なら元から消す）。選択が無いときの写しはレイヤーの複製"""
+        if not self.layers:
+            return False
+        if self.selection is None:
+            if cut:
+                self.refused.emit("選択範囲がありません。範囲を選んでから使ってください")
+                return False
+            return self.duplicate_layer()
+        if cut and not self.editable():
+            return False
+        w, h = self.size_px()
+        src = self.layers[self.current]
+        part = blank(w, h)
+        p = QPainter(part)
+        p.setClipPath(self.selection_path())
+        p.drawImage(0, 0, src.image)
+        p.end()
+        self.snapshot_all()
+        if cut:
+            q = QPainter(src.image)
+            q.setCompositionMode(QPainter.CompositionMode_Clear)
+            q.fillPath(self.selection_path(), Qt.transparent)
+            q.end()
+        self._insert_above(Layer(f"{src.name} の{'切り取り' if cut else 'コピー'}", part, True, src.opacity))
+        return True
+
+    def merged_image(self) -> QImage:
+        """見えている絵を重ねた 1 枚の、選択範囲の中だけ（外は透明）。選択が無ければ全体"""
+        img = self.flatten()
+        if self.selection is None:
+            return img
+        out = QImage(self.selection.size(), QImage.Format_ARGB32_Premultiplied)
+        out.fill(Qt.transparent)
+        p = QPainter(out)
+        p.translate(-QPointF(self.selection.topLeft()))
+        p.setClipPath(self.selection_path())
+        p.drawImage(0, 0, img)
+        p.end()
+        return out
+
+    def clear_layer(self) -> bool:
+        """選んでいるレイヤーの絵を全部消して透明にする（レイヤーは残す）"""
+        if not self.editable():
+            return False
+        self.snapshot()
+        self.layers[self.current].image.fill(Qt.transparent)
+        self.items[self.current].update()
+        self.changed.emit()
+        return True
+
+    def flip_layer(self, horizontal: bool = True) -> bool:
+        """選んでいるレイヤーの絵を左右（horizontal）か上下に反転する。表示の左右反転と違い、絵そのものを変える"""
+        if not self.editable():
+            return False
+        self.snapshot()
+        layer = self.layers[self.current]
+        layer.image = layer.image.flipped(Qt.Horizontal if horizontal else Qt.Vertical)
+        self.items[self.current].layer = layer
+        self.items[self.current].sync()
+        self.items[self.current].update()
+        self.changed.emit()
+        return True
 
     def flatten(self) -> QImage:
         w, h = self.size_px()
@@ -381,6 +536,10 @@ class Canvas(QGraphicsView):
         if self.scene().sceneRect() != QRectF(0, 0, w, h):   # 元に戻すで大きさの違う絵に戻ったとき
             self.scene().setSceneRect(QRectF(0, 0, w, h))
             self.redpen.set_size(w, h)
+        # 大きさの違う絵にしたとき、軸が前の絵の真ん中に残り、線が軸と違う所で折り返された
+        if self.sym_center is not None and not QRectF(0, 0, w, h).contains(self.sym_center):
+            self.sym_center = None
+        self._update_axis()
         self.changed.emit()
 
     # ---- AI が描いている途中の絵 ----
@@ -800,19 +959,69 @@ class Canvas(QGraphicsView):
         if alone:
             self.end_stroke()
 
-    def _mirrored(self, a: QPointF, b: QPointF) -> list:
-        """左右対称のときは、真ん中の縦の線で折り返した区切りも返す"""
-        if not self.symmetry or not self.layers:
-            return [(a, b)]
-        w = self.size_px()[0]
-        return [(a, b), (QPointF(w - a.x(), a.y()), QPointF(w - b.x(), b.y()))]
+    def axis_center(self) -> QPointF:
+        if self.sym_center is not None:
+            return QPointF(self.sym_center)
+        w, h = self.size_px()
+        return QPointF(w / 2, h / 2)
 
-    def set_symmetry(self, on: bool):
-        self.symmetry = bool(on)
-        if self.layers:
+    def sym_maps(self) -> list:
+        """対称の写し方。1 つ目は描いたそのまま、残りが軸の反対側（線対称は折り返し、点対称は中心の周りに半回転）"""
+        same = [lambda q: QPointF(q)]
+        if not self.symmetry or not self.layers:
+            return same
+        c = self.axis_center()
+        cx, cy = c.x(), c.y()
+        lr = lambda q: QPointF(2 * cx - q.x(), q.y())         # noqa: E731
+        ud = lambda q: QPointF(q.x(), 2 * cy - q.y())         # noqa: E731
+        pt = lambda q: QPointF(2 * cx - q.x(), 2 * cy - q.y())   # noqa: E731
+        return same + {"lr": [lr], "ud": [ud], "both": [lr, ud, pt], "point": [pt]}[self.symmetry]
+
+    def _mirrored(self, a: QPointF, b: QPointF) -> list:
+        """対称のときは、軸の反対側に写した区切りも返す"""
+        return [(m(a), m(b)) for m in self.sym_maps()]
+
+    def set_symmetry(self, mode):
+        """対称の形を決める。True は左右（前の「左右対称」の印と同じ）、False・"" は切る"""
+        mode = "lr" if mode is True else "" if not mode else str(mode)
+        if mode and mode not in SYMMETRY:
+            raise ValueError(mode)
+        self.symmetry = mode
+        self._update_axis()
+        self.view_changed.emit()
+
+    def set_axis_center(self, pos: QPointF | None):
+        """対称の軸を pos へ動かす（絵の外には出さない）。None で絵の真ん中に戻す"""
+        if pos is not None and self.layers:
             w, h = self.size_px()
-            self.mirror_item.setLine(w / 2, 0, w / 2, h)
-        self.mirror_item.setVisible(self.symmetry and bool(self.layers))
+            pos = QPointF(min(max(pos.x(), 0.0), float(w)), min(max(pos.y(), 0.0), float(h)))
+        self.sym_center = pos
+        self._update_axis()
+
+    def _update_axis(self):
+        on = bool(self.symmetry) and bool(self.layers)
+        self.mirror_item.setVisible(on)
+        self.axis_handle.setVisible(on)
+        if not on:
+            return
+        w, h = self.size_px()
+        c = self.axis_center()
+        path = QPainterPath()
+        if self.symmetry in ("lr", "both", "point"):
+            path.moveTo(c.x(), 0)
+            path.lineTo(c.x(), h)
+        if self.symmetry in ("ud", "both", "point"):
+            path.moveTo(0, c.y())
+            path.lineTo(w, c.y())
+        self.mirror_item.setPath(path)
+        self.axis_handle.setPos(c)
+
+    def on_axis_handle(self, view_pos) -> bool:
+        """画面の点 view_pos が、軸をつかむ丸の上か"""
+        if not self.axis_handle.isVisible():
+            return False
+        d = self.mapFromScene(self.axis_center()) - view_pos
+        return d.x() ** 2 + d.y() ** 2 <= (AXIS_GRIP + 3) ** 2
 
     def stroke_color(self) -> QColor:
         """今の線の色。虹色は線の長さで色相を回し、行き来は描く色と背景色の間を行き来する（太さの 20 倍の長さで 1 周）"""
@@ -1092,8 +1301,8 @@ class Canvas(QGraphicsView):
 
     def clear_selection_area(self):
         """選択範囲の中を消す（Delete）。範囲が無ければ何もしない"""
-        if self.selection is None:
-            return
+        if self.selection is None or not self.editable():
+            return False
         self.snapshot()
         p = QPainter(self.layers[self.current].image)
         p.setCompositionMode(QPainter.CompositionMode_Clear)
@@ -1101,10 +1310,11 @@ class Canvas(QGraphicsView):
         p.end()
         self.items[self.current].update()
         self.changed.emit()
+        return True
 
     def fill_selection(self) -> bool:
         """選択範囲の中を描く色で塗る（濃さも効く）。範囲が無ければ何もしない"""
-        if self.selection is None or not self.layers:
+        if self.selection is None or not self.editable():
             return False
         self.snapshot()
         p = QPainter(self.layers[self.current].image)
@@ -1129,7 +1339,7 @@ class Canvas(QGraphicsView):
         p.end()
         return out
 
-    def paste_image(self, img: QImage, name: str = "貼り付け") -> bool:
+    def paste_image(self, img: QImage, name: str = "貼り付け", at: QPoint | None = None) -> bool:
         """絵を一番上の新しいレイヤーに置く。選択範囲があればその左上、無ければ左上に置く（元に戻すで戻せる）"""
         if img is None or img.isNull() or not self.layers:
             return False
@@ -1137,7 +1347,7 @@ class Canvas(QGraphicsView):
         self.snapshot_all()
         layer = blank(w, h)
         p = QPainter(layer)
-        p.drawImage(self.selection.topLeft() if self.selection is not None else QPoint(0, 0), img)
+        p.drawImage(at if at is not None else self.selection.topLeft() if self.selection is not None else QPoint(0, 0), img)
         p.end()
         self.layers.append(Layer(name, layer))
         self.current = len(self.layers) - 1
@@ -1181,12 +1391,15 @@ class Canvas(QGraphicsView):
         else:
             p.setPen(QPen(self.opaque(), self.size, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
             p.setBrush(self.opaque() if self.fill_shapes and self.tool != "line" else Qt.NoBrush)
-            if self.tool == "line":
-                p.drawLine(a, b)
-            elif self.tool == "rect":
-                p.drawRect(QRectF(a, b).normalized())
-            else:
-                p.drawEllipse(QRectF(a, b).normalized())
+            # 図形も対称の軸の反対側に描く（前は線の道具だけが対称に効き、直線・四角・楕円は片側だけだった）
+            for m in self.sym_maps():
+                a2, b2 = m(a), m(b)
+                if self.tool == "line":
+                    p.drawLine(a2, b2)
+                elif self.tool == "rect":
+                    p.drawRect(QRectF(a2, b2).normalized())
+                else:
+                    p.drawEllipse(QRectF(a2, b2).normalized())
         p.end()
         it.update()
 
@@ -1291,6 +1504,9 @@ class Canvas(QGraphicsView):
         if e.button() == Qt.RightButton and self.tool != "zoom":
             self.pan_from, self.panned = e.position().toPoint(), False
             return
+        if e.button() == Qt.LeftButton and self.on_axis_handle(e.position().toPoint()):
+            self._axis_drag = True   # 軸の丸をつかんだら、描かずに軸を動かす
+            return
         self.zoom_out = bool(e.modifiers() & Qt.ShiftModifier) or e.button() == Qt.RightButton and self.tool == "zoom"
         if self.tool == "zoom" and e.button() == Qt.RightButton and self._press(self.mapToScene(e.position().toPoint()), 1.0):
             return
@@ -1338,6 +1554,13 @@ class Canvas(QGraphicsView):
                 self.pan_from = now
             return
         pos = self.mapToScene(e.position().toPoint())
+        if self._axis_drag:
+            self.set_axis_center(pos)
+            return
+        over = not e.buttons() and self.on_axis_handle(e.position().toPoint())
+        if over != self._over_axis:   # 丸の上ではつかめると分かる形のカーソルにする
+            self._over_axis = over
+            self.viewport().setCursor(Qt.SizeAllCursor) if over else self._apply_cursor()
         self._ring(pos)
         self.moved.emit(int(pos.x()), int(pos.y()))
         if self.drag_start is not None:
@@ -1360,6 +1583,10 @@ class Canvas(QGraphicsView):
     def mouseReleaseEvent(self, e):
         if self._rot_from is not None and e.button() == Qt.LeftButton:
             self._rot_from = None
+            return
+        if self._axis_drag and e.button() == Qt.LeftButton:
+            self._axis_drag = False
+            self.view_changed.emit()
             return
         if e.button() == Qt.RightButton and self.pan_from is not None:
             moved, self.pan_from = self.panned, None
@@ -1396,6 +1623,16 @@ class Canvas(QGraphicsView):
         self.pressure = max(0.05, e.pressure())
         self._ring(pos)
         t = e.type()
+        # ペンでも軸の丸をつかめるようにする（マウスと同じ働き）
+        if t == e.Type.TabletPress and self.on_axis_handle(e.position().toPoint()):
+            self._axis_drag = True
+        if self._axis_drag:
+            self.set_axis_center(pos)
+            if t == e.Type.TabletRelease:
+                self._axis_drag = False
+                self.view_changed.emit()
+            e.accept()
+            return
         if t == e.Type.TabletPress:
             self._press(pos, self.pressure)
         elif t == e.Type.TabletMove and self.redpen.drawing is not None:
