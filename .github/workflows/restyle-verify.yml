@@ -31,7 +31,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: 置き場を空ける
-        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1; free -g
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1
+      # 絵の模型と Union を CPU で並べて置くと 16GB を超えて落ちた（終了コード 137、機械との通信が切れる）。足りない分をスワップで受ける
+      - name: スワップを足す
+        run: sudo swapoff -a; sudo fallocate -l 24G /swapfile2 && sudo chmod 600 /swapfile2 && sudo mkswap /swapfile2 && sudo swapon /swapfile2; free -g
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
