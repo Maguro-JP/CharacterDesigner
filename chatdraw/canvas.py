@@ -354,6 +354,22 @@ class Canvas(QGraphicsView):
         self.current = len(self.layers) - 1
         self.rebuild()
 
+    def add_phase_layers(self, items: list[tuple[str, str]]):
+        """工程ごとの途中の絵を、一番下に隠したレイヤーとして足す（目の印で出して見比べる）。描いた絵と選んだレイヤーはそのまま"""
+        if not self.layers:
+            return
+        w, h = self.size_px()
+        added = []
+        for name, path in items:
+            layer = blank(w, h)
+            p = QPainter(layer)
+            p.drawImage(0, 0, _load(path).scaled(w, h, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            p.end()
+            added.append(Layer(name, layer, False))
+        self.layers[:0] = added
+        self.current += len(added)
+        self.rebuild()
+
     def _reset(self, layers: list[Layer], current: int):
         self.layers, self.current = layers, current
         self.sym_center = None   # 新しい絵では軸を真ん中に戻す

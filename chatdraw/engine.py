@@ -1481,12 +1481,14 @@ class Studio:
         self.out = out or Path(os.environ.get("CD_OUTPUT") or Path.home() / "Pictures" / "CharacterDesigner")
         self.image_auto = False   # おまかせ: 頼みごとに、手元の絵の模型から合う物を選ぶ
         self.words_auto = False   # おまかせ: 頼みごとに、手元の言葉の模型から合う物を選ぶ
-        # 描き方。"auto" は、構図の模型・SDXL の模型・2 段の部品がそろっていれば 2 段で描く。"one" は 1 つの模型、"two" は必ず 2 段
+        # 描き方。"auto" は、構図の模型・SDXL の模型・2 段の部品がそろっていれば 2 段で描く。"one" は 1 つの模型、"two" は必ず 2 段。
+        # "phases" は 1 つの模型で、構図・線画・塗り・仕上げの工程に分けて描く（chatdraw/phases.py）
         self.way = "auto"
 
     def draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
              on_preview=None, style: str = "", reference=None, ref_scale: float = 0.6, meta: dict | None = None) -> tuple[str, Path]:
         say = on_status or (lambda msg: None)
+        self.last_phases = None   # 工程に分けて描いた回だけ、工程ごとの絵と検品を持つ（アプリが隠したレイヤーに置く）
         if refused(text):
             raise ValueError("子どもを性的に描く頼みは描きません")
         if hasattr(self.painter, "on_note"):
@@ -1523,6 +1525,8 @@ class Studio:
                 say(f"絵の模型: {m.name}（{why}）")
             else:
                 say("おまかせで選べる絵の模型が手元にありません。今の模型で描きます")
+        if self.way == "phases" and base is None and reference is None:
+            return self._draw_phases(text, seed, style, size, say, on_preview, meta)
         two = self._two_stage_models(base, reference, say)
         if two is not None:
             return self._draw_two(text, seed, two, style, size, say, meta)
@@ -1731,6 +1735,50 @@ class Studio:
             return None
         have.sort(key=lambda m: (getattr(m, "ram", 16) or 16, -float(getattr(m, "score", 0) or 0)))
         return have[0] if have else None
+
+    last_phases: list | None = None
+
+    def _draw_phases(self, text, seed, style, size, say, on_preview, meta):
+        """構図 → 線画 → 塗り → 仕上げの工程に分けて描く（chatdraw/phases.py）。工程ごとに描く・検品する・1 回だけ直す。
+        渡す言葉は頼みの訳と作風だけで、背景や構図の言葉は足さない"""
+        import time
+        from chatdraw import phases
+        from chatdraw.models import family as fam, image_model
+        say("工程に分けて描きます（構図 → 線画 → 塗り → 仕上げ）")
+        say("頼みを描く言葉に直しています")
+        as_tags = fam(image_model(getattr(self.painter, "model", "")).family).tags
+        prompt = self.words.to_prompt(text, tags=as_tags)
+        lost = list(getattr(self.words, "untranslated", []) or [])
+        if lost:
+            say("模型に伝わらない言葉があります: " + "、".join(lost) + "（英語で書くか、言葉の模型を入れると伝わります）")
+        self.last_lost = lost
+        negative = list(getattr(self.words, "negative", []) or [])
+        avoid0 = getattr(self.painter, "avoid", "")
+        if negative and hasattr(self.painter, "avoid"):
+            say("描かない物: " + ", ".join(negative))
+            self.painter.avoid = ", ".join([a for a in [avoid0] + negative if a])
+        if style:
+            prompt = f"{prompt}, {style}"
+        if refused(prompt):
+            raise ValueError("子どもを性的に描く頼みは描きません")
+        keep = self.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}-phases"
+        try:
+            got = phases.draw(self.painter, prompt, seed, size, keep, say=say,
+                              on_step=lambda i, n: say(f"描いています（{i}/{n}）"))
+        finally:
+            if hasattr(self.painter, "avoid"):
+                self.painter.avoid = avoid0
+        self.last_phases = got["phases"]
+        left, checked = got["left"], got["checked"]
+        if left:
+            say("工程を全部通しても崩れが残りました（途中）: " + "、".join(left[:5]))
+        elif not checked:
+            say("検品できなかった工程があるので、通ったかは分かりません（途中）")
+        path = self._save(got["image"], seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style,
+                                                   model=getattr(self.painter, "model", ""), way="phases", stages=str(keep),
+                                                   phases=got["phases"], passed=checked and not left))
+        self._inspect(path, say)
+        return prompt, path
 
     def _draw_two(self, text, seed, two, style, size, say, meta):
         """構図（文で頼める模型）と仕上げ（SDXL のアニメの模型）を分けて描く（chatdraw/twostage.py）"""

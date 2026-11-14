@@ -1,0 +1,63 @@
+# 1 回で描く形と工程に分けて描く形（chatdraw/phases.py）を、本物の模型・同じ頼み・同じ種で比べる（chatdraw/phasebench.py）。
+# リポジトリは公開しているので、重い比べは Actions の枠で回す。結果は artifact の bench.json と絵。
+name: phase-bench
+on:
+  workflow_dispatch:
+    inputs:
+      model:
+        description: "絵の模型"
+        default: "cagliostrolab/animagine-xl-4.0"
+      prompt:
+        description: "頼み（英語のタグ）"
+        default: "1girl, solo, standing, full body, waving, red scarf, school uniform, looking at viewer"
+      steps:
+        description: "工程の数"
+        default: "20"
+      size:
+        description: "大きさ（幅x高さ）"
+        default: "832x1216"
+  push:
+    branches: ["claude/FIX-phases-*"]
+    paths: [".github/workflows/phase-bench.yml", "chatdraw/phasebench.py"]
+permissions:
+  contents: read
+concurrency:
+  group: phase-bench-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  bench:
+    runs-on: ubuntu-latest
+    timeout-minutes: 340
+    strategy:
+      fail-fast: false
+      matrix:
+        seed: [7, 11]
+    steps:
+      - uses: actions/checkout@v4
+      - name: 置き場を空ける
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1; free -g; nproc
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 部品
+        run: |
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy scikit-image ai-edge-litert onnxruntime
+      - name: 比べる
+        timeout-minutes: 320
+        env:
+          LLM_HOME: ${{ runner.temp }}/llm
+          CD_HOME: ${{ runner.temp }}/cd
+          CD_FETCH: "1"
+          CD_ASSUME_FREE_RAM_GB: "14"
+          BENCH_MODEL: ${{ inputs.model || 'cagliostrolab/animagine-xl-4.0' }}
+          BENCH_PROMPT: ${{ inputs.prompt || '1girl, solo, standing, full body, waving, red scarf, school uniform, looking at viewer' }}
+          BENCH_STEPS: ${{ inputs.steps || '20' }}
+          BENCH_SIZE: ${{ inputs.size || '832x1216' }}
+          BENCH_SEED: ${{ matrix.seed }}
+        run: python -u -m chatdraw.phasebench phase-out
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: phase-bench-s${{ matrix.seed }}
+          path: phase-out

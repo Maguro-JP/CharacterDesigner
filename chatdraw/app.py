@@ -2423,6 +2423,7 @@ class Window(QMainWindow):
             elif first:
                 self.activity.status("キャンバスに置いています")
                 self.place(path)
+                self._put_phases()
         except (OSError, ValueError) as e:
             self.say(f"絵をキャンバスに置けませんでした（{e}）。履歴から押すと出せます")
         self.batch_items.append(self.activity.add(path, prompt))
@@ -2449,6 +2450,17 @@ class Window(QMainWindow):
         # 裏の糸で埋める（PNG を書き直すので 1 枚 0.1 秒ほどかかる。別名に書いてから替えるので、読む側は壊れた絵を見ない）
         from chatdraw import finishers
         self.run_io(lambda: finishers.embedded(path) or finishers.embed(path, finishers.sidecar(path)), lambda _v: None, "ライブラリーへ保存")
+
+    def _put_phases(self):
+        """工程に分けて描いた回は、工程ごとの絵を描いた絵の下に隠したレイヤーで置き、工程ごとの検品を会話に出す（chatdraw/phases.py）"""
+        rows = getattr(self.studio, "last_phases", None) if self.job_kind == "draw" else None
+        if not rows:
+            return
+        self.canvas.add_phase_layers([(f"工程 {i}: {r['phase']}", r["image"]) for i, r in enumerate(rows, 1)])
+        for i, r in enumerate(rows, 1):
+            left = r["after"] if r["fixed"] else r["found"]
+            self.say(f"工程 {i}「{r['phase']}」{r['seconds']} 秒: " + ("崩れは見つかりませんでした" if not left else "残った崩れ " + "、".join(left[:3]))
+                     + ("（1 回直しました）" if r["fixed"] else ""))
 
     def _on_fixed(self, path: str):
         """赤ペン・選択範囲の直しの結果は、一番上の新しいレイヤーにだけ置いて選ぶ。描いた絵の履歴・ライブラリーには載せない
@@ -3495,7 +3507,7 @@ class Window(QMainWindow):
         painter.lora_scale = int(self.layout_store.value("lora_scale", 80)) / 100
         studio = Studio(Words(None if words == AUTO else Path(words)), painter, Path(g("output_dir")))
         studio.image_auto, studio.words_auto = g("image_model") == AUTO, words == AUTO
-        studio.way = {"1つの模型で描く": "one", "構図と仕上げを分けて描く": "two"}.get(g("draw_way"), "auto")
+        studio.way = {"1つの模型で描く": "one", "構図と仕上げを分けて描く": "two", "工程に分けて描く": "phases"}.get(g("draw_way"), "auto")
         return studio
 
     def open_help(self, key: str):
