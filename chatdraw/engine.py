@@ -96,6 +96,14 @@ def release_memory():
             torch.cuda.empty_cache()
     except Exception:   # noqa: BLE001  返せなくても描く邪魔はしない
         pass
+    # 降ろした模型の分を OS に返す。Actions の測りで、模型を降ろしたあとも RAM が 11GB から戻らず、
+    # 次の模型を読む予算が足りなくなった（glibc は解放した山を手元に持ったままにする）
+    try:
+        if sys.platform.startswith("linux"):
+            import ctypes
+            ctypes.CDLL("libc.so.6").malloc_trim(0)
+    except Exception:   # noqa: BLE001
+        pass
 
 
 LOW_MEMORY_NOTE = "メモリが足りないので、メモリを使わない設定（部品の出し入れ、注意の分割、小さめの大きさ）に切り替えて描きます"
@@ -1151,6 +1159,7 @@ class Painter:
             if not plan.preview:
                 on_preview = None   # 途中の絵をやめる
         from chatdraw import membudget as mb
+        release_memory()   # 描き始める前に、前の描画や降ろした模型の分を返してから空きを測る
         watch = mb.Watch(mb.budget(), release=release_memory) if plan is not None else None
         self._danger = False
         self._last_latents = None
@@ -1213,6 +1222,7 @@ class Painter:
         finally:
             if watch is not None:
                 watch.__exit__(None, None, None)
+            release_memory()   # 描き終えたら、途中の値（latents、復号の山）の分を返す。返さないと次の 1 枚まで RSS が高いまま残った
 
     def _timed_body(self, pipe, info, f, prompt, args, size, want, base, strength, reference, ref_scale, step, steps):
         """描く本体と VAE の復号を分けて測る。復号の秒と山は、vae.decode を包んで測る（絵は変えない）"""

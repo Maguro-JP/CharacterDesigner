@@ -342,3 +342,33 @@ class MemModeTest(unittest.TestCase):
         mb.set_mode("控えめに動かす")
         with self.assertRaises(mb.OverBudget):
             p._check_budget(plan, b)
+
+
+class ReleaseAroundDrawTest(unittest.TestCase):
+    """描く前と描き終えたあとにメモリを返す（返さないと RSS が次の 1 枚まで高いまま残った）。返す処理は malloc_trim まで呼ぶ"""
+
+    def test_release_before_and_after_paint(self):
+        calls = []
+        with mock.patch.object(engine, "release_memory", lambda: calls.append(1)):
+            p, log, notes, err = run_paint("cagliostrolab/animagine-xl-4.0", 64.0, 0.0, cuda=False)
+        self.assertIsNone(err)
+        self.assertGreaterEqual(len(calls), 2)
+
+    def test_release_trims_on_linux(self):
+        if not sys.platform.startswith("linux"):
+            self.skipTest("linux だけ")
+        import ctypes
+        got = []
+        real = ctypes.CDLL
+
+        class Fake:
+            def __init__(self, name):
+                self.lib = real(name)
+
+            def malloc_trim(self, n):
+                got.append(n)
+                return 1
+        with mock.patch.object(ctypes, "CDLL", Fake):
+            engine.release_memory()
+        self.assertEqual(got, [0])
+
