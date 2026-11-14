@@ -1,0 +1,41 @@
+# 赤ペンの直しを本物の絵の模型で確かめる（chatdraw/fix_verify.py）。同じ絵・同じ囲みに違う指示を出し、
+# 渡った言葉と結果の絵を draw-results ブランチに置く（作業の機械は artifact の置き場に届かない）。
+# 手元の試験は偽の模型なので、指示どおりに絵が変わるかはここでしか見られない
+name: fix-verify
+on:
+  workflow_dispatch:
+    inputs:
+      strength:
+        description: 直しの強さ
+        default: "0.75"
+  push:
+    branches: ["claude/FIX-fixprompt-*"]
+    paths:
+      - "chatdraw/fix_verify.py"
+      - ".github/workflows/fix-verify.yml"
+permissions:
+  contents: write
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+      - name: 置き場を空ける
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1; free -g
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: 部品
+        run: |
+          pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy scikit-image ai-edge-litert onnxruntime
+      - name: 同じ囲みに 3 つの指示で直す
+        env:
+          CD_HOME: ${{ runner.temp }}/cd
+          LLM_HOME: ${{ runner.temp }}/llm
+          FIX_STRENGTH: ${{ inputs.strength || '0.75' }}
+        run: python -u -m chatdraw.fix_verify library/daily/2026-10-13/05-yukionna.png out 170,0,350,200 髪を赤くして 髪を黒くして 目を閉じて
+      - name: draw-results に置く
+        if: always()
+        run: rm -rf out/saved; sh .github/scripts/draw-results.sh out

@@ -144,7 +144,8 @@ class Job(QObject):
             if self.regions is not None:
                 prompts, path = self.studio.fix(self.base, self.regions, self.seeds[0], on_status=self._say,
                                                 style=self.style, strength=self.strength, reference=self.reference,
-                                                ref_scale=self.ref_scale, check=self.check)
+                                                ref_scale=self.ref_scale, check=self.check,
+                                                **({"source": self.meta["source"]} if self.meta.get("source") else {}))
                 self._stopped()
                 preload(path)
                 self.one.emit(" / ".join(prompts), str(path))
@@ -2264,6 +2265,8 @@ class Window(QMainWindow):
         self.job_kind = "fix" if mode == 2 else "draw"
         meta = dict(mode=self.mode.currentText(), preset=self.ai_panel.preset, style_name=self.ai_panel.style,
                     size=list(self.size_pick.currentData()), strength=self.strength.value())
+        if mode == 2:
+            meta["source"] = self.fix_source()
         self._apply_avoid()
         self.job_studio = self._fix_studio() if mode == 2 else self.studio
         self.before_heavy(self.job_studio.painter)
@@ -2637,6 +2640,18 @@ class Window(QMainWindow):
             self.note_box.hide()
             return True
         return super().eventFilter(obj, e)
+
+    def fix_source(self) -> str:
+        """今の絵を描いたときの言葉（記録の prompt）。直した絵なら、その元の絵の言葉。記録が無ければ空（直すときに絵からタグを読む）"""
+        from chatdraw import finishers
+        path = getattr(self, "_fix_from", None)
+        if not path:
+            return ""
+        try:
+            meta = finishers.sidecar(path)
+        except Exception:
+            return ""
+        return str(meta.get("source", "") if meta.get("mode") == "直す" else meta.get("prompt", "") or "")
 
     def fix_regions(self, text: str):
         """直す所と指示の並び。赤ペンの印は絵の上に書いた指示か番号ごとの指示、四角の選択は文全体を指示にする"""
@@ -4611,6 +4626,7 @@ class Window(QMainWindow):
             self.put_result(path, f"AI の絵 {len(self.images)}")
             self.canvas.fit()   # 結果は全体表示で見せる
         self._placed = path
+        self._fix_from = path   # 赤ペンで直すときに、この絵を描いたときの言葉を渡す
 
     def stop(self):
         """緊急停止。押したら必ず止まる。
@@ -5538,6 +5554,7 @@ class Window(QMainWindow):
             self.canvas.replace_with_image(path, Path(path).stem)
             self.work_key = str(path)
         self.project_path = None
+        self._fix_from = str(path)
         self.source_path = str(path)   # 「結合して元の画像に上書き保存」で書き戻す先
         self.mode.setCurrentIndex(2)   # 直す
         if "redpen" in self.tool_actions:
@@ -5608,6 +5625,7 @@ class Window(QMainWindow):
         base = qimage_to_pil(self.canvas.flatten()).convert("RGB")
         mask = self._region_mask()
         finishers.use_painter(getattr(self.studio, "painter", None))
+        finishers.use_source(self.fix_source())   # 加工にも、元の絵を描いたときの言葉を渡す
         if background:   # 模型を使う道具は数十秒かかる。画面の糸で回すと、その間アプリが固まる
             return self.finish_chain([name], finishers.REGISTRY[name].label, base=base, mask=mask)
         try:
@@ -5646,6 +5664,7 @@ class Window(QMainWindow):
             base = qimage_to_pil(self.canvas.flatten()).convert("RGB")
             mask = self._region_mask()
         finishers.use_painter(getattr(self.studio, "painter", None))
+        finishers.use_source(self.fix_source())
         fetch = []
         for n in steps:
             ok, why = self._finisher_ready(n)
@@ -6687,6 +6706,7 @@ class Window(QMainWindow):
         from chatdraw import project
         self.work_save()
         self.work_key = None   # 作業ファイル・手元の絵は、そのファイルに保存する（絵ごとの作業の置き場は使わない）
+        self._fix_from = None if path.endswith(project.SUFFIX) else path   # 記録の無い絵は、直すときに絵からタグを読む
         if path.endswith(project.SUFFIX):
             # 読んで PNG を戻すのは裏の糸。置くのは画面の糸（レイヤーが多いと 0.1 秒を超えた）
             def done(got):
