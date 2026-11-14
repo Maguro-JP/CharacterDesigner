@@ -311,7 +311,8 @@ class PopupTest(unittest.TestCase):
         self.w.activity.begin("騎士", "新しく描く")
         self.w.activity.status("描いています（3/24）", 3, 24)
         pump(self.a, 0.3)
-        self.assertFalse(self.p.isVisible(), "進みの欄が見えているのに、ポップアップにも二重に出た")
+        # 欄が見えていてもポップアップを出す（欄が見えている間は出さない決まりで、描いている間に何も出なくなった）
+        self.assertTrue(self.p.isVisible(), "進みの欄が見えていると、ポップアップが出なかった")
         dock.hide()
         self.w.activity.status("描いています（4/24）", 4, 24)
         pump(self.a, 0.4)
