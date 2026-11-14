@@ -29,6 +29,7 @@ CASES = [
     ("右手に剣を持たせて", ["holding sword", "sword in right hand"], ["staff in right hand"]),
     ("服を青いドレスに", ["blue dress"], ["white dress"]),
     ("髪を短くして", ["short hair"], ["long hair"]),
+    ("目を閉じて", ["closed eyes"], []),
 ]
 
 
@@ -114,6 +115,25 @@ class FixWordsTest(unittest.TestCase):
         finally:
             finishers.use_source("")
             finishers.use_painter(None)
+
+
+class FixCheckTest(FixWordsTest):
+    def test_kind_sets_strength(self):
+        from chatdraw.engine import fix_strength
+        from chatdraw.jaterms import fix_tags
+        self.assertEqual(fix_strength(0.75, fix_tags("髪を赤くして")[0]), 0.95)
+        self.assertEqual(fix_strength(0.75, fix_tags("目を閉じて")[0]), 0.95)
+        self.assertEqual(fix_strength(0.6, fix_tags("手を直して")[0]), 0.6)
+
+    def test_region_and_result_are_told_once(self):
+        from unittest import mock
+        res = {"readable": True, "missing": ["red hair"], "extra": []}
+        with mock.patch("chatdraw.requestcheck.check", return_value=res) as chk:
+            _p, _s, said = self.passed("髪を赤くして")
+        self.assertEqual(chk.call_count, 1, "直したあとの検品は 1 回だけ")
+        self.assertTrue(any(s.startswith("直す所: 1 か所目") for s in said), said)
+        self.assertTrue(any("指示どおりになっていない" in s and "red hair" in s for s in said), said)
+        self.assertEqual(sum(c[0] == "redraw" for c in self.painter.calls if c[1].startswith("red hair")), 1, "直し続けない")
 
 
 if __name__ == "__main__":

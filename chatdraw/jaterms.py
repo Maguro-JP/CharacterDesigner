@@ -329,6 +329,10 @@ def _fix_rules(text: str) -> list[tuple[int, int, str]]:
     for m in re.finditer(rf"({parts}){soft}({'|'.join(_CHANGE)})", text):
         part = _PARTS[m.group(1)]
         take(m, _CHANGE_PART.get((m.group(2), part), f"{_CHANGE[m.group(2)]} {part}"))
+    # 目を閉じて、口を開けて
+    for m in re.finditer(rf"(目|瞳|口){soft}(閉じ|閉じさせ|つぶ|瞑|開け|開か)", text):
+        shut = m.group(2)[0] in "閉つ瞑"
+        take(m, ("closed eyes" if shut else "open eyes") if m.group(1) != "口" else ("closed mouth" if shut else "open mouth"))
     # 部位＋直して（手を直して、顔を整えて）
     for m in re.finditer(rf"({parts}){soft}{_REPAIR}", text):
         part = _PARTS[m.group(1)]
@@ -406,3 +410,16 @@ def fix_merge(instruction: list[str], source: str) -> tuple[list[str], list[str]
             continue
         keep.append(t)
     return list(instruction) + keep, dropped
+
+
+def fix_kind(tags: list[str]) -> str:
+    """直しの種類。color（色を変える）、shape（形・物を変える）、repair（崩れを直す）、other。
+    本物の模型で、色を変える指示は強さ 0.75 では元の色が残って変わらなかった（docs/knowledge/redpen-fix.md）"""
+    if any(t.startswith(("detailed ", "correct ", "symmetrical ")) for t in tags):
+        return "repair"
+    slots = [s for s in map(_slot, tags) if s]
+    if any(k == "color" for _n, k in slots):
+        return "color"
+    if slots or any(t in ("closed eyes", "open eyes", "closed mouth", "open mouth") or t.startswith("holding ") for t in tags):
+        return "shape"
+    return "other"

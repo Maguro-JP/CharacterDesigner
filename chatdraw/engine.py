@@ -603,6 +603,28 @@ class Words:
         return tags
 
 
+def fix_strength(strength: float, tags: list[str]) -> float:
+    """直しの強さ。色や形を変える指示は 0.95 より下げない（本物の模型で 0.75 では髪の色も目の開き方も変わらなかった）。
+    崩れを直す指示と、その他は利用者の強さのまま"""
+    from chatdraw.jaterms import fix_kind
+    return max(strength, 0.95) if fix_kind(tags) in ("color", "shape") else strength
+
+
+def drawn_as_asked(crop, tags: list[str], k: int) -> str:
+    """直した囲みの中を読み、指示の物が描けたかを 1 行で返す（1 回だけ。直し続けない）。読めなければそう書く"""
+    want = [t for t in tags if not t.startswith(("detailed ", "correct ", "symmetrical ", "best quality"))]
+    if not want:
+        return f"確かめました（{k} か所目・崩れを直す指示なので、物の検品はしません）"
+    from chatdraw import requestcheck
+    res = requestcheck.check(crop, ", ".join(want))
+    if not res.get("readable"):
+        return f"指示どおりかは確かめられませんでした（{k} か所目・{res.get('reason', '')}）"
+    miss = res.get("missing") or []
+    if miss:
+        return f"指示どおりになっていない所があります（{k} か所目・読めなかった物: {', '.join(miss)}）。強さを上げるか、囲みを広げて直せます"
+    return f"囲みの中に指示の物が読めました（{k} か所目: {', '.join(want)}）"
+
+
 def sentence(picked: list[str]) -> str:
     """表で拾ったタグを、文で頼む模型（FLUX など）向けの 1 文にする。1girl や solo のようなタグの決まり文句は文の模型に通じないので言葉に替える"""
     words = {"1girl": "a woman", "1boy": "a man", "2girls": "two women", "solo": ""}
@@ -1946,6 +1968,7 @@ class Studio:
             say("赤ペンの指示のうち、訳せなかった語: " + "、".join(lost)
                 + ("" if getattr(self.words, "ready", lambda: False)() else "（言葉の模型を入れると、この語も絵の模型に伝わります）"))
         tags, dropped = fix_merge(picked, source or "")
+        self.last_fix_tags = picked   # 直したあとに、囲みの中に指示の物が描けたかを見る
         prompt = ", ".join(t for t in (", ".join(tags), style) if t)
         say(f"渡した言葉: {prompt or '（なし）'}" + (f"（指示とぶつかるので外した元の語: {', '.join(dropped)}）" if dropped else ""))
         return prompt
@@ -1969,6 +1992,9 @@ class Studio:
             say(f"頼みを描く言葉に直しています（{k}/{len(regions)} か所目）")
             if k == 1 and check:
                 source = self.source_words(source, image, say)
+            box = mask.convert("L").getbbox()
+            if box:
+                say(f"直す所: {k} か所目（左 {box[0]}・上 {box[1]}・右 {box[2]}・下 {box[3]}）／指示: {note or '（なし）'}")
             prompt = self.fix_words(note, source, style, say) if check else ", ".join(
                 t for t in (self.words.to_prompt(note) if note else "", style) if t)   # 絵全体を描き替える加工（ちびキャラ）は今のまま
             if refused(prompt):
@@ -1977,7 +2003,12 @@ class Studio:
             before = result
             # 直しは 1 回で終える。検品が通るまで直し続ける繰り返しは、描けなくなる（終わらない）ので繋げない。
             # 見つけた崩れは知らせるだけで、直すかどうかは利用者が決める（もう一度囲んで直せる）
-            result = self._fix_once(before, mask, prompt, seed + k, strength, k, len(regions), say, reference, ref_scale)
+            power = fix_strength(strength, getattr(self, "last_fix_tags", [])) if check else strength
+            if power != strength:
+                say(f"色や形を変える指示なので、強さ {power} で直します（低いと元の色と形が残った）")
+            result = self._fix_once(before, mask, prompt, seed + k, power, k, len(regions), say, reference, ref_scale)
+            if check and box:
+                say(drawn_as_asked(result.crop(box), getattr(self, "last_fix_tags", []), k))
             best_flaws = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, result, mask)] if check else []
             say(f"確かめました（{k} か所目・崩れ {len(best_flaws)} 件）")
             prompts.append(prompt)
