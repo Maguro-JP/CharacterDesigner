@@ -969,8 +969,15 @@ class Painter:
         if "ip_adapter_image" not in inspect.signature(pipe.__call__).parameters:
             return   # この描き方（ラフから）は参考画像を受け取れない
         if not self._ref:
+            if self.family not in REFERENCE or not hasattr(pipe, "load_ip_adapter"):
+                self._note("この模型には参考画像の部品（IP-Adapter）がありません。参考画像なしで描きます")
+                return
             repo, sub, weight, enc = REFERENCE[self.family]
-            pipe.load_ip_adapter(repo, subfolder=sub, weight_name=weight, image_encoder_folder=enc, cache_dir=str(HUB))
+            try:
+                pipe.load_ip_adapter(repo, subfolder=sub, weight_name=weight, image_encoder_folder=enc, cache_dir=str(HUB))
+            except Exception as e:   # 取れない・読めない（通信なし、置き場に無い）。描くのは止めない
+                self._note(f"参考画像の部品（IP-Adapter）を読めませんでした（{type(e).__name__}）。参考画像なしで描きます")
+                return
             self._ref = True
         pipe.set_ip_adapter_scale(scale)
         args["ip_adapter_image"] = reference.convert("RGB")
@@ -1148,8 +1155,13 @@ class Painter:
         watch = mb.Watch(mb.budget()) if plan is not None else None
         self._danger = False
         self._last_latents = None
-        from chatdraw.ownstyle import apply as apply_lora
-        self.lora_note = apply_lora(pipe, self.lora, self.lora_scale, self._lora_state)
+        # LoRA は模型の世代が合う物だけを重ねる（chatdraw/lora.py）。きっかけの言葉は描く言葉に足さない（頼みに言葉を足さない決まり）。
+        # 足す言葉は、LoRA の欄のツールチップに出す
+        from chatdraw import lora as loralib
+        from chatdraw.models import image_model as _im
+        self.lora_note = loralib.apply(pipe, self.lora, self.lora_scale, self._lora_state, _im(self.model).family)
+        if self.lora_note:
+            self._note(self.lora_note)
         steps = self.steps
         total = steps
         lightened = []
@@ -1483,9 +1495,45 @@ class Studio:
         self.words_auto = False   # おまかせ: 頼みごとに、手元の言葉の模型から合う物を選ぶ
         # 描き方。"auto" は、構図の模型・SDXL の模型・2 段の部品がそろっていれば 2 段で描く。"one" は 1 つの模型、"two" は必ず 2 段
         self.way = "auto"
+        # 開いたキャラクター（chatdraw/charafile.py の for_studio の形）。描く言葉の前に、利用者が書いたその人物の設定の言葉を置き、
+        # 禁止ワード・参考画像・LoRA もその人物の物を使う。None なら何もしない
+        self.character: dict | None = None
+        self.plan = None   # 直前の担当編集者の記録（chatdraw/director.py）
+
+    def _with_character(self, prompt: str) -> str:
+        ch = self.character
+        if not ch or not ch.get("words"):
+            return prompt
+        have = {t.strip().lower() for t in prompt.split(",")}
+        add = [t.strip() for t in ch["words"].split(",") if t.strip() and t.strip().lower() not in have]
+        return ", ".join(add + [prompt]) if add else prompt
 
     def draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
              on_preview=None, style: str = "", reference=None, ref_scale: float = 0.6, meta: dict | None = None) -> tuple[str, Path]:
+        ch = self.character
+        if not ch:
+            return self._draw(text, seed, on_status, base, strength, size, on_preview, style, reference, ref_scale, meta)
+        # 人物の禁止ワードと LoRA は、この 1 回のあいだだけ描き手に入れ、終わったら元に戻す
+        p = self.painter
+        avoid0, lora0 = getattr(p, "avoid", None), getattr(p, "lora", None)
+        if ch.get("negative") and avoid0 is not None:
+            p.avoid = ", ".join(x for x in (avoid0, ch["negative"]) if x)
+        if ch.get("lora") and lora0 is not None and not lora0:
+            p.lora = ch["lora"]
+        if reference is None and ch.get("reference") is not None:
+            from chatdraw.models import family as fam, image_model
+            if fam(image_model(getattr(p, "model", "")).family).reference:
+                reference = ch["reference"]
+        try:
+            return self._draw(text, seed, on_status, base, strength, size, on_preview, style, reference, ref_scale, meta)
+        finally:
+            if avoid0 is not None:
+                p.avoid = avoid0
+            if lora0 is not None:
+                p.lora = lora0
+
+    def _draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
+              on_preview=None, style: str = "", reference=None, ref_scale: float = 0.6, meta: dict | None = None) -> tuple[str, Path]:
         say = on_status or (lambda msg: None)
         if refused(text):
             raise ValueError("子どもを性的に描く頼みは描きません")
@@ -1526,9 +1574,14 @@ class Studio:
         two = self._two_stage_models(base, reference, say)
         if two is not None:
             return self._draw_two(text, seed, two, style, size, say, meta)
+        # 担当編集者: 工程の記録と知らせだけ（chatdraw/director.py）。検品の結果で描き直しには繋げない
+        from chatdraw import director
+        plan = director.Plan(text, say)
+        self.plan = plan
+        plan.enter("読み解く")
         say("頼みを描く言葉に直しています")
         as_tags = fam(image_model(getattr(self.painter, "model", "")).family).tags
-        prompt = self.words.to_prompt(text, tags=as_tags)
+        prompt = self._with_character(self.words.to_prompt(text, tags=as_tags))
         # 頼んだ物の検品は頼みの言葉だけで見る（足した背景は頼みではないので、描かれなくても描き直しの理由にしない）
         asked_prompt = prompt
         # 学んだ描かれにくさで頼みのタグを並べ替え、通りにくい模型は頼みの効きを少し上げる（chatdraw/wordlearn.py）。
@@ -1576,8 +1629,17 @@ class Studio:
                 say(f"検品を通らなかったので、種を変えて描き直しています（{k + 1}/{self.REDRAW_TRIES} 回目）")
             if missing_all:   # 前の回で描かれなかった頼みを、描く言葉の前に出す
                 prompt = emphasize(prompt, missing_all)
+            plan.enter("描く")
+            plan.sent("描く", prompt, getattr(self.painter, "avoid", "") or "")
             image = self.painter.paint(prompt, s_k, on_step=lambda i, n: say(f"描いています（{i}/{n}）"),
                                        base=base, strength=strength, size=size, on_preview=on_preview, **extra)
+            plan.done("描く", f"種 {s_k}")
+            plan.enter("検品")
+            # サボり（色だけ・ぼかしだけ・ノイズだけの絵）は知らせて記録するだけ。描き直しの理由には入れない
+            lazy = director.slack(image)
+            if lazy["bad"]:
+                say("担当編集者: " + "、".join(lazy["bad"]) + "（記録だけ。直すときは赤ペンか描き直しで）")
+            plan.done("検品", "、".join(lazy["bad"]) or "サボりは見つかりませんでした")
             # 描いたあとに検品して直す流れは繋げない（繋げると直りきらずに回り続け、描けなくなった）。
             # 検品と直しは、ユーザーが「検品する」と赤ペンの直しで別々に呼ぶ
             left, self.hand_rounds = [], []
@@ -1618,8 +1680,10 @@ class Studio:
             say(f"検品を通る絵が {len(redraws)} 回描いても出ませんでした（途中）。残った崩れ: " + "、".join(left[:5]))
         elif not checked:
             say("検品できなかったので、通ったかは分かりません（途中）")
+        plan.finish(f"残った崩れ {len(left)} 件" if left else "保存しました")
         path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model,
-                                            hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws, passed=checked and not left))
+                                            hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws, passed=checked and not left,
+                                            director=plan.record()))
         self._learn(path, text, asked_prompt, left, missing_all, checked and not left, explored)
         self._inspect(path, say)
         return prompt, path

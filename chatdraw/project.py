@@ -134,7 +134,9 @@ def write_psd(snap: dict, path: str | Path):
     for layer in snap["layers"]:
         r, g, b, a = _planes(layer.image)
         size = len(r) + 2
-        records += struct.pack(">iiiiH", 0, 0, h, w, 4)
+        # 絵のある所だけのレイヤーは left・top に置き場を持つ（キャラクターシートの区画。全面の透明を書かないので小さくなる）
+        x, y = getattr(layer, "left", 0), getattr(layer, "top", 0)
+        records += struct.pack(">iiiiH", y, x, y + layer.image.height(), x + layer.image.width(), 4)
         for cid in (-1, 0, 1, 2):
             records += struct.pack(">hI", cid, size)
         flags = 0 if layer.visible else 2

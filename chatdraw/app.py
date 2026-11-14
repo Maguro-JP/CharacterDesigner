@@ -814,6 +814,10 @@ class Window(QMainWindow):
         self.build_shared_actions()
         S = self.shared
         file = self.menuBar().addMenu("ファイル")
+        file.setToolTipsVisible(True)
+        # 一括生成は描く仕事なので、絵の模型の一覧ではなくファイルのメニューに置く（模型の一覧に並ぶと、模型の名前と紛れた）
+        self.batch_action = file.addAction("一括生成…", lambda: self.batch_draw())
+        self.batch_action.setToolTip("頼みの一覧（1 行 1 つ、または CSV）から、枚数と種を付けて順に描き、全部をライブラリーに入れます。止めるは「止める」")
         file.addAction(S["new"])
         file.addAction(S["open"])
         edit_open = QAction("画像を開いて直す…", self, triggered=self.open_to_edit)
@@ -821,6 +825,17 @@ class Window(QMainWindow):
         file.addAction(edit_open)
         file.addAction(S["save"])
         file.addAction(QAction("名前を付けて保存…", self, shortcut="Ctrl+Shift+S", triggered=lambda: self.save_project(ask=True)))
+        file.addSeparator()
+        # キャラクターファイル（.chara。chatdraw/charafile.py）。1 人分の設定・絵・シート・参考画像・LoRA の選び方を 1 つに持つ
+        for label, fn, tip in (
+                ("キャラクターを新しく作る…", self.charafile_new, "名前・見た目・服・性格などの設定を書いて、新しいキャラクターを作ります"),
+                ("キャラクターを開く…", self.charafile_open, "キャラクターファイル（.chara）を開きます。開いた人物の設定・目・色・参考画像・LoRA で描きます"),
+                ("キャラクターを保存", self.charafile_save, "開いている人物を、設定資料と絵ごとキャラクターファイルに保存します"),
+                ("キャラクターを書き出す…", self.charafile_export, "開いている人物を、置き場を選んでキャラクターファイルに書き出します。人に渡すときに使います")):
+            act = QAction(label, self, triggered=lambda _=False, f=fn: f())
+            act.setToolTip(tip)
+            file.addAction(act)
+        file.addSeparator()
         out = file.addMenu("書き出す")
         out.addAction(QAction("PNG（重ねた 1 枚）…", self, shortcut="Ctrl+E", triggered=self.save_as))
         out.addAction(QAction("PSD（レイヤーごと）…", self, triggered=self.export_psd))
@@ -1116,6 +1131,24 @@ class Window(QMainWindow):
         from chatdraw import themes
         self.theme_menu = view.addMenu("テーマ")
         self.theme_menu.aboutToShow.connect(self._fill_theme_menu)
+        # モード（chatdraw/modes.py）。起動したときに選び、ここからいつでも替える。替えても絵とレイヤーはそのまま
+        from chatdraw import modes as _modes
+        self.mode_menu = view.addMenu("モード")
+        self.mode_menu.setToolTipsVisible(True)
+        self.mode_actions = {}
+        for key, m in _modes.MODES.items():
+            act = self.mode_menu.addAction(m["name"], lambda k=key: self.set_mode(k))
+            act.setCheckable(True)
+            act.setToolTip(m["tip"])
+            self.mode_actions[key] = act
+        self.mode_menu.addSeparator()
+        self.mode_menu.addAction("このモードのツアー", lambda: _modes.show_tour(self, getattr(self, "app_mode", _modes.DEFAULT), force=True)
+                                 ).setToolTip("今のモードの使い方を 3 枚で案内します")
+        self.mode_ask_action = self.mode_menu.addAction("起動したときにモードを聞く")
+        self.mode_ask_action.setCheckable(True)
+        self.mode_ask_action.setChecked(not _modes.stored(self.layout_store)[1])
+        self.mode_ask_action.setToolTip("外すと、次の起動から窓を出さずに今のモードで開きます")
+        self.mode_ask_action.toggled.connect(lambda on: self.layout_store.setValue("mode/ask", int(on)))
         from PySide6.QtWidgets import QMenu
         self.ai_menu = QMenu("AI", self)   # 窓を親にして作る（文字だけで足すと、作り直しの知らせの前に消えていた）
         self.menuBar().addMenu(self.ai_menu)
@@ -1133,6 +1166,12 @@ class Window(QMainWindow):
         self.menuBar().addMenu(self.logo_menu)
         self.logo_menu.aboutToShow.connect(self._fill_logo_menu)
         self._fill_logo_menu()
+        # 加工（綺麗にする・ディテール・拡大・画風など）。右クリックと同じ項目を、メニューバーからも選べるようにする。
+        # 右クリックは隠した物・よく使う物で並びが変わるが、ここは全部を処理の種類ごとに出す（探せば必ずある所）
+        self.finish_menu = QMenu("加工", self)
+        self.menuBar().addMenu(self.finish_menu)
+        self.finish_menu.aboutToShow.connect(self._fill_finish_menu)
+        self._fill_finish_menu()
         from chatdraw import ratings
         ratings.on_change(self._models_changed)
         setting_menu = self.menuBar().addMenu("設定")
@@ -1432,6 +1471,14 @@ class Window(QMainWindow):
     def _save(self, key: str, items: list[str], limit: int | None = None):
         self.settings.store.setValue(key, items[:limit] if limit else items)
         self._load_prompts()
+
+    def ask_forget(self, text: str, then) -> bool:
+        """一覧・辞書・プリセットから消す前の確かめの窓（「次から聞かない」で出さなくできる）"""
+        from chatdraw import confirm
+        if confirm.ask(self, "forget", "一覧から消す", text, [("yes", "消す")]) != "yes":
+            return False
+        then()
+        return True
 
     def _remember_prompt(self, text: str):
         """頼んだ言葉を、新しい順に残す（同じ言葉は 1 つにまとめて先頭へ）"""
@@ -2699,25 +2746,52 @@ class Window(QMainWindow):
             then(result)
 
     def _lora_row(self):
-        """AI の欄の「模型」に、自分の作風の LoRA を選ぶ欄と強さを足す。初めは「なし」"""
+        """AI の欄の「模型」に、LoRA を選ぶ欄と強さ（0〜1.5）を足す。初めは「なし」"""
         from PySide6.QtWidgets import QComboBox, QSlider
         from chatdraw import ownstyle
         self.lora_pick = QComboBox()
-        self.lora_pick.setToolTip("自分の作風の LoRA を絵の模型に重ねます。置き場は " + str(ownstyle.lora_dir()))
-        self.lora_pick.addItem("LoRA なし", "")
-        for p in ownstyle.loras():
-            self.lora_pick.addItem(p.stem, str(p))
-        self.lora_pick.setCurrentIndex(max(0, self.lora_pick.findData(str(self.layout_store.value("lora", "") or ""))))
+        self.lora_pick.setToolTip("LoRA を絵の模型に重ねます。足すのは「模型の管理」の「LoRA…」から。置き場は " + str(ownstyle.lora_dir()))
+        Window._lora_fill(self)
         self.lora_strength = QSlider(Qt.Horizontal)
         self.lora_strength.setRange(0, 150)
         self.lora_strength.setValue(int(self.layout_store.value("lora_scale", 80)))
-        self.lora_strength.setToolTip("LoRA の強さ。大きいほど自分の作風に寄せる")
+        self.lora_strength.setToolTip("LoRA の強さ（0〜1.5）。大きいほど LoRA の作風に寄せます")
         self.lora_pick.currentIndexChanged.connect(lambda _i: self._lora_changed())
         self.lora_strength.valueChanged.connect(lambda _v: self._lora_changed())
         body = self.ai_panel.sections["模型"].body
         body.addWidget(self.lora_pick)
         body.addWidget(self.lora_strength)
         Window._lora_shown(self)   # 試験は名前空間で呼ぶので、窓の側の関数を直接呼ぶ
+
+    def _lora_fill(self, model_family: str | None = None):
+        """置き場の LoRA を並べ直す。今の模型と系統の合わない物は選べなくし、理由をツールチップに出す"""
+        from PySide6.QtCore import Qt as _Qt
+        from chatdraw import lora as loralib
+        if model_family is None:
+            try:
+                from chatdraw.models import image_model
+                model_family = image_model(getattr(getattr(getattr(self, "studio", None), "painter", None), "model", "") or "").family
+            except Exception:
+                model_family = ""
+        keep = str(self.layout_store.value("lora", "") or "")
+        self.lora_pick.blockSignals(True)
+        self.lora_pick.clear()
+        self.lora_pick.addItem("LoRA なし", "")
+        for p in loralib.loras():
+            ok, why = loralib.compatible(loralib.family_of(p), model_family) if model_family else (True, "")
+            words = ", ".join(loralib.trigger_words(p))
+            self.lora_pick.addItem(loralib.label(p), str(p))
+            i = self.lora_pick.count() - 1
+            tip = "\n".join(x for x in (why, f"きっかけの言葉: {words}（効かせるときは描くワードに書いてください。自動では足しません）" if words else "") if x)
+            self.lora_pick.setItemData(i, tip or loralib.FAMILY_JA.get(loralib.family_of(p), ""), _Qt.ToolTipRole)
+            if not ok:
+                item = self.lora_pick.model().item(i)
+                item.setEnabled(False)
+        i = self.lora_pick.findData(keep)
+        if i > 0 and not self.lora_pick.model().item(i).isEnabled():
+            i = 0
+        self.lora_pick.setCurrentIndex(max(0, i))
+        self.lora_pick.blockSignals(False)
 
     def _lora_shown(self):
         """LoRA を置いていなければ選ぶ欄を出さず、「なし」のときは強さを出さない（動かしても何も変わらない部品を並べない）。
@@ -3152,8 +3226,13 @@ class Window(QMainWindow):
         m.addAction("言葉で指示…", self.open_text_instruction).setToolTip(
             "言葉を書いて、今の絵（囲みがあれば囲みの中）を直す・加工する・描くことができます。書いた言葉は登録できます")
         m.addSeparator()
-        m.addAction("元に戻す（Ctrl+Z）", c.undo).setEnabled(bool(c.undo_stack) or (c.tool == "redpen" and bool(c.redpen.marks)))
-        m.addAction("やり直す（Ctrl+Y）", c.redo).setEnabled(bool(c.redo_stack) or (c.tool == "redpen" and bool(c.redpen.undone)))
+        can_undo = bool(c.undo_stack) or (c.tool == "redpen" and bool(c.redpen.marks))
+        can_redo = bool(c.redo_stack) or (c.tool == "redpen" and bool(c.redpen.undone))
+        for label, fn, ok, why in (("元に戻す（Ctrl+Z）", c.undo, can_undo, "戻す操作がありません"),
+                                   ("やり直す（Ctrl+Y）", c.redo, can_redo, "やり直す操作がありません")):
+            a = m.addAction(label, fn)
+            a.setEnabled(ok)
+            a.setToolTip("" if ok else why)   # 押せない理由をカーソルを合わせたときに出す
         m.addSeparator()
         shortcuts.fill_menu(self, m, self.shortcut_store())   # ★・よく使う物を上に、残りは処理の種類ごと
         m.addSeparator()
@@ -3177,8 +3256,16 @@ class Window(QMainWindow):
         else:
             m.addAction("絵をコピー", self.copy_image)
         m.addAction(self.shared["paste"])
+        here = c.mapToScene(c.viewport().mapFromGlobal(gpos)) if gpos is not None else None
+        if here is not None:
+            a = m.addAction("色を拾う", lambda: c.pick(here))
+            a.setEnabled(bool(c.layers))
+            a.setToolTip("右クリックした所の色を描く色にします（スポイト、I）" if c.layers else "絵がありません")
         m.addSeparator()
-        m.addAction("この絵を AI で描き直す（もう一度描く）", self.draw_again).setEnabled(bool(self.last_text) and not self.thread)
+        a = m.addAction("この絵を AI で描き直す（もう一度描く）", self.draw_again)
+        a.setEnabled(bool(self.last_text) and not self.thread)
+        a.setToolTip("ほかの処理の途中です。終わってから押してください" if self.thread else
+                     ("前の頼みで AI がもう一度描きます" if self.last_text else "まだ AI で描いていません"))
         pin = m.addAction("表示する絵を固定する")
         pin.setCheckable(True)
         pin.setChecked(self.pin_action.isChecked())
@@ -3187,6 +3274,9 @@ class Window(QMainWindow):
         m.addSeparator()
         m.addAction(self.shared["new"])
         m.addAction("画像を開く…", self.open_image).setToolTip("作業ファイルか絵を開きます")
+        m.addAction("この右クリックを編集…", lambda: self.edit_context_menu("キャンバス")).setToolTip(
+            "項目を出す・隠す・並べ替える、言葉の指示を項目として足す")
+        self.arrange_context("キャンバス", m)
         return m
 
     # ---- どこで右クリックしても出るメニュー ----
@@ -3496,6 +3586,9 @@ class Window(QMainWindow):
         studio = Studio(Words(None if words == AUTO else Path(words)), painter, Path(g("output_dir")))
         studio.image_auto, studio.words_auto = g("image_model") == AUTO, words == AUTO
         studio.way = {"1つの模型で描く": "one", "構図と仕上げを分けて描く": "two"}.get(g("draw_way"), "auto")
+        if getattr(self, "chara_file", None):   # 模型を替えて作り直しても、開いている人物で描き続ける
+            from chatdraw import charafile
+            studio.character = charafile.for_studio(self.chara_file)
         return studio
 
     def open_help(self, key: str):
@@ -3736,6 +3829,9 @@ class Window(QMainWindow):
         ModelManager(self.settings, self).exec()
         self._have_images = None   # 取った・消した物があるかもしれないので、数え直すまで覚えを使わない
         self.studio = self._studio_from_settings()
+        if hasattr(self, "lora_pick"):   # 足した LoRA と、替えた模型の系統に合わせて並べ直す
+            Window._lora_fill(self)
+            Window._lora_changed(self)
         self.check_ai()
         self._fill_ai_menu()
         self.rescan_models()
@@ -3775,6 +3871,9 @@ class Window(QMainWindow):
             from chatdraw.manager import choose_words
             choose_words(self.settings, key if key in (AUTO, "") else str(words_path(m)))
         self.studio = self._studio_from_settings()
+        if hasattr(self, "lora_pick"):   # 足した LoRA と、替えた模型の系統に合わせて並べ直す
+            Window._lora_fill(self)
+            Window._lora_changed(self)
         self.check_ai()
         self._fill_ai_menu()
         self.rescan_models()
@@ -4350,6 +4449,29 @@ class Window(QMainWindow):
         from chatdraw.menuedit import MenuEditor
         return MenuEditor(self, self.menus_editor)
 
+    def context_builders(self) -> dict:
+        """編集できる右クリック。名前 → 作る関数（編集の窓が中身を見るために作る）"""
+        from PySide6.QtCore import QPoint
+        lp = self.layer_panel
+        return {"キャンバス": lambda: self.build_canvas_menu(),
+                "レイヤー": lambda: lp.context_menu(lp.list.visualItemRect(lp.list.item(lp.row_of(self.canvas.current))).center())
+                if lp.list.count() else lp.context_menu(QPoint(-5, -5))}
+
+    def arrange_context(self, name: str, m):
+        ed = getattr(self, "menus_editor", None)
+        if ed is not None:
+            ed.arrange_context(name, m)
+        return m
+
+    def edit_context_menu(self, name: str):
+        dlg = self.edit_menus()
+        dlg.pick.setCurrentText("右クリック: " + name)
+        dlg.exec()
+        return dlg
+
+    FIX_TEXT_HINT = ("どう直すかが書かれていません。印を右クリックして「言葉で指示…」で印に指示を書くか、"
+                     "AI の欄の「指示」に書いてから、もう一度押してください")
+
     def edit_bars(self):
         from chatdraw.menuedit import BarEditor
         return BarEditor(self, self.bars_editor)
@@ -4908,33 +5030,507 @@ class Window(QMainWindow):
     # ---- キャラクターデザイン（設定資料集・三面図・表情差分。chatdraw/charadesign.py） ----
 
     def _fill_chara_menu(self):
-        from chatdraw import charadesign
+        """キャラクターデザインのメニュー。項目は人物が無くても押せる形にする。
+        前は保存した人物が無いと三面図・表情差分・シートが全部無効のままで、理由も出ず、メニューを選べないように見えた。
+        人物が無いときに押したら、新しく作るか開くかを聞いてから続ける（_chara_need）"""
+        from chatdraw import charadesign, charafile
         m = self.chara_menu
         m.clear()
         m.setToolTipsVisible(True)
-        m.addAction("描いた人物を設定資料に保存…", self.chara_save).setToolTip(
-            "今の絵を色の手本にして、頼んだ言葉と色見本と一緒に設定資料に残します。三面図と表情差分はこの資料から描きます")
+        busy = getattr(self, "thread", None) is not None
+        # 下のメニューは窓を親にして作り、参照を持つ。m.addMenu(文字) で作った物は Python の側の参照が切れると消え、
+        # 「使う人物」「シートの並び」が開いたとたんに無くなっていた（前に加工のメニューで起きたのと同じ）
+        from PySide6.QtWidgets import QMenu
+        self._chara_subs = []
+
+        def sub(title):
+            menu = QMenu(title, self)
+            menu.setToolTipsVisible(True)
+            m.addMenu(menu)
+            self._chara_subs.append(menu)
+            return menu
+
+        def add(menu, label, fn, tip, needs_idle=True):
+            act = menu.addAction(label, fn)
+            act.setToolTip(tip)
+            act.setEnabled(not (needs_idle and busy))
+            return act
+        add(m, "キャラデザを作る…", lambda: self.chara_design(),
+            "設定を書く・目と表情を決める・三面図・表情差分・検品・キャラクターシート・キャラクターファイルへの保存を順に通します")
+        add(m, "キャラクターを新しく作る…", lambda: self.charafile_new(), "設定を書いて、絵の無い人物を作ります。絵はあとから追加資料で足します", False)
+        add(m, "キャラクターを開く…", lambda: self.charafile_open(), "キャラクターファイル（.chara）を開いて、その人物で作業します", False)
         try:
             saved = charadesign.characters()
         except OSError:
             saved = []
+        lib = []
+        try:
+            lib = charafile.files_in_library()
+        except OSError:
+            pass
         now = getattr(self, "chara_id", "") or (saved[0]["id"] if saved else "")
         self.chara_id = now
-        if saved:
-            pick = m.addMenu("使う人物")
+        if saved or lib:
+            pick = sub("使う人物")
             for c in saved[:20]:
-                act = pick.addAction(c["name"], lambda i=c["id"]: setattr(self, "chara_id", i))
+                act = pick.addAction(c["name"], lambda i=c["id"]: self._chara_pick(i))
                 act.setCheckable(True)
                 act.setChecked(c["id"] == now)
-        busy = getattr(self, "thread", None) is not None
-        for label, fn, tip in (
-                ("三面図を描く", self.chara_turnaround, "正面・横・後ろを同じ種で 1 枚ずつ描き、設定資料に置きます"),
-                ("表情差分を描く", lambda: self.chara_expressions(),
-                 "今の絵の顔の中だけを、笑顔・怒り・悲しみ・驚きに描き直します。顔の外は変えません。顔を囲むと、その囲みを使います"),
-                ("設定資料を開く", self.chara_sheet, "設定資料のページ（絵を埋め込んだ 1 つのファイル）を書き、置き場を開きます")):
-            act = m.addAction(label, fn)
-            act.setToolTip(tip)
-            act.setEnabled(bool(now) and not busy)
+            known = {c["id"] for c in saved}
+            for p in lib[:20]:
+                if p.stem not in known:
+                    pick.addAction(p.stem, lambda q=str(p): self.charafile_open(q)).setToolTip(str(p))
+        if getattr(self, "chara_file", None):
+            add(m, f"「{self.chara_file['manifest']['name']}」で描くのをやめる", self.charafile_close,
+                "開いているキャラクターの設定の言葉・参考画像・LoRA を、描く言葉に足すのをやめます", False)
+        m.addSeparator()
+        # 追加資料。名前は design_status の「足りない物」と同じ（charadesign.EXTRAS）
+        extra = sub("追加資料")
+        self.chara_extra_menu = extra
+        for key, label, tip, fills in charadesign.EXTRAS:
+            add(extra, label, lambda k=key: self.chara_extra(k), tip + (f"（資料の「{fills}」を埋めます）" if fills else ""))
+        add(m, "足りない物を見る", lambda: self.chara_status(), "設定資料でまだそろっていない物を、資料の区分ごとに出します", False)
+        m.addSeparator()
+        add(m, "キャラクターシートを作る", lambda: self.chara_sheet_psd(),
+            "名前と設定・三面図・表情差分・色の見本・持ち物・目の拡大を 1 枚に並べ、PSD と PNG で保存してキャンバスに開きます")
+        lay = sub("シートの並び")
+        cur = str(self.layout_store.value("sheet_layout", charadesign.SHEET_LAYOUT) or charadesign.SHEET_LAYOUT)
+        for name in charadesign.SHEET_LAYOUTS:
+            act = lay.addAction(name, lambda n=name: self.layout_store.setValue("sheet_layout", n))
+            act.setCheckable(True)
+            act.setChecked(name == cur)
+        add(m, "設定資料を開く", lambda: self._chara_need() and self.chara_sheet(), "設定資料のページ（絵を埋め込んだ 1 つのファイル）を書き、置き場を開きます")
+        add(m, "描いた人物を設定資料に保存…", self.chara_save,
+            "今の絵を色の手本にして、頼んだ言葉と色見本と一緒に設定資料に残します。三面図と表情差分はこの資料から描きます", False)
+        m.addSeparator()
+        add(m, "キャラクターの一括生成…", lambda: self.chara_batch(), "選んだキャラクター（.chara の組）の三面図と表情差分をまとめて描き、それぞれの .chara に足します")
+        add(m, "学習セット…", self.open_refsets, "模型ごと・キャラクターごとに参考画像の組を残します。描くときは参考画像（IP-Adapter）で見た目を寄せます", False)
+
+    def _chara_pick(self, ident: str):
+        self.chara_id = ident
+        self.statusBar().showMessage(f"使う人物: {ident}", 5000)
+
+    def _chara_need(self) -> str:
+        """使う人物の id。まだ無ければ、新しく作るか開くかを聞く（やめたら空）"""
+        ident = getattr(self, "chara_id", "")
+        if ident:
+            return ident
+        from PySide6.QtWidgets import QMessageBox
+        box = QMessageBox(QMessageBox.Question, "人物を選ぶ", "まだ人物がありません。新しく作るか、キャラクターファイルを開いてください。", parent=self)
+        new = box.addButton("新しく作る…", QMessageBox.AcceptRole)
+        opened = box.addButton("開く…", QMessageBox.ActionRole)
+        box.addButton("やめる", QMessageBox.RejectRole)
+        box.exec()
+        if box.clickedButton() is new:
+            self.charafile_new()
+        elif box.clickedButton() is opened:
+            self.charafile_open()
+        return getattr(self, "chara_id", "")
+
+    def chara_status(self) -> list[str]:
+        from chatdraw import charadesign
+        ident = self._chara_need()
+        if not ident:
+            return []
+        st = charadesign.bible().design_status(ident)
+        self.notify("設定資料はそろっています" if st["ready"] else f"足りない物 {len(st['missing'])} 件", "info",
+                    "\n".join(st["missing"]) or "イラスト（場面の絵）に描けます")
+        return st["missing"]
+
+    def _lines_dialog(self, title: str, hint: str, text: str = "") -> list[dict] | None:
+        """「名前: 描く言葉」を 1 行 1 つ書いてもらう窓。返すのは [{"id", "name", "tags"}]（やめたら None）"""
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QLabel, QPlainTextEdit, QVBoxLayout
+        d = QDialog(self)
+        d.setWindowTitle(title)
+        lay = QVBoxLayout(d)
+        lay.addWidget(QLabel(hint))
+        box = QPlainTextEdit(text)
+        box.setMinimumHeight(120)
+        lay.addWidget(box)
+        bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        bb.accepted.connect(d.accept)
+        bb.rejected.connect(d.reject)
+        lay.addWidget(bb)
+        if d.exec() != QDialog.Accepted:
+            return None
+        out = []
+        for i, line in enumerate(box.toPlainText().splitlines(), 1):
+            name, _sep, tags = line.partition(":")
+            if not _sep:
+                name, _sep, tags = line.partition("：")
+            name, tags = name.strip(), tags.strip()
+            if name and tags:
+                out.append({"id": f"{i}", "name": name, "tags": tags})
+        return out
+
+    def chara_extra(self, key: str, **kw) -> bool:
+        """追加資料を 1 つ、開いている人物で描いて設定資料と .chara に足す。kw は窓で聞く中身（試験と一括生成から渡す）"""
+        from chatdraw import charadesign
+        if self.busy("追加資料"):
+            return False
+        ident = self._chara_need()
+        if not ident:
+            return False
+        label = {k: l for k, l, _t, _f in charadesign.EXTRAS}[key]
+        asks = {"hairstyles": ("styles", "髪型差分", "1 行に 1 つ、「名前: 描く言葉」で書いてください（例: ポニーテール: ponytail, hair tie）"),
+                "outfits": ("outfits", "服の差分", "1 行に 1 つ、「名前: 描く言葉」で書いてください（例: 私服: white sweater, jeans）"),
+                "items": ("items", "持ち物の設定", "1 行に 1 つ、「名前: 描く言葉」で書いてください（例: 剣: longsword, silver blade）")}
+        b = charadesign.bible()
+        c = b.load("characters", ident)
+        if key in asks and asks[key][0] not in kw:
+            have = {"hairstyles": c.get("hairstyles"), "outfits": c.get("outfits"), "items": c.get("items")}[key]
+            if not have:
+                got = self._lines_dialog(asks[key][1], asks[key][2])
+                if got is None:
+                    return False
+                kw[asks[key][0]] = got
+        if key == "height" and "others" not in kw:
+            kw["others"] = [x["id"] for x in charadesign.characters() if x["id"] != ident][:5]
+        needs_painter = key not in ("colors", "height")
+        painter = self._chara_painter() if needs_painter else None
+        if needs_painter and painter is None:
+            return False
+        path = getattr(self, "chara_file_path", "") or ""
+        seed = int(time.time()) % 100000
+        self.activity.begin(label, "キャラクターデザイン")
+
+        def work(_step):
+            out = charadesign.run_extra(key, painter, ident, seed, say=self.task.status.emit, **kw)
+            saved = charadesign.sync_chara(ident, path or None)
+            return {"out": out, "path": str(saved), "missing": charadesign.bible().design_status(ident)["missing"]}
+        self._run_task(work, lambda res: self._chara_extra_done(label, res))
+        return True
+
+    def _chara_extra_done(self, label: str, res: dict):
+        from chatdraw import charafile
+        self.chara_extra_result = res
+        self.activity.end(f"{label}を作りました", None, record=False)
+        try:
+            self._use_character(charafile.load(res["path"]), res["path"])
+        except charafile.BadFile as e:
+            self.notify("キャラクターファイルを読み直せませんでした", "error", str(e))
+        left = res["missing"]
+        self.notify(f"{label}を作りました", "ok",
+                    f"{len(res['out'])} 件を設定資料と {Path(res['path']).name} に足しました。" +
+                    (f"まだ足りない物 {len(left)} 件（「足りない物を見る」で一覧）" if left else "設定資料はそろいました"))
+        self._end(f"{label}を作りました")
+
+    # ---- 一括生成（chatdraw/batch.py） ----
+
+    def batch_draw(self, text: str | None = None, count: int = 1, seed: int = 0, as_csv=None) -> bool:
+        """頼みの一覧から順に描き、全部をライブラリーに入れる。1 枚が失敗しても残りを描く。止めるは「止める」"""
+        from chatdraw import batch, engine
+        if self.busy("一括生成"):
+            return False
+        if not isinstance(text, str):
+            got = self._batch_dialog()
+            if got is None:
+                return False
+            text, count, seed, as_csv = got
+        jobs, bad = batch.parse(text, count, seed, as_csv)
+        if not jobs:
+            self.notify("一括生成できませんでした", "info", "頼みが 1 行もありません。1 行に 1 つ書くか、CSV を読んでください")
+            return False
+        studio = self.studio
+        n = batch.total(jobs)
+        self.activity.begin(f"一括生成（{n} 枚）", "一括生成")
+
+        def draw(text, seed, negative):
+            p = studio.painter
+            old = getattr(p, "avoid", None)
+            if negative and old is not None:
+                p.avoid = ", ".join(x for x in (old, negative) if x)
+            try:
+                return studio.draw(text, seed, on_status=self.task.status.emit)[1]
+            finally:
+                if negative and old is not None:
+                    p.avoid = old
+
+        def work(_step):
+            res = batch.run(jobs, draw, say=self.task.status.emit, stopped=engine.STOP.is_set)
+            res["failed"] = [(l, t, w) for l, t, w in bad] + res["failed"]
+            return res
+        self._run_task(work, self._batch_done)
+        return True
+
+    def _batch_dialog(self):
+        """一括生成の窓: 頼みの一覧（1 行 1 つ）、ファイルを読む、枚数、種"""
+        from PySide6.QtWidgets import (QDialog, QDialogButtonBox, QFileDialog, QFormLayout, QPlainTextEdit, QPushButton,
+                                       QSpinBox)
+        d = QDialog(self)
+        d.setWindowTitle("一括生成")
+        form = QFormLayout(d)
+        box = QPlainTextEdit()
+        box.setPlaceholderText("1 行に 1 つ、描く物を書きます。\nCSV なら 1 行目を「頼み,枚数,種」にします")
+        box.setMinimumHeight(140)
+        form.addRow("頼みの一覧", box)
+        state = {"csv": None}
+
+        def load():
+            path, _ = QFileDialog.getOpenFileName(d, "頼みの一覧を読む", str(Path.home()), "頼みの一覧 (*.txt *.csv)")
+            if path:
+                box.setPlainText(Path(path).read_text(encoding="utf-8-sig"))
+                state["csv"] = path.lower().endswith(".csv") or None
+        read = QPushButton("ファイルを読む…")
+        read.setToolTip("1 行 1 つの .txt か、CSV（頼み,枚数,種,禁止ワード）を読みます")
+        read.clicked.connect(load)
+        form.addRow("", read)
+        count = QSpinBox()
+        count.setRange(1, 100)
+        count.setToolTip("1 行ごとに描く枚数（CSV に枚数があれば、そちらを使います）")
+        form.addRow("1 行の枚数", count)
+        seed = QSpinBox()
+        seed.setRange(0, 999999)
+        seed.setToolTip("種の始まり。行ごと・枚ごとに 1 ずつ足します（同じ種なら同じ絵になります）")
+        form.addRow("種", seed)
+        bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        bb.button(QDialogButtonBox.Ok).setText("描く")
+        bb.accepted.connect(d.accept)
+        bb.rejected.connect(d.reject)
+        form.addRow(bb)
+        if d.exec() != QDialog.Accepted:
+            return None
+        return box.toPlainText(), count.value(), seed.value(), state["csv"]
+
+    def _batch_done(self, res: dict):
+        from chatdraw import batch
+        for p in res["done"]:
+            self.library_panel.add(self.library.add_work(p))
+        self.batch_result = res
+        self.activity.end("一括生成を終えました", None, record=False)
+        self.notify("一括生成を終えました", "info" if res["failed"] or res["stopped"] else "ok", batch.summary(res))
+        self.say(batch.summary(res))
+        self._end("一括生成を終えました")
+
+    def chara_batch(self, paths=None, what=("turnaround", "expressions")) -> bool:
+        """キャラクターの一覧（.chara の組）から、三面図と表情差分をまとめて描く"""
+        from chatdraw import batch, charafile, engine
+        if self.busy("一括生成"):
+            return False
+        if paths is None:
+            from PySide6.QtWidgets import QFileDialog
+            paths, _ = QFileDialog.getOpenFileNames(self, "まとめて描くキャラクター", str(charafile.library_dir()),
+                                                    f"キャラクターファイル (*{charafile.SUFFIX})")
+            if not paths:
+                return False
+        painter = self._chara_painter()
+        if painter is None:
+            return False
+        jobs = batch.chara_jobs(paths)
+        seed = int(time.time()) % 100000
+        self.activity.begin(f"キャラクターの一括生成（{len(jobs)} 人）", "キャラクターデザイン")
+        self._run_task(lambda _s: batch.run_charas(jobs, painter, seed, what, say=self.task.status.emit, stopped=engine.STOP.is_set),
+                       self._chara_batch_done)
+        return True
+
+    def _chara_batch_done(self, res: dict):
+        self.chara_batch_result = res
+        self.activity.end("キャラクターの一括生成を終えました", None, record=False)
+        lines = [f"{len(res['done'])} / {res['total']} 人を描きました" + ("（途中で止めました）" if res["stopped"] else "")]
+        lines += [f"{name}: {why}" for _k, name, why in res["failed"]]
+        self.notify("キャラクターの一括生成を終えました", "info" if res["failed"] else "ok", "\n".join(lines))
+        if hasattr(getattr(self, "library_panel", None), "refresh_characters"):
+            self.library_panel.refresh_characters()
+        self._end("キャラクターの一括生成を終えました")
+
+    # ---- モード（chatdraw/modes.py） ----
+
+    def set_mode(self, key: str, tour: bool = True):
+        """モードを替える。メニュー・欄・プリセットだけを出し分け、キャンバスとレイヤーはそのまま"""
+        from chatdraw import modes
+        modes.apply(self, key)
+        modes.remember(self.layout_store, self.app_mode)
+        if tour:
+            modes.show_tour(self, self.app_mode)
+
+    def start_mode(self, ask=None) -> str:
+        """起動したときのモード。覚えたモードがあり「次から聞かない」なら窓を出さない"""
+        from chatdraw import modes
+        key, dont_ask = modes.stored(self.layout_store)
+        if not (key and dont_ask):
+            dlg = modes.ModeDialog(self, key)
+            picked = ask(dlg) if ask else dlg.exec()
+            key = picked or key or modes.DEFAULT
+            modes.remember(self.layout_store, key, dlg.dont_ask.isChecked())
+            self.mode_ask_action.setChecked(not dlg.dont_ask.isChecked())
+        self.set_mode(key)
+        return key
+
+    # ---- キャラクターファイル（.chara） ----
+
+    def _chara_spec_dialog(self, spec: dict | None = None) -> dict | None:
+        """設定を書く窓。名前と見た目は要る。ほかは空でよい（足りない物はあとで design_status と同じ判定で出す）"""
+        from PySide6.QtWidgets import QDialog, QDialogButtonBox, QFormLayout, QLineEdit, QPlainTextEdit
+        spec = dict(spec or {})
+        d = QDialog(self)
+        d.setWindowTitle("キャラクターの設定")
+        form = QFormLayout(d)
+        rows = (("name", "名前", "例: 灯りの騎士"), ("look", "見た目（変えない言葉）", "1girl, long brown hair, brown eyes"),
+                ("outfit", "いつもの服", "silver plate armor, red cape"), ("eyes", "目の設計", "large round eyes, amber iris"),
+                ("age", "年齢", ""), ("height", "身長・頭身", ""), ("role", "役割", ""), ("personality", "性格", ""),
+                ("backstory", "背景設定", ""), ("negative", "禁止ワード", "bare legs, extra weapons"))
+        boxes = {}
+        for key, label, hint in rows:
+            box = QPlainTextEdit() if key == "backstory" else QLineEdit()
+            box.setPlaceholderText(hint)
+            (box.setPlainText if key == "backstory" else box.setText)(spec.get(key, ""))
+            if key == "backstory":
+                box.setMaximumHeight(72)
+            form.addRow(label, box)
+            boxes[key] = box
+        bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        bb.accepted.connect(d.accept)
+        bb.rejected.connect(d.reject)
+        form.addRow(bb)
+        if d.exec() != QDialog.Accepted:
+            return None
+        return {k: (b.toPlainText() if k == "backstory" else b.text()).strip() for k, b in boxes.items()}
+
+    def _use_character(self, ch: dict, path: str = ""):
+        """開いた人物を描く言葉と部品に入れる（studio.character）。設定資料集にも書き戻し、キャラデザの欄の「使う人物」にする"""
+        from chatdraw import charafile
+        self.chara_id = charafile.to_bible(ch)
+        self.chara_file, self.chara_file_path = ch, path or ch.get("path", "")
+        self.studio.character = charafile.for_studio(ch)
+        _chosen, gone = charafile.lora_choice(ch)
+        if gone:
+            self.notify("手元に無い LoRA があります", "info", "「模型の管理」の「LoRA…」で足すと使います: " + "、".join(gone))
+        self.statusBar().showMessage(f"キャラクター: {charafile.summary(ch)}", 8000)
+        if hasattr(getattr(self, "library_panel", None), "refresh_characters"):
+            self.library_panel.refresh_characters()
+
+    def charafile_new(self, spec: dict | None = None) -> str:
+        """設定を書いて新しい人物を作り、ライブラリーの置き場に .chara で保存して開く。返すのは置き場（やめたら空）"""
+        from chatdraw import charadesign, charafile
+        spec = spec if isinstance(spec, dict) else self._chara_spec_dialog()
+        if not spec:
+            return ""
+        if not spec.get("name") or not spec.get("look"):
+            self.notify("キャラクターを作れませんでした", "info", "名前と見た目の言葉を書いてください")
+            return ""
+        ident = charadesign.slug(spec["name"])
+        ch = charafile.new(spec["name"], spec["look"], spec.get("outfit", ""), ident=ident,
+                           **{k: spec[k] for k in charadesign.PROFILE_KEYS if spec.get(k)})
+        ch["manifest"]["eyes"]["tags"] = spec.get("eyes", "")
+        ch["manifest"]["words"]["negative"] = spec.get("negative", "")
+        path = charafile.save(ch, charafile.library_dir() / f"{ident}{charafile.SUFFIX}")
+        self._use_character(ch, str(path))
+        self.notify("キャラクターを作りました", "ok", f"{spec['name']}。「キャラクターデザイン」の「キャラデザを作る…」で三面図と表情差分を描けます")
+        return str(path)
+
+    def charafile_open(self, path: str | None = None) -> bool:
+        from chatdraw import charafile
+        if not isinstance(path, str) or not path:
+            from PySide6.QtWidgets import QFileDialog
+            path, _ = QFileDialog.getOpenFileName(self, "キャラクターを開く", str(charafile.library_dir()),
+                                                  f"キャラクターファイル (*{charafile.SUFFIX})")
+            if not path:
+                return False
+        try:
+            ch = charafile.load(path)
+        except charafile.BadFile as e:
+            self.notify("キャラクターを開けませんでした", "error", str(e))
+            return False
+        self._use_character(ch, path)
+        self.notify("キャラクターを開きました", "ok", charafile.summary(ch) + "。描くとこの人物の設定で描きます")
+        return True
+
+    def _charafile_current(self) -> dict | None:
+        """設定資料集の今の中身から .chara の形を作り直す（三面図や表情差分を描き足した分も入る）"""
+        from chatdraw import charafile
+        ident = getattr(self, "chara_id", "")
+        if not ident:
+            self.notify("保存できませんでした", "info", "先に「キャラクターを新しく作る…」か「キャラクターを開く…」で人物を選んでください")
+            return None
+        old = getattr(self, "chara_file", None)
+        loras = old["manifest"].get("loras") if old else None
+        if not loras:
+            loras = charafile.lora_refs(getattr(self.studio.painter, "lora", ""))
+        ch = charafile.from_bible(ident, loras=loras)
+        if old:
+            ch["manifest"]["created"] = old["manifest"].get("created", ch["manifest"]["created"])
+        return ch
+
+    def charafile_save(self, path: str | None = None) -> str:
+        from chatdraw import charafile
+        ch = self._charafile_current()
+        if ch is None:
+            return ""
+        path = path if isinstance(path, str) and path else (getattr(self, "chara_file_path", "") or
+                                                             str(charafile.library_dir() / f"{ch['manifest']['id']}{charafile.SUFFIX}"))
+        try:
+            out = charafile.save(ch, path)
+        except (OSError, charafile.BadFile) as e:
+            self.notify("保存できませんでした", "error", str(e))
+            return ""
+        self._use_character(ch, str(out))
+        self.notify("キャラクターを保存しました", "ok", f"{charafile.summary(ch)}: {out}")
+        return str(out)
+
+    def charafile_export(self, path: str | None = None) -> str:
+        from chatdraw import charafile
+        if not isinstance(path, str) or not path:
+            from PySide6.QtWidgets import QFileDialog
+            ident = getattr(self, "chara_id", "") or "chara"
+            path, _ = QFileDialog.getSaveFileName(self, "キャラクターを書き出す", str(Path.home() / f"{ident}{charafile.SUFFIX}"),
+                                                  f"キャラクターファイル (*{charafile.SUFFIX})")
+            if not path:
+                return ""
+        ch = self._charafile_current()
+        if ch is None:
+            return ""
+        out = charafile.save(ch, path)
+        self.notify("キャラクターを書き出しました", "ok", str(out))
+        return str(out)
+
+    def charafile_close(self):
+        self.chara_file, self.chara_file_path = None, ""
+        self.studio.character = None
+        self.statusBar().showMessage("キャラクターの設定を描く言葉に足すのをやめました", 6000)
+
+    def chara_design(self, spec: dict | None = None, expressions=None, size=None) -> bool:
+        """キャラデザを作る。設定は開いている人物の物を初めの値にして書いてもらい、残りの工程は裏の糸で通す"""
+        from chatdraw import charadesign, charafile
+        if self.busy("キャラデザ"):
+            return False
+        if not isinstance(spec, dict):
+            init = {}
+            ch = getattr(self, "chara_file", None)
+            if ch:
+                m = ch["manifest"]
+                init = {"name": m["name"], **m.get("profile", {}), "eyes": m.get("eyes", {}).get("tags", ""),
+                        "negative": m.get("words", {}).get("negative", "") or m.get("profile", {}).get("negative", "")}
+            spec = self._chara_spec_dialog(init)
+            if not spec:
+                return False
+        painter = self._chara_painter()
+        if painter is None:
+            return False
+        if getattr(self, "chara_file", None) and spec.get("name") == self.chara_file["manifest"]["name"]:
+            spec = dict(spec, id=self.chara_file["manifest"]["id"])   # 開いている人物を描き直す（別の id を作らない）
+        loras = charafile.lora_refs(getattr(painter, "lora", ""))
+        self.activity.begin("キャラデザを作る", "キャラクターデザイン")
+        seed = int(time.time()) % 100000
+        self._run_task(lambda _step: charadesign.make_design(painter, spec, seed, say=self.task.status.emit,
+                                                             expressions=expressions, size=size, loras=loras),
+                       self._chara_design_done)
+        return True
+
+    def _chara_design_done(self, res: dict):
+        from chatdraw import charafile
+        self.activity.end("キャラデザを作りました", None, record=False)
+        self._use_character(charafile.load(res["path"]), res["path"])
+        self.chara_design_result = res
+        self._open_sheet(Path(res["sheet"]))
+        lines = [f"三面図 {len(res['turn'])} 枚・表情差分 {len(res['expressions'])} 枚をシートに並べ、{Path(res['path']).name} に保存しました"]
+        if res["faults"]:
+            lines.append("検品で崩れが見つかった絵: " + "、".join(f"{k}（{len(v)} 件）" for k, v in res["faults"].items()))
+        if res["missing"]:
+            lines.append(f"設定資料でまだ足りない物 {len(res['missing'])} 件: " + "、".join(res["missing"][:4]) +
+                         ("…" if len(res["missing"]) > 4 else ""))
+        self.notify("キャラデザを作りました（途中）" if (res["faults"] or res["missing"]) else "キャラデザを作りました",
+                    "info" if (res["faults"] or res["missing"]) else "ok", "\n".join(lines))
+        self._end("キャラデザを作りました")
 
     def chara_save(self, name: str | None = None):
         """今の絵を設定資料に保存する。返すのは保存した id（やめたときは空）"""
@@ -5005,6 +5601,46 @@ class Window(QMainWindow):
         self._run_task(lambda _step: charadesign.draw_expressions(painter, ident, base, mask, seed, list(only),
                                                                   say=self.task.status.emit),
                        lambda out: self._chara_done("表情差分を描きました", out))
+
+    def chara_sheet_psd(self, ident: str | None = None, layout: str | None = None) -> str:
+        """キャラクターシートを組み、レイヤーの PSD とまとめた PNG を書き、レイヤーのままキャンバスに開く。.chara にも入れる"""
+        from chatdraw import charadesign
+        ident = ident if isinstance(ident, str) and ident else self._chara_need()
+        if not ident:
+            return ""
+        layout = layout or str(self.layout_store.value("sheet_layout", charadesign.SHEET_LAYOUT) or charadesign.SHEET_LAYOUT)
+        try:
+            out = charadesign.write_sheet_psd(ident, layout=layout if layout in charadesign.SHEET_LAYOUTS else charadesign.SHEET_LAYOUT)
+            if getattr(self, "chara_file_path", "") and getattr(self, "chara_id", "") == ident:
+                charadesign.sync_chara(ident, self.chara_file_path)
+        except (charadesign.NotReady, OSError, SystemExit) as e:
+            self.notify("キャラクターシートを作れませんでした", "info", str(e))
+            return ""
+        self._open_sheet(out)
+        self.notify("キャラクターシートを作りました", "ok", f"PSD（区画ごとのレイヤー）と PNG を保存しました: {out}・{out.with_suffix('.png').name}")
+        return str(out)
+
+    def _open_sheet(self, psd: Path):
+        """書いたキャラクターシートをキャンバスに開く。PSD はこのアプリでは読まないので、組んだ区画のレイヤー
+        （charadesign.LAST_SHEET）をそのまま置く。開いたときと同じく、前の絵の元に戻すの履歴は消える"""
+        from chatdraw import charadesign, project
+        if charadesign.LAST_SHEET:
+            project.apply(self.canvas, ({"current": len(charadesign.LAST_SHEET) - 1}, list(charadesign.LAST_SHEET)))
+            self.project_path, self.source_path, self.dirty = None, str(psd.with_suffix(".png")), True
+        else:
+            self.open_path(str(psd.with_suffix(".png")))
+
+    def open_refsets(self):
+        from chatdraw import refs
+        kind, target = ("character", getattr(self, "chara_id", "")) if getattr(self, "chara_id", "") else \
+            ("model", str(self.settings.get("image_model") or ""))
+
+        def use(path, d):
+            self.reference.load(path)
+            if hasattr(self.ai_panel, "use_ref"):
+                self.ai_panel.use_ref.setChecked(True)
+        self.refset_dialog = refs.RefSetDialog(refs.RefSets(), self, on_use=use, target=target, kind=kind)
+        self.refset_dialog.exec()
 
     def _chara_done(self, msg: str, out: dict):
         self.activity.end(msg, None, record=False)
@@ -5094,6 +5730,52 @@ class Window(QMainWindow):
         self._run_task(lambda _step: logo.export_stamps([image], folder, spec),
                        lambda out: self._logo_done("スタンプを書き出しました", out))
 
+    def logo_export(self, opts: dict | None = None) -> bool:
+        """書き出しの形を選んで、今の絵を書き出す。opts は logo.FORM_DEFAULT の形（試験から渡す。無ければ窓で聞く）"""
+        from chatdraw import logo
+        if self.busy("書き出し"):
+            return False
+        if not isinstance(opts, dict):
+            from PySide6.QtWidgets import QCheckBox, QDialog, QDialogButtonBox, QFormLayout, QSpinBox
+            d = QDialog(self)
+            d.setWindowTitle("書き出しの形")
+            form = QFormLayout(d)
+            boxes = {}
+            for key, label, tip in (("transparent", "透過", "背景を抜いて透明にします"),
+                                    ("mono", "単色", "黒 1 色にします（はんこ・刺しゅう・刷り物向け）"),
+                                    ("square", "正方形", "余白を付けて正方形に収めます"),
+                                    ("line_stamp", "LINE スタンプの大きさ", "370×320・メイン 240×240・タブ 96×74 も書き、zip にまとめます")):
+                b = QCheckBox(label)
+                b.setToolTip(tip)
+                b.setChecked(bool(logo.FORM_DEFAULT[key]))
+                form.addRow(b)
+                boxes[key] = b
+            line = QSpinBox()
+            line.setRange(0, 40)
+            line.setSuffix(" 画素")
+            line.setToolTip("形の外に付ける縁取りの太さ。0 で付けません")
+            form.addRow("線の太さ", line)
+            size = QSpinBox()
+            size.setRange(64, 4096)
+            size.setValue(logo.FORM_DEFAULT["size"])
+            size.setToolTip("正方形の一辺の画素")
+            form.addRow("正方形の大きさ", size)
+            bb = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+            bb.button(QDialogButtonBox.Ok).setText("書き出す")
+            bb.accepted.connect(d.accept)
+            bb.rejected.connect(d.reject)
+            form.addRow(bb)
+            if d.exec() != QDialog.Accepted:
+                return False
+            opts = {k: b.isChecked() for k, b in boxes.items()} | {"line": line.value(), "size": size.value()}
+        o = dict(logo.FORM_DEFAULT, **opts)
+        image, folder = qimage_to_pil(self.canvas.flatten()), self._logo_folder("export")
+        self.activity.begin("書き出す", "ロゴ・スタンプ")
+        self._run_task(lambda _step: logo.export_forms(image, folder, "mark", o["transparent"], o["mono"], o["line"], o["square"],
+                                                        o["line_stamp"], o["size"]),
+                       lambda out: self._logo_done("書き出しました", out))
+        return True
+
     def stamp_from_expressions(self, spec=None):
         from chatdraw import logo
         ident = getattr(self, "chara_id", "")
@@ -5115,6 +5797,33 @@ class Window(QMainWindow):
         self.logo_out = out
         where = str(Path(out[0]).parent) if out else ""
         self.notify(msg, "ok", f"{len(out)} 個のファイルを {where} に置きました")
+        self._end(msg)   # 終えないと糸が残り、ほかの AI の作業（キャラクターデザインのメニューなど）が「描いている間」のまま押せなかった
+
+    def _fill_finish_menu(self):
+        """メニューバーの「加工」。項目は右クリックのショートカットと同じ物（shortcuts.builtins）で、押すと同じ関数を呼ぶ"""
+        from PySide6.QtWidgets import QMenu
+        from chatdraw import shortcuts
+        m = self.finish_menu
+        for sub in getattr(self, "_finish_subs", []):   # 開くたびに作り直すので、前の小さなメニューは消す
+            sub.deleteLater()
+        m.clear()
+        m.setToolTipsVisible(True)
+        items = shortcuts.builtins(self)
+        # 小さなメニューは窓の側で持つ。addMenu(文字) の返りだけを持つと、Python の側の参照が消えたときに中身ごと消えた
+        self._finish_subs = []
+        for g, label in shortcuts.GROUPS:
+            inside = [s for s in items if s.group == g]
+            if not inside:
+                continue
+            sub = QMenu(label, m)
+            m.addMenu(sub)
+            self._finish_subs.append(sub)
+            sub.setToolTipsVisible(True)
+            for s in inside:
+                act = sub.addAction(s.label, lambda sid=s.id: self.run_shortcut(sid))
+                act.setObjectName("menu-" + s.id)
+                act.setToolTip(s.tip if s.ready else s.reason)
+                act.setEnabled(s.ready)
 
     def chara_sheet(self):
         from chatdraw import charadesign
@@ -5617,7 +6326,9 @@ def main():
         w.layout_store.setValue("crashlog_size", crashlog.path().stat().st_size)
     except OSError:
         pass
-    w.maybe_tour()
+    w.start_mode()   # 起動したときにモードを選ぶ（覚えたモードで「次から聞かない」なら窓を出さない）
+    if getattr(w, "mode_tour", None) is None:   # モードのツアーを出した回は、はじめのツアーを重ねない
+        w.maybe_tour()
     from PySide6.QtCore import QTimer
     QTimer.singleShot(5000, w.check_update)   # 起動の邪魔をしないよう、少し待ってから確かめる
     sys.exit(app.exec())
