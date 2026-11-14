@@ -98,6 +98,16 @@ from chatdraw.engine import Painter, Studio, Words, check  # noqa: E402
 from chatdraw.settings import Settings, SettingsDialog  # noqa: E402
 
 
+
+def exec_once(menu, pos):
+    """右クリックのたびに作るメニューを開き、閉じたら捨てる。窓を親にして作るので、捨てないと右クリックのたびに
+    メニュー（キャンバスでは子のメニューを合わせて 20 余り）が窓に溜まり続けた（50 回で 1,000 を超えた）。
+    押した項目の処理は exec の中で済んでいるので、閉じたあとに捨ててよい"""
+    try:
+        return menu.exec(pos)
+    finally:
+        menu.deleteLater()
+
 class Job(QObject):
     """AI の 1 回分を裏で回す。描く（枚数分）か、直す（regions を渡したとき）"""
     status = Signal(str)
@@ -1356,7 +1366,7 @@ class Window(QMainWindow):
             d.setTitleBarWidget(PanelTitle(d))
             # 欄の中で、自分のメニューを持たない所を右クリックしても、使えるメニューを出す（押しても何も出ない所を作らない）
             d.setContextMenuPolicy(Qt.CustomContextMenu)
-            d.customContextMenuRequested.connect(lambda pos, d=d, k=key: self.area_menu(k).exec(d.mapToGlobal(pos)))
+            d.customContextMenuRequested.connect(lambda pos, d=d, k=key: exec_once(self.area_menu(k), d.mapToGlobal(pos)))
             # 欄の境目をドラッグして上下左右に広げ縮めできる。狭めすぎて中身が潰れない大きさだけ決める
             d.setMinimumSize(160, 80)
             d.topLevelChanged.connect(lambda floating, d=d: self._as_window(d, floating))
@@ -2364,7 +2374,7 @@ class Window(QMainWindow):
         if not c.layers:
             return ""
         layer = c.layers[c.current]
-        if path is None:
+        if not isinstance(path, (str, Path)):   # メニューからは triggered の真偽（False）が来る。前はそれを道として読み、押すたびに落ちた
             path, _ = QFileDialog.getSaveFileName(self, "レイヤーを PNG で保存", str(Path(self.settings.get("output_dir")) / f"{layer.name}.png"), "PNG (*.png)")
             if not path:
                 return ""
@@ -2380,7 +2390,7 @@ class Window(QMainWindow):
         c = self.canvas
         if not c.layers:
             return []
-        if folder is None:
+        if not isinstance(folder, (str, Path)):   # 同じく triggered の真偽が来る
             folder = QFileDialog.getExistingDirectory(self, "レイヤーを書き出すディレクトリ", str(self.settings.get("output_dir")))
             if not folder:
                 return []
@@ -3205,7 +3215,7 @@ class Window(QMainWindow):
             m = self.area_menu("history")
             if not run:
                 return m
-            m.exec(self.history.mapToGlobal(pos))
+            exec_once(m, self.history.mapToGlobal(pos))
             return None
         m = QMenu(self)
         m.addAction("この絵を出す", lambda: self.show_history_image(path))
@@ -3247,7 +3257,7 @@ class Window(QMainWindow):
         self.common_menu(m.addMenu("そのほか"))
         if not run:
             return m
-        m.exec(self.history.mapToGlobal(pos))
+        exec_once(m, self.history.mapToGlobal(pos))
 
     ENTRY_TIP = "描いてほしい絵を日本語か英語で書き、Enter か「描く」で描きます（Shift+Enter で改行）"
 
@@ -3749,7 +3759,7 @@ class Window(QMainWindow):
 
     def canvas_menu(self, gpos):
         """絵の上の右クリック（右ボタンを動かさずに離したとき）。よく使う操作をまとめる"""
-        self.build_canvas_menu(gpos).exec(gpos)
+        exec_once(self.build_canvas_menu(gpos), gpos)
 
     def build_canvas_menu(self, gpos=None):
         """右クリックのメニューを作って返す（試験はこれを開かずに押す）"""
@@ -5888,6 +5898,8 @@ class Window(QMainWindow):
             return out
         out.putalpha(ImageChops.multiply(out.getchannel("A"), binary(mask, out.size)))
         return out
+
+    @staticmethod
     def _submenu(m, title):
         """親のメニューが持つ小さなメニュー。Python 側でも親に持たせ、作った関数を抜けても消えないようにする"""
         from PySide6.QtWidgets import QMenu
