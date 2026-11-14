@@ -2147,6 +2147,7 @@ class ViewingTest(unittest.TestCase):
             self.assertEqual(menus, [])                                 # 動かしたときはメニューを出さない
             c.mousePressEvent(ev(QEvent.MouseButtonPress, 200, Qt.RightButton, Qt.RightButton))
             c.mouseReleaseEvent(ev(QEvent.MouseButtonRelease, 201, Qt.RightButton, Qt.NoButton))
+            app.processEvents()   # メニューは離す処理を終えてから開く
             self.assertEqual(len(menus), 1)                             # 動かさずに離すと右クリックのメニュー
 
     def test_first_tool_is_hand_and_creator_layout_is_pen(self):

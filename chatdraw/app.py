@@ -1102,6 +1102,7 @@ class Window(QMainWindow):
         self.canvas.redpen.on_change = self._redpen_changed   # 赤ペンで囲んだら、AI の欄を「直す」にする
         self.canvas.note_wanted.connect(self.edit_note)
         self.canvas.autosel_wanted.connect(self.run_autosel)
+        self.canvas.layer_deleted.connect(self.trash_layer_file)
         # 自動保存: 変わってから 2 分ごとに書く
         self.dirty = False
         self.canvas.history_changed.connect(lambda: setattr(self, "dirty", True))
@@ -3048,6 +3049,31 @@ class Window(QMainWindow):
             self.statusBar().showMessage(f"前の版の赤ペンの直しの絵 {len(found)} 枚を、履歴とライブラリーから外してごみ箱へ移しました", 8000)
         self.run_io(work, done, "前の版の赤ペンの直しを片付け")
 
+    def trash_layer_file(self, path: str):
+        """AI の結果のレイヤーを消したら、その画像ファイルもごみ箱へ移し、履歴とライブラリーから外す（聞かない。ごみ箱から戻せる）。
+        今の絵そのもの（作業の土台の絵）と、出力の置き場の外のファイル（手元の絵・仮の置き場）には触らない"""
+        p = Path(path)
+        if not p.is_file() or str(p) == str(getattr(self, "work_key", "") or "") or str(p) == str(getattr(self, "source_path", "") or ""):
+            return
+        roots = [Path(r).resolve() for r in (getattr(self.studio, "out", None), self.settings.get("output_dir")) if r]
+        if not any(str(p.resolve()).startswith(str(r) + os.sep) for r in roots):
+            return
+        items = self.library.take([str(p)])
+        try:
+            key = self.trash.put([str(p)], items, label="消したレイヤーの絵")
+        except OSError as e:
+            self.library.put_back(items)
+            self.notify("レイヤーの絵をごみ箱へ移せませんでした", "error", str(e))
+            return
+        for row in reversed(range(self.history.count())):
+            if self.history.item(row).data(Qt.UserRole) == str(p):
+                self.history.takeItem(row)
+        self.images = [x for x in self.images if x != str(p)]
+        self.library_panel.refresh()
+        self._trash_changed()
+        if key:
+            self.statusBar().showMessage("消したレイヤーの絵をごみ箱へ移しました（「ファイル」→「ごみ箱…」から戻せます）", 8000)
+
     def restore_trash(self, key: str) -> bool:
         """ごみ箱から元の場所へ戻し、履歴とライブラリーにも戻す"""
         m = self.trash.restore(key)
@@ -3256,13 +3282,67 @@ class Window(QMainWindow):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(path).parent)))
 
     def show_history_image(self, path: str):
-        """履歴で選んだ絵をキャンバスに出す。出した絵は「固定」すると、新しく描いても入れ替わらない"""
+        """履歴で選んだ絵をキャンバスに出す。出した絵は「固定」すると、新しく描いても入れ替わらない。
+        前の絵の作業（レイヤー・赤ペンの印・表示）を残してから移り、この絵の作業が残っていれば元のとおりに戻す"""
+        if not Path(path).is_file():
+            self.notify("絵を出せません", "error", f"{path}（消したか、動かした絵です）")
+            return
+        self.work_save()
+        if self.work_open(path):
+            self._record()
+            return
         try:
             self.canvas.replace_with_image(path, "AI の絵")
         except ValueError as e:
             self.notify("絵を出せません", "error", f"{e}（消したか、動かした絵です）")
             return
+        self.canvas.redpen.clear()   # 赤ペンの印は前の絵の物（その絵の作業に残してある）
+        self.canvas.redpen.undone.clear()
+        self.work_key = str(path)
         self._record()
+
+    # ---- 絵ごとの作業を残す・戻す（chatdraw/workkeep.py） ----
+    def work_save(self, wait: bool = False):
+        """今の絵の作業を残す。絵を替える前と閉じる前に呼ぶ。使っていない赤ペンの直し（隠した・元に戻した）はここで捨てる。
+        書くのは裏の糸（wait なら書き終えるまで待つ）。アプリを開いている間は元に戻すの記録も覚える"""
+        from chatdraw import workkeep
+        key = getattr(self, "work_key", None)
+        if not key or not self.canvas.layers:
+            return
+        workkeep.discard_unused_redpen(self.canvas)
+        self._refresh_layers()
+        state = workkeep.capture(self.canvas)
+        mem = self.__dict__.setdefault("_work_mem", {})
+        mem.pop(key, None)
+        mem[key] = (state, workkeep.undo_of(self.canvas))
+        while len(mem) > workkeep.KEEP_UNDO:
+            mem.pop(next(iter(mem)))   # 古い絵から忘れる（レイヤーと印はファイルから戻る。元に戻すの記録だけが無くなる）
+        if workkeep.plain(state):
+            self.run_io(lambda: workkeep.remove(key), lambda _v: None, "作業の保存")   # 開いただけの絵には作業のファイルを置かない
+            return
+
+        def done(v):
+            if isinstance(v, BaseException):
+                self.notify("作業を残せませんでした", "error", str(v))
+        self.run_io(lambda: workkeep.write(state, key), done, "作業の保存")
+        if wait:
+            self.wait_io()
+
+    def work_open(self, key: str) -> bool:
+        """key の絵の作業が残っていれば、キャンバスに戻して True。無ければキャンバスに触らず False"""
+        from chatdraw import workkeep
+        mem = self.__dict__.setdefault("_work_mem", {}).get(str(key))
+        state, undo = mem if mem else (None, None)
+        if state is None:
+            self.wait_io()   # 書いている途中の作業を読まない
+            state = workkeep.read(str(key))
+            if state is None:
+                return False
+        workkeep.apply(self.canvas, state, undo)
+        self.work_key = str(key)
+        self._refresh_layers()
+        return True
+
 
     def layer_from_file(self, path: str, name: str) -> bool:
         """絵をレイヤーとして重ねる。読めない絵（消した・動かした）は知らせて止める"""
@@ -4137,7 +4217,9 @@ class Window(QMainWindow):
         if self.mode.currentIndex() == 0:
             # 新しく描いた絵は、いつも同じ形で置く（キャンバスを置き換え、前の状態は元に戻すで戻せる）。
             # 前は、キャンバスの状態で置き換えたり上に重ねたりが変わり、大きさの違う絵が重なった
-            self.put_result(path, f"AI の絵 {len(self.images)}", replace=True)
+            self.work_save()   # 前の絵の作業を残してから置き換える
+            if self.put_result(path, f"AI の絵 {len(self.images)}", replace=True):
+                self.work_key = str(path)
             self.origin_prompt = getattr(self, "last_text", "")   # 直しのときに、元の頼みと食い違いを見る
         else:
             self.put_result(path, f"AI の絵 {len(self.images)}")
@@ -4991,6 +5073,7 @@ class Window(QMainWindow):
         if not self.finish_threads_before_close():
             e.ignore()
             return
+        self.work_save()   # 今の絵の作業を残す（開き直して同じ絵を出せば元のとおりに戻る）
         self.wait_io()   # 裏で書いている保存を書き終えてから閉じる（書きかけの作業ファイルを残さない）
         self.layout_store.setValue("running", 0)   # 正しく閉じた印（次の起動で戻すかを聞かない）
         # 次に開いたときも同じ並びにする
@@ -5028,7 +5111,10 @@ class Window(QMainWindow):
         if not Path(path).is_file():
             self.notify("開けませんでした", "error", f"絵が見つかりません: {path}")
             return
-        self.canvas.replace_with_image(path, Path(path).stem)
+        self.work_save()
+        if not self.work_open(path):
+            self.canvas.replace_with_image(path, Path(path).stem)
+            self.work_key = str(path)
         self.project_path = None
         self.source_path = str(path)   # 「結合して元の画像に上書き保存」で書き戻す先
         self.mode.setCurrentIndex(2)   # 直す
@@ -5590,6 +5676,8 @@ class Window(QMainWindow):
 
     def open_path(self, path: str, restore: bool = False):
         from chatdraw import project
+        self.work_save()
+        self.work_key = None   # 作業ファイル・手元の絵は、そのファイルに保存する（絵ごとの作業の置き場は使わない）
         if path.endswith(project.SUFFIX):
             # 読んで PNG を戻すのは裏の糸。置くのは画面の糸（レイヤーが多いと 0.1 秒を超えた）
             def done(got):

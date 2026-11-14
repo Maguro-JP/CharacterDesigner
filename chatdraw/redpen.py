@@ -171,8 +171,9 @@ class RedPen(QGraphicsItem):
         while len(self.shapes) < len(self.marks):
             self.shapes.append(None)
 
-    def shape(self, n: int) -> QPainterPath | None:
-        """番号 n（1 から）の印の形。手で描いた印は None"""
+    def shape_of(self, n: int) -> QPainterPath | None:
+        """番号 n（1 から）の印の形。手で描いた印は None。
+        名前を shape にすると QGraphicsItem.shape()（当たり判定）を上書きし、カーソルを動かすと落ちた"""
         return self.shapes[n - 1] if 1 <= n <= len(self.shapes) else None
 
     # ---- 見せる ----
@@ -197,7 +198,7 @@ class RedPen(QGraphicsItem):
             if n - 1 < len(self.hidden) and self.hidden[n - 1]:
                 continue
             p.setPen(pen)
-            sh = self.shape(n)
+            sh = self.shape_of(n)
             p.setBrush(QColor(255, 45, 45, 50) if sh is not None else Qt.NoBrush)
             p.drawPath(sh if sh is not None else _path(pts))
             r = 13 / scale
@@ -243,7 +244,7 @@ class RedPen(QGraphicsItem):
                 q.end()
                 out.append(m)
                 continue
-            sh = self.shape(i + 1)
+            sh = self.shape_of(i + 1)
             if sh is not None:   # 形の印は形の中だけ（線で太らせない）
                 q.fillPath(sh, QColor("white"))
                 q.end()

@@ -40,9 +40,10 @@ class Layer:
     opacity: float = 1.0
     locked: bool = False   # ロックしたレイヤーには描けない（AI の絵を線で汚さないため）
     redpen: bool = False   # 赤ペンの直しのレイヤー（消したら絵・履歴・ライブラリー・作業の保存に何も残さない）
+    path: str = ""         # AI の結果を置いたレイヤーの元の画像ファイル（レイヤーを消したら、そのファイルもごみ箱へ移す）
 
     def copy(self) -> "Layer":
-        return Layer(self.name, self.image.copy(), self.visible, self.opacity, self.locked, self.redpen)
+        return Layer(self.name, self.image.copy(), self.visible, self.opacity, self.locked, self.redpen, self.path)
 
 
 _PRELOADED: dict[str, tuple[int, QImage]] = {}
@@ -131,6 +132,7 @@ class Canvas(QGraphicsView):
     used_color = Signal()       # 描く色で描き始めた（最近使った色に足す）
     marked = Signal()           # 赤ペンで印を付けた（AI の欄を「直す」にする）
     note_wanted = Signal(int)   # 赤ペンの印に、絵の上で指示を書く（印の番号、1 から）
+    layer_deleted = Signal(str)   # AI の結果のレイヤーを消した（元の画像ファイルの置き場）。窓がごみ箱へ移す
     autosel_wanted = Signal(object, object, str)   # 自動選択を頼む（押した所か None、囲んだ四角か None、"select" か "redpen"）
     menu_wanted = Signal(QPoint)  # 右クリック（動かさずに離した）。画面の位置で右クリックのメニューを出す
     stroke_done = Signal()        # 線・塗り・レイヤーが 1 回変わった（タイムラプスの写しを撮る）
@@ -336,7 +338,7 @@ class Canvas(QGraphicsView):
             self._clear_marks()
             self.layers = [Layer("レイヤー 1", blank(img.width(), img.height())), Layer(name, img)]
         else:
-            self.layers.append(Layer(name, img))
+            self.layers.append(Layer(name, img, path=str(path)))
         self.current = len(self.layers) - 1
         if replace:
             self.set_selection(None)
@@ -467,7 +469,7 @@ class Canvas(QGraphicsView):
             self.refused.emit(f"「{self.layers[self.current].name}」はロックしているので切り取れません")
             return None
         layer = self.copy_layer()
-        self.delete_layer()
+        self.delete_layer(keep_file=True)   # 切り取りは貼り付けで使うので、元のファイルは残す
         self.changed.emit()
         return layer
 
@@ -626,7 +628,7 @@ class Canvas(QGraphicsView):
         self.current += 1
         self.rebuild()
 
-    def delete_layer(self):
+    def delete_layer(self, keep_file: bool = False):
         """選んでいるレイヤーを、絵ごと消す。消したレイヤーの絵は手元の覚えから捨て（元に戻す用の写しだけ残る）、
         読み込んだ元のファイルからは読み直さない。1 枚だけのときは消せないので、絵を消して透明にする
         （前は何も起きず、押しても絵が残った）"""
@@ -636,8 +638,10 @@ class Canvas(QGraphicsView):
         if len(self.layers) <= 1:
             self.layers[0].image.fill(Qt.transparent)
         else:
-            self.layers.pop(self.current)
+            gone = self.layers.pop(self.current)
             self.current = max(0, self.current - 1)
+            if gone.path and not keep_file:
+                self.layer_deleted.emit(gone.path)
         # 前は消したレイヤーの絵を空にしてから場面を作り直しており、場面の索引が壊れて落ちた。
         # 消したレイヤーは元に戻す用の写しにだけ残り、項目を外せば手放される
         self.rebuild()
@@ -1885,6 +1889,13 @@ class Canvas(QGraphicsView):
             d = self._angle_at(e.position()) - a0
             self.set_angle(base + d)   # angle は見た目の角度（反転の向きは set_angle が直す）
             return
+        if self.pan_from is not None and not e.buttons() & Qt.RightButton:
+            # 右ボタンを離したのに離した知らせが来なかった（右クリックのメニューが離す知らせを取った）ときは、つかんだままにしない
+            self.pan_from, self.panned = None, False
+            self._apply_cursor()
+        if self._shape_from is not None and not e.buttons() & Qt.LeftButton:
+            self._shape_from = None   # 同じく、離した知らせを取られた丸・四角・自動選択の引きかけは捨てる
+            self.redpen.set_preview(None)
         if self.pan_from is not None:
             now = e.position().toPoint()
             d = now - self.pan_from
@@ -1946,7 +1957,10 @@ class Canvas(QGraphicsView):
             moved, self.pan_from = self.panned, None
             self._apply_cursor()
             if not moved:
-                self.menu_wanted.emit(e.globalPosition().toPoint())
+                # メニューは離す処理を終えてから開く（離す処理の中で開くと、メニューを閉じたあともつかんだ動きが残った）
+                from PySide6.QtCore import QTimer
+                at = e.globalPosition().toPoint()
+                QTimer.singleShot(0, lambda: self.menu_wanted.emit(at))
             return
         if self._shape_from is not None and e.button() == Qt.LeftButton:
             self._shape_end(self.mapToScene(e.position().toPoint()))

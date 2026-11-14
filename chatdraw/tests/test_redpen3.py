@@ -489,6 +489,108 @@ class RedPen3Test(Base):
         self.assertEqual(sum(1 for l in c.layers if l.redpen), 1)
         self.assertEqual(len(c.redpen.marks), 0)
 
+    # ---- 右クリックから赤ペンにしたあと、つかんだままの動きにならない ----
+    def test_right_click_redpen_no_grab(self):
+        from PySide6.QtCore import QEvent, QPoint
+        from PySide6.QtGui import QMouseEvent
+        from PySide6.QtTest import QTest
+        from PySide6.QtWidgets import QApplication
+        w = self.w
+        w.show_history_image(str(self.a))
+        self.settle(w)
+        c = w.canvas
+        w.show()
+        c.set_zoom(4.0)
+        self.qapp.processEvents()
+        w.tool_actions["hand"].trigger()
+        picked = []
+
+        def menu(gpos):   # 本物のメニューの中身から「赤ペンで直す所を囲む」を押す（開くと試験が止まるので開かない）
+            m = w.build_canvas_menu(gpos)
+            a = next(a for a in m.actions() if a.text().startswith("赤ペンで直す所を囲む"))
+            picked.append(a.text())
+            a.trigger()
+        c.menu_wanted.disconnect(w.canvas_menu)
+        c.menu_wanted.connect(menu)
+        vp = c.viewport()
+        at = c.mapFromScene(30, 30)
+        QTest.mousePress(vp, Qt.RightButton, Qt.NoModifier, at)
+        QTest.mouseRelease(vp, Qt.RightButton, Qt.NoModifier, at)
+        self.qapp.processEvents()
+        self.assertEqual(len(picked), 1)
+        self.assertEqual(c.tool, "redpen")
+        self.assertIsNone(c.pan_from, "右クリックのあともつかんだまま")
+        h0, v0 = c.horizontalScrollBar().value(), c.verticalScrollBar().value()
+        # ボタンを押さずに動かしても絵は動かない
+        for x in range(5):
+            ev = QMouseEvent(QEvent.MouseMove, QPointF(at + QPoint(10 * x, 5 * x)), QPointF(vp.mapToGlobal(at)),
+                             Qt.NoButton, Qt.NoButton, Qt.NoModifier)   # 名前に持たせる（その場で作った知らせは送る途中で片付けられて落ちた）
+            QApplication.sendEvent(vp, ev)
+        self.assertEqual((c.horizontalScrollBar().value(), c.verticalScrollBar().value()), (h0, v0), "押していないのに絵が動いた")
+        # 左で囲むと赤ペンの印になり、絵は動かない
+        pts = [c.mapFromScene(x, y) for x, y in ((20, 20), (50, 20), (50, 50), (20, 50), (20, 21))]
+        QTest.mousePress(vp, Qt.LeftButton, Qt.NoModifier, pts[0])
+        for p in pts[1:]:
+            ev = QMouseEvent(QEvent.MouseMove, QPointF(p), QPointF(vp.mapToGlobal(p)), Qt.NoButton, Qt.LeftButton, Qt.NoModifier)
+            QApplication.sendEvent(vp, ev)
+        QTest.mouseRelease(vp, Qt.LeftButton, Qt.NoModifier, pts[-1])
+        self.qapp.processEvents()
+        print("右クリックのあと: 印", len(c.redpen.marks), "表示の位置", (h0, v0), "→",
+              (c.horizontalScrollBar().value(), c.verticalScrollBar().value()), "カーソル", vp.cursor().shape())
+        self.assertEqual(len(c.redpen.marks), 1)
+        self.assertEqual((c.horizontalScrollBar().value(), c.verticalScrollBar().value()), (h0, v0))
+        self.assertNotEqual(vp.cursor().shape(), Qt.ClosedHandCursor, "つかんだ手のカーソルのまま")
+        # 右ボタンの離す知らせを取られた（メニューが取った）形でも、次に動かせばつかみを外す
+        c.pan_from, c.panned = QPoint(10, 10), True
+        ev = QMouseEvent(QEvent.MouseMove, QPointF(at), QPointF(vp.mapToGlobal(at)), Qt.NoButton, Qt.NoButton, Qt.NoModifier)
+        QApplication.sendEvent(vp, ev)
+        self.assertIsNone(c.pan_from)
+
+    # ---- AI の結果のレイヤーを消したら、その画像ファイルもごみ箱へ ----
+    def test_delete_result_layer_trashes_file(self):
+        w = self.w
+        w.show_history_image(str(self.a))
+        self.settle(w)
+        c = w.canvas
+        res = self.out / "2026-11-14" / "20261114-000000-lineart.png"
+        res.parent.mkdir()
+        Image.new("RGBA", (96, 128), (0, 0, 0, 255)).save(res)
+        w.activity.add(str(res), "線画")
+        w.images.append(str(res))
+        w.put_result(str(res), "線画")
+        self.assertEqual(c.layers[c.current].path, str(res))
+        n = len(c.layers)
+        panel = w.layer_panel
+        panel.refresh()
+        panel.list.setCurrentRow(panel.row_of(c.current))
+        self.press_yes(w)
+        from PySide6.QtWidgets import QAbstractButton
+        next(b for b in panel.findChildren(QAbstractButton) if b.text() == "－").click()
+        self.qapp.processEvents()
+        hist = [w.history.item(r).data(Qt.UserRole) for r in range(w.history.count())]
+        print("レイヤーを消したあと: ファイル", res.exists(), "ごみ箱", [e["label"] for e in w.trash.entries()], "履歴", hist)
+        self.assertEqual(len(c.layers), n - 1)
+        self.assertFalse(res.exists(), "消したレイヤーの画像ファイルが残っている")
+        self.assertNotIn(str(res), hist)
+        self.assertNotIn(str(res), w.images)
+        self.assertTrue(self.a.exists(), "今の絵（土台）まで消した")
+        e = w.trash.entries()[0]
+        self.assertEqual(e["label"], "消したレイヤーの絵")
+        self.assertTrue(w.restore_trash(e["key"]))
+        self.assertTrue(res.exists())
+
+    def test_library_menu_has_only_trash(self):
+        from PySide6.QtCore import QPoint
+        w = self.w
+        w.library.add_work(str(self.a))
+        w.library_panel.refresh()
+        view = w.library_panel.works
+        m = w.library_panel._menu(view, view.visualItemRect(view.item(0)).center(), run=False)
+        texts = [a.text() for a in m.actions()]
+        print("ライブラリーの右クリック:", texts)
+        self.assertNotIn("一覧から外す（絵は残す）", texts)
+        self.assertIn("消す（ごみ箱へ）…", texts)
+
     def test_text_fix_only_that_mark(self):
         """登録した言葉の指示・「言葉で指示…」は、右クリックした印の囲みの中だけを直す（ほかの印は直さず、残す）"""
         from unittest import mock

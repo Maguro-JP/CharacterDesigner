@@ -220,7 +220,7 @@ def whole_check(before, after, mask=None) -> dict:
     自動選択も手で描いた囲みも 100% ではないので、囲みごとの確かめのあとにもう一度、絵の全体で次を見る。
     - outside: 囲みの外で変わった画素の数（0 でなければ囲みの外が漏れた）
     - seam: 囲みの縁の境目のずれ（measure）
-    - flaws: 作画監督（engine.flaws）の見つけた崩れ
+    作画監督（engine.flaws）は直しの囲みごとに Studio.fix が測るので、ここでは測り直さない（加工ごとに数秒かかった）
     返すのは数字の辞書と、利用者に出す 1 行（note）。絵は変えない"""
     src, out = before.convert("RGB"), after.convert("RGB")
     if out.size != src.size:
@@ -237,11 +237,6 @@ def whole_check(before, after, mask=None) -> dict:
         stats["seam"] = sm = measure(src, out, m)
         if not sm["ok"]:
             left.append(f"境目のずれ（色の差 {sm['color']}・線のずれ {sm['shift']} 画素・SSIM {sm['ssim']}）")
-        try:
-            from chatdraw.engine import flaws
-            left += list(flaws(src, out, m))
-        except Exception:   # noqa: BLE001  作画監督を読めないときは、測っていないと書く
-            stats["flaws_measured"] = False
     stats["left"] = left
     stats["note"] = "全体を確かめました: " + ("、".join(left) if left else "崩れ 0 件")
     return stats
