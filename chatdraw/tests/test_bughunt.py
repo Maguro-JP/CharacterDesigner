@@ -118,5 +118,19 @@ class BugHuntTest(unittest.TestCase):
         self.assertLessEqual(len(self.w.findChildren(QMenu)), before + 2)
 
 
+class ChatKeepTest(unittest.TestCase):
+    def test_chat_bubbles_capped_on_screen(self):
+        """画面の吹き出しは保存と同じ KEEP まで（前は長く使うと画面にだけ溜まり続けた）"""
+        from chatdraw import chatpanel
+        app()
+        with TemporaryDirectory() as d:
+            p = chatpanel.ChatPanel(Path(d) / "chat.json")
+            with mock.patch.object(chatpanel, "KEEP", 5):
+                for i in range(12):
+                    p.add("user", f"頼み {i}")
+            self.assertEqual(len(p.bubbles()), 5)
+            self.assertEqual(p.bubbles()[-1].text, "頼み 11")
+
+
 if __name__ == "__main__":
     unittest.main()
