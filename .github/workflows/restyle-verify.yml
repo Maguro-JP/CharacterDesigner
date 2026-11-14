@@ -5,14 +5,11 @@ name: restyle-verify
 on:
   workflow_dispatch:
     inputs:
-      kinds:
-        description: 掛ける画風（空白で区切る。空なら 5 つ全部）
-        default: "anime"
       side:
         description: 描く大きさの長い辺
         default: "768"
   push:
-    branches: ["claude/FIX-fixfx-*"]
+    branches: ["claude/FIX-fixfx-*", "claude/FIX-restyle-*"]
     paths:
       - "chatdraw/restyle.py"
       - "chatdraw/restyle_verify.py"
@@ -21,6 +18,11 @@ permissions:
   contents: read
 jobs:
   verify:
+    # 画風ごとに別の機械で並べて流す（13 を 1 台で続けると CPU で時間内に終わらない）
+    strategy:
+      fail-fast: false
+      matrix:
+        kind: [anime, thick, watercolor, lineart, cel, pencil, colored_pencil, sumie, gouache, marker, manga, figure, pixel]
     runs-on: ubuntu-latest
     timeout-minutes: 300
     env:
@@ -41,10 +43,10 @@ jobs:
         env:
           CD_HOME: ${{ runner.temp }}/cd
           LLM_HOME: ${{ runner.temp }}/llm
-        run: python -u -m chatdraw.restyle_verify library/daily/2026-10-13/05-yukionna.png out ${{ inputs.kinds || 'anime' }}
+        run: python -u -m chatdraw.restyle_verify library/daily/2026-10-13/05-yukionna.png out ${{ matrix.kind }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: restyle-verify
+          name: restyle-verify-${{ matrix.kind }}
           path: out
           retention-days: 7

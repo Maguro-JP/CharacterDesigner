@@ -212,7 +212,7 @@ def _restyle_with(kind: str):
 
 def _register_styles():
     from chatdraw.restyle import STYLES
-    for kind, label, tip, _prompt, strength in STYLES:
+    for kind, label, tip, _prompt, strength, *_ in STYLES:
         register(Finisher(
             f"style_{kind}", label,
             tip + f"。元の線を ControlNet で保ち、低い強さ（{strength}）で描き替えるので、形と構図は変えません。"

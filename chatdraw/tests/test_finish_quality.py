@@ -189,6 +189,38 @@ def tiny_ready():
         return False
 
 
+class RestylePostTest(unittest.TestCase):
+    """描いたあとの処理（模型を使わない）。白黒の画風は色が残らず、ドット絵は格子がそろい色が減る"""
+    def setUp(self):
+        import numpy as np
+        rng = np.random.default_rng(0)
+        self.img = Image.fromarray(rng.integers(0, 255, (96, 64, 3), dtype=np.uint8), "RGB")
+
+    def test_monochrome_styles_have_no_color(self):
+        import numpy as np
+        from chatdraw import restyle
+        for kind in ("pencil", "sumie", "manga"):
+            a = np.asarray(restyle.post(kind, self.img)).astype(int)
+            self.assertEqual(int(np.abs(a[..., 0] - a[..., 1]).max()), 0, kind)
+
+    def test_pixel_is_grid_and_few_colors(self):
+        from chatdraw import restyle
+        out = restyle.post("pixel", self.img)
+        self.assertEqual(out.size, self.img.size)
+        self.assertLessEqual(len(out.getcolors(1 << 16)), restyle.PIXEL_COLORS)
+
+    def test_color_styles_pass_through(self):
+        from chatdraw import restyle
+        self.assertIs(restyle.post("gouache", self.img), self.img)
+
+    def test_every_style_has_words_and_strength(self):
+        from chatdraw import restyle
+        for kind, label, tip, words, s, *_ in restyle.STYLES:
+            self.assertTrue(words and tip and label)
+            self.assertTrue(0 < s <= 0.5, kind)
+        self.assertLessEqual(set(restyle.EXTRA), {k[0] for k in restyle.STYLES})
+
+
 @unittest.skipUnless(tiny_ready(), "試験用の小さな SDXL が取れません")
 class RestyleTest(unittest.TestCase):
     @classmethod
@@ -205,7 +237,7 @@ class RestyleTest(unittest.TestCase):
     def test_styles_are_registered_in_menu_group(self):
         from chatdraw import restyle, shortcuts
         names = [f"style_{s[0]}" for s in restyle.STYLES]
-        self.assertEqual(len(names), 5)
+        self.assertEqual(len(names), 13)
         for n in names:
             self.assertEqual(finishers.REGISTRY[n].group, "style")
             self.assertTrue(finishers.REGISTRY[n].ready())
@@ -253,7 +285,7 @@ class RestyleTest(unittest.TestCase):
             # 右クリックの加工と同じ入口（shortcuts.builtins が呼ぶ物）
             from chatdraw import shortcuts
             try:
-                for kind, label, *_ in restyle.STYLES:   # 5 つの画風を全部、右クリックの項目から押す
+                for kind, label, *_ in restyle.STYLES:   # 13 の画風を全部、右クリックの項目から押す
                     item = [s for s in shortcuts.builtins(w) if s.id == f"fin:style_{kind}"][0]
                     self.assertTrue(item.ready, item.reason)
                     item.run()
