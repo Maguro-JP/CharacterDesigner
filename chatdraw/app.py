@@ -2228,7 +2228,7 @@ class Window(QMainWindow):
         if not c.layers:
             return ""
         layer = c.layers[c.current]
-        if path is None:
+        if not isinstance(path, (str, Path)):   # メニューからは triggered の真偽（False）が来る。前はそれを道として読み、押すたびに落ちた
             path, _ = QFileDialog.getSaveFileName(self, "レイヤーを PNG で保存", str(Path(self.settings.get("output_dir")) / f"{layer.name}.png"), "PNG (*.png)")
             if not path:
                 return ""
@@ -2244,7 +2244,7 @@ class Window(QMainWindow):
         c = self.canvas
         if not c.layers:
             return []
-        if folder is None:
+        if not isinstance(folder, (str, Path)):   # 同じく triggered の真偽が来る
             folder = QFileDialog.getExistingDirectory(self, "レイヤーを書き出すディレクトリ", str(self.settings.get("output_dir")))
             if not folder:
                 return []

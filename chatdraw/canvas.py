@@ -371,6 +371,8 @@ class Canvas(QGraphicsView):
 
     def merge_visible(self, name: str = "結合した絵"):
         """見えているレイヤーを 1 枚に結合する（隠したレイヤーは捨てる）。元に戻すで戻せる"""
+        if not isinstance(name, str):
+            name = "結合した絵"   # メニューからは triggered の真偽が来る。前はそれを名前にして、レイヤーの欄が描けずに落ちた
         if not self.layers:
             return
         img = self.flatten()
@@ -1958,6 +1960,22 @@ class Canvas(QGraphicsView):
                 self.clear_selection_area()
         else:
             super().keyPressEvent(e)
+
+    def focusOutEvent(self, e):
+        """キーやボタンを押したまま窓を離れる（Alt+Tab、別の窓が前に出る）と、離したことがキャンバスに届かない。
+        前は R の回転、Space の手のひら、描きかけの線がそのまま残り、戻ってくると押していないのに回ったり描き続けたりした。
+        離れたときに、押していた物を離したことにする（出し入れの小窓が開いたときは、すぐ戻るのでそのまま）"""
+        if e.reason() != Qt.PopupFocusReason:
+            if self.rotating:
+                self.rotating, self._rot_from = False, None
+                self._apply_cursor()
+            self.release()
+            if self.last is not None:
+                self._end_brush(self.last)
+                self.last = None
+                self.pressure = 1.0
+                self.stroke_done.emit()
+        super().focusOutEvent(e)
 
     def keyReleaseEvent(self, e):
         if e.isAutoRepeat():
