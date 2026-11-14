@@ -84,7 +84,7 @@ class CacheTest(unittest.TestCase):
             with mock.patch.object(qcbench, "CACHE", Path(d)):
                 key = Path(d) / (qcbench.re.sub(r"[^\w.-]", "_", str(img.relative_to(qcbench.ROOT))) + ".json")
                 import hashlib
-                key.write_text(json.dumps({"stamp": "sha1:" + hashlib.sha1(img.read_bytes()).hexdigest(), "res": {"bad": ["x"]}}))
+                key.write_text(json.dumps({"stamp": "sha1:" + hashlib.sha1(img.read_bytes()).hexdigest() + ":" + qcbench.QC_VERSION, "res": {"bad": ["x"]}}))
                 os.utime(img)   # 更新時刻だけ変える
                 self.assertEqual(qcbench.run_one(img), {"bad": ["x"]})
 
@@ -119,6 +119,44 @@ class AccuracyBenchTest(unittest.TestCase):
         text = accuracy_bench.render(old, {"検品単体": {"score": 98.0}}, "2026-11-14 12:00")
         self.assertIn("| 拡大 | 86.6 | 77.5 |", text)
         self.assertIn("| 検品単体 | 98.0 |  |", text)
+
+
+class EyeSmearTest(unittest.TestCase):
+    """描けない瞳をぼかしや虹色でごまかした目を崩れと言う。くっきりした目は言わない"""
+    def _face(self):
+        from PIL import Image, ImageDraw
+        im = Image.new("RGB", (400, 400), (240, 220, 200))
+        d = ImageDraw.Draw(im)
+        for x in (150, 250):
+            d.ellipse((x - 18, 182, x + 18, 218), fill=(255, 255, 255), outline=(0, 0, 0), width=3)
+            d.ellipse((x - 9, 191, x + 9, 209), fill=(40, 60, 160), outline=(0, 0, 0), width=2)
+        d.line((170, 280, 230, 280), fill=(0, 0, 0), width=3)
+        return im, {"left_eye": (250, 200), "right_eye": (150, 200)}
+
+    def test_sharp_eyes_pass(self):
+        import facecheck
+        im, kp = self._face()
+        self.assertEqual(facecheck.eye_smear(im, kp, (60, 100, 340, 360)), [])
+
+    def test_blurred_eye(self):
+        import facecheck
+        from PIL import ImageFilter
+        im, kp = self._face()
+        eye = im.crop((185, 135, 315, 265)).filter(ImageFilter.GaussianBlur(25))
+        im.paste(eye, (185, 135))
+        bad = facecheck.eye_smear(im, kp, (60, 100, 340, 360))
+        self.assertEqual(len(bad), 1)
+        self.assertIn("左の目", bad[0])
+
+    def test_rainbow_eye(self):
+        import facecheck
+        import numpy as np
+        from PIL import Image
+        im, kp = self._face()
+        hue = (np.add.outer(np.arange(80), np.arange(80)) * 255 // 160).astype("uint8")
+        rb = Image.merge("HSV", [Image.fromarray(hue), Image.new("L", (80, 80), 220), Image.new("L", (80, 80), 220)]).convert("RGB")
+        im.paste(rb, (110, 160))
+        self.assertTrue(any("右の目" in b for b in facecheck.eye_smear(im, kp, (60, 100, 340, 360))))
 
 
 if __name__ == "__main__":

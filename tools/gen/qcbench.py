@@ -28,6 +28,8 @@ sys.path.insert(0, str(ROOT / "tools" / "gen"))
 from cdhome import HOME  # noqa: E402  置き場を組むのは cdhome だけ
 FEEDBACK = ROOT / "library" / "feedback"
 CACHE = HOME / "qcbench"
+# 検品の仕組みを直したら上げる。貯めた結果を古い検品のまま使わず、途中で止まっても続きから測れる
+QC_VERSION = "2"
 
 PARTS = {
     "hands": re.compile(r"(?<!足の)(手|指)(?!首から上)"),
@@ -130,7 +132,7 @@ def run_one(path: Path, fresh: bool = False) -> dict:
     CACHE.mkdir(parents=True, exist_ok=True)
     key = CACHE / (re.sub(r"[^\w.-]", "_", str(path.relative_to(ROOT))) + ".json")
     # 中身の sha1 で見る。更新時刻は worktree ごとに違い、同じ絵を 40 分かけて測り直していた
-    stamp = "sha1:" + hashlib.sha1(path.read_bytes()).hexdigest()
+    stamp = "sha1:" + hashlib.sha1(path.read_bytes()).hexdigest() + ":" + QC_VERSION
     if key.exists() and not fresh:
         d = json.loads(key.read_text(encoding="utf-8"))
         if d.get("stamp") == stamp:
