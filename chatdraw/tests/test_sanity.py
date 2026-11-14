@@ -135,7 +135,7 @@ class Words:
 class RedrawTest(unittest.TestCase):
     """余分な腕・顔の外の目を見つけたら、渡さずに種を変えて描き直し、次の回はその言葉を打ち消す"""
 
-    def test_flaw_triggers_redraw(self):
+    def test_flaw_is_reported_without_redraw(self):
         from chatdraw import finishers, requestcheck
         from chatdraw.engine import Studio
         s = Studio(Words(), FakePainter(), Path(tempfile.mkdtemp()))
@@ -146,10 +146,8 @@ class RedrawTest(unittest.TestCase):
                 mock.patch.object(sanity, "check", side_effect=lambda im, p, tags=None: next(odd)):
             _prompt, path = s.draw("1girl, solo", 7)
         meta = finishers.sidecar(path)
-        self.assertEqual(len(meta["redraws"]), 2)
+        self.assertEqual(len(meta["redraws"]), 1)   # 描くのは 1 回。崩れは記録するが、描き直しを繋げない
         self.assertIn("腕が多い（手首から離れた手 1 つ）", meta["redraws"][0]["bad"])
-        self.assertEqual(meta["redraws"][1]["bad"], [])
-        self.assertIn("extra arms", s.painter.avoids[1])   # 2 回目は見つけた崩れを打ち消して描いた
 
     def test_off_is_not_pass(self):
         with mock.patch.dict(os.environ, {"CD_CHECK": "off"}):
