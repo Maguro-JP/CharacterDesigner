@@ -39,9 +39,10 @@ class Layer:
     visible: bool = True
     opacity: float = 1.0
     locked: bool = False   # ロックしたレイヤーには描けない（AI の絵を線で汚さないため）
+    redpen: bool = False   # 赤ペンの直しのレイヤー（消したら絵・履歴・ライブラリー・作業の保存に何も残さない）
 
     def copy(self) -> "Layer":
-        return Layer(self.name, self.image.copy(), self.visible, self.opacity, self.locked)
+        return Layer(self.name, self.image.copy(), self.visible, self.opacity, self.locked, self.redpen)
 
 
 _PRELOADED: dict[str, tuple[int, QImage]] = {}

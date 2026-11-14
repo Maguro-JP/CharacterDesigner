@@ -589,6 +589,7 @@ class Window(QMainWindow):
         self.settings = Settings()
         self.layout_store = QSettings("CharacterDesigner", "chatdraw")   # 配置・テーマ・AI プリセット・ツアーの済み
         self.last_text = ""
+        self._own_studio = studio is None
         self.studio = studio or self._studio_from_settings()
         self.setWindowTitle("CharacterDesigner")
         self.resize(1400, 900)
@@ -1229,6 +1230,9 @@ class Window(QMainWindow):
         from chatdraw.paths import HOME
         from chatdraw.trash import Trash
         self.trash = Trash(HOME / "trash" if studio is None else Path(self.studio.out) / ".trash")
+        # 0.5.19 までの版が書いた赤ペンの直しだけの絵を、履歴・ライブラリーから外してごみ箱へ移す（開いたあと裏で 1 度だけ）
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self.sweep_old_redpen)
         self.library_panel = LibraryPanel(self)
         # チャットの会話は閉じても残す（ライブラリーと同じく、試験では出力の置き場の中に作る）
         self.chat.decorate = self.offer_prompt
@@ -2541,7 +2545,9 @@ class Window(QMainWindow):
             except (KeyError, TypeError) as e:
                 self.say(f"検品の結果を読めませんでした（{e}）。目で確かめてください")
         self._record()
-        self.library_panel.add(self.library.add_work(path))
+        item = self.library.add_work(path)
+        if item:   # 赤ペンの直しだけの絵は作品にしない（空で返る）
+            self.library_panel.add(item)
         # 頼み・種・設定は描いたときに PNG に埋めてある。埋まっていない絵（前の版で描き、隣に .json だけがある物）だけ、
         # 裏の糸で埋める（PNG を書き直すので 1 枚 0.1 秒ほどかかる。別名に書いてから替えるので、読む側は壊れた絵を見ない）
         from chatdraw import finishers
@@ -2555,7 +2561,9 @@ class Window(QMainWindow):
         n = getattr(self, "_fix_count", 0) + 1
         self._fix_count = n
         try:
-            self._put_fix(path, f"赤ペンの直し {n}" + ("（崩れあり）" if bad else ""))
+            before = len(self.canvas.layers)
+            if self._put_fix(path, f"赤ペンの直し {n}" + ("（崩れあり）" if bad else "")) and len(self.canvas.layers) > before:
+                self.canvas.layers[self.canvas.current].redpen = True   # 消したら何も残さない直しのレイヤーの印
         except (OSError, ValueError) as e:
             self.say(f"直しをレイヤーに置けませんでした（{e}）")
         finally:
@@ -2637,12 +2645,14 @@ class Window(QMainWindow):
         from chatdraw import postfx
         self.feature_tour("lineart")
         src = qimage_to_pil(self.canvas.flatten())
+        mask = self._region_mask()   # 囲んだときは囲みの中だけを線画にする（囲みの外は 1 画素も変えない）
         out = Path(self.settings.get("output_dir")) / time.strftime("%Y-%m-%d")
         path = out / f"{time.strftime('%Y%m%d-%H%M%S')}-lineart.png"
 
         def work():   # 線を取り出して書くのは裏の糸（832×1216 で 0.4 秒ほど固まった）
             out.mkdir(parents=True, exist_ok=True)
-            postfx.lineart(src).save(path)
+            line = postfx.lineart(src)
+            (line if mask is None else self._clip_to_region(line, mask)).save(path)
 
         def done(err):
             if isinstance(err, BaseException):
@@ -2659,6 +2669,7 @@ class Window(QMainWindow):
         from chatdraw import postfx
         self.feature_tour("pixel")
         img = qimage_to_pil(self.canvas.flatten())
+        mask = self._region_mask()   # 囲んだときは囲みの中だけをドット絵にする
         out = Path(self.settings.get("output_dir")) / time.strftime("%Y-%m-%d")
         stamp = time.strftime("%Y%m%d-%H%M%S")
         small = out / f"{stamp}-pixel.png"
@@ -2668,7 +2679,8 @@ class Window(QMainWindow):
             dots = postfx.pixel_art(img, long=long, colors=colors)
             out.mkdir(parents=True, exist_ok=True)
             dots.save(small)
-            postfx.enlarge(dots, img.size).save(big)
+            view = postfx.enlarge(dots, img.size)
+            (view if mask is None else self._clip_to_region(view, mask)).save(big)
             return dots.size
 
         def done(got):
@@ -2971,6 +2983,54 @@ class Window(QMainWindow):
         self._trash_changed()
         self.notify("ごみ箱へ移しました", "ok", "押すと戻します", on_click=lambda: self.restore_trash(key))
         return key
+
+    SWEPT_KEY = "cleanup/redpen_0519"   # 前の版の赤ペンの直しを見終えた出力の置き場（利用者の設定。2 度目からは読まない）
+
+    def sweep_old_redpen(self):
+        """0.5.19 までの版は、赤ペンの直しの結果（直した所のほかは透明な絵）を出力の置き場に書き、履歴とライブラリーに足していた。
+        レイヤーを消してもその絵が残り、履歴・ライブラリーから押すと透明な絵が出て、ゴミに見えた。
+        その絵を履歴・ライブラリーから外し、ファイルは消さずにごみ箱へ移す（本当に消すのは利用者がごみ箱で選んだときだけ）"""
+        if getattr(self, "_io_closed", False):
+            return
+        from chatdraw import redpenclean
+        roots = []
+        # 試験（描く仕組みを渡したとき）は、その出力の置き場だけを見る（利用者の本物の置き場に触らない）
+        own = getattr(self, "_own_studio", True)
+        for r in (getattr(self.studio, "out", None), self.settings.get("output_dir") if own else None):
+            if r and str(Path(r).resolve()) not in [str(Path(x).resolve()) for x in roots]:
+                roots.append(r)
+        done_roots = set(filter(None, str(self.settings.store.value(self.SWEPT_KEY) or "").split("\n")))
+        todo = [r for r in roots if str(Path(r).resolve()) not in done_roots]
+        dropped = list(getattr(self.library, "dropped_redpen", []))
+        self.library.dropped_redpen = []
+        if not todo and not dropped:
+            return
+
+        def work():
+            found = [str(p) for p in redpenclean.old_redpen_files(todo)]
+            return found + [p for p in dropped if p not in found and Path(p).is_file()]
+
+        def done(found):
+            if isinstance(found, BaseException):
+                return
+            self.settings.store.setValue(self.SWEPT_KEY, "\n".join(sorted(done_roots | {str(Path(r).resolve()) for r in todo})))
+            if not found:
+                return
+            items = self.library.take(found)
+            try:
+                self.trash.put(found, items, label="前の版の赤ペンの直し")
+            except OSError:
+                self.library.put_back(items)
+                return
+            gone = set(found)
+            for row in reversed(range(self.history.count())):
+                if self.history.item(row).data(Qt.UserRole) in gone:
+                    self.history.takeItem(row)
+            self.images = [p for p in self.images if p not in gone]
+            self.library_panel.refresh()
+            self._trash_changed()
+            self.statusBar().showMessage(f"前の版の赤ペンの直しの絵 {len(found)} 枚を、履歴とライブラリーから外してごみ箱へ移しました", 8000)
+        self.run_io(work, done, "前の版の赤ペンの直しを片付け")
 
     def restore_trash(self, key: str) -> bool:
         """ごみ箱から元の場所へ戻し、履歴とライブラリーにも戻す"""
