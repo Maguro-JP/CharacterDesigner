@@ -105,6 +105,7 @@ class SegCacheTest(unittest.TestCase):
             snap.mkdir(parents=True)
             (snap / "config.json").write_text("{}")
             with mock.patch.object(edit.cdhome, "HOME", Path(d) / "cd"), mock.patch.dict(os.environ, {"HF_HOME": str(Path(d) / "cd" / "gen" / "hf")}):
+                os.environ.pop("HF_HUB_CACHE", None)   # アプリの試験が置いた置き場を見ない（patch.dict が戻す）
                 self.assertEqual(edit.seg_cache_dir(), str(Path(d) / "gen" / "hf" / "hub"))
 
 
