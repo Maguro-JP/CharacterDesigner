@@ -28,34 +28,35 @@ STYLES = (
      "lineart, monochrome, greyscale, white background, clean lines, no color", 0.45),
     ("cel", "セル画", "平らな塗りと硬い影の、昔のセル画に描き替えます",
      "cel animation, retro anime, 1990s anime style, flat colors, hard shadows, film grain", 0.45),
-    # ここから下は見本の画風に合わせて足した物。強さは調べた幅（0.4〜0.7）の下の端で、私の推測から始め、Actions で確かめて直す
+    # ここから下は見本の画風に合わせて足した物。0.4〜0.5 では Actions の本物の模型で画風がほとんど変わらなかった（形の変わり 0.011）。
+    # 調べた幅（0.4〜0.7）の上の側へ上げ、線の縛りも緩める。形が崩れれば検品が強さを下げて描き直す
     ("pencil", "鉛筆画", "紙に鉛筆で描いた、白黒の陰影の絵に描き替えます",
-     "traditional media, graphite (medium), pencil sketch, monochrome, greyscale, hatching, paper texture", 0.5),
+     "traditional media, graphite (medium), pencil sketch, monochrome, greyscale, hatching, paper texture", 0.65),
     ("colored_pencil", "色鉛筆画", "線の重なりが見える、色鉛筆の絵に描き替えます",
-     "traditional media, colored pencil (medium), visible pencil strokes, hatching, paper texture, soft colors", 0.5),
+     "traditional media, colored pencil (medium), visible pencil strokes, hatching, paper texture, soft colors", 0.65),
     ("sumie", "墨絵", "墨のにじみと濃淡だけで描いた墨絵に描き替えます",
-     "sumi-e, ink wash painting, traditional media, ink (medium), monochrome, greyscale, brush strokes, washi paper", 0.5),
+     "sumi-e, ink wash painting, traditional media, ink (medium), monochrome, greyscale, brush strokes, washi paper", 0.7),
     ("gouache", "ガッシュ画", "不透明の絵の具で平らに塗った、つやの無いガッシュ画に描き替えます",
-     "traditional media, gouache (medium), painting (medium), opaque paint, matte colors, flat brush strokes", 0.5),
+     "traditional media, gouache (medium), painting (medium), opaque paint, matte colors, flat brush strokes", 0.65),
     ("marker", "アルコールマーカー画", "色の重ね塗りと白い光を残した、アルコールマーカーの絵に描き替えます",
-     "traditional media, marker (medium), alcohol marker, copic, marker strokes, bold colors, white highlights", 0.5),
+     "traditional media, marker (medium), alcohol marker, copic, marker strokes, bold colors, white highlights", 0.65),
     ("manga", "モノクロ漫画風", "スクリーントーンと黒のベタで描いた、白黒の漫画のコマに描き替えます",
-     "manga, monochrome, greyscale, screentone, halftone, ink (medium), high contrast, black and white", 0.45),
+     "manga, monochrome, greyscale, screentone, halftone, ink (medium), high contrast, black and white", 0.6),
     ("figure", "フィギュア風", "つやのある樹脂で作った、立体のフィギュアの写真に描き替えます",
-     "pvc figure, figure, 3d, blender (medium), glossy plastic, smooth shading, studio lighting, product photo", 0.5),
+     "pvc figure, figure, 3d, blender (medium), glossy plastic, smooth shading, studio lighting, product photo", 0.65),
     ("pixel", "ドット絵", "少ない色の、格子のそろったドット絵に描き替えます",
      "pixel art, limited palette, flat colors, retro game sprite, dithering", 0.4),
 )
 # 画風ごとの足し: 打ち消しに足す言葉（neg）、線の縛り（control）、描いたあとの処理（post）
 EXTRA = {
-    "pencil": dict(neg="color, colorful, painting", post="grey"),
-    "colored_pencil": dict(neg="digital painting, smooth shading"),
-    "sumie": dict(neg="color, colorful, screentone", post="grey"),
-    "gouache": dict(neg="glossy, shiny, 3d"),
-    "marker": dict(neg="oil painting, impasto"),
-    "manga": dict(neg="color, colorful, painting, watercolor", post="grey"),
+    "pencil": dict(neg="color, colorful, painting, anime coloring", post="grey", control=0.6),
+    "colored_pencil": dict(neg="digital painting, smooth shading", control=0.6),
+    "sumie": dict(neg="color, colorful, screentone, anime coloring", post="grey", control=0.6),
+    "gouache": dict(neg="glossy, shiny, 3d", control=0.6),
+    "marker": dict(neg="oil painting, impasto", control=0.6),
+    "manga": dict(neg="color, colorful, painting, watercolor", post="grey", control=0.7),
     # 立体の質感は塗りを大きく変えるので、線の縛りを少し緩める（強いと平らな塗りのまま残る）
-    "figure": dict(neg="2d, flat color, sketch, lineart, traditional media", control=0.7),
+    "figure": dict(neg="2d, flat color, sketch, lineart, traditional media", control=0.6),
     "pixel": dict(neg="blurry, smooth gradient, anti-aliasing", post="pixel"),
 }
 PIXEL_LONG = 128          # ドット絵の長い辺のドット数（tools/gen/design.py pixel の既定と同じ幅）

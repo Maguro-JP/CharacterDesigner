@@ -5,6 +5,9 @@ name: restyle-verify
 on:
   workflow_dispatch:
     inputs:
+      kinds:
+        description: 掛ける画風（JSON の並び。空なら全部）
+        default: ""
       side:
         description: 描く大きさの長い辺
         default: "768"
@@ -22,7 +25,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        kind: [anime, thick, watercolor, lineart, cel, pencil, colored_pencil, sumie, gouache, marker, manga, figure, pixel]
+        kind: ${{ fromJSON(inputs.kinds || '["anime","thick","watercolor","lineart","cel","pencil","colored_pencil","sumie","gouache","marker","manga","figure","pixel"]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
     env:

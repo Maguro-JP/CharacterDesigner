@@ -217,7 +217,7 @@ class RestylePostTest(unittest.TestCase):
         from chatdraw import restyle
         for kind, label, tip, words, s, *_ in restyle.STYLES:
             self.assertTrue(words and tip and label)
-            self.assertTrue(0 < s <= 0.5, kind)
+            self.assertTrue(0 < s <= 0.7, kind)
         self.assertLessEqual(set(restyle.EXTRA), {k[0] for k in restyle.STYLES})
 
 

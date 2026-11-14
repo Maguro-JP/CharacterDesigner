@@ -11,13 +11,13 @@
 
 | 画風 | 言葉の芯 | 強さ | 足した物 |
 |---|---|---|---|
-| 鉛筆画 | traditional media, graphite (medium), hatching | 0.5 | 打ち消しに color。描いたあと灰色にそろえる |
-| 色鉛筆画 | colored pencil (medium), visible pencil strokes | 0.5 | 打ち消しに digital painting |
-| 墨絵 | sumi-e, ink wash painting, ink (medium), monochrome | 0.5 | 灰色にそろえる |
-| ガッシュ画 | gouache (medium), opaque paint, matte colors | 0.5 | 打ち消しに glossy, 3d |
-| アルコールマーカー画 | marker (medium), alcohol marker, copic | 0.5 | 打ち消しに oil painting |
-| モノクロ漫画風 | manga, monochrome, screentone, halftone | 0.45 | 灰色にそろえる |
-| フィギュア風 | pvc figure, 3d, blender (medium), glossy plastic | 0.5 | 線の縛りを 0.7 に緩める（強いと平らな塗りが残る） |
+| 鉛筆画 | traditional media, graphite (medium), hatching | 0.65 | 打ち消しに color。描いたあと灰色にそろえる |
+| 色鉛筆画 | colored pencil (medium), visible pencil strokes | 0.65 | 打ち消しに digital painting |
+| 墨絵 | sumi-e, ink wash painting, ink (medium), monochrome | 0.7 | 灰色にそろえる |
+| ガッシュ画 | gouache (medium), opaque paint, matte colors | 0.65 | 打ち消しに glossy, 3d |
+| アルコールマーカー画 | marker (medium), alcohol marker, copic | 0.65 | 打ち消しに oil painting |
+| モノクロ漫画風 | manga, monochrome, screentone, halftone | 0.6 | 灰色にそろえる |
+| フィギュア風 | pvc figure, 3d, blender (medium), glossy plastic | 0.65 | 線の縛りを 0.6 に緩める（強いと平らな塗りが残る） |
 | ドット絵 | pixel art, limited palette, dithering | 0.4 | 長い辺 128 ドット・32 色に減らし、最近傍で元の大きさへ戻す |
 
 - 媒体の語は「traditional media」と「〜 (medium)」を組にすると効く（NovelAI の手引き）。白黒の画風は、色の語が混ざると色が残るので打ち消しに color を足し、念のため描いたあと灰色にそろえる
@@ -26,4 +26,12 @@
 
 ## 本物の模型で確かめた結果
 
-Actions の restyle-verify（画風ごとに 1 台）で流した結果を書き足す。
+Actions の restyle-verify（画風ごとに 1 台、長い辺 768、見本 library/daily/2026-10-13/05-yukionna.png、種 0）。
+
+1 回目（強さ 0.4〜0.5、線の縛り 0.8）: 13 の画風が全部 1 回目の強さで検品を通った（形の変わり 0.007〜0.012、線の残り 76〜84%）。1 枚 21〜58 分。
+- ドット絵: 格子と減色がそろい、形と構図は元のまま。画風が変わった
+- 鉛筆画・墨絵: 灰色になっただけで、鉛筆の線や墨のにじみは出なかった。2 つがほぼ同じ絵
+- 色鉛筆画・ガッシュ画・アルコールマーカー画: 3 つがほぼ同じ、色の抜けた絵。媒体の違いが出なかった
+- モノクロ漫画風: 灰色に、飾りの所だけ網点が少し出た。弱い
+- フィギュア風: 肌と布に少しつやが出た。弱い
+- 形の変わりが小さすぎ、強さが足りないと読んで、7 つの強さを 0.6〜0.7 に上げ、線の縛りを 0.6〜0.7 に緩めた（2 回目）
