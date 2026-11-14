@@ -555,7 +555,8 @@ class PanelTitle(QWidget):
 
 # 左端の道具。None は区切り
 TOOLS = (("move", "移動", "V"), ("select", "四角の選択", "M"), ("lasso", "投げなわの選択（なぞって囲む）", "L"),
-         ("polygon", "多角形の選択（押して角を置き、ダブルクリックか Enter で閉じる）", "Shift+L"), (None, "", ""),
+         ("polygon", "多角形の選択（押して角を置き、ダブルクリックか Enter で閉じる）", "Shift+L"),
+         ("autosel", "自動選択（押した所の物を AI が選ぶ。合わないときは四角で囲むと合いやすい）", "A"), (None, "", ""),
          ("pen", "ペン", "B"), ("eraser", "消しゴム", "E"), ("blur", "ぼかし", "R"),
          ("spray", "スプレー", "K"), ("smudge", "指先（色を伸ばす）", "W"), (None, "", ""),
          ("fill", "塗りつぶし", "G"), ("gradient", "グラデーション", "J"), (None, "", ""),
@@ -574,6 +575,16 @@ SHAPE_TIPS = {
 }
 
 # 欄の帯とメニューに並べる順（よく使う順）
+# 赤ペンの印の右クリックに出す加工（印の囲み 1 つに本物の経路で掛けて、囲みの外 0 画素・囲みの中が変わる・目の色の差 1.5 以下だった物。
+# 表は docs/knowledge/function-check.md の「赤ペンの印の右クリック」、測り方は test_function_check.MarkMenuCheck）
+MARK_OK = frozenset(("fin:retouch", "fin:clean", "fin:retouch_full", "fin:face", "fin:around", "combo:tidy_color",
+                     "fin:detail", "fin:mat_gem", "fin:air_haze",
+                     # 線画とドット絵は目の色を変えるのが仕事なので、目の色では外さない（囲みの外 0 画素は確かめた）
+                     "app:lineart", "app:pixel"))
+# 赤ペンの印の取り方（帯・右クリック・道具の設定で選ぶ）
+REDPEN_SHAPES = (("free", "手で描く", "なぞって囲んだ所を印にします"), ("ellipse", "丸", "引いた丸の中を印にします"),
+                 ("rect", "四角", "引いた四角の中を印にします"),
+                 ("auto", "自動選択", "押した所の物（髪・顔・服・持ち物・背景）を AI が選んで印にします。四角で囲んでもよい"))
 PANEL_ORDER = ("talk", "chat", "view", "history", "library", "progress", "layers", "color", "brushes")
 
 # 欄は動かせて、外に出せて、閉じられる（作画ソフトと同じ）
@@ -613,6 +624,7 @@ class Window(QMainWindow):
         membudget.set_mode(self.settings.get("mem_mode"))   # メモリの使い方（設定で選ぶ。既定は自動）
         self.layout_store = QSettings("CharacterDesigner", "chatdraw")   # 配置・テーマ・AI プリセット・ツアーの済み
         self.last_text = ""
+        self._own_studio = studio is None
         self.studio = studio or self._studio_from_settings()
         self.setWindowTitle("CharacterDesigner")
         self.resize(1400, 900)
@@ -976,6 +988,32 @@ class Window(QMainWindow):
         self.poly_sides.setToolTip("正多角形の角（辺）の数")
         self.poly_sides.valueChanged.connect(lambda v: setattr(self.canvas, "poly_sides", v))
         self.poly_sides_act = bar.addWidget(self.poly_sides)
+        # 赤ペンの印の取り方。赤ペンを選んだときだけ出す（帯と右クリックにも同じ操作を置く）
+        from PySide6 import QtWidgets as _qw   # 名前で読むと、この関数の後ろで読む同じ名前とぶつかる
+        S = self.shared
+        shape_group = QActionGroup(self)
+        for key, label, tip in REDPEN_SHAPES:
+            a = QAction(f"赤ペン: {label}", self, checkable=True, triggered=lambda _=False, k=key: self.set_redpen_shape(k))
+            a.setToolTip(tip)
+            a.setIconText(label)
+            shape_group.addAction(a)
+            S[f"redpen_shape:{key}"] = a
+        S["redpen_shape:free"].setChecked(True)
+        S["redpen_all"] = QAction("赤ペン: 全体", self, triggered=self.redpen_all,
+                                  toolTip="絵の全体を赤ペンの印 1 つにします（全体を直す指示を書けます）")
+        S["redpen_all"].setIconText("全体")
+        box = _qw.QWidget()
+        lay = _qw.QHBoxLayout(box)
+        lay.setContentsMargins(0, 0, 0, 0)
+        lay.setSpacing(2)
+        lay.addWidget(QLabel(" 囲み方 "))
+        for k in [f"redpen_shape:{key}" for key, _l, _t in REDPEN_SHAPES] + ["redpen_all"]:
+            b = _qw.QToolButton()
+            b.setDefaultAction(S[k])
+            b.setToolButtonStyle(Qt.ToolButtonTextOnly)
+            lay.addWidget(b)
+        self.redpen_shape_bar = bar.addWidget(box)
+        self.redpen_shape_bar.setVisible(False)
         for key, _label, _s in TOOLS:
             if key:
                 self.tool_actions[key].triggered.connect(lambda _=False, k=key: self._tool_changed(k))
@@ -1111,6 +1149,8 @@ class Window(QMainWindow):
         self.canvas.marked.connect(lambda: self.mode.setCurrentIndex(2))
         self.canvas.redpen.on_change = self._redpen_changed   # 赤ペンで囲んだら、AI の欄を「直す」にする
         self.canvas.note_wanted.connect(self.edit_note)
+        self.canvas.autosel_wanted.connect(self.run_autosel)
+        self.canvas.layer_deleted.connect(self.trash_layer_file)
         # 自動保存: 変わってから 2 分ごとに書く
         self.dirty = False
         self.canvas.history_changed.connect(lambda: setattr(self, "dirty", True))
@@ -1202,6 +1242,7 @@ class Window(QMainWindow):
         sel.addAction(self.tool_actions["select"])
         sel.addAction(self.tool_actions["lasso"])
         sel.addAction(self.tool_actions["polygon"])
+        sel.addAction(self.tool_actions["autosel"])
         sel.addSeparator()
         sel.addAction(S["sel_clear"])
         sel.addAction(S["sel_fill"])
@@ -1238,6 +1279,9 @@ class Window(QMainWindow):
         from chatdraw.paths import HOME
         from chatdraw.trash import Trash
         self.trash = Trash(HOME / "trash" if studio is None else Path(self.studio.out) / ".trash")
+        # 0.5.19 までの版が書いた赤ペンの直しだけの絵を、履歴・ライブラリーから外してごみ箱へ移す（開いたあと裏で 1 度だけ）
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, self.sweep_old_redpen)
         self.library_panel = LibraryPanel(self)
         # チャットの会話は閉じても残す（ライブラリーと同じく、試験では出力の置き場の中に作る）
         self.chat.decorate = self.offer_prompt
@@ -1692,6 +1736,12 @@ class Window(QMainWindow):
         if getattr(self, "asking", False):
             self.say("前の答えを待っています。少し待ってからもう一度送ってください")
             return
+        from chatdraw import chatwords
+        changed = chatwords.parse(text, self.entry.text())
+        if changed is not None:   # 描くワードを変えるのは、チャットでそう頼まれたときだけ（何をどう変えたかを 1 行で返す）
+            self.entry.setText(changed[0])
+            self.chat.add("ai", changed[1])
+            return
         if self.chat_plan(text):   # 文の頼み（繰り返し・予約・書き出し・加工の並び・参考画像・お気に入り）は段取りにして行う
             return
         words = getattr(getattr(self, "studio", None), "words", None)
@@ -1708,13 +1758,19 @@ class Window(QMainWindow):
                 self.feature_tour("ai_commands")
                 return
             body = assistant.draw_request(text)
+            if body is None and re.fullmatch(r"\s*(今の(描くワード|描く内容)で)?\s*(描いて|描く|かいて|描け)(ください|下さい)?\s*[。！!]*\s*", text):
+                body = self.entry.text().strip() or self.last_text   # 「描いて」だけなら、今の描くワードで描く
             if body:
                 body = self.favorites().apply(body)[0]   # 「お気に入りの水彩で描いて」は、残した言葉を足して描く
                 self.asking = False
                 self.chat.set_busy(False)
-                self.chat.add("ai", f"AI の欄の描く内容に「{body}」と入れて描きます")
-                self.entry.setText(body)
-                self.send()
+                # チャットの文は言語の模型への指示で、描くワードの欄（描画の模型への設定）は書き換えない。
+                # 文に描く内容があればこの回だけ使い、無ければ今の描くワードで描く
+                if body == self.entry.text().strip():
+                    self.chat.add("ai", f"今の描くワード「{body}」で描きます")
+                else:
+                    self.chat.add("ai", f"この回だけ「{body}」で描きます（描くワードの欄は変えません）")
+                self.send(body)
                 return
             if self.thread is not None and getattr(words, "ready", lambda: False)():
                 self.asking = False   # 描いている間は言葉の模型を描く側が使う。同時に使うと落ちることがある
@@ -2008,8 +2064,11 @@ class Window(QMainWindow):
             self.ai_label.setToolTip(st["reason"])
         return st
 
-    def send(self):
-        text = self.entry.text().strip()
+    def send(self, once: str | None = None):
+        """描く。once を渡すと、描くワードの欄を変えずに、この回だけその言葉で描く（チャットの頼み）"""
+        if not isinstance(once, str):
+            once = None   # ボタンの clicked は押した印（真偽値）を渡す。頼みの文と取り違えないように
+        text = (self.entry.text() if once is None else once).strip()
         pen = self.canvas.redpen
         if self.thread and text:   # 描いている間の頼みは受けない。黙って捨てると、押しても何も起きないように見えた
             self.progress_popup.pop()
@@ -2040,10 +2099,10 @@ class Window(QMainWindow):
                     return   # 止めた回の答え
                 self.asking = False
                 self.button.setEnabled(True)
-                self._send_after(text, None if isinstance(picked, BaseException) else picked)
+                self._send_after(text, None if isinstance(picked, BaseException) else picked, once is not None)
             self.in_background(lambda: commands.by_model(text, words), got, "言葉の模型の答え待ち")
             return
-        self._send_after(text, None)   # 模型に聞けないときは言葉の決まりで選ぶ
+        self._send_after(text, None, once is not None)   # 模型に聞けないときは言葉の決まりで選ぶ
 
     def in_background(self, work, done, name: str = "裏の処理"):
         """work を裏の糸で動かし、答えを画面の糸の done に渡す。work が例外を出したら、その例外を渡す"""
@@ -2093,11 +2152,12 @@ class Window(QMainWindow):
         except RuntimeError:
             pass   # 窓を閉じたあと
 
-    def _send_after(self, text: str, picked):
+    def _send_after(self, text: str, picked, once: bool = False):
         from chatdraw import commands
         reply = commands.handle(self, text, picked=picked)   # 操作の頼み（道具・色・欄・配置など）はその場で行い、絵は描かない
         if reply:
-            self.entry.clear()
+            if not once:   # 欄に書いた操作の言葉は欄から消す。チャットから来た言葉では欄に触らない
+                self.entry.clear()
             self.say(text, "あなた")
             self.say(reply)
             self.feature_tour("ai_commands")
@@ -2259,6 +2319,57 @@ class Window(QMainWindow):
         self.statusBar().showMessage(f"{len(out)} 枚のレイヤーを書き出しました: {folder}", 6000)
         return out
 
+    # ---- 赤ペンの囲み方と自動選択 ----
+    def set_redpen_shape(self, key: str):
+        """赤ペンの印の取り方を替え、赤ペンに持ち替える"""
+        self.canvas.set_redpen_shape(key)
+        a = self.shared.get(f"redpen_shape:{key}")
+        if a is not None and not a.isChecked():
+            a.setChecked(True)
+        if self.canvas.tool != "redpen" and "redpen" in self.tool_actions:
+            self.tool_actions["redpen"].trigger()
+        label = next((lb for k, lb, _t in REDPEN_SHAPES if k == key), key)
+        self.statusBar().showMessage(f"赤ペンの囲み方: {label}", 4000)
+
+    def redpen_all(self):
+        if not self.canvas.layers:
+            self.statusBar().showMessage("絵がありません", 4000)
+            return
+        if self.canvas.tool != "redpen" and "redpen" in self.tool_actions:
+            self.tool_actions["redpen"].trigger()
+        self.canvas.redpen_all()
+
+    def run_autosel(self, point, box, target: str):
+        """自動選択を裏の糸で回す（模型は 1 回で十数秒かかる）。答えは autosel_done で画面の糸に返す"""
+        if getattr(self, "_autosel_busy", False):
+            self.statusBar().showMessage("自動選択の途中です。終わってから押してください", 4000)
+            return
+        if not self.canvas.layers:
+            return
+        self._autosel_busy = True
+        image = qimage_to_pil(self.canvas.flatten())
+        self.statusBar().showMessage("自動選択: 押した所の物を選んでいます…")
+        self._autosel_last = (point, box, target)
+
+        def work():
+            from chatdraw import autosel
+            return autosel.pick(image, point, box)
+        # 裏の糸から窓へ直に返さず、in_background の橋を通す（裏の糸で画面の部品が片付くと落ちた）
+        self.in_background(work, lambda v: self._autosel_done(v, target), "自動選択")
+
+    def _autosel_done(self, picked, target: str):
+        from chatdraw import autosel
+        self._autosel_busy = False
+        if isinstance(picked, BaseException):
+            self.notify("自動選択できませんでした", "error", str(picked) or type(picked).__name__)
+            return
+        n = self.canvas.apply_pick(picked.mask, target)
+        self.last_autosel = picked
+        msg = autosel.describe(picked) if n else "自動選択: 何も選べませんでした。少しずらして押すか、四角で囲んでください"
+        self.statusBar().showMessage(msg, 8000)
+        if picked.how != "sam" and n:
+            self.say(msg)
+
     def fix_marked(self):
         """赤ペンで囲んだ所を直す。AI の欄を「直す」にして「描く」と同じ send() を呼ぶ"""
         self.mode.setCurrentIndex(2)
@@ -2406,8 +2517,15 @@ class Window(QMainWindow):
             self.note_edit.returnPressed.connect(self._note_done)
             self.note_edit.installEventFilter(self)
             self.note_mic = voice.mic_button(self.note_edit, parent=self.note_box)
+            from PySide6.QtWidgets import QPushButton
+            self.note_ok = QPushButton("確定", self.note_box)   # Enter を知らない人でも、押せば指示が入って欄が閉じる
+            self.note_ok.setObjectName("noteOk")
+            self.note_ok.setToolTip("書いた指示をこの印に残して欄を閉じます（Enter と同じ）。直すのは「描く」か右クリックの「囲んだ所を直す」で")
+            self.note_ok.setFocusPolicy(Qt.NoFocus)   # 押しても欄から打つ所を奪わない
+            self.note_ok.clicked.connect(self._note_done)
             row.addWidget(self.note_edit, 1)
             row.addWidget(self.note_mic)
+            row.addWidget(self.note_ok)
         self.note_n = n
         at = self.canvas.mapFromScene(pen.marks[n - 1][0]) + QPoint(18, -14)
         self.note_edit.setText(pen.texts[n - 1])
@@ -2523,7 +2641,9 @@ class Window(QMainWindow):
             except (KeyError, TypeError) as e:
                 self.say(f"検品の結果を読めませんでした（{e}）。目で確かめてください")
         self._record()
-        self.library_panel.add(self.library.add_work(path))
+        item = self.library.add_work(path)
+        if item:   # 赤ペンの直しだけの絵は作品にしない（空で返る）
+            self.library_panel.add(item)
         # 頼み・種・設定は描いたときに PNG に埋めてある。埋まっていない絵（前の版で描き、隣に .json だけがある物）だけ、
         # 裏の糸で埋める（PNG を書き直すので 1 枚 0.1 秒ほどかかる。別名に書いてから替えるので、読む側は壊れた絵を見ない）
         from chatdraw import finishers
@@ -2537,18 +2657,28 @@ class Window(QMainWindow):
         n = getattr(self, "_fix_count", 0) + 1
         self._fix_count = n
         try:
-            self._put_fix(path, f"赤ペンの直し {n}" + ("（崩れあり）" if bad else ""))
+            before = len(self.canvas.layers)
+            if self._put_fix(path, f"赤ペンの直し {n}" + ("（崩れあり）" if bad else "")) and len(self.canvas.layers) > before:
+                self.canvas.layers[self.canvas.current].redpen = True   # 消したら何も残さない直しのレイヤーの印
         except (OSError, ValueError) as e:
             self.say(f"直しをレイヤーに置けませんでした（{e}）")
         finally:
             if self.settings.get("result_place") != "別ファイル":   # 別ファイルで開くときは、開く側がこの絵を読む
                 Path(path).unlink(missing_ok=True)   # 置いたあとは保存先にも残さない（絵はレイヤーの中にある）
         # 直しが済んだら印は消す（残ると、いつまでも絵の上に赤い線が残った）。消した印は元に戻すで戻せる
-        for _ in range(len(self.canvas.redpen.marks)):
-            self.canvas.redpen.undo()
+        only = getattr(self, "_fix_only", 0)
+        if only:   # 印 1 つだけを直したときは、その印だけを消してほかの印を戻す
+            self.canvas.redpen.remove(only)
+            self._end_fix_only(removed=only)
+        else:
+            for _ in range(len(self.canvas.redpen.marks)):
+                self.canvas.redpen.undo()
         self._refresh_layers()
         for f in bad:
             self.say(f"崩れ: {f}")
+        whole = getattr(getattr(self, "job_studio", None) or self.studio, "last_whole", {}) or {}
+        if whole.get("left"):   # 全体の確かめは 1 回だけ測って知らせる（直し直しには繋げない）
+            self.say(whole["note"])
 
     def show_final(self):
         """描き終えたら、1 枚目の絵をキャンバスに出して履歴で選ぶ。途中の絵（重ねた下描き）は必ず消す。
@@ -2567,6 +2697,8 @@ class Window(QMainWindow):
     def finish(self):
         if self._stale():
             return
+        if getattr(self, "_fix_hid", None):   # 直しが置かれずに終わったときも、隠した印を戻す
+            self._end_fix_only()
         self._show_model()   # おまかせで選んだ模型を出す
         self.show_final()
         if self.job_kind == "draw" and self.mode.currentIndex() == 1:
@@ -2708,12 +2840,14 @@ class Window(QMainWindow):
         from chatdraw import postfx
         self.feature_tour("lineart")
         src = qimage_to_pil(self.canvas.flatten())
+        mask = self._region_mask()   # 囲んだときは囲みの中だけを線画にする（囲みの外は 1 画素も変えない）
         out = Path(self.settings.get("output_dir")) / time.strftime("%Y-%m-%d")
         path = out / f"{time.strftime('%Y%m%d-%H%M%S')}-lineart.png"
 
         def work():   # 線を取り出して書くのは裏の糸（832×1216 で 0.4 秒ほど固まった）
             out.mkdir(parents=True, exist_ok=True)
-            postfx.lineart(src).save(path)
+            line = postfx.lineart(src)
+            (line if mask is None else self._clip_to_region(line, mask)).save(path)
 
         def done(err):
             if isinstance(err, BaseException):
@@ -2730,6 +2864,7 @@ class Window(QMainWindow):
         from chatdraw import postfx
         self.feature_tour("pixel")
         img = qimage_to_pil(self.canvas.flatten())
+        mask = self._region_mask()   # 囲んだときは囲みの中だけをドット絵にする
         out = Path(self.settings.get("output_dir")) / time.strftime("%Y-%m-%d")
         stamp = time.strftime("%Y%m%d-%H%M%S")
         small = out / f"{stamp}-pixel.png"
@@ -2739,7 +2874,8 @@ class Window(QMainWindow):
             dots = postfx.pixel_art(img, long=long, colors=colors)
             out.mkdir(parents=True, exist_ok=True)
             dots.save(small)
-            postfx.enlarge(dots, img.size).save(big)
+            view = postfx.enlarge(dots, img.size)
+            (view if mask is None else self._clip_to_region(view, mask)).save(big)
             return dots.size
 
         def done(got):
@@ -3054,6 +3190,79 @@ class Window(QMainWindow):
         self.notify("ごみ箱へ移しました", "ok", "押すと戻します", on_click=lambda: self.restore_trash(key))
         return key
 
+    SWEPT_KEY = "cleanup/redpen_0519"   # 前の版の赤ペンの直しを見終えた出力の置き場（利用者の設定。2 度目からは読まない）
+
+    def sweep_old_redpen(self):
+        """0.5.19 までの版は、赤ペンの直しの結果（直した所のほかは透明な絵）を出力の置き場に書き、履歴とライブラリーに足していた。
+        レイヤーを消してもその絵が残り、履歴・ライブラリーから押すと透明な絵が出て、ゴミに見えた。
+        その絵を履歴・ライブラリーから外し、ファイルは消さずにごみ箱へ移す（本当に消すのは利用者がごみ箱で選んだときだけ）"""
+        if getattr(self, "_io_closed", False):
+            return
+        from chatdraw import redpenclean
+        roots = []
+        # 試験（描く仕組みを渡したとき）は、その出力の置き場だけを見る（利用者の本物の置き場に触らない）
+        own = getattr(self, "_own_studio", True)
+        for r in (getattr(self.studio, "out", None), self.settings.get("output_dir") if own else None):
+            if r and str(Path(r).resolve()) not in [str(Path(x).resolve()) for x in roots]:
+                roots.append(r)
+        done_roots = set(filter(None, str(self.settings.store.value(self.SWEPT_KEY) or "").split("\n")))
+        todo = [r for r in roots if str(Path(r).resolve()) not in done_roots]
+        dropped = list(getattr(self.library, "dropped_redpen", []))
+        self.library.dropped_redpen = []
+        if not todo and not dropped:
+            return
+
+        def work():
+            found = [str(p) for p in redpenclean.old_redpen_files(todo)]
+            return found + [p for p in dropped if p not in found and Path(p).is_file()]
+
+        def done(found):
+            if isinstance(found, BaseException):
+                return
+            self.settings.store.setValue(self.SWEPT_KEY, "\n".join(sorted(done_roots | {str(Path(r).resolve()) for r in todo})))
+            if not found:
+                return
+            items = self.library.take(found)
+            try:
+                self.trash.put(found, items, label="前の版の赤ペンの直し")
+            except OSError:
+                self.library.put_back(items)
+                return
+            gone = set(found)
+            for row in reversed(range(self.history.count())):
+                if self.history.item(row).data(Qt.UserRole) in gone:
+                    self.history.takeItem(row)
+            self.images = [p for p in self.images if p not in gone]
+            self.library_panel.refresh()
+            self._trash_changed()
+            self.statusBar().showMessage(f"前の版の赤ペンの直しの絵 {len(found)} 枚を、履歴とライブラリーから外してごみ箱へ移しました", 8000)
+        self.run_io(work, done, "前の版の赤ペンの直しを片付け")
+
+    def trash_layer_file(self, path: str):
+        """AI の結果のレイヤーを消したら、その画像ファイルもごみ箱へ移し、履歴とライブラリーから外す（聞かない。ごみ箱から戻せる）。
+        今の絵そのもの（作業の土台の絵）と、出力の置き場の外のファイル（手元の絵・仮の置き場）には触らない"""
+        p = Path(path)
+        if not p.is_file() or str(p) == str(getattr(self, "work_key", "") or "") or str(p) == str(getattr(self, "source_path", "") or ""):
+            return
+        roots = [Path(r).resolve() for r in (getattr(self.studio, "out", None), self.settings.get("output_dir")) if r]
+        if not any(str(p.resolve()).startswith(str(r) + os.sep) for r in roots):
+            return
+        items = self.library.take([str(p)])
+        try:
+            key = self.trash.put([str(p)], items, label="消したレイヤーの絵")
+        except OSError as e:
+            self.library.put_back(items)
+            self.notify("レイヤーの絵をごみ箱へ移せませんでした", "error", str(e))
+            return
+        for row in reversed(range(self.history.count())):
+            if self.history.item(row).data(Qt.UserRole) == str(p):
+                self.history.takeItem(row)
+        self.images = [x for x in self.images if x != str(p)]
+        self.library_panel.refresh()
+        self._trash_changed()
+        if key:
+            self.statusBar().showMessage("消したレイヤーの絵をごみ箱へ移しました（「ファイル」→「ごみ箱…」から戻せます）", 8000)
+
     def restore_trash(self, key: str) -> bool:
         """ごみ箱から元の場所へ戻し、履歴とライブラリーにも戻す"""
         m = self.trash.restore(key)
@@ -3262,13 +3471,67 @@ class Window(QMainWindow):
         QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(path).parent)))
 
     def show_history_image(self, path: str):
-        """履歴で選んだ絵をキャンバスに出す。出した絵は「固定」すると、新しく描いても入れ替わらない"""
+        """履歴で選んだ絵をキャンバスに出す。出した絵は「固定」すると、新しく描いても入れ替わらない。
+        前の絵の作業（レイヤー・赤ペンの印・表示）を残してから移り、この絵の作業が残っていれば元のとおりに戻す"""
+        if not Path(path).is_file():
+            self.notify("絵を出せません", "error", f"{path}（消したか、動かした絵です）")
+            return
+        self.work_save()
+        if self.work_open(path):
+            self._record()
+            return
         try:
             self.canvas.replace_with_image(path, "AI の絵")
         except ValueError as e:
             self.notify("絵を出せません", "error", f"{e}（消したか、動かした絵です）")
             return
+        self.canvas.redpen.clear()   # 赤ペンの印は前の絵の物（その絵の作業に残してある）
+        self.canvas.redpen.undone.clear()
+        self.work_key = str(path)
         self._record()
+
+    # ---- 絵ごとの作業を残す・戻す（chatdraw/workkeep.py） ----
+    def work_save(self, wait: bool = False):
+        """今の絵の作業を残す。絵を替える前と閉じる前に呼ぶ。使っていない赤ペンの直し（隠した・元に戻した）はここで捨てる。
+        書くのは裏の糸（wait なら書き終えるまで待つ）。アプリを開いている間は元に戻すの記録も覚える"""
+        from chatdraw import workkeep
+        key = getattr(self, "work_key", None)
+        if not key or not self.canvas.layers:
+            return
+        workkeep.discard_unused_redpen(self.canvas)
+        self._refresh_layers()
+        state = workkeep.capture(self.canvas)
+        mem = self.__dict__.setdefault("_work_mem", {})
+        mem.pop(key, None)
+        mem[key] = (state, workkeep.undo_of(self.canvas))
+        while len(mem) > workkeep.KEEP_UNDO:
+            mem.pop(next(iter(mem)))   # 古い絵から忘れる（レイヤーと印はファイルから戻る。元に戻すの記録だけが無くなる）
+        if workkeep.plain(state):
+            self.run_io(lambda: workkeep.remove(key), lambda _v: None, "作業の保存")   # 開いただけの絵には作業のファイルを置かない
+            return
+
+        def done(v):
+            if isinstance(v, BaseException):
+                self.notify("作業を残せませんでした", "error", str(v))
+        self.run_io(lambda: workkeep.write(state, key), done, "作業の保存")
+        if wait:
+            self.wait_io()
+
+    def work_open(self, key: str) -> bool:
+        """key の絵の作業が残っていれば、キャンバスに戻して True。無ければキャンバスに触らず False"""
+        from chatdraw import workkeep
+        mem = self.__dict__.setdefault("_work_mem", {}).get(str(key))
+        state, undo = mem if mem else (None, None)
+        if state is None:
+            self.wait_io()   # 書いている途中の作業を読まない
+            state = workkeep.read(str(key))
+            if state is None:
+                return False
+        workkeep.apply(self.canvas, state, undo)
+        self.work_key = str(key)
+        self._refresh_layers()
+        return True
+
 
     def layer_from_file(self, path: str, name: str) -> bool:
         """絵をレイヤーとして重ねる。読めない絵（消した・動かした）は知らせて止める"""
@@ -3325,6 +3588,16 @@ class Window(QMainWindow):
         if "redpen" in self.tool_actions:
             m.addAction("赤ペンで直す所を囲む（T）", self.tool_actions["redpen"].trigger).setToolTip(
                 "囲んで指示を書き、「描く」を押すと囲んだ所だけを AI が直します")
+            here = c.mapToScene(c.viewport().mapFromGlobal(gpos)) if gpos is not None else None
+            how = QMenu("赤ペンの囲み方", m)
+            how.setToolTipsVisible(True)
+            m.addMenu(how)
+            for key, _l, _t in REDPEN_SHAPES:
+                how.addAction(self.shared[f"redpen_shape:{key}"])
+            how.addAction(self.shared["redpen_all"])
+            if here is not None and c.layers:
+                a = how.addAction("ここを自動選択で印にする", lambda: self.run_autosel((here.x(), here.y()), None, "redpen"))
+                a.setToolTip("右クリックした所の物を AI が選び、赤ペンの印にします")
         if c.redpen.marks or c.selection is not None:
             # 「描く」を直すにして押すのと同じ道を通す（右クリックから仕上げと同じ手数で直せるように）
             m.addAction("囲んだ所を直す", self.fix_marked).setEnabled(not self.thread)
@@ -3336,6 +3609,7 @@ class Window(QMainWindow):
         if n:
             m.addAction(f"印 {n} の指示を書き直す", lambda: self.edit_note(n))
             m.addAction(f"印 {n} を消す", lambda: c.redpen.remove(n)).setToolTip("元に戻すで戻せます")
+            self._mark_menu(m, n)
             m.addSeparator()
         from chatdraw import fixmenu
         fixmenu.add_to_menu(self, m, n)   # 修正依頼と、模型を使わない整える・揃える・消す（chatdraw/fixmenu.py の 1 か所）
@@ -3350,7 +3624,7 @@ class Window(QMainWindow):
         m.addSeparator()
         # 道具・表示・選択は左端の帯やメニューと同じ操作を足す（名前もキーも、今の道具の印もそろう）
         tools = m.addMenu("道具")
-        for key in ("pen", "eraser", "eyedropper", "select", "lasso", "polygon", "hand", "redpen"):
+        for key in ("pen", "eraser", "eyedropper", "select", "lasso", "polygon", "autosel", "hand", "redpen"):
             if key in self.tool_actions:
                 tools.addAction(self.tool_actions[key])
         shapes = tools.addMenu("図形")
@@ -3430,6 +3704,88 @@ class Window(QMainWindow):
             self._shortcut_store = shortcuts.Store(self.layout_store)   # 利用者の設定（更新で消さない）
         return self._shortcut_store
 
+    def _begin_fix_only(self, n: int):
+        """赤ペン n だけを直すため、ほかの見えている印を隠す。隠した印は _end_fix_only で戻す"""
+        pen = self.canvas.redpen
+        self._fix_only = n
+        self._fix_hid = [i for i in range(1, len(pen.marks) + 1) if i != n and i in pen.shown()]
+        for i in self._fix_hid:
+            pen.set_hidden(i, True)
+
+    def _end_fix_only(self, removed: int = 0):
+        """隠したほかの印を戻す。removed は直し終えて消した印の番号（それより後ろの番号は 1 つ前へずれる）"""
+        pen = self.canvas.redpen
+        for i in getattr(self, "_fix_hid", []):
+            j = i - 1 if removed and i > removed else i
+            if 1 <= j <= len(pen.marks):
+                pen.set_hidden(j, False)
+        self._fix_hid, self._fix_only = [], 0
+        if hasattr(self, "layer_panel"):
+            self._refresh_layers()
+
+    # 赤ペンの印の右クリックに出す加工。全部の加工を印の囲み 1 つに本物の経路で掛けて測り（docs/knowledge/function-check.md の
+    # 「赤ペンの印の右クリック」）、囲みの外が 0 画素で、囲みの中が変わり、整える物は目の色の差が 1.5 以下だった物だけを残す
+    MARK_SHORTCUTS = None   # None なら下の _mark_ok で選ぶ
+
+    def _mark_items(self):
+        from chatdraw import shortcuts
+        keep = self.MARK_SHORTCUTS if self.MARK_SHORTCUTS is not None else MARK_OK
+        return [s for s in shortcuts.builtins(self) if s.id in keep]
+
+    def _mark_menu(self, m, n: int):
+        """赤ペン n の印の右クリックに、その印の囲みの中だけに掛けて意味のある加工と、登録した言葉の指示を出す"""
+        from PySide6.QtWidgets import QMenu
+        from chatdraw import shortcuts
+        sub = QMenu(f"赤ペン {n} の中だけ加工", m)
+        m.addMenu(sub)
+        sub.setToolTipsVisible(True)
+        items = self._mark_items()
+        for g, label in shortcuts.GROUPS:
+            inside = [s for s in items if s.group == g]
+            if not inside:
+                continue
+            gm = QMenu(label, sub)
+            sub.addMenu(gm)
+            gm.setToolTipsVisible(True)
+            for s in inside:
+                a = gm.addAction(s.label, lambda sid=s.id: self.run_shortcut_on_mark(n, sid))
+                a.setObjectName(f"mark{n}:{s.id}")
+                a.setEnabled(s.ready and not self.thread)
+                a.setToolTip((f"赤ペン {n} の囲みの中だけに掛けます。囲みの外は変えません。" + s.tip) if s.ready else s.reason)
+        # 登録した言葉の指示（右クリックの編集の「言葉の指示を足す…」）。その印の囲みの中だけを、その言葉で直す
+        user = [s for s in shortcuts.user_items(self, self.shortcut_store())]
+        prompts = {p["id"]: p["text"] for p in self.shortcut_store().prompts()}
+        if user:
+            sub.addSeparator()
+            for s in user:
+                a = sub.addAction(s.label, lambda t=prompts.get(s.id, ""): self.mark_instruction(n, t))
+                a.setObjectName(f"mark{n}:{s.id}")
+                a.setEnabled(s.ready and not self.thread)
+                a.setToolTip(f"「{prompts.get(s.id, '')}」で赤ペン {n} の囲みの中だけを直します。囲みの外は変えません" if s.ready else s.reason)
+        sub.addSeparator()
+        sub.addAction("言葉で指示…", lambda: self.open_text_instruction(n)).setToolTip(
+            f"言葉を書いて、赤ペン {n} の囲みの中だけを直す・加工します。書いた言葉は登録できます")
+
+    def run_shortcut_on_mark(self, n: int, sid: str):
+        """右クリックの加工を、赤ペン n の囲みの中だけに掛ける。囲み（_region_mask）は押したときに読むので、読み終えたら戻す"""
+        self._mark_only = n
+        try:
+            return self.run_shortcut(sid)
+        finally:
+            self._mark_only = 0
+
+    def mark_instruction(self, n: int, text: str):
+        """赤ペン n の右クリックで選んだ指示を、まずその印の指示の欄に書いて確定し（画面に見えてから）、そのあとで印 n だけを直す"""
+        pen = self.canvas.redpen
+        if not 1 <= n <= len(pen.marks) or not (text or "").strip():
+            return
+        self.edit_note(n)                 # 印の横の指示の欄を出し
+        self.note_edit.setText(text)      # 指示を入れ
+        self.note_ok.click()              # 確定のボタンと同じ道で確定する（欄が閉じ、印とレイヤーの欄に指示が残る）
+        self.canvas.viewport().repaint()  # 確定した指示が絵の上に見えてから直しを始める
+        from PySide6.QtCore import QTimer
+        QTimer.singleShot(0, lambda: self.fix_with_text(pen.texts[n - 1] if n <= len(pen.texts) else text, mark=n))
+
     def run_shortcut(self, sid: str):
         """ショートカットを押したとき。使えなければ理由を出して止めない。使った回数を数えて並びに使う"""
         from chatdraw import shortcuts
@@ -3447,12 +3803,22 @@ class Window(QMainWindow):
         store.count(sid)
         return s.run()
 
-    def fix_with_text(self, text: str):
+    def fix_with_text(self, text: str, mark: int = 0):
         """指示の言葉で今の絵を直す。囲み（赤ペン・選択）があれば囲みの中、無ければ絵全体を直す。
+        mark（赤ペンの番号）を渡したら、その印の囲みの中だけを直す（ほかの印は直している間だけ隠し、終わったら戻す）。
         描く処理は「直す」で頼んだときと同じ道（_draw_now）を通す"""
         from PySide6.QtCore import QRect
         if self.thread:
             self.statusBar().showMessage("描いている途中です。終わってから頼んでください", 6000)
+            return
+        if mark:
+            self._begin_fix_only(mark)
+            try:
+                self.mode.setCurrentIndex(2)
+                self._draw_now(text)   # 指示の言葉はこの回だけ使い、描くワードの欄は書き換えない
+            finally:
+                if self.thread is None:   # 始まらなかった（止めた・確かめでやめた）ときはすぐ戻す
+                    self._end_fix_only()
             return
         whole = not self.canvas.redpen.marks and self.canvas.selection_mask() is None
         if whole:   # 囲みが無ければ、絵全体を選んだ形で頼み、頼み終えたら選択を戻す
@@ -3495,15 +3861,16 @@ class Window(QMainWindow):
         self._pick_dialog = dlg
         return dlg
 
-    def open_text_instruction(self):
-        """言葉で指示する窓。書いた言葉で今の絵（囲みがあれば囲みの中）を直す・加工する・描く。名前を付けて登録もできる"""
+    def open_text_instruction(self, mark: int = 0):
+        """言葉で指示する窓。書いた言葉で今の絵（囲みがあれば囲みの中）を直す・加工する・描く。名前を付けて登録もできる。
+        mark（赤ペンの番号）を渡したら、その印の囲みの中だけを直す"""
         from PySide6.QtWidgets import QDialog, QHBoxLayout, QLabel, QPushButton, QVBoxLayout
         from chatdraw import voice
         from chatdraw.chatpanel import EnterEdit
         dlg = QDialog(self)
         dlg.setWindowTitle("言葉で指示")
         lay = QVBoxLayout(dlg)
-        where = "囲んだ所" if (self.canvas.redpen.marks or self.canvas.selection is not None) else "絵全体"
+        where = f"赤ペン {mark} の囲みの中" if mark else "囲んだ所" if (self.canvas.redpen.marks or self.canvas.selection is not None) else "絵全体"
         dlg.where = QLabel(f"直す所: {where}")
         dlg.where.setToolTip("赤ペンか四角の選択で囲んでから開くと、囲んだ所だけを直します")
         lay.addWidget(dlg.where)
@@ -3531,7 +3898,7 @@ class Window(QMainWindow):
                 dlg.edit.setFocus()
                 return
             dlg.accept()
-            self.text_instruction(text)
+            self.text_instruction(text, mark=mark)
 
         def save():
             text = dlg.edit.text().strip()
@@ -3547,7 +3914,7 @@ class Window(QMainWindow):
         self._text_dialog = dlg
         return dlg
 
-    def text_instruction(self, text: str):
+    def text_instruction(self, text: str, mark: int = 0):
         """言葉の指示を行う。加工の名前があれば加工、「〜を描いて」なら新しく描く、それ以外は今の絵を直す。
         どれも AI の欄・右クリックと同じ関数を通す（日本語は描く処理の中の言葉の直しを通り、そのまま絵の模型に渡らない）"""
         from chatdraw import chatplan, finishers
@@ -3561,7 +3928,14 @@ class Window(QMainWindow):
         entries = [{"name": n, "label": f.label} for n, f in finishers.REGISTRY.items()]
         plan = chatplan.parse(text, entries)
         if any(st not in ("draw", "fix") for st in plan.steps) or plan.repeat > 1 or plan.export is not None:
-            self.run_plan(plan)
+            self._mark_only = mark   # 加工の囲み（_region_mask）は押したときに読む
+            try:
+                self.run_plan(plan)
+            finally:
+                self._mark_only = 0
+            return
+        if mark:   # 赤ペンの印から頼んだときは、新しく描かずに、その印の指示の欄に書いて確定してから、その印の中を直す
+            self.mark_instruction(mark, text)
             return
         if draw_request(text) is not None:
             self.mode.setCurrentIndex(0)
@@ -4121,7 +4495,9 @@ class Window(QMainWindow):
         if self.mode.currentIndex() == 0:
             # 新しく描いた絵は、いつも同じ形で置く（キャンバスを置き換え、前の状態は元に戻すで戻せる）。
             # 前は、キャンバスの状態で置き換えたり上に重ねたりが変わり、大きさの違う絵が重なった
-            self.put_result(path, f"AI の絵 {len(self.images)}", replace=True)
+            self.work_save()   # 前の絵の作業を残してから置き換える
+            if self.put_result(path, f"AI の絵 {len(self.images)}", replace=True):
+                self.work_key = str(path)
             self.origin_prompt = getattr(self, "last_text", "")   # 直しのときに、元の頼みと食い違いを見る
         else:
             self.put_result(path, f"AI の絵 {len(self.images)}")
@@ -4244,6 +4620,11 @@ class Window(QMainWindow):
         if hasattr(self, "layer_panel"):
             self._refresh_layers()
         c = self.canvas
+        box = getattr(self, "note_box", None)
+        fewer = len(c.redpen.marks) < getattr(self, "_marks_seen", 0)
+        self._marks_seen = len(c.redpen.marks)
+        if box is not None and box.isVisible() and (fewer or not 1 <= getattr(self, "note_n", 0) <= len(c.redpen.marks)):
+            box.hide()   # 消えた印の指示の欄を残さない（印を消した・直し終えた・絵を替えたあとも枠と欄が残っていた）
         if c.redpen.marks or c.selection is not None:
             return
         if self.mode.currentIndex() == 2:
@@ -4270,6 +4651,8 @@ class Window(QMainWindow):
     def fail(self, why: str):
         if self._stale():
             return
+        if getattr(self, "_fix_hid", None):
+            self._end_fix_only()
         self.canvas.show_overlay(None)
         why = (why or "うまくいきませんでした").strip().splitlines()[0]   # 何が起きたかを 1 行で出す（「描けませんでした」の決まり文句は出さない）
         stop = "止め" in why
@@ -4322,6 +4705,8 @@ class Window(QMainWindow):
             self.fill_shapes_act.setVisible(key in ("rect", "ellipse", "polyshape", "regpoly"))
         if hasattr(self, "poly_sides_act"):
             self.poly_sides_act.setVisible(key == "regpoly")
+        if hasattr(self, "redpen_shape_bar"):
+            self.redpen_shape_bar.setVisible(key == "redpen")
         if hasattr(self, "brush_preview"):
             self.brush_preview.update()
 
@@ -4968,6 +5353,7 @@ class Window(QMainWindow):
         if not self.finish_threads_before_close():
             e.ignore()
             return
+        self.work_save()   # 今の絵の作業を残す（開き直して同じ絵を出せば元のとおりに戻る）
         self.wait_io()   # 裏で書いている保存を書き終えてから閉じる（書きかけの作業ファイルを残さない）
         # アプリ全体で効くキー（緊急停止、操作を探す）は、閉じた窓の分を外す。残すと、閉じた窓の動作が
         # キーの一覧に残り続け、窓を何度も開け閉めしたあとにキーを押すとアプリごと落ちた
@@ -5016,7 +5402,10 @@ class Window(QMainWindow):
         if not Path(path).is_file():
             self.notify("開けませんでした", "error", f"絵が見つかりません: {path}")
             return
-        self.canvas.replace_with_image(path, Path(path).stem)
+        self.work_save()
+        if not self.work_open(path):
+            self.canvas.replace_with_image(path, Path(path).stem)
+            self.work_key = str(path)
         self.project_path = None
         self.source_path = str(path)   # 「結合して元の画像に上書き保存」で書き戻す先
         self.mode.setCurrentIndex(2)   # 直す
@@ -5103,7 +5492,7 @@ class Window(QMainWindow):
             self.notify("加工で絵が崩れたので、掛けませんでした", "info", finishers.qc_note())
             return None
         note = finishers.qc_note()   # 元に戻した所（目の色・髪の色・崩れた区画）を知らせる。黙って戻さない
-        path = self._place_finished(name, base, out)
+        path = self._place_finished(name, base, out, clip=mask if getattr(self, "_mark_only", 0) else None)
         if note and path is not None:
             self.notify("加工の検品の結果", "info", note + "見比べて、使うか消すかを決めてください")
         return path
@@ -5153,17 +5542,19 @@ class Window(QMainWindow):
             if all(q.get("rejected") for q in finishers.LAST_CHAIN):
                 return None   # どの工程も崩れたので採らない（置かない）
             return self._save_out(out, path)
-        self._run_task(work, lambda out: self._chain_done(name, label, base, out, path))
+        # 赤ペンの印の右クリックから掛けたときは、結果を囲みの中だけのレイヤーにする（直した所だけのレイヤー）
+        clip = mask if getattr(self, "_mark_only", 0) else None
+        self._run_task(work, lambda out: self._chain_done(name, label, base, out, path, clip))
         return None
 
-    def _chain_done(self, name, label, base, out, path):
+    def _chain_done(self, name, label, base, out, path, clip=None):
         from chatdraw import finishers
         note = finishers.chain_note()
         if out is None:
             self._end(f"{label}は掛けませんでした")
             self.notify("加工で絵が崩れたので、掛けませんでした", "info", note + "元の絵のままです")
             return
-        self._place_finished(name, base, out, path)
+        self._place_finished(name, base, out, path, clip=clip)
         self._end(f"{label}を掛けました")
         if note:
             self.notify("加工の検品の結果", "info", note + "見比べて、使うか消すかを決めてください")
@@ -5184,10 +5575,25 @@ class Window(QMainWindow):
         self.notify("組み合わせを登録しました", "ok", "絵の上の右クリックの「自分の組み合わせ」から選べます")
         return sid
 
+    @staticmethod
+    def _clip_to_region(img, mask):
+        """加工の結果 img（PIL）を囲みの中だけのレイヤーにする（囲みの外は透明）。下の元の絵が透けるので、
+        囲みの外は 1 画素も変わらない。mask が None か大きさが違えば img のまま（RGBA にして返す）"""
+        from chatdraw.finishers import binary
+        from PIL import ImageChops
+        out = img.convert("RGBA")
+        if mask is None:
+            return out
+        out.putalpha(ImageChops.multiply(out.getchannel("A"), binary(mask, out.size)))
+        return out
+
     def _region_mask(self):
         """赤ペンの囲みと選択範囲を合わせた囲み（PIL の L）。どちらも無ければ None"""
         from PIL import ImageChops
         masks = [gray_to_pil(m) for m in self.canvas.redpen.masks()]
+        only = getattr(self, "_mark_only", 0)
+        if only:   # 赤ペンの印の右クリックから掛けるときは、その印の囲みの中だけ（ほかの印と選択は見ない）
+            return masks[only - 1].convert("L") if 1 <= only <= len(masks) else None
         sel = self.canvas.selection_mask()
         if sel is not None:
             masks.append(gray_to_pil(sel))
@@ -5448,8 +5854,15 @@ class Window(QMainWindow):
         preload(path)
         return out
 
-    def _place_finished(self, name: str, base, out, path: Path | None = None):
-        """仕上げた絵を保存し、同じ大きさなら新しいレイヤー、拡大なら置き換えで置く。path を渡したら書き済み"""
+    def _place_finished(self, name: str, base, out, path: Path | None = None, clip=None):
+        """仕上げた絵を保存し、同じ大きさなら新しいレイヤー、拡大なら置き換えで置く。path を渡したら書き済み。
+        clip（囲み）を渡したら、同じ大きさの結果は囲みの中だけのレイヤーにする（囲みの外は透明で、下の元の絵のまま）"""
+        from chatdraw import finishers as _f
+        effect = _f.REGISTRY.get(name) is not None and _f.REGISTRY[name].extra.get("effect")
+        if clip is not None and out.size == base.size and not effect:   # エフェクトは下で変わった画素だけのレイヤーにする
+            out = self._clip_to_region(out, clip)
+            path = path or self._finished_path(name)
+            self._save_out(out, path)
         if path is None:
             path = self._finished_path(name)
             self._save_out(out, path)
@@ -5554,6 +5967,8 @@ class Window(QMainWindow):
 
     def open_path(self, path: str, restore: bool = False):
         from chatdraw import project
+        self.work_save()
+        self.work_key = None   # 作業ファイル・手元の絵は、そのファイルに保存する（絵ごとの作業の置き場は使わない）
         if path.endswith(project.SUFFIX):
             # 読んで PNG を戻すのは裏の糸。置くのは画面の糸（レイヤーが多いと 0.1 秒を超えた）
             def done(got):
