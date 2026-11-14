@@ -18,15 +18,18 @@ from chatdraw.brush import PRESETS, Brush, Dabs, stamp
 UNDO_BYTES = 1_500_000_000   # 元に戻すに使うメモリの上限（約 1.5GB）
 TOOL_NAMES = {"redpen": "赤ペン", "eraser": "消しゴム", "blur": "ぼかし", "fill": "塗りつぶし", "gradient": "グラデーション", "line": "直線",
               "rect": "四角", "ellipse": "楕円", "move": "移動", "select": "四角の選択", "lasso": "投げなわの選択", "polygon": "多角形の選択",
-              "spray": "スプレー", "smudge": "指先", "text": "文字"}
+              "spray": "スプレー", "smudge": "指先", "text": "文字",
+              "polyshape": "多角形", "regpoly": "正多角形"}
 COLOR_MODES = ("単色", "虹色", "描く色と背景色を行き来")   # ペンの色の出方（色の欄で選ぶ）
 CURSOR_STYLES = ("十字と筆の輪", "点と筆の輪", "筆の輪だけ", "矢印")   # 設定の「カーソル」で選ぶ形
 BRUSH_TOOLS = ("pen", "eraser", "blur", "spray", "smudge")                     # なぞって描く道具（筆の輪を出す）
-DRAG_TOOLS = ("line", "rect", "ellipse", "gradient", "move", "select", "lasso")   # 押した所から離した所までで決まる道具
+DRAG_TOOLS = ("line", "rect", "ellipse", "regpoly", "gradient", "move", "select", "lasso")   # 押した所から離した所までで決まる道具
 SELECT_TOOLS = ("select", "lasso", "polygon")   # 範囲を選ぶ道具。レイヤーを変えないので、隠したレイヤーでも使える
 # 対称の形。線対称は左右（縦の軸）・上下（横の軸）・上下左右、点対称は軸の中心の周りに半回転して写す
 SYMMETRY = {"lr": "左右（縦の軸）", "ud": "上下（横の軸）", "both": "上下左右", "point": "点対称（中心の周り）"}
 AXIS_GRIP = 7   # 軸をつかむ丸の半径（画面の画素）
+STABILIZER_MAX = 100   # 手ぶれ補正の強さの上限
+QUICKSHAPE_MS = 500    # 描いて止めてから形を整えるまでの時間（ミリ秒）
 
 
 @dataclass
@@ -129,6 +132,7 @@ class Canvas(QGraphicsView):
     note_wanted = Signal(int)   # 赤ペンの印に、絵の上で指示を書く（印の番号、1 から）
     menu_wanted = Signal(QPoint)  # 右クリック（動かさずに離した）。画面の位置で右クリックのメニューを出す
     stroke_done = Signal()        # 線・塗り・レイヤーが 1 回変わった（タイムラプスの写しを撮る）
+    shaped = Signal(str)          # 描いて止めた線を形に整えた（整えた形の名前。下の帯に出す）
     view_changed = Signal()       # 表示の回転・左右反転・グリッドが変わった（つまみと印を合わせる）
 
     def drawBackground(self, painter, rect):
@@ -191,6 +195,19 @@ class Canvas(QGraphicsView):
         self.sym_center: QPointF | None = None   # 対称の軸の中心（絵の座標）。None は絵の真ん中
         self._axis_drag = False
         self._over_axis = False
+        # 描く補助（chatdraw/assist.py）。Shift の角度の固定、正多角形の辺の数、定規、形の補正
+        self.shift = False            # Shift を押しているか（直線は 15 度ごと、四角は正方形、楕円は正円）
+        self.poly_sides = 6           # 正多角形の辺の数
+        self.shape_points: list[QPointF] = []   # 多角形の道具で置きかけの角
+        self.ruler = ""               # 定規の形（assist.RULERS の鍵）。"" は切る
+        self.ruler_pts: list[QPointF] = []      # 定規の点（同心円・放射の中心、消失点、平行線の向きの 2 点）
+        self.ruler_dir = None         # パース 2 点で、この線に決めた向き
+        self._ruler_drag = -1
+        self.stroke_start: QPointF | None = None
+        self.quickshape = False       # 描いて止めると形を整える
+        self.qs_points: list[tuple] = []
+        self.qs_shape = None          # 整えた形（整える前の線は qs_raw）
+        self.qs_raw: QImage | None = None
         self.color_mode = COLOR_MODES[0]
         self.stroke_len = 0.0         # 線の始めからの長さ（虹色の色相を進める）
         self.held: str | None = None   # Space や Alt を押している間だけ持ち替える前の道具
@@ -229,6 +246,17 @@ class Canvas(QGraphicsView):
         self.axis_handle.setVisible(False)
         self.axis_handle.setToolTip("ドラッグで対称の軸を動かします")
         self.scene().addItem(self.axis_handle)
+        self.ruler_handles: list[QGraphicsEllipseItem] = []
+        for _i in range(2):   # 定規の点をつかむ丸（対称の軸の丸と見分けるよう緑にする）
+            hd = QGraphicsEllipseItem(-AXIS_GRIP, -AXIS_GRIP, 2 * AXIS_GRIP, 2 * AXIS_GRIP)
+            hd.setPen(QPen(QColor("white"), 1.5))
+            hd.setBrush(QColor(34, 170, 90, 220))
+            hd.setFlag(QGraphicsItem.ItemIgnoresTransformations)
+            hd.setZValue(1e9 - 2)
+            hd.setVisible(False)
+            hd.setToolTip("ドラッグで定規の中心・消失点を動かします")
+            self.scene().addItem(hd)
+            self.ruler_handles.append(hd)
         from chatdraw.redpen import RedPen
         self.redpen = RedPen()   # 赤ペン先生の印。レイヤーとは別に持ち、保存する絵にも AI に渡す絵にも入れない
         self.scene().addItem(self.redpen)
@@ -242,6 +270,9 @@ class Canvas(QGraphicsView):
         self.idle = QTimer(self)
         self.idle.setSingleShot(True)
         self.idle.timeout.connect(self._hide_cursor)
+        self.qs_timer = QTimer(self)
+        self.qs_timer.setSingleShot(True)
+        self.qs_timer.timeout.connect(self.quick_shape)
 
     def _hide_cursor(self):
         if self.last is None and self.drag_start is None and self.pan_from is None and self.underMouse():
@@ -539,7 +570,12 @@ class Canvas(QGraphicsView):
         # 大きさの違う絵にしたとき、軸が前の絵の真ん中に残り、線が軸と違う所で折り返された
         if self.sym_center is not None and not QRectF(0, 0, w, h).contains(self.sym_center):
             self.sym_center = None
+        # 絵を作る前に選んだ定規は点が無く、大きさの違う絵では点が遠くに残る。どちらも今の絵の初めの所に置き直す
+        if self.ruler and (not self.ruler_pts or any(not QRectF(-w, -h, 3 * w, 3 * h).contains(q) for q in self.ruler_pts)):
+            self.ruler_pts = []
+            self.set_ruler(self.ruler)
         self._update_axis()
+        self._update_ruler()
         self.changed.emit()
 
     # ---- AI が描いている途中の絵 ----
@@ -796,6 +832,8 @@ class Canvas(QGraphicsView):
 
     def drawForeground(self, painter, rect):
         super().drawForeground(painter, rect)
+        if self.ruler and self.layers:
+            self._draw_guides(painter)
         if not self.grid or not self.layers:
             return
         w, h = self.size_px()
@@ -849,6 +887,10 @@ class Canvas(QGraphicsView):
             self.brush = self.brushes["ペン"]   # ペンに持ち替えたのに消しゴムのブラシのままにしない
         if tool != self.tool and self.poly_points:
             self.poly_points = []   # 道具を替えたら置きかけの多角形はやめる
+            self.set_selection(self.selection, self.selection_shape)
+        if tool != self.tool and self.shape_points:
+            self.shape_points = []   # 置きかけの多角形の図形もやめる
+            self.sel_path_item.setVisible(False)
             self.set_selection(self.selection, self.selection_shape)
         self.tool = tool
         self.setDragMode(QGraphicsView.ScrollHandDrag if tool == "hand" else QGraphicsView.NoDrag)
@@ -1133,9 +1175,186 @@ class Canvas(QGraphicsView):
         if self.stabilizer <= 0 or self.steady is None:
             self.steady = QPointF(pos)
             return pos
-        k = 1.0 / (self.stabilizer + 1)
+        # 強さ 0〜100。前の 0〜20 の段と同じ効き（100 で前の 20 と同じ遅れ）になるよう 1/5 にして使う
+        k = 1.0 / (self.stabilizer / 5 + 1)
         self.steady = QPointF(self.steady.x() + (pos.x() - self.steady.x()) * k, self.steady.y() + (pos.y() - self.steady.y()) * k)
         return QPointF(self.steady)
+
+    # ---- 描く補助: Shift の固定・定規・形の補正 ----
+    def constrained(self, a: QPointF, b: QPointF) -> QPointF:
+        """図形の道具の終わりの点に、Shift の固定（直線・正多角形は 15 度ごと、四角は正方形、楕円は正円）と、直線への定規を掛ける"""
+        from chatdraw import assist
+        if self.tool == "line" and self.ruler and not self.shift:
+            return QPointF(*assist.ruler_snap(self.ruler, (a.x(), a.y()), self._ruler_tuple(), (b.x(), b.y())))
+        if not self.shift:
+            return b
+        if self.tool in ("line", "regpoly", "gradient", "polyshape"):
+            return QPointF(*assist.snap_angle((a.x(), a.y()), (b.x(), b.y())))
+        if self.tool in ("rect", "ellipse"):
+            return QPointF(*assist.square_end((a.x(), a.y()), (b.x(), b.y())))
+        return b
+
+    def _ruler_tuple(self) -> list:
+        return [(q.x(), q.y()) for q in self.ruler_pts]
+
+    def set_ruler(self, kind: str):
+        """定規を決める。"" で切る。同じ意味の点（中心どうし）の定規に替えたら点を残し、違えばその定規の初めの所に置く"""
+        from chatdraw.assist import RULERS
+        kind = kind or ""
+        if kind and kind not in RULERS:
+            raise ValueError(kind)
+        group = {"parallel": "dir", "persp2": "vp2"}.get(kind, "center") if kind else ""
+        if kind and self.layers and (group != self._ruler_group or not self.ruler_pts):
+            w, h = self.size_px()
+            if group == "dir":
+                self.ruler_pts = [QPointF(w * 0.3, h * 0.5), QPointF(w * 0.7, h * 0.5)]
+            elif group == "vp2":
+                self.ruler_pts = [QPointF(w * 0.05, h * 0.4), QPointF(w * 0.95, h * 0.4)]
+            else:
+                self.ruler_pts = [QPointF(w / 2, h / 2)]
+        if kind:
+            self._ruler_group = group
+        self.ruler = kind
+        self._update_ruler()
+        self.view_changed.emit()
+
+    _ruler_group = ""
+
+    def set_ruler_point(self, i: int, pos: QPointF | None):
+        """定規の i 番目の点を動かす（None で初めの所に戻す）"""
+        if pos is None:
+            self.ruler_pts = []
+            self.set_ruler(self.ruler)
+            return
+        if 0 <= i < len(self.ruler_pts):
+            self.ruler_pts[i] = QPointF(pos)
+            self._update_ruler()
+
+    def _update_ruler(self):
+        on = bool(self.ruler) and bool(self.layers)
+        for i, hd in enumerate(self.ruler_handles):
+            vis = on and i < len(self.ruler_pts)
+            hd.setVisible(vis)
+            if vis:
+                hd.setPos(self.ruler_pts[i])
+        self.viewport().update()
+
+    def on_ruler_handle(self, view_pos) -> int:
+        """画面の点 view_pos が定規の点の丸の上なら、その番号。上でなければ -1"""
+        for i, hd in enumerate(self.ruler_handles):
+            if hd.isVisible():
+                d = self.mapFromScene(hd.pos()) - view_pos
+                if d.x() ** 2 + d.y() ** 2 <= (AXIS_GRIP + 3) ** 2:
+                    return i
+        return -1
+
+    def _draw_guides(self, painter):
+        """定規の案内の線を、絵の中だけに薄く描く"""
+        from chatdraw.assist import ruler_guides
+        w, h = self.size_px()
+        painter.save()
+        painter.setClipRect(QRectF(0, 0, w, h))
+        painter.setPen(QPen(QColor(34, 170, 90, 110), 0, Qt.DashLine))
+        painter.setBrush(Qt.NoBrush)
+        for g in ruler_guides(self.ruler, self._ruler_tuple(), w, h):
+            if g[0] == "circle":
+                painter.drawEllipse(QPointF(g[1], g[2]), g[3], g[3])
+            else:
+                painter.drawLine(QPointF(g[0], g[1]), QPointF(g[2], g[3]))
+        painter.restore()
+
+    def assisted(self, pos: QPointF) -> QPointF:
+        """なぞる道具の今の所を、定規に沿わせる。パース 2 点は少し動かしてから向きを決める"""
+        if not self.ruler or self.stroke_start is None or not self.ruler_pts:
+            return pos
+        from chatdraw import assist
+        a = (self.stroke_start.x(), self.stroke_start.y())
+        now = (pos.x(), pos.y())
+        if self.ruler == "persp2" and self.ruler_dir is None:
+            if (pos - self.stroke_start).manhattanLength() < 6 / max(0.01, self.zoom()):
+                return QPointF(self.stroke_start)   # 向きが決まるまでは始めの所から動かさない
+            self.ruler_dir = assist.ruler_direction("persp2", a, self._ruler_tuple(), now)
+        return QPointF(*assist.ruler_snap(self.ruler, a, self._ruler_tuple(), now, self.ruler_dir))
+
+    def quick_shape(self) -> bool:
+        """描いている線を止めたとき、形（直線・円・楕円・四角・三角）に見えれば、その形に描き直す。
+        整える前の線は残し、離したあとの元に戻すで、整える前の線に戻せる"""
+        if self.last is None or self.buffer is None or self.qs_shape is not None or self.tool != "pen":
+            return False
+        from chatdraw import assist
+        shape = assist.recognize(self.qs_points, min_size=max(12.0, 3 * self.size))
+        if shape is None:
+            return False
+        self.qs_raw = self.buffer.copy()
+        self.buffer.fill(Qt.transparent)
+        self.carry = 0.0
+        pts = [QPointF(*q) for q in assist.shape_points(shape)]
+        for a, b in zip(pts, pts[1:]):
+            self.stroke(a, b, self.pressure)
+        self.qs_shape = shape
+        self.items[self.current].update()
+        self.shaped.emit(assist.SHAPE_NAMES[shape[0]])
+        return True
+
+    def _end_brush(self, pos: QPointF | None):
+        """なぞる線を離したとき。手ぶれ補正で遅れた分を離した所まで引き、整えた形は 2 段の元に戻すにして置く"""
+        self.qs_timer.stop()
+        if self.qs_shape is None and pos is not None and self.stabilizer > 0 and self.last is not None:
+            # 手ぶれ補正で、線の終わりが離した所まで届かずに短く切れていた
+            end = self.assisted(pos)
+            if (end - self.last).manhattanLength() > 0.01:
+                self.stroke(self.last, end, self.pressure)
+        if self.qs_shape is not None and self.qs_raw is not None and self.undo_stack and self.undo_stack[-1][0] == "one":
+            before = self.undo_stack[-1][2]
+            shaped, self.buffer = self.buffer, self.qs_raw
+            self.items[self.current].buffer = self.buffer
+            self.end_stroke()                    # 1 段目: 整える前の線
+            self.snapshot()
+            self.undo_names[-1] = "形を整える"
+            self.layers[self.current].image = before.copy()
+            self.items[self.current].sync()
+            self.buffer = shaped
+            self.items[self.current].buffer = shaped
+        self.end_stroke()
+        self.qs_shape, self.qs_raw, self.qs_points = None, None, []
+        self.stroke_start, self.ruler_dir = None, None
+
+    # ---- 多角形の図形 ----
+    def _shape_preview(self, closing: QPointF | None = None):
+        path = QPainterPath()
+        if self.shape_points:
+            path.moveTo(self.shape_points[0])
+            for q in self.shape_points[1:]:
+                path.lineTo(q)
+            if closing is not None:
+                path.lineTo(closing)
+        self.sel_item.setVisible(False)
+        self.sel_path_item.setPath(path)
+        self.sel_path_item.setVisible(bool(self.shape_points))
+
+    def finish_shape(self) -> bool:
+        """多角形の図形を閉じて描く（ダブルクリック、Enter、始めの角を押す）。角が 3 つ未満なら描かずにやめる"""
+        pts, self.shape_points = self.shape_points, []
+        self.sel_path_item.setVisible(False)
+        self.set_selection(self.selection, self.selection_shape)
+        if len(pts) < 3 or not self.layers:
+            return False
+        self.used_color.emit()
+        self.snapshot()
+        img = self.layers[self.current].image
+        p = QPainter(img)
+        p.setRenderHint(QPainter.Antialiasing)
+        if self.selection is not None:
+            p.setClipPath(self.selection_path())
+        p.setOpacity(self.paint_opacity())
+        p.setPen(QPen(self.opaque(), self.size, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+        p.setBrush(self.opaque() if self.fill_shapes else Qt.NoBrush)
+        for m in self.sym_maps():
+            p.drawPolygon(QPolygonF([m(q) for q in pts]))
+        p.end()
+        self.items[self.current].update()
+        self.stroke_done.emit()
+        return True
 
     def pick(self, pos: QPointF):
         img = self.flatten()
@@ -1383,6 +1602,7 @@ class Canvas(QGraphicsView):
         self.buffer.fill(Qt.transparent)
         p = QPainter(self.buffer)
         p.setRenderHint(QPainter.Antialiasing)
+        b = self.constrained(a, b)
         if self.tool == "gradient":
             g = QLinearGradient(a, b)
             g.setColorAt(0, self.opaque())
@@ -1396,6 +1616,9 @@ class Canvas(QGraphicsView):
                 a2, b2 = m(a), m(b)
                 if self.tool == "line":
                     p.drawLine(a2, b2)
+                elif self.tool == "regpoly":
+                    from chatdraw.assist import regular_polygon
+                    p.drawPolygon(QPolygonF([QPointF(*q) for q in regular_polygon((a2.x(), a2.y()), (b2.x(), b2.y()), self.poly_sides)]))
                 elif self.tool == "rect":
                     p.drawRect(QRectF(a2, b2).normalized())
                 else:
@@ -1435,6 +1658,16 @@ class Canvas(QGraphicsView):
         self.end_stroke()
 
     # ---- マウスとペンタブレット ----
+    def _brush_move(self, pos: QPointF):
+        if self.qs_shape is not None:
+            return   # 形に整えたあとは、離すまで線を足さない
+        pos = self.assisted(self.steadied(pos))
+        self.stroke(self.last, pos, self.pressure)
+        self.last = pos
+        if self.quickshape and self.tool == "pen":
+            self.qs_points.append((pos.x(), pos.y()))
+            self.qs_timer.start(QUICKSHAPE_MS)   # 動かすたびに数え直し、止めて少したったら整える
+
     def _press(self, pos: QPointF, pressure: float):
         if self.tool == "redpen" and self.layers:
             self.redpen.begin(pos)
@@ -1456,6 +1689,15 @@ class Canvas(QGraphicsView):
                 self.refused.emit(f"「{layer.name}」は{'隠して' if not layer.visible else 'ロックして'}いるので描けません。"
                                   "レイヤーの欄で出すか、ロックを外すか、ほかのレイヤーを選んでください")
                 return True
+        if self.tool == "polyshape":
+            if self.shape_points and self.shift:
+                pos = self.constrained(self.shape_points[-1], pos)
+            if len(self.shape_points) >= 3 and (pos - self.shape_points[0]).manhattanLength() < 8 / max(0.01, self.zoom()):
+                self.finish_shape()
+                return True
+            self.shape_points.append(QPointF(pos))
+            self._shape_preview()
+            return True
         if self.tool == "eyedropper":
             self.pick(pos)
             return True
@@ -1488,6 +1730,8 @@ class Canvas(QGraphicsView):
                 self.used_color.emit()
             self.snapshot()
             self.begin_stroke()
+            self.stroke_start, self.ruler_dir = QPointF(pos), None
+            self.qs_points, self.qs_shape, self.qs_raw = [(pos.x(), pos.y())], None, None
             self.steady = QPointF(pos)
             self.last = pos
             self.stroke(pos, pos, pressure)
@@ -1503,6 +1747,10 @@ class Canvas(QGraphicsView):
             return
         if e.button() == Qt.RightButton and self.tool != "zoom":
             self.pan_from, self.panned = e.position().toPoint(), False
+            return
+        self.shift = bool(e.modifiers() & Qt.ShiftModifier)
+        if e.button() == Qt.LeftButton and self.on_ruler_handle(e.position().toPoint()) >= 0:
+            self._ruler_drag = self.on_ruler_handle(e.position().toPoint())   # 定規の丸をつかんだら、描かずに定規を動かす
             return
         if e.button() == Qt.LeftButton and self.on_axis_handle(e.position().toPoint()):
             self._axis_drag = True   # 軸の丸をつかんだら、描かずに軸を動かす
@@ -1527,6 +1775,12 @@ class Canvas(QGraphicsView):
         """赤ペンの番号の丸をダブルクリックすると、その印の指示を書き直す"""
         if self.tool == "polygon" and self.poly_points:
             self.finish_polygon()   # ダブルクリックで多角形を閉じる
+            return
+        if self.tool == "polyshape" and self.shape_points:
+            # ダブルクリックの 1 回目で置いた角と同じ所の角は外してから閉じる
+            if len(self.shape_points) >= 2 and (self.shape_points[-1] - self.shape_points[-2]).manhattanLength() < 2:
+                self.shape_points.pop()
+            self.finish_shape()
             return
         n = self.redpen.number_at(self.mapToScene(e.position().toPoint()), self.zoom())
         if n:
@@ -1554,6 +1808,10 @@ class Canvas(QGraphicsView):
                 self.pan_from = now
             return
         pos = self.mapToScene(e.position().toPoint())
+        self.shift = bool(e.modifiers() & Qt.ShiftModifier)
+        if self._ruler_drag >= 0:
+            self.set_ruler_point(self._ruler_drag, pos)
+            return
         if self._axis_drag:
             self.set_axis_center(pos)
             return
@@ -1568,13 +1826,13 @@ class Canvas(QGraphicsView):
             return
         if self.tool == "polygon" and self.poly_points:
             self._show_points(self.poly_points, pos)   # 次の角までの線を見せる
+        if self.tool == "polyshape" and self.shape_points:
+            self._shape_preview(self.constrained(self.shape_points[-1], pos))
         if self.redpen.drawing is not None:
             self.redpen.add(pos)
             return
         if self.last is not None:
-            pos = self.steadied(pos)
-            self.stroke(self.last, pos, self.pressure)
-            self.last = pos
+            self._brush_move(pos)
             return
         if self.tool == "eyedropper" and e.buttons() & Qt.LeftButton:
             self.pick(pos)
@@ -1583,6 +1841,10 @@ class Canvas(QGraphicsView):
     def mouseReleaseEvent(self, e):
         if self._rot_from is not None and e.button() == Qt.LeftButton:
             self._rot_from = None
+            return
+        if self._ruler_drag >= 0 and e.button() == Qt.LeftButton:
+            self._ruler_drag = -1
+            self.view_changed.emit()
             return
         if self._axis_drag and e.button() == Qt.LeftButton:
             self._axis_drag = False
@@ -1603,12 +1865,13 @@ class Canvas(QGraphicsView):
                 self.note_wanted.emit(len(self.redpen.marks))   # 囲んだらすぐ、その横に指示を書ける
             return
         if self.drag_start is not None:
+            self.shift = bool(e.modifiers() & Qt.ShiftModifier)
             self.end_drag(self.drag_start, self.mapToScene(e.position().toPoint()))
             self.drag_start = None
             self.stroke_done.emit()
             return
         if self.last is not None:
-            self.end_stroke()
+            self._end_brush(self.mapToScene(e.position().toPoint()))
             self.last = None
             self.pressure = 1.0
             self.stroke_done.emit()
@@ -1633,26 +1896,33 @@ class Canvas(QGraphicsView):
                 self.view_changed.emit()
             e.accept()
             return
+        if t in (e.Type.TabletPress, e.Type.TabletMove, e.Type.TabletRelease):
+            self.shift = bool(e.modifiers() & Qt.ShiftModifier)
         if t == e.Type.TabletPress:
             self._press(pos, self.pressure)
         elif t == e.Type.TabletMove and self.redpen.drawing is not None:
             self.redpen.add(pos)
         elif t == e.Type.TabletRelease and self.redpen.drawing is not None:
+            short = len(self.redpen.drawing) < 3
             self.redpen.end()
-            self.note_wanted.emit(len(self.redpen.marks))
+            if short:
+                self.redpen.undo()   # マウスと同じく、押しただけは印にしない（前はペンでだけ点の印が残った）
+            else:
+                self.note_wanted.emit(len(self.redpen.marks))
         elif t == e.Type.TabletMove and self.drag_start is not None:
             self.drag(self.drag_start, pos)
         elif t == e.Type.TabletRelease and self.drag_start is not None:
             self.end_drag(self.drag_start, pos)
             self.drag_start = None
+            self.stroke_done.emit()   # 前はペンで引いた直線・図形だけタイムラプスの写しが撮られなかった
         elif t == e.Type.TabletMove and self.last is not None:
-            pos = self.steadied(pos)
-            self.stroke(self.last, pos, self.pressure)
-            self.last = pos
-        elif t == e.Type.TabletRelease:
-            self.end_stroke()
+            self._brush_move(pos)
+        elif t == e.Type.TabletRelease and self.last is not None:
+            self._end_brush(pos)
             self.last = None
             self.stroke_done.emit()
+        elif t == e.Type.TabletRelease:
+            self.stroke_done.emit()   # 塗りつぶしなど、押しただけの道具
         e.accept()
 
     def keyPressEvent(self, e):
@@ -1671,6 +1941,12 @@ class Canvas(QGraphicsView):
             self.resize_brush(0.8)
         elif e.key() in (Qt.Key_Return, Qt.Key_Enter) and self.poly_points:
             self.finish_polygon()
+        elif e.key() in (Qt.Key_Return, Qt.Key_Enter) and self.shape_points:
+            self.finish_shape()
+        elif e.key() == Qt.Key_Escape and self.shape_points:
+            self.shape_points = []   # 置きかけの多角形の図形をやめる
+            self.sel_path_item.setVisible(False)
+            self.set_selection(self.selection, self.selection_shape)
         elif e.key() == Qt.Key_Escape and self.poly_points:
             self.poly_points = []   # 置きかけの多角形をやめる（前の選択は残す）
             self.set_selection(self.selection, self.selection_shape)

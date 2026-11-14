@@ -528,9 +528,19 @@ TOOLS = (("move", "移動", "V"), ("select", "四角の選択", "M"), ("lasso", 
          ("pen", "ペン", "B"), ("eraser", "消しゴム", "E"), ("blur", "ぼかし", "R"),
          ("spray", "スプレー", "K"), ("smudge", "指先（色を伸ばす）", "W"), (None, "", ""),
          ("fill", "塗りつぶし", "G"), ("gradient", "グラデーション", "J"), (None, "", ""),
-         ("line", "直線", "N"), ("rect", "四角", "U"), ("ellipse", "楕円", "O"), ("text", "文字", "Y"), (None, "", ""),
+         ("line", "直線", "N"), ("rect", "四角", "U"), ("ellipse", "楕円", "O"),
+         ("polyshape", "多角形", "Shift+U"), ("regpoly", "正多角形", "Shift+O"), ("text", "文字", "Y"), (None, "", ""),
          ("eyedropper", "スポイト", "I"), ("hand", "手のひら", "H"), ("zoom", "拡大（Shift か右クリックで縮小）", "Z"), (None, "", ""),
          ("redpen", "赤ペン（AI に直す所を囲む）", "T"))
+
+# 図形の道具の説明（ツールチップ）。Shift の働きは押してみないと分からないので、ここに書く
+SHAPE_TIPS = {
+    "line": "直線（N）。押した所から離した所まで引きます。Shift で 15 度ごとの向きにそろえます。定規を出していれば定規に沿います",
+    "rect": "四角（U）。ドラッグした範囲に描きます。Shift で正方形にします",
+    "ellipse": "楕円（O）。ドラッグした範囲に描きます。Shift で正円にします",
+    "polyshape": "多角形（Shift+U）。押すたびに角を置き、ダブルクリックか Enter か始めの角を押すと閉じて描きます。Shift で辺を 15 度ごとの向きにそろえます。Esc でやめます",
+    "regpoly": "正多角形（Shift+O）。真ん中から角へドラッグします。辺の数は上の帯で変えます。Shift で向きを 15 度ごとにそろえます",
+}
 
 # 欄の帯とメニューに並べる順（よく使う順）
 PANEL_ORDER = ("talk", "chat", "view", "history", "library", "progress", "layers", "color", "brushes")
@@ -860,6 +870,8 @@ class Window(QMainWindow):
             tools.addAction(act)
             self.tool_actions[key] = act
         self.tool_actions["pen"].setChecked(True)
+        for k, tip in SHAPE_TIPS.items():
+            self.tool_actions[k].setToolTip(tip)
         # 絵の上の R は、押して離すとぼかし、押したままドラッグすると表示を回す（canvas.on_r_tap）
         self.canvas.on_r_tap = self.tool_actions["blur"].trigger
         self.tool_actions["blur"].setToolTip("ぼかし（R）。絵の上で R を押したままドラッグすると表示を回します")
@@ -905,9 +917,17 @@ class Window(QMainWindow):
         bar.addWidget(self.flow_label)
         bar.addSeparator()
         self.fill_shapes = QCheckBox("塗り")
-        self.fill_shapes.setToolTip("四角と楕円を、線だけでなく中まで塗る")
+        self.fill_shapes.setToolTip("四角・楕円・多角形・正多角形を、線だけでなく中まで塗る")
         self.fill_shapes.toggled.connect(lambda on: setattr(self.canvas, "fill_shapes", on))
-        bar.addWidget(self.fill_shapes)
+        # 帯に置いた部品は、部品ではなく帯の項目を隠さないと消えない（前は「塗り」がペンでも出たままだった）
+        self.fill_shapes_act = bar.addWidget(self.fill_shapes)
+        self.poly_sides = QSpinBox()
+        self.poly_sides.setRange(3, 24)
+        self.poly_sides.setValue(self.canvas.poly_sides)
+        self.poly_sides.setSuffix(" 角")
+        self.poly_sides.setToolTip("正多角形の角（辺）の数")
+        self.poly_sides.valueChanged.connect(lambda v: setattr(self.canvas, "poly_sides", v))
+        self.poly_sides_act = bar.addWidget(self.poly_sides)
         for key, _label, _s in TOOLS:
             if key:
                 self.tool_actions[key].triggered.connect(lambda _=False, k=key: self._tool_changed(k))
@@ -956,8 +976,10 @@ class Window(QMainWindow):
         bform.addRow(self.opacity_pressure)
         # 手ぶれ補正と左右対称は、ペン・消しゴム・ぼかし・スプレー・指先のなぞる道具すべてに効く
         self.stabilizer = QSpinBox()
-        self.stabilizer.setRange(0, 20)
-        self.stabilizer.setToolTip("手ぶれ補正。大きいほど線がカーソルに遅れてついてきて、なめらかになる（0 で切る）")
+        from chatdraw.canvas import STABILIZER_MAX
+        self.stabilizer.setRange(0, STABILIZER_MAX)
+        self.stabilizer.setSingleStep(5)
+        self.stabilizer.setToolTip(f"手ぶれ補正の強さ（0〜{STABILIZER_MAX}）。大きいほど線がカーソルに遅れてついてきて、なめらかになる（0 で切る）")
         self.stabilizer.valueChanged.connect(lambda v: setattr(self.canvas, "stabilizer", v))
         bform.addRow("手ぶれ補正", self.stabilizer)
         # 対称: 線対称（左右・上下・上下左右）と点対称。表示のメニューの「対称定規」と同じ設定
@@ -969,6 +991,19 @@ class Window(QMainWindow):
         self.symmetry.setToolTip("描いた線と図形を、軸の反対側にも同時に描きます。軸の丸をドラッグすると軸を動かせます")
         self.symmetry.currentIndexChanged.connect(lambda _i: self.canvas.set_symmetry(self.symmetry.currentData()))
         bform.addRow("対称", self.symmetry)
+        # 定規: なぞる線と直線を、平行線・同心円・放射・パースの向きに沿わせる。表示のメニューの「定規」と同じ設定
+        from chatdraw.assist import RULERS
+        self.ruler = QComboBox()
+        self.ruler.addItem("なし", "")
+        for key, label in RULERS.items():
+            self.ruler.addItem(label, key)
+        self.ruler.setToolTip("なぞる線と直線を定規に沿わせます。緑の丸をドラッグすると、中心・消失点・平行線の向きを動かせます")
+        self.ruler.currentIndexChanged.connect(lambda _i: self.canvas.set_ruler(self.ruler.currentData()))
+        bform.addRow("定規", self.ruler)
+        self.quickshape = QCheckBox("描いて止めると形を整える")
+        self.quickshape.setToolTip("ペンで描き終えて少し止めると、直線・円・楕円・四角・三角に整えます。元に戻すで整える前の線に戻ります")
+        self.quickshape.toggled.connect(lambda on: setattr(self.canvas, "quickshape", on))
+        bform.addRow(self.quickshape)
         bbox = QWidget()
         bbox.setLayout(bform)
         # タブで「ブラシ」（種類を選ぶ）と「設定」（硬さ・流量・間隔・筆圧）を切り替える
@@ -1052,6 +1087,12 @@ class Window(QMainWindow):
                   "rotate_reset", "flip_view", "view_reset", None, "grid", "op_history"):
             view.addAction(S[k]) if k else view.addSeparator()
         self.build_symmetry_menu(view.addMenu("対称定規"))
+        self.build_ruler_menu(view.addMenu("定規"))
+        # 図形の道具。おすすめの配置の道具の帯には出さない（初めはシンプルにする）ので、メニューからも選べるようにする
+        shapes = view.addMenu("図形")
+        shapes.setToolTipsVisible(True)
+        for k in ("line", "rect", "ellipse", "polyshape", "regpoly"):
+            shapes.addAction(self.tool_actions[k])
         view.addSeparator()
         from chatdraw.timelapse import Recorder
         self.recorder = Recorder()
@@ -2983,6 +3024,32 @@ class Window(QMainWindow):
                                toolTip="対称の軸を絵の真ん中に戻します"))
         self.canvas.view_changed.connect(lambda: self.symmetry_actions[self.canvas.symmetry].setChecked(True))
 
+    def build_ruler_menu(self, menu):
+        """表示のメニューの「定規」と「形を整える」。ブラシの設定の「定規」「描いて止めると形を整える」と同じ設定"""
+        from PySide6.QtGui import QActionGroup
+        from chatdraw.assist import RULERS
+        menu.setToolTipsVisible(True)
+        group = QActionGroup(menu)
+        self.ruler_actions = {}
+        for key, label in (("", "なし"),) + tuple(RULERS.items()):
+            a = QAction(label, menu, checkable=True)
+            a.setToolTip("なぞる線と直線を、この定規に沿わせます" if key else "定規を切ります")
+            a.triggered.connect(lambda _=False, k=key: self.ruler.setCurrentIndex(self.ruler.findData(k)))
+            group.addAction(a)
+            menu.addAction(a)
+            self.ruler_actions[key] = a
+        self.ruler_actions[""].setChecked(True)
+        menu.addSeparator()
+        menu.addAction(QAction("定規の点を初めの所に戻す", menu, triggered=lambda: self.canvas.set_ruler_point(0, None),
+                               toolTip="定規の中心・消失点・平行線の向きを、初めの所に戻します"))
+        self.quickshape_action = QAction("描いて止めると形を整える", menu, checkable=True,
+                                         toolTip="ペンで描き終えて少し止めると、直線・円・楕円・四角・三角に整えます")
+        self.quickshape_action.toggled.connect(self.quickshape.setChecked)
+        self.quickshape.toggled.connect(self.quickshape_action.setChecked)
+        menu.addAction(self.quickshape_action)
+        self.canvas.view_changed.connect(lambda: self.ruler_actions[self.canvas.ruler].setChecked(True))
+        self.canvas.shaped.connect(lambda name: self.statusBar().showMessage(f"{name}に整えました（元に戻すで整える前の線に戻ります）", 4000))
+
     def copy_image(self, path: str | None = None):
         from PySide6.QtGui import QImage
         from PySide6.QtWidgets import QApplication
@@ -3095,6 +3162,9 @@ class Window(QMainWindow):
         for key in ("pen", "eraser", "eyedropper", "select", "lasso", "polygon", "hand", "redpen"):
             if key in self.tool_actions:
                 tools.addAction(self.tool_actions[key])
+        shapes = tools.addMenu("図形")
+        for key in ("line", "rect", "ellipse", "polyshape", "regpoly"):
+            shapes.addAction(self.tool_actions[key])
         view = m.addMenu("表示")
         for k in ("fit", "actual", "rotate_left", "rotate_right", "rotate_reset", "flip_view", "view_reset", "grid"):
             view.addAction(self.shared[k])
@@ -3968,7 +4038,10 @@ class Window(QMainWindow):
         self.tool_name.setText(label)
         if hasattr(self, "st_tool"):
             self.st_tool.setText(label)
-        self.fill_shapes.setVisible(key in ("rect", "ellipse"))
+        if hasattr(self, "fill_shapes_act"):
+            self.fill_shapes_act.setVisible(key in ("rect", "ellipse", "polyshape", "regpoly"))
+        if hasattr(self, "poly_sides_act"):
+            self.poly_sides_act.setVisible(key == "regpoly")
         if hasattr(self, "brush_preview"):
             self.brush_preview.update()
 
@@ -4314,7 +4387,7 @@ class Window(QMainWindow):
         t = self.tool_actions
         r.add_page("描く", [
             ("道具", [t[k] for k in ("pen", "eraser", "blur", "fill", "gradient")]),
-            ("図形", [t[k] for k in ("line", "rect", "ellipse")]),
+            ("図形", [t[k] for k in ("line", "rect", "ellipse", "polyshape", "regpoly")]),
             ("色", [t["eyedropper"], act("palette", "入れ替え", self.canvas.swap_colors, "描く色と背景色を入れ替える（X）")]),
         ])
 
