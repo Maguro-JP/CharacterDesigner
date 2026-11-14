@@ -7,10 +7,13 @@
 
 | # | 依頼 | 状態 | 根拠・担当 |
 |---|---|---|---|
-| C1 | AI の自動選択（選択と赤ペン）。丸・四角・全選択・自動選択の赤ペン | 作業中 | claude/FIX-autosel-20261108 |
-| C2 | 自動選択の印にも境目の確かめを通し、加工のあとは全体を確かめる | 作業中 | claude/FIX-autosel-20261108 |
+| C1 | AI の自動選択（選択と赤ペン）。丸・四角・全選択・自動選択の赤ペン | 作業中 | claude/FIX-backredpen-20261114: 0.5.23 で消えた物を戻した（chatdraw/autosel.py、帯の「囲み方」、test_autosel） |
+| C2 | 自動選択の印にも境目の確かめを通し、加工のあとは全体を確かめる | 作業中 | claude/FIX-backredpen-20261114: seamfix.settle で境目を合わせ、seamfix.whole_check で全体を 1 回だけ測って知らせる（繰り返しに繋げない） |
 | C3 | 自動選択を含め、全部の機能の精度を上げ続ける | 決まり | CLAUDE.md「ユーザーの決めたこと」 |
-| C4 | チャットは言語の模型への指示、描くワードは描画の模型への設定として分ける | 作業中 | claude/FIX-autosel-20261108 |
+| C4 | チャットは言語の模型への指示、描くワードは描画の模型への設定として分ける | 作業中 | claude/FIX-backredpen-20261114: chatdraw/chatwords.py、send の once（test_autosel.test_chat_*） |
+| C6 | 赤ペンの直しのレイヤーを消したら、絵・画面・履歴・ライブラリー・作業の保存に何も残さない。前の版の直しの絵はごみ箱へ | 作業中 | claude/FIX-backredpen-20261114: chatdraw/redpenclean.py、Library._drop_redpen_results（test_redpen3） |
+| C7 | 赤ペンの指示の欄に確定のボタン | 作業中 | claude/FIX-backredpen-20261114: note_ok（test_redpen3.test_confirm_button） |
+| C8 | 赤ペンの印の右クリックから、その囲みの中だけに加工を掛ける。登録した言葉の指示を並べ、その印だけを直す | 作業中 | claude/FIX-backredpen-20261114: _mark_menu、MARK_OK、fix_with_text(mark=)（test_redpen3） |
 | C5 | 描く前に止めるのは子どもを性的に描く頼みだけ。ほかの制限を足さない | 済み（未 Release） | chatdraw/childsafe.py、claude/FIX-integ5-20261108 |
 | B1 | 前の版より絵の質が下がった。好みは質にだけ効かせ、構図や色を引っ張らない | 作業中 | claude/FIX-quality2-20261108 |
 | B2 | 効いていないフィルターを直すか外す | 作業中 | claude/FIX-quality2-20261108 |
