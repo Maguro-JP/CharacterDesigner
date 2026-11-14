@@ -3963,6 +3963,9 @@ class Window(QMainWindow):
         fix_menu.aboutToShow.connect(lambda: self._fill_fix_menu(fix_menu))
         self._fill_fix_menu(fix_menu)
         menu.addAction(QAction("模型の管理…", self, triggered=self.manage_models))
+        qc = QAction("検品の部品を取り直す", self, triggered=lambda: __import__("chatdraw.setup", fromlist=["x"]).refetch_qc_parts(self))
+        qc.setToolTip("手・足・顔・部位分け・人の枠の検品に使う部品のうち、無い物を取ります")
+        menu.addAction(qc)
 
     def _open_ai_menu(self):
         """AI のメニューを開くとき。取った・消した直後でも古い一覧を出さないよう、手元の模型をその場で数え直す"""

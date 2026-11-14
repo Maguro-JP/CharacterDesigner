@@ -60,7 +60,13 @@ def parts(src):
     if _SEG is None:
         from transformers.utils import logging as tlog
         tlog.disable_progress_bar()
-        _SEG = AutoModelForSemanticSegmentation.from_pretrained(SEG_MODEL)
+        try:
+            _SEG = AutoModelForSemanticSegmentation.from_pretrained(SEG_MODEL)
+        except OSError as e:
+            # 取らない設定（HF_HUB_OFFLINE=1）で置き場に無いと「huggingface.co につながらない」と出て、網の不具合に見えた。何が無いかを書く
+            from huggingface_hub import constants
+            raise RuntimeError(f"部位分けの模型 {SEG_MODEL} が置き場（{constants.HF_HUB_CACHE}）にありません。"
+                                    "アプリでは AI のメニューの「検品の部品を取り直す」で取れます") from e
         import device
         device.module(_SEG, torch)
     model = _SEG

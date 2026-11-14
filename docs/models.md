@@ -95,9 +95,9 @@
 |---|---|---|---|---|---|---|---|---|---|
 | NoobAI XL V-Pred 1.0 | [Laxhar/noobai-XL-Vpred-1.0](https://huggingface.co/Laxhar/noobai-XL-Vpred-1.0) | SDXL | 7.1 GB | 6・16 GB | － | 0 | アニメ絵。頼んだ通りに描きやすく、手・足・顔の形が崩れにくい | アニメ、イラスト | 商用不可（fair-ai-public-license-1.0-sd に NoobAI の追加条項。描いた絵の商用利用も禁止） |
 | Animagine XL 4.0 | [cagliostrolab/animagine-xl-4.0](https://huggingface.co/cagliostrolab/animagine-xl-4.0) | SDXL | 6.9 GB | 6・16 GB | － | 85 | アニメ絵。線と塗りが整っていて、キャラクターに強い | アニメ、イラスト、線が細い、商用可 | 条件付きで商用可（openrail++） |
-| Animagine XL 3.1 | [cagliostrolab/animagine-xl-3.1](https://huggingface.co/cagliostrolab/animagine-xl-3.1) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。4.0 より柔らかい塗り | アニメ、イラスト、淡い色 | 札を確かめる |
-| Animagine XL 3.0 | [cagliostrolab/animagine-xl-3.0](https://huggingface.co/cagliostrolab/animagine-xl-3.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。少し前の塗りの雰囲気 | アニメ、イラスト、古い世代 | 札を確かめる |
-| Illustrious XL 0.1 | [OnomaAIResearch/Illustrious-xl-early-release-v0](https://huggingface.co/OnomaAIResearch/Illustrious-xl-early-release-v0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。キャラクターや服の種類に詳しい | アニメ、イラスト | 札を確かめる |
+| Animagine XL 3.1 | [cagliostrolab/animagine-xl-3.1](https://huggingface.co/cagliostrolab/animagine-xl-3.1) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。4.0 より柔らかい塗り | アニメ、イラスト、淡い色、古い版 | 札を確かめる |
+| Animagine XL 3.0 | [cagliostrolab/animagine-xl-3.0](https://huggingface.co/cagliostrolab/animagine-xl-3.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。少し前の塗りの雰囲気 | アニメ、イラスト、古い世代、古い版 | 札を確かめる |
+| Illustrious XL 0.1 | [OnomaAIResearch/Illustrious-xl-early-release-v0](https://huggingface.co/OnomaAIResearch/Illustrious-xl-early-release-v0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。キャラクターや服の種類に詳しい | アニメ、イラスト、古い版 | 札を確かめる |
 | Illustrious XL 2.0 | [Jommarn/Illustrious-XL-v2.0](https://huggingface.co/Jommarn/Illustrious-XL-v2.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。Illustrious の新しい版で、細部が細かい | アニメ、イラスト | 札を確かめる |
 | NoobAI XL 1.1 | [Laxhar/noobai-XL-1.1](https://huggingface.co/Laxhar/noobai-XL-1.1) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。絵柄の幅が広く、作家風の指定が効く | アニメ、イラスト | ライセンスの本文を読む必要あり |
 | Hassaku XL | [John6666/hassaku-xl-illustrious-v31-sdxl](https://huggingface.co/John6666/hassaku-xl-illustrious-v31-sdxl) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。くっきりした線と明るい塗り | アニメ、イラスト、線が細い | 札を確かめる |
@@ -108,7 +108,7 @@
 | Illustrious XL 1.0 | [OnomaAIResearch/Illustrious-XL-v1.0/Illustrious-XL-v1.0.safetensors](https://huggingface.co/OnomaAIResearch/Illustrious-XL-v1.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。Illustrious の公式の 1.0。大きな絵でも崩れにくい | アニメ、イラスト | 札を確かめる（sdxl-license） |
 | Illustrious XL 1.1 | [OnomaAIResearch/Illustrious-XL-v1.1/Illustrious-XL-v1.1.safetensors](https://huggingface.co/OnomaAIResearch/Illustrious-XL-v1.1) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。1.0 より文の頼みが通りやすい | アニメ、イラスト | 札を確かめる（sdxl-license） |
 | Illustrious XL 2.0（公式） | [OnomaAIResearch/Illustrious-XL-v2.0/Illustrious-XL-v2.0.safetensors](https://huggingface.co/OnomaAIResearch/Illustrious-XL-v2.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。Illustrious の公式の 2.0。細部が細かい | アニメ、イラスト、商用可 | 条件付きで商用可（creativeml-openrail-m） |
-| NoobAI XL 1.0 | [Laxhar/noobai-XL-1.0](https://huggingface.co/Laxhar/noobai-XL-1.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。作家風と細かいタグがよく効く | アニメ、イラスト | 商用不可（fair-ai-public-license-1.0-sd に NoobAI の追加条項） |
+| NoobAI XL 1.0 | [Laxhar/noobai-XL-1.0](https://huggingface.co/Laxhar/noobai-XL-1.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。作家風と細かいタグがよく効く | アニメ、イラスト、古い版 | 商用不可（fair-ai-public-license-1.0-sd に NoobAI の追加条項） |
 | Holodayo XL 2.1 | [yodayo-ai/holodayo-xl-2.1](https://huggingface.co/yodayo-ai/holodayo-xl-2.1) | SDXL | 7.1 GB | 6・16 GB | － | 0 | アニメ絵。配信者風の明るいキャラクターに強い | アニメ、イラスト | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
 | Clandestine XL 1.0 | [yodayo-ai/clandestine-xl-1.0](https://huggingface.co/yodayo-ai/clandestine-xl-1.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。落ち着いた色と柔らかい陰影 | アニメ、イラスト、淡い色 | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
 | Nova Anime XL | [John6666/nova-anime-xl-il-v90-sdxl](https://huggingface.co/John6666/nova-anime-xl-il-v90-sdxl) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。くっきりした線と鮮やかな塗り | アニメ、イラスト、線が細い、アニメ塗り | 商用に制限あり（faipl-1.0-sd。模型を使った有料のサービスなどは不可。札を確かめる） |
@@ -143,10 +143,13 @@
 | SD 1.5 | [stable-diffusion-v1-5/stable-diffusion-v1-5](https://huggingface.co/stable-diffusion-v1-5/stable-diffusion-v1-5) | SD1.5 | 2.1 GB | 4・8 GB | － | 0 | 古い世代の基本の模型 | 古い世代、軽い | 札を確かめる |
 | FLUX.2 klein 4B | [black-forest-labs/FLUX.2-klein-4B](https://huggingface.co/black-forest-labs/FLUX.2-klein-4B) | FLUX.2 | 16 GB | 8・24 GB | － | 0 | 文で頼める新しい世代。4 工程で速い。写真も絵も描く | イラスト、新しい世代、GPU向き、商用可 | 商用可（Apache-2.0） |
 | Z-Image Turbo | [Tongyi-MAI/Z-Image-Turbo](https://huggingface.co/Tongyi-MAI/Z-Image-Turbo) | Z-Image | 32.8 GB | 12・32 GB | － | 0 | 文で頼める。8 工程で速い。写真と字が得意 | イラスト、リアル、新しい世代、GPU向き、商用可 | 商用可（Apache-2.0） |
-| Qwen-Image 2512 | [Qwen/Qwen-Image-2512](https://huggingface.co/Qwen/Qwen-Image-2512) | Qwen-Image | 57.7 GB | 24・64 GB | － | 0 | 文で頼める大きな模型。字と細かい指示に強い。GPU が大きくないと重い | イラスト、新しい世代、GPU向き、商用可 | 商用可（Apache-2.0） |
+| Qwen-Image 2512 | [Qwen/Qwen-Image-2512](https://huggingface.co/Qwen/Qwen-Image-2512) | Qwen-Image | 57.7 GB | 24・64 GB | － | 0 | 文で頼める大きな模型。字と細かい指示に強い。GPU が大きくないと重い | イラスト、新しい世代、GPU向き、商用可、古い版 | 商用可（Apache-2.0） |
 | Neta Lumina 1.0 | [VirtualAddressExtension/Neta-Lumina-v1.0-diffusers](https://huggingface.co/VirtualAddressExtension/Neta-Lumina-v1.0-diffusers) | Lumina 2 | 21.2 GB | 8・24 GB | － | 0 | 新しい世代のアニメ向け。タグと文の両方で頼める | アニメ、イラスト、新しい世代、GPU向き、商用可 | 商用可（Apache-2.0） |
 | Chroma1-HD | [lodestones/Chroma1-HD](https://huggingface.co/lodestones/Chroma1-HD) | Chroma | 27.5 GB | 12・32 GB | － | 0 | FLUX 系の土台の模型。味付けが無く、何でも描く | イラスト、新しい世代、GPU向き、商用可 | 商用可（Apache-2.0） |
-| FLUX.1 schnell | [black-forest-labs/FLUX.1-schnell](https://huggingface.co/black-forest-labs/FLUX.1-schnell) | FLUX.1 | 33.7 GB | 12・40 GB | － | 0 | 文で頼める。4 工程で速い。取るには Hugging Face での同意が要る | イラスト、新しい世代、GPU向き、商用可 | 商用可（Apache-2.0） |
+| FLUX.1 schnell | [black-forest-labs/FLUX.1-schnell](https://huggingface.co/black-forest-labs/FLUX.1-schnell) | FLUX.1 | 33.7 GB | 12・40 GB | － | 0 | 文で頼める。4 工程で速い。取るには Hugging Face での同意が要る | イラスト、新しい世代、GPU向き、商用可、古い版 | 商用可（Apache-2.0） |
+| Bonsai Image 3 値 4B | [prism-ml/bonsai-image-ternary-4B-unpacked](https://huggingface.co/prism-ml/bonsai-image-ternary-4B-unpacked) | FLUX.2 | 16 GB | 8・24 GB | － | 0 | PrismML が 3 値の重みで学び直した 4B の模型。文で頼める | イラスト、新しい世代、GPU向き、商用可 | 商用可（Apache-2.0） |
+| Bonsai Image 2 値 4B | [prism-ml/bonsai-image-binary-4B-unpacked](https://huggingface.co/prism-ml/bonsai-image-binary-4B-unpacked) | FLUX.2 | 16 GB | 8・24 GB | － | 0 | PrismML が 2 値の重みで学び直した 4B の模型。文で頼める | イラスト、新しい世代、GPU向き、商用可 | 商用可（Apache-2.0） |
+| Z-Image | [Tongyi-MAI/Z-Image](https://huggingface.co/Tongyi-MAI/Z-Image) | Z-Image | 20.5 GB | 16・32 GB | － | 0 | Turbo 版の元の模型。打ち消しが効き、工程を多く取って細かく描く | イラスト、新しい世代、GPU向き、商用可 | 商用可（Apache-2.0） |
 
 ### 世代ごとにできること
 
@@ -170,5 +173,9 @@
 | Qwen3.5 4B | [unsloth/Qwen3.5-4B-GGUF](https://huggingface.co/unsloth/Qwen3.5-4B-GGUF) の `Qwen3.5-4B-Q4_K_M.gguf` | 2.7 GB | 0 | 長い頼みをさらに正確に直す。少し遅い |
 | Qwen3.5 0.8B | [unsloth/Qwen3.5-0.8B-GGUF](https://huggingface.co/unsloth/Qwen3.5-0.8B-GGUF) の `Qwen3.5-0.8B-Q4_K_M.gguf` | 0.5 GB | 20 | 最も軽い。短い頼み向き |
 | Gemma 3 4B | [unsloth/gemma-3-4b-it-GGUF](https://huggingface.co/unsloth/gemma-3-4b-it-GGUF) の `gemma-3-4b-it-Q4_K_M.gguf` | 2.5 GB | 0 | 多くの言語の頼みを訳す。日本語以外の頼み向き |
+| Gemma 4 E2B | [unsloth/gemma-4-E2B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E2B-it-GGUF) の `gemma-4-E2B-it-Q4_K_M.gguf` | 3.1 GB | 0 | 多くの言語の頼みを訳す。軽い |
+| Gemma 4 E4B | [unsloth/gemma-4-E4B-it-GGUF](https://huggingface.co/unsloth/gemma-4-E4B-it-GGUF) の `gemma-4-E4B-it-Q4_K_M.gguf` | 5 GB | 0 | 多くの言語の頼みを訳す。Gemma 3 4B の後継 |
+| Ternary Bonsai 2 2B | [prism-ml/Ternary-Bonsai-2-2B-gguf](https://huggingface.co/prism-ml/Ternary-Bonsai-2-2B-gguf) の `Ternary-Bonsai-2-2B-Q2_0.gguf` | 0.55 GB | 0 | 3 値の重みで小さい（約 0.55GB）。新しい llama.cpp が要る |
+| Ternary Bonsai 2 4B | [prism-ml/Ternary-Bonsai-2-4B-gguf](https://huggingface.co/prism-ml/Ternary-Bonsai-2-4B-gguf) の `Ternary-Bonsai-2-4B-Q2_0.gguf` | 1.21 GB | 0 | 3 値の重みで 4B を約 1.2GB に収める。新しい llama.cpp が要る |
 
 <!-- modeldoc:end -->

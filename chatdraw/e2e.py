@@ -7,6 +7,7 @@
 2. 初回の取得（Fetcher.run）で、描く部品（CPU 版の torch など）を ProgramData に入れ、絵の模型とラフの部品を取る
 3. 取った模型で 1 枚描き、絵が保存されるか
 4. ラフから描く部品が取れているか
+5. 検品の部品（部位分け・人の枠・タグ・体の点・手・足）が初回の取得で入ったか（chatdraw/qcparts.py）
 
 模型は数 GB あるので、形が同じで小さい試験用の SDXL（hf-internal-testing/tiny-stable-diffusion-xl-pipe）を使う。絵の出来は見ない。
 結果は report.json に書き、1 つでも落ちたら終了コード 1 で終わる。
@@ -96,6 +97,16 @@ def main():
     ok = step("描く部品と模型を取る", fetch) and ok
     ok = step("1 枚描く", draw) and ok
     ok = step("ラフの部品がそろう", rough_parts) and ok
+
+    def qc_parts():
+        # 初回の取得（Fetcher.run）が検品の部品も取ったかを、取らずに置き場だけで見る
+        from chatdraw import qcparts
+        lack = [p.name for p in qcparts.missing()]
+        if lack:
+            raise RuntimeError("検品の部品が入っていない: " + "、".join(lack))
+        return {"parts": [p.key for p in qcparts.PARTS]}
+
+    ok = step("検品の部品がそろう", qc_parts) and ok
     from chatdraw.paths import HOME, HUB
     report["data_home"], report["hub"] = str(HOME), str(HUB)
     report["ok"] = ok
