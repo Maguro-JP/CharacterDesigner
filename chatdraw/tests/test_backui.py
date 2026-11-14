@@ -272,5 +272,26 @@ class CloseTest(Base):
         self.assertTrue(run_until(self.app, w, lambda: w.thread is None and len(w.images) == 1, 60))
 
 
+class MouseSidePanelsTest(Base):
+    """マウスの戻る・進むは、キャンバスの外（レイヤーの欄、履歴、メニューの帯）でも絵の元に戻す・やり直すになる"""
+
+    def test_back_forward_on_panels(self):
+        from PySide6.QtWidgets import QListWidget, QTreeWidget, QToolBar
+        w = self.window()
+        got = []
+        w.shared["undo"].triggered.connect(lambda *_: got.append("undo"))
+        w.shared["redo"].triggered.connect(lambda *_: got.append("redo"))
+        w.shared["undo"].setEnabled(True); w.shared["redo"].setEnabled(True)
+        targets = [x for x in w.findChildren(QListWidget) + w.findChildren(QTreeWidget) + w.findChildren(QToolBar) if x.isVisible()]
+        self.assertTrue(targets)
+        for t in targets:
+            got.clear()
+            vp = t.viewport() if hasattr(t, "viewport") else t
+            w.canvas.setFocus(); QApplication.processEvents()
+            QTest.mousePress(vp, Qt.BackButton, Qt.NoModifier, vp.rect().center())
+            QTest.mousePress(vp, Qt.ForwardButton, Qt.NoModifier, vp.rect().center())
+            self.assertEqual(got, ["undo", "redo"], type(t).__name__)
+
+
 if __name__ == "__main__":
     unittest.main()
