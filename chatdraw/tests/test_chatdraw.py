@@ -1573,7 +1573,10 @@ class SystemTest(unittest.TestCase):
         self.assertEqual(p["tags"], ["red hair"])                      # 好きに 2 回以上出た言葉
         self.assertEqual(p["avoid"], ["dark"])                         # いまいちに 2 回以上、好きに無い言葉
         self.assertEqual(p["style"], "水彩")
-        self.assertIn("red hair", self.w.ai_panel.style_tags())        # 描く言葉に足す
+        self.w.layout_store.remove("use_taste")
+        self.assertNotIn("red hair", self.w.ai_panel.style_tags())     # 既定では足さない（前の絵に引っ張られないように）
+        self.w.layout_store.setValue("use_taste", 1)
+        self.assertIn("red hair", self.w.ai_panel.style_tags())        # 利用者が入れたときだけ描く言葉に足す
         self.w.layout_store.setValue("use_taste", 0)
         self.assertNotIn("red hair", self.w.ai_panel.style_tags())     # 外せる
         self.w.layout_store.setValue("use_taste", 1)
