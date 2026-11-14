@@ -46,6 +46,21 @@ REGIONS = {
 _SEG = None
 
 
+def seg_cache_dir() -> str | None:
+    """部位分けの模型が既にある hub の置き場。無ければ None（既定の置き場で取る）。
+    アプリの経路（chatdraw.paths.use_tools_gen）は cdhome.HOME を data_home()/cd に向けるので、HF_HOME が
+    .cache/cd/gen/hf になり、.cache/gen/hf にある模型を見つけられず、体の検品の部位分けが毎回落ちていた"""
+    seen = []
+    for d in (os.environ.get("HF_HUB_CACHE"), os.environ.get("HF_HOME") and Path(os.environ["HF_HOME"]) / "hub",
+              cdhome.HOME / "gen" / "hf" / "hub", cdhome.HOME.parent / "gen" / "hf" / "hub"):
+        if not d or str(d) in seen:
+            continue
+        seen.append(str(d))
+        if any((Path(d) / ("models--" + SEG_MODEL.replace("/", "--")) / "snapshots").glob("*/config.json")):
+            return str(d)
+    return None
+
+
 def parts(src):
     """部位の塗り分け（1画素1部位の番号を明るさに入れた L の絵）を作り、絵の隣に置く。2回目からは読むだけ。"""
     out = Path(str(src) + ".parts.png")
@@ -60,7 +75,9 @@ def parts(src):
     if _SEG is None:
         from transformers.utils import logging as tlog
         tlog.disable_progress_bar()
-        _SEG = AutoModelForSemanticSegmentation.from_pretrained(SEG_MODEL)
+        cache = seg_cache_dir()
+        _SEG = (AutoModelForSemanticSegmentation.from_pretrained(SEG_MODEL, cache_dir=cache) if cache
+                else AutoModelForSemanticSegmentation.from_pretrained(SEG_MODEL))
         import device
         device.module(_SEG, torch)
     model = _SEG

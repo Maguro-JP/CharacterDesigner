@@ -11,11 +11,12 @@
 - 崩れの無い絵を崩れと言わなかった割合
 - 場所: 取りこぼさなかった部位のうち、その部位の枠を返した割合（README に画素の枠が無いので、部位の枠があるかで見る）
 
-検品の結果は .cache/qcbench/ に絵ごとに貯め、同じ絵（同じ大きさと更新時刻）は 2 度測らない。
+検品の結果は .cache/qcbench/ に絵ごとに貯め、同じ絵（同じ中身）は 2 度測らない。
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -36,7 +37,8 @@ PARTS = {
 # 部位の語があっても崩れではない句（描けた・数が合う・崩れを見つけていない）
 FINE = re.compile(r"描けた|正しい|自然|合っている|そろった|揃った|見つけていない|見つからない|崩れは無|崩れは無い|崩れなし|崩れ無し|[45５] ?本(で|ずつ|と)?(正し|そろ|合)|読めた|読める|直った|通った|元の画素に戻した")
 CLEAN = re.compile(r"(目立つ)?崩れ(は|を)?(見つけていない|見つからない|無い|無し|なし)")
-NOT_FLAW_WORDS = re.compile(r"検品の崩れ[^、。]*|目で見|網目|編み目|横顔|正面寄り|目の色|目の動き|目線|手前|手本|手順|手元の|手で描|手を加え|手の色の差|指示|指定|指摘|片手間|目立つ|一目|目安|見た目|二つ目|つ目|回目|枚目|番目|段目|目の大きさの比")
+# 形の崩れではない句（元の大きさで絵を見て確かめた）: 横顔の向き、設定と違う目の色、正座の座り方
+NOT_FLAW_WORDS = re.compile(r"顔が横顔に近い|目が(赤|青|緑|黒|茶|金|紫)い[^、。]*|かかとの上に正座[^、。]*|検品の崩れ[^、。]*|目で見|網目|編み目|横顔|正面寄り|目の色|目の動き|目線|手前|手本|手順|手元の|手で描|手を加え|手の色の差|指示|指定|指摘|片手間|目立つ|一目|目安|見た目|二つ目|つ目|回目|枚目|番目|段目|目の大きさの比")
 
 
 def _cells(line: str) -> list[str]:
@@ -124,12 +126,12 @@ def said(res: dict) -> dict:
     return {"flag": sorted(flag), "boxed": sorted(boxed)}
 
 
-def run_one(path: Path) -> dict:
-    st = path.stat()
+def run_one(path: Path, fresh: bool = False) -> dict:
     CACHE.mkdir(parents=True, exist_ok=True)
     key = CACHE / (re.sub(r"[^\w.-]", "_", str(path.relative_to(ROOT))) + ".json")
-    stamp = f"{st.st_size}:{int(st.st_mtime)}"
-    if key.exists():
+    # 中身の sha1 で見る。更新時刻は worktree ごとに違い、同じ絵を 40 分かけて測り直していた
+    stamp = "sha1:" + hashlib.sha1(path.read_bytes()).hexdigest()
+    if key.exists() and not fresh:
         d = json.loads(key.read_text(encoding="utf-8"))
         if d.get("stamp") == stamp:
             return d["res"]
@@ -150,6 +152,7 @@ def score(rows: list[dict], results: dict) -> dict:
     hit = miss = boxed = clean_ok = clean_n = 0
     by = {k: {"hit": 0, "miss": 0} for k in PARTS}
     missed_list = []
+    false_by = {k: 0 for k in PARTS}   # 崩れの無い絵で、部位ごとに崩れと言った枚数（誤報がどの部位から出るか）
     for r in rows:
         if r["path"] not in results:
             continue
@@ -166,9 +169,11 @@ def score(rows: list[dict], results: dict) -> dict:
         if r["clean"]:
             clean_n += 1
             clean_ok += not s["flag"]
+            for k in s["flag"]:
+                false_by[k] += 1
     pct = lambda a, b: round(100 * a / b, 1) if b else None   # noqa: E731
     return {"flaw_parts": hit + miss, "caught": pct(hit, hit + miss), "clean_images": clean_n,
-            "clean_quiet": pct(clean_ok, clean_n), "located": pct(boxed, hit), "by_part": by, "missed": missed_list}
+            "clean_quiet": pct(clean_ok, clean_n), "false_by_part": false_by, "located": pct(boxed, hit), "by_part": by, "missed": missed_list}
 
 
 def main(argv=None) -> int:
@@ -176,6 +181,7 @@ def main(argv=None) -> int:
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--json", default="")
     ap.add_argument("--truth-only", action="store_true")
+    ap.add_argument("--fresh", action="store_true", help="貯めた結果を使わず測り直す（検品の仕組みを直したあと）")
     a = ap.parse_args(argv)
     rows = truth()
     print(f"台: {len(rows)} 枚（崩れのある絵 {sum(bool(r['flaws']) for r in rows)}、崩れの無い絵 {sum(r['clean'] for r in rows)}）", flush=True)
@@ -186,7 +192,7 @@ def main(argv=None) -> int:
     results = {}
     for i, r in enumerate(rows[: a.limit or None], 1):
         try:
-            results[r["path"]] = run_one(ROOT / r["path"])
+            results[r["path"]] = run_one(ROOT / r["path"], a.fresh)
         except Exception as e:   # noqa: BLE001  落ちた絵は「検品できなかった」として数えない（台から外したと出す）
             print(f"落ちた: {r['path']}: {e}", flush=True)
         if i % 20 == 0:

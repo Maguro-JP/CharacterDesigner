@@ -1,10 +1,10 @@
-"""全部の機能の精度の台（chatdraw/accuracy.py）を流し、docs/knowledge/accuracy.md の表を書き直す。
+"""機能ごとの精度の台を流し、docs/knowledge/accuracy.md の表を書き直す。
 
-    python tools/gen/accuracy_bench.py [--heavy] [--only 機能,機能] [--write] [--json 出力.json]
+    python tools/gen/accuracy_bench.py [--only 機能,機能] [--write] [--json 出力.json]
 
 表の「前の数字」は、書き直す前の表の「数字」。下がった物には ▼ を付ける（目立たせて、入れる前に気づくため）。
---heavy は拡大の模型と数字の検品も流す（重いので GitHub Actions の accuracy.yml で流す）。
-流さなかった機能の行は前のまま残す。
+流さなかった機能の行は前のまま残す。台は BENCHES に並べる。前に読んでいた chatdraw/accuracy.py は 0.5.23 で
+描く仕組みを戻したときに外れたので、今の main にある台（検品単体の台 tools/gen/qcbench.py）だけを流す。
 """
 from __future__ import annotations
 
@@ -19,8 +19,9 @@ sys.path.insert(0, str(ROOT))
 DOC = ROOT / "docs" / "knowledge" / "accuracy.md"
 HEAD = """# 機能ごとの精度
 
-`tools/gen/accuracy_bench.py` が `chatdraw/accuracy.py` の台を流して書く表。数字は 0〜100 で、高いほど良い。
-前の数字より下がった物には ▼ を付ける。直す順番は、この表で一番低い機能から。測る物と正解は `chatdraw/accuracy.py` の各関数に書く。
+`tools/gen/accuracy_bench.py` が台を流して書く表。数字は 0〜100 で、高いほど良い。
+前の数字より下がった物には ▼ を付ける。直す順番は、この表で一番低い機能から。今流せる台は `tools/gen/accuracy_bench.py` の BENCHES に並べる。
+日付の古い行は、0.5.23 で外れた台（chatdraw/accuracy.py）で測った前の数字で、今は流していない。
 
 | 機能 | 数字 | 前の数字 | 日付（日本時間） |
 |---|---|---|---|
@@ -54,16 +55,39 @@ def render(old: dict, new: dict, when: str) -> str:
     return HEAD + "\n".join(lines) + "\n"
 
 
+def qc_single() -> dict:
+    """検品単体の台。数字は人が崩れと書いた部位を取りこぼさなかった割合"""
+    sys.path.insert(0, str(ROOT / "tools" / "gen"))
+    import qcbench
+    rows = qcbench.truth()
+    results = {}
+    for r in rows:
+        try:
+            results[r["path"]] = qcbench.run_one(ROOT / r["path"])
+        except Exception as e:   # noqa: BLE001  落ちた絵は数えない（qcbench と同じ）
+            print(f"落ちた: {r['path']}: {e}", flush=True)
+    sc = qcbench.score(rows, results)
+    return {"score": sc["caught"], **{k: v for k, v in sc.items() if k not in ("caught", "missed")}}
+
+
+BENCHES = {"検品単体": qc_single}
+
+
+def run(names=None) -> dict:
+    unknown = [n for n in names or [] if n not in BENCHES]
+    if unknown:
+        raise SystemExit("台がありません: " + "、".join(unknown) + "（あるのは " + "、".join(BENCHES) + "）")
+    return {n: BENCHES[n]() for n in (names or BENCHES)}
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser()
-    ap.add_argument("--heavy", action="store_true")
     ap.add_argument("--only", default="")
     ap.add_argument("--write", action="store_true")
     ap.add_argument("--json", default="")
     a = ap.parse_args(argv)
-    from chatdraw import accuracy
     names = [x for x in a.only.split(",") if x] or None
-    res = accuracy.run(names, heavy=a.heavy)
+    res = run(names)
     for k, v in res.items():
         print(f"{k}: {v['score']}  " + json.dumps({x: y for x, y in v.items() if x != "score"}, ensure_ascii=False)[:400], flush=True)
     if a.json:

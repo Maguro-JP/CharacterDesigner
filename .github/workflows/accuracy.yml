@@ -1,12 +1,11 @@
-# 全部の機能の精度の台（chatdraw/accuracy.py）の重い物（拡大の模型、数字の検品の部位分け）を流す。
-# 軽い物は手元の試験（chatdraw/tests/test_accuracy.py）で流す。リポジトリは公開しているので重い物は Actions の枠を使う。
+# 機能ごとの精度の台（tools/gen/accuracy_bench.py の BENCHES）を流す。リポジトリは公開しているので重い物は Actions の枠を使う。
 name: accuracy
 on:
   workflow_dispatch:
   push:
     branches: ["claude/FIX-accuracy-*"]
     paths:
-      - "chatdraw/accuracy.py"
+      - "tools/gen/qcbench.py"
       - "tools/gen/accuracy_bench.py"
       - ".github/workflows/accuracy.yml"
 permissions:
@@ -28,7 +27,7 @@ jobs:
           python-version: "3.11"
       - run: pip install -q --index-url https://download.pytorch.org/whl/cpu torch && pip install -q numpy scipy scikit-image pillow transformers huggingface_hub PySide6
       - name: 重い物を流す
-        run: python tools/gen/accuracy_bench.py --heavy --only 拡大,検品 --json accuracy.json | tee accuracy.txt
+        run: python tools/gen/accuracy_bench.py --only 検品単体 --json accuracy.json | tee accuracy.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:
