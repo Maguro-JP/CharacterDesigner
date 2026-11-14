@@ -4260,6 +4260,11 @@ class Window(QMainWindow):
         if hasattr(self, "layer_panel"):
             self._refresh_layers()
         c = self.canvas
+        box = getattr(self, "note_box", None)
+        fewer = len(c.redpen.marks) < getattr(self, "_marks_seen", 0)
+        self._marks_seen = len(c.redpen.marks)
+        if box is not None and box.isVisible() and (fewer or not 1 <= getattr(self, "note_n", 0) <= len(c.redpen.marks)):
+            box.hide()   # 消えた印の指示の欄を残さない（印を消した・直し終えた・絵を替えたあとも枠と欄が残っていた）
         if c.redpen.marks or c.selection is not None:
             return
         if self.mode.currentIndex() == 2:

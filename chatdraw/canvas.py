@@ -312,6 +312,7 @@ class Canvas(QGraphicsView):
             self._reset([Layer("レイヤー 1", blank(img.width(), img.height())), Layer(name, img)], 1)
             return
         self.snapshot_all()
+        self._clear_marks()   # 前の絵の赤ペンの枠を新しい絵の上に残さない
         self.layers = [Layer("レイヤー 1", blank(img.width(), img.height())), Layer(name, img)]
         self.current = 1
         self.set_selection(None)
@@ -332,6 +333,7 @@ class Canvas(QGraphicsView):
             return self.add_image_layer(path, name)   # 大きさだけ違う結果は、キャンバスに合わせて一番上に重ねる
         self.snapshot_all()
         if replace:   # 一番下は透明の土台、その上に結果（replace_with_image と同じ並び）
+            self._clear_marks()
             self.layers = [Layer("レイヤー 1", blank(img.width(), img.height())), Layer(name, img)]
         else:
             self.layers.append(Layer(name, img))
@@ -358,9 +360,17 @@ class Canvas(QGraphicsView):
         self.current = len(self.layers) - 1
         self.rebuild()
 
+    def _clear_marks(self):
+        """絵を替えたら赤ペンの印（枠・番号・指示）と、やり直すの控えを消す。前の絵の印が新しい絵の上に残っていた"""
+        if hasattr(self, "redpen"):
+            self.redpen.undone.clear()
+            if self.redpen.marks or self.redpen.preview is not None:
+                self.redpen.clear()
+
     def _reset(self, layers: list[Layer], current: int):
         self.layers, self.current = layers, current
         self.sym_center = None   # 新しい絵では軸を真ん中に戻す
+        self._clear_marks()
         self.set_selection(None)
         self.undo_stack.clear()
         self.redo_stack.clear()

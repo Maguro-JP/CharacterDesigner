@@ -402,6 +402,93 @@ class RedPen3Test(Base):
         self.assertEqual(sum(1 for l in c.layers if l.redpen), 1)
         w.shortcut_store().remove(sid)
 
+    # ---- 赤ペンの枠が残らない（印を消す・直しが終わる・レイヤーの欄で消す・絵を替える） ----
+    def red_px(self, c):
+        """画面に出ている赤ペンの赤（枠と番号）の画素の数"""
+        import numpy as np
+        a = np.frombuffer(scene_pixels(c), np.uint8).reshape(c.size_px()[1], c.size_px()[0], 4)
+        b, g, r = a[..., 0].astype(int), a[..., 1].astype(int), a[..., 2].astype(int)
+        return int(((r > 200) & (g < 90) & (b < 90)).sum())
+
+    def frame_case(self, how):
+        from PySide6.QtCore import QCoreApplication
+        w = self.w
+        Image.new("RGB", (96, 128), (240, 240, 240)).save(self.a)   # 赤の無い絵（赤ペンの赤だけを数える）
+        w.show_history_image(str(self.a))
+        self.settle(w)
+        c = w.canvas
+        w.show()
+        c.set_tool("redpen")
+        base = self.red_px(c)
+        self.mark(c.redpen, 20, 20, 60, 60)
+        w.edit_note(1)
+        QCoreApplication.processEvents()
+        self.assertGreater(self.red_px(c), base, "枠が出ていない")
+        self.assertTrue(w.note_box.isVisible())
+        if how == "remove":
+            c.redpen.remove(1)
+        elif how == "fix":
+            w.note_edit.setText("目を大きく")
+            w.note_ok.click()
+            from unittest import mock
+            with mock.patch.object(w, "_keep_original", lambda t: t):
+                w.fix_marked()
+                self.wait(w)
+        elif how == "layer":
+            panel = w.layer_panel
+            panel.refresh()
+            row = next(i for i in range(panel.list.count()) if panel.list.item(i).text().startswith("赤ペン 1"))
+            panel.list.setCurrentRow(row)
+            self.press_yes(w)
+            panel._delete()
+        elif how == "switch":
+            w.show_history_image(str(self.b))
+            self.settle(w)
+        QCoreApplication.processEvents()
+        left = self.red_px(c)
+        print(how, "赤ペンの赤の画素:", base, "→", left, "印:", len(c.redpen.marks), "欄:", w.note_box.isVisible())
+        self.assertEqual(len(c.redpen.marks), 0)
+        self.assertEqual(left, base if how != "switch" else self.red_px(c), "枠が画面に残っている")
+        self.assertEqual(left, 0 if how == "switch" else base)
+        self.assertFalse(w.note_box.isVisible(), "指示の欄が残っている")
+
+    def test_frame_gone_remove(self):
+        self.frame_case("remove")
+
+    def test_frame_gone_fix(self):
+        self.frame_case("fix")
+
+    def test_frame_gone_layer(self):
+        self.frame_case("layer")
+
+    def test_frame_gone_switch(self):
+        self.frame_case("switch")
+
+    def test_confirm_then_fix_once(self):
+        """確定のボタンで指示を入れ、「囲んだ所を直す」で 1 回だけ直す"""
+        from unittest import mock
+        w = self.w
+        w.show_history_image(str(self.a))
+        self.settle(w)
+        c = w.canvas
+        w.show()
+        c.set_tool("redpen")
+        self.mark(c.redpen, 20, 20, 60, 60)
+        w.edit_note(1)
+        w.note_edit.setText("目を大きく")
+        from PySide6.QtTest import QTest
+        QTest.mouseClick(w.note_ok, Qt.LeftButton)
+        self.assertEqual(c.redpen.texts, ["目を大きく"])
+        self.assertFalse(w.note_box.isVisible())
+        n = len(w.studio.painter.calls)
+        with mock.patch.object(w, "_keep_original", lambda t: t):
+            w.send()
+            self.wait(w)
+        print("確定のあとの直し: 模型の呼び出し", len(w.studio.painter.calls) - n, "印", len(c.redpen.marks))
+        self.assertEqual(len(w.studio.painter.calls) - n, 1)
+        self.assertEqual(sum(1 for l in c.layers if l.redpen), 1)
+        self.assertEqual(len(c.redpen.marks), 0)
+
     def test_text_fix_only_that_mark(self):
         """登録した言葉の指示・「言葉で指示…」は、右クリックした印の囲みの中だけを直す（ほかの印は直さず、残す）"""
         from unittest import mock
