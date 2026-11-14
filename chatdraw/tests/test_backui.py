@@ -174,5 +174,73 @@ class MemModeWindowTest(Base):
         self.assertAlmostEqual(membudget.budget(10, 0).ram, 6.0)
 
 
+class DebugModeTest(Base):
+    """デバッグモード: 設定で入れると下に「記録」の欄が出て、例外の全文・空きメモリ・模型に渡した言葉が流れ、
+    描けなかった理由の全文を窓で出す。切れば止まる"""
+
+    def setUp(self):
+        super().setUp()
+        import chatdraw.paths as paths
+        self._home, paths.HOME = paths.HOME, Path(self.d.name)   # 記録のファイルを試験の置き場に書く
+
+    def tearDown(self):
+        from chatdraw import debuglog
+        import chatdraw.paths as paths
+        debuglog.configure(False)
+        paths.HOME = self._home
+        super().tearDown()
+
+    def test_debug_mode_shows_full_exception(self):
+        from chatdraw import debuglog, sent
+        w = self.window(FlakyPainter())
+        w.studio.draw_anyway = None
+        self.addCleanup(lambda: [w.settings.set(k, 0) for k in ("debug", "debug_budget")])   # 利用者の設定に残さない
+        w.settings.set("debug", 1)
+        w.settings.set("debug_budget", 1)
+        w.apply_debug_mode()
+        self.assertTrue(debuglog.on() and debuglog.lifted("budget"))
+        self.assertFalse(w._debug_dock().isHidden())
+        w.entry.setText("騎士")
+        w.ai_panel.set_count(3)
+        w.button.click()
+        self.assertTrue(run_until(self.app, w, lambda: w.thread is None and getattr(w.job, "drawn", None) == 2, 120))
+        text = w.debug_view.toPlainText()
+        self.assertIn("Traceback (most recent call last)", text)
+        self.assertIn("試験で落とした 1 枚", text)
+        self.assertIn("空きメモリ", text)
+        sent.record("描く", "1girl, knight", "lowres")
+        self.assertTrue(run_until(self.app, w, lambda: "[言葉] 描く: 1girl, knight" in w.debug_view.toPlainText(), 10))
+        self.assertTrue(debuglog.file().exists())
+        self.assertIn("Traceback", w.debug_box.detailedText())
+        w.settings.set("debug", 0)
+        w.apply_debug_mode()
+        self.assertFalse(debuglog.on())
+        self.assertTrue(w._debug_dock().isHidden())
+
+    def test_budget_lift_draws_instead_of_stopping(self):
+        from types import SimpleNamespace
+        from chatdraw import debuglog, engine, membudget as mb
+        p = engine.Painter.__new__(engine.Painter)
+        p._note = lambda *a, **k: None
+        plan = SimpleNamespace(ok=False, reason="足りない", lighter="小さくしてください", size=(512, 512),
+                               ram_peak=lambda: 30.0, vram_peak=lambda: 0.0)
+        b = mb.Budget(8.0, 0.0, 10.0, 0.0)
+        with self.assertRaises(mb.OverBudget):
+            p._check_budget(plan, b)
+        debuglog.configure(True, ["budget"])
+        p._check_budget(plan, b)   # 外したときは止めずに描く
+        self.assertTrue(p.low_memory)
+
+    def test_old_logs_are_removed(self):
+        from chatdraw import debuglog
+        f = debuglog.folder()
+        f.mkdir(parents=True, exist_ok=True)
+        (f / "chatdraw-20200101.log").write_text("x")
+        os.utime(f / "chatdraw-20200101.log", (0, 0))
+        (f / "chatdraw-new.log").write_text("x")
+        self.assertEqual(debuglog.prune(), 1)
+        self.assertTrue((f / "chatdraw-new.log").exists())
+
+
 if __name__ == "__main__":
     unittest.main()

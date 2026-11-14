@@ -19,6 +19,8 @@ def record(where: str, prompt, negative=None, **extra) -> None:
     with _lock:
         _log.append(e)
         del _log[:-KEEP]
+    from chatdraw import debuglog
+    debuglog.log("言葉", f"{where}: {e['prompt']}" + (f" / 打ち消し: {e['negative']}" if e["negative"] else ""))
 
 
 def last(n: int = KEEP) -> list[dict]:

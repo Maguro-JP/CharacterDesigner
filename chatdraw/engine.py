@@ -898,6 +898,11 @@ class Painter:
         大きく超える物（12GB の GPU に 60GB 近い模型）は、読むと落ちるので今までどおり読む前に止める"""
         if plan is None or plan.ok:
             return
+        from chatdraw import debuglog
+        if debuglog.lifted("budget"):   # デバッグモードで外したとき。描いている途中の見張り（membudget.Watch）は残る
+            debuglog.log("メモリ", "予算を超える見積もりですが、デバッグモードで止めを外しているので描きます: " + plan.reason, mem=True)
+            self.low_memory = True
+            return
         from chatdraw import membudget as mb
         b = b or mb.budget()   # 見積もりに使った予算で比べる（測り直すと、見積もりと違う空きで判定していた）
         k = mb.over_ok()   # 設定の「メモリの使い方」で変わる（自動は OVER_OK と同じ 1.5）

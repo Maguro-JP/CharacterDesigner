@@ -130,8 +130,10 @@ class Job(QObject):
 
     def _say(self, msg: str):
         """工程の知らせ。止める旗が立っていれば、ここで止める（旗を見ない工程の区切りでも止まる）"""
+        from chatdraw import debuglog
         from chatdraw.engine import check_stop
         check_stop()
+        debuglog.log("工程", msg)
         self.status.emit(msg)
 
     def run(self):
@@ -150,6 +152,8 @@ class Job(QObject):
                 self._draw_all()
             self.done.emit()
         except Exception as e:  # 描けなかった理由を、次に何をすればよいか分かる日本語で会話に出す
+            from chatdraw import debuglog
+            self.trace = debuglog.exception("描く・直す", e)
             from chatdraw.engine import explain
             from chatdraw.engine import Stopped
             self.failed.emit(explain(e))   # 何が起きたかを 1 行で返す（「描けませんでした」の決まり文句は付けない）
@@ -167,10 +171,12 @@ class Job(QObject):
     def _draw_all(self):
         """枚数分を描く。1 枚が描けなくても残りを描き続け、描けなかった枚と理由を覚えて最後に知らせる。
         前は 1 枚の例外が外へ抜けて、まだ描いていない枚まで全部取り消された"""
+        from chatdraw import debuglog
         from chatdraw.engine import Stopped, explain
         self.drawn, self.reasons = 0, []
         many = len(self.seeds) > 1
         for i, seed in enumerate(self.seeds, 1):
+            debuglog.log("工程", f"{i}/{len(self.seeds)} 枚目を描きます（種 {seed}）", mem=True)
             try:
                 self._draw_one(seed)
                 self.drawn += 1
@@ -179,6 +185,7 @@ class Job(QObject):
             except Exception as e:   # noqa: BLE001  1 枚だけの失敗で、ほかの枚を取り消さない
                 if not many or "描きません" in str(e):
                     raise   # 1 枚だけの頼みと、描かない頼み（childsafe）は、今までどおり理由を返して終える
+                self.trace = debuglog.exception(f"{i} 枚目", e)
                 self.reasons.append(f"{i} 枚目: {explain(e)}")
                 self.status.emit(f"{i} 枚目は描けませんでした（{explain(e)}）。残りを描きます")
         if many and not self.drawn:
@@ -218,6 +225,8 @@ def guarded(obj, body):
     except Stopped:
         obj.failed.emit("止めました")
     except BaseException as e:   # noqa: BLE001  落ちても画面に必ず返す
+        from chatdraw import debuglog
+        obj.trace = debuglog.exception("裏の処理", e)
         obj.failed.emit(f"できませんでした: {e}")
 
 
@@ -1420,6 +1429,7 @@ class Window(QMainWindow):
         self.setup_customizing()
         # 起動したときの道具。初めは手（絵を動かして見る）。描くときにペンを選ぶ。設定でペンにもできる
         self.select_tool("pen" if self.settings.get("first_tool") == "ペン" else "hand")
+        self.apply_debug_mode()   # デバッグモード（既定はオフ。オンなら下に「記録」の欄を出す）
 
     PROMPT_KEY, FAV_KEY, PROMPT_MAX = "prompts/history", "prompts/favorites", 20
     EXAMPLES = ("赤いマフラーの女の子", "鎧の騎士 全身", "猫耳の少女 笑顔", "夕暮れの街", "レイヤーを足して")
@@ -2571,6 +2581,7 @@ class Window(QMainWindow):
             # 1 枚が描けなくても残りは描いた。何枚描けたか、描けなかった理由を先に知らせる
             result = f"{asked} 枚のうち {job.drawn} 枚描きました"
             self.say(result + "。描けなかった枚: " + "、".join(job.reasons[:3]))
+            self._debug_failure(result, "\n".join(job.reasons), getattr(job, "trace", ""))
         self.activity.end(result, None, record=False)
         self.say(result if fixed else f"{n} 枚描きました。履歴から選べます" if n > 1 else "描きました")
         self.notify(result if fixed else "描けました", "error" if bad else "ok",
@@ -3714,7 +3725,80 @@ class Window(QMainWindow):
             self.strength.setValue(int(g("rough_follow") * 100))
             self.check_ai()
             self.canvas.set_cursor_style(g("cursor"))
+            self.apply_debug_mode()
             self.statusBar().showMessage("設定を保存しました")
+
+    # ---- デバッグモード（chatdraw/debuglog.py） ----
+    def apply_debug_mode(self):
+        """設定のデバッグモードを当てる。オンなら下に「記録」の欄を出し、裏の記録を流す"""
+        from chatdraw import debuglog
+        from chatdraw.settings import apply_debug
+        apply_debug(self.settings)
+        if debuglog.on():
+            self._debug_dock().show()
+        elif getattr(self, "_dbg_dock", None) is not None:
+            self._dbg_dock.hide()
+
+    def _debug_dock(self):
+        from PySide6.QtCore import QObject, Signal
+        from PySide6.QtWidgets import QDockWidget, QPlainTextEdit
+        from chatdraw import debuglog
+        if getattr(self, "_dbg_dock", None) is not None:
+            return self._dbg_dock
+
+        class Bridge(QObject):   # 裏の糸の記録を、画面の糸で欄に足す
+            line = Signal(str)
+        self._dbg_bridge = Bridge()
+        dock = QDockWidget("記録", self)
+        dock.setObjectName("debug_log")
+        box = QWidget()
+        lay = QVBoxLayout(box)
+        lay.setContentsMargins(4, 4, 4, 4)
+        self.debug_view = QPlainTextEdit()
+        self.debug_view.setReadOnly(True)
+        self.debug_view.setMaximumBlockCount(debuglog.RING)
+        self.debug_view.setPlainText("\n".join(debuglog.lines()))
+        row = QHBoxLayout()
+        open_btn = QPushButton("記録のファイルを開く")
+        open_btn.setToolTip(f"今日の記録のファイルを開きます（{debuglog.KEEP_DAYS} 日より古い記録は自動で消えます）")
+        open_btn.clicked.connect(self.open_debug_log)
+        row.addWidget(open_btn)
+        row.addStretch(1)
+        lay.addWidget(self.debug_view)
+        lay.addLayout(row)
+        dock.setWidget(box)
+        self.addDockWidget(Qt.BottomDockWidgetArea, dock)
+        self._dbg_bridge.line.connect(self.debug_view.appendPlainText)
+        debuglog.listen(self._dbg_bridge.line.emit)
+        self._dbg_dock = dock
+        return dock
+
+    def open_debug_log(self):
+        from chatdraw import debuglog
+        f = debuglog.file()
+        try:
+            f.parent.mkdir(parents=True, exist_ok=True)
+            f.touch()
+        except OSError:
+            pass
+        from PySide6.QtCore import QUrl
+        from PySide6.QtGui import QDesktopServices
+        QDesktopServices.openUrl(QUrl.fromLocalFile(str(f)))
+
+    def _debug_failure(self, title: str, why: str, trace: str = ""):
+        """デバッグモードなら、描けなかった・落ちた理由の全文を窓で出す（記録のファイルを開ける）"""
+        from chatdraw import debuglog
+        if not debuglog.on():
+            return
+        debuglog.log("描けなかった", why)
+        box = QMessageBox(QMessageBox.Warning, title, why, parent=self)
+        box.setDetailedText(trace or why)
+        opener = box.addButton("記録のファイルを開く", QMessageBox.ActionRole)
+        box.addButton(QMessageBox.Close)
+        opener.clicked.connect(self.open_debug_log)
+        box.setModal(False)
+        self.debug_box = box
+        box.show()
 
     def ask_models(self, force: bool = False):
         """初めての起動か、絵の模型が足りなければ、候補を見せて選んでもらう。force なら入れ替えと更新の画面を開く"""
@@ -4169,6 +4253,8 @@ class Window(QMainWindow):
         why = (why or "うまくいきませんでした").strip().splitlines()[0]   # 何が起きたかを 1 行で出す（「描けませんでした」の決まり文句は出さない）
         stop = "止め" in why
         self.say(why)
+        if not stop:
+            self._debug_failure("描けませんでした", why, getattr(self.sender(), "trace", "") or getattr(getattr(self, "job", None), "trace", ""))
         if self.activity.started is not None:
             self.activity.end("止めました" if stop else why)
         # 進みの欄の 1 回分の外で落ちたときも、理由を右下に出す（出さないと何も起きなかったように見えた）
