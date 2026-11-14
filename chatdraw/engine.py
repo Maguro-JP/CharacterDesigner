@@ -1911,8 +1911,11 @@ class Studio:
         say = on_status or (lambda msg: None)
         if hasattr(self.painter, "on_note"):
             self.painter.on_note = say
+        from chatdraw import seamfix
         prompts = []
         self.last_flaws = []   # 直したあとに見つけた崩れ（空なら見つからなかった。出来たかどうかは利用者が決める）
+        self.last_seam = []    # 境目の数字（色の差、線のずれ、SSIM）。直した所ごと
+        self.last_whole = {}   # 全体の確かめの数字（1 回だけ測って知らせる）
         result = image.convert("RGB")
         from PIL import Image as _Image, ImageChops as _Chops
         touched = _Image.new("L", image.size, 0)
@@ -1930,10 +1933,20 @@ class Studio:
             # 直しは 1 回で終える。検品が通るまで直し続ける繰り返しは、描けなくなる（終わらない）ので繋げない。
             # 見つけた崩れは知らせるだけで、直すかどうかは利用者が決める（もう一度囲んで直せる）
             result = self._fix_once(before, mask, prompt, seed + k, strength, k, len(regions), say, reference, ref_scale)
+            if check:
+                # 境目の色・明るさ・線を元の絵に合わせる（chatdraw/seamfix.py。囲みの中の縁の帯だけを数字で合わせ、外は変えない）。
+                # 模型での描き直しには繋げない
+                m = mask.convert("L").resize(image.size).point(lambda v: 255 if v > 127 else 0)
+                result = _Image.composite(result.convert("RGB"), before, m)   # 囲みの外は 1 画素も変えない
+                result, tried = seamfix.settle(before, result, m, say=lambda t: say(f"{t}（{k} か所目）"))
+                self.last_seam.append(dict(region=k, **(tried[-1] if tried else {}), tries=len(tried)))
             best_flaws = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, result, mask)] if check else []
             say(f"確かめました（{k} か所目・崩れ {len(best_flaws)} 件）")
             prompts.append(prompt)
             self.last_flaws += best_flaws
+        if check:   # 最後に絵の全体を 1 回だけ測って知らせる（直し直しには繋げない）
+            self.last_whole = seamfix.whole_check(image, result, touched)
+            say(self.last_whole["note"])
         if self.last_flaws:
             say("崩れが見つかりました: " + " / ".join(self.last_flaws))
         # 重ねるレイヤーは直した所だけを見せる（外は元と同じ画素なので、下のレイヤーに描き足しても隠さない）

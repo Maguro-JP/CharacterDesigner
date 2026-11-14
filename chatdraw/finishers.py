@@ -1010,6 +1010,9 @@ def qc_note(q: dict | None = None) -> str:
         note += "顔を守る印は、部位分けの模型が無いか顔が見つからないので使っていません。"
     from chatdraw import facefeat
     note += facefeat.note(q.get("features") or {}, q.get("label", "加工"))
+    whole = q.get("whole") or {}
+    if whole.get("left"):   # 全体の確かめで見つけた崩れは知らせる（直すかどうかは利用者が決める）
+        note += whole["note"] + "。"
     return note
 
 
@@ -1054,6 +1057,10 @@ def run(name: str, image, mask=None, say=None, face=_NO_FACE):
         LAST_QC.setdefault("name", name)
         LAST_QC.setdefault("label", f.label)
         LAST_QC["features"] = fr
+    # 最後に絵の全体を 1 回だけ測って知らせる（境目・囲みの外・作画監督。chatdraw/seamfix.whole_check）。絵は変えず、繰り返しに繋げない
+    if getattr(out, "mode", "") == "RGB" and out.size == src.size and not LAST_QC.get("rejected"):
+        from chatdraw import seamfix
+        LAST_QC["whole"] = seamfix.whole_check(src, out, mask)
     return out
 
 
