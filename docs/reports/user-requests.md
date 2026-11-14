@@ -11,6 +11,8 @@
 | D2 | キャラクターデザインのメニュー（一括生成、キャラクターシートの PSD、追加資料、使う人物） | 作業中 | claude/FIX-backchara-20261114: chatdraw/batch.py・charadesign.py、test_modes |
 | D3 | キャラクターファイル（.chara）とキャラデザを作る流れ | 作業中 | claude/FIX-backchara-20261114: chatdraw/charafile.py、test_charafile |
 | D4 | 担当編集者（サボりの検品と工程の記録）。描き直しには繋げず、記録と知らせだけ | 作業中 | claude/FIX-backchara-20261114: chatdraw/director.py、test_director |
+| D5 | プリセットを編集・作成できるようにし、設定できる項目を増やし、描くワードなどお気に入りの指示をプリセットに固定する | 作業中 | claude/FIX-backchara-20261114: chatdraw/presetdialog.py、test_menuaudit.PresetEditTest |
+| D6 | おまかせがおまかせになっていない（毎回同じ模型になる） | 作業中 | claude/FIX-backchara-20261114: choose.choose_image の種での選び直し、test_omakase.ReselectTest。作風のおまかせは言葉を足さない決まりのため選び直していない |
 | C1 | AI の自動選択（選択と赤ペン）。丸・四角・全選択・自動選択の赤ペン | 作業中 | claude/FIX-autosel-20261108 |
 | C2 | 自動選択の印にも境目の確かめを通し、加工のあとは全体を確かめる | 作業中 | claude/FIX-autosel-20261108 |
 | C3 | 自動選択を含め、全部の機能の精度を上げ続ける | 決まり | CLAUDE.md「ユーザーの決めたこと」 |
