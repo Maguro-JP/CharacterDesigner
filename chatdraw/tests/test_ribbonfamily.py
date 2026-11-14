@@ -43,7 +43,7 @@ class RibbonFamilyTest(unittest.TestCase):
     def test_families_cover_all_tools(self):
         """道具の帯にある道具は、どれもリボンのどこかの系統か単独のボタンにある（まとめて消えた道具が無い）"""
         t = self.w.tool_actions
-        want = {"選択": ["select", "lasso", "polygon"], "ペン": ["pen", "spray"], "色を混ぜる": ["blur", "smudge"],
+        want = {"選択": ["select", "lasso", "polygon", "autosel"], "ペン": ["pen", "spray"], "色を混ぜる": ["blur", "smudge"],
                 "塗り": ["fill", "gradient"], "図形": ["line", "rect", "ellipse", "polyshape", "regpoly"],
                 "手のひら・拡大": ["hand", "zoom"]}
         for name, keys in want.items():

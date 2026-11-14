@@ -5347,7 +5347,7 @@ class Window(QMainWindow):
         def tools(*keys):
             return [t[k] for k in keys]
         r.add_page("描く", [
-            ("選択", [F("移動", tools("move")), F("選択", tools("select", "lasso", "polygon"), "選択の道具（四角・投げなわ・多角形）")]),
+            ("選択", [F("移動", tools("move")), F("選択", tools("select", "lasso", "polygon", "autosel"), "選択の道具（四角・投げなわ・多角形・自動選択）")]),
             ("描く", [F("ペン", tools("pen", "spray"), "ペン系（ペン・スプレー）"),
                      F("消しゴム", tools("eraser")),
                      F("色を混ぜる", tools("blur", "smudge"), "色を混ぜる道具（ぼかし・指先）")]),

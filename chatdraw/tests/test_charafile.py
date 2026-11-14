@@ -235,6 +235,8 @@ class AppFlowTest(Base):
             self.wait(lambda: w.thread is None, 600)
         finally:
             self.close(w)
+            from chatdraw import engine
+            engine.STOP.clear()   # 止めた旗を残すと、次の試験の描く流れが始めから止まる
 
 
 if __name__ == "__main__":

@@ -97,6 +97,11 @@ def run_window(w, app, cond, n=600):
 
 
 class AppPathTest(unittest.TestCase):
+    def setUp(self):
+        # 前の試験が止めるボタンを押したまま終えると、止める旗（engine.STOP）が残って描く前に止まった。旗を下ろしてから描く
+        from chatdraw import engine
+        engine.STOP.clear()
+
     def draw(self, painter):
         from chatdraw.app import Window
         from chatdraw.engine import Studio
@@ -143,6 +148,11 @@ def _tiny():
 
 @unittest.skipUnless(_tiny(), "試験用の小さな SDXL が取れません")
 class RealModelTest(unittest.TestCase):
+    def setUp(self):
+        # 前の試験が止めるボタンを押したまま終えると、止める旗（engine.STOP）が残って描く前に止まった。旗を下ろしてから描く
+        from chatdraw import engine
+        engine.STOP.clear()
+
     def test_tiny_model_through_director(self):
         """小さな本物の模型で描いても、担当編集者が工程を記録すること"""
         from chatdraw.engine import Painter, Studio

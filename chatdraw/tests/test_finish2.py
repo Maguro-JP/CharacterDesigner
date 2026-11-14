@@ -80,9 +80,9 @@ class FinishMenuTest(unittest.TestCase):
             self.assertIn("加工", [a.text() for a in w.menuBar().actions()])
             w._fill_finish_menu()
             subs = {a.text(): a.menu() for a in w.finish_menu.actions() if a.menu() is not None}
-            for g in ("綺麗にする", "まとめて", "ディテール", "拡大", "画風"):
+            for g in ("綺麗にする", "まとめて", "ディテール", "拡大", "画風の変更"):
                 self.assertIn(g, subs)
-            styles = [a.text() for a in subs["画風"].actions()]
+            styles = [a.text() for a in subs["画風の変更"].actions()]
             self.assertEqual(styles, [s[1] for s in restyle.STYLES])
             self.assertTrue(all(a.toolTip() for m in subs.values() for a in m.actions()))
         finally:
@@ -216,7 +216,7 @@ class StyleFromMenuTest(unittest.TestCase):
                 n = len(w.canvas.layers)
                 kind, label = restyle.STYLES[0][0], restyle.STYLES[0][1]
                 group, act = menu_action(w, f"fin:style_{kind}")
-                self.assertEqual(group, "画風")
+                self.assertEqual(group, "画風の変更")   # 利用者の言った語
                 self.assertTrue(act.isEnabled(), act.toolTip())
                 act.trigger()
                 wait_done(qapp, w, n)
