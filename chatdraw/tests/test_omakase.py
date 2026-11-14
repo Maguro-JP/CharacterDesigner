@@ -187,5 +187,68 @@ class OmakaseTest(unittest.TestCase):
         self.assertEqual(st.saved[1]["omakase"]["steps"][0]["stage"], "構図（2 段）")
 
 
+
+class ReselectTest(unittest.TestCase):
+    """おまかせは描くたびに模型を選び直す（同じ模型・同じ絵ばかりにしない）。種を固定したときだけ同じ物"""
+
+    def setUp(self):
+        self.tmp = TemporaryDirectory()
+        self.env = mock.patch.dict(os.environ, {"CD_HOME": self.tmp.name})
+        self.env.start()
+        self.fin = mock.patch.object(omakase, "finishers", return_value=None)   # 仕上げの部品は読まない（選び直しだけを見る）
+        self.fin.start()
+
+    def tearDown(self):
+        self.fin.stop()
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def first_model(self, seed, have):
+        log = []
+        st = FakeStudio(Path(self.tmp.name))
+        omakase.draw(st, "剣を持った騎士の女の子", seed, lambda m: None, have=have, painter_for=lambda m: FakePainter(m.repo, log),
+                     check=lambda image, prompt: OK, size=(64, 96))
+        return next(e[1] for e in log if e[0] == "paint")
+
+    def test_omakase_draw_changes_model_by_seed(self):
+        import random
+        have = [COMPOSE, HANDS, FACES]
+        seeds = [random.randrange(0, 2_000_000_000) for _ in range(16)]
+        got = [self.first_model(s, have) for s in seeds]
+        print("おまかせの構図の模型:", {m: got.count(m) for m in set(got)})
+        self.assertGreaterEqual(len(set(got)), 2)
+        self.assertEqual(self.first_model(7, have), self.first_model(7, have))   # 同じ種なら同じ
+
+    def test_choose_image_reselects_with_seed(self):
+        from chatdraw.choose import choose_image
+        a, b, c = model("a/a", "anime"), model("b/b", "anime"), model("c/c", "anime")
+        fixed = {choose_image("騎士", "", None, [a, b, c])[0].repo for _ in range(5)}
+        self.assertEqual(len(fixed), 1)   # 種を渡さなければ前と同じ（決まった 1 つ）
+        got = [choose_image("騎士", "", None, [a, b, c], seed=s)[0].repo for s in range(40)]
+        print("ラフ・参考画像のおまかせの模型:", {m: got.count(m) for m in set(got)})
+        self.assertGreaterEqual(len(set(got)), 2)
+
+    def test_window_draws_with_new_seed_each_time(self):
+        """窓から 2 回描くと、種を固定していなければ違う種で描く（おまかせが選び直す元）"""
+        from chatdraw.app import Window
+        from chatdraw.engine import Studio
+        from chatdraw.tests.test_chatdraw import FakePainter as FP, FakeWords as FW
+        from chatdraw.tests.test_editing import app
+        a = app()
+        p = FP()
+        w = Window(Studio(FW(), p, Path(self.tmp.name)))
+        try:
+            seeds = []
+            for _ in range(2):
+                seeds += w.ai_panel.seeds()
+            self.assertNotEqual(seeds[0], seeds[1])
+            w.ai_panel.seed_lock.setChecked(True)
+            self.assertEqual(w.ai_panel.seeds(), w.ai_panel.seeds())
+        finally:
+            w.dirty = False
+            w.closing_checked = True
+            w.close()
+            a.processEvents()
+
 if __name__ == "__main__":
     unittest.main()

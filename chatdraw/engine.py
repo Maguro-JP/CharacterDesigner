@@ -1558,7 +1558,7 @@ class Studio:
             say("頼みに合う絵の模型を選んでいます")
             have = [m for m in installed_images()
                     if (base is None or fam(m.family).sketch) and (reference is None or fam(m.family).reference)]
-            m, why = choose_image(text, text, self.words, have=have)
+            m, why = choose_image(text, text, self.words, have=have, seed=seed)
             if m is not None:
                 if m.repo != self.painter.model:
                     avoid = getattr(self.painter, "avoid", "")

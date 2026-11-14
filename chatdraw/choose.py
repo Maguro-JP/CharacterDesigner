@@ -62,8 +62,10 @@ def merit(m: ImageModel, need: str) -> float:
     return -1000 * low + fit(m, need) + r * 0.5 + (15 if is_favorite(m.repo) else 0)
 
 
-def choose_image(text: str, prompt: str, words=None, have: list[ImageModel] | None = None) -> tuple[ImageModel | None, str]:
-    """手元の模型から、頼みに合い点の高い物を選ぶ。返すのは (模型, 理由)。非表示にした物は、ほかに無いときだけ使う"""
+def choose_image(text: str, prompt: str, words=None, have: list[ImageModel] | None = None,
+                 seed: int | None = None) -> tuple[ImageModel | None, str]:
+    """手元の模型から、頼みに合い点の高い物を選ぶ。返すのは (模型, 理由)。非表示にした物は、ほかに無いときだけ使う。
+    seed を渡すと、頼みに同じだけ合う模型の中から種で選び直す（omakase.explore と同じ重み）。渡さないと毎回同じ物"""
     from chatdraw.ratings import is_hidden
     have = installed_images() if have is None else have
     have = [m for m in have if not __import__("chatdraw.ratings").ratings.is_blocked(m.repo)]
@@ -81,9 +83,18 @@ def choose_image(text: str, prompt: str, words=None, have: list[ImageModel] | No
         try:
             hit = re.search(r"\d+", words.ask(PICK.format(options=options, default=have.index(best) + 1), f"{text}\n{prompt}", max_tokens=4))
             if hit and 1 <= int(hit.group()) <= len(have):
-                return have[int(hit.group()) - 1], "AI が頼みから選びました"
+                best, why = have[int(hit.group()) - 1], "AI が頼みから選びました"
         except Exception:
             pass   # 言葉の模型が動かなくても、言葉で決めて描く
+    if seed is not None:
+        # ラフ・参考画像・1 つの模型で描くときのおまかせ。いつも 1 位（言葉の模型の選びも毎回同じ答え）で描くと、
+        # おまかせなのに模型が固定された。頼みに同じだけ合い、低い評価の付いていない物の中から選び直す
+        from chatdraw.omakase import explore
+        pool = [best] + [m for m in ranked if m is not best and fit(m, need) == fit(best, need) and merit(m, need) > -500]
+        if len(pool) > 1:
+            pick = explore([(m, "") for m in pool], seed)[0][0]
+            if pick is not best:
+                return pick, f"{why}（おまかせで種から選び直しました）"
     return best, why
 
 
