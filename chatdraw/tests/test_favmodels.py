@@ -203,5 +203,120 @@ class WindowTest(unittest.TestCase):
             w.close()
 
 
+class ManagerSetsAndFilterTest(unittest.TestCase):
+    """模型の管理の窓: 役目ごとの編成を作る・名前・直す・消す・切り替える。絞り込みに合わない物は取得済みでも ★ でも出さない"""
+
+    def setUp(self):
+        from chatdraw.tests.test_aitabs import app
+        app()
+        self.tmp = TemporaryDirectory()
+        self.env = mock.patch.dict(os.environ, {"CD_HOME": self.tmp.name})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def manager(self, have=()):
+        from PySide6.QtCore import QSettings
+        from chatdraw import manager
+        from chatdraw.settings import Settings
+        st = Settings(QSettings(str(Path(self.tmp.name) / "s.ini"), QSettings.IniFormat))
+        items = [manager.Item("image", m.name, Path(self.tmp.name) / m.name, 1.0, m.repo) for m in have]
+        self.p = mock.patch.object(manager, "installed", lambda: list(items))
+        self.p.start()
+        self.addCleanup(self.p.stop)
+        return manager.ModelManager(st), st
+
+    def texts(self, dlg):
+        from PySide6.QtWidgets import QLabel
+        out = []   # 今の並びの部品だけを見る（作り直す前の部品は deleteLater で後から消える）
+        for i in range(dlg.list.count()):
+            w = dlg.list.itemAt(i).widget()
+            if w is not None:
+                out += [w.text()] if isinstance(w, QLabel) else [x.text() for x in w.findChildren(QLabel)]
+        return out
+
+    def test_filter_hides_installed_and_favorite_that_do_not_match(self):
+        from chatdraw import ratings
+        from chatdraw.models import catalog_images, style
+        cat = catalog_images()
+        real = [m for m in cat if style(m) == "real"]
+        anime = [m for m in cat if style(m) == "anime"]
+        self.assertTrue(real and anime)
+        fav_real, have_real = real[0], real[-1]
+        ratings.set_favorite(fav_real.repo, True)
+        dlg, _st = self.manager(have=[have_real])
+        dlg.filter.setCurrentText("アニメ・イラスト")
+        from chatdraw.tests.test_aitabs import app
+        app().processEvents()
+        shown = " ".join(self.texts(dlg))
+        self.assertNotIn(fav_real.name, shown)    # ★ でも、絞り込みに合わなければ出さない
+        self.assertNotIn(have_real.name, shown)   # 取得済みでも出さない
+        self.assertIn(anime[0].name, shown)
+        dlg.filter.setCurrentText("取得済み")
+        app().processEvents()
+        self.assertIn(have_real.name, " ".join(self.texts(dlg)))
+        out = os.environ.get("CD_SNAP_DIR")
+        if out:
+            dlg.filter.setCurrentText("アニメ・イラスト")
+            dlg.resize(560, 700)
+            dlg.show()
+            app().processEvents()
+            dlg.grab().save(str(Path(out) / "manager-filter-anime.png"))
+        dlg.close()
+
+    def test_make_rename_edit_switch_delete_sets(self):
+        from chatdraw import favpanel
+        from chatdraw.tests.test_aitabs import app
+        dlg, st = self.manager()
+        dlg._have_models = lambda: [COMPOSE, HANDS, FACES]
+        picks = {}
+
+        def fake_exec(d):
+            for role, repo in picks.items():
+                d.boxes[role].setCurrentIndex(d.boxes[role].findData(repo))
+            return True
+        with mock.patch.object(favpanel.RoleModelsDialog, "exec", fake_exec):
+            picks.update(compose=HANDS.repo, face=FACES.repo)
+            dlg.new_set("アニメの立ち絵")
+            self.assertEqual(favmodels.active(), "アニメの立ち絵")
+            self.assertEqual(favmodels.load(), {"compose": HANDS.repo, "face": FACES.repo})
+            picks.clear()
+            picks.update(compose=COMPOSE.repo, background=FACES.repo)
+            dlg.new_set("背景つき")
+            self.assertEqual(favmodels.sets(), [favmodels.DEFAULT_SET, "アニメの立ち絵", "背景つき"])
+            # 窓の切り替えの欄で切り替える
+            dlg.set_pick.setCurrentText("アニメの立ち絵")
+            app().processEvents()
+            self.assertEqual(favmodels.active(), "アニメの立ち絵")
+            self.assertEqual(favmodels.load()["compose"], HANDS.repo)
+            picks.clear()
+            picks.update(hand=HANDS.repo)
+            dlg.edit_set()
+            self.assertEqual(favmodels.load(), {"compose": HANDS.repo, "face": FACES.repo, "hand": HANDS.repo})
+        dlg.rename_set("立ち絵")
+        self.assertIn("立ち絵", favmodels.sets())
+        self.assertEqual(favmodels.active(), "立ち絵")
+        dlg.set_use.click()
+        self.assertEqual(st.get("image_model"), favmodels.FAV)
+        self.assertIn("構図: h/hands", dlg.set_summary.text())
+        out = os.environ.get("CD_SNAP_DIR")
+        if out:
+            dlg.resize(560, 700)
+            dlg.show()
+            app().processEvents()
+            dlg.grab().save(str(Path(out) / "manager-sets.png"))
+        dlg.delete_set(confirm=False)
+        self.assertNotIn("立ち絵", favmodels.sets())
+        dlg.close()
+
+    def test_old_flat_file_reads_as_default_set(self):
+        from chatdraw.paths import write_json
+        write_json(favmodels.roles_file(), {"compose": "a/b"})
+        self.assertEqual(favmodels.sets(), [favmodels.DEFAULT_SET])
+        self.assertEqual(favmodels.load(), {"compose": "a/b"})
+
+
 if __name__ == "__main__":
     unittest.main()

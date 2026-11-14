@@ -2709,7 +2709,7 @@ class ModelListTest(unittest.TestCase):
         with TemporaryDirectory() as d, mock.patch.dict(os.environ, {"CD_HOME": d}):
             a, b, c = self.models()
             self.assertEqual([m.name for m in models.pick([a, b, c], "推奨（確かめ済み）")], ["A", "C"])
-            self.assertEqual([m.name for m in models.pick([a, b, c], "推奨（確かめ済み）", have={"b/b"})], ["B", "A", "C"])  # 取得済みは先頭
+            self.assertEqual([m.name for m in models.pick([a, b, c], "推奨（確かめ済み）", have={"b/b"})], ["A", "C"])  # 絞り込みに合わない取得済みは出さない
             ratings.set_user_rating("c/c", 30)                                                  # 低い点は推奨に出さない
             self.assertEqual([m.name for m in models.pick([a, b, c], "推奨（確かめ済み）")], ["A"])
             self.assertIn(c, models.pick([a, b, c], "すべて"))                                   # すべてには出す

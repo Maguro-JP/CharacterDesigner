@@ -10,16 +10,16 @@ AUTO_LABEL = "おまかせ"
 
 
 class RoleModelsDialog(QDialog):
-    def __init__(self, have, parent=None):
+    def __init__(self, have, parent=None, data: dict | None = None, title: str = "役目ごとの模型"):
         super().__init__(parent)
-        self.setWindowTitle("役目ごとの模型")
+        self.setWindowTitle(title)
         lay = QVBoxLayout(self)
         note = QLabel("役目ごとに使う模型を選びます。選んだ役目は、描くたびにその模型を使います")
         note.setWordWrap(True)
         lay.addWidget(note)
         form = QFormLayout()
         lay.addLayout(form)
-        data = favmodels.load()
+        data = favmodels.load() if data is None else data
         self.boxes: dict[str, QComboBox] = {}
         for role, (label, tip) in favmodels.ROLES.items():
             box = QComboBox()

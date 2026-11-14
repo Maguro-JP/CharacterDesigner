@@ -407,17 +407,17 @@ def _rating_key(m):
 
 
 def pick(models, filter_name: str = "すべて", sort_name: str = "点の高い順", tags=(), have=()) -> list[ImageModel]:
-    """絞り込み（名前）と、選んだタグを全部持つ物だけを、並べ方の順に返す。
-    手元にある物（have の repo）はどの絞り込みでも出して先頭に置き、その中でも ★ を先にする（取った物を探させないため）。
+    """絞り込み（名前）に合い、選んだタグを全部持つ物だけを、並べ方の順に返す。合わない物は、取得済みでも ★ でも出さない
+    （前は手元の物と ★ をどの絞り込みでも出したので、絞り込めたかが分からなかった）。並びは手元の物、その中で ★ を先にする。
     非表示にした物は「非表示にした模型」の絞り込みにだけ出す。ただし手元にある物は「取得済み」では隠さない"""
     from chatdraw.ratings import has_tags, is_favorite, is_hidden
     have = set(have)
     if filter_name == HIDDEN:
-        out = [m for m in models if is_hidden(m.repo)]
+        out = [m for m in models if is_hidden(m.repo) and has_tags(m, tags)]
+    elif filter_name == HAVE:
+        out = [m for m in models if m.repo in have and has_tags(m, tags)]
     else:
-        out = [m for m in models
-               if (m.repo in have and (filter_name == HAVE or not is_hidden(m.repo)))
-               or (not is_hidden(m.repo) and FILTERS[filter_name](m) and has_tags(m, tags))]
+        out = [m for m in models if not is_hidden(m.repo) and FILTERS[filter_name](m) and has_tags(m, tags)]
     key = SORTS[sort_name]
     return sorted(out, key=lambda m: (m.repo not in have, not is_favorite(m.repo), key(m)))
 

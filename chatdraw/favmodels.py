@@ -35,15 +35,95 @@ def roles_file() -> Path:
     return data_home() / "model_roles.json"
 
 
-def load() -> dict:
+DEFAULT_SET = "標準"
+
+
+def _raw() -> dict:
+    """置き場の中身。{"active": 名前, "sets": {名前: {役目: 模型}}}。前の形（役目の辞書 1 つ）は「標準」の編成として読む"""
     from chatdraw.paths import read_json
     data = read_json(roles_file(), dict, {})
-    return {k: str(v) for k, v in data.items() if k in ROLES and v}
+    if "sets" not in data:
+        data = {"active": DEFAULT_SET, "sets": {DEFAULT_SET: {k: v for k, v in data.items() if k in ROLES}}}
+    sets = {str(n): {k: str(v) for k, v in (d or {}).items() if k in ROLES and v} for n, d in (data.get("sets") or {}).items()}
+    if not sets:
+        sets = {DEFAULT_SET: {}}
+    active = data.get("active") if data.get("active") in sets else next(iter(sets))
+    return {"active": active, "sets": sets}
+
+
+def _write(data: dict):
+    from chatdraw.paths import write_json
+    write_json(roles_file(), data)
+
+
+def load() -> dict:
+    """今の編成の役目ごとの模型"""
+    d = _raw()
+    return dict(d["sets"][d["active"]])
 
 
 def save(data: dict):
-    from chatdraw.paths import write_json
-    write_json(roles_file(), {k: v for k, v in data.items() if k in ROLES and v})
+    """今の編成に書く"""
+    d = _raw()
+    d["sets"][d["active"]] = {k: v for k, v in data.items() if k in ROLES and v}
+    _write(d)
+
+
+# ---- 編成（役目ごとの模型の組）。構図・顔・背景などの組を名前を付けて持ち、切り替える ----
+def sets() -> list[str]:
+    return list(_raw()["sets"])
+
+
+def active() -> str:
+    return _raw()["active"]
+
+
+def get_set(name: str) -> dict:
+    return dict(_raw()["sets"].get(name, {}))
+
+
+def save_set(name: str, data: dict, use: bool = True):
+    """編成を作るか直す。use なら今の編成にする"""
+    name = name.strip()
+    if not name:
+        raise ValueError("編成の名前が空です")
+    d = _raw()
+    d["sets"][name] = {k: v for k, v in data.items() if k in ROLES and v}
+    if use:
+        d["active"] = name
+    _write(d)
+
+
+def use_set(name: str):
+    d = _raw()
+    if name not in d["sets"]:
+        raise KeyError(name)
+    d["active"] = name
+    _write(d)
+
+
+def rename_set(old: str, new: str):
+    new = new.strip()
+    d = _raw()
+    if old not in d["sets"]:
+        raise KeyError(old)
+    if not new or (new in d["sets"] and new != old):
+        raise ValueError("その名前は使えません（空か、ほかの編成と同じ）")
+    d["sets"] = {(new if n == old else n): v for n, v in d["sets"].items()}
+    if d["active"] == old:
+        d["active"] = new
+    _write(d)
+
+
+def delete_set(name: str):
+    """編成を消す。最後の 1 つは消さずに空にする（お気に入りの置き場を無くさない）"""
+    d = _raw()
+    d["sets"].pop(name, None)
+    if not d["sets"]:
+        d["sets"] = {DEFAULT_SET: {}}
+    if d["active"] not in d["sets"]:
+        d["active"] = next(iter(d["sets"]))
+    _write(d)
 
 
 def get(role: str) -> str:

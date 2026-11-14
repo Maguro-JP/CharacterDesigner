@@ -3692,6 +3692,7 @@ class Window(QMainWindow):
         catalog = catalog_images()
         have = self.installed_images(catalog)
         listed = pick(catalog, "推奨（確かめ済み）", have=have)
+        listed = pick(catalog, "取得済み", have=have) + [m for m in listed if m.repo not in have]   # メニューには手元の物も出す
         images = listed + [m for m in manual_images() if not is_blocked(m.repo)]
         menu.addSection("絵の模型")
         group = QActionGroup(menu)
