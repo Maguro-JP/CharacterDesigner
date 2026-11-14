@@ -189,3 +189,13 @@ CodeFormer（S-Lab License 1.0、商用不可）は配布に合わないので�
 - ComfyUI の Interface overview（待ち行列、履歴、Assets、Workflows、Templates、Node Library）: https://docs.comfy.org/interface/overview
 - comfyanonymous/ComfyUI の README（キーの表、変わった所だけを動かし直す）: https://github.com/comfyanonymous/ComfyUI
 - Comfy-Org/ComfyUI_frontend の README（v1.2.0 Queue/History の欄、v1.3.7 キーの変更）: https://github.com/Comfy-Org/ComfyUI_frontend
+
+## 構図（`docs/knowledge/composition.md`、`chatdraw/composition.py`、2026-11-14）
+
+- National Gallery of Art, The Elements of Art: Line（対角線は動きと勢い、水平・垂直は落ち着きと秩序）: https://www.nga.gov/educational-resources/elements-art/elements-art-line
+- Getty Museum, Understanding Formal Analysis（水平は休息、垂直は高さ、対角線は動き、水平と垂直の組は安定）: https://www.getty.edu/education/teachers/building_lessons/formal_analysis.html
+- Philadelphia Museum of Art, Line, Color, Space, Light, and Shape（水平は休息、垂直は力、対角線は動き）: https://legacyweb.philamuseum.org/doc_downloads/education/lessonPlans/Digging-Deep%20Elements%20of%20Art.pdf
+- Norton Simon Museum, Elements of Art（対角線は不安定さと動き）: https://www.nortonsimon.org/assets/Education/CG-Elements.pdf
+- University of Washington, The Language of Film（寄り・引き、目の高さ・あおり・俯瞰・ダッチアングルの効果）: https://faculty.washington.edu/kgb/345/language.pdf
+- Oklahoma State University, Introduction to Film & TV: Cinematography（カメラの角度の定義）: https://open.library.okstate.edu/introfilmtv/part/cinematography/
+- Eastern Arizona College, Film and Media Studies: Camera Angles（俯瞰は弱く、あおりは強く、傾きは不安）: https://eac.libguides.com/c.php?g=723550&p=5287250
