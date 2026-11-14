@@ -120,7 +120,7 @@ class FixKeepsBest(unittest.TestCase):
 
 
 class AskedComesFirst(unittest.TestCase):
-    def test_missing_request_is_moved_forward_next_try(self):
+    def test_draws_once_with_request_as_is(self):
         painter = FakePainter()
         with TemporaryDirectory() as t:
             studio = engine.Studio(painter=painter, out=Path(t))
@@ -135,15 +135,12 @@ class AskedComesFirst(unittest.TestCase):
                     mock.patch("chatdraw.requestcheck.check", side_effect=lambda *a, **k: next(asked)), \
                     mock.patch.object(studio, "_inspect"):
                 studio.draw("1girl, solo, smile, holding umbrella", 4)
-        self.assertEqual(len(painter.prompts), 2)
-        first, second = painter.prompts[0][0], painter.prompts[1][0]
-        self.assertEqual(first, "1girl, solo, smile, holding umbrella")   # 頼みをそのまま渡す
-        self.assertEqual(second, "1girl, solo, smile, holding umbrella")   # 頼みの並びを変えない
-        self.assertNotEqual(painter.prompts[0][1], painter.prompts[1][1])
+        self.assertEqual(len(painter.prompts), 1)   # 描くのは 1 回。検品で描き直しを繋げない
+        self.assertEqual(painter.prompts[0][0], "1girl, solo, smile, holding umbrella")   # 頼みをそのまま渡す
 
 
 class TwoStageRedraws(unittest.TestCase):
-    def test_redraws_until_passed(self):
+    def test_two_stage_draws_once(self):
         calls = []
 
         def run(sentence, tags, seed, comp, render, size, keep, variant, say=None, stopped=None):
@@ -163,11 +160,9 @@ class TwoStageRedraws(unittest.TestCase):
             with mock.patch.object(twostage, "run_stages", side_effect=run), mock.patch.object(studio, "_inspect"):
                 tags, saved = studio._draw_two("1girl, smile, red dress", 10, (comp, render), "", None, lambda m: None, None)
             meta = finishers.sidecar(saved)
-        self.assertEqual(len(calls), 2)
-        self.assertEqual([c[2] for c in calls], [10, 1010])
-        self.assertEqual(calls[1][1], "1girl, smile, red dress")   # 頼みの並びを変えない
-        self.assertTrue(meta["passed"])
-        self.assertEqual(len(meta["redraws"]), 2)
+        self.assertEqual(len(calls), 1)   # 描くのは 1 回。検品で描き直しを繋げない
+        self.assertEqual(calls[0][1], "1girl, smile, red dress")   # 頼みのまま
+        self.assertEqual(len(meta["redraws"]), 1)
 
     def test_stops_when_not_checked(self):
         def run(sentence, tags, seed, comp, render, size, keep, variant, say=None, stopped=None):
