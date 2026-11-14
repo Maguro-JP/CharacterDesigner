@@ -135,7 +135,22 @@ def said(res: dict) -> dict:
             flag.add("hands")
         elif s.startswith(("脚", "足")):
             flag.add("feet")
+    # 映り込みの矛盾か「比べていない」を返した絵。崩れの無い絵でこれを返せば、崩れの無い絵を崩れと言ったことになる
+    m = res.get("mirror") or {}
+    if m.get("flaws") or m.get("reason"):
+        flag.add("mirror")
     return {"flag": sorted(flag), "boxed": sorted(boxed)}
+
+
+def _mirror(path: Path) -> dict:
+    """映り込みの検品だけ（sanity.check と同じタグと同じ mirrorcheck）"""
+    from PIL import Image
+    from chatdraw import mirrorcheck
+    from chatdraw.paths import use_tools_gen
+    use_tools_gen()
+    import tagger
+    m = mirrorcheck.check(Image.open(path).convert("RGB"), tagger.read(str(path)))
+    return {"gated": m.get("gated", []), "flaws": m.get("flaws", []), "reason": m.get("reason")}
 
 
 def run_one(path: Path, fresh: bool = False) -> dict:
@@ -146,6 +161,10 @@ def run_one(path: Path, fresh: bool = False) -> dict:
     if key.exists() and not fresh:
         d = json.loads(key.read_text(encoding="utf-8"))
         if d.get("stamp") == stamp:
+            if "mirror" not in d["res"]:
+                # 映り込みの検品を足す前に貯めた結果。手・足・顔は測り直さず、映り込みだけを足す
+                d["res"]["mirror"] = _mirror(path)
+                key.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
             return d["res"]
     from PIL import Image
     from chatdraw import qcmanual
@@ -154,6 +173,8 @@ def run_one(path: Path, fresh: bool = False) -> dict:
     keep["hands"] = [{"box": h.get("box"), "bad": h.get("bad")} for h in res.get("hands", []) or []]
     keep["feet"] = [{"box": h.get("box"), "bad": h.get("bad")} for h in res.get("feet", []) or []]
     keep["faces"] = [{"box": h.get("box"), "bad": h.get("bad")} for h in res.get("faces", []) or []]
+    m = res.get("mirror") or {}
+    keep["mirror"] = {"gated": m.get("gated", []), "flaws": m.get("flaws", []), "reason": m.get("reason")}
     f = res.get("face") or {}
     keep["face"] = {"readable": f.get("readable"), "bad": f.get("bad"), "reason": f.get("reason")}
     key.write_text(json.dumps({"stamp": stamp, "res": keep}, ensure_ascii=False), encoding="utf-8")
@@ -184,7 +205,10 @@ def score(rows: list[dict], results: dict) -> dict:
             for k in s["flag"]:
                 false_by[k] += 1
     pct = lambda a, b: round(100 * a / b, 1) if b else None   # noqa: E731
-    return {"flaw_parts": hit + miss, "caught": pct(hit, hit + miss), "clean_images": clean_n,
+    seen = [results[r["path"]] for r in rows if r["path"] in results]
+    gated = sum(1 for x in seen if (x.get("mirror") or {}).get("gated"))
+    mflag = sum(1 for x in seen if "mirror" in said(x)["flag"])
+    return {"mirror_gated": gated, "mirror_flagged": mflag, "flaw_parts": hit + miss, "caught": pct(hit, hit + miss), "clean_images": clean_n,
             "clean_quiet": pct(clean_ok, clean_n), "false_by_part": false_by, "located": pct(boxed, hit), "by_part": by, "missed": missed_list}
 
 

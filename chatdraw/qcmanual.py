@@ -17,6 +17,7 @@ def inspect(image) -> dict:
     except Exception as e:   # noqa: BLE001  体の検品が落ちても、手・足・顔の結果は返す
         odd = {"readable": False, "bad": [], "reason": f"体の検品で止まりました（{e}）"}
     res["body_bad"] = list(odd.get("bad", []))
+    res["mirror"] = odd.get("mirror") or {}
     if not odd.get("readable", True) and odd.get("reason"):
         res["body_reason"] = odd["reason"]
     return res
@@ -32,6 +33,10 @@ def flaws(res: dict, offset: tuple[int, int] = (0, 0)) -> list[tuple[list[int], 
                 x0, y0, x1, y1 = h["box"]
                 said = "、".join(str(b) for b in h["bad"])
                 out.append(([x0 + ox, y0 + oy, x1 + ox, y1 + oy], said if said.startswith(name) else f"{name}: {said}"))
+    # 映り込みの矛盾（chatdraw/mirrorcheck.py）。言葉は「矛盾: 鏡の中の〜」で始まる
+    for m in (res.get("mirror") or {}).get("flaws", []) or []:
+        x0, y0, x1, y1 = m["box"]
+        out.append(([x0 + ox, y0 + oy, x1 + ox, y1 + oy], "、".join(m["bad"])))
     return out
 
 
@@ -54,6 +59,8 @@ def missed(res: dict) -> list[str]:
     face = res.get("face") or {}
     if face and not face.get("readable") and not face.get("bad"):
         out.append("顔: " + (face.get("reason") or "顔を読めませんでした"))
+    if (res.get("mirror") or {}).get("reason"):
+        out.append("映り込み: " + res["mirror"]["reason"])
     for k, name in (("legs_reason", "脚"), ("body_reason", "体")):
         if res.get(k):
             out.append(f"{name}: {res[k]}")

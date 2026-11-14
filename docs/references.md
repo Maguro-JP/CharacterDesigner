@@ -206,3 +206,12 @@ CodeFormer（S-Lab License 1.0、商用不可）は配布に合わないので�
 - ComfyUI の ControlNet の手引き（img2img と ControlNet を組む。構図を保って画風を変えるときの強さの幅）: https://www.mintlify.com/Comfy-Org/ComfyUI/guides/controlnet
 - NovelAI Documentation, Prompting for Unique Artstyles（traditional media と graphite・colored pencil・marker・ink・watercolor の (medium) の組、3d・blender (medium)、pixel art と dithering、monochrome のときは色の語を外す）: https://docs.novelai.net/en/image/tutorial-artstyles
 - nerijs/pixel-art-xl の模型の札（CreativeML OpenRAIL-M。8 分の 1 に最近傍で縮めると格子がそろう）: https://huggingface.co/nerijs/pixel-art-xl
+## リボンの道具の系統（`docs/knowledge/ribbon-families.md`、2026-11-14）
+
+- Adobe「Photoshop tools, options, and task bars」 https://helpx.adobe.com/photoshop/using/using-tools.html （三角の付いた道具は押し続けると隠れた道具が出る）
+- Photoshop Essentials「Photoshop Tools and Toolbar Overview」 https://www.photoshopessentials.com/basics/photoshop-tools-toolbar-overview/ （関係する道具を 1 か所にまとめ、最後に選んだ道具を出す）
+
+## 映り込みの矛盾の検品（`docs/knowledge/mirror-check.md`、2026-11-14）
+
+- G. Loy, J.-O. Eklundh「Detecting Symmetry and Symmetric Constellations of Features」ECCV 2006（反転した記述との突き合わせと軸への投票）
+- SmilingWolf/wd-vit-tagger-v3 のタグ一覧（mirror、reflection、reflective water、reflective floor）
