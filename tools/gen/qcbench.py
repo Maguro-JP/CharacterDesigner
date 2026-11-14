@@ -125,6 +125,16 @@ def said(res: dict) -> dict:
         s = str(b)
         if s.startswith("顔") or "目" in s[:4]:
             flag.add("faces")
+    # 体の検品（chatdraw/sanity.py）の崩れ: 余分な目・口・顔・頭は顔、腕は手、脚は足として数える。
+    # 「目が多い」「腕が多い」は手・足・顔で始まらないので、台で数えられていなかった
+    for b in res.get("body_bad", []) or []:
+        s = str(b)
+        if s.startswith(("目", "口", "顔", "頭", "額")):
+            flag.add("faces")
+        elif s.startswith(("腕", "手")):
+            flag.add("hands")
+        elif s.startswith(("脚", "足")):
+            flag.add("feet")
     return {"flag": sorted(flag), "boxed": sorted(boxed)}
 
 

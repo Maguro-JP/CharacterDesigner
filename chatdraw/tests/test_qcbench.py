@@ -36,6 +36,11 @@ class ScoreTest(unittest.TestCase):
         self.assertEqual((s["caught"], s["located"], s["clean_quiet"]), (50.0, 100.0, 100.0))
         self.assertEqual(s["missed"][0][1], "feet")
 
+    def test_body_flaws_count_by_part(self):
+        # 余分な目・口は顔、腕は手、脚は足の崩れとして数える
+        f = qcbench.said({"bad": [], "body_bad": ["目が多い（extra eyes 0.5）", "腕が多い（extra arms 0.4）", "脚が多いか、つながりがあり得ない（left の骨の比 3）"]})["flag"]
+        self.assertEqual(f, ["faces", "feet", "hands"])
+
     def test_unread_counts_as_flag(self):
         # 検品できなかった部位は「崩れが無い」ではない（崩れとして扱う決まり）
         self.assertIn("feet", qcbench.said({"bad": [], "feet_reason": "足を読めない"})["flag"])
