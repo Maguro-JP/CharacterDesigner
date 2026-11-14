@@ -163,7 +163,10 @@ def run_one(path: Path, fresh: bool = False) -> dict:
         if d.get("stamp") == stamp:
             if "mirror" not in d["res"]:
                 # 映り込みの検品を足す前に貯めた結果。手・足・顔は測り直さず、映り込みだけを足す
-                d["res"]["mirror"] = _mirror(path)
+                try:
+                    d["res"]["mirror"] = _mirror(path)
+                except Exception:   # noqa: BLE001  タグを読む部品が無い・読めない絵。映り込みは測らず、貯めた結果をそのまま使う
+                    return d["res"]
                 key.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
             return d["res"]
     from PIL import Image

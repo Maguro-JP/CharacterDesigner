@@ -6975,6 +6975,13 @@ class Window(QMainWindow):
 
     def run_io(self, work, done, name: str = "保存・読み込み"):
         """保存・読み込みなどの書き物を裏の糸で回す。同じ置き場に重ねて書かないよう、1 本の列に並べて順に書く"""
+        if getattr(self, "_io_closed", False):
+            # 閉じたあとに呼ばれた書き物（閉じる途中の作業の保持など）は、糸を作り直さずにその場で書く（糸が窓ごとに残らないように）
+            try:
+                work()
+            except Exception:   # noqa: BLE001  閉じたあとは知らせる先が無い
+                pass
+            return
         import queue
         import threading
         if getattr(self, "_io_queue", None) is None:
