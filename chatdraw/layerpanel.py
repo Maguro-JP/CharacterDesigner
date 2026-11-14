@@ -33,6 +33,8 @@ def thumbnail(image, size: int = THUMB) -> QPixmap:
 
 
 class LayerPanel(QWidget):
+    shared: dict = {}   # 窓の共の操作（コピー・貼り付けなど）。窓が渡す。無ければ右クリックは欄の中の操作だけ
+
     def __init__(self, canvas):
         super().__init__()
         self.canvas = canvas
@@ -223,6 +225,7 @@ class LayerPanel(QWidget):
         from PySide6.QtWidgets import QMenu
         item = self.list.itemAt(pos)
         m = QMenu(self)
+        m.setToolTipsVisible(True)
         m.addAction("新しいレイヤー", self.canvas.add_layer)
         if item is not None:
             if item.data(ROLE_INDEX) < 0:
@@ -232,10 +235,26 @@ class LayerPanel(QWidget):
                 m.addAction("赤ペンの印を全部消す", self.canvas.redpen.clear)
             else:
                 self.canvas.select(item.data(ROLE_INDEX))
+                S = self.shared
+                # コピー・切り取り・貼り付け・複製は、メニューと同じ操作（同じキー）を出す
+                if S:
+                    m.addAction(S["dup_layer"])
+                    m.addSeparator()
+                    for k in ("layer_cut", "layer_copy", "layer_paste"):
+                        m.addAction(S[k])
+                    m.addAction(S["via_copy"])
+                    m.addSeparator()
                 m.addAction("このレイヤーを消す（Delete）", self._delete).setEnabled(len(self.canvas.layers) > 1)
+                if S:
+                    m.addAction(S["clear_layer"])
                 m.addAction("1 つ上へ", lambda: self.canvas.move_layer(1))
                 m.addAction("1 つ下へ", lambda: self.canvas.move_layer(-1))
-                m.addAction("下のレイヤーと結合", self.canvas.merge_down)
+                if S:
+                    m.addAction(S["flip_layer_h"])
+                    m.addAction(S["flip_layer_v"])
+                    m.addAction(S["merge_down"])
+                else:
+                    m.addAction("下のレイヤーと結合", self.canvas.merge_down)
                 m.addAction("名前を変える", self.rename_current)
                 m.addAction("ロックを切り替える", self.toggle_lock)
         m.addAction("見えているレイヤーを結合", self.canvas.merge_visible)

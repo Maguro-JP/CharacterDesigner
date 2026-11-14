@@ -203,14 +203,14 @@ class NewToolsTest(unittest.TestCase):
         w = window()
         c = w.canvas
         w.tool_actions["pen"].trigger()
-        w.symmetry.setChecked(True)
+        w.symmetry.setCurrentIndex(w.symmetry.findData("lr"))
         self.assertTrue(c.mirror_item.isVisible())
         w.size_box.setValue(6)
         drag(c, [(20, 50), (40, 50), (60, 50)])
         img = c.flatten()
         self.assertEqual(img.pixelColor(40, 50).name(), "#000000")
         self.assertEqual(img.pixelColor(160, 50).name(), "#000000")      # 200 - 40
-        w.symmetry.setChecked(False)
+        w.symmetry.setCurrentIndex(w.symmetry.findData(""))
         self.assertFalse(c.mirror_item.isVisible())
 
     def test_stabilizer_smooths_jitter(self):

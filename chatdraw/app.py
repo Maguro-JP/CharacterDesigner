@@ -824,6 +824,7 @@ class Window(QMainWindow):
         file.addSeparator()
         file.addAction(QAction("終了", self, shortcut="Ctrl+Q", triggered=self.close))
         edit = self.menuBar().addMenu("編集")
+        edit.setToolTipsVisible(True)
         edit.addAction(S["undo"])
         edit.addAction(S["redo"])
         edit.addAction(S["redpen_clear"])
@@ -831,7 +832,13 @@ class Window(QMainWindow):
         edit.addSeparator()
         edit.addAction(S["cut"])
         edit.addAction(S["copy"])
+        edit.addAction(S["copy_merged"])
         edit.addAction(S["paste"])
+        edit.addAction(S["paste_in_place"])
+        edit.addSeparator()
+        edit.addAction(S["layer_cut"])
+        edit.addAction(S["layer_copy"])
+        edit.addAction(S["layer_paste"])
 
         # 左端: 道具
         tools = QToolBar("道具", self)
@@ -953,10 +960,15 @@ class Window(QMainWindow):
         self.stabilizer.setToolTip("手ぶれ補正。大きいほど線がカーソルに遅れてついてきて、なめらかになる（0 で切る）")
         self.stabilizer.valueChanged.connect(lambda v: setattr(self.canvas, "stabilizer", v))
         bform.addRow("手ぶれ補正", self.stabilizer)
-        self.symmetry = QCheckBox("左右対称")
-        self.symmetry.setToolTip("キャンバスの真ん中の縦の線で折り返して、反対側にも同じ線を描く")
-        self.symmetry.toggled.connect(self.canvas.set_symmetry)
-        bform.addRow(self.symmetry)
+        # 対称: 線対称（左右・上下・上下左右）と点対称。表示のメニューの「対称定規」と同じ設定
+        from chatdraw.canvas import SYMMETRY
+        self.symmetry = QComboBox()
+        self.symmetry.addItem("なし", "")
+        for key, label in SYMMETRY.items():
+            self.symmetry.addItem(label, key)
+        self.symmetry.setToolTip("描いた線と図形を、軸の反対側にも同時に描きます。軸の丸をドラッグすると軸を動かせます")
+        self.symmetry.currentIndexChanged.connect(lambda _i: self.canvas.set_symmetry(self.symmetry.currentData()))
+        bform.addRow("対称", self.symmetry)
         bbox = QWidget()
         bbox.setLayout(bform)
         # タブで「ブラシ」（種類を選ぶ）と「設定」（硬さ・流量・間隔・筆圧）を切り替える
@@ -989,6 +1001,7 @@ class Window(QMainWindow):
         # 右下: レイヤー（縮小図・表示・ロック・名前・並べ替え。chatdraw/layerpanel.py）
         from chatdraw.layerpanel import LayerPanel
         self.layer_panel = LayerPanel(self.canvas)
+        self.layer_panel.shared = self.shared   # 右クリックにメニューと同じ操作（同じキー）を出す
         self.layer_list, self.layer_opacity = self.layer_panel.list, self.layer_panel.opacity
         self.canvas.refused.connect(lambda why: self.statusBar().showMessage(why, 6000))
         lbox = self.layer_panel
@@ -1034,9 +1047,11 @@ class Window(QMainWindow):
         show_ops(self.activity.ops, self.canvas)
 
         view = self.menuBar().addMenu("表示")
+        view.setToolTipsVisible(True)
         for k in ("fit", "actual", "zoom_in", "zoom_out", "zoom_ask", None, "rotate_left", "rotate_right", "rotate_dial",
                   "rotate_reset", "flip_view", "view_reset", None, "grid", "op_history"):
             view.addAction(S[k]) if k else view.addSeparator()
+        self.build_symmetry_menu(view.addMenu("対称定規"))
         view.addSeparator()
         from chatdraw.timelapse import Recorder
         self.recorder = Recorder()
@@ -1106,13 +1121,23 @@ class Window(QMainWindow):
         sel.addAction(QAction("選択範囲を AI で直す", self, triggered=self.fix_marked,
                               toolTip="選択範囲の中だけを、指示の欄の言葉で AI が直します"))
         layer_menu = self.menuBar().addMenu("レイヤー")
+        layer_menu.setToolTipsVisible(True)
         layer_menu.addAction(S["add_layer"])
-        layer_menu.addAction(QAction("レイヤーを消す", self, triggered=self.canvas.delete_layer))
+        layer_menu.addAction(S["dup_layer"])
+        layer_menu.addAction(S["delete_layer"])
+        layer_menu.addAction(S["clear_layer"])
+        layer_menu.addSeparator()
+        for k in ("layer_cut", "layer_copy", "layer_paste", "via_copy", "via_cut"):
+            layer_menu.addAction(S[k])
+        layer_menu.addSeparator()
+        layer_menu.addAction(S["flip_layer_h"])
+        layer_menu.addAction(S["flip_layer_v"])
+        layer_menu.addSeparator()
         layer_menu.addAction(QAction("画像をレイヤーとして読み込む…", self, triggered=self.import_layer))
         layer_menu.addAction(QAction("レイヤーを PNG で保存…", self, triggered=self.save_layer_png))
         layer_menu.addAction(QAction("全部のレイヤーを PNG で書き出す…", self, triggered=self.export_layers_png))
         layer_menu.addSeparator()
-        layer_menu.addAction(QAction("下のレイヤーと結合", self, triggered=self.canvas.merge_down))
+        layer_menu.addAction(S["merge_down"])
         layer_menu.addAction(QAction("見えているレイヤーを結合", self, shortcut="Ctrl+Shift+E", triggered=self.canvas.merge_visible))
         layer_menu.addAction(QAction("結合して元の画像に上書き保存…", self, triggered=self.merge_and_overwrite))
 
@@ -2864,8 +2889,10 @@ class Window(QMainWindow):
         img = self.canvas.selection_image()
         if img is None:
             self.copy_image()
+            self._copied_at = None
             return True
         QApplication.clipboard().setImage(img)
+        self._copied_at = self.canvas.selection.topLeft()   # 「同じ位置に貼り付け」で使う
         self.statusBar().showMessage("選択範囲をコピーしました", 3000)
         return True
 
@@ -2873,7 +2900,10 @@ class Window(QMainWindow):
         if not self._need_selection():
             return
         from PySide6.QtWidgets import QApplication
+        if not self.canvas.editable():
+            return   # ロックした・隠したレイヤーは切り取らない（前はロックしたレイヤーの絵が消えた）
         QApplication.clipboard().setImage(self.canvas.selection_image())
+        self._copied_at = self.canvas.selection.topLeft()
         self.canvas.clear_selection_area()
         self.statusBar().showMessage("選択範囲を切り取りました（Ctrl+Z で戻せます）", 3000)
 
@@ -2888,6 +2918,70 @@ class Window(QMainWindow):
             self.canvas.new_canvas(img.width(), img.height())
         if self.canvas.paste_image(img):
             self.statusBar().showMessage("一番上の新しいレイヤーに貼りました（Ctrl+Z で戻せます）", 3000)
+
+    def layer_copy(self):
+        from PySide6.QtWidgets import QApplication
+        layer = self.canvas.copy_layer()
+        if layer is not None:
+            QApplication.clipboard().setImage(layer.image)   # ほかのアプリにも絵として貼れるようにする
+            self._copied_at = None
+            self.statusBar().showMessage(f"レイヤー「{layer.name}」をコピーしました", 3000)
+
+    def layer_cut(self):
+        from PySide6.QtWidgets import QApplication
+        layer = self.canvas.cut_layer()
+        if layer is not None:
+            QApplication.clipboard().setImage(layer.image)
+            self.statusBar().showMessage(f"レイヤー「{layer.name}」を切り取りました（Ctrl+Z で戻せます）", 3000)
+
+    def layer_paste(self):
+        if self.canvas.copied_layer is None:
+            self.notify("貼り付けるレイヤーがありません", "info", "「レイヤーをコピー」か「レイヤーを切り取り」をしてから貼り付けてください")
+            return
+        if self.canvas.paste_layer():
+            self.statusBar().showMessage("レイヤーを貼り付けました（Ctrl+Z で戻せます）", 3000)
+
+    def copy_merged(self):
+        from PySide6.QtWidgets import QApplication
+        if not self.canvas.layers:
+            return
+        QApplication.clipboard().setImage(self.canvas.merged_image())
+        sel = self.canvas.selection
+        self._copied_at = sel.topLeft() if sel is not None else None
+        self.statusBar().showMessage("見えている絵を結合してコピーしました", 3000)
+
+    def paste_in_place(self):
+        """コピーした所と同じ位置に貼る。位置の分からない絵（ほかのアプリでコピーした絵）は左上に貼る"""
+        from PySide6.QtWidgets import QApplication
+        img = QApplication.clipboard().image()
+        if img.isNull():
+            self.notify("貼り付ける絵がありません", "info", "絵をコピーしてから貼り付けてください")
+            return
+        if not self.canvas.layers:
+            self.canvas.new_canvas(img.width(), img.height())
+        from PySide6.QtCore import QPoint
+        at = getattr(self, "_copied_at", None)
+        if self.canvas.paste_image(img, "貼り付け", at if at is not None else QPoint(0, 0)):
+            self.statusBar().showMessage("同じ位置の新しいレイヤーに貼りました（Ctrl+Z で戻せます）", 3000)
+
+    def build_symmetry_menu(self, menu):
+        """表示のメニューの「対称定規」。ブラシの設定の「対称」と同じ設定を、どの道具からでも切り替えられるようにする"""
+        from PySide6.QtGui import QActionGroup
+        from chatdraw.canvas import SYMMETRY
+        group = QActionGroup(menu)
+        self.symmetry_actions = {}
+        for key, label in (("", "なし"),) + tuple(SYMMETRY.items()):
+            a = QAction(label, menu, checkable=True)
+            a.setToolTip("描いた線と図形を、軸の反対側にも同時に描きます" if key else "対称を切ります")
+            a.triggered.connect(lambda _=False, k=key: self.symmetry.setCurrentIndex(self.symmetry.findData(k)))
+            group.addAction(a)
+            menu.addAction(a)
+            self.symmetry_actions[key] = a
+        self.symmetry_actions[""].setChecked(True)
+        menu.addSeparator()
+        menu.addAction(QAction("軸を真ん中に戻す", menu, triggered=lambda: self.canvas.set_axis_center(None),
+                               toolTip="対称の軸を絵の真ん中に戻します"))
+        self.canvas.view_changed.connect(lambda: self.symmetry_actions[self.canvas.symmetry].setChecked(True))
 
     def copy_image(self, path: str | None = None):
         from PySide6.QtGui import QImage
@@ -4106,6 +4200,24 @@ class Window(QMainWindow):
                 ("op_history", "history", "操作の履歴…", self.show_op_history, "Ctrl+Alt+Z",
                  "元に戻すの履歴を出します。選ぶとその操作のあとまで戻ります"),
                 ("add_layer", "layers", "新しいレイヤー", c.add_layer, "Ctrl+Shift+N", ""),
+                ("delete_layer", "", "レイヤーを消す", c.delete_layer, "", "選んでいるレイヤーを消します（元に戻すで戻せます）"),
+                ("dup_layer", "", "レイヤーを複製", c.duplicate_layer, "", "選んでいるレイヤーを、すぐ上に同じ絵で複製します"),
+                ("layer_copy", "", "レイヤーをコピー", self.layer_copy, "Ctrl+Alt+C", "選んでいるレイヤーを、名前と不透明度ごとコピーします"),
+                ("layer_cut", "", "レイヤーを切り取り", self.layer_cut, "Ctrl+Alt+X", "選んでいるレイヤーをコピーしてから消します"),
+                ("layer_paste", "", "レイヤーを貼り付け", self.layer_paste, "Ctrl+Alt+V",
+                 "コピーしたレイヤーを、選んでいるレイヤーのすぐ上に新しいレイヤーとして貼ります"),
+                ("paste_in_place", "", "同じ位置に貼り付け", self.paste_in_place, "Ctrl+Shift+V",
+                 "コピーした絵を、コピーした所と同じ位置の新しいレイヤーに貼ります"),
+                ("copy_merged", "", "結合してコピー", self.copy_merged, "Ctrl+Shift+C",
+                 "見えているレイヤーを重ねた絵の、選択範囲の中をコピーします（選択が無いときは全体）"),
+                ("via_copy", "", "選択範囲をコピーして新しいレイヤーへ", lambda: c.layer_via(False), "Ctrl+J",
+                 "選択範囲の中を同じ位置の新しいレイヤーに写します。選択が無いときはレイヤーを複製します"),
+                ("via_cut", "", "選択範囲を切り取って新しいレイヤーへ", lambda: c.layer_via(True), "Ctrl+Shift+J",
+                 "選択範囲の中を元のレイヤーから切り取り、同じ位置の新しいレイヤーに移します"),
+                ("merge_down", "", "下のレイヤーと結合", c.merge_down, "", "選んでいるレイヤーを、すぐ下のレイヤーに結合します"),
+                ("clear_layer", "", "レイヤーの中を消す", c.clear_layer, "", "選んでいるレイヤーの絵を全部消します（レイヤーは残ります）"),
+                ("flip_layer_h", "", "レイヤーを左右反転", lambda: c.flip_layer(True), "", "選んでいるレイヤーの絵そのものを左右に反転します"),
+                ("flip_layer_v", "", "レイヤーを上下反転", lambda: c.flip_layer(False), "", "選んでいるレイヤーの絵そのものを上下に反転します"),
                 ("tour", "help", "使い方ツアー", self.start_tour, "F1", ""),
                 ("draw", "ai", "描く", self.send, "", "書いた内容で AI に描かせます"))
         self.shared: dict[str, QAction] = {}
