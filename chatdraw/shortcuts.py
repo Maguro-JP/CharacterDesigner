@@ -217,8 +217,9 @@ def builtins(w) -> list[Shortcut]:
         out.append(Shortcut(sid, label, "combo", tip, ok, why, lambda st=steps, lb=label: w.finish_chain(list(st), lb)))
     out.sort(key=lambda s: (rank[s.group], CLEAN_ORDER.index(s.id) if s.id in CLEAN_ORDER else len(CLEAN_ORDER)))
     torch_ok = finishers._has("torch")
+    from chatdraw.upscale import UPSCALE_TIP
     out.append(Shortcut("app:upscale2x", "レイヤーのまま 2 倍に拡大", "enlarge",
-                        "レイヤーを分けたまま、絵全体を 2 倍の大きさにします（アニメ向けの拡大の重み 2.4MB を初めに取ります）",
+                        UPSCALE_TIP + "（アニメ向けの拡大の重み 2.4MB を初めに取ります）",
                         torch_ok, "" if torch_ok else "画像生成の部品（torch）がまだ入っていません。模型の管理から絵の模型を取ると入ります",
                         w.upscale_canvas))
     out += [
@@ -308,7 +309,9 @@ def fill_menu(w, menu, store: Store):
         inside = [s for s in items if s.group == g]
         if not inside and g not in ("user", "chain"):
             continue
-        sub = menu.addMenu(label)
+        from PySide6.QtWidgets import QMenu
+        sub = QMenu(label, menu)   # 親をはっきり持たせる（文字だけで足すと、中の項目が先に消えることがあった）
+        menu.addMenu(sub)
         sub.setToolTipsVisible(True)
         for s in inside:
             _action(w, sub, s, ("★ " if s.id in favs else "") + s.label, store)
