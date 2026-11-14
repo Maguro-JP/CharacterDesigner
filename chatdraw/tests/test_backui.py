@@ -242,5 +242,35 @@ class DebugModeTest(Base):
         self.assertTrue((f / "chatdraw-new.log").exists())
 
 
+class CloseTest(Base):
+    """閉じた窓の、アプリ全体で効くキー（緊急停止）と保存の裏の糸を外す。残ると開け閉めのあとにキーで落ちた"""
+
+    def test_close_drops_global_keys_and_io_thread(self):
+        import threading
+        before = sum(t.name == "io" for t in threading.enumerate())
+        for _ in range(3):
+            w = self.window()
+            got = []
+            w.run_io(lambda: 1, got.append)
+            w.wait_io()
+            self.assertTrue(run_until(self.app, w, lambda: got == [1], 5))
+            self.assertFalse(w.emergency_stop.shortcut().isEmpty())
+            w.close()
+            QApplication.processEvents()
+            self.assertTrue(w.emergency_stop.shortcut().isEmpty())
+            self.assertFalse(w.emergency_stop.isEnabled())
+        end = time.time() + 3
+        while sum(t.name == "io" for t in threading.enumerate()) > before and time.time() < end:
+            time.sleep(0.05)
+        self.assertEqual(sum(t.name == "io" for t in threading.enumerate()), before)
+
+    def test_draw_button_click_does_not_crash(self):
+        """描くボタンの clicked は真偽値を渡す。頼みの文と取り違えて落ちないこと"""
+        w = self.window()
+        w.entry.setText("赤いマフラーの女の子")
+        w.button.click()
+        self.assertTrue(run_until(self.app, w, lambda: w.thread is None and len(w.images) == 1, 60))
+
+
 if __name__ == "__main__":
     unittest.main()
