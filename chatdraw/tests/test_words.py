@@ -204,10 +204,11 @@ class LearnTest(unittest.TestCase):
             for _ in range(500):
                 out, moved, ex = wordlearn.adjust(asked, "m", rng)
                 explored += ex
+                self.assertEqual(out, asked)
                 self.assertEqual(sorted(t.strip() for t in out.split(",")), sorted(t.strip() for t in asked.split(",")))
                 self.assertNotIn("pink hair", out)
                 self.assertNotIn("maid", out)
-            self.assertTrue(0.12 < explored / 500 < 0.28, explored)
+            self.assertEqual(explored, 500)   # 学びで頼みの並びも効きも変えない（毎回そのまま渡す）
             st = wordlearn.stats()
             self.assertLessEqual(wordlearn.weight("maid", st), wordlearn.MAX_WEIGHT)
             self.assertEqual(wordlearn.weight("pink hair", st), 0.0)   # 「良い」はタグを強めない

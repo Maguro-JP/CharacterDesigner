@@ -368,10 +368,7 @@ SCENE = {
 
 def enrich(sentence: str, seed: int) -> str:
     """構図の文に、種で選んだカメラ・光・背景の言葉を足す（頼みの言葉は先に置き、頼みの方を効かせる）"""
-    import random
-    r = random.Random(seed)
-    extra = [r.choice(v) for v in SCENE.values()]
-    return f"{sentence.rstrip('. ')}. {', '.join(extra)}."
+    return sentence   # 頼んでいないカメラ・光・背景の言葉は足さない（足すと頼んだ通りに描かれなかった）
 
 
 COMPOSERS = ("flux2", "zimage", "qwenimage", "flux1", "chroma", "lumina2")   # 文で頼める世代（構図の段に使う）
