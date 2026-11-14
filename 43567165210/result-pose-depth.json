@@ -1,0 +1,17 @@
+{
+ "passed": false,
+ "seed": 7,
+ "bad": [
+  "手 1: pinkyの手の色 0.08（0.85〜1.01）",
+  "手 2: 手の形が読めない（指がくっついたか、ぼやけている）"
+ ],
+ "missing": [
+  "toned",
+  "wide hips",
+  "long legs",
+  "beach",
+  "hand up"
+ ],
+ "readable": true,
+ "checked": false
+}
