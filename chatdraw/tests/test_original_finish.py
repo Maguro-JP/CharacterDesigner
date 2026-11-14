@@ -125,12 +125,12 @@ class CharaDesign(unittest.TestCase):
             self.assertEqual(charadesign.slug("Akari", home=d), "akari-2")   # 同じ名前でも上書きしない
             self.assertEqual([x["id"] for x in charadesign.characters(home=d)], ["akari"])
             plan = charadesign.turnaround_plan("akari", home=d)
-            self.assertEqual([p["view"] for p in plan], ["front", "side", "back"])
+            self.assertEqual([p["view"] for p in plan], ["front", "left", "back"])   # 左右を分けた向きの名前（四面図と同じ）
             self.assertTrue(all("red hair" in p["prompt"] and "school uniform" in p["prompt"] for p in plan))
             self.assertIn("back view", plan[2]["prompt"])
             painter = FakePainter()
             turn = charadesign.draw_turnaround(painter, "akari", 3, home=d)
-            self.assertEqual(set(turn), {"front", "side", "back"})
+            self.assertEqual(set(turn), {"front", "left", "back"})
             base = figure()
             mask = charadesign.face_mask(base, [(50, 20, 110, 80)])
             seen = []
@@ -185,15 +185,18 @@ class CharaMenu(unittest.TestCase):
             w._fill_chara_menu()
             acts = {a.text(): a for a in w.chara_menu.actions()}
             self.assertIn("描いた人物を設定資料に保存…", acts)
-            self.assertFalse(acts["三面図を描く"].isEnabled())   # 保存した人物が無いうちは押せない
+            extras = {a.text(): a for a in acts["追加資料"].menu().actions()}
+            self.assertIn("三面図", extras)   # 三面図などは「追加資料」にまとめた
             self.assertTrue(all(a.toolTip() for a in acts.values() if a.text()))
+            self.assertTrue(all(a.toolTip() for a in extras.values()))
+            self.assertNotIn("使う人物", acts)   # 保存した人物が無いうちは選ぶ人物が無い
             w.last_text = "red hair girl"
             ident = w.chara_save("Hana")
             self.assertEqual(ident, "hana")
             self.assertTrue((Path(d) / "bible" / "characters" / "hana.json").exists())
             w._fill_chara_menu()
             acts = {a.text(): a for a in w.chara_menu.actions()}
-            self.assertTrue(acts["三面図を描く"].isEnabled())
+            self.assertIn("Hana", [a.text() for a in acts["使う人物"].menu().actions()])
             w.close()
 
 
