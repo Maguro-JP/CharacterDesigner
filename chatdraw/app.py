@@ -3148,6 +3148,8 @@ class Window(QMainWindow):
             m.addAction(f"印 {n} の指示を書き直す", lambda: self.edit_note(n))
             m.addAction(f"印 {n} を消す", lambda: c.redpen.remove(n)).setToolTip("元に戻すで戻せます")
             m.addSeparator()
+        from chatdraw import fixmenu
+        fixmenu.add_to_menu(self, m, n)   # 修正依頼と、模型を使わない整える・揃える・消す（chatdraw/fixmenu.py の 1 か所）
         # 言葉で指示する。登録した指示は shortcuts.fill_menu が小さなメニューに入れずに上へ並べ、1 回で呼べる
         m.addAction("言葉で指示…", self.open_text_instruction).setToolTip(
             "言葉を書いて、今の絵（囲みがあれば囲みの中）を直す・加工する・描くことができます。書いた言葉は登録できます")

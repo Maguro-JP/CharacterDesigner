@@ -238,7 +238,21 @@ class AiPanel(QWidget):
         self.again.setToolTip("前と同じ頼みを、別の種で描き直します")
         self.again.clicked.connect(w.draw_again)
         row.addWidget(self.again)
+        # 修正依頼: よく出る崩れの直しの指示を選ぶと、赤ペンの印の指示に書いて 1 回だけ直す（右クリックと同じ chatdraw/fixmenu.py）
+        from chatdraw import fixmenu
+        self.fixreq_button = QPushButton("修正依頼")
+        self.fixreq_button.setToolTip("指を 5 本に・目の高さを揃える などの直しの指示を選びます。\n赤ペンで囲んだ所の指示に書いて、1 回だけ直します")
+        self.fixreq_menu = QMenu(self.fixreq_button)
+        self.fixreq_menu.aboutToShow.connect(lambda: (self.fixreq_menu.clear(), fixmenu.fill_requests(w, self.fixreq_menu)))
+        self.fixreq_button.setMenu(self.fixreq_menu)
+        row.addWidget(self.fixreq_button)
+        self.edit_button = QPushButton("整える・揃える・消す")
+        self.edit_button.setToolTip("模型を使わずに、囲んだ所の線を整える・大きさと高さを揃える・物やゴミの点を消す。元に戻すで戻せます")
+        self.edit_menu = QMenu(self.edit_button)
+        fixmenu.fill_tools(w, self.edit_menu)
+        self.edit_button.setMenu(self.edit_menu)
         lay.addLayout(row)
+        lay.addWidget(self.edit_button)
         # 囲んだ所の直しは、赤ペンで囲むと描き方が「直す」に替わる（作風のタブの描き方と同じ値）。ここに 2 つ目の入口は置かない
         self.again.setToolTip(self.again.toolTip() + "\n一部だけ直すときは、赤ペンで囲んでから「描く」を押します")
         # 綺麗にする・外へ広げるは、キャンバスの右クリックのメニューにある（並べ方は右クリックのメニューの側で決める）

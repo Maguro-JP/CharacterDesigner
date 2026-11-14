@@ -1921,7 +1921,9 @@ class Studio:
             if refused(note):
                 raise ValueError("子どもを性的に描く頼みは描きません")
             say(f"頼みを描く言葉に直しています（{k}/{len(regions)} か所目）")
-            prompt = self.words.to_prompt(note) if note else ""
+            from chatdraw.fixrequests import lookup as _fixreq
+            req = _fixreq(note)   # 修正依頼の一覧から選んだ指示は、用意した言葉と強さで直す（日本語を模型にそのまま渡さない）
+            prompt = req["prompt"] if req and req.get("prompt") else (self.words.to_prompt(note) if note else "")
             prompt = ", ".join(t for t in (prompt, style) if t)
             if refused(prompt):
                 raise ValueError("子どもを性的に描く頼みは描きません")
@@ -1929,7 +1931,7 @@ class Studio:
             before = result
             # 直しは 1 回で終える。検品が通るまで直し続ける繰り返しは、描けなくなる（終わらない）ので繋げない。
             # 見つけた崩れは知らせるだけで、直すかどうかは利用者が決める（もう一度囲んで直せる）
-            result = self._fix_once(before, mask, prompt, seed + k, strength, k, len(regions), say, reference, ref_scale)
+            result = self._fix_once(before, mask, prompt, seed + k, float(req["strength"]) if req and req.get("strength") else strength, k, len(regions), say, reference, ref_scale)
             best_flaws = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, result, mask)] if check else []
             say(f"確かめました（{k} か所目・崩れ {len(best_flaws)} 件）")
             prompts.append(prompt)
