@@ -136,8 +136,30 @@ def _redraw_with(prompt: str, strength: float):
         from PIL import Image
         painter = _PAINTER[0]
         m = mask if mask is not None else Image.new("L", image.size, 255)
-        return painter.redraw(prompt, 0, image, m, strength=strength)   # engine の既存の直しを呼ぶだけ
+        # 元の絵の言葉を後ろに足す。仕上げの語だけで描き直すと、模型は何の絵かを知らずに描き替えた。
+        # 種は押すたびに変える（0 に固定していて、何回押しても同じ結果だった）
+        return painter.redraw(with_source(prompt), fresh_seed(), image, m, strength=strength)
     return run
+
+
+_SOURCE: list = [""]
+
+
+def use_source(prompt: str):
+    """加工する絵を描いたときの言葉（記録の prompt。人が描いた絵なら空）。模型を使う加工が、仕上げの語の後ろに足す"""
+    _SOURCE[0] = prompt or ""
+
+
+def with_source(prompt: str) -> str:
+    """加工の語（前）＋ 元の絵の言葉（後ろ、重なる語は 1 度だけ）"""
+    from chatdraw.jaterms import merge
+    src = [t.strip() for t in (_SOURCE[0] or "").split(",") if t.strip()]
+    return merge(prompt, src) if src else prompt
+
+
+def fresh_seed() -> int:
+    import random
+    return random.randrange(0, 2_000_000_000)
 
 
 _PAINTER: list = [None]
@@ -206,7 +228,7 @@ def _restyle_ready() -> bool:
 def _restyle_with(kind: str):
     def run(image, mask=None):
         from chatdraw import restyle
-        return restyle.restyle(_PAINTER[0], image, kind)
+        return restyle.restyle(_PAINTER[0], image, kind, seed=fresh_seed(), source=_SOURCE[0])
     return run
 
 

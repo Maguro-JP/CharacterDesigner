@@ -116,8 +116,9 @@ def check(src, out) -> dict:
     return dict(drift=round(d, 4), line_kept=round(k, 3), why=why)
 
 
-def restyle(painter, image, kind: str, seed: int = 0, say=None):
-    """image を画風 kind に描き替えた絵（元と同じ大きさ）。崩れたら強さを下げて描き直す"""
+def restyle(painter, image, kind: str, seed: int = 0, say=None, source: str = ""):
+    """image を画風 kind に描き替えた絵（元と同じ大きさ）。崩れたら強さを下げて描き直す。
+    source は元の絵の言葉。画風の語だけで描き替えると、模型は何の絵かを知らずに人物や服を別の物にした"""
     import torch
     from PIL import Image
     from chatdraw.engine import Stopped, check_stop, english_only, negative_for
@@ -147,7 +148,7 @@ def restyle(painter, image, kind: str, seed: int = 0, say=None):
                 p._interrupt = True
             return kw
         union = {"control_image": [ctrl], "control_mode": [LINES]} if "control_mode" in _params(pipe) else {"control_image": ctrl}
-        out = pipe(prompt=english_only(style[3]), negative_prompt=neg, image=small, **union,
+        out = pipe(prompt=english_only(", ".join(t for t in (style[3], source) if t)), negative_prompt=neg, image=small, **union,
                    strength=s, num_inference_steps=steps, guidance_scale=float(getattr(painter, "guidance", 6.0) or 6.0),
                    controlnet_conditioning_scale=CONTROL, control_guidance_end=CONTROL_END, width=w, height=h,
                    generator=torch.Generator("cpu").manual_seed(seed), callback_on_step_end=step).images[0]

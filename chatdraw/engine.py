@@ -571,6 +571,20 @@ class Words:
         return merge(", ".join(keep), [t for t in picked if t.lower() not in bad])
 
 
+    def fix_prompt(self, note: str) -> tuple[list[str], list[str]]:
+        """赤ペンの指示を (描く言葉のタグ, 訳せなかった語) にする。言葉の模型があれば模型で訳し、直しの表で拾った語の抜けを足す。
+        無ければ直しの表（jaterms.fix_tags）で読む。描く頼みの表だけでは「目を大きく」が空、「指を5本」が book になった"""
+        from chatdraw.jaterms import fix_tags
+        if not note:
+            return [], []
+        picked, lost = fix_tags(note) if has_japanese(note) else ([t.strip() for t in note.split(",") if t.strip()], [])
+        if has_japanese(note) and self.ready():
+            tags = [t.strip() for t in self.to_prompt(note).split(",") if t.strip()]
+            seen = {p.lower() for p in picked}
+            # 直しの表で拾えた語（部位と変化の組）を前に置き、模型の訳の残りを後ろに足す。どちらも読めなかった語だけを未訳にする
+            return picked + [t for t in tags if t.lower() not in seen], [w for w in self.untranslated if w in lost]
+        return picked, lost
+
     def _word(self, word: str) -> str | None:
         """1 語を言葉の模型で訳し、辞書に覚える。描く物を変えない語は ""、訳せなかったら None"""
         try:
@@ -1904,8 +1918,40 @@ class Studio:
                                          on_step=lambda i, n: say(f"描いています（{i}/{n}・{k}/{count} か所目の継ぎ目）"))
         return result
 
+    def source_words(self, source: str | None, image, say=None) -> str:
+        """元の絵の言葉。その絵を描いたときの頼みの訳（記録の prompt）があれば使い、無ければ（人が描いた絵）絵からタグを読む"""
+        if source:
+            return source
+        try:
+            from chatdraw import requestcheck
+            import tempfile
+            tg = requestcheck._tagger(False)
+            tmp = Path(tempfile.mkdtemp()) / "source.png"
+            image.convert("RGB").save(tmp)
+            got = tg.read(str(tmp))
+            return ", ".join(t for t, _p in sorted(got.items(), key=lambda kv: -kv[1])[:30])
+        except Exception as e:   # 絵を読む部品が無い。止めずに指示の言葉だけで直す
+            if say is not None:
+                say(f"元の絵の言葉が分からないので、指示の言葉だけで直します（絵を読む部品がありません: {e}）")
+            return ""
+
+    def fix_words(self, note: str, source: str, style: str = "", say=None) -> str:
+        """直す所 1 か所の描く言葉 = 指示の訳（前）＋ 元の絵の言葉（指示とぶつかる語を外す）＋ 画風。
+        指示の訳だけで描かせると、訳が空のときは指示に関係なく同じ直しになり、訳せても周りと合わない物が出た"""
+        from chatdraw.jaterms import fix_merge
+        say = say or (lambda msg: None)
+        fp = getattr(self.words, "fix_prompt", None)   # 直しの表を持たない言葉の係（試験の偽物など）は描く頼みの訳を使う
+        picked, lost = fp(note) if fp else ([t.strip() for t in self.words.to_prompt(note).split(",") if t.strip()] if note else [], [])
+        if lost:   # 黙って描かない。描くのは止めない
+            say("赤ペンの指示のうち、訳せなかった語: " + "、".join(lost)
+                + ("" if getattr(self.words, "ready", lambda: False)() else "（言葉の模型を入れると、この語も絵の模型に伝わります）"))
+        tags, dropped = fix_merge(picked, source or "")
+        prompt = ", ".join(t for t in (", ".join(tags), style) if t)
+        say(f"渡した言葉: {prompt or '（なし）'}" + (f"（指示とぶつかるので外した元の語: {', '.join(dropped)}）" if dropped else ""))
+        return prompt
+
     def fix(self, image, regions: list[tuple], seed: int, on_status=None, style: str = "", strength: float = 0.75,
-            reference=None, ref_scale: float = 0.6, check: bool = True):
+            reference=None, ref_scale: float = 0.6, check: bool = True, source: str | None = None):
         """赤ペン先生と範囲の描き直し。check を外すと崩れの検査をしない（ちびキャラのように絵全体を描き替える加工）。regions は (mask, 指示の文) の並び。直す所ごとに指示を描く言葉に直し、
         絵全体を順に描き直す。返すのは (描く言葉の並び, 描き直した絵全体の置き場)。直す所だけを貼り合わせない"""
         say = on_status or (lambda msg: None)
@@ -1921,8 +1967,10 @@ class Studio:
             if refused(note):
                 raise ValueError("子どもを性的に描く頼みは描きません")
             say(f"頼みを描く言葉に直しています（{k}/{len(regions)} か所目）")
-            prompt = self.words.to_prompt(note) if note else ""
-            prompt = ", ".join(t for t in (prompt, style) if t)
+            if k == 1 and check:
+                source = self.source_words(source, image, say)
+            prompt = self.fix_words(note, source, style, say) if check else ", ".join(
+                t for t in (self.words.to_prompt(note) if note else "", style) if t)   # 絵全体を描き替える加工（ちびキャラ）は今のまま
             if refused(prompt):
                 raise ValueError("子どもを性的に描く頼みは描きません")
             say("絵の模型を読んでいます（初めの 1 回だけ時間がかかります）")
@@ -1940,5 +1988,6 @@ class Studio:
         layer = result.convert("RGBA")
         layer.putalpha(touched.point(lambda v: 255 if v > 0 else 0))
         path = self._save(layer, seed, dict(text=" / ".join(n for _m, n in regions), prompt=" / ".join(prompts), seed=seed,
-                                            style=style, model=self.painter.model, mode="直す", flaws=self.last_flaws))
+                                            style=style, model=self.painter.model, mode="直す", flaws=self.last_flaws,
+                                            source=source or ""))
         return prompts, path

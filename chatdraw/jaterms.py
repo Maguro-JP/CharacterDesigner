@@ -269,3 +269,140 @@ def merge(prompt: str, tags: list[str]) -> str:
     have = prompt.lower()
     extra = [t for t in tags if t.lower() not in have]
     return ", ".join([prompt] + extra) if extra and prompt else prompt or ", ".join(tags)
+
+
+# ---- 赤ペン・範囲の直しの指示 ----
+# 直しの指示（「目を大きくして」「髪を赤くして」「手を直して」）は、描く頼みの表では読めなかった。
+# 部位と変化の語が表に無く空になり、「指を5本に」は「本」を book と誤って読んだ。空の言葉で囲みを描き直すと、
+# 指示に関係なく同じような直しになった。直しの指示はこの表で先に読み、残りを描く頼みの表で読む
+_PARTS = {"右手": "right hand", "左手": "left hand", "両手": "hands", "手": "hands", "指": "fingers", "目": "eyes", "瞳": "eyes",
+          "髪": "hair", "前髪": "bangs", "顔": "face", "口": "mouth", "鼻": "nose", "耳": "ears", "眉": "eyebrows", "首": "neck",
+          "腕": "arms", "足": "legs", "脚": "legs", "胸": "chest", "腰": "waist", "体": "body", "服": "clothes", "肌": "skin"}
+_CHANGE = {"大きく": "large", "小さく": "small", "細く": "slender", "太く": "thick", "長く": "long", "短く": "short",
+           "明るく": "bright", "暗く": "dark", "濃く": "deep", "薄く": "pale"}
+# 部位ごとの言い方。SD 系のタグで通じる形にする（細い目 → narrow eyes、細い腕 → slender arms）
+_CHANGE_PART = {("細く", "eyes"): "narrow eyes", ("細く", "hair"): "thin hair", ("太く", "eyebrows"): "thick eyebrows",
+                ("細く", "eyebrows"): "thin eyebrows", ("大きく", "eyes"): "large eyes, big eyes", ("小さく", "mouth"): "small mouth",
+                ("大きく", "mouth"): "open mouth", ("小さく", "face"): "small face"}
+# 「直して」「整えて」は崩れを直す頼み。部位ごとに、正しく描けた形の言葉にする
+_REPAIR = r"(?:直し|直す|直せ|整え|修正し|綺麗にし|きれいにし)"
+_GOOD = {"hands": "detailed hands, five fingers, correct hand anatomy", "right hand": "detailed right hand, five fingers",
+         "left hand": "detailed left hand, five fingers", "fingers": "five fingers, detailed fingers",
+         "eyes": "detailed eyes, symmetrical eyes", "face": "detailed face, symmetrical face", "mouth": "detailed mouth",
+         "hair": "detailed hair", "legs": "correct leg anatomy", "body": "correct anatomy"}
+_NUM = {"1": "one", "2": "two", "3": "three", "4": "four", "5": "five", "6": "six", "一": "one", "二": "two", "三": "three",
+        "四": "four", "五": "five", "六": "six"}
+_FIX_QUIET = ("もう少し", "少し", "もっと", "ちょっと", "にして", "して", "させて", "させ", "ください", "下さい", "ほしい", "欲しい")
+
+
+def _fix_rules(text: str) -> list[tuple[int, int, str]]:
+    """直しの指示から (始め, 終わり, タグ) を拾う。長い言い方から先に拾い、重なる所は拾わない"""
+    out: list[tuple[int, int, str]] = []
+    used = [False] * len(text)
+
+    def take(m, tag: str):
+        a, b = m.span()
+        if any(used[a:b]):
+            return
+        for i in range(a, b):
+            used[i] = True
+        out.append((a, b, tag))
+    parts = "|".join(sorted(map(re.escape, _PARTS), key=len, reverse=True))
+    nums = "".join(_NUM) + "０-９"
+    colors = "|".join(sorted(map(re.escape, COLORS), key=len, reverse=True))
+    soft = r"(?:を|は|が|の)?(?:もう少し|少し|もっと|ちょっと)?"
+    # 右手に剣を持たせて → holding sword, sword in right hand（持つ手を落とさない）
+    for m in re.finditer(rf"(右手|左手|両手)(?:に|で)([^、。にでを]{{1,8}}?)を?(?:持た|持っ|持つ|握ら|握っ|握)", text):
+        thing = tags_from(m.group(2))
+        if thing:
+            side = _PARTS[m.group(1)]
+            obj = thing[0]
+            take(m, f"holding {obj}, {obj} in {side}" if side != "hands" else f"holding {obj}, two-handed")
+    # 指を5本に、5本指 → five fingers（「本」を book と読まない）
+    for m in re.finditer(rf"指(?:を|は|が)?([{nums}])本|([{nums}])本(?:の)?指", text):
+        n = (m.group(1) or m.group(2)).translate(str.maketrans("０１２３４５６７８９", "0123456789"))
+        take(m, f"{_NUM.get(n, n)} fingers")
+    # 部位＋色（髪を赤くして、目を青に）
+    for m in re.finditer(rf"({parts}){soft}({colors})(?:色)?(?:く|に)", text):
+        take(m, f"{COLORS[m.group(2)]} {_PARTS[m.group(1)]}")
+    # 部位＋形（目を大きく、髪を長く）
+    for m in re.finditer(rf"({parts}){soft}({'|'.join(_CHANGE)})", text):
+        part = _PARTS[m.group(1)]
+        take(m, _CHANGE_PART.get((m.group(2), part), f"{_CHANGE[m.group(2)]} {part}"))
+    # 部位＋直して（手を直して、顔を整えて）
+    for m in re.finditer(rf"({parts}){soft}{_REPAIR}", text):
+        part = _PARTS[m.group(1)]
+        take(m, _GOOD.get(part, f"detailed {part}"))
+    # 部位の無い形の言葉（もう少し細く）
+    for m in re.finditer(rf"({'|'.join(_CHANGE)})", text):
+        take(m, {"細く": "slender, slim", "太く": "thick", "大きく": "large", "小さく": "small"}.get(m.group(1), _CHANGE[m.group(1)]))
+    # 部位の無い直して（直して、崩れを直して）は崩れを直す頼み
+    for m in re.finditer(rf"(?:崩れ(?:を|た所を)?)?{_REPAIR}", text):
+        take(m, "best quality, correct anatomy")
+    # 言い回し（もう少し、して）と、部位だけの語（服を青いドレスに の「服」）は描く物を変えない
+    for q in sorted(_FIX_QUIET + tuple(_PARTS), key=len, reverse=True):
+        for m in re.finditer(re.escape(q), text):
+            if not any(used[m.start():m.end()]):
+                take(m, "")
+    return out
+
+
+def fix_tags(text: str) -> tuple[list[str], list[str]]:
+    """直しの指示を (描く言葉のタグ, 読めなかった語) にする。直しの表で先に読み、残りは描く頼みの表で読む"""
+    rules = _fix_rules(text)
+    rest = list(text)
+    for a, b, _t in rules:
+        for i in range(a, b):
+            rest[i] = " "   # 拾った所は空白にし、描く頼みの表が同じ字を別の語に読まないようにする
+    rest_text = "".join(rest)
+    spans, taken = _spans(rest_text)
+    found = [(a, tag) for a, _b, tag, neg in spans if tag and not neg] + [(a, t) for a, _b, t in rules if t]
+    return _flat(found), [w for _a, w in _gaps(rest_text, taken)]
+
+
+# 直しの言葉とぶつかる元の絵の言葉。指示で髪を赤くするなら、元の「black hair」を外す（両方渡すと模型はどちらかを選ぶだけで、指示が負けた）
+_COLOR_SET = set(COLORS.values()) | {"blonde", "light blue", "navy blue", "dark blue", "light brown", "dark", "pale", "bright", "deep",
+                                     "aqua", "gray", "multicolored", "two-tone", "gradient", "streaked"}
+_SIZE_SET = {"large", "big", "small", "huge", "tiny", "narrow", "wide"}
+_LENGTH_SET = {"long", "short", "medium", "very long", "very short", "absurdly long"}
+_CLOTHES = ("dress", "shirt", "skirt", "clothes", "kimono", "yukata", "uniform", "serafuku", "swimsuit", "bikini", "hoodie", "jacket",
+            "coat", "sweater", "blouse", "robe", "armor", "suit", "apron", "pajamas", "t-shirt", "outfit")
+
+
+def _slot(tag: str) -> tuple[str, str] | None:
+    """タグの (物, 種類)。black hair → (hair, color)、long hair → (hair, length)、white dress → (clothes, item)"""
+    t = tag.strip().lower()
+    if t.endswith(" in right hand") or t.endswith(" in left hand"):
+        return (t.rsplit(" in ", 1)[1], "held")
+    m = re.match(r"(one|two|three|four|five|six|\d) fingers$", t)
+    if m:
+        return ("fingers", "count")
+    if any(re.search(rf"\b{re.escape(c)}\b", t) for c in _CLOTHES):
+        return ("clothes", "item")
+    words = t.split()
+    if len(words) < 2:
+        return None
+    mod, noun = " ".join(words[:-1]), words[-1]
+    if mod in _COLOR_SET or words[0] in _COLOR_SET:
+        return (noun, "color")
+    if mod in _LENGTH_SET:
+        return (noun, "length")
+    if mod in _SIZE_SET:
+        return (noun, "size")
+    return None
+
+
+def fix_merge(instruction: list[str], source: str) -> tuple[list[str], list[str]]:
+    """直しの言葉（指示の訳を前、元の絵の言葉を後ろ）と、ぶつかるので外した元の語。
+    元の絵の言葉は、その絵を描いたときの頼み（利用者が前に頼んだ言葉）。囲みの中を指示の語だけで描かせると、周りと合わない物が出た"""
+    slots = {s for s in map(_slot, instruction) if s}
+    have = {t.strip().lower() for t in instruction}
+    keep, dropped = [], []
+    for t in [x.strip() for x in source.split(",") if x.strip()]:
+        if t.lower() in have:
+            continue
+        if _slot(t) in slots:
+            dropped.append(t)
+            continue
+        keep.append(t)
+    return list(instruction) + keep, dropped
