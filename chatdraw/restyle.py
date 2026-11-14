@@ -116,13 +116,19 @@ def check(src, out) -> dict:
     return dict(drift=round(d, 4), line_kept=round(k, 3), why=why)
 
 
-def restyle(painter, image, kind: str, seed: int = 0, say=None):
+def remodel(painter, image, prompt: str, seed: int = 0, say=None, strength: float = 0.45):
+    """同じ構図のまま、painter の模型で描き直した絵。元の線を ControlNet で渡し、言葉は頼みの言葉（prompt）だけを渡す。
+    画風の言葉も質の言葉も足さない（頼んでいない言葉で絵が変わるのを避ける）。崩れたら強さを下げて描き直す"""
+    return restyle(painter, image, "remodel", seed, say, style=("remodel", "選んだ模型", "", prompt or "", strength))
+
+
+def restyle(painter, image, kind: str, seed: int = 0, say=None, style=None):
     """image を画風 kind に描き替えた絵（元と同じ大きさ）。崩れたら強さを下げて描き直す"""
     import torch
     from PIL import Image
     from chatdraw.engine import Stopped, check_stop, english_only, negative_for
     from chatdraw.models import image_model
-    style = {s[0]: s for s in STYLES}[kind]
+    style = style or {s[0]: s for s in STYLES}[kind]
     src = image.convert("RGB")
     W, H = src.size
     k = min(1.0, WORK_SIDE / max(W, H))

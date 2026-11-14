@@ -379,7 +379,9 @@ class SetupDialog(QDialog):
         lay.addWidget(head)
         self.image_group = QButtonGroup(self)
         # 札を選んだら、手元の模型を使う選択は外す（残ると、選んだ札の模型が取られず設定にも入らなかった）
-        self.image_group.buttonClicked.connect(lambda _b: setattr(self, "local", None))
+        # 利用者が押して選んだら、それを使う（一覧に無い設定を残す印と、メニューから選んだ物を外す）
+        self.image_group.buttonClicked.connect(lambda _b: (setattr(self, "local", None), setattr(self, "keep_image", None),
+                                                           setattr(self, "wanted", None)))
         # 手で置いた模型を使っているときは、それを今の選択として持つ（無いと「おまかせ」に戻して書き換えた）
         from chatdraw.models import is_local, local_model
         self.local = local_model(now_image) if now_image and is_local(now_image) else None
@@ -421,8 +423,13 @@ class SetupDialog(QDialog):
 
         # 言葉の模型は性能で決まるので選ばせない。確かめていちばん点の高い物を自動で使う
         self._relayout()
+        # 今の設定が一覧に無い物（お気に入り、一覧の外の模型）のときは、印だけおまかせに付け、保存では設定を書き換えない。
+        # 前はここで付けたおまかせを保存し、利用者の選んだ模型がおまかせ（おすすめ）に上書きされた
+        self.keep_image = None
         if not any(r.isChecked() for r in self.image_group.buttons()):
             self.image_radios[AUTO].setChecked(True)
+            self.keep_image = now_image or None
+        self.wanted = None   # メニューから選んだ、一覧に無い模型
 
         # 回線を使わずに、手元の模型を使う道。置き方は手順書の 3 章
         hand = QHBoxLayout()
@@ -495,6 +502,8 @@ class SetupDialog(QDialog):
         best = offered_words()
         if getattr(self, "local", None) is not None:
             image = self.local
+        elif image == AUTO and getattr(self, "wanted", None) is not None:
+            image = self.wanted
         return image, best[0] if best else None
 
     def to_fetch(self) -> tuple[ImageModel | None, WordsModel | None]:
@@ -510,8 +519,11 @@ class SetupDialog(QDialog):
 
     def select(self, image: str | None = None):
         """メニューから選んだ絵の模型を選んでおく"""
-        if image is not None and image in self.image_radios:   # 一覧に無い模型（手で置いた物など）は選ばずに置く
+        if image is not None and image in self.image_radios:
             self.image_radios[image].setChecked(True)
+        elif image is not None:   # 一覧に無い模型（目録のほかの物）は、選んだ物として覚えて取る。おまかせに替えない
+            from chatdraw.models import all_images
+            self.wanted = next((m for m in all_images() if m.repo == image), None)
 
     # ---- 2 枚目: 取る ----
     def _fetch_page(self) -> QWidget:
@@ -583,7 +595,9 @@ class SetupDialog(QDialog):
         if self.settings is None:
             return
         image, words = self.chosen()
-        if image == AUTO:
+        if image == AUTO and getattr(self, "keep_image", None) and self.image_radios[AUTO].isChecked():
+            pass   # おまかせの印は一覧に無い設定の代わりに付けただけ。利用者の設定（お気に入り・一覧の外の模型）を残す
+        elif image == AUTO:
             self.settings.set("image_model", AUTO)
         else:
             self.settings.set("image_model", image.repo)

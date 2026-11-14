@@ -1483,6 +1483,12 @@ class Studio:
         self.words_auto = False   # おまかせ: 頼みごとに、手元の言葉の模型から合う物を選ぶ
         # 描き方。"auto" は、構図の模型・SDXL の模型・2 段の部品がそろっていれば 2 段で描く。"one" は 1 つの模型、"two" は必ず 2 段
         self.way = "auto"
+        self.use_favorites = False   # 役目ごとのお気に入りの模型で描く（chatdraw/favmodels.py）
+
+    def image_mode(self) -> str:
+        """絵の模型の選び方。"auto"（おまかせ）、favmodels.FAV（お気に入り）、"single"（選んだ模型 1 つ）"""
+        from chatdraw.favmodels import FAV
+        return "auto" if self.image_auto else FAV if self.use_favorites else "single"
 
     def draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
              on_preview=None, style: str = "", reference=None, ref_scale: float = 0.6, meta: dict | None = None) -> tuple[str, Path]:
@@ -1498,11 +1504,29 @@ class Studio:
             if path is not None and path != getattr(self.words, "path", None):
                 self.words = Words(path)
         from chatdraw.models import family as fam, image_model
-        if self.image_auto and base is None and reference is None and self.way == "auto":
-            # おまかせ: 工程ごとに得意な模型を選び、落ちた部位は別の模型で直して描き上げる（chatdraw/omakase.py）。
-            # ラフ・参考画像は、その機能のある模型 1 つで描く下の道を通る
+        from chatdraw import favmodels
+        mode = self.image_mode()
+        # 精度の流れ: おまかせ・お気に入り・プリセット・細かい頼みは、役目ごとの模型で工程を分けて描く（chatdraw/omakase.py）。
+        # 速い流れ: 模型を 1 つ選んで短く頼んだときは、その模型で 1 回描くだけ。ラフ・参考画像は、その機能のある模型 1 つで描く下の道を通る
+        precise = favmodels.precise(mode, text, (meta or {}).get("preset", ""))
+        if precise and base is None and reference is None and self.way == "auto":
             from chatdraw import omakase
-            return omakase.draw(self, text, seed, say, size=size, meta=meta, style=style)
+            if mode == "single":
+                m = image_model(getattr(self.painter, "model", ""))
+                say(f"細かい頼み・プリセットなので、{m.name} で工程を分けて描きます")
+                return omakase.draw(self, text, seed, say, size=size, meta=meta, style=style, mode="single", single=m)
+            return omakase.draw(self, text, seed, say, size=size, meta=meta, style=style, mode=mode)
+        fast = mode == "single" and not precise
+        if mode == favmodels.FAV and not self.image_auto:
+            # お気に入りでラフ・参考画像から描くときは、その機能のある世代のお気に入り（仕上げ → 構図の順）を使う
+            from chatdraw.choose import installed_images
+            have = [m for m in installed_images()
+                    if (base is None or fam(m.family).sketch) and (reference is None or fam(m.family).reference)]
+            m = favmodels.resolve("finish", have) or favmodels.resolve("compose", have)
+            if m is not None and m.repo != self.painter.model:
+                self._swap_painter(m, say)
+            if m is not None:
+                self.chosen = (m.name, "お気に入り")
         if self.image_auto:
             # 模型を先に選ぶ。頼みの形（タグか文か）は選んだ模型の世代で決まるので、直したあとに替えると食い違った。
             # ラフや参考画像を使うときは、その機能のある世代の模型だけから選ぶ
@@ -1523,7 +1547,9 @@ class Studio:
                 say(f"絵の模型: {m.name}（{why}）")
             else:
                 say("おまかせで選べる絵の模型が手元にありません。今の模型で描きます")
-        two = self._two_stage_models(base, reference, say)
+        # 模型を 1 つ選んだ速い流れは、選んだ模型だけで描く（前は 2 段の部品があると構図を別の模型で描き、選んだ模型が上書きされた）。
+        # 「構図と仕上げを分けて描く」を選んだときだけ 2 段にする
+        two = None if fast and self.way != "two" else self._two_stage_models(base, reference, say)
         if two is not None:
             return self._draw_two(text, seed, two, style, size, say, meta)
         say("頼みを描く言葉に直しています")
@@ -1568,7 +1594,8 @@ class Studio:
         avoid0, unasked, missing_all = getattr(self.painter, "avoid", ""), [], []
         if negative and hasattr(self.painter, "avoid"):   # 「帽子なし」の帽子は、描かない物に入れて描かせない
             self.painter.avoid = ", ".join([a for a in [avoid0] + negative if a])
-        for k in range(self.REDRAW_TRIES):
+        tries = 1 if fast else self.REDRAW_TRIES   # 速い流れは 1 回描くだけ（検品の結果は出す）
+        for k in range(tries):
             if unasked:
                 self.painter.avoid = ", ".join([a for a in [avoid0] + negative + unasked if a])
             s_k = seed + 1000 * k
@@ -1636,6 +1663,26 @@ class Studio:
             worddict.record([t.strip() for t in asked_prompt.split(",")], passed, words)
         except Exception:
             pass
+
+    def _swap_painter(self, m, say=lambda msg: None):
+        """絵の模型を替える。前の模型は降ろしてから読み、禁止ワードは引き継ぐ"""
+        avoid = getattr(self.painter, "avoid", "")
+        if hasattr(self.painter, "unload"):
+            self.painter.unload()
+        self.painter = Painter(m.repo, m.steps, guidance=m.guidance)
+        self.painter.avoid = avoid
+        self.painter.on_note, self.painter.partial_dir = say, self.out
+
+    def _two_parts_ready(self, say=lambda m: None) -> bool:
+        """2 段の部品があるか。取ってよいと言われていれば取る"""
+        from chatdraw import twostage
+        if getattr(self, "fetch_two_parts", False) and not twostage.parts_ready():
+            try:
+                twostage.fetch_parts(say=say)
+            except Exception as e:
+                say(f"2 段で描く部品を取れませんでした（{e}）。1 つの模型で描きます")
+            self.fetch_two_parts = False
+        return twostage.parts_ready()
 
     def _two_stage_models(self, base, reference, say=lambda m: None):
         """2 段で描くなら (構図の模型, 仕上げの模型)、1 つの模型で描くなら None。

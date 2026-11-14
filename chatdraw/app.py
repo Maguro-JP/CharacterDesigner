@@ -732,7 +732,7 @@ class Window(QMainWindow):
         self.neg_tips_box = neg_box
         self._load_negatives()
         # 指示のタブの並び: 模型、描くワード、描くワードの登録、禁止ワード、禁止ワードの登録
-        model_head = QLabel("模型")
+        model_head = QLabel("絵の模型")   # 見出しは 1 つだけ（前は見出し「模型」とボタンの「絵の模型: 」が重なっていた）
         model_head.setObjectName("sectionHead")
         model_row = QHBoxLayout()
         model_row.setContentsMargins(0, 0, 0, 0)
@@ -1912,15 +1912,23 @@ class Window(QMainWindow):
     def _show_model(self):
         from chatdraw.models import image_model
         from chatdraw.setup import AUTO
+        from chatdraw.favmodels import FAV
         key = self.settings.get("image_model")
         if key == AUTO:   # おまかせで選んだ模型を出す（選ぶ前は、今読んでいる模型）
             chosen = getattr(getattr(self, "studio", None), "chosen", None)
             painter = getattr(getattr(self, "studio", None), "painter", None)
             name = chosen[0] if chosen else image_model(painter.model).name if getattr(painter, "model", "") else ""
-            self.model_label.setText("絵の模型: おまかせ" + (f"（{name}）" if name else ""))
+            self.model_label.setText("おまかせ" + (f"（{name}）" if name else ""))
             self.model_label.setToolTip(f"おまかせで選んだ理由: {chosen[1]}" if chosen else "描くときに、手元の模型から頼みに合う物を選びます")
+        elif key == FAV:
+            from chatdraw import favmodels
+            data = favmodels.load()
+            self.model_label.setText("お気に入り（役目ごと）")
+            self.model_label.setToolTip("役目ごとに選んだ模型で、工程を分けて描きます\n" + "\n".join(
+                f"{label}: {image_model(data[r]).name if r in data else 'おまかせ'}" for r, (label, _t) in favmodels.ROLES.items()))
         else:
-            self.model_label.setText(f"絵の模型: {image_model(key).name}")
+            self.model_label.setText(image_model(key).name)
+            self.model_label.setToolTip("この模型で描きます。短い頼みは 1 回で速く、細かい頼みとプリセットは工程を分けて描きます。押すと切り替えられます")
 
     def _fit_features(self):
         """選んだ模型の世代で使えない機能（ラフから、直す、参考画像）のボタンを止め、理由を出す"""
@@ -3480,7 +3488,15 @@ class Window(QMainWindow):
         from chatdraw.ratings import is_blocked
         if is_blocked(image):   # ブロックした模型は、設定に残っていても使わない
             image = AUTO
-        if image == AUTO:
+        from chatdraw import favmodels
+        if image == favmodels.FAV:   # お気に入り: 初めに読むのは仕上げ（無ければ構図）のお気に入り
+            have = self.have_image_models()
+            first = favmodels.resolve("finish", have) or favmodels.resolve("compose", have)
+            if first is None:
+                from chatdraw.choose import choose_image
+                first = choose_image("", "", have=have)[0] or IMAGES[0]
+            image, steps, guidance = first.repo, first.steps, first.guidance
+        elif image == AUTO:
             from chatdraw.choose import choose_image
             first = choose_image("", "", have=self.have_image_models())[0] or IMAGES[0]
             image, steps, guidance = first.repo, first.steps, first.guidance
@@ -3496,6 +3512,7 @@ class Window(QMainWindow):
         painter.lora_scale = int(self.layout_store.value("lora_scale", 80)) / 100
         studio = Studio(Words(None if words == AUTO else Path(words)), painter, Path(g("output_dir")))
         studio.image_auto, studio.words_auto = g("image_model") == AUTO, words == AUTO
+        studio.use_favorites = g("image_model") == favmodels.FAV
         studio.way = {"1つの模型で描く": "one", "構図と仕上げを分けて描く": "two"}.get(g("draw_way"), "auto")
         return studio
 
@@ -3680,7 +3697,10 @@ class Window(QMainWindow):
         group = QActionGroup(menu)
         auto = QAction("おまかせ", menu, checkable=True)
         auto.setToolTip("描くときに、手元の模型から頼みに合い点の高い物を選びます")
-        entries = [(AUTO, auto)]
+        from chatdraw.favmodels import FAV
+        fav = QAction("お気に入り（役目ごと）", menu, checkable=True)
+        fav.setToolTip("構図・仕上げ・顔・手・背景・直しに、自分で選んだ模型を使います（「役目ごとの模型…」で選びます）")
+        entries = [(AUTO, auto), (FAV, fav)]
         for m in images:
             label = ("★ " if is_favorite(m.repo) else "") + m.name + (f"　{rating_text(m)}" if m in listed else "")
             ok = m.repo in have or m not in listed
@@ -3698,6 +3718,8 @@ class Window(QMainWindow):
             a.setChecked(is_favorite(m.repo))
             a.setToolTip("★ を付けた模型は一覧の先頭に出て、おまかせでも選ばれやすくなります")
             a.toggled.connect(lambda on, r=m.repo: set_favorite(r, on))
+        menu.addAction(QAction("役目ごとの模型…", self, triggered=self.open_role_models,
+                               toolTip="構図・仕上げ・顔・手・背景・直しに使う模型を選んで保存します"))
         menu.addSeparator()
         fix_menu = menu.addMenu("直しに使う模型")
         fix_menu.setToolTipsVisible(True)
@@ -3740,6 +3762,18 @@ class Window(QMainWindow):
         self.check_ai()
         self._fill_ai_menu()
         self.rescan_models()
+
+    def open_role_models(self):
+        """役目ごとのお気に入りの模型を選ぶ窓（chatdraw/favmodels.py）。保存したらお気に入りで描くように替える"""
+        from chatdraw.favpanel import RoleModelsDialog
+        dlg = RoleModelsDialog(self.have_image_models(), self)
+        if dlg.exec():
+            dlg.store()
+            from chatdraw.favmodels import FAV, any_set
+            if any_set():
+                self.switch_model("絵の模型", FAV)
+            else:
+                self._show_model()
 
     def switch_model(self, kind: str, key: str):
         self.feature_tour("model")
@@ -4755,6 +4789,9 @@ class Window(QMainWindow):
         from chatdraw import finishers
         from chatdraw.models import all_images
         key = getattr(self, "fix_model", finishers.AUTO)
+        if (not key or key == finishers.AUTO) and getattr(self.studio, "use_favorites", False):
+            from chatdraw import favmodels
+            key = favmodels.get("fix") or key   # お気に入りで描いているときは、「直し・加工」のお気に入りで直す
         if not key or key == finishers.AUTO or key == getattr(self.studio.painter, "model", None):
             return self.studio
         every = all_images()

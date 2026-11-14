@@ -232,6 +232,8 @@ class Omakase:
         self.log = []   # 工程ごとの記録（.json の omakase.steps）
         self.two = None   # 2 段の模型 (構図, 仕上げ)。部品がそろっているときだけ Studio が渡す
         self.compose_two = None
+        self.adjust = None   # 段取りを置き換える関数（お気に入り・選んだ模型）。None はおまかせのまま
+        self.two_fixed = False   # 2 段の模型を利用者が決めた（お気に入り）。決めたときは毎回 2 段で描く
 
     def _painter(self, m: ImageModel):
         """模型を読む。読んである物はそのまま使い、替えるときは前の物を捨てる（模型は 1 つ数 GB）"""
@@ -283,7 +285,11 @@ class Omakase:
         """描く → 検品 → 落ちた部位を別の模型で直す → 検品、を通るまで回す。通らなければ構図を別の模型で描き直す。
         返すのは (絵, 頼みの言葉, 残った崩れ, 検品できたか, 種, 構図の模型)"""
         self.plan = plan(text, self.have, seed)
-        say("おまかせの段取り: " + self.plan.summary())
+        if self.adjust is not None:   # お気に入り・選んだ模型で、役目ごとの模型を置き換える（chatdraw/favmodels.py）
+            used = self.adjust(self.plan)
+            if used:
+                say("お気に入りを使う役目: " + "、".join(used))
+        say(("段取り: " if self.adjust is not None else "おまかせの段取り: ") + self.plan.summary())
         compose = self.plan.compose or [(None, "取得済みの模型が無いので今の模型")]
         best = None
         for k in range(tries):
@@ -302,11 +308,17 @@ class Omakase:
                 say(note)
             image = None
             # 2 段の部品も候補の 1 つ。毎回 2 段で描くと構図の模型が固定されたので、ほかの模型があれば半分は 1 つの模型で描く
-            use_two = self.two is not None and k == 0 and (len(compose) < 2 or random.Random(f"two-{seed}").random() < 0.5)
+            use_two = self.two is not None and k == 0 and (self.two_fixed or len(compose) < 2
+                                                           or random.Random(f"two-{seed}").random() < 0.5)
             if use_two:
                 # 構図と仕上げを分ける 2 段の部品がそろっていれば、最初の構図はそれで描く（chatdraw/twostage.py）
                 try:
                     comp, render = self.two
+                    from chatdraw.twostage import COMPOSERS
+                    if not self.two_fixed and m is not None and m.family in COMPOSERS:
+                        # 構図は段取りで選んだ模型を使う。前は点の一番高い構図の模型に固定され、おまかせなのに同じ模型ばかりになった
+                        comp = m
+                        self.two = (comp, render)
                     self._note(say, "構図（2 段）", comp, f"文で頼める模型で構図、{render.name} で仕上げ", seed=s_k)
                     image, prompt = self.compose_two(text, s_k, size, say)
                     m = render
@@ -418,21 +430,37 @@ def _compose_two(studio, text, seed, two, size, say):
 
 
 def draw(studio, text: str, seed: int, say, size=None, meta: dict | None = None, have: list[ImageModel] | None = None,
-         painter_for=None, check=None, style: str = ""):
-    """Studio.draw のおまかせの入口。描いて保存し、(頼みの言葉, 置き場) を返す"""
+         painter_for=None, check=None, style: str = "", mode: str = "auto", single: ImageModel | None = None):
+    """Studio.draw の精度の流れの入口。描いて保存し、(頼みの言葉, 置き場) を返す。
+    mode: "auto" はおまかせ（おすすめ）、favmodels.FAV は役目ごとのお気に入り、"single" は選んだ模型 1 つで工程を分ける"""
     from chatdraw.choose import installed_images
-    from chatdraw import ratings
+    from chatdraw import favmodels, ratings
     have = installed_images() if have is None else have
     # ブロックした模型は決して使わない。非表示の物は、ほかに無いときだけ使う（choose_image と同じ）
     blocked = getattr(ratings, "is_blocked", lambda name: False)
     have = [m for m in have if not blocked(m.repo)]
     have = [m for m in have if not ratings.is_hidden(m.repo)] or list(have)
+    if single is not None and all(m.repo != single.repo for m in have):
+        have = have + [single]
     o = Omakase(studio, have, painter_for, check)
     o.style = style
-    two = studio._two_stage_models(None, None, say) if hasattr(studio, "_two_stage_models") else None
+    two = None
+    if mode == "single":
+        o.adjust = lambda p: favmodels.apply(p, have, single=single)
+    elif mode == favmodels.FAV:
+        data = favmodels.load()
+        o.adjust = lambda p: favmodels.apply(p, have, data)
+        two = favmodels.two_stage(have, data)
+        if two is not None and hasattr(studio, "_two_parts_ready") and not studio._two_parts_ready(say):
+            two = None
+        o.two_fixed = two is not None
+        if two is None and hasattr(studio, "_two_stage_models") and not favmodels.resolve("compose", have, data):
+            two = studio._two_stage_models(None, None, say)
+    elif hasattr(studio, "_two_stage_models"):
+        two = studio._two_stage_models(None, None, say)
     if two is not None:
         o.two = two
-        o.compose_two = lambda text, seed, size, say: _compose_two(studio, text, seed, two, size, say)
+        o.compose_two = lambda text, seed, size, say: _compose_two(studio, text, seed, o.two, size, say)
     image, prompt, left, readable, s_k, m = o.run(text, seed, say, size=size, tries=studio.REDRAW_TRIES, rounds=studio.FIX_ROUNDS)
     if left:
         say(f"検品を通る絵が出ませんでした（途中）。残った崩れ: " + "、".join(left[:5]))
@@ -440,8 +468,9 @@ def draw(studio, text: str, seed: int, say, size=None, meta: dict | None = None,
         say("検品できなかったので、通ったかは分かりません（途中）")
     if m is not None:
         studio.chosen = (m.name, o.plan.summary())
+    way = {"single": "precise", favmodels.FAV: "favorites"}.get(mode, "omakase")
     path = studio._save(image, s_k, dict(meta or {}, text=text, prompt=prompt, seed=s_k, model=m.repo if m else getattr(studio.painter, "model", ""),
-                                         style=style, way="omakase", passed=readable and not left, left=left,
+                                         style=style, way=way, passed=readable and not left, left=left,
                                          omakase=dict(parts=o.plan.parts, plan=o.plan.summary(), steps=o.log)))
     studio._inspect(path, say)
     return prompt, path
