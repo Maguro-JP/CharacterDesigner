@@ -27,6 +27,11 @@ MIN_FACE = 64         # 顔の切り出しがこれより小さい（画素）�
 CLOSED_AT = 0.6       # 試した絵で、目の消えた絵は 0.95、普通の顔の最大は 0.41 だった
 OPEN_BELOW = 0.3      # 目の色のタグの最大がこれ未満のときだけ「目が無い」とする
 NO_EYES_AT = 0.4
+# 片目が髪や物で隠れた顔。library/feedback の台で、前髪で片目が隠れた絵（0.74）と鉛筆が顔の半分を覆った絵（0.43）を
+# 検品が通していた。隠れていない顔の 6 枚は 0.17 以下だった
+ONE_EYE = ("hair over one eye", "one eye covered")
+ONE_EYE_AT = 0.4
+ONE_EYE_ASKED = ("hair over one eye", "one eye covered", "eyepatch", "covering one eye", "hair over eyes", "covering eyes")
 
 
 def face_box(keypoints: dict, size: tuple[int, int], least: int = MIN_FACE):
@@ -81,6 +86,8 @@ def judge(tags: dict, asked: str = "") -> list[str]:
         return ["顔: 目が描かれていない（顔の無い人に読める）"]
     if tags.get("closed eyes", 0.0) >= CLOSED_AT and open_ < OPEN_BELOW:
         return ["顔: 目が描かれていない（目が消えて閉じた目に読める。頼んでいない）"]
+    if not any(a in low for a in ONE_EYE_ASKED) and max(tags.get(t, 0.0) for t in ONE_EYE) >= ONE_EYE_AT:
+        return ["顔: 片目が髪か物で隠れている（頼んでいない）"]
     return []
 
 
