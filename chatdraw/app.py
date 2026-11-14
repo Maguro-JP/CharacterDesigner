@@ -4909,7 +4909,18 @@ class Window(QMainWindow):
         """画風の一覧（chatdraw/restyle.py の STYLES の並び）を menu に足す。mark が 1 からの印の番号なら、その囲みの中だけに掛ける"""
         from chatdraw import finishers
         from chatdraw.restyle import STYLES
+        from PySide6.QtGui import QIcon
         menu.setToolTipsVisible(True)
+        # 予想図: 見本の 1 枚を本物の絵の模型でその画風に変えた小さな絵（chatdraw/styleprev/）。名前だけでは仕上がりが分からないので横に出す
+        # QMenu は絵の大きさを小さな絵の寸法（16 画素）で描き、スタイルシートの icon-size は効かなかった。その寸法だけを大きくする
+        from PySide6.QtWidgets import QProxyStyle, QStyle
+
+        class Big(QProxyStyle):
+            def pixelMetric(self, metric, option=None, widget=None):
+                return 48 if metric == QStyle.PM_SmallIconSize else super().pixelMetric(metric, option, widget)
+        menu.setStyle(Big(menu.style().name()) if menu.style().name() else Big())
+        menu.__dict__["_style"] = menu.style()   # Python 側でも持つ（手放すとスタイルが消える）
+        prev = Path(__file__).parent / "styleprev"
         for kind, label, tip, *_ in STYLES:
             name = f"style_{kind}"
             ok, why = self._finisher_ready(name) if name in finishers.REGISTRY else (False, "")
@@ -4917,7 +4928,9 @@ class Window(QMainWindow):
             act = menu.addAction(label, (lambda name=name: self.style_mark(name, mark)) if mark else (lambda name=name: self.run_shortcut("fin:" + name)))
             if not mark:
                 act.setObjectName("fin:" + name)
-            act.setToolTip(tip + ("。囲みの中だけを描き替えます" if mark else "") + ("" if ok or finishers.fetchable(name) else f"（{why}）"))
+            if (prev / f"{kind}.jpg").is_file():
+                act.setIcon(QIcon(str(prev / f"{kind}.jpg")))
+            act.setToolTip(tip + "（左の小さな絵は見本の絵での例）" + ("。囲みの中だけを描き替えます" if mark else "") + ("" if ok or finishers.fetchable(name) else f"（{why}）"))
             act.setEnabled((ok or finishers.fetchable(name)) and not self.thread)
         return menu
 

@@ -352,6 +352,7 @@ class RestyleTest(unittest.TestCase):
                              "モノクロ漫画風", "フィギュア風", "ドット絵", "アニメの塗り", "厚塗り", "セル画"):
                     self.assertIn(want, labels)
                 self.assertTrue(all(a.toolTip() for a in m.actions()))   # 説明はボタンの中でなくツールチップ
+                self.assertTrue(all(not a.icon().isNull() for a in m.actions()))   # どの画風にも予想図が出る
                 # 赤ペンで囲み、印の番号の丸の上で右クリックする
                 w.tool_actions["redpen"].trigger()
                 vp = c.viewport()
