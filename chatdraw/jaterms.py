@@ -20,7 +20,7 @@ TERMS = {
     "大人の女性": WOMAN, "お姉さん": WOMAN,
     "女の子": "1girl, solo", "少女": "1girl, solo", "男性": "1boy, solo, adult man", "男の人": "1boy, solo, adult man",
     "男の子": "1boy, solo", "少年": "1boy, solo", "老人": "old man, elderly", "おばあさん": "old woman, elderly",
-    "騎士": "knight, armor", "女騎士": "1girl, solo, adult woman, knight, armor", "魔法使い": "mage, robe", "メイド": "maid, maid headdress",
+    "騎士": "knight, armor", "女騎士": "1girl, solo, knight, armor", "魔法使い": "mage, robe", "メイド": "maid, maid headdress",
     "猫耳": "cat ears", "狐耳": "fox ears", "エルフ": "elf, pointy ears",
     # 服
     "ビキニ": "bikini", "水着": "swimsuit", "競泳水着": "competition swimsuit", "スクール水着": "school swimsuit",

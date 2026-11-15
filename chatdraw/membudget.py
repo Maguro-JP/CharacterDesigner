@@ -26,6 +26,8 @@ ACT_DEFAULT = 1.6   # 新しい世代（DiT）
 VAE_GB_PER_MP = 2.5   # VAE の復号を分けないときの、100 万画素あたりの GB（16 ビット）
 VAE_TILE_GB = 0.7     # VAE を区画に分けて復号するときの山（区画の大きさで決まり、絵の大きさに寄らない）
 PREVIEW_GB_PER_MP = 0.02   # 途中の絵（latents を色に直すだけ。VAE は通さない）
+# 読み込みの RAM の山は、重みの 1.1 倍（0.5.18 の見積もりのまま。上げると描く前に止まる組み合わせが増える）
+LOAD_RAM_SHARE = 1.1
 SEQ_LAYER_GB = 0.6    # 層ごとに出し入れするときに、一度に GPU に載る分
 COMPONENT_SHARE = 0.8   # 部品ごとに出し入れするときに、一番大きい部品（本体）が模型に占める割合
 # 本体を 4 ビットに縮めた模型では、縮めない言葉の部品が一番大きくなる（Qwen-Image で縮めた全体の 6 割ほど。私の推測）
@@ -63,7 +65,14 @@ def free_vram_gb() -> float:
     torch = sys.modules.get("torch")
     try:
         if torch is not None and torch.cuda.is_available():
-            return torch.cuda.mem_get_info()[0] / 1e9
+            # torch が溜めているだけの分（reserved − allocated）も空きに数える。数えないと、使っていない溜めで
+            # 空きが少なく見え、描いている途中に「危ない」と判定して止めていた
+            free = torch.cuda.mem_get_info()[0]
+            try:
+                cache = max(0, torch.cuda.memory_reserved() - torch.cuda.memory_allocated())
+            except Exception:   # noqa: BLE001  測れなければ溜めは数えない（前と同じ）
+                cache = 0
+            return (free + cache) / 1e9
     except Exception:   # noqa: BLE001
         pass
     return 0.0
@@ -78,9 +87,37 @@ def has_cuda() -> bool:
         return False
 
 
-def budget(free_ram: float | None = None, free_vram: float | None = None, margin: float = MARGIN) -> Budget:
+# メモリの使い方。利用者が設定で選ぶ。既定は自動。
+# margin: 空きのうち予算に入れない割合。over_ok: 予算のこの倍までは一番軽い設定で描いてみる
+MODES = {
+    # danger: 描き始めの RAM の空きのうち、これを切ったら（メモリを返しても戻らなければ）その 1 回を抜ける割合
+    "自動": dict(margin=MARGIN, over_ok=1.5, danger=0.1),
+    "優先して動かす": dict(margin=0.1, over_ok=2.0, danger=0.05),    # 空きをほぼ使い切る。ほかのアプリが重くなることがある
+    "控えめに動かす": dict(margin=0.4, over_ok=1.0, danger=0.2),     # 空きの 6 割までにとどめ、超える物は軽くするか止める
+}
+_mode = "自動"
+
+
+def set_mode(name: str) -> str:
+    """知らない名前は自動にする（前の版の設定や打ち間違いで落ちない）"""
+    global _mode
+    _mode = name if name in MODES else "自動"
+    return _mode
+
+
+def mode() -> str:
+    return _mode
+
+
+def over_ok() -> float:
+    return MODES[_mode]["over_ok"]
+
+
+def budget(free_ram: float | None = None, free_vram: float | None = None, margin: float | None = None) -> Budget:
     """空いている RAM と VRAM から余裕を引いた予算。RAM が測れない（0）ときは無限として扱う（前と同じ）"""
     from chatdraw.engine import free_ram_gb
+    if margin is None:
+        margin = MODES[_mode]["margin"]
     fr = free_ram_gb() if free_ram is None else free_ram
     fv = free_vram_gb() if free_vram is None else free_vram
     return Budget(fr * (1 - margin) if fr > 0 else float("inf"), max(0.0, fv * (1 - margin)), fr, fv)
@@ -127,19 +164,19 @@ def peaks(weights_gb: float, size, family: str, placement: str, slicing: bool, t
     out = {}
     if placement == "cuda":
         # 部品のフォルダーは GPU へ直に読む（device_map）ので、RAM は 1 つずつの重みの写しで済む。1 つのファイルは一度 RAM に並ぶ
-        out["読み込み"] = (O + W * (1.1 if single_file else 0.35), W)
+        out["読み込み"] = (O + W * (LOAD_RAM_SHARE if single_file else 0.35), W)
         out["描く本体"] = (O + prev, W + act)
         out["VAE の復号"] = (O + img, W + vae)
     elif placement == "model":
-        out["読み込み"] = (O + W * 1.1, 0.0)
+        out["読み込み"] = (O + W * LOAD_RAM_SHARE, 0.0)
         out["描く本体"] = (O + W + prev, comp + act)
         out["VAE の復号"] = (O + W + img, 0.2 + vae)
     elif placement == "sequential":
-        out["読み込み"] = (O + W * 1.1, 0.0)
+        out["読み込み"] = (O + W * LOAD_RAM_SHARE, 0.0)
         out["描く本体"] = (O + W + prev, SEQ_LAYER_GB + act)
         out["VAE の復号"] = (O + W + img, SEQ_LAYER_GB + vae)
     else:
-        out["読み込み"] = (O + W * fd * 1.1, 0.0)
+        out["読み込み"] = (O + W * fd * LOAD_RAM_SHARE, 0.0)
         out["描く本体"] = (O + W * fd + act + prev, 0.0)
         out["VAE の復号"] = (O + W * fd + vae + img, 0.0)
     out["頼んだ大きさに戻す"] = (O + img, 0.0)
@@ -247,26 +284,36 @@ class Watch:
     near: 予算に近づいた（次の段階の前に軽い設定へ落とす）。danger: 予算の外の余裕まで食い始めた（絵を保存して止める）。
     測るのは空きの数字だけなので、描く糸は止めない"""
 
-    def __init__(self, start: Budget, every: float = 0.2, sample=None):
+    RELEASE_EVERY = 30.0   # メモリを返す間隔の下限（秒）
+    RAM_FLOOR_GB = 0.5   # これより RAM の空きが減ると、OS がアプリを落とすことがある
+
+    def __init__(self, start: Budget, every: float = 0.2, sample=None, release=None):
         self.start = start
         self.every = every
         self.level = "ok"
         self.low_ram = start.free_ram
         self.low_vram = start.free_vram
         self._sample = sample or _sample
+        self._release = release   # 危ないと見たときに 1 度呼んで、メモリを返してから測り直す
+        self.released = 0
+        self._last_release = float("-inf")
+        self._recovered = False
         self._stop = threading.Event()
         self._t = None
 
     def _judge(self, fr: float, fv: float) -> str:
+        """RAM の空きが床を切ったときだけ危ない。VRAM が足りなくなっても OS はアプリを落とさない
+        （torch がメモリ不足の例外を出し、描く側が軽い設定で描き直す）ので、VRAM は近づいた（near）までにする"""
+        m = MODES[_mode]
         lv = "ok"
-        for free0, now in ((self.start.free_ram, fr), (self.start.free_vram, fv)):
-            if free0 <= 0 or now <= 0:
-                continue   # 測れない（GPU が無い、数字が取れない）
-            reserve = free0 * MARGIN   # 予算に入れなかった余裕
-            if now < reserve * 0.5:
+        if self.start.free_ram > 0 and fr > 0:
+            floor = max(self.RAM_FLOOR_GB, self.start.free_ram * m["danger"])
+            if fr < floor:
                 return "danger"
-            if now < reserve * 1.5:
+            if fr < self.start.free_ram * m["margin"] * 1.5:
                 lv = "near"
+        if self.start.free_vram > 0 and fv > 0 and fv < self.start.free_vram * m["margin"] * 1.5:
+            lv = "near"
         return lv
 
     def poll(self) -> str:
@@ -277,6 +324,22 @@ class Watch:
         self.low_ram = min(self.low_ram, fr) if fr > 0 else self.low_ram
         self.low_vram = min(self.low_vram, fv) if fv > 0 else self.low_vram
         lv = self._judge(fr, fv)
+        # メモリを返すのは RELEASE_EVERY 秒に 1 度までにする。前は危ないと見るたび（0.2 秒ごと）に gc と malloc_trim を回せた。
+        # 返した山は torch がすぐ取り直すので、続けて返しても空きは増えず、gc の時間だけがかかる。
+        # 間の回は、前に返して戻った（recovered）なら near として描き続ける
+        import time
+        if lv == "danger" and self._release is not None:
+            now = time.monotonic()
+            if now - self._last_release >= self.RELEASE_EVERY:
+                try:
+                    self._release()
+                    self.released += 1
+                    self._last_release = now
+                    fr, fv = self._sample()
+                    self._recovered = self._judge(fr, fv) != "danger"
+                except Exception:   # noqa: BLE001
+                    self._recovered = False
+            lv = "near" if self._recovered else "danger"
         rank = {"ok": 0, "near": 1, "danger": 2}
         if rank[lv] > rank[self.level]:
             self.level = lv   # 一度上がった段は、その 1 枚の間は下げない

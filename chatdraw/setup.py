@@ -214,8 +214,9 @@ class Fetcher(QObject):
     途中で止まっても、取った分は残り、次は続きから取る（Hugging Face の取り方が続きから取る）"""
     progress = Signal(str, int)
     finished = Signal(str)
+    qc_failed: list = []   # 取れなかった検品の部品の名前（取れなくても描くのは止めない）
 
-    def run(self, image: ImageModel | None, words: WordsModel | None, update: bool = False):
+    def run(self, image: ImageModel | None, words: WordsModel | None, update: bool = False, qc: bool = True):
         try:
             ensure_shared()
             if not engine_ready():
@@ -228,6 +229,9 @@ class Fetcher(QObject):
                 self._image(image)
             if words is not None:
                 self._words(words, update)
+            if qc:   # 検品の部品も一緒に取る。無いと検品が「読めない」で素通りになった
+                from chatdraw import qcparts
+                self.qc_failed = qcparts.fetch(self.progress.emit)
             self.finished.emit("")
         except Exception as e:  # 取れなかった理由を、何をすればよいか分かる形で見せる
             hub = image.hub if image is not None else words.repo if words is not None else ""
@@ -573,6 +577,9 @@ class SetupDialog(QDialog):
             return
         self.apply()
         self.bar.setValue(100)
+        from chatdraw.qcparts import failed_line
+        self.qc_note.setText(failed_line(self.fetcher.qc_failed))
+        self.qc_note.setVisible(bool(self.fetcher.qc_failed))
         if self.first:
             self.pages.setCurrentIndex(2)
         else:
@@ -615,9 +622,28 @@ class SetupDialog(QDialog):
             text.setWordWrap(True)
             row.addWidget(text, 1)
             lay.addWidget(box)
+        self.qc_note = QLabel("")   # 取れなかった検品の部品の 1 行（取れたときは出さない）
+        self.qc_note.setObjectName("cardMeta")
+        self.qc_note.setWordWrap(True)
+        self.qc_note.setVisible(False)
+        lay.addWidget(self.qc_note)
         lay.addStretch()
         ok = QPushButton("はじめる")
         ok.setObjectName("primary")
         ok.clicked.connect(self.accept)
         lay.addWidget(ok, 0, Qt.AlignRight)
         return page
+
+
+def refetch_qc_parts(parent) -> Fetcher:
+    """検品の部品だけを裏で取り直す（AI のメニューの「検品の部品を取り直す」）。結果は窓の右下の進みと通知に 1 行で出す"""
+    from chatdraw.qcparts import failed_line
+    f = Fetcher()
+    if hasattr(parent, "watch_fetch"):
+        parent.watch_fetch(f, "検品の部品")
+    if hasattr(parent, "notify"):
+        f.finished.connect(lambda err: parent.notify(err or failed_line(f.qc_failed) or "検品の部品がそろいました",
+                                                     "error" if err or f.qc_failed else "ok"), Qt.QueuedConnection)
+    parent._qc_fetcher = f   # 取っている間に消えないよう持っておく
+    threading.Thread(target=f.run, args=(None, None), daemon=True).start()
+    return f

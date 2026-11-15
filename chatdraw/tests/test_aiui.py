@@ -170,7 +170,7 @@ class InstructTabTest(unittest.TestCase):
     def test_order_and_heads(self):
         with TemporaryDirectory() as d:
             w = window(d)
-            self.assertEqual(self._order(w), ["見出し:模型", "模型", "見出し:描くワード", "描くワード", "描くワードの登録",
+            self.assertEqual(self._order(w), ["見出し:絵の模型", "模型", "見出し:描くワード", "描くワード", "描くワードの登録",
                                               "見出し:禁止ワード", "禁止ワード", "禁止ワードの登録"])
             self.assertFalse(hasattr(w, "fixed_negative"))                    # 固定値の表示は無い
             w.close()

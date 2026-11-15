@@ -129,6 +129,8 @@ def model_fail(model: str, st: dict | None = None) -> float:
 def adjust(prompt: str, model: str = "", rng: random.Random | None = None) -> tuple[str, list[str], bool]:
     """頼みのタグを、学んだ描かれにくさで並べ替える。(直した言葉, 前に出したタグ, 学びを使わなかったか) を返す。
     頼みに無いタグは足さず、頼みのタグは消さない（並べ替えるだけ）"""
+    # 頼みの並びも頼みの効き（guidance）も変えない。ユーザーの頼みを、そのまま模型に渡す
+    return prompt, [], True
     from chatdraw.engine import emphasize
     if (rng or random).random() < EXPLORE:
         return prompt, [], True

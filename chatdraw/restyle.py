@@ -147,6 +147,8 @@ def restyle(painter, image, kind: str, seed: int = 0, say=None):
                 p._interrupt = True
             return kw
         union = {"control_image": [ctrl], "control_mode": [LINES]} if "control_mode" in _params(pipe) else {"control_image": ctrl}
+        from chatdraw import sent
+        sent.record("画風", english_only(style[3]), neg)
         out = pipe(prompt=english_only(style[3]), negative_prompt=neg, image=small, **union,
                    strength=s, num_inference_steps=steps, guidance_scale=float(getattr(painter, "guidance", 6.0) or 6.0),
                    controlnet_conditioning_scale=CONTROL, control_guidance_end=CONTROL_END, width=w, height=h,

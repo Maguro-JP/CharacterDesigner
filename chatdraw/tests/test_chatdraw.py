@@ -1262,11 +1262,15 @@ class FixAndBatchTest(unittest.TestCase):
         self.w.entry.clear()
         self.w.redo_from(self.w.images[2])                            # 履歴から同じ設定に戻す
         self.assertEqual(self.w.entry.text(), "雪の城の前の騎士")
-        self.assertTrue(self.w.ai_panel.seed_lock.isChecked())
+        self.assertFalse(self.w.ai_panel.seed_lock.isChecked())   # 種を固定のままにしない
         self.painter.calls.clear()
         self.w.send()
         wait_idle(self.app, self.w)
         self.assertEqual([c[1] for c in self.painter.calls], [seeds[2]])   # 同じ種で描き直せる
+        self.painter.calls.clear()
+        self.w.send()
+        wait_idle(self.app, self.w)
+        self.assertNotEqual([c[1] for c in self.painter.calls], [seeds[2]])   # 次からは別の種（同じ絵ばかりにならない）
 
     def test_count_from_words(self):
         self.w.entry.setText("猫耳の少女を2枚")

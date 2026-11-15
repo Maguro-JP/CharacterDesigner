@@ -8,3 +8,6 @@ yodayo-ai/holodayo-xl-2.1
 John6666/nova-anime-xl-il-v90-sdxl
 John6666/obsession-illustriousxl-v31-sdxl
 OnomaAIResearch/Illustrious-XL-v1.1
+prism-ml/bonsai-image-ternary-4B-unpacked
+prism-ml/bonsai-image-binary-4B-unpacked
+Tongyi-MAI/Z-Image
