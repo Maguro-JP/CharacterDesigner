@@ -3481,7 +3481,7 @@ class Window(QMainWindow):
         m.addSeparator()
         m.addAction("絵をコピー", lambda: self.copy_image(path))
         m.addAction("保存した場所を開く", lambda: self.open_folder(path))
-        m.addAction("3D に進む…", lambda: self.open_3d(path)).setToolTip("この絵から 3D のキャラデザに進む（最初の一歩: 厚みのある板の模型）")
+        m.addAction("3D に進む…", lambda: self.open_3d(path)).setToolTip("この絵から骨付きの 3D キャラ（VRM・glTF）や板の模型を作る")
         from chatdraw import share
         sns = m.addMenu("SNS に送る")
         for name in share.SERVICES:
@@ -3994,6 +3994,20 @@ class Window(QMainWindow):
     def open_3d(self, path: str):
         from chatdraw.to3d import To3DDialog
         To3DDialog(path, self).show()
+
+    def chara3d_from_canvas(self):
+        """キャラデザのメニューの入口。今の絵を 1 枚に重ねて保存し、3D に進む画面を開く。絵が無ければ選ばせる"""
+        import tempfile
+        c = self.canvas
+        if c.layers:
+            out = Path(tempfile.mkdtemp(prefix="chara3d-")) / "chara.png"
+            c.flatten().save(str(out))
+            self.open_3d(str(out))
+            return
+        from PySide6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(self, "3D にする絵（三面図か 1 枚絵）", "", "画像 (*.png *.jpg *.jpeg *.webp)")
+        if path:
+            self.open_3d(path)
 
     def canvas_menu(self, gpos):
         """絵の上の右クリック（右ボタンを動かさずに離したとき）。よく使う操作をまとめる"""
@@ -6304,6 +6318,8 @@ class Window(QMainWindow):
             return act
         add(m, "キャラデザを作る…", lambda: self.chara_design(),
             "設定を書く・目と表情を決める・三面図・表情差分・検品・キャラクターシート・キャラクターファイルへの保存を順に通します")
+        add(m, "3D キャラを作る…", lambda: self.chara3d_from_canvas(),
+            "今の絵（三面図か 1 枚絵）から、骨付きの 3D キャラクター（VRM と glTF）を作り、正面・横・後ろ・動かした姿を撮ります")
         add(m, "キャラクターを新しく作る…", lambda: self.charafile_new(), "設定を書いて、絵の無い人物を作ります。絵はあとから追加資料で足します", False)
         add(m, "キャラクターを開く…", lambda: self.charafile_open(), "キャラクターファイル（.chara）を開いて、その人物で作業します", False)
         try:
