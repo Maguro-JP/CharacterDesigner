@@ -117,7 +117,11 @@ def missing(prompt: str, got: dict, least: float = 0.2) -> list[str]:
 # （白いビキニを頼んで、白い上着を羽織った絵が出た。Windows の描画 種 7）
 EXTRA_WATCH = ("shirt", "jacket", "coat", "hoodie", "sweater", "cardigan", "vest", "skirt", "pants", "shorts", "jeans", "dress",
                "kimono", "apron", "cape", "sarong", "pareo", "shawl", "robe", "towel", "hat", "cap", "glasses", "sunglasses", "mask", "bag", "umbrella", "sword", "weapon",
-               "gloves", "scarf", "necktie", "pantyhose", "thighhighs", "clothes")
+               "gloves", "scarf", "necktie", "pantyhose", "thighhighs", "clothes",
+               # 手首の飾りと 2 本目の武器。頼んでいない腕輪・時計、剣と並べた槍が、検品の台で 1 枚も拾えていなかった
+               "bracelet", "bangle", "wristband", "wristwatch", "watch", "polearm", "spear", "lance", "shield")
+# 物の数の取り違え。1 本を頼んで 2 本描いた絵（剣を両手に 1 本ずつ）は、タグでは dual wielding が 0.25〜0.3 で読めた
+EXTRA_COUNT = {"dual wielding": 0.2}
 
 
 def extras(prompt: str, got: dict, least: float = 0.3) -> list[str]:
@@ -130,6 +134,9 @@ def extras(prompt: str, got: dict, least: float = 0.3) -> list[str]:
             continue
         words = t.replace("_", " ").split()
         if words and words[-1] in EXTRA_WATCH and words[-1] not in low:
+            out.append(t)
+    for t, least in EXTRA_COUNT.items():
+        if got.get(t, 0.0) >= least and t not in low and t not in out and "multiple" not in low:
             out.append(t)
     return out
 

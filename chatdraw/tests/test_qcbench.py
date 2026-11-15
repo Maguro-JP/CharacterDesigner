@@ -167,3 +167,91 @@ class EyeSmearTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CatsTest(unittest.TestCase):
+    """崩れの種類ごとの台（指の数・手の形・足・目・口・顔・腕と脚の数・左右・映り込み・頼んだ物・頼んでいない物）"""
+    def test_reads_kinds(self):
+        self.assertEqual(qcbench.flaw_cats("両手の指が読めない"), {"fingers"})
+        self.assertEqual(qcbench.flaw_cats("指が崩れた手が頭の上に浮く"), {"fingers", "hand_shape"})
+        self.assertEqual(qcbench.flaw_cats("腕が3本（両腕を頭の後ろに上げる）"), {"limbs"})
+        self.assertEqual(qcbench.flaw_cats("手首に頼んでいない腕輪が出た"), {"extra"})
+        self.assertEqual(qcbench.flaw_cats("両足先が重なって読めない"), {"feet"})
+        self.assertEqual(qcbench.flaw_cats("腰に当てた手の指は 5 本読める。片手を腰に当てた"), set())
+
+    def test_said_sure_and_unread(self):
+        res = {"hands": [{"box": [0, 0, 1, 1], "bad": ["指が足りない（4 本。5 本のはず）"]},
+                         {"box": [0, 0, 1, 1], "bad": ["手の形が読めない（指がくっついたか、ぼやけている）"]}],
+               "request": {"readable": True, "extra": ["bracelet"], "missing": []}}
+        sure, unread = qcbench.said_cats(res)
+        self.assertEqual(sure, {"fingers", "extra"})
+        self.assertEqual(unread, {"hand_shape"})
+
+    def test_request_unread_is_flag(self):
+        # 頼んだ物を読めなかった絵は、頼んだ物の崩れとして数える（検品できなかった絵を「崩れが無い」にしない）
+        _, unread = qcbench.said_cats({"request": {"readable": False, "reason": "部品が無い"}})
+        self.assertEqual(unread, {"missing", "extra"})
+
+    def test_score_cats(self):
+        rows = [{"path": "a", "cats": ["extra"], "clean": False}, {"path": "b", "cats": [], "clean": True}]
+        res = {"a": {"request": {"readable": True, "extra": ["bracelet"]}}, "b": {"request": {"readable": True, "extra": ["bracelet"]}}}
+        s = qcbench.score_cats(rows, res)["extra"]
+        self.assertEqual((s["caught"], s["false"], s["clean_false"]), (100.0, 100.0, 100.0))
+
+    def test_asked_tags(self):
+        self.assertEqual(qcbench.asked_tags("r22 と同じ設定（standing, side view）"), "r22, standing, side view")
+
+
+class ExtrasTest(unittest.TestCase):
+    """頼んでいない物: 手首の飾り、2 本目の武器"""
+    def test_bracelet_and_dual(self):
+        import tagger
+        got = {"bracelet": 0.46, "dual wielding": 0.25, "sword": 0.95}
+        self.assertEqual(tagger.extras("1boy, holding sword", got), ["bracelet", "dual wielding"])
+        self.assertEqual(tagger.extras("1girl, bracelet, dual wielding", got), ["sword"])
+
+
+class ShodFeetTest(unittest.TestCase):
+    """頼まずに描かれた靴の先を、足の指として数えない"""
+    def test_shod(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from chatdraw import handcheck
+        self.assertTrue(handcheck.shod({"boots": 0.9, "barefoot": 0.02}))
+        self.assertFalse(handcheck.shod({"kneehighs": 0.61, "barefoot": 0.56, "toes": 0.46}))   # 靴下から指が透けた絵
+        self.assertFalse(handcheck.shod({"barefoot": 0.9}))
+        self.assertFalse(handcheck.shod(None))
+
+
+class LegsCutTest(unittest.TestCase):
+    def test_legs_cut(self):
+        from chatdraw import sanity
+        self.assertTrue(sanity.legs_cut({"feet out of frame": 0.45}, "")[0].startswith("脚"))
+        self.assertEqual(sanity.legs_cut({"feet out of frame": 0.45}, "1girl, cowboy shot"), [])
+        self.assertEqual(sanity.legs_cut({"feet out of frame": 0.36}, ""), [])
+
+    def test_legs_cut_not_in_draw_flow(self):
+        # 描く流れの検品（from_tags）には入れない（打ち消しと描き直しに触らない）
+        from chatdraw import sanity
+        self.assertEqual(sanity.from_tags({"feet out of frame": 0.6}, ""), [])
+
+
+class KeepHandsTest(unittest.TestCase):
+    """手のひらの模型が拾った物のうち、手首の近くか、DWPose が手の点を置いた所だけを手とする"""
+    def test_face_only_picture(self):
+        from unittest import mock
+        from PIL import Image
+        from chatdraw import handcheck
+        im = Image.new("RGB", (512, 512))
+        found = [(242, 346, "199,303,285,389:0"), (100, 100, "60,60,140,140:0")]
+        with mock.patch.object(handcheck, "_keypoints", return_value={"nose": (256, 260)}), \
+                mock.patch.object(handcheck, "_dw_hands", return_value=[[], [(90, 95), (100, 100), (110, 105), (95, 120), (120, 90)]]):
+            self.assertEqual(handcheck.keep_hands(im, found), ["60,60,140,140:0"])
+
+    def test_no_models_keeps_above_ankles(self):
+        from unittest import mock
+        from PIL import Image
+        from chatdraw import handcheck
+        im = Image.new("RGB", (200, 400))
+        found = [(50, 50, "40,40,60,60:0"), (50, 390, "40,380,60,399:0")]
+        with mock.patch.object(handcheck, "_keypoints", return_value={}), mock.patch.object(handcheck, "_dw_hands", return_value=None):
+            self.assertEqual(handcheck.keep_hands(im, found), ["40,40,60,60:0"])

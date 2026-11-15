@@ -75,8 +75,15 @@ def _pose(im, box):
     return np.stack([b[0] + px * (b[2] - b[0]) / SIZE[0], b[1] + py * (b[3] - b[1]) / SIZE[1], sc], 1)
 
 
-def keypoints(im) -> dict:
-    """足に要る点を読む。絵全体で 1 度読み、体の点の外枠で読み直す（小さく写った人でも足が大きく写る）"""
+_WHOLE: dict = {}
+
+
+def whole(im):
+    """全身の 133 点。絵全体で 1 度読み、体の点の外枠で読み直す（小さく写った人でも足や手が大きく写る）。
+    足の指と手の振り分け（hand_points）で同じ点を使うので、1 枚につき 1 回だけ読む"""
+    key = (im.size, im.resize((16, 16)).tobytes())
+    if key in _WHOLE:
+        return _WHOLE[key]
     w, h = im.size
     k = _pose(im, (0, 0, w, h))
     good = k[:23][k[:23, 2] >= LEAST]
@@ -85,6 +92,20 @@ def keypoints(im) -> dict:
         x1, y1 = good[:, :2].max(0)
         m = 0.08 * max(x1 - x0, y1 - y0)
         k = _pose(im, (max(0, x0 - m), max(0, y0 - m), min(w, x1 + m), min(h, y1 + m)))
+    _WHOLE.clear()
+    _WHOLE[key] = k
+    return k
+
+
+def hand_points(im, least: float = 0.4) -> list:
+    """左右の手の 21 点のうち、確からしさ least 以上の点（手ごとの (x, y) の並び）。手の写っていない絵では空に近い"""
+    k = whole(im)
+    return [[(float(x), float(y)) for x, y, sc in k[a:a + 21] if sc >= least] for a in (91, 112)]
+
+
+def keypoints(im) -> dict:
+    """足に要る点を読む（whole の 133 点から）"""
+    k = whole(im)
     return {n: (float(k[i, 0]), float(k[i, 1])) for n, i in POINTS.items() if k[i, 2] >= LEAST}
 
 
