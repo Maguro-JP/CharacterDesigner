@@ -108,6 +108,33 @@ def exec_once(menu, pos):
     finally:
         menu.deleteLater()
 
+class PhaseAsk(QObject):
+    """精度優先の工程の確かめ。描く糸から呼ばれ、画面の糸に窓を出させて、答えが来るまで描く糸を待たせる。
+    待つ間も止めるボタンは効く（止める旗を 0.2 秒ごとに見る）"""
+    ask = Signal(object)
+
+    def __init__(self, window):
+        super().__init__()
+        self.window = window
+        self.ask.connect(self._show, Qt.QueuedConnection)
+
+    def __call__(self, i, name, image, row):
+        import threading
+        box = {"event": threading.Event(), "answer": "go", "i": i, "name": name, "image": image, "row": row}
+        self.ask.emit(box)
+        painter = getattr(getattr(self.window, "job_studio", None) or self.window.studio, "painter", None)
+        while not box["event"].wait(0.2):
+            if getattr(painter, "stop", False) is True:
+                break
+        return box["answer"]
+
+    def _show(self, box):
+        try:
+            box["answer"] = self.window.ask_phase(box["i"], box["name"], box["image"], box["row"])
+        finally:
+            box["event"].set()
+
+
 class Job(QObject):
     """AI の 1 回分を裏で回す。描く（枚数分）か、直す（regions を渡したとき）"""
     status = Signal(str)
@@ -2333,6 +2360,9 @@ class Window(QMainWindow):
             meta["source"] = self.fix_source()
         self._apply_avoid()
         self.job_studio = self._fix_studio() if mode == 2 else self.studio
+        if not hasattr(self, "_phase_ask"):
+            self._phase_ask = PhaseAsk(self)
+        self.job_studio.phase_confirm = self._phase_ask if self.settings.get("phase_confirm") else None
         self.before_heavy(self.job_studio.painter)
         self.thread = QThread()
         self.job = Job(self.job_studio, text, seeds, base=base, strength=self.strength.value() / 100,
@@ -2795,12 +2825,40 @@ class Window(QMainWindow):
         if getattr(self, "studio", None) is not None:
             self.studio.way = studio_way(self.settings.get("draw_way"), self.settings.get("ai_way"))
 
+    def ask_phase(self, i: int, name: str, image, row: dict):
+        """工程が終わったところで止まり、その工程の絵をキャンバスに見せて、進めるか描き直すかを選んでもらう"""
+        from PySide6.QtWidgets import QInputDialog, QMessageBox
+        if image is not None:
+            self.canvas.show_overlay(qimage_from_pil(image))
+        left = row["after"] if row.get("fixed") else row.get("found", [])
+        text = (f"工程 {i + 1}「{name}」が終わりました。\n決めた物: {row.get('decides', '')}\n"
+                + ("崩れは見つかりませんでした" if not left else "残った崩れ: " + "、".join(left[:4])))
+        box = QMessageBox(QMessageBox.Question, "工程ごとに確かめる", text, parent=self)
+        box.setObjectName("phase_confirm")
+        if image is not None:
+            box.setIconPixmap(QPixmap.fromImage(qimage_from_pil(image)).scaled(160, 160, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        go = box.addButton("進める", QMessageBox.AcceptRole)
+        go.setToolTip("この工程の絵を土台にして、次の工程へ進む")
+        redo = box.addButton("この工程を描き直す", QMessageBox.ActionRole)
+        redo.setToolTip("同じ言葉で、種を変えてこの工程だけを描き直す")
+        words = box.addButton("言葉を足して描き直す", QMessageBox.ActionRole)
+        words.setToolTip("足したい言葉を書いて、この工程から描き直す（言葉は訳してから模型に渡す）")
+        box.setDefaultButton(go)
+        box.exec()
+        hit = box.clickedButton()
+        if hit is redo:
+            return "redo"
+        if hit is words:
+            add, ok = QInputDialog.getText(self, "言葉を足して描き直す", "足す言葉:")
+            return ("words", add) if ok and add.strip() else "go"
+        return "go"
+
     def _put_phases(self):
         """工程に分けて描いた回は、工程ごとの絵を描いた絵の下に隠したレイヤーで置き、工程ごとの検品を会話に出す（chatdraw/phases.py）"""
         rows = getattr(self.studio, "last_phases", None) if self.job_kind == "draw" else None
         if not rows:
             return
-        self.canvas.add_phase_layers([(f"工程 {i}: {r['phase']}", r["image"]) for i, r in enumerate(rows, 1)])
+        self.canvas.add_phase_layers([(f"工程 {i}: {r['phase']}", r["image"]) for i, r in enumerate(rows, 1) if r.get("image")])
         for i, r in enumerate(rows, 1):
             left = r["after"] if r["fixed"] else r["found"]
             self.say(f"工程 {i}「{r['phase']}」{r['seconds']} 秒: " + ("崩れは見つかりませんでした" if not left else "残った崩れ " + "、".join(left[:3]))
