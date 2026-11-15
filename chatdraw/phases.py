@@ -46,10 +46,8 @@ PHASES = [
 ]
 NAMES = [p[0] for p in PHASES]
 THUMBS = 2            # サムネイルの枚数
-THUMB_SCALE = 0.5     # サムネイルの大きさ（描く大きさの割合）
-THUMB_STEPS = 0.25    # サムネイルの描く工程の数の割合
-ROUGH_STEPS = 0.5     # アタリの描く工程の数の割合
-ATARI = 0.6           # アタリ: 選んだサムネイルを広げて描き重ねる強さ（構図と色を残す。0.75 では色が流れた）
+THUMB_SCALE = 1.0     # サムネイルの大きさ（描く大きさの割合）。同じ種・同じ大きさならアタリが同じ構図になるので縮めない
+THUMB_STEPS = 0.5     # サムネイルの描く工程の数の割合（0.25 ではぼやけた絵になり、描き重ねるとぼやけと霞みが最後まで残った）
 LINE_STRENGTH = 0.6   # 下描き: アタリの線に沿う強さ（T2I-Adapter の効き。0.8 では霞みと枠が出た）
 REFINE = 0.45         # 下描き: アタリの絵に描き重ねる強さ（色と明るさを残す）
 REPAINT = 0.35        # 服・髪・持ち物: 描かれていない物を足すときの描き直しの強さ（形は残す）
@@ -264,7 +262,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         return {"image": None, "found": found, "numbers": {"words": len(tags), "main": tags[0] if tags else ""}, "readable": True}
 
     def p_thumbs(v):
-        tw, th = max(256, int(w * THUMB_SCALE) // 8 * 8), max(256, int(h * THUMB_SCALE) // 8 * 8)
+        tw, th = (w, h) if THUMB_SCALE >= 1 else (max(256, int(w * THUMB_SCALE) // 8 * 8), max(256, int(h * THUMB_SCALE) // 8 * 8))
         s0 = steps(THUMB_STEPS)
         best, rows, words = None, [], []
         try:
@@ -293,13 +291,12 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                 "readable": bool(req.get("readable"))}
 
     def atari(s, words):
-        s0 = steps(ROUGH_STEPS)
+        s0 = steps(1.0)
         try:
             tell(st["prompt"])
             words.append(st["prompt"])
-            if st.get("thumb") is not None and can_refine:
-                base = st["thumb"].resize((w, h))
-                return keep_tone(painter.refine(st["prompt"], s, base, strength=ATARI, on_step=on_step, **pv), base, "アタリ")
+            # 選んだサムネイルの種で、同じ大きさのまま工程の数を戻して描く（構図は同じになる）。ぼやけたサムネイルに描き重ねると、
+            # ぼやけと霞みが最後の工程まで残った（phase-bench、Animagine XL 4.0）
             return painter.paint(st["prompt"], s, on_step=on_step, size=(w, h), **pv)
         finally:
             unsteps(s0)
@@ -319,7 +316,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
 
     def p_atari(v):
         words = []
-        s = st.get("seed_pick", st["seed"]) + v * 1000
+        s = st.get("seed_pick", st["seed"]) + (v * 1000 if v else 0)
         img = atari(s, words)
         found, nums, pts, bal, ok = atari_flaws(img)
         fixed, after = False, []

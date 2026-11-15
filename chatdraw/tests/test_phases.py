@@ -126,8 +126,8 @@ class PhasesTest(unittest.TestCase):
 
     def test_thumbnails_small_and_picked(self):
         got, painter, *_ = self.run_phases(always_bad=False)
-        thumbs = [x for x in painter.log if x[0] == "paint" and x[4] and x[2] == 5]
-        self.assertEqual(len(thumbs), phases.THUMBS)   # 工程の数を 1/4 にした小さな絵を何枚か
+        thumbs = [x for x in painter.log if x[0] == "paint" and x[4] and x[2] == 10]
+        self.assertEqual(len(thumbs), phases.THUMBS)   # 工程の数を半分にした絵を何枚か
         self.assertIn("picked", got["phases"][1]["numbers"])
 
     def test_clean_after_first_fix(self):

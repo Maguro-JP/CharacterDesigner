@@ -286,6 +286,7 @@ def wear_mask(image, protect_boxes=()):
 HAZE_MOST = 15        # 暗い方から 5% の明るさが、前の絵よりこれだけ浮いたら霞んでいる
 FRAME_MOST = 10       # 縁の帯と内側の帯の明るさの差が、前の絵よりこれだけ大きくなったら枠が出ている
 FADE_MOST = 0.75      # 彩度の平均が前の絵のこの割合を下回ったら色が褪せている
+FLAT_MOST = 0.75      # 明るさのばらつきが前の絵のこの割合を下回ったら、ぼやけて平たくなっている
 
 
 def tone(image) -> dict:
@@ -297,7 +298,7 @@ def tone(image) -> dict:
     b = max(4, min(h, w) // 40)
     border = np.concatenate([lum[:b].ravel(), lum[-b:].ravel(), lum[:, :b].ravel(), lum[:, -b:].ravel()])
     inner = np.concatenate([lum[b:3 * b].ravel(), lum[-3 * b:-b].ravel(), lum[:, b:3 * b].ravel(), lum[:, -3 * b:-b].ravel()])
-    return {"dark": round(float(np.percentile(lum, 5)), 1), "lum": round(float(lum.mean()), 1), "sat": round(float(sat.mean()), 1),
+    return {"dark": round(float(np.percentile(lum, 5)), 1), "contrast": round(float(lum.std()), 1), "lum": round(float(lum.mean()), 1), "sat": round(float(sat.mean()), 1),
             "frame": round(float(abs(border.mean() - inner.mean())), 1), "band": b}
 
 
@@ -307,6 +308,8 @@ def tone_flaws(now: dict, ref: dict) -> list[str]:
         out.append(f"白く霞んでいる（暗い所 {ref['dark']} → {now['dark']}）")
     if now["frame"] - ref["frame"] > FRAME_MOST:
         out.append(f"四辺に枠が出ている（縁の差 {ref['frame']} → {now['frame']}）")
+    if now.get("contrast") is not None and ref.get("contrast") and now["contrast"] < ref["contrast"] * FLAT_MOST:
+        out.append(f"ぼやけて平たい（明るさのばらつき {ref['contrast']} → {now['contrast']}）")
     if ref["sat"] > 8 and now["sat"] < ref["sat"] * FADE_MOST:
         out.append(f"色が褪せている（彩度 {ref['sat']} → {now['sat']}）")
     return out
