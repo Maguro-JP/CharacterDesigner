@@ -29,7 +29,7 @@ from cdhome import HOME  # noqa: E402  置き場を組むのは cdhome だけ
 FEEDBACK = ROOT / "library" / "feedback"
 CACHE = HOME / "qcbench"
 # 検品の仕組みを直したら上げる。貯めた結果を古い検品のまま使わず、途中で止まっても続きから測れる
-QC_VERSION = "3"
+QC_VERSION = "4"
 
 PARTS = {
     "hands": re.compile(r"(?<!足の)(手|指)(?!首から上)"),
@@ -312,6 +312,16 @@ def _mirror(path: Path) -> dict:
     return {"gated": m.get("gated", []), "flaws": m.get("flaws", []), "reason": m.get("reason")}
 
 
+def cached(path: Path) -> dict | None:
+    """貯めた結果（同じ中身・同じ版の検品）。無ければ None"""
+    key = CACHE / (re.sub(r"[^\w.-]", "_", str(path.relative_to(ROOT))) + ".json")
+    if not key.exists():
+        return None
+    d = json.loads(key.read_text(encoding="utf-8"))
+    stamp = "sha1:" + hashlib.sha1(path.read_bytes()).hexdigest() + ":" + QC_VERSION
+    return d["res"] if d.get("stamp") == stamp else None
+
+
 def run_one(path: Path, fresh: bool = False) -> dict:
     CACHE.mkdir(parents=True, exist_ok=True)
     key = CACHE / (re.sub(r"[^\w.-]", "_", str(path.relative_to(ROOT))) + ".json")
@@ -379,6 +389,8 @@ def main(argv=None) -> int:
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--json", default="")
     ap.add_argument("--truth-only", action="store_true")
+    ap.add_argument("--score-only", action="store_true", help="貯めた結果だけで採点する（測らない）")
+    ap.add_argument("--shard", default="", help="i/n: 台の絵を n に分けた i 番目（0 から）だけを測る（Actions で並べて流す）")
     ap.add_argument("--fresh", action="store_true", help="貯めた結果を使わず測り直す（検品の仕組みを直したあと）")
     a = ap.parse_args(argv)
     rows = truth(with_cats=True)
@@ -388,9 +400,18 @@ def main(argv=None) -> int:
             print(r["path"], r["flaws"], r["clean"])
         return 0
     results = {}
+    if a.shard:
+        k, n = (int(x) for x in a.shard.split("/"))
+        rows = rows[k::n]
     for i, r in enumerate(rows[: a.limit or None], 1):
         try:
-            results[r["path"]] = dict(run_one(ROOT / r["path"], a.fresh))
+            if a.score_only:
+                got = cached(ROOT / r["path"])
+                if got is None:
+                    continue
+                results[r["path"]] = dict(got)
+            else:
+                results[r["path"]] = dict(run_one(ROOT / r["path"], a.fresh))
             try:
                 results[r["path"]]["request"] = request_of(ROOT / r["path"], r.get("asked", ""))
             except Exception as e:   # noqa: BLE001  タグを読む部品が無い。頼んだ物は「検品できなかった」として数える

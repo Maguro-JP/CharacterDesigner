@@ -209,3 +209,49 @@ class ExtrasTest(unittest.TestCase):
         got = {"bracelet": 0.46, "dual wielding": 0.25, "sword": 0.95}
         self.assertEqual(tagger.extras("1boy, holding sword", got), ["bracelet", "dual wielding"])
         self.assertEqual(tagger.extras("1girl, bracelet, dual wielding", got), ["sword"])
+
+
+class ShodFeetTest(unittest.TestCase):
+    """頼まずに描かれた靴の先を、足の指として数えない"""
+    def test_shod(self):
+        sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+        from chatdraw import handcheck
+        self.assertTrue(handcheck.shod({"boots": 0.9, "barefoot": 0.02}))
+        self.assertFalse(handcheck.shod({"kneehighs": 0.61, "barefoot": 0.56, "toes": 0.46}))   # 靴下から指が透けた絵
+        self.assertFalse(handcheck.shod({"barefoot": 0.9}))
+        self.assertFalse(handcheck.shod(None))
+
+
+class LegsCutTest(unittest.TestCase):
+    def test_legs_cut(self):
+        from chatdraw import sanity
+        self.assertTrue(sanity.legs_cut({"feet out of frame": 0.45}, "")[0].startswith("脚"))
+        self.assertEqual(sanity.legs_cut({"feet out of frame": 0.45}, "1girl, cowboy shot"), [])
+        self.assertEqual(sanity.legs_cut({"feet out of frame": 0.36}, ""), [])
+
+    def test_legs_cut_not_in_draw_flow(self):
+        # 描く流れの検品（from_tags）には入れない（打ち消しと描き直しに触らない）
+        from chatdraw import sanity
+        self.assertEqual(sanity.from_tags({"feet out of frame": 0.6}, ""), [])
+
+
+class KeepHandsTest(unittest.TestCase):
+    """手のひらの模型が拾った物のうち、手首の近くか、DWPose が手の点を置いた所だけを手とする"""
+    def test_face_only_picture(self):
+        from unittest import mock
+        from PIL import Image
+        from chatdraw import handcheck
+        im = Image.new("RGB", (512, 512))
+        found = [(242, 346, "199,303,285,389:0"), (100, 100, "60,60,140,140:0")]
+        with mock.patch.object(handcheck, "_keypoints", return_value={"nose": (256, 260)}), \
+                mock.patch.object(handcheck, "_dw_hands", return_value=[[], [(90, 95), (100, 100), (110, 105), (95, 120), (120, 90)]]):
+            self.assertEqual(handcheck.keep_hands(im, found), ["60,60,140,140:0"])
+
+    def test_no_models_keeps_above_ankles(self):
+        from unittest import mock
+        from PIL import Image
+        from chatdraw import handcheck
+        im = Image.new("RGB", (200, 400))
+        found = [(50, 50, "40,40,60,60:0"), (50, 390, "40,380,60,399:0")]
+        with mock.patch.object(handcheck, "_keypoints", return_value={}), mock.patch.object(handcheck, "_dw_hands", return_value=None):
+            self.assertEqual(handcheck.keep_hands(im, found), ["40,40,60,60:0"])

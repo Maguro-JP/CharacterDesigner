@@ -13,22 +13,42 @@ def inspect(image, asked: str = "") -> dict:
     asked は絵の模型に渡した言葉（分かるときだけ）。渡すと、頼んだ物が描かれたか・頼んでいない物が無いかも見る。
     「検品する」で頼みを見ていなかったため、頼んでいない腕輪や 2 本目の剣を書いた絵が、検品の台で 11 枚とも通っていた"""
     from chatdraw import handcheck, sanity
-    res = handcheck.check(image, asked=asked)
-    tags = None
-    if asked:
-        from chatdraw import requestcheck
-        r = requestcheck.check(image, asked)
-        res["request"] = {k: r.get(k) for k in ("readable", "missing", "extra", "people", "reason")}
-        tags = r.get("read") if r.get("readable") else None
+    tags, req = _tags(image, asked)
+    res = handcheck.check(image, asked=asked, tags=tags)
+    if req:
+        res["request"] = req
     try:
         odd = sanity.check(image, asked, tags=tags)
     except Exception as e:   # noqa: BLE001  体の検品が落ちても、手・足・顔の結果は返す
         odd = {"readable": False, "bad": [], "reason": f"体の検品で止まりました（{e}）"}
-    res["body_bad"] = list(odd.get("bad", []))
+    res["body_bad"] = list(odd.get("bad", [])) + (sanity.legs_cut(tags, asked) if tags else [])
     res["mirror"] = odd.get("mirror") or {}
     if not odd.get("readable", True) and odd.get("reason"):
         res["body_reason"] = odd["reason"]
     return res
+
+
+def _tags(image, asked: str) -> tuple[dict | None, dict]:
+    """絵のタグを 1 回だけ読む（足の靴、体の検品、頼んだ物で同じタグを使う）。頼みがあれば頼んだ物の検品の結果も返す。
+    タグを読めなければ、頼みがあるときだけ「頼んだ物を読めなかった」を返す（読めない所を崩れが無いことにしない）"""
+    try:
+        import os
+        from chatdraw import requestcheck
+        if os.environ.get("CD_CHECK") == "off":
+            raise RuntimeError("検品を止めています（CD_CHECK=off）")
+        tg = requestcheck._tagger(False)
+        import tempfile
+        from pathlib import Path
+        tmp = Path(tempfile.mkdtemp()) / "check.png"
+        image.save(tmp)
+        got = tg.read(str(tmp), threshold=0.05)
+    except Exception as e:   # noqa: BLE001  タグの模型か部品が無い
+        return None, ({"readable": False, "missing": [], "extra": [], "people": [], "reason": f"頼んだ物の検品の部品がありません（{e}）"}
+                      if asked else {})
+    if not asked:
+        return got, {}
+    return got, {"readable": True, "missing": tg.missing(asked, got), "extra": tg.extras(asked, got),
+                 "people": requestcheck.people(asked, got)}
 
 
 def flaws(res: dict, offset: tuple[int, int] = (0, 0)) -> list[tuple[list[int], str]]:

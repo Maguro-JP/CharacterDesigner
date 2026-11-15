@@ -2542,7 +2542,8 @@ class Window(QMainWindow):
                 self.notify("検品: 崩れは見つかりませんでした" + ("（検品できなかった所があります）" if lost else ""),
                             "ok" if not lost else "info", tail)
         # 最後に描いた絵の模型の言葉があれば渡し、頼んだ物が描かれたか・頼んでいない物が無いかも見る
-        asked = getattr(self, "last_model_prompt", "") or ""
+        # 開いた別の絵に、前に描いた絵の言葉を渡さない（open_path・edit_image で消す）
+        asked = getattr(self, "inspect_prompt", "") or ""
         self.in_background(lambda: qcmanual.inspect(img, asked=asked), done, "検品")
 
     def inspect_marks_then_fix(self):
@@ -2749,6 +2750,7 @@ class Window(QMainWindow):
         if prompt:
             # 絵の模型に渡した言葉は会話に毎回出さず、書く欄にカーソルを合わせたときだけ出す（頼みとずれた絵が出たときに見られる）
             self.last_model_prompt = prompt
+            self.inspect_prompt = prompt   # 「検品する」で頼んだ物を見る言葉。別の絵を開いたら消す
             self._entry_tip()
         if getattr(self.studio, "last_lost", None) and self.job_kind == "draw":
             self.say("模型に伝わらなかった言葉: " + "、".join(self.studio.last_lost))
@@ -5739,6 +5741,7 @@ class Window(QMainWindow):
         if "redpen" in self.tool_actions:
             self.tool_actions["redpen"].trigger()
         meta = finishers.sidecar(path)
+        self.inspect_prompt = str(meta.get("prompt") or "")   # 絵に埋めた模型の言葉だけを使う。無ければ頼んだ物は見ない
         if meta.get("text"):
             self.entry.setText(meta["text"])
             self.last_text = meta["text"]
@@ -6934,6 +6937,7 @@ class Window(QMainWindow):
     def open_path(self, path: str, restore: bool = False):
         from chatdraw import project
         self.work_save()
+        self.inspect_prompt = ""   # 開いた絵は描いた言葉が分からない。前の絵の言葉で頼んだ物を検品しない
         self.work_key = None   # 作業ファイル・手元の絵は、そのファイルに保存する（絵ごとの作業の置き場は使わない）
         self._fix_from = None if path.endswith(project.SUFFIX) else path   # 記録の無い絵は、直すときに絵からタグを読む
         if path.endswith(project.SUFFIX):

@@ -70,6 +70,21 @@ def asked_people(prompt: str) -> int:
     return 1
 
 
+LEGS_CUT = 0.38
+CUT_ASKED = ("feet out of frame", "cowboy shot", "upper body", "portrait", "close-up", "knee up", "half body", "bust",
+             "lower body", "head out of frame", "cropped legs", "thighs")
+
+
+def legs_cut(got: dict, prompt: str) -> list[str]:
+    """膝から下が枠の外。頼んだ構図が切った構図（cowboy shot など）なら崩れではない。人の判定の台で「膝から下が無い」と書いた
+    4 枚は 0.39〜0.57、崩れと書いていない絵は 0.36 以下だった。手で呼ぶ検品（qcmanual）だけで使い、描く流れの描き直しと
+    打ち消しには入れない（描く言葉に触る変更は、頼んだ通りに描けたかの台で比べてから入れる決まり）"""
+    cut = got.get("feet out of frame", 0.0)
+    if cut >= LEGS_CUT and not any(_has(prompt, c) for c in CUT_ASKED):
+        return [f"脚: 膝から下が絵の枠の外（feet out of frame {cut:.2f}）"]
+    return []
+
+
 def from_tags(got: dict, prompt: str) -> list[str]:
     """絵全体のタグで読める崩れ（頼んでいない余分な部位と、頼んでいない黄色い目）"""
     out = []

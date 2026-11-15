@@ -48,7 +48,7 @@ class QcManualTest(unittest.TestCase):
         self.said = []
         self.w.notify = lambda title, kind="", body="", **k: self.said.append(f"{title} {body}")
         self.old = qcmanual.inspect
-        self.seen = []
+        self.seen, self.asked = [], []
 
     def tearDown(self):
         qcmanual.inspect = self.old
@@ -59,6 +59,7 @@ class QcManualTest(unittest.TestCase):
     def fake(self, res):
         def run(img, asked=""):
             self.seen.append(img.size)
+            self.asked.append(asked)
             return res
         qcmanual.inspect = run
 
@@ -98,6 +99,30 @@ class QcManualTest(unittest.TestCase):
         self.w.inspect_now()
         self.settle()
         self.assertTrue(any("検品できなかった" in t and "部品" in t for t in self.said), self.said)
+
+    def test_opened_picture_gets_no_old_prompt(self):
+        # 描いた絵の言葉を、あとで開いた別の絵の検品に渡さない
+        self.asked = []
+        self.fake(CLEAN)
+        self.w.inspect_prompt = "1girl, red scarf"
+        src = Path(self.tmp.name) / "other.png"
+        from PIL import Image
+        im = Image.new("RGB", (120, 90), (200, 80, 80))
+        im.paste((20, 20, 200), (10, 10, 60, 50))   # 一色の絵は「絵がありません」になるので、色を 2 つにする
+        im.save(src)
+        self.w.open_path(str(src))
+        self.settle()
+        self.w.inspect_now()
+        self.settle()
+        self.assertEqual(self.asked, [""])
+
+    def test_drawn_picture_prompt_is_passed(self):
+        self.asked = []
+        self.fake(CLEAN)
+        self.w.inspect_prompt = "1girl, red scarf"
+        self.w.inspect_now()
+        self.settle()
+        self.assertEqual(self.asked, ["1girl, red scarf"])
 
     def test_blank_canvas_says_one_line(self):
         self.fake(hand_flaw())
