@@ -1403,11 +1403,12 @@ class Painter:
     def _paint_body(self, pipe, info, f, prompt, args, size, want, base, strength, reference, ref_scale, step, steps):
         total = steps
         if f.edit and (base is not None or reference is not None):
-            # 絵を頼みと一緒に渡す世代（FLUX.2 klein）。ラフは「この下描きを清書する」、参考画像は「この絵の絵柄で描く」と文で伝える
+            # 絵を頼みと一緒に渡す世代（FLUX.2 klein）。ラフと参考画像は絵だけを渡し、言葉は頼みの訳だけにする
             w, h = size
             total = steps
             pics = [p.convert("RGB").resize((w, h)) for p in (base, reference) if p is not None]
             # 渡す言葉は頼みの訳だけにする（下描きや参考画像の扱いを英語の文で足すと、頼んでいない言葉が模型に渡った）
+            args["prompt"] = args.get("prompt", prompt)
             out = pipe(image=pics if len(pics) > 1 else pics[0], width=w, height=h, **args).images[0]
             if self.stop:
                 raise Stopped("止めました")

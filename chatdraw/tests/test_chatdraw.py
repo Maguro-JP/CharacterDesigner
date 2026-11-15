@@ -2319,7 +2319,7 @@ class EditFamilyTest(unittest.TestCase):
         with mock.patch.object(p, "load", return_value=Pipe()):
             p.paint("a woman", 1, base=Image.new("RGB", (32, 32)), reference=Image.new("RGB", (32, 32)), size=(64, 64))
         self.assertEqual(len(seen["image"]), 2)                    # ラフと参考画像の 2 枚
-        self.assertIn("rough sketch", seen["prompt"])
+        self.assertEqual(seen["prompt"], "a woman")                # 頼みの訳だけ。下描きの扱いの英語の文を足さない
 
 
 class FreezeTest(unittest.TestCase):
