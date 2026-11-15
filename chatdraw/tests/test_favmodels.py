@@ -239,10 +239,10 @@ class ManagerSetsAndFilterTest(unittest.TestCase):
 
     def test_filter_hides_installed_and_favorite_that_do_not_match(self):
         from chatdraw import ratings
-        from chatdraw.models import catalog_images, style
+        from chatdraw.models import catalog_images, listed, style
         cat = catalog_images()
         real = [m for m in cat if style(m) == "real"]
-        anime = [m for m in cat if style(m) == "anime"]
+        anime = [m for m in listed(cat) if style(m) == "anime"]   # 一覧に出るのは推奨に届いた物と手元の物だけ
         self.assertTrue(real and anime)
         fav_real, have_real = real[0], real[-1]
         ratings.set_favorite(fav_real.repo, True)

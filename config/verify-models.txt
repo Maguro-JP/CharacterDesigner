@@ -1,13 +1,3 @@
-# Actions（model-verify.yml）で動かして確かめる絵の模型。1 行 1 つ。この表を変えて push すると流れる
-# 点がまだ 0 の模型を、よく使われている順（Hugging Face の取得数、python3 -m chatdraw.popular --write）に入れる。30GB を超える模型は Actions の機械の置き場に入らないので入れない（docs/knowledge/illustration-models-2026.md）
-Laxhar/noobai-XL-Vpred-1.0
-John6666/prefect-illustrious-xl-v3-sdxl
-OnomaAIResearch/Illustrious-XL-v2.0
-Laxhar/noobai-XL-1.0
-yodayo-ai/holodayo-xl-2.1
-John6666/nova-anime-xl-il-v90-sdxl
-John6666/obsession-illustriousxl-v31-sdxl
-OnomaAIResearch/Illustrious-XL-v1.1
-prism-ml/bonsai-image-ternary-4B-unpacked
-prism-ml/bonsai-image-binary-4B-unpacked
-Tongyi-MAI/Z-Image
+# Actions（model-verify.yml）で、点が 0 の模型に加えて確かめ直す絵の模型。1 行 1 つ（1 つのファイルの模型は「持ち主/名前/ファイル名」）
+# 点が 0 の模型（確かめていない物）は、ここに書かなくても毎週の model-verify が拾う（python -m chatdraw.verify_models list）
+# 目録から外した物（catalog.json の retired）と、Actions の機械（16GB）に入らない物は流さない

@@ -78,7 +78,8 @@
   "ram": 16,
   "negative": "nsfw, lowres, bad, text, error, fewer, extra, missing, worst quality, jpeg artifacts, low quality, watermark, unfinished, displeasing, oldest, early, chromatic aberration, signature, extra digits, artistic error, username, scan, abstract",
   "superseded_by": "cagliostrolab/animagine-xl-4.0",
-  "scheduler": "euler_a"
+  "scheduler": "euler_a",
+  "retired": "2026-11-07 の検証で落とした（人物が描けない、頼んだ服にならない）。新しい版 Animagine XL 4.0 がある"
  },
  {
   "repo": "cagliostrolab/animagine-xl-3.0",
@@ -103,7 +104,8 @@
   "negative": "nsfw, lowres, bad anatomy, bad hands, text, error, missing fingers, extra digit, fewer digits, cropped, worst quality, low quality, normal quality, jpeg artifacts, signature, watermark, username, blurry, artist name",
   "superseded_by": "cagliostrolab/animagine-xl-4.0",
   "note": "2026-11-14: 同じ作者の新しい版 Animagine XL 4.0 に置き換わった。消さずに残す",
-  "scheduler": "euler_a"
+  "scheduler": "euler_a",
+  "retired": "古い版（2024-01）。新しい版 Animagine XL 4.0 がある"
  },
  {
   "repo": "OnomaAIResearch/Illustrious-xl-early-release-v0",
@@ -127,7 +129,8 @@
   "ram": 16,
   "negative": "worst quality, comic, multiple views, bad quality, low quality, lowres, displeasing, very displeasing, bad anatomy, bad hands, scan artifacts, monochrome, greyscale, signature, twitter username, jpeg artifacts, 2koma, 4koma",
   "superseded_by": "OnomaAIResearch/Illustrious-XL-v2.0",
-  "scheduler": "euler_a"
+  "scheduler": "euler_a",
+  "retired": "2026-11-07 の検証で落とした（背景と姿勢が描けない、指と足の指が崩れる）。新しい版がある"
  },
  {
   "repo": "Jommarn/Illustrious-XL-v2.0",
@@ -169,7 +172,8 @@
   "vram": 6,
   "ram": 16,
   "negative": "nsfw, worst quality, old, early, low quality, lowres, signature, username, logo, bad hands, mutated hands, mammal, anthro, furry, ambiguous form, feral, semi-anthro",
-  "scheduler": "euler_a"
+  "scheduler": "euler_a",
+  "retired": "2026-11-07 の検証で落とした（頭の無い 2 体目、腕が 3 本、背景が描けない）"
  },
  {
   "repo": "John6666/hassaku-xl-illustrious-v31-sdxl",
@@ -190,7 +194,8 @@
   "score": 0,
   "note": "2026-11-07 検証 3 枚（実行 41219861161）: 落とした。振り返りで頭の無い 2 体目が出る、全身なのに足が切れる、浜辺が壁になる",
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "retired": "2026-11-07 の検証で落とした（頭の無い 2 体目、全身で足が切れる）"
  },
  {
   "repo": "John6666/prefect-illustrious-xl-v3-sdxl",
@@ -256,7 +261,8 @@
   "vram": 6,
   "ram": 16,
   "quality": "masterpiece, high score, great score, absurdres",
-  "scheduler": "euler_a"
+  "scheduler": "euler_a",
+  "retired": "同じ重みが diffusers の形（点 85）で目録にあり、2 つ目は要らない"
  },
  {
   "repo": "cagliostrolab/animagine-xl-4.0-zero",
@@ -581,7 +587,8 @@
   "score": 0,
   "note": "2026-11-07 検証 3 枚（実行 41219861161）: 落とした。手を振るで上げた手が 2 つ重なる、実写寄りの塗り、振り返りと腰に手が描けない",
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "retired": "2026-11-07 の検証で落とした（上げた手が 2 つ重なる、姿勢が描けない）"
  },
  {
   "repo": "KBlueLeaf/Kohaku-XL-Zeta",
@@ -601,7 +608,8 @@
   "score": 0,
   "note": "2026-11-07 検証 3 枚（実行 41197085480）: 落とした。手を振るで人の形にならない、振り返りで顔と腕が崩れる、腰に手が描けない",
   "vram": 6,
-  "ram": 16
+  "ram": 16,
+  "retired": "2026-11-07 の検証で落とした（人の形にならない、顔と腕が崩れる）"
  },
  {
   "repo": "GHArt/blue_pencil-XL_V1.0_xl_fp16",
@@ -742,7 +750,8 @@
   "score": 0,
   "vram": 6,
   "ram": 16,
-  "quality": ""
+  "quality": "",
+  "retired": "古い版（2023）。同じ作者の DreamShaper XL Lightning（点 75）がある"
  },
  {
   "repo": "stabilityai/stable-diffusion-xl-base-1.0",
@@ -763,7 +772,8 @@
   "commercial": "条件付きで商用可（openrail++）",
   "vram": 6,
   "ram": 16,
-  "quality": ""
+  "quality": "",
+  "retired": "2023-07 の土台の模型。アニメ絵と手・指が弱く、目録の SDXL 系はこれを元に学び直した物"
  },
  {
   "repo": "SG161222/RealVisXL_V5.0",
@@ -820,7 +830,8 @@
   "score": 0,
   "vram": 6,
   "ram": 16,
-  "quality": ""
+  "quality": "",
+  "retired": "2024-02 の写真寄りの模型。アニメ絵の目的に合わない"
  },
  {
   "repo": "Lykon/dreamshaper-8",
@@ -841,7 +852,8 @@
   "score": 0,
   "vram": 4,
   "ram": 8,
-  "quality": ""
+  "quality": "",
+  "retired": "SD1.5 系（2022〜2023）。学んだ大きさが 512 で手と指が崩れやすく、2026 の SDXL 系に比べて古い"
  },
  {
   "repo": "gsdf/Counterfeit-V2.5",
@@ -864,7 +876,8 @@
   "vram": 4,
   "ram": 8,
   "scheduler": "dpm",
-  "negative": "lowres, worst quality, low quality, extra fingers, fewer fingers"
+  "negative": "lowres, worst quality, low quality, extra fingers, fewer fingers",
+  "retired": "SD1.5 系（2022〜2023）。学んだ大きさが 512 で手と指が崩れやすく、2026 の SDXL 系に比べて古い"
  },
  {
   "repo": "genai-archive/anything-v5",
@@ -887,7 +900,8 @@
   "vram": 4,
   "ram": 8,
   "clip_skip": 2,
-  "scheduler": "euler_a"
+  "scheduler": "euler_a",
+  "retired": "SD1.5 系（2022〜2023）。学んだ大きさが 512 で手と指が崩れやすく、2026 の SDXL 系に比べて古い"
  },
  {
   "repo": "digiplay/MeinaMix_v11",
@@ -908,7 +922,8 @@
   "guidance": 7.0,
   "score": 0,
   "vram": 4,
-  "ram": 8
+  "ram": 8,
+  "retired": "SD1.5 系（2022〜2023）。学んだ大きさが 512 で手と指が崩れやすく、2026 の SDXL 系に比べて古い"
  },
  {
   "repo": "stablediffusionapi/revanimated",
@@ -929,7 +944,8 @@
   "guidance": 7.0,
   "score": 0,
   "vram": 4,
-  "ram": 8
+  "ram": 8,
+  "retired": "SD1.5 系（2022〜2023）。学んだ大きさが 512 で手と指が崩れやすく、2026 の SDXL 系に比べて古い"
  },
  {
   "repo": "sam749/AWPainting-v1-2",
@@ -951,7 +967,8 @@
   "guidance": 7.0,
   "score": 0,
   "vram": 4,
-  "ram": 8
+  "ram": 8,
+  "retired": "SD1.5 系（2022〜2023）。学んだ大きさが 512 で手と指が崩れやすく、2026 の SDXL 系に比べて古い"
  },
  {
   "repo": "dreamlike-art/dreamlike-anime-1.0",
@@ -972,7 +989,8 @@
   "guidance": 7.0,
   "score": 0,
   "vram": 4,
-  "ram": 8
+  "ram": 8,
+  "retired": "SD1.5 系（2022〜2023）。学んだ大きさが 512 で手と指が崩れやすく、2026 の SDXL 系に比べて古い"
  },
  {
   "repo": "xiaolxl/GuoFeng3",
@@ -992,7 +1010,8 @@
   "guidance": 7.0,
   "score": 0,
   "vram": 4,
-  "ram": 8
+  "ram": 8,
+  "retired": "SD1.5 系（2022〜2023）。学んだ大きさが 512 で手と指が崩れやすく、2026 の SDXL 系に比べて古い"
  },
  {
   "repo": "frankjoshua/toonyou_beta6",
@@ -1012,7 +1031,8 @@
   "guidance": 7.0,
   "score": 0,
   "vram": 4,
-  "ram": 8
+  "ram": 8,
+  "retired": "SD1.5 系（2022〜2023）。学んだ大きさが 512 で手と指が崩れやすく、2026 の SDXL 系に比べて古い"
  },
  {
   "repo": "SG161222/Realistic_Vision_V5.1_noVAE",
@@ -1033,7 +1053,8 @@
   "score": 0,
   "vram": 4,
   "ram": 8,
-  "quality": ""
+  "quality": "",
+  "retired": "SD1.5 系（2022〜2023）。学んだ大きさが 512 で手と指が崩れやすく、2026 の SDXL 系に比べて古い"
  },
  {
   "repo": "stable-diffusion-v1-5/stable-diffusion-v1-5",
@@ -1053,7 +1074,8 @@
   "score": 0,
   "vram": 4,
   "ram": 8,
-  "quality": ""
+  "quality": "",
+  "retired": "SD1.5 系（2022〜2023）。学んだ大きさが 512 で手と指が崩れやすく、2026 の SDXL 系に比べて古い"
  },
  {
   "repo": "black-forest-labs/FLUX.2-klein-4B",
@@ -1124,7 +1146,8 @@
   "ram": 64,
   "negative": "low resolution, low quality, deformed limbs, deformed fingers, oversaturated, waxy skin, faces without detail, overly smooth, AI look, chaotic composition, blurry distorted text",
   "superseded_by": "Qwen/Qwen-Image-2.1",
-  "note": "2026-11-14: 同じ作者の新しい版 Qwen-Image 2.1 が出た（読む部品 QwenImage21Pipeline の世代がまだ目録に無いので、置き換えは未）。消さずに残す"
+  "note": "2026-11-14: 同じ作者の新しい版 Qwen-Image 2.1 が出た（読む部品 QwenImage21Pipeline の世代がまだ目録に無いので、置き換えは未）。消さずに残す",
+  "retired": "57.7GB で Actions でも手元でも確かめられない。新しい版 Qwen-Image 2.1 がある"
  },
  {
   "repo": "VirtualAddressExtension/Neta-Lumina-v1.0-diffusers",
@@ -1198,7 +1221,8 @@
   "vram": 12,
   "ram": 40,
   "superseded_by": "black-forest-labs/FLUX.2-klein-4B",
-  "note": "2026-11-14: 同じ作者の新しい世代 FLUX.2 klein 4B（同じ Apache-2.0、半分の大きさ）に置き換わった。消さずに残す"
+  "note": "2026-11-14: 同じ作者の新しい世代 FLUX.2 klein 4B（同じ Apache-2.0、半分の大きさ）に置き換わった。消さずに残す",
+  "retired": "古い世代（2024-08）。33.7GB で Actions でも手元でも確かめられない。後継 FLUX.2 klein 4B がある"
  },
  {
   "repo": "prism-ml/bonsai-image-ternary-4B-unpacked",
@@ -1271,5 +1295,102 @@
   "ram": 32,
   "note": "2026-11-14 に足した。動かして確かめるまで点は 0（config/verify-models.txt で毎週の model-verify が確かめる）",
   "added": "2026-11-14"
+ },
+ {
+  "family": "sdxl",
+  "format": "full",
+  "gb": 6.9,
+  "prefix": "",
+  "negative": "bad quality, worst quality, bad anatomy, bad fingers",
+  "vpred": false,
+  "rescale": 0.0,
+  "steps": 25,
+  "guidance": 3.5,
+  "score": 0,
+  "vram": 6,
+  "ram": 16,
+  "note": "2026-11-15 に足した。動かして確かめるまで点は 0（毎週の model-verify が描いて点を付ける）",
+  "repo": "wssdaas/nova-anime-xl-ilv-19.0",
+  "name": "Nova Anime XL 19",
+  "good": "アニメ絵。くっきりした線と鮮やかな塗り（Nova Anime XL の 2026-07 の版）",
+  "en": "anime, crisp lineart, vivid cel shading",
+  "tags": [
+   "アニメ",
+   "イラスト",
+   "アニメ塗り"
+  ],
+  "commercial": "札にライセンスの記載なし。元の Illustrious XL 系は faipl-1.0-sd（商用に制限あり、私の推測）"
+ },
+ {
+  "family": "sdxl",
+  "format": "full",
+  "gb": 6.9,
+  "prefix": "",
+  "negative": "worst quality, low quality, lowres, bad anatomy, bad hands, extra digits, fewer digits, signature, watermark",
+  "vpred": false,
+  "rescale": 0.0,
+  "steps": 28,
+  "guidance": 6.0,
+  "score": 0,
+  "vram": 6,
+  "ram": 16,
+  "note": "2026-11-15 に足した。動かして確かめるまで点は 0（毎週の model-verify が描いて点を付ける）",
+  "repo": "frankjoshua/waiIllustriousSDXL_v170",
+  "name": "WAI Illustrious SDXL v17",
+  "good": "アニメ絵。WAI Illustrious の 2026-06 の版（v16 は点 50）",
+  "en": "anime illustration, clean lineart, cel shading",
+  "tags": [
+   "アニメ",
+   "イラスト"
+  ],
+  "commercial": "札にライセンスの記載なし。元の Illustrious XL 系は faipl-1.0-sd（商用に制限あり、私の推測）"
+ },
+ {
+  "family": "sdxl",
+  "format": "full",
+  "gb": 6.9,
+  "prefix": "",
+  "negative": "worst quality, low quality, lowres, bad anatomy, bad hands, extra digits, fewer digits, signature, watermark",
+  "vpred": false,
+  "rescale": 0.0,
+  "steps": 28,
+  "guidance": 5.0,
+  "score": 0,
+  "vram": 6,
+  "ram": 16,
+  "note": "2026-11-15 に足した。動かして確かめるまで点は 0（毎週の model-verify が描いて点を付ける）",
+  "repo": "Raelina/Raehoshi-illust-XL-12",
+  "name": "Raehoshi illust XL 12",
+  "good": "アニメのイラスト。Raehoshi の 2026-10 の版",
+  "en": "anime illustration, soft colors, detailed eyes",
+  "tags": [
+   "アニメ",
+   "イラスト"
+  ],
+  "commercial": "札のライセンスは other（札を確かめる）"
+ },
+ {
+  "family": "sdxl",
+  "format": "half",
+  "gb": 6.9,
+  "prefix": "",
+  "negative": "worst quality, low quality, lowres, bad anatomy, bad hands, extra digits, fewer digits, signature, watermark",
+  "vpred": false,
+  "rescale": 0.0,
+  "steps": 28,
+  "guidance": 5.0,
+  "score": 0,
+  "vram": 6,
+  "ram": 16,
+  "note": "2026-11-15 に足した。動かして確かめるまで点は 0（毎週の model-verify が描いて点を付ける）",
+  "repo": "misri/oneObsession_v22",
+  "name": "One Obsession v2.2",
+  "good": "アニメ絵。Illustrious 系の 2026-06 の模型",
+  "en": "anime illustration, vivid colors",
+  "tags": [
+   "アニメ",
+   "イラスト"
+  ],
+  "commercial": "札にライセンスの記載なし（札を確かめる）"
  }
 ]

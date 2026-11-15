@@ -1,46 +1,28 @@
-"""絵の模型を実際に動かして確かめる。catalog.json の点（score）を付けるための材料を作る。
+"""絵の模型を実際に動かして確かめ、点（catalog.json の score）を 1 つ付ける。
 
-    python -m chatdraw.verify_models <repo> <出力の置き場>
+    python -m chatdraw.verify_models list                       （確かめる模型。Actions の行列に渡す JSON）
+    python -m chatdraw.verify_models draw  <repo> <置き場>       （同じ頼み・同じ種で描く）
+    python -m chatdraw.verify_models score <repo> <置き場>       （検品して点を 1 つ付け、<置き場>/score.json に書く）
+    python -m chatdraw.verify_models write <score.json>...       （目録 catalog.json に点を書き戻す）
 
-頼み 2 件を新規で、1 件をラフ（棒人形）から描き、絵と数字（report.json）を残す。
-数字で落とすのは、読み込めない・真っ黒や一色の絵・ラフの部品と組めない、の 3 つ。絵の出来は、残した絵を見て決める。
-重い（1 枚 数分）ので、手元ではなく GitHub Actions（model-verify.yml）で流す。
+描く頼みは、頼んだ通りに描けたかを測る台（adherebench）の 30 本から、決まった 5 本を同じ種で描く。模型どうしを同じ物差しで比べるため。
+点 = 100 × 描けた語の割合 × 崩れの無い絵の割合。崩れは作画監督（handcheck）の外れ、人数の違い、真っ黒・一色の絵で、
+描けなかった絵と検品できなかった絵も崩れとして数える（検品できない絵を「崩れが無い」と扱わない）。
+重い（SDXL を CPU で 1 枚 10 分ほど）ので、手元ではなく GitHub Actions（model-verify.yml）で流す。
 """
 from __future__ import annotations
 
 import json
-import resource
 import sys
 import time
-
-from chatdraw.body import NEGATIVE as BODY_NEGATIVE, WOMAN
-import traceback
 from pathlib import Path
 
-# 描く試験の題材は、すべてビキニの大人の女性にそろえる（模型どうし・描き方どうしを同じ題材で比べるため）
-PROMPTS = [
-    ("bikini", WOMAN + ", red bikini, beach, smile, full body, standing"),
-    ("bikini-pose", WOMAN + ", white bikini, beach, looking back, hands on own hips, full body"),
-]
-ROUGH = ("rough", WOMAN + ", blue bikini, waving hand, full body, simple background, white background")
 SEED = 7
-
-
-def stick_figure(size):
-    """ラフの代わりの棒人形（白地に黒の線）。ラフから描く部品と組めるかを見るだけの物"""
-    from PIL import Image, ImageDraw
-    w, h = size
-    im = Image.new("RGB", (w, h), "white")
-    d = ImageDraw.Draw(im)
-    cx, line = w // 2, max(4, w // 120)
-    d.ellipse((cx - w * 0.08, h * 0.08, cx + w * 0.08, h * 0.08 + w * 0.16), outline="black", width=line)
-    top, hip = h * 0.08 + w * 0.16, h * 0.55
-    d.line((cx, top, cx, hip), fill="black", width=line)
-    d.line((cx, top + h * 0.05, cx - w * 0.22, top - h * 0.08), fill="black", width=line)   # 振る手
-    d.line((cx, top + h * 0.05, cx + w * 0.18, top + h * 0.2), fill="black", width=line)
-    d.line((cx, hip, cx - w * 0.12, h * 0.92), fill="black", width=line)
-    d.line((cx, hip, cx + w * 0.12, h * 0.92), fill="black", width=line)
-    return im
+SHARDS = 6        # 30 本を 6 つに分けた 1 組目（0, 6, 12, 18, 24 番）を描く
+SHARD = 0
+EXPECTED = 5
+RUNNER_RAM_GB = 14   # Actions の機械（16GB）で描ける重さの上限。超える模型は確かめられないので行列に入れない
+VERIFY_LIST = Path(__file__).resolve().parents[1] / "config" / "verify-models.txt"
 
 
 def image_stats(im) -> dict:
@@ -58,68 +40,106 @@ def broken(stats: dict) -> str:
     return ""
 
 
-def fetch(repo: str):
-    """アプリと同じ取り方（catalog.json の形式）で先に取る。読み込みはその置き場から行う"""
-    from huggingface_hub import snapshot_download
-    from chatdraw.models import image_model
-    from chatdraw.paths import HUB
-    m = image_model(repo)
-    t = time.time()
-    snapshot_download(repo, cache_dir=str(HUB), **m.files)
-    from chatdraw.engine import SKETCH
-    if m.family in SKETCH:
-        sk, files, _ = SKETCH[m.family]
-        snapshot_download(sk, cache_dir=str(HUB), **files)
-    return round(time.time() - t, 1)
+def one_number(res: dict, flat: int = 0, expected: int = EXPECTED) -> int:
+    """画面に出す 1 つの点（0〜100）。描けた語の割合 × 崩れの無い絵の割合。描けなかった絵は崩れとして数える"""
+    if expected <= 0 or not res.get("images"):
+        return 0
+    bad = sum(1 for r in res.get("rows", []) if r.get("qc") or r.get("people")) + flat
+    clean = max(0, min(res["images"], expected) - bad) / expected
+    return max(0, min(100, round(100 * float(res.get("rate", 0.0)) * clean)))
 
 
-def run(repo: str, out: Path) -> dict:
+def candidates() -> list[str]:
+    """確かめる模型。点が 0 の物（確かめていない物）と、config/verify-models.txt に書いた物。外した物と、Actions の機械に入らない物は除く"""
+    from chatdraw.models import IMAGES, heavy
+    extra = [ln.strip() for ln in VERIFY_LIST.read_text(encoding="utf-8").splitlines()
+             if ln.strip() and not ln.startswith("#")] if VERIFY_LIST.exists() else []
+    by = {m.repo: m for m in IMAGES}
+    out = []
+    for repo in extra + [m.repo for m in IMAGES if m.score <= 0]:
+        m = by.get(repo)
+        if m is None or m.retired or repo in out:
+            continue
+        if heavy(m)[1] > RUNNER_RAM_GB + 2 or m.gb > 16:   # SDXL（6.9GB）は通る。20GB を超える新しい世代は読み込みで止まった（2026-11-14）
+            continue
+        out.append(repo)
+    return out
+
+
+def draw(repo: str, out: Path):
+    from chatdraw import adherebench
     out.mkdir(parents=True, exist_ok=True)
-    fetched = fetch(repo)
-    from chatdraw.models import image_model
-    from chatdraw.engine import Painter
-    m = image_model(repo)
-    from chatdraw.models import family as fam
-    f = fam(m.family)
-    size = f.size
-    report = {"repo": repo, "fetch_s": fetched, "family": m.family, "steps": m.steps, "size": size, "images": [], "errors": []}
-    painter = Painter(repo, steps=m.steps, size=size, guidance=m.guidance)
+    (out / "repo.txt").write_text(repo, encoding="utf-8")   # 点を付ける側が、置き場の名前から模型の名前を戻さなくて済むように
     t = time.time()
     try:
-        painter.load()
-    except Exception:
-        report["errors"].append("読み込めない: " + traceback.format_exc()[-1500:])
-        return report
-    report["load_s"] = round(time.time() - t, 1)
-    jobs = [(name, (m.prefix + ", " if m.prefix else "") + p, None) for name, p in PROMPTS]
-    if f.sketch:   # ラフの部品がある世代だけ、ラフから描けるかを見る
-        jobs.append((ROUGH[0], (m.prefix + ", " if m.prefix else "") + ROUGH[1], stick_figure(size)))
-    for name, prompt, base in jobs:
-        t = time.time()
-        try:
-            im = painter.paint(prompt, SEED, base=base, strength=0.8 if base is not None else 1.0)
-        except Exception:
-            report["errors"].append(f"{name}: " + traceback.format_exc()[-1500:])
-            continue
-        took = time.time() - t
-        path = out / f"{name}-s{SEED}.png"
-        im.save(path)
-        st = image_stats(im)
-        report["images"].append({"name": name, "prompt": prompt, "seconds": round(took, 1),
-                                 "per_step_s": round(took / m.steps, 2), "file": path.name, **st, "broken": broken(st)})
-        print(f"{name}: {took:.0f} 秒", flush=True)
-    report["peak_rss_gb"] = round(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1e6, 1)
-    report["auto"] = "落とす" if report["errors"] or any(i["broken"] for i in report["images"]) or len(report["images"]) < len(jobs) \
-        else "絵を見て決める"
+        adherebench.draw(out, repo, SHARD, SHARDS, SEED)
+    except Exception as e:   # 読めない・メモリが足りない。描けなかった絵は score で崩れとして数える
+        import traceback
+        (out / "error.txt").write_text(traceback.format_exc()[-3000:], encoding="utf-8")
+        print(f"描けない: {e}", flush=True)
+    print(f"描いた: {time.time() - t:.0f} 秒", flush=True)
+
+
+def score(repo: str, out: Path) -> dict:
+    from PIL import Image
+    from chatdraw import adherebench
+    res = adherebench.score([out]) if any(out.rglob("*-s*.json")) else {"images": 0, "rate": 0.0, "rows": []}
+    flat = 0
+    for png in sorted(out.rglob("*-s*.png")):
+        if broken(image_stats(Image.open(png))):
+            flat += 1
+    err = (out / "error.txt").read_text(encoding="utf-8")[-300:] if (out / "error.txt").exists() else ""
+    n = one_number(res, flat)
+    report = {"repo": repo, "score": n, "images": res.get("images", 0), "expected": EXPECTED, "rate": res.get("rate", 0.0),
+              "qc_images": res.get("qc_images", 0), "people_wrong": res.get("people_wrong", 0), "flat": flat,
+              "error": err, "seed": SEED, "rows": res.get("rows", [])}
+    (out / "score.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
     return report
 
 
+def note_line(r: dict, run: str = "") -> str:
+    day = time.strftime("%Y-%m-%d", time.gmtime(time.time() + 9 * 3600))
+    where = f"（実行 {run}）" if run else ""
+    if not r.get("images"):
+        return f"{day} 自動の検証{where}: 描けなかった → 点 0"
+    return (f"{day} 自動の検証{where}: 頼み {r['images']}/{r['expected']} 件、描けた語 {round(100 * r['rate'])}%、"
+            f"崩れのある絵 {r['qc_images'] + r['people_wrong'] + r['flat']} 枚 → 点 {r['score']}")
+
+
+def write(reports: list[dict], catalog: Path | None = None, run: str = "") -> list[str]:
+    """目録に点と経緯の 1 行を書き戻す。点が PASS に届かない物は一覧に出なくなる（models.shown）。目録から外す（retired）のは人が決める"""
+    catalog = catalog or Path(__file__).with_name("catalog.json")
+    items = json.loads(catalog.read_text(encoding="utf-8"))
+    done = []
+    for r in reports:
+        for e in items:
+            key = f"{e['repo']}/{e['file']}" if e.get("format") == "single" else e["repo"]
+            if key != r["repo"]:
+                continue
+            e["score"] = int(r["score"])
+            line = note_line(r, run)
+            e["note"] = (e.get("note", "") + " / " + line) if e.get("note") else line
+            done.append(f"{key}: {r['score']}")
+    catalog.write_text(json.dumps(items, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    return done
+
+
 def main():
-    repo, out = sys.argv[1], Path(sys.argv[2])
-    report = run(repo, out)
-    (out / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
-    print(json.dumps({k: v for k, v in report.items() if k != "images"}, ensure_ascii=False))
-    print(f"exit=0 auto={report.get('auto', '落とす')}")
+    cmd = sys.argv[1] if len(sys.argv) > 1 else ""
+    if cmd == "list":
+        print(json.dumps(candidates()))
+    elif cmd == "draw":
+        draw(sys.argv[2], Path(sys.argv[3]))
+    elif cmd == "score":
+        r = score(sys.argv[2], Path(sys.argv[3]))
+        print(json.dumps({k: v for k, v in r.items() if k != "rows"}, ensure_ascii=False))
+    elif cmd == "write":
+        import os
+        reports = [json.loads(Path(p).read_text(encoding="utf-8")) for p in sys.argv[2:]]
+        for line in write(reports, run=os.environ.get("GITHUB_RUN_ID", "")):
+            print(line)
+    else:
+        print(__doc__)
 
 
 if __name__ == "__main__":

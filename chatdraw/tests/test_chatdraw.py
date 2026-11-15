@@ -438,15 +438,13 @@ class SetupTest(unittest.TestCase):
             image, words = dlg.chosen()
             self.assertEqual(image, offered_images()[0])                       # 初めは点のいちばん高い物
             self.assertEqual(words, offered_words()[0])
-            for m in IMAGES:                                                    # 一覧の模型はすべて札がある（推奨だけ表示を外すと選べる）
-                self.assertIn(m.repo, dlg.image_radios)
+            for m in IMAGES:   # 札があるのは、推奨に届いた物と手元の物だけ（点の届かない物・確かめていない物・外した物は出さない）
+                if m.score >= PASS and not m.retired:
+                    self.assertIn(m.repo, dlg.image_radios)
             untested = next(m for m in IMAGES if m.score <= 0)
-            self.assertFalse(dlg.image_radios[untested.repo].parent().isVisibleTo(dlg))   # 初めは推奨だけ
-            low = next((m for m in IMAGES if 0 < m.score < PASS), None)
-            if low is not None:
-                self.assertFalse(dlg.image_radios[low.repo].parent().isVisibleTo(dlg))   # 推奨だけのときは隠す
-                dlg.only_rec.setChecked(False)
-                self.assertTrue(dlg.image_radios[low.repo].parent().isVisibleTo(dlg))    # 外すと出す
+            self.assertNotIn(untested.repo, dlg.image_radios)
+            retired = next(m for m in IMAGES if m.retired)
+            self.assertNotIn(retired.repo, dlg.image_radios)
             self.assertFalse(hasattr(dlg, "words_radios"))                     # 言葉の模型は選ばせない
             dlg.image_radios[AUTO].setChecked(True)
             dlg.apply()
