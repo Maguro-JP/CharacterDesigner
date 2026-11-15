@@ -181,9 +181,11 @@ def detailed(text: str) -> bool:
     return len(t) > DETAILED_CHARS or t.count("、") + t.count(",") + t.count("，") >= 4
 
 
+DEFAULT_PRESET = "標準"   # aipanel.DEFAULT_PRESET と同じ。描く処理から画面の部品（PySide6）を読まないよう、ここにも持つ
+
+
 def precise(image_mode: str, text: str, preset: str = "") -> bool:
     """精度の流れで描くか。image_mode は "auto"（おまかせ）、FAV、"single"（模型を 1 つ選んだ）"""
-    from chatdraw.aipanel import DEFAULT_PRESET
     if image_mode in ("auto", FAV):
         return True
     return bool(preset and preset != DEFAULT_PRESET) or detailed(text)
