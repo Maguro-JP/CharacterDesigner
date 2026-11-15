@@ -11,7 +11,7 @@ import io
 
 HEADERS = {"prompt": "text", "頼み": "text", "text": "text", "count": "count", "枚数": "count",
            "seed": "seed", "種": "seed", "negative": "negative", "禁止ワード": "negative"}
-MAX_COUNT = 100   # 1 行の枚数の上限（打ち間違いで 10000 枚にしないため）
+MAX_COUNT = 9999   # 1 行の枚数の上限。利用者の枚数を勝手に縛らない
 
 
 class BadLine(ValueError):

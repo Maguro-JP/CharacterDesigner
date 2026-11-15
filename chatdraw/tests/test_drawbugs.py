@@ -217,14 +217,15 @@ class LoadPathTest(unittest.TestCase):
 
     def test_big_model_is_quantized_and_split_on_small_gpu(self):
         """60GB 近い模型（Qwen-Image）を 24GB の GPU で読むと、本体を 4 ビットに縮め、部品ごとに GPU へ出し入れする。
-        12GB の GPU では、縮めない言葉の部品（約 16GB）が載らないので、描く前に予算で止める（前は描き始めてから落ちた）"""
+        12GB の GPU でも断らず、退避の形で読む"""
         p, log, _ = self.run_case("Qwen/Qwen-Image-2512", [], cuda=True, free=24.0)
         kw = next(x for x in log if x[0] == "load")[4]
         self.assertEqual(kw["quantization_config"][0], "quant")
         self.assertIn(("place", "model"), log)
-        from chatdraw.membudget import OverBudget
-        with self.assertRaises(OverBudget):
-            self.run_case("Qwen/Qwen-Image-2512", [], cuda=True, free=12.0)
+        # 12GB の GPU でも断らず、退避の形（部品ごとの出し入れ。4 ビットの部品は層ごとにできない）で読む
+        p, log, _ = self.run_case("Qwen/Qwen-Image-2512", [], cuda=True, free=12.0)
+        self.assertEqual(p.offload, "sequential")
+        self.assertIn(("place", "model"), log)
         p, log, _ = self.run_case("cagliostrolab/animagine-xl-4.0", [], cuda=True, free=24.0)
         load = next(x for x in log if x[0] == "load")[4]
         # 入る模型は全部 GPU に載せ、縮めない。部品のフォルダーは GPU へ直に読む（RAM に模型全体を並べない）

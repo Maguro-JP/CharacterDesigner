@@ -535,7 +535,7 @@ def run_mode(m: ImageModel, vram: float, ram: float = 0.0) -> str:
     return "GPU" if placement(vram, m.gb * 1.2, heavy(m)[0] * 0.9) == "cuda" else "分けて GPU"
 
 
-FITS = {"gpu": "この PC の GPU で動く", "cpu": "この PC では CPU で動く（遅い）", "no": "この PC ではメモリが足りない", "unknown": ""}
+FITS = {"gpu": "この PC の GPU で動く", "cpu": "この PC では CPU で動く（遅い）", "no": "この PC では退避して動く（とても遅い）", "unknown": ""}
 
 
 # おまかせが工程ごとに模型を選ぶときの見どころ。直す工程の hand / face / foot は handcheck.bad_regions の種類に合わせる

@@ -201,8 +201,7 @@ class AiPanel(QWidget):
         lay = self.sections["詳しい設定"].body
         # 作成枚数は「指示」のタブにも数の欄で出す（窓の側で置く）。ボタンと欄は同じ値を持つ
         self.count_spin = QSpinBox()
-        self.count_spin.setRange(1, 8)
-        self.count_spin.setSuffix(" 枚")
+        self.count_spin.setRange(1, 9999)   # 枚数は利用者が決める。上限で勝手に縛らない
         self.count_spin.setToolTip("一度に描く枚数（直すときは 1 枚）")
         self.count_buttons = self._segment(["1 枚", "2 枚", "4 枚"], lambda i: self.count_spin.setValue((1, 2, 4)[i]))
         self.count_spin.valueChanged.connect(self._count_changed)

@@ -71,6 +71,25 @@ class Checks:
         return handcheck.check(image, asked=prompt)
 
 
+class _Safe:
+    """検品の 1 つが例外を出したら、その工程を「読めなかった」にして次へ進む（例外で描く流れ全体が落ちた）"""
+
+    def __init__(self, inner):
+        self.inner = inner
+
+    def __getattr__(self, name):
+        fn = getattr(self.inner, name)
+
+        def call(*a, **k):
+            try:
+                return fn(*a, **k)
+            except Exception as e:   # noqa: BLE001  見ていない物を通ったことにしない（readable を False にする）
+                if type(e).__name__ == "Stopped":
+                    raise
+                return {"readable": False, "bad": [], "reason": f"検品できませんでした（{type(e).__name__}: {e}）"}
+        return call
+
+
 def abilities(painter) -> tuple[bool, bool]:
     """(線に沿って描けるか, 枠の中だけ直せるか)。偽の模型は abilities を持てる"""
     own = getattr(painter, "abilities", None)
@@ -114,6 +133,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
     from chatdraw import handcheck
     keep.mkdir(parents=True, exist_ok=True)
     can_line, can_fix = abilities(painter)
+    checks = _Safe(checks)   # 検品の部品が落ちても描くのは止めない。読めなかった検品は「検品できなかった」として残す
     rows, checked = [], True
 
     def stop():
