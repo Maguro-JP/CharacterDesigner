@@ -5934,9 +5934,8 @@ class Window(QMainWindow):
         menu.setToolTipsVisible(True)
         # 予想図: 見本の 1 枚を本物の絵の模型でその画風に変えた小さな絵（chatdraw/styleprev/）。名前だけでは仕上がりが分からないので横に出す
         # QMenu は絵の大きさを小さな絵の寸法（16 画素）で描き、スタイルシートの icon-size は効かなかった。その寸法だけを大きくする
-        # スタイルはアプリで 1 つだけ作って持ち続ける。メニューごとに作ってメニューに持たせると、閉じたメニューと一緒に
-        # スタイルが消えたあとも Qt が使い、窓を開け閉めしたあとにアプリごと落ちた
-        menu.setStyle(_big_icon_style())
+        # メニューに独自のスタイル（QProxyStyle）を付けると、右クリックでアプリごと落ちた（0.5.30）。スタイルは付けず、
+        # 小さな絵はメニューの絵の欄に、大きな絵はカーソルを合わせたときのツールチップに出す
         prev = Path(__file__).parent / "styleprev"
         for kind, label, tip, *_ in STYLES:
             name = f"style_{kind}"
@@ -5947,7 +5946,9 @@ class Window(QMainWindow):
                 act.setObjectName("fin:" + name)
             if (prev / f"{kind}.jpg").is_file():
                 act.setIcon(QIcon(str(prev / f"{kind}.jpg")))
-            act.setToolTip(tip + "（左の小さな絵は見本の絵での例）" + ("。囲みの中だけを描き替えます" if mark else "") + ("" if ok or finishers.fetchable(name) else f"（{why}）"))
+            img = prev / f"{kind}.jpg"
+            big = f'<br><img src="{img.as_posix()}" width="160">' if img.is_file() else ""
+            act.setToolTip(tip + "（絵は見本の絵での例）" + big + ("。囲みの中だけを描き替えます" if mark else "") + ("" if ok or finishers.fetchable(name) else f"（{why}）"))
             act.setEnabled((ok or finishers.fetchable(name)) and not self.thread)
         return menu
 

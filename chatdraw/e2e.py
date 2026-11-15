@@ -107,6 +107,47 @@ def main():
         return {"parts": [p.key for p in qcparts.PARTS]}
 
     ok = step("検品の部品がそろう", qc_parts) and ok
+
+    def right_click():
+        # 右クリックのメニューを、下のメニューまで全部開いて閉じる（0.5.30 で右クリックからアプリごと落ちた）
+        from PySide6.QtCore import QPoint
+        w = app.Window()
+        w.show()
+        if shot.get("path"):
+            w.place(str(shot["path"]))
+        seen = []
+
+        def walk(m):
+            m.popup(QPoint(20, 20))
+            qapp.processEvents()
+            for a in m.actions():
+                seen.append(a.text())
+                if a.menu():
+                    a.menu().aboutToShow.emit()
+                    walk(a.menu())
+            m.hide()
+            qapp.processEvents()
+        for _ in range(3):
+            m = w.build_canvas_menu(QPoint(20, 20))
+            walk(m)
+            m.deleteLater()
+            qapp.processEvents()
+        w.close()
+        qapp.processEvents()
+        return {"items": len(seen)}
+
+    def phases_draw():
+        # 工程に分けて描く。最後の工程まで描けて、絵が保存されることを見る（0.5.30 で 1 工程目のあとに落ちた）
+        from chatdraw.engine import Painter, Studio, Words
+        studio = Studio(Words(Path("")), Painter(TINY, steps=2, size=(256, 256)), out)
+        studio.way = "phases"
+        _prompt, path = studio.draw("1girl, red hair", 2, size=(256, 256))
+        if not Path(path).exists():
+            raise RuntimeError(f"絵が保存されていない: {path}")
+        return {"phases": len(studio.last_phases or [])}
+
+    ok = step("右クリックのメニューを全部開く", right_click) and ok
+    ok = step("工程に分けて 1 枚描く", phases_draw) and ok
     from chatdraw.paths import HOME, HUB
     report["data_home"], report["hub"] = str(HOME), str(HUB)
     report["ok"] = ok
