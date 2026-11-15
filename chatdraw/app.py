@@ -1847,7 +1847,8 @@ class Window(QMainWindow):
         act = getattr(self, "activity", None)
         if act is not None:
             act.detail.setText(text)
-            act.detail.setToolTip("\n".join(self.progress_notes[-15:]))
+            # 模型に渡した言葉（activity の words_log）も詳細に残す。知らせだけで上書きすると、渡した言葉が見られなくなった
+            act.detail.setToolTip("\n".join(self.progress_notes[-15:] + list(getattr(act, "words_log", []) or [])[-12:]))
         self.statusBar().showMessage(text, 8000)
         return None
 
