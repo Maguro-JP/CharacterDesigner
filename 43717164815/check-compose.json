@@ -1,0 +1,258 @@
+{
+ "1-composition.png": {
+  "readable": true,
+  "bad": [
+   "手 1: thumbの手の色 0.83（0.85〜1.01）",
+   "手 2: thumb 0.76（0.8〜1.12）",
+   "手 2: palm 0.59（0.85〜1.35）",
+   "手 2: middleの手の色 0.79（0.85〜1.01）",
+   "手 3: 手の形が読めない（指がくっついたか、ぼやけている）",
+   "手 4: 手の形が読めない（指がくっついたか、ぼやけている）",
+   "足 1: 指が多い（6 本。5 本のはず）"
+  ],
+  "hands": [
+   {
+    "box": [
+     326,
+     40,
+     465,
+     180
+    ],
+    "angle": 51.0,
+    "measure": {
+     "presence": 0.99,
+     "palm": 1.1,
+     "thumb": 1.06,
+     "index": 0.8,
+     "ring": 1.1,
+     "pinky": 0.58,
+     "cover": {
+      "thumb": 0.83,
+      "index": 0.58,
+      "middle": 0.46,
+      "ring": 0.33,
+      "pinky": 0.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "曲げた指がある"
+     }
+    },
+    "bad": [
+     "thumbの手の色 0.83（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     431,
+     462,
+     557,
+     589
+    ],
+    "angle": -99.0,
+    "measure": {
+     "presence": 1.0,
+     "palm": 0.59,
+     "thumb": 0.76,
+     "index": 0.82,
+     "ring": 0.97,
+     "pinky": 0.71,
+     "cover": {
+      "thumb": 0.96,
+      "index": 0.29,
+      "middle": 0.79,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [
+       5,
+       3,
+       3,
+       3,
+       4
+      ],
+      "reason": "切った線ごとに数が揺れる（3 本と同じ線が 3 本）"
+     }
+    },
+    "bad": [
+     "thumb 0.76（0.8〜1.12）",
+     "palm 0.59（0.85〜1.35）",
+     "middleの手の色 0.79（0.85〜1.01）"
+    ],
+    "seen": true
+   },
+   {
+    "box": [
+     627,
+     46,
+     801,
+     221
+    ],
+    "angle": -91.0,
+    "measure": {
+     "presence": 0.0,
+     "palm": 3.7,
+     "thumb": 2.59,
+     "index": 1.51,
+     "ring": 1.07,
+     "pinky": 1.51,
+     "cover": {
+      "thumb": 1.0,
+      "index": 0.88,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "曲げた指がある"
+     }
+    },
+    "bad": [
+     "手の形が読めない（指がくっついたか、ぼやけている）"
+    ],
+    "seen": true,
+    "unreadable": true
+   },
+   {
+    "box": [
+     389,
+     206,
+     504,
+     320
+    ],
+    "angle": 65.0,
+    "measure": {
+     "presence": 0.06,
+     "palm": 2.3,
+     "thumb": 2.29,
+     "index": 1.01,
+     "ring": 0.99,
+     "pinky": 0.72,
+     "cover": {
+      "thumb": 0.88,
+      "index": 1.0,
+      "middle": 1.0,
+      "ring": 1.0,
+      "pinky": 1.0
+     },
+     "fingers": {
+      "count": null,
+      "rows": [],
+      "reason": "曲げた指がある"
+     }
+    },
+    "bad": [
+     "手の形が読めない（指がくっついたか、ぼやけている）"
+    ],
+    "seen": true,
+    "unreadable": true
+   }
+  ],
+  "feet": [
+   {
+    "side": "right",
+    "box": [
+     340,
+     1110,
+     433,
+     1214
+    ],
+    "count": 6,
+    "evidence": {
+     "F": 61.8,
+     "toe_line": 28.5,
+     "by": "境の線（指先の山は先がそろって少なく見える）",
+     "lines": 6,
+     "tips": 4,
+     "width": 57.0,
+     "line_at": [
+      146,
+      189,
+      220,
+      246,
+      272
+     ],
+     "line_power": [
+      1.0,
+      0.54,
+      0.63,
+      0.55,
+      0.64
+     ],
+     "tip_at": [
+      110,
+      188,
+      215,
+      284
+     ],
+     "span": [
+      62,
+      290
+     ]
+    },
+    "bad": [
+     "指が多い（6 本。5 本のはず）"
+    ],
+    "sharp": 1.25
+   },
+   {
+    "side": "left",
+    "box": [
+     423,
+     1099,
+     511,
+     1208
+    ],
+    "count": 5,
+    "evidence": {
+     "F": 65.1,
+     "toe_line": 42.2,
+     "by": "境の線と指先の山が合う",
+     "lines": 5,
+     "tips": 5,
+     "width": 67.0,
+     "line_at": [
+      123,
+      169,
+      211,
+      255
+     ],
+     "line_power": [
+      1.0,
+      0.88,
+      0.68,
+      0.42
+     ],
+     "tip_at": [
+      83,
+      142,
+      186,
+      226,
+      268
+     ],
+     "span": [
+      45,
+      313
+     ]
+    },
+    "bad": [],
+    "sharp": 1.18
+   }
+  ],
+  "faces": [],
+  "face": {
+   "box": null,
+   "readable": false,
+   "bad": [],
+   "tags": {},
+   "eye_dark": null,
+   "reason": "顔が写っていないか、小さすぎます"
+  }
+ }
+}
