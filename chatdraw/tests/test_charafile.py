@@ -235,8 +235,12 @@ class AppFlowTest(Base):
             self.wait(lambda: w.thread is None, 600)
         finally:
             self.close(w)
+            # 止めた描く糸が後片付けを終える（WORK を手放す）まで待ってから旗を下ろす。待たずに下ろすと、小さな模型の描く糸が
+            # 止まらずに走り続けて WORK を持ったままになり、次の試験の描く流れが始まらなかった。旗を残すと次の流れが始めから止まる
             from chatdraw import engine
-            engine.STOP.clear()   # 止めた旗を残すと、次の試験の描く流れが始めから止まる
+            if engine.WORK.acquire(timeout=600):
+                engine.WORK.release()
+            engine.STOP.clear()
 
 
 if __name__ == "__main__":
