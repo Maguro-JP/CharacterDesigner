@@ -34,9 +34,9 @@ jobs:
         side: [before, after]
         shard: [0, 1, 2, 3]
     env:
-      CD_HOME: ${{ runner.temp }}/cd
       CD_FETCH: "1"
     steps:
+      - run: echo "CD_HOME=$RUNNER_TEMP/cd" >> "$GITHUB_ENV"   # runner の置き場は job の env では使えない
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
@@ -77,9 +77,8 @@ jobs:
       fail-fast: false
       matrix:
         side: [before, after]
-    env:
-      CD_HOME: ${{ runner.temp }}/cd
     steps:
+      - run: echo "CD_HOME=$RUNNER_TEMP/cd" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
