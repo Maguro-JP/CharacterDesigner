@@ -316,18 +316,20 @@ def tone_flaws(now: dict, ref: dict) -> list[str]:
 
 
 def match_colors(image, ref):
-    """色合わせ: 描き重ねた絵の各色の明るさを、前の工程の絵の範囲（暗い方 2% と明るい方 98%）と平均に線形で合わせる。
-    分布をそのまま写す形（分位の対応）は、平らな背景に色の粒を出したので使わない"""
+    """色合わせ: 描き重ねた絵の明るさ（輝度）を、前の工程の絵の範囲（暗い方 2% と明るい方 98%）に線形で合わせ、色の差（彩度）は
+    明るさを広げた分だけ広げて、狭めない。R・G・B を別々に合わせる形は、白い背景で 3 色の範囲が 255 にそろい、色が灰色に寄った
+    （phase-bench の下描きで彩度 20.4 → 12.9）。分布をそのまま写す形（分位の対応）は、平らな背景に色の粒を出したので使わない"""
     import numpy as np
     from PIL import Image
     a = np.asarray(image.convert("RGB"), dtype=np.float32)
     r = np.asarray(ref.convert("RGB").resize(image.size), dtype=np.float32)
-    out = np.empty_like(a)
-    for c in range(3):
-        lo, hi = np.percentile(a[..., c], [2, 98])
-        rlo, rhi = np.percentile(r[..., c], [2, 98])
-        scale = (rhi - rlo) / max(hi - lo, 1.0)
-        out[..., c] = (a[..., c] - lo) * min(max(scale, 0.5), 2.5) + rlo
+    wts = np.array([0.299, 0.587, 0.114], np.float32)
+    y, yr = a @ wts, r @ wts
+    lo, hi = np.percentile(y, [2, 98])
+    rlo, rhi = np.percentile(yr, [2, 98])
+    scale = min(max((rhi - rlo) / max(hi - lo, 1.0), 0.5), 2.5)
+    y2 = (y - lo) * scale + rlo
+    out = y2[..., None] + (a - y[..., None]) * max(scale, 1.0)
     return Image.fromarray(np.clip(out, 0, 255).astype("uint8"))
 
 
@@ -342,17 +344,24 @@ def restore_border(image, ref, band: int):
 
 
 def guard(image, ref, mask=None) -> tuple:
-    """描き重ねたあとの守り。色合わせ → 枠が出ていれば縁を戻す → それでも霞み・枠・色褪せが残れば前の絵を使う。
+    """描き重ねたあとの守り。描き重ねた絵に霞み・枠・色褪せが無ければ、そのまま使う（合わせない）。
+    あれば色合わせ → 枠が出ていれば縁を戻す → それでも残れば前の絵を使う。崩れの無い絵にも色合わせを掛けていた間は、
+    合わせで色が褪せ、描き重ねを捨てていた（phase-bench、種 7）。
     mask（L）を渡したときは、その中だけを合わせ、外は前の絵のまま（囲みの外は 1 画素も変えない）。返すのは (絵, 記録)"""
     from PIL import Image
     ref = ref.convert("RGB").resize(image.size)
+    image = image.convert("RGB")
     t_ref, t_raw = tone(ref), tone(image)
-    out = match_colors(image, ref)
-    if tone(out)["frame"] - t_ref["frame"] > FRAME_MOST:
-        out = restore_border(out, ref, t_ref["band"])
+    raw_flaws = tone_flaws(t_raw, t_ref)
+    out = image
+    if raw_flaws:
+        out = match_colors(image, ref)
+        if tone(out)["frame"] - t_ref["frame"] > FRAME_MOST:
+            out = restore_border(out, ref, t_ref["band"])
     if mask is not None:
         out = Image.composite(out, ref, mask.convert("L").resize(image.size))
     t_out = tone(out)
     left = tone_flaws(t_out, t_ref)
-    rec = {"ref": t_ref, "raw": t_raw, "out": t_out, "raw_flaws": tone_flaws(t_raw, t_ref), "left": left, "kept_ref": bool(left)}
+    rec = {"ref": t_ref, "raw": t_raw, "out": t_out, "raw_flaws": raw_flaws, "matched": bool(raw_flaws), "left": left,
+           "kept_ref": bool(left)}
     return (ref if left else out), rec
