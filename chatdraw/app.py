@@ -2119,9 +2119,8 @@ class Window(QMainWindow):
         elif key == FAV:
             from chatdraw import favmodels
             data = favmodels.load()
-            self.model_label.setText("お気に入り（役目ごと）")
-            self.model_label.setToolTip("役目ごとに選んだ模型で、工程を分けて描きます\n" + "\n".join(
-                f"{label}: {image_model(data[r]).name if r in data else 'おまかせ'}" for r, (label, _t) in favmodels.ROLES.items()))
+            self.model_label.setText(favmodels.label(favmodels.active()))
+            self.model_label.setToolTip("編成の役目ごとの模型で、工程を分けて描きます\n" + self._set_tip(data))
         else:
             self.model_label.setText(image_model(key).name)
             self.model_label.setToolTip("この模型で描きます。短い頼みは 1 回で速く、細かい頼みとプリセットは工程を分けて描きます。押すと切り替えられます")
@@ -4560,17 +4559,27 @@ class Window(QMainWindow):
         group = QActionGroup(menu)
         auto = QAction("おまかせ", menu, checkable=True)
         auto.setToolTip("描くときに、手元の模型から頼みに合い点の高い物を選びます")
+        from chatdraw import favmodels
         from chatdraw.favmodels import FAV
-        fav = QAction("お気に入り（役目ごと）", menu, checkable=True)
-        fav.setToolTip("構図・仕上げ・顔・手・背景・直しに、自分で選んだ模型を使います（「役目ごとの模型…」で選びます）")
-        entries = [(AUTO, auto), (FAV, fav)]
+        entries = [(AUTO, auto)]
+        # 編成した物を模型の選択に 1 つずつ出す。選ぶと、その編成の役目ごとの模型で描く（作る・直すは「模型の編成」のメニュー）
+        active_set = favmodels.active()
+        for name in favmodels.sets():
+            data = favmodels.get_set(name)
+            act = QAction(favmodels.label(name), menu, checkable=True)
+            act.setToolTip(self._set_tip(data))
+            entries.append((("set", name), act))
+        now_key = ("set", active_set) if now_image == FAV else now_image
         for m in images:
             label = ("★ " if is_favorite(m.repo) else "") + m.name + (f"　{rating_text(m)}" if m in listed else "")
             ok = m.repo in have or m not in listed
             entries.append((m.repo, QAction(label if ok else f"{label}（未取得）", menu, checkable=True)))
         for key, act in entries:
-            act.setChecked(key == now_image)
-            act.triggered.connect(lambda _=False, k=key: self.switch_model("絵の模型", k))
+            act.setChecked(key == now_key)
+            if isinstance(key, tuple):
+                act.triggered.connect(lambda _=False, n=key[1]: self.use_model_set(n))
+            else:
+                act.triggered.connect(lambda _=False, k=key: self.switch_model("絵の模型", k))
             group.addAction(act)
             menu.addAction(act)
         stars = menu.addMenu("★ お気に入り")
@@ -4583,8 +4592,13 @@ class Window(QMainWindow):
             a.toggled.connect(lambda on, r=m.repo: set_favorite(r, on))
         menu.addAction(QAction("Civitai から探す…", self, triggered=self.open_civitai,
                                toolTip="Civitai の模型と LoRA を見本の絵で探して取ります"))
-        menu.addAction(QAction("役目ごとの模型…", self, triggered=self.open_role_models,
-                               toolTip="構図・仕上げ・顔・手・背景・直しに使う模型を選んで保存します"))
+        sets_menu = menu.addMenu("模型の編成")
+        sets_menu.setToolTipsVisible(True)
+        for text, tip, fn in (("編成を作る…", "構図・仕上げ・背景・顔・身体・髪と加工に使う模型の組を、名前を付けて作ります", self.new_model_set),
+                              ("今の編成を直す…", "今の編成の役目ごとの模型を選び直します", self.open_role_models),
+                              ("今の編成の名前を変える…", "今の編成の名前を変えます", self.rename_model_set),
+                              ("今の編成を消す…", "今の編成を消します（模型そのものは消しません）", self.delete_model_set)):
+            sets_menu.addAction(QAction(text, menu, triggered=lambda _=False, f=fn: f(), toolTip=tip))
         menu.addSeparator()
         fix_menu = menu.addMenu("直しに使う模型")
         fix_menu.setToolTipsVisible(True)
@@ -4657,17 +4671,68 @@ class Window(QMainWindow):
         self.lora_pick.blockSignals(False)
         Window._lora_shown(self)
 
-    def open_role_models(self):
-        """役目ごとのお気に入りの模型を選ぶ窓（chatdraw/favmodels.py）。保存したらお気に入りで描くように替える"""
+    def _set_tip(self, data: dict) -> str:
+        from chatdraw import favmodels
+        from chatdraw.models import image_model
+        return "\n".join(f"{label}: {image_model(data[r]).name if r in data else 'おまかせ'}"
+                         for r, (label, _t) in favmodels.ROLES.items())
+
+    def use_model_set(self, name: str):
+        """模型の選択で編成を選んだとき。その編成を今の編成にして、役目ごとの模型で描く"""
+        from chatdraw import favmodels
+        favmodels.use_set(name)
+        self.switch_model("絵の模型", favmodels.FAV)
+        self._fill_ai_menu()
+
+    def open_role_models(self, name: str | None = None):
+        """編成の役目ごとの模型を選ぶ窓（chatdraw/favmodels.py）。保存したらその編成で描くように替える"""
+        from chatdraw import favmodels
         from chatdraw.favpanel import RoleModelsDialog
-        dlg = RoleModelsDialog(self.have_image_models(), self)
-        if dlg.exec():
-            dlg.store()
-            from chatdraw.favmodels import FAV, any_set
-            if any_set():
-                self.switch_model("絵の模型", FAV)
-            else:
-                self._show_model()
+        name = name or favmodels.active()
+        dlg = RoleModelsDialog(self.have_image_models(), self, data=favmodels.get_set(name), title=f"編成「{name}」")
+        if not dlg.exec():
+            return False
+        favmodels.save_set(name, dlg.values(), use=True)
+        self.use_model_set(name)
+        return True
+
+    def new_model_set(self, name: str | None = None):
+        from chatdraw import favmodels
+        if name is None:
+            from PySide6.QtWidgets import QInputDialog
+            name, ok = QInputDialog.getText(self, "編成を作る", "編成の名前（例: アニメの立ち絵、背景つき）")
+            if not ok:
+                return
+        name = name.strip()
+        if not name or name in favmodels.sets():
+            self.notify("その名前は使えません", "warn", "空か、ほかの編成と同じ名前です")
+            return
+        self.open_role_models(name)
+
+    def rename_model_set(self, new: str | None = None):
+        from chatdraw import favmodels
+        old = favmodels.active()
+        if new is None:
+            from PySide6.QtWidgets import QInputDialog
+            new, ok = QInputDialog.getText(self, "編成の名前", "新しい名前", text=old)
+            if not ok:
+                return
+        try:
+            favmodels.rename_set(old, new)
+        except (KeyError, ValueError) as e:
+            self.notify("名前を変えられません", "warn", str(e).strip("'"))
+            return
+        self._fill_ai_menu()
+        self._show_model()
+
+    def delete_model_set(self, confirm: bool = True):
+        from chatdraw import favmodels
+        name = favmodels.active()
+        if confirm and QMessageBox.question(self, "編成を消す", f"編成「{name}」を消しますか？（模型そのものは消しません）") != QMessageBox.Yes:
+            return
+        favmodels.delete_set(name)
+        self._fill_ai_menu()
+        self._show_model()
 
     def switch_model(self, kind: str, key: str):
         self.feature_tour("model")

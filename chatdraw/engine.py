@@ -1897,7 +1897,14 @@ class Studio:
             return None
         from chatdraw import twostage
         from chatdraw.choose import installed_images
-        two = twostage.pick(installed_images(), getattr(self.painter, "model", ""))
+        have = installed_images()
+        two = None
+        if getattr(self, "use_favorites", False) and not getattr(self, "image_auto", False):
+            # お気に入りで描くときは、構図と仕上げのお気に入りで 2 段にする。前は「構図と仕上げを分けて描く」を選ぶと
+            # お気に入りを見ずに点の一番高い構図の模型と今の模型で描き、選んだ模型と違う模型で描いた
+            from chatdraw import favmodels
+            two = favmodels.two_stage(have)
+        two = two or twostage.pick(have, getattr(self.painter, "model", ""))
         if two is not None and getattr(self, "fetch_two_parts", False) and not twostage.parts_ready():
             try:
                 twostage.fetch_parts(say=say)

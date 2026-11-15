@@ -59,7 +59,8 @@ class RolesTest(unittest.TestCase):
     def test_saved_roles_round_trip(self):
         favmodels.set_role("compose", HANDS.repo)
         favmodels.set_role("hand", FACES.repo)
-        self.assertEqual(favmodels.load(), {"compose": HANDS.repo, "hand": FACES.repo})
+        # 前の版の「手」は「身体」（手・足・体）にまとめた。前の名前で置いても身体に入る
+        self.assertEqual(favmodels.load(), {"compose": HANDS.repo, "body": FACES.repo})
         favmodels.set_role("hand", "")
         self.assertEqual(favmodels.load(), {"compose": HANDS.repo})
         with self.assertRaises(KeyError):
@@ -72,7 +73,7 @@ class RolesTest(unittest.TestCase):
         log, st, said = self.draw([COMPOSE, HANDS, FACES, PLAIN], [BAD_HAND, OK], mode=favmodels.FAV)
         self.assertEqual([(k, m) for k, m, _p in log if k != "hires"], [("paint", "p/plain"), ("redraw", "f/faces")])
         self.assertEqual(st.saved[1]["way"], "favorites")
-        self.assertTrue(any("お気に入りを使う役目: 構図、手" in s for s in said))
+        self.assertTrue(any("お気に入りを使う役目: 構図、身体" in s for s in said))
 
     def test_background_role_composes_background_requests(self):
         favmodels.set_role("background", PLAIN.repo)
@@ -191,7 +192,7 @@ class WindowTest(unittest.TestCase):
             self.assertEqual(favmodels.load(), {"compose": HANDS.repo, "face": FACES.repo})
             self.assertEqual(w.settings.get("image_model"), favmodels.FAV)
             w._show_model()
-            self.assertEqual(w.model_label.text(), "お気に入り（役目ごと）")
+            self.assertEqual(w.model_label.text(), favmodels.label(favmodels.active()))
             self.assertIn("構図: h/hands", w.model_label.toolTip())
             out = os.environ.get("CD_SNAP_DIR")
             if out:   # 目で見るための写し
@@ -292,9 +293,9 @@ class ManagerSetsAndFilterTest(unittest.TestCase):
             self.assertEqual(favmodels.active(), "アニメの立ち絵")
             self.assertEqual(favmodels.load()["compose"], HANDS.repo)
             picks.clear()
-            picks.update(hand=HANDS.repo)
+            picks.update(body=HANDS.repo)
             dlg.edit_set()
-            self.assertEqual(favmodels.load(), {"compose": HANDS.repo, "face": FACES.repo, "hand": HANDS.repo})
+            self.assertEqual(favmodels.load(), {"compose": HANDS.repo, "face": FACES.repo, "body": HANDS.repo})
         dlg.rename_set("立ち絵")
         self.assertIn("立ち絵", favmodels.sets())
         self.assertEqual(favmodels.active(), "立ち絵")

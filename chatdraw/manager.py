@@ -395,7 +395,7 @@ class ModelManager(QDialog):
         using = self.settings.get("image_model") == favmodels.FAV
         self.set_use = QPushButton("使用中" if using else "使う")
         self.set_use.setEnabled(not using)
-        self.set_use.setToolTip("この編成で描きます（絵の模型を「お気に入り（役目ごと）」にします）")
+        self.set_use.setToolTip("この編成で描きます（模型の選択にこの編成を選びます）")
         self.set_use.clicked.connect(self.use_sets)
         top.addWidget(title)
         top.addWidget(self.set_pick, 1)
