@@ -198,3 +198,23 @@ class PainterReuseTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class ClosedWindowListenerTest(unittest.TestCase):
+    """閉じた窓が模型の一覧の知らせ先に残らない（残ると、点を付けるたびに閉じた窓の分までメニューを作り直して固まった）"""
+
+    def test_closed_windows_are_dropped(self):
+        from PySide6.QtWidgets import QApplication
+        from chatdraw import ratings
+        from chatdraw.app import Window
+        from chatdraw.engine import Studio
+        from chatdraw.tests.test_chatdraw import FakePainter, FakeWords
+        QApplication.instance() or QApplication([])
+        d = TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        before = len(ratings._LISTENERS)
+        for _ in range(3):
+            w = Window(Studio(FakeWords(), FakePainter(), Path(d.name)))
+            w.dirty = False
+            w.close()
+        self.assertLessEqual(len(ratings._LISTENERS), before)

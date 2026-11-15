@@ -5825,6 +5825,8 @@ class Window(QMainWindow):
         self.layout_store.setValue("state9", self.saveState())
         if getattr(self, "ai_tabs", None) is not None:
             self.ai_tabs.save()
+        from chatdraw import ratings
+        ratings.off_change(self._models_changed)   # 閉じた窓を模型の一覧の知らせ先から外す
         super().closeEvent(e)
 
     def _refresh_layers(self):

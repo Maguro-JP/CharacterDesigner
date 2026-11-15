@@ -173,13 +173,26 @@ _LISTENERS: list = []
 
 
 def on_change(fn):
-    if fn not in _LISTENERS:
-        _LISTENERS.append(fn)
+    """知らせ先を足す。窓の関数は弱い参照で持つ（閉じた窓が残り続け、点を付けるたびに閉じた窓の分までメニューを作り直して固まった）"""
+    import weakref
+    ref = weakref.WeakMethod(fn) if hasattr(fn, "__self__") else (lambda f=fn: f)
+    if any(r() == fn for r in _LISTENERS):
+        return
+    _LISTENERS.append(ref)
+
+
+def off_change(fn):
+    """知らせ先を外す（窓を閉じたとき）"""
+    _LISTENERS[:] = [r for r in _LISTENERS if r() is not None and r() != fn]
 
 
 def changed():
-    for fn in list(_LISTENERS):
+    for ref in list(_LISTENERS):
+        fn = ref()
+        if fn is None:
+            _LISTENERS.remove(ref)
+            continue
         try:
             fn()
         except RuntimeError:   # 窓が先に閉じて Qt の部品が消えていたら、その知らせ先を外す
-            _LISTENERS.remove(fn)
+            _LISTENERS.remove(ref)
