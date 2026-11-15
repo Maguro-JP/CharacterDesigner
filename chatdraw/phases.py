@@ -185,10 +185,12 @@ def _extra(req: dict) -> list[str]:
 
 
 def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, on_step=None, checks=Checks, on_preview=None,
-         confirm=None) -> dict:
+         confirm=None, pause_key: str | None = None, pause_job: dict | None = None) -> dict:
     """12 の工程で 1 枚を描く。返り値は {"image": 最後の絵, "phases": 工程ごとの最後の記録, "history": 全部の記録,
     "left": 残った崩れ, "checked": 検品できたか, "backs": 戻った回数}。どの工程も必ず終わり、戻る回数にも上限がある。
-    confirm(i, 名前, 絵, 記録) は "go"・"redo"・("words", 足す言葉の訳) を返す"""
+    confirm(i, 名前, 絵, 記録) は "go"・"redo"・("words", 足す言葉の訳) を返す。
+    pause_key があれば、メモリの見張り・メモリ不足・時間切れで工程が打ち切られたとき、その工程に入ったときの状態を
+    chatdraw/pausekeep.py に残して Paused で返す。同じ鍵で呼び直すと、その工程から続ける（前は始めから描き直した）"""
     from PIL import Image
     from chatdraw.engine import Stopped, emphasize
     from chatdraw import handcheck, phasetools as pt
@@ -509,14 +511,31 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
     history: list[dict] = []
     visits, entry = [0] * n, {}
     backs, i = 0, 0
+    from chatdraw import pausekeep
+    saved = pausekeep.state(pause_key) if pause_key else None
+    if saved:   # 一時停止した工程から続ける。描き終えた工程の絵と記録はそのまま使う
+        i, backs, visits, final, history, entry = saved["i"], saved["backs"], saved["visits"], saved["final"], saved["history"], saved["entry"]
+        st.clear()
+        st.update(entry[i])
+        say(f"一時停止した工程 {i + 1}/{n}「{PHASES[i][0]}」から続けます")
     while i < n:
         stop()
         name = PHASES[i][0]
         entry.setdefault(i, None)
-        entry[i] = dict(st)   # 戻るときは、この工程に入ったときの土台から描き直す
+        if not (saved and saved["i"] == i and entry.get(i)):
+            entry[i] = dict(st)   # 戻るときは、この工程に入ったときの土台から描き直す
+        saved = None
         say(f"工程 {i + 1}/{n}「{name}」: {PHASES[i][1]}（見る物: {PHASES[i][2]}）")
         t0 = time.time()
-        got = run[i](visits[i])
+        try:
+            got = run[i](visits[i])
+        except Exception as e:   # noqa: BLE001  止めて捨てずに、この工程に入ったときの状態を残す
+            if not pause_key or isinstance(e, Stopped) or not pausekeep.is_pause(e):
+                raise
+            pausekeep.save(pause_key, "phases", f"工程 {i + 1}/{n}「{name}」で一時停止", pause_job,
+                           {"i": i, "backs": backs, "visits": visits, "final": final, "history": history, "entry": entry})
+            raise pausekeep.Paused(f"工程 {i + 1}/{n}「{name}」で一時停止しました（{type(e).__name__}）。"
+                                   "途中まで保存したので、「再開」でこの工程から続けます", pause_key) from e
         if got.get("image") is not None:
             st["image"] = got["image"]
         found, fixed = list(got.get("found", [])), bool(got.get("fixed"))
@@ -565,6 +584,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             i = back
             continue
         i += 1
+    pausekeep.clear(pause_key)   # 描き終えたら、残した途中は要らない
     rows = [final[k] for k in range(n)]
     last = rows[-1]
     left = last["after"] if last["fixed"] else last["found"]
