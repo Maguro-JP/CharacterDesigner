@@ -91,7 +91,10 @@ class PhasesTest(unittest.TestCase):
         self.assertEqual(painter.steps, 20)   # ラフの工程の数を元に戻す
         self.assertTrue(all(r["fixed"] for r in got["phases"]))
         self.assertTrue(got["left"])   # 崩れが残っても終わる（残った崩れを返す）
-        self.assertTrue(any("渡す言葉" in s for s in said))
+        self.assertTrue(any(s.startswith(phases.WORDS_NOTE) for s in said))
+        # 工程の始めには必ず「工程 i/5「名前」」を出す（アプリの進みの帯がこれで全体の進みを出す）
+        for i, (name, *_r) in enumerate(phases.PHASES, 1):
+            self.assertTrue(any(s.startswith(f"工程 {i}/5「{name}」") for s in said), name)
 
     def test_clean_after_first_fix(self):
         got, painter, seen, said, files = self.run_phases(always_bad=False)
@@ -102,14 +105,11 @@ class PhasesTest(unittest.TestCase):
         self.assertEqual([r["fixed"] for r in got["phases"]], [True, False, True, False, False])
 
     def test_no_words_added(self):
-        """渡す言葉は頼みの訳と、手・足・顔の直しの言葉だけ"""
-        got, *_ = self.run_phases(always_bad=True)
-        from chatdraw.handcheck import FIX_WORDS
+        """渡す言葉は頼みの訳だけ。手・足・顔の直しにも five fingers などを足さない"""
+        got, painter, *_ = self.run_phases(always_bad=True)
         for r in got["phases"]:
             for w in r["words"]:
                 rest = w.replace("(red scarf:1.3)", "red scarf")
-                for fw in FIX_WORDS.values():
-                    rest = rest.replace(fw, "")
                 self.assertEqual({t.strip() for t in rest.split(",") if t.strip()} - {"1girl", "red scarf"}, set(), w)
 
     def test_stop_between_phases(self):
@@ -199,6 +199,110 @@ class BrokenChecksTest(unittest.TestCase):
             self.assertEqual(len(got["phases"]), len(phases.PHASES))
             self.assertFalse(got["checked"])
             self.assertIsNotNone(got["image"])
+
+
+class WindowFlowTest(unittest.TestCase):
+    """本物の窓の経路（offscreen の Window、偽の模型）で精度優先を流す。1 工程目のあとに帯が満ちて終わったように見えた"""
+
+    def test_progress_runs_through_five_phases(self):
+        import time
+        from unittest import mock
+        from chatdraw.app import Window
+        from chatdraw.tests.test_editing import app
+        qapp = app()
+        d = TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        s = Studio(FakeWords(), Painter(), Path(d.name))
+        s.way = "phases"
+        w = Window(s)
+        try:
+            seen, chat, events = [], [], []
+            act = w.activity
+            orig = act.status
+
+            def status(msg, step=None, total=None):
+                orig(msg, step, total)
+                seen.append((act.state.text(), act.bar.value(), act.bar.maximum(), msg))
+            act.status = status
+            add = w.chat.add
+            w.chat.add = lambda who, text, *a, **k: (chat.append(text), add(who, text, *a, **k))[1]
+            ends = []
+            end = act.end
+            act.end = lambda *a, **k: (ends.append(len(seen)), end(*a, **k))[1]
+            with mock.patch.object(w, "_keep_original", lambda x: x):
+                w._draw_now("赤いマフラーの子")
+            w.job.one.connect(lambda *_: events.append("one"))
+            w.job.done.connect(lambda: events.append("done"))
+            t = time.time()
+            while w.thread is not None and time.time() - t < 120:
+                qapp.processEvents()
+                time.sleep(0.01)
+            qapp.processEvents()
+            self.assertIsNone(w.thread, "描く処理が終わらない")
+            self.assertEqual([r["phase"] for r in s.last_phases], ["構図", "体型と姿勢", "線画", "塗り", "仕上げ"])
+            self.assertEqual(events, ["one", "done"])   # 1 枚が出来た・終わったの信号は 5 工程のあとに 1 回ずつ
+            self.assertEqual(len(ends), 1)
+            # 進み具合の欄に「工程 i/5 名前」が順に出て、終わるまで帯は満ちない
+            for i, name in enumerate(["構図", "体型と姿勢", "線画", "塗り", "仕上げ"], 1):
+                self.assertTrue(any(st.startswith(f"工程 {i}/5　{name}") for st, *_ in seen), name)
+            for st, v, mx, msg in seen[:ends[0]]:
+                self.assertFalse(mx > 0 and v >= mx, f"終わる前に帯が満ちた: {st} {msg}")
+                self.assertNotIn("完成", st + msg)
+                self.assertNotIn("完了", st + msg)
+            last5 = max(k for k, (st, *_r) in enumerate(seen) if st.startswith("工程 5/5"))
+            first1 = min(k for k, (st, *_r) in enumerate(seen) if st.startswith("工程 1/5　構図"))
+            self.assertLess(first1, last5)
+            # 模型に渡した言葉は会話に出さず、進み具合の欄の詳細（ツールチップ）にだけ置く
+            self.assertFalse([c for c in chat if "渡す言葉" in c or "渡した言葉" in c], chat)
+            self.assertIn("模型に渡す言葉: 1girl, red scarf", act.detail.toolTip())
+        finally:
+            w.dirty = False
+            w.close()
+
+    def test_way_pick_switches_mode(self):
+        from chatdraw.app import Window
+        from chatdraw.settings import AI_MODE, PRECISE
+        from chatdraw.tests.test_editing import app
+        app()
+        d = TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        w = Window(Studio(FakeWords(), Painter(), Path(d.name)))
+        old = w.settings.store.value("draw_way")
+        try:
+            self.assertEqual([w.way_pick.itemText(i) for i in range(w.way_pick.count())], ["AI モード", "精度優先"])
+            self.assertTrue(w.way_pick.toolTip())
+            w.way_pick.setCurrentIndex(1)
+            self.assertEqual(w.studio.way, "phases")
+            self.assertEqual(w.settings.get("draw_way"), PRECISE)
+            w.way_pick.setCurrentIndex(0)
+            self.assertNotEqual(w.studio.way, "phases")
+            self.assertEqual(w.settings.get("draw_way"), AI_MODE)
+        finally:
+            if old is None:
+                w.settings.store.remove("draw_way")
+            else:
+                w.settings.set("draw_way", old)
+            w.dirty = False
+            w.close()
+
+
+class WaySettingTest(unittest.TestCase):
+    def test_two_modes_and_old_values(self):
+        from PySide6.QtCore import QSettings
+        from chatdraw.settings import AI_MODE, FIELDS, PRECISE, Settings, studio_way
+        field = next(f for f in FIELDS if f[0] == "draw_way")
+        self.assertEqual(field[3], f"choice:{AI_MODE},{PRECISE}")
+        self.assertEqual(field[4], AI_MODE)   # 既定は AI モード
+        self.assertEqual(studio_way(PRECISE, "おまかせ"), "phases")
+        self.assertEqual(studio_way(AI_MODE, "おまかせ"), "auto")
+        self.assertEqual(studio_way(AI_MODE, "1つの模型で描く"), "one")
+        self.assertEqual(studio_way(AI_MODE, "構図と仕上げを分けて描く"), "two")
+        d = TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        for old, way in (("工程に分けて描く", "phases"), ("構図と仕上げを分けて描く", "two"), ("おまかせ", "auto"), ("1つの模型で描く", "one")):
+            st = Settings(QSettings(str(Path(d.name) / f"{way}.ini"), QSettings.IniFormat))
+            st.set("draw_way", old)   # 前の版の 1 つの欄の値は、選んでいた描き方のまま読む
+            self.assertEqual(studio_way(st.get("draw_way"), st.get("ai_way")), way, old)
 
 
 class CountLimitTest(unittest.TestCase):

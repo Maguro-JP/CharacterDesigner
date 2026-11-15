@@ -767,6 +767,27 @@ class Window(QMainWindow):
         count_label.setBuddy(self.ai_panel.count_spin)
         count_label.setToolTip(self.ai_panel.count_spin.toolTip())
         self.count_label = count_label
+        # 描き方のモード（AI モード / 精度優先）。設定の奥に入れると切り替えられず、どちらで描いたか分からなかった
+        from chatdraw.settings import AI_MODE, PRECISE
+        self.way_pick = QComboBox()
+        self.way_pick.addItem("AI モード", AI_MODE)
+        self.way_pick.addItem("精度優先", PRECISE)
+        self.way_pick.setItemData(0, AI_MODE, Qt.ToolTipRole)
+        self.way_pick.setItemData(1, PRECISE + "。構図 → 体型と姿勢 → 線画 → 塗り → 仕上げの順に、工程ごとに検品して描く", Qt.ToolTipRole)
+        self.way_pick.setToolTip("描き方。AI モード: 今までの描き方で速く描く。精度優先: 工程に分けて描き、工程ごとに検品する")
+        self.way_pick.setAccessibleName("描き方")
+        self.way_pick.setCurrentIndex(1 if self.settings.get("draw_way") == PRECISE else 0)
+        self.way_pick.currentIndexChanged.connect(self._pick_way)
+        # 描くボタンの帯に並べると、狭い欄で描くボタンが幅 0 に潰れたので、帯のすぐ上の 1 行に置く
+        way_row = QHBoxLayout()
+        way_row.setSpacing(4)
+        way_label = QLabel("描き方")
+        way_label.setBuddy(self.way_pick)
+        way_label.setToolTip(self.way_pick.toolTip())
+        way_row.addWidget(way_label)
+        way_row.addWidget(self.way_pick, 1)
+        outer = self.ai_panel.layout()
+        outer.insertLayout(max(0, outer.indexOf(line)), way_row)
         line.addWidget(count_label)
         # 描くボタンが横に伸びると、数の欄が幅 0 に潰れて見えなくなった。数が読めて打てる幅を必ず取る
         self.ai_panel.count_spin.setMinimumWidth(self.ai_panel.count_spin.fontMetrics().horizontalAdvance("9999") + 40)
@@ -2765,6 +2786,13 @@ class Window(QMainWindow):
         from chatdraw import finishers
         self.run_io(lambda: finishers.embedded(path) or finishers.embed(path, finishers.sidecar(path)), lambda _v: None, "ライブラリーへ保存")
 
+    def _pick_way(self, _i=None):
+        """描くボタンの横の描き方を設定に残し、今の描き手にすぐ効かせる（模型は読み直さない）"""
+        from chatdraw.settings import studio_way
+        self.settings.set("draw_way", self.way_pick.currentData())
+        if getattr(self, "studio", None) is not None:
+            self.studio.way = studio_way(self.settings.get("draw_way"), self.settings.get("ai_way"))
+
     def _put_phases(self):
         """工程に分けて描いた回は、工程ごとの絵を描いた絵の下に隠したレイヤーで置き、工程ごとの検品を会話に出す（chatdraw/phases.py）"""
         rows = getattr(self.studio, "last_phases", None) if self.job_kind == "draw" else None
@@ -4296,7 +4324,8 @@ class Window(QMainWindow):
         studio = Studio(Words(None if words == AUTO else Path(words)), painter, Path(g("output_dir")))
         studio.image_auto, studio.words_auto = g("image_model") == AUTO, words == AUTO
         studio.use_favorites = g("image_model") == favmodels.FAV
-        studio.way = {"1つの模型で描く": "one", "構図と仕上げを分けて描く": "two", "工程に分けて描く": "phases"}.get(g("draw_way"), "auto")
+        from chatdraw.settings import studio_way
+        studio.way = studio_way(g("draw_way"), g("ai_way"))
         if getattr(self, "chara_file", None):   # 模型を替えて作り直しても、開いている人物で描き続ける
             from chatdraw import charafile
             studio.character = charafile.for_studio(self.chara_file)
@@ -4348,6 +4377,10 @@ class Window(QMainWindow):
             self.check_ai()
             self.canvas.set_cursor_style(g("cursor"))
             self.apply_debug_mode()
+            from chatdraw.settings import PRECISE
+            self.way_pick.blockSignals(True)   # 設定で替えた描き方を、描くボタンの横の欄にも出す
+            self.way_pick.setCurrentIndex(1 if g("draw_way") == PRECISE else 0)
+            self.way_pick.blockSignals(False)
             self.statusBar().showMessage("設定を保存しました")
 
     # ---- デバッグモード（chatdraw/debuglog.py） ----

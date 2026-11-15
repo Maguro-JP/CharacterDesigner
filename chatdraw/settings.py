@@ -14,6 +14,20 @@ from PySide6.QtWidgets import (QCheckBox, QComboBox, QDialog, QDialogButtonBox, 
 from chatdraw import debuglog
 from chatdraw.engine import IMAGE_MODEL
 
+# 描き方の 2 つのモード。AI モードは今までの速い描き方（おまかせ・1 つの模型・2 段の判定は、この中の ai_way で選ぶ）。
+# 精度優先は工程に分けて描く（chatdraw/phases.py）。前は 4 つが 1 つの欄に並び、どれが今までの描き方か分からなかった
+AI_MODE = "AI モード（今までの描き方。速い）"
+PRECISE = "精度優先（工程に分けて描く）"
+_OLD_WAY = {"工程に分けて描く": PRECISE, "おまかせ": AI_MODE, "1つの模型で描く": AI_MODE, "構図と仕上げを分けて描く": AI_MODE}
+
+
+def studio_way(draw_way: str, ai_way: str) -> str:
+    """設定の 2 つの欄から、engine.Studio.way（phases / one / two / auto）を決める"""
+    if draw_way == PRECISE:
+        return "phases"
+    return {"1つの模型で描く": "one", "構図と仕上げを分けて描く": "two"}.get(ai_way, "auto")
+
+
 # (キー, 見出し, 欄の名前, 種類, 既定値, 補足)。種類で入力の部品が決まる
 MODEL_FIELDS = [
     ("image_model", "絵の模型", "模型", "image_model", IMAGE_MODEL, ""),
@@ -21,10 +35,13 @@ MODEL_FIELDS = [
     ("model_dir", "模型の置き場", "模型", "model_dir", "", ""),
 ]
 FIELDS = [
-    ("draw_way", "描き方", "描き方", "choice:おまかせ,1つの模型で描く,構図と仕上げを分けて描く,工程に分けて描く", "おまかせ",
-     "構図と仕上げを分けて描く: 文で頼める模型（FLUX.2 klein など）が構図を描き、その骨組みと奥行きに沿って SDXL のアニメの模型が"
-     "白紙から描き直す。手足や姿勢が崩れにくいが、1 枚に数倍の時間がかかる。おまかせは、要る模型と部品がそろっていれば分けて描く。"
-     "工程に分けて描く: 1 つの模型で、構図 → 体型と姿勢 → 線画 → 塗り → 仕上げの順に描き、工程ごとに検品して崩れを 1 回だけ直す。途中の絵は隠したレイヤーに残る"),
+    ("draw_way", "描き方", "描き方", f"choice:{AI_MODE},{PRECISE}", AI_MODE,
+     "AI モード: 今までの描き方で、速く描く。中の描き方は下の「AI モードの描き方」で選ぶ。"
+     "精度優先: 1 つの模型で、構図 → 体型と姿勢 → 線画 → 塗り → 仕上げの工程に分けて描き、工程ごとに検品して崩れを 1 回だけ直す。"
+     "時間はかかるが崩れにくい。途中の絵は隠したレイヤーに残る。描くボタンのすぐ上の「描き方」でも切り替えられる"),
+    ("ai_way", "AI モードの描き方", "描き方", "choice:おまかせ,1つの模型で描く,構図と仕上げを分けて描く", "おまかせ",
+     "AI モードの中の描き方。構図と仕上げを分けて描く: 文で頼める模型（FLUX.2 klein など）が構図を描き、その骨組みと奥行きに沿って"
+     " SDXL のアニメの模型が白紙から描き直す（2 段の判定）。おまかせは、要る模型と部品がそろっていれば分けて描く"),
     ("steps", "描く工程の数", "描き方", "int:4:80", 24, "多いほど細かく描けて、時間がかかる"),
     ("guidance", "頼みの効き", "描き方", "float:1:15", 5.0, "大きいほど頼みの言葉に寄せる"),
     ("rough_follow", "ラフに沿う強さ", "描き方", "float:0.3:1", 1.0, "大きいほどラフの線の形に沿う。小さいほど AI が形を変える"),
@@ -67,6 +84,12 @@ class Settings:
             from chatdraw.paths import chosen_model_dir
             return chosen_model_dir()
         value = self.store.value(key, field[4])
+        if key == "draw_way":   # 前の版の 1 つの欄の値を、2 つのモードに読み替える（選んでいた描き方を変えない）
+            return _OLD_WAY.get(str(value), str(value))
+        if key == "ai_way" and self.store.value("ai_way", None) is None:
+            old = str(self.store.value("draw_way", ""))
+            if old in ("1つの模型で描く", "構図と仕上げを分けて描く"):
+                return old
         kind = field[3]
         if kind.startswith("int") or kind == "bool":
             return int(value)

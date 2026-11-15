@@ -55,36 +55,52 @@ def fetch_parts(say=print):
         snapshot_download(repo, cache_dir=str(HUB), allow_patterns=files)
 
 
-def keypoints(image, threshold: float = 0.3) -> dict:
-    """VitPose で体の 17 点を読み、名前と (x, y) を返す（確からしさが threshold 未満の点は入れない）"""
+_VITPOSE = None   # (処理, 模型)。読み込みに 1 回 3〜5 秒かかり、工程に分けて描くと 1 枚で 10 回ほど読み直していた
+
+
+def _vitpose():
+    """VitPose を 1 回だけ読む（体の点の検品・手の振り分け・骨組みの絵が同じ模型を使い回す。小さい模型なので置いたままにする）"""
+    global _VITPOSE
+    if _VITPOSE is None:
+        from transformers import AutoProcessor, VitPoseForPoseEstimation
+        from chatdraw.paths import HUB
+        _VITPOSE = (AutoProcessor.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True),
+                    VitPoseForPoseEstimation.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True).eval())
+    return _VITPOSE
+
+
+_LAST_POSE: tuple = (None, None)   # (絵の鍵, 結果)。同じ絵の点と骨組みの絵で 2 度読まない
+
+
+def _pose_points(image):
     import torch
-    from transformers import AutoProcessor, VitPoseForPoseEstimation
-    from chatdraw.paths import HUB
-    names = ["nose", "left_eye", "right_eye", "left_ear", "right_ear", "left_shoulder", "right_shoulder", "left_elbow",
-             "right_elbow", "left_wrist", "right_wrist", "left_hip", "right_hip", "left_knee", "right_knee", "left_ankle", "right_ankle"]
-    proc = AutoProcessor.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True)
-    model = VitPoseForPoseEstimation.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True)
+    key = (image.size, image.convert("RGB").resize((32, 32)).tobytes())
+    global _LAST_POSE
+    if _LAST_POSE[0] == key:
+        return _LAST_POSE[1]
+    proc, model = _vitpose()
     w, h = image.size
     boxes = [[[0, 0, w, h]]]
     with torch.no_grad():
         res = proc.post_process_pose_estimation(model(**proc(image, boxes=boxes, return_tensors="pt")), boxes=boxes)[0][0]
+    _LAST_POSE = (key, res)
+    return res
+
+
+def keypoints(image, threshold: float = 0.3) -> dict:
+    """VitPose で体の 17 点を読み、名前と (x, y) を返す（確からしさが threshold 未満の点は入れない）"""
+    names = ["nose", "left_eye", "right_eye", "left_ear", "right_ear", "left_shoulder", "right_shoulder", "left_elbow",
+             "right_elbow", "left_wrist", "right_wrist", "left_hip", "right_hip", "left_knee", "right_knee", "left_ankle", "right_ankle"]
+    res = _pose_points(image)
     return {n: tuple(p) for n, p, sc in zip(names, res["keypoints"].tolist(), res["scores"].tolist()) if sc >= threshold}
 
 
 def pose_map(image, threshold: float = 0.3):
     """VitPose で体の 17 点を取り、ControlNet の openpose と同じ形の絵（黒地に色の棒と点）にする。
     人は 1 人の絵として、絵全体を枠にする。手の指は取らない（指の形は仕上げの模型に任せる）"""
-    import torch
     from PIL import Image, ImageDraw
-    from transformers import AutoProcessor, VitPoseForPoseEstimation
-    from chatdraw.paths import HUB
-    proc = AutoProcessor.from_pretrained(POSE, cache_dir=str(HUB))
-    model = VitPoseForPoseEstimation.from_pretrained(POSE, cache_dir=str(HUB))
     w, h = image.size
-    boxes = [[[0, 0, w, h]]]
-    with torch.no_grad():
-        out = model(**proc(image, boxes=boxes, return_tensors="pt"))
-    res = proc.post_process_pose_estimation(out, boxes=boxes)[0][0]
+    res = _pose_points(image)
     pts, scores = res["keypoints"].tolist(), res["scores"].tolist()
     ok = [s >= threshold for s in scores]
     neck = [(pts[5][0] + pts[6][0]) / 2, (pts[5][1] + pts[6][1]) / 2]
@@ -295,10 +311,10 @@ def fix_hands(pipe, image, prompt: str, negative: str, seed: int, steps: int, gu
             d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
         # なじませるのは囲みの内側だけ。囲みをぼかして外へ広げると、囲みの外の画素まで変わった
         soft = ImageChops.multiply(mask.filter(ImageFilter.MinFilter(9)).filter(ImageFilter.GaussianBlur(4)), mask)
-        words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in regions))
+        # 直しの言葉は頼みの訳だけ（five fingers などの頼んでいない言葉を足さない）
         from chatdraw import sent
-        sent.record("手の直し", f"{prompt}, {words}", negative + ", extra fingers, missing fingers, fused fingers, extra toes, faceless, empty eyes")
-        out = inpaint(prompt=f"{prompt}, {words}",
+        sent.record("手の直し", prompt, negative + ", extra fingers, missing fingers, fused fingers, extra toes, faceless, empty eyes")
+        out = inpaint(prompt=prompt,
                       negative_prompt=negative + ", extra fingers, missing fingers, fused fingers, extra toes, faceless, empty eyes",
                       image=image, mask_image=soft, width=image.width, height=image.height, strength=(0.55, 0.65, 0.75, 0.85, 0.9, 0.95)[min(r, 5)],
                       num_inference_steps=steps, guidance_scale=guidance,
