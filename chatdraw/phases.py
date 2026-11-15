@@ -16,7 +16,8 @@
 - 模型に渡す言葉は、頼みを訳した言葉だけ（直しにも five fingers などを足さない）。利用者が工程の確かめで足した言葉は、その訳を足す。
   渡した言葉は「模型に渡す言葉:」の知らせにし、アプリは進み具合の欄の詳細（ツールチップ）にだけ置く
 - 工程の始めには必ず「工程 i/n「名前」」の知らせを出す。アプリの進みの帯はこれで全体の進みを出す
-- 線に沿う部品の無い模型（FLUX.1、SD3、Qwen-Image など）は Painter.refine で描き重ねて工程を進める
+- 前の工程の絵に描き重ねたら、前の絵の色と明るさに合わせる（phasetools.guard）。合わせても霞み・枠・色褪せが残れば前の絵を使う。
+  下描きは線に沿って白紙から描き直す形より、描き重ね（Painter.refine）を先にする（線に沿う形では霞み・枠・服の変わりが出た）
 - 確かめ（confirm）を渡すと、工程が終わるたびに呼び、「進める」「この工程を描き直す」「言葉を足して描き直す」を受ける
 - 止める旗が立ったら、その工程の区切りで止まる
 """
@@ -48,9 +49,9 @@ THUMBS = 2            # サムネイルの枚数
 THUMB_SCALE = 0.5     # サムネイルの大きさ（描く大きさの割合）
 THUMB_STEPS = 0.25    # サムネイルの描く工程の数の割合
 ROUGH_STEPS = 0.5     # アタリの描く工程の数の割合
-ATARI = 0.75          # アタリ: 選んだサムネイルを広げて描き重ねる強さ（構図を残す）
-LINE_STRENGTH = 0.8   # 下描き: アタリの線に沿う強さ（T2I-Adapter の効き）
-REFINE = 0.6          # 線に沿う部品の無い世代の下描き: アタリの絵に描き重ねる強さ
+ATARI = 0.6           # アタリ: 選んだサムネイルを広げて描き重ねる強さ（構図と色を残す。0.75 では色が流れた）
+LINE_STRENGTH = 0.6   # 下描き: アタリの線に沿う強さ（T2I-Adapter の効き。0.8 では霞みと枠が出た）
+REFINE = 0.45         # 下描き: アタリの絵に描き重ねる強さ（色と明るさを残す）
 REPAINT = 0.35        # 服・髪・持ち物: 描かれていない物を足すときの描き直しの強さ（形は残す）
 FIX = 0.55            # 顔・手・足の直し: 崩れた枠の中だけを描き直す強さ
 SHINE = 0.35          # 目の光の直し: 目の囲みの中だけを描き直す強さ
@@ -204,6 +205,23 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
     def tell(words):
         say(f"{WORDS_NOTE}{words}")
 
+    tones = []
+
+    def keep_tone(img, ref, where, mask=None):
+        """描き重ねた絵を、前の工程の絵の色と明るさに合わせる（霞み・枠・色褪せを次の工程へ持ち越さない）"""
+        if img is None or ref is None:
+            return img
+        try:
+            out, rec = pt.guard(img, ref, mask)
+        except Exception as e:   # noqa: BLE001  測れなかったら描いた絵のまま進める
+            say(f"{where}: 色と明るさを合わせられませんでした（{e}）")
+            return img
+        rec["where"] = where
+        tones.append(rec)
+        if rec["raw_flaws"]:
+            say(f"{where}: 描き重ねで " + "、".join(rec["raw_flaws"]) + (" ので、前の絵を使います" if rec["kept_ref"] else " のを、色合わせで直しました"))
+        return out
+
     def stop():
         if getattr(painter, "stop", False) is True:
             raise Stopped("止めました")
@@ -280,7 +298,8 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             tell(st["prompt"])
             words.append(st["prompt"])
             if st.get("thumb") is not None and can_refine:
-                return painter.refine(st["prompt"], s, st["thumb"].resize((w, h)), strength=ATARI, on_step=on_step, **pv)
+                base = st["thumb"].resize((w, h))
+                return keep_tone(painter.refine(st["prompt"], s, base, strength=ATARI, on_step=on_step, **pv), base, "アタリ")
             return painter.paint(st["prompt"], s, on_step=on_step, size=(w, h), **pv)
         finally:
             unsteps(s0)
@@ -332,16 +351,17 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
     def p_draft(v):
         img, words, note = st["image"], [], ""
         s = st["seed"] + v * 1000
-        if can_line:
-            say("アタリの線に沿って、顔・手・足を描き込んでいます")
-            tell(st["prompt"])
-            words.append(st["prompt"])
-            img = painter.paint(st["prompt"], s, on_step=on_step, base=img, strength=LINE_STRENGTH, size=(w, h), **pv)
-        elif can_refine:
+        base = img
+        if can_refine:   # 描き重ね（絵から絵）を先にする。線に沿って白紙から描き直すと、霞み・枠・色褪せと服の変わりが出た
             say("アタリの絵に描き重ねて、顔・手・足を描き込んでいます")
             tell(st["prompt"])
             words.append(st["prompt"])
-            img = painter.refine(st["prompt"], s, img, strength=REFINE, on_step=on_step, **pv)
+            img = keep_tone(painter.refine(st["prompt"], s, img, strength=REFINE, on_step=on_step, **pv), base, "下描き")
+        elif can_line:
+            say("アタリの線に沿って、顔・手・足を描き込んでいます")
+            tell(st["prompt"])
+            words.append(st["prompt"])
+            img = keep_tone(painter.paint(st["prompt"], s, on_step=on_step, base=img, strength=LINE_STRENGTH, size=(w, h), **pv), base, "下描き")
         else:
             note = "この模型は描き重ねられないので、アタリの絵のまま顔・手・足を検品しました"
         res = checks.hands(img, st["prompt"])
@@ -377,9 +397,9 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             if can_fix:
                 mask, by_parts = pt.wear_mask(img, protect)
                 nums["by_parts"] = by_parts
-                tried = painter.redraw(words2, st["seed"] + 131 + v * 1000, img, mask, strength=REPAINT)
+                tried = keep_tone(painter.redraw(words2, st["seed"] + 131 + v * 1000, img, mask, strength=REPAINT), img, "服・髪・持ち物", mask)
             else:
-                tried = painter.refine(words2, st["seed"] + 131 + v * 1000, img, strength=REPAINT, **pv)
+                tried = keep_tone(painter.refine(words2, st["seed"] + 131 + v * 1000, img, strength=REPAINT, **pv), img, "服・髪・持ち物")
             req2 = checks.request(tried, st["prompt"])
             after = _missing(req2) + _extra(req2)
             fixed = True
@@ -533,10 +553,14 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                 except Exception:   # noqa: BLE001  見せるだけ。描く流れは止めない
                     pass
         mem = release()
+        for t in tones:
+            t.setdefault("phase", name)
         row = {"phase": name, "decides": PHASES[i][1], "checks": PHASES[i][2], "numbers_of": PHASES[i][3],
                "image": str(path) if path else None, "found": found, "fixed": fixed, "after": after,
                "words": list(got.get("words", [])), "numbers": got.get("numbers", {}), "readable": bool(got.get("readable", True)),
-               "seconds": round(time.time() - t0, 2), "mem_mb": mem, "visit": visits[i]}
+               "seconds": round(time.time() - t0, 2), "mem_mb": mem, "visit": visits[i],
+               "tone": pt.tone(st["image"]) if st.get("image") is not None else None,
+               "tone_guard": [t for t in tones if t.get("phase") == name]}
         if got.get("note"):
             row["note"] = got["note"]
         final[i] = row

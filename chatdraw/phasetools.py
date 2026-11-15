@@ -278,3 +278,78 @@ def wear_mask(image, protect_boxes=()):
     for b in protect_boxes:
         d.rectangle([int(v) for v in b], fill=0)
     return mask, p is not None
+
+
+# 描き重ねの崩れ（霞み・枠・色褪せ）。phase-bench（Animagine XL 4.0、5 工程の版）の線画の工程で、T2I-Adapter で構図の絵に沿って
+# 描き直すと、黒が浮いて全体が白く霞み（暗い方から 5% の明るさ 84 → 120）、四辺に額縁のような枠が出て（縁と内側の差 17 → 45）、
+# そのあとの工程も引き継いだ。描き重ねたら、前の工程の絵の色と明るさに合わせ、枠は前の絵の縁に戻し、それでも外れたら前の絵を使う
+HAZE_MOST = 15        # 暗い方から 5% の明るさが、前の絵よりこれだけ浮いたら霞んでいる
+FRAME_MOST = 10       # 縁の帯と内側の帯の明るさの差が、前の絵よりこれだけ大きくなったら枠が出ている
+FADE_MOST = 0.75      # 彩度の平均が前の絵のこの割合を下回ったら色が褪せている
+
+
+def tone(image) -> dict:
+    """霞み・枠・色褪せを見る数字: 暗い方から 5% の明るさ（dark）、彩度の平均（sat）、縁の帯と内側の帯の明るさの差（frame）"""
+    import numpy as np
+    lum = luminance(image)
+    sat = np.asarray(image.convert("RGB").convert("HSV"), dtype=np.float32)[..., 1]
+    h, w = lum.shape
+    b = max(4, min(h, w) // 40)
+    border = np.concatenate([lum[:b].ravel(), lum[-b:].ravel(), lum[:, :b].ravel(), lum[:, -b:].ravel()])
+    inner = np.concatenate([lum[b:3 * b].ravel(), lum[-3 * b:-b].ravel(), lum[:, b:3 * b].ravel(), lum[:, -3 * b:-b].ravel()])
+    return {"dark": round(float(np.percentile(lum, 5)), 1), "lum": round(float(lum.mean()), 1), "sat": round(float(sat.mean()), 1),
+            "frame": round(float(abs(border.mean() - inner.mean())), 1), "band": b}
+
+
+def tone_flaws(now: dict, ref: dict) -> list[str]:
+    out = []
+    if now["dark"] - ref["dark"] > HAZE_MOST:
+        out.append(f"白く霞んでいる（暗い所 {ref['dark']} → {now['dark']}）")
+    if now["frame"] - ref["frame"] > FRAME_MOST:
+        out.append(f"四辺に枠が出ている（縁の差 {ref['frame']} → {now['frame']}）")
+    if ref["sat"] > 8 and now["sat"] < ref["sat"] * FADE_MOST:
+        out.append(f"色が褪せている（彩度 {ref['sat']} → {now['sat']}）")
+    return out
+
+
+def match_colors(image, ref):
+    """色合わせ: 描き重ねた絵の各色の明るさを、前の工程の絵の範囲（暗い方 2% と明るい方 98%）と平均に線形で合わせる。
+    分布をそのまま写す形（分位の対応）は、平らな背景に色の粒を出したので使わない"""
+    import numpy as np
+    from PIL import Image
+    a = np.asarray(image.convert("RGB"), dtype=np.float32)
+    r = np.asarray(ref.convert("RGB").resize(image.size), dtype=np.float32)
+    out = np.empty_like(a)
+    for c in range(3):
+        lo, hi = np.percentile(a[..., c], [2, 98])
+        rlo, rhi = np.percentile(r[..., c], [2, 98])
+        scale = (rhi - rlo) / max(hi - lo, 1.0)
+        out[..., c] = (a[..., c] - lo) * min(max(scale, 0.5), 2.5) + rlo
+    return Image.fromarray(np.clip(out, 0, 255).astype("uint8"))
+
+
+def restore_border(image, ref, band: int):
+    """縁の帯を前の絵に戻す（内側へ帯の幅でぼかしてつなぐ）"""
+    from PIL import Image, ImageDraw, ImageFilter
+    w, h = image.size
+    m = Image.new("L", (w, h), 255)
+    ImageDraw.Draw(m).rectangle([band * 2, band * 2, w - 1 - band * 2, h - 1 - band * 2], fill=0)
+    m = m.filter(ImageFilter.GaussianBlur(band))
+    return Image.composite(ref.convert("RGB").resize((w, h)), image.convert("RGB"), m)
+
+
+def guard(image, ref, mask=None) -> tuple:
+    """描き重ねたあとの守り。色合わせ → 枠が出ていれば縁を戻す → それでも霞み・枠・色褪せが残れば前の絵を使う。
+    mask（L）を渡したときは、その中だけを合わせ、外は前の絵のまま（囲みの外は 1 画素も変えない）。返すのは (絵, 記録)"""
+    from PIL import Image
+    ref = ref.convert("RGB").resize(image.size)
+    t_ref, t_raw = tone(ref), tone(image)
+    out = match_colors(image, ref)
+    if tone(out)["frame"] - t_ref["frame"] > FRAME_MOST:
+        out = restore_border(out, ref, t_ref["band"])
+    if mask is not None:
+        out = Image.composite(out, ref, mask.convert("L").resize(image.size))
+    t_out = tone(out)
+    left = tone_flaws(t_out, t_ref)
+    rec = {"ref": t_ref, "raw": t_raw, "out": t_out, "raw_flaws": tone_flaws(t_raw, t_ref), "left": left, "kept_ref": bool(left)}
+    return (ref if left else out), rec

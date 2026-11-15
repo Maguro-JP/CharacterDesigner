@@ -248,6 +248,35 @@ class ToolsTest(unittest.TestCase):
         self.assertIn("weight_x", pt.thumb_weight(im))
 
 
+class ToneGuardTest(unittest.TestCase):
+    """描き重ねで出た霞み・枠・色褪せを、前の絵の色と明るさに合わせて消す（phase-bench の線画で出た崩れ）"""
+
+    def test_haze_and_frame_removed(self):
+        import numpy as np
+        from PIL import Image, ImageDraw
+        from chatdraw import phasetools as pt
+        ref = figure((128, 192))
+        a = np.asarray(ref, dtype=np.float32) * 0.5 + 110   # 黒が浮いて白く霞む・色が褪せる
+        hazy = Image.fromarray(a.astype("uint8"))
+        ImageDraw.Draw(hazy).rectangle([0, 0, 127, 191], outline=(40, 40, 40), width=4)   # 額縁のような枠
+        self.assertTrue(pt.tone_flaws(pt.tone(hazy), pt.tone(ref)))
+        out, rec = pt.guard(hazy, ref)
+        self.assertTrue(rec["raw_flaws"])
+        self.assertEqual(pt.tone_flaws(pt.tone(out), pt.tone(ref)), [])
+
+    def test_mask_keeps_outside(self):
+        import numpy as np
+        from PIL import Image
+        from chatdraw import phasetools as pt
+        ref = figure((128, 192))
+        other = Image.new("RGB", ref.size, (10, 200, 30))
+        mask = Image.new("L", ref.size, 0)
+        mask.paste(255, (40, 40, 80, 80))
+        out, _ = pt.guard(other, ref, mask)
+        a, b, m = np.asarray(out), np.asarray(ref), np.asarray(mask) == 0
+        self.assertTrue((a[m] == b[m]).all())
+
+
 class ConfirmBridgeTest(unittest.TestCase):
     """描く糸から呼んだ確かめが、画面の糸の窓の答えを待って返す"""
 
