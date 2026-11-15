@@ -183,7 +183,10 @@ def detailed(text: str) -> bool:
 
 def precise(image_mode: str, text: str, preset: str = "") -> bool:
     """精度の流れで描くか。image_mode は "auto"（おまかせ）、FAV、"single"（模型を 1 つ選んだ）"""
-    from chatdraw.aipanel import DEFAULT_PRESET
+    try:
+        from chatdraw.aipanel import DEFAULT_PRESET
+    except ImportError:   # 画面の部品の無い所（Actions の比べ）でも描けるように。値は aipanel.DEFAULT_PRESET と同じ
+        DEFAULT_PRESET = "標準"
     if image_mode in ("auto", FAV):
         return True
     return bool(preset and preset != DEFAULT_PRESET) or detailed(text)
