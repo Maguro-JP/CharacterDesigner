@@ -1083,6 +1083,7 @@ class Painter:
     def unload(self):
         """読んだ模型をメモリから降ろす。次に描くときに読み直す"""
         self._pipe = self._sketch = self._inpaint = None
+        self._img2img = self._img2img_of = None   # 描き重ねの部品も一緒に手放す
         self._ref = False
         self._lora_state = {}
         self.placed = None
@@ -1406,12 +1407,7 @@ class Painter:
             w, h = size
             total = steps
             pics = [p.convert("RGB").resize((w, h)) for p in (base, reference) if p is not None]
-            lead = []
-            if base is not None:
-                lead.append("Turn the first image, a rough sketch, into a finished illustration that keeps its pose and composition")
-            if reference is not None:
-                lead.append("Use the art style and colors of the " + ("second" if base is not None else "given") + " image")
-            args["prompt"] = ". ".join(lead + [args.get("prompt", prompt)])
+            # 渡す言葉は頼みの訳だけにする（下描きや参考画像の扱いを英語の文で足すと、頼んでいない言葉が模型に渡った）
             out = pipe(image=pics if len(pics) > 1 else pics[0], width=w, height=h, **args).images[0]
             if self.stop:
                 raise Stopped("止めました")
@@ -1513,6 +1509,46 @@ class Painter:
         scale = self.redraw_scale(image.size)
         self.lighten(self._inpaint, getattr(self, "redraw_plan", None))
         return hires_inpaint(image, mask, run, scale)
+
+    def refine(self, prompt: str, seed: int, image, strength: float = 0.5, on_step=None, on_preview=None):
+        """絵全体を土台にして描き重ねる（絵から絵）。線に沿う部品（T2I-Adapter）や範囲の直し（inpaint）の無い世代
+        （FLUX.1、SD3、Qwen-Image など）でも、工程に分けて描けるようにする。渡す言葉は頼みの訳だけ"""
+        return memory_retry(self, lambda: self._refine(prompt, seed, image, strength, on_step, on_preview), self._note)
+
+    def _refine(self, prompt, seed, image, strength, on_step, on_preview):
+        import torch
+        from chatdraw.models import family as fam, image_model
+        info = image_model(self.model)
+        f = fam(info.family)
+        pipe = self.load()
+        if getattr(self, "_img2img", None) is None or getattr(self, "_img2img_of", None) is not pipe:
+            from diffusers import AutoPipelineForImage2Image
+            self._img2img = AutoPipelineForImage2Image.from_pipe(pipe)   # 読んだ模型の部品をそのまま使う（読み直さない）
+            self._img2img_of = pipe
+        steps = max(self.steps, math.ceil(1 / strength)) if strength > 0 else self.steps
+        args = dict(prompt=english_only(prompt), num_inference_steps=steps, strength=strength,
+                    generator=torch.Generator("cpu").manual_seed(seed))
+        if f.negative:
+            args["negative_prompt"] = negative_for(info, self.avoid)
+            args["guidance_scale"] = self.guidance
+        from chatdraw import sent
+        sent.record("描き重ねる", args.get("prompt"), args.get("negative_prompt"))
+        total = max(1, int(steps * strength))
+
+        def step(p, i, _t, kw):
+            if self.stop:
+                p._interrupt = True
+            if on_step:
+                on_step(min(i + 1, total), total)
+            return kw
+        args["callback_on_step_end"] = step
+        base = image.convert("RGB")
+        out = self._img2img(image=base, width=base.width, height=base.height, **args).images[0]
+        if self.stop:
+            raise Stopped("止めました")
+        if on_preview is not None:
+            on_preview(out)
+        return out
 
     def redraw_scale(self, size, b=None):
         """直すときに絵全体を広げる倍率を、予算に収まる所まで下げる（1.5 → 1.25 → 1.0）。

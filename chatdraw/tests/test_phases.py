@@ -332,3 +332,22 @@ class PreviewTest(unittest.TestCase):
         with TemporaryDirectory() as d:
             phases.draw(Painter(), "red hair, 1girl", 1, (64, 64), Path(d), checks=checks(False)[0], on_preview=shown.append)
         self.assertGreaterEqual(len(shown), len(phases.PHASES))
+
+
+class NoSketchModelTest(unittest.TestCase):
+    """線に沿う部品も範囲の直しも無い世代（FLUX.1 など）でも、線画と塗りの工程を描き重ねで進める（前は構図の絵のまま止まっていた）"""
+
+    def test_refine_used_when_no_sketch(self):
+        class Dit(Painter):
+            abilities = (False, False)
+
+            def refine(self, prompt, seed, image, strength=0.5, on_step=None, on_preview=None):
+                self.log.append(("refine", seed, strength))
+                return image
+
+        with TemporaryDirectory() as d:
+            p = Dit()
+            C, _seen = checks(False)
+            got = phases.draw(p, "1girl, red scarf", 1, (64, 64), Path(d), checks=C)
+        self.assertEqual(len(got["phases"]), len(phases.PHASES))
+        self.assertTrue(any(x[0] == "refine" for x in p.log), p.log)

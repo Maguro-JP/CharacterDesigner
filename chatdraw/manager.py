@@ -304,8 +304,8 @@ class ModelManager(QDialog):
         """ボタン（名前と働き）。取っていなければ「取る」、取ってあれば「使う」、使っている物は「使用中」。削除は「…」の中"""
         if it is None:
             return "取る", (lambda _=False, m=m: self.fetch(m))
-        if self.settings.get("image_model") == key:
-            return "使用中", None
+        if self.settings.get("image_model") == key:   # 使用中でも消せる（消す前にメモリから降ろす）
+            return "使用中", None, "削除", (lambda _=False, it=it: self.ask_delete(it))
         return "使う", (lambda _=False, key=key, m=m: self.use(key, m)), "削除", (lambda _=False, it=it: self.ask_delete(it))
 
     def _more(self, m: ImageModel, actions: tuple) -> QMenu:
@@ -340,7 +340,7 @@ class ModelManager(QDialog):
             bool(mine and getattr(w, "drawing", lambda: False)()))
         add("メモリから降ろす", lambda m=m: self.unload(m), "読み込んだこの模型をメモリから降ろします。次に描くときに読み直します",
             bool(mine and w.studio.painter.loaded()))
-        if len(actions) > 2 and actions[3] is not None and not blocked:
+        if len(actions) > 2 and actions[3] is not None:   # 非表示・ブロックした模型も、表示に戻さずにそのまま消せる
             menu.addSeparator()
             menu.addAction(actions[2], actions[3])
         return menu
@@ -679,6 +679,10 @@ class ModelManager(QDialog):
         if ok != QMessageBox.Yes:
             return
         try:
+            w = self.parent()
+            painter = getattr(getattr(w, "studio", None), "painter", None)
+            if painter is not None and getattr(painter, "model", None) == getattr(it, "key", None) and hasattr(painter, "unload"):
+                painter.unload()   # 使用中の模型は、降ろしてから消す（読み込んだまま消すと、次に描くときに落ちる）
             delete(it)
             self.status.setText(f"{it.name} を消しました")
         except Exception as e:

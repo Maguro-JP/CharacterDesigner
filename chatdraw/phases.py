@@ -32,6 +32,7 @@ ROUGH_STEPS = 0.5     # 構図は工程の数を半分にして早く描く（�
 LINE_STRENGTH = 0.8   # 線画: 構図の線に沿う強さ（T2I-Adapter の効き）
 REPAINT = 0.35        # 塗りの直し: 描かれていない物を足すときの描き直しの強さ（形は線画のまま残す）
 WORDS_NOTE = "模型に渡す言葉: "   # この頭の知らせは会話に出さず、進み具合の欄の詳細にだけ置く（chatdraw/activity.py）
+REFINE = 0.6          # 線に沿う部品の無い世代の線画: 構図の絵を土台に描き重ねる強さ
 FIX = 0.55            # 線画・仕上げの直し: 崩れた所の枠の中だけを描き直す強さ
 
 
@@ -258,6 +259,12 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         tell(prompt)
         words.append(prompt)
         image = painter.paint(prompt, seed, on_step=on_step, base=image, strength=LINE_STRENGTH, size=size, **pv)
+    elif hasattr(painter, "refine"):
+        # 線に沿う部品の無い世代（FLUX.1、SD3、Qwen-Image など）も、構図の絵を土台に描き重ねて工程を進める
+        say(f"工程 3/{len(PHASES)}「線画」を描いています（構図の絵に描き重ねる）")
+        tell(prompt)
+        words.append(prompt)
+        image = painter.refine(prompt, seed, image, strength=REFINE, on_step=on_step, **pv)
     else:
         note = "この模型は線に沿って描けないので、構図の絵のまま形を検品しました"
         begin(2, f": {note}")
@@ -277,14 +284,16 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
     found = _color_flaws(req)
     fixed, after = False, []
     missing = list(req.get("missing", [])) if req.get("readable") else []
-    if missing and can_fix:
+    can_paint = can_fix or hasattr(painter, "refine")   # 範囲の直しが無い世代は、絵全体の描き重ねで描き足す
+    if missing and can_paint:
         stop()
         again_words = emphasize(prompt, missing)
         say(f"工程 4/{len(PHASES)}「塗り」: 描かれていない物（{'、'.join(missing)}）を 1 回だけ描き足しています")
         tell(again_words)
         words.append(again_words)
         from PIL import Image
-        tried = painter.redraw(again_words, seed + 131, image, Image.new("L", image.size, 255), strength=REPAINT)
+        tried = (painter.redraw(again_words, seed + 131, image, Image.new("L", image.size, 255), strength=REPAINT) if can_fix
+                 else painter.refine(again_words, seed + 131, image, strength=REPAINT, **pv))
         req2 = checks.request(tried, prompt)
         after = _color_flaws(req2)
         fixed = True
