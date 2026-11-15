@@ -64,8 +64,12 @@ def _vitpose():
     if _VITPOSE is None:
         from transformers import AutoProcessor, VitPoseForPoseEstimation
         from chatdraw.paths import HUB
-        _VITPOSE = (AutoProcessor.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True),
-                    VitPoseForPoseEstimation.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True).eval())
+        try:
+            _VITPOSE = (AutoProcessor.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True),
+                        VitPoseForPoseEstimation.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True).eval())
+        except OSError:   # 手元に無ければ取る（骨組みの絵を作る経路は、前から取りに行っていた）
+            _VITPOSE = (AutoProcessor.from_pretrained(POSE, cache_dir=str(HUB)),
+                        VitPoseForPoseEstimation.from_pretrained(POSE, cache_dir=str(HUB)).eval())
     return _VITPOSE
 
 
