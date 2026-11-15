@@ -1624,7 +1624,10 @@ class UsableTest(unittest.TestCase):
         d = QDialog(self.w)
         d.resize(400, area.height() * 4)   # 縦に長い窓
         d.show()
-        self.spin()
+        import time
+        end = time.time() + 5   # 窓を画面に収める処理は表示のあとの事象で動く。機械が重いと 0.6 秒では間に合わなかった
+        while not area.contains(d.frameGeometry()) and time.time() < end:
+            self.spin(0.1)
         self.assertTrue(area.contains(d.frameGeometry()), (area, d.frameGeometry()))
         d.close()
         dock = self.w.panels["layers"][0]
