@@ -199,3 +199,28 @@ CodeFormer（S-Lab License 1.0、商用不可）は配布に合わないので�
 - University of Washington, The Language of Film（寄り・引き、目の高さ・あおり・俯瞰・ダッチアングルの効果）: https://faculty.washington.edu/kgb/345/language.pdf
 - Oklahoma State University, Introduction to Film & TV: Cinematography（カメラの角度の定義）: https://open.library.okstate.edu/introfilmtv/part/cinematography/
 - Eastern Arizona College, Film and Media Studies: Camera Angles（俯瞰は弱く、あおりは強く、傾きは不安）: https://eac.libguides.com/c.php?g=723550&p=5287250
+
+## 画風の加工（`docs/knowledge/restyle-styles.md`、`chatdraw/restyle.py`、2026-11-14）
+
+- Hugging Face Diffusers, Image-to-image（strength が低いほど元の絵を残す。0.5 なら後ろ半分の工程だけを回す）: https://huggingface.co/docs/diffusers/v0.31.0/en/using-diffusers/img2img
+- ComfyUI の ControlNet の手引き（img2img と ControlNet を組む。構図を保って画風を変えるときの強さの幅）: https://www.mintlify.com/Comfy-Org/ComfyUI/guides/controlnet
+- NovelAI Documentation, Prompting for Unique Artstyles（traditional media と graphite・colored pencil・marker・ink・watercolor の (medium) の組、3d・blender (medium)、pixel art と dithering、monochrome のときは色の語を外す）: https://docs.novelai.net/en/image/tutorial-artstyles
+- nerijs/pixel-art-xl の模型の札（CreativeML OpenRAIL-M。8 分の 1 に最近傍で縮めると格子がそろう）: https://huggingface.co/nerijs/pixel-art-xl
+
+## リボンの道具の系統（`docs/knowledge/ribbon-families.md`、2026-11-14）
+
+- Adobe「Photoshop tools, options, and task bars」 https://helpx.adobe.com/photoshop/using/using-tools.html （三角の付いた道具は押し続けると隠れた道具が出る）
+- Photoshop Essentials「Photoshop Tools and Toolbar Overview」 https://www.photoshopessentials.com/basics/photoshop-tools-toolbar-overview/ （関係する道具を 1 か所にまとめ、最後に選んだ道具を出す）
+
+## 映り込みの矛盾の検品（`docs/knowledge/mirror-check.md`、2026-11-14）
+
+- G. Loy, J.-O. Eklundh「Detecting Symmetry and Symmetric Constellations of Features」ECCV 2006（反転した記述との突き合わせと軸への投票）
+- SmilingWolf/wd-vit-tagger-v3 のタグ一覧（mirror、reflection、reflective water、reflective floor）
+
+## 人の描き方の工程（`docs/knowledge/drawing-phases.md`、`chatdraw/phases.py`、2026-11-14）
+
+- CLIP STUDIO PAINT の講座、イラストメイキング（下描きで構図・形・シルエットを決め、反転して釣り合いを見る。線画は外を太く内を細く、縮めて見直す。下塗りは塗り残しを見る。影は縮めて全体を見る。最後に色調を整える）: https://www.clipstudio.net/oekaki/archives/153260
+- CLIP STUDIO PAINT の講座、人物の本体（肌・髪・目）を塗る（下塗りのあとに部位ごとに塗る）: https://www.clipstudio.net/oekaki/archives/151587
+- 技術評論社、CLIP STUDIO PAINT の解説の見本（アタリ・下描き → 線画 → 下塗り → 影 → 仕上げの順）: https://gihyo.jp/assets/files/book/2023/978-4-297-13561-4/9784297135614-01.pdf
+- 京都府、コンテンツを学ぶ「勝手読書会」第2回: アニメ制作（絵コンテ → レイアウト → 原画 → 作画監督の修正 → 動画 → 仕上げ）: https://www.pref.kyoto.jp/sangyo-sien/mediastudy002.html
+- 厚生労働省の資料（アニメの制作の工程: 動画 → スキャン → 彩色 → 仕上げ検査）: https://www.mhlw.go.jp/content/11901000/001152417.pdf

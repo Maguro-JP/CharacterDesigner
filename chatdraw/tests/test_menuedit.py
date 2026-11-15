@@ -185,6 +185,8 @@ class SharedActionTest(unittest.TestCase):
             try:
                 from PySide6.QtWidgets import QToolButton
                 ribbon = {b.defaultAction() for b in w.ribbon.findChildren(QToolButton) if b.defaultAction()}
+                # 同じ系統の物は 1 つのボタンの▼の中にまとめた（chatdraw/ribbon.py の Family）。▼の中の物もリボンにある物として見る
+                ribbon |= {a for b in w.ribbon.findChildren(QToolButton) if b.menu() for a in b.menu().actions()}
                 menus = {a for m in w.menus_editor.top_menus().values() for a in m.actions()}
                 for k in ("new", "open", "save", "undo", "redo", "select_all", "deselect", "fit", "actual", "rotate_right", "tour"):
                     self.assertIn(w.shared[k], ribbon, k)

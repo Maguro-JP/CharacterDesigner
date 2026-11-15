@@ -277,6 +277,12 @@ def check(image, prompt: str = "", tags: dict | None = None) -> dict:
             tg = _tagger(False)
         got = tags if tags is not None else tg.read(src)
         res["bad"] += from_tags(got, prompt)
+        # 鏡・水面の映り込みと元の物の食い違い（同じタグを使い回す。映り込みのタグが無い絵では何もしない）
+        try:
+            from chatdraw import mirrorcheck
+            res["mirror"] = mirrorcheck.check(im, got)
+        except Exception as e:   # noqa: BLE001
+            res["mirror"] = {"flaws": [], "reason": f"映り込みを比べられませんでした（{type(e).__name__}: {e}）"}
     except Exception as e:
         tg, got = None, {}
         res["why"].append(f"タグ: {type(e).__name__}: {e}")

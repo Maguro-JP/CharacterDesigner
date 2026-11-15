@@ -383,6 +383,14 @@ class ModelFreeTest(Base):
 
 
 class ModelTest(Base):
+    def fresh_open(self):
+        """作業を残さずに開き直す（同じ絵を開くと残した作業が戻る決まりなので、毎回まっさらの絵から見る）"""
+        from chatdraw import workkeep
+        self.w.work_key = None
+        self.w.__dict__.pop("_work_mem", None)
+        workkeep.remove(str(self.src))
+        self.w.edit_image(str(self.src))
+
     def test_redraw_finishers_with_fake_model(self):
         for sid in ("fin:refine",):
             with self.subTest(sid=sid):
@@ -397,7 +405,7 @@ class ModelTest(Base):
     def test_grow_items(self):
         for sid, size in (("grow:lr", (96 + 256, 128)), ("grow:tb", (96, 128 + 256)), ("grow:all", (96 + 256, 128 + 256))):
             with self.subTest(sid=sid):
-                self.w.edit_image(str(self.src))
+                self.fresh_open()
                 self.press(sid)
                 self.assertEqual(self.w.canvas.size_px(), size)
 
@@ -419,7 +427,7 @@ class ModelTest(Base):
                 mock.patch.object(upscale, "upscale", side_effect=fake), mock.patch.object(upscale, "ready", return_value=True):
             self.press("fin:upscale_anime")
             self.assertEqual(self.w.canvas.size_px(), (192, 256))
-            self.w.edit_image(str(self.src))
+            self.fresh_open()
             self.w.canvas.undo_stack.clear()   # 拡大の前の「保存しますか」を出さない
             self.press("app:upscale2x")
             self.assertEqual(self.w.canvas.size_px(), (192, 256))

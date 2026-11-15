@@ -45,6 +45,12 @@ class ActivityPanel(QWidget):
             lb.setObjectName("step")
             self.step_labels.append(lb)
             self.steps.addWidget(lb)
+        # 担当編集者の工程と状態（chatdraw/director.py の「担当編集者: 〜」の知らせ）。どの工程で何回目かを出す
+        self.editor = QLabel("")
+        self.editor.setObjectName("stateDetail")
+        self.editor.setWordWrap(True)
+        self.editor.setToolTip("担当編集者が進めている工程と、検品で見つけたこと")
+        self.editor_log: list[str] = []
         self.bar = QProgressBar()
         self.bar.setTextVisible(False)
         self.bar.setFixedHeight(10)
@@ -81,6 +87,7 @@ class ActivityPanel(QWidget):
         top.addLayout(self.steps)
         top.addWidget(self.bar)
         top.addWidget(self.detail)
+        top.addWidget(self.editor)
         top.addWidget(self.alive)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(8, 6, 8, 8)
@@ -126,7 +133,21 @@ class ActivityPanel(QWidget):
             lb.style().unpolish(lb)
             lb.style().polish(lb)
 
+    def set_sheet(self, i: int, n: int):
+        """何枚目を描いているか（i/n）。進みのポップアップの見出しに出す"""
+        self.sheet = (max(1, int(i)), max(1, int(n)))
+
+    def eta(self) -> str:
+        """残りの見込み。描画の工程の速さから出す。まだ測れないときは空"""
+        if self.started is None or self.stage != 3 or getattr(self, "steps_done", 0) < 1 or not getattr(self, "step_started", None):
+            return ""
+        per = (time.time() - self.step_started) / self.steps_done
+        i, n = getattr(self, "sheet", (1, 1))
+        left = per * (self.steps_total - self.steps_done) + per * self.steps_total * (n - i)   # 残りの枚の分も足す
+        return "残り約 " + fmt(left)
+
     def begin(self, text: str, mode: str):
+        self.sheet = (1, 1)
         self.started = time.time()
         self.text, self.mode = text, mode
         self.state.setText("準備中")
@@ -136,10 +157,20 @@ class ActivityPanel(QWidget):
         self.last_step = time.time()
         self.tick.start()
         self._show_time()
+        self.editor_log = []
+        self.editor.setText("")
         self.begun.emit()
         self.changed.emit(f"{mode}: 準備中", -1)
 
     def status(self, msg: str, step: int | None = None, total: int | None = None):
+        import re
+        m = re.match(r"(\d+)/(\d+) 枚目", msg)
+        if m:
+            self.set_sheet(int(m.group(1)), int(m.group(2)))
+        if msg.startswith("担当編集者:"):
+            self.editor_log.append(msg)
+            self.editor.setText(msg)
+            self.editor.setToolTip("\n".join(self.editor_log[-12:]))
         for i, (_short, head) in enumerate(STAGES):
             if msg.startswith(head) and i != self.stage:
                 self._mark(i)

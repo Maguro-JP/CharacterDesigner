@@ -6,13 +6,13 @@ on:
   workflow_dispatch:
     inputs:
       kinds:
-        description: 掛ける画風（空白で区切る。空なら 5 つ全部）
-        default: "anime"
+        description: 掛ける画風（JSON の並び。空なら全部）
+        default: ""
       side:
         description: 描く大きさの長い辺
         default: "768"
   push:
-    branches: ["claude/FIX-fixfx-*"]
+    branches: ["claude/FIX-fixfx-*", "claude/FIX-restyle-*"]
     paths:
       - "chatdraw/restyle.py"
       - "chatdraw/restyle_verify.py"
@@ -21,6 +21,11 @@ permissions:
   contents: read
 jobs:
   verify:
+    # 画風ごとに別の機械で並べて流す（13 を 1 台で続けると CPU で時間内に終わらない）
+    strategy:
+      fail-fast: false
+      matrix:
+        kind: ${{ fromJSON(inputs.kinds || '["anime","thick","watercolor","lineart","cel","pencil","colored_pencil","sumie","gouache","marker","manga","figure","pixel"]') }}
     runs-on: ubuntu-latest
     timeout-minutes: 300
     env:
@@ -29,7 +34,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: 置き場を空ける
-        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1; free -g
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1
+      # 絵の模型と Union を CPU で並べて置くと 16GB を超えて落ちた（終了コード 137、機械との通信が切れる）。足りない分をスワップで受ける
+      - name: スワップを足す
+        run: sudo swapoff -a; sudo fallocate -l 24G /swapfile2 && sudo chmod 600 /swapfile2 && sudo mkswap /swapfile2 && sudo swapon /swapfile2; free -g
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
@@ -41,10 +49,10 @@ jobs:
         env:
           CD_HOME: ${{ runner.temp }}/cd
           LLM_HOME: ${{ runner.temp }}/llm
-        run: python -u -m chatdraw.restyle_verify library/daily/2026-10-13/05-yukionna.png out ${{ inputs.kinds || 'anime' }}
+        run: python -u -m chatdraw.restyle_verify library/daily/2026-10-13/05-yukionna.png out ${{ matrix.kind }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: restyle-verify
+          name: restyle-verify-${{ matrix.kind }}
           path: out
           retention-days: 7

@@ -230,6 +230,11 @@ class ChatPanel(QWidget):
         b.remember = remember
         self.list.insertWidget(self.list.indexOf(self.typing), b, 0, Qt.AlignRight if who == "user" else Qt.AlignLeft)
         self._fit(b)
+        # 画面の吹き出しも KEEP までにする。保存は KEEP までなのに画面には溜まり続け、長く使うと部品が増え、足すたびの保存も遅くなった
+        for old in self.bubbles()[:-KEEP]:
+            self.list.removeWidget(old)
+            old.hide()
+            old.deleteLater()
         if remember:
             self.turns.append((who, text))
             del self.turns[:-20]

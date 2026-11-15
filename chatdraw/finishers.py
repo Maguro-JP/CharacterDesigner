@@ -76,24 +76,92 @@ def _tidy_apply(image):
     return _clean_apply(_retouch(RETOUCH_SAFE)(image))
 
 
-DETAIL_SIGMA = 1.6    # 足す細部の細かさ（ぼかしの幅、画素）
-DETAIL_AMOUNT = 0.7   # 細部の明暗を何倍足すか
-DETAIL_CAP = 18.0     # 1 画素で変えてよい明るさの上限（0〜255）。形と色を変えないように
+# ディテール追加。前の作りは、もともと細部のある所の明るさの起伏を 0.7 倍足すだけで（1 画素 18 まで）、そのあと
+# 検品の混ぜ直し（SSIM 0.985 の下限）でさらに薄まった。測ると 1024 角の絵で変わった画素 4.6%、平均の差 0.20、
+# 細かさ（明るさの細かい起伏の平均）1.71 → 1.79 で、目で見て何も変わらなかった。境目に色を重ねただけで、細部は増えていない。
+# 今の作りは、細部を「描き足す」:
+#   （模型で描き直した細かい成分を足す作りは、頼んでいない言葉を模型に渡すので入れない）
+#   1. 髪の毛先・布のしわ: 明るさの谷（しわ・毛の分かれ目）を暗く、峰（毛束の光）を明るく、2 つの細かさで立てる
+#   2. 光沢: 周りより明るい小さな所を白に寄せる（髪の天使の輪、金物の光）
+#   3. 目のハイライト: 顔の枠の目の帯にある暗い塊（瞳）の上側に、白い点が無ければ小さな白い点を描く
+# 足した分は明るさだけ（色相を変えない）で、主線そのものには足さない。検品は崩れ（guard）と目・髪の色（facefeat）だけで見る。
+# SSIM の混ぜ直しは細部が増えるほど落とす物なので、ディテール追加には掛けない
+DETAIL_FINE, DETAIL_MID = 1.0, 2.6     # 立てる細部の細かさ（ぼかしの幅、画素）
+DETAIL_AMOUNT = (1.6, 0.9)              # 細かい方・中くらいの方を何倍立てるか
+DETAIL_CAP = 42.0                       # 1 画素で変えてよい明るさの上限（0〜255）
+DETAIL_EDGE = 18.0                      # これより明暗の差が大きい所は境目として触らない
+DETAIL_SHINE = 0.45                     # 光沢の所を白にどれだけ寄せるか
+LAST_DETAIL: dict = {}
+
+
+def _eye_highlights(image, L):
+    """目の帯の暗い塊（瞳）の上側に、白い点が無ければ小さな白い点の明るさの足し分を返す（無ければ 0 の配列）"""
+    import numpy as np
+    add = np.zeros_like(L)
+    try:
+        from scipy.ndimage import label, find_objects
+        from chatdraw import handcheck
+        box = (handcheck._face(image, "") or {}).get("box")
+    except Exception:
+        return add, 0
+    if not box:
+        return add, 0
+    x0, y0, x1, y1 = (int(v) for v in box)
+    fh = max(1, y1 - y0)
+    ya, yb = y0 + int(fh * 0.25), y0 + int(fh * 0.7)
+    band = L[ya:yb, x0:x1]
+    if band.size == 0:
+        return add, 0
+    lab, n = label(band < 70)
+    drawn = 0
+    fw = max(1, x1 - x0)
+    for i, sl in enumerate(find_objects(lab), 1):
+        h, w = sl[0].stop - sl[0].start, sl[1].stop - sl[1].start
+        if not (fw * 0.06 <= w <= fw * 0.35 and fh * 0.05 <= h <= fh * 0.35):
+            continue   # 瞳の大きさでない（細い線、髪の塊）
+        if (lab[sl] == i).mean() < 0.35:
+            continue
+        if band[sl].max() > 225:
+            continue   # もう白い点がある
+        cy = ya + sl[0].start + max(1, h // 3)
+        cx = x0 + sl[1].start + max(1, w // 3)
+        r = max(1.0, min(w, h) * 0.16)
+        yy, xx = np.ogrid[:L.shape[0], :L.shape[1]]
+        dot = np.clip(1.6 - np.sqrt(((yy - cy) / r) ** 2 + ((xx - cx) / r) ** 2), 0, 1)
+        add = np.maximum(add, dot * (250 - L))
+        drawn += 1
+    return add, drawn
 
 
 def _detail_apply(image):
-    """ディテール追加: 明るさの細かい起伏（髪の毛の流れ、布のしわ、質感）だけを強める。色は変えず（明るさに足した分を
-    RGB に同じだけ足す）、主線とその周り・平らな塗りには足さない（線が太り、平らな所にざらつきが出るので）"""
+    """ディテール追加: 髪の毛先・布のしわ・光沢・目のハイライトを描き足す。形と色相は元の絵のまま、明るさだけを足す"""
     import numpy as np
     from PIL import Image
     from scipy.ndimage import binary_dilation, gaussian_filter
     a = np.asarray(image.convert("RGB"), np.float32)
     L = a @ np.float32([0.299, 0.587, 0.114])
-    hi = L - gaussian_filter(L, DETAIL_SIGMA)
-    texture = gaussian_filter(np.abs(hi), 3) > 1.5        # もともと細部のある所だけ
-    line = binary_dilation(_gen("cleanup").line_mask(a), iterations=2)
-    add = np.clip(DETAIL_AMOUNT * hi, -DETAIL_CAP, DETAIL_CAP) * (texture & ~line)
-    return Image.fromarray(np.clip(a + add[..., None] + 0.5, 0, 255).astype("uint8"))
+    fine = L - gaussian_filter(L, DETAIL_FINE)
+    mid = gaussian_filter(L, DETAIL_FINE) - gaussian_filter(L, DETAIL_MID)
+    add = DETAIL_AMOUNT[0] * fine + DETAIL_AMOUNT[1] * mid
+    LAST_DETAIL.clear()
+    flat = gaussian_filter(np.abs(fine) + np.abs(mid), 2) < 1.0      # 平らな所（背景のぼかし）にはざらつきを足さない
+    line = _gen("cleanup").line_mask(a)
+    # 強い境目（人物の輪郭、服と肌の境）には足さない。足すと輪郭の外に白い縁（光輪）が出た（狐の巫女の全身で目で見た）
+    # 境目の近くでは明るくする向きを止め、暗くする向きだけ残す（しわ・毛の分かれ目は暗い側なので残る）
+    edge = binary_dilation(gaussian_filter(np.abs(L - gaussian_filter(L, 3.0)), 1.0) > DETAIL_EDGE, iterations=2)
+    keep = binary_dilation(line, iterations=1)
+    add = np.clip(add, -DETAIL_CAP, DETAIL_CAP) * ~(flat | keep)
+    add = np.where(edge, np.minimum(add, 0), add)
+    keep = keep | edge
+    # 光沢: 周りより明るい小さな所を白へ寄せる
+    peak = (L - gaussian_filter(L, 4.0)) > 10
+    peak &= L > 150
+    add += np.where(peak & ~keep, DETAIL_SHINE * (255 - L), 0)
+    eye, n_eye = _eye_highlights(image, L)
+    add = np.maximum(add, eye) if n_eye else add
+    LAST_DETAIL["eye_highlights"] = n_eye
+    out = a + add[..., None]
+    return Image.fromarray(np.clip(out + 0.5, 0, 255).astype("uint8"))
 
 
 CLEAN_STRUCT = 16.0   # 塗りのむらを均すとき、これより変わる画素は細い線・模様（形）として触らない（0〜255）
@@ -136,8 +204,30 @@ def _redraw_with(prompt: str, strength: float):
         from PIL import Image
         painter = _PAINTER[0]
         m = mask if mask is not None else Image.new("L", image.size, 255)
-        return painter.redraw(prompt, 0, image, m, strength=strength)   # engine の既存の直しを呼ぶだけ
+        # 元の絵の言葉を後ろに足す。仕上げの語だけで描き直すと、模型は何の絵かを知らずに描き替えた。
+        # 種は押すたびに変える（0 に固定していて、何回押しても同じ結果だった）
+        return painter.redraw(with_source(prompt), fresh_seed(), image, m, strength=strength)
     return run
+
+
+_SOURCE: list = [""]
+
+
+def use_source(prompt: str):
+    """加工する絵を描いたときの言葉（記録の prompt。人が描いた絵なら空）。模型を使う加工が、仕上げの語の後ろに足す"""
+    _SOURCE[0] = prompt or ""
+
+
+def with_source(prompt: str) -> str:
+    """加工の語（前）＋ 元の絵の言葉（後ろ、重なる語は 1 度だけ）"""
+    from chatdraw.jaterms import merge
+    src = [t.strip() for t in (_SOURCE[0] or "").split(",") if t.strip()]
+    return merge(prompt, src) if src else prompt
+
+
+def fresh_seed() -> int:
+    import random
+    return random.randrange(0, 2_000_000_000)
 
 
 _PAINTER: list = [None]
@@ -159,8 +249,9 @@ register(Finisher(
     "clean", "塗りのむらを均す", "線はそのままに、平らな所の細かいざらつきだけを均します（模型は使いません）",
     "このリポジトリのコード", "chatdraw/finishers.py", lambda: True, lambda: "", _clean_apply, extra=dict(scale="tile")))
 register(Finisher(
-    "upscale_anime", "アニメ向けに 2 倍に拡大",
-    "Real-ESRGAN のアニメ絵用の重みで 2 倍にします。囲んだときは、囲みの中だけ拡大で整えた画素に替えます。"
+    "upscale_anime", "1 枚にして 2 倍に拡大（アニメ向け）",
+    "1 枚にまとめた今の絵を縦横 2 倍にし、キャンバスを置き換えます（元に戻すで戻せます）。"
+    "囲んだときは囲みの中だけ拡大で整えた画素に替えます。目安: 512×768 の絵で CPU なら 30 秒ほど。"
     "初めて使うときに重み（2.4MB）を取ります",
     "BSD-3-Clause", "https://github.com/xinntao/Real-ESRGAN（realesr-animevideov3、取れないときは RealESRGAN_x4plus_anime_6B）",
     lambda: _upscale_ready(), lambda: _upscale_why(), lambda im: _upscale_apply(im), heavy=True, group="enlarge"))   # 名前で引く（差し替えられるように）
@@ -180,8 +271,8 @@ register(Finisher(
     lambda: _own_why("retouch", "numpy", "scipy")(), lambda im: _tidy_apply(im), extra=dict(scale="tile", needs_mask=True)))
 register(Finisher(
     "detail", "ディテール追加",
-    "元の形と色を保ったまま、髪の毛の流れ・布のしわ・小物の質感の細かい明暗を立てます。顔と主線は変えません。"
-    "結果は一番上の新しいレイヤーに置きます",
+    "元の形と色を保ったまま、髪の毛先・服のしわ・光沢・目のハイライトを描き足します。絵の模型があれば、模型が描いた細部も足します。"
+    "主線は変えません。結果は一番上の新しいレイヤーに置きます",
     "このリポジトリのコード", "chatdraw/finishers.py", lambda: _own_ready("cleanup", "numpy", "scipy")(),
     lambda: _own_why("cleanup", "numpy", "scipy")(), lambda im: _detail_apply(im), extra=dict(scale="tile", effect=True),
     group="detail"))
@@ -196,6 +287,8 @@ register(Finisher(
 def _restyle_ready() -> bool:
     if not _redraw_ready():
         return False
+    if not callable(getattr(_PAINTER[0], "load", None)):
+        return False   # 画風は描き手の読んだ模型の部品（load）から img2img の道を組む。組めない描き手では押しても落ちるだけ
     try:
         import diffusers  # noqa: F401
     except ImportError:
@@ -206,13 +299,13 @@ def _restyle_ready() -> bool:
 def _restyle_with(kind: str):
     def run(image, mask=None):
         from chatdraw import restyle
-        return restyle.restyle(_PAINTER[0], image, kind)
+        return restyle.restyle(_PAINTER[0], image, kind, seed=fresh_seed(), source=_SOURCE[0])
     return run
 
 
 def _register_styles():
     from chatdraw.restyle import STYLES
-    for kind, label, tip, _prompt, strength in STYLES:
+    for kind, label, tip, _prompt, strength, *_ in STYLES:
         register(Finisher(
             f"style_{kind}", label,
             tip + f"。元の線を ControlNet で保ち、低い強さ（{strength}）で描き替えるので、形と構図は変えません。"
@@ -425,9 +518,11 @@ def _material(kind: str):
 _OWN = "このリポジトリのコード"
 register(Finisher(
     "retouch", "線と塗りを整える",
-    "線の縁の紫・緑の色のにじみを消します。形と色は変えません。数字が良くなった時だけ掛けます",
+    "線の縁の紫・緑の色のにじみを消し、平らな塗りの細かいざらつきを均します。形と色は変えません。"
+    "線の工程は数字が良くなった時だけ掛けます",
     _OWN, "tools/gen/retouch.py", _own_ready("retouch", "numpy", "scipy"), _own_why("retouch", "numpy", "scipy"),
-    _retouch(RETOUCH_SAFE), extra=dict(needs=("numpy", "scipy"), scale="retouch", steps=RETOUCH_SAFE)))
+    # 線の工程（にじみ消し）だけでは、にじみの無い絵で 1 画素も変わらず、押しても何も起きないように見えた。塗りのむらも均す
+    lambda im: _clean_apply(_retouch(RETOUCH_SAFE)(im)), extra=dict(needs=("numpy", "scipy"), scale="retouch", steps=RETOUCH_SAFE, clean=True)))
 register(Finisher(
     "retouch_full", "ジャギーも取る",
     "線と塗りを整えたうえで、線の階段も直します。顔の細い線に掛かることがあるので、囲んで使うと安心です",
@@ -657,6 +752,7 @@ def _mask_box(mask, size):
 QC_CELL = 32
 QC_LOCAL = 28.0     # 区画の平均の色の、説明できない変わりの上限（0〜255）。retouch.LOCAL（14）は工程 1 つ分の上限なので倍にした
 QC_LINE = 0.5       # 区画の主線のうち、消えてよい割合
+QC_LIFT = 12.0      # 主線の画素が、これより明るくなったときだけ消えたと数える（0〜255）
 QC_LINE_MIN = 24    # 主線がこれだけ（画素）ある区画だけ線の消えを見る
 QC_REJECT = 0.25    # 戻す区画がこの割合を超えたら、加工を採らない
 QC_GROUPS = {"clean", "enlarge", "detail"}   # 模型の描き直し（redraw）は描き替えるのが仕事で、色の変わりで測ると正しい直しも落とすので、まだ入れない
@@ -683,10 +779,12 @@ def breakage(a, b):
         res.append(np.abs((y - (k * x + c0)).reshape(shp).mean((1, 3))))
     color = np.max(res, 0) > QC_LOCAL
     w = np.float32([0.299, 0.587, 0.114])
-    la = (a[:H, :W] @ w) < 90
-    lb = (b[:H, :W] @ w) < 90
+    ya, yb = a[:H, :W] @ w, b[:H, :W] @ w
+    la = ya < 90
+    # 消えた線は、明るさ 90 を越えただけでなく QC_LIFT より明るくなった画素だけを数える。暗い平らな塗り（明るさ 88〜90）が
+    # 塗りのむらを均す 6 の揺れで 90 を越えただけで、線が消えたと数え、外套の暗い地の 14 区画を元に戻していた
+    lost = (la & (yb >= 90) & (yb - ya > QC_LIFT)).reshape(shp).sum((1, 3))
     have = la.reshape(shp).sum((1, 3))
-    lost = (la & ~lb).reshape(shp).sum((1, 3))
     line = (have >= QC_LINE_MIN) & (lost > QC_LINE * np.maximum(have, 1))
     return color | line, dict(color=int(color.sum()), line=int(line.sum()))
 
@@ -900,6 +998,20 @@ HAND_RATIO = 0.05   # 指の長さの比（手のひらに対する親指〜小�
 FINGERS = ("palm", "thumb", "index", "ring", "pinky")
 
 
+_HANDS: dict = {}   # 縮めた絵の指紋 → 手の枠。組み合わせの次の工程（形を変えない）で手を探し直さない
+
+
+def _hand_boxes(handcheck, hands, src):
+    import hashlib
+    from PIL import Image
+    key = hashlib.md5(src.convert("RGB").resize((64, 64), Image.BOX).point(lambda v: v // 16).tobytes()).hexdigest()
+    if key not in _HANDS:
+        if len(_HANDS) > 16:
+            _HANDS.clear()
+        _HANDS[key] = handcheck.find_hands(hands, src)
+    return _HANDS[key]
+
+
 def hand_guard(src, out):
     """手を別々に検品する。元の絵の手を MediaPipe の手の点で見つけ、綺麗にしたあとの同じ枠で測り直す。
     指の数・指の長さの比・関節の向き（手らしさの枠の角度）が変わった手、どちらかで読めない手は崩れとして、
@@ -911,7 +1023,7 @@ def hand_guard(src, out):
         hands._litert()
         if not handcheck.ensure_models(fetch=False):
             return out, dict(hands_measured=False)
-        boxes = handcheck.find_hands(hands, src)
+        boxes = _hand_boxes(handcheck, hands, src)
     except Exception:
         return out, dict(hands_measured=False)
     o = out.copy()
@@ -959,7 +1071,7 @@ def face_box_keep(image):
         return None
 
 
-def soften(src, out, mask=None, face=_NO_FACE):
+def soften(src, out, mask=None, face=_NO_FACE, mixback=True):
     """綺麗にした絵を、顔を元のまま残し、前と後の差が基準を外れたら変えた分を減らして混ぜ直す。返りは (絵, 検品)。
     face を渡せば部位分けを測り直さない（組み合わせで工程ごとに測ると、同じ顔を工程の数だけ測った）"""
     from PIL import Image
@@ -978,6 +1090,13 @@ def soften(src, out, mask=None, face=_NO_FACE):
     limited.update(hand)
     q = dict(face=face is not None, **scores(s, o), mix=1.0, **limited)
     tried = o
+    # ディテール追加は細かい明暗を立てるのが仕事で、SSIM は必ず下がる。SSIM で混ぜ戻すと足した分が半分以下になり
+    # （見本で変わりの平均 2.0 → 0.79）、効いていないように見えた。主線の重なりだけで見る
+    if not mixback:
+        if q["line"] >= VERIFY_LINE:
+            return o, q
+        q["failed"] = True
+        return s, q
     for k in VERIFY_STEPS:
         if (q["ssim"] is None or q["ssim"] >= VERIFY_SSIM) and q["line"] >= VERIFY_LINE:
             return tried, q
@@ -1010,6 +1129,9 @@ def qc_note(q: dict | None = None) -> str:
         note += "顔を守る印は、部位分けの模型が無いか顔が見つからないので使っていません。"
     from chatdraw import facefeat
     note += facefeat.note(q.get("features") or {}, q.get("label", "加工"))
+    whole = q.get("whole") or {}
+    if whole.get("left"):   # 全体の確かめで見つけた崩れは知らせる（直すかどうかは利用者が決める）
+        note += whole["note"] + "。"
     return note
 
 
@@ -1036,6 +1158,8 @@ def run(name: str, image, mask=None, say=None, face=_NO_FACE):
         out = tiled(f.apply, src, box, say, f.label)
     elif big and mode == "retouch":
         out = _retouch_big(f.extra["steps"], src, box, say, f.label)
+        if f.extra.get("clean"):
+            out = tiled(_clean_apply, out, box, say, f.label)
     elif mode == "work":
         out = at_work_size(f.apply, src, say, f.label)
     else:
@@ -1043,18 +1167,55 @@ def run(name: str, image, mask=None, say=None, face=_NO_FACE):
     out = out if mask is None else keep_outside(src, out, mask)
     _MEMO.clear()   # 大きな絵の配列を持ち続けない
     out = guard(name, src, out, mask)
-    if f.group in ("clean", "detail") and out.size == src.size and not LAST_QC.get("rejected"):
+    if f.group == "clean" and out.size == src.size and not LAST_QC.get("rejected"):   # ディテール追加には掛けない（上の DETAIL の説明）
         out, v = soften(src, out, mask, face)
         LAST_QC["verify"] = v
         if v.get("failed"):
             LAST_QC["rejected"] = True
+    if f.group in FACE_HOLD_GROUPS and out.size == src.size:
+        out = hold_face(src, out, face)
     if f.group in KEEP_GROUPS and out.size == src.size and not LAST_QC.get("rejected"):
         from chatdraw import facefeat
         out, fr = facefeat.keep(src, out, mask)
         LAST_QC.setdefault("name", name)
         LAST_QC.setdefault("label", f.label)
         LAST_QC["features"] = fr
+    if f.group == "detail" and out.size == src.size and not LAST_QC.get("rejected"):
+        # 守りの工程（soften の混ぜ戻し、区画の戻し）の継ぎ目にも粒と出っ張りが出来た（ディテール追加で崩れ +30）。
+        # 最後に、元の絵に無かった崩れの画素だけを元の画素に戻す（元の画素に戻すだけなので、囲みの外は変わらない）
+        import numpy as np
+        from PIL import Image
+        out = Image.fromarray(repair(np.asarray(src), np.asarray(out.convert("RGB"))))
+    # 最後に絵の全体を 1 回だけ測って知らせる（境目・囲みの外・作画監督。chatdraw/seamfix.whole_check）。絵は変えず、繰り返しに繋げない
+    # 囲みの無い加工（絵全体）には境目も囲みの外も無いので測らない（832×1216 で 3 秒ほどかかる）
+    if mask is not None and getattr(out, "mode", "") == "RGB" and out.size == src.size and not LAST_QC.get("rejected"):
+        from chatdraw import seamfix
+        LAST_QC["whole"] = seamfix.whole_check(src, out, mask)
     return out
+
+
+# 細部・質感・空気感を足す加工は、顔（目・眉・口）の画素を元のまま残す。facefeat.keep は加工のあとの目を元の絵の部位分けで
+# 測るので差が小さく出て（ディテールで 2.1）戻さなかったが、加工のあとの絵を部位分けし直して測ると目の色が 80〜96 動いていた
+# （顔の縁の明暗が変わり、部位分けの顔の形がずれる）。顔の中を初めから変えなければ、どちらで測っても目は動かない
+FACE_HOLD_GROUPS = {"detail", "texture", "air"}
+FACE_HOLD_GROW = 0.1   # 顔の囲みをこの割合だけ広げて残す（部位分けの顔の縁が加工の前と後でずれても、目の帯が外に出ないように）
+
+
+def hold_face(src, out, face=_NO_FACE):
+    """out の顔（部位分けの顔を少し広げた所）を src の画素に戻す。部位分けが使えないときは out のまま"""
+    from PIL import Image
+    m = face_keep(src) if face is _NO_FACE else face
+    if m is None:
+        return out
+    from PIL import ImageDraw
+    m = m.resize(src.size, Image.BILINEAR).point(lambda v: 255 if v >= 8 else 0)   # ぼかした縁の薄い所まで元に戻す
+    box = m.getbbox()
+    if box is not None:
+        # 目の色は顔の囲みの帯の中で測る（facefeat.features）。顔の形の外でも囲みの中の画素は目に数えるので、囲みごと残す
+        x0, y0, x1, y1 = box
+        g = round(max(x1 - x0, y1 - y0) * FACE_HOLD_GROW)
+        ImageDraw.Draw(m).rectangle((x0 - g, y0 - g, x1 + g, y1 + g), fill=255)
+    return Image.composite(src.convert("RGB"), out.convert("RGB"), m)
 
 
 LAST_CHAIN: list = []   # 直前の組み合わせの、工程ごとの検品の結果
@@ -1068,14 +1229,41 @@ def run_chain(names, image, mask=None, say=None):
             raise KeyError(n)
     LAST_CHAIN.clear()
     out = image.convert("RGB")
-    face = face_keep(out) if any(REGISTRY[n].group == "clean" for n in names) else None
+    # 顔の印は綺麗にする工程（soften）と、顔を残す細部・質感・空気感（hold_face）が使う。どちらも無い組み合わせでは測らない。
+    # 前は綺麗にする工程だけで測り、ディテール追加を 1 つだけ掛けたとき顔を残せなかった（目の色 80.3）
+    face = face_keep(out) if any(REGISTRY[n].group in {"clean"} | FACE_HOLD_GROUPS for n in names) else None
     for i, n in enumerate(names):
         def tell(text, i=i):
             if say is not None:
                 say(f"{i + 1}/{len(names)} {text}" if len(names) > 1 else text)
         out = run(n, out, mask, tell, face)
         LAST_CHAIN.append(dict(LAST_QC, name=n))
+        if i + 1 < len(names) and out.size == image.size:
+            _reuse_parts(image, out)
     return out
+
+
+def _reuse_parts(orig, step):
+    """組み合わせの次の工程で、前の工程の結果の部位分けを測り直さない。綺麗にする工程は形を変えない（limit と guard が
+    形の変わった所を戻す）ので、元の絵の部位分けをそのまま使える。前は工程ごとに部位分け（CPU で 1 回 30〜40 秒）を
+    測り直し、2 工程の「まとめて綺麗にする」108 秒のうち 80 秒が部位分けだった"""
+    import hashlib
+    from PIL import Image
+    from chatdraw import facefeat
+
+    def key(im):
+        return hashlib.md5(im.convert("RGB").resize((64, 64), Image.BOX).point(lambda v: v // 16).tobytes()).hexdigest()
+    k0, k1 = key(orig), key(step)
+    if k0 == k1:
+        return
+    fk0, fk1 = facefeat._key(orig), facefeat._key(step)
+    if fk0 in facefeat._SEG:
+        facefeat._SEG[fk1] = facefeat._SEG[fk0]
+    if k0 in _HANDS:
+        _HANDS[k1] = _HANDS[k0]
+    if k0 in _FACES:
+        _FACES[k1] = _FACES[k0]
+        _SEGS[k1] = _SEGS.get(k0)
 
 
 def chain_note() -> str:
