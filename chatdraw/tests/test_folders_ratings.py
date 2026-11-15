@@ -90,9 +90,10 @@ class RatingsTest(unittest.TestCase):
                 return c.findChildren(QLabel)[0].text()
             self.assertEqual(title(cards()[0]), max(models.IMAGES, key=lambda m: m.score).name)   # 既定は点の高い順
             dlg.set_tags(["GPU向き"])
-            self.assertEqual(len(cards()), len([m for m in models.IMAGES if "GPU向き" in m.tags]))
+            self.assertEqual(len(cards()), len([m for m in models.listed(models.IMAGES) if "GPU向き" in m.tags]))   # 一覧に出す物の中で絞る
             dlg.set_tags([])
-            m = next(x for x in models.IMAGES if x.score == 0)
+            # 自分の点で並びが変わる。一覧に出るのは推奨に届いた物なので、その中で点の低い方に 99 を付ける
+            m = min(models.listed(models.IMAGES), key=lambda x: x.score)
             with mock.patch.object(QInputDialog, "getInt", return_value=(99, True)):
                 dlg.ask_rating(m)
             self.assertEqual(title(cards()[0]), m.name)

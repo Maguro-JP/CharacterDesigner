@@ -438,15 +438,13 @@ class SetupTest(unittest.TestCase):
             image, words = dlg.chosen()
             self.assertEqual(image, offered_images()[0])                       # 初めは点のいちばん高い物
             self.assertEqual(words, offered_words()[0])
-            for m in IMAGES:                                                    # 一覧の模型はすべて札がある（推奨だけ表示を外すと選べる）
-                self.assertIn(m.repo, dlg.image_radios)
+            for m in IMAGES:   # 札があるのは、推奨に届いた物と手元の物だけ（点の届かない物・確かめていない物・外した物は出さない）
+                if m.score >= PASS and not m.retired:
+                    self.assertIn(m.repo, dlg.image_radios)
             untested = next(m for m in IMAGES if m.score <= 0)
-            self.assertFalse(dlg.image_radios[untested.repo].parent().isVisibleTo(dlg))   # 初めは推奨だけ
-            low = next((m for m in IMAGES if 0 < m.score < PASS), None)
-            if low is not None:
-                self.assertFalse(dlg.image_radios[low.repo].parent().isVisibleTo(dlg))   # 推奨だけのときは隠す
-                dlg.only_rec.setChecked(False)
-                self.assertTrue(dlg.image_radios[low.repo].parent().isVisibleTo(dlg))    # 外すと出す
+            self.assertNotIn(untested.repo, dlg.image_radios)
+            retired = next(m for m in IMAGES if m.retired)
+            self.assertNotIn(retired.repo, dlg.image_radios)
             self.assertFalse(hasattr(dlg, "words_radios"))                     # 言葉の模型は選ばせない
             dlg.image_radios[AUTO].setChecked(True)
             dlg.apply()
@@ -621,9 +619,9 @@ class ManagerTest(unittest.TestCase):
                 return [dlg.list.itemAt(i).widget() for i in range(dlg.list.count())
                         if dlg.list.itemAt(i).widget() and dlg.list.itemAt(i).widget().objectName() == "card"]
             every = [c for c in cards() if hasattr(c, "model")]
-            self.assertEqual(len(every), len(models.IMAGES))                  # 既定で目録の全部を出す
+            shown = models.listed(models.IMAGES)
+            self.assertEqual(len(every), len(shown))                          # 推奨に届いた物と手元の物だけを出す（models.shown）
             metas = " ".join(lb.text() for c in every for lb in c.findChildren(QLabel))
-            self.assertIn("未確認", metas)
             self.assertIn("85 点", metas)                                     # 点は 1 つの数だけ出す
             dlg.filter.setCurrentText("推奨（確かめ済み）")
             rec = [c for c in cards() if hasattr(c, "model")]
@@ -635,7 +633,7 @@ class ManagerTest(unittest.TestCase):
             self.assertEqual(dlg.status.text(), "見つかりません")
             dlg._probed(entry, "")
             self.assertIn("未確認", dlg.status.text())
-            self.assertEqual(len([c for c in cards() if hasattr(c, "model")]), len(models.IMAGES) + 1)
+            self.assertEqual(len([c for c in cards() if hasattr(c, "model")]), len(shown) + 1)
             models._USER.clear()
 
 

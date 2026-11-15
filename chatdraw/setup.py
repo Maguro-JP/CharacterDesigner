@@ -370,7 +370,7 @@ class SetupDialog(QDialog):
         lay.addWidget(hint)
         self.only_rec = QCheckBox("推奨だけ表示")
         self.only_rec.setChecked(True)
-        self.only_rec.setToolTip("外すと、一覧のほかの模型も出します。まだ確かめていない模型には印を付けます")
+        self.only_rec.setToolTip("外すと、手元にある点の届かない模型も出します")
         self.only_rec.toggled.connect(self._relayout)
         lay.addWidget(self.only_rec)
         self.sections: list[tuple[QGridLayout, list[tuple[QFrame, bool]]]] = []
@@ -408,11 +408,14 @@ class SetupDialog(QDialog):
         self.image_group.addButton(r)
         self.image_radios[AUTO] = r
         cards = [(card(r, "頼みに合う物を AI が選ぶ", "", False, False), True)]
-        # 初めは推奨（点の届いた物）だけを出す。「推奨だけ表示」を外すと、一覧のほかの模型も取れる（まだ確かめていない物は印を付ける）。
-        # いちばん点の高い物を「おすすめ」にする
+        # 推奨（点の届いた物）と手元にある物だけを出す。いちばん点の高い物を「おすすめ」にする
         checked = verified_images()
         best_repo = checked[0].repo if checked else None
-        images = checked + sorted((m for m in IMAGES if m.score <= 0), key=lambda m: m.name.lower())
+        # 点の届かない物・確かめていない物・目録から外した物は出さない（models.shown）。手元にある物は出す
+        from chatdraw.models import listed
+        mine = {m.repo for m in IMAGES if has_image(m)}
+        images = listed(checked, mine)
+        images += sorted((m for m in IMAGES if m.repo in mine and m not in images), key=lambda m: m.name.lower())
         for m in images:
             best = m.repo == best_repo
             r = QRadioButton(m.name)

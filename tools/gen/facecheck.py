@@ -34,6 +34,40 @@ ONE_EYE_AT = 0.4
 ONE_EYE_ASKED = ("hair over one eye", "one eye covered", "eyepatch", "covering one eye", "hair over eyes", "covering eyes")
 
 
+FACE_NAMES = ("nose", "left_eye", "right_eye", "left_ear", "right_ear")
+
+
+def refine_points(im, keypoints: dict, read=None) -> dict:
+    """顔の点（鼻・目・耳）を、頭の周りの切り出しで読み直す。体の点の模型は絵全体を 256×192 に縮めて読むので、全身の絵では
+    顔が数画素になり、目の点が耳の位置に、耳の点が目の上に乗った（剣士の絵で目の点が 40 画素ずれ、目の検品が頬を測っていた）。
+    切り出しは鼻を中心に、肩幅の 1.3 倍（肩が無ければ耳の間の 4 倍）の正方形。読み直せなければ元の点を返す"""
+    kp = dict(keypoints or {})
+    if "nose" not in kp:
+        return kp
+    nx, ny = kp["nose"]
+    if "left_shoulder" in kp and "right_shoulder" in kp:
+        side = abs(kp["left_shoulder"][0] - kp["right_shoulder"][0]) * 1.3
+    elif "left_ear" in kp and "right_ear" in kp:
+        side = abs(kp["left_ear"][0] - kp["right_ear"][0]) * 4
+    else:
+        return kp
+    w, h = im.size
+    side = int(max(96, min(side, max(w, h))))
+    if side >= 0.8 * min(w, h):
+        return kp   # 顔が絵の大半を占める。絵全体で読んだ点で足りる
+    x0, y0 = int(nx - side / 2), int(ny - side * 0.55)
+    if read is None:
+        sys.path.insert(0, str(ROOT))
+        from chatdraw.twostage import keypoints as read
+    got = read(im.crop((x0, y0, x0 + side, y0 + side)))
+    face = {k: (x + x0, y + y0) for k, (x, y) in got.items() if k in FACE_NAMES}
+    if "left_eye" not in face or "right_eye" not in face:
+        return kp
+    kp.update(face)
+    kp["_refined"] = True
+    return kp
+
+
 def face_box(keypoints: dict, size: tuple[int, int], least: int = MIN_FACE):
     """顔の点から、髪の生え際から顎までが入る正方形の枠。点が 2 つ未満か least より小さければ None"""
     pts = [keypoints[k] for k in FACE_POINTS if k in keypoints]
@@ -105,9 +139,26 @@ SMEAR_SHARP = 0.35   # 目の枠の線の鋭さが顔のはっきりした所の
 SMEAR_HUES = 5       # 目の枠の鮮やかな画素がこの数以上の色相（12 に分けた）に散っていれば虹色でごまかした目とする（崩れの無い顔は 4 以下）
 
 
-def eye_smear(im, keypoints: dict | None, box=None) -> list[str]:
+IRIS_LEAST = 0.15   # 目の中心の枠で、頬の色とも白とも違う画素（瞳）の割合の下限。合成の台で、正しい目は 0.5 以上、瞳を消した目は 0.06 以下
+IRIS_HALF = 7       # 目の枠の半分がこれより小さい顔では瞳を測らない（半分 5 画素の顔で、正しい目を 0.06 と測った）
+
+
+def iris_share(im, x: float, y: float, half: int) -> float:
+    """目の点の中心（枠の半分の大きさ）で、頬の色から離れ、白でもない画素の割合。瞳を描かず白目や肌で埋めた目は 0 に近い"""
+    import numpy as np
+    q = max(2, half // 2)
+    c = np.asarray(im.crop((int(x - q), int(y - q), int(x + q), int(y + q))), np.float32).reshape(-1, 3)
+    cheek = np.median(np.asarray(im.crop((int(x - half), int(y + half), int(x + half), int(y + 2 * half))), np.float32).reshape(-1, 3), 0)
+    far = np.linalg.norm(c - cheek, axis=1) > 60
+    return float((far & (c.min(1) < 190)).mean()) if c.size else 1.0
+
+
+def eye_smear(im, keypoints: dict | None, box=None, precise: bool = False) -> list[str]:
     """目（瞳）をぼかし・にじみ・虹色でごまかした所を崩れとして返す。描けない瞳を虹色やぼかしで埋めた絵が、
-    タグでは目として読まれて検品を通っていた。目の点の周りの線の鋭さを顔のはっきりした所と比べ、色相の散り方を数える"""
+    タグでは目として読まれて検品を通っていた。目の点の周りの線の鋭さを顔のはっきりした所と比べ、色相の散り方を数える。
+    precise は目の点を顔の切り出しで読み直したとき（refine_points）。点が瞳に乗るので、ずらした枠を探さず中心の枠で測り、
+    瞳の無い目（白目だけ・肌で埋めた目）も測る。ずらした枠の一番鋭い所で見ると、ぼかした目でも隣の睫毛や髪の線を拾い、
+    合成の台でぼかした目の 20 枚中 18 枚を通していた"""
     import numpy as np
     import feet
     kp = keypoints or {}
@@ -128,8 +179,9 @@ def eye_smear(im, keypoints: dict | None, box=None) -> list[str]:
     for side, (x, y) in eyes:
         eb = (int(x - half), int(y - half), int(x + half), int(y + half))
         # 目の点は瞳の中心から半径ほどずれる（アニメの絵で、正しい目を 0.09 倍と測った）。周りへ半分ずつずらした枠の一番鋭い所で見る
+        shifts = (0,) if precise else (-half, 0, half)
         sharp = max(feet.sharpness(im, (eb[0] + dx, eb[1] + dy, eb[2] + dx, eb[3] + dy))
-                    for dx in (-half, 0, half) for dy in (-half, 0, half)) / ref
+                    for dx in shifts for dy in shifts) / ref
         hsv = np.asarray(im.crop(eb).convert("HSV"), np.float32)
         vivid = hsv[..., 0][(hsv[..., 1] > 90) & (hsv[..., 2] > 60)]
         hues = 0
@@ -140,10 +192,12 @@ def eye_smear(im, keypoints: dict | None, box=None) -> list[str]:
             out.append(f"顔: {names[side]}の目が虹色に散っている（{hues} 色。瞳の形を描かず色でごまかした）")
         elif sharp < SMEAR_SHARP:
             out.append(f"顔: {names[side]}の目がぼやけている（線の鋭さが顔のはっきりした所の {sharp:.2f} 倍。描けない瞳をぼかしてごまかした）")
+        elif precise and half >= IRIS_HALF and (share := iris_share(im, x, y, half)) < IRIS_LEAST:
+            out.append(f"顔: {names[side]}の目に瞳が無い（瞳の色の割合 {share:.2f}。白目か肌で埋まっている）")
     return out
 
 
-def check_face(image, keypoints: dict | None = None, asked: str = "") -> dict:
+def check_face(image, keypoints: dict | None = None, asked: str = "", precise: bool = False) -> dict:
     """絵（PIL か道）の顔を測る。box は顔の枠、readable が False なら顔を読めなかった。
     鼻と目の点があるのに小さくて目を読めない顔は、bad に崩れとして返す（読めない顔を通さない）"""
     from PIL import Image
@@ -186,7 +240,7 @@ def check_face(image, keypoints: dict | None = None, asked: str = "") -> dict:
     out["eye_dark"] = eye_dark(im, keypoints)
     out["bad"] = judge(tags, asked)
     try:
-        out["bad"] += eye_smear(im, keypoints, box)
+        out["bad"] += eye_smear(im, keypoints, box, precise=precise)
     except Exception as e:   # noqa: BLE001  測れなかったことは残し、タグの検品の結果は返す
         out["smear_reason"] = f"目のごまかしを測れませんでした（{e}）"
     return out

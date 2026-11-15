@@ -91,6 +91,12 @@ def _pose_points(image):
     return res
 
 
+def release_pose() -> None:
+    """読んだ VitPose と使い回しの結果を離す（1 枚の検品の終わりに、描く模型とメモリを取り合わないように）"""
+    global _VITPOSE, _LAST_POSE
+    _VITPOSE, _LAST_POSE = None, (None, None)
+
+
 def keypoints(image, threshold: float = 0.3) -> dict:
     """VitPose で体の 17 点を読み、名前と (x, y) を返す（確からしさが threshold 未満の点は入れない）"""
     names = ["nose", "left_eye", "right_eye", "left_ear", "right_ear", "left_shoulder", "right_shoulder", "left_elbow",

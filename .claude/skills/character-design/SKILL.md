@@ -178,7 +178,8 @@ python3 tools/learn.py score styles/diorama.learned.json characters/*/sprite.jso
 ## 3.5 3D（頼まれたとき）
 
 手順と詰まったところは `docs/knowledge/3d.md`。専用ベース（アニメ調、体型・水着・亜人の部品・ポーズ・光）は `tools/engine/viewer/vrm-base.html`。
-3D は一区切りにしている。広げるのは亜人の下絵に要る部品だけにする。
+描いたキャラデザ（三面図か 1 枚絵）からゲームや動画で使う骨付きの 3D（VRM・glTF）を作るときは `tools/engine/chara3d.py`（アプリはキャラデザのメニューの「3D キャラを作る…」）。正面・横・後ろ・動かした姿の写しを元の大きさで見てから見せる。
+素体の 3D（MakeHuman・VRM のサンプル）は一区切りにしている。広げるのは亜人の下絵に要る部品だけにする。
 写実の顔は見せない。アニメ調（頭を大きめ、陰2段、輪郭線、大きな瞳）にしてから、正面・顔を自分で撮って確かめてから見せる。
 
 ## 4. 残す
