@@ -32,7 +32,9 @@ class NamesTest(unittest.TestCase):
         self.assertTrue(new)
         for m in new:
             self.assertEqual(m.get("score", 0), 0, m["repo"])
-            self.assertIn(m["repo"].split("/")[0] + "/" + m["repo"].split("/")[1], verify)
+        # 点が 0 の模型は config/verify-models.txt に書かなくても model-verify が拾う（chatdraw.verify_models.candidates）
+        self.assertIn("ここに書かなくても", verify)
+        self.assertIn("m.score <= 0", (ROOT / "chatdraw" / "verify_models.py").read_text(encoding="utf-8"))
 
 
 if __name__ == "__main__":
