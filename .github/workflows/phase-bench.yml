@@ -43,7 +43,7 @@ jobs:
       - name: 部品
         run: |
           pip install -q torch --index-url https://download.pytorch.org/whl/cpu
-          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy scikit-image ai-edge-litert onnxruntime
+          pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy scikit-image ai-edge-litert onnxruntime PySide6
       - name: 比べる
         timeout-minutes: 320
         env:
