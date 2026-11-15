@@ -66,6 +66,14 @@ class ActivityPanel(QWidget):
         self.stop_tool = QToolButton()   # 緊急停止（窓の側で動きを入れる）
         self.stop_tool.setObjectName("emergencyStop")
         self.stop_tool.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        # 一時停止した処理（chatdraw/pausekeep.py）を続きから始める。残っている件があるときだけ出す
+        self.resume_tool = QToolButton()
+        self.resume_tool.setObjectName("resumePaused")
+        self.resume_tool.setText("▶ 再開")
+        self.resume_tool.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.resume_tool.hide()
+        self.resume_tool.clicked.connect(self._resume)
+        self._on_resume = None
         self.list = QListWidget()
         self.list.setViewMode(QListWidget.IconMode)
         self.list.setIconSize(QSize(84, 122))
@@ -83,6 +91,7 @@ class ActivityPanel(QWidget):
         head.addWidget(self.state)
         head.addStretch()
         head.addWidget(self.time)
+        head.addWidget(self.resume_tool)
         head.addWidget(self.stop_tool)
         top.addLayout(head)
         top.addLayout(self.steps)
@@ -114,6 +123,21 @@ class ActivityPanel(QWidget):
         self.pulse.timeout.connect(self._pulse)
         self._pulse_at = 0
         self._mark(-1)
+
+    def offer_resume(self, label: str | None, on_resume=None):
+        """一時停止した件を「再開」のボタンで出す。label が None なら隠す。説明はボタンの中に書かずツールチップに出す"""
+        self._on_resume = on_resume
+        if not label:
+            self.resume_tool.hide()
+            return
+        self.resume_tool.setToolTip(f"{label}\n押すと、保存した所から続きを始めます")
+        self.resume_tool.show()
+
+    def _resume(self):
+        fn, self._on_resume = self._on_resume, None
+        self.resume_tool.hide()
+        if fn is not None:
+            fn()
 
     def _busy(self, on: bool):
         if on:

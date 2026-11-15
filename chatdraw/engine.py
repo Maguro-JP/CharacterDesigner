@@ -112,11 +112,18 @@ DISK_NOTE = "まだメモリが足りないので、重みをディスクへ退�
 LOW_MEMORY_NOTE = "メモリが足りないので、メモリを使わない設定（部品の出し入れ、注意の分割、小さめの大きさ）に切り替えて描きます"
 
 
+MEMORY_WAIT_S = 120.0   # メモリが空くのを待つ秒。過ぎたら一時停止にして途中を残す
+
+
+class MemoryPaused(MemoryError):
+    """メモリが足りず、空くのを待っても空かなかった。止めて捨てずに一時停止にする印（MemoryError の仲間なので前の受け手も受ける）"""
+
+
 def memory_retry(painter, run, say=None):
     """run() を動かし、メモリ不足で落ちたら、読んだ模型を降ろしてメモリを返し、少ないメモリの設定で 1 回だけやり直す。
     描いている途中にアプリが落ちる報告があり、原因の候補の 1 つがメモリ不足だった（確かめていない）。メモリを使い切ったまま描き続けると、
     Windows では torch の中で落ち、例外として捕まえられないことがある。例外で返ってきた分は、ここで捕まえて軽い設定に替える。
-    2 回目も足りなければ、分かる日本語の理由で例外にする（画面は落とさず「描けませんでした」に返す）"""
+    それでも足りなければ模型を降ろして空くのを待ち、空かなければ MemoryPaused（一時停止。途中は呼び手が残す）で返す"""
     try:
         return run()
     except Exception as e:   # MemoryError も Exception の仲間
@@ -148,10 +155,24 @@ def memory_retry(painter, run, say=None):
     try:
         return run()
     except Exception as e:
-        if is_oom(e):
-            raise MemoryError("メモリが足りず、少ないメモリの設定でも足りませんでした。ほかのアプリを閉じるか、"
-                              "小さい模型（SDXL 系）に替えるか、描く大きさを小さくしてください") from None
-        raise
+        if not is_oom(e):
+            raise
+    # それでも足りなければ、模型を降ろしてメモリが空くのを待ち、空いたらもう一度描く。空かなければ一時停止にする
+    # （前はここで諦めて捨てた。工程に分けて描く・一括生成は MemoryPaused を受けて途中を残し、「再開」で続ける）
+    if hasattr(painter, "unload"):
+        painter.unload()
+    release_memory()
+    from chatdraw import pausekeep
+    (say or (lambda m: None))("メモリが空くのを待っています（模型を降ろしました）")
+    if pausekeep.wait_memory(float(getattr(painter, "need_gb", 0) or 4.0), wait_s=MEMORY_WAIT_S,
+                             stopped=lambda: STOP.is_set() or getattr(painter, "stop", False) is True):
+        try:
+            return run()
+        except Exception as e:
+            if not is_oom(e):
+                raise
+    raise MemoryPaused("メモリが足りず、模型を降ろして待っても空きませんでした。一時停止して途中を保存しました。"
+                       "ほかのアプリを閉じてから「再開」を押すと続きから描きます")
 
 
 def low_memory_size(size, family: str = "sdxl"):
@@ -1979,7 +2000,7 @@ class Studio:
         段ごとの理由と次の手を例外にする。前は 1 回落ちただけで「描けませんでした」で止まり、0.5.15 でメモリの見積もりで
         描く前に止めるようにしてからは、それまで描けていた模型と大きさも止まった"""
         say = on_status or (lambda msg: None)
-        tried, why = [], []
+        tried, why, mem = [], [], []
         size0 = size or getattr(self.painter, "size", None)
         size0 = tuple(size0) if isinstance(size0, (tuple, list)) else (832, 1216)
 
@@ -1990,10 +2011,14 @@ class Studio:
         def fail(label, e):
             if isinstance(e, Stopped) or STOP.is_set() or getattr(self.painter, "stop", False) is True:
                 raise e
+            if type(e).__name__ == "Paused":
+                raise e   # 一時停止して途中を残した。別の模型・別の種に替えると、残した途中から続けられなくなる
             if isinstance(e, ValueError) and "描きません" in str(e):
                 raise e   # 描かない頼みは段を下げても描かない
             why.append(f"{label}: {explain(e)}")
             tried.append(label)
+            from chatdraw import pausekeep
+            mem.append(pausekeep.is_pause(e))
 
         try:
             return attempt("そのまま")
@@ -2030,6 +2055,8 @@ class Studio:
                 return attempt(label, **over)
             except Exception as e:   # noqa: BLE001
                 fail(label, e)
+        if mem and all(mem):   # どの段もメモリ・時間の打ち切りだった。止めて捨てずに一時停止にする（「再開」で同じ頼み・種から描く）
+            raise MemoryPaused("メモリが足りず、試した順に: " + " / ".join(why) + "。一時停止しました。ほかのアプリを閉じてから「再開」を押すと続きから描きます")
         raise RuntimeError("試した順に: " + " / ".join(why) + "。次の手: ほかのアプリを閉じてメモリを空ける、"
                            "AI のメニューで軽い模型（SDXL 系）を取る、描く大きさを小さくする")
 
@@ -2049,14 +2076,28 @@ class Studio:
         return have[0] if have else None
 
     last_phases: list | None = None
+    phase_confirm = None   # 工程ごとに確かめるときにアプリが入れる。(i, 名前, 絵, 記録) を受けて "go"・"redo"・("words", 足す言葉) を返す
+
+    def _phase_confirm(self, as_tags):
+        """利用者が足した言葉は、頼みと同じく訳してから模型に渡す（日本語の頼みをそのまま絵の模型に渡さない）"""
+        ask = self.phase_confirm
+        if ask is None:
+            return None
+
+        def confirm(i, name, image, row):
+            ans = ask(i, name, image, row)
+            if isinstance(ans, (tuple, list)) and len(ans) > 1 and ans[0] == "words":
+                return ("words", self.words.to_prompt(str(ans[1]), tags=as_tags))
+            return ans
+        return confirm
 
     def _draw_phases(self, text, seed, style, size, say, on_preview, meta):
-        """構図 → 体型と姿勢 → 線画 → 塗り → 仕上げの工程に分けて描く（chatdraw/phases.py）。工程ごとに描く・検品する・1 回だけ直す。
-        渡す言葉は頼みの訳と作風だけで、背景や構図の言葉は足さない"""
+        """人の描き方の 12 の工程に分けて描く（chatdraw/phases.py）。工程ごとに描く・測る・1 回だけ直す・崩れが決まった工程へ戻る。
+        渡す言葉は頼みの訳と作風だけで、背景や構図の言葉は足さない。phase_confirm（アプリが入れる）があれば工程ごとに確かめる"""
         import time
         from chatdraw import phases
         from chatdraw.models import family as fam, image_model
-        say("工程に分けて描きます（構図 → 体型と姿勢 → 線画 → 塗り → 仕上げ）")
+        say("工程に分けて描きます（" + " → ".join(phases.NAMES) + "）")
         say("頼みを描く言葉に直しています")
         as_tags = fam(image_model(getattr(self.painter, "model", "")).family).tags
         prompt = self.words.to_prompt(text, tags=as_tags)
@@ -2074,9 +2115,13 @@ class Studio:
         if refused(prompt):
             raise ValueError("子どもを性的に描く頼みは描きません")
         keep = self.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}-phases"
+        from chatdraw import pausekeep
+        model = getattr(self.painter, "model", "")
+        job = {"text": text, "seeds": [seed], "style": style, "size": list(size) if size else None, "meta": meta or {}, "model": model}
         try:
             got = phases.draw(self.painter, prompt, seed, size, keep, say=say, on_preview=on_preview,
-                              on_step=lambda i, n: say(f"描いています（{i}/{n}）"))
+                              on_step=lambda i, n: say(f"描いています（{i}/{n}）"), confirm=self._phase_confirm(as_tags),
+                              pause_key=pausekeep.key("phases", text, seed, style, tuple(size) if size else None, model), pause_job=job)
         finally:
             if hasattr(self.painter, "avoid"):
                 self.painter.avoid = avoid0

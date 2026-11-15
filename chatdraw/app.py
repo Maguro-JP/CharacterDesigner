@@ -108,6 +108,33 @@ def exec_once(menu, pos):
     finally:
         menu.deleteLater()
 
+class PhaseAsk(QObject):
+    """精度優先の工程の確かめ。描く糸から呼ばれ、画面の糸に窓を出させて、答えが来るまで描く糸を待たせる。
+    待つ間も止めるボタンは効く（止める旗を 0.2 秒ごとに見る）"""
+    ask = Signal(object)
+
+    def __init__(self, window):
+        super().__init__()
+        self.window = window
+        self.ask.connect(self._show, Qt.QueuedConnection)
+
+    def __call__(self, i, name, image, row):
+        import threading
+        box = {"event": threading.Event(), "answer": "go", "i": i, "name": name, "image": image, "row": row}
+        self.ask.emit(box)
+        painter = getattr(getattr(self.window, "job_studio", None) or self.window.studio, "painter", None)
+        while not box["event"].wait(0.2):
+            if getattr(painter, "stop", False) is True:
+                break
+        return box["answer"]
+
+    def _show(self, box):
+        try:
+            box["answer"] = self.window.ask_phase(box["i"], box["name"], box["image"], box["row"])
+        finally:
+            box["event"].set()
+
+
 class Job(QObject):
     """AI の 1 回分を裏で回す。描く（枚数分）か、直す（regions を渡したとき）"""
     status = Signal(str)
@@ -163,11 +190,29 @@ class Job(QObject):
                 self._draw_all()
             self.done.emit()
         except Exception as e:  # 描けなかった理由を、次に何をすればよいか分かる日本語で会話に出す
-            from chatdraw import debuglog
+            from chatdraw import debuglog, pausekeep
+            if pausekeep.is_pause(e) and self.regions is None:
+                self.paused = self._keep_paused(e)
+                self.failed.emit(PAUSED_HEAD + str(e).splitlines()[0])
+                return
             self.trace = debuglog.exception("描く・直す", e)
             from chatdraw.engine import explain
             from chatdraw.engine import Stopped
             self.failed.emit(explain(e))   # 何が起きたかを 1 行で返す（「描けませんでした」の決まり文句は付けない）
+
+    def _keep_paused(self, e) -> str:
+        """メモリ・時間の打ち切りを、止めて捨てずに一時停止として残す。工程に分けて描いた回は phases.py が途中の工程まで残している。
+        1 回で描く回は、まだ描いていない種と頼みを残し、「再開」でその種から描く。返すのは pausekeep の鍵"""
+        from chatdraw import pausekeep
+        k = getattr(e, "key", None) or getattr(e.__cause__, "key", None)
+        left = self.seeds[getattr(self, "drawn", 0):] or self.seeds
+        job = {"text": self.text, "seeds": left, "style": self.style, "size": list(self.size) if self.size else None,
+               "meta": self.meta, "model": getattr(self.studio.painter, "model", "")}
+        if k and pausekeep.info(k):
+            return k
+        k = pausekeep.key("draw", self.text, left[0], self.style)
+        pausekeep.save(k, "draw", f"「{self.text[:30]}」を描く途中で一時停止（種 {left[0]} から）", job)
+        return k
 
     def _draw_one(self, seed):
         extra = dict(reference=self.reference, ref_scale=self.ref_scale) if self.reference is not None else {}
@@ -195,7 +240,8 @@ class Job(QObject):
             except Stopped:
                 raise
             except Exception as e:   # noqa: BLE001  1 枚だけの失敗で、ほかの枚を取り消さない
-                if not many or "描きません" in str(e):
+                from chatdraw import pausekeep
+                if not many or "描きません" in str(e) or pausekeep.is_pause(e):   # メモリ・時間の打ち切りは一時停止にして残りを残す
                     raise   # 1 枚だけの頼みと、描かない頼み（childsafe）は、今までどおり理由を返して終える
                 self.trace = debuglog.exception(f"{i} 枚目", e)
                 self.reasons.append(f"{i} 枚目: {explain(e)}")
@@ -208,6 +254,9 @@ class Job(QObject):
         from chatdraw.engine import STOP, Stopped
         if STOP.is_set() or getattr(self.studio.painter, "stop", False) is True:
             raise Stopped("止めました")
+
+
+PAUSED_HEAD = "一時停止しました: "   # fail がこの頭を見て「再開」のボタンを出す
 
 
 def fresh_stop(studio=None):
@@ -2493,6 +2542,9 @@ class Window(QMainWindow):
             meta["source"] = self.fix_source()
         self._apply_avoid()
         self.job_studio = self._fix_studio() if mode == 2 else self.studio
+        if not hasattr(self, "_phase_ask"):
+            self._phase_ask = PhaseAsk(self)
+        self.job_studio.phase_confirm = self._phase_ask if self.settings.get("phase_confirm") else None
         self.before_heavy(self.job_studio.painter)
         self.thread = QThread()
         self.job = Job(self.job_studio, text, seeds, base=base, strength=self.strength.value() / 100,
@@ -2959,12 +3011,40 @@ class Window(QMainWindow):
         if getattr(self, "studio", None) is not None:
             self.studio.way = studio_way(self.settings.get("draw_way"), self.settings.get("ai_way"))
 
+    def ask_phase(self, i: int, name: str, image, row: dict):
+        """工程が終わったところで止まり、その工程の絵をキャンバスに見せて、進めるか描き直すかを選んでもらう"""
+        from PySide6.QtWidgets import QInputDialog, QMessageBox
+        if image is not None:
+            self.canvas.show_overlay(qimage_from_pil(image))
+        left = row["after"] if row.get("fixed") else row.get("found", [])
+        text = (f"工程 {i + 1}「{name}」が終わりました。\n決めた物: {row.get('decides', '')}\n"
+                + ("崩れは見つかりませんでした" if not left else "残った崩れ: " + "、".join(left[:4])))
+        box = QMessageBox(QMessageBox.Question, "工程ごとに確かめる", text, parent=self)
+        box.setObjectName("phase_confirm")
+        if image is not None:
+            box.setIconPixmap(QPixmap.fromImage(qimage_from_pil(image)).scaled(160, 160, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        go = box.addButton("進める", QMessageBox.AcceptRole)
+        go.setToolTip("この工程の絵を土台にして、次の工程へ進む")
+        redo = box.addButton("この工程を描き直す", QMessageBox.ActionRole)
+        redo.setToolTip("同じ言葉で、種を変えてこの工程だけを描き直す")
+        words = box.addButton("言葉を足して描き直す", QMessageBox.ActionRole)
+        words.setToolTip("足したい言葉を書いて、この工程から描き直す（言葉は訳してから模型に渡す）")
+        box.setDefaultButton(go)
+        box.exec()
+        hit = box.clickedButton()
+        if hit is redo:
+            return "redo"
+        if hit is words:
+            add, ok = QInputDialog.getText(self, "言葉を足して描き直す", "足す言葉:")
+            return ("words", add) if ok and add.strip() else "go"
+        return "go"
+
     def _put_phases(self):
         """工程に分けて描いた回は、工程ごとの絵を描いた絵の下に隠したレイヤーで置き、工程ごとの検品を会話に出す（chatdraw/phases.py）"""
         rows = getattr(self.studio, "last_phases", None) if self.job_kind == "draw" else None
         if not rows:
             return
-        self.canvas.add_phase_layers([(f"工程 {i}: {r['phase']}", r["image"]) for i, r in enumerate(rows, 1)])
+        self.canvas.add_phase_layers([(f"工程 {i}: {r['phase']}", r["image"]) for i, r in enumerate(rows, 1) if r.get("image")])
         for i, r in enumerate(rows, 1):
             left = r["after"] if r["fixed"] else r["found"]
             self.say(f"工程 {i}「{r['phase']}」{r['seconds']} 秒: " + ("崩れは見つかりませんでした" if not left else "残った崩れ " + "、".join(left[:3]))
@@ -5244,7 +5324,9 @@ class Window(QMainWindow):
             self._end_fix_only()
         self.canvas.show_overlay(None)
         why = (why or "うまくいきませんでした").strip().splitlines()[0]   # 何が起きたかを 1 行で出す（「描けませんでした」の決まり文句は出さない）
-        stop = "止め" in why
+        if why.startswith(PAUSED_HEAD) or "一時停止" in why:   # 止めて捨てずに残した。進みの欄に「再開」を出す
+            self.offer_paused()
+        stop = "止め" in why and "一時停止" not in why
         self.say(why)
         if not stop:
             self._debug_failure("描けませんでした", why, getattr(self.sender(), "trace", "") or getattr(getattr(self, "job", None), "trace", ""))
@@ -5252,7 +5334,7 @@ class Window(QMainWindow):
             self.activity.end("止めました" if stop else why)
         # 進みの欄の 1 回分の外で落ちたときも、理由を右下に出す（出さないと何も起きなかったように見えた）
         self.progress_popup.tell("止めました" if stop else why, "" if stop else why)
-        self.notify("止めました" if stop else why, "info" if stop else "error", "")
+        self.notify("止めました" if stop else why, "info" if stop or "一時停止" in why else "error", "")
         self._end(why)
 
     def pick_color(self):
@@ -6481,17 +6563,20 @@ class Window(QMainWindow):
 
     # ---- 一括生成（chatdraw/batch.py） ----
 
-    def batch_draw(self, text: str | None = None, count: int = 1, seed: int = 0, as_csv=None) -> bool:
+    def batch_draw(self, text: str | None = None, count: int = 1, seed: int = 0, as_csv=None, jobs=None, start: int = 0) -> bool:
         """頼みの一覧から順に描き、全部をライブラリーに入れる。1 枚が失敗しても残りを描く。止めるは「止める」"""
         from chatdraw import batch, engine
         if self.busy("一括生成"):
             return False
-        if not isinstance(text, str):
-            got = self._batch_dialog()
-            if got is None:
-                return False
-            text, count, seed, as_csv = got
-        jobs, bad = batch.parse(text, count, seed, as_csv)
+        if jobs is not None:   # 一時停止した一括生成を、残した一覧と位置から続ける
+            bad = []
+        else:
+            if not isinstance(text, str):
+                got = self._batch_dialog()
+                if got is None:
+                    return False
+                text, count, seed, as_csv = got
+            jobs, bad = batch.parse(text, count, seed, as_csv)
         if not jobs:
             self.notify("一括生成できませんでした", "info", "頼みが 1 行もありません。1 行に 1 つ書くか、CSV を読んでください")
             return False
@@ -6511,7 +6596,10 @@ class Window(QMainWindow):
                     p.avoid = old
 
         def work(_step):
-            res = batch.run(jobs, draw, say=self.task.status.emit, stopped=engine.STOP.is_set)
+            import json
+            from chatdraw import pausekeep
+            res = batch.run(jobs, draw, say=self.task.status.emit, stopped=engine.STOP.is_set, start=start,
+                            pause_key=pausekeep.key("batch", json.dumps(jobs, ensure_ascii=False)))
             res["failed"] = [(l, t, w) for l, t, w in bad] + res["failed"]
             return res
         self._run_task(work, self._batch_done)
@@ -6565,6 +6653,8 @@ class Window(QMainWindow):
         self.notify("一括生成を終えました", "info" if res["failed"] or res["stopped"] else "ok", batch.summary(res))
         self.say(batch.summary(res))
         self._end("一括生成を終えました")
+        if res.get("paused") is not None:
+            self.offer_paused()   # 残した所から続ける「再開」を出す
 
     def chara_batch(self, paths=None, what=("turnaround", "expressions")) -> bool:
         """キャラクターの一覧（.chara の組）から、三面図と表情差分をまとめて描く"""
@@ -7461,6 +7551,63 @@ class Window(QMainWindow):
         self.dirty = False
         self.close()
 
+    def offer_paused(self) -> bool:
+        """一時停止して残した件（chatdraw/pausekeep.py）があれば、進みの欄に「再開」を出す。起動したときの「続きから」もここ"""
+        from chatdraw import pausekeep
+        got = pausekeep.listing()
+        if not got:
+            self.activity.offer_resume(None)
+            return False
+        more = f"（ほかに {len(got) - 1} 件）" if len(got) > 1 else ""
+        self.activity.offer_resume(f"続きから: {got[0]['label']}{more}　{got[0]['at']}", lambda: self.resume_paused(got[0]["key"]))
+        dock = self.findChild(QDockWidget, "progress")
+        if dock is not None and dock.isHidden():
+            dock.show()   # 利用者が閉じていた欄でも、残した件があることに気づけるように出す
+        self.notify("続きから始められます", "info", got[0]["label"] + "。進み具合の欄の「再開」で続けます")
+        return True
+
+    def resume_paused(self, k: str) -> bool:
+        """残した件を続きから始める。工程に分けて描く回は、同じ頼み・種・模型で呼び直すと phases.py が残した工程から続ける"""
+        from chatdraw import pausekeep
+        rec = pausekeep.info(k)
+        if rec is None or self.busy("再開"):
+            return False
+        job, kind = rec.get("job") or {}, rec.get("kind")
+        if kind == "batch":
+            pausekeep.clear(k)
+            return self.batch_draw(jobs=job["jobs"], start=int(job.get("start", 0)))
+        if kind == "fetch":
+            from chatdraw.fetchfile import fetch_resumable
+            self.activity.begin(rec["label"], "取得")
+            self._run_task(lambda _s: fetch_resumable(job["url"], Path(job["dest"]), int(job.get("total") or 0),
+                                                      note=self.task.status.emit),
+                           lambda _p: (self.notify("取り終えました", "ok", Path(job["dest"]).name), self._end("取り終えました")))
+            return True
+        if kind == "draw":
+            pausekeep.clear(k)   # 1 回で描く回は、まだ描いていない種から描き直す（途中の工程は持たない）
+        self.say(f"続きから始めます: {rec['label']}")
+        self.activity.begin(job.get("text", ""), "再開")
+        self.button.setEnabled(False)
+        self.stop_button.setEnabled(True)
+        self.batch, self.batch_items = [], []
+        self.job_kind = "draw"
+        self.job_studio = self.studio
+        self.thread = QThread()
+        self.job = Job(self.studio, job.get("text", ""), job.get("seeds") or [0], style=job.get("style", ""),
+                       meta=job.get("meta") or {}, size=tuple(job["size"]) if job.get("size") else self.size_pick.currentData())
+        self._worker = self.job
+        self.job.moveToThread(self.thread)
+        self.thread.started.connect(self.job.run)
+        self.job.status.connect(self.on_status)
+        self.job.preview.connect(self.show_preview)
+        self._record_job(self.job)
+        self.job.one.connect(self.on_one)
+        self.job.done.connect(self.finish)
+        self.job.failed.connect(self.fail)
+        self.gc_guard()
+        self.thread.start()
+        return True
+
     def offer_restore(self):
         """前に閉じずに終わっていて、自動保存が残っていれば、戻すかを聞く（自動保存は消さない）"""
         from chatdraw import project
@@ -7610,6 +7757,7 @@ def main():
         w.open_path(opened)   # AI の結果を別ファイルで開くとき。自動保存から戻すかは聞かない
     else:
         w.offer_restore()
+        w.offer_paused()   # 前に一時停止した処理があれば「続きから」を出す
     # closeEvent を通らずに終わる道（更新を入れて閉じるなど）でも、正しく閉じた印を残す
     app.aboutToQuit.connect(lambda: (w.layout_store.setValue("running", 0), w.layout_store.sync()))
     # 前の回が落ちていたら、記録の場所を知らせる（次に直すときの手がかりにする）
