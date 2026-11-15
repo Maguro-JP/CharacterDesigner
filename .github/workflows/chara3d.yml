@@ -59,7 +59,7 @@ jobs:
           git -C .cache/TripoSR checkout "$TRIPOSR_SHA"
           pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu
           pip install "numpy<2" omegaconf==2.3.0 Pillow==10.1.0 einops==0.7.0 transformers==4.35.0 trimesh==4.0.5 \
-            rembg==2.0.59 huggingface-hub==0.19.4 "imageio[ffmpeg]==2.33.1" xatlas==0.0.9 moderngl==5.10.0 \
+            rembg==2.0.59 huggingface-hub==0.17.3 "imageio[ffmpeg]==2.33.1" xatlas==0.0.9 moderngl==5.10.0 \
             scikit-build-core cmake ninja pybind11
           # torchmcubes は入れた torch に合わせて組む（分けた環境で組むと torch が見つからず落ちた）
           pip install --no-build-isolation "git+https://github.com/tatsy/torchmcubes.git@$TORCHMCUBES_SHA"
