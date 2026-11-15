@@ -621,6 +621,24 @@ class NoteEdit(QLineEdit):
         e.accept()   # 欄が使わなかったキーも、親のキャンバス（Space で手のひら、Delete で消す）へ渡さない
 
 
+
+_BIG_ICON_STYLE = []
+
+
+def _big_icon_style():
+    """メニューの小さな絵を 48 画素で描くスタイル（アプリで 1 つ）"""
+    if not _BIG_ICON_STYLE:
+        from PySide6.QtWidgets import QApplication, QProxyStyle, QStyle
+
+        class Big(QProxyStyle):
+            def pixelMetric(self, metric, option=None, widget=None):
+                return 48 if metric == QStyle.PM_SmallIconSize else super().pixelMetric(metric, option, widget)
+        name = QApplication.style().name()
+        style = Big(name) if name else Big()
+        style.setParent(QApplication.instance())   # アプリが持つ（メニューと一緒に消えない）
+        _BIG_ICON_STYLE.append(style)
+    return _BIG_ICON_STYLE[0]
+
 class Window(QMainWindow):
     """作画ソフトの並び: 左に頼みの欄、真ん中に絵、右に描いた絵の一覧、下に進み"""
 
@@ -1331,7 +1349,7 @@ class Window(QMainWindow):
         self.trash = Trash(HOME / "trash" if studio is None else Path(self.studio.out) / ".trash")
         # 0.5.19 までの版が書いた赤ペンの直しだけの絵を、履歴・ライブラリーから外してごみ箱へ移す（開いたあと裏で 1 度だけ）
         from PySide6.QtCore import QTimer
-        QTimer.singleShot(0, self.sweep_old_redpen)
+        QTimer.singleShot(0, self, self.sweep_old_redpen)   # 窓に結ぶ（先に閉じて消えた窓では呼ばない）
         self.library_panel = LibraryPanel(self)
         # チャットの会話は閉じても残す（ライブラリーと同じく、試験では出力の置き場の中に作る）
         self.chat.decorate = self.offer_prompt
@@ -5916,13 +5934,9 @@ class Window(QMainWindow):
         menu.setToolTipsVisible(True)
         # 予想図: 見本の 1 枚を本物の絵の模型でその画風に変えた小さな絵（chatdraw/styleprev/）。名前だけでは仕上がりが分からないので横に出す
         # QMenu は絵の大きさを小さな絵の寸法（16 画素）で描き、スタイルシートの icon-size は効かなかった。その寸法だけを大きくする
-        from PySide6.QtWidgets import QProxyStyle, QStyle
-
-        class Big(QProxyStyle):
-            def pixelMetric(self, metric, option=None, widget=None):
-                return 48 if metric == QStyle.PM_SmallIconSize else super().pixelMetric(metric, option, widget)
-        menu.setStyle(Big(menu.style().name()) if menu.style().name() else Big())
-        menu.__dict__["_style"] = menu.style()   # Python 側でも持つ（手放すとスタイルが消える）
+        # スタイルはアプリで 1 つだけ作って持ち続ける。メニューごとに作ってメニューに持たせると、閉じたメニューと一緒に
+        # スタイルが消えたあとも Qt が使い、窓を開け閉めしたあとにアプリごと落ちた
+        menu.setStyle(_big_icon_style())
         prev = Path(__file__).parent / "styleprev"
         for kind, label, tip, *_ in STYLES:
             name = f"style_{kind}"
