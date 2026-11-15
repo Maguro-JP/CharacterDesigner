@@ -307,7 +307,7 @@ class TooltipTest(unittest.TestCase):
             self.assertNotIn(prompt, tip)                 # 絵の説明に模型の言葉を出さない
             self.assertNotIn("右クリック", tip)
             from PySide6.QtWidgets import QLabel
-            said = " ".join(lb.text() for b in w.chat.bubbles() for lb in b.findChildren(QLabel))
+            said = " ".join(lb.text() for b in w.chat.bubbles() for lb in b.findChildren(QLabel)) + " " + " ".join(w.progress_notes)
             self.assertIn("描きました", said)
             self.assertNotIn("絵の模型に渡した言葉", said)  # 会話にも毎回は出さない
             self.assertIn(prompt, w.entry.toolTip())         # 書く欄にカーソルを合わせたときだけ出す

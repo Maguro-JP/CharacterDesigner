@@ -191,7 +191,7 @@ class ChatPanel(QWidget):
         bar.rangeChanged.connect(self._range)   # 自分の関数にする（閉じる途中に消えた棒を触って落ちた）
         lay.addWidget(self.scroll, 1)
         row = QHBoxLayout()
-        self.input = EnterEdit("AI に話しかける（使い方の質問、絵の相談、「ペンにして」などの操作）", lines=2)
+        self.input = EnterEdit("AI に相談する（絵の相談、使い方の質問、「赤ペンで直して」「水彩にして」などの操作）", lines=2)
         self.input.setToolTip("Enter で送ります。Shift+Enter で改行します")
         self.input.returnPressed.connect(self.send)
         self.send_button = QPushButton("送る")
@@ -205,14 +205,27 @@ class ChatPanel(QWidget):
         side.addWidget(self.send_button)
         side.addWidget(self.clear_button)
         from chatdraw import voice
-        self.mic_button = voice.mic_button(self.input, parent=self)   # 話した言葉をチャットの欄に入れる
+        # 押したまま話して離すと、文字にしてそのまま送る。話している間は途中の文字を書く欄の上に出す
+        self.mic_button = voice.mic_button(self.input, parent=self, on_final=lambda _t: self.send(), on_live=self.show_live)
         self.mic_button.setFixedWidth(self.send_button.sizeHint().width())
         side.addWidget(self.mic_button)
         row.addWidget(self.input, 1)
         row.addLayout(side)
+        self.live = QLabel("")
+        self.live.setObjectName("voiceLive")
+        self.live.setWordWrap(True)
+        self.live.setStyleSheet("color: palette(mid); font-style: italic;")
+        self.live.setToolTip("話している言葉の途中の読み。離すと確かめた文字が欄に入ります")
+        self.live.hide()
+        lay.addWidget(self.live)
         lay.addLayout(row)   # 書く欄は欄の下に固定する（会話の量で上下しない）
         if store is not None:
             self.set_store(store)
+
+    def show_live(self, text: str):
+        """話している間の途中の文字を、書く欄の上に出す（空なら隠す）"""
+        self.live.setText(("🎤 " + text) if text else "")
+        self.live.setVisible(bool(text))
 
     def _scrolled(self, v: int):
         self._follow = v >= self.scroll.verticalScrollBar().maximum() - 4
