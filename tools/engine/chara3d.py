@@ -511,6 +511,7 @@ def skin_weights(pos: np.ndarray, joints: dict[str, np.ndarray], part: np.ndarra
     order[head] = [BONES.index("head"), 0, 0, 0]
     w[head] = [1, 0, 0, 0]
     w /= w.sum(1, keepdims=True)
+    order[w == 0] = 0   # 使わない枠は骨 0・重み 0 にする（glTF の決まり。外すと検査器が注意を全部の点に出した）
     return order.astype(np.uint16), w.astype(np.float32)
 
 
