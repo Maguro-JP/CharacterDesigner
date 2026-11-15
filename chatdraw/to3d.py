@@ -110,8 +110,28 @@ def open_in_blender(blender: str, obj: Path):
     subprocess.Popen([blender, "--python-expr", script])
 
 
+def make_character(src: str | Path, out_dir: str | Path | None = None) -> dict:
+    """骨付きの 3D キャラ（tools/engine/chara3d.py）を作り、4 枚の写しを横に並べた絵の道を info["sheet"] に足す"""
+    root = Path(__file__).resolve().parents[1] / "tools" / "engine"
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    import chara3d
+    src = Path(src)
+    out = Path(out_dir) if out_dir else src.parent / f"{src.stem}-chara3d"
+    info = chara3d.make(src, out)
+    shots = [Image.open(info[f"shot_{k}"]) for k in ("front", "side", "back", "pose")]
+    sheet = Image.new("RGB", (sum(i.width for i in shots), max(i.height for i in shots)), "white")
+    x = 0
+    for im in shots:
+        sheet.paste(im, (x, 0))
+        x += im.width
+    info["sheet"] = str(out / f"{src.stem}-views.png")
+    sheet.save(info["sheet"])
+    return info
+
+
 class To3DDialog:
-    """絵から 3D に進む画面。作る、Blender で開く（無ければ取りに行く）の 2 つだけを置く"""
+    """絵から 3D に進む画面。骨付きの 3D キャラを作る、板の模型を作る、Blender で開く（無ければ取りに行く）を置く"""
 
     def __new__(cls, path: str, parent=None):
         from PySide6.QtCore import Qt, QUrl
@@ -127,6 +147,10 @@ class To3DDialog:
         status = QLabel("")
         lay.addWidget(status)
         row = QHBoxLayout()
+        rig = QPushButton("骨付きの 3D キャラを作る")
+        rig.setToolTip("三面図か 1 枚絵から、骨付きでアニメ調の陰の 3D（VRM と glTF）を作り、正面・横・後ろ・動かした姿を撮る。"
+                       "ゲームの道具（Unity、Unreal、Godot）や VRM の道具で読めます")
+        shot = QLabel(alignment=Qt.AlignCenter)
         make = QPushButton("模型を作る")
         make.setToolTip("人物を切り抜き、厚みのある板の模型（OBJ）を絵の隣のディレクトリに作る")
         blender = find_blender()
@@ -147,10 +171,30 @@ class To3DDialog:
             elif not blender:
                 QDesktopServices.openUrl(QUrl(BLENDER_URL))
 
+        def do_rig():
+            from PySide6.QtWidgets import QApplication
+            status.setText("作っています（20 秒ほど）…")
+            rig.setEnabled(False)
+            QApplication.processEvents()
+            try:
+                dlg.info = make_character(path)
+            except Exception as e:   # 人物が切り抜けない絵など。理由を出して押し直せるようにする
+                status.setText(f"作れませんでした: {e}")
+                rig.setEnabled(True)
+                return
+            row_img = dlg.info["sheet"]
+            shot.setPixmap(QPixmap(row_img).scaled(560, 220, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            status.setText(f"作りました: {Path(dlg.info['vrm']).name} と .glb（{Path(dlg.info['vrm']).parent}）")
+            rig.setEnabled(True)
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(dlg.info["vrm"]).parent)))
+
+        rig.clicked.connect(do_rig)
         make.clicked.connect(do_make)
         go.clicked.connect(do_go)
+        lay.addWidget(shot)
+        row.addWidget(rig)
         row.addWidget(make)
         row.addWidget(go)
         lay.addLayout(row)
-        dlg.make_button, dlg.go_button, dlg.status = make, go, status
+        dlg.make_button, dlg.go_button, dlg.status, dlg.rig_button = make, go, status, rig
         return dlg

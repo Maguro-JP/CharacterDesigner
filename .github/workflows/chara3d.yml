@@ -1,0 +1,73 @@
+# 描いたキャラデザから骨付きの 3D（VRM と glTF）を作り、正面・横・後ろ・動かした姿を撮る（tools/engine/chara3d.py）。
+# 頼みは config/chara3d-request.json。リポジトリは公開しているので重い処理（画像から 3D の模型 TripoSR、CPU で数分）は Actions の枠で回す。
+# plate: 膨らませた板の形（numpy と Pillow だけ、数十秒）。triposr: TripoSR の形に同じ骨付けと書き出しを通す（失敗しても plate は残る）。
+name: chara3d
+on:
+  push:
+    paths:
+      - "config/chara3d-request.json"
+      - "tools/engine/chara3d.py"
+      - ".github/workflows/chara3d.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: chara3d-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  plate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install numpy pillow
+      - name: 試験
+        run: python -m unittest tests.test_chara3d
+      - name: 作る
+        run: |
+          IMG=$(python -c "import json;print(json.load(open('config/chara3d-request.json'))['image'])")
+          VIEWS=$(python -c "import json;print(json.load(open('config/chara3d-request.json')).get('views',3))")
+          python tools/engine/chara3d.py "$IMG" out/plate --views "$VIEWS" | tee out/plate.log
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chara3d-plate
+          path: out/
+  triposr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    continue-on-error: true   # 外の模型の取得や版の違いで落ちても、plate の結果は使えるように
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: TripoSR を取る（MIT。CPU 版 torch）
+        run: |
+          pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu
+          git clone --depth 1 https://github.com/VAST-AI-Research/TripoSR .cache/TripoSR
+          pip install -r .cache/TripoSR/requirements.txt numpy pillow onnxruntime
+      - name: 正面を切り出して形を作る
+        run: |
+          IMG=$(python -c "import json;print(json.load(open('config/chara3d-request.json'))['image'])")
+          python - "$IMG" <<'PY'
+          import sys; sys.path.insert(0, "tools/engine")
+          import chara3d
+          from PIL import Image
+          img = Image.open(sys.argv[1])
+          front = chara3d.split_views(img, 3 if img.width >= img.height * 0.8 else 1)[0]
+          rgba, _ = chara3d.crop_view(front)
+          side = max(rgba.size) + 40
+          sq = Image.new("RGBA", (side, side), (0, 0, 0, 0)); sq.paste(rgba, ((side - rgba.width) // 2, (side - rgba.height) // 2))
+          sq.save("front.png")
+          PY
+          cd .cache/TripoSR && python run.py ../../front.png --device cpu --output-dir ../../out/triposr --model-save-format obj --mc-resolution 192
+      - name: 骨を付けて書き出す
+        run: python tools/engine/chara3d.py front.png out/triposr-rig --views 1 --mesh out/triposr/0/mesh.obj
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chara3d-triposr
+          path: out/
