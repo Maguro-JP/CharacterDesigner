@@ -129,12 +129,13 @@ def _mask(image, regions):
     return mask
 
 
-def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, on_step=None, checks=Checks) -> dict:
+def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, on_step=None, checks=Checks, on_preview=None) -> dict:
     """5 つの工程で 1 枚を描く。返り値は {"image": 最後の絵, "phases": 工程ごとの記録, "left": 残った崩れ, "checked": 検品できたか}。
     工程ごとに描くのは 1 回、直すのは崩れが見つかったときに 1 回だけ。どの工程も必ず終わる"""
     from chatdraw.engine import Stopped, emphasize
     from chatdraw import handcheck
     keep.mkdir(parents=True, exist_ok=True)
+    pv = {"on_preview": on_preview} if on_preview is not None else {}   # 描いている途中の絵を窓に渡す
     can_line, can_fix = abilities(painter)
     checks = _Safe(checks)   # 検品の部品が落ちても描くのは止めない。読めなかった検品は「検品できなかった」として残す
     rows, checked = [], True
@@ -153,6 +154,11 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         name = PHASES[i][0]
         path = keep / f"{i + 1:02d}-{name}.png"   # 順の分かる名前（タイムラプスがこの順につなぐ）
         image.save(path)
+        if on_preview is not None:   # 工程ごとの絵をすぐキャンバスに出す（描いている所を見せる）
+            try:
+                on_preview(image)
+            except Exception:   # noqa: BLE001  見せるだけ。描く流れは止めない
+                pass
         row = {"phase": name, "decides": PHASES[i][1], "checks": PHASES[i][2], "image": str(path), "found": found,
                "fixed": fixed, "after": after, "words": words, "seconds": round(time.time() - t0, 1)}
         if note:
@@ -186,7 +192,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
     try:
         if isinstance(steps0, int):
             painter.steps = max(4, int(steps0 * ROUGH_STEPS))
-        image = painter.paint(prompt, seed, on_step=on_step, size=size)
+        image = painter.paint(prompt, seed, on_step=on_step, size=size, **pv)
         req = checks.request(image, prompt)
         found = _composition_flaws(req, {})
         fixed, after, words = False, [], [prompt]
@@ -194,7 +200,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             stop()
             say("構図の崩れを直すため、種を変えて構図を 1 回だけ描き直しています")
             words.append(prompt)
-            again = painter.paint(prompt, seed + 1, on_step=on_step, size=size)
+            again = painter.paint(prompt, seed + 1, on_step=on_step, size=size, **pv)
             req2 = checks.request(again, prompt)
             after = _composition_flaws(req2, {})
             fixed = True
@@ -228,7 +234,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         if isinstance(steps0, int):
             painter.steps = max(4, int(steps0 * ROUGH_STEPS))
         try:
-            again = painter.paint(prompt, seed + 2, on_step=on_step, size=size)
+            again = painter.paint(prompt, seed + 2, on_step=on_step, size=size, **pv)
         finally:
             if isinstance(steps0, int):
                 painter.steps = steps0
@@ -251,7 +257,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         say(f"工程 3/{len(PHASES)}「線画」を描いています（構図の線に沿う）")
         tell(prompt)
         words.append(prompt)
-        image = painter.paint(prompt, seed, on_step=on_step, base=image, strength=LINE_STRENGTH, size=size)
+        image = painter.paint(prompt, seed, on_step=on_step, base=image, strength=LINE_STRENGTH, size=size, **pv)
     else:
         note = "この模型は線に沿って描けないので、構図の絵のまま形を検品しました"
         begin(2, f": {note}")

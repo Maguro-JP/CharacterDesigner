@@ -322,3 +322,13 @@ class CountLimitTest(unittest.TestCase):
             self.assertEqual(spin.value(), 25)
         finally:
             w.close()
+
+
+class PreviewTest(unittest.TestCase):
+    """精度優先でも、描いている途中の絵と工程ごとの絵を窓に渡す（描いている所を画面に見せる）"""
+
+    def test_each_phase_image_is_shown(self):
+        shown = []
+        with TemporaryDirectory() as d:
+            phases.draw(Painter(), "red hair, 1girl", 1, (64, 64), Path(d), checks=checks(False)[0], on_preview=shown.append)
+        self.assertGreaterEqual(len(shown), len(phases.PHASES))

@@ -2019,7 +2019,7 @@ class Studio:
             raise ValueError("子どもを性的に描く頼みは描きません")
         keep = self.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}-phases"
         try:
-            got = phases.draw(self.painter, prompt, seed, size, keep, say=say,
+            got = phases.draw(self.painter, prompt, seed, size, keep, say=say, on_preview=on_preview,
                               on_step=lambda i, n: say(f"描いています（{i}/{n}）"))
         finally:
             if hasattr(self.painter, "avoid"):
