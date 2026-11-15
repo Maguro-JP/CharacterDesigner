@@ -57,7 +57,7 @@ class QcManualTest(unittest.TestCase):
         self.tmp.cleanup()
 
     def fake(self, res):
-        def run(img):
+        def run(img, asked=""):
             self.seen.append(img.size)
             return res
         qcmanual.inspect = run
@@ -148,3 +148,13 @@ class QcManualTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class RequestLinesTest(unittest.TestCase):
+    """「検品する」に頼みの言葉を渡したとき、頼んだ物と頼んでいない物を場所の分からない崩れとして出す"""
+    def test_unplaced_and_missed(self):
+        from chatdraw import qcmanual
+        res = {"bad": [], "request": {"readable": True, "missing": ["umbrella"], "extra": ["bracelet"], "people": []}}
+        self.assertEqual(qcmanual.unplaced(res), ["頼んだのに描かれていない: umbrella", "頼んでいない物: bracelet"])
+        lost = qcmanual.missed({"request": {"readable": False, "reason": "部品が無い"}, "readable": True, "hands": [1]})
+        self.assertIn("頼んだ物: 部品が無い", lost)

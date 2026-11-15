@@ -119,7 +119,7 @@ class MirrorFromWindowTest(unittest.TestCase):
                 w.canvas.replace_with_image(str(src))
                 QTest.qWait(50)
                 w.notify = lambda *a, **k: None
-                qcmanual.inspect = lambda img: {"readable": True, "bad": [], "hands": [], "feet": [], "faces": [],
+                qcmanual.inspect = lambda img, asked="": {"readable": True, "bad": [], "hands": [], "feet": [], "faces": [],
                                                 "face": {"readable": True}, "mirror": mirrorcheck.check(img, {"mirror": 0.8})}
                 acts = [a for a in w.menuBar().actions() if a.text() == "編集"][0].menu().actions()
                 [a for a in acts if a.text() == "検品する"][0].trigger()

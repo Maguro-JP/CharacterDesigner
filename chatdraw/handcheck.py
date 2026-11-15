@@ -98,6 +98,15 @@ def _keypoints(im) -> dict:
     return _KP[key]
 
 
+def _release_pose() -> None:
+    """体の点の模型（約 350MB）を、1 枚の検品の終わりに離す。描く模型と同じ手元のメモリに居座らせない"""
+    try:
+        from chatdraw import twostage
+        twostage._POSE_MODEL.clear()
+    except Exception:   # noqa: BLE001  離せなくても検品の結果は変わらない
+        pass
+
+
 def _face(im, asked: str) -> dict:
     """顔の検品（tools/gen/facecheck.py）。部品が無ければ読めないことを返し、手の検品は止めない"""
     gen = ROOT / "tools" / "gen"
@@ -105,7 +114,15 @@ def _face(im, asked: str) -> dict:
         sys.path.insert(0, str(gen))
     try:
         import facecheck
-        return facecheck.check_face(im, keypoints=_keypoints(im), asked=asked)
+        kp = _keypoints(im)
+        try:
+            kp = facecheck.refine_points(im, kp)
+        except Exception:   # noqa: BLE001  読み直せなければ絵全体の点で見る（顔の検品は止めない）
+            pass
+        finally:
+            _release_pose()
+        precise = bool(kp.pop("_refined", False))
+        return facecheck.check_face(im, keypoints=kp, asked=asked, precise=precise)
     except Exception as e:
         return {"box": None, "readable": False, "bad": [], "reason": f"顔の検品の部品がありません（{e}）"}
 

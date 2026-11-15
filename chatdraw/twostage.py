@@ -55,6 +55,9 @@ def fetch_parts(say=print):
         snapshot_download(repo, cache_dir=str(HUB), allow_patterns=files)
 
 
+_POSE_MODEL: dict = {}
+
+
 def keypoints(image, threshold: float = 0.3) -> dict:
     """VitPose で体の 17 点を読み、名前と (x, y) を返す（確からしさが threshold 未満の点は入れない）"""
     import torch
@@ -62,8 +65,11 @@ def keypoints(image, threshold: float = 0.3) -> dict:
     from chatdraw.paths import HUB
     names = ["nose", "left_eye", "right_eye", "left_ear", "right_ear", "left_shoulder", "right_shoulder", "left_elbow",
              "right_elbow", "left_wrist", "right_wrist", "left_hip", "right_hip", "left_knee", "right_knee", "left_ankle", "right_ankle"]
-    proc = AutoProcessor.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True)
-    model = VitPoseForPoseEstimation.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True)
+    # 模型は 1 回だけ読む。顔の点を顔の切り出しで読み直す（facecheck.refine_points）と 1 枚に 2 回呼ぶので、毎回読むと 20 秒ずつかかった
+    if "pose" not in _POSE_MODEL:
+        _POSE_MODEL["pose"] = (AutoProcessor.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True),
+                               VitPoseForPoseEstimation.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True))
+    proc, model = _POSE_MODEL["pose"]
     w, h = image.size
     boxes = [[[0, 0, w, h]]]
     with torch.no_grad():

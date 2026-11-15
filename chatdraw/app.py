@@ -2541,7 +2541,9 @@ class Window(QMainWindow):
             else:
                 self.notify("検品: 崩れは見つかりませんでした" + ("（検品できなかった所があります）" if lost else ""),
                             "ok" if not lost else "info", tail)
-        self.in_background(lambda: qcmanual.inspect(img), done, "検品")
+        # 最後に描いた絵の模型の言葉があれば渡し、頼んだ物が描かれたか・頼んでいない物が無いかも見る
+        asked = getattr(self, "last_model_prompt", "") or ""
+        self.in_background(lambda: qcmanual.inspect(img, asked=asked), done, "検品")
 
     def inspect_marks_then_fix(self):
         """指示の空の囲みの中だけを検品し、見つけた崩れを指示にして 1 回だけ直す。崩れが無ければ何もしない。
