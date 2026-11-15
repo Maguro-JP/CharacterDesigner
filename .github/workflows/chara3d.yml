@@ -8,6 +8,7 @@ on:
     paths:
       - "config/chara3d-request.json"
       - "tools/engine/chara3d.py"
+      - "tools/engine/vrm_check.mjs"
       - ".github/workflows/chara3d.yml"
   workflow_dispatch:
 permissions:
