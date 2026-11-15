@@ -76,7 +76,7 @@ class MemoryRetryTest(unittest.TestCase):
         p = OOMPainter(fails=5, error=MemoryError())
         with self.assertRaises(MemoryError) as got:
             p.paint("knight", 1)
-        self.assertEqual(p.calls, 2, "2 回より多く描いた")
+        self.assertEqual(p.calls, 3, "ディスクへの退避で 3 回目を描いていない")
         self.assertIn("メモリが足りず", engine.explain(got.exception))
 
     def test_other_errors_are_not_retried(self):
@@ -211,3 +211,42 @@ class AppSurvivesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BigModelNeverRefused(unittest.TestCase):
+    """メモリが足りないと見積もった模型も断らず、退避の形で読む（大きな模型が動かせなかった）"""
+
+    def test_over_budget_loads_with_offload(self):
+        from types import SimpleNamespace
+        from chatdraw import engine, membudget as mb
+        mb.set_mode("自動")
+        p = engine.Painter.__new__(engine.Painter)
+        notes = []
+        p._note = notes.append
+        p.offload = ""
+        plan = SimpleNamespace(ok=False, reason="足りない", lighter="", size=(1024, 1024),
+                               ram_peak=lambda: 60.0, vram_peak=lambda: 40.0)
+        p._check_budget(plan, mb.Budget(8.0, 6.0, 10.0, 8.0))   # 60GB の見積もりに 8GB の予算
+        self.assertEqual(p.offload, "sequential")
+        self.assertTrue(p.low_memory)
+        self.assertIn("遅く", notes[-1])
+
+    def test_second_oom_falls_back_to_disk(self):
+        from chatdraw import engine
+
+        class Fake:
+            offload = ""
+            low_memory = False
+
+            def unload(self):
+                pass
+        f, tries, notes = Fake(), [], []
+
+        def run():
+            tries.append(f.offload)
+            if f.offload != "disk":
+                raise MemoryError("out of memory")
+            return "絵"
+        self.assertEqual(engine.memory_retry(f, run, notes.append), "絵")
+        self.assertEqual(tries, ["", "", "disk"])
+        self.assertTrue(any("ディスク" in n for n in notes))

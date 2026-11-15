@@ -77,7 +77,7 @@ def tip(m: ImageModel, have: bool, pc: tuple[float, float] | None = None) -> str
              f"得意: {m.good}" if m.good else "", f"大きさ: {m.gb:.1f}GB", "取得済み" if have else "まだ取っていません",
              f"商用: {license_gist(m)}"]
     if pc is not None and fits(m, *pc) == "no":
-        lines.append("この PC ではメモリが足りません")
+        lines.append("この PC ではメモリが足りないので、退避して動かします（とても遅い）")
     return "\n".join(x for x in lines if x)
 
 
