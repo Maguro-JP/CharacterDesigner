@@ -664,7 +664,7 @@ def sentence(picked: list[str]) -> str:
         t = words.get(t.strip().lower(), t.strip())
         if t and t not in out:
             out.append(t)
-    return "An anime illustration of " + ", ".join(out) + "."
+    return ", ".join(out)   # 頼みの訳だけを渡す。「An anime illustration of」のような頼んでいない前置きを足さない
 
 
 # 途中の絵（latents）をそのまま色に直す係数。VAE で戻すより何百倍も速く、描いている様子を見せるのに足りる

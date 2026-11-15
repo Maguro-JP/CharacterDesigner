@@ -282,13 +282,13 @@ class RequestReachesModelTest(unittest.TestCase):
                     st.draw(REQUEST, 3, size=(832, 1216))
                 call = next(x for x in log if x[0] == "call")[2]
                 prompt, f = call["prompt"].lower(), family(fam)
-                for want in ("white bikini", "beach", "waving", "full body"):
+                for want in ("white bikini", "ocean", "waving", "full body"):
                     self.assertIn(want, prompt)
                 if f.tags:
                     self.assertIn("1girl", prompt)
                     self.assertNotIn("an anime illustration of", prompt)
                 else:
-                    self.assertTrue(prompt.startswith(("an anime illustration of",)) or "an anime illustration of" in prompt, prompt)
+                    self.assertNotIn("an anime illustration of", prompt)   # 頼んでいない前置きを足さない
                     self.assertIn("a woman", prompt)
                     self.assertNotIn("1girl", prompt)                 # 文の模型にタグの決まり文句を渡さない
                 if f.negative:
