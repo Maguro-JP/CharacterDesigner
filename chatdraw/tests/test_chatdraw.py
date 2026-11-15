@@ -460,7 +460,7 @@ class SetupTest(unittest.TestCase):
         from chatdraw.engine import Words
         self.assertFalse(Words(Path("")).ready())
         # 言葉の模型が無いときも、日本語をそのまま渡さず、表で拾った語で描く（そのまま渡すと全く違う絵が出た）
-        self.assertEqual(Words(Path("")).to_prompt("騎士"), "knight, armor")
+        self.assertEqual(Words(Path("")).to_prompt("騎士"), "knight")
         self.assertEqual(Words(Path("")).to_prompt("ぴょぴょ"), "")   # 拾えなくても日本語は渡さない（英語の所だけ残す）
         self.assertEqual(Words(Path("")).to_prompt("ぴょぴょ anime"), "anime")
 
