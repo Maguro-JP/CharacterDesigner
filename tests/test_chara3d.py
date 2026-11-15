@@ -56,6 +56,8 @@ class Chara3DTest(unittest.TestCase):
     def test_vrm_humanoid_and_mtoon(self):
         g, acc = chara3d.read_glb(Path(self.info["vrm"]))
         self.assertIn("VRMC_vrm", g["extensionsUsed"])
+        self.assertEqual(len(g["buffers"]), 1)   # 無いと外の道具で読めなかった
+        self.assertTrue(all(v["byteOffset"] + v["byteLength"] <= g["buffers"][0]["byteLength"] for v in g["bufferViews"]))
         bones = g["extensions"]["VRMC_vrm"]["humanoid"]["humanBones"]
         for b in REQUIRED:
             self.assertIn(b, bones)

@@ -598,8 +598,10 @@ def write_gltf(out: Path, pos, nrm, tris, joints, j_idx, j_w, uv=None, tex_png: 
                      "allowAntisocialActorUsage": False, "creditNotation": "required",
                      "allowRedistribution": False, "modification": "prohibited"},
             "humanoid": {"humanBones": {b: {"node": first + i} for i, b in enumerate(BONES)}}}}
-    js = _pad(json.dumps(g, ensure_ascii=False, separators=(",", ":")).encode(), b" ")
     bb = _pad(bytes(buf))
+    # 1 つ目の buffer は GLB の BIN の塊を指す。書き忘れると、glTF の検査器も three-vrm も読めなかった
+    g["buffers"] = [{"byteLength": len(bb)}]
+    js = _pad(json.dumps(g, ensure_ascii=False, separators=(",", ":")).encode(), b" ")
     total = 12 + 8 + len(js) + 8 + len(bb)
     out.write_bytes(struct.pack("<4sII", b"glTF", 2, total) + struct.pack("<I4s", len(js), b"JSON") + js
                     + struct.pack("<I4s", len(bb), b"BIN\0") + bb)
