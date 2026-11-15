@@ -150,6 +150,10 @@
 | Bonsai Image 3 値 4B | [prism-ml/bonsai-image-ternary-4B-unpacked](https://huggingface.co/prism-ml/bonsai-image-ternary-4B-unpacked) | FLUX.2 | 16 GB | 8・24 GB | － | 0 | PrismML が 3 値の重みで学び直した 4B の模型。文で頼める | イラスト、新しい世代、GPU向き、商用可 | 商用可（Apache-2.0） |
 | Bonsai Image 2 値 4B | [prism-ml/bonsai-image-binary-4B-unpacked](https://huggingface.co/prism-ml/bonsai-image-binary-4B-unpacked) | FLUX.2 | 16 GB | 8・24 GB | － | 0 | PrismML が 2 値の重みで学び直した 4B の模型。文で頼める | イラスト、新しい世代、GPU向き、商用可 | 商用可（Apache-2.0） |
 | Z-Image | [Tongyi-MAI/Z-Image](https://huggingface.co/Tongyi-MAI/Z-Image) | Z-Image | 20.5 GB | 16・32 GB | － | 0 | Turbo 版の元の模型。打ち消しが効き、工程を多く取って細かく描く | イラスト、新しい世代、GPU向き、商用可 | 商用可（Apache-2.0） |
+| Nova Anime XL 19 | [wssdaas/nova-anime-xl-ilv-19.0](https://huggingface.co/wssdaas/nova-anime-xl-ilv-19.0) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。くっきりした線と鮮やかな塗り（Nova Anime XL の 2026-07 の版） | アニメ、イラスト、アニメ塗り | 札にライセンスの記載なし。元の Illustrious XL 系は faipl-1.0-sd（商用に制限あり、私の推測） |
+| WAI Illustrious SDXL v17 | [frankjoshua/waiIllustriousSDXL_v170](https://huggingface.co/frankjoshua/waiIllustriousSDXL_v170) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。WAI Illustrious の 2026-06 の版（v16 は点 50） | アニメ、イラスト | 札にライセンスの記載なし。元の Illustrious XL 系は faipl-1.0-sd（商用に制限あり、私の推測） |
+| Raehoshi illust XL 12 | [Raelina/Raehoshi-illust-XL-12](https://huggingface.co/Raelina/Raehoshi-illust-XL-12) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメのイラスト。Raehoshi の 2026-10 の版 | アニメ、イラスト | 札のライセンスは other（札を確かめる） |
+| One Obsession v2.2 | [misri/oneObsession_v22](https://huggingface.co/misri/oneObsession_v22) | SDXL | 6.9 GB | 6・16 GB | － | 0 | アニメ絵。Illustrious 系の 2026-06 の模型 | アニメ、イラスト | 札にライセンスの記載なし（札を確かめる） |
 
 ### 世代ごとにできること
 

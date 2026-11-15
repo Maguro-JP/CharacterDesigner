@@ -21,7 +21,7 @@ from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import (QComboBox, QDialog, QFrame, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMenu, QMessageBox,
                                QProgressBar, QPushButton, QToolButton, QVBoxLayout, QWidget)
 
-from chatdraw.models import FILTERS, HIDDEN, SORTS, WORDS, ImageModel, catalog_images, family, fits, machine, pick, verified_words
+from chatdraw.models import FILTERS, HIDDEN, SORTS, WORDS, ImageModel, catalog_images, family, fits, listed, machine, pick, verified_words
 from chatdraw.paths import GGUF, HUB, OWN_LLM
 from chatdraw.setup import AUTO, Fetcher, folder_gb
 
@@ -251,7 +251,9 @@ class ModelManager(QDialog):
                                           "使用中" if auto else "使う", None if auto else self.use_auto))
             self.list.addWidget(self._sets_row())
         catalog = catalog_images()
-        shown = pick(catalog, self.filter.currentText(), self.sort.currentText(), self.chosen_tags, have=mine)
+        # 一覧に出すのは、推奨に届いた物と手元の物と自分で足した物だけ（models.shown）。点の届かない物は見せない
+        offer = catalog if hiding else listed(catalog, mine)
+        shown = pick(offer, self.filter.currentText(), self.sort.currentText(), self.chosen_tags, have=mine)
         known = {m.repo for m in catalog}
         # 目録に無い手元の物（前に取った物、手で置いた物）は、点やタグを持たないので「すべて」と「取得済み」でだけ出す。
         # 前はどの絞り込みでも出し、絞り込めたかが分からなかった
@@ -525,7 +527,7 @@ class ModelManager(QDialog):
         clear = self.tag_menu.addAction("絞らない", lambda: self.set_tags([]))
         clear.setEnabled(bool(self.chosen_tags))
         self.tag_menu.addSeparator()
-        for t in all_tags(catalog_images()):
+        for t in all_tags(listed(catalog_images(), {it.key for it in installed() if it.kind == "image"})):
             a = self.tag_menu.addAction(t)
             a.setCheckable(True)
             a.setChecked(t in self.chosen_tags)
