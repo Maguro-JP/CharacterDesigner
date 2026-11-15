@@ -16,15 +16,34 @@ def prefs_file() -> Path:
     return data_home() / "model_prefs.json"
 
 
+_READ: dict = {}   # 道 → ((時刻, 大きさ), 読んだ中身)。ファイルが変わっていなければ読み直さない
+
+
 def _load() -> dict:
-    """読めないファイルは控え（.broken-<日時>）を残してから空として扱う。次の保存で印を失わないように"""
+    """読めないファイルは控え（.broken-<日時>）を残してから空として扱う。次の保存で印を失わないように。
+    模型の一覧を並べるたびに模型ごとに 3 回ずつ読み、点を 1 つ付けると 1 回 500 回以上ファイルを読んでいた。
+    ファイルの時刻と大きさが同じなら、前に読んだ中身を使う（ほかのアプリが書き替えれば時刻が変わって読み直す）"""
     from chatdraw.paths import read_json
-    return read_json(prefs_file(), dict, {})
+    f = prefs_file()
+    try:
+        st = f.stat()
+        key = (st.st_mtime_ns, st.st_size)
+    except OSError:
+        key = None
+    hit = _READ.get(str(f))
+    if key is not None and hit is not None and hit[0] == key:
+        return hit[1]
+    data = read_json(f, dict, {})
+    if key is not None:
+        _READ[str(f)] = (key, data)
+    return data
 
 
 def _save(data: dict):
     from chatdraw.paths import write_json
-    write_json(prefs_file(), data)
+    f = prefs_file()
+    _READ.pop(str(f), None)
+    write_json(f, data)
 
 
 def user_rating(repo: str) -> int:

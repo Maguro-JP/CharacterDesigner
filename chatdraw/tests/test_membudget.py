@@ -297,8 +297,14 @@ class UpscaleTilesTest(unittest.TestCase):
         with mock.patch.object(upscale, "_NET", [Net()]):
             a = upscale.x4(img, tile=256)
             b = upscale.x4(img, tile=32)
-            self.assertEqual(downs, ["painter"], "拡大の前に描く模型を降ろしていない")
+            # 読んである拡大の網を使うだけなら、描く模型は降ろさない（次に描くときに読み直さない）
+            self.assertEqual(downs, [], "読んである拡大の網を使うたびに描く模型を降ろした")
             upscale.unload()
+        # 空きが足りないときは、拡大の網を読む前に描く模型を降ろす
+        with mock.patch.object(mb, "budget", lambda *a, **k: mb.Budget(0.5, 0.0, 0.6, 0.0)):
+            mb.exclusive("upscale", upscale.unload, need_gb=upscale.NEED_GB)
+        self.assertEqual(downs, ["painter"], "空きが足りないのに描く模型を降ろしていない")
+        upscale.unload()
         self.assertEqual(a.size, (560, 400))
         self.assertEqual(np.asarray(a).tobytes(), np.asarray(b).tobytes())
         self.assertEqual(mb.tile_for(1.0, 0.0, False), 128)

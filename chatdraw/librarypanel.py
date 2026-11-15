@@ -33,6 +33,7 @@ class LibraryPanel(QWidget):
     def __init__(self, w):
         super().__init__()
         self.w = w
+        self._icons: dict = {}   # 絵の道 → ((時刻, 大きさ), 小さな絵)
         lay = QVBoxLayout(self)
         lay.setContentsMargins(6, 4, 6, 6)
         self.tabs = QTabWidget()
@@ -88,12 +89,38 @@ class LibraryPanel(QWidget):
         self.refresh()
 
     # ---- 見せる ----
-    def _item(self, it: dict) -> QListWidgetItem:
+    def _icon(self, path: str) -> QIcon | None:
+        """小さな絵。絵のファイルの時刻と大きさが同じなら、前に縮めた物を使い回す。
+        前は評価を 1 つ付けるたびに一覧を作り直し、全部の絵（832×1216 の PNG）を画面の糸で読み直して、
+        150 枚で 1 回 3〜5 秒固まった"""
+        try:
+            st = Path(path).stat()
+        except OSError:
+            self._icons.pop(path, None)
+            return None
+        key = (st.st_mtime_ns, st.st_size)
+        hit = self._icons.get(path)
+        if hit is not None and hit[0] == key:
+            return hit[1]
+        from PySide6.QtGui import QImageReader
+        reader = QImageReader(path)
+        size = reader.size()
+        if size.isValid() and size.width() > 0 and size.height() > 0:
+            reader.setScaledSize(size.scaled(176, 240, Qt.KeepAspectRatio))   # 読みながら縮める（全部の大きさで持たない）
+        img = reader.read()
+        icon = QIcon(QPixmap.fromImage(img)) if not img.isNull() else None
+        self._icons[path] = (key, icon)
+        return icon
+
+    def _label(self, it: dict) -> str:
         star = "★" if it["kind"] == "work" and it["path"] in self._favs else ""
-        item = QListWidgetItem(star + MARK.get(it["rating"], "") if it["kind"] == "work" else (it["note"] or Path(it["path"]).name)[:10])
-        pm = QPixmap(it["path"])
-        if not pm.isNull():
-            item.setIcon(QIcon(pm.scaled(176, 240, Qt.KeepAspectRatio, Qt.SmoothTransformation)))
+        return star + MARK.get(it["rating"], "") if it["kind"] == "work" else (it["note"] or Path(it["path"]).name)[:10]
+
+    def _item(self, it: dict) -> QListWidgetItem:
+        item = QListWidgetItem(self._label(it))
+        icon = self._icon(it["path"])
+        if icon is not None:
+            item.setIcon(icon)
         item.setData(Qt.UserRole, it["id"])
         item.setData(Qt.UserRole + 1, it["path"])
         tip = [it["added"], it.get("text") or it.get("note", "")]
@@ -114,8 +141,41 @@ class LibraryPanel(QWidget):
             view.clear()
             for it in rows:
                 view.addItem(self._item(it))
+        live = {it["path"] for it in lib.items}
+        for gone in [p for p in self._icons if p not in live]:   # 消した絵の小さな絵は持ち続けない
+            self._icons.pop(gone, None)
         self.refresh_characters()
-        p = lib.profile()
+        self.refresh_summary()
+
+    def relabel(self, paths=None):
+        """評価・★ が変わった絵の見出しだけを書き直す（一覧は作り直さず、絵も読み直さない）"""
+        from chatdraw.ownstyle import favorites
+        self._favs = set(favorites())
+        want = None if paths is None else {str(p) for p in paths}
+        lib = self.w.library
+        for i in range(self.works.count()):
+            item = self.works.item(i)
+            path = item.data(Qt.UserRole + 1)
+            if want is not None and path not in want:
+                continue
+            entry = lib.get(item.data(Qt.UserRole))
+            if entry:
+                item.setText(self._label(entry))
+        self.refresh_summary()
+
+    def drop(self, paths):
+        """消した絵を一覧から外す（ほかの絵は作り直さない）"""
+        gone = {str(p) for p in paths}
+        for view in (self.works, self.docs):
+            for i in reversed(range(view.count())):
+                if view.item(i).data(Qt.UserRole + 1) in gone:
+                    view.takeItem(i)
+        for p in gone:
+            self._icons.pop(p, None)
+        self.refresh_summary()
+
+    def refresh_summary(self):
+        p = self.w.library.profile()
         if p["rated"] == 0:
             text = "まだ好みを読み取れていません。\n作品を右クリックして「好き」「いまいち」を付けるか、資料に言葉を付けてください。"
         else:
@@ -171,7 +231,7 @@ class LibraryPanel(QWidget):
             m.addAction("評価を外す", lambda: self.rate(item_id, NONE))
             from chatdraw import ownstyle
             m.addAction("★ お気に入りを外す" if ownstyle.is_favorite(path) else "★ お気に入りにする",
-                        lambda: (ownstyle.toggle(path), self.refresh()))
+                        lambda: (ownstyle.toggle(path), self.relabel([path])))
             m.addAction("学習用に集める", self.w.collect_favorites)
             m.addSeparator()
             m.addAction("この設定で描き直す", lambda: self.w.redo_from(path))
@@ -197,7 +257,8 @@ class LibraryPanel(QWidget):
     def rate(self, item_id: str, rating: int):
         self.w.library.rate(item_id, rating)
         self.w.feature_tour("taste")
-        self.refresh()
+        entry = self.w.library.get(item_id)
+        self.relabel([entry["path"]] if entry else None)
 
     def tag(self, item_id: str, text: str | None = None):
         entry = self.w.library.get(item_id)

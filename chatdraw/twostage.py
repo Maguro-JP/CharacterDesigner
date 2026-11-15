@@ -55,15 +55,38 @@ def fetch_parts(say=print):
         snapshot_download(repo, cache_dir=str(HUB), allow_patterns=files)
 
 
+_POSE: list = []   # 読んだ (proc, model)。1 枚の絵を描く間に検品で何度も使う
+_POSE_LOCK = __import__("threading").Lock()
+
+
+def _unload_pose():
+    _POSE.clear()
+    from chatdraw.membudget import released
+    released("vitpose")
+
+
+def _pose(local_only: bool = True):
+    """VitPose を 1 回だけ読む。前は体の点を読むたびに読み直し（1 回に数秒）、1 枚の絵の検品と直しで何度も読んでいた。
+    0.4GB ほどなので、ほかの模型は降ろさない。絵の模型を読むときに足りなければ、絵の模型の側が降ろす"""
+    with _POSE_LOCK:
+        if _POSE:
+            return _POSE[0]
+        from transformers import AutoProcessor, VitPoseForPoseEstimation
+        from chatdraw.paths import HUB
+        kw = dict(cache_dir=str(HUB), local_files_only=True) if local_only else dict(cache_dir=str(HUB))
+        got = (AutoProcessor.from_pretrained(POSE, **kw), VitPoseForPoseEstimation.from_pretrained(POSE, **kw).eval())
+        from chatdraw.membudget import exclusive
+        exclusive("vitpose", _unload_pose, need_gb=0)   # 記録するだけ（降ろさない）
+        _POSE.append(got)
+        return got
+
+
 def keypoints(image, threshold: float = 0.3) -> dict:
     """VitPose で体の 17 点を読み、名前と (x, y) を返す（確からしさが threshold 未満の点は入れない）"""
     import torch
-    from transformers import AutoProcessor, VitPoseForPoseEstimation
-    from chatdraw.paths import HUB
     names = ["nose", "left_eye", "right_eye", "left_ear", "right_ear", "left_shoulder", "right_shoulder", "left_elbow",
              "right_elbow", "left_wrist", "right_wrist", "left_hip", "right_hip", "left_knee", "right_knee", "left_ankle", "right_ankle"]
-    proc = AutoProcessor.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True)
-    model = VitPoseForPoseEstimation.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True)
+    proc, model = _pose(local_only=True)
     w, h = image.size
     boxes = [[[0, 0, w, h]]]
     with torch.no_grad():
@@ -76,10 +99,7 @@ def pose_map(image, threshold: float = 0.3):
     人は 1 人の絵として、絵全体を枠にする。手の指は取らない（指の形は仕上げの模型に任せる）"""
     import torch
     from PIL import Image, ImageDraw
-    from transformers import AutoProcessor, VitPoseForPoseEstimation
-    from chatdraw.paths import HUB
-    proc = AutoProcessor.from_pretrained(POSE, cache_dir=str(HUB))
-    model = VitPoseForPoseEstimation.from_pretrained(POSE, cache_dir=str(HUB))
+    proc, model = _pose(local_only=False)
     w, h = image.size
     boxes = [[[0, 0, w, h]]]
     with torch.no_grad():

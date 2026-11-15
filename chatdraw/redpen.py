@@ -150,7 +150,8 @@ class RedPen(QGraphicsItem):
         if 1 <= n <= len(self.marks):
             self._fill_shapes()
             self.undone.append((self.marks.pop(n - 1), self.texts.pop(n - 1), self.shapes.pop(n - 1)))
-            self.hidden.pop(n - 1)
+            if n - 1 < len(self.hidden):   # 隠す印の並びが短いときに消すと、ここで落ちていた
+                self.hidden.pop(n - 1)
             self.focus = 0
             self.update()
             self._changed()

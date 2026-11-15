@@ -312,6 +312,8 @@ class WindowTest(unittest.TestCase):
             m = w._history_menu(pos, run=False)
             judge = next(a for a in m.actions() if a.text() == "判定").menu()
             next(a for a in judge.actions() if a.text() == "良い").trigger()
+            w.wait_io()   # 判定は裏の列で書く（画面の糸を止めない）
+            wait_bg(app(), w)
             self.assertEqual(wordlearn.verdict_of(w.images[0]), "good")
             # 設定 → 単語辞書… で窓を開く。対応表に語ごとのタグ、辞書に通った語、訳を直す
             worddict.record(["bench", "maid"], True, {"bench": "ベンチ"})
