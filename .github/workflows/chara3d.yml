@@ -79,6 +79,7 @@ jobs:
           sq = Image.new("RGB", (side, side), (127, 127, 127)); sq.paste(rgba, ((side - rgba.width) // 2, (side - rgba.height) // 2), rgba)
           sq.save("front.png")
           PY
+          mkdir -p out/triposr/0   # run.py は出力の置き場を作らずに書き、落ちた
           cd .cache/TripoSR && python run.py ../../front.png --device cpu --no-remove-bg --output-dir ../../out/triposr \
             --model-save-format obj --mc-resolution 192 --pretrained-model-name-or-path ../TripoSR-weights
       - name: 骨を付けて書き出す
