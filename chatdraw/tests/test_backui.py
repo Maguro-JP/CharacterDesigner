@@ -225,8 +225,9 @@ class DebugModeTest(Base):
         plan = SimpleNamespace(ok=False, reason="足りない", lighter="小さくしてください", size=(512, 512),
                                ram_peak=lambda: 30.0, vram_peak=lambda: 0.0)
         b = mb.Budget(8.0, 0.0, 10.0, 0.0)
-        with self.assertRaises(mb.OverBudget):
-            p._check_budget(plan, b)
+        p.offload = ""
+        p._check_budget(plan, b)   # 大きく超えても断らず、退避の形で読む
+        self.assertEqual(p.offload, "sequential")
         debuglog.configure(True, ["budget"])
         p._check_budget(plan, b)   # 外したときは止めずに描く
         self.assertTrue(p.low_memory)

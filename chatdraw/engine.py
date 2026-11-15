@@ -106,6 +106,9 @@ def release_memory():
         pass
 
 
+BIG_NOTE = ("メモリの見積もりを大きく超える模型なので、層ごとに出し入れする退避の形（GPU は使う層だけ、"
+            "入らない重みはディスク）で読みます。かなり遅くなります（1 枚に数十分かかることがあります）")
+DISK_NOTE = "まだメモリが足りないので、重みをディスクへ退避し、層ごとに読み込んで描きます。とても遅くなります"
 LOW_MEMORY_NOTE = "メモリが足りないので、メモリを使わない設定（部品の出し入れ、注意の分割、小さめの大きさ）に切り替えて描きます"
 
 
@@ -126,6 +129,20 @@ def memory_retry(painter, run, say=None):
     release_memory()
     try:
         painter.low_memory = True
+    except AttributeError:
+        pass
+    try:
+        return run()
+    except Exception as e:
+        if not is_oom(e):
+            raise
+    # 2 回目も足りなければ断らず、重みをディスクへ退避して層ごとに読む形で、もう一度描く
+    (say or (lambda m: None))(DISK_NOTE)
+    if hasattr(painter, "unload"):
+        painter.unload()
+    release_memory()
+    try:
+        painter.offload = "disk"
     except AttributeError:
         pass
     try:
@@ -880,6 +897,8 @@ class Painter:
         self.plan = None          # 描く前のメモリの予算の計画（chatdraw/membudget.py）
         self.placed = None        # 読んだ模型の置き場（cuda / model / sequential / cpu）。読む前は None
         self.partial_dir = None   # メモリが危なくて止めたときに途中の絵を残す所
+        # 予算に収まらない模型の退避の段（""、"sequential"、"disk"）。断らずに退避で動かす（_check_budget、memory_retry）
+        self.offload = ""
 
     def _note(self, msg: str):
         if self.on_note is not None:
@@ -958,8 +977,14 @@ class Painter:
         k = mb.over_ok()   # 設定の「メモリの使い方」で変わる（自動は OVER_OK と同じ 1.5）
         over_ram = plan.ram_peak() > b.ram * k
         over_vram = b.vram > 0 and plan.vram_peak() > b.vram * k
+        if (over_ram or over_vram) and mb.mode() == "控えめに動かす":
+            raise mb.OverBudget(plan.reason + "。" + plan.lighter)   # 利用者が設定で控えめを選んだときだけ止める
         if over_ram or over_vram:
-            raise mb.OverBudget(plan.reason + "。" + plan.lighter)
+            # 大きく超えても断らない。層ごとに GPU へ出し入れし（VRAM は数 GB）、入らない重みはディスクへ退避して読む
+            self.low_memory = True
+            self.offload = self.offload or "sequential"
+            self._note(BIG_NOTE)
+            return
         self.low_memory = True
         self._note(f"見積もりではメモリが少し足りませんが、一番軽い設定（{plan.size[0]}×{plan.size[1]}）で描きます。"
                    "危なくなったら途中で止めて途中の絵を残します")
@@ -1068,6 +1093,8 @@ class Painter:
     def load(self, size=None):
         if self._pipe is None:
             plan = self.memory_guard(size)
+            if self.offload == "sequential":
+                self.offload = ""   # 予算から決め直す（前の大きな模型の退避を、次の小さな模型に持ち越さない）
             self._check_budget(plan)   # 収まらないなら、読む前に止める（読んでから足りないと分かると、もう山の途中）
             from chatdraw.membudget import exclusive
             exclusive(("painter", id(self)), self.unload)   # 模型はいつも 1 つだけ。ほかの模型を降ろしてから読む
@@ -1149,6 +1176,8 @@ class Painter:
                 info = image_model(self.model)
                 need = info.gb * (QUANT_SHARE if getattr(self, "quantized", False) else 1.0)
                 self.placed = placement(free / 1e9, need * 1.2, heavy(info)[0] * 0.9)
+            if getattr(self, "offload", ""):
+                self.placed = "sequential"   # 予算を超える模型は、層ごとに出し入れする（_check_budget、memory_retry）
             if self.placed == "sequential" and getattr(self, "quantized", False):
                 self.placed = "model"   # 4 ビットに縮めた部品は層ごとの出し入れができない（bitsandbytes）。部品ごとに出し入れする
             if self.placed == "cuda":
@@ -1156,8 +1185,10 @@ class Painter:
                     pipe.to("cuda")
             elif self.placed == "model":
                 pipe.enable_model_cpu_offload()
-            else:
+            elif getattr(self, "offload", "") != "disk":   # ディスクへの退避は _disk_offload が層ごとに GPU へ載せる
                 pipe.enable_sequential_cpu_offload()
+        if getattr(self, "offload", "") == "disk":
+            self._disk_offload(pipe)
         self.lighten(pipe, plan)
         if getattr(self, "channels_last", False):
             # 畳み込みの多い部品（UNet と VAE）のメモリの並びを替える。計算の中身は同じで、CPU では畳み込みが速くなることがある。
@@ -1168,6 +1199,32 @@ class Painter:
                     try:
                         part.to(memory_format=torch.channels_last)
                     except Exception:   # noqa: BLE001  並びを替えられない部品はそのまま
+                        pass
+
+    def _disk_offload(self, pipe):
+        """重みをディスクへ退避し、使う層だけを読み込む（diffusers の group offload、offload_to_disk_path）。
+        RAM に模型全体が入らない PC でも動かすため。使えない版の diffusers や部品はそのまま（層ごとの出し入れだけ）"""
+        import torch
+        on = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        root = HUB.parent / "offload" / str(id(self))
+        for name in ("transformer", "unet", "text_encoder", "text_encoder_2", "text_encoder_3"):
+            part = getattr(pipe, name, None)
+            if part is None or not hasattr(part, "enable_group_offload"):
+                continue
+            try:
+                (root / name).mkdir(parents=True, exist_ok=True)
+                part.enable_group_offload(onload_device=on, offload_device=torch.device("cpu"), offload_type="leaf_level",
+                                          offload_to_disk_path=str(root / name))
+                self.placed = "disk"
+            except Exception:   # noqa: BLE001  退避できない部品は層ごとの出し入れのまま
+                pass
+        if on.type == "cuda":   # 退避しない小さい部品（VAE など）は GPU に置く（置き場がそろわないと計算できない）
+            for name in ("vae", "image_encoder"):
+                part = getattr(pipe, name, None)
+                if part is not None and hasattr(part, "to"):
+                    try:
+                        part.to(on)
+                    except Exception:   # noqa: BLE001
                         pass
 
     def lighten(self, pipe, plan=None, slicing=None, tiling=None):
