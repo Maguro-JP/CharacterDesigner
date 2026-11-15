@@ -189,7 +189,7 @@ class WindowTest(WindowBase):
         self.assertEqual((xs.min(), xs.max(), ys.min(), ys.max()), (100, 140, 30, 80))
         self.assertEqual(int(a.sum()), 41 * 51)
         self.assertIn("自動選択", w.statusBar().currentMessage())
-        self.assertIn("自動選択", w.chat.bubbles()[-1].text)   # 代わりの道で選んだことを黙らない
+        self.assertIn("自動選択", w.activity.detail.text())   # 代わりの道で選んだことを黙らない（進み具合の欄に書く）
 
     # ---- 2. 赤ペンの囲み方 ----
     def test_redpen_ellipse_rect_all_auto(self):

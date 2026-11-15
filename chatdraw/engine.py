@@ -474,7 +474,7 @@ def decode_threads(cores: int) -> int:
 # 読んだ言葉の模型（道 → Llama）。設定を替えて Words を作り直しても、同じ模型は読み直さない（1 回の読み込みに 100 秒以上かかった）。
 # 持つのは 1 つだけにし、別の模型に替えたら前の物は捨ててメモリを空ける
 _LOADED: dict[str, object] = {}
-CTX = 2048   # 言葉の模型に一度に渡せるトークンの数（指示・頼み・答えの合計）
+CTX = 4096   # 言葉の模型に一度に渡せるトークンの数（指示・頼み・答えの合計）。2048 ではチャットに今の絵の様子と会話を渡すと溢れた
 
 
 def _llm_for(path: Path):
@@ -561,6 +561,25 @@ class Words:
         self.tokens = (out.get("usage") or {}).get("completion_tokens", 0)
         reply = re.sub(r"<think>.*?(</think>|$)", "", reply, flags=re.S)   # 閉じていない考えも捨てる
         return reply.strip()
+
+    def stream(self, messages: list[dict], max_tokens: int = 300):
+        """会話の問いを、出来た所から少しずつ返す（チャットの返事を流しながら出す）。chat と同じ形で組む"""
+        llm = _llm_for(self.path)
+        sampling = dict(temperature=0.3, max_tokens=max_tokens, repeat_penalty=1.3, presence_penalty=0.5, stream=True)
+        template = (getattr(llm, "metadata", None) or {}).get("tokenizer.chat_template", "")
+        stop = ["<|im_end|>", "<|endoftext|>"]
+        n = 0
+        if "<|im_start|>" in template:
+            prompt = ("".join(f"<|im_start|>{m['role']}\n{m['content']}<|im_end|>\n" for m in messages) + "<|im_start|>assistant\n"
+                      + ("<think>\n\n</think>\n\n" if "think" in template else ""))
+            for part in llm.create_completion(prompt, stop=stop, **sampling):
+                n += 1
+                yield part["choices"][0].get("text") or ""
+        else:
+            for part in llm.create_chat_completion(messages=messages, stop=stop, **sampling):
+                n += 1
+                yield (part["choices"][0].get("delta") or {}).get("content") or ""
+        self.tokens = n
 
     def to_prompt(self, text: str, tags: bool = True) -> str:
         """日本語の頼みを、絵の模型が分かる英語にする。tags なら SD 系のタグ、そうでなければ文（FLUX などは文で頼む）。
