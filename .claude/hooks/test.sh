@@ -13,6 +13,9 @@ lib=""; [ -d .cache/gen/lib/scipy ] && lib=".cache/gen/lib"
 out="$(PYTHONPATH=$lib python3 -m unittest discover -s tests -q 2>&1)" || { echo "$out" | tail -30 >&2; exit 2; }
 # 描画アプリ（chatdraw）の試験。ここに入れていなかったため、「描く」を押すと落ちる不具合を通したままマージした
 if [ -d .cache/simple/lib/PySide6 ]; then
+  # 中身の印: コミットの木と、手元の差分と、まだ git に入れていないファイルの中身
+  state="$(git rev-parse HEAD^{tree})$( (git diff HEAD; git ls-files --others --exclude-standard | xargs -r cat 2>/dev/null) | sha1sum)"
+  done_dir=".cache/testsh-done"; mkdir -p "$done_dir"
   # 一式を 1 つの流れで回すと、閉じた窓や模型の分のメモリが試験のたびに増え、9GB を超えて止められた。10 本ずつ別の流れで回す
   for mods in \
     "chatdraw.tests.test_chatdraw chatdraw.tests.test_presetui chatdraw.tests.test_modeldoc chatdraw.tests.test_drawbugs chatdraw.tests.test_ownstyle chatdraw.tests.test_uifix chatdraw.tests.test_features chatdraw.tests.test_freeze chatdraw.tests.test_quality chatdraw.tests.test_perfamily" \
@@ -22,8 +25,12 @@ if [ -d .cache/simple/lib/PySide6 ]; then
     "chatdraw.tests.test_layertools chatdraw.tests.test_brushtools chatdraw.tests.test_shapeassist chatdraw.tests.test_qcbench chatdraw.tests.test_typeguard chatdraw.tests.test_backui chatdraw.tests.test_sent chatdraw.tests.test_fixrequests chatdraw.tests.test_qcparts_ui chatdraw.tests.test_pull" \
     "chatdraw.tests.test_autosel chatdraw.tests.test_redpen3 chatdraw.tests.test_layerkeep chatdraw.tests.test_fixwords chatdraw.tests.test_favmodels chatdraw.tests.test_civitai chatdraw.tests.test_detailtimelapse chatdraw.tests.test_phases" \
     "chatdraw.tests.test_modes chatdraw.tests.test_charafile chatdraw.tests.test_lora chatdraw.tests.test_director chatdraw.tests.test_finish2 chatdraw.tests.test_menuaudit chatdraw.tests.test_ribbonfamily chatdraw.tests.test_mirrorcheck" \
-    "chatdraw.tests.test_bughunt chatdraw.tests.test_catalog"; do
+    "chatdraw.tests.test_bughunt chatdraw.tests.test_catalog chatdraw.tests.test_quality_fix chatdraw.tests.test_ratefreeze"; do
+  # 通った束は、同じ中身（コミットと手元の差分）なら覚えておき、止められたあとに流し直すときは飛ばして続きの束から流す
+  key="$(printf '%s\n%s\n%s' "$state" "$mods" | sha1sum | cut -c1-16)"
+  [ -f "$done_dir/$key" ] && continue
   out="$(CD_ASSUME_FREE_RAM_GB=64 QT_QPA_PLATFORM=offscreen PYTHONPATH=.cache/simple/lib:$lib python3 -m unittest $mods  2>&1)" || { echo "$out" | grep -E -A12 "^(FAIL|ERROR):" | head -80 >&2; echo "$out" | tail -4 >&2; exit 2; }
+  touch "$done_dir/$key"
   done
   # 窓の枠のテーマの試験は、ほかの試験が数百の窓を開け閉めしたあとに流すと Qt の中で落ちる（単独では通る）。窓の状態を持ち越さないよう、別の処理で流す
   # 表示の回転の試験（test_viewtools）も、数百の窓を開け閉めしたあとに Ctrl+\ を押すと Qt の中で落ちる（単独では通る）。同じ理由で別に流す

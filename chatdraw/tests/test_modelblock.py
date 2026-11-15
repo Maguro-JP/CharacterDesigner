@@ -90,6 +90,12 @@ class MenuTest(unittest.TestCase):
             self.assertNotEqual(s.get("image_model"), m.repo)                      # 使っていた物はおまかせに戻す
             names = [a.text() for a in dlg._more(m, ("取る", None)).actions()]
             self.assertIn("ブロックを解除", names)
+            # 非表示・ブロックした模型も、表示に戻さずに消せる
+            fake = manager.Item("image", m.name, Path(d), 1.0, m.repo)
+            self.assertIn("削除", [a.text() for a in dlg._more(m, ("使う", None, "削除", lambda: None)).actions()])
+            ratings.set_hidden(m.repo, True)
+            self.assertIn("削除", [a.text() for a in dlg._more(m, ("使う", None, "削除", lambda: None)).actions()])
+            self.assertEqual(dlg._image_actions(m.repo, fake, m)[2], "削除")
             dlg.fetch(m)
             self.assertIn("ブロック", dlg.status.text())
             dlg.set_blocked(m, False)

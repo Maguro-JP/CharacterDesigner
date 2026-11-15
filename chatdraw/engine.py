@@ -664,7 +664,7 @@ def sentence(picked: list[str]) -> str:
         t = words.get(t.strip().lower(), t.strip())
         if t and t not in out:
             out.append(t)
-    return "An anime illustration of " + ", ".join(out) + "."
+    return ", ".join(out)   # 頼みの訳だけを渡す。「An anime illustration of」のような頼んでいない前置きを足さない
 
 
 # 途中の絵（latents）をそのまま色に直す係数。VAE で戻すより何百倍も速く、描いている様子を見せるのに足りる
@@ -1083,6 +1083,7 @@ class Painter:
     def unload(self):
         """読んだ模型をメモリから降ろす。次に描くときに読み直す"""
         self._pipe = self._sketch = self._inpaint = None
+        self._img2img = self._img2img_of = None   # 描き重ねの部品も一緒に手放す
         self._ref = False
         self._lora_state = {}
         self.placed = None
@@ -1402,16 +1403,12 @@ class Painter:
     def _paint_body(self, pipe, info, f, prompt, args, size, want, base, strength, reference, ref_scale, step, steps):
         total = steps
         if f.edit and (base is not None or reference is not None):
-            # 絵を頼みと一緒に渡す世代（FLUX.2 klein）。ラフは「この下描きを清書する」、参考画像は「この絵の絵柄で描く」と文で伝える
+            # 絵を頼みと一緒に渡す世代（FLUX.2 klein）。ラフと参考画像は絵だけを渡し、言葉は頼みの訳だけにする
             w, h = size
             total = steps
             pics = [p.convert("RGB").resize((w, h)) for p in (base, reference) if p is not None]
-            lead = []
-            if base is not None:
-                lead.append("Turn the first image, a rough sketch, into a finished illustration that keeps its pose and composition")
-            if reference is not None:
-                lead.append("Use the art style and colors of the " + ("second" if base is not None else "given") + " image")
-            args["prompt"] = ". ".join(lead + [args.get("prompt", prompt)])
+            # 渡す言葉は頼みの訳だけにする（下描きや参考画像の扱いを英語の文で足すと、頼んでいない言葉が模型に渡った）
+            args["prompt"] = args.get("prompt", prompt)
             out = pipe(image=pics if len(pics) > 1 else pics[0], width=w, height=h, **args).images[0]
             if self.stop:
                 raise Stopped("止めました")
@@ -1513,6 +1510,46 @@ class Painter:
         scale = self.redraw_scale(image.size)
         self.lighten(self._inpaint, getattr(self, "redraw_plan", None))
         return hires_inpaint(image, mask, run, scale)
+
+    def refine(self, prompt: str, seed: int, image, strength: float = 0.5, on_step=None, on_preview=None):
+        """絵全体を土台にして描き重ねる（絵から絵）。線に沿う部品（T2I-Adapter）や範囲の直し（inpaint）の無い世代
+        （FLUX.1、SD3、Qwen-Image など）でも、工程に分けて描けるようにする。渡す言葉は頼みの訳だけ"""
+        return memory_retry(self, lambda: self._refine(prompt, seed, image, strength, on_step, on_preview), self._note)
+
+    def _refine(self, prompt, seed, image, strength, on_step, on_preview):
+        import torch
+        from chatdraw.models import family as fam, image_model
+        info = image_model(self.model)
+        f = fam(info.family)
+        pipe = self.load()
+        if getattr(self, "_img2img", None) is None or getattr(self, "_img2img_of", None) is not pipe:
+            from diffusers import AutoPipelineForImage2Image
+            self._img2img = AutoPipelineForImage2Image.from_pipe(pipe)   # 読んだ模型の部品をそのまま使う（読み直さない）
+            self._img2img_of = pipe
+        steps = max(self.steps, math.ceil(1 / strength)) if strength > 0 else self.steps
+        args = dict(prompt=english_only(prompt), num_inference_steps=steps, strength=strength,
+                    generator=torch.Generator("cpu").manual_seed(seed))
+        if f.negative:
+            args["negative_prompt"] = negative_for(info, self.avoid)
+            args["guidance_scale"] = self.guidance
+        from chatdraw import sent
+        sent.record("描き重ねる", args.get("prompt"), args.get("negative_prompt"))
+        total = max(1, int(steps * strength))
+
+        def step(p, i, _t, kw):
+            if self.stop:
+                p._interrupt = True
+            if on_step:
+                on_step(min(i + 1, total), total)
+            return kw
+        args["callback_on_step_end"] = step
+        base = image.convert("RGB")
+        out = self._img2img(image=base, width=base.width, height=base.height, **args).images[0]
+        if self.stop:
+            raise Stopped("止めました")
+        if on_preview is not None:
+            on_preview(out)
+        return out
 
     def redraw_scale(self, size, b=None):
         """直すときに絵全体を広げる倍率を、予算に収まる所まで下げる（1.5 → 1.25 → 1.0）。
@@ -1897,7 +1934,14 @@ class Studio:
             return None
         from chatdraw import twostage
         from chatdraw.choose import installed_images
-        two = twostage.pick(installed_images(), getattr(self.painter, "model", ""))
+        have = installed_images()
+        two = None
+        if getattr(self, "use_favorites", False) and not getattr(self, "image_auto", False):
+            # お気に入りで描くときは、構図と仕上げのお気に入りで 2 段にする。前は「構図と仕上げを分けて描く」を選ぶと
+            # お気に入りを見ずに点の一番高い構図の模型と今の模型で描き、選んだ模型と違う模型で描いた
+            from chatdraw import favmodels
+            two = favmodels.two_stage(have)
+        two = two or twostage.pick(have, getattr(self.painter, "model", ""))
         if two is not None and getattr(self, "fetch_two_parts", False) and not twostage.parts_ready():
             try:
                 twostage.fetch_parts(say=say)
@@ -2012,7 +2056,7 @@ class Studio:
             raise ValueError("子どもを性的に描く頼みは描きません")
         keep = self.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}-phases"
         try:
-            got = phases.draw(self.painter, prompt, seed, size, keep, say=say,
+            got = phases.draw(self.painter, prompt, seed, size, keep, say=say, on_preview=on_preview,
                               on_step=lambda i, n: say(f"描いています（{i}/{n}）"))
         finally:
             if hasattr(self.painter, "avoid"):
@@ -2134,8 +2178,8 @@ class Studio:
                     for (x0, y0, x1, y1), _kind in detail:
                         cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, y1 - y0) * 0.6
                         d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
-                    words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in detail))
-                    tried = self.painter.redraw(f"{prompt}, {words}, detailed", seed + 991, image, mask, strength=0.4)
+                    # 渡す言葉は頼みの訳だけ（five fingers などの頼んでいない言葉を足さない）
+                    tried = self.painter.redraw(prompt, seed + 991, image, mask, strength=0.4)
                     again = handcheck.check(tried, asked=prompt)
                     self.hand_rounds.append({"round": r, "detail": True, "bad": again["bad"]})
                     if not again["bad"]:
@@ -2151,9 +2195,8 @@ class Studio:
             for (x0, y0, x1, y1), _kind in regions:
                 cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, y1 - y0) * 0.6
                 d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
-            words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in regions))
             # 回を重ねるほど強く描き直す（弱いままだと崩れた指の形をなぞり、何回直しても同じ崩れが残った）
-            image = self.painter.redraw(f"{prompt}, {words}", seed + 77 * (r + 1), image, mask, strength=(0.55, 0.65, 0.75, 0.85, 0.9, 0.95)[min(r, 5)])
+            image = self.painter.redraw(prompt, seed + 77 * (r + 1), image, mask, strength=(0.55, 0.65, 0.75, 0.85, 0.9, 0.95)[min(r, 5)])
         return done(image)
 
     def _inspect(self, path: Path, say):

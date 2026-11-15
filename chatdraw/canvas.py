@@ -671,6 +671,8 @@ class Canvas(QGraphicsView):
         （前は何も起きず、押しても絵が残った）"""
         if not self.layers:
             return
+        # 選んでいる番号が並びの外を指していたら（裏の処理がレイヤーを減らした直後など）、端に寄せてから消す
+        self.current = max(0, min(self.current, len(self.layers) - 1))
         self.snapshot_all()
         if len(self.layers) <= 1:
             self.layers[0].image.fill(Qt.transparent)

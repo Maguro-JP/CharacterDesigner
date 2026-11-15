@@ -42,9 +42,9 @@ jobs:
       - id: mode
         name: 頼みの形
         run: |
-          echo "twostage=$(python3 -c "import json;print(str(json.load(open('config/draw-request.json')).get('mode')=='twostage').lower())")" >> "$GITHUB_OUTPUT"
+          echo "twostage=$(python3 -c "import json;print(str(json.load(open('$GITHUB_WORKSPACE/config/draw-request.json')).get('mode')=='twostage').lower())")" >> "$GITHUB_OUTPUT"
           reuse="${{ inputs.composition_run }}"
-          [ -n "$reuse" ] || reuse=$(python3 -c "import json;print(json.load(open('config/draw-request.json')).get('composition_run',''))")
+          [ -n "$reuse" ] || reuse=$(python3 -c "import json;print(json.load(open('$GITHUB_WORKSPACE/config/draw-request.json')).get('composition_run',''))")
           echo "reuse=$reuse" >> "$GITHUB_OUTPUT"
       - name: 置き場を空ける
         if: steps.mode.outputs.reuse == ''
@@ -127,7 +127,7 @@ jobs:
           tries=$(( ${{ inputs.tries || '0' }} + 1 ))
           [ "$tries" -le 20 ] || { echo "20 回描き直しても通りませんでした"; exit 0; }
           base=${{ inputs.seed }}
-          [ -n "$base" ] || base=$(python3 -c "import json;print(json.load(open('config/draw-request.json')).get('seed',7))")
+          [ -n "$base" ] || base=$(python3 -c "import json;print(json.load(open('$GITHUB_WORKSPACE/config/draw-request.json')).get('seed',7))")
           curl -sS -f -X POST -H "Authorization: Bearer $GH_TOKEN" -H "Accept: application/vnd.github+json" \
             "https://api.github.com/repos/$GITHUB_REPOSITORY/actions/workflows/draw-one.yml/dispatches" \
             -d "{\"ref\":\"$GITHUB_REF_NAME\",\"inputs\":{\"attempt\":\"1\",\"composition_run\":\"\",\"seed\":\"$((base + 1))\",\"tries\":\"$tries\"}}"

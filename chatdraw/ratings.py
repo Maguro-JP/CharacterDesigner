@@ -16,15 +16,34 @@ def prefs_file() -> Path:
     return data_home() / "model_prefs.json"
 
 
+_READ: dict = {}   # 道 → ((時刻, 大きさ), 読んだ中身)。ファイルが変わっていなければ読み直さない
+
+
 def _load() -> dict:
-    """読めないファイルは控え（.broken-<日時>）を残してから空として扱う。次の保存で印を失わないように"""
+    """読めないファイルは控え（.broken-<日時>）を残してから空として扱う。次の保存で印を失わないように。
+    模型の一覧を並べるたびに模型ごとに 3 回ずつ読み、点を 1 つ付けると 1 回 500 回以上ファイルを読んでいた。
+    ファイルの時刻と大きさが同じなら、前に読んだ中身を使う（ほかのアプリが書き替えれば時刻が変わって読み直す）"""
     from chatdraw.paths import read_json
-    return read_json(prefs_file(), dict, {})
+    f = prefs_file()
+    try:
+        st = f.stat()
+        key = (st.st_mtime_ns, st.st_size)
+    except OSError:
+        key = None
+    hit = _READ.get(str(f))
+    if key is not None and hit is not None and hit[0] == key:
+        return hit[1]
+    data = read_json(f, dict, {})
+    if key is not None:
+        _READ[str(f)] = (key, data)
+    return data
 
 
 def _save(data: dict):
     from chatdraw.paths import write_json
-    write_json(prefs_file(), data)
+    f = prefs_file()
+    _READ.pop(str(f), None)
+    write_json(f, data)
 
 
 def user_rating(repo: str) -> int:
@@ -154,13 +173,26 @@ _LISTENERS: list = []
 
 
 def on_change(fn):
-    if fn not in _LISTENERS:
-        _LISTENERS.append(fn)
+    """知らせ先を足す。窓の関数は弱い参照で持つ（閉じた窓が残り続け、点を付けるたびに閉じた窓の分までメニューを作り直して固まった）"""
+    import weakref
+    ref = weakref.WeakMethod(fn) if hasattr(fn, "__self__") else (lambda f=fn: f)
+    if any(r() == fn for r in _LISTENERS):
+        return
+    _LISTENERS.append(ref)
+
+
+def off_change(fn):
+    """知らせ先を外す（窓を閉じたとき）"""
+    _LISTENERS[:] = [r for r in _LISTENERS if r() is not None and r() != fn]
 
 
 def changed():
-    for fn in list(_LISTENERS):
+    for ref in list(_LISTENERS):
+        fn = ref()
+        if fn is None:
+            _LISTENERS.remove(ref)
+            continue
         try:
             fn()
         except RuntimeError:   # 窓が先に閉じて Qt の部品が消えていたら、その知らせ先を外す
-            _LISTENERS.remove(fn)
+            _LISTENERS.remove(ref)

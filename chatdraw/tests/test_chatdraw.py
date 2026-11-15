@@ -460,7 +460,7 @@ class SetupTest(unittest.TestCase):
         from chatdraw.engine import Words
         self.assertFalse(Words(Path("")).ready())
         # 言葉の模型が無いときも、日本語をそのまま渡さず、表で拾った語で描く（そのまま渡すと全く違う絵が出た）
-        self.assertEqual(Words(Path("")).to_prompt("騎士"), "knight, armor")
+        self.assertEqual(Words(Path("")).to_prompt("騎士"), "knight")
         self.assertEqual(Words(Path("")).to_prompt("ぴょぴょ"), "")   # 拾えなくても日本語は渡さない（英語の所だけ残す）
         self.assertEqual(Words(Path("")).to_prompt("ぴょぴょ anime"), "anime")
 
@@ -1624,7 +1624,10 @@ class UsableTest(unittest.TestCase):
         d = QDialog(self.w)
         d.resize(400, area.height() * 4)   # 縦に長い窓
         d.show()
-        self.spin()
+        import time
+        end = time.time() + 5   # 窓を画面に収める処理は表示のあとの事象で動く。機械が重いと 0.6 秒では間に合わなかった
+        while not area.contains(d.frameGeometry()) and time.time() < end:
+            self.spin(0.1)
         self.assertTrue(area.contains(d.frameGeometry()), (area, d.frameGeometry()))
         d.close()
         dock = self.w.panels["layers"][0]
@@ -2319,7 +2322,7 @@ class EditFamilyTest(unittest.TestCase):
         with mock.patch.object(p, "load", return_value=Pipe()):
             p.paint("a woman", 1, base=Image.new("RGB", (32, 32)), reference=Image.new("RGB", (32, 32)), size=(64, 64))
         self.assertEqual(len(seen["image"]), 2)                    # ラフと参考画像の 2 枚
-        self.assertIn("rough sketch", seen["prompt"])
+        self.assertEqual(seen["prompt"], "a woman")                # 頼みの訳だけ。下描きの扱いの英語の文を足さない
 
 
 class FreezeTest(unittest.TestCase):

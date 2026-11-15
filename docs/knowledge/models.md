@@ -62,4 +62,4 @@ SDXL の本体を2つ持つ（全体用と描き直し用）ときも同じ。1�
     物の型がいちばん少なく（足の突起2つと横の突起）、塊の型は顔・角の芽・胸のコアが出たが短い腕と脚が付いた
 - 体の比率が要るもの（ドット絵の下地など）→ MakeHuman ＋ Blender（`tools/engine/`）
 
-検品の部品の表は [qc-parts.md](qc-parts.md)、2026-11 の模型の見直しは [model-review-2026-11.md](model-review-2026-11.md)。
+検品の部品の表は [qc-parts.md](qc-parts.md)、2026-11 の模型の見直しは [model-review-2026-11.md](model-review-2026-11.md)。描く経路の設定の版ごとの比べは [quality-regression-2026-11.md](quality-regression-2026-11.md)。

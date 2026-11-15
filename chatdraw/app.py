@@ -767,6 +767,27 @@ class Window(QMainWindow):
         count_label.setBuddy(self.ai_panel.count_spin)
         count_label.setToolTip(self.ai_panel.count_spin.toolTip())
         self.count_label = count_label
+        # 描き方のモード（AI モード / 精度優先）。設定の奥に入れると切り替えられず、どちらで描いたか分からなかった
+        from chatdraw.settings import AI_MODE, PRECISE
+        self.way_pick = QComboBox()
+        self.way_pick.addItem("AI モード", AI_MODE)
+        self.way_pick.addItem("精度優先", PRECISE)
+        self.way_pick.setItemData(0, AI_MODE, Qt.ToolTipRole)
+        self.way_pick.setItemData(1, PRECISE + "。構図 → 体型と姿勢 → 線画 → 塗り → 仕上げの順に、工程ごとに検品して描く", Qt.ToolTipRole)
+        self.way_pick.setToolTip("描き方。AI モード: 今までの描き方で速く描く。精度優先: 工程に分けて描き、工程ごとに検品する")
+        self.way_pick.setAccessibleName("描き方")
+        self.way_pick.setCurrentIndex(1 if self.settings.get("draw_way") == PRECISE else 0)
+        self.way_pick.currentIndexChanged.connect(self._pick_way)
+        # 描くボタンの帯に並べると、狭い欄で描くボタンが幅 0 に潰れたので、帯のすぐ上の 1 行に置く
+        way_row = QHBoxLayout()
+        way_row.setSpacing(4)
+        way_label = QLabel("描き方")
+        way_label.setBuddy(self.way_pick)
+        way_label.setToolTip(self.way_pick.toolTip())
+        way_row.addWidget(way_label)
+        way_row.addWidget(self.way_pick, 1)
+        outer = self.ai_panel.layout()
+        outer.insertLayout(max(0, outer.indexOf(line)), way_row)
         line.addWidget(count_label)
         # 描くボタンが横に伸びると、数の欄が幅 0 に潰れて見えなくなった。数が読めて打てる幅を必ず取る
         self.ai_panel.count_spin.setMinimumWidth(self.ai_panel.count_spin.fontMetrics().horizontalAdvance("9999") + 40)
@@ -1351,6 +1372,8 @@ class Window(QMainWindow):
         from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self, self.sweep_old_redpen)   # 窓に結ぶ（先に閉じて消えた窓では呼ばない）
         self.library_panel = LibraryPanel(self)
+        self.thread_main = QThread.currentThread()
+        self._learn_runner()
         # チャットの会話は閉じても残す（ライブラリーと同じく、試験では出力の置き場の中に作る）
         self.chat.decorate = self.offer_prompt
         self.chat.set_store((DATA if studio is None else Path(self.studio.out)) / "chat.json")
@@ -2119,9 +2142,8 @@ class Window(QMainWindow):
         elif key == FAV:
             from chatdraw import favmodels
             data = favmodels.load()
-            self.model_label.setText("お気に入り（役目ごと）")
-            self.model_label.setToolTip("役目ごとに選んだ模型で、工程を分けて描きます\n" + "\n".join(
-                f"{label}: {image_model(data[r]).name if r in data else 'おまかせ'}" for r, (label, _t) in favmodels.ROLES.items()))
+            self.model_label.setText(favmodels.label(favmodels.active()))
+            self.model_label.setToolTip("編成の役目ごとの模型で、工程を分けて描きます\n" + self._set_tip(data))
         else:
             self.model_label.setText(image_model(key).name)
             self.model_label.setToolTip("この模型で描きます。短い頼みは 1 回で速く、細かい頼みとプリセットは工程を分けて描きます。押すと切り替えられます")
@@ -2766,6 +2788,13 @@ class Window(QMainWindow):
         from chatdraw import finishers
         self.run_io(lambda: finishers.embedded(path) or finishers.embed(path, finishers.sidecar(path)), lambda _v: None, "ライブラリーへ保存")
 
+    def _pick_way(self, _i=None):
+        """描くボタンの横の描き方を設定に残し、今の描き手にすぐ効かせる（模型は読み直さない）"""
+        from chatdraw.settings import studio_way
+        self.settings.set("draw_way", self.way_pick.currentData())
+        if getattr(self, "studio", None) is not None:
+            self.studio.way = studio_way(self.settings.get("draw_way"), self.settings.get("ai_way"))
+
     def _put_phases(self):
         """工程に分けて描いた回は、工程ごとの絵を描いた絵の下に隠したレイヤーで置き、工程ごとの検品を会話に出す（chatdraw/phases.py）"""
         rows = getattr(self.studio, "last_phases", None) if self.job_kind == "draw" else None
@@ -3215,15 +3244,42 @@ class Window(QMainWindow):
                                      + (f"（見つからない絵 {len(res['missing'])} 枚）" if res["missing"] else ""), 12000)
         return res
 
+    def _learn_runner(self):
+        """★ から学び直す裏の処理を、この窓の裏の処理（動いている間は自動の gc を止める）で動かす。
+        窓が閉じたら ownstyle は自前の糸に戻る。窓を強く持たない（閉じた窓を残さない）"""
+        import weakref
+        from chatdraw import ownstyle
+        me = weakref.ref(self)
+
+        def run(work):
+            w = me()
+            if w is None or getattr(w, "_io_closed", False):
+                raise RuntimeError("窓が閉じています")
+            from PySide6.QtCore import QThread
+            if QThread.currentThread() is not w.thread_main:
+                raise RuntimeError("画面の糸からだけ渡す")
+            w.in_background(work, lambda _v: None, "★ から学ぶ")
+        ownstyle.RUNNER = run
+
     def judge(self, path: str, verdict: str) -> bool:
         """履歴の右クリック → 判定。記録の無い絵（前の版で描いた絵）は知らせる"""
         from chatdraw import wordlearn
-        ok = wordlearn.set_verdict(path, verdict)
         from chatdraw import userstats
-        userstats.refresh()   # 判定が変わったので、模型の並べ方を測り直す
-        self.statusBar().showMessage((f"判定を付けました: {wordlearn.VERDICTS.get(verdict, '消しました')}" if ok else
-                                      "この絵は学びの記録がありません（前の版で描いた絵です）"), 4000)
-        return ok
+
+        def work():
+            return wordlearn.set_verdict(path, verdict)
+
+        def done(ok):
+            # 判定が変わったので、模型の並べ方を測り直す（測るのは次に並べるとき。ここでは覚えを捨てるだけ）
+            userstats.refresh()
+            if isinstance(ok, BaseException):
+                ok = False
+            self.statusBar().showMessage((f"判定を付けました: {wordlearn.VERDICTS.get(verdict, '消しました')}" if ok else
+                                          "この絵は学びの記録がありません（前の版で描いた絵です）"), 4000)
+        # 記録（数千行）を読み直して書き直すのは裏の列で行う。画面の糸で書くと 1 回 0.4 秒固まった。
+        # 書く列は 1 本なので、続けて押しても同じファイルに重ねて書かない
+        self.run_io(work, done, "判定を付ける")
+        return True
 
     def _history_menu(self, pos, run: bool = True):
         from PySide6.QtWidgets import QMenu
@@ -3247,7 +3303,8 @@ class Window(QMainWindow):
         m.addAction("頼みの言葉を書く欄に入れる", lambda: self._prompt_from(path))
         m.addAction("頼みの言葉を描くワードに登録する", lambda: self._prompt_from(path, pin=True))
         from chatdraw import ownstyle
-        m.addAction("★ お気に入りを外す" if ownstyle.is_favorite(path) else "★ お気に入りにする", lambda: ownstyle.toggle(path))
+        m.addAction("★ お気に入りを外す" if ownstyle.is_favorite(path) else "★ お気に入りにする",
+                    lambda: (ownstyle.toggle(path), self.library_panel.relabel([path])))
         m.addAction("学習用に集める", self.collect_favorites)
         # 判定（良い・悪い・直した）は学びの記録に付ける（chatdraw/wordlearn.py）。検品より弱く数え、「良い」はタグを強めない
         from chatdraw import wordlearn
@@ -3343,7 +3400,7 @@ class Window(QMainWindow):
             if self.history.item(row).data(Qt.UserRole) in gone:
                 self.history.takeItem(row)
         self.images = [p for p in self.images if p not in gone]
-        self.library_panel.refresh()
+        self.library_panel.drop(paths)   # 消した絵だけを外す（前は一覧を作り直し、全部の絵を読み直して 1 回 8〜12 秒固まった）
         self._trash_changed()
         self.notify("ごみ箱へ移しました", "ok", "押すと戻します", on_click=lambda: self.restore_trash(key))
         return key
@@ -3416,7 +3473,7 @@ class Window(QMainWindow):
             if self.history.item(row).data(Qt.UserRole) == str(p):
                 self.history.takeItem(row)
         self.images = [x for x in self.images if x != str(p)]
-        self.library_panel.refresh()
+        self.library_panel.drop([str(p)])
         self._trash_changed()
         if key:
             self.statusBar().showMessage("消したレイヤーの絵をごみ箱へ移しました（「ファイル」→「ごみ箱…」から戻せます）", 8000)
@@ -4297,7 +4354,8 @@ class Window(QMainWindow):
         studio = Studio(Words(None if words == AUTO else Path(words)), painter, Path(g("output_dir")))
         studio.image_auto, studio.words_auto = g("image_model") == AUTO, words == AUTO
         studio.use_favorites = g("image_model") == favmodels.FAV
-        studio.way = {"1つの模型で描く": "one", "構図と仕上げを分けて描く": "two", "工程に分けて描く": "phases"}.get(g("draw_way"), "auto")
+        from chatdraw.settings import studio_way
+        studio.way = studio_way(g("draw_way"), g("ai_way"))
         if getattr(self, "chara_file", None):   # 模型を替えて作り直しても、開いている人物で描き続ける
             from chatdraw import charafile
             studio.character = charafile.for_studio(self.chara_file)
@@ -4349,6 +4407,10 @@ class Window(QMainWindow):
             self.check_ai()
             self.canvas.set_cursor_style(g("cursor"))
             self.apply_debug_mode()
+            from chatdraw.settings import PRECISE
+            self.way_pick.blockSignals(True)   # 設定で替えた描き方を、描くボタンの横の欄にも出す
+            self.way_pick.setCurrentIndex(1 if g("draw_way") == PRECISE else 0)
+            self.way_pick.blockSignals(False)
             self.statusBar().showMessage("設定を保存しました")
 
     # ---- デバッグモード（chatdraw/debuglog.py） ----
@@ -4560,17 +4622,27 @@ class Window(QMainWindow):
         group = QActionGroup(menu)
         auto = QAction("おまかせ", menu, checkable=True)
         auto.setToolTip("描くときに、手元の模型から頼みに合い点の高い物を選びます")
+        from chatdraw import favmodels
         from chatdraw.favmodels import FAV
-        fav = QAction("お気に入り（役目ごと）", menu, checkable=True)
-        fav.setToolTip("構図・仕上げ・顔・手・背景・直しに、自分で選んだ模型を使います（「役目ごとの模型…」で選びます）")
-        entries = [(AUTO, auto), (FAV, fav)]
+        entries = [(AUTO, auto)]
+        # 編成した物を模型の選択に 1 つずつ出す。選ぶと、その編成の役目ごとの模型で描く（作る・直すは「模型の編成」のメニュー）
+        active_set = favmodels.active()
+        for name in favmodels.sets():
+            data = favmodels.get_set(name)
+            act = QAction(favmodels.label(name), menu, checkable=True)
+            act.setToolTip(self._set_tip(data))
+            entries.append((("set", name), act))
+        now_key = ("set", active_set) if now_image == FAV else now_image
         for m in images:
             label = ("★ " if is_favorite(m.repo) else "") + m.name + (f"　{rating_text(m)}" if m in listed else "")
             ok = m.repo in have or m not in listed
             entries.append((m.repo, QAction(label if ok else f"{label}（未取得）", menu, checkable=True)))
         for key, act in entries:
-            act.setChecked(key == now_image)
-            act.triggered.connect(lambda _=False, k=key: self.switch_model("絵の模型", k))
+            act.setChecked(key == now_key)
+            if isinstance(key, tuple):
+                act.triggered.connect(lambda _=False, n=key[1]: self.use_model_set(n))
+            else:
+                act.triggered.connect(lambda _=False, k=key: self.switch_model("絵の模型", k))
             group.addAction(act)
             menu.addAction(act)
         stars = menu.addMenu("★ お気に入り")
@@ -4583,8 +4655,13 @@ class Window(QMainWindow):
             a.toggled.connect(lambda on, r=m.repo: set_favorite(r, on))
         menu.addAction(QAction("Civitai から探す…", self, triggered=self.open_civitai,
                                toolTip="Civitai の模型と LoRA を見本の絵で探して取ります"))
-        menu.addAction(QAction("役目ごとの模型…", self, triggered=self.open_role_models,
-                               toolTip="構図・仕上げ・顔・手・背景・直しに使う模型を選んで保存します"))
+        sets_menu = menu.addMenu("模型の編成")
+        sets_menu.setToolTipsVisible(True)
+        for text, tip, fn in (("編成を作る…", "構図・仕上げ・背景・顔・身体・髪と加工に使う模型の組を、名前を付けて作ります", self.new_model_set),
+                              ("今の編成を直す…", "今の編成の役目ごとの模型を選び直します", self.open_role_models),
+                              ("今の編成の名前を変える…", "今の編成の名前を変えます", self.rename_model_set),
+                              ("今の編成を消す…", "今の編成を消します（模型そのものは消しません）", self.delete_model_set)):
+            sets_menu.addAction(QAction(text, menu, triggered=lambda _=False, f=fn: f(), toolTip=tip))
         menu.addSeparator()
         fix_menu = menu.addMenu("直しに使う模型")
         fix_menu.setToolTipsVisible(True)
@@ -4657,17 +4734,68 @@ class Window(QMainWindow):
         self.lora_pick.blockSignals(False)
         Window._lora_shown(self)
 
-    def open_role_models(self):
-        """役目ごとのお気に入りの模型を選ぶ窓（chatdraw/favmodels.py）。保存したらお気に入りで描くように替える"""
+    def _set_tip(self, data: dict) -> str:
+        from chatdraw import favmodels
+        from chatdraw.models import image_model
+        return "\n".join(f"{label}: {image_model(data[r]).name if r in data else 'おまかせ'}"
+                         for r, (label, _t) in favmodels.ROLES.items())
+
+    def use_model_set(self, name: str):
+        """模型の選択で編成を選んだとき。その編成を今の編成にして、役目ごとの模型で描く"""
+        from chatdraw import favmodels
+        favmodels.use_set(name)
+        self.switch_model("絵の模型", favmodels.FAV)
+        self._fill_ai_menu()
+
+    def open_role_models(self, name: str | None = None):
+        """編成の役目ごとの模型を選ぶ窓（chatdraw/favmodels.py）。保存したらその編成で描くように替える"""
+        from chatdraw import favmodels
         from chatdraw.favpanel import RoleModelsDialog
-        dlg = RoleModelsDialog(self.have_image_models(), self)
-        if dlg.exec():
-            dlg.store()
-            from chatdraw.favmodels import FAV, any_set
-            if any_set():
-                self.switch_model("絵の模型", FAV)
-            else:
-                self._show_model()
+        name = name or favmodels.active()
+        dlg = RoleModelsDialog(self.have_image_models(), self, data=favmodels.get_set(name), title=f"編成「{name}」")
+        if not dlg.exec():
+            return False
+        favmodels.save_set(name, dlg.values(), use=True)
+        self.use_model_set(name)
+        return True
+
+    def new_model_set(self, name: str | None = None):
+        from chatdraw import favmodels
+        if name is None:
+            from PySide6.QtWidgets import QInputDialog
+            name, ok = QInputDialog.getText(self, "編成を作る", "編成の名前（例: アニメの立ち絵、背景つき）")
+            if not ok:
+                return
+        name = name.strip()
+        if not name or name in favmodels.sets():
+            self.notify("その名前は使えません", "warn", "空か、ほかの編成と同じ名前です")
+            return
+        self.open_role_models(name)
+
+    def rename_model_set(self, new: str | None = None):
+        from chatdraw import favmodels
+        old = favmodels.active()
+        if new is None:
+            from PySide6.QtWidgets import QInputDialog
+            new, ok = QInputDialog.getText(self, "編成の名前", "新しい名前", text=old)
+            if not ok:
+                return
+        try:
+            favmodels.rename_set(old, new)
+        except (KeyError, ValueError) as e:
+            self.notify("名前を変えられません", "warn", str(e).strip("'"))
+            return
+        self._fill_ai_menu()
+        self._show_model()
+
+    def delete_model_set(self, confirm: bool = True):
+        from chatdraw import favmodels
+        name = favmodels.active()
+        if confirm and QMessageBox.question(self, "編成を消す", f"編成「{name}」を消しますか？（模型そのものは消しません）") != QMessageBox.Yes:
+            return
+        favmodels.delete_set(name)
+        self._fill_ai_menu()
+        self._show_model()
 
     def switch_model(self, kind: str, key: str):
         self.feature_tour("model")
@@ -5113,8 +5241,9 @@ class Window(QMainWindow):
     def _status_doc(self):
         w, h = self.canvas.size_px()
         self.st_size.setText(f"{w}×{h}")
-        if self.canvas.layers:
-            self.st_layer.setText(self.canvas.layers[self.canvas.current].name)
+        layers = self.canvas.layers
+        if layers:   # 消した直後の古い番号でも落ちない
+            self.st_layer.setText(layers[max(0, min(self.canvas.current, len(layers) - 1))].name)
 
     def build_bottom(self):
         """下の帯。表示と元に戻すの操作を、手の届く下に並べる。「ウィンドウ」から隠せ、上にも移せる"""
@@ -5696,6 +5825,8 @@ class Window(QMainWindow):
         self.layout_store.setValue("state9", self.saveState())
         if getattr(self, "ai_tabs", None) is not None:
             self.ai_tabs.save()
+        from chatdraw import ratings
+        ratings.off_change(self._models_changed)   # 閉じた窓を模型の一覧の知らせ先から外す
         super().closeEvent(e)
 
     def _refresh_layers(self):

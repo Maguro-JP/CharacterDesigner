@@ -219,6 +219,15 @@ def small_size(size, m: ImageModel):
     return (max(k, int(w * SMALL) // k * k), max(k, int(h * SMALL) // k * k)), (w, h)
 
 
+def draws_small(small, full, m: ImageModel) -> bool:
+    """小さい大きさを頼んだとき、模型が本当に小さく描くか。描く仕組み（engine.native_size）が学んだ大きさへ戻す世代では、
+    小さく頼んでも描く画素の数は仕上がりと同じ（そのあと縮めるだけ）なので False"""
+    from chatdraw.engine import native_size
+    sw, sh = native_size(small, m.family)
+    fw, fh = native_size(full, m.family)
+    return sw * sh < fw * fh * 0.85
+
+
 class Omakase:
     """Studio の painter と words を借りて、工程ごとに模型を替えて描く。painter_for と check は試験で偽物に替える"""
 
@@ -297,7 +306,9 @@ class Omakase:
             s_k = seed + 1000 * k
             if k:
                 say(f"検品を通らなかったので、構図を描き直しています（{k + 1}/{tries} 回目）")
-            painter = self.painter_for(m) if m is not None else self.studio.painter
+            # 模型は 1 つの模型で描くときだけ、描く直前に読む。2 段は別の処理で模型を読むので、先に読むと数 GB を無駄に置いたまま
+            # 2 段の模型も読むことになり、メモリが足りずに落ちた・遅くなった
+            painter = self.studio.painter
             prompt = self._prompt(text, m) if m is not None else self.studio.words.to_prompt(text)
             # 書かれていない所（背景・ポーズ・髪・服・表情・構図・光）を種で選んで足す。足さないと毎回同じ無地の立ち絵になった
             from chatdraw.engine import vary_background
@@ -326,6 +337,7 @@ class Omakase:
                     say(f"2 段の構図で止まったので、1 つの模型で描きます（{e}）")
                     image = None
             if image is None:
+                painter = self.painter_for(m) if m is not None else self.studio.painter
                 self._note(say, "構図", m, why, seed=s_k)
                 image = self.hires(painter, m, prompt, s_k, size, say)
             res = self.check(image, prompt)
@@ -367,6 +379,12 @@ class Omakase:
         if m is None or not fam(m.family).inpaint or not hasattr(painter, "redraw"):
             return painter.paint(prompt, seed, size=size)
         small, full = small_size(size, m)
+        if not draws_small(small, full, m):
+            # 模型が小さい大きさを学んだ大きさ（SDXL は約 100 万画素）に戻して描く世代では、小さく描く段は効かない。
+            # 学んだ大きさで描いた絵を小さく縮めてから広げ直すと、描いた細部の半分以上の画素を捨てて 0.35 の描き直しで埋めることになり、
+            # 線と目がぼけた。仕上がりの大きさで 1 回描き、模型の描いた細部をそのまま使う（札の推奨の大きさ）
+            self.log.append(dict(stage="描く", model=m.repo, size=list(full), why="学んだ大きさで描く世代なので、小さく描いて広げない"))
+            return painter.paint(prompt, seed, size=full)
         say(f"小さく描いてから広げて描き直します（{small[0]}×{small[1]} → {full[0]}×{full[1]}）")
         image = painter.paint(prompt, seed, size=small).convert("RGB").resize(full, Image.LANCZOS)
         whole = Image.new("L", full, 255)
