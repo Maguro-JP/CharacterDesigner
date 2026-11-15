@@ -13,6 +13,7 @@ UPSCALE = LLM_HOME / "upscale" if SHARED else LLM_HOME / "gen" / "upscale"
 WEIGHTS = UPSCALE / "RealESRGAN_x4plus_anime_6B.pth"
 URL = "https://github.com/xinntao/Real-ESRGAN/releases/download/v0.2.2.4/RealESRGAN_x4plus_anime_6B.pth"
 _NET = []
+NEED_GB = 2.0   # 読み込みと 1 回の拡大の山（832×1216 を 4 倍にする途中の値。私の推測を含む）
 
 
 def ready() -> bool:
@@ -37,9 +38,10 @@ def unload():
 
 def _net():
     from chatdraw.membudget import exclusive
-    exclusive("upscale", unload)   # 描く・加工の模型を降ろしてから使う
     if _NET:
-        return _NET[0]
+        return _NET[0]   # 読んである物を使う。ほかの模型は降ろさない（前は使うたびに絵の模型を降ろしていた）
+    # 重みは 18MB。4 倍にする途中の値の山を足して、空きが足りないときだけ描く・加工の模型を降ろしてから読む
+    exclusive("upscale", unload, need_gb=NEED_GB)
     import torch
     from torch import nn
     import torch.nn.functional as F

@@ -64,7 +64,8 @@ class Library:
     def save(self):
         self.root.mkdir(parents=True, exist_ok=True)
         part = self.index.with_suffix(".part")
-        part.write_text(json.dumps(self.items, ensure_ascii=False, indent=1), encoding="utf-8")
+        # 字下げを付けると json は C の速い書き方を使えず、評価を 1 つ付けるたびに画面の糸で数百 ms かかった。1 行で書く
+        part.write_text(json.dumps(self.items, ensure_ascii=False, separators=(",", ":")), encoding="utf-8")
         part.replace(self.index)
 
     # ---- 足す・付ける・消す ----

@@ -154,7 +154,7 @@ class LayerPanel(QWidget):
         if keep_item is not None:
             self.list.setCurrentItem(keep_item)
         if c.layers:
-            layer = c.layers[c.current]
+            layer = c.layers[max(0, min(c.current, len(c.layers) - 1))]   # 消した直後の古い番号でも落ちない
             self.opacity.blockSignals(True)
             self.opacity.setValue(int(layer.opacity * 100))
             self.opacity.blockSignals(False)

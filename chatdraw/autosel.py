@@ -76,7 +76,7 @@ def _load(d: str):
     b = membudget.budget()
     if b.ram < RAM_NEED_GB:
         raise membudget.OverBudget(f"空きのメモリが足りません（{b.ram:.1f}GB、要るのは {RAM_NEED_GB}GB）")
-    membudget.exclusive("autosel", _unload)
+    membudget.exclusive("autosel", _unload, need_gb=RAM_NEED_GB * 2)   # 空きが十分あれば、絵の模型を降ろさない（次に描くときに読み直さない）
     import logging
     from transformers import Sam2Model
     from transformers.utils import logging as tlog
