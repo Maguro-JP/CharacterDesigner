@@ -4,12 +4,94 @@
 """
 from __future__ import annotations
 
-from PySide6.QtCore import QSize, Qt
+from dataclasses import dataclass, field
+
+from PySide6.QtCore import QEvent, QSize, Qt, QTimer
 from PySide6.QtGui import QAction
-from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QTabWidget, QToolButton, QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFrame, QHBoxLayout, QLabel, QMenu, QTabWidget, QToolButton, QVBoxLayout, QWidget
+
+HOLD_MS = 450   # 押し続けて中の道具を出すまでの時間（Photoshop・CLIP STUDIO PAINT と同じく、長押しでも▼でも開く）
 
 
-def group(title: str, actions: list[QAction]) -> QWidget:
+@dataclass
+class Family:
+    """同じ系統の道具を 1 つのボタンにまとめる（ペン系、選択、図形など）。ボタンは最後に選んだ道具を出す"""
+    name: str
+    actions: list = field(default_factory=list)
+    tip: str = ""
+    icon: object = None   # 渡すと、ボタンの顔を系統の名前とこのアイコンに固める（定規・対称のように、選ぶ物が設定のとき）
+
+
+class FamilyButton(QToolButton):
+    """系統のボタン。押すと今の道具、▼か長押しで中の道具を選ぶ。説明はツールチップに出す"""
+
+    def __init__(self, fam: Family):
+        super().__init__()
+        self.family = fam
+        self.setObjectName("ribbonFamily")
+        m = QMenu(self)
+        m.setToolTipsVisible(True)
+        for a in fam.actions:
+            m.addAction(a)
+        self.setMenu(m)
+        if fam.icon is not None:
+            # 設定を選ぶ系統（定規・対称）。押すとすぐ中を出す。今の設定は印で見える
+            self.setIcon(fam.icon)
+            self.setText(fam.name)
+            self.setToolTip((fam.tip or fam.name) + "。押して選びます")
+            self.setPopupMode(QToolButton.InstantPopup)
+            return
+        self.setPopupMode(QToolButton.MenuButtonPopup)
+        self.hold = QTimer(self, singleShot=True, interval=HOLD_MS, timeout=self.showMenu)
+        self.pressed.connect(self.hold.start)
+        self.released.connect(self.hold.stop)
+        self.show_action(next((a for a in fam.actions if a.isCheckable() and a.isChecked()), fam.actions[0]))
+        for a in fam.actions:
+            # 中の道具を選んだときと、キーで道具が変わったときに、ボタンの顔をその道具にする。
+            # lambda で繋ぐと、窓を閉じてボタンが消えたあとに道具の切り替えが届いて落ちた（Qt の中で 139）。
+            # ボタンの関数に繋ぎ、ボタンが消えると繋ぎも切れるようにする
+            a.triggered.connect(self._picked)
+            if a.isCheckable():
+                a.toggled.connect(self._toggled)
+
+    def _picked(self, _checked=False):
+        a = self.sender()
+        if isinstance(a, QAction):
+            self.show_action(a)
+
+    def _toggled(self, on: bool):
+        if on:
+            self._picked()
+
+    def fit(self):
+        """名前が「全…示」のように切れないよう、名前の幅に合わせる（▼の分を足す）。広げすぎると 1280 の窓で頁が横に流れ、
+        帯の名前が流し棒に隠れたので上限を置く"""
+        extra = 18 if self.popupMode() == QToolButton.MenuButtonPopup else 4
+        self.setMinimumWidth(min(84 + extra, max(52, self.fontMetrics().horizontalAdvance(self.text()) + 12 + extra)))
+
+    def show_action(self, a: QAction):
+        if self.defaultAction() is not a:
+            self.setDefaultAction(a)
+            self._retip()
+            self.fit()
+
+    def _retip(self):
+        a = self.defaultAction()
+        names = "・".join(x.text().split("（")[0] for x in self.family.actions)
+        head = self.family.tip or f"{self.family.name}（{names}）"
+        self.tip = f"{a.toolTip() or a.text()}\n{head}。▼か長押しで切り替えます"
+        if self.toolTip() != self.tip:
+            self.setToolTip(self.tip)
+
+    def actionEvent(self, e):
+        # 道具が変わる（checked が動く）たびに、Qt はボタンの説明を道具の説明だけに戻す。系統の説明を付け直す
+        # 窓を閉じて消すときの ActionRemoved でも付け直すと、消えかけのボタンを触って 139 で落ちた。ActionChanged だけを見る
+        super().actionEvent(e)
+        if e.type() == QEvent.ActionChanged and self.family.icon is None and self.defaultAction() is not None:
+            self._retip()
+
+
+def group(title: str, actions: list) -> QWidget:
     """名前の付いたまとまり。アイコンの下に名前を出す"""
     box = QWidget()
     box.setObjectName("ribbonGroup")
@@ -19,11 +101,17 @@ def group(title: str, actions: list[QAction]) -> QWidget:
     row = QHBoxLayout()
     row.setSpacing(2)
     for act in actions:
-        b = QToolButton()
-        b.setDefaultAction(act)
+        if isinstance(act, Family) and len(act.actions) == 1:
+            act = act.actions[0]
+        b = FamilyButton(act) if isinstance(act, Family) else QToolButton()
+        if not isinstance(act, Family):
+            b.setDefaultAction(act)
         b.setToolButtonStyle(Qt.ToolButtonTextUnderIcon)
         b.setIconSize(QSize(22, 22))
-        b.setMinimumWidth(52)
+        if isinstance(b, FamilyButton):
+            b.fit()
+        else:
+            b.setMinimumWidth(52)
         b.setAutoRaise(True)
         row.addWidget(b)
     lay.addLayout(row)

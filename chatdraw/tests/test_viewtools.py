@@ -124,7 +124,10 @@ class ViewToolsTest(unittest.TestCase):
         find(m, "表示をリセット").trigger()
         self.assertAlmostEqual(self.c.angle, 0)
         from PySide6.QtWidgets import QToolButton
-        texts = {b.defaultAction().text() for b in self.w.ribbon.findChildren(QToolButton) if b.defaultAction()}
+        # 同じ系統の物は 1 つのボタンの▼の中にまとめた（chatdraw/ribbon.py の Family）。ボタンの物と▼の中の物を合わせて見る
+        acts = {b.defaultAction() for b in self.w.ribbon.findChildren(QToolButton) if b.defaultAction()}
+        acts |= {a for b in self.w.ribbon.findChildren(QToolButton) if b.menu() for a in b.menu().actions()}
+        texts = {a.text() for a in acts}
         for text in ("表示をリセット", "左右反転で表示", "角度を指定…", "グリッド", "操作の履歴…"):
             self.assertIn(text, texts)
         bottom = {a.text() for a in self.w.bottom_bar.actions()}

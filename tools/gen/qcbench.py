@@ -11,11 +11,12 @@
 - 崩れの無い絵を崩れと言わなかった割合
 - 場所: 取りこぼさなかった部位のうち、その部位の枠を返した割合（README に画素の枠が無いので、部位の枠があるかで見る）
 
-検品の結果は .cache/qcbench/ に絵ごとに貯め、同じ絵（同じ大きさと更新時刻）は 2 度測らない。
+検品の結果は .cache/qcbench/ に絵ごとに貯め、同じ絵（同じ中身）は 2 度測らない。
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import re
 import sys
@@ -27,6 +28,8 @@ sys.path.insert(0, str(ROOT / "tools" / "gen"))
 from cdhome import HOME  # noqa: E402  置き場を組むのは cdhome だけ
 FEEDBACK = ROOT / "library" / "feedback"
 CACHE = HOME / "qcbench"
+# 検品の仕組みを直したら上げる。貯めた結果を古い検品のまま使わず、途中で止まっても続きから測れる
+QC_VERSION = "2"
 
 PARTS = {
     "hands": re.compile(r"(?<!足の)(手|指)(?!首から上)"),
@@ -36,7 +39,8 @@ PARTS = {
 # 部位の語があっても崩れではない句（描けた・数が合う・崩れを見つけていない）
 FINE = re.compile(r"描けた|正しい|自然|合っている|そろった|揃った|見つけていない|見つからない|崩れは無|崩れは無い|崩れなし|崩れ無し|[45５] ?本(で|ずつ|と)?(正し|そろ|合)|読めた|読める|直った|通った|元の画素に戻した")
 CLEAN = re.compile(r"(目立つ)?崩れ(は|を)?(見つけていない|見つからない|無い|無し|なし)")
-NOT_FLAW_WORDS = re.compile(r"検品の崩れ[^、。]*|目で見|網目|編み目|横顔|正面寄り|目の色|目の動き|目線|手前|手本|手順|手元の|手で描|手を加え|手の色の差|指示|指定|指摘|片手間|目立つ|一目|目安|見た目|二つ目|つ目|回目|枚目|番目|段目|目の大きさの比")
+# 形の崩れではない句（元の大きさで絵を見て確かめた）: 横顔の向き、設定と違う目の色、正座の座り方
+NOT_FLAW_WORDS = re.compile(r"顔が横顔に近い|目が(赤|青|緑|黒|茶|金|紫)い[^、。]*|かかとの上に正座[^、。]*|検品の崩れ[^、。]*|目で見|網目|編み目|横顔|正面寄り|目の色|目の動き|目線|手前|手本|手順|手元の|手で描|手を加え|手の色の差|指示|指定|指摘|片手間|目立つ|一目|目安|見た目|二つ目|つ目|回目|枚目|番目|段目|目の大きさの比")
 
 
 def _cells(line: str) -> list[str]:
@@ -121,17 +125,49 @@ def said(res: dict) -> dict:
         s = str(b)
         if s.startswith("顔") or "目" in s[:4]:
             flag.add("faces")
+    # 体の検品（chatdraw/sanity.py）の崩れ: 余分な目・口・顔・頭は顔、腕は手、脚は足として数える。
+    # 「目が多い」「腕が多い」は手・足・顔で始まらないので、台で数えられていなかった
+    for b in res.get("body_bad", []) or []:
+        s = str(b)
+        if s.startswith(("目", "口", "顔", "頭", "額")):
+            flag.add("faces")
+        elif s.startswith(("腕", "手")):
+            flag.add("hands")
+        elif s.startswith(("脚", "足")):
+            flag.add("feet")
+    # 映り込みの矛盾か「比べていない」を返した絵。崩れの無い絵でこれを返せば、崩れの無い絵を崩れと言ったことになる
+    m = res.get("mirror") or {}
+    if m.get("flaws") or m.get("reason"):
+        flag.add("mirror")
     return {"flag": sorted(flag), "boxed": sorted(boxed)}
 
 
-def run_one(path: Path) -> dict:
-    st = path.stat()
+def _mirror(path: Path) -> dict:
+    """映り込みの検品だけ（sanity.check と同じタグと同じ mirrorcheck）"""
+    from PIL import Image
+    from chatdraw import mirrorcheck
+    from chatdraw.paths import use_tools_gen
+    use_tools_gen()
+    import tagger
+    m = mirrorcheck.check(Image.open(path).convert("RGB"), tagger.read(str(path)))
+    return {"gated": m.get("gated", []), "flaws": m.get("flaws", []), "reason": m.get("reason")}
+
+
+def run_one(path: Path, fresh: bool = False) -> dict:
     CACHE.mkdir(parents=True, exist_ok=True)
     key = CACHE / (re.sub(r"[^\w.-]", "_", str(path.relative_to(ROOT))) + ".json")
-    stamp = f"{st.st_size}:{int(st.st_mtime)}"
-    if key.exists():
+    # 中身の sha1 で見る。更新時刻は worktree ごとに違い、同じ絵を 40 分かけて測り直していた
+    stamp = "sha1:" + hashlib.sha1(path.read_bytes()).hexdigest() + ":" + QC_VERSION
+    if key.exists() and not fresh:
         d = json.loads(key.read_text(encoding="utf-8"))
         if d.get("stamp") == stamp:
+            if "mirror" not in d["res"]:
+                # 映り込みの検品を足す前に貯めた結果。手・足・顔は測り直さず、映り込みだけを足す
+                try:
+                    d["res"]["mirror"] = _mirror(path)
+                except Exception:   # noqa: BLE001  タグを読む部品が無い・読めない絵。映り込みは測らず、貯めた結果をそのまま使う
+                    return d["res"]
+                key.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
             return d["res"]
     from PIL import Image
     from chatdraw import qcmanual
@@ -140,6 +176,8 @@ def run_one(path: Path) -> dict:
     keep["hands"] = [{"box": h.get("box"), "bad": h.get("bad")} for h in res.get("hands", []) or []]
     keep["feet"] = [{"box": h.get("box"), "bad": h.get("bad")} for h in res.get("feet", []) or []]
     keep["faces"] = [{"box": h.get("box"), "bad": h.get("bad")} for h in res.get("faces", []) or []]
+    m = res.get("mirror") or {}
+    keep["mirror"] = {"gated": m.get("gated", []), "flaws": m.get("flaws", []), "reason": m.get("reason")}
     f = res.get("face") or {}
     keep["face"] = {"readable": f.get("readable"), "bad": f.get("bad"), "reason": f.get("reason")}
     key.write_text(json.dumps({"stamp": stamp, "res": keep}, ensure_ascii=False), encoding="utf-8")
@@ -150,6 +188,7 @@ def score(rows: list[dict], results: dict) -> dict:
     hit = miss = boxed = clean_ok = clean_n = 0
     by = {k: {"hit": 0, "miss": 0} for k in PARTS}
     missed_list = []
+    false_by = {k: 0 for k in PARTS}   # 崩れの無い絵で、部位ごとに崩れと言った枚数（誤報がどの部位から出るか）
     for r in rows:
         if r["path"] not in results:
             continue
@@ -166,9 +205,14 @@ def score(rows: list[dict], results: dict) -> dict:
         if r["clean"]:
             clean_n += 1
             clean_ok += not s["flag"]
+            for k in s["flag"]:
+                false_by[k] += 1
     pct = lambda a, b: round(100 * a / b, 1) if b else None   # noqa: E731
-    return {"flaw_parts": hit + miss, "caught": pct(hit, hit + miss), "clean_images": clean_n,
-            "clean_quiet": pct(clean_ok, clean_n), "located": pct(boxed, hit), "by_part": by, "missed": missed_list}
+    seen = [results[r["path"]] for r in rows if r["path"] in results]
+    gated = sum(1 for x in seen if (x.get("mirror") or {}).get("gated"))
+    mflag = sum(1 for x in seen if "mirror" in said(x)["flag"])
+    return {"mirror_gated": gated, "mirror_flagged": mflag, "flaw_parts": hit + miss, "caught": pct(hit, hit + miss), "clean_images": clean_n,
+            "clean_quiet": pct(clean_ok, clean_n), "false_by_part": false_by, "located": pct(boxed, hit), "by_part": by, "missed": missed_list}
 
 
 def main(argv=None) -> int:
@@ -176,6 +220,7 @@ def main(argv=None) -> int:
     ap.add_argument("--limit", type=int, default=0)
     ap.add_argument("--json", default="")
     ap.add_argument("--truth-only", action="store_true")
+    ap.add_argument("--fresh", action="store_true", help="貯めた結果を使わず測り直す（検品の仕組みを直したあと）")
     a = ap.parse_args(argv)
     rows = truth()
     print(f"台: {len(rows)} 枚（崩れのある絵 {sum(bool(r['flaws']) for r in rows)}、崩れの無い絵 {sum(r['clean'] for r in rows)}）", flush=True)
@@ -186,7 +231,7 @@ def main(argv=None) -> int:
     results = {}
     for i, r in enumerate(rows[: a.limit or None], 1):
         try:
-            results[r["path"]] = run_one(ROOT / r["path"])
+            results[r["path"]] = run_one(ROOT / r["path"], a.fresh)
         except Exception as e:   # noqa: BLE001  落ちた絵は「検品できなかった」として数えない（台から外したと出す）
             print(f"落ちた: {r['path']}: {e}", flush=True)
         if i % 20 == 0:

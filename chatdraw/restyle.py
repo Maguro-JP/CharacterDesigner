@@ -1,10 +1,16 @@
-"""画風の加工: 今の絵を、形と構図を保ったまま別の画風（アニメの塗り、厚塗り、水彩、線画、セル画）に描き替える。
+"""画風の加工: 今の絵を、形と構図を保ったまま別の画風（アニメの塗り、厚塗り、水彩、線画、セル画、鉛筆画、色鉛筆画、
+墨絵、ガッシュ画、アルコールマーカー画、モノクロ漫画風、フィギュア風、ドット絵）に描き替える。
 
 作り: 元の絵を土台にした img2img（低い強さ）に、元の線を ControlNet（xinsir の Union の線の型）で渡す。
 - 白紙から描かせると構図と顔が変わる。元の絵を土台にし、強さを低くして形を元の絵に寄せる
 - 強さだけを低くすると画風が変わらず、上げると形が崩れた。線を ControlNet で縛り、強さを上げても線の位置は動かないようにする
 - 描いたあとに元の絵と線の重なりと形の変わりを測り、崩れていれば強さを下げて描き直す（STRENGTH_STEPS）。
   下げきっても崩れるなら、崩れたまま渡さず Unavailable で止めて理由を出す
+- 画風の言葉は加工の指示なので加工のときだけ足す。利用者の描く言葉は変えない
+- 白黒の画風（鉛筆画・墨絵・漫画）は模型が色を残すことがあるので、描いたあとに灰色にそろえる（EXTRA の post）
+- ドット絵は模型に「pixel art」で塗りを平らにさせてから、縮小・減色・最近傍の拡大で格子にそろえる
+  （模型だけでは格子がそろわない。Pixel Art XL の札も 8 分の 1 の最近傍の縮小を勧めている）
+- 言葉と強さの根拠は docs/knowledge/restyle-styles.md
 - 絵の模型と Union は 1 回だけ読み、続けて掛けるときは読み直さない（_CACHE）
 """
 from __future__ import annotations
@@ -22,7 +28,39 @@ STYLES = (
      "lineart, monochrome, greyscale, white background, clean lines, no color", 0.45),
     ("cel", "セル画", "平らな塗りと硬い影の、昔のセル画に描き替えます",
      "cel animation, retro anime, 1990s anime style, flat colors, hard shadows, film grain", 0.45),
+    # ここから下は見本の画風に合わせて足した物。0.4〜0.5 では Actions の本物の模型で画風がほとんど変わらなかった（形の変わり 0.011）。
+    # 調べた幅（0.4〜0.7）の上の側へ上げ、線の縛りも緩める。形が崩れれば検品が強さを下げて描き直す
+    ("pencil", "鉛筆画", "紙に鉛筆で描いた、白黒の陰影の絵に描き替えます",
+     "traditional media, graphite (medium), pencil sketch, monochrome, greyscale, hatching, paper texture", 0.65),
+    ("colored_pencil", "色鉛筆画", "線の重なりが見える、色鉛筆の絵に描き替えます",
+     "traditional media, colored pencil (medium), visible pencil strokes, hatching, paper texture, soft colors", 0.65),
+    ("sumie", "墨絵", "墨のにじみと濃淡だけで描いた墨絵に描き替えます",
+     "sumi-e, ink wash painting, traditional media, ink (medium), monochrome, greyscale, brush strokes, washi paper", 0.7),
+    ("gouache", "ガッシュ画", "不透明の絵の具で平らに塗った、つやの無いガッシュ画に描き替えます",
+     "traditional media, gouache (medium), painting (medium), opaque paint, matte colors, flat brush strokes", 0.65),
+    ("marker", "アルコールマーカー画", "色の重ね塗りと白い光を残した、アルコールマーカーの絵に描き替えます",
+     "traditional media, marker (medium), alcohol marker, copic, marker strokes, bold colors, white highlights", 0.65),
+    ("manga", "モノクロ漫画風", "スクリーントーンと黒のベタで描いた、白黒の漫画のコマに描き替えます",
+     "manga, monochrome, greyscale, screentone, halftone, ink (medium), high contrast, black and white", 0.6),
+    ("figure", "フィギュア風", "つやのある樹脂で作った、立体のフィギュアの写真に描き替えます",
+     "pvc figure, figure, 3d, blender (medium), glossy plastic, smooth shading, studio lighting, product photo", 0.65),
+    ("pixel", "ドット絵", "少ない色の、格子のそろったドット絵に描き替えます",
+     "pixel art, limited palette, flat colors, retro game sprite, dithering", 0.4),
 )
+# 画風ごとの足し: 打ち消しに足す言葉（neg）、線の縛り（control）、描いたあとの処理（post）
+EXTRA = {
+    "pencil": dict(neg="color, colorful, painting, anime coloring", post="grey", control=0.6),
+    "colored_pencil": dict(neg="digital painting, smooth shading", control=0.6),
+    "sumie": dict(neg="color, colorful, screentone, anime coloring", post="grey", control=0.6),
+    "gouache": dict(neg="glossy, shiny, 3d", control=0.6),
+    "marker": dict(neg="oil painting, impasto", control=0.6),
+    "manga": dict(neg="color, colorful, painting, watercolor", post="grey", control=0.7),
+    # 立体の質感は塗りを大きく変えるので、線の縛りを少し緩める（強いと平らな塗りのまま残る）
+    "figure": dict(neg="2d, flat color, sketch, lineart, traditional media", control=0.6),
+    "pixel": dict(neg="blurry, smooth gradient, anti-aliasing", post="pixel"),
+}
+PIXEL_LONG = 128          # ドット絵の長い辺のドット数（tools/gen/design.py pixel の既定と同じ幅）
+PIXEL_COLORS = 32
 NEGATIVE = "lowres, bad anatomy, bad hands, extra fingers, missing fingers, deformed, blurry, jpeg artifacts, watermark, text"
 LINES = 3                 # Union の線の型（canny・lineart・anime lineart）
 CONTROL = 0.8             # 線の縛りの強さ
@@ -30,6 +68,9 @@ CONTROL_END = 0.9         # 工程のこの割合まで線で縛る（終わり�
 STRENGTH_STEPS = (1.0, 0.75, 0.55)   # 崩れたときに強さに掛ける倍率（順に試す）
 LINE_KEEP = 0.35          # 元の線の画素のうち、描いたあとも線の近く（2 画素）に残る割合の下限
 SHAPE_DRIFT = 0.08        # 縮めた明るさの形の変わり（retouch.drift）の上限。画風は色を変えるので綺麗化（0.02）より緩い
+# 線画の画風は色を除くのが仕事で、黒い髪・濃い服が白くなるので、明るさの形の変わり（drift）は崩れでなくても必ず大きく出る。
+# 線画は形を元の線の残り（LINE_KEEP）だけで見る
+STYLE_DRIFT = {"lineart": None}
 WORK_SIDE = 1024          # 描く大きさの長い辺。大きな絵は縮めて描き、元の大きさに戻す
 
 _CACHE: dict = {}
@@ -103,7 +144,7 @@ def line_kept(a, b) -> float:
     return float((la & binary_dilation(lb, iterations=2)).sum() / la.sum())
 
 
-def check(src, out) -> dict:
+def check(src, out, kind: str = "") -> dict:
     """形と線が元の絵から崩れていないか。崩れていれば why に理由"""
     import numpy as np
     from chatdraw.finishers import _gen
@@ -112,17 +153,38 @@ def check(src, out) -> dict:
     b = np.asarray(out.convert("RGB").resize(src.size)).astype(float)
     d = rt.drift(a, b)
     k = line_kept(src, out.resize(src.size))
-    why = (f"形が変わりすぎる（{d:.3f}）" if d > SHAPE_DRIFT else f"元の線が消える（残り {k:.0%}）" if k < LINE_KEEP else "")
+    limit = STYLE_DRIFT.get(kind, SHAPE_DRIFT)
+    why = (f"形が変わりすぎる（{d:.3f}）" if limit is not None and d > limit else f"元の線が消える（残り {k:.0%}）" if k < LINE_KEEP else "")
     return dict(drift=round(d, 4), line_kept=round(k, 3), why=why)
 
 
-def restyle(painter, image, kind: str, seed: int = 0, say=None):
-    """image を画風 kind に描き替えた絵（元と同じ大きさ）。崩れたら強さを下げて描き直す"""
+def post(kind: str, img):
+    """描いたあとの処理。白黒の画風は灰色に、ドット絵は縮小・減色して元の大きさへ最近傍で戻す"""
+    from PIL import Image
+    how = EXTRA.get(kind, {}).get("post")
+    if how == "grey":
+        return img.convert("L").convert("RGB")
+    if how == "pixel":
+        from chatdraw.postfx import pixel_art
+        dots = pixel_art(img, long=PIXEL_LONG, colors=PIXEL_COLORS, outline=False, transparent=False).convert("RGB")
+        return dots.resize(img.size, Image.NEAREST)
+    return img
+
+
+def remodel(painter, image, prompt: str, seed: int = 0, say=None, strength: float = 0.45):
+    """同じ構図のまま、painter の模型で描き直した絵。元の線を ControlNet で渡し、言葉は頼みの言葉（prompt）だけを渡す。
+    画風の言葉も質の言葉も足さない（頼んでいない言葉で絵が変わるのを避ける）。崩れたら強さを下げて描き直す"""
+    return restyle(painter, image, "remodel", seed, say, style=("remodel", "選んだ模型", "", prompt or "", strength))
+
+
+def restyle(painter, image, kind: str, seed: int = 0, say=None, source: str = "", style=None):
+    """image を画風 kind に描き替えた絵（元と同じ大きさ）。崩れたら強さを下げて描き直す。
+    source は元の絵の言葉。画風の語だけで描き替えると、模型は何の絵かを知らずに人物や服を別の物にした"""
     import torch
     from PIL import Image
     from chatdraw.engine import Stopped, check_stop, english_only, negative_for
     from chatdraw.models import image_model
-    style = {s[0]: s for s in STYLES}[kind]
+    style = style or {s[0]: s for s in STYLES}[kind]
     src = image.convert("RGB")
     W, H = src.size
     k = min(1.0, WORK_SIDE / max(W, H))
@@ -134,6 +196,9 @@ def restyle(painter, image, kind: str, seed: int = 0, say=None):
         neg = negative_for(image_model(painter.model), getattr(painter, "avoid", ""))
     except Exception:   # 目録に無い模型（試験の小さな模型）でも描けるように
         neg = NEGATIVE
+    extra = EXTRA.get(kind, {})
+    if extra.get("neg"):
+        neg = f"{neg}, {extra['neg']}" if neg else extra["neg"]
     tries = []
     for f in STRENGTH_STEPS:
         check_stop()
@@ -148,19 +213,21 @@ def restyle(painter, image, kind: str, seed: int = 0, say=None):
             return kw
         union = {"control_image": [ctrl], "control_mode": [LINES]} if "control_mode" in _params(pipe) else {"control_image": ctrl}
         from chatdraw import sent
-        sent.record("画風", english_only(style[3]), neg)
-        out = pipe(prompt=english_only(style[3]), negative_prompt=neg, image=small, **union,
+        words = english_only(", ".join(t for t in (style[3], source) if t))
+        sent.record("画風", words, neg)
+        out = pipe(prompt=words, negative_prompt=neg, image=small, **union,
                    strength=s, num_inference_steps=steps, guidance_scale=float(getattr(painter, "guidance", 6.0) or 6.0),
-                   controlnet_conditioning_scale=CONTROL, control_guidance_end=CONTROL_END, width=w, height=h,
+                   controlnet_conditioning_scale=extra.get("control", CONTROL), control_guidance_end=CONTROL_END, width=w, height=h,
                    generator=torch.Generator("cpu").manual_seed(seed), callback_on_step_end=step).images[0]
         if getattr(painter, "stop", False):
             raise Stopped("止めました")
-        q = check(small, out)
+        q = check(small, out, kind)
         tries.append(dict(strength=s, **q))
         if not q["why"]:
             LAST.clear()
             LAST.update(kind=kind, label=style[1], strength=s, tries=tries)
-            return out.resize((W, H), Image.LANCZOS) if out.size != (W, H) else out
+            out = out.resize((W, H), Image.LANCZOS) if out.size != (W, H) else out
+            return post(kind, out)   # 検品は描いた絵で見る（ドット絵の格子は線の残りの測りを下げるため、後に掛ける）
     LAST.clear()
     LAST.update(kind=kind, label=style[1], tries=tries, rejected=True)
     from chatdraw.finishers import Unavailable

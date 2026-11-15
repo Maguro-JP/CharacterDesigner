@@ -1573,7 +1573,10 @@ class SystemTest(unittest.TestCase):
         self.assertEqual(p["tags"], ["red hair"])                      # 好きに 2 回以上出た言葉
         self.assertEqual(p["avoid"], ["dark"])                         # いまいちに 2 回以上、好きに無い言葉
         self.assertEqual(p["style"], "水彩")
-        self.assertIn("red hair", self.w.ai_panel.style_tags())        # 描く言葉に足す
+        self.w.layout_store.remove("use_taste")
+        self.assertNotIn("red hair", self.w.ai_panel.style_tags())     # 既定では足さない（前の絵に引っ張られないように）
+        self.w.layout_store.setValue("use_taste", 1)
+        self.assertIn("red hair", self.w.ai_panel.style_tags())        # 利用者が入れたときだけ描く言葉に足す
         self.w.layout_store.setValue("use_taste", 0)
         self.assertNotIn("red hair", self.w.ai_panel.style_tags())     # 外せる
         self.w.layout_store.setValue("use_taste", 1)
@@ -2151,6 +2154,7 @@ class ViewingTest(unittest.TestCase):
             self.assertEqual(menus, [])                                 # 動かしたときはメニューを出さない
             c.mousePressEvent(ev(QEvent.MouseButtonPress, 200, Qt.RightButton, Qt.RightButton))
             c.mouseReleaseEvent(ev(QEvent.MouseButtonRelease, 201, Qt.RightButton, Qt.NoButton))
+            app.processEvents()   # メニューは離す処理を終えてから開く
             self.assertEqual(len(menus), 1)                             # 動かさずに離すと右クリックのメニュー
 
     def test_first_tool_is_hand_and_creator_layout_is_pen(self):
@@ -2709,7 +2713,7 @@ class ModelListTest(unittest.TestCase):
         with TemporaryDirectory() as d, mock.patch.dict(os.environ, {"CD_HOME": d}):
             a, b, c = self.models()
             self.assertEqual([m.name for m in models.pick([a, b, c], "推奨（確かめ済み）")], ["A", "C"])
-            self.assertEqual([m.name for m in models.pick([a, b, c], "推奨（確かめ済み）", have={"b/b"})], ["B", "A", "C"])  # 取得済みは先頭
+            self.assertEqual([m.name for m in models.pick([a, b, c], "推奨（確かめ済み）", have={"b/b"})], ["A", "C"])  # 絞り込みに合わない取得済みは出さない
             ratings.set_user_rating("c/c", 30)                                                  # 低い点は推奨に出さない
             self.assertEqual([m.name for m in models.pick([a, b, c], "推奨（確かめ済み）")], ["A"])
             self.assertIn(c, models.pick([a, b, c], "すべて"))                                   # すべてには出す

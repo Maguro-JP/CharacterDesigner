@@ -35,23 +35,27 @@ PRESETS: list[tuple[str, str, int, str, str, int]] = [
     (DEFAULT_PRESET, "最初の設定に戻す", 0, "縦", "おまかせ", 100),
     ("キャラデザ", "全身の立ち絵を縦長で", 0, "縦", "アニメ", 100),
     ("ラフを清書", "キャンバスの線を清書", 1, "縦", "アニメ", 100),
-    ("ラフから自由に", "ラフを元に AI が整える", 1, "縦", "厚塗り", 60),
+    ("ラフから自由に", "ラフを元に AI が整える", 1, "縦", "おまかせ", 60),
     ("イラスト", "場面の 1 枚を横長で", 0, "横", "厚塗り", 100),
     ("アイコン", "顔まわりを正方形で", 0, "正方形", "アニメ", 100),
-    ("立ち絵（白地）", "透過しやすい白地の全身", 0, "縦", "アニメ", 100),
-    ("表情差分", "顔と表情を正方形で", 0, "正方形", "アニメ", 100),
     ("背景美術", "人のいない風景を横長で", 0, "横", "厚塗り", 100),
     ("モノクロ", "白黒の線と影で", 0, "縦", "おまかせ", 100),
-    ("水彩の挿絵", "淡い水彩の 1 枚を横長で", 0, "横", "水彩", 100),
-    ("レトロアニメ", "90 年代のアニメの色で", 0, "縦", "レトロ", 100),
+    # ロゴ・エンブレム・スタンプのモードの物（chatdraw/modes.py）。形（正方形）だけを決め、描く言葉は足さない
+    ("ロゴ", "マーク・紋章を正方形で", 0, "正方形", "おまかせ", 100),
+    ("スタンプ", "スタンプの絵を正方形で", 0, "正方形", "アニメ", 100),
 ]
-# プリセットが描く頼みの後ろに足す言葉（英語のタグ。日本語は絵の模型に渡さない）
-PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background", "アイコン": "portrait, upper body, looking at viewer",
-                 "立ち絵（白地）": "full body, standing, simple background, white background",
-                 "表情差分": "portrait, upper body, looking at viewer, simple background, expressive face",
+# まとめたプリセットの前の名前 → (今のプリセット, 上から当てる画風)。声や AI の頼み、覚えた選択から前の名前で呼ばれても動く。
+# 中身が他のプリセットか画風と同じだった物をまとめた（並びが長いと、どれを押せばよいか分からない）
+MERGED = {"立ち絵（白地）": ("キャラデザ", None),   # キャラデザとほぼ同じ
+          "表情差分": ("アイコン", None),         # 表情を描き分けない。本当の表情差分は「キャラクターデザイン」のメニュー
+          "レトロアニメ": (DEFAULT_PRESET, "レトロ"),   # 画風「レトロ」と同じ
+          "水彩の挿絵": ("イラスト", "水彩"),       # イラストに画風「水彩」と同じ
+          "エンブレム": ("ロゴ", None)}           # 描く言葉を足さないので、ロゴと中身が同じになった
+# プリセットが描く頼みの後ろに足す言葉（英語のタグ。日本語は絵の模型に渡さない）。
+# 頼みの中身（視線・線画・トーン）を決める言葉は外した。形（全身・顔まわり・風景・白黒）だけを残す。新しい言葉は足さない
+PROMPT_SUFFIX = {"キャラデザ": "full body, standing, simple background", "アイコン": "portrait, upper body",
                  "背景美術": "scenery, no humans, detailed background, wide shot",
-                 "モノクロ": "monochrome, greyscale, lineart, screentone",
-                 "水彩の挿絵": "illustration, soft lighting", "レトロアニメ": "1990s anime screencap"}
+                 "モノクロ": "monochrome, greyscale"}
 
 
 # タブ: (名前, ヒント)。初めに開くのは先頭の「指示」（描く内容と模型を 1 枚にまとめた。行き来が要らない）
@@ -168,7 +172,10 @@ class AiPanel(QWidget):
         styles.setSpacing(4)
         self.style_group = QButtonGroup(self)
         self.style_buttons: dict[str, QPushButton] = {}
-        for i, (name, _tags, tip) in enumerate(STYLES):
+        # よく使う画風を先に並べる（chatdraw/userstats.py。描く言葉には何も足さない）
+        from chatdraw import userstats
+        by = {n: (n, t, tip) for n, t, tip in STYLES}
+        for i, (name, _tags, tip) in enumerate(by[n] for n in userstats.order_styles(list(by))):
             b = QPushButton(name if len(name) <= 5 else name[:4] + "…")   # 長い名前は詰め、全部はカーソルを合わせたときに出す
             b.setObjectName("chip")
             b.setCheckable(True)
@@ -231,6 +238,10 @@ class AiPanel(QWidget):
         self.save_button.setToolTip("今の描き方・大きさ・画風を、自分の AI プリセットとして残します")
         self.save_button.clicked.connect(self.save_current)
         self.sections["作風"].body.addWidget(self.save_button)
+        self.new_button = QPushButton("プリセットを作る…")
+        self.new_button.setToolTip("描き方・大きさ・画風・枚数・種・絵の模型・描くワード・禁止ワードを選んで、自分の AI プリセットを作ります")
+        self.new_button.clicked.connect(lambda: self.edit_preset())
+        self.sections["作風"].body.addWidget(self.new_button)
 
         # 直す・仕上げ: 見る → 直す → 綺麗にする → 広げる・拡大 → 加工 の順。入口は 1 つずつ（右クリックの絵のメニューと同じ処理を呼ぶ）
         lay = self.sections["直す・仕上げ"].body
@@ -259,8 +270,9 @@ class AiPanel(QWidget):
         self.again.setToolTip(self.again.toolTip() + "\n一部だけ直すときは、赤ペンで囲んでから「描く」を押します")
         # 綺麗にする・外へ広げるは、キャンバスの右クリックのメニューにある（並べ方は右クリックのメニューの側で決める）
         lay.addWidget(self._head("仕上げ", "綺麗にする・外へ広げるは、キャンバスの右クリックから選びます。元の絵は元に戻すで戻せます"))
+        from chatdraw.upscale import UPSCALE_TIP
         self.upscale_button = QPushButton("絵を 2 倍に拡大")
-        self.upscale_button.setToolTip("線と塗りを保ったまま、今の絵を 2 倍の大きさにします")
+        self.upscale_button.setToolTip(UPSCALE_TIP)
         self.upscale_button.clicked.connect(w.upscale_canvas)
         lay.addWidget(self.upscale_button)
         lay.addWidget(self._head("加工", "出来た絵から作ります。元の絵は残し、新しいレイヤーに重ねます"))
@@ -422,7 +434,9 @@ class AiPanel(QWidget):
             if item.widget():
                 self.preset_group.removeButton(item.widget())
                 item.widget().deleteLater()
-        cards = [(name, sub, dict(mode=m, size=s, style=st, strength=k), False) for name, sub, m, s, st, k in PRESETS]
+        keep = getattr(self, "mode_presets", None)   # モード（chatdraw/modes.py）で出すプリセット。None は全部
+        cards = [(name, sub, dict(mode=m, size=s, style=st, strength=k), False) for name, sub, m, s, st, k in PRESETS
+                 if keep is None or name in keep]
         cards += [(n, "自分のプリセット", d, True) for n, d in self.own_presets().items()]
         for i, (name, sub, data, own) in enumerate(cards):
             b = self._card(name, sub, own)
@@ -459,6 +473,18 @@ class AiPanel(QWidget):
         self.w.size_pick.setCurrentIndex(list(SIZES).index(data.get("size", "縦")))
         self.w.strength.setValue(int(data.get("strength", 100)))
         self.set_style(data.get("style", "おまかせ"))
+        # 自分のプリセットの足した項目（chatdraw/presetdialog.py）。無い項目は今のまま
+        if data.get("count"):
+            self.set_count(int(data["count"]))
+        if data.get("seed"):
+            self.seed.setValue(int(data["seed"]))
+            self.seed_lock.setChecked(True)
+        if data.get("words"):
+            self.w.entry.setText(data["words"])
+        if data.get("negative"):
+            self.negative.setText(data["negative"])
+        if data.get("model") and data["model"] != (self.w.settings.get("image_model") or ""):
+            self.w.switch_model("絵の模型", data["model"])
         if name == DEFAULT_PRESET:   # 標準に戻すときは、枚数・種・参考画像も最初の状態にする
             self.count_spin.setValue(1)
             self.seed_lock.setChecked(False)
@@ -472,6 +498,12 @@ class AiPanel(QWidget):
         self.changed.emit()
 
     def apply_name(self, name: str) -> bool:
+        if name in MERGED and name not in self.own_presets():
+            to, style = MERGED[name]
+            self.apply_name(to)
+            if style:
+                self.set_style(style)
+            return True
         for n, _sub, m, s, st, k in PRESETS:
             if n == name:
                 self.apply(n, dict(mode=m, size=s, style=st, strength=k))
@@ -493,6 +525,25 @@ class AiPanel(QWidget):
                 return
         self.save_preset(name.strip(), self.current())
 
+    def edit_preset(self, name: str = "", run: bool = True):
+        """自分のプリセットを作る（name が空）か直す窓。run=False なら窓を返すだけ（試験で中身を入れてから accept する）"""
+        from chatdraw.presetdialog import PresetDialog
+        data = self.own_presets().get(name) if name else dict(self.current(), words=self.w.entry.text().strip(),
+                                                              negative=self.negative.text().strip())
+        favs = self.w.favorite_prompts() if hasattr(self.w, "favorite_prompts") else []
+        dlg = PresetDialog(self, name, data, favs)
+        if not run:
+            return dlg
+        if dlg.exec():
+            self.finish_edit(dlg, name)
+        return dlg
+
+    def finish_edit(self, dlg, old: str = ""):
+        new, data = dlg.result_data()
+        if old and new != old:
+            self.w.layout_store.remove(f"ai_presets/{old}")   # 名前を変えたら前の名前は消す
+        self.save_preset(new, data)
+
     def save_preset(self, name: str, data: dict):
         self.w.layout_store.setValue(f"ai_presets/{name}", json.dumps(data, ensure_ascii=False))
         self.preset = name
@@ -500,9 +551,18 @@ class AiPanel(QWidget):
         self.w.notify("AI プリセットを保存しました", "ok", f"「{name}」は AI の欄にいつでも出ます")
 
     def _own_menu(self, name: str, button):
+        self.own_menu(name).exec(button.mapToGlobal(button.rect().bottomLeft()))
+
+    def own_menu(self, name: str):
+        """自分のプリセットの右クリック。当てるを上、消すは区切り線の下"""
         m = QMenu(self)
-        m.addAction("消す", lambda: (self.w.layout_store.remove(f"ai_presets/{name}"), self.fill_presets()))
-        m.exec(button.mapToGlobal(button.rect().bottomLeft()))
+        m.addAction("このプリセットにする", lambda: self.apply_name(name))
+        m.addAction("編集…", lambda: self.edit_preset(name))
+        m.addAction("今の設定で上書き", lambda: self.save_preset(name, dict(self.own_presets().get(name, {}), **self.current())))
+        m.addSeparator()
+        m.addAction("消す…", lambda: self.w.ask_forget(f"自分の AI プリセット「{name}」を消します。",
+                                                     lambda: (self.w.layout_store.remove(f"ai_presets/{name}"), self.fill_presets())))
+        return m
 
     # ---- 画風と同期 ----
     def set_style(self, name: str):
@@ -517,9 +577,10 @@ class AiPanel(QWidget):
         return ", ".join(t for t in tags if t)
 
     def taste(self) -> dict:
-        """ライブラリーから読み取った好み。「好みを描く言葉に足す」を外していれば空"""
+        """ライブラリーから読み取った好み。利用者が「好みを描く言葉に足す」を入れたときだけ使う（既定は外す）。
+        既定で入れていたため、前に描いて評価した絵の言葉が毎回の頼みに足され、新しい頼みが前の絵に引っ張られた"""
         lib = getattr(self.w, "library", None)
-        if lib is None or not int(self.w.layout_store.value("use_taste", 1)):
+        if lib is None or not int(self.w.layout_store.value("use_taste", 0)):
             return {"tags": [], "avoid": []}
         return lib.profile()
 

@@ -191,6 +191,15 @@ def x4(img, tile: int | None = None, pad: int = 16, on_step=None, net=None):
     return Image.fromarray(out)
 
 
+# 拡大の言葉はここにそろえる（ボタン・メニュー・右クリックで同じ物を出す）。何倍か、どれくらいかかるか、元の絵がどうなるかを書く。
+# 秒は CPU で 512×768 の絵を測った目安（23 秒。GPU ならもっと速い）
+UPSCALE_TIME = "512×768 の絵で CPU なら 30 秒ほど"
+UPSCALE_TIP = ("今の絵を縦横 2 倍にします。レイヤーは分けたまま全部 2 倍にし、元の大きさの絵は置き換わります"
+               f"（元に戻すの履歴は消えるので、先に保存を勧めます）。目安: {UPSCALE_TIME}")
+ENLARGE_TIP = ("1 枚にまとめた今の絵を縦横 2 倍にし、キャンバスを置き換えます（元に戻すで戻せます）。"
+               f"囲んだときは囲みの中だけ拡大で整えた画素に替えます。目安: {UPSCALE_TIME}")
+
+
 def upscale(img, scale: int = 2, on_step=None):
     """img を scale 倍（2 か 4）にする。透明な所は、透明度だけを普通の拡大で合わせる"""
     from PIL import Image
@@ -198,6 +207,23 @@ def upscale(img, scale: int = 2, on_step=None):
     size = (img.width * scale, img.height * scale)
     if big.size != size:
         big = big.resize(size, Image.LANCZOS)
+    # 透明な所のあるレイヤーは、隠れた所の色（多くは黒）が縁へにじむので合わせない
+    if img.mode != "RGBA" or img.getchannel("A").getextrema()[0] == 255:
+        big = keep_colors(img, big, radius=scale)
     if img.mode == "RGBA":
         big.putalpha(img.getchannel("A").resize(size, Image.LANCZOS))
     return big
+
+
+def keep_colors(img, big, radius: float = 2):
+    """拡大の模型は塗りの色を少し動かした（縮め戻すと元の絵との色の差 3.3〜4.1）。低い周波数（radius 画素のぼかし）だけを、
+    元の絵を普通に拡大した色に合わせ、模型が描いた細かい線と縁は残す（縮め戻した色の差 2.0〜2.4、線の締まりは変わらない）"""
+    import numpy as np
+    from PIL import Image, ImageFilter
+    b = big.convert("RGB")
+    ref = img.convert("RGB").resize(b.size, Image.LANCZOS)
+
+    def low(im):
+        return np.asarray(im.filter(ImageFilter.GaussianBlur(radius)), np.float32)
+    out = np.asarray(b, np.float32) + low(ref) - low(b)
+    return Image.fromarray(np.clip(out + 0.5, 0, 255).astype(np.uint8))

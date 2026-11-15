@@ -101,6 +101,48 @@ COLORS = ("brown", "black", "blue", "red", "green", "grey", "purple", "pink", "y
           "silver", "gold", "amber", "golden", "multicolored", "heterochromia")
 
 
+SMEAR_SHARP = 0.35   # 目の枠の線の鋭さが顔のはっきりした所のこの倍より低ければぼかした目とする（台の正しい目は 0.85 以上、ぼかした目は 0.08 以下）
+SMEAR_HUES = 5       # 目の枠の鮮やかな画素がこの数以上の色相（12 に分けた）に散っていれば虹色でごまかした目とする（崩れの無い顔は 4 以下）
+
+
+def eye_smear(im, keypoints: dict | None, box=None) -> list[str]:
+    """目（瞳）をぼかし・にじみ・虹色でごまかした所を崩れとして返す。描けない瞳を虹色やぼかしで埋めた絵が、
+    タグでは目として読まれて検品を通っていた。目の点の周りの線の鋭さを顔のはっきりした所と比べ、色相の散り方を数える"""
+    import numpy as np
+    import feet
+    kp = keypoints or {}
+    eyes = [(s, kp[f"{s}_eye"]) for s in ("left", "right") if f"{s}_eye" in kp]
+    if len(eyes) < 2:
+        return []
+    (_, a), (_, b) = eyes
+    dist = ((a[0] - b[0]) ** 2 + (a[1] - b[1]) ** 2) ** 0.5
+    half = max(4, int(dist * 0.22))
+    if half < 6:
+        return []   # 目が小さすぎて画素で測れない（小さな顔はタグの側で見る）
+    w, h = im.size
+    fb = box or (max(0, int(min(a[0], b[0]) - dist)), max(0, int(min(a[1], b[1]) - dist)), min(w, int(max(a[0], b[0]) + dist)), min(h, int(max(a[1], b[1]) + dist * 1.5)))
+    face = im.crop(fb)
+    ref = feet.sharp_reference(face, half * 2) or 1.0
+    out = []
+    names = {"left": "左", "right": "右"}
+    for side, (x, y) in eyes:
+        eb = (int(x - half), int(y - half), int(x + half), int(y + half))
+        # 目の点は瞳の中心から半径ほどずれる（アニメの絵で、正しい目を 0.09 倍と測った）。周りへ半分ずつずらした枠の一番鋭い所で見る
+        sharp = max(feet.sharpness(im, (eb[0] + dx, eb[1] + dy, eb[2] + dx, eb[3] + dy))
+                    for dx in (-half, 0, half) for dy in (-half, 0, half)) / ref
+        hsv = np.asarray(im.crop(eb).convert("HSV"), np.float32)
+        vivid = hsv[..., 0][(hsv[..., 1] > 90) & (hsv[..., 2] > 60)]
+        hues = 0
+        if vivid.size > 0.3 * hsv[..., 0].size:
+            hist = np.bincount((vivid / 256 * 12).astype(int), minlength=12)
+            hues = int((hist >= 0.06 * vivid.size).sum())
+        if hues >= SMEAR_HUES:
+            out.append(f"顔: {names[side]}の目が虹色に散っている（{hues} 色。瞳の形を描かず色でごまかした）")
+        elif sharp < SMEAR_SHARP:
+            out.append(f"顔: {names[side]}の目がぼやけている（線の鋭さが顔のはっきりした所の {sharp:.2f} 倍。描けない瞳をぼかしてごまかした）")
+    return out
+
+
 def check_face(image, keypoints: dict | None = None, asked: str = "") -> dict:
     """絵（PIL か道）の顔を測る。box は顔の枠、readable が False なら顔を読めなかった。
     鼻と目の点があるのに小さくて目を読めない顔は、bad に崩れとして返す（読めない顔を通さない）"""
@@ -143,6 +185,10 @@ def check_face(image, keypoints: dict | None = None, asked: str = "") -> dict:
     out["readable"] = True
     out["eye_dark"] = eye_dark(im, keypoints)
     out["bad"] = judge(tags, asked)
+    try:
+        out["bad"] += eye_smear(im, keypoints, box)
+    except Exception as e:   # noqa: BLE001  測れなかったことは残し、タグの検品の結果は返す
+        out["smear_reason"] = f"目のごまかしを測れませんでした（{e}）"
     return out
 
 

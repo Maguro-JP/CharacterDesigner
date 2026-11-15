@@ -37,6 +37,7 @@ CharacterDesigner/
 | 置き場 | 置くもの | 置かないもの |
 |---|---|---|
 | `chatdraw/` `tools/` `packaging/` `templates/` | 道具（プログラム、アプリ、配布物の作り方、ほかのリポジトリへ配るひな型） | 絵、知見の文章 |
+| `chatdraw/styleprev/` | 画風の変更のメニューに出す予想図（見本の 1 枚を本物の絵の模型で各画風に変えた小さな絵。`chatdraw/restyle_verify.py` の出力から作る） | 利用者の絵、大きな絵 |
 | `chatdraw/icon/` | アプリのアイコンの絵（app.png は PC 用で窓とインストーラーの .ico の元、mobile.png はスマホ・タブレット用） | アイコン以外の絵 |
 | `styles/` | 道具が読む数字の決まり（作風、ジャンルの頭身、学んだ基準、模型の癖） | 文章の説明（それは `docs/knowledge/`） |
 | `config/` | 利用者ごとの設定の見本（`*.example.json`）と既定 | 利用者の実際の設定（git に入れない） |

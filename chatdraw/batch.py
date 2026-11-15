@@ -105,3 +105,45 @@ def summary(res: dict) -> str:
         head += "（途中で止めました）"
     lines = [head] + [f"{line} 行目「{text[:30]}」: {why}" for line, text, why in res["failed"]]
     return "\n".join(lines)
+
+
+def chara_jobs(paths) -> list[dict]:
+    """キャラクターの一覧（.chara の組）を、まとめて描く物の並びにする。読めないファイルは理由を付けて返す"""
+    from chatdraw import charafile
+    out = []
+    for p in paths:
+        try:
+            ch = charafile.load(p)
+            out.append({"path": str(p), "name": ch["manifest"]["name"], "chara": ch})
+        except charafile.BadFile as e:
+            out.append({"path": str(p), "name": str(p), "error": str(e)})
+    return out
+
+
+def run_charas(jobs: list[dict], painter, seed: int = 0, what=("turnaround", "expressions"), say=lambda m: None,
+               stopped=lambda: False, home=None, size=None) -> dict:
+    """キャラクターごとに三面図と表情差分（what）を描き、.chara に足す。1 人が失敗しても残りを描き続ける"""
+    from chatdraw import charadesign, charafile
+    from chatdraw.engine import Stopped
+    out = {"done": [], "failed": [], "stopped": False, "total": len(jobs)}
+    for k, j in enumerate(jobs, 1):
+        if stopped():
+            out["stopped"] = True
+            break
+        if j.get("error"):
+            out["failed"].append((k, j["name"], j["error"]))
+            continue
+        try:
+            ident = charafile.to_bible(j["chara"], home)
+            for key in what:
+                say(f"一括生成 {k}/{len(jobs)}: {j['name']}の{dict((e[0], e[1]) for e in charadesign.EXTRAS)[key]}")
+                charadesign.run_extra(key, painter, ident, seed + k, say=say, home=home, size=size)
+            charadesign.sync_chara(ident, j["path"], home)
+            out["done"].append(j["path"])
+        except Stopped:
+            out["stopped"] = True
+            break
+        except Exception as e:   # noqa: BLE001  1 人の失敗で残りを止めない
+            from chatdraw.engine import explain
+            out["failed"].append((k, j["name"], explain(e)))
+    return out

@@ -179,3 +179,5 @@
 | Ternary Bonsai 2 4B | [prism-ml/Ternary-Bonsai-2-4B-gguf](https://huggingface.co/prism-ml/Ternary-Bonsai-2-4B-gguf) の `Ternary-Bonsai-2-4B-Q2_0.gguf` | 1.21 GB | 0 | 3 値の重みで 4B を約 1.2GB に収める。新しい llama.cpp が要る |
 
 <!-- modeldoc:end -->
+
+取得先（Hugging Face、Civitai ほか）の調べは [model-sources.md](knowledge/model-sources.md)。

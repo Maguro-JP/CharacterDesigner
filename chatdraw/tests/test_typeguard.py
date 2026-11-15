@@ -145,6 +145,13 @@ class IoThreadTest(unittest.TestCase):
         from chatdraw.tests.test_chatdraw import FakePainter, FakeWords
         from chatdraw.tests.test_editing import app
         app()
+        # 前の試験で閉じずに残った窓の自動保存（2 分ごと）が、この試験の間に糸を作って数がずれた。残った窓の時計を止め、溜まった仕事を先に流す
+        from PySide6.QtWidgets import QApplication as _A
+        for old in _A.topLevelWidgets():
+            t = getattr(old, "autosave_timer", None)
+            if t is not None:
+                t.stop()
+        _A.processEvents()
         before = sum(t.name == "io" for t in threading.enumerate())
         with TemporaryDirectory() as tmp:
             for _ in range(3):

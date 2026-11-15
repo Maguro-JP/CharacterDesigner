@@ -17,14 +17,14 @@ from chatdraw.brush import PRESETS, Brush, Dabs, stamp
 
 UNDO_BYTES = 1_500_000_000   # 元に戻すに使うメモリの上限（約 1.5GB）
 TOOL_NAMES = {"redpen": "赤ペン", "eraser": "消しゴム", "blur": "ぼかし", "fill": "塗りつぶし", "gradient": "グラデーション", "line": "直線",
-              "rect": "四角", "ellipse": "楕円", "move": "移動", "select": "四角の選択", "lasso": "投げなわの選択", "polygon": "多角形の選択",
+              "rect": "四角", "ellipse": "楕円", "move": "移動", "select": "四角の選択", "lasso": "投げなわの選択", "polygon": "多角形の選択", "autosel": "自動選択",
               "spray": "スプレー", "smudge": "指先", "text": "文字",
               "polyshape": "多角形", "regpoly": "正多角形"}
 COLOR_MODES = ("単色", "虹色", "描く色と背景色を行き来")   # ペンの色の出方（色の欄で選ぶ）
 CURSOR_STYLES = ("十字と筆の輪", "点と筆の輪", "筆の輪だけ", "矢印")   # 設定の「カーソル」で選ぶ形
 BRUSH_TOOLS = ("pen", "eraser", "blur", "spray", "smudge")                     # なぞって描く道具（筆の輪を出す）
 DRAG_TOOLS = ("line", "rect", "ellipse", "regpoly", "gradient", "move", "select", "lasso")   # 押した所から離した所までで決まる道具
-SELECT_TOOLS = ("select", "lasso", "polygon")   # 範囲を選ぶ道具。レイヤーを変えないので、隠したレイヤーでも使える
+SELECT_TOOLS = ("select", "lasso", "polygon", "autosel")   # 範囲を選ぶ道具。レイヤーを変えないので、隠したレイヤーでも使える
 # 対称の形。線対称は左右（縦の軸）・上下（横の軸）・上下左右、点対称は軸の中心の周りに半回転して写す
 SYMMETRY = {"lr": "左右（縦の軸）", "ud": "上下（横の軸）", "both": "上下左右", "point": "点対称（中心の周り）"}
 AXIS_GRIP = 7   # 軸をつかむ丸の半径（画面の画素）
@@ -39,9 +39,11 @@ class Layer:
     visible: bool = True
     opacity: float = 1.0
     locked: bool = False   # ロックしたレイヤーには描けない（AI の絵を線で汚さないため）
+    redpen: bool = False   # 赤ペンの直しのレイヤー（消したら絵・履歴・ライブラリー・作業の保存に何も残さない）
+    path: str = ""         # AI の結果を置いたレイヤーの元の画像ファイル（レイヤーを消したら、そのファイルもごみ箱へ移す）
 
     def copy(self) -> "Layer":
-        return Layer(self.name, self.image.copy(), self.visible, self.opacity, self.locked)
+        return Layer(self.name, self.image.copy(), self.visible, self.opacity, self.locked, self.redpen, self.path)
 
 
 _PRELOADED: dict[str, tuple[int, QImage]] = {}
@@ -130,6 +132,8 @@ class Canvas(QGraphicsView):
     used_color = Signal()       # 描く色で描き始めた（最近使った色に足す）
     marked = Signal()           # 赤ペンで印を付けた（AI の欄を「直す」にする）
     note_wanted = Signal(int)   # 赤ペンの印に、絵の上で指示を書く（印の番号、1 から）
+    layer_deleted = Signal(str)   # AI の結果のレイヤーを消した（元の画像ファイルの置き場）。窓がごみ箱へ移す
+    autosel_wanted = Signal(object, object, str)   # 自動選択を頼む（押した所か None、囲んだ四角か None、"select" か "redpen"）
     menu_wanted = Signal(QPoint)  # 右クリック（動かさずに離した）。画面の位置で右クリックのメニューを出す
     stroke_done = Signal()        # 線・塗り・レイヤーが 1 回変わった（タイムラプスの写しを撮る）
     shaped = Signal(str)          # 描いて止めた線を形に整えた（整えた形の名前。下の帯に出す）
@@ -143,6 +147,22 @@ class Canvas(QGraphicsView):
         painter.resetTransform()
         self.backdrop(painter, self.viewport().rect())
         painter.restore()
+        self._draw_checker(painter)
+
+    def _draw_checker(self, painter):
+        """紙の下に市松模様を敷く。透明の所が模様で見え、透過した絵が透過できたと一目で分かる。
+        前は紙の下が絵の周りと同じ暗い模様で、背景のレイヤーを隠しても透明かどうかが見分けにくかった"""
+        from PySide6.QtGui import QBrush, QPixmap
+        tile = getattr(self, "_checker_tile", None)
+        if tile is None:
+            tile = QPixmap(16, 16)
+            tile.fill(QColor("#ffffff"))
+            q = QPainter(tile)
+            q.fillRect(0, 0, 8, 8, QColor("#d6d6d6"))
+            q.fillRect(8, 8, 8, 8, QColor("#d6d6d6"))
+            q.end()
+            self._checker_tile = tile
+        painter.fillRect(self.sceneRect(), QBrush(tile))
 
     def update_margins(self):
         """紙の外だけを描き直す。動く模様のために、毎回紙の中（レイヤー）まで描き直さない"""
@@ -260,6 +280,8 @@ class Canvas(QGraphicsView):
         from chatdraw.redpen import RedPen
         self.redpen = RedPen()   # 赤ペン先生の印。レイヤーとは別に持ち、保存する絵にも AI に渡す絵にも入れない
         self.scene().addItem(self.redpen)
+        self.redpen_shape = "free"   # 赤ペンの印の取り方（free・ellipse・rect・auto）
+        self._shape_from: QPointF | None = None   # 丸・四角・自動選択を引き始めた所
         self.set_tool("pen")
         # 右ボタンでつかんで動かす。押して動かさずに離したら右クリックのメニュー
         self.pan_from: QPoint | None = None
@@ -308,13 +330,14 @@ class Canvas(QGraphicsView):
             self._reset([Layer("レイヤー 1", blank(img.width(), img.height())), Layer(name, img)], 1)
             return
         self.snapshot_all()
+        self._clear_marks()   # 前の絵の赤ペンの枠を新しい絵の上に残さない
         self.layers = [Layer("レイヤー 1", blank(img.width(), img.height())), Layer(name, img)]
         self.current = 1
         self.set_selection(None)
         self.rebuild()
         self.fit()
 
-    def place_result(self, path: str, name: str, replace: bool = False):
+    def place_result(self, path: str, name: str, replace: bool = False, hide_below: bool = False):
         """AI が描いた・直した・加工した結果を、一番上の新しいレイヤーに置いて選ぶ。
         前は結果を一番下に入れて空のレイヤーを上に選んでいたため、結果が出たことに気づけなかった。
         replace は新しく描いた絵・大きさの変わる結果（拡大・広げる）で、キャンバスを結果 1 枚に置き換える
@@ -328,9 +351,13 @@ class Canvas(QGraphicsView):
             return self.add_image_layer(path, name)   # 大きさだけ違う結果は、キャンバスに合わせて一番上に重ねる
         self.snapshot_all()
         if replace:   # 一番下は透明の土台、その上に結果（replace_with_image と同じ並び）
+            self._clear_marks()
             self.layers = [Layer("レイヤー 1", blank(img.width(), img.height())), Layer(name, img)]
         else:
-            self.layers.append(Layer(name, img))
+            if hide_below:   # 透過の結果: 下の絵を隠して透明の所を見せる（消さない。目の印で戻せ、元に戻すでも戻る）
+                for layer in self.layers:
+                    layer.visible = False
+            self.layers.append(Layer(name, img, path=str(path)))
         self.current = len(self.layers) - 1
         if replace:
             self.set_selection(None)
@@ -354,9 +381,33 @@ class Canvas(QGraphicsView):
         self.current = len(self.layers) - 1
         self.rebuild()
 
+    def _clear_marks(self):
+        """絵を替えたら赤ペンの印（枠・番号・指示）と、やり直すの控えを消す。前の絵の印が新しい絵の上に残っていた"""
+        if hasattr(self, "redpen"):
+            self.redpen.undone.clear()
+            if self.redpen.marks or self.redpen.preview is not None:
+                self.redpen.clear()
+
+    def add_phase_layers(self, items: list[tuple[str, str]]):
+        """工程ごとの途中の絵を、一番下に隠したレイヤーとして足す（目の印で出して見比べる）。描いた絵と選んだレイヤーはそのまま"""
+        if not self.layers:
+            return
+        w, h = self.size_px()
+        added = []
+        for name, path in items:
+            layer = blank(w, h)
+            p = QPainter(layer)
+            p.drawImage(0, 0, _load(path).scaled(w, h, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            p.end()
+            added.append(Layer(name, layer, False))
+        self.layers[:0] = added
+        self.current += len(added)
+        self.rebuild()
+
     def _reset(self, layers: list[Layer], current: int):
         self.layers, self.current = layers, current
         self.sym_center = None   # 新しい絵では軸を真ん中に戻す
+        self._clear_marks()
         self.set_selection(None)
         self.undo_stack.clear()
         self.redo_stack.clear()
@@ -371,6 +422,8 @@ class Canvas(QGraphicsView):
 
     def merge_visible(self, name: str = "結合した絵"):
         """見えているレイヤーを 1 枚に結合する（隠したレイヤーは捨てる）。元に戻すで戻せる"""
+        if not isinstance(name, str):
+            name = "結合した絵"   # メニューからは triggered の真偽が来る。前はそれを名前にして、レイヤーの欄が描けずに落ちた
         if not self.layers:
             return
         img = self.flatten()
@@ -453,7 +506,7 @@ class Canvas(QGraphicsView):
             self.refused.emit(f"「{self.layers[self.current].name}」はロックしているので切り取れません")
             return None
         layer = self.copy_layer()
-        self.delete_layer()
+        self.delete_layer(keep_file=True)   # 切り取りは貼り付けで使うので、元のファイルは残す
         self.changed.emit()
         return layer
 
@@ -612,7 +665,7 @@ class Canvas(QGraphicsView):
         self.current += 1
         self.rebuild()
 
-    def delete_layer(self):
+    def delete_layer(self, keep_file: bool = False):
         """選んでいるレイヤーを、絵ごと消す。消したレイヤーの絵は手元の覚えから捨て（元に戻す用の写しだけ残る）、
         読み込んだ元のファイルからは読み直さない。1 枚だけのときは消せないので、絵を消して透明にする
         （前は何も起きず、押しても絵が残った）"""
@@ -622,8 +675,10 @@ class Canvas(QGraphicsView):
         if len(self.layers) <= 1:
             self.layers[0].image.fill(Qt.transparent)
         else:
-            self.layers.pop(self.current)
+            gone = self.layers.pop(self.current)
             self.current = max(0, self.current - 1)
+            if gone.path and not keep_file:
+                self.layer_deleted.emit(gone.path)
         # 前は消したレイヤーの絵を空にしてから場面を作り直しており、場面の索引が壊れて落ちた。
         # 消したレイヤーは元に戻す用の写しにだけ残り、項目を外せば手放される
         self.rebuild()
@@ -1518,6 +1573,74 @@ class Canvas(QGraphicsView):
         w, h = self.size_px()
         self.set_selection(QRect(0, 0, w, h))
 
+    # ---- 赤ペンの丸・四角・全体、自動選択 ----
+    def set_redpen_shape(self, shape: str):
+        self.redpen_shape = shape if shape in ("free", "ellipse", "rect", "auto") else "free"
+
+    def _shape_drag(self, pos: QPointF):
+        r = QRectF(self._shape_from, pos).normalized()
+        path = QPainterPath()
+        if self.tool == "redpen" and self.redpen_shape == "ellipse":
+            path.addEllipse(r)
+        else:
+            path.addRect(r)   # 四角、自動選択で囲む四角
+        self.redpen.set_preview(path)
+
+    def _shape_end(self, pos: QPointF):
+        """丸・四角は引いた形を印にする。自動選択は、押しただけなら押した所、引いたら引いた四角を模型に渡す"""
+        a, self._shape_from = self._shape_from, None
+        self.redpen.set_preview(None)
+        r = QRectF(a, pos).normalized()
+        small = r.width() < 4 and r.height() < 4
+        auto = self.tool == "autosel" or self.redpen_shape == "auto"
+        if auto:
+            target = "select" if self.tool == "autosel" else "redpen"
+            if small:
+                self.autosel_wanted.emit((a.x(), a.y()), None, target)
+            else:
+                self.autosel_wanted.emit(None, (r.left(), r.top(), r.right(), r.bottom()), target)
+            return
+        if small:
+            return   # 押しただけは印にしない
+        path = QPainterPath()
+        if self.redpen_shape == "ellipse":
+            path.addEllipse(r)
+        else:
+            path.addRect(r)
+        n = self.redpen.add_shape(path)
+        if n:
+            self.note_wanted.emit(n)
+
+    def redpen_all(self) -> int:
+        """絵の全体を赤ペンの印 1 つにする"""
+        if not self.layers:
+            return 0
+        w, h = self.size_px()
+        path = QPainterPath()
+        path.addRect(QRectF(0, 0, w, h))
+        n = self.redpen.add_shape(path)
+        if n:
+            self.marked.emit()
+            self.note_wanted.emit(n)
+        return n
+
+    def apply_pick(self, mask, target: str) -> int:
+        """自動選択で選んだ所（bool の配列）を、選択範囲か赤ペンの印にする。選んだ画素の数を返す"""
+        from chatdraw import autosel
+        count = int(mask.sum())
+        if not count:
+            return 0
+        path = autosel.to_path(mask)
+        if target == "redpen":
+            n = self.redpen.add_shape(path)
+            if n:
+                self.marked.emit()
+                self.note_wanted.emit(n)
+        else:
+            self.set_selection(None, path)
+            self.stroke_done.emit()
+        return count
+
     def clear_selection_area(self):
         """選択範囲の中を消す（Delete）。範囲が無ければ何もしない"""
         if self.selection is None or not self.editable():
@@ -1669,6 +1792,13 @@ class Canvas(QGraphicsView):
             self.qs_timer.start(QUICKSHAPE_MS)   # 動かすたびに数え直し、止めて少したったら整える
 
     def _press(self, pos: QPointF, pressure: float):
+        if self.tool == "redpen" and self.layers and self.redpen_shape != "free":
+            self._shape_from = QPointF(pos)
+            self.marked.emit()
+            return True
+        if self.tool == "autosel" and self.layers:
+            self._shape_from = QPointF(pos)
+            return True
         if self.tool == "redpen" and self.layers:
             self.redpen.begin(pos)
             self.marked.emit()
@@ -1796,6 +1926,13 @@ class Canvas(QGraphicsView):
             d = self._angle_at(e.position()) - a0
             self.set_angle(base + d)   # angle は見た目の角度（反転の向きは set_angle が直す）
             return
+        if self.pan_from is not None and not e.buttons() & Qt.RightButton:
+            # 右ボタンを離したのに離した知らせが来なかった（右クリックのメニューが離す知らせを取った）ときは、つかんだままにしない
+            self.pan_from, self.panned = None, False
+            self._apply_cursor()
+        if self._shape_from is not None and not e.buttons() & Qt.LeftButton:
+            self._shape_from = None   # 同じく、離した知らせを取られた丸・四角・自動選択の引きかけは捨てる
+            self.redpen.set_preview(None)
         if self.pan_from is not None:
             now = e.position().toPoint()
             d = now - self.pan_from
@@ -1823,6 +1960,9 @@ class Canvas(QGraphicsView):
         self.moved.emit(int(pos.x()), int(pos.y()))
         if self.drag_start is not None:
             self.drag(self.drag_start, pos)
+            return
+        if self._shape_from is not None:
+            self._shape_drag(pos)
             return
         if self.tool == "polygon" and self.poly_points:
             self._show_points(self.poly_points, pos)   # 次の角までの線を見せる
@@ -1854,7 +1994,13 @@ class Canvas(QGraphicsView):
             moved, self.pan_from = self.panned, None
             self._apply_cursor()
             if not moved:
-                self.menu_wanted.emit(e.globalPosition().toPoint())
+                # メニューは離す処理を終えてから開く（離す処理の中で開くと、メニューを閉じたあともつかんだ動きが残った）
+                from PySide6.QtCore import QTimer
+                at = e.globalPosition().toPoint()
+                QTimer.singleShot(0, lambda: self.menu_wanted.emit(at))
+            return
+        if self._shape_from is not None and e.button() == Qt.LeftButton:
+            self._shape_end(self.mapToScene(e.position().toPoint()))
             return
         if self.redpen.drawing is not None:
             short = len(self.redpen.drawing) < 3
@@ -1900,6 +2046,10 @@ class Canvas(QGraphicsView):
             self.shift = bool(e.modifiers() & Qt.ShiftModifier)
         if t == e.Type.TabletPress:
             self._press(pos, self.pressure)
+        elif t == e.Type.TabletMove and self._shape_from is not None:
+            self._shape_drag(pos)
+        elif t == e.Type.TabletRelease and self._shape_from is not None:
+            self._shape_end(pos)
         elif t == e.Type.TabletMove and self.redpen.drawing is not None:
             self.redpen.add(pos)
         elif t == e.Type.TabletRelease and self.redpen.drawing is not None:
@@ -1958,6 +2108,22 @@ class Canvas(QGraphicsView):
                 self.clear_selection_area()
         else:
             super().keyPressEvent(e)
+
+    def focusOutEvent(self, e):
+        """キーやボタンを押したまま窓を離れる（Alt+Tab、別の窓が前に出る）と、離したことがキャンバスに届かない。
+        前は R の回転、Space の手のひら、描きかけの線がそのまま残り、戻ってくると押していないのに回ったり描き続けたりした。
+        離れたときに、押していた物を離したことにする（出し入れの小窓が開いたときは、すぐ戻るのでそのまま）"""
+        if e.reason() != Qt.PopupFocusReason:
+            if self.rotating:
+                self.rotating, self._rot_from = False, None
+                self._apply_cursor()
+            self.release()
+            if self.last is not None:
+                self._end_brush(self.last)
+                self.last = None
+                self.pressure = 1.0
+                self.stroke_done.emit()
+        super().focusOutEvent(e)
 
     def keyReleaseEvent(self, e):
         if e.isAutoRepeat():

@@ -216,9 +216,15 @@ def native_size(size, family: str):
     if family == "sd15":
         return (max(256, round(w * 0.625 / 64) * 64), max(256, round(h * 0.625 / 64) * 64))
     f = fam(family)
-    if family == "sdxl":   # 学んだ大きさのまま。ただし倍数にそろえる（キャンバスの大きさが 8 の倍数でないと模型が落ちた）
+    if family == "sdxl":
+        # SDXL は約 100 万画素（832×1216、1024×1024 など）で学んでいる（Animagine 4.0・NoobAI の札の推奨の大きさ）。
+        # キャンバスの大きさのまま渡していたため、小さいキャンバスでは崩れ、大きいキャンバスでは人が 2 人に割れた。
+        # 画素の数が学んだ数から 15% より離れていれば、縦横比のまま学んだ数に合わせる。倍数にもそろえる（8 の倍数でないと落ちた）
         m = f.multiple
-        return (max(256, round(w / m) * m), max(256, round(h / m) * m))
+        k = (f.size[0] * f.size[1] / (w * h)) ** 0.5
+        if 1 / 1.15 <= k * k <= 1.15:
+            k = 1.0
+        return (max(256, round(w * k / m) * m), max(256, round(h * k / m) * m))
     k = (f.size[0] * f.size[1] / (w * h)) ** 0.5
     m = f.multiple
     return (max(256, round(w * k / m) * m), max(256, round(h * k / m) * m))
@@ -579,6 +585,20 @@ class Words:
         return merge(", ".join(keep), [t for t in picked if t.lower() not in bad])
 
 
+    def fix_prompt(self, note: str) -> tuple[list[str], list[str]]:
+        """赤ペンの指示を (描く言葉のタグ, 訳せなかった語) にする。言葉の模型があれば模型で訳し、直しの表で拾った語の抜けを足す。
+        無ければ直しの表（jaterms.fix_tags）で読む。描く頼みの表だけでは「目を大きく」が空、「指を5本」が book になった"""
+        from chatdraw.jaterms import fix_tags
+        if not note:
+            return [], []
+        picked, lost = fix_tags(note) if has_japanese(note) else ([t.strip() for t in note.split(",") if t.strip()], [])
+        if has_japanese(note) and self.ready():
+            tags = [t.strip() for t in self.to_prompt(note).split(",") if t.strip()]
+            seen = {p.lower() for p in picked}
+            # 直しの表で拾えた語（部位と変化の組）を前に置き、模型の訳の残りを後ろに足す。どちらも読めなかった語だけを未訳にする
+            return picked + [t for t in tags if t.lower() not in seen], [w for w in self.untranslated if w in lost]
+        return picked, lost
+
     def _word(self, word: str) -> str | None:
         """1 語を言葉の模型で訳し、辞書に覚える。描く物を変えない語は ""、訳せなかったら None"""
         try:
@@ -595,6 +615,28 @@ class Words:
         except Exception:
             pass
         return tags
+
+
+def fix_strength(strength: float, tags: list[str]) -> float:
+    """直しの強さ。色や形を変える指示は 0.95 より下げない（本物の模型で 0.75 では髪の色も目の開き方も変わらなかった）。
+    崩れを直す指示と、その他は利用者の強さのまま"""
+    from chatdraw.jaterms import fix_kind
+    return max(strength, 0.95) if fix_kind(tags) in ("color", "shape") else strength
+
+
+def drawn_as_asked(crop, tags: list[str], k: int) -> str:
+    """直した囲みの中を読み、指示の物が描けたかを 1 行で返す（1 回だけ。直し続けない）。読めなければそう書く"""
+    want = [t for t in tags if not t.startswith(("detailed ", "correct ", "symmetrical ", "best quality"))]
+    if not want:
+        return f"確かめました（{k} か所目・崩れを直す指示なので、物の検品はしません）"
+    from chatdraw import requestcheck
+    res = requestcheck.check(crop, ", ".join(want))
+    if not res.get("readable"):
+        return f"指示どおりかは確かめられませんでした（{k} か所目・{res.get('reason', '')}）"
+    miss = res.get("missing") or []
+    if miss:
+        return f"指示どおりになっていない所があります（{k} か所目・読めなかった物: {', '.join(miss)}）。強さを上げるか、囲みを広げて直せます"
+    return f"囲みの中に指示の物が読めました（{k} か所目: {', '.join(want)}）"
 
 
 def sentence(picked: list[str]) -> str:
@@ -983,11 +1025,32 @@ class Painter:
         if "ip_adapter_image" not in inspect.signature(pipe.__call__).parameters:
             return   # この描き方（ラフから）は参考画像を受け取れない
         if not self._ref:
+            if self.family not in REFERENCE or not hasattr(pipe, "load_ip_adapter"):
+                self._note("この模型には参考画像の部品（IP-Adapter）がありません。参考画像なしで描きます")
+                return
             repo, sub, weight, enc = REFERENCE[self.family]
-            pipe.load_ip_adapter(repo, subfolder=sub, weight_name=weight, image_encoder_folder=enc, cache_dir=str(HUB))
+            try:
+                pipe.load_ip_adapter(repo, subfolder=sub, weight_name=weight, image_encoder_folder=enc, cache_dir=str(HUB))
+            except Exception as e:   # 取れない・読めない（通信なし、置き場に無い）。描くのは止めない
+                self._note(f"参考画像の部品（IP-Adapter）を読めませんでした（{type(e).__name__}）。参考画像なしで描きます")
+                return
             self._ref = True
         pipe.set_ip_adapter_scale(scale)
         args["ip_adapter_image"] = reference.convert("RGB")
+
+    def clear_extras(self, pipe, reference=None):
+        """描くたびに、前の 1 枚の付け足しを外す。今の頼みで参考画像を渡すときだけ参考画像の部品を残す。
+        読んだ模型は使い回すので、前の回に読んだ参考画像の部品（IP-Adapter）が UNet に残ると、
+        参考画像を外した次の頼み（とくにラフからの描き方。ここは参考画像を見ない）にも前の絵の寄せが残った。
+        LoRA は利用者の設定に合わせて ownstyle.apply が毎回付け外しする。ラフの部品（T2I-Adapter）は別の部品で、読んだ模型には付けない"""
+        if reference is None and self._ref:
+            try:
+                pipe.unload_ip_adapter()
+            except Exception:   # noqa: BLE001  外せない版でも描くのは続ける
+                pass
+            self._ref = False
+        if hasattr(pipe, "_interrupt"):
+            pipe._interrupt = False   # 前の回を止めた旗を部品に残さない（残ると次の回が 1 工程目で抜けうる）
 
     def loaded(self) -> bool:
         return any(x is not None for x in (self._pipe, self._sketch, self._inpaint))
@@ -1163,8 +1226,14 @@ class Painter:
         watch = mb.Watch(mb.budget(), release=release_memory) if plan is not None else None
         self._danger = False
         self._last_latents = None
-        from chatdraw.ownstyle import apply as apply_lora
-        self.lora_note = apply_lora(pipe, self.lora, self.lora_scale, self._lora_state)
+        self.clear_extras(pipe, reference if base is None else None)
+        # LoRA は模型の世代が合う物だけを重ねる（chatdraw/lora.py）。きっかけの言葉は描く言葉に足さない（頼みに言葉を足さない決まり）。
+        # 足す言葉は、LoRA の欄のツールチップに出す
+        from chatdraw import lora as loralib
+        from chatdraw.models import image_model as _im
+        self.lora_note = loralib.apply(pipe, self.lora, self.lora_scale, self._lora_state, _im(self.model).family)
+        if self.lora_note:
+            self._note(self.lora_note)
         steps = self.steps
         total = steps
         lightened = []
@@ -1196,8 +1265,10 @@ class Painter:
         from chatdraw.models import family as fam, image_model
         info = image_model(self.model)
         f = fam(info.family)
-        size = native_size(size or self.size, info.family)
-        want = size
+        asked = tuple(size or self.size)
+        size = native_size(asked, info.family)
+        # SDXL は学んだ大きさで描いて、頼んだ大きさ（キャンバス）に戻す。新しい世代は今までどおり学んだ大きさのまま返す
+        want = asked if info.family == "sdxl" else size
         if plan is not None and base is None and not f.edit:
             size = tuple(plan.size)   # 予算に収まる大きさで描いて、頼んだ大きさに戻す（キャンバスの大きさは変えない）
         elif self.low_memory and base is None:
@@ -1320,7 +1391,7 @@ class Painter:
             out = pipe(width=w, height=h, **args).images[0]
         if self.stop:
             raise Stopped("止めました")
-        if out.size != tuple(want) and base is None and not f.edit:
+        if out.size != tuple(want) and (base is None or info.family == "sdxl") and not f.edit:
             from PIL import Image
             out = out.resize(tuple(want), Image.LANCZOS)
         return out
@@ -1501,12 +1572,56 @@ class Studio:
         self.out = out or Path(os.environ.get("CD_OUTPUT") or Path.home() / "Pictures" / "CharacterDesigner")
         self.image_auto = False   # おまかせ: 頼みごとに、手元の絵の模型から合う物を選ぶ
         self.words_auto = False   # おまかせ: 頼みごとに、手元の言葉の模型から合う物を選ぶ
-        # 描き方。"auto" は、構図の模型・SDXL の模型・2 段の部品がそろっていれば 2 段で描く。"one" は 1 つの模型、"two" は必ず 2 段
+        # 描き方。"auto" は、構図の模型・SDXL の模型・2 段の部品がそろっていれば 2 段で描く。"one" は 1 つの模型、"two" は必ず 2 段。
+        # "phases" は 1 つの模型で、構図・体型と姿勢・線画・塗り・仕上げの工程に分けて描く（chatdraw/phases.py）
         self.way = "auto"
+        # 開いたキャラクター（chatdraw/charafile.py の for_studio の形）。描く言葉の前に、利用者が書いたその人物の設定の言葉を置き、
+        # 禁止ワード・参考画像・LoRA もその人物の物を使う。None なら何もしない
+        self.character: dict | None = None
+        self.plan = None   # 直前の担当編集者の記録（chatdraw/director.py）
+        self.use_favorites = False   # 役目ごとのお気に入りの模型で描く（chatdraw/favmodels.py）
+
+    def _with_character(self, prompt: str) -> str:
+        ch = self.character
+        if not ch or not ch.get("words"):
+            return prompt
+        have = {t.strip().lower() for t in prompt.split(",")}
+        add = [t.strip() for t in ch["words"].split(",") if t.strip() and t.strip().lower() not in have]
+        return ", ".join(add + [prompt]) if add else prompt
+
+    def image_mode(self) -> str:
+        """絵の模型の選び方。"auto"（おまかせ）、favmodels.FAV（お気に入り）、"single"（選んだ模型 1 つ）"""
+        from chatdraw.favmodels import FAV
+        return "auto" if self.image_auto else FAV if self.use_favorites else "single"
 
     def draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
              on_preview=None, style: str = "", reference=None, ref_scale: float = 0.6, meta: dict | None = None) -> tuple[str, Path]:
+        ch = self.character
+        if not ch:
+            return self._draw(text, seed, on_status, base, strength, size, on_preview, style, reference, ref_scale, meta)
+        # 人物の禁止ワードと LoRA は、この 1 回のあいだだけ描き手に入れ、終わったら元に戻す
+        p = self.painter
+        avoid0, lora0 = getattr(p, "avoid", None), getattr(p, "lora", None)
+        if ch.get("negative") and avoid0 is not None:
+            p.avoid = ", ".join(x for x in (avoid0, ch["negative"]) if x)
+        if ch.get("lora") and lora0 is not None and not lora0:
+            p.lora = ch["lora"]
+        if reference is None and ch.get("reference") is not None:
+            from chatdraw.models import family as fam, image_model
+            if fam(image_model(getattr(p, "model", "")).family).reference:
+                reference = ch["reference"]
+        try:
+            return self._draw(text, seed, on_status, base, strength, size, on_preview, style, reference, ref_scale, meta)
+        finally:
+            if avoid0 is not None:
+                p.avoid = avoid0
+            if lora0 is not None:
+                p.lora = lora0
+
+    def _draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
+              on_preview=None, style: str = "", reference=None, ref_scale: float = 0.6, meta: dict | None = None) -> tuple[str, Path]:
         say = on_status or (lambda msg: None)
+        self.last_phases = None   # 工程に分けて描いた回だけ、工程ごとの絵と検品を持つ（アプリが隠したレイヤーに置く）
         if refused(text):
             raise ValueError("子どもを性的に描く頼みは描きません")
         if hasattr(self.painter, "on_note"):
@@ -1518,11 +1633,29 @@ class Studio:
             if path is not None and path != getattr(self.words, "path", None):
                 self.words = Words(path)
         from chatdraw.models import family as fam, image_model
-        if self.image_auto and base is None and reference is None and self.way == "auto":
-            # おまかせ: 工程ごとに得意な模型を選び、落ちた部位は別の模型で直して描き上げる（chatdraw/omakase.py）。
-            # ラフ・参考画像は、その機能のある模型 1 つで描く下の道を通る
+        from chatdraw import favmodels
+        mode = self.image_mode()
+        # 精度の流れ: おまかせ・お気に入り・プリセット・細かい頼みは、役目ごとの模型で工程を分けて描く（chatdraw/omakase.py）。
+        # 速い流れ: 模型を 1 つ選んで短く頼んだときは、その模型で 1 回描くだけ。ラフ・参考画像は、その機能のある模型 1 つで描く下の道を通る
+        precise = favmodels.precise(mode, text, (meta or {}).get("preset", ""))
+        if precise and base is None and reference is None and self.way == "auto":
             from chatdraw import omakase
-            return omakase.draw(self, text, seed, say, size=size, meta=meta, style=style)
+            if mode == "single":
+                m = image_model(getattr(self.painter, "model", ""))
+                say(f"細かい頼み・プリセットなので、{m.name} で工程を分けて描きます")
+                return omakase.draw(self, text, seed, say, size=size, meta=meta, style=style, mode="single", single=m)
+            return omakase.draw(self, text, seed, say, size=size, meta=meta, style=style, mode=mode)
+        fast = mode == "single" and not precise
+        if mode == favmodels.FAV and not self.image_auto:
+            # お気に入りでラフ・参考画像から描くときは、その機能のある世代のお気に入り（仕上げ → 構図の順）を使う
+            from chatdraw.choose import installed_images
+            have = [m for m in installed_images()
+                    if (base is None or fam(m.family).sketch) and (reference is None or fam(m.family).reference)]
+            m = favmodels.resolve("finish", have) or favmodels.resolve("compose", have)
+            if m is not None and m.repo != self.painter.model:
+                self._swap_painter(m, say)
+            if m is not None:
+                self.chosen = (m.name, "お気に入り")
         if self.image_auto:
             # 模型を先に選ぶ。頼みの形（タグか文か）は選んだ模型の世代で決まるので、直したあとに替えると食い違った。
             # ラフや参考画像を使うときは、その機能のある世代の模型だけから選ぶ
@@ -1530,7 +1663,7 @@ class Studio:
             say("頼みに合う絵の模型を選んでいます")
             have = [m for m in installed_images()
                     if (base is None or fam(m.family).sketch) and (reference is None or fam(m.family).reference)]
-            m, why = choose_image(text, text, self.words, have=have)
+            m, why = choose_image(text, text, self.words, have=have, seed=seed)
             if m is not None:
                 if m.repo != self.painter.model:
                     avoid = getattr(self.painter, "avoid", "")
@@ -1543,12 +1676,21 @@ class Studio:
                 say(f"絵の模型: {m.name}（{why}）")
             else:
                 say("おまかせで選べる絵の模型が手元にありません。今の模型で描きます")
-        two = self._two_stage_models(base, reference, say)
+        if self.way == "phases" and base is None and reference is None:
+            return self._draw_phases(text, seed, style, size, say, on_preview, meta)
+        # 模型を 1 つ選んだ速い流れは、選んだ模型だけで描く（前は 2 段の部品があると構図を別の模型で描き、選んだ模型が上書きされた）。
+        # 「構図と仕上げを分けて描く」を選んだときだけ 2 段にする
+        two = None if fast and self.way != "two" else self._two_stage_models(base, reference, say)
         if two is not None:
             return self._draw_two(text, seed, two, style, size, say, meta)
+        # 担当編集者: 工程の記録と知らせだけ（chatdraw/director.py）。検品の結果で描き直しには繋げない
+        from chatdraw import director
+        plan = director.Plan(text, say)
+        self.plan = plan
+        plan.enter("読み解く")
         say("頼みを描く言葉に直しています")
         as_tags = fam(image_model(getattr(self.painter, "model", "")).family).tags
-        prompt = self.words.to_prompt(text, tags=as_tags)
+        prompt = self._with_character(self.words.to_prompt(text, tags=as_tags))
         # 頼んだ物の検品は頼みの言葉だけで見る（足した背景は頼みではないので、描かれなくても描き直しの理由にしない）
         asked_prompt = prompt
         # 学んだ描かれにくさで頼みのタグを並べ替え、通りにくい模型は頼みの効きを少し上げる（chatdraw/wordlearn.py）。
@@ -1588,7 +1730,8 @@ class Studio:
         avoid0, unasked, missing_all = getattr(self.painter, "avoid", ""), [], []
         if negative and hasattr(self.painter, "avoid"):   # 「帽子なし」の帽子は、描かない物に入れて描かせない
             self.painter.avoid = ", ".join([a for a in [avoid0] + negative if a])
-        for k in range(self.REDRAW_TRIES):
+        tries = 1 if fast else self.REDRAW_TRIES   # 速い流れは 1 回描くだけ（検品の結果は出す）
+        for k in range(tries):
             if unasked:
                 self.painter.avoid = ", ".join([a for a in [avoid0] + negative + unasked if a])
             s_k = seed + 1000 * k
@@ -1596,8 +1739,17 @@ class Studio:
                 say(f"検品を通らなかったので、種を変えて描き直しています（{k + 1}/{self.REDRAW_TRIES} 回目）")
             if missing_all:   # 前の回で描かれなかった頼みを、描く言葉の前に出す
                 prompt = emphasize(prompt, missing_all)
+            plan.enter("描く")
+            plan.sent("描く", prompt, getattr(self.painter, "avoid", "") or "")
             image = self.painter.paint(prompt, s_k, on_step=lambda i, n: say(f"描いています（{i}/{n}）"),
                                        base=base, strength=strength, size=size, on_preview=on_preview, **extra)
+            plan.done("描く", f"種 {s_k}")
+            plan.enter("検品")
+            # サボり（色だけ・ぼかしだけ・ノイズだけの絵）は知らせて記録するだけ。描き直しの理由には入れない
+            lazy = director.slack(image)
+            if lazy["bad"]:
+                say("担当編集者: " + "、".join(lazy["bad"]) + "（記録だけ。直すときは赤ペンか描き直しで）")
+            plan.done("検品", "、".join(lazy["bad"]) or "サボりは見つかりませんでした")
             # 描いたあとに検品して直す流れは繋げない（繋げると直りきらずに回り続け、描けなくなった）。
             # 検品と直しは、ユーザーが「検品する」と赤ペンの直しで別々に呼ぶ
             left, self.hand_rounds = [], []
@@ -1638,17 +1790,21 @@ class Studio:
             say(f"検品を通る絵が {len(redraws)} 回描いても出ませんでした（途中）。残った崩れ: " + "、".join(left[:5]))
         elif not checked:
             say("検品できなかったので、通ったかは分かりません（途中）")
+        plan.finish(f"残った崩れ {len(left)} 件" if left else "保存しました")
         path = self._save(image, seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style, model=self.painter.model,
-                                            hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws, passed=checked and not left))
-        self._learn(path, text, asked_prompt, left, missing_all, checked and not left, explored)
+                                            hand_rounds=getattr(self, "hand_rounds", []), redraws=redraws, passed=checked and not left,
+                                            director=plan.record()))
+        self._learn(path, text, asked_prompt, left, missing_all, checked and not left, explored, style=style,
+                    size=getattr(image, "size", None))
         self._inspect(path, say)
         return prompt, path
 
-    def _learn(self, path, text, asked_prompt, left, missing, passed, explored):
+    def _learn(self, path, text, asked_prompt, left, missing, passed, explored, style="", size=None):
         """描いた 1 枚を学びの記録と単語辞書に足す（chatdraw/wordlearn.py、chatdraw/worddict.py）。失敗しても描いた絵は渡す"""
         try:
             from chatdraw import jaterms, worddict, wordlearn
-            wordlearn.record(path, asked_prompt, getattr(self.painter, "model", ""), len(left), missing, passed, explored)
+            wordlearn.record(path, asked_prompt, getattr(self.painter, "model", ""), len(left), missing, passed, explored,
+                             style=style, size=size)
             words = {}
             for row in jaterms.align(text) if has_japanese(text) else []:
                 for t in row["tags"]:
@@ -1656,6 +1812,26 @@ class Studio:
             worddict.record([t.strip() for t in asked_prompt.split(",")], passed, words)
         except Exception:
             pass
+
+    def _swap_painter(self, m, say=lambda msg: None):
+        """絵の模型を替える。前の模型は降ろしてから読み、禁止ワードは引き継ぐ"""
+        avoid = getattr(self.painter, "avoid", "")
+        if hasattr(self.painter, "unload"):
+            self.painter.unload()
+        self.painter = Painter(m.repo, m.steps, guidance=m.guidance)
+        self.painter.avoid = avoid
+        self.painter.on_note, self.painter.partial_dir = say, self.out
+
+    def _two_parts_ready(self, say=lambda m: None) -> bool:
+        """2 段の部品があるか。取ってよいと言われていれば取る"""
+        from chatdraw import twostage
+        if getattr(self, "fetch_two_parts", False) and not twostage.parts_ready():
+            try:
+                twostage.fetch_parts(say=say)
+            except Exception as e:
+                say(f"2 段で描く部品を取れませんでした（{e}）。1 つの模型で描きます")
+            self.fetch_two_parts = False
+        return twostage.parts_ready()
 
     def _two_stage_models(self, base, reference, say=lambda m: None):
         """2 段で描くなら (構図の模型, 仕上げの模型)、1 つの模型で描くなら None。
@@ -1751,6 +1927,50 @@ class Studio:
             return None
         have.sort(key=lambda m: (getattr(m, "ram", 16) or 16, -float(getattr(m, "score", 0) or 0)))
         return have[0] if have else None
+
+    last_phases: list | None = None
+
+    def _draw_phases(self, text, seed, style, size, say, on_preview, meta):
+        """構図 → 体型と姿勢 → 線画 → 塗り → 仕上げの工程に分けて描く（chatdraw/phases.py）。工程ごとに描く・検品する・1 回だけ直す。
+        渡す言葉は頼みの訳と作風だけで、背景や構図の言葉は足さない"""
+        import time
+        from chatdraw import phases
+        from chatdraw.models import family as fam, image_model
+        say("工程に分けて描きます（構図 → 体型と姿勢 → 線画 → 塗り → 仕上げ）")
+        say("頼みを描く言葉に直しています")
+        as_tags = fam(image_model(getattr(self.painter, "model", "")).family).tags
+        prompt = self.words.to_prompt(text, tags=as_tags)
+        lost = list(getattr(self.words, "untranslated", []) or [])
+        if lost:
+            say("模型に伝わらない言葉があります: " + "、".join(lost) + "（英語で書くか、言葉の模型を入れると伝わります）")
+        self.last_lost = lost
+        negative = list(getattr(self.words, "negative", []) or [])
+        avoid0 = getattr(self.painter, "avoid", "")
+        if negative and hasattr(self.painter, "avoid"):
+            say("描かない物: " + ", ".join(negative))
+            self.painter.avoid = ", ".join([a for a in [avoid0] + negative if a])
+        if style:
+            prompt = f"{prompt}, {style}"
+        if refused(prompt):
+            raise ValueError("子どもを性的に描く頼みは描きません")
+        keep = self.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}-phases"
+        try:
+            got = phases.draw(self.painter, prompt, seed, size, keep, say=say,
+                              on_step=lambda i, n: say(f"描いています（{i}/{n}）"))
+        finally:
+            if hasattr(self.painter, "avoid"):
+                self.painter.avoid = avoid0
+        self.last_phases = got["phases"]
+        left, checked = got["left"], got["checked"]
+        if left:
+            say("工程を全部通しても崩れが残りました（途中）: " + "、".join(left[:5]))
+        elif not checked:
+            say("検品できなかった工程があるので、通ったかは分かりません（途中）")
+        path = self._save(got["image"], seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style,
+                                                   model=getattr(self.painter, "model", ""), way="phases", stages=str(keep),
+                                                   phases=got["phases"], passed=checked and not left))
+        self._inspect(path, say)
+        return prompt, path
 
     def _draw_two(self, text, seed, two, style, size, say, meta):
         """構図（文で頼める模型）と仕上げ（SDXL のアニメの模型）を分けて描く（chatdraw/twostage.py）"""
@@ -1924,15 +2144,43 @@ class Studio:
                                          on_step=lambda i, n: say(f"描いています（{i}/{n}・{k}/{count} か所目の継ぎ目）"))
         return result
 
+    def source_words(self, source: str | None, image, say=None) -> str:
+        """元の絵の言葉。その絵を描いたときの頼みの訳（記録の prompt）だけを使う。
+        記録の無い絵からタグを読んで足すと、頼んでいない言葉（monochrome、transparent background など）が模型に渡ったので読まない"""
+        if source:
+            return source
+        if say is not None:
+            say("元の絵の記録が無いので、指示の言葉だけで直します")
+        return ""
+
+    def fix_words(self, note: str, source: str, style: str = "", say=None) -> str:
+        """直す所 1 か所の描く言葉 = 指示の訳（前）＋ 元の絵の言葉（指示とぶつかる語を外す）＋ 画風。
+        指示の訳だけで描かせると、訳が空のときは指示に関係なく同じ直しになり、訳せても周りと合わない物が出た"""
+        from chatdraw.jaterms import fix_merge
+        say = say or (lambda msg: None)
+        fp = getattr(self.words, "fix_prompt", None)   # 直しの表を持たない言葉の係（試験の偽物など）は描く頼みの訳を使う
+        picked, lost = fp(note) if fp else ([t.strip() for t in self.words.to_prompt(note).split(",") if t.strip()] if note else [], [])
+        if lost:   # 黙って描かない。描くのは止めない
+            say("赤ペンの指示のうち、訳せなかった語: " + "、".join(lost)
+                + ("" if getattr(self.words, "ready", lambda: False)() else "（言葉の模型を入れると、この語も絵の模型に伝わります）"))
+        tags, dropped = fix_merge(picked, source or "")
+        self.last_fix_tags = picked   # 直したあとに、囲みの中に指示の物が描けたかを見る
+        prompt = ", ".join(t for t in (", ".join(tags), style) if t)
+        say(f"渡した言葉: {prompt or '（なし）'}" + (f"（指示とぶつかるので外した元の語: {', '.join(dropped)}）" if dropped else ""))
+        return prompt
+
     def fix(self, image, regions: list[tuple], seed: int, on_status=None, style: str = "", strength: float = 0.75,
-            reference=None, ref_scale: float = 0.6, check: bool = True):
+            reference=None, ref_scale: float = 0.6, check: bool = True, source: str | None = None):
         """赤ペン先生と範囲の描き直し。check を外すと崩れの検査をしない（ちびキャラのように絵全体を描き替える加工）。regions は (mask, 指示の文) の並び。直す所ごとに指示を描く言葉に直し、
         絵全体を順に描き直す。返すのは (描く言葉の並び, 描き直した絵全体の置き場)。直す所だけを貼り合わせない"""
         say = on_status or (lambda msg: None)
         if hasattr(self.painter, "on_note"):
             self.painter.on_note = say
+        from chatdraw import seamfix
         prompts = []
         self.last_flaws = []   # 直したあとに見つけた崩れ（空なら見つからなかった。出来たかどうかは利用者が決める）
+        self.last_seam = []    # 境目の数字（色の差、線のずれ、SSIM）。直した所ごと
+        self.last_whole = {}   # 全体の確かめの数字（1 回だけ測って知らせる）
         result = image.convert("RGB")
         from PIL import Image as _Image, ImageChops as _Chops
         touched = _Image.new("L", image.size, 0)
@@ -1941,26 +2189,54 @@ class Studio:
             if refused(note):
                 raise ValueError("子どもを性的に描く頼みは描きません")
             say(f"頼みを描く言葉に直しています（{k}/{len(regions)} か所目）")
+            if k == 1 and check:
+                source = self.source_words(source, image, say)
+            box = mask.convert("L").getbbox()
+            if box:
+                say(f"直す所: {k} か所目（左 {box[0]}・上 {box[1]}・右 {box[2]}・下 {box[3]}）／指示: {note or '（なし）'}")
             from chatdraw.fixrequests import lookup as _fixreq
             req = _fixreq(note)   # 修正依頼の一覧から選んだ指示は、用意した言葉と強さで直す（日本語を模型にそのまま渡さない）
-            prompt = req["prompt"] if req and req.get("prompt") else (self.words.to_prompt(note) if note else "")
-            prompt = ", ".join(t for t in (prompt, style) if t)
+            if req and req.get("prompt"):
+                self.last_fix_tags = []   # 前の囲みの語で「描けたか」を見ない
+                prompt = ", ".join(t for t in (req["prompt"], style) if t)
+            else:
+                prompt = self.fix_words(note, source, style, say) if check else ", ".join(
+                    t for t in (self.words.to_prompt(note) if note else "", style) if t)   # 絵全体を描き替える加工（ちびキャラ）は今のまま
             if refused(prompt):
                 raise ValueError("子どもを性的に描く頼みは描きません")
             say("絵の模型を読んでいます（初めの 1 回だけ時間がかかります）")
             before = result
             # 直しは 1 回で終える。検品が通るまで直し続ける繰り返しは、描けなくなる（終わらない）ので繋げない。
             # 見つけた崩れは知らせるだけで、直すかどうかは利用者が決める（もう一度囲んで直せる）
-            result = self._fix_once(before, mask, prompt, seed + k, float(req["strength"]) if req and req.get("strength") else strength, k, len(regions), say, reference, ref_scale)
+            if req and req.get("strength"):
+                power = float(req["strength"])
+            else:
+                power = fix_strength(strength, getattr(self, "last_fix_tags", [])) if check else strength
+                if power != strength:
+                    say(f"色や形を変える指示なので、強さ {power} で直します（低いと元の色と形が残った）")
+            result = self._fix_once(before, mask, prompt, seed + k, power, k, len(regions), say, reference, ref_scale)
+            if check and box:
+                say(drawn_as_asked(result.crop(box), getattr(self, "last_fix_tags", []), k))
+            if check:
+                # 境目の色・明るさ・線を元の絵に合わせる（chatdraw/seamfix.py。囲みの中の縁の帯だけを数字で合わせ、外は変えない）。
+                # 模型での描き直しには繋げない
+                m = mask.convert("L").resize(image.size).point(lambda v: 255 if v > 127 else 0)
+                result = _Image.composite(result.convert("RGB"), before, m)   # 囲みの外は 1 画素も変えない
+                result, tried = seamfix.settle(before, result, m, say=lambda t: say(f"{t}（{k} か所目）"))
+                self.last_seam.append(dict(region=k, **(tried[-1] if tried else {}), tries=len(tried)))
             best_flaws = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, result, mask)] if check else []
             say(f"確かめました（{k} か所目・崩れ {len(best_flaws)} 件）")
             prompts.append(prompt)
             self.last_flaws += best_flaws
+        if check:   # 最後に絵の全体を 1 回だけ測って知らせる（直し直しには繋げない）
+            self.last_whole = seamfix.whole_check(image, result, touched)
+            say(self.last_whole["note"])
         if self.last_flaws:
             say("崩れが見つかりました: " + " / ".join(self.last_flaws))
         # 重ねるレイヤーは直した所だけを見せる（外は元と同じ画素なので、下のレイヤーに描き足しても隠さない）
         layer = result.convert("RGBA")
         layer.putalpha(touched.point(lambda v: 255 if v > 0 else 0))
         path = self._save(layer, seed, dict(text=" / ".join(n for _m, n in regions), prompt=" / ".join(prompts), seed=seed,
-                                            style=style, model=self.painter.model, mode="直す", flaws=self.last_flaws))
+                                            style=style, model=self.painter.model, mode="直す", flaws=self.last_flaws,
+                                            source=source or ""))
         return prompts, path

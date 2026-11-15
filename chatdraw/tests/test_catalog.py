@@ -34,6 +34,27 @@ def fake(api: dict, files: dict | None = None, error: int | None = None):
 
 
 class FilterTest(unittest.TestCase):
+    # ★・非表示は手元の記録（data_home の model_prefs.json）から読む。★ の物は先頭に来る決まりなので、
+    # 手元で ★ を付けると「小さい順」の先頭に大きい物が来て落ちた。試験は空の置き場で流す
+    def setUp(self):
+        self.tmp = TemporaryDirectory()
+        self.env = mock.patch.dict(os.environ, {"CD_HOME": self.tmp.name})
+        self.env.start()
+
+    def tearDown(self):
+        self.env.stop()
+        self.tmp.cleanup()
+
+    def test_favorite_first_even_in_small_order(self):
+        """★ の物は並べ方によらず先頭（手元の記録に左右されていた試験の、意図した動きの方を確かめる）"""
+        from chatdraw import ratings
+        big = max(models.IMAGES, key=lambda m: m.gb)
+        ratings.set_favorite(big.repo, True)
+        small = models.pick(models.IMAGES, "すべて", "小さい順")
+        self.assertEqual(small[0].repo, big.repo)
+        rest = [m.gb for m in small[1:]]
+        self.assertEqual(rest, sorted(rest))
+
     def test_all_by_default_and_each_filter_narrows(self):
         every = models.pick(models.IMAGES)
         self.assertEqual(len(every), len(models.IMAGES))                 # 既定は全部（未確認の物も出す）
