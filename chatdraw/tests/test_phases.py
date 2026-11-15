@@ -181,3 +181,40 @@ class PhaseLayersTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BrokenChecksTest(unittest.TestCase):
+    """検品の部品が例外を出しても、描く流れは落ちずに最後の工程まで描き、検品できなかったと残す（0.5.30 で 1 工程目のあとに落ちた）"""
+
+    def test_all_phases_drawn_when_checks_raise(self):
+        class Boom:
+            @staticmethod
+            def request(image, prompt):
+                raise RuntimeError("部品が無い")
+            body = pose = hands = request
+
+        with TemporaryDirectory() as d:
+            p = Painter()
+            got = phases.draw(p, "red hair, 1girl", 1, (64, 64), Path(d), checks=Boom)
+            self.assertEqual(len(got["phases"]), len(phases.PHASES))
+            self.assertFalse(got["checked"])
+            self.assertIsNotNone(got["image"])
+
+
+class CountLimitTest(unittest.TestCase):
+    """枚数の欄は数字だけで、8 枚や 9 枚で勝手に止めない"""
+
+    def test_count_spin_has_no_small_cap(self):
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.app import Window
+        QApplication.instance() or QApplication([])
+        d = TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        w = Window(Studio(FakeWords(), FakePainter(), Path(d.name)))
+        try:
+            spin = w.ai_panel.count_spin
+            self.assertEqual(spin.suffix(), "")
+            spin.setValue(25)
+            self.assertEqual(spin.value(), 25)
+        finally:
+            w.close()
