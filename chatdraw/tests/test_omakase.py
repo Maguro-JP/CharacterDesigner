@@ -110,12 +110,12 @@ class OmakaseTest(unittest.TestCase):
         log, st, said = self.run_draw([COMPOSE, HANDS, FACES], [BAD_HAND, OK])
         self.assertEqual(log, [("paint", "c/compose"), ("redraw", "h/hands")])
         image, meta = st.saved
-        self.assertEqual(image.getpixel((0, 0)), (180, 180, 180))             # 囲みの外は直す前の絵のまま
+        self.assertEqual(image.getpixel((0, 0)), (200, 200, 200))             # 囲みの外は直す前の絵のまま（SDXL は学んだ大きさで 1 回描くので、描いた色のまま）
         # 仕上げのレベル補正（retouch の levels）が絵全体の明るさの幅を 1 段ずらすことがあるので、2 までの差は許す
         self.assertTrue(all(abs(v - 10) <= 2 for v in image.getpixel((15, 15))))
         stages = [(s["stage"], s.get("model")) for s in meta["omakase"]["steps"] if s["stage"] != "検品"]
         # 検品を通ったあとに、形を変えない仕上げ（塗りのむらを均す、線と塗りを整える）だけが掛かる
-        self.assertEqual(stages[:3], [("構図", "c/compose"), ("広げて描き直し", "c/compose"), ("手の直し", "h/hands")])
+        self.assertEqual(stages[:3], [("構図", "c/compose"), ("描く", "c/compose"), ("手の直し", "h/hands")])
         self.assertTrue(set(stages[3:]) <= {("仕上げ", "clean"), ("仕上げ", "retouch")} and ("仕上げ", "clean") in stages)
         self.assertTrue(meta["passed"])
         self.assertTrue(any(m.startswith("手の直し: H/HANDS") for m in said))
@@ -154,9 +154,11 @@ class OmakaseTest(unittest.TestCase):
         self.assertEqual(log, [("paint", "h/hands")])
 
     def test_paints_small_then_redraws_at_full_size(self):
+        # 小さく描いて広げるのは、小さい大きさのまま描く世代（SD1.5）だけ。SDXL は学んだ大きさで描く（test_quality_fix）
         log = []
         st = FakeStudio(Path(self.tmp.name))
-        omakase.draw(st, "騎士の女の子", 1, lambda m: None, have=[COMPOSE], painter_for=lambda m: FakePainter(m.repo, log),
+        small = model("c/compose", "anime illustration, strong prompt adherence", family="sd15")
+        omakase.draw(st, "騎士の女の子", 1, lambda m: None, have=[small], painter_for=lambda m: FakePainter(m.repo, log),
                      check=checker([OK]), size=(832, 1216))
         self.assertEqual(log[0], ("paint", "c/compose", (512, 768)))           # 小さく描く
         self.assertEqual(log[1], ("hires", "c/compose", 1.0))                  # 広げて描き直す（直しの中でさらに広げない）
@@ -172,7 +174,7 @@ class OmakaseTest(unittest.TestCase):
         found = {"readable": True, "bad": [], "regions": [], "detail": [([10, 10, 20, 20], "face")]}
         _log, st, said = self.run_draw([COMPOSE, FACES], [found, BAD_HAND])
         self.assertTrue(st.saved[1]["passed"])
-        self.assertEqual(st.saved[0].getpixel((15, 15)), (180, 180, 180))    # 崩れた描き込みは使わない
+        self.assertEqual(st.saved[0].getpixel((15, 15)), (200, 200, 200))    # 崩れた描き込みは使わない（描いた絵のまま）
         self.assertTrue(any("前の絵を使います" in m for m in said))
 
     def test_uses_two_stage_for_composition_when_ready(self):

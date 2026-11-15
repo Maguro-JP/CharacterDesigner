@@ -1,4 +1,4 @@
-"""模型のお気に入り（役目ごとの模型）。構図・仕上げ・顔・手・背景・直しに、利用者が選んだ模型を使う。
+"""模型のお気に入り（役目ごとの模型）。構図・仕上げ・背景・顔・身体（手・足・体）・髪と加工に、利用者が選んだ模型を使う。
 
 おまかせ（おすすめ）は点と合い方で模型を選ぶので、利用者が使いたい模型が選ばれないことがあった。
 お気に入りを置いた役目は、その模型を必ず使う（取っていない・ブロックした物は使わず、そのときだけおまかせの順に戻す）。
@@ -15,17 +15,21 @@ from pathlib import Path
 
 FAV = "favorites"   # 設定の image_model がこれなら、役目ごとのお気に入りで描く
 
-# 役目: (名前, ツールチップ)。並びは画面の並び
+# 役目: (名前, ツールチップ)。並びは画面の並び。
+# 割り当ての見直し: 手・足・体は同じ「人の体の形」の直しなので「身体」にまとめる（手だけ選べて、項目に無い足が別の模型で直されていた）。
+# 顔は目・表情の描き込みで得意な模型が違うので分ける。髪と赤ペン・加工は形を変えない直しとして「髪・加工」にまとめる
 ROLES = {
     "compose": ("構図", "人物の形と配置を最初に描く模型"),
-    "finish": ("仕上げ・全体", "構図を元に全体を描き上げる模型（2 段で描くときの仕上げ）"),
-    "face": ("顔", "顔の描き込みと描き直しに使う模型"),
-    "hand": ("手", "手・指の描き込みと描き直しに使う模型"),
-    "background": ("背景", "背景のある頼みで構図を描く模型（構図のお気に入りが無いとき）"),
-    "fix": ("直し・加工", "足・髪・体の直しと、赤ペンや加工の直しに使う模型"),
+    "finish": ("仕上げ", "構図を元に全体を描き上げる模型（2 段で描くときの仕上げ）"),
+    "background": ("背景", "背景のある頼みで構図を描く模型（構図を選んでいないとき）"),
+    "face": ("顔", "顔・目・表情の描き込みと直しに使う模型"),
+    "body": ("身体", "手・指・足・体の描き込みと直しに使う模型"),
+    "fix": ("髪・加工", "髪の直しと、赤ペンや加工の直しに使う模型"),
 }
-# 検品が返す部位（omakase の fix の鍵）と役目の対応。足・髪・体は「直し・加工」
-KIND_ROLE = {"hand": "hand", "face": "face", "foot": "fix", "hair": "fix", "body": "fix"}
+# 前の版の役目の名前。読むときに今の役目に移す（手のお気に入りは身体のお気に入りとして使う）
+OLD_ROLES = {"hand": "body"}
+# 検品が返す部位（omakase の fix の鍵）と役目の対応。項目に無い部位を作らない（どの部位も上の役目のどれかで選べる）
+KIND_ROLE = {"hand": "body", "foot": "body", "body": "body", "face": "face", "hair": "fix"}
 
 DETAILED_CHARS = 60   # これより長い頼み、または区切りが 4 つ以上の頼みを「細かい指示」とする（choose.choose_words と同じ目安）
 
@@ -43,12 +47,20 @@ def _raw() -> dict:
     from chatdraw.paths import read_json
     data = read_json(roles_file(), dict, {})
     if "sets" not in data:
-        data = {"active": DEFAULT_SET, "sets": {DEFAULT_SET: {k: v for k, v in data.items() if k in ROLES}}}
-    sets = {str(n): {k: str(v) for k, v in (d or {}).items() if k in ROLES and v} for n, d in (data.get("sets") or {}).items()}
+        data = {"active": DEFAULT_SET, "sets": {DEFAULT_SET: dict(data)}}
+    sets = {str(n): _roles(d) for n, d in (data.get("sets") or {}).items()}
     if not sets:
         sets = {DEFAULT_SET: {}}
     active = data.get("active") if data.get("active") in sets else next(iter(sets))
     return {"active": active, "sets": sets}
+
+
+def _roles(d) -> dict:
+    """役目の辞書を今の役目の名前にそろえる。前の名前（hand）は今の役目に移し、今の役目に置いた物があればそちらを使う"""
+    d = d or {}
+    out = {new: str(d[old]) for old, new in OLD_ROLES.items() if d.get(old)}
+    out.update({k: str(v) for k, v in d.items() if k in ROLES and v})
+    return out
 
 
 def _write(data: dict):
@@ -65,7 +77,7 @@ def load() -> dict:
 def save(data: dict):
     """今の編成に書く"""
     d = _raw()
-    d["sets"][d["active"]] = {k: v for k, v in data.items() if k in ROLES and v}
+    d["sets"][d["active"]] = _roles(data)
     _write(d)
 
 
@@ -88,7 +100,7 @@ def save_set(name: str, data: dict, use: bool = True):
     if not name:
         raise ValueError("編成の名前が空です")
     d = _raw()
-    d["sets"][name] = {k: v for k, v in data.items() if k in ROLES and v}
+    d["sets"][name] = _roles(data)
     if use:
         d["active"] = name
     _write(d)
@@ -127,11 +139,12 @@ def delete_set(name: str):
 
 
 def get(role: str) -> str:
-    return load().get(role, "")
+    return load().get(OLD_ROLES.get(role, role), "")
 
 
 def set_role(role: str, repo: str):
     """役目の模型を置く。空にするとお気に入りを外し、その役目はおまかせの順で選ぶ"""
+    role = OLD_ROLES.get(role, role)
     if role not in ROLES:
         raise KeyError(role)
     data = load()
@@ -142,13 +155,18 @@ def set_role(role: str, repo: str):
     save(data)
 
 
+def label(name: str) -> str:
+    """模型の選択に出す編成の名前"""
+    return f"編成: {name}"
+
+
 def any_set() -> bool:
     return bool(load())
 
 
 def resolve(role: str, have, data: dict | None = None):
     """役目のお気に入りの模型（手元にあり、ブロックしていない物）。無ければ None"""
-    repo = (load() if data is None else data).get(role, "")
+    repo = _roles(load() if data is None else data).get(OLD_ROLES.get(role, role), "")
     if not repo:
         return None
     from chatdraw.ratings import is_blocked
@@ -205,7 +223,9 @@ def apply(plan, have, data: dict | None = None, single=None):
             continue
         from chatdraw.models import family as fam
         if not fam(m.family).inpaint:   # 囲みの中だけ直せない世代は直しに使えない（使うと囲みの外まで描き変わる）
-            plan.notes.append(f"{ROLES[role][0]}のお気に入り {m.name} は囲みの中の直しができないので、直しはおまかせで選びます")
+            note = f"{ROLES[role][0]}のお気に入り {m.name} は囲みの中の直しができないので、直しはおまかせで選びます"
+            if note not in plan.notes:
+                plan.notes.append(note)
             continue
         plan.fix[kind] = first(plan.fix[kind], m, "お気に入り")
         if ROLES[role][0] not in used:
