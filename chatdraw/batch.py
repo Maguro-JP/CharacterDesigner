@@ -72,14 +72,21 @@ def total(jobs: list[dict]) -> int:
     return sum(j["count"] for j in jobs)
 
 
-def run(jobs: list[dict], draw, say=lambda m: None, stopped=lambda: False, done=lambda path, job: None) -> dict:
+def run(jobs: list[dict], draw, say=lambda m: None, stopped=lambda: False, done=lambda path, job: None,
+        start: int = 0, pause_key: str | None = None) -> dict:
     """順に描く。draw(text, seed, negative) は描いた絵の置き場を返す。done は 1 枚描けるたびに呼ぶ（ライブラリーに入れる）。
-    返すのは {"done": [置き場], "failed": [(行, 頼み, 理由)], "stopped": 止めたか, "total": 描く予定の枚数}"""
+    start は飛ばす枚数（一時停止した所から続ける）。メモリ不足・時間切れの 1 枚は捨てずに一時停止にし、pause_key があれば
+    残りの一覧と位置を chatdraw/pausekeep.py に残す（前は失敗の 1 枚として飛ばし、メモリが足りないまま残りも全部落ちた）。
+    返すのは {"done": [置き場], "failed": [(行, 頼み, 理由)], "stopped": 止めたか, "paused": 一時停止した位置か None, "total": 描く予定の枚数}"""
+    from chatdraw import pausekeep
     from chatdraw.engine import Stopped
     n, k = total(jobs), 0
-    out = {"done": [], "failed": [], "stopped": False, "total": n}
+    out = {"done": [], "failed": [], "stopped": False, "paused": None, "total": n}
     for j in jobs:
         for i in range(j["count"]):
+            if k < start:
+                k += 1
+                continue
             if stopped():
                 out["stopped"] = True
                 return out
@@ -91,11 +98,18 @@ def run(jobs: list[dict], draw, say=lambda m: None, stopped=lambda: False, done=
                 out["stopped"] = True
                 return out
             except Exception as e:   # noqa: BLE001  1 枚の失敗で残りを止めない。理由は最後にまとめて出す
+                if pausekeep.is_pause(e):
+                    out["paused"] = k - 1
+                    if pause_key:
+                        pausekeep.save(pause_key, "batch", f"一括生成 {k}/{n} 枚目で一時停止", {"jobs": jobs, "start": k - 1})
+                    say(f"一括生成 {k}/{n} 枚目で一時停止しました。「再開」でこの枚から続けます")
+                    return out
                 from chatdraw.engine import explain
                 out["failed"].append((j["line"], j["text"], explain(e)))
                 continue
             out["done"].append(str(path))
             done(str(path), j)
+    pausekeep.clear(pause_key)
     return out
 
 
@@ -103,6 +117,8 @@ def summary(res: dict) -> str:
     head = f"{len(res['done'])} / {res['total']} 枚を描きました"
     if res.get("stopped"):
         head += "（途中で止めました）"
+    if res.get("paused") is not None:
+        head += f"（{res['paused'] + 1} 枚目で一時停止しました。「再開」で続きから描きます）"
     lines = [head] + [f"{line} 行目「{text[:30]}」: {why}" for line, text, why in res["failed"]]
     return "\n".join(lines)
 

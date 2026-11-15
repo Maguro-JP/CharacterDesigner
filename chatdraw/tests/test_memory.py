@@ -76,7 +76,8 @@ class MemoryRetryTest(unittest.TestCase):
         p = OOMPainter(fails=5, error=MemoryError())
         with self.assertRaises(MemoryError) as got:
             p.paint("knight", 1)
-        self.assertEqual(p.calls, 3, "ディスクへの退避で 3 回目を描いていない")
+        self.assertEqual(p.calls, 4, "ディスクへの退避の 3 回目と、模型を降ろして空くのを待ったあとの 4 回目を描いていない")
+        self.assertIsInstance(got.exception, engine.MemoryPaused)   # 諦めて捨てずに一時停止にする
         self.assertIn("メモリが足りず", engine.explain(got.exception))
 
     def test_other_errors_are_not_retried(self):
@@ -140,13 +141,21 @@ class AppSurvivesTest(unittest.TestCase):
         w.close()
 
     def test_oom_twice_fails_gracefully(self):
-        a, w = self.run_draw(OOMPainter(fails=9, error=RuntimeError("CUDA out of memory")))
+        from chatdraw import pausekeep
+        d = TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        pausekeep.ROOT = Path(d.name) / "paused"
+        self.addCleanup(setattr, pausekeep, "ROOT", None)
+        a, w = self.run_draw(OOMPainter(fails=99, error=RuntimeError("CUDA out of memory")))
         self.assertIsNone(w.thread)
         self.assertEqual(len(w.images), 0)
         self.assertTrue(w.button.isEnabled(), "落ちたあとに次の操作ができない")
         failed = [x for x in w.told if x and "メモリが足りず" in str(x[0])]   # 何が起きたかを 1 行で出す
         self.assertTrue(failed, w.told)
         self.assertIn("メモリが足りず", " ".join(map(str, failed[0])))
+        self.assertIn("一時停止", " ".join(map(str, failed[0])))   # 止めて捨てずに一時停止にし、「再開」を出す
+        self.assertFalse(w.activity.resume_tool.isHidden())
+        self.assertEqual(pausekeep.listing()[0]["job"]["text"], "雪の城の前の騎士")
         w.dirty = False
         w.close()
 
