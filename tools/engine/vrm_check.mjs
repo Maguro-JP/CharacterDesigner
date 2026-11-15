@@ -35,7 +35,9 @@ for (const path of process.argv.slice(2)) {
   const report = await validator.validateBytes(new Uint8Array(bytes));
   const n = report.issues.numErrors;
   const msgs = report.issues.messages.filter((m) => m.severity === 0).slice(0, 5).map((m) => `${m.code} ${m.pointer || ""}`);
-  console.log(`${path}: glTF の検査 誤り ${n}、注意 ${report.issues.numWarnings}${msgs.length ? " " + msgs.join(" / ") : ""}`);
+  const kinds = {};
+  for (const m of report.issues.messages) if (m.severity === 1) kinds[m.code] = (kinds[m.code] || 0) + 1;
+  console.log(`${path}: glTF の検査 誤り ${n}、注意 ${report.issues.numWarnings}${msgs.length ? " " + msgs.join(" / ") : ""} 注意の種類 ${JSON.stringify(kinds)}`);
   if (n) failed++;
   if (!path.endsWith(".vrm")) continue;
   const loader = new GLTFLoader();
@@ -46,7 +48,14 @@ for (const path of process.argv.slice(2)) {
     const need = ["hips", "head", "leftUpperArm", "rightHand", "leftFoot"];
     const missing = need.filter((b) => !vrm.humanoid.getRawBoneNode(b));
     const mtoon = [];
-    gltf.scene.traverse((o) => { if (o.material && o.material.isMToonMaterial) mtoon.push(o.material); });
+    const types = new Set();
+    gltf.scene.traverse((o) => {
+      for (const m of [].concat(o.material || [])) {
+        types.add(m.type);
+        if (m.isMToonMaterial || m.type === "MToonMaterial") mtoon.push(m);
+      }
+    });
+    console.log(`${path}: 材質の種類 ${[...types].join(",")}`);
     console.log(`${path}: three-vrm で読めた。骨 ${Object.keys(vrm.humanoid.humanBones).length} 本、足りない骨 ${missing.length}、MToon ${mtoon.length}、名前 ${vrm.meta.name}`);
     if (missing.length || !mtoon.length) failed++;
   } catch (e) {
