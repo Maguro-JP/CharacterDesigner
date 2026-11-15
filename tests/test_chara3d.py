@@ -115,5 +115,39 @@ class Chara3DTest(unittest.TestCase):
         self.assertEqual(Image.open(info["sheet"]).width, 480 * 4)
 
 
+    def test_orient_recovers_front(self):
+        """外の模型の形が横向き・鏡写しでも、正面の絵と同じ向きに戻す（TripoSR の形は前の軸が違った）"""
+        sheet = Image.open(self.src)
+        front, fm = chara3d.crop_view(chara3d.split_views(sheet, 3)[0])
+        pos, uv, tris, _ = chara3d.build_shape(fm, None, 64)
+        # 左右で色を変え、鏡写しを色で見分けられるようにする
+        color = np.where(pos[:, :1] > 0, [[0.9, 0.2, 0.2]], [[0.2, 0.2, 0.9]]).astype(np.float32)
+        img = Image.new("RGBA", front.size, (0, 0, 0, 0))
+        a = np.array(img)
+        a[..., 3] = fm * 255
+        a[:, a.shape[1] // 2:, :3] = [230, 51, 51]
+        a[:, :a.shape[1] // 2, :3] = [51, 51, 230]
+        turned = (pos @ chara3d._rot((0, 1, 0), 90).T) * [-1, 1, 1]
+        back, t2, info = chara3d.orient(turned.astype(np.float32), color, tris[:, ::-1].copy(), Image.fromarray(a), fm)
+        self.assertGreater(info["iou"], 0.6)
+        self.assertTrue(np.allclose(back[:, 0], pos[:, 0], atol=1e-4), info)
+
+    def test_texture_uses_side_view(self):
+        """横を向いた面には横の絵を貼る（前と後ろだけだと横から見て真ん中で割れた）"""
+        g, acc = chara3d.read_glb(Path(self.info["glb"]))
+        uv = acc(g["meshes"][0]["primitives"][0]["attributes"]["TEXCOORD_0"])
+        panels = np.floor(uv[:, 0] * 3).astype(int)
+        self.assertEqual(set(np.unique(panels)) >= {0, 1, 2}, True)
+
+    def test_smooth_rounds_stairs(self):
+        """ならすと縁の階段が減る（隣の点との高さの差の合計が小さくなる）"""
+        f = chara3d.crop_view(figure())[1]
+        pos, _uv, tris, _ = chara3d.build_shape(f, None, 64)
+        def rough(p):
+            e = np.concatenate([tris[:, [0, 1]], tris[:, [1, 2]]])
+            return float(np.abs(np.diff(p[e][:, :, 0], axis=1)).sum())
+        self.assertLess(rough(chara3d.smooth(pos, tris)), rough(pos))
+
+
 if __name__ == "__main__":
     unittest.main()

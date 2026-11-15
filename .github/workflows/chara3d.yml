@@ -1,6 +1,7 @@
 # 描いたキャラデザから骨付きの 3D（VRM と glTF）を作り、正面・横・後ろ・動かした姿を撮る（tools/engine/chara3d.py）。
 # 頼みは config/chara3d-request.json。リポジトリは公開しているので重い処理（画像から 3D の模型 TripoSR、CPU で数分）は Actions の枠で回す。
-# plate: 膨らませた板の形（numpy と Pillow だけ、数十秒）。triposr: TripoSR の形に同じ骨付けと書き出しを通す（失敗しても plate は残る）。
+# plate: 膨らませた板の形（numpy と Pillow だけ、数十秒）。triposr: 形は TripoSR、色と顔は描いた絵を貼って組み合わせる（失敗しても plate は残る）。
+# どちらも書き出した .vrm と .glb を、glTF の検査器と three-vrm で読めるか確かめる（tools/engine/vrm_check.mjs）。
 name: chara3d
 on:
   push:
@@ -32,6 +33,15 @@ jobs:
           VIEWS=$(python -c "import json;print(json.load(open('config/chara3d-request.json')).get('views',3))")
           mkdir -p out
           python tools/engine/chara3d.py "$IMG" out/plate --views "$VIEWS" | tee out/plate.log
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: ほかの道具で読めるか（glTF の検査器と three-vrm。版を固定）
+        run: |
+          mkdir -p .cache/vrmcheck && cp tools/engine/vrm_check.mjs .cache/vrmcheck/
+          cd .cache/vrmcheck && npm init -y >/dev/null && npm i --no-audit --no-fund three@0.169.0 @pixiv/three-vrm@3.1.0 gltf-validator@2.0.0-dev.3.10
+          set -o pipefail
+          node vrm_check.mjs $(ls ../../out/plate/*.vrm ../../out/plate/*.glb) | tee ../../out/plate/vrm-check.txt
       - uses: actions/upload-artifact@v4
         with:
           name: chara3d-plate
@@ -82,8 +92,20 @@ jobs:
           mkdir -p out/triposr/0   # run.py は出力の置き場を作らずに書き、落ちた
           cd .cache/TripoSR && python run.py ../../front.png --device cpu --no-remove-bg --output-dir ../../out/triposr \
             --model-save-format obj --mc-resolution 192 --pretrained-model-name-or-path ../TripoSR-weights
-      - name: 骨を付けて書き出す
-        run: python tools/engine/chara3d.py front.png out/triposr-rig --views 1 --mesh out/triposr/0/mesh.obj
+      - name: 形は TripoSR、色と顔は描いた絵で組み合わせて骨を付ける
+        run: |
+          IMG=$(python -c "import json;print(json.load(open('config/chara3d-request.json'))['image'])")
+          VIEWS=$(python -c "import json;print(json.load(open('config/chara3d-request.json')).get('views',3))")
+          python tools/engine/chara3d.py "$IMG" out/mix --views "$VIEWS" --mesh out/triposr/0/mesh.obj | tee out/mix.log
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: ほかの道具で読めるか（glTF の検査器と three-vrm。版を固定）
+        run: |
+          mkdir -p .cache/vrmcheck && cp tools/engine/vrm_check.mjs .cache/vrmcheck/
+          cd .cache/vrmcheck && npm init -y >/dev/null && npm i --no-audit --no-fund three@0.169.0 @pixiv/three-vrm@3.1.0 gltf-validator@2.0.0-dev.3.10
+          set -o pipefail
+          node vrm_check.mjs $(ls ../../out/mix/*.vrm ../../out/mix/*.glb) | tee ../../out/mix/vrm-check.txt
       - uses: actions/upload-artifact@v4
         if: always()
         with:

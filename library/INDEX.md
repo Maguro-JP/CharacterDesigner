@@ -2,7 +2,7 @@
 
 `python3 tools/library_check.py` が書く。手で直さない。置き方の決まりは [docs/STRUCTURE.md](../docs/STRUCTURE.md)。
 
-全 793 枚（置き場 47 か所）。どこからも参照されていない絵 190 枚には「未参照」と付ける。
+全 797 枚（置き場 47 か所）。どこからも参照されていない絵 190 枚には「未参照」と付ける。
 
 ## 置き場の一覧
 
@@ -24,7 +24,7 @@
 | [`library/daily/2026-10-13/`](#library-daily-2026-10-13) | 日ごとの作例 | 3 |
 | [`library/daily/2026-10-15/`](#library-daily-2026-10-15) | 日ごとの作例 | 1 |
 | [`library/eyes/`](#library-eyes) | 目の資料集 | 18 |
-| [`library/feedback/3d/`](#library-feedback-3d) | フィードバックの成果物 | 5 |
+| [`library/feedback/3d/`](#library-feedback-3d) | フィードバックの成果物 | 9 |
 | [`library/feedback/animal/`](#library-feedback-animal) | フィードバックの成果物 | 18 |
 | [`library/feedback/app-e2e/`](#library-feedback-app-e2e) | フィードバックの成果物 | 1 |
 | [`library/feedback/baseline/`](#library-feedback-baseline) | フィードバックの成果物 | 2 |
@@ -179,9 +179,10 @@
 <a id="library-feedback-3d"></a>
 ## library/feedback/3d/
 
-|   |   |   |   |   |
-|---|---|---|---|---|
-| <a href="feedback/3d/2026-11-15/swordswoman/swordswoman-back-s0.jpg"><img src="feedback/3d/2026-11-15/swordswoman/swordswoman-back-s0.jpg" width="150" alt="swordswoman-back-s0.jpg"></a><br><sub>swordswoman-back-s0.jpg</sub> | <a href="feedback/3d/2026-11-15/swordswoman/swordswoman-front-s0.jpg"><img src="feedback/3d/2026-11-15/swordswoman/swordswoman-front-s0.jpg" width="150" alt="swordswoman-front-s0.jpg"></a><br><sub>swordswoman-front-s0.jpg</sub> | <a href="feedback/3d/2026-11-15/swordswoman/swordswoman-input-s0.jpg"><img src="feedback/3d/2026-11-15/swordswoman/swordswoman-input-s0.jpg" width="150" alt="swordswoman-input-s0.jpg"></a><br><sub>swordswoman-input-s0.jpg</sub> | <a href="feedback/3d/2026-11-15/swordswoman/swordswoman-pose-s0.jpg"><img src="feedback/3d/2026-11-15/swordswoman/swordswoman-pose-s0.jpg" width="150" alt="swordswoman-pose-s0.jpg"></a><br><sub>swordswoman-pose-s0.jpg</sub> | <a href="feedback/3d/2026-11-15/swordswoman/swordswoman-side-s0.jpg"><img src="feedback/3d/2026-11-15/swordswoman/swordswoman-side-s0.jpg" width="150" alt="swordswoman-side-s0.jpg"></a><br><sub>swordswoman-side-s0.jpg</sub> |
+|   |   |   |   |   |   |
+|---|---|---|---|---|---|
+| <a href="feedback/3d/2026-11-15/swordswoman/swordswoman-back-s0.jpg"><img src="feedback/3d/2026-11-15/swordswoman/swordswoman-back-s0.jpg" width="150" alt="swordswoman-back-s0.jpg"></a><br><sub>swordswoman-back-s0.jpg</sub> | <a href="feedback/3d/2026-11-15/swordswoman/swordswoman-front-s0.jpg"><img src="feedback/3d/2026-11-15/swordswoman/swordswoman-front-s0.jpg" width="150" alt="swordswoman-front-s0.jpg"></a><br><sub>swordswoman-front-s0.jpg</sub> | <a href="feedback/3d/2026-11-15/swordswoman/swordswoman-input-s0.jpg"><img src="feedback/3d/2026-11-15/swordswoman/swordswoman-input-s0.jpg" width="150" alt="swordswoman-input-s0.jpg"></a><br><sub>swordswoman-input-s0.jpg</sub> | <a href="feedback/3d/2026-11-15/swordswoman/swordswoman-pose-s0.jpg"><img src="feedback/3d/2026-11-15/swordswoman/swordswoman-pose-s0.jpg" width="150" alt="swordswoman-pose-s0.jpg"></a><br><sub>swordswoman-pose-s0.jpg</sub> | <a href="feedback/3d/2026-11-15/swordswoman/swordswoman-side-s0.jpg"><img src="feedback/3d/2026-11-15/swordswoman/swordswoman-side-s0.jpg" width="150" alt="swordswoman-side-s0.jpg"></a><br><sub>swordswoman-side-s0.jpg</sub> | <a href="feedback/3d/2026-11-15/swordswoman/swordswoman-triposr-back-s0.jpg"><img src="feedback/3d/2026-11-15/swordswoman/swordswoman-triposr-back-s0.jpg" width="150" alt="swordswoman-triposr-back-s0.jpg"></a><br><sub>swordswoman-triposr-back-s0.jpg</sub> |
+| <a href="feedback/3d/2026-11-15/swordswoman/swordswoman-triposr-front-s0.jpg"><img src="feedback/3d/2026-11-15/swordswoman/swordswoman-triposr-front-s0.jpg" width="150" alt="swordswoman-triposr-front-s0.jpg"></a><br><sub>swordswoman-triposr-front-s0.jpg</sub> | <a href="feedback/3d/2026-11-15/swordswoman/swordswoman-triposr-pose-s0.jpg"><img src="feedback/3d/2026-11-15/swordswoman/swordswoman-triposr-pose-s0.jpg" width="150" alt="swordswoman-triposr-pose-s0.jpg"></a><br><sub>swordswoman-triposr-pose-s0.jpg</sub> | <a href="feedback/3d/2026-11-15/swordswoman/swordswoman-triposr-side-s0.jpg"><img src="feedback/3d/2026-11-15/swordswoman/swordswoman-triposr-side-s0.jpg" width="150" alt="swordswoman-triposr-side-s0.jpg"></a><br><sub>swordswoman-triposr-side-s0.jpg</sub> |
 
 <a id="library-feedback-animal"></a>
 ## library/feedback/animal/

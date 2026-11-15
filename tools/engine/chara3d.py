@@ -48,8 +48,9 @@ TAIL = {"head": None, "leftHand": None, "rightHand": None, "leftFoot": None, "ri
 
 # ---------- 絵を分ける ----------
 
-def mask_of(img: Image.Image, tol: int = 24) -> Image.Image:
-    """人物の所を 255 にした型（chatdraw/to3d.py と同じ抜き方。透明があれば透明を使う）"""
+def mask_of(img: Image.Image, tol: int = 10) -> Image.Image:
+    """人物の所を 255 にした型（chatdraw/to3d.py と同じ抜き方。透明があれば透明を使う）。
+    差の閾値は 10。24 では白に近い服（背面のスカート）が背景に落ちた。JPEG の白の揺れは 6 以下だった"""
     if img.mode == "RGBA" and img.getextrema()[3][0] < 250:
         return img.getchannel("A").point(lambda a: 255 if a > 127 else 0)
     rgb = img.convert("RGB")
@@ -198,18 +199,30 @@ def limb_labels(m: np.ndarray) -> np.ndarray:
     lab = np.zeros((h, w), np.int8)
     cx = w / 2
     # 腕は肩から下へ途切れずに続く外側の区間だけ（離れた所に垂れた布や帯を腕と見誤らないように）。2 行まで途切れを許す
-    for k, pick in ((1, -1), (2, 0)):
+    # 区間の数は問わず、中心から離れた細い区間を腕とする（区間が 3 つの行だけにしたら、手が帯やスカートに
+    # 重なる行で途切れ、腕の 1/3 しか腕にならなかった）
+    for k, sgn in ((1, 1), (2, -1)):
         started, gap = False, 0
         for y in range(int(h * 0.15), int(h * 0.62)):
-            runs = _runs(m[y])
-            a, b = runs[pick] if len(runs) >= 3 else (0, 0)
-            if b - a and b - a < w * 0.25:
+            cand = [(a, b) for a, b in _runs(m[y])
+                    if sgn * ((a + b) / 2 - w / 2) > w * 0.18 and b - a < w * 0.15]
+            if cand:
+                a, b = cand[-1] if sgn > 0 else cand[0]
                 started, gap = True, 0
                 lab[y, a:b] = k
             elif started:
                 gap += 1
-                if gap > 2:
+                if gap > 4:
                     break
+        # 手は帯やスカートに重なり、正面の型では見分けられない。離れて見えた長さの 35% だけ、同じ幅で下へ延ばす（私の推測の割合）
+        rows = np.nonzero((lab == k).any(1))[0]
+        if len(rows) > 3:
+            last = rows.max()
+            xs = np.nonzero(lab[last] == k)[0]
+            for y in range(last + 1, min(h, last + 1 + int((last - rows.min()) * 0.35))):
+                sel = np.zeros(w, bool)
+                sel[max(0, xs.min() - 1):xs.max() + 2] = True
+                lab[y, sel & m[y]] = k
     for y in range(int(h * 0.5), h):
         runs = _runs(m[y])
         if len(runs) == 2:
@@ -240,7 +253,13 @@ def load_obj(path: Path):
         pos = pos[:, order]
     pos -= [(pos[:, 0].max() + pos[:, 0].min()) / 2, pos[:, 1].min(), (pos[:, 2].max() + pos[:, 2].min()) / 2]
     pos *= HEIGHT / max(1e-6, pos[:, 1].max())
-    return pos, np.array(col, np.float32), np.array(tris, np.uint32)
+    tris = np.array(tris, np.uint32)
+    # 面の向きを外向きにそろえる。TripoSR の形は内向きで、正面の絵が背中に貼られた
+    fn = np.cross(pos[tris[:, 1]] - pos[tris[:, 0]], pos[tris[:, 2]] - pos[tris[:, 0]])
+    cen = pos.mean(0)
+    if (np.einsum("ij,ij->i", fn, pos[tris].mean(1) - cen)).sum() < 0:
+        tris = tris[:, ::-1].copy()
+    return pos, np.array(col, np.float32), tris
 
 
 def normals(pos: np.ndarray, tris: np.ndarray) -> np.ndarray:
@@ -249,6 +268,160 @@ def normals(pos: np.ndarray, tris: np.ndarray) -> np.ndarray:
     for k in range(3):
         np.add.at(n, tris[:, k], fn)
     return (n / np.maximum(1e-9, np.linalg.norm(n, axis=1, keepdims=True))).astype(np.float32)
+
+
+# ---------- 外の形の向きと、絵の貼り付け ----------
+
+def _silhouette(pos: np.ndarray, gh: int = 64) -> np.ndarray:
+    """形を正面（+z から）へ平らに写した型。背の高さで縮め、横は同じ縮めで中央にそろえる"""
+    y0, y1 = pos[:, 1].min(), pos[:, 1].max()
+    k = (gh - 1) / max(1e-6, y1 - y0)
+    cx = (pos[:, 0].max() + pos[:, 0].min()) / 2
+    gw = gh
+    m = np.zeros((gh, gw), bool)
+    xs = np.clip(((pos[:, 0] - cx) * k + gw / 2).astype(int), 0, gw - 1)
+    ys = np.clip(((y1 - pos[:, 1]) * k).astype(int), 0, gh - 1)
+    m[ys, xs] = True
+    return np.array(Image.fromarray(m.astype(np.uint8) * 255).filter(ImageFilter.MaxFilter(3))) > 0
+
+
+def _mask_grid(fm: np.ndarray, gh: int = 64) -> np.ndarray:
+    h, w = fm.shape
+    gw_img = max(1, round(w * (gh - 1) / h))
+    small = np.array(Image.fromarray(fm.astype(np.uint8) * 255).resize((gw_img, gh), Image.BILINEAR)) > 127
+    out = np.zeros((gh, gh), bool)
+    x0 = max(0, (gh - gw_img) // 2)
+    out[:, x0:x0 + min(gw_img, gh)] = small[:, :gh - x0]
+    return out
+
+
+def orient(pos: np.ndarray, color: np.ndarray | None, tris: np.ndarray, front_rgba: Image.Image, fm: np.ndarray):
+    """外の模型の形を、正面の絵と同じ向きに回す。縦の軸まわりの 4 向きと左右の鏡で 8 通りを試し、
+    正面へ写した型の重なり（IoU）と、前を向いた点の色と正面の絵の色の近さで選ぶ。
+    TripoSR の形をそのまま撮ったら、正面の写しに横向きが写った（前の軸が違う）"""
+    target = _mask_grid(fm)
+    rgb = np.array(front_rgba.convert("RGB"), float) / 255
+    fh, fw = rgb.shape[:2]
+    best = None
+    for mirror in (False, True):
+        for yaw in (0, 90, 180, 270):
+            p = pos @ _rot((0, 1, 0), yaw).T
+            if mirror:
+                p = p * [-1, 1, 1]
+            sil = _silhouette(p)
+            iou = (sil & target).sum() / max(1, (sil | target).sum())
+            cdiff = 0.5
+            if color is not None:
+                t = tris if not mirror else tris[:, ::-1]
+                n = normals(p.astype(np.float32), t)
+                f = n[:, 2] > 0.6
+                if f.sum() > 50:
+                    q = p[f]
+                    u = (q[:, 0] - p[:, 0].min()) / max(1e-6, np.ptp(p[:, 0]))
+                    v = (p[:, 1].max() - q[:, 1]) / max(1e-6, np.ptp(p[:, 1]))
+                    c = rgb[np.clip((v * fh).astype(int), 0, fh - 1), np.clip((u * fw).astype(int), 0, fw - 1)]
+                    cdiff = float(np.abs(c - color[f]).mean())
+            score = (1 - iou) + cdiff
+            if best is None or score < best[0]:
+                best = (score, yaw, mirror, iou, cdiff)
+    _, yaw, mirror, iou, cdiff = best
+    p = pos @ _rot((0, 1, 0), yaw).T
+    if mirror:
+        p = p * [-1, 1, 1]
+        tris = tris[:, ::-1].copy()
+    return p.astype(np.float32), tris, {"yaw": yaw, "mirror": mirror, "iou": round(float(iou), 3),
+                                        "color_diff": round(float(cdiff), 3)}
+
+
+def bleed(rgba: Image.Image, steps: int = 16) -> Image.Image:
+    """人物の外を、近い人物の色でにじませる。外の模型の形は絵の外形より少し太く、縁が背景の白を拾って白い筋になった"""
+    a = np.array(rgba, float)
+    rgb, al = a[..., :3], (a[..., 3] > 127).astype(float)
+    for _ in range(steps):
+        if al.all():
+            break
+        acc = np.zeros_like(rgb)
+        cnt = np.zeros(al.shape)
+        for dy, dx in ((0, 1), (0, -1), (1, 0), (-1, 0), (1, 1), (-1, -1), (1, -1), (-1, 1)):
+            acc += np.roll(np.roll(rgb * al[..., None], dy, 0), dx, 1)
+            cnt += np.roll(np.roll(al, dy, 0), dx, 1)
+        grow = (al == 0) & (cnt > 0)
+        rgb[grow] = acc[grow] / cnt[grow][:, None]
+        al = np.where(grow, 1.0, al)
+    return Image.fromarray(rgb.clip(0, 255).astype(np.uint8))
+
+
+PANELS = ("front", "back", "side")
+
+
+def project_texture(pos, tris, views: dict):
+    """三角形ごとに向きの近い絵（正面・背面・横）を選び、まっすぐ写して貼る。
+    前と後ろの絵だけを貼ったら、横から見たときに体の真ん中で 2 つの絵が割れて見えた。横を向いた面には横の絵を貼る。
+    返す: 点（面の種類ごとに複製）、三角形、uv、貼る絵（3 枚を横に並べた物）"""
+    fn = np.cross(pos[tris[:, 1]] - pos[tris[:, 0]], pos[tris[:, 2]] - pos[tris[:, 0]])
+    fn /= np.maximum(1e-12, np.linalg.norm(fn, axis=1, keepdims=True))
+    has_side = views.get("side") is not None
+    cls = np.where(fn[:, 2] >= 0, 0, 1)
+    if has_side:
+        cls = np.where(np.abs(fn[:, 0]) > np.abs(fn[:, 2]) * 1.2, np.where(fn[:, 0] > 0, 2, 3), cls)
+    x0, x1 = pos[:, 0].min(), pos[:, 0].max()
+    y0, y1 = pos[:, 1].min(), pos[:, 1].max()
+    z0, z1 = pos[:, 2].min(), pos[:, 2].max()
+    key = tris.astype(np.int64) * 4 + cls[:, None]
+    uniq, inv = np.unique(key.reshape(-1), return_inverse=True)
+    vid, vcls = uniq // 4, uniq % 4
+    P = pos[vid]
+    v = (y1 - P[:, 1]) / max(1e-6, y1 - y0)
+    u = np.select([vcls == 0, vcls == 1, vcls == 2, vcls == 3],
+                  [(P[:, 0] - x0) / max(1e-6, x1 - x0),           # 正面: 人物の左（+x）が絵の右
+                   (x1 - P[:, 0]) / max(1e-6, x1 - x0),           # 背面: 後ろから見ると左右が入れ替わる
+                   (z1 - P[:, 2]) / max(1e-6, z1 - z0),           # 左の横（+x から見る）: 前（+z）が絵の左
+                   (P[:, 2] - z0) / max(1e-6, z1 - z0)])          # 右の横: 横の絵を左右に返して使う
+    u = np.clip(u, 0.002, 0.998)
+    panel = np.where(vcls == 3, 2, vcls)
+    uv = np.stack([(panel + u) / 3, v], 1).astype(np.float32)
+    pw, ph = TEX // 2, TEX
+    atlas = Image.new("RGB", (pw * 3, ph), (200, 200, 200))
+    for i, k in enumerate(PANELS):
+        im = views.get(k)
+        if im is None:
+            continue
+        # にじませるのは型の外だけ（型の閾値を 24 にしていた時は、背景に落ちた白いスカートが四角い斑になった）
+        atlas.paste(bleed(im.resize((pw, ph), Image.LANCZOS)), (i * pw, 0))
+    return P.astype(np.float32), inv.reshape(-1, 3).astype(np.uint32), uv, atlas, vid
+
+
+def smooth(pos: np.ndarray, tris: np.ndarray, iters: int = 20) -> np.ndarray:
+    """縮みの少ないならし（Taubin）。膨らませた板は 1 マスごとの階段の縁になったので、外形を丸める"""
+    n = len(pos)
+    i = np.concatenate([tris[:, 0], tris[:, 1], tris[:, 2], tris[:, 1], tris[:, 2], tris[:, 0]])
+    j = np.concatenate([tris[:, 1], tris[:, 2], tris[:, 0], tris[:, 0], tris[:, 1], tris[:, 2]])
+    deg = np.bincount(i, minlength=n).astype(float)
+    p = pos.astype(float).copy()
+    for _ in range(iters):
+        for lam in (0.5, -0.53):
+            acc = np.zeros_like(p)
+            np.add.at(acc, i, p[j])
+            avg = acc / np.maximum(deg, 1)[:, None]
+            p += lam * (avg - p)
+    return p.astype(np.float32)
+
+
+def labels_for(pos: np.ndarray, fm: np.ndarray, grid: int = GRID) -> np.ndarray:
+    """形の点を正面の型の区分（腕・脚・胴）に当てる。外の模型の形にも、絵から見分けた区分を使う"""
+    gh = grid
+    gw = max(2, round(fm.shape[1] * grid / fm.shape[0]))
+    m = np.array(Image.fromarray(fm.astype(np.uint8) * 255).resize((gw, gh), Image.BILINEAR)) > 127
+    lab = limb_labels(m)
+    # 区分を 1 マス広げ、形と型の小さなずれで区分の外に落ちる点を減らす
+    for k in (1, 2, 3, 4):
+        grown = np.array(Image.fromarray((lab == k).astype(np.uint8) * 255).filter(ImageFilter.MaxFilter(3))) > 0
+        lab = np.where((lab == 0) & grown & ~m, k, lab)
+    x0, x1 = pos[:, 0].min(), pos[:, 0].max()
+    y0, y1 = pos[:, 1].min(), pos[:, 1].max()
+    xs = np.clip(((pos[:, 0] - x0) / max(1e-6, x1 - x0) * gw).astype(int), 0, gw - 1)
+    ys = np.clip(((y1 - pos[:, 1]) / max(1e-6, y1 - y0) * gh).astype(int), 0, gh - 1)
+    return lab[ys, xs].astype(np.int8)
 
 
 # ---------- 骨 ----------
@@ -309,6 +482,16 @@ def skin_weights(pos: np.ndarray, joints: dict[str, np.ndarray], part: np.ndarra
         if name.startswith("right"):
             d[pos[:, 0] > 0.01 * H, i] = 1e9
     if part is not None:
+        part = part.copy()
+        # 腕の区分でも、腕の骨から腕の太さより遠い点は胴に戻す。腕の横に垂れた襟巻きや帯が、正面の型では腕と重なり、
+        # 腕を上げると一緒に持ち上がった
+        for k, sd in ((1, "left"), (2, "right")):
+            sel = part == k
+            if sel.sum() > 10:
+                dd = np.minimum.reduce([d[sel, BONES.index(f"{sd}{b}")] for b in ("UpperArm", "LowerArm", "Hand")])
+                r = np.percentile(dd, 60) * 1.6
+                idx = np.nonzero(sel)[0][dd > r]
+                part[idx] = 0
         on_arm = (part == 1) | (part == 2)
         for i, name in enumerate(BONES):
             own = 1 if name.startswith("left") else 2
@@ -557,20 +740,19 @@ def make(src: Path, out: Path, views: int | None = None, back: Path | None = Non
     else:
         bimg = front.transpose(Image.FLIP_LEFT_RIGHT)    # 背面が無ければ前を左右に返して貼る（髪の後ろは出ない）
     info = {"views": views}
-    tex = color = uv = None
-    part = None
+    side_img = crop_view(parts[1])[0] if views == 3 else None
     if mesh:
         pos, color, tris = load_obj(mesh)
+        pos, tris, info["orient"] = orient(pos, color, tris, front, fm)
         info["mesh"] = str(mesh)
     else:
-        pos, uv, tris, part = build_shape(fm, side_m, grid)
-        atlas = Image.new("RGB", (TEX, TEX), (200, 200, 200))
-        fr = front.convert("RGB").resize((TEX // 2, TEX))
-        # 後ろの面の u は前の x を左右逆に読む（後ろから見ると左右が入れ替わる）ので、背面の絵は元の向きで貼る
-        bk = bimg.convert("RGB").resize((TEX // 2, TEX))
-        atlas.paste(fr, (0, 0))
-        atlas.paste(bk, (TEX // 2, 0))
-        tex = np.array(atlas, float)
+        pos, _uv, tris, _p = build_shape(fm, side_m, grid)
+        pos = smooth(pos, tris)
+    # 形は外の模型か膨らませた板、色と顔は描いた絵を貼る（模型の点の色は濁り、顔が読めなかった）
+    pos, tris, uv, atlas, _vid = project_texture(pos, tris, {"front": front, "back": bimg, "side": side_img})
+    part = labels_for(pos, fm, grid)
+    tex = np.array(atlas, float)
+    color = None
     nrm = normals(pos, tris)
     joints = place_bones(pos, part)
     j_idx, j_w = skin_weights(pos, joints, part)

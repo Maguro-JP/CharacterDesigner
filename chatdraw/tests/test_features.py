@@ -133,5 +133,56 @@ class To3DTest(unittest.TestCase):
             dlg.close()
 
 
+    def test_rigged_character_runs_in_background(self):
+        """「骨付きの 3D キャラを作る」を押すと、裏で作って画面は固まらず、終わると写しと .vrm が出る"""
+        import time
+        from PySide6.QtGui import QDesktopServices
+        from chatdraw import to3d
+        qa = app()
+        with TemporaryDirectory() as d, mock.patch.object(QDesktopServices, "openUrl") as opened:
+            src = Path(d) / "c.png"
+            sheet = Image.new("RGB", (360, 160), "white")
+            for i in range(3):
+                sheet.paste(figure(), (i * 120, 0))
+            sheet.save(src)
+            dlg = to3d.To3DDialog(str(src))
+            t0 = time.time()
+            dlg.rig_button.click()
+            self.assertLess(time.time() - t0, 1.0)              # 押した手は 1 秒以内に戻る（裏で作る）
+            self.assertFalse(dlg.rig_button.isEnabled())       # 作っている間は押し直せない
+            self.assertIn("作っています", dlg.status.text())
+            for _ in range(6000):
+                qa.processEvents()
+                if dlg.rig_button.isEnabled():
+                    break
+                time.sleep(0.02)
+            self.assertIn("作りました", dlg.status.text())
+            self.assertTrue(Path(dlg.info["vrm"]).exists() and Path(dlg.info["glb"]).exists())
+            self.assertTrue(Path(dlg.info["sheet"]).exists())
+            self.assertTrue(opened.called)
+            dlg.close()
+
+
+    def test_chara_menu_entry_opens_3d(self):
+        """キャラデザのメニューの「3D キャラを作る…」から、選んだ絵で 3D に進む画面が開く"""
+        from PySide6.QtWidgets import QFileDialog
+        from chatdraw.app import Window
+        from chatdraw.tests.test_chatdraw import FakePainter, FakeWords, Studio
+        app()
+        with TemporaryDirectory() as d:
+            src = Path(d) / "c.png"
+            figure().save(src)
+            w = Window(Studio(FakeWords(), FakePainter(), Path(d)))
+            w.chara_menu.aboutToShow.emit()
+            act = next(a for a in w.chara_menu.actions() if a.text() == "3D キャラを作る…")
+            self.assertTrue(act.toolTip())
+            with mock.patch.object(QFileDialog, "getOpenFileName", return_value=(str(src), "")), \
+                    mock.patch.object(w, "open_3d") as opened:
+                w.canvas.layers.clear() if hasattr(w.canvas.layers, "clear") else None
+                act.trigger()
+            self.assertEqual(opened.call_args[0][0], str(src))
+            w.close()
+
+
 if __name__ == "__main__":
     unittest.main()

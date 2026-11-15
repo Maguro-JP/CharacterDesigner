@@ -130,6 +130,29 @@ def make_character(src: str | Path, out_dir: str | Path | None = None) -> dict:
     return info
 
 
+def run_in_background(fn, on_done, parent=None):
+    """fn を裏の糸で動かし、結果（例外なら例外）を画面の糸で on_done に渡す。戻り値は持っておく物"""
+    import threading
+    from PySide6.QtCore import QObject, Signal
+
+    class _Relay(QObject):
+        finished = Signal(object)
+
+    relay = _Relay(parent)
+    relay.finished.connect(on_done)
+
+    def work():
+        try:
+            result = fn()
+        except Exception as e:  # noqa: BLE001  理由を画面に出すために全部受ける
+            result = e
+        relay.finished.emit(result)
+
+    t = threading.Thread(target=work, daemon=True)
+    t.start()
+    return relay, t
+
+
 class To3DDialog:
     """絵から 3D に進む画面。骨付きの 3D キャラを作る、板の模型を作る、Blender で開く（無ければ取りに行く）を置く"""
 
@@ -171,22 +194,21 @@ class To3DDialog:
             elif not blender:
                 QDesktopServices.openUrl(QUrl(BLENDER_URL))
 
-        def do_rig():
-            from PySide6.QtWidgets import QApplication
-            status.setText("作っています（20 秒ほど）…")
-            rig.setEnabled(False)
-            QApplication.processEvents()
-            try:
-                dlg.info = make_character(path)
-            except Exception as e:   # 人物が切り抜けない絵など。理由を出して押し直せるようにする
-                status.setText(f"作れませんでした: {e}")
-                rig.setEnabled(True)
-                return
-            row_img = dlg.info["sheet"]
-            shot.setPixmap(QPixmap(row_img).scaled(560, 220, Qt.KeepAspectRatio, Qt.SmoothTransformation))
-            status.setText(f"作りました: {Path(dlg.info['vrm']).name} と .glb（{Path(dlg.info['vrm']).parent}）")
+        def done(result):
             rig.setEnabled(True)
-            QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(dlg.info["vrm"]).parent)))
+            if isinstance(result, Exception):   # 人物が切り抜けない絵など。理由を出して押し直せるようにする
+                status.setText(f"作れませんでした: {result}")
+                return
+            dlg.info = result
+            shot.setPixmap(QPixmap(result["sheet"]).scaled(560, 220, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            status.setText(f"作りました: {Path(result['vrm']).name} と .glb（{Path(result['vrm']).parent}）")
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(result["vrm"]).parent)))
+
+        def do_rig():
+            # 裏の糸で作り、終わったら信号で画面に戻す（前で作ると 20 秒ほどアプリが固まった）
+            status.setText("作っています（20 秒ほど。ほかの操作はそのまま続けられます）…")
+            rig.setEnabled(False)
+            dlg.job = run_in_background(lambda: make_character(path), done, dlg)
 
         rig.clicked.connect(do_rig)
         make.clicked.connect(do_make)
