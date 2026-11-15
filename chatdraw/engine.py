@@ -2049,14 +2049,28 @@ class Studio:
         return have[0] if have else None
 
     last_phases: list | None = None
+    phase_confirm = None   # 工程ごとに確かめるときにアプリが入れる。(i, 名前, 絵, 記録) を受けて "go"・"redo"・("words", 足す言葉) を返す
+
+    def _phase_confirm(self, as_tags):
+        """利用者が足した言葉は、頼みと同じく訳してから模型に渡す（日本語の頼みをそのまま絵の模型に渡さない）"""
+        ask = self.phase_confirm
+        if ask is None:
+            return None
+
+        def confirm(i, name, image, row):
+            ans = ask(i, name, image, row)
+            if isinstance(ans, (tuple, list)) and len(ans) > 1 and ans[0] == "words":
+                return ("words", self.words.to_prompt(str(ans[1]), tags=as_tags))
+            return ans
+        return confirm
 
     def _draw_phases(self, text, seed, style, size, say, on_preview, meta):
-        """構図 → 体型と姿勢 → 線画 → 塗り → 仕上げの工程に分けて描く（chatdraw/phases.py）。工程ごとに描く・検品する・1 回だけ直す。
-        渡す言葉は頼みの訳と作風だけで、背景や構図の言葉は足さない"""
+        """人の描き方の 12 の工程に分けて描く（chatdraw/phases.py）。工程ごとに描く・測る・1 回だけ直す・崩れが決まった工程へ戻る。
+        渡す言葉は頼みの訳と作風だけで、背景や構図の言葉は足さない。phase_confirm（アプリが入れる）があれば工程ごとに確かめる"""
         import time
         from chatdraw import phases
         from chatdraw.models import family as fam, image_model
-        say("工程に分けて描きます（構図 → 体型と姿勢 → 線画 → 塗り → 仕上げ）")
+        say("工程に分けて描きます（" + " → ".join(phases.NAMES) + "）")
         say("頼みを描く言葉に直しています")
         as_tags = fam(image_model(getattr(self.painter, "model", "")).family).tags
         prompt = self.words.to_prompt(text, tags=as_tags)
@@ -2076,7 +2090,7 @@ class Studio:
         keep = self.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}-phases"
         try:
             got = phases.draw(self.painter, prompt, seed, size, keep, say=say, on_preview=on_preview,
-                              on_step=lambda i, n: say(f"描いています（{i}/{n}）"))
+                              on_step=lambda i, n: say(f"描いています（{i}/{n}）"), confirm=self._phase_confirm(as_tags))
         finally:
             if hasattr(self.painter, "avoid"):
                 self.painter.avoid = avoid0

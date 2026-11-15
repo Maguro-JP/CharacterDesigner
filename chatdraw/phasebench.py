@@ -1,7 +1,8 @@
 """1 回で描く形と工程に分けて描く形（chatdraw/phases.py）を、本物の模型・同じ頼み・同じ種で比べる。Actions の phase-bench で動かす。
 
 どちらの絵も、最後に同じ検品（手・足・顔、体、頼んだ物）に通して崩れの数を数え、かかった秒を残す。
-工程に分けた回は、工程ごとの絵と検品の結果（phases.json）も残す。
+工程に分けた回は、12 の工程ごとの絵（phases/s<種>/01-サムネイル.png 〜 12-仕上げ.png）と、工程ごとの見る物・判定の数字・
+秒・常駐のメモリ（MB）・戻った回数を bench.json と phases.json に残す（Actions の artifact で見る）。
 
   python -m chatdraw.phasebench 出力の置き場
   環境変数: BENCH_MODEL、BENCH_PROMPT、BENCH_SEED、BENCH_STEPS、BENCH_SIZE（幅x高さ）、BENCH_WAYS（one,phases）
@@ -72,8 +73,16 @@ def run(out: Path):
         row = {"way": way, "seconds": secs, "prompt_used": used, "final": final_check(path, prompt), "said": said[-40:]}
         if studio.last_phases:
             row["phases"] = studio.last_phases
+            row["per_phase"] = [{"phase": r["phase"], "seconds": r["seconds"], "mem_mb": r.get("mem_mb"), "numbers": r.get("numbers"),
+                                 "left": r["after"] if r["fixed"] else r["found"]} for r in studio.last_phases]
+            each = out / "phases" / f"s{seed}"
+            each.mkdir(parents=True, exist_ok=True)
             for r in studio.last_phases:
-                shutil.copy(r["image"], out / f"phases-s{seed}-{Path(r['image']).name}")
+                if r.get("image"):
+                    shutil.copy(r["image"], each / Path(r["image"]).name)
+            src = Path(studio.last_phases[-1]["image"] or "").parent / "phases.json"
+            if src.exists():
+                shutil.copy(src, each / "phases.json")
         result["runs"].append(row)
         print(json.dumps({k: v for k, v in row.items() if k != "said"}, ensure_ascii=False), flush=True)
         (out / "bench.json").write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
