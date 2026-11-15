@@ -80,17 +80,32 @@ jobs:
     steps:
       - run: echo "CD_HOME=$RUNNER_TEMP/cd" >> "$GITHUB_ENV"
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: 測った版を置く（頼んだ物の検品は、その版の tagger で採点する）
+        run: |
+          ref="${{ matrix.side == 'before' && (inputs.before || 'main') || github.sha }}"
+          git rev-parse "origin/$ref" >/dev/null 2>&1 && ref="origin/$ref"
+          git worktree add "$RUNNER_TEMP/tree" "$ref"
+          cp tools/gen/qcbench.py "$RUNNER_TEMP/tree/tools/gen/qcbench.py"
+          rm -rf "$RUNNER_TEMP/tree/library" && cp -r library "$RUNNER_TEMP/tree/library"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
       - run: pip install -q pillow numpy huggingface_hub onnxruntime
+      - name: タグの模型を取る
+        working-directory: ${{ runner.temp }}/tree
+        run: |
+          python3 tools/gen/tagger.py setup
+          python3 -c "import sys; sys.path.insert(0, '.'); from chatdraw import requestcheck; requestcheck._tagger(True)"
       - uses: actions/download-artifact@v4
         with:
           pattern: qc-${{ matrix.side }}-*
           path: ${{ runner.temp }}/cd/qcbench
           merge-multiple: true
-      - name: 種類ごとの数字（貯めた結果で採点する。足りない絵だけ測る）
-        run: python3 tools/gen/qcbench.py --score-only --json "qcbench-${{ matrix.side }}.json" 2>&1 | grep -v "^取りこぼし" | tail -20
+      - name: 種類ごとの数字（貯めた結果で採点する）
+        working-directory: ${{ runner.temp }}/tree
+        run: python3 tools/gen/qcbench.py --score-only --json "$GITHUB_WORKSPACE/qcbench-${{ matrix.side }}.json" 2>&1 | grep -v "^取りこぼし" | tail -20
       - uses: actions/upload-artifact@v4
         with:
           name: qcbench-${{ matrix.side }}
