@@ -2134,8 +2134,8 @@ class Studio:
                     for (x0, y0, x1, y1), _kind in detail:
                         cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, y1 - y0) * 0.6
                         d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
-                    words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in detail))
-                    tried = self.painter.redraw(f"{prompt}, {words}, detailed", seed + 991, image, mask, strength=0.4)
+                    # 渡す言葉は頼みの訳だけ（five fingers などの頼んでいない言葉を足さない）
+                    tried = self.painter.redraw(prompt, seed + 991, image, mask, strength=0.4)
                     again = handcheck.check(tried, asked=prompt)
                     self.hand_rounds.append({"round": r, "detail": True, "bad": again["bad"]})
                     if not again["bad"]:
@@ -2151,9 +2151,8 @@ class Studio:
             for (x0, y0, x1, y1), _kind in regions:
                 cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, y1 - y0) * 0.6
                 d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
-            words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in regions))
             # 回を重ねるほど強く描き直す（弱いままだと崩れた指の形をなぞり、何回直しても同じ崩れが残った）
-            image = self.painter.redraw(f"{prompt}, {words}", seed + 77 * (r + 1), image, mask, strength=(0.55, 0.65, 0.75, 0.85, 0.9, 0.95)[min(r, 5)])
+            image = self.painter.redraw(prompt, seed + 77 * (r + 1), image, mask, strength=(0.55, 0.65, 0.75, 0.85, 0.9, 0.95)[min(r, 5)])
         return done(image)
 
     def _inspect(self, path: Path, say):
