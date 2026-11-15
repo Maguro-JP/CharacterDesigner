@@ -2,7 +2,7 @@
 
 `python3 tools/library_check.py` が書く。手で直さない。置き方の決まりは [docs/STRUCTURE.md](../docs/STRUCTURE.md)。
 
-全 788 枚（置き場 46 か所）。どこからも参照されていない絵 190 枚には「未参照」と付ける。
+全 793 枚（置き場 47 か所）。どこからも参照されていない絵 190 枚には「未参照」と付ける。
 
 ## 置き場の一覧
 
@@ -24,6 +24,7 @@
 | [`library/daily/2026-10-13/`](#library-daily-2026-10-13) | 日ごとの作例 | 3 |
 | [`library/daily/2026-10-15/`](#library-daily-2026-10-15) | 日ごとの作例 | 1 |
 | [`library/eyes/`](#library-eyes) | 目の資料集 | 18 |
+| [`library/feedback/3d/`](#library-feedback-3d) | フィードバックの成果物 | 5 |
 | [`library/feedback/animal/`](#library-feedback-animal) | フィードバックの成果物 | 18 |
 | [`library/feedback/app-e2e/`](#library-feedback-app-e2e) | フィードバックの成果物 | 1 |
 | [`library/feedback/baseline/`](#library-feedback-baseline) | フィードバックの成果物 | 2 |
@@ -174,6 +175,13 @@
 | <a href="eyes/eyes-aqua.jpg"><img src="eyes/eyes-aqua.jpg" width="150" alt="eyes-aqua.jpg"></a><br><sub>eyes-aqua.jpg</sub> | <a href="eyes/eyes-bird.jpg"><img src="eyes/eyes-bird.jpg" width="150" alt="eyes-bird.jpg"></a><br><sub>eyes-bird.jpg</sub> | <a href="eyes/eyes-blue.jpg"><img src="eyes/eyes-blue.jpg" width="150" alt="eyes-blue.jpg"></a><br><sub>eyes-blue.jpg</sub> | <a href="eyes/eyes-cat.jpg"><img src="eyes/eyes-cat.jpg" width="150" alt="eyes-cat.jpg"></a><br><sub>eyes-cat.jpg</sub> | <a href="eyes/eyes-closed.jpg"><img src="eyes/eyes-closed.jpg" width="150" alt="eyes-closed.jpg"></a><br><sub>eyes-closed.jpg</sub> | <a href="eyes/eyes-fox.jpg"><img src="eyes/eyes-fox.jpg" width="150" alt="eyes-fox.jpg"></a><br><sub>eyes-fox.jpg</sub> |
 | <a href="eyes/eyes-green.jpg"><img src="eyes/eyes-green.jpg" width="150" alt="eyes-green.jpg"></a><br><sub>eyes-green.jpg</sub> | <a href="eyes/eyes-grey.jpg"><img src="eyes/eyes-grey.jpg" width="150" alt="eyes-grey.jpg"></a><br><sub>eyes-grey.jpg</sub> | <a href="eyes/eyes-orange.jpg"><img src="eyes/eyes-orange.jpg" width="150" alt="eyes-orange.jpg"></a><br><sub>eyes-orange.jpg</sub> | <a href="eyes/eyes-owl.jpg"><img src="eyes/eyes-owl.jpg" width="150" alt="eyes-owl.jpg"></a><br><sub>eyes-owl.jpg</sub> | <a href="eyes/eyes-purple.jpg"><img src="eyes/eyes-purple.jpg" width="150" alt="eyes-purple.jpg"></a><br><sub>eyes-purple.jpg</sub> | <a href="eyes/eyes-rabbit.jpg"><img src="eyes/eyes-rabbit.jpg" width="150" alt="eyes-rabbit.jpg"></a><br><sub>eyes-rabbit.jpg</sub> |
 | <a href="eyes/eyes-red.jpg"><img src="eyes/eyes-red.jpg" width="150" alt="eyes-red.jpg"></a><br><sub>eyes-red.jpg</sub> | <a href="eyes/eyes-snake.jpg"><img src="eyes/eyes-snake.jpg" width="150" alt="eyes-snake.jpg"></a><br><sub>eyes-snake.jpg</sub> | <a href="eyes/eyes-wink.jpg"><img src="eyes/eyes-wink.jpg" width="150" alt="eyes-wink.jpg"></a><br><sub>eyes-wink.jpg</sub> | <a href="eyes/eyes-wolf.jpg"><img src="eyes/eyes-wolf.jpg" width="150" alt="eyes-wolf.jpg"></a><br><sub>eyes-wolf.jpg</sub> | <a href="eyes/sheet-colors.jpg"><img src="eyes/sheet-colors.jpg" width="150" alt="sheet-colors.jpg"></a><br><sub>sheet-colors.jpg</sub> | <a href="eyes/sheet-shapes-animals.jpg"><img src="eyes/sheet-shapes-animals.jpg" width="150" alt="sheet-shapes-animals.jpg"></a><br><sub>sheet-shapes-animals.jpg</sub> |
+
+<a id="library-feedback-3d"></a>
+## library/feedback/3d/
+
+|   |   |   |   |   |
+|---|---|---|---|---|
+| <a href="feedback/3d/2026-11-15/swordswoman/swordswoman-back-s0.jpg"><img src="feedback/3d/2026-11-15/swordswoman/swordswoman-back-s0.jpg" width="150" alt="swordswoman-back-s0.jpg"></a><br><sub>swordswoman-back-s0.jpg</sub> | <a href="feedback/3d/2026-11-15/swordswoman/swordswoman-front-s0.jpg"><img src="feedback/3d/2026-11-15/swordswoman/swordswoman-front-s0.jpg" width="150" alt="swordswoman-front-s0.jpg"></a><br><sub>swordswoman-front-s0.jpg</sub> | <a href="feedback/3d/2026-11-15/swordswoman/swordswoman-input-s0.jpg"><img src="feedback/3d/2026-11-15/swordswoman/swordswoman-input-s0.jpg" width="150" alt="swordswoman-input-s0.jpg"></a><br><sub>swordswoman-input-s0.jpg</sub> | <a href="feedback/3d/2026-11-15/swordswoman/swordswoman-pose-s0.jpg"><img src="feedback/3d/2026-11-15/swordswoman/swordswoman-pose-s0.jpg" width="150" alt="swordswoman-pose-s0.jpg"></a><br><sub>swordswoman-pose-s0.jpg</sub> | <a href="feedback/3d/2026-11-15/swordswoman/swordswoman-side-s0.jpg"><img src="feedback/3d/2026-11-15/swordswoman/swordswoman-side-s0.jpg" width="150" alt="swordswoman-side-s0.jpg"></a><br><sub>swordswoman-side-s0.jpg</sub> |
 
 <a id="library-feedback-animal"></a>
 ## library/feedback/animal/
