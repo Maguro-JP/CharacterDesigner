@@ -1,0 +1,93 @@
+# 全部の加工と修正を、本物の絵の模型（animagine-xl-4.0）で描いた 1 枚に、アプリと同じ関数を通して掛ける（chatdraw/finish_verify.py）。
+# 項目ごとに前と後を並べた絵と、変わった画素の数・囲みの外の変わり・知らせの文を artifact に残す。
+# 手元の試験の模型は重みが乱数なので、効いたか・崩れたかはここでしか見られない
+name: finish-verify
+on:
+  workflow_dispatch:
+  push:
+    branches: ["claude/FIX-finishreal-*"]
+    paths:
+      - "chatdraw/finish_verify.py"
+      - "chatdraw/finishers.py"
+      - "chatdraw/restyle.py"
+      - ".github/workflows/finish-verify.yml"
+permissions:
+  contents: read
+env:
+  SETUP: |
+    pip install -q torch --index-url https://download.pytorch.org/whl/cpu
+    pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy scikit-image ai-edge-litert onnxruntime
+jobs:
+  draw:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: eval "$SETUP"
+      - env:
+          CD_HOME: ${{ runner.temp }}/cd
+        run: python -u -m chatdraw.finish_verify draw out
+      - uses: actions/upload-artifact@v4
+        with:
+          name: finish-verify-before
+          path: out
+          retention-days: 14
+  apply:
+    needs: draw
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - tag: light
+            items: >-
+              fin:clean fin:retouch fin:retouch_full fin:face fin:around fin:detail fin:ink fin:air_holy fin:air_komorebi fin:air_haze
+              fin:mat_metal fin:mat_gem fin:mat_slime combo:tidy combo:tidy_color fin:upscale_anime
+              app:lineart app:pixel app:nobg app:transparent app:upscale2x req:線を整える req:ゴミの点を消す req:余計な物を消す
+          - {tag: refine, items: "fin:refine"}
+          - {tag: fix, items: "fix:髪を赤くして fix:目を閉じて req:指の形を整える"}
+          - {tag: anime, items: "fin:style_anime"}
+          - {tag: thick, items: "fin:style_thick"}
+          - {tag: watercolor, items: "fin:style_watercolor"}
+          - {tag: lineart, items: "fin:style_lineart"}
+          - {tag: cel, items: "fin:style_cel"}
+          - {tag: pencil, items: "fin:style_pencil"}
+          - {tag: colored_pencil, items: "fin:style_colored_pencil"}
+          - {tag: sumie, items: "fin:style_sumie"}
+          - {tag: gouache, items: "fin:style_gouache"}
+          - {tag: marker, items: "fin:style_marker"}
+          - {tag: manga, items: "fin:style_manga"}
+          - {tag: figure, items: "fin:style_figure"}
+          - {tag: pixel, items: "fin:style_pixel"}
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    env:
+      CD_FETCH: "1"
+      CD_HOME: ${{ runner.temp }}/cd
+      LLM_HOME: ${{ runner.temp }}/llm
+      CD_VERIFY_TAG: ${{ matrix.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1
+      # 絵の模型と Union を CPU で並べて置くと 16GB を超えて落ちた（restyle-verify）。足りない分をスワップで受ける
+      - run: sudo swapoff -a; sudo fallocate -l 24G /swapfile2 && sudo chmod 600 /swapfile2 && sudo mkswap /swapfile2 && sudo swapon /swapfile2; free -g
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: eval "$SETUP"
+      - uses: actions/download-artifact@v4
+        with:
+          name: finish-verify-before
+          path: before
+      - run: python -u -m chatdraw.finish_verify apply before/before.png out ${{ matrix.items }}
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: finish-verify-${{ matrix.tag }}
+          path: |
+            out/*.jpg
+            out/*.json
+          retention-days: 14
