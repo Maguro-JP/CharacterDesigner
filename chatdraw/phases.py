@@ -18,6 +18,8 @@
 - 工程の始めには必ず「工程 i/n「名前」」の知らせを出す。アプリの進みの帯はこれで全体の進みを出す
 - 前の工程の絵に描き重ねたら、前の絵の色と明るさに合わせる（phasetools.guard）。合わせても霞み・枠・色褪せが残れば前の絵を使う。
   下描きは線に沿って白紙から描き直す形より、描き重ね（Painter.refine）を先にする（線に沿う形では霞み・枠・服の変わりが出た）
+- 同じ物を 2 度描かない。選んだサムネイルはそのままアタリにし、手・足・顔の崩れで下描きへ戻ったときは絵全体を描き重ね直さず、
+  前の下描きの崩れた枠の中だけを、直しを重ねるたびに強くして直す（FIXES）
 - 確かめ（confirm）を渡すと、工程が終わるたびに呼び、「進める」「この工程を描き直す」「言葉を足して描き直す」を受ける
 - 止める旗が立ったら、その工程の区切りで止まる
 """
@@ -47,11 +49,13 @@ PHASES = [
 NAMES = [p[0] for p in PHASES]
 THUMBS = 2            # サムネイルの枚数
 THUMB_SCALE = 1.0     # サムネイルの大きさ（描く大きさの割合）。同じ種・同じ大きさならアタリが同じ構図になるので縮めない
-THUMB_STEPS = 0.5     # サムネイルの描く工程の数の割合（0.25 ではぼやけた絵になり、描き重ねるとぼやけと霞みが最後まで残った）
+THUMB_STEPS = 1.0     # サムネイルの描く工程の数の割合。選んだサムネイルをそのままアタリにする（半分の工程で描いてから同じ種でアタリを
+                      # 描き直すと、同じ構図を 2 度描いて 214 秒かかり、描き直した絵は別の色になった。0.25 ではぼやけた絵になった）
 LINE_STRENGTH = 0.6   # 下描き: アタリの線に沿う強さ（T2I-Adapter の効き。0.8 では霞みと枠が出た）
 REFINE = 0.45         # 下描き: アタリの絵に描き重ねる強さ（色と明るさを残す）
 REPAINT = 0.35        # 服・髪・持ち物: 描かれていない物を足すときの描き直しの強さ（形は残す）
-FIX = 0.55            # 顔・手・足の直し: 崩れた枠の中だけを描き直す強さ
+FIX = 0.55            # 顔・手・足の直し: 崩れた枠の中だけを描き直す強さ（1 回目）
+FIXES = (0.55, 0.7, 0.85, 0.95)   # 直しを重ねるたびに強くする。同じ強さで戻って直すと崩れた指の形をなぞり、下描きから最後まで同じ崩れが残った
 SHINE = 0.35          # 目の光の直し: 目の囲みの中だけを描き直す強さ
 COLORS_MOST = 14      # 下塗り: 人物の 2% 以上を占める色がこれより多ければ、色が散っている（私の推測）
 BACKS = 3             # 戻って直すのは全体でこの回数まで
@@ -206,6 +210,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         say(f"{WORDS_NOTE}{words}")
 
     tones = []
+    memo = {"thumbs": {}, "fix_n": 0, "draft": None, "refix": False}   # 描いた絵を使い回す（同じ種・同じ言葉の絵は 2 度描かない）
 
     def keep_tone(img, ref, where, mask=None):
         """描き重ねた絵を、前の工程の絵の色と明るさに合わせる（霞み・枠・色褪せを次の工程へ持ち越さない）"""
@@ -247,10 +252,13 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         if not regions or not can_fix:
             return img, res, False
         words = st["prompt"]
-        say(f"崩れた所を 1 回だけ直しています（{len(regions)} か所、囲みの中だけ）")
+        k = memo["fix_n"]
+        memo["fix_n"] += 1
+        strength = FIXES[min(k, len(FIXES) - 1)]
+        say(f"崩れた所を 1 回だけ直しています（{len(regions)} か所、囲みの中だけ、強さ {strength}）")
         tell(words)
         words_used.append(words)
-        tried = painter.redraw(words, s, img, _mask(img.size, regions), strength=FIX)
+        tried = painter.redraw(words, s + 13 * k, img, _mask(img.size, regions), strength=strength)
         again = checks.hands(tried, st["prompt"])
         if again.get("readable") and len(again.get("bad", [])) <= len(res.get("bad", [])):
             return tried, again, True
@@ -275,6 +283,8 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                 tell(st["prompt"])
                 words.append(st["prompt"])
                 img = painter.paint(st["prompt"], s, on_step=on_step, size=(tw, th), **pv)
+                if THUMB_SCALE >= 1 and THUMB_STEPS >= 1:
+                    memo["thumbs"][(st["prompt"], s)] = img
                 req = checks.request(img, st["prompt"])
                 wt = pt.thumb_weight(img)
                 flaws = _people(req) + _missing(req) + (["画面の重さが片寄っている"] if wt["weight_x"] > pt.WEIGHT_MOST else [])
@@ -282,17 +292,23 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                 score = (len(flaws), wt["weight_x"])
                 if best is None or score < best[0]:
                     best = (score, img, s, flaws, req)
+                rows[-1]["score"] = list(score)
                 del img
                 gc.collect()
         finally:
             unsteps(s0)
         _score, img, s, flaws, req = best
         st["thumb"], st["seed_pick"] = img, s
+        st["seed_next"] = [r["seed"] for r in sorted(rows, key=lambda r: tuple(r["score"])) if r["seed"] != s]
         say(f"サムネイル {THUMBS} 枚のうち、種 {s} の構図を選びました（崩れ {len(flaws)}）")
         return {"image": img.resize((w, h)), "found": flaws, "numbers": {"thumbs": rows, "picked": s}, "words": words,
                 "readable": bool(req.get("readable"))}
 
     def atari(s, words):
+        got = memo["thumbs"].get((st["prompt"], s))
+        if got is not None:   # 同じ種・同じ大きさ・同じ工程の数で描いたサムネイルがあれば、それがそのままアタリ（描き直さない）
+            say(f"サムネイル（種 {s}）をそのままアタリにします")
+            return got
         s0 = steps(1.0)
         try:
             tell(st["prompt"])
@@ -326,7 +342,8 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             stop()
             say("アタリの崩れを直すため、種を変えたアタリを 1 回だけ描いています")
             st["thumb"] = None   # 種を変えたら、サムネイルに縛らずに描く
-            again = atari(s + 1, words)
+            nxt = [x for x in st.get("seed_next") or [] if (st["prompt"], x) in memo["thumbs"]]
+            again = atari(nxt[0] if nxt and not v else s + 1, words)   # 次に良かったサムネイルがあれば、描かずに使う
             after, nums2, pts2, bal2, ok2 = atari_flaws(again)
             fixed = True
             if len(after) < len(found):
@@ -351,7 +368,15 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         img, words, note = st["image"], [], ""
         s = st["seed"] + v * 1000
         base = img
-        if can_refine:   # 描き重ね（絵から絵）を先にする。線に沿って白紙から描き直すと、霞み・枠・色褪せと服の変わりが出た
+        prev = memo["draft"]
+        refix = memo["refix"] and prev is not None and prev[0] == st["prompt"] and can_fix
+        memo["refix"] = False
+        if refix:
+            # 手・足・顔の崩れで戻ったときは、絵全体を描き重ね直さない。前の下描きを土台に、崩れた枠の中だけを強くして直す
+            # （描き重ね直すたびに絵全体が変わって色が褪せ、崩れた指は同じ形のまま残った）
+            img = prev[1]
+            say("前の下描きを土台に、崩れた手・足・顔の枠の中だけを直し直します")
+        elif can_refine:   # 描き重ね（絵から絵）を先にする。線に沿って白紙から描き直すと、霞み・枠・色褪せと服の変わりが出た
             say("アタリの絵に描き重ねて、顔・手・足を描き込んでいます")
             tell(st["prompt"])
             words.append(st["prompt"])
@@ -375,6 +400,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         tilt2 = pt.eye_tilt(pts2)
         after = list(res2.get("bad", [])) + ([f"左右の目の高さがずれている（{tilt2}）"] if tilt2 is not None and tilt2 > pt.EYE_TILT else [])
         st["points"] = pts2
+        memo["draft"] = (st["prompt"], img)
         return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "note": note,
                 "numbers": {"eye_tilt": tilt2, "bad": len(res2.get("bad", []))}, "readable": bool(res.get("readable")), "back": 4}
 
@@ -543,6 +569,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             entry[i] = dict(st)   # 戻るときは、この工程に入ったときの土台から描き直す
         saved = None
         say(f"工程 {i + 1}/{n}「{name}」: {PHASES[i][1]}（見る物: {PHASES[i][2]}）")
+        tones.clear()   # 色合わせの記録はこの回の分だけを残す（前は戻るたびに前の回の分が重なった）
         t0 = time.time()
         try:
             got = run[i](visits[i])
@@ -599,6 +626,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         if left and back is not None and backs < BACKS and visits[back] < REVISIT:
             backs += 1
             visits[back] += 1
+            memo["refix"] = back == 4 and bool(got.get("hands_left", True))
             say(f"「{name}」の崩れは工程 {back + 1}「{PHASES[back][0]}」で決まるので、そこへ戻って直します（{backs}/{BACKS} 回目）")
             st.clear()
             st.update(entry[back])

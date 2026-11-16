@@ -126,9 +126,23 @@ class PhasesTest(unittest.TestCase):
 
     def test_thumbnails_small_and_picked(self):
         got, painter, *_ = self.run_phases(always_bad=False)
-        thumbs = [x for x in painter.log if x[0] == "paint" and x[4] and x[2] == 10]
-        self.assertEqual(len(thumbs), phases.THUMBS)   # 工程の数を半分にした絵を何枚か
+        paints = [x for x in painter.log if x[0] == "paint" and not x[3]]   # 下描きの線に沿う描き（base あり）は除く
+        # サムネイルは工程の数を減らさずに何枚か描き、選んだ 1 枚をそのままアタリにする（同じ構図を 2 度描かない）
+        self.assertEqual(len(paints), phases.THUMBS, painter.log)
+        self.assertTrue(all(x[2] == 20 for x in paints))
         self.assertIn("picked", got["phases"][1]["numbers"])
+
+    def test_back_to_draft_fixes_regions_only_and_stronger(self):
+        """手の崩れで下描きへ戻ったら、絵全体を描き重ね直さず、崩れた枠の中だけを前より強く直す"""
+        class P(Painter):
+            def refine(self, prompt, seed, image, strength=0.5, on_step=None, on_preview=None):
+                self.log.append(("refine", seed, strength))
+                return image.copy()
+        got, painter, *_ = self.run_phases(always_bad=True, painter=P())
+        self.assertEqual(sum(1 for x in painter.log if x[0] == "refine"), 1, painter.log)
+        fixes = [x[2] for x in painter.log if x[0] == "redraw" and x[2] in phases.FIXES]
+        self.assertGreaterEqual(len(fixes), 2, painter.log)
+        self.assertEqual(fixes, sorted(fixes))   # 直しを重ねるたびに強くする
 
     def test_clean_after_first_fix(self):
         got, painter, seen, said, files = self.run_phases(always_bad=False)
@@ -263,6 +277,26 @@ class ToneGuardTest(unittest.TestCase):
         out, rec = pt.guard(hazy, ref)
         self.assertTrue(rec["raw_flaws"])
         self.assertEqual(pt.tone_flaws(pt.tone(out), pt.tone(ref)), [])
+
+    def test_clean_redraw_kept_as_is(self):
+        """崩れの無い描き重ねには色合わせを掛けない（掛けると白い背景で色が灰色に寄った）"""
+        import numpy as np
+        from chatdraw import phasetools as pt
+        ref = figure((128, 192))
+        raw = ref.rotate(1, fillcolor="white")
+        out, rec = pt.guard(raw, ref)
+        self.assertFalse(rec["matched"])
+        self.assertTrue((np.asarray(out) == np.asarray(raw)).all())
+
+    def test_match_keeps_saturation(self):
+        """色合わせで彩度を下げない（R・G・B を別々に合わせると、白い背景の絵で彩度 20.4 → 12.9 に落ちた）"""
+        from PIL import Image, ImageDraw
+        from chatdraw import phasetools as pt
+        ref = Image.new("RGB", (128, 192), (250, 250, 250))
+        ImageDraw.Draw(ref).rectangle([30, 40, 90, 180], fill=(200, 30, 40))
+        ImageDraw.Draw(ref).rectangle([40, 60, 80, 100], fill=(20, 20, 60))
+        hazy = Image.blend(ref, Image.new("RGB", ref.size, (200, 200, 200)), 0.3)
+        self.assertGreaterEqual(pt.tone(pt.match_colors(hazy, ref))["sat"], pt.tone(hazy)["sat"])
 
     def test_mask_keeps_outside(self):
         import numpy as np
