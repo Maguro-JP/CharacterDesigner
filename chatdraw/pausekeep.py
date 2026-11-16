@@ -31,8 +31,9 @@ class Paused(Exception):
 def root() -> Path:
     if ROOT is not None:
         return ROOT
-    from chatdraw.project import autosave_path
-    return autosave_path().parent / "paused"
+    # project.autosave_path() と同じ置き場（HOME/autosave）。描く処理から画面の部品（PySide6）を読まないよう、ここで組む
+    from chatdraw.paths import HOME
+    return HOME / "autosave" / "paused"
 
 
 def key(*parts) -> str:
