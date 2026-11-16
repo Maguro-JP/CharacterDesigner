@@ -39,10 +39,18 @@ def box_for(size):
     return (int(w * 0.3), int(h * 0.08), int(w * 0.7), int(h * 0.38))
 
 
+def _on_grey(img, size):
+    """透過した所も変わりに数えるよう、灰色の地に重ねた RGB にする"""
+    from PIL import Image
+    bg = Image.new("RGBA", size, (200, 200, 200, 255))
+    bg.alpha_composite(img.convert("RGBA").resize(size))
+    return bg.convert("RGB")
+
+
 def stats(before, after, mask=None) -> dict:
     import numpy as np
     a = np.asarray(before.convert("RGB")).astype(int)
-    b = np.asarray(after.convert("RGB").resize(before.size)).astype(int)
+    b = np.asarray(_on_grey(after, before.size)).astype(int)
     d = np.abs(a - b).max(2)
     out = dict(changed=int((d > 8).sum()), visible=int((d > 32).sum()), mean=round(float(np.abs(a - b).mean()), 3),
                pixels=int(d.size), size_after=list(after.size))

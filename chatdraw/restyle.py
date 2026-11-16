@@ -65,13 +65,17 @@ NEGATIVE = "lowres, bad anatomy, bad hands, extra fingers, missing fingers, defo
 LINES = 3                 # Union の線の型（canny・lineart・anime lineart）
 CONTROL = 0.8             # 線の縛りの強さ
 CONTROL_END = 0.9         # 工程のこの割合まで線で縛る（終わりだけ自由にして塗りをなじませる）
-STRENGTH_STEPS = (1.0, 0.75, 0.55)   # 崩れたときに強さに掛ける倍率（順に試す）
+STRENGTH_STEPS = (1.0, 0.75, 0.55, 0.4, 0.25)   # 崩れたときに強さに掛ける倍率（順に試す）。下げきる前に断らない
+# 顔の崩れ: 形の変わり（drift）と線の残り（line_kept）は絵全体で測るので、顔が絵の 2% ほどの全身の絵では、フィギュア風で
+# 目が消えて顔がのっぺらぼうになっても通った（見本の雪女で drift 0.024・線の残り 0.65）。部位分けで目の位置を前と後で測り、
+# 目が消えた・動いた絵は崩れとして強さを下げる
+FACE_EYE_MOVE = 0.08      # 目の位置の動き（顔の高さに対する割合）の上限。崩れた見本は 0.23 だった
 LINE_KEEP = 0.35          # 元の線の画素のうち、描いたあとも線の近く（2 画素）に残る割合の下限
 SHAPE_DRIFT = 0.08        # 縮めた明るさの形の変わり（retouch.drift）の上限。画風は色を変えるので綺麗化（0.02）より緩い
 # 線画の画風は色を除くのが仕事で、黒い髪・濃い服が白くなるので、明るさの形の変わり（drift）は崩れでなくても必ず大きく出る。
 # 線画は形を元の線の残り（LINE_KEEP）だけで見る
 STYLE_DRIFT = {"lineart": None}
-WORK_SIDE = 1024          # 描く大きさの長い辺。大きな絵は縮めて描き、元の大きさに戻す
+WORK_SIDE = 1024          # 描く大きさの長い辺。大きな絵は縮め、小さな絵は広げて描き、元の大きさに戻す
 
 _CACHE: dict = {}
 LAST: dict = {}           # 直前の加工の強さと検品（画面の知らせと試験が読む）
@@ -155,7 +159,28 @@ def check(src, out, kind: str = "") -> dict:
     k = line_kept(src, out.resize(src.size))
     limit = STYLE_DRIFT.get(kind, SHAPE_DRIFT)
     why = (f"形が変わりすぎる（{d:.3f}）" if limit is not None and d > limit else f"元の線が消える（残り {k:.0%}）" if k < LINE_KEEP else "")
-    return dict(drift=round(d, 4), line_kept=round(k, 3), why=why)
+    face = face_broken(src, out)
+    if not why and face.get("why"):
+        why = face["why"]
+    return dict(drift=round(d, 4), line_kept=round(k, 3), why=why, face=face.get("move"))
+
+
+def face_broken(src, out) -> dict:
+    """顔の崩れ（目が消えた・動いた）。部位分けの模型が無い・元の絵に目が無いときは測らない（空の why）"""
+    from chatdraw import facefeat
+    if not facefeat.ready():
+        return {}
+    try:
+        f0 = facefeat.features(src.convert("RGB"))
+        if not f0.get("eyes"):
+            return {}
+        f1 = facefeat.features(out.convert("RGB").resize(src.size))
+    except Exception:   # noqa: BLE001  測れないときは形と線の検品だけで見る
+        return {}
+    if "face_box" not in f1:
+        return dict(move=1.0, why="顔が消える")
+    move = facefeat.compare(f0, f1).get("move", 1.0)
+    return dict(move=move, why=f"目の位置が崩れる（{move:.2f}）" if move > FACE_EYE_MOVE else "")
 
 
 def post(kind: str, img):
@@ -187,7 +212,9 @@ def restyle(painter, image, kind: str, seed: int = 0, say=None, source: str = ""
     style = style or {s[0]: s for s in STYLES}[kind]
     src = image.convert("RGB")
     W, H = src.size
-    k = min(1.0, WORK_SIDE / max(W, H))
+    # 小さな絵も WORK_SIDE まで広げて描く。SDXL は 1024 前後で描く模型で、512×768 のまま描き替えると、顔（70 画素ほど）の目が
+    # ずれて崩れた（見本の雪女で 13 の画風すべて、目の位置の動き 0.11〜0.36）
+    k = WORK_SIDE / max(W, H)
     w, h = max(8, round(W * k / 8) * 8), max(8, round(H * k / 8) * 8)
     small = src.resize((w, h), Image.LANCZOS)
     ctrl = control_lines(small)

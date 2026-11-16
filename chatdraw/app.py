@@ -7248,14 +7248,15 @@ class Window(QMainWindow):
         if f is not None and f.group == "style" and out.size == base.size:
             from chatdraw import restyle
             self.put_result(str(path), f"画風: {f.label}")   # 一番上の新しいレイヤーに置いて選ぶ。元の絵は下に残す
-            self.notify(f"{f.label}に描き替えました（新しいレイヤー）", "ok", restyle.note() + "見比べて、使うか消すかを決めてください")
+            self.notify(f"{f.label}に描き替えました（新しいレイヤー）", "ok",
+                        restyle.note() + finishers.change_note(base, out) + "見比べて、使うか消すかを決めてください")
             return path
         if out.size == base.size:
             self.put_result(str(path), "綺麗にした絵")   # 元の絵は下に残す
             self.canvas.fit()   # 結果は全体表示で見せる
         else:
             self.put_result(str(path), "綺麗にした絵（拡大）", replace=True)   # 拡大した絵（元に戻すで戻せる）
-        self.notify("綺麗にしました（新しいレイヤー）", "ok", "見比べて、使うか消すかを決めてください")
+        self.notify("綺麗にしました（新しいレイヤー）", "ok", finishers.change_note(base, out) + "見比べて、使うか消すかを決めてください")
         return path
 
     def outpaint_canvas(self, left: int, top: int, right: int, bottom: int, background: bool = False):
