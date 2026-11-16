@@ -214,7 +214,50 @@ def cpu_dtype(gb_half: float):
         return torch.bfloat16
     if total_ram_gb() >= gb_half * 2 * 1.3:
         return torch.float32
-    return torch.bfloat16
+    return torch.bfloat16   # 読むのは bf16。入るなら読んだあとに本体だけ float32 に替える（cpu_upcast）
+
+
+DENOISER_SHARE = 0.75   # 模型の重みのうち、歩ごとに回す本体（UNet、transformer）の割合（SDXL は 5.1GB / 6.9GB）
+
+
+def cpu_upcast_fits(gb_half: float) -> bool:
+    """bf16 の命令の無い CPU で、本体と VAE だけを float32 にして RAM に入るか。
+    Actions の 16GB の機械で、命令の無い CPU に当たった回だけ SDXL の 1 歩が 9 秒から約 36 分になった（同じコミットの 2 つの機械で確かめた）。
+    bf16 の畳み込みを命令なしでまねると数百倍遅い。全部を float32 にすると 16GB に入らないので、歩ごとに回す所だけを float32 にする"""
+    return total_ram_gb() >= gb_half * (DENOISER_SHARE * 2 + (1 - DENOISER_SHARE)) * 1.2
+
+
+def _to_dtype(x, dtype):
+    import torch
+    if isinstance(x, torch.Tensor):
+        return x.to(dtype) if x.is_floating_point() and x.dtype != dtype else x
+    if isinstance(x, dict):
+        return {k: _to_dtype(v, dtype) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return type(x)(_to_dtype(v, dtype) for v in x)
+    return x
+
+
+def cpu_upcast(pipe, say=None) -> bool:
+    """bf16 で読んだ模型を、bf16 の遅い CPU では本体（unet、transformer）と VAE だけ float32 に替える。
+    文字の部品は 1 回しか回らないので bf16 のまま（RAM を節約）。本体に入る bf16 の値は、入口で float32 にそろえる。
+    替えたら True。.to は重みを 1 つずつ替えるので、模型の 2 倍の山にはならない"""
+    import torch
+    if torch.cuda.is_available() or bf16_fast():
+        return False
+    changed = False
+    for name in ("unet", "transformer", "vae"):
+        part = getattr(pipe, name, None)
+        first = next(iter(part.parameters()), None) if isinstance(part, torch.nn.Module) else None
+        if first is None or first.dtype != torch.bfloat16:
+            continue
+        part.to(torch.float32)
+        part.register_forward_pre_hook(lambda m, a, kw: (_to_dtype(a, torch.float32), _to_dtype(kw, torch.float32)),
+                                       with_kwargs=True)
+        changed = True
+    if changed and say:
+        say("この CPU は bf16 の計算が遅いので、描く本体を float32 にして描きます（文字の部品は bf16 のまま）")
+    return changed
 
 
 def gpu_dtype(family: str):
@@ -1140,6 +1183,7 @@ class Painter:
             from chatdraw.membudget import exclusive
             exclusive(("painter", id(self)), self.unload)   # 模型はいつも 1 つだけ。ほかの模型を降ろしてから読む
             self._pipe = self._read()
+            self._cpu_dtype_fix()
             from chatdraw.models import image_model
             use_vpred(self._pipe, image_model(self.model)) or use_scheduler(self._pipe, image_model(self.model))
             self._place(self._pipe)
@@ -1199,6 +1243,20 @@ class Painter:
                 kw["quantization_config"] = q
                 self.quantized = True
         return cls.from_pretrained(self.model, **kw)
+
+    def _cpu_dtype_fix(self):
+        """CPU で bf16 で読んだときに、bf16 の遅い CPU なら本体だけ float32 に替える（cpu_upcast）。替えられなければ遅い形だと知らせる"""
+        if "bfloat16" not in str(getattr(self, "dtype", "")):
+            return
+        from chatdraw.models import image_model
+        try:
+            if cpu_upcast_fits(image_model(self.model).gb or 7) and cpu_upcast(self._pipe, self._note):
+                return
+            note = dtype_note(self.dtype)
+        except Exception:   # noqa: BLE001  替えられなくても bf16 のまま描く
+            return
+        if note:
+            self._note(note)   # 遅い形で描くときは、進みの欄に必ず出す
 
     def _place(self, pipe):
         """GPU のメモリに合わせて置き方を決める（diffusers の公式の方法）。
