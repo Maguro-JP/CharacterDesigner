@@ -66,8 +66,6 @@ jobs:
     timeout-minutes: 300
     env:
       CD_FETCH: "1"
-      CD_HOME: ${{ runner.temp }}/cd
-      LLM_HOME: ${{ runner.temp }}/llm
       CD_VERIFY_TAG: ${{ matrix.tag }}
     steps:
       - uses: actions/checkout@v4
@@ -82,7 +80,10 @@ jobs:
         with:
           name: finish-verify-before
           path: before
-      - run: python -u -m chatdraw.finish_verify apply before/before.png out ${{ matrix.items }}
+      - env:
+          CD_HOME: ${{ runner.temp }}/cd
+          LLM_HOME: ${{ runner.temp }}/llm
+        run: python -u -m chatdraw.finish_verify apply before/before.png out ${{ matrix.items }}
       - uses: actions/upload-artifact@v4
         if: always()
         with:
