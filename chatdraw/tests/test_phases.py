@@ -525,6 +525,19 @@ class PreviewTest(unittest.TestCase):
             phases.draw(Painter(), "red hair, 1girl", 1, (64, 64), Path(d), checks=checks(False)[0], on_preview=shown.append)
         self.assertGreaterEqual(len(shown), len(phases.PHASES))
 
+    def test_model_image_is_not_shown_first(self):
+        """窓に最初に出るのは白い紙で、模型の完成した絵（拡散の途中の絵も）を先に見せない。描き終えたら人の工程の絵とタイムラプスが残る"""
+        import numpy as np
+        shown = []
+        with TemporaryDirectory() as d:
+            got = phases.draw(Painter(), "red hair, 1girl", 1, (64, 96), Path(d), checks=checks(False)[0], on_preview=shown.append)
+            self.assertTrue(got["timelapse"] and Path(got["timelapse"]).exists())
+            self.assertEqual([n for n, _p in got["stages"]][0], "白紙")
+            self.assertEqual(got["stages"][-1][0], "仕上げ")
+        self.assertEqual(np.asarray(shown[0]).min(), 255)
+        model = figure((64, 96)).tobytes()
+        self.assertFalse(any(im.tobytes() == model for im in shown[:-1]))
+
 
 class NoSketchModelTest(unittest.TestCase):
     """線に沿う部品も範囲の直しも無い世代（FLUX.1 など）でも、線画と塗りの工程を描き重ねで進める（前は構図の絵のまま止まっていた）"""

@@ -224,3 +224,8 @@ CodeFormer（S-Lab License 1.0、商用不可）は配布に合わないので�
 - 技術評論社、CLIP STUDIO PAINT の解説の見本（アタリ・下描き → 線画 → 下塗り → 影 → 仕上げの順）: https://gihyo.jp/assets/files/book/2023/978-4-297-13561-4/9784297135614-01.pdf
 - 京都府、コンテンツを学ぶ「勝手読書会」第2回: アニメ制作（絵コンテ → レイアウト → 原画 → 作画監督の修正 → 動画 → 仕上げ）: https://www.pref.kyoto.jp/sangyo-sien/mediastudy002.html
 - 厚生労働省の資料（アニメの制作の工程: 動画 → スキャン → 彩色 → 仕上げ検査）: https://www.mhlw.go.jp/content/11901000/001152417.pdf
+
+## キャンバスに見える物の順（`docs/knowledge/drawing-phases.md` の「キャンバスに見える物」、`chatdraw/humanpaint.py`、2026-11-16）
+
+- pixivision、初心者向けのイラストの 4 段（アタリ → ラフ。全体の 7 割はここで決まる → 線画を清書してラフを消す → 色を決める → 髪・肌・服の下塗り、光源に合わせた影、グラデーションと光）: https://www.pixivision.net/en/a/1803
+- Creative Bloq、Procreate でアニメの人物を描く（ラフ → 線画 → 下塗り → 人物の形の中だけに影を 1 つずつ重ねる → グラデーションと光は最後）: https://www.creativebloq.com/how-to/draw-an-anime-character-in-procreate

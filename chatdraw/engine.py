@@ -2184,6 +2184,8 @@ class Studio:
             if hasattr(self.painter, "avoid"):
                 self.painter.avoid = avoid0
         self.last_phases = got["phases"]
+        self.last_stages = got.get("stages") or []        # 人の工程の絵 [(名前, 道)]（白紙 → ラフ → … → 仕上げ）
+        self.last_timelapse = got.get("timelapse")         # 筆が動くタイムラプスの GIF
         left, checked = got["left"], got["checked"]
         if left:
             say("工程を全部通しても崩れが残りました（途中）: " + "、".join(left[:5]))
@@ -2191,7 +2193,7 @@ class Studio:
             say("検品できなかった工程があるので、通ったかは分かりません（途中）")
         path = self._save(got["image"], seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style,
                                                    model=getattr(self.painter, "model", ""), way="phases", stages=str(keep),
-                                                   phases=got["phases"], passed=checked and not left))
+                                                   phases=got["phases"], timelapse=got.get("timelapse"), passed=checked and not left))
         self._inspect(path, say)
         return prompt, path
 

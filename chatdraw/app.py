@@ -3044,7 +3044,19 @@ class Window(QMainWindow):
         rows = getattr(self.studio, "last_phases", None) if self.job_kind == "draw" else None
         if not rows:
             return
-        self.canvas.add_phase_layers([(f"工程 {i}: {r['phase']}", r["image"]) for i, r in enumerate(rows, 1) if r.get("image")])
+        stages = getattr(self.studio, "last_stages", None) or []
+        if stages:   # 人の工程の絵（白紙 → ラフ → 線画 → 下塗り → 影 → 光 → 背景 → ディテール → 仕上げ）をレイヤーに置く
+            self.canvas.add_phase_layers([(f"工程 {i}: {name}", p) for i, (name, p) in enumerate(stages, 1)])
+        else:
+            self.canvas.add_phase_layers([(f"工程 {i}: {r['phase']}", r["image"]) for i, r in enumerate(rows, 1) if r.get("image")])
+        gif = getattr(self.studio, "last_timelapse", None)
+        if gif and self.recorder.enabled:   # 工程の区切りの絵の代わりに、筆が動くタイムラプスを記録に残す
+            try:
+                from PIL import Image, ImageSequence
+                with Image.open(gif) as g:
+                    self.recorder.replace_job([f.convert("RGB") for f in ImageSequence.Iterator(g)])
+            except OSError as e:
+                self.say(f"タイムラプスを読めませんでした（{e}）")
         for i, r in enumerate(rows, 1):
             left = r["after"] if r["fixed"] else r["found"]
             self.say(f"工程 {i}「{r['phase']}」{r['seconds']} 秒: " + ("崩れは見つかりませんでした" if not left else "残った崩れ " + "、".join(left[:3]))

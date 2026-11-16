@@ -22,6 +22,9 @@
   前の下描きの崩れた枠の中だけを、直しを重ねるたびに強くして直す（FIXES）
 - 確かめ（confirm）を渡すと、工程が終わるたびに呼び、「進める」「この工程を描き直す」「言葉を足して描き直す」を受ける
 - 止める旗が立ったら、その工程の区切りで止まる
+- 工程の絵（窓に出す絵、NN-名前.png、確かめに出す絵）は、模型の絵をそのまま見せず、人が描いている途中の見た目にする
+  （白紙 → サムネイル → アタリ → ラフ → 線画 → 下塗り → 影 → 光 → 仕上げ。chatdraw/humanpaint.py）。描き終えたら、仕上げの
+  ゴミ（孤立した点、色の継ぎ目）を直し、最後の絵から人の工程の絵（背景・ディテールを含む）と筆が動くタイムラプスを作る
 """
 from __future__ import annotations
 
@@ -56,6 +59,7 @@ REFINE = 0.45         # 下描き: アタリの絵に描き重ねる強さ（色
 REPAINT = 0.35        # 服・髪・持ち物: 描かれていない物を足すときの描き直しの強さ（形は残す）
 FIX = 0.55            # 顔・手・足の直し: 崩れた枠の中だけを描き直す強さ（1 回目）
 FIXES = (0.55, 0.7, 0.85, 0.95)   # 直しを重ねるたびに強くする。同じ強さで戻って直すと崩れた指の形をなぞり、下描きから最後まで同じ崩れが残った
+SEAM_FIX = 0.5        # 仕上げ: 色の継ぎ目の囲みの中だけを描き直す強さ（私の推測）
 SHINE = 0.35          # 目の光の直し: 目の囲みの中だけを描き直す強さ
 COLORS_MOST = 14      # 下塗り: 人物の 2% 以上を占める色がこれより多ければ、色が散っている（私の推測）
 BACKS = 3             # 戻って直すのは全体でこの回数まで
@@ -196,15 +200,23 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
     chatdraw/pausekeep.py に残して Paused で返す。同じ鍵で呼び直すと、その工程から続ける（前は始めから描き直した）"""
     from PIL import Image
     from chatdraw.engine import Stopped, emphasize
-    from chatdraw import handcheck, phasetools as pt
+    from chatdraw import handcheck, phasetools as pt, humanpaint as hp
     keep.mkdir(parents=True, exist_ok=True)
-    pv = {"on_preview": on_preview} if on_preview is not None else {}   # 描いている途中の絵を窓に渡す
+    # 模型の拡散の途中の絵は窓に渡さない。模型は 1 回で色も影も背景も付いた絵を出すので、渡すとサムネイルの時点で完成の絵が見えた。
+    # 窓には工程の終わりごとに、人が描いている途中に見える絵（chatdraw/humanpaint.py）だけを渡す
+    pv = {}
     can_line, can_fix = abilities(painter)
     can_refine = hasattr(painter, "refine")
     checks = _Safe(checks)
     w, h = (size or (832, 1216))
     n = len(PHASES)
     st = {"image": None, "prompt": prompt, "thumb": None, "points": {}, "light": {}, "height": 0, "seed": seed}
+
+    def parts_of(img):
+        try:
+            return pt.parts(img)
+        except Exception:   # noqa: BLE001
+            return None
 
     def tell(words):
         say(f"{WORDS_NOTE}{words}")
@@ -548,6 +560,52 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "numbers": nums2,
                 "readable": bool(res.get("readable")) and bool(body.get("readable")), "back": 4 if hands_left and left else None}
 
+    def finish_human(img, left):
+        """仕上げのゴミ（孤立した点、色の継ぎ目）を直し、人の工程の絵とタイムラプスを作る。工程の絵も最後の絵から作り直す
+        （途中の模型の絵から作ると、工程ごとに顔や服が少しずつ違い、つないだときに別の絵に見えた）。直せなかった継ぎ目は left に足す"""
+        if img is None:
+            return {"image": img}
+        try:
+            parts = parts_of(img)
+            cleaned, rep = hp.clean(img, parts)
+            if rep["specks"]:
+                say(f"仕上げ: 孤立した点を {rep['specks']} 画素、周りの色で埋めました")
+            seams = rep["seams"]
+            if seams and can_fix:
+                boxes = [(tuple(x["box"]), "seam") for x in seams]
+                say("仕上げ: 色の継ぎ目（" + "、".join(x["part"] for x in seams) + "）を、継ぎ目の囲みの中だけ描き直しています")
+                tell(st["prompt"])
+                tried = painter.redraw(st["prompt"], st["seed"] + 307, cleaned, _mask(cleaned.size, boxes), strength=SEAM_FIX)
+                again = hp.seams(tried, parts_of(tried))
+                if len(again) <= len(seams):
+                    cleaned, seams = tried, again
+            if not rep["seams_readable"]:
+                say("仕上げ: 部位分けが無いので、色の継ぎ目は測れていません")
+            left += [f"色の継ぎ目が残っている（{x['part']}）" for x in seams]
+            pts_final = points(cleaned) or st.get("points") or {}   # アタリは最後の絵の体の点に合わせる
+            got = hp.build(cleaned, keep, parts_of(cleaned), pts_final)
+            got["clean"] = dict(rep, seams_left=seams)
+            for k in range(n):   # 工程の絵を、最後の絵から作り直す
+                row = final.get(k)
+                if row and row.get("image"):
+                    hp.for_phase(k, got["image"], parts_of(got["image"]), pts_final).save(row["image"])
+            say(f"人の工程の絵 {len(got['stages'])} 枚とタイムラプス（{got['frames']} 枚）を作りました")
+            frames = got.pop("frame_list", [])
+            if on_preview is not None and frames:   # 最後の絵で作り直した描く過程を、キャンバスで白紙から通して見せる
+                size = got["image"].size
+                for f in frames[::max(1, len(frames) // 60)]:
+                    try:
+                        on_preview(f.resize(size, Image.BILINEAR))
+                    except Exception:   # noqa: BLE001  見せるだけ
+                        break
+                on_preview(got["image"])
+            return got
+        except Exception as e:   # noqa: BLE001  作れなくても、描いた絵は渡す。作れなかったことは残った崩れに書く
+            if type(e).__name__ == "Stopped":
+                raise
+            left.append(f"人の工程の絵を作れませんでした（{type(e).__name__}: {e}）")
+            return {"image": img}
+
     run = [p_purpose, p_thumbs, p_atari, p_body, p_draft, p_wear, p_lines, p_base, p_light, p_shadow, p_shine, p_finish]
     assert len(run) == n
     final: dict[int, dict] = {}
@@ -585,14 +643,21 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         found, fixed = list(got.get("found", [])), bool(got.get("fixed"))
         after = list(got.get("after", [])) if fixed else []
         left = after if fixed else found
-        shown = got.get("show") or got.get("image")
+        shown = hp.blank((w, h)) if i == 0 else None   # 描き始めは白い紙
+        if st.get("image") is not None:
+            try:
+                shown = hp.for_phase(i, st["image"], parts_of(st["image"]), st.get("points") or None)
+            except Exception as e:   # noqa: BLE001  見せる絵を作れなくても、描く流れは止めない
+                say(f"工程の絵を作れませんでした（{type(e).__name__}: {e}）")
         path = None
         if shown is not None:
             path = keep / f"{i + 1:02d}-{name}.png"   # 順の分かる名前（タイムラプスがこの順につなぐ）
             shown.save(path)
-            if on_preview is not None:   # 工程ごとの絵をすぐキャンバスに出す（描いている所を見せる）
+            if on_preview is not None:   # 前の工程の絵の上に、この工程を描き重ねていく様子をキャンバスに出す
                 try:
-                    on_preview(shown)
+                    for f in (hp.transition(memo["shown"], shown) if memo.get("shown") is not None else [shown]):
+                        on_preview(f)
+                    memo["shown"] = shown
                 except Exception:   # noqa: BLE001  見せるだけ。描く流れは止めない
                     pass
         mem = release()
@@ -636,8 +701,13 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
     pausekeep.clear(pause_key)   # 描き終えたら、残した途中は要らない
     rows = [final[k] for k in range(n)]
     last = rows[-1]
-    left = last["after"] if last["fixed"] else last["found"]
+    left = list(last["after"] if last["fixed"] else last["found"])
+    human = finish_human(st["image"], left)
+    st["image"] = human["image"]
     checked = all(r["readable"] for r in rows)
-    (keep / "phases.json").write_text(json.dumps({"phases": rows, "history": history, "left": left, "checked": checked, "backs": backs},
+    (keep / "phases.json").write_text(json.dumps({"phases": rows, "history": history, "left": left, "checked": checked, "backs": backs,
+                                                  "stages": human.get("stages", []), "timelapse": human.get("timelapse"),
+                                                  "clean": human.get("clean", {})},
                                                  ensure_ascii=False, indent=1, default=str), encoding="utf-8")
-    return {"image": st["image"], "phases": rows, "history": history, "left": left, "checked": checked, "backs": backs}
+    return {"image": st["image"], "phases": rows, "history": history, "left": left, "checked": checked, "backs": backs,
+            "stages": human.get("stages", []), "timelapse": human.get("timelapse"), "clean": human.get("clean", {})}

@@ -1,6 +1,7 @@
 # 1 回で描く形と工程に分けて描く形（chatdraw/phases.py）を、本物の模型・同じ頼み・同じ種で比べる（chatdraw/phasebench.py）。
 # リポジトリは公開しているので、重い比べは Actions の枠で回す。結果は artifact の bench.json、1 回で描いた絵、
-# 工程ごとの絵（phases/s<種>/01-サムネイル.png 〜 12-仕上げ.png と phases.json）。
+# 工程ごとの絵（phases/s<種>/01-サムネイル.png 〜 12-仕上げ.png と phases.json）、人の工程の絵（phases/s<種>/human/）、
+# 筆が動くタイムラプス（timelapse-s<種>.gif）。
 name: phase-bench
 on:
   workflow_dispatch:
@@ -18,8 +19,8 @@ on:
         description: "大きさ（幅x高さ）"
         default: "832x1216"
   push:
-    branches: ["claude/FIX-phases-*", "claude/FIX-phases12-*"]
-    paths: [".github/workflows/phase-bench.yml", "chatdraw/phasebench.py", "chatdraw/phases.py", "chatdraw/phasetools.py"]
+    branches: ["claude/FIX-phases-*", "claude/FIX-phases12-*", "claude/FIX-humanpaint-*"]
+    paths: [".github/workflows/phase-bench.yml", "chatdraw/phasebench.py", "chatdraw/phases.py", "chatdraw/phasetools.py", "chatdraw/humanpaint.py"]
 permissions:
   contents: read
 concurrency:

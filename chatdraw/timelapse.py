@@ -8,7 +8,7 @@
 （Pillow だけで書け、ブラウザと多くの画像ビューアで動く）。
 
 AI が一発で描いた絵は、線を引く過程が無いので記録が 1 枚になり、タイムラプスにならなかった。そこで次の順で過程を作る:
-1. 工程に分けて描いたとき（add_phases）は、各工程の絵を順につなぐ
+1. 工程に分けて描いたときは、chatdraw/humanpaint.py の筆が動く絵の並び（ラフの線を引き、筆で塗り広げる）に入れ替える（replace_job）
 2. 1 回で描いたときは、拡散の途中の絵（on_preview）を順につなぐ
 3. どちらも無いときは、仕上がった絵から 線画 → 塗り → 仕上げ の順に逆算して作る（reconstruct）
 人が引いた線は、これまでどおり 1 本ごとに写しを撮る。
@@ -44,6 +44,7 @@ class Recorder:
         """AI の絵が仕上がった。途中の絵が 2 枚以上届いていればそのまま、足りなければ逆算した工程を足す。
         返りは使った作り方（"preview" か "reconstruct"、記録しないときは ""）"""
         start, self._job_start = self._job_start, None
+        self._last_start = start
         if not self.enabled:
             return ""
         got = len(self.frames) - (start if start is not None else len(self.frames))
@@ -52,6 +53,16 @@ class Recorder:
             return "preview"
         self.add_phases(reconstruct(final, before))
         return "reconstruct"
+
+    def replace_job(self, frames):
+        """この前に描き終えた仕事の分の写しを、渡した絵の並び（筆が動くタイムラプス）に入れ替える"""
+        if not self.enabled or not frames:
+            return
+        start = getattr(self, "_last_start", None)
+        if start is not None and start <= len(self.frames):
+            del self.frames[start:]
+        for f in frames:
+            self.add(f)
 
     def add(self, img: Image.Image):
         if not self.enabled:

@@ -54,7 +54,10 @@ def run(out: Path):
     from chatdraw import twostage
     from chatdraw.paths import HUB
     pose_files = dict(twostage.PARTS)[twostage.POSE]
+    from chatdraw.finishers import _gen
+    SEG_MODEL = _gen("edit").SEG_MODEL
     for fetch in (lambda: snapshot_download(twostage.POSE, cache_dir=str(HUB), allow_patterns=pose_files),
+                  lambda: snapshot_download(SEG_MODEL, allow_patterns=["*.json", "*.safetensors"]),   # 部位分け（人の工程の下塗り・継ぎ目）
                   lambda: requestcheck._tagger(True), lambda: handcheck.ensure_models(True), lambda: handcheck.ensure_feet_model(True)):
         try:
             fetch()   # 検品の部品を先に取る（取らないと検品できず、崩れ 0 と読み違える）
@@ -86,6 +89,12 @@ def run(out: Path):
             src = Path(studio.last_phases[-1]["image"] or "").parent / "phases.json"
             if src.exists():
                 shutil.copy(src, each / "phases.json")
+            human = each / "human"   # 人の工程の絵（白紙 → … → 仕上げ）と、筆が動くタイムラプス
+            human.mkdir(exist_ok=True)
+            for _name, p in getattr(studio, "last_stages", None) or []:
+                shutil.copy(p, human / Path(p).name)
+            if getattr(studio, "last_timelapse", None):
+                shutil.copy(studio.last_timelapse, out / f"timelapse-s{seed}.gif")
         result["runs"].append(row)
         print(json.dumps({k: v for k, v in row.items() if k != "said"}, ensure_ascii=False), flush=True)
         (out / "bench.json").write_text(json.dumps(result, ensure_ascii=False, indent=1), encoding="utf-8")
