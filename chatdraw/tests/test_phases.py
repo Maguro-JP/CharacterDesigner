@@ -112,7 +112,7 @@ class PhasesTest(unittest.TestCase):
     def test_always_bad_still_finishes_with_bounded_backs(self):
         got, painter, seen, said, files = self.run_phases(always_bad=True)
         self.assertEqual([r["phase"] for r in got["phases"]], phases.NAMES)
-        self.assertEqual(len([f for f in files if f.endswith(".png")]), N - 1)   # 目的には絵が無い
+        self.assertEqual(len([f for f in files if f.endswith(".png")]), N)   # 目的は白紙の絵
         self.assertIn("phases.json", files)
         self.assertLessEqual(got["backs"], phases.BACKS)
         self.assertGreater(got["backs"], 0)   # 崩れが残ったので、崩れが決まった工程へ戻った
@@ -536,7 +536,8 @@ class PreviewTest(unittest.TestCase):
             self.assertEqual(got["stages"][-1][0], "仕上げ")
         self.assertEqual(np.asarray(shown[0]).min(), 255)
         model = figure((64, 96)).tobytes()
-        self.assertFalse(any(im.tobytes() == model for im in shown[:-1]))
+        first = next(k for k, im in enumerate(shown) if im.tobytes() == model)   # 模型の絵は仕上げで初めて出る
+        self.assertGreaterEqual(first, len(phases.PHASES) - 1)
 
 
 class NoSketchModelTest(unittest.TestCase):

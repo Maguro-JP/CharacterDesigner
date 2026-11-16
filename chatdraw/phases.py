@@ -12,11 +12,12 @@
   検品が通るまで無限に回す形にしない（0.5.20 でそうしたら終わらなくなった）
 - 工程ごとに描いてよい所だけを囲みにして渡す（顔・手・足の直しは handcheck の枠、服と髪は部位分けの所で顔と手は除く、目の光は目の囲み）。
   囲みの外は変えない
-- 模型で描かなくてもできる事（線の強弱、影の 2 段目、縮めて見る・反転して見る、光源の向き）は chatdraw/phasetools.py で処理する
+- 縮めて見る・反転して見る・光源の向き・線の途切れ・影の向きは chatdraw/phasetools.py で測るだけにし、模型の絵には線の強弱・影の 2 段目・
+  色合わせを掛けない（掛けた絵は線画の清書から仕上げまで全部崩れた。0.5.36）
 - 模型に渡す言葉は、頼みを訳した言葉だけ（直しにも five fingers などを足さない）。利用者が工程の確かめで足した言葉は、その訳を足す。
   渡した言葉は「模型に渡す言葉:」の知らせにし、アプリは進み具合の欄の詳細（ツールチップ）にだけ置く
 - 工程の始めには必ず「工程 i/n「名前」」の知らせを出す。アプリの進みの帯はこれで全体の進みを出す
-- 前の工程の絵に描き重ねたら、前の絵の色と明るさに合わせる（phasetools.guard）。合わせても霞み・枠・色褪せが残れば前の絵を使う。
+- 前の工程の絵に描き重ねたら、霞み・枠・色褪せを測り（phasetools.guard の記録）、出ていれば前の絵を使う（色合わせはしない）。
   下描きは線に沿って白紙から描き直す形より、描き重ね（Painter.refine）を先にする（線に沿う形では霞み・枠・服の変わりが出た）
 - 同じ物を 2 度描かない。選んだサムネイルはそのままアタリにし、手・足・顔の崩れで下描きへ戻ったときは絵全体を描き重ね直さず、
   前の下描きの崩れた枠の中だけを、直しを重ねるたびに強くして直す（FIXES）
@@ -234,10 +235,13 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             say(f"{where}: 色と明るさを合わせられませんでした（{e}）")
             return img
         rec["where"] = where
+        # 色合わせ（match_colors・縁戻し）は掛けない。合わせた絵は色が転んで崩れたので、霞み・枠・色褪せが出たら前の絵を使う
+        rec["kept_ref"] = bool(rec["raw_flaws"])
         tones.append(rec)
         if rec["raw_flaws"]:
-            say(f"{where}: 描き重ねで " + "、".join(rec["raw_flaws"]) + (" ので、前の絵を使います" if rec["kept_ref"] else " のを、色合わせで直しました"))
-        return out
+            say(f"{where}: 描き重ねで " + "、".join(rec["raw_flaws"]) + " ので、前の絵を使います")
+            return ref.convert("RGB").resize(img.size)
+        return img
 
     def stop():
         if getattr(painter, "stop", False) is True:
@@ -454,12 +458,8 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         img = st["image"]
         before = pt.lines(img)
         found = [f"外の輪郭が途切れている（{before['gap']}）"] if before.get("readable") and before["gap"] > pt.LINE_GAP_MOST else []
-        say("線の強弱を付けています（外の輪郭を濃く、内側の線はそのまま）")
-        out, hit = pt.weight_lines(img)
-        after_m = pt.lines(out)
-        after = [f"外の輪郭が途切れている（{after_m['gap']}）"] if after_m.get("readable") and after_m["gap"] > pt.LINE_GAP_MOST else []
-        return {"image": out, "found": found, "fixed": True, "after": after, "readable": bool(before.get("readable")),
-                "numbers": {"before": before, "after": after_m, "pixels": hit}}
+        # 模型の絵に線の強弱を掛けない（掛けた絵は線がにじんで崩れた）。測るだけにし、窓には線画だけを見せる
+        return {"image": img, "found": found, "readable": bool(before.get("readable")), "numbers": {"before": before}}
 
     def p_base(v):
         import numpy as np
@@ -505,11 +505,9 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             keep_m = np.zeros((img.height, img.width), bool)
             x0, y0, x1, y1 = (int(max(0, c)) for c in fb)
             keep_m[y0:y1, x0:x1] = True   # 顔に濃い影を足さない
-        say("影の 2 段目を、光源と反対の側の暗い所だけに置いています")
-        out, hit = pt.shade_second(img, lit, keep_m)
-        sh2 = pt.shadows(out, lit)
-        return {"image": out, "found": found, "fixed": bool(hit), "after": flaws(sh2), "readable": bool(sh.get("readable")),
-                "numbers": {"before": sh, "after": sh2, "pixels": hit}}
+        # 模型の絵に影の 2 段目を重ねない（重ねた絵は汚れた影になって崩れた）。測るだけにする
+        del keep_m
+        return {"image": img, "found": found, "readable": bool(sh.get("readable")), "numbers": {"before": sh}}
 
     def p_shine(v):
         img, words, note = st["image"], [], ""
