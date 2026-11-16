@@ -70,7 +70,10 @@ def run(out: Path):
         used, path = studio.draw(prompt, seed, on_status=lambda m: (said.append(m), print(f"[{way}] {m}", flush=True)), size=(w, h))
         secs = round(time.perf_counter() - t, 1)
         shutil.copy(path, out / f"{way}-s{seed}.png")
-        row = {"way": way, "seconds": secs, "prompt_used": used, "final": final_check(path, prompt), "said": said[-40:]}
+        from PIL import Image
+        from chatdraw import phasetools
+        row = {"way": way, "seconds": secs, "prompt_used": used, "final": final_check(path, prompt),
+               "tone": phasetools.tone(Image.open(path).convert("RGB")), "said": said[-40:]}   # 彩度（sat）を 1 回で描いた絵と比べる
         if studio.last_phases:
             row["phases"] = studio.last_phases
             row["per_phase"] = [{"phase": r["phase"], "seconds": r["seconds"], "mem_mb": r.get("mem_mb"), "numbers": r.get("numbers"),

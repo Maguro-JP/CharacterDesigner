@@ -36,7 +36,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: 置き場を空ける
-        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1; free -g; nproc
+        run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL; df -h / | tail -1; free -g; nproc; grep -m1 "model name" /proc/cpuinfo; grep -o -m1 "avx512_bf16\|amx_bf16" /proc/cpuinfo || echo "bf16 の命令なし"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"

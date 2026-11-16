@@ -25,7 +25,7 @@ if [ -d .cache/simple/lib/PySide6 ]; then
     "chatdraw.tests.test_layertools chatdraw.tests.test_brushtools chatdraw.tests.test_shapeassist chatdraw.tests.test_qcbench chatdraw.tests.test_typeguard chatdraw.tests.test_backui chatdraw.tests.test_sent chatdraw.tests.test_fixrequests chatdraw.tests.test_qcparts_ui chatdraw.tests.test_pull" \
     "chatdraw.tests.test_autosel chatdraw.tests.test_redpen3 chatdraw.tests.test_layerkeep chatdraw.tests.test_fixwords chatdraw.tests.test_favmodels chatdraw.tests.test_civitai chatdraw.tests.test_detailtimelapse chatdraw.tests.test_phases" \
     "chatdraw.tests.test_modes chatdraw.tests.test_charafile chatdraw.tests.test_lora chatdraw.tests.test_director chatdraw.tests.test_finish2 chatdraw.tests.test_menuaudit chatdraw.tests.test_ribbonfamily chatdraw.tests.test_mirrorcheck" \
-    "chatdraw.tests.test_bughunt chatdraw.tests.test_catalog chatdraw.tests.test_quality_fix chatdraw.tests.test_ratefreeze" \
+    "chatdraw.tests.test_bughunt chatdraw.tests.test_catalog chatdraw.tests.test_quality_fix chatdraw.tests.test_ratefreeze chatdraw.tests.test_cpudtype" \
     "chatdraw.tests.test_chatbrain chatdraw.tests.test_modelprune chatdraw.tests.test_folders_ratings chatdraw.tests.test_pause"; do
   # 通った束は、同じ中身（コミットと手元の差分）なら覚えておき、止められたあとに流し直すときは飛ばして続きの束から流す
   key="$(printf '%s\n%s\n%s' "$state" "$mods" | sha1sum | cut -c1-16)"
