@@ -6,14 +6,17 @@ The script does not change repository samples; it writes only to artifacts/finis
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
 
 import numpy as np
 from PIL import Image, ImageDraw
 
 from chatdraw import finishers
 
-ROOT = Path(__file__).resolve().parents[1]
 SAMPLE = ROOT / "library" / "daily" / "2026-10-13" / "05-yukionna.png"
 OUT = ROOT / "artifacts" / "finishing-review"
 
