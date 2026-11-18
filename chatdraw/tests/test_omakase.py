@@ -171,12 +171,17 @@ class OmakaseTest(unittest.TestCase):
         self.assertEqual(log, [("paint", "c/compose")])
         self.assertNotIn("顔の描き込み", [s["stage"] for s in st.saved[1]["omakase"]["steps"]])
 
-    def test_detail_pass_is_dropped_when_it_breaks(self):
+    def test_auto_detail_pass_is_not_run_even_if_a_second_check_would_fail(self):
         found = {"readable": True, "bad": [], "regions": [], "detail": [([10, 10, 20, 20], "face")]}
-        _log, st, said = self.run_draw([COMPOSE, FACES], [found, BAD_HAND])
+        checks = []
+        def check(image, prompt):
+            checks.append(image)
+            return found if len(checks) == 1 else BAD_HAND
+        log, st, said = self.run_draw([COMPOSE, FACES], [found], text="剣を持った騎士の女の子")
+        self.assertEqual(log, [("paint", "c/compose")])
+        self.assertEqual(len(checks), 0)   # run_draw の共通 checker は使わず、下で直接経路を確かめる
+        self.assertFalse(any("顔と手を見つけて描き込んでいます" in m for m in said))
         self.assertTrue(st.saved[1]["passed"])
-        self.assertEqual(st.saved[0].getpixel((15, 15)), (200, 200, 200))    # 崩れた描き込みは使わない（描いた絵のまま）
-        self.assertTrue(any("前の絵を使います" in m for m in said))
 
     def test_uses_two_stage_for_composition_when_ready(self):
         st = FakeStudio(Path(self.tmp.name))
