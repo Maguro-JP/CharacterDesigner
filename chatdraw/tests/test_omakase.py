@@ -137,15 +137,16 @@ class OmakaseTest(unittest.TestCase):
         self.assertTrue(any("途中" in m for m in said))
         self.assertNotIn("仕上げ", [s["stage"] for s in st.saved[1]["omakase"]["steps"]])
 
-    def test_finishers_run_when_present(self):
+    def test_automatic_finishers_are_not_applied(self):
         fake = mock.Mock()
-        fake.available.return_value = [dict(name="clean", ready=True), dict(name="face", ready=True),
-                                       dict(name="upscale_anime", ready=False)]   # finishers.available() の形
+        fake.available.return_value = [dict(name="clean", ready=True), dict(name="retouch", ready=True),
+                                       dict(name="face", ready=True), dict(name="upscale_anime", ready=False)]
         fake.run.side_effect = lambda name, image, mask=None: image
         with mock.patch.object(omakase, "finishers", return_value=fake):
             _log, st, _ = self.run_draw([COMPOSE], [OK])
-        fake.run.assert_called_once()
-        self.assertIn(("仕上げ", "clean"), [(s["stage"], s.get("model")) for s in st.saved[1]["omakase"]["steps"]])
+        fake.run.assert_not_called()
+        self.assertEqual(st.saved[1]["omakase"]["steps"], [])
+        self.assertEqual(omakase.auto_finish(fake.available.return_value), [])
 
     def test_blocked_model_is_never_used(self):
         from chatdraw import ratings
@@ -164,11 +165,11 @@ class OmakaseTest(unittest.TestCase):
         self.assertEqual(log[1], ("hires", "c/compose", 1.0))                  # 広げて描き直す（直しの中でさらに広げない）
         self.assertEqual(st.saved[0].size, (832, 1216))
 
-    def test_detail_pass_redraws_found_face_and_hand_even_when_passed(self):
+    def test_passed_image_is_not_redrawn_only_because_parts_were_detected(self):
         found = {"readable": True, "bad": [], "regions": [], "detail": [([10, 10, 20, 20], "face"), ([30, 30, 40, 40], "hand")]}
-        log, st, _ = self.run_draw([COMPOSE, HANDS, FACES], [found, OK])
-        self.assertEqual(log[1:], [("redraw", "f/faces"), ("redraw", "h/hands")])   # 顔は顔の得意な模型、手は手の得意な模型
-        self.assertIn("顔の描き込み", [s["stage"] for s in st.saved[1]["omakase"]["steps"]])
+        log, st, _ = self.run_draw([COMPOSE, HANDS, FACES], [found])
+        self.assertEqual(log, [("paint", "c/compose")])
+        self.assertNotIn("顔の描き込み", [s["stage"] for s in st.saved[1]["omakase"]["steps"]])
 
     def test_detail_pass_is_dropped_when_it_breaks(self):
         found = {"readable": True, "bad": [], "regions": [], "detail": [([10, 10, 20, 20], "face")]}
