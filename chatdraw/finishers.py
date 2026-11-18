@@ -633,6 +633,18 @@ def keep_outside(original, result, mask):
     return Image.composite(res, orig, binary(mask, orig.size))
 
 
+def structural_lines(rgb):
+    """cleanup の主線候補から、SPECK 未満の孤立した点を除いた主線マスクを返す。"""
+    import numpy as np
+    from scipy.ndimage import label
+    cleanup = _gen("cleanup")
+    raw = cleanup.line_mask(rgb)
+    lab, _ = label(raw, structure=np.ones((3, 3)))
+    sizes = np.bincount(lab.ravel())
+    sizes[0] = 0
+    return sizes[lab] >= cleanup.SPECK
+
+
 def preserve_lines(original, result):
     """空気感・質感の色や光を足す加工から、元の主線と検出半径 6px の周辺を守る。"""
     import numpy as np
@@ -643,9 +655,10 @@ def preserve_lines(original, result):
         out = out.resize(src.size, Image.LANCZOS)
     a = np.asarray(src)
     b = np.asarray(out).copy()
-    line = _gen("cleanup").line_mask(a)
+    line = structural_lines(a)
     if line.any():
         # 主線の検出は半径 6px の近傍を見るため、同じ幅の周辺も保護して検出結果を安定させる。
+        # 小さな星・粒は主線ではないので、SPECK 未満の成分を先に除いて四角い保護跡を作らない。
         protected = np.asarray(
             Image.fromarray((line * 255).astype("uint8")).filter(ImageFilter.MaxFilter(13))
         ) > 0
@@ -952,8 +965,7 @@ def scores(src, out) -> dict:
     except ImportError:
         ss = None
     try:
-        cleanup = _gen("cleanup")
-        ma, mb = cleanup.line_mask(a), cleanup.line_mask(b)
+        ma, mb = structural_lines(a), structural_lines(b)
     except ImportError:
         ma, mb = la < 90, lb < 90
     inter = int((ma & mb).sum())
