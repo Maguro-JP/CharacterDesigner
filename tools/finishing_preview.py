@@ -86,6 +86,14 @@ def main() -> None:
         ("retouch_full", lambda: finishers.run("retouch_full", source)),
         ("face", lambda: finishers.run("face", source)),
         ("around", lambda: finishers.run("around", source, mask)),
+        ("detail", lambda: finishers.run("detail", source)),
+        ("air_holy", lambda: finishers.run("air_holy", source)),
+        ("air_komorebi", lambda: finishers.run("air_komorebi", source)),
+        ("air_haze", lambda: finishers.run("air_haze", source)),
+        ("mat_metal", lambda: finishers.run("mat_metal", source)),
+        ("mat_gem", lambda: finishers.run("mat_gem", source)),
+        ("mat_slime", lambda: finishers.run("mat_slime", source)),
+        ("ink", lambda: finishers.run("ink", source)),
         ("combo_tidy", lambda: finishers.run_chain(combo_steps["combo:tidy"], source)),
         ("combo_tidy_color", lambda: finishers.run_chain(combo_steps["combo:tidy_color"], source)),
     ]
@@ -95,11 +103,15 @@ def main() -> None:
         finishers.LAST_QC.clear()
         finishers.LAST_REPORT.clear()
         finishers.LAST_CHAIN.clear()
+        finishers.LAST_DETAIL.clear()
+        finishers.LAST_STRENGTH.clear()
         result = action().convert("RGB")
         report = {
             "quality_control": dict(finishers.LAST_QC),
             "step_report": list(finishers.LAST_REPORT.get("steps", [])),
             "chain_report": list(finishers.LAST_CHAIN),
+            "detail": dict(finishers.LAST_DETAIL),
+            "strength": dict(finishers.LAST_STRENGTH),
         }
         row = _record(name, source, result, report)
         if name == "around":
@@ -111,7 +123,7 @@ def main() -> None:
         rows.append(row)
 
     labels = ["original"] + [row["name"] for row in rows]
-    cols, thumb_w = 3, 256
+    cols, thumb_w = 4, 256
     thumb_h = max(1, round(source.height * thumb_w / source.width))
     cell_h = thumb_h + 30
     sheet = Image.new("RGB", (cols * thumb_w, ((len(labels) + cols - 1) // cols) * cell_h), "white")
