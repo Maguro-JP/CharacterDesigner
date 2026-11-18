@@ -116,7 +116,7 @@ class OmakaseTest(unittest.TestCase):
         stages = [(s["stage"], s.get("model")) for s in meta["omakase"]["steps"] if s["stage"] != "検品"]
         # 検品を通ったあとに、形を変えない仕上げ（塗りのむらを均す、線と塗りを整える）だけが掛かる
         self.assertEqual(stages[:3], [("構図", "c/compose"), ("描く", "c/compose"), ("手の直し", "h/hands")])
-        self.assertTrue(set(stages[3:]) <= {("仕上げ", "clean"), ("仕上げ", "retouch")} and ("仕上げ", "clean") in stages)
+        self.assertEqual(stages[3:], [])   # 検品後の自動仕上げは行わず、生成画像を保持する
         self.assertTrue(meta["passed"])
         self.assertTrue(any(m.startswith("手の直し: H/HANDS") for m in said))
 

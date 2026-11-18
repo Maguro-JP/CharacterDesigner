@@ -164,20 +164,22 @@ def plan(text: str, have: list[ImageModel], seed: int | None = None) -> Plan:
     p = Plan(parts, compose=explore(rank(have, compose_needs(parts), parts["style"]), seed))
     for kind, aspect in KIND_ASPECT.items():
         p.fix[kind] = rank(have, [aspect, STYLE_ASPECT.get(parts["style"], "アニメ")], parts["style"], need_inpaint=True)
-    f = finishers()
-    if f is None:
-        p.notes.append(FINISH_ERROR or "仕上げの部品が無いので仕上げを飛ばします")
-    else:
-        try:
-            tools = f.available()
-            p.finish = auto_finish(tools)
-        except Exception as e:   # 黙って仕上げを外すと、仕上げが効かない訳が利用者に分からなかった
-            p.finish = []
-            p.notes.append(f"仕上げを選べないので飛ばします（{type(e).__name__}: {e}）")
+    # 自動仕上げが無効なら、部品の読込・利用可否の確認自体を行わない。
+    # 手動の加工メニューは別経路で利用できるため、生成の段取りで仕上げ部品を初期化する必要はない。
+    if AUTO_FINISH:
+        f = finishers()
+        if f is None:
+            p.notes.append(FINISH_ERROR or "仕上げの部品が無いので仕上げを飛ばします")
         else:
-            # おまかせで掛けるはずの道具が使えないときは、その訳を出す（入れ忘れた部品は「入れ直して」と出る）
-            p.notes += [f"{t['label']}を飛ばします: {t['reason']}" for t in tools
-                        if isinstance(t, dict) and t.get("name") in AUTO_FINISH and not t.get("ready", True) and t.get("reason")]
+            try:
+                tools = f.available()
+                p.finish = auto_finish(tools)
+            except Exception as e:   # 黙って仕上げを外すと、仕上げが効かない訳が利用者に分からなかった
+                p.finish = []
+                p.notes.append(f"仕上げを選べないので飛ばします（{type(e).__name__}: {e}）")
+            else:
+                p.notes += [f"{t['label']}を飛ばします: {t['reason']}" for t in tools
+                            if isinstance(t, dict) and t.get("name") in AUTO_FINISH and not t.get("ready", True) and t.get("reason")]
     return p
 
 
