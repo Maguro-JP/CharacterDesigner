@@ -929,7 +929,10 @@ def scores(src, out) -> dict:
         ma, mb = cleanup.line_mask(a), cleanup.line_mask(b)
     except ImportError:
         ma, mb = la < 90, lb < 90
-    iou = float((ma & mb).sum() / max(1, (ma | mb).sum()))
+    union = int((ma | mb).sum())
+    # 両方に主線が無い画像（暗いベタ塗りだけ等）は、線が一致しないのではなく比較対象が無い。
+    # 空集合どうしの一致率を 1.0 とし、線が無い絵を品質検査で拒否しない。
+    iou = 1.0 if union == 0 else float((ma & mb).sum() / union)
     return dict(ssim=None if ss is None else round(ss, 4), line=round(iou, 4), color=round(float(np.abs(a - b).mean()), 2))
 
 
