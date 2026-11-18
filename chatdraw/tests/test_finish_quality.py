@@ -202,6 +202,31 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         edge_after = float(np.abs(out[:, 95] - out[:, 96]).mean())
         self.assertGreater(edge_after, edge_before * 0.8, (edge_before, edge_after))
 
+    def test_face_finisher_changes_noisy_fill_through_full_guards(self):
+        import numpy as np
+        from chatdraw import facefeat
+        rng = np.random.default_rng(20261122)
+        a = np.empty((192, 192, 3), dtype=np.float32)
+        a[:] = (178, 132, 96)
+        a[:, 96:] = (48, 82, 126)
+        a += rng.normal(0, 5.0, a.shape).astype(np.float32)
+        src = Image.fromarray(np.clip(a, 0, 255).astype("uint8"))
+        rt = finishers._gen("retouch")
+        before = rt.noise(np.asarray(src, dtype=np.float32))
+        with (
+            mock.patch.object(finishers, "face_keep", return_value=None),
+            mock.patch.object(finishers, "face_box_keep", return_value=None),
+            mock.patch.object(finishers, "hand_guard", side_effect=lambda _s, out: (out, {})),
+            mock.patch.object(facefeat, "keep", side_effect=lambda _s, out, _m: (out, {})),
+        ):
+            finishers.LAST_QC.clear()
+            out = finishers.run("face", src)
+        after = rt.noise(np.asarray(out, dtype=np.float32))
+        self.assertTrue(np.any(np.asarray(src) != np.asarray(out)), finishers.LAST_QC)
+        self.assertLess(after, before, (before, after, finishers.LAST_QC))
+        self.assertFalse(finishers.LAST_QC.get("rejected"), finishers.LAST_QC)
+        self.assertFalse(finishers.LAST_QC.get("verify", {}).get("failed"), finishers.LAST_QC)
+
     def test_around_changes_only_the_marked_region(self):
         import numpy as np
         from chatdraw import facefeat, seamfix
