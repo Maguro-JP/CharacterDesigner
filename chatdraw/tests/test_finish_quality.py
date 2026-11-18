@@ -132,9 +132,9 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         eye[0, 0] = 20.0
 
         with mock.patch.object(finishers, "_gen", lambda _name: SimpleNamespace(
-                line_mask=lambda a: np.zeros(a.shape[:2], dtype=bool))), \\
-                mock.patch.object(finishers, "_eye_highlights", lambda _im, _l: (eye, 1)):
-            out = np.asarray(finishers._detail_apply(image))
+                line_mask=lambda a: np.zeros(a.shape[:2], dtype=bool))):
+            with mock.patch.object(finishers, "_eye_highlights", lambda _im, _l: (eye, 1)):
+                out = np.asarray(finishers._detail_apply(image))
 
         # The eye highlight may affect its own pixel, but dark detail elsewhere must remain.
         self.assertLess(int(out[20, 0, 0]), int(pixels[20, 0, 0]))
