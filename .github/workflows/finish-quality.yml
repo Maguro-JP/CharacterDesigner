@@ -10,6 +10,8 @@ on:
       - "chatdraw/tests/test_finish_quality.py"
       - "chatdraw/tests/test_shortcuts.py"
       - "chatdraw/tests/test_finish2.py"
+      - "chatdraw/omakase.py"
+      - "chatdraw/tests/test_omakase.py"
       - "tools/gen/retouch.py"
       - ".github/workflows/finish-quality.yml"
   workflow_dispatch: {}
