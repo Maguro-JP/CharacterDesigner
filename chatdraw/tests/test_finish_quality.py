@@ -139,6 +139,27 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         # The eye highlight may affect its own pixel, but dark detail elsewhere must remain.
         self.assertLess(int(out[20, 0, 0]), int(pixels[20, 0, 0]))
 
+    def test_denoise_is_available_and_reduces_flat_fill_noise(self):
+        import numpy as np
+        # Flat illustration fill with low-amplitude sensor/render noise and a clean, hard edge.
+        rng = np.random.default_rng(20261119)
+        h, w = 192, 192
+        a = np.empty((h, w, 3), dtype=np.float32)
+        a[:] = (178, 132, 96)
+        a[:, 96:] = (48, 82, 126)
+        a += rng.normal(0, 5.0, a.shape).astype(np.float32)
+        a = np.clip(a, 0, 255)
+        rt = finishers._gen("retouch")
+        before = rt.noise(a)
+        out, report = finishers.step(a, "denoise")
+        after = rt.noise(out)
+        self.assertTrue(report["used"], report)
+        self.assertLess(after, before, (before, after, report))
+        # The denoiser must not wash out the deliberately sharp color boundary.
+        self.assertLess(float(np.abs(out[:, 95] - out[:, 96]).mean()), 100.0)
+        row = next(x for x in finishers.available() if x["name"] == "denoise")
+        self.assertTrue(row["ready"], row)
+
     def test_real_clean_stays_close_to_original(self):
         src = Image.open(SAMPLE).convert("RGB")
         for name in ("clean", "retouch", "retouch_full"):
