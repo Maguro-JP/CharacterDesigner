@@ -120,6 +120,25 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         row = [got.getpixel((x, 148))[0] - out.getpixel((x, 148))[0] for x in range(180, 205)]
         self.assertTrue(len(set(row)) > 2, row)   # 縁はぼかして移る（一気に変わる継ぎ目にしない）
 
+    def test_eye_highlight_does_not_disable_detail_contrast_elsewhere(self):
+        import numpy as np
+        from types import SimpleNamespace
+
+        # A high-frequency luminance pattern produces both bright and dark detail components.
+        stripe = np.tile(np.array([100, 160], dtype=np.uint8), 32)
+        pixels = np.repeat(stripe[np.newaxis, :, np.newaxis], 64, axis=0)
+        image = Image.fromarray(np.repeat(pixels, 3, axis=2), "RGB")
+        eye = np.zeros((64, 64), dtype=np.float32)
+        eye[0, 0] = 20.0
+
+        with mock.patch.object(finishers, "_gen", lambda _name: SimpleNamespace(
+                line_mask=lambda a: np.zeros(a.shape[:2], dtype=bool))):
+            with mock.patch.object(finishers, "_eye_highlights", lambda _im, _l: (eye, 1)):
+                out = np.asarray(finishers._detail_apply(image))
+
+        # The eye highlight may affect its own pixel, but dark detail elsewhere must remain.
+        self.assertLess(int(out[20, 0, 0]), int(pixels[20, 0, 0]))
+
     def test_real_clean_stays_close_to_original(self):
         src = Image.open(SAMPLE).convert("RGB")
         for name in ("clean", "retouch", "retouch_full"):
