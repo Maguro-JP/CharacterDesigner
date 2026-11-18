@@ -545,8 +545,8 @@ for _m, _label, _tip in (("holy", "神々しい光", "光の筋と光の粒、�
                          ("komorebi", "木漏れ日", "木漏れ日の光の斑点と細い筋を重ねます"),
                          ("haze", "霞と遠近", "上ほど空の色で覆い、奥行きを出します")):
     register(Finisher(f"air_{_m}", _label, _tip + "。線と形は変えません", _OWN, "tools/gen/atmosphere.py",
-                      _own_ready("atmosphere", "numpy"), _own_why("atmosphere", "numpy"), _mood(_m), group="air",
-                      extra=dict(needs=("numpy",), effect=True, scale="work")))
+                      _own_ready("atmosphere", "numpy", "scipy"), _own_why("atmosphere", "numpy", "scipy"), _mood(_m), group="air",
+                      extra=dict(needs=("numpy", "scipy"), effect=True, scale="work")))
 for _k, _label, _tip in (("metal", "金属", "明暗の段差と映り込みの帯、強い照り返しを足します"),
                          ("gem", "宝石", "面の分かれの明暗と内側の透け、きらめきを足します"),
                          ("slime", "透明感", "内側ほど透かし、縁の光と照り返しを足します")):
