@@ -25,7 +25,7 @@ jobs:
         with:
           python-version: "3.11"
       - name: 部品
-        run: pip install -q PySide6 numpy scipy scikit-image pillow
+        run: sudo apt-get update -q && sudo apt-get install -y -q libegl1 && pip install -q PySide6 numpy scipy scikit-image pillow
       - name: 綺麗にする加工の回帰試験
         env:
           QT_QPA_PLATFORM: offscreen

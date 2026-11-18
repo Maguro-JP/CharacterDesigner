@@ -160,6 +160,46 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         row = next(x for x in finishers.available() if x["name"] == "denoise")
         self.assertTrue(row["ready"], row)
 
+    def test_clean_reduces_flat_fill_noise_without_softening_boundary(self):
+        import numpy as np
+        rng = np.random.default_rng(20261120)
+        a = np.empty((192, 192, 3), dtype=np.float32)
+        a[:] = (178, 132, 96)
+        a[:, 96:] = (48, 82, 126)
+        a += rng.normal(0, 5.0, a.shape).astype(np.float32)
+        a = np.clip(a, 0, 255)
+        rt = finishers._gen("retouch")
+        before = rt.noise(a)
+        out = np.asarray(finishers._clean_apply(Image.fromarray(a.astype("uint8"))), dtype=np.float32)
+        after = rt.noise(out)
+        self.assertLess(after, before, (before, after))
+        edge_before = float(np.abs(a[:, 95] - a[:, 96]).mean())
+        edge_after = float(np.abs(out[:, 95] - out[:, 96]).mean())
+        self.assertGreater(edge_after, edge_before * 0.8, (edge_before, edge_after))
+
+    def test_around_changes_only_the_marked_region(self):
+        import numpy as np
+        from chatdraw import facefeat, seamfix
+        rng = np.random.default_rng(20261120)
+        a = np.empty((192, 192, 3), dtype=np.float32)
+        a[:] = (160, 120, 90)
+        a += rng.normal(0, 5.0, a.shape).astype(np.float32)
+        src = Image.fromarray(np.clip(a, 0, 255).astype("uint8"))
+        mask = Image.new("L", src.size, 0)
+        from PIL import ImageDraw
+        ImageDraw.Draw(mask).rectangle((48, 48, 143, 143), fill=255)
+        with mock.patch.object(finishers, "guard", side_effect=lambda _n, _s, out, _m=None: out), \
+             mock.patch.object(finishers, "soften", side_effect=lambda _s, out, _m, _f: (out, {})), \
+             mock.patch.object(facefeat, "keep", side_effect=lambda _s, out, _m: (out, {})), \
+             mock.patch.object(seamfix, "whole_check", return_value={}):
+            finishers.LAST_QC.clear()
+            out = finishers.run("around", src, mask)
+        before, after = np.asarray(src), np.asarray(out)
+        outside = np.asarray(mask) < 128
+        self.assertTrue(np.array_equal(before[outside], after[outside]))
+        inside = ~outside
+        self.assertTrue(np.any(before[inside] != after[inside]), "囲みの中も変わっていません")
+
     def test_default_presets_include_guarded_denoise(self):
         self.assertIn("denoise", finishers.RETOUCH_SAFE)
         self.assertIn("denoise", finishers.RETOUCH_FULL)
