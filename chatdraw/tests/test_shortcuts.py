@@ -21,7 +21,7 @@ from chatdraw.tests.test_chatdraw import FakePainter, FakeWords  # noqa: E402
 
 # 模型を使わず、本物の加工で画素が変わるはずの物
 PIXEL_CHANGES = ("fin:clean", "fin:denoise", "fin:ink", "fin:air_holy", "fin:air_komorebi", "fin:air_haze", "fin:mat_metal", "fin:mat_gem",
-                 "fin:mat_slime", "app:lineart", "app:pixel", "app:nobg")
+                 "fin:mat_slime", "fin:detail", "app:lineart", "app:pixel", "app:nobg")
 # 工程ごとに良くなった時だけ掛けるので、小さな絵では変わらないこともある。全部の工程を通ったことを確かめる
 RETOUCH = ("fin:retouch", "fin:retouch_full")
 # 模型の要る物（偽の模型で流す）と、拡大の重みの要る物（偽の重みで流す）
@@ -29,7 +29,7 @@ MODEL_ITEMS = ("fin:refine", "app:chibi", "grow:lr", "grow:tb", "grow:all", "fin
 # まとめて掛ける物（模型を使わない加工を順に掛ける）
 COMBOS = ("combo:tidy", "combo:tidy_color")
 # 整える・指定した箇所の周辺を整える・ディテール追加（模型を使わない。周辺は囲みが無いと理由を出す）
-KEEPERS = ("fin:face", "fin:around", "fin:detail")
+KEEPERS = ("fin:face", "fin:around")
 
 
 def app():
@@ -317,7 +317,7 @@ class ModelFreeTest(Base):
                 self.assertEqual([r["step"] for r in finishers.LAST_REPORT["steps"]], list(want))
 
     def test_keepers_from_the_app(self):
-        """整える・ディテール追加は押すと新しいレイヤーを足す。周辺を整えるは囲みが無いと理由を出し、レイヤーを足さない"""
+        """整えるは新しいレイヤーを足す。周辺を整えるは囲みが無いと理由を出し、レイヤーを足さない。ディテール追加は画素まで別試験で確かめる"""
         for sid in ("fin:face", "fin:detail"):
             with self.subTest(sid=sid):
                 self.w.edit_image(str(self.src))
