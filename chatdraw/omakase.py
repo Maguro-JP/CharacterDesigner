@@ -107,15 +107,15 @@ class Plan:
         for kind, ms in self.fix.items():
             if ms:
                 line.append(f"{KIND_ASPECT[kind]}の直し: {ms[0][0].name}")
-        line.append("小さく描いて広げる、顔と手の描き込みを通す")
+        line.append("検品後の画像を保持（自動の描き込み・仕上げ加工なし）")
         if self.finish:
             line.append("仕上げ: " + "、".join(self.finish))
         return "、".join(line + self.notes)
 
 
-# おまかせが検品を通った絵に黙って掛けてよい仕上げ。形を変えず、大きさも変えない物だけ。
-# 描き直す仕上げ（顔を整える、仕上げの描き直し）は検品を通った絵を崩しうるので、利用者が選んだときだけ使う
-AUTO_FINISH = ("clean", "retouch")   # retouch は形を変えない工程だけ（崩れが増える工程は採らない。docs/knowledge/retouch.md）
+# 生成モデルが出した画像を優先し、自動の後処理で細部や質感を失わないようにする。
+# clean / retouch は手動の加工メニューから利用者が必要なときだけ適用する。
+AUTO_FINISH = ()
 
 
 def auto_finish(tools) -> list:
@@ -358,8 +358,9 @@ class Omakase:
                     say("直しで崩れが増えたので、前の絵に戻します")
                     break
                 image, res = tried, again
-            if not res["bad"] and res.get("detail") and not getattr(painter, "stop", False):
-                image, res = self.detail(image, res, text, s_k, m.repo if m else "", prompt, say)
+            # 検品に合格した画像への顔・手・足の自動再描画は行わない。
+            # detail_regions は「検出された部位」であり「描き直しが必要な欠陥」ではない。
+            # 元画像より良くなる保証がないため、部分描画は利用者が明示的に依頼した場合に限る。
             self.log.append(dict(stage="検品", seed=s_k, bad=list(res["bad"]), readable=res["readable"]))
             # 検品できなかった絵は崩れが無いのではなく見ていないだけなので、崩れ 1 つとして数えて比べる。
             # 前は読めない絵（崩れ 0）が、読めて崩れが 1 つの絵より先に選ばれ、崩れを逃がした

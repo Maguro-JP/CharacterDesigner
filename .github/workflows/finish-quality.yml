@@ -40,3 +40,4 @@ jobs:
           chatdraw.tests.test_shortcuts.MenuTest
           chatdraw.tests.test_shortcuts.ModelFreeTest
           chatdraw.tests.test_finish2.FinishMenuTest
+          chatdraw.tests.test_omakase
