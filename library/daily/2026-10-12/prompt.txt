@@ -1,3 +1,0 @@
-題材: スライム娘
-模型: cagliostrolab/animagine-xl-3.1
-選んだ種: 20261212
