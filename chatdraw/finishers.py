@@ -362,7 +362,7 @@ def _own_why(mod: str, *needs: str):
 # defringe は線の縁に紫・緑の色にじみがある場合だけ採用する。どちらも対象が無ければ元画像を維持する。
 # levels / heal / sharpen / deburr / dejag は、明るさ・細い線・髪先・ボタン等を壊す実画像例があるため既定から外す。
 RETOUCH_SAFE = ("denoise", "defringe")
-RETOUCH_FULL = ("defringe", "dejag")
+RETOUCH_FULL = ("denoise", "defringe", "dejag")
 
 
 _MEMO: list = []   # (配列, 種類, 値)。同じ絵の崩れを工程ごとに測り直さない（直した絵は測ったあとに書き換えないので、同じ物を指せば同じ値）
