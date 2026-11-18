@@ -633,6 +633,24 @@ def keep_outside(original, result, mask):
     return Image.composite(res, orig, binary(mask, orig.size))
 
 
+def preserve_lines(original, result):
+    """空気感・質感の色や光を足す加工から、元の主線とその 1 画素の縁を守る。"""
+    import numpy as np
+    from PIL import Image
+    from scipy.ndimage import binary_dilation
+    src = original.convert("RGB")
+    out = result.convert("RGB")
+    if out.size != src.size:
+        out = out.resize(src.size, Image.LANCZOS)
+    a = np.asarray(src)
+    b = np.asarray(out).copy()
+    line = _gen("cleanup").line_mask(a)
+    if line.any():
+        protected = binary_dilation(line, iterations=1)
+        b[protected] = a[protected]
+    return Image.fromarray(b)
+
+
 # ---- 大きな絵（拡大のあと）でも必ず終わる掛け方 ----
 # 拡大のあとの絵に掛けると固まって見えた。測ると 1024 角で 2〜19 秒の加工が、2048 角で 6〜7 倍に伸びた
 # （塗りのむら 2.3 → 13.9 秒、線と塗り 11.7 → 87.4 秒）。絵の面積より速く伸びるので、大きな絵は区画に分けて掛ける。
@@ -936,11 +954,16 @@ def scores(src, out) -> dict:
         ma, mb = cleanup.line_mask(a), cleanup.line_mask(b)
     except ImportError:
         ma, mb = la < 90, lb < 90
+    inter = int((ma & mb).sum())
     union = int((ma | mb).sum())
-    # 両方に主線が無い画像（暗いベタ塗りだけ等）は、線が一致しないのではなく比較対象が無い。
-    # 空集合どうしの一致率を 1.0 とし、線が無い絵を品質検査で拒否しない。
-    iou = 1.0 if union == 0 else float((ma & mb).sum() / union)
-    return dict(ssim=None if ss is None else round(ss, 4), line=round(iou, 4), color=round(float(np.abs(a - b).mean()), 2))
+    # IoU は追加した細部も減点するため、元の主線が残った割合（recall）と
+    # 加工後の線のうち元からあった割合（precision）を分けて記録する。
+    iou = 1.0 if union == 0 else float(inter / union)
+    recall = 1.0 if not ma.any() else float(inter / ma.sum())
+    precision = 1.0 if not mb.any() else float(inter / mb.sum())
+    return dict(ssim=None if ss is None else round(ss, 4), line=round(iou, 4),
+                line_recall=round(recall, 4), line_precision=round(precision, 4),
+                color=round(float(np.abs(a - b).mean()), 2))
 
 
 LINE_DELTA = 40.0   # 主線とその 2 画素の周りで、元の絵から変えてよい色の上限（0〜255）。線の太さと形を変えないように
@@ -1192,6 +1215,8 @@ def run(name: str, image, mask=None, say=None, face=_NO_FACE):
         out = at_work_size(f.apply, src, say, f.label)
     else:
         out = f.apply(src)
+    if f.group in {"air", "texture"} and out.size == src.size:
+        out = preserve_lines(src, out)
     out = out if mask is None else keep_outside(src, out, mask)
     _MEMO.clear()   # 大きな絵の配列を持ち続けない
     out = guard(name, src, out, mask)
