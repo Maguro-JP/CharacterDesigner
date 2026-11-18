@@ -140,6 +140,7 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         self.assertLess(int(out[20, 0, 0]), int(pixels[20, 0, 0]))
 
     def test_denoise_reduces_real_sample_noise_without_losing_lines(self):
+        import numpy as np
         src = Image.open(SAMPLE).convert("RGB")
         rt = finishers._gen("retouch")
         before = rt.noise(np.asarray(src, dtype=np.float32))
