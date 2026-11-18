@@ -160,6 +160,23 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         row = next(x for x in finishers.available() if x["name"] == "denoise")
         self.assertTrue(row["ready"], row)
 
+    def test_default_retouch_reduces_noise_when_noise_is_present(self):
+        import numpy as np
+        rng = np.random.default_rng(20261119)
+        a = np.empty((192, 192, 3), dtype=np.float32)
+        a[:] = (178, 132, 96)
+        a[:, 96:] = (48, 82, 126)
+        a += rng.normal(0, 5.0, a.shape).astype(np.float32)
+        a = np.clip(a, 0, 255)
+        rt = finishers._gen("retouch")
+        before = rt.noise(a)
+        out = finishers._retouch(finishers.RETOUCH_SAFE)(Image.fromarray(a.astype("uint8")))
+        after = rt.noise(np.asarray(out, dtype=np.float32))
+        report = finishers.LAST_REPORT["steps"]
+        denoise = next(row for row in report if row["step"] == "denoise")
+        self.assertTrue(denoise["used"], denoise)
+        self.assertLess(after, before, (before, after, report))
+
     def test_real_clean_stays_close_to_original(self):
         src = Image.open(SAMPLE).convert("RGB")
         for name in ("clean", "retouch", "retouch_full"):
