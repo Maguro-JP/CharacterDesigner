@@ -355,11 +355,22 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         self.assertTrue(denoise["used"], denoise)
         self.assertLess(after, before, (before, after, report))
 
+    def test_preserve_lines_does_not_freeze_isolated_specks(self):
+        from PIL import Image, ImageDraw
+        src = Image.new("RGB", (128, 128), (220, 220, 220))
+        draw = ImageDraw.Draw(src)
+        draw.line((10, 64, 110, 64), fill=(10, 10, 10), width=2)
+        draw.point((64, 20), fill=(0, 0, 0))  # 主線から離れた孤立した粒
+        candidate = Image.new("RGB", src.size, (180, 180, 180))
+        out = finishers.preserve_lines(src, candidate)
+        self.assertEqual(out.getpixel((64, 64)), src.getpixel((64, 64)))
+        self.assertEqual(out.getpixel((64, 20)), candidate.getpixel((64, 20)))
+
     def test_detail_addition_keeps_existing_main_lines(self):
         import numpy as np
         src = Image.open(SAMPLE).convert("RGB")
         a = np.asarray(src, dtype=np.float32)
-        line = finishers._gen("cleanup").line_mask(a)
+        line = finishers.structural_lines(a)
         out = finishers.run("detail", src)
         score = finishers.scores(src, out)
         self.assertGreaterEqual(score["line_recall"], 0.98, score)
@@ -369,7 +380,7 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         import numpy as np
         src = Image.open(SAMPLE).convert("RGB")
         a = np.asarray(src, dtype=np.float32)
-        line = finishers._gen("cleanup").line_mask(a)
+        line = finishers.structural_lines(a)
         self.assertGreater(int(line.sum()), 100)
         for name in ("air_holy", "air_komorebi", "air_haze", "mat_metal", "mat_gem", "mat_slime"):
             with self.subTest(name=name):
