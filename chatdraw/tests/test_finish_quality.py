@@ -182,7 +182,8 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         from chatdraw import facefeat, seamfix
         rng = np.random.default_rng(20261120)
         a = np.empty((192, 192, 3), dtype=np.float32)
-        a[:] = (160, 120, 90)
+        a[:] = (178, 132, 96)
+        a[:, 96:] = (48, 82, 126)
         a += rng.normal(0, 5.0, a.shape).astype(np.float32)
         src = Image.fromarray(np.clip(a, 0, 255).astype("uint8"))
         mask = Image.new("L", src.size, 0)
@@ -199,7 +200,7 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         outside = np.asarray(mask) < 128
         self.assertTrue(np.array_equal(before[outside], after[outside]))
         inside = ~outside
-        self.assertTrue(np.any(before[inside] != after[inside]), "囲みの中も変わっていません")
+        self.assertTrue(np.any(before[inside] != after[inside]), f"囲みの中も変わっていません: qc={finishers.LAST_QC!r}, report={finishers.LAST_REPORT!r}")
 
     def test_defringe_removes_purple_edge_fringe_when_present(self):
         import numpy as np

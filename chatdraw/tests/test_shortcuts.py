@@ -276,7 +276,17 @@ class ModelFreeTest(Base):
         from chatdraw import finishers
         for sid in PIXEL_CHANGES:
             with self.subTest(sid=sid):
-                self.w.edit_image(str(self.src))
+                source = self.src
+                if sid == "fin:denoise":
+                    import numpy as np
+                    rng = np.random.default_rng(20261120)
+                    noisy = np.empty((192, 192, 3), dtype=np.float32)
+                    noisy[:] = (178, 132, 96)
+                    noisy[:, 96:] = (48, 82, 126)
+                    noisy += rng.normal(0, 5.0, noisy.shape).astype(np.float32)
+                    source = Path(self.tmp.name) / "denoise-noisy-fill.png"
+                    Image.fromarray(np.clip(noisy, 0, 255).astype("uint8")).save(source)
+                self.w.edit_image(str(source))
                 before, n = self.base(), len(self.w.canvas.layers)
                 self.press(sid)
                 after = self.base()
@@ -315,7 +325,7 @@ class ModelFreeTest(Base):
                 self.press(sid)
                 self.assertEqual(len(self.w.canvas.layers), n + 1)
                 self.assertEqual([q["name"] for q in finishers.LAST_CHAIN], list(want[sid]))
-                self.assertIsNotNone(ImageChops.difference(before, self.base()).getbbox(alpha_only=False), sid)
+                self.assertIsNotNone(ImageChops.difference(before, self.base()).getbbox(alpha_only=False), f"{sid}: {finishers.LAST_CHAIN!r}")
 
     def test_own_chain_add_press_rename_remove(self):
         """自分の組み合わせ: 選んだ順に登録し、右クリックから押すとその順に掛ける。名前の変更と削除ができ、次の起動にも残る"""
