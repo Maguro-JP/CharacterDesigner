@@ -160,6 +160,29 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         row = next(x for x in finishers.available() if x["name"] == "denoise")
         self.assertTrue(row["ready"], row)
 
+    def test_denoise_survives_full_quality_guards(self):
+        import numpy as np
+        from chatdraw import facefeat
+        rng = np.random.default_rng(20261121)
+        a = np.empty((192, 192, 3), dtype=np.float32)
+        a[:] = (178, 132, 96)
+        a[:, 96:] = (48, 82, 126)
+        a += rng.normal(0, 5.0, a.shape).astype(np.float32)
+        src = Image.fromarray(np.clip(a, 0, 255).astype("uint8"))
+        before = finishers._gen("retouch").noise(np.asarray(src, dtype=np.float32))
+        with mock.patch.object(finishers, "face_keep", return_value=None), \\
+             mock.patch.object(finishers, "face_box_keep", return_value=None), \\
+             mock.patch.object(finishers, "hand_guard", side_effect=lambda _s, out: (out, {})), \\
+             mock.patch.object(facefeat, "keep", side_effect=lambda _s, out, _m: (out, {})):
+            finishers.LAST_QC.clear()
+            out = finishers.run("denoise", src)
+        after = finishers._gen("retouch").noise(np.asarray(out, dtype=np.float32))
+        self.assertLess(after, before * 0.98, (before, after, finishers.LAST_QC))
+        self.assertFalse(finishers.LAST_QC.get("rejected"), finishers.LAST_QC)
+        self.assertFalse(finishers.LAST_QC.get("verify", {}).get("failed"), finishers.LAST_QC)
+        self.assertTrue(np.any(np.asarray(src) != np.asarray(out)), finishers.LAST_QC)
+        self.assertGreaterEqual(finishers.LAST_QC.get("verify", {}).get("line", 0), finishers.VERIFY_LINE)
+
     def test_clean_reduces_flat_fill_noise_without_softening_boundary(self):
         import numpy as np
         rng = np.random.default_rng(20261120)

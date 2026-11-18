@@ -999,7 +999,7 @@ def limit(src, out):
                 y1, x1 = y0 + QC_CELL, x0 + QC_CELL
                 before_noise = rt.noise(a[y0:y1, x0:x1])
                 after_noise = rt.noise(b[y0:y1, x0:x1])
-                if before_noise >= 2.0 and after_noise <= before_noise * 0.85:
+                if before_noise >= 1.0 and after_noise < before_noise * 0.98:
                     cell[cy, cx] = False
         back = int(cell.sum())
         if back:
