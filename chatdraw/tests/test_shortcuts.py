@@ -333,6 +333,7 @@ class ModelFreeTest(Base):
         """まとめて綺麗にする: 押すと工程を順に掛け、1 枚の新しいレイヤーに置く"""
         from chatdraw import finishers, shortcuts
         want = {sid: steps for sid, _l, steps, _t in shortcuts.COMBOS}
+        self.assertEqual(want["combo:tidy"], ("retouch",))  # retouch に clean が含まれるので二重適用しない
         for sid in COMBOS:
             with self.subTest(sid=sid):
                 source = self.src

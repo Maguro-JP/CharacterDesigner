@@ -95,7 +95,7 @@ library/feedback/check の 10 枚（832×1216 前後の JPEG、2026-10-17〜18 �
 | 整える（face） | retouch の既定工程 → clean | 顔・目・髪の保護と全体検品を通す |
 | 指定した箇所の周辺を整える（around） | face と同じ処理をマスク内に適用 | マスク外は元の画素を完全保持。選択範囲が必要 |
  
-右クリックの「まとめて綺麗にする」は clean → retouch、「まとめて整える（塗りを残す）」は clean → retouch_full。各段階で個別に検品する。
+右クリックの「まとめて綺麗にする」は retouch（denoise → defringe → clean）、「まとめて整える（塗りを残す）」は clean → retouch_full。retouch 自体に clean が含まれるため、同じ平滑化を重ねない。各段階で個別に検品する。
  
 ### 自動後処理
  
