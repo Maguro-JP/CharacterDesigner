@@ -139,6 +139,19 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         # The eye highlight may affect its own pixel, but dark detail elsewhere must remain.
         self.assertLess(int(out[20, 0, 0]), int(pixels[20, 0, 0]))
 
+    def test_denoise_reduces_real_sample_noise_without_losing_lines(self):
+        src = Image.open(SAMPLE).convert("RGB")
+        rt = finishers._gen("retouch")
+        before = rt.noise(np.asarray(src, dtype=np.float32))
+        out = finishers.run("denoise", src)
+        after = rt.noise(np.asarray(out, dtype=np.float32))
+        s = finishers.scores(src, out)
+        self.assertLess(after, before * 0.95, (before, after, finishers.LAST_REPORT))
+        self.assertTrue(finishers.LAST_REPORT.get("steps", [{}])[0].get("used"), finishers.LAST_REPORT)
+        self.assertFalse(finishers.LAST_QC.get("rejected"), finishers.LAST_QC)
+        self.assertGreaterEqual(s["ssim"], finishers.VERIFY_SSIM, s)
+        self.assertGreaterEqual(s["line"], finishers.VERIFY_LINE, s)
+
     def test_denoise_is_available_and_reduces_flat_fill_noise(self):
         import numpy as np
         # Flat illustration fill with low-amplitude sensor/render noise and a clean, hard edge.
@@ -339,6 +352,8 @@ class CleanKeepsOriginalTest(unittest.TestCase):
                 self.assertGreaterEqual(s["ssim"], finishers.VERIFY_SSIM, (name, s))
                 self.assertGreaterEqual(s["line"], finishers.VERIFY_LINE, (name, s))
                 self.assertLess(s["color"], 3.0, (name, s))
+                if name in ("retouch", "retouch_full"):
+                    self.assertTrue(finishers.LAST_REPORT.get("steps", [{}])[0].get("used"), (name, finishers.LAST_REPORT))
                 self.assertIn("verify", finishers.LAST_QC)
 
     def test_upscaled_clean_stays_close(self):
