@@ -137,7 +137,7 @@ class CleanKeepsOriginalTest(unittest.TestCase):
             out = np.asarray(finishers._detail_apply(image))
 
         # The eye highlight may affect its own pixel, but dark detail elsewhere must remain.
-        self.assertLess(int(out[20, 0, 0]), int(pixels[20, 0, 0, 0]))
+        self.assertLess(int(out[20, 0, 0]), int(pixels[20, 0, 0]))
 
     def test_real_clean_stays_close_to_original(self):
         src = Image.open(SAMPLE).convert("RGB")
