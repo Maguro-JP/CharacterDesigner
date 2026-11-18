@@ -139,6 +139,19 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         # The eye highlight may affect its own pixel, but dark detail elsewhere must remain.
         self.assertLess(int(out[20, 0, 0]), int(pixels[20, 0, 0]))
 
+    def test_retouch_after_clean_keeps_denoise_when_flaw_count_jitters(self):
+        import numpy as np
+        src = Image.open(SAMPLE).convert("RGB")
+        rt = finishers._gen("retouch")
+        cleaned = finishers.run("clean", src)
+        before = rt.noise(np.asarray(cleaned, dtype=np.float32))
+        out = finishers.run("retouch", cleaned)
+        after = rt.noise(np.asarray(out, dtype=np.float32))
+        first = finishers.LAST_REPORT.get("steps", [{}])[0]
+        self.assertTrue(first.get("used"), finishers.LAST_REPORT)
+        self.assertLess(after, before * 0.95, (before, after, finishers.LAST_REPORT))
+        self.assertFalse(finishers.LAST_QC.get("rejected"), finishers.LAST_QC)
+
     def test_denoise_reduces_real_sample_noise_without_losing_lines(self):
         import numpy as np
         src = Image.open(SAMPLE).convert("RGB")

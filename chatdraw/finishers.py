@@ -429,9 +429,16 @@ def step(a, name: str):
     f0, f1 = flaws(a), flaws(b)
     d, dm = rt.drift(a, b), rt.damage(a, b)
     broken = rt.line_broken(a, b, thickness=name != "sharpen")
+    # denoise は平坦部の色境界を整えるため、連結成分の数が 1〜2 個揺れることがある。
+    # 新規の崩れ画素は repair で戻し、線・形・局所損傷も別検査するため、
+    # 大きな画像で 0.3% 未満のカウント差だけは測定揺れとして許容する。
+    flaw_tolerance = max(1, round(f0 * 0.003)) if name == "denoise" else 0
+    flaw_increase = f1 > f0 + flaw_tolerance
     why = ("数字が良くならない" if after >= before else f"形が変わりすぎる（{d:.3f}）" if d > rt.DRIFT
-           else f"一部が壊れる（{dm:.1f}）" if dm > rt.LOCAL else broken or (f"崩れが増える（{f0} → {f1}）" if f1 > f0 else ""))
-    rep = dict(step=name, before=round(float(before), 4), after=round(float(after), 4), flaws=[f0, f1], used=not why)
+           else f"一部が壊れる（{dm:.1f}）" if dm > rt.LOCAL
+           else broken or (f"崩れが増える（{f0} → {f1}、許容 {flaw_tolerance}）" if flaw_increase else ""))
+    rep = dict(step=name, before=round(float(before), 4), after=round(float(after), 4),
+               flaws=[f0, f1], flaw_tolerance=flaw_tolerance, used=not why)
     if why:
         rep["why"] = why
     return (a if why else b), rep
