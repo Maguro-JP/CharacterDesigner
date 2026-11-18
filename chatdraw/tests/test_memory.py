@@ -259,3 +259,49 @@ class BigModelNeverRefused(unittest.TestCase):
         self.assertEqual(engine.memory_retry(f, run, notes.append), "絵")
         self.assertEqual(tries, ["", "", "disk"])
         self.assertTrue(any("ディスク" in n for n in notes))
+
+    def test_disk_offload_falls_back_when_group_offload_is_unsupported(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from unittest.mock import patch
+        import torch
+        from chatdraw import engine
+
+        class Pipeline:
+            transformer = object()
+            vae = None
+            image_encoder = None
+
+            def __init__(self):
+                self.sequential_called = 0
+
+            def enable_sequential_cpu_offload(self):
+                self.sequential_called += 1
+
+        with TemporaryDirectory() as d:
+            p = engine.Painter.__new__(engine.Painter)
+            p.placed = "sequential"
+            pipe = Pipeline()
+            with patch.object(engine, "HUB", Path(d) / "hub"), patch.object(torch.cuda, "is_available", return_value=False):
+                p._disk_offload(pipe)
+
+        self.assertEqual(pipe.sequential_called, 1)
+        self.assertEqual(p.placed, "sequential")
+
+    def test_disk_offload_reports_when_no_fallback_exists(self):
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+        from unittest.mock import patch
+        import torch
+        from chatdraw import engine
+
+        class Pipeline:
+            transformer = object()
+            vae = None
+            image_encoder = None
+
+        with TemporaryDirectory() as d:
+            p = engine.Painter.__new__(engine.Painter)
+            with patch.object(engine, "HUB", Path(d) / "hub"), patch.object(torch.cuda, "is_available", return_value=False):
+                with self.assertRaisesRegex(RuntimeError, "sequential CPU offload"):
+                    p._disk_offload(Pipeline())
