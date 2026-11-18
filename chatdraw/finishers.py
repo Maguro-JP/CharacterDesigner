@@ -517,6 +517,11 @@ def _material(kind: str):
 
 _OWN = "このリポジトリのコード"
 register(Finisher(
+    "denoise", "塗りのざらつきを抑える",
+    "塗りの細かなざらつきを、輪郭を保ちながら抑えます。画像ごとに効果と線の変化を検査し、悪化する場合は適用しません",
+    _OWN, "tools/gen/retouch.py", _own_ready("retouch", "numpy", "scipy"), _own_why("retouch", "numpy", "scipy"),
+    _retouch(("denoise",)), extra=dict(needs=("numpy", "scipy"), scale="retouch", steps=("denoise",))))
+register(Finisher(
     "retouch", "線と塗りを整える",
     "線の縁の紫・緑の色のにじみを消し、平らな塗りの細かいざらつきを均します。形と色は変えません。"
     "線の工程は数字が良くなった時だけ掛けます",
