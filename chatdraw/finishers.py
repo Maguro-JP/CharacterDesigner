@@ -636,8 +636,7 @@ def keep_outside(original, result, mask):
 def preserve_lines(original, result):
     """空気感・質感の色や光を足す加工から、元の主線とその 1 画素の縁を守る。"""
     import numpy as np
-    from PIL import Image
-    from scipy.ndimage import binary_dilation
+    from PIL import Image, ImageFilter
     src = original.convert("RGB")
     out = result.convert("RGB")
     if out.size != src.size:
@@ -646,7 +645,10 @@ def preserve_lines(original, result):
     b = np.asarray(out).copy()
     line = _gen("cleanup").line_mask(a)
     if line.any():
-        protected = binary_dilation(line, iterations=1)
+        # 空気感の加工は numpy だけで使える。scipy を追加必須にせず PIL で 1px 膨張する。
+        protected = np.asarray(
+            Image.fromarray((line * 255).astype("uint8")).filter(ImageFilter.MaxFilter(3))
+        ) > 0
         b[protected] = a[protected]
     return Image.fromarray(b)
 
