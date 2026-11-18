@@ -51,6 +51,25 @@ def main() -> None:
     source = Image.open(SAMPLE).convert("RGB")
     source.save(OUT / "original.png")
 
+    # Preserve the raw denoise candidate separately from the guarded menu result.
+    # This reveals whether the algorithm improves noise but is rejected by a guard.
+    rt = finishers._gen("retouch")
+    src_array = np.asarray(source, dtype=np.float32)
+    candidate_array = np.clip(rt.denoise(src_array), 0, 255)
+    candidate = Image.fromarray(candidate_array.astype("uint8"))
+    candidate.save(OUT / "denoise_candidate.png")
+    line_before, line_after = rt.line_state(src_array), rt.line_state(candidate_array)
+    denoise_candidate_report = {
+        "noise_before": round(float(rt.METRIC["denoise"](src_array)), 5),
+        "noise_after": round(float(rt.METRIC["denoise"](candidate_array)), 5),
+        "line_state_before": list(line_before),
+        "line_state_after": list(line_after),
+        "line_guard": rt.line_broken(src_array, candidate_array),
+        "drift": round(float(rt.drift(src_array, candidate_array)), 5),
+        "damage": round(float(rt.damage(src_array, candidate_array)), 5),
+        "scores": finishers.scores(source, candidate),
+    }
+
     # A centered selection exercises the masked path; the report records that pixels
     # outside the selection are unchanged.
     mask = Image.new("L", source.size, 0)
@@ -105,7 +124,8 @@ def main() -> None:
     sheet.save(OUT / "contact-sheet.png")
 
     (OUT / "report.json").write_text(
-        json.dumps({"source": str(SAMPLE.relative_to(ROOT)), "results": rows},
+        json.dumps({"source": str(SAMPLE.relative_to(ROOT)),
+                    "denoise_candidate": denoise_candidate_report, "results": rows},
                    ensure_ascii=False, indent=2, default=str),
         encoding="utf-8",
     )
