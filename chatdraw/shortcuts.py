@@ -40,7 +40,7 @@ COMBOS = (
 GROUP_LABEL = dict(GROUPS)
 TOP_USED = 5
 # 綺麗にするの並び: 線と塗り（崩れを戻しながら整える）→ 塗りのむら → 輪郭のバリとジャギー（顔の細い線に触れることがあるので最後）
-CLEAN_ORDER = ("fin:retouch", "fin:clean", "fin:retouch_full")   # ★ の次に右クリックの一番上に出す、よく使う物の数
+CLEAN_ORDER = ("fin:retouch", "fin:denoise", "fin:clean", "fin:retouch_full")   # ★ の次に右クリックの一番上に出す、よく使う物の数
 
 # QSettings の鍵（利用者の設定。更新で消さない）
 KEY_PROMPTS = "shortcuts/prompts"       # 登録した指示 [{id, name, text}]
@@ -50,7 +50,7 @@ KEY_HIDDEN = "shortcuts/hidden"         # 右クリックに出さない加工�
 KEY_CHAINS = "shortcuts/chains"         # 自分の組み合わせ [{id, name, steps}]。steps は仕上げの名前の並び（掛ける順）
 
 # 初めに右クリックに出す、よく使う加工。ほかは「加工を選ぶ…」で出せる（全部を並べると、初めての人が探せなかった）
-DEFAULT_SHOWN = frozenset(("fin:retouch", "fin:clean", "fin:retouch_full", "combo:tidy", "combo:tidy_color", "fin:face",
+DEFAULT_SHOWN = frozenset(("fin:retouch", "fin:denoise", "fin:clean", "fin:retouch_full", "combo:tidy", "combo:tidy_color", "fin:face",
                            "fin:around", "fin:detail",
                            "fin:upscale_anime", "app:upscale2x", "app:lineart", "app:nobg", "app:transparent", "grow:all"))
 
