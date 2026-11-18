@@ -634,7 +634,7 @@ def keep_outside(original, result, mask):
 
 
 def preserve_lines(original, result):
-    """空気感・質感の色や光を足す加工から、元の主線とその 1 画素の縁を守る。"""
+    """空気感・質感の色や光を足す加工から、元の主線と検出半径 6px の周辺を守る。"""
     import numpy as np
     from PIL import Image, ImageFilter
     src = original.convert("RGB")
@@ -645,9 +645,9 @@ def preserve_lines(original, result):
     b = np.asarray(out).copy()
     line = _gen("cleanup").line_mask(a)
     if line.any():
-        # 空気感の加工は numpy だけで使える。scipy を追加必須にせず PIL で 1px 膨張する。
+        # 主線の検出は半径 6px の近傍を見るため、同じ幅の周辺も保護して検出結果を安定させる。
         protected = np.asarray(
-            Image.fromarray((line * 255).astype("uint8")).filter(ImageFilter.MaxFilter(3))
+            Image.fromarray((line * 255).astype("uint8")).filter(ImageFilter.MaxFilter(13))
         ) > 0
         b[protected] = a[protected]
     return Image.fromarray(b)
