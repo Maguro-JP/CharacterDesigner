@@ -291,7 +291,7 @@ class ModelFreeTest(Base):
                 self.press(sid)
                 after = self.base()
                 self.assertTrue(len(self.w.canvas.layers) != n or sid == "app:nobg", sid)
-                self.assertIsNotNone(ImageChops.difference(before, after).getbbox(alpha_only=False), sid)
+                self.assertIsNotNone(ImageChops.difference(before, after).getbbox(alpha_only=False), f"{sid}: {finishers.LAST_CHAIN!r}")
         for sid in RETOUCH:
             with self.subTest(sid=sid):
                 self.w.edit_image(str(self.src))
@@ -320,7 +320,20 @@ class ModelFreeTest(Base):
         want = {sid: steps for sid, _l, steps, _t in shortcuts.COMBOS}
         for sid in COMBOS:
             with self.subTest(sid=sid):
-                self.w.edit_image(str(self.src))
+                source = self.src
+                if sid == "combo:tidy_color":
+                    import numpy as np
+                    rng = np.random.default_rng(20261120)
+                    noisy = np.empty((192, 192, 3), dtype=np.float32)
+                    noisy[:] = (178, 132, 96)
+                    noisy[:, 96:] = (48, 82, 126)
+                    noisy += rng.normal(0, 5.0, noisy.shape).astype(np.float32)
+                    for y in range(20, 172):
+                        x = 20 + (y - 20) // 4
+                        noisy[y, x:x + 5] = 0.0
+                    source = Path(self.tmp.name) / "tidy-color-noisy-jagged.png"
+                    Image.fromarray(np.clip(noisy, 0, 255).astype("uint8")).save(source)
+                self.w.edit_image(str(source))
                 before, n = self.base(), len(self.w.canvas.layers)
                 self.press(sid)
                 self.assertEqual(len(self.w.canvas.layers), n + 1)
