@@ -1,0 +1,34 @@
+# Focused image-finishing regression suite. Kept separate from the Windows installer E2E
+# so numerical quality tests can finish quickly and report failures independently.
+name: finish-quality
+on:
+  push:
+    branches:
+      - "fix/restore-safe-denoise-cleanup"
+    paths:
+      - "chatdraw/finishers.py"
+      - "chatdraw/tests/test_finish_quality.py"
+      - "tools/gen/retouch.py"
+      - ".github/workflows/finish-quality.yml"
+  workflow_dispatch: {}
+permissions:
+  contents: read
+concurrency:
+  group: finish-quality-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Test dependencies
+        run: pip install -q PySide6 numpy scipy scikit-image pillow
+      - name: Image finishing regression tests
+        env:
+          QT_QPA_PLATFORM: offscreen
+          CD_CHECK: "off"
+        run: python -m unittest chatdraw.tests.test_finish_quality.CleanKeepsOriginalTest
