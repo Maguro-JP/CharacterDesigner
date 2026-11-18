@@ -11,7 +11,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw
 
-from chatdraw import finishers, shortcuts
+from chatdraw import finishers
 
 ROOT = Path(__file__).resolve().parents[1]
 SAMPLE = ROOT / "library" / "daily" / "2026-10-13" / "05-yukionna.png"
