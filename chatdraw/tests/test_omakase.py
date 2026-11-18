@@ -145,7 +145,8 @@ class OmakaseTest(unittest.TestCase):
         with mock.patch.object(omakase, "finishers", return_value=fake):
             _log, st, _ = self.run_draw([COMPOSE], [OK])
         fake.run.assert_not_called()
-        self.assertEqual(st.saved[1]["omakase"]["steps"], [])
+        fake.available.assert_not_called()   # 自動仕上げが無効なら、部品の確認もしない
+        self.assertFalse(any(x["stage"] == "仕上げ" for x in st.saved[1]["omakase"]["steps"]))
         self.assertEqual(omakase.auto_finish(fake.available.return_value), [])
 
     def test_blocked_model_is_never_used(self):
