@@ -1,3 +1,0 @@
-# Actions（model-verify.yml）で、点が 0 の模型に加えて確かめ直す絵の模型。1 行 1 つ（1 つのファイルの模型は「持ち主/名前/ファイル名」）
-# 点が 0 の模型（確かめていない物）は、ここに書かなくても毎週の model-verify が拾う（python -m chatdraw.verify_models list）
-# 目録から外した物（catalog.json の retired）と、Actions の機械（16GB）に入らない物は流さない
