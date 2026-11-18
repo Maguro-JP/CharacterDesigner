@@ -158,7 +158,7 @@ def _detail_apply(image):
     peak &= L > 150
     add += np.where(peak & ~keep, DETAIL_SHINE * (255 - L), 0)
     eye, n_eye = _eye_highlights(image, L)
-    add = np.maximum(add, eye) if n_eye else add
+    add = np.where(eye > 0, np.maximum(add, eye), add) if n_eye else add
     LAST_DETAIL["eye_highlights"] = n_eye
     out = a + add[..., None]
     return Image.fromarray(np.clip(out + 0.5, 0, 255).astype("uint8"))
