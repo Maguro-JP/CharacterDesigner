@@ -188,8 +188,9 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         mask = Image.new("L", src.size, 0)
         from PIL import ImageDraw
         ImageDraw.Draw(mask).rectangle((48, 48, 143, 143), fill=255)
-        with mock.patch.object(finishers, "guard", side_effect=lambda _n, _s, out, _m=None: out), \
-             mock.patch.object(finishers, "soften", side_effect=lambda _s, out, _m, _f: (out, {})), \
+        with mock.patch.object(finishers, "face_keep", return_value=None), \
+             mock.patch.object(finishers, "face_box_keep", return_value=None), \
+             mock.patch.object(finishers, "hand_guard", side_effect=lambda _s, out: (out, {})), \
              mock.patch.object(facefeat, "keep", side_effect=lambda _s, out, _m: (out, {})), \
              mock.patch.object(seamfix, "whole_check", return_value={}):
             finishers.LAST_QC.clear()
@@ -199,6 +200,32 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         self.assertTrue(np.array_equal(before[outside], after[outside]))
         inside = ~outside
         self.assertTrue(np.any(before[inside] != after[inside]), "囲みの中も変わっていません")
+
+    def test_defringe_removes_purple_edge_fringe_when_present(self):
+        import numpy as np
+        a = np.full((160, 160, 3), 245.0, dtype=np.float32)
+        a[:, 79:82] = 20.0
+        a[:, 77:79] = (200.0, 60.0, 200.0)
+        a[:, 82:84] = (200.0, 60.0, 200.0)
+        rt = finishers._gen("retouch")
+        before = rt.fringe(a)
+        out, report = finishers.step(a, "defringe")
+        after = rt.fringe(out)
+        self.assertTrue(report["used"], report)
+        self.assertLess(after, before, (before, after, report))
+
+    def test_dejag_reduces_staircase_edges_when_safe(self):
+        import numpy as np
+        a = np.full((160, 160, 3), 255.0, dtype=np.float32)
+        for y in range(20, 140):
+            x = 20 + (y - 20) // 4
+            a[y, x:x + 5] = 0.0
+        rt = finishers._gen("retouch")
+        before = rt.jaggy(a)
+        out, report = finishers.step(a, "dejag")
+        after = rt.jaggy(out)
+        self.assertTrue(report["used"], report)
+        self.assertLess(after, before, (before, after, report))
 
     def test_default_presets_include_guarded_denoise(self):
         self.assertIn("denoise", finishers.RETOUCH_SAFE)

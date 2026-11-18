@@ -20,7 +20,7 @@ from chatdraw.engine import Studio  # noqa: E402
 from chatdraw.tests.test_chatdraw import FakePainter, FakeWords  # noqa: E402
 
 # 模型を使わず、本物の加工で画素が変わるはずの物
-PIXEL_CHANGES = ("fin:clean", "fin:ink", "fin:air_holy", "fin:air_komorebi", "fin:air_haze", "fin:mat_metal", "fin:mat_gem",
+PIXEL_CHANGES = ("fin:clean", "fin:denoise", "fin:ink", "fin:air_holy", "fin:air_komorebi", "fin:air_haze", "fin:mat_metal", "fin:mat_gem",
                  "fin:mat_slime", "app:lineart", "app:pixel", "app:nobg")
 # 工程ごとに良くなった時だけ掛けるので、小さな絵では変わらないこともある。全部の工程を通ったことを確かめる
 RETOUCH = ("fin:retouch", "fin:retouch_full")
@@ -121,7 +121,7 @@ class GroupTest(unittest.TestCase):
     def test_clean_is_split_by_kind(self):
         from chatdraw import finishers, shortcuts
         groups = {f.name: f.group for f in finishers.REGISTRY.values()}
-        self.assertEqual({n for n, g in groups.items() if g == "clean"}, {"retouch", "clean", "retouch_full", "face", "around"})
+        self.assertEqual({n for n, g in groups.items() if g == "clean"}, {"retouch", "denoise", "clean", "retouch_full", "face", "around"})
         self.assertEqual({n for n, g in groups.items() if g == "texture"}, {"mat_metal", "mat_gem", "mat_slime"})
         self.assertEqual({n for n, g in groups.items() if g == "air"}, {"air_holy", "air_komorebi", "air_haze"})
         self.assertEqual(groups["detail"], "detail")
@@ -234,7 +234,7 @@ class MenuTest(Base):
 
     def test_clean_menu_only_has_cleaning(self):
         sub = self.submenu("綺麗にする")
-        self.assertEqual([a.objectName() for a in sub.actions()], ["fin:retouch", "fin:clean", "fin:retouch_full", "fin:face", "fin:around"])
+        self.assertEqual([a.objectName() for a in sub.actions()], ["fin:retouch", "fin:denoise", "fin:clean", "fin:retouch_full", "fin:face", "fin:around"])
 
 
 class EverywhereTest(Base):

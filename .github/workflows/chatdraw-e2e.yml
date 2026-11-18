@@ -30,7 +30,13 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
           CD_CHECK: "off"
-        run: python -m unittest chatdraw.tests.test_finish_quality.CleanKeepsOriginalTest
+        run: >-
+          python -m unittest
+          chatdraw.tests.test_finish_quality.CleanKeepsOriginalTest
+          chatdraw.tests.test_shortcuts.GroupTest
+          chatdraw.tests.test_shortcuts.MenuTest
+          chatdraw.tests.test_shortcuts.ModelFreeTest
+          chatdraw.tests.test_finish2.FinishMenuTest
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
