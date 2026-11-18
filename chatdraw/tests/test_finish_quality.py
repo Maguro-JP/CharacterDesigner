@@ -160,6 +160,11 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         row = next(x for x in finishers.available() if x["name"] == "denoise")
         self.assertTrue(row["ready"], row)
 
+    def test_default_presets_include_guarded_denoise(self):
+        self.assertIn("denoise", finishers.RETOUCH_SAFE)
+        self.assertIn("denoise", finishers.RETOUCH_FULL)
+        self.assertEqual(finishers.RETOUCH_FULL[-1], "dejag")
+
     def test_default_retouch_reduces_noise_when_noise_is_present(self):
         import numpy as np
         rng = np.random.default_rng(20261119)
