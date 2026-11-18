@@ -292,12 +292,27 @@ class ModelFreeTest(Base):
                 after = self.base()
                 self.assertTrue(len(self.w.canvas.layers) != n or sid == "app:nobg", sid)
                 self.assertIsNotNone(ImageChops.difference(before, after).getbbox(alpha_only=False), f"{sid}: chain={finishers.LAST_CHAIN!r}, report={finishers.LAST_REPORT!r}")
+        import numpy as np
+        noisy = np.empty((192, 192, 3), dtype=np.float32)
+        rng = np.random.default_rng(20261123)
+        noisy[:] = (178, 132, 96)
+        noisy[:, 96:] = (48, 82, 126)
+        noisy += rng.normal(0, 5.0, noisy.shape).astype(np.float32)
+        noisy_path = Path(self.tmp.name) / "retouch-menu-noisy-fill.png"
+        Image.fromarray(np.clip(noisy, 0, 255).astype("uint8")).save(noisy_path)
+        rt = finishers._gen("retouch")
         for sid in RETOUCH:
             with self.subTest(sid=sid):
-                self.w.edit_image(str(self.src))
+                self.w.edit_image(str(noisy_path))
+                before = self.base().convert("RGB")
+                before_noise = rt.noise(np.asarray(before, dtype=np.float32))
                 n = len(self.w.canvas.layers)
                 self.press(sid)
                 self.assertEqual(len(self.w.canvas.layers), n + 1)
+                after = self.base().convert("RGB")
+                after_noise = rt.noise(np.asarray(after, dtype=np.float32))
+                self.assertTrue(np.any(np.asarray(before) != np.asarray(after)), sid)
+                self.assertLess(after_noise, before_noise, (sid, before_noise, after_noise, finishers.LAST_REPORT))
                 want = finishers.RETOUCH_FULL if sid.endswith("full") else finishers.RETOUCH_SAFE
                 self.assertEqual([r["step"] for r in finishers.LAST_REPORT["steps"]], list(want))
 
