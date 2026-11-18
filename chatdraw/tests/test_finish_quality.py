@@ -170,10 +170,12 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         a += rng.normal(0, 5.0, a.shape).astype(np.float32)
         src = Image.fromarray(np.clip(a, 0, 255).astype("uint8"))
         before = finishers._gen("retouch").noise(np.asarray(src, dtype=np.float32))
-        with mock.patch.object(finishers, "face_keep", return_value=None), \\
-             mock.patch.object(finishers, "face_box_keep", return_value=None), \\
-             mock.patch.object(finishers, "hand_guard", side_effect=lambda _s, out: (out, {})), \\
-             mock.patch.object(facefeat, "keep", side_effect=lambda _s, out, _m: (out, {})):
+        with (
+            mock.patch.object(finishers, "face_keep", return_value=None),
+            mock.patch.object(finishers, "face_box_keep", return_value=None),
+            mock.patch.object(finishers, "hand_guard", side_effect=lambda _s, out: (out, {})),
+            mock.patch.object(facefeat, "keep", side_effect=lambda _s, out, _m: (out, {})),
+        ):
             finishers.LAST_QC.clear()
             out = finishers.run("denoise", src)
         after = finishers._gen("retouch").noise(np.asarray(out, dtype=np.float32))
