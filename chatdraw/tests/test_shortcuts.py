@@ -291,7 +291,7 @@ class ModelFreeTest(Base):
                 self.press(sid)
                 after = self.base()
                 self.assertTrue(len(self.w.canvas.layers) != n or sid == "app:nobg", sid)
-                self.assertIsNotNone(ImageChops.difference(before, after).getbbox(alpha_only=False), f"{sid}: {finishers.LAST_CHAIN!r}")
+                self.assertIsNotNone(ImageChops.difference(before, after).getbbox(alpha_only=False), f"{sid}: chain={finishers.LAST_CHAIN!r}, report={finishers.LAST_REPORT!r}")
         for sid in RETOUCH:
             with self.subTest(sid=sid):
                 self.w.edit_image(str(self.src))

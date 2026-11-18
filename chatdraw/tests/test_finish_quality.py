@@ -228,6 +228,34 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         self.assertTrue(report["used"], report)
         self.assertLess(after, before, (before, after, report))
 
+    def test_scores_distinguish_dark_flat_fill_from_main_lines(self):
+        import numpy as np
+        dark = np.full((64, 64, 3), 89.0, dtype=np.float32)
+        jitter = dark + 4.0
+        q = finishers.scores(Image.fromarray(dark.astype("uint8")), Image.fromarray(jitter.astype("uint8")))
+        self.assertEqual(q["line"], 1.0, q)
+        ink = np.full((64, 64, 3), 255.0, dtype=np.float32)
+        ink[:, 30:34] = 0.0
+        erased = np.full_like(ink, 255.0)
+        q = finishers.scores(Image.fromarray(ink.astype("uint8")), Image.fromarray(erased.astype("uint8")))
+        self.assertLess(q["line"], 0.95, q)
+
+    def test_limit_keeps_denoise_when_local_noise_improves(self):
+        import numpy as np
+        rng = np.random.default_rng(20261121)
+        a = np.empty((192, 192, 3), dtype=np.float32)
+        a[:] = (178, 132, 96)
+        a[:, 96:] = (48, 82, 126)
+        a += rng.normal(0, 5.0, a.shape).astype(np.float32)
+        a = np.clip(a, 0, 255)
+        src = Image.fromarray(a.astype("uint8"))
+        denoised = finishers._retouch(("denoise",))(src)
+        out, report = finishers.limit(src, denoised)
+        rt = finishers._gen("retouch")
+        self.assertGreater(np.count_nonzero(np.asarray(out) != np.asarray(src)), 0, report)
+        self.assertLess(rt.noise(np.asarray(out, dtype=np.float32)), rt.noise(a), report)
+        self.assertLess(report["reverted"], 36, report)
+
     def test_default_presets_include_guarded_denoise(self):
         self.assertIn("denoise", finishers.RETOUCH_SAFE)
         self.assertIn("denoise", finishers.RETOUCH_FULL)

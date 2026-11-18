@@ -924,7 +924,11 @@ def scores(src, out) -> dict:
         ss = float(structural_similarity(la, lb, data_range=255))
     except ImportError:
         ss = None
-    ma, mb = la < 90, lb < 90
+    try:
+        cleanup = _gen("cleanup")
+        ma, mb = cleanup.line_mask(a), cleanup.line_mask(b)
+    except ImportError:
+        ma, mb = la < 90, lb < 90
     iou = float((ma & mb).sum() / max(1, (ma | mb).sum()))
     return dict(ssim=None if ss is None else round(ss, 4), line=round(iou, 4), color=round(float(np.abs(a - b).mean()), 2))
 
@@ -985,6 +989,18 @@ def limit(src, out):
     back = 0
     if H and W:
         cell = ss[:H, :W].reshape(H // QC_CELL, QC_CELL, W // QC_CELL, QC_CELL).mean((1, 3)) < CELL_SSIM
+        # SSIM は意図したノイズ除去も「構造の変化」として戻す。線を保護したうえで、
+        # その区画の平坦部ノイズが十分減っている場合だけ、区画単位の巻き戻しを免除する。
+        # retouch の工程側でも drift / damage / line_broken を通過していることが前提。
+        if cell.any():
+            rt = _gen("retouch")
+            for cy, cx in np.argwhere(cell):
+                y0, x0 = int(cy) * QC_CELL, int(cx) * QC_CELL
+                y1, x1 = y0 + QC_CELL, x0 + QC_CELL
+                before_noise = rt.noise(a[y0:y1, x0:x1])
+                after_noise = rt.noise(b[y0:y1, x0:x1])
+                if before_noise >= 2.0 and after_noise <= before_noise * 0.85:
+                    cell[cy, cx] = False
         back = int(cell.sum())
         if back:
             m = np.zeros(ss.shape, bool)
