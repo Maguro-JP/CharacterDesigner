@@ -171,15 +171,10 @@ class OmakaseTest(unittest.TestCase):
         self.assertEqual(log, [("paint", "c/compose")])
         self.assertNotIn("顔の描き込み", [s["stage"] for s in st.saved[1]["omakase"]["steps"]])
 
-    def test_auto_detail_pass_is_not_run_even_if_a_second_check_would_fail(self):
+    def test_auto_detail_pass_is_not_run_for_a_detected_face(self):
         found = {"readable": True, "bad": [], "regions": [], "detail": [([10, 10, 20, 20], "face")]}
-        checks = []
-        def check(image, prompt):
-            checks.append(image)
-            return found if len(checks) == 1 else BAD_HAND
-        log, st, said = self.run_draw([COMPOSE, FACES], [found], text="剣を持った騎士の女の子")
+        log, st, said = self.run_draw([COMPOSE, FACES], [found])
         self.assertEqual(log, [("paint", "c/compose")])
-        self.assertEqual(len(checks), 0)   # run_draw の共通 checker は使わず、下で直接経路を確かめる
         self.assertFalse(any("顔と手を見つけて描き込んでいます" in m for m in said))
         self.assertTrue(st.saved[1]["passed"])
 
