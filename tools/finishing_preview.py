@@ -15,7 +15,7 @@ sys.path.insert(0, str(ROOT))
 import numpy as np
 from PIL import Image, ImageDraw
 
-from chatdraw import finishers
+from chatdraw import finishers, shortcuts
 
 SAMPLE = ROOT / "library" / "daily" / "2026-10-13" / "05-yukionna.png"
 OUT = ROOT / "artifacts" / "finishing-review"
@@ -78,6 +78,7 @@ def main() -> None:
     selection = (w // 4, h // 4, (w * 3) // 4, (h * 3) // 4)
     draw.rectangle(selection, fill=255)
 
+    combo_steps = {sid: steps for sid, _label, steps, _tip in shortcuts.COMBOS}
     cases = [
         ("clean", lambda: finishers.run("clean", source)),
         ("denoise", lambda: finishers.run("denoise", source)),
@@ -85,8 +86,8 @@ def main() -> None:
         ("retouch_full", lambda: finishers.run("retouch_full", source)),
         ("face", lambda: finishers.run("face", source)),
         ("around", lambda: finishers.run("around", source, mask)),
-        ("combo_tidy", lambda: finishers.run_chain(("clean", "retouch"), source)),
-        ("combo_tidy_color", lambda: finishers.run_chain(("clean", "retouch_full"), source)),
+        ("combo_tidy", lambda: finishers.run_chain(combo_steps["combo:tidy"], source)),
+        ("combo_tidy_color", lambda: finishers.run_chain(combo_steps["combo:tidy_color"], source)),
     ]
 
     rows = []
