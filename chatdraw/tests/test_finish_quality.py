@@ -331,18 +331,23 @@ class CleanKeepsOriginalTest(unittest.TestCase):
     def test_real_clean_stays_close_to_original(self):
         src = Image.open(SAMPLE).convert("RGB")
         for name in ("clean", "retouch", "retouch_full"):
-            out = finishers.run(name, src)
-            s = finishers.scores(src, out)
-            self.assertGreaterEqual(s["ssim"], finishers.VERIFY_SSIM, (name, s))
-            self.assertGreaterEqual(s["line"], finishers.VERIFY_LINE, (name, s))
-            self.assertLess(s["color"], 3.0, (name, s))
-            self.assertIn("verify", finishers.LAST_QC)
+            with self.subTest(name=name):
+                out = finishers.run(name, src)
+                s = finishers.scores(src, out)
+                self.assertFalse(finishers.LAST_QC.get("rejected"), (name, finishers.LAST_QC))
+                self.assertFalse(finishers.LAST_QC.get("verify", {}).get("failed"), (name, finishers.LAST_QC))
+                self.assertGreaterEqual(s["ssim"], finishers.VERIFY_SSIM, (name, s))
+                self.assertGreaterEqual(s["line"], finishers.VERIFY_LINE, (name, s))
+                self.assertLess(s["color"], 3.0, (name, s))
+                self.assertIn("verify", finishers.LAST_QC)
 
     def test_upscaled_clean_stays_close(self):
         src = Image.open(SAMPLE).convert("RGB")
         big = src.resize((src.width * 2, src.height * 2), Image.LANCZOS)
         out = finishers.run("retouch", big)
         s = finishers.scores(big, out)
+        self.assertFalse(finishers.LAST_QC.get("rejected"), finishers.LAST_QC)
+        self.assertFalse(finishers.LAST_QC.get("verify", {}).get("failed"), finishers.LAST_QC)
         self.assertGreaterEqual(s["ssim"], finishers.VERIFY_SSIM, s)
         self.assertGreaterEqual(s["line"], finishers.VERIFY_LINE, s)
 
