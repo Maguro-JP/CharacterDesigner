@@ -355,6 +355,29 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         self.assertTrue(denoise["used"], denoise)
         self.assertLess(after, before, (before, after, report))
 
+    def test_detail_addition_keeps_existing_main_lines(self):
+        import numpy as np
+        src = Image.open(SAMPLE).convert("RGB")
+        a = np.asarray(src, dtype=np.float32)
+        line = finishers._gen("cleanup").line_mask(a)
+        out = finishers.run("detail", src)
+        score = finishers.scores(src, out)
+        self.assertGreaterEqual(score["line_recall"], 0.98, score)
+        self.assertTrue(np.array_equal(a.astype("uint8")[line], np.asarray(out)[line]), score)
+
+    def test_air_and_material_effects_preserve_main_lines(self):
+        import numpy as np
+        src = Image.open(SAMPLE).convert("RGB")
+        a = np.asarray(src, dtype=np.float32)
+        line = finishers._gen("cleanup").line_mask(a)
+        self.assertGreater(int(line.sum()), 100)
+        for name in ("air_holy", "air_komorebi", "air_haze", "mat_metal", "mat_gem", "mat_slime"):
+            with self.subTest(name=name):
+                out = finishers.run(name, src)
+                score = finishers.scores(src, out)
+                self.assertTrue(np.array_equal(np.asarray(src)[line], np.asarray(out)[line]), (name, score))
+                self.assertGreaterEqual(score["line_recall"], 0.99, (name, score))
+
     def test_real_clean_stays_close_to_original(self):
         src = Image.open(SAMPLE).convert("RGB")
         for name in ("clean", "retouch", "retouch_full"):
