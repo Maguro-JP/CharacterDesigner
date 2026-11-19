@@ -500,6 +500,7 @@ class WindowFlowTest(unittest.TestCase):
                  mock.patch.object(w, "_keep_original", lambda x: x), \
                  mock.patch.object(w, "offer_two_stage_parts", lambda: None), \
                  mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}), \
+                 mock.patch.object(pt, "thumb_weight", lambda _im: {"weight_x": 0.0, "weight_y": 0.5, "ink": 0.2}), \
                  mock.patch.object(phases.Checks, "request", staticmethod(C.request)), \
                  mock.patch.object(phases.Checks, "body", staticmethod(C.body)), \
                  mock.patch.object(phases.Checks, "points", staticmethod(C.points)), \
