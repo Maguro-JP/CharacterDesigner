@@ -38,6 +38,7 @@ jobs:
           chatdraw.tests.test_shortcuts.ModelFreeTest
           chatdraw.tests.test_finish2.FinishMenuTest
           chatdraw.tests.test_omakase
+          chatdraw.tests.test_origqc
           chatdraw.tests.test_phases
           chatdraw.tests.test_draw_api
   build:
