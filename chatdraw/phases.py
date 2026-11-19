@@ -410,6 +410,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         req = checks.request(img, st["prompt"])
         found = _missing(req) + _extra(req)
         fixed, after = False, []
+        recheck_readable = True
         missing = list(req.get("missing", [])) if req.get("readable") else []
         nums = {"missing": len(missing), "extra": len(_extra(req))}
         if missing and (can_fix or can_refine):
@@ -436,11 +437,12 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                 say("描き足しで崩れが増えたので、前の絵を次の工程に渡します")
             else:
                 after = found
+                recheck_readable = False
                 note = "描き足し後の検品ができなかったため、修正前の絵に戻します"
         elif missing:
             note = "この模型は描き直しができないので、描かれていない物を直さずに次へ進みました"
         return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "note": note, "numbers": nums,
-                "readable": bool(req.get("readable")), "back": 5 if (after if fixed else found) else None}
+                "readable": bool(req.get("readable")) and recheck_readable, "back": 5 if (after if fixed else found) else None}
 
     def p_lines(v):
         img = st["image"]
