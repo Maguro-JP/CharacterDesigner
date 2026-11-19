@@ -242,6 +242,19 @@ class PhasesTest(unittest.TestCase):
         self.assertTrue(any("blue ribbon" in w for r in got["history"] for w in r["words"]))
         self.assertTrue(any("言葉を足しました" in s for s in said))
 
+    def test_words_added_at_final_phase_return_to_drawing_stage(self):
+        asked = {11: [("words", "blue ribbon"), "go"]}
+
+        def confirm(i, name, image, row):
+            queue = asked.get(i)
+            return queue.pop(0) if queue else "go"
+
+        got, painter, seen, said, files = self.run_phases(always_bad=False, confirm=confirm)
+        self.assertTrue(got["complete"])
+        wear = [r for r in got["history"] if r["phase"] == "服・髪・持ち物"]
+        self.assertTrue(any(any("blue ribbon" in word for word in r["words"]) for r in wear), wear)
+        self.assertTrue(any("追加した言葉を反映するため" in msg for msg in said))
+
     def test_studio_way_phases(self):
         from chatdraw import phasetools as pt
         C, _ = checks(False)
