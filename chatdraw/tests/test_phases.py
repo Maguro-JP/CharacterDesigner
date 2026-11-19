@@ -118,6 +118,7 @@ class PhasesTest(unittest.TestCase):
         self.assertGreater(got["backs"], 0)   # 崩れが残ったので、崩れが決まった工程へ戻った
         self.assertTrue(any("そこへ戻って直します" in s for s in said))
         self.assertTrue(got["left"])   # 崩れが残っても終わる（残った崩れを返す）
+        self.assertIn("描かれていない: red scarf", got["left"])  # 最終画像でも依頼要素を再検品する
         self.assertEqual(painter.steps, 20)   # 減らした工程の数を元に戻す
         # 描く回数に上限がある（サムネイル 2 枚 + アタリ 2 回、戻る回数ぶん）
         self.assertLessEqual(sum(1 for x in painter.log if x[0] == "paint"), 40)

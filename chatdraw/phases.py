@@ -527,6 +527,9 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         img, words = st["image"], []
         res = checks.hands(img, st["prompt"])
         body = checks.body(img, st["prompt"])
+        # 最終工程では、頼まれた要素が最終画像に残っているかも再確認する。
+        # 途中工程の検品結果を流用せず、完成画像そのものを検品する。
+        req = checks.request(img, st["prompt"])
         pts = points(img) or st.get("points") or {}
 
         def views(im):
@@ -538,15 +541,20 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                 out.append(f"反転すると顔が片側に歪んで見える（{fv['asym']}）")
             return out, {"shrink": sv.get("contrast"), "asym": fv.get("asym")}
         body_bad = list(body.get("bad", [])) if body.get("readable") else []
+        request_bad = _people(req) + _missing(req) + _extra(req)
         v1, nums = views(img)
-        found = list(res.get("bad", [])) + body_bad + v1
+        found = list(res.get("bad", [])) + body_bad + request_bad + v1
         img, res2, fixed = fix_regions(img, res, st["seed"] + 191 + v * 1000, words)
         v2, nums2 = views(img) if fixed else (v1, nums)
-        after = list(res2.get("bad", [])) + body_bad + v2
+        # 手・顔などの局所修正が画像を変えた後に、依頼要素を最終画像でもう一度測る。
+        req_after = checks.request(img, st["prompt"])
+        request_after_bad = _people(req_after) + _missing(req_after) + _extra(req_after)
+        after = list(res2.get("bad", [])) + body_bad + request_after_bad + v2
         left = after if fixed else found
         hands_left = bool(res2.get("bad"))
         return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "numbers": nums2,
-                "readable": bool(res.get("readable")) and bool(body.get("readable")), "back": 4 if hands_left and left else None}
+                "readable": bool(res.get("readable")) and bool(body.get("readable")) and bool(req_after.get("readable")),
+                "back": 4 if hands_left and left else None}
 
     run = [p_purpose, p_thumbs, p_atari, p_body, p_draft, p_wear, p_lines, p_base, p_light, p_shadow, p_shine, p_finish]
     assert len(run) == n
