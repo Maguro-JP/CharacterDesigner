@@ -92,6 +92,33 @@ def checks(always_bad: bool):
 
 N = len(phases.PHASES)
 
+def hand_only_checks():
+    """体・構図・依頼物は合格させ、手の検品だけを継続して不合格にする。下描きの限定修正を単独で試す。"""
+    class C:
+        @staticmethod
+        def request(image, prompt):
+            return {"readable": True, "missing": [], "extra": [], "people": [], "body": []}
+
+        @staticmethod
+        def body(image, prompt, tags=None):
+            return {"readable": True, "bad": [], "avoid": []}
+
+        @staticmethod
+        def points(image):
+            w, h = image.size
+            return {"readable": True, "points": {"left_eye": (w * .45, h * .15), "right_eye": (w * .55, h * .15),
+                    "nose": (w * .5, h * .18), "left_ear": (w * .4, h * .15),
+                    "left_shoulder": (w * .4, h * .27), "right_shoulder": (w * .6, h * .27)}}
+
+        @staticmethod
+        def pose(image):
+            return {"readable": True, "bad": [], "map": image}
+
+        @staticmethod
+        def hands(image, prompt):
+            return dict(HAND)
+    return C
+
 
 class PhasesTest(unittest.TestCase):
     def run_phases(self, always_bad, painter=None, confirm=None):
@@ -139,7 +166,10 @@ class PhasesTest(unittest.TestCase):
             def refine(self, prompt, seed, image, strength=0.5, on_step=None, on_preview=None):
                 self.log.append(("refine", seed, strength))
                 return image.copy()
-        got, painter, *_ = self.run_phases(always_bad=True, painter=P())
+        with TemporaryDirectory() as d:
+            painter = P()
+            got = phases.draw(painter, "1girl, red scarf", 5, (64, 96), Path(d) / "k", checks=hand_only_checks())
+        self.assertFalse(got["complete"])
         self.assertEqual(sum(1 for x in painter.log if x[0] == "refine"), 1, painter.log)
         fixes = [x[2] for x in painter.log if x[0] == "redraw" and x[2] in phases.FIXES]
         self.assertGreaterEqual(len(fixes), 2, painter.log)
@@ -185,7 +215,10 @@ class PhasesTest(unittest.TestCase):
     def test_fix_masks_are_regions_only(self):
         """直しは囲みの中だけ（絵全体を描き直さない）"""
         import numpy as np
-        got, painter, *_ = self.run_phases(always_bad=True)
+        with TemporaryDirectory() as d:
+            painter = Painter()
+            got = phases.draw(painter, "1girl, red scarf", 5, (64, 96), Path(d) / "k", checks=hand_only_checks())
+        self.assertFalse(got["complete"])
         self.assertTrue(painter.masks)
         for m in painter.masks:
             a = np.asarray(m)
