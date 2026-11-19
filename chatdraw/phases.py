@@ -393,20 +393,24 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         else:
             note = "この模型は描き重ねられないので、アタリの絵のまま顔・手・足を検品しました"
         res = checks.hands(img, st["prompt"])
-        pts = points(img)
+        point_check = checks.points(img)
+        pts = dict(point_check.get("points") or {}) if point_check.get("readable") else {}
         tilt = pt.eye_tilt(pts)
         found = list(res.get("bad", [])) + ([f"左右の目の高さがずれている（{tilt}）"] if tilt is not None and tilt > pt.EYE_TILT else [])
         extra = []
         if tilt is not None and tilt > pt.EYE_TILT and pt.face_box(pts):
             extra = [(pt.face_box(pts), "face")]
         img, res2, fixed = fix_regions(img, res, s + 77, words, extra)
-        pts2 = points(img) if fixed else pts
+        point_check2 = checks.points(img) if fixed else point_check
+        pts2 = dict(point_check2.get("points") or {}) if point_check2.get("readable") else {}
         tilt2 = pt.eye_tilt(pts2)
         after = list(res2.get("bad", [])) + ([f"左右の目の高さがずれている（{tilt2}）"] if tilt2 is not None and tilt2 > pt.EYE_TILT else [])
         st["points"] = pts2
         memo["draft"] = (st["prompt"], img)
         return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "note": note,
-                "numbers": {"eye_tilt": tilt2, "bad": len(res2.get("bad", []))}, "readable": bool(res.get("readable")), "back": 4}
+                "numbers": {"eye_tilt": tilt2, "bad": len(res2.get("bad", []))},
+                "readable": bool(res.get("readable")) and bool(point_check.get("readable")) and (not fixed or bool(point_check2.get("readable"))),
+                "back": 4}
 
     def p_wear(v):
         img, words, note = st["image"], [], ""

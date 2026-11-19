@@ -211,6 +211,27 @@ class PhasesTest(unittest.TestCase):
         with TemporaryDirectory() as d, self.assertRaises(Stopped):
             phases.draw(painter, "1girl", 1, (64, 96), Path(d) / "k", checks=C)
 
+    def test_draft_blocks_when_landmark_inspection_is_unreadable(self):
+        base, _ = checks(always_bad=False)
+
+        class NoLandmarks:
+            request = staticmethod(base.request)
+            body = staticmethod(base.body)
+            pose = staticmethod(base.pose)
+            hands = staticmethod(base.hands)
+
+            @staticmethod
+            def points(image):
+                return {"readable": False, "points": {}, "reason": "ランドマーク検出失敗"}
+
+        with TemporaryDirectory() as d:
+            got = phases.draw(Painter(), "1girl, red scarf", 5, (64, 96), Path(d) / "k", checks=NoLandmarks)
+        self.assertFalse(got["complete"])
+        self.assertEqual(got["blocked"]["phase"], "顔・手・足の下描き")
+        draft_rows = [r for r in got["history"] if r["phase"] == "顔・手・足の下描き"]
+        self.assertTrue(draft_rows)
+        self.assertTrue(all(not r["readable"] for r in draft_rows))
+
     def test_without_line_or_fix_still_finishes(self):
         painter = Painter()
         painter.abilities = (False, False)
