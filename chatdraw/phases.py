@@ -634,14 +634,24 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             ans = confirm(i, name, shown, row)
             kind = ans[0] if isinstance(ans, (tuple, list)) else ans
             if kind in (REDO, WORDS):
+                added = False
                 if kind == WORDS and isinstance(ans, (tuple, list)) and len(ans) > 1 and str(ans[1]).strip():
                     add = str(ans[1]).strip()
-                    entry[i]["prompt"] = f"{entry[i]['prompt']}, {add}"   # 足した言葉はこの先の工程にも効かせる
+                    entry[i]["prompt"] = f"{entry[i]['prompt']}, {add}"   # 足した言葉は描画工程にも反映する
                     say(f"言葉を足しました: {add}")
+                    added = True
+                target = 5 if added and i >= 5 else i   # 服・髪・持ち物を描く工程より後で足した言葉は、そこまで戻して実際に描く
+                if target != i:
+                    entry[target] = dict(entry[target] or entry[i])
+                    entry[target]["prompt"] = entry[i]["prompt"]
                 st.clear()
-                st.update(entry[i])
-                visits[i] += 1
-                say(f"工程 {i + 1}/{n}「{name}」を描き直します")
+                st.update(entry[target])
+                visits[target] += 1
+                if target != i:
+                    say(f"追加した言葉を反映するため、工程 {target + 1}/{n}「{PHASES[target][0]}」へ戻ります")
+                else:
+                    say(f"工程 {i + 1}/{n}「{name}」を描き直します")
+                i = target
                 continue
         back = got.get("back")
         # 欠陥が残っているのに工程が戻り先を指定しない場合、品質工程の既定経路へ差し戻す。
