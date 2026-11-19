@@ -463,6 +463,23 @@ class PhaseLayersTest(unittest.TestCase):
                 w.close()
 
 
+
+class ManualRetryLimitTest(unittest.TestCase):
+    """確認画面から何度も描き直しを要求されても、同一工程の上限で必ず停止する。"""
+
+    def test_manual_redo_cannot_loop_forever(self):
+        with TemporaryDirectory() as d:
+            got = phases.draw(
+                Painter(), "1girl", 1, (64, 96), Path(d),
+                confirm=lambda *_: phases.REDO,
+            )
+        self.assertFalse(got["complete"])
+        self.assertEqual(got["backs"], 2)
+        self.assertEqual(len(got["history"]), 3)
+        self.assertEqual(got["blocked"]["reason"], "再試行上限に達しました")
+        self.assertEqual(got["blocked"]["phase"], "目的")
+
+
 if __name__ == "__main__":
     unittest.main()
 

@@ -529,7 +529,8 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             words.append(st["prompt"])
             tried = painter.redraw(st["prompt"], st["seed"] + 251 + v * 1000, img,
                                    _mask(img.size, [(b, "eye") for b in cl["boxes"]]), strength=SHINE)
-            cl2 = pt.catchlights(tried, pts)
+            pts2 = points(tried)  # 描き直し後の座標を取り直し、古い目の位置で合格にしない
+            cl2 = pt.catchlights(tried, pts2)
             after = [f"目の光が無い（{x}）" for x in cl2.get("eye_max", []) if x < pt.CATCHLIGHT]
             fixed = True
             if len(after) <= len(found):
@@ -547,30 +548,36 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         img, words = st["image"], []
         res = checks.hands(img, st["prompt"])
         body = checks.body(img, st["prompt"])
-        pts = points(img)   # 最終画像を改めて解析し、古い座標で検品を通さない。
+        pts = points(img)
 
-        def views(im):
-            sv, fv = pt.shrink_view(im), pt.flip_view(im, pt.face_box(pts))
+        def views(im, landmarks):
+            sv = pt.shrink_view(im)
+            face = pt.face_box(landmarks)
+            fv = pt.flip_view(im, face) if face else {"readable": False}
             out = []
             if sv.get("readable") and sv["contrast"] < pt.SHRINK_CONTRAST:
                 out.append(f"縮めると主役が目立たない（{sv['contrast']}）")
             if fv.get("readable") and fv["asym"] > pt.FLIP_MOST:
                 out.append(f"反転すると顔が片側に歪んで見える（{fv['asym']}）")
-            return out, {"shrink": sv.get("contrast"), "asym": fv.get("asym")}
+            return out, {"shrink": sv.get("contrast"), "asym": fv.get("asym")}, bool(sv.get("readable")) and bool(fv.get("readable"))
+
         body_bad = list(body.get("bad", [])) if body.get("readable") else []
-        v1, nums = views(img)
-        shrink_check = pt.shrink_view(img)
-        face = pt.face_box(pts)
-        flip_check = pt.flip_view(img, face) if face else {"readable": False}
-        view_readable = bool(shrink_check.get("readable")) and bool(flip_check.get("readable"))
+        v1, nums, view_readable = views(img, pts)
         found = list(res.get("bad", [])) + body_bad + v1
-        img, res2, fixed = fix_regions(img, res, st["seed"] + 191 + v * 1000, words)
-        v2, nums2 = views(img) if fixed else (v1, nums)
-        after = list(res2.get("bad", [])) + body_bad + v2
-        left = after if fixed else found
-        hands_left = bool(res2.get("bad"))
+        img, _res_after_fix, fixed = fix_regions(img, res, st["seed"] + 191 + v * 1000, words)
+
+        # 修正後は採用した最終画像そのものを、手・体・ランドマーク・縮小・反転で再検品する。
+        pts_final = points(img) if fixed else pts
+        res_final = checks.hands(img, st["prompt"]) if fixed else res
+        body_final = checks.body(img, st["prompt"]) if fixed else body
+        v2, nums2, final_view_readable = views(img, pts_final) if fixed else (v1, nums, view_readable)
+        body_bad_final = list(body_final.get("bad", [])) if body_final.get("readable") else []
+        after = list(res_final.get("bad", [])) + body_bad_final + v2
+        hands_left = bool(res_final.get("bad"))
+        body_left = bool(body_bad_final)
         return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "numbers": nums2,
-                "readable": bool(res.get("readable")) and bool(body.get("readable")) and view_readable, "back": (4 if hands_left and left else 3 if body_bad else None)}
+                "readable": bool(res.get("readable")) and bool(body.get("readable")) and bool(res_final.get("readable")) and bool(body_final.get("readable")) and bool(pts_final) and final_view_readable,
+                "back": (4 if hands_left and after else 3 if body_left else None)}
 
     run = [p_purpose, p_thumbs, p_atari, p_body, p_draft, p_wear, p_lines, p_base, p_light, p_shadow, p_shine, p_finish]
     assert len(run) == n
