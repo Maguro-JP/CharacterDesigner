@@ -60,6 +60,9 @@ SHINE = 0.35          # 目の光の直し: 目の囲みの中だけを描き直
 COLORS_MOST = 14      # 下塗り: 人物の 2% 以上を占める色がこれより多ければ、色が散っている（私の推測）
 BACKS = 3             # 戻って直すのは全体でこの回数まで
 REVISIT = 2           # 同じ工程に戻るのはこの回数まで
+# 検品で欠陥が見つかったのに工程側が戻り先を返さなかった場合の既定経路。
+# index は 0 始まり。検品不能（readable=False）は原因不明なので自動で描き直さず停止する。
+BACK_TARGETS = (None, 1, 1, 2, 3, 5, 4, 5, 7, 8, 4, 3)
 WORDS_NOTE = "模型に渡す言葉: "   # この頭の知らせは会話に出さず、進み具合の欄の詳細にだけ置く（chatdraw/activity.py）
 GO, REDO, WORDS = "go", "redo", "words"   # 工程の確かめの答え
 
@@ -641,6 +644,12 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                 say(f"工程 {i + 1}/{n}「{name}」を描き直します")
                 continue
         back = got.get("back")
+        # 欠陥が残っているのに工程が戻り先を指定しない場合、品質工程の既定経路へ差し戻す。
+        # 検品不能は欠陥の場所が分からないため、推測で描き直さず未完成停止にする。
+        if left and back is None and row["readable"]:
+            back = BACK_TARGETS[i]
+            if back is not None:
+                say(f"「{name}」の欠陥に戻り先指定が無いため、既定経路で工程 {back + 1}「{PHASES[back][0]}」へ差し戻します")
         needs_retry = bool(left) or not row["readable"]
         if needs_retry and back is not None and backs < BACKS and visits[back] < REVISIT:
             backs += 1
