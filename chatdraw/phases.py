@@ -602,7 +602,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             t.setdefault("phase", name)
         row = {"phase": name, "decides": PHASES[i][1], "checks": PHASES[i][2], "numbers_of": PHASES[i][3],
                "image": str(path) if path else None, "found": found, "fixed": fixed, "after": after,
-               "words": list(got.get("words", [])), "numbers": got.get("numbers", {}), "readable": bool(got.get("readable", True)),
+               "words": list(got.get("words", [])), "numbers": got.get("numbers", {}), "readable": bool(got.get("readable", False)),
                "seconds": round(time.time() - t0, 2), "mem_mb": mem, "visit": visits[i],
                "tone": pt.tone(st["image"]) if st.get("image") is not None else None,
                "tone_guard": [t for t in tones if t.get("phase") == name]}
