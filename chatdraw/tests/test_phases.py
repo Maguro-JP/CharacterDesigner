@@ -563,6 +563,44 @@ class WaySettingTest(unittest.TestCase):
             self.assertEqual(studio_way(st.get("draw_way"), st.get("ai_way")), way, old)
 
 
+class MissingBackRouteTest(unittest.TestCase):
+    """欠陥を検出した工程が戻り先を返し忘れても、そのまま次工程へ流さない。"""
+
+    def test_detected_thumbnail_defect_uses_default_route(self):
+        class C:
+            @staticmethod
+            def request(image, prompt):
+                return {"readable": True, "missing": [], "extra": ["unrequested object"], "people": [], "body": []}
+
+            @staticmethod
+            def body(image, prompt, tags=None):
+                return {"readable": True, "bad": [], "avoid": []}
+
+            @staticmethod
+            def points(image):
+                w, h = image.size
+                return {"readable": True, "points": {"left_eye": (w * .45, h * .15), "right_eye": (w * .55, h * .15),
+                        "nose": (w * .5, h * .18), "left_ear": (w * .4, h * .15),
+                        "left_shoulder": (w * .4, h * .27), "right_shoulder": (w * .6, h * .27)}}
+
+            @staticmethod
+            def pose(image):
+                return {"readable": True, "bad": [], "map": image}
+
+            @staticmethod
+            def hands(image, prompt):
+                return dict(CLEAN_HAND)
+
+        from chatdraw import phasetools as pt
+        said = []
+        with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}):
+            got = phases.draw(Painter(), "1girl", 9, (64, 96), Path(d), checks=C, say=said.append)
+        self.assertFalse(got["complete"])
+        self.assertGreater(got["backs"], 0)
+        self.assertTrue(any("戻り先指定が無いため" in msg for msg in said))
+        self.assertEqual(got["blocked"]["phase"], "サムネイル")
+
+
 class CountLimitTest(unittest.TestCase):
     """枚数の欄は数字だけで、8 枚や 9 枚で勝手に止めない"""
 
