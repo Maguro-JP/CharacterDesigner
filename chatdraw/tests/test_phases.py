@@ -544,11 +544,15 @@ class WindowFlowTest(unittest.TestCase):
                  mock.patch.object(phases.Checks, "points", staticmethod(C.points)), \
                  mock.patch.object(phases.Checks, "pose", staticmethod(C.pose)), \
                  mock.patch.object(phases.Checks, "hands", staticmethod(C.hands)):
-                # 描画は別スレッドで動くため、検品・画像処理の差し替えをスレッド終了まで維持する。
-                # 先に信号を接続して、処理が速い場合でも完了通知を取りこぼさない。
-                w.job.one.connect(lambda *_: events.append("one"))
-                w.job.done.connect(lambda: events.append("done"))
-                w._draw_now("赤いマフラーの子")
+                # Job は _draw_now 内で生成される。_record_job は thread.start より前に呼ばれるため、
+                # そこで信号を接続し、速い処理でも完了通知を取りこぼさない。
+                record = w._record_job
+                def record_and_watch(job):
+                    job.one.connect(lambda *_: events.append("one"))
+                    job.done.connect(lambda: events.append("done"))
+                    record(job)
+                with mock.patch.object(w, "_record_job", side_effect=record_and_watch):
+                    w._draw_now("赤いマフラーの子")
                 t = time.time()
                 while w.thread is not None and time.time() - t < 120:
                     qapp.processEvents()
