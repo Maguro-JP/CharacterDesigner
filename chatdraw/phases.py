@@ -190,7 +190,8 @@ def _extra(req: dict) -> list[str]:
 def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, on_step=None, checks=Checks, on_preview=None,
          confirm=None, pause_key: str | None = None, pause_job: dict | None = None) -> dict:
     """12 の工程で 1 枚を描く。返り値は {"image": 最後の絵, "phases": 工程ごとの最後の記録, "history": 全部の記録,
-    "left": 残った崩れ, "checked": 検品できたか, "backs": 戻った回数}。どの工程も必ず終わり、戻る回数にも上限がある。
+    "left": 残った崩れ, "checked": 全工程の検品完了, "complete": 全工程完了, "blocked": 停止理由, "backs": 戻った回数}。
+    検品不能または未解決の崩れが残り、戻り先も無い場合は次工程へ進まず未完成で止める。戻る回数にも上限がある。
     confirm(i, 名前, 絵, 記録) は "go"・"redo"・("words", 足す言葉の訳) を返す。
     pause_key があれば、メモリの見張り・メモリ不足・時間切れで工程が打ち切られたとき、その工程に入ったときの状態を
     chatdraw/pausekeep.py に残して Paused で返す。同じ鍵で呼び直すと、その工程から続ける（前は始めから描き直した）"""
@@ -554,6 +555,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
     history: list[dict] = []
     visits, entry = [0] * n, {}
     backs, i = 0, 0
+    blocked = None
     from chatdraw import pausekeep
     saved = pausekeep.state(pause_key) if pause_key else None
     if saved:   # 一時停止した工程から続ける。描き終えた工程の絵と記録はそのまま使う
@@ -623,21 +625,31 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                 say(f"工程 {i + 1}/{n}「{name}」を描き直します")
                 continue
         back = got.get("back")
-        if left and back is not None and backs < BACKS and visits[back] < REVISIT:
+        needs_retry = bool(left) or not row["readable"]
+        if needs_retry and back is not None and backs < BACKS and visits[back] < REVISIT:
             backs += 1
             visits[back] += 1
             memo["refix"] = back == 4 and bool(got.get("hands_left", True))
-            say(f"「{name}」の崩れは工程 {back + 1}「{PHASES[back][0]}」で決まるので、そこへ戻って直します（{backs}/{BACKS} 回目）")
+            say(f"「{name}」の未解決項目を工程 {back + 1}「{PHASES[back][0]}」へ戻して直します（{backs}/{BACKS} 回目）")
             st.clear()
             st.update(entry[back])
             i = back
             continue
+        if needs_retry:
+            reason = "検品できませんでした" if not row["readable"] else "未解決の崩れが残っています"
+            blocked = {"phase": name, "index": i, "reason": reason, "left": list(left)}
+            say(f"工程 {i + 1}/{n}「{name}」で停止しました（{reason}）。未完成として保存します")
+            break
         i += 1
-    pausekeep.clear(pause_key)   # 描き終えたら、残した途中は要らない
-    rows = [final[k] for k in range(n)]
-    last = rows[-1]
-    left = last["after"] if last["fixed"] else last["found"]
-    checked = all(r["readable"] for r in rows)
-    (keep / "phases.json").write_text(json.dumps({"phases": rows, "history": history, "left": left, "checked": checked, "backs": backs},
+    pausekeep.clear(pause_key)   # 完了または未完成で停止したら、残した途中は要らない
+    rows = [final[k] for k in range(n) if final.get(k) is not None]
+    complete = i >= n
+    if complete and rows:
+        last = rows[-1]
+        left = last["after"] if last["fixed"] else last["found"]
+    checked = complete and bool(rows) and all(r["readable"] for r in rows)
+    (keep / "phases.json").write_text(json.dumps({"phases": rows, "history": history, "left": left, "checked": checked,
+                                                  "complete": complete, "blocked": blocked, "backs": backs},
                                                  ensure_ascii=False, indent=1, default=str), encoding="utf-8")
-    return {"image": st["image"], "phases": rows, "history": history, "left": left, "checked": checked, "backs": backs}
+    return {"image": st["image"], "phases": rows, "history": history, "left": left, "checked": checked,
+            "complete": complete, "blocked": blocked, "backs": backs}

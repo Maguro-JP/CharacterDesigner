@@ -111,18 +111,19 @@ class PhasesTest(unittest.TestCase):
 
     def test_always_bad_still_finishes_with_bounded_backs(self):
         got, painter, seen, said, files = self.run_phases(always_bad=True)
-        self.assertEqual([r["phase"] for r in got["phases"]], phases.NAMES)
-        self.assertEqual(len([f for f in files if f.endswith(".png")]), N - 1)   # 目的には絵が無い
+        self.assertLess(len(got["phases"]), N)   # 未解決のまま次工程へ進まない
+        self.assertFalse(got["complete"])
+        self.assertIsNotNone(got["blocked"])
+        self.assertEqual(len([f for f in files if f.endswith(".png")]), len(got["phases"]) - 1)   # 目的には絵が無い
         self.assertIn("phases.json", files)
         self.assertLessEqual(got["backs"], phases.BACKS)
-        self.assertGreater(got["backs"], 0)   # 崩れが残ったので、崩れが決まった工程へ戻った
-        self.assertTrue(any("そこへ戻って直します" in s for s in said))
-        self.assertTrue(got["left"])   # 崩れが残っても終わる（残った崩れを返す）
-        self.assertEqual(painter.steps, 20)   # 減らした工程の数を元に戻す
-        # 描く回数に上限がある（サムネイル 2 枚 + アタリ 2 回、戻る回数ぶん）
+        self.assertGreater(got["backs"], 0)
+        self.assertTrue(any("戻して直します" in s for s in said))
+        self.assertTrue(got["left"])
+        self.assertEqual(painter.steps, 20)
         self.assertLessEqual(sum(1 for x in painter.log if x[0] == "paint"), 40)
-        for i, name in enumerate(phases.NAMES, 1):
-            self.assertTrue(any(s.startswith(f"工程 {i}/{N}「{name}」") for s in said), name)
+        for i, row in enumerate(got["phases"], 1):
+            self.assertTrue(any(s.startswith(f"工程 {i}/{N}「{row['phase']}」") for s in said), row["phase"])
 
     def test_thumbnails_small_and_picked(self):
         got, painter, *_ = self.run_phases(always_bad=False)
@@ -176,7 +177,9 @@ class PhasesTest(unittest.TestCase):
         painter = Painter()
         painter.abilities = (False, False)
         got, painter, *_ = self.run_phases(always_bad=True, painter=painter)
-        self.assertEqual(len(got["phases"]), N)
+        self.assertLess(len(got["phases"]), N)
+        self.assertFalse(got["complete"])
+        self.assertIsNotNone(got["blocked"])
         self.assertFalse(any(x[0] == "redraw" for x in painter.log))
 
     def test_fix_masks_are_regions_only(self):
@@ -388,8 +391,10 @@ class BrokenChecksTest(unittest.TestCase):
         with TemporaryDirectory() as d:
             p = Painter()
             got = phases.draw(p, "red hair, 1girl", 1, (64, 64), Path(d), checks=Boom)
-            self.assertEqual(len(got["phases"]), len(phases.PHASES))
+            self.assertLess(len(got["phases"]), len(phases.PHASES))
             self.assertFalse(got["checked"])
+            self.assertFalse(got["complete"])
+            self.assertEqual(got["blocked"]["phase"], "サムネイル")
             self.assertIsNotNone(got["image"])
 
 
