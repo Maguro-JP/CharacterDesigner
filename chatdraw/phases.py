@@ -443,6 +443,9 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                 note = "描き足し後の検品ができなかったため、修正前の絵に戻します"
         elif missing:
             note = "この模型は描き直しができないので、描かれていない物を直さずに次へ進みました"
+        if added_words and not (can_fix or can_refine):
+            found.append("追加指示を反映できません（この模型は描き直し不可）")
+            note = "追加指示を描画へ反映できないため、未完成として扱います"
         return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "note": note, "numbers": nums,
                 "readable": bool(req.get("readable")) and recheck_readable, "back": 5 if (after if fixed else found) else None}
 
@@ -509,7 +512,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
 
     def p_shine(v):
         img, words, note = st["image"], [], ""
-        pts = st.get("points") or {}
+        pts = points(img)   # 目の光は直近の画像から検出した座標だけで検品する。
         cl = pt.catchlights(img, pts)
         found = [f"目の光が無い（{x}）" for x in cl.get("eye_max", []) if x < pt.CATCHLIGHT]
         fixed, after = False, []
@@ -537,7 +540,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         img, words = st["image"], []
         res = checks.hands(img, st["prompt"])
         body = checks.body(img, st["prompt"])
-        pts = points(img) or st.get("points") or {}
+        pts = points(img)   # 最終画像を改めて解析し、古い座標で検品を通さない。
 
         def views(im):
             sv, fv = pt.shrink_view(im), pt.flip_view(im, pt.face_box(pts))
@@ -551,7 +554,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         v1, nums = views(img)
         shrink_check = pt.shrink_view(img)
         face = pt.face_box(pts)
-        flip_check = pt.flip_view(img, face) if face else {"readable": True}
+        flip_check = pt.flip_view(img, face) if face else {"readable": False}
         view_readable = bool(shrink_check.get("readable")) and bool(flip_check.get("readable"))
         found = list(res.get("bad", [])) + body_bad + v1
         img, res2, fixed = fix_regions(img, res, st["seed"] + 191 + v * 1000, words)
