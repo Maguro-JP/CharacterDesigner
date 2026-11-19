@@ -219,9 +219,9 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             return img
         try:
             out, rec = pt.guard(img, ref, mask)
-        except Exception as e:   # noqa: BLE001  測れなかったら描いた絵のまま進める
-            say(f"{where}: 色と明るさを合わせられませんでした（{e}）")
-            return img
+        except Exception as e:   # noqa: BLE001  色・明るさの保全を検証できない候補は採用しない
+            say(f"{where}: 色と明るさを検証できなかったため、修正前の絵に戻します（{type(e).__name__}: {e}）")
+            return ref
         rec["where"] = where
         tones.append(rec)
         if rec["raw_flaws"]:
@@ -487,8 +487,8 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             out = []
             if s.get("readable") and s["shade_minus_lit"] > 0:
                 out.append(f"影が光より明るい（{s['shade_minus_lit']}）")
-            if s.get("readable") and s["shade_share"] < 0.5:
-                out.append(f"影の向きがそろっていない（{s['shade_share']}）")
+            # 暗い画素の左右比率は線画・髪・服の色にも左右されるため合否に使わない。
+            # 影側が光側より明るいか、方向の比較だけを品質判定に使う。
             return out
         found = flaws(sh)
         pts = st.get("points") or {}
@@ -547,6 +547,10 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             return out, {"shrink": sv.get("contrast"), "asym": fv.get("asym")}
         body_bad = list(body.get("bad", [])) if body.get("readable") else []
         v1, nums = views(img)
+        shrink_check = pt.shrink_view(img)
+        face = pt.face_box(pts)
+        flip_check = pt.flip_view(img, face) if face else {"readable": True}
+        view_readable = bool(shrink_check.get("readable")) and bool(flip_check.get("readable"))
         found = list(res.get("bad", [])) + body_bad + v1
         img, res2, fixed = fix_regions(img, res, st["seed"] + 191 + v * 1000, words)
         v2, nums2 = views(img) if fixed else (v1, nums)
@@ -554,7 +558,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         left = after if fixed else found
         hands_left = bool(res2.get("bad"))
         return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "numbers": nums2,
-                "readable": bool(res.get("readable")) and bool(body.get("readable")), "back": (4 if hands_left and left else 3 if body_bad else None)}
+                "readable": bool(res.get("readable")) and bool(body.get("readable")) and view_readable, "back": (4 if hands_left and left else 3 if body_bad else None)}
 
     run = [p_purpose, p_thumbs, p_atari, p_body, p_draft, p_wear, p_lines, p_base, p_light, p_shadow, p_shine, p_finish]
     assert len(run) == n
