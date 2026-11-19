@@ -437,7 +437,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         elif missing:
             note = "この模型は描き直しができないので、描かれていない物を直さずに次へ進みました"
         return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "note": note, "numbers": nums,
-                "readable": bool(req.get("readable"))}
+                "readable": bool(req.get("readable")), "back": 5 if (after if fixed else found) else None}
 
     def p_lines(v):
         img = st["image"]
@@ -448,7 +448,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         after_m = pt.lines(out)
         after = [f"外の輪郭が途切れている（{after_m['gap']}）"] if after_m.get("readable") and after_m["gap"] > pt.LINE_GAP_MOST else []
         return {"image": out, "found": found, "fixed": True, "after": after, "readable": bool(before.get("readable")),
-                "numbers": {"before": before, "after": after_m, "pixels": hit}}
+                "numbers": {"before": before, "after": after_m, "pixels": hit}, "back": 4 if after else None}
 
     def p_base(v):
         import numpy as np
@@ -463,7 +463,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         p = pt.parts(img)
         nums = {"colors": colors, "parts": None if p is None else int(len(set(np.unique(p).tolist()) - {0}))}
         found = [f"色が散っている（{colors} 色）"] if colors > COLORS_MOST else []
-        return {"image": img, "found": found, "numbers": nums, "readable": True}
+        return {"image": img, "found": found, "numbers": nums, "readable": True, "back": 5 if found else None}
 
     def p_light(v):
         lit = pt.light(st["image"])
@@ -472,7 +472,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         if lit.get("readable"):
             say(f"光源を{lit['side']}{'上' if lit['dy'] < 0 else '下'}に決めました")
         return {"image": st["image"], "found": ["光の向きが決まらない（明るさが平たい）"] if flat else [], "numbers": lit,
-                "readable": bool(lit.get("readable"))}
+                "readable": bool(lit.get("readable")), "back": 5 if flat else None}
 
     def p_shadow(v):
         img, lit = st["image"], st.get("light") or {}
@@ -498,7 +498,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         out, hit = pt.shade_second(img, lit, keep_m)
         sh2 = pt.shadows(out, lit)
         return {"image": out, "found": found, "fixed": bool(hit), "after": flaws(sh2), "readable": bool(sh.get("readable")),
-                "numbers": {"before": sh, "after": sh2, "pixels": hit}}
+                "numbers": {"before": sh, "after": sh2, "pixels": hit}, "back": 5 if flaws(sh2) else None}
 
     def p_shine(v):
         img, words, note = st["image"], [], ""
@@ -522,7 +522,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         elif found:
             note = "この模型は囲みの中だけを直せないので、目の光を足さずに次へ進みました"
         return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "note": note,
-                "numbers": {"eye_max": cl.get("eye_max")}, "readable": bool(cl.get("readable"))}
+                "numbers": {"eye_max": cl.get("eye_max")}, "readable": bool(cl.get("readable")), "back": 4 if (after if fixed else found) else None}
 
     def p_finish(v):
         img, words = st["image"], []
@@ -547,7 +547,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         left = after if fixed else found
         hands_left = bool(res2.get("bad"))
         return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "numbers": nums2,
-                "readable": bool(res.get("readable")) and bool(body.get("readable")), "back": 4 if hands_left and left else None}
+                "readable": bool(res.get("readable")) and bool(body.get("readable")), "back": (4 if hands_left and left else 3 if body_bad else None)}
 
     run = [p_purpose, p_thumbs, p_atari, p_body, p_draft, p_wear, p_lines, p_base, p_light, p_shadow, p_shine, p_finish]
     assert len(run) == n
