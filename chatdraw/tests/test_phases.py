@@ -527,31 +527,33 @@ class WindowFlowTest(unittest.TestCase):
                  mock.patch.object(phases.Checks, "points", staticmethod(C.points)), \
                  mock.patch.object(phases.Checks, "pose", staticmethod(C.pose)), \
                  mock.patch.object(phases.Checks, "hands", staticmethod(C.hands)):
+                # 描画は別スレッドで動くため、検品・画像処理の差し替えをスレッド終了まで維持する。
+                # 先に信号を接続して、処理が速い場合でも完了通知を取りこぼさない。
+                w.job.one.connect(lambda *_: events.append("one"))
+                w.job.done.connect(lambda: events.append("done"))
                 w._draw_now("赤いマフラーの子")
-            w.job.one.connect(lambda *_: events.append("one"))
-            w.job.done.connect(lambda: events.append("done"))
-            t = time.time()
-            while w.thread is not None and time.time() - t < 120:
+                t = time.time()
+                while w.thread is not None and time.time() - t < 120:
+                    qapp.processEvents()
+                    time.sleep(0.01)
                 qapp.processEvents()
-                time.sleep(0.01)
-            qapp.processEvents()
-            self.assertIsNone(w.thread, "描く処理が終わらない")
-            self.assertEqual([r["phase"] for r in s.last_phases], phases.NAMES)
-            self.assertEqual(events, ["one", "done"])   # 1 枚が出来た・終わったの信号は全部の工程のあとに 1 回ずつ
-            self.assertEqual(len(ends), 1)
-            # 進み具合の欄に「工程 i/12 名前」が順に出て、終わるまで帯は満ちない
-            for i, name in enumerate(phases.NAMES, 1):
-                self.assertTrue(any(st.startswith(f"工程 {i}/{N}　{name}") for st, *_ in seen), name)
-            for st, v, mx, msg in seen[:ends[0]]:
-                self.assertFalse(mx > 0 and v >= mx, f"終わる前に帯が満ちた: {st} {msg}")
-                self.assertNotIn("完成", st + msg)
-                self.assertNotIn("完了", st + msg)
-            last5 = max(k for k, (st, *_r) in enumerate(seen) if st.startswith(f"工程 {N}/{N}"))
-            first1 = min(k for k, (st, *_r) in enumerate(seen) if st.startswith(f"工程 1/{N}　目的"))
-            self.assertLess(first1, last5)
-            # 模型に渡した言葉は会話に出さず、進み具合の欄の詳細（ツールチップ）にだけ置く
-            self.assertFalse([c for c in chat if "渡す言葉" in c or "渡した言葉" in c], chat)
-            self.assertIn("模型に渡す言葉: 1girl, red scarf", act.detail.toolTip())
+                self.assertIsNone(w.thread, "描く処理が終わらない")
+                self.assertEqual([r["phase"] for r in s.last_phases], phases.NAMES)
+                self.assertEqual(events, ["one", "done"])   # 1 枚が出来た・終わったの信号は全部の工程のあとに 1 回ずつ
+                self.assertEqual(len(ends), 1)
+                # 進み具合の欄に「工程 i/12 名前」が順に出て、終わるまで帯は満ちない
+                for i, name in enumerate(phases.NAMES, 1):
+                    self.assertTrue(any(st.startswith(f"工程 {i}/{N}　{name}") for st, *_ in seen), name)
+                for st, v, mx, msg in seen[:ends[0]]:
+                    self.assertFalse(mx > 0 and v >= mx, f"終わる前に帯が満ちた: {st} {msg}")
+                    self.assertNotIn("完成", st + msg)
+                    self.assertNotIn("完了", st + msg)
+                last5 = max(k for k, (st, *_r) in enumerate(seen) if st.startswith(f"工程 {N}/{N}"))
+                first1 = min(k for k, (st, *_r) in enumerate(seen) if st.startswith(f"工程 1/{N}　目的"))
+                self.assertLess(first1, last5)
+                # 模型に渡した言葉は会話に出さず、進み具合の欄の詳細（ツールチップ）にだけ置く
+                self.assertFalse([c for c in chat if "渡す言葉" in c or "渡した言葉" in c], chat)
+                self.assertIn("模型に渡す言葉: 1girl, red scarf", act.detail.toolTip())
         finally:
             w.dirty = False
             w.close()
