@@ -413,9 +413,11 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         recheck_readable = True
         missing = list(req.get("missing", [])) if req.get("readable") else []
         nums = {"missing": len(missing), "extra": len(_extra(req))}
-        if missing and (can_fix or can_refine):
+        # 利用者が工程確認で言葉を追加した場合、検品が一旦合格でもその指示を描画へ反映する。
+        added_words = st["prompt"] != prompt
+        if (missing or added_words) and (can_fix or can_refine):
             stop()
-            words2 = emphasize(st["prompt"], missing)
+            words2 = emphasize(st["prompt"], missing) if missing else st["prompt"]
             say(f"描かれていない物（{'、'.join(missing)}）を、服・髪・持ち物の所だけに 1 回描き足しています")
             tell(words2)
             words.append(words2)
