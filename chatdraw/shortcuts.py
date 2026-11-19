@@ -32,15 +32,16 @@ GROUPS = (
 COMBOS = (
     # 前は最後に「ラフを清書する」（白い地の線画にする）を掛け、色の付いた絵が線画に変わった（見本 3 枚で SSIM 0.29〜0.67、
     # 目の色の差 61〜114）。綺麗にするは絵を変える物ではないので、清書は組み合わせから外した（清書は 1 つで選べる）
-    ("combo:tidy", "まとめて綺麗にする", ("clean", "retouch"),
-     "塗りのむらを均す → 線と塗りを整える、を順に掛けます。色・顔・目の色・髪の色は変えません"),
+    # retouch 自体に clean が含まれるため、前段の clean を重ねると塗りを二度平滑化してしまう。
+    ("combo:tidy", "まとめて綺麗にする", ("retouch",),
+     "ノイズ除去 → 色にじみ除去 → 塗りのむらを均す、を検品しながら掛けます。色・顔・目の色・髪の色は変えません"),
     ("combo:tidy_color", "まとめて整える（塗りを残す）", ("clean", "retouch_full"),
      "塗りのむらを均す → 線と塗りを整えて線の階段も取る、を順に掛けます。色と塗りは残します"),
 )
 GROUP_LABEL = dict(GROUPS)
 TOP_USED = 5
 # 綺麗にするの並び: 線と塗り（崩れを戻しながら整える）→ 塗りのむら → 輪郭のバリとジャギー（顔の細い線に触れることがあるので最後）
-CLEAN_ORDER = ("fin:retouch", "fin:clean", "fin:retouch_full")   # ★ の次に右クリックの一番上に出す、よく使う物の数
+CLEAN_ORDER = ("fin:retouch", "fin:denoise", "fin:clean", "fin:retouch_full")   # ★ の次に右クリックの一番上に出す、よく使う物の数
 
 # QSettings の鍵（利用者の設定。更新で消さない）
 KEY_PROMPTS = "shortcuts/prompts"       # 登録した指示 [{id, name, text}]
@@ -50,7 +51,7 @@ KEY_HIDDEN = "shortcuts/hidden"         # 右クリックに出さない加工�
 KEY_CHAINS = "shortcuts/chains"         # 自分の組み合わせ [{id, name, steps}]。steps は仕上げの名前の並び（掛ける順）
 
 # 初めに右クリックに出す、よく使う加工。ほかは「加工を選ぶ…」で出せる（全部を並べると、初めての人が探せなかった）
-DEFAULT_SHOWN = frozenset(("fin:retouch", "fin:clean", "fin:retouch_full", "combo:tidy", "combo:tidy_color", "fin:face",
+DEFAULT_SHOWN = frozenset(("fin:retouch", "fin:denoise", "fin:clean", "fin:retouch_full", "combo:tidy", "combo:tidy_color", "fin:face",
                            "fin:around", "fin:detail",
                            "fin:upscale_anime", "app:upscale2x", "app:lineart", "app:nobg", "app:transparent", "grow:all"))
 

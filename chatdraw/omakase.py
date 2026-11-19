@@ -107,15 +107,15 @@ class Plan:
         for kind, ms in self.fix.items():
             if ms:
                 line.append(f"{KIND_ASPECT[kind]}の直し: {ms[0][0].name}")
-        line.append("小さく描いて広げる、顔と手の描き込みを通す")
+        line.append("検品後の画像を保持（自動の描き込み・仕上げ加工なし）")
         if self.finish:
             line.append("仕上げ: " + "、".join(self.finish))
         return "、".join(line + self.notes)
 
 
-# おまかせが検品を通った絵に黙って掛けてよい仕上げ。形を変えず、大きさも変えない物だけ。
-# 描き直す仕上げ（顔を整える、仕上げの描き直し）は検品を通った絵を崩しうるので、利用者が選んだときだけ使う
-AUTO_FINISH = ("clean", "retouch")   # retouch は形を変えない工程だけ（崩れが増える工程は採らない。docs/knowledge/retouch.md）
+# 生成モデルが出した画像を優先し、自動の後処理で細部や質感を失わないようにする。
+# clean / retouch は手動の加工メニューから利用者が必要なときだけ適用する。
+AUTO_FINISH = ()
 
 
 def auto_finish(tools) -> list:
@@ -164,20 +164,22 @@ def plan(text: str, have: list[ImageModel], seed: int | None = None) -> Plan:
     p = Plan(parts, compose=explore(rank(have, compose_needs(parts), parts["style"]), seed))
     for kind, aspect in KIND_ASPECT.items():
         p.fix[kind] = rank(have, [aspect, STYLE_ASPECT.get(parts["style"], "アニメ")], parts["style"], need_inpaint=True)
-    f = finishers()
-    if f is None:
-        p.notes.append(FINISH_ERROR or "仕上げの部品が無いので仕上げを飛ばします")
-    else:
-        try:
-            tools = f.available()
-            p.finish = auto_finish(tools)
-        except Exception as e:   # 黙って仕上げを外すと、仕上げが効かない訳が利用者に分からなかった
-            p.finish = []
-            p.notes.append(f"仕上げを選べないので飛ばします（{type(e).__name__}: {e}）")
+    # 自動仕上げが無効なら、部品の読込・利用可否の確認自体を行わない。
+    # 手動の加工メニューは別経路で利用できるため、生成の段取りで仕上げ部品を初期化する必要はない。
+    if AUTO_FINISH:
+        f = finishers()
+        if f is None:
+            p.notes.append(FINISH_ERROR or "仕上げの部品が無いので仕上げを飛ばします")
         else:
-            # おまかせで掛けるはずの道具が使えないときは、その訳を出す（入れ忘れた部品は「入れ直して」と出る）
-            p.notes += [f"{t['label']}を飛ばします: {t['reason']}" for t in tools
-                        if isinstance(t, dict) and t.get("name") in AUTO_FINISH and not t.get("ready", True) and t.get("reason")]
+            try:
+                tools = f.available()
+                p.finish = auto_finish(tools)
+            except Exception as e:   # 黙って仕上げを外すと、仕上げが効かない訳が利用者に分からなかった
+                p.finish = []
+                p.notes.append(f"仕上げを選べないので飛ばします（{type(e).__name__}: {e}）")
+            else:
+                p.notes += [f"{t['label']}を飛ばします: {t['reason']}" for t in tools
+                            if isinstance(t, dict) and t.get("name") in AUTO_FINISH and not t.get("ready", True) and t.get("reason")]
     return p
 
 
@@ -358,8 +360,9 @@ class Omakase:
                     say("直しで崩れが増えたので、前の絵に戻します")
                     break
                 image, res = tried, again
-            if not res["bad"] and res.get("detail") and not getattr(painter, "stop", False):
-                image, res = self.detail(image, res, text, s_k, m.repo if m else "", prompt, say)
+            # 検品に合格した画像への顔・手・足の自動再描画は行わない。
+            # detail_regions は「検出された部位」であり「描き直しが必要な欠陥」ではない。
+            # 元画像より良くなる保証がないため、部分描画は利用者が明示的に依頼した場合に限る。
             self.log.append(dict(stage="検品", seed=s_k, bad=list(res["bad"]), readable=res["readable"]))
             # 検品できなかった絵は崩れが無いのではなく見ていないだけなので、崩れ 1 つとして数えて比べる。
             # 前は読めない絵（崩れ 0）が、読めて崩れが 1 つの絵より先に選ばれ、崩れを逃がした

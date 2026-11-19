@@ -158,7 +158,7 @@ def _detail_apply(image):
     peak &= L > 150
     add += np.where(peak & ~keep, DETAIL_SHINE * (255 - L), 0)
     eye, n_eye = _eye_highlights(image, L)
-    add = np.maximum(add, eye) if n_eye else add
+    add = np.where(eye > 0, np.maximum(add, eye), add) if n_eye else add
     LAST_DETAIL["eye_highlights"] = n_eye
     out = a + add[..., None]
     return Image.fromarray(np.clip(out + 0.5, 0, 255).astype("uint8"))
@@ -357,15 +357,12 @@ def _own_why(mod: str, *needs: str):
 
 
 # 線と塗りを整える工程。どの工程も、出来た崩れの画素を元に戻してから（repair）、崩れが増えず線が切れないときだけ採る。
-# おまかせに入れるのは顔の細い線に触らない工程だけ。バリ取り・ジャギー消しは顔を部位分けで守れるときだけ使う決まりなので「全部」にだけ入れる
-# 明るさの幅（levels）は入れない。元の大きさの絵では 3 枚とも落ちた（一部が壊れる・線の太さが変わる）のに、拡大のあとの絵では
-# 縮めた写しで決めるので通り、色が平均 10.7 変わった（描き手の決めた明るさと色を変えるので、元の良さが消える）
-# 粒消し（heal）とシャープ（sharpen）は既定から外した。見本の 3 枚（顔の寄り・全身・背景つき）に掛けて元の大きさで見ると、
-# 粒消しはシャツのボタン（小さな暗い丸）を消して輪に変え、シャープは髪の明るい筋の際に暗い継ぎ目を作った。
-# どちらも数字（粒の数、縁の急さ）は良くなるので工程の採否では止まらなかった。
-# バリ取り（deburr）も外した。全身の見本で着物の白い花の縁を削り、ぎざぎざにした
-RETOUCH_SAFE = ("defringe",)
-RETOUCH_FULL = ("defringe", "dejag")
+# おまかせには、顔の細い線に触れにくく、工程ごとの数値・形・線の検査を通った工程だけを入れる。
+# denoise は塗りのざらつきが実際に減った場合だけ採用し、形の変化・局所損傷・線の太さや切れを検査する。
+# defringe は線の縁に紫・緑の色にじみがある場合だけ採用する。どちらも対象が無ければ元画像を維持する。
+# levels / heal / sharpen / deburr / dejag は、明るさ・細い線・髪先・ボタン等を壊す実画像例があるため既定から外す。
+RETOUCH_SAFE = ("denoise", "defringe")
+RETOUCH_FULL = ("denoise", "defringe", "dejag")
 
 
 _MEMO: list = []   # (配列, 種類, 値)。同じ絵の崩れを工程ごとに測り直さない（直した絵は測ったあとに書き換えないので、同じ物を指せば同じ値）
@@ -432,9 +429,16 @@ def step(a, name: str):
     f0, f1 = flaws(a), flaws(b)
     d, dm = rt.drift(a, b), rt.damage(a, b)
     broken = rt.line_broken(a, b, thickness=name != "sharpen")
+    # denoise は平坦部の色境界を整えるため、連結成分の数が 1〜2 個揺れることがある。
+    # 新規の崩れ画素は repair で戻し、線・形・局所損傷も別検査するため、
+    # 大きな画像で 0.3% 未満のカウント差だけは測定揺れとして許容する。
+    flaw_tolerance = max(1, round(f0 * 0.003)) if name == "denoise" else 0
+    flaw_increase = f1 > f0 + flaw_tolerance
     why = ("数字が良くならない" if after >= before else f"形が変わりすぎる（{d:.3f}）" if d > rt.DRIFT
-           else f"一部が壊れる（{dm:.1f}）" if dm > rt.LOCAL else broken or (f"崩れが増える（{f0} → {f1}）" if f1 > f0 else ""))
-    rep = dict(step=name, before=round(float(before), 4), after=round(float(after), 4), flaws=[f0, f1], used=not why)
+           else f"一部が壊れる（{dm:.1f}）" if dm > rt.LOCAL
+           else broken or (f"崩れが増える（{f0} → {f1}、許容 {flaw_tolerance}）" if flaw_increase else ""))
+    rep = dict(step=name, before=round(float(before), 4), after=round(float(after), 4),
+               flaws=[f0, f1], flaw_tolerance=flaw_tolerance, used=not why)
     if why:
         rep["why"] = why
     return (a if why else b), rep
@@ -517,6 +521,11 @@ def _material(kind: str):
 
 _OWN = "このリポジトリのコード"
 register(Finisher(
+    "denoise", "塗りのざらつきを抑える",
+    "塗りの細かなざらつきを、輪郭を保ちながら抑えます。画像ごとに効果と線の変化を検査し、悪化する場合は適用しません",
+    _OWN, "tools/gen/retouch.py", _own_ready("retouch", "numpy", "scipy"), _own_why("retouch", "numpy", "scipy"),
+    _retouch(("denoise",)), extra=dict(needs=("numpy", "scipy"), scale="retouch", steps=("denoise",))))
+register(Finisher(
     "retouch", "線と塗りを整える",
     "線の縁の紫・緑の色のにじみを消し、平らな塗りの細かいざらつきを均します。形と色は変えません。"
     "線の工程は数字が良くなった時だけ掛けます",
@@ -536,8 +545,8 @@ for _m, _label, _tip in (("holy", "神々しい光", "光の筋と光の粒、�
                          ("komorebi", "木漏れ日", "木漏れ日の光の斑点と細い筋を重ねます"),
                          ("haze", "霞と遠近", "上ほど空の色で覆い、奥行きを出します")):
     register(Finisher(f"air_{_m}", _label, _tip + "。線と形は変えません", _OWN, "tools/gen/atmosphere.py",
-                      _own_ready("atmosphere", "numpy"), _own_why("atmosphere", "numpy"), _mood(_m), group="air",
-                      extra=dict(needs=("numpy",), effect=True, scale="work")))
+                      _own_ready("atmosphere", "numpy", "scipy"), _own_why("atmosphere", "numpy", "scipy"), _mood(_m), group="air",
+                      extra=dict(needs=("numpy", "scipy"), effect=True, scale="work")))
 for _k, _label, _tip in (("metal", "金属", "明暗の段差と映り込みの帯、強い照り返しを足します"),
                          ("gem", "宝石", "面の分かれの明暗と内側の透け、きらめきを足します"),
                          ("slime", "透明感", "内側ほど透かし、縁の光と照り返しを足します")):
@@ -622,6 +631,39 @@ def keep_outside(original, result, mask):
     if res.size != orig.size:
         res = res.resize(orig.size, Image.LANCZOS)
     return Image.composite(res, orig, binary(mask, orig.size))
+
+
+def structural_lines(rgb):
+    """cleanup の主線候補から、SPECK 未満の孤立した点を除いた主線マスクを返す。"""
+    import numpy as np
+    from scipy.ndimage import label
+    cleanup = _gen("cleanup")
+    raw = cleanup.line_mask(rgb)
+    lab, _ = label(raw, structure=np.ones((3, 3)))
+    sizes = np.bincount(lab.ravel())
+    sizes[0] = 0
+    return sizes[lab] >= cleanup.SPECK
+
+
+def preserve_lines(original, result):
+    """空気感・質感の色や光を足す加工から、元の主線と検出半径 6px の周辺を守る。"""
+    import numpy as np
+    from PIL import Image, ImageFilter
+    src = original.convert("RGB")
+    out = result.convert("RGB")
+    if out.size != src.size:
+        out = out.resize(src.size, Image.LANCZOS)
+    a = np.asarray(src)
+    b = np.asarray(out).copy()
+    line = structural_lines(a)
+    if line.any():
+        # 主線の検出は半径 6px の近傍を見るため、同じ幅の周辺も保護して検出結果を安定させる。
+        # 小さな星・粒は主線ではないので、SPECK 未満の成分を先に除いて四角い保護跡を作らない。
+        protected = np.asarray(
+            Image.fromarray((line * 255).astype("uint8")).filter(ImageFilter.MaxFilter(13))
+        ) > 0
+        b[protected] = a[protected]
+    return Image.fromarray(b)
 
 
 # ---- 大きな絵（拡大のあと）でも必ず終わる掛け方 ----
@@ -922,9 +964,20 @@ def scores(src, out) -> dict:
         ss = float(structural_similarity(la, lb, data_range=255))
     except ImportError:
         ss = None
-    ma, mb = la < 90, lb < 90
-    iou = float((ma & mb).sum() / max(1, (ma | mb).sum()))
-    return dict(ssim=None if ss is None else round(ss, 4), line=round(iou, 4), color=round(float(np.abs(a - b).mean()), 2))
+    try:
+        ma, mb = structural_lines(a), structural_lines(b)
+    except ImportError:
+        ma, mb = la < 90, lb < 90
+    inter = int((ma & mb).sum())
+    union = int((ma | mb).sum())
+    # IoU は追加した細部も減点するため、元の主線が残った割合（recall）と
+    # 加工後の線のうち元からあった割合（precision）を分けて記録する。
+    iou = 1.0 if union == 0 else float(inter / union)
+    recall = 1.0 if not ma.any() else float(inter / ma.sum())
+    precision = 1.0 if not mb.any() else float(inter / mb.sum())
+    return dict(ssim=None if ss is None else round(ss, 4), line=round(iou, 4),
+                line_recall=round(recall, 4), line_precision=round(precision, 4),
+                color=round(float(np.abs(a - b).mean()), 2))
 
 
 LINE_DELTA = 40.0   # 主線とその 2 画素の周りで、元の絵から変えてよい色の上限（0〜255）。線の太さと形を変えないように
@@ -983,6 +1036,18 @@ def limit(src, out):
     back = 0
     if H and W:
         cell = ss[:H, :W].reshape(H // QC_CELL, QC_CELL, W // QC_CELL, QC_CELL).mean((1, 3)) < CELL_SSIM
+        # SSIM は意図したノイズ除去も「構造の変化」として戻す。線を保護したうえで、
+        # その区画の平坦部ノイズが十分減っている場合だけ、区画単位の巻き戻しを免除する。
+        # retouch の工程側でも drift / damage / line_broken を通過していることが前提。
+        if cell.any():
+            rt = _gen("retouch")
+            for cy, cx in np.argwhere(cell):
+                y0, x0 = int(cy) * QC_CELL, int(cx) * QC_CELL
+                y1, x1 = y0 + QC_CELL, x0 + QC_CELL
+                before_noise = rt.noise(a[y0:y1, x0:x1])
+                after_noise = rt.noise(b[y0:y1, x0:x1])
+                if before_noise >= 1.0 and after_noise < before_noise * 0.98:
+                    cell[cy, cx] = False
         back = int(cell.sum())
         if back:
             m = np.zeros(ss.shape, bool)
@@ -1164,6 +1229,8 @@ def run(name: str, image, mask=None, say=None, face=_NO_FACE):
         out = at_work_size(f.apply, src, say, f.label)
     else:
         out = f.apply(src)
+    if f.group in {"air", "texture"} and out.size == src.size:
+        out = preserve_lines(src, out)
     out = out if mask is None else keep_outside(src, out, mask)
     _MEMO.clear()   # 大きな絵の配列を持ち続けない
     out = guard(name, src, out, mask)

@@ -117,14 +117,24 @@ def main():
             w.place(str(shot["path"]))
         seen = []
 
-        def walk(m):
+        def walk(m, depth=0, visited=None):
+            # popup() 自身が aboutToShow を発火する。手動で emit すると、サブメニューを
+            # 開いたときに同じ fill が二重に走り、項目が増殖して Windows E2E が止まった。
+            if visited is None:
+                visited = set()
+            if depth > 12 or len(visited) > 120:
+                raise RuntimeError("右クリックのメニューが循環しています")
+            key = id(m)
+            if key in visited:
+                return
+            visited.add(key)
             m.popup(QPoint(20, 20))
             qapp.processEvents()
-            for a in m.actions():
+            for a in list(m.actions()):
                 seen.append(a.text())
-                if a.menu():
-                    a.menu().aboutToShow.emit()
-                    walk(a.menu())
+                sub = a.menu()
+                if sub is not None:
+                    walk(sub, depth + 1, visited)
             m.hide()
             qapp.processEvents()
         for _ in range(3):

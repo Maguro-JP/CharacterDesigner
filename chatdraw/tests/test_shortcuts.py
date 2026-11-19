@@ -20,8 +20,8 @@ from chatdraw.engine import Studio  # noqa: E402
 from chatdraw.tests.test_chatdraw import FakePainter, FakeWords  # noqa: E402
 
 # 模型を使わず、本物の加工で画素が変わるはずの物
-PIXEL_CHANGES = ("fin:clean", "fin:ink", "fin:air_holy", "fin:air_komorebi", "fin:air_haze", "fin:mat_metal", "fin:mat_gem",
-                 "fin:mat_slime", "app:lineart", "app:pixel", "app:nobg")
+PIXEL_CHANGES = ("fin:clean", "fin:denoise", "fin:ink", "fin:air_holy", "fin:air_komorebi", "fin:air_haze", "fin:mat_metal", "fin:mat_gem",
+                 "fin:mat_slime", "fin:detail", "app:lineart", "app:pixel", "app:nobg")
 # 工程ごとに良くなった時だけ掛けるので、小さな絵では変わらないこともある。全部の工程を通ったことを確かめる
 RETOUCH = ("fin:retouch", "fin:retouch_full")
 # 模型の要る物（偽の模型で流す）と、拡大の重みの要る物（偽の重みで流す）
@@ -29,7 +29,7 @@ MODEL_ITEMS = ("fin:refine", "app:chibi", "grow:lr", "grow:tb", "grow:all", "fin
 # まとめて掛ける物（模型を使わない加工を順に掛ける）
 COMBOS = ("combo:tidy", "combo:tidy_color")
 # 整える・指定した箇所の周辺を整える・ディテール追加（模型を使わない。周辺は囲みが無いと理由を出す）
-KEEPERS = ("fin:face", "fin:around", "fin:detail")
+KEEPERS = ("fin:face", "fin:around")
 
 
 def app():
@@ -121,7 +121,7 @@ class GroupTest(unittest.TestCase):
     def test_clean_is_split_by_kind(self):
         from chatdraw import finishers, shortcuts
         groups = {f.name: f.group for f in finishers.REGISTRY.values()}
-        self.assertEqual({n for n, g in groups.items() if g == "clean"}, {"retouch", "clean", "retouch_full", "face", "around"})
+        self.assertEqual({n for n, g in groups.items() if g == "clean"}, {"retouch", "denoise", "clean", "retouch_full", "face", "around"})
         self.assertEqual({n for n, g in groups.items() if g == "texture"}, {"mat_metal", "mat_gem", "mat_slime"})
         self.assertEqual({n for n, g in groups.items() if g == "air"}, {"air_holy", "air_komorebi", "air_haze"})
         self.assertEqual(groups["detail"], "detail")
@@ -234,7 +234,7 @@ class MenuTest(Base):
 
     def test_clean_menu_only_has_cleaning(self):
         sub = self.submenu("綺麗にする")
-        self.assertEqual([a.objectName() for a in sub.actions()], ["fin:retouch", "fin:clean", "fin:retouch_full", "fin:face", "fin:around"])
+        self.assertEqual([a.objectName() for a in sub.actions()], ["fin:retouch", "fin:denoise", "fin:clean", "fin:retouch_full", "fin:face", "fin:around"])
 
 
 class EverywhereTest(Base):
@@ -276,23 +276,48 @@ class ModelFreeTest(Base):
         from chatdraw import finishers
         for sid in PIXEL_CHANGES:
             with self.subTest(sid=sid):
-                self.w.edit_image(str(self.src))
+                source = self.src
+                if sid == "fin:denoise":
+                    import numpy as np
+                    rng = np.random.default_rng(20261120)
+                    noisy = np.empty((192, 192, 3), dtype=np.float32)
+                    noisy[:] = (178, 132, 96)
+                    noisy[:, 96:] = (48, 82, 126)
+                    noisy += rng.normal(0, 5.0, noisy.shape).astype(np.float32)
+                    source = Path(self.tmp.name) / "denoise-noisy-fill.png"
+                    Image.fromarray(np.clip(noisy, 0, 255).astype("uint8")).save(source)
+                self.w.edit_image(str(source))
                 before, n = self.base(), len(self.w.canvas.layers)
                 self.press(sid)
                 after = self.base()
                 self.assertTrue(len(self.w.canvas.layers) != n or sid == "app:nobg", sid)
-                self.assertIsNotNone(ImageChops.difference(before, after).getbbox(alpha_only=False), sid)
+                self.assertIsNotNone(ImageChops.difference(before, after).getbbox(alpha_only=False), f"{sid}: chain={finishers.LAST_CHAIN!r}, report={finishers.LAST_REPORT!r}")
+        import numpy as np
+        noisy = np.empty((192, 192, 3), dtype=np.float32)
+        rng = np.random.default_rng(20261123)
+        noisy[:] = (178, 132, 96)
+        noisy[:, 96:] = (48, 82, 126)
+        noisy += rng.normal(0, 5.0, noisy.shape).astype(np.float32)
+        noisy_path = Path(self.tmp.name) / "retouch-menu-noisy-fill.png"
+        Image.fromarray(np.clip(noisy, 0, 255).astype("uint8")).save(noisy_path)
+        rt = finishers._gen("retouch")
         for sid in RETOUCH:
             with self.subTest(sid=sid):
-                self.w.edit_image(str(self.src))
+                self.w.edit_image(str(noisy_path))
+                before = self.base().convert("RGB")
+                before_noise = rt.noise(np.asarray(before, dtype=np.float32))
                 n = len(self.w.canvas.layers)
                 self.press(sid)
                 self.assertEqual(len(self.w.canvas.layers), n + 1)
+                after = self.base().convert("RGB")
+                after_noise = rt.noise(np.asarray(after, dtype=np.float32))
+                self.assertTrue(np.any(np.asarray(before) != np.asarray(after)), sid)
+                self.assertLess(after_noise, before_noise, (sid, before_noise, after_noise, finishers.LAST_REPORT))
                 want = finishers.RETOUCH_FULL if sid.endswith("full") else finishers.RETOUCH_SAFE
                 self.assertEqual([r["step"] for r in finishers.LAST_REPORT["steps"]], list(want))
 
     def test_keepers_from_the_app(self):
-        """整える・ディテール追加は押すと新しいレイヤーを足す。周辺を整えるは囲みが無いと理由を出し、レイヤーを足さない"""
+        """整えるは新しいレイヤーを足す。周辺を整えるは囲みが無いと理由を出し、レイヤーを足さない。ディテール追加は画素まで別試験で確かめる"""
         for sid in ("fin:face", "fin:detail"):
             with self.subTest(sid=sid):
                 self.w.edit_image(str(self.src))
@@ -308,14 +333,28 @@ class ModelFreeTest(Base):
         """まとめて綺麗にする: 押すと工程を順に掛け、1 枚の新しいレイヤーに置く"""
         from chatdraw import finishers, shortcuts
         want = {sid: steps for sid, _l, steps, _t in shortcuts.COMBOS}
+        self.assertEqual(want["combo:tidy"], ("retouch",))  # retouch に clean が含まれるので二重適用しない
         for sid in COMBOS:
             with self.subTest(sid=sid):
-                self.w.edit_image(str(self.src))
+                source = self.src
+                if sid == "combo:tidy_color":
+                    import numpy as np
+                    rng = np.random.default_rng(20261120)
+                    noisy = np.empty((192, 192, 3), dtype=np.float32)
+                    noisy[:] = (178, 132, 96)
+                    noisy[:, 96:] = (48, 82, 126)
+                    noisy += rng.normal(0, 5.0, noisy.shape).astype(np.float32)
+                    for y in range(20, 172):
+                        x = 20 + (y - 20) // 4
+                        noisy[y, x:x + 5] = 0.0
+                    source = Path(self.tmp.name) / "tidy-color-noisy-jagged.png"
+                    Image.fromarray(np.clip(noisy, 0, 255).astype("uint8")).save(source)
+                self.w.edit_image(str(source))
                 before, n = self.base(), len(self.w.canvas.layers)
                 self.press(sid)
                 self.assertEqual(len(self.w.canvas.layers), n + 1)
                 self.assertEqual([q["name"] for q in finishers.LAST_CHAIN], list(want[sid]))
-                self.assertIsNotNone(ImageChops.difference(before, self.base()).getbbox(alpha_only=False), sid)
+                self.assertIsNotNone(ImageChops.difference(before, self.base()).getbbox(alpha_only=False), f"{sid}: {finishers.LAST_CHAIN!r}")
 
     def test_own_chain_add_press_rename_remove(self):
         """自分の組み合わせ: 選んだ順に登録し、右クリックから押すとその順に掛ける。名前の変更と削除ができ、次の起動にも残る"""
