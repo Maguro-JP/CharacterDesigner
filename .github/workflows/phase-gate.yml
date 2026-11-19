@@ -1,0 +1,40 @@
+name: phase-gate
+on:
+  push:
+    paths:
+      - "chatdraw/phases.py"
+      - "chatdraw/engine.py"
+      - "chatdraw/tests/test_phases.py"
+      - "chatdraw/tests/test_draw_api.py"
+      - ".github/workflows/phase-gate.yml"
+  pull_request:
+    paths:
+      - "chatdraw/phases.py"
+      - "chatdraw/engine.py"
+      - "chatdraw/tests/test_phases.py"
+      - "chatdraw/tests/test_draw_api.py"
+      - ".github/workflows/phase-gate.yml"
+permissions:
+  contents: read
+concurrency:
+  group: phase-gate-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      QT_QPA_PLATFORM: offscreen
+      CD_CHECK: "off"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Qt と画像処理の部品
+        run: |
+          sudo apt-get update -q
+          sudo apt-get install -y -q libegl1
+          pip install -q PySide6 numpy scipy scikit-image pillow
+      - name: 工程ゲートと共通描画API
+        run: python -m unittest chatdraw.tests.test_phases chatdraw.tests.test_draw_api
