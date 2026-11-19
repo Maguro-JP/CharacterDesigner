@@ -205,7 +205,7 @@ def _default_check(image, prompt):
     own = origqc.check(image, prompt)
     bad += own["bad"]
     regions = handcheck.bad_regions(res) + [r for r in own["regions"] if r not in handcheck.bad_regions(res)]
-    return {"readable": bool(res.get("readable", True)) and bool(asked.get("readable")) and own["readable"], "bad": bad,
+    return {"readable": bool(res.get("readable", False)) and bool(asked.get("readable")) and bool(own.get("readable")) and own.get("measured") is True, "bad": bad,
             "regions": regions, "detail": handcheck.detail_regions(res), "notes": own.get("notes", [])}
 
 
