@@ -427,13 +427,16 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             else:
                 tried = keep_tone(painter.refine(words2, st["seed"] + 131 + v * 1000, img, strength=REPAINT, **pv), img, "服・髪・持ち物")
             req2 = checks.request(tried, st["prompt"])
-            after = _missing(req2) + _extra(req2)
             fixed = True
-            if len(after) <= len(found):
+            if req2.get("readable") and len(_missing(req2) + _extra(req2)) <= len(found):
+                after = _missing(req2) + _extra(req2)
                 img = tried
-            else:
+            elif req2.get("readable"):
                 after = found
                 say("描き足しで崩れが増えたので、前の絵を次の工程に渡します")
+            else:
+                after = found
+                note = "描き足し後の検品ができなかったため、修正前の絵に戻します"
         elif missing:
             note = "この模型は描き直しができないので、描かれていない物を直さずに次へ進みました"
         return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "note": note, "numbers": nums,
@@ -447,7 +450,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         out, hit = pt.weight_lines(img)
         after_m = pt.lines(out)
         after = [f"外の輪郭が途切れている（{after_m['gap']}）"] if after_m.get("readable") and after_m["gap"] > pt.LINE_GAP_MOST else []
-        return {"image": out, "found": found, "fixed": True, "after": after, "readable": bool(before.get("readable")),
+        return {"image": out, "found": found, "fixed": True, "after": after, "readable": bool(before.get("readable")) and bool(after_m.get("readable")),
                 "numbers": {"before": before, "after": after_m, "pixels": hit}, "back": 4 if after else None}
 
     def p_base(v):
@@ -497,7 +500,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         say("影の 2 段目を、光源と反対の側の暗い所だけに置いています")
         out, hit = pt.shade_second(img, lit, keep_m)
         sh2 = pt.shadows(out, lit)
-        return {"image": out, "found": found, "fixed": bool(hit), "after": flaws(sh2), "readable": bool(sh.get("readable")),
+        return {"image": out, "found": found, "fixed": bool(hit), "after": flaws(sh2), "readable": bool(sh.get("readable")) and bool(sh2.get("readable")),
                 "numbers": {"before": sh, "after": sh2, "pixels": hit}, "back": 5 if flaws(sh2) else None}
 
     def p_shine(v):
@@ -522,7 +525,9 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         elif found:
             note = "この模型は囲みの中だけを直せないので、目の光を足さずに次へ進みました"
         return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "note": note,
-                "numbers": {"eye_max": cl.get("eye_max")}, "readable": bool(cl.get("readable")), "back": 4 if (after if fixed else found) else None}
+                "numbers": {"eye_max": cl.get("eye_max")},
+                "readable": bool(cl.get("readable")) and (not fixed or bool(cl2.get("readable"))),
+                "back": 4 if (after if fixed else found) else None}
 
     def p_finish(v):
         img, words = st["image"], []
