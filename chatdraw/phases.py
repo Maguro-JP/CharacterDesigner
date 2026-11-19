@@ -638,6 +638,12 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             ans = confirm(i, name, shown, row)
             kind = ans[0] if isinstance(ans, (tuple, list)) else ans
             if kind in (REDO, WORDS):
+                target_hint = 5 if kind == WORDS and isinstance(ans, (tuple, list)) and len(ans) > 1 and str(ans[1]).strip() and i >= 5 else i
+                if backs >= BACKS or visits[target_hint] >= REVISIT:
+                    blocked = {"phase": name, "index": i, "reason": "再試行上限に達しました", "left": list(left), "requested": kind}
+                    say(f"工程 {i + 1}/{n}「{name}」は再試行上限（全体 {BACKS} 回・同一工程 {REVISIT} 回）に達したため停止しました。未完成として保存します")
+                    break
+                backs += 1
                 added = False
                 if kind == WORDS and isinstance(ans, (tuple, list)) and len(ans) > 1 and str(ans[1]).strip():
                     add = str(ans[1]).strip()
