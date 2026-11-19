@@ -4,6 +4,7 @@
 import os
 import sys
 import unittest
+from unittest import mock
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -63,7 +64,8 @@ def checks(always_bad: bool):
         @staticmethod
         def request(image, prompt):
             seen["request"] += 1
-            bad = always_bad or seen["request"] == 1
+            # サムネイルとアタリでは依頼物を検査せず、服・髪・持ち物の工程で初めて欠落を検出する。
+            bad = not always_bad and seen["request"] == 3
             return {"readable": True, "missing": ["red scarf"] if bad else [], "extra": [], "people": [], "body": []}
 
         @staticmethod
@@ -125,7 +127,8 @@ class PhasesTest(unittest.TestCase):
         painter = painter or Painter()
         C, seen = checks(always_bad)
         said = []
-        with TemporaryDirectory() as d:
+        from chatdraw import phasetools as pt
+        with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}):
             got = phases.draw(painter, "1girl, red scarf", 5, (64, 96), Path(d) / "k", say=said.append, checks=C, confirm=confirm)
             files = sorted(p.name for p in (Path(d) / "k").iterdir())
         return got, painter, seen, said, files
@@ -193,7 +196,7 @@ class PhasesTest(unittest.TestCase):
 
     def test_stop_between_phases(self):
         painter = Painter()
-        C, _ = checks(always_bad=True)
+        C = hand_only_checks()
         orig = C.hands
 
         def hands(image, prompt):
@@ -239,7 +242,14 @@ class PhasesTest(unittest.TestCase):
         self.assertTrue(any("言葉を足しました" in s for s in said))
 
     def test_studio_way_phases(self):
-        with TemporaryDirectory() as d:
+        from chatdraw import phasetools as pt
+        C, _ = checks(False)
+        with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}), \
+             mock.patch.object(phases.Checks, "request", staticmethod(C.request)), \
+             mock.patch.object(phases.Checks, "body", staticmethod(C.body)), \
+             mock.patch.object(phases.Checks, "points", staticmethod(C.points)), \
+             mock.patch.object(phases.Checks, "pose", staticmethod(C.pose)), \
+             mock.patch.object(phases.Checks, "hands", staticmethod(C.hands)):
             painter = Painter()
             s = Studio(FakeWords(), painter, Path(d))
             s.way = "phases"
@@ -252,7 +262,14 @@ class PhasesTest(unittest.TestCase):
             self.assertIsNone(s.last_phases)
 
     def test_studio_confirm_translates_words(self):
-        with TemporaryDirectory() as d:
+        from chatdraw import phasetools as pt
+        C, _ = checks(False)
+        with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}), \
+             mock.patch.object(phases.Checks, "request", staticmethod(C.request)), \
+             mock.patch.object(phases.Checks, "body", staticmethod(C.body)), \
+             mock.patch.object(phases.Checks, "points", staticmethod(C.points)), \
+             mock.patch.object(phases.Checks, "pose", staticmethod(C.pose)), \
+             mock.patch.object(phases.Checks, "hands", staticmethod(C.hands)):
             s = Studio(FakeWords(), Painter(), Path(d))
             s.way = "phases"
             calls = []
@@ -459,7 +476,17 @@ class WindowFlowTest(unittest.TestCase):
             ends = []
             end = act.end
             act.end = lambda *a, **k: (ends.append(len(seen)), end(*a, **k))[1]
-            with mock.patch.object(w, "_keep_original", lambda x: x):
+            C, _ = checks(False)
+            from chatdraw import phasetools as pt
+            with mock.patch.object(w, "check_ai", return_value={"image": True, "reason": ""}), \
+                 mock.patch.object(w, "_keep_original", lambda x: x), \
+                 mock.patch.object(w, "offer_two_stage_parts", lambda: None), \
+                 mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}), \
+                 mock.patch.object(phases.Checks, "request", staticmethod(C.request)), \
+                 mock.patch.object(phases.Checks, "body", staticmethod(C.body)), \
+                 mock.patch.object(phases.Checks, "points", staticmethod(C.points)), \
+                 mock.patch.object(phases.Checks, "pose", staticmethod(C.pose)), \
+                 mock.patch.object(phases.Checks, "hands", staticmethod(C.hands)):
                 w._draw_now("赤いマフラーの子")
             w.job.one.connect(lambda *_: events.append("one"))
             w.job.done.connect(lambda: events.append("done"))
@@ -559,7 +586,8 @@ class PreviewTest(unittest.TestCase):
 
     def test_each_phase_image_is_shown(self):
         shown = []
-        with TemporaryDirectory() as d:
+        from chatdraw import phasetools as pt
+        with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}):
             phases.draw(Painter(), "red hair, 1girl", 1, (64, 64), Path(d), checks=checks(False)[0], on_preview=shown.append)
         self.assertGreaterEqual(len(shown), len(phases.PHASES))
 
@@ -575,7 +603,8 @@ class NoSketchModelTest(unittest.TestCase):
                 self.log.append(("refine", seed, strength))
                 return image
 
-        with TemporaryDirectory() as d:
+        from chatdraw import phasetools as pt
+        with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}):
             p = Dit()
             C, _seen = checks(False)
             got = phases.draw(p, "1girl, red scarf", 1, (64, 64), Path(d), checks=C)
