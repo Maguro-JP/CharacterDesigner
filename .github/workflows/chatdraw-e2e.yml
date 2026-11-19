@@ -38,6 +38,8 @@ jobs:
           chatdraw.tests.test_shortcuts.ModelFreeTest
           chatdraw.tests.test_finish2.FinishMenuTest
           chatdraw.tests.test_omakase
+          chatdraw.tests.test_phases
+          chatdraw.tests.test_draw_api
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
