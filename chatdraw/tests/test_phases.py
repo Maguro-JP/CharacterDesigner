@@ -65,7 +65,8 @@ def checks(always_bad: bool):
         def request(image, prompt):
             seen["request"] += 1
             # サムネイルとアタリでは依頼物を検査せず、服・髪・持ち物の工程で初めて欠落を検出する。
-            bad = not always_bad and seen["request"] == 3
+            # request はサムネイル 2 回・アタリ 1 回の後、服・髪・持ち物で検品する。
+            bad = not always_bad and seen["request"] == 4
             return {"readable": True, "missing": ["red scarf"] if bad else [], "extra": [], "people": [], "body": []}
 
         @staticmethod
