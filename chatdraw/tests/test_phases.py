@@ -32,6 +32,10 @@ def figure(size=(64, 96)):
     d.rectangle([w * 0.35, h * 0.25, w * 0.5, h * 0.95], fill=(60, 60, 80))
     d.rectangle([w * 0.5, h * 0.25, w * 0.65, h * 0.95], fill=(150, 150, 170))
     d.ellipse([w * 0.38, h * 0.05, w * 0.62, h * 0.25], fill=(120, 100, 90))
+    # 目の検品用に、左右対称の白いハイライトを描く（空の顔を「検品合格」と誤認しない）
+    r = max(1, int(min(w, h) * 0.025))
+    for x in (w * 0.45, w * 0.55):
+        d.ellipse([x - r, h * 0.15 - r, x + r, h * 0.15 + r], fill=(255, 255, 255))
     return im
 
 
@@ -110,7 +114,7 @@ def hand_only_checks():
         def points(image):
             w, h = image.size
             return {"readable": True, "points": {"left_eye": (w * .45, h * .15), "right_eye": (w * .55, h * .15),
-                    "nose": (w * .5, h * .18), "left_ear": (w * .4, h * .15),
+                    "nose": (w * .5, h * .18), "left_ear": (w * .4, h * .15), "right_ear": (w * .6, h * .15),
                     "left_shoulder": (w * .4, h * .27), "right_shoulder": (w * .6, h * .27)}}
 
         @staticmethod
@@ -593,7 +597,7 @@ class MissingBackRouteTest(unittest.TestCase):
             def points(image):
                 w, h = image.size
                 return {"readable": True, "points": {"left_eye": (w * .45, h * .15), "right_eye": (w * .55, h * .15),
-                        "nose": (w * .5, h * .18), "left_ear": (w * .4, h * .15),
+                        "nose": (w * .5, h * .18), "left_ear": (w * .4, h * .15), "right_ear": (w * .6, h * .15),
                         "left_shoulder": (w * .4, h * .27), "right_shoulder": (w * .6, h * .27)}}
 
             @staticmethod
