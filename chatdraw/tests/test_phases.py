@@ -583,7 +583,7 @@ class MissingBackRouteTest(unittest.TestCase):
         class C:
             @staticmethod
             def request(image, prompt):
-                return {"readable": True, "missing": [], "extra": ["unrequested object"], "people": [], "body": []}
+                return {"readable": True, "missing": [], "extra": [], "people": ["extra person"], "body": []}
 
             @staticmethod
             def body(image, prompt, tags=None):
