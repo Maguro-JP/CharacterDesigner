@@ -131,7 +131,7 @@ class OmakaseTest(unittest.TestCase):
         fake_plan = SimpleNamespace(
             compose=[(COMPOSE, "構図")],
             fix={"hand": [(HANDS, "手"), (FACES, "顔")], "face": [], "foot": []},
-            notes=[], parts={}, summary=lambda: "test plan",
+            notes=[], parts={}, finish=[], summary=lambda: "test plan",
         )
         with mock.patch.object(omakase, "plan", return_value=fake_plan):
             log, st, _ = self.run_draw(
