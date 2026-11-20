@@ -283,7 +283,11 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         say("修正結果を再検品しています（手・足・顔）")
         emit_event(on_event, "reinspection", "修正結果を再検品しています（手・足・顔）", phase="顔・手・足の下描き")
         again = checks.hands(tried, st["prompt"])
-        if again.get("readable") and len(again.get("bad", [])) <= len(res.get("bad", [])):
+        if not again.get("readable"):
+            say("修正後の検品ができなかったため、合格にせず修正前の絵を保持します")
+            return img, {**res, "readable": False,
+                         "reinspection_reason": again.get("reason", "修正後の検品に失敗")}, True
+        if len(again.get("bad", [])) <= len(res.get("bad", [])):
             return tried, again, True
         say("直しで崩れが減らなかったので、直す前の絵を次の工程に渡します")
         return img, res, True
@@ -428,7 +432,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         memo["draft"] = (st["prompt"], img)
         return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "note": note,
                 "numbers": {"eye_tilt": tilt2, "bad": len(res2.get("bad", []))},
-                "readable": bool(res.get("readable")) and bool(point_check.get("readable")) and (not fixed or bool(point_check2.get("readable"))),
+                "readable": bool(res.get("readable")) and bool(res2.get("readable")) and bool(point_check.get("readable")) and (not fixed or bool(point_check2.get("readable"))),
                 "back": 4}
 
     def p_wear(v):
@@ -612,7 +616,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         hands_left = bool(res_final.get("bad"))
         body_left = bool(body_bad_final)
         return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "numbers": nums2,
-                "readable": bool(res.get("readable")) and bool(body.get("readable")) and bool(res_final.get("readable")) and bool(body_final.get("readable")) and bool(pts_final) and final_view_readable,
+                "readable": bool(res.get("readable")) and (not fixed or bool(_res_after_fix.get("readable"))) and bool(body.get("readable")) and bool(res_final.get("readable")) and bool(body_final.get("readable")) and bool(pts_final) and final_view_readable,
                 "back": (4 if hands_left and after else 3 if body_left else None)}
 
     run = [p_purpose, p_thumbs, p_atari, p_body, p_draft, p_wear, p_lines, p_base, p_light, p_shadow, p_shine, p_finish]
