@@ -307,7 +307,8 @@ class Omakase:
         words = handcheck.FIX_WORDS.get(kind) or origqc.FIX_WORDS.get(kind, "")
         self._event("correction", f"{KIND_ASPECT[kind]}を {len(boxes)} か所、囲みの中だけ修正しています", phase=f"{KIND_ASPECT[kind]}の修正", regions=len(boxes), model=m.name)
         self._snapshot(image)
-        out = painter.redraw(f"{self._prompt(prompt_text, m)}, {words}", seed, image, mask, strength=strength)
+        out = painter.redraw(f"{self._prompt(prompt_text, m)}, {words}", seed, image, mask, strength=strength,
+                             **({"on_preview": self.on_preview} if self.on_preview is not None else {}))
         # 囲みの外を元画像に戻した、実際に採用する修正結果を表示する。
         result = Image.composite(out.convert(image.mode), image, mask)
         self._snapshot(result)
@@ -435,7 +436,8 @@ class Omakase:
         if up is not None:
             painter.upscale = 1.0   # もう広げてあるので、直しの中でさらに 1.5 倍にしない（時間が 2 倍以上になる）
         try:
-            out = painter.redraw(prompt, seed + 1, image, whole, strength=HIRES_STRENGTH)
+            out = painter.redraw(prompt, seed + 1, image, whole, strength=HIRES_STRENGTH,
+                                 **({"on_preview": self.on_preview} if self.on_preview is not None else {}))
         finally:
             if up is not None:
                 painter.upscale = up
