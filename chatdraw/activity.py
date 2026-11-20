@@ -241,6 +241,44 @@ class ActivityPanel(QWidget):
         self.progress_view.setToolTip(f"{msg}\n{self.mode}\n{self.text}")
         self._show_time()
 
+    def draw_event(self, event):
+        """処理側が発行したイベントを表示する。工程名の文字列解析に依存しない。"""
+        labels = {
+            "phase_started": "工程開始",
+            "drawing": "描画中",
+            "inspection": "検品中",
+            "correction": "修正中",
+            "reinspection": "再検品中",
+            "phase_completed": "工程完了",
+            "blocked": "停止",
+            "completed": "完了",
+        }
+        kind = getattr(event, "kind", "")
+        message = str(getattr(event, "message", "") or labels.get(kind, "処理中"))
+        phase = getattr(event, "phase", None)
+        index, total = getattr(event, "index", None), getattr(event, "total", None)
+        self.active_event = kind
+        if phase:
+            self.phase = (index or 1, total or 1, phase)
+        title = labels.get(kind, "処理中")
+        if phase and index and total:
+            title += f"　工程 {index}/{total}「{phase}」"
+        elif phase:
+            title += f"　「{phase}」"
+        self.state.setText(title)
+        self.detail.setText(message)
+        if index and total:
+            self._busy(False)
+            self.bar.setRange(0, 100)
+            pct = int((index - 1) * 100 / total)
+            if kind in ("phase_completed", "inspection") and getattr(event, "details", {}).get("readable", True):
+                pct = int(index * 100 / total)
+            self.bar.setValue(min(99, pct))
+        self.last_step = time.time()
+        self.changed.emit(f"{self.mode}: {title}", self.bar.value())
+        self.progress_view.setToolTip(f"{message}\n{self.mode}\n{self.text}")
+        self._show_time()
+
     def _show_time(self):
         self._show_alive()
         if self.started is None:
