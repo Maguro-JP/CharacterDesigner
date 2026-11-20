@@ -308,9 +308,10 @@ class Omakase:
         self._event("correction", f"{KIND_ASPECT[kind]}を {len(boxes)} か所、囲みの中だけ修正しています", phase=f"{KIND_ASPECT[kind]}の修正", regions=len(boxes), model=m.name)
         self._snapshot(image)
         out = painter.redraw(f"{self._prompt(prompt_text, m)}, {words}", seed, image, mask, strength=strength)
-        self._snapshot(out)
-        # 囲みの外は 1 画素も変えない（模型の直しが外へ漏れても、元の絵を戻す）
-        return Image.composite(out.convert(image.mode), image, mask), m
+        # 囲みの外を元画像に戻した、実際に採用する修正結果を表示する。
+        result = Image.composite(out.convert(image.mode), image, mask)
+        self._snapshot(result)
+        return result, m
 
     def run(self, text: str, seed: int, say, size=None, tries: int = 12, rounds: int = 6):
         """描く → 検品 → 落ちた部位を別の模型で直す → 検品、を通るまで回す。通らなければ構図を別の模型で描き直す。
