@@ -1837,8 +1837,10 @@ class Studio:
             if mode == "single":
                 m = image_model(getattr(self.painter, "model", ""))
                 say(f"細かい頼み・プリセットなので、{m.name} で工程を分けて描きます")
-                return omakase.draw(self, text, seed, say, size=size, meta=meta, style=style, mode="single", single=m)
-            return omakase.draw(self, text, seed, say, size=size, meta=meta, style=style, mode=mode)
+                return omakase.draw(self, text, seed, say, size=size, meta=meta, style=style, mode="single", single=m,
+                                     on_event=on_event, on_preview=on_preview, on_snapshot=on_snapshot)
+            return omakase.draw(self, text, seed, say, size=size, meta=meta, style=style, mode=mode,
+                                 on_event=on_event, on_preview=on_preview, on_snapshot=on_snapshot)
         fast = mode == "single" and not precise
         if mode == favmodels.FAV and not self.image_auto:
             # お気に入りでラフ・参考画像から描くときは、その機能のある世代のお気に入り（仕上げ → 構図の順）を使う
