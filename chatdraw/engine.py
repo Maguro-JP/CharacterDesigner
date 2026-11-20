@@ -2427,13 +2427,6 @@ class Studio:
             box = mask.convert("L").getbbox()
             if box:
                 say(f"直す所: {k} か所目（左 {box[0]}・上 {box[1]}・右 {box[2]}・下 {box[3]}）／指示: {note or '（なし）'}")
-            emit_event(on_event, "correction", f"{k}/{len(regions)} か所目を範囲修正しています", phase="赤ペン修正",
-                       index=k, total=len(regions), bounds=list(box) if box else None, instruction=note)
-            if on_preview is not None:
-                try:
-                    on_preview(result)
-                except Exception:
-                    pass
             from chatdraw.fixrequests import lookup as _fixreq
             req = _fixreq(note)   # 修正依頼の一覧から選んだ指示は、用意した言葉と強さで直す（日本語を模型にそのまま渡さない）
             if req and req.get("prompt"):
@@ -2454,6 +2447,14 @@ class Studio:
                 power = fix_strength(strength, getattr(self, "last_fix_tags", [])) if check else strength
                 if power != strength:
                     say(f"色や形を変える指示なので、強さ {power} で直します（低いと元の色と形が残った）")
+            say(f"修正中: {k}/{len(regions)} か所目を範囲修正しています")
+            emit_event(on_event, "correction", f"{k}/{len(regions)} か所目を範囲修正しています", phase="赤ペン修正",
+                       index=k, total=len(regions), bounds=list(box) if box else None, instruction=note)
+            if on_preview is not None:
+                try:
+                    on_preview(before)
+                except Exception:
+                    pass
             result = self._fix_once(before, mask, prompt, seed + k, power, k, len(regions), say, reference, ref_scale)
             if check and box:
                 say(drawn_as_asked(result.crop(box), getattr(self, "last_fix_tags", []), k))
@@ -2469,10 +2470,10 @@ class Studio:
                     on_preview(result)
                 except Exception:
                     pass
-            emit_event(on_event, "reinspection", f"{k}/{len(regions)} か所目の修正結果を検査しています", phase="赤ペン修正",
-                       index=k, total=len(regions))
             best_flaws = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, result, mask)] if check else []
             say(f"確かめました（{k} か所目・崩れ {len(best_flaws)} 件）")
+            emit_event(on_event, "reinspection", f"{k}/{len(regions)} か所目の修正結果を検査しました", phase="赤ペン修正",
+                       index=k, total=len(regions), flaws=best_flaws)
             prompts.append(prompt)
             self.last_flaws += best_flaws
         if check:   # 最後に絵の全体を 1 回だけ測って知らせる（直し直しには繋げない）
