@@ -416,7 +416,7 @@ def pick(installed, painter_model: str = ""):
 
 
 def run_stages(sentence: str, tags: str, seed: int, compose_model: str, render_model: str, size, keep: Path, variant: dict,
-               say=print, stopped=lambda: False):
+               say=print, stopped=lambda: False, on_event=None, on_preview=None):
     """アプリから 2 段で描く。段ごとに別の処理で動かし、その出力の行を進みとして say に渡す。
     stopped() が真になったら処理を止める。描いた絵の道を返す"""
     import os
@@ -430,12 +430,14 @@ def run_stages(sentence: str, tags: str, seed: int, compose_model: str, render_m
     py = sys.executable
     if py.lower().endswith("pythonw.exe"):   # 出力を読むので、窓の無い pythonw ではなく python で動かす（窓は flags で出さない）
         py = py[:-len("pythonw.exe")] + "python.exe"
+    from chatdraw.events import emit_event
     steps = [("構図", ["compose", sentence, str(seed), compose_model, str(w), str(h), str(comp), tags]),
              ("仕上げ", ["finish", tags, str(seed), render_model, str(w), str(h), str(comp), str(keep), json.dumps([variant])])]
-    for label, args in steps:
+    for index, (label, args) in enumerate(steps, 1):
         if label == "構図" and comp.exists():
             continue   # 前に描いた構図がある（同じ置き場で続きから描く）
         say(f"{label}の段を始めています")
+        emit_event(on_event, "drawing", f"{label}を描画しています", phase=label, index=index, total=len(steps))
         proc = subprocess.Popen([py, "-s", "-u", "-m", "chatdraw.twostage", *args], stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                                 env=env, creationflags=flags, text=True, encoding="utf-8", errors="replace")
         import threading
@@ -457,7 +459,17 @@ def run_stages(sentence: str, tags: str, seed: int, compose_model: str, render_m
         if stopped():
             raise InterruptedError("止めました")
         if proc.wait() != 0:
+            emit_event(on_event, "blocked", f"{label}の段で停止しました", phase=label, index=index, total=len(steps), output=tail)
             raise RuntimeError(f"{label}の段で止まりました: {' / '.join(tail)}")
+        emit_event(on_event, "phase_completed", f"{label}の描画が終わりました", phase=label, index=index, total=len(steps))
+        preview_path = comp if label == "構図" else keep / f"3-{variant['name']}-s{seed}.png"
+        if on_preview is not None and preview_path.exists():
+            try:
+                from PIL import Image
+                with Image.open(preview_path) as im:
+                    on_preview(im.convert("RGB").copy())
+            except Exception:
+                pass
     return keep / f"3-{variant['name']}-s{seed}.png"
 
 
