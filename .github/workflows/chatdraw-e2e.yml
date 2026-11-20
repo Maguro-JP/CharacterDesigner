@@ -30,17 +30,16 @@ jobs:
         env:
           QT_QPA_PLATFORM: offscreen
           CD_CHECK: "off"
-        run: >-
-          python -m unittest
-          chatdraw.tests.test_finish_quality.CleanKeepsOriginalTest
-          chatdraw.tests.test_shortcuts.GroupTest
-          chatdraw.tests.test_shortcuts.MenuTest
-          chatdraw.tests.test_shortcuts.ModelFreeTest
-          chatdraw.tests.test_finish2.FinishMenuTest
-          chatdraw.tests.test_omakase
-          chatdraw.tests.test_origqc
-          chatdraw.tests.test_phases
-          chatdraw.tests.test_draw_api
+        run: |
+          # Qt の QApplication を使うテスト群を別プロセスに分ける。
+          # 1 プロセスにまとめると、テスト間の Qt オブジェクト破棄順で runner が segfault する。
+          python -m unittest -v chatdraw.tests.test_finish_quality.CleanKeepsOriginalTest
+          python -m unittest -v chatdraw.tests.test_shortcuts.GroupTest chatdraw.tests.test_shortcuts.MenuTest chatdraw.tests.test_shortcuts.ModelFreeTest
+          python -m unittest -v chatdraw.tests.test_finish2.FinishMenuTest
+          python -m unittest -v chatdraw.tests.test_omakase
+          python -m unittest -v chatdraw.tests.test_origqc
+          python -m unittest -v chatdraw.tests.test_phases
+          python -m unittest -v chatdraw.tests.test_draw_api
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
