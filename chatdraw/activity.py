@@ -198,7 +198,7 @@ class ActivityPanel(QWidget):
             self.words_log.append((f"工程 {self.phase[0]}/{self.phase[1]}「{self.phase[2]}」: " if self.phase else "") + msg)
             self.detail.setToolTip("\n".join(self.words_log[-12:]))
             return
-        if getattr(self, "active_event", None) in ("correction", "reinspection"):
+        if getattr(self, "active_event", None) in ("drawing", "inspection", "correction", "reinspection"):
             # 修正中・再検品中は、模型読み込み等の補助メッセージで状態見出しを上書きしない。
             self.detail.setText(msg)
             self.last_step = time.time()
