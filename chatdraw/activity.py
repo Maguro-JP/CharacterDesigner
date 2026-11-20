@@ -276,8 +276,11 @@ class ActivityPanel(QWidget):
         phase = getattr(event, "phase", None)
         index, total = getattr(event, "index", None), getattr(event, "total", None)
         self.active_event = kind
-        if phase:
-            self.phase = (index or 1, total or 1, phase)
+        if phase and index and total:
+            self.phase = (index, total, phase)
+        elif phase and self.phase:
+            # correction/reinspection events may omit pipeline coordinates; keep the active phase index.
+            self.phase = (self.phase[0], self.phase[1], phase)
         title = labels.get(kind, "処理中")
         if phase and index and total:
             title += f"　工程 {index}/{total}「{phase}」"
