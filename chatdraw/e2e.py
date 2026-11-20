@@ -14,6 +14,7 @@
 """
 from __future__ import annotations
 
+import faulthandler
 import json
 import os
 import sys
@@ -28,13 +29,21 @@ def main():
     out = Path(sys.argv[1] if len(sys.argv) > 1 else "e2e-out")
     out.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    faulthandler.enable()
     report: dict = {"steps": []}
+
+    def save_report():
+        tmp = out / "report.json.tmp"
+        tmp.write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+        tmp.replace(out / "report.json")
 
     def step(name, fn):
         t = time.time()
+        print(f"START {name}", flush=True)
         try:
             detail = fn()
             report["steps"].append({"name": name, "ok": True, "seconds": round(time.time() - t, 1), "detail": detail})
+            save_report()
             print(f"OK   {name}（{time.time() - t:.0f} 秒）{detail or ''}", flush=True)
             return True
         except Exception:
@@ -169,7 +178,7 @@ def main():
     from chatdraw.paths import HOME, HUB
     report["data_home"], report["hub"] = str(HOME), str(HUB)
     report["ok"] = ok
-    (out / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+    save_report()
     print(f"exit={0 if ok else 1}", flush=True)
     sys.exit(0 if ok else 1)
 
