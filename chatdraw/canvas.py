@@ -1000,6 +1000,87 @@ class Canvas(QGraphicsView):
         self.brush = self.brushes[name]
         self.set_tool("eraser" if name == "消しゴム" else "pen")
 
+    def draw_stroke(self, points, color: str = "#000000", size: int | None = None, brush: str = "ペン",
+                    pressures: list[float] | None = None) -> int:
+        """構造化された座標列で1本の線を描く。人間の筆入力と同じ stroke/_paint 経路を使うAI・自動処理向けAPI。
+
+        画面座標ではなくキャンバス座標を受け取る。範囲外や不正な値は切り詰めず拒否する。
+        1回の呼び出しを1つのUndo操作にし、途中で失敗した場合はレイヤーへ確定しない。
+        """
+        import math
+
+        if not self.layers:
+            raise RuntimeError("描画先のキャンバスがありません")
+        if self.buffer is not None:
+            raise RuntimeError("別の描画操作が進行中です")
+        if not self.editable():
+            layer = self.layers[self.current]
+            raise PermissionError(f"レイヤー「{layer.name}」は非表示またはロック中です")
+        if brush not in self.brushes or brush == "消しゴム":
+            raise ValueError(f"使えないブラシです: {brush}")
+        pts = list(points)
+        if not 1 <= len(pts) <= 4096:
+            raise ValueError("点の数は1〜4096個にしてください")
+        w, h = self.size_px()
+        parsed = []
+        for i, point in enumerate(pts):
+            if not isinstance(point, (tuple, list)) or len(point) != 2:
+                raise ValueError(f"{i + 1}個目の点は[x, y]で指定してください")
+            x, y = point
+            if isinstance(x, bool) or isinstance(y, bool) or not isinstance(x, (int, float)) or not isinstance(y, (int, float)):
+                raise ValueError(f"{i + 1}個目の座標は数値にしてください")
+            x, y = float(x), float(y)
+            if not math.isfinite(x) or not math.isfinite(y) or not (0 <= x < w and 0 <= y < h):
+                raise ValueError(f"{i + 1}個目の座標がキャンバス外です: ({x}, {y})")
+            parsed.append(QPointF(x, y))
+        if pressures is None:
+            pressure_values = [1.0] * len(parsed)
+        else:
+            pressure_values = list(pressures)
+            if len(pressure_values) != len(parsed):
+                raise ValueError("筆圧の数は点の数と一致させてください")
+            for i, value in enumerate(pressure_values):
+                if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or not 0 <= value <= 1:
+                    raise ValueError(f"{i + 1}個目の筆圧は0〜1の数値にしてください")
+                pressure_values[i] = float(value)
+        from PySide6.QtGui import QColor
+        ink = QColor(color)
+        if not ink.isValid():
+            raise ValueError(f"色を解釈できません: {color}")
+        diameter = self.size if size is None else size
+        if isinstance(diameter, bool) or not isinstance(diameter, int) or not 1 <= diameter <= 500:
+            raise ValueError("ブラシの太さは1〜500画素の整数にしてください")
+
+        old = (self.tool, self.brush, QColor(self.color), self.size, self.carry, self.stroke_len)
+        layer_index = self.current
+        before = self.layers[layer_index].image.copy()
+        try:
+            self.tool = "pen"
+            self.brush = self.brushes[brush]
+            self.color = ink
+            self.size = diameter
+            self.begin_stroke()
+            self.stroke(parsed[0], parsed[0], pressure_values[0])
+            for i in range(1, len(parsed)):
+                self.stroke(parsed[i - 1], parsed[i], pressure_values[i])
+            self.end_stroke()
+            self.items[layer_index].update()
+            self._push(("one", layer_index, before))
+            self.stroke_done.emit()
+            return len(parsed)
+        except Exception:
+            if self.buffer is not None:
+                self.items[layer_index].buffer = None
+                self.items[layer_index].update()
+                self.buffer = None
+            self.layers[layer_index].image = before
+            self.items[layer_index].layer = self.layers[layer_index]
+            self.items[layer_index].sync()
+            raise
+        finally:
+            self.tool, self.brush, self.color, self.size, self.carry, self.stroke_len = old
+            self._apply_cursor()
+
     def begin_stroke(self):
         """線の描き始め。消しゴムはレイヤーから直接消し、ほかは線用の下書きに描く"""
         self.carry = 0.0

@@ -126,6 +126,24 @@ class OmakaseTest(unittest.TestCase):
         self.assertEqual(paints, ["c/compose", "h/hands"])
         self.assertTrue(st.saved[1]["passed"])
 
+    def test_tries_next_repair_model_after_first_model_does_not_fix(self):
+        from types import SimpleNamespace
+        fake_plan = SimpleNamespace(
+            compose=[(COMPOSE, "構図")],
+            fix={"hand": [(HANDS, "手"), (FACES, "顔")], "face": [], "foot": []},
+            notes=[], parts={}, finish=[], summary=lambda: "test plan",
+        )
+        with mock.patch.object(omakase, "plan", return_value=fake_plan):
+            log, st, _ = self.run_draw(
+                [COMPOSE, HANDS, FACES],
+                [BAD_HAND, BAD_HAND, OK],
+            )
+        # 1回目の修正が失敗したら、2回目は別の候補模型に切り替わる。
+        # 実際の候補リストを固定し、候補の循環順序だけを検証する。
+        self.assertEqual([m for k, m in log if k == "redraw"], ["h/hands", "f/faces"])
+        self.assertTrue(st.saved[1]["passed"])
+
+
     def test_works_with_one_installed_model(self):
         log, st, _ = self.run_draw([HANDS], [BAD_HAND, OK])
         self.assertEqual(log, [("paint", "h/hands"), ("redraw", "h/hands")])

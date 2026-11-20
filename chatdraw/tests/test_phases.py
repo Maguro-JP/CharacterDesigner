@@ -4,6 +4,7 @@
 import os
 import sys
 import unittest
+from unittest import mock
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
@@ -31,6 +32,10 @@ def figure(size=(64, 96)):
     d.rectangle([w * 0.35, h * 0.25, w * 0.5, h * 0.95], fill=(60, 60, 80))
     d.rectangle([w * 0.5, h * 0.25, w * 0.65, h * 0.95], fill=(150, 150, 170))
     d.ellipse([w * 0.38, h * 0.05, w * 0.62, h * 0.25], fill=(120, 100, 90))
+    # 目の検品用に、左右対称の白いハイライトを描く（空の顔を「検品合格」と誤認しない）
+    r = max(1, int(min(w, h) * 0.025))
+    for x in (w * 0.45, w * 0.55):
+        d.ellipse([x - r, h * 0.15 - r, x + r, h * 0.15 + r], fill=(255, 255, 255))
     return im
 
 
@@ -63,7 +68,9 @@ def checks(always_bad: bool):
         @staticmethod
         def request(image, prompt):
             seen["request"] += 1
-            bad = always_bad or seen["request"] == 1
+            # サムネイルとアタリでは依頼物を検査せず、服・髪・持ち物の工程で初めて欠落を検出する。
+            # request はサムネイル 2 回・アタリ 1 回の後、服・髪・持ち物で検品する。
+            bad = not always_bad and seen["request"] == 4
             return {"readable": True, "missing": ["red scarf"] if bad else [], "extra": [], "people": [], "body": []}
 
         @staticmethod
@@ -92,13 +99,41 @@ def checks(always_bad: bool):
 
 N = len(phases.PHASES)
 
+def hand_only_checks():
+    """体・構図・依頼物は合格させ、手の検品だけを継続して不合格にする。下描きの限定修正を単独で試す。"""
+    class C:
+        @staticmethod
+        def request(image, prompt):
+            return {"readable": True, "missing": [], "extra": [], "people": [], "body": []}
+
+        @staticmethod
+        def body(image, prompt, tags=None):
+            return {"readable": True, "bad": [], "avoid": []}
+
+        @staticmethod
+        def points(image):
+            w, h = image.size
+            return {"readable": True, "points": {"left_eye": (w * .45, h * .15), "right_eye": (w * .55, h * .15),
+                    "nose": (w * .5, h * .18), "left_ear": (w * .4, h * .15), "right_ear": (w * .6, h * .15),
+                    "left_shoulder": (w * .4, h * .27), "right_shoulder": (w * .6, h * .27)}}
+
+        @staticmethod
+        def pose(image):
+            return {"readable": True, "bad": [], "map": image}
+
+        @staticmethod
+        def hands(image, prompt):
+            return dict(HAND)
+    return C
+
 
 class PhasesTest(unittest.TestCase):
     def run_phases(self, always_bad, painter=None, confirm=None):
         painter = painter or Painter()
         C, seen = checks(always_bad)
         said = []
-        with TemporaryDirectory() as d:
+        from chatdraw import phasetools as pt
+        with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}):
             got = phases.draw(painter, "1girl, red scarf", 5, (64, 96), Path(d) / "k", say=said.append, checks=C, confirm=confirm)
             files = sorted(p.name for p in (Path(d) / "k").iterdir())
         return got, painter, seen, said, files
@@ -111,18 +146,19 @@ class PhasesTest(unittest.TestCase):
 
     def test_always_bad_still_finishes_with_bounded_backs(self):
         got, painter, seen, said, files = self.run_phases(always_bad=True)
-        self.assertEqual([r["phase"] for r in got["phases"]], phases.NAMES)
-        self.assertEqual(len([f for f in files if f.endswith(".png")]), N - 1)   # 目的には絵が無い
+        self.assertLess(len(got["phases"]), N)   # 未解決のまま次工程へ進まない
+        self.assertFalse(got["complete"])
+        self.assertIsNotNone(got["blocked"])
+        self.assertEqual(len([f for f in files if f.endswith(".png")]), len(got["phases"]) - 1)   # 目的には絵が無い
         self.assertIn("phases.json", files)
         self.assertLessEqual(got["backs"], phases.BACKS)
-        self.assertGreater(got["backs"], 0)   # 崩れが残ったので、崩れが決まった工程へ戻った
-        self.assertTrue(any("そこへ戻って直します" in s for s in said))
-        self.assertTrue(got["left"])   # 崩れが残っても終わる（残った崩れを返す）
-        self.assertEqual(painter.steps, 20)   # 減らした工程の数を元に戻す
-        # 描く回数に上限がある（サムネイル 2 枚 + アタリ 2 回、戻る回数ぶん）
+        self.assertGreater(got["backs"], 0)
+        self.assertTrue(any("戻して直します" in s for s in said))
+        self.assertTrue(got["left"])
+        self.assertEqual(painter.steps, 20)
         self.assertLessEqual(sum(1 for x in painter.log if x[0] == "paint"), 40)
-        for i, name in enumerate(phases.NAMES, 1):
-            self.assertTrue(any(s.startswith(f"工程 {i}/{N}「{name}」") for s in said), name)
+        for i, row in enumerate(got["phases"], 1):
+            self.assertTrue(any(s.startswith(f"工程 {i}/{N}「{row['phase']}」") for s in said), row["phase"])
 
     def test_thumbnails_small_and_picked(self):
         got, painter, *_ = self.run_phases(always_bad=False)
@@ -138,7 +174,10 @@ class PhasesTest(unittest.TestCase):
             def refine(self, prompt, seed, image, strength=0.5, on_step=None, on_preview=None):
                 self.log.append(("refine", seed, strength))
                 return image.copy()
-        got, painter, *_ = self.run_phases(always_bad=True, painter=P())
+        with TemporaryDirectory() as d:
+            painter = P()
+            got = phases.draw(painter, "1girl, red scarf", 5, (64, 96), Path(d) / "k", checks=hand_only_checks())
+        self.assertFalse(got["complete"])
         self.assertEqual(sum(1 for x in painter.log if x[0] == "refine"), 1, painter.log)
         fixes = [x[2] for x in painter.log if x[0] == "redraw" and x[2] in phases.FIXES]
         self.assertGreaterEqual(len(fixes), 2, painter.log)
@@ -162,7 +201,7 @@ class PhasesTest(unittest.TestCase):
 
     def test_stop_between_phases(self):
         painter = Painter()
-        C, _ = checks(always_bad=True)
+        C = hand_only_checks()
         orig = C.hands
 
         def hands(image, prompt):
@@ -172,17 +211,43 @@ class PhasesTest(unittest.TestCase):
         with TemporaryDirectory() as d, self.assertRaises(Stopped):
             phases.draw(painter, "1girl", 1, (64, 96), Path(d) / "k", checks=C)
 
+    def test_draft_blocks_when_landmark_inspection_is_unreadable(self):
+        base, _ = checks(always_bad=False)
+
+        class NoLandmarks:
+            request = staticmethod(base.request)
+            body = staticmethod(base.body)
+            pose = staticmethod(base.pose)
+            hands = staticmethod(base.hands)
+
+            @staticmethod
+            def points(image):
+                return {"readable": False, "points": {}, "reason": "ランドマーク検出失敗"}
+
+        with TemporaryDirectory() as d:
+            got = phases.draw(Painter(), "1girl, red scarf", 5, (64, 96), Path(d) / "k", checks=NoLandmarks)
+        self.assertFalse(got["complete"])
+        self.assertEqual(got["blocked"]["phase"], "顔・手・足の下描き")
+        draft_rows = [r for r in got["history"] if r["phase"] == "顔・手・足の下描き"]
+        self.assertTrue(draft_rows)
+        self.assertTrue(all(not r["readable"] for r in draft_rows))
+
     def test_without_line_or_fix_still_finishes(self):
         painter = Painter()
         painter.abilities = (False, False)
         got, painter, *_ = self.run_phases(always_bad=True, painter=painter)
-        self.assertEqual(len(got["phases"]), N)
+        self.assertLess(len(got["phases"]), N)
+        self.assertFalse(got["complete"])
+        self.assertIsNotNone(got["blocked"])
         self.assertFalse(any(x[0] == "redraw" for x in painter.log))
 
     def test_fix_masks_are_regions_only(self):
         """直しは囲みの中だけ（絵全体を描き直さない）"""
         import numpy as np
-        got, painter, *_ = self.run_phases(always_bad=True)
+        with TemporaryDirectory() as d:
+            painter = Painter()
+            got = phases.draw(painter, "1girl, red scarf", 5, (64, 96), Path(d) / "k", checks=hand_only_checks())
+        self.assertFalse(got["complete"])
         self.assertTrue(painter.masks)
         for m in painter.masks:
             a = np.asarray(m)
@@ -202,8 +267,28 @@ class PhasesTest(unittest.TestCase):
         self.assertTrue(any("blue ribbon" in w for r in got["history"] for w in r["words"]))
         self.assertTrue(any("言葉を足しました" in s for s in said))
 
+    def test_words_added_at_final_phase_return_to_drawing_stage(self):
+        asked = {11: [("words", "blue ribbon"), "go"]}
+
+        def confirm(i, name, image, row):
+            queue = asked.get(i)
+            return queue.pop(0) if queue else "go"
+
+        got, painter, seen, said, files = self.run_phases(always_bad=False, confirm=confirm)
+        self.assertTrue(got["complete"])
+        wear = [r for r in got["history"] if r["phase"] == "服・髪・持ち物"]
+        self.assertTrue(any(any("blue ribbon" in word for word in r["words"]) for r in wear), wear)
+        self.assertTrue(any("追加した言葉を反映するため" in msg for msg in said))
+
     def test_studio_way_phases(self):
-        with TemporaryDirectory() as d:
+        from chatdraw import phasetools as pt
+        C, _ = checks(False)
+        with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}), \
+             mock.patch.object(phases.Checks, "request", staticmethod(C.request)), \
+             mock.patch.object(phases.Checks, "body", staticmethod(C.body)), \
+             mock.patch.object(phases.Checks, "points", staticmethod(C.points)), \
+             mock.patch.object(phases.Checks, "pose", staticmethod(C.pose)), \
+             mock.patch.object(phases.Checks, "hands", staticmethod(C.hands)):
             painter = Painter()
             s = Studio(FakeWords(), painter, Path(d))
             s.way = "phases"
@@ -216,7 +301,14 @@ class PhasesTest(unittest.TestCase):
             self.assertIsNone(s.last_phases)
 
     def test_studio_confirm_translates_words(self):
-        with TemporaryDirectory() as d:
+        from chatdraw import phasetools as pt
+        C, _ = checks(False)
+        with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}), \
+             mock.patch.object(phases.Checks, "request", staticmethod(C.request)), \
+             mock.patch.object(phases.Checks, "body", staticmethod(C.body)), \
+             mock.patch.object(phases.Checks, "points", staticmethod(C.points)), \
+             mock.patch.object(phases.Checks, "pose", staticmethod(C.pose)), \
+             mock.patch.object(phases.Checks, "hands", staticmethod(C.hands)):
             s = Studio(FakeWords(), Painter(), Path(d))
             s.way = "phases"
             calls = []
@@ -371,6 +463,23 @@ class PhaseLayersTest(unittest.TestCase):
                 w.close()
 
 
+
+class ManualRetryLimitTest(unittest.TestCase):
+    """確認画面から何度も描き直しを要求されても、同一工程の上限で必ず停止する。"""
+
+    def test_manual_redo_cannot_loop_forever(self):
+        with TemporaryDirectory() as d:
+            got = phases.draw(
+                Painter(), "1girl", 1, (64, 96), Path(d),
+                confirm=lambda *_: phases.REDO,
+            )
+        self.assertFalse(got["complete"])
+        self.assertEqual(got["backs"], 2)
+        self.assertEqual(len(got["history"]), 3)
+        self.assertEqual(got["blocked"]["reason"], "再試行上限に達しました")
+        self.assertEqual(got["blocked"]["phase"], "目的")
+
+
 if __name__ == "__main__":
     unittest.main()
 
@@ -388,8 +497,10 @@ class BrokenChecksTest(unittest.TestCase):
         with TemporaryDirectory() as d:
             p = Painter()
             got = phases.draw(p, "red hair, 1girl", 1, (64, 64), Path(d), checks=Boom)
-            self.assertEqual(len(got["phases"]), len(phases.PHASES))
+            self.assertLess(len(got["phases"]), len(phases.PHASES))
             self.assertFalse(got["checked"])
+            self.assertFalse(got["complete"])
+            self.assertEqual(got["blocked"]["phase"], "サムネイル")
             self.assertIsNotNone(got["image"])
 
 
@@ -421,32 +532,49 @@ class WindowFlowTest(unittest.TestCase):
             ends = []
             end = act.end
             act.end = lambda *a, **k: (ends.append(len(seen)), end(*a, **k))[1]
-            with mock.patch.object(w, "_keep_original", lambda x: x):
-                w._draw_now("赤いマフラーの子")
-            w.job.one.connect(lambda *_: events.append("one"))
-            w.job.done.connect(lambda: events.append("done"))
-            t = time.time()
-            while w.thread is not None and time.time() - t < 120:
+            C, _ = checks(False)
+            from chatdraw import phasetools as pt
+            with mock.patch.object(w, "check_ai", return_value={"image": True, "reason": ""}), \
+                 mock.patch.object(w, "_keep_original", lambda x: x), \
+                 mock.patch.object(w, "offer_two_stage_parts", lambda: None), \
+                 mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}), \
+                 mock.patch.object(pt, "thumb_weight", lambda _im: {"weight_x": 0.0, "weight_y": 0.5, "ink": 0.2}), \
+                 mock.patch.object(phases.Checks, "request", staticmethod(C.request)), \
+                 mock.patch.object(phases.Checks, "body", staticmethod(C.body)), \
+                 mock.patch.object(phases.Checks, "points", staticmethod(C.points)), \
+                 mock.patch.object(phases.Checks, "pose", staticmethod(C.pose)), \
+                 mock.patch.object(phases.Checks, "hands", staticmethod(C.hands)):
+                # Job は _draw_now 内で生成される。_record_job は thread.start より前に呼ばれるため、
+                # そこで信号を接続し、速い処理でも完了通知を取りこぼさない。
+                record = w._record_job
+                def record_and_watch(job):
+                    job.one.connect(lambda *_: events.append("one"))
+                    job.done.connect(lambda: events.append("done"))
+                    record(job)
+                with mock.patch.object(w, "_record_job", side_effect=record_and_watch):
+                    w._draw_now("赤いマフラーの子")
+                t = time.time()
+                while w.thread is not None and time.time() - t < 120:
+                    qapp.processEvents()
+                    time.sleep(0.01)
                 qapp.processEvents()
-                time.sleep(0.01)
-            qapp.processEvents()
-            self.assertIsNone(w.thread, "描く処理が終わらない")
-            self.assertEqual([r["phase"] for r in s.last_phases], phases.NAMES)
-            self.assertEqual(events, ["one", "done"])   # 1 枚が出来た・終わったの信号は全部の工程のあとに 1 回ずつ
-            self.assertEqual(len(ends), 1)
-            # 進み具合の欄に「工程 i/12 名前」が順に出て、終わるまで帯は満ちない
-            for i, name in enumerate(phases.NAMES, 1):
-                self.assertTrue(any(st.startswith(f"工程 {i}/{N}　{name}") for st, *_ in seen), name)
-            for st, v, mx, msg in seen[:ends[0]]:
-                self.assertFalse(mx > 0 and v >= mx, f"終わる前に帯が満ちた: {st} {msg}")
-                self.assertNotIn("完成", st + msg)
-                self.assertNotIn("完了", st + msg)
-            last5 = max(k for k, (st, *_r) in enumerate(seen) if st.startswith(f"工程 {N}/{N}"))
-            first1 = min(k for k, (st, *_r) in enumerate(seen) if st.startswith(f"工程 1/{N}　目的"))
-            self.assertLess(first1, last5)
-            # 模型に渡した言葉は会話に出さず、進み具合の欄の詳細（ツールチップ）にだけ置く
-            self.assertFalse([c for c in chat if "渡す言葉" in c or "渡した言葉" in c], chat)
-            self.assertIn("模型に渡す言葉: 1girl, red scarf", act.detail.toolTip())
+                self.assertIsNone(w.thread, "描く処理が終わらない")
+                self.assertEqual([r["phase"] for r in s.last_phases], phases.NAMES)
+                self.assertEqual(events, ["one", "done"])   # 1 枚が出来た・終わったの信号は全部の工程のあとに 1 回ずつ
+                self.assertEqual(len(ends), 1)
+                # 進み具合の欄に「工程 i/12 名前」が順に出て、終わるまで帯は満ちない
+                for i, name in enumerate(phases.NAMES, 1):
+                    self.assertTrue(any(st.startswith(f"工程 {i}/{N}　{name}") for st, *_ in seen), name)
+                for st, v, mx, msg in seen[:ends[0]]:
+                    self.assertFalse(mx > 0 and v >= mx, f"終わる前に帯が満ちた: {st} {msg}")
+                    self.assertNotIn("完成", st + msg)
+                    self.assertNotIn("完了", st + msg)
+                last5 = max(k for k, (st, *_r) in enumerate(seen) if st.startswith(f"工程 {N}/{N}"))
+                first1 = min(k for k, (st, *_r) in enumerate(seen) if st.startswith(f"工程 1/{N}　目的"))
+                self.assertLess(first1, last5)
+                # 模型に渡した言葉は会話に出さず、進み具合の欄の詳細（ツールチップ）にだけ置く
+                self.assertFalse([c for c in chat if "渡す言葉" in c or "渡した言葉" in c], chat)
+                self.assertIn("模型に渡す言葉: 1girl, red scarf", act.detail.toolTip())
         finally:
             w.dirty = False
             w.close()
@@ -497,6 +625,44 @@ class WaySettingTest(unittest.TestCase):
             self.assertEqual(studio_way(st.get("draw_way"), st.get("ai_way")), way, old)
 
 
+class MissingBackRouteTest(unittest.TestCase):
+    """欠陥を検出した工程が戻り先を返し忘れても、そのまま次工程へ流さない。"""
+
+    def test_detected_thumbnail_defect_uses_default_route(self):
+        class C:
+            @staticmethod
+            def request(image, prompt):
+                return {"readable": True, "missing": [], "extra": [], "people": ["extra person"], "body": []}
+
+            @staticmethod
+            def body(image, prompt, tags=None):
+                return {"readable": True, "bad": [], "avoid": []}
+
+            @staticmethod
+            def points(image):
+                w, h = image.size
+                return {"readable": True, "points": {"left_eye": (w * .45, h * .15), "right_eye": (w * .55, h * .15),
+                        "nose": (w * .5, h * .18), "left_ear": (w * .4, h * .15), "right_ear": (w * .6, h * .15),
+                        "left_shoulder": (w * .4, h * .27), "right_shoulder": (w * .6, h * .27)}}
+
+            @staticmethod
+            def pose(image):
+                return {"readable": True, "bad": [], "map": image}
+
+            @staticmethod
+            def hands(image, prompt):
+                return dict(CLEAN_HAND)
+
+        from chatdraw import phasetools as pt
+        said = []
+        with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}):
+            got = phases.draw(Painter(), "1girl", 9, (64, 96), Path(d), checks=C, say=said.append)
+        self.assertFalse(got["complete"])
+        self.assertGreater(got["backs"], 0)
+        self.assertTrue(any("戻り先指定が無いため" in msg for msg in said))
+        self.assertEqual(got["blocked"]["phase"], "サムネイル")
+
+
 class CountLimitTest(unittest.TestCase):
     """枚数の欄は数字だけで、8 枚や 9 枚で勝手に止めない"""
 
@@ -521,7 +687,8 @@ class PreviewTest(unittest.TestCase):
 
     def test_each_phase_image_is_shown(self):
         shown = []
-        with TemporaryDirectory() as d:
+        from chatdraw import phasetools as pt
+        with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}):
             phases.draw(Painter(), "red hair, 1girl", 1, (64, 64), Path(d), checks=checks(False)[0], on_preview=shown.append)
         self.assertGreaterEqual(len(shown), len(phases.PHASES))
 
@@ -537,7 +704,8 @@ class NoSketchModelTest(unittest.TestCase):
                 self.log.append(("refine", seed, strength))
                 return image
 
-        with TemporaryDirectory() as d:
+        from chatdraw import phasetools as pt
+        with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}):
             p = Dit()
             C, _seen = checks(False)
             got = phases.draw(p, "1girl, red scarf", 1, (64, 64), Path(d), checks=C)
