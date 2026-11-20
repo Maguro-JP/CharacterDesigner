@@ -73,8 +73,14 @@ jobs:
         run: |
           & "C:\Program Files\CharacterDesigner\python\python.exe" -E -s -m chatdraw.e2e "$env:RUNNER_TEMP\e2e"
           $code = $LASTEXITCODE
-          Get-Content "$env:RUNNER_TEMP\e2e\report.json"
+          $report = "$env:RUNNER_TEMP\e2e\report.json"
+          if (Test-Path $report) {
+            Get-Content $report
+          } else {
+            Write-Error "E2E report.json was not created; Python exit code: $code"
+          }
           if ($code -ne 0) { exit $code }
+          if (-not (Test-Path $report)) { exit 1 }
         working-directory: C:\Program Files\CharacterDesigner
       - name: 検品の部品が入ったか
         shell: pwsh
