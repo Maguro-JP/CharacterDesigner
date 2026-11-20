@@ -199,8 +199,18 @@ class ActivityPanel(QWidget):
             self.detail.setToolTip("\n".join(self.words_log[-12:]))
             return
         if getattr(self, "active_event", None) in ("drawing", "inspection", "correction", "reinspection"):
-            # 修正中・再検品中は、模型読み込み等の補助メッセージで状態見出しを上書きしない。
+            # 処理状態の見出しは保ちつつ、模型内部の進捗（i/n）は帯へ反映する。
             self.detail.setText(msg)
+            if step is not None and total:
+                self._busy(False)
+                self.bar.setRange(0, 100)
+                if self.phase:
+                    i, n, _name = self.phase
+                    pct = int(((i - 1) + min(step / total, 1.0)) * 100 / n)
+                    self.bar.setValue(min(99, pct))
+                else:
+                    self.bar.setValue(min(99, int(step * 100 / total)))
+                self.steps_done, self.steps_total = step, total
             self.last_step = time.time()
             self.changed.emit(f"{self.mode}: {self.state.text()}", self.bar.value())
             self._show_time()
