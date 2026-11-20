@@ -691,6 +691,23 @@ class MissingBackRouteTest(unittest.TestCase):
         self.assertEqual(got["blocked"]["phase"], "サムネイル")
 
 
+class ActivityEventTest(unittest.TestCase):
+    def test_correction_state_is_not_overwritten_by_model_status(self):
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.activity import ActivityPanel
+        from chatdraw.events import DrawEvent
+        QApplication.instance() or QApplication([])
+        panel = ActivityPanel()
+        panel.begin("1girl", "描画")
+        panel.draw_event(DrawEvent("correction", "手の範囲を修正中", phase="下描き", index=5, total=12))
+        title = panel.state.text()
+        panel.status("絵の模型を読んでいます（初めの 1 回だけ時間がかかります）")
+        self.assertEqual(panel.state.text(), title)
+        self.assertIn("修正中", panel.state.text())
+        panel.draw_event(DrawEvent("reinspection", "修正結果を再検品中", phase="下描き", index=5, total=12))
+        self.assertIn("再検品中", panel.state.text())
+
+
 class CountLimitTest(unittest.TestCase):
     """枚数の欄は数字だけで、8 枚や 9 枚で勝手に止めない"""
 
