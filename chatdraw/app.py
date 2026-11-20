@@ -2958,7 +2958,7 @@ class Window(QMainWindow):
     def on_status(self, msg: str):
         if self._stale():
             return
-        m = re.search(r"（(\d+)/(\d+)）", msg)
+        m = re.search(r"（(\d+)/(\d+)", msg)
         self.activity.status(msg, *(int(m.group(1)), int(m.group(2))) if m else (None, None))
 
     def on_draw_event(self, event):
