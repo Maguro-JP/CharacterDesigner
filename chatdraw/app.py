@@ -170,6 +170,10 @@ class Job(QObject):
         """処理側から届いた構造化イベントを UI へ渡す。表示の失敗で描画を止めない。"""
         self.activity_event.emit(event)
 
+    def _snapshot(self, img):
+        """修正前後など、必ず画面に残すべき節目の画像。通常の途中経過の間引きは適用しない。"""
+        self.preview.emit(img)
+
     def _say(self, msg: str):
         """工程の知らせ。止める旗が立っていれば、ここで止める（旗を見ない工程の区切りでも止まる）"""
         from chatdraw import debuglog
@@ -224,7 +228,7 @@ class Job(QObject):
         # 落ちても止めず、軽い設定・小さい大きさ・別の模型・別の種と段を下げて描く（engine.Studio.draw_anyway）
         draw = getattr(self.studio, "draw_anyway", None) or self.studio.draw   # 段を下げる形を持たない描き手（試験の偽物など）はそのまま描く
         prompt, path = draw(self.text, seed, on_status=self._say, base=self.base, strength=self.strength, size=self.size,
-                            on_preview=self._preview, on_event=self._event, style=self.style, meta=self.meta, **extra)
+                            on_preview=self._preview, on_event=self._event, on_snapshot=self._snapshot, style=self.style, meta=self.meta, **extra)
         self._stopped()
         preload(path)   # 置くときに画面の糸で絵を読まないよう、ここ（裏の糸）で先に読む
         self.one.emit(prompt, str(path))
@@ -3315,6 +3319,7 @@ class Window(QMainWindow):
         job.moveToThread(self.thread)
         self.thread.started.connect(job.run)
         job.status.connect(self.on_status)
+        job.activity_event.connect(self.on_draw_event)
         job.preview.connect(self.show_preview)
         self._record_job(job)
         job.one.connect(self.on_one)
@@ -7612,6 +7617,7 @@ class Window(QMainWindow):
         self.job.moveToThread(self.thread)
         self.thread.started.connect(self.job.run)
         self.job.status.connect(self.on_status)
+        self.job.activity_event.connect(self.on_draw_event)
         self.job.preview.connect(self.show_preview)
         self._record_job(self.job)
         self.job.one.connect(self.on_one)
