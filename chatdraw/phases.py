@@ -272,7 +272,8 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                 pass
         tell(words)
         words_used.append(words)
-        tried = painter.redraw(words, s + 13 * k, img, _mask(img.size, regions), strength=strength)
+        tried = painter.redraw(words, s + 13 * k, img, _mask(img.size, regions), strength=strength,
+                               **({"on_preview": on_preview} if on_preview is not None else {}))
         # 修正後の実画像を直ちに表示し、その同じ画像を再検品する。
         if snapshot is not None:
             try:
@@ -459,7 +460,9 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             if can_fix:
                 mask, by_parts = pt.wear_mask(img, protect)
                 nums["by_parts"] = by_parts
-                tried = keep_tone(painter.redraw(words2, st["seed"] + 131 + v * 1000, img, mask, strength=REPAINT), img, "服・髪・持ち物", mask)
+                tried = keep_tone(painter.redraw(words2, st["seed"] + 131 + v * 1000, img, mask, strength=REPAINT,
+                                                     **({"on_preview": on_preview} if on_preview is not None else {})),
+                                      img, "服・髪・持ち物", mask)
             else:
                 tried = keep_tone(painter.refine(words2, st["seed"] + 131 + v * 1000, img, strength=REPAINT, **pv), img, "服・髪・持ち物")
             if snapshot is not None:
