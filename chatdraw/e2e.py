@@ -164,8 +164,12 @@ def main():
             walk(m)
             m.deleteLater()
             qapp.processEvents()
-        w.close()
+        # close() は利用者向けの保存確認・自動保存・I/O待ちまで実行する。
+        # この試験窓はメニュー検査専用で保存対象ではないため、閉じる確認を出さず隠す。
+        print("MENU TEST COMPLETE; hide test window", flush=True)
+        w.hide()
         qapp.processEvents()
+        print("MENU TEST WINDOW HIDDEN", flush=True)
         return {"items": len(seen)}
 
     def phases_draw():
