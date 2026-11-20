@@ -259,10 +259,23 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         k = memo["fix_n"]
         memo["fix_n"] += 1
         strength = FIXES[min(k, len(FIXES) - 1)]
-        say(f"崩れた所を 1 回だけ直しています（{len(regions)} か所、囲みの中だけ、強さ {strength}）")
+        say(f"修正中: 崩れた所を {len(regions)} か所、囲みの中だけ描き直しています（強さ {strength}）")
+        # 修正前の画像を先に表示する。修正処理中に画面が止まって見えないようにする。
+        if on_preview is not None:
+            try:
+                on_preview(img)
+            except Exception:
+                pass
         tell(words)
         words_used.append(words)
         tried = painter.redraw(words, s + 13 * k, img, _mask(img.size, regions), strength=strength)
+        # 修正後の実画像を直ちに表示し、その同じ画像を再検品する。
+        if on_preview is not None:
+            try:
+                on_preview(tried)
+            except Exception:
+                pass
+        say("修正結果を再検品しています（手・足・顔）")
         again = checks.hands(tried, st["prompt"])
         if again.get("readable") and len(again.get("bad", [])) <= len(res.get("bad", [])):
             return tried, again, True
@@ -425,7 +438,12 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         if (missing or added_words) and (can_fix or can_refine):
             stop()
             words2 = emphasize(st["prompt"], missing) if missing else st["prompt"]
-            say(f"描かれていない物（{'、'.join(missing)}）を、服・髪・持ち物の所だけに 1 回描き足しています")
+            say(f"修正中: 描かれていない物（{'、'.join(missing)}）を、服・髪・持ち物の範囲だけに描き足しています")
+            if on_preview is not None:
+                try:
+                    on_preview(img)
+                except Exception:
+                    pass
             tell(words2)
             words.append(words2)
             pts = st.get("points") or {}
@@ -436,6 +454,12 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                 tried = keep_tone(painter.redraw(words2, st["seed"] + 131 + v * 1000, img, mask, strength=REPAINT), img, "服・髪・持ち物", mask)
             else:
                 tried = keep_tone(painter.refine(words2, st["seed"] + 131 + v * 1000, img, strength=REPAINT, **pv), img, "服・髪・持ち物")
+            if on_preview is not None:
+                try:
+                    on_preview(tried)
+                except Exception:
+                    pass
+            say("描き足しの結果を再検品しています")
             req2 = checks.request(tried, st["prompt"])
             fixed = True
             if req2.get("readable") and len(_missing(req2) + _extra(req2)) <= len(found):
