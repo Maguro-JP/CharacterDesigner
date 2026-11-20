@@ -269,7 +269,7 @@ class ActivityPanel(QWidget):
             "reinspection": "再検品中",
             "phase_completed": "工程完了",
             "blocked": "停止",
-            "completed": "完了",
+            "completed": "描画・検品完了",
         }
         kind = getattr(event, "kind", "")
         message = str(getattr(event, "message", "") or labels.get(kind, "処理中"))
@@ -291,10 +291,8 @@ class ActivityPanel(QWidget):
             pct = int((index - 1) * 100 / total)
             # 最後の検品が終わっても、保存・配置まで終わる前に完了扱いの 100% にしない。
             self.bar.setValue(min(99, pct))
-        if kind == "completed":
-            self._busy(False)
-            self.bar.setRange(0, 100)
-            self.bar.setValue(100)
+        # 100% は Job.done を受けた ActivityPanel.end() だけが設定する。
+        # 描画・検品が終わっても、キャンバス配置や結果通知が残っている間は満たさない。
         self.last_step = time.time()
         self.changed.emit(f"{self.mode}: {title}", self.bar.value())
         self.progress_view.setToolTip(f"{message}\n{self.mode}\n{self.text}")
