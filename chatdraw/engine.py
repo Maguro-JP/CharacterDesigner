@@ -2495,5 +2495,5 @@ class Studio:
                                             style=style, model=self.painter.model, mode="直す", flaws=self.last_flaws,
                                             source=source or ""))
         emit_event(on_event, "completed", "赤ペン修正が完了しました", phase="赤ペン修正",
-                   total=len(regions), unresolved=list(self.last_flaws))
+                   index=len(regions), total=len(regions), unresolved=list(self.last_flaws))
         return prompts, path
