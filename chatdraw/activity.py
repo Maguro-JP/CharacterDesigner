@@ -174,6 +174,7 @@ class ActivityPanel(QWidget):
     def begin(self, text: str, mode: str):
         self.sheet = (1, 1)
         self.phase, self.phase_last, self.words_log = None, None, []
+        self.active_event = None
         self.detail.setToolTip("")
         self.started = time.time()
         self.text, self.mode = text, mode
@@ -196,6 +197,13 @@ class ActivityPanel(QWidget):
             # 模型に渡す言葉は今の文を置き換えず、詳細のツールチップにだけ積む（会話にも出さない）
             self.words_log.append((f"工程 {self.phase[0]}/{self.phase[1]}「{self.phase[2]}」: " if self.phase else "") + msg)
             self.detail.setToolTip("\n".join(self.words_log[-12:]))
+            return
+        if getattr(self, "active_event", None) in ("correction", "reinspection"):
+            # 修正中・再検品中は、模型読み込み等の補助メッセージで状態見出しを上書きしない。
+            self.detail.setText(msg)
+            self.last_step = time.time()
+            self.changed.emit(f"{self.mode}: {self.state.text()}", self.bar.value())
+            self._show_time()
             return
         p = re.match(r"工程 (\d+)/(\d+)「([^」]+)」", msg)
         if p:   # 工程に分けて描く（chatdraw/phases.py）。どの工程かを覚え、帯は全体の進みで出す
@@ -273,7 +281,9 @@ class ActivityPanel(QWidget):
             pct = int((index - 1) * 100 / total)
             if kind in ("phase_completed", "inspection") and getattr(event, "details", {}).get("readable", True):
                 pct = int(index * 100 / total)
-            self.bar.setValue(min(99, pct))
+            if kind == "completed":
+                pct = 100
+            self.bar.setValue(min(100, pct))
         self.last_step = time.time()
         self.changed.emit(f"{self.mode}: {title}", self.bar.value())
         self.progress_view.setToolTip(f"{message}\n{self.mode}\n{self.text}")
