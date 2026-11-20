@@ -1873,7 +1873,7 @@ class Studio:
             else:
                 say("おまかせで選べる絵の模型が手元にありません。今の模型で描きます")
         if self.way == "phases" and base is None and reference is None:
-            return self._draw_phases(text, seed, style, size, say, on_preview, meta)
+            return self._draw_phases(text, seed, style, size, say, on_preview, meta, on_event, on_snapshot)
         # 模型を 1 つ選んだ速い流れは、選んだ模型だけで描く（前は 2 段の部品があると構図を別の模型で描き、選んだ模型が上書きされた）。
         # 「構図と仕上げを分けて描く」を選んだときだけ 2 段にする
         two = None if fast and self.way != "two" else self._two_stage_models(base, reference, say)
@@ -2153,7 +2153,7 @@ class Studio:
             return ans
         return confirm
 
-    def _draw_phases(self, text, seed, style, size, say, on_preview, meta):
+    def _draw_phases(self, text, seed, style, size, say, on_preview, meta, on_event=None, on_snapshot=None):
         """人の描き方の 12 の工程に分けて描く（chatdraw/phases.py）。工程ごとに描く・測る・1 回だけ直す・崩れが決まった工程へ戻る。
         渡す言葉は頼みの訳と作風だけで、背景や構図の言葉は足さない。phase_confirm（アプリが入れる）があれば工程ごとに確かめる"""
         import time
