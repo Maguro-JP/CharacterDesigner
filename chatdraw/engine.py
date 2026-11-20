@@ -1885,7 +1885,7 @@ class Studio:
         # 「構図と仕上げを分けて描く」を選んだときだけ 2 段にする
         two = None if fast and self.way != "two" else self._two_stage_models(base, reference, say)
         if two is not None:
-            return self._draw_two(text, seed, two, style, size, say, meta)
+            return self._draw_two(text, seed, two, style, size, say, meta, on_event, on_snapshot or on_preview)
         # 担当編集者: 工程の記録と知らせだけ（chatdraw/director.py）。検品の結果で描き直しには繋げない
         from chatdraw import director
         plan = director.Plan(text, say)
@@ -2211,7 +2211,7 @@ class Studio:
         self._inspect(path, say)
         return prompt, path
 
-    def _draw_two(self, text, seed, two, style, size, say, meta):
+    def _draw_two(self, text, seed, two, style, size, say, meta, on_event=None, on_preview=None):
         """構図（文で頼める模型）と仕上げ（SDXL のアニメの模型）を分けて描く（chatdraw/twostage.py）"""
         import time
         from chatdraw import twostage
@@ -2244,9 +2244,16 @@ class Studio:
                 say(f"検品を通らなかったので、種を変えて構図から描き直しています（{k + 1}/{self.REDRAW_TRIES} 回目）")
             sentence, tags = vary_background(sentence0, s_k, tags=False), emphasize(vary_background(tags0, s_k), missing_all)
             keep = self.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{s_k}"
+            from chatdraw.events import emit_event
+            emit_event(on_event, "phase_started", f"2 段描画 {k + 1}/{self.REDRAW_TRIES} 回目", phase="構図・仕上げ",
+                       index=k + 1, total=self.REDRAW_TRIES)
             path = twostage.run_stages(sentence, tags, s_k, comp.repo, render.repo, tuple(size or (832, 1216)), keep, variant,
-                                       say=say, stopped=lambda: self.painter.stop)
+                                       say=say, stopped=lambda: self.painter.stop,
+                                       on_event=on_event, on_preview=on_preview)
             result = twostage.read_result(keep, variant["name"])
+            emit_event(on_event, "inspection", "2 段描画の結果を検品しました", phase="構図・仕上げ",
+                       index=k + 1, total=self.REDRAW_TRIES, readable=bool(result.get("checked", True)),
+                       found=list(result.get("bad", [])), missing=list(result.get("missing", [])))
             left = list(result.get("bad", [])) + [f"描かれていない: {m}" for m in result.get("missing", [])]
             missing_all += [m for m in result.get("missing", []) if m not in missing_all]
             redraws.append({"seed": s_k, "bad": left, "stages": str(keep)})
@@ -2263,6 +2270,9 @@ class Studio:
                                              model=render.repo, compose_model=comp.repo, way="two", stages=str(keep),
                                              redraws=redraws, passed=bool(result.get("passed"))))
         self._inspect(saved, say)
+        emit_event(on_event, "completed" if result.get("passed") else "blocked",
+                   "2 段描画と検品が完了しました" if result.get("passed") else "2 段描画は未完了です",
+                   phase="構図・仕上げ", readable=bool(result.get("checked", True)), unresolved=list(left), seed=seed)
         return tags, saved
 
     last_check: dict | None = None
