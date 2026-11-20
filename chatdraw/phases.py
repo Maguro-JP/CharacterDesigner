@@ -684,7 +684,8 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                    readable=row["readable"], found=found, fixed=fixed, after=after)
         if not left and row["readable"]:
             emit_event(on_event, "phase_completed", f"工程 {i + 1}/{n}「{name}」が完了しました", phase=name, index=i + 1, total=n)
-        if confirm is not None:
+        # 検品不能の結果を利用者確認で「進める」に上書きさせない。
+        if confirm is not None and row["readable"]:
             ans = confirm(i, name, shown, row)
             kind = ans[0] if isinstance(ans, (tuple, list)) else ans
             if kind in (REDO, WORDS):
