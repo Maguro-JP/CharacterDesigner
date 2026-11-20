@@ -1549,12 +1549,12 @@ class Painter:
         return out
 
     def redraw(self, prompt: str, seed: int, image, mask, strength: float = 0.45, on_step=None, reference=None,
-               ref_scale: float = 0.6, clean: bool = False):
-        return memory_retry(self, lambda: self._redraw(prompt, seed, image, mask, strength, on_step, reference, ref_scale, clean),
+               ref_scale: float = 0.6, clean: bool = False, on_preview=None):
+        return memory_retry(self, lambda: self._redraw(prompt, seed, image, mask, strength, on_step, reference, ref_scale, clean, on_preview),
                             self._note)
 
     def _redraw(self, prompt: str, seed: int, image, mask, strength: float = 0.45, on_step=None, reference=None,
-                ref_scale: float = 0.6, clean: bool = False):
+                ref_scale: float = 0.6, clean: bool = False, on_preview=None):
         """image（PIL）の mask（PIL の L、白が直す所）の中だけを、元の絵を土台に少しだけ直して返す（微調整）。
 
         絵全体を upscale 倍（既定 1.5 倍）に広げて描かせ、元の大きさに戻して直す所だけを重ねる（hires_inpaint）。直す所の外の画素は 1 つも変えない。
@@ -1596,6 +1596,13 @@ class Painter:
                 p._interrupt = True
             if on_step:
                 on_step(min(i + 1, total), total)
+            if on_preview and i % 2 == 0:
+                latents = kw.get("latents")
+                if getattr(latents, "ndim", 0) == 4 and latents.shape[1] == 4:
+                    try:
+                        on_preview(latent_preview(latents, sdxl=hasattr(p, "text_encoder_2")))
+                    except Exception:
+                        pass
             return kw
         args["callback_on_step_end"] = step
         self._use_reference(self._inpaint, reference, ref_scale, args)
@@ -2357,12 +2364,12 @@ class Studio:
         image.save(path, pnginfo=info)
         return path
 
-    def _fix_once(self, before, mask, prompt, seed, strength, k, count, say, reference, ref_scale):
+    def _fix_once(self, before, mask, prompt, seed, strength, k, count, say, reference, ref_scale, on_preview=None):
         """1 回直して、縁に出た継ぎ目だけを元に戻し、残る所を細く描き直す"""
         from PIL import Image
         result = self.painter.redraw(prompt, seed, before, mask, strength=strength,
                                      on_step=lambda i, n: say(f"描いています（{i}/{n}・{k}/{count} か所目）"),
-                                     reference=reference, ref_scale=ref_scale)
+                                     reference=reference, ref_scale=ref_scale, on_preview=on_preview)
         for t in range(1, 3):
             seam = seams(before, result, mask)
             if seam is None:
@@ -2372,7 +2379,7 @@ class Studio:
                 result = Image.composite(before, result, seam)   # 間違えた線だけを元の絵に戻す（消しゴム）
                 continue
             result = self.painter.redraw(prompt, seed + 100, result, seam, strength=0.3,
-                                         on_step=lambda i, n: say(f"描いています（{i}/{n}・{k}/{count} か所目の継ぎ目）"))
+                                         on_step=lambda i, n: say(f"描いています（{i}/{n}・{k}/{count} か所目の継ぎ目）"), on_preview=on_preview)
         return result
 
     def source_words(self, source: str | None, image, say=None) -> str:
@@ -2455,7 +2462,7 @@ class Studio:
                     on_preview(before)
                 except Exception:
                     pass
-            result = self._fix_once(before, mask, prompt, seed + k, power, k, len(regions), say, reference, ref_scale)
+            result = self._fix_once(before, mask, prompt, seed + k, power, k, len(regions), say, reference, ref_scale, on_preview=on_preview)
             if check and box:
                 say(drawn_as_asked(result.crop(box), getattr(self, "last_fix_tags", []), k))
             if check:
