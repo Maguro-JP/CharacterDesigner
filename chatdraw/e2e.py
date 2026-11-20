@@ -110,7 +110,7 @@ def main():
 
     def right_click():
         # 右クリックのメニューを、下のメニューまで全部開いて閉じる（0.5.30 で右クリックからアプリごと落ちた）
-        from PySide6.QtCore import QPoint
+        from PySide6.QtCore import QEventLoop, QPoint
         w = app.Window()
         w.show()
         if shot.get("path"):
@@ -118,25 +118,33 @@ def main():
         seen = []
 
         def walk(m, depth=0, visited=None):
-            # popup() 自身が aboutToShow を発火する。手動で emit すると、サブメニューを
-            # 開いたときに同じ fill が二重に走り、項目が増殖して Windows E2E が止まった。
+            # popup() 自身が aboutToShow を発火する。手動で emit すると、
+            # 同じ fill が二重に走る。マウス入力も処理するとカーソル位置の項目から
+            # サブメニューが自動で連鎖表示されるため、検査中はユーザー入力を除外する。
             if visited is None:
                 visited = set()
             if depth > 12 or len(visited) > 120:
                 raise RuntimeError("右クリックのメニューが循環しています")
-            key = id(m)
-            if key in visited:
+            # id(m) は Python ラッパーの寿命に依存する。QObject 自体で重複を判定する。
+            if m in visited:
                 return
-            visited.add(key)
+            visited.add(m)
+            title = m.title()
+            started = time.monotonic()
+            print(f"MENU OPEN depth={depth} title={title!r} actions={len(m.actions())}", flush=True)
             m.popup(QPoint(20, 20))
-            qapp.processEvents()
+            qapp.processEvents(QEventLoop.ExcludeUserInputEvents)
             for a in list(m.actions()):
                 seen.append(a.text())
                 sub = a.menu()
                 if sub is not None:
                     walk(sub, depth + 1, visited)
             m.hide()
-            qapp.processEvents()
+            qapp.processEvents(QEventLoop.ExcludeUserInputEvents)
+            elapsed = time.monotonic() - started
+            print(f"MENU CLOSE depth={depth} title={title!r} seconds={elapsed:.2f}", flush=True)
+            if elapsed > 15:
+                raise RuntimeError(f"右クリックメニューの表示に時間がかかりすぎています: {title!r} ({elapsed:.1f}s)")
         for _ in range(3):
             m = w.build_canvas_menu(QPoint(20, 20))
             walk(m)
