@@ -536,4 +536,8 @@ def draw(studio, text: str, seed: int, say, size=None, meta: dict | None = None,
                                          style=style, way=way, passed=readable and not left, left=left,
                                          omakase=dict(parts=o.plan.parts, plan=o.plan.summary(), steps=o.log)))
     studio._inspect(path, say)
+    from chatdraw.events import emit_event
+    emit_event(on_event, "completed" if readable and not left else "blocked",
+               "おまかせ描画と検品が完了しました" if readable and not left else "おまかせ描画は未完了です",
+               phase="仕上げ", readable=readable, unresolved=list(left), seed=s_k)
     return prompt, path
