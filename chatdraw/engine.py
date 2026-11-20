@@ -1804,7 +1804,7 @@ class Studio:
             if fam(image_model(getattr(p, "model", "")).family).reference:
                 reference = ch["reference"]
         try:
-            return self._draw(text, seed, on_status, base, strength, size, on_preview, style, reference, ref_scale, meta, on_event)
+            return self._draw(text, seed, on_status, base, strength, size, on_preview, style, reference, ref_scale, meta, on_event, on_snapshot)
         finally:
             if avoid0 is not None:
                 p.avoid = avoid0
