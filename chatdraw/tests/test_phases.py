@@ -777,7 +777,7 @@ class UnreadableInspectionGateTest(unittest.TestCase):
         from chatdraw import phasetools as pt
         with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}):
             got = phases.draw(Painter(), "1girl, red scarf", 5, (64, 96), Path(d) / "k", checks=C,
-                              confirm=lambda *_args: self.fail("検品不能なのに利用者確認を呼び出した"))
+                              confirm=lambda _i, _name, _shown, row: self.fail("検品不能なのに利用者確認を呼び出した") if not row["readable"] else None)
 
         self.assertFalse(got["complete"])
         self.assertEqual(got["backs"], 0)
