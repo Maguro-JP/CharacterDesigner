@@ -2209,6 +2209,11 @@ class Studio:
                                                    model=getattr(self.painter, "model", ""), way="phases", stages=str(keep),
                                                    phases=got["phases"], passed=checked and not left))
         self._inspect(path, say)
+        from chatdraw.events import emit_event
+        emit_event(on_event, "completed" if checked and not left else "blocked",
+                   "描画・全工程の検品・保存が完了しました" if checked and not left else "未完成のまま保存しました",
+                   phase="仕上げ", index=len(got["phases"]), total=len(phases.NAMES),
+                   checked=checked, unresolved=list(left))
         return prompt, path
 
     def _draw_two(self, text, seed, two, style, size, say, meta, on_event=None, on_preview=None):
