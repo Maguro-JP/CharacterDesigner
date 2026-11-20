@@ -191,7 +191,7 @@ def _extra(req: dict) -> list[str]:
 
 
 def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, on_step=None, checks=Checks, on_preview=None,
-         confirm=None, pause_key: str | None = None, pause_job: dict | None = None, on_event=None) -> dict:
+         confirm=None, pause_key: str | None = None, pause_job: dict | None = None, on_event=None, on_snapshot=None) -> dict:
     """12 の工程で 1 枚を描く。返り値は {"image": 最後の絵, "phases": 工程ごとの最後の記録, "history": 全部の記録,
     "left": 残った崩れ, "checked": 全工程の検品完了, "complete": 全工程完了, "blocked": 停止理由, "backs": 戻った回数}。
     検品不能または未解決の崩れが残り、戻り先も無い場合は次工程へ進まず未完成で止める。戻る回数にも上限がある。
@@ -264,18 +264,19 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         emit_event(on_event, "correction", message, phase="顔・手・足の下描き", regions=len(regions), strength=strength)
         say("修正中: " + message)
         # 修正前の画像を先に表示する。修正処理中に画面が止まって見えないようにする。
-        if on_preview is not None:
+        snapshot = on_snapshot or on_preview
+        if snapshot is not None:
             try:
-                on_preview(img)
+                snapshot(img)
             except Exception:
                 pass
         tell(words)
         words_used.append(words)
         tried = painter.redraw(words, s + 13 * k, img, _mask(img.size, regions), strength=strength)
         # 修正後の実画像を直ちに表示し、その同じ画像を再検品する。
-        if on_preview is not None:
+        if snapshot is not None:
             try:
-                on_preview(tried)
+                snapshot(tried)
             except Exception:
                 pass
         emit_event(on_event, "reinspection", "修正結果を再検品しています（手・足・顔）", phase="顔・手・足の下描き")
@@ -445,9 +446,10 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             message = f"描かれていない物（{'、'.join(missing)}）を、服・髪・持ち物の範囲だけに描き足しています"
             emit_event(on_event, "correction", message, phase="服・髪・持ち物", missing=list(missing))
             say("修正中: " + message)
-            if on_preview is not None:
+            snapshot = on_snapshot or on_preview
+            if snapshot is not None:
                 try:
-                    on_preview(img)
+                    snapshot(img)
                 except Exception:
                     pass
             tell(words2)
@@ -460,9 +462,9 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                 tried = keep_tone(painter.redraw(words2, st["seed"] + 131 + v * 1000, img, mask, strength=REPAINT), img, "服・髪・持ち物", mask)
             else:
                 tried = keep_tone(painter.refine(words2, st["seed"] + 131 + v * 1000, img, strength=REPAINT, **pv), img, "服・髪・持ち物")
-            if on_preview is not None:
+            if snapshot is not None:
                 try:
-                    on_preview(tried)
+                    snapshot(tried)
                 except Exception:
                     pass
             emit_event(on_event, "reinspection", "描き足しの結果を再検品しています", phase="服・髪・持ち物")
