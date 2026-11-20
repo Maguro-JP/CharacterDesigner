@@ -744,9 +744,9 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         last = rows[-1]
         left = last["after"] if last["fixed"] else last["found"]
     checked = complete and bool(rows) and all(r["readable"] for r in rows)
-    emit_event(on_event, "completed" if complete and checked and not left else "blocked",
-               "全工程の描画・検品が完了しました" if complete and checked and not left else "未完了の工程があります",
-               index=len(rows), total=n, checked=checked, unresolved=list(left), complete=complete)
+    if not (complete and checked and not left):
+        emit_event(on_event, "blocked", "未完了の工程があります",
+                   index=len(rows), total=n, checked=checked, unresolved=list(left), complete=complete)
     (keep / "phases.json").write_text(json.dumps({"phases": rows, "history": history, "left": left, "checked": checked,
                                                   "complete": complete, "blocked": blocked, "backs": backs},
                                                  ensure_ascii=False, indent=1, default=str), encoding="utf-8")
