@@ -756,3 +756,30 @@ class NoSketchModelTest(unittest.TestCase):
             got = phases.draw(p, "1girl, red scarf", 1, (64, 64), Path(d), checks=C)
         self.assertEqual(len(got["phases"]), len(phases.PHASES))
         self.assertTrue(any(x[0] == "refine" for x in p.log), p.log)
+
+
+class UnreadableInspectionGateTest(unittest.TestCase):
+    """検品不能時は工程側の既定戻り先があっても、推測で再描画せず停止する。"""
+
+    def test_unreadable_pose_does_not_retry_or_advance(self):
+        C0, _seen = checks(always_bad=False)
+
+        class C:
+            request = staticmethod(C0.request)
+            body = staticmethod(C0.body)
+            points = staticmethod(C0.points)
+            hands = staticmethod(C0.hands)
+
+            @staticmethod
+            def pose(image):
+                return {"readable": False, "bad": [], "reason": "pose model unavailable"}
+
+        from chatdraw import phasetools as pt
+        with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}):
+            got = phases.draw(Painter(), "1girl, red scarf", 5, (64, 96), Path(d) / "k", checks=C)
+
+        self.assertFalse(got["complete"])
+        self.assertEqual(got["backs"], 0)
+        self.assertEqual(got["blocked"]["phase"], "体の形")
+        self.assertEqual(got["blocked"]["reason"], "検品できませんでした")
+        self.assertEqual([row["phase"] for row in got["phases"]], ["目的", "サムネイル", "アタリ", "体の形"])
