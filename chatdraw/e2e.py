@@ -47,9 +47,14 @@ def main():
             print(f"OK   {name}（{time.time() - t:.0f} 秒）{detail or ''}", flush=True)
             return True
         except Exception:
+            error_text = traceback.format_exc()[-3000:]
             report["steps"].append({"name": name, "ok": False, "seconds": round(time.time() - t, 1),
-                                    "error": traceback.format_exc()[-3000:]})
-            print(f"FAIL {name}\n{traceback.format_exc()[-3000:]}", flush=True)
+                                    "error": error_text})
+            print(f"FAIL {name}\\n{error_text}", flush=True)
+            try:
+                save_report()
+            except Exception:
+                print(f"FAIL report.json の保存\\n{traceback.format_exc()[-3000:]}", flush=True)
             return False
 
     import chatdraw.app as app   # 起動と同じ順に読む（出力の付け替え、環境の切り離し、部品の置き場）
