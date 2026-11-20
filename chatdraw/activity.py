@@ -289,10 +289,12 @@ class ActivityPanel(QWidget):
             self._busy(False)
             self.bar.setRange(0, 100)
             pct = int((index - 1) * 100 / total)
-            if kind == "completed":
-                pct = 100
             # 最後の検品が終わっても、保存・配置まで終わる前に完了扱いの 100% にしない。
-            self.bar.setValue(min(99, pct) if kind != "completed" else 100)
+            self.bar.setValue(min(99, pct))
+        if kind == "completed":
+            self._busy(False)
+            self.bar.setRange(0, 100)
+            self.bar.setValue(100)
         self.last_step = time.time()
         self.changed.emit(f"{self.mode}: {title}", self.bar.value())
         self.progress_view.setToolTip(f"{message}\n{self.mode}\n{self.text}")
