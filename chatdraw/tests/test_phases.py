@@ -183,6 +183,18 @@ class PhasesTest(unittest.TestCase):
         self.assertGreaterEqual(len(fixes), 2, painter.log)
         self.assertEqual(fixes, sorted(fixes))   # 直しを重ねるたびに強くする
 
+    def test_correction_before_and_after_images_are_shown(self):
+        """修正に入る前の絵と、修正後に再検品する同じ絵を画面へ渡す。"""
+        shown, said = [], []
+        with TemporaryDirectory() as d:
+            got = phases.draw(Painter(), "1girl, red scarf", 5, (64, 96), Path(d) / "k",
+                              checks=hand_only_checks(), on_preview=shown.append, say=said.append)
+        self.assertFalse(got["complete"])
+        self.assertTrue(any("修正中:" in s for s in said), said)
+        self.assertTrue(any("修正結果を再検品しています" in s for s in said), said)
+        # 少なくとも下描き修正の前後が表示される（修正前だけ／修正後だけにならない）。
+        self.assertGreaterEqual(len(shown), len(phases.PHASES) + 2, len(shown))
+
     def test_clean_after_first_fix(self):
         got, painter, seen, said, files = self.run_phases(always_bad=False)
         self.assertEqual(got["left"], [])
