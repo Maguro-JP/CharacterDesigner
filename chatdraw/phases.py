@@ -191,7 +191,7 @@ def _extra(req: dict) -> list[str]:
 
 
 def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, on_step=None, checks=Checks, on_preview=None,
-         confirm=None, pause_key: str | None = None, pause_job: dict | None = None) -> dict:
+         confirm=None, pause_key: str | None = None, pause_job: dict | None = None, on_event=None) -> dict:
     """12 の工程で 1 枚を描く。返り値は {"image": 最後の絵, "phases": 工程ごとの最後の記録, "history": 全部の記録,
     "left": 残った崩れ, "checked": 全工程の検品完了, "complete": 全工程完了, "blocked": 停止理由, "backs": 戻った回数}。
     検品不能または未解決の崩れが残り、戻り先も無い場合は次工程へ進まず未完成で止める。戻る回数にも上限がある。
@@ -201,6 +201,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
     from PIL import Image
     from chatdraw.engine import Stopped, emphasize
     from chatdraw import handcheck, phasetools as pt
+    from chatdraw.events import emit_event
     keep.mkdir(parents=True, exist_ok=True)
     pv = {"on_preview": on_preview} if on_preview is not None else {}   # 描いている途中の絵を窓に渡す
     can_line, can_fix = abilities(painter)
@@ -259,7 +260,9 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         k = memo["fix_n"]
         memo["fix_n"] += 1
         strength = FIXES[min(k, len(FIXES) - 1)]
-        say(f"修正中: 崩れた所を {len(regions)} か所、囲みの中だけ描き直しています（強さ {strength}）")
+        message = f"崩れた所を {len(regions)} か所、囲みの中だけ描き直しています（強さ {strength}）"
+        emit_event(on_event, "correction", message, phase="顔・手・足の下描き", regions=len(regions), strength=strength)
+        say("修正中: " + message)
         # 修正前の画像を先に表示する。修正処理中に画面が止まって見えないようにする。
         if on_preview is not None:
             try:
@@ -275,6 +278,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                 on_preview(tried)
             except Exception:
                 pass
+        emit_event(on_event, "reinspection", "修正結果を再検品しています（手・足・顔）", phase="顔・手・足の下描き")
         say("修正結果を再検品しています（手・足・顔）")
         again = checks.hands(tried, st["prompt"])
         if again.get("readable") and len(again.get("bad", [])) <= len(res.get("bad", [])):
@@ -438,7 +442,9 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         if (missing or added_words) and (can_fix or can_refine):
             stop()
             words2 = emphasize(st["prompt"], missing) if missing else st["prompt"]
-            say(f"修正中: 描かれていない物（{'、'.join(missing)}）を、服・髪・持ち物の範囲だけに描き足しています")
+            message = f"描かれていない物（{'、'.join(missing)}）を、服・髪・持ち物の範囲だけに描き足しています"
+            emit_event(on_event, "correction", message, phase="服・髪・持ち物", missing=list(missing))
+            say("修正中: " + message)
             if on_preview is not None:
                 try:
                     on_preview(img)
@@ -459,6 +465,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                     on_preview(tried)
                 except Exception:
                     pass
+            emit_event(on_event, "reinspection", "描き足しの結果を再検品しています", phase="服・髪・持ち物")
             say("描き足しの結果を再検品しています")
             req2 = checks.request(tried, st["prompt"])
             fixed = True
@@ -624,10 +631,12 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         if not (saved and saved["i"] == i and entry.get(i)):
             entry[i] = dict(st)   # 戻るときは、この工程に入ったときの土台から描き直す
         saved = None
+        emit_event(on_event, "phase_started", PHASES[i][1], phase=name, index=i + 1, total=n, checks=PHASES[i][2])
         say(f"工程 {i + 1}/{n}「{name}」: {PHASES[i][1]}（見る物: {PHASES[i][2]}）")
         tones.clear()   # 色合わせの記録はこの回の分だけを残す（前は戻るたびに前の回の分が重なった）
         t0 = time.time()
         try:
+            emit_event(on_event, "drawing", f"工程 {i + 1}/{n}「{name}」を処理しています", phase=name, index=i + 1, total=n)
             got = run[i](visits[i])
         except Exception as e:   # noqa: BLE001  止めて捨てずに、この工程に入ったときの状態を残す
             if not pause_key or isinstance(e, Stopped) or not pausekeep.is_pause(e):
@@ -664,7 +673,12 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             row["note"] = got["note"]
         final[i] = row
         history.append(row)
-        say(f"工程 {i + 1}/{n}「{name}」の検品: " + ("崩れは見つかりませんでした" if not left else "残った崩れ " + "、".join(left[:4])))
+        inspection_message = "崩れは見つかりませんでした" if not left else "残った崩れ " + "、".join(left[:4])
+        emit_event(on_event, "inspection", inspection_message, phase=name, index=i + 1, total=n,
+                   readable=row["readable"], found=found, fixed=fixed, after=after)
+        say(f"工程 {i + 1}/{n}「{name}」の検品: " + inspection_message)
+        if not left and row["readable"]:
+            emit_event(on_event, "phase_completed", f"工程 {i + 1}/{n}「{name}」が完了しました", phase=name, index=i + 1, total=n)
         if confirm is not None:
             ans = confirm(i, name, shown, row)
             kind = ans[0] if isinstance(ans, (tuple, list)) else ans
@@ -714,6 +728,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         if needs_retry:
             reason = "検品できませんでした" if not row["readable"] else "未解決の崩れが残っています"
             blocked = {"phase": name, "index": i, "reason": reason, "left": list(left)}
+            emit_event(on_event, "blocked", f"工程 {i + 1}/{n}「{name}」で停止: {reason}", phase=name, index=i + 1, total=n, unresolved=list(left))
             say(f"工程 {i + 1}/{n}「{name}」で停止しました（{reason}）。未完成として保存します")
             break
         i += 1
@@ -724,6 +739,9 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         last = rows[-1]
         left = last["after"] if last["fixed"] else last["found"]
     checked = complete and bool(rows) and all(r["readable"] for r in rows)
+    emit_event(on_event, "completed" if complete and checked and not left else "blocked",
+               "全工程の描画・検品が完了しました" if complete and checked and not left else "未完了の工程があります",
+               index=len(rows), total=n, checked=checked, unresolved=list(left), complete=complete)
     (keep / "phases.json").write_text(json.dumps({"phases": rows, "history": history, "left": left, "checked": checked,
                                                   "complete": complete, "blocked": blocked, "backs": backs},
                                                  ensure_ascii=False, indent=1, default=str), encoding="utf-8")
