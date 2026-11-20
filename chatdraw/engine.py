@@ -1788,10 +1788,10 @@ class Studio:
 
     def draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
              on_preview=None, style: str = "", reference=None, ref_scale: float = 0.6, meta: dict | None = None,
-             on_event=None) -> tuple[str, Path]:
+             on_event=None, on_snapshot=None) -> tuple[str, Path]:
         ch = self.character
         if not ch:
-            return self._draw(text, seed, on_status, base, strength, size, on_preview, style, reference, ref_scale, meta, on_event)
+            return self._draw(text, seed, on_status, base, strength, size, on_preview, style, reference, ref_scale, meta, on_event, on_snapshot)
         # 人物の禁止ワードと LoRA は、この 1 回のあいだだけ描き手に入れ、終わったら元に戻す
         p = self.painter
         avoid0, lora0 = getattr(p, "avoid", None), getattr(p, "lora", None)
@@ -1813,7 +1813,7 @@ class Studio:
 
     def _draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
               on_preview=None, style: str = "", reference=None, ref_scale: float = 0.6, meta: dict | None = None,
-              on_event=None) -> tuple[str, Path]:
+              on_event=None, on_snapshot=None) -> tuple[str, Path]:
         say = on_status or (lambda msg: None)
         self.last_phases = None   # 工程に分けて描いた回だけ、工程ごとの絵と検品を持つ（アプリが隠したレイヤーに置く）
         if refused(text):
@@ -2179,7 +2179,7 @@ class Studio:
         model = getattr(self.painter, "model", "")
         job = {"text": text, "seeds": [seed], "style": style, "size": list(size) if size else None, "meta": meta or {}, "model": model}
         try:
-            got = phases.draw(self.painter, prompt, seed, size, keep, say=say, on_preview=on_preview, on_event=on_event,
+            got = phases.draw(self.painter, prompt, seed, size, keep, say=say, on_preview=on_preview, on_event=on_event, on_snapshot=on_snapshot,
                               on_step=lambda i, n: say(f"描いています（{i}/{n}）"), confirm=self._phase_confirm(as_tags),
                               pause_key=pausekeep.key("phases", text, seed, style, tuple(size) if size else None, model), pause_job=job)
         finally:
