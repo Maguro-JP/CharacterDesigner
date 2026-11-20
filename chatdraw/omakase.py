@@ -274,15 +274,17 @@ class Omakase:
         say(f"{stage}: {m.name if m else '（模型なし）'}（{why}）")
 
     def fix_region(self, image, kind: str, boxes, prompt_text: str, seed: int, avoid_repo: str, say,
-                   strength: float = 0.6, stage: str = "直し"):
-        """落ちた部位を、その部位が得意な模型で囲みの中だけ直す。描いた模型とは別の物を先に試す"""
+                   strength: float = 0.6, stage: str = "直し", attempt: int = 0):
+        """落ちた部位を、その部位が得意な模型で囲みの中だけ直す。失敗したら次候補へ進む"""
         from PIL import Image
         from chatdraw import handcheck
         cands = self.plan.fix.get(kind, [])
         cands = [c for c in cands if c[0].repo != avoid_repo] + [c for c in cands if c[0].repo == avoid_repo]
         if not cands:
             return image, None
-        m, why = cands[0]
+        # 以前は毎回 cands[0] を使い、検品で失敗しても同じ模型を rounds 回繰り返していた。
+        # attempt ごとに候補を進め、別模型による修正を実際に試す。
+        m, why = cands[attempt % len(cands)]
         self._note(say, f"{KIND_ASPECT[kind]}の{stage}", m, why)
         painter = self.painter_for(m)
         mask = _mask(image.size, boxes)
@@ -353,7 +355,8 @@ class Omakase:
                     by_kind.setdefault(kind, []).append(box)
                 tried = image
                 for kind, boxes in by_kind.items():
-                    tried, _fm = self.fix_region(tried, kind, boxes, text, s_k + 77 * (r + 1), m.repo if m else "", say)
+                    tried, _fm = self.fix_region(tried, kind, boxes, text, s_k + 77 * (r + 1), m.repo if m else "", say,
+                                                               attempt=r)
                 again = self.check(tried, prompt)
                 self.log.append(dict(stage="検品", round=r, bad=list(again["bad"])))
                 if len(again["bad"]) > len(res["bad"]):   # 直しで崩れが増えたら、その直しは消しゴムで消す
