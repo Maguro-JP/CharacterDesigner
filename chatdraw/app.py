@@ -191,6 +191,7 @@ class Job(QObject):
                 prompts, path = self.studio.fix(self.base, self.regions, self.seeds[0], on_status=self._say,
                                                 style=self.style, strength=self.strength, reference=self.reference,
                                                 ref_scale=self.ref_scale, check=self.check,
+                                                on_event=self._event, on_preview=self._snapshot,
                                                 **({"source": self.meta["source"]} if self.meta.get("source") else {}))
                 self._stopped()
                 preload(path)
