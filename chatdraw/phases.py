@@ -714,8 +714,11 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                 i = target
                 continue
         back = got.get("back")
+        # 検品不能は欠陥の場所が分からないため、工程側が返した戻り先も使わず即時停止する。
+        # readable=False の工程を推測で再描画しても、検品できない状態は解消したと証明できない。
+        if not row["readable"]:
+            back = None
         # 欠陥が残っているのに工程が戻り先を指定しない場合、品質工程の既定経路へ差し戻す。
-        # 検品不能は欠陥の場所が分からないため、推測で描き直さず未完成停止にする。
         if left and back is None and row["readable"]:
             back = BACK_TARGETS[i]
             if back is not None:
