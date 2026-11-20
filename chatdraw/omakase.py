@@ -477,7 +477,7 @@ class Omakase:
         return image
 
 
-def _compose_two(studio, text, seed, two, size, say):
+def _compose_two(studio, text, seed, two, size, say, on_event=None, on_preview=None):
     """2 段（構図の模型 → SDXL の仕上げ）で描いた絵と、その頼みの言葉。検品と直しはおまかせの側で行う"""
     import time
     from PIL import Image
@@ -488,7 +488,8 @@ def _compose_two(studio, text, seed, two, size, say):
     tags = vary_background(english_only(studio.words.to_prompt(text, tags=True)), seed, text=text)
     keep = studio.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}"
     path = twostage.run_stages(sentence, tags, seed, comp.repo, render.repo, tuple(size or (832, 1216)), keep,
-                               twostage.VARIANTS[0], say=say, stopped=lambda: getattr(studio.painter, "stop", False))
+                               twostage.VARIANTS[0], say=say, stopped=lambda: getattr(studio.painter, "stop", False),
+                               on_event=on_event, on_preview=on_preview)
     return Image.open(path).convert("RGB"), tags
 
 
@@ -525,7 +526,8 @@ def draw(studio, text: str, seed: int, say, size=None, meta: dict | None = None,
         two = studio._two_stage_models(None, None, say)
     if two is not None:
         o.two = two
-        o.compose_two = lambda text, seed, size, say: _compose_two(studio, text, seed, o.two, size, say)
+        o.compose_two = lambda text, seed, size, say: _compose_two(studio, text, seed, o.two, size, say,
+                                                                       on_event=o.on_event, on_preview=o.on_snapshot or o.on_preview)
     image, prompt, left, readable, s_k, m = o.run(text, seed, say, size=size, tries=studio.REDRAW_TRIES, rounds=studio.FIX_ROUNDS)
     if left:
         say(f"検品を通る絵が出ませんでした（途中）。残った崩れ: " + "、".join(left[:5]))
