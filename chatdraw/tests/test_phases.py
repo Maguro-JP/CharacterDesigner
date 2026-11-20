@@ -761,6 +761,33 @@ class NoSketchModelTest(unittest.TestCase):
 class UnreadableInspectionGateTest(unittest.TestCase):
     """検品不能時は工程側の既定戻り先があっても、推測で再描画せず停止する。"""
 
+    def test_unreadable_reinspection_after_draft_fix_blocks_phase(self):
+        base = hand_only_checks()
+        calls = {"hands": 0}
+
+        class C:
+            request = staticmethod(base.request)
+            body = staticmethod(base.body)
+            points = staticmethod(base.points)
+            pose = staticmethod(base.pose)
+
+            @staticmethod
+            def hands(image, prompt):
+                calls["hands"] += 1
+                if calls["hands"] == 1:
+                    return dict(HAND)
+                return {"readable": False, "bad": [], "reason": "reinspection unavailable"}
+
+        from chatdraw import phasetools as pt
+        with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}):
+            got = phases.draw(Painter(), "1girl, red scarf", 5, (64, 96), Path(d) / "k", checks=C)
+
+        self.assertFalse(got["complete"])
+        self.assertEqual(got["blocked"]["phase"], "顔・手・足の下描き")
+        self.assertEqual(got["blocked"]["reason"], "検品できませんでした")
+        self.assertFalse(got["phases"][-1]["readable"])
+        self.assertEqual(calls["hands"], 2)
+
     def test_unreadable_pose_does_not_retry_or_advance(self):
         C0, _seen = checks(always_bad=False)
 
