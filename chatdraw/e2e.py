@@ -30,6 +30,9 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     faulthandler.enable()
+    # E2E のどこかで同期処理が停止しても、2 分ごとに全スレッドのスタックを Actions ログへ出す。
+    # これにより 60 分のタイムアウトまで原因不明のまま待つ状態を避ける。
+    faulthandler.dump_traceback_later(120, repeat=True)
     report: dict = {"steps": []}
 
     def save_report():
@@ -82,10 +85,17 @@ def main():
         from chatdraw.setup import Fetcher
         f = Fetcher()
         said, done = [], []
-        f.progress.connect(lambda msg, pct: said.append(msg))
+        def on_progress(msg, pct):
+            said.append(msg)
+            print(f"FETCH {pct}% {msg}", flush=True)
+        f.progress.connect(on_progress)
         f.finished.connect(lambda err: done.append(err))
+        print("FETCH START", flush=True)
         f.run(tiny, None)
-        if done and done[0]:
+        print(f"FETCH RETURN finished={bool(done)} messages={len(said)}", flush=True)
+        if not done:
+            raise RuntimeError("Fetcher.run() が finished シグナルを返さず終了した")
+        if done[0]:
             raise RuntimeError(done[0])
         return {"messages": said[-5:]}
 
@@ -188,6 +198,7 @@ def main():
     report["data_home"], report["hub"] = str(HOME), str(HUB)
     report["ok"] = ok
     save_report()
+    faulthandler.cancel_dump_traceback_later()
     print(f"exit={0 if ok else 1}", flush=True)
     sys.exit(0 if ok else 1)
 
