@@ -106,14 +106,24 @@ def release_memory():
         pass
 
 
+BIG_NOTE = ("メモリの見積もりを大きく超える模型なので、層ごとに出し入れする退避の形（GPU は使う層だけ、"
+            "入らない重みはディスク）で読みます。かなり遅くなります（1 枚に数十分かかることがあります）")
+DISK_NOTE = "まだメモリが足りないので、重みをディスクへ退避し、層ごとに読み込んで描きます。とても遅くなります"
 LOW_MEMORY_NOTE = "メモリが足りないので、メモリを使わない設定（部品の出し入れ、注意の分割、小さめの大きさ）に切り替えて描きます"
+
+
+MEMORY_WAIT_S = 120.0   # メモリが空くのを待つ秒。過ぎたら一時停止にして途中を残す
+
+
+class MemoryPaused(MemoryError):
+    """メモリが足りず、空くのを待っても空かなかった。止めて捨てずに一時停止にする印（MemoryError の仲間なので前の受け手も受ける）"""
 
 
 def memory_retry(painter, run, say=None):
     """run() を動かし、メモリ不足で落ちたら、読んだ模型を降ろしてメモリを返し、少ないメモリの設定で 1 回だけやり直す。
     描いている途中にアプリが落ちる報告があり、原因の候補の 1 つがメモリ不足だった（確かめていない）。メモリを使い切ったまま描き続けると、
     Windows では torch の中で落ち、例外として捕まえられないことがある。例外で返ってきた分は、ここで捕まえて軽い設定に替える。
-    2 回目も足りなければ、分かる日本語の理由で例外にする（画面は落とさず「描けませんでした」に返す）"""
+    それでも足りなければ模型を降ろして空くのを待ち、空かなければ MemoryPaused（一時停止。途中は呼び手が残す）で返す"""
     try:
         return run()
     except Exception as e:   # MemoryError も Exception の仲間
@@ -131,10 +141,38 @@ def memory_retry(painter, run, say=None):
     try:
         return run()
     except Exception as e:
-        if is_oom(e):
-            raise MemoryError("メモリが足りず、少ないメモリの設定でも足りませんでした。ほかのアプリを閉じるか、"
-                              "小さい模型（SDXL 系）に替えるか、描く大きさを小さくしてください") from None
-        raise
+        if not is_oom(e):
+            raise
+    # 2 回目も足りなければ断らず、重みをディスクへ退避して層ごとに読む形で、もう一度描く
+    (say or (lambda m: None))(DISK_NOTE)
+    if hasattr(painter, "unload"):
+        painter.unload()
+    release_memory()
+    try:
+        painter.offload = "disk"
+    except AttributeError:
+        pass
+    try:
+        return run()
+    except Exception as e:
+        if not is_oom(e):
+            raise
+    # それでも足りなければ、模型を降ろしてメモリが空くのを待ち、空いたらもう一度描く。空かなければ一時停止にする
+    # （前はここで諦めて捨てた。工程に分けて描く・一括生成は MemoryPaused を受けて途中を残し、「再開」で続ける）
+    if hasattr(painter, "unload"):
+        painter.unload()
+    release_memory()
+    from chatdraw import pausekeep
+    (say or (lambda m: None))("メモリが空くのを待っています（模型を降ろしました）")
+    if pausekeep.wait_memory(float(getattr(painter, "need_gb", 0) or 4.0), wait_s=MEMORY_WAIT_S,
+                             stopped=lambda: STOP.is_set() or getattr(painter, "stop", False) is True):
+        try:
+            return run()
+        except Exception as e:
+            if not is_oom(e):
+                raise
+    raise MemoryPaused("メモリが足りず、模型を降ろして待っても空きませんでした。一時停止して途中を保存しました。"
+                       "ほかのアプリを閉じてから「再開」を押すと続きから描きます")
 
 
 def low_memory_size(size, family: str = "sdxl"):
@@ -176,7 +214,50 @@ def cpu_dtype(gb_half: float):
         return torch.bfloat16
     if total_ram_gb() >= gb_half * 2 * 1.3:
         return torch.float32
-    return torch.bfloat16
+    return torch.bfloat16   # 読むのは bf16。入るなら読んだあとに本体だけ float32 に替える（cpu_upcast）
+
+
+DENOISER_SHARE = 0.75   # 模型の重みのうち、歩ごとに回す本体（UNet、transformer）の割合（SDXL は 5.1GB / 6.9GB）
+
+
+def cpu_upcast_fits(gb_half: float) -> bool:
+    """bf16 の命令の無い CPU で、本体と VAE だけを float32 にして RAM に入るか。
+    Actions の 16GB の機械で、命令の無い CPU に当たった回だけ SDXL の 1 歩が 9 秒から約 36 分になった（同じコミットの 2 つの機械で確かめた）。
+    bf16 の畳み込みを命令なしでまねると数百倍遅い。全部を float32 にすると 16GB に入らないので、歩ごとに回す所だけを float32 にする"""
+    return total_ram_gb() >= gb_half * (DENOISER_SHARE * 2 + (1 - DENOISER_SHARE)) * 1.2
+
+
+def _to_dtype(x, dtype):
+    import torch
+    if isinstance(x, torch.Tensor):
+        return x.to(dtype) if x.is_floating_point() and x.dtype != dtype else x
+    if isinstance(x, dict):
+        return {k: _to_dtype(v, dtype) for k, v in x.items()}
+    if isinstance(x, (list, tuple)):
+        return type(x)(_to_dtype(v, dtype) for v in x)
+    return x
+
+
+def cpu_upcast(pipe, say=None) -> bool:
+    """bf16 で読んだ模型を、bf16 の遅い CPU では本体（unet、transformer）と VAE だけ float32 に替える。
+    文字の部品は 1 回しか回らないので bf16 のまま（RAM を節約）。本体に入る bf16 の値は、入口で float32 にそろえる。
+    替えたら True。.to は重みを 1 つずつ替えるので、模型の 2 倍の山にはならない"""
+    import torch
+    if torch.cuda.is_available() or bf16_fast():
+        return False
+    changed = False
+    for name in ("unet", "transformer", "vae"):
+        part = getattr(pipe, name, None)
+        first = next(iter(part.parameters()), None) if isinstance(part, torch.nn.Module) else None
+        if first is None or first.dtype != torch.bfloat16:
+            continue
+        part.to(torch.float32)
+        part.register_forward_pre_hook(lambda m, a, kw: (_to_dtype(a, torch.float32), _to_dtype(kw, torch.float32)),
+                                       with_kwargs=True)
+        changed = True
+    if changed and say:
+        say("この CPU は bf16 の計算が遅いので、描く本体を float32 にして描きます（文字の部品は bf16 のまま）")
+    return changed
 
 
 def gpu_dtype(family: str):
@@ -457,7 +538,7 @@ def decode_threads(cores: int) -> int:
 # 読んだ言葉の模型（道 → Llama）。設定を替えて Words を作り直しても、同じ模型は読み直さない（1 回の読み込みに 100 秒以上かかった）。
 # 持つのは 1 つだけにし、別の模型に替えたら前の物は捨ててメモリを空ける
 _LOADED: dict[str, object] = {}
-CTX = 2048   # 言葉の模型に一度に渡せるトークンの数（指示・頼み・答えの合計）
+CTX = 4096   # 言葉の模型に一度に渡せるトークンの数（指示・頼み・答えの合計）。2048 ではチャットに今の絵の様子と会話を渡すと溢れた
 
 
 def _llm_for(path: Path):
@@ -544,6 +625,25 @@ class Words:
         self.tokens = (out.get("usage") or {}).get("completion_tokens", 0)
         reply = re.sub(r"<think>.*?(</think>|$)", "", reply, flags=re.S)   # 閉じていない考えも捨てる
         return reply.strip()
+
+    def stream(self, messages: list[dict], max_tokens: int = 300):
+        """会話の問いを、出来た所から少しずつ返す（チャットの返事を流しながら出す）。chat と同じ形で組む"""
+        llm = _llm_for(self.path)
+        sampling = dict(temperature=0.3, max_tokens=max_tokens, repeat_penalty=1.3, presence_penalty=0.5, stream=True)
+        template = (getattr(llm, "metadata", None) or {}).get("tokenizer.chat_template", "")
+        stop = ["<|im_end|>", "<|endoftext|>"]
+        n = 0
+        if "<|im_start|>" in template:
+            prompt = ("".join(f"<|im_start|>{m['role']}\n{m['content']}<|im_end|>\n" for m in messages) + "<|im_start|>assistant\n"
+                      + ("<think>\n\n</think>\n\n" if "think" in template else ""))
+            for part in llm.create_completion(prompt, stop=stop, **sampling):
+                n += 1
+                yield part["choices"][0].get("text") or ""
+        else:
+            for part in llm.create_chat_completion(messages=messages, stop=stop, **sampling):
+                n += 1
+                yield (part["choices"][0].get("delta") or {}).get("content") or ""
+        self.tokens = n
 
     def to_prompt(self, text: str, tags: bool = True) -> str:
         """日本語の頼みを、絵の模型が分かる英語にする。tags なら SD 系のタグ、そうでなければ文（FLUX などは文で頼む）。
@@ -647,7 +747,7 @@ def sentence(picked: list[str]) -> str:
         t = words.get(t.strip().lower(), t.strip())
         if t and t not in out:
             out.append(t)
-    return "An anime illustration of " + ", ".join(out) + "."
+    return ", ".join(out)   # 頼みの訳だけを渡す。「An anime illustration of」のような頼んでいない前置きを足さない
 
 
 # 途中の絵（latents）をそのまま色に直す係数。VAE で戻すより何百倍も速く、描いている様子を見せるのに足りる
@@ -880,6 +980,8 @@ class Painter:
         self.plan = None          # 描く前のメモリの予算の計画（chatdraw/membudget.py）
         self.placed = None        # 読んだ模型の置き場（cuda / model / sequential / cpu）。読む前は None
         self.partial_dir = None   # メモリが危なくて止めたときに途中の絵を残す所
+        # 予算に収まらない模型の退避の段（""、"sequential"、"disk"）。断らずに退避で動かす（_check_budget、memory_retry）
+        self.offload = ""
 
     def _note(self, msg: str):
         if self.on_note is not None:
@@ -958,8 +1060,14 @@ class Painter:
         k = mb.over_ok()   # 設定の「メモリの使い方」で変わる（自動は OVER_OK と同じ 1.5）
         over_ram = plan.ram_peak() > b.ram * k
         over_vram = b.vram > 0 and plan.vram_peak() > b.vram * k
+        if (over_ram or over_vram) and mb.mode() == "控えめに動かす":
+            raise mb.OverBudget(plan.reason + "。" + plan.lighter)   # 利用者が設定で控えめを選んだときだけ止める
         if over_ram or over_vram:
-            raise mb.OverBudget(plan.reason + "。" + plan.lighter)
+            # 大きく超えても断らない。層ごとに GPU へ出し入れし（VRAM は数 GB）、入らない重みはディスクへ退避して読む
+            self.low_memory = True
+            self.offload = self.offload or "sequential"
+            self._note(BIG_NOTE)
+            return
         self.low_memory = True
         self._note(f"見積もりではメモリが少し足りませんが、一番軽い設定（{plan.size[0]}×{plan.size[1]}）で描きます。"
                    "危なくなったら途中で止めて途中の絵を残します")
@@ -1058,6 +1166,7 @@ class Painter:
     def unload(self):
         """読んだ模型をメモリから降ろす。次に描くときに読み直す"""
         self._pipe = self._sketch = self._inpaint = None
+        self._img2img = self._img2img_of = None   # 描き重ねの部品も一緒に手放す
         self._ref = False
         self._lora_state = {}
         self.placed = None
@@ -1068,10 +1177,13 @@ class Painter:
     def load(self, size=None):
         if self._pipe is None:
             plan = self.memory_guard(size)
+            if self.offload == "sequential":
+                self.offload = ""   # 予算から決め直す（前の大きな模型の退避を、次の小さな模型に持ち越さない）
             self._check_budget(plan)   # 収まらないなら、読む前に止める（読んでから足りないと分かると、もう山の途中）
             from chatdraw.membudget import exclusive
             exclusive(("painter", id(self)), self.unload)   # 模型はいつも 1 つだけ。ほかの模型を降ろしてから読む
             self._pipe = self._read()
+            self._cpu_dtype_fix()
             from chatdraw.models import image_model
             use_vpred(self._pipe, image_model(self.model)) or use_scheduler(self._pipe, image_model(self.model))
             self._place(self._pipe)
@@ -1132,6 +1244,20 @@ class Painter:
                 self.quantized = True
         return cls.from_pretrained(self.model, **kw)
 
+    def _cpu_dtype_fix(self):
+        """CPU で bf16 で読んだときに、bf16 の遅い CPU なら本体だけ float32 に替える（cpu_upcast）。替えられなければ遅い形だと知らせる"""
+        if "bfloat16" not in str(getattr(self, "dtype", "")):
+            return
+        from chatdraw.models import image_model
+        try:
+            if cpu_upcast_fits(image_model(self.model).gb or 7) and cpu_upcast(self._pipe, self._note):
+                return
+            note = dtype_note(self.dtype)
+        except Exception:   # noqa: BLE001  替えられなくても bf16 のまま描く
+            return
+        if note:
+            self._note(note)   # 遅い形で描くときは、進みの欄に必ず出す
+
     def _place(self, pipe):
         """GPU のメモリに合わせて置き方を決める（diffusers の公式の方法）。
         模型が GPU のメモリに収まれば全部を載せ、収まらなければ、部品を使う間だけ載せる（enable_model_cpu_offload）。
@@ -1149,6 +1275,8 @@ class Painter:
                 info = image_model(self.model)
                 need = info.gb * (QUANT_SHARE if getattr(self, "quantized", False) else 1.0)
                 self.placed = placement(free / 1e9, need * 1.2, heavy(info)[0] * 0.9)
+            if getattr(self, "offload", ""):
+                self.placed = "sequential"   # 予算を超える模型は、層ごとに出し入れする（_check_budget、memory_retry）
             if self.placed == "sequential" and getattr(self, "quantized", False):
                 self.placed = "model"   # 4 ビットに縮めた部品は層ごとの出し入れができない（bitsandbytes）。部品ごとに出し入れする
             if self.placed == "cuda":
@@ -1156,8 +1284,10 @@ class Painter:
                     pipe.to("cuda")
             elif self.placed == "model":
                 pipe.enable_model_cpu_offload()
-            else:
+            elif getattr(self, "offload", "") != "disk":   # ディスクへの退避は _disk_offload が層ごとに GPU へ載せる
                 pipe.enable_sequential_cpu_offload()
+        if getattr(self, "offload", "") == "disk":
+            self._disk_offload(pipe)
         self.lighten(pipe, plan)
         if getattr(self, "channels_last", False):
             # 畳み込みの多い部品（UNet と VAE）のメモリの並びを替える。計算の中身は同じで、CPU では畳み込みが速くなることがある。
@@ -1168,6 +1298,32 @@ class Painter:
                     try:
                         part.to(memory_format=torch.channels_last)
                     except Exception:   # noqa: BLE001  並びを替えられない部品はそのまま
+                        pass
+
+    def _disk_offload(self, pipe):
+        """重みをディスクへ退避し、使う層だけを読み込む（diffusers の group offload、offload_to_disk_path）。
+        RAM に模型全体が入らない PC でも動かすため。使えない版の diffusers や部品はそのまま（層ごとの出し入れだけ）"""
+        import torch
+        on = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+        root = HUB.parent / "offload" / str(id(self))
+        for name in ("transformer", "unet", "text_encoder", "text_encoder_2", "text_encoder_3"):
+            part = getattr(pipe, name, None)
+            if part is None or not hasattr(part, "enable_group_offload"):
+                continue
+            try:
+                (root / name).mkdir(parents=True, exist_ok=True)
+                part.enable_group_offload(onload_device=on, offload_device=torch.device("cpu"), offload_type="leaf_level",
+                                          offload_to_disk_path=str(root / name))
+                self.placed = "disk"
+            except Exception:   # noqa: BLE001  退避できない部品は層ごとの出し入れのまま
+                pass
+        if on.type == "cuda":   # 退避しない小さい部品（VAE など）は GPU に置く（置き場がそろわないと計算できない）
+            for name in ("vae", "image_encoder"):
+                part = getattr(pipe, name, None)
+                if part is not None and hasattr(part, "to"):
+                    try:
+                        part.to(on)
+                    except Exception:   # noqa: BLE001
                         pass
 
     def lighten(self, pipe, plan=None, slicing=None, tiling=None):
@@ -1345,16 +1501,12 @@ class Painter:
     def _paint_body(self, pipe, info, f, prompt, args, size, want, base, strength, reference, ref_scale, step, steps):
         total = steps
         if f.edit and (base is not None or reference is not None):
-            # 絵を頼みと一緒に渡す世代（FLUX.2 klein）。ラフは「この下描きを清書する」、参考画像は「この絵の絵柄で描く」と文で伝える
+            # 絵を頼みと一緒に渡す世代（FLUX.2 klein）。ラフと参考画像は絵だけを渡し、言葉は頼みの訳だけにする
             w, h = size
             total = steps
             pics = [p.convert("RGB").resize((w, h)) for p in (base, reference) if p is not None]
-            lead = []
-            if base is not None:
-                lead.append("Turn the first image, a rough sketch, into a finished illustration that keeps its pose and composition")
-            if reference is not None:
-                lead.append("Use the art style and colors of the " + ("second" if base is not None else "given") + " image")
-            args["prompt"] = ". ".join(lead + [args.get("prompt", prompt)])
+            # 渡す言葉は頼みの訳だけにする（下描きや参考画像の扱いを英語の文で足すと、頼んでいない言葉が模型に渡った）
+            args["prompt"] = args.get("prompt", prompt)
             out = pipe(image=pics if len(pics) > 1 else pics[0], width=w, height=h, **args).images[0]
             if self.stop:
                 raise Stopped("止めました")
@@ -1456,6 +1608,46 @@ class Painter:
         scale = self.redraw_scale(image.size)
         self.lighten(self._inpaint, getattr(self, "redraw_plan", None))
         return hires_inpaint(image, mask, run, scale)
+
+    def refine(self, prompt: str, seed: int, image, strength: float = 0.5, on_step=None, on_preview=None):
+        """絵全体を土台にして描き重ねる（絵から絵）。線に沿う部品（T2I-Adapter）や範囲の直し（inpaint）の無い世代
+        （FLUX.1、SD3、Qwen-Image など）でも、工程に分けて描けるようにする。渡す言葉は頼みの訳だけ"""
+        return memory_retry(self, lambda: self._refine(prompt, seed, image, strength, on_step, on_preview), self._note)
+
+    def _refine(self, prompt, seed, image, strength, on_step, on_preview):
+        import torch
+        from chatdraw.models import family as fam, image_model
+        info = image_model(self.model)
+        f = fam(info.family)
+        pipe = self.load()
+        if getattr(self, "_img2img", None) is None or getattr(self, "_img2img_of", None) is not pipe:
+            from diffusers import AutoPipelineForImage2Image
+            self._img2img = AutoPipelineForImage2Image.from_pipe(pipe)   # 読んだ模型の部品をそのまま使う（読み直さない）
+            self._img2img_of = pipe
+        steps = max(self.steps, math.ceil(1 / strength)) if strength > 0 else self.steps
+        args = dict(prompt=english_only(prompt), num_inference_steps=steps, strength=strength,
+                    generator=torch.Generator("cpu").manual_seed(seed))
+        if f.negative:
+            args["negative_prompt"] = negative_for(info, self.avoid)
+            args["guidance_scale"] = self.guidance
+        from chatdraw import sent
+        sent.record("描き重ねる", args.get("prompt"), args.get("negative_prompt"))
+        total = max(1, int(steps * strength))
+
+        def step(p, i, _t, kw):
+            if self.stop:
+                p._interrupt = True
+            if on_step:
+                on_step(min(i + 1, total), total)
+            return kw
+        args["callback_on_step_end"] = step
+        base = image.convert("RGB")
+        out = self._img2img(image=base, width=base.width, height=base.height, **args).images[0]
+        if self.stop:
+            raise Stopped("止めました")
+        if on_preview is not None:
+            on_preview(out)
+        return out
 
     def redraw_scale(self, size, b=None):
         """直すときに絵全体を広げる倍率を、予算に収まる所まで下げる（1.5 → 1.25 → 1.0）。
@@ -1840,7 +2032,14 @@ class Studio:
             return None
         from chatdraw import twostage
         from chatdraw.choose import installed_images
-        two = twostage.pick(installed_images(), getattr(self.painter, "model", ""))
+        have = installed_images()
+        two = None
+        if getattr(self, "use_favorites", False) and not getattr(self, "image_auto", False):
+            # お気に入りで描くときは、構図と仕上げのお気に入りで 2 段にする。前は「構図と仕上げを分けて描く」を選ぶと
+            # お気に入りを見ずに点の一番高い構図の模型と今の模型で描き、選んだ模型と違う模型で描いた
+            from chatdraw import favmodels
+            two = favmodels.two_stage(have)
+        two = two or twostage.pick(have, getattr(self.painter, "model", ""))
         if two is not None and getattr(self, "fetch_two_parts", False) and not twostage.parts_ready():
             try:
                 twostage.fetch_parts(say=say)
@@ -1859,7 +2058,7 @@ class Studio:
         段ごとの理由と次の手を例外にする。前は 1 回落ちただけで「描けませんでした」で止まり、0.5.15 でメモリの見積もりで
         描く前に止めるようにしてからは、それまで描けていた模型と大きさも止まった"""
         say = on_status or (lambda msg: None)
-        tried, why = [], []
+        tried, why, mem = [], [], []
         size0 = size or getattr(self.painter, "size", None)
         size0 = tuple(size0) if isinstance(size0, (tuple, list)) else (832, 1216)
 
@@ -1870,10 +2069,14 @@ class Studio:
         def fail(label, e):
             if isinstance(e, Stopped) or STOP.is_set() or getattr(self.painter, "stop", False) is True:
                 raise e
+            if type(e).__name__ == "Paused":
+                raise e   # 一時停止して途中を残した。別の模型・別の種に替えると、残した途中から続けられなくなる
             if isinstance(e, ValueError) and "描きません" in str(e):
                 raise e   # 描かない頼みは段を下げても描かない
             why.append(f"{label}: {explain(e)}")
             tried.append(label)
+            from chatdraw import pausekeep
+            mem.append(pausekeep.is_pause(e))
 
         try:
             return attempt("そのまま")
@@ -1910,6 +2113,8 @@ class Studio:
                 return attempt(label, **over)
             except Exception as e:   # noqa: BLE001
                 fail(label, e)
+        if mem and all(mem):   # どの段もメモリ・時間の打ち切りだった。止めて捨てずに一時停止にする（「再開」で同じ頼み・種から描く）
+            raise MemoryPaused("メモリが足りず、試した順に: " + " / ".join(why) + "。一時停止しました。ほかのアプリを閉じてから「再開」を押すと続きから描きます")
         raise RuntimeError("試した順に: " + " / ".join(why) + "。次の手: ほかのアプリを閉じてメモリを空ける、"
                            "AI のメニューで軽い模型（SDXL 系）を取る、描く大きさを小さくする")
 
@@ -1929,14 +2134,28 @@ class Studio:
         return have[0] if have else None
 
     last_phases: list | None = None
+    phase_confirm = None   # 工程ごとに確かめるときにアプリが入れる。(i, 名前, 絵, 記録) を受けて "go"・"redo"・("words", 足す言葉) を返す
+
+    def _phase_confirm(self, as_tags):
+        """利用者が足した言葉は、頼みと同じく訳してから模型に渡す（日本語の頼みをそのまま絵の模型に渡さない）"""
+        ask = self.phase_confirm
+        if ask is None:
+            return None
+
+        def confirm(i, name, image, row):
+            ans = ask(i, name, image, row)
+            if isinstance(ans, (tuple, list)) and len(ans) > 1 and ans[0] == "words":
+                return ("words", self.words.to_prompt(str(ans[1]), tags=as_tags))
+            return ans
+        return confirm
 
     def _draw_phases(self, text, seed, style, size, say, on_preview, meta):
-        """構図 → 体型と姿勢 → 線画 → 塗り → 仕上げの工程に分けて描く（chatdraw/phases.py）。工程ごとに描く・検品する・1 回だけ直す。
-        渡す言葉は頼みの訳と作風だけで、背景や構図の言葉は足さない"""
+        """人の描き方の 12 の工程に分けて描く（chatdraw/phases.py）。工程ごとに描く・測る・1 回だけ直す・崩れが決まった工程へ戻る。
+        渡す言葉は頼みの訳と作風だけで、背景や構図の言葉は足さない。phase_confirm（アプリが入れる）があれば工程ごとに確かめる"""
         import time
         from chatdraw import phases
         from chatdraw.models import family as fam, image_model
-        say("工程に分けて描きます（構図 → 体型と姿勢 → 線画 → 塗り → 仕上げ）")
+        say("工程に分けて描きます（" + " → ".join(phases.NAMES) + "）")
         say("頼みを描く言葉に直しています")
         as_tags = fam(image_model(getattr(self.painter, "model", "")).family).tags
         prompt = self.words.to_prompt(text, tags=as_tags)
@@ -1954,18 +2173,27 @@ class Studio:
         if refused(prompt):
             raise ValueError("子どもを性的に描く頼みは描きません")
         keep = self.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}-phases"
+        from chatdraw import pausekeep
+        model = getattr(self.painter, "model", "")
+        job = {"text": text, "seeds": [seed], "style": style, "size": list(size) if size else None, "meta": meta or {}, "model": model}
         try:
-            got = phases.draw(self.painter, prompt, seed, size, keep, say=say,
-                              on_step=lambda i, n: say(f"描いています（{i}/{n}）"))
+            got = phases.draw(self.painter, prompt, seed, size, keep, say=say, on_preview=on_preview,
+                              on_step=lambda i, n: say(f"描いています（{i}/{n}）"), confirm=self._phase_confirm(as_tags),
+                              pause_key=pausekeep.key("phases", text, seed, style, tuple(size) if size else None, model), pause_job=job)
         finally:
             if hasattr(self.painter, "avoid"):
                 self.painter.avoid = avoid0
         self.last_phases = got["phases"]
         left, checked = got["left"], got["checked"]
-        if left:
-            say("工程を全部通しても崩れが残りました（途中）: " + "、".join(left[:5]))
+        if got.get("blocked"):
+            blocked = got["blocked"]
+            say(f"工程 {blocked['index'] + 1}「{blocked['phase']}」で停止: {blocked['reason']}（未完成）")
+            if left:
+                say("未解決: " + "、".join(left[:5]))
+        elif left:
+            say("工程を全部通しても崩れが残りました（未完成）: " + "、".join(left[:5]))
         elif not checked:
-            say("検品できなかった工程があるので、通ったかは分かりません（途中）")
+            say("検品できなかった工程があるので、通ったかは分かりません（未完成）")
         path = self._save(got["image"], seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style,
                                                    model=getattr(self.painter, "model", ""), way="phases", stages=str(keep),
                                                    phases=got["phases"], passed=checked and not left))
@@ -2077,8 +2305,8 @@ class Studio:
                     for (x0, y0, x1, y1), _kind in detail:
                         cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, y1 - y0) * 0.6
                         d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
-                    words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in detail))
-                    tried = self.painter.redraw(f"{prompt}, {words}, detailed", seed + 991, image, mask, strength=0.4)
+                    # 渡す言葉は頼みの訳だけ（five fingers などの頼んでいない言葉を足さない）
+                    tried = self.painter.redraw(prompt, seed + 991, image, mask, strength=0.4)
                     again = handcheck.check(tried, asked=prompt)
                     self.hand_rounds.append({"round": r, "detail": True, "bad": again["bad"]})
                     if not again["bad"]:
@@ -2094,9 +2322,8 @@ class Studio:
             for (x0, y0, x1, y1), _kind in regions:
                 cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, y1 - y0) * 0.6
                 d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
-            words = ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in regions))
             # 回を重ねるほど強く描き直す（弱いままだと崩れた指の形をなぞり、何回直しても同じ崩れが残った）
-            image = self.painter.redraw(f"{prompt}, {words}", seed + 77 * (r + 1), image, mask, strength=(0.55, 0.65, 0.75, 0.85, 0.9, 0.95)[min(r, 5)])
+            image = self.painter.redraw(prompt, seed + 77 * (r + 1), image, mask, strength=(0.55, 0.65, 0.75, 0.85, 0.9, 0.95)[min(r, 5)])
         return done(image)
 
     def _inspect(self, path: Path, say):

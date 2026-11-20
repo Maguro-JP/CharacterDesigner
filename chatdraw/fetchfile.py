@@ -6,6 +6,8 @@
 - 黙り込んだら打ち切る（timeout）。打ち切りが無いと、相手が繋いだまま何も送らないときに永久に止まる
 - 切れた・黙った・配り元の一時的な不調（429、5xx）は、間を 2・4・8 秒と空けて、続きから取り直す
 - 配り元に無い（404 など）は取り直さない。何度やっても同じ
+- 取り直しても取れなければ、止めて捨てずに一時停止にする。.part と取れたバイト数を残し（chatdraw/pausekeep.py）、
+  次に取るとき（「再開」「続きから」）は残した所から Range で続ける
 - 取れた長さが合わないものは入れ替えない。.part を残して、次は続きから取る
 - .gguf は頭の 4 文字（GGUF）を確かめてから入れ替える。違えば .part を消す（壊れた物を模型として置かない）
 """
@@ -20,6 +22,14 @@ from typing import Callable
 
 class Resumable(Exception):
     """続きから取り直せば直る失敗"""
+
+
+class FetchPaused(Resumable):
+    """取り直しても取れなかったので一時停止した。.part は残っていて、次は続きから取る。key は pausekeep の件"""
+
+    def __init__(self, msg: str, key: str | None = None, got: int = 0):
+        super().__init__(msg)
+        self.key, self.got = key, got
 
 
 def _once(url: str, part: Path, total: int, progress: Callable[[int, int], None], timeout: float, opener) -> None:
@@ -62,7 +72,16 @@ def fetch_resumable(url: str, dest: Path, total: int = 0, progress: Callable[[in
             break
         except Resumable as e:
             if i >= retries:
-                raise
+                from chatdraw import pausekeep
+                got = part.stat().st_size if part.exists() else 0
+                k = pausekeep.key("fetch", url, dest)
+                try:
+                    pausekeep.save(k, "fetch", f"{dest.name} の取得を一時停止（{got / 1e9:.2f}GB まで取れています）",
+                                   {"url": url, "dest": str(dest), "total": total, "got": got})
+                except OSError:
+                    k = None   # 残せなくても .part は残るので、次に取るときは続きから取る
+                raise FetchPaused(f"{e}。一時停止しました（{got / 1e9:.2f}GB まで残しています）。"
+                                  "「再開」で続きから取ります", k, got) from e
             wait = 2 * 2 ** i
             note(f"{e}。{wait} 秒おいて、続きから取り直します（{i + 1}/{retries}）")
             sleep(wait)
@@ -71,5 +90,7 @@ def fetch_resumable(url: str, dest: Path, total: int = 0, progress: Callable[[in
             if f.read(4) != b"GGUF":
                 part.unlink(missing_ok=True)
                 raise ValueError(f"取れたものが GGUF ではありません: {url}")
+    from chatdraw import pausekeep
+    pausekeep.clear(pausekeep.key("fetch", url, dest))
     part.replace(dest)   # 取り終わってから入れ替える。途中で止まっても前の版は使え、次は続きから取る
     return dest

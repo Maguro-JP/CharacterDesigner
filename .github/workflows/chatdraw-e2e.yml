@@ -16,6 +16,30 @@ concurrency:
   group: chatdraw-e2e-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 部品
+        run: sudo apt-get update -q && sudo apt-get install -y -q libegl1 && pip install -q PySide6 numpy scipy scikit-image pillow
+      - name: 綺麗にする加工の回帰試験
+        env:
+          QT_QPA_PLATFORM: offscreen
+          CD_CHECK: "off"
+        run: |
+          # Qt の QApplication を使うテスト群を別プロセスに分ける。
+          # 1 プロセスにまとめると、テスト間の Qt オブジェクト破棄順で runner が segfault する。
+          python -m unittest -v chatdraw.tests.test_finish_quality.CleanKeepsOriginalTest
+          python -m unittest -v chatdraw.tests.test_shortcuts.GroupTest chatdraw.tests.test_shortcuts.MenuTest chatdraw.tests.test_shortcuts.ModelFreeTest
+          python -m unittest -v chatdraw.tests.test_finish2.FinishMenuTest
+          python -m unittest -v chatdraw.tests.test_omakase
+          python -m unittest -v chatdraw.tests.test_origqc
+          python -m unittest -v chatdraw.tests.test_phases
+          python -m unittest -v chatdraw.tests.test_draw_api
   build:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -48,8 +72,14 @@ jobs:
         run: |
           & "C:\Program Files\CharacterDesigner\python\python.exe" -E -s -m chatdraw.e2e "$env:RUNNER_TEMP\e2e"
           $code = $LASTEXITCODE
-          Get-Content "$env:RUNNER_TEMP\e2e\report.json"
+          $report = "$env:RUNNER_TEMP\e2e\report.json"
+          if (Test-Path $report) {
+            Get-Content $report
+          } else {
+            Write-Error "E2E report.json was not created; Python exit code: $code"
+          }
           if ($code -ne 0) { exit $code }
+          if (-not (Test-Path $report)) { exit 1 }
         working-directory: C:\Program Files\CharacterDesigner
       - name: 検品の部品が入ったか
         shell: pwsh

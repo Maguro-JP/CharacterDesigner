@@ -76,7 +76,8 @@ class MemoryRetryTest(unittest.TestCase):
         p = OOMPainter(fails=5, error=MemoryError())
         with self.assertRaises(MemoryError) as got:
             p.paint("knight", 1)
-        self.assertEqual(p.calls, 2, "2 回より多く描いた")
+        self.assertEqual(p.calls, 4, "ディスクへの退避の 3 回目と、模型を降ろして空くのを待ったあとの 4 回目を描いていない")
+        self.assertIsInstance(got.exception, engine.MemoryPaused)   # 諦めて捨てずに一時停止にする
         self.assertIn("メモリが足りず", engine.explain(got.exception))
 
     def test_other_errors_are_not_retried(self):
@@ -140,13 +141,21 @@ class AppSurvivesTest(unittest.TestCase):
         w.close()
 
     def test_oom_twice_fails_gracefully(self):
-        a, w = self.run_draw(OOMPainter(fails=9, error=RuntimeError("CUDA out of memory")))
+        from chatdraw import pausekeep
+        d = TemporaryDirectory()
+        self.addCleanup(d.cleanup)
+        pausekeep.ROOT = Path(d.name) / "paused"
+        self.addCleanup(setattr, pausekeep, "ROOT", None)
+        a, w = self.run_draw(OOMPainter(fails=99, error=RuntimeError("CUDA out of memory")))
         self.assertIsNone(w.thread)
         self.assertEqual(len(w.images), 0)
         self.assertTrue(w.button.isEnabled(), "落ちたあとに次の操作ができない")
         failed = [x for x in w.told if x and "メモリが足りず" in str(x[0])]   # 何が起きたかを 1 行で出す
         self.assertTrue(failed, w.told)
         self.assertIn("メモリが足りず", " ".join(map(str, failed[0])))
+        self.assertIn("一時停止", " ".join(map(str, failed[0])))   # 止めて捨てずに一時停止にし、「再開」を出す
+        self.assertFalse(w.activity.resume_tool.isHidden())
+        self.assertEqual(pausekeep.listing()[0]["job"]["text"], "雪の城の前の騎士")
         w.dirty = False
         w.close()
 
@@ -211,3 +220,42 @@ class AppSurvivesTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class BigModelNeverRefused(unittest.TestCase):
+    """メモリが足りないと見積もった模型も断らず、退避の形で読む（大きな模型が動かせなかった）"""
+
+    def test_over_budget_loads_with_offload(self):
+        from types import SimpleNamespace
+        from chatdraw import engine, membudget as mb
+        mb.set_mode("自動")
+        p = engine.Painter.__new__(engine.Painter)
+        notes = []
+        p._note = notes.append
+        p.offload = ""
+        plan = SimpleNamespace(ok=False, reason="足りない", lighter="", size=(1024, 1024),
+                               ram_peak=lambda: 60.0, vram_peak=lambda: 40.0)
+        p._check_budget(plan, mb.Budget(8.0, 6.0, 10.0, 8.0))   # 60GB の見積もりに 8GB の予算
+        self.assertEqual(p.offload, "sequential")
+        self.assertTrue(p.low_memory)
+        self.assertIn("遅く", notes[-1])
+
+    def test_second_oom_falls_back_to_disk(self):
+        from chatdraw import engine
+
+        class Fake:
+            offload = ""
+            low_memory = False
+
+            def unload(self):
+                pass
+        f, tries, notes = Fake(), [], []
+
+        def run():
+            tries.append(f.offload)
+            if f.offload != "disk":
+                raise MemoryError("out of memory")
+            return "絵"
+        self.assertEqual(engine.memory_retry(f, run, notes.append), "絵")
+        self.assertEqual(tries, ["", "", "disk"])
+        self.assertTrue(any("ディスク" in n for n in notes))

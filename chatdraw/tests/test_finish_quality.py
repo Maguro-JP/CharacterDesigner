@@ -120,21 +120,297 @@ class CleanKeepsOriginalTest(unittest.TestCase):
         row = [got.getpixel((x, 148))[0] - out.getpixel((x, 148))[0] for x in range(180, 205)]
         self.assertTrue(len(set(row)) > 2, row)   # 縁はぼかして移る（一気に変わる継ぎ目にしない）
 
+    def test_eye_highlight_does_not_disable_detail_contrast_elsewhere(self):
+        import numpy as np
+        from types import SimpleNamespace
+
+        # A high-frequency luminance pattern produces both bright and dark detail components.
+        stripe = np.tile(np.array([100, 160], dtype=np.uint8), 32)
+        pixels = np.repeat(stripe[np.newaxis, :, np.newaxis], 64, axis=0)
+        image = Image.fromarray(np.repeat(pixels, 3, axis=2), "RGB")
+        eye = np.zeros((64, 64), dtype=np.float32)
+        eye[0, 0] = 20.0
+
+        with mock.patch.object(finishers, "_gen", lambda _name: SimpleNamespace(
+                line_mask=lambda a: np.zeros(a.shape[:2], dtype=bool))):
+            with mock.patch.object(finishers, "_eye_highlights", lambda _im, _l: (eye, 1)):
+                out = np.asarray(finishers._detail_apply(image))
+
+        # The eye highlight may affect its own pixel, but dark detail elsewhere must remain.
+        self.assertLess(int(out[20, 0, 0]), int(pixels[20, 0, 0]))
+
+    def test_retouch_after_clean_keeps_denoise_when_flaw_count_jitters(self):
+        import numpy as np
+        src = Image.open(SAMPLE).convert("RGB")
+        rt = finishers._gen("retouch")
+        cleaned = finishers.run("clean", src)
+        before = rt.noise(np.asarray(cleaned, dtype=np.float32))
+        out = finishers.run("retouch", cleaned)
+        after = rt.noise(np.asarray(out, dtype=np.float32))
+        first = finishers.LAST_REPORT.get("steps", [{}])[0]
+        self.assertTrue(first.get("used"), finishers.LAST_REPORT)
+        self.assertLess(after, before * 0.95, (before, after, finishers.LAST_REPORT))
+        self.assertFalse(finishers.LAST_QC.get("rejected"), finishers.LAST_QC)
+
+    def test_denoise_reduces_real_sample_noise_without_losing_lines(self):
+        import numpy as np
+        src = Image.open(SAMPLE).convert("RGB")
+        rt = finishers._gen("retouch")
+        before = rt.noise(np.asarray(src, dtype=np.float32))
+        out = finishers.run("denoise", src)
+        after = rt.noise(np.asarray(out, dtype=np.float32))
+        s = finishers.scores(src, out)
+        self.assertLess(after, before * 0.95, (before, after, finishers.LAST_REPORT))
+        self.assertTrue(finishers.LAST_REPORT.get("steps", [{}])[0].get("used"), finishers.LAST_REPORT)
+        self.assertFalse(finishers.LAST_QC.get("rejected"), finishers.LAST_QC)
+        self.assertGreaterEqual(s["ssim"], finishers.VERIFY_SSIM, s)
+        self.assertGreaterEqual(s["line"], finishers.VERIFY_LINE, s)
+
+    def test_denoise_is_available_and_reduces_flat_fill_noise(self):
+        import numpy as np
+        # Flat illustration fill with low-amplitude sensor/render noise and a clean, hard edge.
+        rng = np.random.default_rng(20261119)
+        h, w = 192, 192
+        a = np.empty((h, w, 3), dtype=np.float32)
+        a[:] = (178, 132, 96)
+        a[:, 96:] = (48, 82, 126)
+        a += rng.normal(0, 5.0, a.shape).astype(np.float32)
+        a = np.clip(a, 0, 255)
+        rt = finishers._gen("retouch")
+        before = rt.noise(a)
+        out, report = finishers.step(a, "denoise")
+        after = rt.noise(out)
+        self.assertTrue(report["used"], report)
+        self.assertLess(after, before, (before, after, report))
+        # The denoiser must not wash out the deliberately sharp color boundary.
+        self.assertLess(float(np.abs(out[:, 95] - out[:, 96]).mean()), 100.0)
+        row = next(x for x in finishers.available() if x["name"] == "denoise")
+        self.assertTrue(row["ready"], row)
+
+    def test_denoise_survives_full_quality_guards(self):
+        import numpy as np
+        from chatdraw import facefeat
+        rng = np.random.default_rng(20261121)
+        a = np.empty((192, 192, 3), dtype=np.float32)
+        a[:] = (178, 132, 96)
+        a[:, 96:] = (48, 82, 126)
+        a += rng.normal(0, 5.0, a.shape).astype(np.float32)
+        src = Image.fromarray(np.clip(a, 0, 255).astype("uint8"))
+        before = finishers._gen("retouch").noise(np.asarray(src, dtype=np.float32))
+        with (
+            mock.patch.object(finishers, "face_keep", return_value=None),
+            mock.patch.object(finishers, "face_box_keep", return_value=None),
+            mock.patch.object(finishers, "hand_guard", side_effect=lambda _s, out: (out, {})),
+            mock.patch.object(facefeat, "keep", side_effect=lambda _s, out, _m: (out, {})),
+        ):
+            finishers.LAST_QC.clear()
+            out = finishers.run("denoise", src)
+        after = finishers._gen("retouch").noise(np.asarray(out, dtype=np.float32))
+        self.assertLess(after, before * 0.98, (before, after, finishers.LAST_QC))
+        self.assertFalse(finishers.LAST_QC.get("rejected"), finishers.LAST_QC)
+        self.assertFalse(finishers.LAST_QC.get("verify", {}).get("failed"), finishers.LAST_QC)
+        self.assertTrue(np.any(np.asarray(src) != np.asarray(out)), finishers.LAST_QC)
+        self.assertGreaterEqual(finishers.LAST_QC.get("verify", {}).get("line", 0), finishers.VERIFY_LINE)
+
+    def test_clean_reduces_flat_fill_noise_without_softening_boundary(self):
+        import numpy as np
+        rng = np.random.default_rng(20261120)
+        a = np.empty((192, 192, 3), dtype=np.float32)
+        a[:] = (178, 132, 96)
+        a[:, 96:] = (48, 82, 126)
+        a += rng.normal(0, 5.0, a.shape).astype(np.float32)
+        a = np.clip(a, 0, 255)
+        rt = finishers._gen("retouch")
+        before = rt.noise(a)
+        out = np.asarray(finishers._clean_apply(Image.fromarray(a.astype("uint8"))), dtype=np.float32)
+        after = rt.noise(out)
+        self.assertLess(after, before, (before, after))
+        edge_before = float(np.abs(a[:, 95] - a[:, 96]).mean())
+        edge_after = float(np.abs(out[:, 95] - out[:, 96]).mean())
+        self.assertGreater(edge_after, edge_before * 0.8, (edge_before, edge_after))
+
+    def test_face_finisher_changes_noisy_fill_through_full_guards(self):
+        import numpy as np
+        from chatdraw import facefeat
+        rng = np.random.default_rng(20261122)
+        a = np.empty((192, 192, 3), dtype=np.float32)
+        a[:] = (178, 132, 96)
+        a[:, 96:] = (48, 82, 126)
+        a += rng.normal(0, 5.0, a.shape).astype(np.float32)
+        src = Image.fromarray(np.clip(a, 0, 255).astype("uint8"))
+        rt = finishers._gen("retouch")
+        before = rt.noise(np.asarray(src, dtype=np.float32))
+        with (
+            mock.patch.object(finishers, "face_keep", return_value=None),
+            mock.patch.object(finishers, "face_box_keep", return_value=None),
+            mock.patch.object(finishers, "hand_guard", side_effect=lambda _s, out: (out, {})),
+            mock.patch.object(facefeat, "keep", side_effect=lambda _s, out, _m: (out, {})),
+        ):
+            finishers.LAST_QC.clear()
+            out = finishers.run("face", src)
+        after = rt.noise(np.asarray(out, dtype=np.float32))
+        self.assertTrue(np.any(np.asarray(src) != np.asarray(out)), finishers.LAST_QC)
+        self.assertLess(after, before, (before, after, finishers.LAST_QC))
+        self.assertFalse(finishers.LAST_QC.get("rejected"), finishers.LAST_QC)
+        self.assertFalse(finishers.LAST_QC.get("verify", {}).get("failed"), finishers.LAST_QC)
+
+    def test_around_changes_only_the_marked_region(self):
+        import numpy as np
+        from chatdraw import facefeat, seamfix
+        rng = np.random.default_rng(20261120)
+        a = np.empty((192, 192, 3), dtype=np.float32)
+        a[:] = (178, 132, 96)
+        a[:, 96:] = (48, 82, 126)
+        a += rng.normal(0, 5.0, a.shape).astype(np.float32)
+        src = Image.fromarray(np.clip(a, 0, 255).astype("uint8"))
+        mask = Image.new("L", src.size, 0)
+        from PIL import ImageDraw
+        ImageDraw.Draw(mask).rectangle((48, 48, 143, 143), fill=255)
+        with mock.patch.object(finishers, "face_keep", return_value=None), \
+             mock.patch.object(finishers, "face_box_keep", return_value=None), \
+             mock.patch.object(finishers, "hand_guard", side_effect=lambda _s, out: (out, {})), \
+             mock.patch.object(facefeat, "keep", side_effect=lambda _s, out, _m: (out, {})), \
+             mock.patch.object(seamfix, "whole_check", return_value={}):
+            finishers.LAST_QC.clear()
+            out = finishers.run("around", src, mask)
+        before, after = np.asarray(src), np.asarray(out)
+        outside = np.asarray(mask) < 128
+        self.assertTrue(np.array_equal(before[outside], after[outside]))
+        inside = ~outside
+        self.assertTrue(np.any(before[inside] != after[inside]), f"囲みの中も変わっていません: qc={finishers.LAST_QC!r}, report={finishers.LAST_REPORT!r}")
+
+    def test_defringe_removes_purple_edge_fringe_when_present(self):
+        import numpy as np
+        a = np.full((160, 160, 3), 245.0, dtype=np.float32)
+        a[:, 79:82] = 20.0
+        a[:, 77:79] = (200.0, 60.0, 200.0)
+        a[:, 82:84] = (200.0, 60.0, 200.0)
+        rt = finishers._gen("retouch")
+        before = rt.fringe(a)
+        out, report = finishers.step(a, "defringe")
+        after = rt.fringe(out)
+        self.assertTrue(report["used"], report)
+        self.assertLess(after, before, (before, after, report))
+
+    def test_dejag_reduces_staircase_edges_when_safe(self):
+        import numpy as np
+        a = np.full((160, 160, 3), 255.0, dtype=np.float32)
+        for y in range(20, 140):
+            x = 20 + (y - 20) // 4
+            a[y, x:x + 5] = 0.0
+        rt = finishers._gen("retouch")
+        before = rt.jaggy(a)
+        out, report = finishers.step(a, "dejag")
+        after = rt.jaggy(out)
+        self.assertTrue(report["used"], report)
+        self.assertLess(after, before, (before, after, report))
+
+    def test_scores_distinguish_dark_flat_fill_from_main_lines(self):
+        import numpy as np
+        dark = np.full((64, 64, 3), 89.0, dtype=np.float32)
+        jitter = dark + 4.0
+        q = finishers.scores(Image.fromarray(dark.astype("uint8")), Image.fromarray(jitter.astype("uint8")))
+        self.assertEqual(q["line"], 1.0, q)
+        ink = np.full((64, 64, 3), 255.0, dtype=np.float32)
+        ink[:, 30:34] = 0.0
+        erased = np.full_like(ink, 255.0)
+        q = finishers.scores(Image.fromarray(ink.astype("uint8")), Image.fromarray(erased.astype("uint8")))
+        self.assertLess(q["line"], 0.95, q)
+
+    def test_limit_keeps_denoise_when_local_noise_improves(self):
+        import numpy as np
+        rng = np.random.default_rng(20261121)
+        a = np.empty((192, 192, 3), dtype=np.float32)
+        a[:] = (178, 132, 96)
+        a[:, 96:] = (48, 82, 126)
+        a += rng.normal(0, 5.0, a.shape).astype(np.float32)
+        a = np.clip(a, 0, 255)
+        src = Image.fromarray(a.astype("uint8"))
+        denoised = finishers._retouch(("denoise",))(src)
+        out, report = finishers.limit(src, denoised)
+        rt = finishers._gen("retouch")
+        self.assertGreater(np.count_nonzero(np.asarray(out) != np.asarray(src)), 0, report)
+        self.assertLess(rt.noise(np.asarray(out, dtype=np.float32)), rt.noise(a), report)
+        self.assertLess(report["reverted"], 36, report)
+
+    def test_default_presets_include_guarded_denoise(self):
+        self.assertIn("denoise", finishers.RETOUCH_SAFE)
+        self.assertIn("denoise", finishers.RETOUCH_FULL)
+        self.assertEqual(finishers.RETOUCH_FULL[-1], "dejag")
+
+    def test_default_retouch_reduces_noise_when_noise_is_present(self):
+        import numpy as np
+        rng = np.random.default_rng(20261119)
+        a = np.empty((192, 192, 3), dtype=np.float32)
+        a[:] = (178, 132, 96)
+        a[:, 96:] = (48, 82, 126)
+        a += rng.normal(0, 5.0, a.shape).astype(np.float32)
+        a = np.clip(a, 0, 255)
+        rt = finishers._gen("retouch")
+        before = rt.noise(a)
+        out = finishers._retouch(finishers.RETOUCH_SAFE)(Image.fromarray(a.astype("uint8")))
+        after = rt.noise(np.asarray(out, dtype=np.float32))
+        report = finishers.LAST_REPORT["steps"]
+        denoise = next(row for row in report if row["step"] == "denoise")
+        self.assertTrue(denoise["used"], denoise)
+        self.assertLess(after, before, (before, after, report))
+
+    def test_preserve_lines_does_not_freeze_isolated_specks(self):
+        from PIL import Image, ImageDraw
+        src = Image.new("RGB", (128, 128), (220, 220, 220))
+        draw = ImageDraw.Draw(src)
+        draw.line((10, 64, 110, 64), fill=(10, 10, 10), width=2)
+        draw.point((64, 20), fill=(0, 0, 0))  # 主線から離れた孤立した粒
+        candidate = Image.new("RGB", src.size, (180, 180, 180))
+        out = finishers.preserve_lines(src, candidate)
+        self.assertEqual(out.getpixel((64, 64)), src.getpixel((64, 64)))
+        self.assertEqual(out.getpixel((64, 20)), candidate.getpixel((64, 20)))
+
+    def test_detail_addition_keeps_existing_main_lines(self):
+        import numpy as np
+        src = Image.open(SAMPLE).convert("RGB")
+        a = np.asarray(src, dtype=np.float32)
+        line = finishers.structural_lines(a)
+        out = finishers.run("detail", src)
+        score = finishers.scores(src, out)
+        self.assertGreaterEqual(score["line_recall"], 0.98, score)
+        self.assertTrue(np.array_equal(a.astype("uint8")[line], np.asarray(out)[line]), score)
+
+    def test_air_and_material_effects_preserve_main_lines(self):
+        import numpy as np
+        src = Image.open(SAMPLE).convert("RGB")
+        a = np.asarray(src, dtype=np.float32)
+        line = finishers.structural_lines(a)
+        self.assertGreater(int(line.sum()), 100)
+        for name in ("air_holy", "air_komorebi", "air_haze", "mat_metal", "mat_gem", "mat_slime"):
+            with self.subTest(name=name):
+                out = finishers.run(name, src)
+                score = finishers.scores(src, out)
+                self.assertTrue(np.array_equal(np.asarray(src)[line], np.asarray(out)[line]), (name, score))
+                self.assertGreaterEqual(score["line_recall"], 0.99, (name, score))
+
     def test_real_clean_stays_close_to_original(self):
         src = Image.open(SAMPLE).convert("RGB")
         for name in ("clean", "retouch", "retouch_full"):
-            out = finishers.run(name, src)
-            s = finishers.scores(src, out)
-            self.assertGreaterEqual(s["ssim"], finishers.VERIFY_SSIM, (name, s))
-            self.assertGreaterEqual(s["line"], finishers.VERIFY_LINE, (name, s))
-            self.assertLess(s["color"], 3.0, (name, s))
-            self.assertIn("verify", finishers.LAST_QC)
+            with self.subTest(name=name):
+                out = finishers.run(name, src)
+                s = finishers.scores(src, out)
+                self.assertFalse(finishers.LAST_QC.get("rejected"), (name, finishers.LAST_QC))
+                self.assertFalse(finishers.LAST_QC.get("verify", {}).get("failed"), (name, finishers.LAST_QC))
+                self.assertGreaterEqual(s["ssim"], finishers.VERIFY_SSIM, (name, s))
+                self.assertGreaterEqual(s["line"], finishers.VERIFY_LINE, (name, s))
+                self.assertLess(s["color"], 3.0, (name, s))
+                if name in ("retouch", "retouch_full"):
+                    self.assertTrue(finishers.LAST_REPORT.get("steps", [{}])[0].get("used"), (name, finishers.LAST_REPORT))
+                self.assertIn("verify", finishers.LAST_QC)
 
     def test_upscaled_clean_stays_close(self):
         src = Image.open(SAMPLE).convert("RGB")
         big = src.resize((src.width * 2, src.height * 2), Image.LANCZOS)
         out = finishers.run("retouch", big)
         s = finishers.scores(big, out)
+        self.assertFalse(finishers.LAST_QC.get("rejected"), finishers.LAST_QC)
+        self.assertFalse(finishers.LAST_QC.get("verify", {}).get("failed"), finishers.LAST_QC)
         self.assertGreaterEqual(s["ssim"], finishers.VERIFY_SSIM, s)
         self.assertGreaterEqual(s["line"], finishers.VERIFY_LINE, s)
 

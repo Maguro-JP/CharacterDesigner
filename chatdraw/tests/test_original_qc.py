@@ -102,7 +102,7 @@ class OmakaseFixesFoundFaultsTest(unittest.TestCase):
             image, meta = st.saved
         self.assertIn("redraw", [e[0] for e in log])                       # 描き直しに逃がさず、直す
         self.assertEqual(seen[1], (10, 10, 10))                            # 直した絵を検品し直した
-        self.assertEqual(image.getpixel((0, 0)), (180, 180, 180))           # 囲みの外は変えない
+        self.assertEqual(image.getpixel((0, 0)), (200, 200, 200))           # 囲みの外は変えない（SDXL は学んだ大きさで 1 回描いた色のまま）
         self.assertIn("髪の直し", [s["stage"] for s in meta["omakase"]["steps"]])
         self.assertTrue(meta["passed"])
 

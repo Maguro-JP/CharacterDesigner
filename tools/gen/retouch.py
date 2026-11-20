@@ -215,9 +215,22 @@ def _guided(I: np.ndarray, p: np.ndarray, r: int, eps: float) -> np.ndarray:
 
 
 def denoise(a: np.ndarray, r: int = 3, eps: float = 2e-3) -> np.ndarray:
-    """縁を残してざらつきを消す（明るさをガイドにしたガイド付きフィルター）"""
+    """塗りの低勾配領域だけをガイド付きでならす。主線と強い縁は元の画素を保つ"""
+    from scipy.ndimage import binary_dilation, sobel
+    import cleanup
+
     L = _lum(a)
-    return np.stack([_guided(L, a[..., c] / 255, r, eps) * 255 for c in range(3)], -1)
+    filtered = np.stack([_guided(L, a[..., c] / 255, r, eps) * 255 for c in range(3)], -1)
+
+    # guided filter 単体では細い髪・服のしわの縁までわずかに平滑化し、
+    # 主線面積の減少として検出される。勾配が強い画素と主線の周囲は
+    # 元画像を保持し、塗りの平らな領域だけを連続的に補正する。
+    grad = _grad(L)
+    edge = max(float(np.quantile(grad, 0.80)), 0.05)
+    weight = np.clip((edge - grad) / edge, 0.0, 1.0)
+    protected = binary_dilation(cleanup.line_mask(a), iterations=2)
+    weight[protected] = 0.0
+    return a + (filtered - a) * weight[..., None]
 
 
 def white_balance(a: np.ndarray, strength: float = 0.8) -> np.ndarray:

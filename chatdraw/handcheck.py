@@ -98,6 +98,15 @@ def _keypoints(im) -> dict:
     return _KP[key]
 
 
+def _release_pose() -> None:
+    """体の点の模型（約 350MB）を、1 枚の検品の終わりに離す。描く模型と同じ手元のメモリに居座らせない"""
+    try:
+        from chatdraw import twostage
+        twostage.release_pose()
+    except Exception:   # noqa: BLE001  離せなくても検品の結果は変わらない
+        pass
+
+
 def _face(im, asked: str) -> dict:
     """顔の検品（tools/gen/facecheck.py）。部品が無ければ読めないことを返し、手の検品は止めない"""
     gen = ROOT / "tools" / "gen"
@@ -105,7 +114,15 @@ def _face(im, asked: str) -> dict:
         sys.path.insert(0, str(gen))
     try:
         import facecheck
-        return facecheck.check_face(im, keypoints=_keypoints(im), asked=asked)
+        kp = _keypoints(im)
+        try:
+            kp = facecheck.refine_points(im, kp)
+        except Exception:   # noqa: BLE001  読み直せなければ絵全体の点で見る（顔の検品は止めない）
+            pass
+        finally:
+            _release_pose()
+        precise = bool(kp.pop("_refined", False))
+        return facecheck.check_face(im, keypoints=kp, asked=asked, precise=precise)
     except Exception as e:
         return {"box": None, "readable": False, "bad": [], "reason": f"顔の検品の部品がありません（{e}）"}
 
@@ -128,7 +145,29 @@ def keep_hands(im, found) -> list[str]:
             if ((cx - wx) ** 2 + (cy - wy) ** 2) ** 0.5 <= max(reach, min(w, h) * 0.08):
                 return True
         return False
-    return [b for cx, cy, b in found if cy < floor or near_wrist(cx, cy)]
+    hands_dw = _dw_hands(im)
+
+    def dw_hand(b):
+        # 全身の点の模型（DWPose）が、この枠の近く（枠の 1.25 倍）に手の点を 3 つ以上置いたか
+        x0, y0, x1, y1 = (int(v) for v in b.split(":")[0].split(","))
+        gw, gh = (x1 - x0) * 0.25, (y1 - y0) * 0.25
+        return any(len(pts) >= 5 and sum(x0 - gw <= x <= x1 + gw and y0 - gh <= y <= y1 + gh for x, y in pts) >= 3
+                   for pts in hands_dw)
+    if hands_dw is None and not wrists:
+        return [b for cx, cy, b in found if cy < floor]   # 手首も手の点も読めない。足首より上の物を手として残す
+    # 手首の近くか、DWPose が手を置いた所だけを手とする。足首より上の物を全部残すと、顔だけの絵の唇や、
+    # 袴の絵の胸の花・裾を手と読み、崩れの無い 7 枚のうち 3 枚で「手の形が読めない」と言っていた
+    return [b for cx, cy, b in found if near_wrist(cx, cy) or (hands_dw is not None and dw_hand(b))]
+
+
+def _dw_hands(im):
+    """DWPose の手の点。模型か部品が無ければ None（振り分けを手首だけで行う）"""
+    try:
+        _hands()
+        import feet
+        return feet.hand_points(im)
+    except Exception:   # noqa: BLE001  模型が無い
+        return None
 
 
 def ensure_feet_model(fetch: bool = True) -> bool:
@@ -151,7 +190,20 @@ BLUR_FEET = 0.6   # 足の枠の線の鋭さが絵全体のこの倍より低け
 COVERED_FEET = ("shoes", "boots", "socks", "sneakers", "heels", "loafers", "thighhighs", "pantyhose", "kneehighs", "footwear")
 
 
-def check_feet(im, fetch: bool = True, asked: str = "") -> tuple[list[dict], list[str], str]:
+SHOD_LEAST = 0.5   # 絵のタグで靴・靴下がこれ以上で、素足・足の指が 0.3 未満なら、足の指は見えないものとして数えない
+SHOD_TAGS = ("shoes", "boots", "sneakers", "high heels", "loafers", "sandals", "footwear", "socks", "thighhighs", "pantyhose", "kneehighs")
+
+
+def shod(tags: dict | None) -> bool:
+    """絵のタグで靴を履いているか。頼みの言葉だけで見ていたため、頼まずに描かれた長靴の先を指 2 本と数え、
+    崩れの無い袴の絵などで足を崩れと言っていた（人の判定の台で、足の崩れの無い 66 枚のうち 46 枚）"""
+    t = tags or {}
+    worn = max((v for k, v in t.items() if any(k.endswith(w) for w in SHOD_TAGS)), default=0.0)
+    bare = max(t.get("barefoot", 0.0), t.get("toes", 0.0), t.get("feet", 0.0))
+    return worn >= SHOD_LEAST and bare < 0.3
+
+
+def check_feet(im, fetch: bool = True, asked: str = "", tags: dict | None = None) -> tuple[list[dict], list[str], str]:
     """足の指を数える。返す: 足ごとの結果、bad に足す説明、読めなかった訳（読めたら空）。
     指を数えられなかった足は、靴を頼んでいない限り崩れとして返す（読めない足を通すと、つぶれた指が検品を逃れた）"""
     try:
@@ -161,7 +213,7 @@ def check_feet(im, fetch: bool = True, asked: str = "") -> tuple[list[dict], lis
     except Exception as e:   # 模型か部品が無い。手の検品は続ける
         return [], [], f"足の検品の部品がありません（{e}）"
     bad = []
-    covered = any(c in asked.lower() for c in COVERED_FEET)
+    covered = any(c in asked.lower() for c in COVERED_FEET) or shod(tags)
     side = int(sum(f["box"][2] - f["box"][0] for f in found) / len(found)) if found else 64
     try:
         ref = feet.sharp_reference(im, side) or 1.0
@@ -175,6 +227,8 @@ def check_feet(im, fetch: bool = True, asked: str = "") -> tuple[list[dict], lis
             f["bad"] = [f"指がぼやけている（線の鋭さが絵のはっきりした所の {f['sharp']} 倍）"]
             bad.append(f"足 {i}: " + f["bad"][0])
             continue
+        if covered:
+            continue   # 靴の中の指は見えない。靴の先を指として数えない
         if n is not None and n != 5:
             f["bad"] = [f"指が{'多い' if n > 5 else '足りない'}（{n} 本。5 本のはず）"]   # 直す所の一覧（bad_regions）に入れる
         elif n is None and not covered:
@@ -184,7 +238,7 @@ def check_feet(im, fetch: bool = True, asked: str = "") -> tuple[list[dict], lis
     return found, bad, ""
 
 
-def check(image, fetch: bool = True, asked: str = "") -> dict:
+def check(image, fetch: bool = True, asked: str = "", tags: dict | None = None) -> dict:
     """絵（PIL か道）の手を全部測る。bad に崩れの説明を並べる。readable が False なら手を読めなかった。
     顔の検品も通し、顔の崩れは bad の後ろに足し、顔の枠を faces に返す（asked は頼んだタグ。閉じた目を頼んだかを見る）"""
     from PIL import Image
@@ -198,7 +252,7 @@ def check(image, fetch: bool = True, asked: str = "") -> dict:
         boxes = find_hands(hands, im)
     except Exception as e:   # 部品か模型が無い。描いた絵は止めず、検品が無いことを返す
         res = {"readable": False, "bad": [], "hands": [], "reason": f"検品の部品がありません（{e}）"}
-        res["feet"], res["bad"], why = check_feet(im, fetch, asked)
+        res["feet"], res["bad"], why = check_feet(im, fetch, asked, tags)
         if why:
             res["feet_reason"] = why
         return _add_face(res, im, asked)
@@ -218,7 +272,7 @@ def check(image, fetch: bool = True, asked: str = "") -> dict:
             out["hands"][-1].update(bad=bad, seen=True, unreadable=True)
         out["bad"] += [f"手 {i}: {x}" for x in bad]
     _add_missed_hands(out, im)
-    out["feet"], bad, why = check_feet(im, fetch, asked)
+    out["feet"], bad, why = check_feet(im, fetch, asked, tags)
     out["bad"] += bad
     if why:
         out["feet_reason"] = why

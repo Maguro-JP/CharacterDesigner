@@ -51,6 +51,7 @@ class ActivityPanel(QWidget):
         self.editor.setWordWrap(True)
         self.editor.setToolTip("担当編集者が進めている工程と、検品で見つけたこと")
         self.editor_log: list[str] = []
+        self.phase, self.phase_last, self.words_log = None, None, []   # 工程に分けて描くときの今の工程と、模型に渡した言葉
         self.bar = QProgressBar()
         self.bar.setTextVisible(False)
         self.bar.setFixedHeight(10)
@@ -65,6 +66,14 @@ class ActivityPanel(QWidget):
         self.stop_tool = QToolButton()   # 緊急停止（窓の側で動きを入れる）
         self.stop_tool.setObjectName("emergencyStop")
         self.stop_tool.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        # 一時停止した処理（chatdraw/pausekeep.py）を続きから始める。残っている件があるときだけ出す
+        self.resume_tool = QToolButton()
+        self.resume_tool.setObjectName("resumePaused")
+        self.resume_tool.setText("▶ 再開")
+        self.resume_tool.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.resume_tool.hide()
+        self.resume_tool.clicked.connect(self._resume)
+        self._on_resume = None
         self.list = QListWidget()
         self.list.setViewMode(QListWidget.IconMode)
         self.list.setIconSize(QSize(84, 122))
@@ -82,6 +91,7 @@ class ActivityPanel(QWidget):
         head.addWidget(self.state)
         head.addStretch()
         head.addWidget(self.time)
+        head.addWidget(self.resume_tool)
         head.addWidget(self.stop_tool)
         top.addLayout(head)
         top.addLayout(self.steps)
@@ -113,6 +123,21 @@ class ActivityPanel(QWidget):
         self.pulse.timeout.connect(self._pulse)
         self._pulse_at = 0
         self._mark(-1)
+
+    def offer_resume(self, label: str | None, on_resume=None):
+        """一時停止した件を「再開」のボタンで出す。label が None なら隠す。説明はボタンの中に書かずツールチップに出す"""
+        self._on_resume = on_resume
+        if not label:
+            self.resume_tool.hide()
+            return
+        self.resume_tool.setToolTip(f"{label}\n押すと、保存した所から続きを始めます")
+        self.resume_tool.show()
+
+    def _resume(self):
+        fn, self._on_resume = self._on_resume, None
+        self.resume_tool.hide()
+        if fn is not None:
+            fn()
 
     def _busy(self, on: bool):
         if on:
@@ -148,6 +173,8 @@ class ActivityPanel(QWidget):
 
     def begin(self, text: str, mode: str):
         self.sheet = (1, 1)
+        self.phase, self.phase_last, self.words_log = None, None, []
+        self.detail.setToolTip("")
         self.started = time.time()
         self.text, self.mode = text, mode
         self.state.setText("準備中")
@@ -164,6 +191,15 @@ class ActivityPanel(QWidget):
 
     def status(self, msg: str, step: int | None = None, total: int | None = None):
         import re
+        from chatdraw.phases import WORDS_NOTE
+        if msg.startswith(WORDS_NOTE):
+            # 模型に渡す言葉は今の文を置き換えず、詳細のツールチップにだけ積む（会話にも出さない）
+            self.words_log.append((f"工程 {self.phase[0]}/{self.phase[1]}「{self.phase[2]}」: " if self.phase else "") + msg)
+            self.detail.setToolTip("\n".join(self.words_log[-12:]))
+            return
+        p = re.match(r"工程 (\d+)/(\d+)「([^」]+)」", msg)
+        if p:   # 工程に分けて描く（chatdraw/phases.py）。どの工程かを覚え、帯は全体の進みで出す
+            self.phase = (int(p.group(1)), int(p.group(2)), p.group(3))
         m = re.match(r"(\d+)/(\d+) 枚目", msg)
         if m:
             self.set_sheet(int(m.group(1)), int(m.group(2)))
@@ -175,16 +211,33 @@ class ActivityPanel(QWidget):
             if msg.startswith(head) and i != self.stage:
                 self._mark(i)
                 self.step_started = time.time()
-        if step is not None and total:
-            self._busy(False)
-            self.bar.setRange(0, total)
-            self.bar.setValue(step)
-            self.steps_done, self.steps_total = step, total
+        pct = int(step * 100 / total) if step is not None and total else -1
+        if self.phase:
+            # 工程の中の描画の i/n を、全体（工程の数）の中の進みに直す。前は 1 工程目の i/n で帯が満ち、
+            # 見出しも 1 枚の描き方の「工程 4/5 描画中」になって、1 工程で終わったように見えた
+            i, n, name = self.phase
+            frac = (step / total) if step is not None and total else 0.0
+            pct = int(((i - 1) + min(frac, 1.0)) * 100 / n)
+            if self.phase_last != (i, n) or step is not None:
+                self._busy(False)
+                self.bar.setRange(0, 100)
+                self.bar.setValue(min(pct, 99))   # 最後の工程の描画が満ちても、終わるまでは満たさない
+                self.phase_last = (i, n)
+            if step is not None and total:
+                self.steps_done, self.steps_total = step, total
+            self.state.setText(f"工程 {i}/{n}　{name}" + (f"  {step}/{total}" if step is not None and total else ""))
+            pct = min(pct, 99)
+        else:
+            if step is not None and total:
+                self._busy(False)
+                self.bar.setRange(0, total)
+                self.bar.setValue(step)
+                self.steps_done, self.steps_total = step, total
+            n = f"工程 {self.stage + 1}/{len(STAGES)}　" if 0 <= self.stage < len(STAGES) else ""
+            self.state.setText(n + STAGE_TITLE.get(self.stage, "準備中") + (f"  {step}/{total}" if step is not None and total else ""))
         self.last_step = time.time()
-        n = f"工程 {self.stage + 1}/{len(STAGES)}　" if 0 <= self.stage < len(STAGES) else ""
-        self.state.setText(n + STAGE_TITLE.get(self.stage, "準備中") + (f"  {step}/{total}" if step is not None and total else ""))
         self.detail.setText(msg)   # 今している事を文でも出す（帯だけでは止まって見える）
-        self.changed.emit(f"{self.mode}: {self.state.text()}", int(step * 100 / total) if step is not None and total else -1)
+        self.changed.emit(f"{self.mode}: {self.state.text()}", pct)
         self.progress_view.setToolTip(f"{msg}\n{self.mode}\n{self.text}")
         self._show_time()
 
@@ -278,6 +331,7 @@ class ActivityPanel(QWidget):
         if not self.background:
             self.tick.stop()
         self.steps_done = 0
+        self.phase, self.phase_last = None, None
         self.bar.setRange(0, 1)
         self.bar.setValue(1 if path else 0)
         self._mark(len(STAGES) if path or not record else -1)

@@ -42,20 +42,52 @@ def set_favorite(path: str, on: bool = True, learn: bool = True):
         learn_from(path, "pass")
 
 
+# 学び直しを裏で動かす先。窓が in_background（裏の糸の間は自動の gc を止める）を渡す。無ければ自前の糸で動かす
+RUNNER = None
+_LEARN_LOCK = __import__("threading").Lock()
+
+
+class _Done:
+    """裏で動く学び直しの終わりを待つための印（threading.Thread と同じ join と is_alive を持つ）"""
+
+    def __init__(self):
+        import threading
+        self._ev = threading.Event()
+
+    def join(self, timeout=None):
+        self._ev.wait(timeout)
+
+    def is_alive(self) -> bool:
+        return not self._ev.is_set()
+
+
 def learn_from(path, value: str, reason: str = ""):
     """利用者の判定（★ は通す、戻すは戻す）から作画監督の基準を学び直す（chatdraw/origqc.py）。
-    測るのに数秒かかるので、画面を止めないよう裏で行う。学べなくても ★ そのものは付ける"""
-    import threading
+    測るのに数秒かかるので、画面を止めないよう裏で行う。学べなくても ★ そのものは付ける。
+    ★ を続けて押すと、前は押した数だけ糸が同時に走り、同じ基準のファイル（config/norms.user.json）を重ねて書いた。
+    また素の糸の中で自動の gc が走ると、消えた画面の部品の後片付けが裏の糸で起きてアプリが落ちうる。
+    1 つずつ順に学び（_LEARN_LOCK）、窓があれば窓の裏の処理（gc を止める）で動かす"""
+    done = _Done()
 
     def work():
         try:
-            from chatdraw import origqc
-            origqc.verdict(path, value, reason)
-        except Exception:
+            with _LEARN_LOCK:
+                from chatdraw import origqc
+                origqc.verdict(path, value, reason)
+        except Exception:   # noqa: BLE001
             pass
-    t = threading.Thread(target=work, daemon=True)
-    t.start()
-    return t
+        finally:
+            done._ev.set()
+    run = RUNNER
+    if run is not None:
+        try:
+            run(work)
+            return done
+        except Exception:   # noqa: BLE001  窓が閉じていれば自前の糸で動かす
+            pass
+    import threading
+    threading.Thread(target=work, daemon=True).start()
+    return done
 
 
 def toggle(path: str) -> bool:

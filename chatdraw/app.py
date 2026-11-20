@@ -108,6 +108,33 @@ def exec_once(menu, pos):
     finally:
         menu.deleteLater()
 
+class PhaseAsk(QObject):
+    """精度優先の工程の確かめ。描く糸から呼ばれ、画面の糸に窓を出させて、答えが来るまで描く糸を待たせる。
+    待つ間も止めるボタンは効く（止める旗を 0.2 秒ごとに見る）"""
+    ask = Signal(object)
+
+    def __init__(self, window):
+        super().__init__()
+        self.window = window
+        self.ask.connect(self._show, Qt.QueuedConnection)
+
+    def __call__(self, i, name, image, row):
+        import threading
+        box = {"event": threading.Event(), "answer": "go", "i": i, "name": name, "image": image, "row": row}
+        self.ask.emit(box)
+        painter = getattr(getattr(self.window, "job_studio", None) or self.window.studio, "painter", None)
+        while not box["event"].wait(0.2):
+            if getattr(painter, "stop", False) is True:
+                break
+        return box["answer"]
+
+    def _show(self, box):
+        try:
+            box["answer"] = self.window.ask_phase(box["i"], box["name"], box["image"], box["row"])
+        finally:
+            box["event"].set()
+
+
 class Job(QObject):
     """AI の 1 回分を裏で回す。描く（枚数分）か、直す（regions を渡したとき）"""
     status = Signal(str)
@@ -163,11 +190,29 @@ class Job(QObject):
                 self._draw_all()
             self.done.emit()
         except Exception as e:  # 描けなかった理由を、次に何をすればよいか分かる日本語で会話に出す
-            from chatdraw import debuglog
+            from chatdraw import debuglog, pausekeep
+            if pausekeep.is_pause(e) and self.regions is None:
+                self.paused = self._keep_paused(e)
+                self.failed.emit(PAUSED_HEAD + str(e).splitlines()[0])
+                return
             self.trace = debuglog.exception("描く・直す", e)
             from chatdraw.engine import explain
             from chatdraw.engine import Stopped
             self.failed.emit(explain(e))   # 何が起きたかを 1 行で返す（「描けませんでした」の決まり文句は付けない）
+
+    def _keep_paused(self, e) -> str:
+        """メモリ・時間の打ち切りを、止めて捨てずに一時停止として残す。工程に分けて描いた回は phases.py が途中の工程まで残している。
+        1 回で描く回は、まだ描いていない種と頼みを残し、「再開」でその種から描く。返すのは pausekeep の鍵"""
+        from chatdraw import pausekeep
+        k = getattr(e, "key", None) or getattr(e.__cause__, "key", None)
+        left = self.seeds[getattr(self, "drawn", 0):] or self.seeds
+        job = {"text": self.text, "seeds": left, "style": self.style, "size": list(self.size) if self.size else None,
+               "meta": self.meta, "model": getattr(self.studio.painter, "model", "")}
+        if k and pausekeep.info(k):
+            return k
+        k = pausekeep.key("draw", self.text, left[0], self.style)
+        pausekeep.save(k, "draw", f"「{self.text[:30]}」を描く途中で一時停止（種 {left[0]} から）", job)
+        return k
 
     def _draw_one(self, seed):
         extra = dict(reference=self.reference, ref_scale=self.ref_scale) if self.reference is not None else {}
@@ -195,7 +240,8 @@ class Job(QObject):
             except Stopped:
                 raise
             except Exception as e:   # noqa: BLE001  1 枚だけの失敗で、ほかの枚を取り消さない
-                if not many or "描きません" in str(e):
+                from chatdraw import pausekeep
+                if not many or "描きません" in str(e) or pausekeep.is_pause(e):   # メモリ・時間の打ち切りは一時停止にして残りを残す
                     raise   # 1 枚だけの頼みと、描かない頼み（childsafe）は、今までどおり理由を返して終える
                 self.trace = debuglog.exception(f"{i} 枚目", e)
                 self.reasons.append(f"{i} 枚目: {explain(e)}")
@@ -208,6 +254,9 @@ class Job(QObject):
         from chatdraw.engine import STOP, Stopped
         if STOP.is_set() or getattr(self.studio.painter, "stop", False) is True:
             raise Stopped("止めました")
+
+
+PAUSED_HEAD = "一時停止しました: "   # fail がこの頭を見て「再開」のボタンを出す
 
 
 def fresh_stop(studio=None):
@@ -767,9 +816,30 @@ class Window(QMainWindow):
         count_label.setBuddy(self.ai_panel.count_spin)
         count_label.setToolTip(self.ai_panel.count_spin.toolTip())
         self.count_label = count_label
+        # 描き方のモード（AI モード / 精度優先）。設定の奥に入れると切り替えられず、どちらで描いたか分からなかった
+        from chatdraw.settings import AI_MODE, PRECISE
+        self.way_pick = QComboBox()
+        self.way_pick.addItem("AI モード", AI_MODE)
+        self.way_pick.addItem("精度優先", PRECISE)
+        self.way_pick.setItemData(0, AI_MODE, Qt.ToolTipRole)
+        self.way_pick.setItemData(1, PRECISE + "。構図 → 体型と姿勢 → 線画 → 塗り → 仕上げの順に、工程ごとに検品して描く", Qt.ToolTipRole)
+        self.way_pick.setToolTip("描き方。AI モード: 今までの描き方で速く描く。精度優先: 工程に分けて描き、工程ごとに検品する")
+        self.way_pick.setAccessibleName("描き方")
+        self.way_pick.setCurrentIndex(1 if self.settings.get("draw_way") == PRECISE else 0)
+        self.way_pick.currentIndexChanged.connect(self._pick_way)
+        # 描くボタンの帯に並べると、狭い欄で描くボタンが幅 0 に潰れたので、帯のすぐ上の 1 行に置く
+        way_row = QHBoxLayout()
+        way_row.setSpacing(4)
+        way_label = QLabel("描き方")
+        way_label.setBuddy(self.way_pick)
+        way_label.setToolTip(self.way_pick.toolTip())
+        way_row.addWidget(way_label)
+        way_row.addWidget(self.way_pick, 1)
+        outer = self.ai_panel.layout()
+        outer.insertLayout(max(0, outer.indexOf(line)), way_row)
         line.addWidget(count_label)
         # 描くボタンが横に伸びると、数の欄が幅 0 に潰れて見えなくなった。数が読めて打てる幅を必ず取る
-        self.ai_panel.count_spin.setMinimumWidth(self.ai_panel.count_spin.fontMetrics().horizontalAdvance("99 枚") + 40)
+        self.ai_panel.count_spin.setMinimumWidth(self.ai_panel.count_spin.fontMetrics().horizontalAdvance("9999") + 40)
         line.addWidget(self.ai_panel.count_spin)
         line.addWidget(self.button, 1)
         line.addWidget(self.stop_button)
@@ -1351,6 +1421,8 @@ class Window(QMainWindow):
         from PySide6.QtCore import QTimer
         QTimer.singleShot(0, self, self.sweep_old_redpen)   # 窓に結ぶ（先に閉じて消えた窓では呼ばない）
         self.library_panel = LibraryPanel(self)
+        self.thread_main = QThread.currentThread()
+        self._learn_runner()
         # チャットの会話は閉じても残す（ライブラリーと同じく、試験では出力の置き場の中に作る）
         self.chat.decorate = self.offer_prompt
         self.chat.set_store((DATA if studio is None else Path(self.studio.out)) / "chat.json")
@@ -1815,8 +1887,149 @@ class Window(QMainWindow):
         themes.remove_custom(self.layout_store, name)
 
     def say(self, text: str, who: str = "CharacterDesigner"):
-        """チャットに吹き出しを出す。描く途中の知らせは、言葉の模型に渡す会話には入れない"""
-        return self.chat.add("user" if who == "あなた" else "ai", text, remember=False)
+        """進み具合の知らせ（描いた・検品の結果・工程・取れなかった物など）を進み具合の欄に書く。
+        前はチャットに吹き出しで出していて、チャットが進み具合の履歴になり、会話が埋もれて読み返せなかった。
+        チャットは利用者と AI の会話だけにする（知らせは進み具合の欄の「知らせ」と下の帯で見る）"""
+        if who == "あなた":
+            return None   # 欄に書いた頼みの写しは、進み具合には要らない
+        self.progress_notes = (getattr(self, "progress_notes", []) + [f"{time.strftime('%H:%M')} {text}"])[-40:]
+        act = getattr(self, "activity", None)
+        if act is not None:
+            act.detail.setText(text)
+            # 模型に渡した言葉（activity の words_log）も詳細に残す。知らせだけで上書きすると、渡した言葉が見られなくなった
+            act.detail.setToolTip("\n".join(self.progress_notes[-15:] + list(getattr(act, "words_log", []) or [])[-12:]))
+        self.statusBar().showMessage(text, 8000)
+        return None
+
+    # ---- チャットの相談相手（言葉の模型。chatdraw/assistant.py の converse） ----
+    def chat_state(self) -> str:
+        """言葉の模型に見せる、今の絵・レイヤー・履歴の様子。短く（数行）まとめる"""
+        lines = []
+        c = getattr(self, "canvas", None)
+        if c is not None and c.layers:
+            w, h = c.size_px()
+            names = []
+            for i, layer in reversed(list(enumerate(c.layers))):
+                tag = ("赤ペン" if layer.redpen else "") + ("・隠す" if not layer.visible else "") + ("・選択中" if i == c.current else "")
+                names.append(layer.name + (f"（{tag.strip('・')}）" if tag else ""))
+            lines.append(f"キャンバス: {w}×{h}、レイヤー {len(c.layers)} 枚（上から: {'、'.join(names[:6])}）")
+            marks = len(getattr(getattr(c, "redpen", None), "marks", []) or [])
+            lines.append(f"赤ペンの印: {marks} 個" + ("（「赤ペンで直す」で囲んだ所だけ直せる）" if marks else ""))
+        else:
+            lines.append("キャンバス: まだ絵がない")
+        neg = getattr(getattr(self, "ai_panel", None), "negative", None)
+        if neg is not None and neg.text().strip():
+            lines.append(f"禁止ワード: {neg.text().strip()[:80]}")
+        try:
+            painter = getattr(getattr(self, "studio", None), "painter", None)
+            if getattr(painter, "model", ""):
+                from chatdraw.models import image_model
+                lines.append(f"絵の模型: {image_model(painter.model).name}")
+        except Exception:   # noqa: BLE001  様子が取れなくても会話は続ける
+            pass
+        hist = getattr(self, "history", None)
+        if hist is not None and hist.count():
+            done = [hist.item(i).text().strip() for i in range(max(0, hist.count() - 3), hist.count())]
+            done = [d[:40] for d in done if d]
+            if done:
+                lines.append("最近描いた絵: " + " ／ ".join(done))
+        try:
+            from chatdraw import finishers
+            names = [f.label for f in list(finishers.REGISTRY.values())[:14]]
+            lines.append("加工の名前: " + "、".join(names))
+        except Exception:   # noqa: BLE001
+            pass
+        return "\n".join(lines)
+
+    def chat_action_line(self, act: tuple[str, str]) -> str:
+        kind, arg = act
+        return {"描く": f"この回だけ「{arg}」で描きます（描くワードの欄は変えません）",
+                "赤ペンで直す": "赤ペンで囲んだ所だけを直します",
+                "加工": f"今の絵に「{arg}」を掛けます（新しいレイヤーに置きます）",
+                "模型": f"絵の模型を「{arg}」に替えます",
+                "描くワード": f"描くワードを「{arg}」に書き換えます"}.get(kind, f"{kind} {arg}")
+
+    def offer_chat_action(self, act: tuple[str, str], delay_ms: int = 1500):
+        """操作をする前に、何をするかを 1 行で見せ、少し待ってからする（「やめる」で止められる）"""
+        from PySide6.QtCore import QTimer
+        b = self.chat.add("ai", "する: " + self.chat_action_line(act), remember=False)
+        b.action = act
+        state = {"cancelled": False}
+
+        def stop():
+            state["cancelled"] = True
+            b.set_text(b.text + "\n（やめました）")
+            cancel.setEnabled(False)
+            self.chat._fit(b)
+        cancel = b.add_button("やめる", "この操作をしません", stop)
+        self.chat._fit(b)
+
+        def go():
+            if state["cancelled"]:
+                return
+            cancel.setEnabled(False)
+            done = self.run_chat_action(act)
+            if done:
+                self.chat.add("ai", done, remember=False)
+        QTimer.singleShot(delay_ms, go)
+        return b
+
+    def run_chat_action(self, act: tuple[str, str]) -> str | None:
+        """チャットで頼まれた操作をする。返すのは結果を伝える 1 文（無ければ None）"""
+        from chatdraw import assistant
+        kind, arg = act
+        if kind == "描く":
+            self.watch_chat_result()
+            self.send(arg)
+            return None
+        if kind == "赤ペンで直す":
+            if not getattr(self.canvas.redpen, "marks", None):
+                if "redpen" in self.tool_actions and self.canvas.tool != "redpen":
+                    self.tool_actions["redpen"].trigger()
+                return "赤ペンの印がありません。赤ペンにしたので、直す所を囲んでからもう一度頼んでください"
+            self.watch_chat_result()
+            self.fix_marked()
+            return None
+        if kind == "加工":
+            from chatdraw import finishers
+            key = arg.strip()
+            name = next((n for n, f in finishers.REGISTRY.items() if key in (n, f.label)), None) or next(
+                (n for n, f in finishers.REGISTRY.items() if key and (key in f.label or f.label in key)), None)
+            if name is None:
+                return f"「{arg}」という加工が見つかりませんでした。右クリックの「加工」から選べます"
+            if not self.canvas.layers:
+                return "加工する絵がありません"
+            self.watch_chat_result()
+            self.finish_with(name, background=True)
+            return None
+        if kind == "模型":
+            from chatdraw.models import all_images
+            key = arg.strip().lower()
+            m = next((m for m in all_images() if key and (key in m.name.lower() or key in m.repo.lower())), None)
+            if m is None:
+                return f"「{arg}」という絵の模型が見つかりませんでした。「AI」のメニューの「模型の管理」で探せます"
+            self.switch_model("絵の模型", m.repo)
+            return f"絵の模型を「{m.name}」にしました"
+        if kind == "描くワード" and arg:
+            self.entry.setText(arg)
+            return f"描くワードを「{arg}」にしました（元に戻すときは Ctrl+Z）"
+        return assistant.NO_MODEL if kind is None else None
+
+    def _chat_stream_bridge(self):
+        """裏の糸で流れてくる答えを、画面の糸の吹き出しに渡す橋（窓と同じだけ生きる）"""
+        if getattr(self, "_chat_stream", None) is None:
+            self._chat_stream = Bridge(self)
+            self._chat_stream.got.connect(self._chat_piece, Qt.QueuedConnection)
+        return self._chat_stream
+
+    def _chat_piece(self, text: str):
+        b = getattr(self, "_chat_live", None)
+        if b is None:
+            self.chat.set_busy(False)
+            b = self._chat_live = self.chat.add("ai", text, remember=False, save=False)
+        else:
+            b.set_text(text)
+            self.chat._fit(b)
 
     def chat_send(self, text: str):
         """チャットに書かれた一言に答える。操作ならして、「〜を描いて」なら描く内容に入れて描き、
@@ -1825,7 +2038,7 @@ class Window(QMainWindow):
         self.chat.add("user", text)
         self.watch_chat_result()   # 絵が変わったら、終わったときに縮小した絵を返す
         if getattr(self, "asking", False):
-            self.say("前の答えを待っています。少し待ってからもう一度送ってください")
+            self.chat.add("ai", "前の答えを待っています。少し待ってからもう一度送ってください", remember=False)
             return
         from chatdraw import chatwords
         changed = chatwords.parse(text, self.entry.text())
@@ -1868,17 +2081,36 @@ class Window(QMainWindow):
                 self.chat.set_busy(False)
                 self.chat.add("ai", "描いている間は答えられません。描き終わってからもう一度送ってください")
                 return
-            turns, prompt = list(self.chat.turns[:-1]), self.entry.text().strip()
-            self.in_background(lambda: assistant.answer(words, turns, text, prompt), answered, "言葉の模型の答え待ち")
+            turns, prompt, state = list(self.chat.turns[:-1]), self.entry.text().strip(), self.chat_state()
+            self._chat_live = None
+            bridge = self._chat_stream_bridge()
+            self.in_background(lambda: assistant.converse(words, turns, text, prompt, state, on_piece=bridge.got.emit),
+                               answered, "言葉の模型の答え待ち")
 
         def answered(got):
             self.asking = False
             self.chat.set_busy(False)
+            live, self._chat_live = getattr(self, "_chat_live", None), None
             if isinstance(got, BaseException):
+                if live is not None:
+                    self.chat.list.removeWidget(live)
+                    live.hide()
+                    live.deleteLater()
                 self.chat.add("ai", f"答えられませんでした: {got}")
                 return
-            reply, new = got
-            self.offer_prompt(self.chat.add("ai", reply), new)
+            reply, new, act = got
+            if live is not None:   # 流しながら出した吹き出しを、仕上がった答えにして会話に入れる
+                self.chat.list.removeWidget(live)
+                live.hide()
+                live.deleteLater()
+            b = self.chat.add("ai", reply) if reply else None
+            if reply == assistant.NO_MODEL and b is not None:
+                b.add_button("言葉の模型を取る", assistant.NO_MODEL_HOW, self.manage_models)
+                self.chat._fit(b)
+            if b is not None:
+                self.offer_prompt(b, new)
+            if act is not None:
+                self.offer_chat_action(act)
 
         if commands.needs_model(text, words):
             self.in_background(lambda: commands.by_model(text, words), picked, "言葉の模型の答え待ち")
@@ -2119,9 +2351,8 @@ class Window(QMainWindow):
         elif key == FAV:
             from chatdraw import favmodels
             data = favmodels.load()
-            self.model_label.setText("お気に入り（役目ごと）")
-            self.model_label.setToolTip("役目ごとに選んだ模型で、工程を分けて描きます\n" + "\n".join(
-                f"{label}: {image_model(data[r]).name if r in data else 'おまかせ'}" for r, (label, _t) in favmodels.ROLES.items()))
+            self.model_label.setText(favmodels.label(favmodels.active()))
+            self.model_label.setToolTip("編成の役目ごとの模型で、工程を分けて描きます\n" + self._set_tip(data))
         else:
             self.model_label.setText(image_model(key).name)
             self.model_label.setToolTip("この模型で描きます。短い頼みは 1 回で速く、細かい頼みとプリセットは工程を分けて描きます。押すと切り替えられます")
@@ -2311,6 +2542,9 @@ class Window(QMainWindow):
             meta["source"] = self.fix_source()
         self._apply_avoid()
         self.job_studio = self._fix_studio() if mode == 2 else self.studio
+        if not hasattr(self, "_phase_ask"):
+            self._phase_ask = PhaseAsk(self)
+        self.job_studio.phase_confirm = self._phase_ask if self.settings.get("phase_confirm") else None
         self.before_heavy(self.job_studio.painter)
         self.thread = QThread()
         self.job = Job(self.job_studio, text, seeds, base=base, strength=self.strength.value() / 100,
@@ -2541,7 +2775,10 @@ class Window(QMainWindow):
             else:
                 self.notify("検品: 崩れは見つかりませんでした" + ("（検品できなかった所があります）" if lost else ""),
                             "ok" if not lost else "info", tail)
-        self.in_background(lambda: qcmanual.inspect(img), done, "検品")
+        # 最後に描いた絵の模型の言葉があれば渡し、頼んだ物が描かれたか・頼んでいない物が無いかも見る
+        # 開いた別の絵に、前に描いた絵の言葉を渡さない（open_path・edit_image で消す）
+        asked = getattr(self, "inspect_prompt", "") or ""
+        self.in_background(lambda: qcmanual.inspect(img, asked=asked), done, "検品")
 
     def inspect_marks_then_fix(self):
         """指示の空の囲みの中だけを検品し、見つけた崩れを指示にして 1 回だけ直す。崩れが無ければ何もしない。
@@ -2747,6 +2984,7 @@ class Window(QMainWindow):
         if prompt:
             # 絵の模型に渡した言葉は会話に毎回出さず、書く欄にカーソルを合わせたときだけ出す（頼みとずれた絵が出たときに見られる）
             self.last_model_prompt = prompt
+            self.inspect_prompt = prompt   # 「検品する」で頼んだ物を見る言葉。別の絵を開いたら消す
             self._entry_tip()
         if getattr(self.studio, "last_lost", None) and self.job_kind == "draw":
             self.say("模型に伝わらなかった言葉: " + "、".join(self.studio.last_lost))
@@ -2766,12 +3004,47 @@ class Window(QMainWindow):
         from chatdraw import finishers
         self.run_io(lambda: finishers.embedded(path) or finishers.embed(path, finishers.sidecar(path)), lambda _v: None, "ライブラリーへ保存")
 
+    def _pick_way(self, _i=None):
+        """描くボタンの横の描き方を設定に残し、今の描き手にすぐ効かせる（模型は読み直さない）"""
+        from chatdraw.settings import studio_way
+        self.settings.set("draw_way", self.way_pick.currentData())
+        if getattr(self, "studio", None) is not None:
+            self.studio.way = studio_way(self.settings.get("draw_way"), self.settings.get("ai_way"))
+
+    def ask_phase(self, i: int, name: str, image, row: dict):
+        """工程が終わったところで止まり、その工程の絵をキャンバスに見せて、進めるか描き直すかを選んでもらう"""
+        from PySide6.QtWidgets import QInputDialog, QMessageBox
+        if image is not None:
+            self.canvas.show_overlay(qimage_from_pil(image))
+        left = row["after"] if row.get("fixed") else row.get("found", [])
+        text = (f"工程 {i + 1}「{name}」が終わりました。\n決めた物: {row.get('decides', '')}\n"
+                + ("崩れは見つかりませんでした" if not left else "残った崩れ: " + "、".join(left[:4])))
+        box = QMessageBox(QMessageBox.Question, "工程ごとに確かめる", text, parent=self)
+        box.setObjectName("phase_confirm")
+        if image is not None:
+            box.setIconPixmap(QPixmap.fromImage(qimage_from_pil(image)).scaled(160, 160, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+        go = box.addButton("進める", QMessageBox.AcceptRole)
+        go.setToolTip("この工程の絵を土台にして、次の工程へ進む")
+        redo = box.addButton("この工程を描き直す", QMessageBox.ActionRole)
+        redo.setToolTip("同じ言葉で、種を変えてこの工程だけを描き直す")
+        words = box.addButton("言葉を足して描き直す", QMessageBox.ActionRole)
+        words.setToolTip("足したい言葉を書いて、この工程から描き直す（言葉は訳してから模型に渡す）")
+        box.setDefaultButton(go)
+        box.exec()
+        hit = box.clickedButton()
+        if hit is redo:
+            return "redo"
+        if hit is words:
+            add, ok = QInputDialog.getText(self, "言葉を足して描き直す", "足す言葉:")
+            return ("words", add) if ok and add.strip() else "go"
+        return "go"
+
     def _put_phases(self):
         """工程に分けて描いた回は、工程ごとの絵を描いた絵の下に隠したレイヤーで置き、工程ごとの検品を会話に出す（chatdraw/phases.py）"""
         rows = getattr(self.studio, "last_phases", None) if self.job_kind == "draw" else None
         if not rows:
             return
-        self.canvas.add_phase_layers([(f"工程 {i}: {r['phase']}", r["image"]) for i, r in enumerate(rows, 1)])
+        self.canvas.add_phase_layers([(f"工程 {i}: {r['phase']}", r["image"]) for i, r in enumerate(rows, 1) if r.get("image")])
         for i, r in enumerate(rows, 1):
             left = r["after"] if r["fixed"] else r["found"]
             self.say(f"工程 {i}「{r['phase']}」{r['seconds']} 秒: " + ("崩れは見つかりませんでした" if not left else "残った崩れ " + "、".join(left[:3]))
@@ -3215,15 +3488,42 @@ class Window(QMainWindow):
                                      + (f"（見つからない絵 {len(res['missing'])} 枚）" if res["missing"] else ""), 12000)
         return res
 
+    def _learn_runner(self):
+        """★ から学び直す裏の処理を、この窓の裏の処理（動いている間は自動の gc を止める）で動かす。
+        窓が閉じたら ownstyle は自前の糸に戻る。窓を強く持たない（閉じた窓を残さない）"""
+        import weakref
+        from chatdraw import ownstyle
+        me = weakref.ref(self)
+
+        def run(work):
+            w = me()
+            if w is None or getattr(w, "_io_closed", False):
+                raise RuntimeError("窓が閉じています")
+            from PySide6.QtCore import QThread
+            if QThread.currentThread() is not w.thread_main:
+                raise RuntimeError("画面の糸からだけ渡す")
+            w.in_background(work, lambda _v: None, "★ から学ぶ")
+        ownstyle.RUNNER = run
+
     def judge(self, path: str, verdict: str) -> bool:
         """履歴の右クリック → 判定。記録の無い絵（前の版で描いた絵）は知らせる"""
         from chatdraw import wordlearn
-        ok = wordlearn.set_verdict(path, verdict)
         from chatdraw import userstats
-        userstats.refresh()   # 判定が変わったので、模型の並べ方を測り直す
-        self.statusBar().showMessage((f"判定を付けました: {wordlearn.VERDICTS.get(verdict, '消しました')}" if ok else
-                                      "この絵は学びの記録がありません（前の版で描いた絵です）"), 4000)
-        return ok
+
+        def work():
+            return wordlearn.set_verdict(path, verdict)
+
+        def done(ok):
+            # 判定が変わったので、模型の並べ方を測り直す（測るのは次に並べるとき。ここでは覚えを捨てるだけ）
+            userstats.refresh()
+            if isinstance(ok, BaseException):
+                ok = False
+            self.statusBar().showMessage((f"判定を付けました: {wordlearn.VERDICTS.get(verdict, '消しました')}" if ok else
+                                          "この絵は学びの記録がありません（前の版で描いた絵です）"), 4000)
+        # 記録（数千行）を読み直して書き直すのは裏の列で行う。画面の糸で書くと 1 回 0.4 秒固まった。
+        # 書く列は 1 本なので、続けて押しても同じファイルに重ねて書かない
+        self.run_io(work, done, "判定を付ける")
+        return True
 
     def _history_menu(self, pos, run: bool = True):
         from PySide6.QtWidgets import QMenu
@@ -3247,7 +3547,8 @@ class Window(QMainWindow):
         m.addAction("頼みの言葉を書く欄に入れる", lambda: self._prompt_from(path))
         m.addAction("頼みの言葉を描くワードに登録する", lambda: self._prompt_from(path, pin=True))
         from chatdraw import ownstyle
-        m.addAction("★ お気に入りを外す" if ownstyle.is_favorite(path) else "★ お気に入りにする", lambda: ownstyle.toggle(path))
+        m.addAction("★ お気に入りを外す" if ownstyle.is_favorite(path) else "★ お気に入りにする",
+                    lambda: (ownstyle.toggle(path), self.library_panel.relabel([path])))
         m.addAction("学習用に集める", self.collect_favorites)
         # 判定（良い・悪い・直した）は学びの記録に付ける（chatdraw/wordlearn.py）。検品より弱く数え、「良い」はタグを強めない
         from chatdraw import wordlearn
@@ -3261,7 +3562,7 @@ class Window(QMainWindow):
         m.addSeparator()
         m.addAction("絵をコピー", lambda: self.copy_image(path))
         m.addAction("保存した場所を開く", lambda: self.open_folder(path))
-        m.addAction("3D に進む…", lambda: self.open_3d(path)).setToolTip("この絵から 3D のキャラデザに進む（最初の一歩: 厚みのある板の模型）")
+        m.addAction("3D に進む…", lambda: self.open_3d(path)).setToolTip("この絵から骨付きの 3D キャラ（VRM・glTF）や板の模型を作る")
         from chatdraw import share
         sns = m.addMenu("SNS に送る")
         for name in share.SERVICES:
@@ -3343,7 +3644,7 @@ class Window(QMainWindow):
             if self.history.item(row).data(Qt.UserRole) in gone:
                 self.history.takeItem(row)
         self.images = [p for p in self.images if p not in gone]
-        self.library_panel.refresh()
+        self.library_panel.drop(paths)   # 消した絵だけを外す（前は一覧を作り直し、全部の絵を読み直して 1 回 8〜12 秒固まった）
         self._trash_changed()
         self.notify("ごみ箱へ移しました", "ok", "押すと戻します", on_click=lambda: self.restore_trash(key))
         return key
@@ -3416,7 +3717,7 @@ class Window(QMainWindow):
             if self.history.item(row).data(Qt.UserRole) == str(p):
                 self.history.takeItem(row)
         self.images = [x for x in self.images if x != str(p)]
-        self.library_panel.refresh()
+        self.library_panel.drop([str(p)])
         self._trash_changed()
         if key:
             self.statusBar().showMessage("消したレイヤーの絵をごみ箱へ移しました（「ファイル」→「ごみ箱…」から戻せます）", 8000)
@@ -3774,6 +4075,20 @@ class Window(QMainWindow):
     def open_3d(self, path: str):
         from chatdraw.to3d import To3DDialog
         To3DDialog(path, self).show()
+
+    def chara3d_from_canvas(self):
+        """キャラデザのメニューの入口。今の絵を 1 枚に重ねて保存し、3D に進む画面を開く。絵が無ければ選ばせる"""
+        import tempfile
+        c = self.canvas
+        if c.layers:
+            out = Path(tempfile.mkdtemp(prefix="chara3d-")) / "chara.png"
+            c.flatten().save(str(out))
+            self.open_3d(str(out))
+            return
+        from PySide6.QtWidgets import QFileDialog
+        path, _ = QFileDialog.getOpenFileName(self, "3D にする絵（三面図か 1 枚絵）", "", "画像 (*.png *.jpg *.jpeg *.webp)")
+        if path:
+            self.open_3d(path)
 
     def canvas_menu(self, gpos):
         """絵の上の右クリック（右ボタンを動かさずに離したとき）。よく使う操作をまとめる"""
@@ -4297,7 +4612,8 @@ class Window(QMainWindow):
         studio = Studio(Words(None if words == AUTO else Path(words)), painter, Path(g("output_dir")))
         studio.image_auto, studio.words_auto = g("image_model") == AUTO, words == AUTO
         studio.use_favorites = g("image_model") == favmodels.FAV
-        studio.way = {"1つの模型で描く": "one", "構図と仕上げを分けて描く": "two", "工程に分けて描く": "phases"}.get(g("draw_way"), "auto")
+        from chatdraw.settings import studio_way
+        studio.way = studio_way(g("draw_way"), g("ai_way"))
         if getattr(self, "chara_file", None):   # 模型を替えて作り直しても、開いている人物で描き続ける
             from chatdraw import charafile
             studio.character = charafile.for_studio(self.chara_file)
@@ -4349,6 +4665,10 @@ class Window(QMainWindow):
             self.check_ai()
             self.canvas.set_cursor_style(g("cursor"))
             self.apply_debug_mode()
+            from chatdraw.settings import PRECISE
+            self.way_pick.blockSignals(True)   # 設定で替えた描き方を、描くボタンの横の欄にも出す
+            self.way_pick.setCurrentIndex(1 if g("draw_way") == PRECISE else 0)
+            self.way_pick.blockSignals(False)
             self.statusBar().showMessage("設定を保存しました")
 
     # ---- デバッグモード（chatdraw/debuglog.py） ----
@@ -4560,17 +4880,27 @@ class Window(QMainWindow):
         group = QActionGroup(menu)
         auto = QAction("おまかせ", menu, checkable=True)
         auto.setToolTip("描くときに、手元の模型から頼みに合い点の高い物を選びます")
+        from chatdraw import favmodels
         from chatdraw.favmodels import FAV
-        fav = QAction("お気に入り（役目ごと）", menu, checkable=True)
-        fav.setToolTip("構図・仕上げ・顔・手・背景・直しに、自分で選んだ模型を使います（「役目ごとの模型…」で選びます）")
-        entries = [(AUTO, auto), (FAV, fav)]
+        entries = [(AUTO, auto)]
+        # 編成した物を模型の選択に 1 つずつ出す。選ぶと、その編成の役目ごとの模型で描く（作る・直すは「模型の編成」のメニュー）
+        active_set = favmodels.active()
+        for name in favmodels.sets():
+            data = favmodels.get_set(name)
+            act = QAction(favmodels.label(name), menu, checkable=True)
+            act.setToolTip(self._set_tip(data))
+            entries.append((("set", name), act))
+        now_key = ("set", active_set) if now_image == FAV else now_image
         for m in images:
             label = ("★ " if is_favorite(m.repo) else "") + m.name + (f"　{rating_text(m)}" if m in listed else "")
             ok = m.repo in have or m not in listed
             entries.append((m.repo, QAction(label if ok else f"{label}（未取得）", menu, checkable=True)))
         for key, act in entries:
-            act.setChecked(key == now_image)
-            act.triggered.connect(lambda _=False, k=key: self.switch_model("絵の模型", k))
+            act.setChecked(key == now_key)
+            if isinstance(key, tuple):
+                act.triggered.connect(lambda _=False, n=key[1]: self.use_model_set(n))
+            else:
+                act.triggered.connect(lambda _=False, k=key: self.switch_model("絵の模型", k))
             group.addAction(act)
             menu.addAction(act)
         stars = menu.addMenu("★ お気に入り")
@@ -4583,8 +4913,13 @@ class Window(QMainWindow):
             a.toggled.connect(lambda on, r=m.repo: set_favorite(r, on))
         menu.addAction(QAction("Civitai から探す…", self, triggered=self.open_civitai,
                                toolTip="Civitai の模型と LoRA を見本の絵で探して取ります"))
-        menu.addAction(QAction("役目ごとの模型…", self, triggered=self.open_role_models,
-                               toolTip="構図・仕上げ・顔・手・背景・直しに使う模型を選んで保存します"))
+        sets_menu = menu.addMenu("模型の編成")
+        sets_menu.setToolTipsVisible(True)
+        for text, tip, fn in (("編成を作る…", "構図・仕上げ・背景・顔・身体・髪と加工に使う模型の組を、名前を付けて作ります", self.new_model_set),
+                              ("今の編成を直す…", "今の編成の役目ごとの模型を選び直します", self.open_role_models),
+                              ("今の編成の名前を変える…", "今の編成の名前を変えます", self.rename_model_set),
+                              ("今の編成を消す…", "今の編成を消します（模型そのものは消しません）", self.delete_model_set)):
+            sets_menu.addAction(QAction(text, menu, triggered=lambda _=False, f=fn: f(), toolTip=tip))
         menu.addSeparator()
         fix_menu = menu.addMenu("直しに使う模型")
         fix_menu.setToolTipsVisible(True)
@@ -4657,17 +4992,68 @@ class Window(QMainWindow):
         self.lora_pick.blockSignals(False)
         Window._lora_shown(self)
 
-    def open_role_models(self):
-        """役目ごとのお気に入りの模型を選ぶ窓（chatdraw/favmodels.py）。保存したらお気に入りで描くように替える"""
+    def _set_tip(self, data: dict) -> str:
+        from chatdraw import favmodels
+        from chatdraw.models import image_model
+        return "\n".join(f"{label}: {image_model(data[r]).name if r in data else 'おまかせ'}"
+                         for r, (label, _t) in favmodels.ROLES.items())
+
+    def use_model_set(self, name: str):
+        """模型の選択で編成を選んだとき。その編成を今の編成にして、役目ごとの模型で描く"""
+        from chatdraw import favmodels
+        favmodels.use_set(name)
+        self.switch_model("絵の模型", favmodels.FAV)
+        self._fill_ai_menu()
+
+    def open_role_models(self, name: str | None = None):
+        """編成の役目ごとの模型を選ぶ窓（chatdraw/favmodels.py）。保存したらその編成で描くように替える"""
+        from chatdraw import favmodels
         from chatdraw.favpanel import RoleModelsDialog
-        dlg = RoleModelsDialog(self.have_image_models(), self)
-        if dlg.exec():
-            dlg.store()
-            from chatdraw.favmodels import FAV, any_set
-            if any_set():
-                self.switch_model("絵の模型", FAV)
-            else:
-                self._show_model()
+        name = name or favmodels.active()
+        dlg = RoleModelsDialog(self.have_image_models(), self, data=favmodels.get_set(name), title=f"編成「{name}」")
+        if not dlg.exec():
+            return False
+        favmodels.save_set(name, dlg.values(), use=True)
+        self.use_model_set(name)
+        return True
+
+    def new_model_set(self, name: str | None = None):
+        from chatdraw import favmodels
+        if name is None:
+            from PySide6.QtWidgets import QInputDialog
+            name, ok = QInputDialog.getText(self, "編成を作る", "編成の名前（例: アニメの立ち絵、背景つき）")
+            if not ok:
+                return
+        name = name.strip()
+        if not name or name in favmodels.sets():
+            self.notify("その名前は使えません", "warn", "空か、ほかの編成と同じ名前です")
+            return
+        self.open_role_models(name)
+
+    def rename_model_set(self, new: str | None = None):
+        from chatdraw import favmodels
+        old = favmodels.active()
+        if new is None:
+            from PySide6.QtWidgets import QInputDialog
+            new, ok = QInputDialog.getText(self, "編成の名前", "新しい名前", text=old)
+            if not ok:
+                return
+        try:
+            favmodels.rename_set(old, new)
+        except (KeyError, ValueError) as e:
+            self.notify("名前を変えられません", "warn", str(e).strip("'"))
+            return
+        self._fill_ai_menu()
+        self._show_model()
+
+    def delete_model_set(self, confirm: bool = True):
+        from chatdraw import favmodels
+        name = favmodels.active()
+        if confirm and QMessageBox.question(self, "編成を消す", f"編成「{name}」を消しますか？（模型そのものは消しません）") != QMessageBox.Yes:
+            return
+        favmodels.delete_set(name)
+        self._fill_ai_menu()
+        self._show_model()
 
     def switch_model(self, kind: str, key: str):
         self.feature_tour("model")
@@ -4938,7 +5324,9 @@ class Window(QMainWindow):
             self._end_fix_only()
         self.canvas.show_overlay(None)
         why = (why or "うまくいきませんでした").strip().splitlines()[0]   # 何が起きたかを 1 行で出す（「描けませんでした」の決まり文句は出さない）
-        stop = "止め" in why
+        if why.startswith(PAUSED_HEAD) or "一時停止" in why:   # 止めて捨てずに残した。進みの欄に「再開」を出す
+            self.offer_paused()
+        stop = "止め" in why and "一時停止" not in why
         self.say(why)
         if not stop:
             self._debug_failure("描けませんでした", why, getattr(self.sender(), "trace", "") or getattr(getattr(self, "job", None), "trace", ""))
@@ -4946,7 +5334,7 @@ class Window(QMainWindow):
             self.activity.end("止めました" if stop else why)
         # 進みの欄の 1 回分の外で落ちたときも、理由を右下に出す（出さないと何も起きなかったように見えた）
         self.progress_popup.tell("止めました" if stop else why, "" if stop else why)
-        self.notify("止めました" if stop else why, "info" if stop else "error", "")
+        self.notify("止めました" if stop else why, "info" if stop or "一時停止" in why else "error", "")
         self._end(why)
 
     def pick_color(self):
@@ -5113,8 +5501,9 @@ class Window(QMainWindow):
     def _status_doc(self):
         w, h = self.canvas.size_px()
         self.st_size.setText(f"{w}×{h}")
-        if self.canvas.layers:
-            self.st_layer.setText(self.canvas.layers[self.canvas.current].name)
+        layers = self.canvas.layers
+        if layers:   # 消した直後の古い番号でも落ちない
+            self.st_layer.setText(layers[max(0, min(self.canvas.current, len(layers) - 1))].name)
 
     def build_bottom(self):
         """下の帯。表示と元に戻すの操作を、手の届く下に並べる。「ウィンドウ」から隠せ、上にも移せる"""
@@ -5696,6 +6085,8 @@ class Window(QMainWindow):
         self.layout_store.setValue("state9", self.saveState())
         if getattr(self, "ai_tabs", None) is not None:
             self.ai_tabs.save()
+        from chatdraw import ratings
+        ratings.off_change(self._models_changed)   # 閉じた窓を模型の一覧の知らせ先から外す
         super().closeEvent(e)
 
     def _refresh_layers(self):
@@ -5737,6 +6128,7 @@ class Window(QMainWindow):
         if "redpen" in self.tool_actions:
             self.tool_actions["redpen"].trigger()
         meta = finishers.sidecar(path)
+        self.inspect_prompt = str(meta.get("prompt") or "")   # 絵に埋めた模型の言葉だけを使う。無ければ頼んだ物は見ない
         if meta.get("text"):
             self.entry.setText(meta["text"])
             self.last_text = meta["text"]
@@ -5934,9 +6326,8 @@ class Window(QMainWindow):
         menu.setToolTipsVisible(True)
         # 予想図: 見本の 1 枚を本物の絵の模型でその画風に変えた小さな絵（chatdraw/styleprev/）。名前だけでは仕上がりが分からないので横に出す
         # QMenu は絵の大きさを小さな絵の寸法（16 画素）で描き、スタイルシートの icon-size は効かなかった。その寸法だけを大きくする
-        # スタイルはアプリで 1 つだけ作って持ち続ける。メニューごとに作ってメニューに持たせると、閉じたメニューと一緒に
-        # スタイルが消えたあとも Qt が使い、窓を開け閉めしたあとにアプリごと落ちた
-        menu.setStyle(_big_icon_style())
+        # メニューに独自のスタイル（QProxyStyle）を付けると、右クリックでアプリごと落ちた（0.5.30）。スタイルは付けず、
+        # 小さな絵はメニューの絵の欄に、大きな絵はカーソルを合わせたときのツールチップに出す
         prev = Path(__file__).parent / "styleprev"
         for kind, label, tip, *_ in STYLES:
             name = f"style_{kind}"
@@ -5947,7 +6338,9 @@ class Window(QMainWindow):
                 act.setObjectName("fin:" + name)
             if (prev / f"{kind}.jpg").is_file():
                 act.setIcon(QIcon(str(prev / f"{kind}.jpg")))
-            act.setToolTip(tip + "（左の小さな絵は見本の絵での例）" + ("。囲みの中だけを描き替えます" if mark else "") + ("" if ok or finishers.fetchable(name) else f"（{why}）"))
+            img = prev / f"{kind}.jpg"
+            big = f'<br><img src="{img.as_posix()}" width="160">' if img.is_file() else ""
+            act.setToolTip(tip + "（絵は見本の絵での例）" + big + ("。囲みの中だけを描き替えます" if mark else "") + ("" if ok or finishers.fetchable(name) else f"（{why}）"))
             act.setEnabled((ok or finishers.fetchable(name)) and not self.thread)
         return menu
 
@@ -6008,6 +6401,8 @@ class Window(QMainWindow):
             return act
         add(m, "キャラデザを作る…", lambda: self.chara_design(),
             "設定を書く・目と表情を決める・三面図・表情差分・検品・キャラクターシート・キャラクターファイルへの保存を順に通します")
+        add(m, "3D キャラを作る…", lambda: self.chara3d_from_canvas(),
+            "今の絵（三面図か 1 枚絵）から、骨付きの 3D キャラクター（VRM と glTF）を作り、正面・横・後ろ・動かした姿を撮ります")
         add(m, "キャラクターを新しく作る…", lambda: self.charafile_new(), "設定を書いて、絵の無い人物を作ります。絵はあとから追加資料で足します", False)
         add(m, "キャラクターを開く…", lambda: self.charafile_open(), "キャラクターファイル（.chara）を開いて、その人物で作業します", False)
         try:
@@ -6168,17 +6563,20 @@ class Window(QMainWindow):
 
     # ---- 一括生成（chatdraw/batch.py） ----
 
-    def batch_draw(self, text: str | None = None, count: int = 1, seed: int = 0, as_csv=None) -> bool:
+    def batch_draw(self, text: str | None = None, count: int = 1, seed: int = 0, as_csv=None, jobs=None, start: int = 0) -> bool:
         """頼みの一覧から順に描き、全部をライブラリーに入れる。1 枚が失敗しても残りを描く。止めるは「止める」"""
         from chatdraw import batch, engine
         if self.busy("一括生成"):
             return False
-        if not isinstance(text, str):
-            got = self._batch_dialog()
-            if got is None:
-                return False
-            text, count, seed, as_csv = got
-        jobs, bad = batch.parse(text, count, seed, as_csv)
+        if jobs is not None:   # 一時停止した一括生成を、残した一覧と位置から続ける
+            bad = []
+        else:
+            if not isinstance(text, str):
+                got = self._batch_dialog()
+                if got is None:
+                    return False
+                text, count, seed, as_csv = got
+            jobs, bad = batch.parse(text, count, seed, as_csv)
         if not jobs:
             self.notify("一括生成できませんでした", "info", "頼みが 1 行もありません。1 行に 1 つ書くか、CSV を読んでください")
             return False
@@ -6198,7 +6596,10 @@ class Window(QMainWindow):
                     p.avoid = old
 
         def work(_step):
-            res = batch.run(jobs, draw, say=self.task.status.emit, stopped=engine.STOP.is_set)
+            import json
+            from chatdraw import pausekeep
+            res = batch.run(jobs, draw, say=self.task.status.emit, stopped=engine.STOP.is_set, start=start,
+                            pause_key=pausekeep.key("batch", json.dumps(jobs, ensure_ascii=False)))
             res["failed"] = [(l, t, w) for l, t, w in bad] + res["failed"]
             return res
         self._run_task(work, self._batch_done)
@@ -6252,6 +6653,8 @@ class Window(QMainWindow):
         self.notify("一括生成を終えました", "info" if res["failed"] or res["stopped"] else "ok", batch.summary(res))
         self.say(batch.summary(res))
         self._end("一括生成を終えました")
+        if res.get("paused") is not None:
+            self.offer_paused()   # 残した所から続ける「再開」を出す
 
     def chara_batch(self, paths=None, what=("turnaround", "expressions")) -> bool:
         """キャラクターの一覧（.chara の組）から、三面図と表情差分をまとめて描く"""
@@ -6931,6 +7334,7 @@ class Window(QMainWindow):
     def open_path(self, path: str, restore: bool = False):
         from chatdraw import project
         self.work_save()
+        self.inspect_prompt = ""   # 開いた絵は描いた言葉が分からない。前の絵の言葉で頼んだ物を検品しない
         self.work_key = None   # 作業ファイル・手元の絵は、そのファイルに保存する（絵ごとの作業の置き場は使わない）
         self._fix_from = None if path.endswith(project.SUFFIX) else path   # 記録の無い絵は、直すときに絵からタグを読む
         if path.endswith(project.SUFFIX):
@@ -7147,6 +7551,63 @@ class Window(QMainWindow):
         self.dirty = False
         self.close()
 
+    def offer_paused(self) -> bool:
+        """一時停止して残した件（chatdraw/pausekeep.py）があれば、進みの欄に「再開」を出す。起動したときの「続きから」もここ"""
+        from chatdraw import pausekeep
+        got = pausekeep.listing()
+        if not got:
+            self.activity.offer_resume(None)
+            return False
+        more = f"（ほかに {len(got) - 1} 件）" if len(got) > 1 else ""
+        self.activity.offer_resume(f"続きから: {got[0]['label']}{more}　{got[0]['at']}", lambda: self.resume_paused(got[0]["key"]))
+        dock = self.findChild(QDockWidget, "progress")
+        if dock is not None and dock.isHidden():
+            dock.show()   # 利用者が閉じていた欄でも、残した件があることに気づけるように出す
+        self.notify("続きから始められます", "info", got[0]["label"] + "。進み具合の欄の「再開」で続けます")
+        return True
+
+    def resume_paused(self, k: str) -> bool:
+        """残した件を続きから始める。工程に分けて描く回は、同じ頼み・種・模型で呼び直すと phases.py が残した工程から続ける"""
+        from chatdraw import pausekeep
+        rec = pausekeep.info(k)
+        if rec is None or self.busy("再開"):
+            return False
+        job, kind = rec.get("job") or {}, rec.get("kind")
+        if kind == "batch":
+            pausekeep.clear(k)
+            return self.batch_draw(jobs=job["jobs"], start=int(job.get("start", 0)))
+        if kind == "fetch":
+            from chatdraw.fetchfile import fetch_resumable
+            self.activity.begin(rec["label"], "取得")
+            self._run_task(lambda _s: fetch_resumable(job["url"], Path(job["dest"]), int(job.get("total") or 0),
+                                                      note=self.task.status.emit),
+                           lambda _p: (self.notify("取り終えました", "ok", Path(job["dest"]).name), self._end("取り終えました")))
+            return True
+        if kind == "draw":
+            pausekeep.clear(k)   # 1 回で描く回は、まだ描いていない種から描き直す（途中の工程は持たない）
+        self.say(f"続きから始めます: {rec['label']}")
+        self.activity.begin(job.get("text", ""), "再開")
+        self.button.setEnabled(False)
+        self.stop_button.setEnabled(True)
+        self.batch, self.batch_items = [], []
+        self.job_kind = "draw"
+        self.job_studio = self.studio
+        self.thread = QThread()
+        self.job = Job(self.studio, job.get("text", ""), job.get("seeds") or [0], style=job.get("style", ""),
+                       meta=job.get("meta") or {}, size=tuple(job["size"]) if job.get("size") else self.size_pick.currentData())
+        self._worker = self.job
+        self.job.moveToThread(self.thread)
+        self.thread.started.connect(self.job.run)
+        self.job.status.connect(self.on_status)
+        self.job.preview.connect(self.show_preview)
+        self._record_job(self.job)
+        self.job.one.connect(self.on_one)
+        self.job.done.connect(self.finish)
+        self.job.failed.connect(self.fail)
+        self.gc_guard()
+        self.thread.start()
+        return True
+
     def offer_restore(self):
         """前に閉じずに終わっていて、自動保存が残っていれば、戻すかを聞く（自動保存は消さない）"""
         from chatdraw import project
@@ -7296,6 +7757,7 @@ def main():
         w.open_path(opened)   # AI の結果を別ファイルで開くとき。自動保存から戻すかは聞かない
     else:
         w.offer_restore()
+        w.offer_paused()   # 前に一時停止した処理があれば「続きから」を出す
     # closeEvent を通らずに終わる道（更新を入れて閉じるなど）でも、正しく閉じた印を残す
     app.aboutToQuit.connect(lambda: (w.layout_store.setValue("running", 0), w.layout_store.sync()))
     # 前の回が落ちていたら、記録の場所を知らせる（次に直すときの手がかりにする）

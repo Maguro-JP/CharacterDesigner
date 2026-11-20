@@ -83,7 +83,7 @@ class ManagerTest(unittest.TestCase):
         with TemporaryDirectory() as d, mock.patch.dict(os.environ, {"CD_HOME": d}):
             dlg, _st, _g = self._manager(d)
             rows = [c for c in self._cards(dlg) if hasattr(c, "model")]
-            self.assertEqual(len(rows), len(models.IMAGES))
+            self.assertEqual(len(rows), len(models.listed(models.IMAGES)))   # 推奨に届いた物と手元の物だけを出す
             for c in rows:
                 m, tip = c.model, c.toolTip()
                 self.assertIn(m.name, tip)

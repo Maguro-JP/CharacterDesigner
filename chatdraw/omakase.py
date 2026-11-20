@@ -107,15 +107,15 @@ class Plan:
         for kind, ms in self.fix.items():
             if ms:
                 line.append(f"{KIND_ASPECT[kind]}の直し: {ms[0][0].name}")
-        line.append("小さく描いて広げる、顔と手の描き込みを通す")
+        line.append("検品後の画像を保持（自動の描き込み・仕上げ加工なし）")
         if self.finish:
             line.append("仕上げ: " + "、".join(self.finish))
         return "、".join(line + self.notes)
 
 
-# おまかせが検品を通った絵に黙って掛けてよい仕上げ。形を変えず、大きさも変えない物だけ。
-# 描き直す仕上げ（顔を整える、仕上げの描き直し）は検品を通った絵を崩しうるので、利用者が選んだときだけ使う
-AUTO_FINISH = ("clean", "retouch")   # retouch は形を変えない工程だけ（崩れが増える工程は採らない。docs/knowledge/retouch.md）
+# 生成モデルが出した画像を優先し、自動の後処理で細部や質感を失わないようにする。
+# clean / retouch は手動の加工メニューから利用者が必要なときだけ適用する。
+AUTO_FINISH = ()
 
 
 def auto_finish(tools) -> list:
@@ -164,20 +164,22 @@ def plan(text: str, have: list[ImageModel], seed: int | None = None) -> Plan:
     p = Plan(parts, compose=explore(rank(have, compose_needs(parts), parts["style"]), seed))
     for kind, aspect in KIND_ASPECT.items():
         p.fix[kind] = rank(have, [aspect, STYLE_ASPECT.get(parts["style"], "アニメ")], parts["style"], need_inpaint=True)
-    f = finishers()
-    if f is None:
-        p.notes.append(FINISH_ERROR or "仕上げの部品が無いので仕上げを飛ばします")
-    else:
-        try:
-            tools = f.available()
-            p.finish = auto_finish(tools)
-        except Exception as e:   # 黙って仕上げを外すと、仕上げが効かない訳が利用者に分からなかった
-            p.finish = []
-            p.notes.append(f"仕上げを選べないので飛ばします（{type(e).__name__}: {e}）")
+    # 自動仕上げが無効なら、部品の読込・利用可否の確認自体を行わない。
+    # 手動の加工メニューは別経路で利用できるため、生成の段取りで仕上げ部品を初期化する必要はない。
+    if AUTO_FINISH:
+        f = finishers()
+        if f is None:
+            p.notes.append(FINISH_ERROR or "仕上げの部品が無いので仕上げを飛ばします")
         else:
-            # おまかせで掛けるはずの道具が使えないときは、その訳を出す（入れ忘れた部品は「入れ直して」と出る）
-            p.notes += [f"{t['label']}を飛ばします: {t['reason']}" for t in tools
-                        if isinstance(t, dict) and t.get("name") in AUTO_FINISH and not t.get("ready", True) and t.get("reason")]
+            try:
+                tools = f.available()
+                p.finish = auto_finish(tools)
+            except Exception as e:   # 黙って仕上げを外すと、仕上げが効かない訳が利用者に分からなかった
+                p.finish = []
+                p.notes.append(f"仕上げを選べないので飛ばします（{type(e).__name__}: {e}）")
+            else:
+                p.notes += [f"{t['label']}を飛ばします: {t['reason']}" for t in tools
+                            if isinstance(t, dict) and t.get("name") in AUTO_FINISH and not t.get("ready", True) and t.get("reason")]
     return p
 
 
@@ -203,7 +205,7 @@ def _default_check(image, prompt):
     own = origqc.check(image, prompt)
     bad += own["bad"]
     regions = handcheck.bad_regions(res) + [r for r in own["regions"] if r not in handcheck.bad_regions(res)]
-    return {"readable": bool(res.get("readable", True)) and bool(asked.get("readable")) and own["readable"], "bad": bad,
+    return {"readable": bool(res.get("readable", False)) and bool(asked.get("readable")) and bool(own.get("readable")) and own.get("measured") is True, "bad": bad,
             "regions": regions, "detail": handcheck.detail_regions(res), "notes": own.get("notes", [])}
 
 
@@ -217,6 +219,15 @@ def small_size(size, m: ImageModel):
     w, h = size or fam(m.family).size
     k = fam(m.family).multiple
     return (max(k, int(w * SMALL) // k * k), max(k, int(h * SMALL) // k * k)), (w, h)
+
+
+def draws_small(small, full, m: ImageModel) -> bool:
+    """小さい大きさを頼んだとき、模型が本当に小さく描くか。描く仕組み（engine.native_size）が学んだ大きさへ戻す世代では、
+    小さく頼んでも描く画素の数は仕上がりと同じ（そのあと縮めるだけ）なので False"""
+    from chatdraw.engine import native_size
+    sw, sh = native_size(small, m.family)
+    fw, fh = native_size(full, m.family)
+    return sw * sh < fw * fh * 0.85
 
 
 class Omakase:
@@ -263,15 +274,17 @@ class Omakase:
         say(f"{stage}: {m.name if m else '（模型なし）'}（{why}）")
 
     def fix_region(self, image, kind: str, boxes, prompt_text: str, seed: int, avoid_repo: str, say,
-                   strength: float = 0.6, stage: str = "直し"):
-        """落ちた部位を、その部位が得意な模型で囲みの中だけ直す。描いた模型とは別の物を先に試す"""
+                   strength: float = 0.6, stage: str = "直し", attempt: int = 0):
+        """落ちた部位を、その部位が得意な模型で囲みの中だけ直す。失敗したら次候補へ進む"""
         from PIL import Image
         from chatdraw import handcheck
         cands = self.plan.fix.get(kind, [])
         cands = [c for c in cands if c[0].repo != avoid_repo] + [c for c in cands if c[0].repo == avoid_repo]
         if not cands:
             return image, None
-        m, why = cands[0]
+        # 以前は毎回 cands[0] を使い、検品で失敗しても同じ模型を rounds 回繰り返していた。
+        # attempt ごとに候補を進め、別模型による修正を実際に試す。
+        m, why = cands[attempt % len(cands)]
         self._note(say, f"{KIND_ASPECT[kind]}の{stage}", m, why)
         painter = self.painter_for(m)
         mask = _mask(image.size, boxes)
@@ -297,7 +310,9 @@ class Omakase:
             s_k = seed + 1000 * k
             if k:
                 say(f"検品を通らなかったので、構図を描き直しています（{k + 1}/{tries} 回目）")
-            painter = self.painter_for(m) if m is not None else self.studio.painter
+            # 模型は 1 つの模型で描くときだけ、描く直前に読む。2 段は別の処理で模型を読むので、先に読むと数 GB を無駄に置いたまま
+            # 2 段の模型も読むことになり、メモリが足りずに落ちた・遅くなった
+            painter = self.studio.painter
             prompt = self._prompt(text, m) if m is not None else self.studio.words.to_prompt(text)
             # 書かれていない所（背景・ポーズ・髪・服・表情・構図・光）を種で選んで足す。足さないと毎回同じ無地の立ち絵になった
             from chatdraw.engine import vary_background
@@ -326,6 +341,7 @@ class Omakase:
                     say(f"2 段の構図で止まったので、1 つの模型で描きます（{e}）")
                     image = None
             if image is None:
+                painter = self.painter_for(m) if m is not None else self.studio.painter
                 self._note(say, "構図", m, why, seed=s_k)
                 image = self.hires(painter, m, prompt, s_k, size, say)
             res = self.check(image, prompt)
@@ -339,15 +355,17 @@ class Omakase:
                     by_kind.setdefault(kind, []).append(box)
                 tried = image
                 for kind, boxes in by_kind.items():
-                    tried, _fm = self.fix_region(tried, kind, boxes, text, s_k + 77 * (r + 1), m.repo if m else "", say)
+                    tried, _fm = self.fix_region(tried, kind, boxes, text, s_k + 77 * (r + 1), m.repo if m else "", say,
+                                                               attempt=r)
                 again = self.check(tried, prompt)
                 self.log.append(dict(stage="検品", round=r, bad=list(again["bad"])))
                 if len(again["bad"]) > len(res["bad"]):   # 直しで崩れが増えたら、その直しは消しゴムで消す
                     say("直しで崩れが増えたので、前の絵に戻します")
                     break
                 image, res = tried, again
-            if not res["bad"] and res.get("detail") and not getattr(painter, "stop", False):
-                image, res = self.detail(image, res, text, s_k, m.repo if m else "", prompt, say)
+            # 検品に合格した画像への顔・手・足の自動再描画は行わない。
+            # detail_regions は「検出された部位」であり「描き直しが必要な欠陥」ではない。
+            # 元画像より良くなる保証がないため、部分描画は利用者が明示的に依頼した場合に限る。
             self.log.append(dict(stage="検品", seed=s_k, bad=list(res["bad"]), readable=res["readable"]))
             # 検品できなかった絵は崩れが無いのではなく見ていないだけなので、崩れ 1 つとして数えて比べる。
             # 前は読めない絵（崩れ 0）が、読めて崩れが 1 つの絵より先に選ばれ、崩れを逃がした
@@ -367,6 +385,12 @@ class Omakase:
         if m is None or not fam(m.family).inpaint or not hasattr(painter, "redraw"):
             return painter.paint(prompt, seed, size=size)
         small, full = small_size(size, m)
+        if not draws_small(small, full, m):
+            # 模型が小さい大きさを学んだ大きさ（SDXL は約 100 万画素）に戻して描く世代では、小さく描く段は効かない。
+            # 学んだ大きさで描いた絵を小さく縮めてから広げ直すと、描いた細部の半分以上の画素を捨てて 0.35 の描き直しで埋めることになり、
+            # 線と目がぼけた。仕上がりの大きさで 1 回描き、模型の描いた細部をそのまま使う（札の推奨の大きさ）
+            self.log.append(dict(stage="描く", model=m.repo, size=list(full), why="学んだ大きさで描く世代なので、小さく描いて広げない"))
+            return painter.paint(prompt, seed, size=full)
         say(f"小さく描いてから広げて描き直します（{small[0]}×{small[1]} → {full[0]}×{full[1]}）")
         image = painter.paint(prompt, seed, size=small).convert("RGB").resize(full, Image.LANCZOS)
         whole = Image.new("L", full, 255)

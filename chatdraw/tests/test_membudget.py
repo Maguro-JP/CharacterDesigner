@@ -101,11 +101,13 @@ class PainterBudgetTest(unittest.TestCase):
         self.assertEqual(next(x for x in log if x[0] == "load")[4].get("device_map"), "cuda")
         self.assertFalse(p.low_memory)
 
-    def test_over_budget_stops_before_loading(self):
+    def test_over_budget_loads_with_offload(self):
+        """予算を大きく超える見積もりでも断らず、退避の形で読んで描き、遅くなることを知らせる"""
         p, log, notes, err = run_paint("cagliostrolab/animagine-xl-4.0", 3.0, 0.0, cuda=False)
-        self.assertIsInstance(err, mb.OverBudget)
-        self.assertFalse([x for x in log if x[0] == "load"], "止める前に模型を読んだ")
-        self.assertIn("軽い代わり", engine.explain(err))
+        self.assertIsNone(err)
+        self.assertTrue([x for x in log if x[0] == "load"], "模型を読んでいない")
+        self.assertEqual(p.offload, "sequential")
+        self.assertIn(engine.BIG_NOTE, notes)
 
     def test_small_budget_draws_smaller_and_returns_size(self):
         """予算に合わせて小さく描いたときも、頼んだ大きさに戻す（キャンバスの大きさは変えない）"""
@@ -122,14 +124,13 @@ class PainterBudgetTest(unittest.TestCase):
             for vram in (0, 4, 8, 24):
                 with self.subTest(ram=ram, vram=vram):
                     p, log, notes, err = run_paint("cagliostrolab/animagine-xl-4.0", float(ram), float(vram), cuda=vram > 0)
-                    if err is None:
-                        # 少し超えるだけなら一番軽い設定で描く（engine.Painter.OVER_OK）。大きく超える計画では描かない
+                    self.assertIsNone(err)   # 大きく超えても断らない
+                    if not p.offload:
+                        # 少し超えるだけなら一番軽い設定で描く（engine.Painter.OVER_OK）。大きく超えるなら退避の形（p.offload）
                         b = mb.budget(float(ram), float(vram))
                         k = 1.0 if p.plan.ok else engine.Painter.OVER_OK
                         self.assertLessEqual(p.plan.ram_peak(), b.ram * k)
                         self.assertLessEqual(p.plan.vram_peak(), b.vram * k + 1e-9)
-                    else:
-                        self.assertIsInstance(err, mb.OverBudget)
 
     def test_redraw_scale_follows_budget(self):
         p = engine.Painter("cagliostrolab/animagine-xl-4.0")
@@ -137,8 +138,8 @@ class PainterBudgetTest(unittest.TestCase):
             self.assertEqual(p.redraw_scale((832, 1216), mb.budget(64.0, 0.0)), 1.5)
             k = p.redraw_scale((2048, 2048), mb.budget(13.0, 0.0))
             self.assertLess(k, 1.5)
-            with self.assertRaises(mb.OverBudget):
-                p.redraw_scale((4096, 4096), mb.budget(9.0, 0.0))
+            self.assertEqual(p.redraw_scale((4096, 4096), mb.budget(9.0, 0.0)), 1.0)   # 断らず、退避の形で直す
+            self.assertEqual(p.offload, "sequential")
 
 
 class OneModelTest(unittest.TestCase):
@@ -296,8 +297,14 @@ class UpscaleTilesTest(unittest.TestCase):
         with mock.patch.object(upscale, "_NET", [Net()]):
             a = upscale.x4(img, tile=256)
             b = upscale.x4(img, tile=32)
-            self.assertEqual(downs, ["painter"], "拡大の前に描く模型を降ろしていない")
+            # 読んである拡大の網を使うだけなら、描く模型は降ろさない（次に描くときに読み直さない）
+            self.assertEqual(downs, [], "読んである拡大の網を使うたびに描く模型を降ろした")
             upscale.unload()
+        # 空きが足りないときは、拡大の網を読む前に描く模型を降ろす
+        with mock.patch.object(mb, "budget", lambda *a, **k: mb.Budget(0.5, 0.0, 0.6, 0.0)):
+            mb.exclusive("upscale", upscale.unload, need_gb=upscale.NEED_GB)
+        self.assertEqual(downs, ["painter"], "空きが足りないのに描く模型を降ろしていない")
+        upscale.unload()
         self.assertEqual(a.size, (560, 400))
         self.assertEqual(np.asarray(a).tobytes(), np.asarray(b).tobytes())
         self.assertEqual(mb.tile_for(1.0, 0.0, False), 128)

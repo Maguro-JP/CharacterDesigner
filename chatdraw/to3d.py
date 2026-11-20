@@ -110,8 +110,51 @@ def open_in_blender(blender: str, obj: Path):
     subprocess.Popen([blender, "--python-expr", script])
 
 
+def make_character(src: str | Path, out_dir: str | Path | None = None) -> dict:
+    """骨付きの 3D キャラ（tools/engine/chara3d.py）を作り、4 枚の写しを横に並べた絵の道を info["sheet"] に足す"""
+    root = Path(__file__).resolve().parents[1] / "tools" / "engine"
+    if str(root) not in sys.path:
+        sys.path.insert(0, str(root))
+    import chara3d
+    src = Path(src)
+    out = Path(out_dir) if out_dir else src.parent / f"{src.stem}-chara3d"
+    info = chara3d.make(src, out)
+    shots = [Image.open(info[f"shot_{k}"]) for k in ("front", "side", "back", "pose")]
+    sheet = Image.new("RGB", (sum(i.width for i in shots), max(i.height for i in shots)), "white")
+    x = 0
+    for im in shots:
+        sheet.paste(im, (x, 0))
+        x += im.width
+    info["sheet"] = str(out / f"{src.stem}-views.png")
+    sheet.save(info["sheet"])
+    return info
+
+
+def run_in_background(fn, on_done, parent=None):
+    """fn を裏の糸で動かし、結果（例外なら例外）を画面の糸で on_done に渡す。戻り値は持っておく物"""
+    import threading
+    from PySide6.QtCore import QObject, Signal
+
+    class _Relay(QObject):
+        finished = Signal(object)
+
+    relay = _Relay(parent)
+    relay.finished.connect(on_done)
+
+    def work():
+        try:
+            result = fn()
+        except Exception as e:  # noqa: BLE001  理由を画面に出すために全部受ける
+            result = e
+        relay.finished.emit(result)
+
+    t = threading.Thread(target=work, daemon=True)
+    t.start()
+    return relay, t
+
+
 class To3DDialog:
-    """絵から 3D に進む画面。作る、Blender で開く（無ければ取りに行く）の 2 つだけを置く"""
+    """絵から 3D に進む画面。骨付きの 3D キャラを作る、板の模型を作る、Blender で開く（無ければ取りに行く）を置く"""
 
     def __new__(cls, path: str, parent=None):
         from PySide6.QtCore import Qt, QUrl
@@ -127,6 +170,10 @@ class To3DDialog:
         status = QLabel("")
         lay.addWidget(status)
         row = QHBoxLayout()
+        rig = QPushButton("骨付きの 3D キャラを作る")
+        rig.setToolTip("三面図か 1 枚絵から、骨付きでアニメ調の陰の 3D（VRM と glTF）を作り、正面・横・後ろ・動かした姿を撮る。"
+                       "ゲームの道具（Unity、Unreal、Godot）や VRM の道具で読めます")
+        shot = QLabel(alignment=Qt.AlignCenter)
         make = QPushButton("模型を作る")
         make.setToolTip("人物を切り抜き、厚みのある板の模型（OBJ）を絵の隣のディレクトリに作る")
         blender = find_blender()
@@ -147,10 +194,29 @@ class To3DDialog:
             elif not blender:
                 QDesktopServices.openUrl(QUrl(BLENDER_URL))
 
+        def done(result):
+            rig.setEnabled(True)
+            if isinstance(result, Exception):   # 人物が切り抜けない絵など。理由を出して押し直せるようにする
+                status.setText(f"作れませんでした: {result}")
+                return
+            dlg.info = result
+            shot.setPixmap(QPixmap(result["sheet"]).scaled(560, 220, Qt.KeepAspectRatio, Qt.SmoothTransformation))
+            status.setText(f"作りました: {Path(result['vrm']).name} と .glb（{Path(result['vrm']).parent}）")
+            QDesktopServices.openUrl(QUrl.fromLocalFile(str(Path(result["vrm"]).parent)))
+
+        def do_rig():
+            # 裏の糸で作り、終わったら信号で画面に戻す（前で作ると 20 秒ほどアプリが固まった）
+            status.setText("作っています（20 秒ほど。ほかの操作はそのまま続けられます）…")
+            rig.setEnabled(False)
+            dlg.job = run_in_background(lambda: make_character(path), done, dlg)
+
+        rig.clicked.connect(do_rig)
         make.clicked.connect(do_make)
         go.clicked.connect(do_go)
+        lay.addWidget(shot)
+        row.addWidget(rig)
         row.addWidget(make)
         row.addWidget(go)
         lay.addLayout(row)
-        dlg.make_button, dlg.go_button, dlg.status = make, go, status
+        dlg.make_button, dlg.go_button, dlg.status, dlg.rig_button = make, go, status, rig
         return dlg

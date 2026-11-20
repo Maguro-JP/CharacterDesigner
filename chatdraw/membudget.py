@@ -242,10 +242,22 @@ _LOADED: dict = {}   # 名前 → 降ろす関数
 _LOCK = threading.Lock()
 
 
-def exclusive(name, unload):
+def exclusive(name, unload, need_gb: float | None = None):
     """name の模型を読む前に、ほかに載っている模型（描く、加工、拡大、切り抜き）を全部降ろし、gc と CUDA の溜めを空ける。
-    2 つの模型が同時にメモリに残ると、その分だけ山が上がって落ちた"""
+    2 つの模型が同時にメモリに残ると、その分だけ山が上がって落ちた。
+    need_gb（小さな模型が読むのと 1 回動かすのに要る GB）を渡したときは、空きがそれより多ければ、ほかの模型を降ろさない。
+    前は 18MB の拡大の模型や自動選択の模型を使うたびに、7GB の絵の模型を降ろしていた。次に描くときに絵の模型を
+    読み直すことになり、同じ模型で続けて描くだけで毎回数十秒の読み込みが挟まった"""
     from chatdraw.engine import release_memory
+    if need_gb is not None:
+        try:
+            room = budget().ram >= need_gb
+        except Exception:   # noqa: BLE001  測れなければ前と同じく降ろす
+            room = False
+        if room:
+            with _LOCK:
+                _LOADED[name] = unload
+            return
     with _LOCK:
         others = [(k, f) for k, f in _LOADED.items() if k != name]
         for k, _f in others:

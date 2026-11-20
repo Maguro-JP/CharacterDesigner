@@ -1,0 +1,114 @@
+# 描いたキャラデザから骨付きの 3D（VRM と glTF）を作り、正面・横・後ろ・動かした姿を撮る（tools/engine/chara3d.py）。
+# 頼みは config/chara3d-request.json。リポジトリは公開しているので重い処理（画像から 3D の模型 TripoSR、CPU で数分）は Actions の枠で回す。
+# plate: 膨らませた板の形（numpy と Pillow だけ、数十秒）。triposr: 形は TripoSR、色と顔は描いた絵を貼って組み合わせる（失敗しても plate は残る）。
+# どちらも書き出した .vrm と .glb を、glTF の検査器と three-vrm で読めるか確かめる（tools/engine/vrm_check.mjs）。
+name: chara3d
+on:
+  push:
+    paths:
+      - "config/chara3d-request.json"
+      - "tools/engine/chara3d.py"
+      - "tools/engine/vrm_check.mjs"
+      - ".github/workflows/chara3d.yml"
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: chara3d-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  plate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install numpy pillow
+      - name: 試験
+        run: python -m unittest tests.test_chara3d
+      - name: 作る
+        run: |
+          IMG=$(python -c "import json;print(json.load(open('config/chara3d-request.json'))['image'])")
+          VIEWS=$(python -c "import json;print(json.load(open('config/chara3d-request.json')).get('views',3))")
+          mkdir -p out
+          python tools/engine/chara3d.py "$IMG" out/plate --views "$VIEWS" | tee out/plate.log
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: ほかの道具で読めるか（glTF の検査器と three-vrm。版を固定）
+        run: |
+          mkdir -p .cache/vrmcheck && cp tools/engine/vrm_check.mjs .cache/vrmcheck/
+          cd .cache/vrmcheck && npm init -y >/dev/null && npm i --no-audit --no-fund three@0.169.0 @pixiv/three-vrm@3.1.0 gltf-validator@2.0.0-dev.3.10
+          set -o pipefail
+          node vrm_check.mjs $(ls ../../out/plate/*.vrm ../../out/plate/*.glb) | tee ../../out/plate/vrm-check.txt
+      - uses: actions/upload-artifact@v4
+        with:
+          name: chara3d-plate
+          path: out/
+  triposr:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    continue-on-error: true   # 外の模型の取得や版の違いで落ちても、plate の結果は使えるように
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      # 外のコードは、中身を読んで確かめたコミットに固定する（main を取ると、確かめていないコードが動く）。
+      # TripoSR 107cefdc（MIT）: run.py と tsr/ を検索で読み、外へ出るのは Hugging Face からの模型の取得だけ、
+      # 外のコマンドの実行は無いことを確かめた。重みは torch.load（pickle）で読むので、重みも版を固定して取る。
+      # requirements.txt は丸ごと入れず（gradio など使わない物と、版の無い git の取得を含む）、run.py が読む部品だけを版付きで入れる
+      - name: TripoSR を取る（MIT、確かめたコミットに固定。CPU 版 torch）
+        env:
+          TRIPOSR_SHA: 107cefdc244c39106fa830359024f6a2f1c78871
+          TORCHMCUBES_SHA: a9ac95aa329957ba646e7bb057f825f5dfa77f38
+          WEIGHTS_REV: 5b521936b01fbe1890f6f9baed0254ab6351c04a   # stabilityai/TripoSR（MIT）
+        run: |
+          git clone --filter=blob:none --no-checkout https://github.com/VAST-AI-Research/TripoSR .cache/TripoSR
+          git -C .cache/TripoSR checkout "$TRIPOSR_SHA"
+          pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cpu
+          pip install "numpy<2" omegaconf==2.3.0 Pillow==10.1.0 einops==0.7.0 transformers==4.35.0 trimesh==4.0.5 \
+            rembg==2.0.59 huggingface-hub==0.17.3 "imageio[ffmpeg]==2.33.1" xatlas==0.0.9 moderngl==5.10.0 \
+            scikit-build-core cmake ninja pybind11
+          # torchmcubes は入れた torch に合わせて組む（分けた環境で組むと torch が見つからず落ちた）
+          pip install --no-build-isolation "git+https://github.com/tatsy/torchmcubes.git@$TORCHMCUBES_SHA"
+          huggingface-cli download stabilityai/TripoSR config.yaml model.ckpt --revision "$WEIGHTS_REV" --local-dir .cache/TripoSR-weights
+      - name: 正面を切り出して形を作る
+        run: |
+          IMG=$(python -c "import json;print(json.load(open('config/chara3d-request.json'))['image'])")
+          python - "$IMG" <<'PY'
+          import sys; sys.path.insert(0, "tools/engine")
+          import chara3d
+          from PIL import Image
+          img = Image.open(sys.argv[1])
+          front = chara3d.split_views(img, 3 if img.width >= img.height * 0.8 else 1)[0]
+          rgba, _ = chara3d.crop_view(front)
+          side = int(max(rgba.size) / 0.85)
+          # TripoSR は灰色の地の絵を受ける。背景抜き（rembg の模型の取得）は使わず、こちらで切り抜いた絵を灰色に載せる
+          sq = Image.new("RGB", (side, side), (127, 127, 127)); sq.paste(rgba, ((side - rgba.width) // 2, (side - rgba.height) // 2), rgba)
+          sq.save("front.png")
+          PY
+          mkdir -p out/triposr/0   # run.py は出力の置き場を作らずに書き、落ちた
+          cd .cache/TripoSR && python run.py ../../front.png --device cpu --no-remove-bg --output-dir ../../out/triposr \
+            --model-save-format obj --mc-resolution 192 --pretrained-model-name-or-path ../TripoSR-weights
+      - name: 形は TripoSR、色と顔は描いた絵で組み合わせて骨を付ける
+        run: |
+          IMG=$(python -c "import json;print(json.load(open('config/chara3d-request.json'))['image'])")
+          VIEWS=$(python -c "import json;print(json.load(open('config/chara3d-request.json')).get('views',3))")
+          python tools/engine/chara3d.py "$IMG" out/mix --views "$VIEWS" --mesh out/triposr/0/mesh.obj | tee out/mix.log
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: ほかの道具で読めるか（glTF の検査器と three-vrm。版を固定）
+        run: |
+          mkdir -p .cache/vrmcheck && cp tools/engine/vrm_check.mjs .cache/vrmcheck/
+          cd .cache/vrmcheck && npm init -y >/dev/null && npm i --no-audit --no-fund three@0.169.0 @pixiv/three-vrm@3.1.0 gltf-validator@2.0.0-dev.3.10
+          set -o pipefail
+          node vrm_check.mjs $(ls ../../out/mix/*.vrm ../../out/mix/*.glb) | tee ../../out/mix/vrm-check.txt
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chara3d-triposr
+          path: out/

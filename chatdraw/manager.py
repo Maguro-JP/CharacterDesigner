@@ -21,7 +21,7 @@ from PySide6.QtCore import QObject, Qt, Signal
 from PySide6.QtWidgets import (QComboBox, QDialog, QFrame, QHBoxLayout, QInputDialog, QLabel, QLineEdit, QMenu, QMessageBox,
                                QProgressBar, QPushButton, QToolButton, QVBoxLayout, QWidget)
 
-from chatdraw.models import FILTERS, HIDDEN, SORTS, WORDS, ImageModel, catalog_images, family, fits, machine, pick, verified_words
+from chatdraw.models import FILTERS, HIDDEN, SORTS, WORDS, ImageModel, catalog_images, family, fits, listed, machine, pick, verified_words
 from chatdraw.paths import GGUF, HUB, OWN_LLM
 from chatdraw.setup import AUTO, Fetcher, folder_gb
 
@@ -77,7 +77,7 @@ def tip(m: ImageModel, have: bool, pc: tuple[float, float] | None = None) -> str
              f"得意: {m.good}" if m.good else "", f"大きさ: {m.gb:.1f}GB", "取得済み" if have else "まだ取っていません",
              f"商用: {license_gist(m)}"]
     if pc is not None and fits(m, *pc) == "no":
-        lines.append("この PC ではメモリが足りません")
+        lines.append("この PC ではメモリが足りないので、退避して動かします（とても遅い）")
     return "\n".join(x for x in lines if x)
 
 
@@ -251,7 +251,9 @@ class ModelManager(QDialog):
                                           "使用中" if auto else "使う", None if auto else self.use_auto))
             self.list.addWidget(self._sets_row())
         catalog = catalog_images()
-        shown = pick(catalog, self.filter.currentText(), self.sort.currentText(), self.chosen_tags, have=mine)
+        # 一覧に出すのは、推奨に届いた物と手元の物と自分で足した物だけ（models.shown）。点の届かない物は見せない
+        offer = catalog if hiding else listed(catalog, mine)
+        shown = pick(offer, self.filter.currentText(), self.sort.currentText(), self.chosen_tags, have=mine)
         known = {m.repo for m in catalog}
         # 目録に無い手元の物（前に取った物、手で置いた物）は、点やタグを持たないので「すべて」と「取得済み」でだけ出す。
         # 前はどの絞り込みでも出し、絞り込めたかが分からなかった
@@ -304,8 +306,8 @@ class ModelManager(QDialog):
         """ボタン（名前と働き）。取っていなければ「取る」、取ってあれば「使う」、使っている物は「使用中」。削除は「…」の中"""
         if it is None:
             return "取る", (lambda _=False, m=m: self.fetch(m))
-        if self.settings.get("image_model") == key:
-            return "使用中", None
+        if self.settings.get("image_model") == key:   # 使用中でも消せる（消す前にメモリから降ろす）
+            return "使用中", None, "削除", (lambda _=False, it=it: self.ask_delete(it))
         return "使う", (lambda _=False, key=key, m=m: self.use(key, m)), "削除", (lambda _=False, it=it: self.ask_delete(it))
 
     def _more(self, m: ImageModel, actions: tuple) -> QMenu:
@@ -340,7 +342,7 @@ class ModelManager(QDialog):
             bool(mine and getattr(w, "drawing", lambda: False)()))
         add("メモリから降ろす", lambda m=m: self.unload(m), "読み込んだこの模型をメモリから降ろします。次に描くときに読み直します",
             bool(mine and w.studio.painter.loaded()))
-        if len(actions) > 2 and actions[3] is not None and not blocked:
+        if len(actions) > 2 and actions[3] is not None:   # 非表示・ブロックした模型も、表示に戻さずにそのまま消せる
             menu.addSeparator()
             menu.addAction(actions[2], actions[3])
         return menu
@@ -395,7 +397,7 @@ class ModelManager(QDialog):
         using = self.settings.get("image_model") == favmodels.FAV
         self.set_use = QPushButton("使用中" if using else "使う")
         self.set_use.setEnabled(not using)
-        self.set_use.setToolTip("この編成で描きます（絵の模型を「お気に入り（役目ごと）」にします）")
+        self.set_use.setToolTip("この編成で描きます（模型の選択にこの編成を選びます）")
         self.set_use.clicked.connect(self.use_sets)
         top.addWidget(title)
         top.addWidget(self.set_pick, 1)
@@ -525,7 +527,7 @@ class ModelManager(QDialog):
         clear = self.tag_menu.addAction("絞らない", lambda: self.set_tags([]))
         clear.setEnabled(bool(self.chosen_tags))
         self.tag_menu.addSeparator()
-        for t in all_tags(catalog_images()):
+        for t in all_tags(listed(catalog_images(), {it.key for it in installed() if it.kind == "image"})):
             a = self.tag_menu.addAction(t)
             a.setCheckable(True)
             a.setChecked(t in self.chosen_tags)
@@ -679,6 +681,10 @@ class ModelManager(QDialog):
         if ok != QMessageBox.Yes:
             return
         try:
+            w = self.parent()
+            painter = getattr(getattr(w, "studio", None), "painter", None)
+            if painter is not None and getattr(painter, "model", None) == getattr(it, "key", None) and hasattr(painter, "unload"):
+                painter.unload()   # 使用中の模型は、降ろしてから消す（読み込んだまま消すと、次に描くときに落ちる）
             delete(it)
             self.status.setText(f"{it.name} を消しました")
         except Exception as e:

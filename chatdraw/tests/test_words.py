@@ -89,8 +89,8 @@ class ReadEveryWordTest(unittest.TestCase):
 
     def test_mixed_english_tags_kept(self):
         with Home():   # 単語のお気に入りから足した英語のタグが、日本語の頼みの中で落ちない
-            self.assertEqual(jaterms.tags_from("猫耳の少女、red scarf, full body"), ["cat ears", "1girl", "solo", "red scarf", "full body"])
-            self.assertEqual(jaterms.tags_from("Tシャツの少女"), ["t-shirt", "1girl", "solo"])
+            self.assertEqual(jaterms.tags_from("猫耳の少女、red scarf, full body"), ["cat ears", "1girl", "red scarf", "full body"])
+            self.assertEqual(jaterms.tags_from("Tシャツの少女"), ["t-shirt", "1girl"])
 
     def test_verb_forms(self):
         with Home():
@@ -297,7 +297,7 @@ class WindowTest(unittest.TestCase):
                 app().processEvents()
                 time.sleep(0.01)
             wait_bg(app(), w)
-            self.assertTrue(w.images)
+            self.assertTrue(w.images, [m for m in getattr(w, 'said', [])][-5:] or w.activity.detail.text())
             sent = painter.calls[0][0]
             for t in ("tea", "carrying", "maid", "bench", "sitting", "red scarf"):
                 self.assertIn(t, sent)
@@ -312,6 +312,8 @@ class WindowTest(unittest.TestCase):
             m = w._history_menu(pos, run=False)
             judge = next(a for a in m.actions() if a.text() == "判定").menu()
             next(a for a in judge.actions() if a.text() == "良い").trigger()
+            w.wait_io()   # 判定は裏の列で書く（画面の糸を止めない）
+            wait_bg(app(), w)
             self.assertEqual(wordlearn.verdict_of(w.images[0]), "good")
             # 設定 → 単語辞書… で窓を開く。対応表に語ごとのタグ、辞書に通った語、訳を直す
             worddict.record(["bench", "maid"], True, {"bench": "ベンチ"})

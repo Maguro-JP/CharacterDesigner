@@ -127,6 +127,7 @@ class ImageModel:
     strong: tuple = ()
     weak: tuple = ()
     cannot: tuple = ()
+    retired: str = ""      # 目録から外した理由（空は外していない）。外した物は一覧に出さず、手元にある物だけ「取得済み」に出す。手元のファイルは消さない
 
     @property
     def hub(self) -> str:
@@ -163,7 +164,8 @@ def _entry(m: dict, user: bool = False) -> ImageModel:
                       user=user, note=m.get("note", ""), vram=m.get("vram", 0.0), ram=m.get("ram", 0.0),
                       tags=tuple(m.get("tags", ())), quality=m.get("quality"), clip_skip=m.get("clip_skip", 0),
                       scheduler=m.get("scheduler", ""), call=tuple(sorted(m.get("call", {}).items())),
-                      strong=tuple(m.get("strong", ())), weak=tuple(m.get("weak", ())), cannot=tuple(m.get("cannot", ())))
+                      strong=tuple(m.get("strong", ())), weak=tuple(m.get("weak", ())), cannot=tuple(m.get("cannot", ())),
+                      retired=m.get("retired", ""))
 
 
 def _load_images() -> tuple[ImageModel, ...]:
@@ -398,6 +400,8 @@ HAVE = "取得済み"
 def _recommended(m) -> bool:
     """推奨は、確かめて点の届いた物。利用者が低い点（ratings.LOW 未満）を付けた物は出さない"""
     from chatdraw.ratings import LOW, rating
+    if getattr(m, "retired", ""):   # 目録から外した物は推奨にしない
+        return False
     r = rating(m)
     return m.score >= PASS and r >= max(LOW, PASS) if r else False
 
@@ -447,10 +451,24 @@ def image_model(repo: str) -> ImageModel:
 PASS = 60   # 候補に出す点の下限
 
 
+def shown(m, have=()) -> bool:
+    """模型の一覧（模型の管理と AI の欄の模型の選択）に出すか。出すのは、推奨に届いた物、手元にある物（取得済み）、利用者が足した物だけ。
+    点の届かない物、確かめていない物、目録から外した物（retired）は出さない（崩れた絵しか描けない模型を選ばせないため）。
+    手元にある物は、外した物でも「取得済み」として出す（模型の削除は利用者が模型の管理で選んだときだけ）"""
+    if m.repo in set(have) or getattr(m, "user", False):
+        return True
+    return not getattr(m, "retired", "") and _recommended(m)
+
+
+def listed(models, have=()) -> list:
+    have = set(have)
+    return [m for m in models if shown(m, have)]
+
+
 def offered_images() -> list[ImageModel]:
     """推奨の模型（非表示にした物と、利用者が低い点を付けた物は除く）"""
     from chatdraw.ratings import is_hidden
-    return sorted((m for m in IMAGES if _recommended(m) and not is_hidden(m.repo)), key=lambda m: -m.score)
+    return sorted((m for m in IMAGES if _recommended(m) and not m.retired and not is_hidden(m.repo)), key=lambda m: -m.score)
 
 
 def offered_words() -> list[WordsModel]:
@@ -459,7 +477,7 @@ def offered_words() -> list[WordsModel]:
 
 def verified_images() -> list[ImageModel]:
     """動作を確かめた模型（点が 0 より上）。点の高い順"""
-    return sorted((m for m in IMAGES if m.score > 0), key=lambda m: -m.score)
+    return sorted((m for m in IMAGES if m.score > 0 and not m.retired), key=lambda m: -m.score)
 
 
 def verified_words() -> list[WordsModel]:
@@ -535,7 +553,7 @@ def run_mode(m: ImageModel, vram: float, ram: float = 0.0) -> str:
     return "GPU" if placement(vram, m.gb * 1.2, heavy(m)[0] * 0.9) == "cuda" else "分けて GPU"
 
 
-FITS = {"gpu": "この PC の GPU で動く", "cpu": "この PC では CPU で動く（遅い）", "no": "この PC ではメモリが足りない", "unknown": ""}
+FITS = {"gpu": "この PC の GPU で動く", "cpu": "この PC では CPU で動く（遅い）", "no": "この PC では退避して動く（とても遅い）", "unknown": ""}
 
 
 # おまかせが工程ごとに模型を選ぶときの見どころ。直す工程の hand / face / foot は handcheck.bad_regions の種類に合わせる

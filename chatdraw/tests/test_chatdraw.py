@@ -438,15 +438,13 @@ class SetupTest(unittest.TestCase):
             image, words = dlg.chosen()
             self.assertEqual(image, offered_images()[0])                       # 初めは点のいちばん高い物
             self.assertEqual(words, offered_words()[0])
-            for m in IMAGES:                                                    # 一覧の模型はすべて札がある（推奨だけ表示を外すと選べる）
-                self.assertIn(m.repo, dlg.image_radios)
+            for m in IMAGES:   # 札があるのは、推奨に届いた物と手元の物だけ（点の届かない物・確かめていない物・外した物は出さない）
+                if m.score >= PASS and not m.retired:
+                    self.assertIn(m.repo, dlg.image_radios)
             untested = next(m for m in IMAGES if m.score <= 0)
-            self.assertFalse(dlg.image_radios[untested.repo].parent().isVisibleTo(dlg))   # 初めは推奨だけ
-            low = next((m for m in IMAGES if 0 < m.score < PASS), None)
-            if low is not None:
-                self.assertFalse(dlg.image_radios[low.repo].parent().isVisibleTo(dlg))   # 推奨だけのときは隠す
-                dlg.only_rec.setChecked(False)
-                self.assertTrue(dlg.image_radios[low.repo].parent().isVisibleTo(dlg))    # 外すと出す
+            self.assertNotIn(untested.repo, dlg.image_radios)
+            retired = next(m for m in IMAGES if m.retired)
+            self.assertNotIn(retired.repo, dlg.image_radios)
             self.assertFalse(hasattr(dlg, "words_radios"))                     # 言葉の模型は選ばせない
             dlg.image_radios[AUTO].setChecked(True)
             dlg.apply()
@@ -460,7 +458,7 @@ class SetupTest(unittest.TestCase):
         from chatdraw.engine import Words
         self.assertFalse(Words(Path("")).ready())
         # 言葉の模型が無いときも、日本語をそのまま渡さず、表で拾った語で描く（そのまま渡すと全く違う絵が出た）
-        self.assertEqual(Words(Path("")).to_prompt("騎士"), "knight, armor")
+        self.assertEqual(Words(Path("")).to_prompt("騎士"), "knight")
         self.assertEqual(Words(Path("")).to_prompt("ぴょぴょ"), "")   # 拾えなくても日本語は渡さない（英語の所だけ残す）
         self.assertEqual(Words(Path("")).to_prompt("ぴょぴょ anime"), "anime")
 
@@ -621,9 +619,9 @@ class ManagerTest(unittest.TestCase):
                 return [dlg.list.itemAt(i).widget() for i in range(dlg.list.count())
                         if dlg.list.itemAt(i).widget() and dlg.list.itemAt(i).widget().objectName() == "card"]
             every = [c for c in cards() if hasattr(c, "model")]
-            self.assertEqual(len(every), len(models.IMAGES))                  # 既定で目録の全部を出す
+            shown = models.listed(models.IMAGES)
+            self.assertEqual(len(every), len(shown))                          # 推奨に届いた物と手元の物だけを出す（models.shown）
             metas = " ".join(lb.text() for c in every for lb in c.findChildren(QLabel))
-            self.assertIn("未確認", metas)
             self.assertIn("85 点", metas)                                     # 点は 1 つの数だけ出す
             dlg.filter.setCurrentText("推奨（確かめ済み）")
             rec = [c for c in cards() if hasattr(c, "model")]
@@ -635,7 +633,7 @@ class ManagerTest(unittest.TestCase):
             self.assertEqual(dlg.status.text(), "見つかりません")
             dlg._probed(entry, "")
             self.assertIn("未確認", dlg.status.text())
-            self.assertEqual(len([c for c in cards() if hasattr(c, "model")]), len(models.IMAGES) + 1)
+            self.assertEqual(len([c for c in cards() if hasattr(c, "model")]), len(shown) + 1)
             models._USER.clear()
 
 
@@ -1624,7 +1622,10 @@ class UsableTest(unittest.TestCase):
         d = QDialog(self.w)
         d.resize(400, area.height() * 4)   # 縦に長い窓
         d.show()
-        self.spin()
+        import time
+        end = time.time() + 5   # 窓を画面に収める処理は表示のあとの事象で動く。機械が重いと 0.6 秒では間に合わなかった
+        while not area.contains(d.frameGeometry()) and time.time() < end:
+            self.spin(0.1)
         self.assertTrue(area.contains(d.frameGeometry()), (area, d.frameGeometry()))
         d.close()
         dock = self.w.panels["layers"][0]
@@ -2319,7 +2320,7 @@ class EditFamilyTest(unittest.TestCase):
         with mock.patch.object(p, "load", return_value=Pipe()):
             p.paint("a woman", 1, base=Image.new("RGB", (32, 32)), reference=Image.new("RGB", (32, 32)), size=(64, 64))
         self.assertEqual(len(seen["image"]), 2)                    # ラフと参考画像の 2 枚
-        self.assertIn("rough sketch", seen["prompt"])
+        self.assertEqual(seen["prompt"], "a woman")                # 頼みの訳だけ。下描きの扱いの英語の文を足さない
 
 
 class FreezeTest(unittest.TestCase):

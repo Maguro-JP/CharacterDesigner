@@ -30,7 +30,7 @@ SIZES = {"縦": (832, 1216), "横": (1216, 832), "正方形": (1024, 1024)}
 
 # AI プリセット: (名前, ひとこと, 描き方 0=新規 1=ラフから, 大きさ, 画風, ラフに沿う強さ%)
 # 先頭の「標準」は最初の状態。どのプリセットを選んだあとでも、押せば元に戻せる
-DEFAULT_PRESET = "標準"
+from chatdraw.favmodels import DEFAULT_PRESET  # noqa: E402  描く処理と同じ名前を使う
 PRESETS: list[tuple[str, str, int, str, str, int]] = [
     (DEFAULT_PRESET, "最初の設定に戻す", 0, "縦", "おまかせ", 100),
     ("キャラデザ", "全身の立ち絵を縦長で", 0, "縦", "アニメ", 100),
@@ -201,8 +201,7 @@ class AiPanel(QWidget):
         lay = self.sections["詳しい設定"].body
         # 作成枚数は「指示」のタブにも数の欄で出す（窓の側で置く）。ボタンと欄は同じ値を持つ
         self.count_spin = QSpinBox()
-        self.count_spin.setRange(1, 8)
-        self.count_spin.setSuffix(" 枚")
+        self.count_spin.setRange(1, 9999)   # 枚数は利用者が決める。上限で勝手に縛らない
         self.count_spin.setToolTip("一度に描く枚数（直すときは 1 枚）")
         self.count_buttons = self._segment(["1 枚", "2 枚", "4 枚"], lambda i: self.count_spin.setValue((1, 2, 4)[i]))
         self.count_spin.valueChanged.connect(self._count_changed)
