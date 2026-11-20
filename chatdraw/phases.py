@@ -261,8 +261,8 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         memo["fix_n"] += 1
         strength = FIXES[min(k, len(FIXES) - 1)]
         message = f"崩れた所を {len(regions)} か所、囲みの中だけ描き直しています（強さ {strength}）"
-        emit_event(on_event, "correction", message, phase="顔・手・足の下描き", regions=len(regions), strength=strength)
         say("修正中: " + message)
+        emit_event(on_event, "correction", message, phase="顔・手・足の下描き", regions=len(regions), strength=strength)
         # 修正前の画像を先に表示する。修正処理中に画面が止まって見えないようにする。
         snapshot = on_snapshot or on_preview
         if snapshot is not None:
@@ -279,8 +279,8 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                 snapshot(tried)
             except Exception:
                 pass
-        emit_event(on_event, "reinspection", "修正結果を再検品しています（手・足・顔）", phase="顔・手・足の下描き")
         say("修正結果を再検品しています（手・足・顔）")
+        emit_event(on_event, "reinspection", "修正結果を再検品しています（手・足・顔）", phase="顔・手・足の下描き")
         again = checks.hands(tried, st["prompt"])
         if again.get("readable") and len(again.get("bad", [])) <= len(res.get("bad", [])):
             return tried, again, True
@@ -444,8 +444,8 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             stop()
             words2 = emphasize(st["prompt"], missing) if missing else st["prompt"]
             message = f"描かれていない物（{'、'.join(missing)}）を、服・髪・持ち物の範囲だけに描き足しています"
-            emit_event(on_event, "correction", message, phase="服・髪・持ち物", missing=list(missing))
             say("修正中: " + message)
+            emit_event(on_event, "correction", message, phase="服・髪・持ち物", missing=list(missing))
             snapshot = on_snapshot or on_preview
             if snapshot is not None:
                 try:
@@ -467,8 +467,8 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                     snapshot(tried)
                 except Exception:
                     pass
-            emit_event(on_event, "reinspection", "描き足しの結果を再検品しています", phase="服・髪・持ち物")
             say("描き足しの結果を再検品しています")
+            emit_event(on_event, "reinspection", "描き足しの結果を再検品しています", phase="服・髪・持ち物")
             req2 = checks.request(tried, st["prompt"])
             fixed = True
             if req2.get("readable") and len(_missing(req2) + _extra(req2)) <= len(found):
@@ -633,8 +633,8 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         if not (saved and saved["i"] == i and entry.get(i)):
             entry[i] = dict(st)   # 戻るときは、この工程に入ったときの土台から描き直す
         saved = None
-        emit_event(on_event, "phase_started", PHASES[i][1], phase=name, index=i + 1, total=n, checks=PHASES[i][2])
         say(f"工程 {i + 1}/{n}「{name}」: {PHASES[i][1]}（見る物: {PHASES[i][2]}）")
+        emit_event(on_event, "phase_started", PHASES[i][1], phase=name, index=i + 1, total=n, checks=PHASES[i][2])
         tones.clear()   # 色合わせの記録はこの回の分だけを残す（前は戻るたびに前の回の分が重なった）
         t0 = time.time()
         try:
@@ -676,9 +676,9 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         final[i] = row
         history.append(row)
         inspection_message = "崩れは見つかりませんでした" if not left else "残った崩れ " + "、".join(left[:4])
+        say(f"工程 {i + 1}/{n}「{name}」の検品: " + inspection_message)
         emit_event(on_event, "inspection", inspection_message, phase=name, index=i + 1, total=n,
                    readable=row["readable"], found=found, fixed=fixed, after=after)
-        say(f"工程 {i + 1}/{n}「{name}」の検品: " + inspection_message)
         if not left and row["readable"]:
             emit_event(on_event, "phase_completed", f"工程 {i + 1}/{n}「{name}」が完了しました", phase=name, index=i + 1, total=n)
         if confirm is not None:
