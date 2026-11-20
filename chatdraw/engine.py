@@ -2401,10 +2401,12 @@ class Studio:
         return prompt
 
     def fix(self, image, regions: list[tuple], seed: int, on_status=None, style: str = "", strength: float = 0.75,
-            reference=None, ref_scale: float = 0.6, check: bool = True, source: str | None = None):
+            reference=None, ref_scale: float = 0.6, check: bool = True, source: str | None = None,
+            on_event=None, on_preview=None):
         """赤ペン先生と範囲の描き直し。check を外すと崩れの検査をしない（ちびキャラのように絵全体を描き替える加工）。regions は (mask, 指示の文) の並び。直す所ごとに指示を描く言葉に直し、
         絵全体を順に描き直す。返すのは (描く言葉の並び, 描き直した絵全体の置き場)。直す所だけを貼り合わせない"""
         say = on_status or (lambda msg: None)
+        from chatdraw.events import emit_event
         if hasattr(self.painter, "on_note"):
             self.painter.on_note = say
         from chatdraw import seamfix
@@ -2425,6 +2427,13 @@ class Studio:
             box = mask.convert("L").getbbox()
             if box:
                 say(f"直す所: {k} か所目（左 {box[0]}・上 {box[1]}・右 {box[2]}・下 {box[3]}）／指示: {note or '（なし）'}")
+            emit_event(on_event, "correction", f"{k}/{len(regions)} か所目を範囲修正しています", phase="赤ペン修正",
+                       index=k, total=len(regions), bounds=list(box) if box else None, instruction=note)
+            if on_preview is not None:
+                try:
+                    on_preview(result)
+                except Exception:
+                    pass
             from chatdraw.fixrequests import lookup as _fixreq
             req = _fixreq(note)   # 修正依頼の一覧から選んだ指示は、用意した言葉と強さで直す（日本語を模型にそのまま渡さない）
             if req and req.get("prompt"):
@@ -2455,6 +2464,13 @@ class Studio:
                 result = _Image.composite(result.convert("RGB"), before, m)   # 囲みの外は 1 画素も変えない
                 result, tried = seamfix.settle(before, result, m, say=lambda t: say(f"{t}（{k} か所目）"))
                 self.last_seam.append(dict(region=k, **(tried[-1] if tried else {}), tries=len(tried)))
+            if on_preview is not None:
+                try:
+                    on_preview(result)
+                except Exception:
+                    pass
+            emit_event(on_event, "reinspection", f"{k}/{len(regions)} か所目の修正結果を検査しています", phase="赤ペン修正",
+                       index=k, total=len(regions))
             best_flaws = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, result, mask)] if check else []
             say(f"確かめました（{k} か所目・崩れ {len(best_flaws)} 件）")
             prompts.append(prompt)
@@ -2470,4 +2486,6 @@ class Studio:
         path = self._save(layer, seed, dict(text=" / ".join(n for _m, n in regions), prompt=" / ".join(prompts), seed=seed,
                                             style=style, model=self.painter.model, mode="直す", flaws=self.last_flaws,
                                             source=source or ""))
+        emit_event(on_event, "completed", "赤ペン修正が完了しました", phase="赤ペン修正",
+                   total=len(regions), unresolved=list(self.last_flaws))
         return prompts, path
