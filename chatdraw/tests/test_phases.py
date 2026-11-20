@@ -195,6 +195,22 @@ class PhasesTest(unittest.TestCase):
         # 少なくとも下描き修正の前後が表示される（修正前だけ／修正後だけにならない）。
         self.assertGreaterEqual(len(shown), len(phases.PHASES) + 2, len(shown))
 
+    def test_structured_events_cover_drawing_correction_and_reinspection(self):
+        """処理側が文字列ではなく、工程の実際の境界でイベントを発行する。"""
+        events, snapshots = [], []
+        with TemporaryDirectory() as d:
+            got = phases.draw(Painter(), "1girl, red scarf", 5, (64, 96), Path(d) / "k",
+                              checks=hand_only_checks(), on_event=events.append, on_snapshot=snapshots.append)
+        kinds = [event.kind for event in events]
+        self.assertIn("phase_started", kinds)
+        self.assertIn("drawing", kinds)
+        self.assertIn("inspection", kinds)
+        self.assertIn("correction", kinds)
+        self.assertIn("reinspection", kinds)
+        self.assertTrue(snapshots)  # 間引き対象の途中経過とは別に、修正境界の画像を必ず渡す
+        self.assertTrue(all(event.message for event in events))
+        self.assertFalse(got["complete"])
+
     def test_clean_after_first_fix(self):
         got, painter, seen, said, files = self.run_phases(always_bad=False)
         self.assertEqual(got["left"], [])
