@@ -82,7 +82,10 @@ def load(path) -> dict:
     try:
         with zipfile.ZipFile(path) as z:
             man = json.loads(z.read("manifest.json").decode("utf-8"))
-            files = {n: z.read(n) for n in z.namelist() if n != "manifest.json" and not n.endswith("/")}
+            names = [n for n in z.namelist() if not n.endswith("/")]
+            if len(names) != len(set(names)):
+                raise BadFile("キャラクターファイルに重複した項目があります")
+            files = {n: z.read(n) for n in names if n != "manifest.json"}
     except (OSError, KeyError, ValueError, zipfile.BadZipFile) as e:
         raise BadFile(f"キャラクターファイルとして読めませんでした（{path.name}: {e}）") from e
     if not isinstance(man, dict):
