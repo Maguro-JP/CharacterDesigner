@@ -82,6 +82,9 @@ def find(src: str) -> list[dict]:
     x = ((np.asarray(patch).astype(np.float32) - MEAN) / STD).transpose(2, 0, 1)[None].astype(np.float32)
     global _SESS
     if _SESS is None:   # 何枚も測るとき、模型を1枚ごとに読み直さない
+        # 空ファイルやディレクトリを ONNX 模型として開かず、配置不備を明示する。
+        if not MODEL.is_file() or MODEL.stat().st_size == 0:
+            raise RuntimeError(f"関節検出モデルが無いか空です: {MODEL}（sh tools/gen/setup.sh で取得してください）")
         _SESS = ort.InferenceSession(str(MODEL), providers=["CPUExecutionProvider"])
     sess = _SESS
     sx, sy = sess.run(None, {sess.get_inputs()[0].name: x})
