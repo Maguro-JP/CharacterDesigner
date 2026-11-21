@@ -61,8 +61,10 @@ def _litert():
 
 
 def _model(path):
-    if not path.exists():
+    if not path.is_file():
         raise Unavailable(f"手の模型 {path.name} が無い（sh tools/gen/setup.sh で入る）")
+    if path.stat().st_size == 0:
+        raise Unavailable(f"手の模型 {path.name} が空です（sh tools/gen/setup.sh で入れ直してください）")
     return str(path)
 
 
