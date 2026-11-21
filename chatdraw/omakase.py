@@ -23,7 +23,7 @@ BACKGROUND = ("背景", "風景", "街", "森", "海", "空", "部屋", "教室"
 PERSON = ("人", "女", "男", "少女", "少年", "キャラ", "子", "姫", "騎士", "魔法使い", "girl", "boy", "woman", "man", "character", "person")
 TEXT = ("文字", "看板", "ロゴ", "タイトル", "書いて", "text", "logo", "sign", "title", "lettering")
 ITEM = re.compile(r"([^\s、。,]{1,12}?)(?:を|も)?(?:持|握|抱|構え|手に)")
-ITEM_EN = re.compile(r"\b(?:holding|with|carrying|wielding)\s+(?:a |an |the )?([a-z ]{2,24})")
+ITEM_EN = re.compile(r"\b(?:holding|with|carrying|wielding)\s+(?:a |an |the )?([a-z][a-z ]{1,23}?)(?=\s+(?:and|while|then|in|on|standing|walking|running|looking|wearing)\b|[,.;!?]|$)")
 # 後から直せない見どころは重くする。文字は描けない模型が多く、囲んで直しても読める字にならない
 HEAVY = {"文字": 3.0}
 STYLE_ASPECT = {"real": "写実", "chibi": "ちび", "pencil": "線画", "known": "人物", "anime": "アニメ"}
