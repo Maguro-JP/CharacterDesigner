@@ -152,10 +152,16 @@ def iris_share(im, x: float, y: float, half: int) -> float:
     """目の点の中心（枠の半分の大きさ）で、頬の色から離れ、白でもない画素の割合。瞳を描かず白目や肌で埋めた目は 0 に近い"""
     import numpy as np
     q = max(2, half // 2)
-    c = np.asarray(im.crop((int(x - q), int(y - q), int(x + q), int(y + q))), np.float32).reshape(-1, 3)
-    cheek = np.median(np.asarray(im.crop((int(x - half), int(y + half), int(x + half), int(y + 2 * half))), np.float32).reshape(-1, 3), 0)
+    w, h = im.size
+    eye_box = (max(0, int(x - q)), max(0, int(y - q)), min(w, int(x + q)), min(h, int(y + q)))
+    cheek_box = (max(0, int(x - half)), max(0, int(y + half)), min(w, int(x + half)), min(h, int(y + 2 * half)))
+    c = np.asarray(im.crop(eye_box), np.float32).reshape(-1, 3)
+    cheek_pixels = np.asarray(im.crop(cheek_box), np.float32).reshape(-1, 3)
+    if c.size == 0 or cheek_pixels.size == 0:
+        return 1.0  # 画像端で測定領域が空。判定不能として瞳の欠落扱いを避ける
+    cheek = np.median(cheek_pixels, 0)
     far = np.linalg.norm(c - cheek, axis=1) > 60
-    return float((far & (c.min(1) < 190)).mean()) if c.size else 1.0
+    return float((far & (c.min(1) < 190)).mean())
 
 
 def eye_smear(im, keypoints: dict | None, box=None, precise: bool = False) -> list[str]:
