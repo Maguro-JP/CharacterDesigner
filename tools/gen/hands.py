@@ -98,8 +98,12 @@ def measure(img):
     sq, lm, presence = landmarks(img)
     a = np.asarray(sq).astype(float)
     # 手のひらの色は指の付け根の 4 点で取る。手首の点は袖口に乗りやすく、手首との中点では袖の色を手の色と取り違えた
-    palm_pts = [lm[k] for k in (5, 9, 13, 17)]
-    palm_col = np.median([a[int(p[1]), int(p[0])] for p in palm_pts], axis=0)
+    palm_pts = np.asarray([lm[k] for k in (5, 9, 13, 17)], dtype=float)
+    # 推定点が画像端の外へ出ることがある。on_hand と同じく画像内へ丸め、
+    # 負の添字による反対側画素の参照や IndexError を防ぐ。
+    palm_pts = np.nan_to_num(palm_pts, nan=0.0, posinf=447.0, neginf=0.0)
+    palm_pts = np.clip(palm_pts, 0, 447).astype(int)
+    palm_col = np.median([a[y, x] for x, y in palm_pts], axis=0)
 
     def on_hand(p):
         x, y = int(np.clip(p[0], 0, 447)), int(np.clip(p[1], 0, 447))
