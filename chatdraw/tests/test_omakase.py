@@ -123,6 +123,11 @@ class OmakaseTest(unittest.TestCase):
         self.assertIn("剣", p.parts["items"][0])
         self.assertEqual(omakase.plan("看板の文字", [COMPOSE, DIT]).compose[0][0], DIT)   # 文字は文字の得意な模型
 
+    def test_repair_mask_preserves_region_aspect_ratio(self):
+        mask = omakase._mask((100, 100), [(20, 40, 40, 50)])
+        self.assertEqual(mask.getpixel((30, 45)), 255)
+        self.assertEqual(mask.getpixel((30, 32)), 0)  # 楕円の縦方向は検出枠に合わせる
+
     def test_failed_part_goes_to_another_model_inside_the_mask(self):
         log, st, said = self.run_draw([COMPOSE, HANDS, FACES], [BAD_HAND, OK])
         self.assertEqual(log, [("paint", "c/compose"), ("redraw", "h/hands")])
