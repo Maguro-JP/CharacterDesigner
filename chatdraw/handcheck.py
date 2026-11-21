@@ -186,11 +186,16 @@ def ensure_feet_model(fetch: bool = True) -> bool:
         return True
     if not fetch:
         return False
+    import tempfile
     import urllib.request
     feet.MODEL.parent.mkdir(parents=True, exist_ok=True)
-    tmp = feet.MODEL.with_suffix(".part")
-    urllib.request.urlretrieve(feet.URL, tmp)
-    tmp.replace(feet.MODEL)
+    # 固定名の .part は同時起動時に競合し、失敗時にも残るため専用一時領域を使う。
+    with tempfile.TemporaryDirectory(dir=feet.MODEL.parent) as t:
+        tmp = Path(t) / feet.MODEL.name
+        urllib.request.urlretrieve(feet.URL, tmp)
+        if not tmp.is_file() or tmp.stat().st_size == 0:
+            raise RuntimeError("足の模型を取得できませんでした（空のファイル）")
+        tmp.replace(feet.MODEL)
     return True
 
 
