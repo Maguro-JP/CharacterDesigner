@@ -49,7 +49,7 @@ class Layer:
 _PRELOADED: dict[str, tuple[int, QImage]] = {}
 
 
-def preload(path) -> None:
+def preload(path, keep: int = 4) -> None:
     """絵を裏の糸で先に読んでおく（PNG を戻すのに 832×1216 で 25〜50 ミリ秒かかり、置くたびに画面が止まった）。
     次に同じ絵を _load で読むときに使う。ファイルが替わっていれば使わない"""
     import os
@@ -60,7 +60,7 @@ def preload(path) -> None:
     img = QImage(str(path))
     if not img.isNull():
         _PRELOADED[str(path)] = (stamp, img.convertToFormat(QImage.Format_ARGB32_Premultiplied))
-        while len(_PRELOADED) > 4:   # 置かれなかった絵で覚えが膨らまないように、古い物から捨てる
+        while len(_PRELOADED) > max(4, keep):   # 置かれなかった絵で覚えが膨らまないように、古い物から捨てる
             _PRELOADED.pop(next(iter(_PRELOADED)))
 
 

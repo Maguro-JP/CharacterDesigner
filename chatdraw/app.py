@@ -6,6 +6,7 @@ from __future__ import annotations
 
 import os
 import sys
+import threading
 import time
 from pathlib import Path
 
@@ -120,12 +121,17 @@ class PhaseAsk(QObject):
 
     def __call__(self, i, name, image, row):
         import threading
+        from chatdraw import waitnote
         box = {"event": threading.Event(), "answer": "go", "i": i, "name": name, "image": image, "row": row}
+        job = getattr(self.window, "job", None)
+        if job is not None:   # 窓が後ろに隠れても、何を待っているかを進み具合の欄に出す
+            job.status.emit(f"工程 {i + 1}「{name}」が終わりました。確かめの窓で「進める」か「描き直す」を押すと続きます")
         self.ask.emit(box)
         painter = getattr(getattr(self.window, "job_studio", None) or self.window.studio, "painter", None)
-        while not box["event"].wait(0.2):
-            if getattr(painter, "stop", False) is True:
-                break
+        with waitnote.waiting(f"工程 {i + 1}「{name}」の確かめの窓の答え（「進める」で次の工程へ）"):
+            while not box["event"].wait(0.2):
+                if getattr(painter, "stop", False) is True:
+                    break
         return box["answer"]
 
     def _show(self, box):
@@ -153,7 +159,39 @@ class Job(QObject):
         self.check = check
         self.tid = None   # 走っている裏の糸の番号。緊急停止がここへ Stopped を投げ込む
         self._last_preview = 0.0
+        self._last_say = (time.monotonic(), "描き始めています")   # 最後に出した知らせ（心拍が途切れを見る）
+        self.pause = threading.Event()   # 進み具合の欄の「一時停止」。立っている間、描く糸は次の知らせの所で待つ
         fresh_stop(studio)
+
+    BEAT = 5.0   # 知らせがこの秒より長く途切れたら、心拍が「何を待っているか」を出す（10 秒以上は途切れさせない）
+
+    def set_paused(self, on: bool):
+        if on:
+            self.pause.set()
+            self.status.emit("一時停止しています。次の区切りで止まります（「▶ 続ける」で続きから描きます）")
+        else:
+            self.pause.clear()
+            self.status.emit("続けます")
+
+    def _beat(self, done):
+        """心拍。重い処理（模型の読み込み、CPU の 1 歩、部品の取得、メモリの空き待ち、確かめの窓）の間は知らせが出ないので、
+        BEAT 秒途切れたら、今の待ち（waitnote の札）か最後の知らせを、経った秒と一緒に出し直す。
+        前は精度優先の CPU の描き直しなどで何分も知らせが出ず、「ずっと止まっている」としか見えなかった"""
+        from chatdraw import waitnote
+        while not done.wait(1.0):
+            t, last = self._last_say
+            gap = time.monotonic() - t
+            if gap < self.BEAT:
+                continue
+            note = waitnote.current()
+            if self.pause.is_set():
+                msg = "一時停止しています（「▶ 続ける」で続きから描きます）"
+            elif note is not None:
+                msg = f"待っています: {note[0]}（{time.monotonic() - note[1]:.0f} 秒）"
+            else:
+                msg = f"動いています: {last}（この知らせから {gap:.0f} 秒。止めるときは「緊急停止」）"
+            self.status.emit(msg)
+            self._last_say = (time.monotonic(), last)
 
     PREVIEW_GAP = 0.4   # 途中の絵を画面に渡す間（秒）
 
@@ -171,10 +209,26 @@ class Job(QObject):
         from chatdraw.engine import check_stop
         check_stop()
         debuglog.log("工程", msg)
+        from chatdraw.phases import WORDS_NOTE
+        # 模型に渡す言葉は進み具合の欄の詳細にだけ置く知らせなので、心拍が出し直す「今していること」には使わない
+        self._last_say = (time.monotonic(), self._last_say[1] if msg.startswith(WORDS_NOTE) else msg)
         self.status.emit(msg)
+        if self.pause.is_set():   # 一時停止は知らせの所（区切り）で待つ。待つ間も止めるは効く
+            from chatdraw import waitnote
+            with waitnote.waiting("一時停止の解除（「▶ 続ける」）"):
+                while self.pause.is_set():
+                    time.sleep(0.2)
+                    check_stop()
+                    if getattr(self.studio.painter, "stop", False) is True:
+                        break
 
     def run(self):
-        guarded(self, self._run)
+        done = threading.Event()
+        threading.Thread(target=self._beat, args=(done,), name="beat", daemon=True).start()
+        try:
+            guarded(self, self._run)
+        finally:
+            done.set()
 
     def _run(self):
         try:
@@ -222,6 +276,10 @@ class Job(QObject):
                             on_preview=self._preview, style=self.style, meta=self.meta, **extra)
         self._stopped()
         preload(path)   # 置くときに画面の糸で絵を読まないよう、ここ（裏の糸）で先に読む
+        rows = getattr(self.studio, "last_phases", None) or []
+        for r in rows:   # 工程ごとの絵（12 枚）も隠したレイヤーに置くので、画面の糸で読まないよう先に読む
+            if r.get("image"):
+                preload(r["image"], keep=len(rows) + 4)
         self.one.emit(prompt, str(path))
 
     def _draw_all(self):
@@ -960,6 +1018,7 @@ class Window(QMainWindow):
         self.addToolBar(Qt.TopToolBarArea, sbar)
         self.stop_bar = sbar
         self.activity.stop_tool.setDefaultAction(self.emergency_stop)
+        self.activity.pause_toggled.connect(self._pause_job)
 
         # 下: 進み
         self.progress = self.activity.bar   # 進みは描いた絵の欄に出す
@@ -2516,6 +2575,8 @@ class Window(QMainWindow):
         self.stop_button.setEnabled(True)
         self.feature_tour("draw")
         self.activity.begin(text, self.mode.currentText())
+        self.activity.set_phased(getattr(self.studio, "way", "") == "phases" and self.mode.currentIndex() == 0
+                                 and self.ai_panel.reference() is None)
         self.activity.set_sheet(1, 1 if self.mode.currentIndex() == 2 else self.ai_panel.count())
         self.activity.status("AI が使えるかを確かめました")
         m = re.search(r"([124１２４一二四])\s*枚", text)
@@ -3011,6 +3072,15 @@ class Window(QMainWindow):
         if getattr(self, "studio", None) is not None:
             self.studio.way = studio_way(self.settings.get("draw_way"), self.settings.get("ai_way"))
 
+    def _pause_job(self, on: bool):
+        """進み具合の欄の「一時停止」。描いている回（Job）だけが受ける。ほかの裏の処理は今までどおり止めるだけ"""
+        job = getattr(self, "job", None)
+        if job is not None and hasattr(job, "set_paused") and self.thread is not None and self.thread.isRunning():
+            job.set_paused(on)
+        elif on:
+            self.activity.pause_tool.setChecked(False)
+            self.statusBar().showMessage("一時停止できるのは描いている間だけです", 4000)
+
     def ask_phase(self, i: int, name: str, image, row: dict):
         """工程が終わったところで止まり、その工程の絵をキャンバスに見せて、進めるか描き直すかを選んでもらう"""
         from PySide6.QtWidgets import QInputDialog, QMessageBox
@@ -3122,8 +3192,11 @@ class Window(QMainWindow):
             result = f"{asked} 枚のうち {job.drawn} 枚描きました"
             self.say(result + "。描けなかった枚: " + "、".join(job.reasons[:3]))
             self._debug_failure(result, "\n".join(job.reasons), getattr(job, "trace", ""))
+        stopped = self.activity.phase_stopped   # 精度優先を途中の工程で打ち切った回（end の前に読む）
         self.activity.end(result, None, record=False)
         self.say(result if fixed else f"{n} 枚描きました。履歴から選べます" if n > 1 else "描きました")
+        if stopped and not fixed:
+            self.say(stopped)
         self.notify(result if fixed else "描けました", "error" if bad else "ok",
                     (f"崩れ {len(bad)} 件。一番上のレイヤーに置きました。見て決めてください" if bad else
                      "新しいレイヤーに重ねました。見て決めてください") if fixed else

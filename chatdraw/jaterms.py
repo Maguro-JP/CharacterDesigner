@@ -130,6 +130,27 @@ def user_terms() -> dict[str, str]:
         return {}
 
 
+def _literal(key: str, text: str):
+    """key を text の中から左から重ならずに探す（re.finditer(re.escape(key), text) と同じ並び）。
+    語の数だけ正規表現を作ると re の覚え（512 個）からあふれて毎回作り直し、1 回の読みに約 70 ミリ秒かかり、
+    描いている間の言葉の目安の更新で画面が固まった"""
+    i = text.find(key)
+    while i >= 0:
+        yield i, i + len(key)
+        i = text.find(key, i + len(key))
+
+
+_RX: dict[str, re.Pattern] = {}
+
+
+def _rx(pattern: str) -> re.Pattern:
+    """色と物の組の正規表現を 1 回だけ作って持つ（組は 400 を超え、re の覚えからあふれていた）"""
+    got = _RX.get(pattern)
+    if got is None:
+        got = _RX[pattern] = re.compile(pattern)
+    return got
+
+
 def _spans(text: str, extra: dict[str, str] | None = None) -> tuple[list[tuple[int, int, str, bool]], list[bool]]:
     """頼みを左から読み、拾った語の (始め, 終わり, タグ, 打ち消しか) と、拾った字の印を返す"""
     spans: list[tuple[int, int, str, bool]] = []
@@ -146,15 +167,15 @@ def _spans(text: str, extra: dict[str, str] | None = None) -> tuple[list[tuple[i
         spans.append((start, end, tag, bool(m)))
     # 利用者が直した語を先に引く（表の語より長くても短くても、利用者の読みを正にする）
     for ja, en in sorted((extra if extra is not None else user_terms()).items(), key=lambda kv: -len(kv[0])):
-        for m in re.finditer(re.escape(ja), text):
-            take(m.start(), m.end(), en)
+        for a, b in _literal(ja, text):
+            take(a, b, en)
     # 色と物の組（赤い髪、青い目、白いビキニ）を先に拾う
     for cj, ce in sorted(COLORS.items(), key=lambda kv: -len(kv[0])):
         for wj, we in sorted(_COLOR_WORDS.items(), key=lambda kv: -len(kv[0])):
-            for m in re.finditer(f"{cj}(?:色)?(?:い|の)?{wj}", text):
+            for m in _rx(f"{cj}(?:色)?(?:い|の)?{wj}").finditer(text):
                 take(m.start(), m.end(), f"{ce} {we}")
     for lj, le in _LENGTH.items():
-        for m in re.finditer(f"{lj}(?=[^、。 ]{{0,3}}髪)", text):
+        for m in _rx(f"{lj}(?=[^、。 ]{{0,3}}髪)").finditer(text):
             take(m.start(), m.end(), le)
     for ja, en in sorted(TERMS.items(), key=lambda kv: -len(kv[0])):
         # 動きの言葉は終わりの形を変えて書かれる（振る・振っている・振って、寝る・寝ている）。終わりの 1 字を除いた語幹でも拾う。
@@ -163,8 +184,8 @@ def _spans(text: str, extra: dict[str, str] | None = None) -> tuple[list[tuple[i
         if ja[-1] in _STEM_END and len(ja) >= 2 and (len(ja) >= 3 or re.match(r"[一-鿿]", ja[0])):
             keys.append(ja[:-1])
         for key in keys:
-            for m in re.finditer(re.escape(key), text):
-                take(m.start(), m.end(), en)
+            for a, b in _literal(key, text):
+                take(a, b, en)
     # 日本語の頼みに混ぜた英語のタグ（単語のお気に入りから足した語、「猫耳の少女、red scarf」）はそのまま描く物にする（表の語の後に拾い、Tシャツの T を取らない）。
     # 前は日本語の語だけを表で拾い、混ぜた英語は黙って落ちていた
     for m in re.finditer(r"[A-Za-z][A-Za-z0-9 ()'_.:-]*", text):

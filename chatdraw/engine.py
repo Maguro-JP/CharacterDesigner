@@ -112,6 +112,7 @@ DISK_NOTE = "まだメモリが足りないので、重みをディスクへ退�
 LOW_MEMORY_NOTE = "メモリが足りないので、メモリを使わない設定（部品の出し入れ、注意の分割、小さめの大きさ）に切り替えて描きます"
 
 
+STEP_SECONDS: dict[str, float] = {}   # 模型ごとの 1 歩の秒（Studio._timed が測る）。精度優先の目安に使う
 MEMORY_WAIT_S = 120.0   # メモリが空くのを待つ秒。過ぎたら一時停止にして途中を残す
 
 
@@ -163,9 +164,16 @@ def memory_retry(painter, run, say=None):
         painter.unload()
     release_memory()
     from chatdraw import pausekeep
-    (say or (lambda m: None))("メモリが空くのを待っています（模型を降ろしました）")
-    if pausekeep.wait_memory(float(getattr(painter, "need_gb", 0) or 4.0), wait_s=MEMORY_WAIT_S,
-                             stopped=lambda: STOP.is_set() or getattr(painter, "stop", False) is True):
+    from chatdraw import waitnote
+    need = float(getattr(painter, "need_gb", 0) or 4.0)
+    tell = say or (lambda m: None)
+    tell("メモリが空くのを待っています（模型を降ろしました）")
+    with waitnote.waiting(f"メモリが空くのを待っています（要る {need:.1f}GB、最大 {MEMORY_WAIT_S:.0f} 秒）"):
+        freed = pausekeep.wait_memory(need, wait_s=MEMORY_WAIT_S,
+                                      stopped=lambda: STOP.is_set() or getattr(painter, "stop", False) is True,
+                                      on_wait=lambda t, got: tell(f"メモリが空くのを待っています（{t:.0f}/{MEMORY_WAIT_S:.0f} 秒、"
+                                                                  f"空き {got:.1f}GB／要る {need:.1f}GB）。ほかのアプリを閉じると早く空きます"))
+    if freed:
         try:
             return run()
         except Exception as e:
@@ -251,7 +259,9 @@ def cpu_upcast(pipe, say=None) -> bool:
         first = next(iter(part.parameters()), None) if isinstance(part, torch.nn.Module) else None
         if first is None or first.dtype != torch.bfloat16:
             continue
-        part.to(torch.float32)
+        from chatdraw import waitnote
+        with waitnote.waiting(f"描く本体（{name}）を float32 に替えています（bf16 の遅い CPU で速く描くため。模型の大きさで数十秒）"):
+            part.to(torch.float32)
         part.register_forward_pre_hook(lambda m, a, kw: (_to_dtype(a, torch.float32), _to_dtype(kw, torch.float32)),
                                        with_kwargs=True)
         changed = True
@@ -1812,7 +1822,7 @@ class Studio:
 
     def _draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
               on_preview=None, style: str = "", reference=None, ref_scale: float = 0.6, meta: dict | None = None) -> tuple[str, Path]:
-        say = on_status or (lambda msg: None)
+        say = self._timed(on_status or (lambda msg: None))
         self.last_phases = None   # 工程に分けて描いた回だけ、工程ごとの絵と検品を持つ（アプリが隠したレイヤーに置く）
         if refused(text):
             raise ValueError("子どもを性的に描く頼みは描きません")
@@ -2133,6 +2143,35 @@ class Studio:
         have.sort(key=lambda m: (getattr(m, "ram", 16) or 16, -float(getattr(m, "score", 0) or 0)))
         return have[0] if have else None
 
+    PHASES_RATIO = 13   # 精度優先（12 工程）は、1 回で描くよりこの倍ほどかかる（CPU で測った。工程の数と描き直しで変わる）
+
+    def _timed(self, say):
+        """「描いています（i/n）」の知らせの間から 1 歩の秒を測り、模型ごとに覚える（精度優先を始める前の目安に使う）"""
+        import re
+        import time
+        last = {"i": None, "t": 0.0}
+
+        def timed(msg):
+            m = re.search(r"描いています（(\d+)/(\d+)", str(msg))
+            if m:
+                i, now = int(m.group(1)), time.monotonic()
+                if last["i"] is not None and i == last["i"] + 1:
+                    rate = now - last["t"]
+                    key = getattr(self.painter, "model", "")
+                    old = STEP_SECONDS.get(key)
+                    STEP_SECONDS[key] = rate if old is None else old * 0.7 + rate * 0.3
+                last["i"], last["t"] = i, now
+            say(msg)
+        return timed
+
+    def phases_estimate(self) -> float | None:
+        """精度優先の 1 枚にかかる秒の目安。この模型の 1 歩をまだ測っていなければ None"""
+        rate = STEP_SECONDS.get(getattr(self.painter, "model", ""))
+        steps = getattr(self.painter, "steps", None)
+        if rate is None or not isinstance(steps, int):
+            return None
+        return rate * steps * self.PHASES_RATIO
+
     last_phases: list | None = None
     phase_confirm = None   # 工程ごとに確かめるときにアプリが入れる。(i, 名前, 絵, 記録) を受けて "go"・"redo"・("words", 足す言葉) を返す
 
@@ -2156,6 +2195,12 @@ class Studio:
         from chatdraw import phases
         from chatdraw.models import family as fam, image_model
         say("工程に分けて描きます（" + " → ".join(phases.NAMES) + "）")
+        est = self.phases_estimate()
+        def fmt(sec):   # activity.fmt と同じ形（描く処理は画面の部品を読まない）
+            sec = int(sec)
+            return f"{sec // 60}分{sec % 60:02d}秒" if sec >= 60 else f"{sec}秒"
+        say(f"精度優先は {len(phases.NAMES)} の工程で描くので、1 回で描くより約 {self.PHASES_RATIO} 倍かかります（"
+            + (f"目安 約 {fmt(est)}" if est else "目安は 1 工程目の速さを測ってから出します") + "）。止める・一時停止は進み具合の欄のボタン")
         say("頼みを描く言葉に直しています")
         as_tags = fam(image_model(getattr(self.painter, "model", "")).family).tags
         prompt = self.words.to_prompt(text, tags=as_tags)
