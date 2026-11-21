@@ -632,7 +632,7 @@ class ManagerTest(unittest.TestCase):
             dlg._probed(None, "見つかりません")
             self.assertEqual(dlg.status.text(), "見つかりません")
             dlg._probed(entry, "")
-            self.assertIn("未確認", dlg.status.text())
+            self.assertIn("未評価", dlg.status.text())
             self.assertEqual(len([c for c in cards() if hasattr(c, "model")]), len(shown) + 1)
             models._USER.clear()
 
@@ -2819,7 +2819,7 @@ class ModelListTest(unittest.TestCase):
             ratings.set_favorite("cagliostrolab/animagine-xl-4.0", True)                         # 開き直さなくても作り直す
             self.assertTrue(any(t.startswith("★ Animagine XL 4.0") for t in texts()))
             ratings.set_hidden("cagliostrolab/animagine-xl-4.0", True)
-            self.assertFalse(any("Animagine XL 4.0" in t for t in texts()))
+            self.assertFalse(any(t.split("　")[0].lstrip("★ ") == "Animagine XL 4.0" for t in texts()))   # 別の版（Zero）は残る
             w.close()
 
     def test_verify_order_by_popularity(self):

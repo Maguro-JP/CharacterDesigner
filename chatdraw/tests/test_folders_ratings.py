@@ -50,7 +50,7 @@ class RatingsTest(unittest.TestCase):
             a = models.ImageModel("a/a", "A", "", "", 1, 20, 5, score=85, tags=("アニメ", "商用可"))
             b = models.ImageModel("b/b", "B", "", "", 1, 20, 5, score=0, tags=("リアル",))
             c = models.ImageModel("c/c", "C", "", "", 1, 20, 5, score=50, tags=("アニメ",))
-            self.assertEqual(ratings.rating_text(b), "未確認")
+            self.assertEqual(ratings.rating_text(b), "未評価")
             self.assertEqual(ratings.rating_text(a), "85 点")
             self.assertEqual([m.name for m in sorted([b, c, a], key=ratings.sort_key)], ["A", "C", "B"])
             ratings.set_user_rating("b/b", 95)                                      # 自分の点が目録の点より先
@@ -64,7 +64,7 @@ class RatingsTest(unittest.TestCase):
             self.assertEqual([m.name for m in models.pick([a, b, c], tags=["アニメ"])], ["A", "C"])
             self.assertEqual([m.name for m in models.pick([a, b, c], tags=["アニメ", "厚塗り"])], ["C"])
             ratings.set_user_rating("b/b", 0)                                       # 0 で目録の点に戻す
-            self.assertEqual(ratings.rating_text(b), "未確認")
+            self.assertEqual(ratings.rating_text(b), "未評価")
 
     def test_catalog_has_tags_and_default_sort_is_rating(self):
         from chatdraw import models
@@ -93,7 +93,7 @@ class RatingsTest(unittest.TestCase):
             self.assertEqual(len(cards()), len([m for m in models.listed(models.IMAGES) if "GPU向き" in m.tags]))   # 一覧に出す物の中で絞る
             dlg.set_tags([])
             # 自分の点で並びが変わる。一覧に出るのは推奨に届いた物なので、その中で点の低い方に 99 を付ける
-            m = min(models.listed(models.IMAGES), key=lambda x: x.score)
+            m = min((x for x in models.listed(models.IMAGES) if x.score >= models.PASS), key=lambda x: x.score)   # 推奨の中で点の低い物
             with mock.patch.object(QInputDialog, "getInt", return_value=(99, True)):
                 dlg.ask_rating(m)
             self.assertEqual(title(cards()[0]), m.name)

@@ -83,7 +83,7 @@ class ManagerTest(unittest.TestCase):
         with TemporaryDirectory() as d, mock.patch.dict(os.environ, {"CD_HOME": d}):
             dlg, _st, _g = self._manager(d)
             rows = [c for c in self._cards(dlg) if hasattr(c, "model")]
-            self.assertEqual(len(rows), len(models.listed(models.IMAGES)))   # 推奨に届いた物と手元の物だけを出す
+            self.assertEqual(len(rows), len(models.listed(models.IMAGES)))   # 目録から外した物（retired）だけを出さない
             for c in rows:
                 m, tip = c.model, c.toolTip()
                 self.assertIn(m.name, tip)
@@ -98,6 +98,31 @@ class ManagerTest(unittest.TestCase):
                 self.assertNotIn(models.family(m.family).name, meta)   # 細目は行から減らした
                 self.assertNotIn("動き方", meta)
                 self.assertLessEqual(len(tip.splitlines()), 8)
+
+    def test_unrated_rows_can_be_fetched_and_recommended_first(self):
+        """模型の管理を開き、未評価の模型も一覧に出て「取る」が押せること。推奨が上で、評価の数値は 1 つだけ"""
+        from PySide6.QtWidgets import QLabel, QPushButton
+        from chatdraw import models
+        with TemporaryDirectory() as d, mock.patch.dict(os.environ, {"CD_HOME": d}):
+            dlg, _st, _g = self._manager(d)
+            rows = [c for c in self._cards(dlg) if hasattr(c, "model")]
+            unrated = [c for c in rows if c.model.score <= 0]
+            self.assertGreater(len(rows), 2)
+            self.assertTrue(unrated)
+            rec = [models._recommended(c.model) for c in rows]
+            self.assertTrue(rec[0])
+            self.assertEqual(rec, sorted(rec, reverse=True))
+            for c in unrated:
+                self.assertIn("未評価", c.findChildren(QLabel)[1].text())
+            c = unrated[0]
+            take = [b for b in c.findChildren(QPushButton) if b.text() == "取る"]
+            self.assertEqual(len(take), 1)
+            self.assertTrue(take[0].isEnabled())
+            with mock.patch.object(dlg, "fetch") as fetch:
+                take[0].click()
+            fetch.assert_called_once()
+            meta = rows[0].findChildren(QLabel)[1].text()
+            self.assertEqual(meta.count("点"), 1)   # 評価の数値は 1 つだけ
 
 
 class AskWordsOnceTest(unittest.TestCase):

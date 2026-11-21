@@ -16,18 +16,34 @@ class ShownTest(unittest.TestCase):
     def tearDown(self):
         self.p.stop()
 
-    def test_only_recommended_owned_and_user_models_are_listed(self):
+    def test_unrated_are_listed_and_only_retired_hidden(self):
+        """0.5.33 で推奨と取得済みだけにしたら、まだ点の付いていない新しい模型を取れなくなった。外すのは retired だけ"""
         good = next(m for m in models.IMAGES if m.score >= models.PASS and not m.retired)
-        low = next(m for m in models.IMAGES if 0 < m.score < models.PASS)
-        untested = next(m for m in models.IMAGES if m.score <= 0 and not m.retired)
+        untested = [m for m in models.IMAGES if m.score <= 0 and not m.retired]
         retired = next(m for m in models.IMAGES if m.retired)
+        self.assertTrue(untested)
         got = {m.repo for m in models.listed(models.IMAGES)}
         self.assertIn(good.repo, got)
-        for m in (low, untested, retired):
-            self.assertNotIn(m.repo, got)
-        # 手元にある物は、外した物でも点の低い物でも「取得済み」として出す（ファイルは消さない）
-        have = {low.repo, retired.repo}
-        self.assertTrue(have <= {m.repo for m in models.listed(models.IMAGES, have)})
+        self.assertTrue({m.repo for m in untested} <= got)
+        self.assertNotIn(retired.repo, got)
+        self.assertEqual(got, {m.repo for m in models.IMAGES if not m.retired})
+        # 手元にある物は、外した物でも「取得済み」として出す（ファイルは消さない）
+        self.assertIn(retired.repo, {m.repo for m in models.listed(models.IMAGES, {retired.repo})})
+
+    def test_recommended_come_first_and_unrated_filter(self):
+        shown = models.pick(models.listed(models.IMAGES))
+        rec = [models._recommended(m) for m in shown]
+        self.assertTrue(rec[0])
+        self.assertEqual(rec, sorted(rec, reverse=True))   # 推奨が全部、未評価より上
+        un = models.pick(models.IMAGES, "未評価")
+        self.assertTrue(un)
+        self.assertTrue(all(m.score <= 0 and not m.retired for m in un))
+
+    def test_retired_only_for_broken_drawings(self):
+        """目録から外すのは、検証で崩れた絵しか描けなかった物だけ（同じ重みの 2 つ目は例外）"""
+        for m in models.IMAGES:
+            if m.retired:
+                self.assertTrue("検証で落とした" in m.retired or "2 つ目は要らない" in m.retired, (m.repo, m.retired))
 
     def test_retired_have_reasons_and_never_offered(self):
         for m in models.IMAGES:

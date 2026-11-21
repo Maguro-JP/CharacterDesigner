@@ -57,10 +57,11 @@ class OwnFinishers(unittest.TestCase):
             self.assertNotIn(f.tip, f.label)   # 説明はボタンの中に書かず、ツールチップに出す
 
     def test_auto_finish_only_shape_keeping(self):
-        self.assertIn("retouch", omakase.AUTO_FINISH)
+        # 生成した絵を優先し、おまかせでは自動の仕上げを掛けない（retouch も手動の加工メニューから。omakase.AUTO_FINISH の説明）
+        self.assertNotIn("retouch", omakase.AUTO_FINISH)
         for n in ("retouch_full", "ink", "air_holy", "mat_metal"):   # 形や見た目を変えうる物はおまかせで掛けない
             self.assertNotIn(n, omakase.AUTO_FINISH)
-        self.assertEqual(omakase.auto_finish([dict(name="retouch", ready=True), dict(name="ink", ready=True)]), ["retouch"])
+        self.assertEqual(omakase.auto_finish([dict(name="retouch", ready=True), dict(name="ink", ready=True)]), [])
         self.assertNotIn("deburr", finishers.RETOUCH_SAFE)   # 顔の細い線に掛かりうる工程はおまかせに入れない
         for n in ("heal", "sharpen"):   # ボタンを消し、髪の筋に継ぎ目を作ったので既定から外した
             self.assertNotIn(n, finishers.RETOUCH_SAFE)

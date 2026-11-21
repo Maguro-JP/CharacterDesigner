@@ -7,7 +7,7 @@
 点は利用者が付けた点があればそれ、無ければ目録の点（ratings）。既定の並びは点の高い順。
 絞り込みに合う物だけを出し、その中で手元にある模型と ★（お気に入り）を先にする。非表示にした物は「非表示にした模型」にだけ出す。
 ボタンが増えて並びが混まないように、まれにしか使わない操作（点・タグ・削除、ディレクトリ）はドロップダウンにまとめる。
-まだ確かめていない模型も取って使えるが、「未確認」と書いて分ける。
+まだ確かめていない模型も取って使えるが、「未評価」と書いて分ける。
 消すのは、利用者がこの画面で選んで確かめたときだけ。使っている模型は消せない。
 """
 from __future__ import annotations
@@ -122,7 +122,7 @@ class ModelManager(QDialog):
         tools = QHBoxLayout()
         self.filter = QComboBox()
         self.filter.addItems(list(FILTERS))
-        self.filter.setToolTip("出す模型を絞ります。未確認の模型も取って使えます")
+        self.filter.setToolTip("出す模型を絞ります。未評価の模型も取って使えます")
         self.sort = QComboBox()
         self.sort.addItems(list(SORTS))
         self.sort.setToolTip("並べ方")
@@ -167,7 +167,7 @@ class ModelManager(QDialog):
         self.hf_name.setToolTip("Hugging Face の模型の名前（例: cagliostrolab/animagine-xl-4.0）。取れるか、読める形かを確かめてから一覧に足します")
         self.hf_name.returnPressed.connect(self.add_by_name)
         self.add_button = QPushButton("Hugging Face の名前で足す")
-        self.add_button.setToolTip("diffusers の形か、.safetensors が 1 つの模型を足せます。足した物は「未確認」として一覧に出ます")
+        self.add_button.setToolTip("diffusers の形か、.safetensors が 1 つの模型を足せます。足した物は「未評価」として一覧に出ます")
         self.add_button.clicked.connect(self.add_by_name)
         add.addWidget(self.hf_name, 1)
         add.addWidget(self.add_button)
@@ -251,7 +251,7 @@ class ModelManager(QDialog):
                                           "使用中" if auto else "使う", None if auto else self.use_auto))
             self.list.addWidget(self._sets_row())
         catalog = catalog_images()
-        # 一覧に出すのは、推奨に届いた物と手元の物と自分で足した物だけ（models.shown）。点の届かない物は見せない
+        # 一覧に出さないのは、検証で崩れた絵しか描けなかった物（retired）だけ（models.shown）。推奨が上、未評価も取れる
         offer = catalog if hiding else listed(catalog, mine)
         shown = pick(offer, self.filter.currentText(), self.sort.currentText(), self.chosen_tags, have=mine)
         known = {m.repo for m in catalog}
@@ -556,7 +556,7 @@ class ModelManager(QDialog):
         if m is not None:
             self.settings.set("steps", m.steps)
             self.settings.set("guidance", m.guidance)
-        self.status.setText(f"{m.name if m else key} を使います" + ("（未確認の模型です）" if m is not None and m.score <= 0 else ""))
+        self.status.setText(f"{m.name if m else key} を使います" + ("（未評価の模型です）" if m is not None and m.score <= 0 else ""))
         self._changed()
 
     def add_by_name(self):
@@ -576,7 +576,7 @@ class ModelManager(QDialog):
         from chatdraw.models import add_user_entry
         m = add_user_entry(entry)
         self.hf_name.clear()
-        self.status.setText(f"{m.name} を一覧に足しました（{family(m.family).name}、約 {m.gb:.1f}GB、未確認）。「取る」で取れます")
+        self.status.setText(f"{m.name} を一覧に足しました（{family(m.family).name}、約 {m.gb:.1f}GB、未評価）。「取る」で取れます")
         self._changed()
 
     def change_model_dir(self, path: str | None = None):
