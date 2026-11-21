@@ -132,6 +132,23 @@ class FileTest(Base):
                 with self.assertRaises(charafile.BadFile):
                     charafile.load(broken)
 
+    def test_duplicate_archive_members_are_rejected(self):
+        from chatdraw import charafile
+        import warnings
+        for duplicate in ("manifest.json", "images/front.png"):
+            with self.subTest(duplicate=duplicate):
+                broken = self.d / ("duplicate-" + duplicate.replace("/", "-") + ".chara")
+                manifest = charafile.new("Akari")["manifest"]
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", UserWarning)
+                    with zipfile.ZipFile(broken, "w") as z:
+                        z.writestr("manifest.json", json.dumps(manifest))
+                        z.writestr(duplicate, b"duplicate")
+                        if duplicate != "manifest.json":
+                            z.writestr(duplicate, b"other duplicate")
+                with self.assertRaisesRegex(charafile.BadFile, "重複"):
+                    charafile.load(broken)
+
     def test_old_version_is_read_and_new_version_refused(self):
         from chatdraw import charafile
         old = self.d / "old.chara"
