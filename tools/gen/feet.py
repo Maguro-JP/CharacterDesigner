@@ -81,7 +81,10 @@ _WHOLE: dict = {}
 def whole(im):
     """全身の 133 点。絵全体で 1 度読み、体の点の外枠で読み直す（小さく写った人でも足や手が大きく写る）。
     足の指と手の振り分け（hand_points）で同じ点を使うので、1 枚につき 1 回だけ読む"""
-    key = (im.size, im.resize((16, 16)).tobytes())
+    # 16x16 の縮図だけを鍵にすると、縮小時に同じ画素へ潰れた別画像で
+    # 前のキャラクターの関節点を再利用してしまう。元画像全体のハッシュで区別する。
+    import hashlib
+    key = (im.size, hashlib.blake2b(im.tobytes(), digest_size=16).digest())
     if key in _WHOLE:
         return _WHOLE[key]
     w, h = im.size
