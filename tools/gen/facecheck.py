@@ -100,7 +100,15 @@ def eye_dark(image, keypoints: dict) -> float | None:
     d = max(abs(eyes[0][0] - eyes[1][0]), 8)
     x0, x1 = int(min(e[0] for e in eyes) - 0.4 * d), int(max(e[0] for e in eyes) + 0.4 * d)
     y = sum(e[1] for e in eyes) / 2
-    band = np.asarray(image.convert("L").crop((x0, int(y - 0.3 * d), x1, int(y + 0.3 * d))), dtype=np.float32)
+    w, h = image.size
+    # Keep the eye measurement inside the image; Pillow otherwise pads out-of-bounds
+    # crop regions with black pixels and can report false dark-eye evidence.
+    y0 = max(0, int(y - 0.3 * d))
+    y1 = min(h, int(y + 0.3 * d))
+    x0, x1 = max(0, x0), min(w, x1)
+    if x1 <= x0 or y1 <= y0:
+        return None
+    band = np.asarray(image.convert("L").crop((x0, y0, x1, y1)), dtype=np.float32)
     if band.size == 0:
         return None
     return round(float((band < np.median(band) - 60).mean()), 4)
