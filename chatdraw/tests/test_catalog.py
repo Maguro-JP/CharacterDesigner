@@ -57,7 +57,7 @@ class FilterTest(unittest.TestCase):
 
     def test_all_by_default_and_each_filter_narrows(self):
         every = models.pick(models.IMAGES)
-        self.assertEqual(len(every), len(models.IMAGES))                 # 既定は全部（未確認の物も出す）
+        self.assertEqual(len(every), len(models.IMAGES))                 # 既定は全部（未評価の物も出す）
         self.assertEqual(every[0].score, max(m.score for m in models.IMAGES))   # 確かめ済みが先
         rec = models.pick(models.IMAGES, "推奨（確かめ済み）")
         self.assertTrue(rec and all(m.score >= models.PASS for m in rec))
@@ -85,7 +85,8 @@ class CatalogTest(unittest.TestCase):
         self.assertEqual(models.image_model("cagliostrolab/animagine-xl-4.0").name, "Animagine XL 4.0")   # 同じ置き場の別の版と混ざらない
         added = [e for e in raw if e.get("note", "").startswith("2026-10-31: Hugging Face の API")]
         self.assertGreaterEqual(len(added), 10)
-        self.assertTrue(all(e["score"] == 0 and e["commercial"] for e in added))   # 新しく載せた物は未確認で、商用の札がある
+        self.assertTrue(all(e["commercial"] for e in added))   # 新しく載せた物には商用の札がある
+        self.assertTrue(all(e["score"] == 0 or "検証" in e["note"] for e in added))   # 点は検証で付けた物だけ
 
 
 class AddByNameTest(unittest.TestCase):

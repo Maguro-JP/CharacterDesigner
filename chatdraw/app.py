@@ -4870,11 +4870,12 @@ class Window(QMainWindow):
         menu = self.ai_menu
         menu.clear()
         now_image = self.settings.get("image_model")
-        # 出すのは、推奨に届いた模型と手元にある模型（手元の物と ★ が先）。非表示にした物は出さない
+        # 出すのは、推奨に届いた模型（上）、手元にある模型、未評価の模型。非表示にした物と目録から外した物は出さない
         catalog = catalog_images()
         have = self.installed_images(catalog)
         listed = pick(catalog, "推奨（確かめ済み）", have=have)
-        listed = pick(catalog, "取得済み", have=have) + [m for m in listed if m.repo not in have]   # メニューには手元の物も出す
+        listed = listed + [m for m in pick(catalog, "取得済み", have=have) if m not in listed]   # 推奨が上、次に手元の物
+        listed = listed + [m for m in pick(catalog, "未評価", have=have) if m not in listed]   # まだ確かめていない物も選んで取れるように
         images = listed + [m for m in manual_images() if not is_blocked(m.repo)]
         menu.addSection("絵の模型")
         group = QActionGroup(menu)

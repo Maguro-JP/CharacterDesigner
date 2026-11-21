@@ -386,6 +386,7 @@ FILTERS = {   # 模型の管理の絞り込み。名前と、その名前で残�
     "推奨（確かめ済み）": lambda m: _recommended(m),
     "取得済み": lambda m: False,      # 手元にある物だけ（pick の have で足す）
     "★ お気に入り": lambda m: _fav(m),
+    "未評価": lambda m: unrated(m),
     "確かめ済み": lambda m: m.score > 0,
     "アニメ・イラスト": lambda m: style(m) == "anime",
     "リアル": lambda m: style(m) == "real",
@@ -435,6 +436,8 @@ def pick(models, filter_name: str = "すべて", sort_name: str = "点の高い�
     else:
         out = [m for m in models if not is_hidden(m.repo) and FILTERS[filter_name](m) and has_tags(m, tags)]
     key = SORTS[sort_name]
+    if sort_name == "点の高い順":   # 既定の並びでは、★ の次に推奨を置く（取得済みの未評価が推奨より上に来ないように）
+        return sorted(out, key=lambda m: (not is_favorite(m.repo), not _recommended(m), m.repo not in have, key(m)))
     return sorted(out, key=lambda m: (m.repo not in have, not is_favorite(m.repo), key(m)))
 
 
@@ -452,12 +455,17 @@ PASS = 60   # 候補に出す点の下限
 
 
 def shown(m, have=()) -> bool:
-    """模型の一覧（模型の管理と AI の欄の模型の選択）に出すか。出すのは、推奨に届いた物、手元にある物（取得済み）、利用者が足した物だけ。
-    点の届かない物、確かめていない物、目録から外した物（retired）は出さない（崩れた絵しか描けない模型を選ばせないため）。
-    手元にある物は、外した物でも「取得済み」として出す（模型の削除は利用者が模型の管理で選んだときだけ）"""
+    """模型の一覧（模型の管理と AI の欄の模型の選択）に出すか。出さないのは、検証で崩れた絵しか描けなかった物（retired）だけ。
+    まだ確かめていない物（点 0）は「未評価」として出し、取れるようにする（0.5.33 で推奨と取得済みだけにしたら、新しい模型を取れなくなった）。
+    手元にある物と利用者が足した物は、外した物でも出す（模型の削除は利用者が模型の管理で選んだときだけ）"""
     if m.repo in set(have) or getattr(m, "user", False):
         return True
-    return not getattr(m, "retired", "") and _recommended(m)
+    return not getattr(m, "retired", "")
+
+
+def unrated(m) -> bool:
+    """まだ確かめていない物（点 0 で、目録から外していない）"""
+    return getattr(m, "score", 0) <= 0 and not getattr(m, "retired", "")
 
 
 def listed(models, have=()) -> list:

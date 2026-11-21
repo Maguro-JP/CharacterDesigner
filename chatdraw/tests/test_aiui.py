@@ -272,7 +272,7 @@ class AiMenuFreshTest(unittest.TestCase):
                 m = listed[0]
                 self.assertTrue(any(m.name in t for t in names()))
                 ratings.set_blocked(m.repo, True)
-                self.assertFalse(any(t.startswith(m.name) or t.startswith("★ " + m.name) for t in names()))
+                self.assertFalse(any(t.split("　")[0].removeprefix("★ ") == m.name for t in names()))   # 名前の続く別の版（Zero など）は残る
                 ratings.set_blocked(m.repo, False)
                 self.assertTrue(any(m.name in t for t in names()))
             w._ai_menu_stale = True                                         # 開いている間に変わった分は閉じたあとに作り直す
