@@ -758,5 +758,8 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
     (keep / "phases.json").write_text(json.dumps({"phases": rows, "history": history, "left": left, "checked": checked,
                                                   "complete": complete, "blocked": blocked, "backs": backs},
                                                  ensure_ascii=False, indent=1, default=str), encoding="utf-8")
+    if complete and checked and not left:
+        emit_event(on_event, "completed", "12 工程すべての検品に合格しました", index=n, total=n,
+                   checked=checked, unresolved=[])
     return {"image": st["image"], "phases": rows, "history": history, "left": left, "checked": checked,
             "complete": complete, "blocked": blocked, "backs": backs}
