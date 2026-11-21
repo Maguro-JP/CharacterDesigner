@@ -224,3 +224,34 @@ CodeFormer（S-Lab License 1.0、商用不可）は配布に合わないので�
 - 技術評論社、CLIP STUDIO PAINT の解説の見本（アタリ・下描き → 線画 → 下塗り → 影 → 仕上げの順）: https://gihyo.jp/assets/files/book/2023/978-4-297-13561-4/9784297135614-01.pdf
 - 京都府、コンテンツを学ぶ「勝手読書会」第2回: アニメ制作（絵コンテ → レイアウト → 原画 → 作画監督の修正 → 動画 → 仕上げ）: https://www.pref.kyoto.jp/sangyo-sien/mediastudy002.html
 - 厚生労働省の資料（アニメの制作の工程: 動画 → スキャン → 彩色 → 仕上げ検査）: https://www.mhlw.go.jp/content/11901000/001152417.pdf
+## 設定画集の版の並べ方（`styles/sheet-formats/`、2026-10-31）
+
+- Model Sheets for Character Designers（CLIP STUDIO の講座）https://www.clipstudio.net/how-to-draw/archives/164740
+- Character Sheets: The Blueprint for Consistent Animation（CGWire）https://blog.cg-wire.com/character-sheet-animation
+- Character sheet template head measurements（CG Cookie）https://cgcookie.com/projects/character-sheet-template-head-measurements
+- 個別の作品の版面は写していない。版は目的（総覧・作画用・演技・色指定・紹介）から設計した。`docs/knowledge/learning/design-sheet-layout.md`
+
+## 設定画集を魅力的に見せる構成とテーマ（`styles/sheet-themes/`、2026-10-31）
+
+- How to Make a Reference Sheet（Instructables）https://www.instructables.com/How-to-Make-a-Reference-Sheet
+- Small Guide For OC Reference Sheets https://audtrico.substack.com/p/small-guide-for-oc-reference-sheets
+- Design How-To: Images that Break Boundaries（CreativePro）https://creativepro.com/design-how-to-images-that-break-boundaries
+- Breaking borders（ImagineFX）https://www.pressreader.com/australia/imaginefx/20151009/282303908953561
+- Creating depth in designs through layering https://world.hey.com/oliver.servin/creating-depth-in-designs-through-layering-9f91c4a2
+- Gaming Website Design Examples https://muffingroup.com/blog/gaming-website-design/
+- Adobe「画像素材」の記事 https://www.adobe.com/jp/creativecloud/roc/blog/design/quiz-challenge/image-assets.html
+- GetNavi 罫線の記事 https://getnavi.jp/lifestyle/68171/ 、マイナビ Word の記事 https://news.mynavi.jp/article/Wordomoidori-17/
+- Photo Book Design https://photographyicon.com/photo-book-design/
+- テーマ7種（studio、heraldry、washi、retro-sf、steampunk、forest、neon）はどれも既存の作品の画面を写さずに組んだ
+
+## 設定画集の版の実例（`docs/knowledge/learning/design-sheet-layout.md` の表の番号、2026-10-31 に開いた）
+
+1 原神 https://genshin.hoyoverse.com/ja/character/mondstadt 、2 崩壊：スターレイル https://hsr.hoyoverse.com/ja-jp/character 、
+3 ウマ娘 プリティーダービー https://umamusume.jp/character/specialweek/ 、4 負けヒロインが多すぎる！ https://makeine-anime.com/character/ 、
+5 劇場総集編ぼっち・ざ・ろっく！ https://bocchi.rocks/character/ 、6 山田くんとLv999の恋をする https://yamadalv999-anime.com/news/?id=62503 、
+7 ささやくように恋を唄う https://www.sasakoi-anime.com/news/index00130000.html 、8 ハコヅメ〜交番女子の逆襲〜 https://hakozume-anime.com/special-artboard.html 、
+9 To LOVEる https://www.tbs.co.jp/anime/to-love-ru/06special/settei01.html 、10 ウマ娘 一覧 https://umamusume.jp/character/ 、
+11 劇場版 忍たま乱太郎 原画・設定資料集の誌面（松竹のプレスリリース）https://www.zaikei.co.jp/releases/3043971/ 、
+12 ガリレイドンナ https://www.galileidonna.tv/sp/special/index.html 、13 Pentagram https://www.pentagram.com/work/ 、
+14 nendo https://www.nendo.jp/jp/works/ 、15 Fonts In Use https://fontsinuse.com/ 、16 山田くんとLv999の恋をする（同じ頁の縦の並び）
+- 画像はリポジトリに置いていない。見たのは数字を取るためだけで、配置を写していない
