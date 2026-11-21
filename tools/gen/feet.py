@@ -344,7 +344,9 @@ def sharp_reference(image, side: int) -> float:
     im = Image.open(image).convert("L") if isinstance(image, (str, Path)) else image.convert("L")
     w, h = im.size
     side = max(16, int(side))
-    vals = [sharpness(im, (x, y, x + side, y + side)) for y in range(0, max(1, h - side + 1), side) for x in range(0, max(1, w - side + 1), side)]
+    # Include the partial tiles at the right and bottom edges too; omitting them
+    # biases the reference toward the upper-left portion of the character image.
+    vals = [sharpness(im, (x, y, x + side, y + side)) for y in range(0, h, side) for x in range(0, w, side)]
     return float(np.percentile(vals, 80)) if vals else 0.0
 
 
