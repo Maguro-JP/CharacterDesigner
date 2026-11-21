@@ -85,9 +85,14 @@ def load(path) -> dict:
             files = {n: z.read(n) for n in z.namelist() if n != "manifest.json" and not n.endswith("/")}
     except (OSError, KeyError, ValueError, zipfile.BadZipFile) as e:
         raise BadFile(f"キャラクターファイルとして読めませんでした（{path.name}: {e}）") from e
+    if not isinstance(man, dict):
+        raise BadFile(f"キャラクターの設定が壊れています（{path.name}: manifest がオブジェクトではありません）")
     if man.get("format") != FORMAT:
         raise BadFile(f"キャラクターファイルではありません（{path.name}）")
-    v = int(man.get("version", 0))
+    try:
+        v = int(man.get("version", 0))
+    except (TypeError, ValueError) as e:
+        raise BadFile(f"キャラクターの設定が壊れています（{path.name}: version が不正です）") from e
     if v > VERSION:
         raise BadFile(f"新しい版（{v}）のキャラクターファイルです。アプリを新しくしてから開いてください")
     try:
