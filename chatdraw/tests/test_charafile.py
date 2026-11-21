@@ -87,6 +87,16 @@ class FileTest(Base):
         self.assertEqual(neg, "extra arms")
         self.assertEqual(charafile.reference(got).size, (32, 48))
 
+    def test_missing_character_artwork_is_rejected_on_load(self):
+        from chatdraw import charafile
+        broken = self.d / "missing-art.chara"
+        ch = charafile.new("Akari")
+        ch["manifest"]["images"]["view-front"] = "images/view-front.png"
+        with zipfile.ZipFile(broken, "w") as z:
+            z.writestr("manifest.json", json.dumps(ch["manifest"]))
+        with self.assertRaisesRegex(charafile.BadFile, "必要な絵"):
+            charafile.load(broken)
+
     def test_old_version_is_read_and_new_version_refused(self):
         from chatdraw import charafile
         old = self.d / "old.chara"
