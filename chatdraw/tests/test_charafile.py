@@ -97,6 +97,21 @@ class FileTest(Base):
         with self.assertRaisesRegex(charafile.BadFile, "必要な絵"):
             charafile.load(broken)
 
+    def test_malformed_manifest_and_version_raise_badfile(self):
+        from chatdraw import charafile
+        for label, manifest in (
+            ("array", []),
+            ("null", None),
+            ("invalid-version", {"format": charafile.FORMAT, "version": "bad"}),
+            ("null-version", {"format": charafile.FORMAT, "version": None}),
+        ):
+            with self.subTest(label=label):
+                broken = self.d / f"{label}.chara"
+                with zipfile.ZipFile(broken, "w") as z:
+                    z.writestr("manifest.json", json.dumps(manifest))
+                with self.assertRaises(charafile.BadFile):
+                    charafile.load(broken)
+
     def test_old_version_is_read_and_new_version_refused(self):
         from chatdraw import charafile
         old = self.d / "old.chara"
