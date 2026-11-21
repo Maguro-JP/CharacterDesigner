@@ -10,22 +10,22 @@
   工程の終わりごとに gc を掛けてメモリを返す（1 工程に詰め込むと重くて進まず、まとめるとメモリが溢れて落ちた）
 - 崩れが直しで消えなければ、崩れが決まった工程（back）まで戻る。戻るのは全体で BACKS 回、同じ工程へは REVISIT 回まで。
   検品が通るまで無限に回す形にしない（0.5.20 でそうしたら終わらなくなった）
-- 工程ごとに描いてよい所だけを囲みにして渡す（顔・手・足の直しは handcheck の枠、服と髪は部位分けの所で顔と手は除く、目の光は目の囲み）。
-  囲みの外は変えない
+- 模型で絵を描くのはサムネイルの工程だけ。工程 2 から先は、選んだサムネイル（同じ頼み・同じ種の AI モードの絵と同じ）を土台にし、
+  構図・人物・服を変えない（前は下描きで絵全体に描き重ね、アタリで種を変えて描き直し、工程ごとに絵が丸ごと変わった）
+- 形の崩れ（手・足・顔、左右の目の高さ）は線画の清書の工程で、崩れた枠の中だけを直す（LINES）。塗りの工程（下塗り〜仕上げ）では
+  形を変えない。仕上げで形の崩れが残れば線画の清書へ戻る。直しを重ねるたびに強くする（FIXES）
 - 縮めて見る・反転して見る・光源の向き・線の途切れ・影の向きは chatdraw/phasetools.py で測るだけにし、模型の絵には線の強弱・影の 2 段目・
   色合わせを掛けない（掛けた絵は線画の清書から仕上げまで全部崩れた。0.5.36）
 - 模型に渡す言葉は、頼みを訳した言葉だけ（直しにも five fingers などを足さない）。利用者が工程の確かめで足した言葉は、その訳を足す。
   渡した言葉は「模型に渡す言葉:」の知らせにし、アプリは進み具合の欄の詳細（ツールチップ）にだけ置く
 - 工程の始めには必ず「工程 i/n「名前」」の知らせを出す。アプリの進みの帯はこれで全体の進みを出す
-- 前の工程の絵に描き重ねたら、霞み・枠・色褪せを測り（phasetools.guard の記録）、出ていれば前の絵を使う（色合わせはしない）。
-  下描きは線に沿って白紙から描き直す形より、描き重ね（Painter.refine）を先にする（線に沿う形では霞み・枠・服の変わりが出た）
-- 同じ物を 2 度描かない。選んだサムネイルはそのままアタリにし、手・足・顔の崩れで下描きへ戻ったときは絵全体を描き重ね直さず、
-  前の下描きの崩れた枠の中だけを、直しを重ねるたびに強くして直す（FIXES）
 - 確かめ（confirm）を渡すと、工程が終わるたびに呼び、「進める」「この工程を描き直す」「言葉を足して描き直す」を受ける
 - 止める旗が立ったら、その工程の区切りで止まる
 - 工程の絵（窓に出す絵、NN-名前.png、確かめに出す絵）は、模型の絵をそのまま見せず、人が描いている途中の見た目にする
-  （白紙 → サムネイル → アタリ → ラフ → 線画 → 下塗り → 影 → 光 → 仕上げ。chatdraw/humanpaint.py）。描き終えたら、仕上げの
-  ゴミ（孤立した点、色の継ぎ目）を直し、最後の絵から人の工程の絵（背景・ディテールを含む）と筆が動くタイムラプスを作る
+  （白紙 → サムネイル → ラフ → 線画 → 下塗り → 影 → 光 → 仕上げ。chatdraw/humanpaint.py）。アタリ（体の点）は裏の処理で、出さない。
+  描き終えたら、仕上げのゴミ（孤立した点、色の継ぎ目）を塗りだけで直し、最後の絵から人の工程の絵（背景・ディテールを含む）と
+  筆が動くタイムラプスを作る
+- 最後の絵が、サムネイルの絵（AI モードの絵）より検品の崩れが多ければ、サムネイルの絵を使う（精度優先で AI モードより悪くしない）
 """
 from __future__ import annotations
 
@@ -55,14 +55,10 @@ THUMBS = 2            # サムネイルの枚数
 THUMB_SCALE = 1.0     # サムネイルの大きさ（描く大きさの割合）。同じ種・同じ大きさならアタリが同じ構図になるので縮めない
 THUMB_STEPS = 1.0     # サムネイルの描く工程の数の割合。選んだサムネイルをそのままアタリにする（半分の工程で描いてから同じ種でアタリを
                       # 描き直すと、同じ構図を 2 度描いて 214 秒かかり、描き直した絵は別の色になった。0.25 ではぼやけた絵になった）
-LINE_STRENGTH = 0.6   # 下描き: アタリの線に沿う強さ（T2I-Adapter の効き。0.8 では霞みと枠が出た）
-REFINE = 0.45         # 下描き: アタリの絵に描き重ねる強さ（色と明るさを残す）
-REPAINT = 0.35        # 服・髪・持ち物: 描かれていない物を足すときの描き直しの強さ（形は残す）
 FIX = 0.55            # 顔・手・足の直し: 崩れた枠の中だけを描き直す強さ（1 回目）
 FIXES = (0.55, 0.7, 0.85, 0.95)   # 直しを重ねるたびに強くする。同じ強さで戻って直すと崩れた指の形をなぞり、下描きから最後まで同じ崩れが残った
-SEAM_FIX = 0.5        # 仕上げ: 色の継ぎ目の囲みの中だけを描き直す強さ（私の推測）
-SHINE = 0.35          # 目の光の直し: 目の囲みの中だけを描き直す強さ
 COLORS_MOST = 14      # 下塗り: 人物の 2% 以上を占める色がこれより多ければ、色が散っている（私の推測）
+LINES = 6             # 線画の清書の工程の番号（0 から）。形の崩れはここへ戻って直す
 BACKS = 3             # 戻って直すのは全体でこの回数まで
 REVISIT = 2           # 同じ工程に戻るのはこの回数まで
 WORDS_NOTE = "模型に渡す言葉: "   # この頭の知らせは会話に出さず、進み具合の欄の詳細にだけ置く（chatdraw/activity.py）
@@ -200,14 +196,13 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
     pause_key があれば、メモリの見張り・メモリ不足・時間切れで工程が打ち切られたとき、その工程に入ったときの状態を
     chatdraw/pausekeep.py に残して Paused で返す。同じ鍵で呼び直すと、その工程から続ける（前は始めから描き直した）"""
     from PIL import Image
-    from chatdraw.engine import Stopped, emphasize
+    from chatdraw.engine import Stopped
     from chatdraw import handcheck, phasetools as pt, humanpaint as hp
     keep.mkdir(parents=True, exist_ok=True)
     # 模型の拡散の途中の絵は窓に渡さない。模型は 1 回で色も影も背景も付いた絵を出すので、渡すとサムネイルの時点で完成の絵が見えた。
     # 窓には工程の終わりごとに、人が描いている途中に見える絵（chatdraw/humanpaint.py）だけを渡す
     pv = {}
-    can_line, can_fix = abilities(painter)
-    can_refine = hasattr(painter, "refine")
+    _can_line, can_fix = abilities(painter)
     checks = _Safe(checks)
     w, h = (size or (832, 1216))
     n = len(PHASES)
@@ -222,26 +217,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
     def tell(words):
         say(f"{WORDS_NOTE}{words}")
 
-    tones = []
     memo = {"thumbs": {}, "fix_n": 0, "draft": None, "refix": False}   # 描いた絵を使い回す（同じ種・同じ言葉の絵は 2 度描かない）
-
-    def keep_tone(img, ref, where, mask=None):
-        """描き重ねた絵を、前の工程の絵の色と明るさに合わせる（霞み・枠・色褪せを次の工程へ持ち越さない）"""
-        if img is None or ref is None:
-            return img
-        try:
-            out, rec = pt.guard(img, ref, mask)
-        except Exception as e:   # noqa: BLE001  測れなかったら描いた絵のまま進める
-            say(f"{where}: 色と明るさを合わせられませんでした（{e}）")
-            return img
-        rec["where"] = where
-        # 色合わせ（match_colors・縁戻し）は掛けない。合わせた絵は色が転んで崩れたので、霞み・枠・色褪せが出たら前の絵を使う
-        rec["kept_ref"] = bool(rec["raw_flaws"])
-        tones.append(rec)
-        if rec["raw_flaws"]:
-            say(f"{where}: 描き重ねで " + "、".join(rec["raw_flaws"]) + " ので、前の絵を使います")
-            return ref.convert("RGB").resize(img.size)
-        return img
 
     def stop():
         if getattr(painter, "stop", False) is True:
@@ -283,6 +259,13 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
 
     # ここから工程。どれも {"image", "found", "fixed", "after", "words", "numbers", "readable", "note", "back", "show"} を返す
     def p_purpose(v):
+        # 絵の模型はこの工程で読む。読むのをサムネイルの最初の 1 枚に任せると、何分も「サムネイル」の工程で止まって見えた
+        if hasattr(painter, "load") and not getattr(painter, "loaded", lambda: True)():
+            say("絵の模型を読んでいます（目的の工程の準備）")
+            try:
+                painter.load((w, h))
+            except Exception as e:   # noqa: BLE001  読めなければ、サムネイルで描くときに読み直す（その時の失敗はそこで出る）
+                say(f"絵の模型を先に読めませんでした（{type(e).__name__}）。描くときに読みます")
         tags = [t.strip() for t in st["prompt"].split(",") if t.strip()]
         found = [] if tags else ["頼みが空です"]
         return {"image": None, "found": found, "numbers": {"words": len(tags), "main": tags[0] if tags else ""}, "readable": True}
@@ -320,21 +303,6 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         return {"image": img.resize((w, h)), "found": flaws, "numbers": {"thumbs": rows, "picked": s}, "words": words,
                 "readable": bool(req.get("readable"))}
 
-    def atari(s, words):
-        got = memo["thumbs"].get((st["prompt"], s))
-        if got is not None:   # 同じ種・同じ大きさ・同じ工程の数で描いたサムネイルがあれば、それがそのままアタリ（描き直さない）
-            say(f"サムネイル（種 {s}）をそのままアタリにします")
-            return got
-        s0 = steps(1.0)
-        try:
-            tell(st["prompt"])
-            words.append(st["prompt"])
-            # 選んだサムネイルの種で、同じ大きさのまま工程の数を戻して描く（構図は同じになる）。ぼやけたサムネイルに描き重ねると、
-            # ぼやけと霞みが最後の工程まで残った（phase-bench、Animagine XL 4.0）
-            return painter.paint(st["prompt"], s, on_step=on_step, size=(w, h), **pv)
-        finally:
-            unsteps(s0)
-
     def atari_flaws(img):
         req = checks.request(img, st["prompt"])
         pts = points(img)
@@ -349,28 +317,15 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         return flaws, nums, pts, bal, bool(req.get("readable")) and bool(bal.get("readable"))
 
     def p_atari(v):
-        words = []
-        s = st.get("seed_pick", st["seed"]) + (v * 1000 if v else 0)
-        img = atari(s, words)
+        """アタリは裏の処理。選んだサムネイルの絵の体の点（頭・肩・腰・関節）を読み、重心と等身を測るだけで、絵は描き直さない
+        （前は崩れがあると種を変えたアタリを描き、工程 3 で絵が丸ごと別の絵に変わった）。腕は部位分けの腕の形から推し直す
+        （VitPose は振っている手を読み違え、腕を下に垂らした点を返した）"""
+        img = st["image"]
         found, nums, pts, bal, ok = atari_flaws(img)
-        fixed, after = False, []
-        if found:   # アタリの崩れは枠では直せないので、種を変えたアタリを 1 回だけ描き、崩れの少ない方を使う
-            stop()
-            say("アタリの崩れを直すため、種を変えたアタリを 1 回だけ描いています")
-            st["thumb"] = None   # 種を変えたら、サムネイルに縛らずに描く
-            nxt = [x for x in st.get("seed_next") or [] if (st["prompt"], x) in memo["thumbs"]]
-            again = atari(nxt[0] if nxt and not v else s + 1, words)   # 次に良かったサムネイルがあれば、描かずに使う
-            after, nums2, pts2, bal2, ok2 = atari_flaws(again)
-            fixed = True
-            if len(after) < len(found):
-                img, nums, pts, bal, ok = again, nums2, pts2, bal2, ok2
-            else:
-                after = found
+        pts = hp.arm_points(pts, hp.clean_parts(img, parts_of(img)))
         st["points"], st["height"] = pts, bal.get("height", 0)
-        left = after if fixed else found
-        people = [f for f in left if f.startswith("人数")]
-        return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "numbers": nums, "readable": ok,
-                "back": 1 if people else None}
+        people = [f for f in found if f.startswith("人数")]
+        return {"image": img, "found": found, "numbers": nums, "readable": ok, "back": 1 if people else None}
 
     def p_body(v):
         img = st["image"]
@@ -381,85 +336,44 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                 "readable": bool(pz.get("readable")) and bool(bd.get("readable")), "back": 2}
 
     def p_draft(v):
-        img, words, note = st["image"], [], ""
-        s = st["seed"] + v * 1000
-        base = img
-        prev = memo["draft"]
-        refix = memo["refix"] and prev is not None and prev[0] == st["prompt"] and can_fix
-        memo["refix"] = False
-        if refix:
-            # 手・足・顔の崩れで戻ったときは、絵全体を描き重ね直さない。前の下描きを土台に、崩れた枠の中だけを強くして直す
-            # （描き重ね直すたびに絵全体が変わって色が褪せ、崩れた指は同じ形のまま残った）
-            img = prev[1]
-            say("前の下描きを土台に、崩れた手・足・顔の枠の中だけを直し直します")
-        elif can_refine:   # 描き重ね（絵から絵）を先にする。線に沿って白紙から描き直すと、霞み・枠・色褪せと服の変わりが出た
-            say("アタリの絵に描き重ねて、顔・手・足を描き込んでいます")
-            tell(st["prompt"])
-            words.append(st["prompt"])
-            img = keep_tone(painter.refine(st["prompt"], s, img, strength=REFINE, on_step=on_step, **pv), base, "下描き")
-        elif can_line:
-            say("アタリの線に沿って、顔・手・足を描き込んでいます")
-            tell(st["prompt"])
-            words.append(st["prompt"])
-            img = keep_tone(painter.paint(st["prompt"], s, on_step=on_step, base=img, strength=LINE_STRENGTH, size=(w, h), **pv), base, "下描き")
-        else:
-            note = "この模型は描き重ねられないので、アタリの絵のまま顔・手・足を検品しました"
+        """顔・手・足の下描き。崩れを測るだけで、直しは線画の清書の工程でまとめてする（人も線画の段階で形の間違いを直す）。
+        前はここで絵全体に描き重ね（refine）、工程ごとに絵が変わった"""
+        img = st["image"]
         res = checks.hands(img, st["prompt"])
-        pts = points(img)
-        tilt = pt.eye_tilt(pts)
+        tilt = pt.eye_tilt(st.get("points") or {})
         found = list(res.get("bad", [])) + ([f"左右の目の高さがずれている（{tilt}）"] if tilt is not None and tilt > pt.EYE_TILT else [])
-        extra = []
-        if tilt is not None and tilt > pt.EYE_TILT and pt.face_box(pts):
-            extra = [(pt.face_box(pts), "face")]
-        img, res2, fixed = fix_regions(img, res, s + 77, words, extra)
-        pts2 = points(img) if fixed else pts
-        tilt2 = pt.eye_tilt(pts2)
-        after = list(res2.get("bad", [])) + ([f"左右の目の高さがずれている（{tilt2}）"] if tilt2 is not None and tilt2 > pt.EYE_TILT else [])
-        st["points"] = pts2
-        memo["draft"] = (st["prompt"], img)
-        return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "note": note,
-                "numbers": {"eye_tilt": tilt2, "bad": len(res2.get("bad", []))}, "readable": bool(res.get("readable")), "back": 4}
+        return {"image": img, "found": found, "numbers": {"eye_tilt": tilt, "bad": len(res.get("bad", []))},
+                "readable": bool(res.get("readable"))}
 
     def p_wear(v):
-        img, words, note = st["image"], [], ""
+        """服・髪・持ち物。頼んだ物が描かれているかを測るだけで、服や髪を描き直さない（描き直すと服が変わった）"""
+        img = st["image"]
         req = checks.request(img, st["prompt"])
         found = _missing(req) + _extra(req)
-        fixed, after = False, []
-        missing = list(req.get("missing", [])) if req.get("readable") else []
-        nums = {"missing": len(missing), "extra": len(_extra(req))}
-        if missing and (can_fix or can_refine):
-            stop()
-            words2 = emphasize(st["prompt"], missing)
-            say(f"描かれていない物（{'、'.join(missing)}）を、服・髪・持ち物の所だけに 1 回描き足しています")
-            tell(words2)
-            words.append(words2)
-            pts = st.get("points") or {}
-            protect = [b for b in [pt.face_box(pts)] if b]
-            if can_fix:
-                mask, by_parts = pt.wear_mask(img, protect)
-                nums["by_parts"] = by_parts
-                tried = keep_tone(painter.redraw(words2, st["seed"] + 131 + v * 1000, img, mask, strength=REPAINT), img, "服・髪・持ち物", mask)
-            else:
-                tried = keep_tone(painter.refine(words2, st["seed"] + 131 + v * 1000, img, strength=REPAINT, **pv), img, "服・髪・持ち物")
-            req2 = checks.request(tried, st["prompt"])
-            after = _missing(req2) + _extra(req2)
-            fixed = True
-            if len(after) <= len(found):
-                img = tried
-            else:
-                after = found
-                say("描き足しで崩れが増えたので、前の絵を次の工程に渡します")
-        elif missing:
-            note = "この模型は描き直しができないので、描かれていない物を直さずに次へ進みました"
-        return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "note": note, "numbers": nums,
+        return {"image": img, "found": found, "numbers": {"missing": len(_missing(req)), "extra": len(_extra(req))},
                 "readable": bool(req.get("readable"))}
 
     def p_lines(v):
-        img = st["image"]
+        """線画の清書。形の崩れ（手・足・顔、左右の目の高さ）はこの工程で直す。直すのは崩れた枠の中だけで、崩れが減ったときだけ使う。
+        線の強弱は模型の絵に掛けない（掛けた絵は線がにじんで崩れた）。測るだけにし、窓には線画だけを見せる"""
+        img, words = st["image"], []
         before = pt.lines(img)
-        found = [f"外の輪郭が途切れている（{before['gap']}）"] if before.get("readable") and before["gap"] > pt.LINE_GAP_MOST else []
-        # 模型の絵に線の強弱を掛けない（掛けた絵は線がにじんで崩れた）。測るだけにし、窓には線画だけを見せる
-        return {"image": img, "found": found, "readable": bool(before.get("readable")), "numbers": {"before": before}}
+        res = checks.hands(img, st["prompt"])
+        pts = st.get("points") or {}
+        tilt = pt.eye_tilt(pts)
+        tilt_bad = tilt is not None and tilt > pt.EYE_TILT
+        gap = [f"外の輪郭が途切れている（{before['gap']}）"] if before.get("readable") and before["gap"] > pt.LINE_GAP_MOST else []
+        found = list(res.get("bad", [])) + ([f"左右の目の高さがずれている（{tilt}）"] if tilt_bad else []) + gap
+        extra = [(pt.face_box(pts), "face")] if tilt_bad and pt.face_box(pts) else []
+        img, res2, fixed = fix_regions(img, res, st["seed"] + 77 + v * 1000, words, extra)
+        pts2 = points(img) if fixed else pts
+        tilt2 = pt.eye_tilt(pts2) if fixed else tilt
+        if fixed and pts2:
+            st["points"] = hp.arm_points(pts2, hp.clean_parts(img, parts_of(img)))
+        after = list(res2.get("bad", [])) + ([f"左右の目の高さがずれている（{tilt2}）"] if tilt2 is not None and tilt2 > pt.EYE_TILT else []) + gap
+        return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words,
+                "readable": bool(before.get("readable")) and bool(res.get("readable")),
+                "numbers": {"before": before, "eye_tilt": tilt2, "bad": len(res2.get("bad", []))}}
 
     def p_base(v):
         import numpy as np
@@ -510,53 +424,30 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         return {"image": img, "found": found, "readable": bool(sh.get("readable")), "numbers": {"before": sh}}
 
     def p_shine(v):
-        img, words, note = st["image"], [], ""
-        pts = st.get("points") or {}
-        cl = pt.catchlights(img, pts)
+        """光・艶・目のハイライト。目の光を測るだけで、目を描き直さない（塗りの工程で形を変えない）"""
+        img = st["image"]
+        cl = pt.catchlights(img, st.get("points") or {})
         found = [f"目の光が無い（{x}）" for x in cl.get("eye_max", []) if x < pt.CATCHLIGHT]
-        fixed, after = False, []
-        if found and can_fix:
-            say("目の囲みの中だけを、1 回だけ描き直しています（目の光）")
-            tell(st["prompt"])
-            words.append(st["prompt"])
-            tried = painter.redraw(st["prompt"], st["seed"] + 251 + v * 1000, img,
-                                   _mask(img.size, [(b, "eye") for b in cl["boxes"]]), strength=SHINE)
-            cl2 = pt.catchlights(tried, pts)
-            after = [f"目の光が無い（{x}）" for x in cl2.get("eye_max", []) if x < pt.CATCHLIGHT]
-            fixed = True
-            if len(after) <= len(found):
-                img, cl = tried, cl2
-            else:
-                after = found
-        elif found:
-            note = "この模型は囲みの中だけを直せないので、目の光を足さずに次へ進みました"
-        return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "note": note,
-                "numbers": {"eye_max": cl.get("eye_max")}, "readable": bool(cl.get("readable"))}
+        return {"image": img, "found": found, "numbers": {"eye_max": cl.get("eye_max")}, "readable": bool(cl.get("readable"))}
 
     def p_finish(v):
-        img, words = st["image"], []
+        """仕上げ。縮めて見る・反転して見るで全体の崩れを探す。形の崩れはここでは直さず、線画の清書の工程へ戻って直す
+        （塗りの工程では塗りだけを直し、形は変えない）"""
+        img = st["image"]
         res = checks.hands(img, st["prompt"])
         body = checks.body(img, st["prompt"])
-        pts = points(img) or st.get("points") or {}
-
-        def views(im):
-            sv, fv = pt.shrink_view(im), pt.flip_view(im, pt.face_box(pts))
-            out = []
-            if sv.get("readable") and sv["contrast"] < pt.SHRINK_CONTRAST:
-                out.append(f"縮めると主役が目立たない（{sv['contrast']}）")
-            if fv.get("readable") and fv["asym"] > pt.FLIP_MOST:
-                out.append(f"反転すると顔が片側に歪んで見える（{fv['asym']}）")
-            return out, {"shrink": sv.get("contrast"), "asym": fv.get("asym")}
+        pts = st.get("points") or {}
+        sv, fv = pt.shrink_view(img), pt.flip_view(img, pt.face_box(pts))
+        views = []
+        if sv.get("readable") and sv["contrast"] < pt.SHRINK_CONTRAST:
+            views.append(f"縮めると主役が目立たない（{sv['contrast']}）")
+        if fv.get("readable") and fv["asym"] > pt.FLIP_MOST:
+            views.append(f"反転すると顔が片側に歪んで見える（{fv['asym']}）")
         body_bad = list(body.get("bad", [])) if body.get("readable") else []
-        v1, nums = views(img)
-        found = list(res.get("bad", [])) + body_bad + v1
-        img, res2, fixed = fix_regions(img, res, st["seed"] + 191 + v * 1000, words)
-        v2, nums2 = views(img) if fixed else (v1, nums)
-        after = list(res2.get("bad", [])) + body_bad + v2
-        left = after if fixed else found
-        hands_left = bool(res2.get("bad"))
-        return {"image": img, "found": found, "fixed": fixed, "after": after, "words": words, "numbers": nums2,
-                "readable": bool(res.get("readable")) and bool(body.get("readable")), "back": 4 if hands_left and left else None}
+        found = list(res.get("bad", [])) + body_bad + views
+        hands_left = bool(res.get("bad"))
+        return {"image": img, "found": found, "numbers": {"shrink": sv.get("contrast"), "asym": fv.get("asym")},
+                "readable": bool(res.get("readable")) and bool(body.get("readable")), "back": LINES if hands_left and can_fix else None}
 
     def finish_human(img, left):
         """仕上げのゴミ（孤立した点、色の継ぎ目）を直し、人の工程の絵とタイムラプスを作る。工程の絵も最後の絵から作り直す
@@ -569,13 +460,11 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             if rep["specks"]:
                 say(f"仕上げ: 孤立した点を {rep['specks']} 画素、周りの色で埋めました")
             seams = rep["seams"]
-            if seams and can_fix:
-                boxes = [(tuple(x["box"]), "seam") for x in seams]
-                say("仕上げ: 色の継ぎ目（" + "、".join(x["part"] for x in seams) + "）を、継ぎ目の囲みの中だけ描き直しています")
-                tell(st["prompt"])
-                tried = painter.redraw(st["prompt"], st["seed"] + 307, cleaned, _mask(cleaned.size, boxes), strength=SEAM_FIX)
-                again = hp.seams(tried, parts_of(tried))
-                if len(again) <= len(seams):
+            if seams:   # 色の継ぎ目は塗りだけで直す（形は変えない）。継ぎ目より下の色を、上の色に寄せる
+                say("仕上げ: 色の継ぎ目（" + "、".join(x["part"] for x in seams) + "）を、塗りだけで直しています")
+                tried = hp.fix_seams(cleaned, parts, seams)
+                again = hp.seams(tried, parts)
+                if len(again) < len(seams):
                     cleaned, seams = tried, again
             if not rep["seams_readable"]:
                 say("仕上げ: 部位分けが無いので、色の継ぎ目は測れていません")
@@ -625,7 +514,6 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             entry[i] = dict(st)   # 戻るときは、この工程に入ったときの土台から描き直す
         saved = None
         say(f"工程 {i + 1}/{n}「{name}」: {PHASES[i][1]}（見る物: {PHASES[i][2]}）")
-        tones.clear()   # 色合わせの記録はこの回の分だけを残す（前は戻るたびに前の回の分が重なった）
         t0 = time.time()
         try:
             got = run[i](visits[i])
@@ -659,14 +547,11 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
                 except Exception:   # noqa: BLE001  見せるだけ。描く流れは止めない
                     pass
         mem = release()
-        for t in tones:
-            t.setdefault("phase", name)
         row = {"phase": name, "decides": PHASES[i][1], "checks": PHASES[i][2], "numbers_of": PHASES[i][3],
                "image": str(path) if path else None, "found": found, "fixed": fixed, "after": after,
                "words": list(got.get("words", [])), "numbers": got.get("numbers", {}), "readable": bool(got.get("readable", True)),
                "seconds": round(time.time() - t0, 2), "mem_mb": mem, "visit": visits[i],
-               "tone": pt.tone(st["image"]) if st.get("image") is not None else None,
-               "tone_guard": [t for t in tones if t.get("phase") == name]}
+               "tone": pt.tone(st["image"]) if st.get("image") is not None else None}
         if got.get("note"):
             row["note"] = got["note"]
         final[i] = row
@@ -689,7 +574,6 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         if left and back is not None and backs < BACKS and visits[back] < REVISIT:
             backs += 1
             visits[back] += 1
-            memo["refix"] = back == 4 and bool(got.get("hands_left", True))
             say(f"「{name}」の崩れは工程 {back + 1}「{PHASES[back][0]}」で決まるので、そこへ戻って直します（{backs}/{BACKS} 回目）")
             st.clear()
             st.update(entry[back])
@@ -700,6 +584,16 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
     rows = [final[k] for k in range(n)]
     last = rows[-1]
     left = list(last["after"] if last["fixed"] else last["found"])
+    ai = memo["thumbs"].get((st["prompt"], st["seed"]))
+    if ai is not None and st.get("image") is not None and ai.size == st["image"].size and ai.tobytes() != st["image"].tobytes():
+        # 精度優先の絵が、同じ頼み・同じ種の AI モードの絵（最初のサムネイル）より崩れが多ければ、AI モードの絵を使う
+        def bad(im):
+            r, b = checks.hands(im, st["prompt"]), checks.body(im, st["prompt"])
+            return len(r.get("bad", [])) + (len(b.get("bad", [])) if b.get("readable") else 0)
+        if bad(st["image"]) > bad(ai):
+            say("仕上げ: AI モードの絵より崩れが多かったので、AI モードの絵を土台に使います")
+            st["image"] = ai
+            left = list(checks.hands(ai, st["prompt"]).get("bad", []))
     human = finish_human(st["image"], left)
     st["image"] = human["image"]
     checked = all(r["readable"] for r in rows)

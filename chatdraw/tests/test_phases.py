@@ -132,17 +132,21 @@ class PhasesTest(unittest.TestCase):
         self.assertTrue(all(x[2] == 20 for x in paints))
         self.assertIn("picked", got["phases"][1]["numbers"])
 
-    def test_back_to_draft_fixes_regions_only_and_stronger(self):
-        """手の崩れで下描きへ戻ったら、絵全体を描き重ね直さず、崩れた枠の中だけを前より強く直す"""
+    def test_back_to_lines_fixes_regions_only_and_stronger(self):
+        """形の崩れは線画の清書の工程で直す。サムネイルのあとは絵全体を描き重ねず（refine を呼ばない）、崩れた枠の中だけを、
+        戻るたびに前より強く直す"""
         class P(Painter):
             def refine(self, prompt, seed, image, strength=0.5, on_step=None, on_preview=None):
                 self.log.append(("refine", seed, strength))
                 return image.copy()
         got, painter, *_ = self.run_phases(always_bad=True, painter=P())
-        self.assertEqual(sum(1 for x in painter.log if x[0] == "refine"), 1, painter.log)
+        self.assertEqual(sum(1 for x in painter.log if x[0] == "refine"), 0, painter.log)
+        self.assertEqual(sum(1 for x in painter.log if x[0] == "paint"), phases.THUMBS, painter.log)   # 描くのはサムネイルだけ
         fixes = [x[2] for x in painter.log if x[0] == "redraw" and x[2] in phases.FIXES]
         self.assertGreaterEqual(len(fixes), 2, painter.log)
         self.assertEqual(fixes, sorted(fixes))   # 直しを重ねるたびに強くする
+        lines = phases.LINES
+        self.assertGreaterEqual(got["phases"][lines]["visit"], 1)   # 仕上げの崩れで線画の清書へ戻った
 
     def test_clean_after_first_fix(self):
         got, painter, seen, said, files = self.run_phases(always_bad=False)
@@ -199,8 +203,8 @@ class PhasesTest(unittest.TestCase):
         self.assertEqual(asked.count(2), 2)   # 描き直した工程はもう一度確かめる
         self.assertEqual(asked.count(5), 2)
         self.assertEqual(got["phases"][2]["visit"], 1)
-        self.assertTrue(any("blue ribbon" in w for r in got["history"] for w in r["words"]))
         self.assertTrue(any("言葉を足しました" in s for s in said))
+        self.assertTrue(any("blue ribbon" in s for s in said))
 
     def test_studio_way_phases(self):
         with TemporaryDirectory() as d:
@@ -543,7 +547,8 @@ class PreviewTest(unittest.TestCase):
 class NoSketchModelTest(unittest.TestCase):
     """線に沿う部品も範囲の直しも無い世代（FLUX.1 など）でも、線画と塗りの工程を描き重ねで進める（前は構図の絵のまま止まっていた）"""
 
-    def test_refine_used_when_no_sketch(self):
+    def test_no_whole_redraw_when_no_sketch(self):
+        """線に沿う部品も範囲の直しも無い世代でも、サムネイルのあとに絵全体を描き重ねない（工程ごとに絵が変わらない）"""
         class Dit(Painter):
             abilities = (False, False)
 
@@ -556,4 +561,4 @@ class NoSketchModelTest(unittest.TestCase):
             C, _seen = checks(False)
             got = phases.draw(p, "1girl, red scarf", 1, (64, 64), Path(d), checks=C)
         self.assertEqual(len(got["phases"]), len(phases.PHASES))
-        self.assertTrue(any(x[0] == "refine" for x in p.log), p.log)
+        self.assertFalse(any(x[0] in ("refine", "redraw") for x in p.log), p.log)

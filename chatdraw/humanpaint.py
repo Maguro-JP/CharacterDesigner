@@ -17,8 +17,9 @@ from pathlib import Path
 import numpy as np
 from PIL import Image, ImageDraw, ImageFilter
 
-STAGES = ["白紙", "アタリ", "ラフ", "線画", "下塗り", "影 1 段", "影 2 段", "光", "背景", "ディテール", "仕上げ"]
+STAGES = ["白紙", "ラフ", "線画", "下塗り", "影 1 段", "影 2 段", "光", "背景", "ディテール", "仕上げ"]
 # 工程（chatdraw/phases.PHASES の順）ごとに、キャンバスに見せる人の工程
+# アタリ（体の点の丸と棒）は画面にもレイヤーにも出さない。体の位置を決める裏の処理で、出すと邪魔だった。アタリの工程には薄いラフを見せる
 PHASE_STAGE = ["白紙", "サムネイル", "アタリ", "ラフ", "ラフ", "ラフ", "線画", "下塗り", "影 1 段", "影 2 段", "光", "仕上げ"]
 PAPER = (255, 255, 255)
 PENCIL = np.array([96, 108, 140], np.float32)   # ラフの鉛筆の色（青みの灰色）
@@ -51,6 +52,79 @@ def figure(image, parts=None):
     return m if 0.03 < share < 0.85 else None
 
 
+PART_GROW = 12       # 部位分けが落とした指先などを、隣の部位の色に近い画素だけ拾い直す幅（画素）
+PAIRS = {13: 12, 15: 14, 10: 9}
+SKIN_PARTS = (11, 12, 13, 14, 15)   # 部位分けの顔・脚・腕
+PART_ROUNDS = 6      # 拾い直しを繰り返す回数
+PART_NEAR = 45       # 拾い直す画素の、部位の色からの RGB の距離の上限
+
+
+def clean_parts(image, parts):
+    """部位分けを整える。縮めた部位分けを広げた角ばりを均し、落とした指先を、隣の部位の色に近い画素だけ拾い直す
+    （広げるだけにすると背景まで人物になり、人物のまわりに黒い太い縁が出た）"""
+    from scipy import ndimage
+    if parts is None:
+        return None
+    p = np.asarray(parts).astype(np.uint8).copy()
+    for right, left in PAIRS.items():   # 左右の脚・腕・靴は 1 つの部位にする（左右を取り違えた所が、脚の中の斑と線になった）
+        p[p == right] = left
+    p = ndimage.median_filter(p, size=5)
+    a = np.asarray(image.convert("RGB")).astype(np.float32)
+    n = int(p.max()) + 1
+    med = np.zeros((n, 3), np.float32)
+    for k in np.unique(p):
+        if k:
+            med[k] = np.median(a[p == k], axis=0)
+    p = p.copy()
+    for _ in range(PART_ROUNDS):   # 色の近い画素だけを、少しずつ広げて拾う（腿の明るい所を背景と読んだ所も、肌の色なら拾い直す）
+        near = ndimage.binary_dilation(p > 0, iterations=PART_GROW) & (p == 0)
+        if not near.any() or not (p > 0).any():
+            break
+        _d, idx = ndimage.distance_transform_edt(p == 0, return_indices=True)
+        k = p[idx[0], idx[1]]
+        # 拾い直すのは肌の部位（顔・腕・脚）だけ。髪や服まで広げると、暗い背景を服と読んで人物が膨らんだ。
+        # 肌の明るい所（光）は白に寄るので、部位の色から白へ向かう線との距離で見る
+        c = med[k]
+        t = np.clip(((a - c) * (255 - c)).sum(-1) / np.maximum(((255 - c) ** 2).sum(-1), 1), 0, 1)[..., None]
+        dist = np.sqrt(((a - (c + t * (255 - c))) ** 2).sum(-1))
+        ok = near & np.isin(k, list(SKIN_PARTS)) & (dist < PART_NEAR)
+        if not ok.any():
+            break
+        p[ok] = k[ok]
+    # 別の部位の中に浮いた小さな島（腿の明るい所を別の部位と読んだ所など）は、囲んでいる部位に寄せる。残すと下塗りと線画に斑が出た
+    area = max(int((p > 0).sum()), 1)
+    for k in [int(v) for v in np.unique(p) if v]:
+        lab, n = ndimage.label(p == k)
+        for c in range(1, n + 1):
+            m = lab == c
+            if m.sum() > area * 0.02:
+                continue
+            ring = ndimage.binary_dilation(m, iterations=2) & ~m
+            around = p[ring]
+            around = around[around != k]
+            if len(around):
+                top = np.bincount(around).argmax()
+                if top and (around == top).mean() > 0.6:
+                    p = p.copy() if not p.flags.writeable else p
+                    p[m] = top
+    holes = ndimage.binary_fill_holes(p > 0) & (p == 0)   # 人物の中の穴（腿の明るい所などを部位分けが落とした所）は近い部位で埋める
+    if holes.any():
+        _d, idx = ndimage.distance_transform_edt(p == 0, return_indices=True)
+        p = p.copy()
+        p[holes] = p[idx[0][holes], idx[1][holes]]
+    return p
+
+
+def part_edges(pl):
+    """部位の境目と人物の外形（閉じた線）"""
+    from scipy import ndimage
+    sm = ndimage.median_filter(pl, size=9)   # 部位分けの縁のでこぼこを均してから線にする（そのままでは外形がぎざぎざだった）
+    e = np.zeros(pl.shape, bool)
+    e[:-1] |= sm[:-1] != sm[1:]
+    e[:, :-1] |= sm[:, :-1] != sm[:, 1:]
+    return np.clip(ndimage.gaussian_filter(ndimage.binary_dilation(e, iterations=1).astype(np.float32), 0.7) * 1.4, 0, 1)
+
+
 def dark_lines(image, sigma=1.0, dark=LINE_DARK):
     """明るさの谷の深さ（0〜255 の float）。大きいほど濃い線"""
     from scipy import ndimage
@@ -68,13 +142,17 @@ def blank(size):
 _blank = blank
 
 
-def rough(image, fig=None, scale=3, alpha=0.55):
-    """白い紙に薄い鉛筆の線。縮めた絵で線を取るので細部が落ち、2 本ずらして重ねて下描きの揺れを出す"""
+def rough(image, fig=None, scale=3, alpha=0.55, pl=None):
+    """白い紙に鉛筆の線。縮めた絵で線を取るので細部が落ち、2 本ずらして重ねて下描きの揺れを出す。部位分けがあれば外形と部位の境目も
+    引く（明るさの谷だけでは薄すぎて形が読めなかった）"""
     from scipy import ndimage
     w, h = image.size
     small = image.convert("RGB").resize((max(8, w // scale), max(8, h // scale)), Image.BILINEAR)
     d = dark_lines(small, sigma=1.0, dark=ROUGH_DARK)
     d = np.asarray(Image.fromarray(d.astype(np.uint8)).resize((w, h), Image.BILINEAR), np.float32) / 255.0
+    d = np.clip(d * 2.5, 0, 1)
+    if pl is not None:
+        d = np.maximum(d, part_edges(pl) * 0.8)
     d2 = ndimage.shift(d, (2, -2), order=0)
     a = np.clip(np.maximum(d * alpha, d2 * alpha * 0.6), 0, 1)
     if fig is not None:
@@ -88,6 +166,43 @@ ATARI = (70, 130, 220)   # アタリの線の色（薄い青）
 LIMBS = [("left_shoulder", "left_elbow"), ("left_elbow", "left_wrist"), ("right_shoulder", "right_elbow"), ("right_elbow", "right_wrist"),
          ("left_hip", "left_knee"), ("left_knee", "left_ankle"), ("right_hip", "right_knee"), ("right_knee", "right_ankle"),
          ("left_shoulder", "right_shoulder"), ("left_hip", "right_hip")]
+
+
+ARMS = {14: "left", 15: "right"}   # 部位分けの腕（facefeat の番号）
+
+
+def arm_points(points, pl):
+    """体の点の手首を、部位分けの腕（見えている腕の肌、多くは手）の塊の中心から推し直す。VitPose は振っている手（上げた腕）の手首を
+    読み違え、アタリが腕を下に垂らしていた。塊は体の真ん中より右か左かで左右の肩に分ける（近さで分けると両手が片方の肩に付いた）。
+    肘は VitPose の点を使い、無ければ肩と手首の真ん中にする"""
+    from scipy import ndimage
+    if not points or pl is None or not all(k in points for k in ("left_shoulder", "right_shoulder")):
+        return points
+    pts = dict(points)
+    mid = (pts["left_shoulder"][0] + pts["right_shoulder"][0]) / 2
+    lab, n = ndimage.label(np.isin(pl, list(ARMS)))
+    if not n:
+        return pts
+    sizes = np.bincount(lab.ravel(), minlength=n + 1)
+    for side in ("left", "right"):
+        sx = pts[f"{side}_shoulder"][0]
+        best = None
+        for k in range(1, n + 1):
+            if sizes[k] < 80:
+                continue
+            ys, xs = np.nonzero(lab == k)
+            cx, cy = float(xs.mean()), float(ys.mean())
+            if (cx - mid) * (sx - mid) <= 0:   # 体の真ん中から見て、その肩と同じ側の塊だけ
+                continue
+            if best is None or sizes[k] > best[0]:
+                best = (sizes[k], cx, cy)
+        if best is None:
+            continue
+        pts[f"{side}_wrist"] = (best[1], best[2])
+        if f"{side}_elbow" not in pts:
+            s0 = pts[f"{side}_shoulder"]
+            pts[f"{side}_elbow"] = ((s0[0] + best[1]) / 2, (s0[1] + best[2]) / 2)
+    return pts
 
 
 def atari(size, points, base=None):
@@ -136,17 +251,21 @@ def thumbnail(image, fig=None):
     return out
 
 
-def ink(image, fig=None):
-    """清書した線の濃さ（0〜1）。人物の所だけ（人物を分けられなければ全体）"""
+def ink(image, fig=None, pl=None):
+    """清書した線の濃さ（0〜1）。人物の所だけ（人物を分けられなければ全体）。部位分けがあれば、部位の境目と外形を閉じた線として足す
+    （明るさの谷だけでは、髪の外形・顔の輪郭・腕・マフラーの線が欠け、途切れた線の切れ端に見えた）"""
     from scipy import ndimage
-    a = np.clip(dark_lines(image, sigma=1.0) / 255.0 * 1.6, 0, 1)
+    d = dark_lines(image, sigma=1.0) / 255.0
+    a = np.clip((d - 0.12) * 3.0, 0, 1)   # 薄い谷（塗りの明暗）は捨て、はっきりした線だけを濃くする
+    if pl is not None:
+        a = np.maximum(a, part_edges(pl) * 0.95)
     if fig is not None:
         a *= ndimage.binary_dilation(fig, iterations=2)
     return a
 
 
-def lineart(image, fig=None):
-    a = ink(image, fig)
+def lineart(image, fig=None, pl=None):
+    a = ink(image, fig, pl)
     return Image.fromarray((255 * (1 - a)).clip(0, 255).astype(np.uint8)).convert("RGB")
 
 
@@ -195,11 +314,12 @@ def _means(src, lab, take):
     return out
 
 
-def layers(image, fig=None, lab=None):
+def layers(image, fig=None, lab=None, pl=None):
     """下塗り・影 1 段・影 2 段・光の色の絵（numpy の float の RGB）と、塗る所の真偽の配列"""
     a = np.asarray(image.convert("RGB")).astype(np.float32)
+    by_part = lab is None and pl is not None
     if lab is None:
-        lab = regions(image, fig)
+        lab = pl.astype(np.int32) if by_part else regions(image, fig)   # 部位分けがあれば、部位ごとに 1 色の下塗り
     area = lab > 0
     L = _lum(a)
     n = int(lab.max()) + 1
@@ -207,9 +327,12 @@ def layers(image, fig=None, lab=None):
     base_c = _means(a, lab, area & (L >= lmean[lab]))   # 部位の明るい側の平均を固有の色にする（影の色を下塗りに混ぜない）
     base_c = np.where(np.isnan(base_c), _means(a, lab, area), base_c)
     base = np.where(area[..., None], np.nan_to_num(base_c[lab], nan=255.0), 255.0)
+    if by_part:
+        flat = base
     # 塗りの所ごとの色のままでは、背景のぼかしや服のしわの明暗が段になって残り、下塗りの時点で完成に近く見えた。色を絞って平らにする
-    flat = np.asarray(Image.fromarray(base.clip(0, 255).astype(np.uint8)).quantize(colors=BASE_COLORS, method=Image.MEDIANCUT)
-                      .convert("RGB")).astype(np.float32)
+    else:
+        flat = np.asarray(Image.fromarray(base.clip(0, 255).astype(np.uint8)).quantize(colors=BASE_COLORS, method=Image.MEDIANCUT)
+                          .convert("RGB")).astype(np.float32)
     base = np.where(area[..., None], flat, 255.0)
     bl = _lum(base)
     out = {"base": base, "area": area, "lab": lab}
@@ -231,24 +354,19 @@ def stages(final, parts=None, points=None) -> list[tuple[str, Image.Image]]:
     """人の工程の順の絵。最後は仕上げ（模型の絵。clean を通した物を渡す）。人物を背景から分けられないときは「背景」を省く"""
     from scipy import ndimage
     final = final.convert("RGB")
-    fig = figure(final, parts)
-    a = ink(final, fig)
-    ly = layers(final, fig)
+    pl = clean_parts(final, parts)
+    fig = (pl > 0) if pl is not None else figure(final, None)
+    a = ink(final, fig, pl)
+    ly = layers(final, fig, pl=pl)
     w, h = final.size
     fa = np.asarray(final).astype(np.float32)
-    out = [("白紙", _blank((w, h)))]
-    at = atari((w, h), points)
-    if at is not None:
-        out.append(("アタリ", at))
-        out.append(("ラフ", Image.blend(at, rough(final, fig), 0.75)))   # ラフはアタリの上に描く
-    else:
-        out.append(("ラフ", rough(final, fig)))
-    out.append(("線画", lineart(final, fig)))   # 線画は白い紙の上の黒い線だけ（色の絵に色調を掛けない）
+    out = [("白紙", _blank((w, h))), ("ラフ", rough(final, fig, scale=2, alpha=0.8, pl=pl))]
+    out.append(("線画", lineart(final, fig, pl)))   # 線画は白い紙の上の黒い線だけ（色の絵に色調を掛けない）
     for key, name in (("base", "下塗り"), ("shade1", "影 1 段"), ("shade2", "影 2 段"), ("light", "光")):
         out.append((name, _with_lines(ly[key], a)))
     lit = ly["light"]
     if fig is not None:
-        core = fig if parts is None else ndimage.binary_erosion(np.asarray(parts) > 0, iterations=4)
+        core = fig if pl is None else ndimage.binary_erosion(pl > 0, iterations=1)
         # 背景を入れたら、人物の縁は広げる前の部位分けで切る（部位分けは人物より数画素外まで取るので、少し削る。削らないと人物のまわりに明るい輪が残った）
         soft = ndimage.gaussian_filter(core.astype(np.float32), 1.5)[..., None]
         lit = np.where(ly["area"][..., None], lit, fa)   # 塗る所の外の白で縁をぼかすと、人物のまわりに白い光の輪が出た
@@ -267,23 +385,21 @@ def for_phase(i: int, image, parts=None, points=None):
     name = PHASE_STAGE[min(i, len(PHASE_STAGE) - 1)]
     if image is None or name == "白紙":
         return _blank(image.size if image is not None else (832, 1216))
-    fig = figure(image, parts)
+    pl = clean_parts(image, parts)
+    fig = (pl > 0) if pl is not None else figure(image, None)
     if name == "サムネイル":
         return thumbnail(image, fig)
-    if name == "アタリ":
-        at = atari(image.size, points)
-        return at if at is not None else rough(image, fig, scale=8, alpha=0.45)
+    if name == "アタリ":   # 大きな形だけの薄いラフ（アタリそのものは出さない）
+        return rough(image, fig, scale=6, alpha=0.6)
     if name == "ラフ":
-        r = rough(image, fig, scale={3: 5, 4: 3}.get(i, 2))
-        at = atari(image.size, points)
-        return Image.blend(at, r, 0.75) if at is not None else r
+        return rough(image, fig, scale={3: 4, 4: 3}.get(i, 2), alpha=0.8, pl=pl)
     if name == "線画":
-        return lineart(image, fig)
+        return lineart(image, fig, pl)
     if name == "仕上げ":
         return image
-    ly = layers(image, fig)
+    ly = layers(image, fig, pl=pl)
     key = {"下塗り": "base", "影 1 段": "shade1", "影 2 段": "shade2", "光": "light"}[name]
-    return _with_lines(ly[key], ink(image, fig))
+    return _with_lines(ly[key], ink(image, fig, pl))
 
 
 # ここから仕上げのゴミの検品と直し
@@ -332,10 +448,44 @@ def seams(image, parts) -> list[dict]:
         if min(top, bot) < 0.15 * len(rows):
             continue
         y = int(rows[j + step // 2])
-        xs = np.where(m[y])[0]
+        xs = np.where(m[max(0, y - 40):int(rows[-1]) + 1].any(0))[0]   # 継ぎ目の行だけの幅では細い帯しか囲めず、直すと白い筋が残った
         found.append({"part": PART_NAMES.get(int(k), f"部位 {int(k)}"), "jump": round(float(jump[j]), 1),
-                      "box": (int(xs.min()) - 8, y - 24, int(xs.max()) + 8, y + 24)})
+                      # 継ぎ目から部位の下の端までを囲む（継ぎ目の帯だけを直すと、下の黒い所が残った）
+                      "box": (int(xs.min()) - 8, y - 24, int(xs.max()) + 8, int(rows[-1]) + 4)})
     return found
+
+
+SHOES = (9, 10)
+
+
+def fix_seams(image, parts, found) -> Image.Image:
+    """色の継ぎ目を塗りだけで直す。継ぎ目より下で、上の色より暗く外れた画素（靴は除く）の色を、上の色に寄せる（明暗の模様は半分残す）。
+    形（どの画素がどの部位か）は変えない。上の色が正しいとは限らないので、直したら継ぎ目を測り直し、減ったときだけ使う（呼ぶ側）"""
+    from scipy import ndimage
+    p = np.asarray(parts)
+    a = np.asarray(image.convert("RGB")).astype(np.float32)
+    L = _lum(a)
+    out = a.copy()
+    for f in found:
+        labels = [k for k, name in PART_NAMES.items() if name == f["part"]]
+        x0, y0, x1, y1 = (int(v) for v in f["box"])
+        x0, y0 = max(0, x0), max(0, y0)
+        y = y0 + 24
+        part = np.isin(p, labels)
+        up = np.zeros(p.shape, bool)
+        up[max(0, y - 60):y, x0:x1] = part[max(0, y - 60):y, x0:x1]
+        if up.sum() < 20:
+            continue
+        cu = a[up].mean(0)
+        low = np.zeros(p.shape, bool)
+        low[y:y1, x0:x1] = True
+        low &= ~np.isin(p, SHOES) & (p > 0) & (L < _lum(cu[None, None])[0, 0] - 40)
+        if low.sum() < 20:
+            continue
+        cl = a[low].mean(0)
+        w = ndimage.gaussian_filter(low.astype(np.float32), 3)[..., None]
+        out = out * (1 - w) + (cu + (a - cl) * 0.5) * w
+    return Image.fromarray(out.clip(0, 255).astype(np.uint8))
 
 
 def clean(image, parts=None) -> tuple[Image.Image, dict]:
@@ -464,8 +614,8 @@ def timelapse(stage_list, side=FRAME_SIDE, parts=None) -> list[Image.Image]:
     cur = small[0][1]
     lab = None
     for name, im in small[1:]:
-        if name in ("アタリ", "ラフ"):
-            cur = _draw_lines(cur, im, frames, width=2, per=4 if name == "アタリ" else 12)
+        if name == "ラフ":
+            cur = _draw_lines(cur, im, frames, width=2, per=12)
         elif name == "線画":
             # 人は線画を清書するとき、ラフを薄くしてその上をなぞり、最後にラフを消す
             faint = Image.blend(cur, _blank(cur.size), 0.7)

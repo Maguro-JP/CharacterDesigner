@@ -2156,7 +2156,8 @@ class Studio:
         from chatdraw import phases
         from chatdraw.models import family as fam, image_model
         say("工程に分けて描きます（" + " → ".join(phases.NAMES) + "）")
-        say("頼みを描く言葉に直しています")
+        # 言葉に直すのも目的の工程の内（前はここが「工程 2/5 言葉に変換中」と出て、工程の表示が実際の処理と合わなかった）
+        say(f"工程 1/{len(phases.PHASES)}「{phases.NAMES[0]}」: 頼みを描く言葉に直しています")
         as_tags = fam(image_model(getattr(self.painter, "model", "")).family).tags
         prompt = self.words.to_prompt(text, tags=as_tags)
         lost = list(getattr(self.words, "untranslated", []) or [])

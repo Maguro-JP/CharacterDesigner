@@ -96,7 +96,8 @@ class AtariTest(unittest.TestCase):
         self.assertEqual(int(at[5:15, 140:155].min()), 255)   # 体の無い所には線が無い
         self.assertIsNone(hp.atari((160, 240), {"nose": (1, 1)}))
         st = [n for n, _ in hp.stages(picture(), parts_of(picture()), pts)]
-        self.assertEqual(st[:3], ["白紙", "アタリ", "ラフ"])
+        self.assertNotIn("アタリ", st)   # アタリは裏の処理で、工程の絵には出さない
+        self.assertEqual(st[:3], ["白紙", "ラフ", "線画"])
 
     def test_transition_draws_over_previous(self):
         im = picture()

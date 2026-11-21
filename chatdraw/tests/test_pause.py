@@ -52,7 +52,7 @@ class FailingPainter(Painter):
 class PhasesPauseTest(KeepDir):
     def run_with(self, exc):
         C, _ = checks(False)
-        painter = FailingPainter(3, exc)
+        painter = FailingPainter(2, exc)   # 模型で描くのはサムネイルの 2 枚だけ。2 枚目で打ち切る
         said = []
         k = pausekeep.key("phases", "t", 5)
         with self.assertRaises(pausekeep.Paused) as cm:
