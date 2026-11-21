@@ -52,7 +52,7 @@ def refine_points(im, keypoints: dict, read=None) -> dict:
     else:
         return kp
     w, h = im.size
-    side = int(max(96, min(side, max(w, h))))
+    side = int(min(max(96, side), min(w, h)))
     if side >= 0.8 * min(w, h):
         return kp   # 顔が絵の大半を占める。絵全体で読んだ点で足りる
     x0, y0 = int(nx - side / 2), int(ny - side * 0.55)
