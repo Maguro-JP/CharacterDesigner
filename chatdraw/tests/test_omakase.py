@@ -98,6 +98,9 @@ class OmakaseTest(unittest.TestCase):
             second = o._prompt("青い髪の騎士", COMPOSE)
             o.style = "watercolor"
             third = o._prompt("赤い髪の騎士", COMPOSE)
+            first_again = o._prompt("赤い髪の騎士", COMPOSE)
+        self.assertEqual(first, first_again)  # 同じ依頼と画風はキャッシュを再利用
+        self.assertEqual(len(o._prompts), 3)  # 依頼文 2 種 + 画風違い 1 種
         self.assertNotEqual(first, second)
         self.assertNotEqual(first, third)
         self.assertIn("赤い髪", first)
