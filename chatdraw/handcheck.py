@@ -36,12 +36,18 @@ def ensure_models(fetch: bool = True) -> bool:
     import tempfile
     import urllib.request
     d.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory() as t:
-        z = Path(t) / "h.task"
+    with tempfile.TemporaryDirectory(dir=d) as t:
+        tmp = Path(t)
+        z = tmp / "h.task"
         urllib.request.urlretrieve(TASK, z)
         with zipfile.ZipFile(z) as f:
-            for name in ("hand_landmarks_detector.tflite", "hand_detector.tflite"):
-                (d / name).write_bytes(f.read(name))
+            # 2 つの模型を一時領域へ展開してから配置する。取得・展開途中で失敗しても
+            # CD_HOME に壊れた途中ファイルを残し、次回起動で存在判定を誤らないようにする。
+            names = ("hand_landmarks_detector.tflite", "hand_detector.tflite")
+            for name in names:
+                (tmp / name).write_bytes(f.read(name))
+        for name in names:
+            (tmp / name).replace(d / name)
     return True
 
 
