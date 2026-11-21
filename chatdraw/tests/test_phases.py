@@ -213,14 +213,15 @@ class PhasesTest(unittest.TestCase):
 
     def test_completed_event_only_after_all_phase_checks_pass(self):
         events = []
-        with TemporaryDirectory() as d, mock.patch.object(phases.Checks, "request", staticmethod(checks(False)[0].request)), \
-             mock.patch.object(phases.Checks, "body", staticmethod(checks(False)[0].body)), \
-             mock.patch.object(phases.Checks, "points", staticmethod(checks(False)[0].points)), \
-             mock.patch.object(phases.Checks, "pose", staticmethod(checks(False)[0].pose)), \
-             mock.patch.object(phases.Checks, "hands", staticmethod(checks(False)[0].hands)):
-            from chatdraw import phasetools as pt
-            with mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}):
-                got = phases.draw(Painter(), "1girl, red scarf", 5, (64, 96), Path(d) / "k", on_event=events.append)
+        C, _ = checks(always_bad=False)
+        from chatdraw import phasetools as pt
+        with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}), \
+             mock.patch.object(phases.Checks, "request", staticmethod(C.request)), \
+             mock.patch.object(phases.Checks, "body", staticmethod(C.body)), \
+             mock.patch.object(phases.Checks, "points", staticmethod(C.points)), \
+             mock.patch.object(phases.Checks, "pose", staticmethod(C.pose)), \
+             mock.patch.object(phases.Checks, "hands", staticmethod(C.hands)):
+            got = phases.draw(Painter(), "1girl, red scarf", 5, (64, 96), Path(d) / "k", on_event=events.append)
         self.assertTrue(got["complete"])
         self.assertTrue(got["checked"])
         self.assertFalse(got["left"])
