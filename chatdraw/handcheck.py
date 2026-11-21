@@ -65,8 +65,8 @@ def find_hands(hands, im, keep: bool = True):
         found.append((cx, cy, f"{x0},{y0},{x1},{y1}:{ang}"))
     for b in hands.detect_palms(im, LEAST):
         add(b)
-    side = int(min(w, h) * 0.6)
-    step = side // 2
+    side = max(2, int(min(w, h) * 0.6))
+    step = max(1, side // 2)
     for y in range(0, max(1, h - side + step), step):
         for x in range(0, max(1, w - side + step), step):
             tile = im.crop((x, y, min(w, x + side), min(h, y + side)))
