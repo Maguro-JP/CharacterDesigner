@@ -275,6 +275,13 @@ def count_toes(image, keypoints=None) -> list[dict]:
         if L < 0.22 * F:
             foot["evidence"]["why"] = "横向きの足で、指が奥行きの方向に並んでいる"
             continue
+        # 足首から指先への方向が指の横方向とほぼ平行だと、帯の奥行き方向を作れず
+        # _strip の正規化で NaN が生じる。模型の点がつぶれた足は「読めない」と返す。
+        axis = (big + small) / 2 - ank
+        axis = axis - np.dot(axis, (small - big) / L) * ((small - big) / L)
+        if np.linalg.norm(axis) < 0.1 * F:
+            foot["evidence"]["why"] = "足の向きを決められない（足首と指先の点が一直線）"
+            continue
         st, back, F2, row0, mids = _strip(a, big, small, ank)
         r = count_one(st, F2, row0, mids)
         rows = r.pop("rows", None)
