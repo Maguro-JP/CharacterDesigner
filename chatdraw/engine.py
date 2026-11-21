@@ -252,8 +252,13 @@ def cpu_upcast(pipe, say=None) -> bool:
         if first is None or first.dtype != torch.bfloat16:
             continue
         part.to(torch.float32)
-        part.register_forward_pre_hook(lambda m, a, kw: (_to_dtype(a, torch.float32), _to_dtype(kw, torch.float32)),
-                                       with_kwargs=True)
+        # VAE は forward でなく encode・decode から中の部品（encoder・decoder・quant_conv）が呼ばれるので、VAE そのものの
+        # 入口の手当ては効かない。直し・描き直し（inpaint・img2img）で絵を encode するとき bf16 の絵が float32 の VAE に入って
+        # 「Input type (BFloat16) and bias type (float)」で落ち、赤ペンの直しと「軽く描き直して仕上げる」が 1 つも動かなかった
+        # （finish-verify の本物の模型で 3 件とも）。中の部品にも入口の手当てを付ける
+        for mod in [part] + (list(part.children()) if name == "vae" else []):
+            mod.register_forward_pre_hook(lambda m, a, kw: (_to_dtype(a, torch.float32), _to_dtype(kw, torch.float32)),
+                                          with_kwargs=True)
         changed = True
     if changed and say:
         say("この CPU は bf16 の計算が遅いので、描く本体を float32 にして描きます（文字の部品は bf16 のまま）")

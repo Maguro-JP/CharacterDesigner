@@ -112,5 +112,27 @@ class VerifyStatsTest(unittest.TestCase):
         self.assertEqual(finish_verify.stats(a, a, m)["outside_changed"], 0)
 
 
+@unittest.skipUnless(importlib.util.find_spec("torch"), "torch が要ります")
+class VaeUpcastTest(unittest.TestCase):
+    """bf16 の遅い CPU で VAE を float32 にしたとき、encode（中の部品を直に呼ぶ）にも bf16 の絵が入って落ちない"""
+    def test_vae_children_take_bf16_input(self):
+        import torch
+        from chatdraw import engine
+
+        class Vae(torch.nn.Module):
+            def __init__(self):
+                super().__init__()
+                self.encoder = torch.nn.Conv2d(3, 4, 1)
+
+            def encode(self, x):
+                return self.encoder(x)
+        pipe = type("P", (), {})()
+        pipe.vae = Vae().to(torch.bfloat16)
+        with mock.patch.object(engine, "bf16_fast", lambda: False), mock.patch("torch.cuda.is_available", lambda: False):
+            self.assertTrue(engine.cpu_upcast(pipe))
+        out = pipe.vae.encode(torch.zeros(1, 3, 4, 4, dtype=torch.bfloat16))
+        self.assertEqual(out.dtype, torch.float32)
+
+
 if __name__ == "__main__":
     unittest.main()
