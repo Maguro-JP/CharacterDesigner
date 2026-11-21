@@ -114,6 +114,24 @@ class FileTest(Base):
                 with self.assertRaises(charafile.BadFile):
                     charafile.load(broken)
 
+    def test_malformed_artwork_references_raise_badfile(self):
+        from chatdraw import charafile
+        for label, changes in (
+            ("images-list", {"images": []}),
+            ("images-null", {"images": None}),
+            ("refset-list", {"refset": []}),
+            ("refs-string", {"refset": {"images": "image.png"}}),
+            ("image-path-null", {"images": {"front": None}}),
+        ):
+            with self.subTest(label=label):
+                broken = self.d / f"{label}.chara"
+                manifest = charafile.new("Akari")["manifest"]
+                manifest.update(changes)
+                with zipfile.ZipFile(broken, "w") as z:
+                    z.writestr("manifest.json", json.dumps(manifest))
+                with self.assertRaises(charafile.BadFile):
+                    charafile.load(broken)
+
     def test_old_version_is_read_and_new_version_refused(self):
         from chatdraw import charafile
         old = self.d / "old.chara"
