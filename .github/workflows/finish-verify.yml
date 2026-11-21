@@ -16,7 +16,7 @@ permissions:
 env:
   SETUP: |
     pip install -q torch --index-url https://download.pytorch.org/whl/cpu
-    pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy scikit-image ai-edge-litert onnxruntime
+    pip install -q diffusers transformers accelerate safetensors huggingface_hub pillow numpy scipy scikit-image ai-edge-litert onnxruntime rembg
 jobs:
   draw:
     runs-on: ubuntu-latest

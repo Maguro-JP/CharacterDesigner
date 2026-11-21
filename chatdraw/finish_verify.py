@@ -104,11 +104,15 @@ class _Win:
             import tempfile
             from chatdraw import paths
             paths.use_tools_gen()
-            import layers as gen_layers
-            with tempfile.TemporaryDirectory() as d:
-                p = Path(d) / "a.png"
-                src.save(p)
-                return gen_layers.anime_cut(str(p))
+            try:   # アプリ（make_transparent）と同じく、切り抜きの模型が使えなければ地の色を抜く方法に替える
+                import layers as gen_layers
+                with tempfile.TemporaryDirectory() as d:
+                    p = Path(d) / "a.png"
+                    src.save(p)
+                    return gen_layers.anime_cut(str(p))
+            except Exception:   # noqa: BLE001
+                from chatdraw import logo
+                return logo.remove_background(src)
         if kind == "upscale2x":
             from chatdraw import upscale
             return upscale.upscale(src, 2)
@@ -168,6 +172,14 @@ def apply(src_path: Path, out: Path, items: list[str]) -> int:
     src = Image.open(src_path).convert("RGB")
     need = any(i.startswith(("fin:style_", "fin:refine", "fix:", "req:")) for i in items)
     painter = _painter() if need else None
+    if painter is not None and not painter.ready():
+        # apply の機械には絵の模型が無い（描いたのは draw の機械）。取らないと、模型を使う加工が全部「模型がまだ取れていません」で
+        # 掛からず、効いたかを測れなかった（前の版の実行）。アプリの模型の管理と同じ置き場に取る
+        from huggingface_hub import snapshot_download
+        from chatdraw.engine import HUB
+        from chatdraw.models import image_model
+        info = image_model(painter.model)
+        snapshot_download(info.hub, cache_dir=str(HUB), **info.files)
     studio = Studio(Words(Path("")), painter, out / "saved") if need else None
     rows = []
     for item in items:
