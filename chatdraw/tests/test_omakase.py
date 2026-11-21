@@ -109,7 +109,9 @@ class OmakaseTest(unittest.TestCase):
 
     def test_english_item_phrase_stops_before_following_action(self):
         parts = omakase.split("a knight holding a sword and standing in a forest")
-        self.assertEqual(parts["items"], ["sword"])\n\n    def test_abilities_have_reasons_and_empty_without_evidence(self):
+        self.assertEqual(parts["items"], ["sword"])
+
+    def test_abilities_have_reasons_and_empty_without_evidence(self):
         ab = abilities(HANDS)
         self.assertIn("手", ab["strong"])
         self.assertIn("配布元の説明", ab["strong"]["手"])
