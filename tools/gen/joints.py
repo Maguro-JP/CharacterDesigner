@@ -90,6 +90,11 @@ def find(src: str) -> list[dict]:
 
 def draw(src: str, points: list[dict], out: str, least: float = 0.3):
     im = Image.open(src).convert("RGB")
+    # find() は人物領域が無い画像では空配列を返す。点が無い場合も元画像を保存し、
+    # BONES の添字参照で IndexError にならないようにする。
+    if not points:
+        im.save(out)
+        return
     d = ImageDraw.Draw(im)
     for a, b in BONES:
         if points[a]["score"] >= least and points[b]["score"] >= least:
