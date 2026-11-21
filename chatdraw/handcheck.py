@@ -191,7 +191,8 @@ def ensure_feet_model(fetch: bool = True) -> bool:
     """足の点を読む模型（DWPose、約 134MB）が置き場にあるか。無ければ取る"""
     _hands()   # CD_HOME と tools/gen の道を整える
     import feet
-    if feet.MODEL.exists():
+    # exists() だけでは空ファイルやディレクトリも成功扱いになる。推論前に実ファイルとサイズを確認する。
+    if feet.MODEL.is_file() and feet.MODEL.stat().st_size > 0:
         return True
     if not fetch:
         return False
