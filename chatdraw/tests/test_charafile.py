@@ -104,6 +104,8 @@ class FileTest(Base):
             ("null", None),
             ("invalid-version", {"format": charafile.FORMAT, "version": "bad"}),
             ("null-version", {"format": charafile.FORMAT, "version": None}),
+            ("zero-version", {"format": charafile.FORMAT, "version": 0}),
+            ("negative-version", {"format": charafile.FORMAT, "version": -1}),
         ):
             with self.subTest(label=label):
                 broken = self.d / f"{label}.chara"
