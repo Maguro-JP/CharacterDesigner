@@ -118,9 +118,12 @@ def _read_tags(crop) -> dict:
     sys.path.insert(0, str(ROOT))
     from chatdraw import requestcheck
     tg = requestcheck._tagger(False)
-    tmp = Path(tempfile.mkdtemp()) / "face.png"
-    crop.save(tmp)
-    return tg.read(str(tmp), threshold=0.05)
+    # 顔を読むたびに一時ディレクトリを作りっぱなしにしない。
+    # 連続生成・再検品で一時画像が蓄積しないよう、読み取り後に確実に片付ける。
+    with tempfile.TemporaryDirectory(prefix="cd-face-") as t:
+        tmp = Path(t) / "face.png"
+        crop.save(tmp)
+        return tg.read(str(tmp), threshold=0.05)
 
 
 def judge(tags: dict, asked: str = "") -> list[str]:
