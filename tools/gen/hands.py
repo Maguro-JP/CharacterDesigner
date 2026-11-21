@@ -326,16 +326,26 @@ def auto_boxes(src, least=0.3):
     sys.path.insert(0, str(Path(__file__).parent))
     import joints
     pts = {p["name"]: p for p in joints.find(src)}
-    # 前腕が手前へ縮んで見えると、前腕の長さだけでは枠が手より小さくなる。鼻から足首までの高さの 4.5% を下限にする
-    ankles = [pts[k]["y"] for k in ("left_ankle", "right_ankle") if pts[k]["score"] >= least]
-    if ankles:
-        tall = max(ankles) - pts["nose"]["y"]
+    # 関節検出が空、または必要な関節を読めなかった絵では枠を作れない。
+    # 欠けた点を直接参照すると KeyError で --auto 全体が落ちるため、検出できた腕だけを使う。
+    shoulders = (pts.get("left_shoulder"), pts.get("right_shoulder"))
+    nose = pts.get("nose")
+    ankles = [pts[k]["y"] for k in ("left_ankle", "right_ankle")
+              if k in pts and pts[k].get("score", 0) >= least]
+    if ankles and nose and nose.get("score", 0) >= least:
+        tall = max(ankles) - nose["y"]
+    elif all(p and p.get("score", 0) >= least for p in shoulders):
+        # 上半身の絵には足首が無い。肩幅（全身の高さのおよそ 1/4）から見当する
+        tall = abs(shoulders[0]["x"] - shoulders[1]["x"]) * 4
     else:
-        # 上半身の絵には足首が無い。でたらめな足首で枠が顔まで広がったので、肩幅（全身の高さのおよそ 1/4）から見当する
-        tall = abs(pts["left_shoulder"]["x"] - pts["right_shoulder"]["x"]) * 4
+        return []
+    if not np.isfinite(tall) or tall <= 0:
+        return []
     out = []
     for side in ("left", "right"):
-        e, w = pts[f"{side}_elbow"], pts[f"{side}_wrist"]
+        e, w = pts.get(f"{side}_elbow"), pts.get(f"{side}_wrist")
+        if not e or not w:
+            continue
         if min(e["score"], w["score"]) < least:
             continue
         dx, dy = w["x"] - e["x"], w["y"] - e["y"]
