@@ -324,8 +324,8 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         found, nums, pts, bal, ok = atari_flaws(img)
         pts = hp.arm_points(pts, hp.clean_parts(img, parts_of(img)))
         st["points"], st["height"] = pts, bal.get("height", 0)
-        people = [f for f in found if f.startswith("人数")]
-        return {"image": img, "found": found, "numbers": nums, "readable": ok, "back": 1 if people else None}
+        # 戻らない。サムネイルを描き直しても同じ崩れが残り、工程 2 に戻り続けて先へ進まなかった。崩れは記録して先へ進み、形は線画の清書で直す
+        return {"image": img, "found": found, "numbers": nums, "readable": ok}
 
     def p_body(v):
         img = st["image"]
@@ -333,7 +333,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         found = (list(pz.get("bad", [])) if pz.get("readable") else []) + (list(bd.get("bad", [])) if bd.get("readable") else [])
         note = "" if pz.get("readable") else pz.get("reason", "骨組みを読めませんでした")
         return {"image": img, "show": pz.get("map"), "found": found, "numbers": {"points": pz.get("points")}, "note": note,
-                "readable": bool(pz.get("readable")) and bool(bd.get("readable")), "back": 2}
+                "readable": bool(pz.get("readable")) and bool(bd.get("readable"))}   # アタリは絵を描き直さないので、戻っても変わらない
 
     def p_draft(v):
         """顔・手・足の下描き。崩れを測るだけで、直しは線画の清書の工程でまとめてする（人も線画の段階で形の間違いを直す）。
