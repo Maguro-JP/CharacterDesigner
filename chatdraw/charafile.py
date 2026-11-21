@@ -128,8 +128,17 @@ def migrate(man: dict, files: dict) -> tuple[dict, dict]:
 
 
 def _referenced(man: dict) -> list[str]:
-    return [*man.get("images", {}).values(), *([man["sheet"]] if man.get("sheet") else []),
-            *man.get("refset", {}).get("images", [])]
+    images = man.get("images", {})
+    refset = man.get("refset", {})
+    if not isinstance(images, dict) or not isinstance(refset, dict):
+        raise BadFile("キャラクターの画像設定が壊れています")
+    refs = refset.get("images", [])
+    if not isinstance(refs, list):
+        raise BadFile("キャラクターの参考画像設定が壊れています")
+    paths = [*images.values(), *([man["sheet"]] if man.get("sheet") else []), *refs]
+    if any(not isinstance(path, str) or not path for path in paths):
+        raise BadFile("キャラクターの画像パスが不正です")
+    return paths
 
 
 # ---- 設定資料集と行き来する ----
