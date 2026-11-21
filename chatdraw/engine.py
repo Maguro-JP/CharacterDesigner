@@ -1549,12 +1549,12 @@ class Painter:
         return out
 
     def redraw(self, prompt: str, seed: int, image, mask, strength: float = 0.45, on_step=None, reference=None,
-               ref_scale: float = 0.6, clean: bool = False):
-        return memory_retry(self, lambda: self._redraw(prompt, seed, image, mask, strength, on_step, reference, ref_scale, clean),
+               ref_scale: float = 0.6, clean: bool = False, on_preview=None):
+        return memory_retry(self, lambda: self._redraw(prompt, seed, image, mask, strength, on_step, reference, ref_scale, clean, on_preview),
                             self._note)
 
     def _redraw(self, prompt: str, seed: int, image, mask, strength: float = 0.45, on_step=None, reference=None,
-                ref_scale: float = 0.6, clean: bool = False):
+                ref_scale: float = 0.6, clean: bool = False, on_preview=None):
         """image（PIL）の mask（PIL の L、白が直す所）の中だけを、元の絵を土台に少しだけ直して返す（微調整）。
 
         絵全体を upscale 倍（既定 1.5 倍）に広げて描かせ、元の大きさに戻して直す所だけを重ねる（hires_inpaint）。直す所の外の画素は 1 つも変えない。
@@ -1596,6 +1596,13 @@ class Painter:
                 p._interrupt = True
             if on_step:
                 on_step(min(i + 1, total), total)
+            if on_preview and i % 2 == 0:
+                latents = kw.get("latents")
+                if getattr(latents, "ndim", 0) == 4 and latents.shape[1] == 4:
+                    try:
+                        on_preview(latent_preview(latents, sdxl=hasattr(p, "text_encoder_2")))
+                    except Exception:
+                        pass
             return kw
         args["callback_on_step_end"] = step
         self._use_reference(self._inpaint, reference, ref_scale, args)
@@ -1787,10 +1794,11 @@ class Studio:
         return "auto" if self.image_auto else FAV if self.use_favorites else "single"
 
     def draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
-             on_preview=None, style: str = "", reference=None, ref_scale: float = 0.6, meta: dict | None = None) -> tuple[str, Path]:
+             on_preview=None, style: str = "", reference=None, ref_scale: float = 0.6, meta: dict | None = None,
+             on_event=None, on_snapshot=None) -> tuple[str, Path]:
         ch = self.character
         if not ch:
-            return self._draw(text, seed, on_status, base, strength, size, on_preview, style, reference, ref_scale, meta)
+            return self._draw(text, seed, on_status, base, strength, size, on_preview, style, reference, ref_scale, meta, on_event, on_snapshot)
         # 人物の禁止ワードと LoRA は、この 1 回のあいだだけ描き手に入れ、終わったら元に戻す
         p = self.painter
         avoid0, lora0 = getattr(p, "avoid", None), getattr(p, "lora", None)
@@ -1803,7 +1811,7 @@ class Studio:
             if fam(image_model(getattr(p, "model", "")).family).reference:
                 reference = ch["reference"]
         try:
-            return self._draw(text, seed, on_status, base, strength, size, on_preview, style, reference, ref_scale, meta)
+            return self._draw(text, seed, on_status, base, strength, size, on_preview, style, reference, ref_scale, meta, on_event, on_snapshot)
         finally:
             if avoid0 is not None:
                 p.avoid = avoid0
@@ -1811,7 +1819,8 @@ class Studio:
                 p.lora = lora0
 
     def _draw(self, text: str, seed: int, on_status=None, base=None, strength: float = 1.0, size=None,
-              on_preview=None, style: str = "", reference=None, ref_scale: float = 0.6, meta: dict | None = None) -> tuple[str, Path]:
+              on_preview=None, style: str = "", reference=None, ref_scale: float = 0.6, meta: dict | None = None,
+              on_event=None, on_snapshot=None) -> tuple[str, Path]:
         say = on_status or (lambda msg: None)
         self.last_phases = None   # 工程に分けて描いた回だけ、工程ごとの絵と検品を持つ（アプリが隠したレイヤーに置く）
         if refused(text):
@@ -1835,8 +1844,10 @@ class Studio:
             if mode == "single":
                 m = image_model(getattr(self.painter, "model", ""))
                 say(f"細かい頼み・プリセットなので、{m.name} で工程を分けて描きます")
-                return omakase.draw(self, text, seed, say, size=size, meta=meta, style=style, mode="single", single=m)
-            return omakase.draw(self, text, seed, say, size=size, meta=meta, style=style, mode=mode)
+                return omakase.draw(self, text, seed, say, size=size, meta=meta, style=style, mode="single", single=m,
+                                     on_event=on_event, on_preview=on_preview, on_snapshot=on_snapshot)
+            return omakase.draw(self, text, seed, say, size=size, meta=meta, style=style, mode=mode,
+                                 on_event=on_event, on_preview=on_preview, on_snapshot=on_snapshot)
         fast = mode == "single" and not precise
         if mode == favmodels.FAV and not self.image_auto:
             # お気に入りでラフ・参考画像から描くときは、その機能のある世代のお気に入り（仕上げ → 構図の順）を使う
@@ -1869,12 +1880,12 @@ class Studio:
             else:
                 say("おまかせで選べる絵の模型が手元にありません。今の模型で描きます")
         if self.way == "phases" and base is None and reference is None:
-            return self._draw_phases(text, seed, style, size, say, on_preview, meta)
+            return self._draw_phases(text, seed, style, size, say, on_preview, meta, on_event, on_snapshot)
         # 模型を 1 つ選んだ速い流れは、選んだ模型だけで描く（前は 2 段の部品があると構図を別の模型で描き、選んだ模型が上書きされた）。
         # 「構図と仕上げを分けて描く」を選んだときだけ 2 段にする
         two = None if fast and self.way != "two" else self._two_stage_models(base, reference, say)
         if two is not None:
-            return self._draw_two(text, seed, two, style, size, say, meta)
+            return self._draw_two(text, seed, two, style, size, say, meta, on_event, on_snapshot or on_preview)
         # 担当編集者: 工程の記録と知らせだけ（chatdraw/director.py）。検品の結果で描き直しには繋げない
         from chatdraw import director
         plan = director.Plan(text, say)
@@ -2149,7 +2160,7 @@ class Studio:
             return ans
         return confirm
 
-    def _draw_phases(self, text, seed, style, size, say, on_preview, meta):
+    def _draw_phases(self, text, seed, style, size, say, on_preview, meta, on_event=None, on_snapshot=None):
         """人の描き方の 12 の工程に分けて描く（chatdraw/phases.py）。工程ごとに描く・測る・1 回だけ直す・崩れが決まった工程へ戻る。
         渡す言葉は頼みの訳と作風だけで、背景や構図の言葉は足さない。phase_confirm（アプリが入れる）があれば工程ごとに確かめる"""
         import time
@@ -2177,7 +2188,7 @@ class Studio:
         model = getattr(self.painter, "model", "")
         job = {"text": text, "seeds": [seed], "style": style, "size": list(size) if size else None, "meta": meta or {}, "model": model}
         try:
-            got = phases.draw(self.painter, prompt, seed, size, keep, say=say, on_preview=on_preview,
+            got = phases.draw(self.painter, prompt, seed, size, keep, say=say, on_preview=on_preview, on_event=on_event, on_snapshot=on_snapshot,
                               on_step=lambda i, n: say(f"描いています（{i}/{n}）"), confirm=self._phase_confirm(as_tags),
                               pause_key=pausekeep.key("phases", text, seed, style, tuple(size) if size else None, model), pause_job=job)
         finally:
@@ -2198,9 +2209,14 @@ class Studio:
                                                    model=getattr(self.painter, "model", ""), way="phases", stages=str(keep),
                                                    phases=got["phases"], passed=checked and not left))
         self._inspect(path, say)
+        from chatdraw.events import emit_event
+        emit_event(on_event, "completed" if checked and not left else "blocked",
+                   "描画・全工程の検品・保存が完了しました" if checked and not left else "未完成のまま保存しました",
+                   phase="仕上げ", index=len(got["phases"]), total=len(phases.NAMES),
+                   checked=checked, unresolved=list(left))
         return prompt, path
 
-    def _draw_two(self, text, seed, two, style, size, say, meta):
+    def _draw_two(self, text, seed, two, style, size, say, meta, on_event=None, on_preview=None):
         """構図（文で頼める模型）と仕上げ（SDXL のアニメの模型）を分けて描く（chatdraw/twostage.py）"""
         import time
         from chatdraw import twostage
@@ -2233,9 +2249,16 @@ class Studio:
                 say(f"検品を通らなかったので、種を変えて構図から描き直しています（{k + 1}/{self.REDRAW_TRIES} 回目）")
             sentence, tags = vary_background(sentence0, s_k, tags=False), emphasize(vary_background(tags0, s_k), missing_all)
             keep = self.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{s_k}"
+            from chatdraw.events import emit_event
+            emit_event(on_event, "phase_started", f"2 段描画 {k + 1}/{self.REDRAW_TRIES} 回目", phase="構図・仕上げ",
+                       index=k + 1, total=self.REDRAW_TRIES)
             path = twostage.run_stages(sentence, tags, s_k, comp.repo, render.repo, tuple(size or (832, 1216)), keep, variant,
-                                       say=say, stopped=lambda: self.painter.stop)
+                                       say=say, stopped=lambda: self.painter.stop,
+                                       on_event=on_event, on_preview=on_preview)
             result = twostage.read_result(keep, variant["name"])
+            emit_event(on_event, "inspection", "2 段描画の結果を検品しました", phase="構図・仕上げ",
+                       index=k + 1, total=self.REDRAW_TRIES, readable=bool(result.get("checked", True)),
+                       found=list(result.get("bad", [])), missing=list(result.get("missing", [])))
             left = list(result.get("bad", [])) + [f"描かれていない: {m}" for m in result.get("missing", [])]
             missing_all += [m for m in result.get("missing", []) if m not in missing_all]
             redraws.append({"seed": s_k, "bad": left, "stages": str(keep)})
@@ -2252,6 +2275,9 @@ class Studio:
                                              model=render.repo, compose_model=comp.repo, way="two", stages=str(keep),
                                              redraws=redraws, passed=bool(result.get("passed"))))
         self._inspect(saved, say)
+        emit_event(on_event, "completed" if result.get("passed") else "blocked",
+                   "2 段描画と検品が完了しました" if result.get("passed") else "2 段描画は未完了です",
+                   phase="構図・仕上げ", readable=bool(result.get("checked", True)), unresolved=list(left), seed=seed)
         return tags, saved
 
     last_check: dict | None = None
@@ -2353,12 +2379,12 @@ class Studio:
         image.save(path, pnginfo=info)
         return path
 
-    def _fix_once(self, before, mask, prompt, seed, strength, k, count, say, reference, ref_scale):
+    def _fix_once(self, before, mask, prompt, seed, strength, k, count, say, reference, ref_scale, on_preview=None):
         """1 回直して、縁に出た継ぎ目だけを元に戻し、残る所を細く描き直す"""
         from PIL import Image
         result = self.painter.redraw(prompt, seed, before, mask, strength=strength,
                                      on_step=lambda i, n: say(f"描いています（{i}/{n}・{k}/{count} か所目）"),
-                                     reference=reference, ref_scale=ref_scale)
+                                     reference=reference, ref_scale=ref_scale, on_preview=on_preview)
         for t in range(1, 3):
             seam = seams(before, result, mask)
             if seam is None:
@@ -2368,7 +2394,7 @@ class Studio:
                 result = Image.composite(before, result, seam)   # 間違えた線だけを元の絵に戻す（消しゴム）
                 continue
             result = self.painter.redraw(prompt, seed + 100, result, seam, strength=0.3,
-                                         on_step=lambda i, n: say(f"描いています（{i}/{n}・{k}/{count} か所目の継ぎ目）"))
+                                         on_step=lambda i, n: say(f"描いています（{i}/{n}・{k}/{count} か所目の継ぎ目）"), on_preview=on_preview)
         return result
 
     def source_words(self, source: str | None, image, say=None) -> str:
@@ -2397,10 +2423,12 @@ class Studio:
         return prompt
 
     def fix(self, image, regions: list[tuple], seed: int, on_status=None, style: str = "", strength: float = 0.75,
-            reference=None, ref_scale: float = 0.6, check: bool = True, source: str | None = None):
+            reference=None, ref_scale: float = 0.6, check: bool = True, source: str | None = None,
+            on_event=None, on_preview=None):
         """赤ペン先生と範囲の描き直し。check を外すと崩れの検査をしない（ちびキャラのように絵全体を描き替える加工）。regions は (mask, 指示の文) の並び。直す所ごとに指示を描く言葉に直し、
         絵全体を順に描き直す。返すのは (描く言葉の並び, 描き直した絵全体の置き場)。直す所だけを貼り合わせない"""
         say = on_status or (lambda msg: None)
+        from chatdraw.events import emit_event
         if hasattr(self.painter, "on_note"):
             self.painter.on_note = say
         from chatdraw import seamfix
@@ -2441,7 +2469,15 @@ class Studio:
                 power = fix_strength(strength, getattr(self, "last_fix_tags", [])) if check else strength
                 if power != strength:
                     say(f"色や形を変える指示なので、強さ {power} で直します（低いと元の色と形が残った）")
-            result = self._fix_once(before, mask, prompt, seed + k, power, k, len(regions), say, reference, ref_scale)
+            say(f"修正中: {k}/{len(regions)} か所目を範囲修正しています")
+            emit_event(on_event, "correction", f"{k}/{len(regions)} か所目を範囲修正しています", phase="赤ペン修正",
+                       index=k, total=len(regions), bounds=list(box) if box else None, instruction=note)
+            if on_preview is not None:
+                try:
+                    on_preview(before)
+                except Exception:
+                    pass
+            result = self._fix_once(before, mask, prompt, seed + k, power, k, len(regions), say, reference, ref_scale, on_preview=on_preview)
             if check and box:
                 say(drawn_as_asked(result.crop(box), getattr(self, "last_fix_tags", []), k))
             if check:
@@ -2451,8 +2487,15 @@ class Studio:
                 result = _Image.composite(result.convert("RGB"), before, m)   # 囲みの外は 1 画素も変えない
                 result, tried = seamfix.settle(before, result, m, say=lambda t: say(f"{t}（{k} か所目）"))
                 self.last_seam.append(dict(region=k, **(tried[-1] if tried else {}), tries=len(tried)))
+            if on_preview is not None:
+                try:
+                    on_preview(result)
+                except Exception:
+                    pass
             best_flaws = [f.replace("1 か所目", f"{k} か所目", 1) for f in flaws(before, result, mask)] if check else []
             say(f"確かめました（{k} か所目・崩れ {len(best_flaws)} 件）")
+            emit_event(on_event, "reinspection", f"{k}/{len(regions)} か所目の修正結果を検査しました", phase="赤ペン修正",
+                       index=k, total=len(regions), flaws=best_flaws)
             prompts.append(prompt)
             self.last_flaws += best_flaws
         if check:   # 最後に絵の全体を 1 回だけ測って知らせる（直し直しには繋げない）
@@ -2466,4 +2509,6 @@ class Studio:
         path = self._save(layer, seed, dict(text=" / ".join(n for _m, n in regions), prompt=" / ".join(prompts), seed=seed,
                                             style=style, model=self.painter.model, mode="直す", flaws=self.last_flaws,
                                             source=source or ""))
+        emit_event(on_event, "completed", "赤ペン修正が完了しました", phase="赤ペン修正",
+                   index=len(regions), total=len(regions), unresolved=list(self.last_flaws))
         return prompts, path

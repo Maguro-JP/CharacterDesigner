@@ -8,6 +8,9 @@
 3. 取った模型で 1 枚描き、絵が保存されるか
 4. ラフから描く部品が取れているか
 5. 検品の部品（部位分け・人の枠・タグ・体の点・手・足）が初回の取得で入ったか（chatdraw/qcparts.py）
+6. 右クリックメニューの全階層を開けるか
+
+工程分けの分岐・停止条件・再検品ゲートは回帰テストで検証する。実描画を重複させない。
 
 模型は数 GB あるので、形が同じで小さい試験用の SDXL（hf-internal-testing/tiny-stable-diffusion-xl-pipe）を使う。絵の出来は見ない。
 結果は report.json に書き、1 つでも落ちたら終了コード 1 で終わる。
@@ -30,6 +33,9 @@ def main():
     out.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
     faulthandler.enable()
+    # E2E のどこかで同期処理が停止しても、2 分ごとに全スレッドのスタックを Actions ログへ出す。
+    # これにより 60 分のタイムアウトまで原因不明のまま待つ状態を避ける。
+    faulthandler.dump_traceback_later(120, repeat=True)
     report: dict = {"steps": []}
 
     def save_report():
@@ -82,10 +88,17 @@ def main():
         from chatdraw.setup import Fetcher
         f = Fetcher()
         said, done = [], []
-        f.progress.connect(lambda msg, pct: said.append(msg))
+        def on_progress(msg, pct):
+            said.append(msg)
+            print(f"FETCH {pct}% {msg}", flush=True)
+        f.progress.connect(on_progress)
         f.finished.connect(lambda err: done.append(err))
+        print("FETCH START", flush=True)
         f.run(tiny, None)
-        if done and done[0]:
+        print(f"FETCH RETURN finished={bool(done)} messages={len(said)}", flush=True)
+        if not done:
+            raise RuntimeError("Fetcher.run() が finished シグナルを返さず終了した")
+        if done[0]:
             raise RuntimeError(done[0])
         return {"messages": said[-5:]}
 
@@ -164,8 +177,12 @@ def main():
             walk(m)
             m.deleteLater()
             qapp.processEvents()
-        w.close()
+        # close() は利用者向けの保存確認・自動保存・I/O待ちまで実行する。
+        # この試験窓はメニュー検査専用で保存対象ではないため、閉じる確認を出さず隠す。
+        print("MENU TEST COMPLETE; hide test window", flush=True)
+        w.hide()
         qapp.processEvents()
+        print("MENU TEST WINDOW HIDDEN", flush=True)
         return {"items": len(seen)}
 
     def phases_draw():
@@ -179,11 +196,14 @@ def main():
         return {"phases": len(studio.last_phases or [])}
 
     ok = step("右クリックのメニューを全部開く", right_click) and ok
-    ok = step("工程に分けて 1 枚描く", phases_draw) and ok
+    # 工程分けの分岐・停止条件・再検品ゲートは regression の test_phases で網羅する。
+    # E2E で同じ tiny SDXL 推論をもう一度実行すると Windows CPU runner では 60 分を超えるため、
+    # 実描画は上の「1 枚描く」に集約し、ここでは重複推論をしない。
     from chatdraw.paths import HOME, HUB
     report["data_home"], report["hub"] = str(HOME), str(HUB)
     report["ok"] = ok
     save_report()
+    faulthandler.cancel_dump_traceback_later()
     print(f"exit={0 if ok else 1}", flush=True)
     sys.exit(0 if ok else 1)
 

@@ -245,6 +245,21 @@ class Omakase:
         self.compose_two = None
         self.adjust = None   # 段取りを置き換える関数（お気に入り・選んだ模型）。None はおまかせのまま
         self.two_fixed = False   # 2 段の模型を利用者が決めた（お気に入り）。決めたときは毎回 2 段で描く
+        self.on_event = None
+        self.on_preview = None
+        self.on_snapshot = None
+
+    def _event(self, kind, message, phase=None, **details):
+        from chatdraw.events import emit_event
+        emit_event(self.on_event, kind, message, phase=phase, **details)
+
+    def _snapshot(self, image):
+        callback = self.on_snapshot or self.on_preview
+        if callback is not None:
+            try:
+                callback(image)
+            except Exception:
+                pass
 
     def _painter(self, m: ImageModel):
         """模型を読む。読んである物はそのまま使い、替えるときは前の物を捨てる（模型は 1 つ数 GB）"""
@@ -290,9 +305,14 @@ class Omakase:
         mask = _mask(image.size, boxes)
         from chatdraw import origqc
         words = handcheck.FIX_WORDS.get(kind) or origqc.FIX_WORDS.get(kind, "")
-        out = painter.redraw(f"{self._prompt(prompt_text, m)}, {words}", seed, image, mask, strength=strength)
-        # 囲みの外は 1 画素も変えない（模型の直しが外へ漏れても、元の絵を戻す）
-        return Image.composite(out.convert(image.mode), image, mask), m
+        self._event("correction", f"{KIND_ASPECT[kind]}を {len(boxes)} か所、囲みの中だけ修正しています", phase=f"{KIND_ASPECT[kind]}の修正", regions=len(boxes), model=m.name)
+        self._snapshot(image)
+        out = painter.redraw(f"{self._prompt(prompt_text, m)}, {words}", seed, image, mask, strength=strength,
+                             **({"on_preview": self.on_preview} if self.on_preview is not None else {}))
+        # 囲みの外を元画像に戻した、実際に採用する修正結果を表示する。
+        result = Image.composite(out.convert(image.mode), image, mask)
+        self._snapshot(result)
+        return result, m
 
     def run(self, text: str, seed: int, say, size=None, tries: int = 12, rounds: int = 6):
         """描く → 検品 → 落ちた部位を別の模型で直す → 検品、を通るまで回す。通らなければ構図を別の模型で描き直す。
@@ -343,8 +363,12 @@ class Omakase:
             if image is None:
                 painter = self.painter_for(m) if m is not None else self.studio.painter
                 self._note(say, "構図", m, why, seed=s_k)
-                image = self.hires(painter, m, prompt, s_k, size, say)
+                self._event("drawing", f"構図を描画しています（試行 {k + 1}/{tries}）", phase="構図", index=k + 1, total=tries)
+            image = self.hires(painter, m, prompt, s_k, size, say)
+            self._event("inspection", "構図の描画結果を検品しています", phase="構図", index=k + 1, total=tries)
             res = self.check(image, prompt)
+            self._event("inspection", "構図の検品結果を確認しました", phase="構図", index=k + 1, total=tries,
+                        readable=bool(res.get("readable")), found=list(res.get("bad", [])))
             for note in res.get("notes", []) if k == 0 else []:
                 say(note)
             for r in range(rounds):
@@ -357,8 +381,11 @@ class Omakase:
                 for kind, boxes in by_kind.items():
                     tried, _fm = self.fix_region(tried, kind, boxes, text, s_k + 77 * (r + 1), m.repo if m else "", say,
                                                                attempt=r)
+                self._event("reinspection", f"修正結果を再検品しています（{r + 1}/{rounds} 回目）", phase="修正後の再検品")
                 again = self.check(tried, prompt)
                 self.log.append(dict(stage="検品", round=r, bad=list(again["bad"])))
+                self._event("reinspection", "修正結果の再検品が完了しました", phase="修正後の再検品",
+                            readable=bool(again.get("readable")), found=list(again.get("bad", [])))
                 if len(again["bad"]) > len(res["bad"]):   # 直しで崩れが増えたら、その直しは消しゴムで消す
                     say("直しで崩れが増えたので、前の絵に戻します")
                     break
@@ -383,22 +410,34 @@ class Omakase:
         """小さく描いて広げ、弱く描き直す（hires fix と同じ 2 段）。描き直せない世代は、仕上がりの大きさで 1 回描く"""
         from PIL import Image
         if m is None or not fam(m.family).inpaint or not hasattr(painter, "redraw"):
-            return painter.paint(prompt, seed, size=size)
+            self._event("drawing", "最終サイズで描画しています", phase="構図")
+            kw = {"on_preview": self.on_preview} if self.on_preview is not None else {}
+            image = painter.paint(prompt, seed, size=size, **kw)
+            self._snapshot(image)
+            return image
         small, full = small_size(size, m)
         if not draws_small(small, full, m):
             # 模型が小さい大きさを学んだ大きさ（SDXL は約 100 万画素）に戻して描く世代では、小さく描く段は効かない。
             # 学んだ大きさで描いた絵を小さく縮めてから広げ直すと、描いた細部の半分以上の画素を捨てて 0.35 の描き直しで埋めることになり、
             # 線と目がぼけた。仕上がりの大きさで 1 回描き、模型の描いた細部をそのまま使う（札の推奨の大きさ）
             self.log.append(dict(stage="描く", model=m.repo, size=list(full), why="学んだ大きさで描く世代なので、小さく描いて広げない"))
-            return painter.paint(prompt, seed, size=full)
+            self._event("drawing", "最終サイズで描画しています", phase="構図")
+            kw = {"on_preview": self.on_preview} if self.on_preview is not None else {}
+            image = painter.paint(prompt, seed, size=full, **kw)
+            self._snapshot(image)
+            return image
         say(f"小さく描いてから広げて描き直します（{small[0]}×{small[1]} → {full[0]}×{full[1]}）")
-        image = painter.paint(prompt, seed, size=small).convert("RGB").resize(full, Image.LANCZOS)
+        self._event("drawing", f"小さいサイズ {small[0]}×{small[1]} で構図を描いています", phase="構図")
+        kw = {"on_preview": self.on_preview} if self.on_preview is not None else {}
+        image = painter.paint(prompt, seed, size=small, **kw).convert("RGB").resize(full, Image.LANCZOS)
+        self._snapshot(image)
         whole = Image.new("L", full, 255)
         up = getattr(painter, "upscale", None)
         if up is not None:
             painter.upscale = 1.0   # もう広げてあるので、直しの中でさらに 1.5 倍にしない（時間が 2 倍以上になる）
         try:
-            out = painter.redraw(prompt, seed + 1, image, whole, strength=HIRES_STRENGTH)
+            out = painter.redraw(prompt, seed + 1, image, whole, strength=HIRES_STRENGTH,
+                                 **({"on_preview": self.on_preview} if self.on_preview is not None else {}))
         finally:
             if up is not None:
                 painter.upscale = up
@@ -438,7 +477,7 @@ class Omakase:
         return image
 
 
-def _compose_two(studio, text, seed, two, size, say):
+def _compose_two(studio, text, seed, two, size, say, on_event=None, on_preview=None):
     """2 段（構図の模型 → SDXL の仕上げ）で描いた絵と、その頼みの言葉。検品と直しはおまかせの側で行う"""
     import time
     from PIL import Image
@@ -449,12 +488,14 @@ def _compose_two(studio, text, seed, two, size, say):
     tags = vary_background(english_only(studio.words.to_prompt(text, tags=True)), seed, text=text)
     keep = studio.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}"
     path = twostage.run_stages(sentence, tags, seed, comp.repo, render.repo, tuple(size or (832, 1216)), keep,
-                               twostage.VARIANTS[0], say=say, stopped=lambda: getattr(studio.painter, "stop", False))
+                               twostage.VARIANTS[0], say=say, stopped=lambda: getattr(studio.painter, "stop", False),
+                               on_event=on_event, on_preview=on_preview)
     return Image.open(path).convert("RGB"), tags
 
 
 def draw(studio, text: str, seed: int, say, size=None, meta: dict | None = None, have: list[ImageModel] | None = None,
-         painter_for=None, check=None, style: str = "", mode: str = "auto", single: ImageModel | None = None):
+         painter_for=None, check=None, style: str = "", mode: str = "auto", single: ImageModel | None = None,
+         on_event=None, on_preview=None, on_snapshot=None):
     """Studio.draw の精度の流れの入口。描いて保存し、(頼みの言葉, 置き場) を返す。
     mode: "auto" はおまかせ（おすすめ）、favmodels.FAV は役目ごとのお気に入り、"single" は選んだ模型 1 つで工程を分ける"""
     from chatdraw.choose import installed_images
@@ -468,6 +509,7 @@ def draw(studio, text: str, seed: int, say, size=None, meta: dict | None = None,
         have = have + [single]
     o = Omakase(studio, have, painter_for, check)
     o.style = style
+    o.on_event, o.on_preview, o.on_snapshot = on_event, on_preview, on_snapshot
     two = None
     if mode == "single":
         o.adjust = lambda p: favmodels.apply(p, have, single=single)
@@ -484,7 +526,8 @@ def draw(studio, text: str, seed: int, say, size=None, meta: dict | None = None,
         two = studio._two_stage_models(None, None, say)
     if two is not None:
         o.two = two
-        o.compose_two = lambda text, seed, size, say: _compose_two(studio, text, seed, o.two, size, say)
+        o.compose_two = lambda text, seed, size, say: _compose_two(studio, text, seed, o.two, size, say,
+                                                                       on_event=o.on_event, on_preview=o.on_snapshot or o.on_preview)
     image, prompt, left, readable, s_k, m = o.run(text, seed, say, size=size, tries=studio.REDRAW_TRIES, rounds=studio.FIX_ROUNDS)
     if left:
         say(f"検品を通る絵が出ませんでした（途中）。残った崩れ: " + "、".join(left[:5]))
@@ -497,4 +540,8 @@ def draw(studio, text: str, seed: int, say, size=None, meta: dict | None = None,
                                          style=style, way=way, passed=readable and not left, left=left,
                                          omakase=dict(parts=o.plan.parts, plan=o.plan.summary(), steps=o.log)))
     studio._inspect(path, say)
+    from chatdraw.events import emit_event
+    emit_event(on_event, "completed" if readable and not left else "blocked",
+               "おまかせ描画と検品が完了しました" if readable and not left else "おまかせ描画は未完了です",
+               phase="仕上げ", readable=readable, unresolved=list(left), seed=s_k)
     return prompt, path

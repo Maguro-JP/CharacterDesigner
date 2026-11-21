@@ -183,6 +183,54 @@ class PhasesTest(unittest.TestCase):
         self.assertGreaterEqual(len(fixes), 2, painter.log)
         self.assertEqual(fixes, sorted(fixes))   # 直しを重ねるたびに強くする
 
+    def test_correction_before_and_after_images_are_shown(self):
+        """修正に入る前の絵と、修正後に再検品する同じ絵を画面へ渡す。"""
+        shown, said = [], []
+        with TemporaryDirectory() as d:
+            got = phases.draw(Painter(), "1girl, red scarf", 5, (64, 96), Path(d) / "k",
+                              checks=hand_only_checks(), on_preview=shown.append, say=said.append)
+        self.assertFalse(got["complete"])
+        self.assertTrue(any("修正中:" in s for s in said), said)
+        self.assertTrue(any("修正結果を再検品しています" in s for s in said), said)
+        # 少なくとも下描き修正の前後が表示される（修正前だけ／修正後だけにならない）。
+        self.assertGreaterEqual(len(shown), len(phases.PHASES) + 2, len(shown))
+
+    def test_structured_events_cover_drawing_correction_and_reinspection(self):
+        """処理側が文字列ではなく、工程の実際の境界でイベントを発行する。"""
+        events, snapshots = [], []
+        with TemporaryDirectory() as d:
+            got = phases.draw(Painter(), "1girl, red scarf", 5, (64, 96), Path(d) / "k",
+                              checks=hand_only_checks(), on_event=events.append, on_snapshot=snapshots.append)
+        kinds = [event.kind for event in events]
+        self.assertIn("phase_started", kinds)
+        self.assertIn("drawing", kinds)
+        self.assertIn("inspection", kinds)
+        self.assertIn("correction", kinds)
+        self.assertIn("reinspection", kinds)
+        self.assertTrue(snapshots)  # 間引き対象の途中経過とは別に、修正境界の画像を必ず渡す
+        self.assertTrue(all(event.message for event in events))
+        self.assertFalse(got["complete"])
+        self.assertFalse(got["checked"])
+        self.assertFalse(any(event.kind == "completed" for event in events))
+
+    def test_completed_event_only_after_all_phase_checks_pass(self):
+        events = []
+        C, _ = checks(always_bad=False)
+        from chatdraw import phasetools as pt
+        with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}), \
+             mock.patch.object(phases.Checks, "request", staticmethod(C.request)), \
+             mock.patch.object(phases.Checks, "body", staticmethod(C.body)), \
+             mock.patch.object(phases.Checks, "points", staticmethod(C.points)), \
+             mock.patch.object(phases.Checks, "pose", staticmethod(C.pose)), \
+             mock.patch.object(phases.Checks, "hands", staticmethod(C.hands)):
+            got = phases.draw(Painter(), "1girl, red scarf", 5, (64, 96), Path(d) / "k", on_event=events.append)
+        self.assertTrue(got["complete"])
+        self.assertTrue(got["checked"])
+        self.assertFalse(got["left"])
+        completed = [event for event in events if event.kind == "completed"]
+        self.assertEqual(len(completed), 1)
+        self.assertEqual(completed[0].index, len(phases.PHASES))
+
     def test_clean_after_first_fix(self):
         got, painter, seen, said, files = self.run_phases(always_bad=False)
         self.assertEqual(got["left"], [])
@@ -663,6 +711,23 @@ class MissingBackRouteTest(unittest.TestCase):
         self.assertEqual(got["blocked"]["phase"], "サムネイル")
 
 
+class ActivityEventTest(unittest.TestCase):
+    def test_correction_state_is_not_overwritten_by_model_status(self):
+        from PySide6.QtWidgets import QApplication
+        from chatdraw.activity import ActivityPanel
+        from chatdraw.events import DrawEvent
+        QApplication.instance() or QApplication([])
+        panel = ActivityPanel()
+        panel.begin("1girl", "描画")
+        panel.draw_event(DrawEvent("correction", "手の範囲を修正中", phase="下描き", index=5, total=12))
+        title = panel.state.text()
+        panel.status("絵の模型を読んでいます（初めの 1 回だけ時間がかかります）")
+        self.assertEqual(panel.state.text(), title)
+        self.assertIn("修正中", panel.state.text())
+        panel.draw_event(DrawEvent("reinspection", "修正結果を再検品中", phase="下描き", index=5, total=12))
+        self.assertIn("再検品中", panel.state.text())
+
+
 class CountLimitTest(unittest.TestCase):
     """枚数の欄は数字だけで、8 枚や 9 枚で勝手に止めない"""
 
@@ -711,3 +776,58 @@ class NoSketchModelTest(unittest.TestCase):
             got = phases.draw(p, "1girl, red scarf", 1, (64, 64), Path(d), checks=C)
         self.assertEqual(len(got["phases"]), len(phases.PHASES))
         self.assertTrue(any(x[0] == "refine" for x in p.log), p.log)
+
+
+class UnreadableInspectionGateTest(unittest.TestCase):
+    """検品不能時は工程側の既定戻り先があっても、推測で再描画せず停止する。"""
+
+    def test_unreadable_reinspection_after_draft_fix_blocks_phase(self):
+        base = hand_only_checks()
+        calls = {"hands": 0}
+
+        class C:
+            request = staticmethod(base.request)
+            body = staticmethod(base.body)
+            points = staticmethod(base.points)
+            pose = staticmethod(base.pose)
+
+            @staticmethod
+            def hands(image, prompt):
+                calls["hands"] += 1
+                if calls["hands"] == 1:
+                    return dict(HAND)
+                return {"readable": False, "bad": [], "reason": "reinspection unavailable"}
+
+        from chatdraw import phasetools as pt
+        with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}):
+            got = phases.draw(Painter(), "1girl, red scarf", 5, (64, 96), Path(d) / "k", checks=C)
+
+        self.assertFalse(got["complete"])
+        self.assertEqual(got["blocked"]["phase"], "顔・手・足の下描き")
+        self.assertEqual(got["blocked"]["reason"], "検品できませんでした")
+        self.assertFalse(got["phases"][-1]["readable"])
+        self.assertEqual(calls["hands"], 2)
+
+    def test_unreadable_pose_does_not_retry_or_advance(self):
+        C0, _seen = checks(always_bad=False)
+
+        class C:
+            request = staticmethod(C0.request)
+            body = staticmethod(C0.body)
+            points = staticmethod(C0.points)
+            hands = staticmethod(C0.hands)
+
+            @staticmethod
+            def pose(image):
+                return {"readable": False, "bad": [], "reason": "pose model unavailable"}
+
+        from chatdraw import phasetools as pt
+        with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}):
+            got = phases.draw(Painter(), "1girl, red scarf", 5, (64, 96), Path(d) / "k", checks=C,
+                              confirm=lambda _i, _name, _shown, row: self.fail("検品不能なのに利用者確認を呼び出した") if not row["readable"] else None)
+
+        self.assertFalse(got["complete"])
+        self.assertEqual(got["backs"], 0)
+        self.assertEqual(got["blocked"]["phase"], "体の形")
+        self.assertEqual(got["blocked"]["reason"], "検品できませんでした")
+        self.assertEqual([row["phase"] for row in got["phases"]], ["目的", "サムネイル", "アタリ", "体の形"])

@@ -174,6 +174,7 @@ class ActivityPanel(QWidget):
     def begin(self, text: str, mode: str):
         self.sheet = (1, 1)
         self.phase, self.phase_last, self.words_log = None, None, []
+        self.active_event = None
         self.detail.setToolTip("")
         self.started = time.time()
         self.text, self.mode = text, mode
@@ -196,6 +197,23 @@ class ActivityPanel(QWidget):
             # 模型に渡す言葉は今の文を置き換えず、詳細のツールチップにだけ積む（会話にも出さない）
             self.words_log.append((f"工程 {self.phase[0]}/{self.phase[1]}「{self.phase[2]}」: " if self.phase else "") + msg)
             self.detail.setToolTip("\n".join(self.words_log[-12:]))
+            return
+        if getattr(self, "active_event", None) in ("drawing", "inspection", "correction", "reinspection"):
+            # 処理状態の見出しは保ちつつ、模型内部の進捗（i/n）は帯へ反映する。
+            self.detail.setText(msg)
+            if step is not None and total:
+                self._busy(False)
+                self.bar.setRange(0, 100)
+                if self.phase:
+                    i, n, _name = self.phase
+                    pct = int(((i - 1) + min(step / total, 1.0)) * 100 / n)
+                    self.bar.setValue(min(99, pct))
+                else:
+                    self.bar.setValue(min(99, int(step * 100 / total)))
+                self.steps_done, self.steps_total = step, total
+            self.last_step = time.time()
+            self.changed.emit(f"{self.mode}: {self.state.text()}", self.bar.value())
+            self._show_time()
             return
         p = re.match(r"工程 (\d+)/(\d+)「([^」]+)」", msg)
         if p:   # 工程に分けて描く（chatdraw/phases.py）。どの工程かを覚え、帯は全体の進みで出す
@@ -239,6 +257,48 @@ class ActivityPanel(QWidget):
         self.detail.setText(msg)   # 今している事を文でも出す（帯だけでは止まって見える）
         self.changed.emit(f"{self.mode}: {self.state.text()}", pct)
         self.progress_view.setToolTip(f"{msg}\n{self.mode}\n{self.text}")
+        self._show_time()
+
+    def draw_event(self, event):
+        """処理側が発行したイベントを表示する。工程名の文字列解析に依存しない。"""
+        labels = {
+            "phase_started": "工程開始",
+            "drawing": "描画中",
+            "inspection": "検品中",
+            "correction": "修正中",
+            "reinspection": "再検品中",
+            "phase_completed": "工程完了",
+            "blocked": "停止",
+            "completed": "描画・検品完了",
+        }
+        kind = getattr(event, "kind", "")
+        message = str(getattr(event, "message", "") or labels.get(kind, "処理中"))
+        phase = getattr(event, "phase", None)
+        index, total = getattr(event, "index", None), getattr(event, "total", None)
+        self.active_event = kind
+        if phase and index and total:
+            self.phase = (index, total, phase)
+        elif phase and self.phase:
+            # correction/reinspection events may omit pipeline coordinates; keep the active phase index.
+            self.phase = (self.phase[0], self.phase[1], phase)
+        title = labels.get(kind, "処理中")
+        if phase and index and total:
+            title += f"　工程 {index}/{total}「{phase}」"
+        elif phase:
+            title += f"　「{phase}」"
+        self.state.setText(title)
+        self.detail.setText(message)
+        if index and total:
+            self._busy(False)
+            self.bar.setRange(0, 100)
+            pct = int((index - 1) * 100 / total)
+            # 最後の検品が終わっても、保存・配置まで終わる前に完了扱いの 100% にしない。
+            self.bar.setValue(min(99, pct))
+        # 100% は Job.done を受けた ActivityPanel.end() だけが設定する。
+        # 描画・検品が終わっても、キャンバス配置や結果通知が残っている間は満たさない。
+        self.last_step = time.time()
+        self.changed.emit(f"{self.mode}: {title}", self.bar.value())
+        self.progress_view.setToolTip(f"{message}\n{self.mode}\n{self.text}")
         self._show_time()
 
     def _show_time(self):
