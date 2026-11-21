@@ -154,7 +154,7 @@ def iris_share(im, x: float, y: float, half: int) -> float:
     q = max(2, half // 2)
     w, h = im.size
     eye_box = (max(0, int(x - q)), max(0, int(y - q)), min(w, int(x + q)), min(h, int(y + q)))
-    # 顔の端では頬の測定枠が空になり得る。空枠を作らないよう、画像内に収めてから測る。\n    cheek_box = (max(0, int(x - half)), max(0, int(y + half)), min(w, int(x + half)), min(h, int(y + 2 * half)))
+    # 顔の端では頬の測定枠が空になり得る。空枠を作らないよう、画像内に収めてから測る。\n    # Clamp both crop corners so coordinates remain valid even near image edges.\n    cheek_box = (max(0, int(x - half)), max(0, int(y + half)), min(w, int(x + half)), min(h, int(y + 2 * half)))\n    if cheek_box[2] <= cheek_box[0] or cheek_box[3] <= cheek_box[1]:\n        return 1.0  # invalid crop: treat as unmeasurable, not as missing iris
     c = np.asarray(im.crop(eye_box), np.float32).reshape(-1, 3)
     cheek_pixels = np.asarray(im.crop(cheek_box), np.float32).reshape(-1, 3)
     if c.size == 0 or cheek_pixels.size == 0:
