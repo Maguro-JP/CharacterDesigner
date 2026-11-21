@@ -44,6 +44,10 @@ def ensure_models(fetch: bool = True) -> bool:
         z = tmp / "h.task"
         urllib.request.urlretrieve(TASK, z)
         with zipfile.ZipFile(z) as f:
+            # ZIP の CRC を先に全件検証する。通信途中で壊れた模型を展開・配置しない。
+            damaged = f.testzip()
+            if damaged is not None:
+                raise RuntimeError(f"手の模型アーカイブが破損しています: {damaged}")
             # 2 つの模型を一時領域へ展開してから配置する。取得・展開途中で失敗しても
             # CD_HOME に壊れた途中ファイルを残し、次回起動で存在判定を誤らないようにする。
             names = ("hand_landmarks_detector.tflite", "hand_detector.tflite")
