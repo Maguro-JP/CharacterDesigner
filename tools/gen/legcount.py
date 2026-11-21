@@ -37,7 +37,7 @@ def count(mask: np.ndarray) -> dict:
     1 行だけで数えると、床に着く高さの差（前脚と後脚）で 1 本ずつ取りこぼした"""
     ys = np.nonzero(mask.any(axis=1))[0]
     if len(ys) == 0:
-        return {"legs": 0, "rows": []}
+        return {"legs": 0, "rows": [], "bottom": 0.0}
     top, bottom = ys[0], ys[-1]
     band = max(3, int((bottom - top) * BAND))
     min_px = max(2, int(mask.shape[1] * MIN_WIDTH))
