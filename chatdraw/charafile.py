@@ -92,8 +92,11 @@ def load(path) -> dict:
         raise BadFile(f"キャラクターの設定が壊れています（{path.name}: manifest がオブジェクトではありません）")
     if man.get("format") != FORMAT:
         raise BadFile(f"キャラクターファイルではありません（{path.name}）")
+    raw_version = man.get("version", 0)
+    if isinstance(raw_version, bool) or not isinstance(raw_version, int):
+        raise BadFile(f"キャラクターの設定が壊れています（{path.name}: version が不正です）")
     try:
-        v = int(man.get("version", 0))
+        v = int(raw_version)
     except (TypeError, ValueError) as e:
         raise BadFile(f"キャラクターの設定が壊れています（{path.name}: version が不正です）") from e
     if v < 1:
