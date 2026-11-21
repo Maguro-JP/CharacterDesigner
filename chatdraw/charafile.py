@@ -93,6 +93,8 @@ def load(path) -> dict:
         v = int(man.get("version", 0))
     except (TypeError, ValueError) as e:
         raise BadFile(f"キャラクターの設定が壊れています（{path.name}: version が不正です）") from e
+    if v < 1:
+        raise BadFile(f"キャラクターの設定が壊れています（{path.name}: version {v} は未対応です）")
     if v > VERSION:
         raise BadFile(f"新しい版（{v}）のキャラクターファイルです。アプリを新しくしてから開いてください")
     try:
