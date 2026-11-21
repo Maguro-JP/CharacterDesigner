@@ -90,7 +90,13 @@ def load(path) -> dict:
     v = int(man.get("version", 0))
     if v > VERSION:
         raise BadFile(f"新しい版（{v}）のキャラクターファイルです。アプリを新しくしてから開いてください")
-    man, files = migrate(man, files)
+    try:
+        man, files = migrate(man, files)
+        missing = [p for p in _referenced(man) if p not in files]
+    except (KeyError, TypeError, ValueError, AttributeError) as e:
+        raise BadFile(f"キャラクターの設定が壊れています（{path.name}: {e}）") from e
+    if missing:
+        raise BadFile("キャラクターファイルに必要な絵がありません: " + ", ".join(missing))
     return {"manifest": man, "files": files, "path": str(path)}
 
 
