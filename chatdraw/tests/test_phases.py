@@ -210,6 +210,8 @@ class PhasesTest(unittest.TestCase):
         self.assertTrue(snapshots)  # 間引き対象の途中経過とは別に、修正境界の画像を必ず渡す
         self.assertTrue(all(event.message for event in events))
         self.assertFalse(got["complete"])
+        self.assertFalse(got["checked"])
+        self.assertFalse(any(event.kind == "completed" for event in events))
 
     def test_completed_event_only_after_all_phase_checks_pass(self):
         events = []
