@@ -1306,18 +1306,29 @@ class Painter:
         import torch
         on = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         root = HUB.parent / "offload" / str(id(self))
+        configured = 0
         for name in ("transformer", "unet", "text_encoder", "text_encoder_2", "text_encoder_3"):
             part = getattr(pipe, name, None)
-            if part is None or not hasattr(part, "enable_group_offload"):
+            if part is None or not callable(getattr(part, "enable_group_offload", None)):
                 continue
             try:
                 (root / name).mkdir(parents=True, exist_ok=True)
                 part.enable_group_offload(onload_device=on, offload_device=torch.device("cpu"), offload_type="leaf_level",
                                           offload_to_disk_path=str(root / name))
-                self.placed = "disk"
-            except Exception:   # noqa: BLE001  退避できない部品は層ごとの出し入れのまま
+                configured += 1
+            except Exception:   # noqa: BLE001  退避できない部品はフォールバック対象
                 pass
-        if on.type == "cuda":   # 退避しない小さい部品（VAE など）は GPU に置く（置き場がそろわないと計算できない）
+        if configured:
+            self.placed = "disk"
+        else:
+            # group offload 非対応の Diffusers / Pipeline では、disk を指定しただけで
+            # 退避が有効になったように見せず、通常の sequential CPU offload に戻す。
+            fallback = getattr(pipe, "enable_sequential_cpu_offload", None)
+            if not callable(fallback):
+                raise RuntimeError("ディスク退避を設定できず、sequential CPU offload も利用できません")
+            fallback()
+            self.placed = "sequential"
+        if on.type == "cuda" and configured:   # disk 退避しない小さい部品（VAE など）は GPU に置く
             for name in ("vae", "image_encoder"):
                 part = getattr(pipe, name, None)
                 if part is not None and hasattr(part, "to"):
