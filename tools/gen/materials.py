@@ -135,10 +135,23 @@ def _blur(a: np.ndarray, r: float) -> np.ndarray:
 
 
 def _lit_side(alpha: np.ndarray, r: float, dx: int = -1, dy: int = -1) -> np.ndarray:
-    """光の当たる縁（既定は左上から光）。形を光の向きへずらした差で取る"""
+    """光の当たる縁（既定は左上から光）。形を光の向きへずらした差で取る。
+
+    画像端をまたいで反対側へ回り込むと、離れた輪郭に偽の照り返しが出る。
+    そのため roll ではなく、画像外を 0 とする平行移動で比較する。
+    """
     m = (alpha > 0.5).astype(float)
-    shift = np.roll(np.roll(m, int(r) * -dy, axis=0), int(r) * -dx, axis=1)
-    return np.clip(m - shift, 0, 1)
+    sx, sy = int(r) * -dx, int(r) * -dy
+    shifted = np.zeros_like(m)
+    h, w = m.shape
+
+    src_x0, src_x1 = max(0, -sx), min(w, w - sx)
+    src_y0, src_y1 = max(0, -sy), min(h, h - sy)
+    if src_x0 < src_x1 and src_y0 < src_y1:
+        dst_x0, dst_x1 = src_x0 + sx, src_x1 + sx
+        dst_y0, dst_y1 = src_y0 + sy, src_y1 + sy
+        shifted[dst_y0:dst_y1, dst_x0:dst_x1] = m[src_y0:src_y1, src_x0:src_x1]
+    return np.clip(m - shifted, 0, 1)
 
 
 def _noise(h: int, w: int, seed: int, octaves: int = 4) -> np.ndarray:
