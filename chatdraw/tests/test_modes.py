@@ -359,6 +359,10 @@ class RealModelTest(Base):
         p = mock.patch.object(models, "IMAGES", models.IMAGES + (tiny,))
         p.start()
         self.patches.append(p)
+        from chatdraw.tests.test_finish_quality import tiny_size
+        p = tiny_size()
+        p.start()
+        self.patches.append(p)
         w = self.window(Real(_tiny(), steps=2, size=(256, 256)))
         with mock.patch.object(type(w), "_chara_spec_dialog", lambda self, init=None: dict(SPEC)):
             w.charafile_new()

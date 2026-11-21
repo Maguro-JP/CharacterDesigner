@@ -89,6 +89,9 @@ def release_memory():
     """捨てた模型のメモリを返す（gc と、CUDA の溜めを空ける）。torch を読んでいなければ torch も読まない"""
     import gc
     import sys
+    pose = sys.modules.get("chatdraw.twostage")
+    if pose is not None:
+        pose.unload_pose()   # 検品で読んだ体の点の模型（VitPose）も手放す
     gc.collect()
     torch = sys.modules.get("torch")
     try:

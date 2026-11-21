@@ -55,15 +55,32 @@ def fetch_parts(say=print):
         snapshot_download(repo, cache_dir=str(HUB), allow_patterns=files)
 
 
+_POSE: list = []   # 読んだ VitPose（[処理, 模型]）。1 回だけ読む
+
+
+def _pose(local_only: bool):
+    """VitPose を 1 回だけ読んで持つ。前は体の点を読むたびに読み直し、1 回 5 秒ほどかかった（読むのが大半）。
+    絵の模型を降ろすとき（engine.release_memory）に一緒に手放す"""
+    if not _POSE:
+        from transformers import AutoProcessor, VitPoseForPoseEstimation
+        from chatdraw.paths import HUB
+        proc = AutoProcessor.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=local_only)
+        model = VitPoseForPoseEstimation.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=local_only)
+        model.eval()
+        _POSE[:] = [proc, model]
+    return _POSE[0], _POSE[1]
+
+
+def unload_pose():
+    _POSE.clear()
+
+
 def keypoints(image, threshold: float = 0.3) -> dict:
     """VitPose で体の 17 点を読み、名前と (x, y) を返す（確からしさが threshold 未満の点は入れない）"""
     import torch
-    from transformers import AutoProcessor, VitPoseForPoseEstimation
-    from chatdraw.paths import HUB
     names = ["nose", "left_eye", "right_eye", "left_ear", "right_ear", "left_shoulder", "right_shoulder", "left_elbow",
              "right_elbow", "left_wrist", "right_wrist", "left_hip", "right_hip", "left_knee", "right_knee", "left_ankle", "right_ankle"]
-    proc = AutoProcessor.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True)
-    model = VitPoseForPoseEstimation.from_pretrained(POSE, cache_dir=str(HUB), local_files_only=True)
+    proc, model = _pose(local_only=True)
     w, h = image.size
     boxes = [[[0, 0, w, h]]]
     with torch.no_grad():
@@ -76,10 +93,7 @@ def pose_map(image, threshold: float = 0.3):
     人は 1 人の絵として、絵全体を枠にする。手の指は取らない（指の形は仕上げの模型に任せる）"""
     import torch
     from PIL import Image, ImageDraw
-    from transformers import AutoProcessor, VitPoseForPoseEstimation
-    from chatdraw.paths import HUB
-    proc = AutoProcessor.from_pretrained(POSE, cache_dir=str(HUB))
-    model = VitPoseForPoseEstimation.from_pretrained(POSE, cache_dir=str(HUB))
+    proc, model = _pose(local_only=False)
     w, h = image.size
     boxes = [[[0, 0, w, h]]]
     with torch.no_grad():

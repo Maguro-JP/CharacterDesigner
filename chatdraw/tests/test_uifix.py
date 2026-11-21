@@ -1,6 +1,7 @@
 """チャットの欄・レイヤー・描き終えた絵・ライブラリーの欄の回帰試験"""
 import os
 import sys
+import time
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -36,7 +37,8 @@ def draw(w, text="雪の城の前の騎士"):
     a = app()
     w.entry.setText(text)
     w.send()
-    for _ in range(600):
+    end = time.time() + 60   # 回数（600 回 × 10 ミリ秒）で待つと、束を同時に流す重い機械で描き終わる前に抜けた。時間で待つ
+    while time.time() < end:
         a.processEvents()
         if w.images and not w.thread:
             break
@@ -56,9 +58,13 @@ class ChatPanelTest(unittest.TestCase):
                 c.add("user" if i % 2 else "ai", "長い文の吹き出し " * 12 + str(i))
             for width in (220, 420, 900):
                 c.resize(width, 420)
-                for _ in range(40):   # 並べて流す重い機械では、組み直しが 5 回の処理では終わらないことがある
+                # 束を同時に流す重い機械では、組み直しが 5 回の処理では終わらないことがある。回数ではなく時間（20 秒まで）で待ち、
+                # 書く欄の位置と吹き出しの幅の両方がそろうまで待つ（確かめる値は変えない）
+                end = time.time() + 20
+                while time.time() < end:
                     spin(5)
-                    if all(b.width() <= c.scroll.viewport().width() for b in c.bubbles()):
+                    if c.input.geometry().top() > c.scroll.geometry().bottom() - 1 and \
+                            all(b.width() <= c.scroll.viewport().width() for b in c.bubbles()):
                         break
                 self.assertGreater(c.input.geometry().top(), c.scroll.geometry().bottom() - 1)   # 書く欄は会話の下
                 room = c.scroll.viewport().width()

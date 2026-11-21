@@ -10,6 +10,7 @@
 from __future__ import annotations
 
 import json
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -172,12 +173,14 @@ CLEAN_LINE = 6        # 大きく変わる画素がこれだけつながって�
 def _upscale_ready() -> bool:
     """torch があれば使える。重み（18MB）は初めて使うときに upscale が取る（「絵を 2 倍に拡大」と同じ）。
     前は重みが無いと押せず、「模型の管理から取ってください」と出したが、模型の管理に取る所が無く、先へ進めなかった"""
+    # 入っているかだけを見る。torch を読み込むと 1.6 秒かかり、窓を開くたびに仕上げのメニューを作る所で待たせていた（使うときに upscale が読む）
+    import importlib.util
+    if "torch" in sys.modules:
+        return sys.modules["torch"] is not None
     try:
-        from chatdraw import upscale  # noqa: F401
-        import torch  # noqa: F401
-    except ImportError:
+        return importlib.util.find_spec("torch") is not None and importlib.util.find_spec("chatdraw.upscale") is not None
+    except (ImportError, ValueError):
         return False
-    return True
 
 
 def _upscale_why() -> str:

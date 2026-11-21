@@ -154,6 +154,9 @@ class AppFlowTest(Base):
         tiny = ImageModel(self.TINY, "試験用の小さな SDXL", "", "", 0.1, 2, 5.0, files=FILES["bin"], family="sdxl", score=0)
         self.patches.append(mock.patch.object(models, "IMAGES", models.IMAGES + (tiny,)))
         self.patches[-1].start()
+        from chatdraw.tests.test_finish_quality import tiny_size
+        self.patches.append(tiny_size())
+        self.patches[-1].start()
 
     def window(self, painter):
         from chatdraw.app import Window

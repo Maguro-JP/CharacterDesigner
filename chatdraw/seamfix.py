@@ -19,6 +19,7 @@ EDGE = 22.0        # 線とみなす明るさの勾配（0〜255 の段差の半
 COLOR_OK = 4.0     # 境目の色の差の許し（元の絵にもともとある段差を引いたあとの平均、0〜255）
 SHIFT_OK = 1.0     # 線のずれの許し（画素）
 SSIM_OK = 0.80     # 境目の帯の SSIM の許し
+_MARGIN = 32       # measure が切り出すときの余白（ぼかしと膨らましの広がりの合計 18 画素より広く取る）
 COLOR_GOOD = 1.0   # 許しに入っても、色の差がこれより大きく、帯が直した所の奥の 3 分の 1 に届くまでは帯を広げて合わせ直す
 
 
@@ -116,9 +117,21 @@ def harmonize(before, after, mask, band: int = 6, lines: float = 1.0):
     - 線: 元の絵の帯の中にある線を、縁に近いほど強く元の画素へ戻す（外から来た線が境目で折れない）
     mask の外は before の画素をそのまま返す（1 画素も変えない）。"""
     m = np.asarray(mask.convert("L")) > 127
-    b, a = _rgb(before), _rgb(after)
     if not m.any():
         return before.convert("RGB").copy()
+    # 囲みの外は元の画素のままなので、囲みの外接の箱にぼかしの広がり（3 回の箱で 3k 画素）より広い余白を付けて切り出して合わせ、
+    # 元の絵へ戻す。値は絵全体で合わせたときと同じになる。絵全体で合わせると、帯を広げるたびに数秒かかっていた
+    pad = 3 * max(1, int(round(band * 0.9))) + 8
+    ys, xs = np.nonzero(m)
+    y0, y1 = max(0, ys.min() - pad), min(m.shape[0], ys.max() + 1 + pad)
+    x0, x1 = max(0, xs.min() - pad), min(m.shape[1], xs.max() + 1 + pad)
+    if (y1 - y0) * (x1 - x0) < m.size:
+        box = (x0, y0, x1, y1)
+        whole = before.convert("RGB").copy()
+        whole.paste(harmonize(before.convert("RGB").crop(box), after.convert("RGB").crop(box),
+                              Image.fromarray(m[y0:y1, x0:x1].astype(np.uint8) * 255, "L"), band=band, lines=lines), box[:2])
+        return whole
+    b, a = _rgb(before), _rgb(after)
     d = depth(m, band + 2)
     fade = np.clip(1 - (d - 1) / max(band, 1), 0, 1) * m
     fade = fade * fade * (3 - 2 * fade)                 # なめらかに薄める
@@ -156,6 +169,16 @@ def measure(before, after, mask) -> dict:
     m = np.asarray(mask.convert("L")) > 127
     if not m.any():
         return dict(color=0.0, shift=0.0, ssim=1.0, ok=True)
+    # 測るのは囲みの縁の近く（外へ 5 画素）だけで、ぼかしの広がりは 9 画素。囲みの外接の箱に 32 画素の余白を付けて切り出して測る。
+    # 余白がぼかしの広がりより広いので、測る所の値は絵全体で測ったときと同じになる（絵の端は端のまま）。
+    # 絵全体でぼかすと 1024x1536 で 5 秒かかり、加工のたびに待たせていた
+    ys, xs = np.nonzero(m)
+    y0, y1 = max(0, ys.min() - _MARGIN), min(m.shape[0], ys.max() + 1 + _MARGIN)
+    x0, x1 = max(0, xs.min() - _MARGIN), min(m.shape[1], xs.max() + 1 + _MARGIN)
+    if (y1 - y0) * (x1 - x0) < m.size:
+        box = (x0, y0, x1, y1)
+        return measure(before.convert("RGB").crop(box), after.convert("RGB").crop(box),
+                       Image.fromarray(m[y0:y1, x0:x1].astype(np.uint8) * 255, "L"))
     b, a = _rgb(before), _rgb(after)
     inner = m & ~_erode(m, 5)
     outer = _dilate(m, 5) & ~m

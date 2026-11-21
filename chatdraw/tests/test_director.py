@@ -101,6 +101,10 @@ class AppPathTest(unittest.TestCase):
         # 前の試験が止めるボタンを押したまま終えると、止める旗（engine.STOP）が残って描く前に止まった。旗を下ろしてから描く
         from chatdraw import engine
         engine.STOP.clear()
+        from chatdraw.tests.test_finish_quality import tiny_size
+        p = tiny_size()
+        p.start()
+        self.addCleanup(p.stop)
 
     def draw(self, painter):
         from chatdraw.app import Window

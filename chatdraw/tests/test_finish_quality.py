@@ -189,6 +189,14 @@ def tiny_ready():
         return False
 
 
+def tiny_size():
+    """試験用の小さな SDXL を、頼んだ大きさ（256 など）のまま描かせる。
+    描く大きさは模型の世代の学んだ画素の数（SDXL は約 100 万画素）に合わせる（engine.native_size）。小さな SDXL は縮める層が無く、
+    100 万画素では 1 段 190 秒かかり、この模型で通しを流す 4 本の試験だけで 1 時間かかった（256×256 なら 1 段 4 秒）。
+    経路（読み込み・描く・検品・保存）はそのまま通す。大きさを合わせる決まりそのものは test_drawbugs が見る"""
+    return mock.patch("chatdraw.engine.native_size", lambda size, family: tuple(max(64, round(v / 8) * 8) for v in size))
+
+
 class RestylePostTest(unittest.TestCase):
     """描いたあとの処理（模型を使わない）。白黒の画風は色が残らず、ドット絵は格子がそろい色が減る"""
     def setUp(self):

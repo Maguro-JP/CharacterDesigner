@@ -7,26 +7,58 @@ input="$(cat)"
 # 自分が止めた直後の再実行では走らない（無限ループ防止）
 case "$input" in *'"stop_hook_active":true'*) exit 0;; esac
 cd "$(git rev-parse --show-toplevel)"
-# 描画器の試験（tests/）。落ちたら出力を返して止める
+# 束を順に流すと 1 回 90 分かかった。束はそれぞれ別の処理（1 束 1.5GB ほど）なので、JOBS 本ずつ同時に流す（既定 3 本。メモリ 15GB・4 コアの機械で 4.5GB ほど）。
+# どれか 1 つが落ちたら、全部終わるのを待ってから落ちた束の出力を返し、exit 2 で止める
+JOBS="${CD_TEST_JOBS:-3}"
+tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+n=0
+run() {  # run <名前> <コマンド…>: 出力と終了コードを $tmp に書く
+  local name="$1"; shift
+  local t0=$SECONDS
+  "$@" >"$tmp/$name.out" 2>&1; echo $? >"$tmp/$name.rc"
+  echo "$name $((SECONDS - t0)) 秒" >"$tmp/$name.sec"
+}
+free_mb() { awk '/^MemAvailable:/{print int($2/1024)}' /proc/meminfo 2>/dev/null || echo 99999; }
+spawn() {
+  # 同時の数に加え、空きのメモリが 5GB を切っている間は、走っている束が終わるのを待ってから次を出す（束は 4GB を超えることがある）
+  while [ "$(jobs -rp | wc -l)" -ge "$JOBS" ] || { [ "$(jobs -rp | wc -l)" -gt 0 ] && [ "$(free_mb)" -lt 5000 ]; }; do wait -n; done
+  n=$((n+1)); run "$(printf %02d $n)-$1" "${@:2}" &
+}
+# 描画器の試験（tests/）
 # 描く部品（.cache/gen/lib）があれば通す。通さないと scipy や torch を使う試験が黙って飛ばされ、落ちても気付かなかった
 lib=""; [ -d .cache/gen/lib/scipy ] && lib=".cache/gen/lib"
-out="$(PYTHONPATH=$lib python3 -m unittest discover -s tests -q 2>&1)" || { echo "$out" | tail -30 >&2; exit 2; }
+spawn tests env PYTHONPATH=$lib python3 -m unittest discover -s tests -q
 # 描画アプリ（chatdraw）の試験。ここに入れていなかったため、「描く」を押すと落ちる不具合を通したままマージした
 if [ -d .cache/simple/lib/PySide6 ]; then
-  # 一式を 1 つの流れで回すと、閉じた窓や模型の分のメモリが試験のたびに増え、9GB を超えて止められた。10 本ずつ別の流れで回す
+  # 一式を 1 つの流れで回すと、閉じた窓や模型の分のメモリが試験のたびに増え、9GB を超えて止められた。束ごとに別の処理で回す
+  # 長い束から先に出す（最後に長い束が 1 本だけ残ると、同時に流す意味が薄れる）
   for mods in \
-    "chatdraw.tests.test_chatdraw chatdraw.tests.test_presetui chatdraw.tests.test_modeldoc chatdraw.tests.test_drawbugs chatdraw.tests.test_ownstyle chatdraw.tests.test_uifix chatdraw.tests.test_features chatdraw.tests.test_freeze chatdraw.tests.test_quality chatdraw.tests.test_perfamily" \
-    "chatdraw.tests.test_omakase chatdraw.tests.test_editing chatdraw.tests.test_modelblock chatdraw.tests.test_modelmgr chatdraw.tests.test_aitabs chatdraw.tests.test_original_finish chatdraw.tests.test_original_qc chatdraw.tests.test_panels chatdraw.tests.test_keepsettings chatdraw.tests.test_aiui" \
-    "chatdraw.tests.test_stop chatdraw.tests.test_shortcuts chatdraw.tests.test_works chatdraw.tests.test_toplayer chatdraw.tests.test_logo chatdraw.tests.test_nojson chatdraw.tests.test_voicechat chatdraw.tests.test_memory chatdraw.tests.test_membudget chatdraw.tests.test_usability" \
-    "chatdraw.tests.test_finish_quality chatdraw.tests.test_words chatdraw.tests.test_nobreak chatdraw.tests.test_variety chatdraw.tests.test_layercrash chatdraw.tests.test_tabkey chatdraw.tests.test_confirm chatdraw.tests.test_redpeninput chatdraw.tests.test_sanity chatdraw.tests.test_redpenfix chatdraw.tests.test_qcmanual chatdraw.tests.test_composition" \
-    "chatdraw.tests.test_layertools chatdraw.tests.test_brushtools chatdraw.tests.test_shapeassist chatdraw.tests.test_qcbench chatdraw.tests.test_typeguard chatdraw.tests.test_backui chatdraw.tests.test_sent chatdraw.tests.test_fixrequests chatdraw.tests.test_qcparts_ui chatdraw.tests.test_pull" \
-    "chatdraw.tests.test_autosel chatdraw.tests.test_redpen3 chatdraw.tests.test_layerkeep chatdraw.tests.test_fixwords chatdraw.tests.test_favmodels chatdraw.tests.test_civitai chatdraw.tests.test_detailtimelapse chatdraw.tests.test_phases" \
     "chatdraw.tests.test_modes chatdraw.tests.test_charafile chatdraw.tests.test_lora chatdraw.tests.test_director chatdraw.tests.test_finish2 chatdraw.tests.test_menuaudit chatdraw.tests.test_ribbonfamily chatdraw.tests.test_mirrorcheck" \
-    "chatdraw.tests.test_bughunt chatdraw.tests.test_catalog"; do
-  out="$(CD_ASSUME_FREE_RAM_GB=64 QT_QPA_PLATFORM=offscreen PYTHONPATH=.cache/simple/lib:$lib python3 -m unittest $mods  2>&1)" || { echo "$out" | grep -E -A12 "^(FAIL|ERROR):" | head -80 >&2; echo "$out" | tail -4 >&2; exit 2; }
+    "chatdraw.tests.test_chatdraw chatdraw.tests.test_presetui chatdraw.tests.test_modeldoc chatdraw.tests.test_drawbugs chatdraw.tests.test_ownstyle chatdraw.tests.test_uifix chatdraw.tests.test_features chatdraw.tests.test_freeze chatdraw.tests.test_quality chatdraw.tests.test_perfamily" \
+    "chatdraw.tests.test_stop chatdraw.tests.test_shortcuts chatdraw.tests.test_works chatdraw.tests.test_toplayer chatdraw.tests.test_logo chatdraw.tests.test_nojson chatdraw.tests.test_voicechat chatdraw.tests.test_memory chatdraw.tests.test_membudget chatdraw.tests.test_usability" \
+    "chatdraw.tests.test_layertools chatdraw.tests.test_brushtools chatdraw.tests.test_shapeassist chatdraw.tests.test_qcbench chatdraw.tests.test_typeguard chatdraw.tests.test_backui chatdraw.tests.test_sent chatdraw.tests.test_fixrequests chatdraw.tests.test_qcparts_ui chatdraw.tests.test_pull" \
+    "chatdraw.tests.test_omakase chatdraw.tests.test_editing chatdraw.tests.test_modelblock chatdraw.tests.test_modelmgr chatdraw.tests.test_aitabs chatdraw.tests.test_original_finish chatdraw.tests.test_original_qc chatdraw.tests.test_panels chatdraw.tests.test_keepsettings chatdraw.tests.test_aiui" \
+    "chatdraw.tests.test_finish_quality chatdraw.tests.test_words chatdraw.tests.test_nobreak chatdraw.tests.test_variety chatdraw.tests.test_layercrash chatdraw.tests.test_tabkey chatdraw.tests.test_confirm chatdraw.tests.test_redpeninput chatdraw.tests.test_sanity chatdraw.tests.test_redpenfix chatdraw.tests.test_qcmanual chatdraw.tests.test_composition" \
+    "chatdraw.tests.test_autosel chatdraw.tests.test_redpen3 chatdraw.tests.test_layerkeep chatdraw.tests.test_fixwords chatdraw.tests.test_favmodels chatdraw.tests.test_civitai chatdraw.tests.test_detailtimelapse chatdraw.tests.test_phases" \
+    "chatdraw.tests.test_bughunt chatdraw.tests.test_catalog" \
+    ; do
+    # shellcheck disable=SC2086
+    spawn chatdraw env CD_ASSUME_FREE_RAM_GB=64 QT_QPA_PLATFORM=offscreen PYTHONPATH=.cache/simple/lib:$lib python3 -m unittest $mods
   done
   # 窓の枠のテーマの試験は、ほかの試験が数百の窓を開け閉めしたあとに流すと Qt の中で落ちる（単独では通る）。窓の状態を持ち越さないよう、別の処理で流す
   # 表示の回転の試験（test_viewtools）も、数百の窓を開け閉めしたあとに Ctrl+\ を押すと Qt の中で落ちる（単独では通る）。同じ理由で別に流す
-  out="$(CD_ASSUME_FREE_RAM_GB=64 QT_QPA_PLATFORM=offscreen PYTHONPATH=.cache/simple/lib:$lib python3 -m unittest chatdraw.tests.test_menuedit chatdraw.tests.test_viewtools 2>&1)" || { echo "$out" | grep -E -A12 "^(FAIL|ERROR):" | head -80 >&2; echo "$out" | tail -4 >&2; exit 2; }
+  spawn chatdraw env CD_ASSUME_FREE_RAM_GB=64 QT_QPA_PLATFORM=offscreen PYTHONPATH=.cache/simple/lib:$lib python3 -m unittest chatdraw.tests.test_menuedit chatdraw.tests.test_viewtools
 fi
+wait
+# CD_TEST_TIMES=1 で束ごとの秒数を出す（速さを測るとき）
+[ -n "${CD_TEST_TIMES:-}" ] && cat "$tmp"/*.sec >&2 && echo "合計 $SECONDS 秒" >&2
+bad=0
+for rc in "$tmp"/*.rc; do
+  [ "$(cat "$rc")" = 0 ] && continue
+  bad=1; o="${rc%.rc}.out"
+  echo "== 落ちた束: $(basename "${rc%.rc}")" >&2
+  if grep -qE "^(FAIL|ERROR):" "$o"; then grep -E -A12 "^(FAIL|ERROR):" "$o" | head -80 >&2; echo >&2; fi
+  tail -30 "$o" >&2
+done
+[ "$bad" = 0 ] || exit 2
 exit 0

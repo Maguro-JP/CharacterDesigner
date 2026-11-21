@@ -286,7 +286,9 @@ def apply(app, name: str | dict = DEFAULT) -> dict:
         app.setStyle("Fusion")
         _styled = True
     app.setPalette(palette(t))
-    app.setStyleSheet(TEMPLATE.format(**t))
+    css = TEMPLATE.format(**t)
+    if app.styleSheet() != css:   # 同じ見た目を当て直すと、開いている部品を全部組み直して 1 回 1 秒ほど待たせた
+        app.setStyleSheet(css)
     for w in app.allWidgets():
         QWidget.update(w)
     global _hooked
