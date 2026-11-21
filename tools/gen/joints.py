@@ -65,6 +65,10 @@ def find(src: str) -> list[dict]:
     im = Image.open(src).convert("RGB")
     alpha = np.asarray(design.cut_background(im).getchannel("A")) > 0
     ys, xs = np.nonzero(alpha)
+    # 背景抜きで人物領域が残らない画像（空画像・完全透過画像など）では
+    # min/max が例外になる。関節なしとして返し、呼び出し側の検品を継続する。
+    if not len(xs) or not len(ys):
+        return []
     box = crop_box((xs.min(), ys.min(), xs.max(), ys.max()))
     # 枠が絵の外へ出る所は、学習時の平均の色で埋める（PIL の crop は外を黒で埋め、黒い塊を体と取り違えうる）
     bx = tuple(int(round(v)) for v in box)
