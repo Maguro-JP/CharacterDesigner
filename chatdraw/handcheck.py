@@ -29,7 +29,10 @@ def ensure_models(fetch: bool = True) -> bool:
     """手の模型が置き場にあるか。無ければ取る（約 8MB）"""
     hands = _hands()
     d = hands.MODEL.parent
-    if hands.MODEL.exists() and (d / "hand_detector.tflite").exists():
+    required = (hands.MODEL, d / "hand_detector.tflite")
+    # 存在するだけでなく、両方の模型が空でないことを確認する。
+    # 片方だけ欠けた状態を成功扱いすると、次の推論で初めて失敗する。
+    if all(p.is_file() and p.stat().st_size > 0 for p in required):
         return True
     if not fetch:
         return False
@@ -46,6 +49,8 @@ def ensure_models(fetch: bool = True) -> bool:
             names = ("hand_landmarks_detector.tflite", "hand_detector.tflite")
             for name in names:
                 (tmp / name).write_bytes(f.read(name))
+                if (tmp / name).stat().st_size == 0:
+                    raise RuntimeError(f"手の模型 {name} が空です")
         for name in names:
             (tmp / name).replace(d / name)
     return True
