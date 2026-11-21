@@ -143,6 +143,9 @@ def depth_mask(path: str) -> np.ndarray:
 def judge(image: str, underlay: str = "") -> dict:
     got = count(drawn_mask(image))
     res = {"image": image, "legs": got["legs"]}
+    if got["legs"] == 0:
+        res.update(ok=False, reason="描いた絵から人物領域を読めない")
+        return res
     if underlay:
         want = count(depth_mask(underlay))
         res["expected"] = want["legs"]
