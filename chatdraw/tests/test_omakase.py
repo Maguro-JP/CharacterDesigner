@@ -98,6 +98,7 @@ class OmakaseTest(unittest.TestCase):
             second = o._prompt("青い髪の騎士", COMPOSE)
             o.style = "watercolor"
             third = o._prompt("赤い髪の騎士", COMPOSE)
+            o.style = ""  # 元の画風へ戻して、同じキャッシュキーを再利用する
             first_again = o._prompt("赤い髪の騎士", COMPOSE)
         self.assertEqual(first, first_again)  # 同じ依頼と画風はキャッシュを再利用
         self.assertEqual(len(o._prompts), 3)  # 依頼文 2 種 + 画風違い 1 種
