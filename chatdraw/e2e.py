@@ -14,6 +14,7 @@
 """
 from __future__ import annotations
 
+import faulthandler
 import json
 import os
 import sys
@@ -28,19 +29,32 @@ def main():
     out = Path(sys.argv[1] if len(sys.argv) > 1 else "e2e-out")
     out.mkdir(parents=True, exist_ok=True)
     os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
+    faulthandler.enable()
     report: dict = {"steps": []}
+
+    def save_report():
+        tmp = out / "report.json.tmp"
+        tmp.write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+        tmp.replace(out / "report.json")
 
     def step(name, fn):
         t = time.time()
+        print(f"START {name}", flush=True)
         try:
             detail = fn()
             report["steps"].append({"name": name, "ok": True, "seconds": round(time.time() - t, 1), "detail": detail})
+            save_report()
             print(f"OK   {name}（{time.time() - t:.0f} 秒）{detail or ''}", flush=True)
             return True
         except Exception:
+            error_text = traceback.format_exc()[-3000:]
             report["steps"].append({"name": name, "ok": False, "seconds": round(time.time() - t, 1),
-                                    "error": traceback.format_exc()[-3000:]})
-            print(f"FAIL {name}\n{traceback.format_exc()[-3000:]}", flush=True)
+                                    "error": error_text})
+            print(f"FAIL {name}\\n{error_text}", flush=True)
+            try:
+                save_report()
+            except Exception:
+                print(f"FAIL report.json の保存\\n{traceback.format_exc()[-3000:]}", flush=True)
             return False
 
     import chatdraw.app as app   # 起動と同じ順に読む（出力の付け替え、環境の切り離し、部品の置き場）
@@ -110,23 +124,41 @@ def main():
 
     def right_click():
         # 右クリックのメニューを、下のメニューまで全部開いて閉じる（0.5.30 で右クリックからアプリごと落ちた）
-        from PySide6.QtCore import QPoint
+        from PySide6.QtCore import QEventLoop, QPoint
         w = app.Window()
         w.show()
         if shot.get("path"):
             w.place(str(shot["path"]))
         seen = []
 
-        def walk(m):
+        def walk(m, depth=0, visited=None):
+            # popup() 自身が aboutToShow を発火する。手動で emit すると、
+            # 同じ fill が二重に走る。マウス入力も処理するとカーソル位置の項目から
+            # サブメニューが自動で連鎖表示されるため、検査中はユーザー入力を除外する。
+            if visited is None:
+                visited = set()
+            if depth > 12 or len(visited) > 120:
+                raise RuntimeError("右クリックのメニューが循環しています")
+            # id(m) は Python ラッパーの寿命に依存する。QObject 自体で重複を判定する。
+            if m in visited:
+                return
+            visited.add(m)
+            title = m.title()
+            started = time.monotonic()
+            print(f"MENU OPEN depth={depth} title={title!r} actions={len(m.actions())}", flush=True)
             m.popup(QPoint(20, 20))
-            qapp.processEvents()
-            for a in m.actions():
+            qapp.processEvents(QEventLoop.ExcludeUserInputEvents)
+            for a in list(m.actions()):
                 seen.append(a.text())
-                if a.menu():
-                    a.menu().aboutToShow.emit()
-                    walk(a.menu())
+                sub = a.menu()
+                if sub is not None:
+                    walk(sub, depth + 1, visited)
             m.hide()
-            qapp.processEvents()
+            qapp.processEvents(QEventLoop.ExcludeUserInputEvents)
+            elapsed = time.monotonic() - started
+            print(f"MENU CLOSE depth={depth} title={title!r} seconds={elapsed:.2f}", flush=True)
+            if elapsed > 15:
+                raise RuntimeError(f"右クリックメニューの表示に時間がかかりすぎています: {title!r} ({elapsed:.1f}s)")
         for _ in range(3):
             m = w.build_canvas_menu(QPoint(20, 20))
             walk(m)
@@ -151,7 +183,7 @@ def main():
     from chatdraw.paths import HOME, HUB
     report["data_home"], report["hub"] = str(HOME), str(HUB)
     report["ok"] = ok
-    (out / "report.json").write_text(json.dumps(report, ensure_ascii=False, indent=1), encoding="utf-8")
+    save_report()
     print(f"exit={0 if ok else 1}", flush=True)
     sys.exit(0 if ok else 1)
 

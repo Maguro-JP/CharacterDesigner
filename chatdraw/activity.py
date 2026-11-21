@@ -25,6 +25,7 @@ class ActivityPanel(QWidget):
     # 進みが変わったとき（文、割合）。割合は 0〜100、どこまで進んだか分からない間は -1、待ちに戻ったら -2
     changed = Signal(str, int)
     begun = Signal()   # 新しい 1 回分が始まった（ポップアップの「閉じた」を戻す）
+    pause_toggled = Signal(bool)   # 一時停止（True）・続ける（False）。描く糸は次の知らせの所で待つ
 
     def __init__(self):
         super().__init__()
@@ -51,6 +52,8 @@ class ActivityPanel(QWidget):
         self.editor.setWordWrap(True)
         self.editor.setToolTip("担当編集者が進めている工程と、検品で見つけたこと")
         self.editor_log: list[str] = []
+        self.phase_at: dict[int, float] = {}
+        self.phased, self.phase_retry, self.phase_stopped = False, None, None
         self.phase, self.phase_last, self.words_log = None, None, []   # 工程に分けて描くときの今の工程と、模型に渡した言葉
         self.bar = QProgressBar()
         self.bar.setTextVisible(False)
@@ -66,6 +69,16 @@ class ActivityPanel(QWidget):
         self.stop_tool = QToolButton()   # 緊急停止（窓の側で動きを入れる）
         self.stop_tool.setObjectName("emergencyStop")
         self.stop_tool.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        # 描いている間の一時停止。押すと描く糸が次の区切り（知らせを出す所）で待ち、もう一度押すと続ける。
+        # 前は止める（捨てる）しか無く、長い精度優先を一度休ませる手が無かった
+        self.pause_tool = QToolButton()
+        self.pause_tool.setObjectName("pauseDrawing")
+        self.pause_tool.setCheckable(True)
+        self.pause_tool.setText("⏸ 一時停止")
+        self.pause_tool.setToolTip("描くのを次の区切りで止めて待たせます。もう一度押すと続きから描きます（模型は読んだまま）")
+        self.pause_tool.setToolButtonStyle(Qt.ToolButtonTextOnly)
+        self.pause_tool.hide()
+        self.pause_tool.toggled.connect(self._pause_changed)
         # 一時停止した処理（chatdraw/pausekeep.py）を続きから始める。残っている件があるときだけ出す
         self.resume_tool = QToolButton()
         self.resume_tool.setObjectName("resumePaused")
@@ -92,6 +105,7 @@ class ActivityPanel(QWidget):
         head.addStretch()
         head.addWidget(self.time)
         head.addWidget(self.resume_tool)
+        head.addWidget(self.pause_tool)
         head.addWidget(self.stop_tool)
         top.addLayout(head)
         top.addLayout(self.steps)
@@ -133,6 +147,24 @@ class ActivityPanel(QWidget):
         self.resume_tool.setToolTip(f"{label}\n押すと、保存した所から続きを始めます")
         self.resume_tool.show()
 
+    def set_phased(self, on: bool):
+        """精度優先（工程に分けて描く）の回か。描き始める前から 1 回で描く回の 5 段の番号を出さないようにする"""
+        self.phased = bool(on)
+        for lb in self.step_labels:
+            lb.setVisible(not on)
+        if on:
+            self.state.setText("精度優先: 準備中")
+
+    def _pause_changed_text(self):
+        self.pause_tool.setText("⏸ 一時停止")
+        self.pause_tool.setToolTip("描くのを次の区切りで止めて待たせます。もう一度押すと続きから描きます（模型は読んだまま）")
+
+    def _pause_changed(self, on: bool):
+        self.pause_tool.setText("▶ 続ける" if on else "⏸ 一時停止")
+        self.pause_tool.setToolTip("押すと、止めた所から続けて描きます" if on else
+                                   "描くのを次の区切りで止めて待たせます。もう一度押すと続きから描きます（模型は読んだまま）")
+        self.pause_toggled.emit(on)
+
     def _resume(self):
         fn, self._on_resume = self._on_resume, None
         self.resume_tool.hide()
@@ -162,6 +194,20 @@ class ActivityPanel(QWidget):
         """何枚目を描いているか（i/n）。進みのポップアップの見出しに出す"""
         self.sheet = (max(1, int(i)), max(1, int(n)))
 
+    def phase_eta(self) -> float | None:
+        """工程に分けて描くときの残りの秒。済んだ工程の平均の秒 × 残りの工程の数（戻って直すと延びる）。測れなければ None"""
+        if not self.phase or not getattr(self, "phase_at", None):
+            return None
+        i, n, _name = self.phase
+        first = min(self.phase_at.values())
+        done = i - 1
+        if done < 1 or self.started is None:
+            return None
+        now = time.time()
+        per = (self.phase_at.get(i, now) - first) / done
+        cur = now - self.phase_at.get(i, now)
+        return max(per - cur, per * 0.1) + per * (n - i)
+
     def eta(self) -> str:
         """残りの見込み。描画の工程の速さから出す。まだ測れないときは空"""
         if self.started is None or self.stage != 3 or getattr(self, "steps_done", 0) < 1 or not getattr(self, "step_started", None):
@@ -174,6 +220,13 @@ class ActivityPanel(QWidget):
     def begin(self, text: str, mode: str):
         self.sheet = (1, 1)
         self.phase, self.phase_last, self.words_log = None, None, []
+        self.phase_at: dict[int, float] = {}   # 工程に入った時刻（工程ごとの残りの目安に使う）
+        self.phased, self.phase_retry, self.phase_stopped = False, None, None
+        self.pause_tool.blockSignals(True)
+        self.pause_tool.setChecked(False)
+        self.pause_tool.blockSignals(False)
+        self._pause_changed_text()
+        self.pause_tool.show()
         self.detail.setToolTip("")
         self.started = time.time()
         self.text, self.mode = text, mode
@@ -198,8 +251,26 @@ class ActivityPanel(QWidget):
             self.detail.setToolTip("\n".join(self.words_log[-12:]))
             return
         p = re.match(r"工程 (\d+)/(\d+)「([^」]+)」", msg)
+        if msg.startswith("工程に分けて描きます"):
+            # 精度優先の回。1 回で描く回の 5 段（工程 1/5 確認中…）の番号を出さない。前は精度優先でも「工程 1/5」が出て、
+            # 12 の工程のどこにいるかと食い違って見えた
+            self.phased = True
+            for lb in self.step_labels:
+                lb.hide()
+        r = re.search(r"戻[っし].*（(\d+)/(\d+) 回目）", msg)
+        if r:   # 同じ工程（か前の工程）をやり直す回。番号が進まないまま時間が過ぎる理由を見出しに出す
+            self.phase_retry = (int(r.group(1)), int(r.group(2)))
+        stop = re.match(r"工程 (\d+)/(\d+)「([^」]+)」で停止しました", msg)
+        if stop:   # 工程の途中で打ち切って未完成で保存した。描いていない工程があることを見出しと結果に出す
+            k, n = int(stop.group(1)), int(stop.group(2))
+            self.phase_stopped = (f"工程 {k}/{n}「{stop.group(3)}」で停止（未完成）"
+                                  + (f"。工程 {k + 1}〜{n} は描いていません" if k < n else ""))
         if p:   # 工程に分けて描く（chatdraw/phases.py）。どの工程かを覚え、帯は全体の進みで出す
-            self.phase = (int(p.group(1)), int(p.group(2)), p.group(3))
+            new = (int(p.group(1)), int(p.group(2)), p.group(3))
+            if self.phase and new[0] != self.phase[0]:
+                self.phase_retry = None   # 別の工程へ進んだ（戻った）ら、やり直しの回数は数え直し
+            self.phase = new
+            self.phase_at.setdefault(self.phase[0], time.time())
         m = re.match(r"(\d+)/(\d+) 枚目", msg)
         if m:
             self.set_sheet(int(m.group(1)), int(m.group(2)))
@@ -225,7 +296,11 @@ class ActivityPanel(QWidget):
                 self.phase_last = (i, n)
             if step is not None and total:
                 self.steps_done, self.steps_total = step, total
-            self.state.setText(f"工程 {i}/{n}　{name}" + (f"  {step}/{total}" if step is not None and total else ""))
+            if self.phase_stopped:
+                self.state.setText(self.phase_stopped.split("。")[0])
+            else:
+                self.state.setText(f"工程 {i}/{n}　{name}" + (f"  {step}/{total}" if step is not None and total else "")
+                                   + (f"（やり直し {self.phase_retry[0]}/{self.phase_retry[1]} 回目）" if self.phase_retry else ""))
             pct = min(pct, 99)
         else:
             if step is not None and total:
@@ -233,8 +308,8 @@ class ActivityPanel(QWidget):
                 self.bar.setRange(0, total)
                 self.bar.setValue(step)
                 self.steps_done, self.steps_total = step, total
-            n = f"工程 {self.stage + 1}/{len(STAGES)}　" if 0 <= self.stage < len(STAGES) else ""
-            self.state.setText(n + STAGE_TITLE.get(self.stage, "準備中") + (f"  {step}/{total}" if step is not None and total else ""))
+            n = f"工程 {self.stage + 1}/{len(STAGES)}　" if 0 <= self.stage < len(STAGES) and not self.phased else ""
+            self.state.setText(n + ("精度優先: 準備中" if self.phased else STAGE_TITLE.get(self.stage, "準備中")) + (f"  {step}/{total}" if step is not None and total else ""))
         self.last_step = time.time()
         self.detail.setText(msg)   # 今している事を文でも出す（帯だけでは止まって見える）
         self.changed.emit(f"{self.mode}: {self.state.text()}", pct)
@@ -248,7 +323,12 @@ class ActivityPanel(QWidget):
             return
         took = time.time() - self.started
         line = "経過 " + fmt(took)
-        if self.stage == 3 and getattr(self, "steps_done", 0) > 1 and self.step_started:
+        left = self.phase_eta()
+        if left is not None:
+            line += f"　残り約 {fmt(left)}（工程ごとの速さから）"
+        elif self.phase:
+            line += "　残りの目安: 1 工程目を測っています"
+        elif self.stage == 3 and getattr(self, "steps_done", 0) > 1 and self.step_started:
             per = (time.time() - self.step_started) / self.steps_done
             line += f"　残り約 {fmt(per * (self.steps_total - self.steps_done))}"
         else:
@@ -316,6 +396,11 @@ class ActivityPanel(QWidget):
         """1 回分を終える。record なら履歴の先頭に足す（できた絵を add で足したときは足さない）。状態を待ちに戻す"""
         took = fmt(time.time() - self.started) if self.started else ""
         stamp = time.strftime("%H:%M")
+        if self.phase_stopped:   # 未完成で保存した回を「描きました」だけで終えない
+            result = f"{result}（{self.phase_stopped}）"
+        self.phased, self.phase_retry, self.phase_stopped = False, None, None
+        for lb in self.step_labels:
+            lb.show()
         item = None
         if record:
             item = QListWidgetItem("" if path else result)
@@ -332,6 +417,12 @@ class ActivityPanel(QWidget):
             self.tick.stop()
         self.steps_done = 0
         self.phase, self.phase_last = None, None
+        self.phase_at = {}
+        self.pause_tool.blockSignals(True)
+        self.pause_tool.setChecked(False)
+        self.pause_tool.blockSignals(False)
+        self._pause_changed_text()
+        self.pause_tool.hide()
         self.bar.setRange(0, 1)
         self.bar.setValue(1 if path else 0)
         self._mark(len(STAGES) if path or not record else -1)

@@ -191,7 +191,8 @@ def _extra(req: dict) -> list[str]:
 def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, on_step=None, checks=Checks, on_preview=None,
          confirm=None, pause_key: str | None = None, pause_job: dict | None = None) -> dict:
     """12 の工程で 1 枚を描く。返り値は {"image": 最後の絵, "phases": 工程ごとの最後の記録, "history": 全部の記録,
-    "left": 残った崩れ, "checked": 検品できたか, "backs": 戻った回数}。どの工程も必ず終わり、戻る回数にも上限がある。
+    "left": 残った崩れ, "checked": 全工程の検品完了, "complete": 全工程完了, "blocked": 停止理由, "backs": 戻った回数}。
+    検品不能または未解決の崩れが残り、戻り先も無い場合は次工程へ進まず未完成で止める。戻る回数にも上限がある。
     confirm(i, 名前, 絵, 記録) は "go"・"redo"・("words", 足す言葉の訳) を返す。
     pause_key があれば、メモリの見張り・メモリ不足・時間切れで工程が打ち切られたとき、その工程に入ったときの状態を
     chatdraw/pausekeep.py に残して Paused で返す。同じ鍵で呼び直すと、その工程から続ける（前は始めから描き直した）"""
@@ -388,7 +389,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         p = pt.parts(img)
         nums = {"colors": colors, "parts": None if p is None else int(len(set(np.unique(p).tolist()) - {0}))}
         found = [f"色が散っている（{colors} 色）"] if colors > COLORS_MOST else []
-        return {"image": img, "found": found, "numbers": nums, "readable": True}
+        return {"image": img, "found": found, "numbers": nums, "readable": True, "back": 5 if found else None}
 
     def p_light(v):
         lit = pt.light(st["image"])
@@ -397,7 +398,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         if lit.get("readable"):
             say(f"光源を{lit['side']}{'上' if lit['dy'] < 0 else '下'}に決めました")
         return {"image": st["image"], "found": ["光の向きが決まらない（明るさが平たい）"] if flat else [], "numbers": lit,
-                "readable": bool(lit.get("readable"))}
+                "readable": bool(lit.get("readable")), "back": 5 if flat else None}
 
     def p_shadow(v):
         img, lit = st["image"], st.get("light") or {}
@@ -407,8 +408,8 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             out = []
             if s.get("readable") and s["shade_minus_lit"] > 0:
                 out.append(f"影が光より明るい（{s['shade_minus_lit']}）")
-            if s.get("readable") and s["shade_share"] < 0.5:
-                out.append(f"影の向きがそろっていない（{s['shade_share']}）")
+            # 暗い画素の左右比率は線画・髪・服の色にも左右されるため合否に使わない。
+            # 影側が光側より明るいか、方向の比較だけを品質判定に使う。
             return out
         found = flaws(sh)
         pts = st.get("points") or {}
@@ -499,6 +500,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
     history: list[dict] = []
     visits, entry = [0] * n, {}
     backs, i = 0, 0
+    blocked = None
     from chatdraw import pausekeep
     saved = pausekeep.state(pause_key) if pause_key else None
     if saved:   # 一時停止した工程から続ける。描き終えた工程の絵と記録はそのまま使う
@@ -549,7 +551,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         mem = release()
         row = {"phase": name, "decides": PHASES[i][1], "checks": PHASES[i][2], "numbers_of": PHASES[i][3],
                "image": str(path) if path else None, "found": found, "fixed": fixed, "after": after,
-               "words": list(got.get("words", [])), "numbers": got.get("numbers", {}), "readable": bool(got.get("readable", True)),
+               "words": list(got.get("words", [])), "numbers": got.get("numbers", {}), "readable": bool(got.get("readable", False)),
                "seconds": round(time.time() - t0, 2), "mem_mb": mem, "visit": visits[i],
                "tone": pt.tone(st["image"]) if st.get("image") is not None else None}
         if got.get("note"):
@@ -561,17 +563,38 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             ans = confirm(i, name, shown, row)
             kind = ans[0] if isinstance(ans, (tuple, list)) else ans
             if kind in (REDO, WORDS):
+                target_hint = 5 if kind == WORDS and isinstance(ans, (tuple, list)) and len(ans) > 1 and str(ans[1]).strip() and i >= 5 else i
+                if backs >= BACKS or visits[target_hint] >= REVISIT:
+                    blocked = {"phase": name, "index": i, "reason": "再試行上限に達しました", "left": list(left), "requested": kind}
+                    say(f"工程 {i + 1}/{n}「{name}」は再試行上限（全体 {BACKS} 回・同一工程 {REVISIT} 回）に達したため停止しました。未完成として保存します")
+                    break
+                backs += 1
+                added = False
                 if kind == WORDS and isinstance(ans, (tuple, list)) and len(ans) > 1 and str(ans[1]).strip():
                     add = str(ans[1]).strip()
-                    entry[i]["prompt"] = f"{entry[i]['prompt']}, {add}"   # 足した言葉はこの先の工程にも効かせる
+                    entry[i]["prompt"] = f"{entry[i]['prompt']}, {add}"   # 足した言葉は描画工程にも反映する
                     say(f"言葉を足しました: {add}")
+                    added = True
+                target = 5 if added and i >= 5 else i   # 服・髪・持ち物を描く工程より後で足した言葉は、そこまで戻して実際に描く
+                if target != i:
+                    entry[target] = dict(entry[target] or entry[i])
+                    entry[target]["prompt"] = entry[i]["prompt"]
                 st.clear()
-                st.update(entry[i])
-                visits[i] += 1
-                say(f"工程 {i + 1}/{n}「{name}」を描き直します")
+                st.update(entry[target])
+                visits[target] += 1
+                if target != i:
+                    say(f"追加した言葉を反映するため、工程 {target + 1}/{n}「{PHASES[target][0]}」へ戻ります")
+                else:
+                    say(f"工程 {i + 1}/{n}「{name}」を描き直します")
+                i = target
                 continue
         back = got.get("back")
-        if left and back is not None and backs < BACKS and visits[back] < REVISIT:
+        # 欠陥が残っているのに工程が戻り先を指定しない場合、品質工程の既定経路へ差し戻す。
+        # 検品不能は欠陥の場所が分からないため、推測で描き直さず未完成停止にする。
+        # 戻り先の無い崩れは、記録して先へ進む（0.5.38 は既定の戻り先へ戻して打ち切り、工程 2 のサムネイルから先へ進まなかった）。
+        # 形の崩れは線画の清書で、崩れた枠の中だけを直す
+        needs_retry = bool(left)
+        if needs_retry and back is not None and backs < BACKS and visits[back] < REVISIT:
             backs += 1
             visits[back] += 1
             say(f"「{name}」の崩れは工程 {back + 1}「{PHASES[back][0]}」で決まるので、そこへ戻って直します（{backs}/{BACKS} 回目）")
@@ -581,7 +604,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
             continue
         i += 1
     pausekeep.clear(pause_key)   # 描き終えたら、残した途中は要らない
-    rows = [final[k] for k in range(n)]
+    rows = [final[k] for k in range(n) if final.get(k) is not None]
     last = rows[-1]
     left = list(last["after"] if last["fixed"] else last["found"])
     ai = memo["thumbs"].get((st["prompt"], st["seed"]))
@@ -597,9 +620,12 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
     human = finish_human(st["image"], left)
     st["image"] = human["image"]
     checked = all(r["readable"] for r in rows)
+    complete = blocked is None
     (keep / "phases.json").write_text(json.dumps({"phases": rows, "history": history, "left": left, "checked": checked, "backs": backs,
+                                                  "complete": complete, "blocked": blocked,
                                                   "stages": human.get("stages", []), "timelapse": human.get("timelapse"),
                                                   "clean": human.get("clean", {})},
                                                  ensure_ascii=False, indent=1, default=str), encoding="utf-8")
     return {"image": st["image"], "phases": rows, "history": history, "left": left, "checked": checked, "backs": backs,
+            "complete": complete, "blocked": blocked,
             "stages": human.get("stages", []), "timelapse": human.get("timelapse"), "clean": human.get("clean", {})}

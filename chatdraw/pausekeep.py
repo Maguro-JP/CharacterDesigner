@@ -107,8 +107,10 @@ def clear(k: str | None):
 
 
 def wait_memory(need_gb: float, wait_s: float = 120.0, step_s: float = 5.0, free: Callable[[], float] | None = None,
-                sleep: Callable[[float], None] = time.sleep, stopped: Callable[[], bool] = lambda: False) -> bool:
-    """模型を降ろしたあと、空きが need_gb になるまで待つ。空けば True。待ちきれなければ False（呼び手が一時停止にする）"""
+                sleep: Callable[[float], None] = time.sleep, stopped: Callable[[], bool] = lambda: False,
+                on_wait: Callable[[float, float], None] | None = None) -> bool:
+    """模型を降ろしたあと、空きが need_gb になるまで待つ。空けば True。待ちきれなければ False（呼び手が一時停止にする）。
+    on_wait(待った秒, 今の空き GB) を step_s ごとに呼ぶ（前は最大 wait_s 秒、何も知らせずに待ち、止まって見えた）"""
     if free is None:
         def free():
             try:
@@ -118,9 +120,12 @@ def wait_memory(need_gb: float, wait_s: float = 120.0, step_s: float = 5.0, free
                 return float("inf")
     waited = 0.0
     while True:
-        if free() >= need_gb:
+        got = free()
+        if got >= need_gb:
             return True
         if stopped() or waited >= wait_s:
             return False
+        if on_wait is not None:
+            on_wait(waited, got)
         sleep(step_s)
         waited += step_s
