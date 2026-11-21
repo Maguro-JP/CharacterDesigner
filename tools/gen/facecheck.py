@@ -208,8 +208,20 @@ def eye_smear(im, keypoints: dict | None, box=None, precise: bool = False) -> li
             continue
         # 目の点は瞳の中心から半径ほどずれる（アニメの絵で、正しい目を 0.09 倍と測った）。周りへ半分ずつずらした枠の一番鋭い所で見る
         shifts = (0,) if precise else (-half, 0, half)
-        sharp = max(feet.sharpness(im, (eb[0] + dx, eb[1] + dy, eb[2] + dx, eb[3] + dy))
-                    for dx in shifts for dy in shifts) / ref
+        # Shifted samples must also stay inside the source image. Otherwise Pillow
+        # pads them with black and the artificial edge can distort sharpness.
+        samples = []
+        for dx in shifts:
+            for dy in shifts:
+                sx0 = max(0, eb[0] + dx)
+                sy0 = max(0, eb[1] + dy)
+                sx1 = min(w, eb[2] + dx)
+                sy1 = min(h, eb[3] + dy)
+                if sx1 - sx0 >= 4 and sy1 - sy0 >= 4:
+                    samples.append(feet.sharpness(im, (sx0, sy0, sx1, sy1)))
+        if not samples:
+            continue
+        sharp = max(samples) / ref
         hsv = np.asarray(im.crop(eb).convert("HSV"), np.float32)
         vivid = hsv[..., 0][(hsv[..., 1] > 90) & (hsv[..., 2] > 60)]
         hues = 0
