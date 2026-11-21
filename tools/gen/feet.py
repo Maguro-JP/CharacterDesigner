@@ -50,8 +50,9 @@ def _session():
             import onnxruntime as ort
         except ImportError as e:
             raise Unavailable("onnxruntime が無い（sh tools/gen/setup.sh で入る）") from e
-        if not MODEL.exists():
-            raise Unavailable(f"全身の点の模型が無い（{MODEL}。sh tools/gen/setup.sh で取る）")
+        # 空ファイルやディレクトリを模型として読み込ませない。
+        if not MODEL.is_file() or MODEL.stat().st_size == 0:
+            raise Unavailable(f"全身の点の模型が無いか空です（{MODEL}。sh tools/gen/setup.sh で取る）")
         _SESS = ort.InferenceSession(str(MODEL), providers=["CPUExecutionProvider"])
     return _SESS
 
