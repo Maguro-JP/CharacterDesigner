@@ -92,6 +92,22 @@ def main():
     shot = {}
 
     def draw():
+        # ネイティブ拡張の不正命令終了は Python 例外として捕捉できないため、
+        # 描画の前に依存ライブラリと CPU 情報を逐次記録して原因を切り分ける。
+        import platform
+        print(f"DIAG cpu={platform.processor()!r} machine={platform.machine()!r}", flush=True)
+        print("DIAG import torch begin", flush=True)
+        import torch
+        print(f"DIAG torch={torch.__version__} threads={torch.get_num_threads()}", flush=True)
+        print("DIAG torch matmul begin", flush=True)
+        with torch.no_grad():
+            x = torch.ones((16, 16), dtype=torch.float32)
+            _ = x @ x
+        print("DIAG torch matmul ok", flush=True)
+        print("DIAG import diffusers begin", flush=True)
+        import diffusers
+        print(f"DIAG diffusers={diffusers.__version__}", flush=True)
+        print("DIAG painter begin", flush=True)
         from chatdraw.engine import Painter, Studio, Words
         studio = Studio(Words(Path("")), Painter(TINY, steps=2, size=(256, 256)), out)
         prompt, path = studio.draw("1girl, adult woman, bikini", 1, size=(256, 256))
