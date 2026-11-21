@@ -36,39 +36,63 @@ class Finisher:
     group: str = "clean"  # 処理の種類（chatdraw/shortcuts.py の GROUPS）。右クリックでまとまりごとに並べる
 
 
+def _guided(a, r: int, eps: float):
+    """明るさを案内にした guided filter（He ら 2010）。平らな所の揺れだけを均し、明るさの段差（線・境目）は残す"""
+    import numpy as np
+    from scipy.ndimage import uniform_filter
+    I = a.mean(2)
+    k = 2 * r + 1
+    mI = uniform_filter(I, k)
+    vI = uniform_filter(I * I, k) - mI * mI
+    out = np.empty_like(a)
+    for c in range(3):
+        p = a[..., c]
+        mp = uniform_filter(p, k)
+        A = (uniform_filter(I * p, k) - mI * mp) / (vI + eps)
+        out[..., c] = uniform_filter(A, k) * I + uniform_filter(mp - A * mI, k)
+    return out
+
+
 def _clean_apply(image):
-    """線を保ったまま塗りのむらを均す（中央値で細かいざらつきを消し、輪郭は元の絵から戻す）。重みは要らない"""
+    """塗りのむらとざらつきを均し、主線を締める。重みは要らない。
+    前の作り（3 画素の中央値を 1 画素 6 までに抑える）は、模型の描いた絵ではほとんど何も変えず（832×1216 で目で分かる変わり
+    数百画素）、押しても何も起きないように見えた。平らな所は guided filter で均し（線と境目は残る）、主線は少し締める"""
     from PIL import ImageChops, ImageFilter
-    smooth = image.filter(ImageFilter.MedianFilter(3))
-    edges = image.convert("L").filter(ImageFilter.FIND_EDGES).point(lambda v: 255 if v > 40 else 0)
-    out = ImageChops.composite(image, smooth, edges)   # 輪郭の画素は元のまま、平らな所だけ均す
     try:
         import numpy as np
-        from scipy.ndimage import binary_dilation
+        from scipy.ndimage import binary_dilation, label, uniform_filter
         from PIL import Image
-        a = np.asarray(image.convert("RGB")).astype(float)
-        b = np.asarray(out.convert("RGB")).astype(float).copy()
-        # 中央値は主線の縁の薄い画素（縁の検出の 40 に届かない所）を削り、10 枚とも線の面積を 2% 超えて変えた。
-        # 主線とその 1 画素の周りは元のまま残し、出来た崩れの画素も戻す
-        line = binary_dilation(_gen("cleanup").line_mask(a), iterations=1)
-        b[line] = a[line]
-        # 中央値は主線に数えない 1〜2 画素の細い線（袴のひだ、服の縁の線）も消し、線が途切れた（見本の全身・背景つきで目で見た）。
-        # 塗りのむらは小さな揺れなので CLEAN_CAP までしか動かさない。CLEAN_STRUCT より大きく変わる画素のうち、
-        # つながって CLEAN_LINE 画素以上ある物は細い線として元のまま残し、それより小さな孤立した点はざらつきとして均す
-        from scipy.ndimage import label
-        d = b - a
-        big = np.abs(d).max(2) > CLEAN_STRUCT
-        lab, _ = label(big, structure=np.ones((3, 3)))
-        sizes = np.bincount(lab.ravel())
-        sizes[0] = 0
-        struct = sizes[lab] >= CLEAN_LINE
-        d[struct] = 0
-        small = ~big
-        d[small] = np.clip(d[small], -CLEAN_CAP, CLEAN_CAP)
-        b = a + d
-        return Image.fromarray(np.clip(repair(a, b), 0, 255).astype("uint8"))
-    except ImportError:   # 部品が無いときは元の均し方のまま
-        return out
+    except ImportError:   # 部品が無いときは中央値で平らな所だけ均す
+        smooth = image.filter(ImageFilter.MedianFilter(3))
+        edges = image.convert("L").filter(ImageFilter.FIND_EDGES).point(lambda v: 255 if v > 40 else 0)
+        return ImageChops.composite(image, smooth, edges)
+    a = np.asarray(image.convert("RGB")).astype(float)
+    b = _guided(a, CLEAN_RADIUS, CLEAN_EPS ** 2)
+    L = a @ np.array([0.299, 0.587, 0.114])
+    # 線と境目（明るさの細かい起伏が大きい所）は均さない。目・口・服のしわの細い線が均されて薄くなった（guided だけで目が白く飛んだ）
+    m = uniform_filter(L, 5)
+    busy = np.sqrt(np.maximum(uniform_filter(L * L, 5) - m * m, 0)) > CLEAN_BUSY
+    line = binary_dilation(_gen("cleanup").line_mask(a) | busy, iterations=1)
+    d = b - a
+    d[line] = 0
+    # 大きく変わる画素がつながった物は、ざらつきでなく細い模様（形）なので残す
+    big = np.abs(d).max(2) > CLEAN_STRUCT
+    lab, _ = label(big, structure=np.ones((3, 3)))
+    sizes = np.bincount(lab.ravel())
+    sizes[0] = 0
+    d[sizes[lab] >= CLEAN_LINE] = 0
+    d = np.clip(d, -CLEAN_CAP, CLEAN_CAP)
+    b = a + d
+    # 主線を締める: 線の画素だけ、周りとの明るさの差を CLEAN_SHARP 倍に広げる（暗くする量は limit の DARK_DELTA が抑える）
+    cu = _gen("cleanup")
+    core = cu.line_mask(a)
+    cl, _ = label(core, structure=np.ones((3, 3)))
+    cs = np.bincount(cl.ravel())
+    cs[0] = 0
+    core = cs[cl] >= cu.SPECK * 4   # 長い主線だけを締める。刺繍・模様の小さな線を締めると点の並びになった
+    blur = np.stack([uniform_filter(a[..., c], 3) for c in range(3)], 2)
+    b[core] = a[core] + (a[core] - blur[core]) * CLEAN_SHARP
+    return Image.fromarray(np.clip(repair(a, b), 0, 255).astype("uint8"))
 
 
 def _tidy_apply(image):
@@ -164,9 +188,13 @@ def _detail_apply(image):
     return Image.fromarray(np.clip(out + 0.5, 0, 255).astype("uint8"))
 
 
-CLEAN_STRUCT = 16.0   # 塗りのむらを均すとき、これより変わる画素は細い線・模様（形）として触らない（0〜255）
-CLEAN_CAP = 6.0       # 塗りのむらを均すとき、小さな揺れで 1 画素に動かす色の上限
+CLEAN_STRUCT = 24.0   # 塗りのむらを均すとき、これより変わる画素は細い線・模様（形）として触らない（0〜255）
+CLEAN_CAP = 20.0      # 塗りのむらを均すとき、1 画素に動かす色の上限（前は 6 で、模型の絵では目で分かる変わりが出なかった）
 CLEAN_LINE = 6        # 大きく変わる画素がこれだけつながっていたら、ざらつきでなく細い線として残す
+CLEAN_RADIUS = 3      # guided filter の半径（画素）
+CLEAN_EPS = 10.0      # guided filter の段差の目安（明るさ 0〜255）。これより小さな揺れを均す
+CLEAN_BUSY = 7.0      # 5 画素四方の明るさの揺れ（標準偏差）がこれを超える所は線・模様として均さない
+CLEAN_SHARP = 0.6     # 主線を締める強さ
 
 
 def _upscale_ready() -> bool:
@@ -271,7 +299,7 @@ register(Finisher(
     lambda: _own_why("retouch", "numpy", "scipy")(), lambda im: _tidy_apply(im), extra=dict(scale="tile", needs_mask=True)))
 register(Finisher(
     "detail", "ディテール追加",
-    "元の形と色を保ったまま、髪の毛先・服のしわ・光沢・目のハイライトを描き足します。絵の模型があれば、模型が描いた細部も足します。"
+    "元の形と色を保ったまま、髪の毛先・服のしわ・光沢・目のハイライトを描き足します（模型は使いません）。"
     "主線は変えません。結果は一番上の新しいレイヤーに置きます",
     "このリポジトリのコード", "chatdraw/finishers.py", lambda: _own_ready("cleanup", "numpy", "scipy")(),
     lambda: _own_why("cleanup", "numpy", "scipy")(), lambda im: _detail_apply(im), extra=dict(scale="tile", effect=True),
@@ -880,7 +908,8 @@ def guard(name: str, src, out, mask=None):
 # 部位分けの模型が取れていないときは顔を守れないので、守っていないと検品の結果に書く
 FACE_LABEL = 11
 FACE_GROW = 0.06          # 顔の大きさのこの割合だけ広げる（眉と顎の線を含める）
-VERIFY_SSIM = 0.985       # 前と後の明るさの SSIM の下限
+VERIFY_SSIM = 0.96        # 前と後の明るさの SSIM の下限。前は 0.985 で、塗りのむらを均すだけで下回って半分・4 分の 1 に混ぜ戻され、
+                          # 模型の絵で目で分かる変わりが 0 画素になった（綺麗にするが効かない）。形の崩れは区画の SSIM（limit）と guard が見る
 VERIFY_LINE = 0.95        # 主線（明るさ 90 未満）の重なり（IoU）の下限
 VERIFY_STEPS = (0.5, 0.25)   # 検品に落ちたとき、変えた分にこの割合を掛けて混ぜ直す（順に試す）
 
@@ -1026,7 +1055,9 @@ def limit(src, out):
     capped += int(dark.sum())
     b = a + np.maximum(d, -DARK_DELTA)
     w = np.float32([0.299, 0.587, 0.114])
-    x, y = a @ w, b @ w
+    # 区画の SSIM は 3 画素で均してから測る。塗りのざらつきを均すのが綺麗にするの仕事で、均さずに測ると、ざらつきの消えた区画を
+    # 形の崩れとして元に戻した（ざらつきのある見本で 15 区画のうち 11 区画）。形（線・境目の位置）の変わりは均しても残る
+    x, y = uniform_filter(a @ w, 3), uniform_filter(b @ w, 3)
     mx, my = uniform_filter(x, 7), uniform_filter(y, 7)
     vx, vy = uniform_filter(x * x, 7) - mx * mx, uniform_filter(y * y, 7) - my * my
     cxy = uniform_filter(x * y, 7) - mx * my
@@ -1180,6 +1211,10 @@ def qc_note(q: dict | None = None) -> str:
     q = LAST_QC if q is None else q
     if not q:
         return ""
+    if q.get("measured") is None:
+        # 検品の対象でない加工（清書・空気感・質感。guard が測らずに LAST_QC を空にした物）。前は組み合わせの記録に名前だけが
+        # 残り、numpy があるのに「部品が無いので測っていません」と出していた
+        return ""
     if not q.get("measured"):
         return "崩れの検品は、部品（numpy）が無いので測っていません。"
     v = q.get("verify") or {}
@@ -1198,6 +1233,28 @@ def qc_note(q: dict | None = None) -> str:
     if whole.get("left"):   # 全体の確かめで見つけた崩れは知らせる（直すかどうかは利用者が決める）
         note += whole["note"] + "。"
     return note
+
+
+CHANGE_SEEN = 8      # 色の差がこれを超える画素を「変わった画素」に数える（0〜255。これ以下は目では分からない）
+CHANGE_LITTLE = 0.002   # 変わった画素が絵のこの割合に届かなければ「ほとんど変わっていない」と知らせる
+
+
+def change_note(base, out) -> str:
+    """前と後の変わった画素の数を、利用者に見せる 1 文にする。「綺麗にしました」とだけ出すと、変わらなかったときに
+    やったふりに見えた。大きさが違う（拡大）ときは数えない"""
+    try:
+        import numpy as np
+    except ImportError:
+        return ""
+    if base.size != out.size:
+        return ""
+    a = np.asarray(base.convert("RGB")).astype(np.int16)
+    b = np.asarray(out.convert("RGB")).astype(np.int16)
+    n = int((np.abs(a - b).max(2) > CHANGE_SEEN).sum())
+    share = n / max(1, a.shape[0] * a.shape[1])
+    if share < CHANGE_LITTLE:
+        return f"変わった画素は {n} 画素（{share:.1%}）で、ほとんど変わっていません。"
+    return f"変わった画素は {n} 画素（{share:.1%}）です。"
 
 
 def run(name: str, image, mask=None, say=None, face=_NO_FACE):
@@ -1235,7 +1292,9 @@ def run(name: str, image, mask=None, say=None, face=_NO_FACE):
     _MEMO.clear()   # 大きな絵の配列を持ち続けない
     out = guard(name, src, out, mask)
     if f.group == "clean" and out.size == src.size and not LAST_QC.get("rejected"):   # ディテール追加には掛けない（上の DETAIL の説明）
-        out, v = soften(src, out, mask, face)
+        # SSIM での混ぜ戻しはしない。均すと SSIM は必ず下がり、混ぜ戻すと変わりが半分・4 分の 1 になって効かなくなった。
+        # 形は区画の SSIM（limit）と guard、主線は線の重なりで見る
+        out, v = soften(src, out, mask, face, mixback=False)
         LAST_QC["verify"] = v
         if v.get("failed"):
             LAST_QC["rejected"] = True
