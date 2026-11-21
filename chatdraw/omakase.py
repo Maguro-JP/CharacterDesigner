@@ -189,8 +189,9 @@ def _mask(size, boxes):
     mask = Image.new("L", size, 0)
     d = ImageDraw.Draw(mask)
     for x0, y0, x1, y1 in boxes:
-        cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, y1 - y0) * 0.6
-        d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        rx, ry = max(1, (x1 - x0) * 0.6), max(1, (y1 - y0) * 0.6)
+        d.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=255)
     return mask
 
 
