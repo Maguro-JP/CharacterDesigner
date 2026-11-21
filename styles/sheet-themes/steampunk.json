@@ -1,0 +1,35 @@
+{
+ "name": "steampunk",
+ "title": "真鍮の工房",
+ "mood": "焦げ茶の地に生成りの文字と真鍮色。明朝の名前。蒸気・機械仕掛け・技師に合う",
+ "colors": {
+  "page": "#2b231d",
+  "card": "#efe4cf",
+  "ink": "#f1e6d0",
+  "sub": "#b09a7a",
+  "accent": "#cf9a45",
+  "rule": "#54463a"
+ },
+ "motif": "none",
+ "font": "sans",
+ "title_font": "serif",
+ "fits": [
+  "steam",
+  "brass",
+  "gear",
+  "goggles",
+  "engineer",
+  "mechanic",
+  "蒸気",
+  "真鍮",
+  "歯車",
+  "技師",
+  "ゴーグル"
+ ],
+ "texture": "plain",
+ "frame": "none",
+ "heading": {
+  "style": "label"
+ },
+ "card_radius": 4
+}

@@ -1,0 +1,33 @@
+{
+ "name": "neon",
+ "title": "夜の街",
+ "mood": "紺の夜の地に白い文字と桃色1色。サイバー・都会・歌い手に合う",
+ "colors": {
+  "page": "#15172a",
+  "card": "#e9e8f0",
+  "ink": "#eeeef6",
+  "sub": "#8d91aa",
+  "accent": "#ff4f9a",
+  "rule": "#3a3d5c"
+ },
+ "motif": "dots",
+ "font": "sans",
+ "fits": [
+  "cyber",
+  "neon",
+  "city",
+  "idol",
+  "hacker",
+  "headphones",
+  "サイバー",
+  "都会",
+  "歌",
+  "ネオン"
+ ],
+ "texture": "plain",
+ "frame": "none",
+ "heading": {
+  "style": "label"
+ },
+ "card_radius": 4
+}

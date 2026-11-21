@@ -1,0 +1,45 @@
+{
+ "name": "acting",
+ "title": "演技型",
+ "purpose": "表情とポーズを大きく見せ、芝居の幅を確かめる。声や動きを付ける人、表情差分を描く人に渡す",
+ "size": [
+  1800,
+  2400
+ ],
+ "ratio": "3:4（縦）",
+ "areas": [
+  "head head head head head head head head head head head head",
+  "expr expr expr expr expr expr expr expr expr expr expr expr",
+  "pose pose pose pose pose pose pose pose pose pose pose pose"
+ ],
+ "rows": [
+  "auto",
+  "1.1fr",
+  "1.2fr"
+ ],
+ "type": {
+  "name": 60,
+  "head": 19,
+  "body": 17,
+  "note": 13
+ },
+ "panels": [
+  {
+   "kind": "header",
+   "area": "head"
+  },
+  {
+   "kind": "expressions",
+   "area": "expr",
+   "title": "表情",
+   "cols": 3,
+   "max": 9,
+   "crop": "tight"
+  },
+  {
+   "kind": "poses",
+   "area": "pose",
+   "title": "ポーズ"
+  }
+ ]
+}

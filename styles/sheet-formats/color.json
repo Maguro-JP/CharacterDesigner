@@ -1,0 +1,52 @@
+{
+ "name": "color",
+ "title": "色指定型",
+ "purpose": "塗る人に渡す。色の値・役・面積の割合だけに絞る",
+ "size": [
+  2000,
+  1500
+ ],
+ "ratio": "4:3（横）",
+ "areas": [
+  "hero hero hero hero hero head head head head head head head",
+  "hero hero hero hero hero sw sw sw sw sw sw sw",
+  "hero hero hero hero hero bar bar bar bar bar bar bar"
+ ],
+ "rows": [
+  "auto",
+  "auto",
+  "1fr"
+ ],
+ "type": {
+  "name": 60,
+  "head": 18,
+  "body": 15.5,
+  "note": 12.5,
+  "huge": 92
+ },
+ "panels": [
+  {
+   "kind": "hero",
+   "area": "hero",
+   "scale": 1,
+   "anchor": "bottom"
+  },
+  {
+   "kind": "header",
+   "area": "head",
+   "huge": true
+  },
+  {
+   "kind": "swatches",
+   "area": "sw",
+   "title": "色指定",
+   "style": "table"
+  },
+  {
+   "kind": "sharebar",
+   "area": "bar",
+   "title": "面積の割合",
+   "sub": "四面図で測った値"
+  }
+ ]
+}

@@ -17,7 +17,14 @@
  "images": {
   "color": "bible/characters/knight/color.jpg",
   "lineart": "bible/characters/knight/lineart.jpg",
-  "colored-lineart": "bible/characters/knight/colored-lineart.jpg"
+  "colored-lineart": "bible/characters/knight/colored-lineart.jpg",
+  "expr-neutral": "bible/characters/knight/expr-neutral.jpg",
+  "expr-smile": "bible/characters/knight/expr-smile.jpg",
+  "expr-sad": "bible/characters/knight/expr-sad.jpg",
+  "expr-determined": "bible/characters/knight/expr-determined.jpg",
+  "expr-vigil": "bible/characters/knight/expr-vigil.jpg",
+  "expr-angry": "bible/characters/knight/expr-angry.jpg",
+  "turnaround": "bible/characters/knight/turnaround.jpg"
  },
  "palette": [
   "#f8f5f2",
@@ -72,5 +79,15 @@
    "name": "見守り",
    "tags": "half-closed eyes, looking down, gentle gaze, faint smile, relaxed eyebrows, lantern glow on face"
   }
- ]
+ ],
+ "theme": "heraldry",
+ "swatches": {
+  "鎧": "200,197,201",
+  "脛当て": "115,105,110",
+  "外套": "88,28,26",
+  "襟巻": "165,62,64",
+  "スカート・タイツ": "48,41,45",
+  "髪": "125,85,65",
+  "肌": "246,218,204"
+ }
 }
