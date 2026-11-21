@@ -1,0 +1,64 @@
+{
+ "name": "overview",
+ "title": "総覧型",
+ "purpose": "人物の全体を1枚で把握する。企画の打ち合わせや資料の表紙に使う",
+ "size": [
+  2400,
+  1350
+ ],
+ "ratio": "16:9（横）",
+ "areas": [
+  "hero hero hero head head head head head note note note note",
+  "hero hero hero turn turn turn turn turn expr expr expr expr",
+  "hero hero hero turn turn turn turn turn sw sw sw sw"
+ ],
+ "rows": [
+  "auto",
+  "auto",
+  "1fr"
+ ],
+ "margin": 0.04,
+ "panels": [
+  {
+   "kind": "hero",
+   "area": "hero",
+   "scale": 1,
+   "anchor": "bottom",
+   "overlap": true
+  },
+  {
+   "kind": "header",
+   "area": "head"
+  },
+  {
+   "kind": "turnaround",
+   "area": "turn",
+   "title": "四面図",
+   "guides": true
+  },
+  {
+   "kind": "notes",
+   "area": "note",
+   "title": "注記",
+   "brief": true,
+   "max": 2
+  },
+  {
+   "kind": "expressions",
+   "area": "expr",
+   "title": "表情",
+   "cols": 3,
+   "max": 3,
+   "square": true
+  },
+  {
+   "kind": "swatches",
+   "area": "sw",
+   "style": "chips"
+  }
+ ],
+ "type": {
+  "body": 14,
+  "note": 11
+ }
+}

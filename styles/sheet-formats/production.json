@@ -1,0 +1,50 @@
+{
+ "name": "production",
+ "title": "作画用の詳細型",
+ "purpose": "描く人に渡す。四面図に高さの線を引き、顔と目の拡大、数と位置の注記、色を並べる",
+ "size": [
+  2400,
+  1698
+ ],
+ "ratio": "√2:1（A判の横）",
+ "areas": [
+  "head head head head head sw sw sw side side side side",
+  "turn turn turn turn turn turn turn turn side side side side"
+ ],
+ "rows": [
+  "auto",
+  "1fr"
+ ],
+ "margin": 0.04,
+ "panels": [
+  {
+   "kind": "header",
+   "area": "head"
+  },
+  {
+   "kind": "turnaround",
+   "area": "turn",
+   "title": "四面図",
+   "sub": "同じ縮尺・足をそろえる",
+   "guides": true
+  },
+  {
+   "kind": "swatches",
+   "area": "sw",
+   "style": "chips"
+  },
+  {
+   "kind": "callouts",
+   "area": "side",
+   "title": "拡大",
+   "crop": "tight"
+  },
+  {
+   "kind": "notes",
+   "area": "side",
+   "title": "注記",
+   "sub": "数・左右・大きさ"
+  }
+ ],
+ "callout_h": 0.11
+}

@@ -1,0 +1,68 @@
+{
+ "name": "classic",
+ "title": "縦流しの基本版",
+ "purpose": "既定。主役の立ち姿を左に大きく、右に名前・色・四面図・表情、下に注記を置く。迷ったらこれ",
+ "default": true,
+ "size": [
+  2400,
+  3000
+ ],
+ "ratio": "4:5（縦）",
+ "areas": [
+  "hero hero hero hero hero head head head head head head head",
+  "hero hero hero hero hero sw sw sw sw sw sw sw",
+  "hero hero hero hero hero turn turn turn turn turn turn turn",
+  "hero hero hero hero hero expr expr expr expr expr expr expr",
+  "hero hero hero hero hero note note note note note note note"
+ ],
+ "rows": [
+  "auto",
+  "auto",
+  "1fr",
+  "1.05fr",
+  "auto"
+ ],
+ "type": {
+  "name": 64
+ },
+ "panels": [
+  {
+   "kind": "header",
+   "area": "head"
+  },
+  {
+   "kind": "hero",
+   "area": "hero",
+   "scale": 1,
+   "anchor": "bottom",
+   "bleed": [
+    "left"
+   ],
+   "overlap": true
+  },
+  {
+   "kind": "swatches",
+   "area": "sw",
+   "title": "色",
+   "style": "chips"
+  },
+  {
+   "kind": "turnaround",
+   "area": "turn",
+   "title": "四面図",
+   "guides": true
+  },
+  {
+   "kind": "expressions",
+   "area": "expr",
+   "title": "表情",
+   "cols": 3,
+   "max": 6
+  },
+  {
+   "kind": "notes",
+   "area": "note",
+   "title": "注記"
+  }
+ ]
+}

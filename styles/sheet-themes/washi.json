@@ -1,0 +1,33 @@
+{
+ "name": "washi",
+ "title": "和紙と朱",
+ "mood": "生成りの和紙に墨と朱。明朝で組む。和装・巫女・侍に合う",
+ "colors": {
+  "page": "#f4efe4",
+  "card": "#e8e0cf",
+  "ink": "#222018",
+  "sub": "#71685a",
+  "accent": "#b0392b",
+  "rule": "#d1c6b0"
+ },
+ "motif": "none",
+ "font": "serif",
+ "fits": [
+  "kimono",
+  "shrine",
+  "samurai",
+  "katana",
+  "miko",
+  "和",
+  "着物",
+  "巫女",
+  "刀",
+  "神社"
+ ],
+ "texture": "plain",
+ "frame": "none",
+ "heading": {
+  "style": "label"
+ },
+ "card_radius": 4
+}

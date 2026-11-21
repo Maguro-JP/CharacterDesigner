@@ -1,0 +1,32 @@
+{
+ "name": "retro-sf",
+ "title": "昔の宇宙",
+ "mood": "クリーム色の地に紺と橙。方眼を薄く敷く。宇宙・機械・探検に合う",
+ "colors": {
+  "page": "#f2ecdc",
+  "card": "#e4dcc6",
+  "ink": "#1f2a44",
+  "sub": "#5f6780",
+  "accent": "#e05a2a",
+  "rule": "#cfc6ae"
+ },
+ "motif": "grid",
+ "font": "sans",
+ "fits": [
+  "space",
+  "robot",
+  "pilot",
+  "rocket",
+  "mechanic",
+  "宇宙",
+  "機械",
+  "操縦",
+  "探検"
+ ],
+ "texture": "plain",
+ "frame": "none",
+ "heading": {
+  "style": "label"
+ },
+ "card_radius": 4
+}

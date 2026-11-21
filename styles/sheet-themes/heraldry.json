@@ -1,0 +1,38 @@
+{
+ "name": "heraldry",
+ "title": "灯火の紋章",
+ "mood": "生成りの羊皮紙色に深紅。明朝の名前。騎士・王国・中世の幻想に合う",
+ "colors": {
+  "page": "#efe7d6",
+  "card": "#e3d7bf",
+  "ink": "#2a1b14",
+  "sub": "#7a6450",
+  "accent": "#8c2a2a",
+  "rule": "#c9b48e"
+ },
+ "motif": "none",
+ "font": "sans",
+ "title_font": "serif",
+ "fits": [
+  "knight",
+  "armor",
+  "plate",
+  "cape",
+  "lantern",
+  "sword",
+  "castle",
+  "medieval",
+  "kingdom",
+  "騎士",
+  "鎧",
+  "剣",
+  "王国",
+  "ランタン"
+ ],
+ "texture": "plain",
+ "frame": "none",
+ "heading": {
+  "style": "label"
+ },
+ "card_radius": 4
+}
