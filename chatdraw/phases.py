@@ -344,7 +344,7 @@ def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, 
         tilt = pt.eye_tilt(st.get("points") or {})
         found = list(res.get("bad", [])) + ([f"左右の目の高さがずれている（{tilt}）"] if tilt is not None and tilt > pt.EYE_TILT else [])
         return {"image": img, "found": found, "numbers": {"eye_tilt": tilt, "bad": len(res.get("bad", []))},
-                "readable": bool(res.get("readable"))}
+                "readable": bool(res.get("readable")) and bool(st.get("points"))}   # 顔の点が読めなければ目の高さを測れていない
 
     def p_wear(v):
         """服・髪・持ち物。頼んだ物が描かれているかを測るだけで、服や髪を描き直さない（描き直すと服が変わった）"""

@@ -225,8 +225,8 @@ class PhasesTest(unittest.TestCase):
 
         with TemporaryDirectory() as d:
             got = phases.draw(Painter(), "1girl, red scarf", 5, (64, 96), Path(d) / "k", checks=NoLandmarks)
-        self.assertFalse(got["complete"])
-        self.assertEqual(got["blocked"]["phase"], "顔・手・足の下描き")
+        self.assertTrue(got["complete"])
+        self.assertFalse(got["checked"])
         draft_rows = [r for r in got["history"] if r["phase"] == "顔・手・足の下描き"]
         self.assertTrue(draft_rows)
         self.assertTrue(all(not r["readable"] for r in draft_rows))
@@ -235,9 +235,9 @@ class PhasesTest(unittest.TestCase):
         painter = Painter()
         painter.abilities = (False, False)
         got, painter, *_ = self.run_phases(always_bad=True, painter=painter)
-        self.assertLess(len(got["phases"]), N)
-        self.assertFalse(got["complete"])
-        self.assertIsNotNone(got["blocked"])
+        self.assertEqual(len(got["phases"]), N)
+        self.assertTrue(got["complete"])
+        self.assertIsNone(got["blocked"])
         self.assertFalse(any(x[0] == "redraw" for x in painter.log))
 
     def test_fix_masks_are_regions_only(self):
@@ -246,7 +246,6 @@ class PhasesTest(unittest.TestCase):
         with TemporaryDirectory() as d:
             painter = Painter()
             got = phases.draw(painter, "1girl, red scarf", 5, (64, 96), Path(d) / "k", checks=hand_only_checks())
-        self.assertFalse(got["complete"])
         self.assertTrue(painter.masks)
         for m in painter.masks:
             a = np.asarray(m)
@@ -495,10 +494,8 @@ class BrokenChecksTest(unittest.TestCase):
         with TemporaryDirectory() as d:
             p = Painter()
             got = phases.draw(p, "red hair, 1girl", 1, (64, 64), Path(d), checks=Boom)
-            self.assertLess(len(got["phases"]), len(phases.PHASES))
-            self.assertFalse(got["checked"])
-            self.assertFalse(got["complete"])
-            self.assertEqual(got["blocked"]["phase"], "サムネイル")
+            self.assertEqual(len(got["phases"]), len(phases.PHASES))   # 検品が落ちても工程 2 で止まらず最後まで進む
+            self.assertFalse(got["checked"])   # 検品できなかったことは残す
             self.assertIsNotNone(got["image"])
 
 
@@ -624,9 +621,9 @@ class WaySettingTest(unittest.TestCase):
 
 
 class MissingBackRouteTest(unittest.TestCase):
-    """欠陥を検出した工程が戻り先を返し忘れても、そのまま次工程へ流さない。"""
+    """サムネイルの崩れ（人数・描かれていない）が残っても、工程 2 に戻り続けて打ち切らず、最後の工程まで進む（0.5.38 は工程 2 で止まった）"""
 
-    def test_detected_thumbnail_defect_uses_default_route(self):
+    def test_thumbnail_defect_does_not_stop_at_phase_2(self):
         class C:
             @staticmethod
             def request(image, prompt):
@@ -655,10 +652,10 @@ class MissingBackRouteTest(unittest.TestCase):
         said = []
         with TemporaryDirectory() as d, mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}):
             got = phases.draw(Painter(), "1girl", 9, (64, 96), Path(d), checks=C, say=said.append)
-        self.assertFalse(got["complete"])
-        self.assertGreater(got["backs"], 0)
-        self.assertTrue(any("戻り先指定が無いため" in msg for msg in said))
-        self.assertEqual(got["blocked"]["phase"], "サムネイル")
+        self.assertTrue(got["complete"])
+        self.assertEqual([r["phase"] for r in got["phases"]], phases.NAMES)
+        self.assertTrue(got["phases"][1]["found"])   # サムネイルの崩れは記録に残す
+        self.assertTrue(got["left"] or any(r["found"] for r in got["phases"]))
 
 
 class CountLimitTest(unittest.TestCase):

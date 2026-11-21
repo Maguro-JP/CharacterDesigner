@@ -2239,7 +2239,7 @@ class Studio:
             if left:
                 say("未解決: " + "、".join(left[:5]))
         elif left:
-            say("工程を全部通しても崩れが残りました（未完成）: " + "、".join(left[:5]))
+            say("工程を全部通しても崩れが残りました（途中）: " + "、".join(left[:5]))
         elif not checked:
             say("検品できなかった工程があるので、通ったかは分かりません（未完成）")
         path = self._save(got["image"], seed, dict(meta or {}, text=text, prompt=prompt, seed=seed, style=style,
