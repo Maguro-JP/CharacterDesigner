@@ -1,13 +1,18 @@
 # CharacterDesigner
 
-CharacterDesigner の製品は描画アプリ chatdraw です。チャットで頼むと AI がキャラクターデザインやイラストを描き、作画監督が数字で検品し、人がその上に描き足せる Windows のデスクトップアプリです。頼みごとは日本語に限りません。English: [README.en.md](README.en.md)
+CharacterDesigner は、ペイントソフト [AtelIer](https://github.com/Maguro-JP/AtelIer) に載るキャラクターデザインの拡張です。設定資料、三面図、表情差分、キャラクターシート、キャラクターファイル（.chara）を作ります。English: [README.en.md](README.en.md)
 
-開発はすべて [chatdraw/](chatdraw/README.md) で行います。配る Setup.exe は `packaging/chatdraw/` と `.github/workflows/chatdraw-*.yml` で組みます。
+アプリそのもの（描く道具、AI で描く仕組み、配る Setup.exe）は AtelIer にあります。このリポジトリは拡張のパッケージ `character_designer/` と、キャラクターデザインの資料（`bible/`、`characters/`、`designs/`、`templates/`、`library/`）を持ちます。
 
 ## 入れ方と使い方
 
-- 入れ方・模型の取り方と手で置く方法・更新・削除・困ったときは [手順書](chatdraw/help/install.md)
-- 使い方は [操作方法](chatdraw/help/manual.md)。どちらもアプリの「ヘルプ」メニューから開けます。「ヘルプ」→「使い方ツアー」（F1）と「機能ごとの案内」で画面の上で案内します
+```bash
+pip install "atelier @ git+https://github.com/Maguro-JP/AtelIer.git@main"   # 先に本体の AtelIer を入れる
+pip install -e .                                                            # このリポジトリ（拡張）を入れる
+python -m atelier                                                           # 起動すると「キャラクターデザイン」のメニューが出ます
+```
+
+拡張は `pyproject.toml` の entry points（`atelier.extensions` の組の `character_designer`）で AtelIer に見つけてもらいます。アプリの入れ方と使い方は AtelIer の README を見てください。
 - 動かせる模型と、それぞれの大きさ・得意なこと・商用の可否は [docs/models.md](docs/models.md)
 
 ## 出来ること
@@ -36,7 +41,7 @@ CharacterDesigner の製品は描画アプリ chatdraw です。チャットで�
 
 ### 作画監督（検品）
 
-描いた絵の手・足・顔の崩れ、頼んだ物が描けているか、CharacterDesigner 独自の数字の検品（顔の形、影の順序、髪の色など。`tools/gen/measure.py` の数字と、ユーザーの判定から学んだ基準）を、おまかせの流れの中で見ます（`chatdraw/omakase.py`、`chatdraw/origqc.py`）。落ちた所は直して描き直します。
+描いた絵の手・足・顔の崩れ、頼んだ物が描けているか、CharacterDesigner 独自の数字の検品（顔の形、影の順序、髪の色など。`tools/gen/measure.py` の数字と、ユーザーの判定から学んだ基準）を、おまかせの流れの中で見ます（AtelIer の `atelier/ai/omakase.py`、`atelier/qc/original_qc.py`）。落ちた所は直して描き直します。
 
 ### 模型
 
@@ -59,7 +64,7 @@ CharacterDesigner の製品は描画アプリ chatdraw です。チャットで�
 
 ## 描く内容の制限
 
-アプリは、描く内容を最初から規制しません。固定の制限は 1 つだけで、子どもを表す言葉と性的な言葉が並んだ頼み（loli・shota などの語を含む）は描きません（`chatdraw/engine.py` の `refused`）。考え方は [docs/filters.md](docs/filters.md)。ユーザーが自分で入れ切りするフィルターの板は、まだアプリにありません。
+アプリは、描く内容を最初から規制しません。固定の制限は 1 つだけで、子どもを表す言葉と性的な言葉が並んだ頼み（loli・shota などの語を含む）は描きません（AtelIer の `atelier/ai/engine.py` の `refused`）。考え方は [docs/filters.md](docs/filters.md)。ユーザーが自分で入れ切りするフィルターの板は、まだアプリにありません。
 
 ## アプリに入れていない道具
 
@@ -78,7 +83,7 @@ PYTHONPATH=.cache/gen/lib python3 tools/gen/measure.py 絵.png --hair "#1e1a24,#
 
 | 環境変数 | 用途 | 必須 |
 |---|---|---|
-| `CD_HOME` | アプリの設定・部品・記録の置き場所（`chatdraw/paths.py`） | 任意 |
+| `ATELIER_HOME` | アプリの設定・部品・記録の置き場所（AtelIer の `atelier/files/paths.py`。前の `CD_HOME` から名前が変わった） | 任意 |
 | `CD_DEVICE` | `tools/` の道具が描く場所（`cuda`・`mps`・`cpu`、`tools/gen/device.py`） | 任意 |
 | `CD_LLM_URL` / `CD_LLM_MODEL` | `tools/gen/free_text.py` が使う手元の言葉の模型の窓口（OpenAI 互換）と模型の名前 | 任意 |
 
@@ -94,8 +99,7 @@ PYTHONPATH=.cache/gen/lib python3 tools/gen/measure.py 絵.png --hair "#1e1a24,#
 
 | 場所 | 役割 |
 |---|---|
-| `chatdraw/` | 製品のデスクトップアプリ（PySide6）。試験は `chatdraw/tests/` |
-| `packaging/chatdraw/` | Setup.exe の組み方（Actions の `chatdraw-*.yml` が流す） |
+| `character_designer/` | AtelIer の拡張（キャラクターデザインのメニュー・モード・キャラクターファイル） |
 | `tools/gen/` | 描く・直す・測る道具。`hands.py`・`tagger.py`・`cdhome.py` はアプリに同梱 |
 | `tools/` | ドット絵の描画器と検品、比較、絵の目録 |
 | `styles/` | 作風と作画監督の基準（数字と出典） |
@@ -108,8 +112,8 @@ PYTHONPATH=.cache/gen/lib python3 tools/gen/measure.py 絵.png --hair "#1e1a24,#
 ```bash
 # 道具の試験
 python3 -m unittest discover -s tests
-# アプリの試験（PySide6 のある環境）
-QT_QPA_PLATFORM=offscreen python3 -m unittest chatdraw.tests.test_chatdraw
+# 拡張の試験（AtelIer を入れるか、PYTHONPATH に並べる。1 ファイルずつ流す）
+QT_QPA_PLATFORM=offscreen python3 tests/test_atelier_extension.py
 ```
 
 ## ライセンス

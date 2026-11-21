@@ -1,14 +1,19 @@
 # CharacterDesigner
 
-The product is chatdraw, a Windows desktop app: ask in chat and the AI draws character designs and illustrations, a numeric art director inspects them, and you can draw over them by hand. Requests are not limited to Japanese.
+CharacterDesigner is the character-design extension for the paint app [AtelIer](https://github.com/Maguro-JP/AtelIer): character sheets, turnarounds, expression sheets and character files (.chara).
 日本語: [README.md](README.md)
 
-All development happens in [chatdraw/](chatdraw/README.md). Setup.exe is built by `packaging/chatdraw/` and `.github/workflows/chatdraw-*.yml`.
+The app itself (drawing tools, AI drawing, Setup.exe) lives in AtelIer. This repository holds the extension package `character_designer/` and the character-design material.
 
 ## Install and use
 
-- Installation, model download, update, removal and troubleshooting: [chatdraw/help/install.md](chatdraw/help/install.md) (Japanese)
-- Usage: [chatdraw/help/manual.md](chatdraw/help/manual.md) (Japanese). Both open from the app's Help (ヘルプ) menu, which also has a guided tour (F1) and per-feature guides
+```bash
+pip install "atelier @ git+https://github.com/Maguro-JP/AtelIer.git@main"
+pip install -e .
+python -m atelier   # the キャラクターデザイン menu appears
+```
+
+The extension is found through the `atelier.extensions` entry point in `pyproject.toml`.
 - The models the app can run: [docs/models.md](docs/models.md)
 
 ## What the app does

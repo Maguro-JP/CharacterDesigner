@@ -1,0 +1,22 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "character-designer"
+version = "0.1.0"
+description = "AtelIer に載るキャラクターデザインの拡張（設定資料、三面図、表情差分、キャラクターファイル）"
+readme = "README.md"
+requires-python = ">=3.11"
+license = { file = "LICENSE" }
+# 本体（描く道具、AI で描く仕組み、窓）は AtelIer が持つ。この拡張は AtelIer の公開している口だけを使う
+dependencies = [
+    "atelier @ git+https://github.com/Maguro-JP/AtelIer.git@main",
+]
+
+# AtelIer は起動のときに、この組に書かれた拡張を読んで窓に付ける（atelier/extensions.py の load_entry_points）
+[project.entry-points."atelier.extensions"]
+character_designer = "character_designer.extension:EXTENSION"
+
+[tool.setuptools.packages.find]
+include = ["character_designer*"]
