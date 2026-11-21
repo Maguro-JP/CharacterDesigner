@@ -65,7 +65,12 @@ def _pose(im, box):
         h = w * SIZE[1] / SIZE[0]
     else:
         w = h * SIZE[0] / SIZE[1]
-    b = (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+    # 人物が画像の端にいると、縦横比を合わせた拡張枠が画像外へはみ出し、
+    # PIL が黒い余白を足して関節位置をずらす。枠の大きさを保てる範囲で画像内へ移動する。
+    w, h = min(w, im.width), min(h, im.height)
+    x0 = max(0.0, min(im.width - w, cx - w / 2))
+    y0 = max(0.0, min(im.height - h, cy - h / 2))
+    b = (x0, y0, x0 + w, y0 + h)
     crop = im.crop(tuple(int(round(v)) for v in b)).resize(SIZE, Image.BILINEAR)
     a = (np.asarray(crop, np.float32) - [123.675, 116.28, 103.53]) / [58.395, 57.12, 57.375]
     s = _session()
