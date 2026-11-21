@@ -260,14 +260,17 @@ class Omakase:
     def _prompt(self, text: str, m: ImageModel) -> str:
         """模型の世代の頼み方（タグか文か）で頼みを直す。同じ形は 2 度直さない"""
         tags = fam(m.family).tags
-        if tags not in self._prompts:
+        # 同じ世代の模型でも依頼文が違えばプロンプトも異なる。模型タグだけで
+        # キャッシュすると、Omakase の再利用時に前のキャラクター設定が流用される。
+        key = (tags, text, self.style)
+        if key not in self._prompts:
             from chatdraw.engine import refused
             p = self.studio.words.to_prompt(text, tags=tags)
             p = f"{p}, {self.style}" if self.style else p
             if refused(p):
                 raise ValueError("子どもを性的に描く頼みは描きません")
-            self._prompts[tags] = p
-        return self._prompts[tags]
+            self._prompts[key] = p
+        return self._prompts[key]
 
     def _note(self, say, stage: str, m: ImageModel | None, why: str, **extra):
         self.log.append(dict(stage=stage, model=m.repo if m else "", name=m.name if m else "", why=why, **extra))
