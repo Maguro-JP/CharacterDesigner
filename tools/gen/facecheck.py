@@ -56,6 +56,11 @@ def refine_points(im, keypoints: dict, read=None) -> dict:
     if side >= 0.8 * min(w, h):
         return kp   # 顔が絵の大半を占める。絵全体で読んだ点で足りる
     x0, y0 = int(nx - side / 2), int(ny - side * 0.55)
+    # 画像の端に顔がある場合、PIL の crop は範囲外を黒で埋める。
+    # その人工の黒い余白は顔点模型を誤誘導しやすいので、切り出しを画像内に移動し、
+    # 元の画像座標へ戻すオフセットも実際の切り出し位置に合わせる。
+    x0 = max(0, min(x0, w - side))
+    y0 = max(0, min(y0, h - side))
     if read is None:
         sys.path.insert(0, str(ROOT))
         from chatdraw.twostage import keypoints as read
