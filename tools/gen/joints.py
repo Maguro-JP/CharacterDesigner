@@ -65,6 +65,14 @@ def find(src: str) -> list[dict]:
     im = Image.open(src).convert("RGB")
     alpha = np.asarray(design.cut_background(im).getchannel("A")) > 0
     ys, xs = np.nonzero(alpha)
+    # 背景抜きで人物領域が残らない画像（空画像・完全透過画像など）では
+    # min/max が例外になる。関節なしとして返し、呼び出し側の検品を継続する。
+    if not len(xs) or not len(ys):
+        return []
+    # 1 画素だけ残った領域は幅または高さが 0 となり、crop_box の縦横比計算でゼロ除算する。
+    # 関節位置を推定できる大きさではないため、空の結果として扱う。
+    if xs.max() <= xs.min() or ys.max() <= ys.min():
+        return []
     box = crop_box((xs.min(), ys.min(), xs.max(), ys.max()))
     # 枠が絵の外へ出る所は、学習時の平均の色で埋める（PIL の crop は外を黒で埋め、黒い塊を体と取り違えうる）
     bx = tuple(int(round(v)) for v in box)
@@ -74,6 +82,9 @@ def find(src: str) -> list[dict]:
     x = ((np.asarray(patch).astype(np.float32) - MEAN) / STD).transpose(2, 0, 1)[None].astype(np.float32)
     global _SESS
     if _SESS is None:   # 何枚も測るとき、模型を1枚ごとに読み直さない
+        # 空ファイルやディレクトリを ONNX 模型として開かず、配置不備を明示する。
+        if not MODEL.is_file() or MODEL.stat().st_size == 0:
+            raise RuntimeError(f"関節検出モデルが無いか空です: {MODEL}（sh tools/gen/setup.sh で取得してください）")
         _SESS = ort.InferenceSession(str(MODEL), providers=["CPUExecutionProvider"])
     sess = _SESS
     sx, sy = sess.run(None, {sess.get_inputs()[0].name: x})
@@ -82,6 +93,11 @@ def find(src: str) -> list[dict]:
 
 def draw(src: str, points: list[dict], out: str, least: float = 0.3):
     im = Image.open(src).convert("RGB")
+    # find() は人物領域が無い画像では空配列を返す。点が無い場合も元画像を保存し、
+    # BONES の添字参照で IndexError にならないようにする。
+    if not points:
+        im.save(out)
+        return
     d = ImageDraw.Draw(im)
     for a, b in BONES:
         if points[a]["score"] >= least and points[b]["score"] >= least:

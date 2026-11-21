@@ -52,10 +52,15 @@ def refine_points(im, keypoints: dict, read=None) -> dict:
     else:
         return kp
     w, h = im.size
-    side = int(max(96, min(side, max(w, h))))
+    side = int(min(max(96, side), min(w, h)))
     if side >= 0.8 * min(w, h):
         return kp   # 顔が絵の大半を占める。絵全体で読んだ点で足りる
     x0, y0 = int(nx - side / 2), int(ny - side * 0.55)
+    # 画像の端に顔がある場合、PIL の crop は範囲外を黒で埋める。
+    # その人工の黒い余白は顔点模型を誤誘導しやすいので、切り出しを画像内に移動し、
+    # 元の画像座標へ戻すオフセットも実際の切り出し位置に合わせる。
+    x0 = max(0, min(x0, w - side))
+    y0 = max(0, min(y0, h - side))
     if read is None:
         sys.path.insert(0, str(ROOT))
         from chatdraw.twostage import keypoints as read
@@ -95,7 +100,15 @@ def eye_dark(image, keypoints: dict) -> float | None:
     d = max(abs(eyes[0][0] - eyes[1][0]), 8)
     x0, x1 = int(min(e[0] for e in eyes) - 0.4 * d), int(max(e[0] for e in eyes) + 0.4 * d)
     y = sum(e[1] for e in eyes) / 2
-    band = np.asarray(image.convert("L").crop((x0, int(y - 0.3 * d), x1, int(y + 0.3 * d))), dtype=np.float32)
+    w, h = image.size
+    # Keep the eye measurement inside the image; Pillow otherwise pads out-of-bounds
+    # crop regions with black pixels and can report false dark-eye evidence.
+    y0 = max(0, int(y - 0.3 * d))
+    y1 = min(h, int(y + 0.3 * d))
+    x0, x1 = max(0, x0), min(w, x1)
+    if x1 <= x0 or y1 <= y0:
+        return None
+    band = np.asarray(image.convert("L").crop((x0, y0, x1, y1)), dtype=np.float32)
     if band.size == 0:
         return None
     return round(float((band < np.median(band) - 60).mean()), 4)
@@ -105,9 +118,12 @@ def _read_tags(crop) -> dict:
     sys.path.insert(0, str(ROOT))
     from chatdraw import requestcheck
     tg = requestcheck._tagger(False)
-    tmp = Path(tempfile.mkdtemp()) / "face.png"
-    crop.save(tmp)
-    return tg.read(str(tmp), threshold=0.05)
+    # 顔を読むたびに一時ディレクトリを作りっぱなしにしない。
+    # 連続生成・再検品で一時画像が蓄積しないよう、読み取り後に確実に片付ける。
+    with tempfile.TemporaryDirectory(prefix="cd-face-") as t:
+        tmp = Path(t) / "face.png"
+        crop.save(tmp)
+        return tg.read(str(tmp), threshold=0.05)
 
 
 def judge(tags: dict, asked: str = "") -> list[str]:
@@ -147,10 +163,20 @@ def iris_share(im, x: float, y: float, half: int) -> float:
     """目の点の中心（枠の半分の大きさ）で、頬の色から離れ、白でもない画素の割合。瞳を描かず白目や肌で埋めた目は 0 に近い"""
     import numpy as np
     q = max(2, half // 2)
-    c = np.asarray(im.crop((int(x - q), int(y - q), int(x + q), int(y + q))), np.float32).reshape(-1, 3)
-    cheek = np.median(np.asarray(im.crop((int(x - half), int(y + half), int(x + half), int(y + 2 * half))), np.float32).reshape(-1, 3), 0)
+    w, h = im.size
+    eye_box = (max(0, int(x - q)), max(0, int(y - q)), min(w, int(x + q)), min(h, int(y + q)))
+    # 顔の端では頬の測定枠が空になり得る。空枠を作らないよう、画像内に収めてから測る。
+    # Clamp both crop corners so coordinates remain valid even near image edges.
+    cheek_box = (max(0, int(x - half)), max(0, int(y + half)), min(w, int(x + half)), min(h, int(y + 2 * half)))
+    if cheek_box[2] <= cheek_box[0] or cheek_box[3] <= cheek_box[1]:
+        return 1.0  # invalid crop: treat as unmeasurable, not as missing iris
+    c = np.asarray(im.crop(eye_box), np.float32).reshape(-1, 3)
+    cheek_pixels = np.asarray(im.crop(cheek_box), np.float32).reshape(-1, 3)
+    if c.size == 0 or cheek_pixels.size == 0:
+        return 1.0  # 画像端で測定領域が空。判定不能として瞳の欠落扱いを避ける
+    cheek = np.median(cheek_pixels, 0)
     far = np.linalg.norm(c - cheek, axis=1) > 60
-    return float((far & (c.min(1) < 190)).mean()) if c.size else 1.0
+    return float((far & (c.min(1) < 190)).mean())
 
 
 def eye_smear(im, keypoints: dict | None, box=None, precise: bool = False) -> list[str]:
@@ -177,11 +203,28 @@ def eye_smear(im, keypoints: dict | None, box=None, precise: bool = False) -> li
     out = []
     names = {"left": "左", "right": "右"}
     for side, (x, y) in eyes:
-        eb = (int(x - half), int(y - half), int(x + half), int(y + half))
+        # Clip the iris sample to the image. PIL pads out-of-image crop areas,
+        # which can otherwise add artificial black pixels to the hue check.
+        eb = (max(0, int(x - half)), max(0, int(y - half)),
+              min(w, int(x + half)), min(h, int(y + half)))
+        if eb[2] - eb[0] < 4 or eb[3] - eb[1] < 4:
+            continue
         # 目の点は瞳の中心から半径ほどずれる（アニメの絵で、正しい目を 0.09 倍と測った）。周りへ半分ずつずらした枠の一番鋭い所で見る
         shifts = (0,) if precise else (-half, 0, half)
-        sharp = max(feet.sharpness(im, (eb[0] + dx, eb[1] + dy, eb[2] + dx, eb[3] + dy))
-                    for dx in shifts for dy in shifts) / ref
+        # Shifted samples must also stay inside the source image. Otherwise Pillow
+        # pads them with black and the artificial edge can distort sharpness.
+        samples = []
+        for dx in shifts:
+            for dy in shifts:
+                sx0 = max(0, eb[0] + dx)
+                sy0 = max(0, eb[1] + dy)
+                sx1 = min(w, eb[2] + dx)
+                sy1 = min(h, eb[3] + dy)
+                if sx1 - sx0 >= 4 and sy1 - sy0 >= 4:
+                    samples.append(feet.sharpness(im, (sx0, sy0, sx1, sy1)))
+        if not samples:
+            continue
+        sharp = max(samples) / ref
         hsv = np.asarray(im.crop(eb).convert("HSV"), np.float32)
         vivid = hsv[..., 0][(hsv[..., 1] > 90) & (hsv[..., 2] > 60)]
         hues = 0

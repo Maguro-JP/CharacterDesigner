@@ -392,10 +392,10 @@ def sheet_blocks(ident: str, home=None) -> dict:
         out["colors"] = ("色の見本", _text_block("色の見本", [], 560, sw))
     items = c.get("items", [])
     if items:
-        rows = [(i.get("name", i["id"]), "、".join(x for x in (i.get("desc", ""), i.get("hold", ""), i.get("size", "")) if x)
+        rows = [(i.get("name") or i.get("id", "持ち物"), "、".join(x for x in (i.get("desc", ""), i.get("hold", ""), i.get("size", "")) if x)
                  or i.get("tags", "")) for i in items]
         block = _text_block("持ち物", rows, 760)
-        pics = [(i.get("name", i["id"]), opened(imgs[f"detail-item-{i['id']}"])) for i in items if f"detail-item-{i['id']}" in imgs]
+        pics = [(i.get("name") or i.get("id", "持ち物"), opened(imgs[f"detail-item-{i.get('id', '')}"])) for i in items if f"detail-item-{i.get('id', '')}" in imgs]
         if pics:
             strip = _strip(pics, 320)
             both = Image.new("RGBA", (block.width + strip.width, max(block.height, strip.height)), (0, 0, 0, 0))

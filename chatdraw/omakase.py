@@ -23,7 +23,7 @@ BACKGROUND = ("背景", "風景", "街", "森", "海", "空", "部屋", "教室"
 PERSON = ("人", "女", "男", "少女", "少年", "キャラ", "子", "姫", "騎士", "魔法使い", "girl", "boy", "woman", "man", "character", "person")
 TEXT = ("文字", "看板", "ロゴ", "タイトル", "書いて", "text", "logo", "sign", "title", "lettering")
 ITEM = re.compile(r"([^\s、。,]{1,12}?)(?:を|も)?(?:持|握|抱|構え|手に)")
-ITEM_EN = re.compile(r"\b(?:holding|with|carrying|wielding)\s+(?:a |an |the )?([a-z ]{2,24})")
+ITEM_EN = re.compile(r"\b(?:holding|with|carrying|wielding)\s+(?:a |an |the )?([a-z][a-z ]{1,23}?)(?=\s+(?:and|while|then|in|on|standing|walking|running|looking|wearing)\b|[,.;!?]|$)")
 # 後から直せない見どころは重くする。文字は描けない模型が多く、囲んで直しても読める字にならない
 HEAVY = {"文字": 3.0}
 STYLE_ASPECT = {"real": "写実", "chibi": "ちび", "pencil": "線画", "known": "人物", "anime": "アニメ"}
@@ -189,8 +189,9 @@ def _mask(size, boxes):
     mask = Image.new("L", size, 0)
     d = ImageDraw.Draw(mask)
     for x0, y0, x1, y1 in boxes:
-        cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, y1 - y0) * 0.6
-        d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
+        cx, cy = (x0 + x1) / 2, (y0 + y1) / 2
+        rx, ry = max(1, (x1 - x0) * 0.6), max(1, (y1 - y0) * 0.6)
+        d.ellipse([cx - rx, cy - ry, cx + rx, cy + ry], fill=255)
     return mask
 
 
@@ -260,14 +261,17 @@ class Omakase:
     def _prompt(self, text: str, m: ImageModel) -> str:
         """模型の世代の頼み方（タグか文か）で頼みを直す。同じ形は 2 度直さない"""
         tags = fam(m.family).tags
-        if tags not in self._prompts:
+        # 同じ世代の模型でも依頼文が違えばプロンプトも異なる。模型タグだけで
+        # キャッシュすると、Omakase の再利用時に前のキャラクター設定が流用される。
+        key = (tags, text, self.style)
+        if key not in self._prompts:
             from chatdraw.engine import refused
             p = self.studio.words.to_prompt(text, tags=tags)
             p = f"{p}, {self.style}" if self.style else p
             if refused(p):
                 raise ValueError("子どもを性的に描く頼みは描きません")
-            self._prompts[tags] = p
-        return self._prompts[tags]
+            self._prompts[key] = p
+        return self._prompts[key]
 
     def _note(self, say, stage: str, m: ImageModel | None, why: str, **extra):
         self.log.append(dict(stage=stage, model=m.repo if m else "", name=m.name if m else "", why=why, **extra))

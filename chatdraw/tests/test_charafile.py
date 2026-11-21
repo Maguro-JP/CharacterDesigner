@@ -87,6 +87,71 @@ class FileTest(Base):
         self.assertEqual(neg, "extra arms")
         self.assertEqual(charafile.reference(got).size, (32, 48))
 
+    def test_missing_character_artwork_is_rejected_on_load(self):
+        from chatdraw import charafile
+        broken = self.d / "missing-art.chara"
+        ch = charafile.new("Akari")
+        ch["manifest"]["images"]["view-front"] = "images/view-front.png"
+        with zipfile.ZipFile(broken, "w") as z:
+            z.writestr("manifest.json", json.dumps(ch["manifest"]))
+        with self.assertRaisesRegex(charafile.BadFile, "必要な絵"):
+            charafile.load(broken)
+
+    def test_malformed_manifest_and_version_raise_badfile(self):
+        from chatdraw import charafile
+        for label, manifest in (
+            ("array", []),
+            ("null", None),
+            ("invalid-version", {"format": charafile.FORMAT, "version": "bad"}),
+            ("null-version", {"format": charafile.FORMAT, "version": None}),
+            ("zero-version", {"format": charafile.FORMAT, "version": 0}),
+            ("negative-version", {"format": charafile.FORMAT, "version": -1}),
+            ("fractional-version", {"format": charafile.FORMAT, "version": 1.5}),
+            ("boolean-version", {"format": charafile.FORMAT, "version": True}),
+            ("string-version", {"format": charafile.FORMAT, "version": "1"}),
+        ):
+            with self.subTest(label=label):
+                broken = self.d / f"{label}.chara"
+                with zipfile.ZipFile(broken, "w") as z:
+                    z.writestr("manifest.json", json.dumps(manifest))
+                with self.assertRaises(charafile.BadFile):
+                    charafile.load(broken)
+
+    def test_malformed_artwork_references_raise_badfile(self):
+        from chatdraw import charafile
+        for label, changes in (
+            ("images-list", {"images": []}),
+            ("images-null", {"images": None}),
+            ("refset-list", {"refset": []}),
+            ("refs-string", {"refset": {"images": "image.png"}}),
+            ("image-path-null", {"images": {"front": None}}),
+        ):
+            with self.subTest(label=label):
+                broken = self.d / f"{label}.chara"
+                manifest = charafile.new("Akari")["manifest"]
+                manifest.update(changes)
+                with zipfile.ZipFile(broken, "w") as z:
+                    z.writestr("manifest.json", json.dumps(manifest))
+                with self.assertRaises(charafile.BadFile):
+                    charafile.load(broken)
+
+    def test_duplicate_archive_members_are_rejected(self):
+        from chatdraw import charafile
+        import warnings
+        for duplicate in ("manifest.json", "images/front.png"):
+            with self.subTest(duplicate=duplicate):
+                broken = self.d / ("duplicate-" + duplicate.replace("/", "-") + ".chara")
+                manifest = charafile.new("Akari")["manifest"]
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", UserWarning)
+                    with zipfile.ZipFile(broken, "w") as z:
+                        z.writestr("manifest.json", json.dumps(manifest))
+                        z.writestr(duplicate, b"duplicate")
+                        if duplicate != "manifest.json":
+                            z.writestr(duplicate, b"other duplicate")
+                with self.assertRaisesRegex(charafile.BadFile, "重複"):
+                    charafile.load(broken)
+
     def test_old_version_is_read_and_new_version_refused(self):
         from chatdraw import charafile
         old = self.d / "old.chara"

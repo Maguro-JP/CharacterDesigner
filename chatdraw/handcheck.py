@@ -29,19 +29,34 @@ def ensure_models(fetch: bool = True) -> bool:
     """手の模型が置き場にあるか。無ければ取る（約 8MB）"""
     hands = _hands()
     d = hands.MODEL.parent
-    if hands.MODEL.exists() and (d / "hand_detector.tflite").exists():
+    required = (hands.MODEL, d / "hand_detector.tflite")
+    # 存在するだけでなく、両方の模型が空でないことを確認する。
+    # 片方だけ欠けた状態を成功扱いすると、次の推論で初めて失敗する。
+    if all(p.is_file() and p.stat().st_size > 0 for p in required):
         return True
     if not fetch:
         return False
     import tempfile
     import urllib.request
     d.mkdir(parents=True, exist_ok=True)
-    with tempfile.TemporaryDirectory() as t:
-        z = Path(t) / "h.task"
+    with tempfile.TemporaryDirectory(dir=d) as t:
+        tmp = Path(t)
+        z = tmp / "h.task"
         urllib.request.urlretrieve(TASK, z)
         with zipfile.ZipFile(z) as f:
-            for name in ("hand_landmarks_detector.tflite", "hand_detector.tflite"):
-                (d / name).write_bytes(f.read(name))
+            # ZIP の CRC を先に全件検証する。通信途中で壊れた模型を展開・配置しない。
+            damaged = f.testzip()
+            if damaged is not None:
+                raise RuntimeError(f"手の模型アーカイブが破損しています: {damaged}")
+            # 2 つの模型を一時領域へ展開してから配置する。取得・展開途中で失敗しても
+            # CD_HOME に壊れた途中ファイルを残し、次回起動で存在判定を誤らないようにする。
+            names = ("hand_landmarks_detector.tflite", "hand_detector.tflite")
+            for name in names:
+                (tmp / name).write_bytes(f.read(name))
+                if (tmp / name).stat().st_size == 0:
+                    raise RuntimeError(f"手の模型 {name} が空です")
+        for name in names:
+            (tmp / name).replace(d / name)
     return True
 
 
@@ -65,8 +80,8 @@ def find_hands(hands, im, keep: bool = True):
         found.append((cx, cy, f"{x0},{y0},{x1},{y1}:{ang}"))
     for b in hands.detect_palms(im, LEAST):
         add(b)
-    side = int(min(w, h) * 0.6)
-    step = side // 2
+    side = max(2, int(min(w, h) * 0.6))
+    step = max(1, side // 2)
     for y in range(0, max(1, h - side + step), step):
         for x in range(0, max(1, w - side + step), step):
             tile = im.crop((x, y, min(w, x + side), min(h, y + side)))
@@ -84,8 +99,10 @@ KP_ERROR = ""   # 体の点を読めなかった最後の訳
 
 def _keypoints(im) -> dict:
     """体の点を 1 枚につき 1 回だけ読む（手の振り分けと顔の検品で同じ点を使う。VitPose の読み込みは数秒かかる）"""
-    # id だけでは、捨てた絵の id を次の絵が使い回したとき、前の絵の点を返した（続けて検品した 2 枚で同じ点）。中身の縮図も鍵に入れる
-    key = (id(im), im.size, im.resize((16, 16)).tobytes())
+    # id は解放済み画像で再利用される。16x16 の縮図だけでは別画像が衝突し得るため、
+    # 全画素のハッシュを鍵にして、別のキャラクター画像の関節点を誤再利用しない。
+    import hashlib
+    key = (id(im), im.size, hashlib.blake2b(im.tobytes(), digest_size=16).digest())
     if key not in _KP:
         try:
             from chatdraw.twostage import keypoints
@@ -174,15 +191,21 @@ def ensure_feet_model(fetch: bool = True) -> bool:
     """足の点を読む模型（DWPose、約 134MB）が置き場にあるか。無ければ取る"""
     _hands()   # CD_HOME と tools/gen の道を整える
     import feet
-    if feet.MODEL.exists():
+    # exists() だけでは空ファイルやディレクトリも成功扱いになる。推論前に実ファイルとサイズを確認する。
+    if feet.MODEL.is_file() and feet.MODEL.stat().st_size > 0:
         return True
     if not fetch:
         return False
+    import tempfile
     import urllib.request
     feet.MODEL.parent.mkdir(parents=True, exist_ok=True)
-    tmp = feet.MODEL.with_suffix(".part")
-    urllib.request.urlretrieve(feet.URL, tmp)
-    tmp.replace(feet.MODEL)
+    # 固定名の .part は同時起動時に競合し、失敗時にも残るため専用一時領域を使う。
+    with tempfile.TemporaryDirectory(dir=feet.MODEL.parent) as t:
+        tmp = Path(t) / feet.MODEL.name
+        urllib.request.urlretrieve(feet.URL, tmp)
+        if not tmp.is_file() or tmp.stat().st_size == 0:
+            raise RuntimeError("足の模型を取得できませんでした（空のファイル）")
+        tmp.replace(feet.MODEL)
     return True
 
 

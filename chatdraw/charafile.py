@@ -81,16 +81,35 @@ def load(path) -> dict:
     path = Path(path)
     try:
         with zipfile.ZipFile(path) as z:
+            names = [n for n in z.namelist() if not n.endswith("/")]
+            if len(names) != len(set(names)):
+                raise BadFile("キャラクターファイルに重複した項目があります")
             man = json.loads(z.read("manifest.json").decode("utf-8"))
-            files = {n: z.read(n) for n in z.namelist() if n != "manifest.json" and not n.endswith("/")}
+            files = {n: z.read(n) for n in names if n != "manifest.json"}
     except (OSError, KeyError, ValueError, zipfile.BadZipFile) as e:
         raise BadFile(f"キャラクターファイルとして読めませんでした（{path.name}: {e}）") from e
+    if not isinstance(man, dict):
+        raise BadFile(f"キャラクターの設定が壊れています（{path.name}: manifest がオブジェクトではありません）")
     if man.get("format") != FORMAT:
         raise BadFile(f"キャラクターファイルではありません（{path.name}）")
-    v = int(man.get("version", 0))
+    raw_version = man.get("version", 0)
+    if isinstance(raw_version, bool) or not isinstance(raw_version, int):
+        raise BadFile(f"キャラクターの設定が壊れています（{path.name}: version が不正です）")
+    try:
+        v = int(raw_version)
+    except (TypeError, ValueError) as e:
+        raise BadFile(f"キャラクターの設定が壊れています（{path.name}: version が不正です）") from e
+    if v < 1:
+        raise BadFile(f"キャラクターの設定が壊れています（{path.name}: version {v} は未対応です）")
     if v > VERSION:
         raise BadFile(f"新しい版（{v}）のキャラクターファイルです。アプリを新しくしてから開いてください")
-    man, files = migrate(man, files)
+    try:
+        man, files = migrate(man, files)
+        missing = [p for p in _referenced(man) if p not in files]
+    except (KeyError, TypeError, ValueError, AttributeError) as e:
+        raise BadFile(f"キャラクターの設定が壊れています（{path.name}: {e}）") from e
+    if missing:
+        raise BadFile("キャラクターファイルに必要な絵がありません: " + ", ".join(missing))
     return {"manifest": man, "files": files, "path": str(path)}
 
 
@@ -115,8 +134,17 @@ def migrate(man: dict, files: dict) -> tuple[dict, dict]:
 
 
 def _referenced(man: dict) -> list[str]:
-    return [*man.get("images", {}).values(), *([man["sheet"]] if man.get("sheet") else []),
-            *man.get("refset", {}).get("images", [])]
+    images = man.get("images", {})
+    refset = man.get("refset", {})
+    if not isinstance(images, dict) or not isinstance(refset, dict):
+        raise BadFile("キャラクターの画像設定が壊れています")
+    refs = refset.get("images", [])
+    if not isinstance(refs, list):
+        raise BadFile("キャラクターの参考画像設定が壊れています")
+    paths = [*images.values(), *([man["sheet"]] if man.get("sheet") else []), *refs]
+    if any(not isinstance(path, str) or not path for path in paths):
+        raise BadFile("キャラクターの画像パスが不正です")
+    return paths
 
 
 # ---- 設定資料集と行き来する ----

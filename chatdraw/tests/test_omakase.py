@@ -90,6 +90,28 @@ class OmakaseTest(unittest.TestCase):
         omakase.draw(st, text, 1, said.append, have=have, painter_for=painters, check=checker(results), size=(128, 192))
         return [e[:2] for e in log if e[0] != "hires"], st, said
 
+    def test_prompt_cache_is_scoped_to_text_and_style(self):
+        st = FakeStudio(Path(self.tmp.name))
+        o = omakase.Omakase(st, [COMPOSE])
+        with mock.patch("chatdraw.engine.refused", return_value=False):
+            first = o._prompt("赤い髪の騎士", COMPOSE)
+            second = o._prompt("青い髪の騎士", COMPOSE)
+            o.style = "watercolor"
+            third = o._prompt("赤い髪の騎士", COMPOSE)
+            o.style = ""  # 元の画風へ戻して、同じキャッシュキーを再利用する
+            first_again = o._prompt("赤い髪の騎士", COMPOSE)
+        self.assertEqual(first, first_again)  # 同じ依頼と画風はキャッシュを再利用
+        self.assertEqual(len(o._prompts), 3)  # 依頼文 2 種 + 画風違い 1 種
+        self.assertNotEqual(first, second)
+        self.assertNotEqual(first, third)
+        self.assertIn("赤い髪", first)
+        self.assertIn("青い髪", second)
+        self.assertIn("watercolor", third)
+
+    def test_english_item_phrase_stops_before_following_action(self):
+        parts = omakase.split("a knight holding a sword and standing in a forest")
+        self.assertEqual(parts["items"], ["sword"])
+
     def test_abilities_have_reasons_and_empty_without_evidence(self):
         ab = abilities(HANDS)
         self.assertIn("手", ab["strong"])
@@ -105,6 +127,11 @@ class OmakaseTest(unittest.TestCase):
         self.assertNotIn(DIT, [m for m, _ in p.fix["hand"]])                 # 直せない世代は直しに選ばない
         self.assertIn("剣", p.parts["items"][0])
         self.assertEqual(omakase.plan("看板の文字", [COMPOSE, DIT]).compose[0][0], DIT)   # 文字は文字の得意な模型
+
+    def test_repair_mask_preserves_region_aspect_ratio(self):
+        mask = omakase._mask((100, 100), [(20, 40, 40, 50)])
+        self.assertEqual(mask.getpixel((30, 45)), 255)
+        self.assertEqual(mask.getpixel((30, 32)), 0)  # 楕円の縦方向は検出枠に合わせる
 
     def test_failed_part_goes_to_another_model_inside_the_mask(self):
         log, st, said = self.run_draw([COMPOSE, HANDS, FACES], [BAD_HAND, OK])

@@ -50,8 +50,9 @@ def _session():
             import onnxruntime as ort
         except ImportError as e:
             raise Unavailable("onnxruntime が無い（sh tools/gen/setup.sh で入る）") from e
-        if not MODEL.exists():
-            raise Unavailable(f"全身の点の模型が無い（{MODEL}。sh tools/gen/setup.sh で取る）")
+        # 空ファイルやディレクトリを模型として読み込ませない。
+        if not MODEL.is_file() or MODEL.stat().st_size == 0:
+            raise Unavailable(f"全身の点の模型が無いか空です（{MODEL}。sh tools/gen/setup.sh で取る）")
         _SESS = ort.InferenceSession(str(MODEL), providers=["CPUExecutionProvider"])
     return _SESS
 
@@ -65,7 +66,13 @@ def _pose(im, box):
         h = w * SIZE[1] / SIZE[0]
     else:
         w = h * SIZE[0] / SIZE[1]
-    b = (cx - w / 2, cy - h / 2, cx + w / 2, cy + h / 2)
+    # 人物が画像の端にいると、縦横比を合わせた拡張枠が画像外へはみ出し、
+    # PIL が黒い余白を足して関節位置をずらす。枠の大きさを保てる範囲で画像内へ移動する。
+    scale = min(1.0, im.width / w, im.height / h)
+    w, h = w * scale, h * scale
+    x0 = max(0.0, min(im.width - w, cx - w / 2))
+    y0 = max(0.0, min(im.height - h, cy - h / 2))
+    b = (x0, y0, x0 + w, y0 + h)
     crop = im.crop(tuple(int(round(v)) for v in b)).resize(SIZE, Image.BILINEAR)
     a = (np.asarray(crop, np.float32) - [123.675, 116.28, 103.53]) / [58.395, 57.12, 57.375]
     s = _session()
@@ -81,7 +88,13 @@ _WHOLE: dict = {}
 def whole(im):
     """全身の 133 点。絵全体で 1 度読み、体の点の外枠で読み直す（小さく写った人でも足や手が大きく写る）。
     足の指と手の振り分け（hand_points）で同じ点を使うので、1 枚につき 1 回だけ読む"""
-    key = (im.size, im.resize((16, 16)).tobytes())
+    # 推論前に RGB へ統一する。RGBA / グレースケール画像でも入力テンソルの
+    # チャンネル数が崩れず、同じ RGB 画像なら同じキャッシュキーになる。
+    im = im.convert("RGB")
+    # 16x16 の縮図だけを鍵にすると、縮小時に同じ画素へ潰れた別画像で
+    # 前のキャラクターの関節点を再利用してしまう。元画像全体のハッシュで区別する。
+    import hashlib
+    key = (im.size, hashlib.blake2b(im.tobytes(), digest_size=16).digest())
     if key in _WHOLE:
         return _WHOLE[key]
     w, h = im.size
@@ -275,6 +288,13 @@ def count_toes(image, keypoints=None) -> list[dict]:
         if L < 0.22 * F:
             foot["evidence"]["why"] = "横向きの足で、指が奥行きの方向に並んでいる"
             continue
+        # 足首から指先への方向が指の横方向とほぼ平行だと、帯の奥行き方向を作れず
+        # _strip の正規化で NaN が生じる。模型の点がつぶれた足は「読めない」と返す。
+        axis = (big + small) / 2 - ank
+        axis = axis - np.dot(axis, (small - big) / L) * ((small - big) / L)
+        if np.linalg.norm(axis) < 0.1 * F:
+            foot["evidence"]["why"] = "足の向きを決められない（足首と指先の点が一直線）"
+            continue
         st, back, F2, row0, mids = _strip(a, big, small, ank)
         r = count_one(st, F2, row0, mids)
         rows = r.pop("rows", None)
@@ -337,7 +357,9 @@ def sharp_reference(image, side: int) -> float:
     im = Image.open(image).convert("L") if isinstance(image, (str, Path)) else image.convert("L")
     w, h = im.size
     side = max(16, int(side))
-    vals = [sharpness(im, (x, y, x + side, y + side)) for y in range(0, max(1, h - side + 1), side) for x in range(0, max(1, w - side + 1), side)]
+    # Include the partial tiles at the right and bottom edges too; omitting them
+    # biases the reference toward the upper-left portion of the character image.
+    vals = [sharpness(im, (x, y, x + side, y + side)) for y in range(0, h, side) for x in range(0, w, side)]
     return float(np.percentile(vals, 80)) if vals else 0.0
 
 
