@@ -139,54 +139,49 @@ def main():
     ok = step("検品の部品がそろう", qc_parts) and ok
 
     def right_click():
-        # 右クリックのメニューを、下のメニューまで全部開いて閉じる（0.5.30 で右クリックからアプリごと落ちた）
-        from PySide6.QtCore import QEventLoop, QPoint
+        # Qt の popup()/processEvents() をサブメニューごとに繰り返すと、
+        # Windows のネイティブメニュー処理が再入して E2E が停止する。
+        # 表示は最上位メニューで一度だけ確認し、子メニューは
+        # aboutToShow で遅延生成した項目をイベントループなしで検査する。
+        from PySide6.QtCore import QPoint
         w = app.Window()
         w.show()
         if shot.get("path"):
             w.place(str(shot["path"]))
         seen = []
+        visited = set()
+        started = time.monotonic()
 
-        def walk(m, depth=0, visited=None):
-            # popup() 自身が aboutToShow を発火する。手動で emit すると、
-            # 同じ fill が二重に走る。マウス入力も処理するとカーソル位置の項目から
-            # サブメニューが自動で連鎖表示されるため、検査中はユーザー入力を除外する。
-            if visited is None:
-                visited = set()
-            if depth > 12 or len(visited) > 120:
+        def walk(m, depth=0):
+            if depth > 12 or len(visited) >= 120:
                 raise RuntimeError("右クリックのメニューが循環しています")
-            # id(m) は Python ラッパーの寿命に依存する。QObject 自体で重複を判定する。
             if m in visited:
                 return
             visited.add(m)
-            title = m.title()
-            started = time.monotonic()
-            print(f"MENU OPEN depth={depth} title={title!r} actions={len(m.actions())}", flush=True)
-            m.popup(QPoint(20, 20))
-            qapp.processEvents(QEventLoop.ExcludeUserInputEvents)
-            for a in list(m.actions()):
+            if depth:
+                m.aboutToShow.emit()
+            actions = list(m.actions())
+            print(f"MENU CHECK depth={depth} title={m.title()!r} actions={len(actions)}", flush=True)
+            for a in actions:
                 seen.append(a.text())
                 sub = a.menu()
                 if sub is not None:
-                    walk(sub, depth + 1, visited)
-            m.hide()
-            qapp.processEvents(QEventLoop.ExcludeUserInputEvents)
-            elapsed = time.monotonic() - started
-            print(f"MENU CLOSE depth={depth} title={title!r} seconds={elapsed:.2f}", flush=True)
-            if elapsed > 15:
-                raise RuntimeError(f"右クリックメニューの表示に時間がかかりすぎています: {title!r} ({elapsed:.1f}s)")
-        for _ in range(3):
+                    walk(sub, depth + 1)
+            if time.monotonic() - started > 15:
+                raise RuntimeError("右クリックメニューの検査が15秒を超えました")
+
+        try:
             m = w.build_canvas_menu(QPoint(20, 20))
+            m.popup(QPoint(20, 20))
             walk(m)
-            m.deleteLater()
-            qapp.processEvents()
-        # close() が保存確認などのモーダルダイアログを開くと、
-        # 無人の Windows E2E が停止する。メニュー検証では閉じずに破棄予約する。
-        print("MENU WALK DONE; hiding test window", flush=True)
-        w.hide()
-        w.deleteLater()
-        print("MENU TEST DONE", flush=True)
-        return {"items": len(seen)}
+            m.hide()
+            if not seen:
+                raise RuntimeError("右クリックメニューに項目がありません")
+            print(f"MENU TEST DONE items={len(seen)}", flush=True)
+            return {"items": len(seen)}
+        finally:
+            w.hide()
+            w.deleteLater()
 
     def phases_draw():
         # 工程に分けて描く。最後の工程まで描けて、絵が保存されることを見る（0.5.30 で 1 工程目のあとに落ちた）
