@@ -5,7 +5,6 @@ atelier.extensions.register で登録して、入れずに同じ形を確かめ�
 """
 from __future__ import annotations
 
-import os
 import sys
 import tomllib
 import unittest

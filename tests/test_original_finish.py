@@ -133,5 +133,21 @@ class CharaMenu(unittest.TestCase):
             w.close()
 
 
+class ExpressionFiles(unittest.TestCase):
+    def test_expressions_from_bible(self):
+        """表情差分の置き場を知っているのはキャラクターデザインの側。AtelIer のスタンプは expression_sources で受け取る"""
+        import json
+        with TemporaryDirectory() as d:
+            root = Path(d)
+            (root / "bible" / "characters").mkdir(parents=True)
+            (root / "img").mkdir()
+            for k in ("expr-smile", "expr-angry"):
+                Image.new("RGB", (32, 32), "red").save(root / "img" / f"{k}.png")
+            (root / "bible" / "characters" / "a.json").write_text(json.dumps(
+                {"id": "a", "images": {"color": "img/c.png", "expr-smile": "img/expr-smile.png", "expr-angry": "img/expr-angry.png"}}))
+            from character_designer import chara_design as charadesign
+            self.assertEqual([p.name for p in charadesign.expression_files("a", home=root)], ["expr-angry.png", "expr-smile.png"])
+
+
 if __name__ == "__main__":
     unittest.main()
