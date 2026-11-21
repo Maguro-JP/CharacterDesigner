@@ -211,6 +211,23 @@ class PhasesTest(unittest.TestCase):
         self.assertTrue(all(event.message for event in events))
         self.assertFalse(got["complete"])
 
+    def test_completed_event_only_after_all_phase_checks_pass(self):
+        events = []
+        with TemporaryDirectory() as d, mock.patch.object(phases.Checks, "request", staticmethod(checks(False)[0].request)), \
+             mock.patch.object(phases.Checks, "body", staticmethod(checks(False)[0].body)), \
+             mock.patch.object(phases.Checks, "points", staticmethod(checks(False)[0].points)), \
+             mock.patch.object(phases.Checks, "pose", staticmethod(checks(False)[0].pose)), \
+             mock.patch.object(phases.Checks, "hands", staticmethod(checks(False)[0].hands)):
+            from chatdraw import phasetools as pt
+            with mock.patch.object(pt, "lines", lambda _im: {"readable": True, "gap": 0.0}):
+                got = phases.draw(Painter(), "1girl, red scarf", 5, (64, 96), Path(d) / "k", on_event=events.append)
+        self.assertTrue(got["complete"])
+        self.assertTrue(got["checked"])
+        self.assertFalse(got["left"])
+        completed = [event for event in events if event.kind == "completed"]
+        self.assertEqual(len(completed), 1)
+        self.assertEqual(completed[0].index, len(phases.PHASES))
+
     def test_clean_after_first_fix(self):
         got, painter, seen, said, files = self.run_phases(always_bad=False)
         self.assertEqual(got["left"], [])
