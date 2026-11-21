@@ -180,8 +180,12 @@ def main():
             walk(m)
             m.deleteLater()
             qapp.processEvents()
-        w.close()
-        qapp.processEvents()
+        # close() が保存確認などのモーダルダイアログを開くと、
+        # 無人の Windows E2E が停止する。メニュー検証では閉じずに破棄予約する。
+        print("MENU WALK DONE; hiding test window", flush=True)
+        w.hide()
+        w.deleteLater()
+        print("MENU TEST DONE", flush=True)
         return {"items": len(seen)}
 
     def phases_draw():
