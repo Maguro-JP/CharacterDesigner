@@ -90,6 +90,20 @@ class OmakaseTest(unittest.TestCase):
         omakase.draw(st, text, 1, said.append, have=have, painter_for=painters, check=checker(results), size=(128, 192))
         return [e[:2] for e in log if e[0] != "hires"], st, said
 
+    def test_prompt_cache_is_scoped_to_text_and_style(self):
+        st = FakeStudio(Path(self.tmp.name))
+        o = omakase.Omakase(st, [COMPOSE])
+        with mock.patch("chatdraw.engine.refused", return_value=False):
+            first = o._prompt("赤い髪の騎士", COMPOSE)
+            second = o._prompt("青い髪の騎士", COMPOSE)
+            o.style = "watercolor"
+            third = o._prompt("赤い髪の騎士", COMPOSE)
+        self.assertNotEqual(first, second)
+        self.assertNotEqual(first, third)
+        self.assertIn("赤い髪", first)
+        self.assertIn("青い髪", second)
+        self.assertIn("watercolor", third)
+
     def test_abilities_have_reasons_and_empty_without_evidence(self):
         ab = abilities(HANDS)
         self.assertIn("手", ab["strong"])
