@@ -196,7 +196,12 @@ def eye_smear(im, keypoints: dict | None, box=None, precise: bool = False) -> li
     out = []
     names = {"left": "左", "right": "右"}
     for side, (x, y) in eyes:
-        eb = (int(x - half), int(y - half), int(x + half), int(y + half))
+        # Clip the iris sample to the image. PIL pads out-of-image crop areas,
+        # which can otherwise add artificial black pixels to the hue check.
+        eb = (max(0, int(x - half)), max(0, int(y - half)),
+              min(w, int(x + half)), min(h, int(y + half)))
+        if eb[2] - eb[0] < 4 or eb[3] - eb[1] < 4:
+            continue
         # 目の点は瞳の中心から半径ほどずれる（アニメの絵で、正しい目を 0.09 倍と測った）。周りへ半分ずつずらした枠の一番鋭い所で見る
         shifts = (0,) if precise else (-half, 0, half)
         sharp = max(feet.sharpness(im, (eb[0] + dx, eb[1] + dy, eb[2] + dx, eb[3] + dy))
