@@ -1,16 +1,19 @@
-"""人の描き方の工程に分けて描く（構図 → 体型と姿勢 → 線画 → 塗り → 仕上げ）。工程の調べは docs/knowledge/drawing-phases.md。
+"""人の描き方の工程に分けて、AI が筆を動かして描く。工程の調べは docs/knowledge/drawing-phases.md。
 
-人は 1 回で描き上げず、アタリ・ラフで構図を決めて見直し、下描き・線画で形を決めて見直し、塗りで色を決めて見直し、
-最後に全体を見直して仕上げる。前の工程で決めた物は次の工程で動かさないので、見直す物が工程ごとに少なく済む。
+人は 1 回で描き上げず、アタリ → 構図 → 体・顔・髪・服の線 → 清書 → 下塗り → 影 → 光 → 目 → 艶 → 仕上げと、
+軽い工程を積み重ねる。前は模型で絵を 5 回描き直す形（構図・線画・塗りがそれぞれ模型の 1 回）で、1 工程が 20〜40 分かかり、
+進みが見えず、まとめた工程の途中で落ちた。
 
 設計の決まり:
-- 工程の数は決まっていて（PHASES）、各工程は「描く → 検品 → 見つけた崩れを 1 回だけ直す → 次の工程へ」で必ず終わる。
-  検品が通るまで回す形にしない（0.5.20 でそうしたら終わらなくなり、描けなくなった）
-- 直しで崩れが増えたら、直す前の絵を次の工程に渡す（直しが絵を壊すことがあった）
-- 模型に渡す言葉は、頼みを訳した言葉と、その工程の描き方の指示（手・足・顔の直しの言葉）だけ。頼んでいない物を足さない。
-  渡した言葉は工程ごとに知らせに出す
-- 各工程の絵と検品の結果はファイルに残し、アプリは途中の絵を隠したレイヤーとして置く（利用者が見比べられる）
-- 止める旗が立ったら、その工程の区切りで止まる
+- 模型を使うのは初めの「下絵」の 1 回だけ（崩れたときの描き直しも 1 回だけ）。下絵はキャンバスに貼らず、筆の線と塗る範囲を
+  取る元にする（chatdraw/strokes.py）。そのあとの工程は、筆の線を 1 本ずつ工程のレイヤーに置いて描く
+- 各工程は短く、「筆を置く → 検品 1 回 → 見つけた崩れを 1 回だけ直す → 次の工程へ」で必ず終わる。検品が通るまで回さない
+  （0.5.20 でそうしたら終わらなくなった）
+- 筆を置く途中の絵は on_preview で出す（キャンバスの上に重ねて見せ、タイムラプスに残る）
+- 工程が終わるたびにメモリを返す（gc と torch のキャッシュ）。下絵のあとは模型を降ろす
+- 模型に渡す言葉は頼みを訳した言葉だけ。頼んでいない言葉を足さない。直しは筆で行い、模型に言葉を足して描き直させない
+- 知らせは「工程 i/N「名前」」で始める。進みの欄（chatdraw/activity.py）はこの形を読み、全部の工程の中の進みを出す
+- 止める旗が立ったら、筆のまとまりの区切りで止まる
 """
 from __future__ import annotations
 
@@ -18,18 +21,28 @@ import json
 import time
 from pathlib import Path
 
-# 工程の名前、決める物、検品で確かめる物。描き方は draw() の中で工程ごとに分ける
+# 工程の名前、決める物、検品で確かめる物
 PHASES = [
-    ("構図", "人数・配置（アタリとラフ）", "人数、頼んだ物が描かれているか"),
-    ("体型と姿勢", "骨組み（体の 17 点）と体の比率", "骨組みが読めるか、腕・脚の骨の長さの比、余分な腕・脚・頭"),
-    ("線画", "形（顔・手・指・足の形）", "手と指の数と形、足、顔"),
-    ("塗り", "色と頼んだ物", "頼んだ色と物が描かれているか、頼んでいない物"),
+    ("下絵", "人数・配置（模型が描く元の絵。キャンバスには貼らない）", "人数、頼んだ物が描かれているか"),
+    ("アタリ", "頭の丸と体の軸", "骨組みが読めるか、腕・脚の骨の長さの比"),
+    ("構図", "人の外形", "外形の線の置き残し、余分な腕・脚・頭"),
+    ("体の線", "体の形", "体の線の置き残し"),
+    ("顔の線", "顔の形", "顔の線の置き残し"),
+    ("髪の線", "髪の流れ", "髪の線の置き残し"),
+    ("服の線", "服の形", "服の線の置き残し"),
+    ("線画の清書", "主線（下描きのレイヤーを隠す）", "主線の置き残し"),
+    ("下塗り", "部位ごとの色（髪・肌・服）", "塗り残し"),
+    ("影 1 段目", "大きな影", "影の置き残し"),
+    ("影 2 段目", "濃い影", "影の置き残し"),
+    ("光", "明るい所", "光の置き残し"),
+    ("目", "目と瞳", "目の置き残し"),
+    ("髪の艶", "髪の光", "艶の置き残し"),
     ("仕上げ", "全体の崩れ", "手・足・顔と体の崩れの全部"),
 ]
-ROUGH_STEPS = 0.5     # 構図は工程の数を半分にして早く描く（ラフ）。私の推測の値で、本物の模型の比べで見直す
-LINE_STRENGTH = 0.8   # 線画: 構図の線に沿う強さ（T2I-Adapter の効き）
-REPAINT = 0.35        # 塗りの直し: 描かれていない物を足すときの描き直しの強さ（形は線画のまま残す）
-FIX = 0.55            # 線画・仕上げの直し: 崩れた所の枠の中だけを描き直す強さ
+COVER = 0.9      # 工程の検品: 置くはずの範囲のうち、これより少なくしか置けていなければ置き残しとして 1 回直す（私の推測の値）
+FRAMES = 6       # 1 工程で途中の絵を出す回数（筆のまとまりの数）
+SKETCH = (96, 120, 200)   # 下描きの線の色（人の下描きと同じ薄い青）
+INK = (40, 30, 34)        # 清書の線の色
 
 
 class Checks:
@@ -90,16 +103,6 @@ class _Safe:
         return call
 
 
-def abilities(painter) -> tuple[bool, bool]:
-    """(線に沿って描けるか, 枠の中だけ直せるか)。偽の模型は abilities を持てる"""
-    own = getattr(painter, "abilities", None)
-    if own is not None:
-        return tuple(own)
-    from chatdraw.models import family, image_model
-    f = family(image_model(getattr(painter, "model", "")).family)
-    return bool(f.sketch), bool(f.inpaint)
-
-
 def _composition_flaws(req: dict, body: dict) -> list[str]:
     out = []
     if req.get("readable"):
@@ -110,183 +113,297 @@ def _composition_flaws(req: dict, body: dict) -> list[str]:
     return out
 
 
-def _color_flaws(req: dict) -> list[str]:
-    if not req.get("readable"):
-        return []
-    return [f"描かれていない: {m}" for m in req.get("missing", [])] + [f"頼んでいない: {e}" for e in req.get("extra", [])]
+def _free(painter=None):
+    """工程の区切りでメモリを返す。下絵のあとは模型も降ろす（次に描くときに読み直す）"""
+    import gc
+    import sys
+    if painter is not None and hasattr(painter, "unload"):
+        try:
+            painter.unload()
+        except Exception:   # noqa: BLE001  降ろせなくても描くのは続ける
+            pass
+    gc.collect()
+    torch = sys.modules.get("torch")
+    if torch is not None:
+        try:
+            if torch.cuda.is_available():
+                torch.cuda.empty_cache()
+            mps = getattr(torch, "mps", None)
+            if mps is not None and getattr(torch.backends, "mps", None) and torch.backends.mps.is_available():
+                mps.empty_cache()
+        except Exception:   # noqa: BLE001
+            pass
 
 
-def _mask(image, regions):
-    from PIL import Image, ImageDraw
-    mask = Image.new("L", image.size, 0)
-    d = ImageDraw.Draw(mask)
-    for (x0, y0, x1, y1), _kind in regions:
-        cx, cy, rr = (x0 + x1) / 2, (y0 + y1) / 2, max(x1 - x0, y1 - y0) * 0.6
-        d.ellipse([cx - rr, cy - rr, cx + rr, cy + rr], fill=255)
-    return mask
+def rss_mb() -> float | None:
+    """今のこの処理のメモリ（MB）。測れなければ None"""
+    try:
+        import psutil
+        return round(psutil.Process().memory_info().rss / 2 ** 20, 1)
+    except Exception:   # noqa: BLE001
+        pass
+    try:
+        import os
+        with open("/proc/self/statm") as f:
+            return round(int(f.read().split()[1]) * os.sysconf("SC_PAGE_SIZE") / 2 ** 20, 1)
+    except Exception:   # noqa: BLE001
+        return None
 
 
-def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, on_step=None, checks=Checks) -> dict:
-    """5 つの工程で 1 枚を描く。返り値は {"image": 最後の絵, "phases": 工程ごとの記録, "left": 残った崩れ, "checked": 検品できたか}。
-    工程ごとに描くのは 1 回、直すのは崩れが見つかったときに 1 回だけ。どの工程も必ず終わる"""
-    from chatdraw.engine import Stopped, emphasize
-    from chatdraw import handcheck
+def _shade(color, k):
+    return tuple(max(0, min(255, int(c * k))) for c in color)
+
+
+def _tint(color, k):
+    return tuple(int(c + (255 - c) * k) for c in color)
+
+
+def _targets(p):
+    """工程ごとの、筆を置く物: [(まとまりの名前, 筆の線の並び, 色か None（下絵の色）, 太さ, 濃さ, 置くはずの範囲)]"""
+    import numpy as np
+    from chatdraw import strokes as st
+    hx, hy, hr = p.head
+    yy, xx = np.mgrid[:p.fg.shape[0], :p.fg.shape[1]]
+    head = (xx - hx) ** 2 + (yy - hy) ** 2 <= (hr * 1.25) ** 2
+    hair = p.parts.get("髪", np.zeros_like(p.fg))
+    cloth = p.parts.get("服", np.zeros_like(p.fg))
+    e = p.edges
+    ys, xs = np.nonzero(p.fg)
+    y0, y1, x0, x1 = ys.min(), ys.max(), xs.min(), xs.max()
+
+    def ellipse(cx, cy, rx, ry, n=36):
+        return [(int(cx + rx * np.cos(t)), int(cy + ry * np.sin(t))) for t in np.linspace(0, 2 * np.pi, n)]
+    body_h = y1 - (hy + hr)
+    atari = [ellipse(hx, hy, hr, hr * 1.1), [(int(hx), int(hy + hr)), (int((x0 + x1) / 2), int(y1))],
+             ellipse(hx, hy + hr + body_h * 0.18, hr * 1.3, hr * 0.45), ellipse(hx, hy + hr + body_h * 0.45, hr * 1.1, hr * 0.4)]
+    ring = p.fg & ~(np.asarray(st.Image.fromarray((p.fg * 255).astype("uint8")).filter(st.ImageFilter.MinFilter(3))) > 127)
+    face_e = e & head & ~hair
+    hair_e = e & hair
+    cloth_e = e & cloth & ~head
+    body_e = e & ~head & ~hair & ~cloth
+    out = {
+        "アタリ": [("頭と体の軸", atari, SKETCH, 1.0, 150, None)],
+        "構図": [("外形", st.trace(ring), SKETCH, 1.0, 170, ring)],
+        "体の線": [("体", st.trace(body_e), SKETCH, 0.9, 190, body_e)],
+        "顔の線": [("顔", st.trace(face_e, min_len=2), SKETCH, 0.8, 200, face_e)],
+        "髪の線": [("髪", st.trace(hair_e), SKETCH, 0.8, 190, hair_e)],
+        "服の線": [("服", st.trace(cloth_e), SKETCH, 0.9, 190, cloth_e)],
+        "線画の清書": [("主線", st.trace(e, min_len=2), INK, 1.0, 235, e)],
+    }
+    base, sh1, sh2, light, gloss = [], [], [], [], []
+    for name, m in p.parts.items():
+        col = p.colors[name]
+        med = float(np.median(p.lum[m]))
+        base.append((name, st.runs(m), col, 3.8, 255, m))
+        d1 = m & (p.lum < med - 18)
+        d2 = m & (p.lum < med - 42)
+        lt = m & (p.lum > med + 24)
+        sh1.append((name, st.runs(d1, 2), _shade(col, 0.82), 2.8, 200, d1))
+        sh2.append((name, st.runs(d2, 2), _shade(col, 0.64), 2.8, 210, d2))
+        light.append((name, st.runs(lt, 2), _tint(col, 0.28), 2.8, 170, lt))
+        if name == "髪" and m.sum() > 8:
+            g = m & (p.lum >= np.percentile(p.lum[m], 93))
+            gloss.append((name, st.runs(g, 1), _tint(col, 0.6), 1.6, 200, g))
+    out["下塗り"] = base
+    out["影 1 段目"] = sh1
+    out["影 2 段目"] = sh2
+    out["光"] = light
+    skin_band = head & ~hair & (yy > hy - hr * 0.2) & (yy < hy + hr * 0.7)
+    eye = np.zeros_like(p.fg)
+    if skin_band.any():
+        eye = skin_band & (p.lum < np.percentile(p.lum[skin_band], 22))
+    out["目"] = [("目", st.runs(eye, 1), None, 1.6, 255, eye)]
+    out["髪の艶"] = gloss
+    return out
+
+
+def draw(painter, prompt: str, seed: int, size, keep: Path, say=lambda m: None, on_step=None, checks=Checks,
+         on_preview=None) -> dict:
+    """15 の工程で 1 枚を描く。返り値は {"image": 最後の絵, "phases": 工程ごとの記録, "left": 残った崩れ, "checked": 検品できたか}。
+    模型が描くのは下絵だけで、そのあとは筆の線をレイヤーに置いて描く。どの工程も検品 1 回・直し 1 回で必ず終わる"""
+    import numpy as np
+    from chatdraw.engine import Stopped
+    from chatdraw import handcheck, strokes as st
     keep.mkdir(parents=True, exist_ok=True)
-    can_line, can_fix = abilities(painter)
     checks = _Safe(checks)   # 検品の部品が落ちても描くのは止めない。読めなかった検品は「検品できなかった」として残す
     rows, checked = [], True
+    N = len(PHASES)
 
     def stop():
         if getattr(painter, "stop", False) is True:
             raise Stopped("止めました")
 
-    def record(i, image, found, fixed, after, words, t0, note=""):
+    def head(i):
+        return f"工程 {i + 1}/{N}「{PHASES[i][0]}」"
+
+    def record(i, layer, view, found, fixed, after, words, t0, strokes=0, note=""):
         name = PHASES[i][0]
         path = keep / f"{i + 1:02d}-{name}.png"   # 順の分かる名前（タイムラプスがこの順につなぐ）
-        image.save(path)
-        row = {"phase": name, "decides": PHASES[i][1], "checks": PHASES[i][2], "image": str(path), "found": found,
-               "fixed": fixed, "after": after, "words": words, "seconds": round(time.time() - t0, 1)}
+        layer.save(path)
+        vpath = keep / f"{i + 1:02d}-{name}-view.png"
+        view.save(vpath)
+        row = {"phase": name, "decides": PHASES[i][1], "checks": PHASES[i][2], "image": str(path), "view": str(vpath),
+               "found": found, "fixed": fixed, "after": after, "words": words, "strokes": strokes,
+               "seconds": round(time.time() - t0, 2)}
         if note:
             row["note"] = note
         rows.append(row)
+        _free()
+        row["rss_mb"] = rss_mb()
         left = after if fixed else found
-        say(f"工程 {i + 1}/{len(PHASES)}「{name}」の検品: " + ("崩れは見つかりませんでした" if not left else "残った崩れ " + "、".join(left[:4])))
+        say(head(i) + " 済み: " + ("崩れは見つかりませんでした" if not left else "残った崩れ " + "、".join(left[:4])))
 
-    def fix_regions(image, res, s, words_used):
-        """手・足・顔の崩れた枠の中だけを 1 回描き直す。崩れが増えたら直す前の絵を返す"""
-        regions = handcheck.bad_regions(res)
-        if not regions or not can_fix:
-            return image, res, False
-        words = f"{prompt}, " + ", ".join(dict.fromkeys(handcheck.FIX_WORDS[k] for _b, k in regions))
-        say(f"崩れた所を 1 回だけ直しています（{len(regions)} か所）。渡す言葉: {words}")
-        words_used.append(words)
-        tried = painter.redraw(words, s, image, _mask(image, regions), strength=FIX)
-        again = checks.hands(tried, prompt)
-        if again.get("readable") and len(again.get("bad", [])) <= len(res.get("bad", [])):
-            return tried, again, True
-        say("直しで崩れが減らなかったので、直す前の絵を次の工程に渡します")
-        return image, res, True
-
-    # 1. 構図: 工程の数を減らしたラフで、人数・姿勢・配置を決める
+    # 1. 下絵: 模型が 1 回描く。筆の線と色を取る元で、キャンバスには貼らない
     stop()
     t0 = time.time()
-    say(f"工程 1/{len(PHASES)}「構図」を描いています。渡す言葉: {prompt}")
-    steps0 = getattr(painter, "steps", None)
-    try:
-        if isinstance(steps0, int):
-            painter.steps = max(4, int(steps0 * ROUGH_STEPS))
-        image = painter.paint(prompt, seed, on_step=on_step, size=size)
-        req = checks.request(image, prompt)
-        found = _composition_flaws(req, {})
-        fixed, after, words = False, [], [prompt]
-        if found:   # 構図の崩れは枠では直せないので、種を変えて構図だけを 1 回描き直し、崩れの少ない方を使う
-            stop()
-            say("構図の崩れを直すため、種を変えて構図を 1 回だけ描き直しています")
-            words.append(prompt)
-            again = painter.paint(prompt, seed + 1, on_step=on_step, size=size)
-            req2 = checks.request(again, prompt)
-            after = _composition_flaws(req2, {})
-            fixed = True
-            if len(after) < len(found):
-                image, req = again, req2
-            else:
-                after = found
-    finally:
-        if isinstance(steps0, int):
-            painter.steps = steps0
-    checked = checked and bool(req.get("readable"))
-    record(0, image, found, fixed, after, words, t0)
+    say(head(0) + f" 模型が下絵を描いています。渡す言葉: {prompt}")
 
-    # 2. 体型と姿勢: ラフから骨組みを読み、骨の比と余分な腕・脚・頭を確かめる。崩れていれば、骨組みが決まるまで
-    # 描き直すのではなく、種を変えたラフを 1 回だけ描いて崩れの少ない方を線画の土台にする
-    stop()
-    t0 = time.time()
-    words, note = [], ""
-
-    def pose_flaws(img):
-        pz, bd = checks.pose(img), checks.body(img, prompt)
-        return pz, bd, (list(pz.get("bad", [])) if pz.get("readable") else []) + (list(bd.get("bad", [])) if bd.get("readable") else [])
-    pz, body, found = pose_flaws(image)
-    fixed, after = False, []
-    if found:
+    def steps(s, n):
+        say(head(0) + f" 下絵（{s}/{n}）")
+        if on_step:
+            on_step(s, n)
+    ref = painter.paint(prompt, seed, on_step=steps, size=size)
+    req = checks.request(ref, prompt)
+    found = _composition_flaws(req, {})
+    fixed, after, words = False, [], [prompt]
+    if found:   # 構図の崩れは筆では直せないので、種を変えて下絵を 1 回だけ描き直し、崩れの少ない方を使う
         stop()
-        say("体型と姿勢の崩れを直すため、種を変えたラフを 1 回だけ描いています。渡す言葉: " + prompt)
+        say(head(0) + " 下絵の崩れを直すため、種を変えて 1 回だけ描き直しています")
         words.append(prompt)
-        if isinstance(steps0, int):
-            painter.steps = max(4, int(steps0 * ROUGH_STEPS))
-        try:
-            again = painter.paint(prompt, seed + 2, on_step=on_step, size=size)
-        finally:
-            if isinstance(steps0, int):
-                painter.steps = steps0
-        pz2, body2, after = pose_flaws(again)
+        again = painter.paint(prompt, seed + 1, on_step=steps, size=size)
+        req2 = checks.request(again, prompt)
+        after = _composition_flaws(req2, {})
         fixed = True
         if len(after) < len(found):
-            image, pz, body = again, pz2, body2
+            ref, req = again, req2
         else:
             after = found
-    if not pz.get("readable"):
-        note = pz.get("reason", "骨組みを読めませんでした")
-    checked = checked and bool(pz.get("readable")) and bool(body.get("readable"))
-    record(1, pz.get("map") or image, found, fixed, after, words, t0, note)
+    checked = checked and bool(req.get("readable"))
+    size_px = ref.size
+    record(0, ref.convert("RGBA"), ref.convert("RGB"), found, fixed, after, words, t0)
+    rows[0]["hidden"] = True   # 下絵は筆の元で、描いた絵ではない
+    _free(painter)   # 模型はここで降ろす（後の工程は筆だけで、模型を使わない）
 
-    # 3. 線画: 体型と姿勢を決めたラフの線に沿って描く。 構図の線に沿って、形を描き込む。手・指・足・顔の崩れは枠の中だけを 1 回直す
-    stop()
-    t0 = time.time()
-    words, note = [], ""
-    if can_line:
-        say(f"工程 3/{len(PHASES)}「線画」を描いています（構図の線に沿う）。渡す言葉: {prompt}")
-        words.append(prompt)
-        image = painter.paint(prompt, seed, on_step=on_step, base=image, strength=LINE_STRENGTH, size=size)
-    else:
-        note = "この模型は線に沿って描けないので、構図の絵のまま形を検品しました"
-        say(note)
-    res = checks.hands(image, prompt)
-    found = list(res.get("bad", []))
-    image, res2, fixed = fix_regions(image, res, seed + 77, words)
-    after = list(res2.get("bad", []))
-    checked = checked and bool(res.get("readable"))
-    record(2, image, found, fixed, after, words, t0, note)
+    p = st.plan(ref)
+    targets = None
+    sketch, paint, ink, finish = [], [], [], []
 
-    # 4. 塗り: 頼んだ色と物を確かめる。描かれていない物があれば、形を残す弱さで 1 回だけ描き直す
-    stop()
-    t0 = time.time()
-    words, note = [], ""
-    req = checks.request(image, prompt)
-    found = _color_flaws(req)
-    fixed, after = False, []
-    missing = list(req.get("missing", [])) if req.get("readable") else []
-    if missing and can_fix:
+    def view():
+        lines = ink if ink else sketch   # 清書のあとは下描きのレイヤーを隠す（人の描き方と同じ）
+        return st.compose(paint + finish + lines, size_px)
+
+    def lay(i, groups, paper=None):
+        """筆の線を順に置き、途中の絵を FRAMES 回出す。置いた線の数を返す"""
+        paper = paper or st.Paper(size_px, p.scale)
+        total = sum(len(g[1]) for g in groups) or 1
+        every = max(1, total // FRAMES)
+        k = 0
+        for gname, lines, color, width, alpha, _t in groups:
+            for pts in lines:
+                col = color
+                if col is None:   # 下絵の色をそのまま取る（目）
+                    xs = [min(p.rgb.shape[1] - 1, x) for x, _y in pts]
+                    y = min(p.rgb.shape[0] - 1, pts[0][1])
+                    col = tuple(int(c) for c in p.rgb[y, xs[0]:xs[-1] + 1].mean(0))
+                paper.stroke(pts, col, width, alpha)
+                k += 1
+                if k % every == 0:
+                    stop()
+                    say(head(i) + f" {gname}に筆を置いています（{k}/{total}）")
+                    if on_preview is not None:
+                        on_preview(view_with(paper.layer))
+        return paper
+
+    def view_with(layer):
+        lines = ink if ink else sketch
+        stack = paint + finish + lines
+        return st.compose(stack + [layer], size_px)
+
+    # 2〜14. 筆の工程: 線を置く → 置き残しを 1 回だけ検品 → 置き残しがあれば 1 回だけ置き直す
+    for i in range(1, N - 1):
         stop()
-        again_words = emphasize(prompt, missing)
-        say(f"描かれていない物（{'、'.join(missing)}）を 1 回だけ描き足しています。渡す言葉: {again_words}")
-        words.append(again_words)
-        from PIL import Image
-        tried = painter.redraw(again_words, seed + 131, image, Image.new("L", image.size, 255), strength=REPAINT)
-        req2 = checks.request(tried, prompt)
-        after = _color_flaws(req2)
-        fixed = True
-        if len(after) <= len(found):
-            image = tried
+        t0 = time.time()
+        name = PHASES[i][0]
+        if targets is None:
+            targets = _targets(p)
+        groups = targets.get(name, [])
+        say(head(i) + " を描いています")
+        found, after, fixed, note = [], [], False, ""
+        if name == "アタリ":   # 骨組みは下絵から読む（検品は 1 回）
+            pz = checks.pose(ref)
+            if pz.get("readable"):
+                found = list(pz.get("bad", []))
+            else:
+                note = pz.get("reason", "骨組みを読めませんでした")
+            checked = checked and bool(pz.get("readable"))
+        if name == "構図":
+            bd = checks.body(ref, prompt)
+            if bd.get("readable"):
+                found = list(bd.get("bad", []))
+            checked = checked and bool(bd.get("readable"))
+        paper = lay(i, groups)
+        target = None
+        for g in groups:
+            if g[5] is not None:
+                target = g[5] if target is None else (target | g[5])
+        if target is not None and target.any():
+            cov = st.coverage(paper.layer, target)
+            if cov < COVER:
+                found.append(f"置き残し {round((1 - cov) * 100)}%")
+                miss = st.missed(paper.layer, target)
+                col = groups[0][2]
+                fixgroups = [("置き残し", st.runs(miss, 1) if name not in ("構図", "体の線", "顔の線", "髪の線", "服の線", "線画の清書")
+                              else st.trace(miss, min_len=1), col if col is not None else None, groups[0][3], groups[0][4], miss)]
+                say(head(i) + " 置き残しを 1 回だけ置き直しています")
+                lay(i, fixgroups, paper)
+                fixed = True
+                cov2 = st.coverage(paper.layer, target)
+                after = [f for f in found if not f.startswith("置き残し")] + ([f"置き残し {round((1 - cov2) * 100)}%"] if cov2 < COVER else [])
+        if not groups:
+            note = note or "この絵では置く物が見つかりませんでした"
+        layer = paper.layer
+        if name == "線画の清書":
+            ink.append(layer)
+        elif name in ("アタリ", "構図", "体の線", "顔の線", "髪の線", "服の線"):
+            sketch.append(layer)
         else:
-            after = found
-            say("描き足しで崩れが増えたので、前の絵を次の工程に渡します")
-    elif missing:
-        note = "この模型は描き直しができないので、描かれていない物を直さずに次へ進みました"
-    record(3, image, found, fixed, after, words, t0, note)
+            paint.append(layer)
+        record(i, layer, view(), found, fixed, after, [], t0, paper.strokes, note)
 
-    # 5. 仕上げ: 全体の崩れ（手・足・顔と体）を見直し、手・足・顔は 1 回だけ直す。最後の検品の結果を残った崩れにする
+    # 15. 仕上げ: 全体の手・足・顔と体を 1 回だけ検品し、崩れた枠の中だけ下絵の色で細い筆を 1 回置き直す
     stop()
+    i = N - 1
     t0 = time.time()
-    words = []
+    say(head(i) + " 全体を見直しています")
+    image = view()
     res = checks.hands(image, prompt)
     body = checks.body(image, prompt)
     found = list(res.get("bad", [])) + (list(body.get("bad", [])) if body.get("readable") else [])
-    image, res2, fixed = fix_regions(image, res, seed + 191, words)
-    after = list(res2.get("bad", [])) + (list(body.get("bad", [])) if body.get("readable") else [])
+    regions = handcheck.bad_regions(res) if res.get("readable") else []
+    paper = st.Paper(size_px, p.scale)
+    fixed, after = False, list(found)
+    if regions:
+        m = np.zeros_like(p.fg)
+        for (x0, y0, x1, y1), _k in regions:
+            s = p.scale
+            m[int(y0 / s):int(y1 / s) + 1, int(x0 / s):int(x1 / s) + 1] = True
+        m &= p.fg
+        say(head(i) + f" 崩れた所（{len(regions)} か所）に 1 回だけ筆を置き直しています")
+        lay(i, [("直し", st.runs(m, 1), None, 1.6, 255, m)], paper)
+        finish.append(paper.layer)
+        image = view()
+        again = checks.hands(image, prompt)
+        fixed = True
+        if again.get("readable") and len(again.get("bad", [])) <= len(res.get("bad", [])):
+            after = list(again.get("bad", [])) + (list(body.get("bad", [])) if body.get("readable") else [])
+        else:
+            finish.remove(paper.layer)   # 直しで崩れが増えたら、直す前の絵にする
+            image = view()
+            say(head(i) + " 直しで崩れが減らなかったので、直す前の絵にしました")
     checked = checked and bool(res.get("readable")) and bool(body.get("readable"))
-    record(4, image, found, fixed, after, words, t0)
-    left = rows[-1]["after"] if rows[-1]["fixed"] else rows[-1]["found"]
+    record(i, paper.layer, image, found, fixed, after, [], t0, paper.strokes)
+    left = after if fixed else found
     (keep / "phases.json").write_text(json.dumps({"phases": rows, "left": left, "checked": checked}, ensure_ascii=False, indent=1),
                                       encoding="utf-8")
+    say(f"全 {N} 工程を描き終えました")
     return {"image": image, "phases": rows, "left": left, "checked": checked}

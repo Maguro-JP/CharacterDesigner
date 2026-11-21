@@ -146,8 +146,11 @@ class ActivityPanel(QWidget):
         left = per * (self.steps_total - self.steps_done) + per * self.steps_total * (n - i)   # 残りの枚の分も足す
         return "残り約 " + fmt(left)
 
+    phase: tuple | None = None   # 工程に分けて描く回の (今の工程, 工程の数, 名前)
+
     def begin(self, text: str, mode: str):
         self.sheet = (1, 1)
+        self.phase = None
         self.started = time.time()
         self.text, self.mode = text, mode
         self.state.setText("準備中")
@@ -171,10 +174,34 @@ class ActivityPanel(QWidget):
             self.editor_log.append(msg)
             self.editor.setText(msg)
             self.editor.setToolTip("\n".join(self.editor_log[-12:]))
+        # 工程に分けて描く回（chatdraw/phases.py）は「工程 i/N「名前」」で知らせが来る。前はこの欄が自分の 5 段（STAGES）の番号を
+        # 「工程 4/5」と出し、下絵の i/n で帯を満たしたので、1 工程目の終わりで完了に見えた。今は工程の番号と全体の中の進みを出す
+        ph = re.match(r"工程 (\d+)/(\d+)「(.+?)」", msg)
+        if ph:
+            self.phase = (int(ph.group(1)), int(ph.group(2)), ph.group(3))
+            if self.stage != 3:
+                self._mark(3)
+                self.step_started = time.time()
         for i, (_short, head) in enumerate(STAGES):
             if msg.startswith(head) and i != self.stage:
                 self._mark(i)
                 self.step_started = time.time()
+        pct = int(step * 100 / total) if step is not None and total else -1
+        if self.phase is not None:
+            i, n, name = self.phase
+            sub = min(step / total, 1.0) if step is not None and total else (1.0 if "済み" in msg else 0.0)
+            done = (i - 1 + sub) / n   # 最後の工程を描き終えるまで 100 にしない
+            self._busy(False)
+            self.bar.setRange(0, 1000)
+            self.bar.setValue(min(999, int(done * 1000)))
+            pct = min(99, int(done * 100))
+            self.last_step = time.time()
+            self.state.setText(f"工程 {i}/{n}　{name}" + (f"  {step}/{total}" if step is not None and total else ""))
+            self.detail.setText(msg)
+            self.changed.emit(f"{self.mode}: {self.state.text()}", pct)
+            self.progress_view.setToolTip(f"{msg}\n{self.mode}\n{self.text}")
+            self._show_time()
+            return
         if step is not None and total:
             self._busy(False)
             self.bar.setRange(0, total)
@@ -184,7 +211,7 @@ class ActivityPanel(QWidget):
         n = f"工程 {self.stage + 1}/{len(STAGES)}　" if 0 <= self.stage < len(STAGES) else ""
         self.state.setText(n + STAGE_TITLE.get(self.stage, "準備中") + (f"  {step}/{total}" if step is not None and total else ""))
         self.detail.setText(msg)   # 今している事を文でも出す（帯だけでは止まって見える）
-        self.changed.emit(f"{self.mode}: {self.state.text()}", int(step * 100 / total) if step is not None and total else -1)
+        self.changed.emit(f"{self.mode}: {self.state.text()}", pct)
         self.progress_view.setToolTip(f"{msg}\n{self.mode}\n{self.text}")
         self._show_time()
 
@@ -273,6 +300,7 @@ class ActivityPanel(QWidget):
             item.setToolTip(f"{stamp}　{result}" + (f"\n{self.text}" if self.text else ""))
             self.list.insertItem(0, item)
         self._busy(False)
+        self.phase = None
         self.started = None
         self.last_step = None
         if not self.background:

@@ -2771,11 +2771,14 @@ class Window(QMainWindow):
         rows = getattr(self.studio, "last_phases", None) if self.job_kind == "draw" else None
         if not rows:
             return
+        # 工程ごとのレイヤーは筆を置いた物だけの透明な絵（下絵は模型の元の絵）。目の印で出すと、その工程で置いた筆が見える
         self.canvas.add_phase_layers([(f"工程 {i}: {r['phase']}", r["image"]) for i, r in enumerate(rows, 1)])
-        for i, r in enumerate(rows, 1):
+        took = sum(float(r.get("seconds", 0) or 0) for r in rows)
+        self.say(f"{len(rows)} の工程で描きました（{round(took)} 秒、工程ごとの絵はレイヤーの欄で目の印を押すと出ます）")
+        for i, r in enumerate(rows, 1):   # 崩れの残った工程だけを出す（15 行を毎回並べない）
             left = r["after"] if r["fixed"] else r["found"]
-            self.say(f"工程 {i}「{r['phase']}」{r['seconds']} 秒: " + ("崩れは見つかりませんでした" if not left else "残った崩れ " + "、".join(left[:3]))
-                     + ("（1 回直しました）" if r["fixed"] else ""))
+            if left:
+                self.say(f"工程 {i}「{r['phase']}」: 残った崩れ " + "、".join(left[:3]) + ("（1 回直しました）" if r["fixed"] else ""))
 
     def _on_fixed(self, path: str):
         """赤ペン・選択範囲の直しの結果は、一番上の新しいレイヤーにだけ置いて選ぶ。描いた絵の履歴・ライブラリーには載せない

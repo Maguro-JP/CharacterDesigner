@@ -213,6 +213,9 @@ def native_size(size, family: str):
     新しい世代（DiT）は 1024×1024 前後の画素の数で学んでいるので、その数にそろえ、縦横を 16 の倍数にする"""
     from chatdraw.models import family as fam
     w, h = size
+    import os
+    if os.environ.get("CD_NATIVE_SIZE") == "off":   # 試験で小さな模型を小さな大きさのまま描く（学んだ大きさに直すと 1 枚が重い）
+        return (max(64, int(w) // 8 * 8), max(64, int(h) // 8 * 8))
     if family == "sd15":
         return (max(256, round(w * 0.625 / 64) * 64), max(256, round(h * 0.625 / 64) * 64))
     f = fam(family)
@@ -1573,7 +1576,7 @@ class Studio:
         self.image_auto = False   # おまかせ: 頼みごとに、手元の絵の模型から合う物を選ぶ
         self.words_auto = False   # おまかせ: 頼みごとに、手元の言葉の模型から合う物を選ぶ
         # 描き方。"auto" は、構図の模型・SDXL の模型・2 段の部品がそろっていれば 2 段で描く。"one" は 1 つの模型、"two" は必ず 2 段。
-        # "phases" は 1 つの模型で、構図・体型と姿勢・線画・塗り・仕上げの工程に分けて描く（chatdraw/phases.py）
+        # "phases" は模型で下絵を 1 回描き、そのあとは AI が筆で 15 の工程に分けて描く（chatdraw/phases.py）
         self.way = "auto"
         # 開いたキャラクター（chatdraw/charafile.py の for_studio の形）。描く言葉の前に、利用者が書いたその人物の設定の言葉を置き、
         # 禁止ワード・参考画像・LoRA もその人物の物を使う。None なら何もしない
@@ -1931,12 +1934,12 @@ class Studio:
     last_phases: list | None = None
 
     def _draw_phases(self, text, seed, style, size, say, on_preview, meta):
-        """構図 → 体型と姿勢 → 線画 → 塗り → 仕上げの工程に分けて描く（chatdraw/phases.py）。工程ごとに描く・検品する・1 回だけ直す。
-        渡す言葉は頼みの訳と作風だけで、背景や構図の言葉は足さない"""
+        """人の描き方の工程（下絵 → アタリ → 線 → 清書 → 塗り → 影 → 光 → 目 → 艶 → 仕上げ）に分けて、AI が筆を動かして描く
+        （chatdraw/phases.py）。模型が描くのは下絵だけ。渡す言葉は頼みの訳と作風だけで、背景や構図の言葉は足さない"""
         import time
         from chatdraw import phases
         from chatdraw.models import family as fam, image_model
-        say("工程に分けて描きます（構図 → 体型と姿勢 → 線画 → 塗り → 仕上げ）")
+        say(f"工程に分けて、筆で描きます（全 {len(phases.PHASES)} 工程: " + " → ".join(p[0] for p in phases.PHASES) + "）")
         say("頼みを描く言葉に直しています")
         as_tags = fam(image_model(getattr(self.painter, "model", "")).family).tags
         prompt = self.words.to_prompt(text, tags=as_tags)
@@ -1955,8 +1958,9 @@ class Studio:
             raise ValueError("子どもを性的に描く頼みは描きません")
         keep = self.out / ".stages" / f"{time.strftime('%Y%m%d-%H%M%S')}-{seed}-phases"
         try:
-            got = phases.draw(self.painter, prompt, seed, size, keep, say=say,
-                              on_step=lambda i, n: say(f"描いています（{i}/{n}）"))
+            # 下絵の進みは phases が「工程 1/N「下絵」 下絵（i/n）」の形で知らせる。前は「描いています（i/n）」を出していて、
+            # 進みの欄が 1 工程目の終わりで帯を満たし、完了に見えた
+            got = phases.draw(self.painter, prompt, seed, size, keep, say=say, on_preview=on_preview)
         finally:
             if hasattr(self.painter, "avoid"):
                 self.painter.avoid = avoid0
