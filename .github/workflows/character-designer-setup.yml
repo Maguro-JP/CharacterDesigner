@@ -1,0 +1,47 @@
+# CharacterDesigner（AtelIer の拡張）の Setup.exe を組む。main では公開する版として Release に置き、作業ブランチでは artifact に置く。
+# リポジトリは公開しているので Actions の枠を使わない。手元で組むと時間とディスクを食うため、組むのはここで行う。
+# Linux の上で NSIS を使って組む（Windows のランナーは使わない）。Python と部品は入れないので短い。
+name: character-designer-setup
+on:
+  push:
+    paths:
+      - "character_designer/**"
+      - "packaging/character_designer/**"
+      - "tools/**"
+      - "styles/**"
+      - "casts/**"
+      - "VERSION"
+      - ".github/workflows/character-designer-setup.yml"
+  workflow_dispatch: {}
+permissions:
+  contents: write            # Release に置くため
+concurrency:
+  group: character-designer-setup-${{ github.ref }}
+  cancel-in-progress: true   # 続けて push したら古い方を止める
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - name: NSIS
+        run: sudo apt-get update -q && sudo apt-get install -y -q nsis
+      - name: Setup.exe を組む
+        run: sh packaging/character_designer/build.sh
+      # 作業ブランチの版は Release に置かず、7 日で消える artifact に置く（ブランチごとの試す版が Release の一覧に溜まったため）
+      - name: 試す版として置く（作業ブランチ）
+        if: github.ref != 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: CharacterDesigner-Setup
+          path: dist/*.exe
+          retention-days: 7
+      - name: 公開する版として置く（main）
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="v$(cat VERSION)"
+          gh release view "$tag" >/dev/null 2>&1 && { echo "$tag は公開済み"; exit 0; }
+          gh release create "$tag" dist/*.exe --target "$GITHUB_SHA" --title "CharacterDesigner $tag" \
+            --notes "AtelIer を入れてから実行すると、AtelIer にキャラクターデザインの拡張が入ります。"
