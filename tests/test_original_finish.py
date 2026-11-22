@@ -47,7 +47,31 @@ def outside_same(a, b, mask) -> bool:
     return ImageChops.difference(Image.composite(a, keep, inv), Image.composite(b, keep, inv)).getbbox() is None
 
 
-class CharaDesign(unittest.TestCase):
+class _KeepBible:
+    """chara_design.bible() は tools/gen の bible の ROOT と BIBLE を一時の置き場へ書き換える。
+    戻さないと、あとに流れる試験（test_ensemble など）が一時の置き場の設定を読んで落ちた"""
+
+    def setUp(self):
+        import sys
+        b = sys.modules.get("bible")
+        self._bible = (b, getattr(b, "ROOT", None), getattr(b, "BIBLE", None)) if b else None
+        super().setUp()
+
+    def tearDown(self):
+        super().tearDown()
+        import sys
+        b = sys.modules.get("bible")
+        if b is None:
+            return
+        if self._bible and self._bible[0] is b:
+            b.ROOT, b.BIBLE = self._bible[1], self._bible[2]
+        else:   # この試験で初めて読んだ: 既定の置き場に戻す
+            from pathlib import Path
+            b.ROOT = Path(b.__file__).resolve().parents[2]
+            b.BIBLE = b.ROOT / "bible"
+
+
+class CharaDesign(_KeepBible, unittest.TestCase):
     def test_save_turnaround_expressions_sheet(self):
         from character_designer import chara_design as charadesign
         with TemporaryDirectory() as d:
@@ -105,7 +129,7 @@ class CharaDesign(unittest.TestCase):
 
 
 @unittest.skipUnless(importlib.util.find_spec("PySide6") is not None, "PySide6 が無い")
-class CharaMenu(unittest.TestCase):
+class CharaMenu(_KeepBible, unittest.TestCase):
     def test_menu_and_save(self):
         from PySide6.QtWidgets import QApplication
         from atelier.app.main_window import Window
@@ -133,7 +157,7 @@ class CharaMenu(unittest.TestCase):
             w.close()
 
 
-class ExpressionFiles(unittest.TestCase):
+class ExpressionFiles(_KeepBible, unittest.TestCase):
     def test_expressions_from_bible(self):
         """表情差分の置き場を知っているのはキャラクターデザインの側。AtelIer のスタンプは expression_sources で受け取る"""
         import json
