@@ -51,7 +51,7 @@ def keypoints(im, path: Path, refined: bool = False) -> dict:
         import facecheck
         got = facecheck.refine_points(im, keypoints(im, path))
     else:
-        from chatdraw.twostage import keypoints as kp
+        from atelier.ai.two_stage import keypoints as kp
         got = kp(im)
     got = {k: [float(v) for v in xy] for k, xy in got.items() if k != "_refined"}
     key.write_text(json.dumps(got), encoding="utf-8")
@@ -111,7 +111,7 @@ def make_mirror(im, kind: str):
 def run(limit: int, raw: bool = False) -> dict:
     from PIL import Image
     import facecheck
-    from chatdraw import mirrorcheck
+    from atelier.qc import mirror_check as mirrorcheck
     rows = []
     for p in sources(limit):
         im = Image.open(p).convert("RGB")

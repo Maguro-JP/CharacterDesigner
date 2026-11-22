@@ -77,7 +77,7 @@ class Toes(unittest.TestCase):
         self.assertLess(soft, 0.5 * sharp)
 
     def check(self, blur, asked=""):
-        from chatdraw import handcheck
+        from atelier.qc import hand_check as handcheck
         im = lines()
         if blur:
             im.paste(lines(blur).crop((150, 250, 250, 350)), (150, 250))
@@ -102,14 +102,14 @@ class Toes(unittest.TestCase):
 
 class People(unittest.TestCase):
     def test_second_person_when_solo(self):
-        from chatdraw import requestcheck
+        from atelier.qc import request_check as requestcheck
         self.assertEqual(requestcheck.people("1girl, solo, bikini", {"1girl": 0.99, "2girls": 0.8}), ["2girls 0.8"])
         self.assertEqual(requestcheck.people("1girl, solo", {"1girl": 0.99, "multiple views": 0.87, "solo": 0.01}),
                          ["multiple views 0.87"])
         self.assertEqual(requestcheck.people("1girl, solo", {"1girl": 0.99, "solo": 0.05}), ["solo 0.05"])
 
     def test_asked_many_or_solo_drawn(self):
-        from chatdraw import requestcheck
+        from atelier.qc import request_check as requestcheck
         self.assertEqual(requestcheck.people("2girls, beach", {"2girls": 0.9}), [])
         self.assertEqual(requestcheck.people("1girl, 1boy", {"1girl": 0.9, "1boy": 0.9}), [])
         self.assertEqual(requestcheck.people("1girl, solo", {"1girl": 0.99, "solo": 0.96}), [])
@@ -118,14 +118,15 @@ class People(unittest.TestCase):
 
 class Body(unittest.TestCase):
     def test_exaggerated_tags(self):
-        from chatdraw import body, bodycheck
+        from atelier.words import body_words as body
+        from atelier.qc import body_check as bodycheck
         bad = bodycheck.from_tags({"huge breasts": 0.68, "thick thighs": 0.54, "large breasts": 0.9}, body.WOMAN)
         self.assertEqual(len(bad), 2, bad)
         self.assertEqual(bodycheck.from_tags({"huge breasts": 0.11, "thick thighs": 0.3}, body.WOMAN), [])
         self.assertEqual(bodycheck.from_tags({"huge breasts": 0.9}, "1girl, huge breasts"), [])   # 頼んだ体は崩れにしない
 
     def test_silhouette_widths(self):
-        from chatdraw import bodycheck
+        from atelier.qc import body_check as bodycheck
         im = Image.new("RGB", (300, 400), BG)
         d = ImageDraw.Draw(im)
         d.polygon([(110, 100), (190, 100), (175, 160), (165, 180), (200, 230), (100, 230), (135, 180), (125, 160)], fill=SKIN)

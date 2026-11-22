@@ -49,7 +49,7 @@ TAIL = {"head": None, "leftHand": None, "rightHand": None, "leftFoot": None, "ri
 # ---------- 絵を分ける ----------
 
 def mask_of(img: Image.Image, tol: int = 10) -> Image.Image:
-    """人物の所を 255 にした型（chatdraw/to3d.py と同じ抜き方。透明があれば透明を使う）。
+    """人物の所を 255 にした型（atelier/ai/to_3d.py と同じ抜き方。透明があれば透明を使う）。
     差の閾値は 10。24 では白に近い服（背面のスカート）が背景に落ちた。JPEG の白の揺れは 6 以下だった"""
     if img.mode == "RGBA" and img.getextrema()[3][0] < 250:
         return img.getchannel("A").point(lambda a: 255 if a > 127 else 0)

@@ -248,7 +248,7 @@ COLOR_NAMES = (("黒", (20, 20, 20)), ("灰", (128, 128, 128)), ("白", (245, 24
 
 
 def ja_font_path() -> Path | None:
-    """日本語の字が出る書体の置き場。同梱の chatdraw/fonts を先に、無ければ OS の物を探す"""
+    """日本語の字が出る書体の置き場。同梱の character_designer/fonts を先に、無ければ OS の物を探す"""
     own = sorted((Path(__file__).parent / "fonts").glob("*.[ot]t[fc]"))
     if own:
         return own[0]

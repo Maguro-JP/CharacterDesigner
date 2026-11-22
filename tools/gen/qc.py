@@ -1064,16 +1064,16 @@ def auto_check(src: str, prompt: str = "", heads_range: tuple[float, float] | No
             res["unreadable"].append({"hands": hand})
         elif hand["bad"]:
             res["problems"].append({"hands": hand})
-        # 余分な腕・脚・頭・体（人の数と部位分けの塊の数）、顔の外の目、頼んでいない黄色い目（chatdraw/sanity.py）。
+        # 余分な腕・脚・頭・体（人の数と部位分けの塊の数）、顔の外の目、頼んでいない黄色い目（atelier/qc/sanity.py）。
         # 手・足・顔の検品は枠の中しか見ず、腕が 3 本の絵（library/feedback/body/2026-10-20/r21）を通していた
         try:
             root = str(Path(__file__).resolve().parents[2])
             if root not in sys.path:
                 sys.path.insert(0, root)
             import cdhome
-            home = cdhome.HOME   # chatdraw を読むと部品の置き場がアプリの置き場へ向き替わる。この台本の置き場は元のまま保つ
+            home = cdhome.HOME   # atelier を読むと部品の置き場がアプリの置き場へ向き替わる。この台本の置き場は元のまま保つ
             try:
-                from chatdraw import sanity
+                from atelier.qc import sanity
                 odd = sanity.check(src, prompt, tags=all_tags or None)
             finally:
                 cdhome.HOME = home

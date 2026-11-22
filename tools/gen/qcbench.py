@@ -1,4 +1,4 @@
-"""検品単体（chatdraw/qcmanual.inspect、アプリの「検品する」と同じ経路）の精度の台。
+"""検品単体（atelier/qc/manual_check.py の inspect、アプリの「検品する」と同じ経路）の精度の台。
 
     PYTHONPATH=.cache/simple/lib:.cache/gen/lib python3 tools/gen/qcbench.py [--limit N] [--json 出力.json]
 
@@ -93,15 +93,15 @@ def tags_of(path: Path) -> dict:
     key = d / (hashlib.sha1(path.read_bytes()).hexdigest() + ".json")
     if key.exists():
         return json.loads(key.read_text(encoding="utf-8"))
-    from chatdraw.requestcheck import _tagger
+    from atelier.qc.request_check import _tagger
     got = _tagger(False).read(str(path), threshold=0.05)
     key.write_text(json.dumps(got), encoding="utf-8")
     return got
 
 
 def request_of(path: Path, asked: str) -> dict:
-    """頼んだ物の検品（chatdraw/requestcheck.py と同じ missing / extras / people）を、貯めたタグで流す"""
-    from chatdraw import requestcheck
+    """頼んだ物の検品（atelier/qc/request_check.py と同じ missing / extras / people）を、貯めたタグで流す"""
+    from atelier.qc import request_check as requestcheck
     if not asked:
         return {}
     got = tags_of(path)
@@ -271,7 +271,7 @@ def said(res: dict) -> dict:
                 flag.add(k)
                 if h.get("box"):
                     boxed.add(k)
-    from chatdraw import qcmanual
+    from atelier.qc import manual_check as qcmanual
     for line in qcmanual.unplaced(res) + qcmanual.missed(res):
         s = str(line)
         if s.startswith(("手", "指")):
@@ -284,7 +284,7 @@ def said(res: dict) -> dict:
         s = str(b)
         if s.startswith("顔") or "目" in s[:4]:
             flag.add("faces")
-    # 体の検品（chatdraw/sanity.py）の崩れ: 余分な目・口・顔・頭は顔、腕は手、脚は足として数える。
+    # 体の検品（atelier/qc/sanity.py）の崩れ: 余分な目・口・顔・頭は顔、腕は手、脚は足として数える。
     # 「目が多い」「腕が多い」は手・足・顔で始まらないので、台で数えられていなかった
     for b in res.get("body_bad", []) or []:
         s = str(b)
@@ -304,8 +304,8 @@ def said(res: dict) -> dict:
 def _mirror(path: Path) -> dict:
     """映り込みの検品だけ（sanity.check と同じタグと同じ mirrorcheck）"""
     from PIL import Image
-    from chatdraw import mirrorcheck
-    from chatdraw.paths import use_tools_gen
+    from atelier.qc import mirror_check as mirrorcheck
+    from atelier.files.paths import use_tools_gen
     use_tools_gen()
     import tagger
     m = mirrorcheck.check(Image.open(path).convert("RGB"), tagger.read(str(path)))
@@ -339,7 +339,7 @@ def run_one(path: Path, fresh: bool = False) -> dict:
                 key.write_text(json.dumps(d, ensure_ascii=False), encoding="utf-8")
             return d["res"]
     from PIL import Image
-    from chatdraw import qcmanual
+    from atelier.qc import manual_check as qcmanual
     res = qcmanual.inspect(Image.open(path))
     keep = {k: res.get(k) for k in ("bad", "body_bad", "reason", "feet_reason", "body_reason", "legs_reason", "readable")}
     keep["hands"] = [{"box": h.get("box"), "bad": h.get("bad")} for h in res.get("hands", []) or []]

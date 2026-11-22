@@ -48,7 +48,7 @@ _SEG = None
 
 def seg_cache_dir() -> str | None:
     """部位分けの模型が既にある hub の置き場。無ければ None（既定の置き場で取る）。
-    アプリの経路（chatdraw.paths.use_tools_gen）は cdhome.HOME を data_home()/cd に向けるので、HF_HOME が
+    アプリの経路（atelier.files.paths.use_tools_gen）は cdhome.HOME を data_home()/cd に向けるので、HF_HOME が
     .cache/cd/gen/hf になり、.cache/gen/hf にある模型を見つけられず、体の検品の部位分けが毎回落ちていた"""
     seen = []
     for d in (os.environ.get("HF_HUB_CACHE"), os.environ.get("HF_HOME") and Path(os.environ["HF_HOME"]) / "hub",
