@@ -124,7 +124,7 @@ class FingerCountImageTest(unittest.TestCase):
 
     def test_hands(self):
         try:
-            from chatdraw import handcheck
+            from atelier.qc import hand_check as handcheck
             hands = handcheck._hands()
             hands._litert()
             if not handcheck.ensure_models(fetch=False):

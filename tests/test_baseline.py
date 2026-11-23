@@ -122,7 +122,7 @@ class Swimsuit(unittest.TestCase):
     def test_minor_and_swimsuit_is_drawn(self):
         import sys
         sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-        from chatdraw import childsafe
+        from atelier.words import child_safety as childsafe
         """水着の高校生は止めない（漫画や設定資料に普通に出る。2026-11-08 の決定）。性的な語と並んだときだけ止める"""
         free_text.full_prompt("1girl, high school student, swimsuit")
         with self.assertRaises(ValueError):

@@ -22,6 +22,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - name: 本体の AtelIer を取る（検品と 3D の部品は atelier にある）
+        uses: actions/checkout@v4
+        with:
+          repository: Maguro-JP/AtelIer
+          path: .cache/AtelIer
+      - run: echo "PYTHONPATH=$GITHUB_WORKSPACE/.cache/AtelIer" >> "$GITHUB_ENV"
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"

@@ -111,7 +111,7 @@ class Chara3DTest(unittest.TestCase):
         return p
 
     def test_dialog_helper(self):
-        from chatdraw.to3d import make_character
+        from atelier.ai.to_3d import make_character
         info = make_character(self._single(), self.tmp / "dlg")
         self.assertTrue(Path(info["sheet"]).exists())
         self.assertEqual(Image.open(info["sheet"]).width, 480 * 4)

@@ -1,14 +1,19 @@
 # CharacterDesigner
 
-The product is chatdraw, a Windows desktop app: ask in chat and the AI draws character designs and illustrations, a numeric art director inspects them, and you can draw over them by hand. Requests are not limited to Japanese.
+CharacterDesigner is the character-design extension for the paint app [AtelIer](https://github.com/Maguro-JP/AtelIer): character sheets, turnarounds, expression sheets and character files (.chara).
 日本語: [README.md](README.md)
 
-All development happens in [chatdraw/](chatdraw/README.md). Setup.exe is built by `packaging/chatdraw/` and `.github/workflows/chatdraw-*.yml`.
+The app itself (drawing tools, AI drawing, Setup.exe) lives in AtelIer. This repository holds the extension package `character_designer/` and the character-design material.
 
 ## Install and use
 
-- Installation, model download, update, removal and troubleshooting: [chatdraw/help/install.md](chatdraw/help/install.md) (Japanese)
-- Usage: [chatdraw/help/manual.md](chatdraw/help/manual.md) (Japanese). Both open from the app's Help (ヘルプ) menu, which also has a guided tour (F1) and per-feature guides
+```bash
+pip install "atelier @ git+https://github.com/Maguro-JP/AtelIer.git@main"
+pip install -e .
+python -m atelier   # the キャラクターデザイン menu appears
+```
+
+The extension is found through the `atelier.extensions` entry point in `pyproject.toml`.
 - The models the app can run: [docs/models.md](docs/models.md)
 
 ## What the app does
@@ -19,14 +24,14 @@ The app's UI is in Japanese; entry names are given as they appear.
 - New drawings replace the canvas (undo restores it); requests stay in the history and can be re-run from its right-click menu
 - Character design menu (キャラクターデザイン): save a character sheet, turnaround (三面図), expression sheet (表情差分)
 - Fix and extend: circle an area with the red pen and only that area is redrawn; open an existing image to fix it (画像を開いて直す…); canvas right-click shortcuts grouped by kind (clean up 綺麗にする, redraw, upscale, texture, atmosphere, inking, effects, outpaint 広げる), with starred and frequently used ones on top, plus your own fix requests registered under 指示で直す; chibi, line art, pixel art and 2x upscale from the 加工 tab; go to 3D (3D に進む…)
-- Art director: hands, feet, faces, requested items and CharacterDesigner's own numeric checks run inside the おまかせ flow (`chatdraw/omakase.py`, `chatdraw/origqc.py`)
+- Art director: hands, feet, faces, requested items and CharacterDesigner's own numeric checks run inside the おまかせ flow (AtelIer's `atelier/ai/omakase.py`, `atelier/qc/original_qc.py`)
 - Models: favorites, the fix model, and the model manager (模型の管理…) to fetch, update, delete, add by Hugging Face name, hide, block or stop models
 - Painting: brushes, colors, layers, selection, themes, saved layouts, timelapse with GIF and video export
 - Files: save, PNG and PSD export, trash (ごみ箱…), library panel, share to social sites, update check
 
 ## Content limits
 
-Nothing is restricted up front. The single fixed limit is sexual depiction of children (`refused` in `chatdraw/engine.py`). See [docs/filters.md](docs/filters.md). A user filter panel is not in the app yet.
+Nothing is restricted up front. The single fixed limit is sexual depiction of children (`refused` in AtelIer's `atelier/ai/engine.py`). See [docs/filters.md](docs/filters.md). A user filter panel is not in the app yet.
 
 ## Tools not yet in the app
 
@@ -43,8 +48,7 @@ A map is in [docs/STRUCTURE.md](docs/STRUCTURE.md) (Japanese); images are listed
 
 | Path | Role |
 |---|---|
-| `chatdraw/` | The product: desktop app (PySide6), tests in `chatdraw/tests/` |
-| `packaging/chatdraw/` | How Setup.exe is built (run by the `chatdraw-*.yml` workflows) |
+| `character_designer/` | The AtelIer extension (character design menu, modes and character files). The app itself and Setup.exe live in AtelIer |
 | `tools/gen/` | Drawing, redrawing and measuring. `hands.py`, `tagger.py`, `cdhome.py` ship inside the app |
 | `tools/` | Pixel-art renderer, checks and comparisons |
 | `styles/` | Style rules and art-director norms (numbers and sources) |
@@ -54,7 +58,8 @@ A map is in [docs/STRUCTURE.md](docs/STRUCTURE.md) (Japanese); images are listed
 
 ```bash
 python3 -m unittest discover -s tests
-QT_QPA_PLATFORM=offscreen python3 -m unittest chatdraw.tests.test_chatdraw
+# extension tests (install AtelIer or put it on PYTHONPATH; one file per process)
+QT_QPA_PLATFORM=offscreen python3 tests/test_atelier_extension.py
 ```
 
 ## License

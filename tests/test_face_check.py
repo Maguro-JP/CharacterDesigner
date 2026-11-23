@@ -57,7 +57,7 @@ class BoxTest(unittest.TestCase):
 class ImageTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        import chatdraw.paths as paths
+        from atelier.files import paths
         paths.HUB = Path(HUB)
 
     def _run(self, name):

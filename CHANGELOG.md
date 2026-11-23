@@ -2,6 +2,11 @@
 
 版の番号は根の `VERSION` に 1 か所だけ置く。画面（`app/web/package.json`）、サーバー（`/openapi.json` の version）、Setup.exe の表示はそこに合わせる。
 
+## 0.5.39（2026-11-23）
+
+- キャラクターデザインを AtelIer の拡張として切り出しました。AtelIer を使う人は、拡張だけの Setup（`CharacterDesigner-Extension-Setup.exe`）を入れます。Python と PySide6 は入らず、AtelIer の物で動きます。
+- AtelIer のタイトルの画面に CharacterDesigner のタイル（名前・一言・絵）が出るようにしました。
+
 ## 0.5.38（2026-11-20）
 
 - 描く操作を画面とサーバーで同じ形で呼べる、共通の描画操作の土台を足しました。

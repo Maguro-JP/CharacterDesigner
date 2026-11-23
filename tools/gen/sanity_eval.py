@@ -1,4 +1,4 @@
-"""矛盾の検品（chatdraw/sanity.py）の当たりと外れを、利用者の判定の付いた絵で数える。
+"""矛盾の検品（atelier/qc/sanity.py）の当たりと外れを、利用者の判定の付いた絵で数える。
 
   PYTHONPATH=.cache/gen/lib python3 tools/gen/sanity_eval.py tags --out tags.json    # 絵全体のタグを 1 回だけ読む
   PYTHONPATH=.cache/gen/lib python3 tools/gen/sanity_eval.py score tags.json         # タグで読める崩れの前と後
@@ -70,7 +70,7 @@ def score(rows: list[dict], flaws) -> dict:
 
 def before(row: dict) -> list[str]:
     """足す前の絵全体のタグの検品（腕・頭・顔・目が多い、頼んでいない黄色い目）"""
-    from chatdraw import sanity
+    from atelier.qc import sanity
     got, prompt = row["tags"], prompt_of(row)
     out = []
     for tag, (word, least) in sanity.TAG_FLAWS.items():
@@ -82,7 +82,7 @@ def before(row: dict) -> list[str]:
 
 
 def after(row: dict) -> list[str]:
-    from chatdraw import sanity
+    from atelier.qc import sanity
     return sanity.from_tags(row["tags"], prompt_of(row))
 
 
@@ -104,12 +104,12 @@ def main():
         return
     rows, t0 = labeled(), time.time()
     if a.mode == "tags":
-        from chatdraw.requestcheck import _tagger
+        from atelier.qc.request_check import _tagger
         tg = _tagger(True)
         for r in rows:
             r["tags"] = tg.read(str(ROOT / r["path"]), threshold=0.2)
     else:
-        from chatdraw import sanity
+        from atelier.qc import sanity
         for r in rows:
             res = sanity.check(ROOT / r["path"], prompt_of(r))
             r.update(bad=res["bad"], readable=res["readable"], reason=res.get("reason", ""), info=res.get("info", []))

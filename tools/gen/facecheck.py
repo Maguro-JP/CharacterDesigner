@@ -58,7 +58,7 @@ def refine_points(im, keypoints: dict, read=None) -> dict:
     x0, y0 = int(nx - side / 2), int(ny - side * 0.55)
     if read is None:
         sys.path.insert(0, str(ROOT))
-        from chatdraw.twostage import keypoints as read
+        from atelier.ai.two_stage import keypoints as read
     got = read(im.crop((x0, y0, x0 + side, y0 + side)))
     face = {k: (x + x0, y + y0) for k, (x, y) in got.items() if k in FACE_NAMES}
     if "left_eye" not in face or "right_eye" not in face:
@@ -103,7 +103,7 @@ def eye_dark(image, keypoints: dict) -> float | None:
 
 def _read_tags(crop) -> dict:
     sys.path.insert(0, str(ROOT))
-    from chatdraw import requestcheck
+    from atelier.qc import request_check as requestcheck
     tg = requestcheck._tagger(False)
     tmp = Path(tempfile.mkdtemp()) / "face.png"
     crop.save(tmp)
@@ -206,7 +206,7 @@ def check_face(image, keypoints: dict | None = None, asked: str = "", precise: b
     try:
         if keypoints is None:
             sys.path.insert(0, str(ROOT))
-            from chatdraw import twostage
+            from atelier.ai import two_stage as twostage
             keypoints = twostage.keypoints(im)
         box = face_box(keypoints, im.size)
         if box is None:
