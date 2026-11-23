@@ -36,6 +36,12 @@ AtelIer のインストーラーは名前に `Setup` を含む `.exe` を取る�
 直し方（私の推測）は、`packaging/character_designer/` で組んだ拡張だけの物を `CharacterDesigner-Extension-Setup.exe` の名前で Release に足し、
 AtelIer の `get-extension.ps1` がその名前を先に探す形にすること。詳しくは AtelIer の `docs/knowledge/integration.md` の「拡張の設計」。
 
+### 採用し合う
+
+AtelIer と 6 つのデザイナーは、互いの良い所・使える所（部品、画面、検品、手順、試験、配る仕組み）を採用し合い、同じ物を二度作らない（開発の工数を減らすため）。
+共通に使える部品（模型の置き場、言葉の模型、検品、設定の保存、作業ファイル、試験の下ごしらえなど）は AtelIer の側に置き、デザイナーはそれを使う。
+逆に、デザイナーで出来た良い物は AtelIer に取り込む。今重なっている物と、どちらを採るかの推奨は、AtelIer の `docs/knowledge/integration.md` の「採用し合う物」。
+
 ### タイトルの画面に出す物
 
 AtelIer のタイトルの画面に出す名前・絵・一言は、`extension.json` に持たせる。欄の名前と形は私の推測で、AtelIer の側はまだ読まない
