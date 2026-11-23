@@ -1,6 +1,7 @@
 # CharacterDesigner（AtelIer の拡張）の Setup.exe を組む。main では公開する版として Release に置き、作業ブランチでは artifact に置く。
 # リポジトリは公開しているので Actions の枠を使わない。手元で組むと時間とディスクを食うため、組むのはここで行う。
-# Linux の上で NSIS を使って組む（Windows のランナーは使わない）。Python と部品は入れないので短い。
+# Linux の上で NSIS を使って組む。Python と部品は入れないので短い。
+# windows の段は、組んだ Setup.exe を入れて外し、利用者の物（ライブラリー、資料、C:\LLM、ほかの拡張、AtelIer の置き場）が残ることを見る。
 name: character-designer-setup
 on:
   push:
@@ -29,15 +30,73 @@ jobs:
       - name: Setup.exe を組む
         run: sh packaging/character_designer/build.sh
       # 作業ブランチの版は Release に置かず、7 日で消える artifact に置く（ブランチごとの試す版が Release の一覧に溜まったため）
-      - name: 試す版として置く（作業ブランチ）
-        if: github.ref != 'refs/heads/main'
+      - name: 試す版として置く（windows の段でも使う）
         uses: actions/upload-artifact@v4
         with:
           name: CharacterDesigner-Extension-Setup
           path: dist/*.exe
           retention-days: 7
+  windows:
+    # 外すときに利用者の物を消していた不具合を、本物の Windows で入れて外して止める
+    needs: setup
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: CharacterDesigner-Extension-Setup
+          path: dist
+      - name: 入れて外し、利用者の物が残るのを見る
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $setup = (Get-ChildItem dist\*.exe | Select-Object -First 1).FullName
+          $inst = 'C:\Program Files\CharacterDesigner'
+          $ext = 'C:\ProgramData\AtelIer\extensions\character_designer'
+          reg add 'HKLM\Software\AtelIer' /v InstallDir /d 'C:\Program Files\AtelIer' /f /reg:64 | Out-Null
+          # 利用者の物の代わり（前の版のデータの置き場、資料、C:\LLM、ほかの拡張、AtelIer の置き場、入れた所に置いた物）
+          $keep = @(
+            'C:\ProgramData\CharacterDesigner\library\docs\user_doc.txt',
+            'C:\ProgramData\CharacterDesigner\library\user_entry.txt',
+            'C:\ProgramData\CharacterDesigner\docs\user_doc.txt',
+            'C:\ProgramData\CharacterDesigner\logs\user_log.txt',
+            'C:\LLM\gguf\user_model.gguf',
+            'C:\ProgramData\AtelIer\extensions\other_ext\extension.json',
+            'C:\ProgramData\AtelIer\library\user_entry.txt',
+            "$inst\my_notes.txt",
+            'C:\mydir\my_notes.txt')
+          New-Item -ItemType File -Force -Path 'C:\mydir\tools\mine.txt' -Value 'user' | Out-Null
+          foreach ($f in $keep) { New-Item -ItemType File -Force -Path $f -Value 'user' | Out-Null }
+          # 前の版（単体の Setup）が入っている形
+          foreach ($f in @("$inst\VERSION", "$inst\chatdraw\__init__.py", "$inst\python\python.exe")) { New-Item -ItemType File -Force -Path $f | Out-Null }
+          function Run($exe, $argv) { $p = Start-Process -FilePath $exe -ArgumentList $argv -Wait -PassThru; if ($p.ExitCode -ne 0) { throw "$exe $argv の終わりの値 $($p.ExitCode)" } }
+          Run $setup '/S'
+          $bad = @()
+          if (Test-Path "$inst\chatdraw") { $bad += '前の版の chatdraw が残った' }
+          if (Test-Path "$inst\python") { $bad += '前の版の python が残った' }
+          if (-not (Test-Path "$ext\extension.json")) { $bad += '拡張の置き場に入っていない' }
+          # 印の無いフォルダーへ入れても、そこにある物を消さない
+          Run $setup '/S /D=C:\mydir'
+          if (-not (Test-Path 'C:\mydir\tools\mine.txt')) { $bad += '印の無いフォルダーへ入れたら tools の中の利用者の物が消えた' }
+          Run 'C:\mydir\Uninstall.exe' '/S _?=C:\mydir'
+          Run $setup '/S'
+          Run "$inst\Uninstall.exe" "/S _?=$inst"
+          if (Test-Path $ext) { $bad += '外したのに拡張の置き場が残った' }
+          if (Test-Path "$inst\character_designer") { $bad += '外したのに控えが残った' }
+          foreach ($f in $keep) { if (Test-Path $f) { Write-Host "残った: $f" } else { $bad += "消えた: $f" } }
+          if ($bad.Count) { $bad | ForEach-Object { Write-Host "::error::$_" }; exit 1 }
+          Write-Host "利用者の物 $($keep.Count) 件がすべて残りました"
+  release:
+    needs: [setup, windows]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: CharacterDesigner-Extension-Setup
+          path: dist
       - name: 公開する版として置く（main）
-        if: github.ref == 'refs/heads/main'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

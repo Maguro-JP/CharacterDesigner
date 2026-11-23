@@ -2,6 +2,12 @@
 
 版の番号は根の `VERSION` に 1 か所だけ置く。画面（`app/web/package.json`）、サーバー（`/openapi.json` の version）、Setup.exe の表示はそこに合わせる。
 
+## 0.5.40（2026-11-23）
+
+- 拡張だけの Setup が入れ直すときと外すときに消すのを、この Setup が入れた名前だけにし、その印がある所に限りました。前の単体の Setup が外すときに C:\ProgramData\CharacterDesigner を丸ごと消し、利用者が足した資料やライブラリーまで消えていたためです。ライブラリー、資料、記録、作業ファイル、C:\LLM、AtelIer の置き場、ほかの拡張は消しません。
+- 前の単体の版が入っていれば、そのプログラム（chatdraw、python）とショートカットだけを片付け、データの置き場には触りません。
+- Actions の windows の段で、利用者の物の代わりのファイルを置いて入れて外し、残ることを確かめます。
+
 ## 0.5.39（2026-11-23）
 
 - キャラクターデザインを AtelIer の拡張として切り出しました。AtelIer を使う人は、拡張だけの Setup（`CharacterDesigner-Extension-Setup.exe`）を入れます。Python と PySide6 は入らず、AtelIer の物で動きます。

@@ -33,6 +33,7 @@ AtelIer が 6 つのデザイナーを統括する。開発はデザイナーご
 
 v0.5.38 までの Release にあった `CharacterDesigner-Setup.exe`（84,670,803 バイト）は、`packaging/chatdraw/build.sh` で Python と PySide6 ごと組んだ単体の物で、拡張だけの物ではなかった。
 v0.5.39 からは、`packaging/character_designer/build.sh` で組んだ拡張だけの物を `CharacterDesigner-Extension-Setup.exe` の名前で Release に置く。
+拡張だけの Setup は、入れ直すときと外すときに、自分が入れた名前だけをその印（`extension.json` と `character_designer\__init__.py`）がある所から消す。前の単体の版が外すときに `C:\ProgramData\CharacterDesigner` を丸ごと消し、利用者が足した資料やライブラリーまで消えたため。前の単体の版が入っていれば、そのプログラムとショートカットだけを片付け、データの置き場と `C:\LLM` には触らない。
 AtelIer のインストーラー（`get-characterdesigner.ps1`・`get-extension.ps1`）は、名前に `Extension` と `Setup` を含む `.exe` だけを取る。
 
 ### 採用し合う
