@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DOCS_TOP = {"ROADMAP.md", "STRUCTURE.md", "models.md", "references.md", "record-policy.md", "release-plan.md", "filters.md", "third-party.md"}
+DOCS_TOP = {"ROADMAP.md", "STRUCTURE.md", "models.md", "references.md", "record-policy.md", "release-plan.md", "filters.md", "third-party.md", "atelier-extension.md"}
 IMAGES = (".png", ".jpg", ".jpeg", ".gif", ".webp")
 
 
@@ -22,7 +22,7 @@ class StructureTest(unittest.TestCase):
         self.assertEqual(found, ["docs/knowledge/decisions.md"])
 
     def test_images_in_their_places(self):
-        ok = ("library/", "bible/", "designs/", "characters/", "docs/images/", "app/", "templates/", "tools/", "config/poses/")
+        ok = ("library/", "bible/", "designs/", "characters/", "docs/images/", "app/", "templates/", "tools/", "config/poses/", "character_designer/icon/")
         bad = [f for f in tracked() if f.lower().endswith(IMAGES) and not f.startswith(ok)]
         self.assertEqual(bad, [], "絵は library/（見本・作例・比べ）か docs/images/（案内の画面）などの決まった場所へ")
 

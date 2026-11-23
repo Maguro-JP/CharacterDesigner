@@ -92,6 +92,18 @@ LOOKS = {"a": ("1girl, solo, red hair, red coat", "bad hands"), "b": ("1girl, bl
 
 
 class TestDrawin(unittest.TestCase):
+    def setUp(self):
+        # キャラクターデザインの試験は chara_design.bible() で bible の ROOT と BIBLE を一時の置き場へ向ける。
+        # 先に流れた試験が戻し忘れても、リポジトリの設定資料（knight など）を読むように既定へ戻す
+        import bible
+        self._bible = (bible.ROOT, bible.BIBLE)
+        bible.ROOT = Path(bible.__file__).resolve().parents[2]
+        bible.BIBLE = bible.ROOT / "bible"
+
+    def tearDown(self):
+        import bible
+        bible.ROOT, bible.BIBLE = self._bible
+
     def test_parse_character(self):
         self.assertEqual(E.parse_character("knight@10,20,300,800"), {"id": "knight", "box": (10, 20, 300, 800)})
         for bad in ("knight", "knight@1,2,3", "knight@300,20,10,800", "@1,2,3,4", "k@a,b,c,d"):

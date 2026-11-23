@@ -125,6 +125,8 @@ class ModeTest(Base):
             self.assertTrue(all(b.toolTip() for b in dlg.buttons.values()))
             dlg.dont_ask.setChecked(True)
             return "designer"
+        # AtelIer は既定ではモードを聞かない。「起動したときにモードを聞く」を入れた人と同じにする
+        modes.remember(w.layout_store, "", dont_ask=False)
         self.assertEqual(w.start_mode(ask), "designer")
         self.assertEqual(seen, [sorted(modes.MODES)])
         menus = self.visible(w)
