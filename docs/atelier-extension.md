@@ -31,10 +31,9 @@ AtelIer が 6 つのデザイナーを統括する。開発はデザイナーご
 | 拡張だけの Setup | 拡張のコードと、AtelIer の Python に無い依存だけ。AtelIer の Python と PySide6 で動く。小さい | AtelIer を使う人。AtelIer のインストーラーの選べる部品はこちらを入れる |
 | 単体の Setup | 自分の Python と PySide6 を持つ | AtelIer を使わない人 |
 
-いま Release（v0.5.38）にある `CharacterDesigner-Setup.exe`（84,670,803 バイト）は、`packaging/chatdraw/build.sh` で Python と PySide6 ごと組んだ単体の物で、拡張だけの物ではない。
-AtelIer のインストーラーは名前に `Setup` を含む `.exe` を取るので、今はこの単体の物を入れてしまう。
-直し方（私の推測）は、`packaging/character_designer/` で組んだ拡張だけの物を `CharacterDesigner-Extension-Setup.exe` の名前で Release に足し、
-AtelIer の `get-extension.ps1` がその名前を先に探す形にすること。詳しくは AtelIer の `docs/knowledge/integration.md` の「拡張の設計」。
+v0.5.38 までの Release にあった `CharacterDesigner-Setup.exe`（84,670,803 バイト）は、`packaging/chatdraw/build.sh` で Python と PySide6 ごと組んだ単体の物で、拡張だけの物ではなかった。
+v0.5.39 からは、`packaging/character_designer/build.sh` で組んだ拡張だけの物を `CharacterDesigner-Extension-Setup.exe` の名前で Release に置く。
+AtelIer のインストーラー（`get-characterdesigner.ps1`・`get-extension.ps1`）は、名前に `Extension` と `Setup` を含む `.exe` だけを取る。
 
 ### 採用し合う
 
@@ -44,17 +43,16 @@ AtelIer と 6 つのデザイナーは、互いの良い所・使える所（部
 
 ### タイトルの画面に出す物
 
-AtelIer のタイトルの画面に出す名前・絵・一言は、`extension.json` に持たせる。欄の名前と形は私の推測で、AtelIer の側はまだ読まない
-（AtelIer は今 `module`・`attr`・`path` だけを読み、ほかの鍵は飛ばす）。
+AtelIer のタイトルの画面に出す名前・絵・一言は、`extension.json` に持たせる。AtelIer の `atelier/extensions.py` の `load_dropins` が読む形に合わせ、鍵は平らに置く。
 
 ```json
-{"module": "character_designer.extension", "attr": "EXTENSION", "path": ".",
- "title": {"name": "CharacterDesigner", "image": "title.png", "tagline": "（一言）"}}
+{"module": "character_designer.extension", "attr": "EXTENSION", "path": ".", "version": "0.5.39",
+ "title": "CharacterDesigner", "tagline": "キャラクターをデザインする", "image": "character_designer/icon/title.png"}
 ```
 
-- `title.name`: タイトルの画面に出す名前
-- `title.image`: タイトルの画面に出す絵。`extension.json` のあるフォルダーからの道（PNG を私の推測とする）
-- `title.tagline`: 名前の下に出す一言
+- `title`: タイトルの画面に出す名前
+- `tagline`: 名前の下に出す一言
+- `image`: タイルの絵。`extension.json` のあるフォルダーからの道（`packaging/character_designer/build.sh` が書く）
 
 ## 今のコードが持っている入口
 
