@@ -24,11 +24,7 @@ def git(cwd, *args):
 
 
 def audit(cwd, *args):
-    # 手元の ~/.config/content-audit/names.txt や $CONTENT_AUDIT_NAMES を読まないよう、HOME を試しの置き場にする
-    # （手元に一覧があると「検査していない」の試しと、一覧のファイル自身を拾わない試しが、機械によって落ちた）
-    env = {k: v for k, v in os.environ.items() if k != "CONTENT_AUDIT_NAMES"}
-    env["HOME"] = str(cwd)
-    r = subprocess.run([sys.executable, "-I", str(AUDIT), *args], cwd=cwd, capture_output=True, text=True, env=env)
+    r = subprocess.run([sys.executable, "-I", str(AUDIT), *args], cwd=cwd, capture_output=True, text=True)
     return r.returncode, r.stdout + r.stderr
 
 
